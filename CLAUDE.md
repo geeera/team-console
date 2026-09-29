@@ -79,9 +79,10 @@ Access login when an `/api` call fails with status 0, a non-JSON body or 401 `ac
 RFC 9457 bodies via `problem(c, { type, title, status, detail?, retryAfter? })` for every error, including 404/500.
 DTOs and `ProblemDetails` live in `@shared/contracts`; D1 access in `@worker/db` (`ProjectsRepo`, parameterised
 queries only). Migrations live only in `apps/api/migrations` (`0001_init` = `projects`; `0002_push_subscriptions`
-#11, `0003_webhooks` #12, `0004_chat_wakeups` are reserved). `wrangler.jsonc` has `env.dev|stage|production`
-with non-secret vars only; secrets (`GITHUB_TOKEN`, `WEBHOOK_SECRET`, `VAPID_PRIVATE_KEY`, `ROUTINE_TOKEN_*`, `OWNER_EMAIL`) are
-declared in each app's `src/env.ts` and set with `wrangler secret put`. `AUTH_MODE:local` + `ENVIRONMENT:local`
+#11, `0003_webhooks` #12, `0004_chat_wakeups`, `0005_owner_connections` #59 are reserved). `wrangler.jsonc` has `env.dev|stage|production`
+with non-secret vars only; secrets (`WEBHOOK_SECRET`, `VAPID_PRIVATE_KEY`, `ROUTINE_TOKEN_*`, `OWNER_EMAIL`, and per
+ADR 0003 `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY` — `GITHUB_TOKEN` is gone with
+the PAT) are declared in each app's `src/env.ts` and set with `wrangler secret put`. `AUTH_MODE:local` + `ENVIRONMENT:local`
 are passed only as `--var` flags by `nx serve api` and the Dockerfile — `tools/workspace-checks` fails if either
 appears in an `env.*` block. Auth (#8, ADR 0001 decision 7) is one seam in `apps/api/src/auth/`, mounted once on `/api/*`
 before every router: `authMiddleware` verifies `Cf-Access-Jwt-Assertion` with `jose` against
