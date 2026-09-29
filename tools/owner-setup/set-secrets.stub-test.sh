@@ -91,11 +91,22 @@ run_set_secrets() {
     export HOME="${dir}/home"
     export GH_CONFIG_DIR="${dir}/home/gh-config"
     mkdir -p "${HOME}" "${GH_CONFIG_DIR}"
+
+    # Scrub anything that could authenticate as the owner if a stub is ever bypassed some other way: gh's own
+    # token env vars, and every PT_* variable this plugin's tooling uses for credentials/webhooks/routines.
     unset GH_TOKEN GITHUB_TOKEN
+    # shellcheck disable=SC2046 # word-splitting is the point: `compgen -v PT_` lists variable *names*.
+    unset $(compgen -v PT_ || true)
 
     resolved_gh=$(command -v gh)
     if [ "${resolved_gh}" != "${dir}/bin/gh" ]; then
       echo "TEST HARNESS BUG: 'gh' resolved to '${resolved_gh}', not the stub at '${dir}/bin/gh' — refusing to run set-secrets.sh, which would otherwise touch a real account" >&2
+      exit 126
+    fi
+
+    resolved_wrangler=$(command -v wrangler || true)
+    if [ -n "${resolved_wrangler}" ] && [ "${resolved_wrangler}" != "${dir}/repo/node_modules/.bin/wrangler" ]; then
+      echo "TEST HARNESS BUG: a 'wrangler' other than the stub is reachable on PATH ('${resolved_wrangler}') — set-secrets.sh itself only ever calls the pinned node_modules/.bin/wrangler by relative path, but refusing to run in case that ever changes" >&2
       exit 126
     fi
 
