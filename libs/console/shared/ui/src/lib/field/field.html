@@ -1,0 +1,11 @@
+<label class="tc-field__label" [attr.for]="controlId">
+  {{ label() }} @if (!required()) {
+  <span class="tc-field__optional">({{ 'ui.field.optional' | transloco }})</span>
+  }
+</label>
+<div class="tc-field__control"><ng-content /></div>
+@if (error()) {
+<p class="tc-field__error" [id]="errorId" role="alert">{{ error() }}</p>
+} @else if (hint()) {
+<p class="tc-field__hint" [id]="hintId">{{ hint() }}</p>
+}

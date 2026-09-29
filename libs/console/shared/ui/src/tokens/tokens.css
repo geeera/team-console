@@ -1,88 +1,296 @@
 /*
- * Paper Desk tokens (ADR 0002). A starter subset for the hello page; #13 fills the
- * full set from docs/design/directions/01-paper-desk.html. Components use only these
- * custom properties — never raw colours, sizes or durations.
+ * Paper Desk design tokens (ADR 0002; sketch in docs/design/directions/01-paper-desk.html).
+ *
+ * This file is the only place raw values live. Components, features and pages use the custom
+ * properties below — never a raw colour, length, duration, z-index or font (tools/design-lint fails
+ * the build on one). Keep the groups in this order when adding a token:
+ *   1 type · 2 spacing · 3 radii · 4 sizes and layout · 5 z-index · 6 breakpoints · 7 motion
+ *   8 safe areas · 9 colour (light) · 10 colour (dark) · 11 derived colour · 12 reduced motion
+ *
+ * Theme:  the OS setting applies by default; `<html data-theme="light|dark">` forces one.
+ * Motion: `prefers-reduced-motion` applies by default; `<html data-motion="reduce">` forces it.
+ * Both attributes are what the Storybook toolbar and a future user setting flip.
  */
+
+/* 1 · type — OFL faces with Cyrillic; the serif is the PM's voice and titles, the sans is the UI */
 :root {
   --font-display: 'Source Serif 4', Georgia, 'Times New Roman', serif;
   --font-body: 'Source Sans 3', -apple-system, system-ui, 'Segoe UI', sans-serif;
   --font-mono: 'Source Code Pro', ui-monospace, Menlo, monospace;
-  --fw-display: 600;
 
+  --fs-2xs: 11px;
   --fs-xs: 12px;
   --fs-sm: 14px;
   --fs-md: 15px;
+  --fs-input: 16px; /* iOS Safari zooms into any field smaller than 16px */
   --fs-lg: 18px;
   --fs-xl: 22px;
   --fs-2xl: 28px;
-  --lh-body: 1.55;
-  --lh-tight: 1.25;
 
+  --lh-none: 1;
+  --lh-tight: 1.25;
+  --lh-snug: 1.4;
+  --lh-body: 1.55;
+  --lh-prose: 1.62;
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --fw-display: 600;
+
+  --ls-caps: 0.06em; /* small caps and uppercase kickers */
+  --ls-kicker: 0.08em;
+}
+
+/* 2 · spacing — 4px base */
+:root {
+  --space-0: 0px;
+  --space-px: 1px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 20px;
   --space-6: 24px;
+  --space-7: 28px;
   --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+}
 
+/* 3 · radii — 6 / 10 / 16; pills only for counts and chips */
+:root {
+  --r-xs: 4px;
   --r-sm: 6px;
   --r-md: 10px;
   --r-lg: 16px;
-  --btn-h: 34px;
+  --r-sheet: 26px;
+  --r-pill: 999px;
+  --r-round: 50%;
+}
 
+/* 4 · sizes and layout */
+:root {
+  --border-w: 1px;
+  --border-w-strong: 2px; /* rule lines on recommendations and receipts */
+  --focus-w: 2px;
+  --focus-offset: 2px;
+
+  --control-h-sm: 30px;
+  --control-h: 34px;
+  --control-h-touch: 44px; /* iOS minimum tap target */
+  --control-h-touch-sm: 36px;
+  --icon-size-sm: 14px;
+  --icon-size: 18px;
+  --icon-size-lg: 24px;
+  --icon-size-xl: 32px;
+  --icon-button-size: 40px;
+  --avatar-size: 28px;
+  --chip-h: 22px;
+  --count-h: 20px;
+  --dot-size: 6px;
+  --grab-w: 38px;
+  --grab-h: 5px;
+  --spinner-size: 20px;
+  --spinner-size-lg: 32px;
+  --stamp-size: 78px;
+
+  --sidebar-w: 256px;
+  --pane-w: 392px;
+  --log-max: 680px;
+  --dialog-max-w: 440px;
+  --sheet-max-h: 88%;
+  --pad-x: 32px;
+  --pad-card: 18px 20px;
+  --card-indent: 40px;
+  --gap-log: 20px;
+}
+
+/* 5 · z-index — sheets and dialogs live in the CDK overlay container; these order what is inside */
+:root {
+  --z-base: 0;
+  --z-raised: 1;
+  --z-chrome: 10; /* top bar, tab bar */
+  --z-scrim: 30;
+  --z-sheet: 40;
+  --z-dialog: 50;
+  --z-toast: 70;
+  --z-overlay: 1000; /* .cdk-overlay-container */
+}
+
+/* 6 · breakpoints — custom properties cannot drive @media; the same numbers are exported from
+ *     breakpoints.ts for the CDK BreakpointObserver, and a test keeps the two in step */
+:root {
+  --bp-phone-max: 519.98px; /* ≤ iPhone widths: bottom sheets, tab bar, full-bleed cards */
+  --bp-tablet-max: 899.98px; /* single column, collapsed sidebar */
+}
+
+/* 7 · motion — quiet by default; the signature moment (the stamp) is the only long one */
+:root {
+  --dur-instant: 0ms;
+  --dur-fade: 120ms; /* reduced-motion stand-in for the stamp */
   --dur-fast: 140ms;
   --dur-base: 240ms;
+  --dur-slow: 380ms;
+  --dur-sig: 620ms;
+
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-emph: cubic-bezier(0.3, 0, 0, 1);
+}
 
+/* 8 · safe areas — the PWA runs edge to edge on iPhone (viewport-fit=cover) */
+:root {
   --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
 
+/* 9 · colour · light — warm paper, ink, one moss-green accent, ochre and clay for states */
+:root {
   --bg: #f7f3ec;
   --bg-sunken: #efe9df;
   --surface: #fffdf9;
+  --surface-2: #faf6ef;
   --text: #29251f;
   --text-2: #5b5449;
   --text-3: #6d6459;
   --border: #e5ddd0;
   --border-strong: #cfc5b5;
+
   --accent: #3e6a48;
   --accent-contrast: #ffffff;
   --accent-soft: #e3ece0;
   --accent-text: #2f5638;
-  --focus: #3e6a48;
-  --shadow-1: 0 1px 2px rgba(60, 45, 20, 0.07), 0 0 0 0.5px rgba(60, 45, 20, 0.03);
 
-  --hover: color-mix(in oklab, var(--text) 6%, transparent);
-  --accent-hover: color-mix(in oklab, var(--accent) 88%, var(--text) 12%);
+  --success-soft: #e1eedf;
+  --success-text: #2d6a3e;
+  --warning-soft: #f5e8cd;
+  --warning-text: #7a510e;
+  --danger: #9a3324;
+  --danger-contrast: #ffffff;
+  --danger-soft: #f6e0da;
+  --danger-text: #9a3324;
+
+  --focus: #3e6a48;
+  --owner-bubble: #eae2d4;
+  --owner-text: #29251f;
+  --scrim: rgba(0, 0, 0, 0.36);
+
+  --shadow-1: 0 1px 2px rgba(60, 45, 20, 0.07), 0 0 0 0.5px rgba(60, 45, 20, 0.03);
+  --shadow-2: 0 8px 24px -8px rgba(60, 45, 20, 0.22);
+  --shadow-3: 0 -12px 40px -12px rgba(60, 45, 20, 0.28);
 
   color-scheme: light;
 }
 
+/* 10 · colour · dark */
+:root[data-theme='dark'] {
+  --bg: #1c1a17;
+  --bg-sunken: #161412;
+  --surface: #25221e;
+  --surface-2: #201e1a;
+  --text: #eee8dd;
+  --text-2: #bdb4a5;
+  --text-3: #999082;
+  --border: #35312b;
+  --border-strong: #4a443b;
+
+  --accent: #8fbc92;
+  --accent-contrast: #10200f;
+  --accent-soft: #263428;
+  --accent-text: #a8d0aa;
+
+  --success-soft: #1f3122;
+  --success-text: #9bcf9f;
+  --warning-soft: #382d18;
+  --warning-text: #e6bc6e;
+  --danger: #f0a091;
+  --danger-contrast: #2a100b;
+  --danger-soft: #3d2420;
+  --danger-text: #f0a091;
+
+  --focus: #a8d0aa;
+  --owner-bubble: #322d27;
+  --owner-text: #eee8dd;
+  --scrim: rgba(0, 0, 0, 0.55);
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 10px 28px -8px rgba(0, 0, 0, 0.6);
+  --shadow-3: 0 -12px 40px -12px rgba(0, 0, 0, 0.7);
+
+  color-scheme: dark;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #1c1a17;
     --bg-sunken: #161412;
     --surface: #25221e;
+    --surface-2: #201e1a;
     --text: #eee8dd;
     --text-2: #bdb4a5;
     --text-3: #999082;
     --border: #35312b;
     --border-strong: #4a443b;
+
     --accent: #8fbc92;
     --accent-contrast: #10200f;
     --accent-soft: #263428;
     --accent-text: #a8d0aa;
+
+    --success-soft: #1f3122;
+    --success-text: #9bcf9f;
+    --warning-soft: #382d18;
+    --warning-text: #e6bc6e;
+    --danger: #f0a091;
+    --danger-contrast: #2a100b;
+    --danger-soft: #3d2420;
+    --danger-text: #f0a091;
+
     --focus: #a8d0aa;
+    --owner-bubble: #322d27;
+    --owner-text: #eee8dd;
+    --scrim: rgba(0, 0, 0, 0.55);
+
     --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-2: 0 10px 28px -8px rgba(0, 0, 0, 0.6);
+    --shadow-3: 0 -12px 40px -12px rgba(0, 0, 0, 0.7);
 
     color-scheme: dark;
   }
 }
 
+/* 11 · derived colour — mixes of the theme above, so they follow it automatically */
+:root {
+  --hover: color-mix(in oklab, var(--text) 6%, transparent);
+  --hover-solid: color-mix(in oklab, var(--surface) 93%, var(--text) 7%);
+  --pressed: color-mix(in oklab, var(--text) 10%, transparent);
+  --accent-hover: color-mix(in oklab, var(--accent) 88%, var(--text) 12%);
+  --danger-hover: color-mix(in oklab, var(--danger) 88%, var(--text) 12%);
+  --disabled-opacity: 0.55;
+  --skeleton: color-mix(in oklab, var(--text) 8%, transparent);
+}
+
+/* 12 · reduced motion — durations collapse to a frame; components read them and animate nothing */
 @media (prefers-reduced-motion: reduce) {
-  :root {
+  :root:not([data-motion='full']) {
+    --dur-fade: 1ms;
     --dur-fast: 1ms;
     --dur-base: 1ms;
+    --dur-slow: 1ms;
+    --dur-sig: 1ms;
   }
+}
+
+:root[data-motion='reduce'] {
+  --dur-fade: 1ms;
+  --dur-fast: 1ms;
+  --dur-base: 1ms;
+  --dur-slow: 1ms;
+  --dur-sig: 1ms;
 }

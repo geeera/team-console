@@ -16,7 +16,7 @@ commands:
   test: npx nx run-many -t test
   build: npx nx run-many -t build
   e2e: 'echo "SKIPPED: no e2e tests ran — apps/console-e2e arrives with #14; this is NOT a pass"'
-  storybook: 'echo "SKIPPED: no storybook build ran — libs/console/shared/ui stories arrive with #13; this is NOT a pass"'
+  storybook: npx nx build-storybook console-shared-ui
 
 environments:
   dev:

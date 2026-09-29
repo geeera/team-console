@@ -1,0 +1,41 @@
+:host {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--chip-h);
+  padding: 0 var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--bg-sunken);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-none);
+  white-space: nowrap;
+}
+
+.tc-chip__dot {
+  width: var(--dot-size);
+  height: var(--dot-size);
+  border-radius: var(--r-round);
+  background: currentColor;
+}
+
+:host(.tc-chip--accent) {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+:host(.tc-chip--success) {
+  background: var(--success-soft);
+  color: var(--success-text);
+}
+
+:host(.tc-chip--warning) {
+  background: var(--warning-soft);
+  color: var(--warning-text);
+}
+
+:host(.tc-chip--danger) {
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}

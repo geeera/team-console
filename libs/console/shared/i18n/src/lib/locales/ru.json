@@ -8,5 +8,24 @@
     "version": "Версия",
     "builtAt": "Сборка",
     "switchLang": "English"
+  },
+  "ui": {
+    "close": "Закрыть",
+    "back": "Назад",
+    "loading": "Загрузка…",
+    "confirm": {
+      "ok": "Подтвердить",
+      "cancel": "Отмена"
+    },
+    "empty": {
+      "title": "Пока пусто"
+    },
+    "error": {
+      "title": "Что-то пошло не так",
+      "retry": "Повторить"
+    },
+    "field": {
+      "optional": "необязательно"
+    }
   }
 }

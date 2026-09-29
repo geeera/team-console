@@ -1,5 +1,5 @@
 .hello {
-  max-width: 40rem;
+  max-width: var(--log-max);
   margin: 0 auto;
   padding: calc(var(--space-8) + var(--safe-top)) var(--space-6) calc(var(--space-8) + var(--safe-bottom));
   display: grid;
@@ -9,7 +9,7 @@
 .hello__kicker {
   margin: 0;
   font-size: var(--fs-xs);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--ls-kicker);
   text-transform: uppercase;
   color: var(--text-3);
 }
