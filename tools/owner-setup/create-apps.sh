@@ -5,20 +5,23 @@
 # hostnames exist (after the first deploy of that environment, #25) — it is never run by an agent or in CI.
 #
 # What it does, per environment (`team-console-<env>`):
-#   1. Serves a one-shot local page (create-apps-server.js) that auto-POSTs a prefilled App Manifest to
+#   1. Records a breadcrumb (CONSOLE_GITHUB_APP_SLUG = the expected app name) as a GitHub Environment
+#      variable BEFORE ever contacting GitHub — so a Ctrl-C, a crash, or the 15-minute timeout still leaves a
+#      pointer the next run (or the owner, reading the checklist) can use (SECURITY review round 2, #67).
+#   2. Serves a one-shot local page (create-apps-server.js) that auto-POSTs a prefilled App Manifest to
 #      https://github.com/settings/apps/new with a random `state`. The owner reviews GitHub's confirmation
 #      screen and clicks "Create GitHub App" — nothing here can skip that click.
-#   2. Receives the redirect on 127.0.0.1, verifies `state`, exchanges the one-hour `code` for the app's
+#   3. Receives the redirect on 127.0.0.1, verifies `state`, exchanges the one-hour `code` for the app's
 #      credentials (POST /app-manifests/{code}/conversions), and verifies the response is the exact app just
-#      requested, owned by the same account this script already confirmed is the repository owner.
-#   3. Records the new app's id and slug as GitHub Environment variables immediately — before touching any
-#      secret — so a run that dies from here on leaves a breadcrumb pointing at the half-created app instead of
-#      silent orphan on GitHub. Then pipes — never printing, never writing to disk, never on argv — the private
-#      key (converted to PKCS#8), the webhook secret and a freshly generated TOKEN_ENCRYPTION_KEY into
+#      requested, owned by the same account this script already confirmed is the repository owner. If GitHub
+#      created something else (a renamed app, someone else's), the breadcrumb is updated to point at *that*
+#      app's real settings URL instead of silently orphaning it, and the run stops.
+#   4. Pipes — never printing, never writing to disk, never on argv — the private key (converted to PKCS#8),
+#      the webhook secret and a freshly generated TOKEN_ENCRYPTION_KEY into
 #      `node_modules/.bin/wrangler secret put`, and the client secret **last** (see the comment at that call
-#      site for why the order matters), plus sets CONSOLE_GITHUB_APP_CLIENT_ID and OWNER_GITHUB_LOGIN with
-#      `gh variable set`.
-#   4. Opens the app's Install page so the owner can install it (dev/stage: only geeera/team-console;
+#      site for why the order matters), plus sets CONSOLE_GITHUB_APP_ID, CONSOLE_GITHUB_APP_CLIENT_ID and
+#      OWNER_GITHUB_LOGIN with `gh variable set`.
+#   5. Opens the app's Install page so the owner can install it (dev/stage: only geeera/team-console;
 #      production: the owner's choice of product repositories, ADR 0003 decision 1).
 #
 # Safety properties (same bar as set-secrets.sh, PR #54):
@@ -32,9 +35,11 @@
 #     (SECURITY review round 1).
 #   - The workers.dev subdomain is validated before it is ever put in a URL the owner is asked to glance at.
 #   - Idempotent: an environment whose api Worker already has GITHUB_APP_CLIENT_SECRET set is skipped, unless
-#     `--recreate` is passed, which walks through ADR 0003's rotation order and asks for a y/N confirmation
-#     before creating a new app and replacing its secrets. A half-created app from an earlier, interrupted run
-#     (detected via the CONSOLE_GITHUB_APP_SLUG breadcrumb) is reported with its settings URL before any retry.
+#     `--recreate` is passed, which states ADR 0003's rotation order (Disconnect, then delete the old app —
+#     not just revoke its key, since the app name is what's actually blocking a replacement) and asks for a
+#     y/N confirmation before creating a new app. A half-created app from an earlier, interrupted run is
+#     detected via the CONSOLE_GITHUB_APP_SLUG breadcrumb (read with `gh api`, so an auth/network failure is
+#     never mistaken for "no breadcrumb" — SECURITY review round 2) and reported with its settings URL.
 #   - A failed credential-existence check (wrangler auth/network failure) stops the script; it is never
 #     silently treated as "no app yet".
 #
@@ -110,7 +115,6 @@ if [ ! -x "${WRANGLER}" ]; then
 fi
 
 # shellcheck source=tools/owner-setup/lib/wrangler-secret.sh
-# shellcheck source=tools/owner-setup/lib/wrangler-secret.sh
 source "${WRANGLER_SECRET_LIB}"
 
 if [ -z "${SUBDOMAIN}" ]; then
@@ -128,16 +132,18 @@ if ! printf '%s' "${SUBDOMAIN}" | grep -qE '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$
 fi
 
 json_field() {
-  # Reads JSON on stdin, prints the named top-level field to stdout. Exit 2 = not JSON, 3 = field missing.
+  # Reads JSON on stdin, prints the named field to stdout — NAME or NAME.NESTED for one level of nesting
+  # (objects are printed as JSON, everything else as a plain string). Exit 2 = not JSON, 3 = field missing.
   node -e '
       let s = "";
       process.stdin.on("data", (d) => { s += d; });
       process.stdin.on("end", () => {
         let obj;
         try { obj = JSON.parse(s); } catch (e) { process.exit(2); }
-        const v = obj[process.argv[1]];
+        let v = obj;
+        for (const p of process.argv[1].split(".")) { v = (v === null || v === undefined) ? undefined : v[p]; }
         if (v === undefined || v === null) { process.exit(3); }
-        process.stdout.write(String(v));
+        process.stdout.write(typeof v === "object" ? JSON.stringify(v) : String(v));
       });
     ' "$1"
 }
@@ -149,6 +155,28 @@ confirm_action() {
     y | Y) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+# Does a half-created app's breadcrumb exist for this environment? Same rule as worker_secret_exists (and the
+# same review finding, round 2): a failed lookup must never be read as "no breadcrumb" — only a genuine 404
+# means that. `gh api` (not `gh variable get`) specifically because its error wording for "not found" is
+# documented and consistent ("HTTP 404"), unlike relying on a hand-parsed message from a higher-level command.
+console_app_slug_breadcrumb() {
+  local env="$1" out err_file stderr_text
+  err_file=$(mktemp)
+  if out=$(gh api "repos/${REPO}/environments/${env}/variables/CONSOLE_GITHUB_APP_SLUG" --jq .value 2>"${err_file}"); then
+    rm -f "${err_file}"
+    printf '%s' "${out}"
+    return 0
+  fi
+  stderr_text=$(cat "${err_file}")
+  rm -f "${err_file}"
+  if printf '%s' "${stderr_text}" | grep -q 'HTTP 404'; then
+    return 1
+  fi
+  echo "error: 'gh api repos/${REPO}/environments/${env}/variables/CONSOLE_GITHUB_APP_SLUG' failed — cannot tell whether a half-created app is pending for '${env}'" >&2
+  echo "${stderr_text}" >&2
+  exit 1
 }
 
 # ADR 0003 decision 2: the OAuth callback only ever accepts the repository owner's own login, and the write-
@@ -171,6 +199,8 @@ owner_login="${repo_owner_login}"
 for env in "${ENVIRONMENTS[@]}"; do
   app_name="team-console-${env}"
   echo "=== ${app_name} ==="
+  app_id=""
+  slug=""
 
   if worker_secret_exists "${API_WRANGLER}" "${env}" GITHUB_APP_CLIENT_SECRET; then
     echo "${app_name} already appears fully configured (GITHUB_APP_CLIENT_SECRET is set on the api Worker for '${env}')."
@@ -180,20 +210,21 @@ for env in "${ENVIRONMENTS[@]}"; do
       continue
     fi
     echo "ADR 0003's rotation order: in the console, Disconnect GitHub first (this revokes the owner grant"
-    echo "while the old key can still decrypt it), THEN delete or revoke the old key in ${app_name}'s GitHub"
-    echo "settings (Advanced -> Revoke all user tokens, then delete the private key)."
+    echo "while the old key can still decrypt it), THEN delete ${app_name} entirely on GitHub (its Settings ->"
+    echo "Danger Zone -> Delete GitHub App) — the name is taken until you do, so a new app cannot be created"
+    echo "with the same name while the old one still exists, revoked key or not."
     if ! confirm_action "I have done that — continue and create a new ${app_name}, replacing its secrets? [y/N] "; then
       echo "skip: ${env}"
       echo
       continue
     fi
-  elif half_slug=$(gh variable get CONSOLE_GITHUB_APP_SLUG --repo "${REPO}" --env "${env}" 2>/dev/null); then
-    # A previous run recorded this breadcrumb right after GitHub created the app, before any secret was set —
-    # see the write below. Its absence of a final GITHUB_APP_CLIENT_SECRET means that run never finished.
-    echo "warning: an earlier run for '${env}' created a GitHub App (recorded slug '${half_slug}') but never finished configuring it."
+  elif half_slug=$(console_app_slug_breadcrumb "${env}"); then
+    # A previous run recorded this breadcrumb right before contacting GitHub (see below). Its absence of a
+    # final GITHUB_APP_CLIENT_SECRET means that run never finished — the app may or may not actually exist.
+    echo "warning: an earlier run for '${env}' recorded a GitHub App attempt (slug '${half_slug}') but never finished configuring it."
     echo "  Settings: https://github.com/settings/apps/${half_slug}"
-    echo "  Delete it there (Danger Zone -> Delete GitHub App) before continuing, to avoid an orphaned app with"
-    echo "  a live, unrotatable private key sitting on GitHub."
+    echo "  If it exists there, delete it (Danger Zone -> Delete GitHub App) before continuing — GitHub app"
+    echo "  names are global, so a same-named app left behind blocks creating a new one."
     if ! confirm_action "Continue anyway and create a fresh ${app_name} for '${env}'? [y/N] "; then
       echo "skip: ${env} (half-created app not resolved)"
       echo
@@ -211,6 +242,31 @@ for env in "${ENVIRONMENTS[@]}"; do
   echo "On GitHub's confirmation screen, review the prefilled app and click 'Create GitHub App'."
   echo
 
+  print_recovery_hint() {
+    echo
+    echo "error: the run for '${env}' may have left a GitHub App behind." >&2
+    echo "  Expected name: '${app_name}'" >&2
+    if [ -n "${slug}" ]; then
+      echo "  Created as: '${slug}' (id ${app_id:-?})" >&2
+      echo "  Settings: https://github.com/settings/apps/${slug}" >&2
+    else
+      echo "  If GitHub's confirmation screen was reached, check https://github.com/settings/apps/${app_name}" >&2
+    fi
+    echo "  Delete it there (Danger Zone -> Delete GitHub App) before re-running, or pass --recreate once you have." >&2
+  }
+  # Registered before the breadcrumb write below and left up through every secret write — safe at any point
+  # because print_recovery_hint only ever reads app_id/slug with defaults (SECURITY review round 2 note A: the
+  # previous version unset app_id right after use and before the wrangler puts, so a wrangler failure hit this
+  # same trap with app_id already gone and printed nothing useful — see the `unset` at the bottom of this loop
+  # body, now moved to after the trap is cleared).
+  trap print_recovery_hint ERR
+
+  # Recorded before GitHub is ever contacted (SECURITY review round 2, #67): a Ctrl-C, a crash, or the
+  # 15-minute timeout below leaves this pointing at the name we asked for, which is still useful — the owner
+  # can check whether GitHub actually created it. Overwritten below once the real outcome is known.
+  printf '%s' "${app_name}" | gh variable set CONSOLE_GITHUB_APP_SLUG --repo "${REPO}" --env "${env}"
+
+  set +e
   conversion_json=$(
     CREATE_APPS_APP_NAME="${app_name}" \
       CREATE_APPS_HOMEPAGE_URL="https://github.com/${REPO}" \
@@ -223,6 +279,33 @@ for env in "${ENVIRONMENTS[@]}"; do
       CREATE_APPS_TIMEOUT_MS="${CREATE_APPS_TIMEOUT_MS:-900000}" \
       node "${SERVER_JS}"
   )
+  conversion_rc=$?
+  set -e
+
+  if [ -z "${conversion_json}" ]; then
+    # Nothing more to go on than the pre-flight breadcrumb above (a timeout, Ctrl-C, or a network failure
+    # before GitHub ever answered) — create-apps-server.js only emits JSON when it has something to report.
+    exit "${conversion_rc:-1}"
+  fi
+
+  ok=$(printf '%s' "${conversion_json}" | json_field ok)
+  if [ "${ok}" != "true" ]; then
+    # The exchange succeeded but the response was not the app we asked for (SECURITY review round 1/2): report
+    # exactly what GitHub created instead of leaving the pre-flight breadcrumb (which only names what we
+    # *expected*) as the last word.
+    mismatched_name=$(printf '%s' "${conversion_json}" | json_field name || echo '?')
+    mismatched_owner=$(printf '%s' "${conversion_json}" | json_field owner.login || echo '?')
+    mismatched_slug=$(printf '%s' "${conversion_json}" | json_field slug || echo '')
+    echo "error: GitHub created an app that does not match what was requested for '${env}'." >&2
+    echo "  Expected name '${app_name}' owned by '${owner_login}'; got name '${mismatched_name}' owned by '${mismatched_owner}'." >&2
+    if [ -n "${mismatched_slug}" ]; then
+      slug="${mismatched_slug}"
+      printf '%s' "${mismatched_slug}" | gh variable set CONSOLE_GITHUB_APP_SLUG --repo "${REPO}" --env "${env}"
+      echo "  Settings: https://github.com/settings/apps/${mismatched_slug}" >&2
+    fi
+    echo "  Delete it there (Danger Zone -> Delete GitHub App) — it exists on GitHub with a live key but was not adopted." >&2
+    exit 1
+  fi
 
   app_id=$(printf '%s' "${conversion_json}" | json_field id)
   client_id=$(printf '%s' "${conversion_json}" | json_field client_id)
@@ -232,17 +315,8 @@ for env in "${ENVIRONMENTS[@]}"; do
   slug=$(printf '%s' "${conversion_json}" | json_field slug)
   unset -v conversion_json
 
-  print_recovery_hint() {
-    echo
-    echo "error: the run for '${env}' stopped after GitHub already created '${app_name}' (id ${app_id}, slug '${slug}')." >&2
-    echo "  Settings: https://github.com/settings/apps/${slug}" >&2
-    echo "  Delete it there (Danger Zone -> Delete GitHub App) before re-running, or pass --recreate once you have." >&2
-  }
-  trap print_recovery_hint ERR
-
-  # Recorded first, before any secret is written, so a run that dies from here on leaves the breadcrumb above
-  # (CONSOLE_GITHUB_APP_SLUG) for the next run — or the owner reading the checklist — instead of silently
-  # retrying against a name GitHub already considers taken.
+  # Re-affirms the breadcrumb (now the confirmed slug, same as app_name on a normal run) and records the rest
+  # — all non-secret, all before any Worker secret is written.
   printf '%s' "${app_id}" | gh variable set CONSOLE_GITHUB_APP_ID --repo "${REPO}" --env "${env}"
   printf '%s' "${slug}" | gh variable set CONSOLE_GITHUB_APP_SLUG --repo "${REPO}" --env "${env}"
   # Named CONSOLE_GITHUB_APP_ID / CONSOLE_GITHUB_APP_CLIENT_ID on the GitHub side, not GITHUB_APP_ID /
@@ -254,7 +328,6 @@ for env in "${ENVIRONMENTS[@]}"; do
   printf '%s' "${client_id}" | gh variable set CONSOLE_GITHUB_APP_CLIENT_ID --repo "${REPO}" --env "${env}"
   printf '%s' "${owner_login}" | gh variable set OWNER_GITHUB_LOGIN --repo "${REPO}" --env "${env}"
   echo "set: CONSOLE_GITHUB_APP_ID, CONSOLE_GITHUB_APP_SLUG, CONSOLE_GITHUB_APP_CLIENT_ID, OWNER_GITHUB_LOGIN -> GitHub environment '${env}' (non-secret variables)"
-  unset -v app_id client_id
 
   printf '%s' "${pem}" | openssl pkcs8 -topk8 -nocrypt -inform PEM -outform PEM \
     | "${WRANGLER}" secret put GITHUB_APP_PRIVATE_KEY --env "${env}" --config "${API_WRANGLER}"
@@ -293,12 +366,15 @@ for env in "${ENVIRONMENTS[@]}"; do
     esac
     "${opener}" "${install_url}" >/dev/null 2>&1 || echo "(could not auto-open a browser — open the Install URL above manually)"
   fi
-  unset -v slug
 
   echo
   echo "REMINDER: in ${app_name}'s settings (General tab), confirm 'Expire user authorization tokens' is ON"
   echo "and Device Flow is OFF (GitHub defaults for new apps — verify, do not assume)."
   echo
+
+  # Moved here on purpose (SECURITY review round 2 note A): while `print_recovery_hint` could still fire
+  # (i.e. before `trap - ERR`), it must be able to read app_id/slug.
+  unset -v app_id client_id slug
 done
 
 echo "Done. Redeploy the affected environment(s) so the new GitHub Environment variables reach the Worker."

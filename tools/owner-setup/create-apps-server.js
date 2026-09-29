@@ -5,8 +5,15 @@
 //
 // No npm dependency — only Node's built-in http/https/crypto. Contract with the caller (create-apps.sh):
 //   - every status/progress message goes to stderr;
-//   - on success, exactly one line of JSON (the GitHub conversion response, secrets included) is written to
-//     stdout as the very last thing this process does, and nothing else ever touches stdout;
+//   - exactly one line of JSON is written to stdout as the very last thing this process does, and nothing else
+//     ever touches stdout — but only in the two cases below; on a timeout, a network error, or a missing code,
+//     nothing is written and the caller has only the pre-flight breadcrumb it already recorded (SECURITY round
+//     2, #67): there is no conversion response to report:
+//       - success: `{"ok": true, ...conversion}` (the GitHub conversion response, secrets included);
+//       - the exchange succeeded but the response failed verification (wrong name/owner): `{"ok": false,
+//         "name": ..., "slug": ..., "owner": {...}}` — enough for the caller to point at the app that *was*
+//         created instead of silently orphaning it, without ever including a secret (SECURITY round 2 note A
+//         of the old contract: a mismatched app still holds a private key and client secret on GitHub).
 //   - the process exits 0 on success, non-zero on any failure (GitHub error, validation failure, timeout).
 // The caller captures stdout into a shell variable and never echoes it — this script never writes the
 // response to disk and never logs it itself.
@@ -273,13 +280,24 @@ const server = http.createServer((req, res) => {
               `(type User), got name '${conversion && conversion.name}' owned by ` +
               `'${conversion && conversion.owner && conversion.owner.login}' (type ${conversion && conversion.owner && conversion.owner.type})`,
           );
-          finish(server, 1);
+          // Reports name/slug/owner only — never pem/client_secret/webhook_secret — so create-apps.sh can
+          // still point the owner at whatever GitHub actually created instead of leaving it untracked.
+          finish(
+            server,
+            1,
+            JSON.stringify({
+              ok: false,
+              name: conversion && conversion.name,
+              slug: conversion && conversion.slug,
+              owner: conversion && conversion.owner,
+            }),
+          );
           return;
         }
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(donePageHtml(`${APP_NAME} created.`));
         console.error(`ok: exchanged the manifest code for ${APP_NAME}'s credentials`);
-        finish(server, 0, JSON.stringify(conversion));
+        finish(server, 0, JSON.stringify({ ok: true, ...conversion }));
       })
       .catch((err) => {
         res.writeHead(502, { 'Content-Type': 'text/html; charset=utf-8' });

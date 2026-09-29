@@ -11,25 +11,30 @@
 # GH_TOKEN/GITHUB_TOKEN/PT_*, uses an isolated HOME/GH_CONFIG_DIR, and hard-asserts `command -v gh`/`wrangler`
 # resolve to the stubs before create-apps.sh ever runs — refusing to continue otherwise.
 #
-# Scenarios (QA + SECURITY review round 1 on PR #65):
-#   1. Happy path: the served manifest is asserted field-by-field against ADR 0003 (permissions, events,
-#      callback_urls, hook_attributes.url, public, request_oauth_on_install, redirect_url); every value the
-#      stubs receive is asserted by content (not just presence) — the PKCS#8 header, the exact fixture
-#      secrets, the 32 decoded bytes of TOKEN_ENCRYPTION_KEY, the exact GitHub variable values — and
-#      GITHUB_APP_CLIENT_SECRET is asserted to be written *last*, after every other secret.
+# Determinism (REVIEW + SECURITY round 2 on PR #65): every server in this file — the fake GitHub conversion
+# endpoint and create-apps.sh's own local listener — binds port 0 (OS-assigned) and the test *waits* for it to
+# actually be reachable before driving traffic at it; a fixed port was observed to collide often enough to
+# flake a required CI check, and reading a not-yet-open socket produced a different, reproducible flake
+# (`ECONNREFUSED`). `process_alive` retries briefly for the same reason.
+#
+# Scenarios (QA + SECURITY review, both rounds):
+#   1. Happy path: the served manifest is asserted field-by-field against ADR 0003; every value the stubs
+#      receive is asserted by content; GITHUB_APP_CLIENT_SECRET is asserted to be written *last*.
 #   2. Robustness: a request with the wrong `Host`, then one with no `state`, then one with the wrong `state`,
 #      must each be rejected without aborting the run — only a subsequent, correct callback finishes it.
-#   3. The conversion response is rejected (nothing set) when its `name` doesn't match, and separately when its
-#      `owner.login`/`owner.type` doesn't match the repository owner.
-#   4. `gh` authenticated as someone other than the repository owner aborts before the local server even
-#      starts — no network, no secrets.
-#   5. Idempotency: a second run against an environment whose api Worker already has
-#      GITHUB_APP_CLIENT_SECRET set is skipped without touching the network at all.
-#   6. A half-created app (CONSOLE_GITHUB_APP_SLUG recorded, no final GITHUB_APP_CLIENT_SECRET) is reported
-#      with its settings URL; declining the prompt leaves everything untouched.
-#   7. CREATE_APPS_GITHUB_API_BASE is ignored (a warning only) unless CREATE_APPS_TEST_MODE=1 — simulated here
-#      by *not* setting that flag and confirming the fake local GitHub never receives a request.
+#   3. The conversion response is rejected (nothing set) when its `name` or `owner` doesn't match, and the
+#      breadcrumb is updated to point at the app GitHub actually created instead of the one we asked for.
+#   4. `gh` authenticated as someone other than the repository owner aborts before the local server starts.
+#   5. Idempotency: an environment whose api Worker already has GITHUB_APP_CLIENT_SECRET set is skipped.
+#   6. A half-created app (breadcrumb recorded, no final secret) is reported; declining leaves it alone.
+#   7. CREATE_APPS_GITHUB_API_BASE is ignored (a warning only) unless CREATE_APPS_TEST_MODE=1 — proven by the
+#      warning and zero hits on the fake server; the run is left to its own (short) timeout, never driven to
+#      the real api.github.com (SECURITY round 2).
 #   8. An invalid workers.dev subdomain is rejected before anything else runs.
+#   9. A `wrangler secret put` failure mid-way prints the recovery hint with the app's settings URL, and never
+#      writes the final GITHUB_APP_CLIENT_SECRET marker (SECURITY round 2 note A).
+#  10. A breadcrumb lookup failure that is *not* "not found" (an auth/network error) aborts loudly instead of
+#      being read as "no half-created app" (SECURITY round 2 note C).
 # Deliberately not `set -e`: every assertion is checked explicitly so one failure does not hide the next.
 set -uo pipefail
 
@@ -55,8 +60,9 @@ new_scratch_repo() {
   printf '%s' "${dir}"
 }
 
-# Worker secret content is now recorded (not just its presence) so scenario 1 can assert the exact bytes each
-# name received, and the *order* secrets were written in (GITHUB_APP_CLIENT_SECRET must be last).
+# Worker secret content is recorded (not just its presence) so scenario 1 can assert the exact bytes each name
+# received and the *order* secrets were written in. WRANGLER_FAIL_PUT=<name> (env, not arg — set by the caller
+# before backgrounding) makes `secret put <name>` fail after consuming stdin, for scenario 9.
 install_stub_wrangler() {
   local bin="${1}/repo/node_modules/.bin/wrangler"
   cat > "${bin}" <<'STUB'
@@ -84,6 +90,10 @@ fi
 if [ "$1 $2" = "secret put" ]; then
   name="$3"
   content=$(cat)
+  if [ -n "${WRANGLER_FAIL_PUT:-}" ] && [ "${name}" = "${WRANGLER_FAIL_PUT}" ]; then
+    echo "✘ [ERROR] simulated failure putting ${name}" >&2
+    exit 1
+  fi
   printf '%s' "${content}" > "${state_dir}/${env}.${name}"
   echo "$(date +%s%N) ${env} ${name}" >> "${state_dir}/order.log"
   exit 0
@@ -95,8 +105,11 @@ STUB
 }
 
 # $2/$3: what `gh api repos/.../--jq .owner.login` and `gh api user --jq .login` answer respectively — the two
-# differ only in scenario 4 (owner mismatch). `variable set`/`variable get` are recorded/read from the same
-# scratch state directory the wrangler stub uses, keyed by env and name.
+# differ only in scenario 4 (owner mismatch). `variable set` and the breadcrumb read (now `gh api
+# repos/.../environments/<env>/variables/CONSOLE_GITHUB_APP_SLUG`, SECURITY round 2 note C — not `gh variable
+# get`, whose "not found" wording isn't documented) are recorded in/read from the same scratch state
+# directory the wrangler stub uses. GH_BREADCRUMB_FAIL=1 (env) makes the breadcrumb read fail with something
+# other than "not found", for scenario 10.
 install_stub_gh() {
   local dir="$1" repo_owner="$2" current_user="$3" bin="${1}/bin/gh"
   cat > "${bin}" <<STUB
@@ -110,6 +123,24 @@ if [ "\$1 \$2" = "api user" ]; then
   echo "${current_user}"
   exit 0
 fi
+if [ "\$1" = "api" ]; then
+  case "\$2" in
+    repos/geeera/team-console/environments/*/variables/CONSOLE_GITHUB_APP_SLUG)
+      if [ -n "\${GH_BREADCRUMB_FAIL:-}" ]; then
+        echo "gh: authentication failed (HTTP 403)" >&2
+        exit 1
+      fi
+      env_name=\$(printf '%s' "\$2" | sed -E 's#repos/geeera/team-console/environments/([^/]+)/variables/.*#\1#')
+      f="\${state_dir}/gh-var.\${env_name}.CONSOLE_GITHUB_APP_SLUG"
+      if [ -f "\${f}" ]; then
+        cat "\${f}"
+        exit 0
+      fi
+      echo "gh: Not Found (HTTP 404)" >&2
+      exit 1
+      ;;
+  esac
+fi
 if [ "\$1 \$2" = "variable set" ]; then
   name="\$3"
   env=""
@@ -120,17 +151,6 @@ if [ "\$1 \$2" = "variable set" ]; then
   content=\$(cat)
   printf '%s' "\${content}" > "\${state_dir}/gh-var.\${env}.\${name}"
   exit 0
-fi
-if [ "\$1 \$2" = "variable get" ]; then
-  name="\$3"
-  env=""
-  for ((i = 1; i <= \$#; i++)); do
-    arg="\${!i}"
-    if [ "\${arg}" = "--env" ]; then j=\$((i + 1)); env="\${!j}"; fi
-  done
-  f="\${state_dir}/gh-var.\${env}.\${name}"
-  if [ -f "\${f}" ]; then cat "\${f}"; exit 0; fi
-  exit 1
 fi
 exit 0
 STUB
@@ -164,16 +184,18 @@ make_fixture_json() {
   printf '%s' "${fixture}"
 }
 
-# Fake GitHub: answers only the one endpoint create-apps-server.js calls, and counts hits (scenario 7 needs to
-# prove it got zero). Prints its PID so the caller can kill it once the scenario is done.
+# Fake GitHub: answers only the one endpoint create-apps-server.js calls, binds port 0, counts hits, and waits
+# for its own listener before returning — prints "<port> <pid>" (REVIEW round 2: the previous version returned
+# immediately after backgrounding, which raced create-apps-server.js's very first request often enough to
+# flake `security.yml`'s required workflow-lint job).
 start_fake_github() {
-  local dir="$1" port="$2" fixture="$3"
+  local dir="$1" fixture="$2" port_file
   cat > "${dir}/fake-github.js" <<'JS'
 const http = require('http');
 const fs = require('fs');
-const port = Number(process.env.FAKE_GITHUB_PORT);
 const fixture = process.env.FAKE_GITHUB_FIXTURE;
 const hitFile = process.env.FAKE_GITHUB_HIT_FILE;
+const portFile = process.env.FAKE_GITHUB_PORT_FILE;
 const server = http.createServer((req, res) => {
   if (req.method === 'POST' && /^\/app-manifests\/[^/]+\/conversions$/.test(req.url)) {
     if (hitFile) fs.appendFileSync(hitFile, '1\n');
@@ -184,15 +206,27 @@ const server = http.createServer((req, res) => {
   res.writeHead(404);
   res.end();
 });
-server.listen(port, '127.0.0.1');
+server.listen(0, '127.0.0.1', () => {
+  fs.writeFileSync(portFile, String(server.address().port));
+});
 JS
+  port_file="${dir}/fake-github-${RANDOM}.port"
   # Redirected away from this function's own stdout/stderr on purpose: this call is made from inside
   # `$(start_fake_github ...)` (a command substitution), and a *backgrounded* child that keeps the
   # substitution's stdout pipe open (inherited, never closed) makes the substitution block forever waiting
   # for EOF — caught while developing this test, it looked exactly like a hang in create-apps.sh itself.
-  FAKE_GITHUB_PORT="${port}" FAKE_GITHUB_FIXTURE="${fixture}" FAKE_GITHUB_HIT_FILE="${dir}/fake-github-hits" \
+  FAKE_GITHUB_FIXTURE="${fixture}" FAKE_GITHUB_HIT_FILE="${dir}/fake-github-hits" FAKE_GITHUB_PORT_FILE="${port_file}" \
     node "${dir}/fake-github.js" >"${dir}/fake-github.log" 2>&1 &
-  echo $!
+  local pid=$! tries=200
+  while [ ! -s "${port_file}" ] && [ "${tries}" -gt 0 ]; do
+    sleep 0.02
+    tries=$((tries - 1))
+  done
+  if [ ! -s "${port_file}" ]; then
+    echo "0 ${pid}"
+    return 1
+  fi
+  echo "$(cat "${port_file}") ${pid}"
 }
 
 fake_github_hit_count() {
@@ -205,13 +239,13 @@ fake_github_hit_count() {
 }
 
 # Runs create-apps.sh with the same isolation discipline as set-secrets.stub-test.sh, hard-asserting `gh` and
-# `wrangler` resolve to the stubs before the script under test ever runs.
-# $1 dir, $2 fake GitHub base URL ("" to leave unset), $3 local server port (0 = OS-assigned), $4 timeout ms,
-# $5 "1"/"" for CREATE_APPS_TEST_MODE, rest: script args. Reads stdin from the caller (scenario 6 pipes an
-# answer to the confirmation prompt).
+# `wrangler` resolve to the stubs before the script under test ever runs. Always binds its own listener on
+# port 0 (see the file header) — the caller discovers the chosen port with wait_for_create_apps_port.
+# $1 dir, $2 fake GitHub base URL ("" to leave unset), $3 timeout ms, $4 "1"/"" for CREATE_APPS_TEST_MODE,
+# rest: script args. Reads stdin from the caller (scenario 6 pipes an answer to the confirmation prompt).
 run_create_apps() {
-  local dir="$1" api_base="$2" port="$3" timeout_ms="$4" test_mode="$5"
-  shift 5
+  local dir="$1" api_base="$2" timeout_ms="$3" test_mode="$4"
+  shift 4
   (
     cd "${dir}/repo" || exit 127
     export PATH="${dir}/bin:${dir}/repo/node_modules/.bin:${PATH}"
@@ -221,7 +255,7 @@ run_create_apps() {
     export GH_STATE_DIR="${dir}/state"
     export CREATE_APPS_GITHUB_API_BASE="${api_base}"
     export CREATE_APPS_TEST_MODE="${test_mode}"
-    export CREATE_APPS_PORT="${port}"
+    export CREATE_APPS_PORT=0
     export CREATE_APPS_TIMEOUT_MS="${timeout_ms}"
     # Never let this test touch a real browser — see the comment next to CREATE_APPS_NO_OPEN in
     # create-apps.sh / create-apps-server.js.
@@ -248,19 +282,46 @@ run_create_apps() {
 }
 
 wait_for_http_200() {
-  local url="$1" tries=50
+  local url="$1" tries=200
   while [ "${tries}" -gt 0 ]; do
     if [ "$(curl -s -o /dev/null -w '%{http_code}' "${url}" 2>/dev/null)" = "200" ]; then
       return 0
     fi
     tries=$((tries - 1))
-    sleep 0.1
+    sleep 0.05
   done
   return 1
 }
 
+# create-apps.sh always logs "Open this URL in your browser" followed by its own 127.0.0.1:<port>/ the moment
+# it starts listening (before it ever needs the fake GitHub server) — polling the captured output for that
+# line is how the test learns the OS-assigned port without create-apps.sh needing a test-only reporting hook.
+wait_for_create_apps_port() {
+  local outfile="$1" tries=200 line
+  while [ "${tries}" -gt 0 ]; do
+    line=$(grep -oE 'http://127\.0\.0\.1:[0-9]+/$' "${outfile}" 2>/dev/null | head -n1)
+    if [ -n "${line}" ]; then
+      printf '%s' "${line}" | sed -E 's#.*:([0-9]+)/$#\1#'
+      return 0
+    fi
+    tries=$((tries - 1))
+    sleep 0.05
+  done
+  return 1
+}
+
+# Retries briefly before concluding a background job is dead — SECURITY round 2 note D observed a `kill -0`
+# false negative under load; a genuinely dead process still fails every retry.
 process_alive() {
-  kill -0 "$1" 2>/dev/null
+  local pid="$1" tries=10
+  while [ "${tries}" -gt 0 ]; do
+    if kill -0 "${pid}" 2>/dev/null; then
+      return 0
+    fi
+    tries=$((tries - 1))
+    sleep 0.05
+  done
+  return 1
 }
 
 # ============================================================================================================
@@ -269,16 +330,16 @@ dir=$(new_scratch_repo)
 install_stub_wrangler "${dir}"
 install_stub_gh "${dir}" "${DEFAULT_OWNER}" "${DEFAULT_OWNER}"
 fixture=$(make_fixture_json "${dir}" "team-console-dev" "${DEFAULT_OWNER}")
-fake_github_pid=$(start_fake_github "${dir}" 18943 "${fixture}")
+read -r fake_github_port fake_github_pid <<< "$(start_fake_github "${dir}" "${fixture}")"
 unset fixture
 
 outfile="${dir}/scenario1.out"
-run_create_apps "${dir}" "http://127.0.0.1:18943" 18944 5000 1 --env dev --subdomain test-subdomain \
+run_create_apps "${dir}" "http://127.0.0.1:${fake_github_port}" 5000 1 --env dev --subdomain test-subdomain \
   > "${outfile}" 2>&1 &
 create_apps_pid=$!
 
-if wait_for_http_200 "http://127.0.0.1:18944/"; then
-  curl -s -o "${dir}/page.html" "http://127.0.0.1:18944/" >/dev/null
+if local_port=$(wait_for_create_apps_port "${outfile}") && wait_for_http_200 "http://127.0.0.1:${local_port}/"; then
+  curl -s -o "${dir}/page.html" "http://127.0.0.1:${local_port}/" >/dev/null
   extracted_state=$(grep -oE 'state=[0-9a-f]+' "${dir}/page.html" | head -n1 | cut -d= -f2)
   cat > "${dir}/assert-manifest.js" <<'JS'
 const fs = require('fs');
@@ -326,11 +387,11 @@ JS
   if [ -z "${extracted_state}" ]; then
     fail "scenario 1: could not extract 'state' from the manifest page"
   else
-    curl -s -o /dev/null -H "Host: 127.0.0.1:18944" \
-      "http://127.0.0.1:18944/callback?code=fake-manifest-code&state=${extracted_state}"
+    curl -s -o /dev/null -H "Host: 127.0.0.1:${local_port}" \
+      "http://127.0.0.1:${local_port}/callback?code=fake-manifest-code&state=${extracted_state}"
   fi
 else
-  fail "scenario 1: create-apps.sh's local server never answered on 127.0.0.1:18944"
+  fail "scenario 1: create-apps.sh's local server never became reachable"
 fi
 
 wait "${create_apps_pid}"
@@ -401,41 +462,41 @@ dir=$(new_scratch_repo)
 install_stub_wrangler "${dir}"
 install_stub_gh "${dir}" "${DEFAULT_OWNER}" "${DEFAULT_OWNER}"
 fixture=$(make_fixture_json "${dir}" "team-console-dev" "${DEFAULT_OWNER}")
-fake_github_pid=$(start_fake_github "${dir}" 18945 "${fixture}")
+read -r fake_github_port fake_github_pid <<< "$(start_fake_github "${dir}" "${fixture}")"
 unset fixture
 
 outfile="${dir}/scenario2.out"
-run_create_apps "${dir}" "http://127.0.0.1:18945" 18946 5000 1 --env dev --subdomain test-subdomain \
+run_create_apps "${dir}" "http://127.0.0.1:${fake_github_port}" 5000 1 --env dev --subdomain test-subdomain \
   > "${outfile}" 2>&1 &
 create_apps_pid=$!
 
-if wait_for_http_200 "http://127.0.0.1:18946/"; then
-  wrong_host_status=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: attacker.example:18946" "http://127.0.0.1:18946/")
+if local_port=$(wait_for_create_apps_port "${outfile}") && wait_for_http_200 "http://127.0.0.1:${local_port}/"; then
+  wrong_host_status=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: attacker.example:${local_port}" "http://127.0.0.1:${local_port}/")
   [ "${wrong_host_status}" = "421" ] || fail "expected 421 for a wrong Host on '/', got ${wrong_host_status}"
   process_alive "${create_apps_pid}" || fail "the run died after a wrong-Host request to '/'"
 
-  wrong_host_cb=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: attacker.example:18946" "http://127.0.0.1:18946/callback?code=x&state=y")
+  wrong_host_cb=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: attacker.example:${local_port}" "http://127.0.0.1:${local_port}/callback?code=x&state=y")
   [ "${wrong_host_cb}" = "421" ] || fail "expected 421 for a wrong Host on '/callback', got ${wrong_host_cb}"
   process_alive "${create_apps_pid}" || fail "the run died after a wrong-Host request to '/callback'"
 
-  no_state_status=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: 127.0.0.1:18946" "http://127.0.0.1:18946/callback")
+  no_state_status=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: 127.0.0.1:${local_port}" "http://127.0.0.1:${local_port}/callback")
   [ "${no_state_status}" = "400" ] || fail "expected 400 for /callback with no state, got ${no_state_status}"
   process_alive "${create_apps_pid}" || fail "the run died after a bare /callback request"
 
-  wrong_state_status=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: 127.0.0.1:18946" "http://127.0.0.1:18946/callback?code=x&state=deliberately-wrong")
+  wrong_state_status=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: 127.0.0.1:${local_port}" "http://127.0.0.1:${local_port}/callback?code=x&state=deliberately-wrong")
   [ "${wrong_state_status}" = "400" ] || fail "expected 400 for /callback with the wrong state, got ${wrong_state_status}"
   process_alive "${create_apps_pid}" || fail "the run died after a wrong-state /callback request"
 
-  page=$(curl -s -H "Host: 127.0.0.1:18946" "http://127.0.0.1:18946/")
+  page=$(curl -s -H "Host: 127.0.0.1:${local_port}" "http://127.0.0.1:${local_port}/")
   extracted_state=$(printf '%s' "${page}" | grep -oE 'state=[0-9a-f]+' | head -n1 | cut -d= -f2)
   if [ -z "${extracted_state}" ]; then
     fail "scenario 2: could not extract 'state' from the manifest page"
   else
-    curl -s -o /dev/null -H "Host: 127.0.0.1:18946" \
-      "http://127.0.0.1:18946/callback?code=fake-manifest-code&state=${extracted_state}"
+    curl -s -o /dev/null -H "Host: 127.0.0.1:${local_port}" \
+      "http://127.0.0.1:${local_port}/callback?code=fake-manifest-code&state=${extracted_state}"
   fi
 else
-  fail "scenario 2: create-apps.sh's local server never answered on 127.0.0.1:18946"
+  fail "scenario 2: create-apps.sh's local server never became reachable"
 fi
 
 wait "${create_apps_pid}"
@@ -458,32 +519,32 @@ rm -rf "${dir}"
 
 # ============================================================================================================
 echo
-echo "=== scenario 3: a conversion response with the wrong name or the wrong owner is rejected ==="
+echo "=== scenario 3: a conversion response with the wrong name or owner is rejected, breadcrumb updated ==="
 for variant in name owner; do
   dir=$(new_scratch_repo)
   install_stub_wrangler "${dir}"
   install_stub_gh "${dir}" "${DEFAULT_OWNER}" "${DEFAULT_OWNER}"
   if [ "${variant}" = name ]; then
-    fixture=$(make_fixture_json "${dir}" "team-console-dev" "${DEFAULT_OWNER}" "team-console-dev-imposter")
+    mismatched_slug="team-console-dev-imposter"
+    fixture=$(make_fixture_json "${dir}" "team-console-dev" "${DEFAULT_OWNER}" "${mismatched_slug}")
   else
+    mismatched_slug="team-console-dev"
     fixture=$(make_fixture_json "${dir}" "team-console-dev" "${DEFAULT_OWNER}" "team-console-dev" "attacker-login")
   fi
-  port=$((18950 + RANDOM % 100))
-  local_port=$((18960 + RANDOM % 100))
-  fake_github_pid=$(start_fake_github "${dir}" "${port}" "${fixture}")
+  read -r fake_github_port fake_github_pid <<< "$(start_fake_github "${dir}" "${fixture}")"
   unset fixture
 
   outfile="${dir}/scenario3-${variant}.out"
-  run_create_apps "${dir}" "http://127.0.0.1:${port}" "${local_port}" 5000 1 --env dev --subdomain test-subdomain \
+  run_create_apps "${dir}" "http://127.0.0.1:${fake_github_port}" 5000 1 --env dev --subdomain test-subdomain \
     > "${outfile}" 2>&1 &
   create_apps_pid=$!
 
-  if wait_for_http_200 "http://127.0.0.1:${local_port}/"; then
+  if local_port=$(wait_for_create_apps_port "${outfile}") && wait_for_http_200 "http://127.0.0.1:${local_port}/"; then
     page=$(curl -s "http://127.0.0.1:${local_port}/")
     extracted_state=$(printf '%s' "${page}" | grep -oE 'state=[0-9a-f]+' | head -n1 | cut -d= -f2)
     curl -s -o /dev/null "http://127.0.0.1:${local_port}/callback?code=fake&state=${extracted_state}"
   else
-    fail "scenario 3 (${variant}): create-apps.sh's local server never answered"
+    fail "scenario 3 (${variant}): create-apps.sh's local server never became reachable"
   fi
 
   wait "${create_apps_pid}"
@@ -498,8 +559,13 @@ for variant in name owner; do
   elif printf '%s' "${output}" | grep -q "set: GITHUB_APP"; then
     fail "scenario 3 (${variant}): a mismatched conversion response still resulted in a secret being set"
     printf '%s\n' "${output}"
+  elif ! printf '%s' "${output}" | grep -qF "https://github.com/settings/apps/${mismatched_slug}"; then
+    fail "scenario 3 (${variant}): expected the settings URL of the app GitHub actually created (${mismatched_slug})"
+    printf '%s\n' "${output}"
+  elif [ "$(cat "${dir}/state/gh-var.dev.CONSOLE_GITHUB_APP_SLUG" 2>/dev/null)" != "${mismatched_slug}" ]; then
+    fail "scenario 3 (${variant}): expected the breadcrumb to be updated to '${mismatched_slug}', got '$(cat "${dir}/state/gh-var.dev.CONSOLE_GITHUB_APP_SLUG" 2>/dev/null)'"
   else
-    echo "ok: scenario 3 (${variant}) — mismatched conversion response rejected, nothing set"
+    echo "ok: scenario 3 (${variant}) — mismatched conversion response rejected, breadcrumb points at the real app"
   fi
 
   rm -rf "${dir}"
@@ -512,7 +578,7 @@ dir=$(new_scratch_repo)
 install_stub_wrangler "${dir}"
 install_stub_gh "${dir}" "${DEFAULT_OWNER}" "someone-else"
 
-output=$(run_create_apps "${dir}" "" 0 1000 "" --env dev --subdomain test-subdomain)
+output=$(run_create_apps "${dir}" "" 1000 "" --env dev --subdomain test-subdomain)
 rc=$?
 
 if [ "${rc}" -eq 0 ]; then
@@ -538,7 +604,7 @@ install_stub_wrangler "${dir}"
 install_stub_gh "${dir}" "${DEFAULT_OWNER}" "${DEFAULT_OWNER}"
 printf 'existing-secret' > "${dir}/state/dev.GITHUB_APP_CLIENT_SECRET"
 
-output=$(run_create_apps "${dir}" "http://127.0.0.1:1" 0 1000 "" --env dev --subdomain test-subdomain)
+output=$(run_create_apps "${dir}" "http://127.0.0.1:1" 1000 "" --env dev --subdomain test-subdomain)
 rc=$?
 
 if [ "${rc}" -ne 0 ]; then
@@ -564,7 +630,7 @@ install_stub_wrangler "${dir}"
 install_stub_gh "${dir}" "${DEFAULT_OWNER}" "${DEFAULT_OWNER}"
 printf 'team-console-dev-orphan' > "${dir}/state/gh-var.dev.CONSOLE_GITHUB_APP_SLUG"
 
-output=$(printf 'n\n' | run_create_apps "${dir}" "http://127.0.0.1:1" 0 1000 "" --env dev --subdomain test-subdomain)
+output=$(printf 'n\n' | run_create_apps "${dir}" "http://127.0.0.1:1" 1000 "" --env dev --subdomain test-subdomain)
 rc=$?
 
 if [ "${rc}" -ne 0 ]; then
@@ -584,26 +650,24 @@ rm -rf "${dir}"
 
 # ============================================================================================================
 echo
-echo "=== scenario 7: CREATE_APPS_GITHUB_API_BASE is ignored without CREATE_APPS_TEST_MODE=1 ==="
+echo "=== scenario 7: CREATE_APPS_GITHUB_API_BASE is ignored without CREATE_APPS_TEST_MODE=1 (never calls the real API) ==="
 dir=$(new_scratch_repo)
 install_stub_wrangler "${dir}"
 install_stub_gh "${dir}" "${DEFAULT_OWNER}" "${DEFAULT_OWNER}"
 fixture=$(make_fixture_json "${dir}" "team-console-dev" "${DEFAULT_OWNER}")
-fake_github_pid=$(start_fake_github "${dir}" 18990 "${fixture}")
+read -r fake_github_port fake_github_pid <<< "$(start_fake_github "${dir}" "${fixture}")"
 unset fixture
 
 outfile="${dir}/scenario7.out"
-# CREATE_APPS_TEST_MODE is deliberately "" here — the whole point of this scenario.
-run_create_apps "${dir}" "http://127.0.0.1:18990" 18991 8000 "" --env dev --subdomain test-subdomain \
+# CREATE_APPS_TEST_MODE is deliberately "" here — the whole point of this scenario. A short timeout and no
+# /callback hit at all: the run must never be driven to the real api.github.com (SECURITY round 2) — the
+# startup warning plus zero hits on the fake server already prove the override was ignored.
+run_create_apps "${dir}" "http://127.0.0.1:${fake_github_port}" 1500 "" --env dev --subdomain test-subdomain \
   > "${outfile}" 2>&1 &
 create_apps_pid=$!
 
-if wait_for_http_200 "http://127.0.0.1:18991/"; then
-  page=$(curl -s "http://127.0.0.1:18991/")
-  extracted_state=$(printf '%s' "${page}" | grep -oE 'state=[0-9a-f]+' | head -n1 | cut -d= -f2)
-  curl -s -o /dev/null "http://127.0.0.1:18991/callback?code=fake&state=${extracted_state}"
-else
-  fail "scenario 7: create-apps.sh's local server never answered"
+if ! local_port=$(wait_for_create_apps_port "${outfile}") || ! wait_for_http_200 "http://127.0.0.1:${local_port}/"; then
+  fail "scenario 7: create-apps.sh's local server never became reachable"
 fi
 
 wait "${create_apps_pid}"
@@ -617,13 +681,13 @@ if [ "${hits}" != "0" ]; then
   fail "the fake local GitHub received ${hits} request(s) even though CREATE_APPS_TEST_MODE was not set"
   printf '%s\n' "${output}"
 elif [ "${rc}" -eq 0 ]; then
-  fail "expected the run to fail (it can only reach the real api.github.com with a fake code), it exited 0"
+  fail "expected the run to time out (nothing ever reaches /callback in this scenario), it exited 0"
   printf '%s\n' "${output}"
 elif ! printf '%s' "${output}" | grep -qi "ignored"; then
   fail "expected a warning that CREATE_APPS_GITHUB_API_BASE was ignored"
   printf '%s\n' "${output}"
 else
-  echo "ok: the override is ignored (warned, not used) without CREATE_APPS_TEST_MODE=1"
+  echo "ok: the override is ignored (warned, not used) without CREATE_APPS_TEST_MODE=1, and the real API is never touched"
 fi
 
 rm -rf "${dir}"
@@ -635,7 +699,7 @@ dir=$(new_scratch_repo)
 install_stub_wrangler "${dir}"
 install_stub_gh "${dir}" "${DEFAULT_OWNER}" "${DEFAULT_OWNER}"
 
-output=$(run_create_apps "${dir}" "" 0 1000 "" --env dev --subdomain 'not a subdomain!')
+output=$(run_create_apps "${dir}" "" 1000 "" --env dev --subdomain 'not a subdomain!')
 rc=$?
 
 if [ "${rc}" -eq 0 ]; then
@@ -646,6 +710,80 @@ elif ! printf '%s' "${output}" | grep -q "doesn't look like a workers.dev subdom
   printf '%s\n' "${output}"
 else
   echo "ok: an invalid workers.dev subdomain is rejected up front"
+fi
+
+rm -rf "${dir}"
+
+# ============================================================================================================
+echo
+echo "=== scenario 9: a wrangler put failure mid-way prints the recovery hint with the app's settings URL ==="
+dir=$(new_scratch_repo)
+install_stub_wrangler "${dir}"
+install_stub_gh "${dir}" "${DEFAULT_OWNER}" "${DEFAULT_OWNER}"
+fixture=$(make_fixture_json "${dir}" "team-console-dev" "${DEFAULT_OWNER}")
+read -r fake_github_port fake_github_pid <<< "$(start_fake_github "${dir}" "${fixture}")"
+unset fixture
+
+outfile="${dir}/scenario9.out"
+export WRANGLER_FAIL_PUT="WEBHOOK_SECRET"
+run_create_apps "${dir}" "http://127.0.0.1:${fake_github_port}" 5000 1 --env dev --subdomain test-subdomain \
+  > "${outfile}" 2>&1 &
+create_apps_pid=$!
+unset WRANGLER_FAIL_PUT
+
+if local_port=$(wait_for_create_apps_port "${outfile}") && wait_for_http_200 "http://127.0.0.1:${local_port}/"; then
+  page=$(curl -s "http://127.0.0.1:${local_port}/")
+  extracted_state=$(printf '%s' "${page}" | grep -oE 'state=[0-9a-f]+' | head -n1 | cut -d= -f2)
+  curl -s -o /dev/null "http://127.0.0.1:${local_port}/callback?code=fake&state=${extracted_state}"
+else
+  fail "scenario 9: create-apps.sh's local server never became reachable"
+fi
+
+wait "${create_apps_pid}"
+rc=$?
+kill "${fake_github_pid}" >/dev/null 2>&1 || true
+wait "${fake_github_pid}" 2>/dev/null || true
+output=$(cat "${outfile}")
+
+if [ "${rc}" -eq 0 ]; then
+  fail "scenario 9: expected the run to fail when a wrangler put fails, it exited 0"
+  printf '%s\n' "${output}"
+elif [ -f "${dir}/state/dev.GITHUB_APP_CLIENT_SECRET" ]; then
+  fail "scenario 9: GITHUB_APP_CLIENT_SECRET must never be set when an earlier secret put failed"
+elif ! printf '%s' "${output}" | grep -qF "https://github.com/settings/apps/team-console-dev"; then
+  fail "scenario 9: expected the recovery hint's settings URL to be printed"
+  printf '%s\n' "${output}"
+elif ! printf '%s' "${output}" | grep -q "Created as: 'team-console-dev'"; then
+  fail "scenario 9: expected the recovery hint to name the app it already created"
+  printf '%s\n' "${output}"
+else
+  echo "ok: a mid-way wrangler failure prints the recovery hint with the app's settings URL"
+fi
+
+rm -rf "${dir}"
+
+# ============================================================================================================
+echo
+echo "=== scenario 10: a breadcrumb lookup failure other than 'not found' aborts instead of proceeding ==="
+dir=$(new_scratch_repo)
+install_stub_wrangler "${dir}"
+install_stub_gh "${dir}" "${DEFAULT_OWNER}" "${DEFAULT_OWNER}"
+export GH_BREADCRUMB_FAIL=1
+output=$(run_create_apps "${dir}" "" 1000 "" --env dev --subdomain test-subdomain)
+rc=$?
+unset GH_BREADCRUMB_FAIL
+
+if [ "${rc}" -eq 0 ]; then
+  fail "expected a breadcrumb-lookup failure to abort, it exited 0"
+  printf '%s\n' "${output}"
+elif ! printf '%s' "${output}" | grep -q "cannot tell whether a half-created app is pending"; then
+  fail "expected the explicit 'cannot tell' abort message"
+  printf '%s\n' "${output}"
+elif printf '%s' "${output}" | grep -q "set: GITHUB_APP"; then
+  fail "a breadcrumb-lookup failure still resulted in a secret being set"
+  printf '%s\n' "${output}"
+else
+  echo "ok: a breadcrumb lookup failure other than 'not found' aborts, never read as 'no half-created app'"
 fi
 
 rm -rf "${dir}"
