@@ -1,0 +1,190 @@
+# Per-environment deploy (plugin reference/deploy-recipes.md, ADR 0001 decision 14): D1 migrations before
+# traffic, both Workers, Storybook direct upload from dev, smoke checks, rollback via `workflow_dispatch`
+# with a previous ref. `wrangler deploy --dry-run` already runs without secrets inside `nx build api|hooks`
+# (see apps/api/project.json, apps/hooks/project.json) — that is the "valid without secrets" half of #7;
+# this workflow is the half that needs the real Cloudflare credentials.
+#
+# Safety net (#7 ships this workflow without a live deploy; the first real deploy is #25): the "Guard against
+# placeholder D1 ids" step below reads apps/api/wrangler.jsonc and refuses to continue while the target
+# environment's `database_id` is still the placeholder committed in #6. No Cloudflare API call happens before
+# that step, so merging this workflow cannot create or touch any Cloudflare resource by itself — only #25,
+# after the owner has created the real D1 databases, can.
+name: deploy
+
+on:
+  push:
+    branches: [dev, stage, main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy (rollback or redeploy)
+        type: choice
+        options: [dev, stage, production]
+        required: true
+      ref:
+        description: Tag or commit to deploy (e.g. the previous production tag, for rollback)
+        required: true
+
+concurrency:
+  # One deploy per environment at a time; a newer push waits instead of cancelling a running deploy.
+  group: deploy-${{ github.event.inputs.environment || (github.ref_name == 'main' && 'production' || github.ref_name) }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: ${{ github.event.inputs.environment || (github.ref_name == 'main' && 'production' || github.ref_name) }}
+    env:
+      NX_DAEMON: 'false'
+      NX_NO_CLOUD: 'true'
+      NX_TUI: 'false'
+      WRANGLER_SEND_METRICS: 'false'
+      # Re-derived from the same expression used above for concurrency/environment.name: the `env` context
+      # is not available there, so this is the one place it is computed, then reused by every later step.
+      ENV_NAME: ${{ github.event.inputs.environment || (github.ref_name == 'main' && 'production' || github.ref_name) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Same pin as ci.yml: the lockfile is written by npm 10, another major rewrites it.
+      - name: Pin npm to packageManager
+        run: |
+          set -euo pipefail
+          wanted=$(node -p "require('./package.json').packageManager.replace(/^npm@/, '')")
+          npm install --global --no-audit --no-fund "npm@${wanted}"
+          test "$(npm --version)" = "${wanted}"
+
+      - run: npm ci
+
+      # Build once for this push; api's Nx target depends on console, so this also builds the SPA the api
+      # Worker serves as static assets (ADR 0001 decisions 4, 14).
+      - name: Build api and hooks
+        run: npx nx run-many -t build --projects=api,hooks
+
+      - name: Guard against placeholder D1 database ids
+        run: |
+          set -euo pipefail
+          case "${ENV_NAME}" in
+            dev) placeholder='00000000-0000-0000-0000-00000000dev1' ;;
+            stage) placeholder='00000000-0000-0000-0000-0000000stage' ;;
+            production) placeholder='00000000-0000-0000-0000-000000000prd' ;;
+            *) echo "::error::unknown environment '${ENV_NAME}'"; exit 1 ;;
+          esac
+          if grep -q "${placeholder}" apps/api/wrangler.jsonc; then
+            echo "::error::apps/api/wrangler.jsonc still has the placeholder D1 database_id for '${ENV_NAME}'. Create the D1 database (owner checklist) and replace the id by PR before this workflow may deploy (see #25)."
+            exit 1
+          fi
+
+      - name: D1 migrations (remote, before traffic moves)
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: 4.124.0
+          workingDirectory: apps/api
+          command: d1 migrations apply team-console-${{ env.ENV_NAME }} --env ${{ env.ENV_NAME }} --remote
+
+      - name: Deploy api Worker (app + assets)
+        id: deploy_api
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: 4.124.0
+          workingDirectory: apps/api
+          command: deploy --env ${{ env.ENV_NAME }}
+
+      - name: Deploy hooks Worker
+        id: deploy_hooks
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: 4.124.0
+          workingDirectory: apps/hooks
+          command: deploy --env ${{ env.ENV_NAME }}
+
+      # libs/console/shared/ui (and its Storybook config) arrives with #13/#34; until then this SKIPs loudly
+      # rather than failing the whole deploy or silently doing nothing.
+      - name: Check Storybook project exists
+        id: storybook
+        if: env.ENV_NAME == 'dev'
+        run: |
+          set -euo pipefail
+          if npx nx show projects 2>/dev/null | grep -qx ui; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SKIPPED Storybook deploy — libs/console/shared/ui arrives with #13/#34; this is NOT a pass"
+          fi
+
+      - name: Build Storybook
+        if: env.ENV_NAME == 'dev' && steps.storybook.outputs.ready == 'true'
+        run: npx nx build-storybook ui
+
+      # Direct upload (no Pages build consumed, ADR 0001 decision 14 / Pages free-tier limit table).
+      - name: Deploy Storybook
+        id: deploy_storybook
+        if: env.ENV_NAME == 'dev' && steps.storybook.outputs.ready == 'true'
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: 4.124.0
+          # TODO(#13/#34): confirm this matches the Storybook build output once libs/console/shared/ui lands.
+          command: pages deploy dist/storybook/ui --project-name=team-console-storybook --branch=dev
+
+      # Carry-over from PR #49 reviews (issue #7 comment 2026-09-29): until #8 lands, /api/v1/* (incl.
+      # healthz) always answers 401 on every environment — a 200 there is a fail-open bug, not a pass.
+      - name: Smoke check — api Worker fails closed
+        run: |
+          set -euo pipefail
+          api_url="${{ steps.deploy_api.outputs.deployment-url }}"
+          test -n "${api_url}" || { echo "::error::wrangler did not report the api Worker's deployment URL"; exit 1; }
+          status=$(curl -s -o /dev/null -w '%{http_code}' "${api_url}/api/v1/healthz")
+          if [ "${status}" = "200" ]; then
+            echo "::error::${api_url}/api/v1/healthz answered 200 unauthenticated — the API is failing open"
+            exit 1
+          fi
+          echo "::notice::${api_url}/api/v1/healthz answered ${status} (expected: not 200)"
+
+      # An unauthenticated 200 on the app Worker's own hostname means Access is missing in front of it —
+      # a broken deploy, not a pass (same carry-over comment).
+      - name: Smoke check — app Worker is not publicly open
+        run: |
+          set -euo pipefail
+          api_url="${{ steps.deploy_api.outputs.deployment-url }}"
+          status=$(curl -s -o /dev/null -w '%{http_code}' "${api_url}/")
+          if [ "${status}" = "200" ]; then
+            echo "::error::${api_url}/ answered 200 unauthenticated — Cloudflare Access is missing on this Worker, the deploy is broken"
+            exit 1
+          fi
+          echo "::notice::${api_url}/ answered ${status} (expected: not 200 — Access must own this hostname)"
+
+      # The hooks Worker is deliberately public (ADR 0001 decision 4); its /healthz must be a plain 200.
+      - name: Smoke check — hooks Worker is reachable
+        run: |
+          set -euo pipefail
+          hooks_url="${{ steps.deploy_hooks.outputs.deployment-url }}"
+          test -n "${hooks_url}" || { echo "::error::wrangler did not report the hooks Worker's deployment URL"; exit 1; }
+          for _ in 1 2 3 4 5 6; do
+            status=$(curl -s -o /dev/null -w '%{http_code}' "${hooks_url}/healthz")
+            [ "${status}" = "200" ] && break
+            sleep 10
+          done
+          if [ "${status}" != "200" ]; then
+            echo "::error::${hooks_url}/healthz did not answer 200 after deploy (got ${status})"
+            exit 1
+          fi
