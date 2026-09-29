@@ -122,11 +122,14 @@ jobs:
 
       # Owner-run scripts live outside the workflow files actionlint already covers (tools/owner-setup/*.sh
       # is bash the owner runs locally with real credentials — it gets the same bar as CI's own scripts).
+      # tools/owner-setup/lib/*.sh (sourced by set-secrets.sh and create-apps.sh, #61 REVIEW round 1) is
+      # passed in the same invocation, not checked separately: shellcheck only follows a `source=` hint
+      # without `-x` when the target is itself one of the files given on the command line.
       - name: Shellcheck owner-run scripts
         run: |
           set -euo pipefail
           shopt -s nullglob
-          scripts=(tools/owner-setup/*.sh)
+          scripts=(tools/owner-setup/*.sh tools/owner-setup/lib/*.sh)
           if [ "${#scripts[@]}" -eq 0 ]; then
             echo "::notice::no tools/owner-setup/*.sh scripts yet"
             exit 0

@@ -24,9 +24,11 @@ fail() {
 new_scratch_repo() {
   local dir
   dir=$(mktemp -d)
-  mkdir -p "${dir}/repo/apps/api" "${dir}/repo/apps/hooks" "${dir}/repo/node_modules/.bin" "${dir}/repo/tools/owner-setup" "${dir}/bin"
+  mkdir -p "${dir}/repo/apps/api" "${dir}/repo/apps/hooks" "${dir}/repo/node_modules/.bin" "${dir}/repo/tools/owner-setup/lib" "${dir}/bin"
   cp "${SCRIPT_DIR}/set-secrets.sh" "${dir}/repo/tools/owner-setup/set-secrets.sh"
   cp "${SCRIPT_DIR}/vapid-keygen.js" "${dir}/repo/tools/owner-setup/vapid-keygen.js"
+  # set-secrets.sh now sources this (#61 REVIEW round 1, shared with create-apps.sh) — no behavior change here.
+  cp "${SCRIPT_DIR}/lib/wrangler-secret.sh" "${dir}/repo/tools/owner-setup/lib/wrangler-secret.sh"
   : > "${dir}/repo/apps/api/wrangler.jsonc"
   : > "${dir}/repo/apps/hooks/wrangler.jsonc"
   printf '%s' "${dir}"
