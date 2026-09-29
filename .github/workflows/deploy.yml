@@ -9,9 +9,11 @@
 #   `workflow_dispatch` proves the dispatch was started from that environment's own branch AND that the
 #   `ref` input is a commit actually reachable from that branch (a deployment branch policy alone only checks
 #   the branch the run was *started* from, never the commit `ref` overrides it with — that gap let any commit
-#   reach the deploy credentials). It also refuses to continue while apps/api/wrangler.jsonc or
-#   apps/hooks/wrangler.jsonc still has a placeholder D1 database_id (the first real deploy is #25). Cheap:
-#   runs before `npm ci`/the build, so a push before #25 fails in seconds, not after a full Nx build.
+#   reach the deploy credentials). It also refuses to continue if apps/api/wrangler.jsonc or
+#   apps/hooks/wrangler.jsonc ever regresses to one of the `00000000-0000-0000-0000-00000000<env-suffix>`
+#   scaffold placeholder D1 database ids that shipped before the real ones landed in #25 — a regression guard,
+#   not a one-time gate. Cheap: runs before `npm ci`/the build, so a bad id fails in seconds, not after a full
+#   Nx build.
 #
 #   `deploy` — `needs: guard`, so it only starts once every check above passed; `environment:` here is what
 #   actually puts GitHub's own deployment-branch policy and (on `production`) required-reviewer gate in
@@ -177,6 +179,27 @@ jobs:
       - uses: ./.github/actions/setup-node-npm
 
       - run: npm ci
+
+      # Patches apps/console's own `define` config (project.json) in place, in this checkout only — never
+      # committed — so the single `nx build` below (console runs as api's dependency, same process, same task
+      # graph) picks it up with no extra CLI flags. A CLI override here instead would give console:build a
+      # different task hash than the one api's dependsOn computes from project.json, so Nx would silently
+      # rebuild console a second time without it, discarding the injected value (see apps/console/src/app/
+      # build-info.ts). Local/dev/Docker builds never run this step, so they keep the "local" default.
+      #
+      # The stamped commit is `HEAD` — the deployed, guard-pinned commit asserted above — never `GITHUB_SHA`:
+      # on a `workflow_dispatch` rollback/redeploy `GITHUB_SHA` is still the branch tip, not the older `ref`
+      # this run actually checked out and is deploying (SECURITY review, PR #69).
+      - name: Stamp the console build with the real build time and the deployed commit
+        run: |
+          set -euo pipefail
+          built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ) ($(git rev-parse --short=7 HEAD))"
+          tmp=$(mktemp)
+          jq --arg definedValue "\"${built_at}\"" \
+            '.targets.build.configurations.production.define.__TC_BUILT_AT__ = $definedValue' \
+            apps/console/project.json > "${tmp}"
+          cat "${tmp}" > apps/console/project.json
+          rm -f "${tmp}"
 
       # Build once for this push; api's Nx target depends on console, so this also builds the SPA the api
       # Worker serves as static assets (ADR 0001 decisions 4, 14).

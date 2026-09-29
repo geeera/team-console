@@ -35,6 +35,10 @@
 #      writes the final GITHUB_APP_CLIENT_SECRET marker (SECURITY round 2 note A).
 #  10. A breadcrumb lookup failure that is *not* "not found" (an auth/network error) aborts loudly instead of
 #      being read as "no half-created app" (SECURITY round 2 note C).
+#  11. create-apps-server.js's own failure JSON (run directly, not through create-apps.sh, since create-apps.sh
+#      never echoes the raw conversion JSON it captures) has an `owner` limited to exactly {login, type} — an
+#      extra field a real GitHub owner object could carry (here `email`) must not survive into it (SECURITY/QA
+#      review, PR #69).
 # Deliberately not `set -e`: every assertion is checked explicitly so one failure does not hide the next.
 set -uo pipefail
 
@@ -161,14 +165,19 @@ STUB
 # in the credential path, same reasoning as set-secrets.sh keeping VAPID generation off a stubbed tool) has
 # something valid to convert. The key file is thrown away immediately after being read into the fixture JSON.
 # $4/$5/$6 default to a fixture that matches $2 (app name) and $3 (owner login), type "User" — scenario 3
-# overrides them to build a mismatched conversion response.
+# overrides them to build a mismatched conversion response. $7, if given, is an extra field GitHub's real
+# owner object could plausibly carry (e.g. "email") that must never survive into create-apps-server.js's
+# {login, type} owner allowlist (SECURITY/QA review, PR #69).
 make_fixture_json() {
-  local dir="$1" fixture_name="${4:-$2}" fixture_owner="${5:-$3}" fixture_owner_type="${6:-User}" pem_file fixture
+  local dir="$1" fixture_name="${4:-$2}" fixture_owner="${5:-$3}" fixture_owner_type="${6:-User}" \
+    fixture_owner_extra="${7:-}" pem_file fixture
   pem_file="${dir}/fixture-${RANDOM}.pem"
   openssl genrsa -out "${pem_file}" 2048 >/dev/null 2>&1
   fixture=$(node -e '
       const fs = require("fs");
       const pem = fs.readFileSync(process.argv[1], "utf8");
+      const owner = { login: process.argv[3], type: process.argv[4] };
+      if (process.argv[5]) owner.email = process.argv[5];
       process.stdout.write(JSON.stringify({
         id: 424242,
         client_id: "Iv1.stubclientid",
@@ -177,9 +186,9 @@ make_fixture_json() {
         pem,
         name: process.argv[2],
         slug: process.argv[2],
-        owner: { login: process.argv[3], type: process.argv[4] },
+        owner,
       }));
-    ' "${pem_file}" "${fixture_name}" "${fixture_owner}" "${fixture_owner_type}")
+    ' "${pem_file}" "${fixture_name}" "${fixture_owner}" "${fixture_owner_type}" "${fixture_owner_extra}")
   rm -f "${pem_file}"
   printf '%s' "${fixture}"
 }
@@ -564,8 +573,11 @@ for variant in name owner; do
     printf '%s\n' "${output}"
   elif [ "$(cat "${dir}/state/gh-var.dev.CONSOLE_GITHUB_APP_SLUG" 2>/dev/null)" != "${mismatched_slug}" ]; then
     fail "scenario 3 (${variant}): expected the breadcrumb to be updated to '${mismatched_slug}', got '$(cat "${dir}/state/gh-var.dev.CONSOLE_GITHUB_APP_SLUG" 2>/dev/null)'"
+  elif printf '%s' "${output}" | grep -qF -e "stub-client-secret-value" -e "stub-webhook-secret-value" -e "BEGIN PRIVATE KEY" -e "BEGIN RSA PRIVATE KEY"; then
+    fail "scenario 3 (${variant}): a fake secret from the fixture leaked into the run's output"
+    printf '%s\n' "${output}"
   else
-    echo "ok: scenario 3 (${variant}) — mismatched conversion response rejected, breadcrumb points at the real app"
+    echo "ok: scenario 3 (${variant}) — mismatched conversion response rejected, breadcrumb points at the real app, no secret leaked"
   fi
 
   rm -rf "${dir}"
@@ -784,6 +796,79 @@ elif printf '%s' "${output}" | grep -q "set: GITHUB_APP"; then
   printf '%s\n' "${output}"
 else
   echo "ok: a breadcrumb lookup failure other than 'not found' aborts, never read as 'no half-created app'"
+fi
+
+rm -rf "${dir}"
+
+# ============================================================================================================
+echo
+echo "=== scenario 11: create-apps-server.js's failure JSON owner is an explicit {login, type} allowlist ==="
+dir=$(mktemp -d)
+fixture=$(make_fixture_json "${dir}" "team-console-dev" "${DEFAULT_OWNER}" "team-console-dev" "attacker-login" \
+  "User" "attacker@evil.example")
+read -r fake_github_port fake_github_pid <<< "$(start_fake_github "${dir}" "${fixture}")"
+unset fixture
+
+server_out="${dir}/server.stdout"
+server_err="${dir}/server.stderr"
+(
+  CREATE_APPS_APP_NAME="team-console-dev" \
+    CREATE_APPS_HOMEPAGE_URL="https://github.com/geeera/team-console" \
+    CREATE_APPS_CALLBACK_URL="https://team-console-dev.example.workers.dev/api/v1/github/callback" \
+    CREATE_APPS_WEBHOOK_URL="https://team-console-hooks-dev.example.workers.dev/hooks/github" \
+    CREATE_APPS_EXPECTED_OWNER_LOGIN="${DEFAULT_OWNER}" \
+    CREATE_APPS_PORT=0 \
+    CREATE_APPS_GITHUB_API_BASE="http://127.0.0.1:${fake_github_port}" \
+    CREATE_APPS_TEST_MODE=1 \
+    CREATE_APPS_TIMEOUT_MS=5000 \
+    CREATE_APPS_NO_OPEN=1 \
+    node "${SCRIPT_DIR}/create-apps-server.js" >"${server_out}" 2>"${server_err}"
+) &
+server_pid=$!
+
+if local_port=$(wait_for_create_apps_port "${server_err}") && wait_for_http_200 "http://127.0.0.1:${local_port}/"; then
+  page=$(curl -s "http://127.0.0.1:${local_port}/")
+  extracted_state=$(printf '%s' "${page}" | grep -oE 'state=[0-9a-f]+' | head -n1 | cut -d= -f2)
+  curl -s -o /dev/null "http://127.0.0.1:${local_port}/callback?code=fake&state=${extracted_state}"
+else
+  fail "scenario 11: create-apps-server.js's local listener never became reachable"
+fi
+
+wait "${server_pid}"
+kill "${fake_github_pid}" >/dev/null 2>&1 || true
+wait "${fake_github_pid}" 2>/dev/null || true
+raw_json=$(cat "${server_out}")
+
+cat > "${dir}/assert-owner-allowlist.js" <<'JS'
+const raw = process.argv[2];
+let parsed;
+try {
+  parsed = JSON.parse(raw);
+} catch (e) {
+  console.error(`could not parse stdout as JSON: ${e.message}`);
+  process.exit(1);
+}
+if (parsed.ok !== false) {
+  console.error(`expected {ok: false}, got ok=${parsed.ok}`);
+  process.exit(1);
+}
+const ownerKeys = Object.keys(parsed.owner || {}).sort();
+if (JSON.stringify(ownerKeys) !== JSON.stringify(['login', 'type'])) {
+  console.error(`expected owner keys exactly ['login', 'type'], got ${JSON.stringify(ownerKeys)}`);
+  process.exit(1);
+}
+if (raw.includes('attacker@evil.example') || raw.includes('email')) {
+  console.error('the fixture owner\'s extra "email" field leaked into stdout');
+  process.exit(1);
+}
+JS
+if [ -z "${raw_json}" ]; then
+  fail "scenario 11: create-apps-server.js printed no JSON to stdout"
+elif ! node "${dir}/assert-owner-allowlist.js" "${raw_json}"; then
+  fail "scenario 11: the failure JSON's owner was not an exact {login, type} allowlist"
+  printf '%s\n' "${raw_json}"
+else
+  echo "ok: create-apps-server.js's failure JSON owner is exactly {login, type} — no extra field leaked"
 fi
 
 rm -rf "${dir}"

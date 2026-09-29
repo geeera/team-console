@@ -38,7 +38,10 @@
             }
           ],
           "outputHashing": "all",
-          "serviceWorker": "apps/console/ngsw-config.json"
+          "serviceWorker": "apps/console/ngsw-config.json",
+          "define": {
+            "__TC_BUILT_AT__": "\"local\""
+          }
         },
         "development": {
           "optimization": false,
