@@ -35,7 +35,7 @@
           "binding": "DB",
           "database_name": "team-console-dev",
           // Placeholder until the databases exist (#25 replaces the ids by PR; they are not secrets).
-          "database_id": "00000000-0000-0000-0000-00000000dev1",
+          "database_id": "c2aa81dc-a67a-4efb-8eb2-95d02d21aa87",
           "migrations_dir": "migrations",
         },
       ],
@@ -55,7 +55,7 @@
         {
           "binding": "DB",
           "database_name": "team-console-stage",
-          "database_id": "00000000-0000-0000-0000-0000000stage",
+          "database_id": "57d7e07f-ef4d-49d5-9d30-b4192c0af039",
           "migrations_dir": "migrations",
         },
       ],
@@ -75,7 +75,7 @@
         {
           "binding": "DB",
           "database_name": "team-console-production",
-          "database_id": "00000000-0000-0000-0000-000000000prd",
+          "database_id": "8ad685cb-f2eb-49dd-a4d2-46e40b8670f0",
           "migrations_dir": "migrations",
         },
       ],
