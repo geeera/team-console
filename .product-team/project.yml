@@ -37,6 +37,12 @@ sprint:
 
 caps: {}
 
+review:
+  qa: always                 # QA on every PR (owner decision 2026-09-30)
+  reviewer: code             # code review only when the PR changes a path below
+  code_paths: ["apps/**", "libs/**", "tools/**"]
+  max_rework_rounds: 1       # guidance: after one rework round only blockers go back; the rest become follow-ups
+
 team:
   plugin_ref: stable
   reviewer_logins: ['team-console-review[bot]']

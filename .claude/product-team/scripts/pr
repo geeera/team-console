@@ -12,8 +12,10 @@
   pr update-branch N   merge the base into the PR branch on GitHub (no force-push); fails on conflicts
   pr files N           changed paths
   pr security-check N  does this PR need a security review? reasons from the paths and the linked issue's labels
-  pr gate N            CI plus the independent verdicts it needs: QA, REVIEW, and SECURITY when security-check says so;
-                       each must be APPROVED on the current head commit
+  pr gate N            CI plus the independent verdicts it needs, each APPROVED on the current head commit: QA and
+                       REVIEW as the `review:` block of project.yml on the PR's base branch requires them (both on
+                       every PR without the block), SECURITY whenever security-check says so. `why` explains each
+                       verdict; `policy` shows the rule, max_rework_rounds included
   pr merge N --method squash|merge [--delete-branch] [--ci-only]
                        refuses unless the gate passes. `squash` for feature/fix/hotfix PRs, `merge` for the
                        stage cut, releases and back-merges (long-lived branches must keep shared history).
@@ -50,6 +52,7 @@ import shlex  # noqa: E402
 import subprocess  # noqa: E402
 import tempfile  # noqa: E402
 from pathlib import Path  # noqa: E402
+from typing import Optional  # noqa: E402
 
 from ptlib import checks, gh, project, review, vendoring  # noqa: E402
 
@@ -119,34 +122,40 @@ def linked_issue_labels(repo: str, n: int) -> list:
     return labels
 
 
-def security_check(repo: str, n: int) -> list:
-    return review.security_reasons(changed_files(repo, n), linked_issue_labels(repo, n))
+def security_check(repo: str, n: int, paths: Optional[list] = None) -> list:
+    return review.security_reasons(changed_files(repo, n) if paths is None else paths, linked_issue_labels(repo, n))
 
 
-def base_reviewer_logins(repo: str, base: str) -> list:
-    """team.reviewer_logins as the PR's base branch has it: a PR cannot choose its own reviewers by editing
-    project.yml, and the working tree may be any branch."""
+def base_project_text(repo: str, base: str) -> str:
+    """project.yml as the PR's base branch has it ("" when it has none): a PR cannot choose its own reviewers or
+    drop a required verdict by editing project.yml, and the working tree may be any branch."""
     try:
-        text = gh.raw(f"repos/{repo}/contents/{project.PROJECT_FILE}?ref={quote(base, safe='')}",
+        # A full ref: a tag or commit named like the branch must never stand in for it.
+        return gh.raw(f"repos/{repo}/contents/{project.PROJECT_FILE}?ref={quote('refs/heads/' + base, safe='/')}",
                       "application/vnd.github.raw")
     except gh.GhError as exc:
         if "HTTP 404" in str(exc):
-            return []
+            return ""
         raise
-    return project.reviewer_logins_from_text(text)
 
 
 def gate(repo: str, n: int) -> dict:
     info = view(repo, n)
-    reasons = security_check(repo, n)
+    paths = changed_files(repo, n)
+    reasons = security_check(repo, n, paths)
     reviews = gh.api_list(f"repos/{repo}/pulls/{n}/reviews?per_page=100")
     team_login = gh.token_login() if gh.app_mode() else None
     try:
-        logins, warning = review.allowed_reviewers(base_reviewer_logins(repo, info["base"]), gh.review_login(),
+        config = base_project_text(repo, info["base"])
+        policy = project.review_policy_from_text(config)
+        logins, warning = review.allowed_reviewers(project.reviewer_logins_from_text(config), gh.review_login(),
                                                    team_login)
+        roles, why = review.required_verdicts(policy, paths, reasons)
     except ValueError as exc:
         return {"passed": False, "missing": [str(exc)], "required": [], "verdicts": {}, "ci": {}, "security_reasons": []}
-    result = review.gate(reviews, info["head_sha"], bool(reasons), logins)
+    result = review.gate(reviews, info["head_sha"], bool(reasons), logins, roles)
+    result["why"] = why
+    result["policy"] = {k: policy[k] for k in ("configured", "qa", "reviewer", "code_paths", "max_rework_rounds")}
     result["ci"] = ci(repo, info["head_sha"])
     result["security_reasons"] = reasons[:10]
     result["reviewers"] = logins

@@ -85,7 +85,7 @@ def cmd_start(repo: str, args) -> int:
         return 3
     now = datetime.now(timezone.utc)
     labels = {l["name"] for l in issue["labels"]}
-    owner_cmds = commands.parse(comments, gh.owner_login(repo), history)
+    owner_cmds = commands.parse(comments, gh.owner_login(repo), history, gh.acts_as_owner(repo))
     team = team_comments(issue, comments, history)
     paused_since = max([pause_at(team)] + [c["created_at"] for c in team if runstate.OWNER_RESUME in (c.get("body") or "")])
     paused = PAUSED in labels
