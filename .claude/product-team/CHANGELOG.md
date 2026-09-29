@@ -4,6 +4,20 @@ Products follow the `stable` channel (or a pinned tag, `team.plugin_ref` in `.pr
 first `slot-pm` of the day runs `vendor self-update` and opens a PR with the entries in between. Breaking changes (a renamed label, a changed script contract, a new required
 `project.yml` key) are marked **Breaking** with the migration step.
 
+## 0.9.3
+
+- Designs are published by `design-pages.yml` (GitHub Actions → Pages) from `docs/design` after a PR is merged;
+  designers commit prototypes and wireframes by PR and never push to `gh-pages` (the first team-console run was
+  rightly stopped from doing that).
+
+## 0.9.2
+
+Found in the first scheduled run on geeera/team-console.
+- Scripts no longer write `__pycache__` into the product repository (cloud sessions flagged it as untracked and
+  spent turns deleting it); the vendored copy also carries its own `.gitignore`.
+- `backlog edit N --title/--body-file`: grooming can fix an issue's title and criteria in place instead of adding
+  comments; a question's answer line is preserved.
+
 ## 0.9.1
 
 - `backlog label N -name` removed nothing and failed: argparse read `-name` as an option. Label removal works again

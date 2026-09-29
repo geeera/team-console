@@ -10,6 +10,8 @@ import argparse
 import json
 import os
 import sys
+
+sys.dont_write_bytecode = True  # the vendored copy lives in the product repo: no __pycache__ there
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
