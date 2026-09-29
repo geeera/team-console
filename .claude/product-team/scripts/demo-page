@@ -16,7 +16,7 @@ sys.dont_write_bytecode = True  # the vendored copy lives in the product repo: n
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from ptlib import demo, gh  # noqa: E402
+from ptlib import demo, gh, provenance  # noqa: E402
 
 TEMPLATE = os.path.join(HERE, "..", "templates", "demo-page.html")
 
@@ -41,7 +41,8 @@ def main() -> None:
         elif args.cmd == "decisions":
             repo = gh.repo()
             comments = gh.api_list(f"repos/{repo}/issues/{args.issue}/comments?per_page=100")
-            print(json.dumps(demo.decisions_from_comments(comments, gh.owner_login(repo)), indent=2))
+            history = provenance.fetch(repo, args.issue)
+            print(json.dumps(demo.decisions_from_comments(comments, gh.owner_login(repo), history), indent=2))
         else:
             with open(args.rows, encoding="utf-8") as fh:
                 rows = json.load(fh)

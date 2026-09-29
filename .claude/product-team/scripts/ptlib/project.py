@@ -56,6 +56,16 @@ def reviewer_logins_from_text(text: str) -> list:
     return logins
 
 
+def run_log_issue(path: str = PROJECT_FILE) -> int:
+    """`team.run_log_issue` — the number of the run-log issue, 0 when not pinned."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            m = re.search(r"^\s*run_log_issue:\s*(\d+)\s*(?:#.*)?$", f.read(), re.MULTILINE)
+    except FileNotFoundError:
+        return 0
+    return int(m.group(1)) if m else 0
+
+
 def owner_language(path: str = PROJECT_FILE) -> str:
     """`owner.language` — the language of questions and the daily digest (en | ru)."""
     try:

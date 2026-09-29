@@ -4,6 +4,44 @@ Products follow the `stable` channel (or a pinned tag, `team.plugin_ref` in `.pr
 first `slot-pm` of the day runs `vendor self-update` and opens a PR with the entries in between. Breaking changes (a renamed label, a changed script contract, a new required
 `project.yml` key) are marked **Breaking** with the migration step.
 
+## 0.10.1
+
+- **Security: edited owner comments no longer count** (geeera/team-console#60). GitHub keeps a comment's author when
+  someone else edits its body, so anyone with Issues write — the team app, the review app, a collaborator — could
+  turn an old owner comment into `/go`, `/approve` or `/resume` and have it read as the owner's. Owner statements
+  (`backlog answers`, `backlog reversals`, `demo-page decisions`, the run log's `/resume`, "done" reports) now count
+  only when nobody but the owner ever edited them, checked against GitHub's edit history (GraphQL
+  `userContentEdits`, `lastEditedAt` + `editor`). Anything edited by another login, by a deleted account, or with
+  more history than can be checked is ignored; when the history cannot be fetched only comments the REST timestamps
+  show unedited count.
+- `backlog answers` adds `ignored` (owner comments with a command that do not count, and why), `done` (verified
+  "done" reports; `slot-pm` reads these instead of any `<!-- pt-owner-done -->` comment), `body` (whether the issue
+  body is the owner's own words, and who edited it when) and `history_error`. `backlog show` marks edited comments.
+- The run log trusts run entries and pause records only when no one outside the team edited them (a pause record
+  holds the routine prompts `resume` re-creates). `runlog start` answers `unverified` (exit 3, do no work) when the
+  edit history cannot be read — **Breaking** for custom run protocols: treat `unverified` like `paused`.
+- The checked text comes from the same GraphQL read as its edit history (REST body only as the fallback), and a
+  comment REST shows edited but GraphQL does not is ignored. An edit GitHub reports without history entries counts
+  as unchecked. GitHub Enterprise Server without `fullDatabaseId` is read by comment URL instead of failing.
+- Team decisions are dated only by decision comments of the team's logins that nobody else edited (`backlog
+  reversals`, `brief`), so another Issues writer cannot bury an owner `/reject` under a newer marker. `backlog
+  decide` refuses while such a reversal is open unless given `--handles-reversal <comment_id>`; `backlog comment`
+  refuses decision markers. `reversals` entries carry `comment_id`.
+- The run log is `team.run_log_issue` in `project.yml` (new key; kickoff/adopt write it), else the single
+  `team:run-log` issue the team or owner opened; several candidates → every `runlog` command (and `brief`) refuses.
+  **Migration**: add `team.run_log_issue: <number>` to `.product-team/project.yml` (`runlog url` shows it). Rotation
+  is documented in `reference/schedule-and-models.md`. `brief` reads only the team's unedited run-log entries.
+- Deleted owner commands: `runlog finish --acted ISSUE:COMMENT_ID` records the commands a run acted on; the new
+  `backlog vanished [--days 30]` (once per run) lists any that were deleted since. `slot-pm` and `demo-apply` pass
+  `--acted`.
+- Decision comments count only when they start with the marker. `decide --handles-reversal` writes "Answers your
+  /reject: <link>" into the decision, and `brief` lists such answers under `answered_rejects`.
+- A labelled run-log issue opened by anyone else, or a pinned `team.run_log_issue` not opened by the team or the
+  owner, makes the scripts refuse instead of opening a new log.
+- Same-account mode is unchanged: the agents are the owner's login there, so their edits look like the owner's
+  (`reference/identities.md`, "does not isolate"), and so is anyone holding the owner's credentials, including the
+  team console's owner user token.
+
 ## 0.10.0
 
 - **Agents on their own GitHub identities** (`reference/identities.md`): an optional **team app** every script and

@@ -271,5 +271,15 @@ def owner_token(repo_name: str) -> Optional[str]:
     return credential
 
 
+def team_logins(repo_name: str) -> set:
+    """Logins the team's own comments (decisions, run-log entries) come from: the agents' identity, and the owner's
+    login — the agents' identity in same-account mode, and the author of anything written before the app existed."""
+    logins = {owner_login(repo_name)}
+    login = token_login()
+    if login:
+        logins.add(login)
+    return logins
+
+
 def owner_login(repo_name: str) -> str:
     return api(f"repos/{repo_name}")["owner"]["login"]

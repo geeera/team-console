@@ -12,6 +12,7 @@ PAUSE_MARKER = "<!-- pt-paused -->"
 OWNER_PAUSE = re.compile(r"<!-- pt-owner-pause (\{.*?\}) -->", re.DOTALL)
 OWNER_RESUME = "<!-- pt-owner-resume -->"
 METRICS = re.compile(r"<!-- pt-metrics (\{.*?\}) -->")
+ACTED = re.compile(r"<!-- pt-acted (\[.*?\]) -->")
 FAILURE_LIMIT = 3
 OVERLAP_WINDOW = timedelta(hours=3)
 
@@ -29,6 +30,7 @@ def parse_runs(comments: List[dict]) -> List[dict]:
                     "at": c.get("created_at"),
                     "comment_id": c.get("id"),
                     "metrics": _metrics_of(c.get("body") or ""),
+                    "acted": _acted_of(c.get("body") or ""),
                 }
             )
     runs.sort(key=lambda r: r["at"] or "")
@@ -76,6 +78,35 @@ def _metrics_of(body: str) -> dict:
     except ValueError:
         return {}
     return value if isinstance(value, dict) else {}
+
+
+def parse_acted(pairs: Iterable[str]) -> List[List[int]]:
+    """`--acted ISSUE:COMMENT_ID` values → [[issue, comment_id], …]; anything but two numbers is refused."""
+    out = []
+    for pair in pairs:
+        issue, sep, comment = pair.partition(":")
+        if not sep or not issue.strip().isdigit() or not comment.strip().isdigit():
+            raise ValueError(f"--acted must look like ISSUE:COMMENT_ID (the owner command's comment id), got {pair!r}")
+        out.append([int(issue), int(comment)])
+    return out
+
+
+def acted_marker(pairs: List[List[int]]) -> str:
+    """The owner commands a run acted on, so a command deleted afterwards can be noticed (`backlog answers`)."""
+    return f"<!-- pt-acted {json.dumps(pairs)} -->" if pairs else ""
+
+
+def _acted_of(body: str) -> List[List[int]]:
+    m = ACTED.search(body)
+    if not m:
+        return []
+    try:
+        value = json.loads(m.group(1))
+    except ValueError:
+        return []
+    if not isinstance(value, list):
+        return []
+    return [p for p in value if isinstance(p, list) and len(p) == 2 and all(isinstance(x, int) for x in p)]
 
 
 def started_at(run_id: str) -> datetime:
