@@ -62,7 +62,7 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
      production);
    - в конце напечатает в терминал (не в файл) публичные VAPID-ключи — они не секретны, но нужны дальше, шаг 4;
    - **не** трогает `WEBHOOK_SECRET` — этот секрет должен совпадать с webhook secret'ом консольного GitHub
-     App'а и появится вместе с его настройкой (шаг 10 ниже, ADR 0003, #61).
+     App'а и появится вместе с его настройкой (шаг 10 ниже, ADR 0003).
    Побочный эффект, который важен для шага 7: `wrangler secret put` на несуществующий Worker сам создаёт его
    черновиком ("draft"), поэтому после этого шага `team-console-<env>` и `team-console-hooks-<env>` уже
    существуют в dashboard — отдельно их заводить не нужно.
@@ -155,9 +155,56 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
      Secrets** → **Add** → Type **Secret** → Name `OWNER_EMAIL` → Value — твой email (тот же, что в Access) →
      **Deploy**. Только на `api`, не на `hooks`.
 
-10. **Консольный GitHub App и `WEBHOOK_SECRET` — см. отдельную задачу #61** (вынесено из #7 решением PM;
-    заменяет fine-grained PAT из ADR 0001 решения 6, по ADR 0003). Пока #61 не готова, секреты `GITHUB_TOKEN`
-    и `WEBHOOK_SECRET` Worker'ов не заводи.
+10. **Консольный GitHub App — по одному на окружение, через App Manifest flow** (ADR 0003; заменяет
+    fine-grained PAT из ADR 0001 решения 6). Нужны Worker'ы этого окружения уже задеплоенными хотя бы раз
+    (их хостнеймы должны существовать — #25), поэтому этот шаг делается **после** первого деплоя окружения, а
+    не до него. Для каждого окружения (`dev`, `stage`, `production`) по отдельности:
+    0. `gh auth login` должен быть сделан **именно твоим** аккаунтом (владельцем `geeera/team-console`) — скрипт
+       сверяет `gh api user` с владельцем репозитория и отказывается продолжать, если они не совпадают (ADR
+       0003, решение 2: приложение должно принимать OAuth-обмен только от владельца).
+    1. Запусти `bash tools/owner-setup/create-apps.sh --env dev` (потом `--env stage`, потом
+       `--env production`; без `--env` скрипт сам пройдёт все три по очереди). Один раз спросит workers.dev
+       поддомен твоего аккаунта (dashboard.cloudflare.com → Workers & Pages, вид `<имя>.workers.dev`; это не
+       секрет — только строчные латинские буквы, цифры и дефисы, иначе скрипт откажется).
+    2. Скрипт поднимет страницу на `127.0.0.1` и попытается открыть её в браузере (если не откроется сама —
+       ссылка из терминала). Страница сама отправит форму с прописанными для `team-console-<env>` именем,
+       homepage, webhook URL, разрешениями (`metadata: read`, `issues: write`, `pull_requests: read`,
+       `contents: read`, `actions: read`) и событиями (`issues`, `issue_comment`, `pull_request`,
+       `workflow_run`, `release`, `push`) на github.com/settings/apps/new. **Единственное, что делаешь ты**:
+       проверяешь экран подтверждения GitHub и нажимаешь **Create GitHub App**.
+    3. GitHub вернёт браузер обратно на `127.0.0.1`; скрипт сам обменяет код, полученный от GitHub, на
+       приватный ключ, client secret и webhook secret приложения и **сразу же**, ничего не печатая и никуда не
+       сохраняя на диск, положит их: приватный ключ (конвертированный в PKCS#8) и client secret — секретами
+       `GITHUB_APP_PRIVATE_KEY` / `GITHUB_APP_CLIENT_SECRET` Worker'а `api`; webhook secret — секретом
+       `WEBHOOK_SECRET` Worker'а `hooks`; свежий `TOKEN_ENCRYPTION_KEY` — секретом `api`; App ID, Client ID и
+       твой GitHub-логин — переменными GitHub-окружения `CONSOLE_GITHUB_APP_ID`, `CONSOLE_GITHUB_APP_CLIENT_ID`,
+       `OWNER_GITHUB_LOGIN` (не секреты; названы не `GITHUB_APP_ID`/`GITHUB_APP_CLIENT_ID` — GitHub не даёт
+       завести переменную окружения с именем, начинающимся на зарезервированный префикс `GITHUB_`; в сам
+       Worker `deploy.yml` передаёт их уже под именами `GITHUB_APP_ID`/`GITHUB_APP_CLIENT_ID`, как в ADR 0003).
+       В терминале увидишь только имена того, что установлено, ссылку на
+       настройки приложения и ссылку на установку — сами значения нигде не печатаются.
+    4. Скрипт откроет страницу установки приложения — выбери **Only select repositories**: для `dev` и
+       `stage` — только `geeera/team-console`; для `production` — продуктовые репозитории, которыми управляет
+       консоль.
+    5. **Открой настройки приложения по ссылке из терминала (`https://github.com/settings/apps/<slug>`) и
+       проверь вручную**: "Expire user authorization tokens" включён, Device Flow выключен (это значения по
+       умолчанию для нового приложения, но скрипт не может их прочитать через Manifest flow — проверь сам).
+    6. Повтори шаги 1–5 для оставшихся окружений, затем задеплой каждое окружение заново — новые
+       GitHub-переменные окружения доходят до Worker'а только со следующим прогоном `deploy.yml`.
+    Повторный запуск `bash tools/owner-setup/create-apps.sh --env <env>` для окружения, где приложение уже
+    полностью настроено (обнаруживается по установленному `GITHUB_APP_CLIENT_SECRET`), **ничего не делает** —
+    скрипт пропустит его с сообщением "skip"; чтобы всё же создать приложение заново и заменить секреты, добавь
+    `--recreate` — скрипт сначала напомнит порядок из ADR 0003 (сначала Disconnect в консоли, потом удали или
+    отзови старый ключ в настройках старого приложения на GitHub) и попросит подтвердить, что это сделано.
+
+    **Если запуск оборвался после того, как GitHub уже создал приложение** (ошибка `wrangler`/`openssl`,
+    Ctrl-C, таймаут 15 минут после нажатия "Create GitHub App"): скрипт успевает записать переменную
+    `CONSOLE_GITHUB_APP_SLUG` сразу после обмена кода, ещё до первого секрета, — при следующем запуске он это
+    увидит и покажет ссылку на настройки недосозданного приложения. Проще всего удалить его там (Danger Zone →
+    **Delete GitHub App**) и запустить скрипт заново с тем же именем; названия приложений на GitHub глобальные,
+    поэтому "создать ещё раз, не удаляя старое" не сработает — GitHub откажет в имени `team-console-<env>` на
+    экране подтверждения, и скрипт зависнет в ожидании редиректа, который никогда не придёт (сам оборвётся по
+    таймауту через 15 минут, если забыть отменить).
 
 11. **`ROUTINE_TOKEN_<SLUG>`** — токен PM-чата на продукт (ADR 0001 решение 11); делать не раньше, чем появится
     задача, реализующая решения 11/20 — здесь только чтобы имя секрета сразу было верным:
@@ -190,6 +237,9 @@ Actions; заводить его не нужно (`deploy.yml` его не ис�
 | `VAPID_PUBLIC_KEY` | публичный VAPID-ключ, читает клиентский код (появится с #11) | шаг 4 выше, значение из вывода скрипта (шаг 2) | dev, stage, production — своё значение в каждом | [ ] |
 | `ACCESS_TEAM_DOMAIN` | JWT-проверка Access в Worker'е `api` (ADR 0001 решение 7); `deploy.yml` передаёт её Worker'у через `--var`, это единственный источник (`wrangler.jsonc` в коде остаётся пустым нарочно) | шаг 7.8–7.9 выше | dev, stage, production | [ ] |
 | `ACCESS_AUD` | то же самое | шаг 7.7, 7.9 выше | dev, stage, production | [ ] |
+| `CONSOLE_GITHUB_APP_ID` | JWT-минтинг в Worker'е `api` (ADR 0003 решение 6); `deploy.yml` передаёт её Worker'у как `GITHUB_APP_ID` через `--var` (имя на стороне GitHub другое — см. шаг 10, GitHub не разрешает переменные с префиксом `GITHUB_`) | шаг 10 выше (`tools/owner-setup/create-apps.sh`) | dev, stage, production — своё значение в каждом | [ ] |
+| `CONSOLE_GITHUB_APP_CLIENT_ID` | OAuth-обмен кода на токен владельца (ADR 0003 решение 3); `deploy.yml` передаёт Worker'у как `GITHUB_APP_CLIENT_ID` через `--var` | шаг 10 выше | dev, stage, production — своё значение в каждом | [ ] |
+| `OWNER_GITHUB_LOGIN` | сверка входящего логина при OAuth-коллбэке (ADR 0003 решение 3); `deploy.yml` передаёт через `--var` | шаг 10 выше (твой логин, полученный через `gh`) | dev, stage, production | [ ] |
 
 ## Секреты самих Worker'ов (Cloudflare, не GitHub — либо `tools/owner-setup/set-secrets.sh`, либо `wrangler
 secret put` / dashboard → Workers & Pages → Worker → Settings → Variables and Secrets)
@@ -197,8 +247,10 @@ secret put` / dashboard → Workers & Pages → Worker → Settings → Variable
 | ------ | ------ | -------- | ------------ | --------- | ------ |
 | `OWNER_EMAIL` | `api` | проверка JWT от Access (ADR 0001 решение 7) | шаг 9 выше (вручную) | dev, stage, production | [ ] |
 | `VAPID_PRIVATE_KEY` | `api`, `hooks` | веб-пуш (ADR 0001 решение 11) | `tools/owner-setup/set-secrets.sh` (шаг 2) — своя пара на каждое окружение | dev, stage, production | [ ] |
-| `WEBHOOK_SECRET` | `hooks` | подпись `X-Hub-Signature-256` входящих вебхуков (ADR 0001 решение 20); должен совпадать с webhook secret'ом консольного GitHub App'а | **не отсюда — задаётся при настройке GitHub App'а, см. шаг 10 / #61** | — | отложено |
-| `GITHUB_TOKEN` | `api` | учётные данные для GitHub API (ADR 0001 решение 6, теперь через GitHub App) | **см. шаг 10, ждём #61** | — | отложено |
+| `WEBHOOK_SECRET` | `hooks` | подпись `X-Hub-Signature-256` входящих вебхуков (ADR 0003 решение 5); значение — собственный webhook secret консольного GitHub App'а этого окружения | шаг 10 выше (`tools/owner-setup/create-apps.sh`) | dev, stage, production — своя пара приложение/секрет на каждое | [ ] |
+| `GITHUB_APP_PRIVATE_KEY` | `api` | минтинг JWT/installation-токенов для GitHub API (ADR 0003 решения 2, 6; заменяет `GITHUB_TOKEN` из ADR 0001 решения 6 — этого секрета больше нет) | шаг 10 выше — приватный ключ приложения, сконвертированный скриптом в PKCS#8 | dev, stage, production | [ ] |
+| `GITHUB_APP_CLIENT_SECRET` | `api` | обмен OAuth-кода на токен владельца (ADR 0003 решение 3) | шаг 10 выше | dev, stage, production | [ ] |
+| `TOKEN_ENCRYPTION_KEY` | `api` | шифрует пару токенов владельца в D1 (ADR 0003 решение 4) | шаг 10 выше — генерируется скриптом, 32 случайных байта | dev, stage, production — свой ключ на каждое | [ ] |
 | `ROUTINE_TOKEN_<SLUG>` | `api` | будит routine PM-чата продукта `<slug>` (ADR 0001 решение 11) | шаг 11 выше | по одному на продукт, когда появится соответствующая задача | [ ] |
 
 ## Усиление безопасности (сделать желательно до первого релиза)

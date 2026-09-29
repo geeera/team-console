@@ -34,6 +34,7 @@ API_WRANGLER="apps/api/wrangler.jsonc"
 HOOKS_WRANGLER="apps/hooks/wrangler.jsonc"
 WRANGLER="node_modules/.bin/wrangler"
 VAPID_KEYGEN="tools/owner-setup/vapid-keygen.js"
+WRANGLER_SECRET_LIB="tools/owner-setup/lib/wrangler-secret.sh"
 
 ROTATE=false
 for arg in "$@"; do
@@ -56,8 +57,8 @@ require() {
 require gh
 require node
 
-if [ ! -f "${API_WRANGLER}" ] || [ ! -f "${HOOKS_WRANGLER}" ] || [ ! -f "${VAPID_KEYGEN}" ]; then
-  echo "error: run this from the repository root (expected ${API_WRANGLER}, ${HOOKS_WRANGLER}, ${VAPID_KEYGEN})" >&2
+if [ ! -f "${API_WRANGLER}" ] || [ ! -f "${HOOKS_WRANGLER}" ] || [ ! -f "${VAPID_KEYGEN}" ] || [ ! -f "${WRANGLER_SECRET_LIB}" ]; then
+  echo "error: run this from the repository root (expected ${API_WRANGLER}, ${HOOKS_WRANGLER}, ${VAPID_KEYGEN}, ${WRANGLER_SECRET_LIB})" >&2
   exit 1
 fi
 
@@ -66,6 +67,9 @@ if [ ! -x "${WRANGLER}" ]; then
   echo "       which could silently download a different wrangler version onto this machine." >&2
   exit 1
 fi
+
+# shellcheck source=tools/owner-setup/lib/wrangler-secret.sh
+source "${WRANGLER_SECRET_LIB}"
 
 # --- helpers: does this secret already exist? A failed listing is an error, never "not set". ----------------
 
@@ -78,55 +82,8 @@ gh_secret_exists() {
   printf '%s\n' "${names}" | grep -qx "${name}"
 }
 
-worker_secret_exists() {
-  local config="$1" env="$2" name="$3" listing listing_err rc
-
-  # stdout and stderr are captured separately: mixing them (2>&1) would feed a stderr warning wrangler prints
-  # on an otherwise *successful* list (an update notice, a config warning) into the JSON parser below and
-  # misreport it as a parse failure (QA round 4).
-  listing_err=$(mktemp)
-  if listing=$("${WRANGLER}" secret list --env "${env}" --config "${config}" 2>"${listing_err}"); then
-    rm -f "${listing_err}"
-  else
-    local stderr_text
-    stderr_text=$(cat "${listing_err}")
-    rm -f "${listing_err}"
-
-    # wrangler 4.124.0 (the version pinned in package.json and deploy.yml) throws exactly this error — see
-    # `isWorkerNotFoundError` in packages/wrangler/src/secret/index.ts — when `secret list` targets a Worker
-    # that has never been deployed. On a fresh account that is every Worker until `wrangler secret put` below
-    # creates it as a draft: nothing earlier in the checklist deploys one. Only this specific, pinned wording
-    # is treated as "not set"; any other failure (auth, network, a renamed Worker) still aborts the script.
-    # Re-verify this text if `wranglerVersion`/`package.json`'s wrangler version ever changes.
-    if printf '%s' "${stderr_text}" | grep -q 'not found\.' \
-      && printf '%s' "${stderr_text}" | grep -q 'wrangler deploy'; then
-      return 1
-    fi
-
-    echo "error: 'wrangler secret list --env ${env} --config ${config}' failed — cannot tell whether ${name} is already set" >&2
-    echo "${stderr_text}" >&2
-    exit 1
-  fi
-
-  set +e
-  printf '%s' "${listing}" | node -e '
-      let s = "";
-      process.stdin.on("data", (d) => { s += d; });
-      process.stdin.on("end", () => {
-        let list;
-        try { list = JSON.parse(s); } catch (e) { process.exit(2); }
-        process.exit(list.some((x) => x.name === process.argv[1]) ? 0 : 1);
-      });
-    ' "${name}"
-  rc=$?
-  set -e
-
-  if [ "${rc}" -eq 2 ]; then
-    echo "error: could not parse 'wrangler secret list --env ${env} --config ${config}' output as JSON" >&2
-    exit 1
-  fi
-  return "${rc}"
-}
+# worker_secret_exists is defined in tools/owner-setup/lib/wrangler-secret.sh, sourced above (shared with
+# create-apps.sh, #61 REVIEW round 1) — same signature and behavior as before the extraction.
 
 confirm_rotate() {
   local label="$1" reply

@@ -192,11 +192,20 @@ jobs:
           workingDirectory: apps/api
           command: d1 migrations apply team-console-${{ env.ENV_NAME }} --env ${{ env.ENV_NAME }} --remote
 
-      # ACCESS_TEAM_DOMAIN/ACCESS_AUD live in exactly one place: these non-secret GitHub Environment
-      # *variables*, set by the owner directly (owner checklist) — never in apps/api/wrangler.jsonc, which
-      # keeps them committed empty on purpose (this repository is public). `--var` always wins over the
-      # config, including when the variable is still unset (an empty override), so the Worker fails closed
-      # either way until the owner sets both (ADR 0001 decision 7).
+      # ACCESS_TEAM_DOMAIN/ACCESS_AUD/GITHUB_APP_ID/GITHUB_APP_CLIENT_ID/OWNER_GITHUB_LOGIN all live in exactly
+      # one place: non-secret GitHub Environment *variables* (owner checklist; the GitHub App ones are set by
+      # tools/owner-setup/create-apps.sh, #61, ADR 0003 decision 7) — never in apps/api/wrangler.jsonc, which
+      # keeps them committed empty/absent on purpose (this repository is public). `--var` always wins over the
+      # config, including when a variable is still unset (an empty override), so the Worker fails closed
+      # either way until the owner sets all five (ADR 0001 decision 7, ADR 0003 decision 7).
+      #
+      # The two `--var NAME:${{ vars.CONSOLE_NAME }}` pairs below deliberately read from a differently-named
+      # GitHub variable than the Worker binding they set: GitHub rejects a configuration variable whose name
+      # starts with the reserved GITHUB_ prefix (actionlint catches `vars.GITHUB_APP_ID` as invalid — verified
+      # against the documented naming convention for configuration variables), so create-apps.sh writes
+      # CONSOLE_GITHUB_APP_ID / CONSOLE_GITHUB_APP_CLIENT_ID on the GitHub side. The left-hand side of `--var`
+      # is only wrangler's own binding name, not subject to that rule, so apps/api/src/env.ts still declares
+      # plain GITHUB_APP_ID / GITHUB_APP_CLIENT_ID exactly as ADR 0003 specifies.
       - name: Deploy api Worker (app + assets)
         id: deploy_api
         uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
@@ -209,6 +218,9 @@ jobs:
             deploy --env ${{ env.ENV_NAME }}
             --var ACCESS_TEAM_DOMAIN:${{ vars.ACCESS_TEAM_DOMAIN }}
             --var ACCESS_AUD:${{ vars.ACCESS_AUD }}
+            --var GITHUB_APP_ID:${{ vars.CONSOLE_GITHUB_APP_ID }}
+            --var GITHUB_APP_CLIENT_ID:${{ vars.CONSOLE_GITHUB_APP_CLIENT_ID }}
+            --var OWNER_GITHUB_LOGIN:${{ vars.OWNER_GITHUB_LOGIN }}
 
       - name: Deploy hooks Worker
         id: deploy_hooks
