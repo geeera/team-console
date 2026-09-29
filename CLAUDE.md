@@ -20,6 +20,20 @@ Node 22 (`.nvmrc`), npm, `npm ci` only — versions are pinned exactly, no `^`. 
 support Angular 22). Commands: `npx nx run-many -t lint`, `-t test`, `-t build`; a single project with
 `npx nx test console-pages-hello`. Unit tests are Vitest through `@analogjs/vitest-angular`; the app is zoneless.
 
+npm is pinned to `package.json#packageManager` (10.9.9; `engines.npm` allows 10.x only) — the lockfile must be
+written by npm 10, npm 11 rewrites it.
+
+CI on every PR into dev/stage/main (ADR 0001 decision 18): `ci.yml` job `lint-test-build` runs `nx affected -t
+lint|test|build` with `NX_BASE`/`NX_HEAD` from `nrwl/nx-set-shas` (merge-base of the PR's base branch and the PR
+merge commit), and `nx run-many` instead when the PR touches `.github/workflows/`, `package.json`, the lockfile,
+`.nvmrc`, `nx.json`, `tsconfig.base.json`, `eslint.config.mjs` or `vitest.config.mts`, and on every PR into
+stage/main; the job's "Nx scope" notice says which. `security.yml`: `secret-scan` (gitleaks over `git log --all`
+of the clone — every branch and tag of the repo plus this PR's merge ref, not other PRs), `sast` (Semgrep),
+`dependency-audit` (`npm audit --audit-level=high`). Every action in `.github/workflows/` is pinned by full commit
+SHA; the PR workflows use no secrets. A leaked secret: rotate/revoke it first (the public history keeps it), then
+delete the branch and push a clean one (no force-push onto shared branches), or — if it already reached a
+long-lived branch — add its fingerprint (from the red run's log) to `.gitleaksignore` in a reviewed PR.
+
 Layout, tags and aliases (architect note on #3 — binding; the boundary lint enforces the tags):
 
 ```

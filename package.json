@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
+  "packageManager": "npm@10.9.9",
   "engines": {
     "node": "22",
-    "npm": ">=10"
+    "npm": ">=10.9.0 <11"
   },
   "scripts": {
     "lint": "nx run-many -t lint",
