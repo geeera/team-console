@@ -214,13 +214,15 @@ def cmd_answer(repo: str, args) -> None:
 def cmd_reversals(repo: str, args) -> None:
     owner_login = gh.owner_login(repo)
     team = gh.team_logins(repo)
+    same_account = gh.acts_as_owner(repo)
     since = (datetime.now(KYIV) - timedelta(days=args.days)).isoformat(timespec="seconds")
     found = []
     for issue in gh.api_list(f"repos/{repo}/issues?state=all&labels=team-decided&since={quote(since)}&per_page=100"):
         if "pull_request" in issue:
             continue
         comments = gh.api_list(f"repos/{repo}/issues/{issue['number']}/comments?per_page=100")
-        rejection = owner.reversed_by_owner(comments, owner_login, provenance.fetch(repo, issue["number"]), team)
+        rejection = owner.reversed_by_owner(comments, owner_login, provenance.fetch(repo, issue["number"]), team,
+                                           same_account)
         if rejection:
             found.append(dict(slim(issue), reason=rejection.get("text", ""), at=rejection.get("at"),
                               comment_id=rejection.get("comment_id"), comment_url=rejection.get("url")))
@@ -238,7 +240,7 @@ def cmd_decide(repo: str, args) -> None:
     # A new decision would move the decision date past an open owner /reject and hide it from `reversals`.
     comments = gh.api_list(f"repos/{repo}/issues/{args.number}/comments?per_page=100")
     rejection = owner.reversed_by_owner(comments, gh.owner_login(repo), provenance.fetch(repo, args.number),
-                                        gh.team_logins(repo))
+                                        gh.team_logins(repo), gh.acts_as_owner(repo))
     if rejection and str(rejection.get("comment_id")) != str(args.handles_reversal or ""):
         sys.exit(f"#{args.number}: the owner reversed the last team decision (/reject {rejection.get('text', '')}, "
                  f"{rejection.get('url')}). Act on it: record the redone decision with "
@@ -334,13 +336,13 @@ def cmd_answers(repo: str, args) -> None:
     comments = gh.api_list(f"repos/{repo}/issues/{args.number}/comments?per_page=100")
     # Anyone with Issues write can edit an owner comment into a command: only unedited or owner-edited ones count.
     history = provenance.fetch(repo, args.number)
-    # When the agents act as the owner's account, an agent can write a comment that looks like the owner's; as an
-    # app they cannot, and commands.parse already counts only the owner's login.
+    # When the agents act as the owner's account, an agent can write a comment that looks like the owner's (team
+    # notes are then skipped); as an app they cannot, and commands.parse counts only the owner's login.
     same_account = gh.acts_as_owner(repo)
     trusted, _ = provenance.screen(comments, [owner], history)
     out({"owner": owner, "agents": gh.token_login(), "same_account": same_account,
-         "commands": commands.parse(comments, owner, history),
-         "ignored": commands.rejected(comments, owner, history),
+         "commands": commands.parse(comments, owner, history, same_account),
+         "ignored": commands.rejected(comments, owner, history, same_account),
          "done": [{"at": c.get("created_at"), "comment_id": c.get("id"), "url": c.get("html_url")}
                   for c in trusted if brief.DONE_MARKER in (c.get("body") or "")],
          "body": provenance.body_statement(issue, owner, history),
