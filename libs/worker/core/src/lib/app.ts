@@ -3,8 +3,8 @@ import { HTTPException } from 'hono/http-exception';
 import { requestId } from 'hono/request-id';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { WorkerBaseEnv } from './env';
-import { createLogger, type LogSink, type Logger } from './logger';
-import { problem } from './problem';
+import { createLogger, type LogFields, type LogSink, type Logger } from './logger';
+import { problem, type ProblemInit } from './problem';
 
 export interface WorkerVariables {
   requestId: string;
@@ -25,6 +25,16 @@ export interface CreateWorkerAppOptions<B extends WorkerBaseEnv> {
   readonly notFound?: (c: WorkerContext<B>) => Response | Promise<Response>;
   /** Test seam; production writes to the console, which Workers Logs collects. */
   readonly logSink?: LogSink;
+  /**
+   * Turns a known domain error thrown by a route (e.g. a GitHub failure) into its problem; `undefined` leaves
+   * the error to the generic 500. `logFields` are logged with it and must not carry credentials.
+   */
+  readonly mapError?: (error: unknown) => MappedError | undefined;
+}
+
+export interface MappedError {
+  readonly problem: ProblemInit;
+  readonly logFields?: LogFields;
 }
 
 /** Slugs for the statuses Hono itself raises (body limits, bad JSON); anything else is a plain `http-error`. */
@@ -82,6 +92,18 @@ export function createWorkerApp<B extends WorkerBaseEnv>(
         title: error.message || 'Request rejected',
         status,
       });
+    }
+    const mapped = options.mapError?.(error);
+    if (mapped !== undefined) {
+      // The error object is not logged: its type and the caller's fields say what failed, nothing more.
+      logger.warn('request failed', {
+        ...mapped.logFields,
+        problem: mapped.problem.type,
+        status: mapped.problem.status,
+        method: c.req.method,
+        path: c.req.path,
+      });
+      return problem(c, mapped.problem);
     }
     // The stack goes to the log only; the body carries just the request id to find it by.
     logger.error('unhandled error', { error, method: c.req.method, path: c.req.path });

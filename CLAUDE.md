@@ -78,7 +78,13 @@ Access login when an `/api` call fails with status 0, a non-JSON body or 401 `ac
 `createWorkerApp()` from `@worker/core`: `X-Request-Id` in/out, a per-request redacting logger (`c.get('logger')`),
 RFC 9457 bodies via `problem(c, { type, title, status, detail?, retryAfter? })` for every error, including 404/500.
 DTOs and `ProblemDetails` live in `@shared/contracts`; D1 access in `@worker/db` (`ProjectsRepo`, parameterised
-queries only). Migrations live only in `apps/api/migrations` (`0001_init` = `projects`; `0002_push_subscriptions`
+queries only). GitHub (#9, ADR 0003 decision 6) only through `@worker/github`: `GitHubAppAuth` (app JWT via Web
+Crypto, PKCS#8 key only, per-repo installation tokens downscoped to read-only, cached per isolate) →
+`GitHubClient(fetch, tokenSource)` with paths built by `` githubPath`/repos/${parseRepoName(row.repo)}` `` (never a raw
+string, never a client-chosen repo); throw `GitHubError` and `createApiApp`'s `mapError` answers its problem; reads go
+through `ReadCache` keyed `readCacheKey({ environment, slug, epoch, type })`. The api Worker's per-isolate GitHub state
+is `ApiGitHub` (`apps/api/src/github.ts`); `GITHUB_MOCK=true` (local only) swaps api.github.com for the fixture GitHub
+in `libs/worker/github/fixtures`. Migrations live only in `apps/api/migrations` (`0001_init` = `projects`; `0002_push_subscriptions`
 #11, `0003_webhooks` #12, `0004_chat_wakeups`, `0005_owner_connections` #59 are reserved). `wrangler.jsonc` has `env.dev|stage|production`
 with non-secret vars only; secrets (`WEBHOOK_SECRET`, `VAPID_PRIVATE_KEY`, `ROUTINE_TOKEN_*`, `OWNER_EMAIL`, and per
 ADR 0003 `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY` — `GITHUB_TOKEN` is gone with

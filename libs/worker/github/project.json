@@ -1,0 +1,7 @@
+{
+  "name": "worker-github",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/worker/github/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:worker"]
+}

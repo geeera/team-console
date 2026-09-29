@@ -61,6 +61,27 @@ describe('ProjectsRepo', () => {
     await expect(repo.findActiveByRepo('geeera/other')).resolves.toBeNull();
   });
 
+  // D1 storage is shared by the tests of this file, so these rows use names no other test seeds.
+  it('finds an active project by slug and not an archived one', async () => {
+    await seed({
+      slug: 'by-slug',
+      repo: 'acme/by-slug',
+      displayName: 'By slug',
+      addedAt: '2026-09-01T00:00:00Z',
+    });
+    await seed({
+      slug: 'by-slug-archived',
+      repo: 'acme/by-slug-archived',
+      displayName: 'Archived',
+      addedAt: '2026-09-01T00:00:00Z',
+      archivedAt: '2026-09-02T00:00:00Z',
+    });
+
+    await expect(repo.findActiveBySlug('by-slug')).resolves.toMatchObject({ repo: 'acme/by-slug' });
+    await expect(repo.findActiveBySlug('by-slug-archived')).resolves.toBeNull();
+    await expect(repo.findActiveBySlug('BY-SLUG')).resolves.toBeNull();
+  });
+
   it('does not find an archived project by repository', async () => {
     await seed({
       slug: 'old',

@@ -1,0 +1,42 @@
+{
+  "repositories": {
+    "geeera/team-console": {
+      "installationId": 1001,
+      "repository": {
+        "id": 900001,
+        "full_name": "geeera/team-console",
+        "private": false,
+        "default_branch": "dev",
+        "html_url": "https://github.com/geeera/team-console",
+        "owner": { "login": "geeera", "id": 100001 }
+      }
+    },
+    "geeera/private-product": {
+      "installationId": 1001,
+      "repository": {
+        "id": 900002,
+        "full_name": "geeera/private-product",
+        "private": true,
+        "default_branch": "main",
+        "html_url": "https://github.com/geeera/private-product",
+        "owner": { "login": "geeera", "id": 100001 }
+      }
+    },
+    "geeera/mock-rate-limited": {
+      "installationId": 1002,
+      "reply": { "status": 403, "headers": { "x-ratelimit-remaining": "0", "retry-after": "42" } }
+    },
+    "geeera/mock-unavailable": {
+      "installationId": 1002,
+      "reply": { "status": 503 }
+    },
+    "geeera/mock-redirect-off-host": {
+      "installationId": 1002,
+      "reply": { "status": 302, "headers": { "location": "https://evil.example/collect" } }
+    },
+    "geeera/mock-token-rejected": {
+      "installationId": 1002,
+      "reply": { "status": 401 }
+    }
+  }
+}

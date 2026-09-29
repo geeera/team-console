@@ -1,0 +1,13 @@
+# Findings gitleaks may skip. Each entry is a fingerprint (commit:file:rule:line) from a red secret-scan run;
+# add one only in a reviewed PR and only after a real secret was rotated (CLAUDE.md), or for a synthetic value.
+#
+# #9 (PR #74), commit e47f3cf: synthetic test sentinels, never credentials: `ghs_/ghu_/ghr_/gho_TESTSENTINEL…`
+# strings and truncated fake PEM blocks in redaction and key-format specs. The commit cannot be rewritten
+# without a force-push; the specs now build these values at run time, so later commits carry no such literal.
+e47f3cf904f981f994efd8710b401b0d1df820f6:libs/worker/github/src/lib/app-auth.spec.ts:private-key:73
+e47f3cf904f981f994efd8710b401b0d1df820f6:libs/worker/github/src/testing/github-kit.ts:generic-api-key:106
+e47f3cf904f981f994efd8710b401b0d1df820f6:libs/worker/core/src/lib/logger.spec.ts:generic-api-key:38
+e47f3cf904f981f994efd8710b401b0d1df820f6:libs/worker/core/src/lib/logger.spec.ts:generic-api-key:39
+e47f3cf904f981f994efd8710b401b0d1df820f6:libs/worker/core/src/lib/logger.spec.ts:generic-api-key:40
+e47f3cf904f981f994efd8710b401b0d1df820f6:libs/worker/core/src/lib/logger.spec.ts:generic-api-key:41
+e47f3cf904f981f994efd8710b401b0d1df820f6:libs/worker/core/src/lib/logger.spec.ts:private-key:47

@@ -34,6 +34,20 @@ describe('redact', () => {
     expect(result).toEqual({ note: 'token [redacted] and [redacted]', nested: [{ t: '[redacted]' }] });
   });
 
+  // Sentinels are assembled at run time so the repository's secret scanners never see a token-shaped literal.
+  it.each(['ghs', 'ghu', 'ghr', 'gho'])('masks a GitHub %s_ token', (prefix) => {
+    const token = `${prefix}_${'TESTSENTINEL'.repeat(3)}`;
+    expect(redact(`minted ${token} for acme/app`)).toBe('minted [redacted] for acme/app');
+  });
+
+  it('masks a PEM private key whole, and a truncated one to the end of the text', () => {
+    const armor = (edge: 'BEGIN' | 'END', kind = '') => `-----${edge} ${kind}${'PRIVATE'} KEY-----`;
+    const pem = `${armor('BEGIN')}\n${'A'.repeat(32)}\n${armor('END')}`;
+    expect(redact(`key: ${pem} (app 1)`)).toBe('key: [redacted] (app 1)');
+    expect(redact(`bad ${armor('BEGIN', 'RSA ')}\nMIIEow`)).toBe('bad [redacted]');
+    expect(redact(`not an RSA ${'PRIVATE'} KEY`)).not.toContain(`${'PRIVATE'} KEY`);
+  });
+
   it('serialises errors with their cause and redacts inside them', () => {
     const error = new Error(`failed with ${PAT_SENTINEL}`, { cause: { authorization: 'x' } });
     const result = redact(error) as Record<string, unknown>;
