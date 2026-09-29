@@ -20,6 +20,12 @@ Node 22 (`.nvmrc`), npm, `npm ci` only — versions are pinned exactly, no `^`. 
 support Angular 22). Commands: `npx nx run-many -t lint`, `-t test`, `-t build`; a single project with
 `npx nx test console-pages-hello`. Unit tests are Vitest through `@analogjs/vitest-angular`; the app is zoneless.
 
+npm is pinned to `package.json#packageManager` (10.9.9; `engines.npm` allows 10.x only) — the lockfile must be
+written by npm 10, npm 11 rewrites it. CI on every PR into dev/stage/main: `ci.yml` (`lint-test-build`, Nx
+affected against the PR base; every project when CI, toolchain or root config changes and on PRs into stage/main)
+and `security.yml` (`secret-scan` gitleaks over the whole history, `sast` Semgrep, `dependency-audit`
+`npm audit --audit-level=high`). Actions are pinned by SHA and the workflows need no secrets.
+
 Layout, tags and aliases (architect note on #3 — binding; the boundary lint enforces the tags):
 
 ```
