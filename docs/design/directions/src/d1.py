@@ -1,5 +1,6 @@
 D = dict(
   file='01-paper-desk.html', num='01', name='Paper Desk',
+  langs=['ru', 'en'],
   fonts='https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600&family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap',
   shared='''
   --font-display:"Source Serif 4",Georgia,"Times New Roman",serif;--font-body:"Source Sans 3",-apple-system,system-ui,"Segoe UI",sans-serif;--font-mono:"Source Code Pro",ui-monospace,Menlo,monospace;--fw-display:600;
@@ -49,6 +50,8 @@ D = dict(
 .need__title,.ov__top b{font-weight:600}
 .day span{font-family:var(--font-display);font-style:italic;font-size:14px}
 .msg--owner .bubble{border-radius:var(--r-lg)}
+/* status lines are words, not ids: mono spaces Cyrillic words out, so only ids stay in Source Code Pro */
+.ov__foot,.receipt__meta{font-family:var(--font-body);font-variant-numeric:tabular-nums}
 ''',
   js='''
 const DIR = {
@@ -73,11 +76,22 @@ const DIR = {
 <div class="note__grid"><div>
 <p><b>Idea.</b> A quiet, warm reading desk: the PM writes like a short letter in a serif, the interface speaks in a plain sans, and the only colour is a moss-green ink used for the next action. Nothing moves unless you act; when you do, the card is stamped and folds into a margin note that stays in the conversation as your recorded answer.</p>
 <p><b>Signature moment.</b> Ink stamp: tap Approve / Reject / Done and a stamp presses onto the card, its ring and mark draw in, then the card folds into an italic margin note (#id, time, "recorded as owner"). Reduced motion: an instant swap with a 120 ms fade.</p>
-<p class="try">Try: tap “Approve · close” on #13, switch to sheltrix (paused) and back (your place is kept), open Needs you, open Artifacts and search “ADR”. Mac keys after clicking in the window: B board, F artifacts, Y needs you, N message, / filter; focus a card and press its letter.</p>
+<p class="try">Try: tap “Approve · close” on #13, switch to sheltrix (paused) and back (your place is kept), open Needs you, open Artifacts and search “ADR”, switch RU / EN (your place is kept). Mac keys after clicking in the window: B board, F artifacts, Y needs you, N message, / filter; focus a card and press its letter.</p>
 </div><dl class="tok">
 <dt>Colour</dt><dd><span class="sw"><i style="background:var(--bg)"></i>paper #F7F3EC / #1C1A17</span><span class="sw"><i style="background:var(--surface)"></i>sheet #FFFDF9 / #25221E</span><span class="sw"><i style="background:var(--text)"></i>ink #29251F / #EEE8DD</span><span class="sw"><i style="background:var(--accent)"></i>moss #3E6A48 / #8FBC92</span><span class="sw"><i style="background:var(--warning-soft)"></i>ochre</span><span class="sw"><i style="background:var(--danger-soft)"></i>clay</span></dd>
 <dt>Type</dt><dd>Source Serif 4 (voice, titles) + Source Sans 3 (UI) + Source Code Pro (ids), all OFL. Scale 12 / 14 / 15 / 18 / 22 / 28, body 1.55.</dd>
 <dt>Radius</dt><dd>6 / 10 / 16, pills for counts only. Spacing 4 px base, generous (log gap 20, card 18×20).</dd>
 <dt>Motion</dt><dd>fast 140 · base 240 · slow 380 · signature 620 ms; standard (.2,0,0,1), emphasised (.3,0,0,1), no overshoot.</dd>
+</dl></div>''',
+  note_ru='''
+<div class="note__grid"><div>
+<p><b>Идея.</b> Тихий тёплый письменный стол: PM пишет короткими письмами с засечками, интерфейс говорит простым гротеском, а единственный цвет — зелёные чернила для следующего действия. Ничего не движется, пока ты не действуешь; когда действуешь, на карточке появляется штамп, и она сворачивается в заметку на полях, которая остаётся в разговоре как твой ответ.</p>
+<p><b>Фирменный момент.</b> Чернильный штамп: нажми «Утвердить», «Отклонить» или «Готово» — штамп прижимается к карточке, прорисовываются кольцо и знак, затем карточка сворачивается в курсивную заметку на полях (#id, время, «записано от твоего имени»). При уменьшенной анимации — мгновенная замена с затуханием 120 мс.</p>
+<p class="try">Попробуй: нажми «Да, закрыть» в #13, переключись на sheltrix (на паузе) и обратно (место сохранится), открой «Ждут тебя», открой «Артефакты» и найди «ADR», переключи RU / EN (место тоже сохранится). Клавиши на Mac после клика в окне: B доска, F артефакты, Y ждут тебя, N сообщение, / поиск; выдели карточку и нажми букву с её кнопки. Клавиши работают и в русской раскладке.</p>
+</div><dl class="tok">
+<dt>Цвет</dt><dd><span class="sw"><i style="background:var(--bg)"></i>бумага #F7F3EC / #1C1A17</span><span class="sw"><i style="background:var(--surface)"></i>лист #FFFDF9 / #25221E</span><span class="sw"><i style="background:var(--text)"></i>чернила #29251F / #EEE8DD</span><span class="sw"><i style="background:var(--accent)"></i>мох #3E6A48 / #8FBC92</span><span class="sw"><i style="background:var(--warning-soft)"></i>охра</span><span class="sw"><i style="background:var(--danger-soft)"></i>глина</span></dd>
+<dt>Шрифты</dt><dd>Source Serif 4 (голос PM, заголовки) + Source Sans 3 (интерфейс) + Source Code Pro (номера), все под OFL, с кириллицей. Шкала 12 / 14 / 15 / 18 / 22 / 28, межстрочный 1.55.</dd>
+<dt>Скругления</dt><dd>6 / 10 / 16, «таблетки» только для счётчиков. Отступы кратны 4 px, с воздухом (между сообщениями 20, карточка 18×20).</dd>
+<dt>Движение</dt><dd>быстро 140 · обычно 240 · медленно 380 · фирменный момент 620 мс; стандартная кривая (.2,0,0,1), выразительная (.3,0,0,1), без отскока.</dd>
 </dl></div>''',
 )

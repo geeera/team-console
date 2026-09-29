@@ -1,0 +1,183 @@
+/* UI strings. Russian is the reference copy (ADR 0002): short, plain, "ты" to the owner, no gendered past tense
+   addressed to the owner. Values are strings with {vars} or functions (vars, plural, x) for counted or inflected
+   phrases. t() HTML-escapes vars in strings; functions escape with x.esc. Markup lives only in these strings. */
+const I18N = {
+  en: {
+    'page.kicker': 'Team Console · visual direction {num} of 03 · prototype for approval',
+    'page.layout': 'Layout', 'page.both': 'Both',
+    'page.theme': 'Theme', 'page.auto': 'Auto', 'page.light': 'Light', 'page.dark': 'Dark',
+    'page.motion': 'Motion', 'page.motionSystem': 'Motion: system', 'page.motionReduce': 'Reduced',
+    'page.lang': 'Language', 'page.reset': 'Reset demo',
+    'page.summary': 'Idea, signature moment and token sketch',
+    'page.phoneAria': 'iPhone layout', 'page.macAria': 'Mac layout', 'page.macLabel': 'Mac · window',
+
+    'sprint': 'Sprint {n}',
+    'status.running': 'Running', 'status.paused': 'Paused', 'status.failing': 'Failing',
+    'tier.light': 'light', 'tier.standard': 'standard', 'tier.heavy': 'heavy',
+    'ci.green': 'green', 'ci.red': 'red',
+    'run.healthy': 'healthy', 'run.paused': 'paused',
+    'run.failed': ({ n }, pl) => `${n} failed ${pl(n, ['run', 'runs'])}`,
+
+    'thumb.aria': 'Open the design prototype: story editor states',
+    'thumb.empty': 'Empty', 'thumb.offline': 'Offline · dark', 'thumb.error': 'Error',
+    'card.recommends': 'Team recommends',
+    'receipt.verb': 'You: {verb}', 'receipt.meta': '#{id} · {time} · recorded as owner',
+    'pm.typing': 'PM is typing', 'msg.you': 'You,',
+
+    'board.demo': 'Demo {date}',
+    'board.progress': '{done} of {total} done',
+    'metric.done': 'Done', 'metric.prs': 'Open PRs', 'metric.ci': 'CI · main', 'metric.run': 'Run log',
+    'board.pausedBody': '<b>{name} is paused since {since}.</b> The team does not run; questions wait. {sprint} closed {done} of {total}.',
+    'board.emptyBody': '{sprint}: {done} of {total} done, nothing needs you. Columns load from GitHub in the real app.',
+    'col.approved': 'approved', 'col.progress': 'in progress', 'col.qa': 'QA', 'col.done': 'done',
+    'board.pause': 'Pause {name}', 'board.resume': 'Resume {name}',
+    'board.all': 'All projects: {r} running · {p} paused · {f} failing',
+
+    'arts.none': 'Nothing matches “{q}” in {name}.',
+    'arts.review': 'Review',
+    'arts.searchLabel': 'Search artifacts in {name}', 'arts.searchPh': 'Search {name} artifacts',
+    'arts.typeAria': 'Artifact type', 'arts.all': 'All',
+    'type.design': 'Designs and prototypes', 'type.design.short': 'Designs',
+    'type.demo': 'Demo pages', 'type.demo.short': 'Demo',
+    'type.adr': 'Decisions (ADR)', 'type.adr.short': 'Decisions',
+    'type.audit': 'Audits', 'type.audit.short': 'Audits',
+    'type.brief': 'Briefings', 'type.brief.short': 'Briefings',
+    'type.release': 'Releases and changelogs', 'type.release.short': 'Releases',
+    'type.deploy': 'Deploys', 'type.deploy.short': 'Deploys',
+
+    'side.pausedSince': 'Paused since {date}',
+    'side.withDemo': '{what} · demo {date}',
+    'side.pinned': 'Pinned', 'side.projects': 'Projects', 'side.quiet': 'Quiet projects',
+    'side.more': '{n} more, nothing needs you',
+    'side.noMatch': 'No project matches “{q}”.',
+
+    'needs.none': '<b>Nothing needs you.</b> The teams are working; you will get a push when that changes.',
+    'needs.lead': ({ n, k }, pl) => `${n} across ${k} ${pl(k, ['project', 'projects'])}. Each opens in its own conversation.`,
+    'needs.rec': 'Team recommends: {c}',
+
+    'ov.noDemo': 'no demo', 'ov.demo': 'demo {date}',
+    'ov.foot': '{done}/{total} done · {prs} PRs · CI {ci}',
+    'ov.quiet': 'Quiet projects',
+
+    'win.title': '{name} · Team Console',
+    'nav.needs': 'Needs you', 'nav.all': 'All projects', 'nav.acrossAll': 'across every project',
+    'nav.nProjects': ({ n }, pl) => `${n} ${pl(n, ['project', 'projects'])}`,
+    'nav.projectsAria': 'Projects', 'nav.sections': 'Sections', 'nav.needAll': 'Needs you, all projects',
+    'tab.chat': 'Chat', 'tab.board': 'Board', 'tab.artifacts': 'Artifacts', 'tab.needYou': 'need you',
+
+    'banner.paused': '<b>{name} is paused.</b> The team does not run; your messages wait.',
+    'banner.resume': 'Resume',
+    'banner.failing': '<b>Nightly run failing.</b> {run}; see #31.',
+
+    'log.aria': 'Conversation with the {name} PM',
+    'composer.ph': 'Message the {name} PM',
+    'composer.label': 'Message', 'composer.send': 'Send',
+
+    'sheet.projects': 'Projects', 'sheet.board': 'Sprint board', 'sheet.artifacts': 'Artifacts',
+    'sheet.title': '{title} · {name}', 'sheet.close': 'Close',
+    'filter.label': 'Filter projects', 'filter.ph': 'Filter projects',
+    'filter.phCount': ({ n }, pl) => `Filter ${n} ${pl(n, ['project', 'projects'])}`,
+
+    'toast.back': 'Back where you left {name}',
+    'toast.proto': 'Opens the prototype full-screen',
+    'note.paused': 'You paused <b>{name}</b> · the team stops after the current run',
+    'note.resumed': 'You resumed <b>{name}</b> · the next run starts within the hour',
+    'note.pausedAt': 'You paused <b>{name}</b> · {at}',
+    'count.aria': ({ n }, pl) => `${n} ${pl(n, ['needs', 'need'])} you`,
+    'announce.resolved': '{verb}: {detail}. Recorded on #{id} as your answer.',
+    'announce.pm': 'PM: {text}',
+
+    'shell.main': 'Main', 'shell.owner': 'Owner', 'shell.synced': 'GitHub synced',
+    'pane.aria': 'Detail pane', 'pane.tabs': 'Detail', 'pane.close': 'Close pane',
+  },
+
+  ru: {
+    'page.kicker': 'Team Console · визуальное направление {num} из 03 · прототип на согласование',
+    'page.layout': 'Вид', 'page.both': 'Оба',
+    'page.theme': 'Тема', 'page.auto': 'Авто', 'page.light': 'Светлая', 'page.dark': 'Тёмная',
+    'page.motion': 'Анимация', 'page.motionSystem': 'Анимация: как в системе', 'page.motionReduce': 'Меньше движения',
+    'page.lang': 'Язык', 'page.reset': 'Сбросить демо',
+    'page.summary': 'Идея, фирменный момент и набросок токенов',
+    'page.phoneAria': 'Вид на iPhone', 'page.macAria': 'Вид на Mac', 'page.macLabel': 'Mac · окно',
+
+    'sprint': 'Спринт {n}',
+    'status.running': 'В работе', 'status.paused': 'На паузе', 'status.failing': 'Сбой',
+    'tier.light': 'лёгкая', 'tier.standard': 'средняя', 'tier.heavy': 'тяжёлая',
+    'ci.green': 'зелёный', 'ci.red': 'красный',
+    'run.healthy': 'в порядке', 'run.paused': 'на паузе',
+    'run.failed': ({ n }, pl) => `${n} ${pl(n, ['упавший прогон', 'упавших прогона', 'упавших прогонов'])}`,
+
+    'thumb.aria': 'Открыть прототип: состояния редактора историй',
+    'thumb.empty': 'Пусто', 'thumb.offline': 'Офлайн · тёмная', 'thumb.error': 'Ошибка',
+    'card.recommends': 'Команда советует',
+    // Russian keeps lowercase after a colon.
+    'receipt.verb': ({ verb }, pl, x) => `Твой ответ: ${x.esc(x.lower1(verb))}`, 'receipt.meta': '#{id} · {time} · записано от твоего имени',
+    'pm.typing': 'PM печатает', 'msg.you': 'Ты,',
+
+    'board.demo': 'Демо {date}',
+    'board.progress': 'Готово {done} из {total}',
+    'metric.done': 'Готово', 'metric.prs': 'Открытые PR', 'metric.ci': 'CI · main', 'metric.run': 'Прогоны',
+    'board.pausedBody': '<b>{name} на паузе с {since}.</b> Команда не работает, вопросы ждут. {sprint} закрыт: {done} из {total}.',
+    'board.emptyBody': '{sprint}: готово {done} из {total}, от тебя ничего не нужно. В настоящем приложении колонки подтянутся из GitHub.',
+    'col.approved': 'одобрено', 'col.progress': 'в работе', 'col.qa': 'на проверке', 'col.done': 'готово',
+    'board.pause': 'Приостановить {name}', 'board.resume': 'Возобновить {name}',
+    'board.all': 'Все проекты: {r} в работе · {p} на паузе · {f} со сбоем',
+
+    'arts.none': 'В {name} ничего не нашлось по запросу «{q}».',
+    'arts.review': 'Посмотреть',
+    'arts.searchLabel': 'Поиск по артефактам {name}', 'arts.searchPh': 'Поиск по артефактам {name}',
+    'arts.typeAria': 'Тип артефакта', 'arts.all': 'Все',
+    'type.design': 'Дизайн и прототипы', 'type.design.short': 'Дизайн',
+    'type.demo': 'Демо-страницы', 'type.demo.short': 'Демо',
+    'type.adr': 'Решения (ADR)', 'type.adr.short': 'Решения',
+    'type.audit': 'Аудиты', 'type.audit.short': 'Аудиты',
+    'type.brief': 'Сводки', 'type.brief.short': 'Сводки',
+    'type.release': 'Релизы и списки изменений', 'type.release.short': 'Релизы',
+    'type.deploy': 'Деплои', 'type.deploy.short': 'Деплои',
+
+    'side.pausedSince': 'На паузе с {date}',
+    'side.withDemo': '{what} · демо {date}',
+    'side.pinned': 'Закреплённые', 'side.projects': 'Проекты', 'side.quiet': 'Без вопросов к тебе',
+    'side.more': 'Ещё {n}, без вопросов к тебе',
+    'side.noMatch': 'Нет проектов по запросу «{q}».',
+
+    'needs.none': '<b>От тебя сейчас ничего не нужно.</b> Команды работают; если понадобишься, придёт пуш.',
+    'needs.lead': ({ n, k }, pl) => `${n} ${pl(n, ['вопрос', 'вопроса', 'вопросов'])} в ${k} ${pl(k, ['проекте', 'проектах', 'проектах'])}. Каждый открывается в своём разговоре.`,
+    'needs.rec': ({ c }, pl, x) => `Команда советует: ${x.esc(x.lower1(c))}`,
+
+    'ov.noDemo': 'без демо', 'ov.demo': 'демо {date}',
+    'ov.foot': 'готово {done}/{total} · PR: {prs} · CI {ci}',
+    'ov.quiet': 'Без вопросов к тебе',
+
+    'win.title': '{name} · Team Console',
+    'nav.needs': 'Ждут тебя', 'nav.all': 'Все проекты', 'nav.acrossAll': 'во всех проектах',
+    'nav.nProjects': ({ n }, pl) => `${n} ${pl(n, ['проект', 'проекта', 'проектов'])}`,
+    'nav.projectsAria': 'Проекты', 'nav.sections': 'Разделы', 'nav.needAll': 'Ждут тебя — все проекты',
+    'tab.chat': 'Чат', 'tab.board': 'Доска', 'tab.artifacts': 'Артефакты', 'tab.needYou': 'ждут тебя',
+
+    'banner.paused': '<b>{name} на паузе.</b> Команда не работает, сообщения подождут.',
+    'banner.resume': 'Возобновить',
+    'banner.failing': '<b>Ночной прогон падает.</b> {run}, см. #31.',
+
+    'log.aria': 'Разговор с PM проекта {name}',
+    'composer.ph': 'Написать PM проекта {name}',
+    'composer.label': 'Сообщение', 'composer.send': 'Отправить',
+
+    'sheet.projects': 'Проекты', 'sheet.board': 'Доска спринта', 'sheet.artifacts': 'Артефакты',
+    'sheet.title': '{title} · {name}', 'sheet.close': 'Закрыть',
+    'filter.label': 'Найти проект', 'filter.ph': 'Найти проект',
+    'filter.phCount': ({ n }, pl) => `Найти среди ${n} ${pl(n, ['проекта', 'проектов', 'проектов'])}`,
+
+    'toast.back': 'Проект {name} открыт на том же месте',
+    'toast.proto': 'Здесь прототип откроется на весь экран',
+    'note.paused': 'Проект <b>{name}</b> на паузе · команда остановится после текущего прогона',
+    'note.resumed': 'Проект <b>{name}</b> снова в работе · следующий прогон начнётся в течение часа',
+    'note.pausedAt': '<b>{name}</b> на паузе по твоей просьбе · {at}',
+    'count.aria': ({ n }) => `Ждут тебя: ${n}`,
+    'announce.resolved': '{verb}: {detail}. Записано в #{id} как твой ответ.',
+    'announce.pm': 'PM: {text}',
+
+    'shell.main': 'Основное', 'shell.owner': 'Владелец', 'shell.synced': 'GitHub синхронизирован',
+    'pane.aria': 'Панель подробностей', 'pane.tabs': 'Подробности', 'pane.close': 'Закрыть панель',
+  },
+};

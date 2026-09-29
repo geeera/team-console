@@ -137,15 +137,16 @@ code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);pa
 .side-item>kbd+.count{margin-left:6px}
 .side-prod__name{display:grid;min-width:0;flex:1}
 .side-prod__label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);font-weight:500}
-.side-prod small{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* wraps to a second line rather than cutting the date: Russian status lines run longer */
+.side-prod small{font-size:var(--fs-xs);line-height:1.35;color:var(--text-3);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
 .side-prod .meter{display:none}
 .side-more{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:6px 8px;font-size:var(--fs-xs);color:var(--text-3);border-radius:var(--r-md);text-align:left}
 .side-more:hover{background:var(--hover)}
 .side-more .ico{width:14px;height:14px;transition:transform var(--dur-base) var(--ease-standard);transform:rotate(-90deg)}
 .side-more[aria-expanded=true] .ico{transform:none}
-.side-foot{margin-top:auto;display:flex;align-items:center;gap:8px;padding:10px 6px 2px;font-size:var(--fs-xs);color:var(--text-2);border-top:1px solid var(--border)}
+.side-foot{margin-top:auto;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:10px 6px 2px;font-size:var(--fs-xs);color:var(--text-2);border-top:1px solid var(--border)}
 .side-foot .avatar{width:24px;height:24px}
-.side-foot__sync{margin-left:auto;display:inline-flex;align-items:center;gap:5px;color:var(--text-3)}
+.side-foot__sync{margin-left:auto;display:inline-flex;align-items:center;gap:5px;color:var(--text-3);white-space:nowrap}
 .side-foot__sync i{width:6px;height:6px;border-radius:50%;background:var(--success-text)}
 .convo{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
 .convo__head{height:52px;flex:none;display:flex;align-items:center;gap:6px;padding:0 14px 0 20px;border-bottom:1px solid var(--border)}
@@ -251,7 +252,9 @@ code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);pa
 .card__meta{font-size:var(--fs-xs);color:var(--text-3)}
 .app[data-app=phone] .card{margin-left:0}
 .app[data-app=phone] .card__foot{flex-direction:column;align-items:stretch}
-.app[data-app=phone] .card__actions{display:grid;grid-template-columns:1fr 1fr}
+/* equal halves when both labels fit; a label too long for half the row takes a full row (Russian runs ~30% longer) */
+.app[data-app=phone] .card__actions{display:flex;flex-wrap:wrap}
+.app[data-app=phone] .card__actions .btn{flex:1 1 0;min-width:max-content}
 .is-highlight{animation:hl 1.4s var(--ease-standard)}
 @keyframes hl{0%,40%{box-shadow:0 0 0 3px var(--focus)}100%{box-shadow:var(--shadow-1)}}
 @media (prefers-reduced-motion:reduce){.is-highlight{animation:none;box-shadow:0 0 0 3px var(--focus)}}
@@ -321,6 +324,7 @@ code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);pa
 .metrics div{padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md)}
 .metrics dt{font-size:var(--fs-xs);color:var(--text-3)}
 .metrics dd{margin:0;font-weight:600;font-size:var(--fs-sm);font-family:var(--font-mono)}
+.metrics dd.metrics__word{font-family:var(--font-body)} /* words read badly in mono, Cyrillic especially */
 .metrics .ok{color:var(--success-text)}.metrics .bad{color:var(--danger-text)}
 .cols{display:grid;gap:16px}
 .col h4{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
@@ -381,3 +385,6 @@ code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);pa
 .ov-h span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
 .ov-grid--quiet .ov{box-shadow:none;background:transparent}
 .app[data-app=phone] .ov-grid{grid-template-columns:1fr}
+
+/* ===== language: bilingual static blocks in the page note ===== */
+:root:not([lang=ru]) [data-lang=ru],:root[lang=ru] [data-lang=en]{display:none}
