@@ -1,0 +1,1547 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Team Console · #24 · Settings › Projects</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600&family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+/* ===== tokens: Paper Desk (generated from docs/design/directions/src/d1.py) ===== */
+:root{
+  --font-display:"Source Serif 4",Georgia,"Times New Roman",serif;--font-body:"Source Sans 3",-apple-system,system-ui,"Segoe UI",sans-serif;--font-mono:"Source Code Pro",ui-monospace,Menlo,monospace;--fw-display:600;
+  --fs-xs:12px;--fs-sm:14px;--fs-md:15px;--fs-lg:18px;--fs-xl:22px;--fs-2xl:28px;--lh-body:1.55;--lh-tight:1.25;
+  --r-sm:6px;--r-md:10px;--r-lg:16px;
+  --btn-h:34px;--sidebar-w:256px;--pane-w:392px;--log-max:680px;--pad-x:32px;--gap-log:20px;--pad-card:18px 20px;--card-indent:40px;
+  --dur-instant:0ms;--dur-fast:140ms;--dur-base:240ms;--dur-slow:380ms;--dur-sig:620ms;
+  --ease-standard:cubic-bezier(.2,0,0,1);--ease-enter:cubic-bezier(0,0,.2,1);--ease-exit:cubic-bezier(.4,0,1,1);--ease-emph:cubic-bezier(.3,0,0,1);
+  --bg:#F7F3EC;--bg-sunken:#EFE9DF;--surface:#FFFDF9;--surface-2:#FAF6EF;--text:#29251F;--text-2:#5B5449;--text-3:#6D6459;
+  --border:#E5DDD0;--border-strong:#CFC5B5;--accent:#3E6A48;--accent-contrast:#FFFFFF;--accent-soft:#E3ECE0;--accent-text:#2F5638;
+  --success-soft:#E1EEDF;--success-text:#2D6A3E;--warning-soft:#F5E8CD;--warning-text:#7A510E;--danger-soft:#F6E0DA;--danger-text:#9A3324;
+  --focus:#3E6A48;--owner-bubble:#EAE2D4;--owner-text:#29251F;
+  --shadow-1:0 1px 2px rgba(60,45,20,.07),0 0 0 .5px rgba(60,45,20,.03);--shadow-2:0 8px 24px -8px rgba(60,45,20,.22);--shadow-3:0 -12px 40px -12px rgba(60,45,20,.28);
+}
+:root[data-theme=dark]{
+  --bg:#1C1A17;--bg-sunken:#161412;--surface:#25221E;--surface-2:#201E1A;--text:#EEE8DD;--text-2:#BDB4A5;--text-3:#999082;
+  --border:#35312B;--border-strong:#4A443B;--accent:#8FBC92;--accent-contrast:#10200F;--accent-soft:#263428;--accent-text:#A8D0AA;
+  --success-soft:#1F3122;--success-text:#9BCF9F;--warning-soft:#382D18;--warning-text:#E6BC6E;--danger-soft:#3D2420;--danger-text:#F0A091;
+  --focus:#A8D0AA;--owner-bubble:#322D27;--owner-text:#EEE8DD;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);--shadow-2:0 10px 28px -8px rgba(0,0,0,.6);--shadow-3:0 -12px 40px -12px rgba(0,0,0,.7);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#1C1A17;--bg-sunken:#161412;--surface:#25221E;--surface-2:#201E1A;--text:#EEE8DD;--text-2:#BDB4A5;--text-3:#999082;
+  --border:#35312B;--border-strong:#4A443B;--accent:#8FBC92;--accent-contrast:#10200F;--accent-soft:#263428;--accent-text:#A8D0AA;
+  --success-soft:#1F3122;--success-text:#9BCF9F;--warning-soft:#382D18;--warning-text:#E6BC6E;--danger-soft:#3D2420;--danger-text:#F0A091;
+  --focus:#A8D0AA;--owner-bubble:#322D27;--owner-text:#EEE8DD;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);--shadow-2:0 10px 28px -8px rgba(0,0,0,.6);--shadow-3:0 -12px 40px -12px rgba(0,0,0,.7);
+}}
+/* ===== shared structure; every colour, size and duration comes from the direction's tokens ===== */
+:root{
+  --hover:color-mix(in oklab,var(--text) 6%,transparent);
+  --hover-solid:color-mix(in oklab,var(--surface) 93%,var(--text) 7%);
+  --accent-hover:color-mix(in oklab,var(--accent) 88%,var(--text) 12%);
+  --page:color-mix(in oklab,var(--bg) 90%,var(--text) 10%);
+  --scrim:color-mix(in oklab,#000 36%,transparent);
+  --r-sheet:calc(var(--r-lg) + 10px);
+  --z-sheet:40;--z-toast:70;--z-chrome:60;
+}
+@media (prefers-reduced-motion:reduce){:root{--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms}}
+:root[data-motion=reduce]{--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms}
+
+*,*::before,*::after{box-sizing:border-box}
+html{color-scheme:light;-webkit-text-size-adjust:100%}
+:root[data-theme=dark]{color-scheme:dark}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark}}
+body{margin:0;background:var(--page);color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:var(--lh-body);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button,input,textarea{font:inherit;color:inherit;letter-spacing:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.sr-only{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ico{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+kbd{font-family:var(--font-mono);font-size:10px;line-height:1;padding:3px 5px;border-radius:4px;border:1px solid var(--border-strong);color:var(--text-3);background:var(--surface)}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);padding:1px 5px;border-radius:4px;word-break:break-word}
+[hidden]{display:none!important}
+
+/* ===== the note on top of the page ===== */
+.note{max-width:1720px;margin:0 auto;padding:20px 24px 4px;display:grid;gap:10px}
+.note__row{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.note__kicker{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.note h1{margin:2px 0 0;font-family:var(--font-display);font-size:var(--fs-2xl);line-height:1.1;font-weight:var(--fw-display)}
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:2px;background:var(--surface)}
+.seg button,.seg-btn{border:0;background:none;padding:6px 12px;border-radius:999px;font-size:var(--fs-xs);color:var(--text-2);min-height:32px}
+.seg button[aria-pressed=true]{background:var(--text);color:var(--bg)}
+.seg-btn{border:1px solid var(--border);background:var(--surface)}
+.note details{font-size:var(--fs-sm);color:var(--text-2)}
+.note summary{cursor:pointer;color:var(--text-2);font-weight:600;width:max-content}
+.note__grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:8px 32px;margin-top:10px}
+@media (max-width:900px){.note__grid{grid-template-columns:1fr}}
+.note p{margin:0 0 6px;max-width:75ch;line-height:1.5}
+.tok{align-content:start;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0;font-size:var(--fs-xs)}
+.tok dt{color:var(--text-3)}.tok dd{margin:0;color:var(--text-2)}
+.sw{display:inline-flex;align-items:center;gap:4px;margin-right:10px;white-space:nowrap}
+.sw i{width:12px;height:12px;border-radius:3px;border:1px solid var(--border-strong)}
+.try{font-size:var(--fs-xs);color:var(--text-3)}
+
+/* ===== stage and device frames ===== */
+.stage{display:flex;flex-wrap:wrap;gap:40px;justify-content:center;align-items:flex-start;padding:20px 24px 56px;max-width:1720px;margin:0 auto}
+.stage[data-layout=row]{flex-wrap:nowrap}
+.stage[data-view=phone] .device--mac,.stage[data-view=mac] .device--phone{display:none}
+.device{display:grid;gap:10px;justify-items:center}
+.device__label{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.phone-frame{position:relative;width:414px;height:868px;padding:12px;border-radius:62px;background:#0d0d0f;box-shadow:0 0 0 1px #34343a,0 40px 80px -36px rgba(0,0,0,.5)}
+.phone-frame>.app{width:390px;height:844px;border-radius:50px}
+.mac-frame{width:1180px;height:760px;border-radius:12px;overflow:hidden;box-shadow:0 0 0 1px var(--border-strong),0 30px 80px -34px rgba(0,0,0,.45)}
+.mac-frame>.app{height:100%}
+@media (max-width:520px){
+  .note{padding:14px 14px 0}.stage{padding:12px 0 0}
+  .phone-frame{width:100%;height:auto;padding:0;border-radius:0;background:none;box-shadow:none}
+  .phone-frame>.app{width:100%;height:100svh;border-radius:0}
+  .device--phone .device__label,.p-status,.home-ind{display:none!important}
+  .tabs{padding-bottom:max(8px,env(safe-area-inset-bottom))!important}
+}
+
+/* ===== app base ===== */
+.app{position:relative;overflow:hidden;isolation:isolate;background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:var(--lh-body)}
+.app[data-app=phone]{display:flex;flex-direction:column}
+.app[data-app=mac]{display:flex;flex-direction:column}
+.app:not(.is-space) .composer{display:none}
+.avatar{width:28px;height:28px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:10px;font-weight:700;letter-spacing:.03em}
+.avatar--pm{background:var(--accent-soft);color:var(--accent-text)}
+.avatar--owner{background:var(--text);color:var(--bg)}
+.prod-mono{width:26px;height:26px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;font-weight:700;font-size:13px;text-transform:uppercase;background:var(--accent-soft);color:var(--accent-text);font-family:var(--font-display)}
+.prod-mono[data-status=paused]{background:var(--bg-sunken);color:var(--text-3)}
+.prod-mono[data-status=failing]{background:var(--danger-soft);color:var(--danger-text)}
+.prod-mono--all{background:var(--text);color:var(--bg)}
+.prod-mono--all .ico{width:15px;height:15px}
+.count{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--accent-contrast);font-size:11px;font-weight:700;line-height:1;display:inline-grid;place-items:center;font-variant-numeric:tabular-nums;overflow:hidden;font-family:var(--font-body)}
+.count>span{grid-area:1/1}
+.status{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;background:var(--success-soft);color:var(--success-text);white-space:nowrap;text-transform:none;letter-spacing:0}
+.status i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.status--paused{background:var(--bg-sunken);color:var(--text-2)}
+.status--failing{background:var(--danger-soft);color:var(--danger-text)}
+.sdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--success-text);margin-left:6px;vertical-align:1px}
+.sdot--paused{background:var(--text-3)}.sdot--failing{background:var(--danger-text)}
+.meter{display:block;height:3px;border-radius:2px;background:var(--bg-sunken);overflow:hidden}
+.meter i{display:block;height:100%;width:var(--p);background:var(--accent);border-radius:inherit}
+.chip-btn{border:1px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:999px;padding:0 10px;height:30px;font-size:var(--fs-xs);white-space:nowrap}
+.chip-btn[aria-pressed=true]{background:var(--text);color:var(--bg);border-color:transparent}
+.empty{color:var(--text-3);font-size:var(--fs-sm);padding:12px 4px}
+.empty--big{display:grid;justify-items:center;gap:8px;text-align:center;padding:48px 16px}
+.empty--big .ico{width:32px;height:32px;color:var(--success-text)}
+.search{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text-3)}
+.search:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.search input{flex:1;min-width:0;border:0;background:none;outline:none;color:var(--text);font-size:var(--fs-sm)}
+.app[data-app=phone] .search input{font-size:16px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:var(--btn-h);padding:0 14px;border-radius:var(--r-md);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-weight:600;font-size:var(--fs-sm);white-space:nowrap;transition:background-color var(--dur-fast) var(--ease-standard),transform var(--dur-fast) var(--ease-standard)}
+.btn:hover{background:var(--hover-solid)}
+.btn:active{transform:scale(.97)}
+.btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-contrast)}
+.btn--primary:hover{background:var(--accent-hover)}
+.btn--quiet{border-color:transparent;background:none;color:var(--text-2)}
+.btn--quiet[aria-expanded=true]{background:var(--hover);color:var(--text)}
+.btn--sm{min-height:30px;padding:0 10px;font-size:var(--fs-xs)}
+.btn:disabled{opacity:.65}
+.btn kbd{display:none}
+.app[data-app=phone] .btn{min-height:44px}
+.app[data-app=phone] .btn--sm{min-height:36px}
+.icon-btn{width:40px;height:40px;flex:none;display:grid;place-items:center;border:0;background:none;border-radius:var(--r-md);color:var(--text-2)}
+.icon-btn:hover{background:var(--hover)}
+.icon-btn .ico{width:20px;height:20px}
+
+/* ===== mac window ===== */
+.win{display:flex;flex-direction:column;height:100%}
+.win__bar{position:relative;height:38px;flex:none;display:flex;align-items:center;padding:0 14px;background:var(--bg-sunken);border-bottom:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-3)}
+.lights{display:flex;gap:8px}.lights i{width:12px;height:12px;border-radius:50%;background:#fe5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.win__title{position:absolute;left:50%;translate:-50% 0;font-weight:600}
+.win__body{flex:1;display:flex;min-height:0}
+.sidebar{width:var(--sidebar-w);flex:none;display:flex;flex-direction:column;gap:2px;padding:12px 10px 10px;background:var(--bg-sunken);border-right:1px solid var(--border);overflow-y:auto}
+.brand{display:flex;align-items:center;gap:8px;padding:2px 6px 12px;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md)}
+.mark{width:22px;height:22px;color:var(--accent)}
+.search--side{height:32px;margin-bottom:8px;background:var(--bg)}
+.search--side kbd{margin-left:auto}
+.side-label{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-3);padding:14px 8px 4px;font-weight:600;letter-spacing:.04em}
+.side-label .ico{width:13px;height:13px}
+.side-list{list-style:none;margin:0;padding:0;display:grid;gap:1px}
+.side-item{width:100%;display:flex;align-items:center;gap:10px;min-height:34px;padding:5px 8px;border:0;background:none;border-radius:var(--r-md);text-align:left;color:var(--text-2);font-size:var(--fs-sm)}
+.side-item:hover{background:var(--hover)}
+.side-item[aria-current=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.side-item>kbd{margin-left:auto}
+.side-item .count{margin-left:auto}
+.side-item>kbd+.count{margin-left:6px}
+.side-prod__name{display:grid;min-width:0;flex:1}
+.side-prod__label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);font-weight:500}
+/* wraps to a second line rather than cutting the date: Russian status lines run longer */
+.side-prod small{font-size:var(--fs-xs);line-height:1.35;color:var(--text-3);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.side-prod .meter{display:none}
+.side-more{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:6px 8px;font-size:var(--fs-xs);color:var(--text-3);border-radius:var(--r-md);text-align:left}
+.side-more:hover{background:var(--hover)}
+.side-more .ico{width:14px;height:14px;transition:transform var(--dur-base) var(--ease-standard);transform:rotate(-90deg)}
+.side-more[aria-expanded=true] .ico{transform:none}
+.side-foot{margin-top:auto;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:10px 6px 2px;font-size:var(--fs-xs);color:var(--text-2);border-top:1px solid var(--border)}
+.side-foot .avatar{width:24px;height:24px}
+.side-foot__sync{margin-left:auto;display:inline-flex;align-items:center;gap:5px;color:var(--text-3);white-space:nowrap}
+.side-foot__sync i{width:6px;height:6px;border-radius:50%;background:var(--success-text)}
+.convo{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.convo__head{height:52px;flex:none;display:flex;align-items:center;gap:6px;padding:0 14px 0 20px;border-bottom:1px solid var(--border)}
+.convo__title{display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden}
+.app:has(.pane.is-open) .convo__sub,.app:has(.pane.is-open) .convo__head .lbl,.app:has(.pane.is-open) .convo__head kbd{display:none}
+.convo__title h2{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);white-space:nowrap}
+.convo__sub{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.convo__head .btn kbd{display:inline-block}
+.pane{width:0;flex:none;overflow:hidden;background:var(--surface-2);border-left:1px solid transparent;transition:width var(--dur-slow) var(--ease-standard),border-color var(--dur-slow) var(--ease-standard)}
+.pane.is-open{width:var(--pane-w);border-left-color:var(--border)}
+.pane__inner{width:var(--pane-w);height:100%;display:flex;flex-direction:column}
+.pane__tabs{height:52px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 0 12px;border-bottom:1px solid var(--border)}
+.pane__tabs .icon-btn{margin-left:auto}
+.tab-btn{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:6px 10px;border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm)}
+.tab-btn[aria-selected=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.pane__body{flex:1;overflow-y:auto}
+
+/* ===== phone ===== */
+.p-status{position:relative;height:50px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:6px 30px 0 40px;font:600 16px/1 -apple-system,"SF Pro Text",system-ui,sans-serif}
+.p-island{position:absolute;top:11px;left:50%;translate:-50% 0;width:124px;height:36px;border-radius:20px;background:#000}
+.p-status__icons{display:flex;gap:6px;align-items:center}
+.p-head{flex:none;display:flex;align-items:center;gap:4px;padding:2px 8px 8px 10px}
+.p-switch{flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:0;background:none;padding:6px;border-radius:var(--r-md);text-align:left;min-height:48px}
+.p-switch .prod-mono{width:34px;height:34px;font-size:16px}
+.p-switch__txt{display:grid;min-width:0}
+.p-switch b{font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);line-height:1.15}
+.p-switch small{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-switch>.ico{color:var(--text-3)}
+.p-strip{display:none}
+.p-needs{display:none}
+.tabs{flex:none;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border);background:var(--bg);padding:6px 4px 28px;position:relative;z-index:2}
+.tabs button{position:relative;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;min-height:48px;padding:4px 0;font-size:11px;color:var(--text-3)}
+.tabs button .ico{width:24px;height:24px}
+.tabs button[aria-current=page]{color:var(--accent-text)}
+.tabs .count{position:absolute;top:0;left:calc(50% + 6px);height:18px;min-width:18px;font-size:10px;padding:0 5px}
+.home-ind{position:absolute;bottom:8px;left:50%;translate:-50% 0;width:136px;height:5px;border-radius:3px;background:var(--text);opacity:.9;z-index:var(--z-chrome);pointer-events:none}
+.scrim{position:absolute;inset:0;z-index:30;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity var(--dur-base) var(--ease-standard)}
+.app.has-sheet .scrim{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:var(--z-sheet);max-height:88%;display:flex;flex-direction:column;background:var(--surface);border-radius:var(--r-sheet) var(--r-sheet) 0 0;box-shadow:var(--shadow-3);transform:translateY(102%);visibility:hidden;transition:transform var(--dur-slow) var(--ease-exit),visibility 0s linear var(--dur-slow)}
+.sheet.is-open{transform:none;visibility:visible;transition:transform var(--dur-slow) var(--ease-enter),visibility 0s}
+.sheet__grab{width:38px;height:5px;border-radius:3px;background:var(--border-strong);margin:8px auto 0;flex:none}
+.sheet__head{display:flex;align-items:center;justify-content:space-between;padding:6px 10px 6px 20px;flex:none}
+.sheet__head h2{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);outline:none}
+.sheet__body{overflow-y:auto;padding:0 0 36px;overscroll-behavior:contain}
+.sheet__pad{padding:0 16px 8px}
+.proj-list{padding:0 8px}
+.side-item--needs{background:var(--accent-soft);color:var(--accent-text);font-weight:600;min-height:48px}
+.side-item--needs .count{margin-left:auto}
+.side-prod--rich{min-height:56px}
+.side-prod--rich .prod-mono{width:34px;height:34px}
+.side-prod--rich .meter{display:block;margin-top:5px;width:70%}
+
+/* ===== conversation ===== */
+.log{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;outline:none}
+.log__inner{position:relative;max-width:var(--log-max);margin:0 auto;padding:24px var(--pad-x);display:flex;flex-direction:column;gap:var(--gap-log)}
+.app[data-app=phone] .log__inner{padding:12px 16px 20px}
+.day{display:flex;align-items:center;gap:12px;color:var(--text-3);font-size:var(--fs-xs);margin:6px 0}
+.day::before,.day::after{content:"";flex:1;height:1px;background:var(--border)}
+.msg{display:flex;gap:12px;align-items:flex-start}
+.msg__body{min-width:0;flex:1}
+.msg__meta{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-xs);color:var(--text-3);margin-bottom:2px}
+.msg__meta b{color:var(--text);font-weight:600}
+.bubble{overflow-wrap:anywhere}
+.bubble p{margin:0 0 .45em}.bubble p:last-child{margin:0}
+.bubble ul{margin:.2em 0 .5em;padding-left:1.2em}
+.bubble li{margin:.15em 0}
+.brief__h{font-weight:700;margin-top:.7em!important}
+.brief__foot{color:var(--text-2)}
+.ref{font-family:var(--font-mono);font-size:.86em;color:var(--accent-text)}
+.msg--owner{justify-content:flex-end}
+.msg--owner .msg__body{flex:0 1 auto;max-width:82%;display:flex;flex-direction:column;align-items:flex-end}
+.msg--owner .bubble{background:var(--owner-bubble);color:var(--owner-text);padding:9px 14px;border-radius:var(--r-lg) var(--r-lg) var(--r-sm) var(--r-lg)}
+.msg--owner .msg__meta{margin:4px 4px 0}
+.sysnote{display:flex;align-items:center;justify-content:center;gap:8px;font-size:var(--fs-xs);color:var(--text-3);text-align:center}
+.sysnote i{width:6px;height:6px;border-radius:50%;background:var(--text-3);flex:none}
+.typing{display:inline-flex;gap:4px;padding:10px 0}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:blink 1.2s infinite both}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.typing i{animation:none;opacity:.6}}
+:root[data-motion=reduce] .typing i{animation:none;opacity:.6}
+
+/* decision cards */
+.card{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:12px;padding:var(--pad-card);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);margin-left:var(--card-indent)}
+.card:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.card__head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:var(--fs-xs);color:var(--text-2)}
+.card__kind{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.card__kind .ico{width:15px;height:15px;color:var(--accent-text)}
+.card__num{font-family:var(--font-mono);color:var(--text-3)}
+.card__title{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);line-height:var(--lh-tight);font-weight:var(--fw-display)}
+.card__text{margin:0;color:var(--text-2);font-size:var(--fs-sm)}
+.steps{margin:0;padding-left:1.3em;font-size:var(--fs-sm);color:var(--text-2);display:grid;gap:4px}
+.rec{display:grid;gap:2px;padding:10px 12px;border-radius:var(--r-md);background:var(--accent-soft);font-size:var(--fs-sm)}
+.rec__label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text)}
+.rec__choice{color:var(--text)}
+.rec p{margin:2px 0 0;color:var(--text-2)}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:var(--fs-sm)}
+.check{display:flex;gap:8px;align-items:flex-start}
+.check .ico{margin-top:2px}
+.check--ok .ico{color:var(--success-text)}.check--warn .ico{color:var(--warning-text)}
+.card__foot{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap}
+.card__actions{display:flex;gap:8px;flex-wrap:wrap}
+.card__meta{font-size:var(--fs-xs);color:var(--text-3)}
+.app[data-app=phone] .card{margin-left:0}
+.app[data-app=phone] .card__foot{flex-direction:column;align-items:stretch}
+/* equal halves when both labels fit; a label too long for half the row takes a full row (Russian runs ~30% longer) */
+.app[data-app=phone] .card__actions{display:flex;flex-wrap:wrap}
+.app[data-app=phone] .card__actions .btn{flex:1 1 0;min-width:max-content}
+.is-highlight{animation:hl 1.4s var(--ease-standard)}
+@keyframes hl{0%,40%{box-shadow:0 0 0 3px var(--focus)}100%{box-shadow:var(--shadow-1)}}
+@media (prefers-reduced-motion:reduce){.is-highlight{animation:none;box-shadow:0 0 0 3px var(--focus)}}
+
+/* design thumbnail: drawn from tokens, no image assets */
+.thumb{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--bg-sunken);cursor:zoom-in}
+.thumb--big{margin:4px 0 6px}
+.tf{display:flex;flex-direction:column;gap:5px;aspect-ratio:9/15;padding:6px;border-radius:8px;background:var(--surface);border:1px solid var(--border);position:relative}
+.tf--dark{background:color-mix(in oklab,var(--text) 92%,var(--bg));border-color:transparent}
+.tf__bar{height:5px;width:55%;border-radius:3px;background:var(--border-strong)}
+.tf--dark .tf__bar,.tf--dark .tf__line{background:color-mix(in oklab,var(--bg) 35%,transparent)}
+.tf__center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.tf__icon{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--accent);background:var(--accent-soft)}
+.tf--error .tf__icon{border-color:var(--danger-text);background:var(--danger-soft)}
+.tf__line{height:3px;width:70%;border-radius:2px;background:var(--border-strong)}
+.tf__line--s{width:44%}
+.tf__btn{height:8px;width:48%;border-radius:4px;background:var(--accent);margin-top:3px}
+.tf__cap{position:absolute;left:0;right:0;bottom:-2px;translate:0 100%;font-size:10px;color:var(--text-3);text-align:center;padding-top:3px}
+.thumb{padding-bottom:26px}
+
+/* receipt: a resolved card, recorded as the owner's answer */
+.receipt{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;padding:9px 12px;border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2);margin-left:var(--card-indent);outline-offset:2px}
+.app[data-app=phone] .receipt{margin-left:0}
+.receipt__icon{width:24px;height:24px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--success-soft);color:var(--success-text)}
+.receipt__icon .ico{width:14px;height:14px;stroke-width:2.4}
+.receipt--negative .receipt__icon{background:var(--danger-soft);color:var(--danger-text)}
+.receipt--neutral .receipt__icon{background:var(--surface);color:var(--text-2)}
+.receipt__body{flex:1 1 200px;min-width:0}
+.app[data-app=phone] .receipt__meta{flex-basis:100%;padding-left:var(--receipt-indent,34px)}
+.receipt__verb{font-weight:700;color:var(--text)}
+.receipt__meta{font-size:var(--fs-xs);color:var(--text-3);font-family:var(--font-mono)}
+
+/* banners */
+.banner-wrap{padding:0 var(--pad-x) 4px}
+.app[data-app=phone] .banner-wrap{padding:0 12px 4px}
+.paused{max-width:var(--log-max);margin:0 auto;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px;border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-sm)}
+.paused span{flex:1}.paused b{font-weight:700}
+.paused--bad{background:var(--danger-soft);color:var(--danger-text)}
+
+/* composer */
+.composer{flex:none;padding:10px var(--pad-x) 16px}
+.app[data-app=phone] .composer{padding:6px 12px 8px}
+.composer__box{max-width:var(--log-max);margin:0 auto;display:flex;align-items:flex-end;gap:8px;padding:7px 7px 7px 14px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.composer__box:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.composer textarea{flex:1;min-height:34px;max-height:120px;padding:6px 0;border:0;background:none;outline:none;resize:none;font-size:var(--fs-md);line-height:1.4}
+.app[data-app=phone] .composer textarea{font-size:16px}
+.composer textarea::placeholder{color:var(--text-3)}
+.composer__hint{align-self:center}
+.send{width:34px;height:34px;flex:none;display:grid;place-items:center;border:0;border-radius:var(--r-md);background:var(--accent);color:var(--accent-contrast)}
+.app[data-app=phone] .send{width:40px;height:40px}
+
+/* toast */
+.toast{position:absolute;left:50%;bottom:150px;translate:-50% 0;z-index:var(--z-toast);padding:8px 14px;border-radius:999px;background:var(--text);color:var(--bg);font-size:var(--fs-sm);box-shadow:var(--shadow-2);white-space:nowrap;pointer-events:none}
+.app[data-app=mac] .toast{bottom:96px}
+.app[data-app=phone] .toast{top:124px;bottom:auto}
+
+/* ===== board ===== */
+.board{display:flex;flex-direction:column;gap:14px;padding:16px 20px 24px}
+.board__head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.board__kicker{display:flex;align-items:center;gap:8px;font-size:var(--fs-xs);color:var(--text-3)}
+.board__head h3{margin:4px 0 0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:1.1}
+.demo-pill{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:var(--fs-xs);font-weight:600;white-space:nowrap}
+.demo-pill .ico{width:14px;height:14px}
+.progress{height:6px;border-radius:3px;background:var(--bg-sunken);overflow:hidden}
+.progress i{display:block;height:100%;width:var(--p);background:var(--accent);border-radius:inherit}
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:0}
+.metrics div{padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md)}
+.metrics dt{font-size:var(--fs-xs);color:var(--text-3)}
+.metrics dd{margin:0;font-weight:600;font-size:var(--fs-sm);font-family:var(--font-mono)}
+.metrics dd.metrics__word{font-family:var(--font-body)} /* words read badly in mono, Cyrillic especially */
+.metrics .ok{color:var(--success-text)}.metrics .bad{color:var(--danger-text)}
+.cols{display:grid;gap:16px}
+.col h4{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.col h4 span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.col ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.item{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);font-size:var(--fs-sm)}
+.item__num{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-3)}
+.item__title{min-width:0}
+.item small{display:block;font-size:var(--fs-xs);color:var(--text-3)}
+.tier{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.tier--light{background:var(--bg-sunken);color:var(--text-2)}
+.tier--standard{background:var(--accent-soft);color:var(--accent-text)}
+.tier--heavy{background:var(--warning-soft);color:var(--warning-text)}
+.board__empty{display:flex;gap:10px;align-items:flex-start;padding:14px;border:1px dashed var(--border-strong);border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm)}
+.board__empty p{margin:0}
+.board__foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-3)}
+.app[data-app=phone] .cols{grid-auto-flow:column;grid-auto-columns:82%;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -20px;padding:0 20px 6px;scroll-padding:0 20px}
+.app[data-app=phone] .col{scroll-snap-align:start}
+
+/* ===== artifacts ===== */
+.arts{display:flex;flex-direction:column;gap:12px;padding:16px 20px 24px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.art-group h4{display:flex;gap:8px;margin:6px 0 6px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.art-group h4 span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.art-group ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.art{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-md);background:var(--surface);border:1px solid var(--border);font-size:var(--fs-sm)}
+.art>.ico{color:var(--text-3)}
+.art__icon{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:var(--r-sm);background:var(--bg-sunken);color:var(--text-2)}
+.art__icon .ico{width:16px;height:16px}
+.art__title{flex:1;min-width:0;display:grid}
+.art__title small{font-size:var(--fs-xs);color:var(--text-3)}
+.art--awaiting{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.art--awaiting .art__icon{background:var(--accent-soft);color:var(--accent-text)}
+.art__thumb{list-style:none}
+
+/* ===== cross-project views ===== */
+.log__inner--view{gap:12px}
+.needs__lead{margin:0 0 4px;color:var(--text-2);font-size:var(--fs-sm)}
+.needs__list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.need{width:100%;display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;text-align:left;padding:12px 12px 12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.need:hover{border-color:var(--border-strong)}
+.need>.ico{grid-column:2;grid-row:1/span 3;color:var(--text-3)}
+.need__top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ptag{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px 0 2px;border-radius:999px;background:var(--bg-sunken);font-size:var(--fs-xs);font-weight:600;color:var(--text)}
+.ptag .prod-mono{width:20px;height:20px;font-size:11px;border-radius:50%}
+.need__kind{font-size:var(--fs-xs);color:var(--text-3)}
+.need__title{font-weight:600;font-family:var(--font-display);line-height:var(--lh-tight)}
+.need__rec{font-size:var(--fs-xs);color:var(--text-2)}
+.ov-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.ov{width:100%;display:grid;gap:8px;text-align:left;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.ov:hover{border-color:var(--border-strong)}
+.ov__top{display:flex;align-items:center;gap:8px}
+.ov__top b{flex:1;font-family:var(--font-display);font-weight:var(--fw-display)}
+.ov__line{font-size:var(--fs-xs);color:var(--text-2)}
+.ov__foot{display:flex;justify-content:space-between;align-items:center;font-size:var(--fs-xs);color:var(--text-3);font-family:var(--font-mono)}
+.meter--wide{height:4px}
+.ov-h{display:flex;gap:8px;margin:12px 0 0;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.ov-h span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.ov-grid--quiet .ov{box-shadow:none;background:transparent}
+.app[data-app=phone] .ov-grid{grid-template-columns:1fr}
+
+/* ===== language: bilingual static blocks in the page note ===== */
+:root:not([lang=ru]) [data-lang=ru],:root[lang=ru] [data-lang=en]{display:none}
+
+/* ===== character: Paper Desk ===== */
+
+/* Paper Desk: the PM writes like a letter; decisions are stamped and become margin notes */
+.msg--pm .bubble{font-family:var(--font-display);font-size:16px;line-height:1.62}
+.app[data-app=phone] .msg--pm .bubble{font-size:16px}
+.msg--pm .brief__h{font-family:var(--font-body);font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-2)}
+.avatar--pm{background:none;border:1px solid var(--border-strong);color:var(--text-2);font-family:var(--font-display);font-style:italic;font-weight:600}
+.card__kind{font-variant:small-caps;letter-spacing:.04em;font-size:13px}
+.card{background:var(--surface);background-image:linear-gradient(var(--surface),var(--surface-2))}
+.rec{background:none;border-left:2px solid var(--accent);border-radius:0;padding:2px 0 2px 12px}
+.rec__choice{font-family:var(--font-display);font-size:16px}
+.receipt{background:none;border-left:2px solid var(--accent);border-radius:0;padding:4px 0 4px 14px;font-family:var(--font-display);font-style:italic;font-size:15px}
+.receipt--negative{border-left-color:var(--danger-text)}.receipt--neutral{border-left-color:var(--text-3)}
+.receipt__icon{background:none!important;width:18px;height:18px}
+.receipt__icon .ico{width:18px;height:18px;stroke-width:2}
+.receipt__meta{font-style:normal}
+.receipt{--receipt-indent:28px}
+.receipt.is-new .receipt__icon path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) var(--dur-fast) forwards}
+@keyframes ink{to{stroke-dashoffset:0}}
+.stamp{position:absolute;right:22px;top:calc(50% - 39px);width:78px;height:78px;color:var(--accent);pointer-events:none;opacity:0}
+.stamp svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.stamp .stamp__inner{stroke-width:1;opacity:.6}
+.stamp--negative{color:var(--danger-text)}.stamp--neutral{color:var(--text-2)}
+.sidebar{background:var(--bg-sunken)}
+.side-item[aria-current=true]{box-shadow:none;background:var(--surface);border:1px solid var(--border)}
+.side-label{font-variant:small-caps;letter-spacing:.06em;font-size:13px}
+.tabs button[aria-current=page] .ico{stroke-width:2.2}
+.need__title,.ov__top b{font-weight:600}
+.day span{font-family:var(--font-display);font-style:italic;font-size:14px}
+.msg--owner .bubble{border-radius:var(--r-lg)}
+/* status lines are words, not ids: mono spaces Cyrillic words out, so only ids stay in Source Code Pro */
+.ov__foot,.receipt__meta{font-family:var(--font-body);font-variant-numeric:tabular-nums}
+
+/* ===== #24 Settings › Projects, on the Paper Desk tokens (ADR 0002) =====
+   Proposed token additions (the Paper Desk sketch names no spacing scale, target size or stagger):
+   spacing on a 4 px base, a 44 px target, a 16 px input size (stops iOS zoom), the checklist mark, the dialog
+   width, a stagger step and the 120 ms reduced-motion fade the prototype already uses. */
+:root{
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;--sp-10:40px;
+  --target:44px;--fs-input:16px;--mark:28px;--dialog-w:440px;--set-max:720px;--stamp-sm:64px;
+  --ls-caps:.06em;--stagger:70ms;--dur-fade:120ms;--dur-pulse:1600ms;--dur-toast:2400ms;
+}
+@media (prefers-reduced-motion:reduce){:root{--stagger:0ms}}
+:root[data-motion=reduce]{--stagger:0ms}
+
+/* ----- page chrome: the demo state bar ----- */
+.demo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-4);font-size:var(--fs-xs);color:var(--text-2)}
+.demo label{display:inline-flex;align-items:center;gap:var(--sp-2)}
+.demo select{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);min-height:32px;padding:0 var(--sp-2)}
+.demo input[type=checkbox]{width:var(--sp-4);height:var(--sp-4);accent-color:var(--accent)}
+.demo__help{flex-basis:100%;margin:0;color:var(--text-3);max-width:110ch}
+.note ul{margin:0 0 var(--sp-2);padding-left:1.2em;max-width:75ch}
+.note li{margin:var(--sp-1) 0}
+
+/* ----- mac: settings in the main column ----- */
+.set-main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.set-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.set-inner{max-width:var(--set-max);margin:0 auto;padding:var(--sp-8) var(--pad-x) var(--sp-10);display:flex;flex-direction:column;gap:var(--sp-6)}
+.app[data-app=phone] .set-inner{padding:var(--sp-2) var(--sp-4) var(--sp-10);gap:var(--sp-5)}
+.crumbs ol{display:flex;align-items:center;gap:var(--sp-2);list-style:none;margin:0;padding:0;font-size:var(--fs-sm);color:var(--text-3)}
+.crumbs li{display:flex;align-items:center;gap:var(--sp-2)}
+.crumbs li+li::before{content:"/";color:var(--border-strong)}
+.crumbs a{color:var(--text-2);text-decoration:none;border-radius:var(--r-sm);padding:var(--sp-1)}
+.crumbs a:hover{color:var(--text);background:var(--hover)}
+.crumbs [aria-current=page]{color:var(--text);font-weight:600}
+.side-item--settings{margin-bottom:var(--sp-1)}
+.side-item--settings[aria-current=page]{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+.side-foot__row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2);width:100%}
+
+/* ----- phone: pushed settings pages ----- */
+.app[data-app=phone]{overflow:clip} /* focus() must never scroll the device frame itself */
+.p-bar{flex:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;min-height:var(--target);padding:0 var(--sp-2) var(--sp-1)}
+.p-back{justify-self:start;display:inline-flex;align-items:center;border:0;background:none;color:var(--accent-text);min-height:var(--target);padding:0 var(--sp-2) 0 0;font-size:var(--fs-md);border-radius:var(--r-md)}
+.p-back .ico{width:22px;height:22px;stroke-width:2.2}
+.p-bar__title{font-weight:600;font-size:var(--fs-md)}
+.p-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.p-stub{flex:1;display:grid;align-content:start;gap:var(--sp-5);padding:var(--sp-4)}
+.p-stub p{margin:0;font-family:var(--font-display);font-size:var(--fs-md);color:var(--text-2);line-height:1.62}
+.sheet-foot{display:grid;gap:1px;margin:var(--sp-2) var(--sp-2) 0;padding-top:var(--sp-2);border-top:1px solid var(--border)}
+.sheet-foot .side-item{min-height:48px;font-size:var(--fs-md)}
+.side-item--add{color:var(--accent-text);font-weight:600}
+.sheet-row__repo{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-3)}
+
+/* ----- headings ----- */
+.set-head{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:var(--sp-3) var(--sp-4)}
+.set-head h1{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-2xl);line-height:var(--lh-tight);outline:none;overflow-wrap:anywhere}
+.set-lead{margin:var(--sp-1) 0 0;color:var(--text-2);font-size:var(--fs-sm)}
+.set-head--proj{align-items:center;justify-content:flex-start;flex-wrap:nowrap}
+.set-head--proj .prod-mono{width:48px;height:48px;font-size:var(--fs-xl);border-radius:var(--r-md)}
+.set-meta{margin:var(--sp-1) 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-3);font-size:var(--fs-sm);color:var(--text-3)}
+.app[data-app=phone] .set-head .btn--primary{width:100%}
+
+/* ----- buttons (additions to the kit) ----- */
+.btn[aria-disabled=true]{cursor:default}
+.btn--primary[aria-disabled=true],.btn--primary[aria-disabled=true]:hover{background:var(--accent-soft);color:var(--accent-text)}
+.btn:not(.btn--primary)[aria-disabled=true]{color:var(--text-3)}
+.btn[aria-disabled=true]:active{transform:none}
+.btn--danger{background:var(--danger-soft);border-color:transparent;color:var(--danger-text)}
+.btn--danger:hover{background:color-mix(in oklab,var(--danger-soft) 86%,var(--danger-text))}
+.btn--danger-quiet{background:none;color:var(--danger-text)}
+.btn--danger-quiet:hover{background:var(--danger-soft)}
+.btn--tall{min-height:var(--target)}
+.btn .typing{padding:0}
+.ext{display:inline-flex;align-items:center;gap:var(--sp-1);color:var(--accent-text);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;border-radius:var(--r-sm)}
+.ext .ico{width:14px;height:14px}
+.link-btn{border:0;background:none;padding:0;color:var(--accent-text);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;min-height:var(--target)}
+
+/* ----- project list ----- */
+.plist{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);overflow:hidden}
+.prow{display:flex;align-items:center;gap:var(--sp-1);padding-right:var(--sp-2);border-top:1px solid var(--border);background:var(--surface)}
+.prow:first-child{border-top:0}
+.prow__link{flex:1;min-width:0;display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:var(--sp-1) var(--sp-3);min-height:calc(var(--target) + var(--sp-5));padding:var(--sp-3) var(--sp-2) var(--sp-3) var(--sp-4);color:inherit;text-decoration:none;border-radius:var(--r-md);transition:background-color var(--dur-fast) var(--ease-standard)}
+.prow__link:hover{background:var(--hover)}
+.prow__link>.ico{color:var(--text-3)}
+.prow .prod-mono{width:34px;height:34px;font-size:16px}
+.prow__txt{display:grid;min-width:0}
+.prow__name{font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md);line-height:var(--lh-tight)}
+.prow__repo{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-2);overflow-wrap:anywhere}
+.prow__arch{min-height:var(--target);color:var(--text-2);font-weight:400}
+.app[data-app=mac] .prow__arch .ico{display:none}
+.prow__arch:hover{color:var(--danger-text);background:var(--danger-soft)}
+.app[data-app=phone] .prow__link{grid-template-columns:auto minmax(0,1fr) auto;padding-left:var(--sp-3)}
+.app[data-app=phone] .prow .setchip{grid-column:2;grid-row:2;justify-self:start}
+.app[data-app=phone] .prow__link>.ico{grid-column:3;grid-row:1/span 2}
+.app[data-app=phone] .prow .prod-mono{grid-row:1/span 2}
+.app[data-app=phone] .prow__arch{width:var(--target);padding:0}
+.app[data-app=phone] .prow__archtxt{display:none}
+.app[data-app=phone] .prow__arch .ico{width:20px;height:20px}
+
+/* setup chip on a row: the word carries the status, the icon only repeats it */
+.setchip{height:auto;min-height:22px;padding:1px var(--sp-2);gap:var(--sp-1);white-space:normal}
+.setchip .ico{width:13px;height:13px;stroke-width:2.4}
+.setchip--missing{background:var(--warning-soft);color:var(--warning-text)}
+.setchip--checking,.setchip--unknown{background:var(--bg-sunken);color:var(--text-2)}
+.setchip .typing{padding:0;gap:2px}
+.setchip .typing i{width:4px;height:4px}
+
+/* skeleton rows */
+.skel-row{display:flex;align-items:center;gap:var(--sp-3);min-height:calc(var(--target) + var(--sp-5));padding:var(--sp-3) var(--sp-4);border-top:1px solid var(--border)}
+.skel-row:first-child{border-top:0}
+.skel{display:block;border-radius:var(--r-sm);background:var(--bg-sunken);height:var(--sp-3)}
+.skel--mono{width:34px;height:34px}
+.skel-stack{flex:1;display:grid;gap:var(--sp-2)}
+.skel--a{width:38%}.skel--b{width:56%;height:var(--sp-2)}
+.skel-row .skel{animation:pulse var(--dur-pulse) var(--ease-standard) infinite}
+@keyframes pulse{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.skel-row .skel{animation:none}}
+:root[data-motion=reduce] .skel-row .skel{animation:none}
+
+/* empty and error blocks */
+.block{display:grid;justify-items:start;gap:var(--sp-2);padding:var(--sp-6);border-radius:var(--r-lg);background:var(--surface);border:1px dashed var(--border-strong)}
+.block h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
+.block p{margin:0 0 var(--sp-2);color:var(--text-2);font-size:var(--fs-sm);max-width:52ch}
+.block--error{background:var(--danger-soft);border:0;color:var(--danger-text)}
+.block--error p{color:var(--danger-text)}
+.block--error .btn{border-color:transparent}
+.offline{max-width:none}
+
+/* ----- the new-project field ----- */
+.field{display:grid;gap:var(--sp-1)}
+.field__label{font-weight:600;font-size:var(--fs-sm)}
+.field__hint{margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.field__input{width:100%;height:var(--target);margin-top:var(--sp-1);padding:0 var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--text);font-family:var(--font-mono);font-size:var(--fs-md);transition:border-color var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard)}
+.app[data-app=phone] .field__input{font-size:var(--fs-input)}
+.field__input::placeholder{color:var(--text-3)}
+.field__input:focus{outline:none;border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.field__input[aria-invalid=true]{border-color:var(--danger-text);box-shadow:0 0 0 1px var(--danger-text)}
+.field__err{display:flex;align-items:flex-start;gap:var(--sp-2);margin:var(--sp-1) 0 0;color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.field__err .ico{margin-top:2px}
+.field__preview{margin:var(--sp-1) 0 0;font-size:var(--fs-xs);color:var(--text-2)}
+.field__preview code{color:var(--accent-text)}
+.form-actions{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.app[data-app=phone] .form-actions .btn{flex:1 1 0;min-width:max-content}
+
+/* ----- the result note: a margin note, like the prototype's recorded answers ----- */
+.res{position:relative;display:grid;justify-items:start;gap:var(--sp-1);padding:var(--sp-1) 0 var(--sp-1) var(--sp-4);border-left:2px solid var(--accent)}
+.res h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);outline:none}
+.res p{margin:0;color:var(--text-2);font-size:var(--fs-sm);max-width:60ch}
+.res .btn,.res .link-btn{margin-top:var(--sp-2)}
+.res__time{font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
+.res--warn{border-left-color:var(--warning-text)}
+.res--bad{border-left-color:var(--danger-text)}
+.res--neutral{border-left-color:var(--text-3)}
+.res--ready{min-height:var(--stamp-sm);padding-right:calc(var(--stamp-sm) + var(--sp-4))}
+.res .stamp{right:0;top:calc(50% - var(--stamp-sm) / 2);width:var(--stamp-sm);height:var(--stamp-sm);opacity:1;transform:rotate(-9deg)}
+
+/* ----- the checklist: a ledger of four steps ----- */
+.ledger{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.step{display:grid;grid-template-columns:var(--mark) minmax(0,1fr);gap:var(--sp-1) var(--sp-3);padding:var(--sp-4);border-top:1px solid var(--border)}
+.step:first-child{border-top:0}
+.app[data-app=phone] .step{padding:var(--sp-4) var(--sp-3)}
+.step__mark{width:var(--mark);height:var(--mark);border-radius:50%;display:grid;place-items:center;background:var(--bg-sunken);color:var(--text-2);font-family:var(--font-display);font-size:var(--fs-sm);font-weight:600;font-variant-numeric:lining-nums}
+.step__mark .ico{width:16px;height:16px;stroke-width:2.4}
+.step__mark .typing{padding:0;gap:2px}.step__mark .typing i{width:4px;height:4px}
+.step__body{display:grid;justify-items:start;gap:var(--sp-1);min-width:0}
+.step__head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:0 var(--sp-3);width:100%;min-height:var(--mark)}
+.step__title{margin:0;font-size:var(--fs-md);font-weight:600;line-height:var(--lh-tight);align-self:center}
+.step__state{font-size:var(--fs-sm);font-weight:600;font-variant:small-caps;letter-spacing:var(--ls-caps);text-transform:lowercase;white-space:nowrap}
+.step__fix{margin:0;font-size:var(--fs-sm);color:var(--text-2);overflow-wrap:anywhere}
+.step--done .step__mark{background:var(--success-soft);color:var(--success-text)}
+.step--done .step__state{color:var(--success-text)}
+.step--missing .step__mark{background:var(--warning-soft);color:var(--warning-text)}
+.step--missing .step__state{color:var(--warning-text)}
+.step--pending .step__state,.step--unknown .step__state{color:var(--text-2)}
+.step--skipped .step__mark{background:none;border:1px dashed var(--border-strong);color:var(--text-3)}
+.step--skipped .step__title{color:var(--text-2)}
+.step--skipped .step__state{color:var(--text-3)}
+.how-btn{margin-left:calc(-1 * var(--sp-2));color:var(--accent-text);min-height:var(--target)}
+.how-btn .ico{width:16px;height:16px;transition:transform var(--dur-base) var(--ease-standard)}
+.how-btn[aria-expanded=true]{background:none;color:var(--accent-text)}
+.how-btn[aria-expanded=true] .ico{transform:rotate(180deg)}
+.how{display:grid;gap:var(--sp-3);width:100%;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2)}
+.how p{margin:0;overflow-wrap:anywhere}
+.how dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--sp-2) var(--sp-4);margin:0}
+.how dt{color:var(--text-3)}
+.how dd{margin:0;min-width:0;color:var(--text)}
+.app[data-app=phone] .how{padding:var(--sp-3)}
+.app[data-app=phone] .how dl{grid-template-columns:minmax(0,1fr);gap:0}
+.app[data-app=phone] .how dd{margin-bottom:var(--sp-2)}
+.codeline{display:flex;align-items:flex-start;gap:var(--sp-2);width:100%}
+.codeline code{flex:1;min-width:0;padding:var(--sp-2) var(--sp-3);border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-size:var(--fs-xs);line-height:1.5;word-break:break-all}
+.codeline .btn{min-height:var(--target);flex:none}
+.codeline .btn[data-copied] {color:var(--success-text)}
+
+/* ink: a step that just turned done draws its check, in step order */
+.step.is-new .step__mark{animation:mark-in var(--dur-base) var(--ease-emph) calc(var(--i, 0) * var(--stagger)) both}
+.step.is-new.step--done .step__mark path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) calc(var(--i, 0) * var(--stagger) + var(--dur-fast)) forwards}
+@keyframes mark-in{from{transform:scale(.6);opacity:0}}
+@keyframes fade{from{opacity:0}}
+@media (prefers-reduced-motion:reduce){.step.is-new .step__mark,.step.is-new.step--done .step__mark path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}}
+:root[data-motion=reduce] .step.is-new .step__mark,:root[data-motion=reduce] .step.is-new.step--done .step__mark path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}
+
+/* ----- actions and the separated archive ----- */
+.danger-zone{display:flex;padding-top:var(--sp-5);border-top:1px solid var(--border)}
+.app[data-app=phone] .danger-zone .btn{width:100%}
+
+/* ----- archive confirmation (alertdialog) ----- */
+.modal{position:absolute;inset:0;z-index:var(--z-sheet);display:grid;place-items:center;padding:var(--sp-6)}
+.modal__scrim{position:absolute;inset:0;background:var(--scrim)}
+.adialog{position:relative;width:min(100%,var(--dialog-w));display:grid;gap:var(--sp-3);padding:var(--sp-6);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-2)}
+.adialog h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);overflow-wrap:anywhere}
+.adialog p{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.adialog .adialog__note{font-size:var(--fs-xs);color:var(--text-2);padding-left:var(--sp-3);border-left:2px solid var(--border-strong)}
+.adialog__err{display:flex;gap:var(--sp-2);align-items:flex-start;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--danger-soft);color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.adialog__err .ico{margin-top:2px}
+.adialog__actions{display:flex;justify-content:flex-end;gap:var(--sp-2);margin-top:var(--sp-2)}
+.adialog__actions .btn{min-height:var(--target)}
+.app[data-app=phone] .modal{place-items:end stretch;padding:0}
+.app[data-app=phone] .adialog{width:100%;border-radius:var(--r-sheet) var(--r-sheet) 0 0;border-width:1px 0 0;padding:var(--sp-6) var(--sp-5) var(--sp-10);box-shadow:var(--shadow-3)}
+.app[data-app=phone] .adialog__actions .btn{flex:1 1 0}
+
+/* toast and live region */
+.toast[hidden]{display:none}
+.app[data-app=phone] .toast{top:auto;bottom:var(--sp-10)}
+
+/* page chrome sits on the darker --page backdrop, where tertiary text falls under AA: use secondary text there */
+.note__kicker,.device__label,.demo__help{color:var(--text-2)}
+
+</style>
+</head>
+<body>
+<header class="note">
+  <div class="note__row">
+    <div><div class="note__kicker" data-i18n="page.kicker">Team Console · #24 · design for approval</div><h1 data-i18n="page.title">Settings › Projects</h1></div>
+    <div class="controls">
+      <div class="seg" data-control="view" role="group" aria-label="Layout" data-i18n-aria="page.layout"><button type="button" data-value="phone">iPhone</button><button type="button" data-value="mac">Mac</button><button type="button" data-value="both" data-i18n="page.both">Both</button></div>
+      <div class="seg" data-control="theme" role="group" aria-label="Theme" data-i18n-aria="page.theme"><button type="button" data-value="auto" data-i18n="page.auto">Auto</button><button type="button" data-value="light" data-i18n="page.light">Light</button><button type="button" data-value="dark" data-i18n="page.dark">Dark</button></div>
+      <div class="seg" data-control="lang" role="group" aria-label="Language" data-i18n-aria="page.lang"><button type="button" data-value="ru" lang="ru" aria-label="Русский">RU</button><button type="button" data-value="en" lang="en" aria-label="English">EN</button></div>
+      <div class="seg" data-control="motion" role="group" aria-label="Motion" data-i18n-aria="page.motion"><button type="button" data-value="system" data-i18n="page.motionSystem">Motion: system</button><button type="button" data-value="reduce" data-i18n="page.motionReduce">Reduced</button></div>
+      <button type="button" class="seg-btn" data-reset data-i18n="page.reset">Reset demo</button>
+    </div>
+  </div>
+  <div class="demo" role="group" aria-label="Demo states" data-i18n-aria="demo.aria">
+    <label><span data-i18n="demo.screen">Screen</span><select id="d-screen"><option value="">—</option><option value="entry" data-i18n="demo.s.entry">entry</option><option value="list" data-i18n="demo.s.list">list</option><option value="new" data-i18n="demo.s.new">new</option><option value="setupMissing" data-i18n="demo.s.setupMissing">setupMissing</option><option value="setupUnknown" data-i18n="demo.s.setupUnknown">setupUnknown</option><option value="setupReady" data-i18n="demo.s.setupReady">setupReady</option><option value="dialog" data-i18n="demo.s.dialog">dialog</option></select></label>
+    <label><span data-i18n="demo.list">Project list</span><select id="d-list"><option value="normal" data-i18n="demo.l.normal">normal</option><option value="loading" data-i18n="demo.l.loading">loading</option><option value="empty" data-i18n="demo.l.empty">empty</option><option value="error" data-i18n="demo.l.error">error</option><option value="offline" data-i18n="demo.l.offline">offline</option></select></label>
+    <label><span data-i18n="demo.add">Add result</span><select id="d-add"><option value="auto" data-i18n="demo.a.auto">auto</option><option value="pat" data-i18n="demo.a.pat">pat</option><option value="yml" data-i18n="demo.a.yml">yml</option><option value="saved" data-i18n="demo.a.saved">saved</option><option value="ready" data-i18n="demo.a.ready">ready</option><option value="github" data-i18n="demo.a.github">github</option><option value="rate" data-i18n="demo.a.rate">rate</option><option value="token" data-i18n="demo.a.token">token</option></select></label>
+    <label><input type="checkbox" id="d-fail"><span data-i18n="demo.archFail">Archive fails</span></label>
+    <button type="button" class="seg-btn" id="d-return" data-i18n="demo.return">Return to the app</button>
+    <p class="demo__help" data-i18n="demo.help"></p>
+  </div>
+  <details><summary data-i18n="page.summary">What you are approving</summary><div data-lang="en" lang="en">
+<div class="note__grid"><div>
+<p><b>What you are approving.</b> The look of Settings › Projects on the approved UX spec (#24): the project list, New project, the project setup page with its four-step checklist, and the archive confirmation, on iPhone and Mac, light and dark, ru and en. Flow, states and copy are the UX spec’s; this page decides only how they look and move.</p>
+<ul>
+<li><b>The checklist is a ledger.</b> Four numbered steps on one paper sheet. Each step says its status in words (Done, Missing, Checking…, Not checked, Couldn’t check); the mark only repeats it. Missing is ochre, a to-do, not red. A missing step has a one-line fix and a “How to fix” fold with Copy buttons.</li>
+<li><b>Results are margin notes.</b> The outcome of a check is a serif note with a coloured rule, like a recorded answer in the chat: moss when added or ready, ochre when steps are left, clay when nothing was saved.</li>
+<li><b>Signature moment, reused.</b> When a project becomes ready, the Paper Desk ink stamp presses onto the “ready” note. When a step turns done, its check is drawn in, in step order. Nothing else moves. Reduced motion: a 120 ms fade.</li>
+<li><b>Archive is quiet but never the default.</b> A plain “Archive” on each row, a clay-outlined “Archive project” at the bottom of the setup page, and a dialog that opens on Cancel. On iPhone the dialog rises as a sheet.</li>
+<li><b>Entry points.</b> Mac: a Settings item in the sidebar footer. iPhone: “Add project” and “Settings” at the bottom of the Projects sheet.</li>
+</ul>
+<p class="try">Try: on iPhone tap “Settings” in the sheet; add <code>geeera/private-lab</code>, then <code>geeera/newsletter</code> and select Check again twice; open fieldnote and archive it; switch the theme, the language and reduced motion. The demo bar reaches every state.</p>
+</div><dl class="tok">
+<dt>Colour</dt><dd>Paper Desk tokens only: paper, sheet, ink, moss for the next action, ochre (warning) for missing steps, clay (danger) for “not saved” and archive.</dd>
+<dt>Type</dt><dd>Source Serif 4 for titles, names and result notes; Source Sans 3 for the interface; Source Code Pro for owner/repo, paths and commands. All OFL.</dd>
+<dt>New tokens</dt><dd>Proposed for the kit: spacing 4 / 8 / 12 / 16 / 20 / 24 / 32 / 40, target 44, input text 16 (no iOS zoom), checklist mark 28, dialog width 440, stagger 70 ms, reduced-motion fade 120 ms.</dd>
+<dt>New kit parts</dt><dd>Field (label, hint, error, preview), danger and quiet-danger buttons, alert dialog, skeleton row, code line with Copy, disclosure.</dd>
+<dt>Motion</dt><dd>fast 140 · base 240 · slow 380 · stamp 620 ms; only transform, opacity and stroke draw.</dd>
+</dl></div></div><div data-lang="ru" lang="ru">
+<div class="note__grid"><div>
+<p><b>Что утверждаешь.</b> Внешний вид «Настройки › Проекты» по утверждённой UX-спеке (#24): список проектов, новый проект, страница настройки проекта с чек-листом из четырёх шагов и подтверждение архивации — на iPhone и Mac, в светлой и тёмной теме, на русском и английском. Сценарий, состояния и тексты — из UX-спеки; здесь решается только то, как это выглядит и двигается.</p>
+<ul>
+<li><b>Чек-лист — как страница журнала.</b> Четыре пронумерованных шага на одном листе. Статус каждого шага написан словом (Готово, Не хватает, Проверяем…, Не проверено, Не удалось проверить); значок его только повторяет. «Не хватает» — охра, это дело, а не ошибка. У такого шага есть исправление в одну строку и раскрывающееся «Как сделать» с кнопками «Копировать».</li>
+<li><b>Результат — заметка на полях.</b> Итог проверки — заметка с засечками и цветной чертой слева, как записанный ответ в чате: мох — добавлено или готово, охра — остались шаги, глина — ничего не сохранено.</li>
+<li><b>Фирменный момент — тот же.</b> Когда проект готов, на заметку «готов» ложится чернильный штамп Paper Desk. Когда шаг становится выполненным, его галочка прорисовывается по порядку шагов. Больше ничего не двигается. При уменьшенной анимации — затухание 120 мс.</li>
+<li><b>Архивация тихая, но никогда не по умолчанию.</b> Простая кнопка «Архивировать» в каждой строке, «Архивировать проект» цвета глины внизу страницы настройки и диалог, в котором фокус сразу на «Отмене». На iPhone диалог выезжает снизу, как лист.</li>
+<li><b>Входы.</b> Mac — пункт «Настройки» внизу боковой панели. iPhone — «Добавить проект» и «Настройки» внизу листа «Проекты».</li>
+</ul>
+<p class="try">Попробуй: на iPhone нажми «Настройки» в листе; добавь <code>geeera/private-lab</code>, потом <code>geeera/newsletter</code> и дважды нажми «Проверить снова»; открой fieldnote и заархивируй его; переключи тему, язык и «Меньше движения». Панель демо открывает любое состояние.</p>
+</div><dl class="tok">
+<dt>Цвет</dt><dd>Только токены Paper Desk: бумага, лист, чернила, мох для следующего действия, охра (warning) для недостающих шагов, глина (danger) для «не сохранено» и архивации.</dd>
+<dt>Шрифты</dt><dd>Source Serif 4 — заголовки, имена проектов и заметки-результаты; Source Sans 3 — интерфейс; Source Code Pro — owner/repo, пути и команды. Все под OFL.</dd>
+<dt>Новые токены</dt><dd>Предлагаю в кит: отступы 4 / 8 / 12 / 16 / 20 / 24 / 32 / 40, цель касания 44, текст в поле 16 (без зума на iOS), значок шага 28, ширина диалога 440, шаг задержки 70 мс, затухание 120 мс при уменьшенной анимации.</dd>
+<dt>Новое в ките</dt><dd>Поле (подпись, подсказка, ошибка, превью), кнопки «опасное действие» и «тихое опасное», диалог-предупреждение, строка-скелетон, строка кода с «Копировать», раскрывашка.</dd>
+<dt>Движение</dt><dd>быстро 140 · обычно 240 · медленно 380 · штамп 620 мс; двигаются только transform, opacity и прорисовка линий.</dd>
+</dl></div></div></details>
+</header>
+<main class="stage">
+  <section class="device device--phone" aria-label="iPhone layout" data-i18n-aria="page.phoneAria"><div class="device__label">iPhone · 390 pt</div><div class="phone-frame"><div class="app" data-app="phone"></div></div></section>
+  <section class="device device--mac" aria-label="Mac layout" data-i18n-aria="page.macAria"><div class="device__label" data-i18n="page.macLabel">Mac · window</div><div class="mac-frame"><div class="app" data-app="mac"></div></div></section>
+</main>
+<script>
+/* UI strings for #24 Settings › Projects. Russian is the reference copy (ADR 0002), English second.
+   Keys follow the UX spec on #24 so they can move into the app's i18n catalogue as they are. Values are strings with
+   {vars} or functions (vars, plural, x) for counted phrases; t() HTML-escapes vars. "Needs you" reuses the
+   prototype's existing label (nav.needs), as the spec asks, instead of a second copy of it. */
+const I18N = {
+  en: {
+    'page.kicker': 'Team Console · #24 · design for approval',
+    'page.title': 'Settings › Projects',
+    'page.layout': 'Layout', 'page.both': 'Both',
+    'page.theme': 'Theme', 'page.auto': 'Auto', 'page.light': 'Light', 'page.dark': 'Dark',
+    'page.motion': 'Motion', 'page.motionSystem': 'Motion: system', 'page.motionReduce': 'Reduced',
+    'page.lang': 'Language', 'page.reset': 'Reset demo',
+    'page.summary': 'What you are approving, and the tokens it uses',
+    'page.phoneAria': 'iPhone layout', 'page.macAria': 'Mac layout', 'page.macLabel': 'Mac · window',
+    'demo.aria': 'Demo states',
+    'demo.screen': 'Screen', 'demo.list': 'Project list', 'demo.add': 'Add result', 'demo.archFail': 'Archive fails',
+    'demo.return': 'Return to the app',
+    'demo.s.entry': 'Entry point', 'demo.s.list': 'Projects', 'demo.s.new': 'New project',
+    'demo.s.setupMissing': 'Setup: 1 step missing', 'demo.s.setupUnknown': 'Setup: couldn’t check',
+    'demo.s.setupReady': 'Setup: ready', 'demo.s.dialog': 'Archive dialog',
+    'demo.l.normal': 'loaded', 'demo.l.loading': 'loading', 'demo.l.empty': 'empty', 'demo.l.error': 'load error', 'demo.l.offline': 'offline',
+    'demo.a.auto': 'by what you type', 'demo.a.pat': 'PAT cannot read', 'demo.a.yml': 'no project.yml',
+    'demo.a.saved': 'added, 2 steps left', 'demo.a.ready': 'added, all ready', 'demo.a.github': 'GitHub down',
+    'demo.a.rate': 'rate limit', 'demo.a.token': 'console token invalid',
+    'demo.help': 'By what you type: <code>geeera/storify</code> is already on the list, <code>geeera/oldmap</code> is archived, a name with <code>private</code> is refused (PAT), with <code>no-team</code> is refused (no project.yml), anything else is added with 2 steps left. On a setup page, Check again fixes one missing step per click. “Return to the app” runs the automatic re-check.',
+    'demo.chat': 'The project conversation, as in the Paper Desk prototype. Settings start from the project switcher above.',
+    'demo.space': 'Project spaces are in the Paper Desk prototype', 'demo.today': 'Today',
+
+    'nav.needs': 'Needs you', 'nav.all': 'All projects', 'nav.projects': 'Projects', 'nav.settings': 'Settings',
+    'nav.aria': 'Projects and settings', 'nav.crumbs': 'Breadcrumb', 'nav.back': 'Back', 'nav.chat': 'Chat',
+    'nav.sections': 'Sections', 'tab.board': 'Board', 'tab.artifacts': 'Artifacts',
+    'shell.owner': 'Owner', 'shell.synced': 'GitHub synced', 'filter.ph': 'Filter projects',
+    'sheet.title': 'Projects', 'sheet.close': 'Close', 'sheet.add': 'Add project', 'sheet.settings': 'Settings',
+
+    'projects.title': 'Projects', 'projects.add': 'Add project',
+    'projects.lead': 'Product repositories the console works with.',
+    'projects.row.ready': 'All set',
+    'projects.row.missing': ({ n }, pl) => `${n} ${pl(n, ['step missing', 'steps missing'])}`,
+    'projects.row.checking': 'Checking setup…', 'projects.row.unknown': 'Couldn’t check setup',
+    'projects.row.archive': 'Archive', 'projects.row.archiveAria': 'Archive {name}',
+    'projects.loading': 'Loading projects…',
+    'projects.empty.title': 'No projects yet',
+    'projects.empty.body': 'Add a product repository the team already works in. It needs a <code>.product-team/project.yml</code> file.',
+    'projects.error.title': 'Couldn’t load projects', 'projects.error.body': 'GitHub or the console didn’t respond. Nothing changed.',
+    'projects.offline': 'You’re offline. This list is from {time}. Adding or archiving a project needs a connection.',
+    'common.retry': 'Try again', 'common.cancel': 'Cancel', 'common.copy': 'Copy', 'common.copied': 'Copied',
+    'common.external': '(opens GitHub)',
+
+    'add.title': 'New project', 'add.field': 'GitHub repository',
+    'add.hint': 'As owner/repo, for example geeera/storify. A link works too.',
+    'add.preview': 'Address in the console: <code>/p/{slug}</code>',
+    'add.submit': 'Check and add', 'add.submitting': 'Checking…', 'add.checkingLive': 'Checking {repo}…',
+    'add.invalid.empty': 'Enter the repository as owner/repo.',
+    'add.invalid.format': '“{value}” doesn’t look like owner/repo. Example: geeera/storify.',
+    'add.offline': 'You’re offline: checking a repository needs a connection.',
+    'add.duplicate': '<code>{repo}</code> is already on the list.', 'add.duplicateLink': 'Open its setup',
+    'add.archived': '<code>{repo}</code> is archived.', 'add.archivedAction': 'Restore',
+    'add.refused.title': 'Project not added',
+    'add.refused.body': 'A step below is missing. Nothing was saved: fix it and select Check again.',
+    'add.unavailable.title': 'Couldn’t check',
+    'add.unavailable.github': 'GitHub didn’t respond. Nothing was saved.',
+    'add.unavailable.rate': 'GitHub asks us to wait until {time}. Nothing was saved.',
+    'add.unavailable.token': 'The console’s GitHub token is invalid or expired. Update the <code>GITHUB_TOKEN</code> secret (wrangler secret put). Nothing was saved.',
+    'add.saved.title': ({ n }, pl) => `Project added. ${n} ${pl(n, ['step left', 'steps left'])}`,
+    'add.saved.body': 'It’s on your project list now. The console shows what’s missing until everything is set.',
+
+    'setup.ready.title': '{name} is ready', 'setup.ready.body': 'All four steps are done.',
+    'setup.incomplete.title': ({ n }, pl) => `${n} ${pl(n, ['step missing', 'steps missing'])}`,
+    'setup.unknown.title': 'Some steps couldn’t be checked',
+    'setup.checkAgain': 'Check again', 'setup.open': 'Open project', 'setup.archive': 'Archive project',
+    'setup.checkedAt': 'Checked at {time}', 'setup.repoLink': '{repo} on GitHub',
+    'setup.doneLive': 'Check finished: {done} of 4 done.', 'setup.stepsAria': 'Setup steps',
+
+    'step.done': 'Done', 'step.missing': 'Missing', 'step.pending': 'Checking…', 'step.skipped': 'Not checked', 'step.unknown': 'Couldn’t check',
+    'step.skippedWhy': 'Needs the step above first.', 'step.unknownWhy': 'GitHub didn’t respond. Select Check again.',
+    'step.how': 'How to fix',
+    'step.pat.title': 'PAT can read the repo',
+    'step.pat.done': 'The console’s token sees <code>{repo}</code>.',
+    'step.pat.missing': 'PAT cannot read this repo. Add <code>{repo}</code> to the token’s repository list on GitHub.',
+    'step.pat.how': 'GitHub → Settings → Developer settings → Fine-grained tokens → the console’s token → Repository access → add <code>{repo}</code>. Same permissions: Metadata R, Issues RW, Pull requests R, Contents R, Actions R.',
+    'step.pat.link': 'Open tokens',
+    'step.yml.title': '<code>.product-team/project.yml</code> exists',
+    'step.yml.done': 'Found on the default branch.',
+    'step.yml.missing': 'Not on the default branch. Set up the team in this repo and merge its PR.',
+    'step.yml.how': 'In Claude Code in this repo: <code>/adopt</code> for existing code or <code>/kickoff</code> for a new product.',
+    'step.hook.title': 'Webhook received', 'step.hook.done': 'Last event at {time}.',
+    'step.hook.missing': 'No events from <code>{repo}</code> yet. Add a webhook to the repo, then select Check again.',
+    'step.hook.url': 'Payload URL', 'step.hook.type': 'Content type', 'step.hook.secret': 'Secret',
+    'step.hook.secretVal': 'the shared WEBHOOK_SECRET, same as your other projects',
+    'step.hook.events': 'Events', 'step.hook.eventsVal': 'Issues, Issue comments, Pull requests, Workflow runs, Releases, Pushes',
+    'step.hook.copyAria': 'Copy webhook URL', 'step.hook.link': 'Open webhook settings',
+    'step.routine.title': 'Routine token set', 'step.routine.done': '<code>ROUTINE_TOKEN_{SLUG}</code> is set.',
+    'step.routine.missing': 'No <code>ROUTINE_TOKEN_{SLUG}</code> secret. Until it’s set, the PM doesn’t answer in chat.',
+    'step.routine.how': 'Create the PM routine for this repo with an API trigger and store its token:',
+    'step.routine.copyAria': 'Copy command',
+
+    'archive.title': 'Archive {name}?',
+    'archive.body': 'It leaves the project list and Needs you, and you get no notifications for it. Its issues, chat and files on GitHub stay as they are.',
+    'archive.note': 'The webhook and routine stay. Remove them if you no longer need the project.',
+    'archive.confirm': 'Archive', 'archive.busy': 'Archiving…',
+    'archive.error': 'Couldn’t archive. The project is still on the list.',
+    'archive.toast': '{name} archived',
+  },
+  ru: {
+    'page.kicker': 'Team Console · #24 · дизайн на согласование',
+    'page.title': 'Настройки › Проекты',
+    'page.layout': 'Вид', 'page.both': 'Оба',
+    'page.theme': 'Тема', 'page.auto': 'Авто', 'page.light': 'Светлая', 'page.dark': 'Тёмная',
+    'page.motion': 'Анимация', 'page.motionSystem': 'Анимация: как в системе', 'page.motionReduce': 'Меньше движения',
+    'page.lang': 'Язык', 'page.reset': 'Сбросить демо',
+    'page.summary': 'Что утверждаешь и какие токены использует дизайн',
+    'page.phoneAria': 'Вид на iPhone', 'page.macAria': 'Вид на Mac', 'page.macLabel': 'Mac · окно',
+    'demo.aria': 'Состояния для демо',
+    'demo.screen': 'Экран', 'demo.list': 'Список проектов', 'demo.add': 'Результат добавления', 'demo.archFail': 'Архивация падает',
+    'demo.return': 'Вернуться в приложение',
+    'demo.s.entry': 'Точка входа', 'demo.s.list': 'Проекты', 'demo.s.new': 'Новый проект',
+    'demo.s.setupMissing': 'Настройка: не хватает шага', 'demo.s.setupUnknown': 'Настройка: не удалось проверить',
+    'demo.s.setupReady': 'Настройка: готово', 'demo.s.dialog': 'Диалог архивации',
+    'demo.l.normal': 'загружен', 'demo.l.loading': 'загружается', 'demo.l.empty': 'пустой', 'demo.l.error': 'ошибка загрузки', 'demo.l.offline': 'нет сети',
+    'demo.a.auto': 'по вводу', 'demo.a.pat': 'PAT не видит репозиторий', 'demo.a.yml': 'нет project.yml',
+    'demo.a.saved': 'добавлен, осталось 2 шага', 'demo.a.ready': 'добавлен, всё готово', 'demo.a.github': 'GitHub не отвечает',
+    'demo.a.rate': 'лимит запросов', 'demo.a.token': 'токен консоли недействителен',
+    'demo.help': 'По вводу: <code>geeera/storify</code> уже в списке, <code>geeera/oldmap</code> в архиве, имя с <code>private</code> отклоняется (PAT), с <code>no-team</code> отклоняется (нет project.yml), всё остальное добавляется, и остаётся 2 шага. На странице настройки «Проверить снова» за каждое нажатие исправляет один шаг. «Вернуться в приложение» запускает автоматическую перепроверку.',
+    'demo.chat': 'Разговор проекта, как в прототипе Paper Desk. Вход в настройки — через переключатель проектов сверху.',
+    'demo.space': 'Пространства проектов — в прототипе Paper Desk', 'demo.today': 'Сегодня',
+
+    'nav.needs': 'Ждут тебя', 'nav.all': 'Все проекты', 'nav.projects': 'Проекты', 'nav.settings': 'Настройки',
+    'nav.aria': 'Проекты и настройки', 'nav.crumbs': 'Путь', 'nav.back': 'Назад', 'nav.chat': 'Чат',
+    'nav.sections': 'Разделы', 'tab.board': 'Доска', 'tab.artifacts': 'Артефакты',
+    'shell.owner': 'Владелец', 'shell.synced': 'GitHub синхронизирован', 'filter.ph': 'Найти проект',
+    'sheet.title': 'Проекты', 'sheet.close': 'Закрыть', 'sheet.add': 'Добавить проект', 'sheet.settings': 'Настройки',
+
+    'projects.title': 'Проекты', 'projects.add': 'Добавить проект',
+    'projects.lead': 'Репозитории продуктов, с которыми работает консоль.',
+    'projects.row.ready': 'Всё настроено',
+    'projects.row.missing': ({ n }, pl) => `Не хватает ${n} ${pl(n, ['шага', 'шагов', 'шагов'])}`,
+    'projects.row.checking': 'Проверяем настройку…', 'projects.row.unknown': 'Не удалось проверить настройку',
+    'projects.row.archive': 'Архивировать', 'projects.row.archiveAria': 'Архивировать {name}',
+    'projects.loading': 'Загружаем проекты…',
+    'projects.empty.title': 'Проектов пока нет',
+    'projects.empty.body': 'Добавь репозиторий продукта, в котором уже работает команда: в нём должен быть файл <code>.product-team/project.yml</code>.',
+    'projects.error.title': 'Не удалось загрузить проекты', 'projects.error.body': 'GitHub или консоль не ответили. Список не изменился.',
+    'projects.offline': 'Нет сети. Список на момент {time}. Добавить или архивировать проект можно только онлайн.',
+    'common.retry': 'Повторить', 'common.cancel': 'Отмена', 'common.copy': 'Копировать', 'common.copied': 'Скопировано',
+    'common.external': '(откроется на GitHub)',
+
+    'add.title': 'Новый проект', 'add.field': 'Репозиторий на GitHub',
+    'add.hint': 'В виде владелец/репозиторий, например geeera/storify. Можно вставить ссылку.',
+    'add.preview': 'Адрес в консоли: <code>/p/{slug}</code>',
+    'add.submit': 'Проверить и добавить', 'add.submitting': 'Проверяем…', 'add.checkingLive': 'Проверяем {repo}…',
+    'add.invalid.empty': 'Введи репозиторий в виде владелец/репозиторий.',
+    'add.invalid.format': '«{value}» не похоже на владелец/репозиторий. Пример: geeera/storify.',
+    'add.offline': 'Нет сети: проверить репозиторий можно только онлайн.',
+    'add.duplicate': '<code>{repo}</code> уже есть в списке.', 'add.duplicateLink': 'Открыть его настройку',
+    'add.archived': '<code>{repo}</code> в архиве.', 'add.archivedAction': 'Вернуть из архива',
+    'add.refused.title': 'Проект не добавлен',
+    'add.refused.body': 'Не хватает шага ниже. Ничего не сохранено: исправь и нажми «Проверить снова».',
+    'add.unavailable.title': 'Не удалось проверить',
+    'add.unavailable.github': 'GitHub не ответил. Ничего не сохранено.',
+    'add.unavailable.rate': 'GitHub просит подождать до {time}. Ничего не сохранено.',
+    'add.unavailable.token': 'Токен GitHub в консоли недействителен или истёк. Обнови секрет <code>GITHUB_TOKEN</code> (wrangler secret put). Ничего не сохранено.',
+    'add.saved.title': ({ n }, pl) => `Проект добавлен. ${pl(n, ['Остался', 'Осталось', 'Осталось'])} ${n} ${pl(n, ['шаг', 'шага', 'шагов'])}`,
+    'add.saved.body': 'Он уже в списке проектов. Консоль показывает, чего не хватает, пока всё не будет готово.',
+
+    'setup.ready.title': '{name} готов', 'setup.ready.body': 'Все четыре шага выполнены.',
+    'setup.incomplete.title': ({ n }, pl) => `Не хватает ${n} ${pl(n, ['шага', 'шагов', 'шагов'])}`,
+    'setup.unknown.title': 'Часть шагов не удалось проверить',
+    'setup.checkAgain': 'Проверить снова', 'setup.open': 'Открыть проект', 'setup.archive': 'Архивировать проект',
+    'setup.checkedAt': 'Проверено в {time}', 'setup.repoLink': '{repo} на GitHub',
+    'setup.doneLive': 'Проверка закончена: готово {done} из 4.', 'setup.stepsAria': 'Шаги настройки',
+
+    'step.done': 'Готово', 'step.missing': 'Не хватает', 'step.pending': 'Проверяем…', 'step.skipped': 'Не проверено', 'step.unknown': 'Не удалось проверить',
+    'step.skippedWhy': 'Сначала нужен шаг выше.', 'step.unknownWhy': 'GitHub не ответил. Нажми «Проверить снова».',
+    'step.how': 'Как сделать',
+    'step.pat.title': 'Токен GitHub (PAT) читает репозиторий',
+    'step.pat.done': 'Токен консоли видит <code>{repo}</code>.',
+    'step.pat.missing': 'PAT не видит этот репозиторий. Добавь <code>{repo}</code> в список репозиториев токена на GitHub.',
+    'step.pat.how': 'GitHub → Settings → Developer settings → Fine-grained tokens → токен консоли → Repository access → добавить <code>{repo}</code>. Права те же: Metadata R, Issues RW, Pull requests R, Contents R, Actions R.',
+    'step.pat.link': 'Открыть токены',
+    'step.yml.title': 'В репозитории есть <code>.product-team/project.yml</code>',
+    'step.yml.done': 'Есть в основной ветке.',
+    'step.yml.missing': 'Файла нет в основной ветке. Подключи команду в этом репозитории и смержи её PR.',
+    'step.yml.how': 'В Claude Code в этом репозитории: <code>/adopt</code> для существующего кода или <code>/kickoff</code> для нового продукта.',
+    'step.hook.title': 'Вебхук получен', 'step.hook.done': 'Последнее событие в {time}.',
+    'step.hook.missing': 'Событий от <code>{repo}</code> ещё не было. Добавь вебхук в репозитории, затем «Проверить снова».',
+    'step.hook.url': 'Payload URL', 'step.hook.type': 'Content type', 'step.hook.secret': 'Secret',
+    'step.hook.secretVal': 'общий WEBHOOK_SECRET, тот же, что у других проектов',
+    'step.hook.events': 'События', 'step.hook.eventsVal': 'Issues, Issue comments, Pull requests, Workflow runs, Releases, Pushes',
+    'step.hook.copyAria': 'Копировать адрес вебхука', 'step.hook.link': 'Открыть настройки вебхуков',
+    'step.routine.title': 'Токен рутины задан', 'step.routine.done': 'Секрет <code>ROUTINE_TOKEN_{SLUG}</code> задан.',
+    'step.routine.missing': 'Секрета <code>ROUTINE_TOKEN_{SLUG}</code> нет. Пока его нет, PM не отвечает в чате.',
+    'step.routine.how': 'Создай рутину PM для этого репозитория с API-триггером и сохрани её токен:',
+    'step.routine.copyAria': 'Копировать команду',
+
+    'archive.title': 'Архивировать {name}?',
+    'archive.body': 'Проект пропадёт из списка проектов и из «Ждут тебя», уведомлений по нему не будет. Issues, чат и файлы на GitHub останутся как есть.',
+    'archive.note': 'Вебхук и рутина останутся. Удали их, если проект больше не нужен.',
+    'archive.confirm': 'Архивировать', 'archive.busy': 'Архивируем…',
+    'archive.error': 'Не удалось архивировать. Проект остался в списке.',
+    'archive.toast': '{name} в архиве',
+  },
+};
+
+/* #24 Settings › Projects: design prototype runtime. Mock data only; the real app talks to the registry API (#15).
+   Two independent instances (iPhone, Mac) share the demo controls, like the Paper Desk prototype. */
+(() => {
+  'use strict';
+  const root = document.documentElement;
+  const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
+  const isReduced = () => root.dataset.motion === 'reduce' || mqReduce.matches;
+  const cssVar = (n) => getComputedStyle(root).getPropertyValue(n).trim();
+  const ms = (n) => { const v = cssVar(n); const x = parseFloat(v) || 0; return v.endsWith('ms') ? x : v.endsWith('s') ? x * 1000 : x; };
+  const wait = (t) => new Promise((r) => setTimeout(r, t));
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  async function play(el, frames, opts) {
+    if (!el || !el.animate) return;
+    try { await el.animate(frames, opts).finished; } catch (err) { if (!err || err.name !== 'AbortError') throw err; }
+  }
+
+  /* ---------- language (same preference key as the Paper Desk prototype) ---------- */
+  const LANG_KEY = 'team-console.lang';
+  let LANG = 'ru';
+  try { const v = localStorage.getItem(LANG_KEY); LANG = v === 'en' || v === 'ru' ? v : /^en\b/i.test(navigator.language || '') ? 'en' : 'ru'; }
+  catch (err) { console.warn('Language preference unavailable, using Russian', err); }
+  let fmt;
+  function applyLang(v) {
+    LANG = v; root.lang = v;
+    const loc = v === 'ru' ? 'ru-RU' : 'en-GB';
+    fmt = { time: new Intl.DateTimeFormat(loc, { hour: '2-digit', minute: '2-digit' }), plural: new Intl.PluralRules(loc) };
+  }
+  applyLang(LANG);
+  const pl = (n, forms) => { const c = fmt.plural.select(n); if (forms.length === 2) return c === 'one' ? forms[0] : forms[1]; return c === 'one' ? forms[0] : c === 'few' ? forms[1] : forms[2]; };
+  function t(key, vars = {}) {
+    const v = I18N[LANG][key] ?? I18N.en[key];
+    if (v == null) { console.warn(`Missing UI string: ${key}`); return key; }
+    if (typeof v === 'function') return v(vars, pl, { esc });
+    return v.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? esc(vars[k]) : m));
+  }
+  const plain = (html) => { const d = document.createElement('template'); d.innerHTML = html; return d.content.textContent; };
+  const hhmm = (d) => fmt.time.format(d);
+  const minsAgo = (m) => new Date(Date.now() - m * 60000);
+
+  /* ---------- icons: inline strokes, as in the prototype ---------- */
+  const svg = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  const I = {
+    check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'), x: svg('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'),
+    bang: svg('<path d="M12 6.5v7M12 17.3v.2"/>'), q: svg('<path d="M9.3 9a2.8 2.8 0 015.4 1c0 2-2.7 2.3-2.7 4M12 17.3v.2"/>'),
+    warn: svg('<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.3v.2"/>'),
+    chev: svg('<path d="M9.5 6l6 6-6 6"/>'), back: svg('<path d="M14.5 6l-6 6 6 6"/>'), down: svg('<path d="M6 9.5l6 6 6-6"/>'),
+    plus: svg('<path d="M12 5.5v13M5.5 12h13"/>'),
+    gear: svg('<circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M20.5 12h-2.2M5.7 12H3.5M18 6l-1.6 1.6M7.6 16.4L6 18M18 18l-1.6-1.6M7.6 7.6L6 6"/>'),
+    ext: svg('<path d="M14 4.5h5.5V10M19.5 4.5L11 13M17 13.5v5a1 1 0 01-1 1H5.5a1 1 0 01-1-1V8a1 1 0 011-1h5"/>'),
+    copy: svg('<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V5.5a1 1 0 00-1-1h-9a1 1 0 00-1 1v9a1 1 0 001 1h3"/>'),
+    inbox: svg('<path d="M4 13.5L6.5 5h11l2.5 8.5V19H4z"/><path d="M4 13.5h5l1 2h4l1-2h5"/>'),
+    grid: svg('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'),
+    search: svg('<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>'),
+    chat: svg('<path d="M4.5 5.5h15v10h-9l-6 4z"/>'),
+    board: svg('<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M15 4.5v15"/>'),
+    stack: svg('<path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/>'),
+    archive: svg('<rect x="3.5" y="4.5" width="17" height="4.5" rx="1"/><path d="M5 9v10.5h14V9M10 13h4"/>'),
+    wifi: svg('<path d="M3.5 9.5a12 12 0 0117 0M6.5 12.8a7.5 7.5 0 0111 0M9.5 16a3 3 0 015 0"/><path d="M4 4l16 16"/>'),
+    mark: '<svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="6" fill="currentColor"/><path d="M7.5 9.5h9M7.5 14.5h5.5" stroke="var(--accent-contrast)" stroke-width="2.2" stroke-linecap="round"/></svg>',
+    bars: '<svg viewBox="0 0 18 12" width="18" height="12" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1" fill="currentColor"/><rect x="5" y="5" width="3" height="7" rx="1" fill="currentColor"/><rect x="10" y="2.5" width="3" height="9.5" rx="1" fill="currentColor"/><rect x="15" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg>',
+    battery: '<svg viewBox="0 0 27 13" width="27" height="13" aria-hidden="true"><rect x=".5" y=".5" width="23" height="12" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="18" height="9" rx="2" fill="currentColor"/><rect x="24.5" y="4.5" width="2" height="4" rx="1" fill="currentColor" opacity=".4"/></svg>',
+  };
+  const dots = '<span class="typing" aria-hidden="true"><i></i><i></i><i></i></span>';
+
+  /* ---------- mock data ---------- */
+  const HOOK_URL = 'https://hooks.team-console.example.workers.dev/github';
+  const ALL = ['done', 'done', 'done', 'done'];
+  const seed = () => ({
+    projects: [
+      { slug: 'storify', repo: 'geeera/storify', steps: [...ALL], hookAt: minsAgo(38) },
+      { slug: 'team-console', repo: 'geeera/team-console', steps: [...ALL], hookAt: minsAgo(6) },
+      { slug: 'fieldnote', repo: 'geeera/fieldnote', steps: ['done', 'done', 'done', 'missing'], hookAt: minsAgo(122) },
+      { slug: 'atlas-cli', repo: 'geeera/atlas-cli', steps: ['done', 'done', 'unknown', 'unknown'] },
+      { slug: 'brewlog', repo: 'geeera/brewlog', steps: [...ALL], hookAt: minsAgo(15), loading: true },
+    ],
+    archived: [{ slug: 'oldmap', repo: 'geeera/oldmap', steps: [...ALL], hookAt: minsAgo(60 * 24 * 30) }],
+  });
+  const G = { list: 'normal', scenario: 'auto', archFail: false };
+  const offline = () => G.list === 'offline';
+  const listedAt = minsAgo(12);
+
+  const RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/;
+  function normalise(raw) {
+    let v = raw.trim().replace(/^(https?:\/\/)?(www\.)?github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, '');
+    if (!raw.trim()) return { ok: false, err: t('add.invalid.empty') };
+    if (!RE.test(v)) return { ok: false, err: t('add.invalid.format', { value: raw.trim() }) };
+    return { ok: true, repo: v };
+  }
+  const slugOf = (repo) => repo.split('/')[1].toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+  const SECRET = (slug) => slug.toUpperCase().replace(/-/g, '_');
+  const missingCount = (p) => p.steps.filter((s) => s === 'missing').length;
+  const doneCount = (steps) => steps.filter((s) => s === 'done').length;
+
+  /* ---------- one app instance ---------- */
+  function mountApp(host, kind, keep) {
+    const S = keep || { route: kind === 'phone' ? 'home' : 'list', sheet: kind === 'phone', ...seed(), field: '', fieldErr: null, add: null, slug: null, busy: false, how: {}, dialog: null, stampFor: null, fresh: null };
+    host.S = S;
+    const uid = `${kind}-${Math.random().toString(36).slice(2, 7)}`;
+    const $ = (s) => host.querySelector(s);
+    const find = (slug) => S.projects.find((p) => p.slug === slug);
+
+    host.innerHTML = kind === 'mac' ? `<div class="win">
+        <div class="win__bar"><span class="lights" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title">Team Console</span></div>
+        <div class="win__body">
+          <nav class="sidebar" aria-label="${t('nav.aria')}" data-bg>
+            <div class="brand">${I.mark}<span>Team Console</span></div>
+            <label class="search search--side">${I.search}<span class="sr-only">${t('filter.ph')}</span><input type="search" placeholder="${t('filter.ph')}" autocomplete="off"><kbd>/</kbd></label>
+            <ul class="side-list side-list--top">
+              <li><button type="button" class="side-item" data-act="space">${I.inbox}<span>${t('nav.needs')}</span></button></li>
+              <li><button type="button" class="side-item" data-act="space">${I.grid}<span>${t('nav.all')}</span></button></li>
+            </ul>
+            <div class="side-label">${t('nav.projects')}</div>
+            <ul class="side-list" data-slot="side"></ul>
+            <div class="side-foot">
+              <button type="button" class="side-item side-item--settings" data-act="go" data-to="list" data-fk="nav-settings" aria-current="page">${I.gear}<span>${t('nav.settings')}</span></button>
+              <div class="side-foot__row"><span class="avatar avatar--owner" aria-hidden="true">K</span><span>${t('shell.owner')}</span><span class="side-foot__sync"><i aria-hidden="true"></i>${t('shell.synced')}</span></div>
+            </div>
+          </nav>
+          <section class="set-main" aria-label="${t('nav.settings')}" data-bg>
+            <header class="convo__head"><nav class="crumbs" aria-label="${t('nav.crumbs')}" data-slot="crumbs"></nav></header>
+            <div class="set-scroll"><div class="set-inner" data-slot="screen"></div></div>
+          </section>
+        </div>
+      </div>
+      <div data-slot="modal"></div><div class="toast" role="status" data-slot="toast" hidden></div><div class="sr-only" aria-live="polite" data-slot="live"></div>`
+      : `<div class="p-status" aria-hidden="true"><span>9:41</span><span class="p-island"></span><span class="p-status__icons">${I.bars}${I.battery}</span></div>
+      <div data-slot="phead" data-bg></div>
+      <div class="p-scroll" data-bg><div class="set-inner" data-slot="screen"></div></div>
+      <nav class="tabs" aria-label="${t('nav.sections')}" data-slot="tabs" data-bg>
+        <button type="button" data-act="space">${I.inbox}<span>${t('nav.needs')}</span></button>
+        <button type="button" aria-current="page">${I.chat}<span>${t('nav.chat')}</span></button>
+        <button type="button" data-act="space">${I.board}<span>${t('tab.board')}</span></button>
+        <button type="button" data-act="space">${I.stack}<span>${t('tab.artifacts')}</span></button>
+      </nav>
+      <div class="home-ind" aria-hidden="true"></div>
+      <div class="scrim" data-act="sheet-close"></div>
+      <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="${uid}-sheet" data-slot="sheet" inert>
+        <div class="sheet__grab" aria-hidden="true"></div>
+        <header class="sheet__head"><h2 id="${uid}-sheet" tabindex="-1">${t('sheet.title')}</h2><button type="button" class="icon-btn" data-act="sheet-close" aria-label="${t('sheet.close')}">${I.x}</button></header>
+        <div class="sheet__body" data-slot="sheetbody"></div>
+      </section>
+      <div data-slot="modal"></div><div class="toast" role="status" data-slot="toast" hidden></div><div class="sr-only" aria-live="polite" data-slot="live"></div>`;
+
+    /* ----- markup pieces ----- */
+    const mono = (slug) => `<span class="prod-mono" aria-hidden="true">${esc(slug[0])}</span>`;
+    function chip(p) {
+      if (p.loading) return `<span class="status setchip setchip--checking">${dots}${t('projects.row.checking')}</span>`;
+      if (p.steps.includes('unknown')) return `<span class="status setchip setchip--unknown">${I.q}${t('projects.row.unknown')}</span>`;
+      const n = missingCount(p);
+      if (n) return `<span class="status setchip setchip--missing">${I.bang}${t('projects.row.missing', { n })}</span>`;
+      return `<span class="status setchip">${I.check}${t('projects.row.ready')}</span>`;
+    }
+    const dis = (on) => (on ? ' aria-disabled="true"' : '');
+    const extLink = (href, label) => `<a class="ext" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${label}<span class="sr-only"> ${t('common.external')}</span>${I.ext}</a>`;
+    const copyLine = (value, aria, fk) => `<div class="codeline"><code>${esc(value)}</code><button type="button" class="btn btn--sm" data-act="copy" data-value="${esc(value)}" data-fk="${fk}" aria-label="${esc(aria)}">${I.copy}<span aria-hidden="true">${t('common.copy')}</span></button></div>`;
+
+    function stepHTML(i, st, ctx) {
+      const keys = ['pat', 'yml', 'hook', 'routine'];
+      const k = keys[i];
+      const vars = { repo: ctx.repo, SLUG: SECRET(ctx.slug), time: ctx.hookAt ? hhmm(ctx.hookAt) : '' };
+      const mark = st === 'done' ? I.check : st === 'missing' ? I.bang : st === 'pending' ? dots : st === 'unknown' ? I.q : `${i + 1}`;
+      let fix = '';
+      if (st === 'done') fix = t(`step.${k}.done`, vars);
+      if (st === 'missing') fix = t(`step.${k}.missing`, vars);
+      if (st === 'skipped') fix = t('step.skippedWhy');
+      if (st === 'unknown') fix = t('step.unknownWhy');
+      let how = '';
+      if (st === 'missing') {
+        const id = `${uid}-how-${ctx.scope}-${i}`; const open = !!S.how[`${ctx.scope}-${i}`];
+        let body = '';
+        if (k === 'pat') body = `<p>${t('step.pat.how', vars)}</p>${extLink('https://github.com/settings/personal-access-tokens', t('step.pat.link'))}`;
+        if (k === 'yml') body = `<p>${t('step.yml.how')}</p>`;
+        if (k === 'hook') body = `<dl><dt>${t('step.hook.url')}</dt><dd>${copyLine(HOOK_URL, plain(t('step.hook.copyAria')), `copy-hook-${ctx.scope}`)}</dd>
+          <dt>${t('step.hook.type')}</dt><dd><code>application/json</code></dd><dt>${t('step.hook.secret')}</dt><dd>${t('step.hook.secretVal')}</dd>
+          <dt>${t('step.hook.events')}</dt><dd>${t('step.hook.eventsVal')}</dd></dl>${extLink(`https://github.com/${ctx.repo}/settings/hooks/new`, t('step.hook.link'))}`;
+        if (k === 'routine') body = `<p>${t('step.routine.how')}</p>${copyLine(`npx wrangler secret put ROUTINE_TOKEN_${SECRET(ctx.slug)} --env production`, plain(t('step.routine.copyAria')), `copy-cmd-${ctx.scope}`)}`;
+        how = `<button type="button" class="btn btn--quiet btn--sm how-btn" data-act="how" data-key="${ctx.scope}-${i}" aria-expanded="${open}" aria-controls="${id}" data-fk="how-${ctx.scope}-${i}">${t('step.how')}${I.down}</button>
+          <div class="how" id="${id}"${open ? '' : ' hidden'}>${body}</div>`;
+      }
+      const fresh = ctx.fresh && ctx.fresh.includes(i);
+      return `<li class="step step--${st}${fresh ? ' is-new' : ''}" style="--i:${ctx.fresh ? ctx.fresh.indexOf(i) : 0}">
+        <span class="step__mark" aria-hidden="true">${mark}</span>
+        <div class="step__body"><div class="step__head"><h3 class="step__title">${t(`step.${k}.title`)}</h3><span class="step__state">${t(`step.${st}`)}</span></div>
+        ${fix ? `<p class="step__fix">${fix}</p>` : ''}${how}</div></li>`;
+    }
+    const ledger = (steps, ctx) => `<ol class="ledger" aria-label="${t('setup.stepsAria')}">${steps.map((s, i) => stepHTML(i, s, ctx)).join('')}</ol>`;
+
+    /* ----- screens ----- */
+    function listScreen() {
+      const mode = G.list;
+      const add = `<button type="button" class="btn btn--primary btn--tall" data-act="go" data-to="new" data-fk="add"${dis(offline())}>${I.plus}${t('projects.add')}</button>`;
+      const empty = mode === 'empty' || (mode === 'normal' && !S.projects.length);
+      let h = `<div class="set-head"><div><h1 tabindex="-1" data-fk="h1">${t('projects.title')}</h1><p class="set-lead">${t('projects.lead')}</p></div>${empty ? '' : add}</div>`;
+      if (offline()) h += `<div class="paused offline" role="status">${I.wifi}<span>${t('projects.offline', { time: hhmm(listedAt) })}</span></div>`;
+      if (mode === 'loading') {
+        return `${h}<div aria-busy="true"><span class="sr-only">${t('projects.loading')}</span><div class="plist" aria-hidden="true">${'<div class="skel-row"><span class="skel skel--mono"></span><span class="skel-stack"><span class="skel skel--a"></span><span class="skel skel--b"></span></span></div>'.repeat(3)}</div></div>`;
+      }
+      if (mode === 'error') return `${h}<div class="block block--error" role="alert"><h2>${t('projects.error.title')}</h2><p>${t('projects.error.body')}</p><button type="button" class="btn btn--tall" data-act="retry-list" data-fk="retry">${t('common.retry')}</button></div>`;
+      if (empty) return `${h}<div class="block"><h2>${t('projects.empty.title')}</h2><p>${t('projects.empty.body')}</p>${add}</div>`;
+      return `${h}<ul class="plist" data-slot="plist">${S.projects.map((p) => `<li class="prow" data-row="${p.slug}">
+          <a class="prow__link" href="#/settings/projects/${p.slug}" data-act="open" data-slug="${p.slug}" data-fk="row-${p.slug}">${mono(p.slug)}
+            <span class="prow__txt"><span class="prow__name">${esc(p.slug)}</span><span class="prow__repo">${esc(p.repo)}</span></span>${chip(p)}${I.chev}</a>
+          <button type="button" class="btn btn--quiet prow__arch" data-act="archive" data-slug="${p.slug}" data-fk="arch-${p.slug}" aria-label="${esc(plain(t('projects.row.archiveAria', { name: p.slug })))}"${dis(offline())}>${I.archive}<span class="prow__archtxt">${t('projects.row.archive')}</span></button></li>`).join('')}</ul>`;
+    }
+
+    function newScreen() {
+      const a = S.add;
+      const describedBy = [`${uid}-hint`, S.fieldErr ? `${uid}-err` : '', `${uid}-prev`].filter(Boolean).join(' ');
+      const norm = normalise(S.field);
+      let h = `<div class="set-head"><h1 tabindex="-1" data-fk="h1">${t('add.title')}</h1></div>
+        <form class="field-form" data-form novalidate><div class="field">
+          <label class="field__label" for="${uid}-repo">${t('add.field')}</label>
+          <p class="field__hint" id="${uid}-hint">${t('add.hint')}</p>
+          <input class="field__input" id="${uid}-repo" data-field data-fk="field" type="text" inputmode="url" enterkeyhint="go" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" value="${esc(S.field)}" aria-describedby="${describedBy}"${S.fieldErr ? ' aria-invalid="true"' : ''}>
+          ${S.fieldErr ? `<p class="field__err" id="${uid}-err">${I.warn}<span>${esc(S.fieldErr)}</span></p>` : ''}
+          <p class="field__preview" id="${uid}-prev" data-preview>${norm.ok ? t('add.preview', { slug: slugOf(norm.repo) }) : ''}</p>
+        </div>
+        ${offline() ? `<div class="paused offline" role="status">${I.wifi}<span>${t('add.offline')}</span></div>` : ''}
+        <div class="form-actions"><button type="submit" class="btn btn--primary btn--tall" data-fk="submit"${dis(S.busy || offline())}>${S.busy ? t('add.submitting') : t('add.submit')}</button>
+        <button type="button" class="btn btn--quiet btn--tall" data-act="go" data-to="list" data-fk="cancel">${t('common.cancel')}</button></div></form>`;
+      if (!a) return h;
+      const ctx = { repo: a.repo, slug: a.slug, scope: 'add', fresh: S.fresh };
+      if (a.kind === 'dup') h += `<div class="res res--neutral"><h2 tabindex="-1" data-fk="res">${t('add.duplicate', { repo: a.repo })}</h2><button type="button" class="link-btn" data-act="open" data-slug="${a.slug}" data-fk="dup-open">${t('add.duplicateLink')}</button></div>`;
+      if (a.kind === 'archived') h += `<div class="res res--neutral"><h2 tabindex="-1" data-fk="res">${t('add.archived', { repo: a.repo })}</h2><button type="button" class="btn btn--tall" data-act="restore" data-slug="${a.slug}" data-fk="restore">${t('add.archivedAction')}</button></div>`;
+      if (a.kind === 'unavailable') h += `<div class="res res--bad"><h2 tabindex="-1" data-fk="res">${t('add.unavailable.title')}</h2><p>${a.reason}</p><button type="button" class="btn btn--tall" data-act="submit" data-fk="try">${t('common.retry')}</button></div>`;
+      if (a.kind === 'checking') h += ledger(a.steps, ctx);
+      if (a.kind === 'refused') h += `<div class="res res--bad"><h2 tabindex="-1" data-fk="res">${t('add.refused.title')}</h2><p>${t('add.refused.body')}</p></div>${ledger(a.steps, ctx)}
+        <div class="form-actions"><button type="button" class="btn btn--primary btn--tall" data-act="submit" data-fk="again"${dis(S.busy || offline())}>${t('setup.checkAgain')}</button></div>`;
+      return h;
+    }
+
+    function setupScreen() {
+      const p = find(S.slug);
+      if (!p) return `<div class="set-head"><h1 tabindex="-1" data-fk="h1">${t('projects.title')}</h1></div>`;
+      const checking = p.steps.includes('pending');
+      const n = missingCount(p); const unknown = p.steps.includes('unknown'); const ready = !checking && !n && !unknown;
+      let tone = 'warn'; let title; let body = '';
+      if (checking) { tone = 'neutral'; title = t('add.submitting'); }
+      else if (ready) { tone = 'ready'; title = t('setup.ready.title', { name: p.slug }); body = t('setup.ready.body'); }
+      else if (p.justAdded) { tone = ''; title = t('add.saved.title', { n: n + p.steps.filter((s) => s === 'unknown').length }); body = t('add.saved.body'); }
+      else if (unknown) { tone = 'neutral'; title = t('setup.unknown.title'); }
+      else title = t('setup.incomplete.title', { n });
+      const time = p.checkedAt || minsAgo(3);
+      return `<div class="set-head set-head--proj">${mono(p.slug)}<div><h1 tabindex="-1" data-fk="h1">${esc(p.slug)}</h1>
+          <p class="set-meta">${extLink(`https://github.com/${p.repo}`, t('setup.repoLink', { repo: p.repo }))}<code>/p/${esc(p.slug)}</code></p></div></div>
+        <section class="res${tone ? ` res--${tone}` : ''}" aria-labelledby="${uid}-res" data-res><h2 id="${uid}-res" tabindex="-1" data-fk="res">${title}</h2>${body ? `<p>${body}</p>` : ''}${checking ? '' : `<p class="res__time">${t('setup.checkedAt', { time: hhmm(time) })}</p>`}${ready ? stampSVG : ''}</section>
+        ${ledger(p.steps, { repo: p.repo, slug: p.slug, hookAt: p.hookAt, scope: p.slug, fresh: S.fresh })}
+        <div class="form-actions"><button type="button" class="btn ${ready ? '' : 'btn--primary'} btn--tall" data-act="recheck" data-fk="recheck"${dis(checking || offline())}>${checking ? t('add.submitting') : t('setup.checkAgain')}</button>
+          <button type="button" class="btn ${ready ? 'btn--primary' : ''} btn--tall" data-act="space" data-fk="open">${t('setup.open')}</button></div>
+        <div class="danger-zone"><button type="button" class="btn btn--danger-quiet btn--tall" data-act="archive" data-slug="${p.slug}" data-from="setup" data-fk="arch-setup"${dis(offline())}>${t('setup.archive')}</button></div>`;
+    }
+    const stampSVG = '<div class="stamp" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="28"/><circle class="stamp__inner" cx="32" cy="32" r="23"/><path d="M21 33l8 8 15-17"/></svg></div>';
+
+    function homeScreen() {
+      return `<div class="p-stub"><div class="day"><span>${t('demo.today')}</span></div><p>${t('demo.chat')}</p></div>`;
+    }
+
+    /* ----- chrome per route ----- */
+    const shown = () => (G.list === 'empty' ? [] : S.projects);
+    function chrome() {
+      if (kind === 'mac') {
+        const c = [`<li><a href="#/settings/projects" data-act="go" data-to="list" data-fk="crumb-settings">${t('nav.settings')}</a></li>`];
+        if (S.route === 'list') c.push(`<li><span aria-current="page">${t('projects.title')}</span></li>`);
+        else {
+          c.push(`<li><a href="#/settings/projects" data-act="go" data-to="list" data-fk="crumb-projects">${t('projects.title')}</a></li>`);
+          c.push(`<li><span aria-current="page">${S.route === 'new' ? t('add.title') : esc(S.slug)}</span></li>`);
+        }
+        $('[data-slot=crumbs]').innerHTML = `<ol>${c.join('')}</ol>`;
+        $('[data-slot=side]').innerHTML = shown().map((p) => `<li><button type="button" class="side-item" data-act="space"><span class="prod-mono" aria-hidden="true">${esc(p.slug[0])}</span><span class="side-prod__label">${esc(p.slug)}</span></button></li>`).join('');
+        return;
+      }
+      const head = $('[data-slot=phead]');
+      if (S.route === 'home') {
+        const p = shown()[0];
+        head.innerHTML = `<header class="p-head"><button type="button" class="p-switch" data-act="sheet-open" data-fk="switch" aria-haspopup="dialog">${p ? `<span class="prod-mono" aria-hidden="true">${esc(p.slug[0])}</span><span class="p-switch__txt"><b>${esc(p.slug)}</b><small>${esc(p.repo)}</small></span>` : `<span class="p-switch__txt"><b>${t('sheet.title')}</b></span>`}${I.down}</button></header>`;
+      } else {
+        const back = S.route === 'list' ? t('nav.chat') : t('projects.title');
+        head.innerHTML = `<header class="p-bar"><button type="button" class="p-back" data-act="back" data-fk="back">${I.back}<span>${back}</span></button><span class="p-bar__title" aria-hidden="true">${t('nav.settings')}</span><span></span></header>`;
+      }
+      $('[data-slot=tabs]').hidden = S.route !== 'home';
+      $('[data-slot=sheetbody]').innerHTML = `<div class="sheet__pad"><button type="button" class="side-item side-item--needs" data-act="space">${I.inbox}<span>${t('nav.needs')}</span></button></div>
+        <ul class="side-list proj-list">${shown().map((p) => `<li><button type="button" class="side-item side-prod--rich" data-act="space"><span class="prod-mono" aria-hidden="true">${esc(p.slug[0])}</span><span class="side-prod__name"><span class="side-prod__label">${esc(p.slug)}</span><span class="sheet-row__repo">${esc(p.repo)}</span></span></button></li>`).join('')}</ul>
+        <div class="sheet-foot"><button type="button" class="side-item side-item--add" data-act="sheet-go" data-to="new" data-fk="sheet-add">${I.plus}<span>${t('sheet.add')}</span></button>
+        <button type="button" class="side-item" data-act="sheet-go" data-to="list" data-fk="sheet-settings">${I.gear}<span>${t('sheet.settings')}</span></button></div>`;
+    }
+
+    /* ----- render with focus kept by data-fk ----- */
+    function render(opts = {}) {
+      const active = host.contains(document.activeElement) ? document.activeElement.dataset.fk : null;
+      chrome();
+      const screen = $('[data-slot=screen]');
+      screen.innerHTML = S.route === 'list' ? listScreen() : S.route === 'new' ? newScreen() : S.route === 'setup' ? setupScreen() : homeScreen();
+      S.fresh = null;
+      if (kind === 'phone') setSheet(S.sheet, true);
+      const target = opts.focus ? host.querySelector(`[data-fk="${opts.focus}"]`) : active ? host.querySelector(`[data-fk="${active}"]`) : null;
+      if (target && (opts.focus || !S.dialog)) target.focus({ preventScroll: !opts.focus });
+      if (opts.scrollTop) (screen.closest('.set-scroll, .p-scroll') || screen).scrollTop = 0;
+      if (S.stampFor && S.route === 'setup' && S.stampFor === S.slug) { S.stampFor = null; stamp(); }
+    }
+    const announce = (txt) => { const l = $('[data-slot=live]'); l.textContent = ''; setTimeout(() => { l.textContent = txt; }, 30); };
+    let toastTimer;
+    function toast(txt) {
+      const el = $('[data-slot=toast]'); el.textContent = txt; el.hidden = false;
+      if (!isReduced()) play(el, [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: ms('--dur-base'), easing: cssVar('--ease-enter') });
+      else play(el, [{ opacity: 0 }, { opacity: 1 }], { duration: ms('--dur-fade') });
+      clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, ms('--dur-toast'));
+    }
+    // Signature moment, reused from Paper Desk: the ink stamp presses onto the "ready" note.
+    function stamp() {
+      const s = host.querySelector('[data-res] .stamp'); if (!s) return;
+      if (isReduced()) { play(s, [{ opacity: 0 }, { opacity: 1 }], { duration: ms('--dur-fade') }); return; }
+      const strokes = [...s.querySelectorAll('circle,path')];
+      strokes.forEach((p) => { const l = p.getTotalLength(); p.style.strokeDasharray = l; p.style.strokeDashoffset = l; });
+      play(s, [{ opacity: 0, transform: 'rotate(-20deg) scale(1.4)' }, { opacity: 1, transform: 'rotate(-9deg) scale(1)' }], { duration: ms('--dur-base'), easing: cssVar('--ease-emph') });
+      strokes.forEach((p, i) => play(p, [{ strokeDashoffset: p.style.strokeDashoffset }, { strokeDashoffset: 0 }], { duration: ms('--dur-sig') * 0.6, delay: i * ms('--stagger'), easing: cssVar('--ease-emph'), fill: 'forwards' }));
+    }
+
+    /* ----- phone sheet ----- */
+    function setSheet(open, quiet) {
+      if (kind !== 'phone') return;
+      S.sheet = open && S.route === 'home';
+      host.classList.toggle('has-sheet', S.sheet);
+      const sh = $('[data-slot=sheet]'); sh.classList.toggle('is-open', S.sheet); sh.inert = !S.sheet;
+      host.querySelectorAll('[data-bg]').forEach((el) => { el.inert = S.sheet || !!S.dialog; });
+      if (S.sheet && !quiet) sh.querySelector('h2').focus();
+    }
+
+    /* ----- navigation ----- */
+    function go(route, slug, focus) {
+      S.route = route; if (slug) S.slug = slug;
+      if (route === 'new') { S.add = null; S.fieldErr = null; }
+      render({ focus: focus || (route === 'new' ? 'field' : 'h1'), scrollTop: true });
+    }
+
+    /* ----- add flow ----- */
+    async function resolveSteps(steps, target, onTick) {
+      for (let i = 0; i < 4; i += 1) {
+        await wait(360);
+        target[i] = steps[i];
+        S.fresh = [i];
+        onTick();
+      }
+    }
+    function outcomeFor(repo) {
+      const sc = G.scenario !== 'auto' ? G.scenario : /private/i.test(repo) ? 'pat' : /no-team/i.test(repo) ? 'yml' : 'saved';
+      const later = new Date(Date.now() + 17 * 60000);
+      if (sc === 'pat') return { kind: 'refused', steps: ['missing', 'skipped', 'skipped', 'skipped'] };
+      if (sc === 'yml') return { kind: 'refused', steps: ['done', 'missing', 'skipped', 'skipped'] };
+      if (sc === 'github') return { kind: 'unavailable', reason: t('add.unavailable.github') };
+      if (sc === 'rate') return { kind: 'unavailable', reason: t('add.unavailable.rate', { time: hhmm(later) }) };
+      if (sc === 'token') return { kind: 'unavailable', reason: t('add.unavailable.token') };
+      if (sc === 'ready') return { kind: 'saved', steps: [...ALL] };
+      return { kind: 'saved', steps: ['done', 'done', 'missing', 'missing'] };
+    }
+    async function submitAdd() {
+      if (S.busy || offline()) return;
+      const field = $('[data-field]'); if (field) S.field = field.value;
+      const norm = normalise(S.field);
+      if (!norm.ok) { S.fieldErr = norm.err; S.add = null; render({ focus: 'field' }); return; }
+      S.fieldErr = null;
+      const repo = norm.repo; const slug = slugOf(repo);
+      if (S.projects.some((p) => p.repo.toLowerCase() === repo.toLowerCase())) { S.add = { kind: 'dup', repo, slug }; render({ focus: 'res' }); return; }
+      if (S.archived.some((p) => p.repo.toLowerCase() === repo.toLowerCase())) { S.add = { kind: 'archived', repo, slug }; render({ focus: 'res' }); return; }
+      const out = outcomeFor(repo);
+      S.busy = true; S.add = { kind: 'checking', repo, slug, steps: ['pending', 'pending', 'pending', 'pending'] };
+      render({ focus: 'submit' }); announce(plain(t('add.checkingLive', { repo })));
+      if (out.kind === 'unavailable') { await wait(1100); S.busy = false; S.add = { kind: 'unavailable', repo, slug, reason: out.reason }; render({ focus: 'res' }); return; }
+      const shown = out.steps.map((s) => (s === 'skipped' ? 'skipped' : s));
+      await resolveSteps(shown, S.add.steps, () => render());
+      S.busy = false;
+      if (out.kind === 'refused') { S.add = { kind: 'refused', repo, slug, steps: out.steps }; render({ focus: 'res' }); return; }
+      const ready = !out.steps.includes('missing');
+      S.projects.push({ slug, repo, steps: out.steps, hookAt: ready ? new Date() : null, justAdded: !ready, checkedAt: new Date() });
+      S.field = ''; S.add = null;
+      if (ready) S.stampFor = slug;
+      S.route = 'setup'; S.slug = slug;
+      render({ focus: 'res', scrollTop: true });
+    }
+
+    async function recheck(auto) {
+      const p = find(S.slug); if (!p || S.busy || offline()) return;
+      if (auto && !p.steps.some((s) => s !== 'done')) return;
+      const before = p.steps.slice(); const wasReady = before.every((s) => s === 'done');
+      let next = before.slice();
+      if (G.scenario === 'github') next = before.map((s) => (s === 'missing' ? 'unknown' : s));
+      else if (before.includes('unknown')) next = before.map((s) => (s === 'unknown' ? 'done' : s));
+      else { const i = before.indexOf('missing'); if (i >= 0) next[i] = 'done'; }
+      S.busy = true; p.steps = ['pending', 'pending', 'pending', 'pending']; render();
+      await resolveSteps(next, p.steps, () => render());
+      S.busy = false; p.checkedAt = new Date(); p.justAdded = false;
+      if (next[2] === 'done' && !p.hookAt) p.hookAt = new Date();
+      if (!wasReady && next.every((s) => s === 'done')) S.stampFor = p.slug;
+      render({ focus: 'res' });
+      announce(plain(t('setup.doneLive', { done: doneCount(next) })));
+    }
+
+    /* ----- archive dialog ----- */
+    function dialogHTML() {
+      const d = S.dialog;
+      return `<div class="modal"><div class="modal__scrim" data-act="dlg-scrim"></div>
+        <div class="adialog" role="alertdialog" aria-modal="true" aria-labelledby="${uid}-dt" aria-describedby="${uid}-dd">
+          <h2 id="${uid}-dt">${t('archive.title', { name: d.slug })}</h2>
+          <p id="${uid}-dd">${t('archive.body')}</p>
+          <p class="adialog__note">${t('archive.note')}</p>
+          ${d.error ? `<div class="adialog__err" role="alert">${I.warn}<span>${t('archive.error')}</span></div>` : ''}
+          <div class="adialog__actions"><button type="button" class="btn" data-act="dlg-cancel" data-fk="dlg-cancel">${t('common.cancel')}</button>
+          <button type="button" class="btn btn--danger" data-act="dlg-confirm" data-fk="dlg-confirm"${dis(d.busy)}>${d.busy ? t('archive.busy') : t('archive.confirm')}</button></div>
+        </div></div>`;
+    }
+    function openDialog(slug, from, opener) {
+      S.dialog = { slug, from, opener, busy: false, error: false };
+      const m = $('[data-slot=modal]'); m.innerHTML = dialogHTML();
+      host.querySelectorAll('[data-bg]').forEach((el) => { el.inert = true; });
+      const box = m.querySelector('.adialog'); const scrim = m.querySelector('.modal__scrim');
+      if (isReduced()) { play(box, [{ opacity: 0 }, { opacity: 1 }], { duration: ms('--dur-fade') }); }
+      else {
+        play(scrim, [{ opacity: 0 }, { opacity: 1 }], { duration: ms('--dur-base'), easing: cssVar('--ease-standard') });
+        play(box, kind === 'phone' ? [{ transform: 'translateY(100%)' }, { transform: 'none' }] : [{ opacity: 0, transform: 'translateY(8px) scale(.98)' }, { opacity: 1, transform: 'none' }], { duration: ms(kind === 'phone' ? '--dur-slow' : '--dur-base'), easing: cssVar('--ease-enter') });
+      }
+      m.querySelector('[data-fk=dlg-cancel]').focus();
+    }
+    function redrawDialog() {
+      const active = document.activeElement && document.activeElement.dataset.fk;
+      const m = $('[data-slot=modal]'); m.innerHTML = dialogHTML();
+      const f = m.querySelector(`[data-fk="${active || 'dlg-confirm'}"]`); if (f) f.focus();
+    }
+    function closeDialog(focusFk) {
+      S.dialog = null; $('[data-slot=modal]').innerHTML = '';
+      host.querySelectorAll('[data-bg]').forEach((el) => { el.inert = false; });
+      const f = focusFk && host.querySelector(`[data-fk="${focusFk}"]`); if (f) f.focus();
+    }
+    async function confirmArchive() {
+      const d = S.dialog; if (!d || d.busy) return;
+      d.busy = true; d.error = false; redrawDialog();
+      await wait(900);
+      if (G.archFail) { d.busy = false; d.error = true; redrawDialog(); return; }
+      const idx = S.projects.findIndex((p) => p.slug === d.slug);
+      const after = S.projects[idx + 1] || S.projects[idx - 1];
+      const focusFk = after ? `row-${after.slug}` : 'add';
+      // FLIP: the rows below slide up into the gap; nothing moves under reduced motion
+      const rows = S.route === 'list' ? [...host.querySelectorAll('.prow')].slice(idx + 1) : [];
+      const tops = rows.map((r) => r.getBoundingClientRect().top);
+      const [gone] = S.projects.splice(idx, 1);
+      S.archived.push(gone);
+      const name = d.slug;
+      closeDialog();
+      S.route = 'list';
+      render({ focus: focusFk });
+      if (!isReduced() && rows.length) {
+        rows.forEach((r, i) => {
+          const now = host.querySelector(`[data-row="${r.dataset.row}"]`); if (!now) return;
+          const dy = tops[i] - now.getBoundingClientRect().top;
+          if (dy) play(now, [{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: ms('--dur-base'), easing: cssVar('--ease-standard') });
+        });
+      }
+      toast(plain(t('archive.toast', { name })));
+    }
+
+    /* ----- copy ----- */
+    async function copy(btn) {
+      try { await navigator.clipboard.writeText(btn.dataset.value); } catch (err) { console.warn('Clipboard unavailable in this preview', err); }
+      const label = btn.querySelector('span'); label.textContent = t('common.copied'); btn.dataset.copied = '';
+      announce(t('common.copied'));
+      setTimeout(() => { if (btn.isConnected) { label.textContent = t('common.copy'); delete btn.dataset.copied; } }, ms('--dur-toast'));
+    }
+
+    /* ----- events ----- */
+    host.onclick = (e) => {
+      const el = e.target.closest('[data-act]'); if (!el || !host.contains(el)) return;
+      const act = el.dataset.act;
+      if (el.tagName === 'A') e.preventDefault();
+      if (el.getAttribute('aria-disabled') === 'true') return;
+      switch (act) {
+        case 'go': go(el.dataset.to); break;
+        case 'open': go('setup', el.dataset.slug); break;
+        case 'back': go(S.route === 'list' ? 'home' : 'list', null, S.route === 'list' ? 'switch' : 'h1'); break;
+        case 'sheet-open': setSheet(true); break;
+        case 'sheet-close': setSheet(false); host.querySelector('[data-fk=switch]')?.focus(); break;
+        case 'sheet-go': S.sheet = false; go(el.dataset.to); break;
+        case 'space': toast(t('demo.space')); break;
+        case 'retry-list': G.list = 'normal'; syncDemo(); renderAll(); break;
+        case 'submit': submitAdd(); break;
+        case 'recheck': recheck(false); break;
+        case 'how': S.how[el.dataset.key] = !S.how[el.dataset.key]; render(); break;
+        case 'copy': copy(el); break;
+        case 'restore': {
+          const i = S.archived.findIndex((p) => p.slug === el.dataset.slug);
+          const [p] = S.archived.splice(i, 1); p.steps = [...ALL]; p.checkedAt = new Date(); p.justAdded = false;
+          S.projects.push(p); S.field = ''; S.add = null; S.stampFor = p.slug; go('setup', p.slug, 'res'); break;
+        }
+        case 'archive': openDialog(el.dataset.slug, el.dataset.from || 'list', el.dataset.fk); break;
+        case 'dlg-cancel': closeDialog(S.dialog.opener); break;
+        case 'dlg-confirm': confirmArchive(); break;
+        default: break;
+      }
+    };
+    host.onsubmit = (e) => { e.preventDefault(); submitAdd(); };
+    host.oninput = (e) => {
+      if (!e.target.matches('[data-field]')) return;
+      S.field = e.target.value;
+      const n = normalise(S.field);
+      $('[data-preview]').innerHTML = n.ok ? t('add.preview', { slug: slugOf(n.repo) }) : '';
+    };
+    host.onkeydown = (e) => {
+      if (S.dialog) {
+        if (e.key === 'Escape') { e.preventDefault(); if (!S.dialog.busy) closeDialog(S.dialog.opener); return; }
+        if (e.key === 'Tab') {
+          const f = [...host.querySelectorAll('.adialog button')];
+          const i = f.indexOf(document.activeElement);
+          if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+          else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+        }
+        return;
+      }
+      if (S.sheet && e.key === 'Escape') { setSheet(false); host.querySelector('[data-fk=switch]')?.focus(); }
+    };
+
+    const app = {
+      render, S,
+      go: (screen) => {
+        closeDialog(); S.sheet = false; S.busy = false;
+        if (screen === 'entry') { if (kind === 'phone') { S.route = 'home'; S.sheet = true; render(); setSheet(true, true); } else go('list'); return; }
+        if (screen === 'list' || screen === 'new') { go(screen); return; }
+        if (screen === 'dialog') { go('list'); if (S.projects[0]) openDialog(S.projects[0].slug, 'list', `arch-${S.projects[0].slug}`); return; }
+        const slug = { setupMissing: 'fieldnote', setupUnknown: 'atlas-cli', setupReady: 'storify' }[screen];
+        if (!find(slug)) { go('list'); return; }
+        go('setup', slug);
+      },
+      returned: () => { if (S.route === 'setup') recheck(true); },
+    };
+    host.app = app;
+    render();
+    // a row whose setup status is still loading resolves a moment later
+    setTimeout(() => { const p = S.projects.find((x) => x.loading); if (p) { p.loading = false; if (S.route === 'list') render(); } }, 1600);
+    return app;
+  }
+
+  /* ---------- page controls ---------- */
+  const hosts = [...document.querySelectorAll('[data-app]')];
+  const renderAll = () => hosts.forEach((h) => h.app && h.app.render());
+  const mountAll = (keep) => hosts.forEach((h) => { const prev = keep && h.S ? h.S : null; h.className = 'app'; mountApp(h, h.dataset.app, prev); });
+  const stage = document.querySelector('.stage');
+  const macFrame = document.querySelector('.mac-frame');
+  function fit() {
+    const W = stage.clientWidth - 48; const view = stage.dataset.view; let z = 1;
+    if (view === 'mac') { z = Math.min(1, W / 1182); stage.dataset.layout = 'stack'; }
+    else if (view === 'both') {
+      const room = W - 414 - 40;
+      if (room / 1182 >= 0.62) { z = Math.min(1, room / 1182); stage.dataset.layout = 'row'; } else { z = Math.min(1, W / 1182); stage.dataset.layout = 'stack'; }
+    }
+    macFrame.style.zoom = String(Math.max(z, 0.3));
+  }
+  function translatePage() {
+    document.querySelectorAll('[data-i18n]').forEach((el) => { el.innerHTML = t(el.dataset.i18n); });
+    document.querySelectorAll('[data-i18n-aria]').forEach((el) => el.setAttribute('aria-label', plain(t(el.dataset.i18nAria))));
+    document.title = `Team Console · #24 · ${plain(t('page.title'))}`;
+  }
+  function setControl(ctrl, val) {
+    if (ctrl === 'view') { stage.dataset.view = val; fit(); }
+    if (ctrl === 'theme') { if (val === 'auto') delete root.dataset.theme; else root.dataset.theme = val; }
+    if (ctrl === 'motion') { if (val === 'system') delete root.dataset.motion; else root.dataset.motion = val; }
+    if (ctrl === 'lang' && val !== LANG) {
+      try { localStorage.setItem(LANG_KEY, val); } catch (err) { console.warn('Language preference not saved', err); }
+      applyLang(val); translatePage(); mountAll(true);
+    }
+    document.querySelectorAll(`[data-control="${ctrl}"] button`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === val)));
+  }
+  document.querySelectorAll('[data-control]').forEach((g) => g.addEventListener('click', (e) => { const b = e.target.closest('button[data-value]'); if (b) setControl(g.dataset.control, b.dataset.value); }));
+  const sel = (id) => document.getElementById(id);
+  function syncDemo() { sel('d-list').value = G.list; sel('d-add').value = G.scenario; sel('d-fail').checked = G.archFail; }
+  sel('d-list').addEventListener('change', (e) => { G.list = e.target.value; renderAll(); });
+  sel('d-add').addEventListener('change', (e) => { G.scenario = e.target.value; });
+  sel('d-fail').addEventListener('change', (e) => { G.archFail = e.target.checked; });
+  sel('d-screen').addEventListener('change', (e) => { const v = e.target.value; if (!v) return; hosts.forEach((h) => h.app.go(v)); e.target.value = ''; });
+  sel('d-return').addEventListener('click', () => hosts.forEach((h) => h.app.returned()));
+  document.querySelector('[data-reset]').addEventListener('click', () => { G.list = 'normal'; G.scenario = 'auto'; G.archFail = false; syncDemo(); mountAll(false); });
+  // the real app re-checks once when it comes back to the foreground
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') hosts.forEach((h) => h.app.returned()); });
+  const small = matchMedia('(max-width: 520px)').matches;
+  translatePage();
+  setControl('view', small ? 'phone' : 'both');
+  setControl('theme', 'auto');
+  setControl('motion', 'system');
+  setControl('lang', LANG);
+  document.querySelectorAll('[data-control=lang] button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === LANG)));
+  addEventListener('resize', fit);
+  mountAll(false);
+  fit();
+})();
+
+</script>
+</body>
+</html>
