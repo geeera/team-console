@@ -1,0 +1,324 @@
+# Per-environment deploy (plugin reference/deploy-recipes.md, ADR 0001 decision 14): D1 migrations before
+# traffic, both Workers, Storybook direct upload from dev, smoke checks, rollback via `workflow_dispatch`
+# with a previous ref. `wrangler deploy --dry-run` already runs without secrets inside `nx build api|hooks`
+# (see apps/api/project.json, apps/hooks/project.json) — that is the "valid without secrets" half of #7;
+# this workflow is the half that needs the real Cloudflare credentials, which is why it is split into two
+# jobs (SECURITY/QA review on PR #54):
+#
+#   `guard` — no `environment:`, no secrets. Resolves which environment this run targets, and for
+#   `workflow_dispatch` proves the dispatch was started from that environment's own branch AND that the
+#   `ref` input is a commit actually reachable from that branch (a deployment branch policy alone only checks
+#   the branch the run was *started* from, never the commit `ref` overrides it with — that gap let any commit
+#   reach the deploy credentials). It also refuses to continue while apps/api/wrangler.jsonc or
+#   apps/hooks/wrangler.jsonc still has a placeholder D1 database_id (the first real deploy is #25). Cheap:
+#   runs before `npm ci`/the build, so a push before #25 fails in seconds, not after a full Nx build.
+#
+#   `deploy` — `needs: guard`, so it only starts once every check above passed; `environment:` here is what
+#   actually puts GitHub's own deployment-branch policy and (on `production`) required-reviewer gate in
+#   front of the Cloudflare credentials.
+name: deploy
+
+on:
+  push:
+    branches: [dev, stage, main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy (rollback or redeploy)
+        type: choice
+        options: [dev, stage, production]
+        required: true
+      ref:
+        description: Tag or commit to deploy (e.g. the previous production tag, for rollback)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      env_name: ${{ steps.resolve.outputs.name }}
+      sha: ${{ steps.resolve.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
+          # Full history and tags: the ref-reachability check below walks commit ancestry, and a production
+          # dispatch is additionally required to name a release tag.
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Resolve environment name and pin the exact commit
+        id: resolve
+        env:
+          DISPATCH_ENV: ${{ github.event.inputs.environment }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ -n "${DISPATCH_ENV}" ]; then
+            name="${DISPATCH_ENV}"
+          elif [ "${BRANCH}" = "main" ]; then
+            name="production"
+          else
+            name="${BRANCH}"
+          fi
+          case "${name}" in
+            dev|stage|production) ;;
+            *) echo "::error::unknown environment '${name}' (from branch '${BRANCH}')"; exit 1 ;;
+          esac
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+
+          # Resolved once, here, to a 40-char SHA. If `ref` was a branch or tag name, re-resolving it in the
+          # `deploy` job's own checkout would be a second, independent lookup — anyone who can both dispatch
+          # and push (e.g. force-push a branch used as `ref`) could move that name to an unreviewed commit in
+          # the gap between the two jobs, which on `production` is the whole wait for the required-reviewer
+          # approval (SECURITY review round 2). `deploy` checks out this exact SHA and re-asserts it, so the
+          # commit it builds and deploys is the same one every check below ran against, guaranteed by git's
+          # own object identity rather than by a name that can be reassigned.
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Deployment branch policies (owner checklist) already restrict which branch may *start* a run for a
+      # given environment, but they only look at `github.ref` — never at the `ref` input a dispatch can
+      # override the checkout with. Without this, `workflow_dispatch` from `main` with `environment: dev` and
+      # an arbitrary `ref` would still pass the policy and reach the dev Cloudflare credentials.
+      - name: Verify workflow_dispatch targets its own branch and a reviewed commit
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          ENV_NAME: ${{ steps.resolve.outputs.name }}
+          DISPATCH_REF_NAME: ${{ github.ref_name }}
+          DISPATCH_REF_TYPE: ${{ github.ref_type }}
+        run: |
+          set -euo pipefail
+          case "${ENV_NAME}" in
+            dev) branch=dev ;;
+            stage) branch=stage ;;
+            production) branch=main ;;
+          esac
+          if [ "${DISPATCH_REF_TYPE}" != "branch" ] || [ "${DISPATCH_REF_NAME}" != "${branch}" ]; then
+            echo "::error::a '${ENV_NAME}' dispatch must be started from the '${branch}' branch (this run was started from ${DISPATCH_REF_TYPE} '${DISPATCH_REF_NAME}'), so the workflow file that actually runs is the reviewed one on that branch"
+            exit 1
+          fi
+
+          git fetch --no-tags --quiet origin "${branch}"
+          if ! git merge-base --is-ancestor HEAD FETCH_HEAD; then
+            echo "::error::the checked-out ref is not reachable from origin/${branch} — refusing to deploy a commit no pull request into ${branch} ever merged"
+            exit 1
+          fi
+
+          # ADR 0001 decision 14: production releases are tagged; rollback = the previous tag. The regular
+          # push-to-main path (a merged release PR) is not required to be tagged at push time.
+          if [ "${ENV_NAME}" = "production" ]; then
+            tag=$(git describe --tags --exact-match HEAD 2>/dev/null || true)
+            case "${tag}" in
+              v*) : ;;
+              *) echo "::error::a production dispatch must target a 'v*' release tag (got '${tag:-<none>}' on $(git rev-parse --short HEAD))"; exit 1 ;;
+            esac
+          fi
+
+      - name: Guard against placeholder D1 database ids (api and hooks)
+        env:
+          ENV_NAME: ${{ steps.resolve.outputs.name }}
+        run: |
+          set -euo pipefail
+          case "${ENV_NAME}" in
+            dev) placeholder='00000000-0000-0000-0000-00000000dev1' ;;
+            stage) placeholder='00000000-0000-0000-0000-0000000stage' ;;
+            production) placeholder='00000000-0000-0000-0000-000000000prd' ;;
+          esac
+          failed=0
+          for config in apps/api/wrangler.jsonc apps/hooks/wrangler.jsonc; do
+            if grep -q "${placeholder}" "${config}"; then
+              echo "::error::${config} still has the placeholder D1 database_id for '${ENV_NAME}'. Create the D1 database (owner checklist) and replace the id by PR before this workflow may deploy (see #25)."
+              failed=1
+            fi
+          done
+          exit "${failed}"
+
+  deploy:
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      # One deploy per environment at a time; a newer push waits instead of cancelling a running deploy.
+      group: deploy-${{ needs.guard.outputs.env_name }}
+      cancel-in-progress: false
+    environment:
+      name: ${{ needs.guard.outputs.env_name }}
+    env:
+      NX_DAEMON: 'false'
+      NX_NO_CLOUD: 'true'
+      NX_TUI: 'false'
+      WRANGLER_SEND_METRICS: 'false'
+      ENV_NAME: ${{ needs.guard.outputs.env_name }}
+    steps:
+      # The exact SHA `guard` validated, not the original (possibly mutable) `ref` input — see the comment on
+      # `guard`'s "Resolve environment name and pin the exact commit" step.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.guard.outputs.sha }}
+          persist-credentials: false
+
+      - name: Assert this checkout is exactly the commit guard validated
+        env:
+          EXPECTED_SHA: ${{ needs.guard.outputs.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          if [ "${actual}" != "${EXPECTED_SHA}" ]; then
+            echo "::error::checked out ${actual}, expected ${EXPECTED_SHA} from guard — refusing to deploy"
+            exit 1
+          fi
+          echo "::notice::deploying ${actual} to '${ENV_NAME}'"
+
+      - uses: ./.github/actions/setup-node-npm
+
+      - run: npm ci
+
+      # Build once for this push; api's Nx target depends on console, so this also builds the SPA the api
+      # Worker serves as static assets (ADR 0001 decisions 4, 14).
+      - name: Build api and hooks
+        run: npx nx run-many -t build --projects=api,hooks
+
+      - name: D1 migrations (remote, before traffic moves)
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: 4.124.0
+          workingDirectory: apps/api
+          command: d1 migrations apply team-console-${{ env.ENV_NAME }} --env ${{ env.ENV_NAME }} --remote
+
+      # ACCESS_TEAM_DOMAIN/ACCESS_AUD live in exactly one place: these non-secret GitHub Environment
+      # *variables*, set by the owner directly (owner checklist) — never in apps/api/wrangler.jsonc, which
+      # keeps them committed empty on purpose (this repository is public). `--var` always wins over the
+      # config, including when the variable is still unset (an empty override), so the Worker fails closed
+      # either way until the owner sets both (ADR 0001 decision 7).
+      - name: Deploy api Worker (app + assets)
+        id: deploy_api
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: 4.124.0
+          workingDirectory: apps/api
+          command: >-
+            deploy --env ${{ env.ENV_NAME }}
+            --var ACCESS_TEAM_DOMAIN:${{ vars.ACCESS_TEAM_DOMAIN }}
+            --var ACCESS_AUD:${{ vars.ACCESS_AUD }}
+
+      - name: Deploy hooks Worker
+        id: deploy_hooks
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: 4.124.0
+          workingDirectory: apps/hooks
+          command: deploy --env ${{ env.ENV_NAME }}
+
+      # libs/console/shared/ui (and its Storybook config) arrives with #13/#34; until then this SKIPs loudly
+      # rather than failing the whole deploy or silently doing nothing.
+      - name: Check Storybook project exists
+        id: storybook
+        if: env.ENV_NAME == 'dev'
+        run: |
+          set -euo pipefail
+          if npx nx show projects 2>/dev/null | grep -qx ui; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SKIPPED Storybook deploy — libs/console/shared/ui arrives with #13/#34; this is NOT a pass"
+          fi
+
+      - name: Build Storybook
+        if: env.ENV_NAME == 'dev' && steps.storybook.outputs.ready == 'true'
+        run: npx nx build-storybook ui
+
+      # Direct upload (no Pages build consumed, ADR 0001 decision 14 / Pages free-tier limit table). Owner
+      # checklist creates the `team-console-storybook` Pages project up front: `wrangler pages deploy` only
+      # offers to create a missing project on an interactive terminal, and CI has none.
+      - name: Deploy Storybook
+        id: deploy_storybook
+        if: env.ENV_NAME == 'dev' && steps.storybook.outputs.ready == 'true'
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: 4.124.0
+          # TODO(#13/#34): confirm this matches the Storybook build output once libs/console/shared/ui lands.
+          command: pages deploy dist/storybook/ui --project-name=team-console-storybook --branch=dev
+
+      # Carry-over from PR #49 reviews (issue #7 comment 2026-09-29) plus PR #54 review: until #8 lands and
+      # Access is configured, /api/v1/* answers 401 (Worker fail-closed); once Access owns the hostname, an
+      # unauthenticated request never reaches the Worker at all and gets Access's 302 login redirect instead.
+      # Anything else (200, 5xx, a stray 404) is a broken deploy, not a pass — this is true for every
+      # environment including the very first dev deploy (owner checklist sets up Access before that run).
+      - name: Smoke check — app Worker requires Access or fails closed
+        env:
+          API_URL: ${{ steps.deploy_api.outputs.deployment-url }}
+        run: |
+          set -euo pipefail
+
+          assert_blocked() {
+            local path="$1" status location
+            for _ in 1 2 3 4 5 6; do
+              status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${API_URL}${path}" || true)
+              case "${status}" in
+                401|403)
+                  echo "::notice::${API_URL}${path} -> ${status} (Worker fail-closed)"
+                  return 0
+                  ;;
+                302)
+                  location=$(curl -s -o /dev/null -w '%{redirect_url}' --max-time 10 "${API_URL}${path}" || echo "")
+                  case "${location}" in
+                    https://*.cloudflareaccess.com/*)
+                      echo "::notice::${API_URL}${path} -> 302 to ${location} (Access redirect)"
+                      return 0
+                      ;;
+                    *)
+                      echo "::error::${API_URL}${path} -> 302 to unexpected location '${location}', not an Access redirect"
+                      return 1
+                      ;;
+                  esac
+                  ;;
+                000)
+                  # DNS/connection not ready yet right after deploy — retry, do not fail immediately.
+                  sleep 10
+                  continue
+                  ;;
+                *)
+                  echo "::error::${API_URL}${path} answered ${status}, expected 401/403 (Worker fail-closed) or 302 to *.cloudflareaccess.com (Access redirect)"
+                  return 1
+                  ;;
+              esac
+            done
+            echo "::error::${API_URL}${path} never answered after retries (last status: ${status})"
+            return 1
+          }
+
+          test -n "${API_URL}" || { echo "::error::wrangler did not report the api Worker's deployment URL"; exit 1; }
+          assert_blocked "/"
+          assert_blocked "/api/v1/healthz"
+
+      # The hooks Worker is deliberately public (ADR 0001 decision 4); its /healthz must be a plain 200. The
+      # retry loop tolerates a connection error (fresh workers.dev DNS) without aborting under `set -e`.
+      - name: Smoke check — hooks Worker is reachable
+        env:
+          HOOKS_URL: ${{ steps.deploy_hooks.outputs.deployment-url }}
+        run: |
+          set -euo pipefail
+          test -n "${HOOKS_URL}" || { echo "::error::wrangler did not report the hooks Worker's deployment URL"; exit 1; }
+          status=000
+          for _ in 1 2 3 4 5 6; do
+            status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${HOOKS_URL}/healthz" || true)
+            [ "${status}" = "200" ] && break
+            sleep 10
+          done
+          if [ "${status}" != "200" ]; then
+            echo "::error::${HOOKS_URL}/healthz did not answer 200 after deploy (last status: ${status})"
+            exit 1
+          fi

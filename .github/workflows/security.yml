@@ -18,6 +18,10 @@ env:
   GITLEAKS_VERSION: 8.30.1
   GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
   SEMGREP_IMAGE: semgrep/semgrep:1.177.0@sha256:acaac22ffc7b7cc5926de0751b223bce0b2491c33d18422fa72f632c78d81198
+  ACTIONLINT_VERSION: 1.7.12
+  ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+  SHELLCHECK_VERSION: 0.11.0
+  SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
 
 jobs:
   secret-scan:
@@ -76,3 +80,73 @@ jobs:
       # Reads package-lock.json against the advisory database; no install needed.
       - name: npm audit
         run: npm audit --audit-level=high
+
+  workflow-lint:
+    # actionlint also runs shellcheck on every embedded `run:` script inside .github/workflows/*.yml, so this
+    # one job catches both a broken workflow and a broken `run:` block before either reaches `dev` (REVIEW/QA
+    # on PR #54: actionlint was passing locally but nothing ran it in CI). It does not look inside
+    # .github/actions/*/action.yml (composite actions) — verified empirically, not just assumed from the
+    # docs — which is why those stay small and get a manual review instead.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Install actionlint
+        run: |
+          set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "${RUNNER_TEMP}/${archive}" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" actionlint
+
+      - name: actionlint (workflows, includes shellcheck)
+        run: '"${RUNNER_TEMP}/actionlint" -color'
+
+      - name: Install shellcheck
+        run: |
+          set -euo pipefail
+          archive="shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
+          curl -fsSL -o "${RUNNER_TEMP}/${archive}" \
+            "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/${archive}"
+          echo "${SHELLCHECK_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
+          tar -xJf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" "shellcheck-v${SHELLCHECK_VERSION}/shellcheck"
+
+      # Owner-run scripts live outside the workflow files actionlint already covers (tools/owner-setup/*.sh
+      # is bash the owner runs locally with real credentials — it gets the same bar as CI's own scripts).
+      - name: Shellcheck owner-run scripts
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          scripts=(tools/owner-setup/*.sh)
+          if [ "${#scripts[@]}" -eq 0 ]; then
+            echo "::notice::no tools/owner-setup/*.sh scripts yet"
+            exit 0
+          fi
+          "${RUNNER_TEMP}/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" "${scripts[@]}"
+
+      # PR #54 QA round 3: OpenSSL's `-text` output made the VAPID private key come out 33 bytes about half
+      # the time on macOS's LibreSSL. vapid-keygen.js replaced it with Node's built-in `crypto` (fixed-width
+      # JWK export) specifically to fix that; this repeats the 50-run check that caught it, in CI, so a
+      # future change to the generator can't silently reintroduce it.
+      - name: Test VAPID key generation (50 runs, exact byte lengths)
+        run: node tools/owner-setup/vapid-keygen.test.js
+
+      # PR #54 QA round 4: a fresh Cloudflare account has no Workers yet, so `wrangler secret list` fails
+      # with "Worker ... not found" the first time set-secrets.sh runs — this must be treated as "not set",
+      # while an unrelated failure (auth, network) must still abort. Stubs `gh`/`wrangler` on PATH inside a
+      # scratch copy of the repo layout; no network is needed here. The stub `gh` binary's path is asserted
+      # before set-secrets.sh runs: while developing this test on a machine with a real, already-authenticated
+      # `gh`, a `PATH=… cmd1 | cmd2` scoping bug let that real `gh` run instead of the stub, and it actually
+      # called `gh secret set` against the real repository's environments (caught from the API's
+      # `updated_at`, fixed the same round). The assertion makes that class of bug fail loudly here instead.
+      - name: Test set-secrets.sh against a fresh account and an auth failure (stubbed)
+        run: bash tools/owner-setup/set-secrets.stub-test.sh
