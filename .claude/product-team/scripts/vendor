@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""Install the plugin into a product repository's .claude/ (so cloud sessions load it) and keep it current.
+
+Cloud sessions never install plugins a repository enables in .claude/settings.json, but they do load project
+agents and skills from the clone. So the product carries a generated copy:
+
+  .claude/agents/<role>.md            role agents (models and tool limits intact)
+  .claude/skills/<skill>/SKILL.md     procedures
+  .claude/product-team/               scripts, reference, templates, MANIFEST.json
+
+`${CLAUDE_PLUGIN_ROOT}` in the copies becomes `.claude/product-team` (sessions start at the repository root).
+
+  vendor install TARGET_DIR          copy this checkout of the plugin into TARGET_DIR
+  vendor status TARGET_DIR           installed version vs this checkout, and local edits to generated files
+  vendor self-update [--ref REF]     from inside a product repo: fetch the plugin at REF into a temp dir and install
+                                     it here if newer; prints what changed (commit and PR are the caller's job)
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+from ptlib import project, vendoring  # noqa: E402
+
+PLUGIN_REPO = vendoring.PLUGIN_REPO
+CONFLICT_EXIT = 4
+
+
+class Conflict(Exception):
+    def __init__(self, paths):
+        super().__init__(", ".join(paths))
+        self.paths = paths
+
+
+def source_version(root: Path) -> dict:
+    meta = json.loads((root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    proc = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, check=False)
+    return {"version": meta["version"], "commit": proc.stdout.strip() or "unknown"}
+
+
+def repo_root() -> Path:
+    proc = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=False)
+    return Path(proc.stdout.strip()) if proc.returncode == 0 and proc.stdout.strip() else Path.cwd()
+
+
+def install(src: Path, target: Path) -> dict:
+    # The vendored copy has no agents/ or skills/ trees: installing from it would retire the whole team.
+    if not (src / "agents").is_dir() or not (src / "skills").is_dir():
+        sys.exit(f"{src} is not a plugin checkout (no agents/ or skills/); from a product use `vendor self-update`")
+    plan = vendoring.plan(src)
+    version = source_version(src)
+    installed = vendoring.read_manifest(target)
+    conflicts = vendoring.conflicts(target, plan, installed)
+    if conflicts:
+        raise Conflict(conflicts)
+    edited = vendoring.local_edits(target, installed)
+    written, removed = [], []
+    rendered = vendoring.render(src, version["version"])
+    for rel, (source, _rewrite) in sorted(plan.items()):
+        data = rendered[rel]
+        dest = target / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if not dest.exists() or dest.read_bytes() != data:
+            dest.write_bytes(data)
+            written.append(rel)
+        shutil.copymode(source, dest)  # also when only the mode changed, e.g. a script became executable
+    for rel in sorted(set(installed.get("files", {})) - set(plan)):
+        path = target / rel
+        if path.exists():
+            path.unlink()
+            removed.append(rel)
+    (target / vendoring.MANIFEST).parent.mkdir(parents=True, exist_ok=True)
+    (target / vendoring.MANIFEST).write_bytes(vendoring.manifest_bytes(version["version"], version["commit"], rendered))
+    return {"version": version, "written": written, "removed": removed, "overwrote_local_edits": edited}
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(prog="vendor", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("install").add_argument("target")
+    sub.add_parser("status").add_argument("target")
+    su = sub.add_parser("self-update"); su.add_argument("--ref", help="branch or tag; default: team.plugin_ref in project.yml, else stable"); su.add_argument("--repo", default=PLUGIN_REPO)
+    args = p.parse_args()
+    src = HERE.parent
+
+    try:
+        run(args, src)
+    except Conflict as exc:
+        # The product owns files with the plugin's names (e.g. its own reviewer.md): a person must decide.
+        print(json.dumps({"updated": False, "conflicts": exc.paths,
+                          "action": "rename the product's own files, or tell the plugin maintainer"}, indent=2))
+        sys.exit(CONFLICT_EXIT)
+
+
+def run(args, src: Path) -> None:
+    if args.cmd == "install":
+        print(json.dumps(install(src, Path(args.target).resolve()), indent=2))
+    elif args.cmd == "status":
+        target = Path(args.target).resolve()
+        installed = vendoring.read_manifest(target)
+        print(json.dumps({
+            "installed": {k: installed.get(k) for k in ("version", "commit")},
+            "available": source_version(src),
+            "local_edits": vendoring.local_edits(target, installed),
+        }, indent=2))
+    else:
+        target = repo_root()
+        args.ref = args.ref or project.plugin_ref(str(target / project.PROJECT_FILE))
+        before = vendoring.read_manifest(target)
+        with tempfile.TemporaryDirectory() as tmp:
+            clone = subprocess.run(["git", "clone", "--quiet", "--depth", "1", "--branch", args.ref, args.repo, tmp],
+                                   capture_output=True, text=True, check=False)
+            if clone.returncode != 0:
+                sys.exit(f"cannot fetch {args.repo}@{args.ref}: {clone.stderr.strip()}")
+            fresh = source_version(Path(tmp))
+            if fresh["commit"] == before.get("commit"):
+                print(json.dumps({"updated": False, "version": fresh}))
+                return
+            result = install(Path(tmp), target)
+        result.update(updated=True, previous={k: before.get(k) for k in ("version", "commit")})
+        print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    main()

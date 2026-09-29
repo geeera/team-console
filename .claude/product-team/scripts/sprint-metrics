@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+"""Sprint numbers for the demo page and the analyst.
+
+  sprint-metrics [--milestone "Sprint 01"|current]   plan vs shipped, median cycle time, QA first-pass rate
+
+Pair with `runlog stats` for run durations and failures.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from datetime import date, datetime, timedelta
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ptlib import gh, metrics  # noqa: E402
+from ptlib.calendar import KYIV, pick_current_sprint  # noqa: E402
+
+
+
+def find_milestone(repo: str, title: str) -> dict:
+    milestones = gh.api_list(f"repos/{repo}/milestones?state=all&per_page=100")
+    if title == "current":
+        found = pick_current_sprint([m for m in milestones if m["state"] == "open"], datetime.now(KYIV).date())
+    else:
+        found = next((m for m in milestones if m["title"] == title), None)
+    if not found:
+        sys.exit(f"milestone not found: {title}")
+    return found
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(prog="sprint-metrics", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--milestone", default="current")
+    p.add_argument("--length-days", type=int, default=14)
+    args = p.parse_args()
+    try:
+        repo = gh.repo()
+        ms = find_milestone(repo, args.milestone)
+        raw = [i for i in gh.api_list(f"repos/{repo}/issues?state=all&milestone={ms['number']}&per_page=100")
+               if "pull_request" not in i]
+        issues = [{"number": i["number"], "state": i["state"], "closed_at": i.get("closed_at"),
+                   "labels": [l["name"] for l in i["labels"]]} for i in raw]
+        events = {i["number"]: gh.api_list(f"repos/{repo}/issues/{i['number']}/events?per_page=100")
+                  for i in issues if i["state"] == "closed"}
+        if not ms.get("due_on"):
+            sys.exit(f"milestone {ms['title']!r} has no due date; set the demo day on it first")
+        start = (date.fromisoformat(ms["due_on"][:10]) - timedelta(days=args.length_days)).isoformat()
+        prs = [pr for pr in gh.api_list(f"repos/{repo}/pulls?state=all&sort=updated&direction=desc&per_page=100")
+               if pr["updated_at"][:10] >= start]
+        reviews = {pr["number"]: [r.get("body") or "" for r in gh.api_list(f"repos/{repo}/pulls/{pr['number']}/reviews?per_page=100")]
+                   for pr in prs}
+        summary = metrics.sprint_summary(issues, events, reviews)
+        summary.update(sprint=ms["title"], demo=(ms.get("due_on") or "")[:10])
+        print(json.dumps(summary, indent=2))
+    except gh.GhError as exc:
+        sys.exit(str(exc))
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+"""Demo page helper (SPEC decision 9).
+
+  demo-page build DATA_JSON OUT_HTML     fill templates/demo-page.html with the sprint's data
+  demo-page decisions ISSUE              owner's latest /demo-decisions block on the demo issue (JSON or null)
+  demo-page from-db ROWS_JSON            normalise ArtifactData rows of the `decisions` collection
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from ptlib import demo, gh  # noqa: E402
+
+TEMPLATE = os.path.join(HERE, "..", "templates", "demo-page.html")
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(prog="demo-page", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest="cmd", required=True)
+    b = sub.add_parser("build"); b.add_argument("data"); b.add_argument("out")
+    d = sub.add_parser("decisions"); d.add_argument("issue", type=int)
+    f = sub.add_parser("from-db"); f.add_argument("rows")
+    args = p.parse_args()
+
+    try:
+        if args.cmd == "build":
+            with open(args.data, encoding="utf-8") as fh:
+                data = json.load(fh)
+            with open(TEMPLATE, encoding="utf-8") as fh:
+                html = demo.fill(fh.read(), data)
+            with open(args.out, "w", encoding="utf-8") as fh:
+                fh.write(html)
+            print(json.dumps({"out": args.out, "bytes": len(html.encode())}))
+        elif args.cmd == "decisions":
+            repo = gh.repo()
+            comments = gh.api_list(f"repos/{repo}/issues/{args.issue}/comments?per_page=100")
+            print(json.dumps(demo.decisions_from_comments(comments, gh.owner_login(repo)), indent=2))
+        else:
+            with open(args.rows, encoding="utf-8") as fh:
+                rows = json.load(fh)
+            print(json.dumps(demo.normalise_db_rows(rows if isinstance(rows, list) else rows.get("documents", [])), indent=2))
+    except (ValueError, gh.GhError) as exc:
+        sys.exit(str(exc))
+
+
+if __name__ == "__main__":
+    main()

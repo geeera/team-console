@@ -1,0 +1,36 @@
+# The owner's daily digest: the pinned "Needs you" issue sent to the phone (Telegram or ntfy).
+# The agents write to GitHub as the owner's account, and GitHub never notifies you about your own comments —
+# so without this the team's questions never reach the phone.
+name: owner-digest
+
+on:
+  schedule:
+    - cron: "45 4 * * *"   # 07:45 Kyiv in summer, 06:45 in winter
+  workflow_dispatch:
+
+permissions:
+  issues: read
+  contents: read
+
+concurrency:
+  group: owner-digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .claude/product-team
+            .product-team
+      - name: Send
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PT_REPO: ${{ github.repository }}
+          PT_TELEGRAM_TOKEN: ${{ secrets.PT_TELEGRAM_TOKEN }}
+          PT_TELEGRAM_CHAT: ${{ secrets.PT_TELEGRAM_CHAT }}
+          PT_NTFY_TOPIC: ${{ secrets.PT_NTFY_TOPIC }}
+        run: python3 .claude/product-team/scripts/digest send

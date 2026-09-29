@@ -1,0 +1,45 @@
+# Stack-agnostic security checks for every PR (reference/workflow.md, "Checks").
+# The dependency audit step is stack-specific: devops fills it at foundation/adopt time.
+name: security
+
+on:
+  pull_request:
+    branches: [dev, stage, main]
+
+concurrency:
+  group: security-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  sast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - run: semgrep scan --config auto --error --severity ERROR
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit dependencies
+        run: |
+          echo "devops: replace with the stack's audit, e.g. 'npm audit --audit-level=high' or 'pip-audit'"
+          exit 1
