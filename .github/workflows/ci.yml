@@ -30,19 +30,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      # The lockfile is written by npm 10; another major rewrites it (npm 11 adds libc fields and pulls
-      # both glibc and musl native builds). Use exactly the npm pinned in package.json#packageManager.
-      - name: Pin npm to packageManager
-        run: |
-          set -euo pipefail
-          wanted=$(node -p "require('./package.json').packageManager.replace(/^npm@/, '')")
-          npm install --global --no-audit --no-fund "npm@${wanted}"
-          test "$(npm --version)" = "${wanted}"
+      - uses: ./.github/actions/setup-node-npm
 
       - run: npm ci
 
