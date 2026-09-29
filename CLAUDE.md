@@ -79,7 +79,7 @@ RFC 9457 bodies via `problem(c, { type, title, status, detail?, retryAfter? })` 
 DTOs and `ProblemDetails` live in `@shared/contracts`; D1 access in `@worker/db` (`ProjectsRepo`, parameterised
 queries only). Migrations live only in `apps/api/migrations` (`0001_init` = `projects`; `0002_push_subscriptions`
 #11, `0003_webhooks` #12, `0004_chat_wakeups` are reserved). `wrangler.jsonc` has `env.dev|stage|production`
-with non-secret vars only; secrets (`GITHUB_TOKEN`, `WEBHOOK_SECRET`, `VAPID_PRIVATE_KEY`, `ROUTINE_TOKEN_*`) are
+with non-secret vars only; secrets (`GITHUB_TOKEN`, `WEBHOOK_SECRET`, `VAPID_PRIVATE_KEY`, `ROUTINE_TOKEN_*`, `OWNER_EMAIL`) are
 declared in each app's `src/env.ts` and set with `wrangler secret put`. `AUTH_MODE:local` + `ENVIRONMENT:local`
 are passed only as `--var` flags by `nx serve api` and the Dockerfile — `tools/workspace-checks` fails if either
 appears in an `env.*` block. `authMiddleware` in `apps/api/src/auth/` fails closed (401 `access-missing`) until #8

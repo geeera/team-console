@@ -129,10 +129,10 @@ describe('apps/api/wrangler.jsonc', () => {
   });
 
   it.each(ENVIRONMENTS)(
-    'is not published on workers.dev or preview URLs in env %s (Access covers only the #25 hostname)',
+    'is published on workers.dev (Access sits in front of it, ADR 0001 decisions 7/14) with no preview URLs in env %s',
     (env) => {
       const config = readWorkerConfig('api', env);
-      expect(config.workers_dev).toBe(false);
+      expect(config.workers_dev).toBe(true);
       expect(config.preview_urls).toBe(false);
     },
   );
@@ -153,7 +153,9 @@ describe('apps/hooks/wrangler.jsonc', () => {
   // ADR 0001 decision 14: the hooks Worker is public on team-console-hooks-<env>.<account>.workers.dev — that URL
   // is the webhook target and the deploy smoke check. Turning workers_dev off here would break both.
   it.each(ENVIRONMENTS)('stays reachable on workers.dev in env %s (public webhook receiver)', (env) => {
-    expect(readWorkerConfig('hooks', env).workers_dev).not.toBe(false);
+    const config = readWorkerConfig('hooks', env);
+    expect(config.workers_dev).not.toBe(false);
+    expect(config.preview_urls).toBe(false);
   });
 });
 

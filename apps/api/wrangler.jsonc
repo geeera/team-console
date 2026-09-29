@@ -1,10 +1,10 @@
 // The `api` Worker: serves the SPA from static assets and owns /api/* (ADR 0001, decisions 4, 14, 19).
 // Non-secret configuration only. Secrets (declared in src/env.ts) are set once by the owner with
 // `wrangler secret put`; ACCESS_TEAM_DOMAIN and ACCESS_AUD stay empty here (this repository is public) and are
-// filled per environment in #21/#25; OWNER_EMAIL is a secret, never a var. workers_dev and preview_urls are
-// off: Access covers only the hostname configured in #25, not *.workers.dev. AUTH_MODE and ENVIRONMENT=local
-// exist only as `--var` flags of `nx serve api` and the Dockerfile — never in an `env.*` block
-// (tools/workspace-checks enforces it).
+// filled per environment in #21/#25; OWNER_EMAIL is a secret, never a var. workers_dev stays on: Access sits in
+// front of team-console-<env>.<account>.workers.dev (ADR 0001, decisions 7 and 14); preview_urls are off so no
+// unprotected version URL exists. AUTH_MODE and ENVIRONMENT=local exist only as `--var` flags of `nx serve api`
+// and the Dockerfile — never in an `env.*` block (tools/workspace-checks enforces it).
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "team-console",
@@ -20,7 +20,7 @@
   "env": {
     "dev": {
       "name": "team-console-dev",
-      "workers_dev": false,
+      "workers_dev": true,
       "preview_urls": false,
       "vars": {
         "ENVIRONMENT": "dev",
@@ -40,7 +40,7 @@
     },
     "stage": {
       "name": "team-console-stage",
-      "workers_dev": false,
+      "workers_dev": true,
       "preview_urls": false,
       "vars": {
         "ENVIRONMENT": "stage",
@@ -59,7 +59,7 @@
     },
     "production": {
       "name": "team-console-production",
-      "workers_dev": false,
+      "workers_dev": true,
       "preview_urls": false,
       "vars": {
         "ENVIRONMENT": "production",

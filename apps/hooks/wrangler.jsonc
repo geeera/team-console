@@ -10,6 +10,7 @@
   "env": {
     "dev": {
       "name": "team-console-hooks-dev",
+      "preview_urls": false,
       "vars": { "ENVIRONMENT": "dev" },
       "d1_databases": [
         {
@@ -21,6 +22,7 @@
     },
     "stage": {
       "name": "team-console-hooks-stage",
+      "preview_urls": false,
       "vars": { "ENVIRONMENT": "stage" },
       "d1_databases": [
         {
@@ -32,6 +34,7 @@
     },
     "production": {
       "name": "team-console-hooks-production",
+      "preview_urls": false,
       "vars": { "ENVIRONMENT": "production" },
       "d1_databases": [
         {
