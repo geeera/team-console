@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+.nx
+.angular
+.claude
+.github
+.product-team/*.md
+docs
+*.md
+package-lock.json

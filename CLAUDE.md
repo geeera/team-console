@@ -14,3 +14,42 @@ visual direction), `.product-team/project.yml`.
   `wrangler secret`; this repository is public.
 - Owner answers written by the app use the plugin's grammar exactly (`libs/shared/owner-grammar`).
 - Design tokens only (Paper Desk, ADR 0002); no raw colours, spacing or durations in components.
+
+## Workspace
+Node 22 (`.nvmrc`), npm, `npm ci` only — versions are pinned exactly, no `^`. Nx 23 / Angular 22 (Nx 22 does not
+support Angular 22). Commands: `npx nx run-many -t lint`, `-t test`, `-t build`; a single project with
+`npx nx test console-pages-hello`. Unit tests are Vitest through `@analogjs/vitest-angular`; the app is zoneless.
+
+Layout, tags and aliases (architect note on #3 — binding; the boundary lint enforces the tags):
+
+```
+apps/console                 type:app  scope:console  layer:app        (Angular PWA)
+apps/console-e2e             type:e2e  scope:console                   (#14)
+apps/api, apps/hooks         type:app  scope:worker                    (#6)
+libs/console/<layer>/<slice> type:lib  scope:console  layer:<layer>    @console/<layer>/<slice>
+libs/worker/<name>           type:lib  scope:worker                    @worker/<name>
+libs/shared/<name>           type:lib  scope:shared                    @shared/<name>
+tools/<name>                 type:tool scope:tooling                   (workspace checks, no runtime code)
+```
+
+Layers import downward only (`app → pages → widgets → features → entities → shared`), never their own layer
+(`shared → shared` is the one exception), so features never import features. Scopes: `console → console|shared`,
+`worker → worker|shared`, `shared → shared`. A project whose tags match no constraint cannot import any project.
+Every lib exports through `src/index.ts`; there is no wildcard alias, so deep imports do not resolve.
+
+Generate a lib with its tags and alias in one go, e.g.
+
+```
+npx nx g @nx/angular:library libs/console/features/answer --name=console-features-answer \
+  --importPath=@console/features/answer --tags=type:lib,scope:console,layer:features \
+  --prefix=tc --style=css --unitTestRunner=vitest-analog --standalone --skipModule --skipPackageJson
+```
+
+then delete the generated placeholder component, keep `src/index.ts` as the only public API, and set
+`angular({ tsconfig: 'tsconfig.spec.json' })` in the lib's `vite.config.mts` (see an existing lib). Generators emit
+an explicit `lint` target in `project.json`; remove it — `@nx/eslint/plugin` infers it.
+
+Shared libs that exist: `@console/shared/ui` (kit + `src/tokens/tokens.css`), `@console/shared/i18n` (Transloco,
+`ru.json`/`en.json`, `provideConsoleI18n()`), `@console/shared/config` (`APP_CONFIG`), `@console/shared/api`
+(`provideConsoleApi()` with the interceptor chain). Build time reaches the app through the build `define`
+`__TC_BUILT_AT__` (defaults to `local`); the version comes from `package.json`.

@@ -1,0 +1,20 @@
+<main class="hello">
+  <p class="hello__kicker">{{ 'app.name' | transloco }}</p>
+  <h1 class="hello__title">{{ 'hello.title' | transloco }}</h1>
+  <p class="hello__subtitle">{{ 'hello.subtitle' | transloco }}</p>
+
+  <dl class="hello__facts">
+    <div>
+      <dt>{{ 'hello.version' | transloco }}</dt>
+      <dd data-testid="app-version">{{ appInfo.version() }}</dd>
+    </div>
+    <div>
+      <dt>{{ 'hello.builtAt' | transloco }}</dt>
+      <dd data-testid="app-built-at">{{ appInfo.builtAt() }}</dd>
+    </div>
+  </dl>
+
+  <button tc-button variant="primary" type="button" [attr.lang]="otherLang()" (click)="switchLang()">
+    {{ 'hello.switchLang' | transloco }}
+  </button>
+</main>

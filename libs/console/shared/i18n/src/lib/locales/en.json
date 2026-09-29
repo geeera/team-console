@@ -1,0 +1,12 @@
+{
+  "app": {
+    "name": "Team Console"
+  },
+  "hello": {
+    "title": "Hello, console",
+    "subtitle": "The skeleton is in place: app → pages → entities → shared.",
+    "version": "Version",
+    "builtAt": "Built",
+    "switchLang": "Русский"
+  }
+}

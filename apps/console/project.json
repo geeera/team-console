@@ -1,0 +1,73 @@
+{
+  "name": "console",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "prefix": "tc",
+  "sourceRoot": "apps/console/src",
+  "tags": ["type:app", "scope:console", "layer:app"],
+  "targets": {
+    "build": {
+      "executor": "@angular/build:application",
+      "outputs": ["{options.outputPath}"],
+      "defaultConfiguration": "production",
+      "options": {
+        "outputPath": "dist/apps/console",
+        "browser": "apps/console/src/main.ts",
+        "tsConfig": "apps/console/tsconfig.app.json",
+        "assets": [
+          {
+            "glob": "**/*",
+            "input": "apps/console/public"
+          }
+        ],
+        "styles": ["libs/console/shared/ui/src/tokens/tokens.css", "apps/console/src/styles.css"],
+        "index": "apps/console/src/index.html"
+      },
+      "configurations": {
+        "production": {
+          "budgets": [
+            {
+              "type": "initial",
+              "maximumWarning": "500kb",
+              "maximumError": "1mb"
+            },
+            {
+              "type": "anyComponentStyle",
+              "maximumWarning": "4kb",
+              "maximumError": "8kb"
+            }
+          ],
+          "outputHashing": "all",
+          "serviceWorker": "apps/console/ngsw-config.json"
+        },
+        "development": {
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": true
+        }
+      }
+    },
+    "serve": {
+      "continuous": true,
+      "executor": "@angular/build:dev-server",
+      "defaultConfiguration": "development",
+      "configurations": {
+        "production": {
+          "buildTarget": "console:build:production"
+        },
+        "development": {
+          "buildTarget": "console:build:development"
+        }
+      }
+    },
+    "serve-static": {
+      "continuous": true,
+      "executor": "@nx/web:file-server",
+      "options": {
+        "buildTarget": "console:build",
+        "staticFilePath": "dist/apps/console/browser",
+        "spa": true
+      }
+    }
+  }
+}
