@@ -41,7 +41,11 @@ describe('unknown /api/v1 routes', () => {
   });
 
   it('answer the same for a wrong method on a known path', async () => {
-    const response = await SELF.fetch(`${ORIGIN}/api/v1/healthz`, { method: 'DELETE' });
+    // Same-origin, so the CSRF check lets it reach routing.
+    const response = await SELF.fetch(`${ORIGIN}/api/v1/healthz`, {
+      method: 'DELETE',
+      headers: { 'Sec-Fetch-Site': 'same-origin' },
+    });
     expect(response.status).toBe(404);
     await problemOf(response);
   });
@@ -51,6 +55,21 @@ describe('unknown /api/v1 routes', () => {
     expect(response.status).toBe(404);
     await problemOf(response);
   });
+});
+
+describe('bare /api paths (#51)', () => {
+  // The pool sends every request to the Worker first, so this proves the Worker's side (problem, not the shell);
+  // that the edge routes them here is `run_worker_first` in wrangler.jsonc, asserted in tools/workspace-checks.
+  it.each(['/api', '/api/'])(
+    '%s reaches the Worker and answers problem+json, not the app shell',
+    async (path) => {
+      const response = await SELF.fetch(`${ORIGIN}${path}`);
+
+      expect(response.status).toBe(404);
+      expect(response.headers.get('x-request-id')).not.toBeNull();
+      await problemOf(response);
+    },
+  );
 });
 
 describe('the app shell', () => {

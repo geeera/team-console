@@ -8,9 +8,11 @@ export interface ApiEnv extends WorkerBaseEnv {
   /** Non-secret vars, empty in the repository; #21/#25 fill them per environment. */
   readonly ACCESS_TEAM_DOMAIN: string;
   readonly ACCESS_AUD: string;
-  /** `'true'` on dev/stage for Playwright's service token, `'false'` in production. */
+  /** `'true'` on dev/stage for Playwright's service token, `'false'` in production (ignored there anyway). */
   readonly ALLOW_SERVICE_TOKEN: string;
-  /** `local` only via the `--var` flag of `nx serve api` / the Dockerfile; #8 requires ENVIRONMENT=local as well. */
+  /** The one service token client id (`common_name`) accepted on dev/stage; not a secret, empty in the repository. */
+  readonly ACCESS_SERVICE_TOKEN_ID: string;
+  /** `local` only via the `--var` flag of `nx serve api` / the Dockerfile; the bypass also needs ENVIRONMENT=local. */
   readonly AUTH_MODE?: string;
   /** `true` makes the GitHub proxy (#9) answer from fixtures for local e2e. */
   readonly GITHUB_MOCK?: string;
