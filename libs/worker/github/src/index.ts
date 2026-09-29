@@ -9,7 +9,13 @@ export type { GitHubPath, GitHubPathValue } from './lib/github-path';
 export { MOCK_APP_ID, createMockGitHub, isGitHubMockEnabled } from './lib/mock';
 export type { MockFixtures, MockGitHub, MockReply, MockRepository } from './lib/mock';
 export { MemoryReadCache, readCacheKey } from './lib/read-cache';
-export type { MemoryReadCacheOptions, ReadCache, ReadCacheKey, ReadCacheKeyParts } from './lib/read-cache';
+export type {
+  MemoryReadCacheOptions,
+  ReadCache,
+  ReadCacheKey,
+  ReadCacheKeyParts,
+  ReadCacheOptions,
+} from './lib/read-cache';
 export { InvalidRepoNameError, isValidRepoName, parseRepoName, sameRepo } from './lib/repo-name';
 export type { RepoName } from './lib/repo-name';
 export type {

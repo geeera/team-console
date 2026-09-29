@@ -30,7 +30,7 @@
       "continuous": true,
       "dependsOn": [{ "projects": ["console"], "target": "build" }, "migrate"],
       "options": {
-        "command": "wrangler dev --config apps/api/wrangler.jsonc --env dev --port 8787 --var ENVIRONMENT:local --var AUTH_MODE:local --var GITHUB_MOCK:true"
+        "command": "wrangler dev --config apps/api/wrangler.jsonc --env dev --port 8787 --var ENVIRONMENT:local --var AUTH_MODE:local --var GITHUB_MOCK:true --var OWNER_GITHUB_LOGIN:geeera"
       }
     }
   }

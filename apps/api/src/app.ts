@@ -5,12 +5,16 @@ import { csrfMiddleware } from './auth/csrf.middleware';
 import type { ApiEnv } from './env';
 import { ApiGitHub, mapGitHubError } from './github';
 import { healthzRoutes } from './routes/healthz';
+import { configuredOwnerConnection, type OwnerConnectionSource } from './projects/owner-connection';
+import { createProjectRegistryRoutes } from './routes/project-registry';
 import { createProjectsRoutes } from './routes/projects';
 
 export interface CreateApiAppOptions {
   readonly logSink?: LogSink;
   /** Per-isolate GitHub state; a test passes its own to script GitHub or to share caches between requests. */
   readonly github?: ApiGitHub;
+  /** The connected owner account; until #59 the configured `OWNER_GITHUB_LOGIN`. */
+  readonly ownerConnection?: OwnerConnectionSource;
 }
 
 function isApiPath(path: string): boolean {
@@ -40,6 +44,10 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
 
   const v1 = new Hono<WorkerHonoEnv<ApiEnv>>();
   v1.route('/healthz', healthzRoutes);
+  v1.route(
+    '/projects',
+    createProjectRegistryRoutes(github, options.ownerConnection ?? configuredOwnerConnection),
+  );
   v1.route('/projects', createProjectsRoutes(github));
   app.route('/api/v1', v1);
 

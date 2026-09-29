@@ -20,6 +20,8 @@ export interface MockRepository {
   readonly repository?: Readonly<Record<string, unknown>>;
   /** Replaces that answer, to exercise an error row locally. */
   readonly reply?: MockReply;
+  /** Text files `GET /repos/{owner}/{repo}/contents/{path}` serves, by path (e.g. `.product-team/project.yml`). */
+  readonly files?: Readonly<Record<string, string>>;
 }
 
 export interface MockFixtures {
@@ -43,7 +45,7 @@ export function isGitHubMockEnabled(env: {
   return env.ENVIRONMENT === 'local' && env.GITHUB_MOCK === 'true';
 }
 
-function base64Of(bytes: ArrayBuffer): string {
+function base64Of(bytes: ArrayBuffer | Uint8Array): string {
   let binary = '';
   for (const byte of new Uint8Array(bytes)) {
     binary += String.fromCharCode(byte);
@@ -121,7 +123,9 @@ class MockGitHubServer {
       return this.mint(Number(segments[2]), typeof init.body === 'string' ? init.body : '');
     }
 
-    if (method === 'GET' && segments.length === 3 && segments[0] === 'repos') {
+    const isRepositoryRead = segments.length === 3;
+    const isContentsRead = segments.length > 4 && segments[3] === 'contents';
+    if (method === 'GET' && segments[0] === 'repos' && (isRepositoryRead || isContentsRead)) {
       const repo = `${segments[1]}/${segments[2]}`;
       const token = this.issued.get(bearer);
       if (token === undefined || token.expiresAt <= Date.now()) {
@@ -136,10 +140,29 @@ class MockGitHubServer {
       if (reply !== undefined) {
         return json(reply.status, { message: 'mock reply' }, { ...reply.headers });
       }
+      if (isContentsRead) {
+        return this.file(found.fixture, segments.slice(4).join('/'));
+      }
       return found.fixture.repository === undefined ? notFound() : json(200, found.fixture.repository);
     }
 
     return notFound();
+  }
+
+  /** The contents API's answer for a file: base64 content, as GitHub sends it. */
+  private file(fixture: MockRepository, path: string): Response {
+    const text = fixture.files?.[path];
+    if (text === undefined) {
+      return notFound();
+    }
+    const bytes = new TextEncoder().encode(text);
+    return json(200, {
+      type: 'file',
+      encoding: 'base64',
+      path,
+      size: bytes.byteLength,
+      content: base64Of(bytes),
+    });
   }
 
   private repository(fullName: string): { name: string; fixture: MockRepository } | undefined {
