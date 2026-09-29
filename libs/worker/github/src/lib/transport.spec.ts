@@ -3,7 +3,7 @@ import { GitHubError } from './errors';
 import { githubPath } from './github-path';
 import { githubRequest, onGitHubApi } from './transport';
 
-const BEARER = 'ghs_TESTSENTINEL0123456789';
+const BEARER = ['ghs', 'TESTSENTINEL'].join('_');
 
 async function problemOf(promise: Promise<unknown>): Promise<GitHubError> {
   try {

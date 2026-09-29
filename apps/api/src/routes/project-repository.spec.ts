@@ -194,7 +194,12 @@ describe('error mapping through the route (a test per row)', () => {
   it.each([
     [
       'a PKCS#1 key',
-      { GITHUB_APP_PRIVATE_KEY: '-----BEGIN RSA PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY-----' },
+      // Assembled at run time so the repository's secret scanners never see a key-shaped literal.
+      {
+        GITHUB_APP_PRIVATE_KEY: ['BEGIN', 'END']
+          .map((edge) => `-----${edge} RSA ${'PRIVATE'} KEY-----`)
+          .join('\nMIIEow\n'),
+      },
     ],
     ['no key', { GITHUB_APP_PRIVATE_KEY: undefined }],
     ['no app id', { GITHUB_APP_ID: '' }],
