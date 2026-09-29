@@ -69,16 +69,18 @@ def handled_reversals(comments: list, team_logins: Iterable[str], history: Optio
             for m in [HANDLED.search(c.get("body") or "")] if m]
 
 
-def reversed_by_owner(comments: list, owner_login: str, history: Optional[dict], team_logins: Iterable[str]) -> dict:
+def reversed_by_owner(comments: list, owner_login: str, history: Optional[dict], team_logins: Iterable[str],
+                      same_account: bool = True) -> dict:
     """The owner's `/reject` written after the latest team decision on an issue, or {}.
 
-    history: provenance.fetch of the issue; team_logins: who writes the team's decisions (gh.team_logins).
+    history: provenance.fetch of the issue; team_logins: who writes the team's decisions (gh.team_logins);
+    same_account: gh.acts_as_owner (team notes hold no owner command only then).
     """
     decided_at = team_decided_at(comments, set(team_logins) | {owner_login}, history)
     if not decided_at:
         return {}
     from . import commands  # local import keeps owner.py free of the command grammar for its other callers
-    return commands.latest(commands.parse(comments, owner_login, history), ["reject"], since=decided_at)
+    return commands.latest(commands.parse(comments, owner_login, history, same_account), ["reject"], since=decided_at)
 
 
 def decision_comment(text: str, handles_reversal: Optional[str] = None, reversal_url: str = "") -> str:
