@@ -13,3 +13,8 @@ What to take from it (interaction model and feel):
 
 What not to take: logos, product names, brand marks, proprietary typefaces or exact brand colours of Anthropic/Claude.
 Use open typefaces and our own palette so the app is familiar in how it works, not a look-alike.
+
+## Owner's addition: grouping by project
+Many projects, each a space with its own conversation, questions, board and artifacts (designs, demos, ADRs, audits,
+briefings, releases). The sidebar groups by project the way the reference groups by session/workspace; a cross-project
+"Needs you" view sits above them. Returning to a project restores where you were.

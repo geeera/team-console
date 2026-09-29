@@ -23,6 +23,17 @@ One person: the owner of the products. Not a multi-user product; no public App S
    sprint metrics, demo date; pause / resume a product.
 4. **Designs and demo** — see designs awaiting approval and the sprint demo page inside the app, approve there.
 
+## Projects are spaces (owner's requirement, 2026-09-29)
+
+There will be many products. Each is a **space** that keeps its own context so nothing gets lost:
+- its PM chat with full history, its questions, its sprint board and run health;
+- its **artifacts**, grouped by type and searchable within the space: designs and prototypes, demo pages, decision
+  records (ADRs), audits, briefings, releases and changelogs, links to deploys;
+- its settings (paused or running, schedule, plugin version).
+
+Above the spaces: one cross-project **"Needs you"** list (each item tagged with its project) and an overview of every
+project (running / paused / failing, sprint and demo date). Switching projects never loses the place you were in.
+
 ## Where
 
 iPhone and Mac equally. v1 is a **PWA** (installed to the Home Screen / Dock; web push on iOS 16.4+). A native
