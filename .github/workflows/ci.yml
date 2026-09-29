@@ -46,28 +46,34 @@ jobs:
 
       - run: npm ci
 
+      # ADR 0001 decision 18: NX_BASE / NX_HEAD come from nx-set-shas. On pull_request it takes the merge-base
+      # of origin/<base branch> and HEAD, locally, without API calls.
+      - name: Derive Nx base and head
+        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5.0.1
+        with:
+          main-branch-name: dev
+
       # Affected by default; every project when the change can reach all of them without Nx seeing it
       # (CI, toolchain, root config) and on release PRs into stage/main.
       - name: Select projects
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
-          [[ "${BASE_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::unexpected base sha"; exit 1; }
+          # An empty NX_BASE would silently fall back to nx.json's defaultBase.
+          [[ "${NX_BASE:-}" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::nx-set-shas gave no base sha"; exit 1; }
           root_config='^(\.github/workflows/|package\.json$|package-lock\.json$|\.nvmrc$|nx\.json$|tsconfig\.base\.json$|eslint\.config\.mjs$|vitest\.config\.mts$)'
           # Captured first: `git diff | grep -q` under pipefail can fail on SIGPIPE and silently pick "affected".
-          changed=$(git diff --name-only "${BASE_SHA}" HEAD)
+          changed=$(git diff --name-only "${NX_BASE}" "${NX_HEAD}")
           if [ "${BASE_REF}" != "dev" ]; then
             mode="run-many"; why="release PR into ${BASE_REF}"
           elif grep -Eq "${root_config}" <<< "${changed}"; then
             mode="run-many"; why="root config or CI changed"
           else
-            mode="affected"; why="changed since ${BASE_SHA}"
+            mode="affected"; why="changed since ${NX_BASE}"
           fi
-          # `nx affected` reads NX_BASE / NX_HEAD from the environment.
-          { echo "NX_MODE=${mode}"; echo "NX_BASE=${BASE_SHA}"; echo "NX_HEAD=HEAD"; } >> "$GITHUB_ENV"
-          echo "::notice title=Nx scope::nx ${mode} (${why})"
+          echo "NX_MODE=${mode}" >> "$GITHUB_ENV"
+          echo "::notice title=Nx scope::nx ${mode} (${why}; base ${NX_BASE}, head ${NX_HEAD})"
 
       - name: Lint
         run: npx nx "${NX_MODE}" -t lint

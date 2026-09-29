@@ -41,7 +41,9 @@ jobs:
           tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" gitleaks
 
       - name: Scan the git history for secrets
-        run: '"${RUNNER_TEMP}/gitleaks" git --redact --no-banner --exit-code 1 .'
+        # `git log --all` over the clone: every branch and tag of this repo plus this PR's merge ref (not other PRs).
+        # --verbose names file, commit and rule of a finding; --redact keeps the value out of the public log.
+        run: '"${RUNNER_TEMP}/gitleaks" git --redact --verbose --no-banner --exit-code 1 .'
 
   sast:
     runs-on: ubuntu-latest
