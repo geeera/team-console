@@ -8,7 +8,8 @@
 #     file: every value goes into `gh secret set` / `wrangler secret put` over stdin. `node` is only ever
 #     given secret *names* (to check what is already set) as an argument, or generates a VAPID key pair with
 #     no input at all (see vapid-keygen.js) — never a secret value as an argument. Only secret names are
-#     printed to this terminal; nothing is written to a temporary file at any point.
+#     printed to this terminal. `worker_secret_exists` does use a temp file, but only to hold `wrangler`'s own
+#     plain-text error output when a listing fails — never a secret value — and removes it immediately.
 #   - No unpinned code runs with these credentials next to it: the VAPID key pair is generated with Node's
 #     built-in `crypto` (`vapid-keygen.js`, no npm package involved — see there for why OpenSSL's `-text`
 #     output was dropped, PR #54 QA round 3), and the Cloudflare calls use the exact `wrangler` already
@@ -78,10 +79,32 @@ gh_secret_exists() {
 }
 
 worker_secret_exists() {
-  local config="$1" env="$2" name="$3" listing rc
-  if ! listing=$("${WRANGLER}" secret list --env "${env}" --config "${config}" 2>&1); then
+  local config="$1" env="$2" name="$3" listing listing_err rc
+
+  # stdout and stderr are captured separately: mixing them (2>&1) would feed a stderr warning wrangler prints
+  # on an otherwise *successful* list (an update notice, a config warning) into the JSON parser below and
+  # misreport it as a parse failure (QA round 4).
+  listing_err=$(mktemp)
+  if listing=$("${WRANGLER}" secret list --env "${env}" --config "${config}" 2>"${listing_err}"); then
+    rm -f "${listing_err}"
+  else
+    local stderr_text
+    stderr_text=$(cat "${listing_err}")
+    rm -f "${listing_err}"
+
+    # wrangler 4.124.0 (the version pinned in package.json and deploy.yml) throws exactly this error — see
+    # `isWorkerNotFoundError` in packages/wrangler/src/secret/index.ts — when `secret list` targets a Worker
+    # that has never been deployed. On a fresh account that is every Worker until `wrangler secret put` below
+    # creates it as a draft: nothing earlier in the checklist deploys one. Only this specific, pinned wording
+    # is treated as "not set"; any other failure (auth, network, a renamed Worker) still aborts the script.
+    # Re-verify this text if `wranglerVersion`/`package.json`'s wrangler version ever changes.
+    if printf '%s' "${stderr_text}" | grep -q 'not found\.' \
+      && printf '%s' "${stderr_text}" | grep -q 'wrangler deploy'; then
+      return 1
+    fi
+
     echo "error: 'wrangler secret list --env ${env} --config ${config}' failed — cannot tell whether ${name} is already set" >&2
-    echo "${listing}" >&2
+    echo "${stderr_text}" >&2
     exit 1
   fi
 
@@ -201,5 +224,5 @@ for env in "${ENVIRONMENTS[@]}"; do
   echo
 done
 
-echo "Done. Nothing above touched disk. Copy any freshly generated VAPID public keys now if you have not —"
+echo "Done. No secret value touched disk. Copy any freshly generated VAPID public keys now if you have not —"
 echo "they only exist in this terminal's scrollback."

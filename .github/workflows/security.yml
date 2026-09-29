@@ -139,3 +139,14 @@ jobs:
       # future change to the generator can't silently reintroduce it.
       - name: Test VAPID key generation (50 runs, exact byte lengths)
         run: node tools/owner-setup/vapid-keygen.test.js
+
+      # PR #54 QA round 4: a fresh Cloudflare account has no Workers yet, so `wrangler secret list` fails
+      # with "Worker ... not found" the first time set-secrets.sh runs — this must be treated as "not set",
+      # while an unrelated failure (auth, network) must still abort. Stubs `gh`/`wrangler` on PATH inside a
+      # scratch copy of the repo layout; no network is needed here. The stub `gh` binary's path is asserted
+      # before set-secrets.sh runs: while developing this test on a machine with a real, already-authenticated
+      # `gh`, a `PATH=… cmd1 | cmd2` scoping bug let that real `gh` run instead of the stub, and it actually
+      # called `gh secret set` against the real repository's environments (caught from the API's
+      # `updated_at`, fixed the same round). The assertion makes that class of bug fail loudly here instead.
+      - name: Test set-secrets.sh against a fresh account and an auth failure (stubbed)
+        run: bash tools/owner-setup/set-secrets.stub-test.sh
