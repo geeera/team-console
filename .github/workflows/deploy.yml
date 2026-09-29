@@ -121,6 +121,11 @@ jobs:
             esac
           fi
 
+      # tools/deploy-guard/check-d1-placeholder.js parses the JSONC (comments and trailing commas stripped,
+      # string-aware) and only ever compares `env.<env>.d1_databases[].database_id` — a plain `grep` for the
+      # placeholder UUID matches it anywhere in the file, including inside a comment that only describes it
+      # (PR #69 regression: a comment on the real dev id tripped this and blocked every dev deploy). No npm
+      # dependency and no `npm ci` needed: the runner's preinstalled Node is enough, keeping this job cheap.
       - name: Guard against placeholder D1 database ids (api and hooks)
         env:
           ENV_NAME: ${{ steps.resolve.outputs.name }}
@@ -131,14 +136,8 @@ jobs:
             stage) placeholder='00000000-0000-0000-0000-0000000stage' ;;
             production) placeholder='00000000-0000-0000-0000-000000000prd' ;;
           esac
-          failed=0
-          for config in apps/api/wrangler.jsonc apps/hooks/wrangler.jsonc; do
-            if grep -q "${placeholder}" "${config}"; then
-              echo "::error::${config} still has the placeholder D1 database_id for '${ENV_NAME}'. Create the D1 database (owner checklist) and replace the id by PR before this workflow may deploy (see #25)."
-              failed=1
-            fi
-          done
-          exit "${failed}"
+          node tools/deploy-guard/check-d1-placeholder.js "${ENV_NAME}" "${placeholder}" \
+            apps/api/wrangler.jsonc apps/hooks/wrangler.jsonc
 
   deploy:
     needs: guard
