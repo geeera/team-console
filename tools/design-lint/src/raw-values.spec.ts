@@ -1,4 +1,4 @@
-import { findRawValues } from './raw-values';
+import { extractInlineStyles, findRawValues } from './raw-values';
 
 const kinds = (css: string) => findRawValues(css).map((v) => `${v.kind}:${v.value}`);
 
@@ -79,5 +79,51 @@ describe('findRawValues', () => {
     const css = ':root { --bg: #f7f3ec; --space-1: 4px; }';
     expect(findRawValues(css, { allowTokenDefinitions: true })).toEqual([]);
     expect(findRawValues(css)).toHaveLength(2);
+  });
+
+  // Regression for #78: the lint only knew 27 named colours and 6 colour functions.
+  it('flags named colours outside the original short list', () => {
+    expect(kinds('.a { color: crimson; }')).toEqual(['colour:crimson']);
+    expect(kinds('.a { background: rebeccapurple; }')).toEqual(['colour:rebeccapurple']);
+  });
+
+  it('flags hwb, lab, lch and color() colour functions', () => {
+    expect(kinds('.a { color: hwb(0 0% 0%); }')).toEqual(['colour:hwb(']);
+    expect(kinds('.a { color: lab(50% 40 59); }')).toEqual(['colour:lab(']);
+    expect(kinds('.a { color: lch(52% 40 60); }')).toEqual(['colour:lch(']);
+    expect(kinds('.a { color: color(srgb 1 0 0); }')).toEqual(['colour:color(']);
+  });
+
+  it('does not flag a "color" property name as a colour function', () => {
+    expect(kinds('.a { color: var(--text); }')).toEqual([]);
+  });
+});
+
+describe('extractInlineStyles', () => {
+  it('finds a raw value inside a style="…" attribute', () => {
+    const html = '<div style="color: crimson; padding: 8px"></div>';
+    const blocks = extractInlineStyles(html);
+    expect(blocks).toHaveLength(1);
+    expect(findRawValues(blocks[0].css).map((v) => `${v.kind}:${v.value}`)).toEqual([
+      'colour:crimson',
+      'length:8px',
+    ]);
+  });
+
+  it('finds a raw value inside an Angular styles: [...] array', () => {
+    const ts = "@Component({ styles: [`:host { color: crimson; }`] })\nclass Foo {}";
+    const blocks = extractInlineStyles(ts);
+    expect(blocks).toHaveLength(1);
+    expect(findRawValues(blocks[0].css).map((v) => `${v.kind}:${v.value}`)).toEqual(['colour:crimson']);
+  });
+
+  it('reports the line the inline style starts on', () => {
+    const html = ['<div>', '  <span style="color: crimson"></span>', '</div>'].join('\n');
+    const blocks = extractInlineStyles(html);
+    expect(blocks[0]?.startLine).toBe(2);
+  });
+
+  it('ignores markup with no style attribute or styles array', () => {
+    expect(extractInlineStyles('<div class="a"></div>')).toEqual([]);
   });
 });

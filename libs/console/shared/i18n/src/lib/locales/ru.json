@@ -27,5 +27,77 @@
     "field": {
       "optional": "необязательно"
     }
+  },
+  "stories": {
+    "common": {
+      "settings": "Настройки"
+    },
+    "button": {
+      "approve": "Утвердить",
+      "approveClose": "Утвердить · закрыть",
+      "reject": "Отклонить",
+      "later": "Позже",
+      "archive": "В архив",
+      "small": "Маленькая",
+      "disabled": "Недоступна",
+      "saving": "Сохраняем…"
+    },
+    "card": {
+      "kind": "Вопрос",
+      "title": "Принять дизайн-кит и токены Paper Desk?",
+      "body": "Токены, примитивы и Storybook готовы. Команда рекомендует утвердить и закрыть задачу.",
+      "meta": "2 часа назад · Team Console",
+      "minimalTitle": "Только заголовок и текст",
+      "minimalBody": "Без шапки, действий и подписи блоки прячутся сами."
+    },
+    "chip": {
+      "draft": "Черновик",
+      "questions": "3 вопроса",
+      "active": "Активен",
+      "paused": "На паузе",
+      "buildFailing": "Сборка падает"
+    },
+    "field": {
+      "repoLabel": "Репозиторий",
+      "repoHint": "owner/repo или ссылка на GitHub",
+      "repoInvalidError": "Не похоже на owner/repo",
+      "reasonLabel": "Причина отказа",
+      "reasonHint": "Команда увидит её в комментарии",
+      "langLabel": "Язык",
+      "langRu": "Русский",
+      "langEn": "English",
+      "offlineLabel": "Недоступно офлайн"
+    },
+    "list": {
+      "ariaProjects": "Проекты",
+      "sprintLine": "Спринт 01 · демо 16 октября",
+      "pausedSince": "На паузе с 12 сентября — ждём решения по оплате домена",
+      "version": "Версия 0.1.0",
+      "staticRow": "Статичная строка без действия",
+      "archive": "Архив",
+      "offline": "Недоступно офлайн"
+    },
+    "topBar": {
+      "search": "Поиск",
+      "attention": "Нужно твоё внимание",
+      "longTitle": "Очень длинное название проекта, которое не помещается в строку"
+    },
+    "stateBlock": {
+      "emptyTitle": "Ничего не ждёт",
+      "emptyDescription": "Все вопросы команды закрыты. Загляните позже.",
+      "errorTitle": "Не удалось загрузить проекты",
+      "errorDescription": "GitHub не ответил. Проверьте связь и попробуйте ещё раз.",
+      "compactEmptyTitle": "В этой колонке пусто"
+    },
+    "sheet": {
+      "paused": "На паузе",
+      "addProject": "Добавить проект",
+      "openSheet": "Открыть лист «Проекты»",
+      "archiveEllipsis": "В архив…",
+      "confirmedArchived": "Проект в архиве",
+      "confirmedKept": "Оставили как есть",
+      "confirmTitle": "Убрать проект в архив?",
+      "confirmMessage": "Проект исчезнет из списка и «Нужно твоё внимание». Задачи на GitHub не тронем."
+    }
   }
 }

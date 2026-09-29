@@ -10,11 +10,28 @@ export interface RawValue {
   readonly declaration: string;
 }
 
+// The full CSS Color Module Level 4 named-colour list, minus the keywords that are not raw
+// colours (`transparent`, `currentcolor`) — those read the surrounding context, not a fixed value.
 const NAMED_COLOURS =
-  'aqua|black|blue|brown|cyan|fuchsia|gold|gray|grey|green|indigo|ivory|lime|magenta|maroon|navy|olive|orange|pink|purple|red|silver|tan|teal|violet|white|yellow';
+  'aliceblue|antiquewhite|aqua|aquamarine|azure|beige|bisque|black|blanchedalmond|blue|blueviolet|brown|' +
+  'burlywood|cadetblue|chartreuse|chocolate|coral|cornflowerblue|cornsilk|crimson|cyan|darkblue|darkcyan|' +
+  'darkgoldenrod|darkgray|darkgreen|darkgrey|darkkhaki|darkmagenta|darkolivegreen|darkorange|darkorchid|' +
+  'darkred|darksalmon|darkseagreen|darkslateblue|darkslategray|darkslategrey|darkturquoise|darkviolet|' +
+  'deeppink|deepskyblue|dimgray|dimgrey|dodgerblue|firebrick|floralwhite|forestgreen|fuchsia|gainsboro|' +
+  'ghostwhite|gold|goldenrod|gray|green|greenyellow|grey|honeydew|hotpink|indianred|indigo|ivory|khaki|' +
+  'lavender|lavenderblush|lawngreen|lemonchiffon|lightblue|lightcoral|lightcyan|lightgoldenrodyellow|' +
+  'lightgray|lightgreen|lightgrey|lightpink|lightsalmon|lightseagreen|lightskyblue|lightslategray|' +
+  'lightslategrey|lightsteelblue|lightyellow|lime|limegreen|linen|magenta|maroon|mediumaquamarine|' +
+  'mediumblue|mediumorchid|mediumpurple|mediumseagreen|mediumslateblue|mediumspringgreen|' +
+  'mediumturquoise|mediumvioletred|midnightblue|mintcream|mistyrose|moccasin|navajowhite|navy|oldlace|' +
+  'olive|olivedrab|orange|orangered|orchid|palegoldenrod|palegreen|paleturquoise|palevioletred|' +
+  'papayawhip|peachpuff|peru|pink|plum|powderblue|purple|rebeccapurple|red|rosybrown|royalblue|' +
+  'saddlebrown|salmon|sandybrown|seagreen|seashell|sienna|silver|skyblue|slateblue|slategray|slategrey|' +
+  'snow|springgreen|steelblue|tan|teal|thistle|tomato|turquoise|violet|wheat|white|whitesmoke|yellow|' +
+  'yellowgreen';
 
 const COLOUR = new RegExp(
-  `#[0-9a-f]{3,8}\\b|\\b(?:rgb|rgba|hsl|hsla|oklch|oklab|color-mix)\\(|\\b(?:${NAMED_COLOURS})\\b`,
+  `#[0-9a-f]{3,8}\\b|\\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklch|oklab|color|color-mix)\\(|\\b(?:${NAMED_COLOURS})\\b`,
   'gi',
 );
 /** A length with a unit, except `0` and the hairline `1px` (borders and outlines). Viewport units size layout, not design. */
@@ -63,6 +80,51 @@ function splitDeclaration(declaration: string): { property: string; value: strin
 function allowedLength(value: string, unit: string): boolean {
   const numeric = Number(value);
   return numeric === 0 || (numeric === 1 && unit.toLowerCase() === 'px');
+}
+
+export interface InlineStyleBlock {
+  /** The 1-based line the block starts on in the source file, so findings can report a real line. */
+  readonly startLine: number;
+  readonly css: string;
+}
+
+function lineOf(source: string, index: number): number {
+  let line = 1;
+  for (let i = 0; i < index; i += 1) {
+    if (source[i] === '\n') {
+      line += 1;
+    }
+  }
+  return line;
+}
+
+/**
+ * Pulls declaration blocks out of `style="…"`/`style='…'` template attributes and Angular
+ * `styles: [\`…\`]` metadata arrays, so #78's inline styles are checked the same as a `.css` file.
+ */
+export function extractInlineStyles(source: string): InlineStyleBlock[] {
+  const blocks: InlineStyleBlock[] = [];
+
+  for (const match of source.matchAll(/\bstyle\s*=\s*"([^"]*)"|\bstyle\s*=\s*'([^']*)'/g)) {
+    const css = match[1] ?? match[2] ?? '';
+    if (css.trim() !== '') {
+      blocks.push({ startLine: lineOf(source, match.index), css });
+    }
+  }
+
+  const stylesArray = /\bstyles\s*:\s*\[([\s\S]*?)\]/g;
+  for (const arrayMatch of source.matchAll(stylesArray)) {
+    const arrayStart = arrayMatch.index + arrayMatch[0].indexOf('[') + 1;
+    const literal = /`([\s\S]*?)`|'([^']*)'|"([^"]*)"/g;
+    for (const literalMatch of arrayMatch[1].matchAll(literal)) {
+      const css = literalMatch[1] ?? literalMatch[2] ?? literalMatch[3] ?? '';
+      if (css.trim() !== '') {
+        blocks.push({ startLine: lineOf(source, arrayStart + literalMatch.index), css });
+      }
+    }
+  }
+
+  return blocks;
 }
 
 export function findRawValues(
