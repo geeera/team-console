@@ -1,0 +1,8 @@
+{
+  "name": "console-shared-i18n",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/console/shared/i18n/src",
+  "prefix": "tc",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:console", "layer:shared"]
+}

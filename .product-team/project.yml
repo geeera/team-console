@@ -7,25 +7,28 @@ stack: >
   D1, Cloudflare Access, Playwright. See docs/decisions/0001-stack-and-architecture.md.
 decisions_dir: docs/decisions
 
+# Node 22 (.nvmrc) and npm. `e2e` and `storybook` are added by #14 and #13; until then they are
+# no-ops that exit 0 so the contract stays runnable.
 commands:
   install: npm ci
   lint: npx nx run-many -t lint
   test: npx nx run-many -t test
   build: npx nx run-many -t build
-  e2e: npx nx e2e console-e2e
-  storybook: npx nx build-storybook ui
+  e2e: 'echo "e2e: apps/console-e2e arrives with #14"'
+  storybook: 'echo "storybook: libs/console/shared/ui stories arrive with #13"'
 
 environments:
   dev:
-    url: ""
+    url: ''
   stage:
-    url: ""
+    url: ''
   production:
-    url: ""
+    url: ''
 
 design:
-  tokens: []
-  storybook_url: ""
+  tokens:
+    - libs/console/shared/ui/src/tokens/tokens.css
+  storybook_url: ''
 
 sprint:
   length_days: 14
@@ -39,4 +42,3 @@ team:
 
 owner:
   timezone: Europe/Kyiv
-  language: ru
