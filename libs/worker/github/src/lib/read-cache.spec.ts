@@ -101,6 +101,50 @@ describe('MemoryReadCache', () => {
     expect(fill).toHaveBeenCalledTimes(1);
   });
 
+  it('fills again on a fresh read within the TTL and serves the new value afterwards', async () => {
+    const cache = new MemoryReadCache();
+    await cache.getOrFill(key('tc'), 60, counter('old'));
+    const fresh = counter('new');
+
+    await expect(cache.getOrFill(key('tc'), 60, fresh, { fresh: true })).resolves.toBe('new');
+    await expect(cache.getOrFill(key('tc'), 60, counter('unused'))).resolves.toBe('new');
+    expect(fresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the cached value when a fresh fill fails', async () => {
+    const cache = new MemoryReadCache();
+    await cache.getOrFill(key('tc'), 60, counter('old'));
+    await expect(
+      cache.getOrFill(
+        key('tc'),
+        60,
+        async () => {
+          throw new Error('GitHub down');
+        },
+        { fresh: true },
+      ),
+    ).rejects.toThrow('GitHub down');
+    await expect(cache.getOrFill(key('tc'), 60, counter('unused'))).resolves.toBe('old');
+  });
+
+  it('does not join a fill that was in flight before the fresh request', async () => {
+    const cache = new MemoryReadCache();
+    let release: (value: string) => void = () => undefined;
+    const slow = cache.getOrFill(
+      key('tc'),
+      60,
+      async () => new Promise<string>((resolve) => (release = resolve)),
+    );
+    const fresh = counter('fresh');
+
+    await expect(cache.getOrFill(key('tc'), 60, fresh, { fresh: true })).resolves.toBe('fresh');
+    release('stale');
+    await expect(slow).resolves.toBe('stale');
+    expect(fresh).toHaveBeenCalledTimes(1);
+    // The overtaken fill does not put its older value back.
+    await expect(cache.getOrFill(key('tc'), 60, counter('unused'))).resolves.toBe('fresh');
+  });
+
   it('refuses a cap below one', () => {
     expect(() => new MemoryReadCache({ maxEntries: 0 })).toThrow();
   });

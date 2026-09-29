@@ -90,8 +90,13 @@ Crypto, PKCS#8 key only, per-repo installation tokens downscoped to read-only, c
 string, never a client-chosen repo); throw `GitHubError` and `createApiApp`'s `mapError` answers its problem; reads go
 through `ReadCache` keyed `readCacheKey({ environment, slug, epoch, type })`. The api Worker's per-isolate GitHub state
 is `ApiGitHub` (`apps/api/src/github.ts`); `GITHUB_MOCK=true` (local only) swaps api.github.com for the fixture GitHub
-in `libs/worker/github/fixtures`. Migrations live only in `apps/api/migrations` (`0001_init` = `projects`; `0002_push_subscriptions`
-#11, `0003_webhooks` #12, `0004_chat_wakeups`, `0005_owner_connections` #59 are reserved). `wrangler.jsonc` has `env.dev|stage|production`
+in `libs/worker/github/fixtures`. Migrations live only in `apps/api/migrations` (`0001_init` = `projects`; `0006_project_installation` #15 adds
+`projects.installation_id`; `0002_push_subscriptions` #11, `0003_webhooks` #12, `0004_chat_wakeups`,
+`0005_owner_connections` #59 are reserved). The registry (#15) is `routes/project-registry.ts` + `src/projects/`:
+adding validates repo format → app installed → repo owner (behind `OwnerConnectionSource`; until #59 the
+`OWNER_GITHUB_LOGIN` var, which `nx serve api` and the Dockerfile set to the mock fixtures' owner `geeera`) →
+`project.yml` before the one D1 write; refusals are problems with a `step` extension member (`problem(c, { …,
+extensions })`); `ROUTINE_TOKEN_<SLUG>` is checked for presence only. `wrangler.jsonc` has `env.dev|stage|production`
 with non-secret vars only; secrets (`WEBHOOK_SECRET`, `VAPID_PRIVATE_KEY`, `ROUTINE_TOKEN_*`, `OWNER_EMAIL`, and per
 ADR 0003 `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY` — `GITHUB_TOKEN` is gone with
 the PAT) are declared in each app's `src/env.ts` and set with `wrangler secret put`. `AUTH_MODE:local` + `ENVIRONMENT:local`

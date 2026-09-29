@@ -35,12 +35,22 @@ export function readCacheKey(parts: ReadCacheKeyParts): ReadCacheKey {
   return `${parts.environment}:${parts.slug}:${parts.epoch}:${parts.type}` as ReadCacheKey;
 }
 
+export interface ReadCacheOptions {
+  /** Skip a cached value and fill now (the owner's "Check again"); the new value replaces the old one. */
+  readonly fresh?: boolean;
+}
+
 export interface ReadCache {
   /**
    * The cached value while it is younger than `ttlSeconds`, else `fill()`'s result, which is then cached.
    * A failed fill is not cached. Values are shared between requests and must not be mutated.
    */
-  getOrFill<T>(key: ReadCacheKey, ttlSeconds: number, fill: () => Promise<T>): Promise<T>;
+  getOrFill<T>(
+    key: ReadCacheKey,
+    ttlSeconds: number,
+    fill: () => Promise<T>,
+    options?: ReadCacheOptions,
+  ): Promise<T>;
 }
 
 export interface MemoryReadCacheOptions {
@@ -74,17 +84,26 @@ export class MemoryReadCache implements ReadCache {
     return this.entries.size;
   }
 
-  async getOrFill<T>(key: ReadCacheKey, ttlSeconds: number, fill: () => Promise<T>): Promise<T> {
+  async getOrFill<T>(
+    key: ReadCacheKey,
+    ttlSeconds: number,
+    fill: () => Promise<T>,
+    options: ReadCacheOptions = {},
+  ): Promise<T> {
+    const fresh = options.fresh === true;
     const hit = this.entries.get(key);
-    if (hit !== undefined && hit.expiresAt > this.now()) {
+    if (!fresh && hit !== undefined && hit.expiresAt > this.now()) {
       // Re-insert: Map keeps insertion order, so the first key is always the least recently used.
       this.entries.delete(key);
       this.entries.set(key, hit);
       return hit.value as T;
     }
-    this.entries.delete(key);
+    if (!fresh) {
+      this.entries.delete(key);
+    }
 
-    const pending = this.filling.get(key);
+    // A fill already in flight started before a fresh request was made, so a fresh request does not join it.
+    const pending = fresh ? undefined : this.filling.get(key);
     if (pending !== undefined) {
       return (await pending) as T;
     }
@@ -92,14 +111,20 @@ export class MemoryReadCache implements ReadCache {
     this.filling.set(key, filled);
     try {
       const value = await filled;
-      this.store(key, { value, expiresAt: this.now() + ttlSeconds * 1000 });
+      // A fill overtaken by a fresh one must not put its older value back.
+      if (this.filling.get(key) === filled) {
+        this.store(key, { value, expiresAt: this.now() + ttlSeconds * 1000 });
+      }
       return value;
     } finally {
-      this.filling.delete(key);
+      if (this.filling.get(key) === filled) {
+        this.filling.delete(key);
+      }
     }
   }
 
   private store(key: string, entry: Entry): void {
+    this.entries.delete(key);
     this.entries.set(key, entry);
     while (this.entries.size > this.maxEntries) {
       const oldest = this.entries.keys().next();

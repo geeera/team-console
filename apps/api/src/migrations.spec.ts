@@ -15,11 +15,11 @@ describe('migrations on a fresh D1', () => {
     expect(results.map((row) => row.name)).toEqual(['d1_migrations', 'projects']);
   });
 
-  it('record 0001_init as applied exactly once', async () => {
+  it('record each migration as applied exactly once', async () => {
     const { results } = await env.DB.prepare('SELECT name FROM d1_migrations ORDER BY id').all<{
       name: string;
     }>();
-    expect(results.map((row) => row.name)).toEqual(['0001_init.sql']);
+    expect(results.map((row) => row.name)).toEqual(['0001_init.sql', '0006_project_installation.sql']);
   });
 
   it('give projects the columns the registry needs', async () => {
@@ -36,6 +36,7 @@ describe('migrations on a fresh D1', () => {
       'cache_epoch',
       'added_at',
       'archived_at',
+      'installation_id',
     ]);
     expect(results.filter((column) => column.notnull === 1).map((column) => column.name)).toEqual([
       'repo',
