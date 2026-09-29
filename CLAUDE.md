@@ -33,6 +33,8 @@ of the clone — every branch and tag of the repo plus this PR's merge ref, not 
 SHA; the PR workflows use no secrets. A leaked secret: rotate/revoke it first (the public history keeps it), then
 delete the branch and push a clean one (no force-push onto shared branches), or — if it already reached a
 long-lived branch — add its fingerprint (from the red run's log) to `.gitleaksignore` in a reviewed PR.
+Dependabot (`.github/dependabot.yml`) proposes github-actions updates weekly, grouped into one PR into `dev`;
+those PRs go through the same gate as any other (CI + QA/REVIEW/SECURITY).
 
 Layout, tags and aliases (architect note on #3 — binding; the boundary lint enforces the tags):
 
