@@ -1,4 +1,4 @@
-/* ===== #24 Settings › Projects, on the Paper Desk tokens (ADR 0002) =====
+/* ===== #24 Settings: GitHub connection and projects, on the Paper Desk tokens (ADR 0002) =====
    Proposed token additions (the Paper Desk sketch names no spacing scale, target size or stagger):
    spacing on a 4 px base, a 44 px target, a 16 px input size (stops iOS zoom), the checklist mark, the dialog
    width, a stagger step and the 120 ms reduced-motion fade the prototype already uses. */
@@ -116,7 +116,7 @@
 
 /* empty and error blocks */
 .block{display:grid;justify-items:start;gap:var(--sp-2);padding:var(--sp-6);border-radius:var(--r-lg);background:var(--surface);border:1px dashed var(--border-strong)}
-.block h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
+.block h2,.block h3{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
 .block p{margin:0 0 var(--sp-2);color:var(--text-2);font-size:var(--fs-sm);max-width:52ch}
 .block--error{background:var(--danger-soft);border:0;color:var(--danger-text)}
 .block--error p{color:var(--danger-text)}
@@ -185,7 +185,7 @@
 .app[data-app=phone] .how dl{grid-template-columns:minmax(0,1fr);gap:0}
 .app[data-app=phone] .how dd{margin-bottom:var(--sp-2)}
 .codeline{display:flex;align-items:flex-start;gap:var(--sp-2);width:100%}
-.codeline code{flex:1;min-width:0;padding:var(--sp-2) var(--sp-3);border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-size:var(--fs-xs);line-height:1.5;word-break:break-all}
+.codeline code{flex:1;min-width:0;padding:var(--sp-2) var(--sp-3);border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-size:var(--fs-xs);line-height:1.5;overflow-wrap:anywhere}
 .codeline .btn{min-height:var(--target);flex:none}
 .codeline .btn[data-copied] {color:var(--success-text)}
 
@@ -215,6 +215,74 @@
 .app[data-app=phone] .modal{place-items:end stretch;padding:0}
 .app[data-app=phone] .adialog{width:100%;border-radius:var(--r-sheet) var(--r-sheet) 0 0;border-width:1px 0 0;padding:var(--sp-6) var(--sp-5) var(--sp-10);box-shadow:var(--shadow-3)}
 .app[data-app=phone] .adialog__actions .btn{flex:1 1 0}
+
+/* ----- settings sections ----- */
+.sec{display:grid;gap:var(--sp-3)}
+.sec-head{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:var(--sp-3) var(--sp-4)}
+.sec-title{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
+.app[data-app=phone] .sec-head .btn--primary{width:100%}
+
+/* ----- the GitHub connection card: one card, the state is its words ----- */
+.gh{display:grid;justify-items:start;gap:var(--sp-3);padding:var(--sp-4) var(--sp-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.app[data-app=phone] .gh{padding:var(--sp-4)}
+.gh__row{display:flex;align-items:center;flex-wrap:wrap;gap:var(--sp-2) var(--sp-3);width:100%}
+.gh__mark{flex:none;width:var(--mark);height:var(--mark);border-radius:50%;display:grid;place-items:center;background:var(--bg-sunken);color:var(--text-2)}
+.gh__mark .ico{width:16px;height:16px;stroke-width:2.4}
+.gh--ok .gh__mark{background:var(--success-soft);color:var(--success-text)}
+.gh--warn .gh__mark{background:var(--surface);color:var(--warning-text)}
+.gh__who{flex:1;min-width:0;display:grid;gap:2px}
+.gh__title{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight);outline:none;overflow-wrap:anywhere}
+.gh__title code{font-size:.9em}
+.gh__meta{margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.gh__body{margin:0;font-size:var(--fs-sm);color:var(--text-2);max-width:60ch}
+.gh__actions{display:flex;flex-wrap:wrap;gap:var(--sp-2);width:100%}
+.app[data-app=phone] .gh__actions .btn{flex:1 1 auto}
+.gh__disc{color:var(--danger-text)}
+.app[data-app=phone] .gh__disc{flex-basis:100%;justify-content:flex-start;margin-left:var(--mark);padding-left:var(--sp-3)}
+.gh__title code{white-space:nowrap}
+.gh__disc:hover{background:var(--danger-soft)}
+.gh__off{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.gh__off .ico{width:14px;height:14px;flex:none;margin-top:2px}
+.gh--warn{background:var(--warning-soft);border-color:transparent;box-shadow:none}
+.gh--warn .gh__title,.gh--warn .gh__body{color:var(--warning-text)}
+.gh--bad{background:var(--danger-soft);border-color:transparent;box-shadow:none}
+.gh--bad .gh__title,.gh--bad .gh__body{color:var(--danger-text)}
+.gh__skel{border-radius:50%}
+.gh .skel-stack{flex:1}
+/* the "connected" tick is drawn once, after the round trip to GitHub */
+.gh__mark.is-new{animation:mark-in var(--dur-base) var(--ease-emph) both}
+.gh__mark.is-new path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) var(--dur-fast) forwards}
+@media (prefers-reduced-motion:reduce){.gh__mark.is-new,.gh__mark.is-new path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}}
+:root[data-motion=reduce] .gh__mark.is-new,:root[data-motion=reduce] .gh__mark.is-new path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}
+
+/* connection reminders below Settings */
+.conn-banner{max-width:none;flex-wrap:wrap}
+.conn-banner .ico{flex:none}
+.conn-banner .btn{min-height:var(--target);background:var(--surface);border-color:transparent;color:var(--warning-text);font-weight:600}
+.app[data-app=phone] .conn-banner .btn{width:100%}
+.need-conn .btn{margin-top:var(--sp-2)}
+.app[data-app=phone] .need-conn{padding-right:0}
+.app[data-app=phone] .need-conn .btn{width:100%}
+
+/* sync state in the Mac sidebar footer and the iPhone sheet */
+.side-foot__sync .sync-dot--none,.sheet-foot__sync .sync-dot--none{background:var(--text-3)}
+.side-foot__sync .sync-dot--lost,.sheet-foot__sync .sync-dot--lost{background:var(--warning-text)}
+.side-foot__sync .sync-dot--loading,.sheet-foot__sync .sync-dot--loading{background:var(--border-strong)}
+.sheet-foot__sync{margin-left:auto;display:inline-flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-xs);color:var(--text-2);font-weight:400}
+.sheet-foot__sync i{width:6px;height:6px;border-radius:50%;background:var(--success-text)}
+
+/* ----- GitHub's authorize page, mocked for the demo only ----- */
+.gh-mock__note{margin:0;padding:var(--sp-2) var(--sp-3);border:1px dashed var(--border-strong);border-radius:var(--r-md);font-size:var(--fs-xs);color:var(--text-2)}
+.gh-mock{display:grid;justify-items:center;gap:var(--sp-3);padding:var(--sp-6) var(--sp-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);text-align:center;font-family:var(--font-body)}
+.gh-mock h1{margin:0;font-size:var(--fs-xl);font-weight:600;outline:none;overflow-wrap:anywhere}
+.gh-mock__logos{display:flex;align-items:center;gap:var(--sp-3);color:var(--text-3)}
+.gh-mock__logos .mark{width:40px;height:40px;color:var(--accent)}
+.gh-mock__logos .avatar{width:40px;height:40px;font-size:var(--fs-md)}
+.gh-mock p,.gh-mock ul{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.gh-mock ul{text-align:left;padding-left:1.2em;display:grid;gap:var(--sp-1)}
+.gh-mock .form-actions{width:100%;justify-content:center}
+.p-bar__url{justify-self:center;padding:var(--sp-1) var(--sp-4);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2)}
+.crumbs__url{font-family:var(--font-mono);font-weight:400}
 
 /* toast and live region */
 .toast[hidden]{display:none}

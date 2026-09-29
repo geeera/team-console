@@ -7,7 +7,7 @@ feature's UX spec.
 
 | File | Issue | What it shows |
 |---|---|---|
-| [24-settings-projects.html](24-settings-projects.html) | #24 Settings: add and archive a project | Settings › Projects list (loaded, loading, empty, error, offline), New project (invalid input, checking, refused, couldn't check, already listed, archived), the project setup page with the four-step checklist, the archive dialog (and its failure), and the entry points: the Mac sidebar footer and the iPhone Projects sheet |
+| [24-settings-projects.html](24-settings-projects.html) | #24 Settings: GitHub connection and projects (revised for ADR 0003) | The GitHub connection block (not connected, connected as, lost, loading, failed connect: cancelled, wrong account, unexpected sign-in address; disconnect dialog), a mock of GitHub’s authorize page for the round trip, Projects (loaded, loading, empty, error, offline), New project (connect-first, invalid input, checking, refused by each gating step incl. 409 app-not-installed and owner-mismatch, couldn’t check incl. 503 github-auth and 403 connection lost, already listed, archived), the setup page with the five-step checklist, the archive dialog (and its failure), and the entry points: the Mac sidebar footer and the iPhone Projects sheet |
 
 ## Source
 

@@ -1,4 +1,6 @@
 # Usage: python3 build.py            (writes ../24-settings-projects.html)
+# Revised for ADR 0003: the GitHub connection block and the five-step checklist (app installed, owner, project.yml,
+# events, routine token).
 # The design reads the Paper Desk tokens, character CSS and shared structure straight from the direction sources
 # (docs/design/directions/src), so it cannot drift from ADR 0002. Everything feature-specific lives here.
 import importlib.util, pathlib
@@ -15,39 +17,39 @@ i18n = (HERE / 'settings-i18n.js').read_text()
 
 NOTE_EN = '''
 <div class="note__grid"><div>
-<p><b>What you are approving.</b> The look of Settings › Projects on the approved UX spec (#24): the project list, New project, the project setup page with its four-step checklist, and the archive confirmation, on iPhone and Mac, light and dark, ru and en. Flow, states and copy are the UX spec’s; this page decides only how they look and move.</p>
+<p><b>What you are approving.</b> The look of Settings (#24) after ADR 0003: the GitHub connection block, the project list, New project, the project setup page with its five-step checklist, and the two confirmations (archive, disconnect), on iPhone first and on Mac, light and dark, ru and en. Flow, states and copy follow the UX spec and the issue’s current acceptance criteria; this page decides how they look and move.</p>
 <ul>
-<li><b>The checklist is a ledger.</b> Four numbered steps on one paper sheet. Each step says its status in words (Done, Missing, Checking…, Not checked, Couldn’t check); the mark only repeats it. Missing is ochre, a to-do, not red. A missing step has a one-line fix and a “How to fix” fold with Copy buttons.</li>
-<li><b>Results are margin notes.</b> The outcome of a check is a serif note with a coloured rule, like a recorded answer in the chat: moss when added or ready, ochre when steps are left, clay when nothing was saved.</li>
-<li><b>Signature moment, reused.</b> When a project becomes ready, the Paper Desk ink stamp presses onto the “ready” note. When a step turns done, its check is drawn in, in step order. Nothing else moves. Reduced motion: a 120 ms fade.</li>
-<li><b>Archive is quiet but never the default.</b> A plain “Archive” on each row, a clay-outlined “Archive project” at the bottom of the setup page, and a dialog that opens on Cancel. On iPhone the dialog rises as a sheet.</li>
-<li><b>Entry points.</b> Mac: a Settings item in the sidebar footer. iPhone: “Add project” and “Settings” at the bottom of the Projects sheet.</li>
+<li><b>GitHub at the top of Settings.</b> One card: “Connect GitHub” when not connected; “Connected as geeera” with a quiet Disconnect when connected; an ochre “connection lost” card with Connect again when access was revoked or expired; a clay card when connecting failed (cancelled on GitHub, wrong account, an unexpected sign-in address). No token fields anywhere.</li>
+<li><b>The checklist is a ledger of five steps.</b> App installed on the repo · the repo’s owner is the connected account · project.yml · events arrive · routine token. Each step says its status in words; the mark only repeats it. Missing is ochre, a to-do, not red. Steps 1–3 gate saving; “events arrive” needs nothing from you.</li>
+<li><b>Results are margin notes.</b> Moss when added or ready, ochre when steps are left, clay when nothing was saved.</li>
+<li><b>Signature moment, reused.</b> The Paper Desk ink stamp on the “ready” note; checks are drawn in, in step order; the “Connected” tick is drawn once after you come back from GitHub. Nothing else moves. Reduced motion: a 120 ms fade.</li>
+<li><b>Destructive actions never default.</b> Archive and Disconnect open a dialog on Cancel; on iPhone it rises as a sheet.</li>
 </ul>
-<p class="try">Try: on iPhone tap “Settings” in the sheet; add <code>geeera/private-lab</code>, then <code>geeera/newsletter</code> and select Check again twice; open fieldnote and archive it; switch the theme, the language and reduced motion. The demo bar reaches every state.</p>
+<p class="try">Try on iPhone: Projects sheet → Settings → Connect GitHub → Authorize; then Add project with <code>geeera/newsletter</code> (added, 2 steps left), <code>acme/site</code> (owner mismatch) and <code>geeera/no-app</code> (app not installed). Switch “Connect result” to “wrong account” and connect again. The demo bar reaches every state.</p>
 </div><dl class="tok">
-<dt>Colour</dt><dd>Paper Desk tokens only: paper, sheet, ink, moss for the next action, ochre (warning) for missing steps, clay (danger) for “not saved” and archive.</dd>
-<dt>Type</dt><dd>Source Serif 4 for titles, names and result notes; Source Sans 3 for the interface; Source Code Pro for owner/repo, paths and commands. All OFL.</dd>
+<dt>Colour</dt><dd>Paper Desk tokens only: paper, sheet, ink, moss for the next action and “connected”, ochre (warning) for missing steps and a lost connection, clay (danger) for “not saved”, failed connect, archive and disconnect.</dd>
+<dt>Type</dt><dd>Source Serif 4 for titles, names and result notes; Source Sans 3 for the interface; Source Code Pro for owner/repo, logins, paths and commands. All OFL.</dd>
 <dt>New tokens</dt><dd>Proposed for the kit: spacing 4 / 8 / 12 / 16 / 20 / 24 / 32 / 40, target 44, input text 16 (no iOS zoom), checklist mark 28, dialog width 440, stagger 70 ms, reduced-motion fade 120 ms.</dd>
-<dt>New kit parts</dt><dd>Field (label, hint, error, preview), danger and quiet-danger buttons, alert dialog, skeleton row, code line with Copy, disclosure.</dd>
+<dt>New kit parts</dt><dd>Field (label, hint, error, preview), danger and quiet-danger buttons, alert dialog, skeleton row, code line with Copy, disclosure, section card (the GitHub card).</dd>
 <dt>Motion</dt><dd>fast 140 · base 240 · slow 380 · stamp 620 ms; only transform, opacity and stroke draw.</dd>
 </dl></div>'''
 
 NOTE_RU = '''
 <div class="note__grid"><div>
-<p><b>Что утверждаешь.</b> Внешний вид «Настройки › Проекты» по утверждённой UX-спеке (#24): список проектов, новый проект, страница настройки проекта с чек-листом из четырёх шагов и подтверждение архивации — на iPhone и Mac, в светлой и тёмной теме, на русском и английском. Сценарий, состояния и тексты — из UX-спеки; здесь решается только то, как это выглядит и двигается.</p>
+<p><b>Что утверждаешь.</b> Внешний вид «Настроек» (#24) после ADR 0003: блок подключения GitHub, список проектов, новый проект, страница настройки проекта с чек-листом из пяти шагов и два подтверждения (архивация, отключение) — сначала на iPhone, потом на Mac, в светлой и тёмной теме, на русском и английском. Сценарий, состояния и тексты — по UX-спеке и текущим критериям задачи; здесь решается, как это выглядит и двигается.</p>
 <ul>
-<li><b>Чек-лист — как страница журнала.</b> Четыре пронумерованных шага на одном листе. Статус каждого шага написан словом (Готово, Не хватает, Проверяем…, Не проверено, Не удалось проверить); значок его только повторяет. «Не хватает» — охра, это дело, а не ошибка. У такого шага есть исправление в одну строку и раскрывающееся «Как сделать» с кнопками «Копировать».</li>
-<li><b>Результат — заметка на полях.</b> Итог проверки — заметка с засечками и цветной чертой слева, как записанный ответ в чате: мох — добавлено или готово, охра — остались шаги, глина — ничего не сохранено.</li>
-<li><b>Фирменный момент — тот же.</b> Когда проект готов, на заметку «готов» ложится чернильный штамп Paper Desk. Когда шаг становится выполненным, его галочка прорисовывается по порядку шагов. Больше ничего не двигается. При уменьшенной анимации — затухание 120 мс.</li>
-<li><b>Архивация тихая, но никогда не по умолчанию.</b> Простая кнопка «Архивировать» в каждой строке, «Архивировать проект» цвета глины внизу страницы настройки и диалог, в котором фокус сразу на «Отмене». На iPhone диалог выезжает снизу, как лист.</li>
-<li><b>Входы.</b> Mac — пункт «Настройки» внизу боковой панели. iPhone — «Добавить проект» и «Настройки» внизу листа «Проекты».</li>
+<li><b>GitHub — вверху «Настроек».</b> Одна карточка: «Подключить GitHub», если не подключён; «Подключено как geeera» и тихая кнопка «Отключить», если подключён; охристая карточка «Подключение потеряно» с «Подключить GitHub», если доступ отозван или истёк; карточка цвета глины, если подключить не удалось (отменено на GitHub, не тот аккаунт, неожиданный адрес входа). Полей для токенов нет нигде.</li>
+<li><b>Чек-лист — страница журнала из пяти шагов.</b> Приложение установлено на репозиторий · владелец репозитория — подключённый аккаунт · project.yml · события приходят · токен рутины. Статус каждого шага написан словом, значок его только повторяет. «Не хватает» — охра: это дело, а не ошибка. Шаги 1–3 решают, сохранится ли проект; для «События приходят» от тебя ничего не нужно.</li>
+<li><b>Итог — заметка на полях.</b> Мох — добавлено или готово, охра — остались шаги, глина — ничего не сохранено.</li>
+<li><b>Фирменный момент — тот же.</b> Чернильный штамп Paper Desk на заметке «готов»; галочки шагов прорисовываются по порядку; галочка «Подключено» прорисовывается один раз, когда возвращаешься с GitHub. Больше ничего не двигается. При «Меньше движения» — затухание 120 мс.</li>
+<li><b>Опасное — никогда не по умолчанию.</b> «Архивировать» и «Отключить» открывают диалог с фокусом на «Отмене»; на iPhone он выезжает снизу, как лист.</li>
 </ul>
-<p class="try">Попробуй: на iPhone нажми «Настройки» в листе; добавь <code>geeera/private-lab</code>, потом <code>geeera/newsletter</code> и дважды нажми «Проверить снова»; открой fieldnote и заархивируй его; переключи тему, язык и «Меньше движения». Панель демо открывает любое состояние.</p>
+<p class="try">Попробуй на iPhone: лист «Проекты» → «Настройки» → «Подключить GitHub» → Authorize; потом «Добавить проект»: <code>geeera/newsletter</code> (добавлен, осталось 2 шага), <code>acme/site</code> (чужой владелец) и <code>geeera/no-app</code> (приложение не установлено). Поставь «Итог подключения: не тот аккаунт» и подключи ещё раз. Панель демо открывает любое состояние.</p>
 </div><dl class="tok">
-<dt>Цвет</dt><dd>Только токены Paper Desk: бумага, лист, чернила, мох для следующего действия, охра (warning) для недостающих шагов, глина (danger) для «не сохранено» и архивации.</dd>
-<dt>Шрифты</dt><dd>Source Serif 4 — заголовки, имена проектов и заметки-результаты; Source Sans 3 — интерфейс; Source Code Pro — owner/repo, пути и команды. Все под OFL.</dd>
+<dt>Цвет</dt><dd>Только токены Paper Desk: бумага, лист, чернила, мох — следующее действие и «подключено», охра (warning) — недостающие шаги и потерянное подключение, глина (danger) — «не сохранено», неудачное подключение, архивация и отключение.</dd>
+<dt>Шрифты</dt><dd>Source Serif 4 — заголовки, имена проектов и заметки-итоги; Source Sans 3 — интерфейс; Source Code Pro — owner/repo, логины, пути и команды. Все под OFL.</dd>
 <dt>Новые токены</dt><dd>Предлагаю в кит: отступы 4 / 8 / 12 / 16 / 20 / 24 / 32 / 40, цель касания 44, текст в поле 16 (без зума на iOS), значок шага 28, ширина диалога 440, шаг задержки 70 мс, затухание 120 мс при уменьшенной анимации.</dd>
-<dt>Новое в ките</dt><dd>Поле (подпись, подсказка, ошибка, превью), кнопки «опасное действие» и «тихое опасное», диалог-предупреждение, строка-скелетон, строка кода с «Копировать», раскрывашка.</dd>
+<dt>Новое в ките</dt><dd>Поле (подпись, подсказка, ошибка, превью), кнопки «опасное действие» и «тихое опасное», диалог-предупреждение, строка-скелетон, строка кода с «Копировать», раскрывашка, карточка раздела (карточка GitHub).</dd>
 <dt>Движение</dt><dd>быстро 140 · обычно 240 · медленно 380 · штамп 620 мс; двигаются только transform, opacity и прорисовка линий.</dd>
 </dl></div>'''
 
@@ -59,7 +61,7 @@ HTML = f'''<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<title>Team Console · #24 · Settings › Projects</title>
+<title>Team Console · #24 · Settings: GitHub and projects</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="{D['fonts']}">
@@ -80,7 +82,7 @@ HTML = f'''<!doctype html>
 <body>
 <header class="note">
   <div class="note__row">
-    <div><div class="note__kicker" data-i18n="page.kicker">Team Console · #24 · design for approval</div><h1 data-i18n="page.title">Settings › Projects</h1></div>
+    <div><div class="note__kicker" data-i18n="page.kicker">Team Console · #24 · design for approval</div><h1 data-i18n="page.title">Settings: GitHub and projects</h1></div>
     <div class="controls">
       <div class="seg" data-control="view" role="group" aria-label="Layout" data-i18n-aria="page.layout"><button type="button" data-value="phone">iPhone</button><button type="button" data-value="mac">Mac</button><button type="button" data-value="both" data-i18n="page.both">Both</button></div>
       <div class="seg" data-control="theme" role="group" aria-label="Theme" data-i18n-aria="page.theme"><button type="button" data-value="auto" data-i18n="page.auto">Auto</button><button type="button" data-value="light" data-i18n="page.light">Light</button><button type="button" data-value="dark" data-i18n="page.dark">Dark</button></div>
@@ -90,9 +92,11 @@ HTML = f'''<!doctype html>
     </div>
   </div>
   <div class="demo" role="group" aria-label="Demo states" data-i18n-aria="demo.aria">
-    <label><span data-i18n="demo.screen">Screen</span><select id="d-screen"><option value="">—</option>{OPT('demo.s', ['entry', 'list', 'new', 'setupMissing', 'setupUnknown', 'setupReady', 'dialog'])}</select></label>
+    <label><span data-i18n="demo.screen">Screen</span><select id="d-screen"><option value="">—</option>{OPT('demo.s', ['entry', 'list', 'github', 'disconnect', 'new', 'setupMissing', 'setupUnknown', 'setupReady', 'dialog'])}</select></label>
+    <label><span data-i18n="demo.conn">GitHub</span><select id="d-conn">{OPT('demo.c', ['none', 'connected', 'lost', 'loading'])}</select></label>
+    <label><span data-i18n="demo.connRes">Connect result</span><select id="d-connres">{OPT('demo.r', ['ok', 'denied', 'account', 'url'])}</select></label>
     <label><span data-i18n="demo.list">Project list</span><select id="d-list">{OPT('demo.l', ['normal', 'loading', 'empty', 'error', 'offline'])}</select></label>
-    <label><span data-i18n="demo.add">Add result</span><select id="d-add">{OPT('demo.a', ['auto', 'pat', 'yml', 'saved', 'ready', 'github', 'rate', 'token'])}</select></label>
+    <label><span data-i18n="demo.add">Add result</span><select id="d-add">{OPT('demo.a', ['auto', 'app', 'owner', 'yml', 'saved', 'ready', 'github', 'rate', 'auth', 'lost'])}</select></label>
     <label><input type="checkbox" id="d-fail"><span data-i18n="demo.archFail">Archive fails</span></label>
     <button type="button" class="seg-btn" id="d-return" data-i18n="demo.return">Return to the app</button>
     <p class="demo__help" data-i18n="demo.help"></p>
