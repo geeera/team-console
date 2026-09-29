@@ -34,7 +34,9 @@
         {
           "binding": "DB",
           "database_name": "team-console-dev",
-          // Placeholder until the databases exist (#25 replaces the ids by PR; they are not secrets).
+          // Real D1 database id (#25; not a secret) — must match apps/hooks/wrangler.jsonc's `dev` id
+          // (tools/workspace-checks asserts this). deploy.yml's guard fails the deploy if this ever regresses
+          // to an all-zero placeholder.
           "database_id": "c2aa81dc-a67a-4efb-8eb2-95d02d21aa87",
           "migrations_dir": "migrations",
         },

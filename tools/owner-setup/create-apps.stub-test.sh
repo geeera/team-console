@@ -564,8 +564,11 @@ for variant in name owner; do
     printf '%s\n' "${output}"
   elif [ "$(cat "${dir}/state/gh-var.dev.CONSOLE_GITHUB_APP_SLUG" 2>/dev/null)" != "${mismatched_slug}" ]; then
     fail "scenario 3 (${variant}): expected the breadcrumb to be updated to '${mismatched_slug}', got '$(cat "${dir}/state/gh-var.dev.CONSOLE_GITHUB_APP_SLUG" 2>/dev/null)'"
+  elif printf '%s' "${output}" | grep -qF -e "stub-client-secret-value" -e "stub-webhook-secret-value" -e "BEGIN PRIVATE KEY" -e "BEGIN RSA PRIVATE KEY"; then
+    fail "scenario 3 (${variant}): a fake secret from the fixture leaked into the run's output"
+    printf '%s\n' "${output}"
   else
-    echo "ok: scenario 3 (${variant}) — mismatched conversion response rejected, breadcrumb points at the real app"
+    echo "ok: scenario 3 (${variant}) — mismatched conversion response rejected, breadcrumb points at the real app, no secret leaked"
   fi
 
   rm -rf "${dir}"

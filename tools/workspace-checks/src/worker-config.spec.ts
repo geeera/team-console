@@ -20,7 +20,12 @@ interface WranglerEnvConfig {
   readonly main: string;
   readonly compatibility_date: string;
   readonly vars: Readonly<Record<string, unknown>>;
-  readonly d1_databases: readonly { binding: string; database_name: string; migrations_dir?: string }[];
+  readonly d1_databases: readonly {
+    binding: string;
+    database_name: string;
+    database_id: string;
+    migrations_dir?: string;
+  }[];
   readonly workers_dev?: boolean;
   readonly preview_urls?: boolean;
   readonly assets?: {
@@ -104,6 +109,18 @@ describe.each(['api', 'hooks'] as const)('apps/%s/wrangler.jsonc', (app) => {
 
   it('shares one compatibility date with the other Worker (one workerd for dev, Docker and tests)', () => {
     expect(readWorkerConfig(app, 'dev').compatibility_date).toBe('2026-08-15');
+  });
+});
+
+describe('api and hooks share one D1 database', () => {
+  // The two Workers must point at the same D1 database per environment — api applies migrations to it
+  // (see "is the only Worker that applies migrations" below), hooks only reads/writes rows in it. A drifted
+  // database_id here would silently split each environment's data across two databases.
+  it.each(ENVIRONMENTS)('has the same database_name and database_id for env %s', (env) => {
+    const [apiDb] = readWorkerConfig('api', env).d1_databases;
+    const [hooksDb] = readWorkerConfig('hooks', env).d1_databases;
+    expect(apiDb?.database_name).toBe(hooksDb?.database_name);
+    expect(apiDb?.database_id).toBe(hooksDb?.database_id);
   });
 });
 

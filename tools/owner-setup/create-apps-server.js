@@ -9,11 +9,13 @@
 //     ever touches stdout — but only in the two cases below; on a timeout, a network error, or a missing code,
 //     nothing is written and the caller has only the pre-flight breadcrumb it already recorded (SECURITY round
 //     2, #67): there is no conversion response to report:
-//       - success: `{"ok": true, ...conversion}` (the GitHub conversion response, secrets included);
+//       - success: `{...conversion, "ok": true}` (the GitHub conversion response, secrets included; `ok` is
+//         spread last so GitHub's response body can never override it);
 //       - the exchange succeeded but the response failed verification (wrong name/owner): `{"ok": false,
-//         "name": ..., "slug": ..., "owner": {...}}` — enough for the caller to point at the app that *was*
-//         created instead of silently orphaning it, without ever including a secret (SECURITY round 2 note A
-//         of the old contract: a mismatched app still holds a private key and client secret on GitHub).
+//         "name": ..., "slug": ..., "owner": {"login": ..., "type": ...}}` — an explicit allowlist, not the raw
+//         GitHub owner object, enough for the caller to point at the app that *was* created instead of silently
+//         orphaning it, without ever including a secret (SECURITY round 2 note A of the old contract: a
+//         mismatched app still holds a private key and client secret on GitHub).
 //   - the process exits 0 on success, non-zero on any failure (GitHub error, validation failure, timeout).
 // The caller captures stdout into a shell variable and never echoes it — this script never writes the
 // response to disk and never logs it itself.
@@ -281,7 +283,9 @@ const server = http.createServer((req, res) => {
               `'${conversion && conversion.owner && conversion.owner.login}' (type ${conversion && conversion.owner && conversion.owner.type})`,
           );
           // Reports name/slug/owner only — never pem/client_secret/webhook_secret — so create-apps.sh can
-          // still point the owner at whatever GitHub actually created instead of leaving it untracked.
+          // still point the owner at whatever GitHub actually created instead of leaving it untracked. `owner`
+          // is an explicit {login, type} allowlist, not the raw GitHub object, so an unexpected extra field in
+          // GitHub's response can never leak into the caller's output (SECURITY review, #67).
           finish(
             server,
             1,
@@ -289,7 +293,10 @@ const server = http.createServer((req, res) => {
               ok: false,
               name: conversion && conversion.name,
               slug: conversion && conversion.slug,
-              owner: conversion && conversion.owner,
+              owner: {
+                login: conversion && conversion.owner && conversion.owner.login,
+                type: conversion && conversion.owner && conversion.owner.type,
+              },
             }),
           );
           return;
@@ -297,7 +304,9 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(donePageHtml(`${APP_NAME} created.`));
         console.error(`ok: exchanged the manifest code for ${APP_NAME}'s credentials`);
-        finish(server, 0, JSON.stringify({ ok: true, ...conversion }));
+        // `ok: true` is spread last so a (hypothetical) `ok` field in GitHub's own response can never override
+        // the literal success marker (SECURITY review, #67).
+        finish(server, 0, JSON.stringify({ ...conversion, ok: true }));
       })
       .catch((err) => {
         res.writeHead(502, { 'Content-Type': 'text/html; charset=utf-8' });
