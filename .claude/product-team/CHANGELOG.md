@@ -4,6 +4,51 @@ Products follow the `stable` channel (or a pinned tag, `team.plugin_ref` in `.pr
 first `slot-pm` of the day runs `vendor self-update` and opens a PR with the entries in between. Breaking changes (a renamed label, a changed script contract, a new required
 `project.yml` key) are marked **Breaking** with the migration step.
 
+## 0.10.0
+
+- **Agents on their own GitHub identities** (`reference/identities.md`): an optional **team app** every script and
+  push acts as, and a **review app** only verdicts are posted as. Configure with `PT_TEAM_APP_ID` +
+  `PT_TEAM_APP_KEY_FILE` / `PT_TEAM_APP_KEY` (base64 or raw PEM) and the same `PT_REVIEW_APP_*` variables. The app
+  JWT is signed with the `openssl` CLI; installation tokens are scoped to the product repository and cached until
+  shortly before they expire. `GH_TOKEN` / `GITHUB_TOKEN` / `gh auth token` and `PT_REVIEW_TOKEN` keep working when
+  no app is configured; a half-configured app is an error, never a silent fallback to the owner's token.
+- The app JWT is signed with the `openssl` CLI; an inline key reaches openssl through a pipe and never touches the
+  disk; `*_KEY_FILE` paths expand `~`. Processes the scripts start (git, openssl, gh) never inherit
+  `PT_*_APP_KEY*`, `PT_OWNER_TOKEN` or `PT_REVIEW_TOKEN`.
+- `pr gate` / `pr merge`: with the review app configured only its bot's verdicts count; the gate fails when the
+  review bot is the team bot (also caught when the two ids are a numeric id and an `Iv…` client id of one app) or
+  when `team.reviewer_logins` lists the team bot. `team.reviewer_logins` is read from the PR's base branch, accepts
+  `name[bot]` logins (quote them) and rejects anything that is not a GitHub login. The same-account warning appears
+  only when it is same-account.
+- Owner answers: only the owner's own comments count. With the team app, `backlog answer` (team chat) posts with a
+  dedicated `PT_OWNER_TOKEN` of the owner (never `GH_TOKEN`/`GITHUB_TOKEN`/`gh auth`) and refuses without it.
+  `same_account` stays true (fail closed) in any session holding a credential that resolves to the owner.
+- `pr commit -m … [git commit args]` commits as the team app's bot (nothing is committed if the bot cannot be looked
+  up; `--author` is refused); plain `git commit` without the app. `pr push [--branch B]` pushes only `feature/`,
+  `fix/`, `hotfix/`, `chore/`, `backmerge/`, `revert/`, `design/` and `docs/` branches, never forced, straight to
+  `https://github.com/<repo>.git` as the app: the token only in `GIT_CONFIG_*` env (never argv, `.git/config` or
+  output), global/system git config ignored, repository-local `insteadOf`/`pushInsteadOf` rewrites refused. Where
+  only a session git proxy reaches GitHub it fails loudly instead of falling back. Plain `git push -u origin B`
+  without the app. Developers, designers, devops, `slot-pm` (self-update) and `slot-qa` commit and push through
+  them.
+- The run log accepts entries from the team bot on a log opened by the owner, so switching keeps its history.
+- Migration (optional): create the two apps and set the variables per the owner checklist; add
+  `'<product>-review[bot]'` to `team.reviewer_logins`.
+
+## 0.9.3
+
+- Designs are published by `design-pages.yml` (GitHub Actions → Pages) from `docs/design` after a PR is merged;
+  designers commit prototypes and wireframes by PR and never push to `gh-pages` (the first team-console run was
+  rightly stopped from doing that).
+
+## 0.9.2
+
+Found in the first scheduled run on geeera/team-console.
+- Scripts no longer write `__pycache__` into the product repository (cloud sessions flagged it as untracked and
+  spent turns deleting it); the vendored copy also carries its own `.gitignore`.
+- `backlog edit N --title/--body-file`: grooming can fix an issue's title and criteria in place instead of adding
+  comments; a question's answer line is preserved.
+
 ## 0.9.1
 
 - `backlog label N -name` removed nothing and failed: argparse read `-name` as an option. Label removal works again

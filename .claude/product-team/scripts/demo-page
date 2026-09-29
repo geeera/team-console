@@ -12,6 +12,8 @@ import json
 import os
 import sys
 
+sys.dont_write_bytecode = True  # the vendored copy lives in the product repo: no __pycache__ there
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from ptlib import demo, gh  # noqa: E402

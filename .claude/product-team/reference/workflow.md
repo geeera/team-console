@@ -33,6 +33,11 @@ feature/<issue>-<slug> ──PR──▶ dev ──cut 2 days before demo──�
 - Deploys happen only from GitHub Actions: `dev` → dev environment, `stage` → stage environment, `main` →
   production. Agents never call provider CLIs or SSH.
 - Forge is GitHub. GitLab-hosted projects are local-mode only (the cloud network cannot reach gitlab.com).
+- **Commit and push through the scripts** (`PR` = `.claude/product-team/scripts/pr`): commit with
+  `PR commit -m "…" [git commit args]`, push with `PR push [--branch B]` — never a bare `git commit`/`git push`.
+  With the team GitHub App configured (`reference/identities.md`) they commit and push as the team's bot
+  instead of the owner's account; without it both behave like plain git. `pr push` never forces and pushes only
+  team branches: `feature/`, `fix/`, `hotfix/`, `chore/`, `backmerge/`, `revert/`, `design/`, `docs/`.
 
 ## Backlog = GitHub Issues, behind the adapter
 

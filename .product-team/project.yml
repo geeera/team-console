@@ -39,7 +39,7 @@ caps: {}
 
 team:
   plugin_ref: stable
-  reviewer_logins: []
+  reviewer_logins: ['team-console-review[bot]']
 
 owner:
   language: ru

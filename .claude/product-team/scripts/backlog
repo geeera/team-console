@@ -16,13 +16,15 @@ skills. Output is JSON on stdout; errors go to stderr with a non-zero exit.
   backlog answer N --command approve|reject|go|no-go|override|done --owner-said "…" [--text T]
                  the owner's answer given in the team chat (interactive only — scheduled runs never call it);
                  allowed commands depend on the item: questions and designs approve/reject, the demo issue
-                 go/no-go/override, action items done
+                 go/no-go/override, action items done. With the team GitHub App it posts with PT_OWNER_TOKEN
+                 (the owner's own token; reference/identities.md) and refuses without it
   backlog reversals [--days 14]  team decisions the owner answered with /reject since they were made
   backlog decide N (--body B | --body-file F) [--close]
                  record a team decision on the issue (label team-decided); --close closes a question it answers
   backlog move N STATUS [--reason TEXT]          set the single status:* label (done closes the issue)
   backlog milestone N TITLE|current|none         put the issue into a sprint (or remove it)
   backlog close N [--reason TEXT]                close as not planned (rejected, duplicate, obsolete)
+  backlog edit N [--title T] [--body-file F]    change an issue's title or body (the answer line of a question is kept)
   backlog label N [+L|-L]...                     add/remove flags
   backlog comment N (--body B | --body-file F)
   backlog link-pr N PR                           record the PR on the issue
@@ -38,6 +40,8 @@ import argparse
 import json
 import os
 import sys
+
+sys.dont_write_bytecode = True  # the vendored copy lives in the product repo: no __pycache__ there
 from datetime import date, datetime, timedelta
 from urllib.parse import quote
 
@@ -195,7 +199,8 @@ def cmd_answer(repo: str, args) -> None:
         body = brief.answer_comment(args.command, args.text or "", args.owner_said or "", section or "")
     except ValueError as exc:
         sys.exit(f"#{args.number}: {exc}")
-    c = gh.api(f"repos/{repo}/issues/{args.number}/comments", "POST", {"body": body})
+    # Commands count only when the owner's login wrote them; in app mode that needs the owner's own token.
+    c = gh.api(f"repos/{repo}/issues/{args.number}/comments", "POST", {"body": body}, auth=gh.owner_token(repo))
     out({"issue": args.number, "answer": f"/{args.command}", "url": c["html_url"]})
 
 
@@ -260,6 +265,22 @@ def cmd_close(repo: str, args) -> None:
     out(slim(gh.api(f"repos/{repo}/issues/{args.number}", "PATCH", {"state": "closed", "state_reason": "not_planned"})))
 
 
+def cmd_edit(repo: str, args) -> None:
+    patch = {}
+    if args.title:
+        patch["title"] = args.title
+    if args.body_file or args.body:
+        body = body_arg(args)
+        current = gh.api(f"repos/{repo}/issues/{args.number}").get("body") or ""
+        ask = owner.ask_of(current)
+        if ask and not owner.ask_of(body):  # never lose the owner's answer line on a question
+            body = current.split(owner.ASK_MARKER, 1)[0] + owner.ASK_MARKER + "\n\n" + body.strip() + "\n"
+        patch["body"] = body
+    if not patch:
+        sys.exit("nothing to change: --title and/or --body-file")
+    out(slim(gh.api(f"repos/{repo}/issues/{args.number}", "PATCH", patch)))
+
+
 def cmd_label(repo: str, args) -> None:
     for change in args.changes:
         if change[:1] not in "+-" or len(change) < 2:
@@ -288,9 +309,11 @@ def cmd_link_pr(repo: str, args) -> None:
 def cmd_answers(repo: str, args) -> None:
     owner = gh.owner_login(repo)
     comments = gh.api_list(f"repos/{repo}/issues/{args.number}/comments?per_page=100")
-    # When the agents act as the owner's account, an agent can write a comment that looks like the owner's.
+    # When the agents act as the owner's account, an agent can write a comment that looks like the owner's; as an
+    # app they cannot, and commands.parse already counts only the owner's login.
     same_account = gh.acts_as_owner(repo)
-    out({"owner": owner, "same_account": same_account, "commands": commands.parse(comments, owner)})
+    out({"owner": owner, "agents": gh.token_login(), "same_account": same_account,
+         "commands": commands.parse(comments, owner)})
 
 
 def cmd_next(repo: str, args) -> None:
@@ -350,6 +373,8 @@ def main() -> None:
     mv = sub.add_parser("move"); mv.add_argument("number", type=int); mv.add_argument("status"); mv.add_argument("--reason")
     ms = sub.add_parser("milestone"); ms.add_argument("number", type=int); ms.add_argument("title")
     cl = sub.add_parser("close"); cl.add_argument("number", type=int); cl.add_argument("--reason")
+    ed = sub.add_parser("edit"); ed.add_argument("number", type=int); ed.add_argument("--title")
+    ed.add_argument("--body"); ed.add_argument("--body-file")
     lb = sub.add_parser("label"); lb.add_argument("number", type=int); lb.add_argument("changes", nargs="+")
     cm = sub.add_parser("comment"); cm.add_argument("number", type=int); cm.add_argument("--body"); cm.add_argument("--body-file")
     lp = sub.add_parser("link-pr"); lp.add_argument("number", type=int); lp.add_argument("pr", type=int)
@@ -365,7 +390,7 @@ def main() -> None:
 
     handlers = {
         "init": cmd_init, "list": cmd_list, "show": cmd_show, "create": cmd_create, "move": cmd_move, "close": cmd_close, "decide": cmd_decide, "ask": cmd_ask, "reversals": cmd_reversals, "answer": cmd_answer, "milestone": cmd_milestone,
-        "label": cmd_label, "comment": cmd_comment, "link-pr": cmd_link_pr, "answers": cmd_answers,
+        "label": cmd_label, "edit": cmd_edit, "comment": cmd_comment, "link-pr": cmd_link_pr, "answers": cmd_answers,
         "sprint": cmd_sprint, "next": cmd_next,
     }
     try:

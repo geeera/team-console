@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Tuple
 
 ROLES = ("QA", "REVIEW", "SECURITY")
 # The whole first line must be the verdict: "QA: APPROVED (conditional on CI)" is not an approval.
@@ -71,6 +71,39 @@ def latest_verdicts(reviews: List[dict], head_sha: str, reviewers: Iterable[str]
         if v:
             found[v[0]] = {"verdict": v[1], "current": r.get("commit_id") == head_sha, "at": r.get("submitted_at")}
     return found
+
+
+def allowed_reviewers(configured: List[str], review_bot: Optional[str],
+                      team_login: Optional[str] = None) -> Tuple[List[str], str]:
+    """Logins whose verdicts count, plus a warning ('' when none). ValueError when the team could approve itself.
+
+    With the review app configured its bot is the only reviewer: the key is what makes a verdict independent, so a
+    login listed in project.yml never widens it. `team.reviewer_logins` is for sessions without the review app's
+    key and for a reviewing machine account. `team_login` is the team app's bot in app mode.
+    """
+    team = (team_login or "").lower()
+    if team and review_bot and review_bot.lower() == team:
+        raise ValueError(f"the review app and the team app are the same bot ({review_bot}): verdicts would be "
+                         "self-approval; configure a separate review app")
+    if team and team in {c.lower() for c in configured}:
+        raise ValueError(f"team.reviewer_logins lists the team's own bot {team_login}: the team could approve its "
+                         "own work; list only the review app's bot")
+    if not review_bot:
+        return list(configured), ""
+    warning = ""
+    if configured and review_bot.lower() not in {c.lower() for c in configured}:
+        warning = (f"team.reviewer_logins does not list {review_bot}: sessions without the review app's key will "
+                   f"not count its verdicts; add '{review_bot}' there")
+    return [review_bot], warning
+
+
+def unguarded_warning(same_account: bool) -> str:
+    """Why a gate with no reviewer restriction is weak — worded for the setup the owner actually has."""
+    if same_account:
+        return ("same-account mode: the agents act as your GitHub account, so any agent can post a verdict; set up the "
+                "review app (reference/identities.md) or team.reviewer_logins (owner checklist)")
+    return ("no reviewing identity: the team's own identity can post a verdict that counts; set up the review app "
+            "(reference/identities.md) and list its '<slug>[bot]' login in team.reviewer_logins")
 
 
 def gate(reviews: List[dict], head_sha: str, security_required: bool, reviewers: Iterable[str] = ()) -> dict:

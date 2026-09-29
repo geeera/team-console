@@ -22,6 +22,8 @@ import argparse
 import json
 import os
 import sys
+
+sys.dont_write_bytecode = True  # the vendored copy lives in the product repo: no __pycache__ there
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
@@ -52,8 +54,11 @@ def load(repo: str):
 
 
 def team_comments(issue: dict, comments: list) -> list:
-    author = (issue.get("user") or {}).get("login", "")
-    return [c for c in comments if (c.get("user") or {}).get("login", "") == author]
+    team = {(issue.get("user") or {}).get("login", "")}
+    if gh.app_mode():
+        # A log opened before the team app existed keeps working: its runs now come from the app's bot.
+        team.add(gh.token_login() or "")
+    return [c for c in comments if (c.get("user") or {}).get("login", "") in team - {""}]
 
 
 def pause_at(comments: list) -> str:
