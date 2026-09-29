@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>#24 Settings: add and archive a project (UX wireframe)</title>
+<style>
+/* Low-fidelity on purpose: grey boxes, system font, no Paper Desk styling. The look is the ui-designer's job. */
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 system-ui,-apple-system,sans-serif;color:#222;background:#eee}
+a{color:#222}
+button,input,select{font:inherit}
+:focus-visible{outline:3px solid #000;outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.demo{background:#fff;border-bottom:1px solid #bbb;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:13px}
+.demo b{font-size:14px}
+.demo label{display:flex;gap:6px;align-items:center}
+.demo p{margin:0;flex-basis:100%;color:#555}
+.stage{padding:20px;display:flex;justify-content:center}
+.frame{background:#fafafa;border:2px solid #999;display:flex;position:relative;overflow:hidden}
+.frame.mac{width:1040px;height:680px}
+.frame.phone{width:390px;height:780px;flex-direction:column;border-radius:28px}
+.side{width:240px;border-right:1px solid #bbb;background:#e6e6e6;display:flex;flex-direction:column;padding:12px;gap:6px}
+.side .box{height:26px;background:#ccc}
+.side ul{list-style:none;margin:0;padding:0}
+.side li button,.side .foot button{width:100%;text-align:left;padding:8px;border:0;background:none;min-height:36px;cursor:pointer}
+.side [aria-current="page"]{background:#bdbdbd;font-weight:600}
+.side .lbl{font-size:12px;color:#555;margin-top:8px}
+.side .foot{margin-top:auto;border-top:1px solid #bbb;padding-top:6px}
+main{flex:1;overflow:auto;padding:24px 32px}
+.phone main{padding:16px}
+.topbar{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #bbb;background:#e6e6e6;min-height:52px}
+.topbar button{min-height:44px;border:0;background:none;cursor:pointer;padding:0 8px}
+h1{font-size:22px;margin:0 0 4px}
+h2{font-size:17px;margin:20px 0 8px}
+.lead{color:#555;margin:0 0 16px}
+.btn{min-height:44px;padding:0 16px;border:1px solid #666;background:#ddd;cursor:pointer}
+.btn.primary{background:#555;color:#fff;border-color:#555}
+.btn.danger{background:#fff;border:2px solid #333;font-weight:600}
+.btn.link{border:0;background:none;text-decoration:underline;padding:0 4px}
+.btn[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+.row-list{list-style:none;margin:0;padding:0;border:1px solid #bbb;background:#fff}
+.row-list li{display:flex;align-items:center;gap:8px;border-top:1px solid #ddd;padding:6px 8px 6px 12px}
+.row-list li:first-child{border-top:0}
+.row-list a{flex:1;display:flex;flex-direction:column;text-decoration:none;padding:6px 0;min-height:44px}
+.row-list a small{color:#555}
+.chip{display:inline-block;border:1px solid #777;padding:0 6px;font-size:12px;margin-top:2px;align-self:flex-start;background:#f3f3f3}
+.chip.missing{border-style:dashed;border-width:2px}
+.skel{height:52px;background:repeating-linear-gradient(90deg,#ddd 0 60%,#eee 60% 100%);border-top:1px solid #fff}
+.block{border:1px solid #999;background:#fff;padding:14px;margin:12px 0}
+.block.warn{border:2px dashed #555}
+.block h2{margin-top:0}
+.field{display:flex;flex-direction:column;gap:4px;margin:8px 0 12px;max-width:460px}
+.field input{min-height:44px;padding:0 10px;border:1px solid #666;background:#fff}
+.field input[aria-invalid="true"]{border:2px solid #000}
+.hint{color:#555;font-size:13px}
+.err{font-weight:600}
+.err::before{content:"! "}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+ol.steps{list-style:none;margin:0;padding:0;border:1px solid #bbb;background:#fff;max-width:640px}
+ol.steps>li{border-top:1px solid #ddd;padding:10px 12px;display:grid;grid-template-columns:28px 1fr;gap:2px 10px}
+ol.steps>li:first-child{border-top:0}
+.ico{width:24px;height:24px;border:2px solid #777;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;grid-row:span 3}
+.st{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:#444}
+.fix{grid-column:2}
+.how{grid-column:2;border-left:3px solid #ccc;padding:4px 10px;margin-top:4px;font-size:13px}
+.how dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 10px;margin:4px 0}
+.how dt{color:#555}
+.how dd{margin:0}
+code{background:#eee;padding:1px 4px;font-size:13px;word-break:break-all}
+.meta{color:#555;font-size:13px}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:16px}
+.phone .scrim{align-items:flex-end}
+.dialog{background:#fff;border:2px solid #333;padding:18px;max-width:420px;width:100%}
+.dialog h2{margin-top:0}
+.toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);background:#333;color:#fff;padding:10px 16px}
+.sheet{background:#fff;border-top:2px solid #333;margin-top:auto;padding:12px 16px 24px;min-height:70%;display:flex;flex-direction:column;gap:6px}
+.sheet .box{height:44px;background:#ddd}
+.sheet .foot{margin-top:auto;display:flex;flex-direction:column;gap:6px}
+.sheet .foot button{min-height:44px;text-align:left;border:1px solid #999;background:#f3f3f3;padding:0 12px;cursor:pointer}
+.note{font-size:12px;color:#666;border:1px dotted #999;padding:4px 8px;margin:8px 0;background:#fff}
+@media (prefers-reduced-motion:no-preference){.toast{animation:fade .2s}}
+@keyframes fade{from{opacity:0}}
+</style>
+</head>
+<body>
+<div class="demo" role="region" aria-label="Wireframe controls">
+  <b>#24 Settings: add and archive a project, low-fidelity wireframe</b>
+  <label>View <select id="c-vp"><option value="mac">Mac</option><option value="phone">iPhone</option></select></label>
+  <label>Language <select id="c-lang"><option value="ru">ru</option><option value="en">en</option></select></label>
+  <label>Project list <select id="c-list"><option value="normal">loaded</option><option value="loading">loading</option><option value="empty">empty</option><option value="error">load error</option><option value="offline">offline</option></select></label>
+  <label>Add result <select id="c-scn">
+    <option value="auto">by input (see note)</option>
+    <option value="pat">PAT cannot read the repo</option>
+    <option value="yml">no project.yml</option>
+    <option value="saved">added, 2 steps missing</option>
+    <option value="ready">added, all ready</option>
+    <option value="github">GitHub unavailable</option>
+    <option value="rate">GitHub rate limit</option>
+    <option value="token">console token invalid</option>
+  </select></label>
+  <label><input type="checkbox" id="c-archfail"> archive fails</label>
+  <button type="button" class="btn" id="c-reset">Reset</button>
+  <p>"By input": <code>geeera/storify</code> already registered, <code>geeera/sheltrix</code> archived, a name containing <code>private</code> is refused (PAT), containing <code>no-team</code> is refused (no project.yml), anything else is added with 2 steps missing. On a setup page, "Check again" fixes one missing step per click to show the way to "ready".</p>
+</div>
+<div class="stage"><div id="app"></div></div>
+<div class="sr-only" aria-live="polite" id="live"></div>
+
+<script>
+'use strict';
+/* ---------- copy deck (ru is the reference, en second). Keys match the spec comment on #24. ---------- */
+const T = {
+ru: {
+  'nav.needsYou':'Нужно твоё внимание','nav.all':'Все проекты','nav.projects':'Проекты','nav.settings':'Настройки',
+  'sheet.title':'Проекты','sheet.add':'Добавить проект','sheet.settings':'Настройки',
+  'settings.title':'Настройки','settings.back':'Назад',
+  'projects.title':'Проекты','projects.lead':'Репозитории продуктов, с которыми работает консоль.',
+  'projects.add':'Добавить проект',
+  'projects.row.ready':'Всё настроено','projects.row.checking':'Проверяем настройку…','projects.row.unknown':'Не удалось проверить настройку',
+  'projects.row.missing':{one:'Не хватает {n} шага',few:'Не хватает {n} шагов',many:'Не хватает {n} шагов'},
+  'projects.row.archive':'Архивировать','projects.row.archiveAria':'Архивировать {name}',
+  'projects.loading':'Загружаем проекты…',
+  'projects.empty.title':'Проектов пока нет',
+  'projects.empty.body':'Добавь репозиторий продукта, в котором уже работает команда: в нём должен быть файл .product-team/project.yml.',
+  'projects.error.title':'Не удалось загрузить проекты','projects.error.body':'GitHub или консоль не ответили. Список не изменился.',
+  'projects.offline':'Нет сети. Список на момент {time}. Добавить или архивировать проект можно только онлайн.',
+  'common.retry':'Повторить','common.cancel':'Отмена','common.copy':'Копировать','common.copied':'Скопировано',
+  'common.external':'(откроется на GitHub)',
+  'add.title':'Новый проект','add.back':'Проекты',
+  'add.field':'Репозиторий на GitHub','add.hint':'В виде владелец/репозиторий, например geeera/storify. Можно вставить ссылку.',
+  'add.preview':'Адрес в консоли: /p/{slug}',
+  'add.submit':'Проверить и добавить','add.submitting':'Проверяем…',
+  'add.checkingLive':'Проверяем {repo}…',
+  'add.offline':'Нет сети: проверить репозиторий можно только онлайн.',
+  'add.invalid.empty':'Введи репозиторий в виде владелец/репозиторий.',
+  'add.invalid.format':'«{value}» не похоже на владелец/репозиторий. Пример: geeera/storify.',
+  'add.duplicate':'{repo} уже есть в списке.','add.duplicateLink':'Открыть его настройку',
+  'add.archived':'{repo} в архиве.','add.archivedAction':'Вернуть из архива',
+  'add.refused.title':'Проект не добавлен',
+  'add.refused.body':'Не хватает шага ниже. Ничего не сохранено: исправь и нажми «Проверить снова».',
+  'add.unavailable.title':'Не удалось проверить',
+  'add.unavailable.github':'GitHub не ответил. Ничего не сохранено.',
+  'add.unavailable.rate':'GitHub просит подождать до {time}. Ничего не сохранено.',
+  'add.unavailable.token':'Токен GitHub в консоли недействителен или истёк. Обнови секрет GITHUB_TOKEN (wrangler secret put). Ничего не сохранено.',
+  'add.saved.title':{one:'Проект добавлен. Остался {n} шаг',few:'Проект добавлен. Осталось {n} шага',many:'Проект добавлен. Осталось {n} шагов'},
+  'add.saved.body':'Он уже в списке проектов. Консоль показывает, чего не хватает, пока всё не будет готово.',
+  'setup.ready.title':'{name} готов','setup.ready.body':'Все четыре шага выполнены.',
+  'setup.incomplete.title':{one:'Не хватает {n} шага',few:'Не хватает {n} шагов',many:'Не хватает {n} шагов'},
+  'setup.unknown.title':'Часть шагов не удалось проверить',
+  'setup.checkAgain':'Проверить снова','setup.checking':'Проверяем…','setup.open':'Открыть проект',
+  'setup.archive':'Архивировать проект','setup.checkedAt':'Проверено в {time}',
+  'setup.doneLive':'Проверка закончена: готово {done} из 4.',
+  'setup.repoLink':'{repo} на GitHub',
+  'step.done':'Готово','step.missing':'Не хватает','step.pending':'Проверяем…','step.skipped':'Не проверено','step.unknown':'Не удалось проверить',
+  'step.skippedWhy':'Сначала нужен шаг выше.','step.unknownWhy':'GitHub не ответил. Нажми «Проверить снова».',
+  'step.how':'Как сделать',
+  'step.pat.title':'Токен GitHub (PAT) читает репозиторий',
+  'step.pat.missing':'PAT не видит этот репозиторий. Добавь {repo} в список репозиториев токена на GitHub.',
+  'step.pat.how':'GitHub → Settings → Developer settings → Fine-grained tokens → токен консоли → Repository access → добавить {repo}. Права те же: Metadata R, Issues RW, Pull requests R, Contents R, Actions R.',
+  'step.pat.link':'Открыть токены',
+  'step.yml.title':'В репозитории есть .product-team/project.yml',
+  'step.yml.missing':'Файла нет в основной ветке. Подключи команду в этом репозитории и смержи её PR.',
+  'step.yml.how':'В Claude Code в этом репозитории: /adopt для существующего кода или /kickoff для нового продукта.',
+  'step.hook.title':'Вебхук получен',
+  'step.hook.done':'Последнее событие в {time}.',
+  'step.hook.missing':'Событий от {repo} ещё не было. Добавь вебхук в репозитории, затем «Проверить снова».',
+  'step.hook.url':'Payload URL','step.hook.type':'Content type','step.hook.secret':'Secret','step.hook.events':'События',
+  'step.hook.secretVal':'общий WEBHOOK_SECRET, тот же, что у других проектов',
+  'step.hook.eventsVal':'Issues, Issue comments, Pull requests, Workflow runs, Releases, Pushes',
+  'step.hook.copyAria':'Копировать адрес вебхука','step.hook.link':'Открыть настройки вебхуков',
+  'step.routine.title':'Токен рутины задан',
+  'step.routine.missing':'Секрета ROUTINE_TOKEN_{SLUG} нет. Пока его нет, PM не отвечает в чате.',
+  'step.routine.how':'Создай рутину PM для этого репозитория с API-триггером и сохрани её токен:',
+  'step.routine.copyAria':'Копировать команду',
+  'archive.title':'Архивировать {name}?',
+  'archive.body':'Проект пропадёт из списка проектов и из «Нужно твоё внимание», уведомлений по нему не будет. Issues, чат и файлы на GitHub останутся как есть.',
+  'archive.note':'Вебхук и рутина останутся. Удали их, если проект больше не нужен.',
+  'archive.confirm':'Архивировать','archive.busy':'Архивируем…',
+  'archive.error':'Не удалось архивировать. Проект остался в списке.',
+  'archive.toast':'{name} в архиве',
+},
+en: {
+  'nav.needsYou':'Needs you','nav.all':'All projects','nav.projects':'Projects','nav.settings':'Settings',
+  'sheet.title':'Projects','sheet.add':'Add project','sheet.settings':'Settings',
+  'settings.title':'Settings','settings.back':'Back',
+  'projects.title':'Projects','projects.lead':'Product repositories the console works with.',
+  'projects.add':'Add project',
+  'projects.row.ready':'All set','projects.row.checking':'Checking setup…','projects.row.unknown':'Couldn’t check setup',
+  'projects.row.missing':{one:'{n} step missing',other:'{n} steps missing'},
+  'projects.row.archive':'Archive','projects.row.archiveAria':'Archive {name}',
+  'projects.loading':'Loading projects…',
+  'projects.empty.title':'No projects yet',
+  'projects.empty.body':'Add a product repository the team already works in. It needs a .product-team/project.yml file.',
+  'projects.error.title':'Couldn’t load projects','projects.error.body':'GitHub or the console didn’t respond. Nothing changed.',
+  'projects.offline':'You’re offline. This list is from {time}. Adding or archiving a project needs a connection.',
+  'common.retry':'Try again','common.cancel':'Cancel','common.copy':'Copy','common.copied':'Copied',
+  'common.external':'(opens GitHub)',
+  'add.title':'New project','add.back':'Projects',
+  'add.field':'GitHub repository','add.hint':'As owner/repo, for example geeera/storify. A link works too.',
+  'add.preview':'Address in the console: /p/{slug}',
+  'add.submit':'Check and add','add.submitting':'Checking…',
+  'add.checkingLive':'Checking {repo}…',
+  'add.offline':'You\u2019re offline: checking a repository needs a connection.',
+  'add.invalid.empty':'Enter the repository as owner/repo.',
+  'add.invalid.format':'“{value}” doesn’t look like owner/repo. Example: geeera/storify.',
+  'add.duplicate':'{repo} is already on the list.','add.duplicateLink':'Open its setup',
+  'add.archived':'{repo} is archived.','add.archivedAction':'Restore',
+  'add.refused.title':'Project not added',
+  'add.refused.body':'A step below is missing. Nothing was saved: fix it and select Check again.',
+  'add.unavailable.title':'Couldn’t check',
+  'add.unavailable.github':'GitHub didn’t respond. Nothing was saved.',
+  'add.unavailable.rate':'GitHub asks us to wait until {time}. Nothing was saved.',
+  'add.unavailable.token':'The console’s GitHub token is invalid or expired. Update the GITHUB_TOKEN secret (wrangler secret put). Nothing was saved.',
+  'add.saved.title':{one:'Project added. {n} step left',other:'Project added. {n} steps left'},
+  'add.saved.body':'It’s on your project list now. The console shows what’s missing until everything is set.',
+  'setup.ready.title':'{name} is ready','setup.ready.body':'All four steps are done.',
+  'setup.incomplete.title':{one:'{n} step missing',other:'{n} steps missing'},
+  'setup.unknown.title':'Some steps couldn’t be checked',
+  'setup.checkAgain':'Check again','setup.checking':'Checking…','setup.open':'Open project',
+  'setup.archive':'Archive project','setup.checkedAt':'Checked at {time}',
+  'setup.doneLive':'Check finished: {done} of 4 done.',
+  'setup.repoLink':'{repo} on GitHub',
+  'step.done':'Done','step.missing':'Missing','step.pending':'Checking…','step.skipped':'Not checked','step.unknown':'Couldn’t check',
+  'step.skippedWhy':'Needs the step above first.','step.unknownWhy':'GitHub didn’t respond. Select Check again.',
+  'step.how':'How to fix',
+  'step.pat.title':'PAT can read the repo',
+  'step.pat.missing':'PAT cannot read this repo. Add {repo} to the token’s repository list on GitHub.',
+  'step.pat.how':'GitHub → Settings → Developer settings → Fine-grained tokens → the console’s token → Repository access → add {repo}. Same permissions: Metadata R, Issues RW, Pull requests R, Contents R, Actions R.',
+  'step.pat.link':'Open tokens',
+  'step.yml.title':'.product-team/project.yml exists',
+  'step.yml.missing':'Not on the default branch. Set up the team in this repo and merge its PR.',
+  'step.yml.how':'In Claude Code in this repo: /adopt for existing code or /kickoff for a new product.',
+  'step.hook.title':'Webhook received',
+  'step.hook.done':'Last event at {time}.',
+  'step.hook.missing':'No events from {repo} yet. Add a webhook to the repo, then select Check again.',
+  'step.hook.url':'Payload URL','step.hook.type':'Content type','step.hook.secret':'Secret','step.hook.events':'Events',
+  'step.hook.secretVal':'the shared WEBHOOK_SECRET, same as your other projects',
+  'step.hook.eventsVal':'Issues, Issue comments, Pull requests, Workflow runs, Releases, Pushes',
+  'step.hook.copyAria':'Copy webhook URL','step.hook.link':'Open webhook settings',
+  'step.routine.title':'Routine token set',
+  'step.routine.missing':'No ROUTINE_TOKEN_{SLUG} secret. Until it’s set, the PM doesn’t answer in chat.',
+  'step.routine.how':'Create the PM routine for this repo with an API trigger and store its token:',
+  'step.routine.copyAria':'Copy command',
+  'archive.title':'Archive {name}?',
+  'archive.body':'It leaves the project list and Needs you, and you get no notifications for it. Its issues, chat and files on GitHub stay as they are.',
+  'archive.note':'The webhook and routine stay. Remove them if you no longer need the project.',
+  'archive.confirm':'Archive','archive.busy':'Archiving…',
+  'archive.error':'Couldn’t archive. The project is still on the list.',
+  'archive.toast':'{name} archived',
+}};
+const HOOKS_URL = 'https://team-console-hooks-production.<account>.workers.dev/github';
+const STEPS = ['pat','yml','hook','routine'];
+
+/* ---------- state ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function seed() {
+  return {
+    lang: 'ru', vp: 'mac', list: 'normal', scn: 'auto', archFail: false,
+    route: 'list', focusAfter: 'h1',
+    projects: [
+      { slug:'storify', repo:'geeera/storify', steps:{pat:'done',yml:'done',hook:'done',routine:'done'}, hookAt:'11:52', checkedAt:'12:04' },
+      { slug:'team-console', repo:'geeera/team-console', steps:{pat:'done',yml:'done',hook:'done',routine:'missing'}, hookAt:'12:01', checkedAt:'12:04' },
+      { slug:'fieldnote', repo:'geeera/fieldnote', steps:{pat:'done',yml:'done',hook:'unknown',routine:'unknown'}, checkedAt:'12:04' },
+    ],
+    archived: ['geeera/sheltrix'],
+    add: { value:'', error:null, phase:'idle', steps:null, repo:null },
+    busySlug: null, dialog: null, toast: null,
+  };
+}
+let S = seed();
+
+function t(key, vars = {}) {
+  let v = T[S.lang][key];
+  if (v && typeof v === 'object') v = v[plural(vars.n)] || v.other || v.many;
+  if (v == null) return key;
+  return v.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
+}
+function plural(n) {
+  if (S.lang === 'en') return n === 1 ? 'one' : 'other';
+  const a = n % 10, b = n % 100;
+  if (a === 1 && b !== 11) return 'one';
+  if (a >= 2 && a <= 4 && (b < 12 || b > 14)) return 'few';
+  return 'many';
+}
+const now = () => new Date().toLocaleTimeString(S.lang, { hour:'2-digit', minute:'2-digit' });
+function announce(text) { const l = $('#live'); l.textContent = ''; setTimeout(() => { l.textContent = text; }, 50); }
+
+/* owner/repo normalisation: trims, accepts a pasted github.com link, drops .git and a trailing slash */
+function normalise(raw) {
+  let v = raw.trim().replace(/^https?:\/\/(www\.)?github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, '');
+  if (!v) return { error: 'empty' };
+  if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/.test(v)) return { error: 'format' };
+  return { repo: v, slug: v.split('/')[1].toLowerCase().replace(/[^a-z0-9-]+/g, '-') };
+}
+const missingCount = (p) => STEPS.filter((s) => p.steps[s] === 'missing').length;
+const unknownCount = (p) => STEPS.filter((s) => p.steps[s] === 'unknown').length;
+
+/* ---------- rendering ---------- */
+function render() {
+  document.documentElement.lang = S.lang;
+  const app = $('#app');
+  app.className = 'frame ' + S.vp;
+  let inner = '';
+  if (S.vp === 'mac') inner = sidebar() + `<main id="main">${screen()}</main>`;
+  else if (S.route === 'sheet') inner = sheet();
+  else inner = phoneBar() + `<main id="main">${screen()}</main>`;
+  if (S.dialog) inner += dialog();
+  if (S.toast) inner += `<div class="toast" role="status">${esc(S.toast)}</div>`;
+  app.innerHTML = inner;
+  if (S.dialog) app.querySelectorAll('.side, main, .topbar').forEach((n) => { n.inert = true; });
+  placeFocus();
+}
+
+function sidebar() {
+  const active = S.list === 'empty' ? [] : S.projects;
+  return `<nav class="side" aria-label="${t('nav.projects')}">
+    <div class="box" aria-hidden="true"></div><div class="box" aria-hidden="true"></div>
+    <ul><li><button type="button">${t('nav.needsYou')}</button></li><li><button type="button">${t('nav.all')}</button></li></ul>
+    <div class="lbl">${t('nav.projects')}</div>
+    <ul>${active.map((p) => `<li><button type="button">${esc(p.slug)}</button></li>`).join('')}</ul>
+    <div class="foot"><button type="button" data-act="go" data-route="list" ${S.route !== 'sheet' ? 'aria-current="page"' : ''}>⚙ ${t('nav.settings')}</button></div>
+  </nav>`;
+}
+function phoneBar() {
+  const back = S.route === 'list' ? ['sheet', t('nav.projects')] : ['list', t('add.back')];
+  const title = S.route === 'list' ? t('settings.title') : S.route === 'add' ? t('add.title') : '';
+  return `<div class="topbar"><button type="button" data-act="go" data-route="${back[0]}">‹ ${esc(back[1])}</button><span aria-hidden="true" style="font-weight:600">${esc(title)}</span></div>`;
+}
+function sheet() {
+  const active = S.list === 'empty' ? [] : S.projects;
+  return `<section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-t">
+    <h1 id="sheet-t" tabindex="-1" data-focus="h1">${t('sheet.title')}</h1>
+    <div class="note">Entry point on iPhone: the existing Projects sheet from #23 (Paper Desk prototype) gets two rows at the bottom.</div>
+    ${active.map((p) => `<div class="box" aria-hidden="true">${esc(p.slug)}</div>`).join('')}
+    <div class="foot">
+      <button type="button" data-act="go" data-route="add">＋ ${t('sheet.add')}</button>
+      <button type="button" data-act="go" data-route="list">⚙ ${t('sheet.settings')}</button>
+    </div></section>`;
+}
+
+function screen() {
+  if (S.route === 'add') return addScreen();
+  if (S.route.startsWith('setup:')) return setupScreen(S.route.slice(6));
+  return listScreen();
+}
+
+function listScreen() {
+  const off = S.list === 'offline';
+  const dis = off ? ' aria-disabled="true"' : '';
+  let body = '';
+  if (S.list === 'loading') {
+    body = `<div aria-busy="true"><span class="sr-only">${t('projects.loading')}</span><div class="row-list" aria-hidden="true"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div></div>`;
+  } else if (S.list === 'error') {
+    body = `<div class="block warn" role="alert"><h2>${t('projects.error.title')}</h2><p>${t('projects.error.body')}</p><button type="button" class="btn" data-act="list-retry">${t('common.retry')}</button></div>`;
+  } else if (S.list === 'empty' || !S.projects.length) {
+    body = `<div class="block"><h2>${t('projects.empty.title')}</h2><p>${t('projects.empty.body')}</p><button type="button" class="btn primary" data-act="go" data-route="add" data-focus="add">${t('projects.add')}</button></div>`;
+  } else {
+    body = (off ? `<div class="block warn" role="status">${t('projects.offline', { time: '12:04' })}</div>` : '') +
+      `<ul class="row-list">${S.projects.map((p) => {
+        const m = missingCount(p), u = unknownCount(p);
+        const chip = S.busySlug === p.slug ? `<span class="chip">${t('projects.row.checking')}</span>`
+          : m ? `<span class="chip missing">${t('projects.row.missing', { n: m })}</span>`
+          : u ? `<span class="chip missing">${t('projects.row.unknown')}</span>`
+          : `<span class="chip">${t('projects.row.ready')}</span>`;
+        return `<li data-slug="${p.slug}"><a href="#" data-act="go" data-route="setup:${p.slug}"><b>${esc(p.slug)}</b><small>${esc(p.repo)}</small>${chip}</a>
+          <button type="button" class="btn" data-act="archive" data-slug="${p.slug}" aria-label="${esc(t('projects.row.archiveAria', { name: p.slug }))}"${dis}>${t('projects.row.archive')}</button></li>`;
+      }).join('')}</ul>`;
+  }
+  const showAdd = S.list !== 'empty' && S.list !== 'loading' && S.list !== 'error' && S.projects.length;
+  return `${S.vp === 'mac' ? `<p class="meta">${t('settings.title')}</p>` : ''}
+    <h1 tabindex="-1" data-focus="h1">${t('projects.title')}</h1>
+    <p class="lead">${t('projects.lead')}</p>
+    ${showAdd ? `<div class="actions"><button type="button" class="btn primary" data-act="go" data-route="add" data-focus="add"${dis}>＋ ${t('projects.add')}</button></div>` : ''}
+    ${body}
+    ${S.vp === 'mac' ? `<div class="note">Other Settings sections (Language, Notifications) are separate issues; this wireframe shows only Projects.</div>` : ''}`;
+}
+
+function addScreen() {
+  const a = S.add;
+  const n = normalise(a.value);
+  const busy = a.phase === 'checking';
+  const errId = a.error ? 'repo-err' : '';
+  let result = '';
+  if (a.phase === 'duplicate') {
+    result = `<div class="block warn" role="alert" data-focus="result" tabindex="-1">${t('add.duplicate', { repo: esc(a.repo) })} <a href="#" data-act="go" data-route="setup:${a.slug}">${t('add.duplicateLink')}</a></div>`;
+  } else if (a.phase === 'archived') {
+    result = `<div class="block warn" data-focus="result" tabindex="-1"><p>${t('add.archived', { repo: esc(a.repo) })}</p><button type="button" class="btn" data-act="restore">${t('add.archivedAction')}</button><div class="note">Restore depends on open question 2 in the spec.</div></div>`;
+  } else if (a.phase === 'unavailable') {
+    result = `<div class="block warn"><h2 tabindex="-1" data-focus="result">${t('add.unavailable.title')}</h2><p>${t('add.unavailable.' + a.reason, { time: '12:40' })}</p><button type="button" class="btn" data-act="submit">${t('common.retry')}</button></div>`;
+  } else if (a.phase === 'refused') {
+    result = `<div class="block warn"><h2 tabindex="-1" data-focus="result">${t('add.refused.title')}</h2><p>${t('add.refused.body')}</p></div>${stepsList(a.steps, a.repo, a.slug)}
+      <div class="actions"><button type="button" class="btn primary" data-act="submit">${t('setup.checkAgain')}</button></div>`;
+  } else if (busy) {
+    result = stepsList(a.steps, a.repo, a.slug);
+  }
+  return `${S.vp === 'mac' ? `<p class="meta"><a href="#" data-act="go" data-route="list">${t('projects.title')}</a> /</p>` : ''}
+    <h1 tabindex="-1">${t('add.title')}</h1>
+    <form data-act-form="add" novalidate>
+      <div class="field">
+        <label for="repo">${t('add.field')}</label>
+        <span class="hint" id="repo-hint">${t('add.hint')}</span>
+        <input id="repo" name="repo" type="text" value="${esc(a.value)}" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="go"
+          aria-describedby="repo-hint${errId ? ' repo-err' : ''}${n.repo ? ' repo-prev' : ''}" ${a.error ? 'aria-invalid="true"' : ''} data-focus="field">
+        ${a.error ? `<span class="err" id="repo-err">${esc(a.error)}</span>` : ''}
+        ${n.repo ? `<span class="hint" id="repo-prev">${t('add.preview', { slug: esc(n.slug) })}</span>` : ''}
+      </div>
+      <div class="actions">
+        <button type="submit" class="btn primary" ${busy ? 'aria-disabled="true"' : ''}>${busy ? t('add.submitting') : t('add.submit')}</button>
+        <button type="button" class="btn" data-act="go" data-route="list">${t('common.cancel')}</button>
+      </div>
+    </form>
+    <div aria-busy="${busy}">${result}</div>`;
+}
+
+function stepsList(steps, repo, slug) {
+  const icon = { done:'✓', missing:'✕', pending:'…', skipped:'–', unknown:'?' };
+  return `<ol class="steps">${STEPS.map((s, i) => {
+    const st = steps[s];
+    let fix = '';
+    if (st === 'missing') fix = `<div class="fix">${esc(t('step.' + s + '.missing', { repo, SLUG: slug.toUpperCase().replace(/-/g, '_') }))}</div>${how(s, repo, slug)}`;
+    else if (st === 'skipped') fix = `<div class="fix meta">${t('step.skippedWhy')}</div>`;
+    else if (st === 'unknown') fix = `<div class="fix meta">${t('step.unknownWhy')}</div>`;
+    else if (st === 'done' && s === 'hook') fix = `<div class="fix meta">${t('step.hook.done', { time: '12:01' })}</div>`;
+    return `<li><span class="ico" aria-hidden="true">${icon[st]}</span>
+      <span><b>${i + 1}. ${esc(t('step.' + s + '.title'))}</b> · <span class="st">${t('step.' + st)}</span></span>${fix}</li>`;
+  }).join('')}</ol>`;
+}
+function how(s, repo, slug) {
+  const id = `how-${s}`;
+  const open = S.open && S.open[id];
+  let body = '';
+  const ext = (href, label) => `<a href="${href}" target="_blank" rel="noopener noreferrer">${label} <span class="sr-only">${t('common.external')}</span>↗</a>`;
+  if (s === 'pat') body = `<p>${esc(t('step.pat.how', { repo }))}</p>${ext('https://github.com/settings/personal-access-tokens', t('step.pat.link'))}`;
+  if (s === 'yml') body = `<p>${t('step.yml.how')}</p>`;
+  if (s === 'hook') body = `<dl><dt>${t('step.hook.url')}</dt><dd><code>${esc(HOOKS_URL)}</code> <button type="button" class="btn link" data-act="copy" aria-label="${t('step.hook.copyAria')}">${t('common.copy')}</button></dd>
+      <dt>${t('step.hook.type')}</dt><dd><code>application/json</code></dd><dt>${t('step.hook.secret')}</dt><dd>${t('step.hook.secretVal')}</dd>
+      <dt>${t('step.hook.events')}</dt><dd>${t('step.hook.eventsVal')}</dd></dl>${ext(`https://github.com/${esc(repo)}/settings/hooks/new`, t('step.hook.link'))}`;
+  if (s === 'routine') body = `<p>${t('step.routine.how')}</p><p><code>npx wrangler secret put ROUTINE_TOKEN_${esc(slug.toUpperCase().replace(/-/g, '_'))} --env production</code> <button type="button" class="btn link" data-act="copy" aria-label="${t('step.routine.copyAria')}">${t('common.copy')}</button></p>
+      <div class="note">Routine ID field: open question 1 in the spec.</div>`;
+  return `<div class="fix"><button type="button" class="btn link" data-act="how" data-id="${id}" aria-expanded="${!!open}" aria-controls="${id}">${t('step.how')}</button></div>
+    <div class="how" id="${id}" ${open ? '' : 'hidden'}>${body}</div>`;
+}
+
+function setupScreen(slug) {
+  const p = S.projects.find((x) => x.slug === slug);
+  if (!p) { S.route = 'list'; return listScreen(); }
+  const busy = S.busySlug === slug;
+  const m = missingCount(p), u = unknownCount(p);
+  const fresh = S.add.phase === 'saved' && S.add.slug === slug;
+  let title, body;
+  if (busy) { title = t('setup.checking'); body = ''; }
+  else if (m) { title = fresh ? t('add.saved.title', { n: m }) : t('setup.incomplete.title', { n: m }); body = fresh ? t('add.saved.body') : ''; }
+  else if (u) { title = t('setup.unknown.title'); body = ''; }
+  else { title = t('setup.ready.title', { name: p.slug }); body = t('setup.ready.body'); }
+  const steps = busy ? Object.fromEntries(STEPS.map((s) => [s, 'pending'])) : p.steps;
+  const off = S.list === 'offline' ? ' aria-disabled="true"' : '';
+  return `${S.vp === 'mac' ? `<p class="meta"><a href="#" data-act="go" data-route="list">${t('projects.title')}</a> /</p>` : ''}
+    <h1 tabindex="-1" data-focus="h1">${esc(p.slug)}</h1>
+    <p class="meta"><a href="https://github.com/${esc(p.repo)}" target="_blank" rel="noopener noreferrer">${t('setup.repoLink', { repo: esc(p.repo) })} <span aria-hidden="true">↗</span></a> · /p/${esc(p.slug)}</p>
+    <div class="block${m || u ? ' warn' : ''}"><h2 tabindex="-1" data-focus="result">${esc(title)}</h2>${body ? `<p>${body}</p>` : ''}
+      <p class="meta">${busy ? '' : t('setup.checkedAt', { time: p.checkedAt })}</p></div>
+    <div aria-busy="${busy}">${stepsList(steps, p.repo, p.slug)}</div>
+    <div class="actions">
+      ${m || u || busy ? `<button type="button" class="btn${m || u ? ' primary' : ''}" data-act="recheck" data-slug="${p.slug}" ${busy ? 'aria-disabled="true"' : ''}${off}>${busy ? t('setup.checking') : t('setup.checkAgain')}</button>` : ''}
+      <button type="button" class="btn${m || u ? '' : ' primary'}" data-act="open">${t('setup.open')}</button>
+    </div>
+    <h2 class="sr-only">${t('setup.archive')}</h2>
+    <div class="actions"><button type="button" class="btn" data-act="archive" data-slug="${p.slug}"${off}>${t('setup.archive')}</button></div>
+    ${fresh || m ? `<div class="note">The setup page re-checks once by itself when the app comes back to the foreground (the owner went to GitHub or a terminal and returned).</div>` : ''}`;
+}
+
+function dialog() {
+  const d = S.dialog; const busy = d.phase === 'busy';
+  return `<div class="scrim"><div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="dlg-t" aria-describedby="dlg-b">
+    <h2 id="dlg-t">${esc(t('archive.title', { name: d.slug }))}</h2>
+    <div id="dlg-b"><p>${t('archive.body')}</p><p class="meta">${t('archive.note')}</p></div>
+    ${d.phase === 'error' ? `<p class="err" role="alert">${t('archive.error')}</p>` : ''}
+    <div class="actions">
+      <button type="button" class="btn" data-act="dlg-cancel" data-focus="cancel">${t('common.cancel')}</button>
+      <button type="button" class="btn danger" data-act="dlg-confirm" ${busy ? 'aria-disabled="true"' : ''}>${busy ? t('archive.busy') : t('archive.confirm')}</button>
+    </div></div></div>`;
+}
+
+/* ---------- focus ---------- */
+function placeFocus() {
+  const f = S.focusAfter; S.focusAfter = null;
+  if (!f) return;
+  requestAnimationFrame(() => {
+    const app = $('#app');
+    let el = null;
+    if (f === 'h1') el = app.querySelector('h1');
+    else if (f.startsWith('#')) el = app.querySelector(f);
+    else el = app.querySelector(`[data-focus="${f}"]`);
+    if (el) el.focus();
+  });
+}
+
+/* ---------- behaviour ---------- */
+function go(route) {
+  S.route = route;
+  if (route === 'add') { S.add = { value:'', error:null, phase:'idle', steps:null }; S.focusAfter = 'field'; }
+  else S.focusAfter = 'h1';
+  render();
+}
+
+function scenarioFor(repo) {
+  if (S.scn !== 'auto') return S.scn;
+  if (S.projects.some((p) => p.repo.toLowerCase() === repo.toLowerCase())) return 'duplicate';
+  if (S.archived.includes(repo.toLowerCase())) return 'archived';
+  if (/private/i.test(repo)) return 'pat';
+  if (/no-team/i.test(repo)) return 'yml';
+  return 'saved';
+}
+
+function submitAdd() {
+  if (S.list === 'offline') { S.add.error = t('add.offline'); S.focusAfter = 'field'; render(); return; }
+  if (S.add.phase === 'checking') return;
+  const input = $('#repo');
+  if (input) S.add.value = input.value;
+  const n = normalise(S.add.value);
+  if (n.error) {
+    S.add.error = n.error === 'empty' ? t('add.invalid.empty') : t('add.invalid.format', { value: S.add.value.trim() });
+    S.add.phase = 'idle'; S.focusAfter = 'field'; render(); return;           // no request is made
+  }
+  S.add.error = null; S.add.value = n.repo; S.add.repo = n.repo; S.add.slug = n.slug;
+  const scn = scenarioFor(n.repo);
+  if (scn === 'duplicate') { S.add.slug = S.projects.find((p) => p.repo.toLowerCase() === n.repo.toLowerCase()).slug; S.add.phase = 'duplicate'; S.focusAfter = 'result'; render(); return; }
+  if (scn === 'archived') { S.add.phase = 'archived'; S.focusAfter = 'result'; render(); return; }
+  S.add.phase = 'checking';
+  S.add.steps = { pat:'pending', yml:'pending', hook:'pending', routine:'pending' };
+  announce(t('add.checkingLive', { repo: n.repo }));
+  render();
+  setTimeout(() => {
+    if (['github','rate','token'].includes(scn)) { S.add.phase = 'unavailable'; S.add.reason = scn; S.focusAfter = 'result'; render(); return; }
+    if (scn === 'pat') { S.add.steps = { pat:'missing', yml:'skipped', hook:'skipped', routine:'skipped' }; S.add.phase = 'refused'; S.focusAfter = 'result'; render(); return; }
+    if (scn === 'yml') { S.add.steps = { pat:'done', yml:'missing', hook:'skipped', routine:'skipped' }; S.add.phase = 'refused'; S.focusAfter = 'result'; render(); return; }
+    const steps = scn === 'ready' ? { pat:'done', yml:'done', hook:'done', routine:'done' } : { pat:'done', yml:'done', hook:'missing', routine:'missing' };
+    S.projects.push({ slug: n.slug, repo: n.repo, steps, checkedAt: now() });
+    S.add.phase = 'saved';
+    S.route = 'setup:' + n.slug; S.focusAfter = 'result';
+    render();
+  }, 900);
+}
+
+function recheck(slug) {
+  const p = S.projects.find((x) => x.slug === slug);
+  if (!p || S.busySlug) return;
+  S.busySlug = slug; S.add.phase = 'idle';
+  announce(t('add.checkingLive', { repo: p.repo }));
+  render();
+  setTimeout(() => {
+    const fix = STEPS.find((s) => p.steps[s] === 'unknown') ? STEPS.filter((s) => p.steps[s] === 'unknown') : [STEPS.find((s) => p.steps[s] === 'missing')].filter(Boolean);
+    fix.forEach((s) => { p.steps[s] = S.list === 'error' ? 'unknown' : (p.steps[s] === 'unknown' && s === 'routine' ? 'missing' : 'done'); });
+    p.checkedAt = now(); S.busySlug = null; S.focusAfter = 'result';
+    render();
+    announce(t('setup.doneLive', { done: STEPS.filter((s) => p.steps[s] === 'done').length }));
+  }, 900);
+}
+
+let opener = null;
+function openArchive(slug, btn) {
+  opener = { slug, onSetup: S.route.startsWith('setup:') };
+  S.dialog = { slug, phase: 'idle' }; S.focusAfter = 'cancel'; render();
+}
+function closeDialog() {
+  const o = opener; S.dialog = null; render();
+  const sel = o.onSetup ? '[data-act="archive"]' : `li[data-slug="${o.slug}"] [data-act="archive"]`;
+  requestAnimationFrame(() => { const b = $('#app').querySelector(sel); if (b) b.focus(); });
+}
+function confirmArchive() {
+  const d = S.dialog; if (d.phase === 'busy') return;
+  d.phase = 'busy'; render();
+  setTimeout(() => {
+    if (S.archFail) { d.phase = 'error'; S.focusAfter = 'cancel'; render(); return; }
+    const i = S.projects.findIndex((p) => p.slug === d.slug);
+    const next = S.projects[i + 1] || S.projects[i - 1];
+    S.archived.push(S.projects[i].repo.toLowerCase());
+    S.projects.splice(i, 1);
+    S.dialog = null; S.route = 'list';
+    S.toast = t('archive.toast', { name: d.slug });
+    S.focusAfter = null;                                  // focus placed below: next row, else previous, else Add project
+    render();
+    requestAnimationFrame(() => { const el = next ? $(`#app li[data-slug="${next.slug}"] a`) : $('#app [data-focus="add"]'); if (el) el.focus(); });
+    setTimeout(() => { S.toast = null; const n = $('#app .toast'); if (n) n.remove(); }, 4000);
+  }, 700);
+}
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-act]'); if (!el || !$('#app').contains(el)) return;
+  if (el.getAttribute('aria-disabled') === 'true') { e.preventDefault(); return; }
+  const act = el.dataset.act;
+  if (act === 'go') { e.preventDefault(); go(el.dataset.route); }
+  else if (act === 'submit') submitAdd();
+  else if (act === 'list-retry') { S.list = 'normal'; $('#c-list').value = 'normal'; S.focusAfter = 'h1'; render(); }
+  else if (act === 'archive') openArchive(el.dataset.slug, el);
+  else if (act === 'dlg-cancel') closeDialog();
+  else if (act === 'dlg-confirm') confirmArchive();
+  else if (act === 'recheck') recheck(el.dataset.slug);
+  else if (act === 'how') { S.open = S.open || {}; S.open[el.dataset.id] = !S.open[el.dataset.id]; S.focusAfter = null; render(); $(`#app [data-id="${el.dataset.id}"]`).focus(); }
+  else if (act === 'copy') announce(t('common.copied'));
+  else if (act === 'open') announce('→ /p/…');
+  else if (act === 'restore') announce('Restore: open question 2');
+});
+document.addEventListener('submit', (e) => { if (e.target.matches('[data-act-form="add"]')) { e.preventDefault(); submitAdd(); } });
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'repo') return;
+  S.add.value = e.target.value;
+  const prev = $('#repo-prev'); const n = normalise(e.target.value);  // live preview of the address only; errors wait for submit
+  if (prev) prev.textContent = n.repo ? t('add.preview', { slug: n.slug }) : '';
+});
+document.addEventListener('keydown', (e) => {
+  if (!S.dialog) return;
+  if (e.key === 'Escape') { e.preventDefault(); if (S.dialog.phase !== 'busy') closeDialog(); return; }
+  if (e.key === 'Tab') {                                   // focus trap inside the dialog
+    const f = [...$('#app .dialog').querySelectorAll('button')];
+    const i = f.indexOf(document.activeElement);
+    if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+    else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+  }
+});
+
+/* demo controls */
+$('#c-vp').onchange = (e) => { S.vp = e.target.value; if (S.vp === 'mac' && S.route === 'sheet') S.route = 'list'; if (S.vp === 'phone') S.route = 'sheet'; S.focusAfter = null; render(); };
+$('#c-lang').onchange = (e) => { S.lang = e.target.value; S.focusAfter = null; render(); };
+$('#c-list').onchange = (e) => { S.list = e.target.value; if (S.route === 'sheet' && S.vp === 'mac') S.route = 'list'; if (S.vp === 'mac' || S.route !== 'sheet') S.route = S.route === 'sheet' ? 'sheet' : 'list'; S.focusAfter = null; render(); };
+$('#c-scn').onchange = (e) => { S.scn = e.target.value; };
+$('#c-archfail').onchange = (e) => { S.archFail = e.target.checked; };
+$('#c-reset').onclick = () => { const keep = { vp: S.vp, lang: S.lang }; S = seed(); Object.assign(S, keep); S.route = S.vp === 'phone' ? 'sheet' : 'list'; ['c-list','c-scn'].forEach((id) => { $('#' + id).selectedIndex = 0; }); $('#c-archfail').checked = false; render(); };
+if (matchMedia('(max-width: 700px)').matches) { S.vp = 'phone'; S.route = 'sheet'; $('#c-vp').value = 'phone'; }
+S.focusAfter = null;
+render();
+</script>
+</body>
+</html>
