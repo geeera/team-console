@@ -41,6 +41,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       env_name: ${{ steps.resolve.outputs.name }}
+      sha: ${{ steps.resolve.outputs.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -51,7 +52,7 @@ jobs:
           fetch-tags: true
           persist-credentials: false
 
-      - name: Resolve environment name
+      - name: Resolve environment name and pin the exact commit
         id: resolve
         env:
           DISPATCH_ENV: ${{ github.event.inputs.environment }}
@@ -70,6 +71,15 @@ jobs:
             *) echo "::error::unknown environment '${name}' (from branch '${BRANCH}')"; exit 1 ;;
           esac
           echo "name=${name}" >> "$GITHUB_OUTPUT"
+
+          # Resolved once, here, to a 40-char SHA. If `ref` was a branch or tag name, re-resolving it in the
+          # `deploy` job's own checkout would be a second, independent lookup — anyone who can both dispatch
+          # and push (e.g. force-push a branch used as `ref`) could move that name to an unreviewed commit in
+          # the gap between the two jobs, which on `production` is the whole wait for the required-reviewer
+          # approval (SECURITY review round 2). `deploy` checks out this exact SHA and re-asserts it, so the
+          # commit it builds and deploys is the same one every check below ran against, guaranteed by git's
+          # own object identity rather than by a name that can be reassigned.
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       # Deployment branch policies (owner checklist) already restrict which branch may *start* a run for a
       # given environment, but they only look at `github.ref` — never at the `ref` input a dispatch can
@@ -145,10 +155,24 @@ jobs:
       WRANGLER_SEND_METRICS: 'false'
       ENV_NAME: ${{ needs.guard.outputs.env_name }}
     steps:
+      # The exact SHA `guard` validated, not the original (possibly mutable) `ref` input — see the comment on
+      # `guard`'s "Resolve environment name and pin the exact commit" step.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.inputs.ref || github.sha }}
+          ref: ${{ needs.guard.outputs.sha }}
           persist-credentials: false
+
+      - name: Assert this checkout is exactly the commit guard validated
+        env:
+          EXPECTED_SHA: ${{ needs.guard.outputs.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          if [ "${actual}" != "${EXPECTED_SHA}" ]; then
+            echo "::error::checked out ${actual}, expected ${EXPECTED_SHA} from guard — refusing to deploy"
+            exit 1
+          fi
+          echo "::notice::deploying ${actual} to '${ENV_NAME}'"
 
       - uses: ./.github/actions/setup-node-npm
 
@@ -168,10 +192,11 @@ jobs:
           workingDirectory: apps/api
           command: d1 migrations apply team-console-${{ env.ENV_NAME }} --env ${{ env.ENV_NAME }} --remote
 
-      # ACCESS_TEAM_DOMAIN/ACCESS_AUD are non-secret GitHub Environment *variables* (owner checklist): they
-      # override the empty placeholders committed in apps/api/wrangler.jsonc without ever putting a real
-      # value in this public repo's source. Empty until the owner has set them (#25) — the Worker still
-      # fails closed either way (ADR 0001 decision 7).
+      # ACCESS_TEAM_DOMAIN/ACCESS_AUD live in exactly one place: these non-secret GitHub Environment
+      # *variables*, set by the owner directly (owner checklist) — never in apps/api/wrangler.jsonc, which
+      # keeps them committed empty on purpose (this repository is public). `--var` always wins over the
+      # config, including when the variable is still unset (an empty override), so the Worker fails closed
+      # either way until the owner sets both (ADR 0001 decision 7).
       - name: Deploy api Worker (app + assets)
         id: deploy_api
         uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
@@ -241,7 +266,7 @@ jobs:
           assert_blocked() {
             local path="$1" status location
             for _ in 1 2 3 4 5 6; do
-              status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${API_URL}${path}" || echo "000")
+              status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${API_URL}${path}" || true)
               case "${status}" in
                 401|403)
                   echo "::notice::${API_URL}${path} -> ${status} (Worker fail-closed)"
@@ -289,7 +314,7 @@ jobs:
           test -n "${HOOKS_URL}" || { echo "::error::wrangler did not report the hooks Worker's deployment URL"; exit 1; }
           status=000
           for _ in 1 2 3 4 5 6; do
-            status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${HOOKS_URL}/healthz" || echo "000")
+            status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${HOOKS_URL}/healthz" || true)
             [ "${status}" = "200" ] && break
             sleep 10
           done

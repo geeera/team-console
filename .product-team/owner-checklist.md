@@ -15,7 +15,7 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
 - [x] Аккаунт Cloudflare, поддомен `workers.dev`, Cloudflare Zero Trust (бесплатная команда).
 - [x] API-токен Cloudflare (создан с правами Workers Scripts — Edit, D1 — Edit, Account — Read) — но пока лежит
       как **repository-level** секрет в Settings → Secrets and variables → Actions. Это неправильное место
-      (любой workflow на любой ветке его видит); шаг 1 ниже переносит его в окружения и удаляет отсюда.
+      (любой workflow на любой ветке его видит); шаги 2–3 ниже переносят его в окружения и удаляют отсюда.
 - [x] GitHub Environments `dev`, `stage`, `production` **уже созданы** (командой, через API, с твоего
       согласия) с branch policy: `dev` → ветка `dev`, `stage` → ветка `stage`, `production` → ветка `main`.
       На `production` включён required reviewer `geeera` (ты); "Prevent self-review" на нём **намеренно
@@ -24,36 +24,56 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
 
 ### Дальше — по порядку (D1 и Access нужны ДО первого же деплоя **каждого** окружения, включая dev — не
 только stage: `deploy.yml`'s smoke-check нарочно проваливает деплой любого окружения, если `/` отвечает 200
-без авторизации, то есть без Access первый dev-деплой в #25 упадёт — это ожидаемо, не регрессия)
+без авторизации, то есть без Access первый dev-деплой в #25 упадёт — это ожидаемо, не регрессия).
+Пока ты не дойдёшь до шага 6 (D1), каждый push в `dev`/`stage`/`main` будет показывать **красный** прогон
+`deploy` — это тоже ожидаемо: `guard` нарочно отказывается идти дальше, пока в `wrangler.jsonc` остался
+плейсхолдер id базы, и делает это до того, как вообще коснётся Cloudflare (см. `.github/workflows/deploy.yml`).
+Не читай эти красные прогоны как регрессию.
 
-1. **Секреты Cloudflare + WEBHOOK_SECRET + VAPID_PRIVATE_KEY — одним скриптом.**
-   1. Установи GitHub CLI (`gh`) и выполни `gh auth login`, если ещё не делал.
-   2. В терминале, в корне склонированного репозитория, выполни `npx wrangler login` (откроется браузер —
-      это привязывает `wrangler` на твоей машине к твоему аккаунту Cloudflare, отдельно от `CLOUDFLARE_API_TOKEN`
-      в GitHub, который используют только Actions).
-   3. Запусти `bash tools/owner-setup/set-secrets.sh`. Скрипт:
-      - попросит один раз вставить Cloudflare API-токен и Account ID (ввод скрыт, никуда не пишется и нигде
-        не логируется) и положит их секретами `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID` в GitHub-окружения
-        `dev`, `stage`, `production` (Environment secrets — именно туда, не в Repository secrets);
-      - сам сгенерирует и поставит через `wrangler secret put` свежий `WEBHOOK_SECRET` на Worker `hooks` и
-        свежую пару VAPID-ключей (приватный ключ — на `api` и `hooks`) для каждого из трёх окружений —
-        отдельные значения на каждое окружение (утечка на dev не должна давать что-то подделать в production);
-      - в конце напечатает в терминал (не в файл) три **публичных** VAPID-ключа — они не секретны, но нужны
-        дальше, шаг 4.
-   4. Скрипт ничего не удаляет и не переносит: он только добавляет. Продолжай следующими шагами.
+0. **Роль/пересоздай Cloudflare API-токен и запиши его права.** У тебя, скорее всего, уже нет значения токена
+   из #21 — Cloudflare показывает его только один раз, и GitHub тоже не показывает секрет обратно. Сделай это
+   перед шагом 2 (там токен понадобится), и заодно добавь право на Storybook:
+   1. dashboard.cloudflare.com → My Profile → **API Tokens** → найди токен из #21 → **Roll** (или, если это
+      проще, **Create Token** заново и потом удали старый) — права: **Workers Scripts: Edit**, **D1: Edit**,
+      **Account: Read**, **Cloudflare Pages: Edit** (последнее нужно для Storybook — деплой упадёт без него,
+      как только появится `ui`, #13/#34).
+   2. Скопируй новое значение — оно понадобится один раз, в шаге 2 (`set-secrets.sh` попросит его вставить).
+   3. **Account ID** — там же, на dashboard.cloudflare.com, в правой панели любой страницы аккаунта (иногда
+      подписано "Account ID" под названием аккаунта).
 
-2. **Удали старые repository-level копии.** Settings → Secrets and variables → Actions → **Repository secrets**
-   → удали `CLOUDFLARE_API_TOKEN` и `CLOUDFLARE_ACCOUNT_ID` оттуда (шаг 1 уже положил их в каждое окружение;
-   если их оставить и здесь, любой workflow на любой ветке продолжит их видеть, а не только `deploy.yml` через
-   нужное окружение).
+1. **Склонируй репозиторий и собери зависимости**, если ещё не сделал (нужно, чтобы шаг 2 использовал именно
+   pinned `wrangler` 4.124 из `package-lock.json`, а не что попало из `npx`):
+   ```
+   git clone https://github.com/geeera/team-console && cd team-console && npm ci
+   ```
+   Затем один раз: `gh auth login` (GitHub CLI) и `npx wrangler login` (откроется браузер — это отдельная
+   привязка `wrangler` к твоему аккаунту Cloudflare, не тот же `CLOUDFLARE_API_TOKEN`, что уйдёт в GitHub).
 
-3. **Добавь токену право на Storybook.** dashboard.cloudflare.com → My Profile → **API Tokens** → найди
-   существующий токен → **Edit** → добавь право **Cloudflare Pages: Edit** (у него сейчас только Workers
-   Scripts/D1/Account) → Save. Без этого шаг деплоя Storybook в `deploy.yml` упадёт с ошибкой авторизации,
-   как только появится `ui` (#13/#34).
+2. **Секреты Cloudflare + VAPID_PRIVATE_KEY — одним скриптом.** Запусти `bash tools/owner-setup/set-secrets.sh`
+   (повторный запуск ничего не ломает — уже установленные секреты он пропускает; `--rotate` спросит
+   подтверждение на каждый, прежде чем заменить). Скрипт:
+   - попросит один раз вставить новый Cloudflare API-токен (из шага 0) и Account ID (ввод скрыт, никуда не
+     пишется и нигде не логируется) и положит их секретами `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID` в
+     GitHub-окружения `dev`, `stage`, `production` (Environment secrets — именно туда, не в Repository
+     secrets);
+   - сам сгенерирует (через `openssl`, ничего не скачивая) и поставит через `node_modules/.bin/wrangler
+     secret put` свежую пару VAPID-ключей (приватный ключ — на `api` и `hooks`) для каждого из трёх
+     окружений — отдельные значения на каждое окружение (утечка на dev не должна давать что-то подделать в
+     production);
+   - в конце напечатает в терминал (не в файл) публичные VAPID-ключи — они не секретны, но нужны дальше, шаг 4;
+   - **не** трогает `WEBHOOK_SECRET` — этот секрет должен совпадать с webhook secret'ом консольного GitHub
+     App'а и появится вместе с его настройкой (шаг 10 ниже, ADR 0003, #61).
+   Побочный эффект, который важен для шага 7: `wrangler secret put` на несуществующий Worker сам создаёт его
+   черновиком ("draft"), поэтому после этого шага `team-console-<env>` и `team-console-hooks-<env>` уже
+   существуют в dashboard — отдельно их заводить не нужно.
+
+3. **Удали старые repository-level копии — только после того, как шаг 2 отработал успешно.** Settings →
+   Secrets and variables → Actions → **Repository secrets** → удали `CLOUDFLARE_API_TOKEN` и
+   `CLOUDFLARE_ACCOUNT_ID` оттуда (шаг 2 уже положил их в каждое окружение; если их оставить и здесь, любой
+   workflow на любой ветке продолжит их видеть, а не только `deploy.yml` через нужное окружение).
 
 4. **`VAPID_PUBLIC_KEY` — три GitHub-переменные (не секреты).** Для каждого окружения из вывода скрипта
-   (шаг 1): Settings → **Environments** → `dev` (затем `stage`, `production`) → **Environment variables** →
+   (шаг 2): Settings → **Environments** → `dev` (затем `stage`, `production`) → **Environment variables** →
    **Add variable** → Name `VAPID_PUBLIC_KEY` → Value — публичный ключ этого окружения из терминала.
 
 5. **Pages-проект для Storybook** (нужен до первого деплоя `dev` — `wrangler pages deploy` в CI не создаёт
@@ -76,20 +96,18 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
 
 7. **Access — по одному приложению на каждый app-Worker** (`team-console-dev`, `team-console-stage`,
    `team-console-production`; **не** на `hooks`-Worker'ы — они обязаны остаться публичными для GitHub-вебхуков,
-   ADR 0001 решение 4). Cloudflare-приложение Access создаётся из самого Worker'а, а не отдельно в Zero Trust
-   (источник: developers.cloudflare.com/workers/configuration/cloudflare-access/ — раздел "Protect a Worker
-   with Cloudflare Access"). Для этого Worker должен уже существовать (хотя бы пустым), поэтому порядок такой:
-   1. Если ты ещё ни разу не запускал `deploy.yml` для этого окружения: dashboard.cloudflare.com → **Workers &
-      Pages** → **Create** → вкладка **Workers** → шаблон "Hello World" → имя ровно `team-console-<env>` →
-      Deploy. (Первый же настоящий деплой из `deploy.yml`, задача #25, перезапишет код этого Worker'а тем же
-      именем — Access, привязанный к имени, останется.)
-   2. Открой этот Worker → вкладка **Access** → **Protect this Worker behind Access**.
-   3. Выбери **All traffic** (не "Previews only" — превью и так выключены в конфиге, `preview_urls: false`,
+   ADR 0001 решение 4). Worker'ы уже существуют черновиками после шага 2 — отдельно их создавать не нужно.
+   Cloudflare-приложение Access создаётся из самого Worker'а, а не отдельно в Zero Trust (источник:
+   developers.cloudflare.com/workers/configuration/cloudflare-access/ — раздел "Protect a Worker with
+   Cloudflare Access"). Для каждого из трёх окружений:
+   1. dashboard.cloudflare.com → **Workers & Pages** → Worker `team-console-<env>` → вкладка **Access** →
+      **Protect this Worker behind Access**.
+   2. Выбери **All traffic** (не "Previews only" — превью и так выключены в конфиге, `preview_urls: false`,
       но нужен весь трафик на `workers.dev`, ADR 0001 решение 7).
-   4. Identity providers: One-time PIN (email) обязательно; GitHub — по желанию.
-   5. Policy: Action **Allow** → Include **Emails** → твой email (тот же, что пойдёт в `OWNER_EMAIL`, шаг 9).
-   6. **Apply Access** — Cloudflare сама создаёт Access-приложение на все хостнеймы этого Worker'а.
-   7. Открой созданное приложение: Zero Trust → **Access** → **Applications** → `team-console-<env>` →
+   3. Identity providers: One-time PIN (email) обязательно; GitHub — по желанию.
+   4. Policy: Action **Allow** → Include **Emails** → твой email (тот же, что пойдёт в `OWNER_EMAIL`, шаг 9).
+   5. **Apply Access** — Cloudflare сама создаёт Access-приложение на все хостнеймы этого Worker'а.
+   6. Открой созданное приложение: Zero Trust → **Access** → **Applications** → `team-console-<env>` →
       настрой:
       - **Session Duration**: 24 hours (по умолчанию, ADR 0001 решение 7);
       - **Cookie settings**: включи `HTTP Only`; `SameSite` — `Lax` (или `Strict`); включи `Enable Binding
@@ -99,15 +117,20 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
         developers.cloudflare.com/cloudflare-one/identity/service-tokens/, "Make sure to set the policy action
         to Service Auth") → Include **Service Token** → выбери `team-console-e2e` (создашь в шаге 8; если
         шаг 8 ещё не сделан, вернись сюда после него).
-   8. На вкладке **Overview** этого приложения скопируй **Application Audience (AUD) Tag**.
-   9. Team domain — тот, что выбирал при создании команды Zero Trust: `<твоя-команда>.cloudflareaccess.com`
+   7. На вкладке **Overview** этого приложения скопируй **Application Audience (AUD) Tag**.
+   8. Team domain — тот, что выбирал при создании команды Zero Trust: `<твоя-команда>.cloudflareaccess.com`
       (один и тот же для всех приложений одной команды; Zero Trust → Settings → General).
-   10. `ACCESS_AUD` и team domain — это не секреты (публичные идентификаторы, сами по себе доступа не дают),
-       поэтому просто напиши их комментарием на задаче #25, по одному на окружение (`team_domain`, `aud` для
-       `dev`, `stage`, `production`) — команда впишет их в `apps/api/wrangler.jsonc` (`vars.ACCESS_TEAM_DOMAIN`,
-       `vars.ACCESS_AUD`) отдельным Pull Request. Пока они пустые, Worker всё равно отвечает 401 всем — это
-       безопасно, просто без них Worker ещё не может сверить `aud`/issuer сам (ADR 0001 решение 7).
-   11. Повтори шаги 1–10 для всех трёх окружений.
+   9. **Впиши оба значения СРАЗУ как GitHub Environment variables — это единственное место, где их ждёт
+      `deploy.yml`** (никаких PR в `wrangler.jsonc`, никаких комментариев на других задачах — раньше здесь
+      было противоречие, теперь только один путь): Settings → **Environments** → `team-console-<env>`'s
+      окружение (`dev`/`stage`/`production`) → **Environment variables** → **Add variable** → `ACCESS_TEAM_DOMAIN`
+      (значение — team domain без `https://`, просто хост вида `твоя-команда.cloudflareaccess.com`) и
+      `ACCESS_AUD` (значение — AUD Tag как есть). Это не секреты (публичные идентификаторы, сами по себе
+      доступа не дают), но `deploy.yml` берёт их именно отсюда через `--var`, а `wrangler.jsonc` в коде
+      специально оставлен пустым (репозиторий публичный) — значение из переменной всегда побеждает конфиг,
+      даже пустое, так что заполнить нужно обе, иначе Worker останется в режиме "не может сверить aud/issuer"
+      (безопасно, но бесполезно, ADR 0001 решение 7).
+   10. Повтори шаги 1–9 для всех трёх окружений.
 
 8. **Service token для e2e** (только `dev` и `stage`, не для `production`):
    1. Zero Trust → **Access controls** → **Service credentials** → **Service Tokens** → **Create Service
@@ -117,7 +140,7 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
       GitHub-окружений: Settings → **Environments** → `dev` → **Environment secrets** → **Add secret** → имя
       `ACCESS_SERVICE_TOKEN_ID`, значение — Client ID; вторым секретом `ACCESS_SERVICE_TOKEN_SECRET` —
       Client Secret. Повтори то же для окружения `stage`. Не добавляй ни в `production`.
-   3. Вернись к шагу 7.7 и привяжи этот токен к Service Auth политике на `dev`- и `stage`-приложениях.
+   3. Вернись к шагу 7.6 и привяжи этот токен к Service Auth политике на `dev`- и `stage`-приложениях.
 
 9. **`OWNER_EMAIL`** — секрет самого Worker'а `api` (не GitHub!): по нему Worker проверяет, что JWT от Access
    выдан именно тебе (ADR 0001 решение 7). Для каждого окружения:
@@ -128,11 +151,9 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
      Secrets** → **Add** → Type **Secret** → Name `OWNER_EMAIL` → Value — твой email (тот же, что в Access) →
      **Deploy**. Только на `api`, не на `hooks`.
 
-10. **Fine-grained GitHub-токен для Worker'а `api` — заменяется GitHub App'ом.** ADR 0001 решение 6 предполагало
-    два fine-grained PAT (dev/stage на этот репозиторий, production на все продуктовые репозитории). Это
-    заменяется отдельным GitHub App для консоли — архитектор сейчас пишет ADR 0003 и добавит точные шаги
-    создания приложения комментарием на #7 и на этот PR. **Пока ADR 0003 не готов: секрет `GITHUB_TOKEN`
-    Worker'а `api` не заводи** — этот пункт остаётся открытым, чек-лист обновится, как только шаги появятся.
+10. **Консольный GitHub App и `WEBHOOK_SECRET` — см. отдельную задачу #61** (вынесено из #7 решением PM;
+    заменяет fine-grained PAT из ADR 0001 решения 6, по ADR 0003). Пока #61 не готова, секреты `GITHUB_TOKEN`
+    и `WEBHOOK_SECRET` Worker'ов не заводи.
 
 11. **`ROUTINE_TOKEN_<SLUG>`** — токен PM-чата на продукт (ADR 0001 решение 11); делать не раньше, чем появится
     задача, реализующая решения 11/20 — здесь только чтобы имя секрета сразу было верным:
@@ -147,8 +168,8 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
 если не сказано иное)
 | Секрет | Для чего (какой workflow) | Как завести | Окружения | Готово |
 | ------ | -------------------------- | ------------ | --------- | ------ |
-| `CLOUDFLARE_API_TOKEN` | `deploy.yml`: миграции D1, деплой обоих Worker'ов и Storybook | `tools/owner-setup/set-secrets.sh` (шаг 1) | dev, stage, production | [ ] (сейчас repository-level — шаги 1–2 переносят) |
-| `CLOUDFLARE_ACCOUNT_ID` | `deploy.yml` | `tools/owner-setup/set-secrets.sh` (шаг 1) | dev, stage, production | [ ] (сейчас repository-level — шаги 1–2 переносят) |
+| `CLOUDFLARE_API_TOKEN` | `deploy.yml`: миграции D1, деплой обоих Worker'ов и Storybook | `tools/owner-setup/set-secrets.sh` (шаг 2, после шага 0 — роллинга токена) | dev, stage, production | [ ] (сейчас repository-level — шаги 2–3 переносят) |
+| `CLOUDFLARE_ACCOUNT_ID` | `deploy.yml` | `tools/owner-setup/set-secrets.sh` (шаг 2) | dev, stage, production | [ ] (сейчас repository-level — шаги 2–3 переносят) |
 | `ACCESS_SERVICE_TOKEN_ID` | пока ни одним workflow не используется — появится в #14 (Playwright e2e на stage); имя закреплено сейчас, чтобы не переименовывать позже | шаг 8 выше | dev, stage (не production) | [ ] |
 | `ACCESS_SERVICE_TOKEN_SECRET` | пара к `ACCESS_SERVICE_TOKEN_ID`, появится в #14 | шаг 8 выше | dev, stage | [ ] |
 | `PT_TELEGRAM_TOKEN` | `owner-digest.yml` | см. «Ежедневная сводка на телефон» ниже | repository-level (свой канал, общий для всех окружений) | [ ] |
@@ -162,40 +183,44 @@ Actions; заводить его не нужно (`deploy.yml` его не ис�
 значения видны в логах и любому, кто может читать настройки репозитория)
 | Переменная | Для чего | Как завести | Окружения | Готово |
 | ---------- | -------- | ------------ | --------- | ------ |
-| `VAPID_PUBLIC_KEY` | публичный VAPID-ключ, читает клиентский код (появится с #11) | шаг 4 выше, значение из вывода скрипта (шаг 1) | dev, stage, production — своё значение в каждом | [ ] |
-| `ACCESS_TEAM_DOMAIN` | JWT-проверка Access в Worker'е `api` (ADR 0001 решение 7); попадает в `apps/api/wrangler.jsonc` через `deploy.yml`'s `--var` | шаг 7.9–7.10 выше — сообщи значение на #25, команда впишет в код | dev, stage, production | [ ] |
-| `ACCESS_AUD` | то же самое | шаг 7.8, 7.10 выше | dev, stage, production | [ ] |
+| `VAPID_PUBLIC_KEY` | публичный VAPID-ключ, читает клиентский код (появится с #11) | шаг 4 выше, значение из вывода скрипта (шаг 2) | dev, stage, production — своё значение в каждом | [ ] |
+| `ACCESS_TEAM_DOMAIN` | JWT-проверка Access в Worker'е `api` (ADR 0001 решение 7); `deploy.yml` передаёт её Worker'у через `--var`, это единственный источник (`wrangler.jsonc` в коде остаётся пустым нарочно) | шаг 7.8–7.9 выше | dev, stage, production | [ ] |
+| `ACCESS_AUD` | то же самое | шаг 7.7, 7.9 выше | dev, stage, production | [ ] |
 
 ## Секреты самих Worker'ов (Cloudflare, не GitHub — либо `tools/owner-setup/set-secrets.sh`, либо `wrangler
 secret put` / dashboard → Workers & Pages → Worker → Settings → Variables and Secrets)
 | Секрет | Worker | Для чего | Как завести | Окружения | Готово |
 | ------ | ------ | -------- | ------------ | --------- | ------ |
 | `OWNER_EMAIL` | `api` | проверка JWT от Access (ADR 0001 решение 7) | шаг 9 выше (вручную) | dev, stage, production | [ ] |
-| `VAPID_PRIVATE_KEY` | `api`, `hooks` | веб-пуш (ADR 0001 решение 11) | `tools/owner-setup/set-secrets.sh` (шаг 1) — своя пара на каждое окружение | dev, stage, production | [ ] |
-| `WEBHOOK_SECRET` | `hooks` | подпись `X-Hub-Signature-256` входящих вебхуков (ADR 0001 решение 20) | `tools/owner-setup/set-secrets.sh` (шаг 1) — своё значение на каждое окружение | dev, stage, production | [ ] |
-| `GITHUB_TOKEN` | `api` | fine-grained PAT (ADR 0001 решение 6) | **заменяется GitHub App — см. шаг 10, ждём ADR 0003** | — | отложено |
+| `VAPID_PRIVATE_KEY` | `api`, `hooks` | веб-пуш (ADR 0001 решение 11) | `tools/owner-setup/set-secrets.sh` (шаг 2) — своя пара на каждое окружение | dev, stage, production | [ ] |
+| `WEBHOOK_SECRET` | `hooks` | подпись `X-Hub-Signature-256` входящих вебхуков (ADR 0001 решение 20); должен совпадать с webhook secret'ом консольного GitHub App'а | **не отсюда — задаётся при настройке GitHub App'а, см. шаг 10 / #61** | — | отложено |
+| `GITHUB_TOKEN` | `api` | учётные данные для GitHub API (ADR 0001 решение 6, теперь через GitHub App) | **см. шаг 10, ждём #61** | — | отложено |
 | `ROUTINE_TOKEN_<SLUG>` | `api` | будит routine PM-чата продукта `<slug>` (ADR 0001 решение 11) | шаг 11 выше | по одному на продукт, когда появится соответствующая задача | [ ] |
 
-## Security hardening (recommended before the first release)
+## Усиление безопасности (сделать желательно до первого релиза)
 
-Out of the box every agent acts as your GitHub account: the merge gate and your `/approve`, `/go` comments are
-conventions an agent could imitate (the inbox shows a standing "Security setup" item until this is done).
+По умолчанию каждый агент действует от твоего GitHub-аккаунта: merge gate и твои комментарии `/approve`, `/go`
+— это соглашение, которое агент в принципе может имитировать (в инбоксе висит пункт "Security setup", пока
+это не сделано).
 
-1. **Reviewing account.** Create a GitHub machine account (one free machine account per person is allowed).
-   Give it write access to this repository, no admin. Create a fine-grained token for it: this repository only,
-   Pull requests read/write, Contents read, Issues read. Put its login in `team.reviewer_logins` in
-   `.product-team/project.yml` — from then on only its verdicts count in `scripts/pr gate`.
-2. **Separate cloud environment for reviews.** In claude.ai/code create an environment `reviewers` with the
-   variable `PT_REVIEW_TOKEN` = that token, and point the `slot-qa` routine at it. Keep `slot-pm` and `slot-dev`
-   in the default environment, which has no reviewer token — so a developer agent cannot post a counted verdict.
-   (Every role inside one session shares that session's tokens; separation only works between environments.)
-3. **Your own commands.** While the agents' GitHub identity is your account, an agent can write a comment that
-   looks like yours; the team therefore only takes a release **go** from the demo page or from a comment older
-   than the current run. Full separation needs the agents on their own identity as well.
-4. **Server-side enforcement (costs money or visibility).** Rulesets that require a review from the reviewing
-   account are not available for private repositories on GitHub's free plan. Options: GitHub Pro (paid — needs
-   your `/approve` on the budget question) or making the repository public. Until then `branch-guard.yml`
-   reports, after the fact, any change that reached `dev`, `stage` or `main` without a merged PR.
+1. **Отдельный аккаунт-ревьюер.** Заведи GitHub machine account (один бесплатный machine account на человека
+   разрешён). Дай ему write-доступ к этому репозиторию, без admin. Создай для него fine-grained токен: только
+   этот репозиторий, Pull requests read/write, Contents read, Issues read. Впиши его логин в
+   `team.reviewer_logins` в `.product-team/project.yml` — с этого момента только его вердикты учитывает
+   `scripts/pr gate`.
+2. **Отдельное cloud-окружение для ревью.** В claude.ai/code создай окружение `reviewers` с переменной
+   `PT_REVIEW_TOKEN` = этот токен, и направь на него routine `slot-qa`. `slot-pm` и `slot-dev` оставь в
+   окружении по умолчанию, где токена ревьюера нет — так агент-разработчик не сможет выставить засчитываемый
+   вердикт. (Роли внутри одной сессии делят токены этой сессии; разделение работает только между
+   окружениями.)
+3. **Свои собственные команды.** Пока GitHub-личность агентов — это твой аккаунт, агент может написать
+   комментарий, похожий на твой; поэтому команда принимает release **go** только со страницы демо или из
+   комментария старше текущего запуска. Полное разделение появится только вместе с агентами на собственной
+   идентичности.
+4. **Серверное принуждение (стоит денег или публичности).** Правила (rulesets), требующие ревью от аккаунта-
+   ревьюера, недоступны для приватных репозиториев на бесплатном плане GitHub. Варианты: GitHub Pro (платно —
+   нужен твой `/approve` на вопрос о бюджете) или сделать репозиторий публичным. До этого `branch-guard.yml`
+   постфактум сообщает о любом изменении, попавшем в `dev`, `stage` или `main` без смёрженного PR.
 
 ## Ежедневная сводка на телефон (5 минут)
 

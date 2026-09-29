@@ -103,7 +103,7 @@ jobs:
           echo "${ACTIONLINT_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
           tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" actionlint
 
-      - name: actionlint (workflows + composite actions, includes shellcheck)
+      - name: actionlint (workflows, includes shellcheck)
         run: '"${RUNNER_TEMP}/actionlint" -color'
 
       - name: Install shellcheck
