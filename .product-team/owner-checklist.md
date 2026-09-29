@@ -13,6 +13,10 @@ Listed in ADR 0001 → Consequences; the `devops` foundation issue turns this in
 - [ ] Per product: a webhook to the hooks Worker (shared secret) and a PM-chat routine with an API trigger token
 
 - [x] GitHub repository `geeera/team-console` (public), default branch `dev`; `main`, `stage`, `dev` exist
+- [ ] GitHub Pages → Settings → Pages → Build and deployment → **Source: "GitHub Actions"** (free for public
+      repos). Needed for `design-pages.yml` to publish `docs/design` after a merge to `dev`. Until this is
+      switched, design PRs merged to `dev` publish nothing — the old `gh-pages` branch (hand-pushed kickoff
+      prototype) stays as the live site and will not receive new pages.
 - [ ] Hosting account(s): <!-- e.g. Vercel / Cloudflare Pages / Render / Fly.io — filled at kickoff -->
 - [ ] Database account: <!-- e.g. Neon / Supabase -->
 

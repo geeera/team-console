@@ -1,0 +1,44 @@
+# Publishes docs/design (prototypes, wireframes, visual directions) to GitHub Pages after it is merged into dev,
+# so designers never push to a publishing branch: designs arrive by PR like everything else.
+# Requires Settings → Pages → Source: "GitHub Actions" (public repositories: free).
+name: design-pages
+
+on:
+  push:
+    branches: [dev]
+    paths: ["docs/design/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: design-pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: docs/design
+      - name: Index of every page under docs/design
+        run: |
+          cd docs/design
+          {
+            echo '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            echo '<title>Designs</title><style>body{font:16px/1.5 system-ui;max-width:640px;margin:32px auto;padding:0 16px}a{display:block;padding:8px 0}</style><h1>Designs</h1>'
+            find . -name '*.html' ! -name index.html ! -path './*/src/*' | sort | sed 's|^\./||' | while read -r f; do echo "<a href=\"$f\">$f</a>"; done
+          } > index.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/design
+      - id: deploy
+        uses: actions/deploy-pages@v4
