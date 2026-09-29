@@ -165,3 +165,16 @@ jobs:
       # job is deliberately cheap (no `npm ci`); this proves the guard script it calls is correct.
       - name: Test the deploy.yml D1 placeholder guard distinguishes comments from real ids
         run: node tools/deploy-guard/check-d1-placeholder.test.js
+
+      # SECURITY review: deploy.yml's `guard` job only runs this check on a push to dev/stage/main or a
+      # rollback dispatch, so a PR that regresses the wrangler.jsonc shape (or reintroduces a placeholder)
+      # would otherwise only fail at deploy time, not in this PR's own CI. Same placeholders as deploy.yml.
+      - name: Guard the real wrangler.jsonc configs for every environment (catches drift before deploy time)
+        run: |
+          set -euo pipefail
+          node tools/deploy-guard/check-d1-placeholder.js dev '00000000-0000-0000-0000-00000000dev1' \
+            apps/api/wrangler.jsonc apps/hooks/wrangler.jsonc
+          node tools/deploy-guard/check-d1-placeholder.js stage '00000000-0000-0000-0000-0000000stage' \
+            apps/api/wrangler.jsonc apps/hooks/wrangler.jsonc
+          node tools/deploy-guard/check-d1-placeholder.js production '00000000-0000-0000-0000-000000000prd' \
+            apps/api/wrangler.jsonc apps/hooks/wrangler.jsonc

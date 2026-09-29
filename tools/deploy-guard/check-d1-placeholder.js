@@ -2,22 +2,33 @@
 // deploy.yml's "Guard against placeholder D1 database ids" step (regression guard for #25).
 //
 // A plain `grep` for the placeholder UUID against the whole wrangler.jsonc file matches it anywhere in the
-// file, including inside a comment that only *describes* the placeholder (that gap let PR #69's comment on
-// the real `database_id` block for dev trip the guard and block every dev deploy — see #<issue>). This parses
-// the JSONC the same shape wrangler itself reads, and only ever compares `env.<env>.d1_databases[].database_id`.
+// file, including inside a comment that only *describes* the placeholder (that gap let a PR's comment on the
+// real `database_id` block for dev trip the guard and block every dev deploy). This parses the JSONC the same
+// shape wrangler itself reads, and only ever compares `env.<env>.d1_databases[].database_id`.
 //
 // No npm dependency: this runs in the `guard` job before `npm ci` (the cheap job that must fail in seconds,
 // not after a full Nx build), so parsing is a small dependency-free JSONC reader (strip `//`/`/* */` comments
 // and trailing commas, string-aware) rather than pulling in `wrangler` or a JSONC package.
+//
+// Fails closed (SECURITY review on the PR that introduced this file): this is the one guard standing between
+// a config regression and the credentialed `deploy` job, so an unexpected shape — a missing env block, a
+// missing/empty `d1_databases`, a non-UUID or non-string `database_id` — is treated the same as finding the
+// placeholder, not silently waved through. A denylist of one exact string only catches that one string.
 'use strict';
 
 const fs = require('node:fs');
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function isWhitespace(ch) {
   return ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r';
 }
 
-/** Removes `//` and `/* *\/` comments, copying string contents (escapes included) verbatim. */
+/**
+ * Removes `//` and `/* *\/` comments, copying string contents (escapes included) verbatim. Throws if the
+ * input ends mid-string or mid-comment: wrangler/JSON.parse would reject such a file anyway, and a parser that
+ * guards a deploy must not silently accept malformed input it cannot fully account for.
+ */
 function stripComments(source) {
   let output = '';
   let inString = false;
@@ -72,6 +83,13 @@ function stripComments(source) {
     output += ch;
   }
 
+  if (inString) {
+    throw new Error('unterminated string literal at end of input');
+  }
+  if (inBlockComment) {
+    throw new Error('unterminated /* block comment at end of input');
+  }
+
   return output;
 }
 
@@ -119,22 +137,40 @@ function parseJsonc(source) {
   return JSON.parse(removeTrailingCommas(stripComments(source)));
 }
 
-/** Every `database_id` wrangler would actually read for `envName` from a parsed wrangler.jsonc. */
-function collectDatabaseIds(config, envName) {
-  const d1Databases = config?.env?.[envName]?.d1_databases;
-  if (!Array.isArray(d1Databases)) {
-    return [];
-  }
-  return d1Databases.map((db) => db?.database_id).filter((id) => typeof id === 'string');
-}
-
-/** True if `envName`'s real `database_id` (not a comment, not another env) is still the placeholder. */
-function hasPlaceholderDatabaseId(source, envName, placeholder) {
+/**
+ * Throws a descriptive Error unless `envName`'s `d1_databases` in `source` is a non-empty array of entries
+ * that each have a `database_id` matching a lowercase UUID and are not the placeholder (case-insensitive).
+ * Any other shape — missing env block, missing/empty/non-array `d1_databases`, a missing or malformed
+ * `database_id` — fails closed with its own error rather than being treated as "no placeholder found".
+ */
+function assertNoPlaceholderDatabaseId(source, envName, placeholder) {
   const config = parseJsonc(source);
-  return collectDatabaseIds(config, envName).includes(placeholder);
+
+  const env = config?.env;
+  if (typeof env !== 'object' || env === null || !Object.hasOwn(env, envName)) {
+    throw new Error(`'env.${envName}' block is missing`);
+  }
+
+  const d1Databases = env[envName]?.d1_databases;
+  if (!Array.isArray(d1Databases) || d1Databases.length === 0) {
+    throw new Error(`'env.${envName}.d1_databases' is missing, empty, or not an array`);
+  }
+
+  const lowerPlaceholder = placeholder.toLowerCase();
+  d1Databases.forEach((db, index) => {
+    const id = db?.database_id;
+    if (typeof id !== 'string' || !UUID_RE.test(id)) {
+      throw new Error(
+        `'env.${envName}.d1_databases[${index}].database_id' is missing or is not a lowercase UUID`,
+      );
+    }
+    if (id.toLowerCase() === lowerPlaceholder) {
+      throw new Error(`'env.${envName}.d1_databases[${index}].database_id' is still the placeholder`);
+    }
+  });
 }
 
-module.exports = { hasPlaceholderDatabaseId, parseJsonc, collectDatabaseIds };
+module.exports = { assertNoPlaceholderDatabaseId, parseJsonc, UUID_RE };
 
 if (require.main === module) {
   const [envName, placeholder, ...configPaths] = process.argv.slice(2);
@@ -145,11 +181,14 @@ if (require.main === module) {
 
   let failed = false;
   for (const configPath of configPaths) {
-    const source = fs.readFileSync(configPath, 'utf8');
-    if (hasPlaceholderDatabaseId(source, envName, placeholder)) {
+    try {
+      const source = fs.readFileSync(configPath, 'utf8');
+      assertNoPlaceholderDatabaseId(source, envName, placeholder);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
       process.stderr.write(
-        `::error::${configPath} still has the placeholder D1 database_id for '${envName}'. Create the D1 ` +
-          'database (owner checklist) and replace the id by PR before this workflow may deploy (see #25).\n',
+        `::error::${configPath} failed the D1 database_id guard for '${envName}': ${reason}. Create the D1 ` +
+          'database (owner checklist) and set a real database_id by PR before this workflow may deploy (see the owner checklist / #25).\n',
       );
       failed = true;
     }
