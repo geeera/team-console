@@ -9,6 +9,11 @@ out-tsc
 vite.config.*.timestamp*
 vitest.config.*.timestamp*
 
+# wrangler: local D1 state and dev artifacts; .dev.vars would hold local secrets
+.wrangler
+.dev.vars
+.dev.vars.*
+
 # tests and coverage
 coverage
 test-output

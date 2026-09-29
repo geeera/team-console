@@ -1,0 +1,75 @@
+// The `api` Worker: serves the SPA from static assets and owns /api/* (ADR 0001, decisions 4, 14, 19).
+// Non-secret configuration only. Secrets (declared in src/env.ts) are set once by the owner with
+// `wrangler secret put`; OWNER_EMAIL, ACCESS_TEAM_DOMAIN and ACCESS_AUD stay empty here (this repository is
+// public) and are filled per environment in #21/#25. AUTH_MODE and ENVIRONMENT=local exist only as `--var`
+// flags of `nx serve api` and the Dockerfile — never in an `env.*` block (tools/workspace-checks enforces it).
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "team-console",
+  "main": "src/main.ts",
+  // Bound by workerd 1.20260815 that wrangler 4.124 / vitest-pool-workers 0.22 ship; bump together with them.
+  "compatibility_date": "2026-08-15",
+  "assets": {
+    "directory": "../../dist/apps/console/browser",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "env": {
+    "dev": {
+      "name": "team-console-dev",
+      "vars": {
+        "ENVIRONMENT": "dev",
+        "OWNER_EMAIL": "",
+        "ACCESS_TEAM_DOMAIN": "",
+        "ACCESS_AUD": "",
+        "ALLOW_SERVICE_TOKEN": "true",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "team-console-dev",
+          // Placeholder until the databases exist (#25 replaces the ids by PR; they are not secrets).
+          "database_id": "00000000-0000-0000-0000-00000000dev1",
+          "migrations_dir": "migrations",
+        },
+      ],
+    },
+    "stage": {
+      "name": "team-console-stage",
+      "vars": {
+        "ENVIRONMENT": "stage",
+        "OWNER_EMAIL": "",
+        "ACCESS_TEAM_DOMAIN": "",
+        "ACCESS_AUD": "",
+        "ALLOW_SERVICE_TOKEN": "true",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "team-console-stage",
+          "database_id": "00000000-0000-0000-0000-0000000stage",
+          "migrations_dir": "migrations",
+        },
+      ],
+    },
+    "production": {
+      "name": "team-console-production",
+      "vars": {
+        "ENVIRONMENT": "production",
+        "OWNER_EMAIL": "",
+        "ACCESS_TEAM_DOMAIN": "",
+        "ACCESS_AUD": "",
+        "ALLOW_SERVICE_TOKEN": "false",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "team-console-production",
+          "database_id": "00000000-0000-0000-0000-000000000prd",
+          "migrations_dir": "migrations",
+        },
+      ],
+    },
+  },
+}

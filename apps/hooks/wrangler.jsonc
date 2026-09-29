@@ -1,0 +1,45 @@
+// The public `hooks` Worker: GitHub webhooks (#12) outside Cloudflare Access (ADR 0001, decision 4).
+// It shares the api Worker's D1 database per environment; migrations live only in apps/api.
+// Secrets (declared in src/env.ts) come from `wrangler secret put`; this Worker never gets the GitHub
+// token (threat model on #12).
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "team-console-hooks",
+  "main": "src/main.ts",
+  "compatibility_date": "2026-08-15",
+  "env": {
+    "dev": {
+      "name": "team-console-hooks-dev",
+      "vars": { "ENVIRONMENT": "dev" },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "team-console-dev",
+          "database_id": "00000000-0000-0000-0000-00000000dev1",
+        },
+      ],
+    },
+    "stage": {
+      "name": "team-console-hooks-stage",
+      "vars": { "ENVIRONMENT": "stage" },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "team-console-stage",
+          "database_id": "00000000-0000-0000-0000-0000000stage",
+        },
+      ],
+    },
+    "production": {
+      "name": "team-console-hooks-production",
+      "vars": { "ENVIRONMENT": "production" },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "team-console-production",
+          "database_id": "00000000-0000-0000-0000-000000000prd",
+        },
+      ],
+    },
+  },
+}
