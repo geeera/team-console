@@ -19,6 +19,10 @@ export default defineConfig(async () => ({
         assets: { directory: resolve(import.meta.dirname, 'test-assets') },
         bindings: {
           TEST_MIGRATIONS: await readD1Migrations(resolve(import.meta.dirname, 'migrations')),
+          // The auth placeholder fails closed; route specs run with the local bypass the way `nx serve api`
+          // and the Dockerfile do. auth.middleware.spec.ts overrides these per case.
+          ENVIRONMENT: 'local',
+          AUTH_MODE: 'local',
         },
       },
     }),

@@ -3,8 +3,9 @@ import type { WorkerBaseEnv } from '@worker/core';
 /** Bindings of the `api` Worker. Vars are in wrangler.jsonc; secrets only in `wrangler secret`. */
 export interface ApiEnv extends WorkerBaseEnv {
   readonly ASSETS: Fetcher;
-  /** Empty in the repository; the owner sets it per environment (#21/#25). */
-  readonly OWNER_EMAIL: string;
+  /** Secret (`wrangler secret put`, #7/#8): the Access login identity is never committed to this public repo. */
+  readonly OWNER_EMAIL?: string;
+  /** Non-secret vars, empty in the repository; #21/#25 fill them per environment. */
   readonly ACCESS_TEAM_DOMAIN: string;
   readonly ACCESS_AUD: string;
   /** `'true'` on dev/stage for Playwright's service token, `'false'` in production. */

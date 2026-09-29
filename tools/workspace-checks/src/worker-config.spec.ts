@@ -21,6 +21,8 @@ interface WranglerEnvConfig {
   readonly compatibility_date: string;
   readonly vars: Readonly<Record<string, unknown>>;
   readonly d1_databases: readonly { binding: string; database_name: string; migrations_dir?: string }[];
+  readonly workers_dev?: boolean;
+  readonly preview_urls?: boolean;
   readonly assets?: {
     binding?: string;
     not_found_handling?: string;
@@ -116,13 +118,22 @@ describe('apps/api/wrangler.jsonc', () => {
     );
   });
 
+  it.each(ENVIRONMENTS)('keeps ACCESS_TEAM_DOMAIN and ACCESS_AUD empty in env %s (public repo)', (env) => {
+    const { vars } = readWorkerConfig('api', env);
+    expect(vars['ACCESS_TEAM_DOMAIN']).toBe('');
+    expect(vars['ACCESS_AUD']).toBe('');
+  });
+
+  it.each(ENVIRONMENTS)('declares no OWNER_EMAIL var in env %s — it is a Worker secret', (env) => {
+    expect(readWorkerConfig('api', env).vars).not.toHaveProperty('OWNER_EMAIL');
+  });
+
   it.each(ENVIRONMENTS)(
-    'keeps OWNER_EMAIL, ACCESS_TEAM_DOMAIN and ACCESS_AUD empty in env %s (public repo)',
+    'is not published on workers.dev or preview URLs in env %s (Access covers only the #25 hostname)',
     (env) => {
-      const { vars } = readWorkerConfig('api', env);
-      expect(vars['OWNER_EMAIL']).toBe('');
-      expect(vars['ACCESS_TEAM_DOMAIN']).toBe('');
-      expect(vars['ACCESS_AUD']).toBe('');
+      const config = readWorkerConfig('api', env);
+      expect(config.workers_dev).toBe(false);
+      expect(config.preview_urls).toBe(false);
     },
   );
 
@@ -135,6 +146,14 @@ describe('apps/api/wrangler.jsonc', () => {
   it.each(ENVIRONMENTS)('is the only Worker that applies migrations (env %s)', (env) => {
     expect(readWorkerConfig('api', env).d1_databases[0]?.migrations_dir).toBe('migrations');
     expect(readWorkerConfig('hooks', env).d1_databases[0]?.migrations_dir).toBeUndefined();
+  });
+});
+
+describe('apps/hooks/wrangler.jsonc', () => {
+  // ADR 0001 decision 14: the hooks Worker is public on team-console-hooks-<env>.<account>.workers.dev — that URL
+  // is the webhook target and the deploy smoke check. Turning workers_dev off here would break both.
+  it.each(ENVIRONMENTS)('stays reachable on workers.dev in env %s (public webhook receiver)', (env) => {
+    expect(readWorkerConfig('hooks', env).workers_dev).not.toBe(false);
   });
 });
 

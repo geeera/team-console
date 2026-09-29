@@ -4,9 +4,10 @@
 # Workers deploy from source through wrangler in GitHub Actions (#7).
 #
 #   docker build -t team-console .
-#   docker run --rm -p 8787:8787 team-console
+#   docker run --rm -p 127.0.0.1:8787:8787 team-console
 #
-ARG NODE_IMAGE=node:22-bookworm-slim
+# node:22-bookworm-slim, pinned by the index digest (verified on Docker Hub 2026-09-29); bump digest and tag together.
+ARG NODE_IMAGE=node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c
 
 # --- deps: the lockfile is written by npm 10; use exactly the npm pinned in package.json (as CI does) ---
 FROM ${NODE_IMAGE} AS deps

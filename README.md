@@ -15,7 +15,7 @@ npx nx run-many -t lint test build
 Or the container, which is also the e2e target:
 
 ```
-docker build -t team-console . && docker run --rm -p 8787:8787 team-console
+docker build -t team-console . && docker run --rm -p 127.0.0.1:8787:8787 team-console
 ```
 
 The workspace layout, tags and aliases are described in `CLAUDE.md`; the stack in `docs/decisions/`.

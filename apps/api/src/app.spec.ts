@@ -19,7 +19,7 @@ describe('GET /api/v1/healthz', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('application/json');
-    await expect(response.json()).resolves.toEqual({ status: 'ok', environment: 'dev', version });
+    await expect(response.json()).resolves.toEqual({ status: 'ok', environment: 'local', version });
   });
 
   it('carries a request id the client can quote', async () => {

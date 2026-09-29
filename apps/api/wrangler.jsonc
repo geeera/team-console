@@ -1,8 +1,10 @@
 // The `api` Worker: serves the SPA from static assets and owns /api/* (ADR 0001, decisions 4, 14, 19).
 // Non-secret configuration only. Secrets (declared in src/env.ts) are set once by the owner with
-// `wrangler secret put`; OWNER_EMAIL, ACCESS_TEAM_DOMAIN and ACCESS_AUD stay empty here (this repository is
-// public) and are filled per environment in #21/#25. AUTH_MODE and ENVIRONMENT=local exist only as `--var`
-// flags of `nx serve api` and the Dockerfile — never in an `env.*` block (tools/workspace-checks enforces it).
+// `wrangler secret put`; ACCESS_TEAM_DOMAIN and ACCESS_AUD stay empty here (this repository is public) and are
+// filled per environment in #21/#25; OWNER_EMAIL is a secret, never a var. workers_dev and preview_urls are
+// off: Access covers only the hostname configured in #25, not *.workers.dev. AUTH_MODE and ENVIRONMENT=local
+// exist only as `--var` flags of `nx serve api` and the Dockerfile — never in an `env.*` block
+// (tools/workspace-checks enforces it).
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "team-console",
@@ -18,9 +20,10 @@
   "env": {
     "dev": {
       "name": "team-console-dev",
+      "workers_dev": false,
+      "preview_urls": false,
       "vars": {
         "ENVIRONMENT": "dev",
-        "OWNER_EMAIL": "",
         "ACCESS_TEAM_DOMAIN": "",
         "ACCESS_AUD": "",
         "ALLOW_SERVICE_TOKEN": "true",
@@ -37,9 +40,10 @@
     },
     "stage": {
       "name": "team-console-stage",
+      "workers_dev": false,
+      "preview_urls": false,
       "vars": {
         "ENVIRONMENT": "stage",
-        "OWNER_EMAIL": "",
         "ACCESS_TEAM_DOMAIN": "",
         "ACCESS_AUD": "",
         "ALLOW_SERVICE_TOKEN": "true",
@@ -55,9 +59,10 @@
     },
     "production": {
       "name": "team-console-production",
+      "workers_dev": false,
+      "preview_urls": false,
       "vars": {
         "ENVIRONMENT": "production",
-        "OWNER_EMAIL": "",
         "ACCESS_TEAM_DOMAIN": "",
         "ACCESS_AUD": "",
         "ALLOW_SERVICE_TOKEN": "false",

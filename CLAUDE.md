@@ -82,12 +82,13 @@ queries only). Migrations live only in `apps/api/migrations` (`0001_init` = `pro
 with non-secret vars only; secrets (`GITHUB_TOKEN`, `WEBHOOK_SECRET`, `VAPID_PRIVATE_KEY`, `ROUTINE_TOKEN_*`) are
 declared in each app's `src/env.ts` and set with `wrangler secret put`. `AUTH_MODE:local` + `ENVIRONMENT:local`
 are passed only as `--var` flags by `nx serve api` and the Dockerfile — `tools/workspace-checks` fails if either
-appears in an `env.*` block. `authMiddleware` in `apps/api/src/auth/` is a no-op until #8; its spec is `it.fails`
-so the gap stays visible.
+appears in an `env.*` block. `authMiddleware` in `apps/api/src/auth/` fails closed (401 `access-missing`) until #8
+adds JWT verification; only `ENVIRONMENT=local` + `AUTH_MODE=local` together let a request through (the api
+vitest config binds both so route specs run; `auth.middleware.spec.ts` overrides them per case).
 
 Commands: `npx nx serve api` (builds the console, applies migrations, `wrangler dev` on :8787), `npx nx run
 api:migrate` (fresh local D1), `npx nx build api` (`tsc --noEmit` + `wrangler deploy --dry-run`), `docker build -t
-team-console . && docker run --rm -p 8787:8787 team-console` (the e2e target: same bundle, local D1, `:8787`).
+team-console . && docker run --rm -p 127.0.0.1:8787:8787 team-console` (the e2e target: same bundle, local D1, `:8787`).
 Worker tests run in workerd through `@cloudflare/vitest-pool-workers` (`SELF.fetch`, an isolated in-memory D1
 migrated in `src/test-setup.ts`); `apps/api/test-assets` stands in for the Angular build. `wrangler`,
 `@cloudflare/vitest-pool-workers` and `compatibility_date` move together (one workerd for dev, Docker and tests).
