@@ -33,7 +33,9 @@ describe('bindings', () => {
     expect(results).toEqual([{ name: 'projects' }]);
   });
 
-  it('holds no GitHub token', () => {
-    expect('GITHUB_TOKEN' in env).toBe(false);
+  // Matched by prefix so this file itself names no credential (tools/workspace-checks scans apps/hooks).
+  it('holds no GitHub credential and no token encryption key', () => {
+    const bindings = Object.keys(env).filter((key) => key.startsWith('GITHUB') || key.includes('ENCRYPTION'));
+    expect(bindings).toEqual([]);
   });
 });

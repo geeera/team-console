@@ -12,7 +12,15 @@ import { unstable_readConfig } from 'wrangler';
 const ENVIRONMENTS = ['dev', 'stage', 'production'] as const;
 type DeployEnvironment = (typeof ENVIRONMENTS)[number];
 
-const SECRET_NAMES = ['GITHUB_TOKEN', 'WEBHOOK_SECRET', 'VAPID_PRIVATE_KEY', 'ROUTINE_TOKEN'] as const;
+const SECRET_NAMES = [
+  'GITHUB_TOKEN',
+  'GITHUB_APP_PRIVATE_KEY',
+  'GITHUB_APP_CLIENT_SECRET',
+  'TOKEN_ENCRYPTION_KEY',
+  'WEBHOOK_SECRET',
+  'VAPID_PRIVATE_KEY',
+  'ROUTINE_TOKEN',
+] as const;
 const LOCAL_ONLY_VARS = ['AUTH_MODE', 'GITHUB_MOCK'] as const;
 
 interface WranglerEnvConfig {

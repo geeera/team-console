@@ -112,6 +112,43 @@ describe('createWorkerApp', () => {
     expect((await problemOf(response)).type).toBe(`${PROBLEM_TYPE_PREFIX}http-error`);
   });
 
+  it('answers a mapped domain error with its problem and logs only the mapped fields', async () => {
+    class UpstreamError extends Error {}
+    const lines: string[] = [];
+    const app = createWorkerApp<WorkerBaseEnv>({
+      service: 'test',
+      logSink: (line) => lines.push(line),
+      mapError: (error) =>
+        error instanceof UpstreamError
+          ? {
+              problem: { type: 'github-rate-limit', title: 'GitHub rate limit', status: 429, retryAfter: 7 },
+              logFields: { githubStatus: 403 },
+            }
+          : undefined,
+    });
+    app.get('/mapped', () => {
+      throw new UpstreamError(`failed with ${JWT_SENTINEL}`);
+    });
+    app.get('/unmapped', () => {
+      throw new Error('other');
+    });
+
+    const mapped = await app.request('/mapped', {}, env);
+    expect(mapped.status).toBe(429);
+    expect(mapped.headers.get('retry-after')).toBe('7');
+    expect((await problemOf(mapped)).type).toBe(`${PROBLEM_TYPE_PREFIX}github-rate-limit`);
+    const logged = lines.find((line) => line.includes('request failed')) ?? '';
+    expect(JSON.parse(logged)).toMatchObject({
+      level: 'warn',
+      githubStatus: 403,
+      problem: 'github-rate-limit',
+    });
+    expect(lines.join('\n')).not.toContain(JWT_SENTINEL);
+
+    const unmapped = await app.request('/unmapped', {}, env);
+    expect(unmapped.status).toBe(500);
+  });
+
   it('sets Retry-After when a problem carries retryAfter', async () => {
     const response = await build().request('/rate-limited', {}, env);
     expect(response.status).toBe(429);

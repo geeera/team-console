@@ -25,6 +25,14 @@ export class ProjectsRepo {
     return results;
   }
 
+  /** The active project with this slug; archived and unknown slugs are both `null`. */
+  async findActiveBySlug(slug: string): Promise<ProjectRow | null> {
+    return this.db
+      .prepare(`SELECT ${COLUMNS} FROM projects WHERE archived_at IS NULL AND slug = ?1`)
+      .bind(slug)
+      .first<ProjectRow>();
+  }
+
   /** Matches `owner/name` case-insensitively: GitHub treats repository names that way and webhooks echo the stored casing. */
   async findActiveByRepo(repo: string): Promise<ProjectRow | null> {
     return this.db

@@ -17,10 +17,12 @@ const REDACTED_KEYS: ReadonlySet<string> = new Set([
   'set-cookie',
 ]);
 /**
- * GitHub tokens (classic and fine-grained) and JWTs (`eyJ` is base64url `{"`): a credential that slipped into
- * a message or an error still never lands in a log.
+ * GitHub tokens (classic, fine-grained, OAuth, installation `ghs_`, user `ghu_`, refresh `ghr_`), JWTs (`eyJ`
+ * is base64url `{"`, which also covers the app JWT) and PEM private keys, whole or cut off: a credential that
+ * slipped into a message or an error still never lands in a log (ADR 0003 decision 8).
  */
-const TOKEN_PATTERN = /(?:ghp_|github_pat_)[A-Za-z0-9_]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g;
+const TOKEN_PATTERN =
+  /(?:ghp_|gho_|ghs_|ghu_|ghr_|github_pat_)[A-Za-z0-9_]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*|-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)|PRIVATE KEY/g;
 /** Deep enough for headers and nested error causes; stops runaway or cyclic structures. */
 const MAX_DEPTH = 6;
 

@@ -34,6 +34,22 @@ describe('redact', () => {
     expect(result).toEqual({ note: 'token [redacted] and [redacted]', nested: [{ t: '[redacted]' }] });
   });
 
+  it.each([
+    ['installation token', 'ghs_TESTSENTINEL0123456789abcdef'],
+    ['user token', 'ghu_TESTSENTINEL0123456789abcdef'],
+    ['refresh token', 'ghr_TESTSENTINEL0123456789abcdef'],
+    ['OAuth token', 'gho_TESTSENTINEL0123456789abcdef'],
+  ])('masks a GitHub %s', (_kind, token) => {
+    expect(redact(`minted ${token} for acme/app`)).toBe('minted [redacted] for acme/app');
+  });
+
+  it('masks a PEM private key whole, and a truncated one to the end of the text', () => {
+    const pem = '-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\n-----END PRIVATE KEY-----';
+    expect(redact(`key: ${pem} (app 1)`)).toBe('key: [redacted] (app 1)');
+    expect(redact('bad -----BEGIN RSA PRIVATE KEY-----\nMIIEow')).toBe('bad [redacted]');
+    expect(redact('not an RSA PRIVATE KEY')).not.toContain('PRIVATE KEY');
+  });
+
   it('serialises errors with their cause and redacts inside them', () => {
     const error = new Error(`failed with ${PAT_SENTINEL}`, { cause: { authorization: 'x' } });
     const result = redact(error) as Record<string, unknown>;

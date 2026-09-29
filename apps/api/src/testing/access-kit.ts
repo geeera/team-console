@@ -2,6 +2,7 @@ import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type JWTPayload } from 'jose';
 import { createApiApp } from '../app';
 import type { ApiEnv } from '../env';
+import type { ApiGitHub } from '../github';
 
 /** Test-only: a local stand-in for a Cloudflare Access team (RSA key, JWKS endpoint, token signer). */
 
@@ -131,13 +132,18 @@ export interface ApiRequest {
   readonly headers?: Record<string, string>;
   readonly body?: string;
   readonly logSink?: (line: string) => void;
+  /** Shared across calls so the token and read caches behave as in one isolate. */
+  readonly github?: ApiGitHub;
 }
 
 /** Calls the app directly so each case chooses its own bindings (`SELF` is fixed to the pool's local ones). */
 export async function fetchApi(path: string, bindings: ApiEnv, request: ApiRequest = {}): Promise<Response> {
   const ctx = createExecutionContext();
   // Silent by default; a case that asserts on logs passes its own sink.
-  const app = createApiApp({ logSink: request.logSink ?? (() => undefined) });
+  const app = createApiApp({
+    logSink: request.logSink ?? (() => undefined),
+    ...(request.github === undefined ? {} : { github: request.github }),
+  });
   const init: RequestInit = { method: request.method ?? 'GET', headers: request.headers ?? {} };
   if (request.body !== undefined) {
     init.body = request.body;
