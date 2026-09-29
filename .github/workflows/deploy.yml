@@ -10,9 +10,10 @@
 #   `ref` input is a commit actually reachable from that branch (a deployment branch policy alone only checks
 #   the branch the run was *started* from, never the commit `ref` overrides it with — that gap let any commit
 #   reach the deploy credentials). It also refuses to continue if apps/api/wrangler.jsonc or
-#   apps/hooks/wrangler.jsonc ever regresses to one of the all-zero placeholder D1 database ids that shipped
-#   before the real ones landed in #25 — a regression guard, not a one-time gate. Cheap: runs before `npm
-#   ci`/the build, so a bad id fails in seconds, not after a full Nx build.
+#   apps/hooks/wrangler.jsonc ever regresses to one of the `00000000-0000-0000-0000-00000000<env-suffix>`
+#   scaffold placeholder D1 database ids that shipped before the real ones landed in #25 — a regression guard,
+#   not a one-time gate. Cheap: runs before `npm ci`/the build, so a bad id fails in seconds, not after a full
+#   Nx build.
 #
 #   `deploy` — `needs: guard`, so it only starts once every check above passed; `environment:` here is what
 #   actually puts GitHub's own deployment-branch policy and (on `production`) required-reviewer gate in

@@ -171,7 +171,9 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
        homepage, webhook URL, разрешениями (`metadata: read`, `issues: write`, `pull_requests: read`,
        `contents: read`, `actions: read`) и событиями (`issues`, `issue_comment`, `pull_request`,
        `workflow_run`, `release`, `push`) на github.com/settings/apps/new. **Единственное, что делаешь ты**:
-       проверяешь экран подтверждения GitHub и нажимаешь **Create GitHub App**.
+       проверяешь экран подтверждения GitHub и нажимаешь **Create GitHub App** — **не переименовывай** приложение
+       на этом экране: скрипт принимает от GitHub только точное совпадение с именем `team-console-<env>`, любое
+       другое имя (даже отличающееся на один символ) он расценит как несовпадение и откажется его принять.
     3. GitHub вернёт браузер обратно на `127.0.0.1`; скрипт сам обменяет код, полученный от GitHub, на
        приватный ключ, client secret и webhook secret приложения и **сразу же**, ничего не печатая и никуда не
        сохраняя на диск, положит их: приватный ключ (конвертированный в PKCS#8) и client secret — секретами
