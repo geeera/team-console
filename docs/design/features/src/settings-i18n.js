@@ -108,6 +108,7 @@ const I18N = {
     'setup.doneLive': 'Check finished: {done} of 5 done.', 'setup.stepsAria': 'Setup steps',
 
     'step.done': 'Done', 'step.missing': 'Missing', 'step.pending': 'Checking…', 'step.skipped': 'Not checked', 'step.unknown': 'Couldn’t check',
+    'step.waiting': 'Waiting',
     'step.skippedWhy': 'Needs the step above first.', 'step.unknownWhy': 'GitHub didn’t respond. Select Check again.',
     'step.how': 'How to fix',
     'step.app.title': 'The <code>{app}</code> app is installed on the repo',
@@ -247,6 +248,7 @@ const I18N = {
     'setup.doneLive': 'Проверка закончена: готово {done} из 5.', 'setup.stepsAria': 'Шаги настройки',
 
     'step.done': 'Готово', 'step.missing': 'Не хватает', 'step.pending': 'Проверяем…', 'step.skipped': 'Не проверено', 'step.unknown': 'Не удалось проверить',
+    'step.waiting': 'Ждём',
     'step.skippedWhy': 'Сначала нужен шаг выше.', 'step.unknownWhy': 'GitHub не ответил. Нажми «Проверить снова».',
     'step.how': 'Как сделать',
     'step.app.title': 'Приложение <code>{app}</code> установлено на репозиторий',

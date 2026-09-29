@@ -192,7 +192,7 @@
       const fresh = ctx.fresh && ctx.fresh.includes(i);
       return `<li class="step step--${st}${fresh ? ' is-new' : ''}" style="--i:${ctx.fresh ? ctx.fresh.indexOf(i) : 0}">
         <span class="step__mark" aria-hidden="true">${mark}</span>
-        <div class="step__body"><div class="step__head"><h3 class="step__title">${t(`step.${k}.title`, vars)}</h3><span class="step__state">${t(`step.${st}`)}</span></div>
+        <div class="step__body"><div class="step__head"><h3 class="step__title">${t(`step.${k}.title`, vars)}</h3><span class="step__state">${t(k === 'events' && st === 'missing' ? 'step.waiting' : `step.${st}`)}</span></div>
         ${fix ? `<p class="step__fix">${fix}</p>` : ''}${how}</div></li>`;
     }
     const ledger = (steps, ctx) => `<ol class="ledger" aria-label="${t('setup.stepsAria')}">${steps.map((s, i) => stepHTML(i, s, ctx)).join('')}</ol>`;
