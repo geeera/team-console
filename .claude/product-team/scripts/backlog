@@ -1,0 +1,371 @@
+#!/usr/bin/env python3
+"""Backlog adapter over GitHub Issues (SPEC decision 4).
+
+The contract is the subcommand set below and its JSON output; a different tracker replaces this file, not the
+skills. Output is JSON on stdout; errors go to stderr with a non-zero exit.
+
+  backlog init                                   create missing labels (idempotent; existing ones untouched)
+  backlog list [--status S] [--kind K] [--label L]... [--milestone M|current] [--state open|closed|all]
+  backlog show N                                 issue with body, labels, comments
+  backlog create --title T --kind K [--status proposed] [--severity SEV] [--label L]...
+                 [--milestone M|current] (--body B | --body-file F)
+                 kind question also needs --owner-category money|scope|release|access|legal|design and
+                 --ask "what to answer" — anything else is the team's call (`backlog decide`)
+  backlog ask N --owner-category C --ask "what to answer"
+                 turn an existing issue into a policy-conform owner question (answer line on top, owner:* label)
+  backlog answer N --command approve|reject|go|no-go|override|done --owner-said "…" [--text T]
+                 the owner's answer given in the team chat (interactive only — scheduled runs never call it);
+                 allowed commands depend on the item: questions and designs approve/reject, the demo issue
+                 go/no-go/override, action items done
+  backlog reversals [--days 14]  team decisions the owner answered with /reject since they were made
+  backlog decide N (--body B | --body-file F) [--close]
+                 record a team decision on the issue (label team-decided); --close closes a question it answers
+  backlog move N STATUS [--reason TEXT]          set the single status:* label (done closes the issue)
+  backlog milestone N TITLE|current|none         put the issue into a sprint (or remove it)
+  backlog close N [--reason TEXT]                close as not planned (rejected, duplicate, obsolete)
+  backlog label N [+L|-L]...                     add/remove flags
+  backlog comment N (--body B | --body-file F)
+  backlog link-pr N PR                           record the PR on the issue
+  backlog answers N                              owner commands (/approve, /reject, /go, …) on the issue
+  backlog next [--now ISO]                       what a development run takes now: ordered dispatch list,
+                                                 skipped issues with reasons, missing architect notes
+  backlog sprint current|list
+  backlog sprint create TITLE DUE_DATE           DUE_DATE = demo day, YYYY-MM-DD
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from datetime import date, datetime, timedelta
+from urllib.parse import quote
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ptlib import brief, commands, gh, inbox, owner, picker, project  # noqa: E402
+from ptlib.calendar import KYIV, compute, pick_current_sprint  # noqa: E402
+from ptlib.labels import LABELS, STATUSES, KINDS, SEVERITIES  # noqa: E402
+
+
+def out(data) -> None:
+    json.dump(data, sys.stdout, indent=2, ensure_ascii=False)
+    sys.stdout.write("\n")
+
+
+def body_arg(args) -> str:
+    if getattr(args, "body_file", None):
+        with open(args.body_file, encoding="utf-8") as f:
+            return f.read()
+    return args.body or ""
+
+
+def slim(issue: dict) -> dict:
+    labels = [l["name"] for l in issue.get("labels", [])]
+    status = next((l[len("status:"):] for l in labels if l.startswith("status:")), None)
+    kind = next((l[len("kind:"):] for l in labels if l.startswith("kind:")), None)
+    ms = issue.get("milestone") or {}
+    return {
+        "number": issue["number"],
+        "title": issue["title"],
+        "state": issue.get("state"),
+        "status": status,
+        "kind": kind,
+        "labels": labels,
+        "milestone": ms.get("title"),
+        "url": issue.get("html_url"),
+        "updated_at": issue.get("updated_at"),
+    }
+
+
+def current_sprint(repo: str):
+    milestones = gh.api_list(f"repos/{repo}/milestones?state=open&per_page=100")
+    return pick_current_sprint(milestones, datetime.now(KYIV).date())
+
+
+def resolve_milestone(repo: str, value):
+    if not value:
+        return None
+    if value == "current":
+        sprint = current_sprint(repo)
+        if not sprint:
+            sys.exit("no open sprint milestone with a due date; run `backlog sprint create`")
+        return sprint
+    for m in gh.api_list(f"repos/{repo}/milestones?state=all&per_page=100"):
+        if m["title"] == value:
+            return m
+    sys.exit(f"milestone not found: {value}")
+
+
+def cmd_init(repo: str, _args) -> None:
+    # Labels the project already has are left as they are: the project's conventions beat the plugin's.
+    existing = {l["name"] for l in gh.api_list(f"repos/{repo}/labels?per_page=100")}
+    created, kept = [], []
+    for name, (color, desc) in LABELS.items():
+        if name in existing:
+            kept.append(name)
+            continue
+        gh.api(f"repos/{repo}/labels", "POST", {"name": name, "color": color, "description": desc})
+        created.append(name)
+    out({"created": created, "kept": kept})
+
+
+def gh_quote(name: str) -> str:
+    return quote(name, safe="")
+
+
+def cmd_list(repo: str, args) -> None:
+    labels = list(args.label or [])
+    if args.status:
+        labels.append(f"status:{args.status}")
+    if args.kind:
+        labels.append(f"kind:{args.kind}")
+    query = f"state={args.state}&per_page=100"
+    if labels:
+        query += "&labels=" + gh_quote(",".join(labels))
+    ms = resolve_milestone(repo, args.milestone)
+    if ms:
+        query += f"&milestone={ms['number']}"
+    issues = [i for i in gh.api_list(f"repos/{repo}/issues?{query}") if "pull_request" not in i]
+    out([slim(i) for i in issues])
+
+
+def cmd_show(repo: str, args) -> None:
+    issue = gh.api(f"repos/{repo}/issues/{args.number}")
+    data = slim(issue)
+    data["body"] = issue.get("body") or ""
+    data["comments"] = [
+        {"author": c["user"]["login"], "at": c["created_at"], "body": c["body"]}
+        for c in gh.api_list(f"repos/{repo}/issues/{args.number}/comments?per_page=100")
+    ]
+    out(data)
+
+
+def cmd_create(repo: str, args) -> None:
+    if args.kind not in KINDS:
+        sys.exit(f"unknown kind {args.kind}; one of {KINDS}")
+    if args.status not in STATUSES:
+        sys.exit(f"unknown status {args.status}; one of {STATUSES}")
+    labels = [f"kind:{args.kind}", f"status:{args.status}"] + list(args.label or [])
+    body = body_arg(args)
+    if args.kind == "question":
+        # The decision policy, enforced: only owner decisions become questions, and each says how to answer.
+        try:
+            body = owner.question_body(args.ask or "", body, args.owner_category or "", project.owner_language())
+        except ValueError as exc:
+            sys.exit(str(exc))
+        labels.append(f"owner:{args.owner_category}")
+    if args.severity:
+        if args.severity not in SEVERITIES:
+            sys.exit(f"unknown severity {args.severity}; one of {SEVERITIES}")
+        labels.append(f"sev:{args.severity}")
+    payload = {"title": args.title, "body": body, "labels": labels}
+    ms = resolve_milestone(repo, args.milestone)
+    if ms:
+        payload["milestone"] = ms["number"]
+    out(slim(gh.api(f"repos/{repo}/issues", "POST", payload)))
+
+
+def cmd_ask(repo: str, args) -> None:
+    issue = gh.api(f"repos/{repo}/issues/{args.number}")
+    body = issue.get("body") or ""
+    if owner.ask_of(body):  # replace an existing answer line rather than stacking two
+        body = body.split(owner.ASK_MARKER, 1)[-1]
+    try:
+        body = owner.question_body(args.ask, body, args.owner_category, project.owner_language())
+    except ValueError as exc:
+        sys.exit(str(exc))
+    if any(l["name"] == "design:awaiting-approval" for l in issue["labels"]):
+        sys.exit("designs are answered on their issue as they are (the inbox shows /approve · /reject); not a question")
+    labels = sorted({l["name"] for l in issue["labels"] if not l["name"].startswith(("owner:", "kind:"))}
+                    | {"kind:question", f"owner:{args.owner_category}"})
+    out(slim(gh.api(f"repos/{repo}/issues/{args.number}", "PATCH", {"body": body, "labels": labels})))
+
+
+def cmd_answer(repo: str, args) -> None:
+    issue = gh.api(f"repos/{repo}/issues/{args.number}")
+    if issue.get("state") != "open":
+        sys.exit(f"#{args.number} is closed; nothing is waiting for an answer there")
+    labels = [l["name"] for l in issue["labels"]]
+    kind = next((l[5:] for l in labels if l.startswith("kind:")), None)
+    section = inbox.classify({"labels": labels, "kind": kind})
+    try:
+        body = brief.answer_comment(args.command, args.text or "", args.owner_said or "", section or "")
+    except ValueError as exc:
+        sys.exit(f"#{args.number}: {exc}")
+    c = gh.api(f"repos/{repo}/issues/{args.number}/comments", "POST", {"body": body})
+    out({"issue": args.number, "answer": f"/{args.command}", "url": c["html_url"]})
+
+
+def cmd_reversals(repo: str, args) -> None:
+    owner_login = gh.owner_login(repo)
+    since = (datetime.now(KYIV) - timedelta(days=args.days)).isoformat(timespec="seconds")
+    found = []
+    for issue in gh.api_list(f"repos/{repo}/issues?state=all&labels=team-decided&since={quote(since)}&per_page=100"):
+        if "pull_request" in issue:
+            continue
+        comments = gh.api_list(f"repos/{repo}/issues/{issue['number']}/comments?per_page=100")
+        rejection = owner.reversed_by_owner(comments, owner_login)
+        if rejection:
+            found.append(dict(slim(issue), reason=rejection.get("text", ""), at=rejection.get("at")))
+    out(found)
+
+
+def cmd_decide(repo: str, args) -> None:
+    text = body_arg(args).strip()
+    if not text:
+        sys.exit("a team decision needs its reasoning: --body or --body-file")
+    issue = gh.api(f"repos/{repo}/issues/{args.number}")
+    current = {l["name"] for l in issue["labels"]}
+    if args.close and "kind:question" not in current:
+        sys.exit("--close is only for questions a decision answers; move other issues through their status")
+    c = gh.api(f"repos/{repo}/issues/{args.number}/comments", "POST", {"body": owner.decision_comment(text)})
+    # A decided question is no longer the owner's: drop owner:* so it leaves "Questions" and shows as FYI only.
+    labels = sorted({l for l in current if not l.startswith("owner:")} | {"team-decided"})
+    patch = {"labels": labels}
+    if args.close:
+        patch.update(state="closed", state_reason="completed")
+    out(dict(slim(gh.api(f"repos/{repo}/issues/{args.number}", "PATCH", patch)), decision_url=c["html_url"]))
+
+
+def cmd_move(repo: str, args) -> None:
+    if args.status not in STATUSES:
+        sys.exit(f"unknown status {args.status}; one of {STATUSES}")
+    issue = gh.api(f"repos/{repo}/issues/{args.number}")
+    labels = [l["name"] for l in issue["labels"] if not l["name"].startswith("status:")]
+    labels.append(f"status:{args.status}")
+    payload = {"labels": labels}
+    if args.status == "done":
+        payload["state"] = "closed"
+        payload["state_reason"] = "completed"
+    elif issue["state"] == "closed":
+        payload["state"] = "open"
+    updated = gh.api(f"repos/{repo}/issues/{args.number}", "PATCH", payload)
+    if args.reason:
+        gh.api(f"repos/{repo}/issues/{args.number}/comments", "POST",
+               {"body": f"**Status → `{args.status}`**: {args.reason}"})
+    out(slim(updated))
+
+
+def cmd_milestone(repo: str, args) -> None:
+    number = None if args.title == "none" else resolve_milestone(repo, args.title)["number"]
+    out(slim(gh.api(f"repos/{repo}/issues/{args.number}", "PATCH", {"milestone": number})))
+
+
+def cmd_close(repo: str, args) -> None:
+    if args.reason:
+        gh.api(f"repos/{repo}/issues/{args.number}/comments", "POST", {"body": f"**Closed as not planned**: {args.reason}"})
+    out(slim(gh.api(f"repos/{repo}/issues/{args.number}", "PATCH", {"state": "closed", "state_reason": "not_planned"})))
+
+
+def cmd_label(repo: str, args) -> None:
+    for change in args.changes:
+        if change[:1] not in "+-" or len(change) < 2:
+            sys.exit(f"label changes look like +name or -name, got {change!r}")
+        if change[1:].startswith("status:"):
+            sys.exit("use `backlog move` to change status")
+    issue = gh.api(f"repos/{repo}/issues/{args.number}")
+    labels = {l["name"] for l in issue["labels"]}
+    for change in args.changes:
+        (labels.add if change[0] == "+" else labels.discard)(change[1:])
+    out(slim(gh.api(f"repos/{repo}/issues/{args.number}", "PATCH", {"labels": sorted(labels)})))
+
+
+def cmd_comment(repo: str, args) -> None:
+    c = gh.api(f"repos/{repo}/issues/{args.number}/comments", "POST", {"body": body_arg(args)})
+    out({"id": c["id"], "url": c["html_url"]})
+
+
+def cmd_link_pr(repo: str, args) -> None:
+    pr = gh.api(f"repos/{repo}/pulls/{args.pr}")
+    c = gh.api(f"repos/{repo}/issues/{args.number}/comments", "POST",
+               {"body": f"PR: {pr['html_url']} (`{pr['head']['ref']}` → `{pr['base']['ref']}`)"})
+    out({"issue": args.number, "pr": pr["number"], "pr_url": pr["html_url"], "comment": c["html_url"]})
+
+
+def cmd_answers(repo: str, args) -> None:
+    owner = gh.owner_login(repo)
+    comments = gh.api_list(f"repos/{repo}/issues/{args.number}/comments?per_page=100")
+    # When the agents act as the owner's account, an agent can write a comment that looks like the owner's.
+    same_account = gh.acts_as_owner(repo)
+    out({"owner": owner, "same_account": same_account, "commands": commands.parse(comments, owner)})
+
+
+def cmd_next(repo: str, args) -> None:
+    now = datetime.fromisoformat(args.now) if args.now else datetime.now(KYIV)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=KYIV)
+    sprint = current_sprint(repo)
+    demo = date.fromisoformat(sprint["due_on"][:10]) if sprint else None
+    ctx = compute(now, sprint["title"] if sprint else None, demo, project.freeze_days()).to_dict()
+    issues = [slim(i) for i in gh.api_list(f"repos/{repo}/issues?state=open&per_page=100") if "pull_request" not in i]
+    agents_dir = os.path.join(os.getcwd(), ".claude", "agents")
+    known = ({f[:-3] for f in os.listdir(agents_dir) if f.endswith(".md")} | {"fullstack-dev"}
+             if os.path.isdir(agents_dir) else None)
+    plan = picker.pick(issues, ctx["sprint"], ctx, known)
+    plan["context"] = ctx
+    out(plan)
+
+
+def cmd_sprint(repo: str, args) -> None:
+    if args.action == "current":
+        s = current_sprint(repo)
+        out({"title": s["title"], "number": s["number"], "due": s["due_on"][:10], "url": s["html_url"]} if s else None)
+    elif args.action == "list":
+        out([{"title": m["title"], "number": m["number"], "state": m["state"], "due": (m.get("due_on") or "")[:10]}
+             for m in gh.api_list(f"repos/{repo}/milestones?state=all&per_page=100")])
+    else:
+        if not args.title or not args.due:
+            sys.exit("usage: backlog sprint create TITLE YYYY-MM-DD")
+        due = date.fromisoformat(args.due)
+        m = gh.api(f"repos/{repo}/milestones", "POST",
+                   {"title": args.title, "due_on": f"{due.isoformat()}T12:00:00Z"})
+        out({"title": m["title"], "number": m["number"], "due": m["due_on"][:10], "url": m["html_url"]})
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(prog="backlog", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("init")
+    ls = sub.add_parser("list")
+    ls.add_argument("--status"); ls.add_argument("--kind"); ls.add_argument("--label", action="append")
+    ls.add_argument("--milestone"); ls.add_argument("--state", default="open", choices=["open", "closed", "all"])
+    sh = sub.add_parser("show"); sh.add_argument("number", type=int)
+    cr = sub.add_parser("create")
+    cr.add_argument("--title", required=True); cr.add_argument("--kind", required=True)
+    cr.add_argument("--status", default="proposed"); cr.add_argument("--severity")
+    cr.add_argument("--label", action="append"); cr.add_argument("--milestone")
+    cr.add_argument("--body"); cr.add_argument("--body-file")
+    cr.add_argument("--owner-category", choices=sorted(owner.CATEGORIES)); cr.add_argument("--ask")
+    an2 = sub.add_parser("answer"); an2.add_argument("number", type=int)
+    an2.add_argument("--command", required=True, choices=list(brief.ANSWERABLE)); an2.add_argument("--text")
+    an2.add_argument("--owner-said", required=True)
+    rv = sub.add_parser("reversals"); rv.add_argument("--days", type=int, default=14)
+    ak = sub.add_parser("ask"); ak.add_argument("number", type=int)
+    ak.add_argument("--owner-category", required=True, choices=sorted(owner.CATEGORIES)); ak.add_argument("--ask", required=True)
+    de = sub.add_parser("decide"); de.add_argument("number", type=int); de.add_argument("--body"); de.add_argument("--body-file")
+    de.add_argument("--close", action="store_true")
+    mv = sub.add_parser("move"); mv.add_argument("number", type=int); mv.add_argument("status"); mv.add_argument("--reason")
+    ms = sub.add_parser("milestone"); ms.add_argument("number", type=int); ms.add_argument("title")
+    cl = sub.add_parser("close"); cl.add_argument("number", type=int); cl.add_argument("--reason")
+    lb = sub.add_parser("label"); lb.add_argument("number", type=int); lb.add_argument("changes", nargs="+")
+    cm = sub.add_parser("comment"); cm.add_argument("number", type=int); cm.add_argument("--body"); cm.add_argument("--body-file")
+    lp = sub.add_parser("link-pr"); lp.add_argument("number", type=int); lp.add_argument("pr", type=int)
+    an = sub.add_parser("answers"); an.add_argument("number", type=int)
+    nx = sub.add_parser("next"); nx.add_argument("--now")
+    sp = sub.add_parser("sprint"); sp.add_argument("action", choices=["current", "list", "create"])
+    sp.add_argument("title", nargs="?"); sp.add_argument("due", nargs="?")
+    args = p.parse_args()
+
+    handlers = {
+        "init": cmd_init, "list": cmd_list, "show": cmd_show, "create": cmd_create, "move": cmd_move, "close": cmd_close, "decide": cmd_decide, "ask": cmd_ask, "reversals": cmd_reversals, "answer": cmd_answer, "milestone": cmd_milestone,
+        "label": cmd_label, "comment": cmd_comment, "link-pr": cmd_link_pr, "answers": cmd_answers,
+        "sprint": cmd_sprint, "next": cmd_next,
+    }
+    try:
+        handlers[args.cmd](gh.repo(), args)
+    except gh.GhError as exc:
+        sys.exit(str(exc))
+
+
+if __name__ == "__main__":
+    main()

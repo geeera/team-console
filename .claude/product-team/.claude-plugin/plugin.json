@@ -1,0 +1,20 @@
+{
+  "name": "product-team",
+  "displayName": "Product Team",
+  "description": "An autonomous product team \u2014 PM, Architect, Designer, Fullstack Dev, QA, DevOps, Analyst \u2014 that develops a product on scheduled cloud runs, with the repository owner as the client.",
+  "version": "0.9.0",
+  "author": {
+    "name": "Geeera",
+    "url": "https://github.com/geeera"
+  },
+  "homepage": "https://github.com/geeera/product-team-plugin",
+  "repository": "https://github.com/geeera/product-team-plugin",
+  "license": "MIT",
+  "keywords": [
+    "product",
+    "team",
+    "agents",
+    "scheduled",
+    "github-issues"
+  ]
+}

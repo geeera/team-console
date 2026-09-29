@@ -1,0 +1,51 @@
+# Contract CI (reference/stack-contract.md). devops replaces the TODO steps with the commands from
+# .product-team/project.yml and the stack's setup action; job names stay stable because QA reads them.
+name: ci
+
+on:
+  pull_request:
+    branches: [dev, stage, main]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint-test-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      # TODO(devops): setup action + cache for the stack
+      - run: echo "TODO install" && exit 1
+      - run: echo "TODO lint" && exit 1
+      - run: echo "TODO test" && exit 1
+      - run: echo "TODO build" && exit 1
+
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            app:
+              - 'src/**'
+              - 'e2e/**'
+              - 'package.json'
+
+  e2e:
+    needs: [lint-test-build, changes]
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      # TODO(devops): start the app or target a preview deploy, then run the e2e command with BASE_URL
+      - run: echo "TODO e2e (with a11y assertions)" && exit 1

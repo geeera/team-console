@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+"""The owner's daily digest: the pinned "Needs you" issue, sent to the phone (runs in GitHub Actions).
+
+  digest show                  print the message
+  digest send [--always]       send it; skipped when nothing needs the owner (unless --always)
+
+Channels, first one configured wins (values from GitHub Secrets, never in code):
+  PT_TELEGRAM_TOKEN + PT_TELEGRAM_CHAT     a Telegram bot the owner created with @BotFather
+  PT_NTFY_TOPIC [+ PT_NTFY_SERVER]         an ntfy.sh topic (free app, no account)
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import http.client
+import urllib.error
+import urllib.request
+from urllib.parse import quote
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ptlib import digest, gh, project  # noqa: E402
+
+
+def message(repo: str) -> tuple:
+    found = gh.api_list(f"repos/{repo}/issues?state=open&labels=team:inbox&per_page=5")
+    if not found:
+        return 0, ""
+    sections = digest.parse_inbox(found[0].get("body") or "")
+    product = repo.split("/", 1)[-1]
+    return digest.needs_count(sections), digest.format_digest(product, sections, project.owner_language())
+
+
+def post(url: str, data: bytes, headers: dict) -> None:
+    req = urllib.request.Request(url, data=data, method="POST", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            resp.read()
+    except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException) as exc:
+        # Never echo the URL: for Telegram it contains the bot token.
+        sys.exit(f"sending the digest failed: {type(exc).__name__}")
+
+
+def send(text: str) -> str:
+    token = (os.environ.get("PT_TELEGRAM_TOKEN") or "").strip()
+    chat = (os.environ.get("PT_TELEGRAM_CHAT") or "").strip()
+    if token and chat:
+        body = json.dumps({"chat_id": chat, "text": text[:4000], "disable_web_page_preview": True}).encode()
+        post(f"https://api.telegram.org/bot{token}/sendMessage", body, {"Content-Type": "application/json"})
+        return "telegram"
+    topic = (os.environ.get("PT_NTFY_TOPIC") or "").strip()
+    if topic:
+        server = os.environ.get("PT_NTFY_SERVER", "https://ntfy.sh").rstrip("/")
+        # ntfy turns bodies over 4096 bytes into an attachment; Cyrillic takes two bytes a character.
+        post(f"{server}/{quote(topic, safe='')}", digest.truncate_bytes(text, 4000).encode(),
+             {"Title": "Product team", "Tags": "inbox_tray"})
+        return "ntfy"
+    return ""
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(prog="digest", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("action", choices=["show", "send"])
+    p.add_argument("--always", action="store_true")
+    args = p.parse_args()
+    try:
+        count, text = message(gh.repo())
+    except gh.GhError as exc:
+        sys.exit(str(exc))
+    if args.action == "show":
+        sys.stdout.write(text or "no inbox issue yet\n")
+        return
+    if not count and not args.always:
+        print(json.dumps({"sent": False, "reason": "nothing needs the owner"}))
+        return
+    channel = send(text)
+    if not channel:
+        print(json.dumps({"sent": False, "reason": "no channel configured (see the owner checklist)"}))
+        return
+    print(json.dumps({"sent": True, "channel": channel, "items": count}))
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,45 @@
+# .product-team/project.yml — the stack-agnostic contract (reference/stack-contract.md).
+# Skills read commands and URLs from here and never guess them.
+name: my-product
+repo: owner/my-product
+mode: new                # new | adopted
+stack: "TODO: summary — see decision record"
+decisions_dir: docs/decisions
+
+commands:
+  install: "TODO"
+  lint: "TODO"
+  test: "TODO"
+  build: "TODO"
+  e2e: "TODO"            # must honour BASE_URL, e.g. BASE_URL=$STAGE_URL <command>
+  storybook: "TODO"      # build command; leave empty for products without a UI
+
+environments:
+  dev:
+    url: ""
+  stage:
+    url: ""
+  production:
+    url: ""
+
+design:
+  tokens: []             # token source files
+  storybook_url: ""
+
+sprint:
+  length_days: 14
+  freeze_days: 2
+
+# Optional overrides of reference/schedule-and-models.md caps, per mode.
+caps: {}
+
+team:
+  # Release channel the daily self-update follows: `stable` (every release) or a tag such as v0.3.0 (pinned).
+  plugin_ref: stable
+  # With a separate GitHub account for the reviewing agents, list its login here: only its verdicts then count
+  # in the merge gate, so a developer agent cannot approve its own work. Empty = any account (same-user setup).
+  reviewer_logins: []
+
+owner:
+  timezone: Europe/Kyiv
+  language: en           # en | ru — questions, the inbox and the daily digest

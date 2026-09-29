@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""The owner's inbox: one pinned issue (label team:inbox) rewritten from the backlog at the end of every run.
+
+  inbox update      rebuild the body; creates and pins the issue on first use
+  inbox show        print the body that `update` would write
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from datetime import datetime
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from datetime import timedelta  # noqa: E402
+
+from ptlib import gh, inbox, owner, project  # noqa: E402
+from ptlib.calendar import KYIV  # noqa: E402
+
+LABEL = "team:inbox"
+
+
+def slim(i: dict) -> dict:
+    labels = [l["name"] for l in i.get("labels", [])]
+    kind = next((l[5:] for l in labels if l.startswith("kind:")), None)
+    return {"number": i["number"], "title": i["title"], "url": i["html_url"], "labels": labels, "kind": kind,
+            "ask": owner.ask_of(i.get("body") or "")}
+
+
+def build(repo: str) -> str:
+    issues = [slim(i) for i in gh.api_list(f"repos/{repo}/issues?state=open&per_page=100")
+              if "pull_request" not in i]
+    paused = next((i for i in issues if "team:paused" in i["labels"]), None)
+    mine = [i for i in issues if LABEL not in i["labels"] and "team:run-log" not in i["labels"]]
+    now = datetime.now(KYIV)
+    updated = now.strftime("%d.%m %H:%M")
+    same_account = gh.acts_as_owner(repo)
+    checklist = f"https://github.com/{repo}/blob/HEAD/.product-team/owner-checklist.md" if same_account else ""
+    since = (now - timedelta(days=3)).astimezone().isoformat(timespec="seconds")
+    decided = [slim(i) for i in gh.api_list(f"repos/{repo}/issues?state=all&labels=team-decided&since={since}&per_page=20")
+               if "pull_request" not in i]
+    return inbox.render(mine, paused["url"] if paused else "", updated, checklist, decided, project.owner_language())
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(prog="inbox", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("action", choices=["update", "show"])
+    args = p.parse_args()
+    try:
+        repo = gh.repo()
+        body = build(repo)
+        if args.action == "show":
+            sys.stdout.write(body)
+            return
+        found = gh.api_list(f"repos/{repo}/issues?state=open&labels={LABEL}&per_page=5")
+        if found:
+            issue = gh.api(f"repos/{repo}/issues/{found[0]['number']}", "PATCH", {"body": body})
+        else:
+            issue = gh.api(f"repos/{repo}/issues", "POST", {"title": "Needs you", "labels": [LABEL], "body": body})
+            gh.graphql("mutation($id: ID!) { pinIssue(input: {issueId: $id}) { issue { number } } }",
+                       {"id": issue["node_id"]})
+        print(json.dumps({"number": issue["number"], "url": issue["html_url"]}))
+    except gh.GhError as exc:
+        sys.exit(str(exc))
+
+
+if __name__ == "__main__":
+    main()

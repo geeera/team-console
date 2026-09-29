@@ -1,0 +1,42 @@
+# The product team's contract for this repository (product-team plugin, reference/stack-contract.md).
+name: Team Console
+repo: geeera/team-console
+mode: new
+stack: >
+  Nx monorepo — Angular 22 PWA (apps/console, FSD libs), Cloudflare Workers with Hono (apps/api, apps/hooks),
+  D1, Cloudflare Access, Playwright. See docs/decisions/0001-stack-and-architecture.md.
+decisions_dir: docs/decisions
+
+commands:
+  install: npm ci
+  lint: npx nx run-many -t lint
+  test: npx nx run-many -t test
+  build: npx nx run-many -t build
+  e2e: npx nx e2e console-e2e
+  storybook: npx nx build-storybook ui
+
+environments:
+  dev:
+    url: ""
+  stage:
+    url: ""
+  production:
+    url: ""
+
+design:
+  tokens: []
+  storybook_url: ""
+
+sprint:
+  length_days: 14
+  freeze_days: 2
+
+caps: {}
+
+team:
+  plugin_ref: stable
+  reviewer_logins: []
+
+owner:
+  timezone: Europe/Kyiv
+  language: ru
