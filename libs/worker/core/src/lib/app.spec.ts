@@ -27,6 +27,17 @@ function build(logSink?: (line: string) => void) {
   app.get('/rate-limited', (c) =>
     problem(c, { type: 'github-rate-limit', title: 'GitHub rate limit', status: 429, retryAfter: 30 }),
   );
+  app.get('/with-extension', (c) =>
+    problem(c, {
+      type: 'github-owner-not-connected',
+      title: 'Connect GitHub',
+      status: 403,
+      extensions: { connectUrl: '/api/v1/github/connect' },
+    }),
+  );
+  app.get('/extension-clash', (c) =>
+    problem(c, { type: 'x', title: 'x', status: 400, extensions: { instance: 'forged' } }),
+  );
   return app;
 }
 
@@ -154,5 +165,19 @@ describe('createWorkerApp', () => {
     expect(response.status).toBe(429);
     expect(response.headers.get('retry-after')).toBe('30');
     expect((await problemOf(response)).type).toBe(`${PROBLEM_TYPE_PREFIX}github-rate-limit`);
+  });
+
+  it('adds RFC 9457 extension members next to the standard ones', async () => {
+    const response = await build().request('/with-extension', {}, env);
+    expect(response.status).toBe(403);
+    const body = await problemOf(response);
+    expect(body).toMatchObject({ status: 403, connectUrl: '/api/v1/github/connect' });
+    expect(body.instance).toBe(response.headers.get('x-request-id'));
+  });
+
+  it('refuses an extension that would replace a standard member', async () => {
+    const response = await build().request('/extension-clash', {}, env);
+    expect(response.status).toBe(500);
+    expect((await problemOf(response)).instance).not.toBe('forged');
   });
 });

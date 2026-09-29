@@ -4,6 +4,7 @@ import { authMiddleware } from './auth/auth.middleware';
 import { csrfMiddleware } from './auth/csrf.middleware';
 import type { ApiEnv } from './env';
 import { ApiGitHub, mapGitHubError } from './github';
+import { createGitHubConnectionRoutes } from './routes/github-connection';
 import { healthzRoutes } from './routes/healthz';
 import { createProjectsRoutes } from './routes/projects';
 
@@ -41,6 +42,7 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   const v1 = new Hono<WorkerHonoEnv<ApiEnv>>();
   v1.route('/healthz', healthzRoutes);
   v1.route('/projects', createProjectsRoutes(github));
+  v1.route('/github', createGitHubConnectionRoutes(github));
   app.route('/api/v1', v1);
 
   return app;

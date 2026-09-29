@@ -47,6 +47,34 @@ describe('githubRequest', () => {
     expect(github.calls[0]?.headers.get('content-type')).toBe('application/json');
   });
 
+  it('sends Basic client credentials and a JSON body on DELETE', async () => {
+    const github = scriptedGitHub(() => new Response(null, { status: 204 }));
+    await githubRequest(github.fetch, {
+      method: 'DELETE',
+      path: githubPath`/applications/${'Iv23abc'}/grant`,
+      basic: { clientId: 'Iv23abc', clientSecret: 'shh' },
+      body: { access_token: 'x' },
+    });
+    const [call] = github.calls;
+    expect(call?.method).toBe('DELETE');
+    expect(call?.headers.get('authorization')).toBe(`Basic ${btoa('Iv23abc:shh')}`);
+    expect(call?.body).toBe('{"access_token":"x"}');
+  });
+
+  it('gives every request a deadline, and a request that hits it is 502 github-unavailable', async () => {
+    const github = scriptedGitHub(() => json(200, {}));
+    await githubRequest(github.fetch, { method: 'GET', path: githubPath`/x`, bearer: BEARER });
+    expect(github.calls[0]?.signal).toBeInstanceOf(AbortSignal);
+
+    const timedOut = scriptedGitHub(() => {
+      throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+    });
+    const error = await problemOf(
+      githubRequest(timedOut.fetch, { method: 'GET', path: githubPath`/x`, bearer: BEARER }),
+    );
+    expect(error.problem).toMatchObject({ type: 'github-unavailable', status: 502 });
+  });
+
   it.each([301, 302, 303, 307, 308])(
     'a %i off api.github.com → 502 github-unexpected and no request reaches the other host (row 1)',
     async (status) => {

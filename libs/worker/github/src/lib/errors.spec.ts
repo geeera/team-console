@@ -1,4 +1,11 @@
-import { GitHubError, appNotInstalledError, mapGitHubResponse, retryAfterOf } from './errors';
+import {
+  GitHubError,
+  appNotInstalledError,
+  mapGitHubResponse,
+  ownerMismatchError,
+  ownerNotConnectedError,
+  retryAfterOf,
+} from './errors';
 
 const NOW = Date.parse('2026-09-30T12:00:00Z');
 
@@ -79,6 +86,25 @@ describe('appNotInstalledError', () => {
       title: 'The console app is not installed on this repository',
       status: 409,
       detail: 'Install the team-console app on geeera/team-console',
+    });
+  });
+});
+
+describe('owner connection problems (ADR 0003 decisions 2(b) and 4)', () => {
+  it('403 github-owner-not-connected carries connectUrl as an extension member, not as instance', () => {
+    expect(ownerNotConnectedError().problem).toEqual({
+      type: 'github-owner-not-connected',
+      title: 'Connect GitHub to write as the owner',
+      status: 403,
+      extensions: { connectUrl: '/api/v1/github/connect' },
+    });
+  });
+
+  it('409 github-owner-mismatch names the repository and its owner', () => {
+    expect(ownerMismatchError('acme/site', 'acme').problem).toMatchObject({
+      type: 'github-owner-mismatch',
+      status: 409,
+      detail: 'acme/site belongs to acme',
     });
   });
 });

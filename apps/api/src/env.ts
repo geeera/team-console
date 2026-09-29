@@ -17,6 +17,11 @@ export interface ApiEnv extends WorkerBaseEnv {
   /** `true` swaps api.github.com for the fixture GitHub of `@worker/github`; honoured only with ENVIRONMENT=local. */
   readonly GITHUB_MOCK?: string;
   /**
+   * A loopback origin of a fake GitHub for github.com and api.github.com (`http://127.0.0.1:9999`); honoured only
+   * with ENVIRONMENT=local, passed only as `--var` (tools/workspace-checks keeps it out of every `env.*` block).
+   */
+  readonly GITHUB_FAKE_ORIGIN?: string;
+  /**
    * Non-secret vars of the console's GitHub App (ADR 0003 decision 7): empty in the repository, passed by
    * deploy.yml as `--var` from the GitHub Environment (`CONSOLE_GITHUB_APP_ID`, `CONSOLE_GITHUB_APP_CLIENT_ID`).
    */

@@ -27,8 +27,18 @@ async function generateTestAppKey(): Promise<{ pem: string; publicJwk: string }>
 
 // Integration tests through `SELF.fetch` inside workerd, with the real wrangler.jsonc (env `dev`), an isolated
 // in-memory D1 migrated in src/test-setup.ts, and the assets router from the config.
+// Owner-connection secrets for this run only (#59): a random master key and a client secret the sentinel test
+// looks for; neither is, nor looks like, a real credential.
+function generateOwnerFlowSecrets(): { encryptionKey: string; clientSecret: string } {
+  return {
+    encryptionKey: Buffer.from(webcrypto.getRandomValues(new Uint8Array(32))).toString('base64'),
+    clientSecret: `TESTSECRET${Buffer.from(webcrypto.getRandomValues(new Uint8Array(12))).toString('hex')}`,
+  };
+}
+
 export default defineConfig(async () => {
   const appKey = await generateTestAppKey();
+  const ownerFlow = generateOwnerFlowSecrets();
   return {
     root: import.meta.dirname,
     cacheDir: '../../node_modules/.vite/apps/api',
@@ -49,6 +59,10 @@ export default defineConfig(async () => {
             GITHUB_APP_ID: '123456',
             GITHUB_APP_PRIVATE_KEY: appKey.pem,
             TEST_GITHUB_APP_PUBLIC_JWK: appKey.publicJwk,
+            GITHUB_APP_CLIENT_ID: 'Iv23liTESTCLIENT',
+            GITHUB_APP_CLIENT_SECRET: ownerFlow.clientSecret,
+            TOKEN_ENCRYPTION_KEY: ownerFlow.encryptionKey,
+            OWNER_GITHUB_LOGIN: 'geeera',
           },
         },
       }),

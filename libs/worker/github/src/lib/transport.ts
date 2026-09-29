@@ -12,14 +12,27 @@ export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
 export const GITHUB_JSON = 'application/vnd.github+json';
 
-export interface GitHubRequest {
-  readonly method: 'GET' | 'POST';
+/** Every GitHub request gives up after this long: a hung upstream must not hold a request (or a lease) open. */
+export const GITHUB_DEADLINE_MS = 10_000;
+
+/** OAuth app credentials, for the few endpoints GitHub authenticates with Basic `client_id:client_secret`. */
+export interface GitHubBasicCredentials {
+  readonly clientId: string;
+  readonly clientSecret: string;
+}
+
+/**
+ * An installation token, an owner token or the app JWT — sent as `Bearer` — or the app's OAuth credentials, sent
+ * as Basic. Never logged.
+ */
+export type GitHubRequestAuth = { readonly bearer: string } | { readonly basic: GitHubBasicCredentials };
+
+export type GitHubRequest = GitHubRequestAuth & {
+  readonly method: 'GET' | 'POST' | 'DELETE';
   readonly path: GitHubPath;
-  /** An installation token, an owner token or the app JWT — sent as `Bearer`, never logged. */
-  readonly bearer: string;
   readonly accept?: string;
   readonly body?: unknown;
-}
+};
 
 const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 // GitHub redirects renamed repositories once; more hops than this is not GitHub.
@@ -52,14 +65,26 @@ export async function readGitHubJson(response: Response): Promise<unknown> {
   }
 }
 
+function authorizationOf(auth: GitHubRequestAuth): string {
+  if ('bearer' in auth) {
+    return `Bearer ${auth.bearer}`;
+  }
+  return `Basic ${btoa(`${auth.basic.clientId}:${auth.basic.clientSecret}`)}`;
+}
+
 async function send(fetcher: FetchLike, url: URL, request: GitHubRequest): Promise<Response> {
   const headers: Record<string, string> = {
     Accept: request.accept ?? GITHUB_JSON,
-    Authorization: `Bearer ${request.bearer}`,
+    Authorization: authorizationOf(request),
     'User-Agent': 'team-console',
     'X-GitHub-Api-Version': '2022-11-28',
   };
-  const init: RequestInit = { method: request.method, headers, redirect: 'manual' };
+  const init: RequestInit = {
+    method: request.method,
+    headers,
+    redirect: 'manual',
+    signal: AbortSignal.timeout(GITHUB_DEADLINE_MS),
+  };
   if (request.body !== undefined) {
     headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(request.body);

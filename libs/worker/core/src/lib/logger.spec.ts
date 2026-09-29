@@ -40,6 +40,18 @@ describe('redact', () => {
     expect(redact(`minted ${token} for acme/app`)).toBe('minted [redacted] for acme/app');
   });
 
+  it('drops the query of any URL in free text, keeping the path', () => {
+    const result = redact({
+      url: 'https://team-console.example/api/v1/github/callback?code=SENTINELCODE&state=SENTINELSTATE',
+      note: 'redirected to http://localhost:8787/settings?github=connected#top then stopped',
+    });
+    expect(JSON.stringify(result)).not.toContain('SENTINEL');
+    expect(result).toEqual({
+      url: 'https://team-console.example/api/v1/github/callback?[redacted]',
+      note: 'redirected to http://localhost:8787/settings?[redacted]#top then stopped',
+    });
+  });
+
   it('masks a PEM private key whole, and a truncated one to the end of the text', () => {
     const armor = (edge: 'BEGIN' | 'END', kind = '') => `-----${edge} ${kind}${'PRIVATE'} KEY-----`;
     const pem = `${armor('BEGIN')}\n${'A'.repeat(32)}\n${armor('END')}`;
