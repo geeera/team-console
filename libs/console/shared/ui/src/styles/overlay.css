@@ -1,0 +1,13 @@
+/*
+ * Overlay panes for the kit's sheets and dialogs. They render in the CDK overlay container,
+ * outside any component, so their sizing lives here rather than in a component stylesheet.
+ */
+.tc-sheet-panel {
+  width: 100%;
+  max-height: var(--sheet-max-h);
+}
+
+.tc-dialog-panel {
+  width: min(var(--dialog-max-w), calc(100% - var(--space-8)));
+  max-height: calc(100% - var(--space-8));
+}

@@ -4,5 +4,23 @@
   "sourceRoot": "libs/console/shared/ui/src",
   "prefix": "tc",
   "projectType": "library",
-  "tags": ["type:lib", "scope:console", "layer:shared"]
+  "tags": ["type:lib", "scope:console", "layer:shared"],
+  "targets": {
+    "storybook": {
+      "continuous": true,
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "storybook dev --config-dir libs/console/shared/ui/.storybook --port 4400 --no-open"
+      }
+    },
+    "build-storybook": {
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/dist/storybook/console-shared-ui"],
+      "cache": true,
+      "inputs": ["default", "^default"],
+      "options": {
+        "command": "storybook build --config-dir libs/console/shared/ui/.storybook --output-dir dist/storybook/console-shared-ui"
+      }
+    }
+  }
 }
