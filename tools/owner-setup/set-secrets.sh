@@ -3,22 +3,28 @@
 # #7, ADR 0001 Consequences). The OWNER runs this on their own machine, after `gh auth login`, `npx wrangler
 # login` and `npm ci` — it is never run by an agent or in CI.
 #
-# Safety properties (PR #54 security review, round 2):
+# Safety properties:
 #   - No secret value ever reaches argv (visible to any other process on the machine via `ps`/`/proc`) or a
 #     file: every value goes into `gh secret set` / `wrangler secret put` over stdin. `node` is only ever
-#     given secret *names* (to check what is already set, see below) or piped non-secret data on stdin —
-#     never a secret value as an argument. Only secret names are printed to this terminal.
-#   - No unpinned code runs with these credentials next to it: the VAPID key pair is generated with `openssl`
-#     (already on the machine, nothing downloaded — no npm package touches the private key), and the
-#     Cloudflare calls use the exact `wrangler` already installed by `npm ci` (`node_modules/.bin/wrangler`)
-#     — never `npx wrangler`, which could silently fetch a different version.
+#     given secret *names* (to check what is already set) as an argument, or generates a VAPID key pair with
+#     no input at all (see vapid-keygen.js) — never a secret value as an argument. Only secret names are
+#     printed to this terminal; nothing is written to a temporary file at any point.
+#   - No unpinned code runs with these credentials next to it: the VAPID key pair is generated with Node's
+#     built-in `crypto` (`vapid-keygen.js`, no npm package involved — see there for why OpenSSL's `-text`
+#     output was dropped, PR #54 QA round 3), and the Cloudflare calls use the exact `wrangler` already
+#     installed by `npm ci` (`node_modules/.bin/wrangler`) — never `npx wrangler`, which could silently fetch
+#     a different version.
 #   - True idempotency: a secret that already exists (by name) is left alone and reported as skipped, unless
-#     `--rotate` is passed, which asks for a y/N confirmation before replacing each one individually.
+#     `--rotate` is passed, which asks for a y/N confirmation before replacing it. The VAPID pair is asked
+#     about once per environment and always written to both Workers together or not at all — a previous run
+#     that set it on only one Worker is reported as a partial state and only fixed with `--rotate`.
+#   - A failed `gh secret list` / `wrangler secret list` (network, auth, ...) stops the script with an error;
+#     it is never treated as "the secret is not set".
 #
 # What it does NOT do: create the D1 databases, the Access applications, the Pages project, or the console
-# GitHub App (ADR 0003, #57/#59) — those need a browser and stay click-by-click steps in
+# GitHub App (ADR 0003, #61) — those need a browser and stay click-by-click steps in
 # .product-team/owner-checklist.md. It also does not set WEBHOOK_SECRET: that value must equal the console
-# GitHub App's own webhook secret, so it is set by the app-setup script ADR 0003 adds, not here.
+# GitHub App's own webhook secret, so it is set by #61's app-setup script, not here.
 set -euo pipefail
 
 REPO="geeera/team-console"
@@ -26,6 +32,7 @@ ENVIRONMENTS=(dev stage production)
 API_WRANGLER="apps/api/wrangler.jsonc"
 HOOKS_WRANGLER="apps/hooks/wrangler.jsonc"
 WRANGLER="node_modules/.bin/wrangler"
+VAPID_KEYGEN="tools/owner-setup/vapid-keygen.js"
 
 ROTATE=false
 for arg in "$@"; do
@@ -46,11 +53,10 @@ require() {
 }
 
 require gh
-require openssl
 require node
 
-if [ ! -f "${API_WRANGLER}" ] || [ ! -f "${HOOKS_WRANGLER}" ]; then
-  echo "error: run this from the repository root (expected ${API_WRANGLER} and ${HOOKS_WRANGLER})" >&2
+if [ ! -f "${API_WRANGLER}" ] || [ ! -f "${HOOKS_WRANGLER}" ] || [ ! -f "${VAPID_KEYGEN}" ]; then
+  echo "error: run this from the repository root (expected ${API_WRANGLER}, ${HOOKS_WRANGLER}, ${VAPID_KEYGEN})" >&2
   exit 1
 fi
 
@@ -60,54 +66,43 @@ if [ ! -x "${WRANGLER}" ]; then
   exit 1
 fi
 
-# --- helpers: hex -> base64url without any external hex tool (portable: sed, printf, base64) ---------------
-
-hex_to_base64url() {
-  local hex="$1" escaped
-  escaped=$(printf '%s' "${hex}" | sed 's/\(..\)/\\x\1/g')
-  printf '%b' "${escaped}" | base64 | tr '+/' '-_' | tr -d '=\n'
-}
-
-# VAPID is a P-256 (prime256v1) key pair: the private scalar and the uncompressed public point, both
-# base64url with no padding — exactly what the `web-push` / Web Push protocol expects, generated without
-# installing or running any npm package.
-generate_vapid_pair() {
-  local keyfile text priv_hex pub_hex
-  keyfile=$(mktemp)
-  openssl ecparam -name prime256v1 -genkey -noout -out "${keyfile}" 2>/dev/null
-  text=$(openssl ec -in "${keyfile}" -text -noout -conv_form uncompressed 2>/dev/null)
-  rm -f "${keyfile}"
-
-  priv_hex=$(printf '%s\n' "${text}" | awk '/^priv:/{flag=1; next} /^pub:/{flag=0} flag' | tr -d ' \n:')
-  pub_hex=$(printf '%s\n' "${text}" | awk '/^pub:/{flag=1; next} /^ASN1 OID:/{flag=0} flag' | tr -d ' \n:')
-  # openssl drops a leading all-zero byte from the private scalar; VAPID needs the fixed 32-byte width back.
-  while [ "${#priv_hex}" -lt 64 ]; do
-    priv_hex="00${priv_hex}"
-  done
-
-  VAPID_PRIVATE_B64=$(hex_to_base64url "${priv_hex}")
-  VAPID_PUBLIC_B64=$(hex_to_base64url "${pub_hex}")
-}
-
-# --- helpers: skip an already-set secret unless --rotate confirms replacing it ------------------------------
+# --- helpers: does this secret already exist? A failed listing is an error, never "not set". ----------------
 
 gh_secret_exists() {
-  local env="$1" name="$2"
-  gh secret list --repo "${REPO}" --env "${env}" --json name -q '.[].name' 2>/dev/null | grep -qx "${name}"
+  local env="$1" name="$2" names
+  if ! names=$(gh secret list --repo "${REPO}" --env "${env}" --json name -q '.[].name'); then
+    echo "error: 'gh secret list --env ${env}' failed — cannot tell whether ${name} is already set" >&2
+    exit 1
+  fi
+  printf '%s\n' "${names}" | grep -qx "${name}"
 }
 
 worker_secret_exists() {
-  local config="$1" env="$2" name="$3"
-  "${WRANGLER}" secret list --env "${env}" --config "${config}" 2>/dev/null \
-    | node -e '
-        let s = "";
-        process.stdin.on("data", (d) => { s += d; });
-        process.stdin.on("end", () => {
-          let list;
-          try { list = JSON.parse(s); } catch { list = []; }
-          process.exit(list.some((x) => x.name === process.argv[1]) ? 0 : 1);
-        });
-      ' "${name}"
+  local config="$1" env="$2" name="$3" listing rc
+  if ! listing=$("${WRANGLER}" secret list --env "${env}" --config "${config}" 2>&1); then
+    echo "error: 'wrangler secret list --env ${env} --config ${config}' failed — cannot tell whether ${name} is already set" >&2
+    echo "${listing}" >&2
+    exit 1
+  fi
+
+  set +e
+  printf '%s' "${listing}" | node -e '
+      let s = "";
+      process.stdin.on("data", (d) => { s += d; });
+      process.stdin.on("end", () => {
+        let list;
+        try { list = JSON.parse(s); } catch (e) { process.exit(2); }
+        process.exit(list.some((x) => x.name === process.argv[1]) ? 0 : 1);
+      });
+    ' "${name}"
+  rc=$?
+  set -e
+
+  if [ "${rc}" -eq 2 ]; then
+    echo "error: could not parse 'wrangler secret list --env ${env} --config ${config}' output as JSON" >&2
+    exit 1
+  fi
+  return "${rc}"
 }
 
 confirm_rotate() {
@@ -134,14 +129,8 @@ set_gh_secret() {
   echo "set: ${name} -> GitHub environment '${env}'"
 }
 
-set_worker_secret() {
+put_worker_secret() {
   local config="$1" env="$2" name="$3" value="$4" worker_label="$5"
-  if worker_secret_exists "${config}" "${env}" "${name}"; then
-    if ! confirm_rotate "${name} on the ${worker_label} Worker, environment '${env}'"; then
-      echo "skip: ${name} already set on the ${worker_label} Worker, environment '${env}' (use --rotate to replace)"
-      return 0
-    fi
-  fi
   printf '%s' "${value}" | "${WRANGLER}" secret put "${name}" --env "${env}" --config "${config}"
   echo "set: ${name} -> ${worker_label} Worker, environment '${env}'"
 }
@@ -153,7 +142,7 @@ echo "  - CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID as GitHub Environment s
 echo "  - a VAPID key pair: the private half as a Worker secret on 'api' and 'hooks', the public half printed"
 echo "    below for you to paste into the environment's non-secret GitHub variable VAPID_PUBLIC_KEY"
 echo
-echo "It does NOT set WEBHOOK_SECRET — that comes from the console GitHub App (ADR 0003) so it can match the"
+echo "It does NOT set WEBHOOK_SECRET — that comes from the console GitHub App (#61) so it can match the"
 echo "app's own webhook secret; use that setup script instead."
 echo
 echo "Nothing you type or that is generated here is echoed, written to a file, or logged."
@@ -177,23 +166,38 @@ done
 unset -v cf_api_token cf_account_id
 
 for env in "${ENVIRONMENTS[@]}"; do
-  if worker_secret_exists "${API_WRANGLER}" "${env}" VAPID_PRIVATE_KEY && ! confirm_rotate "VAPID_PRIVATE_KEY for '${env}'"; then
-    echo "skip: VAPID_PRIVATE_KEY already set for '${env}' (use --rotate to replace — this breaks every existing push subscription)"
-    continue
+  api_has=false
+  hooks_has=false
+  worker_secret_exists "${API_WRANGLER}" "${env}" VAPID_PRIVATE_KEY && api_has=true
+  worker_secret_exists "${HOOKS_WRANGLER}" "${env}" VAPID_PRIVATE_KEY && hooks_has=true
+
+  if [ "${api_has}" = true ] && [ "${hooks_has}" = true ]; then
+    if ! confirm_rotate "VAPID_PRIVATE_KEY for '${env}' (already set on both api and hooks)"; then
+      echo "skip: VAPID_PRIVATE_KEY already set on both Workers for '${env}' (use --rotate to replace — this breaks every existing push subscription)"
+      continue
+    fi
+  elif [ "${api_has}" = true ] || [ "${hooks_has}" = true ]; then
+    echo "warning: VAPID_PRIVATE_KEY for '${env}' is set on only one Worker (api=${api_has}, hooks=${hooks_has}) — a previous run likely failed partway"
+    if ! confirm_rotate "VAPID_PRIVATE_KEY for '${env}' (fix the partial state by writing a fresh pair to both)"; then
+      echo "skip: leaving the partial VAPID_PRIVATE_KEY state for '${env}' — re-run with --rotate to fix it"
+      continue
+    fi
   fi
+  # else: neither Worker has it yet — generate and write both below, nothing to confirm.
 
-  VAPID_PRIVATE_B64=""
-  VAPID_PUBLIC_B64=""
-  generate_vapid_pair
+  vapid_output=$(node "${VAPID_KEYGEN}")
+  vapid_private=$(printf '%s\n' "${vapid_output}" | sed -n '1p')
+  vapid_public=$(printf '%s\n' "${vapid_output}" | sed -n '2p')
+  unset -v vapid_output
 
-  set_worker_secret "${API_WRANGLER}" "${env}" VAPID_PRIVATE_KEY "${VAPID_PRIVATE_B64}" api
-  set_worker_secret "${HOOKS_WRANGLER}" "${env}" VAPID_PRIVATE_KEY "${VAPID_PRIVATE_B64}" hooks
-  unset -v VAPID_PRIVATE_B64
+  put_worker_secret "${API_WRANGLER}" "${env}" VAPID_PRIVATE_KEY "${vapid_private}" api
+  put_worker_secret "${HOOKS_WRANGLER}" "${env}" VAPID_PRIVATE_KEY "${vapid_private}" hooks
+  unset -v vapid_private
 
   echo "VAPID public key for '${env}' (NOT a secret) — paste it into GitHub: Settings -> Environments ->"
   echo "  ${env} -> Variables -> VAPID_PUBLIC_KEY:"
-  echo "  ${VAPID_PUBLIC_B64}"
-  unset -v VAPID_PUBLIC_B64
+  echo "  ${vapid_public}"
+  unset -v vapid_public
   echo
 done
 

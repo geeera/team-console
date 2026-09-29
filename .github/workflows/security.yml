@@ -94,6 +94,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
       - name: Install actionlint
         run: |
           set -euo pipefail
@@ -127,3 +132,10 @@ jobs:
             exit 0
           fi
           "${RUNNER_TEMP}/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" "${scripts[@]}"
+
+      # PR #54 QA round 3: OpenSSL's `-text` output made the VAPID private key come out 33 bytes about half
+      # the time on macOS's LibreSSL. vapid-keygen.js replaced it with Node's built-in `crypto` (fixed-width
+      # JWK export) specifically to fix that; this repeats the 50-run check that caught it, in CI, so a
+      # future change to the generator can't silently reintroduce it.
+      - name: Test VAPID key generation (50 runs, exact byte lengths)
+        run: node tools/owner-setup/vapid-keygen.test.js

@@ -99,7 +99,11 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
    ADR 0001 решение 4). Worker'ы уже существуют черновиками после шага 2 — отдельно их создавать не нужно.
    Cloudflare-приложение Access создаётся из самого Worker'а, а не отдельно в Zero Trust (источник:
    developers.cloudflare.com/workers/configuration/cloudflare-access/ — раздел "Protect a Worker with
-   Cloudflare Access"). Для каждого из трёх окружений:
+   Cloudflare Access"). Если вкладки **Access** на черновике ещё нет (не проверено на черновом Worker'е без
+   `workers_dev` и без кода — возможно, она появляется только после первого настоящего деплоя): сделай этот
+   шаг после первого деплоя `dev` (#25) вместо того, чтобы ждать здесь — тогда smoke-check первого dev-деплоя
+   ожидаемо упадёт (root отвечает 200 без авторизации), почини Access и просто перезапусти `deploy.yml`.
+   Для каждого из трёх окружений:
    1. dashboard.cloudflare.com → **Workers & Pages** → Worker `team-console-<env>` → вкладка **Access** →
       **Protect this Worker behind Access**.
    2. Выбери **All traffic** (не "Previews only" — превью и так выключены в конфиге, `preview_urls: false`,
