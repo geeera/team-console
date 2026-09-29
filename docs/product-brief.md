@@ -34,6 +34,13 @@ There will be many products. Each is a **space** that keeps its own context so n
 Above the spaces: one cross-project **"Needs you"** list (each item tagged with its project) and an overview of every
 project (running / paused / failing, sprint and demo date). Switching projects never loses the place you were in.
 
+## Language (owner's requirement, 2026-09-29)
+
+The interface speaks the user's language: Russian and English in v1, chosen in Settings, defaulting to the device
+language, switchable at runtime and remembered. Dates, times and numbers follow the chosen locale. What the team
+writes to the owner (PM chat, briefings, answer lines, digest) follows `owner.language` in each product's
+`.product-team/project.yml` — Russian for this owner.
+
 ## Where
 
 iPhone and Mac equally. v1 is a **PWA** (installed to the Home Screen / Dock; web push on iOS 16.4+). A native
