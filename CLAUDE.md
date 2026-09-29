@@ -69,3 +69,26 @@ Shared libs that exist: `@console/shared/ui` (kit + `src/tokens/tokens.css`), `@
 `ru.json`/`en.json`, `provideConsoleI18n()`), `@console/shared/config` (`APP_CONFIG`), `@console/shared/api`
 (`provideConsoleApi()` with the interceptor chain). Build time reaches the app through the build `define`
 `__TC_BUILT_AT__` (defaults to `local`); the version comes from `package.json`.
+
+## Workers (#6)
+
+`apps/api` (Hono; serves the SPA from `dist/apps/console/browser` as static assets with `run_worker_first:
+["/api/*"]`, owns `/api/v1/*`) and `apps/hooks` (public, `/healthz` and later `/hooks/*`). Both are built by
+`createWorkerApp()` from `@worker/core`: `X-Request-Id` in/out, a per-request redacting logger (`c.get('logger')`),
+RFC 9457 bodies via `problem(c, { type, title, status, detail?, retryAfter? })` for every error, including 404/500.
+DTOs and `ProblemDetails` live in `@shared/contracts`; D1 access in `@worker/db` (`ProjectsRepo`, parameterised
+queries only). Migrations live only in `apps/api/migrations` (`0001_init` = `projects`; `0002_push_subscriptions`
+#11, `0003_webhooks` #12, `0004_chat_wakeups` are reserved). `wrangler.jsonc` has `env.dev|stage|production`
+with non-secret vars only; secrets (`GITHUB_TOKEN`, `WEBHOOK_SECRET`, `VAPID_PRIVATE_KEY`, `ROUTINE_TOKEN_*`, `OWNER_EMAIL`) are
+declared in each app's `src/env.ts` and set with `wrangler secret put`. `AUTH_MODE:local` + `ENVIRONMENT:local`
+are passed only as `--var` flags by `nx serve api` and the Dockerfile — `tools/workspace-checks` fails if either
+appears in an `env.*` block. `authMiddleware` in `apps/api/src/auth/` fails closed (401 `access-missing`) until #8
+adds JWT verification; only `ENVIRONMENT=local` + `AUTH_MODE=local` together let a request through (the api
+vitest config binds both so route specs run; `auth.middleware.spec.ts` overrides them per case).
+
+Commands: `npx nx serve api` (builds the console, applies migrations, `wrangler dev` on :8787), `npx nx run
+api:migrate` (fresh local D1), `npx nx build api` (`tsc --noEmit` + `wrangler deploy --dry-run`), `docker build -t
+team-console . && docker run --rm -p 127.0.0.1:8787:8787 team-console` (the e2e target: same bundle, local D1, `:8787`).
+Worker tests run in workerd through `@cloudflare/vitest-pool-workers` (`SELF.fetch`, an isolated in-memory D1
+migrated in `src/test-setup.ts`); `apps/api/test-assets` stands in for the Angular build. `wrangler`,
+`@cloudflare/vitest-pool-workers` and `compatibility_date` move together (one workerd for dev, Docker and tests).

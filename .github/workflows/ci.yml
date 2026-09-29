@@ -83,3 +83,14 @@ jobs:
 
       - name: Build
         run: npx nx "${NX_MODE}" -t build
+
+      # ADR 0001 decision 5 / #6: the schema must apply to a fresh database with wrangler's own migrator (the
+      # local backend is the same SQLite D1 runs on). Runs twice: the second pass must find nothing to apply.
+      - name: D1 migrations on a fresh local database
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          set -euo pipefail
+          rm -rf apps/api/.wrangler
+          npx nx run api:migrate
+          npx nx run api:migrate
