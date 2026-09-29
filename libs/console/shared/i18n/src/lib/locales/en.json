@@ -8,5 +8,24 @@
     "version": "Version",
     "builtAt": "Built",
     "switchLang": "Русский"
+  },
+  "ui": {
+    "close": "Close",
+    "back": "Back",
+    "loading": "Loading…",
+    "confirm": {
+      "ok": "Confirm",
+      "cancel": "Cancel"
+    },
+    "empty": {
+      "title": "Nothing here yet"
+    },
+    "error": {
+      "title": "Something went wrong",
+      "retry": "Try again"
+    },
+    "field": {
+      "optional": "optional"
+    }
   }
 }

@@ -1,0 +1,32 @@
+:host {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--icon-button-size);
+  height: var(--icon-button-size);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
+}
+
+:host(:hover) {
+  background: var(--hover);
+  color: var(--text);
+}
+
+:host(:focus-visible) {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+:host(:disabled) {
+  cursor: default;
+  opacity: var(--disabled-opacity);
+}

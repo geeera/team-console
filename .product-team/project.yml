@@ -7,16 +7,17 @@ stack: >
   D1, Cloudflare Access, Playwright. See docs/decisions/0001-stack-and-architecture.md.
 decisions_dir: docs/decisions
 
-# Node 22 (.nvmrc) and npm. `e2e` and `storybook` are added by #14 and #13; until then they exit 0
-# so the contract stays runnable, but print an explicit SKIPPED line so the output cannot be read
-# as a passing run. The PRs for #14 / #13 must replace them with the real commands.
+# Node 22 (.nvmrc) and npm. `e2e` is added by #14; until then it exits 0 so the contract stays
+# runnable, but prints an explicit SKIPPED line so the output cannot be read as a passing run.
+# The PR for #14 must replace it with the real command. `storybook` builds the kit's Storybook
+# (#13) into dist/storybook/console-shared-ui; publishing it from `dev` is #25.
 commands:
   install: npm ci
   lint: npx nx run-many -t lint
   test: npx nx run-many -t test
   build: npx nx run-many -t build
   e2e: 'echo "SKIPPED: no e2e tests ran — apps/console-e2e arrives with #14; this is NOT a pass"'
-  storybook: 'echo "SKIPPED: no storybook build ran — libs/console/shared/ui stories arrive with #13; this is NOT a pass"'
+  storybook: npx nx build-storybook console-shared-ui
 
 environments:
   dev:
@@ -29,6 +30,7 @@ environments:
 design:
   tokens:
     - libs/console/shared/ui/src/tokens/tokens.css
+    - libs/console/shared/ui/src/tokens/breakpoints.ts
   storybook_url: ''
 
 sprint:

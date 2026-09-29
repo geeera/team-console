@@ -1,0 +1,19 @@
+<div class="tc-card__head">
+  <span class="tc-card__kind"><ng-content select="[tc-card-kind]" /></span>
+  <span class="tc-card__number"><ng-content select="[tc-card-number]" /></span>
+</div>
+<ng-content select="[tc-card-title]" />
+<div class="tc-card__body"><ng-content /></div>
+<div class="tc-card__foot">
+  <div class="tc-card__actions"><ng-content select="[tc-card-action]" /></div>
+  <span class="tc-card__meta"><ng-content select="[tc-card-meta]" /></span>
+</div>
+@if (stampGlyph(); as glyph) {
+<span class="tc-card__stamp" aria-hidden="true">
+  <svg viewBox="0 0 64 64" focusable="false">
+    <circle class="tc-card__stamp-ring" cx="32" cy="32" r="28" />
+    <circle class="tc-card__stamp-inner" cx="32" cy="32" r="23" />
+  </svg>
+  <tc-icon class="tc-card__stamp-glyph" [name]="glyph" size="xl" />
+</span>
+}

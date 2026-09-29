@@ -1,0 +1,199 @@
+:host {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--pad-card);
+  margin-left: var(--card-indent);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface) linear-gradient(var(--surface), var(--surface-2));
+  color: var(--text);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+
+:host(.tc-card--flush) {
+  margin-left: 0;
+}
+
+:host(:focus-visible) {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+.tc-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.tc-card__head:has(.tc-card__kind:empty):has(.tc-card__number:empty) {
+  display: none;
+}
+
+.tc-card__kind {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-variant: small-caps;
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
+  font-size: var(--fs-sm);
+}
+
+.tc-card__number {
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+:host ::ng-deep [tc-card-title] {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+}
+
+.tc-card__body:empty {
+  display: none;
+}
+
+.tc-card__body {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.tc-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+
+.tc-card__foot:has(.tc-card__actions:empty):has(.tc-card__meta:empty) {
+  display: none;
+}
+
+.tc-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tc-card__meta {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+/* Actions stack to equal halves on the phone; a label too long for half a row takes the full row. */
+@media (max-width: 519.98px) {
+  :host {
+    margin-left: 0;
+  }
+
+  .tc-card__foot {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tc-card__actions > * {
+    flex: 1 1 0;
+    min-width: max-content;
+  }
+}
+
+/* The stamp: presses in, then the ring and the mark draw themselves. */
+.tc-card__stamp {
+  position: absolute;
+  right: var(--space-5);
+  top: calc(50% - var(--stamp-size) / 2);
+  width: var(--stamp-size);
+  height: var(--stamp-size);
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  pointer-events: none;
+  transform: rotate(-9deg);
+  animation: tc-stamp-press var(--dur-base) var(--ease-emph) both;
+}
+
+:host(.tc-card--negative) .tc-card__stamp {
+  color: var(--danger-text);
+}
+
+:host(.tc-card--neutral) .tc-card__stamp {
+  color: var(--text-2);
+}
+
+.tc-card__stamp svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.tc-card__stamp-ring,
+.tc-card__stamp-inner,
+.tc-card__stamp-glyph ::ng-deep path {
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: tc-stamp-ink var(--dur-sig) var(--ease-emph) var(--dur-fast) forwards;
+}
+
+.tc-card__stamp-inner {
+  stroke-width: 1;
+  opacity: 0.6;
+  animation-delay: calc(var(--dur-fast) * 1.5);
+}
+
+.tc-card__stamp-glyph ::ng-deep path {
+  animation-delay: calc(var(--dur-fast) * 2);
+}
+
+@keyframes tc-stamp-press {
+  from {
+    opacity: 0;
+    transform: rotate(-20deg) scale(1.4);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-9deg) scale(1);
+  }
+}
+
+@keyframes tc-stamp-ink {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Reduced motion: the token durations already collapse to a frame; the fade stays. */
+@media (prefers-reduced-motion: reduce) {
+  .tc-card__stamp {
+    animation: tc-stamp-fade var(--dur-fade) linear both;
+  }
+}
+
+:host-context(:root[data-motion='reduce']) .tc-card__stamp {
+  animation: tc-stamp-fade var(--dur-fade) linear both;
+}
+
+@keyframes tc-stamp-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

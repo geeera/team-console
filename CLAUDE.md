@@ -13,7 +13,8 @@ visual direction), `.product-team/project.yml`.
 - The GitHub token lives only in the Worker; the client never sees it. Secrets only in GitHub Environments /
   `wrangler secret`; this repository is public.
 - Owner answers written by the app use the plugin's grammar exactly (`libs/shared/owner-grammar`).
-- Design tokens only (Paper Desk, ADR 0002); no raw colours, spacing or durations in components.
+- Design tokens only (Paper Desk, ADR 0002); no raw colours, spacing, durations or z-index in components —
+  `tools/design-lint` (part of `nx run-many -t lint`) fails on one in any `libs/console/**` or `apps/console` css.
 
 ## Workspace
 Node 22 (`.nvmrc`), npm, `npm ci` only — versions are pinned exactly, no `^`. Nx 23 / Angular 22 (Nx 22 does not
@@ -65,7 +66,12 @@ then delete the generated placeholder component, keep `src/index.ts` as the only
 `angular({ tsconfig: 'tsconfig.spec.json' })` in the lib's `vite.config.mts` (see an existing lib). Generators emit
 an explicit `lint` target in `project.json`; remove it — `@nx/eslint/plugin` infers it.
 
-Shared libs that exist: `@console/shared/ui` (kit + `src/tokens/tokens.css`), `@console/shared/i18n` (Transloco,
+Shared libs that exist: `@console/shared/ui` (Paper Desk kit — tokens in `src/tokens/tokens.css` + `breakpoints.ts`,
+global `src/styles/base.css` and `overlay.css`; primitives `Button`/`IconButton`, `Card` (with the stamp), `Chip`,
+`Field`/`FieldControl`, `Icon`, `List`/`ListRow`, `Sheet` service (bottom sheet on the phone, dialog elsewhere, on the
+CDK dialog; `confirm()`), `Spinner`, `StateBlock`, `TopBar`; Storybook in `.storybook/` with theme, motion and language
+toolbars: `npx nx storybook console-shared-ui` on :4400, `npx nx build-storybook console-shared-ui` into
+`dist/storybook/console-shared-ui` — the `storybook` contract command), `@console/shared/i18n` (Transloco,
 `ru.json`/`en.json`, `provideConsoleI18n()`), `@console/shared/config` (`APP_CONFIG`), `@console/shared/api`
 (`provideConsoleApi()` with the interceptor chain; `accessSessionInterceptor` reloads once per 30 s to re-run the
 Access login when an `/api` call fails with status 0, a non-JSON body or 401 `access-missing|access-unverified`). Build time reaches the app through the build `define`

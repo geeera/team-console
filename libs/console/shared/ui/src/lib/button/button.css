@@ -3,28 +3,41 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: var(--btn-h);
+  min-height: var(--control-h);
   padding: 0 var(--space-4);
-  border: 1px solid var(--border-strong);
+  border: var(--border-w) solid var(--border-strong);
   border-radius: var(--r-md);
   background: var(--surface);
   color: var(--text);
   font: inherit;
   font-size: var(--fs-sm);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   line-height: var(--lh-tight);
+  white-space: nowrap;
+  text-decoration: none;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
   transition:
     background-color var(--dur-fast) var(--ease-standard),
-    border-color var(--dur-fast) var(--ease-standard);
+    border-color var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
 }
 
 :host(:hover) {
-  background: var(--hover);
+  background: var(--hover-solid);
+}
+
+:host(:active) {
+  transform: scale(0.97);
+}
+
+:host(:focus-visible) {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
 }
 
 :host(.tc-button--primary) {
-  border-color: var(--accent);
+  border-color: transparent;
   background: var(--accent);
   color: var(--accent-contrast);
 }
@@ -33,12 +46,63 @@
   background: var(--accent-hover);
 }
 
-:host(:focus-visible) {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+:host(.tc-button--danger) {
+  border-color: transparent;
+  background: var(--danger);
+  color: var(--danger-contrast);
 }
 
-:host(:disabled) {
+:host(.tc-button--danger:hover) {
+  background: var(--danger-hover);
+}
+
+:host(.tc-button--quiet) {
+  border-color: transparent;
+  background: none;
+  color: var(--text-2);
+}
+
+:host(.tc-button--quiet:hover),
+:host(.tc-button--quiet[aria-expanded='true']) {
+  background: var(--hover);
+  color: var(--text);
+}
+
+:host(.tc-button--sm) {
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-3);
+  font-size: var(--fs-xs);
+}
+
+:host(.tc-button--block) {
+  display: flex;
+  width: 100%;
+}
+
+:host(:disabled),
+:host([aria-disabled='true']) {
   cursor: default;
-  opacity: 0.55;
+  opacity: var(--disabled-opacity);
+  transform: none;
+}
+
+:host(.tc-button--loading) {
+  cursor: progress;
+}
+
+:host(.tc-button--primary) tc-spinner,
+:host(.tc-button--danger) tc-spinner {
+  border-color: transparent;
+  border-top-color: currentColor;
+}
+
+/* Thumb targets on the phone; the sm size keeps a smaller but still tappable height. */
+@media (max-width: 519.98px) {
+  :host {
+    min-height: var(--control-h-touch);
+  }
+
+  :host(.tc-button--sm) {
+    min-height: var(--control-h-touch-sm);
+  }
 }

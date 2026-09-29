@@ -1,0 +1,22 @@
+{
+  "name": "design-lint",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "tools/design-lint/src",
+  "tags": ["type:tool", "scope:tooling"],
+  "targets": {
+    "lint": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "default",
+        "{workspaceRoot}/libs/console/**/*.css",
+        "{workspaceRoot}/apps/console/src/**/*.css"
+      ],
+      "options": {
+        "commands": ["eslint tools/design-lint", "node tools/design-lint/src/cli.ts"],
+        "parallel": false
+      }
+    }
+  }
+}
