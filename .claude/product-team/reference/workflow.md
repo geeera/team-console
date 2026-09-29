@@ -79,7 +79,8 @@ Status labels are prefixed (`status:*`) so they never collide with labels an ado
 | Override of a release blocker | Written reason on the demo issue → recorded as a decision | Blocker stands |
 
 Owner commands in issue comments are case-insensitive and must be written by the repository owner
-(the repository's `owner.login`); commands from anyone else are ignored.
+(the repository's `owner.login`); commands from anyone else are ignored, and so is an owner comment anyone else
+ever edited (`reference/identities.md`). Reactions are never approvals.
 
 ## Findings and release gates
 

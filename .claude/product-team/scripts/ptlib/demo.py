@@ -5,6 +5,8 @@ import json
 import re
 from typing import List, Optional
 
+from . import provenance
+
 START, END = "/*PT-DEMO-DATA-START*/", "/*PT-DEMO-DATA-END*/"
 REQUIRED = ("product", "repo", "sprint", "demo_date", "demo_issue", "release", "shipped", "proposals", "findings")
 _BLOCK = re.compile(r"^\s*/demo-decisions\s*\n```(?:json)?\s*\n(.*?)\n```", re.MULTILINE | re.DOTALL)
@@ -23,12 +25,12 @@ def fill(template: str, data: dict) -> str:
     return head + START + payload + END + tail
 
 
-def decisions_from_comments(comments: List[dict], owner: str) -> Optional[dict]:
-    """The owner's latest /demo-decisions block, or None. Blocks from anyone else are ignored."""
+def decisions_from_comments(comments: List[dict], owner: str, history: Optional[dict]) -> Optional[dict]:
+    """The owner's latest /demo-decisions block, or None. Blocks from anyone else, or in an owner comment someone
+    else edited (history: provenance.fetch of the demo issue), are ignored."""
     latest = None
-    for c in sorted(comments, key=lambda c: c.get("created_at") or ""):
-        if (c.get("user") or {}).get("login", "").lower() != owner.lower():
-            continue
+    trusted, _ = provenance.screen(comments, [owner], history)
+    for c in sorted(trusted, key=lambda c: c.get("created_at") or ""):
         for m in _BLOCK.finditer(c.get("body") or ""):
             try:
                 parsed = json.loads(m.group(1))

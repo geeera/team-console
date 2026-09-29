@@ -40,6 +40,7 @@ caps: {}
 team:
   plugin_ref: stable
   reviewer_logins: ['team-console-review[bot]']
+  run_log_issue: 22
 
 owner:
   language: ru

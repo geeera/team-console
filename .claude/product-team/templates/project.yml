@@ -40,6 +40,9 @@ team:
   # reference/identities.md), or a separate reviewing account. Only its verdicts then count in the merge gate, so a
   # developer agent cannot approve its own work. Empty = any account (same-account setup).
   reviewer_logins: []
+  # The run-log issue number (`runlog url` creates it; kickoff/adopt write it here). Pinned so an issue someone else
+  # opens and labels can never become the log that pauses and resumes the team.
+  run_log_issue: 0
 
 owner:
   timezone: Europe/Kyiv

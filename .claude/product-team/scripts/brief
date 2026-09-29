@@ -15,17 +15,20 @@ sys.dont_write_bytecode = True  # the vendored copy lives in the product repo: n
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from ptlib import brief, gh, owner, runstate  # noqa: E402
+from ptlib import brief, gh, owner, provenance, runlogissue, runstate  # noqa: E402
 from ptlib.calendar import KYIV, pick_current_sprint  # noqa: E402
 
-LOG_LABEL = "team:run-log"
+LOG_LABEL = runlogissue.LABEL
 
 
 def run_log(repo: str):
-    found = gh.api_list(f"repos/{repo}/issues?state=all&labels={LOG_LABEL}&per_page=5")
-    if not found:
+    """The run log and the team's own entries on it (briefing marks, runs), never edited by anyone else."""
+    log = runlogissue.find(repo)
+    if not log:
         return None, []
-    return found[0], gh.api_list(f"repos/{repo}/issues/{found[0]['number']}/comments?per_page=100")
+    comments = gh.api_list(f"repos/{repo}/issues/{log['number']}/comments?per_page=100")
+    team = gh.team_logins(repo) | {provenance.author_of(log)}
+    return log, provenance.screen(comments, team, provenance.fetch(repo, log["number"]))[0]
 
 
 def slim(i: dict) -> dict:
@@ -72,11 +75,14 @@ def main() -> None:
                         "closed": sprint["closed_issues"]} if sprint else None)
         paused = bool(log) and "team:paused" in {l["name"] for l in log.get("labels", [])}
         decided = []
+        team = gh.team_logins(repo) if any("team-decided" in i["labels"] for i in touched) else set()
         for i in touched:
             if "team-decided" in i["labels"]:
-                stamps = [c["created_at"] for c in gh.api_list(f"repos/{repo}/issues/{i['number']}/comments?per_page=100")
-                          if owner.DECISION_MARKER in (c.get("body") or "")]
-                decided.append(dict(i, decided_at=max(stamps) if stamps else None))
+                comments_i = gh.api_list(f"repos/{repo}/issues/{i['number']}/comments?per_page=100")
+                history_i = provenance.fetch(repo, i["number"])
+                at = owner.team_decided_at(comments_i, team, history_i)
+                decided.append(dict(i, decided_at=at or None,
+                                    handled_reversals=owner.handled_reversals(comments_i, team, history_i)))
         result = brief.summary(since, [i for i in touched if i["closed_at"]], prs, decided,
                                runstate.parse_runs(comments), [i for i in open_issues if LOG_LABEL not in i["labels"]
                                                                and "team:inbox" not in i["labels"]],
