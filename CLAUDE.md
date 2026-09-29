@@ -67,13 +67,14 @@ an explicit `lint` target in `project.json`; remove it — `@nx/eslint/plugin` i
 
 Shared libs that exist: `@console/shared/ui` (kit + `src/tokens/tokens.css`), `@console/shared/i18n` (Transloco,
 `ru.json`/`en.json`, `provideConsoleI18n()`), `@console/shared/config` (`APP_CONFIG`), `@console/shared/api`
-(`provideConsoleApi()` with the interceptor chain). Build time reaches the app through the build `define`
+(`provideConsoleApi()` with the interceptor chain; `accessSessionInterceptor` reloads once per 30 s to re-run the
+Access login when an `/api` call fails with status 0, a non-JSON body or 401 `access-missing|access-unverified`). Build time reaches the app through the build `define`
 `__TC_BUILT_AT__` (defaults to `local`); the version comes from `package.json`.
 
 ## Workers (#6)
 
 `apps/api` (Hono; serves the SPA from `dist/apps/console/browser` as static assets with `run_worker_first:
-["/api/*"]`, owns `/api/v1/*`) and `apps/hooks` (public, `/healthz` and later `/hooks/*`). Both are built by
+["/api", "/api/*"]`, owns `/api/v1/*`) and `apps/hooks` (public, `/healthz` and later `/hooks/*`). Both are built by
 `createWorkerApp()` from `@worker/core`: `X-Request-Id` in/out, a per-request redacting logger (`c.get('logger')`),
 RFC 9457 bodies via `problem(c, { type, title, status, detail?, retryAfter? })` for every error, including 404/500.
 DTOs and `ProblemDetails` live in `@shared/contracts`; D1 access in `@worker/db` (`ProjectsRepo`, parameterised
@@ -82,9 +83,15 @@ queries only). Migrations live only in `apps/api/migrations` (`0001_init` = `pro
 with non-secret vars only; secrets (`GITHUB_TOKEN`, `WEBHOOK_SECRET`, `VAPID_PRIVATE_KEY`, `ROUTINE_TOKEN_*`, `OWNER_EMAIL`) are
 declared in each app's `src/env.ts` and set with `wrangler secret put`. `AUTH_MODE:local` + `ENVIRONMENT:local`
 are passed only as `--var` flags by `nx serve api` and the Dockerfile — `tools/workspace-checks` fails if either
-appears in an `env.*` block. `authMiddleware` in `apps/api/src/auth/` fails closed (401 `access-missing`) until #8
-adds JWT verification; only `ENVIRONMENT=local` + `AUTH_MODE=local` together let a request through (the api
-vitest config binds both so route specs run; `auth.middleware.spec.ts` overrides them per case).
+appears in an `env.*` block. Auth (#8, ADR 0001 decision 7) is one seam in `apps/api/src/auth/`, mounted once on `/api/*`
+before every router: `authMiddleware` verifies `Cf-Access-Jwt-Assertion` with `jose` against
+`https://<ACCESS_TEAM_DOMAIN>/cdn-cgi/access/certs` (RS256 only; `iss`, `aud`, `exp`/`iat` required, `nbf`; owner
+email or, on dev/stage with `ALLOW_SERVICE_TOKEN=true`, the service token pinned by `ACCESS_SERVICE_TOKEN_ID`) and
+sets `c.get('identity')`; every failure is a 401 problem (`access-missing|unverified|forbidden|misconfigured`), and
+empty or malformed Access vars fail closed. `csrfMiddleware` then requires `Sec-Fetch-Site: same-origin` (or an own
+`Origin`) and JSON bodies on writes (403 `csrf`, 415). Only `ENVIRONMENT=local` + `AUTH_MODE=local` together skip
+the JWT check (the api vitest config binds both so route specs run; `auth.middleware.spec.ts` uses
+`src/testing/access-kit.ts` to sign tokens and stub the JWKS). Log `identity.kind` only, never the email or token.
 
 Commands: `npx nx serve api` (builds the console, applies migrations, `wrangler dev` on :8787), `npx nx run
 api:migrate` (fresh local D1), `npx nx build api` (`tsc --noEmit` + `wrangler deploy --dry-run`), `docker build -t

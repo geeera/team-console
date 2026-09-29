@@ -108,20 +108,33 @@ describe.each(['api', 'hooks'] as const)('apps/%s/wrangler.jsonc', (app) => {
 });
 
 describe('apps/api/wrangler.jsonc', () => {
-  it.each(ENVIRONMENTS)('serves the SPA with the Worker first on /api/* in env %s', (env) => {
+  // "/api/*" alone leaves "/api" and "/api/" to the SPA fallback and so outside the auth middleware (#51).
+  it.each(ENVIRONMENTS)('serves the SPA with the Worker first on /api and /api/* in env %s', (env) => {
     expect(readWorkerConfig('api', env).assets).toEqual(
       expect.objectContaining({
         binding: 'ASSETS',
         not_found_handling: 'single-page-application',
-        run_worker_first: ['/api/*'],
+        run_worker_first: ['/api', '/api/*'],
       }),
     );
   });
 
-  it.each(ENVIRONMENTS)('keeps ACCESS_TEAM_DOMAIN and ACCESS_AUD empty in env %s (public repo)', (env) => {
-    const { vars } = readWorkerConfig('api', env);
-    expect(vars['ACCESS_TEAM_DOMAIN']).toBe('');
-    expect(vars['ACCESS_AUD']).toBe('');
+  it.each(ENVIRONMENTS)(
+    'keeps ACCESS_TEAM_DOMAIN, ACCESS_AUD and ACCESS_SERVICE_TOKEN_ID empty in env %s (public repo)',
+    (env) => {
+      const { vars } = readWorkerConfig('api', env);
+      expect(vars['ACCESS_TEAM_DOMAIN']).toBe('');
+      expect(vars['ACCESS_AUD']).toBe('');
+      expect(vars['ACCESS_SERVICE_TOKEN_ID']).toBe('');
+    },
+  );
+
+  // Threat model #8, row 8: when #25 fills it, only an Access team domain may be the JWKS host.
+  it.each(ENVIRONMENTS)('has ACCESS_TEAM_DOMAIN empty or a *.cloudflareaccess.com host in env %s', (env) => {
+    const domain = readWorkerConfig('api', env).vars['ACCESS_TEAM_DOMAIN'];
+    expect(
+      domain === '' || (typeof domain === 'string' && /^[a-z0-9-]+\.cloudflareaccess\.com$/.test(domain)),
+    ).toBe(true);
   });
 
   it.each(ENVIRONMENTS)('declares no OWNER_EMAIL var in env %s — it is a Worker secret', (env) => {
@@ -136,6 +149,14 @@ describe('apps/api/wrangler.jsonc', () => {
       expect(config.preview_urls).toBe(false);
     },
   );
+
+  it('never sets AUTH_MODE or ENVIRONMENT=local in any env (threat model #8, row 7)', () => {
+    for (const env of ENVIRONMENTS) {
+      const { vars } = readWorkerConfig('api', env);
+      expect(vars, env).not.toHaveProperty('AUTH_MODE');
+      expect(vars['ENVIRONMENT'], env).not.toBe('local');
+    }
+  });
 
   it('allows service tokens on dev and stage only', () => {
     expect(readWorkerConfig('api', 'dev').vars['ALLOW_SERVICE_TOKEN']).toBe('true');

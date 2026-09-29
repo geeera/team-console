@@ -1,6 +1,6 @@
 // The `api` Worker: serves the SPA from static assets and owns /api/* (ADR 0001, decisions 4, 14, 19).
 // Non-secret configuration only. Secrets (declared in src/env.ts) are set once by the owner with
-// `wrangler secret put`; ACCESS_TEAM_DOMAIN and ACCESS_AUD stay empty here (this repository is public) and are
+// `wrangler secret put`; ACCESS_TEAM_DOMAIN, ACCESS_AUD and ACCESS_SERVICE_TOKEN_ID stay empty here (this repository is public) and are
 // filled per environment in #21/#25; OWNER_EMAIL is a secret, never a var. workers_dev stays on: Access sits in
 // front of team-console-<env>.<account>.workers.dev (ADR 0001, decisions 7 and 14); preview_urls are off so no
 // unprotected version URL exists. AUTH_MODE and ENVIRONMENT=local exist only as `--var` flags of `nx serve api`
@@ -15,7 +15,8 @@
     "directory": "../../dist/apps/console/browser",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"],
+    // "/api/*" alone leaves "/api" and "/api/" to the SPA fallback, outside the auth check (#51).
+    "run_worker_first": ["/api", "/api/*"],
   },
   "env": {
     "dev": {
@@ -27,6 +28,7 @@
         "ACCESS_TEAM_DOMAIN": "",
         "ACCESS_AUD": "",
         "ALLOW_SERVICE_TOKEN": "true",
+        "ACCESS_SERVICE_TOKEN_ID": "",
       },
       "d1_databases": [
         {
@@ -47,6 +49,7 @@
         "ACCESS_TEAM_DOMAIN": "",
         "ACCESS_AUD": "",
         "ALLOW_SERVICE_TOKEN": "true",
+        "ACCESS_SERVICE_TOKEN_ID": "",
       },
       "d1_databases": [
         {
@@ -66,6 +69,7 @@
         "ACCESS_TEAM_DOMAIN": "",
         "ACCESS_AUD": "",
         "ALLOW_SERVICE_TOKEN": "false",
+        "ACCESS_SERVICE_TOKEN_ID": "",
       },
       "d1_databases": [
         {
