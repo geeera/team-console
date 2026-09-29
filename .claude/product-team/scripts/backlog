@@ -54,8 +54,11 @@ def out(data) -> None:
 
 def body_arg(args) -> str:
     if getattr(args, "body_file", None):
-        with open(args.body_file, encoding="utf-8") as f:
-            return f.read()
+        try:
+            with open(args.body_file, encoding="utf-8") as f:
+                return f.read()
+        except OSError as exc:
+            sys.exit(f"cannot read --body-file {args.body_file}: {exc.strerror}")
     return args.body or ""
 
 
@@ -354,7 +357,11 @@ def main() -> None:
     nx = sub.add_parser("next"); nx.add_argument("--now")
     sp = sub.add_parser("sprint"); sp.add_argument("action", choices=["current", "list", "create"])
     sp.add_argument("title", nargs="?"); sp.add_argument("due", nargs="?")
-    args = p.parse_args()
+    argv = sys.argv[1:]
+    # `label N -name` removes a label; without "--" argparse would read "-name" as an unknown option.
+    if len(argv) >= 3 and argv[0] == "label" and "--" not in argv:
+        argv = argv[:2] + ["--"] + argv[2:]
+    args = p.parse_args(argv)
 
     handlers = {
         "init": cmd_init, "list": cmd_list, "show": cmd_show, "create": cmd_create, "move": cmd_move, "close": cmd_close, "decide": cmd_decide, "ask": cmd_ask, "reversals": cmd_reversals, "answer": cmd_answer, "milestone": cmd_milestone,

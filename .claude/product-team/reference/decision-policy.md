@@ -29,6 +29,13 @@ the stack decision), then record it:
 When unsure whether something is the owner's: if it costs money, changes what users get, or needs the owner's
 own account — ask. Otherwise decide.
 
+## Asking vs. asking the owner to do something
+
+A **question** asks the owner to decide (answered with approve / reject, go / no-go). A **task only the owner can
+do** — create an account, put a secret in place, run something on their machine — is not a question: create it as
+`--kind chore` with `needs:owner` (or `needs:local`), a short checklist in the body, and it is answered with "done".
+Mixing the two gives the owner the wrong buttons.
+
 ## How to ask
 
 `backlog create --kind question --owner-category <c> --ask "<one line>" --title … --body-file …`

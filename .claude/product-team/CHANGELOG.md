@@ -4,6 +4,13 @@ Products follow the `stable` channel (or a pinned tag, `team.plugin_ref` in `.pr
 first `slot-pm` of the day runs `vendor self-update` and opens a PR with the entries in between. Breaking changes (a renamed label, a changed script contract, a new required
 `project.yml` key) are marked **Breaking** with the migration step.
 
+## 0.9.1
+
+- `backlog label N -name` removed nothing and failed: argparse read `-name` as an option. Label removal works again
+  (it is used by slot-pm, slot-qa and the design flow).
+- A missing `--body-file` is a clear error instead of a traceback.
+- Decision policy: tasks only the owner can do are `kind:chore` + `needs:owner` (answered "done"), not questions.
+
 ## 0.9.0
 
 - **Team chat** (SPEC decision 17): the owner talks to the team in one pinned Claude Code session per product
