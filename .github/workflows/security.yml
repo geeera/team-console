@@ -150,3 +150,9 @@ jobs:
       # `updated_at`, fixed the same round). The assertion makes that class of bug fail loudly here instead.
       - name: Test set-secrets.sh against a fresh account and an auth failure (stubbed)
         run: bash tools/owner-setup/set-secrets.stub-test.sh
+
+      # #61 (ADR 0003): same stub discipline as set-secrets.sh above — `gh`/`wrangler` are stubs, and the
+      # script's one real outbound call (the manifest code exchange) is pointed at a throwaway local server
+      # via CREATE_APPS_GITHUB_API_BASE, never at the real GitHub API.
+      - name: Test create-apps.sh against the App Manifest flow (stubbed)
+        run: bash tools/owner-setup/create-apps.stub-test.sh
