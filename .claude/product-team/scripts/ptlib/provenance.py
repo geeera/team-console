@@ -20,24 +20,32 @@ EDITS_PER_ITEM = 50
 _ACTOR = "{ __typename login }"
 _EDITABLE = (f"body author {_ACTOR} lastEditedAt editor {_ACTOR} "
              f"userContentEdits(first: {EDITS_PER_ITEM}) {{ totalCount nodes {{ editedAt editor {_ACTOR} }} }}")
+# issueOrPullRequest: an owner command on a pull request (a PR number) is checked the same way as on an issue.
 _QUERY = """
 query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
-    issue(number: $number) {
+    issueOrPullRequest(number: $number) {
+      __typename
+      ... on Issue { %(thread)s }
+      ... on PullRequest { %(thread)s }
+    }
+  }
+}
+"""
+_THREAD = """
       %(editable)s
       comments(first: 100, after: $after) {
         pageInfo { hasNextPage endCursor }
         nodes { %(ids)s url %(editable)s }
       }
-    }
-  }
-}
 """
+_THREADS = ("Issue", "PullRequest")
 
 
 def _query(with_full_id: bool) -> str:
     # GitHub Enterprise Server releases without `fullDatabaseId` still answer the url-keyed variant.
-    return _QUERY % {"editable": _EDITABLE, "ids": "fullDatabaseId" if with_full_id else ""}
+    thread = _THREAD % {"editable": _EDITABLE, "ids": "fullDatabaseId" if with_full_id else ""}
+    return _QUERY % {"thread": thread}
 
 
 def _login(actor: Optional[dict]) -> Optional[str]:
@@ -69,7 +77,8 @@ def _record(node: dict) -> dict:
 
 
 def fetch(repo: str, number: int) -> dict:
-    """Text and edit history of an issue and all its comments: {"issue": record, "comments": {id or url: record}}.
+    """Text and edit history of an issue or pull request and all its comments:
+    {"issue": record, "comments": {id or url: record}}.
 
     Never raises for GitHub failures: {"error": why} instead, and callers treat every edited item as unverified.
     """
@@ -92,9 +101,9 @@ def _fetch(repo: str, number: int, with_full_id: bool) -> dict:
     query = _query(with_full_id)
     while True:
         data = gh.graphql(query, {"owner": owner, "name": name, "number": number, "after": after})
-        issue = ((data or {}).get("repository") or {}).get("issue")
-        if not issue:
-            return {"error": f"GitHub returned no issue #{number}"}
+        issue = ((data or {}).get("repository") or {}).get("issueOrPullRequest")
+        if not issue or issue.get("__typename") not in _THREADS:
+            return {"error": f"GitHub returned no issue or pull request #{number}"}
         if issue_record is None:
             issue_record = _record(issue)
         page = issue.get("comments") or {}
