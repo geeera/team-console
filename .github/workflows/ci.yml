@@ -1,0 +1,84 @@
+# Contract CI (plugin reference/stack-contract.md, ADR 0001 decision 18): install, lint, test, build on every PR.
+# The job name `lint-test-build` is stable: `scripts/pr gate` and QA read the check runs by name.
+# e2e joins this workflow with #14 (apps/console-e2e); until then no e2e job exists rather than a fake green one.
+name: ci
+
+on:
+  pull_request:
+    branches: [dev, stage, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  NX_DAEMON: 'false'
+  NX_NO_CLOUD: 'true'
+  NX_TUI: 'false'
+
+jobs:
+  lint-test-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nx affected needs the PR base commit in local history.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-node-npm
+
+      - run: npm ci
+
+      # ADR 0001 decision 18: NX_BASE / NX_HEAD come from nx-set-shas. On pull_request it takes the merge-base
+      # of origin/<base branch> and HEAD, locally, without API calls.
+      - name: Derive Nx base and head
+        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5.0.1
+        with:
+          main-branch-name: dev
+
+      # Affected by default; every project when the change can reach all of them without Nx seeing it
+      # (CI, toolchain, root config) and on release PRs into stage/main.
+      - name: Select projects
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          # An empty NX_BASE would silently fall back to nx.json's defaultBase.
+          [[ "${NX_BASE:-}" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::nx-set-shas gave no base sha"; exit 1; }
+          root_config='^(\.github/workflows/|package\.json$|package-lock\.json$|\.nvmrc$|nx\.json$|tsconfig\.base\.json$|eslint\.config\.mjs$|vitest\.config\.mts$)'
+          # Captured first: `git diff | grep -q` under pipefail can fail on SIGPIPE and silently pick "affected".
+          changed=$(git diff --name-only "${NX_BASE}" "${NX_HEAD}")
+          if [ "${BASE_REF}" != "dev" ]; then
+            mode="run-many"; why="release PR into ${BASE_REF}"
+          elif grep -Eq "${root_config}" <<< "${changed}"; then
+            mode="run-many"; why="root config or CI changed"
+          else
+            mode="affected"; why="changed since ${NX_BASE}"
+          fi
+          echo "NX_MODE=${mode}" >> "$GITHUB_ENV"
+          echo "::notice title=Nx scope::nx ${mode} (${why}; base ${NX_BASE}, head ${NX_HEAD})"
+
+      - name: Lint
+        run: npx nx "${NX_MODE}" -t lint
+
+      - name: Test
+        run: npx nx "${NX_MODE}" -t test
+
+      - name: Build
+        run: npx nx "${NX_MODE}" -t build
+
+      # ADR 0001 decision 5 / #6: the schema must apply to a fresh database with wrangler's own migrator (the
+      # local backend is the same SQLite D1 runs on). Runs twice: the second pass must find nothing to apply.
+      - name: D1 migrations on a fresh local database
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          set -euo pipefail
+          rm -rf apps/api/.wrangler
+          npx nx run api:migrate
+          npx nx run api:migrate

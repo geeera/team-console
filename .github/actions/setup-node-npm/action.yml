@@ -1,0 +1,21 @@
+# Shared by ci.yml and deploy.yml (shared-first: the npm-pin step was duplicated verbatim in both — REVIEW
+# on PR #54). Callers still run `npm ci` themselves; this only gets Node and the right npm in place.
+name: Set up Node and the pinned npm
+description: >
+  actions/setup-node with the repo's .nvmrc, then installs the exact npm version pinned in
+  package.json#packageManager — the lockfile is written by npm 10 and another major rewrites it (npm 11 adds
+  libc fields and pulls both glibc and musl native builds).
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version-file: .nvmrc
+        cache: npm
+
+    - shell: bash
+      run: |
+        set -euo pipefail
+        wanted=$(node -p "require('./package.json').packageManager.replace(/^npm@/, '')")
+        npm install --global --no-audit --no-fund "npm@${wanted}"
+        test "$(npm --version)" = "${wanted}"

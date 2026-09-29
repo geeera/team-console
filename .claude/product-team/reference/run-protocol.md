@@ -8,15 +8,17 @@ repository and in Issues; nothing is remembered between runs.
 `PLUGIN_ROOT=<path>` on the first line of the prompt.
 
 GitHub access goes through `PT/scripts/backlog`, `PT/scripts/pr`, `PT/scripts/runlog` and `PT/scripts/inbox`: they
-use the GitHub REST API with the session's token (`GH_TOKEN`), so the `gh` CLI is not needed and must not be
-installed at run time. `git push` works through the session's own remote.
+use the GitHub REST API with the team GitHub App's token when `PT_TEAM_APP_ID` is set, else the session's token
+(`GH_TOKEN`), so the `gh` CLI is not needed and must not be installed at run time. Commits and pushes go through
+`PT/scripts/pr commit` and `PT/scripts/pr push` (`reference/workflow.md`, `reference/identities.md`).
 
 ## Open
 1. `git fetch --all --prune`. Read `CLAUDE.md` and `.product-team/project.yml`. If the project file is missing,
    stop: the product was never set up (run `kickoff` or `adopt`).
 2. `PT/scripts/runlog start <slot>`:
    - `proceed` → keep the `run_id`.
-   - `overlap` / `paused` → print the reason and end the run. No other action.
+   - `overlap` / `paused` / `unverified` → print the reason and end the run. No other action. (`unverified`: the
+     run log's edit history could not be read, so no entry and no `/resume` can be trusted.)
    - `pause` → the team just paused itself: tell the owner (see *Notify*) and end the run.
 3. `PT/scripts/slot-context` → mode (`normal` / `burn` / `freeze`), `is_cut_day`, caps, sprint, demo date.
 
@@ -37,13 +39,16 @@ installed at run time. `git push` works through the session's own remote.
    that failed. Owner-facing, short, in the owner's language from `project.yml`.
 2. `PT/scripts/runlog finish <run_id> finished --summary-file <file> [--metric key=value]...` (or `failed` if
    the run could not do its job — a crash of one subtask that was handled is still `finished`). Duration is
-   recorded automatically; add the counts the slot skill names (PRs opened, merged, blocked…).
+   recorded automatically; add the counts the slot skill names (PRs opened, merged, blocked…), and
+   `--acted <issue>:<comment_id>` for every owner command the run acted on (the `comment_id` from
+   `backlog answers`), so a command deleted later is noticed: a slot that reads owner commands runs
+   `backlog vanished` once per run (not per issue — it reads the whole run log).
 3. Print the same summary as the session's final message.
 
 ## Notify
 The owner talks to the team in the project's team chat (`team-chat` skill) and gets one digest a day on the phone (`owner-digest.yml`: the pinned "Needs you" list). GitHub does not
-notify the owner about comments the agents write as the owner's account, so a comment alone reaches nobody: put
-what needs the owner in the inbox (`inbox update`). Only for something that cannot wait until tomorrow (a release
+notify the owner about comments the agents write as the owner's account (same-account mode), so a comment alone
+reaches nobody: put what needs the owner in the inbox (`inbox update`). Only for something that cannot wait until tomorrow (a release
 decision on demo day, a production incident, the team pausing itself) also run
 `PT/scripts/workflows run owner-digest.yml`. Never @-mention anyone except the repository owner.
 

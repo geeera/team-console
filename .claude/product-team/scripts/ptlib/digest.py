@@ -1,7 +1,8 @@
 """The daily push to the owner's phone: the pinned inbox, as a short plain-text message.
 
-GitHub does not notify you about your own account's comments — and the agents write as the owner's account — so
-the team's questions would never reach the phone through GitHub. The digest goes out through a separate channel.
+GitHub does not notify you about your own account's comments — and in same-account mode the agents write as
+yours — so the team's questions would never reach the phone through GitHub. The digest goes out through a separate
+channel (with the team app, GitHub notifies you as well).
 """
 from __future__ import annotations
 

@@ -20,6 +20,22 @@ Node 22 (`.nvmrc`), npm, `npm ci` only — versions are pinned exactly, no `^`. 
 support Angular 22). Commands: `npx nx run-many -t lint`, `-t test`, `-t build`; a single project with
 `npx nx test console-pages-hello`. Unit tests are Vitest through `@analogjs/vitest-angular`; the app is zoneless.
 
+npm is pinned to `package.json#packageManager` (10.9.9; `engines.npm` allows 10.x only) — the lockfile must be
+written by npm 10, npm 11 rewrites it.
+
+CI on every PR into dev/stage/main (ADR 0001 decision 18): `ci.yml` job `lint-test-build` runs `nx affected -t
+lint|test|build` with `NX_BASE`/`NX_HEAD` from `nrwl/nx-set-shas` (merge-base of the PR's base branch and the PR
+merge commit), and `nx run-many` instead when the PR touches `.github/workflows/`, `package.json`, the lockfile,
+`.nvmrc`, `nx.json`, `tsconfig.base.json`, `eslint.config.mjs` or `vitest.config.mts`, and on every PR into
+stage/main; the job's "Nx scope" notice says which. `security.yml`: `secret-scan` (gitleaks over `git log --all`
+of the clone — every branch and tag of the repo plus this PR's merge ref, not other PRs), `sast` (Semgrep),
+`dependency-audit` (`npm audit --audit-level=high`). Every action in `.github/workflows/` is pinned by full commit
+SHA; the PR workflows use no secrets. A leaked secret: rotate/revoke it first (the public history keeps it), then
+delete the branch and push a clean one (no force-push onto shared branches), or — if it already reached a
+long-lived branch — add its fingerprint (from the red run's log) to `.gitleaksignore` in a reviewed PR.
+Dependabot (`.github/dependabot.yml`) proposes github-actions updates weekly, grouped into one PR into `dev`;
+those PRs go through the same gate as any other (CI + QA/REVIEW/SECURITY).
+
 Layout, tags and aliases (architect note on #3 — binding; the boundary lint enforces the tags):
 
 ```
@@ -51,5 +67,36 @@ an explicit `lint` target in `project.json`; remove it — `@nx/eslint/plugin` i
 
 Shared libs that exist: `@console/shared/ui` (kit + `src/tokens/tokens.css`), `@console/shared/i18n` (Transloco,
 `ru.json`/`en.json`, `provideConsoleI18n()`), `@console/shared/config` (`APP_CONFIG`), `@console/shared/api`
-(`provideConsoleApi()` with the interceptor chain). Build time reaches the app through the build `define`
+(`provideConsoleApi()` with the interceptor chain; `accessSessionInterceptor` reloads once per 30 s to re-run the
+Access login when an `/api` call fails with status 0, a non-JSON body or 401 `access-missing|access-unverified`). Build time reaches the app through the build `define`
 `__TC_BUILT_AT__` (defaults to `local`); the version comes from `package.json`.
+
+## Workers (#6)
+
+`apps/api` (Hono; serves the SPA from `dist/apps/console/browser` as static assets with `run_worker_first:
+["/api", "/api/*"]`, owns `/api/v1/*`) and `apps/hooks` (public, `/healthz` and later `/hooks/*`). Both are built by
+`createWorkerApp()` from `@worker/core`: `X-Request-Id` in/out, a per-request redacting logger (`c.get('logger')`),
+RFC 9457 bodies via `problem(c, { type, title, status, detail?, retryAfter? })` for every error, including 404/500.
+DTOs and `ProblemDetails` live in `@shared/contracts`; D1 access in `@worker/db` (`ProjectsRepo`, parameterised
+queries only). Migrations live only in `apps/api/migrations` (`0001_init` = `projects`; `0002_push_subscriptions`
+#11, `0003_webhooks` #12, `0004_chat_wakeups`, `0005_owner_connections` #59 are reserved). `wrangler.jsonc` has `env.dev|stage|production`
+with non-secret vars only; secrets (`WEBHOOK_SECRET`, `VAPID_PRIVATE_KEY`, `ROUTINE_TOKEN_*`, `OWNER_EMAIL`, and per
+ADR 0003 `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY` — `GITHUB_TOKEN` is gone with
+the PAT) are declared in each app's `src/env.ts` and set with `wrangler secret put`. `AUTH_MODE:local` + `ENVIRONMENT:local`
+are passed only as `--var` flags by `nx serve api` and the Dockerfile — `tools/workspace-checks` fails if either
+appears in an `env.*` block. Auth (#8, ADR 0001 decision 7) is one seam in `apps/api/src/auth/`, mounted once on `/api/*`
+before every router: `authMiddleware` verifies `Cf-Access-Jwt-Assertion` with `jose` against
+`https://<ACCESS_TEAM_DOMAIN>/cdn-cgi/access/certs` (RS256 only; `iss`, `aud`, `exp`/`iat` required, `nbf`; owner
+email or, on dev/stage with `ALLOW_SERVICE_TOKEN=true`, the service token pinned by `ACCESS_SERVICE_TOKEN_ID`) and
+sets `c.get('identity')`; every failure is a 401 problem (`access-missing|unverified|forbidden|misconfigured`), and
+empty or malformed Access vars fail closed. `csrfMiddleware` then requires `Sec-Fetch-Site: same-origin` (or an own
+`Origin`) and JSON bodies on writes (403 `csrf`, 415). Only `ENVIRONMENT=local` + `AUTH_MODE=local` together skip
+the JWT check (the api vitest config binds both so route specs run; `auth.middleware.spec.ts` uses
+`src/testing/access-kit.ts` to sign tokens and stub the JWKS). Log `identity.kind` only, never the email or token.
+
+Commands: `npx nx serve api` (builds the console, applies migrations, `wrangler dev` on :8787), `npx nx run
+api:migrate` (fresh local D1), `npx nx build api` (`tsc --noEmit` + `wrangler deploy --dry-run`), `docker build -t
+team-console . && docker run --rm -p 127.0.0.1:8787:8787 team-console` (the e2e target: same bundle, local D1, `:8787`).
+Worker tests run in workerd through `@cloudflare/vitest-pool-workers` (`SELF.fetch`, an isolated in-memory D1
+migrated in `src/test-setup.ts`); `apps/api/test-assets` stands in for the Angular build. `wrangler`,
+`@cloudflare/vitest-pool-workers` and `compatibility_date` move together (one workerd for dev, Docker and tests).

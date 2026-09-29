@@ -50,7 +50,7 @@ jobs:
             reason="force-push to \`$BRANCH\` by $PUSHER ($BEFORE → $AFTER)"
           else
             # GitHub links a merge commit to its PR asynchronously; give it a moment before alerting.
-            for attempt in 1 2 3; do
+            for _ in 1 2 3; do
               if [ "$(merged_into_branch)" -gt 0 ]; then exit 0; fi
               sleep 15
             done

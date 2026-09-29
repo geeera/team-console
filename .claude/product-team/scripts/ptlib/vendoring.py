@@ -22,6 +22,7 @@ TREES = (
     ("reference", f"{HOME}/reference", True),
     ("templates", f"{HOME}/templates", True),
 )
+GITIGNORE = f"{HOME}/.gitignore"
 FILES = ((".claude-plugin/plugin.json", f"{HOME}/.claude-plugin/plugin.json"),
          ("CHANGELOG.md", f"{HOME}/CHANGELOG.md"), ("LICENSE", f"{HOME}/LICENSE"))
 
@@ -37,6 +38,7 @@ def plan(src: Path) -> Dict[str, Tuple[Path, bool]]:
     for source, dest in FILES:
         if (src / source).exists():
             out[dest] = (src / source, False)
+    out[GITIGNORE] = (src / "scripts" / "ptlib" / "vendored.gitignore", False)
     return out
 
 

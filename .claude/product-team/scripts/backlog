@@ -16,17 +16,23 @@ skills. Output is JSON on stdout; errors go to stderr with a non-zero exit.
   backlog answer N --command approve|reject|go|no-go|override|done --owner-said "…" [--text T]
                  the owner's answer given in the team chat (interactive only — scheduled runs never call it);
                  allowed commands depend on the item: questions and designs approve/reject, the demo issue
-                 go/no-go/override, action items done
+                 go/no-go/override, action items done. With the team GitHub App it posts with PT_OWNER_TOKEN
+                 (the owner's own token; reference/identities.md) and refuses without it
   backlog reversals [--days 14]  team decisions the owner answered with /reject since they were made
-  backlog decide N (--body B | --body-file F) [--close]
-                 record a team decision on the issue (label team-decided); --close closes a question it answers
+  backlog decide N (--body B | --body-file F) [--close] [--handles-reversal COMMENT_ID]
+                 record a team decision on the issue (label team-decided); --close closes a question it answers;
+                 refused while the owner's /reject of the last decision is open, unless it names that /reject
   backlog move N STATUS [--reason TEXT]          set the single status:* label (done closes the issue)
   backlog milestone N TITLE|current|none         put the issue into a sprint (or remove it)
   backlog close N [--reason TEXT]                close as not planned (rejected, duplicate, obsolete)
+  backlog edit N [--title T] [--body-file F]    change an issue's title or body (the answer line of a question is kept)
   backlog label N [+L|-L]...                     add/remove flags
   backlog comment N (--body B | --body-file F)
   backlog link-pr N PR                           record the PR on the issue
-  backlog answers N                              owner commands (/approve, /reject, /go, …) on the issue
+  backlog answers N                              owner commands (/approve, /reject, /go, …) on the issue; owner
+                                                 comments someone else edited are listed under "ignored"
+  backlog vanished [--days 30]                   owner commands a run acted on (`runlog finish --acted`) that
+                                                 were deleted since — once per run, never acted on again
   backlog next [--now ISO]                       what a development run takes now: ordered dispatch list,
                                                  skipped issues with reasons, missing architect notes
   backlog sprint current|list
@@ -37,12 +43,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
-from datetime import date, datetime, timedelta
+
+sys.dont_write_bytecode = True  # the vendored copy lives in the product repo: no __pycache__ there
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import quote
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from ptlib import brief, commands, gh, inbox, owner, picker, project  # noqa: E402
+from ptlib import brief, commands, gh, inbox, owner, picker, project, provenance, runlogissue  # noqa: E402
 from ptlib.calendar import KYIV, compute, pick_current_sprint  # noqa: E402
 from ptlib.labels import LABELS, STATUSES, KINDS, SEVERITIES  # noqa: E402
 
@@ -136,8 +145,10 @@ def cmd_show(repo: str, args) -> None:
     issue = gh.api(f"repos/{repo}/issues/{args.number}")
     data = slim(issue)
     data["body"] = issue.get("body") or ""
+    # A reading aid only: whose words count as the owner's comes from `answers`, which checks the edit history.
     data["comments"] = [
-        {"author": c["user"]["login"], "at": c["created_at"], "body": c["body"]}
+        {"author": c["user"]["login"], "at": c["created_at"], "body": c["body"],
+         "edited": not provenance.rest_unedited(c)}
         for c in gh.api_list(f"repos/{repo}/issues/{args.number}/comments?per_page=100")
     ]
     out(data)
@@ -195,21 +206,24 @@ def cmd_answer(repo: str, args) -> None:
         body = brief.answer_comment(args.command, args.text or "", args.owner_said or "", section or "")
     except ValueError as exc:
         sys.exit(f"#{args.number}: {exc}")
-    c = gh.api(f"repos/{repo}/issues/{args.number}/comments", "POST", {"body": body})
+    # Commands count only when the owner's login wrote them; in app mode that needs the owner's own token.
+    c = gh.api(f"repos/{repo}/issues/{args.number}/comments", "POST", {"body": body}, auth=gh.owner_token(repo))
     out({"issue": args.number, "answer": f"/{args.command}", "url": c["html_url"]})
 
 
 def cmd_reversals(repo: str, args) -> None:
     owner_login = gh.owner_login(repo)
+    team = gh.team_logins(repo)
     since = (datetime.now(KYIV) - timedelta(days=args.days)).isoformat(timespec="seconds")
     found = []
     for issue in gh.api_list(f"repos/{repo}/issues?state=all&labels=team-decided&since={quote(since)}&per_page=100"):
         if "pull_request" in issue:
             continue
         comments = gh.api_list(f"repos/{repo}/issues/{issue['number']}/comments?per_page=100")
-        rejection = owner.reversed_by_owner(comments, owner_login)
+        rejection = owner.reversed_by_owner(comments, owner_login, provenance.fetch(repo, issue["number"]), team)
         if rejection:
-            found.append(dict(slim(issue), reason=rejection.get("text", ""), at=rejection.get("at")))
+            found.append(dict(slim(issue), reason=rejection.get("text", ""), at=rejection.get("at"),
+                              comment_id=rejection.get("comment_id"), comment_url=rejection.get("url")))
     out(found)
 
 
@@ -221,7 +235,18 @@ def cmd_decide(repo: str, args) -> None:
     current = {l["name"] for l in issue["labels"]}
     if args.close and "kind:question" not in current:
         sys.exit("--close is only for questions a decision answers; move other issues through their status")
-    c = gh.api(f"repos/{repo}/issues/{args.number}/comments", "POST", {"body": owner.decision_comment(text)})
+    # A new decision would move the decision date past an open owner /reject and hide it from `reversals`.
+    comments = gh.api_list(f"repos/{repo}/issues/{args.number}/comments?per_page=100")
+    rejection = owner.reversed_by_owner(comments, gh.owner_login(repo), provenance.fetch(repo, args.number),
+                                        gh.team_logins(repo))
+    if rejection and str(rejection.get("comment_id")) != str(args.handles_reversal or ""):
+        sys.exit(f"#{args.number}: the owner reversed the last team decision (/reject {rejection.get('text', '')}, "
+                 f"{rejection.get('url')}). Act on it: record the redone decision with "
+                 f"--handles-reversal {rejection.get('comment_id')}, or turn it into an owner question with "
+                 "`backlog ask`")
+    c = gh.api(f"repos/{repo}/issues/{args.number}/comments", "POST",
+               {"body": owner.decision_comment(text, str(rejection["comment_id"]) if rejection else None,
+                                               rejection.get("url") or "" if rejection else "")})
     # A decided question is no longer the owner's: drop owner:* so it leaves "Questions" and shows as FYI only.
     labels = sorted({l for l in current if not l.startswith("owner:")} | {"team-decided"})
     patch = {"labels": labels}
@@ -260,6 +285,22 @@ def cmd_close(repo: str, args) -> None:
     out(slim(gh.api(f"repos/{repo}/issues/{args.number}", "PATCH", {"state": "closed", "state_reason": "not_planned"})))
 
 
+def cmd_edit(repo: str, args) -> None:
+    patch = {}
+    if args.title:
+        patch["title"] = args.title
+    if args.body_file or args.body:
+        body = body_arg(args)
+        current = gh.api(f"repos/{repo}/issues/{args.number}").get("body") or ""
+        ask = owner.ask_of(current)
+        if ask and not owner.ask_of(body):  # never lose the owner's answer line on a question
+            body = current.split(owner.ASK_MARKER, 1)[0] + owner.ASK_MARKER + "\n\n" + body.strip() + "\n"
+        patch["body"] = body
+    if not patch:
+        sys.exit("nothing to change: --title and/or --body-file")
+    out(slim(gh.api(f"repos/{repo}/issues/{args.number}", "PATCH", patch)))
+
+
 def cmd_label(repo: str, args) -> None:
     for change in args.changes:
         if change[:1] not in "+-" or len(change) < 2:
@@ -274,6 +315,8 @@ def cmd_label(repo: str, args) -> None:
 
 
 def cmd_comment(repo: str, args) -> None:
+    if owner.DECISION_MARKER in body_arg(args):
+        sys.exit("team decisions are recorded with `backlog decide`, not as a plain comment")
     c = gh.api(f"repos/{repo}/issues/{args.number}/comments", "POST", {"body": body_arg(args)})
     out({"id": c["id"], "url": c["html_url"]})
 
@@ -287,10 +330,47 @@ def cmd_link_pr(repo: str, args) -> None:
 
 def cmd_answers(repo: str, args) -> None:
     owner = gh.owner_login(repo)
+    issue = gh.api(f"repos/{repo}/issues/{args.number}")
     comments = gh.api_list(f"repos/{repo}/issues/{args.number}/comments?per_page=100")
-    # When the agents act as the owner's account, an agent can write a comment that looks like the owner's.
+    # Anyone with Issues write can edit an owner comment into a command: only unedited or owner-edited ones count.
+    history = provenance.fetch(repo, args.number)
+    # When the agents act as the owner's account, an agent can write a comment that looks like the owner's; as an
+    # app they cannot, and commands.parse already counts only the owner's login.
     same_account = gh.acts_as_owner(repo)
-    out({"owner": owner, "same_account": same_account, "commands": commands.parse(comments, owner)})
+    trusted, _ = provenance.screen(comments, [owner], history)
+    out({"owner": owner, "agents": gh.token_login(), "same_account": same_account,
+         "commands": commands.parse(comments, owner, history),
+         "ignored": commands.rejected(comments, owner, history),
+         "done": [{"at": c.get("created_at"), "comment_id": c.get("id"), "url": c.get("html_url")}
+                  for c in trusted if brief.DONE_MARKER in (c.get("body") or "")],
+         "body": provenance.body_statement(issue, owner, history),
+         "history_error": history.get("error", "")})
+
+
+GONE = re.compile(r"→ HTTP (404|410)\b")
+
+
+def cmd_vanished(repo: str, args) -> None:
+    """Owner commands the team acted on (`runlog finish --acted`) that are gone now: deleted after the fact.
+
+    Once per run, not per issue: it reads the whole run log and one comment list per issue it names.
+    """
+    acted, error = runlogissue.acted_on(repo)
+    since = (datetime.now(timezone.utc) - timedelta(days=args.days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    recent = [a for a in acted if (a.get("at") or "") >= since]
+    vanished = []
+    for number in sorted({a["issue"] for a in recent}):
+        try:
+            present = {str(c.get("id")) for c in gh.api_list(f"repos/{repo}/issues/{number}/comments?per_page=100")}
+            gone = ""
+        except gh.GhError as exc:
+            if not GONE.search(str(exc)):
+                raise
+            # The issue itself was deleted or transferred: every command the team acted on there is gone with it.
+            present, gone = set(), f"issue #{number} is gone"
+        vanished += [dict(a, reason=gone) if gone else a
+                     for a in recent if a["issue"] == number and str(a["comment_id"]) not in present]
+    out({"vanished": vanished, "checked": len(recent), "error": error})
 
 
 def cmd_next(repo: str, args) -> None:
@@ -347,13 +427,17 @@ def main() -> None:
     ak.add_argument("--owner-category", required=True, choices=sorted(owner.CATEGORIES)); ak.add_argument("--ask", required=True)
     de = sub.add_parser("decide"); de.add_argument("number", type=int); de.add_argument("--body"); de.add_argument("--body-file")
     de.add_argument("--close", action="store_true")
+    de.add_argument("--handles-reversal", help="comment id of the owner's /reject this decision answers")
     mv = sub.add_parser("move"); mv.add_argument("number", type=int); mv.add_argument("status"); mv.add_argument("--reason")
     ms = sub.add_parser("milestone"); ms.add_argument("number", type=int); ms.add_argument("title")
     cl = sub.add_parser("close"); cl.add_argument("number", type=int); cl.add_argument("--reason")
+    ed = sub.add_parser("edit"); ed.add_argument("number", type=int); ed.add_argument("--title")
+    ed.add_argument("--body"); ed.add_argument("--body-file")
     lb = sub.add_parser("label"); lb.add_argument("number", type=int); lb.add_argument("changes", nargs="+")
     cm = sub.add_parser("comment"); cm.add_argument("number", type=int); cm.add_argument("--body"); cm.add_argument("--body-file")
     lp = sub.add_parser("link-pr"); lp.add_argument("number", type=int); lp.add_argument("pr", type=int)
     an = sub.add_parser("answers"); an.add_argument("number", type=int)
+    va = sub.add_parser("vanished"); va.add_argument("--days", type=int, default=30)
     nx = sub.add_parser("next"); nx.add_argument("--now")
     sp = sub.add_parser("sprint"); sp.add_argument("action", choices=["current", "list", "create"])
     sp.add_argument("title", nargs="?"); sp.add_argument("due", nargs="?")
@@ -365,7 +449,7 @@ def main() -> None:
 
     handlers = {
         "init": cmd_init, "list": cmd_list, "show": cmd_show, "create": cmd_create, "move": cmd_move, "close": cmd_close, "decide": cmd_decide, "ask": cmd_ask, "reversals": cmd_reversals, "answer": cmd_answer, "milestone": cmd_milestone,
-        "label": cmd_label, "comment": cmd_comment, "link-pr": cmd_link_pr, "answers": cmd_answers,
+        "label": cmd_label, "edit": cmd_edit, "comment": cmd_comment, "link-pr": cmd_link_pr, "answers": cmd_answers, "vanished": cmd_vanished,
         "sprint": cmd_sprint, "next": cmd_next,
     }
     try:

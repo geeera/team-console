@@ -1,0 +1,86 @@
+// The `api` Worker: serves the SPA from static assets and owns /api/* (ADR 0001, decisions 4, 14, 19).
+// Non-secret configuration only. Secrets (declared in src/env.ts) are set once by the owner with
+// `wrangler secret put`; ACCESS_TEAM_DOMAIN, ACCESS_AUD and ACCESS_SERVICE_TOKEN_ID stay empty here (this repository is public) and are
+// filled per environment in #21/#25; OWNER_EMAIL is a secret, never a var. workers_dev stays on: Access sits in
+// front of team-console-<env>.<account>.workers.dev (ADR 0001, decisions 7 and 14); preview_urls are off so no
+// unprotected version URL exists. AUTH_MODE and ENVIRONMENT=local exist only as `--var` flags of `nx serve api`
+// and the Dockerfile — never in an `env.*` block (tools/workspace-checks enforces it).
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "team-console",
+  "main": "src/main.ts",
+  // Bound by workerd 1.20260815 that wrangler 4.124 / vitest-pool-workers 0.22 ship; bump together with them.
+  "compatibility_date": "2026-08-15",
+  "assets": {
+    "directory": "../../dist/apps/console/browser",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    // "/api/*" alone leaves "/api" and "/api/" to the SPA fallback, outside the auth check (#51).
+    "run_worker_first": ["/api", "/api/*"],
+  },
+  "env": {
+    "dev": {
+      "name": "team-console-dev",
+      "workers_dev": true,
+      "preview_urls": false,
+      "vars": {
+        "ENVIRONMENT": "dev",
+        "ACCESS_TEAM_DOMAIN": "",
+        "ACCESS_AUD": "",
+        "ALLOW_SERVICE_TOKEN": "true",
+        "ACCESS_SERVICE_TOKEN_ID": "",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "team-console-dev",
+          // Real D1 database id (#25; not a secret) — must match apps/hooks/wrangler.jsonc's `dev` id
+          // (tools/workspace-checks asserts this). deploy.yml's guard fails the deploy if this ever regresses
+          // to the dev scaffold placeholder id it shipped with before #25 (see tools/deploy-guard).
+          "database_id": "c2aa81dc-a67a-4efb-8eb2-95d02d21aa87",
+          "migrations_dir": "migrations",
+        },
+      ],
+    },
+    "stage": {
+      "name": "team-console-stage",
+      "workers_dev": true,
+      "preview_urls": false,
+      "vars": {
+        "ENVIRONMENT": "stage",
+        "ACCESS_TEAM_DOMAIN": "",
+        "ACCESS_AUD": "",
+        "ALLOW_SERVICE_TOKEN": "true",
+        "ACCESS_SERVICE_TOKEN_ID": "",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "team-console-stage",
+          "database_id": "57d7e07f-ef4d-49d5-9d30-b4192c0af039",
+          "migrations_dir": "migrations",
+        },
+      ],
+    },
+    "production": {
+      "name": "team-console-production",
+      "workers_dev": true,
+      "preview_urls": false,
+      "vars": {
+        "ENVIRONMENT": "production",
+        "ACCESS_TEAM_DOMAIN": "",
+        "ACCESS_AUD": "",
+        "ALLOW_SERVICE_TOKEN": "false",
+        "ACCESS_SERVICE_TOKEN_ID": "",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "team-console-production",
+          "database_id": "8ad685cb-f2eb-49dd-a4d2-46e40b8670f0",
+          "migrations_dir": "migrations",
+        },
+      ],
+    },
+  },
+}
