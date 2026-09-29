@@ -185,15 +185,20 @@ jobs:
       # different task hash than the one api's dependsOn computes from project.json, so Nx would silently
       # rebuild console a second time without it, discarding the injected value (see apps/console/src/app/
       # build-info.ts). Local/dev/Docker builds never run this step, so they keep the "local" default.
-      - name: Stamp the console build with the real build time and commit
+      #
+      # The stamped commit is `HEAD` — the deployed, guard-pinned commit asserted above — never `GITHUB_SHA`:
+      # on a `workflow_dispatch` rollback/redeploy `GITHUB_SHA` is still the branch tip, not the older `ref`
+      # this run actually checked out and is deploying (SECURITY review, PR #69).
+      - name: Stamp the console build with the real build time and the deployed commit
         run: |
           set -euo pipefail
-          built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ) (${GITHUB_SHA:0:7})"
+          built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ) ($(git rev-parse --short=7 HEAD))"
           tmp=$(mktemp)
           jq --arg definedValue "\"${built_at}\"" \
             '.targets.build.configurations.production.define.__TC_BUILT_AT__ = $definedValue' \
             apps/console/project.json > "${tmp}"
-          mv "${tmp}" apps/console/project.json
+          cat "${tmp}" > apps/console/project.json
+          rm -f "${tmp}"
 
       # Build once for this push; api's Nx target depends on console, so this also builds the SPA the api
       # Worker serves as static assets (ADR 0001 decisions 4, 14).
