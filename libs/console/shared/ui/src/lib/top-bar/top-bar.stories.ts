@@ -1,3 +1,4 @@
+import { TranslocoPipe } from '@console/shared/i18n';
 import type { Meta, StoryObj } from '@storybook/angular';
 import { moduleMetadata } from '@storybook/angular';
 import { darkTheme, phoneViewport, reducedMotion } from '../../../.storybook/stories';
@@ -7,16 +8,16 @@ import { TopBar } from './top-bar';
 
 const bar = `
   <header tc-top-bar>
-    <button tc-icon-button tc-top-bar-leading type="button" aria-label="Назад"><tc-icon name="chevron-left" size="lg" /></button>
-    <h1 tc-top-bar-title>Настройки</h1>
-    <button tc-icon-button tc-top-bar-trailing type="button" aria-label="Поиск"><tc-icon name="search" size="lg" /></button>
+    <button tc-icon-button tc-top-bar-leading type="button" [attr.aria-label]="'ui.back' | transloco"><tc-icon name="chevron-left" size="lg" /></button>
+    <h1 tc-top-bar-title>{{ 'stories.common.settings' | transloco }}</h1>
+    <button tc-icon-button tc-top-bar-trailing type="button" [attr.aria-label]="'stories.topBar.search' | transloco"><tc-icon name="search" size="lg" /></button>
   </header>
 `;
 
 const meta: Meta<TopBar> = {
   title: 'Kit/Top bar',
   component: TopBar,
-  decorators: [moduleMetadata({ imports: [TopBar, IconButton, Icon] })],
+  decorators: [moduleMetadata({ imports: [TopBar, IconButton, Icon, TranslocoPipe] })],
   parameters: { layout: 'fullscreen' },
   render: () => ({ template: bar }),
 };
@@ -27,7 +28,9 @@ type Story = StoryObj<TopBar>;
 export const Default: Story = {};
 
 export const TitleOnly: Story = {
-  render: () => ({ template: `<header tc-top-bar><h1 tc-top-bar-title>Нужно твоё внимание</h1></header>` }),
+  render: () => ({
+    template: `<header tc-top-bar><h1 tc-top-bar-title>{{ 'stories.topBar.attention' | transloco }}</h1></header>`,
+  }),
 };
 
 export const LongTitle: Story = {
@@ -35,8 +38,8 @@ export const LongTitle: Story = {
   render: () => ({
     template: `
       <header tc-top-bar>
-        <button tc-icon-button tc-top-bar-leading type="button" aria-label="Назад"><tc-icon name="chevron-left" size="lg" /></button>
-        <h1 tc-top-bar-title>Очень длинное название проекта, которое не помещается в строку</h1>
+        <button tc-icon-button tc-top-bar-leading type="button" [attr.aria-label]="'ui.back' | transloco"><tc-icon name="chevron-left" size="lg" /></button>
+        <h1 tc-top-bar-title>{{ 'stories.topBar.longTitle' | transloco }}</h1>
       </header>
     `,
   }),

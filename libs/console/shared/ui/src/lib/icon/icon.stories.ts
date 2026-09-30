@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/angular';
 import { moduleMetadata } from '@storybook/angular';
-import { darkTheme } from '../../../.storybook/stories';
+import { darkTheme, phoneViewport, reducedMotion } from '../../../.storybook/stories';
 import { Spinner } from '../spinner/spinner';
 import { Icon } from './icon';
 
@@ -39,3 +39,5 @@ type Story = StoryObj<Icon>;
 
 export const Glyphs: Story = {};
 export const Dark: Story = { ...darkTheme };
+export const ReducedMotion: Story = { ...reducedMotion };
+export const Phone: Story = { ...phoneViewport };

@@ -276,10 +276,11 @@
   --skeleton: color-mix(in oklab, var(--text) 8%, transparent);
 }
 
-/* 12 · reduced motion — durations collapse to a frame; components read them and animate nothing */
+/* 12 · reduced motion — durations collapse to a frame; components read them and animate nothing.
+ *      --dur-fade stays at 120ms: the "Signature moment" direction keeps an instant swap with a
+ *      120ms fade for the stamp even with reduced motion, it is not part of the collapse. */
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion='full']) {
-    --dur-fade: 1ms;
     --dur-fast: 1ms;
     --dur-base: 1ms;
     --dur-slow: 1ms;
@@ -288,7 +289,6 @@
 }
 
 :root[data-motion='reduce'] {
-  --dur-fade: 1ms;
   --dur-fast: 1ms;
   --dur-base: 1ms;
   --dur-slow: 1ms;

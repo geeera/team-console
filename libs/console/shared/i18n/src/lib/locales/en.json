@@ -27,5 +27,77 @@
     "field": {
       "optional": "optional"
     }
+  },
+  "stories": {
+    "common": {
+      "settings": "Settings"
+    },
+    "button": {
+      "approve": "Approve",
+      "approveClose": "Approve · close",
+      "reject": "Reject",
+      "later": "Later",
+      "archive": "Archive",
+      "small": "Small",
+      "disabled": "Disabled",
+      "saving": "Saving…"
+    },
+    "card": {
+      "kind": "Question",
+      "title": "Approve the Paper Desk kit and tokens?",
+      "body": "Tokens, primitives and Storybook are ready. The team recommends approving and closing the issue.",
+      "meta": "2 hours ago · Team Console",
+      "minimalTitle": "Title and text only",
+      "minimalBody": "With no header, actions or caption the blocks hide themselves."
+    },
+    "chip": {
+      "draft": "Draft",
+      "questions": "3 questions",
+      "active": "Active",
+      "paused": "Paused",
+      "buildFailing": "Build is failing"
+    },
+    "field": {
+      "repoLabel": "Repository",
+      "repoHint": "owner/repo or a GitHub link",
+      "repoInvalidError": "Doesn't look like owner/repo",
+      "reasonLabel": "Rejection reason",
+      "reasonHint": "The team will see it in a comment",
+      "langLabel": "Language",
+      "langRu": "Russian",
+      "langEn": "English",
+      "offlineLabel": "Not available offline"
+    },
+    "list": {
+      "ariaProjects": "Projects",
+      "sprintLine": "Sprint 01 · demo on Oct 16",
+      "pausedSince": "Paused since Sep 12 — waiting on the domain payment decision",
+      "version": "Version 0.1.0",
+      "staticRow": "A static row with no action",
+      "archive": "Archive",
+      "offline": "Not available offline"
+    },
+    "topBar": {
+      "search": "Search",
+      "attention": "Needs your attention",
+      "longTitle": "A very long project name that does not fit on one line"
+    },
+    "stateBlock": {
+      "emptyTitle": "Nothing is waiting",
+      "emptyDescription": "All team questions are closed. Check back later.",
+      "errorTitle": "Couldn't load projects",
+      "errorDescription": "GitHub didn't respond. Check your connection and try again.",
+      "compactEmptyTitle": "This column is empty"
+    },
+    "sheet": {
+      "paused": "Paused",
+      "addProject": "Add a project",
+      "openSheet": "Open the “Projects” sheet",
+      "archiveEllipsis": "Archive…",
+      "confirmedArchived": "The project is archived",
+      "confirmedKept": "Left as is",
+      "confirmTitle": "Move the project to the archive?",
+      "confirmMessage": "The project disappears from the list and “Needs your attention”. GitHub issues are untouched."
+    }
   }
 }

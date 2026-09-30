@@ -1,3 +1,4 @@
+import { TranslocoPipe } from '@console/shared/i18n';
 import type { Meta, StoryObj } from '@storybook/angular';
 import { moduleMetadata } from '@storybook/angular';
 import { darkTheme, phoneViewport, reducedMotion } from '../../../.storybook/stories';
@@ -5,22 +6,22 @@ import { Field, FieldControl } from './field';
 
 const form = `
   <form style="display: grid; gap: var(--space-4); max-width: var(--dialog-max-w)" autocomplete="off">
-    <tc-field label="Репозиторий" hint="owner/repo или ссылка на GitHub" required>
+    <tc-field [label]="'stories.field.repoLabel' | transloco" [hint]="'stories.field.repoHint' | transloco" required>
       <input tcInput type="text" name="repo" placeholder="geeera/team-console" />
     </tc-field>
-    <tc-field label="Репозиторий" error="Не похоже на owner/repo" required>
+    <tc-field [label]="'stories.field.repoLabel' | transloco" [error]="'stories.field.repoInvalidError' | transloco" required>
       <input tcInput type="text" name="repo-invalid" value="team console" />
     </tc-field>
-    <tc-field label="Причина отказа" hint="Команда увидит её в комментарии">
+    <tc-field [label]="'stories.field.reasonLabel' | transloco" [hint]="'stories.field.reasonHint' | transloco">
       <textarea tcInput name="reason" rows="3"></textarea>
     </tc-field>
-    <tc-field label="Язык">
+    <tc-field [label]="'stories.field.langLabel' | transloco">
       <select tcInput name="lang">
-        <option value="ru">Русский</option>
-        <option value="en">English</option>
+        <option value="ru">{{ 'stories.field.langRu' | transloco }}</option>
+        <option value="en">{{ 'stories.field.langEn' | transloco }}</option>
       </select>
     </tc-field>
-    <tc-field label="Недоступно офлайн">
+    <tc-field [label]="'stories.field.offlineLabel' | transloco">
       <input tcInput type="text" name="offline" value="geeera/team-console" disabled />
     </tc-field>
   </form>
@@ -29,12 +30,13 @@ const form = `
 const meta: Meta<Field> = {
   title: 'Kit/Field',
   component: Field,
-  decorators: [moduleMetadata({ imports: [Field, FieldControl] })],
-  args: { label: 'Репозиторий', hint: 'owner/repo или ссылка на GitHub', error: '', required: true },
+  decorators: [moduleMetadata({ imports: [Field, FieldControl, TranslocoPipe] })],
+  argTypes: { required: { control: 'boolean' } },
+  args: { required: true },
   render: (args) => ({
     props: args,
     template: `
-      <tc-field [label]="label" [hint]="hint" [error]="error" [required]="required" style="max-width: var(--dialog-max-w)">
+      <tc-field [label]="'stories.field.repoLabel' | transloco" [hint]="'stories.field.repoHint' | transloco" [required]="required" style="max-width: var(--dialog-max-w)">
         <input tcInput type="text" name="repo" placeholder="geeera/team-console" />
       </tc-field>
     `,

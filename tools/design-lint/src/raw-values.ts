@@ -10,11 +10,28 @@ export interface RawValue {
   readonly declaration: string;
 }
 
+// The full CSS Color Module Level 4 named-colour list, minus the keywords that are not raw
+// colours (`transparent`, `currentcolor`) — those read the surrounding context, not a fixed value.
 const NAMED_COLOURS =
-  'aqua|black|blue|brown|cyan|fuchsia|gold|gray|grey|green|indigo|ivory|lime|magenta|maroon|navy|olive|orange|pink|purple|red|silver|tan|teal|violet|white|yellow';
+  'aliceblue|antiquewhite|aqua|aquamarine|azure|beige|bisque|black|blanchedalmond|blue|blueviolet|brown|' +
+  'burlywood|cadetblue|chartreuse|chocolate|coral|cornflowerblue|cornsilk|crimson|cyan|darkblue|darkcyan|' +
+  'darkgoldenrod|darkgray|darkgreen|darkgrey|darkkhaki|darkmagenta|darkolivegreen|darkorange|darkorchid|' +
+  'darkred|darksalmon|darkseagreen|darkslateblue|darkslategray|darkslategrey|darkturquoise|darkviolet|' +
+  'deeppink|deepskyblue|dimgray|dimgrey|dodgerblue|firebrick|floralwhite|forestgreen|fuchsia|gainsboro|' +
+  'ghostwhite|gold|goldenrod|gray|green|greenyellow|grey|honeydew|hotpink|indianred|indigo|ivory|khaki|' +
+  'lavender|lavenderblush|lawngreen|lemonchiffon|lightblue|lightcoral|lightcyan|lightgoldenrodyellow|' +
+  'lightgray|lightgreen|lightgrey|lightpink|lightsalmon|lightseagreen|lightskyblue|lightslategray|' +
+  'lightslategrey|lightsteelblue|lightyellow|lime|limegreen|linen|magenta|maroon|mediumaquamarine|' +
+  'mediumblue|mediumorchid|mediumpurple|mediumseagreen|mediumslateblue|mediumspringgreen|' +
+  'mediumturquoise|mediumvioletred|midnightblue|mintcream|mistyrose|moccasin|navajowhite|navy|oldlace|' +
+  'olive|olivedrab|orange|orangered|orchid|palegoldenrod|palegreen|paleturquoise|palevioletred|' +
+  'papayawhip|peachpuff|peru|pink|plum|powderblue|purple|rebeccapurple|red|rosybrown|royalblue|' +
+  'saddlebrown|salmon|sandybrown|seagreen|seashell|sienna|silver|skyblue|slateblue|slategray|slategrey|' +
+  'snow|springgreen|steelblue|tan|teal|thistle|tomato|turquoise|violet|wheat|white|whitesmoke|yellow|' +
+  'yellowgreen';
 
 const COLOUR = new RegExp(
-  `#[0-9a-f]{3,8}\\b|\\b(?:rgb|rgba|hsl|hsla|oklch|oklab|color-mix)\\(|\\b(?:${NAMED_COLOURS})\\b`,
+  `#[0-9a-f]{3,8}\\b|\\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklch|oklab|color|color-mix)\\(|\\b(?:${NAMED_COLOURS})\\b`,
   'gi',
 );
 /** A length with a unit, except `0` and the hairline `1px` (borders and outlines). Viewport units size layout, not design. */
@@ -63,6 +80,78 @@ function splitDeclaration(declaration: string): { property: string; value: strin
 function allowedLength(value: string, unit: string): boolean {
   const numeric = Number(value);
   return numeric === 0 || (numeric === 1 && unit.toLowerCase() === 'px');
+}
+
+export interface InlineStyleBlock {
+  /** The 1-based line the block starts on in the source file, so findings can report a real line. */
+  readonly startLine: number;
+  readonly css: string;
+}
+
+function lineOf(source: string, index: number): number {
+  let line = 1;
+  for (let i = 0; i < index; i += 1) {
+    if (source[i] === '\n') {
+      line += 1;
+    }
+  }
+  return line;
+}
+
+/**
+ * Pulls declaration blocks out of `style="…"`/`style='…'` template attributes, a literal
+ * `[style]="'…'"` binding, and Angular `styles` metadata — either the `[\`…\`]` array form or
+ * the single-string `styles: \`…\`` form (Angular 14+ accepts both) — so #78's inline styles are
+ * checked the same as a `.css` file.
+ */
+export function extractInlineStyles(source: string): InlineStyleBlock[] {
+  const blocks: InlineStyleBlock[] = [];
+
+  for (const match of source.matchAll(/\bstyle\s*=\s*"([^"]*)"|\bstyle\s*=\s*'([^']*)'/g)) {
+    const css = match[1] ?? match[2] ?? '';
+    if (css.trim() !== '') {
+      blocks.push({ startLine: lineOf(source, match.index), css });
+    }
+  }
+
+  // `[style]` bound to a plain string literal — not an expression, so it reads like a `style=`
+  // attribute. A dynamic value (a signal, a ternary, …) has no literal to extract and is skipped.
+  const styleBinding = /\[style\]\s*=\s*(?:"'([^']*)'"|'"([^"]*)"')/dg;
+  for (const bindingMatch of source.matchAll(styleBinding)) {
+    const css = bindingMatch[1] ?? bindingMatch[2] ?? '';
+    if (css.trim() !== '') {
+      const indices = (bindingMatch as RegExpMatchArray & { indices: Array<[number, number] | undefined> }).indices;
+      const group = indices?.[1] ?? indices?.[2];
+      blocks.push({ startLine: lineOf(source, group ? group[0] : bindingMatch.index), css });
+    }
+  }
+
+  const stylesArray = /\bstyles\s*:\s*\[([\s\S]*?)\]/g;
+  for (const arrayMatch of source.matchAll(stylesArray)) {
+    const arrayStart = arrayMatch.index + arrayMatch[0].indexOf('[') + 1;
+    const literal = /`([\s\S]*?)`|'([^']*)'|"([^"]*)"/g;
+    for (const literalMatch of arrayMatch[1].matchAll(literal)) {
+      const css = literalMatch[1] ?? literalMatch[2] ?? literalMatch[3] ?? '';
+      if (css.trim() !== '') {
+        blocks.push({ startLine: lineOf(source, arrayStart + literalMatch.index), css });
+      }
+    }
+  }
+
+  // The single-string form: `styles: \`…\`` (no brackets) rather than `styles: [\`…\`]`.
+  // The `d` flag reports each capture group's own [start, end], so the reported line is the
+  // literal's, not the `styles:` keyword's.
+  const stylesString = /\bstyles\s*:\s*(?!\[)(?:`([\s\S]*?)`|'([^']*)'|"([^"]*)")/dg;
+  for (const stringMatch of source.matchAll(stylesString)) {
+    const css = stringMatch[1] ?? stringMatch[2] ?? stringMatch[3] ?? '';
+    if (css.trim() !== '') {
+      const indices = (stringMatch as RegExpMatchArray & { indices: Array<[number, number] | undefined> }).indices;
+      const group = indices?.[1] ?? indices?.[2] ?? indices?.[3];
+      blocks.push({ startLine: lineOf(source, group ? group[0] : stringMatch.index), css });
+    }
+  }
+
+  return blocks;
 }
 
 export function findRawValues(

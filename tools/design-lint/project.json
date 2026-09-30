@@ -11,7 +11,11 @@
       "inputs": [
         "default",
         "{workspaceRoot}/libs/console/**/*.css",
-        "{workspaceRoot}/apps/console/src/**/*.css"
+        "{workspaceRoot}/apps/console/src/**/*.css",
+        "{workspaceRoot}/libs/console/**/*.ts",
+        "{workspaceRoot}/libs/console/**/*.html",
+        "{workspaceRoot}/apps/console/src/**/*.ts",
+        "{workspaceRoot}/apps/console/src/**/*.html"
       ],
       "options": {
         "commands": ["eslint tools/design-lint", "node tools/design-lint/src/cli.ts"],

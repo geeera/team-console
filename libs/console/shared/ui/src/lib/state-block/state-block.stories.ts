@@ -1,3 +1,4 @@
+import { TranslocoPipe } from '@console/shared/i18n';
 import type { Meta, StoryObj } from '@storybook/angular';
 import { moduleMetadata } from '@storybook/angular';
 import { darkTheme, phoneViewport, reducedMotion } from '../../../.storybook/stories';
@@ -6,12 +7,12 @@ import { StateBlock } from './state-block';
 
 const allKinds = `
   <div style="display: grid; gap: var(--space-4)">
-    <tc-state-block kind="empty" title="Ничего не ждёт" description="Все вопросы команды закрыты. Загляните позже." />
-    <tc-state-block kind="error" title="Не удалось загрузить проекты" description="GitHub не ответил. Проверьте связь и попробуйте ещё раз.">
-      <button tc-button tc-state-action variant="primary" type="button">Повторить</button>
+    <tc-state-block kind="empty" [title]="'stories.stateBlock.emptyTitle' | transloco" [description]="'stories.stateBlock.emptyDescription' | transloco" />
+    <tc-state-block kind="error" [title]="'stories.stateBlock.errorTitle' | transloco" [description]="'stories.stateBlock.errorDescription' | transloco">
+      <button tc-button tc-state-action variant="primary" type="button">{{ 'ui.error.retry' | transloco }}</button>
     </tc-state-block>
     <tc-state-block kind="loading" />
-    <tc-state-block kind="empty" compact title="В этой колонке пусто" />
+    <tc-state-block kind="empty" compact [title]="'stories.stateBlock.compactEmptyTitle' | transloco" />
     <tc-state-block kind="loading" compact />
   </div>
 `;
@@ -19,12 +20,12 @@ const allKinds = `
 const meta: Meta<StateBlock> = {
   title: 'Kit/State block',
   component: StateBlock,
-  decorators: [moduleMetadata({ imports: [StateBlock, Button] })],
+  decorators: [moduleMetadata({ imports: [StateBlock, Button, TranslocoPipe] })],
   argTypes: { kind: { control: 'select', options: ['empty', 'error', 'loading'] } },
-  args: { kind: 'empty', title: '', description: '', compact: false },
+  args: { kind: 'empty', compact: false },
   render: (args) => ({
     props: args,
-    template: `<tc-state-block [kind]="kind" [title]="title" [description]="description" [compact]="compact" />`,
+    template: `<tc-state-block [kind]="kind" [compact]="compact" />`,
   }),
 };
 
