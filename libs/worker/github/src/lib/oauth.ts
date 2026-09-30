@@ -156,9 +156,11 @@ export class GitHubOAuth {
 
   /**
    * `DELETE /applications/{client_id}/grant`: ends the app's grant for that user and every token of it.
-   * 204 → `revoked`; 404 → `already-gone` (the token or grant no longer exists). Anything else throws.
+   * 204 → `revoked`. 404/422 → `token-rejected`: GitHub does not accept this token (revoked, rotated by a refresh,
+   * or never valid), which says nothing about whether the grant is still alive under another token. Anything else
+   * throws.
    */
-  async revokeGrant(accessToken: string): Promise<'revoked' | 'already-gone'> {
+  async revokeGrant(accessToken: string): Promise<'revoked' | 'token-rejected'> {
     const response = await githubRequest(this.fetcher, {
       method: 'DELETE',
       path: githubPath`/applications/${this.credentials.clientId}/grant`,
@@ -169,8 +171,8 @@ export class GitHubOAuth {
     if (response.status === 204) {
       return 'revoked';
     }
-    if (response.status === 404) {
-      return 'already-gone';
+    if (response.status === 404 || response.status === 422) {
+      return 'token-rejected';
     }
     throw mapGitHubResponse(response, this.now());
   }

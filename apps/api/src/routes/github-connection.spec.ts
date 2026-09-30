@@ -588,9 +588,9 @@ describe('DELETE /api/v1/github/connection', () => {
     expect(h.fake.activeGrants()).toBe(1);
   });
 
-  it('an expiring access token is refreshed first, then the grant is revoked', async () => {
+  it('an expired access token is refreshed first, then the grant is revoked', async () => {
     const h = harness();
-    await seedConnection(h.fake, { accessSecondsLeft: 60 });
+    await seedConnection(h.fake, { accessSecondsLeft: -5 });
 
     const response = await call(h, '/api/v1/github/connection', { method: 'DELETE', headers: SAME_ORIGIN });
 
@@ -602,6 +602,89 @@ describe('DELETE /api/v1/github/connection', () => {
     ]);
     expect(h.fake.activeGrants()).toBe(0);
     expect(await storedRow()).toBeNull();
+  });
+
+  // #87: a refused refresh must not stop the revoke while the stored access token still works.
+  it('a still-valid access token revokes without a refresh, even when the refresh token would be refused', async () => {
+    const h = harness();
+    await seedConnection(h.fake, { accessSecondsLeft: 60 });
+    h.fake.fail('refresh-bad-refresh-token');
+
+    const response = await call(h, '/api/v1/github/connection', { method: 'DELETE', headers: SAME_ORIGIN });
+
+    expect(response.status).toBe(204);
+    expect(h.fake.refreshCalls()).toBe(0);
+    expect(h.fake.activeGrants()).toBe(0);
+    expect(await storedRow()).toBeNull();
+  });
+
+  describe('no confirmed revoke → 200 revoke-on-github, never a plain 204 (#87, threat row 11)', () => {
+    async function expectIncomplete(response: Response, reason: string): Promise<void> {
+      expect(response.status).toBe(200);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(await response.json()).toEqual({
+        revoked: false,
+        action: 'revoke-on-github',
+        reason,
+        manageUrl: 'https://github.com/settings/applications',
+      });
+    }
+
+    it('expired access token and bad_refresh_token: the row goes, the answer says the grant may be live', async () => {
+      const h = harness();
+      await seedConnection(h.fake, { accessSecondsLeft: -5 });
+      h.fake.fail('refresh-bad-refresh-token');
+
+      await expectIncomplete(
+        await call(h, '/api/v1/github/connection', { method: 'DELETE', headers: SAME_ORIGIN }),
+        'no-usable-token',
+      );
+      expect(await storedRow()).toBeNull();
+      expect(h.fake.activeGrants()).toBe(1);
+      expect(parsedLogs(h.logs)).toContainEqual(
+        expect.objectContaining({ securitySignal: 'owner-not-connected', reason: 'refresh-refused' }),
+      );
+    });
+
+    it('an undecryptable row: no GitHub call, the row goes, the answer says the grant may be live', async () => {
+      const h = harness();
+      await seedConnection(h.fake);
+      await env.DB.prepare(
+        "UPDATE owner_connections SET access_token_enc = 'ff' || substr(access_token_enc, 3)",
+      ).run();
+
+      await expectIncomplete(
+        await call(h, '/api/v1/github/connection', { method: 'DELETE', headers: SAME_ORIGIN }),
+        'no-usable-token',
+      );
+      expect(h.fake.calls).toEqual([]);
+      expect(await storedRow()).toBeNull();
+    });
+
+    it('GitHub rejects the stored token (someone else refreshed the chain): signal logged, grant may be live', async () => {
+      const h = harness();
+      const seeded = await seedConnection(h.fake);
+      // Another holder of the chain refreshes it: GitHub ends our stored access token with it.
+      await h.fake.fetch('https://github.com/login/oauth/access_token', {
+        method: 'POST',
+        body: new URLSearchParams({
+          client_id: env.GITHUB_APP_CLIENT_ID,
+          client_secret: env.GITHUB_APP_CLIENT_SECRET ?? '',
+          grant_type: 'refresh_token',
+          refresh_token: seeded.refreshToken,
+        }).toString(),
+      });
+
+      await expectIncomplete(
+        await call(h, '/api/v1/github/connection', { method: 'DELETE', headers: SAME_ORIGIN }),
+        'token-rejected',
+      );
+      expect(await storedRow()).toBeNull();
+      expect(h.fake.activeGrants()).toBe(1);
+      expect(parsedLogs(h.logs)).toContainEqual(
+        expect.objectContaining({ securitySignal: 'owner-not-connected', reason: 'revoke-token-rejected' }),
+      );
+    });
   });
 
   it('not connected → 204 without a GitHub call', async () => {

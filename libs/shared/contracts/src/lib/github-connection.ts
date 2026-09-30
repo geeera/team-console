@@ -28,6 +28,22 @@ export interface GitHubConnectStartDto {
  */
 export type GitHubConnectOutcome = 'connected' | 'denied' | 'wrong-account' | 'failed';
 
+/** Where the owner revokes the app by hand when the console could not (GitHub's authorized-apps settings). */
+export const GITHUB_AUTHORIZED_APPS_URL = 'https://github.com/settings/applications';
+
+/**
+ * `DELETE /api/v1/github/connection` when the connection is gone from the console but the console could not confirm
+ * the grant is revoked (200; a clean revoke is 204): `no-usable-token` — no stored token could be used (decrypt
+ * failure, rotated key, refresh refused or expired); `token-rejected` — GitHub rejected the stored token, e.g.
+ * because someone else refreshed the chain. The client tells the owner to revoke the app on GitHub (`manageUrl`).
+ */
+export interface GitHubDisconnectIncompleteDto {
+  readonly revoked: false;
+  readonly action: 'revoke-on-github';
+  readonly reason: 'no-usable-token' | 'token-rejected';
+  readonly manageUrl: string;
+}
+
 /** 403 `github-owner-not-connected`: the client offers Connect, and `connectUrl` says where it starts. */
 export interface GitHubOwnerNotConnectedProblem extends ProblemDetails {
   readonly connectUrl: string;

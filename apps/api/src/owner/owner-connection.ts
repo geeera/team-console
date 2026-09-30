@@ -24,6 +24,10 @@ const MAX_PASSES = LEASE_WAIT_ATTEMPTS + 4;
 
 type TokenColumn = 'access_token_enc' | 'refresh_token_enc';
 
+export type DisconnectOutcome =
+  | { readonly kind: 'revoked' | 'not-connected' }
+  | { readonly kind: 'grant-may-be-live'; readonly reason: 'no-usable-token' | 'token-rejected' };
+
 export interface OwnerConnectionDeps {
   readonly environment: string;
   readonly repo: OwnerConnectionsRepo;
@@ -156,22 +160,57 @@ export class OwnerConnection implements OwnerTokenSource {
   }
 
   /**
-   * Disconnect (decision 3): a valid token (refreshed if needed) revokes the grant at GitHub, then the row goes.
-   * A GitHub failure other than 404 throws and keeps the row, so a live grant is never forgotten silently.
+   * Disconnect (decision 3, threat row 11): the stored access token revokes the grant while it is still valid — no
+   * refresh first, so a refused refresh cannot stand between us and the revoke (#87); only an expired one is
+   * refreshed. Then the row goes. A GitHub failure throws and keeps the row, so the owner can retry. When no
+   * usable token exists or GitHub rejects it, the row is gone but the grant may be live: `grant-may-be-live`, never
+   * reported as a clean disconnect.
    */
-  async disconnect(): Promise<'revoked' | 'already-gone' | 'not-connected'> {
+  async disconnect(): Promise<DisconnectOutcome> {
+    const row = await this.repo.find(this.environment);
+    if (row === null) {
+      return { kind: 'not-connected' };
+    }
+    const stored = await this.storedAccessToken(row);
+    if (stored !== null) {
+      return this.revokeAndForget(stored);
+    }
     let token: string;
     try {
       token = await this.getToken();
     } catch (error: unknown) {
       if (error instanceof GitHubError && error.problem.type === 'github-owner-not-connected') {
-        return 'not-connected';
+        // getToken has deleted the unusable row and logged why; the grant was never revoked.
+        return { kind: 'grant-may-be-live', reason: 'no-usable-token' };
       }
       throw error;
     }
+    return this.revokeAndForget(token);
+  }
+
+  /** The stored access token when it decrypts under the current key and has not expired; otherwise `null`. */
+  private async storedAccessToken(row: OwnerConnectionRow): Promise<string | null> {
+    if (row.key_id !== this.keys.keyId || row.access_expires_at <= this.nowSeconds()) {
+      return null;
+    }
+    try {
+      return await openText(this.keys.tokenKey, row.access_token_enc, this.aad('access_token_enc'));
+    } catch (error: unknown) {
+      if (error instanceof UnsealError) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  private async revokeAndForget(token: string): Promise<DisconnectOutcome> {
     const outcome = await this.oauth.revokeGrant(token);
     await this.repo.delete(this.environment);
-    return outcome;
+    if (outcome === 'revoked') {
+      return { kind: 'revoked' };
+    }
+    this.logSignal('revoke-token-rejected', {});
+    return { kind: 'grant-may-be-live', reason: 'token-rejected' };
   }
 
   private nowSeconds(): number {

@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 import {
+  GITHUB_AUTHORIZED_APPS_URL,
   GITHUB_SETTINGS_PATH,
+  type GitHubDisconnectIncompleteDto,
   type GitHubConnectOutcome,
   type GitHubConnectStartDto,
   type GitHubConnectionDto,
@@ -69,8 +71,7 @@ async function revokeUnwanted(
   accessToken: string,
 ): Promise<boolean> {
   try {
-    await oauth.revokeGrant(accessToken);
-    return true;
+    return (await oauth.revokeGrant(accessToken)) === 'revoked';
   } catch (error: unknown) {
     if (!(error instanceof GitHubError)) {
       throw error;
@@ -226,7 +227,16 @@ export function createGitHubConnectionRoutes(github: ApiGitHub): Hono<WorkerHono
     .delete('/connection', async (c) => {
       const connection = await github.ownerConnection(c.env, c.get('logger'));
       const outcome = await connection.disconnect();
-      c.get('logger').info('owner disconnected', { outcome });
+      c.get('logger').info('owner disconnected', { ...outcome });
+      if (outcome.kind === 'grant-may-be-live') {
+        const body: GitHubDisconnectIncompleteDto = {
+          revoked: false,
+          action: 'revoke-on-github',
+          reason: outcome.reason,
+          manageUrl: GITHUB_AUTHORIZED_APPS_URL,
+        };
+        return c.json(body, 200, NO_STORE);
+      }
       return c.body(null, 204, NO_STORE);
     });
 }

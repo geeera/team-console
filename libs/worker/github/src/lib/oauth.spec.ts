@@ -214,15 +214,15 @@ describe('GitHubOAuth.revokeGrant', () => {
     expect(JSON.parse(call?.body ?? '{}')).toEqual({ access_token: ACCESS });
   });
 
-  it('treats 404 as already gone', async () => {
-    const { oauth } = oauthWith(() => json(404, {}));
-    await expect(oauth.revokeGrant(ACCESS)).resolves.toBe('already-gone');
+  it.each([404, 422])('treats %i as a rejected token (the grant may live on)', async (status) => {
+    const { oauth } = oauthWith(() => json(status, {}));
+    await expect(oauth.revokeGrant(ACCESS)).resolves.toBe('token-rejected');
   });
 
   it.each([
     [502, 'github-unavailable'],
     [401, 'github-auth'],
-    [422, 'github-unexpected'],
+    [400, 'github-unexpected'],
   ])('%i is a GitHubError (%s)', async (status, type) => {
     const { oauth } = oauthWith(() => json(status, {}));
     expect((await errorOf(oauth.revokeGrant(ACCESS))).problem.type).toBe(type);
