@@ -524,11 +524,19 @@ describe('GET /api/v1/github/callback', () => {
 });
 
 describe('GET /api/v1/github/connection', () => {
-  it('not connected → exactly { state: "not-connected" }', async () => {
+  it('not connected → exactly { state, ownerLogin }, the expected login for the #89 wrong-account copy', async () => {
     const response = await call(harness(), '/api/v1/github/connection');
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
-    expect(await response.json()).toEqual({ state: 'not-connected' });
+    expect(await response.json()).toEqual({ state: 'not-connected', ownerLogin: 'geeera' });
+  });
+
+  it('not connected, no OWNER_GITHUB_LOGIN configured → 503 github-auth', async () => {
+    const response = await call(harness(), '/api/v1/github/connection', {
+      bindings: localEnv({ OWNER_GITHUB_LOGIN: '' }),
+    });
+    expect(response.status).toBe(503);
+    expect(await problemSlug(response)).toBe('github-auth');
   });
 
   it('connected → exactly { state, login, connectedAt }, never a token', async () => {
@@ -552,7 +560,7 @@ describe('GET /api/v1/github/connection', () => {
 
     const response = await call(h, '/api/v1/github/connection');
 
-    expect(await response.json()).toEqual({ state: 'not-connected' });
+    expect(await response.json()).toEqual({ state: 'not-connected', ownerLogin: 'geeera' });
     expect(await storedRow()).toBeNull();
     expect(parsedLogs(h.logs)).toContainEqual(
       expect.objectContaining({ securitySignal: 'owner-not-connected', reason: 'key-id-mismatch' }),

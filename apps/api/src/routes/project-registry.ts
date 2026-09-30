@@ -7,7 +7,7 @@ import {
   type ProjectSetupDto,
 } from '@shared/contracts';
 import { problem, type ProblemInit, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
-import { ProjectSignalsRepo, ProjectsRepo, toProjectDto } from '@worker/db';
+import { ProjectSignalsRepo, ProjectsRepo, toProjectDto, type EventsSignal } from '@worker/db';
 import { isRepoOwnedBy, isValidRepoName, readCacheKey, type OwnerAccount } from '@worker/github';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
@@ -68,24 +68,29 @@ function hasRoutineToken(env: ApiEnv, slug: string): boolean {
 }
 
 function setupOf(
+  environment: string,
   facts: RepositoryFacts,
   connection: OwnerAccount | null,
-  signals: { events: boolean; accessLostAt: string | null; routineToken: boolean },
+  signals: { events: EventsSignal; accessLostAt: string | null; routineToken: boolean },
 ): ProjectSetupDto {
   let repoOwner: ProjectSetupDto['repoOwner'] = 'not-checked';
-  if (facts.owner !== null && connection !== null) {
+  if (facts.ownerCheckFailed) {
+    repoOwner = 'unknown';
+  } else if (facts.owner !== null && connection !== null) {
     repoOwner = isRepoOwnedBy(connection, facts.owner) ? 'ok' : 'mismatch';
   }
   return {
-    appInstalled: facts.installed ? 'ok' : 'missing',
+    appInstalled: facts.appInstalled,
     repoOwner,
-    projectYml: facts.hasProjectYml ? 'ok' : 'missing',
-    events: signals.events ? 'seen' : 'never',
+    projectYml: facts.projectYml,
+    events: signals.events.seen ? 'seen' : 'never',
+    lastEventAt: signals.events.lastEventAt,
     routineToken: signals.routineToken ? 'present' : 'missing',
     connection:
       connection === null ? { state: 'not-connected' } : { state: 'connected', login: connection.login },
     accessLostAt: signals.accessLostAt,
     ownerLanguage: facts.ownerLanguage,
+    ...(facts.appInstalled === 'missing' ? { installUrl: installUrlFor(environment) } : {}),
   };
 }
 
@@ -259,8 +264,8 @@ export function createProjectRegistryRoutes(
         { fresh: c.req.query('fresh') === '1' },
       );
       const signals = new ProjectSignalsRepo(c.env.DB);
-      const body = setupOf(facts, await owners.current(c.env, c.get('logger')), {
-        events: await signals.hasDeliveryFor(project.repo),
+      const body = setupOf(c.env.ENVIRONMENT, facts, await owners.current(c.env, c.get('logger')), {
+        events: await signals.eventsFor(project.repo),
         accessLostAt: await signals.accessLostAt(project.slug),
         routineToken: hasRoutineToken(c.env, project.slug),
       });
