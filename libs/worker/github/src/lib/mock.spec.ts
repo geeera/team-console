@@ -60,6 +60,28 @@ describe('createMockGitHub', () => {
     });
   });
 
+  it('serves a fixture file through the contents API as base64, and 404 for a missing one', async () => {
+    const repo = parseRepoName('geeera/team-console');
+    const file = await client('geeera/team-console').getJson(
+      githubPath`/repos/${repo}/contents/.product-team/project.yml`,
+      isObject,
+    );
+    expect(file).toMatchObject({ type: 'file', encoding: 'base64', path: '.product-team/project.yml' });
+    const text = new TextDecoder().decode(
+      Uint8Array.from(atob(String(file['content'])), (char) => char.charCodeAt(0)),
+    );
+    expect(text).toContain('language: ru');
+
+    const noYml = parseRepoName('geeera/no-yml');
+    const error = await rejection(
+      client('geeera/no-yml').getJson(
+        githubPath`/repos/${noYml}/contents/.product-team/project.yml`,
+        isObject,
+      ),
+    );
+    expect(error.problem.type).toBe('github-not-found');
+  });
+
   it('answers 409 github-app-not-installed for a repository without the app', async () => {
     const error = await rejection(auth.installationIdFor(parseRepoName('someone/else')));
     expect(error.problem.type).toBe('github-app-not-installed');

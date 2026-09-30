@@ -96,7 +96,10 @@ export async function verifyAppJwt(authorization: string | null): Promise<Record
 }
 
 /** Local bindings as the pool sets them (auth bypass, generated app key), with overrides. */
-export function localEnv(overrides: Partial<Record<keyof ApiEnv, string | undefined>> = {}): ApiEnv {
+export function localEnv(
+  overrides: Partial<Record<keyof ApiEnv, string | undefined>> &
+    Readonly<Record<string, string | undefined>> = {},
+): ApiEnv {
   return { ...env, ...overrides } as ApiEnv;
 }
 

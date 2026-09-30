@@ -8,7 +8,13 @@
         "private": false,
         "default_branch": "dev",
         "html_url": "https://github.com/geeera/team-console",
-        "owner": { "login": "geeera", "id": 100001 }
+        "owner": {
+          "login": "geeera",
+          "id": 100001
+        }
+      },
+      "files": {
+        ".product-team/project.yml": "# The product team's contract for this repository.\nname: Team Console\nrepo: geeera/team-console\nmode: new\n\nowner:\n  language: ru   # owner-facing copy\n  timezone: Europe/Kyiv\n"
       }
     },
     "geeera/private-product": {
@@ -19,24 +25,76 @@
         "private": true,
         "default_branch": "main",
         "html_url": "https://github.com/geeera/private-product",
-        "owner": { "login": "geeera", "id": 100001 }
+        "owner": {
+          "login": "geeera",
+          "id": 100001
+        }
+      },
+      "files": {
+        ".product-team/project.yml": "# The product team's contract for this repository.\nname: Private Product\nrepo: geeera/private-product\nmode: new\n\nowner:\n  language: en   # owner-facing copy\n  timezone: Europe/Kyiv\n"
+      }
+    },
+    "geeera/no-yml": {
+      "installationId": 1001,
+      "repository": {
+        "id": 900003,
+        "full_name": "geeera/no-yml",
+        "private": true,
+        "default_branch": "main",
+        "html_url": "https://github.com/geeera/no-yml",
+        "owner": {
+          "login": "geeera",
+          "id": 100001
+        }
+      }
+    },
+    "acme/site": {
+      "installationId": 1003,
+      "repository": {
+        "id": 900004,
+        "full_name": "acme/site",
+        "private": false,
+        "default_branch": "main",
+        "html_url": "https://github.com/acme/site",
+        "owner": {
+          "login": "acme",
+          "id": 200001
+        }
+      },
+      "files": {
+        ".product-team/project.yml": "# The product team's contract for this repository.\nname: Site\nrepo: acme/site\nmode: new\n\nowner:\n  language: en   # owner-facing copy\n  timezone: Europe/Kyiv\n"
       }
     },
     "geeera/mock-rate-limited": {
       "installationId": 1002,
-      "reply": { "status": 403, "headers": { "x-ratelimit-remaining": "0", "retry-after": "42" } }
+      "reply": {
+        "status": 403,
+        "headers": {
+          "x-ratelimit-remaining": "0",
+          "retry-after": "42"
+        }
+      }
     },
     "geeera/mock-unavailable": {
       "installationId": 1002,
-      "reply": { "status": 503 }
+      "reply": {
+        "status": 503
+      }
     },
     "geeera/mock-redirect-off-host": {
       "installationId": 1002,
-      "reply": { "status": 302, "headers": { "location": "https://evil.example/collect" } }
+      "reply": {
+        "status": 302,
+        "headers": {
+          "location": "https://evil.example/collect"
+        }
+      }
     },
     "geeera/mock-token-rejected": {
       "installationId": 1002,
-      "reply": { "status": 401 }
+      "reply": {
+        "status": 401
+      }
     }
   }
 }

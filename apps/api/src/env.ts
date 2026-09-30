@@ -32,4 +32,6 @@ export interface ApiEnv extends WorkerBaseEnv {
   readonly TOKEN_ENCRYPTION_KEY?: string;
   /** Secret (#11). */
   readonly VAPID_PRIVATE_KEY?: string;
+  // `ROUTINE_TOKEN_<SLUG>` secrets (one per project, #26) have names only known at run time; the registry (#15)
+  // tests their presence by name and never reads a value into anything it returns.
 }

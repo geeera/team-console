@@ -109,7 +109,9 @@ describe('GET /api/v1/projects', () => {
         slug: 'tc',
         repo: 'geeera/team-console',
         displayName: 'Team Console',
+        routineId: null,
         addedAt: '2026-09-29T00:00:00Z',
+        archivedAt: null,
       },
     ]);
   });

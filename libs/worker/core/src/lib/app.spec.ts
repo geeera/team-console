@@ -27,6 +27,17 @@ function build(logSink?: (line: string) => void) {
   app.get('/rate-limited', (c) =>
     problem(c, { type: 'github-rate-limit', title: 'GitHub rate limit', status: 429, retryAfter: 30 }),
   );
+  app.get('/with-step', (c) =>
+    problem(c, {
+      type: 'project-yml-missing',
+      title: 'No project.yml',
+      status: 422,
+      extensions: { step: 'project-yml', retryable: false },
+    }),
+  );
+  app.get('/replaces-type', (c) =>
+    problem(c, { type: 'x', title: 'X', status: 400, extensions: { type: 'about:blank' } }),
+  );
   return app;
 }
 
@@ -154,5 +165,22 @@ describe('createWorkerApp', () => {
     expect(response.status).toBe(429);
     expect(response.headers.get('retry-after')).toBe('30');
     expect((await problemOf(response)).type).toBe(`${PROBLEM_TYPE_PREFIX}github-rate-limit`);
+  });
+
+  it('adds extension members next to the standard ones', async () => {
+    const response = await build().request('/with-step', {}, env);
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      type: `${PROBLEM_TYPE_PREFIX}project-yml-missing`,
+      status: 422,
+      step: 'project-yml',
+      retryable: false,
+    });
+  });
+
+  it('refuses an extension that would replace a standard member (500, not a forged type)', async () => {
+    const response = await build().request('/replaces-type', {}, env);
+    expect(response.status).toBe(500);
+    expect((await problemOf(response)).type).toBe(`${PROBLEM_TYPE_PREFIX}internal`);
   });
 });
