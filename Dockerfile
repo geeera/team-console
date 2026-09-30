@@ -45,6 +45,6 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 \
 
 # Fresh local D1 on every start, then the bundled Worker as built (`--no-bundle`). `--var AUTH_MODE:local` with
 # `--var ENVIRONMENT:local` is the only place the local auth bypass is switched on (#8); `--ip 0.0.0.0` is for
-# the container network and never for a deploy. `OWNER_GITHUB_LOGIN:geeera` is the owner of the mock GitHub's
-# fixture repositories, so adding a project works locally (#15).
+# the container network and never for a deploy. In mock mode the registry treats the mock GitHub's fixture owner as
+# the connected account (#15, #59); `OWNER_GITHUB_LOGIN:geeera` is that owner, the login a connect would accept.
 CMD ["sh", "-c", "npx wrangler d1 migrations apply team-console-dev --local --config apps/api/wrangler.jsonc --env dev && exec npx wrangler dev dist/apps/api/main.js --no-bundle --config apps/api/wrangler.jsonc --env dev --ip 0.0.0.0 --port 8787 --var ENVIRONMENT:local --var AUTH_MODE:local --var GITHUB_MOCK:true --var OWNER_GITHUB_LOGIN:geeera"]

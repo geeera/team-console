@@ -1,9 +1,12 @@
+import { GITHUB_CONNECT_PATH } from '@shared/contracts';
 import type { ProblemInit } from '@worker/core';
 
 export type GitHubProblemType =
   | 'github-auth'
   | 'github-app-not-installed'
   | 'github-not-found'
+  | 'github-owner-mismatch'
+  | 'github-owner-not-connected'
   | 'github-rate-limit'
   | 'github-unavailable'
   | 'github-unexpected';
@@ -72,6 +75,38 @@ export function appNotInstalledError(repo: string): GitHubError {
       detail: `Install the team-console app on ${repo}`,
     },
     404,
+  );
+}
+
+/**
+ * 403 `github-owner-not-connected` (ADR 0003 decision 4): no usable owner connection in this environment. The
+ * extension member `connectUrl` tells the client where Connect starts; the client branches on `type`.
+ */
+export function ownerNotConnectedError(): GitHubError {
+  return new GitHubError(
+    {
+      type: 'github-owner-not-connected',
+      title: 'Connect GitHub to write as the owner',
+      status: 403,
+      extensions: { connectUrl: GITHUB_CONNECT_PATH },
+    },
+    null,
+  );
+}
+
+/**
+ * 409 `github-owner-mismatch` (ADR 0003 decision 2(b)): the repository's owner is not the connected account, so
+ * an answer written there would not count as the owner's. `repoOwner` is GitHub's `owner.login` of the repo.
+ */
+export function ownerMismatchError(repo: string, repoOwner: string): GitHubError {
+  return new GitHubError(
+    {
+      type: 'github-owner-mismatch',
+      title: 'The repository owner is not the connected GitHub account',
+      status: 409,
+      detail: `${repo} belongs to ${repoOwner}`,
+    },
+    null,
   );
 }
 

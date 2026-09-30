@@ -7,7 +7,6 @@ import {
 } from '@shared/contracts';
 import { MemoryReadCache } from '@worker/github';
 import { ApiGitHub } from '../github';
-import type { OwnerConnectionSource } from '../projects/owner-connection';
 import { fetchApi, type ApiRequest } from '../testing/access-kit';
 import {
   INSTALLATION_ID,
@@ -21,6 +20,7 @@ import {
   type ReadHandler,
   type StubGitHub,
 } from '../testing/github-kit';
+import { fakeGitHub, resetOwnerConnections, seedConnection } from '../testing/owner-kit';
 
 // #15 acceptance criteria: the registry's routes against a scripted GitHub and the pool's D1.
 
@@ -79,8 +79,7 @@ function harness(script: RepoScript = {}, installation?: () => Response): Harnes
 }
 
 const WRITE_HEADERS = { 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json' };
-const ownerEnv = (overrides: Parameters<typeof localEnv>[0] = {}) =>
-  localEnv({ OWNER_GITHUB_LOGIN: OWNER.login, ...overrides });
+const ownerEnv = (overrides: Parameters<typeof localEnv>[0] = {}) => localEnv(overrides);
 
 async function add(
   body: unknown,
@@ -123,8 +122,11 @@ async function rowCount(): Promise<number> {
   return row?.n ?? -1;
 }
 
+// The owner is the #59 connection in D1: every case starts connected as the fixtures' owner, with the id pinned.
 beforeEach(async () => {
   await resetProjects();
+  await resetOwnerConnections();
+  await seedConnection(fakeGitHub(), { user: OWNER });
 });
 
 describe('GET /api/v1/projects', () => {
@@ -217,13 +219,12 @@ describe('POST /api/v1/projects — success', () => {
     await expect(response.json()).resolves.toMatchObject({ slug: 'story' });
   });
 
-  it('checks the pinned user id once the connection has one (#59)', async () => {
-    const pinned: OwnerConnectionSource = { current: async () => ({ login: 'geeera', userId: OWNER.id }) };
-    const ok = await add({ repo: 'geeera/storify' }, harness(), localEnv(), { ownerConnection: pinned });
+  it('checks the user id pinned by the #59 connection, not only the login', async () => {
+    const ok = await add({ repo: 'geeera/storify' }, harness());
     expect(ok.status).toBe(201);
 
     const h = harness({ repository: repoOwnedBy({ login: 'geeera', id: 999 }) });
-    const renamedAccount = await add({ repo: 'geeera/other' }, h, localEnv(), { ownerConnection: pinned });
+    const renamedAccount = await add({ repo: 'geeera/other' }, h);
     await expectProblem(renamedAccount, 409, 'github-owner-mismatch', { step: 'repo-owner' });
     expect(await rowCount()).toBe(1);
   });
@@ -307,22 +308,18 @@ describe('POST /api/v1/projects — refusals save nothing', () => {
 
   it('no connected account → 403 github-owner-not-connected with connectUrl, step repo-owner', async () => {
     const h = harness();
-    await expectProblem(
-      await add({ repo: 'geeera/storify' }, h, localEnv({ OWNER_GITHUB_LOGIN: '' })),
-      403,
-      'github-owner-not-connected',
-      { step: 'repo-owner', connectUrl: '/api/v1/github/connect' },
-    );
+    await resetOwnerConnections();
+    await expectProblem(await add({ repo: 'geeera/storify' }, h), 403, 'github-owner-not-connected', {
+      step: 'repo-owner',
+      connectUrl: '/api/v1/github/connect',
+    });
     expect(h.stub.reads()).toHaveLength(0);
     expect(await rowCount()).toBe(0);
   });
 
-  it('a malformed OWNER_GITHUB_LOGIN counts as not connected', async () => {
-    const response = await add(
-      { repo: 'geeera/storify' },
-      harness(),
-      localEnv({ OWNER_GITHUB_LOGIN: 'a/b' }),
-    );
+  it('a connection the Worker cannot use (rotated key) counts as not connected', async () => {
+    await env.DB.prepare("UPDATE owner_connections SET key_id = '00000000'").run();
+    const response = await add({ repo: 'geeera/storify' }, harness());
     await expectProblem(response, 403, 'github-owner-not-connected');
   });
 
@@ -489,7 +486,8 @@ describe('GET /api/v1/projects/:slug/setup', () => {
     const other = harness({ repository: repoOwnedBy({ login: 'acme', id: 200001 }) });
     await expect((await setup(other)).json()).resolves.toMatchObject({ repoOwner: 'mismatch' });
 
-    const unconnected = await setup(harness(), localEnv({ OWNER_GITHUB_LOGIN: '' }));
+    await resetOwnerConnections();
+    const unconnected = await setup(harness(), localEnv());
     await expect(unconnected.json()).resolves.toMatchObject({
       repoOwner: 'not-checked',
       connection: { state: 'not-connected' },

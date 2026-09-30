@@ -135,7 +135,7 @@ export interface ApiRequest {
   readonly logSink?: (line: string) => void;
   /** Shared across calls so the token and read caches behave as in one isolate. */
   readonly github?: ApiGitHub;
-  /** Replaces the configured owner (`OWNER_GITHUB_LOGIN`), e.g. with a #59-style connection that pins the id. */
+  /** Replaces the registry's owner source (by default the #59 connection in D1). */
   readonly ownerConnection?: OwnerConnectionSource;
 }
 

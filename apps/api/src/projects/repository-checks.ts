@@ -1,8 +1,13 @@
 import type { AddProjectStep } from '@shared/contracts';
 import type { ProblemExtensionValue } from '@worker/core';
-import { GitHubClient, GitHubError, githubPath, type RepoName } from '@worker/github';
+import {
+  GitHubClient,
+  GitHubError,
+  githubPath,
+  type RepoName,
+  type RepoOwner as RepositoryOwner,
+} from '@worker/github';
 import type { GitHubConnection } from '../github';
-import type { RepositoryOwner } from './owner-connection';
 import { ownerLanguageOf, type OwnerLanguage } from './project-yml';
 
 /**

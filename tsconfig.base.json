@@ -33,7 +33,8 @@
       "@shared/contracts": ["./libs/shared/contracts/src/index.ts"],
       "@worker/core": ["./libs/worker/core/src/index.ts"],
       "@worker/db": ["./libs/worker/db/src/index.ts"],
-      "@worker/github": ["./libs/worker/github/src/index.ts"]
+      "@worker/github": ["./libs/worker/github/src/index.ts"],
+      "@worker/github/testing": ["./libs/worker/github/src/testing/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

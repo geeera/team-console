@@ -67,6 +67,7 @@ export interface RecordedCall {
   readonly headers: Headers;
   readonly body: string | undefined;
   readonly redirect: RequestRedirect | undefined;
+  readonly signal: AbortSignal | undefined;
 }
 
 export type Handler = (call: RecordedCall) => Response | Promise<Response>;
@@ -88,6 +89,7 @@ export function scriptedGitHub(handler: Handler): ScriptedGitHub {
         headers: new Headers(init.headers),
         body: typeof init.body === 'string' ? init.body : undefined,
         redirect: init.redirect,
+        signal: init.signal ?? undefined,
       };
       calls.push(call);
       return handler(call);

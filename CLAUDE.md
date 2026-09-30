@@ -90,11 +90,17 @@ Crypto, PKCS#8 key only, per-repo installation tokens downscoped to read-only, c
 string, never a client-chosen repo); throw `GitHubError` and `createApiApp`'s `mapError` answers its problem; reads go
 through `ReadCache` keyed `readCacheKey({ environment, slug, epoch, type })`. The api Worker's per-isolate GitHub state
 is `ApiGitHub` (`apps/api/src/github.ts`); `GITHUB_MOCK=true` (local only) swaps api.github.com for the fixture GitHub
-in `libs/worker/github/fixtures`. Migrations live only in `apps/api/migrations` (`0001_init` = `projects`; `0006_project_installation` #15 adds
-`projects.installation_id`; `0002_push_subscriptions` #11, `0003_webhooks` #12, `0004_chat_wakeups`,
-`0005_owner_connections` #59 are reserved). The registry (#15) is `routes/project-registry.ts` + `src/projects/`:
-adding validates repo format → app installed → repo owner (behind `OwnerConnectionSource`; until #59 the
-`OWNER_GITHUB_LOGIN` var, which `nx serve api` and the Dockerfile set to the mock fixtures' owner `geeera`) →
+in `libs/worker/github/fixtures`. Migrations live only in `apps/api/migrations` (`0001_init` = `projects`;
+`0005_owner_connections` #59; `0006_project_installation` #15 adds `projects.installation_id`; `0002_push_subscriptions`
+#11, `0003_webhooks` #12, `0004_chat_wakeups` are reserved). The owner connection (#59, ADR 0003 decisions 3–4) is
+`apps/api/src/owner/`: `ApiGitHub.ownerConnection(env, logger)` is the `OwnerTokenSource` for owner writes (refresh
+under the D1 lease; an unusable row → 403 `github-owner-not-connected` with `connectUrl`), routes in
+`routes/github-connection.ts` (refused for the service identity), AES-GCM helpers (`importMasterKey`,
+`sealText`/`openText`) in `@worker/core`; `assertRepoOwnedBy` (409 `github-owner-mismatch`) in `@worker/github`. Locally,
+`npx nx serve fake-github` (`tools/fake-github`, the fake from `@worker/github/testing`) + `--var
+GITHUB_FAKE_ORIGIN:http://127.0.0.1:9999` (honoured only with `ENVIRONMENT=local`) runs the flow without GitHub. The
+registry (#15) is `routes/project-registry.ts` + `src/projects/`: adding validates repo format → app installed → repo
+owner (the connected account's login and pinned id, through `OwnerConnectionSource` over the #59 connection) →
 `project.yml` before the one D1 write; refusals are problems with a `step` extension member (`problem(c, { …,
 extensions })`); `ROUTINE_TOKEN_<SLUG>` is checked for presence only. `wrangler.jsonc` has `env.dev|stage|production`
 with non-secret vars only; secrets (`WEBHOOK_SECRET`, `VAPID_PRIVATE_KEY`, `ROUTINE_TOKEN_*`, `OWNER_EMAIL`, and per

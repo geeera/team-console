@@ -1,5 +1,6 @@
 import fixtures from '../../fixtures/mock-github.json';
 import { INSTALLATION_PERMISSIONS, type GitHubAppCredentials } from './app-auth';
+import type { OwnerAccount } from './token-source';
 import { GITHUB_API_ORIGIN, type FetchLike } from './transport';
 
 /**
@@ -34,6 +35,12 @@ export interface MockGitHub {
 }
 
 export const MOCK_APP_ID = '424242';
+
+/**
+ * The connected owner of the mock world: the owner of its fixture repositories. Mock mode has no OAuth, so a local
+ * `GITHUB_MOCK=true` run treats this account as connected (never outside ENVIRONMENT=local).
+ */
+export const MOCK_OWNER_ACCOUNT: OwnerAccount = Object.freeze({ login: 'geeera', userId: 100001 });
 
 const TOKEN_LIFETIME_MS = 60 * 60 * 1000;
 const DEFAULT_FIXTURES: MockFixtures = fixtures;

@@ -21,7 +21,7 @@ const SECRET_NAMES = [
   'VAPID_PRIVATE_KEY',
   'ROUTINE_TOKEN',
 ] as const;
-const LOCAL_ONLY_VARS = ['AUTH_MODE', 'GITHUB_MOCK'] as const;
+const LOCAL_ONLY_VARS = ['AUTH_MODE', 'GITHUB_MOCK', 'GITHUB_FAKE_ORIGIN'] as const;
 
 interface WranglerEnvConfig {
   readonly name: string;

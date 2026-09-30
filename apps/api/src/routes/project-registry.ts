@@ -1,18 +1,18 @@
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import type { AddProjectStep, ProjectDto, ProjectSetupDto } from '@shared/contracts';
+import {
+  GITHUB_CONNECT_PATH,
+  type AddProjectStep,
+  type ProjectDto,
+  type ProjectSetupDto,
+} from '@shared/contracts';
 import { problem, type ProblemInit, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import { ProjectSignalsRepo, ProjectsRepo, toProjectDto } from '@worker/db';
-import { isValidRepoName, readCacheKey } from '@worker/github';
+import { isRepoOwnedBy, isValidRepoName, readCacheKey, type OwnerAccount } from '@worker/github';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { findProject, projectNotFound, repoOf } from '../projects/lookup';
-import {
-  CONNECT_URL,
-  isConnectedOwner,
-  type OwnerConnection,
-  type OwnerConnectionSource,
-} from '../projects/owner-connection';
+import type { OwnerConnectionSource } from '../projects/owner-connection';
 import {
   inStep,
   installUrlFor,
@@ -69,12 +69,12 @@ function hasRoutineToken(env: ApiEnv, slug: string): boolean {
 
 function setupOf(
   facts: RepositoryFacts,
-  connection: OwnerConnection | null,
+  connection: OwnerAccount | null,
   signals: { events: boolean; accessLostAt: string | null; routineToken: boolean },
 ): ProjectSetupDto {
   let repoOwner: ProjectSetupDto['repoOwner'] = 'not-checked';
   if (facts.owner !== null && connection !== null) {
-    repoOwner = isConnectedOwner(facts.owner, connection) ? 'ok' : 'mismatch';
+    repoOwner = isRepoOwnedBy(connection, facts.owner) ? 'ok' : 'mismatch';
   }
   return {
     appInstalled: facts.installed ? 'ok' : 'missing',
@@ -141,7 +141,7 @@ export function createProjectRegistryRoutes(
         throw inStep(error, 'app-installed', extra);
       }
 
-      const owner = await owners.current(c.env);
+      const owner = await owners.current(c.env, c.get('logger'));
       if (owner === null) {
         return stepProblem(c, {
           type: 'github-owner-not-connected',
@@ -149,7 +149,7 @@ export function createProjectRegistryRoutes(
           status: 403,
           step: 'repo-owner',
           detail: 'Connect the owner GitHub account in Settings first',
-          extensions: { connectUrl: CONNECT_URL },
+          extensions: { connectUrl: GITHUB_CONNECT_PATH },
         });
       }
 
@@ -160,7 +160,7 @@ export function createProjectRegistryRoutes(
       } catch (error: unknown) {
         throw inStep(error, 'repo-owner');
       }
-      if (!isConnectedOwner(read.owner, owner)) {
+      if (!isRepoOwnedBy(owner, read.owner)) {
         return stepProblem(c, {
           type: 'github-owner-mismatch',
           title: 'The repository belongs to another account',
@@ -259,7 +259,7 @@ export function createProjectRegistryRoutes(
         { fresh: c.req.query('fresh') === '1' },
       );
       const signals = new ProjectSignalsRepo(c.env.DB);
-      const body = setupOf(facts, await owners.current(c.env), {
+      const body = setupOf(facts, await owners.current(c.env, c.get('logger')), {
         events: await signals.hasDeliveryFor(project.repo),
         accessLostAt: await signals.accessLostAt(project.slug),
         routineToken: hasRoutineToken(c.env, project.slug),

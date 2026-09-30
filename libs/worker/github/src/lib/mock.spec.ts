@@ -2,7 +2,9 @@ import { GitHubAppAuth, INSTALLATION_PERMISSIONS } from './app-auth';
 import { GitHubClient } from './client';
 import { GitHubError } from './errors';
 import { githubPath } from './github-path';
-import { createMockGitHub, isGitHubMockEnabled, type MockGitHub } from './mock';
+import fixtures from '../../fixtures/mock-github.json';
+import { MOCK_OWNER_ACCOUNT, createMockGitHub, isGitHubMockEnabled, type MockGitHub } from './mock';
+import { isRepoOwnedBy } from './owner-check';
 import { parseRepoName } from './repo-name';
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -132,5 +134,21 @@ describe('createMockGitHub', () => {
     const repo = parseRepoName(name);
     const error = await rejection(client(name).getJson(githubPath`/repos/${repo}`, isObject));
     expect(error.problem.type).toBe(type);
+  });
+});
+
+describe('MOCK_OWNER_ACCOUNT', () => {
+  it('owns the fixtures under its login, with the same id (so local registry runs pass the owner check)', () => {
+    const owners = Object.entries(fixtures.repositories)
+      .filter(([name]) => name.startsWith(`${MOCK_OWNER_ACCOUNT.login}/`))
+      .map(
+        ([, fixture]) =>
+          (fixture as { repository?: { owner?: { login: string; id: number } } }).repository?.owner,
+      )
+      .filter((owner): owner is { login: string; id: number } => owner !== undefined);
+    expect(owners.length).toBeGreaterThan(0);
+    for (const owner of owners) {
+      expect(isRepoOwnedBy(MOCK_OWNER_ACCOUNT, owner)).toBe(true);
+    }
   });
 });

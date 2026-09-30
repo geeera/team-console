@@ -2,12 +2,28 @@ export { GitHubAppAuth, INSTALLATION_PERMISSIONS, createAppJwt, importAppPrivate
 export type { GitHubAppAuthOptions, GitHubAppCredentials } from './lib/app-auth';
 export { GitHubClient } from './lib/client';
 export type { JsonGuard, PaginateOptions } from './lib/client';
-export { GitHubError, mapGitHubResponse } from './lib/errors';
+export { GitHubError, mapGitHubResponse, ownerMismatchError, ownerNotConnectedError } from './lib/errors';
 export type { GitHubProblem, GitHubProblemType } from './lib/errors';
 export { githubPath } from './lib/github-path';
 export type { GitHubPath, GitHubPathValue } from './lib/github-path';
-export { MOCK_APP_ID, createMockGitHub, isGitHubMockEnabled } from './lib/mock';
+export { MOCK_APP_ID, MOCK_OWNER_ACCOUNT, createMockGitHub, isGitHubMockEnabled } from './lib/mock';
 export type { MockFixtures, MockGitHub, MockReply, MockRepository } from './lib/mock';
+export {
+  GITHUB_OAUTH_AUTHORIZE_URL,
+  GITHUB_OAUTH_TOKEN_URL,
+  GitHubOAuth,
+  isGitHubLogin,
+  pkceChallengeOf,
+} from './lib/oauth';
+export type {
+  AuthorizeRequest,
+  GitHubOAuthOptions,
+  GitHubUser,
+  TokenEndpointResult,
+  UserTokenPair,
+} from './lib/oauth';
+export { assertRepoOwnedBy, isRepoOwnedBy } from './lib/owner-check';
+export type { RepoOwner } from './lib/owner-check';
 export { MemoryReadCache, readCacheKey } from './lib/read-cache';
 export type {
   MemoryReadCacheOptions,
@@ -24,5 +40,5 @@ export type {
   OwnerTokenSource,
   TokenSource,
 } from './lib/token-source';
-export { GITHUB_API_ORIGIN } from './lib/transport';
-export type { FetchLike } from './lib/transport';
+export { GITHUB_API_ORIGIN, GITHUB_DEADLINE_MS } from './lib/transport';
+export type { FetchLike, GitHubBasicCredentials } from './lib/transport';
