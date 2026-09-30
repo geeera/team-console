@@ -1,8 +1,7 @@
 /**
- * Test-only: a stateful stand-in for GitHub's side of the owner connection — the authorize step, the token endpoint
- * (code + PKCE, single-use rotating refresh tokens, errors in a 200's JSON `error`), `GET /user` and grant
- * revocation. Web-standard only (no imports), so the api specs use it through `fetch` and
- * `tools/fake-github/serve.mjs` serves it over HTTP for a local `wrangler dev` run.
+ * Test and local-run only: a stateful stand-in for GitHub's side of the owner connection — the authorize step, the
+ * token endpoint (code + PKCE, single-use rotating refresh tokens, errors in a 200's JSON `error`), `GET /user` and
+ * grant revocation. The api specs use it through `fetch`; `nx run api:fake-github` serves it as a local Worker.
  */
 
 export interface FakeUser {
@@ -80,11 +79,8 @@ export class FakeGitHubOAuth {
   private readonly grants = new Map<number, { readonly user: FakeUser; active: boolean }>();
   private nextGrant = 1;
   private readonly now: () => number;
-  // No parameter property: Node runs this file with type stripping only (tools/fake-github/serve.mjs).
-  private readonly options: FakeGitHubOAuthOptions;
 
-  constructor(options: FakeGitHubOAuthOptions) {
-    this.options = options;
+  constructor(private readonly options: FakeGitHubOAuthOptions) {
     this.now = options.now ?? (() => Date.now());
   }
 

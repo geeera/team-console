@@ -4,7 +4,7 @@ import { OwnerConnectionsRepo, type OwnerConnectionRow } from '@worker/db';
 import { GitHubOAuth } from '@worker/github';
 import { OwnerConnection } from '../owner/owner-connection';
 import { loadOwnerKeys } from '../owner/owner-keys';
-import { FakeGitHubOAuth, type FakeGitHubOAuthOptions, type FakeUser } from './fake-github-oauth';
+import { FakeGitHubOAuth, type FakeGitHubOAuthOptions, type FakeUser } from '@worker/github/testing';
 
 /** Test-only helpers around the owner connection (#59), on the pool's bindings and the fake GitHub. */
 
@@ -57,13 +57,14 @@ export async function ownerConnection(
 /** Stores a connection whose access token has `accessSecondsLeft` to live at `nowMs`. */
 export async function seedConnection(
   fake: FakeGitHubOAuth,
-  options: { accessSecondsLeft?: number; refreshSecondsLeft?: number; nowMs?: number } = {},
+  options: { accessSecondsLeft?: number; refreshSecondsLeft?: number; nowMs?: number; user?: FakeUser } = {},
 ): Promise<{ accessToken: string; refreshToken: string }> {
   const nowMs = options.nowMs ?? Date.now();
   const nowSeconds = Math.floor(nowMs / 1000);
-  const pair = fake.issuePair(OWNER);
+  const user = options.user ?? OWNER;
+  const pair = fake.issuePair(user);
   const connection = await ownerConnection(fake, { now: () => nowMs });
-  await connection.connect(OWNER, {
+  await connection.connect(user, {
     ...pair,
     accessExpiresAt: nowSeconds + (options.accessSecondsLeft ?? 8 * 60 * 60),
     refreshExpiresAt: nowSeconds + (options.refreshSecondsLeft ?? 180 * 24 * 60 * 60),

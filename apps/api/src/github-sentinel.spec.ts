@@ -11,7 +11,7 @@ import {
   stubGitHub,
   type ReadHandler,
 } from './testing/github-kit';
-import type { FakeGitHubOAuth } from './testing/fake-github-oauth';
+import type { FakeGitHubOAuth } from '@worker/github/testing';
 import { OWNER, fakeGitHub, resetOwnerConnections } from './testing/owner-kit';
 
 // #9 threat row 3 / ADR 0003 decision 8: no installation token (`ghs_`), owner token (`ghu_`, `ghr_`), app JWT
@@ -48,7 +48,13 @@ const SCENARIOS: Record<
   }
 > = {
   success: {
-    read: () => json(200, { full_name: 'geeera/team-console', private: false, default_branch: 'dev' }),
+    read: () =>
+      json(200, {
+        full_name: 'geeera/team-console',
+        private: false,
+        default_branch: 'dev',
+        owner: { login: 'geeera', id: 1 },
+      }),
   },
   'not installed': { installation: () => json(404, { message: LEAKY_TEXT }) },
   'unknown app id': {
@@ -116,6 +122,8 @@ it('covers the GitHub routes (the inventory is not vacuous)', () => {
       ['GET', '/api/v1/github/callback'],
       ['GET', '/api/v1/github/connection'],
       ['DELETE', '/api/v1/github/connection'],
+      ['GET', '/api/v1/projects/tc/setup'],
+      ['POST', '/api/v1/projects'],
     ]),
   );
 });
@@ -125,11 +133,15 @@ describe.each(Object.entries(SCENARIOS))('GitHub scenario: %s', (_name, scenario
     const stub = stubGitHub(scenario.read ?? (() => json(200, {})), scenario.installation, scenario.app);
     const lines: string[] = [];
 
-    const response = await fetchApi(path, localEnv(scenario.env), {
+    // A connected owner and a JSON body let the registry's writes reach GitHub instead of stopping at validation.
+    const response = await fetchApi(path, localEnv({ OWNER_GITHUB_LOGIN: 'geeera', ...scenario.env }), {
       method,
+      ...(method === 'GET'
+        ? {}
+        : { body: JSON.stringify({ repo: 'geeera/new-product', displayName: 'New' }) }),
       github: new ApiGitHub({ fetch: stub.fetch }),
       logSink: (line) => lines.push(line),
-      headers: { 'Sec-Fetch-Site': 'same-origin' },
+      headers: { 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json' },
     });
 
     expectClean('body', await response.text());

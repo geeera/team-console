@@ -10,5 +10,12 @@ export type {
   GitHubConnectionState,
   GitHubOwnerNotConnectedProblem,
 } from './lib/github-connection';
-export type { ProjectDto } from './lib/project';
+export type {
+  AddProjectRequest,
+  AddProjectStep,
+  ProjectDto,
+  ProjectSetupDto,
+  ProjectStepProblem,
+  UpdateProjectRequest,
+} from './lib/project';
 export type { ProjectRepositoryDto } from './lib/repository';

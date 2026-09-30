@@ -9,6 +9,7 @@ import {
 import { randomHex, timingSafeEqualText, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import { OwnerConnectionsRepo } from '@worker/db';
 import { GitHubError, pkceChallengeOf, type GitHubOAuth, type UserTokenPair } from '@worker/github';
+import { ownerOnlyMiddleware } from '../auth/owner-only.middleware';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import {
@@ -83,12 +84,14 @@ async function revokeUnwanted(
 }
 
 /**
- * The owner connection (ADR 0003 decision 3, #59). All four routes sit behind the Access JWT middleware; `connect`
+ * The owner connection (ADR 0003 decision 3, #59). All four routes sit behind the Access JWT middleware and refuse
+ * the service identity (#85); `connect`
  * and `DELETE connection` also behind the CSRF middleware. The callback is a top-level GET from GitHub, protected by
  * Access, the sealed single-use cookie, `state` and PKCE, and the owner login check.
  */
 export function createGitHubConnectionRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>()
+    .use('*', ownerOnlyMiddleware)
     .post('/connect', async (c) => {
       const oauth = github.oauth(c.env);
       // Checked now so a Worker without OWNER_GITHUB_LOGIN answers 503 before the owner is sent to GitHub.

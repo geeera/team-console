@@ -6,7 +6,7 @@ export { GitHubError, mapGitHubResponse, ownerMismatchError, ownerNotConnectedEr
 export type { GitHubProblem, GitHubProblemType } from './lib/errors';
 export { githubPath } from './lib/github-path';
 export type { GitHubPath, GitHubPathValue } from './lib/github-path';
-export { MOCK_APP_ID, createMockGitHub, isGitHubMockEnabled } from './lib/mock';
+export { MOCK_APP_ID, MOCK_OWNER_ACCOUNT, createMockGitHub, isGitHubMockEnabled } from './lib/mock';
 export type { MockFixtures, MockGitHub, MockReply, MockRepository } from './lib/mock';
 export {
   GITHUB_OAUTH_AUTHORIZE_URL,
@@ -22,10 +22,16 @@ export type {
   TokenEndpointResult,
   UserTokenPair,
 } from './lib/oauth';
-export { assertRepoOwnedBy } from './lib/owner-check';
+export { assertRepoOwnedBy, isRepoOwnedBy } from './lib/owner-check';
 export type { RepoOwner } from './lib/owner-check';
 export { MemoryReadCache, readCacheKey } from './lib/read-cache';
-export type { MemoryReadCacheOptions, ReadCache, ReadCacheKey, ReadCacheKeyParts } from './lib/read-cache';
+export type {
+  MemoryReadCacheOptions,
+  ReadCache,
+  ReadCacheKey,
+  ReadCacheKeyParts,
+  ReadCacheOptions,
+} from './lib/read-cache';
 export { InvalidRepoNameError, isValidRepoName, parseRepoName, sameRepo } from './lib/repo-name';
 export type { RepoName } from './lib/repo-name';
 export type {

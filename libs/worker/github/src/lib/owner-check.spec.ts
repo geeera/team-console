@@ -1,9 +1,15 @@
 import { GitHubError } from './errors';
-import { assertRepoOwnedBy } from './owner-check';
+import { assertRepoOwnedBy, isRepoOwnedBy } from './owner-check';
 
 const ACCOUNT = { login: 'geeera', userId: 1001 };
 
 describe('assertRepoOwnedBy', () => {
+  it('isRepoOwnedBy needs both the login (any case) and the pinned id', () => {
+    expect(isRepoOwnedBy(ACCOUNT, { login: 'GEEERA', id: 1001 })).toBe(true);
+    expect(isRepoOwnedBy(ACCOUNT, { login: 'geeera', id: 1002 })).toBe(false);
+    expect(isRepoOwnedBy(ACCOUNT, { login: 'acme', id: 1001 })).toBe(false);
+  });
+
   it('passes for the connected account, whatever the login casing', () => {
     expect(() => assertRepoOwnedBy(ACCOUNT, { login: 'Geeera', id: 1001 }, 'geeera/app')).not.toThrow();
   });

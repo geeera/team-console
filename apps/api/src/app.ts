@@ -6,12 +6,16 @@ import type { ApiEnv } from './env';
 import { ApiGitHub, mapGitHubError } from './github';
 import { createGitHubConnectionRoutes } from './routes/github-connection';
 import { healthzRoutes } from './routes/healthz';
+import { connectedOwnerSource, type OwnerConnectionSource } from './projects/owner-connection';
+import { createProjectRegistryRoutes } from './routes/project-registry';
 import { createProjectsRoutes } from './routes/projects';
 
 export interface CreateApiAppOptions {
   readonly logSink?: LogSink;
   /** Per-isolate GitHub state; a test passes its own to script GitHub or to share caches between requests. */
   readonly github?: ApiGitHub;
+  /** The connected owner account for the registry; defaults to the #59 connection. */
+  readonly ownerConnection?: OwnerConnectionSource;
 }
 
 function isApiPath(path: string): boolean {
@@ -41,6 +45,10 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
 
   const v1 = new Hono<WorkerHonoEnv<ApiEnv>>();
   v1.route('/healthz', healthzRoutes);
+  v1.route(
+    '/projects',
+    createProjectRegistryRoutes(github, options.ownerConnection ?? connectedOwnerSource(github)),
+  );
   v1.route('/projects', createProjectsRoutes(github));
   v1.route('/github', createGitHubConnectionRoutes(github));
   app.route('/api/v1', v1);

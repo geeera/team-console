@@ -5,8 +5,17 @@ import { ApiGitHub } from '../github';
 import { callbackUrlFor } from './github-connection';
 import { openAttemptCookie, sealAttemptCookie } from '../owner/oauth-cookie';
 import { loadOwnerKeys } from '../owner/owner-keys';
-import { accessEnv, fetchApi, uniqueTeamDomain } from '../testing/access-kit';
-import type { FakeGitHubOAuth } from '../testing/fake-github-oauth';
+import {
+  OWNER as OWNER_EMAIL,
+  SERVICE_TOKEN_ID,
+  accessEnv,
+  createSigningKey,
+  fetchApi,
+  signAccessToken,
+  stubJwksServer,
+  uniqueTeamDomain,
+} from '../testing/access-kit';
+import type { FakeGitHubOAuth } from '@worker/github/testing';
 import { localEnv } from '../testing/github-kit';
 import {
   ENVIRONMENT,
@@ -221,6 +230,65 @@ describe('Access in front of every #59 route (threat row 1)', () => {
     expect(response.headers.get('set-cookie')).toBeNull();
     expect(h.fake.calls).toEqual([]);
     expect(await storedRow()).not.toBeNull();
+  });
+});
+
+describe('the CI service token is refused on every #59 route (#85)', () => {
+  const ROUTES = [
+    ['POST', '/api/v1/github/connect'],
+    ['GET', '/api/v1/github/callback?code=abc&state=def'],
+    ['GET', '/api/v1/github/connection'],
+    ['DELETE', '/api/v1/github/connection'],
+  ] as const;
+
+  async function signedEnv(claims: Record<string, unknown>) {
+    const jwks = stubJwksServer();
+    const teamDomain = uniqueTeamDomain();
+    const key = await createSigningKey();
+    jwks.set(teamDomain, { keys: [key.publicJwk] });
+    return {
+      bindings: accessEnv(teamDomain, { ENVIRONMENT: 'dev' }),
+      token: await signAccessToken(key, teamDomain, { claims }),
+    };
+  }
+
+  it.each(ROUTES)(
+    '%s %s with the service identity → 403 owner-only, no GitHub call, row and cookie untouched',
+    async (method, path) => {
+      const h = harness();
+      await seedConnection(h.fake);
+      const before = await storedRow();
+      const { bindings, token } = await signedEnv({ email: undefined, common_name: SERVICE_TOKEN_ID });
+
+      const response = await call(h, path, {
+        method,
+        bindings,
+        headers: {
+          'Cf-Access-Jwt-Assertion': token,
+          Origin: 'http://api.test',
+          Cookie: '__Host-tc_oauth=00',
+        },
+      });
+
+      expect(response.status).toBe(403);
+      expect(await problemSlug(response)).toBe('owner-only');
+      expect(response.headers.get('set-cookie')).toBeNull();
+      expect(h.fake.calls).toEqual([]);
+      expect(await storedRow()).toEqual(before);
+      expect(parsedLogs(h.logs)).toContainEqual(
+        expect.objectContaining({ message: 'owner route refused', reason: 'service-identity' }),
+      );
+    },
+  );
+
+  it('the owner (a user identity) passes the same way', async () => {
+    const h = harness();
+    const { bindings, token } = await signedEnv({ email: OWNER_EMAIL });
+    const response = await call(h, '/api/v1/github/connection', {
+      bindings,
+      headers: { 'Cf-Access-Jwt-Assertion': token },
+    });
+    expect(response.status).toBe(200);
   });
 });
 

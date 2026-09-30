@@ -1,0 +1,9 @@
+// Local only: the fake GitHub for running the owner connection (#59) end to end (`nx run api:fake-github`). Never
+// deployed — no environments, no bindings but two fake values passed as --var by the target.
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "name": "team-console-fake-github",
+  "main": "worker.ts",
+  "compatibility_date": "2026-08-15",
+  "workers_dev": false,
+}

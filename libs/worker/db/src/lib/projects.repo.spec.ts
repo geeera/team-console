@@ -46,6 +46,7 @@ describe('ProjectsRepo', () => {
       cache_epoch: 0,
       added_at: '2026-09-01T00:00:00Z',
       archived_at: null,
+      installation_id: null,
     });
   });
 
@@ -103,8 +104,81 @@ describe('ProjectsRepo', () => {
   });
 });
 
+describe('ProjectsRepo writes (#15)', () => {
+  const repo = new ProjectsRepo(env.DB);
+  const project = (slug: string, name: string) => ({
+    slug,
+    repo: `acme/${name}`,
+    displayName: name,
+    installationId: 1001,
+    addedAt: '2026-09-30T00:00:00Z',
+  });
+
+  it('creates a row with its installation id', async () => {
+    await expect(repo.create(project('w-new', 'w-new'))).resolves.toBe(true);
+    await expect(repo.findActiveBySlug('w-new')).resolves.toMatchObject({
+      repo: 'acme/w-new',
+      installation_id: 1001,
+      cache_epoch: 0,
+      archived_at: null,
+      routine_id: null,
+    });
+  });
+
+  it('refuses a second row with the slug or the repository (any case), archived rows included', async () => {
+    await repo.create(project('w-dup', 'w-dup'));
+    await expect(repo.create(project('w-dup', 'w-other'))).resolves.toBe(false);
+    await expect(repo.create({ ...project('w-dup2', 'x'), repo: 'ACME/W-DUP' })).resolves.toBe(false);
+    await expect(repo.findConflict('w-dup2', 'Acme/W-Dup')).resolves.toEqual({
+      slug: 'w-dup',
+      archived: false,
+    });
+
+    await repo.archive('w-dup', '2026-09-30T01:00:00Z');
+    await expect(repo.create(project('w-dup3', 'w-dup'))).resolves.toBe(false);
+    await expect(repo.findConflict('w-dup', 'acme/unrelated')).resolves.toEqual({
+      slug: 'w-dup',
+      archived: true,
+    });
+    await expect(repo.findConflict('w-free', 'acme/w-free')).resolves.toBeNull();
+  });
+
+  it('updates the display name and the routine id independently, and clears the routine id with null', async () => {
+    await repo.create(project('w-upd', 'w-upd'));
+
+    await expect(repo.update('w-upd', { routineId: 'trig_abc' })).resolves.toMatchObject({
+      display_name: 'w-upd',
+      routine_id: 'trig_abc',
+    });
+    await expect(repo.update('w-upd', { displayName: 'Renamed' })).resolves.toMatchObject({
+      display_name: 'Renamed',
+      routine_id: 'trig_abc',
+    });
+    await expect(repo.update('w-upd', { routineId: null })).resolves.toMatchObject({
+      display_name: 'Renamed',
+      routine_id: null,
+    });
+    await expect(repo.update('w-nope', { displayName: 'x' })).resolves.toBeNull();
+  });
+
+  it('archives an active project once and then neither updates nor lists it as active', async () => {
+    await repo.create(project('w-arc', 'w-arc'));
+    await expect(repo.archive('w-arc', '2026-09-30T02:00:00Z')).resolves.toBe(true);
+    await expect(repo.archive('w-arc', '2026-09-30T03:00:00Z')).resolves.toBe(false);
+    await expect(repo.update('w-arc', { displayName: 'x' })).resolves.toBeNull();
+    expect((await repo.listActive()).map((row) => row.slug)).not.toContain('w-arc');
+
+    const all = await repo.listAll();
+    const archived = all.find((row) => row.slug === 'w-arc');
+    expect(archived?.archived_at).toBe('2026-09-30T02:00:00Z');
+    // Archived rows come after every active one.
+    const firstArchived = all.findIndex((row) => row.archived_at !== null);
+    expect(all.slice(firstArchived).every((row) => row.archived_at !== null)).toBe(true);
+  });
+});
+
 describe('toProjectDto', () => {
-  it('exposes only the client-facing fields', () => {
+  it('exposes only the client-facing fields (no cache epoch, no installation id)', () => {
     expect(
       toProjectDto({
         slug: 'tc',
@@ -114,12 +188,15 @@ describe('toProjectDto', () => {
         cache_epoch: 4,
         added_at: '2026-09-01T00:00:00Z',
         archived_at: null,
+        installation_id: 1001,
       }),
     ).toEqual({
       slug: 'tc',
       repo: 'geeera/team-console',
       displayName: 'Team Console',
+      routineId: 'trig_123',
       addedAt: '2026-09-01T00:00:00Z',
+      archivedAt: null,
     });
   });
 });

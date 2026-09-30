@@ -19,7 +19,11 @@ describe('migrations on a fresh D1', () => {
     const { results } = await env.DB.prepare('SELECT name FROM d1_migrations ORDER BY id').all<{
       name: string;
     }>();
-    expect(results.map((row) => row.name)).toEqual(['0001_init.sql', '0005_owner_connections.sql']);
+    expect(results.map((row) => row.name)).toEqual([
+      '0001_init.sql',
+      '0005_owner_connections.sql',
+      '0006_project_installation.sql',
+    ]);
   });
 
   it('give projects the columns the registry needs', async () => {
@@ -36,6 +40,7 @@ describe('migrations on a fresh D1', () => {
       'cache_epoch',
       'added_at',
       'archived_at',
+      'installation_id',
     ]);
     expect(results.filter((column) => column.notnull === 1).map((column) => column.name)).toEqual([
       'repo',

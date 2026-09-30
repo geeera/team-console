@@ -3,6 +3,7 @@ import { SignJWT, exportJWK, generateKeyPair, type JWK, type JWTPayload } from '
 import { createApiApp } from '../app';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
+import type { OwnerConnectionSource } from '../projects/owner-connection';
 
 /** Test-only: a local stand-in for a Cloudflare Access team (RSA key, JWKS endpoint, token signer). */
 
@@ -134,6 +135,8 @@ export interface ApiRequest {
   readonly logSink?: (line: string) => void;
   /** Shared across calls so the token and read caches behave as in one isolate. */
   readonly github?: ApiGitHub;
+  /** Replaces the registry's owner source (by default the #59 connection in D1). */
+  readonly ownerConnection?: OwnerConnectionSource;
 }
 
 /** Calls the app directly so each case chooses its own bindings (`SELF` is fixed to the pool's local ones). */
@@ -143,6 +146,7 @@ export async function fetchApi(path: string, bindings: ApiEnv, request: ApiReque
   const app = createApiApp({
     logSink: request.logSink ?? (() => undefined),
     ...(request.github === undefined ? {} : { github: request.github }),
+    ...(request.ownerConnection === undefined ? {} : { ownerConnection: request.ownerConnection }),
   });
   const init: RequestInit = { method: request.method ?? 'GET', headers: request.headers ?? {} };
   if (request.body !== undefined) {
