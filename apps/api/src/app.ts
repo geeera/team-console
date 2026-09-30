@@ -9,6 +9,9 @@ import { healthzRoutes } from './routes/healthz';
 import { connectedOwnerSource, type OwnerConnectionSource } from './projects/owner-connection';
 import { createProjectRegistryRoutes } from './routes/project-registry';
 import { createProjectsRoutes } from './routes/projects';
+import { createProjectReadModelRoutes } from './routes/project-read-models';
+import { createNeedsYouRoutes } from './routes/needs-you';
+import { mapReadModelError } from './read-models/errors';
 
 export interface CreateApiAppOptions {
   readonly logSink?: LogSink;
@@ -34,7 +37,7 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
       isApiPath(c.req.path)
         ? problem(c, { type: 'not-found', title: 'Not Found', status: 404 })
         : c.env.ASSETS.fetch(c.req.raw),
-    mapError: mapGitHubError,
+    mapError: (error) => mapGitHubError(error) ?? mapReadModelError(error),
     ...(options.logSink === undefined ? {} : { logSink: options.logSink }),
   });
   const github = options.github ?? new ApiGitHub();
@@ -50,6 +53,8 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
     createProjectRegistryRoutes(github, options.ownerConnection ?? connectedOwnerSource(github)),
   );
   v1.route('/projects', createProjectsRoutes(github));
+  v1.route('/projects', createProjectReadModelRoutes(github));
+  v1.route('/needs-you', createNeedsYouRoutes(github));
   v1.route('/github', createGitHubConnectionRoutes(github));
   app.route('/api/v1', v1);
 

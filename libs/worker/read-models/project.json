@@ -1,0 +1,7 @@
+{
+  "name": "worker-read-models",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/worker/read-models/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:worker"]
+}
