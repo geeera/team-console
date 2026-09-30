@@ -199,6 +199,33 @@ describe('GET /api/v1/projects/:slug/inbox', () => {
   });
 });
 
+it('trusts items the team app opened (owner decision on #35), not a look-alike user or another app', async () => {
+  const { github } = setup({
+    issues: [
+      issue(1, ['kind:question'], {
+        author_association: 'CONTRIBUTOR',
+        user: { login: 'team-console-team[bot]', type: 'Bot' },
+      }),
+      issue(2, ['kind:question'], {
+        author_association: 'CONTRIBUTOR',
+        user: { login: 'team-console-team', type: 'User' },
+      }),
+      issue(3, ['kind:question'], {
+        author_association: 'CONTRIBUTOR',
+        user: { login: 'dependabot[bot]', type: 'Bot' },
+      }),
+    ],
+  });
+  const body = (await (
+    await fetchApi('/api/v1/projects/tc/inbox', localEnv(), { github })
+  ).json()) as InboxDto;
+  expect(body.items.map((item) => [item.number, item.authorTrusted])).toEqual([
+    [1, true],
+    [2, false],
+    [3, false],
+  ]);
+});
+
 describe('GET /api/v1/projects/:slug/questions', () => {
   it('lists the inbox items as cards with body and the allowed answers', async () => {
     const { github } = setup();
@@ -323,6 +350,7 @@ describe('mock mode (local only) serves the product-shaped fixtures', () => {
     expect(body.items.map((item) => [item.section, item.number, item.authorTrusted])).toEqual([
       ['question', 72, true],
       ['question', 90001, false],
+      ['question', 90002, true],
       ['owner', 21, true],
       ['owner', 46, true],
     ]);

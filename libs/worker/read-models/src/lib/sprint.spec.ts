@@ -69,6 +69,8 @@ describe('buildSprint', () => {
           htmlUrl: 'javascript:alert(1)',
           draft: true,
           authorAssociation: 'NONE',
+          authorLogin: 'outsider',
+          authorType: 'User',
         },
       ],
     });

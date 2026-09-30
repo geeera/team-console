@@ -38,7 +38,7 @@ function classified(issues: readonly IssueRecord[]): Classified[] {
         url: githubUrlOrNull(issue.htmlUrl),
         // brief.needs: an empty answer line is no answer line (`issue.get("ask") or …` → None).
         ask: askOf(issue.body) || null,
-        authorTrusted: isTrustedAuthor(issue.authorAssociation),
+        authorTrusted: isTrustedAuthor(issue),
       },
     });
   }

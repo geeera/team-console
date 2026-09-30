@@ -23,4 +23,5 @@ export {
   sprintToday,
 } from './lib/sprint';
 export type { SprintInput } from './lib/sprint';
-export { githubUrlOrNull, isTrustedAuthor } from './lib/untrusted-text';
+export { TRUSTED_BOT_LOGINS, githubUrlOrNull, isTrustedAuthor } from './lib/untrusted-text';
+export type { IssueAuthor } from './lib/untrusted-text';

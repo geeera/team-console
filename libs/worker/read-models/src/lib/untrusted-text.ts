@@ -13,7 +13,26 @@ export function githubUrlOrNull(url: string): string | null {
 // Outsiders on a public repository are NONE, FIRST_TIMER, FIRST_TIME_CONTRIBUTOR or CONTRIBUTOR.
 const TRUSTED_ASSOCIATIONS: ReadonlySet<string> = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 
-/** The author is the repository owner, an organisation member or a collaborator. */
-export function isTrustedAuthor(authorAssociation: string): boolean {
-  return TRUSTED_ASSOCIATIONS.has(authorAssociation);
+/**
+ * The team's GitHub App, trusted by the owner's decision on #35 (2026-09-30). GitHub reports its issues as
+ * CONTRIBUTOR. A `…[bot]` login belongs to exactly one GitHub App and no user can register it, so login plus
+ * `type: Bot` identifies the app; a user named `team-console-team` or any other bot stays untrusted.
+ */
+export const TRUSTED_BOT_LOGINS: ReadonlySet<string> = new Set(['team-console-team[bot]']);
+
+/** Who opened an issue or pull request, as GitHub reports it (`user` is null for a deleted account). */
+export interface IssueAuthor {
+  readonly authorAssociation: string;
+  readonly authorLogin: string | null;
+  readonly authorType: string | null;
+}
+
+/** The repository owner, an organisation member, a collaborator, or the team's own app. */
+export function isTrustedAuthor(author: IssueAuthor): boolean {
+  if (TRUSTED_ASSOCIATIONS.has(author.authorAssociation)) {
+    return true;
+  }
+  return (
+    author.authorType === 'Bot' && author.authorLogin !== null && TRUSTED_BOT_LOGINS.has(author.authorLogin)
+  );
 }

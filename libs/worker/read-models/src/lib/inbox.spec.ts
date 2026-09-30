@@ -12,21 +12,27 @@ const openIssues: IssueRecord[] = edgeCases.openIssues.map((value: unknown) => {
 const inbox = buildInbox({ openIssues, reviewerLogins: ['reviewer'], repoFullName: 'geeera/edge-cases' });
 const byNumber = (n: number) => inbox.items.find((item) => item.number === n);
 
-describe('authorTrusted (#9 threat row 5)', () => {
+describe('authorTrusted (#9 threat row 5; the team app by the owner decision on #35)', () => {
   it.each([
     [10, 'OWNER', true],
     [11, 'MEMBER', true],
     [15, 'COLLABORATOR', true],
-    [13, 'CONTRIBUTOR', false],
+    [13, 'CONTRIBUTOR as team-console-team[bot] (Bot), the team app', true],
     [14, 'NONE', false],
     [16, 'FIRST_TIME_CONTRIBUTOR', false],
     [20, 'FIRST_TIMER', false],
-  ])('#%i by %s → %s', (number, _association, trusted) => {
+    [21, 'CONTRIBUTOR as the user team-console-team (no [bot])', false],
+    [22, 'CONTRIBUTOR as dependabot[bot], another app', false],
+    [23, 'NONE as team-console-team[bot] with type User', false],
+    [24, 'NONE with a deleted account (user: null)', false],
+  ])('#%i by %s → %s', (number, _author, trusted) => {
     expect(byNumber(number)?.authorTrusted).toBe(trusted);
   });
 
   it('keeps an untrusted item in the list, in its place (it is marked, not dropped)', () => {
-    expect(inbox.items.map((item) => item.number)).toEqual([10, 11, 20, 12, 13, 14, 15, 17, 16]);
+    expect(inbox.items.map((item) => item.number)).toEqual([
+      10, 11, 20, 12, 13, 14, 21, 23, 24, 15, 17, 22, 16,
+    ]);
   });
 });
 

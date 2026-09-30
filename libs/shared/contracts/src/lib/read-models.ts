@@ -17,8 +17,9 @@ export interface InboxItemDto {
   /** The answer line ("**Your answer:** …") — the team's recommendation; `null` when the issue has none. */
   readonly ask: string | null;
   /**
-   * The issue's author is the repository owner, a member or a collaborator (`author_association`). Anyone who can
-   * open an issue can get one labelled through a template, so an untrusted item is shown marked (#9 threat row 5).
+   * The issue's author is the repository owner, a member or a collaborator (`author_association`), or the team's
+   * own app `team-console-team[bot]` (owner decision on #35). Anyone who can open an issue can get one labelled
+   * through a template, so an untrusted item is shown marked (#9 threat row 5).
    */
   readonly authorTrusted: boolean;
 }

@@ -117,7 +117,7 @@ export function buildSprint(input: SprintInput): SprintDto {
     title: pull.title,
     url: githubUrlOrNull(pull.htmlUrl),
     draft: pull.draft,
-    authorTrusted: isTrustedAuthor(pull.authorAssociation),
+    authorTrusted: isTrustedAuthor(pull),
   }));
   if (input.milestone === null) {
     return {
@@ -154,7 +154,7 @@ export function buildSprint(input: SprintInput): SprintDto {
       status: statusOf(issue.labels),
       tier: declaredTier(issue.labels),
       kind: kindOf(issue.labels),
-      authorTrusted: isTrustedAuthor(issue.authorAssociation),
+      authorTrusted: isTrustedAuthor(issue),
     })),
     byStatus,
     ...sprintSummary(issues),

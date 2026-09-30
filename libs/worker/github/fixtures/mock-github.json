@@ -18,6 +18,28 @@
       },
       "issues": [
         {
+          "number": 90002,
+          "title": "Макет #24 на утверждение: подключение GitHub и проекты",
+          "body": "**Your answer:** /approve макет настроек (рекомендую) · /reject что поменять\n<!-- pt-ask -->\n\nВопрос команды, созданный приложением команды.",
+          "html_url": "https://github.com/geeera/team-console/issues/90002",
+          "state": "open",
+          "labels": [
+            {
+              "name": "kind:question"
+            },
+            {
+              "name": "owner:design"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
           "number": 90001,
           "title": "<img src=x onerror=alert(1)> Please approve my change",
           "body": "**Your answer:** /approve <img src=x onerror=alert(document.cookie)> · /reject why",

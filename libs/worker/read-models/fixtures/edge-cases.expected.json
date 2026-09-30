@@ -46,6 +46,27 @@
         "ask": "/approve <img src=x onerror=alert(document.cookie)> · /reject why"
       },
       {
+        "section": "question",
+        "number": 21,
+        "title": "A user named like the team app",
+        "url": "https://github.com/geeera/edge-cases/issues/21",
+        "ask": "/approve (recommended) · /reject why"
+      },
+      {
+        "section": "question",
+        "number": 23,
+        "title": "The team login on a non-bot account",
+        "url": "https://github.com/geeera/edge-cases/issues/23",
+        "ask": "/approve (recommended) · /reject why"
+      },
+      {
+        "section": "question",
+        "number": 24,
+        "title": "A deleted author",
+        "url": "https://github.com/geeera/edge-cases/issues/24",
+        "ask": "/approve (recommended) · /reject why"
+      },
+      {
         "section": "owner",
         "number": 15,
         "title": "Create the Cloudflare account",
@@ -58,6 +79,13 @@
         "title": "Needs a machine and the owner",
         "url": "http://github.com/geeera/edge-cases/issues/17",
         "ask": null
+      },
+      {
+        "section": "owner",
+        "number": 22,
+        "title": "Another app",
+        "url": "https://github.com/geeera/edge-cases/issues/22",
+        "ask": "/approve (recommended) · /reject why"
       },
       {
         "section": "local",
