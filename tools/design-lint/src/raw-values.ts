@@ -99,8 +99,10 @@ function lineOf(source: string, index: number): number {
 }
 
 /**
- * Pulls declaration blocks out of `style="…"`/`style='…'` template attributes and Angular
- * `styles: [\`…\`]` metadata arrays, so #78's inline styles are checked the same as a `.css` file.
+ * Pulls declaration blocks out of `style="…"`/`style='…'` template attributes, a literal
+ * `[style]="'…'"` binding, and Angular `styles` metadata — either the `[\`…\`]` array form or
+ * the single-string `styles: \`…\`` form (Angular 14+ accepts both) — so #78's inline styles are
+ * checked the same as a `.css` file.
  */
 export function extractInlineStyles(source: string): InlineStyleBlock[] {
   const blocks: InlineStyleBlock[] = [];
@@ -109,6 +111,18 @@ export function extractInlineStyles(source: string): InlineStyleBlock[] {
     const css = match[1] ?? match[2] ?? '';
     if (css.trim() !== '') {
       blocks.push({ startLine: lineOf(source, match.index), css });
+    }
+  }
+
+  // `[style]` bound to a plain string literal — not an expression, so it reads like a `style=`
+  // attribute. A dynamic value (a signal, a ternary, …) has no literal to extract and is skipped.
+  const styleBinding = /\[style\]\s*=\s*(?:"'([^']*)'"|'"([^"]*)"')/dg;
+  for (const bindingMatch of source.matchAll(styleBinding)) {
+    const css = bindingMatch[1] ?? bindingMatch[2] ?? '';
+    if (css.trim() !== '') {
+      const indices = (bindingMatch as RegExpMatchArray & { indices: Array<[number, number] | undefined> }).indices;
+      const group = indices?.[1] ?? indices?.[2];
+      blocks.push({ startLine: lineOf(source, group ? group[0] : bindingMatch.index), css });
     }
   }
 
@@ -121,6 +135,19 @@ export function extractInlineStyles(source: string): InlineStyleBlock[] {
       if (css.trim() !== '') {
         blocks.push({ startLine: lineOf(source, arrayStart + literalMatch.index), css });
       }
+    }
+  }
+
+  // The single-string form: `styles: \`…\`` (no brackets) rather than `styles: [\`…\`]`.
+  // The `d` flag reports each capture group's own [start, end], so the reported line is the
+  // literal's, not the `styles:` keyword's.
+  const stylesString = /\bstyles\s*:\s*(?!\[)(?:`([\s\S]*?)`|'([^']*)'|"([^"]*)")/dg;
+  for (const stringMatch of source.matchAll(stylesString)) {
+    const css = stringMatch[1] ?? stringMatch[2] ?? stringMatch[3] ?? '';
+    if (css.trim() !== '') {
+      const indices = (stringMatch as RegExpMatchArray & { indices: Array<[number, number] | undefined> }).indices;
+      const group = indices?.[1] ?? indices?.[2] ?? indices?.[3];
+      blocks.push({ startLine: lineOf(source, group ? group[0] : stringMatch.index), css });
     }
   }
 

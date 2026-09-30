@@ -117,9 +117,44 @@ describe('extractInlineStyles', () => {
     expect(findRawValues(blocks[0].css).map((v) => `${v.kind}:${v.value}`)).toEqual(['colour:crimson']);
   });
 
+  // Regression: Angular 14+ also accepts a bare string for `styles`, not just an array.
+  it('finds a raw value inside the single-string Angular styles: `…` form', () => {
+    const ts = '@Component({ styles: `:host { color: crimson; }` })\nclass Foo {}';
+    const blocks = extractInlineStyles(ts);
+    expect(blocks).toHaveLength(1);
+    expect(findRawValues(blocks[0].css).map((v) => `${v.kind}:${v.value}`)).toEqual(['colour:crimson']);
+  });
+
+  it('finds a raw value inside the single-string styles: "…" and styles: \'…\' forms', () => {
+    expect(extractInlineStyles('@Component({ styles: "color: crimson" })')).toHaveLength(1);
+    expect(extractInlineStyles("@Component({ styles: 'color: crimson' })")).toHaveLength(1);
+  });
+
+  it('does not double-count the array form as the single-string form', () => {
+    const ts = "@Component({ styles: [`:host { color: crimson; }`] })\nclass Foo {}";
+    expect(extractInlineStyles(ts)).toHaveLength(1);
+  });
+
+  it('finds a raw value inside a literal [style]="\'…\'" binding', () => {
+    const html = '<div [style]="\'color: crimson\'"></div>';
+    const blocks = extractInlineStyles(html);
+    expect(blocks).toHaveLength(1);
+    expect(findRawValues(blocks[0].css).map((v) => `${v.kind}:${v.value}`)).toEqual(['colour:crimson']);
+  });
+
+  it('ignores a [style] binding that is not a literal (an expression has nothing to extract)', () => {
+    expect(extractInlineStyles('<div [style]="dynamicStyles()"></div>')).toEqual([]);
+  });
+
   it('reports the line the inline style starts on', () => {
     const html = ['<div>', '  <span style="color: crimson"></span>', '</div>'].join('\n');
     const blocks = extractInlineStyles(html);
+    expect(blocks[0]?.startLine).toBe(2);
+  });
+
+  it('reports the line of the literal, not the styles: keyword, for the single-string form', () => {
+    const ts = ['@Component({', '  styles: `:host { color: crimson; }`,', '})'].join('\n');
+    const blocks = extractInlineStyles(ts);
     expect(blocks[0]?.startLine).toBe(2);
   });
 
