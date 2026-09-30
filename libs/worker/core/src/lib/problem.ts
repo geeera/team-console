@@ -17,7 +17,8 @@ export interface ProblemInit {
   readonly extensions?: Readonly<Record<string, ProblemExtensionValue>>;
 }
 
-export type ProblemExtensionValue = string | number | boolean | null;
+/** A list is for enumerations the client renders (e.g. the commands an answer accepts), never for request input. */
+export type ProblemExtensionValue = string | number | boolean | null | readonly string[];
 
 const STANDARD_MEMBERS: ReadonlySet<string> = new Set(['type', 'title', 'status', 'detail', 'instance']);
 

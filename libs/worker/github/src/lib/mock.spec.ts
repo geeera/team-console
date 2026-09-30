@@ -84,6 +84,21 @@ describe('createMockGitHub', () => {
     expect(error.problem.type).toBe('github-not-found');
   });
 
+  it('serves a fixture issue with its labels as GitHub sends them, and 404 for an unknown one', async () => {
+    const repo = parseRepoName('geeera/team-console');
+    await expect(
+      client('geeera/team-console').getJson(githubPath`/repos/${repo}/issues/${8}`, isObject),
+    ).resolves.toMatchObject({
+      number: 8,
+      state: 'open',
+      labels: [{ name: 'team:demo' }, { name: 'kind:chore' }],
+    });
+    const missing = await rejection(
+      client('geeera/team-console').getJson(githubPath`/repos/${repo}/issues/${999}`, isObject),
+    );
+    expect(missing.problem.type).toBe('github-not-found');
+  });
+
   it('answers 409 github-app-not-installed for a repository without the app', async () => {
     const error = await rejection(auth.installationIdFor(parseRepoName('someone/else')));
     expect(error.problem.type).toBe('github-app-not-installed');
