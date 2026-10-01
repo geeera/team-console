@@ -6,7 +6,7 @@ import importlib.util, pathlib
 
 HERE = pathlib.Path(__file__).parent
 DIR_SRC = HERE.parent.parent / 'directions' / 'src'
-PAGES = ['p24', 'p114']
+PAGES = ['p24', 'p114', 'p29']
 
 
 def load(path, name):
@@ -26,7 +26,9 @@ OPT = lambda key, vals: ''.join(f'<option value="{v}" data-i18n="{key}.{v}">{v}<
 
 def build(P):
     css = kit_css + ''.join((HERE / f).read_text() for f in P.CSS)
-    i18n, js = ((HERE / f).read_text() for f in P.JS)
+    # JS: the string tables first (a page may extend another page's table), the runtime last.
+    *tables, js = ((HERE / f).read_text() for f in P.JS)
+    i18n = '\n'.join(tables)
     return f'''<!doctype html>
 <html lang="ru">
 <head>
