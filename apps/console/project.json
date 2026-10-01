@@ -44,6 +44,11 @@
             }
           ],
           "outputHashing": "all",
+          "optimization": {
+            "scripts": true,
+            "styles": { "minify": true, "inlineCritical": false },
+            "fonts": true
+          },
           "serviceWorker": "apps/console/ngsw-config.json",
           "define": {
             "__TC_BUILT_AT__": "\"local\""

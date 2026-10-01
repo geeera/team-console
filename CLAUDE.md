@@ -97,7 +97,8 @@ still lists them. Kit: `Recommendation`, `Receipt`.
 ## Workers (#6)
 
 `apps/api` (Hono; serves the SPA from `dist/apps/console/browser` as static assets with `run_worker_first:
-["/api", "/api/*"]`, owns `/api/v1/*`) and `apps/hooks` (public, `/healthz` and later `/hooks/*`). Both are built by
+["/api", "/api/*"]`, owns `/api/v1/*`; CSP, anti-framing, `nosniff` and Referrer-Policy for every asset response come
+from `apps/console/public/_headers` (#118) — a new origin, iframe or inline script needs a change there) and `apps/hooks` (public, `/healthz` and later `/hooks/*`). Both are built by
 `createWorkerApp()` from `@worker/core`: `X-Request-Id` in/out, a per-request redacting logger (`c.get('logger')`),
 RFC 9457 bodies via `problem(c, { type, title, status, detail?, retryAfter? })` for every error, including 404/500.
 DTOs and `ProblemDetails` live in `@shared/contracts`; D1 access in `@worker/db` (`ProjectsRepo`, parameterised

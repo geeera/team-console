@@ -1,6 +1,8 @@
 /// <reference types='vitest' />
 import { webcrypto } from 'node:crypto';
-import { resolve } from 'node:path';
+import { cp, mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-pool-workers';
 import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
 import { defineConfig } from 'vitest/config';
@@ -36,6 +38,15 @@ function generateOwnerFlowSecrets(): { encryptionKey: string; clientSecret: stri
   };
 }
 
+// The test shell plus the console's real `_headers` (#118), so the specs assert the policy that ships, applied by
+// the same assets layer, instead of a copy that could drift.
+async function prepareTestAssets(): Promise<string> {
+  const directory = await mkdtemp(join(tmpdir(), 'tc-api-test-assets-'));
+  await cp(resolve(import.meta.dirname, 'test-assets'), directory, { recursive: true });
+  await cp(resolve(import.meta.dirname, '../console/public/_headers'), join(directory, '_headers'));
+  return directory;
+}
+
 export default defineConfig(async () => {
   const appKey = await generateTestAppKey();
   const ownerFlow = generateOwnerFlowSecrets();
@@ -49,7 +60,7 @@ export default defineConfig(async () => {
         miniflare: {
           // The Angular build is not a prerequisite of the Worker's tests: a one-page fixture stands in for
           // dist/apps/console/browser. Binding, SPA fallback and run_worker_first still come from wrangler.jsonc.
-          assets: { directory: resolve(import.meta.dirname, 'test-assets') },
+          assets: { directory: await prepareTestAssets() },
           bindings: {
             TEST_MIGRATIONS: await readD1Migrations(resolve(import.meta.dirname, 'migrations')),
             // The auth placeholder fails closed; route specs run with the local bypass the way `nx serve api`
