@@ -15,8 +15,7 @@
 }
 
 :host(.tc-space--phone) .space__head {
-  justify-content: flex-end;
-  padding: var(--space-2) var(--space-4) 0;
+  padding: 0;
   border-bottom: 0;
 }
 

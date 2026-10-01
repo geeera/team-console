@@ -26,6 +26,11 @@ const projects = `
       <span tc-row-title>{{ 'stories.common.settings' | transloco }}</span>
       <tc-icon tc-row-trailing name="chevron-right" />
     </tc-list-row>
+    <tc-list-row href="https://github.com/geeera/team-console" external>
+      <tc-icon tc-row-leading name="github" />
+      <span tc-row-title>{{ 'stories.list.external' | transloco }}</span>
+      <tc-icon tc-row-trailing name="external" />
+    </tc-list-row>
     <tc-list-row>
       <span tc-row-title>{{ 'stories.list.version' | transloco }}</span>
       <span tc-row-subtitle>{{ 'stories.list.staticRow' | transloco }}</span>

@@ -1,4 +1,5 @@
 import { BreakpointObserver } from '@angular/cdk/layout';
+import { NgTemplateOutlet } from '@angular/common';
 import {
   afterNextRender,
   ChangeDetectionStrategy,
@@ -28,6 +29,7 @@ import {
   StateBlock,
   ToastOutlet,
   TopBar,
+  TopBarActions,
 } from '@console/shared/ui';
 import { filter, map } from 'rxjs';
 import { ProjectsSheet } from './projects-sheet';
@@ -47,6 +49,7 @@ import { shellAreaOf } from './shell-location';
     IconButton,
     List,
     ListRow,
+    NgTemplateOutlet,
     ProjectSwitcher,
     RouterLink,
     RouterOutlet,
@@ -70,6 +73,8 @@ export class AppShell {
 
   protected readonly projects = inject(ProjectsStore);
   protected readonly needsYou = inject(NeedsYouCounts);
+  /** The current screen's own action in the phone's top bar (#114: Commands in a project space). */
+  protected readonly screenAction = inject(TopBarActions).template;
 
   private readonly main = viewChild.required<ElementRef<HTMLElement>>('main');
   private scrollFrame: number | null = null;

@@ -1,13 +1,14 @@
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ApplicationInitStatus } from '@angular/core';
+import { ApplicationInitStatus, ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { PROJECTS_URL, ProjectsStore } from '@console/entities/project';
+import { projectSprintUrl } from '@console/entities/sprint';
 import { provideConsoleI18n } from '@console/shared/i18n';
-import { Sheet } from '@console/shared/ui';
+import { Sheet, TopBarActions } from '@console/shared/ui';
 import { CommandsSheet } from '@console/widgets/commands-panel';
 import {
   memoryPersistedStateStorage,
@@ -136,15 +137,48 @@ describe('ProjectSpacePage', () => {
     expect(root.querySelector('#tc-space-commands')).toBeNull();
   });
 
-  it('opens the Commands sheet on the phone', async () => {
+  it('offers Commands to the shell top bar on the phone and opens the sheet from there', async () => {
     const { harness } = await setup(true);
     await harness.navigateByUrl('/p/tc/board');
     const root = harness.routeNativeElement as HTMLElement;
-    (root.querySelector('[data-testid="commands-open"]') as HTMLButtonElement).click();
+    expect(root.querySelector('[data-testid="commands-open"]')).toBeNull();
+    // What the shell does with it: render the offered template in its top bar.
+    const template = TestBed.inject(TopBarActions).template();
+    if (template === null) {
+      throw new Error('the space offered no top-bar action');
+    }
+    const view = template.createEmbeddedView({});
+    TestBed.inject(ApplicationRef).attachView(view);
+    view.detectChanges();
+    const button = view.rootNodes.find(
+      (node: Node) => node instanceof HTMLButtonElement,
+    ) as HTMLButtonElement;
+    expect(button.getAttribute('aria-label')).toBe('Команды проекта Team Console');
+    button.click();
     expect(sheet.open).toHaveBeenCalledWith(CommandsSheet, {
       title: 'Команды · Team Console',
       data: { slug: 'tc', name: 'Team Console', repo: 'geeera/tc' },
     });
     expect(root.querySelector('#tc-space-commands')).toBeNull();
+  });
+
+  it("renders the sprint board in the Board section, read from the project's sprint read model", async () => {
+    const { harness, http } = await setup();
+    await harness.navigateByUrl('/p/tc/board');
+    const root = harness.routeNativeElement as HTMLElement;
+
+    expect(root.querySelector('tc-sprint-board')).not.toBeNull();
+    const request = http.expectOne(projectSprintUrl('tc'));
+    expect(request.request.method).toBe('GET');
+    request.flush({
+      milestone: null,
+      issues: [],
+      byStatus: {},
+      planned: 0,
+      shipped: 0,
+      carriedOver: 0,
+      byTier: {},
+      openPullRequests: [],
+    });
   });
 });

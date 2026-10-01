@@ -60,14 +60,12 @@
     <span class="shell__switch-name">{{ currentProject()?.displayName ?? (titleKey() | transloco) }}</span>
     <tc-icon name="chevron-down" size="sm" />
   </button>
-  <a
-    tc-icon-button
-    tc-top-bar-trailing
-    routerLink="/settings"
-    [attr.aria-label]="'shell.settings' | transloco"
-  >
-    <tc-icon name="settings" size="lg" />
-  </a>
+  <span tc-top-bar-trailing class="shell__actions">
+    <ng-container [ngTemplateOutlet]="screenAction()" />
+    <a tc-icon-button routerLink="/settings" [attr.aria-label]="'shell.settings' | transloco">
+      <tc-icon name="settings" size="lg" />
+    </a>
+  </span>
 </header>
 }
 

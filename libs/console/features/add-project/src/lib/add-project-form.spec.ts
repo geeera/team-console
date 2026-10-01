@@ -290,6 +290,41 @@ describe('AddProjectForm', () => {
     expect(root.querySelector('[data-testid="add-result"]')?.textContent).toContain('в архиве');
   });
 
+  it('clears the previous result and inline error as soon as the value changes (#124 item 3)', async () => {
+    await render();
+    await type('acme/site');
+    await submit();
+    http
+      .expectOne(PROJECTS_URL)
+      .flush(problem('project-exists', 409, { step: 'unique' }), { status: 409, statusText: 'Conflict' });
+    await settle();
+    http
+      .expectOne((req) => req.url === PROJECTS_URL && req.params.get('include') === 'archived')
+      .flush([
+        {
+          slug: 'site',
+          repo: 'acme/site',
+          displayName: 'site',
+          routineId: null,
+          addedAt: '2026-09-29T00:00:00.000Z',
+          archivedAt: null,
+        },
+      ]);
+    await settle();
+    expect(root.querySelector('[data-testid="add-result"]')).not.toBeNull();
+
+    await type('nope');
+    expect(root.querySelector('[data-testid="add-result"]')).toBeNull();
+
+    await submit();
+    expect(field().getAttribute('aria-invalid')).toBe('true');
+    expect(root.querySelector('.tc-field__error')).not.toBeNull();
+
+    await type('geeera/storify');
+    expect(root.querySelector('.tc-field__error')).toBeNull();
+    http.expectNone(PROJECTS_URL);
+  });
+
   it('offline: Check and add is unavailable with an explanation and sends nothing', async () => {
     await render();
     online.set(false);

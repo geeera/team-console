@@ -24,7 +24,7 @@ import {
 } from '@console/entities/project';
 import { TeamStatusStore } from '@console/entities/team-run';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
-import { BREAKPOINTS, Button, Icon, IconName, Sheet, Tab, TabBar } from '@console/shared/ui';
+import { BREAKPOINTS, Button, Icon, IconName, Sheet, Tab, TabBar, TopBarAction } from '@console/shared/ui';
 import {
   CommandsPanel,
   CommandsSheet,
@@ -51,7 +51,18 @@ const TYPING = 'input, textarea, select, [contenteditable]:not([contenteditable=
  */
 @Component({
   selector: 'tc-project-space-page',
-  imports: [Button, CommandsPanel, Icon, PausedBanner, RouterLink, RouterOutlet, Tab, TabBar, TranslocoPipe],
+  imports: [
+    Button,
+    CommandsPanel,
+    Icon,
+    PausedBanner,
+    RouterLink,
+    RouterOutlet,
+    Tab,
+    TabBar,
+    TopBarAction,
+    TranslocoPipe,
+  ],
   templateUrl: './project-space.page.html',
   styleUrl: './project-space.page.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -79,13 +79,14 @@ describe('App', () => {
   }
 
   afterEach(() => {
-    // The question lists (#16) read on their own; these routing tests do not look at them.
+    // The question lists (#16) and the sprint board (#18) read on their own; these routing tests do not look at them.
     http
       .match(NEEDS_YOU_URL)
       .forEach((request) => request.flush({ items: [], projects: [], omittedProjects: [] }));
     http
       .match((request) => request.url.endsWith('/questions'))
       .forEach((request) => request.flush({ items: [] }));
+    http.match((request) => request.url.endsWith('/sprint')).forEach((request) => request.flush(null));
     // A project space reads its team status for the paused banner (#114); not what these tests look at.
     http
       .match((request) => request.url.endsWith('/team/status'))

@@ -141,9 +141,9 @@ describe('CommandsPanel', () => {
       'npx wrangler secret put SLOT_ROUTINE_TC_QA --env stage --config apps/api/wrangler.jsonc',
       'npx wrangler secret put SLOT_TOKEN_TC_QA --env stage --config apps/api/wrangler.jsonc',
     ]);
-    expect(text(card)).toContain('В своей копии репозитория team-console');
+    expect(text(card)).toContain('в папке team-console, в терминале, где уже выполнен npx wrangler login');
     expect(text(card.querySelector('.cp-warn'))).toBe(
-      'Вставляй токен только в этот скрытый ввод — никогда в чат, issue или агенту. Если он утёк, создай новый в Claude Code.',
+      'Вставляй токен только в это скрытое поле — никогда в чат, issue или агенту. Если он утёк, перевыпусти его в Claude Code: старый перестанет работать.',
     );
   });
 
