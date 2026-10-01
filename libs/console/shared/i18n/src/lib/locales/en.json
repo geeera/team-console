@@ -2,12 +2,61 @@
   "app": {
     "name": "Team Console"
   },
-  "hello": {
-    "title": "Hello, console",
-    "subtitle": "The skeleton is in place: app → pages → entities → shared.",
-    "version": "Version",
-    "builtAt": "Built",
-    "switchLang": "Русский"
+  "shell": {
+    "nav": "Navigation",
+    "needsYou": "Needs you",
+    "overview": "All projects",
+    "settings": "Settings",
+    "addProject": "Add a project",
+    "projects": "Projects",
+    "pinned": "Pinned",
+    "more": "{{n}} more",
+    "less": "Show less",
+    "pin": "Pin {{name}}",
+    "unpin": "Unpin {{name}}",
+    "badge": "Needs you: {{n}}",
+    "openSwitcher": "Choose a project",
+    "loading": "Loading projects…",
+    "loadFailed": "Couldn't load projects",
+    "loadFailedHint": "Check your connection and try again.",
+    "noProjects": "No projects yet",
+    "noProjectsHint": "Add a repository in Settings and its space appears here.",
+    "skip": "Skip to content"
+  },
+  "space": {
+    "sections": "Sections",
+    "questions": "Questions",
+    "chat": "Chat",
+    "board": "Board",
+    "artifacts": "Artifacts",
+    "demo": "Demo",
+    "placeholderTitle": "Coming soon",
+    "placeholderHint": "The “{{section}}” section arrives in a later sprint.",
+    "draftLabel": "Message to the PM",
+    "draftHint": "The draft stays on this device only.",
+    "tallRow": "Row {{n}}"
+  },
+  "notFound": {
+    "projectTitle": "Project not found",
+    "projectHint": "There is no space “{{slug}}”, or the project is archived.",
+    "routeTitle": "No such page",
+    "routeHint": "Check the address or go back to your projects.",
+    "back": "Back to projects"
+  },
+  "needsYou": {
+    "title": "Needs you",
+    "emptyTitle": "Nothing needs you right now",
+    "emptyHint": "The teams are working; you'll get a notification when that changes."
+  },
+  "overview": {
+    "title": "All projects",
+    "placeholderHint": "The project overview arrives in a later sprint."
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Interface language",
+    "switchLang": "Русский",
+    "projectsHint": "The GitHub connection and the project list will live here."
   },
   "ui": {
     "close": "Close",
@@ -75,7 +124,9 @@
       "version": "Version 0.1.0",
       "staticRow": "A static row with no action",
       "archive": "Archive",
-      "offline": "Not available offline"
+      "offline": "Not available offline",
+      "pin": "Pin",
+      "unpin": "Unpin"
     },
     "topBar": {
       "search": "Search",
@@ -98,6 +149,13 @@
       "confirmedKept": "Left as is",
       "confirmTitle": "Move the project to the archive?",
       "confirmMessage": "The project disappears from the list and “Needs your attention”. GitHub issues are untouched."
+    },
+    "tabBar": {
+      "aria": "Sections",
+      "questions": "Questions",
+      "chat": "Chat",
+      "board": "Board",
+      "artifacts": "Artifacts"
     }
   }
 }

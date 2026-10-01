@@ -2,6 +2,18 @@
   display: block;
 }
 
+/* A projected [tc-row-action] gets its own column beside the surface, so no control nests in another. */
+:host(:has([tc-row-action])) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+:host(:has([tc-row-action])) .tc-list-row__surface {
+  flex: 1;
+  min-width: 0;
+}
+
 :host + :host {
   border-top: var(--border-w) solid var(--border);
 }

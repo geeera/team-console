@@ -18,6 +18,7 @@ export { Spinner } from './lib/spinner/spinner';
 export type { SpinnerSize } from './lib/spinner/spinner';
 export { StateBlock } from './lib/state-block/state-block';
 export type { StateKind } from './lib/state-block/state-block';
+export { Tab, TabBar } from './lib/tab-bar/tab-bar';
 export { TopBar } from './lib/top-bar/top-bar';
 // The CDK dialog surface consumers need for content opened by `Sheet`.
 export { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';

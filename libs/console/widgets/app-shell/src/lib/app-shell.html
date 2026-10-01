@@ -1,0 +1,76 @@
+<a class="shell__skip" href="#tc-main">{{ 'shell.skip' | transloco }}</a>
+
+@if (hasSidebar()) {
+<nav class="shell__sidebar" [attr.aria-label]="'shell.nav' | transloco">
+  <p class="shell__brand">
+    <tc-icon name="stack" />
+    {{ 'app.name' | transloco }}
+  </p>
+
+  <tc-list plain class="shell__top">
+    <tc-list-row button [current]="area() === 'needs-you'" (click)="go('/needs-you')">
+      <tc-icon tc-row-leading name="inbox" />
+      <span tc-row-title>{{ 'shell.needsYou' | transloco }}</span>
+      @if (needsYou.total(); as total) {
+      <tc-chip tc-row-trailing tone="accent">
+        <span aria-hidden="true">{{ total }}</span>
+        <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: total } }}</span>
+      </tc-chip>
+      }
+    </tc-list-row>
+    <tc-list-row button [current]="area() === 'overview'" (click)="go('/overview')">
+      <tc-icon tc-row-leading name="grid" />
+      <span tc-row-title>{{ 'shell.overview' | transloco }}</span>
+    </tc-list-row>
+  </tc-list>
+
+  <div class="shell__projects">
+    @switch (projects.status()) { @case ('ready') { @if (projects.hasProjects()) {
+    <tc-project-switcher />
+    } @else {
+    <tc-state-block kind="empty" compact [title]="'shell.noProjects' | transloco" />
+    } } @case ('error') {
+    <tc-state-block kind="error" compact [title]="'shell.loadFailed' | transloco">
+      <button tc-button tc-state-action size="sm" type="button" (click)="retry()">
+        {{ 'ui.error.retry' | transloco }}
+      </button>
+    </tc-state-block>
+    } @default {
+    <tc-state-block kind="loading" compact [title]="'shell.loading' | transloco" />
+    } }
+  </div>
+
+  <tc-list plain class="shell__foot">
+    <tc-list-row button [current]="area() === 'settings'" (click)="go('/settings')">
+      <tc-icon tc-row-leading name="settings" />
+      <span tc-row-title>{{ 'shell.settings' | transloco }}</span>
+    </tc-list-row>
+  </tc-list>
+</nav>
+} @else {
+<header tc-top-bar sticky class="shell__bar">
+  <button
+    tc-top-bar-title
+    type="button"
+    class="shell__switch"
+    aria-haspopup="dialog"
+    [attr.aria-label]="'shell.openSwitcher' | transloco"
+    (click)="openProjects()"
+  >
+    <span class="shell__switch-name">{{ currentProject()?.displayName ?? (titleKey() | transloco) }}</span>
+    <tc-icon name="chevron-down" size="sm" />
+  </button>
+  <a
+    tc-icon-button
+    tc-top-bar-trailing
+    routerLink="/settings"
+    [attr.aria-label]="'shell.settings' | transloco"
+  >
+    <tc-icon name="settings" size="lg" />
+  </a>
+</header>
+}
+
+<main #main id="tc-main" class="shell__main" tabindex="-1" (scroll)="onScroll()">
+  <router-outlet />
+</main>
