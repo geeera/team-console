@@ -18,6 +18,8 @@ describe('migrations on a fresh D1', () => {
       'own_writes',
       'owner_connections',
       'projects',
+      'push_subscriptions',
+      'push_test_sends',
       'slot_requests',
       'webhook_deliveries',
     ]);
@@ -33,8 +35,28 @@ describe('migrations on a fresh D1', () => {
       '0006_project_installation.sql',
       '0007_own_writes.sql',
       '0008_slot_requests.sql',
+      '0009_push_subscriptions.sql',
       '0010_webhooks.sql',
     ]);
+  });
+
+  it('give push_subscriptions the columns of the #11 architect note, endpoint as the key', async () => {
+    const { results } = await env.DB.prepare('PRAGMA table_info(push_subscriptions)').all<{
+      name: string;
+      notnull: number;
+      pk: number;
+    }>();
+
+    expect(results.map((column) => column.name)).toEqual([
+      'endpoint',
+      'p256dh',
+      'auth',
+      'user_agent',
+      'created_at',
+      'last_success_at',
+      'failures',
+    ]);
+    expect(results.filter((column) => column.pk === 1).map((column) => column.name)).toEqual(['endpoint']);
   });
 
   it('give projects the columns the registry needs', async () => {

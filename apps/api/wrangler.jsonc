@@ -2,7 +2,8 @@
 // Non-secret configuration only. Secrets (declared in src/env.ts) are set once by the owner with
 // `wrangler secret put`; ACCESS_TEAM_DOMAIN, ACCESS_AUD and ACCESS_SERVICE_TOKEN_ID stay empty here (this repository is public) and are
 // filled per environment in #21/#25; the GitHub App vars (GITHUB_APP_ID, GITHUB_APP_CLIENT_ID, OWNER_GITHUB_LOGIN) stay empty
-// too and come from deploy.yml's `--var` (ADR 0003 decision 7); OWNER_EMAIL is a secret, never a var. workers_dev stays on: Access sits in
+// too and come from deploy.yml's `--var` (ADR 0003 decision 7), and so does VAPID_PUBLIC_KEY (#11, the environment's
+// `vars.VAPID_PUBLIC_KEY`); VAPID_SUBJECT is the repository URL, not an e-mail (#11 threat model, row 4); OWNER_EMAIL is a secret, never a var. workers_dev stays on: Access sits in
 // front of team-console-<env>.<account>.workers.dev (ADR 0001, decisions 7 and 14); preview_urls are off so no
 // unprotected version URL exists. AUTH_MODE and ENVIRONMENT=local exist only as `--var` flags of `nx serve api`
 // and the Dockerfile — never in an `env.*` block (tools/workspace-checks enforces it).
@@ -33,6 +34,8 @@
         "GITHUB_APP_ID": "",
         "GITHUB_APP_CLIENT_ID": "",
         "OWNER_GITHUB_LOGIN": "",
+        "VAPID_PUBLIC_KEY": "",
+        "VAPID_SUBJECT": "https://github.com/geeera/team-console",
       },
       "d1_databases": [
         {
@@ -59,6 +62,8 @@
         "GITHUB_APP_ID": "",
         "GITHUB_APP_CLIENT_ID": "",
         "OWNER_GITHUB_LOGIN": "",
+        "VAPID_PUBLIC_KEY": "",
+        "VAPID_SUBJECT": "https://github.com/geeera/team-console",
       },
       "d1_databases": [
         {
@@ -82,6 +87,8 @@
         "GITHUB_APP_ID": "",
         "GITHUB_APP_CLIENT_ID": "",
         "OWNER_GITHUB_LOGIN": "",
+        "VAPID_PUBLIC_KEY": "",
+        "VAPID_SUBJECT": "https://github.com/geeera/team-console",
       },
       "d1_databases": [
         {

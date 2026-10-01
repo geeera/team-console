@@ -214,6 +214,8 @@ jobs:
           workingDirectory: apps/api
           command: d1 migrations apply team-console-${{ env.ENV_NAME }} --env ${{ env.ENV_NAME }} --remote
 
+      # VAPID_PUBLIC_KEY (#11) is the same kind of value: the environment variable the owner pasted from
+      # tools/owner-setup/set-secrets.sh; without it the push routes answer 503 push-misconfigured.
       # ACCESS_TEAM_DOMAIN/ACCESS_AUD/GITHUB_APP_ID/GITHUB_APP_CLIENT_ID/OWNER_GITHUB_LOGIN all live in exactly
       # one place: non-secret GitHub Environment *variables* (owner checklist; the GitHub App ones are set by
       # tools/owner-setup/create-apps.sh, #61, ADR 0003 decision 7) — never in apps/api/wrangler.jsonc, which
@@ -243,6 +245,7 @@ jobs:
             --var GITHUB_APP_ID:${{ vars.CONSOLE_GITHUB_APP_ID }}
             --var GITHUB_APP_CLIENT_ID:${{ vars.CONSOLE_GITHUB_APP_CLIENT_ID }}
             --var OWNER_GITHUB_LOGIN:${{ vars.OWNER_GITHUB_LOGIN }}
+            --var VAPID_PUBLIC_KEY:${{ vars.VAPID_PUBLIC_KEY }}
 
       - name: Deploy hooks Worker
         id: deploy_hooks
