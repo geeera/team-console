@@ -21,10 +21,10 @@
 
   <dl tc-stats data-testid="stats">
     <div tc-stat [label]="'board.stat.done' | transloco">
-      {{ 'board.stat.doneValue' | transloco: { shipped: board.shipped, planned: board.planned } }}
+      {{ 'board.stat.doneValue' | transloco: { shipped: (board.shipped | localNumber), planned: (board.planned | localNumber) } }}
     </div>
-    <div tc-stat [label]="'board.stat.stillOpen' | transloco">{{ board.carriedOver }}</div>
-    <div tc-stat [label]="'board.stat.openPrs' | transloco">{{ board.pullRequests.length }}</div>
+    <div tc-stat [label]="'board.stat.stillOpen' | transloco">{{ board.carriedOver | localNumber }}</div>
+    <div tc-stat [label]="'board.stat.openPrs' | transloco">{{ board.pullRequests.length | localNumber }}</div>
   </dl>
 
   @if (board.issues.length === 0) {

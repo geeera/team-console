@@ -8,7 +8,12 @@ import { GITHUB_CONNECTION_URL, ExternalNavigation } from '@console/entities/git
 import { PROJECTS_URL } from '@console/entities/project';
 import { NetworkStatus } from '@console/shared/api';
 import { provideAppConfig } from '@console/shared/config';
-import { provideConsoleI18n, TranslocoService } from '@console/shared/i18n';
+import {
+  LANGUAGE_STORAGE,
+  memoryLanguageStorage,
+  provideConsoleI18n,
+  TranslocoService,
+} from '@console/shared/i18n';
 import { Toaster } from '@console/shared/ui';
 import type { ProjectDto, ProjectSetupDto } from '@shared/contracts';
 import { signal } from '@angular/core';
@@ -54,6 +59,7 @@ describe('SettingsPage', () => {
   let http: HttpTestingController;
   let harness: RouterTestingHarness;
   const online = signal(true);
+  let languageStorage = memoryLanguageStorage();
 
   const root = (): HTMLElement => harness.routeNativeElement as HTMLElement;
   const text = (selector: string): string => root().querySelector(selector)?.textContent?.trim() ?? '';
@@ -75,6 +81,7 @@ describe('SettingsPage', () => {
         provideAppConfig({ name: 'Team Console', version: '0.1.0', builtAt: '2026-09-29T10:00:00.000Z' }),
         { provide: NetworkStatus, useValue: { online } },
         { provide: ExternalNavigation, useValue: { assign: vi.fn() } },
+        { provide: LANGUAGE_STORAGE, useValue: languageStorage },
       ],
     });
     await TestBed.inject(ApplicationInitStatus).donePromise;
@@ -103,6 +110,7 @@ describe('SettingsPage', () => {
 
   beforeEach(() => {
     online.set(true);
+    languageStorage = memoryLanguageStorage();
   });
 
   afterEach(() => {
@@ -127,7 +135,7 @@ describe('SettingsPage', () => {
     expect(text('[data-testid="app-built-at"]')).toBe('2026-09-29T10:00:00.000Z');
   });
 
-  it('switches the language without a reload', async () => {
+  it('switches the language without a reload and remembers it on the device (#4, #125)', async () => {
     await open('/settings');
     flushSetups({ storify: READY, fieldnote: READY, atlas: READY });
     const button = root().querySelector('[data-testid="switch-lang"]') as HTMLButtonElement;
@@ -139,6 +147,20 @@ describe('SettingsPage', () => {
 
     expect(TestBed.inject(TranslocoService).getActiveLang()).toBe('en');
     expect(text('h1')).toBe('Settings');
+    expect(Array.from(root().querySelectorAll('h2')).map((h) => h.textContent?.trim())).toEqual([
+      'GitHub',
+      'Projects',
+      'Interface language',
+    ]);
+    expect(languageStorage.value).toBe('en');
+
+    // And back: the button now offers Russian, in Russian.
+    expect(button.textContent?.trim()).toBe('Русский');
+    expect(button.lang).toBe('ru');
+    button.click();
+    await settle();
+    expect(text('h1')).toBe('Настройки');
+    expect(languageStorage.value).toBe('ru');
   });
 
   it('shows each row’s setup state in words from the Worker’s setup status', async () => {

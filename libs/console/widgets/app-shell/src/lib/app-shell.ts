@@ -15,7 +15,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { NeedsYouCounts, ProjectsStore, spaceLocationOf } from '@console/entities/project';
 import { ProjectSwitcher } from '@console/features/project-switcher';
-import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
+import { LocalNumberPipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { PersistedStateStore, scrollKeyOf } from '@console/shared/persisted-state';
 import {
   BREAKPOINTS,
@@ -50,6 +50,7 @@ import { shellAreaOf } from './shell-location';
     IconButton,
     List,
     ListRow,
+    LocalNumberPipe,
     NgTemplateOutlet,
     ProjectSwitcher,
     RouterLink,

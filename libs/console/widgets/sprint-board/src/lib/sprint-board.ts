@@ -28,6 +28,7 @@ import {
 import { httpProblemOf } from '@console/shared/api';
 import {
   localDayOf,
+  LocalNumberPipe,
   localTimeOf,
   pluralKeyOf,
   TranslocoPipe,
@@ -85,6 +86,7 @@ const KNOWN_STATUSES: ReadonlySet<string> = new Set([...STATUS_ORDER, NO_STATUS]
     Icon,
     Lane,
     Lanes,
+    LocalNumberPipe,
     SprintItemList,
     SprintTierIcon,
     Stat,

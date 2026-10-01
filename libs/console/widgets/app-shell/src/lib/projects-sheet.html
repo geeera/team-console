@@ -4,7 +4,7 @@
     <span tc-row-title>{{ 'shell.needsYou' | transloco }}</span>
     @if (needsYou.total(); as total) {
     <tc-chip tc-row-trailing tone="accent">
-      <span aria-hidden="true">{{ total }}</span>
+      <span aria-hidden="true">{{ total | localNumber }}</span>
       <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: total } }}</span>
     </tc-chip>
     }

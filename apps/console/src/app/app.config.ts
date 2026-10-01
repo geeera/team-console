@@ -19,7 +19,7 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideRouter(appRoutes, withComponentInputBinding()),
     provideAppConfig({ name: 'Team Console', ...buildInfo }),
-    provideConsoleI18n(),
+    provideConsoleI18n({ start: 'remembered' }),
     provideConsoleApi(),
     provideServiceWorker('ngsw-worker.js', serviceWorkerOptions(!isDevMode())),
   ],
