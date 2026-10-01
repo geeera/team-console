@@ -36,7 +36,7 @@ describe('NeedsYouPage', () => {
     expect(root.querySelector('h1')?.textContent?.trim()).toBe('Ждут тебя');
     const block = root.querySelector('[data-testid="no-projects"]') as HTMLElement;
     expect(block.textContent).toContain('Проектов пока нет');
-    expect(block.querySelector('a')?.getAttribute('href')).toBe('/settings');
+    expect(block.querySelector('a')?.getAttribute('href')).toBe('/settings/projects/new');
   });
 
   it('with projects it lists every waiting item, tagged with its project', async () => {

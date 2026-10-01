@@ -1,0 +1,119 @@
+<div class="tc-page subpage">
+  <nav class="subpage__crumbs" [attr.aria-label]="'settings.breadcrumb' | transloco">
+    <a routerLink="/settings"><tc-icon name="chevron-left" size="sm" />{{ 'settings.title' | transloco }}</a>
+  </nav>
+
+  @if (projects.status() !== 'ready') {
+  <tc-state-block kind="loading" [title]="'settings.projects.loading' | transloco" />
+  } @else if (project(); as project) {
+  <header class="setup__head">
+    <span class="setup__mono" aria-hidden="true">{{ project.displayName.charAt(0) }}</span>
+    <div class="setup__head-text">
+      <h1 #heading class="tc-page__title subpage__title" tabindex="-1">{{ project.displayName }}</h1>
+      <p class="setup__meta">
+        @if (repoUrl(); as repoUrl) {
+        <a class="setup__repo" [href]="repoUrl" target="_blank" rel="noopener noreferrer">
+          {{ 'settings.setup.repoLink' | transloco: { repo: project.repo } }}<span class="tc-sr-only">
+            {{ 'settings.common.external' | transloco }}</span
+          >
+          <tc-icon name="external" size="sm" />
+        </a>
+        }
+        <code class="setup__path">/p/{{ project.slug }}</code>
+      </p>
+    </div>
+  </header>
+
+  @if (connectionBanner(); as banner) {
+  <div class="setup__banner" data-testid="connection-banner">
+    <tc-icon name="alert" size="sm" />
+    <p>{{ 'settings.gh.banner.' + banner | transloco }}</p>
+    <tc-connect-github-button variant="secondary" />
+  </div>
+  } @if (failed() && setup() === null) {
+  <tc-state-block kind="error" [title]="'settings.setup.loadFailed' | transloco">
+    <button tc-button tc-state-action type="button" (click)="recheck()">
+      {{ 'settings.setup.checkAgain' | transloco }}
+    </button>
+  </tc-state-block>
+  } @else { @if (checking()) {
+  <section tc-callout aria-labelledby="setup-result" data-testid="setup-result">
+    <h2 #result tc-callout-title id="setup-result" tabindex="-1">
+      {{ 'settings.add.submitting' | transloco }}
+    </h2>
+  </section>
+  } @else if (summary().ready) {
+  <tc-card stamp="positive" flush data-testid="setup-result">
+    <h2 #result tc-card-title tabindex="-1">
+      {{ 'settings.setup.ready.title' | transloco: { name: project.displayName } }}
+    </h2>
+    <p>{{ 'settings.setup.ready.body' | transloco }}</p>
+    @if (checkedAt(); as checkedAt) {
+    <span tc-card-meta>{{ 'settings.setup.checkedAt' | transloco: { time: (checkedAt | localTime) } }}</span>
+    }
+  </tc-card>
+  } @else {
+  <section
+    tc-callout
+    [tone]="summary().unknown > 0 && !justAdded() ? 'neutral' : 'warning'"
+    aria-labelledby="setup-result"
+    data-testid="setup-result"
+  >
+    <h2 #result tc-callout-title id="setup-result" tabindex="-1">
+      @if (justAdded()) { {{ 'settings.add.saved.title' | translocoPlural: summary().left + summary().unknown
+      }} } @else if (summary().unknown > 0) { {{ 'settings.setup.unknown.title' | transloco }} } @else { {{
+      'settings.setup.incomplete.title' | translocoPlural: summary().left }} }
+    </h2>
+    @if (justAdded()) {
+    <p>{{ 'settings.add.saved.body' | transloco }}</p>
+    } @if (failed()) {
+    <p role="alert">{{ 'settings.setup.loadFailed' | transloco }}</p>
+    } @if (checkedAt(); as checkedAt) {
+    <p class="setup__time">{{ 'settings.setup.checkedAt' | transloco: { time: (checkedAt | localTime) } }}</p>
+    }
+  </section>
+  } @if (checklistContext(); as context) {
+  <tc-setup-checklist [steps]="steps()" [context]="context" />
+  }
+
+  <div class="subpage__actions">
+    <button
+      tc-button
+      type="button"
+      data-testid="check-again"
+      [variant]="summary().ready ? 'secondary' : 'primary'"
+      [loading]="checking()"
+      [attr.aria-disabled]="checking() || !network.online() ? 'true' : null"
+      (click)="recheck()"
+    >
+      {{ (checking() ? 'settings.add.submitting' : 'settings.setup.checkAgain') | transloco }}
+    </button>
+    <a tc-button [variant]="summary().ready ? 'primary' : 'secondary'" [routerLink]="spaceUrl()">
+      {{ 'settings.setup.open' | transloco }}
+    </a>
+  </div>
+  }
+
+  <div class="setup__danger">
+    <button
+      tc-button
+      variant="quiet"
+      type="button"
+      class="setup__archive"
+      data-testid="archive-project"
+      [attr.aria-disabled]="network.online() ? null : 'true'"
+      (click)="archive()"
+    >
+      <tc-icon name="archive" />
+      {{ 'settings.setup.archive' | transloco }}
+    </button>
+  </div>
+  } @else {
+  <h1 #heading class="tc-page__title subpage__title" tabindex="-1">
+    {{ 'settings.setup.notFound.title' | transloco }}
+  </h1>
+  <tc-state-block kind="empty" [title]="'settings.setup.notFound.body' | transloco: { slug: slug() }">
+    <a tc-button tc-state-action routerLink="/settings">{{ 'settings.title' | transloco }}</a>
+  </tc-state-block>
+  }
+</div>

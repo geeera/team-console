@@ -8,4 +8,6 @@
 <p class="tc-field__error" [id]="errorId" role="alert">{{ error() }}</p>
 } @else if (hint()) {
 <p class="tc-field__hint" [id]="hintId">{{ hint() }}</p>
+} @if (note()) {
+<p class="tc-field__note" [id]="noteId">{{ note() }}</p>
 }

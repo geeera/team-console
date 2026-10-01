@@ -26,6 +26,7 @@ import {
   ListRow,
   Sheet,
   StateBlock,
+  ToastOutlet,
   TopBar,
 } from '@console/shared/ui';
 import { filter, map } from 'rxjs';
@@ -50,6 +51,7 @@ import { shellAreaOf } from './shell-location';
     RouterLink,
     RouterOutlet,
     StateBlock,
+    ToastOutlet,
     TopBar,
     TranslocoPipe,
   ],

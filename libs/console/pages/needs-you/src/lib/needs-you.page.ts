@@ -7,7 +7,7 @@ import { QuestionList } from '@console/widgets/question-list';
 
 /**
  * `/needs-you` (ADR 0001 decision 24, #16): every active project's waiting items, each tagged with its project and
- * answerable in place. With no registered project it is the shell's empty state and points to Settings (#24).
+ * answerable in place. With no registered project it is the shell's empty state and points to New project (#24).
  */
 @Component({
   selector: 'tc-needs-you-page',
@@ -26,7 +26,7 @@ import { QuestionList } from '@console/widgets/question-list';
           [title]="'shell.noProjects' | transloco"
           [description]="'shell.noProjectsHint' | transloco"
         >
-          <a tc-button tc-state-action variant="primary" routerLink="/settings">{{
+          <a tc-button tc-state-action variant="primary" routerLink="/settings/projects/new">{{
             'shell.addProject' | transloco
           }}</a>
         </tc-state-block>

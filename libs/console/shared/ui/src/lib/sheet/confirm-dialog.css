@@ -8,6 +8,20 @@
   color: var(--text-2);
 }
 
+.tc-confirm__note {
+  margin: 0;
+  padding-left: var(--space-3);
+  border-left: var(--border-w-strong) solid var(--border-strong);
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+
+.tc-confirm__error {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--danger-text);
+}
+
 .tc-confirm__actions {
   display: flex;
   justify-content: flex-end;

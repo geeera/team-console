@@ -1,4 +1,4 @@
-import { isReservedSlug, isValidSlug, routineSecretName, slugFromRepoName } from './slug';
+import { isReservedSlug, isValidSlug, routineSecretName, slugFromRepoName } from './project-slug';
 
 describe('isValidSlug', () => {
   it.each(['tc', 'storify', 'my-app-2', '0x', 'a'.repeat(39)])('accepts %s', (slug) => {

@@ -3,6 +3,8 @@ export type { Breakpoint } from './tokens/breakpoints';
 
 export { Button, IconButton } from './lib/button/button';
 export type { ButtonSize, ButtonVariant } from './lib/button/button';
+export { Callout } from './lib/callout/callout';
+export type { CalloutTone } from './lib/callout/callout';
 export { Card } from './lib/card/card';
 export type { CardStamp } from './lib/card/card';
 export { Chip } from './lib/chip/chip';
@@ -16,6 +18,7 @@ export { Recommendation } from './lib/recommendation/recommendation';
 export { Sheet } from './lib/sheet/sheet';
 export type { SheetOptions } from './lib/sheet/sheet';
 export type { ConfirmOptions } from './lib/sheet/confirm-dialog';
+export { TOAST_DURATION_MS, ToastOutlet, Toaster } from './lib/toast/toast';
 export { Spinner } from './lib/spinner/spinner';
 export type { SpinnerSize } from './lib/spinner/spinner';
 export { StateBlock } from './lib/state-block/state-block';

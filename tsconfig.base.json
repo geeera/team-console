@@ -47,7 +47,11 @@
       "@console/pages/settings": ["./libs/console/pages/settings/src/index.ts"],
       "@console/entities/question": ["./libs/console/entities/question/src/index.ts"],
       "@console/features/answer-question": ["./libs/console/features/answer-question/src/index.ts"],
-      "@console/widgets/question-list": ["./libs/console/widgets/question-list/src/index.ts"]
+      "@console/widgets/question-list": ["./libs/console/widgets/question-list/src/index.ts"],
+      "@console/entities/github-connection": ["./libs/console/entities/github-connection/src/index.ts"],
+      "@console/features/connect-github": ["./libs/console/features/connect-github/src/index.ts"],
+      "@console/features/add-project": ["./libs/console/features/add-project/src/index.ts"],
+      "@console/features/archive-project": ["./libs/console/features/archive-project/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

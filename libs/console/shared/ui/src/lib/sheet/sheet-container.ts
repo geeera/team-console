@@ -43,6 +43,10 @@ export class SheetContainer extends CdkDialogContainer {
   private readonly ref = inject(DialogRef);
 
   protected close(): void {
+    // Honour the same lock as Escape and the scrim (a confirm dialog sets it while its action runs).
+    if (this.ref.disableClose) {
+      return;
+    }
     this._closeInteractionType = 'mouse';
     this.ref.close();
   }

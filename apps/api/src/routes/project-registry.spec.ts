@@ -329,6 +329,7 @@ describe('POST /api/v1/projects — refusals save nothing', () => {
       step: 'repo-owner',
     });
     expect(body['detail']).toBe('acme/site is owned by acme, not by the connected account geeera');
+    expect(body).toMatchObject({ repoOwner: 'acme', login: 'geeera' });
     expect(h.stub.reads().map((call) => call.url.pathname)).toEqual(['/repos/acme/site']);
     expect(await rowCount()).toBe(0);
   });
@@ -469,6 +470,7 @@ describe('GET /api/v1/projects/:slug/setup', () => {
       connection: { state: 'connected', login: 'geeera' },
       accessLostAt: null,
       ownerLanguage: 'en',
+      repoOwnerLogin: 'geeera',
     });
   });
 
@@ -491,7 +493,10 @@ describe('GET /api/v1/projects/:slug/setup', () => {
 
   it('owner of another account → mismatch; no connection → not-checked and not-connected', async () => {
     const other = harness({ repository: repoOwnedBy({ login: 'acme', id: 200001 }) });
-    await expect((await setup(other)).json()).resolves.toMatchObject({ repoOwner: 'mismatch' });
+    await expect((await setup(other)).json()).resolves.toMatchObject({
+      repoOwner: 'mismatch',
+      repoOwnerLogin: 'acme',
+    });
 
     await resetOwnerConnections();
     const unconnected = await setup(harness(), localEnv());
