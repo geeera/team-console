@@ -106,6 +106,17 @@ const SCREENS: readonly Screen[] = [
     },
   },
   {
+    // The pane on a wide screen, the sheet on the phone (#114); waits for the team status read from the stack.
+    name: 'Commands panel',
+    open: async (page) => {
+      await visit(page, '/p/team-console/questions', (p) =>
+        expect(p.locator('li[data-number="72"]')).toBeVisible(),
+      );
+      await page.getByTestId('commands-open').click();
+      await expect(page.getByTestId('team-state')).toBeVisible();
+    },
+  },
+  {
     name: 'Project chat',
     open: (page) =>
       visit(page, '/p/team-console/chat', (p) => expect(p.getByTestId('chat-draft')).toBeVisible()),
