@@ -24,6 +24,8 @@ async function switchTo(page: Page, name: string): Promise<void> {
 
 const main = (page: Page) => page.locator('main#tc-main');
 
+const TEAM_STATUS = '/api/v1/projects/team-console/team/status';
+
 test.describe('with two active projects', () => {
   test.beforeAll(async ({ stack }) => {
     requireLocalStack(stack);
@@ -66,11 +68,19 @@ test.describe('with two active projects', () => {
     await expect(page.getByTestId('chat-draft')).toHaveValue(draft);
   });
 
-  test('shell screens send only bodiless GET /api/v1/projects and /api/v1/needs-you', async ({ page }) => {
+  test('shell screens send only bodiless GETs: projects, needs-you and the open space team status', async ({
+    page,
+  }) => {
     const sent: Request[] = [];
+    const statusCodes: number[] = [];
     page.on('request', (request) => {
       if (new URL(request.url()).pathname.startsWith('/api')) {
         sent.push(request);
+      }
+    });
+    page.on('response', (response) => {
+      if (new URL(response.url()).pathname === TEAM_STATUS) {
+        statusCodes.push(response.status());
       }
     });
     for (const path of [
@@ -84,13 +94,19 @@ test.describe('with two active projects', () => {
       await page.waitForLoadState('networkidle');
     }
 
-    const allowed = new Set(['GET /api/v1/projects', 'GET /api/v1/needs-you']);
+    // A project space reads its team status for the paused banner and the Commands panel (#114); an unknown one does not.
+    const allowed = new Set(['GET /api/v1/projects', 'GET /api/v1/needs-you', `GET ${TEAM_STATUS}`]);
     const seen = sent.map((request) => `${request.method()} ${new URL(request.url()).pathname}`);
     expect(
       seen.filter((call) => !allowed.has(call)),
       'requests outside the allow-list',
     ).toEqual([]);
     expect(seen).toContain('GET /api/v1/projects');
+    expect(statusCodes, 'team status reads must reach the api and succeed').not.toEqual([]);
+    expect(
+      statusCodes.filter((code) => code !== 200),
+      'team status answers other than 200',
+    ).toEqual([]);
     expect(
       sent.filter((request) => request.postDataBuffer() !== null || new URL(request.url()).search !== ''),
       'requests with a body or a query',
