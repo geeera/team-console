@@ -1,0 +1,157 @@
+
+/* ===== #29 Team commands, the rest after #114, on the Paper Desk tokens (ADR 0002) =====
+   Builds on commands.css (#114: panel frame, command rows, result notes, confirmations). New here: the full status
+   card, the board's command shortcuts, All projects and Needs you entry points, the request form, the batch list,
+   snooze. No new tokens. */
+
+/* ----- views around the panel ----- */
+.app[data-app=mac]:focus{outline:none}
+.p-head--view{min-height:56px;padding:var(--sp-2) var(--sp-5)}
+.p-title{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-2xl);line-height:var(--lh-tight)}
+.convo__head .btn+.btn{margin-left:var(--sp-1)}
+.convo__head>.btn--primary,.convo__head>.btn--sm{flex:none}
+.side-snz{display:inline-flex;margin-left:auto;color:var(--text-3)}
+.side-snz .ico{width:14px;height:14px}
+.side-snz+.sdot{margin-left:var(--sp-2)}
+
+/* bell with an ink slash: the slash draws in when a project is snoozed */
+.bell-off .bell-off__slash{stroke-dasharray:22;stroke-dashoffset:0}
+.bell-off.is-new .bell-off__slash{stroke-dashoffset:22;animation:ink var(--dur-slow) var(--ease-emph) var(--dur-fast) forwards}
+@media (prefers-reduced-motion:reduce){.bell-off.is-new .bell-off__slash{animation:none;stroke-dashoffset:0}}
+:root[data-motion=reduce] .bell-off.is-new .bell-off__slash{animation:none;stroke-dashoffset:0}
+
+/* All projects: each card has its own Commands */
+.all-grid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+.all-card{gap:var(--sp-2)}
+.all-card__name{flex:1;margin:0;min-width:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md);overflow-wrap:anywhere}
+.all-card .ov__line{margin:0}
+.all-snz{display:flex;align-items:center;gap:var(--sp-1);margin:0;font-size:var(--fs-xs);color:var(--warning-text)}
+.all-snz .ico{flex:none;width:14px;height:14px}
+.all-card__acts{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:var(--sp-2);margin-top:var(--sp-1)}
+.all-card__acts .ico{width:14px;height:14px}
+.all-card__acts .btn kbd{display:inline-block;margin-left:var(--sp-1)}
+.app[data-app=phone] .all-card__acts .btn{min-height:var(--target)}
+.app[data-app=phone] .all-card__acts .btn kbd{display:none}
+
+/* Needs you: the batch entry sits in the header (Mac) or above the list (iPhone) */
+.needs-head{display:grid;gap:var(--sp-3);margin-bottom:var(--sp-1)}
+.needs-head__btn{min-height:var(--target);justify-self:stretch}
+.btn .ico{width:16px;height:16px}
+
+/* ----- the status card: words first, one line per fact ----- */
+.st-dl{display:grid;gap:var(--sp-2);margin:var(--sp-2) 0 0;padding:var(--sp-3) var(--sp-4);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.st-dl>div{display:grid;grid-template-columns:minmax(0,8em) minmax(0,1fr);gap:var(--sp-3);align-items:baseline}
+.st-dl dt{font-size:var(--fs-xs);color:var(--text-2)}
+.st-dl dd{margin:0;display:grid;gap:2px;font-size:var(--fs-sm);font-variant-numeric:tabular-nums;min-width:0}
+.st-dl dd small{font-size:var(--fs-xs);color:var(--text-2)}
+.st-dl dd small.st-freeze{color:var(--warning-text);font-weight:600}
+.st-dl .meter{margin-top:var(--sp-1);max-width:160px}
+.st-iss{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-num,.item__num{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-3)}
+.st-skel{gap:var(--sp-3);padding:var(--sp-2) 0}
+.cp-state.st-card{gap:0}
+.cp-state.st-card .cp-state__meta{margin-top:var(--sp-2)}
+
+/* a request waiting for the PM: an ochre dot and words, never the dot alone */
+.pend-dot{display:inline-block;flex:none;width:var(--sp-2);height:var(--sp-2);border-radius:50%;background:var(--warning-text)}
+.cmd__line .pend-dot{align-self:center}
+.cmd__fix{margin:var(--sp-1) 0 0;font-size:var(--fs-sm)}
+.cmd__fix a{color:var(--accent-text);font-weight:600}
+.chip-pend{display:inline-flex;align-items:center;gap:var(--sp-1);margin-top:var(--sp-1);padding:0 var(--sp-2);height:22px;border-radius:999px;background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-xs);font-weight:600;width:max-content}
+.chip-pend.is-new{animation:chip-in var(--dur-base) var(--ease-enter) both}
+@keyframes chip-in{from{opacity:0;transform:scale(.92)}}
+@media (prefers-reduced-motion:reduce){.chip-pend.is-new{animation:fade var(--dur-fade) linear both}}
+:root[data-motion=reduce] .chip-pend.is-new{animation:fade var(--dur-fade) linear both}
+
+/* ----- the board in the pane (Mac) or the sheet (iPhone) ----- */
+.bd-body{padding:0;grid-template-columns:minmax(0,1fr)}
+.bd-body .board{min-width:0}
+.bd-body .board{padding:var(--sp-4) var(--sp-5) var(--sp-6)}
+.cp-sheet .bd-body .board{padding:var(--sp-2) var(--sp-4) var(--sp-10)}
+/* iPhone keeps the prototype's swipeable columns, edge to edge inside the sheet */
+.cp-sheet .bd-body .cols{margin:0 calc(-1 * var(--sp-4));padding:0 var(--sp-4) var(--sp-2);scroll-padding:0 var(--sp-4)}
+.bd-head{align-items:flex-start}
+.bd-head .btn{flex:none}
+.bd-head>div{min-width:0}
+.board__foot>span{min-width:0}
+.app[data-app=phone] .bd-head .btn{min-height:var(--target)}
+.bd-sub{margin:var(--sp-1) 0 0;font-size:var(--fs-xs);color:var(--text-2);font-variant-numeric:tabular-nums}
+.bd-prog{display:grid;gap:var(--sp-1);font-size:var(--fs-xs);color:var(--text-2)}
+.bd-item{grid-template-columns:auto minmax(0,1fr) auto;align-items:start}
+.bd-item .item__num{padding-top:2px}
+.bd-item .item__title{display:grid;justify-items:start}
+.bd-ask{min-height:30px;margin:calc(-1 * var(--sp-1)) calc(-1 * var(--sp-1)) calc(-1 * var(--sp-1)) 0;color:var(--accent-text)}
+.app[data-app=phone] .bd-ask{min-height:var(--target);margin-block:calc(-1 * var(--sp-3))}
+.bd-ask[aria-disabled=true]{color:var(--text-3)}
+.board__empty .ico{flex:none;width:20px;height:20px;color:var(--text-3)}
+.board__empty .bd-start{margin-top:var(--sp-2)}
+.app[data-app=phone] .board__foot .btn{min-height:var(--target)}
+
+/* ----- dialogs ----- */
+.adialog{max-height:calc(100% - 2 * var(--sp-6));overflow-y:auto;overscroll-behavior:contain}
+.app[data-app=phone] .adialog{max-height:92%}
+.cmd-dialog h2 .item__num{font-size:var(--fs-sm);vertical-align:2px}
+.dlg-warn{display:flex;align-items:flex-start;gap:var(--sp-2);margin:var(--sp-2) 0 0;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-sm);font-weight:600}
+.dlg-warn .ico{flex:none;margin-top:2px}
+.dlg-date{font-family:var(--font-body)!important;max-width:240px}
+.app[data-app=phone] .dlg-date{max-width:none}
+
+/* options: whole rows are the targets */
+.rq-set{margin:0;padding:0;border:0;display:grid;gap:var(--sp-2);min-width:0}
+.rq-set legend{padding:0;margin-bottom:var(--sp-2)}
+.opts{display:grid;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);overflow:hidden}
+.opt{display:flex;align-items:center;gap:var(--sp-3);min-height:var(--target);padding:var(--sp-2) var(--sp-3);font-size:var(--fs-sm);cursor:pointer}
+.opts .opt+.opt{border-top:1px solid var(--border)}
+.opt input{flex:none;width:18px;height:18px;margin:0;accent-color:var(--accent)}
+.opt:has(input:checked){background:var(--accent-soft);color:var(--accent-text);font-weight:600}
+.opt__here{color:var(--text-2);font-weight:400}
+.opt:has(input:checked) .opt__here{color:inherit}
+.opt--check{align-items:flex-start;padding-left:0;padding-right:0}
+.opt--check input{margin-top:2px}
+.opt--check>span{display:grid;gap:2px}
+.opt--check small{font-size:var(--fs-xs);color:var(--text-2);font-weight:400}
+/* the queue: three segments, a native radio group underneath */
+.segr{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--border-strong);border-radius:var(--r-md);overflow:hidden;background:var(--surface)}
+.segr .opt{position:relative;justify-content:center;padding:var(--sp-2);font-weight:600}
+.segr .opt+.opt{border-left:1px solid var(--border-strong)}
+.segr .opt input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.segr .opt:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:-2px}
+.segr .opt:has(input:checked){background:var(--text);color:var(--bg)}
+
+.rq-back{justify-self:start;margin:calc(-1 * var(--sp-2)) 0 0 calc(-1 * var(--sp-3));color:var(--accent-text);min-height:var(--target)}
+.rq-back .ico{width:16px;height:16px}
+.rq-now{color:var(--text-2)}
+.rq-prev{display:flex;align-items:flex-start;gap:var(--sp-2);padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text)!important;font-weight:600}
+.rq-prev .pend-dot{margin-top:.45em}
+.rq-prev--answered{background:var(--bg-sunken);color:var(--text-2)!important;font-weight:400}
+.rq-prev .ico{flex:none;width:16px;height:16px;margin-top:2px}
+.rq-sum{display:grid;gap:var(--sp-2)}
+.rq-diff{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.rq-diff.is-set{font-family:var(--font-display);font-size:var(--fs-md);color:var(--text)}
+
+/* the issue picker */
+.pick-search{height:var(--target)}
+.app[data-app=phone] .pick-search input{font-size:var(--fs-input)}
+.pick-list{list-style:none;margin:0;padding:0;display:grid;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);overflow:hidden}
+.pick-list li+li{border-top:1px solid var(--border)}
+.pick-item{width:100%;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:var(--sp-3);min-height:calc(var(--target) + var(--sp-2));padding:var(--sp-2) var(--sp-3);border:0;background:none;text-align:left;color:var(--text)}
+.pick-item:hover{background:var(--hover)}
+.pick-item>.ico{width:16px;height:16px;color:var(--text-3)}
+.pick-item__txt{display:grid;gap:2px;min-width:0}
+.pick-item__t{font-size:var(--fs-sm);font-weight:600}
+.pick-item small{font-size:var(--fs-xs);color:var(--text-2)}
+.pick-pend{display:inline-flex;align-items:center;gap:var(--sp-1);color:var(--warning-text);font-weight:600}
+.pick-empty{margin:0;padding:var(--sp-4) var(--sp-3);border:1px dashed var(--border-strong);border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm)}
+
+/* batch approve: a ticked list, then what was left out and why */
+.ba-list{list-style:none;margin:0;padding:0;display:grid;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);overflow:hidden}
+.ba-list li+li{border-top:1px solid var(--border)}
+.ba-item{display:flex;align-items:flex-start;gap:var(--sp-3);min-height:var(--target);padding:var(--sp-3);cursor:pointer}
+.ba-item input{flex:none;width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent)}
+.ba-item__txt{display:grid;justify-items:start;gap:var(--sp-1);min-width:0}
+.ba-item__t{font-size:var(--fs-sm);font-weight:600;font-family:var(--font-display)}
+.ba-item small{font-size:var(--fs-xs);color:var(--text-2)}
+.ba-out{font-size:var(--fs-sm);color:var(--text-2)}
+.ba-out summary{display:flex;align-items:center;min-height:var(--target);cursor:pointer;color:var(--accent-text);font-weight:600}
+.ba-out ul{margin:0;padding-left:1.2em;display:grid;gap:var(--sp-2)}
+.ba-why{display:inline-block;margin-left:var(--sp-1);padding:0 var(--sp-2);border-radius:999px;background:var(--bg-sunken);color:var(--text-2);font-size:var(--fs-xs)}
