@@ -216,6 +216,23 @@ describe('accessSessionInterceptor', () => {
     expect(call.outcome()).toBe('error');
   });
 
+  it('does not reload a POST on status 0 — the response may have been lost after the write landed', () => {
+    const call = track(http.post('/api/v1/questions/1/answer', { body: 'hi' }));
+    controller.expectOne('/api/v1/questions/1/answer').error(new ProgressEvent('error'));
+
+    expect(fake.reloads).toBe(0);
+    expect(call.outcome()).toBe('error');
+    expect((call.error() as HttpErrorResponse).status).toBe(0);
+  });
+
+  it('still reloads a GET on status 0 — existing Access-session behaviour', () => {
+    const call = track(http.get('/api/v1/projects'));
+    controller.expectOne('/api/v1/projects').error(new ProgressEvent('error'));
+
+    expect(fake.reloads).toBe(1);
+    expect(call.outcome()).toBe('pending');
+  });
+
   it('ignores requests that are not to our /api', () => {
     const call = track(http.get('https://api.github.com/zen'));
     controller.expectOne('https://api.github.com/zen').error(new ProgressEvent('error'));
