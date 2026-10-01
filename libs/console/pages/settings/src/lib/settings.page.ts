@@ -141,12 +141,6 @@ export class SettingsPage {
     void this.router.navigate(['/settings/projects', slug]);
   }
 
-  protected guardOffline(event: Event): void {
-    if (!this.network.online()) {
-      event.preventDefault();
-    }
-  }
-
   protected retry(): void {
     this.rowStatus.set({});
     void this.projects.load();

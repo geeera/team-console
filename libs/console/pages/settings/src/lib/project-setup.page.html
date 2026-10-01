@@ -12,7 +12,7 @@
       <h1 #heading class="tc-page__title subpage__title" tabindex="-1">{{ project.displayName }}</h1>
       <p class="setup__meta">
         @if (repoUrl(); as repoUrl) {
-        <a class="setup__repo" [href]="repoUrl" target="_blank" rel="noopener noreferrer">
+        <a class="setup__repo tc-tap-target" [href]="repoUrl" target="_blank" rel="noopener noreferrer">
           {{ 'settings.setup.repoLink' | transloco: { repo: project.repo } }}<span class="tc-sr-only">
             {{ 'settings.common.external' | transloco }}</span
           >

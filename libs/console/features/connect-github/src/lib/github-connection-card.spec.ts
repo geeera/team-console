@@ -148,6 +148,44 @@ describe('GitHubConnectionCard', () => {
     expect(TestBed.inject(Toaster).message()).toBe('GitHub отключён');
   });
 
+  it('ignores a stale failure outcome once the Worker says the connection is already live (#124 item 1)', async () => {
+    assign = vi.fn();
+    TestBed.configureTestingModule({
+      imports: [GitHubConnectionCard],
+      providers: [
+        provideConsoleI18n(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: NetworkStatus, useValue: { online: signal(true) } },
+        { provide: ExternalNavigation, useValue: { assign } },
+      ],
+    });
+    await TestBed.inject(ApplicationInitStatus).donePromise;
+    http = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(GitHubConnectionCard);
+    fixture.componentRef.setInput('outcome', { kind: 'failed' });
+    root = fixture.nativeElement as HTMLElement;
+    document.body.appendChild(root);
+    await settle();
+    http.expectOne(GITHUB_CONNECTION_URL).flush(CONNECTED);
+    await settle();
+
+    expect(root.querySelector('[data-testid="gh-error"]')).toBeNull();
+    expect(root.querySelector('[data-testid="gh-connected"] h3')?.textContent?.trim()).toBe(
+      'Подключено как geeera',
+    );
+  });
+
+  it('an unreadable login on wrong-account reads as "a different account", not "?" (#124 item 2)', async () => {
+    await render(NONE);
+    fixture.componentRef.setInput('outcome', { kind: 'wrong-account', login: null });
+    await settle();
+
+    const body = root.querySelector('[data-testid="gh-error"] .gh__body');
+    expect(body?.textContent).not.toContain('?');
+    expect(body?.textContent).toContain('был выбран другой аккаунт');
+  });
+
   it('a disconnect GitHub did not confirm tells the owner to revoke it there', async () => {
     await render(CONNECTED);
     (root.querySelector('.gh__disconnect') as HTMLButtonElement).click();

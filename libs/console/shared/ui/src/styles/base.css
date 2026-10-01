@@ -52,6 +52,20 @@ select {
   white-space: nowrap;
 }
 
+/*
+ * A tappable inline element that is not a kit primitive (a plain link or bespoke button): the UX spec (§5)
+ * asks for a 44px tap target on the phone. Add this alongside the element's own classes instead of a
+ * per-page media query so every screen that needs it reads the same rule.
+ */
+@media (max-width: 519.98px) {
+  /* `!important`: an Angular component's emulated-encapsulation selector (its own class plus the
+     `_ngcontent-*` attribute Angular adds) outranks a plain global class no matter the source order,
+     so a specificity fight cannot win this — this utility exists to override exactly that. */
+  .tc-tap-target {
+    min-height: var(--control-h-touch) !important;
+  }
+}
+
 /* One column of content on a screen: the cross-project pages and Settings share it. */
 .tc-page {
   display: grid;

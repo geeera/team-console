@@ -175,6 +175,7 @@
         "url": "The console returned an unexpected sign-in address, so the app didn’t open it. Nothing changed.",
         "denied": "Access wasn’t granted on GitHub. Nothing changed.",
         "account": "GitHub was signed in as {{who}}. The console connects only to the owner’s account, {{login}}: switch accounts on GitHub and connect again. Access for {{who}} is already revoked.",
+        "accountUnknown": "GitHub was signed in as a different account. The console connects only to the owner’s account, {{login}}: switch accounts on GitHub and connect again. Access for it is already revoked.",
         "failed": "GitHub didn’t confirm the connection: the sign-in was interrupted, expired or failed a check. Nothing changed — try connecting again.",
         "start": "The console couldn’t start connecting. Nothing changed — try again."
       },

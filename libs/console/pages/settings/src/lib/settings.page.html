@@ -26,10 +26,10 @@
         #addButton
         tc-button
         variant="primary"
-        routerLink="/settings/projects/new"
+        [routerLink]="network.online() ? '/settings/projects/new' : null"
+        [attr.role]="network.online() ? null : 'button'"
         data-testid="add-project"
         [attr.aria-disabled]="network.online() ? null : 'true'"
-        (click)="guardOffline($event)"
       >
         <tc-icon name="plus" />
         {{ 'settings.projects.add' | transloco }}
@@ -86,10 +86,10 @@
         tc-button
         tc-state-action
         variant="primary"
-        routerLink="/settings/projects/new"
+        [routerLink]="network.online() ? '/settings/projects/new' : null"
+        [attr.role]="network.online() ? null : 'button'"
         data-testid="add-project"
         [attr.aria-disabled]="network.online() ? null : 'true'"
-        (click)="guardOffline($event)"
       >
         <tc-icon name="plus" />
         {{ 'settings.projects.add' | transloco }}
