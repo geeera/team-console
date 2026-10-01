@@ -78,7 +78,8 @@ Every run writes a `started` entry to the run log and closes it with `finished`/
   `team:run-log` label from those issues (whatever pause, `/resume` or failure streak was recorded on them is gone —
   the team starts a fresh log), or pin a log the team or the owner opened as `team.run_log_issue`. Pinning an issue
   anyone else opened is refused.
-- **Rotation**: the log is one issue and every run reads all of it (REST and its GraphQL edit history). Past a few
+- **Rotation**: the log is one issue and every run reads all of it (REST and, where available, its GraphQL edit
+  history). Each run is two comments (`started`, then `finished`/`failed`; the log is append-only). Past a few
   thousand entries, start a new one: close the old issue, open a new one labelled `team:run-log` (as the team),
   and change `team.run_log_issue` by PR in the same step. Do it while nothing is paused — pause records, `/resume`
   and failure streaks do not carry over.

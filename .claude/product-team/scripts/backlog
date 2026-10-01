@@ -346,6 +346,8 @@ def cmd_answers(repo: str, args) -> None:
          "done": [{"at": c.get("created_at"), "comment_id": c.get("id"), "url": c.get("html_url")}
                   for c in trusted if brief.DONE_MARKER in (c.get("body") or "")],
          "body": provenance.body_statement(issue, owner, history),
+         # rest-only: no edit history here (GraphQL blocked or down); every edited owner comment is ignored.
+         "history": provenance.mode(history),
          "history_error": history.get("error", "")})
 
 
@@ -357,7 +359,7 @@ def cmd_vanished(repo: str, args) -> None:
 
     Once per run, not per issue: it reads the whole run log and one comment list per issue it names.
     """
-    acted, error = runlogissue.acted_on(repo)
+    acted, error, history_mode = runlogissue.acted_on(repo)
     since = (datetime.now(timezone.utc) - timedelta(days=args.days)).strftime("%Y-%m-%dT%H:%M:%SZ")
     recent = [a for a in acted if (a.get("at") or "") >= since]
     vanished = []
@@ -372,7 +374,7 @@ def cmd_vanished(repo: str, args) -> None:
             present, gone = set(), f"issue #{number} is gone"
         vanished += [dict(a, reason=gone) if gone else a
                      for a in recent if a["issue"] == number and str(a["comment_id"]) not in present]
-    out({"vanished": vanished, "checked": len(recent), "error": error})
+    out({"vanished": vanished, "checked": len(recent), "error": error, "history": history_mode})
 
 
 def cmd_next(repo: str, args) -> None:
