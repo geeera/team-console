@@ -33,6 +33,16 @@ class GhError(RuntimeError):
     pass
 
 
+class GraphqlUnavailable(GhError):
+    """GitHub's GraphQL endpoint is blocked in this session (Claude Code cloud sessions answer HTTP 403 with
+    "GitHub GraphQL is not available from Claude Code sessions; use the REST API"). Callers fall back to REST."""
+
+
+# The block is per session, not per call: once seen, no further request goes to the endpoint.
+_GRAPHQL_BLOCKED = re.compile(r"HTTP 403\b.*GraphQL is not available", re.IGNORECASE | re.DOTALL)
+_graphql_unavailable: Optional[str] = None
+
+
 def token() -> str:
     """The agents' token: the team app's installation token when configured, else the personal-token chain."""
     from . import ghapp  # deferred: ghapp builds on this module
@@ -227,7 +237,18 @@ def raw(path: str, accept: str) -> str:
 
 
 def graphql(query: str, variables: dict) -> Any:
-    result = api("graphql", "POST", {"query": query, "variables": variables})
+    """One GraphQL call. Raises GraphqlUnavailable, without a request, once the session has seen the 403 block."""
+    global _graphql_unavailable
+    if _graphql_unavailable:
+        raise GraphqlUnavailable(_graphql_unavailable)
+    try:
+        result = api("graphql", "POST", {"query": query, "variables": variables})
+    except GhError as exc:
+        if isinstance(exc, GraphqlUnavailable) or not _GRAPHQL_BLOCKED.search(str(exc)):
+            raise
+        detail = str(exc).split(" → ", 1)[-1][:200]
+        _graphql_unavailable = f"GraphQL is unavailable in this session ({detail})"
+        raise GraphqlUnavailable(_graphql_unavailable) from exc
     if result and result.get("errors"):
         raise GhError(f"GraphQL: {result['errors']}")
     return (result or {}).get("data")

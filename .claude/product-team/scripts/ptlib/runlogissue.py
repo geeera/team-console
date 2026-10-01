@@ -54,18 +54,17 @@ def find(repo: str) -> Optional[dict]:
 
 
 def acted_on(repo: str) -> tuple:
-    """([{issue, comment_id, run_id}], error): owner commands the team's runs recorded acting on (`--acted`)."""
+    """([{issue, comment_id, run_id}], error, history_mode): owner commands the team's runs recorded acting on
+    (`--acted`). Without the GraphQL edit history (mode "rest-only") only entries REST shows unedited count."""
     try:
         log = find(repo)
         if not log:
-            return [], ""
+            return [], "", provenance.GRAPHQL
         comments = gh.api_list(f"repos/{repo}/issues/{log['number']}/comments?per_page=100")
         history = provenance.fetch(repo, log["number"])
-        if history.get("error"):
-            return [], f"run log unreadable: {history['error']}"
         team = gh.team_logins(repo) | {provenance.author_of(log)}
-        runs = runstate.parse_runs(provenance.screen(comments, team, history)[0])
+        runs = runstate.parse_runs(*provenance.partition(comments, team, history))
     except gh.GhError as exc:
-        return [], str(exc)
-    return [{"issue": issue, "comment_id": cid, "run_id": r["id"], "at": r["at"]}
-            for r in runs for issue, cid in r["acted"]], ""
+        return [], str(exc), provenance.GRAPHQL
+    return ([{"issue": issue, "comment_id": cid, "run_id": r["id"], "at": r["at"]}
+             for r in runs for issue, cid in r["acted"]], "", provenance.mode(history))

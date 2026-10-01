@@ -17,9 +17,12 @@ use the GitHub REST API with the team GitHub App's token when `PT_TEAM_APP_ID` i
    stop: the product was never set up (run `kickoff` or `adopt`).
 2. `PT/scripts/runlog start <slot>`:
    - `proceed` → keep the `run_id`.
-   - `overlap` / `paused` / `unverified` → print the reason and end the run. No other action. (`unverified`: the
-     run log's edit history could not be read, so no entry and no `/resume` can be trusted.)
+   - `overlap` / `paused` → print the reason and end the run. No other action.
    - `pause` → the team just paused itself: tell the owner (see *Notify*) and end the run.
+   - `history: rest-only` (with any decision) → GitHub's GraphQL API is unavailable in this session (Claude Code
+     cloud sessions block it with HTTP 403; `history_error` says so) and the run log, owner commands and pause
+     records were checked with REST timestamps only: anything edited is untrusted, unedited entries count. Carry
+     on; say `edit history: REST-only` in the run summary so the owner knows why an edited comment was ignored.
 3. `PT/scripts/slot-context` → mode (`normal` / `burn` / `freeze`), `is_cut_day`, caps, sprint, demo date.
 
 ## Work
@@ -38,7 +41,9 @@ use the GitHub REST API with the team GitHub App's token when `PT_TEAM_APP_ID` i
 1. Write the run summary to a temp file: what changed (issue/PR links), what is blocked on the owner, anything
    that failed. Owner-facing, short, in the owner's language from `project.yml`.
 2. `PT/scripts/runlog finish <run_id> finished --summary-file <file> [--metric key=value]...` (or `failed` if
-   the run could not do its job — a crash of one subtask that was handled is still `finished`). Duration is
+   the run could not do its job — a crash of one subtask that was handled is still `finished`). The log is
+   append-only: `finish` adds a second comment for the run, it never edits the `started` one (an edited entry
+   is untrusted wherever the edit history is unavailable). Duration is
    recorded automatically; add the counts the slot skill names (PRs opened, merged, blocked…), and
    `--acted <issue>:<comment_id>` for every owner command the run acted on (the `comment_id` from
    `backlog answers`), so a command deleted later is noticed: a slot that reads owner commands runs

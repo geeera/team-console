@@ -146,7 +146,8 @@ def rejected(comments: Iterable[dict], owner: str, history: Optional[dict], same
     with_commands = [c for c in comments if command_lines(c.get("body") or "", same_account)
                      or unread_reason(c.get("body") or "", same_account)]
     trusted, edited = provenance.screen(with_commands, [owner], history)
-    out = [dict(e, kind="edited") for e in edited]
+    # An edited command is never re-read, whoever edited it: the only recovery is a fresh comment.
+    out = [dict(e, kind="edited", reason=f"{e['reason']}; write the command again in a new comment") for e in edited]
     for c in trusted:
         reason = unread_reason(c.get("body") or "", same_account)
         if reason:

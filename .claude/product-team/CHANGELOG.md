@@ -4,6 +4,38 @@ Products follow the `stable` channel (or a pinned tag, `team.plugin_ref` in `.pr
 first `slot-pm` of the day runs `vendor self-update` and opens a PR with the entries in between. Breaking changes (a renamed label, a changed script contract, a new required
 `project.yml` key) are marked **Breaking** with the migration step.
 
+## 0.10.3
+
+- **Fix: scheduled runs work without GitHub's GraphQL API** (every team-console cloud routine since 0.10.1 ended
+  with `runlog start` → `unverified`: Claude Code cloud sessions answer `POST /graphql` with HTTP 403 "GitHub
+  GraphQL is not available from Claude Code sessions; use the REST API", and the scripts read edit history there).
+  `ptlib/gh.graphql` recognises that 403 (`gh.GraphqlUnavailable`), remembers it for the process and stops
+  asking; every reader of edit history (`runlog`, `backlog answers`/`reversals`/`decide`/`vanished`, `brief`,
+  `demo-page decisions`) then runs in **REST-only mode**: a comment counts only when REST shows it was never
+  edited (`updated_at` exactly equals `created_at` — the former two-second slack is gone, with or without
+  GraphQL, since an edit made within it would have counted), every edited one is untrusted — whoever edited it,
+  the owner included — and an issue body is never an owner statement (`body.owner_statement: false`, `body:
+  null`, with the reason; REST cannot clear a body, whatever its timestamps say). The output says `history:
+  rest-only` with `history_error`. `runlog start` no longer answers `unverified` (the decision is gone;
+  `overlap`/`paused`/`pause`/`proceed` remain).
+- **The run log is append-only.** `runlog finish` posts a second comment for the run instead of editing the
+  `started` one; `parse_runs` merges the trusted entries of a run id (latest wins, `at` is the start). An entry
+  that cannot be trusted (edited, with no edit history to vouch for it, or edited by an outsider) supplies
+  nothing: it never creates a run and never changes a run's start, slot or state; it only flags the run of the
+  same id it postdates (`trusted: false`), whose effective state is then `unknown` once ended — not a failure,
+  and a streak-breaker, so an old edited entry can never pause the team for good — while a run still `started`
+  stays in progress (the overlap guard holds). `runlog stats` counts `unknown` runs separately.
+  **Migration**: none to do. Logs written before 0.10.3 (e.g. team-console #22) hold in-place-edited entries;
+  they still parse and count as before where GraphQL works, and are not runs in cloud sessions (only the
+  never-edited entries are — a run that died on the usage limit counts as failed, as always, so a log whose
+  last three unedited entries are dead runs pauses once; `/resume` lifts it). `brief mark` is append-only too
+  (one marker per conversation, the latest counts).
+- `inbox update` pins the "Needs you" issue best-effort: without GraphQL it warns on stderr, reports
+  `pinned: false` and the run goes on (the issue is found by its label).
+- `backlog vanished` and `backlog answers` report `history` (`graphql` | `rest-only`); an edited owner command is
+  rejected with "write the command again in a new comment" appended to the reason.
+- `reference/identities.md` and `reference/run-protocol.md` describe the cloud constraint and the REST-only rule.
+
 ## 0.10.2
 
 - **Proportional reviews.** A new `review:` block in `.product-team/project.yml` says which verdicts a PR needs:

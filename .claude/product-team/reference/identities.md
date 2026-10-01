@@ -120,14 +120,32 @@ settings and deleting the old one there.
   permission. A comment of yours counts only if **nobody but you ever edited it**. The scripts read each issue's
   edit history (GraphQL `userContentEdits`, `lastEditedAt` + `editor`): a comment edited by any other login, by a
   deleted account, or with more edits than one page of history shows, is ignored, and `backlog answers` lists it
-  under `ignored` with the reason. When the history cannot be fetched only comments whose REST `updated_at` equals
-  `created_at` (two seconds of slack) count; the rest are ignored and `history_error` says why; `runlog start`
-  then does no work at all (`decision: unverified`). The same check covers the issue body (`backlog answers` →
-  `body.owner_statement`, and `body.edited_at`/`editors`: an approval given before someone else rewrote the question
-  is an approval of the old text) and the team's own run-log entries and pause records (edits allowed only by the
-  team's logins). Reactions are never read as approvals. The text that is checked comes from the same GraphQL
-  read as its history (REST only as the fallback above), and when REST shows an edit that GraphQL does not, the
-  comment is ignored as well.
+  under `ignored` with the reason. When the history cannot be fetched (`history: rest-only`, see below) only
+  comments whose REST `updated_at` is exactly `created_at` (no slack: an edit made within any tolerance would
+  count) count — **a comment you edited
+  yourself included**, because REST cannot say who edited it; the rest are ignored, `history_error` says why, and
+  the fix is always the same: write the command again in a new comment. The same check covers the issue body
+  (`backlog answers` → `body.owner_statement`, and `body.edited_at`/`editors`: an approval given before someone
+  else rewrote the question is an approval of the old text) and the team's own run-log entries and pause records
+  (edits allowed only by the team's logins). Reactions are never read as approvals. The text that is checked
+  comes from the same GraphQL read as its history (REST only as the fallback above), and when REST shows an edit
+  that GraphQL does not, the comment is ignored as well.
+- **Without GraphQL (Claude Code cloud sessions).** Cloud sessions answer every call to `api.github.com/graphql`
+  with HTTP 403 ("GitHub GraphQL is not available from Claude Code sessions; use the REST API"), so the scheduled
+  routines never have the edit history. The scripts notice the 403 once per process and run in REST-only mode
+  (`history: rest-only` in `runlog start`/`finish`/`status`, `backlog answers` and `backlog vanished`): everything
+  works, and the trust rule is the one above — unedited counts, edited does not, whoever edited. What that means
+  in practice: the run log is append-only (`finish` adds a comment, so no team entry is ever edited); an entry
+  that *was* edited supplies nothing — it never creates a run, never changes a run's start or slot, and only
+  flags the run of the same id it postdates as `trusted: false`, which makes an ended run `unknown` (not a
+  failure; it breaks a failure streak, so an old edited entry can never pause the team for good) and leaves a
+  run still `started` in progress (the overlap guard holds); entries 0.10.2 and older edited in place are simply
+  not runs here; an edited pause record is no record (`runlog pause-record` → `null`; pause again); an issue
+  **body** is never an owner statement without the edit history (its `updated_at` moves with every label, so REST
+  cannot clear it even when the timestamps happen to match): `body.owner_statement` is `false`, `body.body` is
+  `null` and `body.reason` says so — a question's text is read from the issue, but approvals come only from
+  comments. Pinning the inbox issue is a GraphQL mutation: in the cloud it is skipped with a warning and the
+  issue is found by its `team:inbox` label instead.
 - **Team decisions** are dated only by decision comments of the team's own logins that nobody else edited, so a
   marker posted or edited in by someone else cannot bury your `/reject`; `backlog decide` refuses a new decision
   while your reversal is open unless it names it (`--handles-reversal`).
@@ -229,4 +247,7 @@ It does not:
 | refusing to push: … rewrites … / git would push to … | remove the repository-local `insteadOf`; in the cloud, allow direct `github.com` access |
 | git push as …[bot] … failed | the network cannot reach `github.com` directly, or the app lacks Contents/Workflows write |
 | `answers` → `ignored`: it was edited by … | someone else changed your comment; write the command again in a new comment |
-| `history_error` / `runlog start` → `unverified` | GitHub's GraphQL API did not answer (outage, or a token without Issues read); the next run retries |
+| `history: rest-only` / `history_error`: GraphQL is unavailable in this session | expected in Claude Code cloud sessions (GraphQL is blocked there): edited comments are ignored, unedited ones count; nothing to fix |
+| `history: rest-only` / `history_error`: anything else | GitHub's GraphQL API did not answer (outage, or a token without Issues read); the run went on with REST timestamps; the next run retries GraphQL |
+| `answers` → `ignored`: it may have been edited and its edit history could not be fetched | you (or anyone) edited the comment and this session has no edit history; write the command again in a new comment |
+| `inbox update`: warning: could not pin | pinning needs GraphQL; pin the "Needs you" issue by hand once, the scripts find it by label |
