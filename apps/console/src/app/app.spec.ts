@@ -78,7 +78,12 @@ describe('App', () => {
     await fixture.whenStable();
   }
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    // The question lists (#16) read on their own; these routing tests do not look at them.
+    http.match(NEEDS_YOU_URL).forEach((request) => request.flush({ items: [], projects: [], omittedProjects: [] }));
+    http.match((request) => request.url.endsWith('/questions')).forEach((request) => request.flush({ items: [] }));
+    http.verify();
+  });
 
   it('sends the first visit to the cross-project inbox and later visits to the last place', async () => {
     await boot('/');

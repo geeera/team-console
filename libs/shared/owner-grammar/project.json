@@ -3,7 +3,7 @@
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/shared/owner-grammar/src",
   "projectType": "library",
-  "tags": ["type:lib", "scope:shared"],
+  "tags": ["type:lib", "scope:shared", "layer:shared"],
   "targets": {
     "test": {
       "inputs": [
