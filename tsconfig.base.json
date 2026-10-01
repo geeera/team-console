@@ -44,7 +44,10 @@
       "@console/pages/project-not-found": ["./libs/console/pages/project-not-found/src/index.ts"],
       "@console/pages/needs-you": ["./libs/console/pages/needs-you/src/index.ts"],
       "@console/pages/overview": ["./libs/console/pages/overview/src/index.ts"],
-      "@console/pages/settings": ["./libs/console/pages/settings/src/index.ts"]
+      "@console/pages/settings": ["./libs/console/pages/settings/src/index.ts"],
+      "@console/entities/question": ["./libs/console/entities/question/src/index.ts"],
+      "@console/features/answer-question": ["./libs/console/features/answer-question/src/index.ts"],
+      "@console/widgets/question-list": ["./libs/console/widgets/question-list/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

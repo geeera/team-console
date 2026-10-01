@@ -1,0 +1,23 @@
+:host {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-1) 0 var(--space-1) var(--space-3);
+  border-left: var(--border-w-strong) solid var(--accent);
+}
+
+.tc-recommendation__label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
+.tc-recommendation__choice {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  line-height: var(--lh-snug);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}

@@ -1,0 +1,13 @@
+{
+  "name": "console-widgets-question-list",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/console/widgets/question-list/src",
+  "prefix": "tc",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:console", "layer:widgets"],
+  "targets": {
+    "test": {
+      "inputs": ["default", "^default", "{workspaceRoot}/libs/worker/read-models/fixtures/*.expected.json"]
+    }
+  }
+}

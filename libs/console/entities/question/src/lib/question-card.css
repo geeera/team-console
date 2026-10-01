@@ -1,0 +1,55 @@
+:host {
+  display: block;
+}
+
+.question__untrusted {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--warning-soft);
+  color: var(--warning-text);
+  font-size: var(--fs-sm);
+}
+
+.question__untrusted tc-chip {
+  background: var(--surface);
+}
+
+.question__details summary {
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  min-height: var(--control-h-touch-sm);
+  display: flex;
+  align-items: center;
+}
+
+.question__details summary:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--r-xs);
+}
+
+.question__body {
+  margin: var(--space-2) 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+}
+
+.question__link {
+  color: var(--accent-text);
+  text-underline-offset: var(--space-1);
+}
+
+.question__link:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--r-xs);
+}

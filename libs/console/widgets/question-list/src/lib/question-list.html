@@ -1,0 +1,79 @@
+<p class="tc-sr-only" aria-live="polite" data-testid="announcement">{{ announcement() }}</p>
+
+@switch (state()) { @case ('loading') {
+<tc-state-block kind="loading" />
+} @case ('error') {
+<tc-state-block
+  kind="error"
+  data-testid="load-error"
+  [title]="'questions.loadFailed' | transloco"
+  [description]="'questions.loadFailedHint' | transloco"
+>
+  <button tc-button tc-state-action type="button" (click)="reload()">
+    {{ 'ui.error.retry' | transloco }}
+  </button>
+</tc-state-block>
+} @case ('ready') { @if (isAllProjects() && waiting().length > 0) {
+<p class="questions__lead" data-testid="lead">
+  {{ 'needsYou.lead' | transloco: { n: waiting().length, k: projectCount() } }}
+</p>
+} @if (refreshFailed()) {
+<tc-state-block kind="error" compact data-testid="refresh-error" [title]="'questions.loadFailed' | transloco">
+  <button tc-button tc-state-action size="sm" type="button" (click)="reload()">
+    {{ 'ui.error.retry' | transloco }}
+  </button>
+</tc-state-block>
+} @for (problem of problems(); track problem.project.slug) {
+<p class="questions__problem" data-testid="project-problem">
+  {{ 'questions.projectProblem' | transloco: { name: problem.project.name, reason: problemReason(problem) } }}
+</p>
+} @if (rows().length === 0) {
+<tc-state-block
+  kind="empty"
+  data-testid="empty"
+  [title]="(isAllProjects() ? 'needsYou.emptyTitle' : 'questions.emptyTitle') | transloco"
+  [description]="'needsYou.emptyHint' | transloco"
+/>
+} @else {
+<ul class="questions__list" [attr.aria-label]="'questions.listLabel' | transloco">
+  @for (row of rows(); track row.key) {
+  <li class="questions__row" [attr.data-row]="row.key" [attr.data-number]="row.item.number">
+    @if (row.answer === null || row.stamping) {
+    <tc-question-card
+      [item]="row.item"
+      [showProject]="isAllProjects()"
+      [stamp]="row.answer !== null ? toneOf(row.answer.command) : null"
+    >
+      @if (row.answer === null) {
+      <tc-answer-question
+        tc-question-actions
+        [item]="row.item"
+        (answered)="onAnswered($event)"
+        (refreshRequested)="reload()"
+      />
+      }
+    </tc-question-card>
+    } @else {
+    <tc-receipt [tone]="toneOf(row.answer.command)" [attr.data-receipt]="row.key">
+      <span tc-receipt-verb
+        >{{ 'answer.receipt.verb' | transloco: { verb: verbOf(row.answer.command) } }}</span
+      >
+      <span tc-receipt-detail>{{ row.item.title }}</span>
+      <span tc-receipt-meta>
+        {{ 'answer.receipt.meta' | transloco: { n: row.item.number, time: timeOf(row.answer) } }} · {{
+        'answer.receipt.waiting' | transloco }} @if (receiptUrl(row.answer); as url) { ·
+        <a class="questions__receipt-link" [href]="url" target="_blank" rel="noopener noreferrer"
+          >{{ 'answer.receipt.open' | transloco }}</a
+        >
+        }
+      </span>
+    </tc-receipt>
+    }
+  </li>
+  }
+</ul>
+} @if (omitted().length > 0) {
+<p class="questions__omitted" data-testid="omitted">
+  {{ 'needsYou.omitted' | transloco: { names: omittedNames() } }}
+</p>
+} } }

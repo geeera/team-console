@@ -1,0 +1,33 @@
+.reason {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.reason__warning {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--danger-soft);
+  color: var(--danger-text);
+  font-size: var(--fs-sm);
+}
+
+.reason__text {
+  resize: vertical;
+}
+
+.reason__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+@media (max-width: 519.98px) {
+  .reason__actions {
+    flex-direction: column-reverse;
+  }
+
+  .reason__actions > * {
+    width: 100%;
+  }
+}
