@@ -45,6 +45,13 @@
         "command": "wrangler dev --config apps/api/fake-routines/wrangler.jsonc --ip 127.0.0.1 --port 9998 --inspector-port 9338"
       }
     },
+    "fake-push": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "options": {
+        "command": "wrangler dev --config apps/api/fake-push/wrangler.jsonc --ip 127.0.0.1 --port 9997 --inspector-port 9337"
+      }
+    },
     "serve": {
       "executor": "nx:run-commands",
       "continuous": true,

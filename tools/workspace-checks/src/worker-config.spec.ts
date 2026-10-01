@@ -24,7 +24,13 @@ const SECRET_NAMES = [
   'SLOT_TOKEN',
   'SLOT_ROUTINE',
 ] as const;
-const LOCAL_ONLY_VARS = ['AUTH_MODE', 'GITHUB_MOCK', 'GITHUB_FAKE_ORIGIN', 'ROUTINES_FAKE_ORIGIN'] as const;
+const LOCAL_ONLY_VARS = [
+  'AUTH_MODE',
+  'GITHUB_MOCK',
+  'GITHUB_FAKE_ORIGIN',
+  'ROUTINES_FAKE_ORIGIN',
+  'PUSH_FAKE_ORIGIN',
+] as const;
 
 interface WranglerEnvConfig {
   readonly name: string;
@@ -163,6 +169,13 @@ describe('apps/api/wrangler.jsonc', () => {
     expect(
       domain === '' || (typeof domain === 'string' && /^[a-z0-9-]+\.cloudflareaccess\.com$/.test(domain)),
     ).toBe(true);
+  });
+
+  // #11 threat model, row 4: the JWT subject is an https URL; a mailto: would publish the owner's address.
+  it.each(ENVIRONMENTS)('keeps VAPID_PUBLIC_KEY empty and VAPID_SUBJECT an https URL in env %s', (env) => {
+    const { vars } = readWorkerConfig('api', env);
+    expect(vars['VAPID_PUBLIC_KEY']).toBe('');
+    expect(vars['VAPID_SUBJECT']).toMatch(/^https:\/\/[^@\s]+$/);
   });
 
   it.each(ENVIRONMENTS)('declares no OWNER_EMAIL var in env %s — it is a Worker secret', (env) => {
