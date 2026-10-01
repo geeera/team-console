@@ -159,6 +159,11 @@ the JWT check (the api vitest config binds both so route specs run; `auth.middle
 Commands: `npx nx serve api` (builds the console, applies migrations, `wrangler dev` on :8787), `npx nx run
 api:migrate` (fresh local D1), `npx nx build api` (`tsc --noEmit` + `wrangler deploy --dry-run`), `docker build -t
 team-console . && docker run --rm -p 127.0.0.1:8787:8787 team-console` (the e2e target: same bundle, local D1, `:8787`).
+`npx nx serve hooks` (:8788, depends on `api:migrate`) runs against the *same* local D1 as `nx serve api`: both
+targets' `wrangler dev`/`migrate` commands pass `--persist-to .wrangler/state`, a workspace-root directory shared by
+both apps instead of wrangler's per-app default (`apps/<app>/.wrangler`) — so a row the api Worker writes locally is
+immediately visible to the hooks Worker (#50; needed by #12). Deploys are unaffected: `--persist-to` is a local
+wrangler dev/CLI flag, never a `wrangler.jsonc` setting.
 
 E2e (#14): `npx nx e2e console-e2e` (builds first; browsers once with `npx playwright install chromium webkit`).
 Projects `iphone` (Chromium, 390 px), `desktop` (1440 px), `iphone-webkit` (the demo path only). Each Playwright

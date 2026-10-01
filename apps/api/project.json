@@ -28,7 +28,7 @@
     "migrate": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "wrangler d1 migrations apply team-console-dev --local --config apps/api/wrangler.jsonc --env dev"
+        "command": "wrangler d1 migrations apply team-console-dev --local --persist-to .wrangler/state --config apps/api/wrangler.jsonc --env dev"
       }
     },
     "fake-github": {
@@ -56,7 +56,7 @@
         "migrate"
       ],
       "options": {
-        "command": "wrangler dev --config apps/api/wrangler.jsonc --env dev --port 8787 --var ENVIRONMENT:local --var AUTH_MODE:local --var GITHUB_MOCK:true --var OWNER_GITHUB_LOGIN:geeera"
+        "command": "wrangler dev --config apps/api/wrangler.jsonc --env dev --port 8787 --persist-to .wrangler/state --var ENVIRONMENT:local --var AUTH_MODE:local --var GITHUB_MOCK:true --var OWNER_GITHUB_LOGIN:geeera"
       }
     }
   }
