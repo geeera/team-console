@@ -1,0 +1,9 @@
+// Local only: the fake Claude Code routines API for running "Run now" (#114) end to end (`nx run api:fake-routines`).
+// Never deployed — no environments, no bindings.
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "name": "team-console-fake-routines",
+  "main": "worker.ts",
+  "compatibility_date": "2026-08-15",
+  "workers_dev": false,
+}

@@ -32,6 +32,14 @@ const GLYPHS = {
   offline: 'M2 8.5a15 15 0 0120 0M5.5 12a10 10 0 0113 0M9 15.5a5 5 0 016 0M12 19v.5M3 3l18 18',
   // The sprint board (#18): the demo date.
   calendar: 'M4 6h16v14H4zM4 10h16M8 3v5M16 3v5',
+  // Team commands (#114): the Commands entry, pause, refresh, a run's clock, a missing key, no write access.
+  sliders: 'M5 7h8M17 7h2M5 17h2M11 17h8M15 9a2 2 0 100-4 2 2 0 000 4zM9 19a2 2 0 100-4 2 2 0 000 4z',
+  pause: 'M9 6v12M15 6v12',
+  refresh: 'M19.5 12a7.5 7.5 0 11-2.2-5.3M19.5 4.5V9H15',
+  clock: 'M12 20a8 8 0 100-16 8 8 0 000 16zM12 7.5V12l3 2',
+  key: 'M8 18.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7zM10.5 12.5l8-8M16 7l2.5 2.5M14 9l2 2',
+  lock: 'M7 10.5h10a2 2 0 012 2V18a2 2 0 01-2 2H7a2 2 0 01-2-2v-5.5a2 2 0 012-2zM8.5 10.5V8a3.5 3.5 0 017 0v2.5',
+  question: 'M9.3 9a2.8 2.8 0 015.4 1c0 2-2.7 2.3-2.7 4M12 17.3v.2',
 } as const;
 
 export type IconName = keyof typeof GLYPHS;

@@ -71,13 +71,28 @@ export class GitHubClient {
    * sent again; a second 401 on the owner's token is 403 `github-owner-not-connected`, never a fallback token.
    */
   async postJson<T>(path: GitHubPath, body: unknown, guard: JsonGuard<T>): Promise<T> {
+    const response = await this.write('POST', path, body);
+    return this.parse(response, guard);
+  }
+
+  /**
+   * DELETE one resource (#114: a label off the run log), with `postJson`'s rules: one refresh on 401, never retried
+   * after a timeout or a 5xx. A 404 is `github-not-found`; the caller decides whether "already gone" is fine.
+   */
+  async delete(path: GitHubPath): Promise<void> {
+    await discardBody(await this.write('DELETE', path, undefined));
+  }
+
+  private async write(method: 'POST' | 'DELETE', path: GitHubPath, body: unknown): Promise<Response> {
+    const request = (bearer: string) =>
+      githubRequest(this.fetcher, { method, path, bearer, ...(body === undefined ? {} : { body }) });
     let token = await this.tokens.getToken();
-    let response = await githubRequest(this.fetcher, { method: 'POST', path, bearer: token, body });
+    let response = await request(token);
     if (response.status === 401) {
       await discardBody(response);
       this.tokens.invalidate(token);
       token = await this.tokens.getToken();
-      response = await githubRequest(this.fetcher, { method: 'POST', path, bearer: token, body });
+      response = await request(token);
       if (response.status === 401 && this.tokens.kind === 'owner') {
         await discardBody(response);
         throw ownerNotConnectedError();
@@ -87,7 +102,7 @@ export class GitHubClient {
       await discardBody(response);
       throw mapGitHubResponse(response);
     }
-    return this.parse(response, guard);
+    return response;
   }
 
   private async get(path: GitHubPath): Promise<Response> {

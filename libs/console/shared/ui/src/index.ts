@@ -1,6 +1,8 @@
 export { BREAKPOINTS } from './tokens/breakpoints';
 export type { Breakpoint } from './tokens/breakpoints';
 
+export { Banner } from './lib/banner/banner';
+export type { BannerTone } from './lib/banner/banner';
 export { Button, IconButton } from './lib/button/button';
 export type { ButtonSize, ButtonVariant } from './lib/button/button';
 export { Callout } from './lib/callout/callout';
@@ -16,10 +18,12 @@ export { Lane, Lanes } from './lib/lane/lane';
 export type { LaneHeadingLevel } from './lib/lane/lane';
 export { List, ListRow } from './lib/list/list';
 export { Receipt } from './lib/receipt/receipt';
+export type { ReceiptTone } from './lib/receipt/receipt';
 export { Recommendation } from './lib/recommendation/recommendation';
 export { Sheet } from './lib/sheet/sheet';
 export type { SheetOptions } from './lib/sheet/sheet';
-export type { ConfirmOptions } from './lib/sheet/confirm-dialog';
+export { ConfirmFailure } from './lib/sheet/confirm-dialog';
+export type { ConfirmInput, ConfirmOptions } from './lib/sheet/confirm-dialog';
 export { TOAST_DURATION_MS, ToastOutlet, Toaster } from './lib/toast/toast';
 export { Spinner } from './lib/spinner/spinner';
 export type { SpinnerSize } from './lib/spinner/spinner';
@@ -29,5 +33,6 @@ export { StateBlock } from './lib/state-block/state-block';
 export type { StateKind } from './lib/state-block/state-block';
 export { Tab, TabBar } from './lib/tab-bar/tab-bar';
 export { TopBar } from './lib/top-bar/top-bar';
+export { TopBarAction, TopBarActions } from './lib/top-bar/top-bar-action';
 // The CDK dialog surface consumers need for content opened by `Sheet`.
 export { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';

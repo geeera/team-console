@@ -152,6 +152,7 @@ describe('GET /api/v1/projects', () => {
         routineId: null,
         addedAt: '2026-09-30T00:00:00Z',
         archivedAt: null,
+        slots: { pm: 'missing', dev: 'missing', qa: 'missing' },
       },
     ]);
 

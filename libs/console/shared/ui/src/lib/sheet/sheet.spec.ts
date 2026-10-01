@@ -2,6 +2,7 @@ import { DIALOG_DATA } from '@angular/cdk/dialog';
 import { ApplicationInitStatus, Component, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideConsoleI18n } from '@console/shared/i18n';
+import { ConfirmFailure } from './confirm-dialog';
 import { Sheet } from './sheet';
 
 @Component({
@@ -181,6 +182,53 @@ describe('Sheet', () => {
 
       (overlay().querySelector('.tc-confirm__cancel') as HTMLButtonElement).click();
       await expect(pending).resolves.toBe(false);
+    });
+
+    it('#114: shows the points and the field, passes the trimmed value, says why it failed and offers Try again', async () => {
+      const seen: string[] = [];
+      const pending = sheet.confirm({
+        title: 'Pause?',
+        message: '',
+        items: ['Runs exit at once.', 'Questions stay.'],
+        warning: 'Check the run log first.',
+        input: { label: 'Reason', hint: 'Goes into the run log.', maxLength: 300 },
+        confirmLabel: 'Pause',
+        retryLabel: 'Try again',
+        action: async (value) => {
+          seen.push(value);
+          if (seen.length === 1) {
+            throw new ConfirmFailure('Run limit reached; try at 14:00.');
+          }
+        },
+      });
+      await settle();
+      const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+      expect([...dialog.querySelectorAll('.tc-confirm__items li')].map((li) => li.textContent)).toEqual([
+        'Runs exit at once.',
+        'Questions stay.',
+      ]);
+      expect(dialog.querySelector('.tc-confirm__warning')?.textContent?.trim()).toBe(
+        'Check the run log first.',
+      );
+      const input = dialog.querySelector('input') as HTMLInputElement;
+      expect(dialog.querySelector(`label[for="${input.id}"]`)?.textContent).toBe('Reason');
+      expect(input.getAttribute('maxlength')).toBe('300');
+      input.value = '  отпуск  ';
+      input.dispatchEvent(new Event('input'));
+
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await settle();
+      TestBed.tick();
+      expect(seen).toEqual(['отпуск']);
+      expect(dialog.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
+        'Run limit reached; try at 14:00.',
+      );
+      const ok = dialog.querySelector('.tc-confirm__ok') as HTMLButtonElement;
+      expect(ok.textContent?.trim()).toBe('Try again');
+
+      ok.click();
+      await expect(pending).resolves.toBe(true);
+      expect(seen).toEqual(['отпуск', 'отпуск']);
     });
   });
 });

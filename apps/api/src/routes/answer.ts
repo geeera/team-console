@@ -16,20 +16,14 @@ import {
 } from '@shared/owner-grammar';
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import { OwnWritesRepo, type OwnWrite } from '@worker/db';
-import {
-  GitHubClient,
-  GitHubError,
-  assertRepoOwnedBy,
-  githubPath,
-  type OwnerTokenSource,
-  type RepoName,
-} from '@worker/github';
+import { githubPath, type RepoName } from '@worker/github';
 import { ownerOnlyMiddleware } from '../auth/owner-only.middleware';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub, GitHubConnection } from '../github';
 import { jsonBody } from '../json-body';
+import { isNotWritten, ownerWriter, sha256Hex } from '../owner/owner-writer';
 import { findProject, projectNotFound, repoOf } from '../projects/lookup';
-import { readRepository, repositoryClient } from '../projects/repository-checks';
+import { repositoryClient } from '../projects/repository-checks';
 
 type Context = WorkerContext<ApiEnv>;
 
@@ -106,11 +100,6 @@ function invalid(c: Context, detail: string): Response {
   return problem(c, { type: 'validation', title: 'Invalid request', status: 422, detail });
 }
 
-async function sha256Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
 function answered(
   c: Context,
   write: Pick<OwnWrite, 'commentId' | 'url'>,
@@ -126,20 +115,6 @@ function answered(
   return c.json(body, replayed ? 200 : 201);
 }
 
-/**
- * GitHub certainly did not write the comment: the owner token was refused (403 not-connected, only thrown before or
- * instead of a write) or GitHub answered 4xx. After a timeout, a 5xx or an unreadable 2xx it may have.
- */
-function isNotWritten(error: unknown): boolean {
-  if (!(error instanceof GitHubError)) {
-    return false;
-  }
-  if (error.problem.type === 'github-owner-not-connected') {
-    return true;
-  }
-  return error.githubStatus !== null && error.githubStatus >= 400 && error.githubStatus < 500;
-}
-
 interface WriteTarget {
   readonly repo: RepoName;
   readonly registered: string;
@@ -147,10 +122,7 @@ interface WriteTarget {
   readonly body: string;
 }
 
-/**
- * The owner write (ADR 0003 decision 2(b)): the repository must belong to the connected account (login and pinned
- * id), and the comment goes out on the owner's user token — the installation token only reads the repository.
- */
+/** The comment on the owner's token (see `ownerWriter`); `onSent` marks the moment GitHub may have written it. */
 async function writeAsOwner(
   c: Context,
   github: ApiGitHub,
@@ -158,13 +130,7 @@ async function writeAsOwner(
   target: WriteTarget,
   onSent: () => void,
 ): Promise<GitHubComment> {
-  const owner: OwnerTokenSource = await github.ownerConnection(c.env, c.get('logger'));
-  const account = await owner.account();
-  const repository = await readRepository(repositoryClient(installation, target.repo), target.repo);
-  assertRepoOwnedBy(account, repository.owner, target.registered);
-  // Everything the token needs (a refresh, the lease) fails here, before anything is sent.
-  await owner.getToken();
-  const writer = new GitHubClient(github.ownerFetch(c.env), owner);
+  const writer = await ownerWriter(c.env, c.get('logger'), github, installation, target);
   onSent();
   return writer.postJson(
     githubPath`/repos/${target.repo}/issues/${target.number}/comments`,

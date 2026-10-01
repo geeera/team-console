@@ -222,6 +222,38 @@ describe('GitHubClient.postJson', () => {
     expect(error.problem.type).toBe('github-unexpected');
     expect(github.calls).toHaveLength(1);
   });
+
+  describe('delete (#114)', () => {
+    const LABEL = githubPath`/repos/${REPO}/issues/${22}/labels/${'team:paused'}`;
+
+    it('sends one DELETE without a body and refreshes once on 401', async () => {
+      const tokens = ownerTokens();
+      const github = scriptedGitHub((call) =>
+        call.headers.get('authorization') === 'Bearer owner-1'
+          ? json(401, { message: 'Bad credentials' })
+          : json(200, []),
+      );
+      await new GitHubClient(github.fetch, tokens).delete(LABEL);
+      expect(github.calls.map((call) => [call.method, call.body])).toEqual([
+        ['DELETE', undefined],
+        ['DELETE', undefined],
+      ]);
+      expect(new URL(github.calls[0]?.url ?? '').pathname).toBe(
+        '/repos/geeera/team-console/issues/22/labels/team%3Apaused',
+      );
+    });
+
+    it('answers github-not-found for a label that is not there, and never repeats after a 5xx', async () => {
+      const missing = await rejection(
+        new GitHubClient(scriptedGitHub(() => json(404, {})).fetch, ownerTokens()).delete(LABEL),
+      );
+      expect(missing.problem.type).toBe('github-not-found');
+      const github = scriptedGitHub(() => json(503, {}));
+      const down = await rejection(new GitHubClient(github.fetch, ownerTokens()).delete(LABEL));
+      expect(down.problem.type).toBe('github-unavailable');
+      expect(github.calls).toHaveLength(1);
+    });
+  });
 });
 
 describe('GitHubClient.paginate', () => {

@@ -2,6 +2,10 @@
  * Test and local-run only: a stateful stand-in for GitHub's side of the owner connection — the authorize step, the
  * token endpoint (code + PKCE, single-use rotating refresh tokens, errors in a 200's JSON `error`), `GET /user`,
  * grant revocation, and the owner's issue comments (#10: accepted only with a live owner access token). The api specs use it through `fetch`; `nx run api:fake-github` serves it as a local Worker.
+ *
+ * Issue threads (#114): an issue seeded with `seedIssue` is served like a public repository's — `GET` of the issue,
+ * its comments and the repository need no token — and takes labels (`POST …/labels`, `DELETE …/labels/{name}`) and
+ * comments from a live owner token, so the run log can be paused, resumed and read back in one place.
  */
 
 export interface FakeUser {
@@ -60,8 +64,52 @@ export interface FakeCall {
   readonly url: string;
 }
 
+/** An issue thread the fake serves (#114). */
+export interface FakeIssueSeed {
+  readonly repo: string;
+  readonly number: number;
+  readonly title: string;
+  /** Who opened it; the run log trusts its author's entries. */
+  readonly author: string;
+  readonly labels?: readonly string[];
+  /** `owner.login` / `owner.id` of `GET /repos/{repo}`. */
+  readonly repoOwner?: FakeUser;
+}
+
+interface FakeThreadComment {
+  readonly id: number;
+  readonly body: string;
+  readonly author: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/** A comment put straight into a seeded thread (a team entry written earlier, an edited one). */
+export interface FakeThreadCommentSeed {
+  readonly body: string;
+  readonly author: string;
+  /** Milliseconds since the epoch. */
+  readonly createdAt: number;
+  /** Defaults to `createdAt`; a later value makes the comment edited. */
+  readonly updatedAt?: number;
+}
+
+interface FakeIssue {
+  readonly seed: FakeIssueSeed;
+  readonly labels: string[];
+  readonly comments: FakeThreadComment[];
+}
+
 const CODE_LIFETIME_MS = 10 * 60 * 1000;
 const COMMENTS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/([0-9]+)\/comments$/;
+const ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/([0-9]+)$/;
+const LABELS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/([0-9]+)\/labels(?:\/([^/]+))?$/;
+const REPO_PATH = /^\/repos\/([^/]+)\/([^/]+)$/;
+
+/** GitHub's second-precision timestamps. */
+function githubTime(ms: number): string {
+  return `${new Date(ms).toISOString().slice(0, 19)}Z`;
+}
 
 function random(bytes: number): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) =>
@@ -94,6 +142,7 @@ export class FakeGitHubOAuth {
   private readonly grants = new Map<number, { readonly user: FakeUser; active: boolean }>();
   private nextGrant = 1;
   private readonly now: () => number;
+  private readonly issues = new Map<string, FakeIssue>();
 
   constructor(private readonly options: FakeGitHubOAuthOptions) {
     this.now = options.now ?? (() => Date.now());
@@ -141,6 +190,37 @@ export class FakeGitHubOAuth {
     return code;
   }
 
+  /** Serves an issue thread (#114); seeding it again resets its labels and comments. */
+  seedIssue(seed: FakeIssueSeed): void {
+    this.issues.set(`${seed.repo.toLowerCase()}#${seed.number}`, {
+      seed,
+      labels: [...(seed.labels ?? [])],
+      comments: [],
+    });
+  }
+
+  /** Appends a comment to a seeded thread, as if written at `createdAt`. */
+  addComment(repo: string, number: number, seed: FakeThreadCommentSeed): number {
+    const issue = this.issues.get(`${repo.toLowerCase()}#${number}`);
+    if (issue === undefined) {
+      throw new Error(`the fake GitHub serves no issue ${repo}#${number}`);
+    }
+    const id = 6_000_000 + issue.comments.length + 1;
+    issue.comments.push({
+      id,
+      body: seed.body,
+      author: seed.author,
+      createdAt: githubTime(seed.createdAt),
+      updatedAt: githubTime(seed.updatedAt ?? seed.createdAt),
+    });
+    return id;
+  }
+
+  /** The labels of a seeded issue, for assertions. */
+  labelsOf(repo: string, number: number): readonly string[] {
+    return this.issues.get(`${repo.toLowerCase()}#${number}`)?.labels ?? [];
+  }
+
   /** Issues a pair without the web flow (to seed a connection in tests). */
   issuePair(user: FakeUser = this.user): { accessToken: string; refreshToken: string } {
     const grant = this.nextGrant++;
@@ -171,6 +251,12 @@ export class FakeGitHubOAuth {
     const comments = COMMENTS_PATH.exec(url.pathname);
     if (url.origin === 'https://api.github.com' && request.method === 'POST' && comments !== null) {
       return this.commentEndpoint(request, `${comments[1] ?? ''}/${comments[2] ?? ''}`, Number(comments[3]));
+    }
+    if (url.origin === 'https://api.github.com') {
+      const thread = await this.threadEndpoint(request, url);
+      if (thread !== null) {
+        return thread;
+      }
     }
     const revoke = /^\/applications\/([^/]+)\/grant$/.exec(url.pathname);
     if (url.origin === 'https://api.github.com' && request.method === 'DELETE' && revoke !== null) {
@@ -250,6 +336,126 @@ export class FakeGitHubOAuth {
     return json(200, this.pairBody(pair));
   }
 
+  private issueOf(
+    owner: string | undefined,
+    name: string | undefined,
+    number: string | undefined,
+  ): FakeIssue | undefined {
+    return this.issues.get(`${`${owner ?? ''}/${name ?? ''}`.toLowerCase()}#${Number(number)}`);
+  }
+
+  /** Reads and label writes of seeded issue threads; `null` when the path is not one of them. */
+  private async threadEndpoint(request: Request, url: URL): Promise<Response | null> {
+    const method = request.method;
+    const issuePath = ISSUE_PATH.exec(url.pathname);
+    if (method === 'GET' && issuePath !== null) {
+      const issue = this.issueOf(issuePath[1], issuePath[2], issuePath[3]);
+      return issue === undefined ? json(404, { message: 'Not Found' }) : json(200, this.issueJson(issue));
+    }
+    const commentsPath = COMMENTS_PATH.exec(url.pathname);
+    if (method === 'GET' && commentsPath !== null) {
+      const issue = this.issueOf(commentsPath[1], commentsPath[2], commentsPath[3]);
+      if (issue === undefined) {
+        return json(404, { message: 'Not Found' });
+      }
+      const perPage = Math.min(Math.max(Number(url.searchParams.get('per_page') ?? 30) || 30, 1), 100);
+      const page = Math.max(Number(url.searchParams.get('page') ?? 1) || 1, 1);
+      const items = issue.comments
+        .slice((page - 1) * perPage, page * perPage)
+        .map((c) => this.commentJson(issue, c));
+      const headers: Record<string, string> = {};
+      if (page * perPage < issue.comments.length) {
+        const next = new URL(url.href);
+        next.searchParams.set('page', String(page + 1));
+        next.searchParams.set('per_page', String(perPage));
+        headers['Link'] = `<${next.href}>; rel="next"`;
+      }
+      return new Response(JSON.stringify(items), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...headers },
+      });
+    }
+    const labelsPath = LABELS_PATH.exec(url.pathname);
+    if ((method === 'POST' || method === 'DELETE') && labelsPath !== null) {
+      const issue = this.issueOf(labelsPath[1], labelsPath[2], labelsPath[3]);
+      if (issue === undefined) {
+        return json(404, { message: 'Not Found' });
+      }
+      if (this.grantOfBearer(request) === undefined) {
+        return json(401, { message: 'Bad credentials' });
+      }
+      if (method === 'POST') {
+        const body = (await request.json()) as { labels?: unknown };
+        const names = Array.isArray(body.labels)
+          ? body.labels.filter((x): x is string => typeof x === 'string')
+          : [];
+        for (const name of names) {
+          if (!issue.labels.includes(name)) {
+            issue.labels.push(name);
+          }
+        }
+        return json(
+          200,
+          issue.labels.map((name) => ({ name })),
+        );
+      }
+      const name = decodeURIComponent(labelsPath[4] ?? '');
+      const at = issue.labels.indexOf(name);
+      if (at < 0) {
+        return json(404, { message: 'Label does not exist' });
+      }
+      issue.labels.splice(at, 1);
+      return json(
+        200,
+        issue.labels.map((label) => ({ name: label })),
+      );
+    }
+    const repoPath = REPO_PATH.exec(url.pathname);
+    if (method === 'GET' && repoPath !== null) {
+      const fullName = `${repoPath[1] ?? ''}/${repoPath[2] ?? ''}`;
+      const seeded = [...this.issues.values()].find(
+        (issue) =>
+          issue.seed.repo.toLowerCase() === fullName.toLowerCase() && issue.seed.repoOwner !== undefined,
+      );
+      return seeded?.seed.repoOwner === undefined
+        ? json(404, { message: 'Not Found' })
+        : json(200, {
+            full_name: seeded.seed.repo,
+            private: false,
+            default_branch: 'dev',
+            owner: { login: seeded.seed.repoOwner.login, id: seeded.seed.repoOwner.id, type: 'User' },
+          });
+    }
+    return null;
+  }
+
+  private issueJson(issue: FakeIssue): Record<string, unknown> {
+    const { repo, number, title, author } = issue.seed;
+    return {
+      number,
+      title,
+      state: 'open',
+      body: '',
+      labels: issue.labels.map((name) => ({ name })),
+      user: { login: author, type: 'User' },
+      author_association: 'OWNER',
+      html_url: `https://github.com/${repo}/issues/${number}`,
+      comments: issue.comments.length,
+    };
+  }
+
+  private commentJson(issue: FakeIssue, comment: FakeThreadComment): Record<string, unknown> {
+    return {
+      id: comment.id,
+      body: comment.body,
+      user: { login: comment.author, type: 'User' },
+      author_association: 'OWNER',
+      created_at: comment.createdAt,
+      updated_at: comment.updatedAt,
+      html_url: `https://github.com/${issue.seed.repo}/issues/${issue.seed.number}#issuecomment-${comment.id}`,
+    };
+  }
+
   private userEndpoint(request: Request): Response {
     if (this.takeFault('user-unavailable')) {
       return json(503, { message: 'unavailable' });
@@ -298,6 +504,15 @@ export class FakeGitHubOAuth {
       author: grant.user.login,
     };
     this.comments.push(comment);
+    const thread = this.issues.get(`${repo.toLowerCase()}#${issue}`);
+    const at = githubTime(this.now());
+    thread?.comments.push({
+      id: comment.id,
+      body: comment.body,
+      author: comment.author,
+      createdAt: at,
+      updatedAt: at,
+    });
     return json(201, {
       id: comment.id,
       html_url: `https://github.com/${repo}/issues/${issue}#issuecomment-${comment.id}`,

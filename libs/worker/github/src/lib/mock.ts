@@ -25,7 +25,8 @@ export interface MockRepository {
   readonly files?: Readonly<Record<string, string>>;
   /**
    * Issues as GitHub sends them (pull requests included), newest first: `GET …/issues?state=&milestone=` lists
-   * them, `GET …/issues/{number}` (the answer route, #10) reads one.
+   * them, `GET …/issues/{number}` (the answer route, #10) reads one, `GET …/issues/{number}/comments` (the run log,
+   * #114) answers an empty thread for any of them.
    */
   readonly issues?: readonly Readonly<Record<string, unknown>>[];
   /** `GET …/milestones?state=` */
@@ -169,10 +170,11 @@ class MockGitHubServer {
     const listed = segments.length === 4 ? segments[3] : undefined;
     const isListRead = listed === 'issues' || listed === 'milestones' || listed === 'pulls';
     const isIssueRead = segments.length === 5 && segments[3] === 'issues';
+    const isCommentsRead = segments.length === 6 && segments[3] === 'issues' && segments[5] === 'comments';
     if (
       method === 'GET' &&
       segments[0] === 'repos' &&
-      (isRepositoryRead || isContentsRead || isListRead || isIssueRead)
+      (isRepositoryRead || isContentsRead || isListRead || isIssueRead || isCommentsRead)
     ) {
       const repo = `${segments[1]}/${segments[2]}`;
       const token = this.issued.get(bearer);
@@ -196,6 +198,11 @@ class MockGitHubServer {
       }
       if (isIssueRead) {
         return this.issue(found.fixture, segments[4] ?? '');
+      }
+      if (isCommentsRead) {
+        const issue = this.issue(found.fixture, segments[4] ?? '');
+        await issue.body?.cancel();
+        return issue.ok ? json(200, []) : notFound();
       }
       return found.fixture.repository === undefined ? notFound() : json(200, found.fixture.repository);
     }

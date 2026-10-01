@@ -63,6 +63,34 @@ export function fakeGitHubFetch(env: ApiEnv, base: FetchLike): FetchLike {
   };
 }
 
+const ISSUE_THREAD_PATH = /^\/repos\/[^/]+\/[^/]+\/issues\/[0-9]+(?:\/comments)?$/;
+
+/**
+ * Local runs only, with both `GITHUB_MOCK` and `GITHUB_FAKE_ORIGIN` (#114): owner writes (labels, comments) land on
+ * the fake GitHub, so the reads of an issue thread the fake serves come from there too — after the mock has checked
+ * the installation token, as GitHub would. Threads the fake does not serve keep the mock's answer.
+ */
+export function localIssueThreads(env: ApiEnv, mockFetch: FetchLike, base: FetchLike): FetchLike {
+  const configured = env.ENVIRONMENT === 'local' ? env.GITHUB_FAKE_ORIGIN?.trim() : undefined;
+  if (configured === undefined || configured === '') {
+    return mockFetch;
+  }
+  const fake = fakeGitHubFetch(env, base);
+  return async (input, init) => {
+    const mocked = await mockFetch(input, init);
+    if ((init.method ?? 'GET') !== 'GET' || !ISSUE_THREAD_PATH.test(new URL(input).pathname) || !mocked.ok) {
+      return mocked;
+    }
+    const faked = await fake(input, { method: 'GET', headers: { Accept: 'application/json' } });
+    if (faked.status === 404) {
+      await faked.body?.cancel();
+      return mocked;
+    }
+    await mocked.body?.cancel();
+    return faked;
+  };
+}
+
 /**
  * The api Worker's GitHub state for one isolate (created once in `createApiApp`): the app's installation-token
  * cache and the read cache. Mock mode (`GITHUB_MOCK=true`) is honoured only with `ENVIRONMENT=local`; on any
@@ -143,7 +171,8 @@ export class ApiGitHub {
 
   async connect(env: ApiEnv): Promise<GitHubConnection> {
     if (isGitHubMockEnabled(env)) {
-      return this.mockConnection();
+      const mock = await this.mockConnection();
+      return { auth: mock.auth, fetch: localIssueThreads(env, mock.fetch, this.fetcher) };
     }
     // Missing or malformed values fail inside GitHubAppAuth as 503 github-auth, before any request is sent.
     const appId = env.GITHUB_APP_ID ?? '';

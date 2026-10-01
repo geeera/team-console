@@ -10,10 +10,55 @@
     </a>
     }
   </nav>
+  } @if (!isPhone()) {
+  <button
+    tc-button
+    type="button"
+    class="space__commands"
+    data-testid="commands-open"
+    aria-controls="tc-space-commands"
+    aria-keyshortcuts="K"
+    [attr.aria-label]="'commands.openAria' | transloco: { name: commandsProject().name }"
+    [attr.aria-expanded]="isPaneOpen()"
+    (click)="toggleCommands()"
+  >
+    <tc-icon name="sliders" size="sm" />
+    {{ 'commands.open' | transloco }}
+    <kbd class="space__kbd" aria-hidden="true">K</kbd>
+  </button>
+  } @else {
+  <!-- The phone: in the shell's top bar, as the design places it. -->
+  <ng-template tcTopBarAction>
+    <button
+      tc-button
+      size="sm"
+      type="button"
+      data-testid="commands-open"
+      aria-haspopup="dialog"
+      [attr.aria-label]="'commands.openAria' | transloco: { name: commandsProject().name }"
+      (click)="toggleCommands()"
+    >
+      <tc-icon name="sliders" size="sm" />
+      {{ 'commands.open' | transloco }}
+    </button>
+  </ng-template>
   }
 </header>
 
-<div class="space__body"><router-outlet /></div>
+<tc-paused-banner class="space__banner" [project]="commandsProject()" />
+
+<div class="space__main">
+  <div class="space__body"><router-outlet /></div>
+  @if (isPaneOpen()) {
+  <aside
+    id="tc-space-commands"
+    class="space__pane"
+    [attr.aria-label]="'commands.title' | transloco: { name: commandsProject().name }"
+  >
+    <tc-commands-panel mode="pane" [project]="commandsProject()" (closed)="closePane()" />
+  </aside>
+  }
+</div>
 
 @if (isPhone()) {
 <nav tc-tab-bar bottom [attr.aria-label]="'space.sections' | transloco">

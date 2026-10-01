@@ -135,6 +135,8 @@
   --dur-base: 240ms;
   --dur-slow: 380ms;
   --dur-sig: 620ms;
+  /* a run in progress breathes slowly (#114); never collapsed — under reduced motion the dot stands still */
+  --dur-pulse: 1600ms;
 
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-enter: cubic-bezier(0, 0, 0.2, 1);

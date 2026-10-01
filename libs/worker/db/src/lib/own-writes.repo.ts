@@ -1,4 +1,4 @@
-export type OwnWriteKind = 'answer' | 'chat';
+export type OwnWriteKind = 'answer' | 'chat' | 'pause' | 'resume';
 
 /** A comment the console wrote with the owner's token (`own_writes`, migration 0007). */
 export interface OwnWrite {
