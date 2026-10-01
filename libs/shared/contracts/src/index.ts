@@ -24,3 +24,12 @@ export type {
   UpdateProjectRequest,
 } from './lib/project';
 export type { ProjectRepositoryDto } from './lib/repository';
+export { ANSWER_TEXT_MAX_LENGTH } from './lib/answer';
+export type {
+  AnswerCommand,
+  AnswerProblem,
+  AnswerRefusalCode,
+  AnswerRequest,
+  AnswerResponse,
+  Section,
+} from './lib/answer';

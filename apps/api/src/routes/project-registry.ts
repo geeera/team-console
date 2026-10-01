@@ -11,6 +11,7 @@ import { ProjectSignalsRepo, ProjectsRepo, toProjectDto } from '@worker/db';
 import { isRepoOwnedBy, isValidRepoName, readCacheKey, type OwnerAccount } from '@worker/github';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
+import { jsonBody } from '../json-body';
 import { findProject, projectNotFound, repoOf } from '../projects/lookup';
 import type { OwnerConnectionSource } from '../projects/owner-connection';
 import {
@@ -46,16 +47,6 @@ function refused(c: Context, refusal: RequestRefusal): Response {
     detail: refusal.detail,
   };
   return refusal.step === null ? problem(c, init) : stepProblem(c, { ...init, step: refusal.step });
-}
-
-/** The JSON body, or `undefined` when there is none or it is not JSON (the parsers then refuse it). */
-async function jsonBody(c: Context): Promise<unknown> {
-  try {
-    return (await c.req.json()) as unknown;
-  } catch {
-    // Malformed JSON is the client's input, answered as a validation problem; the parser's message is dropped.
-    return undefined;
-  }
 }
 
 /**

@@ -85,6 +85,15 @@ export class ApiGitHub {
     this.sleep = options.sleep;
   }
 
+  /** Waits `ms` (the sleep seam when a test set one). */
+  async pause(ms: number): Promise<void> {
+    if (this.sleep !== undefined) {
+      await this.sleep(ms);
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   /** The app's OAuth side (owner connection, #59); 503 `github-auth` when the client id or secret is missing. */
   oauth(env: ApiEnv): GitHubOAuth {
     const credentials = {
@@ -122,6 +131,14 @@ export class ApiGitHub {
       now: this.now,
       ...(this.sleep === undefined ? {} : { sleep: this.sleep }),
     });
+  }
+
+  /**
+   * The transport of owner writes (#10): api.github.com, or on a local run with `GITHUB_FAKE_ORIGIN` the fake GitHub
+   * that also holds the owner's tokens. Never the mock of `GITHUB_MOCK`, which knows installation tokens only.
+   */
+  ownerFetch(env: ApiEnv): FetchLike {
+    return fakeGitHubFetch(env, this.fetcher);
   }
 
   async connect(env: ApiEnv): Promise<GitHubConnection> {

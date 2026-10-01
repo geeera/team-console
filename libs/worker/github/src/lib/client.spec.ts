@@ -123,6 +123,107 @@ describe('GitHubClient.getJson', () => {
   });
 });
 
+describe('GitHubClient.postJson', () => {
+  const isComment = (value: unknown): value is { id: number } =>
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as Record<string, unknown>)['id'] === 'number';
+
+  /** An owner source whose tokens rotate on every refresh, like #59's connection. */
+  function ownerTokens(): TokenSource & { invalidated: string[]; issued: number } {
+    const state = { invalidated: [] as string[], issued: 0 };
+    return {
+      kind: 'owner',
+      get invalidated() {
+        return state.invalidated;
+      },
+      get issued() {
+        return state.issued;
+      },
+      getToken: async () => {
+        state.issued += 1;
+        return `owner-${state.issued}`;
+      },
+      invalidate: (value) => state.invalidated.push(value),
+    };
+  }
+
+  const PATH = githubPath`/repos/${REPO}/issues/${7}/comments`;
+
+  it('posts the JSON body with the source token and narrows the answer', async () => {
+    const github = scriptedGitHub(() => json(201, { id: 99, html_url: 'https://github.com/x' }));
+    await expect(
+      new GitHubClient(github.fetch, ownerTokens()).postJson(PATH, { body: 'hi' }, isComment),
+    ).resolves.toMatchObject({ id: 99 });
+    expect(github.calls).toHaveLength(1);
+    expect(github.calls[0]).toMatchObject({ method: 'POST', body: '{"body":"hi"}', redirect: 'manual' });
+    expect(github.calls[0]?.headers.get('authorization')).toBe('Bearer owner-1');
+    expect(github.calls[0]?.headers.get('content-type')).toBe('application/json');
+  });
+
+  it('refreshes once on 401 and sends again with the new token', async () => {
+    const tokens = ownerTokens();
+    const github = scriptedGitHub((call) =>
+      call.headers.get('authorization') === 'Bearer owner-1'
+        ? json(401, { message: 'Bad credentials' })
+        : json(201, { id: 1 }),
+    );
+    await expect(new GitHubClient(github.fetch, tokens).postJson(PATH, {}, isComment)).resolves.toEqual({
+      id: 1,
+    });
+    expect(tokens.invalidated).toEqual(['owner-1']);
+    expect(github.calls.map((call) => call.headers.get('authorization'))).toEqual([
+      'Bearer owner-1',
+      'Bearer owner-2',
+    ]);
+  });
+
+  it('answers 403 github-owner-not-connected when the refreshed owner token is refused too', async () => {
+    const github = scriptedGitHub(() => json(401, { message: 'Bad credentials' }));
+    const error = await rejection(
+      new GitHubClient(github.fetch, ownerTokens()).postJson(PATH, {}, isComment),
+    );
+    expect(error.problem).toMatchObject({
+      type: 'github-owner-not-connected',
+      status: 403,
+      extensions: { connectUrl: '/api/v1/github/connect' },
+    });
+    expect(github.calls).toHaveLength(2);
+  });
+
+  it.each([
+    ['a 5xx', () => json(502, { message: 'bad gateway' }), 'github-unavailable'],
+    [
+      'a timeout or network failure',
+      () => Promise.reject(new DOMException('timed out', 'TimeoutError')),
+      'github-unavailable',
+    ],
+    ['a rate limit', () => json(403, {}, { 'retry-after': '60' }), 'github-rate-limit'],
+  ] as const)('never sends the write again after %s', async (_, reply, type) => {
+    const github = scriptedGitHub(reply);
+    const error = await rejection(
+      new GitHubClient(github.fetch, ownerTokens()).postJson(PATH, {}, isComment),
+    );
+    expect(error.problem.type).toBe(type);
+    expect(github.calls).toHaveLength(1);
+  });
+
+  it('never follows a redirect on a write', async () => {
+    const github = scriptedGitHub(
+      () =>
+        new Response(null, {
+          status: 307,
+          headers: { location: 'https://api.github.com/repos/a/b/issues/7/comments' },
+        }),
+    );
+    const error = await rejection(
+      new GitHubClient(github.fetch, ownerTokens()).postJson(PATH, {}, isComment),
+    );
+    expect(error.problem.type).toBe('github-unexpected');
+    expect(github.calls).toHaveLength(1);
+  });
+});
+
 describe('GitHubClient.paginate', () => {
   function pages(links: Record<string, string | undefined>, bodies: Record<string, unknown>) {
     return scriptedGitHub((call) => {

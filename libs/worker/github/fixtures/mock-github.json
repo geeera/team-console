@@ -15,6 +15,48 @@
       },
       "files": {
         ".product-team/project.yml": "# The product team's contract for this repository.\nname: Team Console\nrepo: geeera/team-console\nmode: new\n\nowner:\n  language: ru   # owner-facing copy\n  timezone: Europe/Kyiv\n"
+      },
+      "issues": {
+        "7": {
+          "title": "Which login screen copy?",
+          "state": "open",
+          "labels": [
+            "kind:question",
+            "owner:scope",
+            "status:proposed"
+          ]
+        },
+        "8": {
+          "title": "Sprint 01 demo",
+          "state": "open",
+          "labels": [
+            "team:demo",
+            "kind:chore"
+          ]
+        },
+        "9": {
+          "title": "Create the Cloudflare account",
+          "state": "open",
+          "labels": [
+            "needs:owner",
+            "kind:chore"
+          ]
+        },
+        "10": {
+          "title": "An answered question",
+          "state": "closed",
+          "labels": [
+            "kind:question"
+          ]
+        },
+        "11": {
+          "title": "A feature in progress",
+          "state": "open",
+          "labels": [
+            "kind:feature",
+            "status:in-progress"
+          ]
+        }
       }
     },
     "geeera/private-product": {

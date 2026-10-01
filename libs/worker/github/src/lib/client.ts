@@ -1,4 +1,4 @@
-import { githubUnexpectedError, mapGitHubResponse } from './errors';
+import { githubUnexpectedError, mapGitHubResponse, ownerNotConnectedError } from './errors';
 import { githubPathOf, type GitHubPath } from './github-path';
 import type { TokenSource } from './token-source';
 import { discardBody, githubRequest, onGitHubApi, readGitHubJson, type FetchLike } from './transport';
@@ -62,6 +62,32 @@ export class GitHubClient {
       next = nextUrl === null ? null : githubPathOf(nextUrl);
     }
     return items;
+  }
+
+  /**
+   * POST one resource — an owner write (#10) — and narrow GitHub's answer with the guard. Never retried after a
+   * timeout, a network failure or a 5xx: GitHub may have written it, and a retry could post twice. A 401 is the one
+   * retry: GitHub refused the token before writing anything, so the source refreshes once (#59) and the request is
+   * sent again; a second 401 on the owner's token is 403 `github-owner-not-connected`, never a fallback token.
+   */
+  async postJson<T>(path: GitHubPath, body: unknown, guard: JsonGuard<T>): Promise<T> {
+    let token = await this.tokens.getToken();
+    let response = await githubRequest(this.fetcher, { method: 'POST', path, bearer: token, body });
+    if (response.status === 401) {
+      await discardBody(response);
+      this.tokens.invalidate(token);
+      token = await this.tokens.getToken();
+      response = await githubRequest(this.fetcher, { method: 'POST', path, bearer: token, body });
+      if (response.status === 401 && this.tokens.kind === 'owner') {
+        await discardBody(response);
+        throw ownerNotConnectedError();
+      }
+    }
+    if (!response.ok) {
+      await discardBody(response);
+      throw mapGitHubResponse(response);
+    }
+    return this.parse(response, guard);
   }
 
   private async get(path: GitHubPath): Promise<Response> {
