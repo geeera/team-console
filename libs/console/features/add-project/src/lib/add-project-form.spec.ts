@@ -111,7 +111,7 @@ describe('AddProjectForm', () => {
 
     await type('');
     await submit();
-    expect(root.querySelector('.tc-field__error')?.textContent).toContain('Введи репозиторий');
+    expect(root.querySelector('.tc-field__error')?.textContent).toContain('Введите репозиторий');
   });
 
   it('not connected: says to connect first, offers Connect and sends nothing', async () => {
@@ -120,7 +120,7 @@ describe('AddProjectForm', () => {
     await submit();
 
     expect(root.querySelector('[data-testid="need-connect"] h2')?.textContent?.trim()).toBe(
-      'Сначала подключи GitHub',
+      'Сначала подключите GitHub',
     );
     expect(root.querySelector('tc-connect-github-button')).not.toBeNull();
     expect(root.querySelector('[data-testid="add-submit"]')?.getAttribute('aria-disabled')).toBe('true');

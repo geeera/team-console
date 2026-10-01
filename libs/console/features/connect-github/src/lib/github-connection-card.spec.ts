@@ -201,7 +201,7 @@ describe('GitHubConnectionCard', () => {
     await settle();
 
     const note = root.querySelector('.gh__incomplete') as HTMLElement;
-    expect(note.textContent).toContain('Отзови его сам в настройках GitHub');
+    expect(note.textContent).toContain('Отзовите его сами в настройках GitHub');
     expect(note.querySelector('a')?.getAttribute('href')).toBe('https://github.com/settings/applications');
   });
 });

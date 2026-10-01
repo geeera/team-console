@@ -154,8 +154,8 @@
               <li class="cp-slot">
                 <span class="cp-slot__name">{{ line.name }}</span>
                 @for (command of line.commands; track command.what) {
-                <div class="cp-code">
-                  <code>{{ command.text }}</code>
+                <div class="cp-code tc-code-row">
+                  <code class="tc-code-row__code">{{ command.text }}</code>
                   <button
                     tc-button
                     size="sm"

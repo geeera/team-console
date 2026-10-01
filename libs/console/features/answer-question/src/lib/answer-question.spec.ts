@@ -226,7 +226,7 @@ describe('AnswerQuestion', () => {
     await fixture.whenStable();
 
     const connect = root.querySelector('[data-testid="answer-connect"]') as HTMLElement;
-    expect(connect.textContent).toContain('Подключи GitHub');
+    expect(connect.textContent).toContain('Подключите GitHub');
     expect(connect.querySelector('a')?.getAttribute('href')).toBe('/settings');
     expect(root.querySelector('[data-testid="answer-error"]')).toBeNull();
     expect(root.querySelector('[role="alert"]')).toBeNull();
