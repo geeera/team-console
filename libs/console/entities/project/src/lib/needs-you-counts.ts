@@ -2,6 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
+import { ProjectsStore } from './projects.store';
 
 export const NEEDS_YOU_URL = '/api/v1/needs-you';
 /** Badges are a hint, not a feed: one poll a minute while the app is visible is enough. */
@@ -45,11 +46,18 @@ export function countNeedsYouBySlug(body: unknown): Readonly<Record<string, numb
 export class NeedsYouCounts {
   private readonly http = inject(HttpClient);
   private readonly document = inject(DOCUMENT);
+  private readonly projects = inject(ProjectsStore);
 
   private inFlight: Promise<void> | null = null;
 
   readonly counts = signal<Readonly<Record<string, number>>>({});
-  readonly total = computed(() => Object.values(this.counts()).reduce((sum, count) => sum + count, 0));
+  /** Active projects only once the list is known: an archived project leaves the badge at once (#24). */
+  readonly total = computed(() => {
+    const isKnown = this.projects.status() === 'ready';
+    return Object.entries(this.counts())
+      .filter(([slug]) => !isKnown || this.projects.isActive(slug))
+      .reduce((sum, [, count]) => sum + count, 0);
+  });
 
   countOf(slug: string): number {
     return this.counts()[slug] ?? 0;

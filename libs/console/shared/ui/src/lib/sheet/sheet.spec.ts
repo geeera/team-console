@@ -101,4 +101,86 @@ describe('Sheet', () => {
     (overlay().querySelector('.tc-confirm__cancel') as HTMLButtonElement).click();
     await expect(declined).resolves.toBe(false);
   });
+
+  it('confirm() describes the dialog with its message and shows the note', async () => {
+    const pending = sheet.confirm({
+      title: 'Archive?',
+      message: 'It leaves the list.',
+      note: 'GitHub stays.',
+    });
+    await settle();
+
+    const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+    const describedBy = dialog.getAttribute('aria-describedby') ?? '';
+    expect(document.getElementById(describedBy)?.textContent).toBe('It leaves the list.');
+    expect(dialog.querySelector('.tc-confirm__note')?.textContent).toBe('GitHub stays.');
+
+    (dialog.querySelector('.tc-confirm__cancel') as HTMLButtonElement).click();
+    await expect(pending).resolves.toBe(false);
+  });
+
+  describe('confirm() with an action', () => {
+    function deferred(): { promise: Promise<void>; resolve: () => void; reject: (error: Error) => void } {
+      let resolve: () => void = () => undefined;
+      let reject: (error: Error) => void = () => undefined;
+      const promise = new Promise<void>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    }
+
+    const escape = (): void => {
+      overlay()
+        .querySelector('tc-sheet-container')
+        ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+    };
+
+    it('stays open and busy while the action runs, ignoring Escape, then resolves true', async () => {
+      const work = deferred();
+      const pending = sheet.confirm({
+        title: 'Archive?',
+        message: 'Sure?',
+        confirmLabel: 'Archive',
+        busyLabel: 'Archiving…',
+        action: () => work.promise,
+      });
+      await settle();
+      const ok = overlay().querySelector('.tc-confirm__ok') as HTMLButtonElement;
+
+      ok.click();
+      await settle();
+      TestBed.tick();
+      expect(ok.textContent?.trim()).toBe('Archiving…');
+      expect(ok.getAttribute('aria-disabled')).toBe('true');
+      escape();
+      (overlay().querySelector('.tc-sheet__close') as HTMLButtonElement).click();
+      await settle();
+      expect(overlay().querySelector('tc-sheet-container')).not.toBeNull();
+
+      work.resolve();
+      await expect(pending).resolves.toBe(true);
+    });
+
+    it('a failed action keeps the dialog open with an alert; Cancel then resolves false', async () => {
+      const work = deferred();
+      const pending = sheet.confirm({
+        title: 'Archive?',
+        message: 'Sure?',
+        errorMessage: 'Could not archive.',
+        action: () => work.promise,
+      });
+      await settle();
+      (overlay().querySelector('.tc-confirm__ok') as HTMLButtonElement).click();
+      work.reject(new Error('offline'));
+      await settle();
+      TestBed.tick();
+
+      expect(overlay().querySelector('[role="alert"]')?.textContent?.trim()).toBe('Could not archive.');
+      expect(overlay().querySelector('tc-sheet-container')).not.toBeNull();
+
+      (overlay().querySelector('.tc-confirm__cancel') as HTMLButtonElement).click();
+      await expect(pending).resolves.toBe(false);
+    });
+  });
 });

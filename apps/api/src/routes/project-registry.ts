@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import {
   GITHUB_CONNECT_PATH,
+  routineSecretName,
   type AddProjectStep,
   type ProjectDto,
   type ProjectSetupDto,
@@ -26,7 +27,6 @@ import {
   type RepositoryRead,
 } from '../projects/repository-checks';
 import { isRefusal, parseAddProject, parseUpdateProject, type RequestRefusal } from '../projects/requests';
-import { routineSecretName } from '../projects/slug';
 
 // The registry's bodies are a few short strings; anything bigger is not ours.
 const MAX_BODY_BYTES = 4 * 1024;
@@ -82,6 +82,7 @@ function setupOf(
     accessLostAt: signals.accessLostAt,
     ownerLanguage: facts.ownerLanguage,
     ...(facts.appInstalled === 'missing' ? { installUrl: installUrlFor(environment) } : {}),
+    ...(facts.owner === null ? {} : { repoOwnerLogin: facts.owner.login }),
   };
 }
 
@@ -163,6 +164,8 @@ export function createProjectRegistryRoutes(
           status: 409,
           step: 'repo-owner',
           detail: `${read.fullName} is owned by ${read.owner.login}, not by the connected account ${owner.login}`,
+          // Both logins are named in Settings' copy (#24), so the client never parses `detail`.
+          extensions: { repoOwner: read.owner.login, login: owner.login },
         });
       }
 

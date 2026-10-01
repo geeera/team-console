@@ -12,6 +12,9 @@ const form = `
     <tc-field [label]="'stories.field.repoLabel' | transloco" [error]="'stories.field.repoInvalidError' | transloco" required>
       <input tcInput type="text" name="repo-invalid" value="team console" />
     </tc-field>
+    <tc-field [label]="'stories.field.repoLabel' | transloco" [hint]="'stories.field.repoHint' | transloco" [note]="'stories.field.repoNote' | transloco" required>
+      <input tcInput type="text" name="repo-note" value="geeera/team-console" />
+    </tc-field>
     <tc-field [label]="'stories.field.reasonLabel' | transloco" [hint]="'stories.field.reasonHint' | transloco">
       <textarea tcInput name="reason" rows="3"></textarea>
     </tc-field>

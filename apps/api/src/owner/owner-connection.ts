@@ -86,8 +86,11 @@ export class OwnerConnection implements OwnerTokenSource {
     this.sleep = deps.sleep ?? (async (ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   }
 
-  /** What Settings shows (`GET /connection`); a row under a rotated key is dropped here too. Never a token. */
-  async status(): Promise<GitHubConnectionDto> {
+  /**
+   * What Settings shows (`GET /connection`) before the route adds the config it knows (owner login, app name); a
+   * row under a rotated key is dropped here too. Never a token.
+   */
+  async status(): Promise<Omit<GitHubConnectionDto, 'appName' | 'ownerLogin'>> {
     const row = await this.repo.find(this.environment);
     if (row === null) {
       return { state: 'not-connected' };

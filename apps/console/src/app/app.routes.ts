@@ -22,7 +22,7 @@ export const appRoutes: Route[] = [
   },
   { path: 'needs-you', loadComponent: () => import('@console/pages/needs-you').then((m) => m.NeedsYouPage) },
   { path: 'overview', loadComponent: () => import('@console/pages/overview').then((m) => m.OverviewPage) },
-  { path: 'settings', loadComponent: () => import('@console/pages/settings').then((m) => m.SettingsPage) },
+  { path: 'settings', loadChildren: () => import('@console/pages/settings').then((m) => m.settingsRoutes) },
   {
     path: '**',
     data: { reason: 'route' },

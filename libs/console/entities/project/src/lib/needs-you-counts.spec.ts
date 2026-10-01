@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { countNeedsYouBySlug, NEEDS_YOU_REFRESH_MS, NEEDS_YOU_URL, NeedsYouCounts } from './needs-you-counts';
+import { PROJECTS_URL, ProjectsStore } from './projects.store';
 
 describe('countNeedsYouBySlug', () => {
   it('counts items per project slug from a bare array or an items envelope', () => {
@@ -46,6 +47,37 @@ describe('NeedsYouCounts', () => {
     expect(counts.countOf('a')).toBe(2);
     expect(counts.countOf('b')).toBe(0);
     expect(counts.total()).toBe(2);
+  });
+
+  it('leaves an archived project out of the total once the project list is known', async () => {
+    const projects = TestBed.inject(ProjectsStore);
+    const loaded = projects.load();
+    http.expectOne(PROJECTS_URL).flush([
+      {
+        slug: 'a',
+        repo: 'geeera/a',
+        displayName: 'a',
+        routineId: null,
+        addedAt: '2026-09-29T00:00:00.000Z',
+        archivedAt: null,
+      },
+      {
+        slug: 'b',
+        repo: 'geeera/b',
+        displayName: 'b',
+        routineId: null,
+        addedAt: '2026-09-29T00:00:00.000Z',
+        archivedAt: null,
+      },
+    ]);
+    await loaded;
+    const done = counts.refresh();
+    http.expectOne(NEEDS_YOU_URL).flush([{ project: 'a' }, { project: 'b' }, { project: 'b' }]);
+    await done;
+    expect(counts.total()).toBe(3);
+
+    projects.remove('b');
+    expect(counts.total()).toBe(1);
   });
 
   it('keeps the last counts when the endpoint is unavailable', async () => {

@@ -3,6 +3,12 @@ export type { ProblemDetails } from './lib/problem-details';
 export { ENVIRONMENTS, isEnvironment } from './lib/health';
 export type { Environment, HealthDto, PublicHealthDto } from './lib/health';
 export {
+  githubAuthorizeUrlOf,
+  isGitHubAuthorizeUrl,
+  isGitHubLogin,
+  isGitHubPageUrl,
+} from './lib/github-urls';
+export {
   GITHUB_AUTHORIZED_APPS_URL,
   GITHUB_CONNECT_PATH,
   GITHUB_SETTINGS_PATH,
@@ -24,6 +30,13 @@ export type {
   UpdateProjectRequest,
 } from './lib/project';
 export type { ProjectRepositoryDto } from './lib/repository';
+export {
+  RESERVED_SLUGS,
+  isReservedSlug,
+  isValidSlug,
+  routineSecretName,
+  slugFromRepoName,
+} from './lib/project-slug';
 export { ANSWER_TEXT_MAX_LENGTH } from './lib/answer';
 export type {
   AnswerCommand,

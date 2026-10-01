@@ -56,7 +56,210 @@
     "title": "Settings",
     "language": "Interface language",
     "switchLang": "Русский",
-    "projectsHint": "The GitHub connection and the project list will live here."
+    "breadcrumb": "Breadcrumb",
+    "gh": {
+      "title": "GitHub",
+      "loading": "Checking the connection…",
+      "loadFailed": "Couldn’t check the GitHub connection",
+      "none": {
+        "title": "GitHub isn’t connected",
+        "body": "Connect your GitHub account. The console checks repositories with it and posts your answers as you, so the team counts them. No tokens to paste."
+      },
+      "connect": "Connect GitHub",
+      "connecting": "Opening GitHub…",
+      "connected": "Connected as {{login}}",
+      "connectedMeta": "Since {{date}} · app {{app}}",
+      "disconnect": "Disconnect",
+      "disconnectAria": "Disconnect GitHub account {{login}}",
+      "lost": {
+        "title": "The GitHub connection was lost",
+        "body": "Access was revoked or has expired. Until you connect again, answers from the console aren’t sent and projects can’t be added. Your projects and their setup are still here."
+      },
+      "error": {
+        "title": "Couldn’t connect GitHub",
+        "url": "The console returned an unexpected sign-in address, so the app didn’t open it. Nothing changed.",
+        "denied": "Access wasn’t granted on GitHub. Nothing changed.",
+        "account": "GitHub was signed in as {{who}}. The console connects only to the owner’s account, {{login}}: switch accounts on GitHub and connect again. Access for {{who}} is already revoked.",
+        "failed": "GitHub didn’t confirm the connection: the sign-in was interrupted, expired or failed a check. Nothing changed — try connecting again.",
+        "start": "The console couldn’t start connecting. Nothing changed — try again."
+      },
+      "offline": "You’re offline: connecting or disconnecting GitHub needs a connection.",
+      "connectedLive": "Connected as {{login}}",
+      "needConnect": {
+        "title": "Connect GitHub first",
+        "body": "The console checks the repository as your account. Nothing has been sent yet.",
+        "lostBody": "Access was revoked or has expired. Nothing was saved: connect GitHub again, then select Check and add."
+      },
+      "banner": {
+        "none": "GitHub isn’t connected: step 2 can’t be checked and answers aren’t sent.",
+        "lost": "The GitHub connection was lost: answers from the console aren’t sent."
+      }
+    },
+    "disc": {
+      "title": "Disconnect GitHub?",
+      "body": "The console revokes its access to {{login}} on GitHub. Projects stay on the list, but you can’t answer from the console or add a project until you connect again.",
+      "confirm": "Disconnect",
+      "busy": "Disconnecting…",
+      "error": "Couldn’t disconnect. The connection is as it was.",
+      "toast": "GitHub disconnected",
+      "incomplete": "The console is disconnected, but GitHub didn’t confirm its access is revoked. Revoke it yourself in GitHub’s settings.",
+      "incompleteLink": "Open authorized apps on GitHub"
+    },
+    "projects": {
+      "title": "Projects",
+      "add": "Add project",
+      "lead": "Product repositories the console works with.",
+      "row": {
+        "ready": "All set",
+        "missing": {
+          "one": "{{n}} step missing",
+          "few": "{{n}} steps missing",
+          "many": "{{n}} steps missing",
+          "other": "{{n}} steps missing"
+        },
+        "checking": "Checking setup…",
+        "unknown": "Couldn’t check setup",
+        "archive": "Archive",
+        "archiveAria": "Archive {{name}}"
+      },
+      "loading": "Loading projects…",
+      "empty": {
+        "title": "No projects yet",
+        "body": "Add a product repository the team already works in. It needs a .product-team/project.yml file."
+      },
+      "error": {
+        "title": "Couldn’t load projects",
+        "body": "GitHub or the console didn’t respond. Nothing changed."
+      },
+      "offline": "You’re offline. This list is from {{time}}. Adding or archiving a project needs a connection."
+    },
+    "common": {
+      "retry": "Try again",
+      "cancel": "Cancel",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyFailed": "Couldn’t copy: select the command and copy it by hand.",
+      "external": "(opens GitHub)"
+    },
+    "add": {
+      "title": "New project",
+      "field": "GitHub repository",
+      "hint": "As owner/repo, for example geeera/storify. A link works too.",
+      "preview": "Address in the console: /p/{{slug}}",
+      "submit": "Check and add",
+      "submitting": "Checking…",
+      "checkingLive": "Checking {{repo}}…",
+      "invalid": {
+        "empty": "Enter the repository as owner/repo.",
+        "format": "“{{value}}” doesn’t look like owner/repo. Example: geeera/storify."
+      },
+      "offline": "You’re offline: checking a repository needs a connection.",
+      "duplicate": "{{repo}} is already on the list.",
+      "duplicateLink": "Open its setup",
+      "archived": "{{repo}} is archived.",
+      "archivedBody": "Restoring a project from the console isn’t available yet.",
+      "refused": {
+        "title": "Project not added",
+        "body": "A step below is missing. Nothing was saved: fix it and select Check again."
+      },
+      "unavailable": {
+        "title": "Couldn’t check",
+        "github": "GitHub didn’t respond. Nothing was saved.",
+        "rate": "GitHub asks us to wait until {{time}}. Nothing was saved.",
+        "auth": "The console can’t sign in to GitHub as the {{app}} app: its key was replaced or the app was removed. This is the console’s setup, not the repository’s: check the app with the owner checklist. Nothing was saved."
+      },
+      "saved": {
+        "title": {
+          "one": "Project added. {{n}} step left",
+          "few": "Project added. {{n}} steps left",
+          "many": "Project added. {{n}} steps left",
+          "other": "Project added. {{n}} steps left"
+        },
+        "body": "It’s on your project list now. The console shows what’s missing until everything is set."
+      }
+    },
+    "setup": {
+      "ready": {
+        "title": "{{name}} is ready",
+        "body": "All five steps are done."
+      },
+      "incomplete": {
+        "title": {
+          "one": "{{n}} step missing",
+          "few": "{{n}} steps missing",
+          "many": "{{n}} steps missing",
+          "other": "{{n}} steps missing"
+        }
+      },
+      "unknown": {
+        "title": "Some steps couldn’t be checked"
+      },
+      "checkAgain": "Check again",
+      "open": "Open project",
+      "archive": "Archive project",
+      "checkedAt": "Checked at {{time}}",
+      "repoLink": "{{repo}} on GitHub",
+      "doneLive": "Check finished: {{done}} of 5 done.",
+      "stepsAria": "Setup steps",
+      "loadFailed": "Couldn’t check the setup",
+      "notFound": {
+        "title": "Project not found",
+        "body": "“{{slug}}” isn’t on the project list, or it is archived."
+      }
+    },
+    "step": {
+      "done": "Done",
+      "missing": "Missing",
+      "pending": "Checking…",
+      "skipped": "Not checked",
+      "unknown": "Couldn’t check",
+      "waiting": "Waiting",
+      "skippedWhy": "Needs the step above first.",
+      "unknownWhy": "GitHub didn’t respond. Select Check again.",
+      "how": "How to fix",
+      "app": {
+        "title": "The {{app}} app is installed on the repo",
+        "done": "The console reads {{repo}} through the app.",
+        "missing": "The app isn’t installed on {{repo}}. Add the repository to the app’s installation on GitHub.",
+        "how": "On the install page choose Only select repositories, add {{repo}} and save. The app’s permissions stay the same. Then come back: the console checks again by itself.",
+        "link": "Open the app installation"
+      },
+      "owner": {
+        "title": "The repo’s owner is the connected account",
+        "done": "Owned by {{login}}, so your answers count.",
+        "missing": "The owner of {{repo}} is {{repoOwner}}, but {{login}} is connected. The team counts answers only from the repository’s owner.",
+        "how": "The console works with repositories of your account, {{login}}. Move the repository to it (GitHub → Settings → Transfer ownership) or add another one. Organisation repositories aren’t supported yet.",
+        "notConnected": "Can’t be checked until GitHub is connected."
+      },
+      "yml": {
+        "title": ".product-team/project.yml exists",
+        "done": "Found on the default branch.",
+        "missing": "Not on the default branch. Set up the team in this repo and merge its PR.",
+        "how": "In Claude Code in this repo: /adopt for existing code or /kickoff for a new product."
+      },
+      "events": {
+        "title": "Events arrive",
+        "done": "Last event at {{time}}.",
+        "missing": "No events from {{repo}} yet. Nothing to do: this appears after the first event.",
+        "how": "An event is a new issue, comment, pull request or CI run in the repository. GitHub sends it through the app by itself. If something has happened in the repository and this step is still missing, check step 1."
+      },
+      "routine": {
+        "title": "Routine token set",
+        "done": "{{secret}} is set.",
+        "missing": "No {{secret}} secret. Until it’s set, the PM doesn’t answer in chat.",
+        "how": "Create the PM routine for this repo with an API trigger and store its token:",
+        "copyAria": "Copy command"
+      }
+    },
+    "archive": {
+      "title": "Archive {{name}}?",
+      "body": "It leaves the project list and Needs you, and you get no notifications for it. Its issues, chat and files on GitHub stay as they are.",
+      "note": "The app installation and the routine stay. To stop the console seeing the repository at all, remove it from the app’s installation on GitHub.",
+      "confirm": "Archive",
+      "busy": "Archiving…",
+      "error": "Couldn’t archive. The project is still on the list.",
+      "toast": "{{name}} archived"
+    }
   },
   "ui": {
     "close": "Close",
@@ -115,7 +318,8 @@
       "langLabel": "Language",
       "langRu": "Russian",
       "langEn": "English",
-      "offlineLabel": "Not available offline"
+      "offlineLabel": "Not available offline",
+      "repoNote": "Address in the console: /p/team-console"
     },
     "list": {
       "ariaProjects": "Projects",
@@ -148,7 +352,11 @@
       "confirmedArchived": "The project is archived",
       "confirmedKept": "Left as is",
       "confirmTitle": "Move the project to the archive?",
-      "confirmMessage": "The project disappears from the list and “Needs your attention”. GitHub issues are untouched."
+      "confirmMessage": "The project disappears from the list and “Needs your attention”. GitHub issues are untouched.",
+      "archiveFailing": "Archive, failing…",
+      "note": "The app installation and the routine stay.",
+      "busy": "Archiving…",
+      "error": "Couldn’t archive. The project is still on the list."
     },
     "tabBar": {
       "aria": "Sections",
@@ -156,6 +364,18 @@
       "chat": "Chat",
       "board": "Board",
       "artifacts": "Artifacts"
+    },
+    "toast": {
+      "show": "Show a toast",
+      "archived": "storify archived"
+    },
+    "callout": {
+      "refusedTitle": "Project not added",
+      "refusedBody": "A step below is missing. Nothing was saved.",
+      "leftTitle": "Project added. 2 steps left",
+      "leftBody": "It’s on your project list now.",
+      "readyTitle": "storify is ready",
+      "neutralTitle": "Some steps couldn’t be checked"
     }
   }
 }

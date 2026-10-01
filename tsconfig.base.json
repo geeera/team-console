@@ -43,7 +43,11 @@
       "@console/pages/project-not-found": ["./libs/console/pages/project-not-found/src/index.ts"],
       "@console/pages/needs-you": ["./libs/console/pages/needs-you/src/index.ts"],
       "@console/pages/overview": ["./libs/console/pages/overview/src/index.ts"],
-      "@console/pages/settings": ["./libs/console/pages/settings/src/index.ts"]
+      "@console/pages/settings": ["./libs/console/pages/settings/src/index.ts"],
+      "@console/entities/github-connection": ["./libs/console/entities/github-connection/src/index.ts"],
+      "@console/features/connect-github": ["./libs/console/features/connect-github/src/index.ts"],
+      "@console/features/add-project": ["./libs/console/features/add-project/src/index.ts"],
+      "@console/features/archive-project": ["./libs/console/features/archive-project/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

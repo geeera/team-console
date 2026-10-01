@@ -26,8 +26,12 @@ import { Sheet } from './sheet';
       </tc-list-row>
     </tc-list>
     <div style="display: grid; gap: var(--space-2); margin-top: var(--space-4)">
-      <button tc-button variant="primary" block type="button">{{ 'stories.sheet.addProject' | transloco }}</button>
-      <button tc-button variant="quiet" block type="button">{{ 'stories.common.settings' | transloco }}</button>
+      <button tc-button variant="primary" block type="button">
+        {{ 'stories.sheet.addProject' | transloco }}
+      </button>
+      <button tc-button variant="quiet" block type="button">
+        {{ 'stories.common.settings' | transloco }}
+      </button>
     </div>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -42,7 +46,12 @@ class ProjectsSheetContent {}
       <button tc-button variant="primary" type="button" (click)="openProjects()">
         {{ 'stories.sheet.openSheet' | transloco }}
       </button>
-      <button tc-button variant="danger" type="button" (click)="archive()">{{ 'stories.sheet.archiveEllipsis' | transloco }}</button>
+      <button tc-button variant="danger" type="button" (click)="archive()">
+        {{ 'stories.sheet.archiveEllipsis' | transloco }}
+      </button>
+      <button tc-button type="button" (click)="archiveFailing()">
+        {{ 'stories.sheet.archiveFailing' | transloco }}
+      </button>
       <span role="status" aria-live="polite">{{ result() }}</span>
     </div>
   `,
@@ -63,6 +72,26 @@ class SheetHost {
       message: this.transloco.translate('stories.sheet.confirmMessage'),
       confirmLabel: this.transloco.translate('stories.button.archive'),
       tone: 'danger',
+    });
+    this.result.set(
+      this.transloco.translate(confirmed ? 'stories.sheet.confirmedArchived' : 'stories.sheet.confirmedKept'),
+    );
+  }
+
+  /** The busy and failure states of a confirm with an action: Archiving… for a moment, then the inline alert. */
+  protected async archiveFailing(): Promise<void> {
+    const confirmed = await this.sheet.confirm({
+      title: this.transloco.translate('stories.sheet.confirmTitle'),
+      message: this.transloco.translate('stories.sheet.confirmMessage'),
+      note: this.transloco.translate('stories.sheet.note'),
+      confirmLabel: this.transloco.translate('stories.button.archive'),
+      busyLabel: this.transloco.translate('stories.sheet.busy'),
+      errorMessage: this.transloco.translate('stories.sheet.error'),
+      tone: 'danger',
+      action: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        throw new Error('story: the archive request failed');
+      },
     });
     this.result.set(
       this.transloco.translate(confirmed ? 'stories.sheet.confirmedArchived' : 'stories.sheet.confirmedKept'),

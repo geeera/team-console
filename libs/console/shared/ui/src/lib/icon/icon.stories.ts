@@ -23,6 +23,12 @@ const names = [
   'board',
   'stack',
   'play',
+  'archive',
+  'external',
+  'copy',
+  'link',
+  'help',
+  'offline',
 ];
 
 const sheet = `

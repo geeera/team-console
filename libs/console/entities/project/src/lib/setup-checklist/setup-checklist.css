@@ -1,0 +1,150 @@
+:host {
+  display: block;
+}
+
+.ledger {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.step {
+  display: grid;
+  grid-template-columns: var(--avatar-size) minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.step + .step {
+  border-top: var(--border-w) solid var(--border);
+}
+
+.step__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  border-radius: var(--r-round);
+  background: var(--bg-sunken);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+}
+
+.step--done .step__mark {
+  background: var(--success-soft);
+  color: var(--success-text);
+}
+
+.step--missing .step__mark {
+  background: var(--warning-soft);
+  color: var(--warning-text);
+}
+
+.step__body {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.step__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+
+.step__title {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  overflow-wrap: anywhere;
+}
+
+.step__state {
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.step--done .step__state {
+  color: var(--success-text);
+}
+
+.step--missing .step__state {
+  color: var(--warning-text);
+}
+
+.step__fix,
+.step__how p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.step__how-toggle {
+  justify-self: start;
+  margin-left: calc(-1 * var(--space-3));
+  color: var(--accent-text);
+}
+
+.step__chevron--open {
+  transform: rotate(180deg);
+}
+
+.step__how {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.step__how[hidden] {
+  display: none;
+}
+
+.step__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-h);
+  color: var(--accent-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
+.step__code {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.step__code code {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--r-sm);
+  background: var(--bg-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  word-break: break-all;
+}
+
+.step__copy-failed {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--danger-text);
+}

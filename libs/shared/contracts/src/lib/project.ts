@@ -41,6 +41,10 @@ export interface ProjectStepProblem extends ProblemDetails {
   readonly installUrl?: string;
   /** `github-owner-not-connected`: the console route that starts the owner connection (#59). */
   readonly connectUrl?: string;
+  /** `github-owner-mismatch`: the repository owner's login as GitHub spells it (#24 copy). */
+  readonly repoOwner?: string;
+  /** `github-owner-mismatch`: the connected account's login (#24 copy). */
+  readonly login?: string;
 }
 
 /**
@@ -70,4 +74,6 @@ export interface ProjectSetupDto {
   readonly ownerLanguage: 'ru' | 'en';
   /** The app's install page for this environment (#83), present only while `appInstalled` is `missing`. */
   readonly installUrl?: string;
+  /** The repository owner's login as GitHub spells it, present once it was read (`repoOwner` ok or mismatch). */
+  readonly repoOwnerLogin?: string;
 }

@@ -6,7 +6,7 @@ import { Button, StateBlock } from '@console/shared/ui';
 
 /**
  * `/needs-you` (ADR 0001 decision 24) until #16 fills it. With no registered project it is the
- * shell's empty state and points to Settings, where a project gets added (#24).
+ * shell's empty state and points to New project (#24).
  */
 @Component({
   selector: 'tc-needs-you-page',
@@ -29,7 +29,7 @@ import { Button, StateBlock } from '@console/shared/ui';
           [title]="'shell.noProjects' | transloco"
           [description]="'shell.noProjectsHint' | transloco"
         >
-          <a tc-button tc-state-action variant="primary" routerLink="/settings">{{
+          <a tc-button tc-state-action variant="primary" routerLink="/settings/projects/new">{{
             'shell.addProject' | transloco
           }}</a>
         </tc-state-block>

@@ -1,0 +1,48 @@
+:host {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-1) 0 var(--space-1) var(--space-4);
+  border-left: var(--border-w-strong) solid var(--border-strong);
+}
+
+:host(.tc-callout--success) {
+  border-left-color: var(--success-text);
+}
+
+:host(.tc-callout--warning) {
+  border-left-color: var(--warning-text);
+}
+
+:host(.tc-callout--danger) {
+  border-left-color: var(--danger-text);
+}
+
+/* Projected content keeps no outer margins: the gap spaces it. */
+:host ::ng-deep > * {
+  margin: 0;
+}
+
+:host ::ng-deep [tc-callout-title] {
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+  overflow-wrap: anywhere;
+}
+
+:host ::ng-deep [tc-callout-title]:focus {
+  outline: none;
+}
+
+:host ::ng-deep [tc-callout-title]:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+:host ::ng-deep p {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}

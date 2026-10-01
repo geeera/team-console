@@ -1,0 +1,29 @@
+:host {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--space-6) + var(--safe-bottom));
+  z-index: var(--z-toast);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 2 * var(--space-4));
+  pointer-events: none;
+}
+
+.tc-toast {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--r-md);
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: var(--shadow-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  /* The reduced-motion stand-in fade is the only motion, so it reads the same with either setting. */
+  animation: tc-toast-in var(--dur-fade) var(--ease-enter);
+}
+
+@keyframes tc-toast-in {
+  from {
+    opacity: 0;
+  }
+}

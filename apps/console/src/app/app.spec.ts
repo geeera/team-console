@@ -125,7 +125,9 @@ describe('App', () => {
     await boot('/', undefined, []);
 
     expect(router.url).toBe('/needs-you');
-    expect(root().querySelector('[data-testid="no-projects"] a')?.getAttribute('href')).toBe('/settings');
+    expect(root().querySelector('[data-testid="no-projects"] a')?.getAttribute('href')).toBe(
+      '/settings/projects/new',
+    );
   });
 
   it('restores the chat draft of a project after A → B → A', async () => {

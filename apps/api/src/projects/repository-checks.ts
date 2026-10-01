@@ -64,11 +64,18 @@ export function inStep(
   );
 }
 
-/** The app's install page for this environment's app (`team-console-<env>`, ADR 0003 decision 1). */
+// ENVIRONMENT is our own var, but it still goes into a URL and into copy: only a plain word is used.
+const ENVIRONMENT_WORD = /^[a-z]+$/;
+
+/** The console's GitHub App for this environment (`team-console-<env>`, ADR 0003 decision 1). */
+export function consoleAppNameFor(environment: string): string {
+  return ENVIRONMENT_WORD.test(environment) ? `team-console-${environment}` : 'team-console';
+}
+
+/** The app's install page for this environment's app; anything unexpected falls back to the apps list. */
 export function installUrlFor(environment: string): string {
-  // ENVIRONMENT is our own var, but it still goes into a URL: anything unexpected falls back to the apps list.
-  return /^[a-z]+$/.test(environment)
-    ? `https://github.com/apps/team-console-${environment}/installations/new`
+  return ENVIRONMENT_WORD.test(environment)
+    ? `https://github.com/apps/${consoleAppNameFor(environment)}/installations/new`
     : 'https://github.com/settings/installations';
 }
 
