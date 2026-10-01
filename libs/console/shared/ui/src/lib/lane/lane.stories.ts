@@ -16,17 +16,17 @@ const row = (n: number, title: string, tier: string, tone: string) => `
 `;
 
 const board = `
-  <tc-lanes [attr.aria-label]="'stories.lane.aria' | transloco">
-    <tc-lane [heading]="'stories.lane.progress' | transloco" [count]="2">
+  <tc-lanes [label]="'stories.lane.aria' | transloco">
+    <tc-lane key="in-progress" [heading]="'stories.lane.progress' | transloco" [count]="2">
       <tc-list>
         ${row(49, 'autosave', 'heavy', 'warning')}
         ${row(52, 'tagFilter', 'standard', 'accent')}
       </tc-list>
     </tc-lane>
-    <tc-lane [heading]="'stories.lane.qa' | transloco" [count]="0">
+    <tc-lane key="qa" [heading]="'stories.lane.qa' | transloco" [count]="0">
       <tc-state-block kind="empty" compact [title]="'stories.lane.empty' | transloco" />
     </tc-lane>
-    <tc-lane [heading]="'stories.lane.done' | transloco" [count]="1">
+    <tc-lane key="done" [heading]="'stories.lane.done' | transloco" [count]="1">
       <tc-list>
         ${row(41, 'feed', 'light', 'neutral')}
       </tc-list>
@@ -53,9 +53,35 @@ const meta: Meta<Lane> = {
 export default meta;
 type Story = StoryObj<Lane>;
 
+/** A board with only one lane, as a backlog with nothing but "No status": no switcher, the heading stays. */
+const single = `
+  <tc-lanes [label]="'stories.lane.aria' | transloco">
+    <tc-lane key="in-progress" [heading]="'stories.lane.progress' | transloco" [count]="2">
+      <tc-list>
+        ${row(49, 'autosave', 'heavy', 'warning')}
+        ${row(52, 'tagFilter', 'standard', 'accent')}
+      </tc-list>
+    </tc-lane>
+  </tc-lanes>
+`;
+
 export const Playground: Story = {};
-/** Stacked on wider screens; on the phone the lanes become a sideways, snapping row. */
+/** Stacked on wider screens. */
 export const Board: Story = { render: () => ({ template: board }) };
 export const Dark: Story = { ...darkTheme, render: () => ({ template: board }) };
 export const ReducedMotion: Story = { ...reducedMotion, render: () => ({ template: board }) };
+/**
+ * On the phone a tab list of lanes with their counts (one Tab stop; ←/→, Home, End) shows one lane at a time, at its
+ * own height. It opens on the first lane with items; the next lane slides in from the side moved towards.
+ */
 export const Phone: Story = { ...phoneViewport, render: () => ({ template: board }) };
+export const PhoneDark: Story = {
+  globals: { ...phoneViewport.globals, ...darkTheme.globals },
+  render: () => ({ template: board }),
+};
+/** Reduced motion: the incoming lane fades in, without the slide. */
+export const PhoneReducedMotion: Story = {
+  globals: { ...phoneViewport.globals, ...reducedMotion.globals },
+  render: () => ({ template: board }),
+};
+export const PhoneSingleLane: Story = { ...phoneViewport, render: () => ({ template: single }) };

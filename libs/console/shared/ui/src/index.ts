@@ -32,6 +32,8 @@ export type { StatTone } from './lib/stat/stat';
 export { StateBlock } from './lib/state-block/state-block';
 export type { StateKind } from './lib/state-block/state-block';
 export { Tab, TabBar } from './lib/tab-bar/tab-bar';
+export { Tooltip } from './lib/tooltip/tooltip';
+export type { TooltipPlacement } from './lib/tooltip/tooltip';
 export { TopBar } from './lib/top-bar/top-bar';
 export { TopBarAction, TopBarActions } from './lib/top-bar/top-bar-action';
 // The CDK dialog surface consumers need for content opened by `Sheet`.

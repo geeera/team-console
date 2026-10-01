@@ -19,6 +19,8 @@ import {
   SprintApi,
   SprintBoard as SprintBoardModel,
   SprintItemList,
+  SPRINT_TIERS,
+  SprintTierIcon,
   STATUS_ORDER,
   statusColumnsOf,
   UnexpectedSprintResponse,
@@ -77,7 +79,19 @@ const KNOWN_STATUSES: ReadonlySet<string> = new Set([...STATUS_ORDER, NO_STATUS]
  */
 @Component({
   selector: 'tc-sprint-board',
-  imports: [Button, Chip, Icon, Lane, Lanes, SprintItemList, Stat, Stats, StateBlock, TranslocoPipe],
+  imports: [
+    Button,
+    Chip,
+    Icon,
+    Lane,
+    Lanes,
+    SprintItemList,
+    SprintTierIcon,
+    Stat,
+    Stats,
+    StateBlock,
+    TranslocoPipe,
+  ],
   templateUrl: './sprint-board.html',
   styleUrl: './sprint-board.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -92,6 +106,9 @@ export class SprintBoard {
 
   protected readonly titleId = `tc-sprint-board-title-${nextBoardId++}`;
   protected readonly state = signal<BoardState>({ kind: 'loading' });
+  protected readonly tiers = SPRINT_TIERS;
+  /** The lane shown on the phone; kept here so a refresh (Retry, the 429 retry) keeps the owner's lane. */
+  protected readonly selectedLane = signal<string | null>(null);
   private readonly lang = toSignal(this.transloco.langChanges$, {
     initialValue: this.transloco.getActiveLang(),
   });
@@ -144,6 +161,7 @@ export class SprintBoard {
     effect(() => {
       const slug = this.project().slug;
       untracked(() => {
+        this.selectedLane.set(null);
         this.state.set({ kind: 'loading' });
         void this.load(slug, true);
       });
