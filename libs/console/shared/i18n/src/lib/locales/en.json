@@ -419,6 +419,156 @@
       "toast": "{{name}} archived"
     }
   },
+  "commands": {
+    "open": "Commands",
+    "openAria": "Commands for {{name}}",
+    "title": "Commands · {{name}}",
+    "close": "Close commands",
+    "banner": {
+      "ownerLead": "{{name}} is paused since {{time}}.",
+      "ownerRest": "Scheduled runs exit at once without doing work.",
+      "teamLead": "{{name}}: the team paused itself.",
+      "teamRest": "Three runs in a row failed.",
+      "resume": "Resume",
+      "log": "Run log"
+    },
+    "status": {
+      "h": "Status",
+      "running": "Running",
+      "owner": "Paused by you since {{time}}",
+      "ownerNoTime": "Paused by you",
+      "team": "Paused itself: three runs in a row failed",
+      "updated": "Updated at {{time}}",
+      "refresh": "Refresh status",
+      "refreshing": "Refreshing…",
+      "log": "Run log",
+      "loading": "Loading status…",
+      "errT": "Couldn’t load the status",
+      "errB": "GitHub didn’t answer. Commands are off until the status is known — otherwise you might, say, pause a project that is already paused.",
+      "noLog": "The team hasn’t opened its run log yet, so there is nothing to pause or start. It appears after the first scheduled run.",
+      "offline": "You’re offline. Status as of {{time}}. Commands work only online.",
+      "noperm": "The console can’t write to issues in {{repo}}, so Pause and Resume are off. Run now still works.",
+      "nopermFix": "Settings › Projects"
+    },
+    "group": {
+      "team": "Team work",
+      "run": "Run now"
+    },
+    "pause": {
+      "title": "Pause development",
+      "hint": "Scheduled runs will exit at once. To switch the schedule off entirely, use the team chat.",
+      "btn": "Pause"
+    },
+    "resume": {
+      "title": "Resume development",
+      "hint": "Scheduled runs pick up work again from the next one. To start sooner, use Run now.",
+      "btn": "Resume"
+    },
+    "unknown": {
+      "title": "Pause or resume",
+      "hint": "Shows up once the status is known.",
+      "btn": "Unavailable"
+    },
+    "slot": {
+      "pm": "Planning",
+      "dev": "Development",
+      "qa": "QA",
+      "pmL": "planning",
+      "devL": "development",
+      "qaL": "QA",
+      "pmN": "planning",
+      "devN": "development",
+      "qaN": "QA"
+    },
+    "row": {
+      "btn": "Run",
+      "btnAria": "Run now: {{slot}}",
+      "last": "Last: {{when}}, succeeded",
+      "lastFailed": "Last: {{when}}, failed",
+      "lastUnknown": "Last: {{when}}, outcome unknown",
+      "never": "No run in the log yet",
+      "busy": "Running since {{time}}. Next start no earlier than {{until}}",
+      "requested": "Requested at {{time}}. It shows up in the run log in a few minutes; until then, no second start before {{until}}",
+      "unknown": "Request at {{time}} got no answer. Check the run log; you can retry after {{until}}"
+    },
+    "why": {
+      "offline": "Offline",
+      "noperm": "No write access",
+      "paused": "Resume development first",
+      "notoken": "Not set up: this routine has no trigger token",
+      "status": "Status not loaded"
+    },
+    "setup": {
+      "t": "Run now isn’t set up for {{slots}}",
+      "b": "Planning, development and QA are separate routines, each with its own trigger token. The console needs two values per routine, set once from a computer; the runs that are set up keep working.",
+      "how": "How to set it up",
+      "s1": "In Claude Code, open {{name}}’s routines for {{slots}} and add an API trigger to each. Claude shows the token once; the trigger URL holds the routine id (trig_…).",
+      "s2": "Save both as the console’s secrets: in your team-console checkout, in the terminal where you ran npx wrangler login (as for OWNER_EMAIL in the owner checklist). Each command asks for the value at a hidden prompt, so it never lands in your shell history:",
+      "warn": "Paste the token only at that hidden prompt — never into the chat, an issue or an agent. If it leaked, regenerate it in Claude Code: the old one stops working.",
+      "s3": "Come back here and refresh the status: Run turns on by itself.",
+      "copyId": "Copy the command that saves the routine id for {{slot}}",
+      "copyToken": "Copy the command that saves the trigger token for {{slot}}",
+      "copy": "Copy",
+      "copied": "Copied"
+    },
+    "dialog": {
+      "cancel": "Cancel",
+      "retry": "Try again",
+      "sending": "Sending…",
+      "pauseTitle": "Pause development in {{name}}?",
+      "pause1": "A run in progress finishes its work.",
+      "pause2": "Later scheduled runs start and exit at once — the same as a pause from the team chat.",
+      "pause3": "Questions for you stay in Needs you.",
+      "reason": "Reason (optional)",
+      "reasonHint": "Goes into the run log, a public GitHub comment.",
+      "pauseOk": "Pause",
+      "resumeTitle": "Resume development in {{name}}?",
+      "resumeBody": "Scheduled runs pick up work again from the next one. To start sooner, use Run now.",
+      "resumeTeam": "The team paused itself: the last three runs failed. Check the run log before resuming, or runs may keep failing.",
+      "resumeOk": "Resume",
+      "runTitle": "Run {{slot}} now?",
+      "run_pm": "The team reads your answers, plans the work and prepares designs.",
+      "run_dev": "The team takes up to two sprint issues.",
+      "run_qa": "The team reviews open PRs and fixes what it finds.",
+      "quota": "The run uses your subscription quota like a scheduled one and starts within a few minutes.",
+      "runOk": "Run"
+    },
+    "result": {
+      "paused": "Development in {{name}} is paused",
+      "resumed": "Development in {{name}} resumed",
+      "alreadyPaused": "{{name}} is already paused. Nothing changed.",
+      "alreadyPausedSince": "{{name}} is already paused since {{time}}. Nothing changed.",
+      "alreadyRunning": "{{name}} is already running. Nothing changed.",
+      "requested": "Requested: {{slot}}",
+      "requestedDetail": "It shows up in the run log in a few minutes.",
+      "overlap": "{{slot}}: a run is already in progress since {{time}}. Not starting a second one.",
+      "requestedAlready": "{{slot}} was requested at {{time}} and isn’t in the run log yet. Not starting a second one before {{until}}.",
+      "timeout": "The run service didn’t answer, so it’s unknown whether the run started. Check the run log in a few minutes; retry opens at {{time}}.",
+      "log": "Run log"
+    },
+    "error": {
+      "rate": "Run limit reached: at most 30 per hour for this routine, or 100 per hour across all projects of your account. You can run again at {{time}}. Nothing started.",
+      "service": "The run service didn’t answer. Nothing started.",
+      "routinePaused": "The {{slot}} routine is switched off in Claude Code, so nothing started. Switch it on at claude.ai/code/routines, then run again.",
+      "badToken": "Claude Code refused the trigger token for {{slot}}: it was regenerated or mistyped. Save {{secret}} again. Nothing started.",
+      "badRoutine": "Claude Code knows no routine with this id for {{slot}}. Check {{secret}}. Nothing started.",
+      "notConfigured": "Run now isn’t set up for {{slot}}. Refresh the status to see what to set up.",
+      "runPaused": "Development is paused. Resume it first; nothing started.",
+      "github": "GitHub didn’t answer. Nothing changed.",
+      "githubRate": "GitHub asks to wait until {{time}}. Nothing changed.",
+      "connect": "Connect GitHub in Settings first: pause and resume are written as you. Nothing changed.",
+      "noLog": "The team has no run log yet. Nothing changed.",
+      "pauseUnreliable": "Pause from the console isn’t reliable for this project yet: its run log was opened by the team, and the next run could lift the pause. Pause from the team chat instead (the pause skill). Nothing changed.",
+      "offline": "You’re offline. The command wasn’t sent.",
+      "unknown": "Something went wrong. Nothing changed."
+    },
+    "when": {
+      "today": "today {{time}}",
+      "yesterday": "yesterday {{time}}",
+      "day": "{{day}} {{time}}"
+    },
+    "external": "(opens GitHub)"
+  },
   "ui": {
     "close": "Close",
     "back": "Back",
@@ -450,7 +600,9 @@
       "archive": "Archive",
       "small": "Small",
       "disabled": "Disabled",
-      "saving": "Saving…"
+      "saving": "Saving…",
+      "run": "Run",
+      "offReason": "Not set up: this routine has no trigger token"
     },
     "card": {
       "kind": "Question",
@@ -494,7 +646,8 @@
     "topBar": {
       "search": "Search",
       "attention": "Needs your attention",
-      "longTitle": "A very long project name that does not fit on one line"
+      "longTitle": "A very long project name that does not fit on one line",
+      "commands": "Commands"
     },
     "stateBlock": {
       "emptyTitle": "Nothing is waiting",
@@ -515,7 +668,16 @@
       "archiveFailing": "Archive, failing…",
       "note": "The app installation and the routine stay.",
       "busy": "Archiving…",
-      "error": "Couldn’t archive. The project is still on the list."
+      "error": "Couldn’t archive. The project is still on the list.",
+      "pauseEllipsis": "Pause…",
+      "pauseTitle": "Pause development in storify?",
+      "pausePoint1": "A run in progress finishes its work.",
+      "pausePoint2": "Later scheduled runs exit at once.",
+      "reasonLabel": "Reason (optional)",
+      "reasonHint": "Goes into the run log.",
+      "pauseOk": "Pause",
+      "sending": "Sending…",
+      "rateLimited": "GitHub asks to wait until 14:05. Nothing changed."
     },
     "tabBar": {
       "aria": "Sections",
@@ -547,7 +709,8 @@
       "rejected": "You: reject",
       "done": "You: done",
       "detail": "Plan for the 16 October demo",
-      "meta": "#72 · 14:05 · recorded as owner"
+      "meta": "#72 · 14:05 · recorded as owner",
+      "unknown": "Unknown whether the run started"
     },
     "lane": {
       "aria": "Issues by status",
@@ -575,6 +738,12 @@
       "green": "green",
       "runs": "Run log",
       "failed": "2 failed runs"
+    },
+    "banner": {
+      "owner": "storify is paused since 13:52. Scheduled runs exit at once.",
+      "team": "storify: the team paused itself. Three runs in a row failed.",
+      "resume": "Resume",
+      "log": "Run log"
     }
   }
 }

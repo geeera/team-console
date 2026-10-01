@@ -1,4 +1,10 @@
-import { isReservedSlug, isValidSlug, routineSecretName, slugFromRepoName } from './project-slug';
+import {
+  isReservedSlug,
+  isValidSlug,
+  routineSecretName,
+  slotSecretNames,
+  slugFromRepoName,
+} from './project-slug';
 
 describe('isValidSlug', () => {
   it.each(['tc', 'storify', 'my-app-2', '0x', 'a'.repeat(39)])('accepts %s', (slug) => {
@@ -39,5 +45,22 @@ describe('slugFromRepoName', () => {
 describe('routineSecretName', () => {
   it('upper-cases the slug and turns hyphens into underscores', () => {
     expect(routineSecretName('my-app-2')).toBe('ROUTINE_TOKEN_MY_APP_2');
+  });
+});
+
+describe('slotSecretNames (#114)', () => {
+  it('upper-cases the slug, turns - into _ and appends the slot', () => {
+    expect(slotSecretNames('storify', 'dev')).toEqual({
+      token: 'SLOT_TOKEN_STORIFY_DEV',
+      routine: 'SLOT_ROUTINE_STORIFY_DEV',
+    });
+    expect(slotSecretNames('team-console', 'pm')).toEqual({
+      token: 'SLOT_TOKEN_TEAM_CONSOLE_PM',
+      routine: 'SLOT_ROUTINE_TEAM_CONSOLE_PM',
+    });
+  });
+
+  it('never collides with another project chat token (storify-dev vs storify / dev)', () => {
+    expect(slotSecretNames('storify', 'dev').token).not.toBe(routineSecretName('storify-dev'));
   });
 });

@@ -20,8 +20,11 @@ const SECRET_NAMES = [
   'WEBHOOK_SECRET',
   'VAPID_PRIVATE_KEY',
   'ROUTINE_TOKEN',
+  // #114: a slot routine's trigger token and its id are Worker secrets, never vars.
+  'SLOT_TOKEN',
+  'SLOT_ROUTINE',
 ] as const;
-const LOCAL_ONLY_VARS = ['AUTH_MODE', 'GITHUB_MOCK', 'GITHUB_FAKE_ORIGIN'] as const;
+const LOCAL_ONLY_VARS = ['AUTH_MODE', 'GITHUB_MOCK', 'GITHUB_FAKE_ORIGIN', 'ROUTINES_FAKE_ORIGIN'] as const;
 
 interface WranglerEnvConfig {
   readonly name: string;

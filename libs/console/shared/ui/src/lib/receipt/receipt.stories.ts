@@ -17,6 +17,7 @@ const allTones = `
     ${receipt('positive', 'approved')}
     ${receipt('negative', 'rejected')}
     ${receipt('neutral', 'done')}
+    ${receipt('warning', 'unknown')}
   </div>
 `;
 
@@ -24,7 +25,7 @@ const meta: Meta<Receipt> = {
   title: 'Kit/Receipt',
   component: Receipt,
   decorators: [moduleMetadata({ imports: [Receipt, TranslocoPipe] })],
-  argTypes: { tone: { control: 'select', options: ['positive', 'negative', 'neutral'] } },
+  argTypes: { tone: { control: 'select', options: ['positive', 'negative', 'neutral', 'warning'] } },
   args: { tone: 'positive' },
   render: (args) => ({
     props: args,

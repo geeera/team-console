@@ -12,6 +12,8 @@ import { createProjectRegistryRoutes } from './routes/project-registry';
 import { createProjectsRoutes } from './routes/projects';
 import { createProjectReadModelRoutes } from './routes/project-read-models';
 import { createNeedsYouRoutes } from './routes/needs-you';
+import { createTeamCommandsRoutes } from './routes/team-commands';
+import type { FetchLike } from '@worker/routines';
 import { mapReadModelError } from './read-models/errors';
 
 export interface CreateApiAppOptions {
@@ -20,6 +22,9 @@ export interface CreateApiAppOptions {
   readonly github?: ApiGitHub;
   /** The connected owner account for the registry; defaults to the #59 connection. */
   readonly ownerConnection?: OwnerConnectionSource;
+  /** The transport of "Run now" fires (#114); a test passes the fake routines API. */
+  readonly routinesFetch?: FetchLike;
+  readonly routinesDeadlineMs?: number;
 }
 
 function isApiPath(path: string): boolean {
@@ -57,6 +62,14 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/projects', createProjectReadModelRoutes(github));
   v1.route('/needs-you', createNeedsYouRoutes(github));
   v1.route('/projects', createAnswerRoutes(github));
+  v1.route(
+    '/projects',
+    createTeamCommandsRoutes(github, {
+      ...(options.routinesFetch === undefined ? {} : { routinesFetch: options.routinesFetch }),
+      ...(options.routinesDeadlineMs === undefined ? {} : { routinesDeadlineMs: options.routinesDeadlineMs }),
+      ...(options.ownerConnection === undefined ? {} : { ownerConnection: options.ownerConnection }),
+    }),
+  );
   v1.route('/github', createGitHubConnectionRoutes(github));
   app.route('/api/v1', v1);
 

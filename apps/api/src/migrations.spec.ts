@@ -18,6 +18,7 @@ describe('migrations on a fresh D1', () => {
       'own_writes',
       'owner_connections',
       'projects',
+      'slot_requests',
     ]);
   });
 
@@ -30,6 +31,7 @@ describe('migrations on a fresh D1', () => {
       '0005_owner_connections.sql',
       '0006_project_installation.sql',
       '0007_own_writes.sql',
+      '0008_slot_requests.sql',
     ]);
   });
 

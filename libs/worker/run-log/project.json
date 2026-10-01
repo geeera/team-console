@@ -1,0 +1,19 @@
+{
+  "name": "worker-run-log",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/worker/run-log/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:worker"],
+  "targets": {
+    "test": {
+      "inputs": [
+        "default",
+        "^default",
+        "{workspaceRoot}/.claude/product-team/.claude-plugin/plugin.json",
+        "{workspaceRoot}/.claude/product-team/scripts/runlog",
+        "{workspaceRoot}/.claude/product-team/scripts/ptlib/runstate.py",
+        "{workspaceRoot}/.claude/product-team/scripts/ptlib/provenance.py"
+      ]
+    }
+  }
+}

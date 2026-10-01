@@ -6,3 +6,5 @@ export { ProjectSignalsRepo } from './lib/project-signals.repo';
 export type { EventsSignal } from './lib/project-signals.repo';
 export { OwnWritesRepo } from './lib/own-writes.repo';
 export type { OwnWrite, OwnWriteKind } from './lib/own-writes.repo';
+export { SlotRequestsRepo } from './lib/slot-requests.repo';
+export type { SlotRequest, SlotRequestState } from './lib/slot-requests.repo';

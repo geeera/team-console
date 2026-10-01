@@ -4,6 +4,7 @@ import { createApiApp } from '../app';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import type { OwnerConnectionSource } from '../projects/owner-connection';
+import type { FetchLike } from '@worker/routines';
 
 /** Test-only: a local stand-in for a Cloudflare Access team (RSA key, JWKS endpoint, token signer). */
 
@@ -137,6 +138,9 @@ export interface ApiRequest {
   readonly github?: ApiGitHub;
   /** Replaces the registry's owner source (by default the #59 connection in D1). */
   readonly ownerConnection?: OwnerConnectionSource;
+  /** The fake routines API's fetch (#114). */
+  readonly routinesFetch?: FetchLike;
+  readonly routinesDeadlineMs?: number;
 }
 
 /** Calls the app directly so each case chooses its own bindings (`SELF` is fixed to the pool's local ones). */
@@ -147,6 +151,8 @@ export async function fetchApi(path: string, bindings: ApiEnv, request: ApiReque
     logSink: request.logSink ?? (() => undefined),
     ...(request.github === undefined ? {} : { github: request.github }),
     ...(request.ownerConnection === undefined ? {} : { ownerConnection: request.ownerConnection }),
+    ...(request.routinesFetch === undefined ? {} : { routinesFetch: request.routinesFetch }),
+    ...(request.routinesDeadlineMs === undefined ? {} : { routinesDeadlineMs: request.routinesDeadlineMs }),
   });
   const init: RequestInit = { method: request.method ?? 'GET', headers: request.headers ?? {} };
   if (request.body !== undefined) {

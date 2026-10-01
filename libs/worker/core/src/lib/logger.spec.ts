@@ -40,6 +40,12 @@ describe('redact', () => {
     expect(redact(`minted ${token} for acme/app`)).toBe('minted [redacted] for acme/app');
   });
 
+  it('masks a routine trigger token (#114), whole or cut off', () => {
+    const token = ['sk', 'ant', 'oat01', 'TESTSENTINEL_x-y'].join('-');
+    expect(redact(`fire with ${token} failed`)).toBe('fire with [redacted] failed');
+    expect(redact({ header: `Bearer ${token.slice(0, 12)}` })).toEqual({ header: 'Bearer [redacted]' });
+  });
+
   it('drops the query of any URL in free text, keeping the path', () => {
     const result = redact({
       url: 'https://team-console.example/api/v1/github/callback?code=SENTINELCODE&state=SENTINELSTATE',
