@@ -143,6 +143,68 @@
       "unknownHint": "The console or GitHub didn't respond. Retry — it won't be posted twice."
     }
   },
+  "board": {
+    "loading": "Loading the sprint…",
+    "demo": "Demo {{date}}",
+    "demoToday": "Demo today, {{date}}",
+    "demoIn": {
+      "one": "Demo {{date}} · in {{n}} day",
+      "few": "Demo {{date}} · in {{n}} days",
+      "many": "Demo {{date}} · in {{n}} days",
+      "other": "Demo {{date}} · in {{n}} days"
+    },
+    "stat": {
+      "done": "Done",
+      "doneValue": "{{shipped}} of {{planned}}",
+      "stillOpen": "Still open",
+      "openPrs": "Open PRs"
+    },
+    "lanes": "Sprint issues by status",
+    "status": {
+      "proposed": "Proposed",
+      "approved": "Approved",
+      "in-progress": "In progress",
+      "qa": "QA",
+      "blocked": "Blocked",
+      "done": "Done",
+      "none": "No status"
+    },
+    "laneEmpty": "Nothing here",
+    "tierLabel": "Tier:",
+    "tier": {
+      "light": "light",
+      "standard": "standard",
+      "heavy": "heavy"
+    },
+    "untrusted": "Not from the team",
+    "draft": "Draft",
+    "opensGitHub": "(opens on GitHub)",
+    "pulls": "Open pull requests",
+    "pullsEmpty": "No open pull requests",
+    "emptyTitle": "Nothing planned in {{sprint}} yet",
+    "emptyHint": "Issues show up here once the PM adds them to the sprint's milestone.",
+    "noSprintTitle": "No current sprint",
+    "noSprintHint": "No open milestone has a demo date today or later. The PM plans the next sprint.",
+    "error": {
+      "unavailable": {
+        "title": "Couldn't load the board",
+        "hint": "GitHub or the console didn't respond. Try again."
+      },
+      "offline": {
+        "title": "No connection",
+        "hint": "The board loads when you're back online. Try again."
+      },
+      "rate-limited": {
+        "title": "GitHub asks to wait",
+        "hint": "The board tries again by itself at {{time}}.",
+        "hintManual": "Retry in a minute."
+      },
+      "not-installed": {
+        "title": "The console app is not installed on the repository",
+        "hint": "Install it from the project's setup in Settings, then try again."
+      }
+    }
+  },
   "overview": {
     "title": "All projects",
     "placeholderHint": "The project overview arrives in a later sprint."
@@ -426,7 +488,8 @@
       "archive": "Archive",
       "offline": "Not available offline",
       "pin": "Pin",
-      "unpin": "Unpin"
+      "unpin": "Unpin",
+      "external": "Team Console on GitHub"
     },
     "topBar": {
       "search": "Search",
@@ -485,6 +548,28 @@
       "done": "You: done",
       "detail": "Plan for the 16 October demo",
       "meta": "#72 · 14:05 · recorded as owner"
+    },
+    "lane": {
+      "aria": "Issues by status",
+      "progress": "In progress",
+      "qa": "QA",
+      "done": "Done",
+      "empty": "Nothing here",
+      "autosave": "Story editor autosave",
+      "tagFilter": "Tag filter",
+      "feed": "Infinite story feed",
+      "light": "light",
+      "standard": "standard",
+      "heavy": "heavy"
+    },
+    "stat": {
+      "done": "Done",
+      "doneValue": "3 of 9",
+      "prs": "Open PRs",
+      "ci": "CI · main",
+      "green": "green",
+      "runs": "Run log",
+      "failed": "2 failed runs"
     }
   }
 }

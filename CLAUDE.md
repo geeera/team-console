@@ -94,6 +94,11 @@ item; failures branch on the problem `type`; Retry repeats the same body so the 
 `@console/entities/project` (`localStorage` `tc.answered.v1`, 6 h) keeps answered items out of the badges while GitHub
 still lists them. Kit: `Recommendation`, `Receipt`.
 
+Sprint board (#18, read-only): `@console/entities/sprint` (`isSprintDto`, `SprintApi`, `statusColumnsOf` — lanes counted as
+`backlog list` counts them, `SprintItemList`), `@console/widgets/sprint-board` (`/p/:slug/board`; loading, no sprint,
+empty, error and 429 with an automatic retry at `Retry-After`). Kit: `Lanes`/`Lane` (swipeable on the phone),
+`Stats`/`Stat`, `ListRow` `external`.
+
 ## Workers (#6)
 
 `apps/api` (Hono; serves the SPA from `dist/apps/console/browser` as static assets with `run_worker_first:

@@ -30,6 +30,8 @@ const GLYPHS = {
   link: 'M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1',
   help: 'M12 21a9 9 0 100-18 9 9 0 000 18zM9.5 9.5a2.5 2.5 0 114 2c-.9.6-1.5 1.1-1.5 2.2M12 17v.5',
   offline: 'M2 8.5a15 15 0 0120 0M5.5 12a10 10 0 0113 0M9 15.5a5 5 0 016 0M12 19v.5M3 3l18 18',
+  // The sprint board (#18): the demo date.
+  calendar: 'M4 6h16v14H4zM4 10h16M8 3v5M16 3v5',
 } as const;
 
 export type IconName = keyof typeof GLYPHS;
