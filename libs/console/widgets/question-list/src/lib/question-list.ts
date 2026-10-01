@@ -21,7 +21,7 @@ import {
   safeGitHubUrl,
 } from '@console/entities/question';
 import { AnswerGiven, AnswerQuestion } from '@console/features/answer-question';
-import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
+import { localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, CardStamp, Receipt, StateBlock } from '@console/shared/ui';
 import type { AnswerCommand, NeedsYouProjectRef } from '@shared/contracts';
 import { problemSlugOf } from '@shared/contracts';
@@ -137,10 +137,7 @@ export class QuestionList {
   }
 
   protected timeOf(answer: AnsweredItem): string {
-    return new Intl.DateTimeFormat(this.transloco.getActiveLang(), {
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(answer.answeredAt));
+    return localTimeOf(answer.answeredAt, this.transloco.getActiveLang());
   }
 
   protected verbOf(command: AnswerCommand): string {

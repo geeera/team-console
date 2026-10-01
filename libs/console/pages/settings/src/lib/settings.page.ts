@@ -28,12 +28,10 @@ import { GitHubConnectionCard } from '@console/features/connect-github';
 import { NetworkStatus } from '@console/shared/api';
 import {
   ConsoleLang,
-  DEFAULT_LANG,
-  isConsoleLang,
+  ConsoleLanguage,
   LocalTimePipe,
   TranslocoPipe,
   TranslocoPluralPipe,
-  TranslocoService,
 } from '@console/shared/i18n';
 import { Button, Chip, Icon, List, ListRow, StateBlock } from '@console/shared/ui';
 import type { ProjectDto } from '@shared/contracts';
@@ -67,7 +65,7 @@ type RowStatus = 'checking' | 'unknown' | SetupSummary;
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsPage {
-  private readonly transloco = inject(TranslocoService);
+  private readonly language = inject(ConsoleLanguage);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
   private readonly setupApi = inject(ProjectSetupApi);
@@ -90,13 +88,7 @@ export class SettingsPage {
 
   protected readonly rowStatus = signal<Readonly<Record<string, RowStatus>>>({});
 
-  private readonly activeLang = toSignal(this.transloco.langChanges$, {
-    initialValue: this.transloco.getActiveLang(),
-  });
-  protected readonly otherLang = computed<ConsoleLang>(() => {
-    const current = this.activeLang();
-    return isConsoleLang(current) && current === DEFAULT_LANG ? 'en' : DEFAULT_LANG;
-  });
+  protected readonly otherLang = computed<ConsoleLang>(() => (this.language.active() === 'ru' ? 'en' : 'ru'));
 
   constructor() {
     void this.projects.ready();
@@ -157,8 +149,9 @@ export class SettingsPage {
     }
   }
 
+  /** The whole interface follows at once, and the choice is remembered on this device (#4, #125). */
   protected switchLang(): void {
-    this.transloco.setActiveLang(this.otherLang());
+    this.language.use(this.otherLang());
   }
 
   /** After archiving: the next row's link, else the previous row's, else Add project (UX spec §5). */

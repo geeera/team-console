@@ -26,6 +26,7 @@ import {
 import { httpProblemOf } from '@console/shared/api';
 import {
   localDayOf,
+  LocalNumberPipe,
   localTimeOf,
   pluralKeyOf,
   TranslocoPipe,
@@ -77,7 +78,19 @@ const KNOWN_STATUSES: ReadonlySet<string> = new Set([...STATUS_ORDER, NO_STATUS]
  */
 @Component({
   selector: 'tc-sprint-board',
-  imports: [Button, Chip, Icon, Lane, Lanes, SprintItemList, Stat, Stats, StateBlock, TranslocoPipe],
+  imports: [
+    Button,
+    Chip,
+    Icon,
+    Lane,
+    Lanes,
+    LocalNumberPipe,
+    SprintItemList,
+    Stat,
+    Stats,
+    StateBlock,
+    TranslocoPipe,
+  ],
   templateUrl: './sprint-board.html',
   styleUrl: './sprint-board.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
