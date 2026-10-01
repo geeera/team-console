@@ -19,7 +19,7 @@ visual direction), `.product-team/project.yml`.
 ## Workspace
 Node 22 (`.nvmrc`), npm, `npm ci` only — versions are pinned exactly, no `^`. Nx 23 / Angular 22 (Nx 22 does not
 support Angular 22). Commands: `npx nx run-many -t lint`, `-t test`, `-t build`; a single project with
-`npx nx test console-pages-hello`. Unit tests are Vitest through `@analogjs/vitest-angular`; the app is zoneless.
+`npx nx test console-pages-settings`. Unit tests are Vitest through `@analogjs/vitest-angular`; the app is zoneless.
 
 npm is pinned to `package.json#packageManager` (10.9.9; `engines.npm` allows 10.x only) — the lockfile must be
 written by npm 10, npm 11 rewrites it.
@@ -76,6 +76,15 @@ toolbars: `npx nx storybook console-shared-ui` on :4400, `npx nx build-storybook
 (`provideConsoleApi()` with the interceptor chain; `accessSessionInterceptor` reloads once per 30 s to re-run the
 Access login when an `/api` call fails with status 0, a non-JSON body or 401 `access-missing|access-unverified`). Build time reaches the app through the build `define`
 `__TC_BUILT_AT__` (defaults to `local`); the version comes from `package.json`.
+
+Spaces shell (#23): `@console/shared/persisted-state` (`PersistedStateStore` over `localStorage` key `tc.state.v1`,
+guarded by `isPersistedStateV1`, debounced writes, immediate for the chat draft, flushed on `visibilitychange`/`pagehide`;
+never sent to the Worker), `@console/entities/project` (`ProjectsStore` — `ready()` gates the `p/:slug` `canMatch`
+guard; `NeedsYouCounts` polls `GET /api/v1/needs-you` per minute while visible; `spaceUrlOf`/`spaceLocationOf`),
+`@console/features/project-switcher` (pinned first, the rest collapsible, badge), `@console/widgets/app-shell` (sidebar
+≥ 900 px, top bar + `Sheet` below; owns the scrolling `<main>` and restores its position per project screen), pages
+`project-space` (tabs + section placeholders; `?e2e-tall=1` renders 60 rows in dev builds), `project-not-found`,
+`needs-you`, `overview`, `settings` (language switch). Routes and the two guards live in `apps/console/src/app/`.
 
 ## Workers (#6)
 

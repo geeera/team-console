@@ -9,6 +9,7 @@ import { List, ListRow } from './list';
       <tc-list-row button [current]="current()" (click)="clicks = clicks + 1">
         <span tc-row-title>Team Console</span>
         <span tc-row-subtitle>Sprint 01</span>
+        <button tc-row-action type="button" aria-label="Pin Team Console" (click)="pins = pins + 1">P</button>
       </tc-list-row>
       <tc-list-row href="/settings">
         <span tc-row-title>Settings</span>
@@ -22,6 +23,7 @@ import { List, ListRow } from './list';
 class Host {
   readonly current = signal(false);
   clicks = 0;
+  pins = 0;
 }
 
 describe('List', () => {
@@ -71,8 +73,20 @@ describe('List', () => {
   it('bubbles the click to the host', async () => {
     const { fixture, rows } = await render();
 
-    (rows[0]?.querySelector('button') as HTMLButtonElement).click();
+    (rows[0]?.querySelector('button.tc-list-row__surface') as HTMLButtonElement).click();
 
     expect(fixture.componentInstance.clicks).toBe(1);
+  });
+
+  it('renders a row action beside the surface, never inside it', async () => {
+    const { fixture, rows } = await render();
+    const row = rows[0] as HTMLElement;
+    const action = row.querySelector('[tc-row-action]') as HTMLButtonElement;
+
+    expect(action.closest('.tc-list-row__surface')).toBeNull();
+    expect(row.querySelector('button.tc-list-row__surface')?.contains(action)).toBe(false);
+
+    action.click();
+    expect(fixture.componentInstance.pins).toBe(1);
   });
 });

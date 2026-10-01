@@ -52,6 +52,23 @@ select {
   white-space: nowrap;
 }
 
+/* One column of content on a screen: the cross-project pages and Settings share it. */
+.tc-page {
+  display: grid;
+  gap: var(--space-4);
+  max-width: var(--log-max);
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4) calc(var(--space-8) + var(--safe-bottom));
+}
+
+.tc-page__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+}
+
 /* The CDK overlay container hosts sheets and dialogs; the scrim is our own backdrop class. */
 .cdk-overlay-container {
   z-index: var(--z-overlay);

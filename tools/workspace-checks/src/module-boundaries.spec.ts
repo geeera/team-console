@@ -28,7 +28,7 @@ describe('module boundaries (real ESLint run against the real project graph)', (
   });
 
   it('lets a page import an entity (downward)', async () => {
-    await expect(lintImport('libs/console/pages/hello', '@console/entities/app-info')).resolves.toEqual([]);
+    await expect(lintImport('libs/console/pages/settings', '@console/entities/app-info')).resolves.toEqual([]);
   });
 
   it('lets shared import shared', async () => {
@@ -36,7 +36,7 @@ describe('module boundaries (real ESLint run against the real project graph)', (
   });
 
   it('fails when shared imports a page (upward)', async () => {
-    const messages = await lintImport('libs/console/shared/api', '@console/pages/hello');
+    const messages = await lintImport('libs/console/shared/api', '@console/pages/settings');
 
     expect(messages).toHaveLength(1);
     expect(messages[0]?.severity).toBe(2);
@@ -56,12 +56,12 @@ describe('module boundaries (real ESLint run against the real project graph)', (
   });
 
   it('fails when a lib imports the page that already depends on it (cycle)', async () => {
-    const messages = await lintImport('libs/console/shared/ui', '@console/pages/hello');
+    const messages = await lintImport('libs/console/shared/ui', '@console/pages/settings');
 
     expect(messages).toHaveLength(1);
     expect(messages[0]?.severity).toBe(2);
     expect(messages[0]?.message).toContain(
-      'Circular dependency between "console-shared-ui" and "console-pages-hello"',
+      'Circular dependency between "console-shared-ui" and "console-pages-settings"',
     );
   });
 });

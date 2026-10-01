@@ -1,0 +1,24 @@
+:host {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--r-md);
+  background: var(--bg-sunken);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+:host(.tc-tab-bar--bottom) {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-chrome);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 0;
+  padding: var(--space-1) var(--space-1) calc(var(--space-1) + var(--safe-bottom));
+  border-radius: 0;
+  border-top: var(--border-w) solid var(--border);
+  background: var(--bg);
+}
