@@ -1,10 +1,10 @@
 {
  "plugin": {
-  "version": "0.10.2",
+  "version": "0.10.3",
   "sources": {
-   "scripts/backlog": "e0b5d5436ca5c0d27adb39d7c3baa886ace07bc9da0a0525fa8fb54e3004b058",
+   "scripts/backlog": "155782d06afac5a237e3b6f1f2ca7d0edc322ae195d2a2d8c3c14aba7bf5d22f",
    "scripts/ptlib/brief.py": "636bef55eaaf0891d1e4d44a7964ca1e59eb0195c1feaea00d62360734864a61",
-   "scripts/ptlib/commands.py": "bd6a445cb9d3e70001bd0c4200e32b25f19a8171f4f307b73d46c9755cf5ecf2",
+   "scripts/ptlib/commands.py": "3df2ed46e68b12283b58e2f34a7988c8699d7d3e93d6bee2a583f0a3ef1500bc",
    "scripts/ptlib/inbox.py": "0e30847ee229a0f5a49f8c9c5c7171cc53239b6ff04eb3a84c247f446ec4e2ac"
   }
  },
