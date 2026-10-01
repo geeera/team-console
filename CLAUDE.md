@@ -91,8 +91,14 @@ string, never a client-chosen repo); throw `GitHubError` and `createApiApp`'s `m
 through `ReadCache` keyed `readCacheKey({ environment, slug, epoch, type })`. The api Worker's per-isolate GitHub state
 is `ApiGitHub` (`apps/api/src/github.ts`); `GITHUB_MOCK=true` (local only) swaps api.github.com for the fixture GitHub
 in `libs/worker/github/fixtures`. Migrations live only in `apps/api/migrations` (`0001_init` = `projects`;
-`0005_owner_connections` #59; `0006_project_installation` #15 adds `projects.installation_id`; `0002_push_subscriptions`
-#11, `0003_webhooks` #12, `0004_chat_wakeups` are reserved). The owner connection (#59, ADR 0003 decisions 3–4) is
+`0005_owner_connections` #59; `0006_project_installation` #15 adds `projects.installation_id`; `0007_own_writes` #10 =
+`own_writes` + `own_write_claims`, which #12 reuses; `0002_push_subscriptions` #11, `0003_webhooks` #12 (its own tables
+only), `0004_chat_wakeups` are reserved). The answer route (#10) is `routes/answer.ts`
+(`POST /api/v1/projects/:slug/issues/:number/answer`, owner-only): section re-derived from the live issue with
+`@shared/owner-grammar` (a byte-for-byte port of the plugin's `backlog answer` and `commands.command_lines`, proven by
+fixtures that `libs/shared/owner-grammar/fixtures/generate.py` writes from the vendored plugin — rerun it after every
+`vendor` update, a spec fails until you do), owner check, then the comment on the owner's token through
+`GitHubClient.postJson` (one refresh on 401, never retried after a timeout or 5xx), 60 s replay from `own_writes`. The owner connection (#59, ADR 0003 decisions 3–4) is
 `apps/api/src/owner/`: `ApiGitHub.ownerConnection(env, logger)` is the `OwnerTokenSource` for owner writes (refresh
 under the D1 lease; an unusable row → 403 `github-owner-not-connected` with `connectUrl`), routes in
 `routes/github-connection.ts` (refused for the service identity), AES-GCM helpers (`importMasterKey`,

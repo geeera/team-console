@@ -31,6 +31,7 @@
       "@console/entities/app-info": ["./libs/console/entities/app-info/src/index.ts"],
       "@console/pages/hello": ["./libs/console/pages/hello/src/index.ts"],
       "@shared/contracts": ["./libs/shared/contracts/src/index.ts"],
+      "@shared/owner-grammar": ["./libs/shared/owner-grammar/src/index.ts"],
       "@worker/core": ["./libs/worker/core/src/index.ts"],
       "@worker/db": ["./libs/worker/db/src/index.ts"],
       "@worker/github": ["./libs/worker/github/src/index.ts"],

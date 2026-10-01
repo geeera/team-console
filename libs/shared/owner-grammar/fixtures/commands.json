@@ -1,0 +1,3658 @@
+{
+ "plugin": {
+  "version": "0.10.2",
+  "sources": {
+   "scripts/backlog": "e0b5d5436ca5c0d27adb39d7c3baa886ace07bc9da0a0525fa8fb54e3004b058",
+   "scripts/ptlib/brief.py": "636bef55eaaf0891d1e4d44a7964ca1e59eb0195c1feaea00d62360734864a61",
+   "scripts/ptlib/commands.py": "bd6a445cb9d3e70001bd0c4200e32b25f19a8171f4f307b73d46c9755cf5ecf2",
+   "scripts/ptlib/inbox.py": "0e30847ee229a0f5a49f8c9c5c7171cc53239b6ff04eb3a84c247f446ec4e2ac"
+  }
+ },
+ "cases": [
+  {
+   "body": "/approve",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "/APPROVE ok",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "ok"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "ok"
+    ]
+   ]
+  },
+  {
+   "body": "/Approve: fine",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "fine"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "fine"
+    ]
+   ]
+  },
+  {
+   "body": "/approve:fine",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "fine"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "fine"
+    ]
+   ]
+  },
+  {
+   "body": "/approve\t:\t fine  ",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "fine"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "fine"
+    ]
+   ]
+  },
+  {
+   "body": "/approved",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "/approve-now",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "/approve_x",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "/approve\u00e9",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "/approve1",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "/approve\u0663",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "/approve\u0301 x",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "\u0301 x"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "\u0301 x"
+    ]
+   ]
+  },
+  {
+   "body": "/approve.",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "."
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "."
+    ]
+   ]
+  },
+  {
+   "body": "/approve!",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "!"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "!"
+    ]
+   ]
+  },
+  {
+   "body": "/go",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "/go-live",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "/go,",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     ","
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     ","
+    ]
+   ]
+  },
+  {
+   "body": "/no-go why",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "why"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "why"
+    ]
+   ]
+  },
+  {
+   "body": "/NO-GO why",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "why"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "why"
+    ]
+   ]
+  },
+  {
+   "body": "/nO-gO why",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "why"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "why"
+    ]
+   ]
+  },
+  {
+   "body": "/resume",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "resume",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "resume",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "/RESUME",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "resume",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "resume",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "/re\u017fume",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "re\u017fume",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "re\u017fume",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "/overr\u0131de x",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "overr\u0131de",
+     "x"
+    ]
+   ],
+   "app": [
+    [
+     "overr\u0131de",
+     "x"
+    ]
+   ]
+  },
+  {
+   "body": "/overr\u0130de x",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "overri\u0307de",
+     "x"
+    ]
+   ],
+   "app": [
+    [
+     "overri\u0307de",
+     "x"
+    ]
+   ]
+  },
+  {
+   "body": "/override \t: x ",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "x"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "x"
+    ]
+   ]
+  },
+  {
+   "body": "/done",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "/reject",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "/ approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "//approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "text /approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": " /approve",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "  /approve",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "   /approve",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "    /approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "\t/approve",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "\t\t/approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": " \t/approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "\u00a0/approve",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "\u00a0\u00a0\u00a0/approve",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "\u00a0\u00a0\u00a0\u00a0/approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "\u2003/approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "\u3000/approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "> /approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": ">/approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "   > /approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "\u00a0> /approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "    > /approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "\t> /approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "```\n/approve\n```",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "```js\n/approve\n```\n/go",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "~~~\n/approve\n~~~\n/reject no",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "no"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "no"
+    ]
+   ]
+  },
+  {
+   "body": "````\n/approve\n```\n/go\n````\n/no-go x",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "x"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "x"
+    ]
+   ]
+  },
+  {
+   "body": "``` a`b\n/approve",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "```\n/approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "   ```\n/approve\n   ```\n/go",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "    ```\n/approve\n```\n/go",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "```\n/approve\n``` trailing\n/go\n```\n/resume",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "resume",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "resume",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "~~~\n/approve\n```\n/go\n~~~\n/resume",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "resume",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "resume",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "`/approve`",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "`` /approve ``",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "` /approve\n/go`",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "`\n\n/approve`",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "`"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "`"
+    ]
+   ]
+  },
+  {
+   "body": "``\n/approve``\n/go",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "`a` /approve\n/go `b`",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "`b`"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "`b`"
+    ]
+   ]
+  },
+  {
+   "body": "```inline``` /approve\n/go",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "<!-- /approve -->",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!--\n/approve\n-->\n/go",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "<!-- unclosed\n/approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "x <!-- a -->\n/approve",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "<!-- a --> /approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!---->\n/approve",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "**Architect note** /approve\n/approve",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "**Architect note**\n/approve",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "## **PM grooming**\n/go",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": [
+    [
+     "go",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "###### **QA:** fine\n/go",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": [
+    [
+     "go",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "####### **QA**\n/go",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "**PMx**\n/go",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "**PM**\n/go",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": [
+    [
+     "go",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "**PM\u00e9**\n/go",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "**PM-lead**\n/go",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": [
+    [
+     "go",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "  \n**QA** x\n/approve",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "\u001c**QA** x\n/approve",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "\ufeff**QA** x\n/approve",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "x **QA**\n/approve",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "**Product manager** note\n/reject no",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": [
+    [
+     "reject",
+     "no"
+    ]
+   ]
+  },
+  {
+   "body": "**QA\n/approve**",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "**"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "**"
+    ]
+   ]
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n/approve",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": " <!-- pt-x -->\n/go",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": [
+    [
+     "go",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "<!-- ptx -->\n/go",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "a\r\n/approve\r\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "a\r/approve",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "/approve a\u2028b",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "a\u2028b"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "a\u2028b"
+    ]
+   ]
+  },
+  {
+   "body": "a\u2028/approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "a\u0085/approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "/approve \ud83d\ude00 ok",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "\ud83d\ude00 ok"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "\ud83d\ude00 ok"
+    ]
+   ]
+  },
+  {
+   "body": "\ud83d\ude00 `x` /approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "`\ud83d\ude00`\n/approve ok",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "ok"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "ok"
+    ]
+   ]
+  },
+  {
+   "body": "`\ud83d\ude00` <!-- \ud83d\ude00 -->\n/approve \ud83d\ude00",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "\ud83d\ude00"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "\ud83d\ude00"
+    ]
+   ]
+  },
+  {
+   "body": "/approve `code`",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "`code`"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "`code`"
+    ]
+   ]
+  },
+  {
+   "body": "/approve <!-- hidden -->",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "<!-- hidden -->"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "<!-- hidden -->"
+    ]
+   ]
+  },
+  {
+   "body": "/approve\n/reject why\n/go",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     ""
+    ],
+    [
+     "reject",
+     "why"
+    ],
+    [
+     "go",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     ""
+    ],
+    [
+     "reject",
+     "why"
+    ],
+    [
+     "go",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "\n\n",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "/approve\u0000x",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "\u0000x"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "\u0000x"
+    ]
+   ]
+  },
+  {
+   "body": "\u0000/approve",
+   "teamNote": false,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "/approve because\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430, \u0442\u0430\u043a\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/reject because\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430, \u0442\u0430\u043a\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/go because\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430, \u0442\u0430\u043a\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go because\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430, \u0442\u0430\u043a\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/override because\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430, \u0442\u0430\u043a\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** because\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430, \u0442\u0430\u043a\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "/approve\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "/approve ok\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "ok"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "ok"
+    ]
+   ]
+  },
+  {
+   "body": "/approve ok /go\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "ok /go"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "ok /go"
+    ]
+   ]
+  },
+  {
+   "body": "/approve ok /approve\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "ok /approve"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "ok /approve"
+    ]
+   ]
+  },
+  {
+   "body": "/approve ok /reject why\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "ok /reject why"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "ok /reject why"
+    ]
+   ]
+  },
+  {
+   "body": "/approve /approve\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "/approve"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "/approve"
+    ]
+   ]
+  },
+  {
+   "body": "/approve /go now\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "/go now"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "/go now"
+    ]
+   ]
+  },
+  {
+   "body": "/approve a b\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "a b"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "a b"
+    ]
+   ]
+  },
+  {
+   "body": "/approve a\u200bb\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "a\u200bb"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "a\u200bb"
+    ]
+   ]
+  },
+  {
+   "body": "/approve a\ufeffb\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "a\ufeffb"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "a\ufeffb"
+    ]
+   ]
+  },
+  {
+   "body": "/approve \ufeff\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "\ufeff"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "\ufeff"
+    ]
+   ]
+  },
+  {
+   "body": "/approve x\ufeff\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "x\ufeff"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "x\ufeff"
+    ]
+   ]
+  },
+  {
+   "body": "/approve \ufeffx\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "\ufeffx"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "\ufeffx"
+    ]
+   ]
+  },
+  {
+   "body": "/approve a b c\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "a b c"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "a b c"
+    ]
+   ]
+  },
+  {
+   "body": "/approve lead\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "lead"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "lead"
+    ]
+   ]
+  },
+  {
+   "body": "/approve `code` and <!-- c -->\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "`code` and <!-- c -->"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "`code` and <!-- c -->"
+    ]
+   ]
+  },
+  {
+   "body": "/approve > quoted\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "> quoted"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "> quoted"
+    ]
+   ]
+  },
+  {
+   "body": "/approve ``` /approve ```\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "``` /approve ```"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "``` /approve ```"
+    ]
+   ]
+  },
+  {
+   "body": "/approve emoji \ud83d\ude00 ok\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "emoji \ud83d\ude00 ok"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "emoji \ud83d\ude00 ok"
+    ]
+   ]
+  },
+  {
+   "body": "/approve \u202e rtl\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "\u202e rtl"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "\u202e rtl"
+    ]
+   ]
+  },
+  {
+   "body": "/approve **bold**\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "**bold**"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "**bold**"
+    ]
+   ]
+  },
+  {
+   "body": "/approve done twice\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "done twice"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "done twice"
+    ]
+   ]
+  },
+  {
+   "body": "/approve trailing\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "trailing"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "trailing"
+    ]
+   ]
+  },
+  {
+   "body": "/reject ok\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "ok"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "ok"
+    ]
+   ]
+  },
+  {
+   "body": "/reject ok /go\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "ok /go"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "ok /go"
+    ]
+   ]
+  },
+  {
+   "body": "/reject ok /approve\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "ok /approve"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "ok /approve"
+    ]
+   ]
+  },
+  {
+   "body": "/reject ok /reject why\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "ok /reject why"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "ok /reject why"
+    ]
+   ]
+  },
+  {
+   "body": "/reject /approve\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "/approve"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "/approve"
+    ]
+   ]
+  },
+  {
+   "body": "/reject /go now\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "/go now"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "/go now"
+    ]
+   ]
+  },
+  {
+   "body": "/reject a b\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "a b"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "a b"
+    ]
+   ]
+  },
+  {
+   "body": "/reject a\u200bb\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "a\u200bb"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "a\u200bb"
+    ]
+   ]
+  },
+  {
+   "body": "/reject a\ufeffb\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "a\ufeffb"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "a\ufeffb"
+    ]
+   ]
+  },
+  {
+   "body": "/reject \ufeff\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "\ufeff"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "\ufeff"
+    ]
+   ]
+  },
+  {
+   "body": "/reject x\ufeff\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "x\ufeff"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "x\ufeff"
+    ]
+   ]
+  },
+  {
+   "body": "/reject \ufeffx\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "\ufeffx"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "\ufeffx"
+    ]
+   ]
+  },
+  {
+   "body": "/reject a b c\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "a b c"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "a b c"
+    ]
+   ]
+  },
+  {
+   "body": "/reject lead\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "lead"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "lead"
+    ]
+   ]
+  },
+  {
+   "body": "/reject `code` and <!-- c -->\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "`code` and <!-- c -->"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "`code` and <!-- c -->"
+    ]
+   ]
+  },
+  {
+   "body": "/reject > quoted\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "> quoted"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "> quoted"
+    ]
+   ]
+  },
+  {
+   "body": "/reject ``` /approve ```\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "``` /approve ```"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "``` /approve ```"
+    ]
+   ]
+  },
+  {
+   "body": "/reject emoji \ud83d\ude00 ok\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "emoji \ud83d\ude00 ok"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "emoji \ud83d\ude00 ok"
+    ]
+   ]
+  },
+  {
+   "body": "/reject \u202e rtl\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "\u202e rtl"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "\u202e rtl"
+    ]
+   ]
+  },
+  {
+   "body": "/reject **bold**\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "**bold**"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "**bold**"
+    ]
+   ]
+  },
+  {
+   "body": "/reject done twice\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "done twice"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "done twice"
+    ]
+   ]
+  },
+  {
+   "body": "/reject trailing\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "trailing"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "trailing"
+    ]
+   ]
+  },
+  {
+   "body": "/go\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     ""
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     ""
+    ]
+   ]
+  },
+  {
+   "body": "/go ok\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "ok"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "ok"
+    ]
+   ]
+  },
+  {
+   "body": "/go ok /go\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "ok /go"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "ok /go"
+    ]
+   ]
+  },
+  {
+   "body": "/go ok /approve\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "ok /approve"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "ok /approve"
+    ]
+   ]
+  },
+  {
+   "body": "/go ok /reject why\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "ok /reject why"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "ok /reject why"
+    ]
+   ]
+  },
+  {
+   "body": "/go /approve\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "/approve"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "/approve"
+    ]
+   ]
+  },
+  {
+   "body": "/go /go now\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "/go now"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "/go now"
+    ]
+   ]
+  },
+  {
+   "body": "/go a b\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "a b"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "a b"
+    ]
+   ]
+  },
+  {
+   "body": "/go a\u200bb\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "a\u200bb"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "a\u200bb"
+    ]
+   ]
+  },
+  {
+   "body": "/go a\ufeffb\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "a\ufeffb"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "a\ufeffb"
+    ]
+   ]
+  },
+  {
+   "body": "/go \ufeff\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "\ufeff"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "\ufeff"
+    ]
+   ]
+  },
+  {
+   "body": "/go x\ufeff\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "x\ufeff"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "x\ufeff"
+    ]
+   ]
+  },
+  {
+   "body": "/go \ufeffx\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "\ufeffx"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "\ufeffx"
+    ]
+   ]
+  },
+  {
+   "body": "/go a b c\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "a b c"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "a b c"
+    ]
+   ]
+  },
+  {
+   "body": "/go lead\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "lead"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "lead"
+    ]
+   ]
+  },
+  {
+   "body": "/go `code` and <!-- c -->\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "`code` and <!-- c -->"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "`code` and <!-- c -->"
+    ]
+   ]
+  },
+  {
+   "body": "/go > quoted\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "> quoted"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "> quoted"
+    ]
+   ]
+  },
+  {
+   "body": "/go ``` /approve ```\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "``` /approve ```"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "``` /approve ```"
+    ]
+   ]
+  },
+  {
+   "body": "/go emoji \ud83d\ude00 ok\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "emoji \ud83d\ude00 ok"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "emoji \ud83d\ude00 ok"
+    ]
+   ]
+  },
+  {
+   "body": "/go \u202e rtl\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "\u202e rtl"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "\u202e rtl"
+    ]
+   ]
+  },
+  {
+   "body": "/go **bold**\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "**bold**"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "**bold**"
+    ]
+   ]
+  },
+  {
+   "body": "/go done twice\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "done twice"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "done twice"
+    ]
+   ]
+  },
+  {
+   "body": "/go trailing\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "go",
+     "trailing"
+    ]
+   ],
+   "app": [
+    [
+     "go",
+     "trailing"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go ok\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "ok"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "ok"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go ok /go\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "ok /go"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "ok /go"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go ok /approve\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "ok /approve"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "ok /approve"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go ok /reject why\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "ok /reject why"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "ok /reject why"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go /approve\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "/approve"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "/approve"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go /go now\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "/go now"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "/go now"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go a b\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "a b"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "a b"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go a\u200bb\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "a\u200bb"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "a\u200bb"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go a\ufeffb\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "a\ufeffb"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "a\ufeffb"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go \ufeff\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "\ufeff"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "\ufeff"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go x\ufeff\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "x\ufeff"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "x\ufeff"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go \ufeffx\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "\ufeffx"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "\ufeffx"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go a b c\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "a b c"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "a b c"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go lead\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "lead"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "lead"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go `code` and <!-- c -->\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "`code` and <!-- c -->"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "`code` and <!-- c -->"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go > quoted\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "> quoted"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "> quoted"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go ``` /approve ```\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "``` /approve ```"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "``` /approve ```"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go emoji \ud83d\ude00 ok\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "emoji \ud83d\ude00 ok"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "emoji \ud83d\ude00 ok"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go \u202e rtl\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "\u202e rtl"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "\u202e rtl"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go **bold**\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "**bold**"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "**bold**"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go done twice\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "done twice"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "done twice"
+    ]
+   ]
+  },
+  {
+   "body": "/no-go trailing\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "no-go",
+     "trailing"
+    ]
+   ],
+   "app": [
+    [
+     "no-go",
+     "trailing"
+    ]
+   ]
+  },
+  {
+   "body": "/override ok\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "ok"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "ok"
+    ]
+   ]
+  },
+  {
+   "body": "/override ok /go\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "ok /go"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "ok /go"
+    ]
+   ]
+  },
+  {
+   "body": "/override ok /approve\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "ok /approve"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "ok /approve"
+    ]
+   ]
+  },
+  {
+   "body": "/override ok /reject why\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "ok /reject why"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "ok /reject why"
+    ]
+   ]
+  },
+  {
+   "body": "/override /approve\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "/approve"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "/approve"
+    ]
+   ]
+  },
+  {
+   "body": "/override /go now\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "/go now"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "/go now"
+    ]
+   ]
+  },
+  {
+   "body": "/override a b\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "a b"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "a b"
+    ]
+   ]
+  },
+  {
+   "body": "/override a\u200bb\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "a\u200bb"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "a\u200bb"
+    ]
+   ]
+  },
+  {
+   "body": "/override a\ufeffb\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "a\ufeffb"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "a\ufeffb"
+    ]
+   ]
+  },
+  {
+   "body": "/override \ufeff\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "\ufeff"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "\ufeff"
+    ]
+   ]
+  },
+  {
+   "body": "/override x\ufeff\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "x\ufeff"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "x\ufeff"
+    ]
+   ]
+  },
+  {
+   "body": "/override \ufeffx\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "\ufeffx"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "\ufeffx"
+    ]
+   ]
+  },
+  {
+   "body": "/override a b c\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "a b c"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "a b c"
+    ]
+   ]
+  },
+  {
+   "body": "/override lead\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "lead"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "lead"
+    ]
+   ]
+  },
+  {
+   "body": "/override `code` and <!-- c -->\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "`code` and <!-- c -->"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "`code` and <!-- c -->"
+    ]
+   ]
+  },
+  {
+   "body": "/override > quoted\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "> quoted"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "> quoted"
+    ]
+   ]
+  },
+  {
+   "body": "/override ``` /approve ```\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "``` /approve ```"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "``` /approve ```"
+    ]
+   ]
+  },
+  {
+   "body": "/override emoji \ud83d\ude00 ok\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "emoji \ud83d\ude00 ok"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "emoji \ud83d\ude00 ok"
+    ]
+   ]
+  },
+  {
+   "body": "/override \u202e rtl\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "\u202e rtl"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "\u202e rtl"
+    ]
+   ]
+  },
+  {
+   "body": "/override **bold**\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "**bold**"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "**bold**"
+    ]
+   ]
+  },
+  {
+   "body": "/override done twice\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "done twice"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "done twice"
+    ]
+   ]
+  },
+  {
+   "body": "/override trailing\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "override",
+     "trailing"
+    ]
+   ],
+   "app": [
+    [
+     "override",
+     "trailing"
+    ]
+   ]
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** \n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** ok\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** ok /go\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** ok /approve\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** ok /reject why\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** /approve\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** /go now\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** a b\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** a\u200bb\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** a\ufeffb\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** \ufeff\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** x\ufeff\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** \ufeffx\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** a b c\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** lead\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** `code` and <!-- c -->\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** > quoted\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** ``` /approve ```\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** emoji \ud83d\ude00 ok\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** \u202e rtl\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** **bold**\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** done twice\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** trailing\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "/approve because\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/approve because\n\n_Answered by the owner in the team chat: \u00abline1 line2\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/approve because\n\n_Answered by the owner in the team chat: \u00aba b\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/approve because\n\n_Answered by the owner in the team chat: \u00ab\u00abquoted\u00bb\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/approve because\n\n_Answered by the owner in the team chat: \u00ab_under_\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/approve because\n\n_Answered by the owner in the team chat: \u00ab\ufeff\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/approve because\n\n_Answered by the owner in the team chat: \u00ab/go\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/approve because\n\n_Answered by the owner in the team chat: \u00abx y\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/approve because\n\n_Answered by the owner in the team chat: \u00ab\u0414\u0430, \u0441\u043e\u0433\u043b\u0430\u0441\u0435\u043d. /approve\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "approve",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "approve",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/reject because\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/reject because\n\n_Answered by the owner in the team chat: \u00abline1 line2\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/reject because\n\n_Answered by the owner in the team chat: \u00aba b\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/reject because\n\n_Answered by the owner in the team chat: \u00ab\u00abquoted\u00bb\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/reject because\n\n_Answered by the owner in the team chat: \u00ab_under_\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/reject because\n\n_Answered by the owner in the team chat: \u00ab\ufeff\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/reject because\n\n_Answered by the owner in the team chat: \u00ab/go\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/reject because\n\n_Answered by the owner in the team chat: \u00abx y\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "/reject because\n\n_Answered by the owner in the team chat: \u00ab\u0414\u0430, \u0441\u043e\u0433\u043b\u0430\u0441\u0435\u043d. /approve\u00bb_\n",
+   "teamNote": false,
+   "sameAccount": [
+    [
+     "reject",
+     "because"
+    ]
+   ],
+   "app": [
+    [
+     "reject",
+     "because"
+    ]
+   ]
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** because\n\n_Answered by the owner in the team chat: \u00ab\u0434\u0430\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** because\n\n_Answered by the owner in the team chat: \u00abline1 line2\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** because\n\n_Answered by the owner in the team chat: \u00aba b\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** because\n\n_Answered by the owner in the team chat: \u00ab\u00abquoted\u00bb\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** because\n\n_Answered by the owner in the team chat: \u00ab_under_\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** because\n\n_Answered by the owner in the team chat: \u00ab\ufeff\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** because\n\n_Answered by the owner in the team chat: \u00ab/go\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** because\n\n_Answered by the owner in the team chat: \u00abx y\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  },
+  {
+   "body": "<!-- pt-owner-done -->\n**The owner reports this done.** because\n\n_Answered by the owner in the team chat: \u00ab\u0414\u0430, \u0441\u043e\u0433\u043b\u0430\u0441\u0435\u043d. /approve\u00bb_\n",
+   "teamNote": true,
+   "sameAccount": [],
+   "app": []
+  }
+ ]
+}
