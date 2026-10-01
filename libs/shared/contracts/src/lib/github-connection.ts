@@ -14,6 +14,11 @@ export interface GitHubConnectionDto {
   readonly login?: string;
   /** ISO 8601 UTC. */
   readonly connectedAt?: string;
+  /**
+   * The GitHub login the owner connection accepts (#89), only while `state` is `not-connected` — the approved
+   * #24 wrong-account copy needs it before a first connect too, and it is config, not a secret.
+   */
+  readonly ownerLogin?: string;
 }
 
 /** `POST /api/v1/github/connect`: the GitHub authorize URL the client navigates to after checking its origin. */

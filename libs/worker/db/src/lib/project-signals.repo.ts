@@ -1,3 +1,10 @@
+/** Whether any event has arrived for a repository, and when the most recent one did (#83). */
+export interface EventsSignal {
+  readonly seen: boolean;
+  /** ISO 8601 UTC of the most recent delivery; `null` while `seen` is `false`. */
+  readonly lastEventAt: string | null;
+}
+
 /**
  * Signals about a project that other issues' migrations bring (#12: `webhook_deliveries`,
  * `projects.access_lost_at`). The registry ships before them, so each read feature-detects its table or column
@@ -6,19 +13,20 @@
 export class ProjectSignalsRepo {
   constructor(private readonly db: D1Database) {}
 
-  /** Has any app webhook delivery for this repository been recorded? `false` while the table does not exist. */
-  async hasDeliveryFor(repo: string): Promise<boolean> {
+  /** Any app webhook delivery for this repository, and the most recent one's time; `false`/`null` before the table exists. */
+  async eventsFor(repo: string): Promise<EventsSignal> {
     const table = await this.db
       .prepare("SELECT 1 AS found FROM sqlite_master WHERE type = 'table' AND name = 'webhook_deliveries'")
       .first<{ found: number }>();
     if (table === null) {
-      return false;
+      return { seen: false, lastEventAt: null };
     }
     const row = await this.db
-      .prepare('SELECT 1 AS found FROM webhook_deliveries WHERE lower(repo) = lower(?1) LIMIT 1')
+      .prepare('SELECT max(received_at) AS lastEventAt FROM webhook_deliveries WHERE lower(repo) = lower(?1)')
       .bind(repo)
-      .first<{ found: number }>();
-    return row !== null;
+      .first<{ lastEventAt: string | null }>();
+    const lastEventAt = row?.lastEventAt ?? null;
+    return { seen: lastEventAt !== null, lastEventAt };
   }
 
   /** When the app lost access to the project's repository; `null` while the column does not exist. */

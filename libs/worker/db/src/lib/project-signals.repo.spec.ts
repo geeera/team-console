@@ -11,26 +11,43 @@ async function seed(slug: string, repo: string): Promise<void> {
     .run();
 }
 
-describe('hasDeliveryFor', () => {
+describe('eventsFor', () => {
   afterEach(async () => {
     await env.DB.prepare('DROP TABLE IF EXISTS webhook_deliveries').run();
   });
 
-  it('is false while webhook_deliveries does not exist', async () => {
-    await expect(signals.hasDeliveryFor('geeera/team-console')).resolves.toBe(false);
+  it('is unseen while webhook_deliveries does not exist', async () => {
+    await expect(signals.eventsFor('geeera/team-console')).resolves.toEqual({
+      seen: false,
+      lastEventAt: null,
+    });
   });
 
   it('reads the table once it exists, matching the repository case-insensitively', async () => {
     await env.DB.prepare(
       'CREATE TABLE webhook_deliveries (delivery_id TEXT PRIMARY KEY, event TEXT NOT NULL, repo TEXT NOT NULL, received_at TEXT NOT NULL)',
     ).run();
-    await expect(signals.hasDeliveryFor('geeera/team-console')).resolves.toBe(false);
+    await expect(signals.eventsFor('geeera/team-console')).resolves.toEqual({
+      seen: false,
+      lastEventAt: null,
+    });
 
     await env.DB.prepare('INSERT INTO webhook_deliveries VALUES (?1, ?2, ?3, ?4)')
       .bind('d-1', 'issues', 'Geeera/Team-Console', '2026-09-30T00:00:00Z')
       .run();
-    await expect(signals.hasDeliveryFor('geeera/team-console')).resolves.toBe(true);
-    await expect(signals.hasDeliveryFor('geeera/other')).resolves.toBe(false);
+    await expect(signals.eventsFor('geeera/team-console')).resolves.toEqual({
+      seen: true,
+      lastEventAt: '2026-09-30T00:00:00Z',
+    });
+    await expect(signals.eventsFor('geeera/other')).resolves.toEqual({ seen: false, lastEventAt: null });
+
+    await env.DB.prepare('INSERT INTO webhook_deliveries VALUES (?1, ?2, ?3, ?4)')
+      .bind('d-2', 'push', 'geeera/team-console', '2026-09-30T05:00:00Z')
+      .run();
+    await expect(signals.eventsFor('geeera/team-console')).resolves.toEqual({
+      seen: true,
+      lastEventAt: '2026-09-30T05:00:00Z',
+    });
   });
 });
 
