@@ -1,11 +1,13 @@
-import { FakeGitHubOAuth, type FakeFault, type FakeUser } from '@worker/github/testing';
+import { FakeGitHubOAuth, type FakeFault, type FakeIssueSeed, type FakeUser } from '@worker/github/testing';
 
 /**
  * Local only (`nx run api:fake-github`, 127.0.0.1:9999): the fake GitHub of `@worker/github/testing` as a Worker, so
  * the owner connection (#59) runs end to end against `wrangler dev` of the api with
  * `--var GITHUB_FAKE_ORIGIN:http://127.0.0.1:9999`. The api sends https://github.com/… and https://api.github.com/…
  * here as /github.com/… and /api.github.com/…; the authorize page approves at once as the current user. Controls:
- * POST /_fake/user {"login","id"}, POST /_fake/fail {"fault"}, GET /_fake/state. Every value here is fake.
+ * POST /_fake/user {"login","id"}, POST /_fake/fail {"fault"}, GET /_fake/state, and for the run log (#114)
+ * POST /_fake/issue (a thread to serve: repo, number, title, author, labels, repoOwner) and POST /_fake/token (a fake
+ * owner token for the vendored `runlog` CLI pointed here with PT_GITHUB_API). Every value here is fake.
  */
 
 interface FakeEnv {
@@ -27,6 +29,21 @@ function isFakeUser(value: unknown): value is FakeUser {
   return typeof record['login'] === 'string' && typeof record['id'] === 'number';
 }
 
+function isIssueSeed(value: unknown): value is FakeIssueSeed {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record['repo'] === 'string' &&
+    typeof record['number'] === 'number' &&
+    typeof record['title'] === 'string' &&
+    typeof record['author'] === 'string' &&
+    (record['labels'] === undefined || Array.isArray(record['labels'])) &&
+    (record['repoOwner'] === undefined || isFakeUser(record['repoOwner']))
+  );
+}
+
 async function control(server: FakeGitHubOAuth, request: Request, path: string): Promise<Response> {
   if (path === '/_fake/state') {
     return json(200, {
@@ -36,7 +53,14 @@ async function control(server: FakeGitHubOAuth, request: Request, path: string):
       comments: server.comments,
     });
   }
+  if (path === '/_fake/token') {
+    return json(200, { token: server.issuePair().accessToken });
+  }
   const body: unknown = await request.json();
+  if (path === '/_fake/issue' && isIssueSeed(body)) {
+    server.seedIssue(body);
+    return json(200, { seeded: `${body.repo}#${body.number}` });
+  }
   if (path === '/_fake/user' && isFakeUser(body)) {
     server.user = { login: body.login, id: body.id };
     return json(200, server.user);

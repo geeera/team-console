@@ -1,4 +1,5 @@
 import type { ProblemDetails } from './problem-details';
+import type { ProjectSlotsDto } from './team';
 
 /** A registered product repository (ADR 0001, decision 20) as the client sees it. */
 export interface ProjectDto {
@@ -12,6 +13,11 @@ export interface ProjectDto {
   readonly addedAt: string;
   /** ISO 8601 UTC; only `?include=archived` lists archived projects. */
   readonly archivedAt: string | null;
+  /**
+   * Whether "Run now" is set up per slot (#114): both `SLOT_TOKEN_<SLUG>_<SLOT>` and `SLOT_ROUTINE_<SLUG>_<SLOT>`.
+   * Set on every answer of the registry routes; optional only so DTOs built elsewhere need not invent it.
+   */
+  readonly slots?: ProjectSlotsDto;
 }
 
 /** `POST /api/v1/projects`. The slug defaults to the repository name in kebab case. */

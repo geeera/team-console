@@ -11,9 +11,40 @@
     }
   </nav>
   }
+  <button
+    tc-button
+    type="button"
+    class="space__commands"
+    data-testid="commands-open"
+    [size]="isPhone() ? 'sm' : 'md'"
+    [attr.aria-label]="'commands.openAria' | transloco: { name: commandsProject().name }"
+    [attr.aria-expanded]="isPhone() ? null : isPaneOpen()"
+    [attr.aria-controls]="isPhone() ? null : 'tc-space-commands'"
+    [attr.aria-haspopup]="isPhone() ? 'dialog' : null"
+    [attr.aria-keyshortcuts]="isPhone() ? null : 'K'"
+    (click)="toggleCommands()"
+  >
+    <tc-icon name="sliders" size="sm" />
+    {{ 'commands.open' | transloco }} @if (!isPhone()) {
+    <kbd class="space__kbd" aria-hidden="true">K</kbd>
+    }
+  </button>
 </header>
 
-<div class="space__body"><router-outlet /></div>
+<tc-paused-banner class="space__banner" [project]="commandsProject()" />
+
+<div class="space__main">
+  <div class="space__body"><router-outlet /></div>
+  @if (isPaneOpen()) {
+  <aside
+    id="tc-space-commands"
+    class="space__pane"
+    [attr.aria-label]="'commands.title' | transloco: { name: commandsProject().name }"
+  >
+    <tc-commands-panel mode="pane" [project]="commandsProject()" (closed)="closePane()" />
+  </aside>
+  }
+</div>
 
 @if (isPhone()) {
 <nav tc-tab-bar bottom [attr.aria-label]="'space.sections' | transloco">

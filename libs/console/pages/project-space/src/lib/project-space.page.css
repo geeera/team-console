@@ -15,8 +15,82 @@
 }
 
 :host(.tc-space--phone) .space__head {
-  padding: 0;
+  justify-content: flex-end;
+  padding: var(--space-2) var(--space-4) 0;
   border-bottom: 0;
+}
+
+.space__commands {
+  margin-left: auto;
+}
+
+.space__kbd {
+  padding: 0 var(--space-1);
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--r-xs);
+  font-family: var(--font-body);
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+}
+
+.space__banner {
+  display: block;
+  max-width: var(--log-max);
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--space-3) var(--pad-x) 0;
+}
+
+.space__banner:empty {
+  display: none;
+}
+
+:host(.tc-space--phone) .space__banner {
+  padding: var(--space-2) var(--space-4) 0;
+}
+
+.space__main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* The pane sits beside the section (non-modal): the section stays usable while it is open. */
+.space__pane {
+  flex: none;
+  width: var(--pane-w);
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  border-left: var(--border-w) solid var(--border);
+  background: var(--surface-2);
+  animation: tc-pane-in var(--dur-base) var(--ease-enter) both;
+}
+
+@keyframes tc-pane-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--space-4));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .space__pane {
+    animation: tc-pane-fade var(--dur-fade) linear both;
+  }
+}
+
+:host-context(:root[data-motion='reduce']) .space__pane {
+  animation: tc-pane-fade var(--dur-fade) linear both;
+}
+
+@keyframes tc-pane-fade {
+  from {
+    opacity: 0;
+  }
 }
 
 .space__title {

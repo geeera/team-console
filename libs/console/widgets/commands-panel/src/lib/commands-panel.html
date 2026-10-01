@@ -1,0 +1,252 @@
+@if (mode() === 'pane') {
+<header class="cp__head">
+  <h2 class="cp__title" [id]="id + '-title'" tabindex="-1">
+    {{ 'commands.title' | transloco: { name: project().name } }}
+  </h2>
+  <button
+    tc-icon-button
+    type="button"
+    class="cp__close"
+    [attr.aria-label]="'commands.close' | transloco"
+    (click)="closed.emit()"
+  >
+    <tc-icon name="x" size="lg" />
+  </button>
+</header>
+}
+
+<div class="cp__body">
+  <p class="tc-sr-only" aria-live="polite">{{ announcement() }}</p>
+
+  @if (result(); as outcome) {
+  <tc-receipt class="cp-result" [tone]="toneOf(outcome)">
+    <span tc-receipt-verb>{{ outcome.verb }}</span>
+    @if (outcome.detail) {
+    <span tc-receipt-detail>{{ outcome.detail }}</span>
+    }
+    <span tc-receipt-meta>
+      {{ outcome.at | localTime }} @if (outcome.runLogUrl) { ·
+      <a class="cp-ext" [href]="outcome.runLogUrl" target="_blank" rel="noopener noreferrer">
+        {{ 'commands.result.log' | transloco }}<span class="tc-sr-only">
+          {{ 'commands.external' | transloco }}</span
+        >
+        <tc-icon name="external" size="sm" />
+      </a>
+      }
+    </span>
+  </tc-receipt>
+  } @if (status(); as status) {
+  <section class="cp-state" [attr.aria-labelledby]="id + '-st'">
+    <h3 class="cp-kicker" [id]="id + '-st'">{{ 'commands.status.h' | transloco }}</h3>
+    <p class="cp-state__now" [class]="'cp-state__now--' + status.state" data-testid="team-state">
+      @if (status.state === 'paused-by-team') {
+      <tc-icon name="alert" size="sm" />
+      } @else {
+      <span class="cp-dot" [class.cp-dot--paused]="paused()" aria-hidden="true"></span>
+      }
+      <span>{{ stateText() }}</span>
+    </p>
+    <p class="cp-state__meta">
+      <span>{{ 'commands.status.updated' | transloco: { time: (status.checkedAt | localTime) } }}</span>
+      <button
+        type="button"
+        class="cp-link"
+        [attr.aria-disabled]="store.refreshing() || isOffline() ? 'true' : null"
+        (click)="refresh()"
+      >
+        <tc-icon name="refresh" size="sm" />
+        {{ (store.refreshing() ? 'commands.status.refreshing' : 'commands.status.refresh') | transloco }}
+      </button>
+      @if (status.runLogUrl) {
+      <a class="cp-ext" [href]="status.runLogUrl" target="_blank" rel="noopener noreferrer">
+        {{ 'commands.status.log' | transloco }}<span class="tc-sr-only">
+          {{ 'commands.external' | transloco }}</span
+        >
+        <tc-icon name="external" size="sm" />
+      </a>
+      }
+    </p>
+  </section>
+
+  @if (isOffline()) {
+  <div tc-banner tone="warning" class="cp-note" role="status">
+    <tc-icon tc-banner-icon name="offline" size="sm" />
+    <p tc-banner-text>
+      {{ 'commands.status.offline' | transloco: { time: (status.checkedAt | localTime) } }}
+    </p>
+  </div>
+  } @else if (!status.ownerConnected) {
+  <div tc-banner tone="warning" class="cp-note">
+    <tc-icon tc-banner-icon name="lock" size="sm" />
+    <p tc-banner-text>
+      {{ 'commands.status.noperm' | transloco: { repo: project().repo } }}
+      <a routerLink="/settings">{{ 'commands.status.nopermFix' | transloco }}</a>
+    </p>
+  </div>
+  }
+
+  <section class="cp-group" [attr.aria-labelledby]="id + '-gt'">
+    <h3 class="cp-kicker" [id]="id + '-gt'">{{ 'commands.group.team' | transloco }}</h3>
+    <div class="cmd-list">
+      <div class="cmd cmd--team">
+        <div class="cmd__txt">
+          <p class="cmd__title">
+            {{ (paused() ? 'commands.resume.title' : 'commands.pause.title') | transloco }}
+          </p>
+          <p class="cmd__hint" [id]="id + '-team-hint'">
+            {{ (paused() ? 'commands.resume.hint' : 'commands.pause.hint') | transloco }}
+          </p>
+          @if (teamWhy(); as why) {
+          <p class="cmd__why" [id]="id + '-team-why'">
+            <tc-icon name="lock" size="sm" /><span>{{ why }}</span>
+          </p>
+          }
+        </div>
+        <button
+          tc-button
+          type="button"
+          class="cmd__btn"
+          data-testid="team-command"
+          [variant]="paused() ? 'primary' : 'secondary'"
+          [off]="teamWhy() !== null"
+          [attr.aria-disabled]="teamWhy() !== null ? 'true' : null"
+          [attr.aria-label]="(paused() ? 'commands.resume.title' : 'commands.pause.title') | transloco"
+          [attr.aria-describedby]="(teamWhy() !== null ? id + '-team-why ' : '') + id + '-team-hint'"
+          (click)="pauseOrResume($event)"
+        >
+          <tc-icon [name]="paused() ? 'play' : 'pause'" size="sm" />
+          {{ (paused() ? 'commands.resume.btn' : 'commands.pause.btn') | transloco }}
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="cp-group" [attr.aria-labelledby]="id + '-gr'">
+    <h3 class="cp-kicker" [id]="id + '-gr'">{{ 'commands.group.run' | transloco }}</h3>
+
+    @if (setup(); as setup) {
+    <div class="cp-setup" data-testid="setup-card">
+      <div class="cp-setup__head">
+        <tc-icon name="key" />
+        <h4 class="cp-setup__title">{{ 'commands.setup.t' | transloco: { slots: setup.names } }}</h4>
+      </div>
+      <p class="cp-setup__body">{{ 'commands.setup.b' | transloco }}</p>
+      <button
+        tc-button
+        variant="quiet"
+        size="sm"
+        type="button"
+        class="cp-setup__how"
+        [attr.aria-expanded]="isHowOpen()"
+        [attr.aria-controls]="id + '-how'"
+        (click)="isHowOpen.set(!isHowOpen())"
+      >
+        {{ 'commands.setup.how' | transloco }}
+        <tc-icon name="chevron-down" size="sm" />
+      </button>
+      <div class="cp-how" [id]="id + '-how'" [hidden]="!isHowOpen()">
+        <ol class="cp-steps">
+          <li>{{ 'commands.setup.s1' | transloco: { name: project().name, slots: setup.names } }}</li>
+          <li>
+            {{ 'commands.setup.s2' | transloco }}
+            <ul class="cp-slots">
+              @for (line of setup.lines; track line.slot) {
+              <li class="cp-slot">
+                <span class="cp-slot__name">{{ line.name }}</span>
+                @for (command of line.commands; track command.what) {
+                <div class="cp-code">
+                  <code>{{ command.text }}</code>
+                  <button
+                    tc-button
+                    size="sm"
+                    type="button"
+                    [attr.aria-label]="
+                      (command.what === 'id' ? 'commands.setup.copyId' : 'commands.setup.copyToken')
+                        | transloco: { slot: line.name }
+                    "
+                    (click)="copy(command.text, $event)"
+                  >
+                    <tc-icon [name]="copied() === command.text ? 'check' : 'copy'" size="sm" />
+                    <span aria-hidden="true"
+                      >{{ (copied() === command.text ? 'commands.setup.copied' : 'commands.setup.copy') |
+                      transloco }}</span
+                    >
+                  </button>
+                </div>
+                }
+              </li>
+              }
+            </ul>
+            <p class="cp-warn">
+              <tc-icon name="alert" size="sm" /><span>{{ 'commands.setup.warn' | transloco }}</span>
+            </p>
+          </li>
+          <li>{{ 'commands.setup.s3' | transloco }}</li>
+        </ol>
+      </div>
+    </div>
+    }
+
+    <ul class="cmd-list">
+      @for (row of rows(); track row.slot) {
+      <li class="cmd" [attr.data-slot]="row.slot">
+        <div class="cmd__txt">
+          <p class="cmd__title">{{ 'commands.slot.' + row.slot | transloco }}</p>
+          @if (row.line) {
+          <p
+            class="cmd__line"
+            [class.cmd__line--unknown]="row.lineKind === 'unknown'"
+            [id]="id + '-line-' + row.slot"
+          >
+            @switch (row.lineKind) { @case ('live') {
+            <span class="cmd__live" aria-hidden="true"></span>
+            } @case ('unknown') {
+            <tc-icon name="clock" size="sm" />
+            } }
+            <span>{{ row.line }}</span>
+          </p>
+          } @if (row.why) {
+          <p class="cmd__why" [id]="id + '-why-' + row.slot">
+            <tc-icon [name]="row.whyIcon" size="sm" /><span>{{ row.why }}</span>
+          </p>
+          }
+        </div>
+        <button
+          tc-button
+          size="sm"
+          type="button"
+          class="cmd__btn"
+          [attr.data-testid]="'run-' + row.slot"
+          [off]="row.isOff"
+          [attr.aria-disabled]="row.isOff ? 'true' : null"
+          [attr.aria-label]="'commands.row.btnAria' | transloco: { slot: ('commands.slot.' + row.slot | transloco) }"
+          [attr.aria-describedby]="((row.why ? id + '-why-' + row.slot + ' ' : '') + (row.line ? id + '-line-' + row.slot : '')).trim() || null"
+          (click)="run($event, row)"
+        >
+          <tc-icon name="play" size="sm" />
+          {{ 'commands.row.btn' | transloco }}
+        </button>
+      </li>
+      }
+    </ul>
+  </section>
+  } @else if (hasNoRunLog()) {
+  <tc-state-block
+    kind="empty"
+    [title]="'commands.status.h' | transloco"
+    [description]="'commands.status.noLog' | transloco"
+  />
+  } @else if (loadProblem()) {
+  <tc-state-block
+    kind="error"
+    [title]="'commands.status.errT' | transloco"
+    [description]="'commands.status.errB' | transloco"
+  >
+    <button tc-button tc-state-action type="button" [loading]="store.refreshing()" (click)="refresh()">
+      {{ 'commands.dialog.retry' | transloco }}
+    </button>
+  </tc-state-block>
+  } @else {
+  <tc-state-block kind="loading" [title]="'commands.status.loading' | transloco" />
+  }
+</div>

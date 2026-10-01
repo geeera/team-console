@@ -80,8 +80,16 @@ describe('App', () => {
 
   afterEach(() => {
     // The question lists (#16) read on their own; these routing tests do not look at them.
-    http.match(NEEDS_YOU_URL).forEach((request) => request.flush({ items: [], projects: [], omittedProjects: [] }));
-    http.match((request) => request.url.endsWith('/questions')).forEach((request) => request.flush({ items: [] }));
+    http
+      .match(NEEDS_YOU_URL)
+      .forEach((request) => request.flush({ items: [], projects: [], omittedProjects: [] }));
+    http
+      .match((request) => request.url.endsWith('/questions'))
+      .forEach((request) => request.flush({ items: [] }));
+    // A project space reads its team status for the paused banner (#114); not what these tests look at.
+    http
+      .match((request) => request.url.endsWith('/team/status'))
+      .forEach((request) => request.flush({}, { status: 503, statusText: 'Service Unavailable' }));
     http.verify();
   });
 

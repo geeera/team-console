@@ -1,6 +1,8 @@
 export { BREAKPOINTS } from './tokens/breakpoints';
 export type { Breakpoint } from './tokens/breakpoints';
 
+export { Banner } from './lib/banner/banner';
+export type { BannerTone } from './lib/banner/banner';
 export { Button, IconButton } from './lib/button/button';
 export type { ButtonSize, ButtonVariant } from './lib/button/button';
 export { Callout } from './lib/callout/callout';
@@ -14,10 +16,12 @@ export { Icon } from './lib/icon/icon';
 export type { IconName, IconSize } from './lib/icon/icon';
 export { List, ListRow } from './lib/list/list';
 export { Receipt } from './lib/receipt/receipt';
+export type { ReceiptTone } from './lib/receipt/receipt';
 export { Recommendation } from './lib/recommendation/recommendation';
 export { Sheet } from './lib/sheet/sheet';
 export type { SheetOptions } from './lib/sheet/sheet';
-export type { ConfirmOptions } from './lib/sheet/confirm-dialog';
+export { ConfirmFailure } from './lib/sheet/confirm-dialog';
+export type { ConfirmInput, ConfirmOptions } from './lib/sheet/confirm-dialog';
 export { TOAST_DURATION_MS, ToastOutlet, Toaster } from './lib/toast/toast';
 export { Spinner } from './lib/spinner/spinner';
 export type { SpinnerSize } from './lib/spinner/spinner';

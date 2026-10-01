@@ -36,6 +36,9 @@
       "@worker/github": ["./libs/worker/github/src/index.ts"],
       "@worker/github/testing": ["./libs/worker/github/src/testing/index.ts"],
       "@worker/read-models": ["./libs/worker/read-models/src/index.ts"],
+      "@worker/routines": ["./libs/worker/routines/src/index.ts"],
+      "@worker/routines/testing": ["./libs/worker/routines/src/testing/index.ts"],
+      "@worker/run-log": ["./libs/worker/run-log/src/index.ts"],
       "@console/shared/persisted-state": ["./libs/console/shared/persisted-state/src/index.ts"],
       "@console/entities/project": ["./libs/console/entities/project/src/index.ts"],
       "@console/features/project-switcher": ["./libs/console/features/project-switcher/src/index.ts"],
@@ -51,7 +54,10 @@
       "@console/entities/github-connection": ["./libs/console/entities/github-connection/src/index.ts"],
       "@console/features/connect-github": ["./libs/console/features/connect-github/src/index.ts"],
       "@console/features/add-project": ["./libs/console/features/add-project/src/index.ts"],
-      "@console/features/archive-project": ["./libs/console/features/archive-project/src/index.ts"]
+      "@console/features/archive-project": ["./libs/console/features/archive-project/src/index.ts"],
+      "@console/entities/team-run": ["./libs/console/entities/team-run/src/index.ts"],
+      "@console/features/team-commands": ["./libs/console/features/team-commands/src/index.ts"],
+      "@console/widgets/commands-panel": ["./libs/console/widgets/commands-panel/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

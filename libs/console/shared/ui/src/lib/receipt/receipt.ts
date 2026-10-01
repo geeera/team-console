@@ -2,10 +2,14 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { CardStamp } from '../card/card';
 import { Icon, IconName } from '../icon/icon';
 
-const GLYPH: Record<CardStamp, IconName> = {
+/** The card stamps, plus `warning` for an outcome nobody can confirm yet (#114: the run service did not answer). */
+export type ReceiptTone = CardStamp | 'warning';
+
+const GLYPH: Record<ReceiptTone, IconName> = {
   positive: 'check',
   negative: 'x',
   neutral: 'minus',
+  warning: 'question',
 };
 
 /**
@@ -39,10 +43,11 @@ const GLYPH: Record<CardStamp, IconName> = {
     tabindex: '-1',
     '[class.tc-receipt--negative]': 'tone() === "negative"',
     '[class.tc-receipt--neutral]': 'tone() === "neutral"',
+    '[class.tc-receipt--warning]': 'tone() === "warning"',
   },
 })
 export class Receipt {
-  readonly tone = input<CardStamp>('positive');
+  readonly tone = input<ReceiptTone>('positive');
 
   protected readonly glyph = computed(() => GLYPH[this.tone()]);
 }

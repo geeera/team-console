@@ -1,0 +1,8 @@
+{
+  "name": "console-widgets-commands-panel",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/console/widgets/commands-panel/src",
+  "prefix": "tc",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:console", "layer:widgets"]
+}

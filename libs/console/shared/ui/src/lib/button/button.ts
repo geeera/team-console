@@ -29,6 +29,7 @@ export type ButtonSize = 'sm' | 'md';
     '[class.tc-button--sm]': 'size() === "sm"',
     '[class.tc-button--block]': 'block()',
     '[class.tc-button--loading]': 'loading()',
+    '[class.tc-button--off]': 'off()',
     '[attr.aria-busy]': 'loading() ? "true" : null',
   },
 })
@@ -38,6 +39,12 @@ export class Button {
   /** Full width; the phone layout stacks actions this way. */
   readonly block = input(false, { transform: booleanAttribute });
   readonly loading = input(false, { transform: booleanAttribute });
+  /**
+   * Off with a reason (#114): the button stays focusable and readable but no longer looks pressable (a dashed edge).
+   * The caller sets `aria-disabled="true"`, points `aria-describedby` at the visible reason and, on click, says why
+   * instead of acting — a disabled button would hide the reason from keyboard and screen-reader users.
+   */
+  readonly off = input(false, { transform: booleanAttribute });
 }
 
 /**

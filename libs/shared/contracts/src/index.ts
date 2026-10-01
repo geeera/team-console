@@ -35,8 +35,24 @@ export {
   isReservedSlug,
   isValidSlug,
   routineSecretName,
+  slotSecretNames,
   slugFromRepoName,
 } from './lib/project-slug';
+export { PAUSE_REASON_MAX_LENGTH, TEAM_SLOTS, isTeamSlot } from './lib/team';
+export type {
+  PauseRequest,
+  ProjectSlotsDto,
+  RunRequest,
+  RunResponse,
+  SlotLock,
+  SlotSetup,
+  SlotStatusDto,
+  TeamCommandResponse,
+  TeamProblemType,
+  TeamSlot,
+  TeamState,
+  TeamStatusDto,
+} from './lib/team';
 export { ANSWER_TEXT_MAX_LENGTH } from './lib/answer';
 export type {
   AnswerCommand,
