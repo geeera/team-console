@@ -562,6 +562,11 @@
       "standard": "standard",
       "heavy": "heavy"
     },
+    "tooltip": {
+      "list": "Issues",
+      "title": "Story editor autosave",
+      "tip": "Tier: heavy"
+    },
     "stat": {
       "done": "Done",
       "doneValue": "3 of 9",

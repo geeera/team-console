@@ -69,7 +69,7 @@ an explicit `lint` target in `project.json`; remove it — `@nx/eslint/plugin` i
 Shared libs that exist: `@console/shared/ui` (Paper Desk kit — tokens in `src/tokens/tokens.css` + `breakpoints.ts`,
 global `src/styles/base.css` and `overlay.css`; primitives `Button`/`IconButton`, `Card` (with the stamp), `Chip`,
 `Field`/`FieldControl`, `Icon`, `List`/`ListRow`, `Sheet` service (bottom sheet on the phone, dialog elsewhere, on the
-CDK dialog; `confirm()`), `Spinner`, `StateBlock`, `TopBar`; Storybook in `.storybook/` with theme, motion and language
+CDK dialog; `confirm()`), `Spinner`, `StateBlock`, `Tooltip` (non-interactive, `aria-hidden`), `TopBar`; Storybook in `.storybook/` with theme, motion and language
 toolbars: `npx nx storybook console-shared-ui` on :4400, `npx nx build-storybook console-shared-ui` into
 `dist/storybook/console-shared-ui` — the `storybook` contract command), `@console/shared/i18n` (Transloco,
 `ru.json`/`en.json`, `provideConsoleI18n()`), `@console/shared/config` (`APP_CONFIG`), `@console/shared/api`
@@ -96,7 +96,7 @@ still lists them. Kit: `Recommendation`, `Receipt`.
 
 Sprint board (#18, read-only): `@console/entities/sprint` (`isSprintDto`, `SprintApi`, `statusColumnsOf` — lanes counted as
 `backlog list` counts them, `SprintItemList`), `@console/widgets/sprint-board` (`/p/:slug/board`; loading, no sprint,
-empty, error and 429 with an automatic retry at `Retry-After`). Kit: `Lanes`/`Lane` (swipeable on the phone),
+empty, error and 429 with an automatic retry at `Retry-After`). Kit: `Lanes`/`Lane` (a tab list of lanes on the phone, `[(selected)]` by `key`),
 `Stats`/`Stat`, `ListRow` `external`.
 
 ## Workers (#6)

@@ -65,7 +65,10 @@ export const STATUS_ORDER: readonly string[] = ['proposed', 'approved', 'in-prog
 /** Lanes shown even when empty, so "nothing in QA" reads as a fact rather than a missing lane. */
 export const CORE_STATUSES: readonly string[] = ['approved', 'in-progress', 'qa', 'done'];
 
-const TIERS: ReadonlySet<string> = new Set<SprintTier>(['light', 'standard', 'heavy']);
+/** The plugin's issue tiers, lightest first (the board's legend reads them in this order). */
+export const SPRINT_TIERS: readonly SprintTier[] = ['light', 'standard', 'heavy'];
+
+const TIERS: ReadonlySet<string> = new Set<string>(SPRINT_TIERS);
 const DUE_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
 

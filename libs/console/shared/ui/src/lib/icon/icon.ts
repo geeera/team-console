@@ -32,6 +32,10 @@ const GLYPHS = {
   offline: 'M2 8.5a15 15 0 0120 0M5.5 12a10 10 0 0113 0M9 15.5a5 5 0 016 0M12 19v.5M3 3l18 18',
   // The sprint board (#18): the demo date.
   calendar: 'M4 6h16v14H4zM4 10h16M8 3v5M16 3v5',
+  // Issue tiers (#134): a three-step meter; an empty step is a baseline dash, so the bar count alone tells the tier.
+  'tier-light': 'M5 14h2v6H5zM11 20h2M17 20h2',
+  'tier-standard': 'M5 14h2v6H5zM11 9h2v11h-2zM17 20h2',
+  'tier-heavy': 'M5 14h2v6H5zM11 9h2v11h-2zM17 4h2v16h-2z',
 } as const;
 
 export type IconName = keyof typeof GLYPHS;

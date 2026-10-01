@@ -1,0 +1,41 @@
+/* The tile sits where the 22px tier chip was; 28px keeps the 20px meter legible without growing the row. */
+:host {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--space-7);
+  height: var(--space-7);
+  border-radius: var(--r-sm);
+}
+
+.sprint-tier-icon__glyph {
+  width: var(--space-5);
+  height: var(--space-5);
+}
+
+/* The legend's smaller tile: chip height, so it sits on a line of small text. */
+:host(.sprint-tier-icon--sm) {
+  width: var(--chip-h);
+  height: var(--chip-h);
+}
+
+:host(.sprint-tier-icon--sm) .sprint-tier-icon__glyph {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+:host(.sprint-tier-icon--light) {
+  background: var(--bg-sunken);
+  color: var(--text-2);
+}
+
+:host(.sprint-tier-icon--standard) {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+:host(.sprint-tier-icon--heavy) {
+  background: var(--warning-soft);
+  color: var(--warning-text);
+}
