@@ -87,7 +87,9 @@
 .cp-setup .how{background:var(--surface)}
 .cp-steps{margin:0;padding-left:1.3em;display:grid;gap:var(--sp-3)}
 .cp-steps li{padding-left:var(--sp-1)}
-.cp-steps .codeline{margin-top:var(--sp-2)}
+.cp-slots{list-style:none;margin:var(--sp-2) 0 0;padding:0;display:grid;gap:var(--sp-3)}
+.cp-slot{display:grid;gap:var(--sp-1)}
+.cp-slot__name{font-weight:600;color:var(--text)}
 .cp-setup .how .ext{min-height:var(--target)}
 
 /* the result: the kit's receipt (a margin note), toned like the command's outcome */

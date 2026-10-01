@@ -8,7 +8,8 @@
   const L = Proto.i18n(I18N);
   const { t, hhmm } = L;
   const MIN = 60000;
-  const OVERLAP = 3 * 60 * MIN; // runstate.OVERLAP_WINDOW in the plugin
+  const OVERLAP = 3 * 60 * MIN; // runstate.OVERLAP_WINDOW in the plugin: applies once the run log shows the run
+  const REQUEST_LOCK = 15 * MIN; // a request (or a fire with no answer) the run log doesn't show yet (architect note on #114)
   const at = (mins) => new Date(Date.now() + mins * MIN);
 
   /* ---------- mock data, as the Worker would return it ---------- */
@@ -47,14 +48,18 @@
   const fresh = () => ({ proj: 'running', data: 'ok', busyDev: false, freeze: false, outcome: 'ok', pausedAt: at(-13), busySince: at(-25), run: { pm: null, dev: null, qa: null }, statusAt: new Date() });
   const G = fresh();
   const paused = () => G.proj !== 'running';
-  const loadedish = () => G.data === 'ok' || G.data === 'offline' || G.data === 'noperm' || G.data === 'notoken';
+  const loadedish = () => ['ok', 'offline', 'noperm', 'notoken', 'notokenQa'].includes(G.data);
+  // Each slot is its own routine with its own trigger token, so setup is per slot.
+  const missingSlots = () => (G.data === 'notoken' ? [...SLOTS] : G.data === 'notokenQa' ? ['qa'] : []);
+  const slotList = (slots) => new Intl.ListFormat(L.lang === 'ru' ? 'ru-RU' : 'en-GB', { type: 'conjunction' }).format(slots.map((x) => t(`slot.${x}N`)));
 
   // Why a command is off, in the order the owner can act on it; '' when it is available.
-  function whyOff(kind) {
+  // Run now writes nothing to GitHub, so only pause and resume need the owner's GitHub connection.
+  function whyOff(kind, slot) {
     if (G.data === 'loading' || G.data === 'error') return t('why.status');
     if (G.data === 'offline') return t('why.offline');
-    if (G.data === 'noperm') return t('why.noperm');
-    if (kind === 'run' && G.data === 'notoken') return t('why.notoken');
+    if (kind === 'write' && G.data === 'noperm') return t('why.noperm');
+    if (kind === 'run' && missingSlots().includes(slot)) return t('why.notoken');
     if (kind === 'run' && paused()) return t('why.paused');
     return '';
   }
@@ -63,8 +68,8 @@
     if (slot === 'dev' && G.busyDev) return { line: t('run.busy', { time: hhmm(G.busySince), until: hhmm(new Date(G.busySince.getTime() + OVERLAP)) }), live: true };
     const r = G.run[slot];
     if (!r) return null;
-    const until = hhmm(new Date(r.at.getTime() + OVERLAP));
-    if (r.state === 'requested') return { line: t('run.requested', { time: hhmm(r.at) }), live: true };
+    const until = hhmm(new Date(r.at.getTime() + (r.state === 'started' ? OVERLAP : REQUEST_LOCK)));
+    if (r.state === 'requested') return { line: t('run.requested', { time: hhmm(r.at), until }), live: true };
     if (r.state === 'started') return { line: t('run.started', { time: hhmm(r.at), until }), live: true };
     return { line: t('run.unknown', { time: hhmm(r.at), until }), live: false, unknown: true };
   }
@@ -189,7 +194,7 @@
     }
     function runRow(slot) {
       const lock = loadedish() ? slotLock(slot) : null;
-      const why = whyOff('run');
+      const why = whyOff('run', slot);
       const id = `${uid}-run-${slot}`;
       const last = lastRun(slot);
       const line = lock ? lock.line : loadedish() ? t('run.last', { when: when(last) }) : '';
@@ -199,20 +204,21 @@
         <div class="cmd__txt"><p class="cmd__title">${t(`slot.${slot}`)}</p>
           <p class="cmd__line${line ? '' : ' sr-only'}${lock && lock.unknown ? ' cmd__line--unknown' : ''}" id="${id}-line">${lock && lock.live ? '<i class="cmd__live" aria-hidden="true"></i>' : lock ? I.clock : ''}<span>${line}</span></p>
           ${slot === 'dev' && G.freeze ? `<p class="cmd__hint" id="${id}-freeze">${t('run.freezeRow')}</p>` : ''}
-          ${why ? `<p class="cmd__why" id="${id}-why">${G.data === 'notoken' ? I.key : G.data === 'offline' ? I.wifi : I.lock}<span>${why}</span></p>` : ''}</div>
+          ${why ? `<p class="cmd__why" id="${id}-why">${missingSlots().includes(slot) && why === t('why.notoken') ? I.key : G.data === 'offline' ? I.wifi : I.lock}<span>${why}</span></p>` : ''}</div>
         <button type="button" class="btn cmd__btn" data-act="run" data-slot="${slot}" data-fk="run-${slot}" aria-label="${esc(t('run.btnAria', { slot: t(`slot.${slot}`) }))}" aria-describedby="${describedBy}"${dis(off)}>${I.play}<span>${t('run.btn')}</span></button>
       </li>`;
     }
     function setupHTML() {
-      if (G.data !== 'notoken') return '';
+      const missing = missingSlots(); if (!missing.length) return '';
       const id = `${uid}-how`;
-      const cmd = `npx wrangler secret put ROUTINE_TOKEN_${P.slug.toUpperCase().replace(/-/g, '_')} --env dev`;
-      return `<div class="cp-setup"><div class="cp-setup__head">${I.key}<h4>${t('setup.t', { name: P.slug })}</h4></div><p>${t('setup.b', { name: P.slug })}</p>
+      const key = (x) => `${P.slug.toUpperCase().replace(/-/g, '_')}_${x.toUpperCase()}`;
+      const line = (cmd, slot, what) => `<div class="codeline"><code>${esc(cmd)}</code><button type="button" class="btn btn--sm" data-act="copy" data-value="${esc(cmd)}" data-fk="setup-copy-${what}-${slot}" aria-label="${esc(t(`setup.copy.${what}`, { slot: t(`slot.${slot}N`) }))}">${I.copy}<span aria-hidden="true">${t('c.copy')}</span></button></div>`;
+      const cmds = missing.map((x) => `<li class="cp-slot"><span class="cp-slot__name">${t(`slot.${x}`)}</span>${line(`npx wrangler secret put SLOT_ROUTINE_${key(x)} --env production`, x, 'id')}${line(`npx wrangler secret put SLOT_TOKEN_${key(x)} --env production`, x, 'token')}</li>`).join('');
+      return `<div class="cp-setup"><div class="cp-setup__head">${I.key}<h4>${t('setup.t', { slots: slotList(missing), n: missing.length })}</h4></div><p>${t('setup.b', { name: P.slug, n: missing.length })}</p>
         <button type="button" class="btn btn--quiet btn--sm how-btn" data-act="how" aria-expanded="${S.howOpen}" aria-controls="${id}" data-fk="setup-how">${t('setup.how')}${I.down}</button>
-        <div class="how" id="${id}"${S.howOpen ? '' : ' hidden'}><ol class="cp-steps"><li>${t('setup.s1', { name: P.slug })}</li>
-          <li>${t('setup.s2')}<div class="codeline"><code>${esc(cmd)}</code><button type="button" class="btn btn--sm" data-act="copy" data-value="${esc(cmd)}" data-fk="setup-copy" aria-label="${esc(t('setup.copyAria'))}">${I.copy}<span aria-hidden="true">${t('c.copy')}</span></button></div></li>
-          <li>${t('setup.s3')}</li></ol>
-          <a href="#settings" class="ext" data-act="settings" data-fk="setup-settings">${t('setup.link', { name: P.slug })}${I.chev}</a></div></div>`;
+        <div class="how" id="${id}"${S.howOpen ? '' : ' hidden'}><ol class="cp-steps"><li>${t('setup.s1', { name: P.slug, slots: slotList(missing), n: missing.length })}</li>
+          <li>${t('setup.s2')}<ul class="cp-slots">${cmds}</ul></li>
+          <li>${t('setup.s3')}</li></ol></div></div>`;
     }
     function panelHTML() {
       const body = G.data === 'loading'
@@ -341,7 +347,7 @@
       if (d.type === 'pause' || d.type === 'resume') {
         const toPaused = d.type === 'pause';
         if (o === 'error' || o === 'timeout') { d.busy = false; d.error = t('err.github'); redrawDialog('dlg-ok'); return; }
-        if (o === 'rate' || o === 'rateAccount' || o === 'daily') { d.busy = false; d.error = t('err.rate', { time: hhmm(at(15)) }); redrawDialog('dlg-ok'); return; }
+        if (o === 'rate') { d.busy = false; d.error = t('err.rate', { time: hhmm(at(15)) }); redrawDialog('dlg-ok'); return; }
         closeDialog();
         if (o === 'conflict') {
           // The team chat got there first: nothing is written, the panel shows the state GitHub has.
@@ -355,9 +361,8 @@
       }
       const slot = d.slot; const name = t(`slot.${slot}N`);
       if (o === 'error') { d.busy = false; d.error = t('run.err'); redrawDialog('dlg-ok'); return; }
+      // One 429 for both caps (routine and account): the API doesn't say which, so the copy names both and Retry-After.
       if (o === 'rate') { d.busy = false; d.error = t('run.rate', { time: hhmm(nextHour()) }); redrawDialog('dlg-ok'); return; }
-      if (o === 'rateAccount') { d.busy = false; d.error = t('run.rateAccount', { time: hhmm(nextHour()) }); redrawDialog('dlg-ok'); return; }
-      if (o === 'daily') { const d2 = new Date(); d2.setDate(d2.getDate() + 1); d2.setHours(3, 0, 0, 0); d.busy = false; d.error = t('run.daily', { time: when(d2) }); redrawDialog('dlg-ok'); return; }
       closeDialog();
       if (o === 'conflict') {
         // The server's overlap guard: a run of this slot is already in the run log; nothing is fired.
@@ -367,7 +372,7 @@
       }
       if (o === 'timeout') {
         G.run[slot] = { state: 'unknown', at: new Date() };
-        report(d, { tone: 'warning', verb: t('run.timeout', { time: hhmm(at(180)) }), log: true });
+        report(d, { tone: 'warning', verb: t('run.timeout', { time: hhmm(at(15)) }), log: true });
         return;
       }
       G.run[slot] = { state: 'requested', at: new Date() };
@@ -452,7 +457,7 @@
         S.result = null; S.howOpen = false;
         if (screen === 'space') { S.panel = false; render(); return; }
         if (screen === 'setup') { G.data = 'notoken'; S.howOpen = true; }
-        if (screen === 'pause' || screen === 'run') { G.proj = 'running'; if (G.data === 'notoken' || G.data === 'error' || G.data === 'loading') G.data = 'ok'; }
+        if (screen === 'pause' || screen === 'run') { G.proj = 'running'; if (G.data === 'notoken' || G.data === 'notokenQa' || G.data === 'error' || G.data === 'loading') G.data = 'ok'; }
         if (screen === 'run') G.run.dev = null;
         if (screen === 'resume' && !paused()) { G.proj = 'owner'; G.pausedAt = at(-13); }
         S.panel = true; render();
