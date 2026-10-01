@@ -69,3 +69,23 @@
 .bd-seg button{display:inline-flex;align-items:center;gap:var(--sp-2);min-height:34px;padding:0 var(--sp-3);border:0;background:none;border-radius:var(--r-md);font-size:var(--fs-sm);color:var(--text-2)}
 .bd-seg button .ico{width:16px;height:16px}
 .bd-seg button[aria-current=page]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+
+/* ----- tier as an icon (revision after the owner's approval): the former chip's tone, a three-step meter ----- */
+.tier-ico{position:relative;display:inline-grid;place-items:center;width:28px;height:28px;flex:none;border-radius:var(--r-sm)}
+.tier-ico .ico{width:20px;height:20px}
+.tier-ico--light{background:var(--bg-sunken);color:var(--text-2)}
+.tier-ico--standard{background:var(--accent-soft);color:var(--accent-text)}
+.tier-ico--heavy{background:var(--warning-soft);color:var(--warning-text)}
+/* The tooltip repeats the hidden name for sighted mouse and keyboard users: hover on the icon, keyboard focus on the
+   row; Esc hides it. Not a title attribute: it shows at once, in the theme, and is announced through the link. */
+.tier-tip{position:absolute;right:0;bottom:calc(100% + var(--sp-2));z-index:3;padding:var(--sp-1) var(--sp-2);border-radius:var(--r-sm);background:var(--text);color:var(--bg);font-size:var(--fs-xs);font-weight:600;white-space:nowrap;box-shadow:var(--shadow-2);opacity:0;visibility:hidden;translate:0 2px;pointer-events:none;transition:opacity var(--dur-fast) var(--ease-standard),translate var(--dur-fast) var(--ease-standard),visibility 0s linear var(--dur-fast)}
+@media (hover:hover){.tier-ico:hover .tier-tip{opacity:1;visibility:visible;translate:0 0;transition-delay:0s}}
+.bd-row:focus-visible .tier-tip{opacity:1;visibility:visible;translate:0 0;transition-delay:0s}
+.app.tips-off .tier-tip{opacity:0!important;visibility:hidden!important}
+@media (prefers-reduced-motion:reduce){.tier-tip{translate:none!important}}
+:root[data-motion=reduce] .tier-tip{translate:none!important}
+/* The legend: once per board, under the numbers; the phone has no hover, so this is where the bars are explained. */
+.tier-legend{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-3);margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.tier-legend__item{display:inline-flex;align-items:center;gap:var(--sp-1)}
+.tier-legend .tier-ico{width:22px;height:22px}
+.tier-legend .tier-ico .ico{width:16px;height:16px}

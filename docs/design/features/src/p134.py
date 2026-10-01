@@ -15,6 +15,7 @@ NOTE_EN = '''
 <li><b>Only the selected lane is shown</b>, at its own height, so “Open pull requests” always starts right under it. The board opens on the first lane that has issues; your choice is kept while the board refreshes.</li>
 <li><b>Keyboard and screen readers.</b> The switcher is one Tab stop (a tab list): the arrow keys move between lanes, Home and End jump to the first and last. A screen reader hears “Approved 4, tab, 1 of 5, selected”. The lane heading stays in the page for heading navigation. This replaces today’s scrollable row, which is also one Tab stop with arrow keys.</li>
 <li><b>Motion:</b> the incoming lane slides 8 px from the side you moved towards and fades in (140 ms). With reduced motion it only fades (120 ms). Nothing else moves.</li>
+<li><b>Tier as an icon (revision after your approval).</b> The “standard” / “heavy” text chips become a small three-step meter in the same tone colours: one bar is light, two are standard, three are heavy. A one-line legend under the numbers explains it, because a phone has no hover. On the Mac a tooltip names the tier on hover and when a row has keyboard focus (Esc hides it). Screen readers hear “Tier: standard” as part of the row’s link.</li>
 <li><b>Ready for #108</b> (current, next sprint, backlog): each section gets its own switcher. A section with a single lane shows the lane without a switcher. See the “#108 preview” data set.</li>
 </ul>
 <p class="try">Try on iPhone: tap “Done 10”, then “QA 0”: the pull requests move up with the lane. Switch “Version” to “Now: swipe row” to see today’s gap. With a keyboard, Tab to the switcher and use ← →, Home, End.</p>
@@ -22,7 +23,7 @@ NOTE_EN = '''
 <dt>Colour</dt><dd>Paper Desk tokens only: ink fill (<code>--text</code> on <code>--bg</code>) for the selected pill, <code>--surface</code> and <code>--border</code> for the others, <code>--text-3</code> for counts, <code>--focus</code> for the focus ring. AA contrast in both themes.</dd>
 <dt>Type</dt><dd>Source Sans 3, <code>--fs-sm</code>, semibold name, tabular count. No new fonts.</dd>
 <dt>Tokens</dt><dd>No new tokens: <code>--control-h-touch</code> (44 px), <code>--r-pill</code>, <code>--space-2</code>/<code>--space-3</code>, <code>--dur-fast</code>, <code>--ease-enter</code>, <code>--dur-fade</code>.</dd>
-<dt>Kit</dt><dd><code>tc-lanes</code> renders the switcher itself on the phone from its <code>tc-lane</code> children; <code>tc-lane</code> gets an optional <code>key</code>. No new component, and no new strings in the app.</dd>
+<dt>Kit</dt><dd>Three new glyphs <code>tier-light</code>, <code>tier-standard</code>, <code>tier-heavy</code> and a small non-interactive tooltip. <code>tc-lanes</code> renders the switcher itself on the phone from its <code>tc-lane</code> children; <code>tc-lane</code> gets an optional <code>key</code>. No new strings in the app: the legend and tooltip reuse <code>board.tierLabel</code> and <code>board.tier.*</code>.</dd>
 <dt>Motion</dt><dd>fast 140 ms slide and fade; reduced: fade 120 ms. Only transform and opacity animate.</dd>
 </dl></div>'''
 
@@ -34,6 +35,7 @@ NOTE_RU = '''
 <li><b>Показана только выбранная дорожка</b> и ровно своей высоты, поэтому «Открытые пул-реквесты» всегда начинаются сразу под ней. Доска открывается на первой дорожке, где есть задачи; выбор сохраняется, пока доска обновляется.</li>
 <li><b>Клавиатура и скринридер.</b> Переключатель — одна остановка Tab (список вкладок): стрелки переходят между дорожками, Home и End — к первой и последней. Скринридер читает «Одобрено 4, вкладка, 1 из 5, выбрана». Заголовок дорожки остаётся на странице для навигации по заголовкам. Это заменяет сегодняшний прокручиваемый ряд — он тоже одна остановка Tab со стрелками.</li>
 <li><b>Движение:</b> новая дорожка въезжает на 8 px с той стороны, куда ты переключил, и проявляется (140 мс). При «Меньше движения» — только проявление (120 мс). Больше ничего не двигается.</li>
+<li><b>Сложность — иконкой (правка после твоего согласования).</b> Текстовые «средняя» / «тяжёлая» стали маленькой шкалой из трёх ступенек тех же цветов: одна — лёгкая, две — средняя, три — тяжёлая. Под цифрами одна строка легенды, потому что на телефоне нет наведения. На Mac подсказка называет сложность при наведении и когда строка в фокусе с клавиатуры (Esc скрывает). Скринридер читает «Сложность: средняя» вместе со ссылкой строки.</li>
 <li><b>Готово к #108</b> (текущий спринт, следующий, бэклог): у каждой секции свой переключатель. Секция с одной дорожкой показывает её без переключателя. См. набор данных «превью #108».</li>
 </ul>
 <p class="try">Попробуй на iPhone: нажми «Готово 10», потом «На проверке 0» — пул-реквесты поднимаются вместе с дорожкой. Переключи «Версия» на «Сейчас: ряд со свайпом», чтобы увидеть сегодняшнюю пустоту. С клавиатуры: Tab до переключателя, потом ← →, Home, End.</p>
@@ -41,7 +43,7 @@ NOTE_RU = '''
 <dt>Цвет</dt><dd>Только токены Paper Desk: заливка чернилами (<code>--text</code> на <code>--bg</code>) у выбранной таблетки, <code>--surface</code> и <code>--border</code> у остальных, <code>--text-3</code> у счётчиков, <code>--focus</code> у рамки фокуса. Контраст AA в обеих темах.</dd>
 <dt>Шрифты</dt><dd>Source Sans 3, <code>--fs-sm</code>, название полужирным, число табличными цифрами. Новых шрифтов нет.</dd>
 <dt>Токены</dt><dd>Новых нет: <code>--control-h-touch</code> (44 px), <code>--r-pill</code>, <code>--space-2</code>/<code>--space-3</code>, <code>--dur-fast</code>, <code>--ease-enter</code>, <code>--dur-fade</code>.</dd>
-<dt>Кит</dt><dd><code>tc-lanes</code> сам рисует переключатель на телефоне из своих <code>tc-lane</code>; у <code>tc-lane</code> появляется необязательный <code>key</code>. Новых компонентов нет, новых строк в приложении нет.</dd>
+<dt>Кит</dt><dd>Три новых глифа <code>tier-light</code>, <code>tier-standard</code>, <code>tier-heavy</code> и небольшая неинтерактивная подсказка. <code>tc-lanes</code> сам рисует переключатель на телефоне из своих <code>tc-lane</code>; у <code>tc-lane</code> появляется необязательный <code>key</code>. Новых строк в приложении нет: легенда и подсказка берут <code>board.tierLabel</code> и <code>board.tier.*</code>.</dd>
 <dt>Движение</dt><dd>быстро 140 мс — сдвиг и проявление; при «Меньше движения» — проявление 120 мс. Анимируются только transform и opacity.</dd>
 </dl></div>'''
 

@@ -85,6 +85,11 @@
     return [{ key: 'cur', title: 'Sprint 01', columns: columnsOf(issues), issues }];
   }
 
+  // Kit glyphs `tier-light|standard|heavy` (24 grid, 1.8 stroke): a three-step meter, empty steps as a baseline dash.
+  const BAR1 = 'M5 14h2v6H5z'; const BAR2 = 'M11 9h2v11h-2z'; const BAR3 = 'M17 4h2v16h-2z';
+  const TIER_PATHS = { light: `${BAR1}M11 20h2M17 20h2`, standard: `${BAR1}${BAR2}M17 20h2`, heavy: `${BAR1}${BAR2}${BAR3}` };
+  const TIER_ICON = Object.fromEntries(Object.entries(TIER_PATHS).map(([k, d]) => [k, `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${d}"/></svg>`]));
+
   const G = { version: 'new', data: 'sprint' };
   const hosts = [...document.querySelectorAll('[data-app]')];
 
@@ -95,7 +100,15 @@
     if (!host.selected) host.selected = {};
     const selected = host.selected;
 
-    const rowHTML = (x, withTier) => `<li><a class="bd-row" href="#github" data-act="gh"><span class="bd-row__num">#${x.number}</span><span class="bd-row__title">${esc(x.title)}<span class="sr-only"> ${t('board.opensGitHub')}</span></span>${withTier ? `<span class="tier tier--${x.tier}"><span class="sr-only">${t('board.tierLabel')} </span>${t(`board.tier.${x.tier}`)}</span>` : ''}</a></li>`;
+    // Tier as an icon (owner's request on #134): bars of a meter, the tone colours of the former chips. The icon sits
+    // inside the row's link, so it is not interactive itself: the name is visually hidden text in the link, the
+    // tooltip shows on hover and on the row's keyboard focus (Mac), and the legend explains the bars on the phone.
+    const tierHTML = (tier) => {
+      const name = `${t('board.tierLabel')} ${t(`board.tier.${tier}`)}`;
+      return `<span class="tier-ico tier-ico--${tier}">${TIER_ICON[tier]}<span class="sr-only">${name}</span><span class="tier-tip" aria-hidden="true">${name}</span></span>`;
+    };
+    const rowHTML = (x, withTier) => `<li><a class="bd-row" href="#github" data-act="gh"><span class="bd-row__num">#${x.number}</span><span class="bd-row__title">${esc(x.title)}<span class="sr-only"> ${t('board.opensGitHub')}</span></span>${withTier ? tierHTML(x.tier) : ''}</a></li>`;
+    const legendHTML = () => `<p class="tier-legend"><span>${t('board.tierLabel')}</span>${['light', 'standard', 'heavy'].map((x) => `<span class="tier-legend__item"><span class="tier-ico tier-ico--${x}">${TIER_ICON[x]}</span>${t(`board.tier.${x}`)}</span>`).join('')}</p>`;
     const bodyHTML = (col) => (col.issues.length
       ? `<ul class="bd-list">${col.issues.map((x) => rowHTML(x, true)).join('')}</ul>`
       : `<p class="bd-empty">${I.check}<span>${t('board.laneEmpty')}</span></p>`);
@@ -142,7 +155,7 @@
       const secHTML = secs.map((sec, i) => {
         const tid = `${uid}-${sec.key}-t`;
         const head = i === 0
-          ? `<header class="bd-head"><h2 class="bd-title" id="${tid}">${esc(sec.title)}</h2><span class="demo-pill">${I.clock}${t('board.demoIn')}</span></header>${stats}`
+          ? `<header class="bd-head"><h2 class="bd-title" id="${tid}">${esc(sec.title)}</h2><span class="demo-pill">${I.clock}${t('board.demoIn')}</span></header>${stats}${legendHTML()}`
           : `<header class="bd-head"><h2 class="bd-title bd-title--sub" id="${tid}">${esc(sec.title)}</h2></header>`;
         return `<section class="bd-sec" aria-labelledby="${tid}">${head}${lanesHTML(sec)}</section>`;
       }).join('');
@@ -192,6 +205,9 @@
 
     if (host.wired) return;
     host.wired = true;
+    const tipsOn = () => host.classList.remove('tips-off');
+    host.addEventListener('pointerover', tipsOn);
+    host.addEventListener('focusin', tipsOn);
     host.addEventListener('click', (e) => {
       const tab = e.target.closest('[role=tab]');
       if (tab) { select(tab.parentElement, tab, false); return; }
@@ -199,6 +215,7 @@
     });
     // Tabs pattern (WAI-ARIA APG), automatic activation: the panels are already rendered, switching is free.
     host.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { host.classList.add('tips-off'); return; }
       const tab = e.target.closest('[role=tab]');
       if (tab) {
         const tabs = [...tab.parentElement.querySelectorAll('[role=tab]')];

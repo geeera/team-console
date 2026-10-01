@@ -661,6 +661,26 @@ code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);pa
 .bd-seg button .ico{width:16px;height:16px}
 .bd-seg button[aria-current=page]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
 
+/* ----- tier as an icon (revision after the owner's approval): the former chip's tone, a three-step meter ----- */
+.tier-ico{position:relative;display:inline-grid;place-items:center;width:28px;height:28px;flex:none;border-radius:var(--r-sm)}
+.tier-ico .ico{width:20px;height:20px}
+.tier-ico--light{background:var(--bg-sunken);color:var(--text-2)}
+.tier-ico--standard{background:var(--accent-soft);color:var(--accent-text)}
+.tier-ico--heavy{background:var(--warning-soft);color:var(--warning-text)}
+/* The tooltip repeats the hidden name for sighted mouse and keyboard users: hover on the icon, keyboard focus on the
+   row; Esc hides it. Not a title attribute: it shows at once, in the theme, and is announced through the link. */
+.tier-tip{position:absolute;right:0;bottom:calc(100% + var(--sp-2));z-index:3;padding:var(--sp-1) var(--sp-2);border-radius:var(--r-sm);background:var(--text);color:var(--bg);font-size:var(--fs-xs);font-weight:600;white-space:nowrap;box-shadow:var(--shadow-2);opacity:0;visibility:hidden;translate:0 2px;pointer-events:none;transition:opacity var(--dur-fast) var(--ease-standard),translate var(--dur-fast) var(--ease-standard),visibility 0s linear var(--dur-fast)}
+@media (hover:hover){.tier-ico:hover .tier-tip{opacity:1;visibility:visible;translate:0 0;transition-delay:0s}}
+.bd-row:focus-visible .tier-tip{opacity:1;visibility:visible;translate:0 0;transition-delay:0s}
+.app.tips-off .tier-tip{opacity:0!important;visibility:hidden!important}
+@media (prefers-reduced-motion:reduce){.tier-tip{translate:none!important}}
+:root[data-motion=reduce] .tier-tip{translate:none!important}
+/* The legend: once per board, under the numbers; the phone has no hover, so this is where the bars are explained. */
+.tier-legend{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-3);margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.tier-legend__item{display:inline-flex;align-items:center;gap:var(--sp-1)}
+.tier-legend .tier-ico{width:22px;height:22px}
+.tier-legend .tier-ico .ico{width:16px;height:16px}
+
 </style>
 </head>
 <body>
@@ -688,6 +708,7 @@ code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);pa
 <li><b>Only the selected lane is shown</b>, at its own height, so “Open pull requests” always starts right under it. The board opens on the first lane that has issues; your choice is kept while the board refreshes.</li>
 <li><b>Keyboard and screen readers.</b> The switcher is one Tab stop (a tab list): the arrow keys move between lanes, Home and End jump to the first and last. A screen reader hears “Approved 4, tab, 1 of 5, selected”. The lane heading stays in the page for heading navigation. This replaces today’s scrollable row, which is also one Tab stop with arrow keys.</li>
 <li><b>Motion:</b> the incoming lane slides 8 px from the side you moved towards and fades in (140 ms). With reduced motion it only fades (120 ms). Nothing else moves.</li>
+<li><b>Tier as an icon (revision after your approval).</b> The “standard” / “heavy” text chips become a small three-step meter in the same tone colours: one bar is light, two are standard, three are heavy. A one-line legend under the numbers explains it, because a phone has no hover. On the Mac a tooltip names the tier on hover and when a row has keyboard focus (Esc hides it). Screen readers hear “Tier: standard” as part of the row’s link.</li>
 <li><b>Ready for #108</b> (current, next sprint, backlog): each section gets its own switcher. A section with a single lane shows the lane without a switcher. See the “#108 preview” data set.</li>
 </ul>
 <p class="try">Try on iPhone: tap “Done 10”, then “QA 0”: the pull requests move up with the lane. Switch “Version” to “Now: swipe row” to see today’s gap. With a keyboard, Tab to the switcher and use ← →, Home, End.</p>
@@ -695,7 +716,7 @@ code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);pa
 <dt>Colour</dt><dd>Paper Desk tokens only: ink fill (<code>--text</code> on <code>--bg</code>) for the selected pill, <code>--surface</code> and <code>--border</code> for the others, <code>--text-3</code> for counts, <code>--focus</code> for the focus ring. AA contrast in both themes.</dd>
 <dt>Type</dt><dd>Source Sans 3, <code>--fs-sm</code>, semibold name, tabular count. No new fonts.</dd>
 <dt>Tokens</dt><dd>No new tokens: <code>--control-h-touch</code> (44 px), <code>--r-pill</code>, <code>--space-2</code>/<code>--space-3</code>, <code>--dur-fast</code>, <code>--ease-enter</code>, <code>--dur-fade</code>.</dd>
-<dt>Kit</dt><dd><code>tc-lanes</code> renders the switcher itself on the phone from its <code>tc-lane</code> children; <code>tc-lane</code> gets an optional <code>key</code>. No new component, and no new strings in the app.</dd>
+<dt>Kit</dt><dd>Three new glyphs <code>tier-light</code>, <code>tier-standard</code>, <code>tier-heavy</code> and a small non-interactive tooltip. <code>tc-lanes</code> renders the switcher itself on the phone from its <code>tc-lane</code> children; <code>tc-lane</code> gets an optional <code>key</code>. No new strings in the app: the legend and tooltip reuse <code>board.tierLabel</code> and <code>board.tier.*</code>.</dd>
 <dt>Motion</dt><dd>fast 140 ms slide and fade; reduced: fade 120 ms. Only transform and opacity animate.</dd>
 </dl></div></div><div data-lang="ru" lang="ru">
 <div class="note__grid"><div>
@@ -705,6 +726,7 @@ code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);pa
 <li><b>Показана только выбранная дорожка</b> и ровно своей высоты, поэтому «Открытые пул-реквесты» всегда начинаются сразу под ней. Доска открывается на первой дорожке, где есть задачи; выбор сохраняется, пока доска обновляется.</li>
 <li><b>Клавиатура и скринридер.</b> Переключатель — одна остановка Tab (список вкладок): стрелки переходят между дорожками, Home и End — к первой и последней. Скринридер читает «Одобрено 4, вкладка, 1 из 5, выбрана». Заголовок дорожки остаётся на странице для навигации по заголовкам. Это заменяет сегодняшний прокручиваемый ряд — он тоже одна остановка Tab со стрелками.</li>
 <li><b>Движение:</b> новая дорожка въезжает на 8 px с той стороны, куда ты переключил, и проявляется (140 мс). При «Меньше движения» — только проявление (120 мс). Больше ничего не двигается.</li>
+<li><b>Сложность — иконкой (правка после твоего согласования).</b> Текстовые «средняя» / «тяжёлая» стали маленькой шкалой из трёх ступенек тех же цветов: одна — лёгкая, две — средняя, три — тяжёлая. Под цифрами одна строка легенды, потому что на телефоне нет наведения. На Mac подсказка называет сложность при наведении и когда строка в фокусе с клавиатуры (Esc скрывает). Скринридер читает «Сложность: средняя» вместе со ссылкой строки.</li>
 <li><b>Готово к #108</b> (текущий спринт, следующий, бэклог): у каждой секции свой переключатель. Секция с одной дорожкой показывает её без переключателя. См. набор данных «превью #108».</li>
 </ul>
 <p class="try">Попробуй на iPhone: нажми «Готово 10», потом «На проверке 0» — пул-реквесты поднимаются вместе с дорожкой. Переключи «Версия» на «Сейчас: ряд со свайпом», чтобы увидеть сегодняшнюю пустоту. С клавиатуры: Tab до переключателя, потом ← →, Home, End.</p>
@@ -712,7 +734,7 @@ code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);pa
 <dt>Цвет</dt><dd>Только токены Paper Desk: заливка чернилами (<code>--text</code> на <code>--bg</code>) у выбранной таблетки, <code>--surface</code> и <code>--border</code> у остальных, <code>--text-3</code> у счётчиков, <code>--focus</code> у рамки фокуса. Контраст AA в обеих темах.</dd>
 <dt>Шрифты</dt><dd>Source Sans 3, <code>--fs-sm</code>, название полужирным, число табличными цифрами. Новых шрифтов нет.</dd>
 <dt>Токены</dt><dd>Новых нет: <code>--control-h-touch</code> (44 px), <code>--r-pill</code>, <code>--space-2</code>/<code>--space-3</code>, <code>--dur-fast</code>, <code>--ease-enter</code>, <code>--dur-fade</code>.</dd>
-<dt>Кит</dt><dd><code>tc-lanes</code> сам рисует переключатель на телефоне из своих <code>tc-lane</code>; у <code>tc-lane</code> появляется необязательный <code>key</code>. Новых компонентов нет, новых строк в приложении нет.</dd>
+<dt>Кит</dt><dd>Три новых глифа <code>tier-light</code>, <code>tier-standard</code>, <code>tier-heavy</code> и небольшая неинтерактивная подсказка. <code>tc-lanes</code> сам рисует переключатель на телефоне из своих <code>tc-lane</code>; у <code>tc-lane</code> появляется необязательный <code>key</code>. Новых строк в приложении нет: легенда и подсказка берут <code>board.tierLabel</code> и <code>board.tier.*</code>.</dd>
 <dt>Движение</dt><dd>быстро 140 мс — сдвиг и проявление; при «Меньше движения» — проявление 120 мс. Анимируются только transform и opacity.</dd>
 </dl></div></div></details>
 </header>
@@ -998,6 +1020,11 @@ const Proto = (() => {
     return [{ key: 'cur', title: 'Sprint 01', columns: columnsOf(issues), issues }];
   }
 
+  // Kit glyphs `tier-light|standard|heavy` (24 grid, 1.8 stroke): a three-step meter, empty steps as a baseline dash.
+  const BAR1 = 'M5 14h2v6H5z'; const BAR2 = 'M11 9h2v11h-2z'; const BAR3 = 'M17 4h2v16h-2z';
+  const TIER_PATHS = { light: `${BAR1}M11 20h2M17 20h2`, standard: `${BAR1}${BAR2}M17 20h2`, heavy: `${BAR1}${BAR2}${BAR3}` };
+  const TIER_ICON = Object.fromEntries(Object.entries(TIER_PATHS).map(([k, d]) => [k, `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${d}"/></svg>`]));
+
   const G = { version: 'new', data: 'sprint' };
   const hosts = [...document.querySelectorAll('[data-app]')];
 
@@ -1008,7 +1035,15 @@ const Proto = (() => {
     if (!host.selected) host.selected = {};
     const selected = host.selected;
 
-    const rowHTML = (x, withTier) => `<li><a class="bd-row" href="#github" data-act="gh"><span class="bd-row__num">#${x.number}</span><span class="bd-row__title">${esc(x.title)}<span class="sr-only"> ${t('board.opensGitHub')}</span></span>${withTier ? `<span class="tier tier--${x.tier}"><span class="sr-only">${t('board.tierLabel')} </span>${t(`board.tier.${x.tier}`)}</span>` : ''}</a></li>`;
+    // Tier as an icon (owner's request on #134): bars of a meter, the tone colours of the former chips. The icon sits
+    // inside the row's link, so it is not interactive itself: the name is visually hidden text in the link, the
+    // tooltip shows on hover and on the row's keyboard focus (Mac), and the legend explains the bars on the phone.
+    const tierHTML = (tier) => {
+      const name = `${t('board.tierLabel')} ${t(`board.tier.${tier}`)}`;
+      return `<span class="tier-ico tier-ico--${tier}">${TIER_ICON[tier]}<span class="sr-only">${name}</span><span class="tier-tip" aria-hidden="true">${name}</span></span>`;
+    };
+    const rowHTML = (x, withTier) => `<li><a class="bd-row" href="#github" data-act="gh"><span class="bd-row__num">#${x.number}</span><span class="bd-row__title">${esc(x.title)}<span class="sr-only"> ${t('board.opensGitHub')}</span></span>${withTier ? tierHTML(x.tier) : ''}</a></li>`;
+    const legendHTML = () => `<p class="tier-legend"><span>${t('board.tierLabel')}</span>${['light', 'standard', 'heavy'].map((x) => `<span class="tier-legend__item"><span class="tier-ico tier-ico--${x}">${TIER_ICON[x]}</span>${t(`board.tier.${x}`)}</span>`).join('')}</p>`;
     const bodyHTML = (col) => (col.issues.length
       ? `<ul class="bd-list">${col.issues.map((x) => rowHTML(x, true)).join('')}</ul>`
       : `<p class="bd-empty">${I.check}<span>${t('board.laneEmpty')}</span></p>`);
@@ -1055,7 +1090,7 @@ const Proto = (() => {
       const secHTML = secs.map((sec, i) => {
         const tid = `${uid}-${sec.key}-t`;
         const head = i === 0
-          ? `<header class="bd-head"><h2 class="bd-title" id="${tid}">${esc(sec.title)}</h2><span class="demo-pill">${I.clock}${t('board.demoIn')}</span></header>${stats}`
+          ? `<header class="bd-head"><h2 class="bd-title" id="${tid}">${esc(sec.title)}</h2><span class="demo-pill">${I.clock}${t('board.demoIn')}</span></header>${stats}${legendHTML()}`
           : `<header class="bd-head"><h2 class="bd-title bd-title--sub" id="${tid}">${esc(sec.title)}</h2></header>`;
         return `<section class="bd-sec" aria-labelledby="${tid}">${head}${lanesHTML(sec)}</section>`;
       }).join('');
@@ -1105,6 +1140,9 @@ const Proto = (() => {
 
     if (host.wired) return;
     host.wired = true;
+    const tipsOn = () => host.classList.remove('tips-off');
+    host.addEventListener('pointerover', tipsOn);
+    host.addEventListener('focusin', tipsOn);
     host.addEventListener('click', (e) => {
       const tab = e.target.closest('[role=tab]');
       if (tab) { select(tab.parentElement, tab, false); return; }
@@ -1112,6 +1150,7 @@ const Proto = (() => {
     });
     // Tabs pattern (WAI-ARIA APG), automatic activation: the panels are already rendered, switching is free.
     host.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { host.classList.add('tips-off'); return; }
       const tab = e.target.closest('[role=tab]');
       if (tab) {
         const tabs = [...tab.parentElement.querySelectorAll('[role=tab]')];
