@@ -1,0 +1,73 @@
+@if (state().kind === 'loading') {
+<tc-state-block kind="loading" data-testid="loading" [title]="'board.loading' | transloco" />
+} @else if (failure(); as failed) {
+<tc-state-block
+  kind="error"
+  data-testid="load-error"
+  [attr.data-failure]="failed.failure"
+  [title]="'board.error.' + failed.failure + '.title' | transloco"
+  [description]="'board.error.' + failed.failure + '.hint' | transloco: { time: retryTime() }"
+>
+  <button tc-button tc-state-action type="button" (click)="reload()">{{ 'ui.error.retry' | transloco }}</button>
+</tc-state-block>
+} @else if (board(); as board) {
+<!-- Titles, labels and the milestone name are GitHub text: interpolated only, never bound as HTML. -->
+@if (board.milestone; as milestone) {
+<section class="board__sprint" [attr.aria-labelledby]="titleId">
+  <header class="board__head">
+    <h2 class="board__title" [id]="titleId">{{ milestone.title }}</h2>
+    <tc-chip tone="accent" data-testid="demo"><tc-icon name="calendar" size="sm" />{{ demoLine() }}</tc-chip>
+  </header>
+
+  <dl tc-stats data-testid="stats">
+    <div tc-stat [label]="'board.stat.done' | transloco">
+      {{ 'board.stat.doneValue' | transloco: { shipped: board.shipped, planned: board.planned } }}
+    </div>
+    <div tc-stat [label]="'board.stat.stillOpen' | transloco">{{ board.carriedOver }}</div>
+    <div tc-stat [label]="'board.stat.openPrs' | transloco">{{ board.pullRequests.length }}</div>
+  </dl>
+
+  @if (board.issues.length === 0) {
+  <tc-state-block
+    kind="empty"
+    data-testid="empty-sprint"
+    [title]="'board.emptyTitle' | transloco: { sprint: milestone.title }"
+    [description]="'board.emptyHint' | transloco"
+  />
+  } @else {
+  <tc-lanes [attr.aria-label]="'board.lanes' | transloco">
+    @for (column of columns(); track column.status) {
+    <tc-lane [heading]="laneName(column.status)" [count]="column.issues.length" [attr.data-status]="column.status">
+      @if (column.issues.length > 0) {
+      <tc-sprint-item-list [items]="column.issues" />
+      } @else {
+      <tc-state-block kind="empty" compact [title]="'board.laneEmpty' | transloco" />
+      }
+    </tc-lane>
+    }
+  </tc-lanes>
+  }
+</section>
+} @else {
+<tc-state-block
+  kind="empty"
+  data-testid="no-sprint"
+  [title]="'board.noSprintTitle' | transloco"
+  [description]="'board.noSprintHint' | transloco"
+/>
+}
+
+<tc-lane
+  class="board__pulls"
+  data-testid="pulls"
+  [heading]="'board.pulls' | transloco"
+  [count]="board.pullRequests.length"
+  [level]="2"
+>
+  @if (board.pullRequests.length > 0) {
+  <tc-sprint-item-list [items]="board.pullRequests" />
+  } @else {
+  <tc-state-block kind="empty" compact [title]="'board.pullsEmpty' | transloco" />
+  }
+</tc-lane>
+}

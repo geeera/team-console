@@ -9,7 +9,13 @@
 </ng-template>
 
 @if (href()) {
-<a class="tc-list-row__surface" [attr.href]="href()" [attr.aria-current]="current() ? 'true' : null">
+<a
+  class="tc-list-row__surface"
+  [attr.href]="href()"
+  [attr.target]="external() ? '_blank' : null"
+  [attr.rel]="external() ? 'noopener noreferrer' : null"
+  [attr.aria-current]="current() ? 'true' : null"
+>
   <ng-container *ngTemplateOutlet="content" />
 </a>
 } @else if (button()) {

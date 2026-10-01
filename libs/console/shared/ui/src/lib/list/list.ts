@@ -57,6 +57,11 @@ export class ListRow {
   /** Marks the row the user is on (`aria-current="true"`), e.g. the open project. */
   readonly current = input(false, { transform: booleanAttribute });
   readonly disabled = input(false, { transform: booleanAttribute });
+  /**
+   * With `href`: the link opens in a new tab without an opener (GitHub pages). Say so in the row's text for
+   * screen readers; the kit does not add copy of its own.
+   */
+  readonly external = input(false, { transform: booleanAttribute });
 
   protected isInteractive(): boolean {
     return this.button() || this.href() !== '';

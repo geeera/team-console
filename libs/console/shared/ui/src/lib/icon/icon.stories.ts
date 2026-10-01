@@ -29,6 +29,7 @@ const names = [
   'link',
   'help',
   'offline',
+  'calendar',
 ];
 
 const sheet = `

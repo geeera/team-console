@@ -1,0 +1,27 @@
+:host {
+  display: grid;
+  align-items: start;
+  gap: var(--space-5);
+}
+
+/*
+ * The phone shows one lane and the edge of the next: swipe sideways, each lane snaps to the start. The row bleeds
+ * to the screen edges through the page padding (the space body's --space-4 on the phone).
+ */
+@media (max-width: 519.98px) {
+  :host {
+    grid-auto-flow: column;
+    grid-auto-columns: 82%;
+    gap: var(--space-3);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scroll-padding: 0 var(--space-4);
+    margin: 0 calc(-1 * var(--space-4));
+    padding: var(--space-1) var(--space-4) var(--space-2);
+  }
+
+  :host(:focus-visible) {
+    outline-offset: calc(-1 * var(--focus-w));
+  }
+}
