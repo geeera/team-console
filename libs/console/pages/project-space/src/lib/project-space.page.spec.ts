@@ -6,6 +6,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { PROJECTS_URL, ProjectsStore } from '@console/entities/project';
+import { projectSprintUrl } from '@console/entities/sprint';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import {
   memoryPersistedStateStorage,
@@ -51,7 +52,7 @@ describe('ProjectSpacePage', () => {
       ]);
     await ready;
     const harness = await RouterTestingHarness.create();
-    return { harness, router: TestBed.inject(Router), state: TestBed.inject(PersistedStateStore) };
+    return { harness, http, router: TestBed.inject(Router), state: TestBed.inject(PersistedStateStore) };
   }
 
   it('shows the project name, the section tabs and redirects the space root to Questions', async () => {
@@ -94,5 +95,25 @@ describe('ProjectSpacePage', () => {
 
     expect(root.querySelectorAll('nav')).toHaveLength(1);
     expect(root.querySelector('nav.tc-tab-bar--bottom')).not.toBeNull();
+  });
+
+  it('renders the sprint board in the Board section, read from the project\'s sprint read model', async () => {
+    const { harness, http } = await setup();
+    await harness.navigateByUrl('/p/tc/board');
+    const root = harness.routeNativeElement as HTMLElement;
+
+    expect(root.querySelector('tc-sprint-board')).not.toBeNull();
+    const request = http.expectOne(projectSprintUrl('tc'));
+    expect(request.request.method).toBe('GET');
+    request.flush({
+      milestone: null,
+      issues: [],
+      byStatus: {},
+      planned: 0,
+      shipped: 0,
+      carriedOver: 0,
+      byTier: {},
+      openPullRequests: [],
+    });
   });
 });

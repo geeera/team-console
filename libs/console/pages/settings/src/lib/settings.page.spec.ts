@@ -246,6 +246,22 @@ describe('SettingsPage', () => {
     );
   });
 
+  it('offline: Add project is really disabled — the tap does not navigate (#124 item 5)', async () => {
+    await open('/settings');
+    flushSetups({ storify: READY, fieldnote: READY, atlas: READY });
+    online.set(false);
+    await settle();
+
+    const addProject = root().querySelector('[data-testid="add-project"]') as HTMLAnchorElement;
+    expect(addProject.getAttribute('aria-disabled')).toBe('true');
+    expect(addProject.getAttribute('role')).toBe('button');
+    expect(addProject.hasAttribute('href')).toBe(false);
+
+    addProject.click();
+    await settle();
+    expect(TestBed.inject(Router).url).toBe('/settings');
+  });
+
   it('the callback’s wrong-account outcome names both logins and drops the query', async () => {
     await open('/settings?github=wrong-account&login=octocat', {
       projects: [],

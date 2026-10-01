@@ -140,6 +140,9 @@ export class AddProjectForm {
 
   protected onInput(event: Event): void {
     this.value.set((event.target as HTMLInputElement).value);
+    // A new value makes the previous check stale: its inline error or result block must not linger (#124 item 3).
+    this.fieldError.set('');
+    this.outcome.set(null);
   }
 
   protected onConnectRefused(): void {
