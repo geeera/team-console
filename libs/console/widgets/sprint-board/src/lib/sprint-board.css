@@ -25,3 +25,19 @@
   line-height: var(--lh-tight);
   overflow-wrap: anywhere;
 }
+
+.board__legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.board__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}

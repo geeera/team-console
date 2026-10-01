@@ -1,13 +1,16 @@
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationInitStatus, Component, ErrorHandler, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { CORE_STATUSES, projectSprintUrl } from '@console/entities/sprint';
 import { provideConsoleI18n, TranslocoService } from '@console/shared/i18n';
 import type { SprintDto, SprintIssueDto } from '@shared/contracts';
 import { readFileSync } from 'node:fs';
 import type { MockInstance } from 'vitest';
 import { resolve } from 'node:path';
+import { of } from 'rxjs';
 import {
   DEFAULT_RETRY_SECONDS,
   MAX_RETRY_SECONDS,
@@ -92,11 +95,21 @@ describe('SprintBoard', () => {
     }
   }
 
-  async function render() {
+  /** `phone`: the kit's lanes see the phone breakpoint and show the lane switcher. */
+  async function render(phone = false) {
     handled.length = 0;
+    const breakpoints = phone
+      ? [
+          {
+            provide: BreakpointObserver,
+            useValue: { isMatched: () => true, observe: () => of({ matches: true, breakpoints: {} }) },
+          },
+        ]
+      : [];
     await TestBed.configureTestingModule({
       imports: [Host],
       providers: [
+        ...breakpoints,
         provideHttpClient(),
         provideHttpClientTesting(),
         provideConsoleI18n(),
@@ -176,7 +189,8 @@ describe('SprintBoard', () => {
     ]);
     const qa = root.querySelector('tc-lane[data-status="qa"]') as HTMLElement;
     expect(qa.querySelector('[role="heading"]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('На проверке 1');
-    expect(qa.querySelector('[data-testid="tier"]')?.textContent).toContain('тяжёлая');
+    expect(qa.querySelector('[data-testid="tier"]')?.getAttribute('data-tier')).toBe('heavy');
+    expect(qa.querySelector('[data-testid="tier"] .tc-sr-only')?.textContent?.trim()).toBe('Сложность: тяжёлая');
     expect(root.querySelector('tc-lane[data-status="approved"] tc-state-block')?.textContent).toContain('Пусто');
     const pulls = root.querySelector('[data-testid="pulls"]') as HTMLElement;
     expect(pulls.querySelector('[role="heading"]')?.getAttribute('aria-level')).toBe('2');
@@ -423,6 +437,80 @@ describe('SprintBoard', () => {
     expect(root.querySelector('[data-testid="load-error"]')?.getAttribute('data-failure')).toBe('unavailable');
     expect(root.querySelector('tc-lanes')).toBeNull();
     expect(handled).toEqual([]);
+  });
+
+  it('explains the tier icons once, under the numbers, with the existing tier copy', async () => {
+    const { root, settle, text } = await render();
+    http.expectOne(projectSprintUrl(TC.slug)).flush(sprint());
+    await settle();
+
+    const legend = root.querySelector('[data-testid="tier-legend"]') as HTMLElement;
+    expect(legend.previousElementSibling?.getAttribute('data-testid')).toBe('stats');
+    expect(text('[data-testid="tier-legend"]')).toBe('Сложность: лёгкая средняя тяжёлая');
+    expect([...legend.querySelectorAll('[data-tier]')].map((icon) => icon.getAttribute('data-tier'))).toEqual([
+      'light',
+      'standard',
+      'heavy',
+    ]);
+  });
+
+  describe('on the phone', () => {
+    const tabs = (root: HTMLElement) =>
+      [...root.querySelectorAll<HTMLButtonElement>('[role="tab"]')].map((tab) => [
+        tab.textContent?.replace(/\s+/g, ' ').trim(),
+        tab.getAttribute('aria-selected'),
+      ]);
+    const shown = (root: HTMLElement) =>
+      [...root.querySelectorAll<HTMLElement>('tc-lanes tc-lane')]
+        .filter((lane) => !lane.hidden)
+        .map((lane) => lane.getAttribute('data-status'));
+
+    it('switches lanes with a named tab list and opens on the first lane with issues', async () => {
+      const { root, settle } = await render(true);
+      http.expectOne(projectSprintUrl(TC.slug)).flush(sprint());
+      await settle();
+
+      expect(root.querySelector('[role="tablist"]')?.getAttribute('aria-label')).toBe('Задачи спринта по статусам');
+      expect(tabs(root)).toEqual([
+        ['Одобрено 0', 'false'],
+        ['В работе 1', 'true'],
+        ['На проверке 1', 'false'],
+        ['Готово 1', 'false'],
+      ]);
+      expect(shown(root)).toEqual(['in-progress']);
+      // The open pull requests are not one of the lanes: always shown, under the selected lane.
+      expect((root.querySelector('[data-testid="pulls"]') as HTMLElement).hidden).toBe(false);
+    });
+
+    it('keeps the lane the owner picked across a refresh, and falls back when it is gone', async () => {
+      const blocked = sprint({ issues: [issue(18), issue(20, { status: 'blocked' })], byStatus: {} });
+      const { root, fixture, settle } = await render(true);
+      http.expectOne(projectSprintUrl(TC.slug)).flush(blocked);
+      await settle();
+      const board = fixture.debugElement.query(By.directive(SprintBoard)).componentInstance as SprintBoard;
+      const pick = async (name: string) => {
+        const tab = [...root.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((each) =>
+          each.textContent?.includes(name),
+        );
+        tab?.click();
+        await settle();
+      };
+      const refresh = async (body: SprintDto) => {
+        void board.reload();
+        await settle();
+        expect(root.querySelector('tc-lanes')).toBeNull();
+        http.expectOne(projectSprintUrl(TC.slug)).flush(body);
+        await settle();
+      };
+
+      await pick('Заблокировано');
+      expect(shown(root)).toEqual(['blocked']);
+      await refresh(blocked);
+      expect(shown(root)).toEqual(['blocked']);
+
+      await refresh(sprint({ issues: [issue(18)], byStatus: {} }));
+      expect(shown(root)).toEqual(['in-progress']);
+    });
   });
 
   it('reads the new project when the slug changes', async () => {
