@@ -213,12 +213,13 @@
       const id = `${uid}-how`;
       const key = (x) => `${P.slug.toUpperCase().replace(/-/g, '_')}_${x.toUpperCase()}`;
       const line = (cmd, slot, what) => `<div class="codeline"><code>${esc(cmd)}</code><button type="button" class="btn btn--sm" data-act="copy" data-value="${esc(cmd)}" data-fk="setup-copy-${what}-${slot}" aria-label="${esc(t(`setup.copy.${what}`, { slot: t(`slot.${slot}N`) }))}">${I.copy}<span aria-hidden="true">${t('c.copy')}</span></button></div>`;
-      const cmds = missing.map((x) => `<li class="cp-slot"><span class="cp-slot__name">${t(`slot.${x}`)}</span>${line(`npx wrangler secret put SLOT_ROUTINE_${key(x)} --env production`, x, 'id')}${line(`npx wrangler secret put SLOT_TOKEN_${key(x)} --env production`, x, 'token')}</li>`).join('');
+      const cmds = missing.map((x) => `<li class="cp-slot"><span class="cp-slot__name">${t(`slot.${x}`)}</span>${line(`npx wrangler secret put SLOT_ROUTINE_${key(x)} --env production --config apps/api/wrangler.jsonc`, x, 'id')}${line(`npx wrangler secret put SLOT_TOKEN_${key(x)} --env production --config apps/api/wrangler.jsonc`, x, 'token')}</li>`).join('');
       return `<div class="cp-setup"><div class="cp-setup__head">${I.key}<h4>${t('setup.t', { slots: slotList(missing), n: missing.length })}</h4></div><p>${t('setup.b', { name: P.slug, n: missing.length })}</p>
         <button type="button" class="btn btn--quiet btn--sm how-btn" data-act="how" aria-expanded="${S.howOpen}" aria-controls="${id}" data-fk="setup-how">${t('setup.how')}${I.down}</button>
         <div class="how" id="${id}"${S.howOpen ? '' : ' hidden'}><ol class="cp-steps"><li>${t('setup.s1', { name: P.slug, slots: slotList(missing), n: missing.length })}</li>
           <li>${t('setup.s2')}<ul class="cp-slots">${cmds}</ul></li>
-          <li>${t('setup.s3')}</li></ol></div></div>`;
+          <li>${t('setup.s3')}</li></ol>
+          <p class="cp-setup__safe">${I.lock}<span>${t('setup.safe')}</span></p></div></div>`;
     }
     function panelHTML() {
       const body = G.data === 'loading'
