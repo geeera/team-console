@@ -100,11 +100,19 @@ export async function readRepository(client: GitHubClient, repo: RepoName): Prom
   return { fullName: read.full_name, owner: { login: read.owner.login, id: read.owner.id } };
 }
 
-/**
- * The text of `.product-team/project.yml`, `null` when there is no such file. A file over the contents API's
- * 1 MB limit comes without content: it exists, and reads as empty.
- */
-export async function readProjectYml(client: GitHubClient, repo: RepoName): Promise<string | null> {
+/** `.product-team/project.yml` as the contents API describes it. */
+export interface ProjectYmlFile {
+  /** Bytes, as GitHub reports them. */
+  readonly size: number;
+  /** The decoded text; `null` when GitHub sent no usable content (a file over its 1 MB limit, bad base64). */
+  readonly text: string | null;
+}
+
+/** The contents API's answer for `.product-team/project.yml`; `null` when there is no such file. */
+export async function readProjectYmlFile(
+  client: GitHubClient,
+  repo: RepoName,
+): Promise<ProjectYmlFile | null> {
   let answer: Record<string, unknown> | unknown[];
   try {
     answer = await client.getJson(
@@ -120,16 +128,26 @@ export async function readProjectYml(client: GitHubClient, repo: RepoName): Prom
   if (Array.isArray(answer) || answer['type'] !== 'file') {
     return null;
   }
+  const size = typeof answer['size'] === 'number' && answer['size'] >= 0 ? answer['size'] : 0;
   const content = answer['content'];
   if (answer['encoding'] !== 'base64' || typeof content !== 'string') {
-    return '';
+    return { size, text: null };
   }
   try {
-    return decodeBase64Text(content);
+    return { size, text: decodeBase64Text(content) };
   } catch {
-    // Not base64 after all: the file is there, its language falls back to the default.
-    return '';
+    return { size, text: null };
   }
+}
+
+/**
+ * The text of `.product-team/project.yml`, `null` when there is no such file. A file over the contents API's
+ * 1 MB limit comes without content: it exists, and reads as empty.
+ */
+export async function readProjectYml(client: GitHubClient, repo: RepoName): Promise<string | null> {
+  const file = await readProjectYmlFile(client, repo);
+  // No usable content: the file is there, its language falls back to the default.
+  return file === null ? null : (file.text ?? '');
 }
 
 /** A tri-state read outcome (#83): `unknown` is a GitHub failure on that particular read, not "missing". */

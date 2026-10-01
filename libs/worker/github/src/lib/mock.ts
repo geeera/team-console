@@ -23,14 +23,15 @@ export interface MockRepository {
   readonly reply?: MockReply;
   /** Text files `GET /repos/{owner}/{repo}/contents/{path}` serves, by path (e.g. `.product-team/project.yml`). */
   readonly files?: Readonly<Record<string, string>>;
-  /** What `GET /repos/{owner}/{repo}/issues/{number}` answers, by number (the answer route, #10). */
-  readonly issues?: Readonly<Record<string, MockIssue>>;
-}
-
-export interface MockIssue {
-  readonly title: string;
-  readonly state: string;
-  readonly labels: readonly string[];
+  /**
+   * Issues as GitHub sends them (pull requests included), newest first: `GET …/issues?state=&milestone=` lists
+   * them, `GET …/issues/{number}` (the answer route, #10) reads one.
+   */
+  readonly issues?: readonly Readonly<Record<string, unknown>>[];
+  /** `GET …/milestones?state=` */
+  readonly milestones?: readonly Readonly<Record<string, unknown>>[];
+  /** `GET …/pulls?state=` */
+  readonly pulls?: readonly Readonly<Record<string, unknown>>[];
 }
 
 export interface MockFixtures {
@@ -83,6 +84,31 @@ function json(status: number, body: unknown, headers: Record<string, string> = {
 }
 
 const notFound = (): Response => json(404, { message: 'Not Found' });
+
+/** One page (the fixtures stay under 100 items) of a list, filtered by `state` and `milestone` as GitHub does. */
+function listOf(
+  fixture: MockRepository,
+  list: 'issues' | 'milestones' | 'pulls',
+  query: URLSearchParams,
+): readonly Readonly<Record<string, unknown>>[] {
+  const items = fixture[list] ?? [];
+  const state = query.get('state') ?? 'open';
+  const milestone = query.get('milestone');
+  return items.filter((item) => {
+    if (state !== 'all' && item['state'] !== state) {
+      return false;
+    }
+    if (milestone === null) {
+      return true;
+    }
+    const assigned = item['milestone'];
+    return (
+      typeof assigned === 'object' &&
+      assigned !== null &&
+      String((assigned as Record<string, unknown>)['number']) === milestone
+    );
+  });
+}
 
 interface IssuedToken {
   readonly repo: string;
@@ -140,8 +166,14 @@ class MockGitHubServer {
 
     const isRepositoryRead = segments.length === 3;
     const isContentsRead = segments.length > 4 && segments[3] === 'contents';
+    const listed = segments.length === 4 ? segments[3] : undefined;
+    const isListRead = listed === 'issues' || listed === 'milestones' || listed === 'pulls';
     const isIssueRead = segments.length === 5 && segments[3] === 'issues';
-    if (method === 'GET' && segments[0] === 'repos' && (isRepositoryRead || isContentsRead || isIssueRead)) {
+    if (
+      method === 'GET' &&
+      segments[0] === 'repos' &&
+      (isRepositoryRead || isContentsRead || isListRead || isIssueRead)
+    ) {
       const repo = `${segments[1]}/${segments[2]}`;
       const token = this.issued.get(bearer);
       if (token === undefined || token.expiresAt <= Date.now()) {
@@ -159,8 +191,11 @@ class MockGitHubServer {
       if (isContentsRead) {
         return this.file(found.fixture, segments.slice(4).join('/'));
       }
+      if (isListRead) {
+        return json(200, listOf(found.fixture, listed, url.searchParams));
+      }
       if (isIssueRead) {
-        return this.issue(found.name, found.fixture, segments[4] ?? '');
+        return this.issue(found.fixture, segments[4] ?? '');
       }
       return found.fixture.repository === undefined ? notFound() : json(200, found.fixture.repository);
     }
@@ -185,18 +220,9 @@ class MockGitHubServer {
   }
 
   /** An issue as GitHub sends it: labels as objects. */
-  private issue(repo: string, fixture: MockRepository, number: string): Response {
-    const issue = fixture.issues?.[number];
-    if (issue === undefined) {
-      return notFound();
-    }
-    return json(200, {
-      number: Number(number),
-      title: issue.title,
-      state: issue.state,
-      labels: issue.labels.map((name) => ({ name })),
-      html_url: `https://github.com/${repo}/issues/${number}`,
-    });
+  private issue(fixture: MockRepository, number: string): Response {
+    const issue = fixture.issues?.find((item) => String(item['number']) === number);
+    return issue === undefined ? notFound() : json(200, issue);
   }
 
   private repository(fullName: string): { name: string; fixture: MockRepository } | undefined {
