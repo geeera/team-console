@@ -99,6 +99,12 @@ Sprint board (#18, read-only): `@console/entities/sprint` (`isSprintDto`, `Sprin
 empty, error and 429 with an automatic retry at `Retry-After`). Kit: `Lanes`/`Lane` (a tab list of lanes on the phone, `[(selected)]` by `key`),
 `Stats`/`Stat`, `ListRow` `external`.
 
+All projects (#27, read-only): `GET /api/v1/overview` (`routes/overview.ts`) builds one row per active project from the
+same cached reads (`buildOverviewRow` in `@worker/read-models`; team state by `team/team-health.ts` from the run log's
+latest 200 comments, cached 30 s) under a per-request `SubrequestBudget` (44 GitHub subrequests; a project it cannot
+finish is its own `github-request-budget` row). Console: `OverviewApi` in `@console/entities/project`, page
+`console-pages-overview` (tiles link to `/p/:slug/board`); kit `Meter`.
+
 Team commands (#114): `routes/team-commands.ts` (`GET /projects/:slug/team/status`, `POST …/team/pause|resume` on the
 owner's token, byte-for-byte `runlog pause`/`resume`, 60 s replay from `own_writes`; `POST …/runs {slot}` fires the
 slot's routine once, never retried, behind the run log (paused, 3-hour overlap) and the 15-minute `slot_requests` lock

@@ -1,8 +1,11 @@
 import type { TeamState } from '@shared/contracts';
+import { commandLines } from '@shared/owner-grammar';
 import { githubPath, type RepoName } from '@worker/github';
 import { TRUSTED_BOT_LOGINS } from '@worker/read-models';
 import {
+  OWNER_RESUME,
   PAUSED_LABEL,
+  PAUSE_MARKER,
   RUN_LOG_LABEL,
   activeOwnerPause,
   parseRuns,
@@ -23,12 +26,15 @@ import { readProjectYml, repositoryClient } from '../projects/repository-checks'
 
 /** 1000 comments: about five months of runs at the plugin's schedule. */
 const MAX_COMMENT_PAGES = 10;
+const COMMENTS_PER_PAGE = 100;
 
 export interface RunLogIssue {
   readonly number: number;
   readonly htmlUrl: string;
   readonly author: string;
   readonly labels: readonly string[];
+  /** GitHub's comment count on the issue; 0 when it sent none. */
+  readonly comments: number;
 }
 
 export interface RunLogView {
@@ -38,6 +44,23 @@ export interface RunLogView {
   readonly ownerPause: OwnerPause | null;
   readonly paused: boolean;
   readonly state: TeamState;
+  /**
+   * `runlog start`'s `paused_since`: the latest team pause or owner-resume marker in the log (ISO 8601), `''` without
+   * one. Failures before it no longer count towards a streak.
+   */
+  readonly pausedSince: string;
+  /** The latest `/resume` command in a trusted comment of the repository owner (ISO 8601), `''` without one. */
+  readonly ownerResumeAt: string;
+}
+
+export interface ReadRunLogOptions {
+  /**
+   * Read only the latest pages of comments (the overview, #27), found from the issue's comment count. Enough for the
+   * failure streak and an active pause, since a paused team writes nothing; the team status reads them all.
+   */
+  readonly latestCommentPages?: number;
+  /** project.yml's text when the caller has read it already (`null`: no such file); otherwise it is read here. */
+  readonly projectYml?: string | null;
 }
 
 /** Why there is no usable run log; answered as 409 `run-log-missing` with this `reason`. */
@@ -94,7 +117,15 @@ function issueOf(raw: JsonRecord): RunLogIssue {
     htmlUrl: String(raw['html_url']),
     author: loginOf(raw['user']),
     labels: labelsOf(raw['labels']),
+    comments: Number.isSafeInteger(raw['comments']) ? Number(raw['comments']) : 0,
   };
+}
+
+function latestAt(comments: readonly RunLogComment[], matches: (comment: RunLogComment) => boolean): string {
+  return comments
+    .filter(matches)
+    .map((comment) => comment.createdAt ?? '')
+    .reduce((latest, at) => (at > latest ? at : latest), '');
 }
 
 function commentOf(raw: JsonRecord): RunLogComment {
@@ -121,9 +152,14 @@ function isTeamLogin(repo: RepoName, login: string): boolean {
 }
 
 /** `runlogissue.find`: the pinned issue (refused unless the team opened it), else the one labelled issue it opened. */
-async function findRunLogIssue(installation: GitHubConnection, repo: RepoName): Promise<RunLogIssue | null> {
+async function findRunLogIssue(
+  installation: GitHubConnection,
+  repo: RepoName,
+  projectYml: string | null | undefined,
+): Promise<RunLogIssue | null> {
   const client = repositoryClient(installation, repo);
-  const pinned = runLogIssueOf((await readProjectYml(client, repo)) ?? '');
+  const yml = projectYml === undefined ? await readProjectYml(client, repo) : projectYml;
+  const pinned = runLogIssueOf(yml ?? '');
   if (pinned > 0) {
     const issue = issueOf(await client.getJson(githubPath`/repos/${repo}/issues/${pinned}`, isGitHubIssue));
     if (!isTeamLogin(repo, issue.author)) {
@@ -146,15 +182,31 @@ async function findRunLogIssue(installation: GitHubConnection, repo: RepoName): 
   return candidates[0] ?? null;
 }
 
-export async function readRunLog(installation: GitHubConnection, repo: RepoName): Promise<RunLogView> {
-  const issue = await findRunLogIssue(installation, repo);
+export async function readRunLog(
+  installation: GitHubConnection,
+  repo: RepoName,
+  options: ReadRunLogOptions = {},
+): Promise<RunLogView> {
+  const issue = await findRunLogIssue(installation, repo, options.projectYml);
   if (issue === null) {
-    return { issue: null, runs: [], ownerPause: null, paused: false, state: 'running' };
+    return {
+      issue: null,
+      runs: [],
+      ownerPause: null,
+      paused: false,
+      state: 'running',
+      pausedSince: '',
+      ownerResumeAt: '',
+    };
   }
+  const pages = Math.min(options.latestCommentPages ?? MAX_COMMENT_PAGES, MAX_COMMENT_PAGES);
+  const firstPage = Math.max(1, Math.ceil(issue.comments / COMMENTS_PER_PAGE) - pages + 1);
   const raw = await repositoryClient(installation, repo).paginate(
-    githubPath`/repos/${repo}/issues/${issue.number}/comments?per_page=${100}`,
+    firstPage === 1
+      ? githubPath`/repos/${repo}/issues/${issue.number}/comments?per_page=${COMMENTS_PER_PAGE}`
+      : githubPath`/repos/${repo}/issues/${issue.number}/comments?per_page=${COMMENTS_PER_PAGE}&page=${firstPage}`,
     isGitHubComment,
-    { maxPages: MAX_COMMENT_PAGES },
+    { maxPages: pages },
   );
   // The log's author and the team, as `runlog.team_comments`; the owner too, since the console writes as the owner.
   const { trusted, untrusted } = partitionTeamComments(raw.map(commentOf), [
@@ -166,5 +218,16 @@ export async function readRunLog(installation: GitHubConnection, repo: RepoName)
   // The label is what every scheduled run checks; the record only says who paused and when.
   const paused = issue.labels.includes(PAUSED_LABEL);
   const state: TeamState = !paused ? 'running' : ownerPause !== null ? 'paused-by-owner' : 'paused-by-team';
-  return { issue, runs, ownerPause, paused, state };
+  const pausedSince = latestAt(
+    trusted,
+    (comment) => comment.body.includes(PAUSE_MARKER) || comment.body.includes(OWNER_RESUME),
+  );
+  // `commands.parse`: the owner's own comments only, never the team's bot.
+  const ownerResumeAt = latestAt(
+    trusted,
+    (comment) =>
+      comment.author.toLowerCase() === repo.owner.toLowerCase() &&
+      commandLines(comment.body).some((line) => line.command === 'resume'),
+  );
+  return { issue, runs, ownerPause, paused, state, pausedSince, ownerResumeAt };
 }

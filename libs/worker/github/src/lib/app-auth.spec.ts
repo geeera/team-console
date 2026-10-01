@@ -224,12 +224,15 @@ describe('GitHubAppAuth', () => {
     );
     const source = auth.tokenSourceFor(REPO);
 
+    expect(auth.hasUsableToken(REPO)).toBe(false);
     const first = await source.getToken();
     now += 54 * 60 * 1000;
+    expect(auth.hasUsableToken(REPO)).toBe(true);
     expect(await source.getToken()).toBe(first);
     expect(github.calls).toHaveLength(2);
 
     now += 60 * 1000 + 1;
+    expect(auth.hasUsableToken(REPO)).toBe(false);
     expect(await source.getToken()).not.toBe(first);
     expect(github.calls).toHaveLength(4);
   });

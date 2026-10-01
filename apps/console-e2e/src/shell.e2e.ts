@@ -68,7 +68,7 @@ test.describe('with two active projects', () => {
     await expect(page.getByTestId('chat-draft')).toHaveValue(draft);
   });
 
-  test('shell screens send only bodiless GETs: projects, needs-you and the open space team status', async ({
+  test('shell screens send only bodiless GETs: projects, needs-you, the overview and the open space team status', async ({
     page,
   }) => {
     const sent: Request[] = [];
@@ -95,7 +95,13 @@ test.describe('with two active projects', () => {
     }
 
     // A project space reads its team status for the paused banner and the Commands panel (#114); an unknown one does not.
-    const allowed = new Set(['GET /api/v1/projects', 'GET /api/v1/needs-you', `GET ${TEAM_STATUS}`]);
+    // All projects reads its one overview request (#27).
+    const allowed = new Set([
+      'GET /api/v1/projects',
+      'GET /api/v1/needs-you',
+      'GET /api/v1/overview',
+      `GET ${TEAM_STATUS}`,
+    ]);
     const seen = sent.map((request) => `${request.method()} ${new URL(request.url()).pathname}`);
     expect(
       seen.filter((call) => !allowed.has(call)),
