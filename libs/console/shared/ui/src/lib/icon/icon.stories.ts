@@ -30,6 +30,9 @@ const names = [
   'help',
   'offline',
   'calendar',
+  'tier-light',
+  'tier-standard',
+  'tier-heavy',
 ];
 
 const sheet = `

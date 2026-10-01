@@ -53,8 +53,16 @@ describe('SprintItemList', () => {
     expect(link.textContent).toContain('Story editor autosave');
     expect(link.textContent).toContain('(откроется на GitHub)');
     const tier = rows[0]?.querySelector('[data-testid="tier"]') as HTMLElement;
-    expect(tier.textContent?.replace(/\s+/g, ' ').trim()).toBe('Сложность: тяжёлая');
-    expect(tier.classList.contains('tc-chip--warning')).toBe(true);
+    expect(link.contains(tier)).toBe(true);
+    expect(tier.getAttribute('data-tier')).toBe('heavy');
+    expect(tier.classList.contains('sprint-tier-icon--heavy')).toBe(true);
+    expect(tier.querySelector('tc-icon')?.getAttribute('aria-hidden')).toBe('true');
+    // The link's name carries the tier; the tooltip only repeats it for sighted users.
+    expect(tier.querySelector('.tc-sr-only')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Сложность: тяжёлая');
+    const tooltip = tier.querySelector('tc-tooltip') as HTMLElement;
+    expect(tooltip.getAttribute('aria-hidden')).toBe('true');
+    expect(tooltip.textContent?.replace(/\s+/g, ' ').trim()).toBe('Сложность: тяжёлая');
+    expect(link.querySelector('[title]')).toBeNull();
     expect(rows[0]?.querySelector('[data-testid="untrusted"]')).toBeNull();
   });
 

@@ -9,7 +9,7 @@
     <span tc-row-title>{{ project.displayName }}</span>
     @if (countOf(project.slug); as count) {
     <tc-chip tc-row-trailing tone="accent">
-      <span aria-hidden="true">{{ count }}</span>
+      <span aria-hidden="true">{{ count | localNumber }}</span>
       <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: count } }}</span>
     </tc-chip>
     }
@@ -59,7 +59,7 @@
     <span tc-row-title>{{ project.displayName }}</span>
     @if (countOf(project.slug); as count) {
     <tc-chip tc-row-trailing tone="accent">
-      <span aria-hidden="true">{{ count }}</span>
+      <span aria-hidden="true">{{ count | localNumber }}</span>
       <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: count } }}</span>
     </tc-chip>
     }

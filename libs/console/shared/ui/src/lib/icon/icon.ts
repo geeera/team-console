@@ -40,6 +40,10 @@ const GLYPHS = {
   key: 'M8 18.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7zM10.5 12.5l8-8M16 7l2.5 2.5M14 9l2 2',
   lock: 'M7 10.5h10a2 2 0 012 2V18a2 2 0 01-2 2H7a2 2 0 01-2-2v-5.5a2 2 0 012-2zM8.5 10.5V8a3.5 3.5 0 017 0v2.5',
   question: 'M9.3 9a2.8 2.8 0 015.4 1c0 2-2.7 2.3-2.7 4M12 17.3v.2',
+  // Issue tiers (#134): a three-step meter; an empty step is a baseline dash, so the bar count alone tells the tier.
+  'tier-light': 'M5 14h2v6H5zM11 20h2M17 20h2',
+  'tier-standard': 'M5 14h2v6H5zM11 9h2v11h-2zM17 20h2',
+  'tier-heavy': 'M5 14h2v6H5zM11 9h2v11h-2zM17 4h2v16h-2z',
 } as const;
 
 export type IconName = keyof typeof GLYPHS;

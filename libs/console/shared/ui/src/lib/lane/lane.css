@@ -22,8 +22,65 @@
   color: var(--text-3);
 }
 
-@media (max-width: 519.98px) {
-  :host-context(.tc-lanes) {
-    scroll-snap-align: start;
+/* An empty tab panel takes the Tab stop itself (see Lane). */
+:host(:focus-visible) {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--r-md);
+}
+
+/*
+ * A lane switched to on the phone comes in from the side the owner moved towards. A hidden panel is display: none,
+ * so the animation runs again each time a lane is shown. Only transform and opacity animate.
+ */
+:host(.tc-lane--enter-forward) {
+  animation: tc-lane-enter-forward var(--dur-fast) var(--ease-enter) both;
+}
+
+:host(.tc-lane--enter-backward) {
+  animation: tc-lane-enter-backward var(--dur-fast) var(--ease-enter) both;
+}
+
+@keyframes tc-lane-enter-forward {
+  from {
+    opacity: 0;
+    transform: translateX(var(--space-2));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tc-lane-enter-backward {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--space-2) * -1));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Reduced motion: no slide, the stand-in fade only (--dur-fade does not collapse). */
+@media (prefers-reduced-motion: reduce) {
+  :host(.tc-lane--enter-forward),
+  :host(.tc-lane--enter-backward) {
+    animation: tc-lane-fade var(--dur-fade) var(--ease-enter) both;
+  }
+}
+
+:host-context(:root[data-motion='reduce']).tc-lane--enter-forward,
+:host-context(:root[data-motion='reduce']).tc-lane--enter-backward {
+  animation: tc-lane-fade var(--dur-fade) var(--ease-enter) both;
+}
+
+@keyframes tc-lane-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }

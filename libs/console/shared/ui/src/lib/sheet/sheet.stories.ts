@@ -15,15 +15,15 @@ import { Sheet } from './sheet';
   template: `
     <tc-list plain [attr.aria-label]="'stories.list.ariaProjects' | transloco">
       <tc-list-row button current>
-        <span tc-row-title>Team Console</span>
+        <span tc-row-title>{{ projects[0] }}</span>
         <tc-chip tc-row-trailing tone="accent">3</tc-chip>
       </tc-list-row>
       <tc-list-row button>
-        <span tc-row-title>Sheltrix</span>
+        <span tc-row-title>{{ projects[1] }}</span>
         <span tc-row-subtitle>{{ 'stories.sheet.paused' | transloco }}</span>
       </tc-list-row>
       <tc-list-row button>
-        <span tc-row-title>Reader</span>
+        <span tc-row-title>{{ projects[2] }}</span>
       </tc-list-row>
     </tc-list>
     <div style="display: grid; gap: var(--space-2); margin-top: var(--space-4)">
@@ -37,7 +37,10 @@ import { Sheet } from './sheet';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-class ProjectsSheetContent {}
+class ProjectsSheetContent {
+  /** Project names are data, not copy: the same in every language. */
+  protected readonly projects = ['Team Console', 'Sheltrix', 'Reader'] as const;
+}
 
 @Component({
   selector: 'tc-story-sheet-host',

@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input } from '@an
 import { TeamStatusStore } from '@console/entities/team-run';
 import { TeamCommands } from '@console/features/team-commands';
 import { NetworkStatus } from '@console/shared/api';
-import { LocalTimePipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
+import { ConsoleLanguage, LocalTimePipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Banner, Button, Icon, Toaster } from '@console/shared/ui';
 import type { CommandsProject } from './commands-panel';
 
@@ -75,6 +75,7 @@ export class PausedBanner {
   private readonly network = inject(NetworkStatus);
   private readonly toaster = inject(Toaster);
   private readonly transloco = inject(TranslocoService);
+  private readonly language = inject(ConsoleLanguage);
 
   readonly project = input.required<CommandsProject>();
 
@@ -83,6 +84,8 @@ export class PausedBanner {
     this.store.slug() === this.project().slug ? this.store.status() : null,
   );
   protected readonly why = computed(() => {
+    // A language switch re-runs this, so the reason shown follows it (#4).
+    this.language.active();
     if (!this.network.online()) {
       return this.transloco.translate('commands.why.offline');
     }

@@ -21,10 +21,10 @@
 
   <dl tc-stats data-testid="stats">
     <div tc-stat [label]="'board.stat.done' | transloco">
-      {{ 'board.stat.doneValue' | transloco: { shipped: board.shipped, planned: board.planned } }}
+      {{ 'board.stat.doneValue' | transloco: { shipped: (board.shipped | localNumber), planned: (board.planned | localNumber) } }}
     </div>
-    <div tc-stat [label]="'board.stat.stillOpen' | transloco">{{ board.carriedOver }}</div>
-    <div tc-stat [label]="'board.stat.openPrs' | transloco">{{ board.pullRequests.length }}</div>
+    <div tc-stat [label]="'board.stat.stillOpen' | transloco">{{ board.carriedOver | localNumber }}</div>
+    <div tc-stat [label]="'board.stat.openPrs' | transloco">{{ board.pullRequests.length | localNumber }}</div>
   </dl>
 
   @if (board.issues.length === 0) {
@@ -35,9 +35,23 @@
     [description]="'board.emptyHint' | transloco"
   />
   } @else {
-  <tc-lanes [attr.aria-label]="'board.lanes' | transloco">
+  <!-- The phone has no hover, so the tier bars are explained once, under the numbers. &ngsp; keeps the words apart
+       for screen readers ("Сложность: лёгкая средняя тяжёлая"). -->
+  <p class="board__legend" data-testid="tier-legend">
+    <span>{{ 'board.tierLabel' | transloco }}</span>
+    @for (tier of tiers; track tier) {&ngsp;<span class="board__legend-item"
+      ><tc-sprint-tier-icon size="sm" [tier]="tier" />{{ 'board.tier.' + tier | transloco }}</span
+    >}
+  </p>
+
+  <tc-lanes [label]="'board.lanes' | transloco" [(selected)]="selectedLane">
     @for (column of columns(); track column.status) {
-    <tc-lane [heading]="laneName(column.status)" [count]="column.issues.length" [attr.data-status]="column.status">
+    <tc-lane
+      [key]="column.status"
+      [heading]="laneName(column.status)"
+      [count]="column.issues.length"
+      [attr.data-status]="column.status"
+    >
       @if (column.issues.length > 0) {
       <tc-sprint-item-list [items]="column.issues" />
       } @else {

@@ -1,6 +1,7 @@
 import { ChangeDetectorRef, inject, Pipe, PipeTransform } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TranslocoService } from '@jsverse/transloco';
+import { localNumberOf } from './local-time';
 
 /**
  * The plural forms the catalogue spells out. Russian needs one/few/many, English one/other; every counted key has
@@ -26,8 +27,9 @@ export function pluralKeyOf(key: string, lang: string, n: number): string {
 }
 
 /**
- * `{{ 'setup.incomplete.title' | translocoPlural: n }}` — the counted form of a key, with `n` (and any further
- * params) interpolated. Re-renders on a language switch like Transloco's own pipe.
+ * `{{ 'setup.incomplete.title' | translocoPlural: n }}` — the counted form of a key, with `n` (formatted through
+ * `Intl` in the active language) and any further params interpolated. Re-renders on a language switch like
+ * Transloco's own pipe.
  */
 @Pipe({ name: 'translocoPlural', pure: false })
 export class TranslocoPluralPipe implements PipeTransform {
@@ -40,6 +42,6 @@ export class TranslocoPluralPipe implements PipeTransform {
 
   transform(key: string, n: number, params: Readonly<Record<string, unknown>> = {}): string {
     const lang = this.transloco.getActiveLang();
-    return this.transloco.translate(pluralKeyOf(key, lang, n), { ...params, n });
+    return this.transloco.translate(pluralKeyOf(key, lang, n), { ...params, n: localNumberOf(n, lang) });
   }
 }
