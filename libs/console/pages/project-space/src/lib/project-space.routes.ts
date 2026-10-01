@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { DEFAULT_SPACE_SECTION, SPACE_SECTIONS } from '@console/entities/project';
 import { ChatPlaceholderPage } from './chat-placeholder.page';
+import { QuestionsSectionPage } from './questions-section.page';
 import { SectionPlaceholderPage } from './section-placeholder.page';
 
 /**
@@ -9,9 +10,14 @@ import { SectionPlaceholderPage } from './section-placeholder.page';
  */
 export const projectSpaceChildRoutes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: DEFAULT_SPACE_SECTION },
-  ...SPACE_SECTIONS.map((section) =>
-    section === 'chat'
-      ? { path: section, component: ChatPlaceholderPage, data: { section } }
-      : { path: section, component: SectionPlaceholderPage, data: { section } },
-  ),
+  ...SPACE_SECTIONS.map((section) => ({
+    path: section,
+    component:
+      section === 'questions'
+        ? QuestionsSectionPage
+        : section === 'chat'
+          ? ChatPlaceholderPage
+          : SectionPlaceholderPage,
+    data: { section },
+  })),
 ];

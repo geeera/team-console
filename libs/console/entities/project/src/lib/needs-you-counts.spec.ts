@@ -2,15 +2,19 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import type { NeedsYouDto } from '@shared/contracts';
+import { ANSWERED_ITEMS_STORAGE, AnsweredItems } from './answered-items';
 import { countNeedsYouBySlug, NEEDS_YOU_REFRESH_MS, NEEDS_YOU_URL, NeedsYouCounts } from './needs-you-counts';
 import { PROJECTS_URL, ProjectsStore } from './projects.store';
+
+const counted = (entries: Record<string, number>): ReadonlyMap<string, number> =>
+  new Map(Object.entries(entries));
 
 describe('countNeedsYouBySlug', () => {
   it('counts items per project slug from a bare array or an items envelope', () => {
     const items = [{ project: 'a' }, { project: 'a' }, { project: { slug: 'b' } }, { project: 3 }, 'junk'];
 
-    expect(countNeedsYouBySlug(items)).toEqual({ a: 2, b: 1 });
-    expect(countNeedsYouBySlug({ items })).toEqual({ a: 2, b: 1 });
+    expect(countNeedsYouBySlug(items)).toEqual(counted({ a: 2, b: 1 }));
+    expect(countNeedsYouBySlug({ items })).toEqual(counted({ a: 2, b: 1 }));
   });
 
   it('counts the real GET /api/v1/needs-you body (#35 NeedsYouDto), untrusted items included', () => {
@@ -30,13 +34,27 @@ describe('countNeedsYouBySlug', () => {
       omittedProjects: [],
     };
 
-    expect(countNeedsYouBySlug(body)).toEqual({ 'team-console': 2, storify: 1 });
+    expect(countNeedsYouBySlug(body)).toEqual(counted({ 'team-console': 2, storify: 1 }));
+  });
+
+  it('counts slugs that are Object.prototype member names like any other slug', () => {
+    const items = ['constructor', 'constructor', '__proto__', 'toString', 'hasOwnProperty'].map((slug) => ({
+      project: { slug, name: slug },
+    }));
+
+    const counts = countNeedsYouBySlug({ items });
+
+    expect(counts.get('constructor')).toBe(2);
+    expect(counts.get('__proto__')).toBe(1);
+    expect(counts.get('toString')).toBe(1);
+    expect(counts.get('hasOwnProperty')).toBe(1);
+    expect(counts.get('valueOf')).toBeUndefined();
   });
 
   it('gives no counts for anything else', () => {
-    expect(countNeedsYouBySlug(null)).toEqual({});
-    expect(countNeedsYouBySlug({ total: 3 })).toEqual({});
-    expect(countNeedsYouBySlug('x')).toEqual({});
+    expect(countNeedsYouBySlug(null).size).toBe(0);
+    expect(countNeedsYouBySlug({ total: 3 }).size).toBe(0);
+    expect(countNeedsYouBySlug('x').size).toBe(0);
   });
 });
 
@@ -46,7 +64,13 @@ describe('NeedsYouCounts', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ANSWERED_ITEMS_STORAGE, useValue: { read: () => null, write: () => undefined } },
+      ],
+    });
     counts = TestBed.inject(NeedsYouCounts);
     http = TestBed.inject(HttpTestingController);
   });
@@ -98,6 +122,35 @@ describe('NeedsYouCounts', () => {
     expect(counts.total()).toBe(3);
 
     projects.remove('b');
+    expect(counts.total()).toBe(1);
+  });
+
+  it('a constructor slug starts at zero, not at an Object.prototype function', () => {
+    expect(counts.countOf('constructor')).toBe(0);
+    expect(counts.countOf('__proto__')).toBe(0);
+    expect(counts.total()).toBe(0);
+  });
+
+  it('leaves out the items answered from this device while GitHub still lists them', async () => {
+    const done = counts.refresh();
+    http.expectOne(NEEDS_YOU_URL).flush({
+      items: [
+        { project: { slug: 'tc', name: 'TC' }, number: 72 },
+        { project: { slug: 'tc', name: 'TC' }, number: 73 },
+      ],
+    });
+    await done;
+    expect(counts.countOf('tc')).toBe(2);
+
+    TestBed.inject(AnsweredItems).record({
+      slug: 'tc',
+      number: 72,
+      command: 'approve',
+      url: 'https://github.com/geeera/team-console/issues/72#issuecomment-1',
+      answeredAt: new Date().toISOString(),
+    });
+
+    expect(counts.countOf('tc')).toBe(1);
     expect(counts.total()).toBe(1);
   });
 

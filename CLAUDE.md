@@ -86,6 +86,14 @@ guard; `NeedsYouCounts` polls `GET /api/v1/needs-you` per minute while visible; 
 `project-space` (tabs + section placeholders; `?e2e-tall=1` renders 60 rows in dev builds), `project-not-found`,
 `needs-you`, `overview`, `settings` (language switch). Routes and the two guards live in `apps/console/src/app/`.
 
+Questions (#16): `@console/entities/question` (read-model guards, `QuestionsApi`, `QuestionCard` — issue text only by
+interpolation, untrusted items marked), `@console/features/answer-question` (`AnswerQuestion`: exactly
+`allowedCommands`; confirm for go, a reason sheet for reject/no-go/override, a warning before any answer on an untrusted
+item; failures branch on the problem `type`; Retry repeats the same body so the endpoint replays),
+`@console/widgets/question-list` (Needs you and `/p/:slug/questions`; stamp, then a receipt). `AnsweredItems` in
+`@console/entities/project` (`localStorage` `tc.answered.v1`, 6 h) keeps answered items out of the badges while GitHub
+still lists them. Kit: `Recommendation`, `Receipt`.
+
 ## Workers (#6)
 
 `apps/api` (Hono; serves the SPA from `dist/apps/console/browser` as static assets with `run_worker_first:

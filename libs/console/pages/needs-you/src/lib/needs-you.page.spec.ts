@@ -3,16 +3,23 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ApplicationInitStatus } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { PROJECTS_URL, ProjectsStore } from '@console/entities/project';
+import { ANSWERED_ITEMS_STORAGE, PROJECTS_URL, ProjectsStore } from '@console/entities/project';
+import { NEEDS_YOU_ITEMS_URL } from '@console/entities/question';
 import { provideConsoleI18n } from '@console/shared/i18n';
-import { ProjectDto } from '@shared/contracts';
+import { NeedsYouDto, ProjectDto } from '@shared/contracts';
 import { NeedsYouPage } from './needs-you.page';
 
 describe('NeedsYouPage', () => {
   async function render(list: ProjectDto[]) {
     await TestBed.configureTestingModule({
       imports: [NeedsYouPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), provideConsoleI18n()],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideConsoleI18n(),
+        { provide: ANSWERED_ITEMS_STORAGE, useValue: { read: () => null, write: () => undefined } },
+      ],
     }).compileComponents();
     await TestBed.inject(ApplicationInitStatus).donePromise;
     const ready = TestBed.inject(ProjectsStore).ready();
@@ -20,11 +27,11 @@ describe('NeedsYouPage', () => {
     await ready;
     const fixture = TestBed.createComponent(NeedsYouPage);
     await fixture.whenStable();
-    return fixture.nativeElement as HTMLElement;
+    return { root: fixture.nativeElement as HTMLElement, fixture };
   }
 
   it('with no projects it is the empty state that points to Settings', async () => {
-    const root = await render([]);
+    const { root } = await render([]);
 
     expect(root.querySelector('h1')?.textContent?.trim()).toBe('Ждут тебя');
     const block = root.querySelector('[data-testid="no-projects"]') as HTMLElement;
@@ -32,8 +39,8 @@ describe('NeedsYouPage', () => {
     expect(block.querySelector('a')?.getAttribute('href')).toBe('/settings/projects/new');
   });
 
-  it('with projects it shows the placeholder empty inbox', async () => {
-    const root = await render([
+  it('with projects it lists every waiting item, tagged with its project', async () => {
+    const { root, fixture } = await render([
       {
         slug: 'a',
         repo: 'g/a',
@@ -44,7 +51,31 @@ describe('NeedsYouPage', () => {
       },
     ]);
 
+    const body: NeedsYouDto = {
+      items: [
+        {
+          section: 'question',
+          number: 72,
+          title: 'План к демо 16 октября',
+          url: 'https://github.com/g/a/issues/72',
+          ask: '/approve — начинаем',
+          authorTrusted: true,
+          project: { slug: 'a', name: 'A' },
+          allowedCommands: ['approve', 'reject'],
+        },
+      ],
+      projects: [
+        { slug: 'a', name: 'A', setup: false, setupUrl: null, paused: false, pausedUrl: null, problem: null },
+      ],
+      omittedProjects: [],
+    };
+    TestBed.inject(HttpTestingController).expectOne(NEEDS_YOU_ITEMS_URL).flush(body);
+    await fixture.whenStable();
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await fixture.whenStable();
     expect(root.querySelector('[data-testid="no-projects"]')).toBeNull();
-    expect(root.textContent).toContain('От тебя сейчас ничего не нужно');
+    expect(root.querySelector('tc-question-card h2')?.textContent).toBe('План к демо 16 октября');
+    expect(root.querySelector('[data-testid="project-tag"]')?.textContent?.trim()).toBe('A');
   });
 });

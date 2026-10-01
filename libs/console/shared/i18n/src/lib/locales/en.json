@@ -46,7 +46,102 @@
   "needsYou": {
     "title": "Needs you",
     "emptyTitle": "Nothing needs you right now",
-    "emptyHint": "The teams are working; you'll get a notification when that changes."
+    "emptyHint": "The teams are working; you'll get a notification when that changes.",
+    "lead": "Waiting: {{n}} · projects: {{k}}",
+    "omitted": "Not read this time: {{names}}"
+  },
+  "questions": {
+    "listLabel": "Questions for you",
+    "emptyTitle": "Nothing in this project needs you",
+    "loadFailed": "Couldn't load the questions",
+    "loadFailedHint": "Check your connection and try again.",
+    "recommends": "Team recommends",
+    "details": "Details",
+    "openOnGitHub": "Open #{{n}} on GitHub",
+    "untrusted": "Not from the team",
+    "untrustedHint": "Someone outside the team opened this item. Read it on GitHub before you answer.",
+    "section": {
+      "question": "Question",
+      "design": "Design approval",
+      "release": "Release · go / no-go",
+      "owner": "Action item",
+      "local": "Needs your machine"
+    },
+    "projectProblem": "{{name}}: questions not read — {{reason}}",
+    "problem": {
+      "github-app-not-installed": "the console app is not installed on the repository",
+      "project-config-invalid": "project.yml can't be read",
+      "github-rate-limit": "GitHub asks to wait",
+      "other": "GitHub didn't respond"
+    }
+  },
+  "answer": {
+    "command": {
+      "approve": "Approve",
+      "reject": "Reject",
+      "go": "Go",
+      "no-go": "No-go",
+      "override": "Override",
+      "done": "Done"
+    },
+    "busy": "Posting your answer to #{{n}}…",
+    "announce": "Answer to #{{n}} recorded: {{verb}}",
+    "receipt": {
+      "verb": "You: {{verb}}",
+      "meta": "#{{n}} · {{time}} · recorded as owner",
+      "waiting": "waiting for the team",
+      "open": "Comment on GitHub"
+    },
+    "confirm": {
+      "goTitle": "Go for the release?",
+      "goMessage": "The team starts the release on your answer. It is posted on GitHub under your name.",
+      "untrustedTitle": "Answer an item from outside the team?",
+      "untrustedMessage": "Someone outside the team opened it, and the team will act on your answer as the owner's decision. Read the item on GitHub first.",
+      "untrustedOk": "Answer anyway"
+    },
+    "reason": {
+      "title": {
+        "reject": "Why reject?",
+        "no-go": "Why no-go?",
+        "override": "Override the release checks?"
+      },
+      "label": "Reason",
+      "hint": "The team reads it in the comment on GitHub.",
+      "required": "Write a reason — the team needs it to know what to change.",
+      "overrideWarning": "The release ships past the team's checks. You can't undo this from the console.",
+      "submit": {
+        "reject": "Reject",
+        "no-go": "No-go",
+        "override": "Confirm and ship"
+      }
+    },
+    "error": {
+      "connectAction": "Connect GitHub",
+      "retry": "Retry",
+      "refresh": "Refresh the list",
+      "not-connected": "Connect GitHub to answer under your name",
+      "not-connectedHint": "Your answer is posted as a comment from your GitHub account.",
+      "owner-mismatch": "A different GitHub account is connected",
+      "owner-mismatchHint": "The project's repository belongs to another account. Reconnect GitHub in Settings.",
+      "app-not-installed": "The console app is not installed on the repository",
+      "app-not-installedHint": "Install it in the project's settings, then answer again.",
+      "issue-closed": "This item is already closed",
+      "issue-closedHint": "No answer is needed any more. Refresh the list.",
+      "in-progress": "This answer is already being posted",
+      "in-progressHint": "Wait a couple of seconds and retry — it won't be posted twice.",
+      "not-waiting": "This item no longer waits for an answer",
+      "not-waitingHint": "The team has changed it. Refresh the list.",
+      "not-allowed": "This answer no longer fits the item",
+      "not-allowedHint": "The item's type changed. Refresh the list and answer again.",
+      "needs-reason": "A reason is needed",
+      "needs-reasonHint": "Write why, then answer again.",
+      "rate-limited": "GitHub asks to wait",
+      "rate-limitedHint": "Retry in a minute — it won't be posted twice.",
+      "offline": "No connection",
+      "offlineHint": "The answer may not have arrived. Retry — it won't be posted twice.",
+      "unknown": "The answer was not posted",
+      "unknownHint": "The console or GitHub didn't respond. Retry — it won't be posted twice."
+    }
   },
   "overview": {
     "title": "All projects",
@@ -376,6 +471,19 @@
       "leftBody": "It’s on your project list now.",
       "readyTitle": "storify is ready",
       "neutralTitle": "Some steps couldn’t be checked"
+    },
+    "recommendation": {
+      "label": "Team recommends",
+      "choice": "/approve — start building to the plan for the 16 October demo",
+      "long": "/approve — close wip/craft-i18n without merging: the strings move into the shared i18n library in #34, and keeping the branch alive costs a rebase every sprint for no user-visible gain",
+      "cardTitle": "Plan for the 16 October demo"
+    },
+    "receipt": {
+      "approved": "You: approve",
+      "rejected": "You: reject",
+      "done": "You: done",
+      "detail": "Plan for the 16 October demo",
+      "meta": "#72 · 14:05 · recorded as owner"
     }
   }
 }

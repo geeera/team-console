@@ -13,6 +13,8 @@ export { Field, FieldControl } from './lib/field/field';
 export { Icon } from './lib/icon/icon';
 export type { IconName, IconSize } from './lib/icon/icon';
 export { List, ListRow } from './lib/list/list';
+export { Receipt } from './lib/receipt/receipt';
+export { Recommendation } from './lib/recommendation/recommendation';
 export { Sheet } from './lib/sheet/sheet';
 export type { SheetOptions } from './lib/sheet/sheet';
 export type { ConfirmOptions } from './lib/sheet/confirm-dialog';
