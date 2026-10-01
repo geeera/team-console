@@ -1,0 +1,71 @@
+/* ===== #134 Board on the phone: the lane switcher, on the Paper Desk tokens (ADR 0002) =====
+   The board itself is #18 as built (libs/console/widgets/sprint-board); only the phone lanes change.
+   --r-pill mirrors the app's tokens.css (the direction sketch has no name for it). */
+:root{--r-pill:999px}
+
+/* ----- the board screen (as #18 ships it) ----- */
+.bd-top{justify-content:space-between;padding:0 var(--sp-2) var(--sp-2) var(--sp-3);border-bottom:1px solid var(--border)}
+.bd-proj{display:inline-flex;align-items:center;gap:var(--sp-2);min-height:var(--target);padding:0 var(--sp-2);border:0;background:none;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);color:var(--text)}
+.bd-proj .ico{width:16px;height:16px;color:var(--text-3)}
+.bd-icon{display:grid;place-items:center;width:var(--target);height:var(--target);border:0;background:none;border-radius:var(--r-md);color:var(--text-2)}
+.bd-icon .ico{width:22px;height:22px}
+.bd-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.bd{display:grid;gap:var(--sp-6);padding:var(--sp-4) var(--sp-4) var(--sp-8)}
+.bd-mac .bd{max-width:616px;margin:0 auto;padding:var(--sp-6) var(--sp-6) var(--sp-10)}
+.bd-sec{display:grid;gap:var(--sp-4);min-width:0}
+.bd-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:var(--sp-2) var(--sp-3)}
+.bd-title{margin:0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:var(--lh-tight);overflow-wrap:anywhere}
+.bd-title--sub{font-size:var(--fs-lg)}
+.bd-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:var(--sp-2);margin:0}
+.bd-stats div{padding:var(--sp-3);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md)}
+.bd-stats dt{font-size:var(--fs-xs);color:var(--text-2)}
+.bd-stats dd{margin:var(--sp-1) 0 0;font-weight:600;font-variant-numeric:tabular-nums}
+.bd-note{margin:0;padding:var(--sp-2) var(--sp-3);border:1px dashed var(--border-strong);border-radius:var(--r-md);font-size:var(--fs-xs);color:var(--text-2)}
+
+/* a lane: the kit's tc-lane (caps heading with the count, then a list card) */
+.bd-lanes{display:grid;gap:var(--sp-5);min-width:0}
+.bd-lane{display:grid;gap:var(--sp-2);min-width:0;align-content:start}
+.bd-lane__head{display:flex;align-items:baseline;gap:var(--sp-2);font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2);overflow-wrap:anywhere}
+.bd-lane__count{font-weight:400;font-variant-numeric:tabular-nums;color:var(--text-3)}
+.bd-list{list-style:none;margin:0;padding:var(--sp-1) 0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg)}
+.bd-row{display:grid;grid-template-columns:40px 1fr auto;align-items:center;gap:var(--sp-2);min-height:var(--target);padding:var(--sp-2) var(--sp-3);color:inherit;text-decoration:none;font-size:var(--fs-sm);border-radius:var(--r-md)}
+.bd-row:hover{background:var(--bg-sunken)}
+.bd-row__num{font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
+.bd-row__title{min-width:0;overflow-wrap:anywhere}
+.bd-empty{display:flex;align-items:center;gap:var(--sp-2);margin:0;padding:var(--sp-2) var(--sp-1);font-size:var(--fs-sm);color:var(--text-2)}
+.bd-empty .ico{width:16px;height:16px;color:var(--success-text)}
+.bd-pulls{margin-top:var(--sp-2)}
+
+/* Today's phone row (#134): one lane and the edge of the next; the row is as tall as its tallest lane. */
+.bd-lanes--swipe{grid-auto-flow:column;grid-auto-columns:82%;align-items:start;gap:var(--sp-3);overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scroll-padding:0 var(--sp-4);margin:0 calc(-1 * var(--sp-4));padding:var(--sp-1) var(--sp-4) var(--sp-2)}
+.bd-lanes--swipe>.bd-lane{scroll-snap-align:start}
+.bd-lanes--swipe:focus-visible{outline-offset:-2px}
+
+/* ----- the lane switcher (new, phone only): a tab list of pills, then the selected lane at its own height ----- */
+.bd-lanes--tabs{gap:var(--sp-3)}
+.lt-list{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.lt{display:inline-flex;align-items:center;gap:var(--sp-2);max-width:100%;min-height:var(--target);padding:0 var(--sp-3);border:1px solid var(--border);border-radius:var(--r-pill);background:var(--surface);color:var(--text);font:inherit;font-size:var(--fs-sm);font-weight:600;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background-color var(--dur-fast) var(--ease-standard),color var(--dur-fast) var(--ease-standard),border-color var(--dur-fast) var(--ease-standard)}
+.lt__name{min-width:0;overflow-wrap:anywhere}
+.lt__count{font-weight:400;font-variant-numeric:tabular-nums;color:var(--text-3)}
+.lt:hover{border-color:var(--border-strong)}
+.lt:active{background:var(--bg-sunken)}
+.lt[aria-selected=true]{background:var(--text);border-color:var(--text);color:var(--bg)}
+.lt[aria-selected=true] .lt__count{color:inherit;opacity:.72}
+.lt:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.bd-panel{display:grid;gap:var(--sp-2);min-width:0}
+.bd-panel[hidden]{display:none}
+.bd-panel:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:var(--r-md)}
+@media (prefers-reduced-motion:reduce){.lt{transition:none}}
+:root[data-motion=reduce] .lt{transition:none}
+
+/* ----- phone chrome: five sections, as the app's tab bar ----- */
+.bd-tabs{grid-template-columns:repeat(5,1fr)}
+
+/* ----- Mac window: the app's top navigation as a segmented bar ----- */
+.bd-mac{display:flex;flex-direction:column}
+.bd-mac .convo__head{height:64px;justify-content:space-between;padding:0 var(--sp-6) 0 var(--sp-8)}
+.bd-mac__name{margin:0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display)}
+.bd-seg{display:flex;gap:2px;padding:var(--sp-1);border-radius:var(--r-lg);background:var(--bg-sunken)}
+.bd-seg button{display:inline-flex;align-items:center;gap:var(--sp-2);min-height:34px;padding:0 var(--sp-3);border:0;background:none;border-radius:var(--r-md);font-size:var(--fs-sm);color:var(--text-2)}
+.bd-seg button .ico{width:16px;height:16px}
+.bd-seg button[aria-current=page]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}

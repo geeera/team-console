@@ -1,0 +1,1152 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Team Console · #134 · Board on the phone: lane switcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600&family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+/* ===== tokens: Paper Desk (generated from docs/design/directions/src/d1.py) ===== */
+:root{
+  --font-display:"Source Serif 4",Georgia,"Times New Roman",serif;--font-body:"Source Sans 3",-apple-system,system-ui,"Segoe UI",sans-serif;--font-mono:"Source Code Pro",ui-monospace,Menlo,monospace;--fw-display:600;
+  --fs-xs:12px;--fs-sm:14px;--fs-md:15px;--fs-lg:18px;--fs-xl:22px;--fs-2xl:28px;--lh-body:1.55;--lh-tight:1.25;
+  --r-sm:6px;--r-md:10px;--r-lg:16px;
+  --btn-h:34px;--sidebar-w:256px;--pane-w:392px;--log-max:680px;--pad-x:32px;--gap-log:20px;--pad-card:18px 20px;--card-indent:40px;
+  --dur-instant:0ms;--dur-fast:140ms;--dur-base:240ms;--dur-slow:380ms;--dur-sig:620ms;
+  --ease-standard:cubic-bezier(.2,0,0,1);--ease-enter:cubic-bezier(0,0,.2,1);--ease-exit:cubic-bezier(.4,0,1,1);--ease-emph:cubic-bezier(.3,0,0,1);
+  --bg:#F7F3EC;--bg-sunken:#EFE9DF;--surface:#FFFDF9;--surface-2:#FAF6EF;--text:#29251F;--text-2:#5B5449;--text-3:#6D6459;
+  --border:#E5DDD0;--border-strong:#CFC5B5;--accent:#3E6A48;--accent-contrast:#FFFFFF;--accent-soft:#E3ECE0;--accent-text:#2F5638;
+  --success-soft:#E1EEDF;--success-text:#2D6A3E;--warning-soft:#F5E8CD;--warning-text:#7A510E;--danger-soft:#F6E0DA;--danger-text:#9A3324;
+  --focus:#3E6A48;--owner-bubble:#EAE2D4;--owner-text:#29251F;
+  --shadow-1:0 1px 2px rgba(60,45,20,.07),0 0 0 .5px rgba(60,45,20,.03);--shadow-2:0 8px 24px -8px rgba(60,45,20,.22);--shadow-3:0 -12px 40px -12px rgba(60,45,20,.28);
+}
+:root[data-theme=dark]{
+  --bg:#1C1A17;--bg-sunken:#161412;--surface:#25221E;--surface-2:#201E1A;--text:#EEE8DD;--text-2:#BDB4A5;--text-3:#999082;
+  --border:#35312B;--border-strong:#4A443B;--accent:#8FBC92;--accent-contrast:#10200F;--accent-soft:#263428;--accent-text:#A8D0AA;
+  --success-soft:#1F3122;--success-text:#9BCF9F;--warning-soft:#382D18;--warning-text:#E6BC6E;--danger-soft:#3D2420;--danger-text:#F0A091;
+  --focus:#A8D0AA;--owner-bubble:#322D27;--owner-text:#EEE8DD;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);--shadow-2:0 10px 28px -8px rgba(0,0,0,.6);--shadow-3:0 -12px 40px -12px rgba(0,0,0,.7);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#1C1A17;--bg-sunken:#161412;--surface:#25221E;--surface-2:#201E1A;--text:#EEE8DD;--text-2:#BDB4A5;--text-3:#999082;
+  --border:#35312B;--border-strong:#4A443B;--accent:#8FBC92;--accent-contrast:#10200F;--accent-soft:#263428;--accent-text:#A8D0AA;
+  --success-soft:#1F3122;--success-text:#9BCF9F;--warning-soft:#382D18;--warning-text:#E6BC6E;--danger-soft:#3D2420;--danger-text:#F0A091;
+  --focus:#A8D0AA;--owner-bubble:#322D27;--owner-text:#EEE8DD;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);--shadow-2:0 10px 28px -8px rgba(0,0,0,.6);--shadow-3:0 -12px 40px -12px rgba(0,0,0,.7);
+}}
+/* ===== shared structure; every colour, size and duration comes from the direction's tokens ===== */
+:root{
+  --hover:color-mix(in oklab,var(--text) 6%,transparent);
+  --hover-solid:color-mix(in oklab,var(--surface) 93%,var(--text) 7%);
+  --accent-hover:color-mix(in oklab,var(--accent) 88%,var(--text) 12%);
+  --page:color-mix(in oklab,var(--bg) 90%,var(--text) 10%);
+  --scrim:color-mix(in oklab,#000 36%,transparent);
+  --r-sheet:calc(var(--r-lg) + 10px);
+  --z-sheet:40;--z-toast:70;--z-chrome:60;
+}
+@media (prefers-reduced-motion:reduce){:root{--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms}}
+:root[data-motion=reduce]{--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms}
+
+*,*::before,*::after{box-sizing:border-box}
+html{color-scheme:light;-webkit-text-size-adjust:100%}
+:root[data-theme=dark]{color-scheme:dark}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark}}
+body{margin:0;background:var(--page);color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:var(--lh-body);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button,input,textarea{font:inherit;color:inherit;letter-spacing:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.sr-only{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ico{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+kbd{font-family:var(--font-mono);font-size:10px;line-height:1;padding:3px 5px;border-radius:4px;border:1px solid var(--border-strong);color:var(--text-3);background:var(--surface)}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);padding:1px 5px;border-radius:4px;word-break:break-word}
+[hidden]{display:none!important}
+
+/* ===== the note on top of the page ===== */
+.note{max-width:1720px;margin:0 auto;padding:20px 24px 4px;display:grid;gap:10px}
+.note__row{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.note__kicker{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.note h1{margin:2px 0 0;font-family:var(--font-display);font-size:var(--fs-2xl);line-height:1.1;font-weight:var(--fw-display)}
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:2px;background:var(--surface)}
+.seg button,.seg-btn{border:0;background:none;padding:6px 12px;border-radius:999px;font-size:var(--fs-xs);color:var(--text-2);min-height:32px}
+.seg button[aria-pressed=true]{background:var(--text);color:var(--bg)}
+.seg-btn{border:1px solid var(--border);background:var(--surface)}
+.note details{font-size:var(--fs-sm);color:var(--text-2)}
+.note summary{cursor:pointer;color:var(--text-2);font-weight:600;width:max-content}
+.note__grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:8px 32px;margin-top:10px}
+@media (max-width:900px){.note__grid{grid-template-columns:1fr}}
+.note p{margin:0 0 6px;max-width:75ch;line-height:1.5}
+.tok{align-content:start;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0;font-size:var(--fs-xs)}
+.tok dt{color:var(--text-3)}.tok dd{margin:0;color:var(--text-2)}
+.sw{display:inline-flex;align-items:center;gap:4px;margin-right:10px;white-space:nowrap}
+.sw i{width:12px;height:12px;border-radius:3px;border:1px solid var(--border-strong)}
+.try{font-size:var(--fs-xs);color:var(--text-3)}
+
+/* ===== stage and device frames ===== */
+.stage{display:flex;flex-wrap:wrap;gap:40px;justify-content:center;align-items:flex-start;padding:20px 24px 56px;max-width:1720px;margin:0 auto}
+.stage[data-layout=row]{flex-wrap:nowrap}
+.stage[data-view=phone] .device--mac,.stage[data-view=mac] .device--phone{display:none}
+.device{display:grid;gap:10px;justify-items:center}
+.device__label{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.phone-frame{position:relative;width:414px;height:868px;padding:12px;border-radius:62px;background:#0d0d0f;box-shadow:0 0 0 1px #34343a,0 40px 80px -36px rgba(0,0,0,.5)}
+.phone-frame>.app{width:390px;height:844px;border-radius:50px}
+.mac-frame{width:1180px;height:760px;border-radius:12px;overflow:hidden;box-shadow:0 0 0 1px var(--border-strong),0 30px 80px -34px rgba(0,0,0,.45)}
+.mac-frame>.app{height:100%}
+@media (max-width:520px){
+  .note{padding:14px 14px 0}.stage{padding:12px 0 0}
+  .phone-frame{width:100%;height:auto;padding:0;border-radius:0;background:none;box-shadow:none}
+  .phone-frame>.app{width:100%;height:100svh;border-radius:0}
+  .device--phone .device__label,.p-status,.home-ind{display:none!important}
+  .tabs{padding-bottom:max(8px,env(safe-area-inset-bottom))!important}
+}
+
+/* ===== app base ===== */
+.app{position:relative;overflow:hidden;isolation:isolate;background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:var(--lh-body)}
+.app[data-app=phone]{display:flex;flex-direction:column}
+.app[data-app=mac]{display:flex;flex-direction:column}
+.app:not(.is-space) .composer{display:none}
+.avatar{width:28px;height:28px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:10px;font-weight:700;letter-spacing:.03em}
+.avatar--pm{background:var(--accent-soft);color:var(--accent-text)}
+.avatar--owner{background:var(--text);color:var(--bg)}
+.prod-mono{width:26px;height:26px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;font-weight:700;font-size:13px;text-transform:uppercase;background:var(--accent-soft);color:var(--accent-text);font-family:var(--font-display)}
+.prod-mono[data-status=paused]{background:var(--bg-sunken);color:var(--text-3)}
+.prod-mono[data-status=failing]{background:var(--danger-soft);color:var(--danger-text)}
+.prod-mono--all{background:var(--text);color:var(--bg)}
+.prod-mono--all .ico{width:15px;height:15px}
+.count{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--accent-contrast);font-size:11px;font-weight:700;line-height:1;display:inline-grid;place-items:center;font-variant-numeric:tabular-nums;overflow:hidden;font-family:var(--font-body)}
+.count>span{grid-area:1/1}
+.status{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;background:var(--success-soft);color:var(--success-text);white-space:nowrap;text-transform:none;letter-spacing:0}
+.status i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.status--paused{background:var(--bg-sunken);color:var(--text-2)}
+.status--failing{background:var(--danger-soft);color:var(--danger-text)}
+.sdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--success-text);margin-left:6px;vertical-align:1px}
+.sdot--paused{background:var(--text-3)}.sdot--failing{background:var(--danger-text)}
+.meter{display:block;height:3px;border-radius:2px;background:var(--bg-sunken);overflow:hidden}
+.meter i{display:block;height:100%;width:var(--p);background:var(--accent);border-radius:inherit}
+.chip-btn{border:1px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:999px;padding:0 10px;height:30px;font-size:var(--fs-xs);white-space:nowrap}
+.chip-btn[aria-pressed=true]{background:var(--text);color:var(--bg);border-color:transparent}
+.empty{color:var(--text-3);font-size:var(--fs-sm);padding:12px 4px}
+.empty--big{display:grid;justify-items:center;gap:8px;text-align:center;padding:48px 16px}
+.empty--big .ico{width:32px;height:32px;color:var(--success-text)}
+.search{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text-3)}
+.search:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.search input{flex:1;min-width:0;border:0;background:none;outline:none;color:var(--text);font-size:var(--fs-sm)}
+.app[data-app=phone] .search input{font-size:16px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:var(--btn-h);padding:0 14px;border-radius:var(--r-md);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-weight:600;font-size:var(--fs-sm);white-space:nowrap;transition:background-color var(--dur-fast) var(--ease-standard),transform var(--dur-fast) var(--ease-standard)}
+.btn:hover{background:var(--hover-solid)}
+.btn:active{transform:scale(.97)}
+.btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-contrast)}
+.btn--primary:hover{background:var(--accent-hover)}
+.btn--quiet{border-color:transparent;background:none;color:var(--text-2)}
+.btn--quiet[aria-expanded=true]{background:var(--hover);color:var(--text)}
+.btn--sm{min-height:30px;padding:0 10px;font-size:var(--fs-xs)}
+.btn:disabled{opacity:.65}
+.btn kbd{display:none}
+.app[data-app=phone] .btn{min-height:44px}
+.app[data-app=phone] .btn--sm{min-height:36px}
+.icon-btn{width:40px;height:40px;flex:none;display:grid;place-items:center;border:0;background:none;border-radius:var(--r-md);color:var(--text-2)}
+.icon-btn:hover{background:var(--hover)}
+.icon-btn .ico{width:20px;height:20px}
+
+/* ===== mac window ===== */
+.win{display:flex;flex-direction:column;height:100%}
+.win__bar{position:relative;height:38px;flex:none;display:flex;align-items:center;padding:0 14px;background:var(--bg-sunken);border-bottom:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-3)}
+.lights{display:flex;gap:8px}.lights i{width:12px;height:12px;border-radius:50%;background:#fe5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.win__title{position:absolute;left:50%;translate:-50% 0;font-weight:600}
+.win__body{flex:1;display:flex;min-height:0}
+.sidebar{width:var(--sidebar-w);flex:none;display:flex;flex-direction:column;gap:2px;padding:12px 10px 10px;background:var(--bg-sunken);border-right:1px solid var(--border);overflow-y:auto}
+.brand{display:flex;align-items:center;gap:8px;padding:2px 6px 12px;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md)}
+.mark{width:22px;height:22px;color:var(--accent)}
+.search--side{height:32px;margin-bottom:8px;background:var(--bg)}
+.search--side kbd{margin-left:auto}
+.side-label{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-3);padding:14px 8px 4px;font-weight:600;letter-spacing:.04em}
+.side-label .ico{width:13px;height:13px}
+.side-list{list-style:none;margin:0;padding:0;display:grid;gap:1px}
+.side-item{width:100%;display:flex;align-items:center;gap:10px;min-height:34px;padding:5px 8px;border:0;background:none;border-radius:var(--r-md);text-align:left;color:var(--text-2);font-size:var(--fs-sm)}
+.side-item:hover{background:var(--hover)}
+.side-item[aria-current=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.side-item>kbd{margin-left:auto}
+.side-item .count{margin-left:auto}
+.side-item>kbd+.count{margin-left:6px}
+.side-prod__name{display:grid;min-width:0;flex:1}
+.side-prod__label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);font-weight:500}
+/* wraps to a second line rather than cutting the date: Russian status lines run longer */
+.side-prod small{font-size:var(--fs-xs);line-height:1.35;color:var(--text-3);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.side-prod .meter{display:none}
+.side-more{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:6px 8px;font-size:var(--fs-xs);color:var(--text-3);border-radius:var(--r-md);text-align:left}
+.side-more:hover{background:var(--hover)}
+.side-more .ico{width:14px;height:14px;transition:transform var(--dur-base) var(--ease-standard);transform:rotate(-90deg)}
+.side-more[aria-expanded=true] .ico{transform:none}
+.side-foot{margin-top:auto;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:10px 6px 2px;font-size:var(--fs-xs);color:var(--text-2);border-top:1px solid var(--border)}
+.side-foot .avatar{width:24px;height:24px}
+.side-foot__sync{margin-left:auto;display:inline-flex;align-items:center;gap:5px;color:var(--text-3);white-space:nowrap}
+.side-foot__sync i{width:6px;height:6px;border-radius:50%;background:var(--success-text)}
+.convo{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.convo__head{height:52px;flex:none;display:flex;align-items:center;gap:6px;padding:0 14px 0 20px;border-bottom:1px solid var(--border)}
+.convo__title{display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden}
+.app:has(.pane.is-open) .convo__sub,.app:has(.pane.is-open) .convo__head .lbl,.app:has(.pane.is-open) .convo__head kbd{display:none}
+.convo__title h2{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);white-space:nowrap}
+.convo__sub{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.convo__head .btn kbd{display:inline-block}
+.pane{width:0;flex:none;overflow:hidden;background:var(--surface-2);border-left:1px solid transparent;transition:width var(--dur-slow) var(--ease-standard),border-color var(--dur-slow) var(--ease-standard)}
+.pane.is-open{width:var(--pane-w);border-left-color:var(--border)}
+.pane__inner{width:var(--pane-w);height:100%;display:flex;flex-direction:column}
+.pane__tabs{height:52px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 0 12px;border-bottom:1px solid var(--border)}
+.pane__tabs .icon-btn{margin-left:auto}
+.tab-btn{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:6px 10px;border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm)}
+.tab-btn[aria-selected=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.pane__body{flex:1;overflow-y:auto}
+
+/* ===== phone ===== */
+.p-status{position:relative;height:50px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:6px 30px 0 40px;font:600 16px/1 -apple-system,"SF Pro Text",system-ui,sans-serif}
+.p-island{position:absolute;top:11px;left:50%;translate:-50% 0;width:124px;height:36px;border-radius:20px;background:#000}
+.p-status__icons{display:flex;gap:6px;align-items:center}
+.p-head{flex:none;display:flex;align-items:center;gap:4px;padding:2px 8px 8px 10px}
+.p-switch{flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:0;background:none;padding:6px;border-radius:var(--r-md);text-align:left;min-height:48px}
+.p-switch .prod-mono{width:34px;height:34px;font-size:16px}
+.p-switch__txt{display:grid;min-width:0}
+.p-switch b{font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);line-height:1.15}
+.p-switch small{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-switch>.ico{color:var(--text-3)}
+.p-strip{display:none}
+.p-needs{display:none}
+.tabs{flex:none;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border);background:var(--bg);padding:6px 4px 28px;position:relative;z-index:2}
+.tabs button{position:relative;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;min-height:48px;padding:4px 0;font-size:11px;color:var(--text-3)}
+.tabs button .ico{width:24px;height:24px}
+.tabs button[aria-current=page]{color:var(--accent-text)}
+.tabs .count{position:absolute;top:0;left:calc(50% + 6px);height:18px;min-width:18px;font-size:10px;padding:0 5px}
+.home-ind{position:absolute;bottom:8px;left:50%;translate:-50% 0;width:136px;height:5px;border-radius:3px;background:var(--text);opacity:.9;z-index:var(--z-chrome);pointer-events:none}
+.scrim{position:absolute;inset:0;z-index:30;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity var(--dur-base) var(--ease-standard)}
+.app.has-sheet .scrim{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:var(--z-sheet);max-height:88%;display:flex;flex-direction:column;background:var(--surface);border-radius:var(--r-sheet) var(--r-sheet) 0 0;box-shadow:var(--shadow-3);transform:translateY(102%);visibility:hidden;transition:transform var(--dur-slow) var(--ease-exit),visibility 0s linear var(--dur-slow)}
+.sheet.is-open{transform:none;visibility:visible;transition:transform var(--dur-slow) var(--ease-enter),visibility 0s}
+.sheet__grab{width:38px;height:5px;border-radius:3px;background:var(--border-strong);margin:8px auto 0;flex:none}
+.sheet__head{display:flex;align-items:center;justify-content:space-between;padding:6px 10px 6px 20px;flex:none}
+.sheet__head h2{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);outline:none}
+.sheet__body{overflow-y:auto;padding:0 0 36px;overscroll-behavior:contain}
+.sheet__pad{padding:0 16px 8px}
+.proj-list{padding:0 8px}
+.side-item--needs{background:var(--accent-soft);color:var(--accent-text);font-weight:600;min-height:48px}
+.side-item--needs .count{margin-left:auto}
+.side-prod--rich{min-height:56px}
+.side-prod--rich .prod-mono{width:34px;height:34px}
+.side-prod--rich .meter{display:block;margin-top:5px;width:70%}
+
+/* ===== conversation ===== */
+.log{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;outline:none}
+.log__inner{position:relative;max-width:var(--log-max);margin:0 auto;padding:24px var(--pad-x);display:flex;flex-direction:column;gap:var(--gap-log)}
+.app[data-app=phone] .log__inner{padding:12px 16px 20px}
+.day{display:flex;align-items:center;gap:12px;color:var(--text-3);font-size:var(--fs-xs);margin:6px 0}
+.day::before,.day::after{content:"";flex:1;height:1px;background:var(--border)}
+.msg{display:flex;gap:12px;align-items:flex-start}
+.msg__body{min-width:0;flex:1}
+.msg__meta{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-xs);color:var(--text-3);margin-bottom:2px}
+.msg__meta b{color:var(--text);font-weight:600}
+.bubble{overflow-wrap:anywhere}
+.bubble p{margin:0 0 .45em}.bubble p:last-child{margin:0}
+.bubble ul{margin:.2em 0 .5em;padding-left:1.2em}
+.bubble li{margin:.15em 0}
+.brief__h{font-weight:700;margin-top:.7em!important}
+.brief__foot{color:var(--text-2)}
+.ref{font-family:var(--font-mono);font-size:.86em;color:var(--accent-text)}
+.msg--owner{justify-content:flex-end}
+.msg--owner .msg__body{flex:0 1 auto;max-width:82%;display:flex;flex-direction:column;align-items:flex-end}
+.msg--owner .bubble{background:var(--owner-bubble);color:var(--owner-text);padding:9px 14px;border-radius:var(--r-lg) var(--r-lg) var(--r-sm) var(--r-lg)}
+.msg--owner .msg__meta{margin:4px 4px 0}
+.sysnote{display:flex;align-items:center;justify-content:center;gap:8px;font-size:var(--fs-xs);color:var(--text-3);text-align:center}
+.sysnote i{width:6px;height:6px;border-radius:50%;background:var(--text-3);flex:none}
+.typing{display:inline-flex;gap:4px;padding:10px 0}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:blink 1.2s infinite both}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.typing i{animation:none;opacity:.6}}
+:root[data-motion=reduce] .typing i{animation:none;opacity:.6}
+
+/* decision cards */
+.card{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:12px;padding:var(--pad-card);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);margin-left:var(--card-indent)}
+.card:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.card__head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:var(--fs-xs);color:var(--text-2)}
+.card__kind{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.card__kind .ico{width:15px;height:15px;color:var(--accent-text)}
+.card__num{font-family:var(--font-mono);color:var(--text-3)}
+.card__title{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);line-height:var(--lh-tight);font-weight:var(--fw-display)}
+.card__text{margin:0;color:var(--text-2);font-size:var(--fs-sm)}
+.steps{margin:0;padding-left:1.3em;font-size:var(--fs-sm);color:var(--text-2);display:grid;gap:4px}
+.rec{display:grid;gap:2px;padding:10px 12px;border-radius:var(--r-md);background:var(--accent-soft);font-size:var(--fs-sm)}
+.rec__label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text)}
+.rec__choice{color:var(--text)}
+.rec p{margin:2px 0 0;color:var(--text-2)}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:var(--fs-sm)}
+.check{display:flex;gap:8px;align-items:flex-start}
+.check .ico{margin-top:2px}
+.check--ok .ico{color:var(--success-text)}.check--warn .ico{color:var(--warning-text)}
+.card__foot{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap}
+.card__actions{display:flex;gap:8px;flex-wrap:wrap}
+.card__meta{font-size:var(--fs-xs);color:var(--text-3)}
+.app[data-app=phone] .card{margin-left:0}
+.app[data-app=phone] .card__foot{flex-direction:column;align-items:stretch}
+/* equal halves when both labels fit; a label too long for half the row takes a full row (Russian runs ~30% longer) */
+.app[data-app=phone] .card__actions{display:flex;flex-wrap:wrap}
+.app[data-app=phone] .card__actions .btn{flex:1 1 0;min-width:max-content}
+.is-highlight{animation:hl 1.4s var(--ease-standard)}
+@keyframes hl{0%,40%{box-shadow:0 0 0 3px var(--focus)}100%{box-shadow:var(--shadow-1)}}
+@media (prefers-reduced-motion:reduce){.is-highlight{animation:none;box-shadow:0 0 0 3px var(--focus)}}
+
+/* design thumbnail: drawn from tokens, no image assets */
+.thumb{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--bg-sunken);cursor:zoom-in}
+.thumb--big{margin:4px 0 6px}
+.tf{display:flex;flex-direction:column;gap:5px;aspect-ratio:9/15;padding:6px;border-radius:8px;background:var(--surface);border:1px solid var(--border);position:relative}
+.tf--dark{background:color-mix(in oklab,var(--text) 92%,var(--bg));border-color:transparent}
+.tf__bar{height:5px;width:55%;border-radius:3px;background:var(--border-strong)}
+.tf--dark .tf__bar,.tf--dark .tf__line{background:color-mix(in oklab,var(--bg) 35%,transparent)}
+.tf__center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.tf__icon{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--accent);background:var(--accent-soft)}
+.tf--error .tf__icon{border-color:var(--danger-text);background:var(--danger-soft)}
+.tf__line{height:3px;width:70%;border-radius:2px;background:var(--border-strong)}
+.tf__line--s{width:44%}
+.tf__btn{height:8px;width:48%;border-radius:4px;background:var(--accent);margin-top:3px}
+.tf__cap{position:absolute;left:0;right:0;bottom:-2px;translate:0 100%;font-size:10px;color:var(--text-3);text-align:center;padding-top:3px}
+.thumb{padding-bottom:26px}
+
+/* receipt: a resolved card, recorded as the owner's answer */
+.receipt{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;padding:9px 12px;border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2);margin-left:var(--card-indent);outline-offset:2px}
+.app[data-app=phone] .receipt{margin-left:0}
+.receipt__icon{width:24px;height:24px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--success-soft);color:var(--success-text)}
+.receipt__icon .ico{width:14px;height:14px;stroke-width:2.4}
+.receipt--negative .receipt__icon{background:var(--danger-soft);color:var(--danger-text)}
+.receipt--neutral .receipt__icon{background:var(--surface);color:var(--text-2)}
+.receipt__body{flex:1 1 200px;min-width:0}
+.app[data-app=phone] .receipt__meta{flex-basis:100%;padding-left:var(--receipt-indent,34px)}
+.receipt__verb{font-weight:700;color:var(--text)}
+.receipt__meta{font-size:var(--fs-xs);color:var(--text-3);font-family:var(--font-mono)}
+
+/* banners */
+.banner-wrap{padding:0 var(--pad-x) 4px}
+.app[data-app=phone] .banner-wrap{padding:0 12px 4px}
+.paused{max-width:var(--log-max);margin:0 auto;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px;border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-sm)}
+.paused span{flex:1}.paused b{font-weight:700}
+.paused--bad{background:var(--danger-soft);color:var(--danger-text)}
+
+/* composer */
+.composer{flex:none;padding:10px var(--pad-x) 16px}
+.app[data-app=phone] .composer{padding:6px 12px 8px}
+.composer__box{max-width:var(--log-max);margin:0 auto;display:flex;align-items:flex-end;gap:8px;padding:7px 7px 7px 14px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.composer__box:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.composer textarea{flex:1;min-height:34px;max-height:120px;padding:6px 0;border:0;background:none;outline:none;resize:none;font-size:var(--fs-md);line-height:1.4}
+.app[data-app=phone] .composer textarea{font-size:16px}
+.composer textarea::placeholder{color:var(--text-3)}
+.composer__hint{align-self:center}
+.send{width:34px;height:34px;flex:none;display:grid;place-items:center;border:0;border-radius:var(--r-md);background:var(--accent);color:var(--accent-contrast)}
+.app[data-app=phone] .send{width:40px;height:40px}
+
+/* toast */
+.toast{position:absolute;left:50%;bottom:150px;translate:-50% 0;z-index:var(--z-toast);padding:8px 14px;border-radius:999px;background:var(--text);color:var(--bg);font-size:var(--fs-sm);box-shadow:var(--shadow-2);white-space:nowrap;pointer-events:none}
+.app[data-app=mac] .toast{bottom:96px}
+.app[data-app=phone] .toast{top:124px;bottom:auto}
+
+/* ===== board ===== */
+.board{display:flex;flex-direction:column;gap:14px;padding:16px 20px 24px}
+.board__head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.board__kicker{display:flex;align-items:center;gap:8px;font-size:var(--fs-xs);color:var(--text-3)}
+.board__head h3{margin:4px 0 0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:1.1}
+.demo-pill{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:var(--fs-xs);font-weight:600;white-space:nowrap}
+.demo-pill .ico{width:14px;height:14px}
+.progress{height:6px;border-radius:3px;background:var(--bg-sunken);overflow:hidden}
+.progress i{display:block;height:100%;width:var(--p);background:var(--accent);border-radius:inherit}
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:0}
+.metrics div{padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md)}
+.metrics dt{font-size:var(--fs-xs);color:var(--text-3)}
+.metrics dd{margin:0;font-weight:600;font-size:var(--fs-sm);font-family:var(--font-mono)}
+.metrics dd.metrics__word{font-family:var(--font-body)} /* words read badly in mono, Cyrillic especially */
+.metrics .ok{color:var(--success-text)}.metrics .bad{color:var(--danger-text)}
+.cols{display:grid;gap:16px}
+.col h4{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.col h4 span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.col ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.item{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);font-size:var(--fs-sm)}
+.item__num{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-3)}
+.item__title{min-width:0}
+.item small{display:block;font-size:var(--fs-xs);color:var(--text-3)}
+.tier{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.tier--light{background:var(--bg-sunken);color:var(--text-2)}
+.tier--standard{background:var(--accent-soft);color:var(--accent-text)}
+.tier--heavy{background:var(--warning-soft);color:var(--warning-text)}
+.board__empty{display:flex;gap:10px;align-items:flex-start;padding:14px;border:1px dashed var(--border-strong);border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm)}
+.board__empty p{margin:0}
+.board__foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-3)}
+.app[data-app=phone] .cols{grid-auto-flow:column;grid-auto-columns:82%;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -20px;padding:0 20px 6px;scroll-padding:0 20px}
+.app[data-app=phone] .col{scroll-snap-align:start}
+
+/* ===== artifacts ===== */
+.arts{display:flex;flex-direction:column;gap:12px;padding:16px 20px 24px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.art-group h4{display:flex;gap:8px;margin:6px 0 6px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.art-group h4 span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.art-group ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.art{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-md);background:var(--surface);border:1px solid var(--border);font-size:var(--fs-sm)}
+.art>.ico{color:var(--text-3)}
+.art__icon{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:var(--r-sm);background:var(--bg-sunken);color:var(--text-2)}
+.art__icon .ico{width:16px;height:16px}
+.art__title{flex:1;min-width:0;display:grid}
+.art__title small{font-size:var(--fs-xs);color:var(--text-3)}
+.art--awaiting{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.art--awaiting .art__icon{background:var(--accent-soft);color:var(--accent-text)}
+.art__thumb{list-style:none}
+
+/* ===== cross-project views ===== */
+.log__inner--view{gap:12px}
+.needs__lead{margin:0 0 4px;color:var(--text-2);font-size:var(--fs-sm)}
+.needs__list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.need{width:100%;display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;text-align:left;padding:12px 12px 12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.need:hover{border-color:var(--border-strong)}
+.need>.ico{grid-column:2;grid-row:1/span 3;color:var(--text-3)}
+.need__top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ptag{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px 0 2px;border-radius:999px;background:var(--bg-sunken);font-size:var(--fs-xs);font-weight:600;color:var(--text)}
+.ptag .prod-mono{width:20px;height:20px;font-size:11px;border-radius:50%}
+.need__kind{font-size:var(--fs-xs);color:var(--text-3)}
+.need__title{font-weight:600;font-family:var(--font-display);line-height:var(--lh-tight)}
+.need__rec{font-size:var(--fs-xs);color:var(--text-2)}
+.ov-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.ov{width:100%;display:grid;gap:8px;text-align:left;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.ov:hover{border-color:var(--border-strong)}
+.ov__top{display:flex;align-items:center;gap:8px}
+.ov__top b{flex:1;font-family:var(--font-display);font-weight:var(--fw-display)}
+.ov__line{font-size:var(--fs-xs);color:var(--text-2)}
+.ov__foot{display:flex;justify-content:space-between;align-items:center;font-size:var(--fs-xs);color:var(--text-3);font-family:var(--font-mono)}
+.meter--wide{height:4px}
+.ov-h{display:flex;gap:8px;margin:12px 0 0;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.ov-h span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.ov-grid--quiet .ov{box-shadow:none;background:transparent}
+.app[data-app=phone] .ov-grid{grid-template-columns:1fr}
+
+/* ===== language: bilingual static blocks in the page note ===== */
+:root:not([lang=ru]) [data-lang=ru],:root[lang=ru] [data-lang=en]{display:none}
+
+/* ===== character: Paper Desk ===== */
+
+/* Paper Desk: the PM writes like a letter; decisions are stamped and become margin notes */
+.msg--pm .bubble{font-family:var(--font-display);font-size:16px;line-height:1.62}
+.app[data-app=phone] .msg--pm .bubble{font-size:16px}
+.msg--pm .brief__h{font-family:var(--font-body);font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-2)}
+.avatar--pm{background:none;border:1px solid var(--border-strong);color:var(--text-2);font-family:var(--font-display);font-style:italic;font-weight:600}
+.card__kind{font-variant:small-caps;letter-spacing:.04em;font-size:13px}
+.card{background:var(--surface);background-image:linear-gradient(var(--surface),var(--surface-2))}
+.rec{background:none;border-left:2px solid var(--accent);border-radius:0;padding:2px 0 2px 12px}
+.rec__choice{font-family:var(--font-display);font-size:16px}
+.receipt{background:none;border-left:2px solid var(--accent);border-radius:0;padding:4px 0 4px 14px;font-family:var(--font-display);font-style:italic;font-size:15px}
+.receipt--negative{border-left-color:var(--danger-text)}.receipt--neutral{border-left-color:var(--text-3)}
+.receipt__icon{background:none!important;width:18px;height:18px}
+.receipt__icon .ico{width:18px;height:18px;stroke-width:2}
+.receipt__meta{font-style:normal}
+.receipt{--receipt-indent:28px}
+.receipt.is-new .receipt__icon path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) var(--dur-fast) forwards}
+@keyframes ink{to{stroke-dashoffset:0}}
+.stamp{position:absolute;right:22px;top:calc(50% - 39px);width:78px;height:78px;color:var(--accent);pointer-events:none;opacity:0}
+.stamp svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.stamp .stamp__inner{stroke-width:1;opacity:.6}
+.stamp--negative{color:var(--danger-text)}.stamp--neutral{color:var(--text-2)}
+.sidebar{background:var(--bg-sunken)}
+.side-item[aria-current=true]{box-shadow:none;background:var(--surface);border:1px solid var(--border)}
+.side-label{font-variant:small-caps;letter-spacing:.06em;font-size:13px}
+.tabs button[aria-current=page] .ico{stroke-width:2.2}
+.need__title,.ov__top b{font-weight:600}
+.day span{font-family:var(--font-display);font-style:italic;font-size:14px}
+.msg--owner .bubble{border-radius:var(--r-lg)}
+/* status lines are words, not ids: mono spaces Cyrillic words out, so only ids stay in Source Code Pro */
+.ov__foot,.receipt__meta{font-family:var(--font-body);font-variant-numeric:tabular-nums}
+
+/* ===== Feature design pages: parts shared by every page, on the Paper Desk tokens (ADR 0002) =====
+   Proposed token additions (the Paper Desk sketch names no spacing scale, target size or stagger):
+   spacing on a 4 px base, a 44 px target, a 16 px input size (stops iOS zoom), the checklist mark, the dialog
+   width, a stagger step and the 120 ms reduced-motion fade the prototype already uses. */
+:root{
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;--sp-10:40px;
+  --target:44px;--fs-input:16px;--mark:28px;--dialog-w:440px;--set-max:720px;--stamp-sm:64px;
+  --ls-caps:.06em;--stagger:70ms;--dur-fade:120ms;--dur-pulse:1600ms;--dur-toast:2400ms;
+}
+@media (prefers-reduced-motion:reduce){:root{--stagger:0ms}}
+:root[data-motion=reduce]{--stagger:0ms}
+
+/* ----- page chrome: the demo state bar ----- */
+.demo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-4);font-size:var(--fs-xs);color:var(--text-2)}
+.demo label{display:inline-flex;align-items:center;gap:var(--sp-2)}
+.demo select{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);min-height:32px;padding:0 var(--sp-2)}
+.demo input[type=checkbox]{width:var(--sp-4);height:var(--sp-4);accent-color:var(--accent)}
+.demo__help{flex-basis:100%;margin:0;color:var(--text-3);max-width:110ch}
+.note ul{margin:0 0 var(--sp-2);padding-left:1.2em;max-width:75ch}
+.note li{margin:var(--sp-1) 0}
+
+/* ----- buttons (additions to the kit) ----- */
+.btn[aria-disabled=true]{cursor:default}
+.btn--primary[aria-disabled=true],.btn--primary[aria-disabled=true]:hover{background:var(--accent-soft);color:var(--accent-text)}
+.btn:not(.btn--primary)[aria-disabled=true]{color:var(--text-3)}
+.btn[aria-disabled=true]:active{transform:none}
+.btn--danger{background:var(--danger-soft);border-color:transparent;color:var(--danger-text)}
+.btn--danger:hover{background:color-mix(in oklab,var(--danger-soft) 86%,var(--danger-text))}
+.btn--danger-quiet{background:none;color:var(--danger-text)}
+.btn--danger-quiet:hover{background:var(--danger-soft)}
+.btn--tall{min-height:var(--target)}
+.btn .typing{padding:0}
+.ext{display:inline-flex;align-items:center;gap:var(--sp-1);color:var(--accent-text);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;border-radius:var(--r-sm)}
+.ext .ico{width:14px;height:14px}
+.link-btn{border:0;background:none;padding:0;color:var(--accent-text);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;min-height:var(--target)}
+
+/* skeleton rows */
+.skel-row{display:flex;align-items:center;gap:var(--sp-3);min-height:calc(var(--target) + var(--sp-5));padding:var(--sp-3) var(--sp-4);border-top:1px solid var(--border)}
+.skel-row:first-child{border-top:0}
+.skel{display:block;border-radius:var(--r-sm);background:var(--bg-sunken);height:var(--sp-3)}
+.skel--mono{width:34px;height:34px}
+.skel-stack{flex:1;display:grid;gap:var(--sp-2)}
+.skel--a{width:38%}.skel--b{width:56%;height:var(--sp-2)}
+.skel-row .skel{animation:pulse var(--dur-pulse) var(--ease-standard) infinite}
+@keyframes pulse{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.skel-row .skel{animation:none}}
+:root[data-motion=reduce] .skel-row .skel{animation:none}
+
+/* empty and error blocks */
+.block{display:grid;justify-items:start;gap:var(--sp-2);padding:var(--sp-6);border-radius:var(--r-lg);background:var(--surface);border:1px dashed var(--border-strong)}
+.block h2,.block h3{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
+.block p{margin:0 0 var(--sp-2);color:var(--text-2);font-size:var(--fs-sm);max-width:52ch}
+.block--error{background:var(--danger-soft);border:0;color:var(--danger-text)}
+.block--error p{color:var(--danger-text)}
+.block--error .btn{border-color:transparent}
+.offline{max-width:none}
+
+/* ----- fields: label, hint, error, preview ----- */
+.field{display:grid;gap:var(--sp-1)}
+.field__label{font-weight:600;font-size:var(--fs-sm)}
+.field__hint{margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.field__input{width:100%;height:var(--target);margin-top:var(--sp-1);padding:0 var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--text);font-family:var(--font-mono);font-size:var(--fs-md);transition:border-color var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard)}
+.app[data-app=phone] .field__input{font-size:var(--fs-input)}
+.field__input::placeholder{color:var(--text-3)}
+.field__input:focus{outline:none;border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.field__input[aria-invalid=true]{border-color:var(--danger-text);box-shadow:0 0 0 1px var(--danger-text)}
+.field__err{display:flex;align-items:flex-start;gap:var(--sp-2);margin:var(--sp-1) 0 0;color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.field__err .ico{margin-top:2px}
+.field__preview{margin:var(--sp-1) 0 0;font-size:var(--fs-xs);color:var(--text-2)}
+.field__preview code{color:var(--accent-text)}
+.form-actions{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.app[data-app=phone] .form-actions .btn{flex:1 1 0;min-width:max-content}
+
+/* ----- the result note: a margin note, like the prototype's recorded answers ----- */
+.res{position:relative;display:grid;justify-items:start;gap:var(--sp-1);padding:var(--sp-1) 0 var(--sp-1) var(--sp-4);border-left:2px solid var(--accent)}
+.res h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);outline:none}
+.res p{margin:0;color:var(--text-2);font-size:var(--fs-sm);max-width:60ch}
+.res .btn,.res .link-btn{margin-top:var(--sp-2)}
+.res__time{font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
+.res--warn{border-left-color:var(--warning-text)}
+.res--bad{border-left-color:var(--danger-text)}
+.res--neutral{border-left-color:var(--text-3)}
+.res--ready{min-height:var(--stamp-sm);padding-right:calc(var(--stamp-sm) + var(--sp-4))}
+.res .stamp{right:0;top:calc(50% - var(--stamp-sm) / 2);width:var(--stamp-sm);height:var(--stamp-sm);opacity:1;transform:rotate(-9deg)}
+
+@keyframes mark-in{from{transform:scale(.6);opacity:0}}
+@keyframes fade{from{opacity:0}}
+
+/* ----- disclosure ("How to fix") and a code line with Copy ----- */
+.how-btn{margin-left:calc(-1 * var(--sp-2));color:var(--accent-text);min-height:var(--target)}
+.how-btn .ico{width:16px;height:16px;transition:transform var(--dur-base) var(--ease-standard)}
+.how-btn[aria-expanded=true]{background:none;color:var(--accent-text)}
+.how-btn[aria-expanded=true] .ico{transform:rotate(180deg)}
+.how{display:grid;gap:var(--sp-3);width:100%;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2)}
+.how p{margin:0;overflow-wrap:anywhere}
+.how dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--sp-2) var(--sp-4);margin:0}
+.how dt{color:var(--text-3)}
+.how dd{margin:0;min-width:0;color:var(--text)}
+.app[data-app=phone] .how{padding:var(--sp-3)}
+.app[data-app=phone] .how dl{grid-template-columns:minmax(0,1fr);gap:0}
+.app[data-app=phone] .how dd{margin-bottom:var(--sp-2)}
+.codeline{display:flex;align-items:flex-start;gap:var(--sp-2);width:100%}
+.codeline code{flex:1;min-width:0;padding:var(--sp-2) var(--sp-3);border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-size:var(--fs-xs);line-height:1.5;overflow-wrap:anywhere}
+.codeline .btn{min-height:var(--target);flex:none}
+.codeline .btn[data-copied] {color:var(--success-text)}
+
+/* ----- confirmation dialog (alertdialog): archive, disconnect, team commands ----- */
+.modal{position:absolute;inset:0;z-index:var(--z-sheet);display:grid;place-items:center;padding:var(--sp-6)}
+.modal__scrim{position:absolute;inset:0;background:var(--scrim)}
+.adialog{position:relative;width:min(100%,var(--dialog-w));display:grid;gap:var(--sp-3);padding:var(--sp-6);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-2)}
+.adialog h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);overflow-wrap:anywhere}
+.adialog p{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.adialog .adialog__note{font-size:var(--fs-xs);color:var(--text-2);padding-left:var(--sp-3);border-left:2px solid var(--border-strong)}
+.adialog__err{display:flex;gap:var(--sp-2);align-items:flex-start;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--danger-soft);color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.adialog__err .ico{margin-top:2px}
+.adialog__actions{display:flex;justify-content:flex-end;gap:var(--sp-2);margin-top:var(--sp-2)}
+.adialog__actions .btn{min-height:var(--target)}
+.app[data-app=phone] .modal{place-items:end stretch;padding:0}
+.app[data-app=phone] .adialog{width:100%;border-radius:var(--r-sheet) var(--r-sheet) 0 0;border-width:1px 0 0;padding:var(--sp-6) var(--sp-5) var(--sp-10);box-shadow:var(--shadow-3)}
+.app[data-app=phone] .adialog__actions .btn{flex:1 1 0}
+
+
+/* toast and live region */
+.toast[hidden]{display:none}
+.app[data-app=phone] .toast{top:auto;bottom:var(--sp-10)}
+
+/* page chrome sits on the darker --page backdrop, where tertiary text falls under AA: use secondary text there */
+.note__kicker,.device__label,.demo__help{color:var(--text-2)}
+/* ===== #134 Board on the phone: the lane switcher, on the Paper Desk tokens (ADR 0002) =====
+   The board itself is #18 as built (libs/console/widgets/sprint-board); only the phone lanes change.
+   --r-pill mirrors the app's tokens.css (the direction sketch has no name for it). */
+:root{--r-pill:999px}
+
+/* ----- the board screen (as #18 ships it) ----- */
+.bd-top{justify-content:space-between;padding:0 var(--sp-2) var(--sp-2) var(--sp-3);border-bottom:1px solid var(--border)}
+.bd-proj{display:inline-flex;align-items:center;gap:var(--sp-2);min-height:var(--target);padding:0 var(--sp-2);border:0;background:none;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);color:var(--text)}
+.bd-proj .ico{width:16px;height:16px;color:var(--text-3)}
+.bd-icon{display:grid;place-items:center;width:var(--target);height:var(--target);border:0;background:none;border-radius:var(--r-md);color:var(--text-2)}
+.bd-icon .ico{width:22px;height:22px}
+.bd-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.bd{display:grid;gap:var(--sp-6);padding:var(--sp-4) var(--sp-4) var(--sp-8)}
+.bd-mac .bd{max-width:616px;margin:0 auto;padding:var(--sp-6) var(--sp-6) var(--sp-10)}
+.bd-sec{display:grid;gap:var(--sp-4);min-width:0}
+.bd-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:var(--sp-2) var(--sp-3)}
+.bd-title{margin:0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:var(--lh-tight);overflow-wrap:anywhere}
+.bd-title--sub{font-size:var(--fs-lg)}
+.bd-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:var(--sp-2);margin:0}
+.bd-stats div{padding:var(--sp-3);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md)}
+.bd-stats dt{font-size:var(--fs-xs);color:var(--text-2)}
+.bd-stats dd{margin:var(--sp-1) 0 0;font-weight:600;font-variant-numeric:tabular-nums}
+.bd-note{margin:0;padding:var(--sp-2) var(--sp-3);border:1px dashed var(--border-strong);border-radius:var(--r-md);font-size:var(--fs-xs);color:var(--text-2)}
+
+/* a lane: the kit's tc-lane (caps heading with the count, then a list card) */
+.bd-lanes{display:grid;gap:var(--sp-5);min-width:0}
+.bd-lane{display:grid;gap:var(--sp-2);min-width:0;align-content:start}
+.bd-lane__head{display:flex;align-items:baseline;gap:var(--sp-2);font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2);overflow-wrap:anywhere}
+.bd-lane__count{font-weight:400;font-variant-numeric:tabular-nums;color:var(--text-3)}
+.bd-list{list-style:none;margin:0;padding:var(--sp-1) 0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg)}
+.bd-row{display:grid;grid-template-columns:40px 1fr auto;align-items:center;gap:var(--sp-2);min-height:var(--target);padding:var(--sp-2) var(--sp-3);color:inherit;text-decoration:none;font-size:var(--fs-sm);border-radius:var(--r-md)}
+.bd-row:hover{background:var(--bg-sunken)}
+.bd-row__num{font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
+.bd-row__title{min-width:0;overflow-wrap:anywhere}
+.bd-empty{display:flex;align-items:center;gap:var(--sp-2);margin:0;padding:var(--sp-2) var(--sp-1);font-size:var(--fs-sm);color:var(--text-2)}
+.bd-empty .ico{width:16px;height:16px;color:var(--success-text)}
+.bd-pulls{margin-top:var(--sp-2)}
+
+/* Today's phone row (#134): one lane and the edge of the next; the row is as tall as its tallest lane. */
+.bd-lanes--swipe{grid-auto-flow:column;grid-auto-columns:82%;align-items:start;gap:var(--sp-3);overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scroll-padding:0 var(--sp-4);margin:0 calc(-1 * var(--sp-4));padding:var(--sp-1) var(--sp-4) var(--sp-2)}
+.bd-lanes--swipe>.bd-lane{scroll-snap-align:start}
+.bd-lanes--swipe:focus-visible{outline-offset:-2px}
+
+/* ----- the lane switcher (new, phone only): a tab list of pills, then the selected lane at its own height ----- */
+.bd-lanes--tabs{gap:var(--sp-3)}
+.lt-list{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.lt{display:inline-flex;align-items:center;gap:var(--sp-2);max-width:100%;min-height:var(--target);padding:0 var(--sp-3);border:1px solid var(--border);border-radius:var(--r-pill);background:var(--surface);color:var(--text);font:inherit;font-size:var(--fs-sm);font-weight:600;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background-color var(--dur-fast) var(--ease-standard),color var(--dur-fast) var(--ease-standard),border-color var(--dur-fast) var(--ease-standard)}
+.lt__name{min-width:0;overflow-wrap:anywhere}
+.lt__count{font-weight:400;font-variant-numeric:tabular-nums;color:var(--text-3)}
+.lt:hover{border-color:var(--border-strong)}
+.lt:active{background:var(--bg-sunken)}
+.lt[aria-selected=true]{background:var(--text);border-color:var(--text);color:var(--bg)}
+.lt[aria-selected=true] .lt__count{color:inherit;opacity:.72}
+.lt:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.bd-panel{display:grid;gap:var(--sp-2);min-width:0}
+.bd-panel[hidden]{display:none}
+.bd-panel:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:var(--r-md)}
+@media (prefers-reduced-motion:reduce){.lt{transition:none}}
+:root[data-motion=reduce] .lt{transition:none}
+
+/* ----- phone chrome: five sections, as the app's tab bar ----- */
+.bd-tabs{grid-template-columns:repeat(5,1fr)}
+
+/* ----- Mac window: the app's top navigation as a segmented bar ----- */
+.bd-mac{display:flex;flex-direction:column}
+.bd-mac .convo__head{height:64px;justify-content:space-between;padding:0 var(--sp-6) 0 var(--sp-8)}
+.bd-mac__name{margin:0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display)}
+.bd-seg{display:flex;gap:2px;padding:var(--sp-1);border-radius:var(--r-lg);background:var(--bg-sunken)}
+.bd-seg button{display:inline-flex;align-items:center;gap:var(--sp-2);min-height:34px;padding:0 var(--sp-3);border:0;background:none;border-radius:var(--r-md);font-size:var(--fs-sm);color:var(--text-2)}
+.bd-seg button .ico{width:16px;height:16px}
+.bd-seg button[aria-current=page]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+
+</style>
+</head>
+<body>
+<header class="note">
+  <div class="note__row">
+    <div><div class="note__kicker" data-i18n="page.kicker">Team Console · #134 · design for approval</div><h1 data-i18n="page.title">Board on the phone: lane switcher</h1></div>
+    <div class="controls">
+      <div class="seg" data-control="view" role="group" aria-label="Layout" data-i18n-aria="page.layout"><button type="button" data-value="phone">iPhone</button><button type="button" data-value="mac">Mac</button><button type="button" data-value="both" data-i18n="page.both">Both</button></div>
+      <div class="seg" data-control="theme" role="group" aria-label="Theme" data-i18n-aria="page.theme"><button type="button" data-value="auto" data-i18n="page.auto">Auto</button><button type="button" data-value="light" data-i18n="page.light">Light</button><button type="button" data-value="dark" data-i18n="page.dark">Dark</button></div>
+      <div class="seg" data-control="lang" role="group" aria-label="Language" data-i18n-aria="page.lang"><button type="button" data-value="ru" lang="ru" aria-label="Русский">RU</button><button type="button" data-value="en" lang="en" aria-label="English">EN</button></div>
+      <div class="seg" data-control="motion" role="group" aria-label="Motion" data-i18n-aria="page.motion"><button type="button" data-value="system" data-i18n="page.motionSystem">Motion: system</button><button type="button" data-value="reduce" data-i18n="page.motionReduce">Reduced</button></div>
+      <button type="button" class="seg-btn" data-reset data-i18n="page.reset">Reset demo</button>
+    </div>
+  </div>
+  <div class="demo" role="group" aria-label="Demo states" data-i18n-aria="demo.aria">
+    <label><span data-i18n="demo.version">Version</span><select id="d-version"><option value="new" data-i18n="demo.v.new">new</option><option value="old" data-i18n="demo.v.old">old</option></select></label>
+    <label><span data-i18n="demo.data">Data</span><select id="d-data"><option value="sprint" data-i18n="demo.d.sprint">sprint</option><option value="early" data-i18n="demo.d.early">early</option><option value="unknown" data-i18n="demo.d.unknown">unknown</option><option value="s108" data-i18n="demo.d.s108">s108</option></select></label>
+    <p class="demo__help" data-i18n="demo.help"></p>
+  </div>
+  <details><summary data-i18n="page.summary">What you are approving</summary><div data-lang="en" lang="en">
+<div class="note__grid"><div>
+<p><b>What you are approving.</b> How the sprint board (#18) shows its status lanes on the phone. Today the lanes are a sideways row, and the row is as tall as its tallest lane: under a short lane there are 500 to 740 px of blank page before “Open pull requests” (#134). This page replaces the row with a lane switcher on the phone only. The Mac layout, the data, the copy and every other board state stay as approved in #18.</p>
+<ul>
+<li><b>A switcher with counts above the lane.</b> Every lane is a pill with its name and count (“Approved 4”, “QA 0”), all visible at once. Pills wrap onto a second line when they don’t fit, so nothing hides off-screen. The selected pill is ink-filled, as in the Paper Desk segmented controls. Every pill is a 44 px target.</li>
+<li><b>Only the selected lane is shown</b>, at its own height, so “Open pull requests” always starts right under it. The board opens on the first lane that has issues; your choice is kept while the board refreshes.</li>
+<li><b>Keyboard and screen readers.</b> The switcher is one Tab stop (a tab list): the arrow keys move between lanes, Home and End jump to the first and last. A screen reader hears “Approved 4, tab, 1 of 5, selected”. The lane heading stays in the page for heading navigation. This replaces today’s scrollable row, which is also one Tab stop with arrow keys.</li>
+<li><b>Motion:</b> the incoming lane slides 8 px from the side you moved towards and fades in (140 ms). With reduced motion it only fades (120 ms). Nothing else moves.</li>
+<li><b>Ready for #108</b> (current, next sprint, backlog): each section gets its own switcher. A section with a single lane shows the lane without a switcher. See the “#108 preview” data set.</li>
+</ul>
+<p class="try">Try on iPhone: tap “Done 10”, then “QA 0”: the pull requests move up with the lane. Switch “Version” to “Now: swipe row” to see today’s gap. With a keyboard, Tab to the switcher and use ← →, Home, End.</p>
+</div><dl class="tok">
+<dt>Colour</dt><dd>Paper Desk tokens only: ink fill (<code>--text</code> on <code>--bg</code>) for the selected pill, <code>--surface</code> and <code>--border</code> for the others, <code>--text-3</code> for counts, <code>--focus</code> for the focus ring. AA contrast in both themes.</dd>
+<dt>Type</dt><dd>Source Sans 3, <code>--fs-sm</code>, semibold name, tabular count. No new fonts.</dd>
+<dt>Tokens</dt><dd>No new tokens: <code>--control-h-touch</code> (44 px), <code>--r-pill</code>, <code>--space-2</code>/<code>--space-3</code>, <code>--dur-fast</code>, <code>--ease-enter</code>, <code>--dur-fade</code>.</dd>
+<dt>Kit</dt><dd><code>tc-lanes</code> renders the switcher itself on the phone from its <code>tc-lane</code> children; <code>tc-lane</code> gets an optional <code>key</code>. No new component, and no new strings in the app.</dd>
+<dt>Motion</dt><dd>fast 140 ms slide and fade; reduced: fade 120 ms. Only transform and opacity animate.</dd>
+</dl></div></div><div data-lang="ru" lang="ru">
+<div class="note__grid"><div>
+<p><b>Что утверждаешь.</b> Как доска спринта (#18) показывает дорожки статусов на телефоне. Сейчас дорожки — ряд со свайпом вбок, и этот ряд высотой с самую длинную дорожку: под короткой дорожкой 500–740 px пустой страницы до «Открытых пул-реквестов» (#134). Здесь ряд заменён переключателем дорожек — только на телефоне. Вид на Mac, данные, тексты и остальные состояния доски остаются как утверждено в #18.</p>
+<ul>
+<li><b>Над дорожкой — переключатель со счётчиками.</b> Каждая дорожка — «таблетка» с названием и числом («Одобрено 4», «На проверке 0»), все видны сразу. Если не помещаются, переносятся на вторую строку, так что ничего не прячется за краем экрана. Выбранная залита чернилами, как переключатели в Paper Desk. Каждая — цель касания 44 px.</li>
+<li><b>Показана только выбранная дорожка</b> и ровно своей высоты, поэтому «Открытые пул-реквесты» всегда начинаются сразу под ней. Доска открывается на первой дорожке, где есть задачи; выбор сохраняется, пока доска обновляется.</li>
+<li><b>Клавиатура и скринридер.</b> Переключатель — одна остановка Tab (список вкладок): стрелки переходят между дорожками, Home и End — к первой и последней. Скринридер читает «Одобрено 4, вкладка, 1 из 5, выбрана». Заголовок дорожки остаётся на странице для навигации по заголовкам. Это заменяет сегодняшний прокручиваемый ряд — он тоже одна остановка Tab со стрелками.</li>
+<li><b>Движение:</b> новая дорожка въезжает на 8 px с той стороны, куда ты переключил, и проявляется (140 мс). При «Меньше движения» — только проявление (120 мс). Больше ничего не двигается.</li>
+<li><b>Готово к #108</b> (текущий спринт, следующий, бэклог): у каждой секции свой переключатель. Секция с одной дорожкой показывает её без переключателя. См. набор данных «превью #108».</li>
+</ul>
+<p class="try">Попробуй на iPhone: нажми «Готово 10», потом «На проверке 0» — пул-реквесты поднимаются вместе с дорожкой. Переключи «Версия» на «Сейчас: ряд со свайпом», чтобы увидеть сегодняшнюю пустоту. С клавиатуры: Tab до переключателя, потом ← →, Home, End.</p>
+</div><dl class="tok">
+<dt>Цвет</dt><dd>Только токены Paper Desk: заливка чернилами (<code>--text</code> на <code>--bg</code>) у выбранной таблетки, <code>--surface</code> и <code>--border</code> у остальных, <code>--text-3</code> у счётчиков, <code>--focus</code> у рамки фокуса. Контраст AA в обеих темах.</dd>
+<dt>Шрифты</dt><dd>Source Sans 3, <code>--fs-sm</code>, название полужирным, число табличными цифрами. Новых шрифтов нет.</dd>
+<dt>Токены</dt><dd>Новых нет: <code>--control-h-touch</code> (44 px), <code>--r-pill</code>, <code>--space-2</code>/<code>--space-3</code>, <code>--dur-fast</code>, <code>--ease-enter</code>, <code>--dur-fade</code>.</dd>
+<dt>Кит</dt><dd><code>tc-lanes</code> сам рисует переключатель на телефоне из своих <code>tc-lane</code>; у <code>tc-lane</code> появляется необязательный <code>key</code>. Новых компонентов нет, новых строк в приложении нет.</dd>
+<dt>Движение</dt><dd>быстро 140 мс — сдвиг и проявление; при «Меньше движения» — проявление 120 мс. Анимируются только transform и opacity.</dd>
+</dl></div></div></details>
+</header>
+<main class="stage">
+  <section class="device device--phone" aria-label="iPhone layout" data-i18n-aria="page.phoneAria"><div class="device__label">iPhone · 390 pt</div><div class="phone-frame"><div class="app" data-app="phone"></div></div></section>
+  <section class="device device--mac" aria-label="Mac layout" data-i18n-aria="page.macAria"><div class="device__label" data-i18n="page.macLabel">Mac · window</div><div class="mac-frame"><div class="app" data-app="mac"></div></div></section>
+</main>
+<script>
+/* Strings of the #134 page. The board's own strings are the app's `board.*` keys from #18, unchanged: the lane
+   switcher needs no new copy (its name is `board.lanes`, each tab is the lane name and its count). Only the page
+   chrome, the demo bar and the #108 preview headings are new here. */
+const I18N = {
+  en: {
+    'page.kicker': 'Team Console · #134 · design for approval',
+    'page.title': 'Board on the phone: lane switcher',
+    'page.layout': 'Layout', 'page.both': 'Both',
+    'page.theme': 'Theme', 'page.auto': 'Auto', 'page.light': 'Light', 'page.dark': 'Dark',
+    'page.motion': 'Motion', 'page.motionSystem': 'Motion: system', 'page.motionReduce': 'Reduced',
+    'page.lang': 'Language', 'page.reset': 'Reset demo',
+    'page.summary': 'What you are approving, and the tokens it uses',
+    'page.phoneAria': 'iPhone layout', 'page.macAria': 'Mac layout', 'page.macLabel': 'Mac · window (unchanged)',
+
+    'demo.aria': 'Demo states',
+    'demo.version': 'Version', 'demo.v.new': 'New: lane switcher', 'demo.v.old': 'Now: swipe row (#134)',
+    'demo.data': 'Data',
+    'demo.d.sprint': 'Sprint 01 (QA’s data from #129)', 'demo.d.early': 'Early sprint: Done is empty',
+    'demo.d.unknown': 'An unknown status label from GitHub', 'demo.d.s108': '#108 preview: current, next, backlog',
+    'demo.help': 'On iPhone, tap a lane in the switcher: only that lane shows, and “Open pull requests” follows it. “Now: swipe row” is today’s board with the gap from #134. The Mac window is the same in both versions.',
+
+    'nav.questions': 'Questions', 'nav.chat': 'Chat', 'nav.board': 'Board', 'nav.artifacts': 'Artifacts', 'nav.demo': 'Demo',
+    'nav.sections': 'Project sections', 'nav.switch': 'Project {name}, switch project', 'nav.settings': 'Settings',
+    'nav.app': 'Team console', 'nav.waiting': 'Waiting for you', 'nav.all': 'All projects', 'nav.projects': 'Projects',
+
+    'board.demoIn': 'Demo 16 October · in 15 days',
+    'board.stat.done': 'Done', 'board.stat.doneValue': '{shipped} of {planned}', 'board.stat.stillOpen': 'Still open', 'board.stat.openPrs': 'Open PRs',
+    'board.lanes': 'Sprint issues by status',
+    'board.status.proposed': 'Proposed', 'board.status.approved': 'Approved', 'board.status.in-progress': 'In progress',
+    'board.status.qa': 'QA', 'board.status.blocked': 'Blocked', 'board.status.done': 'Done', 'board.status.none': 'No status',
+    'board.laneEmpty': 'Nothing here', 'board.tierLabel': 'Tier:',
+    'board.tier.light': 'light', 'board.tier.standard': 'standard', 'board.tier.heavy': 'heavy',
+    'board.opensGitHub': '(opens on GitHub)',
+    'board.pulls': 'Open pull requests',
+
+    'p108.current': 'Current sprint', 'p108.next': 'Next sprint', 'p108.backlog': 'Backlog',
+    'p108.note': 'Preview of #108 for layout only: its sections, copy and loading are designed in #108.',
+  },
+  ru: {
+    'page.kicker': 'Team Console · #134 · дизайн на согласование',
+    'page.title': 'Доска на телефоне: переключатель дорожек',
+    'page.layout': 'Вид', 'page.both': 'Оба',
+    'page.theme': 'Тема', 'page.auto': 'Авто', 'page.light': 'Светлая', 'page.dark': 'Тёмная',
+    'page.motion': 'Анимация', 'page.motionSystem': 'Анимация: как в системе', 'page.motionReduce': 'Меньше движения',
+    'page.lang': 'Язык', 'page.reset': 'Сбросить демо',
+    'page.summary': 'Что утверждаешь и какие токены использует дизайн',
+    'page.phoneAria': 'Вид на iPhone', 'page.macAria': 'Вид на Mac', 'page.macLabel': 'Mac · окно (без изменений)',
+
+    'demo.aria': 'Состояния для демо',
+    'demo.version': 'Версия', 'demo.v.new': 'Новое: переключатель дорожек', 'demo.v.old': 'Сейчас: ряд со свайпом (#134)',
+    'demo.data': 'Данные',
+    'demo.d.sprint': 'Sprint 01 (данные QA из #129)', 'demo.d.early': 'Начало спринта: «Готово» пусто',
+    'demo.d.unknown': 'Незнакомый статус из GitHub', 'demo.d.s108': 'Превью #108: текущий, следующий, бэклог',
+    'demo.help': 'На iPhone нажми дорожку в переключателе: видна только она, и «Открытые пул-реквесты» идут сразу за ней. «Сейчас: ряд со свайпом» — сегодняшняя доска с пустотой из #134. Окно Mac одинаковое в обеих версиях.',
+
+    'nav.questions': 'Вопросы', 'nav.chat': 'Чат', 'nav.board': 'Доска', 'nav.artifacts': 'Артефакты', 'nav.demo': 'Демо',
+    'nav.sections': 'Разделы проекта', 'nav.switch': 'Проект {name}, сменить проект', 'nav.settings': 'Настройки',
+    'nav.app': 'Консоль команды', 'nav.waiting': 'Ждут тебя', 'nav.all': 'Все проекты', 'nav.projects': 'Проекты',
+
+    'board.demoIn': 'Демо 16 октября · через 15 дней',
+    'board.stat.done': 'Готово', 'board.stat.doneValue': '{shipped} из {planned}', 'board.stat.stillOpen': 'Ещё открыто', 'board.stat.openPrs': 'Открытые PR',
+    'board.lanes': 'Задачи спринта по статусам',
+    'board.status.proposed': 'Предложено', 'board.status.approved': 'Одобрено', 'board.status.in-progress': 'В работе',
+    'board.status.qa': 'На проверке', 'board.status.blocked': 'Заблокировано', 'board.status.done': 'Готово', 'board.status.none': 'Без статуса',
+    'board.laneEmpty': 'Пусто', 'board.tierLabel': 'Сложность:',
+    'board.tier.light': 'лёгкая', 'board.tier.standard': 'средняя', 'board.tier.heavy': 'тяжёлая',
+    'board.opensGitHub': '(откроется на GitHub)',
+    'board.pulls': 'Открытые пул-реквесты',
+
+    'p108.current': 'Текущий спринт', 'p108.next': 'Следующий спринт', 'p108.backlog': 'Бэклог',
+    'p108.note': 'Превью #108 только для раскладки: секции, тексты и загрузка проектируются в #108.',
+  },
+};
+
+/* Shared runtime of the feature design pages: motion and escaping helpers, the inline icon set, the i18n lookup
+   and the page chrome (layout, theme, language, motion). Each page passes its own I18N table and demo wiring.
+   Design prototypes only: mock data, no network. */
+const Proto = (() => {
+  'use strict';
+  const root = document.documentElement;
+  const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
+  const isReduced = () => root.dataset.motion === 'reduce' || mqReduce.matches;
+  const cssVar = (n) => getComputedStyle(root).getPropertyValue(n).trim();
+  const ms = (n) => { const v = cssVar(n); const x = parseFloat(v) || 0; return v.endsWith('ms') ? x : v.endsWith('s') ? x * 1000 : x; };
+  const wait = (t) => new Promise((r) => setTimeout(r, t));
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  async function play(el, frames, opts) {
+    if (!el || !el.animate) return;
+    try { await el.animate(frames, opts).finished; } catch (err) { if (!err || err.name !== 'AbortError') throw err; }
+  }
+  const plain = (html) => { const d = document.createElement('template'); d.innerHTML = html; return d.content.textContent; };
+
+  /* ---------- language (same preference key as the Paper Desk prototype) ---------- */
+  const LANG_KEY = 'team-console.lang';
+  function i18n(table) {
+    const L = { lang: 'ru', fmt: null };
+    try { const v = localStorage.getItem(LANG_KEY); L.lang = v === 'en' || v === 'ru' ? v : /^en\b/i.test(navigator.language || '') ? 'en' : 'ru'; }
+    catch (err) { console.warn('Language preference unavailable, using Russian', err); }
+    L.apply = (v) => {
+      L.lang = v; root.lang = v;
+      const loc = v === 'ru' ? 'ru-RU' : 'en-GB';
+      L.fmt = { time: new Intl.DateTimeFormat(loc, { hour: '2-digit', minute: '2-digit' }), plural: new Intl.PluralRules(loc) };
+    };
+    L.save = (v) => { try { localStorage.setItem(LANG_KEY, v); } catch (err) { console.warn('Language preference not saved', err); } };
+    L.pl = (n, forms) => { const c = L.fmt.plural.select(n); if (forms.length === 2) return c === 'one' ? forms[0] : forms[1]; return c === 'one' ? forms[0] : c === 'few' ? forms[1] : forms[2]; };
+    L.t = (key, vars = {}) => {
+      const v = table[L.lang][key] ?? table.en[key];
+      if (v == null) { console.warn(`Missing UI string: ${key}`); return key; }
+      if (typeof v === 'function') return v(vars, L.pl, { esc });
+      return v.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? esc(vars[k]) : m));
+    };
+    L.hhmm = (d) => L.fmt.time.format(d);
+    L.apply(L.lang);
+    return L;
+  }
+
+  /* ---------- icons: inline strokes, as in the prototype ---------- */
+  const svg = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  const I = {
+    check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'), x: svg('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'),
+    bang: svg('<path d="M12 6.5v7M12 17.3v.2"/>'), q: svg('<path d="M9.3 9a2.8 2.8 0 015.4 1c0 2-2.7 2.3-2.7 4M12 17.3v.2"/>'),
+    warn: svg('<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.3v.2"/>'),
+    chev: svg('<path d="M9.5 6l6 6-6 6"/>'), back: svg('<path d="M14.5 6l-6 6 6 6"/>'), down: svg('<path d="M6 9.5l6 6 6-6"/>'),
+    plus: svg('<path d="M12 5.5v13M5.5 12h13"/>'), minus: svg('<path d="M6 12h12"/>'),
+    gear: svg('<circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M20.5 12h-2.2M5.7 12H3.5M18 6l-1.6 1.6M7.6 16.4L6 18M18 18l-1.6-1.6M7.6 7.6L6 6"/>'),
+    ext: svg('<path d="M14 4.5h5.5V10M19.5 4.5L11 13M17 13.5v5a1 1 0 01-1 1H5.5a1 1 0 01-1-1V8a1 1 0 011-1h5"/>'),
+    copy: svg('<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V5.5a1 1 0 00-1-1h-9a1 1 0 00-1 1v9a1 1 0 001 1h3"/>'),
+    inbox: svg('<path d="M4 13.5L6.5 5h11l2.5 8.5V19H4z"/><path d="M4 13.5h5l1 2h4l1-2h5"/>'),
+    grid: svg('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'),
+    search: svg('<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>'),
+    chat: svg('<path d="M4.5 5.5h15v10h-9l-6 4z"/>'),
+    board: svg('<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M15 4.5v15"/>'),
+    stack: svg('<path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/>'),
+    archive: svg('<rect x="3.5" y="4.5" width="17" height="4.5" rx="1"/><path d="M5 9v10.5h14V9M10 13h4"/>'),
+    link: svg('<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/>'),
+    lock: svg('<rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/>'),
+    wifi: svg('<path d="M3.5 9.5a12 12 0 0117 0M6.5 12.8a7.5 7.5 0 0111 0M9.5 16a3 3 0 015 0"/><path d="M4 4l16 16"/>'),
+    pause: svg('<path d="M9 6v12M15 6v12"/>'),
+    play: svg('<path d="M8 5.5v13l10.5-6.5z"/>'),
+    refresh: svg('<path d="M19.5 12a7.5 7.5 0 11-2.2-5.3"/><path d="M19.5 4.5v4.5H15"/>'),
+    sliders: svg('<path d="M5 7h8M17 7h2M5 17h2M11 17h8"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'),
+    clock: svg('<circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/>'),
+    key: svg('<circle cx="8" cy="15" r="3.5"/><path d="M10.5 12.5l8-8M16 7l2.5 2.5M14 9l2 2"/>'),
+    mark: '<svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="6" fill="currentColor"/><path d="M7.5 9.5h9M7.5 14.5h5.5" stroke="var(--accent-contrast)" stroke-width="2.2" stroke-linecap="round"/></svg>',
+    bars: '<svg viewBox="0 0 18 12" width="18" height="12" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1" fill="currentColor"/><rect x="5" y="5" width="3" height="7" rx="1" fill="currentColor"/><rect x="10" y="2.5" width="3" height="9.5" rx="1" fill="currentColor"/><rect x="15" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg>',
+    battery: '<svg viewBox="0 0 27 13" width="27" height="13" aria-hidden="true"><rect x=".5" y=".5" width="23" height="12" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="18" height="9" rx="2" fill="currentColor"/><rect x="24.5" y="4.5" width="2" height="4" rx="1" fill="currentColor" opacity=".4"/></svg>',
+  };
+  const dots = '<span class="typing" aria-hidden="true"><i></i><i></i><i></i></span>';
+
+  /* ---------- page chrome: layout, theme, motion and language controls ---------- */
+  // `onLang(value)` re-renders the page's apps; `title` is the document title prefix ("Team Console · #24").
+  function page({ L, title, onLang }) {
+    const stage = document.querySelector('.stage');
+    const macFrame = document.querySelector('.mac-frame');
+    function fit() {
+      const W = stage.clientWidth - 48; const view = stage.dataset.view; let z = 1;
+      if (view === 'mac') { z = Math.min(1, W / 1182); stage.dataset.layout = 'stack'; }
+      else if (view === 'both') {
+        const room = W - 414 - 40;
+        if (room / 1182 >= 0.62) { z = Math.min(1, room / 1182); stage.dataset.layout = 'row'; } else { z = Math.min(1, W / 1182); stage.dataset.layout = 'stack'; }
+      }
+      macFrame.style.zoom = String(Math.max(z, 0.3));
+    }
+    function translatePage() {
+      document.querySelectorAll('[data-i18n]').forEach((el) => { el.innerHTML = L.t(el.dataset.i18n); });
+      document.querySelectorAll('[data-i18n-aria]').forEach((el) => el.setAttribute('aria-label', plain(L.t(el.dataset.i18nAria))));
+      document.title = `${title} · ${plain(L.t('page.title'))}`;
+    }
+    function setControl(ctrl, val) {
+      if (ctrl === 'view') { stage.dataset.view = val; fit(); }
+      if (ctrl === 'theme') { if (val === 'auto') delete root.dataset.theme; else root.dataset.theme = val; }
+      if (ctrl === 'motion') { if (val === 'system') delete root.dataset.motion; else root.dataset.motion = val; }
+      if (ctrl === 'lang' && val !== L.lang) { L.save(val); L.apply(val); translatePage(); onLang(val); }
+      document.querySelectorAll(`[data-control="${ctrl}"] button`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === val)));
+    }
+    document.querySelectorAll('[data-control]').forEach((g) => g.addEventListener('click', (e) => { const b = e.target.closest('button[data-value]'); if (b) setControl(g.dataset.control, b.dataset.value); }));
+    const small = matchMedia('(max-width: 520px)').matches;
+    translatePage();
+    setControl('view', small ? 'phone' : 'both');
+    setControl('theme', 'auto');
+    setControl('motion', 'system');
+    setControl('lang', L.lang);
+    document.querySelectorAll('[data-control=lang] button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === L.lang)));
+    addEventListener('resize', fit);
+    return { fit, setControl };
+  }
+
+  return { root, isReduced, cssVar, ms, wait, esc, play, plain, i18n, I, dots, page };
+})();
+
+/* #134 Board on the phone: a lane switcher (tab list) replaces the sideways lane row, so the page under a short
+   lane is not as tall as the longest lane. Design prototype runtime with mock data only (QA's #129 fixture).
+   In the app the switcher belongs to the kit's `tc-lanes` (phone breakpoint only); the widget is unchanged. */
+(() => {
+  'use strict';
+  const { isReduced, cssVar, ms, esc, play, I } = Proto;
+  const L = Proto.i18n(I18N);
+  const { t } = L;
+
+  /* ---------- mock data: GitHub text is rendered through esc() only, as the app interpolates it ---------- */
+  const issue = (number, status, tier, title) => ({ number, status, tier, title });
+  const SPRINT01 = [
+    issue(3, 'done', 'heavy', 'Nx workspace with the Angular PWA shell and FSD boundaries'),
+    issue(4, 'approved', 'standard', 'Bilingual interface (ru, en) from the first component'),
+    issue(5, 'done', 'standard', 'Contract CI: lint, test, build, security'),
+    issue(6, 'done', 'heavy', 'API and hooks Workers skeleton with D1'),
+    issue(7, 'done', 'standard', 'Deploy workflow and step-by-step owner checklist'),
+    issue(8, 'done', 'standard', 'Cloudflare Access JWT verification'),
+    issue(9, 'done', 'standard', 'GitHub client on the console app’s installation tokens (ADR 0003)'),
+    issue(10, 'in-progress', 'standard', 'Owner grammar library and the answer endpoint'),
+    issue(12, 'approved', 'standard', 'GitHub webhook receiver'),
+    issue(13, 'done', 'heavy', 'Design kit, tokens and Storybook (Paper Desk)'),
+    issue(15, 'done', 'standard', 'Project registry API: add, archive, setup status'),
+    issue(16, 'approved', 'standard', 'Questions and cross-project Needs you'),
+    issue(18, 'approved', 'standard', 'Sprint board (read-only)'),
+    issue(21, 'blocked', 'standard', 'Аккаунт Cloudflare и токены для деплоя'),
+    issue(23, 'in-progress', 'heavy', 'Spaces shell: project routing, switcher and restored state'),
+    issue(24, 'blocked', 'standard', 'Settings: GitHub connection and projects'),
+    issue(34, 'done', 'standard', 'UI kit primitives and Storybook (Paper Desk)'),
+    issue(35, 'in-progress', 'standard', 'Read models: inbox, questions, sprint and needs-you'),
+    issue(46, 'blocked', 'standard', 'Переключить GitHub Pages на GitHub Actions'),
+    issue(59, 'done', 'standard', 'Connect GitHub: owner user access token flow (ADR 0003)'),
+  ];
+  const EARLY = [
+    issue(101, 'approved', 'standard', 'Board by sprint: current, next and backlog'),
+    issue(104, 'approved', 'light', 'Sprint request from the chat'),
+    issue(107, 'approved', 'standard', 'Pending sprint request line'),
+    issue(110, 'approved', 'heavy', 'Team commands, part 2: the full status card'),
+    issue(114, 'in-progress', 'standard', 'Team commands, part 1: pause/resume and run now'),
+    issue(134, 'proposed', 'light', 'Board on the phone: lanes row is as tall as the tallest lane'),
+  ];
+  const UNKNOWN = [
+    ...SPRINT01.slice(0, 8),
+    issue(61, 'waiting-for-the-owner-to-decide-on-pricing', 'light', 'Pick the free tier for push notifications'),
+    issue(62, null, 'standard', 'Issue without any status label'),
+  ];
+  const NEXT = [
+    issue(108, 'approved', 'standard', 'Board by sprint: current, next and backlog'),
+    issue(107, 'approved', 'light', 'Sprint request from the chat'),
+    issue(110, 'proposed', 'heavy', 'Team commands, part 2: the full status card'),
+    issue(111, 'proposed', 'standard', 'Owner checklist on the phone'),
+  ];
+  const BACKLOG = [
+    issue(70, null, 'light', 'Offline read of the last board'),
+    issue(71, null, 'standard', 'Search across projects'),
+    issue(72, null, 'standard', 'Weekly digest e-mail'),
+  ];
+  const PULLS = [
+    { number: 45, title: 'chore(devops): publish docs/design to GitHub Pages via Actions' },
+    { number: 40, title: 'docs(design): UX wireframe for #29 team commands' },
+  ];
+
+  // statusColumnsOf() from @console/entities/sprint: core lanes always, others only with an issue, workflow order.
+  const STATUS_ORDER = ['proposed', 'approved', 'in-progress', 'qa', 'blocked', 'done'];
+  const CORE = ['approved', 'in-progress', 'qa', 'done'];
+  const KNOWN = new Set([...STATUS_ORDER, 'none']);
+  const rank = (s) => { const i = STATUS_ORDER.indexOf(s); return i !== -1 ? i : s === 'none' ? STATUS_ORDER.length + 1 : STATUS_ORDER.length; };
+  function columnsOf(issues, core = CORE) {
+    const lanes = new Map(core.map((s) => [s, []]));
+    issues.forEach((x) => { const s = x.status ?? 'none'; if (!lanes.has(s)) lanes.set(s, []); lanes.get(s).push(x); });
+    return [...lanes.entries()].sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
+      .map(([status, list]) => ({ key: status, issues: [...list].sort((a, b) => a.number - b.number) }));
+  }
+  const laneName = (s) => (KNOWN.has(s) ? t(`board.status.${s}`) : s);
+
+  function sections(data) {
+    if (data === 's108') {
+      return [
+        { key: 'cur', title: `Sprint 01 · ${t('p108.current')}`, columns: columnsOf(SPRINT01), issues: SPRINT01 },
+        { key: 'next', title: `Sprint 02 · ${t('p108.next')}`, columns: columnsOf(NEXT, []), issues: NEXT },
+        { key: 'back', title: t('p108.backlog'), columns: columnsOf(BACKLOG, []), issues: BACKLOG },
+      ];
+    }
+    const issues = data === 'early' ? EARLY : data === 'unknown' ? UNKNOWN : SPRINT01;
+    return [{ key: 'cur', title: 'Sprint 01', columns: columnsOf(issues), issues }];
+  }
+
+  const G = { version: 'new', data: 'sprint' };
+  const hosts = [...document.querySelectorAll('[data-app]')];
+
+  /* ---------- one app instance (iPhone or Mac) ---------- */
+  function mountApp(host, kind) {
+    const uid = `${kind}-${Math.random().toString(36).slice(2, 7)}`;
+    // The selected lane per section: kept across refreshes, reset to the default when that lane is gone.
+    if (!host.selected) host.selected = {};
+    const selected = host.selected;
+
+    const rowHTML = (x, withTier) => `<li><a class="bd-row" href="#github" data-act="gh"><span class="bd-row__num">#${x.number}</span><span class="bd-row__title">${esc(x.title)}<span class="sr-only"> ${t('board.opensGitHub')}</span></span>${withTier ? `<span class="tier tier--${x.tier}"><span class="sr-only">${t('board.tierLabel')} </span>${t(`board.tier.${x.tier}`)}</span>` : ''}</a></li>`;
+    const bodyHTML = (col) => (col.issues.length
+      ? `<ul class="bd-list">${col.issues.map((x) => rowHTML(x, true)).join('')}</ul>`
+      : `<p class="bd-empty">${I.check}<span>${t('board.laneEmpty')}</span></p>`);
+    const headHTML = (id, name, count, level, cls = '') => `<div class="bd-lane__head${cls}" role="heading" aria-level="${level}" id="${id}"><span class="bd-lane__title">${esc(name)}</span> <span class="bd-lane__count">${count}</span></div>`;
+    const laneHTML = (sec, col, extra = '') => {
+      const hid = `${uid}-${sec.key}-${col.key}-h`;
+      return `<div class="bd-lane" role="group" aria-labelledby="${hid}"${extra}>${headHTML(hid, laneName(col.key), col.issues.length, 3)}${bodyHTML(col)}</div>`;
+    };
+
+    // Default lane: the first one with issues, else the first.
+    const defaultKey = (cols) => (cols.find((c) => c.issues.length > 0) || cols[0]).key;
+    const selectedOf = (sec) => {
+      const keep = selected[sec.key];
+      return sec.columns.some((c) => c.key === keep) ? keep : defaultKey(sec.columns);
+    };
+
+    function lanesHTML(sec) {
+      const aria = esc(t('board.lanes'));
+      if (kind === 'mac' || sec.columns.length < 2) {
+        return `<div class="bd-lanes bd-lanes--stack" role="group" aria-label="${aria}">${sec.columns.map((c) => laneHTML(sec, c)).join('')}</div>`;
+      }
+      if (G.version === 'old') {
+        return `<div class="bd-lanes bd-lanes--swipe" role="group" aria-label="${aria}" tabindex="0" data-swipe>${sec.columns.map((c) => laneHTML(sec, c)).join('')}</div>`;
+      }
+      const sel = selectedOf(sec);
+      const tabs = sec.columns.map((c) => {
+        const on = c.key === sel; const base = `${uid}-${sec.key}-${c.key}`;
+        return `<button type="button" role="tab" class="lt" id="${base}-tab" aria-controls="${base}-panel" aria-selected="${on}" tabindex="${on ? 0 : -1}" data-key="${esc(c.key)}"><span class="lt__name">${esc(laneName(c.key))}</span> <span class="lt__count">${c.issues.length}</span></button>`;
+      }).join('');
+      const panels = sec.columns.map((c) => {
+        const on = c.key === sel; const base = `${uid}-${sec.key}-${c.key}`;
+        // An empty lane has nothing focusable, so the panel itself takes Tab and reads "Nothing here".
+        return `<div class="bd-panel" role="tabpanel" id="${base}-panel" aria-labelledby="${base}-tab"${c.issues.length ? '' : ' tabindex="0"'}${on ? '' : ' hidden'} data-key="${esc(c.key)}">${headHTML(`${base}-h`, laneName(c.key), c.issues.length, 3, ' sr-only')}${bodyHTML(c)}</div>`;
+      }).join('');
+      return `<div class="bd-lanes bd-lanes--tabs" data-sec="${sec.key}"><div class="lt-list" role="tablist" aria-label="${aria}">${tabs}</div>${panels}</div>`;
+    }
+
+    function boardHTML() {
+      const secs = sections(G.data);
+      const cur = secs[0];
+      const shipped = cur.issues.filter((x) => x.status === 'done').length;
+      const planned = cur.issues.length;
+      const stats = `<dl class="bd-stats"><div><dt>${t('board.stat.done')}</dt><dd>${t('board.stat.doneValue', { shipped, planned })}</dd></div><div><dt>${t('board.stat.stillOpen')}</dt><dd>${planned - shipped}</dd></div><div><dt>${t('board.stat.openPrs')}</dt><dd>${PULLS.length}</dd></div></dl>`;
+      const secHTML = secs.map((sec, i) => {
+        const tid = `${uid}-${sec.key}-t`;
+        const head = i === 0
+          ? `<header class="bd-head"><h2 class="bd-title" id="${tid}">${esc(sec.title)}</h2><span class="demo-pill">${I.clock}${t('board.demoIn')}</span></header>${stats}`
+          : `<header class="bd-head"><h2 class="bd-title bd-title--sub" id="${tid}">${esc(sec.title)}</h2></header>`;
+        return `<section class="bd-sec" aria-labelledby="${tid}">${head}${lanesHTML(sec)}</section>`;
+      }).join('');
+      const pulls = `<div class="bd-lane bd-pulls" role="group" aria-labelledby="${uid}-pulls">${headHTML(`${uid}-pulls`, t('board.pulls'), PULLS.length, 2)}<ul class="bd-list">${PULLS.map((x) => rowHTML(x, false)).join('')}</ul></div>`;
+      const note = G.data === 's108' ? `<p class="bd-note">${t('p108.note')}</p>` : '';
+      return `<div class="bd">${note}${secHTML}${pulls}</div>`;
+    }
+
+    const navItems = [['inbox', 'questions'], ['chat', 'chat'], ['board', 'board'], ['stack', 'artifacts'], ['play', 'demo']];
+    if (kind === 'phone') {
+      host.innerHTML = `<div class="p-status" aria-hidden="true"><span>9:41</span><span class="p-island"></span><span class="p-status__icons">${I.bars}${I.battery}</span></div>
+        <header class="p-head bd-top"><button type="button" class="bd-proj" aria-label="${esc(t('nav.switch', { name: 'team-console' }))}" aria-haspopup="dialog">team-console${I.down}</button><button type="button" class="bd-icon" aria-label="${esc(t('nav.settings'))}">${I.gear}</button></header>
+        <div class="bd-scroll" data-slot="board">${boardHTML()}</div>
+        <nav class="tabs bd-tabs" aria-label="${esc(t('nav.sections'))}">${navItems.map(([ico, key]) => `<button type="button"${key === 'board' ? ' aria-current="page"' : ''}>${I[ico]}<span>${t(`nav.${key}`)}</span></button>`).join('')}</nav>
+        <div class="home-ind" aria-hidden="true"></div>`;
+    } else {
+      host.innerHTML = `<div class="win"><div class="win__bar"><span class="lights" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title">Team Console</span></div>
+        <div class="win__body">
+          <nav class="sidebar" aria-label="${esc(t('nav.projects'))}"><div class="brand">${I.mark}<span>${t('nav.app')}</span></div>
+            <ul class="side-list side-list--top"><li><button type="button" class="side-item">${I.inbox}<span>${t('nav.waiting')}</span></button></li><li><button type="button" class="side-item">${I.grid}<span>${t('nav.all')}</span></button></li></ul>
+            <div class="side-label">${t('nav.projects')}</div>
+            <ul class="side-list">${['ghost', 'private-product', 'team-console'].map((p) => `<li><button type="button" class="side-item"${p === 'team-console' ? ' aria-current="true"' : ''}><span class="side-prod__label">${p}</span></button></li>`).join('')}</ul></nav>
+          <section class="convo bd-mac"><header class="convo__head"><div class="convo__title"><h1 class="bd-mac__name">team-console</h1></div>
+            <nav class="bd-seg" aria-label="${esc(t('nav.sections'))}">${navItems.map(([ico, key]) => `<button type="button"${key === 'board' ? ' aria-current="page"' : ''}>${I[ico]}<span>${t(`nav.${key}`)}</span></button>`).join('')}</nav></header>
+            <div class="bd-scroll" data-slot="board">${boardHTML()}</div></section>
+        </div></div>`;
+    }
+
+    function select(list, tab, moveFocus) {
+      const wrap = list.closest('.bd-lanes--tabs');
+      const tabs = [...list.querySelectorAll('[role=tab]')];
+      const from = tabs.findIndex((x) => x.getAttribute('aria-selected') === 'true');
+      const to = tabs.indexOf(tab);
+      if (moveFocus) tab.focus();
+      if (to === from) return;
+      tabs.forEach((x, i) => { x.setAttribute('aria-selected', String(i === to)); x.tabIndex = i === to ? 0 : -1; });
+      const panels = [...wrap.querySelectorAll('[role=tabpanel]')];
+      panels.forEach((p, i) => { p.hidden = i !== to; });
+      host.selected[wrap.dataset.sec] = tab.dataset.key;
+      // Enter from the side the owner moved towards; reduced motion fades only.
+      const dir = to > from ? 1 : -1;
+      const frames = isReduced()
+        ? [{ opacity: 0 }, { opacity: 1 }]
+        : [{ opacity: 0, transform: `translateX(${dir * 8}px)` }, { opacity: 1, transform: 'none' }];
+      play(panels[to], frames, { duration: ms(isReduced() ? '--dur-fade' : '--dur-fast'), easing: cssVar('--ease-enter') });
+    }
+
+    if (host.wired) return;
+    host.wired = true;
+    host.addEventListener('click', (e) => {
+      const tab = e.target.closest('[role=tab]');
+      if (tab) { select(tab.parentElement, tab, false); return; }
+      if (e.target.closest('a[data-act=gh]')) e.preventDefault();
+    });
+    // Tabs pattern (WAI-ARIA APG), automatic activation: the panels are already rendered, switching is free.
+    host.addEventListener('keydown', (e) => {
+      const tab = e.target.closest('[role=tab]');
+      if (tab) {
+        const tabs = [...tab.parentElement.querySelectorAll('[role=tab]')];
+        const i = tabs.indexOf(tab); let j = null;
+        if (e.key === 'ArrowRight') j = (i + 1) % tabs.length;
+        if (e.key === 'ArrowLeft') j = (i - 1 + tabs.length) % tabs.length;
+        if (e.key === 'Home') j = 0;
+        if (e.key === 'End') j = tabs.length - 1;
+        if (j !== null) { e.preventDefault(); select(tab.parentElement, tabs[j], true); }
+        return;
+      }
+      // Today's row: arrow keys scroll it by one lane, as the app's focusable scroll container does.
+      const row = e.target.closest('[data-swipe]');
+      if (row && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+        e.preventDefault();
+        row.scrollBy({ left: (e.key === 'ArrowRight' ? 1 : -1) * row.clientWidth * 0.82, behavior: isReduced() ? 'auto' : 'smooth' });
+      }
+    });
+  }
+
+  /* ---------- page controls ---------- */
+  const mountAll = () => hosts.forEach((h) => { h.className = 'app'; mountApp(h, h.dataset.app); });
+  const pageChrome = Proto.page({ L, title: 'Team Console · #134', onLang: mountAll });
+  const sel = (id) => document.getElementById(id);
+  const syncDemo = () => { sel('d-version').value = G.version; sel('d-data').value = G.data; };
+  sel('d-version').addEventListener('change', (e) => { G.version = e.target.value; mountAll(); });
+  sel('d-data').addEventListener('change', (e) => { G.data = e.target.value; mountAll(); });
+  document.querySelector('[data-reset]').addEventListener('click', () => {
+    G.version = 'new'; G.data = 'sprint'; hosts.forEach((h) => { h.selected = {}; }); syncDemo(); mountAll();
+  });
+  mountAll();
+  syncDemo();
+  pageChrome.fit();
+})();
+
+</script>
+</body>
+</html>
