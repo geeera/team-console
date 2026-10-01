@@ -89,6 +89,12 @@ describe('apps/hooks (public, ADR 0003 decision 8)', () => {
   it('is deployed without any GitHub App var', () => {
     expect(deployStep('Deploy hooks Worker')).not.toMatch(HOOKS_FORBIDDEN);
   });
+
+  it('is deployed with the VAPID public key from vars.VAPID_PUBLIC_KEY (#12 sends pushes)', () => {
+    expect(deployStep('Deploy hooks Worker')).toContain(
+      '--var VAPID_PUBLIC_KEY:${{ vars.VAPID_PUBLIC_KEY }}',
+    );
+  });
 });
 
 describe('.github/workflows/deploy.yml', () => {

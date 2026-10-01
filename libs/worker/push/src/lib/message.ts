@@ -29,7 +29,7 @@ export interface PushNotification {
 }
 
 export class InvalidPushTargetError extends Error {
-  constructor(what: 'slug' | 'number') {
+  constructor(what: 'slug' | 'number' | 'url') {
     super(`a push target needs a valid project ${what}`);
     this.name = 'InvalidPushTargetError';
   }
@@ -38,14 +38,20 @@ export class InvalidPushTargetError extends Error {
 // Bidi marks, overrides and isolates are dropped: they can make the text read differently from what it is.
 const BIDI = /[؜‎‏‪-‮⁦-⁩]/g;
 
+// Invisible characters that let a title hide or smuggle text (security review of #165): zero-width space, joiners
+// and the LRM/RLM marks, word joiner and invisible operators, the BOM, and the Unicode tag block.
+const INVISIBLE = /[\u200B-\u200F\u2060-\u2064\uFEFF]|\u{E0000}|[\u{E0001}-\u{E007F}]/gu;
+
 function isControl(char: string): boolean {
   const code = char.charCodeAt(0);
   return code < 0x20 || (code >= 0x7f && code <= 0x9f);
 }
 
-/** One line of plain text for a lock screen: no controls, no bidi tricks, at most 120 characters. */
+/** One line of plain text for a lock screen: no controls, no bidi tricks, no invisibles, at most 120 characters. */
 export function cleanPushText(text: string): string {
-  const spaced = [...text.replace(BIDI, '')].map((char) => (isControl(char) ? ' ' : char)).join('');
+  const spaced = [...text.replace(BIDI, '').replace(INVISIBLE, '')]
+    .map((char) => (isControl(char) ? ' ' : char))
+    .join('');
   const flat = spaced.replace(/\s+/g, ' ').trim();
   const chars = [...flat];
   return chars.length <= PUSH_TEXT_MAX_LENGTH ? flat : `${chars.slice(0, PUSH_TEXT_MAX_LENGTH - 1).join('').trimEnd()}…`;
@@ -105,6 +111,29 @@ export function questionNotification(input: QuestionPushInput): PushNotification
     `p/${input.slug}/questions/${String(input.number)}`,
     url,
   );
+}
+
+/** A same-origin path, optionally with a digits-only fragment: never another origin, scheme or query. */
+const SAME_ORIGIN_PATH = /^\/[a-z0-9-]+(?:\/[a-z0-9-]+)*(?:#[0-9]+)?$/;
+
+export interface LinkNotificationInput {
+  readonly language: PushLanguage;
+  /** May carry untrusted text; cleaned like every notification text. */
+  readonly title: string;
+  readonly body: string;
+  /** A path the caller built from trusted parts, e.g. `/p/{slug}/board`. */
+  readonly url: string;
+}
+
+/**
+ * Any other notification of the hooks Worker (#12): PM replied, team paused, release ready, deploy failed, access
+ * lost. The tag is the url, so a repeat of the same event replaces the earlier notification on the device.
+ */
+export function linkNotification(input: LinkNotificationInput): PushNotification {
+  if (!SAME_ORIGIN_PATH.test(input.url)) {
+    throw new InvalidPushTargetError('url');
+  }
+  return notification(input.language, input.title, input.body, input.url, input.url);
 }
 
 /** "Send a test" from Settings (#36): fixed text, opens Needs you. */

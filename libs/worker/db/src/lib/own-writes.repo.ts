@@ -77,6 +77,15 @@ export class OwnWritesRepo {
     return row === null ? null : toOwnWrite(row);
   }
 
+  /** Whether the console wrote this comment (#12's own-write filter); GitHub comment ids are global. */
+  async isOwnComment(commentId: number): Promise<boolean> {
+    const row = await this.db
+      .prepare('SELECT 1 AS found FROM own_writes WHERE comment_id = ?1')
+      .bind(commentId)
+      .first<{ found: number }>();
+    return row !== null;
+  }
+
   /** Takes the in-flight claim on `bodyHash` unless another request holds one that has not expired. */
   async claim(bodyHash: string, nowMs: number, holdMs: number): Promise<boolean> {
     const result = await this.db

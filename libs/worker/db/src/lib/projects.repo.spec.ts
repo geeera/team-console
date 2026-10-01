@@ -177,6 +177,72 @@ describe('ProjectsRepo writes (#15)', () => {
   });
 });
 
+describe('ProjectsRepo webhook writes (#12)', () => {
+  const repo = new ProjectsRepo(env.DB);
+
+  async function accessLostAt(slug: string): Promise<string | null | undefined> {
+    const row = await env.DB.prepare('SELECT access_lost_at FROM projects WHERE slug = ?1')
+      .bind(slug)
+      .first<{ access_lost_at: string | null }>();
+    return row?.access_lost_at;
+  }
+
+  beforeEach(async () => {
+    await env.DB.prepare('DELETE FROM projects').run();
+    for (const [slug, installationId] of [
+      ['h-one', 2001],
+      ['h-two', 2001],
+      ['h-other', 2002],
+    ] as const) {
+      await repo.create({
+        slug,
+        repo: `acme/${slug}`,
+        displayName: slug,
+        installationId,
+        addedAt: '2026-10-01T00:00:00Z',
+      });
+    }
+  });
+
+  it('bumps the cache epoch of one project', async () => {
+    await repo.bumpCacheEpoch('h-one');
+    await repo.bumpCacheEpoch('h-one');
+    await expect(repo.findActiveBySlug('h-one')).resolves.toMatchObject({ cache_epoch: 2 });
+    await expect(repo.findActiveBySlug('h-two')).resolves.toMatchObject({ cache_epoch: 0 });
+  });
+
+  it('marks access lost by repository (any case) and installation, once', async () => {
+    const changed = await repo.markAccessLost('ACME/H-One', 2001, '2026-10-01T10:00:00Z');
+    expect(changed.map((row) => row.slug)).toEqual(['h-one']);
+    expect(await accessLostAt('h-one')).toBe('2026-10-01T10:00:00Z');
+
+    await expect(repo.markAccessLost('acme/h-one', 2001, '2026-10-01T11:00:00Z')).resolves.toEqual([]);
+    expect(await accessLostAt('h-one')).toBe('2026-10-01T10:00:00Z');
+  });
+
+  it('does not mark a project of another installation or an archived one', async () => {
+    await expect(repo.markAccessLost('acme/h-other', 2001, '2026-10-01T10:00:00Z')).resolves.toEqual([]);
+    await repo.archive('h-two', '2026-10-01T09:00:00Z');
+    await expect(repo.markAccessLost('acme/h-two', 2001, '2026-10-01T10:00:00Z')).resolves.toEqual([]);
+    expect(await accessLostAt('h-other')).toBeNull();
+    expect(await accessLostAt('h-two')).toBeNull();
+  });
+
+  it('marks every active project of a deleted installation', async () => {
+    const changed = await repo.markInstallationLost(2001, '2026-10-01T10:00:00Z');
+    expect(changed.map((row) => row.slug).sort()).toEqual(['h-one', 'h-two']);
+    expect(await accessLostAt('h-other')).toBeNull();
+  });
+
+  it('clears access lost for the same installation only', async () => {
+    await repo.markAccessLost('acme/h-one', 2001, '2026-10-01T10:00:00Z');
+    await expect(repo.clearAccessLost('acme/h-one', 2002)).resolves.toEqual([]);
+    const cleared = await repo.clearAccessLost('Acme/h-one', 2001);
+    expect(cleared.map((row) => row.slug)).toEqual(['h-one']);
+    expect(await accessLostAt('h-one')).toBeNull();
+  });
+});
+
 describe('toProjectDto', () => {
   it('exposes only the client-facing fields (no cache epoch, no installation id)', () => {
     expect(
