@@ -15,6 +15,7 @@ import {
   type IssueRecord,
 } from './github-records';
 import { buildInbox, buildQuestions } from './inbox';
+import { buildOverviewRow } from './overview';
 import { parseProjectConfig } from './project-config';
 import { buildSprint, pickCurrentSprint } from './sprint';
 
@@ -171,6 +172,42 @@ describe.each(CASES)('golden: %s', (_name, fixture, expected) => {
       carriedOver: expected.sprint.carriedOver,
       byTier: expected.sprint.byTier,
     });
+  });
+
+  it('fills the overview row (#27) with what backlog sprint current and backlog list --milestone current give', () => {
+    const milestones = fixture.milestones.map((value) => {
+      if (!isGitHubMilestone(value)) {
+        throw new Error('fixture milestone of an unexpected shape');
+      }
+      return milestoneRecordOf(value);
+    });
+    const milestone = pickCurrentSprint(milestones, fixture.today);
+    const row = buildOverviewRow({
+      slug: 'p',
+      name: 'P',
+      team: 'running',
+      inbox: buildInbox({ openIssues, reviewerLogins: config.reviewerLogins, repoFullName: fixture.repo }),
+      sprint: buildSprint({
+        milestone,
+        milestoneIssues:
+          milestone === null ? [] : issues(fixture.milestoneIssues[String(milestone.number)] ?? []),
+        openPullRequests: [],
+      }),
+    });
+
+    expect(row.needsYou).toEqual(expected.inbox.items.map((item) => item.number));
+    expect(row.setup).toBe(expected.inbox.setup);
+    expect(row.sprint).toEqual(
+      expected.sprint.milestone === null
+        ? null
+        : {
+            number: expected.sprint.milestone.number,
+            title: expected.sprint.milestone.title,
+            dueOn: expected.sprint.milestone.dueOn,
+            planned: expected.sprint.planned,
+            shipped: expected.sprint.shipped,
+          },
+    );
   });
 });
 

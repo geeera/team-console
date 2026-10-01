@@ -22,8 +22,8 @@ import {
   type PullRequestRecord,
 } from '@worker/read-models';
 import type { ApiEnv } from '../env';
-import type { ApiGitHub } from '../github';
-import { readProjectYmlFile } from '../projects/repository-checks';
+import type { ApiGitHub, GitHubConnection } from '../github';
+import { readProjectYmlFile, type ProjectYmlFile } from '../projects/repository-checks';
 
 /** Issues, pull requests and milestones change with every team run: 60 s (ADR 0001 decision 22). */
 const LIST_TTL_SECONDS = 60;
@@ -42,6 +42,7 @@ export const LIST_MAX_PAGES = 3;
  *   inbox     = open issues ≤ LIST_MAX_PAGES + project.yml 1           → ≤ 6
  *   questions = open issues ≤ LIST_MAX_PAGES                            → ≤ 5
  *   sprint    = milestones 1 + sprint issues ≤ LIST_MAX_PAGES + pulls 1 → ≤ 7
+ *   current sprint (the overview) = sprint without the pulls             → ≤ 6
  * Reads are shared through the read cache: inbox, questions and "Needs you" read the same `open-issues` entry.
  */
 export class ProjectReads {
@@ -53,6 +54,8 @@ export class ProjectReads {
     private readonly project: ProjectRow,
     private readonly repo: RepoName,
     private readonly now: () => number = () => Date.now(),
+    /** The transport and token minting to read through; the overview passes one that counts its budget. */
+    private readonly connection?: GitHubConnection,
   ) {}
 
   async inbox(): Promise<InboxDto> {
@@ -75,6 +78,13 @@ export class ProjectReads {
     return buildSprint({ milestone, milestoneIssues, openPullRequests });
   }
 
+  /** The current sprint without the repository's pull requests (the overview, #27): one read fewer. */
+  async currentSprint(): Promise<SprintDto> {
+    const milestone = pickCurrentSprint(await this.milestones(), sprintToday(this.now()));
+    const milestoneIssues = milestone === null ? [] : await this.milestoneIssues(milestone.number);
+    return buildSprint({ milestone, milestoneIssues, openPullRequests: [] });
+  }
+
   private cached<T>(type: string, ttlSeconds: number, fill: () => Promise<T>): Promise<T> {
     const key = readCacheKey({
       environment: this.env.ENVIRONMENT,
@@ -87,7 +97,7 @@ export class ProjectReads {
 
   private async connect(): Promise<GitHubClient> {
     this.client ??= (async () => {
-      const { auth, fetch } = await this.github.connect(this.env);
+      const { auth, fetch } = this.connection ?? (await this.github.connect(this.env));
       return new GitHubClient(fetch, auth.tokenSourceFor(this.repo));
     })();
     return this.client;
@@ -142,13 +152,22 @@ export class ProjectReads {
   }
 
   /**
-   * project.yml through the Contents API (never raw.githubusercontent.com, #9 row 1), size-checked from GitHub's
-   * `size` before decoding. A missing file reads as "no reviewers": the setup item stays until it is fixed.
+   * project.yml through the Contents API (never raw.githubusercontent.com, #9 row 1); `null` when there is none.
+   * One read for the config and for the overview's run log, which looks up its pinned issue there (#27).
+   */
+  projectYmlFile(): Promise<ProjectYmlFile | null> {
+    return this.cached('project-yml', CONFIG_TTL_SECONDS, async () =>
+      readProjectYmlFile(await this.connect(), this.repo),
+    );
+  }
+
+  /**
+   * The config, size-checked from GitHub's `size` before decoding. A missing file reads as "no reviewers": the setup
+   * item stays until it is fixed.
    */
   private config(): Promise<ProjectConfig> {
     return this.cached('project-config', CONFIG_TTL_SECONDS, async () => {
-      const client = await this.connect();
-      const file = await readProjectYmlFile(client, this.repo);
+      const file = await this.projectYmlFile();
       if (file === null) {
         return { reviewerLogins: [] };
       }

@@ -15,6 +15,7 @@ export { Field, FieldControl } from './lib/field/field';
 export { Icon } from './lib/icon/icon';
 export type { IconName, IconSize } from './lib/icon/icon';
 export { Lane, Lanes } from './lib/lane/lane';
+export { Meter, meterPercent } from './lib/meter/meter';
 export type { LaneHeadingLevel } from './lib/lane/lane';
 export { List, ListRow } from './lib/list/list';
 export { Receipt } from './lib/receipt/receipt';

@@ -2,7 +2,13 @@ export { GitHubAppAuth, INSTALLATION_PERMISSIONS, createAppJwt, importAppPrivate
 export type { GitHubAppAuthOptions, GitHubAppCredentials } from './lib/app-auth';
 export { GitHubClient } from './lib/client';
 export type { JsonGuard, PaginateOptions } from './lib/client';
-export { GitHubError, mapGitHubResponse, ownerMismatchError, ownerNotConnectedError } from './lib/errors';
+export {
+  GitHubError,
+  mapGitHubResponse,
+  ownerMismatchError,
+  ownerNotConnectedError,
+  requestBudgetError,
+} from './lib/errors';
 export type { GitHubProblem, GitHubProblemType } from './lib/errors';
 export { githubPath } from './lib/github-path';
 export type { GitHubPath, GitHubPathValue } from './lib/github-path';

@@ -1,5 +1,5 @@
 import { json, scriptedGitHub } from '../testing/github-kit';
-import { GitHubError } from './errors';
+import { GitHubError, requestBudgetError } from './errors';
 import { githubPath } from './github-path';
 import { githubRequest, onGitHubApi } from './transport';
 
@@ -154,6 +154,16 @@ describe('githubRequest', () => {
     expect(error.problem).toMatchObject({ type: 'github-unavailable', status: 502 });
     expect(error.githubStatus).toBeNull();
     expect(JSON.stringify({ ...error, message: error.message, stack: error.stack })).not.toContain(BEARER);
+  });
+
+  it('passes on a GitHub problem the transport raised before sending (a request budget)', async () => {
+    const github = scriptedGitHub(() => {
+      throw requestBudgetError();
+    });
+    const error = await problemOf(
+      githubRequest(github.fetch, { method: 'GET', path: githubPath`/x`, bearer: BEARER }),
+    );
+    expect(error.problem.type).toBe('github-request-budget');
   });
 });
 
