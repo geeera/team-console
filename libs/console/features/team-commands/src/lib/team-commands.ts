@@ -220,6 +220,7 @@ export class TeamCommands {
       'github-rate-limited': t('commands.error.githubRate', { time: retryAt }),
       'not-connected': t('commands.error.connect'),
       'no-run-log': t('commands.error.noLog'),
+      'pause-unreliable': t('commands.error.pauseUnreliable'),
       offline: t('commands.error.offline'),
     };
     return new ConfirmFailure(messages[failure.kind] ?? t('commands.error.unknown'));

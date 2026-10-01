@@ -245,6 +245,19 @@ export function createTeamCommandsRoutes(
       logger.info('team command replayed', fields);
       return answer(recent, view.state, true);
     }
+    if (kind === 'pause' && issue.author.toLowerCase() !== repo.owner.toLowerCase()) {
+      // Fail safe (#141): when the team's bot opened the log, the plugin trusts only the bot's markers, so the next
+      // run after an owner /resume can lift a console pause. Until the plugin counts the owner's own markers, a pause
+      // that may not hold is refused here and the owner pauses from the team chat. Resume stays allowed.
+      logger.warn('console pause refused: run log not opened by the owner', fields);
+      return problem(c, {
+        type: 'pause-unreliable',
+        title: 'Pause from the console is not reliable for this project yet',
+        status: 409,
+        detail:
+          'The run log was opened by the team, not by the owner: pause from the team chat (pause skill)',
+      });
+    }
     if (kind === 'pause' && view.paused) {
       return problem(c, {
         type: 'team-already-paused',

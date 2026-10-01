@@ -165,6 +165,21 @@ describe('TeamCommands', () => {
     ]);
   });
 
+  it('pause where the team opened the run log is refused with the way that works (#141)', async () => {
+    await setup();
+    const { outcome } = await answer(
+      commands.pause(TARGET),
+      teamCommandUrl('tc', 'pause'),
+      problem('pause-unreliable', 409),
+      409,
+    );
+    expect(outcome).toBeNull();
+    expect(refusals).toEqual([
+      'Пауза из консоли для этого проекта пока ненадёжна: журнал запусков завела команда, и следующий прогон может снять паузу. Поставь паузу из чата команды (навык pause). Ничего не изменено.',
+    ]);
+    expect(store.status()?.state).toBe('running');
+  });
+
   it('resume after the team paused itself warns to check the run log first', async () => {
     await setup(status({ state: 'paused-by-team' }));
     const { outcome } = await answer(

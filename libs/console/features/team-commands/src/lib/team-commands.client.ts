@@ -33,6 +33,7 @@ export type CommandFailureKind =
   | 'github-rate-limited'
   | 'not-connected'
   | 'no-run-log'
+  | 'pause-unreliable'
   | 'offline'
   | 'unknown';
 
@@ -59,6 +60,7 @@ const BY_PROBLEM: Readonly<Record<string, CommandFailureKind>> = {
   'routine-unavailable': 'service',
   'run-paused': 'run-paused',
   'run-log-missing': 'no-run-log',
+  'pause-unreliable': 'pause-unreliable',
   'github-owner-not-connected': 'not-connected',
   'github-owner-mismatch': 'not-connected',
   'github-rate-limit': 'github-rate-limited',

@@ -95,7 +95,8 @@ export interface RunResponse {
  * `run-paused` (resume first), `run-in-progress` (`runId`, `since`, `until`), `run-requested` (`since`, `until`),
  * `routine-rate-limited` (`Retry-After`), `routine-paused` (switch it on at claude.ai/code/routines),
  * `routine-not-configured` (`step: token | routine`, or `missing: [slots]`), `routine-unavailable`,
- * `routine-unknown` (`until`), `team-already-paused` / `team-not-paused` (nothing changed), `run-log-missing`.
+ * `routine-unknown` (`until`), `team-already-paused` / `team-not-paused` (nothing changed), `run-log-missing`,
+ * `pause-unreliable` (the run log was opened by the team's bot: pause from the team chat, #141).
  */
 export type TeamProblemType =
   | 'run-paused'
@@ -109,4 +110,5 @@ export type TeamProblemType =
   | 'team-already-paused'
   | 'team-not-paused'
   | 'team-command-in-progress'
+  | 'pause-unreliable'
   | 'run-log-missing';

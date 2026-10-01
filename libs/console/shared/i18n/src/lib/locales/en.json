@@ -558,6 +558,7 @@
       "githubRate": "GitHub asks to wait until {{time}}. Nothing changed.",
       "connect": "Connect GitHub in Settings first: pause and resume are written as you. Nothing changed.",
       "noLog": "The team has no run log yet. Nothing changed.",
+      "pauseUnreliable": "Pause from the console isn’t reliable for this project yet: its run log was opened by the team, and the next run could lift the pause. Pause from the team chat instead (the pause skill). Nothing changed.",
       "offline": "You’re offline. The command wasn’t sent.",
       "unknown": "Something went wrong. Nothing changed."
     },

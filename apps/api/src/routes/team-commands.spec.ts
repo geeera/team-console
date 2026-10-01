@@ -4,7 +4,15 @@ import type { FakeGitHubOAuth } from '@worker/github/testing';
 import { FakeRoutines } from '@worker/routines/testing';
 import { pauseCommentBody, resumeCommentBody } from '@worker/run-log';
 import { ApiGitHub } from '../github';
-import { fetchApi } from '../testing/access-kit';
+import {
+  SERVICE_TOKEN_ID,
+  accessEnv,
+  createSigningKey,
+  fetchApi,
+  signAccessToken,
+  stubJwksServer,
+  uniqueTeamDomain,
+} from '../testing/access-kit';
 import {
   TOKEN_SENTINEL,
   json,
@@ -58,14 +66,17 @@ function base64(text: string): string {
   return btoa(String.fromCharCode(...new TextEncoder().encode(text)));
 }
 
-function harness(labels: string[] = ['team:run-log']): Harness {
+const BOT = 'team-console-team[bot]';
+
+/** `author`: who opened the run log — the owner (as on team-console's #22) or the team's bot (#141). */
+function harness(labels: string[] = ['team:run-log'], author: string = OWNER.login): Harness {
   const h = { logs: [], texts: [], clock: Date.parse('2026-10-01T12:00:00.000Z') } as unknown as Harness;
   const fake = fakeGitHub({ tokenTag: 'TESTSENTINEL', now: () => h.clock });
   fake.seedIssue({
     repo: REPO,
     number: LOG,
     title: 'Team run log',
-    author: OWNER.login,
+    author,
     labels,
     repoOwner: OWNER,
   });
@@ -288,6 +299,73 @@ describe('POST /team/pause and /team/resume', () => {
     const response = await call(h, 'POST', '/team/pause', body);
     expect(response.status).toBe(422);
     expect(h.calls).toHaveLength(0);
+  });
+});
+
+describe('a run log the team bot opened (#141: fail safe until the plugin counts the owner markers)', () => {
+  it('refuses a console pause with 409 pause-unreliable and writes nothing', async () => {
+    const h = harness(['team:run-log'], BOT);
+    await seedConnection(h.fake, { nowMs: h.clock });
+    await expect(status(h)).resolves.toMatchObject({ state: 'running' });
+
+    const response = await call(h, 'POST', '/team/pause', { reason: 'vacation' });
+    expect(response.status).toBe(409);
+    await expect(slugOf(response)).resolves.toMatchObject({ slug: 'pause-unreliable' });
+    expect(ownerWrites(h)).toEqual([]);
+    expect(h.fake.labelsOf(REPO, LOG)).not.toContain('team:paused');
+  });
+
+  it('still allows resume, written like `runlog resume`', async () => {
+    const h = harness(['team:run-log', 'team:paused'], BOT);
+    await seedConnection(h.fake, { nowMs: h.clock });
+    await expect(status(h)).resolves.toMatchObject({ state: 'paused-by-team' });
+
+    const response = await call(h, 'POST', '/team/resume');
+    expect(response.status).toBe(201);
+    expect(ownerWrites(h)).toEqual([
+      'DELETE /labels/team%3Apaused ',
+      `POST /comments ${JSON.stringify({ body: resumeCommentBody(h.clock) })}`,
+    ]);
+  });
+
+  it('an owner-opened log pauses as before', async () => {
+    const h = harness();
+    await seedConnection(h.fake, { nowMs: h.clock });
+    expect((await call(h, 'POST', '/team/pause', {})).status).toBe(201);
+    expect(h.fake.labelsOf(REPO, LOG)).toContain('team:paused');
+  });
+});
+
+describe('the Access service identity (#114 grooming: owner-only)', () => {
+  it.each([
+    ['/team/pause', { reason: 'x' }],
+    ['/team/resume', {}],
+    ['/runs', { slot: 'dev' }],
+  ])('POST %s answers 403 owner-only; nothing read, written or fired', async (path, body) => {
+    const h = harness(['team:run-log', 'team:paused']);
+    await seedConnection(h.fake, { nowMs: h.clock });
+    const jwks = stubJwksServer();
+    const teamDomain = uniqueTeamDomain();
+    const key = await createSigningKey();
+    jwks.set(teamDomain, { keys: [key.publicJwk] });
+    const token = await signAccessToken(key, teamDomain, {
+      claims: { email: undefined, common_name: SERVICE_TOKEN_ID },
+    });
+    const response = await fetchApi(
+      `/api/v1/projects/tc${path}`,
+      accessEnv(teamDomain, { ...SECRETS, ENVIRONMENT: 'dev' }),
+      {
+        method: 'POST',
+        headers: { ...WRITE_HEADERS, 'Cf-Access-Jwt-Assertion': token },
+        body: JSON.stringify(body),
+        github: h.github,
+        routinesFetch: h.routines.fetch,
+      },
+    );
+    expect(response.status).toBe(403);
+    await expect(slugOf(response)).resolves.toMatchObject({ slug: 'owner-only' });
+    expect(h.calls).toEqual([]);
+    expect(h.routines.fires).toEqual([]);
   });
 });
 
