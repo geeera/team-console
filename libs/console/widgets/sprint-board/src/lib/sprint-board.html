@@ -6,7 +6,7 @@
   data-testid="load-error"
   [attr.data-failure]="failed.failure"
   [title]="'board.error.' + failed.failure + '.title' | transloco"
-  [description]="'board.error.' + failed.failure + '.hint' | transloco: { time: retryTime() }"
+  [description]="failureHintKey() | transloco: { time: retryTime() }"
 >
   <button tc-button tc-state-action type="button" (click)="reload()">{{ 'ui.error.retry' | transloco }}</button>
 </tc-state-block>

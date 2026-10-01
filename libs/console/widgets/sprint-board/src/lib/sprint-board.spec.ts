@@ -6,8 +6,16 @@ import { CORE_STATUSES, projectSprintUrl } from '@console/entities/sprint';
 import { provideConsoleI18n, TranslocoService } from '@console/shared/i18n';
 import type { SprintDto, SprintIssueDto } from '@shared/contracts';
 import { readFileSync } from 'node:fs';
+import type { MockInstance } from 'vitest';
 import { resolve } from 'node:path';
-import { SprintBoard, SprintBoardProject } from './sprint-board';
+import {
+  DEFAULT_RETRY_SECONDS,
+  MAX_RETRY_SECONDS,
+  MIN_RETRY_SECONDS,
+  retryDelaySeconds,
+  SprintBoard,
+  SprintBoardProject,
+} from './sprint-board';
 
 // The plugin's own sprint (`backlog list --milestone`, `sprint-metrics`) for real repositories, written by
 // libs/worker/read-models/fixtures/golden.py.
@@ -257,25 +265,136 @@ describe('SprintBoard', () => {
     expect(root.querySelector('h2')?.textContent).toBe('Sprint 01');
   });
 
-  it('on 429 says when GitHub lets it ask again and asks again by itself then', async () => {
-    const { root, settle } = await render();
-    http.expectOne(projectSprintUrl(TC.slug)).flush(
-      { type: 'https://team-console/problems/github-rate-limit', title: 'Rate limited', status: 429 },
-      { status: 429, statusText: 'Too Many Requests', headers: { 'Retry-After': '0' } },
-    );
-    await settle();
+  describe('on 429', () => {
+    const RATE_LIMITED = {
+      type: 'https://team-console/problems/github-rate-limit',
+      title: 'Rate limited',
+      status: 429,
+    };
+    const SECOND = 1000;
+    // Angular and the test settle on 0 ms timers; the board's retry is the only one of a second or more.
+    let setTimeoutSpy: MockInstance<typeof setTimeout>;
+    let clearTimeoutSpy: MockInstance<typeof clearTimeout>;
 
-    // Retry-After: 0 — the automatic retry is already under way.
-    http.expectOne(projectSprintUrl(TC.slug)).flush(
-      { type: 'https://team-console/problems/github-rate-limit', title: 'Rate limited', status: 429 },
-      { status: 429, statusText: 'Too Many Requests', headers: { 'Retry-After': '3600' } },
-    );
-    await settle();
+    beforeEach(() => {
+      setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+      clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
+    });
+    afterEach(() => vi.restoreAllMocks());
 
-    const block = root.querySelector('[data-testid="load-error"]') as HTMLElement;
-    expect(block.getAttribute('data-failure')).toBe('rate-limited');
-    expect(block.textContent).toContain('GitHub просит подождать');
-    expect(block.textContent).toMatch(/Доска сама попробует снова в \d{2}:\d{2}/);
+    function retryTimers(): { readonly delay: number; readonly fire: () => void; readonly handle: unknown }[] {
+      return setTimeoutSpy.mock.calls.flatMap(([callback, delay], index) =>
+        typeof delay === 'number' && delay >= SECOND && typeof callback === 'function'
+          ? [{ delay, fire: () => (callback as () => void)(), handle: setTimeoutSpy.mock.results[index]?.value }]
+          : [],
+      );
+    }
+
+    function rateLimit(retryAfter: string | null): void {
+      const headers: Record<string, string> = retryAfter === null ? {} : { 'Retry-After': retryAfter };
+      http
+        .expectOne(projectSprintUrl(TC.slug))
+        .flush(RATE_LIMITED, { status: 429, statusText: 'Too Many Requests', headers });
+    }
+
+    function pending(): number {
+      return http.match(projectSprintUrl(TC.slug)).length;
+    }
+
+    /** The delay is computed from `Date.now()`, so it can be a few milliseconds short of the full wait. */
+    function expectDelay(delay: number, seconds: number): void {
+      expect(delay).toBeGreaterThan(seconds * SECOND - SECOND);
+      expect(delay).toBeLessThanOrEqual(seconds * SECOND);
+    }
+
+    it('says when it asks again, and does so by itself after Retry-After', async () => {
+      const { root, settle } = await render();
+      rateLimit('42');
+      await settle();
+
+      const block = root.querySelector('[data-testid="load-error"]') as HTMLElement;
+      expect(block.getAttribute('data-failure')).toBe('rate-limited');
+      expect(block.textContent).toContain('GitHub просит подождать');
+      expect(block.textContent).toMatch(/Доска сама попробует снова в \d{2}:\d{2}/);
+      expect(pending()).toBe(0);
+      const timers = retryTimers();
+      expect(timers).toHaveLength(1);
+      expectDelay(timers[0]?.delay ?? 0, 42);
+
+      timers[0]?.fire();
+      await settle();
+      http.expectOne(projectSprintUrl(TC.slug)).flush(sprint());
+      await settle();
+      expect(root.querySelector('h2')?.textContent).toBe('Sprint 01');
+    });
+
+    it('two Retry-After: 0 answers give exactly one automatic retry, at the default wait, then only Retry', async () => {
+      const { root, settle } = await render();
+      rateLimit('0');
+      await settle();
+
+      // 0 is not a usable wait: nothing is asked at once, the one retry waits the default.
+      expect(pending()).toBe(0);
+      expect(retryTimers()).toHaveLength(1);
+      const [first] = retryTimers();
+      expect(first?.delay).toBeGreaterThanOrEqual(MIN_RETRY_SECONDS * SECOND);
+      expectDelay(first?.delay ?? 0, DEFAULT_RETRY_SECONDS);
+
+      first?.fire();
+      await settle();
+      rateLimit('0');
+      await settle();
+
+      expect(retryTimers()).toHaveLength(1);
+      expect(pending()).toBe(0);
+      const block = root.querySelector('[data-testid="load-error"]') as HTMLElement;
+      expect(block.getAttribute('data-failure')).toBe('rate-limited');
+      expect(block.textContent).toContain('Повтори через минуту.');
+      expect(block.textContent).not.toContain('сама попробует');
+
+      // The owner's Retry asks once more and may earn one more automatic retry.
+      (block.querySelector('button') as HTMLButtonElement).click();
+      await settle();
+      rateLimit('10');
+      await settle();
+      expect(retryTimers()).toHaveLength(2);
+      expectDelay(retryTimers()[1]?.delay ?? 0, 10);
+    });
+
+    it('clamps a huge Retry-After to the ceiling instead of overflowing the timer', async () => {
+      const { settle } = await render();
+      rateLimit('99999999999');
+      await settle();
+
+      expect(pending()).toBe(0);
+      const timers = retryTimers();
+      expect(timers).toHaveLength(1);
+      expectDelay(timers[0]?.delay ?? 0, MAX_RETRY_SECONDS);
+    });
+
+    it('drops its retry timer when the board is destroyed', async () => {
+      const { fixture, settle } = await render();
+      rateLimit('42');
+      await settle();
+      const [timer] = retryTimers();
+
+      fixture.destroy();
+
+      expect(clearTimeoutSpy).toHaveBeenCalledWith(timer?.handle);
+    });
+  });
+
+  it.each([
+    [null, DEFAULT_RETRY_SECONDS],
+    [0, DEFAULT_RETRY_SECONDS],
+    [-3, DEFAULT_RETRY_SECONDS],
+    [Number.NaN, DEFAULT_RETRY_SECONDS],
+    [Number.POSITIVE_INFINITY, DEFAULT_RETRY_SECONDS],
+    [1, MIN_RETRY_SECONDS],
+    [42, 42],
+    [99999999999, MAX_RETRY_SECONDS],
+  ])('waits a bounded time for Retry-After %s: %s s', (retryAfter, seconds) => {
+    expect(retryDelaySeconds(retryAfter)).toBe(seconds);
   });
 
   it.each([

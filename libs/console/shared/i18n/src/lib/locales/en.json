@@ -196,7 +196,8 @@
       },
       "rate-limited": {
         "title": "GitHub asks to wait",
-        "hint": "The board tries again by itself at {{time}}."
+        "hint": "The board tries again by itself at {{time}}.",
+        "hintManual": "Retry in a minute."
       },
       "not-installed": {
         "title": "The console app is not installed on the repository",

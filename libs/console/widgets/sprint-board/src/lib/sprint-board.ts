@@ -33,15 +33,31 @@ import {
 } from '@console/shared/i18n';
 import { Button, Chip, Icon, Lane, Lanes, Stat, Stats, StateBlock } from '@console/shared/ui';
 
-/** Without a usable `Retry-After` on a 429, the board waits this long before it asks again. */
+/** Without a usable `Retry-After` on a 429 (missing, invalid or 0), the board waits this long before it asks again. */
 export const DEFAULT_RETRY_SECONDS = 60;
+/** Bounds on the automatic retry: never a tight loop, never past `setTimeout`'s range or an hour. */
+export const MIN_RETRY_SECONDS = 5;
+export const MAX_RETRY_SECONDS = 3600;
+
+/** The wait before the automatic retry, from the 429's `Retry-After` seconds. */
+export function retryDelaySeconds(retryAfter: number | null): number {
+  if (retryAfter === null || !Number.isFinite(retryAfter) || retryAfter <= 0) {
+    return DEFAULT_RETRY_SECONDS;
+  }
+  return Math.min(MAX_RETRY_SECONDS, Math.max(MIN_RETRY_SECONDS, retryAfter));
+}
 
 export type BoardFailure = 'rate-limited' | 'not-installed' | 'offline' | 'unavailable';
 
 type BoardState =
   | { readonly kind: 'loading' }
   | { readonly kind: 'ready'; readonly board: SprintBoardModel }
-  | { readonly kind: 'failed'; readonly failure: BoardFailure; readonly retryAt: number | null };
+  | {
+      readonly kind: 'failed';
+      readonly failure: BoardFailure;
+      /** When the automatic retry fires; `null` when none is scheduled (then only Retry is offered). */
+      readonly retryAt: number | null;
+    };
 
 /** The project the board reads; the slug picks the read model, the name is for copy only. */
 export interface SprintBoardProject {
@@ -109,6 +125,16 @@ export class SprintBoard {
     return this.transloco.translate('board.demo', { date });
   });
 
+  /** A 429 without a scheduled retry must not promise one. */
+  protected readonly failureHintKey = computed(() => {
+    const failed = this.failure();
+    if (failed === null) {
+      return '';
+    }
+    const manual = failed.failure === 'rate-limited' && failed.retryAt === null;
+    return `board.error.${failed.failure}.${manual ? 'hintManual' : 'hint'}`;
+  });
+
   protected readonly retryTime = computed(() => {
     const retryAt = this.failure()?.retryAt ?? null;
     return retryAt === null ? '' : localTimeOf(retryAt, this.lang());
@@ -119,7 +145,7 @@ export class SprintBoard {
       const slug = this.project().slug;
       untracked(() => {
         this.state.set({ kind: 'loading' });
-        void this.load(slug);
+        void this.load(slug, true);
       });
     });
     inject(DestroyRef).onDestroy(() => {
@@ -128,9 +154,9 @@ export class SprintBoard {
     });
   }
 
+  /** Retry: the owner's action, so it may earn one more automatic retry. */
   async reload(): Promise<void> {
-    this.state.set({ kind: 'loading' });
-    await this.load(this.project().slug);
+    await this.retry(true);
   }
 
   protected laneName(status: string): string {
@@ -139,7 +165,13 @@ export class SprintBoard {
     return KNOWN_STATUSES.has(status) ? this.transloco.translate(`board.status.${status}`) : status;
   }
 
-  private async load(slug: string): Promise<void> {
+  private async retry(mayAutoRetry: boolean): Promise<void> {
+    this.state.set({ kind: 'loading' });
+    await this.load(this.project().slug, mayAutoRetry);
+  }
+
+  /** `mayAutoRetry`: a 429 schedules one automatic retry, which itself may not schedule another. */
+  private async load(slug: string, mayAutoRetry: boolean): Promise<void> {
     const token = ++this.loadToken;
     this.clearRetry();
     try {
@@ -152,10 +184,11 @@ export class SprintBoard {
         return;
       }
       const failed = this.failureOf(error);
-      this.state.set({ kind: 'failed', ...failed });
-      if (failed.retryAt !== null) {
-        // GitHub said when; ask again then, once, so the board comes back by itself.
-        this.retryTimer = setTimeout(() => void this.reload(), Math.max(0, failed.retryAt - Date.now()));
+      const retryAt = mayAutoRetry ? failed.retryAt : null;
+      this.state.set({ kind: 'failed', failure: failed.failure, retryAt });
+      if (retryAt !== null) {
+        // At most one automatic retry per load or Retry tap; a second 429 leaves only the Retry button.
+        this.retryTimer = setTimeout(() => void this.retry(false), retryAt - Date.now());
       }
     }
   }
@@ -170,8 +203,10 @@ export class SprintBoard {
     }
     const problem = httpProblemOf(error);
     if (problem.slug === 'github-rate-limit' || problem.status === 429) {
-      const seconds = problem.retryAfterSeconds ?? DEFAULT_RETRY_SECONDS;
-      return { failure: 'rate-limited', retryAt: Date.now() + seconds * 1000 };
+      return {
+        failure: 'rate-limited',
+        retryAt: Date.now() + retryDelaySeconds(problem.retryAfterSeconds) * 1000,
+      };
     }
     if (problem.slug === 'github-app-not-installed') {
       return { failure: 'not-installed', retryAt: null };
