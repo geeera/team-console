@@ -1,0 +1,135 @@
+/* ===== #114 Team commands: pause / resume and Run now, on the Paper Desk tokens (ADR 0002) =====
+   The Commands panel is the Mac detail pane (non-modal, the chat stays usable) and the iPhone bottom sheet.
+   Shared page parts (tokens, buttons, fields, result notes, dialogs, toast) are in kit.css. */
+
+/* ----- entry points ----- */
+.cp-open .ico{width:16px;height:16px}
+.p-head .p-cmd{flex:none;min-height:var(--target);gap:var(--sp-1);padding:0 var(--sp-3)}
+.p-cmd .ico{width:16px;height:16px}
+.btn[aria-expanded=true].cp-open{background:var(--surface);border-color:var(--border-strong);box-shadow:var(--shadow-1)}
+
+/* the paused banner: words first, then the one action */
+.banner-wrap{padding-top:var(--sp-3)}
+.cp-banner{flex-wrap:wrap;row-gap:var(--sp-2)}
+.cp-banner>.ico{flex:none;align-self:flex-start;margin-top:2px}
+.cp-banner>span:first-of-type{flex:1 1 220px}
+.cp-banner__acts{flex:none!important;display:inline-flex;align-items:center;gap:var(--sp-3)}
+.cp-banner .btn{background:var(--surface);border-color:transparent;color:inherit}
+.cp-banner .ext{color:inherit}
+.app[data-app=phone] .cp-banner__acts{flex:1 1 100%!important;justify-content:flex-end}
+.app[data-app=phone] .cp-banner .btn{min-height:var(--target)}
+.p-log{flex:1;min-height:0}
+
+/* ----- the panel ----- */
+.cp{display:flex;flex-direction:column;min-height:0}
+.cp-pane .cp{height:100%}
+.cp-sheet .cp{flex:1}
+.cp__head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);min-height:52px;padding:0 var(--sp-2) 0 var(--sp-5);border-bottom:1px solid var(--border)}
+.cp-sheet .cp__head{border-bottom:0;min-height:var(--target);padding:var(--sp-1) var(--sp-2) 0 var(--sp-5)}
+.cp__title{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight);outline:none;overflow-wrap:anywhere}
+.cp__body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;align-content:start;gap:var(--sp-5);padding:var(--sp-4) var(--sp-5) var(--sp-8)}
+.cp-sheet .cp__body{padding:var(--sp-2) var(--sp-4) var(--sp-10)}
+.cp-kicker{margin:0 0 var(--sp-2);font-size:var(--fs-sm);font-weight:600;font-variant:small-caps;letter-spacing:var(--ls-caps);text-transform:lowercase;color:var(--text-2)}
+
+/* status: the state is a sentence, the dot only repeats it */
+.cp-state{display:grid;gap:var(--sp-1)}
+.cp-state__now{display:flex;align-items:baseline;gap:var(--sp-2);margin:0;font-family:var(--font-display);font-size:var(--fs-lg);line-height:var(--lh-tight)}
+.cp-state__now .sdot{flex:none;margin:0;width:8px;height:8px;align-self:center}
+.cp-state__now--owner .sdot{background:var(--warning-text)}
+.cp-state__now--team{color:var(--danger-text);font-weight:600}
+.cp-state__now--team .ico{align-self:center;width:16px;height:16px}
+.cp-state__meta{display:flex;flex-wrap:wrap;align-items:center;gap:0 var(--sp-3);margin:0;font-size:var(--fs-xs);color:var(--text-2);font-variant-numeric:tabular-nums}
+.cp-refresh{display:inline-flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-xs)}
+.cp-refresh .ico{width:14px;height:14px}
+.cp-refresh[aria-disabled=true]{color:var(--text-3);text-decoration:none;cursor:default}
+.cp-state__meta .ext{font-size:var(--fs-xs);min-height:var(--target)}
+.cp-note{margin:0;max-width:none;align-items:flex-start}
+.cp-note .ico{flex:none;margin-top:2px}
+.cp-note a{color:inherit;font-weight:600}
+.cp-err{padding:var(--sp-4)}
+.cp-err h3{font-size:var(--fs-lg)}
+
+/* command rows: a sheet of rows; the description is the row's text, the button names the action */
+.cmd-list{list-style:none;margin:0;padding:0 var(--sp-4);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.app[data-app=phone] .cmd-list{padding:0 var(--sp-3)}
+.cmd{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:var(--sp-1) var(--sp-3);padding:var(--sp-3) 0;border-top:1px solid var(--border)}
+.cmd:first-child{border-top:0}
+.cmd__txt{display:grid;gap:2px;min-width:0}
+.cmd__title{margin:0;font-weight:600;font-size:var(--fs-md);line-height:var(--lh-tight)}
+.cmd__hint,.cmd__line{margin:0;font-size:var(--fs-sm);color:var(--text-2);line-height:1.4}
+.cmd__line{display:flex;align-items:baseline;gap:var(--sp-2);font-variant-numeric:tabular-nums}
+.cmd__line .ico{flex:none;width:14px;height:14px;align-self:center}
+.cmd__line--unknown{color:var(--warning-text)}
+.cmd__why{display:flex;align-items:flex-start;gap:var(--sp-1);margin:var(--sp-1) 0 0;font-size:var(--fs-sm);font-weight:600;color:var(--text-2)}
+.cmd__why .ico{flex:none;width:14px;height:14px;margin-top:3px}
+.cmd__btn{gap:var(--sp-1)}
+.cmd__btn .ico{width:14px;height:14px}
+.app[data-app=phone] .cmd__btn{min-height:var(--target)}
+/* iPhone: the team row's long verb gets its own full-width line instead of squeezing the description */
+.app[data-app=phone] .cmd--team{grid-template-columns:minmax(0,1fr)}
+.app[data-app=phone] .cmd--team .cmd__btn{width:100%;margin-top:var(--sp-2)}
+/* an off command stays focusable and readable, but no longer looks pressable */
+.cmd__btn[aria-disabled=true],.cmd__btn[aria-disabled=true]:hover{background:none;border-style:dashed;border-color:var(--border-strong);color:var(--text-2)}
+.cmd__btn.btn--primary[aria-disabled=true]{border:1px dashed var(--border-strong)}
+/* a run in progress breathes slowly; still under reduced motion */
+.cmd__live{flex:none;align-self:flex-start;margin-top:.5em;width:var(--sp-2);height:var(--sp-2);border-radius:50%;background:var(--success-text);animation:live var(--dur-pulse) var(--ease-standard) infinite}
+@keyframes live{50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){.cmd__live{animation:none}}
+:root[data-motion=reduce] .cmd__live{animation:none}
+
+/* setup: a to-do in ochre, not an error */
+.cp-setup{display:grid;justify-items:start;gap:var(--sp-2);margin-bottom:var(--sp-3);padding:var(--sp-4);border-radius:var(--r-lg);background:var(--warning-soft);color:var(--warning-text)}
+.cp-setup__head{display:flex;align-items:flex-start;gap:var(--sp-2)}
+.cp-setup__head .ico{flex:none;margin-top:3px}
+.cp-setup h4{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight)}
+.cp-setup>p{margin:0;font-size:var(--fs-sm)}
+.cp-setup .how-btn{color:var(--warning-text);text-decoration:underline;text-underline-offset:.2em}
+.cp-setup .how{background:var(--surface)}
+.cp-steps{margin:0;padding-left:1.3em;display:grid;gap:var(--sp-3)}
+.cp-steps li{padding-left:var(--sp-1)}
+.cp-steps .codeline{margin-top:var(--sp-2)}
+.cp-setup .how .ext{min-height:var(--target)}
+
+/* the result: the kit's receipt (a margin note), toned like the command's outcome */
+.cp .receipt{margin-left:0;outline-offset:var(--sp-1)}
+.cp-res{flex-wrap:nowrap;align-items:flex-start}
+.cp-res .receipt__icon{margin-top:3px}
+.cp-res__main{flex:1;min-width:0;display:grid;gap:var(--sp-1)}
+.cp-res .receipt__body{flex:none}
+.cp-res .receipt__meta{padding-left:0!important}
+.cp-res .receipt__meta .ext{font-family:var(--font-body);font-style:normal}
+.cp-res .receipt__verb{font-weight:var(--fw-display)}
+.cp-res__detail{color:var(--text-2)}
+.cp-res--warning{border-left-color:var(--warning-text)}
+.cp-res--warning .receipt__icon{color:var(--warning-text)}
+.cp-res.is-new{animation:res-in var(--dur-base) var(--ease-enter) both}
+@keyframes res-in{from{opacity:0;transform:translateY(-4px)}}
+@media (prefers-reduced-motion:reduce){.cp-res.is-new{animation:fade var(--dur-fade) linear both}}
+:root[data-motion=reduce] .cp-res.is-new{animation:fade var(--dur-fade) linear both}
+
+/* the iPhone sheet holds the panel; with reduced motion it fades in for 120 ms instead of sliding */
+.cp-sheet{min-height:50%}
+@media (prefers-reduced-motion:reduce){
+  .cp-sheet{transform:none;opacity:0;transition:opacity var(--dur-fade) linear,visibility 0s linear var(--dur-fade)}
+  .cp-sheet.is-open{opacity:1;transition:opacity var(--dur-fade) linear,visibility 0s}
+}
+:root[data-motion=reduce] .cp-sheet{transform:none;opacity:0;transition:opacity var(--dur-fade) linear,visibility 0s linear var(--dur-fade)}
+:root[data-motion=reduce] .cp-sheet.is-open{opacity:1;transition:opacity var(--dur-fade) linear,visibility 0s}
+
+/* ----- confirmation dialogs ----- */
+.cmd-dialog h2{outline:none}
+.cmd-dialog__body{display:grid;gap:var(--sp-2);font-size:var(--fs-sm);color:var(--text-2)}
+.cmd-dialog__body p{margin:0}
+.cmd-dialog__list{margin:0;padding-left:1.2em;display:grid;gap:var(--sp-1)}
+.cmd-dialog__quota{font-size:var(--fs-xs)!important}
+.cmd-dialog__note{padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text)}
+.cmd-dialog__warn{display:flex;align-items:flex-start;gap:var(--sp-2);padding:var(--sp-3);border-radius:var(--r-md);background:var(--danger-soft);color:var(--danger-text);font-weight:600}
+.cmd-dialog__warn .ico{flex:none;margin-top:2px}
+.cmd-dialog__warn .ext{color:inherit}
+.cmd-dialog .field__input{font-family:var(--font-body)}
+.cmd-dialog .btn--primary .typing{padding:0}
+.cmd-dialog .btn--primary .typing i{background:currentColor}
+.cmd-dialog .btn--primary[aria-disabled=true]{cursor:progress}
+/* iPhone: full-width buttons, the primary nearest the thumb */
+.app[data-app=phone] .cmd-dialog .adialog__actions{flex-direction:column;gap:var(--sp-2)}
+.app[data-app=phone] .cmd-dialog .adialog__actions .btn{flex:none;width:100%}
