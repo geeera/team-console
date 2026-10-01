@@ -23,7 +23,7 @@
       "continuous": true,
       "dependsOn": ["api:migrate"],
       "options": {
-        "command": "wrangler dev --config apps/hooks/wrangler.jsonc --env dev --port 8788 --var ENVIRONMENT:local"
+        "command": "wrangler dev --config apps/hooks/wrangler.jsonc --env dev --port 8788 --persist-to .wrangler/state --var ENVIRONMENT:local"
       }
     }
   }
