@@ -33,3 +33,21 @@ export type {
   AnswerResponse,
   Section,
 } from './lib/answer';
+export { NEEDS_YOU_MAX_PROJECTS } from './lib/read-models';
+export type {
+  InboxDto,
+  InboxItemDto,
+  NeedsYouDto,
+  NeedsYouItemDto,
+  NeedsYouProjectDto,
+  NeedsYouProjectProblem,
+  NeedsYouProjectRef,
+  QuestionDto,
+  QuestionsDto,
+  SprintDto,
+  SprintIssueDto,
+  SprintMilestoneDto,
+  SprintPullRequestDto,
+  SprintTier,
+  SprintTierRowDto,
+} from './lib/read-models';

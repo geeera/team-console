@@ -1,0 +1,278 @@
+{
+  "generatedBy": "python3 libs/worker/read-models/fixtures/golden.py",
+  "inbox": {
+    "reviewerLogins": [],
+    "items": [
+      {
+        "section": "question",
+        "number": 72,
+        "title": "question #72",
+        "url": "https://github.com/geeera/storify/issues/72",
+        "ask": null
+      },
+      {
+        "section": "question",
+        "number": 151,
+        "title": "question #151",
+        "url": "https://github.com/geeera/storify/issues/151",
+        "ask": null
+      },
+      {
+        "section": "question",
+        "number": 152,
+        "title": "question #152",
+        "url": "https://github.com/geeera/storify/issues/152",
+        "ask": null
+      },
+      {
+        "section": "owner",
+        "number": 33,
+        "title": "chore #33",
+        "url": "https://github.com/geeera/storify/issues/33",
+        "ask": null
+      }
+    ],
+    "setup": true,
+    "setupUrl": "https://github.com/geeera/storify/blob/HEAD/.product-team/owner-checklist.md",
+    "paused": false,
+    "pausedUrl": null
+  },
+  "sprint": {
+    "milestone": {
+      "number": 1,
+      "title": "Sprint 01",
+      "dueOn": "2026-10-09"
+    },
+    "issues": [
+      {
+        "number": 7,
+        "status": "done",
+        "kind": "bug",
+        "state": "closed"
+      },
+      {
+        "number": 8,
+        "status": "done",
+        "kind": "bug",
+        "state": "closed"
+      },
+      {
+        "number": 9,
+        "status": "done",
+        "kind": "finding",
+        "state": "closed"
+      },
+      {
+        "number": 10,
+        "status": "done",
+        "kind": "finding",
+        "state": "closed"
+      },
+      {
+        "number": 11,
+        "status": "done",
+        "kind": "chore",
+        "state": "closed"
+      },
+      {
+        "number": 12,
+        "status": "done",
+        "kind": "question",
+        "state": "closed"
+      },
+      {
+        "number": 13,
+        "status": "done",
+        "kind": "question",
+        "state": "closed"
+      },
+      {
+        "number": 14,
+        "status": "in-progress",
+        "kind": "finding",
+        "state": "open"
+      },
+      {
+        "number": 15,
+        "status": "approved",
+        "kind": "finding",
+        "state": "open"
+      },
+      {
+        "number": 16,
+        "status": "approved",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 72,
+        "status": "blocked",
+        "kind": "question",
+        "state": "open"
+      },
+      {
+        "number": 73,
+        "status": "approved",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 74,
+        "status": "blocked",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 75,
+        "status": "approved",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 76,
+        "status": "blocked",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 93,
+        "status": "done",
+        "kind": "finding",
+        "state": "closed"
+      },
+      {
+        "number": 94,
+        "status": "in-progress",
+        "kind": "finding",
+        "state": "open"
+      },
+      {
+        "number": 131,
+        "status": "done",
+        "kind": "finding",
+        "state": "closed"
+      },
+      {
+        "number": 144,
+        "status": "approved",
+        "kind": "finding",
+        "state": "open"
+      },
+      {
+        "number": 145,
+        "status": "blocked",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 154,
+        "status": "approved",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 155,
+        "status": "approved",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 156,
+        "status": "blocked",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 157,
+        "status": "approved",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 158,
+        "status": "approved",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 159,
+        "status": "approved",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 160,
+        "status": "approved",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 161,
+        "status": "blocked",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 162,
+        "status": "blocked",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 163,
+        "status": "approved",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 164,
+        "status": "blocked",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 165,
+        "status": "blocked",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 181,
+        "status": "approved",
+        "kind": "finding",
+        "state": "open"
+      }
+    ],
+    "byStatus": {
+      "approved": 13,
+      "blocked": 9,
+      "done": 9,
+      "in-progress": 2
+    },
+    "planned": 30,
+    "shipped": 7,
+    "carriedOver": 23,
+    "byTier": {
+      "unsized": {
+        "planned": 5,
+        "shipped": 2,
+        "raised": 0
+      },
+      "heavy": {
+        "planned": 7,
+        "shipped": 1,
+        "raised": 0
+      },
+      "standard": {
+        "planned": 14,
+        "shipped": 3,
+        "raised": 0
+      },
+      "light": {
+        "planned": 4,
+        "shipped": 1,
+        "raised": 0
+      }
+    }
+  }
+}

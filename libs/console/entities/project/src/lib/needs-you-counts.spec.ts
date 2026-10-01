@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import type { NeedsYouDto } from '@shared/contracts';
 import { countNeedsYouBySlug, NEEDS_YOU_REFRESH_MS, NEEDS_YOU_URL, NeedsYouCounts } from './needs-you-counts';
 
 describe('countNeedsYouBySlug', () => {
@@ -9,6 +10,26 @@ describe('countNeedsYouBySlug', () => {
 
     expect(countNeedsYouBySlug(items)).toEqual({ a: 2, b: 1 });
     expect(countNeedsYouBySlug({ items })).toEqual({ a: 2, b: 1 });
+  });
+
+  it('counts the real GET /api/v1/needs-you body (#35 NeedsYouDto), untrusted items included', () => {
+    const item = (slug: string, number: number, authorTrusted: boolean): NeedsYouDto['items'][number] => ({
+      section: 'question',
+      number,
+      title: `#${number}`,
+      url: `https://github.com/geeera/${slug}/issues/${number}`,
+      ask: null,
+      authorTrusted,
+      project: { slug, name: slug },
+      allowedCommands: ['approve', 'reject'],
+    });
+    const body: NeedsYouDto = {
+      items: [item('team-console', 72, true), item('team-console', 90001, false), item('storify', 151, true)],
+      projects: [],
+      omittedProjects: [],
+    };
+
+    expect(countNeedsYouBySlug(body)).toEqual({ 'team-console': 2, storify: 1 });
   });
 
   it('gives no counts for anything else', () => {

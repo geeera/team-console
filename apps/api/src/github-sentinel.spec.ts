@@ -124,6 +124,10 @@ it('covers the GitHub routes (the inventory is not vacuous)', () => {
       ['DELETE', '/api/v1/github/connection'],
       ['GET', '/api/v1/projects/tc/setup'],
       ['POST', '/api/v1/projects'],
+      ['GET', '/api/v1/projects/tc/inbox'],
+      ['GET', '/api/v1/projects/tc/questions'],
+      ['GET', '/api/v1/projects/tc/sprint'],
+      ['GET', '/api/v1/needs-you'],
     ]),
   );
 });

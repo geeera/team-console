@@ -87,16 +87,38 @@ describe('createMockGitHub', () => {
   it('serves a fixture issue with its labels as GitHub sends them, and 404 for an unknown one', async () => {
     const repo = parseRepoName('geeera/team-console');
     await expect(
-      client('geeera/team-console').getJson(githubPath`/repos/${repo}/issues/${8}`, isObject),
+      client('geeera/team-console').getJson(githubPath`/repos/${repo}/issues/${21}`, isObject),
     ).resolves.toMatchObject({
-      number: 8,
+      number: 21,
       state: 'open',
-      labels: [{ name: 'team:demo' }, { name: 'kind:chore' }],
+      labels: [{ name: 'status:blocked' }, { name: 'kind:chore' }, { name: 'needs:owner' }],
+      html_url: 'https://github.com/geeera/team-console/issues/21',
     });
     const missing = await rejection(
       client('geeera/team-console').getJson(githubPath`/repos/${repo}/issues/${999}`, isObject),
     );
     expect(missing.problem.type).toBe('github-not-found');
+  });
+
+  it('lists issues by state and milestone, open milestones and open pull requests from the same fixture', async () => {
+    const repo = parseRepoName('geeera/team-console');
+    const isList = (value: unknown): value is Record<string, unknown>[] => Array.isArray(value);
+    const github = client('geeera/team-console');
+    const open = await github.getJson(githubPath`/repos/${repo}/issues?state=open&per_page=${100}`, isList);
+    expect(open.length).toBeGreaterThan(0);
+    expect(open.every((item) => item['state'] === 'open')).toBe(true);
+    const sprint = await github.getJson(
+      githubPath`/repos/${repo}/issues?state=all&milestone=${1}&per_page=${100}`,
+      isList,
+    );
+    expect(sprint.some((item) => item['state'] === 'closed')).toBe(true);
+    expect(sprint.every((item) => (item['milestone'] as { number?: number } | null)?.number === 1)).toBe(
+      true,
+    );
+    const milestones = await github.getJson(githubPath`/repos/${repo}/milestones?state=open`, isList);
+    expect(milestones.map((m) => m['title'])).toEqual(['Sprint 01', 'Sprint 02']);
+    const pulls = await github.getJson(githubPath`/repos/${repo}/pulls?state=open`, isList);
+    expect(pulls.map((p) => p['number'])).toEqual([45, 40]);
   });
 
   it('answers 409 github-app-not-installed for a repository without the app', async () => {

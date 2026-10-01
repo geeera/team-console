@@ -1,0 +1,2382 @@
+{
+  "source": "geeera/team-console, snapshot of 2026-09-30",
+  "repo": "geeera/team-console",
+  "today": "2026-09-30",
+  "projectYml": "# The product team's contract for this repository (product-team plugin, reference/stack-contract.md).\nname: Team Console\nrepo: geeera/team-console\nmode: new\nstack: >\n  Nx monorepo — Angular 22 PWA (apps/console, FSD libs), Cloudflare Workers with Hono (apps/api, apps/hooks),\n  D1, Cloudflare Access, Playwright. See docs/decisions/0001-stack-and-architecture.md.\ndecisions_dir: docs/decisions\n\n# Node 22 (.nvmrc) and npm. `e2e` and `storybook` are added by #14 and #13; until then they exit 0\n# so the contract stays runnable, but print an explicit SKIPPED line so the output cannot be read\n# as a passing run. The PRs for #14 / #13 must replace them with the real commands.\ncommands:\n  install: npm ci\n  lint: npx nx run-many -t lint\n  test: npx nx run-many -t test\n  build: npx nx run-many -t build\n  e2e: 'echo \"SKIPPED: no e2e tests ran — apps/console-e2e arrives with #14; this is NOT a pass\"'\n  storybook: npx nx build-storybook console-shared-ui\n\nenvironments:\n  dev:\n    url: ''\n  stage:\n    url: ''\n  production:\n    url: ''\n\ndesign:\n  tokens:\n    - libs/console/shared/ui/src/tokens/tokens.css\n  storybook_url: ''\n\nsprint:\n  length_days: 14\n  freeze_days: 2\n\ncaps: {}\n\nreview:\n  qa: always                 # QA on every PR (owner decision 2026-09-30)\n  reviewer: code             # code review only when the PR changes a path below\n  code_paths: [\"apps/**\", \"libs/**\", \"tools/**\"]\n  max_rework_rounds: 1       # guidance: after one rework round only blockers go back; the rest become follow-ups\n\nteam:\n  plugin_ref: stable\n  reviewer_logins: ['team-console-review[bot]']\n  run_log_issue: 22\n\nowner:\n  language: ru\n  timezone: Europe/Kyiv\n",
+  "openIssues": [
+    {
+      "number": 89,
+      "title": "#24 wrong-account copy needs the owner login, which the #59 API does not expose when not connected",
+      "body": "Found by QA while checking PR #81 (#59) against the approved #24 design (`docs/design/features/24-settings-projects.html`, version `8d65b7c`).\n\n**What:** the approved wrong-account copy `gh.error.account` needs two logins: \"GitHub was signed in as `{who}`. The console connects only to the owner's account, `{login}` …\". #59's callback redirect gives only `{who}` (`/settings?github=wrong-account&login=<who>`). `GET /api/v1/github/connection` returns the owner's `login` only while connected, so on a first connect the client has nowhere to get `{login}` from. Client constants are not allowed for this (PR #42 security note 3).\n\nAlso, the callback's generic `github=failed` outcome (code refused, exchange or `/user` failure, non-expiring tokens, cookie or state refusals) has no copy in the approved design. Only `url`, `denied` and `account` do.\n\n**Expected:** either the API exposes the configured owner login (for example `GET /connection` → `{ state: 'not-connected', ownerLogin }`, or `&owner=` on the wrong-account redirect), or #24's copy drops `{login}` for the not-connected case. A \"failed\" copy is added to #24's strings.\n**Severity:** Low (copy/contract detail; #24 has not been built yet).\n",
+      "html_url": "https://github.com/geeera/team-console/issues/89",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:proposed"
+        },
+        {
+          "name": "kind:finding"
+        },
+        {
+          "name": "sev:low"
+        }
+      ],
+      "author_association": "CONTRIBUTOR",
+      "user": {
+        "login": "team-console-team[bot]",
+        "type": "Bot"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 88,
+      "title": "Registry (#15/PR #80) never uses the #59 owner connection; two owner-connection interfaces, 7-file merge conflict",
+      "body": "Found by QA while reviewing PR #81 (#59) next to PR #80 (#15), which are in review in parallel. Integration gap between the two, not a defect of either PR alone.\n\n**What:** the two PRs each define an owner-connection interface and neither wires them together:\n- PR #80: `apps/api/src/projects/owner-connection.ts` — `OwnerConnectionSource { current(env): Promise<{ login, userId: number | null } | null> }`, default `configuredOwnerConnection` (reads `OWNER_GITHUB_LOGIN`, `userId: null`), plus its own `CONNECT_URL` constant and an inline 403 `github-owner-not-connected` problem.\n- PR #81: `apps/api/src/owner/owner-connection.ts` — `class OwnerConnection` (`account(): { login, userId }`, throws 403 `github-owner-not-connected`), `GITHUB_CONNECT_PATH` in `@shared/contracts`, `ownerNotConnectedError()` in `@worker/github`.\n\n**Consequence once both are merged as they are:** adding a project never looks at the real connection. It accepts a repo while no GitHub account is connected, and it never compares the numeric id pinned at connect (ADR 0003 decision 2(b)). That contradicts #24's \"Not connected yet → … nothing is sent to the registry\" server-side, and the id check #80's own comment says #59 would supply (\"#59 replaces the configured source … without touching the registry\").\n\nAlso: a trial merge of PR #80 into PR #81's head conflicts in 7 files: `CLAUDE.md`, `apps/api/src/github-sentinel.spec.ts`, `apps/api/src/migrations.spec.ts`, `libs/shared/contracts/src/index.ts`, `libs/worker",
+      "html_url": "https://github.com/geeera/team-console/issues/88",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:proposed"
+        },
+        {
+          "name": "kind:finding"
+        },
+        {
+          "name": "sev:medium"
+        }
+      ],
+      "author_association": "CONTRIBUTOR",
+      "user": {
+        "login": "team-console-team[bot]",
+        "type": "Bot"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 86,
+      "title": "Owner connection hardening follow-ups from PR #81 (reconnect chain, grant revoke scope, disconnect outcome, no-store)",
+      "body": "Follow-ups from the security review of PR #81 (#59). None of these is exploitable for token theft today; they are the listed risks plus small gaps.\n\n1. **Reconnect leaves the previous refresh chain live** (`apps/api/src/owner/owner-connection.ts:141-156`). A reconnect while connected overwrites the row without revoking the old pair. The old refresh token can still be rotated by anyone who copied it, until it expires (months) or the owner runs \"Revoke all user tokens\". Fix: before `repo.connect`, open the previous access token and call `DELETE /applications/{client_id}/token`. Log and continue on failure, and add a test. Check first whether GitHub revokes the paired refresh token with it. If not, document that reconnect is not a remediation and point the runbook at \"Revoke all user tokens\".\n2. **A failure after the exchange on a reconnect revokes the whole grant** (`apps/api/src/routes/github-connection.ts:205-216`). `revokeUnwanted` calls `DELETE …/grant`. When the owner reconnects and `/user` or D1 fails, this also kills the stored connection's tokens. It fails safe (the next refresh drops the row with a security signal), but it is a surprising disconnect. Fix: revoke only the fresh token (`DELETE …/token`) when the login is already the owner's or is unknown. Keep grant revocation for a stranger's login.\n3. **`DELETE /connection` after a decrypt failure or rotated key answers 204 while the grant is still live** (`owner-connection.ts:162-175`). #24 cannot tell this from a cle",
+      "html_url": "https://github.com/geeera/team-console/issues/86",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:proposed"
+        },
+        {
+          "name": "kind:finding"
+        },
+        {
+          "name": "sev:low"
+        },
+        {
+          "name": "security"
+        }
+      ],
+      "author_association": "CONTRIBUTOR",
+      "user": {
+        "login": "team-console-team[bot]",
+        "type": "Bot"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 84,
+      "title": "Registry: archived repos can never be re-added (stale installation_id has no recovery); 1-char repo names need a slug the UI cannot send",
+      "body": "**QA finding** (from the PR #80 review, #15)\n\nTwo edge cases in the registry's add path that need a decision. Neither is covered by #15's acceptance criteria.\n\n1. **An archived repo can never be added again, and neither can its slug.** `ProjectsRepo.findConflict` and the `INSERT … WHERE NOT EXISTS` count archived rows (`libs/worker/db/src/lib/projects.repo.ts`). Restore is out of scope, so the owner has no way back from an archive through the console. This also blocks the recovery that migration 0006's comment and the PR describe for rows with no or a stale `installation_id` (\"until they are added again\"): re-adding answers 409 `project-exists`. #12 would ignore that project's events.\n   - Repro: add `geeera/private-product`, archive it, then add it again → 409 `project-exists` \"An archived project already uses this slug or repository (private-product)\".\n   - Suggest one of: refresh `installation_id` during the setup check, or make restore/re-add the #24 open question 2 follow-up.\n2. **Repositories with a one-character name cannot be added without an explicit `slug`.** `slugFromRepoName(\"x\")` → `x`, which fails `^[a-z0-9][a-z0-9-]{1,38}$`, so the answer is 422 `validation`, step `slug`. The #24 design has only a slug *preview*, not a slug field, so the owner cannot fix this from the UI. The same happens for names that are only punctuation (`geeera/___`).\n   - Repro: `POST /api/v1/projects {\"repo\":\"geeera/x\"}` → 422 step `slug`.\n",
+      "html_url": "https://github.com/geeera/team-console/issues/84",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:proposed"
+        },
+        {
+          "name": "kind:finding"
+        },
+        {
+          "name": "sev:low"
+        }
+      ],
+      "author_association": "CONTRIBUTOR",
+      "user": {
+        "login": "team-console-team[bot]",
+        "type": "Bot"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 83,
+      "title": "Setup status lacks what the approved #24 design needs: last event time, server install URL, per-step unknowns",
+      "body": "**QA finding** (from the PR #80 review, #15)\n\nThe setup status `GET /api/v1/projects/:slug/setup` matches #15's acceptance criteria exactly, but the approved #24 design (PR #42, `8d65b7c`, `docs/design/features/24-settings-projects.html`) needs three more things from it. Without them the setup page can only show part of the approved design.\n\n1. **Step 4 \"Events arrive\", Done state.** The design's copy is `step.events.done`: \"Last event at {time}.\" / «Последнее событие в {time}.». The DTO only has `events: 'seen' | 'never'`, so there is no time to show. Needs `lastEventAt: string | null` from #12's `webhook_deliveries`. The developer noted this on #15 too. `never` → «Ждём»/Waiting works as it is.\n2. **Step 1 missing on the setup page** (for example, the app was uninstalled after the project was added). #24's AC says \"missing: a link to the install page from the server\". `installUrl` is only in the add refusal (409 `github-app-not-installed`); the setup DTO has none, so the client would have to build the URL itself, which the AC rules out.\n3. **\"Some steps couldn't be checked\".** The design has a state where only some steps show «Не удалось проверить»/Couldn't check. Any GitHub failure makes the whole setup request a problem (for example 429/502/503), so the client gets no values for steps 4–5 either, even though `events` and `routineToken` are local and known.\n\n**Steps to reproduce:** `wrangler dev --env dev --var ENVIRONMENT:local --var AUTH_MODE:local --var GITHUB_MOCK:true ",
+      "html_url": "https://github.com/geeera/team-console/issues/83",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:in-progress"
+        },
+        {
+          "name": "kind:finding"
+        },
+        {
+          "name": "sev:medium"
+        },
+        {
+          "name": "tier:light"
+        }
+      ],
+      "author_association": "CONTRIBUTOR",
+      "user": {
+        "login": "team-console-team[bot]",
+        "type": "Bot"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 77,
+      "title": "API JSON responses lack Cache-Control: no-store (private repo metadata cacheable)",
+      "body": "**QA finding** (from the QA review of PR #74, #9)\n\nSuccessful JSON responses of the `api` Worker carry no `Cache-Control` header, while every Problem Details response has `Cache-Control: no-store` (`libs/worker/core/src/lib/problem.ts:30`). With #9, `GET /api/v1/projects/:slug/repository` returns data about private repositories (`\"private\": true`, default branch). Without `no-store` or `private`, a browser or an intermediate cache may keep it after the session ends. The pre-existing `GET /api/v1/projects` behaves the same, so this is API-wide and was not introduced by #74.\n\n**Steps to reproduce** (commit 142f10e, local mock mode):\n1. `wrangler dev --config apps/api/wrangler.jsonc --env dev --var ENVIRONMENT:local --var AUTH_MODE:local --var GITHUB_MOCK:true`, with a project row for `geeera/private-product`.\n2. `curl -sD - http://127.0.0.1:8787/api/v1/projects/<slug>/repository`\n\n**Expected:** `Cache-Control: no-store` (or `private, no-store`) on authenticated API JSON, like the error responses.\n**Actual:** `HTTP/1.1 200 OK`, `Content-Type: application/json`, no `Cache-Control`.\n\nSuggested fix: a default `Cache-Control: no-store` for `/api/*` in `createWorkerApp`, plus one test. For `security` to confirm the severity.\n",
+      "html_url": "https://github.com/geeera/team-console/issues/77",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:proposed"
+        },
+        {
+          "name": "kind:finding"
+        },
+        {
+          "name": "sev:low"
+        }
+      ],
+      "author_association": "CONTRIBUTOR",
+      "user": {
+        "login": "team-console-team[bot]",
+        "type": "Bot"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 76,
+      "title": "GitHub client hardening follow-ups (from PR #74 review)",
+      "body": "Non-blocking follow-ups from the PR #74 security review (#9):\n1. `libs/worker/github/src/lib/app-auth.ts` — check the minted token's `permissions` and `repository_selection` match what was requested; otherwise 502 `github-unexpected`.\n2. `libs/worker/github/src/lib/transport.ts` — add `AbortSignal.timeout` to GitHub calls so a hung GitHub doesn't hang requests waiting on the shared mint/read.\n3. CLAUDE.md — document the `.gitleaksignore` rule for synthetic test values (exact fingerprints only, values built at run time going forward).\n",
+      "html_url": "https://github.com/geeera/team-console/issues/76",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:approved"
+        },
+        {
+          "name": "kind:chore"
+        },
+        {
+          "name": "tier:light"
+        },
+        {
+          "name": "security"
+        }
+      ],
+      "author_association": "CONTRIBUTOR",
+      "user": {
+        "login": "team-console-team[bot]",
+        "type": "Bot"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 71,
+      "title": "workspace-checks may not run on dev PRs that only change a wrangler.jsonc (no Nx dependency on api/hooks)",
+      "body": "Found during the security review of PR #70 (outside that PR's scope).\n\n**What:** `tools/workspace-checks/src/worker-config.spec.ts` is the only check that parses `apps/api/wrangler.jsonc` and `apps/hooks/wrangler.jsonc` with wrangler's own reader (`unstable_readConfig`) and asserts each env has exactly one `DB` D1 binding and that api/hooks share the same `database_id`. It reads those files at runtime by path, but `tools/workspace-checks/project.json` declares no `implicitDependencies` on `api`/`hooks` (and no `namedInputs` covering `apps/*/wrangler.jsonc`).\n\n**Why it matters (suspected, not reproduced — Nx not run):** on a PR into `dev` that only touches a `wrangler.jsonc`, `ci.yml` picks `nx affected` (the file is not in its `root_config` list), so `workspace-checks` is likely not affected and does not run. A PR could then drop an env's `d1_databases`, or drift api's `database_id` from hooks', and merge into `dev` green; the deploy guard (`tools/deploy-guard/check-d1-placeholder.js`) only rejects the exact placeholder id. Release PRs into stage/main use `run-many`, so the gap is limited to `dev`. Impact: a broken or split-database dev deploy (integrity/availability), no data exposure.\n\n**Fix:** add `\"implicitDependencies\": [\"api\", \"hooks\"]` to `tools/workspace-checks/project.json` (or an input on `{workspaceRoot}/apps/*/wrangler.jsonc`), then confirm with `npx nx show projects --affected --files=apps/api/wrangler.jsonc` that `workspace-checks` is listed.\n",
+      "html_url": "https://github.com/geeera/team-console/issues/71",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:proposed"
+        },
+        {
+          "name": "kind:finding"
+        },
+        {
+          "name": "sev:low"
+        },
+        {
+          "name": "security"
+        }
+      ],
+      "author_association": "CONTRIBUTOR",
+      "user": {
+        "login": "team-console-team[bot]",
+        "type": "Bot"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 62,
+      "title": "Stage owner connection + e2e service identity can post real owner commands on geeera/team-console",
+      "body": "Found in the round-2 security review of PR #57 (ADR 0003). This risk predates that PR: #10's architect note accepted it for the repo-only PAT. ADR 0003 makes it concrete, because it asks the owner to press **Connect GitHub in stage** so the Playwright e2e (#14) can answer through the Access service identity.\n\n**Why it matters.** The dev and stage \"sandbox product\" is `geeera/team-console`, and that is not a throwaway repo. It holds this product's real backlog, questions, design approvals and the `team:demo` go/no-go. Once the owner has connected in stage, the stage owner token is owner-grade on that repo. So is anything that can reach stage's owner-write routes, which includes:\n- the Access service token (`CF_ACCESS_CLIENT_ID/SECRET` in the `stage` GitHub Environment)\n- any workflow job that runs in that environment\n- a compromised stage `api` Worker.\n\nAny of them can post comments that the plugin counts as the owner's, such as `/go` on the console's own release or `/approve` on a design. The e2e itself could also answer a real item by mistake. ADR 0003 decision 1 says \"A leaked stage key reaches the sandbox repo only\". That understates it, because the sandbox repo is where this product's owner decisions happen.\n\n**Fix (enforce in #10/#29/#17 and write it into ADR 0003 decisions 1 and 8):**\n- **Server side:** when `identity.kind === 'service'` (already non-production only), allow owner writes only on issues that carry a dedicated fixture label (for example `e2e:fixture`). Nev",
+      "html_url": "https://github.com/geeera/team-console/issues/62",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:proposed"
+        },
+        {
+          "name": "kind:finding"
+        },
+        {
+          "name": "sev:medium"
+        },
+        {
+          "name": "security"
+        }
+      ],
+      "author_association": "CONTRIBUTOR",
+      "user": {
+        "login": "team-console-team[bot]",
+        "type": "Bot"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 58,
+      "title": "Docker image: wrangler dev sometimes exits (500, empty ERROR) after a few POST requests",
+      "body": "Found by QA while reviewing PR #55 (#8), head 1428395. **Not caused by #55**: reproduced on `dev` b628bd9 too.\n\n**What happens**: the `wrangler dev` process in the Docker image (Dockerfile CMD, wrangler 4.124.0, `--no-bundle`, Linux container on OrbStack) sometimes exits a few seconds after start, after a handful of `POST` requests with a body. The request in flight gets `500`, wrangler prints an empty `✘ [ERROR]` and the container exits with code 1. No stack trace, and `~/.config/.wrangler/logs/*.log` ends before the error. The container then stays down, because the HEALTHCHECK only reports it.\n\n**Steps**\n1. `docker build -t tc .` and `docker run -d --name tc -p 127.0.0.1:8795:8787 tc`\n2. Wait for `GET /api/v1/healthz` → 200\n3. Send a few `POST /api/v1/projects` requests with bodies, for example in this order:\n   - `-H 'Sec-Fetch-Site: same-origin' -H 'Content-Type: text/plain' -d '{}'`\n   - `-H 'Sec-Fetch-Site: same-origin' -H 'Content-Type: application/json' -d '{}'`\n   - `-H 'Origin: https://evil.example' -H 'Content-Type: application/json' -d '{}'`\n   - then a plain `GET`\n4. `docker ps -a` → `Exited (1)`\n\n**Observed** (3 crashes in 7 fresh containers, and not on every run):\n- PR #55 image, 1st run: `POST … 415` → next `POST` → 500, exited\n- PR #55 image, 2nd run: `415`, `404`, then the cross-site POST → 500, exited\n- `dev` image (b628bd9): 4 POSTs (all 404) then `GET /api/v1/projects` → 500, exited\n- Did not crash: idle with a `GET /api/v1/healthz` every 5 s for 60 s (bo",
+      "html_url": "https://github.com/geeera/team-console/issues/58",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:proposed"
+        },
+        {
+          "name": "kind:finding"
+        },
+        {
+          "name": "sev:medium"
+        }
+      ],
+      "author_association": "CONTRIBUTOR",
+      "user": {
+        "login": "team-console-team[bot]",
+        "type": "Bot"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 56,
+      "title": "JWKS: negative-cache failed key-set loads",
+      "body": "From the PR #55 security review (non-blocking): `apps/api/src/auth/access-jwt.ts` does not remember a failed JWKS load. While the certs endpoint is down, or ACCESS_TEAM_DOMAIN is valid-looking but wrong, every well-formed token triggers a new fetch (probe: 10 requests → 10 fetches). Still fails closed.\n\nFix: negative-cache a failed load per URL for a few seconds; add a spec. Also assert `redirect: manual` on the JWKS fetch so a jose upgrade can't silently change it.\n",
+      "html_url": "https://github.com/geeera/team-console/issues/56",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:approved"
+        },
+        {
+          "name": "kind:finding"
+        },
+        {
+          "name": "sev:low"
+        },
+        {
+          "name": "tier:light"
+        },
+        {
+          "name": "security"
+        }
+      ],
+      "author_association": "CONTRIBUTOR",
+      "user": {
+        "login": "team-console-team[bot]",
+        "type": "Bot"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 53,
+      "title": "Discovery: public paid edition of the console (after demo)",
+      "body": "Parked by the owner (chat, 2026-09-29): «Окей, тогда вернёмся к этому после демо». Do not start before the demo on 2026-10-16.\n\nIdea from the owner: the console as a public, paid add-on, with sign-in \"through Claude\".\n\nNotes from the discussion (to verify during discovery):\n- No public \"Sign in with Claude\" OAuth for third-party apps is known; to be re-checked against current Anthropic docs. GitHub OAuth + a public GitHub App installed per user fits the product better.\n- A public edition changes ADR 0001: multi-user auth, tenant isolation in D1, per-user GitHub App installs instead of the owner's PAT, encrypted per-user routine tokens, payments (a merchant of record such as Paddle / Lemon Squeezy for a Ukraine-based individual), ToS/privacy/GDPR, no \"Claude\" in the product name, a much higher security bar.\n\nProposed after the demo: analyst — market and willingness to pay; architect — ADR draft for a multi-tenant edition with effort and cost; owner decides (money + scope).\n",
+      "html_url": "https://github.com/geeera/team-console/issues/53",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:proposed"
+        },
+        {
+          "name": "kind:chore"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 51,
+      "title": "/api and /api/ are answered by the SPA fallback instead of a problem+json 404",
+      "body": "Found by QA while reviewing PR #49 (#6), head 7e86d41.\n\n**Steps** (Docker image from #49, or `npx nx serve api`)\n- `curl -i http://127.0.0.1:8787/api` → `200 text/html` (the app shell, no `X-Request-Id`)\n- `curl -i http://127.0.0.1:8787/api/` → `200 text/html`\n- `curl -i http://127.0.0.1:8787/API/v1/healthz` → `200 text/html`\n- whereas `/api/v1`, `/api/v1/`, `/api/v1/nope`, `/api/v2/x` → `404 application/problem+json` (correct)\n\n**Expected** (architect note on #6, decision 19): paths under `/api` are never answered by the SPA fallback; a client that calls `/api` or `/api/` gets a Problem Details 404.\n\n**Actual**: `run_worker_first: [\"/api/*\"]` does not route `/api` and `/api/` to the Worker, so the assets layer's `single-page-application` fallback answers them with `index.html`.\n\n**Suggested direction**: `run_worker_first: [\"/api\", \"/api/*\"]` (check what wrangler 4.124 matches for `/api/`), plus an app.spec case for `/api` and `/api/`.\n\nSeverity low: #6's criterion covers `/api/v1/*`, which behaves correctly; no real client calls these bare paths.\n",
+      "html_url": "https://github.com/geeera/team-console/issues/51",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:proposed"
+        },
+        {
+          "name": "kind:finding"
+        },
+        {
+          "name": "sev:low"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 50,
+      "title": "Local nx serve hooks uses its own unmigrated D1, not the api Worker's",
+      "body": "Found by QA while reviewing PR #49 (#6), head 7e86d41.\n\n**Where**: `apps/hooks/wrangler.jsonc`, `apps/hooks/project.json` (`serve` target), `CLAUDE.md` \"Workers (#6)\".\n\n**Steps**\n1. Fresh clone, `npm ci`.\n2. `npx nx serve api` (runs `api:migrate`), then `npx nx serve hooks` (depends on `api:migrate`, listens on :8788).\n3. Inspect local D1 state: `apps/api/.wrangler/state/v3/d1/...sqlite` has `d1_migrations, projects`; `apps/hooks/.wrangler/state/v3/d1/` holds no database with those tables.\n\n**Expected**: locally, as in the deployed environments, the hooks Worker reads the same migrated `team-console-dev` database as the api Worker (the `serve` dependency on `api:migrate` implies this).\n\n**Actual**: wrangler keeps local state next to each config (`apps/<app>/.wrangler`), so `nx serve hooks` runs against a separate, never-migrated local D1. Anything #12 adds that touches `DB` from the hooks Worker locally will fail with `no such table`.\n\n**Suggested direction**: a shared `--persist-to` (e.g. `.wrangler/state` at the workspace root) for `api:migrate`, `api:serve` and `hooks:serve`, or run both Workers in one `wrangler dev -c apps/api/wrangler.jsonc -c apps/hooks/wrangler.jsonc` session.\n\nNot blocking #6: its acceptance criteria concern the api Worker and the hooks `/healthz`, which does not use D1. Unit tests are unaffected (they migrate an in-memory D1 per file).\n",
+      "html_url": "https://github.com/geeera/team-console/issues/50",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:proposed"
+        },
+        {
+          "name": "kind:finding"
+        },
+        {
+          "name": "sev:medium"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 48,
+      "title": "Scanner pins in security.yml (gitleaks, semgrep image) are outside Dependabot's reach",
+      "body": "Found by the security review of PR #47 (Dependabot for github-actions).\n\n`.github/dependabot.yml` only watches `uses:` references. `.github/workflows/security.yml` also pins two scanner versions in `env:`, and Dependabot never looks at those:\n- `GITLEAKS_VERSION: 8.30.1` + `GITLEAKS_SHA256` (release binary, checksum-verified)\n- `SEMGREP_IMAGE: semgrep/semgrep:1.177.0@sha256:…`\n\nThe pins are safe: they are exact and verified. The risk is that they go stale. Scanner rule and detector updates, plus fixes in the tools themselves, never arrive unless someone bumps them by hand. So the secret-scan and SAST gates slowly lose coverage without any sign that this is happening.\n\nFix (pick one):\n1. Add a scheduled reminder, e.g. a monthly check in the deep audit that compares the pins with the latest upstream releases, and bump them in a reviewed PR that updates the checksum.\n2. Or move Semgrep to a `container:`/`docker://` form that Dependabot's `docker` ecosystem can track, and keep gitleaks on the manual bump with the checksum.\n\nSeverity low: nothing is exploitable today; this is about detection quality over time.\n",
+      "html_url": "https://github.com/geeera/team-console/issues/48",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:proposed"
+        },
+        {
+          "name": "kind:finding"
+        },
+        {
+          "name": "sev:low"
+        },
+        {
+          "name": "security"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 46,
+      "title": "Переключить GitHub Pages на GitHub Actions",
+      "body": "**Your answer:** Напиши «сделал», когда переключишь источник GitHub Pages\n\nЧтобы макеты публиковались сами после слияния PR (workflow `design-pages.yml`, PR #45), нужна одна настройка репозитория, которую можешь поменять только ты. Бесплатно.\n\n- Settings → Pages → Build and deployment → Source: **GitHub Actions** (сейчас Pages отдаёт старую ветку `gh-pages`).\n\nПосле этого ссылки на макеты будут вида `https://geeera.github.io/team-console/features/24-settings-projects.html`. До этого макет #24 можно открыть файлом в PR #42.\n\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_",
+      "html_url": "https://github.com/geeera/team-console/issues/46",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:blocked"
+        },
+        {
+          "name": "kind:chore"
+        },
+        {
+          "name": "needs:owner"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 1,
+        "title": "Sprint 01"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 45,
+      "title": "chore(devops): publish docs/design to GitHub Pages via Actions",
+      "body": "Installs `.github/workflows/design-pages.yml` from the plugin's `chore/product-team-0.9.3` template\n(`.claude/product-team/templates/workflows/design-pages.yml`, PR #33, not yet merged) so design PRs actually\npublish once merged to `dev`. `.github/workflows/design-pages.yml` did not exist in this repo, so #40 and #42\ncurrently publish nothing.\n\n## What it does\n- Triggers on push to `dev` under `docs/design/**`, plus manual dispatch.\n- `docs/design` is the Pages artifact root, generates an `index.html` listing every page, deploys via\n  `actions/deploy-pages`.\n- Least-privilege: `contents: read`, `pages: write`, `id-token: write` only; `concurrency` with\n  `cancel-in-progress` (Actions minutes are budget).\n\n## Resulting URL scheme\n`docs/design` becomes the site root, so it mirrors the source tree:\n- `https://geeera.github.io/team-console/directions/01-paper-desk.html` (and 02, 03)\n- `https://geeera.github.io/team-console/features/24-settings-projects.html`\n- `https://geeera.github.io/team-console/ux/29-team-commands.html`\n\nThis matches the paths #40 and #42 already publish under in `docs/design/features/` and `docs/design/ux/`.\n\n**Note on the existing `gh-pages` branch** (the kickoff prototype, hand-pushed, not built by any workflow): it\nserves a flat layout — `01-paper-desk.html` etc. at the root, and `#24` under `ux/24-settings-projects.html`\n(not `features/`). This workflow does not touch `gh-pages` or its content; once GitHub Pages is switched to the\n\"GitHub Actions\" source",
+      "html_url": "https://github.com/geeera/team-console/pull/45",
+      "state": "open",
+      "labels": [],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": null,
+      "closed_at": null,
+      "pull_request": {
+        "html_url": "https://github.com/geeera/team-console/pull/45"
+      }
+    },
+    {
+      "number": 40,
+      "title": "docs(design): UX wireframe for #29 team commands",
+      "body": "UX wireframe for #29 (team commands). Docs only, no product code.\n\n- `docs/design/ux/29-team-commands.html`: a low-fidelity interactive page with grey boxes and real ru/en copy. It has a Mac and an iPhone view. Every state in the spec on #29 can be reached from the control bar: loading, status error, offline, no write access, no routine token, paused by the owner or by the team, a run in progress, freeze, no current sprint, and each write outcome (success, error, rate limit, conflict or partial, unknown result).\n- The UX spec is the `ux-spec` comment on #29. The `ui-designer` builds the Paper Desk design on top of both.\n\nThe page is self-contained, so you can open it straight from the branch. Publishing it next to `ux/24-settings-projects.html` on Pages is left to whoever publishes the design pages.\n\nRefs #29\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nhttps://claude.ai/code/session_01Qg3AJAEeNe48E1er6Z7Wc2\n\n---\n_Generated by [Claude Code](https://claude.ai/code/session_01Qg3AJAEeNe48E1er6Z7Wc2)_",
+      "html_url": "https://github.com/geeera/team-console/pull/40",
+      "state": "open",
+      "labels": [],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": null,
+      "closed_at": null,
+      "pull_request": {
+        "html_url": "https://github.com/geeera/team-console/pull/40"
+      }
+    },
+    {
+      "number": 37,
+      "title": "Notification privacy: hide details on the lock screen, manage devices",
+      "body": "From the security threat model on #11 (row 9) and row 8: notifications show issue titles from private repositories on a locked phone, and a lost or retired device keeps receiving them until it is removed.\n\n**User story.** As the owner, I want to hide notification details on the lock screen and remove old devices, so that private project titles do not show on a phone someone else can see.\n\n## Acceptance criteria\n- [ ] Settings has a \"Hide details on the lock screen\" switch; when it is on, pushes carry a generic body (\"New item in {project}\") and the title is shown only inside the app\n- [ ] Settings lists the devices subscribed to push (device type, added, last delivered), and each can be removed\n- [ ] The choice is stored on the server and applies to every device\n- [ ] All strings via i18n (ru, en); axe clean\n\n## Out of scope\n- Per-project notification rules\n- Quiet hours\n\nNeeds a design (Settings screen, #24). Server pieces exist after #11.\n\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_",
+      "html_url": "https://github.com/geeera/team-console/issues/37",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:proposed"
+        },
+        {
+          "name": "kind:feature"
+        },
+        {
+          "name": "needs-design"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 36,
+      "title": "Web push client: subscribe button, iOS guide, tap routing and badge",
+      "body": "Split from #11 (same approved scope). #11 keeps the server side (table, endpoints, VAPID, encryption, sending, pruning); this issue is the client. Architect note and threat model: see #11 (placement `libs/console/entities/push`, `features/push-subscribe`, `shared/lib/platform`, `shared/lib/app-badge`). UI follows the approved Paper Desk direction (\"Add to Home Screen, then allow notifications\").\n\n## Acceptance criteria\n- [ ] Permission is requested only from a button tap (unit test: no request on load)\n- [ ] On iOS outside standalone mode the \"Add to Home Screen\" guide shows instead of the button\n- [ ] Uses `SwPush` from `@angular/service-worker` with the public key from `GET /api/v1/push/config`; no custom service worker\n- [ ] Tapping a notification opens the item's route; the app badge equals the open \"needs you\" count (no-op where unsupported)\n- [ ] Tapping a push opens the right card in the right project, including a card from Needs you (e2e with a mocked `notificationclick`) — moved here from #16 by the demo plan (#72)\n- [ ] `ngsw-config.json` has no `dataGroups` for `/api/**` (#8 threat row 10 — config test here if #8 has not added it)\n- [ ] All strings via i18n (ru, en); axe clean on mobile and desktop\n- [ ] After #25: a test push arrives on the owner's installed iPhone PWA and on Mac (owner confirms on this issue)\n\n## Out of scope\n- Server side (#11)\n- A device list screen and a \"hide details on the lock screen\" setting (proposed separately)\n\nDepends on #11, #3, #4, #",
+      "html_url": "https://github.com/geeera/team-console/issues/36",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:approved"
+        },
+        {
+          "name": "kind:chore"
+        },
+        {
+          "name": "tier:standard"
+        },
+        {
+          "name": "security"
+        },
+        {
+          "name": "foundation"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 2,
+        "title": "Sprint 02"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 35,
+      "title": "Read models: inbox, questions, sprint and needs-you",
+      "body": "Split from #9 (same approved scope). #9 keeps the PAT-backed GitHub client, error mapping, the read cache and mock mode; this issue is the read models and their routes on top of it. Architect note and threat model: see #9 (placement `libs/worker/read-models`, `libs/shared/owner-grammar/src/section.ts`, `apps/api/src/routes/projects/*`, `needs-you`).\n\n## Acceptance criteria\n- [ ] `/api/v1/projects/:slug/{inbox,questions,sprint}` and `/api/v1/needs-you` return DTOs from `libs/shared/contracts` (no raw GitHub types)\n- [ ] Inbox, questions and sprint equal the plugin's `inbox.classify` / `brief.needs` output on storify fixtures (golden tests)\n- [ ] Each item carries `authorTrusted` (`author_association` in OWNER, MEMBER, COLLABORATOR); a fixture with `NONE` gives `false` and the golden tests still hold (threat row 5)\n- [ ] Titles and bodies pass through as plain text (`<img onerror>` fixture returned verbatim); `url` kept only when it starts with `https://github.com/`, a `javascript:` url is dropped (row 4)\n- [ ] `needs-you` fan-out caps projects per request and asserts the subrequest count per endpoint; GitHub rate limit surfaces as 429 with `Retry-After` (row 8)\n- [ ] `project.yml` read through the Contents API: safe YAML parse, 64 KB cap, schema check; 1 MB file and an alias bomb → `project-config-invalid`; the \"Security setup\" item disappears only when `reviewer_logins` is non-empty (row 9)\n- [ ] Slug with `/`, `..` or `%2F` → 404 `project-not-found` before any fetch (row 2)\n",
+      "html_url": "https://github.com/geeera/team-console/issues/35",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:in-progress"
+        },
+        {
+          "name": "kind:chore"
+        },
+        {
+          "name": "tier:standard"
+        },
+        {
+          "name": "complexity:high"
+        },
+        {
+          "name": "security"
+        },
+        {
+          "name": "architect-note"
+        },
+        {
+          "name": "foundation"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 1,
+        "title": "Sprint 01"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 31,
+      "title": "Needs you",
+      "body": "<!-- pt-inbox -->\n**Нужно твоё внимание: 4.** Обновлено 29.09 18:32; переписывается каждым запуском.\n\n### Безопасность (1)\n_Пока это не сделано, агенты могут изобразить твоё одобрение_\n\n- [Agents use your GitHub account — add a reviewing account and team.reviewer_logins](https://github.com/geeera/team-console/blob/HEAD/.product-team/owner-checklist.md)\n\n### Дизайн на утверждение (1)\n_Открой ссылку, затем `/approve` или `/reject причина` в issue_\n\n- #24 [Settings: add and archive a project](https://github.com/geeera/team-console/issues/24)\n\n### Только ты можешь (2)\n_Оплата, аккаунт или решение — описано в issue_\n\n- #21 [Аккаунт Cloudflare и токены для деплоя](https://github.com/geeera/team-console/issues/21) — Напиши «сделал», когда заведёшь аккаунты по чеклисту из #7 · /reject причина, если что-то не подходит\n- #46 [Переключить GitHub Pages на GitHub Actions](https://github.com/geeera/team-console/issues/46) — Напиши «сделал», когда переключишь источник GitHub Pages\n\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_",
+      "html_url": "https://github.com/geeera/team-console/issues/31",
+      "state": "open",
+      "labels": [
+        {
+          "name": "team:inbox"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 29,
+      "title": "Team commands: pause/resume, run now, sprint and priority controls",
+      "body": "The owner asked (2026-09-29) for team commands in the app, per project and from the all-projects view. Each command\nconfirms before acting when it changes what the team does; each writes what the plugin already understands.\n\n| Command | How (owner decides nothing technical here) |\n|---|---|\n| Pause / resume development | `team:paused` on the run log + the owner-pause record, exactly like `runlog pause` / `runlog resume` (the Worker cannot switch routines off — that needs the owner's claude.ai session; routines keep firing and exit at once). Full switch-off stays in the team chat (`pause` skill). |\n| Run planning / development / QA now | Fire the product's slot routine through its API trigger token (same mechanism as the PM chat, ADR 0001 decision 12); show \"started\" and the run-log link; respect routine rate limits. |\n| Move the demo date / start the next sprint | Milestone due date / `backlog sprint create`; freeze days follow automatically. |\n| Reprioritise an issue, change its tier, move it to another sprint | Labels and milestone through the owner grammar, recorded as the owner's decision. |\n| Approve every recommendation that is safe | Batch `answer` for questions whose recommendation is not money, release or legal; one confirmation listing them. |\n| Snooze the digest / notifications for a project | Client-side and push-subscription settings. |\n| Status of a project | The team-chat briefing (`scripts/brief`) rendered as a card. |\n\n## Acceptance criteria\n- [ ] Every comma",
+      "html_url": "https://github.com/geeera/team-console/issues/29",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:approved"
+        },
+        {
+          "name": "kind:feature"
+        },
+        {
+          "name": "needs-design"
+        },
+        {
+          "name": "security"
+        },
+        {
+          "name": "ux-spec"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 2,
+        "title": "Sprint 02"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 28,
+      "title": "Artifacts: audits, briefings, releases and deploy links",
+      "body": "Split from #19 (same approved scope and design). The remaining artifact types in the Artifacts space: audits,\nbriefings, releases/changelog and deploy links (ADR 0001 decision 21).\n\n## Acceptance criteria\n- [ ] Audits = `kind:finding` issues + run-log comments containing \"deep audit\" + `docs/audit/**` when present\n- [ ] Briefings = the team's run-log summary comments and the owner digest, newest first\n- [ ] Releases = GitHub Releases + `CHANGELOG.md`; deploy links = environment URLs from `project.yml`\n- [ ] On storify fixtures every artifact of these types is found (count matches a hand-made list)\n- [ ] Each type has its tab and is covered by the same search as #19\n- [ ] All strings via i18n (ru, en); axe clean\n\n## Out of scope\n- Decisions, designs, demo pages, search and cache invalidation (#19)\n\nDesign: approved on #19. Depends on #19.\n\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_",
+      "html_url": "https://github.com/geeera/team-console/issues/28",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:approved"
+        },
+        {
+          "name": "kind:feature"
+        },
+        {
+          "name": "needs-design"
+        },
+        {
+          "name": "design:approved"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 2,
+        "title": "Sprint 02"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 27,
+      "title": "All-projects overview",
+      "body": "Split from #18 (same approved scope and design). **As the owner, I want one screen that shows all my products at a\nglance** — which team is running, paused or failing, the sprint and demo date, and progress (ADR 0001 decision 24).\n\n## Acceptance criteria\n- [ ] One row per active project: running / paused / failing (same rules as the plugin's `runstate`), sprint title, demo date, open questions count, sprint progress (done / total)\n- [ ] Values match `backlog sprint current` and `backlog list --milestone current` for the same repo (fixture test)\n- [ ] One failing project shows its error in its row; the other rows still load\n- [ ] Tapping a row opens that project's board\n- [ ] Loads with one request from the client; the Worker stays under 50 subrequests for 12 projects (test)\n- [ ] All strings via i18n (ru, en); axe clean\n\n## Out of scope\n- Pause/resume (on the project board, #18)\n- Sidebar sprint-progress bars (proposed by the designer, not approved — ADR 0002 \"Not yet\")\n\nDesign: approved on #18. Depends on #9, #15, #18.\n\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_",
+      "html_url": "https://github.com/geeera/team-console/issues/27",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:approved"
+        },
+        {
+          "name": "kind:feature"
+        },
+        {
+          "name": "needs-design"
+        },
+        {
+          "name": "design:approved"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 2,
+        "title": "Sprint 02"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 26,
+      "title": "PM chat wakeup: routine fire and retry queue",
+      "body": "Split from #17 (same approved scope). The server side of PM chat: waking the product's PM routine when the owner\nwrites, with a retry queue that respects rate limits (ADR 0001 decision 11).\n\n## Acceptance criteria\n- [ ] On `issue_comment.created` on the `team:pm-chat` issue with the `<!-- pt-chat:owner -->` marker, the hooks Worker calls the project's routine `/fire` exactly once (test with a mocked endpoint)\n- [ ] The owner's own message never triggers a push back to the owner\n- [ ] On 429/5xx the wakeup is stored in `chat_wakeups` and retried by the cron (`*/5`) no earlier than `Retry-After`; after the cap of attempts it stops and the state is visible to the chat screen (never an endless retry loop)\n- [ ] The cron does nothing (no GitHub or routine call) when no rows are pending\n- [ ] A comment with the `<!-- pt-chat:pm -->` marker sends a push that opens the project's chat\n- [ ] The routine token is read only from the Worker secret `ROUTINE_TOKEN_<SLUG>`; it never appears in responses or logs (test)\n- [ ] `/api/v1/projects/{slug}/chat/status` reports: idle, waking, waiting until HH:MM (rate-limited), failed\n\n## Out of scope\n- The chat screen (#17)\n- The PM's replies themselves (plugin `pm-chat` skill, ADR 0001 decision 12)\n\nNeeds, from the owner, a routine with an API trigger and its token per product (owner checklist). Depends on #6, #12, #15.\n\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_",
+      "html_url": "https://github.com/geeera/team-console/issues/26",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:approved"
+        },
+        {
+          "name": "kind:feature"
+        },
+        {
+          "name": "complexity:high"
+        },
+        {
+          "name": "security"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 2,
+        "title": "Sprint 02"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 25,
+      "title": "First deploy to dev and stage, rollback rehearsal",
+      "body": "Split from #7 so the owner's checklist (#7) can ship first. The first real deploy needs the accounts and secrets from #21.\n\n## Acceptance criteria\n- [ ] A merge to `dev` deploys the dev environment from Actions; the smoke check (`/api/v1/healthz`, app shell loads) passes\n- [ ] The stage workflow deploys `stage`; stage URL is behind Cloudflare Access\n- [ ] Dev and stage URLs are written into `.product-team/project.yml`\n- [ ] Rollback rehearsal: a manual `workflow_dispatch` deploy of the previous ref to `stage` succeeds and is recorded on this issue\n- [ ] Storybook is published from `dev` and its URL is in `design.storybook_url`\n\n## Out of scope\n- Production deploy (after the first owner go)\n\n**Blocked on #21** (owner accounts and secrets). Depends on #6, #7.\n\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_",
+      "html_url": "https://github.com/geeera/team-console/issues/25",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:approved"
+        },
+        {
+          "name": "kind:chore"
+        },
+        {
+          "name": "tier:standard"
+        },
+        {
+          "name": "security"
+        },
+        {
+          "name": "foundation"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 2,
+        "title": "Sprint 02"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 24,
+      "title": "Settings: GitHub connection and projects",
+      "body": "Split from #15 (same approved scope). **As the owner, I want to connect my GitHub account once and add a product repository in Settings, seeing exactly which setup step is missing**, so a new project works without guessing and my answers from the console count as mine. Uses the registry API (#15) and the connection API (#59). Source: ADR 0001 decision 20 and Consequences, amended by ADR 0003 decisions 2, 3, 5, 6 and its Consequences (\"#24's approved copy must change before the owner approves it\"). UX spec and wireframe in the comments; the design in PR #42 must be revised to this list before the owner approves it.\n\n## Acceptance criteria (replace every earlier list, including the UX spec's \"acceptance additions\")\n- [ ] **GitHub connection block** at the top of Settings: \"Подключено как {login}\" with **Disconnect** (confirmation), or **Connect GitHub**; Connect calls `POST /api/v1/github/connect` and navigates only to a returned URL that starts with `https://github.com/login/oauth/authorize` (anything else → error block, no navigation); after the callback Settings shows the connected login\n- [ ] An unexpected loss of the connection (403 `github-owner-not-connected` while Settings last showed \"connected\") shows a warning with **Connect GitHub** again, not a generic error\n- [ ] Settings › Projects lists registered projects with **Add project** and **Archive**; archive asks for confirmation (dialog focus on Cancel, Esc cancels, focus returns to the next row, else the previous row",
+      "html_url": "https://github.com/geeera/team-console/issues/24",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:blocked"
+        },
+        {
+          "name": "kind:feature"
+        },
+        {
+          "name": "needs-design"
+        },
+        {
+          "name": "design:approved"
+        },
+        {
+          "name": "security"
+        },
+        {
+          "name": "ux-spec"
+        },
+        {
+          "name": "team-decided"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 1,
+        "title": "Sprint 01"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 23,
+      "title": "Spaces shell: project routing, switcher and restored state",
+      "body": "Split from #15 (same approved scope). Client side of project spaces: `/p/{slug}/…` routing, the project switcher\n(pinned + collapsible, badges) and per-project UI state restored on return (ADR 0001 decisions 23–24). Reads the\nproject list from the registry API (#15). Design: Paper Desk sidebar (ADR 0002).\n\n## Acceptance criteria\n- [ ] `/p/{slug}/…` opens that project's space; an unknown or archived slug shows the shared error block with a link back, not a blank page\n- [ ] The switcher lists active projects (pinned first, the rest collapsible) with a badge = that project's open \"needs you\" count\n- [ ] Switching A → B → A restores A's last screen, scroll position and unsent chat draft (unit test on `shared/lib/persisted-state` + one e2e)\n- [ ] A stored state with an old version or wrong shape is discarded without an error (test)\n- [ ] No UI state is sent to the Worker (no request besides the project list)\n- [ ] All strings via i18n (ru, en); axe clean on mobile and desktop\n\n## Out of scope\n- Adding/archiving projects (Settings screen, split to its own issue)\n- Content of the spaces (questions, chat, board, artifacts)\n\nDepends on #3, #4, #13, #15.\n\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_",
+      "html_url": "https://github.com/geeera/team-console/issues/23",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:in-progress"
+        },
+        {
+          "name": "kind:chore"
+        },
+        {
+          "name": "tier:heavy"
+        },
+        {
+          "name": "complexity:high"
+        },
+        {
+          "name": "architect-note"
+        },
+        {
+          "name": "foundation"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 1,
+        "title": "Sprint 01"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 22,
+      "title": "Team run log",
+      "body": "One comment per scheduled team run. Owner commands here: `/resume` after a pause.\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_",
+      "html_url": "https://github.com/geeera/team-console/issues/22",
+      "state": "open",
+      "labels": [
+        {
+          "name": "team:run-log"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 21,
+      "title": "Аккаунт Cloudflare и токены для деплоя",
+      "body": "**Your answer:** Напиши «сделал», когда заведёшь аккаунты по чеклисту из #7 · /reject причина, если что-то не подходит\n<!-- pt-ask -->\n\nЧтобы команда могла выкатить приложение на dev и stage, нужны аккаунты, которые можешь завести только ты. Всё бесплатно.\n\n- Аккаунт Cloudflare, бесплатная команда Zero Trust, поддомен `workers.dev`.\n- API-токен Cloudflare для GitHub Actions → секреты `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` в этом репозитории.\n- Твой email для входа по одноразовому коду → секрет `OWNER_EMAIL`.\n- Fine-grained токен GitHub для сервера приложения с доступом к репозиториям проектов (права — в ADR 0001, решение 6).\n\nПошаговая инструкция появится в `.product-team/owner-checklist.md` по задаче #7. До этого можно не торопиться: первые задачи спринта (#3–#6) от этого не зависят.\n",
+      "html_url": "https://github.com/geeera/team-console/issues/21",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:blocked"
+        },
+        {
+          "name": "kind:chore"
+        },
+        {
+          "name": "needs:owner"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 1,
+        "title": "Sprint 01"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 20,
+      "title": "Designs and demo screen",
+      "body": "Designs awaiting approval and the demo issue with sanitised markdown, allow-listed iframes (Storybook/stage),\napprove/reject and go/no-go through the owner grammar.\n## Acceptance criteria\n- [ ] Untrusted markdown cannot run script (sanitiser tests)\n- [ ] Approve/reject and go/no-go write the same comments as the team chat\n",
+      "html_url": "https://github.com/geeera/team-console/issues/20",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:approved"
+        },
+        {
+          "name": "kind:feature"
+        },
+        {
+          "name": "complexity:high"
+        },
+        {
+          "name": "needs-design"
+        },
+        {
+          "name": "design:approved"
+        },
+        {
+          "name": "security"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 2,
+        "title": "Sprint 02"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 19,
+      "title": "Artifacts space",
+      "body": "Normalised artifact read models per project (decisions, audits, designs, demo pages, briefings, releases, deploy\nlinks) with type tabs and search; Cache API with webhook invalidation.\n## Acceptance criteria\n- [ ] All artifact types of storify are found without a database of our own\n- [ ] Search is instant on 200+ artifacts\n",
+      "html_url": "https://github.com/geeera/team-console/issues/19",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:approved"
+        },
+        {
+          "name": "kind:feature"
+        },
+        {
+          "name": "complexity:high"
+        },
+        {
+          "name": "needs-design"
+        },
+        {
+          "name": "design:approved"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 2,
+        "title": "Sprint 02"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 18,
+      "title": "Sprint board (read-only)",
+      "body": "**Story:** as the owner, I see how a product's sprint is going at a glance: what is in progress, what waits for review, open PRs and CI, whether the team is running, and the demo date. Read-only. Design: Paper Desk (approved).\n\nSplit by the demo plan (#72, approved 2026-09-30): this issue is the **read-only** per-project board (a stretch goal for the 16 October demo). Pause/resume moved to #29 (team commands), the cross-project overview is #27.\n\n## Acceptance criteria\n- [ ] Issues grouped by status with the tier shown; counts equal `backlog list --milestone current` for the same repo (fixture test)\n- [ ] Open PRs with CI state, the last run-log entries (running / paused / failing, same rules as the plugin's `runstate`) and the demo date\n- [ ] Data comes from #35's sprint read model; stays under 50 GitHub subrequests per load (test)\n- [ ] Issue titles render as plain text (Angular interpolation only)\n- [ ] All strings via i18n (ru, en); axe has no serious/critical violations on mobile and desktop widths\n\n## Out of scope\n- Pause/resume and every other write (#29)\n- Editing issues or moving statuses from the app\n- Sprint-progress bars and monospaced ids (not approved, ADR 0002 \"Not yet\")\n\nDepends on #35, #23.\n",
+      "html_url": "https://github.com/geeera/team-console/issues/18",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:approved"
+        },
+        {
+          "name": "kind:feature"
+        },
+        {
+          "name": "needs-design"
+        },
+        {
+          "name": "design:approved"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 1,
+        "title": "Sprint 01"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 17,
+      "title": "PM chat",
+      "body": "`team:pm-chat` issue per product, full history, posting messages, waking the product's PM routine through the hooks\nWorker (retry queue, Retry-After), reply push. Depends on the plugin's `pm-chat` skill (plugin roadmap).\n## Acceptance criteria\n- [ ] A message gets a PM reply as a push within minutes, with history kept per project\n- [ ] Rate limits of routines are respected and shown, never retried in a loop\n",
+      "html_url": "https://github.com/geeera/team-console/issues/17",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:approved"
+        },
+        {
+          "name": "kind:feature"
+        },
+        {
+          "name": "complexity:high"
+        },
+        {
+          "name": "needs-design"
+        },
+        {
+          "name": "design:approved"
+        },
+        {
+          "name": "security"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 2,
+        "title": "Sprint 02"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 16,
+      "title": "Questions and cross-project Needs you",
+      "body": "Inbox read model per project and the cross-project union (tagged by project); decision cards answered in one tap through the owner grammar; confirmation for go/override. Design: Paper Desk prototype (ADR 0002), approved. Answers are written by the owner's own account (ADR 0003 decision 2(b), #10/#59).\n\n**Story:** as the owner, I answer every question the team has for me — in one project or across all — with one tap.\n\n## Acceptance criteria (replace the lists in the comments)\n- [ ] A project's Questions list shows the same items, in the same order, as the plugin's inbox for that repo (fixture test)\n- [ ] Each card offers only the answers allowed for its type (owner grammar); an answer writes a comment byte-identical to `backlog answer` apart from the \"team console\" trailer (#10)\n- [ ] `go` and `override` ask for confirmation; `override`, `no-go` and `/reject` require a written reason\n- [ ] Needs you shows items of all active projects, each tagged with its project, sorted by inbox order then project\n- [ ] Answering works from Needs you without entering the project; the card leaves the list on success; on failure the card stays and the shared error block explains why\n- [ ] 403 `github-owner-not-connected` shows \"Connect GitHub\" (link to Settings, #24) instead of an error; 409 `github-owner-mismatch` and 409 `github-app-not-installed` each show their own message (branch on the problem `type`)\n- [ ] Items whose author is not trusted (`authorTrusted: false`, #35) are visibly marked",
+      "html_url": "https://github.com/geeera/team-console/issues/16",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:approved"
+        },
+        {
+          "name": "kind:feature"
+        },
+        {
+          "name": "needs-design"
+        },
+        {
+          "name": "design:approved"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 1,
+        "title": "Sprint 01"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 14,
+      "title": "Playwright e2e with axe",
+      "body": "Mobile and desktop projects, `BASE_URL`, local mock mode, stage via the Access service token.\n## Acceptance criteria\n- [ ] `npx nx e2e console-e2e` runs against the Docker target and against stage\n- [ ] Serious/critical axe violations fail the run\n",
+      "html_url": "https://github.com/geeera/team-console/issues/14",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:approved"
+        },
+        {
+          "name": "kind:chore"
+        },
+        {
+          "name": "tier:standard"
+        },
+        {
+          "name": "security"
+        },
+        {
+          "name": "foundation"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 2,
+        "title": "Sprint 02"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 12,
+      "title": "GitHub webhook receiver",
+      "body": "The public `hooks` Worker receives the **GitHub App's** webhook deliveries (`POST /hooks/github`): HMAC verification, delivery dedupe (D1), own-write filter, cache-epoch bump, installation events, and event → push mapping. Source: `docs/decisions/0001-stack-and-architecture.md` decisions 4, 5, 8, 22, amended by `docs/decisions/0003-console-github-app.md` decisions 5 and 8 and its Consequences. Per-repository webhooks no longer exist. Architect note, threat model and addenda are in the comments; **where the addendum and ADR 0003 differ, the merged ADR wins**.\n\n## Acceptance criteria (replace every earlier list, including the comments)\n- [ ] `WEBHOOK_SECRET` is this environment's app webhook secret; when `WEBHOOK_SECRET_PREVIOUS` is set, a body signed with either secret is accepted; when it is unset, only the current one is (rotation, decision 5; tests)\n- [ ] A missing or empty `WEBHOOK_SECRET` → 503 `webhook-misconfigured` before any processing; a body signed with `\"\"` → 503, no D1 row (row 1)\n- [ ] Strict `sha256=<64 hex>` parsing over the exact raw bytes; a missing header, `sha1=`, a short or uppercase hex, or a valid signature over a re-serialised body → 401 without `detail`, never 500 (row 2)\n- [ ] Body read capped at 1 MB → 413 before HMAC, even without `content-length`; non-POST → 405; zero D1 writes on an invalid signature (row 7)\n- [ ] Replays are ignored by delivery id **and** by `sha256(rawBody)` (UNIQUE `body_sha256` in `0003_webhooks.sql`): the same body with a new",
+      "html_url": "https://github.com/geeera/team-console/issues/12",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:approved"
+        },
+        {
+          "name": "kind:chore"
+        },
+        {
+          "name": "tier:standard"
+        },
+        {
+          "name": "complexity:high"
+        },
+        {
+          "name": "security"
+        },
+        {
+          "name": "architect-note"
+        },
+        {
+          "name": "foundation"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 1,
+        "title": "Sprint 01"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 11,
+      "title": "Web push end to end",
+      "body": "VAPID keys, subscription endpoint, `SwPush` client with the iOS \"add to Home Screen\" guide and permission only on a\ntap, sending with pruning of dead subscriptions, badge count. Source: `docs/decisions/0001-stack-and-architecture.md` decision 8.\n## Acceptance criteria\n- [ ] A test push arrives on an installed iPhone PWA and on Mac\n- [ ] Permission is never requested without a user gesture\n",
+      "html_url": "https://github.com/geeera/team-console/issues/11",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:approved"
+        },
+        {
+          "name": "kind:chore"
+        },
+        {
+          "name": "tier:standard"
+        },
+        {
+          "name": "complexity:high"
+        },
+        {
+          "name": "security"
+        },
+        {
+          "name": "architect-note"
+        },
+        {
+          "name": "foundation"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 2,
+        "title": "Sprint 02"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 10,
+      "title": "Owner grammar library and the answer endpoint",
+      "body": "`libs/shared/owner-grammar` (section → allowed answers, the one-line comment body with the owner's words, identical to the plugin's `backlog answer`, golden fixtures generated with it) and the answer route `POST /api/v1/projects/:slug/issues/:number/answer`. Source: `docs/decisions/0001-stack-and-architecture.md` decisions 9, 10, 19, amended by `docs/decisions/0003-console-github-app.md` decision 2(b) and its Consequences. Architect note and addenda are in the comments; **where the addendum and ADR 0003 differ, the merged ADR wins**.\n\n## Acceptance criteria (replace every earlier list, including the comments)\n- [ ] Golden fixtures produced by the plugin's `backlog answer` (`via: 'chat'`) pass byte for byte; the route always writes `via: 'console'` (\"Answered by the owner in the team console\") — the one intended difference, stated in the PR\n- [ ] A newline or a second `/command` in the owner's text cannot produce a second command line (property test over every fixture, incl. `\"ok\\n/go\"`, CRLF, U+2028)\n- [ ] Section and allowed commands are re-derived on the server from the live, uncached issue; a closed issue → 409 `issue-closed`; a command outside the section → 422 `answer-<code>` with `{ section, allowed }`; action items accept only `done`; nothing is written on any 4xx (test asserts no GitHub POST)\n- [ ] The comment is written **only** through `OwnerTokenSource` (the owner's user access token, #59) — never an installation token, never a fallback token; a test proves the ins",
+      "html_url": "https://github.com/geeera/team-console/issues/10",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:in-progress"
+        },
+        {
+          "name": "kind:chore"
+        },
+        {
+          "name": "tier:standard"
+        },
+        {
+          "name": "complexity:high"
+        },
+        {
+          "name": "security"
+        },
+        {
+          "name": "architect-note"
+        },
+        {
+          "name": "foundation"
+        },
+        {
+          "name": "team-decided"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 1,
+        "title": "Sprint 01"
+      },
+      "closed_at": null
+    },
+    {
+      "number": 4,
+      "title": "Bilingual interface (ru, en) from the first component",
+      "body": "Runtime-switchable i18n (architect's choice of library; Angular build-time i18n cannot switch at runtime). Russian is\nthe reference copy. Default from the device language, remembered, switch in Settings. Dates/times/numbers via Intl.\nSee the brief (\"Language\") and ADR 0002.\n## Acceptance criteria\n- [ ] No hard-coded user-facing string (lint rule or test that fails on one)\n- [ ] Switching ru ↔ en updates the whole UI without reload and is remembered\n- [ ] Russian copy reviewed by the ux-designer for length on iPhone width\n",
+      "html_url": "https://github.com/geeera/team-console/issues/4",
+      "state": "open",
+      "labels": [
+        {
+          "name": "status:approved"
+        },
+        {
+          "name": "kind:chore"
+        },
+        {
+          "name": "tier:standard"
+        },
+        {
+          "name": "foundation"
+        }
+      ],
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      },
+      "milestone": {
+        "number": 1,
+        "title": "Sprint 01"
+      },
+      "closed_at": null
+    }
+  ],
+  "milestones": [
+    {
+      "number": 1,
+      "title": "Sprint 01",
+      "state": "open",
+      "due_on": "2026-10-16T00:00:00Z",
+      "html_url": "https://github.com/geeera/team-console/milestone/1",
+      "open_issues": 10,
+      "closed_issues": 11
+    },
+    {
+      "number": 2,
+      "title": "Sprint 02",
+      "state": "open",
+      "due_on": "2026-10-30T00:00:00Z",
+      "html_url": "https://github.com/geeera/team-console/milestone/2",
+      "open_issues": 11,
+      "closed_issues": 0
+    }
+  ],
+  "milestoneIssues": {
+    "1": [
+      {
+        "number": 72,
+        "title": "План к демо 16 октября",
+        "body": "**Your answer:** /approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять\n<!-- pt-ask -->\n\nСегодня ты решил: инфраструктуру больше не трогаем, всё оставшееся время до демо 16 октября — на то, что ты сможешь потрогать сам.\n\nПолный план — в комментарии ниже: что увидишь на демо, задачи по порядку, что уходит на после демо.\n\nКоротко: на демо ты с iPhone подключаешь свой GitHub, добавляешь проект и отвечаешь на настоящий вопрос команды в одно касание. Ответ появляется на GitHub от твоего имени, и команда его засчитывает. Всё бесплатно, показываем на dev, релиза в этот раз нет.\n\n- `/approve` — план принят, команда начинает разработку со следующего ночного запуска (рекомендую).\n- `/reject что поменять` — план переделаю.\n",
+        "html_url": "https://github.com/geeera/team-console/issues/72",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:done"
+          },
+          {
+            "name": "kind:question"
+          },
+          {
+            "name": "owner:scope"
+          }
+        ],
+        "author_association": "CONTRIBUTOR",
+        "user": {
+          "login": "team-console-team[bot]",
+          "type": "Bot"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": "2026-09-29T22:34:50Z"
+      },
+      {
+        "number": 59,
+        "title": "Connect GitHub: owner user access token flow (ADR 0003)",
+        "body": "**As the owner, I connect my GitHub account to the console once per environment**, so everything I say from the console (answers, later chat and team commands) is written by my own account and the team counts it — without ever typing or pasting a token.\n\nBackend only: the Settings UI (connection block) is in #24. Source: `docs/decisions/0003-console-github-app.md` decisions 2(b), 3, 4, 7, 8 — they supersede the earlier version of this body (optimistic `version` only, \"401 → row deleted\").\n\n## Acceptance criteria\n- [ ] `POST /api/v1/github/connect` (behind Access + #8's JWT and CSRF) answers with the GitHub authorize URL (`client_id`, `redirect_uri` = `https://<api host>/api/v1/github/callback`, a random `state`, PKCE `code_challenge` S256) and sets the `__Host-tc_oauth` cookie: `state` + `code_verifier` sealed with AES-256-GCM under the `oauth-state-v1` subkey; `HttpOnly; Secure; SameSite=Lax; Path=/api/v1/github/callback; Max-Age=600`\n- [ ] `GET /api/v1/github/callback` checks `state` against the sealed cookie, clears the cookie (single use), exchanges `code` + `code_verifier` + client secret, calls `GET /user`; a missing, expired or tampered cookie, a `state` mismatch or a replayed callback → refused, nothing stored (tests)\n- [ ] Any login other than `OWNER_GITHUB_LOGIN` → the fresh grant is **revoked first** (`DELETE /applications/{client_id}/grant`), a security warning is logged, nothing is stored (test)\n- [ ] Success stores the token pair with the numeric user id and red",
+        "html_url": "https://github.com/geeera/team-console/issues/59",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:done"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "security"
+          }
+        ],
+        "author_association": "CONTRIBUTOR",
+        "user": {
+          "login": "team-console-team[bot]",
+          "type": "Bot"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": "2026-09-30T10:19:52Z"
+      },
+      {
+        "number": 46,
+        "title": "Переключить GitHub Pages на GitHub Actions",
+        "body": "**Your answer:** Напиши «сделал», когда переключишь источник GitHub Pages\n\nЧтобы макеты публиковались сами после слияния PR (workflow `design-pages.yml`, PR #45), нужна одна настройка репозитория, которую можешь поменять только ты. Бесплатно.\n\n- Settings → Pages → Build and deployment → Source: **GitHub Actions** (сейчас Pages отдаёт старую ветку `gh-pages`).\n\nПосле этого ссылки на макеты будут вида `https://geeera.github.io/team-console/features/24-settings-projects.html`. До этого макет #24 можно открыть файлом в PR #42.\n\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_",
+        "html_url": "https://github.com/geeera/team-console/issues/46",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:blocked"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "needs:owner"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 35,
+        "title": "Read models: inbox, questions, sprint and needs-you",
+        "body": "Split from #9 (same approved scope). #9 keeps the PAT-backed GitHub client, error mapping, the read cache and mock mode; this issue is the read models and their routes on top of it. Architect note and threat model: see #9 (placement `libs/worker/read-models`, `libs/shared/owner-grammar/src/section.ts`, `apps/api/src/routes/projects/*`, `needs-you`).\n\n## Acceptance criteria\n- [ ] `/api/v1/projects/:slug/{inbox,questions,sprint}` and `/api/v1/needs-you` return DTOs from `libs/shared/contracts` (no raw GitHub types)\n- [ ] Inbox, questions and sprint equal the plugin's `inbox.classify` / `brief.needs` output on storify fixtures (golden tests)\n- [ ] Each item carries `authorTrusted` (`author_association` in OWNER, MEMBER, COLLABORATOR); a fixture with `NONE` gives `false` and the golden tests still hold (threat row 5)\n- [ ] Titles and bodies pass through as plain text (`<img onerror>` fixture returned verbatim); `url` kept only when it starts with `https://github.com/`, a `javascript:` url is dropped (row 4)\n- [ ] `needs-you` fan-out caps projects per request and asserts the subrequest count per endpoint; GitHub rate limit surfaces as 429 with `Retry-After` (row 8)\n- [ ] `project.yml` read through the Contents API: safe YAML parse, 64 KB cap, schema check; 1 MB file and an alias bomb → `project-config-invalid`; the \"Security setup\" item disappears only when `reviewer_logins` is non-empty (row 9)\n- [ ] Slug with `/`, `..` or `%2F` → 404 `project-not-found` before any fetch (row 2)\n",
+        "html_url": "https://github.com/geeera/team-console/issues/35",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:in-progress"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "architect-note"
+          },
+          {
+            "name": "foundation"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 34,
+        "title": "UI kit primitives and Storybook (Paper Desk)",
+        "body": "Split from #13 (same approved scope, foundation step 4). #13 keeps the token set and the raw-value lint; this issue is the UI kit on top of it.\n\nCDK-based primitives in `libs/console/shared/ui` (Paper Desk, ADR 0002; look from `docs/design/directions/01-paper-desk.html`), Storybook with the a11y addon (publishing it from `dev` is #25, after the demo — plan #72).\n\n## Acceptance criteria\n- [ ] Button, list, sheet, empty/error/loading blocks and decision card exist on the CDK and use tokens only (the #13 lint passes)\n- [ ] Each primitive has stories for its variants and states, both themes and reduced motion\n- [ ] Keyboard and screen-reader behaviour per primitive (focus trap and Escape on the sheet, roles/labels) covered by a test or a story play function\n- [ ] The Storybook a11y addon reports no serious/critical violations\n- [ ] `npx nx build-storybook ui` passes in CI\n- [ ] All strings in stories and components go through i18n (ru, en)\n\n## Out of scope\n- Tokens and the raw-value lint (#13)\n- Sidebar sprint-progress bars and monospaced ids (not approved, ADR 0002 \"Not yet\")\n- Feature screens\n- Publishing Storybook from `dev` and `design.storybook_url` (#25)\n\nDepends on #3, #4, #13.\n\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_",
+        "html_url": "https://github.com/geeera/team-console/issues/34",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:done"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "foundation"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": "2026-09-30T10:20:39Z"
+      },
+      {
+        "number": 24,
+        "title": "Settings: GitHub connection and projects",
+        "body": "Split from #15 (same approved scope). **As the owner, I want to connect my GitHub account once and add a product repository in Settings, seeing exactly which setup step is missing**, so a new project works without guessing and my answers from the console count as mine. Uses the registry API (#15) and the connection API (#59). Source: ADR 0001 decision 20 and Consequences, amended by ADR 0003 decisions 2, 3, 5, 6 and its Consequences (\"#24's approved copy must change before the owner approves it\"). UX spec and wireframe in the comments; the design in PR #42 must be revised to this list before the owner approves it.\n\n## Acceptance criteria (replace every earlier list, including the UX spec's \"acceptance additions\")\n- [ ] **GitHub connection block** at the top of Settings: \"Подключено как {login}\" with **Disconnect** (confirmation), or **Connect GitHub**; Connect calls `POST /api/v1/github/connect` and navigates only to a returned URL that starts with `https://github.com/login/oauth/authorize` (anything else → error block, no navigation); after the callback Settings shows the connected login\n- [ ] An unexpected loss of the connection (403 `github-owner-not-connected` while Settings last showed \"connected\") shows a warning with **Connect GitHub** again, not a generic error\n- [ ] Settings › Projects lists registered projects with **Add project** and **Archive**; archive asks for confirmation (dialog focus on Cancel, Esc cancels, focus returns to the next row, else the previous row",
+        "html_url": "https://github.com/geeera/team-console/issues/24",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:blocked"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "ux-spec"
+          },
+          {
+            "name": "team-decided"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 23,
+        "title": "Spaces shell: project routing, switcher and restored state",
+        "body": "Split from #15 (same approved scope). Client side of project spaces: `/p/{slug}/…` routing, the project switcher\n(pinned + collapsible, badges) and per-project UI state restored on return (ADR 0001 decisions 23–24). Reads the\nproject list from the registry API (#15). Design: Paper Desk sidebar (ADR 0002).\n\n## Acceptance criteria\n- [ ] `/p/{slug}/…` opens that project's space; an unknown or archived slug shows the shared error block with a link back, not a blank page\n- [ ] The switcher lists active projects (pinned first, the rest collapsible) with a badge = that project's open \"needs you\" count\n- [ ] Switching A → B → A restores A's last screen, scroll position and unsent chat draft (unit test on `shared/lib/persisted-state` + one e2e)\n- [ ] A stored state with an old version or wrong shape is discarded without an error (test)\n- [ ] No UI state is sent to the Worker (no request besides the project list)\n- [ ] All strings via i18n (ru, en); axe clean on mobile and desktop\n\n## Out of scope\n- Adding/archiving projects (Settings screen, split to its own issue)\n- Content of the spaces (questions, chat, board, artifacts)\n\nDepends on #3, #4, #13, #15.\n\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_",
+        "html_url": "https://github.com/geeera/team-console/issues/23",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:in-progress"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:heavy"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "architect-note"
+          },
+          {
+            "name": "foundation"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 21,
+        "title": "Аккаунт Cloudflare и токены для деплоя",
+        "body": "**Your answer:** Напиши «сделал», когда заведёшь аккаунты по чеклисту из #7 · /reject причина, если что-то не подходит\n<!-- pt-ask -->\n\nЧтобы команда могла выкатить приложение на dev и stage, нужны аккаунты, которые можешь завести только ты. Всё бесплатно.\n\n- Аккаунт Cloudflare, бесплатная команда Zero Trust, поддомен `workers.dev`.\n- API-токен Cloudflare для GitHub Actions → секреты `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` в этом репозитории.\n- Твой email для входа по одноразовому коду → секрет `OWNER_EMAIL`.\n- Fine-grained токен GitHub для сервера приложения с доступом к репозиториям проектов (права — в ADR 0001, решение 6).\n\nПошаговая инструкция появится в `.product-team/owner-checklist.md` по задаче #7. До этого можно не торопиться: первые задачи спринта (#3–#6) от этого не зависят.\n",
+        "html_url": "https://github.com/geeera/team-console/issues/21",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:blocked"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "needs:owner"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 18,
+        "title": "Sprint board (read-only)",
+        "body": "**Story:** as the owner, I see how a product's sprint is going at a glance: what is in progress, what waits for review, open PRs and CI, whether the team is running, and the demo date. Read-only. Design: Paper Desk (approved).\n\nSplit by the demo plan (#72, approved 2026-09-30): this issue is the **read-only** per-project board (a stretch goal for the 16 October demo). Pause/resume moved to #29 (team commands), the cross-project overview is #27.\n\n## Acceptance criteria\n- [ ] Issues grouped by status with the tier shown; counts equal `backlog list --milestone current` for the same repo (fixture test)\n- [ ] Open PRs with CI state, the last run-log entries (running / paused / failing, same rules as the plugin's `runstate`) and the demo date\n- [ ] Data comes from #35's sprint read model; stays under 50 GitHub subrequests per load (test)\n- [ ] Issue titles render as plain text (Angular interpolation only)\n- [ ] All strings via i18n (ru, en); axe has no serious/critical violations on mobile and desktop widths\n\n## Out of scope\n- Pause/resume and every other write (#29)\n- Editing issues or moving statuses from the app\n- Sprint-progress bars and monospaced ids (not approved, ADR 0002 \"Not yet\")\n\nDepends on #35, #23.\n",
+        "html_url": "https://github.com/geeera/team-console/issues/18",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 16,
+        "title": "Questions and cross-project Needs you",
+        "body": "Inbox read model per project and the cross-project union (tagged by project); decision cards answered in one tap through the owner grammar; confirmation for go/override. Design: Paper Desk prototype (ADR 0002), approved. Answers are written by the owner's own account (ADR 0003 decision 2(b), #10/#59).\n\n**Story:** as the owner, I answer every question the team has for me — in one project or across all — with one tap.\n\n## Acceptance criteria (replace the lists in the comments)\n- [ ] A project's Questions list shows the same items, in the same order, as the plugin's inbox for that repo (fixture test)\n- [ ] Each card offers only the answers allowed for its type (owner grammar); an answer writes a comment byte-identical to `backlog answer` apart from the \"team console\" trailer (#10)\n- [ ] `go` and `override` ask for confirmation; `override`, `no-go` and `/reject` require a written reason\n- [ ] Needs you shows items of all active projects, each tagged with its project, sorted by inbox order then project\n- [ ] Answering works from Needs you without entering the project; the card leaves the list on success; on failure the card stays and the shared error block explains why\n- [ ] 403 `github-owner-not-connected` shows \"Connect GitHub\" (link to Settings, #24) instead of an error; 409 `github-owner-mismatch` and 409 `github-app-not-installed` each show their own message (branch on the problem `type`)\n- [ ] Items whose author is not trusted (`authorTrusted: false`, #35) are visibly marked",
+        "html_url": "https://github.com/geeera/team-console/issues/16",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 15,
+        "title": "Project registry API: add, archive, setup status",
+        "body": "The project registry API on the `api` Worker: list, add, update, archive and the per-project setup status the Settings screen (#24) shows. The client shell is #23, the Settings screen #24. Source: `docs/decisions/0001-stack-and-architecture.md` decisions 19–22, amended by `docs/decisions/0003-console-github-app.md` decisions 2, 5, 6 and its Consequences. Architect note in the comments; its \"PAT can read the repo\" validation and the `webhook` step are replaced below.\n\n## Acceptance criteria (replace every earlier list, including the comments)\n- [ ] `projects` gains `installation_id INTEGER` (nullable for legacy rows) in a new migration; the number is set in the architect note (`0002`–`0005` are reserved for #11, #12, chat, #59)\n- [ ] `GET /api/v1/projects` (active only, `?include=archived` for Settings), `POST /api/v1/projects`, `PATCH /api/v1/projects/:slug` (`displayName`, `routineId`), `POST /api/v1/projects/:slug/archive`; slug unique, reserved slugs (`needs-you`, `overview`, `settings`, `api`) refused; archived projects answer 404 `project-not-found` on every project route\n- [ ] Adding validates **before any D1 write**, in this order, and every refusal names its step in a `step` extension member: repository format → **the `team-console-<env>` app is installed on the repository** (409 `github-app-not-installed`, step `app-installed`, with the install URL built on the server) → **the repository's owner is the connected account** (`owner.login` case-insensitive and `owner.id",
+        "html_url": "https://github.com/geeera/team-console/issues/15",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:done"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "architect-note"
+          },
+          {
+            "name": "foundation"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": "2026-09-29T23:53:50Z"
+      },
+      {
+        "number": 13,
+        "title": "Design kit, tokens and Storybook (Paper Desk)",
+        "body": "Paper Desk tokens (ADR 0002, token sketch in `docs/design/directions/01-paper-desk.html`), CDK-based primitives\n(button, list, sheet, empty/error/loading blocks, decision card), stories with the a11y addon, Storybook deployed from `dev`.\n## Acceptance criteria\n- [ ] No raw colours/spacing/durations in components (lint)\n- [ ] Every primitive has stories for both themes and reduced motion\n",
+        "html_url": "https://github.com/geeera/team-console/issues/13",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:done"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:heavy"
+          },
+          {
+            "name": "foundation"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": "2026-09-29T23:23:05Z"
+      },
+      {
+        "number": 12,
+        "title": "GitHub webhook receiver",
+        "body": "The public `hooks` Worker receives the **GitHub App's** webhook deliveries (`POST /hooks/github`): HMAC verification, delivery dedupe (D1), own-write filter, cache-epoch bump, installation events, and event → push mapping. Source: `docs/decisions/0001-stack-and-architecture.md` decisions 4, 5, 8, 22, amended by `docs/decisions/0003-console-github-app.md` decisions 5 and 8 and its Consequences. Per-repository webhooks no longer exist. Architect note, threat model and addenda are in the comments; **where the addendum and ADR 0003 differ, the merged ADR wins**.\n\n## Acceptance criteria (replace every earlier list, including the comments)\n- [ ] `WEBHOOK_SECRET` is this environment's app webhook secret; when `WEBHOOK_SECRET_PREVIOUS` is set, a body signed with either secret is accepted; when it is unset, only the current one is (rotation, decision 5; tests)\n- [ ] A missing or empty `WEBHOOK_SECRET` → 503 `webhook-misconfigured` before any processing; a body signed with `\"\"` → 503, no D1 row (row 1)\n- [ ] Strict `sha256=<64 hex>` parsing over the exact raw bytes; a missing header, `sha1=`, a short or uppercase hex, or a valid signature over a re-serialised body → 401 without `detail`, never 500 (row 2)\n- [ ] Body read capped at 1 MB → 413 before HMAC, even without `content-length`; non-POST → 405; zero D1 writes on an invalid signature (row 7)\n- [ ] Replays are ignored by delivery id **and** by `sha256(rawBody)` (UNIQUE `body_sha256` in `0003_webhooks.sql`): the same body with a new",
+        "html_url": "https://github.com/geeera/team-console/issues/12",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "architect-note"
+          },
+          {
+            "name": "foundation"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 10,
+        "title": "Owner grammar library and the answer endpoint",
+        "body": "`libs/shared/owner-grammar` (section → allowed answers, the one-line comment body with the owner's words, identical to the plugin's `backlog answer`, golden fixtures generated with it) and the answer route `POST /api/v1/projects/:slug/issues/:number/answer`. Source: `docs/decisions/0001-stack-and-architecture.md` decisions 9, 10, 19, amended by `docs/decisions/0003-console-github-app.md` decision 2(b) and its Consequences. Architect note and addenda are in the comments; **where the addendum and ADR 0003 differ, the merged ADR wins**.\n\n## Acceptance criteria (replace every earlier list, including the comments)\n- [ ] Golden fixtures produced by the plugin's `backlog answer` (`via: 'chat'`) pass byte for byte; the route always writes `via: 'console'` (\"Answered by the owner in the team console\") — the one intended difference, stated in the PR\n- [ ] A newline or a second `/command` in the owner's text cannot produce a second command line (property test over every fixture, incl. `\"ok\\n/go\"`, CRLF, U+2028)\n- [ ] Section and allowed commands are re-derived on the server from the live, uncached issue; a closed issue → 409 `issue-closed`; a command outside the section → 422 `answer-<code>` with `{ section, allowed }`; action items accept only `done`; nothing is written on any 4xx (test asserts no GitHub POST)\n- [ ] The comment is written **only** through `OwnerTokenSource` (the owner's user access token, #59) — never an installation token, never a fallback token; a test proves the ins",
+        "html_url": "https://github.com/geeera/team-console/issues/10",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:in-progress"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "architect-note"
+          },
+          {
+            "name": "foundation"
+          },
+          {
+            "name": "team-decided"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 9,
+        "title": "GitHub client on the console app's installation tokens (ADR 0003)",
+        "body": "Installation-token-backed GitHub client in the `api` Worker (the token never reaches the client), error mapping, the read cache and mock mode. Source: `docs/decisions/0001-stack-and-architecture.md` decisions 6, 19, 20 as amended by `docs/decisions/0003-console-github-app.md` decisions 2(a), 6, 7, 8 and its Consequences. The architect note, threat model and the 2026-09-29 addendum are in the comments; **where the addendum and ADR 0003 differ, the merged ADR wins** (see the PM comment of 2026-09-30).\n\n## Acceptance criteria (replace every earlier list, including the comments)\n- [ ] `GitHubClient(fetch, tokenSource: TokenSource)` in `libs/worker/github` — never a token string; base URL fixed to `https://api.github.com`, `redirect: 'manual'`; a redirect off `api.github.com` → 502 `github-unexpected` and no request reaches the other host (threat row 1)\n- [ ] `libs/worker/github/src/app-auth.ts` → `InstallationTokenSource`, no new dependency: RS256 JWT via `crypto.subtle` (`RSASSA-PKCS1-v1_5`/SHA-256), `iat = now − 60 s`, `exp = now + 9 min`, `iss = GITHUB_APP_ID`\n- [ ] Only a PKCS#8 PEM (`BEGIN PRIVATE KEY`) is accepted in `GITHUB_APP_PRIVATE_KEY`; a PKCS#1 key or anything else → 503 `github-auth` (misconfigured). No PKCS#1 wrapping in code (ADR 0003 decision 6 as merged; supersedes the addendum)\n- [ ] Installation lookup `GET /repos/{owner}/{repo}/installation` with the JWT: 404 → 409 `github-app-not-installed` with the repo in `detail`; on success the installation id is returne",
+        "html_url": "https://github.com/geeera/team-console/issues/9",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:done"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "architect-note"
+          },
+          {
+            "name": "foundation"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": "2026-09-29T23:15:18Z"
+      },
+      {
+        "number": 8,
+        "title": "Cloudflare Access JWT verification",
+        "body": "Middleware verifying `Cf-Access-Jwt-Assertion` (issuer, audience, owner email), failing closed; service-token mode\nonly on dev/stage; the client detects the Access redirect and re-authenticates. Source: `docs/decisions/0001-stack-and-architecture.md` decision 5.\n## Acceptance criteria\n- [ ] Requests without a valid token get 401/redirect; tests for wrong issuer, audience, email, expiry\n- [ ] Production rejects service tokens\n",
+        "html_url": "https://github.com/geeera/team-console/issues/8",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:done"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "architect-note"
+          },
+          {
+            "name": "foundation"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": "2026-09-29T17:34:29Z"
+      },
+      {
+        "number": 7,
+        "title": "Deploy workflow and step-by-step owner checklist",
+        "body": "`deploy.yml` per environment (migrations, both Workers, Storybook direct upload, smoke checks, rollback via\n`workflow_dispatch`). Turn `.product-team/owner-checklist.md` into click-by-click steps for every account, token\nand secret in ADR 0001 → Consequences (in Russian, `owner.language: ru`).\n## Acceptance criteria\n- [ ] A push to `dev` deploys the dev environment; the smoke check passes\n- [ ] The owner can follow the checklist without asking anything\n",
+        "html_url": "https://github.com/geeera/team-console/issues/7",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:done"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "foundation"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": "2026-09-29T19:12:57Z"
+      },
+      {
+        "number": 6,
+        "title": "API and hooks Workers skeleton with D1",
+        "body": "`apps/api` (Hono, serves the SPA assets, `/api/v1/healthz`), `apps/hooks`, D1 binding and the first migration\n(incl. `projects`), wrangler environments dev/stage/production, Dockerfile running `wrangler dev --local` on :8787. Source: `docs/decisions/0001-stack-and-architecture.md` decisions 3, 4, 19.\n## Acceptance criteria\n- [ ] `wrangler dev` serves the app and `/api/v1/healthz`\n- [ ] The Docker image runs the same locally and is the e2e target\n- [ ] Migrations apply cleanly to a fresh D1\n",
+        "html_url": "https://github.com/geeera/team-console/issues/6",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:done"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:heavy"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "architect-note"
+          },
+          {
+            "name": "foundation"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": "2026-09-29T16:45:58Z"
+      },
+      {
+        "number": 5,
+        "title": "Contract CI: lint, test, build, security",
+        "body": "`ci.yml` (install/lint/test/build, Nx affected, `concurrency` + `cancel-in-progress`), `security.yml`\n(`npm audit --audit-level=high`, gitleaks, CodeQL is optional on a public repo). `branch-guard.yml` is already in.\n## Acceptance criteria\n- [ ] CI runs on every PR to dev/stage/main and is required by the review gate\n- [ ] Superseded runs are cancelled\n",
+        "html_url": "https://github.com/geeera/team-console/issues/5",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:done"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "foundation"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": "2026-09-29T15:36:15Z"
+      },
+      {
+        "number": 4,
+        "title": "Bilingual interface (ru, en) from the first component",
+        "body": "Runtime-switchable i18n (architect's choice of library; Angular build-time i18n cannot switch at runtime). Russian is\nthe reference copy. Default from the device language, remembered, switch in Settings. Dates/times/numbers via Intl.\nSee the brief (\"Language\") and ADR 0002.\n## Acceptance criteria\n- [ ] No hard-coded user-facing string (lint rule or test that fails on one)\n- [ ] Switching ru ↔ en updates the whole UI without reload and is remembered\n- [ ] Russian copy reviewed by the ux-designer for length on iPhone width\n",
+        "html_url": "https://github.com/geeera/team-console/issues/4",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "foundation"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 3,
+        "title": "Nx workspace with the Angular PWA shell and FSD boundaries",
+        "body": "Create the Nx workspace: `apps/console` (Angular 22, zoneless, signals, strict TS), FSD layer libs with\n`enforce-module-boundaries` tags, web manifest and `ngsw-config`. Fill the commands in `.product-team/project.yml`.\n## Acceptance criteria\n- [ ] `npm ci && npx nx run-many -t lint test build` passes on a clean checkout\n- [ ] A cross-layer import (e.g. feature → feature) fails lint\n- [ ] The app installs as a PWA (manifest, icons, service worker registered) — verified in Chrome and Safari\n",
+        "html_url": "https://github.com/geeera/team-console/issues/3",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:done"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:heavy"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "architect-note"
+          },
+          {
+            "name": "foundation"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 1,
+          "title": "Sprint 01"
+        },
+        "closed_at": "2026-09-29T15:11:36Z"
+      }
+    ],
+    "2": [
+      {
+        "number": 36,
+        "title": "Web push client: subscribe button, iOS guide, tap routing and badge",
+        "body": "Split from #11 (same approved scope). #11 keeps the server side (table, endpoints, VAPID, encryption, sending, pruning); this issue is the client. Architect note and threat model: see #11 (placement `libs/console/entities/push`, `features/push-subscribe`, `shared/lib/platform`, `shared/lib/app-badge`). UI follows the approved Paper Desk direction (\"Add to Home Screen, then allow notifications\").\n\n## Acceptance criteria\n- [ ] Permission is requested only from a button tap (unit test: no request on load)\n- [ ] On iOS outside standalone mode the \"Add to Home Screen\" guide shows instead of the button\n- [ ] Uses `SwPush` from `@angular/service-worker` with the public key from `GET /api/v1/push/config`; no custom service worker\n- [ ] Tapping a notification opens the item's route; the app badge equals the open \"needs you\" count (no-op where unsupported)\n- [ ] Tapping a push opens the right card in the right project, including a card from Needs you (e2e with a mocked `notificationclick`) — moved here from #16 by the demo plan (#72)\n- [ ] `ngsw-config.json` has no `dataGroups` for `/api/**` (#8 threat row 10 — config test here if #8 has not added it)\n- [ ] All strings via i18n (ru, en); axe clean on mobile and desktop\n- [ ] After #25: a test push arrives on the owner's installed iPhone PWA and on Mac (owner confirms on this issue)\n\n## Out of scope\n- Server side (#11)\n- A device list screen and a \"hide details on the lock screen\" setting (proposed separately)\n\nDepends on #11, #3, #4, #",
+        "html_url": "https://github.com/geeera/team-console/issues/36",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "foundation"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 2,
+          "title": "Sprint 02"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 29,
+        "title": "Team commands: pause/resume, run now, sprint and priority controls",
+        "body": "The owner asked (2026-09-29) for team commands in the app, per project and from the all-projects view. Each command\nconfirms before acting when it changes what the team does; each writes what the plugin already understands.\n\n| Command | How (owner decides nothing technical here) |\n|---|---|\n| Pause / resume development | `team:paused` on the run log + the owner-pause record, exactly like `runlog pause` / `runlog resume` (the Worker cannot switch routines off — that needs the owner's claude.ai session; routines keep firing and exit at once). Full switch-off stays in the team chat (`pause` skill). |\n| Run planning / development / QA now | Fire the product's slot routine through its API trigger token (same mechanism as the PM chat, ADR 0001 decision 12); show \"started\" and the run-log link; respect routine rate limits. |\n| Move the demo date / start the next sprint | Milestone due date / `backlog sprint create`; freeze days follow automatically. |\n| Reprioritise an issue, change its tier, move it to another sprint | Labels and milestone through the owner grammar, recorded as the owner's decision. |\n| Approve every recommendation that is safe | Batch `answer` for questions whose recommendation is not money, release or legal; one confirmation listing them. |\n| Snooze the digest / notifications for a project | Client-side and push-subscription settings. |\n| Status of a project | The team-chat briefing (`scripts/brief`) rendered as a card. |\n\n## Acceptance criteria\n- [ ] Every comma",
+        "html_url": "https://github.com/geeera/team-console/issues/29",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "ux-spec"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 2,
+          "title": "Sprint 02"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 28,
+        "title": "Artifacts: audits, briefings, releases and deploy links",
+        "body": "Split from #19 (same approved scope and design). The remaining artifact types in the Artifacts space: audits,\nbriefings, releases/changelog and deploy links (ADR 0001 decision 21).\n\n## Acceptance criteria\n- [ ] Audits = `kind:finding` issues + run-log comments containing \"deep audit\" + `docs/audit/**` when present\n- [ ] Briefings = the team's run-log summary comments and the owner digest, newest first\n- [ ] Releases = GitHub Releases + `CHANGELOG.md`; deploy links = environment URLs from `project.yml`\n- [ ] On storify fixtures every artifact of these types is found (count matches a hand-made list)\n- [ ] Each type has its tab and is covered by the same search as #19\n- [ ] All strings via i18n (ru, en); axe clean\n\n## Out of scope\n- Decisions, designs, demo pages, search and cache invalidation (#19)\n\nDesign: approved on #19. Depends on #19.\n\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_",
+        "html_url": "https://github.com/geeera/team-console/issues/28",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 2,
+          "title": "Sprint 02"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 27,
+        "title": "All-projects overview",
+        "body": "Split from #18 (same approved scope and design). **As the owner, I want one screen that shows all my products at a\nglance** — which team is running, paused or failing, the sprint and demo date, and progress (ADR 0001 decision 24).\n\n## Acceptance criteria\n- [ ] One row per active project: running / paused / failing (same rules as the plugin's `runstate`), sprint title, demo date, open questions count, sprint progress (done / total)\n- [ ] Values match `backlog sprint current` and `backlog list --milestone current` for the same repo (fixture test)\n- [ ] One failing project shows its error in its row; the other rows still load\n- [ ] Tapping a row opens that project's board\n- [ ] Loads with one request from the client; the Worker stays under 50 subrequests for 12 projects (test)\n- [ ] All strings via i18n (ru, en); axe clean\n\n## Out of scope\n- Pause/resume (on the project board, #18)\n- Sidebar sprint-progress bars (proposed by the designer, not approved — ADR 0002 \"Not yet\")\n\nDesign: approved on #18. Depends on #9, #15, #18.\n\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_",
+        "html_url": "https://github.com/geeera/team-console/issues/27",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 2,
+          "title": "Sprint 02"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 26,
+        "title": "PM chat wakeup: routine fire and retry queue",
+        "body": "Split from #17 (same approved scope). The server side of PM chat: waking the product's PM routine when the owner\nwrites, with a retry queue that respects rate limits (ADR 0001 decision 11).\n\n## Acceptance criteria\n- [ ] On `issue_comment.created` on the `team:pm-chat` issue with the `<!-- pt-chat:owner -->` marker, the hooks Worker calls the project's routine `/fire` exactly once (test with a mocked endpoint)\n- [ ] The owner's own message never triggers a push back to the owner\n- [ ] On 429/5xx the wakeup is stored in `chat_wakeups` and retried by the cron (`*/5`) no earlier than `Retry-After`; after the cap of attempts it stops and the state is visible to the chat screen (never an endless retry loop)\n- [ ] The cron does nothing (no GitHub or routine call) when no rows are pending\n- [ ] A comment with the `<!-- pt-chat:pm -->` marker sends a push that opens the project's chat\n- [ ] The routine token is read only from the Worker secret `ROUTINE_TOKEN_<SLUG>`; it never appears in responses or logs (test)\n- [ ] `/api/v1/projects/{slug}/chat/status` reports: idle, waking, waiting until HH:MM (rate-limited), failed\n\n## Out of scope\n- The chat screen (#17)\n- The PM's replies themselves (plugin `pm-chat` skill, ADR 0001 decision 12)\n\nNeeds, from the owner, a routine with an API trigger and its token per product (owner checklist). Depends on #6, #12, #15.\n\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_",
+        "html_url": "https://github.com/geeera/team-console/issues/26",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "security"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 2,
+          "title": "Sprint 02"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 25,
+        "title": "First deploy to dev and stage, rollback rehearsal",
+        "body": "Split from #7 so the owner's checklist (#7) can ship first. The first real deploy needs the accounts and secrets from #21.\n\n## Acceptance criteria\n- [ ] A merge to `dev` deploys the dev environment from Actions; the smoke check (`/api/v1/healthz`, app shell loads) passes\n- [ ] The stage workflow deploys `stage`; stage URL is behind Cloudflare Access\n- [ ] Dev and stage URLs are written into `.product-team/project.yml`\n- [ ] Rollback rehearsal: a manual `workflow_dispatch` deploy of the previous ref to `stage` succeeds and is recorded on this issue\n- [ ] Storybook is published from `dev` and its URL is in `design.storybook_url`\n\n## Out of scope\n- Production deploy (after the first owner go)\n\n**Blocked on #21** (owner accounts and secrets). Depends on #6, #7.\n\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_",
+        "html_url": "https://github.com/geeera/team-console/issues/25",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "foundation"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 2,
+          "title": "Sprint 02"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 20,
+        "title": "Designs and demo screen",
+        "body": "Designs awaiting approval and the demo issue with sanitised markdown, allow-listed iframes (Storybook/stage),\napprove/reject and go/no-go through the owner grammar.\n## Acceptance criteria\n- [ ] Untrusted markdown cannot run script (sanitiser tests)\n- [ ] Approve/reject and go/no-go write the same comments as the team chat\n",
+        "html_url": "https://github.com/geeera/team-console/issues/20",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          },
+          {
+            "name": "security"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 2,
+          "title": "Sprint 02"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 19,
+        "title": "Artifacts space",
+        "body": "Normalised artifact read models per project (decisions, audits, designs, demo pages, briefings, releases, deploy\nlinks) with type tabs and search; Cache API with webhook invalidation.\n## Acceptance criteria\n- [ ] All artifact types of storify are found without a database of our own\n- [ ] Search is instant on 200+ artifacts\n",
+        "html_url": "https://github.com/geeera/team-console/issues/19",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 2,
+          "title": "Sprint 02"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 17,
+        "title": "PM chat",
+        "body": "`team:pm-chat` issue per product, full history, posting messages, waking the product's PM routine through the hooks\nWorker (retry queue, Retry-After), reply push. Depends on the plugin's `pm-chat` skill (plugin roadmap).\n## Acceptance criteria\n- [ ] A message gets a PM reply as a push within minutes, with history kept per project\n- [ ] Rate limits of routines are respected and shown, never retried in a loop\n",
+        "html_url": "https://github.com/geeera/team-console/issues/17",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          },
+          {
+            "name": "security"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 2,
+          "title": "Sprint 02"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 14,
+        "title": "Playwright e2e with axe",
+        "body": "Mobile and desktop projects, `BASE_URL`, local mock mode, stage via the Access service token.\n## Acceptance criteria\n- [ ] `npx nx e2e console-e2e` runs against the Docker target and against stage\n- [ ] Serious/critical axe violations fail the run\n",
+        "html_url": "https://github.com/geeera/team-console/issues/14",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "foundation"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 2,
+          "title": "Sprint 02"
+        },
+        "closed_at": null
+      },
+      {
+        "number": 11,
+        "title": "Web push end to end",
+        "body": "VAPID keys, subscription endpoint, `SwPush` client with the iOS \"add to Home Screen\" guide and permission only on a\ntap, sending with pruning of dead subscriptions, badge count. Source: `docs/decisions/0001-stack-and-architecture.md` decision 8.\n## Acceptance criteria\n- [ ] A test push arrives on an installed iPhone PWA and on Mac\n- [ ] Permission is never requested without a user gesture\n",
+        "html_url": "https://github.com/geeera/team-console/issues/11",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "architect-note"
+          },
+          {
+            "name": "foundation"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "milestone": {
+          "number": 2,
+          "title": "Sprint 02"
+        },
+        "closed_at": null
+      }
+    ]
+  },
+  "openPulls": [
+    {
+      "number": 45,
+      "title": "chore(devops): publish docs/design to GitHub Pages via Actions",
+      "html_url": "https://github.com/geeera/team-console/pull/45",
+      "draft": false,
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      }
+    },
+    {
+      "number": 40,
+      "title": "docs(design): UX wireframe for #29 team commands",
+      "html_url": "https://github.com/geeera/team-console/pull/40",
+      "draft": false,
+      "author_association": "OWNER",
+      "user": {
+        "login": "geeera",
+        "type": "User"
+      }
+    }
+  ]
+}
