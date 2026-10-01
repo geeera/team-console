@@ -77,7 +77,7 @@ test.describe('with two active projects', () => {
       '/overview',
       '/needs-you',
       '/p/team-console/chat',
-      '/p/team-console/board',
+      '/p/team-console/artifacts',
       '/p/nope/demo',
     ]) {
       await page.goto(path);

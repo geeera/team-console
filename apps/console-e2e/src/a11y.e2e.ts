@@ -111,9 +111,19 @@ const SCREENS: readonly Screen[] = [
       visit(page, '/p/team-console/chat', (p) => expect(p.getByTestId('chat-draft')).toBeVisible()),
   },
   {
-    name: 'Project board placeholder',
+    name: 'Project board',
     open: (page) =>
-      visit(page, '/p/team-console/board', (p) =>
+      visit(page, '/p/team-console/board', async (p) => {
+        await expect(p.getByTestId('loading')).toHaveCount(0);
+        await expect(
+          p.getByTestId('stats').or(p.getByTestId('no-sprint')).or(p.getByTestId('empty-sprint')),
+        ).toBeVisible();
+      }),
+  },
+  {
+    name: 'Project artifacts placeholder',
+    open: (page) =>
+      visit(page, '/p/team-console/artifacts', (p) =>
         expect(p.getByText(ru('space.placeholderTitle'))).toBeVisible(),
       ),
   },
