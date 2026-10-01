@@ -1,7 +1,6 @@
 import { ROUTINES_API_ORIGIN, type FetchLike } from '@worker/routines';
 import type { ApiEnv } from '../env';
-
-const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['127.0.0.1', 'localhost', '[::1]']);
+import { localFakeOriginOf } from '../local-fake-origin';
 
 export class RoutinesMisconfiguredError extends Error {
   constructor() {
@@ -16,17 +15,11 @@ export class RoutinesMisconfiguredError extends Error {
  * environment the variable is ignored and the request goes to api.anthropic.com.
  */
 export function routinesFetch(env: ApiEnv, base: FetchLike): FetchLike {
-  const configured = env.ENVIRONMENT === 'local' ? env.ROUTINES_FAKE_ORIGIN?.trim() : undefined;
-  if (configured === undefined || configured === '') {
+  const fake = localFakeOriginOf(env, env.ROUTINES_FAKE_ORIGIN);
+  if (fake.kind === 'off') {
     return base;
   }
-  let fake: URL;
-  try {
-    fake = new URL(configured);
-  } catch {
-    throw new RoutinesMisconfiguredError();
-  }
-  if (!LOOPBACK_HOSTS.has(fake.hostname) || (fake.protocol !== 'http:' && fake.protocol !== 'https:')) {
+  if (fake.kind === 'invalid') {
     throw new RoutinesMisconfiguredError();
   }
   return async (input, init) => {

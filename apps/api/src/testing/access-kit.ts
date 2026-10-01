@@ -141,6 +141,9 @@ export interface ApiRequest {
   /** The fake routines API's fetch (#114). */
   readonly routinesFetch?: FetchLike;
   readonly routinesDeadlineMs?: number;
+  /** The fake push service's fetch (#11). */
+  readonly pushFetch?: FetchLike;
+  readonly pushNow?: () => number;
 }
 
 /** Calls the app directly so each case chooses its own bindings (`SELF` is fixed to the pool's local ones). */
@@ -153,6 +156,8 @@ export async function fetchApi(path: string, bindings: ApiEnv, request: ApiReque
     ...(request.ownerConnection === undefined ? {} : { ownerConnection: request.ownerConnection }),
     ...(request.routinesFetch === undefined ? {} : { routinesFetch: request.routinesFetch }),
     ...(request.routinesDeadlineMs === undefined ? {} : { routinesDeadlineMs: request.routinesDeadlineMs }),
+    ...(request.pushFetch === undefined ? {} : { pushFetch: request.pushFetch }),
+    ...(request.pushNow === undefined ? {} : { pushNow: request.pushNow }),
   });
   const init: RequestInit = { method: request.method ?? 'GET', headers: request.headers ?? {} };
   if (request.body !== undefined) {

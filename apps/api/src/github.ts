@@ -12,6 +12,7 @@ import {
   type ReadCache,
 } from '@worker/github';
 import type { ApiEnv } from './env';
+import { localFakeOriginOf } from './local-fake-origin';
 import { OwnerConnection } from './owner/owner-connection';
 import { loadOwnerKeys, ownerFlowMisconfigured } from './owner/owner-keys';
 
@@ -33,7 +34,6 @@ export interface ApiGitHubOptions {
 
 // The two hosts `GITHUB_FAKE_ORIGIN` stands in for; nothing else is ever rewritten.
 const FAKEABLE_ORIGINS: ReadonlySet<string> = new Set(['https://github.com', 'https://api.github.com']);
-const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['127.0.0.1', 'localhost', '[::1]']);
 
 /**
  * Local runs only (`ENVIRONMENT=local`, like `GITHUB_MOCK`): `GITHUB_FAKE_ORIGIN` sends github.com and
@@ -41,17 +41,11 @@ const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['127.0.0.1', 'localhost', '
  * end to end without GitHub. Only a loopback origin is accepted; anywhere else the variable is ignored.
  */
 export function fakeGitHubFetch(env: ApiEnv, base: FetchLike): FetchLike {
-  const configured = env.ENVIRONMENT === 'local' ? env.GITHUB_FAKE_ORIGIN?.trim() : undefined;
-  if (configured === undefined || configured === '') {
+  const fake = localFakeOriginOf(env, env.GITHUB_FAKE_ORIGIN);
+  if (fake.kind === 'off') {
     return base;
   }
-  let fake: URL;
-  try {
-    fake = new URL(configured);
-  } catch {
-    throw ownerFlowMisconfigured('GITHUB_FAKE_ORIGIN must be a loopback http(s) origin');
-  }
-  if (!LOOPBACK_HOSTS.has(fake.hostname) || (fake.protocol !== 'http:' && fake.protocol !== 'https:')) {
+  if (fake.kind === 'invalid') {
     throw ownerFlowMisconfigured('GITHUB_FAKE_ORIGIN must be a loopback http(s) origin');
   }
   return async (input, init) => {

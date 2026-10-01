@@ -14,6 +14,7 @@ import { createProjectReadModelRoutes } from './routes/project-read-models';
 import { createNeedsYouRoutes } from './routes/needs-you';
 import { createOverviewRoutes } from './routes/overview';
 import { createTeamCommandsRoutes } from './routes/team-commands';
+import { createPushRoutes } from './routes/push';
 import type { FetchLike } from '@worker/routines';
 import { mapReadModelError } from './read-models/errors';
 
@@ -26,6 +27,10 @@ export interface CreateApiAppOptions {
   /** The transport of "Run now" fires (#114); a test passes the fake routines API. */
   readonly routinesFetch?: FetchLike;
   readonly routinesDeadlineMs?: number;
+  /** The transport of web pushes (#11); a test passes the fake push service. */
+  readonly pushFetch?: FetchLike;
+  /** Milliseconds since the epoch for the push routes; a seam for the test-push interval. */
+  readonly pushNow?: () => number;
 }
 
 function isApiPath(path: string): boolean {
@@ -73,6 +78,13 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
     }),
   );
   v1.route('/github', createGitHubConnectionRoutes(github));
+  v1.route(
+    '/push',
+    createPushRoutes({
+      ...(options.pushFetch === undefined ? {} : { fetch: options.pushFetch }),
+      ...(options.pushNow === undefined ? {} : { now: options.pushNow }),
+    }),
+  );
   app.route('/api/v1', v1);
 
   return app;

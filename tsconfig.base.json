@@ -39,6 +39,8 @@
       "@worker/routines": ["./libs/worker/routines/src/index.ts"],
       "@worker/routines/testing": ["./libs/worker/routines/src/testing/index.ts"],
       "@worker/run-log": ["./libs/worker/run-log/src/index.ts"],
+      "@worker/push": ["./libs/worker/push/src/index.ts"],
+      "@worker/push/testing": ["./libs/worker/push/src/testing/index.ts"],
       "@console/shared/persisted-state": ["./libs/console/shared/persisted-state/src/index.ts"],
       "@console/entities/project": ["./libs/console/entities/project/src/index.ts"],
       "@console/features/project-switcher": ["./libs/console/features/project-switcher/src/index.ts"],
