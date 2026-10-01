@@ -27,16 +27,48 @@ export async function animationsSettled(page: Page): Promise<void> {
   );
 }
 
+/**
+ * `target-size` counts the part of a control hidden under a fixed bar (the phone's tab bar) as missing, so a button
+ * that merely scrolled under the bar fails depending on where the page happens to be. Each such control is checked
+ * again where the owner would tap it — scrolled to the middle of the screen; only a failure there counts.
+ */
+async function failsWhereTapped(page: Page, selector: string): Promise<boolean> {
+  const control = page.locator(selector);
+  if ((await control.count()) !== 1) {
+    return true;
+  }
+  await control.evaluate((element) => element.scrollIntoView({ block: 'center', inline: 'center' }));
+  const results = await new AxeBuilder({ page }).include(selector).withRules(['target-size']).analyze();
+  return results.violations.length > 0;
+}
+
 /** Serious and critical axe violations on the page as it is now (dialogs and sheets included). */
 export async function blockingViolations(page: Page): Promise<BlockingViolation[]> {
   await animationsSettled(page);
   const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
-  return results.violations
-    .filter((violation) => BLOCKING_IMPACTS.has(violation.impact ?? ''))
-    .map((violation) => ({
-      id: violation.id,
-      impact: violation.impact ?? '',
-      help: violation.help,
-      targets: violation.nodes.slice(0, 5).map((node) => node.target.join(' ')),
-    }));
+  const blocking: BlockingViolation[] = [];
+  for (const violation of results.violations) {
+    if (!BLOCKING_IMPACTS.has(violation.impact ?? '')) {
+      continue;
+    }
+    let targets = violation.nodes.map((node) => node.target.join(' '));
+    if (violation.id === 'target-size') {
+      const failing: string[] = [];
+      for (const target of targets) {
+        if (await failsWhereTapped(page, target)) {
+          failing.push(target);
+        }
+      }
+      targets = failing;
+    }
+    if (targets.length > 0) {
+      blocking.push({
+        id: violation.id,
+        impact: violation.impact ?? '',
+        help: violation.help,
+        targets: targets.slice(0, 5),
+      });
+    }
+  }
+  return blocking;
 }

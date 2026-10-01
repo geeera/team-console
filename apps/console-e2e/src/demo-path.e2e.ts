@@ -221,7 +221,8 @@ test('a lost response shows offline without a reload, and Retry posts once', asy
 
   await expect(item(page, issue).locator('tc-receipt')).toBeVisible();
   expect(response.status()).toBe(200);
-  expect(await response.json()).toMatchObject({ replayed: true });
+  // The header, not the body: Chromium may already have dropped a consumed body by the time the receipt shows.
+  expect(await response.headerValue('idempotent-replayed')).toBe('true');
   expect(posts.map((post) => post.postData())).toEqual([posts[0]?.postData(), posts[0]?.postData()]);
   expect(await fakeComments(stack, issue), 'Retry replays the comment, never posts it twice').toHaveLength(
     before.length + 1,
