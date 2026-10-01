@@ -1,0 +1,27 @@
+<!-- On the phone the shell's top bar already shows the name; the heading stays for assistive tech. -->
+<header class="space__head">
+  <h1 class="space__title" [class.tc-sr-only]="isPhone()">{{ project()?.displayName ?? slug() }}</h1>
+  @if (!isPhone()) {
+  <nav tc-tab-bar [attr.aria-label]="'space.sections' | transloco">
+    @for (item of sections; track item.section) {
+    <a tc-tab [routerLink]="['/p', slug(), item.section]" [current]="currentSection() === item.section">
+      <tc-icon [name]="item.icon" size="sm" />
+      {{ 'space.' + item.section | transloco }}
+    </a>
+    }
+  </nav>
+  }
+</header>
+
+<div class="space__body"><router-outlet /></div>
+
+@if (isPhone()) {
+<nav tc-tab-bar bottom [attr.aria-label]="'space.sections' | transloco">
+  @for (item of sections; track item.section) {
+  <a tc-tab [routerLink]="['/p', slug(), item.section]" [current]="currentSection() === item.section">
+    <tc-icon [name]="item.icon" size="lg" />
+    {{ 'space.' + item.section | transloco }}
+  </a>
+  }
+</nav>
+}

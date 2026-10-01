@@ -17,6 +17,12 @@ const names = [
   'plus',
   'settings',
   'github',
+  'pin',
+  'grid',
+  'chat',
+  'board',
+  'stack',
+  'play',
 ];
 
 const sheet = `

@@ -26,6 +26,9 @@ export class List {
  * with `button` it is a button; otherwise it is static. The interactive element is inside the
  * list item so the list keeps its semantics and the row keeps the browser's.
  *
+ * A control in the `tc-row-action` slot (pin, archive…) renders **beside** the surface, not
+ * inside it, so an interactive row never nests another control; give it its own `aria-label`.
+ *
  * ```html
  * <tc-list-row button [current]="isActive" (click)="open()">
  *   <tc-icon tc-row-leading name="inbox" />

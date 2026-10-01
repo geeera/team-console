@@ -29,13 +29,21 @@
       "@console/shared/api": ["./libs/console/shared/api/src/index.ts"],
       "@console/shared/ui": ["./libs/console/shared/ui/src/index.ts"],
       "@console/entities/app-info": ["./libs/console/entities/app-info/src/index.ts"],
-      "@console/pages/hello": ["./libs/console/pages/hello/src/index.ts"],
       "@shared/contracts": ["./libs/shared/contracts/src/index.ts"],
       "@shared/owner-grammar": ["./libs/shared/owner-grammar/src/index.ts"],
       "@worker/core": ["./libs/worker/core/src/index.ts"],
       "@worker/db": ["./libs/worker/db/src/index.ts"],
       "@worker/github": ["./libs/worker/github/src/index.ts"],
-      "@worker/github/testing": ["./libs/worker/github/src/testing/index.ts"]
+      "@worker/github/testing": ["./libs/worker/github/src/testing/index.ts"],
+      "@console/shared/persisted-state": ["./libs/console/shared/persisted-state/src/index.ts"],
+      "@console/entities/project": ["./libs/console/entities/project/src/index.ts"],
+      "@console/features/project-switcher": ["./libs/console/features/project-switcher/src/index.ts"],
+      "@console/widgets/app-shell": ["./libs/console/widgets/app-shell/src/index.ts"],
+      "@console/pages/project-space": ["./libs/console/pages/project-space/src/index.ts"],
+      "@console/pages/project-not-found": ["./libs/console/pages/project-not-found/src/index.ts"],
+      "@console/pages/needs-you": ["./libs/console/pages/needs-you/src/index.ts"],
+      "@console/pages/overview": ["./libs/console/pages/overview/src/index.ts"],
+      "@console/pages/settings": ["./libs/console/pages/settings/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

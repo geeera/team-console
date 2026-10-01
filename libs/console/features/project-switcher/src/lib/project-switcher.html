@@ -1,0 +1,80 @@
+@if (pinnedProjects().length > 0) {
+<p class="switcher__label" [id]="pinnedLabelId">
+  <tc-icon name="pin" size="sm" />
+  {{ 'shell.pinned' | transloco }}
+</p>
+<tc-list plain class="switcher__list" [attr.aria-labelledby]="pinnedLabelId">
+  @for (project of pinnedProjects(); track project.slug) {
+  <tc-list-row button [current]="project.slug === currentSlug()" (click)="switchTo(project.slug)">
+    <span tc-row-title>{{ project.displayName }}</span>
+    @if (countOf(project.slug); as count) {
+    <tc-chip tc-row-trailing tone="accent">
+      <span aria-hidden="true">{{ count }}</span>
+      <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: count } }}</span>
+    </tc-chip>
+    }
+    <button
+      tc-icon-button
+      tc-row-action
+      type="button"
+      class="switcher__pin"
+      aria-pressed="true"
+      [attr.aria-label]="'shell.unpin' | transloco: { name: project.displayName }"
+      (click)="togglePin($event, project.slug)"
+    >
+      <tc-icon name="pin" size="sm" />
+    </button>
+  </tc-list-row>
+  }
+</tc-list>
+} @if (otherProjects().length > 0) { @if (hasDisclosure()) {
+<button
+  type="button"
+  class="switcher__more"
+  [attr.aria-expanded]="othersVisible()"
+  [attr.aria-controls]="othersId"
+  (click)="toggleCollapsed()"
+>
+  <tc-icon
+    name="chevron-down"
+    size="sm"
+    class="switcher__chevron"
+    [class.switcher__chevron--closed]="!othersVisible()"
+  />
+  {{ othersVisible() ? ('shell.less' | transloco) : ('shell.more' | transloco: { n: otherProjects().length })
+  }}
+</button>
+} @else {
+<p class="switcher__label" [id]="othersLabelId">{{ 'shell.projects' | transloco }}</p>
+} @if (othersVisible()) {
+<tc-list
+  plain
+  class="switcher__list"
+  [id]="othersId"
+  [attr.aria-labelledby]="hasDisclosure() ? null : othersLabelId"
+  [attr.aria-label]="hasDisclosure() ? ('shell.projects' | transloco) : null"
+>
+  @for (project of otherProjects(); track project.slug) {
+  <tc-list-row button [current]="project.slug === currentSlug()" (click)="switchTo(project.slug)">
+    <span tc-row-title>{{ project.displayName }}</span>
+    @if (countOf(project.slug); as count) {
+    <tc-chip tc-row-trailing tone="accent">
+      <span aria-hidden="true">{{ count }}</span>
+      <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: count } }}</span>
+    </tc-chip>
+    }
+    <button
+      tc-icon-button
+      tc-row-action
+      type="button"
+      class="switcher__pin"
+      aria-pressed="false"
+      [attr.aria-label]="'shell.pin' | transloco: { name: project.displayName }"
+      (click)="togglePin($event, project.slug)"
+    >
+      <tc-icon name="pin" size="sm" />
+    </button>
+  </tc-list-row>
+  }
+</tc-list>
+} }

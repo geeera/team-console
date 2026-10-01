@@ -1,0 +1,26 @@
+<div class="tc-page">
+  <h1 class="tc-page__title">{{ 'settings.title' | transloco }}</h1>
+
+  <section class="settings__block" [attr.aria-labelledby]="'settings-lang'">
+    <h2 id="settings-lang" class="settings__heading">{{ 'settings.language' | transloco }}</h2>
+    <button
+      tc-button
+      type="button"
+      data-testid="switch-lang"
+      [attr.lang]="otherLang()"
+      (click)="switchLang()"
+    >
+      {{ 'settings.switchLang' | transloco }}
+    </button>
+  </section>
+
+  <section class="settings__block" [attr.aria-labelledby]="'settings-projects'">
+    <h2 id="settings-projects" class="settings__heading">{{ 'shell.projects' | transloco }}</h2>
+    <tc-state-block kind="empty" compact [title]="'settings.projectsHint' | transloco" />
+  </section>
+
+  <p class="settings__version">
+    {{ appInfo.name() }} · {{ appInfo.version() }} ·
+    <span data-testid="app-built-at">{{ appInfo.builtAt() }}</span>
+  </p>
+</div>
