@@ -199,7 +199,7 @@ describe('QuestionList', () => {
 
     const receipt = root.querySelector('li[data-number="72"] tc-receipt') as HTMLElement;
     expect(root.querySelector('li[data-number="72"] tc-question-card')).toBeNull();
-    expect(receipt.textContent).toContain('Ты: Утвердить');
+    expect(receipt.textContent).toContain('Вы: Утвердить');
     expect(receipt.querySelector('a')?.getAttribute('href')).toBe(
       'https://github.com/geeera/team-console/issues/72#issuecomment-9',
     );
@@ -249,7 +249,7 @@ describe('QuestionList', () => {
     await settle();
 
     expect(root.querySelector('[data-testid="empty"]')?.textContent).toContain(
-      'От тебя сейчас ничего не нужно',
+      'От вас сейчас ничего не нужно',
     );
   });
 

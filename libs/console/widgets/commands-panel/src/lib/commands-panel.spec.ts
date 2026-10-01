@@ -143,7 +143,7 @@ describe('CommandsPanel', () => {
     ]);
     expect(text(card)).toContain('в папке team-console, в терминале, где уже выполнен npx wrangler login');
     expect(text(card.querySelector('.cp-warn'))).toBe(
-      'Вставляй токен только в это скрытое поле — никогда в чат, issue или агенту. Если он утёк, перевыпусти его в Claude Code: старый перестанет работать.',
+      'Вставляйте токен только в это скрытое поле — никогда в чат, issue или агенту. Если он утёк, перевыпустите его в Claude Code: старый перестанет работать.',
     );
   });
 
@@ -178,7 +178,7 @@ describe('CommandsPanel', () => {
     expect(text(banner)).toMatch(
       /^Team Console на паузе с \d\d:\d\d\. Прогоны по расписанию сразу завершаются без работы\./,
     );
-    expect(text(root.querySelector('[data-slot="pm"] .cmd__why'))).toBe('Сначала возобнови разработку');
+    expect(text(root.querySelector('[data-slot="pm"] .cmd__why'))).toBe('Сначала возобновите разработку');
 
     (root.querySelector('[data-testid="team-command"]') as HTMLButtonElement).click();
     await fixture.whenStable();

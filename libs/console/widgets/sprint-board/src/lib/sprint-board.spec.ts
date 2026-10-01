@@ -188,7 +188,7 @@ describe('SprintBoard', () => {
       ['Открытые PR', '1'],
     ]);
     const qa = root.querySelector('tc-lane[data-status="qa"]') as HTMLElement;
-    expect(qa.querySelector('[role="heading"]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('На проверке 1');
+    expect(qa.querySelector('[role="heading"]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Проверка 1');
     expect(qa.querySelector('[data-testid="tier"]')?.getAttribute('data-tier')).toBe('heavy');
     expect(qa.querySelector('[data-testid="tier"] .tc-sr-only')?.textContent?.trim()).toBe('Сложность: тяжёлая');
     expect(root.querySelector('tc-lane[data-status="approved"] tc-state-block')?.textContent).toContain('Пусто');
@@ -363,7 +363,7 @@ describe('SprintBoard', () => {
       expect(pending()).toBe(0);
       const block = root.querySelector('[data-testid="load-error"]') as HTMLElement;
       expect(block.getAttribute('data-failure')).toBe('rate-limited');
-      expect(block.textContent).toContain('Повтори через минуту.');
+      expect(block.textContent).toContain('Повторите через минуту.');
       expect(block.textContent).not.toContain('сама попробует');
 
       // The owner's Retry asks once more and may earn one more automatic retry.
@@ -474,7 +474,7 @@ describe('SprintBoard', () => {
       expect(tabs(root)).toEqual([
         ['Одобрено 0', 'false'],
         ['В работе 1', 'true'],
-        ['На проверке 1', 'false'],
+        ['Проверка 1', 'false'],
         ['Готово 1', 'false'],
       ]);
       expect(shown(root)).toEqual(['in-progress']);
@@ -503,7 +503,7 @@ describe('SprintBoard', () => {
         await settle();
       };
 
-      await pick('Заблокировано');
+      await pick('Блокеры');
       expect(shown(root)).toEqual(['blocked']);
       await refresh(blocked);
       expect(shown(root)).toEqual(['blocked']);

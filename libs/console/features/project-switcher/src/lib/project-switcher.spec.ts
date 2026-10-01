@@ -78,7 +78,7 @@ describe('ProjectSwitcher', () => {
     expect(root().querySelector('.switcher__more')).toBeNull();
     const chip = rowButton('Team Console').querySelector('tc-chip') as HTMLElement;
     expect(chip.textContent).toContain('3');
-    expect(chip.querySelector('.tc-sr-only')?.textContent).toBe('Ждут тебя: 3');
+    expect(chip.querySelector('.tc-sr-only')?.textContent).toBe('Ждут вас: 3');
     expect(rowButton('Reader').querySelector('tc-chip')).toBeNull();
   });
 

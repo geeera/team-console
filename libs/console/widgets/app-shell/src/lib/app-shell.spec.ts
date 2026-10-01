@@ -97,7 +97,7 @@ describe('AppShell', () => {
     expect(nav).not.toBeNull();
     expect(nav.querySelector('tc-project-switcher')).not.toBeNull();
     expect(nav.textContent).toContain('Настройки');
-    expect(nav.querySelector('tc-chip .tc-sr-only')?.textContent).toBe('Ждут тебя: 2');
+    expect(nav.querySelector('tc-chip .tc-sr-only')?.textContent).toBe('Ждут вас: 2');
     expect(root().querySelector('header')).toBeNull();
   });
 

@@ -33,7 +33,7 @@ describe('NeedsYouPage', () => {
   it('with no projects it is the empty state that points to Settings', async () => {
     const { root } = await render([]);
 
-    expect(root.querySelector('h1')?.textContent?.trim()).toBe('Ждут тебя');
+    expect(root.querySelector('h1')?.textContent?.trim()).toBe('Ждут вас');
     const block = root.querySelector('[data-testid="no-projects"]') as HTMLElement;
     expect(block.textContent).toContain('Проектов пока нет');
     expect(block.querySelector('a')?.getAttribute('href')).toBe('/settings/projects/new');
