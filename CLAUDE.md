@@ -125,8 +125,9 @@ through `ReadCache` keyed `readCacheKey({ environment, slug, epoch, type })`. Th
 is `ApiGitHub` (`apps/api/src/github.ts`); `GITHUB_MOCK=true` (local only) swaps api.github.com for the fixture GitHub
 in `libs/worker/github/fixtures`. Migrations live only in `apps/api/migrations` (`0001_init` = `projects`;
 `0005_owner_connections` #59; `0006_project_installation` #15 adds `projects.installation_id`; `0007_own_writes` #10 =
-`own_writes` + `own_write_claims`, which #12 reuses; `0002_push_subscriptions` #11, `0003_webhooks` #12 (its own tables
-only), `0004_chat_wakeups` are reserved). The answer route (#10) is `routes/answer.ts`
+`own_writes` + `own_write_claims`, which #12 reuses; `0010_webhooks` #12 = `webhook_deliveries` + `projects.access_lost_at`;
+no number is reserved — a new migration takes the highest number on `dev` + 1 when its PR opens and is renumbered on
+rebase if that number was taken, so 0002–0004 stay unused). The answer route (#10) is `routes/answer.ts`
 (`POST /api/v1/projects/:slug/issues/:number/answer`, owner-only): section re-derived from the live issue with
 `@shared/owner-grammar` (a byte-for-byte port of the plugin's `backlog answer` and `commands.command_lines`, proven by
 fixtures that `libs/shared/owner-grammar/fixtures/generate.py` writes from the vendored plugin — rerun it after every

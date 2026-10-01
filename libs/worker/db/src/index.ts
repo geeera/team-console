@@ -8,3 +8,5 @@ export { OwnWritesRepo } from './lib/own-writes.repo';
 export type { OwnWrite, OwnWriteKind } from './lib/own-writes.repo';
 export { SlotRequestsRepo } from './lib/slot-requests.repo';
 export type { SlotRequest, SlotRequestState } from './lib/slot-requests.repo';
+export { WebhookDeliveriesRepo } from './lib/webhook-deliveries.repo';
+export type { DeliveryRecord, WebhookDelivery } from './lib/webhook-deliveries.repo';
