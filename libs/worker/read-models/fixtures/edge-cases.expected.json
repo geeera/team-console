@@ -1,0 +1,193 @@
+{
+  "generatedBy": "python3 libs/worker/read-models/fixtures/golden.py",
+  "inbox": {
+    "reviewerLogins": ["team-console-review[bot]", "a-reviewer"],
+    "items": [
+      {
+        "section": "release",
+        "number": 10,
+        "title": "Sprint 01 demo: release decision",
+        "url": "https://github.com/geeera/edge-cases/issues/10",
+        "ask": "/go to release 1.2.0 (recommended) · /no-go why"
+      },
+      {
+        "section": "design",
+        "number": 11,
+        "title": "Settings screen design",
+        "url": "https://github.com/geeera/edge-cases/issues/11",
+        "ask": null
+      },
+      {
+        "section": "design",
+        "number": 20,
+        "title": "Second design",
+        "url": "https://github.com/geeera/edge-cases/issues/20",
+        "ask": null
+      },
+      {
+        "section": "question",
+        "number": 12,
+        "title": "Оплата домена",
+        "url": "https://github.com/geeera/edge-cases/issues/12",
+        "ask": "/approve купить домен за $12 в год (рекомендую) · /reject причина"
+      },
+      {
+        "section": "question",
+        "number": 13,
+        "title": "A question that also needs the owner",
+        "url": "https://github.com/geeera/edge-cases/issues/13",
+        "ask": "/approve option A (recommended) · /reject why"
+      },
+      {
+        "section": "question",
+        "number": 14,
+        "title": "<img src=x onerror=alert(1)> Approve the new plan",
+        "url": "https://github.com/geeera/edge-cases/issues/14",
+        "ask": "/approve <img src=x onerror=alert(document.cookie)> · /reject why"
+      },
+      {
+        "section": "question",
+        "number": 21,
+        "title": "A user named like the team app",
+        "url": "https://github.com/geeera/edge-cases/issues/21",
+        "ask": "/approve (recommended) · /reject why"
+      },
+      {
+        "section": "question",
+        "number": 23,
+        "title": "The team login on a non-bot account",
+        "url": "https://github.com/geeera/edge-cases/issues/23",
+        "ask": "/approve (recommended) · /reject why"
+      },
+      {
+        "section": "question",
+        "number": 24,
+        "title": "A deleted author",
+        "url": "https://github.com/geeera/edge-cases/issues/24",
+        "ask": "/approve (recommended) · /reject why"
+      },
+      {
+        "section": "owner",
+        "number": 15,
+        "title": "Create the Cloudflare account",
+        "url": "javascript:alert(document.domain)//https://github.com/",
+        "ask": "Напиши «сделал», когда заведёшь аккаунт"
+      },
+      {
+        "section": "owner",
+        "number": 17,
+        "title": "Needs a machine and the owner",
+        "url": "http://github.com/geeera/edge-cases/issues/17",
+        "ask": null
+      },
+      {
+        "section": "owner",
+        "number": 22,
+        "title": "Another app",
+        "url": "https://github.com/geeera/edge-cases/issues/22",
+        "ask": "/approve (recommended) · /reject why"
+      },
+      {
+        "section": "local",
+        "number": 16,
+        "title": "Run the iOS build on a Mac",
+        "url": "https://github.com/geeera/edge-cases/issues/16",
+        "ask": null
+      }
+    ],
+    "setup": false,
+    "setupUrl": null,
+    "paused": true,
+    "pausedUrl": "https://github.com/geeera/edge-cases/issues/2"
+  },
+  "sprint": {
+    "milestone": {
+      "number": 4,
+      "title": "Sprint 01",
+      "dueOn": "2026-10-02"
+    },
+    "issues": [
+      {
+        "number": 30,
+        "status": "in-progress",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 31,
+        "status": "done",
+        "kind": "feature",
+        "state": "closed"
+      },
+      {
+        "number": 32,
+        "status": "qa",
+        "kind": "bug",
+        "state": "open"
+      },
+      {
+        "number": 33,
+        "status": "proposed",
+        "kind": "finding",
+        "state": "open"
+      },
+      {
+        "number": 34,
+        "status": "blocked",
+        "kind": "chore",
+        "state": "closed"
+      },
+      {
+        "number": 35,
+        "status": null,
+        "kind": "question",
+        "state": "open"
+      },
+      {
+        "number": 36,
+        "status": "done",
+        "kind": "chore",
+        "state": "closed"
+      },
+      {
+        "number": 37,
+        "status": null,
+        "kind": "feature",
+        "state": "open"
+      }
+    ],
+    "byStatus": {
+      "in-progress": 1,
+      "done": 2,
+      "qa": 1,
+      "proposed": 1,
+      "blocked": 1,
+      "none": 2
+    },
+    "planned": 7,
+    "shipped": 2,
+    "carriedOver": 4,
+    "byTier": {
+      "heavy": {
+        "planned": 1,
+        "shipped": 0,
+        "raised": 0
+      },
+      "light": {
+        "planned": 1,
+        "shipped": 1,
+        "raised": 1
+      },
+      "standard": {
+        "planned": 4,
+        "shipped": 1,
+        "raised": 1
+      },
+      "unsized": {
+        "planned": 1,
+        "shipped": 0,
+        "raised": 0
+      }
+    }
+  }
+}

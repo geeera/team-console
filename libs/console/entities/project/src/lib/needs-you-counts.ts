@@ -12,9 +12,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * The per-project count of "needs you" items in a `GET /api/v1/needs-you` body. The DTO is #35's;
- * until it lands this reads the two shapes the read-model note allows (a bare array or `{ items }`,
- * each item tagged with `project` as a slug or `{ slug }`) and ignores everything else.
+ * The per-project count of "needs you" items in a `GET /api/v1/needs-you` body (`NeedsYouDto` of
+ * `@shared/contracts`: `{ items }`, each item tagged with `project: { slug, name }`). Tolerant on purpose —
+ * a bare array or a slug string also count, anything else is ignored — so a badge never breaks the shell.
  */
 export function countNeedsYouBySlug(body: unknown): Readonly<Record<string, number>> {
   const items = Array.isArray(body)
@@ -38,8 +38,7 @@ export function countNeedsYouBySlug(body: unknown): Readonly<Record<string, numb
 
 /**
  * Open "needs you" items per project slug, for the switcher badges. A failed refresh keeps the last
- * counts (a stale badge beats a flickering one) and never surfaces as a UI error; the endpoint
- * itself arrives with #35, so today every refresh leaves the counts empty.
+ * counts (a stale badge beats a flickering one) and never surfaces as a UI error.
  */
 @Injectable({ providedIn: 'root' })
 export class NeedsYouCounts {

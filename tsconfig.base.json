@@ -35,6 +35,7 @@
       "@worker/db": ["./libs/worker/db/src/index.ts"],
       "@worker/github": ["./libs/worker/github/src/index.ts"],
       "@worker/github/testing": ["./libs/worker/github/src/testing/index.ts"],
+      "@worker/read-models": ["./libs/worker/read-models/src/index.ts"],
       "@console/shared/persisted-state": ["./libs/console/shared/persisted-state/src/index.ts"],
       "@console/entities/project": ["./libs/console/entities/project/src/index.ts"],
       "@console/features/project-switcher": ["./libs/console/features/project-switcher/src/index.ts"],

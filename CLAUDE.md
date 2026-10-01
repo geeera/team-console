@@ -117,7 +117,7 @@ GITHUB_FAKE_ORIGIN:http://127.0.0.1:9999` (honoured only with `ENVIRONMENT=local
 registry (#15) is `routes/project-registry.ts` + `src/projects/`: adding validates repo format → app installed → repo
 owner (the connected account's login and pinned id, through `OwnerConnectionSource` over the #59 connection) →
 `project.yml` before the one D1 write; refusals are problems with a `step` extension member (`problem(c, { …,
-extensions })`); `ROUTINE_TOKEN_<SLUG>` is checked for presence only. `wrangler.jsonc` has `env.dev|stage|production`
+extensions })`); `ROUTINE_TOKEN_<SLUG>` is checked for presence only. The read models (#35) are `@worker/read-models` (pure ports of the plugin's `inbox`/`brief.needs`/`metrics`, golden-tested against `fixtures/*.expected.json` written by `fixtures/golden.py` from the vendored plugin; `parseProjectConfig` = safe YAML through `yaml`, 64 KB cap, no tags or aliases) over #10's `@shared/owner-grammar` (`sectionOf`, `kindOf`, `ANSWERS`, plus `askOf`/`INBOX_ORDER`/`sectionRank` from `lib/inbox.ts`), served by `routes/project-read-models.ts` (`/projects/:slug/{inbox,questions,sprint}`) and `routes/needs-you.ts` through `read-models/project-reads.ts` (subrequest budget per endpoint documented there). `wrangler.jsonc` has `env.dev|stage|production`
 with non-secret vars only; secrets (`WEBHOOK_SECRET`, `VAPID_PRIVATE_KEY`, `ROUTINE_TOKEN_*`, `OWNER_EMAIL`, and per
 ADR 0003 `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY` — `GITHUB_TOKEN` is gone with
 the PAT) are declared in each app's `src/env.ts` and set with `wrangler secret put`. `AUTH_MODE:local` + `ENVIRONMENT:local`
