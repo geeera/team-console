@@ -13,6 +13,9 @@ import {
 } from '../testing/payloads';
 import {
   RecordingPushSender,
+  linkOf,
+  subscribeFakeDevice,
+  testVapidBindings,
   TEST_WEBHOOK_SECRET,
   cacheEpochOf,
   deliver,
@@ -22,6 +25,7 @@ import {
   seedProject,
   signatureOf,
 } from '../testing/webhook-kit';
+import { FakePushService } from '@worker/push/testing';
 import { createHooksApp } from '../app';
 import { WEBHOOK_BODY_MAX_BYTES } from '../github/body';
 
@@ -309,10 +313,56 @@ describe('POST /hooks/github — own writes and pushes', () => {
 
     expect(response.status).toBe(202);
     await expect(response.json()).resolves.toEqual({ status: 'queued' });
-    expect(sender.messages).toEqual([
-      expect.objectContaining({ url: '/p/storify/questions#42', slug: 'storify' }),
-    ]);
-    expect(logs).toContainEqual(expect.objectContaining({ message: 'push fan-out', sent: 1, pruned: 0 }));
+    expect(sender.messages.map(linkOf)).toEqual(['/p/storify/questions#42']);
+    expect(logs).toContainEqual(expect.objectContaining({ message: 'webhook fan-out', sent: 1, pruned: 0 }));
+  });
+
+  it('delivers a trusted question to the owner’s device through web push (fake push service)', async () => {
+    const service = new FakePushService();
+    const endpoint = await subscribeFakeDevice(service);
+    const deliveryId = nextDeliveryId();
+
+    const { response, logs, rawLogs } = await deliver(question(), { pushFetch: service.fetch, deliveryId });
+
+    expect(response.status).toBe(202);
+    const [delivery] = service.deliveriesTo(endpoint);
+    expect(delivery).toMatchObject({ outcome: 'ok', decryptError: null });
+    expect(delivery?.payload).toMatchObject({
+      notification: {
+        title: 'Storify · нужен ваш ответ',
+        body: '#42 Pick the onboarding copy',
+        lang: 'ru',
+        data: {
+          onActionClick: {
+            default: { operation: 'navigateLastFocusedOrOpen', url: '/p/storify/questions#42' },
+          },
+        },
+      },
+    });
+    expect(delivery?.vapid?.claims).toMatchObject({ sub: 'https://github.com/geeera/team-console' });
+    expect(logs).toContainEqual(
+      expect.objectContaining({ message: 'webhook fan-out', sent: 1, pruned: 0, failed: 0, deliveryId }),
+    );
+    const vapid = await testVapidBindings();
+    expect(rawLogs.join('\n')).not.toContain(vapid.VAPID_PRIVATE_KEY);
+    expect(rawLogs.join('\n')).not.toContain(endpoint);
+  });
+
+  it('still answers 202 when VAPID is not configured, logging the setting names only', async () => {
+    const service = new FakePushService();
+    const endpoint = await subscribeFakeDevice(service);
+
+    const { response, logs } = await deliver(question(), {
+      pushFetch: service.fetch,
+      env: { VAPID_PRIVATE_KEY: undefined },
+    });
+
+    expect(response.status).toBe(202);
+    expect(service.deliveriesTo(endpoint)).toEqual([]);
+    expect(logs).toContainEqual(
+      expect.objectContaining({ message: 'push misconfigured', invalid: ['privateKey'] }),
+    );
+    expect(logs).toContainEqual(expect.objectContaining({ message: 'webhook fan-out', sent: 0, failed: 1 }));
   });
 
   it('ignores an outsider’s marker comment with untrusted-author', async () => {
@@ -330,7 +380,7 @@ describe('POST /hooks/github — own writes and pushes', () => {
 
     expect(response.status).toBe(202);
     expect(logs).toContainEqual(
-      expect.objectContaining({ message: 'push fan-out', sent: 0, pruned: 0, failed: 1, deliveryId }),
+      expect.objectContaining({ message: 'webhook fan-out', sent: 0, pruned: 0, failed: 1, deliveryId }),
     );
   });
 
@@ -359,13 +409,8 @@ describe('POST /hooks/github — installation events', () => {
 
     expect(removed.response.status).toBe(202);
     expect(await accessLostAt('storify')).toBe('2026-10-02T08:00:00.000Z');
-    expect(sender.messages).toEqual([
-      expect.objectContaining({
-        kind: 'access-lost',
-        url: '/settings/projects/storify',
-        title: 'Storify · консоль потеряла доступ к geeera/storify',
-      }),
-    ]);
+    expect(sender.messages.map(linkOf)).toEqual(['/settings/projects/storify']);
+    expect(sender.messages[0]?.notification.title).toBe('Storify · консоль потеряла доступ к geeera/storify');
 
     const added = await deliver(installationRepositoriesEvent('added', ['geeera/storify']), {
       event: 'installation_repositories',

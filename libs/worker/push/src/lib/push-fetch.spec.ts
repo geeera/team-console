@@ -1,5 +1,9 @@
-import { localEnv } from '../testing/github-kit';
-import { PushMisconfiguredError, pushFetch } from './push-fetch';
+import { PushMisconfiguredError, pushFetch, type PushFetchEnv } from './push-fetch';
+
+const localEnv = (overrides: Partial<PushFetchEnv> = {}): PushFetchEnv => ({
+  ENVIRONMENT: 'local',
+  ...overrides,
+});
 
 describe('pushFetch', () => {
   const seen: string[] = [];
@@ -25,14 +29,19 @@ describe('pushFetch', () => {
   });
 
   it.each(['dev', 'stage', 'production'])('ignores the variable on %s', (environment) => {
-    expect(pushFetch(localEnv({ ENVIRONMENT: environment, PUSH_FAKE_ORIGIN: 'http://127.0.0.1:9997' }), base)).toBe(base);
+    expect(
+      pushFetch(localEnv({ ENVIRONMENT: environment, PUSH_FAKE_ORIGIN: 'http://127.0.0.1:9997' }), base),
+    ).toBe(base);
   });
 
   it('uses the real transport when the variable is unset', () => {
     expect(pushFetch(localEnv({ PUSH_FAKE_ORIGIN: undefined }), base)).toBe(base);
   });
 
-  it.each(['https://evil.example', 'not a url', 'file:///etc/passwd'])('refuses %s as a fake origin', (origin) => {
-    expect(() => pushFetch(localEnv({ PUSH_FAKE_ORIGIN: origin }), base)).toThrow(PushMisconfiguredError);
-  });
+  it.each(['https://evil.example', 'not a url', 'file:///etc/passwd'])(
+    'refuses %s as a fake origin',
+    (origin) => {
+      expect(() => pushFetch(localEnv({ PUSH_FAKE_ORIGIN: origin }), base)).toThrow(PushMisconfiguredError);
+    },
+  );
 });

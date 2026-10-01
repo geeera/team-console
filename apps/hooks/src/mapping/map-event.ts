@@ -1,5 +1,11 @@
 import { isValidSlug } from '@shared/contracts';
 import { kindOf, sectionOf } from '@shared/owner-grammar';
+import {
+  linkNotification,
+  questionNotification,
+  type PushLanguage,
+  type PushNotification,
+} from '@worker/push';
 import { isTrustedAuthor } from '@worker/read-models';
 import {
   addedLabelOf,
@@ -10,8 +16,7 @@ import {
   type Envelope,
   type JsonObject,
 } from '../github/payload';
-import type { PushKind, PushLanguage, PushMessage } from '../push/push-sender';
-import { PUSH_COPY, type CopyInput } from './copy';
+import { PUSH_COPY, type CopyInput, type LinkPushKind } from './copy';
 
 /** The registered project a delivery belongs to, as the mapping needs it. */
 export interface MappedProject {
@@ -21,7 +26,7 @@ export interface MappedProject {
 }
 
 export type MapResult =
-  | { readonly kind: 'push'; readonly message: PushMessage }
+  | { readonly kind: 'push'; readonly notification: PushNotification }
   | { readonly kind: 'ignored'; readonly reason: 'no-notification' | 'untrusted-author' };
 
 type SpaceSection = 'questions' | 'chat' | 'board' | 'demo';
@@ -56,32 +61,30 @@ export function settingsLinkOf(slug: string): string {
   return `/settings/projects/${slug}`;
 }
 
-export function pushMessageOf(
+/** A notification from the copy table; the url is built by the caller from the slug and integers only. */
+export function linkNotificationOf(
   project: MappedProject,
-  kind: PushKind,
+  kind: LinkPushKind,
   url: string,
   input: Omit<CopyInput, 'project'> = {},
-): PushMessage {
+): PushNotification {
   const line = PUSH_COPY[project.language][kind];
   const copyInput: CopyInput = { project: project.displayName, ...input };
-  return {
-    kind,
-    slug: project.slug,
+  return linkNotification({
     language: project.language,
     title: line.title(copyInput),
     body: line.body(copyInput),
     url,
-    tag: url,
-  };
+  });
 }
 
 function push(
   project: MappedProject,
-  kind: PushKind,
+  kind: LinkPushKind,
   url: string,
   input?: Omit<CopyInput, 'project'>,
 ): MapResult {
-  return { kind: 'push', message: pushMessageOf(project, kind, url, input) };
+  return { kind: 'push', notification: linkNotificationOf(project, kind, url, input) };
 }
 
 /** Row 1: an issue that now waits for the owner — opened that way, or the label just added made it so. */
@@ -106,10 +109,17 @@ function mapIssues(project: MappedProject, action: string | null, payload: JsonO
       return NO_NOTIFICATION;
     }
   }
-  return push(project, 'decision', deepLinkOf(project.slug, 'questions', issue.number), {
-    number: issue.number,
-    title: issue.title,
-  });
+  // `questionNotification` builds `/p/<slug>/questions#<n>` itself, from the slug and the integer.
+  return {
+    kind: 'push',
+    notification: questionNotification({
+      language: project.language,
+      slug: project.slug,
+      projectName: project.displayName,
+      number: issue.number,
+      issueTitle: issue.title,
+    }),
+  };
 }
 
 /** Rows 2 and 3: the PM's chat reply, or the run log saying the team paused (plugin `runstate`). */

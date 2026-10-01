@@ -121,6 +121,12 @@ secret `VAPID_PRIVATE_KEY`; any of them unusable → 503 `push-misconfigured`. L
 `@worker/push/testing`'s `FakePushService`: hands out subscriptions, decrypts every delivery, verifies the JWT) + `--var
 PUSH_FAKE_ORIGIN:http://127.0.0.1:9997` and a throwaway pair from `node tools/owner-setup/vapid-keygen.js` as `--var`s; never a
 real push service.
+Webhooks (#12): `apps/hooks` `POST /hooks/github` — 405 → 503 `webhook-misconfigured` (empty `WEBHOOK_SECRET`) → 413 (1 MB read) →
+401 (strict `sha256=` HMAC, `WEBHOOK_SECRET` + `WEBHOOK_SECRET_PREVIOUS`) → dedupe (`WebhookDeliveriesRepo`, delivery id and body
+SHA-256) → registry row + `installation_id` → `cache_epoch` bump → `own_writes` → author gate (`isTrustedAuthor`) → pure `mapEvent`
+(`questionNotification` / `linkNotification`) sent in `waitUntil` by `webPushSenders` (the same `PushSender`, VAPID vars and
+`PUSH_FAKE_ORIGIN` as the api; `pushFetch` in `@worker/push`, `localFakeOriginOf` in `@worker/core`). Logs carry `{deliveryId, event,
+repo, status}` only. Locally `nx serve hooks -- --var WEBHOOK_SECRET:<throwaway>` plus the push `--var`s above.
 
 ## Workers (#6)
 

@@ -13,8 +13,9 @@ import {
   type JsonObject,
 } from '../github/payload';
 import { sha256Hex, verifySignature, webhookSecretsOf } from '../github/signature';
-import { mapEvent, pushMessageOf, settingsLinkOf, type MappedProject } from '../mapping/map-event';
-import type { PushLanguage, PushMessage, PushSender } from '../push/push-sender';
+import type { PushLanguage, PushNotification } from '@worker/push';
+import { linkNotificationOf, mapEvent, settingsLinkOf, type MappedProject } from '../mapping/map-event';
+import type { NotificationSenderFactory } from '../push/push-sender';
 
 /** The answer GitHub gets; only its status code matters to GitHub, the body is for the delivery log. */
 export interface WebhookAck {
@@ -31,7 +32,8 @@ export type IgnoredReason =
   | 'no-notification';
 
 export interface GitHubWebhookDeps {
-  readonly pushSender: PushSender;
+  /** Builds the push sender per request (bindings differ per environment); see `webPushSenders`. */
+  readonly senders: NotificationSenderFactory;
   /** A seam for the pruning cut-off in tests. */
   readonly now?: () => Date;
 }
@@ -71,7 +73,7 @@ const DEFAULT_LANGUAGE: PushLanguage = 'ru';
 interface Outcome {
   readonly httpStatus: 200 | 202;
   readonly ack: WebhookAck;
-  readonly messages: readonly PushMessage[];
+  readonly messages: readonly PushNotification[];
 }
 
 const ignored = (reason: IgnoredReason): Outcome => ({
@@ -103,11 +105,17 @@ function parseJsonObject(bytes: ArrayBuffer): JsonObject | null {
 }
 
 async function fanOut(
-  sender: PushSender,
-  messages: readonly PushMessage[],
+  senders: NotificationSenderFactory,
+  env: HooksEnv,
+  messages: readonly PushNotification[],
   deliveryId: string,
   logger: Logger,
 ): Promise<void> {
+  const sender = senders(env, logger);
+  if (sender === null) {
+    logger.info('webhook fan-out', { sent: 0, pruned: 0, failed: messages.length, deliveryId });
+    return;
+  }
   let sent = 0;
   let pruned = 0;
   let failed = 0;
@@ -126,7 +134,7 @@ async function fanOut(
       });
     }
   }
-  logger.info('push fan-out', { sent, pruned, failed, deliveryId });
+  logger.info('webhook fan-out', { sent, pruned, failed, deliveryId });
 }
 
 async function pruneDeliveries(deliveries: WebhookDeliveriesRepo, now: Date, logger: Logger): Promise<void> {
@@ -176,7 +184,7 @@ async function handleInstallation(
     return ignored('unregistered');
   }
   const messages = lost.map((row) =>
-    pushMessageOf(mappedProjectOf(row), 'access-lost', settingsLinkOf(row.slug), { repo: row.repo }),
+    linkNotificationOf(mappedProjectOf(row), 'access-lost', settingsLinkOf(row.slug), { repo: row.repo }),
   );
   return { httpStatus: 202, ack: { status: 'queued' }, messages };
 }
@@ -221,7 +229,7 @@ async function handleRepositoryEvent(
   if (mapped.kind === 'ignored') {
     return ignored(mapped.reason);
   }
-  return { httpStatus: 202, ack: { status: 'queued' }, messages: [mapped.message] };
+  return { httpStatus: 202, ack: { status: 'queued' }, messages: [mapped.notification] };
 }
 
 function reject(c: WorkerContext<HooksEnv>, status: string, init: Parameters<typeof problem>[1]): Response {
@@ -333,7 +341,7 @@ export function githubWebhookRoutes(deps: GitHubWebhookDeps): Hono<WorkerHonoEnv
       throw error;
     }
     if (outcome.messages.length > 0) {
-      c.executionCtx.waitUntil(fanOut(deps.pushSender, outcome.messages, deliveryId, logger));
+      c.executionCtx.waitUntil(fanOut(deps.senders, c.env, outcome.messages, deliveryId, logger));
     }
     return answer(outcome, repo);
   });

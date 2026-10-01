@@ -2,6 +2,7 @@ import {
   InvalidPushTargetError,
   PUSH_TEXT_MAX_LENGTH,
   cleanPushText,
+  linkNotification,
   questionNotification,
   questionPushUrl,
   testNotification,
@@ -56,6 +57,34 @@ describe('cleanPushText', () => {
   it('turns control characters into single spaces and drops bidi overrides', () => {
     expect(cleanPushText('a\u0000b\nc\r\n\td\u007fe\u0085f')).toBe('a b c d e f');
     expect(cleanPushText('safe ‮gnp.exe‬ name⁦x⁩')).toBe('safe gnp.exe namex');
+  });
+
+  it('drops zero-width, invisible-operator, BOM and tag characters (security review of #165)', () => {
+    const invisibles = [
+      '\u200B',
+      '\u200C',
+      '\u200D',
+      '\u200E',
+      '\u200F',
+      '\u2060',
+      '\u2061',
+      '\u2062',
+      '\u2063',
+      '\u2064',
+      '\uFEFF',
+      '\u{E0000}',
+      '\u{E0001}',
+      '\u{E0041}',
+      '\u{E007F}',
+    ];
+    for (const char of invisibles) {
+      expect(cleanPushText(`pay${char}pal`), JSON.stringify(char)).toBe('paypal');
+    }
+    // A tag-character payload ("hidden" spelled in U+E0068…) vanishes entirely.
+    const hidden = [...'hidden'].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join('');
+    expect(cleanPushText(`Release${hidden} 0.4`)).toBe('Release 0.4');
+    // Neighbours of the ranges stay.
+    expect(cleanPushText('a\u2010b\u2065c')).toBe('a\u2010b\u2065c');
   });
 
   it('keeps text up to 120 characters as it is', () => {
@@ -135,5 +164,43 @@ describe('notification payloads (ngsw format)', () => {
       data: { onActionClick: { default: { operation: 'navigateLastFocusedOrOpen', url: '/needs-you' } } },
     });
     expect(testNotification('en').notification.title).toBe('Test notification');
+  });
+});
+
+describe('linkNotification (#12)', () => {
+  it('builds a notification whose tag and link are the same-origin path', () => {
+    const message = linkNotification({
+      language: 'en',
+      title: 'Storify\u200B · PM replied',
+      body: '#3 Plan',
+      url: '/p/storify/chat',
+    });
+    expect(message.notification).toMatchObject({
+      title: 'Storify · PM replied',
+      body: '#3 Plan',
+      tag: '/p/storify/chat',
+      lang: 'en',
+      data: {
+        onActionClick: { default: { operation: 'navigateLastFocusedOrOpen', url: '/p/storify/chat' } },
+      },
+    });
+    expect(
+      linkNotification({ language: 'ru', title: 't', body: 'b', url: '/p/storify/questions#4' }).notification
+        .tag,
+    ).toBe('/p/storify/questions#4');
+  });
+
+  it.each([
+    'https://evil.example/',
+    '//evil.example',
+    'p/storify',
+    '/p/storify?x=1',
+    '/p/../x',
+    '/p/storify#a',
+    '',
+  ])('refuses the url %j', (url) => {
+    expect(() => linkNotification({ language: 'ru', title: 't', body: 'b', url })).toThrow(
+      InvalidPushTargetError,
+    );
   });
 });

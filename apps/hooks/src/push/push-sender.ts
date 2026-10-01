@@ -1,39 +1,51 @@
-export type PushLanguage = 'ru' | 'en';
+import type { Logger } from '@worker/core';
+import { PushSubscriptionsRepo } from '@worker/db';
+import {
+  PushMisconfiguredError,
+  PushSender,
+  checkVapidConfig,
+  pushFetch,
+  type FetchLike,
+  type PushNotification,
+  type PushSendResult,
+} from '@worker/push';
+import type { HooksEnv } from '../env';
 
-export type PushKind =
-  'decision' | 'pm-reply' | 'team-paused' | 'release-ready' | 'deploy-failed' | 'access-lost';
-
-/**
- * One notification for the owner, built by the mapping (#12). `title`/`body` may carry GitHub text (issue titles):
- * the sender of #11 cleans and truncates them before they reach a lock screen (threat model on #11, row 6). `url`
- * is a same-origin path built from the slug and an integer only; `tag` is the url, so repeats collapse on the device.
- */
-export interface PushMessage {
-  readonly kind: PushKind;
-  readonly slug: string;
-  readonly language: PushLanguage;
-  readonly title: string;
-  readonly body: string;
-  readonly url: string;
-  readonly tag: string;
-}
-
-/** What a fan-out did: delivered, subscriptions pruned as gone, and failures. */
-export interface PushFanOut {
-  readonly sent: number;
-  readonly pruned: number;
-  readonly failed: number;
-}
-
-/** The seam to #11's `sendToAll`; the hooks Worker never talks to a push service any other way. */
-export interface PushSender {
-  sendToAll(message: PushMessage): Promise<PushFanOut>;
+/** Sends one notification to every device of the owner (#11's fan-out). */
+export interface NotificationSender {
+  sendToAll(notification: PushNotification): Promise<PushSendResult>;
 }
 
 /**
- * Until #11's sender is wired into this Worker (it needs `VAPID_PRIVATE_KEY` and the subscriptions table), mapped
- * pushes are counted and dropped.
+ * Builds the sender for one request's bindings, or `null` (logged by setting name, never by value) when push is not
+ * configured here: the delivery still succeeds, GitHub must not retry it for a missing key.
  */
-export const noopPushSender: PushSender = {
-  sendToAll: () => Promise.resolve({ sent: 0, pruned: 0, failed: 0 }),
-};
+export type NotificationSenderFactory = (env: HooksEnv, logger: Logger) => NotificationSender | null;
+
+/** The real web push sender of `@worker/push` over `push_subscriptions`; `baseFetch` is a test seam. */
+export function webPushSenders(baseFetch: FetchLike): NotificationSenderFactory {
+  return (env, logger) => {
+    const vapid = checkVapidConfig({
+      publicKey: env.VAPID_PUBLIC_KEY,
+      privateKey: env.VAPID_PRIVATE_KEY,
+      subject: env.VAPID_SUBJECT,
+    });
+    if (!vapid.ok) {
+      logger.error('push misconfigured', { invalid: vapid.invalid });
+      return null;
+    }
+    let transport: FetchLike;
+    try {
+      transport = pushFetch(env, baseFetch);
+    } catch (error: unknown) {
+      if (!(error instanceof PushMisconfiguredError)) {
+        throw error;
+      }
+      logger.error('push misconfigured', { invalid: ['PUSH_FAKE_ORIGIN'] });
+      return null;
+    }
+    const sender = new PushSender({ vapid: vapid.config, fetch: transport, logger });
+    const store = new PushSubscriptionsRepo(env.DB);
+    return { sendToAll: (notification) => sender.sendToAll(store, notification) };
+  };
+}

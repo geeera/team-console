@@ -1,3 +1,4 @@
+import { questionNotification } from '@worker/push';
 import { envelopeOf, type JsonObject } from '../github/payload';
 import {
   issueCommentEvent,
@@ -10,6 +11,16 @@ import { PM_REPLY_MARKER, deepLinkOf, mapEvent, settingsLinkOf, type MappedProje
 
 const project: MappedProject = { slug: 'storify', displayName: 'Storify', language: 'ru' };
 
+/** The partial shape of a mapped push: its deep link and some notification fields. */
+function pushed(url: string, fields: Record<string, unknown> = {}) {
+  return {
+    kind: 'push',
+    notification: {
+      notification: { ...fields, data: { onActionClick: { default: { url } } } },
+    },
+  };
+}
+
 function map(event: string, payload: JsonObject, target: MappedProject = project) {
   return mapEvent(target, event, envelopeOf(payload), payload);
 }
@@ -19,23 +30,21 @@ describe('mapEvent — one test per row of the architect note', () => {
     const result = map('issues', issuesEvent('opened', { number: 42, labels: ['kind:question'] }));
     expect(result).toEqual({
       kind: 'push',
-      message: {
-        kind: 'decision',
-        slug: 'storify',
+      notification: questionNotification({
         language: 'ru',
-        title: 'Storify · нужно ваше решение',
-        body: '#42 Pick the onboarding copy',
-        url: '/p/storify/questions#42',
-        tag: '/p/storify/questions#42',
-      },
+        slug: 'storify',
+        projectName: 'Storify',
+        number: 42,
+        issueTitle: 'Pick the onboarding copy',
+      }),
     });
+    expect(result).toMatchObject(pushed('/p/storify/questions#42', { title: 'Storify · нужен ваш ответ' }));
   });
 
   it('row 1: issues.labeled when the added label is the one that made it need the owner', () => {
     const labeled = issuesEvent('labeled', { number: 9, labels: ['needs:owner'], addedLabel: 'needs:owner' });
     expect(map('issues', labeled)).toMatchObject({
-      kind: 'push',
-      message: { url: '/p/storify/questions#9' },
+      ...pushed('/p/storify/questions#9'),
     });
 
     const alreadyWaiting = issuesEvent('labeled', {
@@ -59,16 +68,14 @@ describe('mapEvent — one test per row of the architect note', () => {
   it('row 2: issue_comment.created with the PM marker → "PM replied" to the chat', () => {
     const result = map('issue_comment', issueCommentEvent({ body: `${PM_REPLY_MARKER}\nHere is the plan.` }));
     expect(result).toMatchObject({
-      kind: 'push',
-      message: { kind: 'pm-reply', url: '/p/storify/chat', title: 'Storify · PM ответил' },
+      ...pushed('/p/storify/chat', { title: 'Storify · PM ответил' }),
     });
   });
 
   it('row 3: a run-log comment whose first line says paused → "team paused" to the board', () => {
     const paused = issueCommentEvent({ labels: ['team:run-log'], body: '⏸ paused by owner\nreason: demo' });
     expect(map('issue_comment', paused)).toMatchObject({
-      kind: 'push',
-      message: { kind: 'team-paused', url: '/p/storify/board' },
+      ...pushed('/p/storify/board'),
     });
 
     const laterLine = issueCommentEvent({ labels: ['team:run-log'], body: 'started dev\nnot paused' });
@@ -80,8 +87,7 @@ describe('mapEvent — one test per row of the architect note', () => {
   it('row 4: the release PR into main opened or ready → go/no-go to the demo', () => {
     for (const action of ['opened', 'ready_for_review'] as const) {
       expect(map('pull_request', pullRequestEvent(action, { number: 77 }))).toMatchObject({
-        kind: 'push',
-        message: { kind: 'release-ready', url: '/p/storify/demo', body: '#77 Release 0.4.0' },
+        ...pushed('/p/storify/demo', { body: '#77 Release 0.4.0' }),
       });
     }
     expect(map('pull_request', pullRequestEvent('opened', { base: 'dev' }))).toEqual({
@@ -92,8 +98,7 @@ describe('mapEvent — one test per row of the architect note', () => {
 
   it('row 5: the deploy workflow failed → "deploy failed: <env>" to the board', () => {
     expect(map('workflow_run', workflowRunEvent({ branch: 'main' }))).toMatchObject({
-      kind: 'push',
-      message: { kind: 'deploy-failed', url: '/p/storify/board', title: 'Storify · деплой упал: production' },
+      ...pushed('/p/storify/board', { title: 'Storify · деплой упал: production' }),
     });
     expect(map('workflow_run', workflowRunEvent({ conclusion: 'success' }))).toEqual({
       kind: 'ignored',
@@ -114,7 +119,9 @@ describe('mapEvent — one test per row of the architect note', () => {
       ...project,
       language: 'en',
     });
-    expect(result).toMatchObject({ message: { title: 'Storify · your decision is needed', language: 'en' } });
+    expect(result).toMatchObject(
+      pushed('/p/storify/questions#42', { title: 'Storify · your answer is needed', lang: 'en' }),
+    );
   });
 });
 

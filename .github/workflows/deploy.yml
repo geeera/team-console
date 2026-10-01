@@ -255,7 +255,10 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: 4.124.0
           workingDirectory: apps/hooks
-          command: deploy --env ${{ env.ENV_NAME }}
+          # The hooks Worker sends the webhook pushes (#12) with the same VAPID pair as the api Worker (#11).
+          command: >-
+            deploy --env ${{ env.ENV_NAME }}
+            --var VAPID_PUBLIC_KEY:${{ vars.VAPID_PUBLIC_KEY }}
 
       # libs/console/shared/ui (and its Storybook config) arrives with #13/#34; until then this SKIPs loudly
       # rather than failing the whole deploy or silently doing nothing.

@@ -1,14 +1,17 @@
 import type { Hono } from 'hono';
 import { createWorkerApp, type LogSink, type WorkerHonoEnv } from '@worker/core';
 import type { HooksEnv } from './env';
-import { noopPushSender, type PushSender } from './push/push-sender';
+import type { FetchLike } from '@worker/push';
+import { webPushSenders, type NotificationSenderFactory } from './push/push-sender';
 import { githubWebhookRoutes } from './routes/github';
 import { healthzRoutes } from './routes/healthz';
 
 export interface CreateHooksAppOptions {
   readonly logSink?: LogSink;
-  /** #11's sender once it is wired in; until then mapped pushes are dropped (the no-op sender). */
-  readonly pushSender?: PushSender;
+  /** Transport of the web push sender; tests pass the fake push service. Defaults to the global `fetch`. */
+  readonly pushFetch?: FetchLike;
+  /** Replaces the whole sender (tests of a failing fan-out). */
+  readonly senders?: NotificationSenderFactory;
   /** Test seam for the delivery clock. */
   readonly now?: () => Date;
 }
@@ -24,7 +27,8 @@ export function createHooksApp(options: CreateHooksAppOptions = {}): Hono<Worker
   app.route(
     '/hooks/github',
     githubWebhookRoutes({
-      pushSender: options.pushSender ?? noopPushSender,
+      senders:
+        options.senders ?? webPushSenders(options.pushFetch ?? (async (input, init) => fetch(input, init))),
       ...(options.now === undefined ? {} : { now: options.now }),
     }),
   );

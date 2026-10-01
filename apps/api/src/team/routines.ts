@@ -1,6 +1,6 @@
+import { localFakeOriginOf } from '@worker/core';
 import { ROUTINES_API_ORIGIN, type FetchLike } from '@worker/routines';
 import type { ApiEnv } from '../env';
-import { localFakeOriginOf } from '../local-fake-origin';
 
 export class RoutinesMisconfiguredError extends Error {
   constructor() {

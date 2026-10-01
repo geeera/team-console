@@ -1,7 +1,17 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test';
 import { createHooksApp } from '../app';
 import type { HooksEnv } from '../env';
-import type { PushFanOut, PushMessage, PushSender } from '../push/push-sender';
+import { PUSH_MAX_SUBSCRIPTIONS } from '@shared/contracts';
+import { PushSubscriptionsRepo } from '@worker/db';
+import {
+  decodeBase64Url,
+  encodeBase64Url,
+  type FetchLike,
+  type PushNotification,
+  type PushSendResult,
+} from '@worker/push';
+import type { FakePushService } from '@worker/push/testing';
+import type { NotificationSender, NotificationSenderFactory } from '../push/push-sender';
 
 /** A test-only value; real secrets come from `wrangler secret put`. */
 export const TEST_WEBHOOK_SECRET = 'hooks-spec-key';
@@ -23,19 +33,62 @@ export async function signatureOf(body: string | Uint8Array, secret: string): Pr
   return `sha256=${Array.from(mac, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
 }
 
-/** Records what the Worker would push; `failWith` makes every send throw. */
-export class RecordingPushSender implements PushSender {
-  readonly messages: PushMessage[] = [];
+/** Records what the Worker would push instead of sending it; `failWith` makes every send throw. */
+export class RecordingPushSender implements NotificationSender {
+  readonly messages: PushNotification[] = [];
+  readonly senders: NotificationSenderFactory = () => this;
 
   constructor(private readonly failWith?: Error) {}
 
-  sendToAll(message: PushMessage): Promise<PushFanOut> {
-    this.messages.push(message);
+  sendToAll(notification: PushNotification): Promise<PushSendResult> {
+    this.messages.push(notification);
     if (this.failWith !== undefined) {
       return Promise.reject(this.failWith);
     }
     return Promise.resolve({ sent: 1, pruned: 0, failed: 0 });
   }
+}
+
+/** The deep link a notification opens. */
+export function linkOf(notification: PushNotification): string {
+  return notification.notification.data.onActionClick.default.url;
+}
+
+let vapidPair: Promise<{ VAPID_PUBLIC_KEY: string; VAPID_PRIVATE_KEY: string }> | undefined;
+
+/** A VAPID pair for this test run only (the deployed one is a Worker secret nobody reads). */
+export function testVapidBindings(): Promise<{ VAPID_PUBLIC_KEY: string; VAPID_PRIVATE_KEY: string }> {
+  vapidPair ??= (async () => {
+    const pair = (await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
+      'sign',
+      'verify',
+    ])) as CryptoKeyPair;
+    const jwk = (await crypto.subtle.exportKey('jwk', pair.privateKey)) as JsonWebKey;
+    const x = decodeBase64Url(jwk.x ?? '');
+    const y = decodeBase64Url(jwk.y ?? '');
+    if (x === null || y === null) {
+      throw new Error('the generated VAPID key has no public point');
+    }
+    const point = new Uint8Array([0x04, ...x, ...y]);
+    return { VAPID_PUBLIC_KEY: encodeBase64Url(point), VAPID_PRIVATE_KEY: jwk.d ?? '' };
+  })();
+  return vapidPair;
+}
+
+/** Registers a device of the fake push service as the owner's subscription, like `PUT /api/v1/push/subscriptions`. */
+export async function subscribeFakeDevice(service: FakePushService): Promise<string> {
+  const subscription = await service.subscribe();
+  await new PushSubscriptionsRepo(env.DB).upsert(
+    {
+      endpoint: subscription.endpoint,
+      p256dh: subscription.keys.p256dh,
+      auth: subscription.keys.auth,
+      userAgent: null,
+    },
+    new Date().toISOString(),
+    PUSH_MAX_SUBSCRIPTIONS,
+  );
+  return subscription.endpoint;
 }
 
 export interface DeliverOptions {
@@ -49,7 +102,10 @@ export interface DeliverOptions {
   readonly env?: { readonly [K in keyof HooksEnv]?: HooksEnv[K] | undefined };
   readonly method?: string;
   readonly headers?: Readonly<Record<string, string>>;
-  readonly pushSender?: PushSender;
+  /** Records instead of sending; without it the real web push sender runs over `pushFetch`. */
+  readonly pushSender?: RecordingPushSender;
+  /** The transport of the real sender, e.g. a `FakePushService`'s `fetch`. Defaults to one that refuses. */
+  readonly pushFetch?: FetchLike;
   readonly now?: () => Date;
 }
 
@@ -59,6 +115,9 @@ export interface Delivered {
   readonly logs: readonly Record<string, unknown>[];
   readonly rawLogs: readonly string[];
 }
+
+// No spec may reach a real push service.
+const refuseNetwork: FetchLike = () => Promise.reject(new TypeError('network disabled in hooks specs'));
 
 let deliveryCounter = 0;
 
@@ -74,7 +133,8 @@ export async function deliver(body: unknown, options: DeliverOptions = {}): Prom
   const rawLogs: string[] = [];
   const app = createHooksApp({
     logSink: (line) => rawLogs.push(line),
-    ...(options.pushSender === undefined ? {} : { pushSender: options.pushSender }),
+    ...(options.pushSender === undefined ? {} : { senders: options.pushSender.senders }),
+    pushFetch: options.pushFetch ?? refuseNetwork,
     ...(options.now === undefined ? {} : { now: options.now }),
   });
   const signature =
@@ -95,11 +155,14 @@ export async function deliver(body: unknown, options: DeliverOptions = {}): Prom
     ...(method === 'GET' || method === 'HEAD' ? {} : { body: raw }),
   });
   const ctx = createExecutionContext();
-  const response = await app.fetch(
-    request,
-    { ...env, WEBHOOK_SECRET: TEST_WEBHOOK_SECRET, ...options.env },
-    ctx,
-  );
+  const bindings = {
+    ...env,
+    ...(await testVapidBindings()),
+    VAPID_SUBJECT: 'https://github.com/geeera/team-console',
+    WEBHOOK_SECRET: TEST_WEBHOOK_SECRET,
+    ...options.env,
+  };
+  const response = await app.fetch(request, bindings, ctx);
   await waitOnExecutionContext(ctx);
   return { response, rawLogs, logs: rawLogs.map((line) => JSON.parse(line) as Record<string, unknown>) };
 }
@@ -141,5 +204,6 @@ export async function resetDatabase(): Promise<void> {
     env.DB.prepare('DELETE FROM webhook_deliveries'),
     env.DB.prepare('DELETE FROM own_writes'),
     env.DB.prepare('DELETE FROM projects'),
+    env.DB.prepare('DELETE FROM push_subscriptions'),
   ]);
 }

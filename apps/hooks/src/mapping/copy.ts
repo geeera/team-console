@@ -1,4 +1,7 @@
-import type { PushKind, PushLanguage } from '../push/push-sender';
+import type { PushLanguage } from '@worker/push';
+
+/** The notifications the hooks Worker sends besides "your answer is needed" (that one is `questionNotification`). */
+export type LinkPushKind = 'pm-reply' | 'team-paused' | 'release-ready' | 'deploy-failed' | 'access-lost';
 
 /** The values a line of copy may interpolate; each kind uses its own subset. */
 export interface CopyInput {
@@ -18,11 +21,10 @@ const itemLine = (input: CopyInput): string => `#${String(input.number ?? '')} $
 
 /**
  * Push copy per `owner.language`. The Worker has no i18n runtime, so both languages live in this table (architect
- * note on #12); polite «вы» as decided for #11/#36 on 2026-10-01.
+ * note on #12); polite «вы» as decided for #11/#36 on 2026-10-01. `@worker/push` cleans and truncates every text.
  */
-export const PUSH_COPY: Readonly<Record<PushLanguage, Readonly<Record<PushKind, Line>>>> = {
+export const PUSH_COPY: Readonly<Record<PushLanguage, Readonly<Record<LinkPushKind, Line>>>> = {
   ru: {
-    decision: { title: (i) => `${i.project} · нужно ваше решение`, body: itemLine },
     'pm-reply': { title: (i) => `${i.project} · PM ответил`, body: itemLine },
     'team-paused': {
       title: (i) => `${i.project} · команда на паузе`,
@@ -39,7 +41,6 @@ export const PUSH_COPY: Readonly<Record<PushLanguage, Readonly<Record<PushKind, 
     },
   },
   en: {
-    decision: { title: (i) => `${i.project} · your decision is needed`, body: itemLine },
     'pm-reply': { title: (i) => `${i.project} · PM replied`, body: itemLine },
     'team-paused': {
       title: (i) => `${i.project} · the team is paused`,

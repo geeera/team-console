@@ -9,6 +9,15 @@ export interface HooksEnv extends WorkerBaseEnv {
   readonly WEBHOOK_SECRET?: string;
   /** Secret (#12): the previous webhook secret, set only while a rotation is in progress (ADR 0003 decision 5). */
   readonly WEBHOOK_SECRET_PREVIOUS?: string;
-  /** Secret (#11). */
+  /** Secret (#11): the VAPID private scalar, base64url; the same pair as the api Worker's. Never logged. */
   readonly VAPID_PRIVATE_KEY?: string;
+  /** Non-secret var (#11/#12): the VAPID public key, empty in the repository; deploy.yml passes `vars.VAPID_PUBLIC_KEY`. */
+  readonly VAPID_PUBLIC_KEY?: string;
+  /** Non-secret var (#11/#12): the JWT `sub`, an https URL (never the owner's e-mail in this public repo). */
+  readonly VAPID_SUBJECT?: string;
+  /**
+   * A loopback origin of the fake push service (`nx run api:fake-push`) that pushes go to instead of Apple, FCM or
+   * Mozilla; honoured only with ENVIRONMENT=local, passed only as `--var`.
+   */
+  readonly PUSH_FAKE_ORIGIN?: string;
 }

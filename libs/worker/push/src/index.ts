@@ -6,11 +6,14 @@ export {
   PUSH_TEST_URL,
   PUSH_TEXT_MAX_LENGTH,
   cleanPushText,
+  linkNotification,
   questionNotification,
   questionPushUrl,
   testNotification,
 } from './lib/message';
-export type { PushNotification, QuestionPushInput } from './lib/message';
+export type { LinkNotificationInput, PushNotification, QuestionPushInput } from './lib/message';
+export { PushMisconfiguredError, pushFetch } from './lib/push-fetch';
+export type { PushFetchEnv } from './lib/push-fetch';
 export { PUSH_PRUNE_AFTER_FAILURES, PUSH_TTL_S, PushSender } from './lib/send';
 export type {
   FetchLike,
