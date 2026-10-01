@@ -1,6 +1,6 @@
 # Contract CI (plugin reference/stack-contract.md, ADR 0001 decision 18): install, lint, test, build on every PR.
 # The job name `lint-test-build` is stable: `scripts/pr gate` and QA read the check runs by name.
-# e2e joins this workflow with #14 (apps/console-e2e); until then no e2e job exists rather than a fake green one.
+# Job `e2e` runs apps/console-e2e (#14).
 name: ci
 
 on:
@@ -82,3 +82,37 @@ jobs:
           rm -rf apps/api/.wrangler
           npx nx run api:migrate
           npx nx run api:migrate
+
+  # #14: the Playwright suite (apps/console-e2e) on every PR, whatever it touches — it is the regression guard for
+  # the demo path. Each Playwright worker starts its own fake GitHub and the api bundle on a fresh local D1 (the
+  # same `wrangler dev dist/apps/api/main.js` the Docker image runs); nothing reaches GitHub or Cloudflare.
+  # Chromium at 390 px and desktop, WebKit for the demo path only. No secrets.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-node-npm
+
+      - run: npm ci
+
+      - name: Install the browsers
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: e2e
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+        run: npx nx e2e console-e2e
+
+      - name: Keep the report and traces of a failed run
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: console-e2e-report
+          path: |
+            dist/.playwright/apps/console-e2e
+            tmp/console-e2e/*/*.log
+          retention-days: 7
