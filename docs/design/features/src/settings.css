@@ -1,23 +1,5 @@
 /* ===== #24 Settings: GitHub connection and projects, on the Paper Desk tokens (ADR 0002) =====
-   Proposed token additions (the Paper Desk sketch names no spacing scale, target size or stagger):
-   spacing on a 4 px base, a 44 px target, a 16 px input size (stops iOS zoom), the checklist mark, the dialog
-   width, a stagger step and the 120 ms reduced-motion fade the prototype already uses. */
-:root{
-  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;--sp-10:40px;
-  --target:44px;--fs-input:16px;--mark:28px;--dialog-w:440px;--set-max:720px;--stamp-sm:64px;
-  --ls-caps:.06em;--stagger:70ms;--dur-fade:120ms;--dur-pulse:1600ms;--dur-toast:2400ms;
-}
-@media (prefers-reduced-motion:reduce){:root{--stagger:0ms}}
-:root[data-motion=reduce]{--stagger:0ms}
-
-/* ----- page chrome: the demo state bar ----- */
-.demo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-4);font-size:var(--fs-xs);color:var(--text-2)}
-.demo label{display:inline-flex;align-items:center;gap:var(--sp-2)}
-.demo select{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);min-height:32px;padding:0 var(--sp-2)}
-.demo input[type=checkbox]{width:var(--sp-4);height:var(--sp-4);accent-color:var(--accent)}
-.demo__help{flex-basis:100%;margin:0;color:var(--text-3);max-width:110ch}
-.note ul{margin:0 0 var(--sp-2);padding-left:1.2em;max-width:75ch}
-.note li{margin:var(--sp-1) 0}
+   Shared page parts (tokens, buttons, fields, result notes, dialogs, toast) are in kit.css. */
 
 /* ----- mac: settings in the main column ----- */
 .set-main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
@@ -57,21 +39,6 @@
 .set-meta{margin:var(--sp-1) 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-3);font-size:var(--fs-sm);color:var(--text-3)}
 .app[data-app=phone] .set-head .btn--primary{width:100%}
 
-/* ----- buttons (additions to the kit) ----- */
-.btn[aria-disabled=true]{cursor:default}
-.btn--primary[aria-disabled=true],.btn--primary[aria-disabled=true]:hover{background:var(--accent-soft);color:var(--accent-text)}
-.btn:not(.btn--primary)[aria-disabled=true]{color:var(--text-3)}
-.btn[aria-disabled=true]:active{transform:none}
-.btn--danger{background:var(--danger-soft);border-color:transparent;color:var(--danger-text)}
-.btn--danger:hover{background:color-mix(in oklab,var(--danger-soft) 86%,var(--danger-text))}
-.btn--danger-quiet{background:none;color:var(--danger-text)}
-.btn--danger-quiet:hover{background:var(--danger-soft)}
-.btn--tall{min-height:var(--target)}
-.btn .typing{padding:0}
-.ext{display:inline-flex;align-items:center;gap:var(--sp-1);color:var(--accent-text);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;border-radius:var(--r-sm)}
-.ext .ico{width:14px;height:14px}
-.link-btn{border:0;background:none;padding:0;color:var(--accent-text);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;min-height:var(--target)}
-
 /* ----- project list ----- */
 .plist{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);overflow:hidden}
 .prow{display:flex;align-items:center;gap:var(--sp-1);padding-right:var(--sp-2);border-top:1px solid var(--border);background:var(--surface)}
@@ -102,55 +69,6 @@
 .setchip .typing{padding:0;gap:2px}
 .setchip .typing i{width:4px;height:4px}
 
-/* skeleton rows */
-.skel-row{display:flex;align-items:center;gap:var(--sp-3);min-height:calc(var(--target) + var(--sp-5));padding:var(--sp-3) var(--sp-4);border-top:1px solid var(--border)}
-.skel-row:first-child{border-top:0}
-.skel{display:block;border-radius:var(--r-sm);background:var(--bg-sunken);height:var(--sp-3)}
-.skel--mono{width:34px;height:34px}
-.skel-stack{flex:1;display:grid;gap:var(--sp-2)}
-.skel--a{width:38%}.skel--b{width:56%;height:var(--sp-2)}
-.skel-row .skel{animation:pulse var(--dur-pulse) var(--ease-standard) infinite}
-@keyframes pulse{50%{opacity:.45}}
-@media (prefers-reduced-motion:reduce){.skel-row .skel{animation:none}}
-:root[data-motion=reduce] .skel-row .skel{animation:none}
-
-/* empty and error blocks */
-.block{display:grid;justify-items:start;gap:var(--sp-2);padding:var(--sp-6);border-radius:var(--r-lg);background:var(--surface);border:1px dashed var(--border-strong)}
-.block h2,.block h3{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
-.block p{margin:0 0 var(--sp-2);color:var(--text-2);font-size:var(--fs-sm);max-width:52ch}
-.block--error{background:var(--danger-soft);border:0;color:var(--danger-text)}
-.block--error p{color:var(--danger-text)}
-.block--error .btn{border-color:transparent}
-.offline{max-width:none}
-
-/* ----- the new-project field ----- */
-.field{display:grid;gap:var(--sp-1)}
-.field__label{font-weight:600;font-size:var(--fs-sm)}
-.field__hint{margin:0;font-size:var(--fs-xs);color:var(--text-2)}
-.field__input{width:100%;height:var(--target);margin-top:var(--sp-1);padding:0 var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--text);font-family:var(--font-mono);font-size:var(--fs-md);transition:border-color var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard)}
-.app[data-app=phone] .field__input{font-size:var(--fs-input)}
-.field__input::placeholder{color:var(--text-3)}
-.field__input:focus{outline:none;border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
-.field__input[aria-invalid=true]{border-color:var(--danger-text);box-shadow:0 0 0 1px var(--danger-text)}
-.field__err{display:flex;align-items:flex-start;gap:var(--sp-2);margin:var(--sp-1) 0 0;color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
-.field__err .ico{margin-top:2px}
-.field__preview{margin:var(--sp-1) 0 0;font-size:var(--fs-xs);color:var(--text-2)}
-.field__preview code{color:var(--accent-text)}
-.form-actions{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
-.app[data-app=phone] .form-actions .btn{flex:1 1 0;min-width:max-content}
-
-/* ----- the result note: a margin note, like the prototype's recorded answers ----- */
-.res{position:relative;display:grid;justify-items:start;gap:var(--sp-1);padding:var(--sp-1) 0 var(--sp-1) var(--sp-4);border-left:2px solid var(--accent)}
-.res h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);outline:none}
-.res p{margin:0;color:var(--text-2);font-size:var(--fs-sm);max-width:60ch}
-.res .btn,.res .link-btn{margin-top:var(--sp-2)}
-.res__time{font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
-.res--warn{border-left-color:var(--warning-text)}
-.res--bad{border-left-color:var(--danger-text)}
-.res--neutral{border-left-color:var(--text-3)}
-.res--ready{min-height:var(--stamp-sm);padding-right:calc(var(--stamp-sm) + var(--sp-4))}
-.res .stamp{right:0;top:calc(50% - var(--stamp-sm) / 2);width:var(--stamp-sm);height:var(--stamp-sm);opacity:1;transform:rotate(-9deg)}
-
 /* ----- the checklist: a ledger of four steps ----- */
 .ledger{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
 .step{display:grid;grid-template-columns:var(--mark) minmax(0,1fr);gap:var(--sp-1) var(--sp-3);padding:var(--sp-4);border-top:1px solid var(--border)}
@@ -172,49 +90,16 @@
 .step--skipped .step__mark{background:none;border:1px dashed var(--border-strong);color:var(--text-3)}
 .step--skipped .step__title{color:var(--text-2)}
 .step--skipped .step__state{color:var(--text-3)}
-.how-btn{margin-left:calc(-1 * var(--sp-2));color:var(--accent-text);min-height:var(--target)}
-.how-btn .ico{width:16px;height:16px;transition:transform var(--dur-base) var(--ease-standard)}
-.how-btn[aria-expanded=true]{background:none;color:var(--accent-text)}
-.how-btn[aria-expanded=true] .ico{transform:rotate(180deg)}
-.how{display:grid;gap:var(--sp-3);width:100%;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2)}
-.how p{margin:0;overflow-wrap:anywhere}
-.how dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--sp-2) var(--sp-4);margin:0}
-.how dt{color:var(--text-3)}
-.how dd{margin:0;min-width:0;color:var(--text)}
-.app[data-app=phone] .how{padding:var(--sp-3)}
-.app[data-app=phone] .how dl{grid-template-columns:minmax(0,1fr);gap:0}
-.app[data-app=phone] .how dd{margin-bottom:var(--sp-2)}
-.codeline{display:flex;align-items:flex-start;gap:var(--sp-2);width:100%}
-.codeline code{flex:1;min-width:0;padding:var(--sp-2) var(--sp-3);border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-size:var(--fs-xs);line-height:1.5;overflow-wrap:anywhere}
-.codeline .btn{min-height:var(--target);flex:none}
-.codeline .btn[data-copied] {color:var(--success-text)}
 
 /* ink: a step that just turned done draws its check, in step order */
 .step.is-new .step__mark{animation:mark-in var(--dur-base) var(--ease-emph) calc(var(--i, 0) * var(--stagger)) both}
 .step.is-new.step--done .step__mark path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) calc(var(--i, 0) * var(--stagger) + var(--dur-fast)) forwards}
-@keyframes mark-in{from{transform:scale(.6);opacity:0}}
-@keyframes fade{from{opacity:0}}
 @media (prefers-reduced-motion:reduce){.step.is-new .step__mark,.step.is-new.step--done .step__mark path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}}
 :root[data-motion=reduce] .step.is-new .step__mark,:root[data-motion=reduce] .step.is-new.step--done .step__mark path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}
 
 /* ----- actions and the separated archive ----- */
 .danger-zone{display:flex;padding-top:var(--sp-5);border-top:1px solid var(--border)}
 .app[data-app=phone] .danger-zone .btn{width:100%}
-
-/* ----- archive confirmation (alertdialog) ----- */
-.modal{position:absolute;inset:0;z-index:var(--z-sheet);display:grid;place-items:center;padding:var(--sp-6)}
-.modal__scrim{position:absolute;inset:0;background:var(--scrim)}
-.adialog{position:relative;width:min(100%,var(--dialog-w));display:grid;gap:var(--sp-3);padding:var(--sp-6);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-2)}
-.adialog h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);overflow-wrap:anywhere}
-.adialog p{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
-.adialog .adialog__note{font-size:var(--fs-xs);color:var(--text-2);padding-left:var(--sp-3);border-left:2px solid var(--border-strong)}
-.adialog__err{display:flex;gap:var(--sp-2);align-items:flex-start;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--danger-soft);color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
-.adialog__err .ico{margin-top:2px}
-.adialog__actions{display:flex;justify-content:flex-end;gap:var(--sp-2);margin-top:var(--sp-2)}
-.adialog__actions .btn{min-height:var(--target)}
-.app[data-app=phone] .modal{place-items:end stretch;padding:0}
-.app[data-app=phone] .adialog{width:100%;border-radius:var(--r-sheet) var(--r-sheet) 0 0;border-width:1px 0 0;padding:var(--sp-6) var(--sp-5) var(--sp-10);box-shadow:var(--shadow-3)}
-.app[data-app=phone] .adialog__actions .btn{flex:1 1 0}
 
 /* ----- settings sections ----- */
 .sec{display:grid;gap:var(--sp-3)}
@@ -283,10 +168,3 @@
 .gh-mock .form-actions{width:100%;justify-content:center}
 .p-bar__url{justify-self:center;padding:var(--sp-1) var(--sp-4);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2)}
 .crumbs__url{font-family:var(--font-mono);font-weight:400}
-
-/* toast and live region */
-.toast[hidden]{display:none}
-.app[data-app=phone] .toast{top:auto;bottom:var(--sp-10)}
-
-/* page chrome sits on the darker --page backdrop, where tertiary text falls under AA: use secondary text there */
-.note__kicker,.device__label,.demo__help{color:var(--text-2)}

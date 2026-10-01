@@ -1,0 +1,1645 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Team Console · #114 · Team commands: pause and run now</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600&family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+/* ===== tokens: Paper Desk (generated from docs/design/directions/src/d1.py) ===== */
+:root{
+  --font-display:"Source Serif 4",Georgia,"Times New Roman",serif;--font-body:"Source Sans 3",-apple-system,system-ui,"Segoe UI",sans-serif;--font-mono:"Source Code Pro",ui-monospace,Menlo,monospace;--fw-display:600;
+  --fs-xs:12px;--fs-sm:14px;--fs-md:15px;--fs-lg:18px;--fs-xl:22px;--fs-2xl:28px;--lh-body:1.55;--lh-tight:1.25;
+  --r-sm:6px;--r-md:10px;--r-lg:16px;
+  --btn-h:34px;--sidebar-w:256px;--pane-w:392px;--log-max:680px;--pad-x:32px;--gap-log:20px;--pad-card:18px 20px;--card-indent:40px;
+  --dur-instant:0ms;--dur-fast:140ms;--dur-base:240ms;--dur-slow:380ms;--dur-sig:620ms;
+  --ease-standard:cubic-bezier(.2,0,0,1);--ease-enter:cubic-bezier(0,0,.2,1);--ease-exit:cubic-bezier(.4,0,1,1);--ease-emph:cubic-bezier(.3,0,0,1);
+  --bg:#F7F3EC;--bg-sunken:#EFE9DF;--surface:#FFFDF9;--surface-2:#FAF6EF;--text:#29251F;--text-2:#5B5449;--text-3:#6D6459;
+  --border:#E5DDD0;--border-strong:#CFC5B5;--accent:#3E6A48;--accent-contrast:#FFFFFF;--accent-soft:#E3ECE0;--accent-text:#2F5638;
+  --success-soft:#E1EEDF;--success-text:#2D6A3E;--warning-soft:#F5E8CD;--warning-text:#7A510E;--danger-soft:#F6E0DA;--danger-text:#9A3324;
+  --focus:#3E6A48;--owner-bubble:#EAE2D4;--owner-text:#29251F;
+  --shadow-1:0 1px 2px rgba(60,45,20,.07),0 0 0 .5px rgba(60,45,20,.03);--shadow-2:0 8px 24px -8px rgba(60,45,20,.22);--shadow-3:0 -12px 40px -12px rgba(60,45,20,.28);
+}
+:root[data-theme=dark]{
+  --bg:#1C1A17;--bg-sunken:#161412;--surface:#25221E;--surface-2:#201E1A;--text:#EEE8DD;--text-2:#BDB4A5;--text-3:#999082;
+  --border:#35312B;--border-strong:#4A443B;--accent:#8FBC92;--accent-contrast:#10200F;--accent-soft:#263428;--accent-text:#A8D0AA;
+  --success-soft:#1F3122;--success-text:#9BCF9F;--warning-soft:#382D18;--warning-text:#E6BC6E;--danger-soft:#3D2420;--danger-text:#F0A091;
+  --focus:#A8D0AA;--owner-bubble:#322D27;--owner-text:#EEE8DD;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);--shadow-2:0 10px 28px -8px rgba(0,0,0,.6);--shadow-3:0 -12px 40px -12px rgba(0,0,0,.7);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#1C1A17;--bg-sunken:#161412;--surface:#25221E;--surface-2:#201E1A;--text:#EEE8DD;--text-2:#BDB4A5;--text-3:#999082;
+  --border:#35312B;--border-strong:#4A443B;--accent:#8FBC92;--accent-contrast:#10200F;--accent-soft:#263428;--accent-text:#A8D0AA;
+  --success-soft:#1F3122;--success-text:#9BCF9F;--warning-soft:#382D18;--warning-text:#E6BC6E;--danger-soft:#3D2420;--danger-text:#F0A091;
+  --focus:#A8D0AA;--owner-bubble:#322D27;--owner-text:#EEE8DD;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);--shadow-2:0 10px 28px -8px rgba(0,0,0,.6);--shadow-3:0 -12px 40px -12px rgba(0,0,0,.7);
+}}
+/* ===== shared structure; every colour, size and duration comes from the direction's tokens ===== */
+:root{
+  --hover:color-mix(in oklab,var(--text) 6%,transparent);
+  --hover-solid:color-mix(in oklab,var(--surface) 93%,var(--text) 7%);
+  --accent-hover:color-mix(in oklab,var(--accent) 88%,var(--text) 12%);
+  --page:color-mix(in oklab,var(--bg) 90%,var(--text) 10%);
+  --scrim:color-mix(in oklab,#000 36%,transparent);
+  --r-sheet:calc(var(--r-lg) + 10px);
+  --z-sheet:40;--z-toast:70;--z-chrome:60;
+}
+@media (prefers-reduced-motion:reduce){:root{--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms}}
+:root[data-motion=reduce]{--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms}
+
+*,*::before,*::after{box-sizing:border-box}
+html{color-scheme:light;-webkit-text-size-adjust:100%}
+:root[data-theme=dark]{color-scheme:dark}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark}}
+body{margin:0;background:var(--page);color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:var(--lh-body);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button,input,textarea{font:inherit;color:inherit;letter-spacing:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.sr-only{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ico{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+kbd{font-family:var(--font-mono);font-size:10px;line-height:1;padding:3px 5px;border-radius:4px;border:1px solid var(--border-strong);color:var(--text-3);background:var(--surface)}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);padding:1px 5px;border-radius:4px;word-break:break-word}
+[hidden]{display:none!important}
+
+/* ===== the note on top of the page ===== */
+.note{max-width:1720px;margin:0 auto;padding:20px 24px 4px;display:grid;gap:10px}
+.note__row{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.note__kicker{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.note h1{margin:2px 0 0;font-family:var(--font-display);font-size:var(--fs-2xl);line-height:1.1;font-weight:var(--fw-display)}
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:2px;background:var(--surface)}
+.seg button,.seg-btn{border:0;background:none;padding:6px 12px;border-radius:999px;font-size:var(--fs-xs);color:var(--text-2);min-height:32px}
+.seg button[aria-pressed=true]{background:var(--text);color:var(--bg)}
+.seg-btn{border:1px solid var(--border);background:var(--surface)}
+.note details{font-size:var(--fs-sm);color:var(--text-2)}
+.note summary{cursor:pointer;color:var(--text-2);font-weight:600;width:max-content}
+.note__grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:8px 32px;margin-top:10px}
+@media (max-width:900px){.note__grid{grid-template-columns:1fr}}
+.note p{margin:0 0 6px;max-width:75ch;line-height:1.5}
+.tok{align-content:start;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0;font-size:var(--fs-xs)}
+.tok dt{color:var(--text-3)}.tok dd{margin:0;color:var(--text-2)}
+.sw{display:inline-flex;align-items:center;gap:4px;margin-right:10px;white-space:nowrap}
+.sw i{width:12px;height:12px;border-radius:3px;border:1px solid var(--border-strong)}
+.try{font-size:var(--fs-xs);color:var(--text-3)}
+
+/* ===== stage and device frames ===== */
+.stage{display:flex;flex-wrap:wrap;gap:40px;justify-content:center;align-items:flex-start;padding:20px 24px 56px;max-width:1720px;margin:0 auto}
+.stage[data-layout=row]{flex-wrap:nowrap}
+.stage[data-view=phone] .device--mac,.stage[data-view=mac] .device--phone{display:none}
+.device{display:grid;gap:10px;justify-items:center}
+.device__label{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.phone-frame{position:relative;width:414px;height:868px;padding:12px;border-radius:62px;background:#0d0d0f;box-shadow:0 0 0 1px #34343a,0 40px 80px -36px rgba(0,0,0,.5)}
+.phone-frame>.app{width:390px;height:844px;border-radius:50px}
+.mac-frame{width:1180px;height:760px;border-radius:12px;overflow:hidden;box-shadow:0 0 0 1px var(--border-strong),0 30px 80px -34px rgba(0,0,0,.45)}
+.mac-frame>.app{height:100%}
+@media (max-width:520px){
+  .note{padding:14px 14px 0}.stage{padding:12px 0 0}
+  .phone-frame{width:100%;height:auto;padding:0;border-radius:0;background:none;box-shadow:none}
+  .phone-frame>.app{width:100%;height:100svh;border-radius:0}
+  .device--phone .device__label,.p-status,.home-ind{display:none!important}
+  .tabs{padding-bottom:max(8px,env(safe-area-inset-bottom))!important}
+}
+
+/* ===== app base ===== */
+.app{position:relative;overflow:hidden;isolation:isolate;background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:var(--lh-body)}
+.app[data-app=phone]{display:flex;flex-direction:column}
+.app[data-app=mac]{display:flex;flex-direction:column}
+.app:not(.is-space) .composer{display:none}
+.avatar{width:28px;height:28px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:10px;font-weight:700;letter-spacing:.03em}
+.avatar--pm{background:var(--accent-soft);color:var(--accent-text)}
+.avatar--owner{background:var(--text);color:var(--bg)}
+.prod-mono{width:26px;height:26px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;font-weight:700;font-size:13px;text-transform:uppercase;background:var(--accent-soft);color:var(--accent-text);font-family:var(--font-display)}
+.prod-mono[data-status=paused]{background:var(--bg-sunken);color:var(--text-3)}
+.prod-mono[data-status=failing]{background:var(--danger-soft);color:var(--danger-text)}
+.prod-mono--all{background:var(--text);color:var(--bg)}
+.prod-mono--all .ico{width:15px;height:15px}
+.count{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--accent-contrast);font-size:11px;font-weight:700;line-height:1;display:inline-grid;place-items:center;font-variant-numeric:tabular-nums;overflow:hidden;font-family:var(--font-body)}
+.count>span{grid-area:1/1}
+.status{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;background:var(--success-soft);color:var(--success-text);white-space:nowrap;text-transform:none;letter-spacing:0}
+.status i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.status--paused{background:var(--bg-sunken);color:var(--text-2)}
+.status--failing{background:var(--danger-soft);color:var(--danger-text)}
+.sdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--success-text);margin-left:6px;vertical-align:1px}
+.sdot--paused{background:var(--text-3)}.sdot--failing{background:var(--danger-text)}
+.meter{display:block;height:3px;border-radius:2px;background:var(--bg-sunken);overflow:hidden}
+.meter i{display:block;height:100%;width:var(--p);background:var(--accent);border-radius:inherit}
+.chip-btn{border:1px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:999px;padding:0 10px;height:30px;font-size:var(--fs-xs);white-space:nowrap}
+.chip-btn[aria-pressed=true]{background:var(--text);color:var(--bg);border-color:transparent}
+.empty{color:var(--text-3);font-size:var(--fs-sm);padding:12px 4px}
+.empty--big{display:grid;justify-items:center;gap:8px;text-align:center;padding:48px 16px}
+.empty--big .ico{width:32px;height:32px;color:var(--success-text)}
+.search{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text-3)}
+.search:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.search input{flex:1;min-width:0;border:0;background:none;outline:none;color:var(--text);font-size:var(--fs-sm)}
+.app[data-app=phone] .search input{font-size:16px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:var(--btn-h);padding:0 14px;border-radius:var(--r-md);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-weight:600;font-size:var(--fs-sm);white-space:nowrap;transition:background-color var(--dur-fast) var(--ease-standard),transform var(--dur-fast) var(--ease-standard)}
+.btn:hover{background:var(--hover-solid)}
+.btn:active{transform:scale(.97)}
+.btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-contrast)}
+.btn--primary:hover{background:var(--accent-hover)}
+.btn--quiet{border-color:transparent;background:none;color:var(--text-2)}
+.btn--quiet[aria-expanded=true]{background:var(--hover);color:var(--text)}
+.btn--sm{min-height:30px;padding:0 10px;font-size:var(--fs-xs)}
+.btn:disabled{opacity:.65}
+.btn kbd{display:none}
+.app[data-app=phone] .btn{min-height:44px}
+.app[data-app=phone] .btn--sm{min-height:36px}
+.icon-btn{width:40px;height:40px;flex:none;display:grid;place-items:center;border:0;background:none;border-radius:var(--r-md);color:var(--text-2)}
+.icon-btn:hover{background:var(--hover)}
+.icon-btn .ico{width:20px;height:20px}
+
+/* ===== mac window ===== */
+.win{display:flex;flex-direction:column;height:100%}
+.win__bar{position:relative;height:38px;flex:none;display:flex;align-items:center;padding:0 14px;background:var(--bg-sunken);border-bottom:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-3)}
+.lights{display:flex;gap:8px}.lights i{width:12px;height:12px;border-radius:50%;background:#fe5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.win__title{position:absolute;left:50%;translate:-50% 0;font-weight:600}
+.win__body{flex:1;display:flex;min-height:0}
+.sidebar{width:var(--sidebar-w);flex:none;display:flex;flex-direction:column;gap:2px;padding:12px 10px 10px;background:var(--bg-sunken);border-right:1px solid var(--border);overflow-y:auto}
+.brand{display:flex;align-items:center;gap:8px;padding:2px 6px 12px;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md)}
+.mark{width:22px;height:22px;color:var(--accent)}
+.search--side{height:32px;margin-bottom:8px;background:var(--bg)}
+.search--side kbd{margin-left:auto}
+.side-label{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-3);padding:14px 8px 4px;font-weight:600;letter-spacing:.04em}
+.side-label .ico{width:13px;height:13px}
+.side-list{list-style:none;margin:0;padding:0;display:grid;gap:1px}
+.side-item{width:100%;display:flex;align-items:center;gap:10px;min-height:34px;padding:5px 8px;border:0;background:none;border-radius:var(--r-md);text-align:left;color:var(--text-2);font-size:var(--fs-sm)}
+.side-item:hover{background:var(--hover)}
+.side-item[aria-current=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.side-item>kbd{margin-left:auto}
+.side-item .count{margin-left:auto}
+.side-item>kbd+.count{margin-left:6px}
+.side-prod__name{display:grid;min-width:0;flex:1}
+.side-prod__label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);font-weight:500}
+/* wraps to a second line rather than cutting the date: Russian status lines run longer */
+.side-prod small{font-size:var(--fs-xs);line-height:1.35;color:var(--text-3);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.side-prod .meter{display:none}
+.side-more{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:6px 8px;font-size:var(--fs-xs);color:var(--text-3);border-radius:var(--r-md);text-align:left}
+.side-more:hover{background:var(--hover)}
+.side-more .ico{width:14px;height:14px;transition:transform var(--dur-base) var(--ease-standard);transform:rotate(-90deg)}
+.side-more[aria-expanded=true] .ico{transform:none}
+.side-foot{margin-top:auto;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:10px 6px 2px;font-size:var(--fs-xs);color:var(--text-2);border-top:1px solid var(--border)}
+.side-foot .avatar{width:24px;height:24px}
+.side-foot__sync{margin-left:auto;display:inline-flex;align-items:center;gap:5px;color:var(--text-3);white-space:nowrap}
+.side-foot__sync i{width:6px;height:6px;border-radius:50%;background:var(--success-text)}
+.convo{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.convo__head{height:52px;flex:none;display:flex;align-items:center;gap:6px;padding:0 14px 0 20px;border-bottom:1px solid var(--border)}
+.convo__title{display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden}
+.app:has(.pane.is-open) .convo__sub,.app:has(.pane.is-open) .convo__head .lbl,.app:has(.pane.is-open) .convo__head kbd{display:none}
+.convo__title h2{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);white-space:nowrap}
+.convo__sub{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.convo__head .btn kbd{display:inline-block}
+.pane{width:0;flex:none;overflow:hidden;background:var(--surface-2);border-left:1px solid transparent;transition:width var(--dur-slow) var(--ease-standard),border-color var(--dur-slow) var(--ease-standard)}
+.pane.is-open{width:var(--pane-w);border-left-color:var(--border)}
+.pane__inner{width:var(--pane-w);height:100%;display:flex;flex-direction:column}
+.pane__tabs{height:52px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 0 12px;border-bottom:1px solid var(--border)}
+.pane__tabs .icon-btn{margin-left:auto}
+.tab-btn{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:6px 10px;border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm)}
+.tab-btn[aria-selected=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.pane__body{flex:1;overflow-y:auto}
+
+/* ===== phone ===== */
+.p-status{position:relative;height:50px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:6px 30px 0 40px;font:600 16px/1 -apple-system,"SF Pro Text",system-ui,sans-serif}
+.p-island{position:absolute;top:11px;left:50%;translate:-50% 0;width:124px;height:36px;border-radius:20px;background:#000}
+.p-status__icons{display:flex;gap:6px;align-items:center}
+.p-head{flex:none;display:flex;align-items:center;gap:4px;padding:2px 8px 8px 10px}
+.p-switch{flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:0;background:none;padding:6px;border-radius:var(--r-md);text-align:left;min-height:48px}
+.p-switch .prod-mono{width:34px;height:34px;font-size:16px}
+.p-switch__txt{display:grid;min-width:0}
+.p-switch b{font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);line-height:1.15}
+.p-switch small{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-switch>.ico{color:var(--text-3)}
+.p-strip{display:none}
+.p-needs{display:none}
+.tabs{flex:none;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border);background:var(--bg);padding:6px 4px 28px;position:relative;z-index:2}
+.tabs button{position:relative;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;min-height:48px;padding:4px 0;font-size:11px;color:var(--text-3)}
+.tabs button .ico{width:24px;height:24px}
+.tabs button[aria-current=page]{color:var(--accent-text)}
+.tabs .count{position:absolute;top:0;left:calc(50% + 6px);height:18px;min-width:18px;font-size:10px;padding:0 5px}
+.home-ind{position:absolute;bottom:8px;left:50%;translate:-50% 0;width:136px;height:5px;border-radius:3px;background:var(--text);opacity:.9;z-index:var(--z-chrome);pointer-events:none}
+.scrim{position:absolute;inset:0;z-index:30;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity var(--dur-base) var(--ease-standard)}
+.app.has-sheet .scrim{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:var(--z-sheet);max-height:88%;display:flex;flex-direction:column;background:var(--surface);border-radius:var(--r-sheet) var(--r-sheet) 0 0;box-shadow:var(--shadow-3);transform:translateY(102%);visibility:hidden;transition:transform var(--dur-slow) var(--ease-exit),visibility 0s linear var(--dur-slow)}
+.sheet.is-open{transform:none;visibility:visible;transition:transform var(--dur-slow) var(--ease-enter),visibility 0s}
+.sheet__grab{width:38px;height:5px;border-radius:3px;background:var(--border-strong);margin:8px auto 0;flex:none}
+.sheet__head{display:flex;align-items:center;justify-content:space-between;padding:6px 10px 6px 20px;flex:none}
+.sheet__head h2{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);outline:none}
+.sheet__body{overflow-y:auto;padding:0 0 36px;overscroll-behavior:contain}
+.sheet__pad{padding:0 16px 8px}
+.proj-list{padding:0 8px}
+.side-item--needs{background:var(--accent-soft);color:var(--accent-text);font-weight:600;min-height:48px}
+.side-item--needs .count{margin-left:auto}
+.side-prod--rich{min-height:56px}
+.side-prod--rich .prod-mono{width:34px;height:34px}
+.side-prod--rich .meter{display:block;margin-top:5px;width:70%}
+
+/* ===== conversation ===== */
+.log{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;outline:none}
+.log__inner{position:relative;max-width:var(--log-max);margin:0 auto;padding:24px var(--pad-x);display:flex;flex-direction:column;gap:var(--gap-log)}
+.app[data-app=phone] .log__inner{padding:12px 16px 20px}
+.day{display:flex;align-items:center;gap:12px;color:var(--text-3);font-size:var(--fs-xs);margin:6px 0}
+.day::before,.day::after{content:"";flex:1;height:1px;background:var(--border)}
+.msg{display:flex;gap:12px;align-items:flex-start}
+.msg__body{min-width:0;flex:1}
+.msg__meta{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-xs);color:var(--text-3);margin-bottom:2px}
+.msg__meta b{color:var(--text);font-weight:600}
+.bubble{overflow-wrap:anywhere}
+.bubble p{margin:0 0 .45em}.bubble p:last-child{margin:0}
+.bubble ul{margin:.2em 0 .5em;padding-left:1.2em}
+.bubble li{margin:.15em 0}
+.brief__h{font-weight:700;margin-top:.7em!important}
+.brief__foot{color:var(--text-2)}
+.ref{font-family:var(--font-mono);font-size:.86em;color:var(--accent-text)}
+.msg--owner{justify-content:flex-end}
+.msg--owner .msg__body{flex:0 1 auto;max-width:82%;display:flex;flex-direction:column;align-items:flex-end}
+.msg--owner .bubble{background:var(--owner-bubble);color:var(--owner-text);padding:9px 14px;border-radius:var(--r-lg) var(--r-lg) var(--r-sm) var(--r-lg)}
+.msg--owner .msg__meta{margin:4px 4px 0}
+.sysnote{display:flex;align-items:center;justify-content:center;gap:8px;font-size:var(--fs-xs);color:var(--text-3);text-align:center}
+.sysnote i{width:6px;height:6px;border-radius:50%;background:var(--text-3);flex:none}
+.typing{display:inline-flex;gap:4px;padding:10px 0}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:blink 1.2s infinite both}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.typing i{animation:none;opacity:.6}}
+:root[data-motion=reduce] .typing i{animation:none;opacity:.6}
+
+/* decision cards */
+.card{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:12px;padding:var(--pad-card);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);margin-left:var(--card-indent)}
+.card:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.card__head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:var(--fs-xs);color:var(--text-2)}
+.card__kind{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.card__kind .ico{width:15px;height:15px;color:var(--accent-text)}
+.card__num{font-family:var(--font-mono);color:var(--text-3)}
+.card__title{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);line-height:var(--lh-tight);font-weight:var(--fw-display)}
+.card__text{margin:0;color:var(--text-2);font-size:var(--fs-sm)}
+.steps{margin:0;padding-left:1.3em;font-size:var(--fs-sm);color:var(--text-2);display:grid;gap:4px}
+.rec{display:grid;gap:2px;padding:10px 12px;border-radius:var(--r-md);background:var(--accent-soft);font-size:var(--fs-sm)}
+.rec__label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text)}
+.rec__choice{color:var(--text)}
+.rec p{margin:2px 0 0;color:var(--text-2)}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:var(--fs-sm)}
+.check{display:flex;gap:8px;align-items:flex-start}
+.check .ico{margin-top:2px}
+.check--ok .ico{color:var(--success-text)}.check--warn .ico{color:var(--warning-text)}
+.card__foot{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap}
+.card__actions{display:flex;gap:8px;flex-wrap:wrap}
+.card__meta{font-size:var(--fs-xs);color:var(--text-3)}
+.app[data-app=phone] .card{margin-left:0}
+.app[data-app=phone] .card__foot{flex-direction:column;align-items:stretch}
+/* equal halves when both labels fit; a label too long for half the row takes a full row (Russian runs ~30% longer) */
+.app[data-app=phone] .card__actions{display:flex;flex-wrap:wrap}
+.app[data-app=phone] .card__actions .btn{flex:1 1 0;min-width:max-content}
+.is-highlight{animation:hl 1.4s var(--ease-standard)}
+@keyframes hl{0%,40%{box-shadow:0 0 0 3px var(--focus)}100%{box-shadow:var(--shadow-1)}}
+@media (prefers-reduced-motion:reduce){.is-highlight{animation:none;box-shadow:0 0 0 3px var(--focus)}}
+
+/* design thumbnail: drawn from tokens, no image assets */
+.thumb{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--bg-sunken);cursor:zoom-in}
+.thumb--big{margin:4px 0 6px}
+.tf{display:flex;flex-direction:column;gap:5px;aspect-ratio:9/15;padding:6px;border-radius:8px;background:var(--surface);border:1px solid var(--border);position:relative}
+.tf--dark{background:color-mix(in oklab,var(--text) 92%,var(--bg));border-color:transparent}
+.tf__bar{height:5px;width:55%;border-radius:3px;background:var(--border-strong)}
+.tf--dark .tf__bar,.tf--dark .tf__line{background:color-mix(in oklab,var(--bg) 35%,transparent)}
+.tf__center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.tf__icon{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--accent);background:var(--accent-soft)}
+.tf--error .tf__icon{border-color:var(--danger-text);background:var(--danger-soft)}
+.tf__line{height:3px;width:70%;border-radius:2px;background:var(--border-strong)}
+.tf__line--s{width:44%}
+.tf__btn{height:8px;width:48%;border-radius:4px;background:var(--accent);margin-top:3px}
+.tf__cap{position:absolute;left:0;right:0;bottom:-2px;translate:0 100%;font-size:10px;color:var(--text-3);text-align:center;padding-top:3px}
+.thumb{padding-bottom:26px}
+
+/* receipt: a resolved card, recorded as the owner's answer */
+.receipt{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;padding:9px 12px;border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2);margin-left:var(--card-indent);outline-offset:2px}
+.app[data-app=phone] .receipt{margin-left:0}
+.receipt__icon{width:24px;height:24px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--success-soft);color:var(--success-text)}
+.receipt__icon .ico{width:14px;height:14px;stroke-width:2.4}
+.receipt--negative .receipt__icon{background:var(--danger-soft);color:var(--danger-text)}
+.receipt--neutral .receipt__icon{background:var(--surface);color:var(--text-2)}
+.receipt__body{flex:1 1 200px;min-width:0}
+.app[data-app=phone] .receipt__meta{flex-basis:100%;padding-left:var(--receipt-indent,34px)}
+.receipt__verb{font-weight:700;color:var(--text)}
+.receipt__meta{font-size:var(--fs-xs);color:var(--text-3);font-family:var(--font-mono)}
+
+/* banners */
+.banner-wrap{padding:0 var(--pad-x) 4px}
+.app[data-app=phone] .banner-wrap{padding:0 12px 4px}
+.paused{max-width:var(--log-max);margin:0 auto;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px;border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-sm)}
+.paused span{flex:1}.paused b{font-weight:700}
+.paused--bad{background:var(--danger-soft);color:var(--danger-text)}
+
+/* composer */
+.composer{flex:none;padding:10px var(--pad-x) 16px}
+.app[data-app=phone] .composer{padding:6px 12px 8px}
+.composer__box{max-width:var(--log-max);margin:0 auto;display:flex;align-items:flex-end;gap:8px;padding:7px 7px 7px 14px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.composer__box:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.composer textarea{flex:1;min-height:34px;max-height:120px;padding:6px 0;border:0;background:none;outline:none;resize:none;font-size:var(--fs-md);line-height:1.4}
+.app[data-app=phone] .composer textarea{font-size:16px}
+.composer textarea::placeholder{color:var(--text-3)}
+.composer__hint{align-self:center}
+.send{width:34px;height:34px;flex:none;display:grid;place-items:center;border:0;border-radius:var(--r-md);background:var(--accent);color:var(--accent-contrast)}
+.app[data-app=phone] .send{width:40px;height:40px}
+
+/* toast */
+.toast{position:absolute;left:50%;bottom:150px;translate:-50% 0;z-index:var(--z-toast);padding:8px 14px;border-radius:999px;background:var(--text);color:var(--bg);font-size:var(--fs-sm);box-shadow:var(--shadow-2);white-space:nowrap;pointer-events:none}
+.app[data-app=mac] .toast{bottom:96px}
+.app[data-app=phone] .toast{top:124px;bottom:auto}
+
+/* ===== board ===== */
+.board{display:flex;flex-direction:column;gap:14px;padding:16px 20px 24px}
+.board__head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.board__kicker{display:flex;align-items:center;gap:8px;font-size:var(--fs-xs);color:var(--text-3)}
+.board__head h3{margin:4px 0 0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:1.1}
+.demo-pill{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:var(--fs-xs);font-weight:600;white-space:nowrap}
+.demo-pill .ico{width:14px;height:14px}
+.progress{height:6px;border-radius:3px;background:var(--bg-sunken);overflow:hidden}
+.progress i{display:block;height:100%;width:var(--p);background:var(--accent);border-radius:inherit}
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:0}
+.metrics div{padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md)}
+.metrics dt{font-size:var(--fs-xs);color:var(--text-3)}
+.metrics dd{margin:0;font-weight:600;font-size:var(--fs-sm);font-family:var(--font-mono)}
+.metrics dd.metrics__word{font-family:var(--font-body)} /* words read badly in mono, Cyrillic especially */
+.metrics .ok{color:var(--success-text)}.metrics .bad{color:var(--danger-text)}
+.cols{display:grid;gap:16px}
+.col h4{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.col h4 span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.col ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.item{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);font-size:var(--fs-sm)}
+.item__num{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-3)}
+.item__title{min-width:0}
+.item small{display:block;font-size:var(--fs-xs);color:var(--text-3)}
+.tier{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.tier--light{background:var(--bg-sunken);color:var(--text-2)}
+.tier--standard{background:var(--accent-soft);color:var(--accent-text)}
+.tier--heavy{background:var(--warning-soft);color:var(--warning-text)}
+.board__empty{display:flex;gap:10px;align-items:flex-start;padding:14px;border:1px dashed var(--border-strong);border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm)}
+.board__empty p{margin:0}
+.board__foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-3)}
+.app[data-app=phone] .cols{grid-auto-flow:column;grid-auto-columns:82%;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -20px;padding:0 20px 6px;scroll-padding:0 20px}
+.app[data-app=phone] .col{scroll-snap-align:start}
+
+/* ===== artifacts ===== */
+.arts{display:flex;flex-direction:column;gap:12px;padding:16px 20px 24px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.art-group h4{display:flex;gap:8px;margin:6px 0 6px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.art-group h4 span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.art-group ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.art{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-md);background:var(--surface);border:1px solid var(--border);font-size:var(--fs-sm)}
+.art>.ico{color:var(--text-3)}
+.art__icon{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:var(--r-sm);background:var(--bg-sunken);color:var(--text-2)}
+.art__icon .ico{width:16px;height:16px}
+.art__title{flex:1;min-width:0;display:grid}
+.art__title small{font-size:var(--fs-xs);color:var(--text-3)}
+.art--awaiting{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.art--awaiting .art__icon{background:var(--accent-soft);color:var(--accent-text)}
+.art__thumb{list-style:none}
+
+/* ===== cross-project views ===== */
+.log__inner--view{gap:12px}
+.needs__lead{margin:0 0 4px;color:var(--text-2);font-size:var(--fs-sm)}
+.needs__list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.need{width:100%;display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;text-align:left;padding:12px 12px 12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.need:hover{border-color:var(--border-strong)}
+.need>.ico{grid-column:2;grid-row:1/span 3;color:var(--text-3)}
+.need__top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ptag{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px 0 2px;border-radius:999px;background:var(--bg-sunken);font-size:var(--fs-xs);font-weight:600;color:var(--text)}
+.ptag .prod-mono{width:20px;height:20px;font-size:11px;border-radius:50%}
+.need__kind{font-size:var(--fs-xs);color:var(--text-3)}
+.need__title{font-weight:600;font-family:var(--font-display);line-height:var(--lh-tight)}
+.need__rec{font-size:var(--fs-xs);color:var(--text-2)}
+.ov-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.ov{width:100%;display:grid;gap:8px;text-align:left;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.ov:hover{border-color:var(--border-strong)}
+.ov__top{display:flex;align-items:center;gap:8px}
+.ov__top b{flex:1;font-family:var(--font-display);font-weight:var(--fw-display)}
+.ov__line{font-size:var(--fs-xs);color:var(--text-2)}
+.ov__foot{display:flex;justify-content:space-between;align-items:center;font-size:var(--fs-xs);color:var(--text-3);font-family:var(--font-mono)}
+.meter--wide{height:4px}
+.ov-h{display:flex;gap:8px;margin:12px 0 0;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.ov-h span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.ov-grid--quiet .ov{box-shadow:none;background:transparent}
+.app[data-app=phone] .ov-grid{grid-template-columns:1fr}
+
+/* ===== language: bilingual static blocks in the page note ===== */
+:root:not([lang=ru]) [data-lang=ru],:root[lang=ru] [data-lang=en]{display:none}
+
+/* ===== character: Paper Desk ===== */
+
+/* Paper Desk: the PM writes like a letter; decisions are stamped and become margin notes */
+.msg--pm .bubble{font-family:var(--font-display);font-size:16px;line-height:1.62}
+.app[data-app=phone] .msg--pm .bubble{font-size:16px}
+.msg--pm .brief__h{font-family:var(--font-body);font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-2)}
+.avatar--pm{background:none;border:1px solid var(--border-strong);color:var(--text-2);font-family:var(--font-display);font-style:italic;font-weight:600}
+.card__kind{font-variant:small-caps;letter-spacing:.04em;font-size:13px}
+.card{background:var(--surface);background-image:linear-gradient(var(--surface),var(--surface-2))}
+.rec{background:none;border-left:2px solid var(--accent);border-radius:0;padding:2px 0 2px 12px}
+.rec__choice{font-family:var(--font-display);font-size:16px}
+.receipt{background:none;border-left:2px solid var(--accent);border-radius:0;padding:4px 0 4px 14px;font-family:var(--font-display);font-style:italic;font-size:15px}
+.receipt--negative{border-left-color:var(--danger-text)}.receipt--neutral{border-left-color:var(--text-3)}
+.receipt__icon{background:none!important;width:18px;height:18px}
+.receipt__icon .ico{width:18px;height:18px;stroke-width:2}
+.receipt__meta{font-style:normal}
+.receipt{--receipt-indent:28px}
+.receipt.is-new .receipt__icon path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) var(--dur-fast) forwards}
+@keyframes ink{to{stroke-dashoffset:0}}
+.stamp{position:absolute;right:22px;top:calc(50% - 39px);width:78px;height:78px;color:var(--accent);pointer-events:none;opacity:0}
+.stamp svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.stamp .stamp__inner{stroke-width:1;opacity:.6}
+.stamp--negative{color:var(--danger-text)}.stamp--neutral{color:var(--text-2)}
+.sidebar{background:var(--bg-sunken)}
+.side-item[aria-current=true]{box-shadow:none;background:var(--surface);border:1px solid var(--border)}
+.side-label{font-variant:small-caps;letter-spacing:.06em;font-size:13px}
+.tabs button[aria-current=page] .ico{stroke-width:2.2}
+.need__title,.ov__top b{font-weight:600}
+.day span{font-family:var(--font-display);font-style:italic;font-size:14px}
+.msg--owner .bubble{border-radius:var(--r-lg)}
+/* status lines are words, not ids: mono spaces Cyrillic words out, so only ids stay in Source Code Pro */
+.ov__foot,.receipt__meta{font-family:var(--font-body);font-variant-numeric:tabular-nums}
+
+/* ===== Feature design pages: parts shared by every page, on the Paper Desk tokens (ADR 0002) =====
+   Proposed token additions (the Paper Desk sketch names no spacing scale, target size or stagger):
+   spacing on a 4 px base, a 44 px target, a 16 px input size (stops iOS zoom), the checklist mark, the dialog
+   width, a stagger step and the 120 ms reduced-motion fade the prototype already uses. */
+:root{
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;--sp-10:40px;
+  --target:44px;--fs-input:16px;--mark:28px;--dialog-w:440px;--set-max:720px;--stamp-sm:64px;
+  --ls-caps:.06em;--stagger:70ms;--dur-fade:120ms;--dur-pulse:1600ms;--dur-toast:2400ms;
+}
+@media (prefers-reduced-motion:reduce){:root{--stagger:0ms}}
+:root[data-motion=reduce]{--stagger:0ms}
+
+/* ----- page chrome: the demo state bar ----- */
+.demo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-4);font-size:var(--fs-xs);color:var(--text-2)}
+.demo label{display:inline-flex;align-items:center;gap:var(--sp-2)}
+.demo select{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);min-height:32px;padding:0 var(--sp-2)}
+.demo input[type=checkbox]{width:var(--sp-4);height:var(--sp-4);accent-color:var(--accent)}
+.demo__help{flex-basis:100%;margin:0;color:var(--text-3);max-width:110ch}
+.note ul{margin:0 0 var(--sp-2);padding-left:1.2em;max-width:75ch}
+.note li{margin:var(--sp-1) 0}
+
+/* ----- buttons (additions to the kit) ----- */
+.btn[aria-disabled=true]{cursor:default}
+.btn--primary[aria-disabled=true],.btn--primary[aria-disabled=true]:hover{background:var(--accent-soft);color:var(--accent-text)}
+.btn:not(.btn--primary)[aria-disabled=true]{color:var(--text-3)}
+.btn[aria-disabled=true]:active{transform:none}
+.btn--danger{background:var(--danger-soft);border-color:transparent;color:var(--danger-text)}
+.btn--danger:hover{background:color-mix(in oklab,var(--danger-soft) 86%,var(--danger-text))}
+.btn--danger-quiet{background:none;color:var(--danger-text)}
+.btn--danger-quiet:hover{background:var(--danger-soft)}
+.btn--tall{min-height:var(--target)}
+.btn .typing{padding:0}
+.ext{display:inline-flex;align-items:center;gap:var(--sp-1);color:var(--accent-text);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;border-radius:var(--r-sm)}
+.ext .ico{width:14px;height:14px}
+.link-btn{border:0;background:none;padding:0;color:var(--accent-text);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;min-height:var(--target)}
+
+/* skeleton rows */
+.skel-row{display:flex;align-items:center;gap:var(--sp-3);min-height:calc(var(--target) + var(--sp-5));padding:var(--sp-3) var(--sp-4);border-top:1px solid var(--border)}
+.skel-row:first-child{border-top:0}
+.skel{display:block;border-radius:var(--r-sm);background:var(--bg-sunken);height:var(--sp-3)}
+.skel--mono{width:34px;height:34px}
+.skel-stack{flex:1;display:grid;gap:var(--sp-2)}
+.skel--a{width:38%}.skel--b{width:56%;height:var(--sp-2)}
+.skel-row .skel{animation:pulse var(--dur-pulse) var(--ease-standard) infinite}
+@keyframes pulse{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.skel-row .skel{animation:none}}
+:root[data-motion=reduce] .skel-row .skel{animation:none}
+
+/* empty and error blocks */
+.block{display:grid;justify-items:start;gap:var(--sp-2);padding:var(--sp-6);border-radius:var(--r-lg);background:var(--surface);border:1px dashed var(--border-strong)}
+.block h2,.block h3{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
+.block p{margin:0 0 var(--sp-2);color:var(--text-2);font-size:var(--fs-sm);max-width:52ch}
+.block--error{background:var(--danger-soft);border:0;color:var(--danger-text)}
+.block--error p{color:var(--danger-text)}
+.block--error .btn{border-color:transparent}
+.offline{max-width:none}
+
+/* ----- fields: label, hint, error, preview ----- */
+.field{display:grid;gap:var(--sp-1)}
+.field__label{font-weight:600;font-size:var(--fs-sm)}
+.field__hint{margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.field__input{width:100%;height:var(--target);margin-top:var(--sp-1);padding:0 var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--text);font-family:var(--font-mono);font-size:var(--fs-md);transition:border-color var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard)}
+.app[data-app=phone] .field__input{font-size:var(--fs-input)}
+.field__input::placeholder{color:var(--text-3)}
+.field__input:focus{outline:none;border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.field__input[aria-invalid=true]{border-color:var(--danger-text);box-shadow:0 0 0 1px var(--danger-text)}
+.field__err{display:flex;align-items:flex-start;gap:var(--sp-2);margin:var(--sp-1) 0 0;color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.field__err .ico{margin-top:2px}
+.field__preview{margin:var(--sp-1) 0 0;font-size:var(--fs-xs);color:var(--text-2)}
+.field__preview code{color:var(--accent-text)}
+.form-actions{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.app[data-app=phone] .form-actions .btn{flex:1 1 0;min-width:max-content}
+
+/* ----- the result note: a margin note, like the prototype's recorded answers ----- */
+.res{position:relative;display:grid;justify-items:start;gap:var(--sp-1);padding:var(--sp-1) 0 var(--sp-1) var(--sp-4);border-left:2px solid var(--accent)}
+.res h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);outline:none}
+.res p{margin:0;color:var(--text-2);font-size:var(--fs-sm);max-width:60ch}
+.res .btn,.res .link-btn{margin-top:var(--sp-2)}
+.res__time{font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
+.res--warn{border-left-color:var(--warning-text)}
+.res--bad{border-left-color:var(--danger-text)}
+.res--neutral{border-left-color:var(--text-3)}
+.res--ready{min-height:var(--stamp-sm);padding-right:calc(var(--stamp-sm) + var(--sp-4))}
+.res .stamp{right:0;top:calc(50% - var(--stamp-sm) / 2);width:var(--stamp-sm);height:var(--stamp-sm);opacity:1;transform:rotate(-9deg)}
+
+@keyframes mark-in{from{transform:scale(.6);opacity:0}}
+@keyframes fade{from{opacity:0}}
+
+/* ----- disclosure ("How to fix") and a code line with Copy ----- */
+.how-btn{margin-left:calc(-1 * var(--sp-2));color:var(--accent-text);min-height:var(--target)}
+.how-btn .ico{width:16px;height:16px;transition:transform var(--dur-base) var(--ease-standard)}
+.how-btn[aria-expanded=true]{background:none;color:var(--accent-text)}
+.how-btn[aria-expanded=true] .ico{transform:rotate(180deg)}
+.how{display:grid;gap:var(--sp-3);width:100%;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2)}
+.how p{margin:0;overflow-wrap:anywhere}
+.how dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--sp-2) var(--sp-4);margin:0}
+.how dt{color:var(--text-3)}
+.how dd{margin:0;min-width:0;color:var(--text)}
+.app[data-app=phone] .how{padding:var(--sp-3)}
+.app[data-app=phone] .how dl{grid-template-columns:minmax(0,1fr);gap:0}
+.app[data-app=phone] .how dd{margin-bottom:var(--sp-2)}
+.codeline{display:flex;align-items:flex-start;gap:var(--sp-2);width:100%}
+.codeline code{flex:1;min-width:0;padding:var(--sp-2) var(--sp-3);border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-size:var(--fs-xs);line-height:1.5;overflow-wrap:anywhere}
+.codeline .btn{min-height:var(--target);flex:none}
+.codeline .btn[data-copied] {color:var(--success-text)}
+
+/* ----- confirmation dialog (alertdialog): archive, disconnect, team commands ----- */
+.modal{position:absolute;inset:0;z-index:var(--z-sheet);display:grid;place-items:center;padding:var(--sp-6)}
+.modal__scrim{position:absolute;inset:0;background:var(--scrim)}
+.adialog{position:relative;width:min(100%,var(--dialog-w));display:grid;gap:var(--sp-3);padding:var(--sp-6);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-2)}
+.adialog h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);overflow-wrap:anywhere}
+.adialog p{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.adialog .adialog__note{font-size:var(--fs-xs);color:var(--text-2);padding-left:var(--sp-3);border-left:2px solid var(--border-strong)}
+.adialog__err{display:flex;gap:var(--sp-2);align-items:flex-start;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--danger-soft);color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.adialog__err .ico{margin-top:2px}
+.adialog__actions{display:flex;justify-content:flex-end;gap:var(--sp-2);margin-top:var(--sp-2)}
+.adialog__actions .btn{min-height:var(--target)}
+.app[data-app=phone] .modal{place-items:end stretch;padding:0}
+.app[data-app=phone] .adialog{width:100%;border-radius:var(--r-sheet) var(--r-sheet) 0 0;border-width:1px 0 0;padding:var(--sp-6) var(--sp-5) var(--sp-10);box-shadow:var(--shadow-3)}
+.app[data-app=phone] .adialog__actions .btn{flex:1 1 0}
+
+
+/* toast and live region */
+.toast[hidden]{display:none}
+.app[data-app=phone] .toast{top:auto;bottom:var(--sp-10)}
+
+/* page chrome sits on the darker --page backdrop, where tertiary text falls under AA: use secondary text there */
+.note__kicker,.device__label,.demo__help{color:var(--text-2)}
+/* ===== #114 Team commands: pause / resume and Run now, on the Paper Desk tokens (ADR 0002) =====
+   The Commands panel is the Mac detail pane (non-modal, the chat stays usable) and the iPhone bottom sheet.
+   Shared page parts (tokens, buttons, fields, result notes, dialogs, toast) are in kit.css. */
+
+/* ----- entry points ----- */
+.cp-open .ico{width:16px;height:16px}
+.p-head .p-cmd{flex:none;min-height:var(--target);gap:var(--sp-1);padding:0 var(--sp-3)}
+.p-cmd .ico{width:16px;height:16px}
+.btn[aria-expanded=true].cp-open{background:var(--surface);border-color:var(--border-strong);box-shadow:var(--shadow-1)}
+
+/* the paused banner: words first, then the one action */
+.banner-wrap{padding-top:var(--sp-3)}
+.cp-banner{flex-wrap:wrap;row-gap:var(--sp-2)}
+.cp-banner>.ico{flex:none;align-self:flex-start;margin-top:2px}
+.cp-banner>span:first-of-type{flex:1 1 220px}
+.cp-banner__acts{flex:none!important;display:inline-flex;align-items:center;gap:var(--sp-3)}
+.cp-banner .btn{background:var(--surface);border-color:transparent;color:inherit}
+.cp-banner .ext{color:inherit}
+.app[data-app=phone] .cp-banner__acts{flex:1 1 100%!important;justify-content:flex-end}
+.app[data-app=phone] .cp-banner .btn{min-height:var(--target)}
+.p-log{flex:1;min-height:0}
+
+/* ----- the panel ----- */
+.cp{display:flex;flex-direction:column;min-height:0}
+.cp-pane .cp{height:100%}
+.cp-sheet .cp{flex:1}
+.cp__head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);min-height:52px;padding:0 var(--sp-2) 0 var(--sp-5);border-bottom:1px solid var(--border)}
+.cp-sheet .cp__head{border-bottom:0;min-height:var(--target);padding:var(--sp-1) var(--sp-2) 0 var(--sp-5)}
+.cp__title{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight);outline:none;overflow-wrap:anywhere}
+.cp__body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;align-content:start;gap:var(--sp-5);padding:var(--sp-4) var(--sp-5) var(--sp-8)}
+.cp-sheet .cp__body{padding:var(--sp-2) var(--sp-4) var(--sp-10)}
+.cp-kicker{margin:0 0 var(--sp-2);font-size:var(--fs-sm);font-weight:600;font-variant:small-caps;letter-spacing:var(--ls-caps);text-transform:lowercase;color:var(--text-2)}
+
+/* status: the state is a sentence, the dot only repeats it */
+.cp-state{display:grid;gap:var(--sp-1)}
+.cp-state__now{display:flex;align-items:baseline;gap:var(--sp-2);margin:0;font-family:var(--font-display);font-size:var(--fs-lg);line-height:var(--lh-tight)}
+.cp-state__now .sdot{flex:none;margin:0;width:8px;height:8px;align-self:center}
+.cp-state__now--owner .sdot{background:var(--warning-text)}
+.cp-state__now--team{color:var(--danger-text);font-weight:600}
+.cp-state__now--team .ico{align-self:center;width:16px;height:16px}
+.cp-state__meta{display:flex;flex-wrap:wrap;align-items:center;gap:0 var(--sp-3);margin:0;font-size:var(--fs-xs);color:var(--text-2);font-variant-numeric:tabular-nums}
+.cp-refresh{display:inline-flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-xs)}
+.cp-refresh .ico{width:14px;height:14px}
+.cp-refresh[aria-disabled=true]{color:var(--text-3);text-decoration:none;cursor:default}
+.cp-state__meta .ext{font-size:var(--fs-xs);min-height:var(--target)}
+.cp-note{margin:0;max-width:none;align-items:flex-start}
+.cp-note .ico{flex:none;margin-top:2px}
+.cp-note a{color:inherit;font-weight:600}
+.cp-err{padding:var(--sp-4)}
+.cp-err h3{font-size:var(--fs-lg)}
+
+/* command rows: a sheet of rows; the description is the row's text, the button names the action */
+.cmd-list{list-style:none;margin:0;padding:0 var(--sp-4);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.app[data-app=phone] .cmd-list{padding:0 var(--sp-3)}
+.cmd{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:var(--sp-1) var(--sp-3);padding:var(--sp-3) 0;border-top:1px solid var(--border)}
+.cmd:first-child{border-top:0}
+.cmd__txt{display:grid;gap:2px;min-width:0}
+.cmd__title{margin:0;font-weight:600;font-size:var(--fs-md);line-height:var(--lh-tight)}
+.cmd__hint,.cmd__line{margin:0;font-size:var(--fs-sm);color:var(--text-2);line-height:1.4}
+.cmd__line{display:flex;align-items:baseline;gap:var(--sp-2);font-variant-numeric:tabular-nums}
+.cmd__line .ico{flex:none;width:14px;height:14px;align-self:center}
+.cmd__line--unknown{color:var(--warning-text)}
+.cmd__why{display:flex;align-items:flex-start;gap:var(--sp-1);margin:var(--sp-1) 0 0;font-size:var(--fs-sm);font-weight:600;color:var(--text-2)}
+.cmd__why .ico{flex:none;width:14px;height:14px;margin-top:3px}
+.cmd__btn{gap:var(--sp-1)}
+.cmd__btn .ico{width:14px;height:14px}
+.app[data-app=phone] .cmd__btn{min-height:var(--target)}
+/* iPhone: the team row's long verb gets its own full-width line instead of squeezing the description */
+.app[data-app=phone] .cmd--team{grid-template-columns:minmax(0,1fr)}
+.app[data-app=phone] .cmd--team .cmd__btn{width:100%;margin-top:var(--sp-2)}
+/* an off command stays focusable and readable, but no longer looks pressable */
+.cmd__btn[aria-disabled=true],.cmd__btn[aria-disabled=true]:hover{background:none;border-style:dashed;border-color:var(--border-strong);color:var(--text-2)}
+.cmd__btn.btn--primary[aria-disabled=true]{border:1px dashed var(--border-strong)}
+/* a run in progress breathes slowly; still under reduced motion */
+.cmd__live{flex:none;align-self:flex-start;margin-top:.5em;width:var(--sp-2);height:var(--sp-2);border-radius:50%;background:var(--success-text);animation:live var(--dur-pulse) var(--ease-standard) infinite}
+@keyframes live{50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){.cmd__live{animation:none}}
+:root[data-motion=reduce] .cmd__live{animation:none}
+
+/* setup: a to-do in ochre, not an error */
+.cp-setup{display:grid;justify-items:start;gap:var(--sp-2);margin-bottom:var(--sp-3);padding:var(--sp-4);border-radius:var(--r-lg);background:var(--warning-soft);color:var(--warning-text)}
+.cp-setup__head{display:flex;align-items:flex-start;gap:var(--sp-2)}
+.cp-setup__head .ico{flex:none;margin-top:3px}
+.cp-setup h4{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight)}
+.cp-setup>p{margin:0;font-size:var(--fs-sm)}
+.cp-setup .how-btn{color:var(--warning-text);text-decoration:underline;text-underline-offset:.2em}
+.cp-setup .how{background:var(--surface)}
+.cp-steps{margin:0;padding-left:1.3em;display:grid;gap:var(--sp-3)}
+.cp-steps li{padding-left:var(--sp-1)}
+.cp-slots{list-style:none;margin:var(--sp-2) 0 0;padding:0;display:grid;gap:var(--sp-3)}
+.cp-slot{display:grid;gap:var(--sp-1)}
+.cp-slot__name{font-weight:600;color:var(--text)}
+/* iPhone: the full command gets the width; Copy sits under it */
+.app[data-app=phone] .cp-slot .codeline{flex-direction:column;align-items:stretch}
+.app[data-app=phone] .cp-slot .codeline .btn{align-self:flex-start}
+.cp-setup__safe{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;padding-top:var(--sp-3);border-top:1px solid var(--border);font-weight:600;color:var(--text)}
+.cp-setup__safe .ico{flex:none;width:14px;height:14px;margin-top:3px}
+.cp-setup .how .ext{min-height:var(--target)}
+
+/* the result: the kit's receipt (a margin note), toned like the command's outcome */
+.cp .receipt{margin-left:0;outline-offset:var(--sp-1)}
+.cp-res{flex-wrap:nowrap;align-items:flex-start}
+.cp-res .receipt__icon{margin-top:3px}
+.cp-res__main{flex:1;min-width:0;display:grid;gap:var(--sp-1)}
+.cp-res .receipt__body{flex:none}
+.cp-res .receipt__meta{padding-left:0!important}
+.cp-res .receipt__meta .ext{font-family:var(--font-body);font-style:normal}
+.cp-res .receipt__verb{font-weight:var(--fw-display)}
+.cp-res__detail{color:var(--text-2)}
+.cp-res--warning{border-left-color:var(--warning-text)}
+.cp-res--warning .receipt__icon{color:var(--warning-text)}
+.cp-res.is-new{animation:res-in var(--dur-base) var(--ease-enter) both}
+@keyframes res-in{from{opacity:0;transform:translateY(-4px)}}
+@media (prefers-reduced-motion:reduce){.cp-res.is-new{animation:fade var(--dur-fade) linear both}}
+:root[data-motion=reduce] .cp-res.is-new{animation:fade var(--dur-fade) linear both}
+
+/* the iPhone sheet holds the panel; with reduced motion it fades in for 120 ms instead of sliding */
+.cp-sheet{min-height:50%}
+@media (prefers-reduced-motion:reduce){
+  .cp-sheet{transform:none;opacity:0;transition:opacity var(--dur-fade) linear,visibility 0s linear var(--dur-fade)}
+  .cp-sheet.is-open{opacity:1;transition:opacity var(--dur-fade) linear,visibility 0s}
+}
+:root[data-motion=reduce] .cp-sheet{transform:none;opacity:0;transition:opacity var(--dur-fade) linear,visibility 0s linear var(--dur-fade)}
+:root[data-motion=reduce] .cp-sheet.is-open{opacity:1;transition:opacity var(--dur-fade) linear,visibility 0s}
+
+/* ----- confirmation dialogs ----- */
+.cmd-dialog h2{outline:none}
+.cmd-dialog__body{display:grid;gap:var(--sp-2);font-size:var(--fs-sm);color:var(--text-2)}
+.cmd-dialog__body p{margin:0}
+.cmd-dialog__list{margin:0;padding-left:1.2em;display:grid;gap:var(--sp-1)}
+.cmd-dialog__quota{font-size:var(--fs-xs)!important}
+.cmd-dialog__note{padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text)}
+.cmd-dialog__warn{display:flex;align-items:flex-start;gap:var(--sp-2);padding:var(--sp-3);border-radius:var(--r-md);background:var(--danger-soft);color:var(--danger-text);font-weight:600}
+.cmd-dialog__warn .ico{flex:none;margin-top:2px}
+.cmd-dialog__warn .ext{color:inherit}
+.cmd-dialog .field__input{font-family:var(--font-body)}
+.cmd-dialog .btn--primary .typing{padding:0}
+.cmd-dialog .btn--primary .typing i{background:currentColor}
+.cmd-dialog .btn--primary[aria-disabled=true]{cursor:progress}
+/* iPhone: full-width buttons, the primary nearest the thumb */
+.app[data-app=phone] .cmd-dialog .adialog__actions{flex-direction:column;gap:var(--sp-2)}
+.app[data-app=phone] .cmd-dialog .adialog__actions .btn{flex:none;width:100%}
+
+</style>
+</head>
+<body>
+<header class="note">
+  <div class="note__row">
+    <div><div class="note__kicker" data-i18n="page.kicker">Team Console · #114 · design for approval</div><h1 data-i18n="page.title">Team commands: pause and run now</h1></div>
+    <div class="controls">
+      <div class="seg" data-control="view" role="group" aria-label="Layout" data-i18n-aria="page.layout"><button type="button" data-value="phone">iPhone</button><button type="button" data-value="mac">Mac</button><button type="button" data-value="both" data-i18n="page.both">Both</button></div>
+      <div class="seg" data-control="theme" role="group" aria-label="Theme" data-i18n-aria="page.theme"><button type="button" data-value="auto" data-i18n="page.auto">Auto</button><button type="button" data-value="light" data-i18n="page.light">Light</button><button type="button" data-value="dark" data-i18n="page.dark">Dark</button></div>
+      <div class="seg" data-control="lang" role="group" aria-label="Language" data-i18n-aria="page.lang"><button type="button" data-value="ru" lang="ru" aria-label="Русский">RU</button><button type="button" data-value="en" lang="en" aria-label="English">EN</button></div>
+      <div class="seg" data-control="motion" role="group" aria-label="Motion" data-i18n-aria="page.motion"><button type="button" data-value="system" data-i18n="page.motionSystem">Motion: system</button><button type="button" data-value="reduce" data-i18n="page.motionReduce">Reduced</button></div>
+      <button type="button" class="seg-btn" data-reset data-i18n="page.reset">Reset demo</button>
+    </div>
+  </div>
+  <div class="demo" role="group" aria-label="Demo states" data-i18n-aria="demo.aria">
+    <label><span data-i18n="demo.screen">Screen</span><select id="d-screen"><option value="">—</option><option value="space" data-i18n="demo.s.space">space</option><option value="panel" data-i18n="demo.s.panel">panel</option><option value="pause" data-i18n="demo.s.pause">pause</option><option value="resume" data-i18n="demo.s.resume">resume</option><option value="run" data-i18n="demo.s.run">run</option><option value="setup" data-i18n="demo.s.setup">setup</option></select></label>
+    <label><span data-i18n="demo.proj">Team</span><select id="d-proj"><option value="running" data-i18n="demo.p.running">running</option><option value="owner" data-i18n="demo.p.owner">owner</option><option value="team" data-i18n="demo.p.team">team</option></select></label>
+    <label><span data-i18n="demo.data">Status</span><select id="d-data"><option value="ok" data-i18n="demo.d.ok">ok</option><option value="loading" data-i18n="demo.d.loading">loading</option><option value="error" data-i18n="demo.d.error">error</option><option value="offline" data-i18n="demo.d.offline">offline</option><option value="noperm" data-i18n="demo.d.noperm">noperm</option><option value="notoken" data-i18n="demo.d.notoken">notoken</option><option value="notokenQa" data-i18n="demo.d.notokenQa">notokenQa</option></select></label>
+    <label><span data-i18n="demo.outcome">Next command</span><select id="d-outcome"><option value="ok" data-i18n="demo.o.ok">ok</option><option value="error" data-i18n="demo.o.error">error</option><option value="rate" data-i18n="demo.o.rate">rate</option><option value="conflict" data-i18n="demo.o.conflict">conflict</option><option value="timeout" data-i18n="demo.o.timeout">timeout</option></select></label>
+    <label><input type="checkbox" id="d-busy"><span data-i18n="demo.busy">Development run in progress</span></label>
+    <label><input type="checkbox" id="d-freeze"><span data-i18n="demo.freeze">Freeze days</span></label>
+    <p class="demo__help" data-i18n="demo.help"></p>
+  </div>
+  <details><summary data-i18n="page.summary">What you are approving</summary><div data-lang="en" lang="en">
+<div class="note__grid"><div>
+<p><b>What you are approving.</b> How pause / resume and “Run now” look and move in a project space (#114), on iPhone first and on Mac, light and dark, ru and en. Flow, states and copy follow the pause and run-now part of the UX spec on #29 and #114’s criteria; this page decides how they look.</p>
+<ul>
+<li><b>One way in: Commands.</b> In the project space’s top bar on iPhone (a sheet rises from the bottom) and in its header on Mac (the panel opens on the right, <kbd>K</kbd> toggles it, the chat stays usable). When the project is paused, an ochre banner in the space has its own Resume.</li>
+<li><b>The panel says the state in words</b> (Running · Paused by you since 13:52 · Paused itself, in clay), then two groups: Team work, a single Pause ↔ Resume row; and Run now, three rows for planning, development and QA. Each row says when the last run was, or why its button is off.</li>
+<li><b>One confirmation per command</b>: what will happen, then a button that names the verb. On iPhone it is a bottom sheet with the primary button nearest your thumb.</li>
+<li><b>The result is a margin note at the top of the panel</b>, like an answered card in Paper Desk: moss when done (with the run log link), grey when nothing changed (already paused, a run already in progress), ochre when it is unknown (the run service didn’t answer). A failure keeps the dialog open with the reason and Try again; a rate limit names both caps (30 per hour for this routine, 100 per hour for the account; the API doesn’t say which) and the time from Retry-After.</li>
+<li><b>No trigger token</b> is a to-do, not an error. Planning, development and QA are separate routines with their own tokens, so an ochre card lists the routines that aren’t set up, with Copy lines for their two secrets; only those Run rows are off, the others keep working.</li>
+<li><b>Only Pause and Resume need GitHub write access.</b> Run now writes nothing to GitHub, so it stays on when the console can’t write.</li>
+<li><b>Motion</b>: the panel slides in, the pause banner drops in, the result’s tick is drawn in ink, a run in progress is a slowly breathing dot. Nothing else moves. Reduced motion: a 120 ms fade and a still dot. No stamp here: the stamp stays with answering questions.</li>
+</ul>
+<p class="try">Try on iPhone: Commands → Pause → Pause; Resume from the banner; then Commands → Run on Development, and Run again (locked until the run log shows the run, at most 15 minutes; then for the 3-hour overlap window). Set “Next command” to “rate limit (429)” or “no answer” and run Planning. Status “no trigger token for QA only” shows the setup card with only QA off. The demo bar reaches every state.</p>
+</div><dl class="tok">
+<dt>Colour</dt><dd>Paper Desk tokens only: moss for running and for “done”, ochre (warning) for paused by you, a missing setup step and “unknown”, clay (danger) for the team pausing itself and for failures, grey for “nothing changed”.</dd>
+<dt>Type</dt><dd>Source Serif 4 for the panel title, the state sentence and result notes; Source Sans 3 for the interface; Source Code Pro only for the command line. All OFL.</dd>
+<dt>Tokens</dt><dd>The #24 additions (spacing 4–40, target 44, dialog 440, fade 120 ms) plus a 1600 ms pulse for a running slot. Everything else is already in <code>tokens.css</code>.</dd>
+<dt>Kit</dt><dd>Reused: Receipt (result note), StateBlock (loading, error), Field, Button, the #24 disclosure and code line. New: an async confirm (Sending…, error that keeps the dialog open, Try again), disabled-with-reason buttons, a Banner (warning, danger), a Toast, the Commands panel frame (pane on Mac, sheet on iPhone), Receipt tone “warning”.</dd>
+<dt>Motion</dt><dd>fast 140 · base 240 · slow 380 · pulse 1600 ms; only transform, opacity and stroke draw.</dd>
+</dl></div></div><div data-lang="ru" lang="ru">
+<div class="note__grid"><div>
+<p><b>Что утверждаешь.</b> Как выглядят и двигаются пауза, возобновление и «Запустить сейчас» в пространстве проекта (#114) — сначала на iPhone, потом на Mac, в светлой и тёмной теме, на русском и английском. Сценарий, состояния и тексты — по части UX-спеки #29 про паузу и запуск и по критериям #114; здесь решается, как это выглядит.</p>
+<ul>
+<li><b>Один вход — «Команды».</b> На iPhone — в верхней панели пространства проекта (снизу выезжает лист), на Mac — в его шапке (панель открывается справа, <kbd>K</kbd> открывает и закрывает её, чат остаётся доступен). Когда проект на паузе, в пространстве висит охристый баннер со своей кнопкой «Возобновить».</li>
+<li><b>Панель говорит состояние словами</b> («В работе» · «На паузе по твоей просьбе с 13:52» · «Остановилась сама» цветом глины), потом две группы: «Работа команды» — одна строка «Приостановить» ↔ «Возобновить»; «Запустить сейчас» — три строки: планирование, разработка, проверка. Под каждой — когда был последний прогон или почему кнопка выключена.</li>
+<li><b>Одно подтверждение на команду</b>: что произойдёт, потом кнопка с глаголом. На iPhone — лист снизу, главная кнопка ближе к пальцу.</li>
+<li><b>Итог — заметка на полях вверху панели</b>, как отвеченная карточка в Paper Desk: мох — сделано (со ссылкой на журнал запусков), серый — ничего не изменилось (уже на паузе, прогон уже идёт), охра — неизвестно (сервис запусков не ответил). При ошибке диалог остаётся открытым с причиной и «Повторить»; лимит запусков называет оба ограничения (30 в час для рутины и 100 в час на аккаунт — API не говорит, какое сработало) и время из Retry-After.</li>
+<li><b>Нет токена запуска</b> — это дело, а не ошибка. Планирование, разработка и проверка — отдельные рутины со своими токенами, поэтому охристая карточка перечисляет ненастроенные рутины и даёт строки «Копировать» для двух их секретов; выключены только их кнопки «Запустить», остальные работают.</li>
+<li><b>Право записи в GitHub нужно только паузе и возобновлению.</b> «Запустить сейчас» в GitHub ничего не пишет и работает, даже когда консоль писать не может.</li>
+<li><b>Движение</b>: панель выдвигается, баннер паузы опускается, галочка итога прорисовывается чернилами, идущий прогон — медленно «дышащая» точка. Больше ничего не двигается. При «Меньше движения» — затухание 120 мс и неподвижная точка. Штампа здесь нет: он остаётся за ответами на вопросы.</li>
+</ul>
+<p class="try">Попробуй на iPhone: «Команды» → «Приостановить» → «Приостановить»; возобнови из баннера; потом «Команды» → «Запустить» у разработки и попробуй ещё раз (запуск закрыт, пока прогон не появится в журнале, — не дольше 15 минут, потом на три часа окна наложения). Поставь «Следующая команда: лимит запусков (429)» или «нет ответа» и запусти планирование. Статус «нет токена запуска только у QA» показывает карточку настройки, выключена только проверка. Панель демо открывает любое состояние.</p>
+</div><dl class="tok">
+<dt>Цвет</dt><dd>Только токены Paper Desk: мох — «в работе» и «сделано», охра (warning) — пауза по твоей просьбе, недостающий шаг настройки и «неизвестно», глина (danger) — команда остановилась сама и ошибки, серый — «ничего не изменилось».</dd>
+<dt>Шрифты</dt><dd>Source Serif 4 — заголовок панели, фраза состояния и заметки-итоги; Source Sans 3 — интерфейс; Source Code Pro — только строка команды. Все под OFL.</dd>
+<dt>Токены</dt><dd>Добавки из #24 (отступы 4–40, цель касания 44, диалог 440, затухание 120 мс) и пульс 1600 мс для идущего прогона. Остальное уже есть в <code>tokens.css</code>.</dd>
+<dt>Кит</dt><dd>Переиспользую: Receipt (заметка-итог), StateBlock (загрузка, ошибка), Field, Button, раскрывашку и строку кода из #24. Новое: подтверждение с ожиданием («Отправляю…», ошибка не закрывает диалог, «Повторить»), выключенная кнопка с причиной, баннер (warning, danger), тост, рамка панели команд (панель на Mac, лист на iPhone), тон «warning» у Receipt.</dd>
+<dt>Движение</dt><dd>быстро 140 · обычно 240 · медленно 380 · пульс 1600 мс; двигаются только transform, opacity и прорисовка линий.</dd>
+</dl></div></div></details>
+</header>
+<main class="stage">
+  <section class="device device--phone" aria-label="iPhone layout" data-i18n-aria="page.phoneAria"><div class="device__label">iPhone · 390 pt</div><div class="phone-frame"><div class="app" data-app="phone"></div></div></section>
+  <section class="device device--mac" aria-label="Mac layout" data-i18n-aria="page.macAria"><div class="device__label" data-i18n="page.macLabel">Mac · window</div><div class="mac-frame"><div class="app" data-app="mac"></div></div></section>
+</main>
+<script>
+/* UI strings for #114 Team commands, part 1: pause / resume and "Run now". Russian is the reference copy (ADR 0002),
+   English second. Keys follow the pause and run-now part of the UX spec on #29 (copy deck in
+   docs/design/ux/29-team-commands.html, PR #40), so they can move into the app's catalogue as they are. Added here
+   (not in the spec): the setup card for a missing trigger token (`setup.*`), which #114's last criterion asks for,
+   and the run-row line once the run log shows the requested run (`run.started`).
+   Values are strings with {vars} or functions (vars, plural, x); t() HTML-escapes vars. */
+const I18N = {
+  en: {
+    'page.kicker': 'Team Console · #114 · design for approval',
+    'page.title': 'Team commands: pause and run now',
+    'page.layout': 'Layout', 'page.both': 'Both',
+    'page.theme': 'Theme', 'page.auto': 'Auto', 'page.light': 'Light', 'page.dark': 'Dark',
+    'page.motion': 'Motion', 'page.motionSystem': 'Motion: system', 'page.motionReduce': 'Reduced',
+    'page.lang': 'Language', 'page.reset': 'Reset demo',
+    'page.summary': 'What you are approving, and the tokens it uses',
+    'page.phoneAria': 'iPhone layout', 'page.macAria': 'Mac layout', 'page.macLabel': 'Mac · window',
+
+    'demo.aria': 'Demo states',
+    'demo.screen': 'Screen', 'demo.proj': 'Team', 'demo.data': 'Status', 'demo.outcome': 'Next command',
+    'demo.busy': 'Development run in progress', 'demo.freeze': 'Freeze days',
+    'demo.s.space': 'Project space', 'demo.s.panel': 'Commands open', 'demo.s.pause': 'Pause dialog',
+    'demo.s.resume': 'Resume dialog', 'demo.s.run': 'Run now dialog', 'demo.s.setup': 'Not set up: no trigger token',
+    'demo.p.running': 'running', 'demo.p.owner': 'paused by you', 'demo.p.team': 'paused itself (3 failed runs)',
+    'demo.d.ok': 'loaded', 'demo.d.loading': 'loading', 'demo.d.error': 'load error', 'demo.d.offline': 'offline',
+    'demo.d.noperm': 'no write access (403)', 'demo.d.notoken': 'no trigger tokens (every slot)', 'demo.d.notokenQa': 'no trigger token for QA only',
+    'demo.o.ok': 'succeeds', 'demo.o.error': 'service doesn’t answer', 'demo.o.rate': 'rate limit (429)',
+    'demo.o.conflict': 'already done (overlap / already paused)', 'demo.o.timeout': 'no answer (unknown)',
+    'demo.help': 'Start on iPhone: <b>Commands</b> in the top bar opens the panel as a sheet. Pause, then Resume from the banner; Run Development, then try Run again. “Next command” picks how the next press ends. On the Mac press <kbd>K</kbd> inside the window to open or close the panel, <kbd>Esc</kbd> closes a dialog, then the panel.',
+    'demo.elsewhere': 'This part of the space is in the Paper Desk prototype',
+    'demo.runlog': 'Opens the run log issue on GitHub',
+    'demo.settings': 'Opens Settings › Projects (#24)',
+
+    'nav.needs': 'Needs you', 'nav.all': 'All projects', 'nav.projects': 'Projects', 'nav.chat': 'Chat',
+    'nav.board': 'Board', 'nav.artifacts': 'Artifacts', 'nav.sections': 'Sections', 'nav.aria': 'Projects',
+    'nav.filter': 'Filter projects', 'nav.owner': 'Owner', 'nav.switch': 'Switch project, now {name}',
+    'space.sub': '{sprint} · demo {date}',
+    'space.commands': 'Commands', 'space.commandsAria': 'Commands for {name}',
+    'chat.today': 'Today', 'chat.pm': 'PM',
+    'chat.m1': '<p class="brief__h">Morning summary</p><p>QA checked two PRs overnight; both are merged. Next up: #41, search in artifacts.</p>',
+    'chat.m2': '<p>Two questions are waiting for you in Needs you. Nothing else blocks the sprint.</p>',
+
+    'banner.owner': '<b>{name} is paused since {time}.</b> Scheduled runs exit at once without doing work.',
+    'banner.team': '<b>{name}: the team paused itself.</b> Three runs in a row failed.',
+    'banner.resume': 'Resume', 'banner.log': 'Run log',
+
+    'panel.title': 'Commands · {name}', 'panel.close': 'Close commands',
+    'st.h': 'Status', 'st.running': 'Running', 'st.owner': 'Paused by you since {time}',
+    'st.team': 'Paused itself: three runs in a row failed',
+    'st.updated': 'Updated at {time}', 'st.refresh': 'Refresh status', 'st.refreshing': 'Refreshing…', 'st.log': 'Run log',
+    'st.loading': 'Loading status…',
+    'st.errT': 'Couldn’t load the status',
+    'st.errB': 'GitHub didn’t answer. Commands are off until the status is known — otherwise you might, say, pause a project that is already paused.',
+    'st.offline': 'You’re offline. Status as of {time}. Commands work only online.',
+    'st.noperm': 'The console can’t write to issues in {repo}, so Pause and Resume are off. Run now still works.',
+    'st.nopermFix': 'Settings › Projects',
+
+    'g.team': 'Team work', 'g.run': 'Run now',
+    'cmd.pause': 'Pause development',
+    'cmd.pauseHint': 'Scheduled runs will exit at once. To switch the schedule off entirely, use the team chat.',
+    'cmd.pauseBtn': 'Pause',
+    'cmd.resume': 'Resume development', 'cmd.resumeHint': 'The next scheduled run is {slot}, {when}.',
+    'cmd.resumeBtn': 'Resume',
+    'cmd.unknown': 'Pause or resume', 'cmd.unknownHint': 'Shows up once the status is known.',
+    'cmd.unknownBtn': 'Unavailable',
+    'slot.pm': 'Planning', 'slot.dev': 'Development', 'slot.qa': 'QA',
+    'slot.pmL': 'planning', 'slot.devL': 'development', 'slot.qaL': 'QA',
+    'slot.pmN': 'planning', 'slot.devN': 'development', 'slot.qaN': 'QA',
+    'run.btn': 'Run', 'run.btnAria': 'Run now: {slot}',
+    'run.last': 'Last: {when}, succeeded',
+    'run.busy': 'Running since {time}. Next start no earlier than {until}',
+    'run.requested': 'Requested at {time}. It shows up in the run log in a few minutes; until then, no second start before {until}',
+    'run.started': 'Started at {time}. Next start no earlier than {until}',
+    'run.unknown': 'Request at {time} got no answer. Check the run log; you can retry after {until}',
+    'run.freezeRow': 'It’s freeze: instead of new issues, the run checks stage.',
+    'why.offline': 'Offline', 'why.noperm': 'No write access', 'why.paused': 'Resume development first',
+    'why.notoken': 'Not set up: this routine has no trigger token', 'why.status': 'Status not loaded',
+
+    'setup.t': 'Run now isn’t set up for {slots}',
+    'setup.b': 'Planning, development and QA are separate routines, each with its own trigger token. The console needs two values per routine, set once from a computer; the runs that are set up keep working.',
+    'setup.how': 'How to set it up',
+    'setup.s1': 'In Claude Code, open {name}’s routines for {slots} and add an API trigger to each. Claude shows the token once; the trigger URL holds the routine id (trig_…).',
+    'setup.s2': 'Save both as the console’s secrets: in your team-console checkout, in the terminal where you ran <code>npx wrangler login</code> (as for <code>OWNER_EMAIL</code> in the owner checklist). Each command asks for the value at a hidden prompt, so it never lands in your shell history:',
+    'setup.safe': 'Paste the token only at that hidden prompt — never into the chat, an issue or an agent. If it leaked, regenerate it in Claude Code: the old one stops working.',
+    'setup.s3': 'Come back here and refresh the status: Run turns on by itself.',
+    'setup.copy.id': 'Copy the command that saves the routine id for {slot}',
+    'setup.copy.token': 'Copy the command that saves the trigger token for {slot}',
+
+    'c.cancel': 'Cancel', 'c.retry': 'Try again', 'c.sending': 'Sending…', 'c.copy': 'Copy', 'c.copied': 'Copied',
+    'c.external': '(opens GitHub)',
+    'p.t': 'Pause development in {name}?',
+    'p.b1': 'A run in progress finishes its work.',
+    'p.b2': 'Later scheduled runs start and exit at once — the same as a pause from the team chat.',
+    'p.b3': 'Questions for you stay in Needs you.',
+    'p.reason': 'Reason (optional)', 'p.reasonHint': 'Goes into the run log, a public GitHub comment.', 'p.ok': 'Pause',
+    'p.done': 'Development in {name} is paused',
+    'p.conflict': '{name} is already paused since {time} (from the team chat). Nothing changed.',
+    'r.t': 'Resume development in {name}?',
+    'r.b': 'The next scheduled run is {slot}, {when}. To start sooner, use Run now.',
+    'r.bTeam': 'The team paused itself: the last three runs failed. Check the run log before resuming, or runs may keep failing.',
+    'r.ok': 'Resume', 'r.done': 'Development in {name} resumed',
+    'r.conflict': '{name} is already running again (resumed from the team chat). Nothing changed.',
+    'run.t': 'Run {slot} now?',
+    'run.pm': 'The team reads your answers, plans the work and prepares designs.',
+    'run.dev': 'The team takes up to two sprint issues.',
+    'run.devFreeze': 'It’s freeze: instead of new issues, the run checks stage.',
+    'run.qa': 'The team reviews open PRs and fixes what it finds.',
+    'run.quota': 'The run uses your subscription quota like a scheduled one and starts within a few minutes.',
+    'run.ok': 'Run',
+    'run.done': 'Requested: {slot}', 'run.doneDetail': 'It shows up in the run log in a few minutes.',
+    'run.rate': 'Run limit reached: at most 30 per hour for this routine, or 100 per hour across all projects of your account. You can run again at {time}. Nothing started.',
+    'run.overlap': '{slot}: a run is already in progress since {time}. Not starting a second one.',
+    'run.timeout': 'The run service didn’t answer, so it’s unknown whether the run started. Check the run log in a few minutes; retry opens at {time}.',
+    'run.err': 'The run service didn’t answer. Nothing started.',
+    'err.github': 'GitHub didn’t answer. Nothing changed.',
+    'err.rate': 'GitHub asks to wait until {time}. Nothing changed.',
+    'err.offline': 'You’re offline. The command wasn’t sent.',
+    'when.today': 'today {time}', 'when.yesterday': 'yesterday {time}', 'when.tomorrow': 'tomorrow {time}',
+    'when.day': '{day} {time}',
+  },
+  ru: {
+    'page.kicker': 'Team Console · #114 · дизайн на согласование',
+    'page.title': 'Команды: пауза и запуск сейчас',
+    'page.layout': 'Вид', 'page.both': 'Оба',
+    'page.theme': 'Тема', 'page.auto': 'Авто', 'page.light': 'Светлая', 'page.dark': 'Тёмная',
+    'page.motion': 'Анимация', 'page.motionSystem': 'Анимация: как в системе', 'page.motionReduce': 'Меньше движения',
+    'page.lang': 'Язык', 'page.reset': 'Сбросить демо',
+    'page.summary': 'Что утверждаешь и какие токены использует дизайн',
+    'page.phoneAria': 'Вид на iPhone', 'page.macAria': 'Вид на Mac', 'page.macLabel': 'Mac · окно',
+
+    'demo.aria': 'Состояния для демо',
+    'demo.screen': 'Экран', 'demo.proj': 'Команда', 'demo.data': 'Статус', 'demo.outcome': 'Следующая команда',
+    'demo.busy': 'Идёт прогон разработки', 'demo.freeze': 'Дни заморозки',
+    'demo.s.space': 'Пространство проекта', 'demo.s.panel': 'Команды открыты', 'demo.s.pause': 'Диалог паузы',
+    'demo.s.resume': 'Диалог возобновления', 'demo.s.run': 'Диалог «Запустить сейчас»', 'demo.s.setup': 'Не настроено: нет токена запуска',
+    'demo.p.running': 'в работе', 'demo.p.owner': 'на паузе по твоей просьбе', 'demo.p.team': 'остановилась сама (3 сбоя)',
+    'demo.d.ok': 'загружен', 'demo.d.loading': 'загружается', 'demo.d.error': 'ошибка загрузки', 'demo.d.offline': 'нет сети',
+    'demo.d.noperm': 'нет права записи (403)', 'demo.d.notoken': 'нет токенов запуска (все прогоны)', 'demo.d.notokenQa': 'нет токена запуска только у QA',
+    'demo.o.ok': 'выполнится', 'demo.o.error': 'сервис не отвечает', 'demo.o.rate': 'лимит запусков (429)',
+    'demo.o.conflict': 'уже сделано (прогон идёт / уже на паузе)', 'demo.o.timeout': 'нет ответа (неизвестно)',
+    'demo.help': 'Начни на iPhone: <b>Команды</b> в верхней панели открывают лист. Поставь паузу, потом возобнови из баннера; запусти разработку и попробуй запустить ещё раз. «Следующая команда» выбирает, чем закончится следующее нажатие. На Mac <kbd>K</kbd> внутри окна открывает и закрывает панель, <kbd>Esc</kbd> закрывает диалог, потом панель.',
+    'demo.elsewhere': 'Эта часть пространства — в прототипе Paper Desk',
+    'demo.runlog': 'Откроет журнал запусков на GitHub',
+    'demo.settings': 'Откроет Настройки › Проекты (#24)',
+
+    'nav.needs': 'Ждут тебя', 'nav.all': 'Все проекты', 'nav.projects': 'Проекты', 'nav.chat': 'Чат',
+    'nav.board': 'Доска', 'nav.artifacts': 'Артефакты', 'nav.sections': 'Разделы', 'nav.aria': 'Проекты',
+    'nav.filter': 'Найти проект', 'nav.owner': 'Владелец', 'nav.switch': 'Сменить проект, сейчас {name}',
+    'space.sub': '{sprint} · демо {date}',
+    'space.commands': 'Команды', 'space.commandsAria': 'Команды проекта {name}',
+    'chat.today': 'Сегодня', 'chat.pm': 'PM',
+    'chat.m1': '<p class="brief__h">Утренняя сводка</p><p>Ночью QA проверил два PR, оба смержены. Дальше — #41, поиск по артефактам.</p>',
+    'chat.m2': '<p>В «Ждут тебя» два вопроса к тебе. Больше спринт ничто не держит.</p>',
+
+    'banner.owner': '<b>{name} на паузе с {time}.</b> Прогоны по расписанию сразу завершаются без работы.',
+    'banner.team': '<b>{name}: команда остановилась сама.</b> Три прогона подряд упали.',
+    'banner.resume': 'Возобновить', 'banner.log': 'Журнал запусков',
+
+    'panel.title': 'Команды · {name}', 'panel.close': 'Закрыть команды',
+    'st.h': 'Статус', 'st.running': 'В работе', 'st.owner': 'На паузе по твоей просьбе с {time}',
+    'st.team': 'Остановилась сама: три прогона подряд упали',
+    'st.updated': 'Обновлено в {time}', 'st.refresh': 'Обновить статус', 'st.refreshing': 'Обновляю…', 'st.log': 'Журнал запусков',
+    'st.loading': 'Загружаем статус…',
+    'st.errT': 'Не удалось загрузить статус',
+    'st.errB': 'GitHub не ответил. Пока статус неизвестен, команды выключены: неясно, например, на паузе ли проект.',
+    'st.offline': 'Нет сети. Статус на {time}. Команды работают только онлайн.',
+    'st.noperm': 'У консоли нет права менять issues в {repo}, поэтому пауза и возобновление выключены. «Запустить сейчас» работает.',
+    'st.nopermFix': 'Настройки › Проекты',
+
+    'g.team': 'Работа команды', 'g.run': 'Запустить сейчас',
+    'cmd.pause': 'Приостановить разработку',
+    'cmd.pauseHint': 'Прогоны по расписанию будут сразу завершаться. Выключить расписание совсем можно в чате команды.',
+    'cmd.pauseBtn': 'Приостановить',
+    'cmd.resume': 'Возобновить разработку', 'cmd.resumeHint': 'Следующий прогон по расписанию: {slot}, {when}.',
+    'cmd.resumeBtn': 'Возобновить',
+    'cmd.unknown': 'Пауза или возобновление', 'cmd.unknownHint': 'Появится, когда загрузится статус.',
+    'cmd.unknownBtn': 'Недоступно',
+    'slot.pm': 'Планирование', 'slot.dev': 'Разработка', 'slot.qa': 'Проверка (QA)',
+    'slot.pmL': 'планирование', 'slot.devL': 'разработку', 'slot.qaL': 'проверку (QA)',
+    'slot.pmN': 'планирование', 'slot.devN': 'разработка', 'slot.qaN': 'проверка (QA)',
+    'run.btn': 'Запустить', 'run.btnAria': 'Запустить сейчас: {slot}',
+    'run.last': 'Последний: {when}, успешно',
+    'run.busy': 'Идёт с {time}. Второй запуск — не раньше {until}',
+    'run.requested': 'Запрошен в {time}. Появится в журнале через пару минут; до тех пор повторно — не раньше {until}',
+    'run.started': 'Начался в {time}. Второй запуск — не раньше {until}',
+    'run.unknown': 'Запрос в {time} без ответа. Проверь журнал; повторно — не раньше {until}',
+    'run.freezeRow': 'Сейчас заморозка: вместо новых задач прогон проверит stage.',
+    'why.offline': 'Нет сети', 'why.noperm': 'Нет права записи', 'why.paused': 'Сначала возобнови разработку',
+    'why.notoken': 'Не настроено: у этой рутины нет токена запуска', 'why.status': 'Статус не загружен',
+
+    'setup.t': 'Запуск отсюда не настроен: {slots}',
+    'setup.b': 'Планирование, разработка и проверка — отдельные рутины, у каждой свой токен запуска. Консоли нужны два значения на рутину, их задают один раз с компьютера; настроенные прогоны работают уже сейчас.',
+    'setup.how': 'Как настроить',
+    'setup.s1': 'В Claude Code открой у {name} рутины: {slots} — и добавь каждой триггер API. Claude один раз покажет токен, а в адресе триггера есть id рутины (trig_…).',
+    'setup.s2': 'Сохрани оба значения как секреты консоли: в папке team-console, в терминале, где уже выполнен <code>npx wrangler login</code> (как для <code>OWNER_EMAIL</code> в чек-листе владельца). Каждая команда спросит значение в скрытом поле, в историю терминала оно не попадёт:',
+    'setup.safe': 'Вставляй токен только в это скрытое поле — никогда в чат, issue или агенту. Если он утёк, перевыпусти его в Claude Code: старый перестанет работать.',
+    'setup.s3': 'Вернись сюда и обнови статус — «Запустить» включится само.',
+    'setup.copy.id': 'Скопировать команду, которая сохраняет id рутины: {slot}',
+    'setup.copy.token': 'Скопировать команду, которая сохраняет токен запуска: {slot}',
+
+    'c.cancel': 'Отмена', 'c.retry': 'Повторить', 'c.sending': 'Отправляю…', 'c.copy': 'Копировать', 'c.copied': 'Скопировано',
+    'c.external': '(откроется на GitHub)',
+    'p.t': 'Приостановить разработку в {name}?',
+    'p.b1': 'Идущий сейчас прогон доделает свою работу.',
+    'p.b2': 'Следующие прогоны по расписанию будут запускаться и сразу завершаться — так же, как после паузы из чата команды.',
+    'p.b3': 'Вопросы к тебе останутся в «Ждут тебя».',
+    'p.reason': 'Причина (необязательно)', 'p.reasonHint': 'Попадёт в журнал запусков — это публичный комментарий на GitHub.', 'p.ok': 'Приостановить',
+    'p.done': 'Разработка в {name} на паузе',
+    'p.conflict': '{name} уже на паузе с {time} (из чата команды). Ничего не изменено.',
+    'r.t': 'Возобновить разработку в {name}?',
+    'r.b': 'Следующий прогон по расписанию — {slot}, {when}. Раньше можно запустить командой «Запустить сейчас».',
+    'r.bTeam': 'Команда остановилась сама: последние три прогона упали. Посмотри журнал запусков, прежде чем возобновлять, — иначе прогоны могут падать дальше.',
+    'r.ok': 'Возобновить', 'r.done': 'Разработка в {name} возобновлена',
+    'r.conflict': '{name} уже возобновлён (из чата команды). Ничего не изменено.',
+    'run.t': 'Запустить {slot} сейчас?',
+    'run.pm': 'Команда прочитает твои ответы, спланирует работу и подготовит дизайн.',
+    'run.dev': 'Команда возьмёт до двух задач спринта.',
+    'run.devFreeze': 'Сейчас заморозка: вместо новых задач прогон проверит stage.',
+    'run.qa': 'Команда проверит открытые PR и исправит найденное.',
+    'run.quota': 'Прогон расходует квоту подписки, как обычный по расписанию, и начнётся в течение пары минут.',
+    'run.ok': 'Запустить',
+    'run.done': 'Запрошено: {slot}', 'run.doneDetail': 'Прогон появится в журнале через пару минут.',
+    'run.rate': 'Лимит запусков исчерпан: не больше 30 в час для этой рутины или 100 в час на все проекты аккаунта. Можно снова в {time}. Ничего не запущено.',
+    'run.overlap': '{slot}: прогон уже идёт с {time}. Второй не запускаю.',
+    'run.timeout': 'Сервис запусков не ответил, поэтому неизвестно, начался ли прогон. Проверь журнал через пару минут; повторный запуск откроется в {time}.',
+    'run.err': 'Сервис запусков не ответил. Ничего не запущено.',
+    'err.github': 'GitHub не ответил. Ничего не изменено.',
+    'err.rate': 'GitHub просит подождать до {time}. Ничего не изменено.',
+    'err.offline': 'Нет сети. Команда не отправлена.',
+    'when.today': 'сегодня {time}', 'when.yesterday': 'вчера {time}', 'when.tomorrow': 'завтра {time}',
+    'when.day': '{day} {time}',
+  },
+};
+
+/* Shared runtime of the feature design pages: motion and escaping helpers, the inline icon set, the i18n lookup
+   and the page chrome (layout, theme, language, motion). Each page passes its own I18N table and demo wiring.
+   Design prototypes only: mock data, no network. */
+const Proto = (() => {
+  'use strict';
+  const root = document.documentElement;
+  const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
+  const isReduced = () => root.dataset.motion === 'reduce' || mqReduce.matches;
+  const cssVar = (n) => getComputedStyle(root).getPropertyValue(n).trim();
+  const ms = (n) => { const v = cssVar(n); const x = parseFloat(v) || 0; return v.endsWith('ms') ? x : v.endsWith('s') ? x * 1000 : x; };
+  const wait = (t) => new Promise((r) => setTimeout(r, t));
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  async function play(el, frames, opts) {
+    if (!el || !el.animate) return;
+    try { await el.animate(frames, opts).finished; } catch (err) { if (!err || err.name !== 'AbortError') throw err; }
+  }
+  const plain = (html) => { const d = document.createElement('template'); d.innerHTML = html; return d.content.textContent; };
+
+  /* ---------- language (same preference key as the Paper Desk prototype) ---------- */
+  const LANG_KEY = 'team-console.lang';
+  function i18n(table) {
+    const L = { lang: 'ru', fmt: null };
+    try { const v = localStorage.getItem(LANG_KEY); L.lang = v === 'en' || v === 'ru' ? v : /^en\b/i.test(navigator.language || '') ? 'en' : 'ru'; }
+    catch (err) { console.warn('Language preference unavailable, using Russian', err); }
+    L.apply = (v) => {
+      L.lang = v; root.lang = v;
+      const loc = v === 'ru' ? 'ru-RU' : 'en-GB';
+      L.fmt = { time: new Intl.DateTimeFormat(loc, { hour: '2-digit', minute: '2-digit' }), plural: new Intl.PluralRules(loc) };
+    };
+    L.save = (v) => { try { localStorage.setItem(LANG_KEY, v); } catch (err) { console.warn('Language preference not saved', err); } };
+    L.pl = (n, forms) => { const c = L.fmt.plural.select(n); if (forms.length === 2) return c === 'one' ? forms[0] : forms[1]; return c === 'one' ? forms[0] : c === 'few' ? forms[1] : forms[2]; };
+    L.t = (key, vars = {}) => {
+      const v = table[L.lang][key] ?? table.en[key];
+      if (v == null) { console.warn(`Missing UI string: ${key}`); return key; }
+      if (typeof v === 'function') return v(vars, L.pl, { esc });
+      return v.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? esc(vars[k]) : m));
+    };
+    L.hhmm = (d) => L.fmt.time.format(d);
+    L.apply(L.lang);
+    return L;
+  }
+
+  /* ---------- icons: inline strokes, as in the prototype ---------- */
+  const svg = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  const I = {
+    check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'), x: svg('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'),
+    bang: svg('<path d="M12 6.5v7M12 17.3v.2"/>'), q: svg('<path d="M9.3 9a2.8 2.8 0 015.4 1c0 2-2.7 2.3-2.7 4M12 17.3v.2"/>'),
+    warn: svg('<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.3v.2"/>'),
+    chev: svg('<path d="M9.5 6l6 6-6 6"/>'), back: svg('<path d="M14.5 6l-6 6 6 6"/>'), down: svg('<path d="M6 9.5l6 6 6-6"/>'),
+    plus: svg('<path d="M12 5.5v13M5.5 12h13"/>'), minus: svg('<path d="M6 12h12"/>'),
+    gear: svg('<circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M20.5 12h-2.2M5.7 12H3.5M18 6l-1.6 1.6M7.6 16.4L6 18M18 18l-1.6-1.6M7.6 7.6L6 6"/>'),
+    ext: svg('<path d="M14 4.5h5.5V10M19.5 4.5L11 13M17 13.5v5a1 1 0 01-1 1H5.5a1 1 0 01-1-1V8a1 1 0 011-1h5"/>'),
+    copy: svg('<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V5.5a1 1 0 00-1-1h-9a1 1 0 00-1 1v9a1 1 0 001 1h3"/>'),
+    inbox: svg('<path d="M4 13.5L6.5 5h11l2.5 8.5V19H4z"/><path d="M4 13.5h5l1 2h4l1-2h5"/>'),
+    grid: svg('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'),
+    search: svg('<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>'),
+    chat: svg('<path d="M4.5 5.5h15v10h-9l-6 4z"/>'),
+    board: svg('<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M15 4.5v15"/>'),
+    stack: svg('<path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/>'),
+    archive: svg('<rect x="3.5" y="4.5" width="17" height="4.5" rx="1"/><path d="M5 9v10.5h14V9M10 13h4"/>'),
+    link: svg('<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/>'),
+    lock: svg('<rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/>'),
+    wifi: svg('<path d="M3.5 9.5a12 12 0 0117 0M6.5 12.8a7.5 7.5 0 0111 0M9.5 16a3 3 0 015 0"/><path d="M4 4l16 16"/>'),
+    pause: svg('<path d="M9 6v12M15 6v12"/>'),
+    play: svg('<path d="M8 5.5v13l10.5-6.5z"/>'),
+    refresh: svg('<path d="M19.5 12a7.5 7.5 0 11-2.2-5.3"/><path d="M19.5 4.5v4.5H15"/>'),
+    sliders: svg('<path d="M5 7h8M17 7h2M5 17h2M11 17h8"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'),
+    clock: svg('<circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/>'),
+    key: svg('<circle cx="8" cy="15" r="3.5"/><path d="M10.5 12.5l8-8M16 7l2.5 2.5M14 9l2 2"/>'),
+    mark: '<svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="6" fill="currentColor"/><path d="M7.5 9.5h9M7.5 14.5h5.5" stroke="var(--accent-contrast)" stroke-width="2.2" stroke-linecap="round"/></svg>',
+    bars: '<svg viewBox="0 0 18 12" width="18" height="12" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1" fill="currentColor"/><rect x="5" y="5" width="3" height="7" rx="1" fill="currentColor"/><rect x="10" y="2.5" width="3" height="9.5" rx="1" fill="currentColor"/><rect x="15" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg>',
+    battery: '<svg viewBox="0 0 27 13" width="27" height="13" aria-hidden="true"><rect x=".5" y=".5" width="23" height="12" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="18" height="9" rx="2" fill="currentColor"/><rect x="24.5" y="4.5" width="2" height="4" rx="1" fill="currentColor" opacity=".4"/></svg>',
+  };
+  const dots = '<span class="typing" aria-hidden="true"><i></i><i></i><i></i></span>';
+
+  /* ---------- page chrome: layout, theme, motion and language controls ---------- */
+  // `onLang(value)` re-renders the page's apps; `title` is the document title prefix ("Team Console · #24").
+  function page({ L, title, onLang }) {
+    const stage = document.querySelector('.stage');
+    const macFrame = document.querySelector('.mac-frame');
+    function fit() {
+      const W = stage.clientWidth - 48; const view = stage.dataset.view; let z = 1;
+      if (view === 'mac') { z = Math.min(1, W / 1182); stage.dataset.layout = 'stack'; }
+      else if (view === 'both') {
+        const room = W - 414 - 40;
+        if (room / 1182 >= 0.62) { z = Math.min(1, room / 1182); stage.dataset.layout = 'row'; } else { z = Math.min(1, W / 1182); stage.dataset.layout = 'stack'; }
+      }
+      macFrame.style.zoom = String(Math.max(z, 0.3));
+    }
+    function translatePage() {
+      document.querySelectorAll('[data-i18n]').forEach((el) => { el.innerHTML = L.t(el.dataset.i18n); });
+      document.querySelectorAll('[data-i18n-aria]').forEach((el) => el.setAttribute('aria-label', plain(L.t(el.dataset.i18nAria))));
+      document.title = `${title} · ${plain(L.t('page.title'))}`;
+    }
+    function setControl(ctrl, val) {
+      if (ctrl === 'view') { stage.dataset.view = val; fit(); }
+      if (ctrl === 'theme') { if (val === 'auto') delete root.dataset.theme; else root.dataset.theme = val; }
+      if (ctrl === 'motion') { if (val === 'system') delete root.dataset.motion; else root.dataset.motion = val; }
+      if (ctrl === 'lang' && val !== L.lang) { L.save(val); L.apply(val); translatePage(); onLang(val); }
+      document.querySelectorAll(`[data-control="${ctrl}"] button`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === val)));
+    }
+    document.querySelectorAll('[data-control]').forEach((g) => g.addEventListener('click', (e) => { const b = e.target.closest('button[data-value]'); if (b) setControl(g.dataset.control, b.dataset.value); }));
+    const small = matchMedia('(max-width: 520px)').matches;
+    translatePage();
+    setControl('view', small ? 'phone' : 'both');
+    setControl('theme', 'auto');
+    setControl('motion', 'system');
+    setControl('lang', L.lang);
+    document.querySelectorAll('[data-control=lang] button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === L.lang)));
+    addEventListener('resize', fit);
+    return { fit, setControl };
+  }
+
+  return { root, isReduced, cssVar, ms, wait, esc, play, plain, i18n, I, dots, page };
+})();
+
+/* #114 Team commands, part 1: pause / resume development and "Run now" for planning, development and QA.
+   Design prototype runtime with mock data only. In the app, pause and resume write what `runlog pause` / `resume`
+   write, and Run now fires the slot's routine through the Worker; the client never decides a refusal itself.
+   Two independent instances (iPhone, Mac) share the team state, like the Paper Desk prototype. */
+(() => {
+  'use strict';
+  const { isReduced, cssVar, ms, wait, esc, play, plain, I, dots } = Proto;
+  const L = Proto.i18n(I18N);
+  const { t, hhmm } = L;
+  const MIN = 60000;
+  const OVERLAP = 3 * 60 * MIN; // runstate.OVERLAP_WINDOW in the plugin: applies once the run log shows the run
+  const REQUEST_LOCK = 15 * MIN; // a request (or a fire with no answer) the run log doesn't show yet (architect note on #114)
+  const at = (mins) => new Date(Date.now() + mins * MIN);
+
+  /* ---------- mock data, as the Worker would return it ---------- */
+  const P = { slug: 'storify', repo: 'geeera/storify', sprint: 'Sprint 01', demo: new Date(2026, 9, 16) };
+  const OTHERS = ['team-console', 'fieldnote'];
+  const SLOTS = ['pm', 'dev', 'qa'];
+  // Slot times from the plugin's reference/schedule-and-models.md (weekday rules; dev's Friday run opens the burn).
+  const SCHEDULE = { pm: { h: 18, m: 7, days: [1, 2, 3, 4, 5] }, dev: { h: 23, m: 13, days: [1, 2, 3, 4, 5] }, qa: { h: 4, m: 21, days: [2, 3, 4, 5] } };
+  function occurrences(slot) {
+    const s = SCHEDULE[slot]; const out = [];
+    for (let d = -8; d <= 8; d += 1) {
+      const x = new Date(); x.setDate(x.getDate() + d); x.setHours(s.h, s.m, 0, 0);
+      if (s.days.includes(x.getDay())) out.push(x);
+    }
+    return out;
+  }
+  const lastRun = (slot) => occurrences(slot).filter((d) => d < new Date()).pop();
+  function nextRun() {
+    return SLOTS.map((slot) => ({ slot, date: occurrences(slot).find((d) => d > new Date()) }))
+      .filter((x) => x.date).sort((a, b) => a.date - b.date)[0];
+  }
+  function when(d) {
+    const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const diff = Math.round((day(d) - day(new Date())) / (24 * 60 * MIN));
+    const time = hhmm(d);
+    if (diff === 0) return t('when.today', { time });
+    if (diff === -1) return t('when.yesterday', { time });
+    if (diff === 1) return t('when.tomorrow', { time });
+    const wd = new Intl.DateTimeFormat(L.lang === 'ru' ? 'ru-RU' : 'en-GB', { weekday: 'short' }).format(d);
+    return t('when.day', { day: wd, time });
+  }
+  const dateShort = (d) => new Intl.DateTimeFormat(L.lang === 'ru' ? 'ru-RU' : 'en-GB', { day: 'numeric', month: 'short' }).format(d);
+  const nextHour = () => { const d = at(60); d.setMinutes(0, 0, 0); return d; };
+
+  // Shared by both device frames: the team's state lives in the run log, not in a window.
+  const fresh = () => ({ proj: 'running', data: 'ok', busyDev: false, freeze: false, outcome: 'ok', pausedAt: at(-13), busySince: at(-25), run: { pm: null, dev: null, qa: null }, statusAt: new Date() });
+  const G = fresh();
+  const paused = () => G.proj !== 'running';
+  const loadedish = () => ['ok', 'offline', 'noperm', 'notoken', 'notokenQa'].includes(G.data);
+  // Each slot is its own routine with its own trigger token, so setup is per slot.
+  const missingSlots = () => (G.data === 'notoken' ? [...SLOTS] : G.data === 'notokenQa' ? ['qa'] : []);
+  const slotList = (slots) => new Intl.ListFormat(L.lang === 'ru' ? 'ru-RU' : 'en-GB', { type: 'conjunction' }).format(slots.map((x) => t(`slot.${x}N`)));
+
+  // Why a command is off, in the order the owner can act on it; '' when it is available.
+  // Run now writes nothing to GitHub, so only pause and resume need the owner's GitHub connection.
+  function whyOff(kind, slot) {
+    if (G.data === 'loading' || G.data === 'error') return t('why.status');
+    if (G.data === 'offline') return t('why.offline');
+    if (kind === 'write' && G.data === 'noperm') return t('why.noperm');
+    if (kind === 'run' && missingSlots().includes(slot)) return t('why.notoken');
+    if (kind === 'run' && paused()) return t('why.paused');
+    return '';
+  }
+  // A slot is locked for the overlap window: the run log shows it running, the console requested it, or no answer came.
+  function slotLock(slot) {
+    if (slot === 'dev' && G.busyDev) return { line: t('run.busy', { time: hhmm(G.busySince), until: hhmm(new Date(G.busySince.getTime() + OVERLAP)) }), live: true };
+    const r = G.run[slot];
+    if (!r) return null;
+    const until = hhmm(new Date(r.at.getTime() + (r.state === 'started' ? OVERLAP : REQUEST_LOCK)));
+    if (r.state === 'requested') return { line: t('run.requested', { time: hhmm(r.at), until }), live: true };
+    if (r.state === 'started') return { line: t('run.started', { time: hhmm(r.at), until }), live: true };
+    return { line: t('run.unknown', { time: hhmm(r.at), until }), live: false, unknown: true };
+  }
+
+  const hosts = [...document.querySelectorAll('[data-app]')];
+  const renderAll = () => hosts.forEach((h) => h.app && h.app.render());
+
+  /* ---------- one app instance ---------- */
+  function mountApp(host, kind, keep) {
+    const S = keep || { panel: false, dialog: null, result: null, resultNew: false, refreshing: false, howOpen: false, shownProj: G.proj };
+    host.S = S;
+    const uid = `${kind}-${Math.random().toString(36).slice(2, 7)}`;
+    const $ = (s) => host.querySelector(s);
+    const dis = (why) => (why ? ` aria-disabled="true"` : '');
+    const runlogLink = (fk) => `<a class="ext" href="#runlog" data-act="runlog" data-fk="${fk}">${t('st.log')}<span class="sr-only"> ${t('c.external')}</span>${I.ext}</a>`;
+    const commandsBtn = () => `<button type="button" class="btn ${kind === 'phone' ? 'btn--sm p-cmd' : 'cp-open'}" data-act="panel-toggle" data-fk="open-cmd" aria-label="${esc(t('space.commandsAria', { name: P.slug }))}" aria-expanded="${S.panel}" ${kind === 'mac' ? `aria-controls="${uid}-pane" aria-keyshortcuts="K"` : 'aria-haspopup="dialog"'}>${I.sliders}<span>${t('space.commands')}</span>${kind === 'mac' ? '<kbd aria-hidden="true">K</kbd>' : ''}</button>`;
+
+    host.innerHTML = kind === 'mac' ? `<div class="win">
+        <div class="win__bar"><span class="lights" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title">Team Console</span></div>
+        <div class="win__body">
+          <nav class="sidebar" aria-label="${t('nav.aria')}" data-bg>
+            <div class="brand">${I.mark}<span>Team Console</span></div>
+            <label class="search search--side">${I.search}<span class="sr-only">${t('nav.filter')}</span><input type="search" placeholder="${t('nav.filter')}" autocomplete="off"><kbd>/</kbd></label>
+            <ul class="side-list side-list--top">
+              <li><button type="button" class="side-item" data-act="elsewhere">${I.inbox}<span>${t('nav.needs')}</span><span class="count">2</span></button></li>
+              <li><button type="button" class="side-item" data-act="elsewhere">${I.grid}<span>${t('nav.all')}</span></button></li>
+            </ul>
+            <div class="side-label">${t('nav.projects')}</div>
+            <ul class="side-list" data-slot="side"></ul>
+            <div class="side-foot"><span class="avatar avatar--owner" aria-hidden="true">K</span><span>${t('nav.owner')}</span></div>
+          </nav>
+          <section class="convo" aria-labelledby="${uid}-name" data-bg>
+            <header class="convo__head" data-slot="head"></header>
+            <div class="banner-wrap" data-slot="banner"></div>
+            <div class="log"><div class="log__inner" data-slot="log"></div></div>
+          </section>
+          <section class="pane cp-pane" id="${uid}-pane" aria-labelledby="${uid}-cp" data-slot="pane"><div class="pane__inner cp" data-slot="panel"></div></section>
+        </div>
+      </div>
+      <div data-slot="modal"></div><div class="toast" role="status" data-slot="toast" hidden></div><div class="sr-only" aria-live="polite" data-slot="live"></div>`
+      : `<div class="p-status" aria-hidden="true"><span>9:41</span><span class="p-island"></span><span class="p-status__icons">${I.bars}${I.battery}</span></div>
+      <div data-slot="head" data-bg></div>
+      <div class="banner-wrap" data-slot="banner" data-bg></div>
+      <div class="log p-log" data-bg><div class="log__inner" data-slot="log"></div></div>
+      <nav class="tabs" aria-label="${t('nav.sections')}" data-bg>
+        <button type="button" data-act="elsewhere">${I.inbox}<span>${t('nav.needs')}</span><span class="count">2</span></button>
+        <button type="button" aria-current="page">${I.chat}<span>${t('nav.chat')}</span></button>
+        <button type="button" data-act="elsewhere">${I.board}<span>${t('nav.board')}</span></button>
+        <button type="button" data-act="elsewhere">${I.stack}<span>${t('nav.artifacts')}</span></button>
+      </nav>
+      <div class="home-ind" aria-hidden="true"></div>
+      <div class="scrim" data-act="panel-close"></div>
+      <section class="sheet cp-sheet" role="dialog" aria-modal="true" aria-labelledby="${uid}-cp" data-slot="sheet" inert>
+        <div class="sheet__grab" aria-hidden="true"></div>
+        <div class="cp" data-slot="panel"></div>
+      </section>
+      <div data-slot="modal"></div><div class="toast" role="status" data-slot="toast" hidden></div><div class="sr-only" aria-live="polite" data-slot="live"></div>`;
+
+    /* ----- the space around the panel ----- */
+    function headHTML() {
+      const sub = t('space.sub', { sprint: P.sprint, date: dateShort(P.demo) });
+      if (kind === 'mac') {
+        return `<div class="convo__title"><span class="prod-mono" aria-hidden="true">s</span><h2 id="${uid}-name">${P.slug}</h2><span class="convo__sub">${sub}</span></div>${commandsBtn()}`;
+      }
+      return `<header class="p-head"><button type="button" class="p-switch" data-act="elsewhere" aria-haspopup="dialog" aria-label="${esc(t('nav.switch', { name: P.slug }))}"><span class="prod-mono" aria-hidden="true">s</span><span class="p-switch__txt"><b>${P.slug}</b><small>${sub}</small></span>${I.down}</button>${commandsBtn()}</header>`;
+    }
+    function bannerHTML() {
+      if (!paused() || !loadedish()) return '';
+      const team = G.proj === 'team';
+      const why = whyOff('write');
+      return `<div class="paused cp-banner${team ? ' paused--bad' : ''}" role="status" data-banner>${team ? I.warn : I.pause}<span>${t(team ? 'banner.team' : 'banner.owner', { name: P.slug, time: hhmm(G.pausedAt) })}</span>
+        <span class="cp-banner__acts">${team ? runlogLink('banner-log') : ''}<button type="button" class="btn btn--sm" data-act="resume" data-from="banner" data-fk="banner-resume"${dis(why)}${why ? ` aria-describedby="${uid}-banner-why"` : ''}>${t('banner.resume')}</button>${why ? `<span class="sr-only" id="${uid}-banner-why">${why}</span>` : ''}</span></div>`;
+    }
+    const logHTML = () => `<div class="day"><span>${t('chat.today')}</span></div>
+      <div class="msg msg--pm"><span class="avatar avatar--pm" aria-hidden="true">PM</span><div class="msg__body"><div class="msg__meta"><b>${t('chat.pm')}</b><span>${hhmm(at(-300))}</span></div><div class="bubble">${t('chat.m1')}</div></div></div>
+      <div class="msg msg--pm"><span class="avatar avatar--pm" aria-hidden="true">PM</span><div class="msg__body"><div class="msg__meta"><b>${t('chat.pm')}</b><span>${hhmm(at(-298))}</span></div><div class="bubble">${t('chat.m2')}</div></div></div>`;
+    function sideHTML() {
+      const dot = G.proj === 'team' ? ' sdot--failing' : paused() ? ' sdot--paused' : '';
+      return [P.slug, ...OTHERS].map((slug, i) => `<li><button type="button" class="side-item"${i === 0 ? ' aria-current="true"' : ' data-act="elsewhere"'}><span class="prod-mono" aria-hidden="true">${slug[0]}</span><span class="side-prod__label">${slug}</span>${i === 0 ? `<i class="sdot${dot}" aria-hidden="true"></i>` : '<i class="sdot" aria-hidden="true"></i>'}</button></li>`).join('');
+    }
+
+    /* ----- the Commands panel ----- */
+    function resultHTML() {
+      const r = S.result; if (!r) return '';
+      const glyph = r.tone === 'warning' ? I.q : r.tone === 'neutral' ? I.minus : I.check;
+      const toneCls = r.tone === 'neutral' ? ' receipt--neutral' : r.tone === 'warning' ? ' cp-res--warning' : '';
+      const cls = `receipt cp-res${toneCls}${S.resultNew ? ' is-new' : ''}`;
+      return `<div class="${cls}" tabindex="-1" data-fk="result"><span class="receipt__icon" aria-hidden="true">${glyph}</span><span class="cp-res__main"><span class="receipt__body"><span class="receipt__verb">${r.verb}</span>${r.detail ? ` <span class="cp-res__detail">${r.detail}</span>` : ''}</span><span class="receipt__meta">${hhmm(r.time)}${r.log ? ` · ${runlogLink('res-log')}` : ''}</span></span></div>`;
+    }
+    function stateHTML() {
+      if (G.data === 'loading') {
+        return `<div class="cp-state" aria-busy="true"><span class="sr-only">${t('st.loading')}</span><div aria-hidden="true" class="skel-stack"><span class="skel skel--a"></span><span class="skel skel--b"></span></div></div>`;
+      }
+      if (G.data === 'error') {
+        return `<div class="block block--error cp-err" role="alert"><h3>${t('st.errT')}</h3><p>${t('st.errB')}</p><button type="button" class="btn btn--tall" data-act="refresh" data-fk="st-retry"${dis(S.refreshing)}>${S.refreshing ? `${t('st.refreshing')}` : t('c.retry')}</button></div>`;
+      }
+      const state = G.proj === 'running' ? t('st.running') : G.proj === 'owner' ? t('st.owner', { time: hhmm(G.pausedAt) }) : t('st.team');
+      const off = G.data === 'offline';
+      let note = '';
+      if (off) note = `<p class="paused cp-note" role="status">${I.wifi}<span>${t('st.offline', { time: hhmm(G.statusAt) })}</span></p>`;
+      if (G.data === 'noperm') note = `<p class="paused cp-note">${I.lock}<span>${t('st.noperm', { repo: P.repo })} <a href="#settings" data-act="settings" data-fk="noperm-fix">${t('st.nopermFix')}</a></span></p>`;
+      return `<section class="cp-state" aria-labelledby="${uid}-st"><h3 class="cp-kicker" id="${uid}-st">${t('st.h')}</h3>
+        <p class="cp-state__now cp-state__now--${G.proj}" data-state>${G.proj === 'team' ? I.warn : `<i class="sdot${paused() ? ' sdot--paused' : ''}" aria-hidden="true"></i>`}<span>${state}</span></p>
+        <p class="cp-state__meta"><span>${t('st.updated', { time: hhmm(G.statusAt) })}</span><button type="button" class="link-btn cp-refresh" data-act="refresh" data-fk="st-refresh"${dis(off || S.refreshing)}>${I.refresh}<span>${S.refreshing ? t('st.refreshing') : t('st.refresh')}</span></button>${runlogLink('st-log')}</p>
+        </section>${note}`;
+    }
+    function teamHTML() {
+      const why = whyOff('write');
+      const id = `${uid}-team`;
+      let title; let hint; let label; let btn; let primary = false;
+      if (!loadedish()) { title = t('cmd.unknown'); hint = t('cmd.unknownHint'); label = ''; btn = t('cmd.unknownBtn'); }
+      else if (paused()) {
+        const n = nextRun();
+        title = t('cmd.resume'); hint = t('cmd.resumeHint', { slot: t(`slot.${n.slot}N`), when: when(n.date) }); label = t('cmd.resume'); btn = t('cmd.resumeBtn'); primary = true;
+      } else { title = t('cmd.pause'); hint = t('cmd.pauseHint'); label = t('cmd.pause'); btn = t('cmd.pauseBtn'); }
+      const act = paused() ? 'resume' : 'pause';
+      return `<section class="cp-group" aria-labelledby="${uid}-gt"><h3 class="cp-kicker" id="${uid}-gt">${t('g.team')}</h3>
+        <div class="cmd-list"><div class="cmd cmd--team">
+          <div class="cmd__txt"><p class="cmd__title">${title}</p><p class="cmd__hint" id="${id}-hint">${hint}</p>${why ? `<p class="cmd__why" id="${id}-why">${I.lock}<span>${why}</span></p>` : ''}</div>
+          <button type="button" class="btn cmd__btn${primary ? ' btn--primary' : ''}" data-act="${act}" data-from="panel" data-fk="cmd-team" ${label ? ` aria-label="${esc(label)}"` : ''} aria-describedby="${why ? `${id}-why ` : ''}${id}-hint"${dis(why)}>${!loadedish() ? '' : paused() ? I.play : I.pause}<span>${btn}</span></button>
+        </div></div></section>`;
+    }
+    function runRow(slot) {
+      const lock = loadedish() ? slotLock(slot) : null;
+      const why = whyOff('run', slot);
+      const id = `${uid}-run-${slot}`;
+      const last = lastRun(slot);
+      const line = lock ? lock.line : loadedish() ? t('run.last', { when: when(last) }) : '';
+      const off = why || lock;
+      const describedBy = [why ? `${id}-why` : '', `${id}-line`, slot === 'dev' && G.freeze ? `${id}-freeze` : ''].filter(Boolean).join(' ');
+      return `<li class="cmd">
+        <div class="cmd__txt"><p class="cmd__title">${t(`slot.${slot}`)}</p>
+          <p class="cmd__line${line ? '' : ' sr-only'}${lock && lock.unknown ? ' cmd__line--unknown' : ''}" id="${id}-line">${lock && lock.live ? '<i class="cmd__live" aria-hidden="true"></i>' : lock ? I.clock : ''}<span>${line}</span></p>
+          ${slot === 'dev' && G.freeze ? `<p class="cmd__hint" id="${id}-freeze">${t('run.freezeRow')}</p>` : ''}
+          ${why ? `<p class="cmd__why" id="${id}-why">${missingSlots().includes(slot) && why === t('why.notoken') ? I.key : G.data === 'offline' ? I.wifi : I.lock}<span>${why}</span></p>` : ''}</div>
+        <button type="button" class="btn cmd__btn" data-act="run" data-slot="${slot}" data-fk="run-${slot}" aria-label="${esc(t('run.btnAria', { slot: t(`slot.${slot}`) }))}" aria-describedby="${describedBy}"${dis(off)}>${I.play}<span>${t('run.btn')}</span></button>
+      </li>`;
+    }
+    function setupHTML() {
+      const missing = missingSlots(); if (!missing.length) return '';
+      const id = `${uid}-how`;
+      const key = (x) => `${P.slug.toUpperCase().replace(/-/g, '_')}_${x.toUpperCase()}`;
+      const line = (cmd, slot, what) => `<div class="codeline"><code>${esc(cmd)}</code><button type="button" class="btn btn--sm" data-act="copy" data-value="${esc(cmd)}" data-fk="setup-copy-${what}-${slot}" aria-label="${esc(t(`setup.copy.${what}`, { slot: t(`slot.${slot}N`) }))}">${I.copy}<span aria-hidden="true">${t('c.copy')}</span></button></div>`;
+      const cmds = missing.map((x) => `<li class="cp-slot"><span class="cp-slot__name">${t(`slot.${x}`)}</span>${line(`npx wrangler secret put SLOT_ROUTINE_${key(x)} --env production --config apps/api/wrangler.jsonc`, x, 'id')}${line(`npx wrangler secret put SLOT_TOKEN_${key(x)} --env production --config apps/api/wrangler.jsonc`, x, 'token')}</li>`).join('');
+      return `<div class="cp-setup"><div class="cp-setup__head">${I.key}<h4>${t('setup.t', { slots: slotList(missing), n: missing.length })}</h4></div><p>${t('setup.b', { name: P.slug, n: missing.length })}</p>
+        <button type="button" class="btn btn--quiet btn--sm how-btn" data-act="how" aria-expanded="${S.howOpen}" aria-controls="${id}" data-fk="setup-how">${t('setup.how')}${I.down}</button>
+        <div class="how" id="${id}"${S.howOpen ? '' : ' hidden'}><ol class="cp-steps"><li>${t('setup.s1', { name: P.slug, slots: slotList(missing), n: missing.length })}</li>
+          <li>${t('setup.s2')}<ul class="cp-slots">${cmds}</ul></li>
+          <li>${t('setup.s3')}</li></ol>
+          <p class="cp-setup__safe">${I.lock}<span>${t('setup.safe')}</span></p></div></div>`;
+    }
+    function panelHTML() {
+      const body = G.data === 'loading'
+        ? `${stateHTML()}<div class="cmd-list" aria-hidden="true">${'<div class="skel-row"><span class="skel-stack"><span class="skel skel--a"></span><span class="skel skel--b"></span></span></div>'.repeat(4)}</div>`
+        : `${resultHTML()}${stateHTML()}${teamHTML()}<section class="cp-group" aria-labelledby="${uid}-gr"><h3 class="cp-kicker" id="${uid}-gr">${t('g.run')}</h3>${setupHTML()}<ul class="cmd-list">${SLOTS.map(runRow).join('')}</ul></section>`;
+      return `<header class="cp__head"><h2 class="cp__title" id="${uid}-cp" tabindex="-1" data-fk="cp-h">${t('panel.title', { name: P.slug })}</h2>
+        <button type="button" class="icon-btn" data-act="panel-close" data-fk="cp-close" aria-label="${esc(t('panel.close'))}">${I.x}</button></header>
+        <div class="cp__body">${body}</div>`;
+    }
+
+    /* ----- render with focus kept by data-fk ----- */
+    function render(opts = {}) {
+      const active = host.contains(document.activeElement) ? document.activeElement.dataset.fk : null;
+      $('[data-slot=head]').innerHTML = headHTML();
+      $('[data-slot=banner]').innerHTML = bannerHTML();
+      $('[data-slot=log]').innerHTML = logHTML();
+      if (kind === 'mac') $('[data-slot=side]').innerHTML = sideHTML();
+      $('[data-slot=panel]').innerHTML = panelHTML();
+      S.resultNew = false;
+      setPanel(S.panel, true);
+      if (S.shownProj !== G.proj) { motionStateChange(S.shownProj, G.proj); S.shownProj = G.proj; }
+      const target = opts.focus ? host.querySelector(`[data-fk="${opts.focus}"]`) : active ? host.querySelector(`[data-fk="${active}"]`) : null;
+      if (target && (opts.focus || !S.dialog)) target.focus({ preventScroll: !opts.focus });
+    }
+    // Pause and resume move only what changed: the banner drops in, the state line crossfades.
+    function motionStateChange(from, to) {
+      const banner = $('[data-banner]'); const now = $('[data-state]');
+      if (isReduced()) { [banner, now].forEach((el) => el && play(el, [{ opacity: 0 }, { opacity: 1 }], { duration: ms('--dur-fade') })); return; }
+      if (banner && from === 'running') play(banner, [{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }], { duration: ms('--dur-base'), easing: cssVar('--ease-enter') });
+      if (now) play(now, [{ opacity: 0 }, { opacity: 1 }], { duration: ms('--dur-base'), easing: cssVar('--ease-standard') });
+      if (to === 'running') { const btn = $('[data-fk=cmd-team]'); if (btn) play(btn, [{ opacity: 0.4 }, { opacity: 1 }], { duration: ms('--dur-base'), easing: cssVar('--ease-standard') }); }
+    }
+    const announce = (txt) => { const l = $('[data-slot=live]'); l.textContent = ''; setTimeout(() => { l.textContent = txt; }, 30); };
+    let toastTimer;
+    function toast(txt) {
+      const el = $('[data-slot=toast]'); el.textContent = txt; el.hidden = false;
+      if (!isReduced()) play(el, [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: ms('--dur-base'), easing: cssVar('--ease-enter') });
+      else play(el, [{ opacity: 0 }, { opacity: 1 }], { duration: ms('--dur-fade') });
+      clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, ms('--dur-toast'));
+    }
+
+    /* ----- panel: a non-modal pane on the Mac, a modal sheet on the iPhone ----- */
+    function setPanel(open, quiet) {
+      S.panel = open;
+      const btn = $('[data-fk=open-cmd]'); if (btn) btn.setAttribute('aria-expanded', String(open));
+      if (kind === 'mac') {
+        const pane = $('[data-slot=pane]'); pane.classList.toggle('is-open', open); pane.inert = !open;
+        host.querySelectorAll('[data-bg]').forEach((el) => { el.inert = !!S.dialog; });
+      } else {
+        host.classList.toggle('has-sheet', open);
+        const sh = $('[data-slot=sheet]'); sh.classList.toggle('is-open', open); sh.inert = !open || !!S.dialog;
+        host.querySelectorAll('[data-bg]').forEach((el) => { el.inert = open || !!S.dialog; });
+      }
+      if (open && !quiet) $('[data-fk=cp-h]').focus();
+    }
+    function openPanel() { setPanel(true); }
+    function closePanel() { S.result = null; setPanel(false); render(); $('[data-fk=open-cmd]').focus(); }
+
+    /* ----- confirmations: one alertdialog per command ----- */
+    function dialogBody(d) {
+      if (d.type === 'pause') {
+        return `<ul class="cmd-dialog__list"><li>${t('p.b1')}</li><li>${t('p.b2')}</li><li>${t('p.b3')}</li></ul>`;
+      }
+      if (d.type === 'resume') {
+        const n = nextRun();
+        const team = G.proj === 'team' ? `<div class="cmd-dialog__warn">${I.warn}<p>${t('r.bTeam')} ${runlogLink('dlg-log')}</p></div>` : '';
+        return `${team}<p>${t('r.b', { slot: t(`slot.${n.slot}N`), when: when(n.date) })}</p>`;
+      }
+      const body = d.slot === 'dev' && G.freeze ? `<p class="cmd-dialog__note">${t('run.devFreeze')}</p>` : `<p>${t(`run.${d.slot}`)}</p>`;
+      return `${body}<p class="cmd-dialog__quota">${t('run.quota')}</p>`;
+    }
+    function dialogHTML() {
+      const d = S.dialog;
+      const title = d.type === 'pause' ? t('p.t', { name: P.slug }) : d.type === 'resume' ? t('r.t', { name: P.slug }) : t('run.t', { slot: t(`slot.${d.slot}L`) });
+      const ok = d.busy ? `${t('c.sending')}` : d.error ? t('c.retry') : t(d.type === 'pause' ? 'p.ok' : d.type === 'resume' ? 'r.ok' : 'run.ok');
+      const field = d.type === 'pause' ? `<div class="field"><label class="field__label" for="${uid}-reason">${t('p.reason')}</label>
+          <input class="field__input" id="${uid}-reason" data-fk="dlg-reason" data-reason type="text" autocomplete="off" enterkeyhint="done" value="${esc(d.reason || '')}" aria-describedby="${uid}-reason-hint"${d.busy ? ' readonly' : ''}>
+          <p class="field__hint" id="${uid}-reason-hint">${t('p.reasonHint')}</p></div>` : '';
+      return `<div class="modal"><div class="modal__scrim" data-act="dlg-scrim"></div>
+        <div class="adialog cmd-dialog${G.proj === 'team' && d.type === 'resume' ? ' cmd-dialog--warn' : ''}" role="alertdialog" aria-modal="true" aria-labelledby="${uid}-dt" aria-describedby="${uid}-dd${d.error ? ` ${uid}-de` : ''}">
+          <h2 id="${uid}-dt" tabindex="-1" data-fk="dlg-h">${title}</h2>
+          <div class="cmd-dialog__body" id="${uid}-dd">${dialogBody(d)}</div>
+          ${field}
+          ${d.error ? `<div class="adialog__err" role="alert" id="${uid}-de">${I.warn}<span>${d.error}</span></div>` : ''}
+          <div class="adialog__actions"><button type="button" class="btn" data-act="dlg-cancel" data-fk="dlg-cancel"${dis(d.busy)}>${t('c.cancel')}</button>
+          <button type="button" class="btn btn--primary" data-act="dlg-ok" data-fk="dlg-ok"${dis(d.busy)}>${d.busy ? dots : ''}<span>${ok}</span></button></div>
+        </div></div>`;
+    }
+    function openDialog(d) {
+      S.dialog = { busy: false, error: null, reason: '', ...d };
+      const m = $('[data-slot=modal]'); m.innerHTML = dialogHTML();
+      setPanel(S.panel, true);
+      const box = m.querySelector('.adialog'); const scrim = m.querySelector('.modal__scrim');
+      if (isReduced()) { play(box, [{ opacity: 0 }, { opacity: 1 }], { duration: ms('--dur-fade') }); play(scrim, [{ opacity: 0 }, { opacity: 1 }], { duration: ms('--dur-fade') }); }
+      else {
+        play(scrim, [{ opacity: 0 }, { opacity: 1 }], { duration: ms('--dur-base'), easing: cssVar('--ease-standard') });
+        play(box, kind === 'phone' ? [{ transform: 'translateY(100%)' }, { transform: 'none' }] : [{ opacity: 0, transform: 'translateY(8px) scale(.98)' }, { opacity: 1, transform: 'none' }], { duration: ms(kind === 'phone' ? '--dur-slow' : '--dur-base'), easing: cssVar('--ease-enter') });
+      }
+      m.querySelector('[data-fk=dlg-h]').focus();
+    }
+    function redrawDialog(focusFk) {
+      const reason = $('[data-reason]'); if (reason) S.dialog.reason = reason.value;
+      const active = focusFk || (document.activeElement && document.activeElement.dataset.fk) || 'dlg-ok';
+      const m = $('[data-slot=modal]'); m.innerHTML = dialogHTML();
+      const f = m.querySelector(`[data-fk="${active}"]`) || m.querySelector('[data-fk=dlg-ok]'); f.focus();
+    }
+    function closeDialog(focusFk) {
+      S.dialog = null; $('[data-slot=modal]').innerHTML = '';
+      setPanel(S.panel, true);
+      const f = focusFk && host.querySelector(`[data-fk="${focusFk}"]`); if (f) f.focus();
+    }
+    // The result of a command: a margin note at the top of the panel, or a toast when it came from outside it.
+    function report(d, res) {
+      announce(plain([res.verb, res.detail].filter(Boolean).join(' ')));
+      if (d.from === 'banner' && !S.panel) { renderAll(); toast(plain(res.verb)); $('[data-fk=open-cmd]').focus(); return; }
+      S.result = { ...res, time: new Date() }; S.resultNew = true;
+      hosts.forEach((h) => { if (h !== host && h.app) h.app.render(); });
+      render({ focus: res.focus || 'result' });
+    }
+    async function confirmDialog() {
+      const d = S.dialog; if (!d || d.busy) return;
+      const reason = $('[data-reason]'); if (reason) d.reason = reason.value;
+      d.busy = true; d.error = null; redrawDialog('dlg-ok');
+      await wait(900);
+      const o = G.outcome;
+      if (d.type === 'pause' || d.type === 'resume') {
+        const toPaused = d.type === 'pause';
+        if (o === 'error' || o === 'timeout') { d.busy = false; d.error = t('err.github'); redrawDialog('dlg-ok'); return; }
+        if (o === 'rate') { d.busy = false; d.error = t('err.rate', { time: hhmm(at(15)) }); redrawDialog('dlg-ok'); return; }
+        closeDialog();
+        if (o === 'conflict') {
+          // The team chat got there first: nothing is written, the panel shows the state GitHub has.
+          G.proj = toPaused ? 'owner' : 'running'; if (toPaused) G.pausedAt = at(-13); G.statusAt = new Date();
+          report(d, { tone: 'neutral', verb: t(toPaused ? 'p.conflict' : 'r.conflict', { name: P.slug, time: hhmm(G.pausedAt) }), log: false });
+          return;
+        }
+        G.proj = toPaused ? 'owner' : 'running'; G.pausedAt = new Date(); G.statusAt = new Date();
+        report(d, { tone: 'positive', verb: t(toPaused ? 'p.done' : 'r.done', { name: P.slug }), log: true, focus: 'cmd-team' });
+        return;
+      }
+      const slot = d.slot; const name = t(`slot.${slot}N`);
+      if (o === 'error') { d.busy = false; d.error = t('run.err'); redrawDialog('dlg-ok'); return; }
+      // One 429 for both caps (routine and account): the API doesn't say which, so the copy names both and Retry-After.
+      if (o === 'rate') { d.busy = false; d.error = t('run.rate', { time: hhmm(nextHour()) }); redrawDialog('dlg-ok'); return; }
+      closeDialog();
+      if (o === 'conflict') {
+        // The server's overlap guard: a run of this slot is already in the run log; nothing is fired.
+        const since = at(-25); G.run[slot] = { state: 'started', at: since };
+        report(d, { tone: 'neutral', verb: t('run.overlap', { slot: t(`slot.${slot}`), time: hhmm(since) }), log: true });
+        return;
+      }
+      if (o === 'timeout') {
+        G.run[slot] = { state: 'unknown', at: new Date() };
+        report(d, { tone: 'warning', verb: t('run.timeout', { time: hhmm(at(15)) }), log: true });
+        return;
+      }
+      G.run[slot] = { state: 'requested', at: new Date() };
+      report(d, { tone: 'positive', verb: t('run.done', { slot: name }), detail: t('run.doneDetail'), log: true });
+      // The run log shows the run a little later; the row follows it without moving focus.
+      setTimeout(() => { const r = G.run[slot]; if (r && r.state === 'requested') { G.run[slot] = { state: 'started', at: at(0) }; renderAll(); } }, 8000);
+    }
+
+    /* ----- small actions ----- */
+    async function refresh() {
+      if (S.refreshing || G.data === 'offline') return;
+      S.refreshing = true; render();
+      await wait(800);
+      S.refreshing = false;
+      if (G.data === 'error') { G.data = 'ok'; syncDemo(); }
+      G.statusAt = new Date();
+      renderAll();
+      announce(plain(t('st.updated', { time: hhmm(G.statusAt) })));
+    }
+    async function copy(btn) {
+      try { await navigator.clipboard.writeText(btn.dataset.value); } catch (err) { console.warn('Clipboard unavailable in this preview', err); }
+      const label = btn.querySelector('span'); label.textContent = t('c.copied'); btn.dataset.copied = '';
+      announce(t('c.copied'));
+      setTimeout(() => { if (btn.isConnected) { label.textContent = t('c.copy'); delete btn.dataset.copied; } }, ms('--dur-toast'));
+    }
+    // An off command stays focusable; pressing it says why and does nothing else.
+    function sayWhy(el) {
+      const ids = (el.getAttribute('aria-describedby') || '').split(' ').filter(Boolean);
+      const txt = ids.map((id) => host.querySelector(`[id="${id}"]`)).filter(Boolean).map((n) => n.textContent.trim()).join('. ');
+      announce(`${plain(el.getAttribute('aria-label') || el.textContent)}: ${txt}`);
+      const why = ids.map((id) => host.querySelector(`[id="${id}"]`)).find((n) => n && (n.classList.contains('cmd__why') || n.classList.contains('cmd__line')));
+      if (why && !isReduced()) play(why, [{ transform: 'translateX(0)' }, { transform: 'translateX(3px)' }, { transform: 'translateX(-2px)' }, { transform: 'none' }], { duration: ms('--dur-base'), easing: cssVar('--ease-standard') });
+    }
+
+    /* ----- events ----- */
+    host.onclick = (e) => {
+      const el = e.target.closest('[data-act]'); if (!el || !host.contains(el)) return;
+      const act = el.dataset.act;
+      if (el.tagName === 'A') e.preventDefault();
+      if (el.getAttribute('aria-disabled') === 'true') { if (!S.dialog) sayWhy(el); return; }
+      switch (act) {
+        case 'panel-toggle': if (S.panel) closePanel(); else openPanel(); break;
+        case 'panel-close': closePanel(); break;
+        case 'pause': openDialog({ type: 'pause', from: el.dataset.from, opener: el.dataset.fk }); break;
+        case 'resume': openDialog({ type: 'resume', from: el.dataset.from, opener: el.dataset.fk }); break;
+        case 'run': openDialog({ type: 'run', slot: el.dataset.slot, from: 'panel', opener: el.dataset.fk }); break;
+        case 'dlg-cancel': case 'dlg-scrim': if (!S.dialog.busy) closeDialog(S.dialog.opener); break;
+        case 'dlg-ok': confirmDialog(); break;
+        case 'refresh': refresh(); break;
+        case 'how': S.howOpen = !S.howOpen; render(); break;
+        case 'copy': copy(el); break;
+        case 'runlog': toast(t('demo.runlog')); break;
+        case 'settings': toast(plain(t('demo.settings'))); break;
+        case 'elsewhere': toast(t('demo.elsewhere')); break;
+        default: break;
+      }
+    };
+    host.onkeydown = (e) => {
+      if (S.dialog) {
+        if (e.key === 'Escape') { e.preventDefault(); if (!S.dialog.busy) closeDialog(S.dialog.opener); return; }
+        if (e.key === 'Enter' && e.target.matches('[data-reason]')) { e.preventDefault(); confirmDialog(); return; }
+        if (e.key === 'Tab') {
+          const f = [...host.querySelectorAll('.adialog a[href], .adialog button, .adialog input')];
+          const i = f.indexOf(document.activeElement);
+          if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+          else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+        }
+        return;
+      }
+      if (e.key === 'Escape' && S.panel) { e.preventDefault(); closePanel(); return; }
+      // Mac: K opens and closes the panel, like the prototype's bare-letter shortcuts (also on the Russian layout).
+      const typing = e.target.matches('input, textarea, [contenteditable]');
+      if (kind === 'mac' && !typing && !e.metaKey && !e.ctrlKey && !e.altKey && (e.code === 'KeyK' || /^[kл]$/i.test(e.key))) {
+        e.preventDefault(); if (S.panel) closePanel(); else openPanel();
+      }
+    };
+
+    const app = {
+      render, S,
+      go: (screen) => {
+        if (S.dialog) closeDialog();
+        S.result = null; S.howOpen = false;
+        if (screen === 'space') { S.panel = false; render(); return; }
+        if (screen === 'setup') { G.data = 'notoken'; S.howOpen = true; }
+        if (screen === 'pause' || screen === 'run') { G.proj = 'running'; if (G.data === 'notoken' || G.data === 'notokenQa' || G.data === 'error' || G.data === 'loading') G.data = 'ok'; }
+        if (screen === 'run') G.run.dev = null;
+        if (screen === 'resume' && !paused()) { G.proj = 'owner'; G.pausedAt = at(-13); }
+        S.panel = true; render();
+        if (screen === 'pause') openDialog({ type: 'pause', from: 'panel', opener: 'cmd-team' });
+        if (screen === 'resume') openDialog({ type: 'resume', from: 'panel', opener: 'cmd-team' });
+        if (screen === 'run') openDialog({ type: 'run', slot: 'dev', from: 'panel', opener: 'run-dev' });
+      },
+    };
+    host.app = app;
+    render();
+    return app;
+  }
+
+  /* ---------- page controls ---------- */
+  const mountAll = (keep) => hosts.forEach((h) => { const prev = keep && h.S ? h.S : null; h.className = 'app'; mountApp(h, h.dataset.app, prev); });
+  const pageChrome = Proto.page({ L, title: 'Team Console · #114', onLang: () => mountAll(true) });
+  const sel = (id) => document.getElementById(id);
+  function syncDemo() { sel('d-proj').value = G.proj; sel('d-data').value = G.data; sel('d-outcome').value = G.outcome; sel('d-busy').checked = G.busyDev; sel('d-freeze').checked = G.freeze; }
+  sel('d-proj').addEventListener('change', (e) => { G.proj = e.target.value; G.pausedAt = at(-13); renderAll(); });
+  sel('d-data').addEventListener('change', (e) => { G.data = e.target.value; renderAll(); });
+  sel('d-outcome').addEventListener('change', (e) => { G.outcome = e.target.value; });
+  sel('d-busy').addEventListener('change', (e) => { G.busyDev = e.target.checked; renderAll(); });
+  sel('d-freeze').addEventListener('change', (e) => { G.freeze = e.target.checked; renderAll(); });
+  sel('d-screen').addEventListener('change', (e) => { const v = e.target.value; if (!v) return; hosts.forEach((h) => h.app.go(v)); e.target.value = ''; syncDemo(); });
+  document.querySelector('[data-reset]').addEventListener('click', () => { Object.assign(G, fresh()); syncDemo(); mountAll(false); });
+  mountAll(false);
+  syncDemo();
+  pageChrome.fit();
+})();
+
+</script>
+</body>
+</html>
