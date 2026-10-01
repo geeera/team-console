@@ -32,7 +32,7 @@ function build(logSink?: (line: string) => void) {
       type: 'project-yml-missing',
       title: 'No project.yml',
       status: 422,
-      extensions: { step: 'project-yml', retryable: false },
+      extensions: { step: 'project-yml', retryable: false, section: null, allowed: ['go', 'no-go'] },
     }),
   );
   app.get('/replaces-type', (c) =>
@@ -175,6 +175,8 @@ describe('createWorkerApp', () => {
       status: 422,
       step: 'project-yml',
       retryable: false,
+      section: null,
+      allowed: ['go', 'no-go'],
     });
   });
 

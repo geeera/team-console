@@ -4,6 +4,7 @@ import { authMiddleware } from './auth/auth.middleware';
 import { csrfMiddleware } from './auth/csrf.middleware';
 import type { ApiEnv } from './env';
 import { ApiGitHub, mapGitHubError } from './github';
+import { createAnswerRoutes } from './routes/answer';
 import { createGitHubConnectionRoutes } from './routes/github-connection';
 import { healthzRoutes } from './routes/healthz';
 import { connectedOwnerSource, type OwnerConnectionSource } from './projects/owner-connection';
@@ -55,6 +56,7 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/projects', createProjectsRoutes(github));
   v1.route('/projects', createProjectReadModelRoutes(github));
   v1.route('/needs-you', createNeedsYouRoutes(github));
+  v1.route('/projects', createAnswerRoutes(github));
   v1.route('/github', createGitHubConnectionRoutes(github));
   app.route('/api/v1', v1);
 

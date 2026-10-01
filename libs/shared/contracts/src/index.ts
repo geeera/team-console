@@ -24,6 +24,15 @@ export type {
   UpdateProjectRequest,
 } from './lib/project';
 export type { ProjectRepositoryDto } from './lib/repository';
+export { ANSWER_TEXT_MAX_LENGTH } from './lib/answer';
+export type {
+  AnswerCommand,
+  AnswerProblem,
+  AnswerRefusalCode,
+  AnswerRequest,
+  AnswerResponse,
+  Section,
+} from './lib/answer';
 export { NEEDS_YOU_MAX_PROJECTS } from './lib/read-models';
 export type {
   InboxDto,

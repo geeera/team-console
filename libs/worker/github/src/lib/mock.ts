@@ -23,7 +23,10 @@ export interface MockRepository {
   readonly reply?: MockReply;
   /** Text files `GET /repos/{owner}/{repo}/contents/{path}` serves, by path (e.g. `.product-team/project.yml`). */
   readonly files?: Readonly<Record<string, string>>;
-  /** Issues (pull requests included, as GitHub lists them) for `GET …/issues?state=&milestone=`. */
+  /**
+   * Issues as GitHub sends them (pull requests included), newest first: `GET …/issues?state=&milestone=` lists
+   * them, `GET …/issues/{number}` (the answer route, #10) reads one.
+   */
   readonly issues?: readonly Readonly<Record<string, unknown>>[];
   /** `GET …/milestones?state=` */
   readonly milestones?: readonly Readonly<Record<string, unknown>>[];
@@ -165,7 +168,12 @@ class MockGitHubServer {
     const isContentsRead = segments.length > 4 && segments[3] === 'contents';
     const listed = segments.length === 4 ? segments[3] : undefined;
     const isListRead = listed === 'issues' || listed === 'milestones' || listed === 'pulls';
-    if (method === 'GET' && segments[0] === 'repos' && (isRepositoryRead || isContentsRead || isListRead)) {
+    const isIssueRead = segments.length === 5 && segments[3] === 'issues';
+    if (
+      method === 'GET' &&
+      segments[0] === 'repos' &&
+      (isRepositoryRead || isContentsRead || isListRead || isIssueRead)
+    ) {
       const repo = `${segments[1]}/${segments[2]}`;
       const token = this.issued.get(bearer);
       if (token === undefined || token.expiresAt <= Date.now()) {
@@ -185,6 +193,9 @@ class MockGitHubServer {
       }
       if (isListRead) {
         return json(200, listOf(found.fixture, listed, url.searchParams));
+      }
+      if (isIssueRead) {
+        return this.issue(found.fixture, segments[4] ?? '');
       }
       return found.fixture.repository === undefined ? notFound() : json(200, found.fixture.repository);
     }
@@ -206,6 +217,12 @@ class MockGitHubServer {
       size: bytes.byteLength,
       content: base64Of(bytes),
     });
+  }
+
+  /** An issue as GitHub sends it: labels as objects. */
+  private issue(fixture: MockRepository, number: string): Response {
+    const issue = fixture.issues?.find((item) => String(item['number']) === number);
+    return issue === undefined ? notFound() : json(200, issue);
   }
 
   private repository(fullName: string): { name: string; fixture: MockRepository } | undefined {

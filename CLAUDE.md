@@ -91,8 +91,14 @@ string, never a client-chosen repo); throw `GitHubError` and `createApiApp`'s `m
 through `ReadCache` keyed `readCacheKey({ environment, slug, epoch, type })`. The api Worker's per-isolate GitHub state
 is `ApiGitHub` (`apps/api/src/github.ts`); `GITHUB_MOCK=true` (local only) swaps api.github.com for the fixture GitHub
 in `libs/worker/github/fixtures`. Migrations live only in `apps/api/migrations` (`0001_init` = `projects`;
-`0005_owner_connections` #59; `0006_project_installation` #15 adds `projects.installation_id`; `0002_push_subscriptions`
-#11, `0003_webhooks` #12, `0004_chat_wakeups` are reserved). The owner connection (#59, ADR 0003 decisions 3–4) is
+`0005_owner_connections` #59; `0006_project_installation` #15 adds `projects.installation_id`; `0007_own_writes` #10 =
+`own_writes` + `own_write_claims`, which #12 reuses; `0002_push_subscriptions` #11, `0003_webhooks` #12 (its own tables
+only), `0004_chat_wakeups` are reserved). The answer route (#10) is `routes/answer.ts`
+(`POST /api/v1/projects/:slug/issues/:number/answer`, owner-only): section re-derived from the live issue with
+`@shared/owner-grammar` (a byte-for-byte port of the plugin's `backlog answer` and `commands.command_lines`, proven by
+fixtures that `libs/shared/owner-grammar/fixtures/generate.py` writes from the vendored plugin — rerun it after every
+`vendor` update, a spec fails until you do), owner check, then the comment on the owner's token through
+`GitHubClient.postJson` (one refresh on 401, never retried after a timeout or 5xx), 60 s replay from `own_writes`. The owner connection (#59, ADR 0003 decisions 3–4) is
 `apps/api/src/owner/`: `ApiGitHub.ownerConnection(env, logger)` is the `OwnerTokenSource` for owner writes (refresh
 under the D1 lease; an unusable row → 403 `github-owner-not-connected` with `connectUrl`), routes in
 `routes/github-connection.ts` (refused for the service identity), AES-GCM helpers (`importMasterKey`,
@@ -102,7 +108,7 @@ GITHUB_FAKE_ORIGIN:http://127.0.0.1:9999` (honoured only with `ENVIRONMENT=local
 registry (#15) is `routes/project-registry.ts` + `src/projects/`: adding validates repo format → app installed → repo
 owner (the connected account's login and pinned id, through `OwnerConnectionSource` over the #59 connection) →
 `project.yml` before the one D1 write; refusals are problems with a `step` extension member (`problem(c, { …,
-extensions })`); `ROUTINE_TOKEN_<SLUG>` is checked for presence only. The read models (#35) are `@worker/read-models` (pure ports of the plugin's `inbox`/`brief.needs`/`metrics`, golden-tested against `fixtures/*.expected.json` written by `fixtures/golden.py` from the vendored plugin; `parseProjectConfig` = safe YAML through `yaml`, 64 KB cap, no tags or aliases) and `@shared/owner-grammar` (`sectionOf`, `askOf`, `ANSWERS`), served by `routes/project-read-models.ts` (`/projects/:slug/{inbox,questions,sprint}`) and `routes/needs-you.ts` through `read-models/project-reads.ts` (subrequest budget per endpoint documented there). `wrangler.jsonc` has `env.dev|stage|production`
+extensions })`); `ROUTINE_TOKEN_<SLUG>` is checked for presence only. The read models (#35) are `@worker/read-models` (pure ports of the plugin's `inbox`/`brief.needs`/`metrics`, golden-tested against `fixtures/*.expected.json` written by `fixtures/golden.py` from the vendored plugin; `parseProjectConfig` = safe YAML through `yaml`, 64 KB cap, no tags or aliases) over #10's `@shared/owner-grammar` (`sectionOf`, `kindOf`, `ANSWERS`, plus `askOf`/`INBOX_ORDER`/`sectionRank` from `lib/inbox.ts`), served by `routes/project-read-models.ts` (`/projects/:slug/{inbox,questions,sprint}`) and `routes/needs-you.ts` through `read-models/project-reads.ts` (subrequest budget per endpoint documented there). `wrangler.jsonc` has `env.dev|stage|production`
 with non-secret vars only; secrets (`WEBHOOK_SECRET`, `VAPID_PRIVATE_KEY`, `ROUTINE_TOKEN_*`, `OWNER_EMAIL`, and per
 ADR 0003 `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY` — `GITHUB_TOKEN` is gone with
 the PAT) are declared in each app's `src/env.ts` and set with `wrangler secret put`. `AUTH_MODE:local` + `ENVIRONMENT:local`

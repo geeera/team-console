@@ -33,6 +33,7 @@ async function control(server: FakeGitHubOAuth, request: Request, path: string):
       activeGrants: server.activeGrants(),
       tokenEndpointCalls: server.refreshCalls(),
       calls: server.calls.map((call) => `${call.method} ${call.url}`),
+      comments: server.comments,
     });
   }
   const body: unknown = await request.json();

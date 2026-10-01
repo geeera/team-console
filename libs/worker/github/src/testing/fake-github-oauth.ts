@@ -1,7 +1,7 @@
 /**
  * Test and local-run only: a stateful stand-in for GitHub's side of the owner connection — the authorize step, the
- * token endpoint (code + PKCE, single-use rotating refresh tokens, errors in a 200's JSON `error`), `GET /user` and
- * grant revocation. The api specs use it through `fetch`; `nx run api:fake-github` serves it as a local Worker.
+ * token endpoint (code + PKCE, single-use rotating refresh tokens, errors in a 200's JSON `error`), `GET /user`,
+ * grant revocation, and the owner's issue comments (#10: accepted only with a live owner access token). The api specs use it through `fetch`; `nx run api:fake-github` serves it as a local Worker.
  */
 
 export interface FakeUser {
@@ -16,7 +16,18 @@ export type FakeFault =
   | 'revoke-unavailable'
   | 'exchange-non-expiring'
   | 'user-unavailable'
-  | 'authorize-denied';
+  | 'authorize-denied'
+  | 'comment-token-rejected'
+  | 'comment-unavailable';
+
+/** A comment the owner's token wrote (`POST /repos/{owner}/{repo}/issues/{n}/comments`). */
+export interface FakeComment {
+  readonly id: number;
+  readonly repo: string;
+  readonly issue: number;
+  readonly body: string;
+  readonly author: string;
+}
 
 export interface FakeGitHubOAuthOptions {
   readonly clientId: string;
@@ -27,6 +38,8 @@ export interface FakeGitHubOAuthOptions {
   readonly now?: () => number;
   /** Delay of the refresh answer (concurrency tests). */
   readonly refreshDelayMs?: number;
+  /** Put after `ghu_`/`ghr_` in every minted token, e.g. `TESTSENTINEL` for the sentinel checks. */
+  readonly tokenTag?: string;
 }
 
 interface PendingCode {
@@ -48,6 +61,7 @@ export interface FakeCall {
 }
 
 const CODE_LIFETIME_MS = 10 * 60 * 1000;
+const COMMENTS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/([0-9]+)\/comments$/;
 
 function random(bytes: number): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) =>
@@ -70,6 +84,7 @@ function json(status: number, body: unknown): Response {
 
 export class FakeGitHubOAuth {
   readonly calls: FakeCall[] = [];
+  readonly comments: FakeComment[] = [];
   /** The account that approves on the authorize page. */
   user: FakeUser = { login: 'geeera', id: 1001 };
   private readonly faults = new Set<FakeFault>();
@@ -152,6 +167,10 @@ export class FakeGitHubOAuth {
     }
     if (url.origin === 'https://api.github.com' && request.method === 'GET' && url.pathname === '/user') {
       return this.userEndpoint(request);
+    }
+    const comments = COMMENTS_PATH.exec(url.pathname);
+    if (url.origin === 'https://api.github.com' && request.method === 'POST' && comments !== null) {
+      return this.commentEndpoint(request, `${comments[1] ?? ''}/${comments[2] ?? ''}`, Number(comments[3]));
     }
     const revoke = /^\/applications\/([^/]+)\/grant$/.exec(url.pathname);
     if (url.origin === 'https://api.github.com' && request.method === 'DELETE' && revoke !== null) {
@@ -259,6 +278,34 @@ export class FakeGitHubOAuth {
     return new Response(null, { status: 204 });
   }
 
+  private async commentEndpoint(request: Request, repo: string, issue: number): Promise<Response> {
+    const grant = this.grantOfBearer(request);
+    if (grant === undefined || this.takeFault('comment-token-rejected')) {
+      return json(401, { message: 'Bad credentials' });
+    }
+    if (this.takeFault('comment-unavailable')) {
+      return json(502, { message: 'unavailable' });
+    }
+    const body = (await request.json()) as { body?: unknown };
+    if (typeof body.body !== 'string' || body.body === '') {
+      return json(422, { message: 'Validation Failed' });
+    }
+    const comment: FakeComment = {
+      id: 5_000_000 + this.comments.length + 1,
+      repo,
+      issue,
+      body: body.body,
+      author: grant.user.login,
+    };
+    this.comments.push(comment);
+    return json(201, {
+      id: comment.id,
+      html_url: `https://github.com/${repo}/issues/${issue}#issuecomment-${comment.id}`,
+      body: comment.body,
+      user: { login: grant.user.login, id: grant.user.id },
+    });
+  }
+
   private grantOfBearer(request: Request): { user: FakeUser } | undefined {
     const bearer = /^(?:Bearer|token) (\S+)$/.exec(request.headers.get('authorization') ?? '')?.[1] ?? '';
     const token = this.accessTokens.get(bearer);
@@ -268,8 +315,9 @@ export class FakeGitHubOAuth {
 
   private mint(grant: number): { accessToken: string; refreshToken: string } {
     // Assembled at run time: real token shapes for the sentinel checks, no token-shaped literal in the repository.
-    const accessToken = ['ghu', random(18)].join('_');
-    const refreshToken = ['ghr', random(30)].join('_');
+    const tag = this.options.tokenTag ?? '';
+    const accessToken = ['ghu', `${tag}${random(18)}`].join('_');
+    const refreshToken = ['ghr', `${tag}${random(30)}`].join('_');
     const now = this.now();
     this.accessTokens.set(accessToken, { grant, expiresAt: now + this.accessLifetime() * 1000, used: false });
     this.refreshTokens.set(refreshToken, {

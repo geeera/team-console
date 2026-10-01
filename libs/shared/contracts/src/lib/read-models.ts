@@ -1,4 +1,4 @@
-import type { ItemSection, OwnerCommand } from '@shared/owner-grammar';
+import type { AnswerCommand, Section } from './answer';
 
 /**
  * Read models of a product repository (#35): what the owner's inbox, the questions list, the sprint board and
@@ -10,7 +10,7 @@ import type { ItemSection, OwnerCommand } from '@shared/owner-grammar';
 
 /** One issue waiting for the owner, as the plugin's inbox lists it (`brief.needs`). */
 export interface InboxItemDto {
-  readonly section: ItemSection;
+  readonly section: Section;
   readonly number: number;
   readonly title: string;
   readonly url: string | null;
@@ -39,7 +39,7 @@ export interface InboxDto {
 /** A question card: an inbox item with its body and the answers the owner grammar allows for it. */
 export interface QuestionDto extends InboxItemDto {
   readonly body: string;
-  readonly allowedCommands: readonly OwnerCommand[];
+  readonly allowedCommands: readonly AnswerCommand[];
 }
 
 /** `GET /api/v1/projects/:slug/questions`. */
@@ -108,7 +108,7 @@ export interface NeedsYouProjectRef {
 
 export interface NeedsYouItemDto extends InboxItemDto {
   readonly project: NeedsYouProjectRef;
-  readonly allowedCommands: readonly OwnerCommand[];
+  readonly allowedCommands: readonly AnswerCommand[];
 }
 
 /** Why one project's inbox is missing from "Needs you"; the others are still listed. */

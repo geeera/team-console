@@ -12,7 +12,13 @@ describe('migrations on a fresh D1', () => {
       "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\' ORDER BY name",
     ).all<SqliteMasterRow>();
 
-    expect(results.map((row) => row.name)).toEqual(['d1_migrations', 'owner_connections', 'projects']);
+    expect(results.map((row) => row.name)).toEqual([
+      'd1_migrations',
+      'own_write_claims',
+      'own_writes',
+      'owner_connections',
+      'projects',
+    ]);
   });
 
   it('record each migration as applied exactly once', async () => {
@@ -23,6 +29,7 @@ describe('migrations on a fresh D1', () => {
       '0001_init.sql',
       '0005_owner_connections.sql',
       '0006_project_installation.sql',
+      '0007_own_writes.sql',
     ]);
   });
 
@@ -81,5 +88,30 @@ describe('migrations on a fresh D1', () => {
       version: 'INTEGER',
       refreshing_until: 'INTEGER',
     });
+  });
+
+  it('give own_writes the columns #10 and #12 need, with the replay index', async () => {
+    const { results } = await env.DB.prepare('PRAGMA table_info(own_writes)').all<{
+      name: string;
+      notnull: number;
+      pk: number;
+    }>();
+    expect(results.map((column) => column.name)).toEqual([
+      'comment_id',
+      'repo',
+      'issue_number',
+      'kind',
+      'body_hash',
+      'url',
+      'created_at',
+    ]);
+    expect(results.filter((column) => column.pk === 1).map((column) => column.name)).toEqual(['comment_id']);
+    expect(results.filter((column) => column.notnull === 0).map((column) => column.name)).toEqual([
+      'body_hash',
+    ]);
+    const { results: index } = await env.DB.prepare("PRAGMA index_info('own_writes_recent')").all<{
+      name: string;
+    }>();
+    expect(index.map((column) => column.name)).toEqual(['repo', 'issue_number', 'created_at']);
   });
 });

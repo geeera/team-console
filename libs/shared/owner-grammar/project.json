@@ -3,5 +3,18 @@
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/shared/owner-grammar/src",
   "projectType": "library",
-  "tags": ["type:lib", "scope:shared"]
+  "tags": ["type:lib", "scope:shared"],
+  "targets": {
+    "test": {
+      "inputs": [
+        "default",
+        "^default",
+        "{workspaceRoot}/.claude/product-team/.claude-plugin/plugin.json",
+        "{workspaceRoot}/.claude/product-team/scripts/backlog",
+        "{workspaceRoot}/.claude/product-team/scripts/ptlib/brief.py",
+        "{workspaceRoot}/.claude/product-team/scripts/ptlib/commands.py",
+        "{workspaceRoot}/.claude/product-team/scripts/ptlib/inbox.py"
+      ]
+    }
+  }
 }
