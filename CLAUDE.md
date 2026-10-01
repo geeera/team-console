@@ -144,6 +144,16 @@ the JWT check (the api vitest config binds both so route specs run; `auth.middle
 Commands: `npx nx serve api` (builds the console, applies migrations, `wrangler dev` on :8787), `npx nx run
 api:migrate` (fresh local D1), `npx nx build api` (`tsc --noEmit` + `wrangler deploy --dry-run`), `docker build -t
 team-console . && docker run --rm -p 127.0.0.1:8787:8787 team-console` (the e2e target: same bundle, local D1, `:8787`).
+
+E2e (#14): `npx nx e2e console-e2e` (builds first; browsers once with `npx playwright install chromium webkit`).
+Projects `iphone` (Chromium, 390 px), `desktop` (1440 px), `iphone-webkit` (the demo path only). Each Playwright
+worker starts its own stack in `apps/console-e2e/src/stack/local-stack.ts` — the fake GitHub plus the Docker image's
+command (`wrangler dev dist/apps/api/main.js`, fresh local D1, mock mode) wired to it — and specs call
+`stack.reset()` / `seed()` for a fresh database; logs in `tmp/console-e2e/worker-N/`. Specs live in `src/*.e2e.ts`, find
+controls through `ru()` (the ru.json copy) and `data-testid`, wait on conditions only, and fail on any request off the
+app origin, any uncaught page error and any serious/critical axe violation (`expectAccessible`). `BASE_URL` (+
+`CF_ACCESS_CLIENT_ID/SECRET` for stage) runs the suite against a running target; specs that reset data or need the
+fake GitHub skip themselves there, `smoke.e2e.ts` is the read-only part.
 Worker tests run in workerd through `@cloudflare/vitest-pool-workers` (`SELF.fetch`, an isolated in-memory D1
 migrated in `src/test-setup.ts`); `apps/api/test-assets` stands in for the Angular build. `wrangler`,
 `@cloudflare/vitest-pool-workers` and `compatibility_date` move together (one workerd for dev, Docker and tests).

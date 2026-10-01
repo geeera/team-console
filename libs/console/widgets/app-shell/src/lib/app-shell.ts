@@ -31,6 +31,7 @@ import {
 } from '@console/shared/ui';
 import { filter, map } from 'rxjs';
 import { ProjectsSheet } from './projects-sheet';
+import { restoreScroll, type ScrollRestore } from './scroll-restore';
 import { shellAreaOf } from './shell-location';
 
 /**
@@ -73,6 +74,7 @@ export class AppShell {
 
   private readonly main = viewChild.required<ElementRef<HTMLElement>>('main');
   private scrollFrame: number | null = null;
+  private scrollRestore: ScrollRestore | null = null;
 
   private readonly url = toSignal(
     this.router.events.pipe(
@@ -117,7 +119,10 @@ export class AppShell {
     const navigations = this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe((event) => this.onNavigated(event.urlAfterRedirects));
-    destroyRef.onDestroy(() => navigations.unsubscribe());
+    destroyRef.onDestroy(() => {
+      navigations.unsubscribe();
+      this.scrollRestore?.cancel();
+    });
     // The shell may be created after the first navigation already ended (tests, a late mount).
     if (this.router.navigated) {
       this.onNavigated(this.router.url);
@@ -145,7 +150,8 @@ export class AppShell {
     this.scrollFrame = requestAnimationFrame(() => {
       this.scrollFrame = null;
       const location = this.space();
-      if (location !== null) {
+      // While a restore waits for the content, scroll events are the browser clamping, not a new position.
+      if (location !== null && this.scrollRestore?.isPending() !== true) {
         this.state.setScroll(location.slug, scrollKeyOf(location.path), this.main().nativeElement.scrollTop);
       }
     });
@@ -159,7 +165,10 @@ export class AppShell {
       this.state.setLastPath(location.slug, location.path);
       top = this.state.scrollOf(location.slug, scrollKeyOf(location.path));
     }
+    this.scrollRestore?.cancel();
     // The new screen is in the DOM only after the next render; the router's own restoration is off.
-    afterNextRender(() => (this.main().nativeElement.scrollTop = top), { injector: this.injector });
+    afterNextRender(() => (this.scrollRestore = restoreScroll(this.main().nativeElement, top)), {
+      injector: this.injector,
+    });
   }
 }

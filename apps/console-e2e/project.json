@@ -1,0 +1,21 @@
+{
+  "name": "console-e2e",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/console-e2e/src",
+  "tags": ["type:e2e", "scope:console"],
+  "implicitDependencies": ["console", "api"],
+  "targets": {
+    "e2e": {
+      "executor": "nx:run-commands",
+      "dependsOn": [{ "projects": ["api"], "target": "build" }],
+      "options": {
+        "commands": [
+          "tsc -p apps/console-e2e/tsconfig.json --noEmit",
+          "playwright test --config apps/console-e2e/playwright.config.ts"
+        ],
+        "parallel": false
+      }
+    }
+  }
+}
