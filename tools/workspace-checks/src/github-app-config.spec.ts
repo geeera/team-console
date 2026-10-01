@@ -98,6 +98,8 @@ describe('.github/workflows/deploy.yml', () => {
     ['GITHUB_APP_ID', 'CONSOLE_GITHUB_APP_ID'],
     ['GITHUB_APP_CLIENT_ID', 'CONSOLE_GITHUB_APP_CLIENT_ID'],
     ['OWNER_GITHUB_LOGIN', 'OWNER_GITHUB_LOGIN'],
+    // #11: not an app var, but delivered the same way.
+    ['VAPID_PUBLIC_KEY', 'VAPID_PUBLIC_KEY'],
   ])('passes %s to the api Worker from vars.%s', (binding, variable) => {
     expect(step).toContain(`--var ${binding}:\${{ vars.${variable} }}`);
   });

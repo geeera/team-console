@@ -109,6 +109,19 @@ of migration 0008). `@worker/run-log` ports `ptlib/runstate.py` (fixtures from `
 (`TeamCommands`: one `Sheet.confirm` per command), `@console/widgets/commands-panel` (pane, phone sheet, paused banner);
 kit `Banner`, `Button[off]`, `Receipt` tone `warning`, `Sheet.confirm` with `items`/`input`/`ConfirmFailure`, `--dur-pulse`.
 
+Web push, server (#11; the client is #36): `@worker/push` — `checkPushSubscription` (endpoint allow-list: `https:`, push-service
+hosts only, no IP literal or port; `p256dh` 65 bytes `0x04`, `auth` 16 bytes), `checkVapidConfig`, `questionNotification` /
+`testNotification` (ngsw `notification` payloads; the tap URL is built only here, `/p/{slug}/questions#{n}` or `/needs-you`; text
+cleaned and cut to 120), the `ru|en` copy in `copy.ts` («вы»), and `PushSender.sendToAll(store, message)` (sequential; 404/410
+delete, 5 failures in a row delete, success resets; never follows redirects). Payload encryption and the VAPID JWT come from
+`@block65/webcrypto-web-push` (WebCrypto only; RFC 8291 Appendix A pinned in `encryption.spec.ts`). Routes in `routes/push.ts`
+(`GET /api/v1/push/config`, `GET|PUT|DELETE …/subscriptions`, `POST …/test` once per 30 s), owner-only; `PushSubscriptionsRepo` /
+`PushTestSendsRepo` in `@worker/db`. Vars `VAPID_PUBLIC_KEY` (empty in the repo, from deploy.yml) and `VAPID_SUBJECT` (an https URL),
+secret `VAPID_PRIVATE_KEY`; any of them unusable → 503 `push-misconfigured`. Locally `nx run api:fake-push` (127.0.0.1:9997,
+`@worker/push/testing`'s `FakePushService`: hands out subscriptions, decrypts every delivery, verifies the JWT) + `--var
+PUSH_FAKE_ORIGIN:http://127.0.0.1:9997` and a throwaway pair from `node tools/owner-setup/vapid-keygen.js` as `--var`s; never a
+real push service.
+
 ## Workers (#6)
 
 `apps/api` (Hono; serves the SPA from `dist/apps/console/browser` as static assets with `run_worker_first:
@@ -125,7 +138,8 @@ through `ReadCache` keyed `readCacheKey({ environment, slug, epoch, type })`. Th
 is `ApiGitHub` (`apps/api/src/github.ts`); `GITHUB_MOCK=true` (local only) swaps api.github.com for the fixture GitHub
 in `libs/worker/github/fixtures`. Migrations live only in `apps/api/migrations` (`0001_init` = `projects`;
 `0005_owner_connections` #59; `0006_project_installation` #15 adds `projects.installation_id`; `0007_own_writes` #10 =
-`own_writes` + `own_write_claims`, which #12 reuses; `0002_push_subscriptions` #11, `0003_webhooks` #12 (its own tables
+`own_writes` + `own_write_claims`, which #12 reuses; `0008_slot_requests` #114; `0009_push_subscriptions` #11 (`push_subscriptions` +
+`push_test_sends`; it took the next free number instead of the reserved 0002), `0003_webhooks` #12 (its own tables
 only), `0004_chat_wakeups` are reserved). The answer route (#10) is `routes/answer.ts`
 (`POST /api/v1/projects/:slug/issues/:number/answer`, owner-only): section re-derived from the live issue with
 `@shared/owner-grammar` (a byte-for-byte port of the plugin's `backlog answer` and `commands.command_lines`, proven by
