@@ -3,5 +3,6 @@ export type { NewOwnerConnection, OwnerConnectionRow, SealedTokenPair } from './
 export { ProjectsRepo, toProjectDto } from './lib/projects.repo';
 export type { NewProject, ProjectChanges, ProjectConflict, ProjectRow } from './lib/projects.repo';
 export { ProjectSignalsRepo } from './lib/project-signals.repo';
+export type { EventsSignal } from './lib/project-signals.repo';
 export { OwnWritesRepo } from './lib/own-writes.repo';
 export type { OwnWrite, OwnWriteKind } from './lib/own-writes.repo';

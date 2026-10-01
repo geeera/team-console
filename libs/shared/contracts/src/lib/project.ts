@@ -46,15 +46,20 @@ export interface ProjectStepProblem extends ProblemDetails {
 /**
  * `GET /api/v1/projects/:slug/setup` — the five steps of the Settings checklist (#24) plus what it shows
  * around them. Steps 1–3 gate adding; `events` and `routineToken` are informational.
+ *
+ * `unknown` (#83) is a GitHub read that failed on its own (rate limit, outage, …) for that step only: the
+ * request still answers 200 with whatever else it does know, instead of failing as a whole.
  */
 export interface ProjectSetupDto {
-  readonly appInstalled: 'ok' | 'missing';
+  readonly appInstalled: 'ok' | 'missing' | 'unknown';
   /** `not-checked` while the app is not installed or no account is connected. */
-  readonly repoOwner: 'ok' | 'mismatch' | 'not-checked';
+  readonly repoOwner: 'ok' | 'mismatch' | 'not-checked' | 'unknown';
   /** `missing` also when the app is not installed: the file cannot be read then. */
-  readonly projectYml: 'ok' | 'missing';
+  readonly projectYml: 'ok' | 'missing' | 'unknown';
   /** Any app webhook delivery for the repository (#12); `never` before the deliveries table exists. */
   readonly events: 'seen' | 'never';
+  /** ISO 8601 UTC of the most recent delivery (#12); `null` while `events` is `never`. */
+  readonly lastEventAt: string | null;
   /** The Worker secret `ROUTINE_TOKEN_<SLUG>` is set; its value never leaves the Worker. */
   readonly routineToken: 'present' | 'missing';
   readonly connection:
@@ -63,4 +68,6 @@ export interface ProjectSetupDto {
   readonly accessLostAt: string | null;
   /** `owner.language` of the project's `.product-team/project.yml`; `ru` when absent. */
   readonly ownerLanguage: 'ru' | 'en';
+  /** The app's install page for this environment (#83), present only while `appInstalled` is `missing`. */
+  readonly installUrl?: string;
 }

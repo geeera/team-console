@@ -143,28 +143,76 @@ export async function readProjectYml(client: GitHubClient, repo: RepoName): Prom
   return file === null ? null : (file.text ?? '');
 }
 
-/** What the setup status needs from GitHub, small enough to cache. */
+/** A tri-state read outcome (#83): `unknown` is a GitHub failure on that particular read, not "missing". */
+export type CheckState = 'ok' | 'missing' | 'unknown';
+
+/**
+ * What the setup status needs from GitHub, small enough to cache. Each GitHub read fails on its own (#83): a
+ * failure of one does not lose the others, so the app-installed, repo-owner and project.yml steps can each be
+ * `unknown` independently while the rest still answer.
+ */
 export interface RepositoryFacts {
-  readonly installed: boolean;
-  /** `null` while the app is not installed (nothing can be read). */
+  readonly appInstalled: CheckState;
+  /** The repository's owner, read only once the app is installed and that read succeeded. */
   readonly owner: RepositoryOwner | null;
-  readonly hasProjectYml: boolean;
+  /** `true` when the app is installed but reading the repository (for its owner) failed. */
+  readonly ownerCheckFailed: boolean;
+  readonly projectYml: CheckState;
   readonly ownerLanguage: OwnerLanguage;
 }
 
 /** Subrequests: 1 when the app is missing (2 on the lookup's 404 path), else up to 5 on a cold isolate. */
 export async function repositoryFacts(github: GitHubConnection, repo: RepoName): Promise<RepositoryFacts> {
-  const installationId = await installationOf(github, repo);
-  if (installationId === null) {
-    return { installed: false, owner: null, hasProjectYml: false, ownerLanguage: 'ru' };
+  let installationId: number | null;
+  let appInstalled: CheckState;
+  try {
+    installationId = await installationOf(github, repo);
+    appInstalled = installationId === null ? 'missing' : 'ok';
+  } catch (error: unknown) {
+    if (!(error instanceof GitHubError)) {
+      throw error;
+    }
+    installationId = null;
+    appInstalled = 'unknown';
   }
+
+  if (installationId === null) {
+    // Not installed: nothing can be read, and that is known, not a failure. A failed lookup carries over as
+    // "unknown" instead — a client that cannot tell whether the app is installed cannot read the repo either.
+    return {
+      appInstalled,
+      owner: null,
+      ownerCheckFailed: appInstalled === 'unknown',
+      projectYml: appInstalled === 'unknown' ? 'unknown' : 'missing',
+      ownerLanguage: 'ru',
+    };
+  }
+
   const client = repositoryClient(github, repo);
-  const read = await readRepository(client, repo);
-  const yml = await readProjectYml(client, repo);
-  return {
-    installed: true,
-    owner: read.owner,
-    hasProjectYml: yml !== null,
-    ownerLanguage: yml === null ? 'ru' : ownerLanguageOf(yml),
-  };
+
+  let owner: RepositoryOwner | null = null;
+  let ownerCheckFailed = false;
+  try {
+    owner = (await readRepository(client, repo)).owner;
+  } catch (error: unknown) {
+    if (!(error instanceof GitHubError)) {
+      throw error;
+    }
+    ownerCheckFailed = true;
+  }
+
+  let projectYml: CheckState;
+  let ownerLanguage: OwnerLanguage = 'ru';
+  try {
+    const yml = await readProjectYml(client, repo);
+    projectYml = yml === null ? 'missing' : 'ok';
+    ownerLanguage = yml === null ? 'ru' : ownerLanguageOf(yml);
+  } catch (error: unknown) {
+    if (!(error instanceof GitHubError)) {
+      throw error;
+    }
+    projectYml = 'unknown';
+  }
+
+  return { appInstalled, owner, ownerCheckFailed, projectYml, ownerLanguage };
 }

@@ -464,6 +464,7 @@ describe('GET /api/v1/projects/:slug/setup', () => {
       repoOwner: 'ok',
       projectYml: 'ok',
       events: 'never',
+      lastEventAt: null,
       routineToken: 'missing',
       connection: { state: 'connected', login: 'geeera' },
       accessLostAt: null,
@@ -471,15 +472,21 @@ describe('GET /api/v1/projects/:slug/setup', () => {
     });
   });
 
-  it('app missing: nothing else can be read', async () => {
+  it('app missing: nothing else can be read, and the server builds the install URL (#83)', async () => {
     const h = harness({}, () => json(404, { message: 'Not Found' }));
     await expect((await setup(h)).json()).resolves.toMatchObject({
       appInstalled: 'missing',
       repoOwner: 'not-checked',
       projectYml: 'missing',
       ownerLanguage: 'ru',
+      installUrl: INSTALL_URL,
     });
     expect(h.stub.reads()).toHaveLength(0);
+  });
+
+  it('app ok: no installUrl member', async () => {
+    const body = (await (await setup(harness())).json()) as Record<string, unknown>;
+    expect(body['installUrl']).toBeUndefined();
   });
 
   it('owner of another account → mismatch; no connection → not-checked and not-connected', async () => {
@@ -524,17 +531,33 @@ describe('GET /api/v1/projects/:slug/setup', () => {
     ).resolves.toMatchObject({ routineToken: 'missing' });
   });
 
-  it('events: never without #12 table, seen once a delivery for the repository is recorded', async () => {
-    await expect((await setup(harness())).json()).resolves.toMatchObject({ events: 'never' });
+  it('events: never without #12 table, seen with the last delivery time once one is recorded (#83)', async () => {
+    await expect((await setup(harness())).json()).resolves.toMatchObject({
+      events: 'never',
+      lastEventAt: null,
+    });
     await env.DB.prepare(
       'CREATE TABLE webhook_deliveries (delivery_id TEXT PRIMARY KEY, event TEXT NOT NULL, repo TEXT NOT NULL, received_at TEXT NOT NULL)',
     ).run();
     try {
-      await expect((await setup(harness())).json()).resolves.toMatchObject({ events: 'never' });
+      await expect((await setup(harness())).json()).resolves.toMatchObject({
+        events: 'never',
+        lastEventAt: null,
+      });
       await env.DB.prepare(
         "INSERT INTO webhook_deliveries VALUES ('d1', 'push', 'Geeera/Storify', '2026-09-30T00:00:00Z')",
       ).run();
-      await expect((await setup(harness())).json()).resolves.toMatchObject({ events: 'seen' });
+      await expect((await setup(harness())).json()).resolves.toMatchObject({
+        events: 'seen',
+        lastEventAt: '2026-09-30T00:00:00Z',
+      });
+      await env.DB.prepare(
+        "INSERT INTO webhook_deliveries VALUES ('d2', 'issues', 'geeera/storify', '2026-09-30T05:00:00Z')",
+      ).run();
+      await expect((await setup(harness())).json()).resolves.toMatchObject({
+        events: 'seen',
+        lastEventAt: '2026-09-30T05:00:00Z',
+      });
     } finally {
       await env.DB.prepare('DROP TABLE webhook_deliveries').run();
     }
@@ -557,11 +580,46 @@ describe('GET /api/v1/projects/:slug/setup', () => {
     await expect((await setup(h)).json()).resolves.toMatchObject({ appInstalled: 'ok' });
   });
 
-  it('a GitHub failure is #9 problem, not a status', async () => {
-    const h = harness({ repository: () => json(429, {}, { 'retry-after': '5' }) });
-    const response = await setup(h);
-    expect(response.headers.get('retry-after')).toBe('5');
-    await expectProblem(response, 429, 'github-rate-limit');
+  describe('a GitHub failure marks only its own step unknown (#83), not the whole request', () => {
+    it('the app-installed lookup fails → appInstalled, repoOwner and projectYml all unknown; events/routineToken still answer', async () => {
+      const h = harness({}, () => json(503, {}));
+      const response = await setup(h);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('retry-after')).toBeNull();
+      await expect(response.json()).resolves.toMatchObject({
+        appInstalled: 'unknown',
+        repoOwner: 'unknown',
+        projectYml: 'unknown',
+        events: 'never',
+        routineToken: 'missing',
+      });
+      expect(h.stub.reads()).toHaveLength(0);
+    });
+
+    it('the repository read fails → repoOwner unknown only; project.yml still reads', async () => {
+      const h = harness({ repository: () => json(429, {}, { 'retry-after': '5' }) });
+      const response = await setup(h);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('retry-after')).toBeNull();
+      await expect(response.json()).resolves.toMatchObject({
+        appInstalled: 'ok',
+        repoOwner: 'unknown',
+        projectYml: 'ok',
+        ownerLanguage: 'en',
+      });
+    });
+
+    it('the project.yml read fails → projectYml unknown only; the repo owner still reads', async () => {
+      const h = harness({ projectYml: () => json(502, {}) });
+      const response = await setup(h);
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        appInstalled: 'ok',
+        repoOwner: 'ok',
+        projectYml: 'unknown',
+        ownerLanguage: 'ru',
+      });
+    });
   });
 
   // Last in this file: the column stays on the file's database.

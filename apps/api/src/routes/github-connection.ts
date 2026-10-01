@@ -221,7 +221,11 @@ export function createGitHubConnectionRoutes(github: ApiGitHub): Hono<WorkerHono
     })
     .get('/connection', async (c) => {
       const connection = await github.ownerConnection(c.env, c.get('logger'));
-      const body: GitHubConnectionDto = await connection.status();
+      const status = await connection.status();
+      // The wrong-account copy (#89) needs the expected login before a first connect too; it is config, not a
+      // secret, and a Worker without it already answers 503 on connect, so surfacing it here fails the same way.
+      const body: GitHubConnectionDto =
+        status.state === 'not-connected' ? { ...status, ownerLogin: github.ownerLogin(c.env) } : status;
       return c.json(body, 200, NO_STORE);
     })
     .delete('/connection', async (c) => {
