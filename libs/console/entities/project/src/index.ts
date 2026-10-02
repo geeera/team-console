@@ -38,6 +38,8 @@ export {
   setupUrlOf,
 } from './lib/project-setup';
 export type { SetupStep, SetupStepId, SetupStepState, SetupSummary } from './lib/project-setup';
+export { OVERVIEW_URL, OverviewApi, UnexpectedOverviewResponse, isOverviewDto } from './lib/overview';
+export type { OverviewProject } from './lib/overview';
 export { normalizeRepoInput } from './lib/repo-input';
 export type { RepoInput } from './lib/repo-input';
 export { SetupChecklist } from './lib/setup-checklist/setup-checklist';

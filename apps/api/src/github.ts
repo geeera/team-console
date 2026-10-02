@@ -1,4 +1,4 @@
-import type { Logger, MappedError } from '@worker/core';
+import { localFakeOriginOf, type Logger, type MappedError } from '@worker/core';
 import { OwnerConnectionsRepo } from '@worker/db';
 import {
   GitHubAppAuth,
@@ -12,7 +12,6 @@ import {
   type ReadCache,
 } from '@worker/github';
 import type { ApiEnv } from './env';
-import { localFakeOriginOf } from './local-fake-origin';
 import { OwnerConnection } from './owner/owner-connection';
 import { loadOwnerKeys, ownerFlowMisconfigured } from './owner/owner-keys';
 

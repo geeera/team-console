@@ -99,6 +99,12 @@ Sprint board (#18, read-only): `@console/entities/sprint` (`isSprintDto`, `Sprin
 empty, error and 429 with an automatic retry at `Retry-After`). Kit: `Lanes`/`Lane` (a tab list of lanes on the phone, `[(selected)]` by `key`),
 `Stats`/`Stat`, `ListRow` `external`.
 
+All projects (#27, read-only): `GET /api/v1/overview` (`routes/overview.ts`) builds one row per active project from the
+same cached reads (`buildOverviewRow` in `@worker/read-models`; team state by `team/team-health.ts` from the run log's
+latest 200 comments, cached 30 s) under a per-request `SubrequestBudget` (44 GitHub subrequests; a project it cannot
+finish is its own `github-request-budget` row). Console: `OverviewApi` in `@console/entities/project`, page
+`console-pages-overview` (tiles link to `/p/:slug/board`); kit `Meter`.
+
 Team commands (#114): `routes/team-commands.ts` (`GET /projects/:slug/team/status`, `POST …/team/pause|resume` on the
 owner's token, byte-for-byte `runlog pause`/`resume`, 60 s replay from `own_writes`; `POST …/runs {slot}` fires the
 slot's routine once, never retried, behind the run log (paused, 3-hour overlap) and the 15-minute `slot_requests` lock
@@ -121,6 +127,12 @@ secret `VAPID_PRIVATE_KEY`; any of them unusable → 503 `push-misconfigured`. L
 `@worker/push/testing`'s `FakePushService`: hands out subscriptions, decrypts every delivery, verifies the JWT) + `--var
 PUSH_FAKE_ORIGIN:http://127.0.0.1:9997` and a throwaway pair from `node tools/owner-setup/vapid-keygen.js` as `--var`s; never a
 real push service.
+Webhooks (#12): `apps/hooks` `POST /hooks/github` — 405 → 503 `webhook-misconfigured` (empty `WEBHOOK_SECRET`) → 413 (1 MB read) →
+401 (strict `sha256=` HMAC, `WEBHOOK_SECRET` + `WEBHOOK_SECRET_PREVIOUS`) → dedupe (`WebhookDeliveriesRepo`, delivery id and body
+SHA-256) → registry row + `installation_id` → `cache_epoch` bump → `own_writes` → author gate (`isTrustedAuthor`) → pure `mapEvent`
+(`questionNotification` / `linkNotification`) sent in `waitUntil` by `webPushSenders` (the same `PushSender`, VAPID vars and
+`PUSH_FAKE_ORIGIN` as the api; `pushFetch` in `@worker/push`, `localFakeOriginOf` in `@worker/core`). Logs carry `{deliveryId, event,
+repo, status}` only. Locally `nx serve hooks -- --var WEBHOOK_SECRET:<throwaway>` plus the push `--var`s above.
 
 ## Workers (#6)
 
@@ -139,8 +151,9 @@ is `ApiGitHub` (`apps/api/src/github.ts`); `GITHUB_MOCK=true` (local only) swaps
 in `libs/worker/github/fixtures`. Migrations live only in `apps/api/migrations` (`0001_init` = `projects`;
 `0005_owner_connections` #59; `0006_project_installation` #15 adds `projects.installation_id`; `0007_own_writes` #10 =
 `own_writes` + `own_write_claims`, which #12 reuses; `0008_slot_requests` #114; `0009_push_subscriptions` #11 (`push_subscriptions` +
-`push_test_sends`; it took the next free number instead of the reserved 0002), `0003_webhooks` #12 (its own tables
-only), `0004_chat_wakeups` are reserved). The answer route (#10) is `routes/answer.ts`
+`push_test_sends`); `0010_webhooks` #12 = `webhook_deliveries` + `projects.access_lost_at`. No number is reserved — a new
+migration takes the highest number on `dev` + 1 when its PR opens and is renumbered on rebase if that number was taken,
+so 0002–0004 stay unused). The answer route (#10) is `routes/answer.ts`
 (`POST /api/v1/projects/:slug/issues/:number/answer`, owner-only): section re-derived from the live issue with
 `@shared/owner-grammar` (a byte-for-byte port of the plugin's `backlog answer` and `commands.command_lines`, proven by
 fixtures that `libs/shared/owner-grammar/fixtures/generate.py` writes from the vendored plugin — rerun it after every

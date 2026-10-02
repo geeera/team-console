@@ -217,6 +217,12 @@ export class GitHubAppAuth {
     };
   }
 
+  /** Whether a read for `repo` would go out without minting first (no installation lookup, no mint). */
+  hasUsableToken(repo: RepoName): boolean {
+    const cached = this.tokens.get(this.cacheKey(repo));
+    return cached !== undefined && cached.expiresAt - RENEW_MARGIN_MS > this.now();
+  }
+
   private cacheKey(repo: RepoName): string {
     return repo.fullName.toLowerCase();
   }

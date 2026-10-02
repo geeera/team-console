@@ -29,10 +29,7 @@ const SCREENS: readonly Screen[] = [
   },
   {
     name: 'All projects',
-    open: (page) =>
-      visit(page, '/overview', (p) =>
-        expect(p.getByRole('heading', { level: 1, name: ru('overview.title') })).toBeVisible(),
-      ),
+    open: (page) => visit(page, '/overview', (p) => expect(p.getByTestId('overview-row')).toHaveCount(2)),
   },
   {
     name: 'Settings',

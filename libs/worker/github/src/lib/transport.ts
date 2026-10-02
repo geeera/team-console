@@ -1,4 +1,4 @@
-import { githubUnavailableError, githubUnexpectedError } from './errors';
+import { GitHubError, githubUnavailableError, githubUnexpectedError } from './errors';
 import type { GitHubPath } from './github-path';
 
 /** The one host any GitHub credential is ever sent to (#9 threat row 1). */
@@ -91,8 +91,12 @@ async function send(fetcher: FetchLike, url: URL, request: GitHubRequest): Promi
   }
   try {
     return await fetcher(url.href, init);
-  } catch {
-    // The thrown error is dropped on purpose: it may quote the request, and the status says enough.
+  } catch (error: unknown) {
+    // A transport that refused before sending (a request budget, #27) already says why, without the request.
+    if (error instanceof GitHubError) {
+      throw error;
+    }
+    // Any other error is dropped on purpose: it may quote the request, and the status says enough.
     throw githubUnavailableError(null);
   }
 }

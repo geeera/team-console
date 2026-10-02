@@ -303,7 +303,54 @@
   },
   "overview": {
     "title": "All projects",
-    "placeholderHint": "The project overview arrives in a later sprint."
+    "count": {
+      "one": "{{n}} project",
+      "few": "{{n}} projects",
+      "many": "{{n}} projects",
+      "other": "{{n}} projects"
+    },
+    "listLabel": "Projects and their sprints",
+    "quiet": "Nothing for you",
+    "quietLabel": "Projects with nothing for you",
+    "loading": "Loading the overview…",
+    "team": {
+      "running": "Running",
+      "paused": "Paused",
+      "failing": "Failing",
+      "unknown": "Status unknown"
+    },
+    "demo": "demo {{date}}",
+    "noSprint": "No current sprint",
+    "pending": "Not loaded yet: it didn’t fit into one request",
+    "done": "{{done}} of {{total}} done",
+    "setup": "Setup needed",
+    "problem": {
+      "lead": "Couldn’t read it: {{reason}}",
+      "github-app-not-installed": "the console app is not installed on the repository",
+      "project-config-invalid": "project.yml can’t be read",
+      "github-rate-limit": "GitHub asks to wait",
+      "project-invalid": "the registry holds an invalid repository address",
+      "other": "GitHub didn’t respond"
+    },
+    "partial": {
+      "title": "Not every project is loaded",
+      "hint": "One request reads as much as GitHub’s limit allows. The rest load with the next one.",
+      "action": "Load the rest"
+    },
+    "error": {
+      "unavailable": {
+        "title": "Couldn’t load the overview",
+        "hint": "GitHub or the console didn’t respond. Try again."
+      },
+      "offline": {
+        "title": "No connection",
+        "hint": "The overview loads when you’re back online. Try again."
+      },
+      "rate-limited": {
+        "title": "GitHub asks to wait",
+        "hint": "Retry in a minute."
+      }
+    }
   },
   "settings": {
     "title": "Settings",
@@ -863,6 +910,9 @@
       "team": "storify: the team paused itself. Three runs in a row failed.",
       "resume": "Resume",
       "log": "Run log"
+    },
+    "meter": {
+      "done": "{{done}} of {{total}} done"
     }
   }
 }
