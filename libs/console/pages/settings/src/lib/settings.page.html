@@ -13,6 +13,16 @@
     <tc-github-connection-card [outcome]="outcome()" />
   </section>
 
+  <section class="settings__section" aria-labelledby="settings-push" data-testid="push-section">
+    <div>
+      <h2 #pushHeading id="settings-push" class="settings__section-title" tabindex="-1">
+        {{ 'push.title' | transloco }}
+      </h2>
+      <p class="settings__lead">{{ 'push.lead' | transloco }}</p>
+    </div>
+    <tc-push-settings-card />
+  </section>
+
   <section class="settings__section" aria-labelledby="settings-projects">
     <div class="settings__section-head">
       <div>

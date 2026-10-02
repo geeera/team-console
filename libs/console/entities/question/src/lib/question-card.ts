@@ -22,7 +22,7 @@ let nextCardId = 0;
         {{ 'questions.section.' + item().section | transloco }}
       </span>
       <span tc-card-number>#{{ item().number }}</span>
-      <h2 tc-card-title [id]="titleId">{{ item().title }}</h2>
+      <h2 tc-card-title [id]="titleId" tabindex="-1">{{ item().title }}</h2>
       @if (!item().authorTrusted) {
         <p class="question__untrusted" data-testid="untrusted">
           <tc-chip tone="warning" dot>{{ 'questions.untrusted' | transloco }}</tc-chip>

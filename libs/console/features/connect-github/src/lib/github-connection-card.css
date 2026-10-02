@@ -3,97 +3,10 @@
   gap: var(--space-3);
 }
 
-.gh {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  border: var(--border-w) solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-1);
-}
-
-.gh--warn {
-  border-color: var(--warning-text);
-}
-
-.gh--bad {
-  border-color: var(--danger-text);
-}
-
-.gh__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.gh__mark {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: var(--avatar-size);
-  height: var(--avatar-size);
-  border-radius: var(--r-round);
-  background: var(--bg-sunken);
-  color: var(--text-2);
-}
-
-.gh--ok .gh__mark {
-  background: var(--success-soft);
-  color: var(--success-text);
-}
-
-.gh--warn .gh__mark {
-  background: var(--warning-soft);
-  color: var(--warning-text);
-}
-
-.gh__who {
-  display: grid;
-  flex: 1 1 auto;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.gh__title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--fs-lg);
-  font-weight: var(--fw-display);
-  line-height: var(--lh-tight);
-  overflow-wrap: anywhere;
-}
-
-.gh__title:focus {
-  outline: none;
-}
-
-.gh__title:focus-visible {
-  outline: var(--focus-w) solid var(--focus);
-  outline-offset: var(--focus-offset);
-}
-
-.gh__meta {
-  margin: 0;
-  font-size: var(--fs-xs);
-  color: var(--text-3);
-}
-
-.gh__body {
-  margin: 0;
-  font-size: var(--fs-sm);
-  line-height: var(--lh-body);
-  color: var(--text-2);
-  overflow-wrap: anywhere;
-}
-
 .gh__disconnect {
   color: var(--danger-text);
 }
 
-.gh__offline,
 .gh__incomplete {
   display: flex;
   flex-wrap: wrap;
@@ -110,36 +23,4 @@
   gap: var(--space-1);
   color: var(--accent-text);
   font-weight: var(--fw-semibold);
-}
-
-.gh__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.gh__skeleton {
-  display: block;
-  border-radius: var(--r-pill);
-  background: var(--skeleton);
-}
-
-.gh__skeleton--mark {
-  width: var(--avatar-size);
-  height: var(--avatar-size);
-}
-
-.gh__skeleton--line {
-  flex: 1;
-  height: var(--space-4);
-}
-
-@media (max-width: 519.98px) {
-  .gh {
-    padding: var(--space-4);
-  }
-
-  .gh__actions > * {
-    flex: 1;
-  }
 }

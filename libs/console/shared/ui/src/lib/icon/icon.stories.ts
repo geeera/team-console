@@ -33,6 +33,11 @@ const names = [
   'tier-light',
   'tier-standard',
   'tier-heavy',
+  'bell',
+  'bell-off',
+  'share',
+  'more',
+  'add-square',
 ];
 
 const sheet = `

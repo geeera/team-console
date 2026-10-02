@@ -27,6 +27,24 @@
 <p class="questions__problem" data-testid="project-problem">
   {{ 'questions.projectProblem' | transloco: { name: problem.project.name, reason: problemReason(problem) } }}
 </p>
+} @if (goneNumber(); as gone) {
+<section
+  tc-callout
+  class="questions__gone"
+  tabindex="-1"
+  data-testid="push-gone"
+  aria-labelledby="questions-gone-title"
+>
+  <h2 tc-callout-title id="questions-gone-title">{{ 'push.arrive.goneTitle' | transloco: { n: gone } }}</h2>
+  <p>{{ 'push.arrive.goneBody' | transloco }}</p>
+  @if (goneUrl(); as url) {
+  <a class="questions__receipt-link" [href]="url" target="_blank" rel="noopener noreferrer"
+    >{{ 'push.arrive.goneLink' | transloco: { n: gone } }}<span class="tc-sr-only">
+      {{ 'push.arrive.external' | transloco }}</span
+    ><tc-icon name="external" size="sm"
+  /></a>
+  }
+</section>
 } @if (rows().length === 0) {
 <tc-state-block
   kind="empty"

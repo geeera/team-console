@@ -61,7 +61,10 @@
       "@console/widgets/sprint-board": ["./libs/console/widgets/sprint-board/src/index.ts"],
       "@console/entities/team-run": ["./libs/console/entities/team-run/src/index.ts"],
       "@console/features/team-commands": ["./libs/console/features/team-commands/src/index.ts"],
-      "@console/widgets/commands-panel": ["./libs/console/widgets/commands-panel/src/index.ts"]
+      "@console/widgets/commands-panel": ["./libs/console/widgets/commands-panel/src/index.ts"],
+      "@console/shared/platform": ["./libs/console/shared/platform/src/index.ts"],
+      "@console/entities/push": ["./libs/console/entities/push/src/index.ts"],
+      "@console/features/push-subscribe": ["./libs/console/features/push-subscribe/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

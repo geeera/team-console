@@ -1,6 +1,8 @@
 export { BREAKPOINTS } from './tokens/breakpoints';
 export type { Breakpoint } from './tokens/breakpoints';
 
+export { ARRIVAL_CLASS, markArrival, prefersReducedMotion } from './lib/arrival/arrival';
+export type { Arrival } from './lib/arrival/arrival';
 export { Banner } from './lib/banner/banner';
 export type { BannerTone } from './lib/banner/banner';
 export { Button, IconButton } from './lib/button/button';
@@ -30,6 +32,8 @@ export type { SpinnerSize } from './lib/spinner/spinner';
 export { Stat, Stats } from './lib/stat/stat';
 export type { StatTone } from './lib/stat/stat';
 export { StateBlock } from './lib/state-block/state-block';
+export { StatusCard } from './lib/status-card/status-card';
+export type { StatusCardTone } from './lib/status-card/status-card';
 export type { StateKind } from './lib/state-block/state-block';
 export { Tab, TabBar } from './lib/tab-bar/tab-bar';
 export { Tooltip } from './lib/tooltip/tooltip';

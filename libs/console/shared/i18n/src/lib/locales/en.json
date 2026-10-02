@@ -50,6 +50,102 @@
     "lead": "Waiting: {{n}} · projects: {{k}}",
     "omitted": "Not read this time: {{names}}"
   },
+  "push": {
+    "title": "Notifications",
+    "lead": "A push when the team needs your answer. Tapping it opens that item.",
+    "checking": "Checking notifications…",
+    "off": {
+      "title": "Notifications are off on this device",
+      "body": "Turn them on and this device tells you when your answer is needed: a question, a design to approve, a release."
+    },
+    "enable": "Turn on notifications",
+    "hint": {
+      "ios": "iPhone will ask for permission: tap Allow.",
+      "browser": "The browser will ask for permission: choose Allow."
+    },
+    "asking": "Waiting for your answer…",
+    "saving": "Turning on…",
+    "on": {
+      "title": "Notifications are on for this device",
+      "meta": "Since {{date}}",
+      "badge": "The number on the app icon is how many items wait for you, now {{n}}. It updates when you open the app."
+    },
+    "test": {
+      "send": "Send a test",
+      "sending": "Sending…",
+      "sent": "Test sent",
+      "sentBody": {
+        "one": "To {{n}} device with notifications on. It should arrive within a minute. If it doesn’t, check Focus and Team Console’s notifications in the device’s settings.",
+        "few": "To {{n}} devices with notifications on. It should arrive within a minute. If it doesn’t, check Focus and Team Console’s notifications in the device’s settings.",
+        "many": "To {{n}} devices with notifications on. It should arrive within a minute. If it doesn’t, check Focus and Team Console’s notifications in the device’s settings.",
+        "other": "To {{n}} devices with notifications on. It should arrive within a minute. If it doesn’t, check Focus and Team Console’s notifications in the device’s settings."
+      },
+      "wait": "One test every 30 seconds. Try again in {{s}} s.",
+      "failed": "The test wasn’t sent: the server didn’t answer. Try again."
+    },
+    "turnOff": "Turn off",
+    "turnOffAria": "Turn off notifications on this device",
+    "offToast": "Notifications are off on this device",
+    "offFailed": "Couldn’t turn notifications off: the server didn’t answer. Try again.",
+    "onLive": "Notifications are on for this device",
+    "install": {
+      "title": "First add Team Console to your Home Screen",
+      "body": "iPhone only sends notifications to apps on the Home Screen. It takes half a minute.",
+      "steps": "How to add it to the Home Screen",
+      "s1Before": "In Safari, tap",
+      "s1After": "next to the address, then Share.",
+      "s1NoteBefore": "With the Bottom or Top tab layout, tap",
+      "s1NoteAfter": "right away.",
+      "s2": "Scroll down and tap Add to Home Screen. Leave Open as Web App on and tap Add.",
+      "s3": "Open Team Console from its Home Screen icon and turn notifications on here, in Settings.",
+      "more": "More",
+      "share": "Share",
+      "already": "Already on your Home Screen? Open the app from there: notifications can’t be turned on in Safari."
+    },
+    "denied": {
+      "title": "Notifications are blocked",
+      "body": "The app can’t ask again. Allow them in settings, then come back:",
+      "ios": "iPhone Settings → Notifications → Team Console → turn on Allow Notifications.",
+      "safari": "Safari → Settings → Websites → Notifications → set {{host}} to Allow.",
+      "other": "Click the icon left of the address → Notifications → Allow, then reload the page."
+    },
+    "recheck": "Check again",
+    "recheckLive": "Allowed now. Turn notifications on.",
+    "recheckStill": "Notifications are still blocked.",
+    "unsupported": {
+      "title": "Notifications don’t work here",
+      "old-ios": "Web notifications need iOS 16.4 or later. Update in Settings → General → Software Update.",
+      "in-app": "Team Console is open inside another app. Open the link in Safari, then add it to your Home Screen.",
+      "no-push": "This browser has no web notifications. Open Team Console in Safari, Chrome or Firefox."
+    },
+    "error": {
+      "title": "Couldn’t turn notifications on",
+      "server": "The server didn’t accept this device, so nothing was saved. Try again; if it repeats, tell the PM in the chat.",
+      "offline": "The server didn’t answer, so nothing was saved. Try again when you’re back online.",
+      "device": "The browser couldn’t subscribe this device to notifications. Try again."
+    },
+    "offline": "You’re offline. Notifications can be turned on when you’re back online.",
+    "offlineOn": "You’re offline. The test and Turn off work again when you’re back online.",
+    "retry": "Try again",
+    "deniedLive": "Notifications are blocked",
+    "nudge": {
+      "text": "Notifications are off on this device: you only learn about new items when you open the app.",
+      "enable": "Turn on",
+      "how": "How to turn on",
+      "later": "Not now",
+      "laterAria": "Hide the notifications hint",
+      "laterToast": "You can turn them on in Settings → Notifications",
+      "on": "Notifications are on. Next time the team needs you, this device will tell you."
+    },
+    "arrive": {
+      "goneTitle": "#{{n}} no longer waits for you",
+      "goneBody": "It was answered or closed on GitHub while the notification waited.",
+      "goneLink": "Open #{{n}} on GitHub",
+      "external": "(opens GitHub)",
+      "projectHint": "It was archived or never added. Its notifications lead here until it is added again.",
+      "back": "Go to Needs you"
+    }
+  },
   "questions": {
     "listLabel": "Questions for you",
     "emptyTitle": "Nothing in this project needs you",
@@ -697,6 +793,29 @@
       "leftBody": "It’s on your project list now.",
       "readyTitle": "storify is ready",
       "neutralTitle": "Some steps couldn’t be checked"
+    },
+    "statusCard": {
+      "checking": "Checking notifications…",
+      "offTitle": "Notifications are off on this device",
+      "offBody": "Turn them on and this device tells you when your answer is needed.",
+      "turnOn": "Turn on notifications",
+      "hint": "iPhone will ask for permission: tap Allow.",
+      "onTitle": "Notifications are on for this device",
+      "onMeta": "Since 2 October",
+      "test": "Send a test",
+      "turnOff": "Turn off",
+      "blockedTitle": "Notifications are blocked",
+      "blockedBody": "The app can’t ask again. Allow them in settings.",
+      "offline": "You’re offline. Notifications can be turned on when you’re back online.",
+      "errorTitle": "Couldn’t turn notifications on",
+      "errorBody": "The server didn’t accept this device, so nothing was saved."
+    },
+    "arrival": {
+      "kind": "Question",
+      "title": "Which sign-in to keep: GitHub or email?",
+      "body": "The card a notification led to: the ring stays while it has focus.",
+      "action": "Approve",
+      "receiptVerb": "You: approved"
     },
     "recommendation": {
       "label": "Team recommends",
