@@ -77,6 +77,9 @@ export class NeedsYouCounts {
   private inFlight: Promise<void> | null = null;
   private readonly refs = signal<readonly NeedsYouRef[]>([]);
 
+  /** When the last refresh succeeded (epoch ms); null until the first one, so nothing reads 0 before it knows. */
+  readonly refreshedAt = signal<number | null>(null);
+
   readonly counts = computed(() =>
     countRefs(this.refs().filter((ref) => ref.number === null || !this.answered.has(ref.slug, ref.number))),
   );
@@ -100,6 +103,7 @@ export class NeedsYouCounts {
       try {
         const body = await firstValueFrom(this.http.get<unknown>(NEEDS_YOU_URL));
         this.refs.set(needsYouRefsOf(body));
+        this.refreshedAt.set(Date.now());
       } catch {
         // Unavailable (not yet deployed, offline, rate-limited): keep what we have; the shell shows no error for a badge.
       } finally {

@@ -25,6 +25,7 @@ import {
 } from '@console/entities/project';
 import { ArchiveProject } from '@console/features/archive-project';
 import { GitHubConnectionCard } from '@console/features/connect-github';
+import { FOCUS_PUSH_SETTINGS_STATE, PushSettingsCard } from '@console/features/push-subscribe';
 import { NetworkStatus } from '@console/shared/api';
 import {
   ConsoleLang,
@@ -55,6 +56,7 @@ type RowStatus = 'checking' | 'unknown' | SetupSummary;
     ListRow,
     LocalTimePipe,
     NgTemplateOutlet,
+    PushSettingsCard,
     RouterLink,
     StateBlock,
     TranslocoPipe,
@@ -77,6 +79,7 @@ export class SettingsPage {
   protected readonly network = inject(NetworkStatus);
 
   private readonly heading = viewChild.required<ElementRef<HTMLElement>>('heading');
+  private readonly pushHeading = viewChild.required<ElementRef<HTMLElement>>('pushHeading');
   private readonly list = viewChild<ElementRef<HTMLElement>>('list');
   private readonly addButton = viewChild('addButton', { read: ElementRef<HTMLElement> });
 
@@ -95,7 +98,16 @@ export class SettingsPage {
     // Archived from its setup page: the list applies the same focus rule as an archive from a row.
     let focusIndex = readNavigationState(this.router, FOCUS_AFTER_ARCHIVE_STATE);
 
-    if (this.outcome() !== null) {
+    // "How to turn on" from the Needs you nudge: the Notifications block, not the top of Settings.
+    const toPush = readNavigationState(this.router, FOCUS_PUSH_SETTINGS_STATE) === true;
+
+    if (toPush) {
+      afterNextRender(() => {
+        const heading = this.pushHeading().nativeElement;
+        heading.scrollIntoView({ block: 'start' });
+        heading.focus({ preventScroll: true });
+      });
+    } else if (this.outcome() !== null) {
       void this.router.navigate([], {
         queryParams: { github: null, login: null },
         queryParamsHandling: 'merge',

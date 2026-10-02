@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { ProjectsStore } from '@console/entities/project';
+import { injectQuestionArrival } from '@console/entities/push';
 import { QuestionList } from '@console/widgets/question-list';
 import type { NeedsYouProjectRef } from '@shared/contracts';
 import { map } from 'rxjs';
@@ -9,13 +10,14 @@ import { map } from 'rxjs';
 /**
  * `/p/:slug/questions` (#16): the project's waiting items in the plugin's inbox order, answerable in place. The
  * slug is the parent route's parameter; the `canMatch` guard has already checked it is an active project.
+ * `#n` (a tapped notification, #36) asks the list to bring that item into view.
  */
 @Component({
   selector: 'tc-questions-section-page',
   imports: [QuestionList],
   template: `
     @if (project(); as project) {
-      <tc-question-list [project]="project" />
+      <tc-question-list [project]="project" [arrival]="arrival()" />
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -23,6 +25,8 @@ import { map } from 'rxjs';
 export class QuestionsSectionPage {
   private readonly projects = inject(ProjectsStore);
   private readonly route = inject(ActivatedRoute);
+
+  protected readonly arrival = injectQuestionArrival();
 
   private readonly slug = toSignal(
     (this.route.parent ?? this.route).paramMap.pipe(map((params) => params.get('slug'))),

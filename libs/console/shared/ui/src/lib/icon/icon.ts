@@ -44,6 +44,13 @@ const GLYPHS = {
   'tier-light': 'M5 14h2v6H5zM11 20h2M17 20h2',
   'tier-standard': 'M5 14h2v6H5zM11 9h2v11h-2zM17 20h2',
   'tier-heavy': 'M5 14h2v6H5zM11 9h2v11h-2zM17 4h2v16h-2z',
+  // Web push (#36): the Notifications block, its nudge, and Safari's own buttons in the Home Screen guide.
+  bell: 'M6 16.5V11a6 6 0 0112 0v5.5l1.5 2h-15zM10 20.5a2 2 0 004 0',
+  'bell-off': 'M8.2 6.2A6 6 0 0118 11v3.5M6 11v5.5l-1.5 2h12M10 20.5a2 2 0 004 0M4 4l16 16',
+  share: 'M12 3.5v11M8 7.5l4-4 4 4M8.5 10.5h-2a1 1 0 00-1 1v8a1 1 0 001 1h11a1 1 0 001-1v-8a1 1 0 00-1-1h-2',
+  // Safari's "More": three dots drawn as small rings, so the one stroke width still reads as solid dots.
+  more: 'M6.5 11.2a.8.8 0 110 1.6.8.8 0 010-1.6zM12 11.2a.8.8 0 110 1.6.8.8 0 010-1.6zM17.5 11.2a.8.8 0 110 1.6.8.8 0 010-1.6z',
+  'add-square': 'M8 4.5h8A3.5 3.5 0 0119.5 8v8a3.5 3.5 0 01-3.5 3.5H8A3.5 3.5 0 014.5 16V8A3.5 3.5 0 018 4.5zM12 8.5v7M8.5 12h7',
 } as const;
 
 export type IconName = keyof typeof GLYPHS;

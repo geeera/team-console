@@ -21,7 +21,7 @@ import {
 } from '@console/entities/github-connection';
 import { NetworkStatus } from '@console/shared/api';
 import { LocalDayPipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
-import { Button, Icon, Sheet, StateBlock, Toaster } from '@console/shared/ui';
+import { Button, Icon, Sheet, StateBlock, StatusCard, Toaster } from '@console/shared/ui';
 
 /** Why the last connect did not work: the callback's outcome, or what the client refused before leaving. */
 type ConnectError =
@@ -35,7 +35,7 @@ type ConnectError =
  */
 @Component({
   selector: 'tc-github-connection-card',
-  imports: [Button, ConnectGitHubButton, Icon, LocalDayPipe, StateBlock, TranslocoPipe],
+  imports: [Button, ConnectGitHubButton, Icon, LocalDayPipe, StateBlock, StatusCard, TranslocoPipe],
   templateUrl: './github-connection-card.html',
   styleUrl: './github-connection-card.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

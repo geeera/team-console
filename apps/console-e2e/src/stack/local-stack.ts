@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
@@ -8,6 +8,7 @@ export const WORKSPACE_ROOT = resolve(__dirname, '../../../..');
 const WRANGLER = join(WORKSPACE_ROOT, 'node_modules/.bin/wrangler');
 const API_CONFIG = 'apps/api/wrangler.jsonc';
 const FAKE_CONFIG = 'apps/api/fake-github/wrangler.jsonc';
+const FAKE_PUSH_CONFIG = 'apps/api/fake-push/wrangler.jsonc';
 /**
  * The bundle `nx build api` writes and the Docker image runs, so the suite tests what ships. Not `--no-bundle`: with
  * it wrangler 4.124's esbuild service stops after start and the next log it formats crashes the runtime (#58).
@@ -27,12 +28,21 @@ export interface StackPorts {
   readonly fake: number;
   readonly apiInspector: number;
   readonly fakeInspector: number;
+  readonly fakePush: number;
+  readonly fakePushInspector: number;
 }
 
 /** Ten ports per Playwright worker, so parallel workers never share a server or a database. */
 export function portsFor(parallelIndex: number): StackPorts {
   const base = 18_700 + parallelIndex * 10;
-  return { api: base, fake: base + 1, apiInspector: base + 2, fakeInspector: base + 3 };
+  return {
+    api: base,
+    fake: base + 1,
+    apiInspector: base + 2,
+    fakeInspector: base + 3,
+    fakePush: base + 4,
+    fakePushInspector: base + 5,
+  };
 }
 
 class StackProcess {
@@ -106,6 +116,20 @@ class StackProcess {
   }
 }
 
+/**
+ * A VAPID pair for this run only (#36): web push runs end to end against the fake push service, never a real one.
+ * JWK export keeps the scalar and coordinates at 32 bytes each (tools/owner-setup/vapid-keygen.js).
+ */
+function throwawayVapidPair(): { publicKey: string; privateKey: string } {
+  const jwk = generateKeyPairSync('ec', { namedCurve: 'prime256v1' }).privateKey.export({ format: 'jwk' });
+  const point = Buffer.concat([
+    Buffer.from([0x04]),
+    Buffer.from(jwk.x ?? '', 'base64url'),
+    Buffer.from(jwk.y ?? '', 'base64url'),
+  ]);
+  return { publicKey: point.toString('base64url'), privateKey: jwk.d ?? '' };
+}
+
 async function waitForOk(url: string, process: StackProcess, name: string): Promise<void> {
   const deadline = Date.now() + START_TIMEOUT_MS;
   let lastError = 'no answer yet';
@@ -158,7 +182,10 @@ function run(args: readonly string[], logPath: string): Promise<void> {
 export class LocalStack {
   readonly baseURL: string;
   readonly fakeURL: string;
+  readonly fakePushURL: string;
   private api: StackProcess | null = null;
+  private fakePush: StackProcess | null = null;
+  private readonly vapid = throwawayVapidPair();
 
   private constructor(
     private readonly name: string,
@@ -168,6 +195,7 @@ export class LocalStack {
   ) {
     this.baseURL = `http://127.0.0.1:${ports.api}`;
     this.fakeURL = `http://127.0.0.1:${ports.fake}`;
+    this.fakePushURL = `http://127.0.0.1:${ports.fakePush}`;
   }
 
   static async start(name: string, ports: StackPorts): Promise<LocalStack> {
@@ -205,6 +233,7 @@ export class LocalStack {
     const stack = new LocalStack(name, ports, dir, fake);
     try {
       await waitForOk(`${stack.fakeURL}/_fake/state`, fake, `${name} fake GitHub`);
+      await stack.startFakePush();
       await stack.signInAsMockOwner();
       await stack.startApi();
     } catch (error: unknown) {
@@ -224,7 +253,31 @@ export class LocalStack {
   async stop(): Promise<void> {
     await this.api?.stop();
     this.api = null;
+    await this.fakePush?.stop();
+    this.fakePush = null;
     await this.fake.stop();
+  }
+
+  /** The fake push service (Apple, FCM, Mozilla stand-in) of `nx run api:fake-push`, on this worker's own port. */
+  private async startFakePush(): Promise<void> {
+    this.fakePush = StackProcess.spawn(
+      [
+        'dev',
+        '--config',
+        FAKE_PUSH_CONFIG,
+        '--ip',
+        '127.0.0.1',
+        '--port',
+        String(this.ports.fakePush),
+        '--inspector-port',
+        String(this.ports.fakePushInspector),
+        '--persist-to',
+        join(this.dir, 'fake-push-state'),
+        '--show-interactive-dev-session=false',
+      ],
+      join(this.dir, 'fake-push.log'),
+    );
+    await waitForOk(`${this.fakePushURL}/_fake/state`, this.fakePush, `${this.name} fake push`);
   }
 
   /**
@@ -298,6 +351,13 @@ export class LocalStack {
         `TOKEN_ENCRYPTION_KEY:${randomBytes(32).toString('base64')}`,
         '--var',
         'ROUTINE_TOKEN_TEAM_CONSOLE:local-fake-routine',
+        // Web push (#36) against the fake push service only, with this run's throwaway VAPID pair.
+        '--var',
+        `PUSH_FAKE_ORIGIN:${this.fakePushURL}`,
+        '--var',
+        `VAPID_PUBLIC_KEY:${this.vapid.publicKey}`,
+        '--var',
+        `VAPID_PRIVATE_KEY:${this.vapid.privateKey}`,
       ],
       join(this.dir, 'api.log'),
     );

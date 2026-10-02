@@ -36,3 +36,16 @@
   outline-offset: var(--focus-offset);
   border-radius: var(--r-xs);
 }
+
+/* The note for an item a notification led to that no longer waits; ringed like a card while it has focus. */
+.questions__gone {
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+}
+
+.questions__gone a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}

@@ -181,7 +181,7 @@ describe('GitHubConnectionCard', () => {
     fixture.componentRef.setInput('outcome', { kind: 'wrong-account', login: null });
     await settle();
 
-    const body = root.querySelector('[data-testid="gh-error"] .gh__body');
+    const body = root.querySelector('[data-testid="gh-error"] [tc-status-card-body]');
     expect(body?.textContent).not.toContain('?');
     expect(body?.textContent).toContain('был выбран другой аккаунт');
   });

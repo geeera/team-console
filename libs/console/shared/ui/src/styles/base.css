@@ -114,3 +114,33 @@ select {
   flex: 1 1 auto;
   min-width: 0;
 }
+
+/*
+ * "You came here" (#36): the ring `markArrival()` puts on the item a notification opened. It swells once, then
+ * stays while focus is inside the item; the reduced-motion tokens collapse the swell to a frame, so it just appears.
+ */
+.tc-arrival {
+  scroll-margin: var(--space-6);
+  box-shadow: 0 0 0 var(--focus-w) var(--focus);
+  animation: tc-arrival var(--dur-sig) var(--ease-emph) both;
+}
+
+/* The ring already marks the place: the focused title inside needs no second outline. */
+.tc-arrival [tabindex='-1']:focus:not(:focus-visible),
+.tc-arrival[tabindex='-1']:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@keyframes tc-arrival {
+  0% {
+    box-shadow: 0 0 0 0 var(--focus);
+  }
+  35% {
+    box-shadow:
+      0 0 0 calc(var(--focus-w) * 3) var(--accent-soft),
+      0 0 0 var(--focus-w) var(--focus);
+  }
+  100% {
+    box-shadow: 0 0 0 var(--focus-w) var(--focus);
+  }
+}
