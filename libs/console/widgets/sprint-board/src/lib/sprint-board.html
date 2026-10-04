@@ -122,7 +122,17 @@
   [count]="board.team.recentRuns.length"
   [level]="2"
 >
-  @if (board.team.recentRuns.length === 0) {
+  <!-- An unknown team means the run log could not be read or trusted (#201): never "no runs yet" with a check. -->
+  @if (board.team.state === 'unknown') {
+  <tc-state-block
+    kind="empty"
+    compact
+    icon="question"
+    data-testid="runs-unavailable"
+    [title]="'board.runs.unavailable' | transloco"
+    [description]="'board.runs.unavailableHint' | transloco"
+  />
+  } @else if (board.team.recentRuns.length === 0) {
   <tc-state-block kind="empty" compact data-testid="runs-empty" [title]="'board.runs.empty' | transloco" />
   } @if (board.team.recentRuns.length > 0 || board.team.runLogUrl) {
   <tc-sprint-run-list

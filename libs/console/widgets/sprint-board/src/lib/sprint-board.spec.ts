@@ -6,6 +6,7 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { CORE_STATUSES, projectSprintUrl } from '@console/entities/sprint';
 import { provideConsoleI18n, TranslocoService } from '@console/shared/i18n';
+import { Icon } from '@console/shared/ui';
 import type { RecentRunDto, SprintDto, SprintIssueDto, SprintPullRequestDto, TeamRunDto } from '@shared/contracts';
 import { readFileSync } from 'node:fs';
 import type { MockInstance } from 'vitest';
@@ -374,14 +375,41 @@ describe('SprintBoard', () => {
       expect(root.querySelector('[data-testid="run-log-link"]')).not.toBeNull();
     });
 
-    it('without a run log shows the empty block and no link', async () => {
+    it('without a run log yet (team running) says no runs yet and shows no link', async () => {
       const { root, settle } = await render();
+      http
+        .expectOne(projectSprintUrl(TC.slug))
+        .flush(sprint({ team: team({ state: 'running', runLogUrl: null }) }));
+      await settle();
+      expect(root.querySelector('[data-testid="runs-empty"]')).not.toBeNull();
+      expect(root.querySelector('[data-testid="runs-unavailable"]')).toBeNull();
+      expect(root.querySelector('[data-testid="runs"] tc-list')).toBeNull();
+    });
+
+    it('a run log it could not read or trust says unavailable with a question mark, never "no runs yet" (#201)', async () => {
+      const { root, fixture, settle } = await render();
       http
         .expectOne(projectSprintUrl(TC.slug))
         .flush(sprint({ team: team({ state: 'unknown', runLogUrl: null }) }));
       await settle();
-      expect(root.querySelector('[data-testid="runs-empty"]')).not.toBeNull();
-      expect(root.querySelector('[data-testid="runs"] tc-list')).toBeNull();
+
+      const lane = root.querySelector('[data-testid="runs"]') as HTMLElement;
+      const block = lane.querySelector('[data-testid="runs-unavailable"]') as HTMLElement;
+      expect(lane.querySelector('[data-testid="runs-empty"]')).toBeNull();
+      expect(block.querySelector('.tc-state-block__title')?.textContent?.trim()).toBe('Журнал прогонов недоступен');
+      expect(block.querySelector('.tc-state-block__description')?.textContent).toContain('«Команды»');
+      // Not the empty kind's check: the same question mark as an unknown run.
+      const unknownGlyph = TestBed.createComponent(Icon);
+      unknownGlyph.componentRef.setInput('name', 'question');
+      unknownGlyph.detectChanges();
+      const expected = (unknownGlyph.nativeElement as HTMLElement).querySelector('path')?.getAttribute('d');
+      expect(block.querySelector('tc-icon path')?.getAttribute('d')).toBe(expected);
+      expect(lane.querySelector('tc-list')).toBeNull();
+
+      TestBed.inject(TranslocoService).setActiveLang('en');
+      await settle();
+      fixture.detectChanges();
+      expect(block.querySelector('.tc-state-block__title')?.textContent?.trim()).toBe('Run log unavailable');
     });
   });
 

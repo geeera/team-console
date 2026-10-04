@@ -311,7 +311,9 @@
     "runs": {
       "title": "Recent runs",
       "empty": "No runs yet",
-      "log": "Full run log"
+      "log": "Full run log",
+      "unavailable": "Run log unavailable",
+      "unavailableHint": "The run log couldn't be read, or someone outside the team opened it. Reload the board later, or check the run log in the Commands panel."
     },
     "opensGitHub": "(opens on GitHub)",
     "pulls": "Open pull requests",
@@ -907,7 +909,9 @@
       "emptyDescription": "All team questions are closed. Check back later.",
       "errorTitle": "Couldn't load projects",
       "errorDescription": "GitHub didn't respond. Check your connection and try again.",
-      "compactEmptyTitle": "This column is empty"
+      "compactEmptyTitle": "This column is empty",
+      "unavailableTitle": "Couldn't be read",
+      "unavailableDescription": "The source didn't answer, or it can't be trusted."
     },
     "sheet": {
       "paused": "Paused",

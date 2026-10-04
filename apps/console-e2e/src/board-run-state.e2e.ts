@@ -58,13 +58,13 @@ async function fakePost(stack: Stack, path: string, body: unknown): Promise<void
   expect(response.ok, `fake GitHub ${path}: ${await response.text()}`).toBe(true);
 }
 
-/** Serves the run log thread from the fake GitHub, reset to `entries`. */
-async function seedRunLog(stack: Stack, entries: readonly Entry[]): Promise<void> {
+/** Serves the run log thread from the fake GitHub, opened by `logAuthor`, reset to `entries`. */
+async function seedRunLog(stack: Stack, entries: readonly Entry[], logAuthor = 'geeera'): Promise<void> {
   await fakePost(stack, '/_fake/issue', {
     repo: REPO,
     number: LOG,
     title: 'Team run log',
-    author: 'geeera',
+    author: logAuthor,
     labels: ['team:run-log'],
     repoOwner: { login: 'geeera', id: 100001 },
   });
@@ -173,5 +173,41 @@ test.describe('dark theme', () => {
     await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark');
     await page.getByTestId('runs').scrollIntoViewIfNeeded();
     await expectAccessible(page, 'Project board with the run state (dark)');
+  });
+});
+
+// #201: a run log the board cannot trust (opened by someone outside the team; a refused read or the budget end the
+// same way) is "unavailable" with a question mark, never "no runs yet" with a check.
+test.describe('a run log opened by someone outside the team', () => {
+  test.beforeAll(async ({ stack }) => {
+    await seedRunLog(stack, ENTRIES, 'outsider');
+    if (stack.isLocal) {
+      // A fresh isolate: no run state cached from the tests above.
+      await seed(stack, [REPO]);
+    }
+  });
+
+  test('the tile is unknown and the lane says the run log is unavailable', async ({ page, request }) => {
+    // A running target may still hold the run state it read before the seed: the read cache keeps it 30 s.
+    test.setTimeout(60_000);
+    const stateOf = async (): Promise<string> =>
+      ((await (await request.get(SPRINT)).json()) as SprintDto).team.state;
+    await expect.poll(stateOf, { timeout: 45_000, intervals: [1_000, 5_000] }).toBe('unknown');
+
+    await page.goto('/p/team-console/board');
+    await expect(page.getByTestId('team-stat')).toHaveAttribute('data-team', 'unknown');
+    await expect(page.getByTestId('team-stat').locator('dd')).toHaveText(ru('board.team.unknown'));
+
+    const lane = page.getByTestId('runs');
+    await lane.scrollIntoViewIfNeeded();
+    const block = lane.getByTestId('runs-unavailable');
+    await expect(block).toContainText(ru('board.runs.unavailable'));
+    await expect(block).toContainText(ru('board.runs.unavailableHint'));
+    await expect(block.locator('tc-icon')).toHaveAttribute('aria-hidden', 'true');
+    await expect(lane.getByTestId('runs-empty')).toHaveCount(0);
+    await expect(lane.getByTestId('run')).toHaveCount(0);
+    await expect(lane.getByRole('link')).toHaveCount(0);
+
+    await expectAccessible(page, 'Project board with the run log unavailable');
   });
 });
