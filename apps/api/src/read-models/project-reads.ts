@@ -152,7 +152,7 @@ export class ProjectReads {
     });
   }
 
-  /** `ProjectDto.embedOrigins` (#20), from the shared project.yml read; a missing or unusable file embeds nothing. */
+  /** `EmbedOriginsDto` (#20), from the shared project.yml read; a missing or unusable file embeds nothing. */
   async embedOrigins(): Promise<string[]> {
     const file = await this.projectYmlFile();
     return file === null || file.text === null ? [] : embedOriginsOf(file.text);

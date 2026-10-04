@@ -10,7 +10,8 @@
 # - The OAuth connect leaves for github.com by a top-level navigation (location.assign), which CSP does not limit;
 #   form-action 'self' only covers form submissions, and the app's forms never navigate.
 # - frame-src: the outer bound for the Designs and Demo frames (#20), the free-tier homes of Storybook, stage and
-#   design pages. The exact gate is ProjectDto.embedOrigins, checked by the app before it renders a frame.
+#   design pages. The exact gate is GET /api/v1/projects/:slug/embed-origins, which the app checks before it
+#   renders a frame.
 # - frame-ancestors 'none' + X-Frame-Options: DENY: nobody may frame the console (clickjacking on one-tap answers).
 /*
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'self' https://*.pages.dev https://*.workers.dev https://*.github.io; frame-ancestors 'none'

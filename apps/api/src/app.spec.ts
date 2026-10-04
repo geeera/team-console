@@ -113,8 +113,6 @@ describe('GET /api/v1/projects', () => {
         addedAt: '2026-09-29T00:00:00Z',
         archivedAt: null,
         slots: { pm: 'missing', dev: 'missing', qa: 'missing' },
-        // No GitHub app credentials in this pool: project.yml cannot be read, so nothing is embeddable.
-        embedOrigins: [],
       },
     ]);
   });

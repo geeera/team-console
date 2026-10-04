@@ -87,9 +87,13 @@ export function parseProjectConfig(text: string): ProjectConfig {
 
 // Far above any real Storybook or stage URL; a longer value is not one.
 const MAX_EMBED_URL_LENGTH = 2048;
+// The URL parser lowercases and punycodes hosts; anything outside this set (`*`, `_`, brackets of an IPv6 literal)
+// is not a host the console frames.
+const EMBED_HOST = /^[a-z0-9.-]+$/;
 
 /**
- * The origin a console frame may load (#20): an absolute `https:` URL without credentials, reduced to its origin.
+ * The origin a console frame may load (#20): an absolute `https:` URL without credentials, whose host is plain
+ * DNS characters without a trailing dot, reduced to its origin.
  * Anything else, including a non-string, is `null`.
  */
 export function embedOriginOf(value: unknown): string | null {
@@ -101,7 +105,13 @@ export function embedOriginOf(value: unknown): string | null {
     return null;
   }
   const url = new URL(text);
-  if (url.protocol !== 'https:' || url.hostname === '' || url.username !== '' || url.password !== '') {
+  if (
+    url.protocol !== 'https:' ||
+    !EMBED_HOST.test(url.hostname) ||
+    url.hostname.endsWith('.') ||
+    url.username !== '' ||
+    url.password !== ''
+  ) {
     return null;
   }
   return url.origin;
@@ -125,7 +135,7 @@ const EMBED_URL_FIELDS: readonly (readonly string[])[] = [
 ];
 
 /**
- * `ProjectDto.embedOrigins` (#20): the origins of `design.storybook_url` and `environments.stage.url`, deduplicated.
+ * `EmbedOriginsDto` (#20): the origins of `design.storybook_url` and `environments.stage.url`, deduplicated.
  * Lenient on purpose: an unusable file or field means "nothing to embed", never an error, so the registry and the
  * read models that share the file keep answering.
  */
