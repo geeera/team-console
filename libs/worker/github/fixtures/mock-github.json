@@ -110,6 +110,9 @@
             },
             {
               "name": "owner:design"
+            },
+            {
+              "name": "e2e:fixture"
             }
           ],
           "author_association": "CONTRIBUTOR",
@@ -129,6 +132,9 @@
           "labels": [
             {
               "name": "kind:question"
+            },
+            {
+              "name": "e2e:fixture"
             }
           ],
           "author_association": "NONE",
@@ -335,6 +341,9 @@
             },
             {
               "name": "owner:scope"
+            },
+            {
+              "name": "e2e:fixture"
             }
           ],
           "author_association": "OWNER",
