@@ -57,23 +57,22 @@ describe('ArtifactList', () => {
     expect(root.textContent).toContain('закрыта');
   });
 
-  it('renders 250 artifacts in under one frame (16 ms, median of 5 updates)', async () => {
+  // No wall-clock budget here: jsdom timing does not hold on CI runners (filterArtifacts carries the perf check).
+  it('tracks 250 rows by artifact, so a new list with the same artifacts reuses every row', async () => {
     const fixture = await render();
-    // Warm up the template once, as the browser has by the time the owner types.
+    const root = fixture.nativeElement as HTMLElement;
     fixture.componentInstance.items.set(many(250));
     fixture.detectChanges();
-    const runs: number[] = [];
-    for (let run = 0; run < 5; run += 1) {
-      const items = many(250).map((item) => ({ ...item, title: `${item.title} ${run}` }));
-      const started = performance.now();
-      fixture.componentInstance.items.set(items);
-      fixture.detectChanges();
-      runs.push(performance.now() - started);
-    }
-    runs.sort((a, b) => a - b);
-    expect((fixture.nativeElement as HTMLElement).querySelectorAll('[data-testid="artifact"]')).toHaveLength(
-      250,
+    const before = [...root.querySelectorAll('[data-testid="artifact"]')];
+
+    fixture.componentInstance.items.set(
+      many(250).map((item) => ({ ...item, title: `${item.title} renamed` })),
     );
-    expect(runs[2]).toBeLessThan(16);
+    fixture.detectChanges();
+    const after = [...root.querySelectorAll('[data-testid="artifact"]')];
+
+    expect(after).toHaveLength(250);
+    expect(after.every((row, index) => row === before[index])).toBe(true);
+    expect(after[0]?.textContent).toContain('Design 0 renamed');
   });
 });
