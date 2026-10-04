@@ -42,7 +42,8 @@ export function createProjectReadModelRoutes(github: ApiGitHub): Hono<WorkerHono
       if (reads instanceof Response) {
         return reads;
       }
-      const body: EmbedOriginsDto = { embedOrigins: await reads.embedOrigins() };
+      // The SPA and the api share one origin per environment, so the request's origin is the console's own.
+      const body: EmbedOriginsDto = { embedOrigins: await reads.embedOrigins(new URL(c.req.url).origin) };
       return c.json(body);
     });
 }

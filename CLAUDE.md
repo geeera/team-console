@@ -101,7 +101,7 @@ never sent to the Worker), `@console/entities/project` (`ProjectsStore` — `rea
 guard; `NeedsYouCounts` polls `GET /api/v1/needs-you` per minute while visible; `spaceUrlOf`/`spaceLocationOf`),
 `@console/features/project-switcher` (pinned first, the rest collapsible, badge), `@console/widgets/app-shell` (sidebar
 ≥ 900 px, top bar + `Sheet` below; owns the scrolling `<main>` and restores its position per project screen), pages
-`project-space` (tabs + section placeholders; `?e2e-tall=1` renders 60 rows in dev builds), `project-not-found`,
+`project-space` (tabs; every section maps to its page in `SECTION_PAGES`; chat is still a placeholder), `project-not-found`,
 `needs-you`, `overview`, `settings` (language switch). Routes and the two guards live in `apps/console/src/app/`.
 
 Questions (#16): `@console/entities/question` (read-model guards, `QuestionsApi`, `QuestionCard` — issue text only by
@@ -124,6 +124,21 @@ reads decisions (`decisions_dir` listing + first `#` heading, ≤ 30 file reads)
 readers in `@worker/read-models` `lib/artifacts/` (snapshot `fixtures/artifacts_snapshot.py`). Console:
 `@console/entities/artifact` (`ArtifactsStore`, `ArtifactList`), `@console/features/artifact-search`
 (`filterArtifacts`, `ArtifactSearch`), page `ArtifactsSectionPage` (`?type=&q=`, mirrored to `artifactFilter`).
+
+Designs and demo (#20): `/p/:slug/demo` (`DemoSectionPage`) lists the `design` and `release` sections of
+`GET /projects/:slug/questions` through `QuestionList` (`sections`, `embedOrigins`) and answers them with the same
+`AnswerQuestion` and answer route. With `embedOrigins`, a team-authored item's `QuestionCard` renders its body through
+`<tc-markdown>` (`@console/shared/markdown`; it lazy-loads `renderMarkdown` — `marked` + DOMPurify, allow-listed
+tags/attributes, https/mailto/# links only, images become links labelled through i18n, every link `target=_blank
+rel="noopener noreferrer"`; never bypass Angular's sanitiser; the barrel must not import the renderer statically, so
+Questions and Needs you never download it) and previews the body's first link (`previewTargetOf`) in the kit `Frame`.
+Items from outside the team stay plain text with no preview. `Frame` is the only place a frame `src` is built:
+`frameSrcOf` (kit `frame/frame-src.ts`) requires https, no credentials, a DNS host outside IP/loopback inside the
+`_headers` `frame-src` families (no `'self'` there), never the console's own origin, and `new URL(src).origin` exactly
+in `GET /projects/:slug/embed-origins` (`EmbedOriginsApi`: `design.storybook_url` only — stage is link-only because it
+sits behind Cloudflare Access, owner decision 2026-10-05 on #188 — and never the request's own origin); the
+sandbox never has `allow-top-navigation`, `referrerpolicy="no-referrer"`, no `allow`. Anything else is a "can't be
+shown here" note with an Open link.
 
 All projects (#27, read-only): `GET /api/v1/overview` (`routes/overview.ts`) builds one row per active project from the
 same cached reads (`buildOverviewRow` in `@worker/read-models`; team state by `team/team-health.ts` from the run log's

@@ -329,15 +329,24 @@ describe('GET /api/v1/projects/:slug/embed-origins (#20)', () => {
     'name: x\ndesign:\n  storybook_url: https://storify.pages.dev/?path=/docs\n' +
     'environments:\n  stage:\n    url: http://stage.storify.workers.dev\n  production:\n    url: https://storify.example\n';
 
-  it('answers the https origins of design.storybook_url and environments.stage.url only', async () => {
+  it('answers the https origin of design.storybook_url only; stage is link-only', async () => {
     const { github } = setup({ issues: OPEN_ISSUES, projectYml: EMBED_YML });
     const response = await fetchApi('/api/v1/projects/tc/embed-origins', localEnv(), { github });
 
     expect(response.status).toBe(200);
-    // The stage URL is plain http, so only the Storybook origin can be framed.
     await expect(response.json()).resolves.toEqual({
       embedOrigins: ['https://storify.pages.dev'],
     } satisfies EmbedOriginsDto);
+  });
+
+  it("never answers the console's own origin, even when project.yml names it", async () => {
+    const yml = 'name: x\ndesign:\n  storybook_url: https://team-console-stage.geeera.workers.dev/storybook/\n';
+    const { github } = setup({ issues: OPEN_ISSUES, projectYml: yml });
+    const response = await fetchApi('/api/v1/projects/tc/embed-origins', localEnv(), {
+      github,
+      origin: 'https://team-console-stage.geeera.workers.dev',
+    });
+    await expect(response.json()).resolves.toEqual({ embedOrigins: [] } satisfies EmbedOriginsDto);
   });
 
   it('embeds nothing when project.yml is missing', async () => {
@@ -387,6 +396,9 @@ describe('mock mode (local only) serves the product-shaped fixtures', () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as InboxDto;
     expect(body.items.map((item) => [item.section, item.number, item.authorTrusted])).toEqual([
+      ['release', 90005, true],
+      ['design', 90004, true],
+      ['design', 90006, true],
       ['question', 72, true],
       ['question', 90001, false],
       ['question', 90002, true],
@@ -394,5 +406,14 @@ describe('mock mode (local only) serves the product-shaped fixtures', () => {
       ['owner', 46, true],
     ]);
     expect(body.setup).toBe(false);
+  });
+
+  it('answers the fixture project.yml Storybook origin, not stage, for the Designs and demo screen (#20)', async () => {
+    const response = await fetchApi('/api/v1/projects/tc/embed-origins', localEnv({ GITHUB_MOCK: 'true' }), {
+      github: new ApiGitHub(),
+    });
+    await expect(response.json()).resolves.toEqual({
+      embedOrigins: ['https://team-console-storybook.pages.dev'],
+    } satisfies EmbedOriginsDto);
   });
 });
