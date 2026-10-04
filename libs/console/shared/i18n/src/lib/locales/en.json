@@ -33,8 +33,7 @@
     "placeholderTitle": "Coming soon",
     "placeholderHint": "The “{{section}}” section arrives in a later sprint.",
     "draftLabel": "Message to the PM",
-    "draftHint": "The draft stays on this device only.",
-    "tallRow": "Row {{n}}"
+    "draftHint": "The draft stays on this device only."
   },
   "notFound": {
     "projectTitle": "Project not found",
@@ -169,7 +168,8 @@
       "project-config-invalid": "project.yml can't be read",
       "github-rate-limit": "GitHub asks to wait",
       "other": "GitHub didn't respond"
-    }
+    },
+    "preview": "Preview for #{{n}}"
   },
   "answer": {
     "command": {
@@ -809,6 +809,15 @@
     },
     "field": {
       "optional": "optional"
+    },
+    "frame": {
+      "open": "Open in a new tab",
+      "newTab": "(new tab)",
+      "refusedTitle": "This page can't be shown in the console",
+      "refusedHint": "It can only be opened in a new tab."
+    },
+    "markdown": {
+      "image": "image"
     }
   },
   "stories": {
@@ -993,6 +1002,16 @@
     },
     "meter": {
       "done": "{{done}} of {{total}} done"
+    },
+    "frame": {
+      "title": "Preview"
     }
+  },
+  "review": {
+    "lead": "Designs waiting for your approval and the open sprint demo.",
+    "listLabel": "Designs and demo for your decision",
+    "emptyTitle": "No designs to approve and no open demo right now",
+    "emptyHint": "When the team sends a design or opens a demo, it shows up here.",
+    "originsFailed": "Couldn't read the project's Storybook address, so previews are shown as links."
   }
 }

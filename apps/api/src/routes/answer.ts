@@ -17,7 +17,7 @@ import {
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import { OwnWritesRepo, type OwnWrite } from '@worker/db';
 import { githubPath, type RepoName } from '@worker/github';
-import { ownerOnlyMiddleware } from '../auth/owner-only.middleware';
+import { refuseServiceWrite } from '../auth/service-write-gate';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub, GitHubConnection } from '../github';
 import { jsonBody } from '../json-body';
@@ -46,6 +46,8 @@ interface ParsedAnswer {
 interface GitHubIssue {
   readonly state: string;
   readonly labels: readonly unknown[];
+  /** `null` for a deleted account; only the service-identity gate reads it. */
+  readonly user?: unknown;
 }
 
 interface GitHubComment {
@@ -73,6 +75,17 @@ function labelNames(issue: GitHubIssue): string[] {
     }
     return isRecord(label) && typeof label['name'] === 'string' ? [label['name']] : [];
   });
+}
+
+function authorOf(issue: GitHubIssue): { authorLogin: string | null; authorType: string | null } {
+  const user = issue.user;
+  if (!isRecord(user)) {
+    return { authorLogin: null, authorType: null };
+  }
+  return {
+    authorLogin: typeof user['login'] === 'string' ? user['login'] : null,
+    authorType: typeof user['type'] === 'string' ? user['type'] : null,
+  };
 }
 
 /** `AnswerRequest`, or why not. Nothing of the input is echoed back. */
@@ -142,13 +155,13 @@ async function writeAsOwner(
 /**
  * `POST /api/v1/projects/:slug/issues/:number/answer` (#10): the owner's answer to an issue in their inbox, written
  * as the plugin's `backlog answer` writes it, as the owner. Behind Access and CSRF like every `/api` route, and
- * owner-only: the CI service identity is refused in every environment until #62's fixture-label rule exists.
+ * owner-grade: the dev/stage CI service identity answers only on an `e2e:fixture` issue that is not a release, a
+ * design or a question the team asked (#62), decided on the live labels before the owner token is touched.
  * Section and allowed commands come from the live issue, never from the client; nothing is written on any 4xx.
  */
 export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>().post(
     '/:slug/issues/:number/answer',
-    ownerOnlyMiddleware,
     bodyLimit({ maxSize: MAX_BODY_BYTES }),
     async (c) => {
       const logger = c.get('logger');
@@ -170,12 +183,18 @@ export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv
         return invalid(c, request);
       }
 
-      // Uncached on purpose: a stale label set could accept a command the issue no longer takes.
+      // Uncached on purpose: a stale label set could accept a command the issue no longer takes, or let the service
+      // identity past the fixture gate on an issue that just lost `e2e:fixture`.
       const installation = await github.connect(c.env);
       const issue = await repositoryClient(installation, repo).getJson(
         githubPath`/repos/${repo}/issues/${number}`,
         isIssue,
       );
+      const labels = labelNames(issue);
+      const refused = refuseServiceWrite(c, { labels, ...authorOf(issue) }, repo);
+      if (refused !== null) {
+        return refused;
+      }
       if (issue.state !== 'open') {
         return problem(c, {
           type: 'issue-closed',
@@ -184,7 +203,6 @@ export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv
           detail: 'Nothing is waiting for an answer on a closed issue',
         });
       }
-      const labels = labelNames(issue);
       const section = sectionOf(labels, kindOf(labels));
       let body: string;
       try {

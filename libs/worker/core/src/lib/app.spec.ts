@@ -1,6 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
 import { PROBLEM_TYPE_PREFIX, isProblemDetails } from '@shared/contracts';
-import { createWorkerApp } from './app';
+import { createWorkerApp, markAssetResponse } from './app';
 import type { WorkerBaseEnv } from './env';
 import { problem } from './problem';
 
@@ -184,5 +184,57 @@ describe('createWorkerApp', () => {
     const response = await build().request('/replaces-type', {}, env);
     expect(response.status).toBe(500);
     expect((await problemOf(response)).type).toBe(`${PROBLEM_TYPE_PREFIX}internal`);
+  });
+});
+
+describe('security headers (#126)', () => {
+  it('sets nosniff and the deny-all CSP on a success response', async () => {
+    const response = await build().request('/ok', {}, env);
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
+  });
+
+  it('sets the same headers on a Problem Details 404 and 500', async () => {
+    const notFound = await build().request('/nope', {}, env);
+    expect(notFound.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(notFound.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
+
+    const internal = await build().request('/boom', {}, env);
+    expect(internal.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(internal.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
+  });
+
+  it('keeps a header a route set itself instead of overwriting it', async () => {
+    const app = createWorkerApp<WorkerBaseEnv>({ service: 'test' });
+    app.get('/custom', (c) => c.body(null, 200, { 'X-Content-Type-Options': 'custom-value' }));
+    const response = await app.request('/custom', {}, env);
+    expect(response.headers.get('x-content-type-options')).toBe('custom-value');
+  });
+
+  it('adds Cache-Control: no-store only when noStore is turned on, unless a route set one', async () => {
+    const plain = createWorkerApp<WorkerBaseEnv>({ service: 'test' });
+    plain.get('/ok', (c) => c.json({ ok: true }));
+    const plainResponse = await plain.request('/ok', {}, env);
+    expect(plainResponse.headers.get('cache-control')).toBeNull();
+
+    const noStoreApp = createWorkerApp<WorkerBaseEnv>({ service: 'test', noStore: true });
+    noStoreApp.get('/ok', (c) => c.json({ ok: true }));
+    noStoreApp.get('/own', (c) => c.json({ ok: true }, 200, { 'Cache-Control': 'max-age=60' }));
+    const noStoreResponse = await noStoreApp.request('/ok', {}, env);
+    expect(noStoreResponse.headers.get('cache-control')).toBe('no-store');
+    const ownResponse = await noStoreApp.request('/own', {}, env);
+    expect(ownResponse.headers.get('cache-control')).toBe('max-age=60');
+  });
+
+  it('leaves a response marked with markAssetResponse untouched', async () => {
+    const app = createWorkerApp<WorkerBaseEnv>({
+      service: 'test',
+      noStore: true,
+      notFound: () => markAssetResponse(new Response('<html>spa</html>', { headers: { 'Content-Type': 'text/html' } })),
+    });
+    const response = await app.request('/anything', {}, env);
+    expect(response.headers.get('x-content-type-options')).toBeNull();
+    expect(response.headers.get('content-security-policy')).toBeNull();
+    expect(response.headers.get('cache-control')).toBeNull();
   });
 });

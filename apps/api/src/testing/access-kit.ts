@@ -133,6 +133,8 @@ export interface ApiRequest {
   readonly method?: string;
   readonly headers?: Record<string, string>;
   readonly body?: string;
+  /** The origin the request is sent to (default `http://api.test`), for routes that read their own origin. */
+  readonly origin?: string;
   readonly logSink?: (line: string) => void;
   /** Shared across calls so the token and read caches behave as in one isolate. */
   readonly github?: ApiGitHub;
@@ -163,7 +165,7 @@ export async function fetchApi(path: string, bindings: ApiEnv, request: ApiReque
   if (request.body !== undefined) {
     init.body = request.body;
   }
-  const response = await app.fetch(new Request(`http://api.test${path}`, init), bindings, ctx);
+  const response = await app.fetch(new Request(`${request.origin ?? 'http://api.test'}${path}`, init), bindings, ctx);
   await waitOnExecutionContext(ctx);
   return response;
 }

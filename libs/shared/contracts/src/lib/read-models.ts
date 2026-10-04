@@ -107,7 +107,8 @@ export interface SprintPullRequestDto {
 
 /**
  * `GET /api/v1/projects/:slug/embed-origins` (#20): the only origins the console may frame for this project, those of
- * `design.storybook_url` and `environments.stage.url` in its project.yml, `https:` only, as exact origins. Read per
+ * `design.storybook_url` in its project.yml (stage is link-only: it is behind Cloudflare Access, owner decision
+ * 2026-10-05), `https:` only, never the console's own origin, as exact origins. Read per
  * project when a space needs it, never on the registry list.
  */
 export interface EmbedOriginsDto {

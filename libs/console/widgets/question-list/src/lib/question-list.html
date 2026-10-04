@@ -49,11 +49,11 @@
 <tc-state-block
   kind="empty"
   data-testid="empty"
-  [title]="(isAllProjects() ? 'needsYou.emptyTitle' : 'questions.emptyTitle') | transloco"
-  [description]="'needsYou.emptyHint' | transloco"
+  [title]="emptyTitle() || ((isAllProjects() ? 'needsYou.emptyTitle' : 'questions.emptyTitle') | transloco)"
+  [description]="emptyHint() || ('needsYou.emptyHint' | transloco)"
 />
 } @else {
-<ul class="questions__list" [attr.aria-label]="'questions.listLabel' | transloco">
+<ul class="questions__list" [attr.aria-label]="listLabel() || ('questions.listLabel' | transloco)">
   @for (row of rows(); track row.key) {
   <li class="questions__row" [attr.data-row]="row.key" [attr.data-number]="row.item.number">
     @if (row.answer === null || row.stamping) {
@@ -61,6 +61,7 @@
       [item]="row.item"
       [showProject]="isAllProjects()"
       [stamp]="row.answer !== null ? toneOf(row.answer.command) : null"
+      [embedOrigins]="embedOrigins()"
     >
       @if (row.answer === null) {
       <tc-answer-question
