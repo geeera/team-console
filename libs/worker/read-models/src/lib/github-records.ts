@@ -14,6 +14,8 @@ export interface IssueRecord extends IssueAuthor {
   readonly labels: readonly string[];
   /** The issues API lists pull requests too; the plugin drops them (`"pull_request" not in i`). */
   readonly isPullRequest: boolean;
+  /** ISO timestamp as GitHub sends it; `null` when the answer has none. */
+  readonly updatedAt: string | null;
 }
 
 export interface MilestoneRecord {
@@ -99,6 +101,7 @@ export function issueRecordOf(raw: JsonRecord): IssueRecord {
     labels,
     ...authorOf(raw),
     isPullRequest: raw['pull_request'] !== undefined && raw['pull_request'] !== null,
+    updatedAt: typeof raw['updated_at'] === 'string' ? raw['updated_at'] : null,
   };
 }
 

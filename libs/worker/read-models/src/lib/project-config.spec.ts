@@ -80,3 +80,27 @@ describe('parseProjectConfig (#9 threat row 9)', () => {
     expect(failureOf(text)).toBe('schema');
   });
 });
+
+describe('parseProjectConfig: the artifact fields (#19)', () => {
+  it('reads decisions_dir, defaulting to docs/decisions and dropping a trailing slash', () => {
+    expect(parseProjectConfig('name: x\n').decisionsDir).toBe('docs/decisions');
+    expect(parseProjectConfig('decisions_dir: docs/adr/\n').decisionsDir).toBe('docs/adr');
+  });
+
+  it.each([
+    ['a traversal', 'decisions_dir: docs/../../x\n'],
+    ['an absolute path', 'decisions_dir: /etc\n'],
+    ['a query', 'decisions_dir: "docs?ref=x"\n'],
+    ['a number', 'decisions_dir: 7\n'],
+  ])('reads %s in decisions_dir as unusable, without failing the config', (_label, text) => {
+    expect(parseProjectConfig(text).decisionsDir).toBeNull();
+  });
+
+  it('keeps design.storybook_url only when it is a github.com page', () => {
+    expect(
+      parseProjectConfig("design:\n  storybook_url: 'https://github.com/o/r/tree/main/sb'\n").storybookUrl,
+    ).toBe('https://github.com/o/r/tree/main/sb');
+    expect(parseProjectConfig("design:\n  storybook_url: 'https://sb.example'\n").storybookUrl).toBeNull();
+    expect(parseProjectConfig("design:\n  storybook_url: ''\n").storybookUrl).toBeNull();
+  });
+});

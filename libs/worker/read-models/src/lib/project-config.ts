@@ -1,4 +1,5 @@
 import { parseDocument } from 'yaml';
+import { githubUrlOrNull } from './untrusted-text';
 
 /**
  * `.product-team/project.yml` is written by agents and collaborators, so it is untrusted (#9 threat row 9): it is
@@ -20,6 +21,38 @@ export class ProjectConfigError extends Error {
 export interface ProjectConfig {
   /** `team.reviewer_logins`: accounts that review for the team; empty while the agents may act as the owner. */
   readonly reviewerLogins: readonly string[];
+  /**
+   * `decisions_dir` (the plugin's default `docs/decisions` when absent); `null` when the value is not a plain
+   * relative path. Only the Artifacts space reads it, so a bad value costs that list, never the inbox.
+   */
+  readonly decisionsDir?: string | null;
+  /** `design.storybook_url` when it is a github.com page, else `null` (the console links to github.com only). */
+  readonly storybookUrl?: string | null;
+}
+
+export const DEFAULT_DECISIONS_DIR = 'docs/decisions';
+
+// Relative, plain segments only: the path is sent to the Contents API and must not walk out of the repository.
+const REPO_DIR = /^[A-Za-z0-9_][A-Za-z0-9._-]*(?:\/[A-Za-z0-9_][A-Za-z0-9._-]*)*$/;
+const REPO_DIR_MAX_LENGTH = 200;
+
+function decisionsDirOf(root: Readonly<Record<string, unknown>>): string | null {
+  const value = root['decisions_dir'];
+  if (value === undefined || value === null || value === '') {
+    return DEFAULT_DECISIONS_DIR;
+  }
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const dir = value.replace(/\/+$/, '');
+  const isPlain = dir.length <= REPO_DIR_MAX_LENGTH && REPO_DIR.test(dir) && !dir.split('/').includes('..');
+  return isPlain ? dir : null;
+}
+
+function storybookUrlOf(root: Readonly<Record<string, unknown>>): string | null {
+  const design = root['design'];
+  const url = isPlainObject(design) ? design['storybook_url'] : undefined;
+  return typeof url === 'string' ? githubUrlOrNull(url) : null;
 }
 
 // A GitHub login, or an app's bot login (`name[bot]`).
@@ -77,5 +110,9 @@ export function parseProjectConfig(text: string): ProjectConfig {
   if (!isPlainObject(root)) {
     throw new ProjectConfigError('schema');
   }
-  return { reviewerLogins: reviewerLoginsOf(root) };
+  return {
+    reviewerLogins: reviewerLoginsOf(root),
+    decisionsDir: decisionsDirOf(root),
+    storybookUrl: storybookUrlOf(root),
+  };
 }

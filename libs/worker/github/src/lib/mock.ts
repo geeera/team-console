@@ -86,6 +86,20 @@ function json(status: number, body: unknown, headers: Record<string, string> = {
 
 const notFound = (): Response => json(404, { message: 'Not Found' });
 
+function labelNamesOf(item: Readonly<Record<string, unknown>>): string[] {
+  const labels = item['labels'];
+  if (!Array.isArray(labels)) {
+    return [];
+  }
+  return labels.map((label: unknown) =>
+    typeof label === 'string'
+      ? label
+      : typeof label === 'object' && label !== null
+        ? String((label as Record<string, unknown>)['name'])
+        : '',
+  );
+}
+
 /** One page (the fixtures stay under 100 items) of a list, filtered by `state` and `milestone` as GitHub does. */
 function listOf(
   fixture: MockRepository,
@@ -95,8 +109,13 @@ function listOf(
   const items = fixture[list] ?? [];
   const state = query.get('state') ?? 'open';
   const milestone = query.get('milestone');
+  // GitHub's `labels=a,b` lists items carrying every one of them.
+  const labels = (query.get('labels') ?? '').split(',').filter((label) => label !== '');
   return items.filter((item) => {
     if (state !== 'all' && item['state'] !== state) {
+      return false;
+    }
+    if (labels.length > 0 && !labels.every((label) => labelNamesOf(item).includes(label))) {
       return false;
     }
     if (milestone === null) {
@@ -191,7 +210,7 @@ class MockGitHubServer {
         return json(reply.status, { message: 'mock reply' }, { ...reply.headers });
       }
       if (isContentsRead) {
-        return this.file(found.fixture, segments.slice(4).join('/'));
+        return this.file(found.fixture, segments.slice(4).join('/'), found.name);
       }
       if (isListRead) {
         return json(200, listOf(found.fixture, listed, url.searchParams));
@@ -210,11 +229,14 @@ class MockGitHubServer {
     return notFound();
   }
 
-  /** The contents API's answer for a file: base64 content, as GitHub sends it. */
-  private file(fixture: MockRepository, path: string): Response {
+  /**
+   * The contents API's answer for a file (base64 content, as GitHub sends it) or, for a folder that holds fixture
+   * files, its listing: one entry per file or sub-folder directly inside it.
+   */
+  private file(fixture: MockRepository, path: string, repo: string): Response {
     const text = fixture.files?.[path];
     if (text === undefined) {
-      return notFound();
+      return this.listing(fixture, path, repo);
     }
     const bytes = new TextEncoder().encode(text);
     return json(200, {
@@ -224,6 +246,29 @@ class MockGitHubServer {
       size: bytes.byteLength,
       content: base64Of(bytes),
     });
+  }
+
+  private listing(fixture: MockRepository, path: string, repo: string): Response {
+    const prefix = `${path}/`;
+    const entries = new Map<string, { name: string; path: string; type: 'file' | 'dir' }>();
+    for (const file of Object.keys(fixture.files ?? {})) {
+      if (!file.startsWith(prefix)) {
+        continue;
+      }
+      const [name = '', ...rest] = file.slice(prefix.length).split('/');
+      const type = rest.length === 0 ? 'file' : 'dir';
+      entries.set(name, { name, path: `${prefix}${name}`, type });
+    }
+    if (entries.size === 0) {
+      return notFound();
+    }
+    return json(
+      200,
+      [...entries.values()].map((entry) => ({
+        ...entry,
+        html_url: `https://github.com/${repo}/${entry.type === 'file' ? 'blob' : 'tree'}/dev/${entry.path}`,
+      })),
+    );
   }
 
   /** An issue as GitHub sends it: labels as objects. */

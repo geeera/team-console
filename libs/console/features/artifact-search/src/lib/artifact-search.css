@@ -1,0 +1,21 @@
+:host {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.search__types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.search__count {
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.search__shown {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}

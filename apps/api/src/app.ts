@@ -11,6 +11,7 @@ import { connectedOwnerSource, type OwnerConnectionSource } from './projects/own
 import { createProjectRegistryRoutes } from './routes/project-registry';
 import { createProjectsRoutes } from './routes/projects';
 import { createProjectReadModelRoutes } from './routes/project-read-models';
+import { createArtifactRoutes } from './routes/artifacts';
 import { createNeedsYouRoutes } from './routes/needs-you';
 import { createOverviewRoutes } from './routes/overview';
 import { createTeamCommandsRoutes } from './routes/team-commands';
@@ -66,6 +67,7 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   );
   v1.route('/projects', createProjectsRoutes(github));
   v1.route('/projects', createProjectReadModelRoutes(github));
+  v1.route('/projects', createArtifactRoutes(github));
   v1.route('/needs-you', createNeedsYouRoutes(github));
   v1.route('/overview', createOverviewRoutes(github));
   v1.route('/projects', createAnswerRoutes(github));

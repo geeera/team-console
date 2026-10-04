@@ -7,6 +7,7 @@ import {
   type RepoName,
   type RepoOwner as RepositoryOwner,
 } from '@worker/github';
+import { decodeBase64Text } from '@worker/read-models';
 import type { GitHubConnection } from '../github';
 import { ownerLanguageOf, type OwnerLanguage } from './project-yml';
 
@@ -42,11 +43,6 @@ function isContentsAnswer(value: unknown): value is Record<string, unknown> | un
 
 export function isGitHubProblem(error: unknown, type: string): error is GitHubError {
   return error instanceof GitHubError && error.problem.type === type;
-}
-
-function decodeBase64Text(content: string): string {
-  const bytes = Uint8Array.from(atob(content.replace(/\s/g, '')), (char) => char.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
 }
 
 /** A GitHub failure during a step keeps #9's type and status and gains the step it happened in. */

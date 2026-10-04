@@ -95,7 +95,8 @@ export class ProjectReads {
     return this.github.readCache.getOrFill(key, ttlSeconds, fill);
   }
 
-  private async connect(): Promise<GitHubClient> {
+  /** The read-only client for this project, shared by every read of one request. */
+  async connect(): Promise<GitHubClient> {
     this.client ??= (async () => {
       const { auth, fetch } = this.connection ?? (await this.github.connect(this.env));
       return new GitHubClient(fetch, auth.tokenSourceFor(this.repo));
@@ -165,7 +166,7 @@ export class ProjectReads {
    * The config, size-checked from GitHub's `size` before decoding. A missing file reads as "no reviewers": the setup
    * item stays until it is fixed.
    */
-  private config(): Promise<ProjectConfig> {
+  config(): Promise<ProjectConfig> {
     return this.cached('project-config', CONFIG_TTL_SECONDS, async () => {
       const file = await this.projectYmlFile();
       if (file === null) {
