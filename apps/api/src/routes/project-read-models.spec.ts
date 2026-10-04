@@ -387,6 +387,9 @@ describe('mock mode (local only) serves the product-shaped fixtures', () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as InboxDto;
     expect(body.items.map((item) => [item.section, item.number, item.authorTrusted])).toEqual([
+      ['release', 90005, true],
+      ['design', 90004, true],
+      ['design', 90006, true],
       ['question', 72, true],
       ['question', 90001, false],
       ['question', 90002, true],
@@ -394,5 +397,14 @@ describe('mock mode (local only) serves the product-shaped fixtures', () => {
       ['owner', 46, true],
     ]);
     expect(body.setup).toBe(false);
+  });
+
+  it('answers the fixture project.yml Storybook and stage origins for the Designs and demo screen (#20)', async () => {
+    const response = await fetchApi('/api/v1/projects/tc/embed-origins', localEnv({ GITHUB_MOCK: 'true' }), {
+      github: new ApiGitHub(),
+    });
+    await expect(response.json()).resolves.toEqual({
+      embedOrigins: ['https://team-console-storybook.pages.dev', 'https://team-console-stage.geeera.workers.dev'],
+    } satisfies EmbedOriginsDto);
   });
 });

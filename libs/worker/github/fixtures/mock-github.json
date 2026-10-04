@@ -14,7 +14,7 @@
         }
       },
       "files": {
-        ".product-team/project.yml": "# The product team's contract for this repository (product-team plugin, reference/stack-contract.md).\nname: Team Console\nrepo: geeera/team-console\nmode: new\nstack: >\n  Nx monorepo — Angular 22 PWA (apps/console, FSD libs), Cloudflare Workers with Hono (apps/api, apps/hooks),\n  D1, Cloudflare Access, Playwright. See docs/decisions/0001-stack-and-architecture.md.\ndecisions_dir: docs/decisions\n\n# Node 22 (.nvmrc) and npm. `e2e` and `storybook` are added by #14 and #13; until then they exit 0\n# so the contract stays runnable, but print an explicit SKIPPED line so the output cannot be read\n# as a passing run. The PRs for #14 / #13 must replace them with the real commands.\ncommands:\n  install: npm ci\n  lint: npx nx run-many -t lint\n  test: npx nx run-many -t test\n  build: npx nx run-many -t build\n  e2e: 'echo \"SKIPPED: no e2e tests ran — apps/console-e2e arrives with #14; this is NOT a pass\"'\n  storybook: npx nx build-storybook console-shared-ui\n\nenvironments:\n  dev:\n    url: ''\n  stage:\n    url: ''\n  production:\n    url: ''\n\ndesign:\n  tokens:\n    - libs/console/shared/ui/src/tokens/tokens.css\n  storybook_url: ''\n\nsprint:\n  length_days: 14\n  freeze_days: 2\n\ncaps: {}\n\nreview:\n  qa: always                 # QA on every PR (owner decision 2026-09-30)\n  reviewer: code             # code review only when the PR changes a path below\n  code_paths: [\"apps/**\", \"libs/**\", \"tools/**\"]\n  max_rework_rounds: 1       # guidance: after one rework round only blockers go back; the rest become follow-ups\n\nteam:\n  plugin_ref: stable\n  reviewer_logins: ['team-console-review[bot]']\n  run_log_issue: 22\n\nowner:\n  language: ru\n  timezone: Europe/Kyiv\n",
+        ".product-team/project.yml": "# The product team's contract for this repository (product-team plugin, reference/stack-contract.md).\nname: Team Console\nrepo: geeera/team-console\nmode: new\nstack: >\n  Nx monorepo — Angular 22 PWA (apps/console, FSD libs), Cloudflare Workers with Hono (apps/api, apps/hooks),\n  D1, Cloudflare Access, Playwright. See docs/decisions/0001-stack-and-architecture.md.\ndecisions_dir: docs/decisions\n\n# Node 22 (.nvmrc) and npm. `e2e` and `storybook` are added by #14 and #13; until then they exit 0\n# so the contract stays runnable, but print an explicit SKIPPED line so the output cannot be read\n# as a passing run. The PRs for #14 / #13 must replace them with the real commands.\ncommands:\n  install: npm ci\n  lint: npx nx run-many -t lint\n  test: npx nx run-many -t test\n  build: npx nx run-many -t build\n  e2e: 'echo \"SKIPPED: no e2e tests ran — apps/console-e2e arrives with #14; this is NOT a pass\"'\n  storybook: npx nx build-storybook console-shared-ui\n\nenvironments:\n  dev:\n    url: ''\n  stage:\n    url: 'https://team-console-stage.geeera.workers.dev'\n  production:\n    url: ''\n\ndesign:\n  tokens:\n    - libs/console/shared/ui/src/tokens/tokens.css\n  storybook_url: 'https://team-console-storybook.pages.dev'\n\nsprint:\n  length_days: 14\n  freeze_days: 2\n\ncaps: {}\n\nreview:\n  qa: always                 # QA on every PR (owner decision 2026-09-30)\n  reviewer: code             # code review only when the PR changes a path below\n  code_paths: [\"apps/**\", \"libs/**\", \"tools/**\"]\n  max_rework_rounds: 1       # guidance: after one rework round only blockers go back; the rest become follow-ups\n\nteam:\n  plugin_ref: stable\n  reviewer_logins: ['team-console-review[bot]']\n  run_log_issue: 22\n\nowner:\n  language: ru\n  timezone: Europe/Kyiv\n",
         "docs/decisions/0001-stack-and-architecture.md": "# 0001 — Stack and architecture\n\nA snapshot stub of the decision record (mock GitHub, #19).\n",
         "docs/decisions/0002-visual-direction.md": "# ADR 0002: Visual direction — Paper Desk\n\nA snapshot stub of the decision record (mock GitHub, #19).\n",
         "docs/decisions/0003-console-github-app.md": "# 0003 — The console's GitHub identity: a GitHub App per environment, owner writes on the owner's own token\n\nA snapshot stub of the decision record (mock GitHub, #19).\n",
@@ -32,6 +32,72 @@
         "docs/design/references.md": "# References\n"
       },
       "issues": [
+        {
+          "number": 90006,
+          "title": "Дизайн: онбординг (прототип вне Storybook)",
+          "body": "**Your answer:** /approve онбординг · /reject что поменять\n<!-- pt-ask -->\n\nПрототип лежит в другом проекте: https://storify-proto.pages.dev/onboarding\n",
+          "html_url": "https://github.com/geeera/team-console/issues/90006",
+          "state": "open",
+          "labels": [
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "design:awaiting-approval"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "updated_at": "2026-10-04T09:00:00Z"
+        },
+        {
+          "number": 90005,
+          "title": "Демо спринта 01",
+          "body": "**Your answer:** /go (рекомендую) · /no-go что доделать\n<!-- pt-ask -->\n\n## Что вошло\n\n- Вопросы и «Ждут вас»\n- Доска спринта\n- Артефакты\n\nStage: [team-console-stage](https://team-console-stage.geeera.workers.dev/)\n\n| Проверка | Итог |\n|---|---|\n| e2e | зелёный |\n| axe | без нарушений |\n",
+          "html_url": "https://github.com/geeera/team-console/issues/90005",
+          "state": "open",
+          "labels": [
+            {
+              "name": "team:demo"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "updated_at": "2026-10-04T09:00:00Z"
+        },
+        {
+          "number": 90004,
+          "title": "Дизайн #20: экран дизайна и демо",
+          "body": "**Your answer:** /approve экран (рекомендую) · /reject что поменять\n<!-- pt-ask -->\n\nПрототип: [карточки и предпросмотр](https://team-console-storybook.pages.dev/iframe.html?id=kit-frame--embedded&viewMode=story)\n\nPR: https://github.com/geeera/team-console/pull/176\n\n<img src=x onerror=\"window.__pwned=1\"> <iframe src=\"https://evil.pages.dev\"></iframe> [ссылка](javascript:alert(1))\n\n**Architect note**\n",
+          "html_url": "https://github.com/geeera/team-console/issues/90004",
+          "state": "open",
+          "labels": [
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "design:awaiting-approval"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "updated_at": "2026-10-04T09:00:00Z"
+        },
         {
           "number": 90002,
           "title": "Макет #24 на утверждение: подключение GitHub и проекты",

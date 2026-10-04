@@ -14,6 +14,8 @@ export type { CardStamp } from './lib/card/card';
 export { Chip } from './lib/chip/chip';
 export type { ChipTone } from './lib/chip/chip';
 export { Field, FieldControl } from './lib/field/field';
+export { Frame } from './lib/frame/frame';
+export { FRAME_HOST_SUFFIXES, externalHrefOf, frameSrcOf } from './lib/frame/frame-src';
 export { Icon } from './lib/icon/icon';
 export type { IconName, IconSize } from './lib/icon/icon';
 export { Lane, Lanes } from './lib/lane/lane';

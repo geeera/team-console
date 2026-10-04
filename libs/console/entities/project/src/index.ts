@@ -38,6 +38,12 @@ export {
   setupUrlOf,
 } from './lib/project-setup';
 export type { SetupStep, SetupStepId, SetupStepState, SetupSummary } from './lib/project-setup';
+export {
+  EmbedOriginsApi,
+  UnexpectedEmbedOriginsResponse,
+  embedOriginsUrl,
+  isEmbedOriginsDto,
+} from './lib/embed-origins';
 export { OVERVIEW_URL, OverviewApi, UnexpectedOverviewResponse, isOverviewDto } from './lib/overview';
 export type { OverviewProject } from './lib/overview';
 export { normalizeRepoInput } from './lib/repo-input';

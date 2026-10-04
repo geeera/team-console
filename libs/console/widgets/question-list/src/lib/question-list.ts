@@ -34,7 +34,7 @@ import {
   Receipt,
   StateBlock,
 } from '@console/shared/ui';
-import type { AnswerCommand, NeedsYouProjectRef } from '@shared/contracts';
+import type { AnswerCommand, NeedsYouProjectRef, Section } from '@shared/contracts';
 import { problemSlugOf } from '@shared/contracts';
 
 /** How long the ink stamp shows on an answered card before it folds into its receipt (ADR 0002). */
@@ -90,6 +90,14 @@ export class QuestionList {
   readonly project = input<NeedsYouProjectRef | null>(null);
   /** The item a notification opened (#36): scrolled to, ringed and focused once the list is shown. */
   readonly arrival = input<QuestionArrival | null>(null);
+  /** Only these inbox sections (the Designs and demo screen, #20); `null` lists every section. */
+  readonly sections = input<readonly Section[] | null>(null);
+  /** Passed to every card: set, bodies render as sanitised markdown with a preview (#20). */
+  readonly embedOrigins = input<readonly string[] | null>(null);
+  /** Copy for a screen that lists a subset; already translated. Empty strings keep the Questions copy. */
+  readonly listLabel = input('');
+  readonly emptyTitle = input('');
+  readonly emptyHint = input('');
 
   protected readonly state = signal<LoadState>('loading');
   private readonly items = signal<readonly QuestionItem[]>([]);
@@ -116,8 +124,13 @@ export class QuestionList {
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
 
   protected readonly isAllProjects = computed(() => this.project() === null);
+  private readonly shownItems = computed(() => {
+    const sections = this.sections();
+    const items = this.items();
+    return sections === null ? items : items.filter((item) => sections.includes(item.section));
+  });
   protected readonly rows = computed<Row[]>(() =>
-    this.items().map((item) => {
+    this.shownItems().map((item) => {
       const key = answeredKeyOf(item.project.slug, item.number);
       return {
         key,

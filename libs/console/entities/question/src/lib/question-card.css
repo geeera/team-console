@@ -57,3 +57,7 @@
   outline-offset: var(--focus-offset);
   border-radius: var(--r-xs);
 }
+
+.question__markdown {
+  margin-top: var(--space-2);
+}

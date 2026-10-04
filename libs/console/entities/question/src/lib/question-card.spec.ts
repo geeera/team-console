@@ -23,14 +23,21 @@ function item(overrides: Partial<QuestionItem> = {}): QuestionItem {
 
 @Component({
   imports: [QuestionCard],
-  template: `<tc-question-card [item]="item()" [showProject]="showProject()"
+  template: `<tc-question-card [item]="item()" [showProject]="showProject()" [embedOrigins]="origins()"
     ><button tc-question-actions type="button">Act</button></tc-question-card
   >`,
 })
 class Host {
   readonly item = signal(item());
   readonly showProject = signal(true);
+  readonly origins = signal<readonly string[] | null>(null);
 }
+
+const STORYBOOK = 'https://team-console-storybook.pages.dev';
+const DESIGN_BODY =
+  `Prototype: [editor states](${STORYBOOK}/?path=/story/editor--empty)\n\n` +
+  `See also https://github.com/geeera/team-console/pull/9\n\n${HOSTILE}\n\n` +
+  '<iframe src="https://evil.pages.dev"></iframe>';
 
 describe('QuestionCard', () => {
   async function render() {
@@ -92,5 +99,62 @@ describe('QuestionCard', () => {
     expect(root.querySelector('tc-recommendation')).toBeNull();
     expect(root.querySelector('details')).toBeNull();
     expect(root.querySelector('[data-testid="project-tag"]')).toBeNull();
+  });
+
+  describe('on the Designs and demo screen (embedOrigins set)', () => {
+    async function renderRich(overrides: Partial<QuestionItem> = {}) {
+      const rendered = await render();
+      rendered.fixture.componentInstance.item.set(
+        item({ section: 'design', body: DESIGN_BODY, authorTrusted: true, ...overrides }),
+      );
+      rendered.fixture.componentInstance.origins.set([STORYBOOK]);
+      await rendered.fixture.whenStable();
+      return rendered;
+    }
+
+    it('renders the body as sanitised markdown, open, with nothing executable', async () => {
+      const { root } = await renderRich();
+
+      const markdown = root.querySelector('[data-testid="markdown"]') as HTMLElement;
+      expect(root.querySelector('details')?.open).toBe(true);
+      expect(markdown.querySelector('a')?.textContent).toBe('editor states');
+      expect(markdown.querySelector('img, script, iframe')).toBeNull();
+      expect(markdown.querySelector('[onerror]')).toBeNull();
+      expect(root.querySelector('.question__body')).toBeNull();
+      expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
+    });
+
+    it('previews the first allowed link in the one frame the card builds itself', async () => {
+      const { root } = await renderRich();
+
+      const frames = root.querySelectorAll('iframe');
+      expect(frames).toHaveLength(1);
+      expect(frames[0]?.getAttribute('src')).toBe(`${STORYBOOK}/?path=/story/editor--empty`);
+      expect(frames[0]?.getAttribute('title')).toBe('Предпросмотр к #90001');
+    });
+
+    it('shows a link off the allow-list as not embeddable, with no frame', async () => {
+      const { root } = await renderRich({ body: 'Look: https://another.pages.dev/x' });
+
+      expect(root.querySelector('iframe')).toBeNull();
+      expect(root.querySelector('[data-testid="frame-refused"]')).not.toBeNull();
+      expect(root.querySelector('[data-testid="frame-open"]')?.getAttribute('href')).toBe(
+        'https://another.pages.dev/x',
+      );
+    });
+
+    it('never frames anything for an item from outside the team', async () => {
+      const { root } = await renderRich({ authorTrusted: false });
+
+      expect(root.querySelector('[data-testid="preview"]')).toBeNull();
+      expect(root.querySelector('iframe')).toBeNull();
+      expect(root.querySelector('[data-testid="markdown"]')).not.toBeNull();
+    });
+
+    it('has no preview when the body links only to GitHub', async () => {
+      const { root } = await renderRich({ body: 'See https://github.com/geeera/team-console/pull/9' });
+
+      expect(root.querySelector('[data-testid="preview"]')).toBeNull();
+    });
   });
 });
