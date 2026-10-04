@@ -6,6 +6,7 @@ import {
   Component,
   computed,
   DestroyRef,
+  effect,
   ElementRef,
   inject,
   Injector,
@@ -17,6 +18,7 @@ import { NeedsYouCounts, ProjectsStore, spaceLocationOf } from '@console/entitie
 import { ProjectSwitcher } from '@console/features/project-switcher';
 import { LocalNumberPipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { PersistedStateStore, scrollKeyOf } from '@console/shared/persisted-state';
+import { AppBadge } from '@console/shared/platform';
 import {
   BREAKPOINTS,
   Button,
@@ -72,6 +74,7 @@ export class AppShell {
   private readonly transloco = inject(TranslocoService);
   private readonly breakpoints = inject(BreakpointObserver);
   private readonly state = inject(PersistedStateStore);
+  private readonly badge = inject(AppBadge);
 
   protected readonly projects = inject(ProjectsStore);
   protected readonly needsYou = inject(NeedsYouCounts);
@@ -121,6 +124,15 @@ export class AppShell {
     // Cross-project routes have no guard that awaits the list; the sidebar needs it either way.
     void this.projects.ready();
     destroyRef.onDestroy(this.needsYou.start());
+    // The app icon's number is Needs you (#36): set after each refresh (on open, on return to the front, each
+    // minute while visible) and cleared at 0. A push itself cannot change it in v1 (ADR 0001, "Not yet").
+    effect(() => {
+      if (this.needsYou.refreshedAt() === null) {
+        return;
+      }
+      const total = this.needsYou.total();
+      void this.badge.set(total);
+    });
 
     const navigations = this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
@@ -172,6 +184,12 @@ export class AppShell {
       top = this.state.scrollOf(location.slug, scrollKeyOf(location.path));
     }
     this.scrollRestore?.cancel();
+    // A screen opened with a fragment (a tapped notification's `#n`, #36) brings its own target into view;
+    // restoring the saved position would scroll it away again.
+    if (url.includes('#')) {
+      this.scrollRestore = null;
+      return;
+    }
     // The new screen is in the DOM only after the next render; the router's own restoration is off.
     afterNextRender(() => (this.scrollRestore = restoreScroll(this.main().nativeElement, top)), {
       injector: this.injector,

@@ -12,8 +12,10 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { AnsweredItem, AnsweredItems, answeredKeyOf } from '@console/entities/project';
+import { AnsweredItem, AnsweredItems, answeredKeyOf, ProjectsStore } from '@console/entities/project';
+import type { QuestionArrival } from '@console/entities/push';
 import {
+  githubIssueUrlOf,
   QuestionCard,
   QuestionItem,
   QuestionProjectProblem,
@@ -22,7 +24,16 @@ import {
 } from '@console/entities/question';
 import { AnswerGiven, AnswerQuestion } from '@console/features/answer-question';
 import { localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
-import { Button, CardStamp, Receipt, StateBlock } from '@console/shared/ui';
+import {
+  type Arrival,
+  Button,
+  Callout,
+  CardStamp,
+  Icon,
+  markArrival,
+  Receipt,
+  StateBlock,
+} from '@console/shared/ui';
 import type { AnswerCommand, NeedsYouProjectRef } from '@shared/contracts';
 import { problemSlugOf } from '@shared/contracts';
 
@@ -61,7 +72,7 @@ interface Row {
  */
 @Component({
   selector: 'tc-question-list',
-  imports: [AnswerQuestion, Button, QuestionCard, Receipt, StateBlock, TranslocoPipe],
+  imports: [AnswerQuestion, Button, Callout, Icon, QuestionCard, Receipt, StateBlock, TranslocoPipe],
   templateUrl: './question-list.html',
   styleUrl: './question-list.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -73,9 +84,12 @@ export class QuestionList {
   private readonly transloco = inject(TranslocoService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly projects = inject(ProjectsStore);
 
   /** One project's questions; without it, every active project's. */
   readonly project = input<NeedsYouProjectRef | null>(null);
+  /** The item a notification opened (#36): scrolled to, ringed and focused once the list is shown. */
+  readonly arrival = input<QuestionArrival | null>(null);
 
   protected readonly state = signal<LoadState>('loading');
   private readonly items = signal<readonly QuestionItem[]>([]);
@@ -84,6 +98,20 @@ export class QuestionList {
   private readonly stamping = signal<ReadonlySet<string>>(new Set());
   protected readonly announcement = signal('');
   protected readonly refreshFailed = signal(false);
+  /** The number a notification led to that the list no longer has (answered or closed on GitHub meanwhile). */
+  protected readonly goneNumber = signal<number | null>(null);
+  protected readonly goneUrl = computed(() => {
+    const number = this.goneNumber();
+    const project = this.project();
+    if (number === null || project === null) {
+      return null;
+    }
+    const answered = this.answeredItems.get(project.slug, number);
+    const repo = this.projects.bySlug(project.slug)?.repo;
+    return safeGitHubUrl(answered?.url ?? null) ?? (repo === undefined ? null : githubIssueUrlOf(repo, number));
+  });
+  private handledArrival: number | null = null;
+  private ring: Arrival | null = null;
   private loadToken = 0;
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
 
@@ -118,7 +146,18 @@ export class QuestionList {
         void this.load(project);
       });
     });
+    effect(() => {
+      const arrival = this.arrival();
+      if (arrival === null || this.state() !== 'ready' || arrival.id === this.handledArrival) {
+        return;
+      }
+      untracked(() => {
+        this.handledArrival = arrival.id;
+        this.arrive(arrival.number);
+      });
+    });
     inject(DestroyRef).onDestroy(() => {
+      this.ring?.clear();
       this.loadToken += 1;
       this.timers.forEach((timer) => clearTimeout(timer));
     });
@@ -179,6 +218,35 @@ export class QuestionList {
       }
     }, STAMP_HOLD_MS);
     this.timers.add(timer);
+  }
+
+  /**
+   * A notification's item: its card (focus on the title), its receipt when answered from here, or a note that it
+   * no longer waits. This overrides the shell's scroll restore, which leaves a screen opened with a fragment alone.
+   */
+  private arrive(number: number): void {
+    const row = this.rows().find((candidate) => candidate.item.number === number);
+    this.goneNumber.set(row === undefined ? number : null);
+    afterNextRender(
+      () => {
+        const host = this.host.nativeElement;
+        let target: HTMLElement | null;
+        let focus: HTMLElement | null;
+        if (row === undefined) {
+          target = focus = host.querySelector<HTMLElement>('[data-testid="push-gone"]');
+        } else {
+          const element = host.querySelector<HTMLElement>(`[data-row="${CSS.escape(row.key)}"]`);
+          const receipt = element?.querySelector<HTMLElement>('tc-receipt') ?? null;
+          target = receipt ?? element?.querySelector<HTMLElement>('tc-card') ?? null;
+          focus = receipt ?? element?.querySelector<HTMLElement>('[tc-card-title]') ?? null;
+        }
+        if (target !== null && focus !== null) {
+          this.ring?.clear();
+          this.ring = markArrival(target, focus);
+        }
+      },
+      { injector: this.injector },
+    );
   }
 
   private async load(project: NeedsYouProjectRef | null): Promise<void> {

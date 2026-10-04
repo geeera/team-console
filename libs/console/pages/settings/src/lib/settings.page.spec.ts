@@ -128,6 +128,7 @@ describe('SettingsPage', () => {
     expect(text('h1')).toBe('Настройки');
     expect(Array.from(root().querySelectorAll('h2')).map((h) => h.textContent?.trim())).toEqual([
       'GitHub',
+      'Уведомления',
       'Проекты',
       'Язык интерфейса',
     ]);
@@ -149,6 +150,7 @@ describe('SettingsPage', () => {
     expect(text('h1')).toBe('Settings');
     expect(Array.from(root().querySelectorAll('h2')).map((h) => h.textContent?.trim())).toEqual([
       'GitHub',
+      'Notifications',
       'Projects',
       'Interface language',
     ]);

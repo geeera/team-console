@@ -1,0 +1,12 @@
+{
+  "name": "console-entities-push",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/console/entities/push/src",
+  "prefix": "tc",
+  "projectType": "library",
+  "tags": [
+    "type:lib",
+    "scope:console",
+    "layer:entities"
+  ]
+}
