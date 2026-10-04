@@ -17,7 +17,8 @@ import {
   stubGitHub,
   type StubGitHub,
 } from '../testing/github-kit';
-import { issue, readModelGitHub, type RepoState } from '../testing/read-model-kit';
+import { checkRun, issue, pull, readModelGitHub, type RepoState } from '../testing/read-model-kit';
+import { SPRINT_GITHUB_BUDGET } from './project-read-models';
 
 // #35 through the routes: DTOs, subrequest counts, the read cache, project.yml checks and slug checks.
 
@@ -246,6 +247,7 @@ describe('GET /api/v1/projects/:slug/questions', () => {
 });
 
 describe('GET /api/v1/projects/:slug/sprint', () => {
+  const SHA_5 = '5'.repeat(40);
   const future = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
   const later = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
   const sprintState: RepoState = {
@@ -277,11 +279,13 @@ describe('GET /api/v1/projects/:slug/sprint', () => {
         html_url: 'https://github.com/geeera/team-console/pull/5',
         draft: false,
         author_association: 'OWNER',
+        head: { sha: SHA_5 },
       },
     ],
+    checkRuns: { [SHA_5]: [checkRun('completed', 'success'), checkRun('completed', 'skipped')] },
   };
 
-  it('returns the current sprint board in 5 subrequests on a cold isolate', async () => {
+  it('returns the current sprint board in 6 subrequests on a cold isolate', async () => {
     const { github, stub } = setup(sprintState);
     const response = await fetchApi('/api/v1/projects/tc/sprint', localEnv(), { github });
     expect(response.status).toBe(200);
@@ -303,6 +307,7 @@ describe('GET /api/v1/projects/:slug/sprint', () => {
           url: 'https://github.com/geeera/team-console/pull/5',
           draft: false,
           authorTrusted: true,
+          ci: 'success',
         },
       ],
     });
@@ -310,8 +315,100 @@ describe('GET /api/v1/projects/:slug/sprint', () => {
       [1, 'in-progress', 'light', 'open'],
       [2, 'done', 'standard', 'closed'],
     ]);
-    // installation lookup, mint, milestones, open pulls, the sprint's issues
-    expect(stub.calls).toHaveLength(5);
+    // installation lookup, mint, milestones, open pulls, the sprint's issues, the PR head's check runs
+    expect(stub.calls).toHaveLength(6);
+    expect(stub.calls.at(-1)?.url.pathname).toBe(`/repos/geeera/team-console/commits/${SHA_5}/check-runs`);
+    expect(stub.calls.at(-1)?.url.searchParams.get('filter')).toBe('latest');
+  });
+
+  describe('CI per open pull request (#131)', () => {
+    const shaOf = (number: number): string => number.toString(16).padStart(40, '0');
+    const RUNS: readonly (readonly Record<string, unknown>[])[] = [
+      [checkRun('completed', 'success')],
+      [checkRun('completed', 'success'), checkRun('completed', 'failure')],
+      [checkRun('completed', 'success'), checkRun('in_progress')],
+      [],
+    ];
+    const EXPECTED = ['success', 'failure', 'pending', 'none'] as const;
+
+    function manyPulls(count: number): RepoState {
+      const numbers = Array.from({ length: count }, (_, index) => count - index);
+      return {
+        ...sprintState,
+        pulls: numbers.map((number) => pull(number, shaOf(number))),
+        checkRuns: Object.fromEntries(numbers.map((number) => [shaOf(number), RUNS[number % 4] ?? []])),
+      };
+    }
+
+    async function sprintOf(github: ApiGitHub): Promise<SprintDto> {
+      const response = await fetchApi('/api/v1/projects/tc/sprint', localEnv(), { github });
+      expect(response.status).toBe(200);
+      return (await response.json()) as SprintDto;
+    }
+
+    it('reads 20 open pull requests in under 50 subrequests, each with its state, and a warm load in none', async () => {
+      const { github, stub } = setup(manyPulls(20));
+
+      const body = await sprintOf(github);
+
+      expect(body.openPullRequests).toHaveLength(20);
+      for (const pr of body.openPullRequests) {
+        expect([pr.number, pr.ci]).toEqual([pr.number, EXPECTED[pr.number % 4]]);
+      }
+      // installation lookup + mint 2, milestones 1, pulls 1, sprint issues 1, then one check-runs read per PR
+      expect(stub.calls).toHaveLength(25);
+      expect(stub.calls.length).toBeLessThan(50);
+
+      stub.calls.length = 0;
+      await sprintOf(github);
+      expect(stub.calls).toHaveLength(0);
+    });
+
+    it('past the budget answers the remaining rows unknown, not an error, and the next load reads on', async () => {
+      const { github, stub } = setup(manyPulls(60));
+
+      const first = await sprintOf(github);
+
+      expect(stub.calls).toHaveLength(SPRINT_GITHUB_BUDGET);
+      const read = SPRINT_GITHUB_BUDGET - 5;
+      // Newest first: the budget reaches the newest pull requests, the oldest are unknown.
+      expect(first.openPullRequests.slice(0, read).every((pr) => pr.ci === EXPECTED[pr.number % 4])).toBe(
+        true,
+      );
+      expect(first.openPullRequests.slice(read).map((pr) => pr.ci)).toEqual(
+        Array.from({ length: 60 - read }, () => 'unknown'),
+      );
+
+      stub.calls.length = 0;
+      const second = await sprintOf(github);
+      // The lists and the states already read come from the cache; only the rest is read now.
+      expect(stub.calls).toHaveLength(60 - read);
+      expect(second.openPullRequests.every((pr) => pr.ci === EXPECTED[pr.number % 4])).toBe(true);
+    });
+
+    it('a check-runs read GitHub refuses leaves those rows unknown and the board answers', async () => {
+      const { github } = setup({
+        ...manyPulls(2),
+        checkRunsReply: () => json(403, { message: 'Resource not accessible by integration' }),
+      });
+
+      const body = await sprintOf(github);
+
+      expect(body.milestone?.number).toBe(7);
+      expect(body.openPullRequests.map((pr) => pr.ci)).toEqual(['unknown', 'unknown']);
+    });
+
+    it('a pull request without a usable head sha is unknown and costs no read', async () => {
+      const { github, stub } = setup({
+        ...sprintState,
+        pulls: [pull(9, '../../issues')],
+      });
+
+      const body = await sprintOf(github);
+
+      expect(body.openPullRequests.map((pr) => pr.ci)).toEqual(['unknown']);
+      expect(stub.calls).toHaveLength(5);
+    });
   });
 
   it('without a dated open milestone answers an empty board', async () => {

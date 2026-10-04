@@ -253,7 +253,8 @@
       "done": "Готово",
       "doneValue": "{{shipped}} из {{planned}}",
       "stillOpen": "Ещё открыто",
-      "openPrs": "Открытые PR"
+      "openPrs": "Открытые PR",
+      "ci": "CI"
     },
     "lanes": "Задачи спринта по статусам",
     "status": {
@@ -274,6 +275,23 @@
     },
     "untrusted": "Не от команды",
     "draft": "Черновик",
+    "ci": {
+      "state": {
+        "success": "CI пройден",
+        "failure": "CI не пройден",
+        "pending": "CI идёт",
+        "none": "Проверок нет",
+        "unknown": "CI неизвестен"
+      },
+      "summary": {
+        "failure": "Не пройден: {{n}}",
+        "pending": "Идёт: {{n}}",
+        "unknown": "Неизвестно: {{n}}",
+        "success": "Пройден: {{n}}",
+        "none": "Проверок нет",
+        "empty": "Нет открытых PR"
+      }
+    },
     "opensGitHub": "(откроется на GitHub)",
     "pulls": "Открытые пул-реквесты",
     "pullsEmpty": "Открытых пул-реквестов нет",

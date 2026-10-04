@@ -7,6 +7,8 @@ export {
   pullRequestRecordOf,
 } from './lib/github-records';
 export type { IssueRecord, MilestoneRecord, PullRequestRecord } from './lib/github-records';
+export { FAILED_CONCLUSIONS, checkRunsPageOf, ciStateOf, isGitHubCheckRunsPage } from './lib/ci-state';
+export type { CheckRunRecord, CheckRunsPage } from './lib/ci-state';
 export { buildInbox, buildQuestions, needsOf } from './lib/inbox';
 export type { InboxInput } from './lib/inbox';
 export { buildNeedsYou } from './lib/needs-you';

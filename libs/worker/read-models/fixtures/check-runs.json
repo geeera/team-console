@@ -1,0 +1,222 @@
+{
+  "_comment": "GET /repos/{repo}/commits/{sha}/check-runs?filter=latest answers (#131), trimmed to the fields GitHub always sends that the mapping or a reader needs. `all-passed` is geeera/team-console's dev head 83638b0 as GitHub answered it on 2026-10-05.",
+  "cases": [
+    {
+      "name": "all-passed",
+      "expected": "success",
+      "answer": {
+        "total_count": 11,
+        "check_runs": [
+          {
+            "name": "sast",
+            "status": "completed",
+            "conclusion": "success",
+            "app": { "slug": "github-actions" }
+          },
+          {
+            "name": "secret-scan",
+            "status": "completed",
+            "conclusion": "success",
+            "app": { "slug": "github-actions" }
+          },
+          {
+            "name": "workflow-lint",
+            "status": "completed",
+            "conclusion": "success",
+            "app": { "slug": "github-actions" }
+          },
+          {
+            "name": "dependency-audit",
+            "status": "completed",
+            "conclusion": "success",
+            "app": { "slug": "github-actions" }
+          },
+          {
+            "name": "e2e",
+            "status": "completed",
+            "conclusion": "success",
+            "app": { "slug": "github-actions" }
+          },
+          {
+            "name": "lint-test-build",
+            "status": "completed",
+            "conclusion": "success",
+            "app": { "slug": "github-actions" }
+          },
+          {
+            "name": "deploy",
+            "status": "completed",
+            "conclusion": "success",
+            "app": { "slug": "github-actions" }
+          },
+          {
+            "name": "e2e",
+            "status": "completed",
+            "conclusion": "success",
+            "app": { "slug": "github-actions" }
+          },
+          {
+            "name": "guard",
+            "status": "completed",
+            "conclusion": "success",
+            "app": { "slug": "github-actions" }
+          },
+          {
+            "name": "lint-test-build",
+            "status": "completed",
+            "conclusion": "success",
+            "app": { "slug": "github-actions" }
+          },
+          {
+            "name": "guard",
+            "status": "completed",
+            "conclusion": "success",
+            "app": { "slug": "github-actions" }
+          }
+        ]
+      }
+    },
+    {
+      "name": "passed-neutral-and-skipped",
+      "expected": "success",
+      "answer": {
+        "total_count": 3,
+        "check_runs": [
+          {
+            "name": "lint-test-build",
+            "status": "completed",
+            "conclusion": "success",
+            "app": { "slug": "github-actions" }
+          },
+          {
+            "name": "deploy",
+            "status": "completed",
+            "conclusion": "skipped",
+            "app": { "slug": "github-actions" }
+          },
+          { "name": "codecov", "status": "completed", "conclusion": "neutral", "app": { "slug": "codecov" } }
+        ]
+      }
+    },
+    {
+      "name": "passed-and-failed",
+      "expected": "failure",
+      "answer": {
+        "total_count": 3,
+        "check_runs": [
+          {
+            "name": "lint-test-build",
+            "status": "completed",
+            "conclusion": "success",
+            "app": { "slug": "github-actions" }
+          },
+          {
+            "name": "e2e",
+            "status": "completed",
+            "conclusion": "failure",
+            "app": { "slug": "github-actions" }
+          },
+          {
+            "name": "sast",
+            "status": "completed",
+            "conclusion": "success",
+            "app": { "slug": "github-actions" }
+          }
+        ]
+      }
+    },
+    {
+      "name": "failed-while-others-still-run",
+      "expected": "failure",
+      "answer": {
+        "total_count": 2,
+        "check_runs": [
+          { "name": "e2e", "status": "in_progress", "conclusion": null, "app": { "slug": "github-actions" } },
+          {
+            "name": "lint-test-build",
+            "status": "completed",
+            "conclusion": "timed_out",
+            "app": { "slug": "github-actions" }
+          }
+        ]
+      }
+    },
+    {
+      "name": "cancelled",
+      "expected": "failure",
+      "answer": {
+        "total_count": 1,
+        "check_runs": [
+          {
+            "name": "e2e",
+            "status": "completed",
+            "conclusion": "cancelled",
+            "app": { "slug": "github-actions" }
+          }
+        ]
+      }
+    },
+    {
+      "name": "action-required",
+      "expected": "failure",
+      "answer": {
+        "total_count": 1,
+        "check_runs": [
+          {
+            "name": "deploy",
+            "status": "completed",
+            "conclusion": "action_required",
+            "app": { "slug": "github-actions" }
+          }
+        ]
+      }
+    },
+    {
+      "name": "passed-and-running",
+      "expected": "pending",
+      "answer": {
+        "total_count": 3,
+        "check_runs": [
+          {
+            "name": "lint-test-build",
+            "status": "completed",
+            "conclusion": "success",
+            "app": { "slug": "github-actions" }
+          },
+          { "name": "e2e", "status": "in_progress", "conclusion": null, "app": { "slug": "github-actions" } },
+          { "name": "sast", "status": "queued", "conclusion": null, "app": { "slug": "github-actions" } }
+        ]
+      }
+    },
+    {
+      "name": "waiting-for-approval",
+      "expected": "pending",
+      "answer": {
+        "total_count": 1,
+        "check_runs": [
+          { "name": "deploy", "status": "waiting", "conclusion": null, "app": { "slug": "github-actions" } }
+        ]
+      }
+    },
+    {
+      "name": "no-checks",
+      "expected": "none",
+      "answer": { "total_count": 0, "check_runs": [] }
+    },
+    {
+      "name": "passed-but-more-than-one-page",
+      "expected": "unknown",
+      "answer": {
+        "total_count": 101,
+        "check_runs": [
+          {
+            "name": "lint-test-build",
+            "status": "completed",
+            "conclusion": "success",
+            "app": { "slug": "github-actions" }
+          }
+        ]
+      }
+    }
+  ]
+}

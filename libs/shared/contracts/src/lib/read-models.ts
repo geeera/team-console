@@ -77,12 +77,32 @@ export interface SprintTierRowDto {
   readonly raised: number;
 }
 
+/**
+ * The CI of a pull request's head commit (#131), combined from its check runs: `failure` when any run failed,
+ * else `pending` while any has not finished, else `success`; `none` when the head has no check run. `unknown`:
+ * not read in this request (the subrequest budget, or GitHub refused the read) — never an error of the board.
+ */
+export type SprintCiState = 'success' | 'failure' | 'pending' | 'none' | 'unknown';
+
+export const SPRINT_CI_STATES: readonly SprintCiState[] = [
+  'success',
+  'failure',
+  'pending',
+  'none',
+  'unknown',
+];
+
+export function isSprintCiState(value: unknown): value is SprintCiState {
+  return typeof value === 'string' && (SPRINT_CI_STATES as readonly string[]).includes(value);
+}
+
 export interface SprintPullRequestDto {
   readonly number: number;
   readonly title: string;
   readonly url: string | null;
   readonly draft: boolean;
   readonly authorTrusted: boolean;
+  readonly ci: SprintCiState;
 }
 
 /**

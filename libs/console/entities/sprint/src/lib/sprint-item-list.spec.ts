@@ -29,6 +29,7 @@ const PULL: SprintPullRequest = {
   url: null,
   draft: true,
   authorTrusted: true,
+  ci: 'pending',
 };
 
 describe('SprintItemList', () => {
@@ -73,6 +74,21 @@ describe('SprintItemList', () => {
     expect(rows[0]?.textContent).not.toContain('GitHub');
     expect(rows[0]?.querySelector('[data-testid="draft"]')?.textContent?.trim()).toBe('Черновик');
     expect(rows[0]?.querySelector('[data-testid="tier"]')).toBeNull();
+  });
+
+  it("shows a pull request's CI under its title as an icon and words (#131); an issue has none", async () => {
+    const { rows } = await render([{ ...PULL, authorTrusted: false }, ISSUE]);
+
+    const ci = rows[0]?.querySelector('[tc-row-subtitle] [data-testid="ci"]') as HTMLElement;
+    expect(ci.getAttribute('data-ci')).toBe('pending');
+    expect(ci.textContent?.trim()).toBe('CI идёт');
+    expect(ci.querySelector('tc-chip')?.classList.contains('tc-chip--warning')).toBe(true);
+    expect(ci.querySelector('tc-icon')?.getAttribute('aria-hidden')).toBe('true');
+    // The outsider mark stays beside it.
+    expect(rows[0]?.querySelector('[tc-row-subtitle] [data-testid="untrusted"]')?.textContent?.trim()).toBe(
+      'Не от команды',
+    );
+    expect(rows[1]?.querySelector('[data-testid="ci"]')).toBeNull();
   });
 
   it('renders an untrusted title as text and marks the item as not from the team', async () => {

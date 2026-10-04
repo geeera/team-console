@@ -13,10 +13,12 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import {
+  ciSummaryOf,
   daysUntilDemo,
   demoDayOf,
   NO_STATUS,
   SprintApi,
+  SPRINT_CI_ICONS,
   SprintBoard as SprintBoardModel,
   SprintItemList,
   SPRINT_TIERS,
@@ -34,7 +36,7 @@ import {
   TranslocoPipe,
   TranslocoService,
 } from '@console/shared/i18n';
-import { Button, Chip, Icon, Lane, Lanes, Stat, Stats, StateBlock } from '@console/shared/ui';
+import { Button, Chip, Icon, Lane, Lanes, Stat, Stats, StatTone, StateBlock } from '@console/shared/ui';
 
 /** Without a usable `Retry-After` on a 429 (missing, invalid or 0), the board waits this long before it asks again. */
 export const DEFAULT_RETRY_SECONDS = 60;
@@ -74,7 +76,7 @@ const KNOWN_STATUSES: ReadonlySet<string> = new Set([...STATUS_ORDER, NO_STATUS]
 
 /**
  * A project's current sprint, read-only (#18): the milestone and its demo date, the sprint's numbers, its issues in
- * status lanes with their tier, and the repository's open pull requests. Everything comes from one
+ * status lanes with their tier, and the repository's open pull requests with their CI (#131). Everything comes from one
  * `GET /api/v1/projects/:slug/sprint`; nothing here writes. Lanes are their own blocks so the later
  * current / next / backlog grouping (#108) can repeat them per section.
  */
@@ -122,6 +124,13 @@ export class SprintBoard {
     return state.kind === 'ready' ? state.board : null;
   });
   protected readonly columns = computed(() => statusColumnsOf(this.board()?.issues ?? []));
+  /** The "CI" tile (#131): the most urgent state across the open pull requests. */
+  protected readonly ci = computed(() => ciSummaryOf(this.board()?.pullRequests ?? []));
+  protected readonly ciIcon = computed(() => SPRINT_CI_ICONS[this.ci().state]);
+  protected readonly ciTone = computed((): StatTone => {
+    const state = this.ci().state;
+    return state === 'failure' ? 'danger' : state === 'success' ? 'success' : 'neutral';
+  });
   protected readonly failure = computed(() => {
     const state = this.state();
     return state.kind === 'failed' ? state : null;
