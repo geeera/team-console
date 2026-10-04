@@ -260,23 +260,25 @@ jobs:
             deploy --env ${{ env.ENV_NAME }}
             --var VAPID_PUBLIC_KEY:${{ vars.VAPID_PUBLIC_KEY }}
 
-      # libs/console/shared/ui (and its Storybook config) arrives with #13/#34; until then this SKIPs loudly
-      # rather than failing the whole deploy or silently doing nothing.
+      # The design kit lib landed in #13/#75 as the Nx project `console-shared-ui` (not `ui` — PR #75 review
+      # follow-up, #25): `.product-team/project.yml`'s `commands.storybook` already names it correctly. This
+      # check stays, loudly SKIPping instead of failing the whole deploy, as a guard against the project ever
+      # being renamed or removed again.
       - name: Check Storybook project exists
         id: storybook
         if: env.ENV_NAME == 'dev'
         run: |
           set -euo pipefail
-          if npx nx show projects 2>/dev/null | grep -qx ui; then
+          if npx nx show projects 2>/dev/null | grep -qx console-shared-ui; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::SKIPPED Storybook deploy — libs/console/shared/ui arrives with #13/#34; this is NOT a pass"
+            echo "::notice::SKIPPED Storybook deploy — the console-shared-ui Nx project is missing; this is NOT a pass"
           fi
 
       - name: Build Storybook
         if: env.ENV_NAME == 'dev' && steps.storybook.outputs.ready == 'true'
-        run: npx nx build-storybook ui
+        run: npx nx build-storybook console-shared-ui
 
       # Direct upload (no Pages build consumed, ADR 0001 decision 14 / Pages free-tier limit table). Owner
       # checklist creates the `team-console-storybook` Pages project up front: `wrangler pages deploy` only
@@ -289,8 +291,9 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: 4.124.0
-          # TODO(#13/#34): confirm this matches the Storybook build output once libs/console/shared/ui lands.
-          command: pages deploy dist/storybook/ui --project-name=team-console-storybook --branch=dev
+          # libs/console/shared/ui's `build-storybook` target (project.json) writes here — matches the Nx
+          # project name above, not the bare `ui` this step used before #25.
+          command: pages deploy dist/storybook/console-shared-ui --project-name=team-console-storybook --branch=dev
 
       # Carry-over from PR #49 reviews (issue #7 comment 2026-09-29) plus PR #54 review: until #8 lands and
       # Access is configured, /api/v1/* answers 401 (Worker fail-closed); once Access owns the hostname, an

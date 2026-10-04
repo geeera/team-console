@@ -2,7 +2,7 @@
 
 A control panel for the product team (the product-team plugin): questions, PM chat, sprint board, designs — as a
 PWA on iPhone and Mac. Read first: `docs/product-brief.md`, `docs/decisions/` (0001 stack and architecture, 0002
-visual direction), `.product-team/project.yml`.
+visual direction), `.product-team/project.yml`. Deploy and rollback: `docs/runbooks/deploy-and-rollback.md`.
 
 ## Rules
 - The team works through `.claude/product-team/` (vendored plugin) — backlog in GitHub Issues, every change a PR to
