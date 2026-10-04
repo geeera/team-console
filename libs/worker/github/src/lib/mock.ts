@@ -31,6 +31,11 @@ export interface MockRepository {
   readonly issues?: readonly Readonly<Record<string, unknown>>[];
   /** Comments as GitHub sends them, oldest first, by issue number (the run log #22 on the board, #132). */
   readonly comments?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
+  /**
+   * `GET …/issues/{number}/events` by issue number, oldest first (#193: the fixture label's history the service
+   * identity's gate reads); an issue listed in `issues` without an entry has no events.
+   */
+  readonly issueEvents?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
   /** `GET …/milestones?state=` */
   readonly milestones?: readonly Readonly<Record<string, unknown>>[];
   /** `GET …/pulls?state=` */
@@ -194,12 +199,19 @@ class MockGitHubServer {
     const isListRead = listed === 'issues' || listed === 'milestones' || listed === 'pulls';
     const isIssueRead = segments.length === 5 && segments[3] === 'issues';
     const isCommentsRead = segments.length === 6 && segments[3] === 'issues' && segments[5] === 'comments';
+    const isEventsRead = segments.length === 6 && segments[3] === 'issues' && segments[5] === 'events';
     const isCheckRunsRead =
       segments.length === 6 && segments[3] === 'commits' && segments[5] === 'check-runs';
     if (
       method === 'GET' &&
       segments[0] === 'repos' &&
-      (isRepositoryRead || isContentsRead || isListRead || isIssueRead || isCommentsRead || isCheckRunsRead)
+      (isRepositoryRead ||
+        isContentsRead ||
+        isListRead ||
+        isIssueRead ||
+        isCommentsRead ||
+        isEventsRead ||
+        isCheckRunsRead)
     ) {
       const repo = `${segments[1]}/${segments[2]}`;
       const token = this.issued.get(bearer);
@@ -232,6 +244,12 @@ class MockGitHubServer {
         const issue = this.issue(found.fixture, segments[4] ?? '');
         await issue.body?.cancel();
         return issue.ok ? json(200, found.fixture.comments?.[segments[4] ?? ''] ?? []) : notFound();
+      }
+      if (isEventsRead) {
+        const number = segments[4] ?? '';
+        const issue = this.issue(found.fixture, number);
+        await issue.body?.cancel();
+        return issue.ok ? json(200, found.fixture.issueEvents?.[number] ?? []) : notFound();
       }
       return found.fixture.repository === undefined ? notFound() : json(200, found.fixture.repository);
     }
