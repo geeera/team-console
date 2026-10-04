@@ -1,6 +1,6 @@
 import type {
   SprintCiState,
-  SprintDto,
+  SprintListsDto,
   SprintIssueDto,
   SprintTier,
   SprintTierRowDto,
@@ -119,7 +119,7 @@ export interface SprintInput {
   readonly ciStates?: ReadonlyMap<number, SprintCiState>;
 }
 
-export function buildSprint(input: SprintInput): SprintDto {
+export function buildSprint(input: SprintInput): SprintListsDto {
   const pullRequests = input.openPullRequests.map((pull) => ({
     number: pull.number,
     title: pull.title,

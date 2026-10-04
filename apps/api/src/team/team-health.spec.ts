@@ -1,6 +1,6 @@
 import type { Run } from '@worker/run-log';
 import type { RunLogView } from './run-log-reader';
-import { overviewTeamStateOf } from './team-health';
+import { overviewTeamStateOf, teamRunOf } from './team-health';
 
 const NOW = Date.parse('2026-10-01T12:00:00Z');
 const at = (minutesAgo: number): string => new Date(NOW - minutesAgo * 60_000).toISOString();
@@ -68,5 +68,48 @@ describe('overviewTeamStateOf', () => {
     const paused = { paused: true, runs: threeFailed, pausedSince: at(30) };
     expect(overviewTeamStateOf(view({ ...paused, ownerResumeAt: at(10) }), NOW)).toBe('running');
     expect(overviewTeamStateOf(view({ ...paused, ownerResumeAt: at(50) }), NOW)).toBe('failing');
+  });
+});
+
+describe('teamRunOf (#132)', () => {
+  const issue = {
+    number: 22,
+    htmlUrl: 'https://github.com/geeera/x/issues/22',
+    author: 'geeera',
+    labels: ['team:run-log'],
+    comments: 9,
+  };
+
+  it('lists the latest five runs newest first, with the console slot and the run log link', () => {
+    const runs = [
+      runOf('a', 'finished', 600),
+      runOf('b', 'finished', 500),
+      { ...runOf('c', 'failed', 400), slot: 'slot-qa' },
+      { ...runOf('d', 'finished', 300), slot: 'slot-pm' },
+      { ...runOf('e', 'finished', 200), slot: 'slot-nightly' },
+      runOf('f', 'started', 20),
+    ];
+    expect(teamRunOf(view({ issue, runs }), NOW)).toEqual({
+      state: 'running',
+      runLogUrl: issue.htmlUrl,
+      recentRuns: [
+        { slot: 'dev', slotName: 'slot-dev', state: 'running', at: at(20) },
+        { slot: null, slotName: 'slot-nightly', state: 'finished', at: at(200) },
+        { slot: 'pm', slotName: 'slot-pm', state: 'finished', at: at(300) },
+        { slot: 'qa', slotName: 'slot-qa', state: 'failed', at: at(400) },
+        { slot: 'dev', slotName: 'slot-dev', state: 'finished', at: at(500) },
+      ],
+    });
+  });
+
+  it('shows a run an edit touched as unknown, never failed', () => {
+    const runs = [{ ...runOf('a', 'failed', 30), trusted: false }];
+    expect(teamRunOf(view({ issue, runs }), NOW).recentRuns.map((run) => run.state)).toEqual(['unknown']);
+  });
+
+  it('has no link without a run log, nor for a page outside github.com', () => {
+    expect(teamRunOf(view({}), NOW)).toEqual({ state: 'running', runLogUrl: null, recentRuns: [] });
+    const elsewhere = view({ issue: { ...issue, htmlUrl: 'https://evil.example/22' } });
+    expect(teamRunOf(elsewhere, NOW).runLogUrl).toBeNull();
   });
 });

@@ -1,4 +1,11 @@
-import type { InboxDto, QuestionsDto, SprintCiState, SprintDto } from '@shared/contracts';
+import type {
+  InboxDto,
+  QuestionsDto,
+  SprintCiState,
+  SprintDto,
+  SprintListsDto,
+  TeamRunDto,
+} from '@shared/contracts';
 import type { ProjectRow } from '@worker/db';
 import { GitHubClient, GitHubError, githubPath, readCacheKey, type RepoName } from '@worker/github';
 import {
@@ -28,6 +35,8 @@ import {
 import type { ApiEnv } from '../env';
 import type { ApiGitHub, GitHubConnection } from '../github';
 import { readProjectYmlFile, type ProjectYmlFile } from '../projects/repository-checks';
+import { RunLogUnavailableError, readRunLog } from '../team/run-log-reader';
+import { UNKNOWN_TEAM_RUN, teamRunOf } from '../team/team-health';
 
 /** Issues, pull requests and milestones change with every team run: 60 s (ADR 0001 decision 22). */
 const LIST_TTL_SECONDS = 60;
@@ -35,6 +44,10 @@ const LIST_TTL_SECONDS = 60;
 const CHECKS_TTL_SECONDS = 60;
 /** project.yml changes rarely: 600 s. */
 const CONFIG_TTL_SECONDS = 600;
+/** The run state may be this old on the overview and the board; the Commands panel reads it fresh. */
+const TEAM_RUN_TTL_SECONDS = 30;
+/** The run log's latest 200 comments: the failure streak, an active pause and the last runs are always among them. */
+const RUN_LOG_PAGES = 2;
 
 /**
  * Pages of 100 read from a list: 3 pages = 300 open issues and pull requests, more than a product repository keeps
@@ -47,9 +60,10 @@ export const LIST_MAX_PAGES = 3;
  *   installation lookup 1 + token mint 1, then
  *   inbox     = open issues ≤ LIST_MAX_PAGES + project.yml 1           → ≤ 6
  *   questions = open issues ≤ LIST_MAX_PAGES                            → ≤ 5
- *   sprint    = milestones 1 + sprint issues ≤ LIST_MAX_PAGES + pulls 1 → ≤ 7,
+ *   team run  = project.yml 1 + the run-log issue 1 + comments ≤ RUN_LOG_PAGES                → ≤ 4
+ *   sprint    = milestones 1 + sprint issues ≤ LIST_MAX_PAGES + pulls 1 + team run ≤ 4 → ≤ 11,
  *               then one check-runs read per open pull request (#131), capped by the route's SubrequestBudget
- *   current sprint (the overview) = sprint without the pulls             → ≤ 6
+ *   current sprint (the overview) = milestones and sprint issues only     → ≤ 6
  * Reads are shared through the read cache: inbox, questions and "Needs you" read the same `open-issues` entry.
  */
 export class ProjectReads {
@@ -79,12 +93,57 @@ export class ProjectReads {
   }
 
   async sprint(): Promise<SprintDto> {
-    const [milestones, openPullRequests] = await Promise.all([this.milestones(), this.openPullRequests()]);
+    const [milestones, openPullRequests, team] = await Promise.all([
+      this.milestones(),
+      this.openPullRequests(),
+      this.boardTeamRun(),
+    ]);
     const milestone = pickCurrentSprint(milestones, sprintToday(this.now()));
     const milestoneIssues = milestone === null ? [] : await this.milestoneIssues(milestone.number);
-    // After the lists, so a budget that runs out costs CI states, never the board.
+    // After the lists and the run log, so a budget that runs out costs CI states, never the board.
     const ciStates = await this.ciStatesOf(openPullRequests);
-    return buildSprint({ milestone, milestoneIssues, openPullRequests, ciStates });
+    return { ...buildSprint({ milestone, milestoneIssues, openPullRequests, ciStates }), team };
+  }
+
+  /**
+   * The team's run state and latest runs from the run log (#27, #132), shared by the overview and the board and
+   * cached 30 s: the run log's latest 200 comments hold the failure streak, an active pause and the last runs. A run
+   * log the team did not open (or several) is `unknown`. Costs project.yml (shared with the config, often cached),
+   * the issue or the labelled list, and at most two pages of comments.
+   */
+  teamRun(): Promise<TeamRunDto> {
+    return this.cached('team-run', TEAM_RUN_TTL_SECONDS, async () => {
+      try {
+        const file = await this.projectYmlFile();
+        const projectYml = file === null ? null : (file.text ?? '');
+        const connection = this.connection ?? (await this.github.connect(this.env));
+        const view = await readRunLog(connection, this.repo, {
+          latestCommentPages: RUN_LOG_PAGES,
+          projectYml,
+        });
+        return teamRunOf(view, this.now());
+      } catch (error: unknown) {
+        if (error instanceof RunLogUnavailableError) {
+          return UNKNOWN_TEAM_RUN;
+        }
+        throw error;
+      }
+    });
+  }
+
+  /**
+   * The board's run state: a run log GitHub refuses or the budget stops is `unknown` (not cached, so the next load
+   * reads it), never an error of the board, as with a pull request's CI.
+   */
+  private async boardTeamRun(): Promise<TeamRunDto> {
+    try {
+      return await this.teamRun();
+    } catch (error: unknown) {
+      if (error instanceof GitHubError) {
+        return UNKNOWN_TEAM_RUN;
+      }
+      throw error;
+    }
   }
 
   /**
@@ -123,7 +182,7 @@ export class ProjectReads {
   }
 
   /** The current sprint without the repository's pull requests (the overview, #27): one read fewer. */
-  async currentSprint(): Promise<SprintDto> {
+  async currentSprint(): Promise<SprintListsDto> {
     const milestone = pickCurrentSprint(await this.milestones(), sprintToday(this.now()));
     const milestoneIssues = milestone === null ? [] : await this.milestoneIssues(milestone.number);
     return buildSprint({ milestone, milestoneIssues, openPullRequests: [] });

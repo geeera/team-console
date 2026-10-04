@@ -1,4 +1,5 @@
 import type { AnswerCommand, Section } from './answer';
+import type { TeamRunDto } from './team';
 
 /**
  * Read models of a product repository (#35): what the owner's inbox, the questions list, the sprint board and
@@ -115,8 +116,8 @@ export interface EmbedOriginsDto {
   readonly embedOrigins: readonly string[];
 }
 
-/** `GET /api/v1/projects/:slug/sprint`: the current sprint (`calendar.pick_current_sprint`) and its numbers. */
-export interface SprintDto {
+/** The current sprint (`calendar.pick_current_sprint`) and its numbers, as read from the repository's lists. */
+export interface SprintListsDto {
   /** `null` when no open milestone has a due date today or later; the rest is then empty. */
   readonly milestone: SprintMilestoneDto | null;
   readonly issues: readonly SprintIssueDto[];
@@ -129,6 +130,11 @@ export interface SprintDto {
   readonly byTier: Readonly<Record<string, SprintTierRowDto>>;
   /** The repository's open pull requests (up to 100). */
   readonly openPullRequests: readonly SprintPullRequestDto[];
+}
+
+/** `GET /api/v1/projects/:slug/sprint`: the sprint's lists, and the team's run state from the run log (#132). */
+export interface SprintDto extends SprintListsDto {
+  readonly team: TeamRunDto;
 }
 
 export interface NeedsYouProjectRef {

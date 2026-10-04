@@ -17,7 +17,18 @@ import {
   stubGitHub,
   type StubGitHub,
 } from '../testing/github-kit';
-import { checkRun, issue, pull, readModelGitHub, type RepoState } from '../testing/read-model-kit';
+import {
+  RUN_LOG_ISSUE,
+  checkRun,
+  issue,
+  pull,
+  readModelGitHub,
+  runEntry,
+  runLogGitHub,
+  type RepoState,
+  type RunLogCommentSeed,
+  type RunLogRepoState,
+} from '../testing/read-model-kit';
 import { SPRINT_GITHUB_BUDGET } from './project-read-models';
 
 // #35 through the routes: DTOs, subrequest counts, the read cache, project.yml checks and slug checks.
@@ -285,7 +296,7 @@ describe('GET /api/v1/projects/:slug/sprint', () => {
     checkRuns: { [SHA_5]: [checkRun('completed', 'success'), checkRun('completed', 'skipped')] },
   };
 
-  it('returns the current sprint board in 6 subrequests on a cold isolate', async () => {
+  it('returns the current sprint board in 8 subrequests on a cold isolate', async () => {
     const { github, stub } = setup(sprintState);
     const response = await fetchApi('/api/v1/projects/tc/sprint', localEnv(), { github });
     expect(response.status).toBe(200);
@@ -315,8 +326,11 @@ describe('GET /api/v1/projects/:slug/sprint', () => {
       [1, 'in-progress', 'light', 'open'],
       [2, 'done', 'standard', 'closed'],
     ]);
-    // installation lookup, mint, milestones, open pulls, the sprint's issues, the PR head's check runs
-    expect(stub.calls).toHaveLength(6);
+    // No run log in this repository: the team reads as running with no runs (as on the overview).
+    expect(body.team).toEqual({ state: 'running', runLogUrl: null, recentRuns: [] });
+    // installation lookup, mint, milestones, open pulls, project.yml, the run-log list, the sprint's issues, the PR
+    // head's check runs
+    expect(stub.calls).toHaveLength(8);
     expect(stub.calls.at(-1)?.url.pathname).toBe(`/repos/geeera/team-console/commits/${SHA_5}/check-runs`);
     expect(stub.calls.at(-1)?.url.searchParams.get('filter')).toBe('latest');
   });
@@ -355,8 +369,9 @@ describe('GET /api/v1/projects/:slug/sprint', () => {
       for (const pr of body.openPullRequests) {
         expect([pr.number, pr.ci]).toEqual([pr.number, EXPECTED[pr.number % 4]]);
       }
-      // installation lookup + mint 2, milestones 1, pulls 1, sprint issues 1, then one check-runs read per PR
-      expect(stub.calls).toHaveLength(25);
+      // installation lookup + mint 2, milestones 1, pulls 1, project.yml 1, run-log list 1, sprint issues 1, then
+      // one check-runs read per PR
+      expect(stub.calls).toHaveLength(27);
       expect(stub.calls.length).toBeLessThan(50);
 
       stub.calls.length = 0;
@@ -370,7 +385,7 @@ describe('GET /api/v1/projects/:slug/sprint', () => {
       const first = await sprintOf(github);
 
       expect(stub.calls).toHaveLength(SPRINT_GITHUB_BUDGET);
-      const read = SPRINT_GITHUB_BUDGET - 5;
+      const read = SPRINT_GITHUB_BUDGET - 7;
       // Newest first: the budget reaches the newest pull requests, the oldest are unknown.
       expect(first.openPullRequests.slice(0, read).every((pr) => pr.ci === EXPECTED[pr.number % 4])).toBe(
         true,
@@ -407,7 +422,138 @@ describe('GET /api/v1/projects/:slug/sprint', () => {
       const body = await sprintOf(github);
 
       expect(body.openPullRequests.map((pr) => pr.ci)).toEqual(['unknown']);
-      expect(stub.calls).toHaveLength(5);
+      expect(stub.calls).toHaveLength(7);
+    });
+  });
+
+  describe('team run state (#132)', () => {
+    const LOG_URL = `https://github.com/geeera/team-console/issues/${RUN_LOG_ISSUE}`;
+    const shaOf = (number: number): string => number.toString(16).padStart(40, '0');
+    const LOG: readonly RunLogCommentSeed[] = [
+      runEntry('r1', 'started', 600, { slot: 'slot-pm' }),
+      runEntry('r1', 'finished', 590, { slot: 'slot-pm' }),
+      runEntry('r2', 'started', 500),
+      runEntry('r2', 'failed', 480),
+      runEntry('r3', 'started', 400, { slot: 'slot-qa' }),
+      runEntry('r3', 'finished', 390, { slot: 'slot-qa' }),
+      runEntry('r4', 'started', 300),
+      // The team's "failed" was edited afterwards: REST cannot prove the edit harmless.
+      runEntry('r4', 'failed', 290, { editedMinutesAgo: 5 }),
+      runEntry('r5', 'started', 200, { slot: 'slot-pm' }),
+      runEntry('r5', 'finished', 190, { slot: 'slot-pm' }),
+      runEntry('r6', 'started', 30),
+      // An outsider cannot fail a team run.
+      runEntry('r6', 'failed', 20, { author: 'outsider' }),
+    ];
+
+    function setupWithLog(state: RunLogRepoState): { github: ApiGitHub; stub: StubGitHub } {
+      const stub = stubGitHub(runLogGitHub({ 'geeera/team-console': state }, Date.now()));
+      return { stub, github: new ApiGitHub({ fetch: stub.fetch }) };
+    }
+
+    async function sprintOf(github: ApiGitHub): Promise<SprintDto> {
+      const response = await fetchApi('/api/v1/projects/tc/sprint', localEnv(), { github });
+      expect(response.status).toBe(200);
+      return (await response.json()) as SprintDto;
+    }
+
+    it('shows the state and the last five runs; an edited entry is unknown, an outsider is ignored', async () => {
+      const { github } = setupWithLog({ ...sprintState, log: LOG });
+
+      const { team } = await sprintOf(github);
+
+      expect(team.state).toBe('running');
+      expect(team.runLogUrl).toBe(LOG_URL);
+      expect(team.recentRuns.map(({ slot, slotName, state }) => ({ slot, slotName, state }))).toEqual([
+        { slot: 'dev', slotName: 'slot-dev', state: 'running' },
+        { slot: 'pm', slotName: 'slot-pm', state: 'finished' },
+        { slot: 'dev', slotName: 'slot-dev', state: 'unknown' },
+        { slot: 'qa', slotName: 'slot-qa', state: 'finished' },
+        { slot: 'dev', slotName: 'slot-dev', state: 'failed' },
+      ]);
+      expect(team.recentRuns.every((run) => run.at !== null && !Number.isNaN(Date.parse(run.at)))).toBe(true);
+    });
+
+    it('is failing after three failed runs in a row, and paused while the owner paused it', async () => {
+      const failed = [
+        runEntry('a', 'started', 300),
+        runEntry('a', 'failed', 290),
+        runEntry('b', 'started', 200),
+        runEntry('b', 'failed', 190),
+        runEntry('c', 'started', 100),
+        runEntry('c', 'failed', 90),
+      ];
+      expect((await sprintOf(setupWithLog({ ...sprintState, log: failed }).github)).team.state).toBe(
+        'failing',
+      );
+
+      const paused = {
+        ...sprintState,
+        logLabels: ['team:run-log', 'team:paused'],
+        log: [
+          {
+            body: '<!-- pt-paused -->\n<!-- pt-owner-pause {"reason": "demo", "source": "team-console"} -->',
+            minutesAgo: 10,
+          },
+        ],
+      };
+      expect((await sprintOf(setupWithLog(paused).github)).team.state).toBe('paused');
+    });
+
+    it('a run log the team did not open is unknown, with no runs and no link', async () => {
+      const outsiderLog = issue(RUN_LOG_ISSUE, ['team:run-log'], { user: { login: 'outsider' } });
+      const { github } = setupWithLog({
+        ...sprintState,
+        projectYml: `name: x\nteam:\n  run_log_issue: ${RUN_LOG_ISSUE}\n`,
+        issues: [...(sprintState.issues ?? []), outsiderLog],
+      });
+
+      expect((await sprintOf(github)).team).toEqual({ state: 'unknown', runLogUrl: null, recentRuns: [] });
+    });
+
+    it('a run log GitHub refuses is unknown and the board still answers, then read again on the next load', async () => {
+      let refuse = true;
+      const handler = runLogGitHub({ 'geeera/team-console': { ...sprintState, log: LOG } }, Date.now());
+      const stub = stubGitHub((call) =>
+        refuse && call.url.pathname.endsWith(`/issues/${RUN_LOG_ISSUE}/comments`)
+          ? json(502, { message: 'Bad Gateway' })
+          : handler(call),
+      );
+      const github = new ApiGitHub({ fetch: stub.fetch });
+
+      const first = await sprintOf(github);
+      expect(first.milestone?.number).toBe(7);
+      expect(first.team).toEqual({ state: 'unknown', runLogUrl: null, recentRuns: [] });
+
+      refuse = false;
+      expect((await sprintOf(github)).team.state).toBe('running');
+    });
+
+    it('a cold load with a run log and 60 open pull requests stays within the budget, under 50 subrequests', async () => {
+      const numbers = Array.from({ length: 60 }, (_, index) => 60 - index);
+      const { github, stub } = setupWithLog({
+        ...sprintState,
+        log: LOG,
+        pulls: numbers.map((number) => pull(number, shaOf(number))),
+      });
+
+      const body = await sprintOf(github);
+
+      // The run log is read with the lists, before CI: the budget costs CI states, never the run state.
+      expect(body.team.state).toBe('running');
+      expect(body.team.recentRuns).toHaveLength(5);
+      expect(stub.calls.length).toBeLessThanOrEqual(SPRINT_GITHUB_BUDGET);
+      expect(stub.calls.length).toBeLessThan(50);
+      const runLogReads = stub.calls.filter(
+        (call) => call.url.pathname.includes(`/issues`) && !call.url.searchParams.has('milestone'),
+      );
+      // the labelled list and one page of comments
+      expect(runLogReads).toHaveLength(2);
+
+      stub.calls.length = 0;
+      await sprintOf(github);
+      // Warm: the run state comes from the read cache; only CI rows the budget skipped are read.
+      expect(stub.calls.some((call) => call.url.pathname.includes('/issues'))).toBe(false);
     });
   });
 
@@ -437,7 +583,8 @@ describe('GET /api/v1/projects/:slug/embed-origins (#20)', () => {
   });
 
   it("never answers the console's own origin, even when project.yml names it", async () => {
-    const yml = 'name: x\ndesign:\n  storybook_url: https://team-console-stage.geeera.workers.dev/storybook/\n';
+    const yml =
+      'name: x\ndesign:\n  storybook_url: https://team-console-stage.geeera.workers.dev/storybook/\n';
     const { github } = setup({ issues: OPEN_ISSUES, projectYml: yml });
     const response = await fetchApi('/api/v1/projects/tc/embed-origins', localEnv(), {
       github,

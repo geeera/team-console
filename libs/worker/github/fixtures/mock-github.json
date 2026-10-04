@@ -1095,7 +1095,8 @@
             "type": "User"
           },
           "milestone": null,
-          "closed_at": null
+          "closed_at": null,
+          "comments": 15
         },
         {
           "number": 21,
@@ -1948,6 +1949,175 @@
             "app": {
               "slug": "github-actions"
             }
+          }
+        ]
+      },
+      "comments": {
+        "22": [
+          {
+            "id": 2200001,
+            "body": "<!-- pt-run id=mock-r0 slot=slot-dev state=started -->\n**slot-dev** started",
+            "created_at": "2026-10-03T15:00:00Z",
+            "updated_at": "2026-10-03T15:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200001"
+          },
+          {
+            "id": 2200002,
+            "body": "<!-- pt-run id=mock-r0 slot=slot-dev state=finished -->\n**slot-dev** finished",
+            "created_at": "2026-10-03T15:50:00Z",
+            "updated_at": "2026-10-03T15:50:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200002"
+          },
+          {
+            "id": 2200003,
+            "body": "<!-- pt-run id=mock-r1 slot=slot-pm state=started -->\n**slot-pm** started",
+            "created_at": "2026-10-04T06:00:00Z",
+            "updated_at": "2026-10-04T06:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200003"
+          },
+          {
+            "id": 2200004,
+            "body": "<!-- pt-run id=mock-r1 slot=slot-pm state=finished -->\n**slot-pm** finished",
+            "created_at": "2026-10-04T06:12:00Z",
+            "updated_at": "2026-10-04T06:12:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200004"
+          },
+          {
+            "id": 2200005,
+            "body": "<!-- pt-run id=mock-r2 slot=slot-dev state=started -->\n**slot-dev** started",
+            "created_at": "2026-10-04T07:00:00Z",
+            "updated_at": "2026-10-04T07:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200005"
+          },
+          {
+            "id": 2200006,
+            "body": "<!-- pt-run id=mock-r2 slot=slot-dev state=failed -->\n**slot-dev** failed",
+            "created_at": "2026-10-04T07:40:00Z",
+            "updated_at": "2026-10-04T07:40:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200006"
+          },
+          {
+            "id": 2200007,
+            "body": "<!-- pt-run id=mock-r3 slot=slot-qa state=started -->\n**slot-qa** started",
+            "created_at": "2026-10-04T09:00:00Z",
+            "updated_at": "2026-10-04T09:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200007"
+          },
+          {
+            "id": 2200008,
+            "body": "<!-- pt-run id=mock-r3 slot=slot-qa state=finished -->\n**slot-qa** finished",
+            "created_at": "2026-10-04T09:20:00Z",
+            "updated_at": "2026-10-04T09:20:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200008"
+          },
+          {
+            "id": 2200009,
+            "body": "<!-- pt-run id=mock-r4 slot=slot-dev state=started -->\n**slot-dev** started",
+            "created_at": "2026-10-04T11:00:00Z",
+            "updated_at": "2026-10-04T11:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200009"
+          },
+          {
+            "id": 2200010,
+            "body": "<!-- pt-run id=mock-r4 slot=slot-dev state=failed -->\n**slot-dev** failed",
+            "created_at": "2026-10-04T11:30:00Z",
+            "updated_at": "2026-10-04T12:05:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200010"
+          },
+          {
+            "id": 2200011,
+            "body": "<!-- pt-run id=mock-r5 slot=slot-pm state=started -->\n**slot-pm** started",
+            "created_at": "2026-10-04T13:00:00Z",
+            "updated_at": "2026-10-04T13:00:00Z",
+            "user": {
+              "login": "team-console-team[bot]",
+              "type": "Bot"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200011"
+          },
+          {
+            "id": 2200012,
+            "body": "<!-- pt-run id=mock-r5 slot=slot-pm state=finished -->\n**slot-pm** finished",
+            "created_at": "2026-10-04T13:10:00Z",
+            "updated_at": "2026-10-04T13:10:00Z",
+            "user": {
+              "login": "team-console-team[bot]",
+              "type": "Bot"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200012"
+          },
+          {
+            "id": 2200013,
+            "body": "<!-- pt-run id=mock-r6 slot=slot-dev state=started -->\n**slot-dev** started",
+            "created_at": "2026-10-04T15:00:00Z",
+            "updated_at": "2026-10-04T15:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200013"
+          },
+          {
+            "id": 2200014,
+            "body": "<!-- pt-run id=mock-r6 slot=slot-dev state=finished -->\n**slot-dev** finished",
+            "created_at": "2026-10-04T15:45:00Z",
+            "updated_at": "2026-10-04T15:45:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200014"
+          },
+          {
+            "id": 2200015,
+            "body": "<!-- pt-run id=mock-r6 slot=slot-dev state=failed -->\n**slot-dev** failed",
+            "created_at": "2026-10-04T16:00:00Z",
+            "updated_at": "2026-10-04T16:00:00Z",
+            "user": {
+              "login": "outsider",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200015"
           }
         ]
       }

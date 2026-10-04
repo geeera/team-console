@@ -10,8 +10,9 @@ import { SubrequestBudget } from '../read-models/subrequest-budget';
 /**
  * GitHub subrequests one sprint request may spend (#131). The Workers free plan allows 50 per request: this, plus the
  * registry query and the Access key set, leaves 4 for what the budget does not count (as on the overview). The lists
- * take at most 7 (token 2, milestones 1, sprint issues ≤ 3, pulls 1), so at least 37 pull requests get their CI read
- * on a cold isolate; past that a row is `unknown`, and the next load reads on from the cache.
+ * and the run log take at most 11 (token 2, milestones 1, sprint issues ≤ 3, pulls 1, run log ≤ 4: project.yml, the
+ * issue, two pages of comments — #132), so at least 33 pull requests get their CI read on a cold isolate; past that
+ * a row is `unknown`, and the next load reads on from the cache. A run log the budget stops is `unknown` too.
  */
 export const SPRINT_GITHUB_BUDGET = 44;
 

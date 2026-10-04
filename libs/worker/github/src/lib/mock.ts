@@ -26,9 +26,11 @@ export interface MockRepository {
   /**
    * Issues as GitHub sends them (pull requests included), newest first: `GET …/issues?state=&milestone=` lists
    * them, `GET …/issues/{number}` (the answer route, #10) reads one, `GET …/issues/{number}/comments` (the run log,
-   * #114) answers an empty thread for any of them.
+   * #114) answers its thread from `comments`, an empty one for an issue not listed there.
    */
   readonly issues?: readonly Readonly<Record<string, unknown>>[];
+  /** Comments as GitHub sends them, oldest first, by issue number (the run log #22 on the board, #132). */
+  readonly comments?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
   /** `GET …/milestones?state=` */
   readonly milestones?: readonly Readonly<Record<string, unknown>>[];
   /** `GET …/pulls?state=` */
@@ -229,7 +231,7 @@ class MockGitHubServer {
       if (isCommentsRead) {
         const issue = this.issue(found.fixture, segments[4] ?? '');
         await issue.body?.cancel();
-        return issue.ok ? json(200, []) : notFound();
+        return issue.ok ? json(200, found.fixture.comments?.[segments[4] ?? ''] ?? []) : notFound();
       }
       return found.fixture.repository === undefined ? notFound() : json(200, found.fixture.repository);
     }

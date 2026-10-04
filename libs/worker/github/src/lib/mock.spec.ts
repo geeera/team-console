@@ -139,6 +139,24 @@ describe('createMockGitHub', () => {
     expect(none).toEqual({ total_count: 0, check_runs: [] });
   });
 
+  it("serves the run log's thread (#132), and an empty one for an issue without fixture comments", async () => {
+    const repo = parseRepoName('geeera/team-console');
+    const isList = (value: unknown): value is Record<string, unknown>[] => Array.isArray(value);
+    const github = client('geeera/team-console');
+    const log = await github.getJson(
+      githubPath`/repos/${repo}/issues/${22}/comments?per_page=${100}`,
+      isList,
+    );
+    expect(log.length).toBeGreaterThan(5);
+    // One edited team entry and one outsider entry, for the board's provenance rule.
+    expect(log.some((comment) => comment['updated_at'] !== comment['created_at'])).toBe(true);
+    expect(log.some((comment) => (comment['user'] as { login?: string }).login === 'outsider')).toBe(true);
+    const issue = await github.getJson(githubPath`/repos/${repo}/issues/${22}`, isObject);
+    expect(issue['comments']).toBe(log.length);
+    const other = await github.getJson(githubPath`/repos/${repo}/issues/${31}/comments`, isList);
+    expect(other).toEqual([]);
+  });
+
   it('answers 409 github-app-not-installed for a repository without the app', async () => {
     const error = await rejection(auth.installationIdFor(parseRepoName('someone/else')));
     expect(error.problem.type).toBe('github-app-not-installed');

@@ -8,7 +8,9 @@
   [title]="'board.error.' + failed.failure + '.title' | transloco"
   [description]="failureHintKey() | transloco: { time: retryTime() }"
 >
-  <button tc-button tc-state-action type="button" (click)="reload()">{{ 'ui.error.retry' | transloco }}</button>
+  <button tc-button tc-state-action type="button" (click)="reload()">
+    {{ 'ui.error.retry' | transloco }}
+  </button>
 </tc-state-block>
 } @else if (board(); as board) {
 <!-- Titles, labels and the milestone name are GitHub text: interpolated only, never bound as HTML. -->
@@ -21,10 +23,13 @@
 
   <dl tc-stats data-testid="stats">
     <div tc-stat [label]="'board.stat.done' | transloco">
-      {{ 'board.stat.doneValue' | transloco: { shipped: (board.shipped | localNumber), planned: (board.planned | localNumber) } }}
+      {{ 'board.stat.doneValue' | transloco: { shipped: (board.shipped | localNumber), planned: (board.planned
+      | localNumber) } }}
     </div>
     <div tc-stat [label]="'board.stat.stillOpen' | transloco">{{ board.carriedOver | localNumber }}</div>
-    <div tc-stat [label]="'board.stat.openPrs' | transloco">{{ board.pullRequests.length | localNumber }}</div>
+    <div tc-stat [label]="'board.stat.openPrs' | transloco">
+      {{ board.pullRequests.length | localNumber }}
+    </div>
     <!-- Icon and words for the most urgent CI state across the open PRs; the tone only repeats them. -->
     <div
       tc-stat
@@ -33,10 +38,21 @@
       [label]="'board.stat.ci' | transloco"
       [tone]="ciTone()"
     >
-      <span class="board__ci"
-        ><tc-icon [name]="ciIcon()" size="sm" />{{
-          'board.ci.summary.' + ci().state | transloco: { n: (ci().count | localNumber) }
-        }}</span
+      <span class="board__stat-word"
+        ><tc-icon [name]="ciIcon()" size="sm" />{{ 'board.ci.summary.' + ci().state | transloco: { n:
+        (ci().count | localNumber) } }}</span
+      >
+    </div>
+    <!-- The team as runstate reads the run log (#132): icon and words, the tone only repeats them. -->
+    <div
+      tc-stat
+      data-testid="team-stat"
+      [attr.data-team]="board.team.state"
+      [label]="'board.stat.runs' | transloco"
+      [tone]="teamTone()"
+    >
+      <span class="board__stat-word"
+        ><tc-icon [name]="teamIcon()" size="sm" />{{ 'board.team.' + board.team.state | transloco }}</span
       >
     </div>
   </dl>
@@ -96,6 +112,24 @@
   <tc-sprint-item-list [items]="board.pullRequests" />
   } @else {
   <tc-state-block kind="empty" compact [title]="'board.pullsEmpty' | transloco" />
+  }
+</tc-lane>
+
+<tc-lane
+  class="board__runs"
+  data-testid="runs"
+  [heading]="'board.runs.title' | transloco"
+  [count]="board.team.recentRuns.length"
+  [level]="2"
+>
+  @if (board.team.recentRuns.length === 0) {
+  <tc-state-block kind="empty" compact data-testid="runs-empty" [title]="'board.runs.empty' | transloco" />
+  } @if (board.team.recentRuns.length > 0 || board.team.runLogUrl) {
+  <tc-sprint-run-list
+    [runs]="board.team.recentRuns"
+    [runLogUrl]="board.team.runLogUrl"
+    [label]="'board.runs.title' | transloco"
+  />
   }
 </tc-lane>
 }

@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import {
+  isTeamRunState,
   problemSlugOf,
   type OverviewDto,
   type OverviewProjectDto,
@@ -12,7 +13,6 @@ import { firstValueFrom } from 'rxjs';
 /** `GET /api/v1/overview` (#27): every active project's row in one request. */
 export const OVERVIEW_URL = '/api/v1/overview';
 
-const TEAM_STATES: readonly OverviewTeamState[] = ['running', 'paused', 'failing', 'unknown'];
 const DUE_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -54,8 +54,7 @@ function isOverviewProject(value: unknown): value is OverviewProjectDto {
   }
   return (
     value['kind'] === 'read' &&
-    typeof value['team'] === 'string' &&
-    (TEAM_STATES as readonly string[]).includes(value['team']) &&
+    isTeamRunState(value['team']) &&
     (value['sprint'] === null || isSprint(value['sprint'])) &&
     Array.isArray(value['needsYou']) &&
     value['needsYou'].every(isIssueNumber) &&

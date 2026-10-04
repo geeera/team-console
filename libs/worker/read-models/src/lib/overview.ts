@@ -1,4 +1,4 @@
-import type { InboxDto, OverviewProjectReadDto, OverviewTeamState, SprintDto } from '@shared/contracts';
+import type { InboxDto, OverviewProjectReadDto, OverviewTeamState, SprintListsDto } from '@shared/contracts';
 
 export interface OverviewRowInput {
   readonly slug: string;
@@ -6,7 +6,7 @@ export interface OverviewRowInput {
   readonly team: OverviewTeamState;
   readonly inbox: InboxDto;
   /** The board's read model; its pull requests are not part of the row. */
-  readonly sprint: SprintDto;
+  readonly sprint: SprintListsDto;
 }
 
 /**

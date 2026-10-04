@@ -119,7 +119,13 @@ empty, error and 429 with an automatic retry at `Retry-After`). Kit: `Lanes`/`La
 from one `commits/{sha}/check-runs?filter=latest` read per PR head (`ciStateOf` in `@worker/read-models`, the plugin's
 `checks.summarise` for check runs; fixtures `fixtures/check-runs.json`), cached 60 s per sha, under the sprint route's
 `SubrequestBudget` (`SPRINT_GITHUB_BUDGET` 44): a PR past it, or one GitHub refuses, is `unknown`. Console: `SprintCiChip`,
-`ciSummaryOf` (the board's "CI" tile).
+`ciSummaryOf` (the board's "CI" tile). Run state (#132): `SprintDto.team` (`TeamRunDto`: `running|paused|failing|unknown`,
+`runLogUrl`, the last 5 runs `running|finished|failed|unknown`) from `ProjectReads.teamRun()` — the run log's latest 200
+comments through `readRunLog`, `teamRunOf` (`overviewTeamStateOf` + `recentRunsOf` of `@worker/run-log`), cached 30 s as
+`team-run`, one entry with the overview's team state; read with the lists, before CI, ≤ 4 subrequests. A run a team entry
+was edited on is `unknown`, never `failed` (`shownStateOf`); a run log GitHub refuses or the budget stops is `unknown`.
+Mock: `MockRepository.comments` (the run log #22 of geeera/team-console); fake GitHub `POST /_fake/comment`. Console:
+`SprintRunList`, `TEAM_RUN_ICONS` (the "Run log" tile).
 
 Artifacts (#19, read-only): `GET /api/v1/projects/:slug/artifacts[?fresh=1]` (`routes/artifacts.ts`, `read-models/artifact-reads.ts`)
 reads decisions (`decisions_dir` listing + first `#` heading, ≤ 30 file reads), designs (`ux-spec`/`design:*` issues,
