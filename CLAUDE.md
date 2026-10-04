@@ -30,12 +30,26 @@ merge commit), and `nx run-many` instead when the PR touches `.github/workflows/
 `.nvmrc`, `nx.json`, `tsconfig.base.json`, `eslint.config.mjs` or `vitest.config.mts`, and on every PR into
 stage/main; the job's "Nx scope" notice says which. `security.yml`: `secret-scan` (gitleaks over `git log --all`
 of the clone — every branch and tag of the repo plus this PR's merge ref, not other PRs), `sast` (Semgrep),
-`dependency-audit` (`npm audit --audit-level=high`). Every action in `.github/workflows/` is pinned by full commit
-SHA; the PR workflows use no secrets. A leaked secret: rotate/revoke it first (the public history keeps it), then
-delete the branch and push a clean one (no force-push onto shared branches), or — if it already reached a
-long-lived branch — add its fingerprint (from the red run's log) to `.gitleaksignore` in a reviewed PR.
+`dependency-audit` (`node tools/ci/audit-gate.mjs`, wrapping `npm audit --json`). Every action in
+`.github/workflows/` is pinned by full commit SHA; the PR workflows use no secrets. A leaked secret:
+rotate/revoke it first (the public history keeps it), then delete the branch and push a clean one (no
+force-push onto shared branches), or — if it already reached a long-lived branch — add its fingerprint (from
+the red run's log) to `.gitleaksignore` in a reviewed PR.
 Dependabot (`.github/dependabot.yml`) proposes github-actions updates weekly, grouped into one PR into `dev`;
 those PRs go through the same gate as any other (CI + QA/REVIEW/SECURITY).
+
+`dependency-audit` fails on any high/critical `npm audit` advisory except one with a matching, unexpired entry
+in `.audit-allowlist.json` (`tools/ci/audit-gate.mjs`, tested by `tools/ci/audit-gate.test.mjs`) — a narrow,
+time-boxed exception for an advisory with no fix yet (owner decision, never added unilaterally). A match
+requires both the entry's `ghsaId` and `package` to equal the advisory's; one entry never masks a different
+advisory, even on the same package. Today's one entry: `GHSA-vfj7-8cjw-p6xm`/`braces` (#177; stack-exhaustion
+DoS in `braces`' AST walker, dev/build tooling only — Angular devkit, webpack-dev-server, Storybook — never
+shipped in a deployed bundle), expiring 2026-11-03. Once the GitHub Advisory Database lists a
+`first_patched_version` for that advisory (or the vulnerable chain — `@angular-devkit/build-angular` /
+`webpack-dev-server` / `@storybook/angular` / `braces` itself — can be bumped past it): bump the dependency,
+run `npm audit --json` locally to confirm the advisory is gone, then delete its entry from
+`.audit-allowlist.json` in the same PR (do not just let it expire — remove it as soon as a fix exists) and
+drop a comment on #177 saying so before closing it.
 
 Layout, tags and aliases (architect note on #3 — binding; the boundary lint enforces the tags):
 

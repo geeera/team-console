@@ -77,9 +77,11 @@ jobs:
           node-version-file: .nvmrc
           package-manager-cache: false
 
-      # Reads package-lock.json against the advisory database; no install needed.
-      - name: npm audit
-        run: npm audit --audit-level=high
+      # Reads package-lock.json against the advisory database; no install needed. tools/ci/audit-gate.mjs wraps
+      # `npm audit --json` and fails on any high/critical advisory except one with an unexpired, exact-match
+      # entry in .audit-allowlist.json (#177: GHSA-vfj7-8cjw-p6xm/braces has no patched version yet).
+      - name: npm audit (gated by .audit-allowlist.json)
+        run: node tools/ci/audit-gate.mjs
 
   workflow-lint:
     # actionlint also runs shellcheck on every embedded `run:` script inside .github/workflows/*.yml, so this
@@ -135,6 +137,12 @@ jobs:
             exit 0
           fi
           "${RUNNER_TEMP}/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" "${scripts[@]}"
+
+      # #177: the dependency-audit job's allowlist gate has its own logic for matching/expiring advisories —
+      # this proves it ignores only an exact (GHSA id, package) match before expiry and fails closed on
+      # everything else (a mismatch, an expiry, an unidentifiable advisory, a malformed report).
+      - name: Test the dependency-audit allowlist gate (tools/ci/audit-gate.mjs)
+        run: node tools/ci/audit-gate.test.mjs
 
       # PR #54 QA round 3: OpenSSL's `-text` output made the VAPID private key come out 33 bytes about half
       # the time on macOS's LibreSSL. vapid-keygen.js replaced it with Node's built-in `crypto` (fixed-width
