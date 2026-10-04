@@ -39,12 +39,16 @@ Dependabot (`.github/dependabot.yml`) proposes github-actions updates weekly, gr
 those PRs go through the same gate as any other (CI + QA/REVIEW/SECURITY).
 
 `dependency-audit` fails on any high/critical `npm audit` advisory except one with a matching, unexpired entry
-in `.audit-allowlist.json` (`tools/ci/audit-gate.mjs`, tested by `tools/ci/audit-gate.test.mjs`) — a narrow,
-time-boxed exception for an advisory with no fix yet (owner decision, never added unilaterally). A match
-requires both the entry's `ghsaId` and `package` to equal the advisory's; one entry never masks a different
-advisory, even on the same package. Today's one entry: `GHSA-vfj7-8cjw-p6xm`/`braces` (#177; stack-exhaustion
-DoS in `braces`' AST walker, dev/build tooling only — Angular devkit, webpack-dev-server, Storybook — never
-shipped in a deployed bundle), expiring 2026-11-03. Once the GitHub Advisory Database lists a
+in `.audit-allowlist.json` (`tools/ci/audit-gate.mjs`, unit-tested by `tools/ci/audit-gate.test.mjs`, spawned
+end to end from a path with a space by `tools/ci/audit-gate.e2e.test.mjs`) — a narrow, time-boxed exception for
+an advisory with no fix yet (owner decision, never added unilaterally). A match requires both the entry's
+`ghsaId` and `package` to equal the advisory's; one entry never masks a different advisory, even on the same
+package. An allowlist entry's `expires` must be a real calendar date in strict `YYYY-MM-DD` form, at most 90
+days from today — the gate fails closed on anything it cannot parse or validate (a missing/unknown advisory
+severity, an `npm audit` exit that yields no parsed advisories, a malformed allowlist). Today's one entry:
+`GHSA-vfj7-8cjw-p6xm`/`braces` (#177; stack-exhaustion DoS in `braces`' AST walker, dev/build tooling only —
+Angular devkit, webpack-dev-server, Storybook — never shipped in a deployed bundle), expiring 2026-11-03. Once
+the GitHub Advisory Database lists a
 `first_patched_version` for that advisory (or the vulnerable chain — `@angular-devkit/build-angular` /
 `webpack-dev-server` / `@storybook/angular` / `braces` itself — can be bumped past it): bump the dependency,
 run `npm audit --json` locally to confirm the advisory is gone, then delete its entry from

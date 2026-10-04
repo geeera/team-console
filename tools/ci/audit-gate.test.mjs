@@ -3,7 +3,16 @@
 // build) and only needs Node's builtin `assert`, run directly by security.yml's `workflow-lint` job, next to
 // the other tools/*.test.* files (see tools/deploy-guard/check-d1-placeholder.test.js for the same pattern).
 import assert from 'node:assert';
-import { evaluateAuditReport, parseAuditReport } from './audit-gate.mjs';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import {
+  evaluateAuditReport,
+  parseAuditReport,
+  loadAllowlist,
+  assertReportIntegrity,
+  collectAdvisories,
+} from './audit-gate.mjs';
 
 const NOW = new Date('2026-10-04T00:00:00Z');
 
@@ -176,5 +185,142 @@ function reportWith(advisory) {
   );
   assert.throws(() => parseAuditReport(''), /not valid JSON/, 'empty npm audit output must also fail');
 }
+
+// --- an advisory missing a name, missing a severity, or with an unknown severity fails closed (#180 review) ---
+{
+  const missingName = {
+    vulnerabilities: { mystery: { severity: 'high', via: [{ source: 1, severity: 'high', url: 'x' }] } },
+  };
+  assert.throws(() => collectAdvisories(missingName), /missing a package name/);
+
+  const missingSeverity = {
+    vulnerabilities: { braces: { name: 'braces', via: [{ source: 1, name: 'braces', url: 'x' }] } },
+  };
+  assert.throws(() => collectAdvisories(missingSeverity), /missing a severity/);
+
+  const unknownSeverity = {
+    vulnerabilities: {
+      braces: { name: 'braces', severity: 'apocalyptic', via: [{ source: 1, name: 'braces', severity: 'apocalyptic', url: 'x' }] },
+    },
+  };
+  assert.throws(() => collectAdvisories(unknownSeverity), /unknown severity/);
+}
+
+// --- report integrity: a non-zero npm audit exit that yields zero parsed advisories must fail, not pass ---
+{
+  assert.throws(
+    () => assertReportIntegrity({ vulnerabilities: {} }, 1, []),
+    /no advisories could be parsed/,
+    'a failed npm audit run with nothing collected must not be treated as clean',
+  );
+  // exit 0 with nothing collected is a genuinely clean audit — must not throw.
+  assertReportIntegrity({ vulnerabilities: {} }, 0, []);
+}
+
+// --- report integrity: metadata counting high/critical packages while nothing was collected must fail ---
+{
+  const report = { metadata: { vulnerabilities: { high: 3, critical: 0 } } };
+  // status 0 here isolates this check from the "non-zero exit with nothing collected" one above.
+  assert.throws(
+    () => assertReportIntegrity(report, 0, []),
+    /metadata reports 3 high\/critical/,
+    'metadata reporting vulnerable packages with zero collected advisories must fail, not pass silently',
+  );
+  // the real shape (metadata counts packages, collectAdvisories counts distinct advisories) is expected to
+  // differ in absolute numbers — only "metadata says some, we found none" is the failure case.
+  assertReportIntegrity(report, 0, [{ severity: 'high', ghsaId: 'GHSA-aaaa-bbbb-cccc', package: 'braces' }]);
+}
+
+// --- loadAllowlist ---
+function withTempFile(contents, fn) {
+  const dir = mkdtempSync(path.join(tmpdir(), 'audit-gate-allowlist-'));
+  const file = path.join(dir, '.audit-allowlist.json');
+  if (contents !== null) writeFileSync(file, contents, 'utf8');
+  try {
+    return fn(file);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const validEntryJson = JSON.stringify({
+  entries: [{ ghsaId: 'GHSA-vfj7-8cjw-p6xm', package: 'braces', reason: 'no fix yet', issue: 177, expires: '2026-11-03' }],
+});
+
+withTempFile(null, (file) => {
+  assert.deepStrictEqual(loadAllowlist(file, NOW), [], 'a missing allowlist file is an empty allowlist');
+});
+
+withTempFile('{ not valid json', (file) => {
+  assert.throws(() => loadAllowlist(file, NOW), /not valid JSON/, 'malformed allowlist JSON must fail');
+});
+
+withTempFile('[]', (file) => {
+  assert.throws(() => loadAllowlist(file, NOW), /must have an "entries" array/, 'a non-object root must fail');
+});
+
+withTempFile(JSON.stringify({ entries: [{ package: 'braces', reason: 'x', issue: 177, expires: '2026-11-03' }] }), (file) => {
+  assert.throws(() => loadAllowlist(file, NOW), /missing required field "ghsaId"/, 'a missing required field must fail');
+});
+
+withTempFile(
+  JSON.stringify({ entries: [{ ghsaId: 'not-a-ghsa-id', package: 'braces', reason: 'x', issue: 177, expires: '2026-11-03' }] }),
+  (file) => {
+    assert.throws(() => loadAllowlist(file, NOW), /is not a GHSA id/, 'a non-GHSA ghsaId must fail');
+  },
+);
+
+withTempFile(
+  JSON.stringify({
+    entries: [{ ghsaId: 'GHSA-vfj7-8cjw-p6xm', package: 'braces', reason: 'x', issue: 177, expires: '2026/11/03' }],
+  }),
+  (file) => {
+    assert.throws(() => loadAllowlist(file, NOW), /strict YYYY-MM-DD/, 'a non-strict date format must fail');
+  },
+);
+
+withTempFile(
+  JSON.stringify({
+    entries: [{ ghsaId: 'GHSA-vfj7-8cjw-p6xm', package: 'braces', reason: 'x', issue: 177, expires: '2026-02-30' }],
+  }),
+  (file) => {
+    assert.throws(
+      () => loadAllowlist(file, NOW),
+      /strict YYYY-MM-DD/,
+      'an impossible calendar date (Feb 30) must fail, not silently roll over to March',
+    );
+  },
+);
+
+withTempFile(
+  JSON.stringify({
+    // NOW is 2026-10-04; 2027-06-01 is well past the 90-day horizon.
+    entries: [{ ghsaId: 'GHSA-vfj7-8cjw-p6xm', package: 'braces', reason: 'x', issue: 177, expires: '2027-06-01' }],
+  }),
+  (file) => {
+    assert.throws(
+      () => loadAllowlist(file, NOW),
+      /more than 90 days/,
+      'an expiry more than 90 days out must fail — exceptions must stay narrow and time-boxed',
+    );
+  },
+);
+
+withTempFile(
+  JSON.stringify({
+    // exactly 90 days from NOW (2026-10-04 + 90 days) must still be accepted.
+    entries: [{ ghsaId: 'GHSA-vfj7-8cjw-p6xm', package: 'braces', reason: 'x', issue: 177, expires: '2027-01-02' }],
+  }),
+  (file) => {
+    const loaded = loadAllowlist(file, NOW);
+    assert.strictEqual(loaded.length, 1, 'an expiry exactly at the 90-day horizon must be accepted');
+  },
+);
+
+withTempFile(validEntryJson, (file) => {
+  const loaded = loadAllowlist(file, NOW);
+  assert.strictEqual(loaded.length, 1);
+  assert.strictEqual(loaded[0].package, 'braces');
+});
 
 process.stdout.write('ok: audit-gate ignores only matching, unexpired allowlist entries and fails closed otherwise\n');
