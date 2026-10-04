@@ -115,7 +115,11 @@ still lists them. Kit: `Recommendation`, `Receipt`.
 Sprint board (#18, read-only): `@console/entities/sprint` (`isSprintDto`, `SprintApi`, `statusColumnsOf` — lanes counted as
 `backlog list` counts them, `SprintItemList`), `@console/widgets/sprint-board` (`/p/:slug/board`; loading, no sprint,
 empty, error and 429 with an automatic retry at `Retry-After`). Kit: `Lanes`/`Lane` (a tab list of lanes on the phone, `[(selected)]` by `key`),
-`Stats`/`Stat`, `ListRow` `external`.
+`Stats`/`Stat`, `ListRow` `external`. CI per open PR (#131): `SprintPullRequestDto.ci` (`success|failure|pending|none|unknown`)
+from one `commits/{sha}/check-runs?filter=latest` read per PR head (`ciStateOf` in `@worker/read-models`, the plugin's
+`checks.summarise` for check runs; fixtures `fixtures/check-runs.json`), cached 60 s per sha, under the sprint route's
+`SubrequestBudget` (`SPRINT_GITHUB_BUDGET` 44): a PR past it, or one GitHub refuses, is `unknown`. Console: `SprintCiChip`,
+`ciSummaryOf` (the board's "CI" tile).
 
 Artifacts (#19, read-only): `GET /api/v1/projects/:slug/artifacts[?fresh=1]` (`routes/artifacts.ts`, `read-models/artifact-reads.ts`)
 reads decisions (`decisions_dir` listing + first `#` heading, ≤ 30 file reads), designs (`ux-spec`/`design:*` issues,

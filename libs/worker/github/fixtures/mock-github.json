@@ -74,6 +74,42 @@
           "closed_at": null
         },
         {
+          "number": 92,
+          "title": "feat(#131): CI state for each open pull request on the board",
+          "body": "",
+          "html_url": "https://github.com/geeera/team-console/pull/92",
+          "state": "open",
+          "labels": [],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "pull_request": {
+            "html_url": "https://github.com/geeera/team-console/pull/92"
+          }
+        },
+        {
+          "number": 91,
+          "title": "docs: sketch the next board section",
+          "body": "",
+          "html_url": "https://github.com/geeera/team-console/pull/91",
+          "state": "open",
+          "labels": [],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "pull_request": {
+            "html_url": "https://github.com/geeera/team-console/pull/91"
+          }
+        },
+        {
           "number": 89,
           "title": "#24 wrong-account copy needs the owner login, which the #59 API does not expose when not connected",
           "body": "Found by QA while checking PR #81 (#59) against the approved #24 design (`docs/design/features/24-settings-projects.html`, version `8d65b7c`).\n\n**What:** the approved wrong-account copy `gh.error.account` needs two logins: \"GitHub was signed in as `{who}`. The console connects only to the owner's ac",
@@ -1708,6 +1744,36 @@
       ],
       "pulls": [
         {
+          "number": 92,
+          "title": "feat(#131): CI state for each open pull request on the board",
+          "html_url": "https://github.com/geeera/team-console/pull/92",
+          "draft": false,
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "state": "open",
+          "head": {
+            "sha": "92b1ab0092b1ab0092b1ab0092b1ab0092b1ab00"
+          }
+        },
+        {
+          "number": 91,
+          "title": "docs: sketch the next board section",
+          "html_url": "https://github.com/geeera/team-console/pull/91",
+          "draft": true,
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "state": "open",
+          "head": {
+            "sha": "91deadbe91deadbe91deadbe91deadbe91deadbe"
+          }
+        },
+        {
           "number": 45,
           "title": "chore(devops): publish docs/design to GitHub Pages via Actions",
           "html_url": "https://github.com/geeera/team-console/pull/45",
@@ -1717,7 +1783,10 @@
             "login": "geeera",
             "type": "User"
           },
-          "state": "open"
+          "state": "open",
+          "head": {
+            "sha": "45a1c0de45a1c0de45a1c0de45a1c0de45a1c0de"
+          }
         },
         {
           "number": 40,
@@ -1729,9 +1798,84 @@
             "login": "geeera",
             "type": "User"
           },
-          "state": "open"
+          "state": "open",
+          "head": {
+            "sha": "40fa11ed40fa11ed40fa11ed40fa11ed40fa11ed"
+          }
         }
-      ]
+      ],
+      "checkRuns": {
+        "92b1ab0092b1ab0092b1ab0092b1ab0092b1ab00": [
+          {
+            "name": "lint-test-build",
+            "status": "completed",
+            "conclusion": "success",
+            "app": {
+              "slug": "github-actions"
+            }
+          },
+          {
+            "name": "e2e",
+            "status": "in_progress",
+            "conclusion": null,
+            "app": {
+              "slug": "github-actions"
+            }
+          },
+          {
+            "name": "sast",
+            "status": "queued",
+            "conclusion": null,
+            "app": {
+              "slug": "github-actions"
+            }
+          }
+        ],
+        "45a1c0de45a1c0de45a1c0de45a1c0de45a1c0de": [
+          {
+            "name": "lint-test-build",
+            "status": "completed",
+            "conclusion": "success",
+            "app": {
+              "slug": "github-actions"
+            }
+          },
+          {
+            "name": "e2e",
+            "status": "completed",
+            "conclusion": "success",
+            "app": {
+              "slug": "github-actions"
+            }
+          },
+          {
+            "name": "deploy",
+            "status": "completed",
+            "conclusion": "skipped",
+            "app": {
+              "slug": "github-actions"
+            }
+          }
+        ],
+        "40fa11ed40fa11ed40fa11ed40fa11ed40fa11ed": [
+          {
+            "name": "lint-test-build",
+            "status": "completed",
+            "conclusion": "success",
+            "app": {
+              "slug": "github-actions"
+            }
+          },
+          {
+            "name": "e2e",
+            "status": "completed",
+            "conclusion": "failure",
+            "app": {
+              "slug": "github-actions"
+            }
+          }
+        ]
+      }
     },
     "geeera/private-product": {
       "installationId": 1001,

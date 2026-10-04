@@ -1,11 +1,12 @@
 import type {
+  SprintCiState,
   SprintDto,
   SprintIssueDto,
   SprintMilestoneDto,
   SprintPullRequestDto,
   SprintTier,
 } from '@shared/contracts';
-import { isGitHubPageUrl } from '@shared/contracts';
+import { isGitHubPageUrl, isSprintCiState } from '@shared/contracts';
 
 /**
  * The current sprint as the board shows it, from `GET /api/v1/projects/:slug/sprint` (#35). Every title is untrusted
@@ -29,6 +30,30 @@ export interface SprintPullRequest {
   readonly url: string | null;
   readonly draft: boolean;
   readonly authorTrusted: boolean;
+  /** The head commit's CI (#131); `unknown` when the server could not read it in this load. */
+  readonly ci: SprintCiState;
+}
+
+/**
+ * The "CI" tile (#131): the state that matters most across the open pull requests and how many are in it —
+ * any failing first, then running, then not read, then passing; `empty` without an open pull request.
+ */
+export interface SprintCiSummary {
+  readonly state: SprintCiState | 'empty';
+  readonly count: number;
+}
+
+/** Most urgent first: what the owner should look at before anything else. */
+const CI_URGENCY: readonly SprintCiState[] = ['failure', 'pending', 'unknown', 'success', 'none'];
+
+export function ciSummaryOf(pulls: readonly SprintPullRequest[]): SprintCiSummary {
+  for (const state of CI_URGENCY) {
+    const count = pulls.filter((pull) => pull.ci === state).length;
+    if (count > 0) {
+      return { state, count };
+    }
+  }
+  return { state: 'empty', count: 0 };
 }
 
 export interface SprintMilestone {
@@ -121,7 +146,8 @@ function isPullRequest(value: unknown): value is SprintPullRequestDto {
     typeof value['title'] === 'string' &&
     isNullableString(value['url']) &&
     typeof value['draft'] === 'boolean' &&
-    typeof value['authorTrusted'] === 'boolean'
+    typeof value['authorTrusted'] === 'boolean' &&
+    isSprintCiState(value['ci'])
   );
 }
 
@@ -177,6 +203,7 @@ export function sprintBoardOf(dto: SprintDto): SprintBoard {
       url: safeUrl(pull.url),
       draft: pull.draft,
       authorTrusted: pull.authorTrusted,
+      ci: pull.ci,
     })),
   };
 }

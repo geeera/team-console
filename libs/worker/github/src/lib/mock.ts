@@ -33,6 +33,8 @@ export interface MockRepository {
   readonly milestones?: readonly Readonly<Record<string, unknown>>[];
   /** `GET …/pulls?state=` */
   readonly pulls?: readonly Readonly<Record<string, unknown>>[];
+  /** `GET …/commits/{sha}/check-runs` (#131), by head sha; a sha not listed has no check runs. */
+  readonly checkRuns?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
 }
 
 export interface MockFixtures {
@@ -190,10 +192,12 @@ class MockGitHubServer {
     const isListRead = listed === 'issues' || listed === 'milestones' || listed === 'pulls';
     const isIssueRead = segments.length === 5 && segments[3] === 'issues';
     const isCommentsRead = segments.length === 6 && segments[3] === 'issues' && segments[5] === 'comments';
+    const isCheckRunsRead =
+      segments.length === 6 && segments[3] === 'commits' && segments[5] === 'check-runs';
     if (
       method === 'GET' &&
       segments[0] === 'repos' &&
-      (isRepositoryRead || isContentsRead || isListRead || isIssueRead || isCommentsRead)
+      (isRepositoryRead || isContentsRead || isListRead || isIssueRead || isCommentsRead || isCheckRunsRead)
     ) {
       const repo = `${segments[1]}/${segments[2]}`;
       const token = this.issued.get(bearer);
@@ -217,6 +221,10 @@ class MockGitHubServer {
       }
       if (isIssueRead) {
         return this.issue(found.fixture, segments[4] ?? '');
+      }
+      if (isCheckRunsRead) {
+        const runs = found.fixture.checkRuns?.[segments[4] ?? ''] ?? [];
+        return json(200, { total_count: runs.length, check_runs: runs });
       }
       if (isCommentsRead) {
         const issue = this.issue(found.fixture, segments[4] ?? '');

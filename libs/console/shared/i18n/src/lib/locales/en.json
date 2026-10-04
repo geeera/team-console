@@ -253,7 +253,8 @@
       "done": "Done",
       "doneValue": "{{shipped}} of {{planned}}",
       "stillOpen": "Still open",
-      "openPrs": "Open PRs"
+      "openPrs": "Open PRs",
+      "ci": "CI"
     },
     "lanes": "Sprint issues by status",
     "status": {
@@ -274,6 +275,23 @@
     },
     "untrusted": "Not from the team",
     "draft": "Draft",
+    "ci": {
+      "state": {
+        "success": "CI passed",
+        "failure": "CI failed",
+        "pending": "CI running",
+        "none": "No checks",
+        "unknown": "CI unknown"
+      },
+      "summary": {
+        "failure": "Failing: {{n}}",
+        "pending": "Running: {{n}}",
+        "unknown": "Unknown: {{n}}",
+        "success": "Passing: {{n}}",
+        "none": "No checks",
+        "empty": "No open PRs"
+      }
+    },
     "opensGitHub": "(opens on GitHub)",
     "pulls": "Open pull requests",
     "pullsEmpty": "No open pull requests",

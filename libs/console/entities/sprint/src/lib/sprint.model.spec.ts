@@ -1,11 +1,13 @@
 import type { SprintDto, SprintIssueDto } from '@shared/contracts';
 import {
+  ciSummaryOf,
   CORE_STATUSES,
   daysUntilDemo,
   demoDayOf,
   isSprintDto,
   NO_STATUS,
   SprintIssue,
+  SprintPullRequest,
   sprintBoardOf,
   statusColumnsOf,
 } from './sprint.model';
@@ -34,7 +36,7 @@ function sprintDto(overrides: Partial<SprintDto> = {}): SprintDto {
     carriedOver: 1,
     byTier: { standard: { planned: 1, shipped: 0, raised: 0 } },
     openPullRequests: [
-      { number: 5, title: 'PR', url: 'https://github.com/o/r/pull/5', draft: false, authorTrusted: true },
+      { number: 5, title: 'PR', url: 'https://github.com/o/r/pull/5', draft: false, authorTrusted: true, ci: 'success' },
     ],
     ...overrides,
   };
@@ -62,7 +64,17 @@ describe('isSprintDto', () => {
     ['a byStatus count that is not a number', sprintDto({ byStatus: { approved: '1' as never } })],
     [
       'a pull request without a draft flag',
-      sprintDto({ openPullRequests: [{ number: 5, title: 'x', url: null, authorTrusted: true } as never] }),
+      sprintDto({ openPullRequests: [{ number: 5, title: 'x', url: null, authorTrusted: true, ci: 'none' } as never] }),
+    ],
+    [
+      'a pull request without a CI state',
+      sprintDto({ openPullRequests: [{ number: 5, title: 'x', url: null, draft: false, authorTrusted: true } as never] }),
+    ],
+    [
+      'a pull request with a CI state the board does not know',
+      sprintDto({
+        openPullRequests: [{ number: 5, title: 'x', url: null, draft: false, authorTrusted: true, ci: 'neutral' as never }],
+      }),
     ],
   ])('refuses %s', (_, value) => {
     expect(isSprintDto(value)).toBe(false);
@@ -78,18 +90,52 @@ describe('sprintBoardOf', () => {
           issueDto(1, { url: 'https://github.com.evil.example/o/r/issues/1' }),
           issueDto(2, { url: 'https://github.com/o/r/issues/2' }),
         ],
-        openPullRequests: [{ number: 5, title: 'x', url: 'http://github.com/o/r/pull/5', draft: true, authorTrusted: false }],
+        openPullRequests: [
+          { number: 5, title: 'x', url: 'http://github.com/o/r/pull/5', draft: true, authorTrusted: false, ci: 'pending' },
+        ],
       }),
     );
 
     expect(board.milestone?.url).toBeNull();
     expect(board.issues.map((item) => item.url)).toEqual([null, 'https://github.com/o/r/issues/2']);
-    expect(board.pullRequests[0]).toEqual({ number: 5, title: 'x', url: null, draft: true, authorTrusted: false });
+    expect(board.pullRequests[0]).toEqual({
+      number: 5,
+      title: 'x',
+      url: null,
+      draft: true,
+      authorTrusted: false,
+      ci: 'pending',
+    });
   });
 
   it('passes untrusted titles through unchanged — escaping is the template’s job', () => {
     const title = '<img src=x onerror=alert(1)>';
     expect(sprintBoardOf(sprintDto({ issues: [issueDto(1, { title })] })).issues[0]?.title).toBe(title);
+  });
+});
+
+describe('ciSummaryOf (#131)', () => {
+  const pr = (number: number, ci: SprintPullRequest['ci']): SprintPullRequest => ({
+    number,
+    title: `PR ${number}`,
+    url: null,
+    draft: false,
+    authorTrusted: true,
+    ci,
+  });
+
+  it.each([
+    ['a failing one over everything else', ['success', 'failure', 'pending', 'failure', 'unknown'], 'failure', 2],
+    ['running ones over unread and passing', ['success', 'pending', 'unknown', 'none'], 'pending', 1],
+    ['unread ones over passing', ['success', 'unknown', 'unknown', 'none'], 'unknown', 2],
+    ['passing ones over those without checks', ['success', 'none', 'success'], 'success', 2],
+    ['no checks at all', ['none', 'none'], 'none', 2],
+  ] as const)('shows %s', (_name, states, state, count) => {
+    expect(ciSummaryOf(states.map((ci, index) => pr(index + 1, ci)))).toEqual({ state, count });
+  });
+
+  it('is empty without an open pull request', () => {
+    expect(ciSummaryOf([])).toEqual({ state: 'empty', count: 0 });
   });
 });
 

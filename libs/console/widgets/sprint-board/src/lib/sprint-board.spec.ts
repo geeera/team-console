@@ -6,7 +6,7 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { CORE_STATUSES, projectSprintUrl } from '@console/entities/sprint';
 import { provideConsoleI18n, TranslocoService } from '@console/shared/i18n';
-import type { SprintDto, SprintIssueDto } from '@shared/contracts';
+import type { SprintDto, SprintIssueDto, SprintPullRequestDto } from '@shared/contracts';
 import { readFileSync } from 'node:fs';
 import type { MockInstance } from 'vitest';
 import { resolve } from 'node:path';
@@ -71,7 +71,7 @@ function sprint(overrides: Partial<SprintDto> = {}): SprintDto {
     carriedOver: 2,
     byTier: {},
     openPullRequests: [
-      { number: 45, title: 'chore: pages', url: 'https://github.com/geeera/team-console/pull/45', draft: false, authorTrusted: true },
+      { number: 45, title: 'chore: pages', url: 'https://github.com/geeera/team-console/pull/45', draft: false, authorTrusted: true, ci: 'failure' },
     ],
     ...overrides,
   };
@@ -186,6 +186,7 @@ describe('SprintBoard', () => {
       ['Готово', '1 из 3'],
       ['Ещё открыто', '2'],
       ['Открытые PR', '1'],
+      ['CI', 'Не пройден: 1'],
     ]);
     const qa = root.querySelector('tc-lane[data-status="qa"]') as HTMLElement;
     expect(qa.querySelector('[role="heading"]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Проверка 1');
@@ -195,6 +196,75 @@ describe('SprintBoard', () => {
     const pulls = root.querySelector('[data-testid="pulls"]') as HTMLElement;
     expect(pulls.querySelector('[role="heading"]')?.getAttribute('aria-level')).toBe('2');
     expect(pulls.querySelector('a')?.getAttribute('href')).toBe('https://github.com/geeera/team-console/pull/45');
+  });
+
+  describe('CI per open pull request (#131)', () => {
+    const pr = (number: number, ci: SprintPullRequestDto['ci']): SprintPullRequestDto => ({
+      number,
+      title: `PR ${number}`,
+      url: `https://github.com/geeera/team-console/pull/${number}`,
+      draft: false,
+      authorTrusted: true,
+      ci,
+    });
+
+    it("shows each row's state with an icon and words inside its link", async () => {
+      const { root, settle } = await render();
+      http.expectOne(projectSprintUrl(TC.slug)).flush(
+        sprint({
+          openPullRequests: [pr(5, 'success'), pr(4, 'failure'), pr(3, 'pending'), pr(2, 'none'), pr(1, 'unknown')],
+        }),
+      );
+      await settle();
+
+      const rows = [...root.querySelectorAll<HTMLElement>('[data-testid="pulls"] tc-list-row')];
+      const shown = rows.map((row) => {
+        const chip = row.querySelector('[data-testid="ci"]') as HTMLElement;
+        return [
+          row.getAttribute('data-number'),
+          chip.getAttribute('data-ci'),
+          chip.querySelector('tc-icon')?.getAttribute('aria-hidden'),
+          chip.textContent?.trim(),
+          row.querySelector('a')?.contains(chip),
+        ];
+      });
+      expect(shown).toEqual([
+        ['5', 'success', 'true', 'CI пройден', true],
+        ['4', 'failure', 'true', 'CI не пройден', true],
+        ['3', 'pending', 'true', 'CI идёт', true],
+        ['2', 'none', 'true', 'Проверок нет', true],
+        ['1', 'unknown', 'true', 'CI неизвестен', true],
+      ]);
+      // Each state has its own glyph, so it reads without colour.
+      const glyphs = rows.map((row) => row.querySelector('[data-testid="ci"] tc-icon path')?.getAttribute('d'));
+      expect(new Set(glyphs).size).toBe(5);
+    });
+
+    it.each([
+      [['success', 'pending', 'failure', 'failure'], 'failure', 'Не пройден: 2', 'Failing: 2'],
+      [['success', 'pending', 'unknown'], 'pending', 'Идёт: 1', 'Running: 1'],
+      [['success', 'unknown', 'none'], 'unknown', 'Неизвестно: 1', 'Unknown: 1'],
+      [['success', 'success', 'none'], 'success', 'Пройден: 2', 'Passing: 2'],
+      [['none'], 'none', 'Проверок нет', 'No checks'],
+      [[], 'empty', 'Нет открытых PR', 'No open PRs'],
+    ] as const)('the CI tile for %j says %s in both languages', async (states, state, ru, en) => {
+      const { root, fixture, settle } = await render();
+      http
+        .expectOne(projectSprintUrl(TC.slug))
+        .flush(sprint({ openPullRequests: states.map((ci, index) => pr(index + 1, ci)) }));
+      await settle();
+
+      const tile = root.querySelector('[data-testid="ci-stat"]') as HTMLElement;
+      expect(tile.getAttribute('data-ci')).toBe(state);
+      expect(tile.querySelector('dt')?.textContent?.trim()).toBe('CI');
+      expect(tile.querySelector('dd')?.textContent?.trim()).toBe(ru);
+      expect(tile.querySelector('dd tc-icon')?.getAttribute('aria-hidden')).toBe('true');
+
+      TestBed.inject(TranslocoService).setActiveLang('en');
+      await settle();
+      fixture.detectChanges();
+      expect(tile.querySelector('dd')?.textContent?.trim()).toBe(en);
+    });
   });
 
   it('switches its copy with the language', async () => {
@@ -218,7 +288,7 @@ describe('SprintBoard', () => {
     http.expectOne(projectSprintUrl(TC.slug)).flush(
       sprint({
         issues: [issue(7, { title, authorTrusted: false })],
-        openPullRequests: [{ number: 8, title, url: null, draft: true, authorTrusted: false }],
+        openPullRequests: [{ number: 8, title, url: null, draft: true, authorTrusted: false, ci: 'none' }],
       }),
     );
     await settle();

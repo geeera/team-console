@@ -62,7 +62,7 @@ export type {
   AnswerResponse,
   Section,
 } from './lib/answer';
-export { NEEDS_YOU_MAX_PROJECTS } from './lib/read-models';
+export { NEEDS_YOU_MAX_PROJECTS, SPRINT_CI_STATES, isSprintCiState } from './lib/read-models';
 export type {
   EmbedOriginsDto,
   InboxDto,
@@ -74,6 +74,7 @@ export type {
   NeedsYouProjectRef,
   QuestionDto,
   QuestionsDto,
+  SprintCiState,
   SprintDto,
   SprintIssueDto,
   SprintMilestoneDto,

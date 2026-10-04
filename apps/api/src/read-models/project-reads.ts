@@ -1,13 +1,16 @@
-import type { InboxDto, QuestionsDto, SprintDto } from '@shared/contracts';
+import type { InboxDto, QuestionsDto, SprintCiState, SprintDto } from '@shared/contracts';
 import type { ProjectRow } from '@worker/db';
-import { GitHubClient, githubPath, readCacheKey, type RepoName } from '@worker/github';
+import { GitHubClient, GitHubError, githubPath, readCacheKey, type RepoName } from '@worker/github';
 import {
   PROJECT_CONFIG_MAX_BYTES,
   ProjectConfigError,
   buildInbox,
   buildQuestions,
   buildSprint,
+  checkRunsPageOf,
+  ciStateOf,
   embedOriginsOf,
+  isGitHubCheckRunsPage,
   isGitHubIssue,
   isGitHubMilestone,
   isGitHubPullRequest,
@@ -28,6 +31,8 @@ import { readProjectYmlFile, type ProjectYmlFile } from '../projects/repository-
 
 /** Issues, pull requests and milestones change with every team run: 60 s (ADR 0001 decision 22). */
 const LIST_TTL_SECONDS = 60;
+/** A running check finishes within minutes; the board should notice about as soon as a list change. */
+const CHECKS_TTL_SECONDS = 60;
 /** project.yml changes rarely: 600 s. */
 const CONFIG_TTL_SECONDS = 600;
 
@@ -42,7 +47,8 @@ export const LIST_MAX_PAGES = 3;
  *   installation lookup 1 + token mint 1, then
  *   inbox     = open issues ≤ LIST_MAX_PAGES + project.yml 1           → ≤ 6
  *   questions = open issues ≤ LIST_MAX_PAGES                            → ≤ 5
- *   sprint    = milestones 1 + sprint issues ≤ LIST_MAX_PAGES + pulls 1 → ≤ 7
+ *   sprint    = milestones 1 + sprint issues ≤ LIST_MAX_PAGES + pulls 1 → ≤ 7,
+ *               then one check-runs read per open pull request (#131), capped by the route's SubrequestBudget
  *   current sprint (the overview) = sprint without the pulls             → ≤ 6
  * Reads are shared through the read cache: inbox, questions and "Needs you" read the same `open-issues` entry.
  */
@@ -76,7 +82,44 @@ export class ProjectReads {
     const [milestones, openPullRequests] = await Promise.all([this.milestones(), this.openPullRequests()]);
     const milestone = pickCurrentSprint(milestones, sprintToday(this.now()));
     const milestoneIssues = milestone === null ? [] : await this.milestoneIssues(milestone.number);
-    return buildSprint({ milestone, milestoneIssues, openPullRequests });
+    // After the lists, so a budget that runs out costs CI states, never the board.
+    const ciStates = await this.ciStatesOf(openPullRequests);
+    return buildSprint({ milestone, milestoneIssues, openPullRequests, ciStates });
+  }
+
+  /**
+   * Each pull request's CI, in list order (newest first), so a budget that runs out leaves the oldest `unknown`. A
+   * read GitHub refuses (no Checks permission on a private repository, a rate limit) or the budget stops is also
+   * `unknown` for that row only; what was read is cached, so the next load goes on from there.
+   */
+  private async ciStatesOf(pulls: readonly PullRequestRecord[]): Promise<Map<number, SprintCiState>> {
+    const states = await Promise.all(
+      pulls.map(async (pull): Promise<[number, SprintCiState]> => [pull.number, await this.ciStateOf(pull)]),
+    );
+    return new Map(states);
+  }
+
+  private async ciStateOf(pull: PullRequestRecord): Promise<SprintCiState> {
+    const sha = pull.headSha;
+    if (sha === null) {
+      return 'unknown';
+    }
+    try {
+      // Keyed by commit: a push to the pull request is a new key, not a stale entry.
+      return await this.cached(`check-runs-${sha}`, CHECKS_TTL_SECONDS, async () => {
+        const client = await this.connect();
+        const page = await client.getJson(
+          githubPath`/repos/${this.repo}/commits/${sha}/check-runs?filter=latest&per_page=${100}`,
+          isGitHubCheckRunsPage,
+        );
+        return ciStateOf(checkRunsPageOf(page));
+      });
+    } catch (error: unknown) {
+      if (error instanceof GitHubError) {
+        return 'unknown';
+      }
+      throw error;
+    }
   }
 
   /** The current sprint without the repository's pull requests (the overview, #27): one read fewer. */
