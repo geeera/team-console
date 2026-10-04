@@ -38,10 +38,21 @@ export {
   slotSecretNames,
   slugFromRepoName,
 } from './lib/project-slug';
-export { PAUSE_REASON_MAX_LENGTH, TEAM_SLOTS, isTeamSlot } from './lib/team';
+export {
+  PAUSE_REASON_MAX_LENGTH,
+  RECENT_RUNS_LIMIT,
+  RUN_ENTRY_STATES,
+  TEAM_RUN_STATES,
+  TEAM_SLOTS,
+  isRunEntryState,
+  isTeamRunState,
+  isTeamSlot,
+} from './lib/team';
 export type {
   PauseRequest,
   ProjectSlotsDto,
+  RecentRunDto,
+  RunEntryState,
   RunRequest,
   RunResponse,
   SlotLock,
@@ -49,6 +60,8 @@ export type {
   SlotStatusDto,
   TeamCommandResponse,
   TeamProblemType,
+  TeamRunDto,
+  TeamRunState,
   TeamSlot,
   TeamState,
   TeamStatusDto,
@@ -77,6 +90,7 @@ export type {
   SprintCiState,
   SprintDto,
   SprintIssueDto,
+  SprintListsDto,
   SprintMilestoneDto,
   SprintPullRequestDto,
   SprintTier,

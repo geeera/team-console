@@ -1,4 +1,5 @@
 import type { NeedsYouProjectProblem } from './read-models';
+import type { TeamRunState } from './team';
 
 /**
  * The all-projects overview (#27, ADR 0001 decision 24): one row per active project, read-only. Built in the api
@@ -6,12 +7,8 @@ import type { NeedsYouProjectProblem } from './read-models';
  * The sprint title is untrusted milestone text: the client renders it as plain text only.
  */
 
-/**
- * The team as the plugin's `runstate` sees it: `paused` — the owner paused it; `failing` — the team stopped itself
- * (three failed runs in a row), or the streak is there and the next start will stop it; `unknown` — the run log
- * cannot be trusted (opened by someone outside the team, or several of them).
- */
-export type OverviewTeamState = 'running' | 'paused' | 'failing' | 'unknown';
+/** The team as the plugin's `runstate` sees it; the sprint board shows the same state (#132). */
+export type OverviewTeamState = TeamRunState;
 
 export interface OverviewSprintDto {
   readonly number: number;

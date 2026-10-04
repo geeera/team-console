@@ -24,5 +24,7 @@ export {
   timeOf,
 } from './lib/run-state';
 export type { DecideResult, Decision, OwnerPause, Run, RunLogComment, RunState } from './lib/run-state';
+export { recentRunsOf, shownStateOf } from './lib/recent-runs';
+export type { RecentRun, ShownRunState } from './lib/recent-runs';
 export { partitionTeamComments } from './lib/trust';
 export type { TeamComments } from './lib/trust';

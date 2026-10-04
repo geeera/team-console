@@ -113,3 +113,81 @@ export function readModelGitHub(repos: Readonly<Record<string, RepoState>>): Rea
     return json(404, { message: 'Not Found' });
   };
 }
+
+/** The run log of `runLogGitHub`: issue #22, opened by the repository owner `geeera`. */
+export const RUN_LOG_ISSUE = 22;
+const RUN_LOG_OWNER = 'geeera';
+const MINUTE_MS = 60_000;
+
+export interface RunLogCommentSeed {
+  readonly body: string;
+  readonly minutesAgo: number;
+  /** Defaults to the repository owner. */
+  readonly author?: string;
+  /** When the comment was edited; unset for an unedited one. */
+  readonly editedMinutesAgo?: number;
+}
+
+export interface RunLogRepoState extends RepoState {
+  /** The run log's comments; without them the repository has no run log. */
+  readonly log?: readonly RunLogCommentSeed[];
+  readonly logLabels?: readonly string[];
+  /** GitHub's comment count on the log when it differs from the comments served. */
+  readonly logCommentCount?: number;
+}
+
+/** A `runlog` entry: the marker the plugin writes for a run's start or end. */
+export function runEntry(
+  id: string,
+  state: string,
+  minutesAgo: number,
+  extra: Partial<RunLogCommentSeed> & { readonly slot?: string } = {},
+): RunLogCommentSeed {
+  const { slot = 'slot-dev', ...rest } = extra;
+  return {
+    body: `<!-- pt-run id=${id} slot=${slot} state=${state} -->\n**${slot}** ${state}`,
+    minutesAgo,
+    ...rest,
+  };
+}
+
+export function runLogIssueOf(repo: string, state: RunLogRepoState): Record<string, unknown> {
+  return issue(RUN_LOG_ISSUE, [...(state.logLabels ?? ['team:run-log'])], {
+    user: { login: RUN_LOG_OWNER },
+    html_url: `https://github.com/${repo}/issues/${RUN_LOG_ISSUE}`,
+    comments: state.logCommentCount ?? state.log?.length ?? 0,
+  });
+}
+
+/** `readModelGitHub` plus each repository's run log (#27, #132): the labelled issue and its comments, as of `nowMs`. */
+export function runLogGitHub(repos: Readonly<Record<string, RunLogRepoState>>, nowMs: number): ReadHandler {
+  const withLogs: Record<string, RepoState> = {};
+  for (const [name, state] of Object.entries(repos)) {
+    withLogs[name] =
+      state.log === undefined
+        ? state
+        : { ...state, issues: [...(state.issues ?? []), runLogIssueOf(name, state)] };
+  }
+  const reads = readModelGitHub(withLogs);
+  const timeOf = (minutesAgo: number): string => new Date(nowMs - minutesAgo * MINUTE_MS).toISOString();
+  return (call: GitHubCall) => {
+    const match = /^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)\/comments$/.exec(call.url.pathname);
+    if (match !== null) {
+      const state = repos[match[1] ?? ''];
+      if (state?.log === undefined || Number(match[2]) !== RUN_LOG_ISSUE) {
+        return json(404, { message: 'Not Found' });
+      }
+      return json(
+        200,
+        state.log.map((comment, index) => ({
+          id: 1000 + index,
+          body: comment.body,
+          created_at: timeOf(comment.minutesAgo),
+          updated_at: timeOf(comment.editedMinutesAgo ?? comment.minutesAgo),
+          user: { login: comment.author ?? RUN_LOG_OWNER },
+        })),
+      );
+    }
+    return reads(call);
+  };
+}

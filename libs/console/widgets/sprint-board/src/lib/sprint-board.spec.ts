@@ -6,7 +6,8 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { CORE_STATUSES, projectSprintUrl } from '@console/entities/sprint';
 import { provideConsoleI18n, TranslocoService } from '@console/shared/i18n';
-import type { SprintDto, SprintIssueDto, SprintPullRequestDto } from '@shared/contracts';
+import { Icon } from '@console/shared/ui';
+import type { RecentRunDto, SprintDto, SprintIssueDto, SprintPullRequestDto, TeamRunDto } from '@shared/contracts';
 import { readFileSync } from 'node:fs';
 import type { MockInstance } from 'vitest';
 import { resolve } from 'node:path';
@@ -73,6 +74,7 @@ function sprint(overrides: Partial<SprintDto> = {}): SprintDto {
     openPullRequests: [
       { number: 45, title: 'chore: pages', url: 'https://github.com/geeera/team-console/pull/45', draft: false, authorTrusted: true, ci: 'failure' },
     ],
+    team: { state: 'running', runLogUrl: null, recentRuns: [] },
     ...overrides,
   };
 }
@@ -187,6 +189,7 @@ describe('SprintBoard', () => {
       ['Ещё открыто', '2'],
       ['Открытые PR', '1'],
       ['CI', 'Не пройден: 1'],
+      ['Прогоны', 'В работе'],
     ]);
     const qa = root.querySelector('tc-lane[data-status="qa"]') as HTMLElement;
     expect(qa.querySelector('[role="heading"]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Проверка 1');
@@ -264,6 +267,149 @@ describe('SprintBoard', () => {
       await settle();
       fixture.detectChanges();
       expect(tile.querySelector('dd')?.textContent?.trim()).toBe(en);
+    });
+  });
+
+  describe('team run state (#132)', () => {
+    const LOG = 'https://github.com/geeera/team-console/issues/22';
+    const run = (
+      state: RecentRunDto['state'],
+      slot: RecentRunDto['slot'],
+      slotName = `slot-${slot ?? 'x'}`,
+      at = '2026-10-04T15:45:00Z',
+    ): RecentRunDto => ({
+      slot,
+      slotName,
+      state,
+      at,
+    });
+    const team = (overrides: Partial<TeamRunDto> = {}): TeamRunDto => ({
+      state: 'running',
+      runLogUrl: LOG,
+      recentRuns: [],
+      ...overrides,
+    });
+
+    it.each([
+      ['running', 'В работе', 'Running'],
+      ['paused', 'На паузе', 'Paused'],
+      ['failing', 'Сбой', 'Failing'],
+      ['unknown', 'Неизвестно', 'Unknown'],
+    ] as const)(
+      'the Run log tile says %s with an icon and words in both languages',
+      async (state, ru, en) => {
+        const { root, fixture, settle } = await render();
+        http.expectOne(projectSprintUrl(TC.slug)).flush(sprint({ team: team({ state }) }));
+        await settle();
+
+        const tile = root.querySelector('[data-testid="team-stat"]') as HTMLElement;
+        expect(tile.getAttribute('data-team')).toBe(state);
+        expect(tile.querySelector('dt')?.textContent?.trim()).toBe('Прогоны');
+        expect(tile.querySelector('dd')?.textContent?.trim()).toBe(ru);
+        expect(tile.querySelector('dd tc-icon')?.getAttribute('aria-hidden')).toBe('true');
+        expect(tile.classList.contains('tc-stat--danger')).toBe(state === 'failing');
+
+        TestBed.inject(TranslocoService).setActiveLang('en');
+        await settle();
+        fixture.detectChanges();
+        expect(tile.querySelector('dt')?.textContent?.trim()).toBe('Run log');
+        expect(tile.querySelector('dd')?.textContent?.trim()).toBe(en);
+      },
+    );
+
+    it('lists the last runs with slot, time and state, and links the run log', async () => {
+      const { root, settle } = await render();
+      http.expectOne(projectSprintUrl(TC.slug)).flush(
+        sprint({
+          team: team({
+            recentRuns: [
+              run('running', 'dev'),
+              run('finished', 'pm'),
+              run('unknown', 'dev'),
+              run('failed', 'qa'),
+              run('finished', null, 'slot-nightly <b>x</b>'),
+            ],
+          }),
+        }),
+      );
+      await settle();
+
+      const lane = root.querySelector('[data-testid="runs"]') as HTMLElement;
+      expect(lane.querySelector('[role="heading"]')?.getAttribute('aria-level')).toBe('2');
+      expect(lane.querySelector('tc-list')?.getAttribute('aria-label')).toBe('Последние прогоны');
+      const rows = [...lane.querySelectorAll<HTMLElement>('[data-testid="run"]')].map((row) => [
+        row.querySelector('[tc-row-title]')?.textContent?.trim(),
+        row.querySelector('[data-testid="run-state"]')?.textContent?.trim(),
+        row.querySelector('[data-testid="run-state"] tc-icon')?.getAttribute('aria-hidden'),
+        row.querySelector('time')?.getAttribute('datetime'),
+      ]);
+      expect(rows).toEqual([
+        ['Разработка', 'Идёт', 'true', '2026-10-04T15:45:00Z'],
+        ['Планирование', 'Завершён', 'true', '2026-10-04T15:45:00Z'],
+        ['Разработка', 'Неизвестно', 'true', '2026-10-04T15:45:00Z'],
+        ['Проверка (QA)', 'Сбой', 'true', '2026-10-04T15:45:00Z'],
+        // A slot the console has no name for: as written, plain text.
+        ['slot-nightly <b>x</b>', 'Завершён', 'true', '2026-10-04T15:45:00Z'],
+      ]);
+      expect(lane.querySelector('b')).toBeNull();
+      expect(lane.querySelector('time')?.textContent).toMatch(/4 октября/);
+      // Each state has its own glyph.
+      const glyphs = [...lane.querySelectorAll('[data-testid="run-state"] tc-icon path')].map((path) =>
+        path.getAttribute('d'),
+      );
+      expect(new Set(glyphs).size).toBe(4);
+      const link = lane.querySelector('[data-testid="run-log-link"] a') as HTMLAnchorElement;
+      expect(link.getAttribute('href')).toBe(LOG);
+      expect(link.getAttribute('target')).toBe('_blank');
+      expect(link.getAttribute('rel')).toContain('noopener');
+      expect(link.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+        'Весь журнал прогонов (откроется на GitHub)',
+      );
+    });
+
+    it('says when there are no runs yet and still links the run log', async () => {
+      const { root, settle } = await render();
+      http.expectOne(projectSprintUrl(TC.slug)).flush(sprint({ team: team() }));
+      await settle();
+      expect(root.querySelector('[data-testid="runs-empty"]')?.textContent).toContain('Прогонов пока нет');
+      expect(root.querySelector('[data-testid="run-log-link"]')).not.toBeNull();
+    });
+
+    it('without a run log yet (team running) says no runs yet and shows no link', async () => {
+      const { root, settle } = await render();
+      http
+        .expectOne(projectSprintUrl(TC.slug))
+        .flush(sprint({ team: team({ state: 'running', runLogUrl: null }) }));
+      await settle();
+      expect(root.querySelector('[data-testid="runs-empty"]')).not.toBeNull();
+      expect(root.querySelector('[data-testid="runs-unavailable"]')).toBeNull();
+      expect(root.querySelector('[data-testid="runs"] tc-list')).toBeNull();
+    });
+
+    it('a run log it could not read or trust says unavailable with a question mark, never "no runs yet" (#201)', async () => {
+      const { root, fixture, settle } = await render();
+      http
+        .expectOne(projectSprintUrl(TC.slug))
+        .flush(sprint({ team: team({ state: 'unknown', runLogUrl: null }) }));
+      await settle();
+
+      const lane = root.querySelector('[data-testid="runs"]') as HTMLElement;
+      const block = lane.querySelector('[data-testid="runs-unavailable"]') as HTMLElement;
+      expect(lane.querySelector('[data-testid="runs-empty"]')).toBeNull();
+      expect(block.querySelector('.tc-state-block__title')?.textContent?.trim()).toBe('Журнал прогонов недоступен');
+      expect(block.querySelector('.tc-state-block__description')?.textContent).toContain('«Команды»');
+      // Not the empty kind's check: the same question mark as an unknown run.
+      const unknownGlyph = TestBed.createComponent(Icon);
+      unknownGlyph.componentRef.setInput('name', 'question');
+      unknownGlyph.detectChanges();
+      const expected = (unknownGlyph.nativeElement as HTMLElement).querySelector('path')?.getAttribute('d');
+      expect(block.querySelector('tc-icon path')?.getAttribute('d')).toBe(expected);
+      expect(lane.querySelector('tc-list')).toBeNull();
+
+      TestBed.inject(TranslocoService).setActiveLang('en');
+      await settle();
+      fixture.detectChanges();
+      expect(block.querySelector('.tc-state-block__title')?.textContent?.trim()).toBe('Run log unavailable');
     });
   });
 

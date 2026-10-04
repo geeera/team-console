@@ -21,10 +21,12 @@ import {
   SPRINT_CI_ICONS,
   SprintBoard as SprintBoardModel,
   SprintItemList,
+  SprintRunList,
   SPRINT_TIERS,
   SprintTierIcon,
   STATUS_ORDER,
   statusColumnsOf,
+  TEAM_RUN_ICONS,
   UnexpectedSprintResponse,
 } from '@console/entities/sprint';
 import { httpProblemOf } from '@console/shared/api';
@@ -76,7 +78,8 @@ const KNOWN_STATUSES: ReadonlySet<string> = new Set([...STATUS_ORDER, NO_STATUS]
 
 /**
  * A project's current sprint, read-only (#18): the milestone and its demo date, the sprint's numbers, its issues in
- * status lanes with their tier, and the repository's open pull requests with their CI (#131). Everything comes from one
+ * status lanes with their tier, the repository's open pull requests with their CI (#131), and the team's run state
+ * with its last five runs (#132). Everything comes from one
  * `GET /api/v1/projects/:slug/sprint`; nothing here writes. Lanes are their own blocks so the later
  * current / next / backlog grouping (#108) can repeat them per section.
  */
@@ -90,6 +93,7 @@ const KNOWN_STATUSES: ReadonlySet<string> = new Set([...STATUS_ORDER, NO_STATUS]
     Lanes,
     LocalNumberPipe,
     SprintItemList,
+    SprintRunList,
     SprintTierIcon,
     Stat,
     Stats,
@@ -130,6 +134,12 @@ export class SprintBoard {
   protected readonly ciTone = computed((): StatTone => {
     const state = this.ci().state;
     return state === 'failure' ? 'danger' : state === 'success' ? 'success' : 'neutral';
+  });
+  /** The "Run log" tile (#132): the team as the plugin's `runstate` reads the run log. */
+  protected readonly teamIcon = computed(() => TEAM_RUN_ICONS[this.board()?.team.state ?? 'unknown']);
+  protected readonly teamTone = computed((): StatTone => {
+    const state = this.board()?.team.state;
+    return state === 'failing' ? 'danger' : state === 'running' ? 'success' : 'neutral';
   });
   protected readonly failure = computed(() => {
     const state = this.state();

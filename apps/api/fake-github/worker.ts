@@ -1,4 +1,10 @@
-import { FakeGitHubOAuth, type FakeFault, type FakeIssueSeed, type FakeUser } from '@worker/github/testing';
+import {
+  FakeGitHubOAuth,
+  type FakeFault,
+  type FakeIssueSeed,
+  type FakeThreadCommentSeed,
+  type FakeUser,
+} from '@worker/github/testing';
 
 /**
  * Local only (`nx run api:fake-github`, 127.0.0.1:9999): the fake GitHub of `@worker/github/testing` as a Worker, so
@@ -7,7 +13,9 @@ import { FakeGitHubOAuth, type FakeFault, type FakeIssueSeed, type FakeUser } fr
  * here as /github.com/… and /api.github.com/…; the authorize page approves at once as the current user. Controls:
  * POST /_fake/user {"login","id"}, POST /_fake/fail {"fault"}, GET /_fake/state, and for the run log (#114)
  * POST /_fake/issue (a thread to serve: repo, number, title, author, labels, repoOwner) and POST /_fake/token (a fake
- * owner token for the vendored `runlog` CLI pointed here with PT_GITHUB_API). Every value here is fake.
+ * owner token for the vendored `runlog` CLI pointed here with PT_GITHUB_API), and POST /_fake/comment (a team entry
+ * written earlier into a seeded thread: repo, number, body, author, createdAt and an optional later updatedAt, in ms —
+ * the board e2e, #132). Every value here is fake.
  */
 
 interface FakeEnv {
@@ -44,6 +52,26 @@ function isIssueSeed(value: unknown): value is FakeIssueSeed {
   );
 }
 
+interface CommentSeed extends FakeThreadCommentSeed {
+  readonly repo: string;
+  readonly number: number;
+}
+
+function isCommentSeed(value: unknown): value is CommentSeed {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record['repo'] === 'string' &&
+    typeof record['number'] === 'number' &&
+    typeof record['body'] === 'string' &&
+    typeof record['author'] === 'string' &&
+    typeof record['createdAt'] === 'number' &&
+    (record['updatedAt'] === undefined || typeof record['updatedAt'] === 'number')
+  );
+}
+
 async function control(server: FakeGitHubOAuth, request: Request, path: string): Promise<Response> {
   if (path === '/_fake/state') {
     return json(200, {
@@ -60,6 +88,15 @@ async function control(server: FakeGitHubOAuth, request: Request, path: string):
   if (path === '/_fake/issue' && isIssueSeed(body)) {
     server.seedIssue(body);
     return json(200, { seeded: `${body.repo}#${body.number}` });
+  }
+  if (path === '/_fake/comment' && isCommentSeed(body)) {
+    const { repo, number, ...comment } = body;
+    try {
+      return json(200, { id: server.addComment(repo, number, comment) });
+    } catch (error: unknown) {
+      // The thread was never seeded: say so rather than fail the Worker.
+      return json(404, { message: error instanceof Error ? error.message : 'no such thread' });
+    }
   }
   if (path === '/_fake/user' && isFakeUser(body)) {
     server.user = { login: body.login, id: body.id };

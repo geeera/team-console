@@ -38,6 +38,11 @@ function sprintDto(overrides: Partial<SprintDto> = {}): SprintDto {
     openPullRequests: [
       { number: 5, title: 'PR', url: 'https://github.com/o/r/pull/5', draft: false, authorTrusted: true, ci: 'success' },
     ],
+    team: {
+      state: 'running',
+      runLogUrl: 'https://github.com/o/r/issues/22',
+      recentRuns: [{ slot: 'dev', slotName: 'slot-dev', state: 'finished', at: '2026-10-04T15:45:00Z' }],
+    },
     ...overrides,
   };
 }
@@ -76,6 +81,28 @@ describe('isSprintDto', () => {
         openPullRequests: [{ number: 5, title: 'x', url: null, draft: false, authorTrusted: true, ci: 'neutral' as never }],
       }),
     ],
+    ['a board without the team', { ...sprintDto(), team: undefined }],
+    ['a team state the board does not know', sprintDto({ team: { state: 'paused-by-owner' as never, runLogUrl: null, recentRuns: [] } })],
+    [
+      'a run state the board does not know',
+      sprintDto({
+        team: {
+          state: 'running',
+          runLogUrl: null,
+          recentRuns: [{ slot: 'dev', slotName: 'slot-dev', state: 'started' as never, at: null }],
+        },
+      }),
+    ],
+    [
+      'a run with a slot the console does not have',
+      sprintDto({
+        team: {
+          state: 'running',
+          runLogUrl: null,
+          recentRuns: [{ slot: 'burn' as never, slotName: 'slot-burn', state: 'finished', at: null }],
+        },
+      }),
+    ],
   ])('refuses %s', (_, value) => {
     expect(isSprintDto(value)).toBe(false);
   });
@@ -106,6 +133,18 @@ describe('sprintBoardOf', () => {
       authorTrusted: false,
       ci: 'pending',
     });
+  });
+
+  it('keeps the run log link only on github.com, and lists at most five runs (#132)', () => {
+    const run = { slot: null, slotName: 'slot-x', state: 'unknown', at: null } as const;
+    const board = sprintBoardOf(
+      sprintDto({
+        team: { state: 'unknown', runLogUrl: 'https://evil.example/22', recentRuns: Array.from({ length: 7 }, () => run) },
+      }),
+    );
+    expect(board.team.runLogUrl).toBeNull();
+    expect(board.team.recentRuns).toHaveLength(5);
+    expect(board.team.recentRuns[0]).toEqual(run);
   });
 
   it('passes untrusted titles through unchanged — escaping is the template’s job', () => {

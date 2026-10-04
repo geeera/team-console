@@ -1,12 +1,24 @@
 import type {
+  RecentRunDto,
+  RunEntryState,
   SprintCiState,
   SprintDto,
   SprintIssueDto,
   SprintMilestoneDto,
   SprintPullRequestDto,
   SprintTier,
+  TeamRunDto,
+  TeamRunState,
+  TeamSlot,
 } from '@shared/contracts';
-import { isGitHubPageUrl, isSprintCiState } from '@shared/contracts';
+import {
+  isGitHubPageUrl,
+  isRunEntryState,
+  isSprintCiState,
+  isTeamRunState,
+  isTeamSlot,
+  RECENT_RUNS_LIMIT,
+} from '@shared/contracts';
 
 /**
  * The current sprint as the board shows it, from `GET /api/v1/projects/:slug/sprint` (#35). Every title is untrusted
@@ -56,6 +68,24 @@ export function ciSummaryOf(pulls: readonly SprintPullRequest[]): SprintCiSummar
   return { state: 'empty', count: 0 };
 }
 
+/** One of the team's latest runs (#132); `slotName` is team text from the run log, shown as plain text only. */
+export interface SprintRun {
+  readonly slot: TeamSlot | null;
+  readonly slotName: string;
+  readonly state: RunEntryState;
+  /** ISO 8601; `null` when GitHub sent no time. */
+  readonly at: string | null;
+}
+
+/** The "Run log" tile and the latest runs (#132), as the plugin's `runstate` reads the run log. */
+export interface SprintTeam {
+  readonly state: TeamRunState;
+  /** The run-log issue on github.com; `null` without one. */
+  readonly runLogUrl: string | null;
+  /** Newest first, at most `RECENT_RUNS_LIMIT`. */
+  readonly recentRuns: readonly SprintRun[];
+}
+
 export interface SprintMilestone {
   readonly number: number;
   readonly title: string;
@@ -79,13 +109,21 @@ export interface SprintBoard {
   readonly shipped: number;
   readonly carriedOver: number;
   readonly pullRequests: readonly SprintPullRequest[];
+  readonly team: SprintTeam;
 }
 
 /** The lane of an issue without a `status:*` label — the key `backlog list` / the read model count it under. */
 export const NO_STATUS = 'none';
 
 /** The plugin's workflow order (reference/workflow.md → Status); a lane for any other label follows these. */
-export const STATUS_ORDER: readonly string[] = ['proposed', 'approved', 'in-progress', 'qa', 'blocked', 'done'];
+export const STATUS_ORDER: readonly string[] = [
+  'proposed',
+  'approved',
+  'in-progress',
+  'qa',
+  'blocked',
+  'done',
+];
 
 /** Lanes shown even when empty, so "nothing in QA" reads as a fact rather than a missing lane. */
 export const CORE_STATUSES: readonly string[] = ['approved', 'in-progress', 'qa', 'done'];
@@ -151,6 +189,26 @@ function isPullRequest(value: unknown): value is SprintPullRequestDto {
   );
 }
 
+function isRecentRun(value: unknown): value is RecentRunDto {
+  return (
+    isRecord(value) &&
+    (value['slot'] === null || isTeamSlot(value['slot'])) &&
+    typeof value['slotName'] === 'string' &&
+    isRunEntryState(value['state']) &&
+    isNullableString(value['at'])
+  );
+}
+
+function isTeamRun(value: unknown): value is TeamRunDto {
+  return (
+    isRecord(value) &&
+    isTeamRunState(value['state']) &&
+    isNullableString(value['runLogUrl']) &&
+    Array.isArray(value['recentRuns']) &&
+    value['recentRuns'].every(isRecentRun)
+  );
+}
+
 export function isSprintDto(value: unknown): value is SprintDto {
   return (
     isRecord(value) &&
@@ -164,7 +222,8 @@ export function isSprintDto(value: unknown): value is SprintDto {
     isCount(value['carriedOver']) &&
     isRecord(value['byTier']) &&
     Array.isArray(value['openPullRequests']) &&
-    value['openPullRequests'].every(isPullRequest)
+    value['openPullRequests'].every(isPullRequest) &&
+    isTeamRun(value['team'])
   );
 }
 
@@ -205,6 +264,17 @@ export function sprintBoardOf(dto: SprintDto): SprintBoard {
       authorTrusted: pull.authorTrusted,
       ci: pull.ci,
     })),
+    team: {
+      state: dto.team.state,
+      runLogUrl: safeUrl(dto.team.runLogUrl),
+      // The server sends at most five; the board never lists more, whatever it is sent.
+      recentRuns: dto.team.recentRuns.slice(0, RECENT_RUNS_LIMIT).map((run) => ({
+        slot: run.slot,
+        slotName: run.slotName,
+        state: run.state,
+        at: run.at,
+      })),
+    },
   };
 }
 
