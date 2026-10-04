@@ -36,7 +36,11 @@ const WRITE_HEADERS = { 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'applic
 interface Issue {
   readonly state: string;
   readonly labels: readonly string[];
+  readonly user?: { readonly login: string; readonly type: string };
 }
+
+const BY_OWNER = { login: 'geeera', type: 'User' } as const;
+const BY_TEAM = { login: 'team-console-team[bot]', type: 'Bot' } as const;
 
 const ISSUES: Record<string, Issue> = {
   '7': { state: 'open', labels: ['kind:question', 'owner:scope'] },
@@ -44,6 +48,17 @@ const ISSUES: Record<string, Issue> = {
   '9': { state: 'open', labels: ['needs:owner', 'kind:chore'] },
   '10': { state: 'closed', labels: ['kind:question'] },
   '11': { state: 'open', labels: ['kind:feature'] },
+  // #62: what the service identity may and may not answer.
+  '20': { state: 'open', labels: ['needs:owner', 'kind:chore', 'e2e:fixture'], user: BY_TEAM },
+  '21': { state: 'open', labels: ['team:demo', 'kind:chore', 'e2e:fixture'], user: BY_OWNER },
+  '22': {
+    state: 'open',
+    labels: ['design:awaiting-approval', 'kind:feature', 'e2e:fixture'],
+    user: BY_OWNER,
+  },
+  '23': { state: 'open', labels: ['kind:question', 'e2e:fixture'], user: BY_TEAM },
+  '24': { state: 'open', labels: ['kind:question', 'e2e:fixture'], user: BY_OWNER },
+  '25': { state: 'open', labels: ['needs:owner', 'kind:chore'], user: BY_OWNER },
 };
 
 interface Harness {
@@ -92,6 +107,7 @@ function harness(options: { instantSleep?: boolean } = {}): Harness {
               number: Number(issue[1]),
               state: found.state,
               labels: found.labels.map((name) => ({ name })),
+              ...(found.user === undefined ? {} : { user: found.user }),
             });
       }
       if (call.method === 'GET' && path === `/repos/${REPO}`) {
@@ -484,30 +500,6 @@ describe('Access, CSRF and the service identity', () => {
     expect(h.stub.calls).toEqual([]);
   });
 
-  it.each(['dev', 'stage'])(
-    '403 owner-only for the Access service identity on %s (team decision until #62), nothing read or written',
-    async (environment) => {
-      const h = harness();
-      await seedConnection(h.fake);
-      const { bindings, token } = await signed(environment, {
-        email: undefined,
-        common_name: SERVICE_TOKEN_ID,
-      });
-      const response = await answer(
-        h,
-        7,
-        { command: 'approve', ownerSaid: 'да' },
-        {
-          bindings,
-          headers: { ...WRITE_HEADERS, 'Cf-Access-Jwt-Assertion': token },
-        },
-      );
-      expect(response.status).toBe(403);
-      expect((await problemOf(response)).slug).toBe('owner-only');
-      expect(h.stub.calls).toEqual([]);
-    },
-  );
-
   it('refuses the service identity in production already at Access (never reaches the route)', async () => {
     const h = harness();
     const { bindings, token } = await signed('production', {
@@ -541,6 +533,137 @@ describe('Access, CSRF and the service identity', () => {
       },
     );
     expect(response.status).toBe(201);
+  });
+});
+
+describe('the Access service identity: fixture issues only (#62)', () => {
+  /** Every statement the request prepares on D1, so a case can prove `owner_connections` was never read. */
+  function recordingDb(db: D1Database, statements: string[]): D1Database {
+    return new Proxy(db, {
+      get(target, property) {
+        if (property === 'prepare') {
+          return (query: string) => {
+            statements.push(query);
+            return target.prepare(query);
+          };
+        }
+        const value: unknown = Reflect.get(target, property, target);
+        return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+      },
+    });
+  }
+
+  async function asService(
+    h: Harness,
+    issue: number,
+    body: unknown,
+    options: { environment?: 'dev' | 'stage'; claims?: Record<string, unknown> } = {},
+  ): Promise<{ response: Response; statements: string[] }> {
+    const environment = options.environment ?? 'stage';
+    await seedConnection(h.fake, { environment });
+    const jwks = stubJwksServer();
+    const teamDomain = uniqueTeamDomain();
+    const key = await createSigningKey();
+    jwks.set(teamDomain, { keys: [key.publicJwk] });
+    const token = await signAccessToken(key, teamDomain, {
+      claims: options.claims ?? { email: undefined, common_name: SERVICE_TOKEN_ID },
+    });
+    const statements: string[] = [];
+    const bindings = accessEnv(teamDomain, { ENVIRONMENT: environment });
+    const response = await answer(h, issue, body, {
+      bindings: { ...bindings, DB: recordingDb(bindings.DB, statements) },
+      headers: { ...WRITE_HEADERS, 'Cf-Access-Jwt-Assertion': token },
+    });
+    return { response, statements };
+  }
+
+  // The owner path's footprint: the token refresh and `/user` (github.com, the fake), the repository owner check of
+  // `ownerWriter`, and the comment itself.
+  const ownerTokenUses = (h: Harness): GitHubCall[] =>
+    h.stub.calls.filter(
+      (call) =>
+        call.url.origin === 'https://github.com' ||
+        call.url.pathname === '/user' ||
+        call.url.pathname === `/repos/${REPO}` ||
+        call.url.pathname.endsWith('/comments'),
+    );
+
+  it.each(['dev', 'stage'] as const)(
+    '403 service-not-fixture on %s for an issue without e2e:fixture; the owner token is never read',
+    async (environment) => {
+      const h = harness();
+      const { response, statements } = await asService(
+        h,
+        25,
+        { command: 'done', ownerSaid: 'сделано' },
+        { environment },
+      );
+      expect(response.status).toBe(403);
+      const { slug, body } = await problemOf(response);
+      expect(slug).toBe('service-not-fixture');
+      expect(body['reason']).toBe('no-fixture-label');
+      expect(ownerTokenUses(h)).toEqual([]);
+      expect(h.fake.comments).toEqual([]);
+      expect(statements.filter((sql) => /owner_connections/i.test(sql))).toEqual([]);
+      expect(await ownWrites()).toEqual([]);
+    },
+  );
+
+  it('reads the labels live: the issue itself, with the installation token', async () => {
+    const h = harness();
+    await asService(h, 25, { command: 'done', ownerSaid: 'сделано' });
+    await asService(h, 25, { command: 'done', ownerSaid: 'сделано' });
+    expect(h.stub.reads().filter((call) => call.url.pathname === `/repos/${REPO}/issues/25`)).toHaveLength(2);
+  });
+
+  it('answers on a fixture issue as the owner (201)', async () => {
+    const h = harness();
+    const { response } = await asService(h, 20, { command: 'done', ownerSaid: 'сделано' });
+    expect(response.status).toBe(201);
+    expect(h.fake.comments).toEqual([
+      expect.objectContaining({ repo: REPO, issue: 20, author: OWNER.login }),
+    ]);
+    expect(h.logs.join('\n')).toContain('service owner write allowed on a fixture issue');
+  });
+
+  it('answers a fixture question the owner opened (201)', async () => {
+    const h = harness();
+    const { response } = await asService(h, 24, { command: 'approve', ownerSaid: 'да' });
+    expect(response.status).toBe(201);
+    expect(h.fake.comments).toHaveLength(1);
+  });
+
+  it.each([
+    [21, { command: 'go', ownerSaid: 'поехали' }, 'release'],
+    [22, { command: 'approve', ownerSaid: 'да' }, 'design'],
+    [23, { command: 'approve', ownerSaid: 'да' }, 'team-question'],
+  ] as const)(
+    '403 service-protected-item on fixture issue #%i (%j): %s is never unlocked by the label',
+    async (issue, body, reason) => {
+      const h = harness();
+      const { response, statements } = await asService(h, issue, body);
+      expect(response.status).toBe(403);
+      const problemBody = await problemOf(response);
+      expect(problemBody.slug).toBe('service-protected-item');
+      expect(problemBody.body['reason']).toBe(reason);
+      expect(ownerTokenUses(h)).toEqual([]);
+      expect(h.fake.comments).toEqual([]);
+      expect(statements.filter((sql) => /owner_connections/i.test(sql))).toEqual([]);
+      expect(h.logs.join('\n')).toContain('service owner write refused');
+    },
+  );
+
+  it.each([25, 21, 22, 23])('leaves the owner (a user identity) unchanged on issue #%i', async (issue) => {
+    const h = harness();
+    const command = issue === 21 ? 'go' : issue === 25 ? 'done' : 'approve';
+    const { response } = await asService(
+      h,
+      issue,
+      { command, ownerSaid: 'да' },
+      { claims: { email: OWNER_EMAIL } },
+    );
+    expect(response.status).toBe(201);
+    expect(h.fake.comments).toHaveLength(1);
   });
 });
 
