@@ -17,6 +17,8 @@ export {
   DEFAULT_DECISIONS_DIR,
   PROJECT_CONFIG_MAX_BYTES,
   ProjectConfigError,
+  embedOriginOf,
+  embedOriginsOf,
   parseProjectConfig,
 } from './lib/project-config';
 export {

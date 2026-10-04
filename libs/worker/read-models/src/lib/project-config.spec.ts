@@ -1,4 +1,10 @@
-import { PROJECT_CONFIG_MAX_BYTES, ProjectConfigError, parseProjectConfig } from './project-config';
+import {
+  PROJECT_CONFIG_MAX_BYTES,
+  ProjectConfigError,
+  embedOriginOf,
+  embedOriginsOf,
+  parseProjectConfig,
+} from './project-config';
 
 function failureOf(text: string): string {
   try {
@@ -102,5 +108,90 @@ describe('parseProjectConfig: the artifact fields (#19)', () => {
     ).toBe('https://github.com/o/r/tree/main/sb');
     expect(parseProjectConfig("design:\n  storybook_url: 'https://sb.example'\n").storybookUrl).toBeNull();
     expect(parseProjectConfig("design:\n  storybook_url: ''\n").storybookUrl).toBeNull();
+  });
+});
+
+describe('embedOriginOf (#20)', () => {
+  it.each([
+    ['https://storify.pages.dev/?path=/story/button', 'https://storify.pages.dev'],
+    ['  https://stage.storify.workers.dev/app/  ', 'https://stage.storify.workers.dev'],
+    ['https://geeera.github.io/team-console/wireframes/', 'https://geeera.github.io'],
+    ['https://example.com:8443/x', 'https://example.com:8443'],
+    ['HTTPS://Storify.Pages.Dev', 'https://storify.pages.dev'],
+  ])('reduces %s to the exact origin %s', (url, origin) => {
+    expect(embedOriginOf(url)).toBe(origin);
+  });
+
+  it.each([
+    ['plain http', 'http://storify.pages.dev'],
+    ['javascript:', 'javascript:alert(1)'],
+    ['data:', 'data:text/html,<script>alert(1)</script>'],
+    ['a relative path', '/storybook'],
+    ['a scheme-relative URL', '//storify.pages.dev'],
+    ['credentials', 'https://user:pass@storify.pages.dev'],
+    ['a user name only', 'https://user@storify.pages.dev'],
+    ['a wildcard host', 'https://*.pages.dev'],
+    ['a host with an underscore', 'https://my_site.pages.dev'],
+    ['a trailing-dot host', 'https://storify.pages.dev./'],
+    ['an IPv6 literal', 'https://[::1]/'],
+    ['an empty string', ''],
+    ['whitespace', '   '],
+    ['a URL over 2048 characters', `https://storify.pages.dev/${'a'.repeat(2048)}`],
+    ['a number', 443],
+    ['null', null],
+    ['a list', ['https://storify.pages.dev']],
+  ])('refuses %s', (_label, value) => {
+    expect(embedOriginOf(value)).toBeNull();
+  });
+});
+
+describe('embedOriginsOf (#20)', () => {
+  it('reads design.storybook_url and environments.stage.url only', () => {
+    const text = [
+      'design:',
+      '  storybook_url: https://storify.pages.dev/',
+      '  figma_url: https://figma.example/file',
+      'environments:',
+      '  dev: { url: "https://dev.storify.workers.dev" }',
+      '  stage:',
+      '    url: "https://stage.storify.workers.dev/"',
+      '  production: { url: "https://storify.example" }',
+      '',
+    ].join('\n');
+    expect(embedOriginsOf(text)).toEqual(['https://storify.pages.dev', 'https://stage.storify.workers.dev']);
+  });
+
+  it('deduplicates one origin named twice', () => {
+    const text =
+      'design: { storybook_url: "https://storify.pages.dev/storybook/" }\n' +
+      'environments: { stage: { url: "https://storify.pages.dev/" } }\n';
+    expect(embedOriginsOf(text)).toEqual(['https://storify.pages.dev']);
+  });
+
+  it('skips empty, missing and non-https values, keeping the valid one', () => {
+    expect(
+      embedOriginsOf(
+        'design:\n  storybook_url: ""\nenvironments:\n  stage:\n    url: https://s.workers.dev\n',
+      ),
+    ).toEqual(['https://s.workers.dev']);
+    expect(embedOriginsOf('design:\n  storybook_url: http://s.pages.dev\n')).toEqual([]);
+    expect(embedOriginsOf('name: x\n')).toEqual([]);
+    expect(embedOriginsOf('design: https://s.pages.dev\nenvironments: [stage]\n')).toEqual([]);
+  });
+
+  it('embeds nothing from a file the safe parser refuses, instead of throwing', () => {
+    expect(embedOriginsOf('design: &a { storybook_url: https://s.pages.dev }\nx: *a\n')).toEqual([]);
+    expect(embedOriginsOf('design: { storybook_url: !!js/function "f" }\n')).toEqual([]);
+    expect(
+      embedOriginsOf(
+        `design:\n  storybook_url: https://s.pages.dev\n#${'a'.repeat(PROJECT_CONFIG_MAX_BYTES)}\n`,
+      ),
+    ).toEqual([]);
+  });
+
+  it('does not depend on reviewer_logins being valid', () => {
+    const text = 'team:\n  reviewer_logins: 42\ndesign:\n  storybook_url: https://s.pages.dev\n';
+    expect(failureOf(text)).toBe('schema');
+    expect(embedOriginsOf(text)).toEqual(['https://s.pages.dev']);
   });
 });

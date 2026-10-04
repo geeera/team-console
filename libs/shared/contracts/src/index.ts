@@ -64,6 +64,7 @@ export type {
 } from './lib/answer';
 export { NEEDS_YOU_MAX_PROJECTS } from './lib/read-models';
 export type {
+  EmbedOriginsDto,
   InboxDto,
   InboxItemDto,
   NeedsYouDto,

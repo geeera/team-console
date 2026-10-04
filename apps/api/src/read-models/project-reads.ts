@@ -7,6 +7,7 @@ import {
   buildInbox,
   buildQuestions,
   buildSprint,
+  embedOriginsOf,
   isGitHubIssue,
   isGitHubMilestone,
   isGitHubPullRequest,
@@ -150,6 +151,12 @@ export class ProjectReads {
       );
       return raw.map(pullRequestRecordOf);
     });
+  }
+
+  /** `EmbedOriginsDto` (#20), from the shared project.yml read; a missing or unusable file embeds nothing. */
+  async embedOrigins(): Promise<string[]> {
+    const file = await this.projectYmlFile();
+    return file === null || file.text === null ? [] : embedOriginsOf(file.text);
   }
 
   /**

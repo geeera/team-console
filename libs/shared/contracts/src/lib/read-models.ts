@@ -85,6 +85,15 @@ export interface SprintPullRequestDto {
   readonly authorTrusted: boolean;
 }
 
+/**
+ * `GET /api/v1/projects/:slug/embed-origins` (#20): the only origins the console may frame for this project, those of
+ * `design.storybook_url` and `environments.stage.url` in its project.yml, `https:` only, as exact origins. Read per
+ * project when a space needs it, never on the registry list.
+ */
+export interface EmbedOriginsDto {
+  readonly embedOrigins: readonly string[];
+}
+
 /** `GET /api/v1/projects/:slug/sprint`: the current sprint (`calendar.pick_current_sprint`) and its numbers. */
 export interface SprintDto {
   /** `null` when no open milestone has a due date today or later; the rest is then empty. */

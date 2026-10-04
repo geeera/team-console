@@ -26,6 +26,13 @@ function expectSecurityHeaders(response: Response): void {
   expect(csp.get('script-src')).toEqual(["'self'"]);
   expect(csp.get('connect-src')).toEqual(["'self'"]);
   expect(csp.get('frame-ancestors')).toEqual(["'none'"]);
+  // #20: the console may frame only these families; the app narrows it to each project's exact origins.
+  expect(csp.get('frame-src')).toEqual([
+    "'self'",
+    'https://*.pages.dev',
+    'https://*.workers.dev',
+    'https://*.github.io',
+  ]);
   expect(csp.get('base-uri')).toEqual(["'self'"]);
   expect(csp.get('form-action')).toEqual(["'self'"]);
   expect(csp.get('object-src')).toEqual(["'none'"]);
