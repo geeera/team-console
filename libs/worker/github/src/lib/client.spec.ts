@@ -327,6 +327,9 @@ describe('GitHubClient.paginate', () => {
 });
 
 describe('GitHubClient.lastPage', () => {
+  const anyList = (): boolean => true;
+  const eventsOnly = (url: URL): boolean => url.pathname === '/events';
+
   function pages(links: Record<string, string | undefined>, bodies: Record<string, unknown>) {
     return scriptedGitHub((call) => {
       const url = new URL(call.url);
@@ -341,6 +344,7 @@ describe('GitHubClient.lastPage', () => {
     const tail = await new GitHubClient(github.fetch, fixedTokens()).lastPage(
       githubPath`/events?per_page=${100}`,
       isNumber,
+      eventsOnly,
     );
     expect(tail).toEqual({ items: [1, 2, 3], isWholeList: true });
     expect(github.calls).toHaveLength(1);
@@ -357,6 +361,7 @@ describe('GitHubClient.lastPage', () => {
     const tail = await new GitHubClient(github.fetch, fixedTokens()).lastPage(
       githubPath`/events?per_page=${2}`,
       isNumber,
+      eventsOnly,
     );
     expect(tail).toEqual({ items: [17], isWholeList: false });
     expect(github.calls.map((call) => new URL(call.url).search)).toEqual([
@@ -371,22 +376,45 @@ describe('GitHubClient.lastPage', () => {
       { '/events': [1] },
     );
     const error = await rejection(
-      new GitHubClient(github.fetch, fixedTokens()).lastPage(githubPath`/events`, isNumber),
+      new GitHubClient(github.fetch, fixedTokens()).lastPage(githubPath`/events`, isNumber, anyList),
     );
     expect(error.problem.type).toBe('github-unexpected');
+    expect(github.calls).toHaveLength(1);
+  });
+
+  it('refuses a last page on api.github.com that the caller does not accept as the same list', async () => {
+    const github = pages(
+      { '/events': '<https://api.github.com/other/list?page=2>; rel="last"' },
+      { '/events': [1], '/other/list?page=2': [99] },
+    );
+    const seen: string[] = [];
+    const error = await rejection(
+      new GitHubClient(github.fetch, fixedTokens()).lastPage(githubPath`/events`, isNumber, (url) => {
+        seen.push(url.href);
+        return eventsOnly(url);
+      }),
+    );
+    expect(error.problem.type).toBe('github-unexpected');
+    expect(seen).toEqual(['https://api.github.com/other/list?page=2']);
     expect(github.calls).toHaveLength(1);
   });
 
   it('refuses an item of the wrong shape and passes a GitHub error through', async () => {
     const badItem = scriptedGitHub(() => json(200, [1, 'two']));
     expect(
-      (await rejection(new GitHubClient(badItem.fetch, fixedTokens()).lastPage(githubPath`/x`, isNumber)))
-        .problem.type,
+      (
+        await rejection(
+          new GitHubClient(badItem.fetch, fixedTokens()).lastPage(githubPath`/x`, isNumber, anyList),
+        )
+      ).problem.type,
     ).toBe('github-unexpected');
     const missing = scriptedGitHub(() => json(404, { message: 'Not Found' }));
     expect(
-      (await rejection(new GitHubClient(missing.fetch, fixedTokens()).lastPage(githubPath`/x`, isNumber)))
-        .problem.type,
+      (
+        await rejection(
+          new GitHubClient(missing.fetch, fixedTokens()).lastPage(githubPath`/x`, isNumber, anyList),
+        )
+      ).problem.type,
     ).toBe('github-not-found');
   });
 });

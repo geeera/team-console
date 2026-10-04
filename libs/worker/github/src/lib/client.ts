@@ -75,9 +75,15 @@ export class GitHubClient {
    * GET the last page of a chronological list (oldest first, as GitHub sends issue events): the first page and,
    * when its `Link` names a `rel="last"` page, that page — at most two requests whatever the list's length. A last
    * link that cannot be followed is `github-unexpected`, never a silently older tail: a caller deciding on the
-   * newest entries must not decide on stale ones.
+   * newest entries must not decide on stale ones. `isSameList` must accept the last link's URL as a page of the
+   * list that was asked for (GitHub may spell it differently, e.g. `/repositories/{id}/…`); anything else is
+   * `github-unexpected` too, so a link can never swap in another list's tail.
    */
-  async lastPage<T>(path: GitHubPath, itemGuard: JsonGuard<T>): Promise<ListTail<T>> {
+  async lastPage<T>(
+    path: GitHubPath,
+    itemGuard: JsonGuard<T>,
+    isSameList: (url: URL) => boolean,
+  ): Promise<ListTail<T>> {
     const first = await this.get(path);
     const last = relLinkOf(first.headers.get('link'), 'last');
     if (last === null) {
@@ -86,6 +92,9 @@ export class GitHubClient {
     await discardBody(first);
     if (last.url === null) {
       throw githubUnexpectedError('GitHub named a last page that cannot be followed', first.status);
+    }
+    if (!isSameList(last.url)) {
+      throw githubUnexpectedError('GitHub named a last page of another list', first.status);
     }
     const tail = await this.get(githubPathOf(last.url));
     return { items: await this.parseList(tail, itemGuard), isWholeList: false };

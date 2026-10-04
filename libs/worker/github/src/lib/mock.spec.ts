@@ -7,6 +7,7 @@ import { MOCK_OWNER_ACCOUNT, createMockGitHub, isGitHubMockEnabled, type MockGit
 import { isRepoOwnedBy } from './owner-check';
 import { parseRepoName } from './repo-name';
 
+const noLastPage = (): boolean => false;
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
@@ -107,6 +108,7 @@ describe('createMockGitHub', () => {
       const tail = await client('geeera/team-console').lastPage(
         githubPath`/repos/${repo}/issues/${number}/events?per_page=${100}`,
         isObject,
+        noLastPage,
       );
       expect(tail.isWholeList).toBe(true);
       expect(tail.items.at(-1)).toMatchObject({
@@ -121,10 +123,18 @@ describe('createMockGitHub', () => {
   it('serves no events for an issue without any, and 404 for an unknown issue', async () => {
     const repo = parseRepoName('geeera/team-console');
     await expect(
-      client('geeera/team-console').lastPage(githubPath`/repos/${repo}/issues/${21}/events`, isObject),
+      client('geeera/team-console').lastPage(
+        githubPath`/repos/${repo}/issues/${21}/events`,
+        isObject,
+        noLastPage,
+      ),
     ).resolves.toEqual({ items: [], isWholeList: true });
     const missing = await rejection(
-      client('geeera/team-console').lastPage(githubPath`/repos/${repo}/issues/${999}/events`, isObject),
+      client('geeera/team-console').lastPage(
+        githubPath`/repos/${repo}/issues/${999}/events`,
+        isObject,
+        noLastPage,
+      ),
     );
     expect(missing.problem.type).toBe('github-not-found');
   });

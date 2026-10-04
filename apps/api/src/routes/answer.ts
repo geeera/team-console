@@ -15,9 +15,14 @@ import {
   sectionOf,
 } from '@shared/owner-grammar';
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
-import { OwnWritesRepo, type OwnWrite } from '@worker/db';
+import { OwnerConnectionsRepo, OwnWritesRepo, type OwnWrite } from '@worker/db';
 import { githubPath, type GitHubClient, type RepoName } from '@worker/github';
-import { isIssueEvent, refuseServiceWrite, refuseServiceWriteOnRecheck } from '../auth/service-write-gate';
+import {
+  isIssueEvent,
+  isIssueEventsPage,
+  refuseServiceWrite,
+  refuseServiceWriteOnRecheck,
+} from '../auth/service-write-gate';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub, GitHubConnection } from '../github';
 import { jsonBody } from '../json-body';
@@ -158,7 +163,8 @@ async function writeAsOwner(
  * owner-grade: the dev/stage CI service identity answers only on an issue the owner labelled `e2e:fixture` that is
  * not a release, a design or a question (#62, #193), decided on the live labels and the label's event history before
  * the owner token is touched, and the labels are read once more right before the comment is posted.
- * Subrequests: the owner's path is unchanged; the service identity adds one or two event reads and one label re-read.
+ * Subrequests: the owner's path is unchanged; the service identity adds one or two event reads and one label re-read
+ * (plus one D1 read of the owner connection's pinned id, never its tokens).
  * Section and allowed commands come from the live issue, never from the client; nothing is written on any 4xx.
  */
 export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
@@ -191,9 +197,16 @@ export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv
       const reader = repositoryClient(installation, repo);
       const issue = await readIssue(reader, repo, number);
       const labels = labelNames(issue);
-      const refused = await refuseServiceWrite(c, labels, async () =>
-        reader.lastPage(githubPath`/repos/${repo}/issues/${number}/events?per_page=${100}`, isIssueEvent),
-      );
+      const refused = await refuseServiceWrite(c, labels, {
+        labelHistory: async () =>
+          reader.lastPage(
+            githubPath`/repos/${repo}/issues/${number}/events?per_page=${100}`,
+            isIssueEvent,
+            (url) => isIssueEventsPage(url, repo, number),
+          ),
+        ownerUserId: async () =>
+          (await new OwnerConnectionsRepo(c.env.DB).find(c.env.ENVIRONMENT))?.user_id ?? null,
+      });
       if (refused !== null) {
         return refused;
       }

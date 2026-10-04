@@ -38,8 +38,9 @@ interface Issue {
   readonly labels: readonly string[];
 }
 
-const BY_OWNER = { login: 'geeera', type: 'User' } as const;
-const BY_TEAM = { login: 'team-console-team[bot]', type: 'Bot' } as const;
+// Ids as GitHub sends them on an event's actor; the owner's is the one `seedConnection` pins (owner-kit's OWNER).
+const BY_OWNER = { login: 'geeera', id: 1001, type: 'User' } as const;
+const BY_TEAM = { login: 'team-console-team[bot]', id: 335634318, type: 'Bot' } as const;
 
 const ISSUES: Record<string, Issue> = {
   '7': { state: 'open', labels: ['kind:question', 'owner:scope'] },
@@ -57,6 +58,8 @@ const ISSUES: Record<string, Issue> = {
   '26': { state: 'open', labels: ['needs:owner', 'kind:chore', 'e2e:fixture'] },
   '27': { state: 'open', labels: ['needs:local', 'kind:chore', 'e2e:fixture'] },
   '28': { state: 'open', labels: ['needs:owner', 'kind:chore', 'e2e:fixture'] },
+  '29': { state: 'open', labels: ['needs:owner', 'kind:chore', 'e2e:fixture'] },
+  '30': { state: 'open', labels: ['needs:owner', 'kind:chore', 'e2e:fixture'] },
 };
 
 type IssueEvent = Record<string, unknown>;
@@ -94,6 +97,10 @@ const EVENTS: Record<string, readonly IssueEvent[]> = {
   ],
   // The owner applied it, and it was removed afterwards (the issue's labels are a stale view).
   '28': [labelEvent(11, 'labeled', BY_OWNER), labelEvent(12, 'unlabeled', BY_OWNER)],
+  // The owner's account under a renamed login: same pinned id.
+  '29': [labelEvent(13, 'labeled', { ...BY_OWNER, login: 'geeera-renamed' })],
+  // The owner's login on another account (given up and registered again): a different id.
+  '30': [labelEvent(14, 'labeled', { ...BY_OWNER, id: 1002 })],
 };
 
 interface Harness {
@@ -139,7 +146,9 @@ function harness(options: { instantSleep?: boolean } = {}): Harness {
       if (call.url.origin === 'https://github.com' || path === '/user') {
         return fake.handle(toRequest(call));
       }
-      const events = /^\/repos\/geeera\/team-console\/issues\/(\d+)\/events$/.exec(path);
+      const events = /^\/(?:repos\/geeera\/team-console|repositories\/\d+)\/issues\/(\d+)\/events$/.exec(
+        path,
+      );
       if (call.method === 'GET' && events !== null) {
         return h.eventsReply?.() ?? json(200, EVENTS[events[1] ?? ''] ?? []);
       }
@@ -604,10 +613,12 @@ describe('the Access service identity: fixture issues only (#62)', () => {
     h: Harness,
     issue: number,
     body: unknown,
-    options: { environment?: 'dev' | 'stage'; claims?: Record<string, unknown> } = {},
+    options: { environment?: 'dev' | 'stage'; claims?: Record<string, unknown>; isConnected?: boolean } = {},
   ): Promise<{ response: Response; statements: string[] }> {
     const environment = options.environment ?? 'stage';
-    await seedConnection(h.fake, { environment });
+    if (options.isConnected !== false) {
+      await seedConnection(h.fake, { environment });
+    }
     const jwks = stubJwksServer();
     const teamDomain = uniqueTeamDomain();
     const key = await createSigningKey();
@@ -751,6 +762,20 @@ describe('the Access service identity: fixture issues only (#62)', () => {
       'a last page off api.github.com',
       () => json(200, [], { link: '<https://evil.example/x?page=2>; rel="last"' }),
     ],
+    [
+      "a last page of another issue's events",
+      () =>
+        json(200, [], {
+          link: '<https://api.github.com/repos/geeera/team-console/issues/21/events?page=2>; rel="last"',
+        }),
+    ],
+    [
+      'a last page of another list on api.github.com',
+      () =>
+        json(200, [], {
+          link: '<https://api.github.com/repos/geeera/team-console/issues?page=2>; rel="last"',
+        }),
+    ],
   ] as const)('403 fixture-history-unreadable when the events read fails with %s', async (_what, reply) => {
     const h = harness();
     h.eventsReply = reply;
@@ -764,28 +789,69 @@ describe('the Access service identity: fixture issues only (#62)', () => {
     expect(statements.filter((sql) => /owner_connections/i.test(sql))).toEqual([]);
   });
 
-  it('403 when no owner login is configured on the Worker', async () => {
+  it('follows a rel="last" link in the numeric /repositories/{id} form GitHub sends (201, two event reads)', async () => {
     const h = harness();
-    await seedConnection(h.fake, { environment: 'stage' });
-    const jwks = stubJwksServer();
-    const teamDomain = uniqueTeamDomain();
-    const key = await createSigningKey();
-    jwks.set(teamDomain, { keys: [key.publicJwk] });
-    const token = await signAccessToken(key, teamDomain, {
-      claims: { email: undefined, common_name: SERVICE_TOKEN_ID },
-    });
-    const response = await answer(
+    let calls = 0;
+    h.eventsReply = () => {
+      calls += 1;
+      return calls === 1
+        ? json(200, [], {
+            link: '<https://api.github.com/repositories/1066011234/issues/20/events?per_page=100&page=2>; rel="last"',
+          })
+        : json(200, EVENTS['20']);
+    };
+    const { response } = await asService(h, 20, { command: 'done', ownerSaid: 'сделано' });
+    expect(response.status).toBe(201);
+    expect(eventReads(h).map((call) => call.url.pathname)).toEqual([
+      `/repos/${REPO}/issues/20/events`,
+      '/repositories/1066011234/issues/20/events',
+    ]);
+  });
+
+  it("allows the owner's account under a renamed login: the pinned id decides (201)", async () => {
+    const h = harness();
+    const { response } = await asService(h, 29, { command: 'done', ownerSaid: 'сделано' });
+    expect(response.status).toBe(201);
+    expect(h.fake.comments).toHaveLength(1);
+  });
+
+  it("403 for the owner's login on another account id; nothing is written", async () => {
+    const h = harness();
+    const { response } = await asService(h, 30, { command: 'done', ownerSaid: 'сделано' });
+    expect(response.status).toBe(403);
+    const problemBody = await problemOf(response);
+    expect(problemBody.slug).toBe('service-not-fixture');
+    expect(problemBody.body['reason']).toBe('fixture-not-labelled-by-owner');
+    expect(ownerTokenUses(h)).toEqual([]);
+    expect(h.fake.comments).toEqual([]);
+  });
+
+  it('403 fixture-owner-not-connected when the environment has no owner connection row', async () => {
+    const h = harness();
+    const { response, statements } = await asService(
       h,
       20,
       { command: 'done', ownerSaid: 'сделано' },
-      {
-        bindings: { ...accessEnv(teamDomain, { ENVIRONMENT: 'stage' }), OWNER_GITHUB_LOGIN: '' },
-        headers: { ...WRITE_HEADERS, 'Cf-Access-Jwt-Assertion': token },
-      },
+      { isConnected: false },
     );
     expect(response.status).toBe(403);
-    expect((await problemOf(response)).body['reason']).toBe('fixture-not-labelled-by-owner');
+    const problemBody = await problemOf(response);
+    expect(problemBody.slug).toBe('service-not-fixture');
+    expect(problemBody.body['reason']).toBe('fixture-owner-not-connected');
+    expect(ownerTokenUses(h)).toEqual([]);
     expect(h.fake.comments).toEqual([]);
+    // One read of the row, and only its pinned id is used; no token is opened or refreshed.
+    expect(statements.filter((sql) => /owner_connections/i.test(sql))).toHaveLength(1);
+  });
+
+  it('reads the owner connection row only once the newest labeller is a plain user', async () => {
+    const h = harness();
+    const { statements } = await asService(h, 20, { command: 'done', ownerSaid: 'сделано' });
+    // The gate's id read, then ownerWriter's own read of the connection for the write.
+    expect(statements.filter((sql) => /owner_connections/i.test(sql)).length).toBeGreaterThanOrEqual(2);
+    const refused = harness();
+    const { statements: none } = await asService(refused, 26, { command: 'done', ownerSaid: 'сделано' });
+    expect(none.filter((sql) => /owner_connections/i.test(sql))).toEqual([]);
   });
 
   it.each([
