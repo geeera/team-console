@@ -13,7 +13,13 @@ export { buildNeedsYou } from './lib/needs-you';
 export { buildOverviewRow } from './lib/overview';
 export type { OverviewRowInput } from './lib/overview';
 export type { ProjectInboxResult } from './lib/needs-you';
-export { PROJECT_CONFIG_MAX_BYTES, ProjectConfigError, parseProjectConfig } from './lib/project-config';
+export {
+  PROJECT_CONFIG_MAX_BYTES,
+  ProjectConfigError,
+  embedOriginOf,
+  embedOriginsOf,
+  parseProjectConfig,
+} from './lib/project-config';
 export type { ProjectConfig, ProjectConfigFailure } from './lib/project-config';
 export {
   SPRINT_TIME_ZONE,

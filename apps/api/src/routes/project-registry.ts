@@ -8,11 +8,25 @@ import {
   type ProjectSetupDto,
 } from '@shared/contracts';
 import { problem, type ProblemInit, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
-import { ProjectSignalsRepo, ProjectsRepo, toProjectDto, type EventsSignal } from '@worker/db';
-import { isRepoOwnedBy, isValidRepoName, readCacheKey, type OwnerAccount } from '@worker/github';
+import {
+  ProjectSignalsRepo,
+  ProjectsRepo,
+  toProjectDto,
+  type EventsSignal,
+  type ProjectRow,
+} from '@worker/db';
+import {
+  isRepoOwnedBy,
+  isValidRepoName,
+  parseRepoName,
+  readCacheKey,
+  type OwnerAccount,
+} from '@worker/github';
+import { embedOriginsOf } from '@worker/read-models';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
+import { ProjectReads } from '../read-models/project-reads';
 import { findProject, projectNotFound, repoOf } from '../projects/lookup';
 import type { OwnerConnectionSource } from '../projects/owner-connection';
 import { slotsSetupOf } from '../team/slot-secrets';
@@ -64,6 +78,30 @@ function withSlots(env: ApiEnv, project: ProjectDto): ProjectDto {
   return { ...project, slots: slotsSetupOf(env, project.slug) };
 }
 
+/**
+ * `ProjectDto.embedOrigins` (#20) of a registered row, through the read cache's project.yml entry. Archived rows
+ * embed nothing; a GitHub failure is logged and embeds nothing rather than failing the registry answer, because
+ * the list is what the console boots from.
+ */
+async function embedOriginsFor(c: Context, github: ApiGitHub, row: ProjectRow): Promise<string[]> {
+  if (row.archived_at !== null) {
+    return [];
+  }
+  try {
+    return await new ProjectReads(github, c.env, row, parseRepoName(row.repo)).embedOrigins();
+  } catch (error: unknown) {
+    c.get('logger').warn('embed origins unavailable', {
+      slug: row.slug,
+      error: error instanceof Error ? error.name : 'unknown',
+    });
+    return [];
+  }
+}
+
+function projectDtoOf(env: ApiEnv, row: ProjectRow, embedOrigins: readonly string[]): ProjectDto {
+  return { ...withSlots(env, toProjectDto(row)), embedOrigins };
+}
+
 function setupOf(
   environment: string,
   facts: RepositoryFacts,
@@ -106,7 +144,9 @@ export function createProjectRegistryRoutes(
     .get('/', async (c) => {
       const repo = new ProjectsRepo(c.env.DB);
       const rows = c.req.query('include') === 'archived' ? await repo.listAll() : await repo.listActive();
-      const body: ProjectDto[] = rows.map((row) => withSlots(c.env, toProjectDto(row)));
+      const body: ProjectDto[] = await Promise.all(
+        rows.map(async (row) => projectDtoOf(c.env, row, await embedOriginsFor(c, github, row))),
+      );
       return c.json(body);
     })
 
@@ -212,7 +252,8 @@ export function createProjectRegistryRoutes(
       }
       c.get('logger').info('project added', { slug });
       c.header('Location', `/api/v1/projects/${slug}`);
-      return c.json(withSlots(c.env, toProjectDto(row)), 201);
+      // The file was just read: no second GitHub round trip for the new project's embed origins.
+      return c.json(projectDtoOf(c.env, row, embedOriginsOf(yml)), 201);
     })
 
     .patch('/:slug', limit, async (c) => {
@@ -226,7 +267,9 @@ export function createProjectRegistryRoutes(
       }
       const row = await new ProjectsRepo(c.env.DB).update(project.slug, changes);
       // Archived between the lookup and the update.
-      return row === null ? projectNotFound(c) : c.json(withSlots(c.env, toProjectDto(row)));
+      return row === null
+        ? projectNotFound(c)
+        : c.json(projectDtoOf(c.env, row, await embedOriginsFor(c, github, row)));
     })
 
     .post('/:slug/archive', async (c) => {

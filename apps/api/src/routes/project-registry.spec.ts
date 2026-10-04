@@ -153,6 +153,7 @@ describe('GET /api/v1/projects', () => {
         addedAt: '2026-09-30T00:00:00Z',
         archivedAt: null,
         slots: { pm: 'missing', dev: 'missing', qa: 'missing' },
+        embedOrigins: [],
       },
     ]);
 
@@ -163,6 +164,58 @@ describe('GET /api/v1/projects', () => {
       ['active', null],
       ['gone', '2026-09-30T12:00:00Z'],
     ]);
+  });
+});
+
+describe('ProjectDto.embedOrigins (#20)', () => {
+  const EMBED_YML =
+    'name: Storify\ndesign:\n  storybook_url: https://storify.pages.dev/?path=/docs\n' +
+    'environments:\n  stage:\n    url: http://stage.storify.workers.dev\n  production:\n    url: https://storify.example\n';
+
+  it('lists the https origins of design.storybook_url and environments.stage.url, nothing else', async () => {
+    await seedProject('storify', 'geeera/storify');
+    const h = harness({ projectYml: ymlFile(EMBED_YML) });
+
+    const list = (await (
+      await fetchApi('/api/v1/projects', localEnv(), { github: h.github })
+    ).json()) as ProjectDto[];
+
+    // The stage URL is plain http, so only the Storybook origin is an embed origin.
+    expect(list.map((project) => project.embedOrigins)).toEqual([['https://storify.pages.dev']]);
+  });
+
+  it('a project.yml read that fails embeds nothing, and the list still answers', async () => {
+    await seedProject('storify', 'geeera/storify');
+    const h = harness({ projectYml: () => json(500, { message: 'boom' }) });
+
+    const response = await fetchApi('/api/v1/projects', localEnv(), { github: h.github });
+
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as ProjectDto[]).map((project) => project.embedOrigins)).toEqual([[]]);
+  });
+
+  it('archived projects embed nothing and cost no GitHub read', async () => {
+    await seedProject('gone', 'geeera/gone');
+    await env.DB.prepare('UPDATE projects SET archived_at = ?1 WHERE slug = ?2')
+      .bind('2026-09-30T12:00:00Z', 'gone')
+      .run();
+    const h = harness({ projectYml: ymlFile(EMBED_YML) });
+
+    const list = (await (
+      await fetchApi('/api/v1/projects?include=archived', localEnv(), { github: h.github })
+    ).json()) as ProjectDto[];
+
+    expect(list.map((project) => project.embedOrigins)).toEqual([[]]);
+    expect(h.stub.reads()).toEqual([]);
+  });
+
+  it('adding a project answers its embed origins from the file it just read', async () => {
+    const h = harness({ projectYml: ymlFile(EMBED_YML) });
+
+    const body = (await (await add({ repo: 'geeera/storify' }, h)).json()) as ProjectDto;
+
+    expect(body.embedOrigins).toEqual(['https://storify.pages.dev']);
+    expect(h.stub.reads()).toHaveLength(2);
   });
 });
 

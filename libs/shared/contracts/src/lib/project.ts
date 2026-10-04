@@ -18,6 +18,13 @@ export interface ProjectDto {
    * Set on every answer of the registry routes; optional only so DTOs built elsewhere need not invent it.
    */
   readonly slots?: ProjectSlotsDto;
+  /**
+   * The only origins the console may frame for this project (#20): those of `design.storybook_url` and
+   * `environments.stage.url` in its project.yml, `https:` only, as exact origins. Set on every answer of the
+   * registry routes (empty for archived projects or when the file cannot be read); optional for the same reason
+   * as `slots`.
+   */
+  readonly embedOrigins?: readonly string[];
 }
 
 /** `POST /api/v1/projects`. The slug defaults to the repository name in kebab case. */
