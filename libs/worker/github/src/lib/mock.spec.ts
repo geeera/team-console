@@ -7,6 +7,7 @@ import { MOCK_OWNER_ACCOUNT, createMockGitHub, isGitHubMockEnabled, type MockGit
 import { isRepoOwnedBy } from './owner-check';
 import { parseRepoName } from './repo-name';
 
+const noLastPage = (): boolean => false;
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
@@ -98,6 +99,53 @@ describe('createMockGitHub', () => {
       client('geeera/team-console').getJson(githubPath`/repos/${repo}/issues/${999}`, isObject),
     );
     expect(missing.problem.type).toBe('github-not-found');
+  });
+
+  it.each([72, 90001, 90002])(
+    "serves the owner's own labeled e2e:fixture event for fixture issue #%i (#193)",
+    async (number) => {
+      const repo = parseRepoName('geeera/team-console');
+      const tail = await client('geeera/team-console').lastPage(
+        githubPath`/repos/${repo}/issues/${number}/events?per_page=${100}`,
+        isObject,
+        noLastPage,
+      );
+      expect(tail.isWholeList).toBe(true);
+      expect(tail.items.at(-1)).toMatchObject({
+        event: 'labeled',
+        actor: { login: MOCK_OWNER_ACCOUNT.login, type: 'User' },
+        label: { name: 'e2e:fixture' },
+        performed_via_github_app: null,
+      });
+    },
+  );
+
+  it('serves no events for an issue without any, and 404 for an unknown issue', async () => {
+    const repo = parseRepoName('geeera/team-console');
+    await expect(
+      client('geeera/team-console').lastPage(
+        githubPath`/repos/${repo}/issues/${21}/events`,
+        isObject,
+        noLastPage,
+      ),
+    ).resolves.toEqual({ items: [], isWholeList: true });
+    const missing = await rejection(
+      client('geeera/team-console').lastPage(
+        githubPath`/repos/${repo}/issues/${999}/events`,
+        isObject,
+        noLastPage,
+      ),
+    );
+    expect(missing.problem.type).toBe('github-not-found');
+  });
+
+  it('labels exactly the issues that have a fixture event, and only those, with e2e:fixture', () => {
+    const repo = fixtures.repositories['geeera/team-console'];
+    const labelled = repo.issues
+      .filter((issue) => issue.labels.some((label) => label.name === 'e2e:fixture'))
+      .map((issue) => String(issue.number))
+      .sort();
+    expect(Object.keys(repo.issueEvents).sort()).toEqual(labelled);
   });
 
   it('lists issues by state and milestone, open milestones and open pull requests from the same fixture', async () => {
