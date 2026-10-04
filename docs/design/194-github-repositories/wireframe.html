@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#194 wireframe: repositories on GitHub (low fidelity)</title>
+<style>
+  /* Low fidelity on purpose: grey boxes, system font, no visual direction. Look and feel is the ui-designer's job. */
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.4 system-ui, sans-serif; color: #222; background: #e9e9e9; }
+  .demo { position: sticky; top: 0; z-index: 50; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center;
+    padding: 8px 12px; background: #fff; border-bottom: 1px solid #bbb; font-size: 13px; }
+  .demo label { display: inline-flex; gap: 4px; align-items: center; }
+  .stage { display: flex; gap: 24px; padding: 16px; align-items: flex-start; flex-wrap: wrap; }
+  .device { background: #fafafa; border: 2px solid #888; position: relative; overflow: hidden; }
+  .device--phone { width: 390px; min-height: 844px; }
+  .device--mac { width: 960px; min-height: 700px; display: grid; grid-template-columns: 220px 1fr; }
+  .device__label { position: absolute; top: -1px; right: -1px; background: #555; color: #fff; font-size: 11px; padding: 2px 6px; }
+  .sidebar { background: #ddd; padding: 16px; border-right: 1px dashed #999; font-size: 13px; color: #555; }
+  .topbar { height: 44px; display: flex; align-items: center; padding: 0 12px; border-bottom: 1px dashed #aaa; gap: 8px; }
+  .page { padding: 16px; max-width: 640px; }
+  .crumb { display: inline-flex; min-height: 44px; align-items: center; color: #333; }
+  h1 { font-size: 24px; margin: 4px 0 16px; }
+  h2 { font-size: 18px; margin: 0; }
+  .lead { color: #555; margin: 4px 0 0; font-size: 14px; }
+  .section { margin: 0 0 24px; }
+  .section__head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+  .btn { min-height: 44px; min-width: 44px; padding: 0 14px; border: 2px solid #555; background: #fff; font: inherit;
+    border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; color: #222; text-decoration: none; }
+  .section__head .btn { white-space: nowrap; flex-shrink: 0; }
+  .whybtn { min-height: 44px; border: 0; background: none; padding: 0; font: inherit; font-size: 13px; text-decoration: underline; color: #222; cursor: pointer; text-align: left; }
+  .btn--primary { background: #555; color: #fff; }
+  .btn--quiet { border-color: transparent; text-decoration: underline; }
+  .btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+  .btn--block { width: 100%; }
+  :focus-visible { outline: 3px solid #000; outline-offset: 2px; }
+  .box { border: 1px solid #aaa; background: #eee; border-radius: 6px; padding: 12px; margin: 0 0 12px; }
+  .box--warn { border-left: 6px solid #777; }
+  .box--danger { border-left: 6px solid #333; }
+  .box--ok { border-left: 6px dotted #555; }
+  .box h2, .box h3 { font-size: 16px; margin: 0 0 4px; }
+  .box p { margin: 4px 0 8px; }
+  .note { display: flex; gap: 6px; font-size: 14px; background: #e3e3e3; padding: 8px 10px; border-radius: 6px; margin: 0 0 12px; }
+  ul.list { list-style: none; margin: 0; padding: 0; border-top: 1px solid #bbb; }
+  li.row { display: flex; gap: 12px; align-items: center; min-height: 64px; padding: 8px 0; border-bottom: 1px solid #bbb; }
+  li.row > a.row__link { display: flex; flex: 1; gap: 12px; align-items: center; color: inherit; text-decoration: none; min-height: 48px; }
+  .row__text { flex: 1; min-width: 0; }
+  .row__title { font-weight: 600; overflow-wrap: anywhere; }
+  .row__sub { color: #555; font-size: 13px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .chip { display: inline-block; border: 1px solid #888; border-radius: 10px; padding: 0 6px; font-size: 12px; background: #fff; }
+  .chip--strong { background: #ccc; }
+  .row__trail { display: flex; gap: 6px; align-items: center; color: #444; font-size: 14px; white-space: nowrap; }
+  .row--archived { color: #595959; }
+  .skeleton { height: 64px; border-bottom: 1px solid #ccc; display: flex; align-items: center; gap: 12px; }
+  .skeleton span { display: block; height: 12px; background: #d6d6d6; border-radius: 4px; }
+  .state { border: 1px dashed #999; border-radius: 6px; padding: 20px 16px; text-align: left; background: #f0f0f0; }
+  .state h3 { margin: 0 0 6px; font-size: 16px; }
+  .state p { margin: 0 0 12px; color: #444; }
+  .state__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  details.byname { border-top: 1px solid #bbb; padding-top: 4px; }
+  details.byname summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; }
+  .field { display: block; margin: 8px 0; }
+  .field input { width: 100%; min-height: 44px; font-size: 16px; padding: 0 10px; border: 2px solid #777; border-radius: 6px; }
+  .hint { font-size: 13px; color: #555; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .scrim { position: absolute; inset: 0; background: rgba(0,0,0,.35); z-index: 10; }
+  .sheet { position: absolute; z-index: 11; background: #fff; border: 2px solid #555; display: flex; flex-direction: column; max-height: 92%; }
+  .device--phone .sheet { left: 0; right: 0; bottom: 0; border-radius: 14px 14px 0 0; }
+  .device--mac .sheet { left: 50%; top: 60px; width: 520px; transform: translateX(-50%); border-radius: 10px; }
+  .sheet__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 8px 8px 16px; border-bottom: 1px solid #ccc; }
+  .sheet__head h2 { font-size: 17px; overflow-wrap: anywhere; }
+  .sheet__body { padding: 12px 16px; overflow: auto; }
+  .sheet__foot { padding: 12px 16px; border-top: 1px solid #ccc; display: flex; flex-direction: column; gap: 8px; }
+  .device--mac .sheet__foot { flex-direction: row-reverse; justify-content: flex-start; }
+  ol.steps { list-style: none; padding: 0; margin: 0; }
+  ol.steps li { border-bottom: 1px solid #ddd; padding: 10px 0; display: grid; grid-template-columns: 28px 1fr; gap: 4px 8px; }
+  .step__mark { width: 24px; height: 24px; border: 2px solid #777; border-radius: 50%; display: grid; place-items: center; font-size: 12px; }
+  .step__state { font-size: 12px; font-weight: 600; text-transform: uppercase; color: #444; }
+  .step__body { grid-column: 2; font-size: 14px; color: #444; }
+  .step__how { grid-column: 2; font-size: 14px; }
+  code { background: #e2e2e2; padding: 0 3px; border-radius: 3px; }
+  .toast { position: absolute; left: 12px; right: 12px; bottom: 16px; z-index: 20; background: #333; color: #fff; padding: 12px; border-radius: 8px; }
+  .device--mac .toast { left: auto; right: 16px; width: 320px; }
+  .annot { width: 300px; font-size: 13px; background: #fff; border: 1px solid #bbb; padding: 12px; }
+  .annot h3 { margin: 0 0 6px; font-size: 14px; }
+  .annot ol { padding-left: 18px; margin: 0; }
+  @media (prefers-reduced-motion: no-preference) { .sheet { animation: up .2s ease-out; } @keyframes up { from { transform: translateY(16px); opacity: 0; } } .device--mac .sheet { animation: none; } }
+</style>
+</head>
+<body>
+<div class="demo" role="region" aria-label="Wireframe controls">
+  <strong>#194 wireframe</strong>
+  <label>Lang <select id="d-lang"><option value="ru">RU</option><option value="en">EN</option></select></label>
+  <label>View <select id="d-view"><option value="phone">iPhone 390</option><option value="mac">Mac</option><option value="both">Both</option></select></label>
+  <label>List state <select id="d-state">
+    <option value="loaded">loaded</option><option value="loading">loading</option><option value="empty">empty</option>
+    <option value="partial">partial</option><option value="notConnected">not connected</option><option value="lost">connection lost</option>
+    <option value="notInstalled">no installation</option><option value="github">GitHub unavailable</option>
+    <option value="rate">rate limit</option><option value="auth">broken app credential</option>
+    <option value="offline">offline, list loaded</option><option value="offlineNone">offline, nothing loaded</option>
+  </select></label>
+  <label>Add outcome <select id="d-outcome">
+    <option value="yml">refused: project.yml missing</option><option value="saved">saved, 2 steps left</option>
+    <option value="unavailable">GitHub didn't respond</option><option value="rate">rate limit</option>
+    <option value="exists">already a project (race)</option>
+  </select></label>
+  <button type="button" id="d-reset">Reset</button>
+</div>
+<div class="stage" id="stage"></div>
+
+<script>
+const T = {
+  ru: {
+    settings: 'Настройки', addTitle: 'Добавить проект', reposTitle: 'Репозитории на GitHub',
+    reposLead: 'Их видит приложение {app} в вашем аккаунте {login}.',
+    refresh: 'Обновить', refreshing: 'Обновляем…', refreshedLive: 'Список обновлён. Репозиториев: {n}.',
+    loading: 'Загружаем репозитории с GitHub…', private: 'Приватный', add: 'Добавить', addAria: 'Добавить {repo}',
+    adding: 'Проверяем…', project: 'Проект', projectAria: '{repo}: проект. Открыть настройку', archived: 'В архиве',
+    notAdded: 'Не добавлен: не хватает шага {n}', seeWhy: 'Почему', seeWhyAria: 'Почему {repo} не добавлен',
+    sheetTitle: 'Добавить {repo}', done: 'Готово', close: 'Закрыть', closeAria: 'Закрыть', openSetup: 'Открыть настройку',
+    checkAgain: 'Проверить снова', retry: 'Повторить', addedToast: '{repo} добавлен',
+    checkingLive: 'Проверяем {repo}…',
+    emptyTitle: 'Приложение {app} пока не видит репозиториев',
+    emptyBody: 'Добавьте репозитории продуктов в установку приложения на GitHub и вернитесь сюда: список обновится сам.',
+    selectLink: 'Выбрать репозитории на GitHub', external: '(откроется на GitHub)',
+    partial: 'Показаны первые {n}. Если нужного репозитория нет, уберите лишние из установки приложения на GitHub или добавьте его по имени ниже.',
+    needTitle: 'Сначала подключите GitHub',
+    needBody: 'Тогда здесь появятся репозитории, которые видит приложение {app}. Пока ничего не отправлено.',
+    lostTitle: 'Подключение к GitHub потеряно',
+    lostBody: 'Доступ отозван или истёк. Подключите GitHub снова, чтобы увидеть репозитории и добавить проект.',
+    connect: 'Подключить GitHub',
+    niTitle: 'Приложение {app} не установлено в вашем аккаунте',
+    niBody: 'Установите его на GitHub и выберите репозитории продуктов. Потом вернитесь сюда: список обновится сам.',
+    niAction: 'Установить приложение на GitHub',
+    errTitle: 'Не удалось загрузить репозитории',
+    errGithub: 'GitHub не ответил. Ваши проекты не изменились.',
+    errRate: 'GitHub просит подождать до {time}. Ваши проекты не изменились.',
+    errAuth: 'Консоль не может войти в GitHub как приложение {app}: его ключ заменён или приложение удалено. Это настройка консоли, а не репозиториев: проверьте приложение по чек-листу владельца.',
+    offlineList: 'Нет сети. Список на момент {time}. Добавить проект можно только онлайн.',
+    offlineTitle: 'Нет сети', offlineBody: 'Репозитории загрузятся, когда сеть вернётся.',
+    byName: 'Добавить по имени', byNameLead: 'Если репозитория нет в списке выше.',
+    field: 'Репозиторий на GitHub', hint: 'В виде владелец/репозиторий, например geeera/storify. Можно вставить ссылку.',
+    submit: 'Проверить и добавить',
+    refusedTitle: 'Проект не добавлен', refusedBody: 'Не хватает шага ниже. Ничего не сохранено: исправьте и нажмите «Проверить снова».',
+    savedTitle: 'Проект добавлен. Осталось 2 шага', savedBody: 'Он уже в списке проектов. Консоль показывает, чего не хватает, пока всё не будет готово.',
+    unTitle: 'Не удалось проверить', unGithub: 'GitHub не ответил. Ничего не сохранено.', unRate: 'GitHub просит подождать до {time}. Ничего не сохранено.',
+    dup: '{repo} уже есть в списке.', dupLink: 'Открыть его настройку',
+    sDone: 'Готово', sMissing: 'Не хватает', sPending: 'Проверяем…', sSkipped: 'Не проверено', sWaiting: 'Ждём',
+    skippedWhy: 'Сначала нужен шаг выше.', how: 'Как исправить',
+    st1: 'Приложение {app} установлено на репозиторий', st1d: 'Консоль читает {repo} через приложение.',
+    st2: 'Владелец репозитория — подключённый аккаунт', st2d: 'Владелец — {login}, ответы засчитываются.',
+    st3: 'В репозитории есть .product-team/project.yml', st3m: 'Файла нет в основной ветке. Подключите команду в этом репозитории и смержьте её PR.',
+    st3how: 'В Claude Code в этом репозитории: /adopt для существующего кода или /kickoff для нового продукта.', st3d: 'Есть в основной ветке.',
+    st4: 'События приходят', st4m: 'Событий от {repo} ещё не было. Делать ничего не нужно: шаг появится после первого события.',
+    st5: 'Токен рутины задан', st5m: 'Секрета PM_ROUTINE_TOKEN нет. Пока его нет, PM не отвечает в чате.',
+    stepsAria: 'Шаги настройки', tabSettings: 'Настройки', sidebarNote: 'Боковая панель (без изменений). «Добавить проект» внизу ведёт сюда.',
+    topbarNote: 'Верхняя панель (без изменений)'
+  },
+  en: {
+    settings: 'Settings', addTitle: 'Add project', reposTitle: 'Repositories on GitHub',
+    reposLead: 'What the {app} app can see on your account, {login}.',
+    refresh: 'Refresh', refreshing: 'Refreshing…', refreshedLive: 'List updated. Repositories: {n}.',
+    loading: 'Loading repositories from GitHub…', private: 'Private', add: 'Add', addAria: 'Add {repo}',
+    adding: 'Checking…', project: 'Project', projectAria: '{repo} is a project. Open its setup', archived: 'Archived',
+    notAdded: 'Not added: step {n} is missing', seeWhy: 'See why', seeWhyAria: 'Why {repo} wasn’t added',
+    sheetTitle: 'Add {repo}', done: 'Done', close: 'Close', closeAria: 'Close', openSetup: 'Open setup',
+    checkAgain: 'Check again', retry: 'Try again', addedToast: '{repo} added',
+    checkingLive: 'Checking {repo}…',
+    emptyTitle: 'The {app} app can’t see any repositories yet',
+    emptyBody: 'Add your product repositories to the app’s installation on GitHub, then come back here. The list refreshes by itself.',
+    selectLink: 'Choose repositories on GitHub', external: '(opens GitHub)',
+    partial: 'Showing the first {n}. If the one you need isn’t here, remove ones you don’t need from the app’s installation on GitHub, or add it by name below.',
+    needTitle: 'Connect GitHub first',
+    needBody: 'Then the repositories the {app} app can see appear here. Nothing has been sent yet.',
+    lostTitle: 'The GitHub connection was lost',
+    lostBody: 'Access was revoked or has expired. Connect GitHub again to see repositories and add a project.',
+    connect: 'Connect GitHub',
+    niTitle: 'The {app} app isn’t installed on your account',
+    niBody: 'Install it on GitHub and choose your product repositories. Then come back here. The list refreshes by itself.',
+    niAction: 'Install the app on GitHub',
+    errTitle: 'Couldn’t load repositories',
+    errGithub: 'GitHub didn’t respond. Your projects haven’t changed.',
+    errRate: 'GitHub asks us to wait until {time}. Your projects haven’t changed.',
+    errAuth: 'The console can’t sign in to GitHub as the {app} app: its key was replaced or the app was removed. This is the console’s setup, not the repositories’: check the app with the owner checklist.',
+    offlineList: 'You’re offline. This list is from {time}. Adding a project needs a connection.',
+    offlineTitle: 'You’re offline', offlineBody: 'Repositories load when you’re back online.',
+    byName: 'Add by name', byNameLead: 'If the repository isn’t on the list above.',
+    field: 'GitHub repository', hint: 'As owner/repo, for example geeera/storify. A link works too.',
+    submit: 'Check and add',
+    refusedTitle: 'Project not added', refusedBody: 'A step below is missing. Nothing was saved: fix it and select Check again.',
+    savedTitle: 'Project added. 2 steps left', savedBody: 'It’s on your project list now. The console shows what’s missing until everything is set.',
+    unTitle: 'Couldn’t check', unGithub: 'GitHub didn’t respond. Nothing was saved.', unRate: 'GitHub asks us to wait until {time}. Nothing was saved.',
+    dup: '{repo} is already on the list.', dupLink: 'Open its setup',
+    sDone: 'Done', sMissing: 'Missing', sPending: 'Checking…', sSkipped: 'Not checked', sWaiting: 'Waiting',
+    skippedWhy: 'Needs the step above first.', how: 'How to fix',
+    st1: 'The {app} app is installed on the repo', st1d: 'The console reads {repo} through the app.',
+    st2: 'The repo’s owner is the connected account', st2d: 'Owned by {login}, so your answers count.',
+    st3: '.product-team/project.yml exists', st3m: 'Not on the default branch. Set up the team in this repo and merge its PR.',
+    st3how: 'In Claude Code in this repo: /adopt for existing code or /kickoff for a new product.', st3d: 'Found on the default branch.',
+    st4: 'Events arrive', st4m: 'No events from {repo} yet. Nothing to do: this appears after the first event.',
+    st5: 'Routine token set', st5m: 'No PM_ROUTINE_TOKEN secret. Until it’s set, the PM doesn’t answer in chat.',
+    stepsAria: 'Setup steps', tabSettings: 'Settings', sidebarNote: 'Sidebar (unchanged). “Add project” at the bottom leads here.',
+    topbarNote: 'Top bar (unchanged)'
+  }
+};
+const REPOS = [
+  { fullName: 'geeera/storify', private: true, reg: 'none' },
+  { fullName: 'geeera/team-console', private: false, reg: 'active', slug: 'team-console' },
+  { fullName: 'geeera/fieldnote', private: true, reg: 'none' },
+  { fullName: 'geeera/old-landing', private: false, reg: 'archived' },
+  { fullName: 'geeera/sheltrix', private: true, reg: 'active', slug: 'sheltrix' },
+  { fullName: 'geeera/a-really-long-repository-name-to-check-wrapping', private: true, reg: 'none' },
+  { fullName: 'geeera/dotfiles', private: false, reg: 'none' },
+];
+const ORDER = { none: 0, active: 1, archived: 2 };
+const S = { lang: 'ru', view: 'phone', state: 'loaded', outcome: 'yml', repos: [], notAdded: {}, sheet: null, toast: '' };
+const ctx = { app: 'team-console', login: 'geeera', time: '14:32', n: 100 };
+
+function t(key, vars = {}) {
+  const v = { ...ctx, ...vars };
+  return (T[S.lang][key] ?? key).replace(/\{(\w+)\}/g, (_, k) => v[k] ?? '');
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function sorted() {
+  return [...S.repos].sort((a, b) => ORDER[a.reg] - ORDER[b.reg] || a.fullName.localeCompare(b.fullName));
+}
+function reset() {
+  S.repos = REPOS.map(r => ({ ...r })); S.notAdded = {}; S.sheet = null; S.toast = '';
+}
+
+function rowHtml(r, offline) {
+  const name = r.fullName.split('/')[1];
+  const priv = r.private ? `<span class="chip">${t('private')}</span>` : '';
+  const sub = `<span class="row__sub"><span>${esc(r.fullName.split('/')[0])}</span>${priv}</span>${S.notAdded[r.fullName] ? `<button class="whybtn" type="button" data-why="${esc(r.fullName)}" aria-label="${esc(t('seeWhyAria', { repo: r.fullName }))}">${t('notAdded', { n: 3 })} · ${t('seeWhy')} ›</button>` : ''}`;
+  if (r.reg === 'active') {
+    return `<li class="row"><a class="row__link" href="#setup-${r.slug}" aria-label="${esc(t('projectAria', { repo: r.fullName }))}">
+      <span class="row__text"><span class="row__title">${esc(name)}</span>${sub}</span>
+      <span class="row__trail">${t('project')} <span aria-hidden="true">›</span></span></a></li>`;
+  }
+  if (r.reg === 'archived') {
+    return `<li class="row row--archived"><span class="row__text"><span class="row__title">${esc(name)}</span>${sub}</span>
+      <span class="row__trail">${t('archived')}</span></li>`;
+  }
+  const busy = S.sheet && S.sheet.repo === r.fullName && S.sheet.phase === 'checking';
+  const why = '';
+  return `<li class="row"><span class="row__text"><span class="row__title">${esc(name)}</span>${sub}</span>
+    <span class="row__trail">${why}<button class="btn" type="button" data-add="${esc(r.fullName)}" aria-label="${esc(t('addAria', { repo: r.fullName }))}"
+      ${offline || busy ? 'aria-disabled="true"' : ''}>${busy ? t('adding') : t('add')}</button></span></li>`;
+}
+
+function listHtml(offline) {
+  return `<ul class="list" aria-label="${esc(t('reposTitle'))}">${sorted().map(r => rowHtml(r, offline)).join('')}</ul>`;
+}
+function stateBlock(title, body, actions, isError) {
+  return `<div class="state" ${isError ? 'role="alert"' : ''}><h3 tabindex="-1">${esc(title)}</h3><p>${esc(body)}</p><div class="state__actions">${actions}</div></div>`;
+}
+const retryBtn = () => `<button class="btn btn--primary" type="button" data-retry>${t('retry')}</button>`;
+const extLink = (key, primary) => `<a class="btn ${primary ? 'btn--primary' : ''}" href="#github" target="_blank" rel="noopener noreferrer">${t(key)}<span class="sr-only"> ${t('external')}</span> ↗</a>`;
+
+function reposSection() {
+  const st = S.state;
+  const connectedLike = !['notConnected', 'lost'].includes(st);
+  let inner = '';
+  const refreshBtn = ['loaded', 'partial', 'offline', 'loading'].includes(st) ? `<button class="btn" type="button" data-refresh ${st.startsWith('offline') || st === 'loading' ? 'aria-disabled="true"' : ''}>↻ ${t('refresh')}</button>` : '';
+  if (st === 'loading') {
+    inner = `<div aria-busy="true"><span class="sr-only" role="status">${t('loading')}</span>${[1, 2, 3].map(() => `<div class="skeleton" aria-hidden="true"><span style="width:45%"></span><span style="width:20%;margin-left:auto"></span></div>`).join('')}</div>`;
+  } else if (st === 'loaded') inner = listHtml(false);
+  else if (st === 'partial') inner = `<p class="note" role="note">${esc(t('partial'))}</p><p>${extLink('selectLink')}</p>${listHtml(false)}`;
+  else if (st === 'empty') inner = stateBlock(t('emptyTitle'), t('emptyBody'), extLink('selectLink', true) + `<button class="btn" type="button" data-refresh>↻ ${t('refresh')}</button>`);
+  else if (st === 'notInstalled') inner = stateBlock(t('niTitle'), t('niBody'), extLink('niAction', true) + `<button class="btn" type="button" data-refresh>↻ ${t('refresh')}</button>`);
+  else if (st === 'github') inner = stateBlock(t('errTitle'), t('errGithub'), retryBtn(), true);
+  else if (st === 'rate') inner = stateBlock(t('errTitle'), t('errRate'), retryBtn(), true);
+  else if (st === 'auth') inner = stateBlock(t('errTitle'), t('errAuth'), retryBtn(), true);
+  else if (st === 'offline') inner = `<p class="note" role="status">⦸ ${esc(t('offlineList'))}</p>${listHtml(true)}`;
+  else if (st === 'offlineNone') inner = stateBlock(t('offlineTitle'), t('offlineBody'), retryBtn());
+  else inner = ''; // not connected: the page-level callout above replaces the list, and no list request is sent
+
+  return `<section class="section" aria-labelledby="repos-h-${S._id}">
+    <div class="section__head"><div><h2 id="repos-h-${S._id}" tabindex="-1">${t('reposTitle')}</h2>
+      ${connectedLike ? `<p class="lead">${esc(t('reposLead'))}</p>` : ''}</div>${refreshBtn}</div>${inner}</section>`;
+}
+
+function connectCallout() {
+  if (S.state === 'notConnected') return `<section class="box box--warn" aria-labelledby="nc-${S._id}"><h2 id="nc-${S._id}">${t('needTitle')}</h2><p>${esc(t('needBody'))}</p><button class="btn btn--primary" type="button">${t('connect')}</button></section>`;
+  if (S.state === 'lost') return `<section class="box box--warn" aria-labelledby="nc-${S._id}"><h2 id="nc-${S._id}">${t('lostTitle')}</h2><p>${esc(t('lostBody'))}</p><button class="btn btn--primary" type="button">${t('connect')}</button></section>`;
+  return '';
+}
+
+function byNameHtml() {
+  // Always collapsed: a secondary path; the list is the primary one (owner opens it when needed).
+  const open = false;
+  return `<details class="byname" ${open ? 'open' : ''}><summary>${t('byName')}</summary>
+    <p class="hint">${t('byNameLead')}</p>
+    <label class="field">${t('field')}<input type="text" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false"></label>
+    <p class="hint">${esc(t('hint'))}</p>
+    <button class="btn btn--primary" type="button" ${S.state.startsWith('offline') ? 'aria-disabled="true"' : ''}>${t('submit')}</button></details>`;
+}
+
+function stepsHtml(kind, repo) {
+  const step = (n, title, state, body, how) => `<li><span class="step__mark" aria-hidden="true">${n}</span>
+    <span><strong>${esc(title)}</strong><br><span class="step__state">${state}</span></span>
+    ${body ? `<span class="step__body">${esc(body)}</span>` : ''}${how ? `<details class="step__how"><summary>${t('how')}</summary>${esc(how)}</details>` : ''}</li>`;
+  const r = { repo };
+  if (kind === 'checking') return `<ol class="steps" aria-label="${t('stepsAria')}">${step(1, t('st1'), t('sPending'))}${step(2, t('st2'), t('sPending'))}${step(3, t('st3'), t('sPending'))}${step(4, t('st4'), t('sSkipped'), t('skippedWhy'))}${step(5, t('st5'), t('sSkipped'), t('skippedWhy'))}</ol>`;
+  if (kind === 'yml') return `<ol class="steps" aria-label="${t('stepsAria')}">${step(1, t('st1'), t('sDone'), t('st1d', r))}${step(2, t('st2'), t('sDone'), t('st2d'))}${step(3, t('st3'), t('sMissing'), t('st3m'), t('st3how'))}${step(4, t('st4'), t('sSkipped'), t('skippedWhy'))}${step(5, t('st5'), t('sSkipped'), t('skippedWhy'))}</ol>`;
+  if (kind === 'saved') return `<ol class="steps" aria-label="${t('stepsAria')}">${step(1, t('st1'), t('sDone'), t('st1d', r))}${step(2, t('st2'), t('sDone'), t('st2d'))}${step(3, t('st3'), t('sDone'), t('st3d'))}${step(4, t('st4'), t('sWaiting'), t('st4m', r))}${step(5, t('st5'), t('sMissing'), t('st5m'))}</ol>`;
+  return '';
+}
+
+function sheetHtml() {
+  const sh = S.sheet; if (!sh) return '';
+  const repo = sh.repo; let body = '', foot = '';
+  if (sh.phase === 'checking') {
+    body = `<p role="status">${esc(t('checkingLive', { repo }))}</p>${stepsHtml('checking', repo)}`;
+    foot = `<button class="btn btn--block" type="button" data-close>${t('close')}</button>`;
+  } else if (sh.phase === 'yml') {
+    body = `<section class="box box--danger" aria-labelledby="res-${S._id}"><h3 id="res-${S._id}" tabindex="-1" data-result>${t('refusedTitle')}</h3><p>${esc(t('refusedBody'))}</p></section>${stepsHtml('yml', repo)}`;
+    foot = `<button class="btn btn--primary btn--block" type="button" data-check>${t('checkAgain')}</button><button class="btn btn--block" type="button" data-close>${t('close')}</button>`;
+  } else if (sh.phase === 'saved') {
+    body = `<section class="box box--ok" aria-labelledby="res-${S._id}"><h3 id="res-${S._id}" tabindex="-1" data-result>${t('savedTitle')}</h3><p>${esc(t('savedBody'))}</p></section>${stepsHtml('saved', repo)}`;
+    foot = `<button class="btn btn--primary btn--block" type="button" data-close>${t('done')}</button><a class="btn btn--block" href="#setup">${t('openSetup')}</a>`;
+  } else if (sh.phase === 'unavailable' || sh.phase === 'rate') {
+    body = `<section class="box box--danger" aria-labelledby="res-${S._id}"><h3 id="res-${S._id}" tabindex="-1" data-result>${t('unTitle')}</h3><p>${esc(t(sh.phase === 'rate' ? 'unRate' : 'unGithub'))}</p></section>`;
+    foot = `<button class="btn btn--primary btn--block" type="button" data-check>${t('retry')}</button><button class="btn btn--block" type="button" data-close>${t('close')}</button>`;
+  } else if (sh.phase === 'exists') {
+    body = `<section class="box" aria-labelledby="res-${S._id}"><h3 id="res-${S._id}" tabindex="-1" data-result>${esc(t('dup', { repo }))}</h3><a href="#setup">${t('dupLink')}</a></section>`;
+    foot = `<button class="btn btn--block" type="button" data-close>${t('close')}</button>`;
+  }
+  return `<div class="scrim" data-close></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-${S._id}">
+    <div class="sheet__head"><h2 id="sh-${S._id}" tabindex="-1">${esc(t('sheetTitle', { repo }))}</h2>
+    <button class="btn" type="button" data-close aria-label="${t('closeAria')}">✕</button></div>
+    <div class="sheet__body">${body}</div><div class="sheet__foot">${foot}</div></div>`;
+}
+
+function deviceHtml(kind) {
+  S._id = kind;
+  const page = `<div class="page">
+      <a class="crumb" href="#settings">‹ ${t('settings')}</a>
+      <h1 tabindex="-1">${t('addTitle')}</h1>
+      ${connectCallout()}
+      ${reposSection()}
+      ${byNameHtml()}
+    </div>`;
+  const toast = S.toast ? `<div class="toast" role="status">${esc(S.toast)}</div>` : '';
+  if (kind === 'phone') {
+    return `<div class="device device--phone" data-device="phone" lang="${S.lang}"><span class="device__label">iPhone · 390</span>
+      <div class="topbar">${t('topbarNote')}</div>${page}${sheetHtml()}${toast}</div>`;
+  }
+  return `<div class="device device--mac" data-device="mac" lang="${S.lang}"><span class="device__label">Mac</span>
+    <div class="sidebar">${t('sidebarNote')}</div><div>${page}</div>${sheetHtml()}${toast}</div>`;
+}
+
+const ANNOT = `<aside class="annot"><h3>How it works</h3><ol>
+  <li>Every "Add project" entry point (Settings, iPhone Projects sheet, Mac sidebar, empty Overview / Needs you) opens this screen.</li>
+  <li>Rows: addable first, then projects, then archived; names wrap, never truncate.</li>
+  <li>Add = one tap: the sheet opens with #24's checklist running. No confirm step.</li>
+  <li>Closing the sheet mid-check is fine: the row keeps "Checking…", then turns "Project" with a toast, or shows "Not added" with "See why".</li>
+  <li>Project rows are one link to the setup page. Archived rows have no action (#84).</li>
+  <li>Returning from a GitHub link refreshes the list once by itself.</li></ol></aside>`;
+
+function render(focusSel) {
+  const devs = S.view === 'both' ? ['phone', 'mac'] : [S.view];
+  document.documentElement.lang = S.lang;
+  document.getElementById('stage').innerHTML = devs.map(deviceHtml).join('') + ANNOT;
+  if (focusSel) { const el = document.querySelector(focusSel); if (el) el.focus(); }
+}
+
+let timer = null;
+function runCheck(repo) {
+  S.sheet = { repo, phase: 'checking' }; delete S.notAdded[repo]; render('.sheet h2');
+  clearTimeout(timer);
+  timer = setTimeout(() => {
+    const o = S.outcome; const r = S.repos.find(x => x.fullName === repo);
+    if (o === 'saved' || o === 'exists') { r.reg = 'active'; r.slug = repo.split('/')[1]; }
+    if (o === 'yml') S.notAdded[repo] = true;
+    if (S.sheet && S.sheet.repo === repo) { S.sheet.phase = o; render('[data-result]'); }
+    else {
+      // The sheet was closed mid-check: the row and a toast carry the outcome.
+      if (o === 'saved') { S.toast = t('addedToast', { repo }); setTimeout(() => { S.toast = ''; render(); }, 4000); }
+      render();
+    }
+  }, 1400);
+}
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-add],[data-why],[data-close],[data-check],[data-retry],[data-refresh]');
+  if (!el || el.getAttribute('aria-disabled') === 'true') return;
+  if (el.dataset.add) runCheck(el.dataset.add);
+  else if (el.dataset.why) { S.sheet = { repo: el.dataset.why, phase: 'yml' }; render('[data-result]'); }
+  else if ('close' in el.dataset) {
+    const repo = S.sheet?.repo; S.sheet = null;
+    const r = S.repos.find(x => x.fullName === repo);
+    render(r && r.reg === 'active' ? `a[href="#setup-${r.slug}"]` : `[data-add="${repo}"]`);
+  } else if ('check' in el.dataset) runCheck(S.sheet.repo);
+  else if ('retry' in el.dataset || 'refresh' in el.dataset) {
+    S.state = 'loading'; document.getElementById('d-state').value = 'loading'; render();
+    setTimeout(() => { S.state = 'loaded'; document.getElementById('d-state').value = 'loaded'; render('.section h2'); }, 900);
+  }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.sheet) document.querySelector('.sheet [data-close]').click(); });
+for (const [id, key] of [['d-lang', 'lang'], ['d-view', 'view'], ['d-state', 'state'], ['d-outcome', 'outcome']]) {
+  document.getElementById(id).addEventListener('change', e => { S[key] = e.target.value; render(); });
+}
+document.getElementById('d-reset').addEventListener('click', () => { reset(); render(); });
+const params = new URLSearchParams(location.search);
+for (const k of ['lang', 'view', 'state', 'outcome']) if (params.get(k)) { S[k] = params.get(k); document.getElementById('d-' + k).value = S[k]; }
+reset(); render();
+</script>
+</body>
+</html>
