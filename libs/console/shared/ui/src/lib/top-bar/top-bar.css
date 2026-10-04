@@ -1,0 +1,47 @@
+:host {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-h-touch);
+  padding: calc(var(--space-1) + var(--safe-top)) calc(var(--space-2) + var(--safe-right)) var(--space-1)
+    calc(var(--space-2) + var(--safe-left));
+  background: var(--bg);
+  border-bottom: var(--border-w) solid var(--border);
+  color: var(--text);
+}
+
+:host(.tc-top-bar--sticky) {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-chrome);
+}
+
+.tc-top-bar__leading,
+.tc-top-bar__trailing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+}
+
+.tc-top-bar__leading:empty,
+.tc-top-bar__trailing:empty {
+  display: none;
+}
+
+.tc-top-bar__title {
+  flex: 1;
+  min-width: 0;
+  padding: 0 var(--space-2);
+}
+
+.tc-top-bar__title ::ng-deep [tc-top-bar-title] {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

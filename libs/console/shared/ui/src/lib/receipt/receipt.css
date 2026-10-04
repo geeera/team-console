@@ -1,0 +1,117 @@
+:host {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-1) 0 var(--space-1) var(--space-3);
+  margin-left: var(--card-indent);
+  border-left: var(--border-w-strong) solid var(--accent);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--fs-md);
+  color: var(--text-2);
+  animation: tc-receipt-in var(--dur-base) var(--ease-enter) both;
+}
+
+:host(:focus-visible) {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+:host(.tc-receipt--negative) {
+  border-left-color: var(--danger-text);
+}
+
+:host(.tc-receipt--neutral) {
+  border-left-color: var(--text-3);
+}
+
+:host(.tc-receipt--warning) {
+  border-left-color: var(--warning-text);
+}
+
+.tc-receipt__icon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  color: var(--accent-text);
+}
+
+:host(.tc-receipt--negative) .tc-receipt__icon {
+  color: var(--danger-text);
+}
+
+:host(.tc-receipt--neutral) .tc-receipt__icon {
+  color: var(--text-2);
+}
+
+:host(.tc-receipt--warning) .tc-receipt__icon {
+  color: var(--warning-text);
+}
+
+.tc-receipt__body {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tc-receipt__verb {
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+
+.tc-receipt__verb:not(:empty) + .tc-receipt__detail:not(:empty)::before {
+  content: ' ';
+}
+
+.tc-receipt__meta {
+  font-family: var(--font-body);
+  font-style: normal;
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+
+.tc-receipt__meta:empty {
+  display: none;
+}
+
+@media (max-width: 519.98px) {
+  :host {
+    margin-left: 0;
+  }
+
+  .tc-receipt__meta {
+    flex-basis: 100%;
+  }
+}
+
+@keyframes tc-receipt-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--space-1) * -1));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :host {
+    animation: tc-receipt-fade var(--dur-fade) linear both;
+  }
+}
+
+:host-context(:root[data-motion='reduce']) {
+  animation: tc-receipt-fade var(--dur-fade) linear both;
+}
+
+@keyframes tc-receipt-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

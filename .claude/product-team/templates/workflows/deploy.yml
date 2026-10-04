@@ -1,0 +1,60 @@
+# Per-environment deploy (reference/deploy-recipes.md). devops fills the build and deploy steps for the chosen
+# recipe; the environment mapping, the rollback trigger and the smoke check stay as they are.
+name: deploy
+
+on:
+  push:
+    branches: [dev, stage, main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy (rollback or redeploy)
+        type: choice
+        options: [dev, stage, production]
+        required: true
+      ref:
+        description: Tag or commit to deploy (e.g. the previous production tag)
+        required: true
+
+concurrency:
+  # One deploy per environment at a time; a newer push waits instead of cancelling a running deploy.
+  group: deploy-${{ github.event.inputs.environment || (github.ref_name == 'main' && 'production' || github.ref_name) }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: ${{ github.event.inputs.environment || (github.ref_name == 'main' && 'production' || github.ref_name) }}
+      url: ${{ vars.APP_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
+
+      # TODO(devops): build once, e.g. docker/build-push-action to ghcr.io/${{ github.repository }}:${{ github.sha }}
+      - name: Build
+        run: echo "TODO build for the chosen recipe" && exit 1
+
+      # TODO(devops): migrations (expand-only), then the recipe's deploy step, e.g.
+      #   curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+      #   cloudflare/wrangler-action with pages deploy
+      - name: Deploy
+        run: echo "TODO deploy for the chosen recipe" && exit 1
+
+      - name: Smoke check
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          test -n "$APP_URL" || { echo "::error::set the APP_URL variable on this environment"; exit 1; }
+          for i in 1 2 3 4 5 6; do
+            curl -fsS -o /dev/null "$APP_URL" && exit 0
+            sleep 20
+          done
+          echo "::error::$APP_URL did not answer after deploy"
+          exit 1

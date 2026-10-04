@@ -1,0 +1,496 @@
+#!/usr/bin/env python3
+"""Pull requests over the GitHub REST API (no `gh` CLI needed; cloud sessions may not have it).
+
+  pr create --base B --head H --title T (--body B | --body-file F)
+  pr view N            state, branches, mergeable, merge state, head sha
+  pr checks N          CI of the head commit: {"state": "pass"|"fail"|"pending", "failing": [...], ...}
+  pr diff N            the unified diff (for review)
+  pr review N --commit SHA (--body B | --body-file F)
+                       a review comment bound to the commit that was reviewed (take SHA from `pr view` before
+                       reviewing). First line exactly `QA|REVIEW|SECURITY: APPROVED` or `…: CHANGES REQUESTED`
+  pr reviews N         review bodies, oldest first
+  pr update-branch N   merge the base into the PR branch on GitHub (no force-push); fails on conflicts
+  pr files N           changed paths
+  pr security-check N  does this PR need a security review? reasons from the paths and the linked issue's labels
+  pr gate N            CI plus the independent verdicts it needs, each APPROVED on the current head commit: QA and
+                       REVIEW as the `review:` block of project.yml on the PR's base branch requires them (both on
+                       every PR without the block), SECURITY whenever security-check says so. `why` explains each
+                       verdict; `policy` shows the rule, max_rework_rounds included
+  pr merge N --method squash|merge [--delete-branch] [--ci-only]
+                       refuses unless the gate passes. `squash` for feature/fix/hotfix PRs, `merge` for the
+                       stage cut, releases and back-merges (long-lived branches must keep shared history).
+                       `--ci-only` skips the verdicts and is only for those branch operations and the
+                       `chore/product-team-*` self-update PR
+  pr list [--base B] [--state open|closed|all]
+  pr commit -m M [git commit args…]
+                       `git commit` authored and committed by the team app's bot (plain `git commit` without a team
+                       app); fails without committing when the bot's identity cannot be looked up; --amend/-C/-c
+                       also reset the author to the bot
+  pr push [--branch B] push a feature/ fix/ hotfix/ chore/ backmerge/ revert/ design/ docs/ branch (default: the
+                       current one), never forced. With the team GitHub App configured it pushes as the app straight
+                       to GitHub and refuses URL rewrites (reference/identities.md); otherwise `git push -u origin B`
+  pr git-identity      the bot's GIT_AUTHOR_…/GIT_COMMITTER_… as `export` lines (for inspection; commit with
+                       `pr commit`); prints nothing without a team app
+
+Output is JSON (the diff is plain text).
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import json
+import os
+import sys
+
+sys.dont_write_bytecode = True  # the vendored copy lives in the product repo: no __pycache__ there
+from urllib.parse import quote
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import re  # noqa: E402
+
+import shlex  # noqa: E402
+import subprocess  # noqa: E402
+import tempfile  # noqa: E402
+from pathlib import Path  # noqa: E402
+from typing import Optional  # noqa: E402
+
+from ptlib import checks, gh, project, review, vendoring  # noqa: E402
+
+
+def out(data) -> None:
+    json.dump(data, sys.stdout, indent=2, ensure_ascii=False)
+    sys.stdout.write("\n")
+
+
+def body_arg(args) -> str:
+    if getattr(args, "body_file", None):
+        with open(args.body_file, encoding="utf-8") as f:
+            return f.read()
+    if args.body is None:
+        sys.exit("--body or --body-file is required")
+    return args.body
+
+
+def view(repo: str, n: int) -> dict:
+    pr = gh.api(f"repos/{repo}/pulls/{n}")
+    return {
+        "number": pr["number"], "title": pr["title"], "url": pr["html_url"], "state": pr["state"],
+        "merged": pr.get("merged", False), "draft": pr.get("draft", False),
+        "base": pr["base"]["ref"], "head": pr["head"]["ref"], "head_sha": pr["head"]["sha"],
+        # GitHub computes mergeability lazily: null means "ask again in a moment".
+        "mergeable": pr.get("mergeable"), "merge_state": pr.get("mergeable_state"),
+    }
+
+
+LONG_LIVED = {"dev", "stage", "main", "master"}
+
+
+def branch_deletion_blocker(repo: str, number: int, info: dict) -> str:
+    """Only short-lived branches of this repository are deleted after a merge."""
+    pr = gh.api(f"repos/{repo}/pulls/{number}")
+    head_repo = ((pr.get("head") or {}).get("repo") or {}).get("full_name")
+    if head_repo != repo:
+        return f"the head branch lives in {head_repo or 'a deleted fork'}"
+    if info["head"] in LONG_LIVED or info["head"] == info["base"]:
+        return f"{info['head']} is a long-lived branch"
+    return ""
+
+
+def ci(repo: str, sha: str) -> dict:
+    runs = gh.api_list(f"repos/{repo}/commits/{sha}/check-runs?per_page=100")
+    statuses = gh.api_list(f"repos/{repo}/commits/{sha}/statuses?per_page=100")
+    suites = gh.api_list(f"repos/{repo}/commits/{sha}/check-suites?per_page=100")
+    return checks.summarise(runs, statuses, suites)
+
+
+def changed_files(repo: str, n: int) -> list:
+    """Paths touched, including the old path of a renamed file (moving code out of auth/ is still auth work)."""
+    paths = []
+    for f in gh.api_list(f"repos/{repo}/pulls/{n}/files?per_page=100"):
+        paths.append(f["filename"])
+        if f.get("previous_filename"):
+            paths.append(f["previous_filename"])
+    return paths
+
+
+def linked_issue_labels(repo: str, n: int) -> list:
+    pr = gh.api(f"repos/{repo}/pulls/{n}")
+    body = pr.get("body") or ""
+    labels = [l["name"] for l in pr.get("labels", [])]
+    for number in re.findall(r"(?i)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s*:?\s+#(\d+)", body):
+        labels += [l["name"] for l in gh.api(f"repos/{repo}/issues/{number}").get("labels", [])]
+    return labels
+
+
+def security_check(repo: str, n: int, paths: Optional[list] = None) -> list:
+    return review.security_reasons(changed_files(repo, n) if paths is None else paths, linked_issue_labels(repo, n))
+
+
+def base_project_text(repo: str, base: str) -> str:
+    """project.yml as the PR's base branch has it ("" when it has none): a PR cannot choose its own reviewers or
+    drop a required verdict by editing project.yml, and the working tree may be any branch."""
+    try:
+        # A full ref: a tag or commit named like the branch must never stand in for it.
+        return gh.raw(f"repos/{repo}/contents/{project.PROJECT_FILE}?ref={quote('refs/heads/' + base, safe='/')}",
+                      "application/vnd.github.raw")
+    except gh.GhError as exc:
+        if "HTTP 404" in str(exc):
+            return ""
+        raise
+
+
+def gate(repo: str, n: int) -> dict:
+    info = view(repo, n)
+    paths = changed_files(repo, n)
+    reasons = security_check(repo, n, paths)
+    reviews = gh.api_list(f"repos/{repo}/pulls/{n}/reviews?per_page=100")
+    team_login = gh.token_login() if gh.app_mode() else None
+    try:
+        config = base_project_text(repo, info["base"])
+        policy = project.review_policy_from_text(config)
+        logins, warning = review.allowed_reviewers(project.reviewer_logins_from_text(config), gh.review_login(),
+                                                   team_login)
+        roles, why = review.required_verdicts(policy, paths, reasons)
+    except ValueError as exc:
+        return {"passed": False, "missing": [str(exc)], "required": [], "verdicts": {}, "ci": {}, "security_reasons": []}
+    result = review.gate(reviews, info["head_sha"], bool(reasons), logins, roles)
+    result["why"] = why
+    result["policy"] = {k: policy[k] for k in ("configured", "qa", "reviewer", "code_paths", "max_rework_rounds")}
+    result["ci"] = ci(repo, info["head_sha"])
+    result["security_reasons"] = reasons[:10]
+    result["reviewers"] = logins
+    if not logins:
+        warning = review.unguarded_warning(gh.acts_as_owner(repo))
+    if warning:
+        result["warning"] = warning
+    if result["ci"]["state"] != "pass":
+        result["missing"].insert(0, f"CI: {result['ci']['state']}")
+        result["passed"] = False
+    return result
+
+
+def git(*args: str, cwd: str = ".") -> bytes:
+    proc = subprocess.run(["git", "-C", cwd, *args], capture_output=True, check=False, env=gh.child_env())
+    if proc.returncode != 0:
+        raise gh.GhError(f"git {' '.join(args)}: {proc.stderr.decode(errors='replace').strip()[:200]}")
+    return proc.stdout
+
+
+def git_host() -> str:
+    """The web host git pushes to: github.com, or the GitHub Enterprise host behind PT_GITHUB_API."""
+    if gh.API == "https://api.github.com":
+        return "https://github.com"
+    m = re.match(r"^(https://[^/]+)/api/v3$", gh.API)
+    if not m:
+        raise gh.GhError(f"cannot tell the git host from PT_GITHUB_API={gh.API}")
+    return m.group(1)
+
+
+def current_branch() -> str:
+    name = git("rev-parse", "--abbrev-ref", "HEAD").decode().strip()
+    if name == "HEAD":
+        raise gh.GhError("detached HEAD: check out the branch to push, or pass --branch")
+    return name
+
+
+# Branch prefixes the team creates (reference/workflow.md); everything else, long-lived branches and publishing
+# branches such as gh-pages included, is never pushed by an agent.
+PUSHABLE = re.compile(r"^(feature|fix|hotfix|chore|backmerge|revert|design|docs)/[A-Za-z0-9_][A-Za-z0-9._/-]*$")
+
+
+def check_pushable(branch: str) -> None:
+    if (not PUSHABLE.fullmatch(branch) or ".." in branch or "//" in branch or branch.endswith(("/", ".", ".lock"))
+            or "/." in branch):
+        raise gh.GhError(f"refusing to push {branch!r}: only feature/, fix/, hotfix/, chore/, backmerge/, revert/, "
+                         "design/ and docs/ branches are pushed; dev, stage, main and publishing branches move only "
+                         "through merged PRs")
+
+
+def _git_env(args: list, env: dict) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], capture_output=True, env=env, check=False)
+
+
+def app_push_env(url: str, host: str, header: str) -> dict:
+    """The environment of an app push: the token only here, and no global or system git config.
+
+    Global/system config is where insteadOf/pushInsteadOf rewrites and credential helpers of a session proxy live;
+    a rewritten URL would drop the host-scoped auth header and let a credential-adding proxy push as someone else
+    while this script reports the bot.
+    """
+    scoped = f"http.{host}/.extraheader"
+    return gh.child_env(
+        GIT_TERMINAL_PROMPT="0", GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_COUNT="3",
+        # An empty value first drops headers inherited from repo config (actions/checkout leaves one).
+        GIT_CONFIG_KEY_0=scoped, GIT_CONFIG_VALUE_0="",
+        GIT_CONFIG_KEY_1=scoped, GIT_CONFIG_VALUE_1=header,
+        GIT_CONFIG_KEY_2="credential.helper", GIT_CONFIG_VALUE_2="")
+
+
+def check_push_url(url: str, env: dict) -> None:
+    """Refuse unless git would push to exactly `url`: no remaining (repo-local) insteadOf/pushInsteadOf rewrite."""
+    rewrites = _git_env(["config", "--get-regexp", r"^url\..*\.(pushinsteadof|insteadof)$"], env)
+    if rewrites.returncode not in (0, 1):  # 1 = no such keys
+        raise gh.GhError(f"cannot read the repository's git config: {rewrites.stderr.decode(errors='replace')[:200]}")
+    for line in rewrites.stdout.decode(errors="replace").splitlines():
+        key, _, prefix = line.partition(" ")
+        if prefix and url.startswith(prefix):
+            raise gh.GhError(f"refusing to push: {key} rewrites {prefix} in this repository's git config, so the push "
+                             "would not go to GitHub as the team app")
+    # Second opinion from git itself (it applies insteadOf here; pushInsteadOf is covered by the scan above).
+    effective = _git_env(["ls-remote", "--get-url", url], env)
+    resolved = effective.stdout.decode(errors="replace").strip()
+    if effective.returncode != 0 or resolved != url:
+        raise gh.GhError(f"refusing to push: git would push to {resolved or 'an unknown URL'}, not {url}")
+
+
+def push(repo: str, branch: str) -> dict:
+    """Push a local team branch (never forced) — as the team app when it is configured.
+
+    The app's token reaches git only through GIT_CONFIG_* environment variables: not argv (visible to every
+    process), not .git/config, not the output. Credential helpers are off for the call, so a rejected app token
+    fails instead of quietly pushing as someone else. Where github.com is unreachable except through a session's
+    git proxy, the push fails loudly; it never falls back to the proxy.
+    """
+    check_pushable(branch)
+    sha = git("rev-parse", "--verify", f"refs/heads/{branch}").decode().strip()
+    refspec = f"refs/heads/{branch}:refs/heads/{branch}"
+    if not gh.app_mode():
+        git("push", "-u", "origin", refspec)
+        return {"branch": branch, "sha": sha, "as": "session remote (no team app configured)"}
+    token = gh.token()
+    login = gh.token_login()
+    host = git_host()
+    url = f"{host}/{repo}.git"
+    basic = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+    env = app_push_env(url, host, f"AUTHORIZATION: basic {basic}")
+    check_push_url(url, env)
+    proc = _git_env(["push", url, refspec], env)
+    if proc.returncode != 0:
+        detail = proc.stderr.decode(errors="replace").replace(token, "***").replace(basic, "***").strip()
+        raise gh.GhError(f"git push as {login} to {url} failed: {detail[-400:]}")
+    return {"branch": branch, "sha": sha, "as": login}
+
+
+def bot_identity_env() -> dict:
+    """GIT_AUTHOR_*/GIT_COMMITTER_* of the team app's bot; {} without a team app. Lookup failures raise."""
+    if not gh.app_mode():
+        return {}
+    ident = gh.app_identity()
+    env = {}
+    for role in ("AUTHOR", "COMMITTER"):
+        env[f"GIT_{role}_NAME"] = ident["name"]
+        env[f"GIT_{role}_EMAIL"] = ident["email"]
+    return env
+
+
+def git_identity_lines() -> list:
+    """`export` lines for bot_identity_env(); [] without a team app."""
+    return [f"export {k}={shlex.quote(v)}" for k, v in bot_identity_env().items()]
+
+
+def commit(git_args: list) -> int:
+    """`git commit <git_args>` authored and committed by the team app's bot (plain git commit without the app).
+
+    The identity is looked up before git runs, so a failed lookup never produces a commit under the wrong name.
+    Reusing a commit (--amend, -C, -c, --reuse-message, --reedit-message) would keep that commit's author, so
+    --reset-author is added: the result is the bot's commit.
+    """
+    identity = bot_identity_env()
+    args = list(git_args)
+    if identity:
+        if any(a == "--author" or a.startswith("--author=") for a in args):
+            raise gh.GhError("pr commit sets the author itself; drop --author")
+        if any(_REUSES_COMMIT.match(a) for a in args) and "--reset-author" not in args:
+            args.append("--reset-author")
+    return subprocess.run(["git", "commit", *args], env=gh.child_env(**identity), check=False).returncode
+
+
+_REUSES_COMMIT = re.compile(r"^(--amend|--reuse-message(=.*)?|--reedit-message(=.*)?|-[Cc].*)$", re.DOTALL)
+
+
+def show_json(rev: str, path: str) -> dict:
+    try:
+        return json.loads(git("show", f"{rev}:{path}"))
+    except (gh.GhError, ValueError):
+        return {}
+
+
+def release_versions() -> dict:
+    """{commit: version} for every v<X.Y.Z> tag of the plugin (annotated tags resolved to their commit)."""
+    out = git("ls-remote", "--tags", vendoring.PLUGIN_REPO, "refs/tags/v*").decode()
+    direct, peeled = {}, {}
+    for line in out.splitlines():
+        sha, _, ref = line.partition("\t")
+        name = ref[len("refs/tags/v"):]
+        if name.endswith("^{}"):
+            peeled[name[:-3]] = sha
+        else:
+            direct[name] = sha
+    commits = {}
+    for version, sha in direct.items():
+        try:
+            vendoring.parse_version(version)
+        except ValueError:
+            continue
+        commits[peeled.get(version, sha)] = version
+    return commits
+
+
+def verify_self_update(repo: str, n: int, info: dict) -> list:
+    """Problems with a self-update PR; [] only when its own changes are exactly a newer tagged plugin release.
+
+    Works on git objects, not API views: the PR head is fetched and must equal the sha that will be merged; the
+    changes are the tree diff from the merge base (so symlinks, modes, renames and large PRs are all visible).
+    """
+    head = info["head_sha"]
+    git("fetch", "-q", "origin", f"+refs/pull/{n}/head:refs/pt/pr-{n}", f"+refs/heads/{info['base']}:refs/pt/base-{n}")
+    if git("rev-parse", f"refs/pt/pr-{n}").decode().strip() != head:
+        return ["the PR moved while it was being verified; try again"]
+    base = git("merge-base", f"refs/pt/base-{n}", head).decode().strip()
+    entries = vendoring.parse_diff_tree(git("diff-tree", "-r", "--no-renames", "-z", base, head))
+
+    claimed = show_json(head, vendoring.MANIFEST)
+    installed = show_json(f"refs/pt/base-{n}", vendoring.MANIFEST)  # what the base branch has now
+    if installed and not show_json(base, vendoring.MANIFEST):
+        return ["the PR branches off before the team was installed; recreate it from the current base"]
+    commit = str(claimed.get("commit", ""))
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        return ["the manifest's commit is not a full commit id"]
+    version = release_versions().get(commit)
+    if not version:
+        return [f"plugin commit {commit[:12]} is not a tagged release"]
+    if claimed.get("version") != version:
+        return [f"manifest says {claimed.get('version')!r}, release {commit[:12]} is {version}"]
+    try:
+        if installed and vendoring.parse_version(version) <= vendoring.parse_version(str(installed.get("version", ""))):
+            return [f"{version} is not newer than the installed {installed.get('version')}"]
+    except ValueError as exc:
+        return [str(exc)]
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            git("init", "-q", cwd=tmp)
+            git("fetch", "-q", "--depth", "1", vendoring.PLUGIN_REPO, commit, cwd=tmp)
+            git("checkout", "-q", "FETCH_HEAD", cwd=tmp)
+        except gh.GhError:
+            return [f"cannot fetch plugin release {version}"]
+        meta = Path(tmp) / ".claude-plugin" / "plugin.json"
+        if meta.is_symlink() or not meta.is_file():
+            return [f"release {version} has no regular plugin.json"]
+        if json.loads(meta.read_text()).get("version") != version:
+            return [f"release {version}'s plugin.json names another version"]
+        pinned = project.plugin_ref()
+        if pinned.startswith("v") and pinned != f"v{version}":
+            return [f"the product pins {pinned}, this is v{version}"]
+        expected = vendoring.render(Path(tmp), version)
+        modes = vendoring.modes(Path(tmp))
+    expected[vendoring.MANIFEST] = vendoring.manifest_bytes(version, commit, expected)
+    return vendoring.verify_tree(entries, expected, modes, set(installed.get("files", {})))
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(prog="pr", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest="cmd", required=True)
+    c = sub.add_parser("create"); c.add_argument("--base", required=True); c.add_argument("--head", required=True)
+    c.add_argument("--title", required=True); c.add_argument("--body"); c.add_argument("--body-file")
+    for name in ("view", "checks", "diff", "reviews", "update-branch", "files", "security-check", "gate"):
+        sub.add_parser(name).add_argument("number", type=int)
+    r = sub.add_parser("review"); r.add_argument("number", type=int); r.add_argument("--commit", required=True)
+    r.add_argument("--body"); r.add_argument("--body-file")
+    m = sub.add_parser("merge"); m.add_argument("number", type=int)
+    m.add_argument("--method", required=True, choices=["squash", "merge", "rebase"]); m.add_argument("--delete-branch", action="store_true")
+    m.add_argument("--ci-only", action="store_true")
+    ls = sub.add_parser("list"); ls.add_argument("--base"); ls.add_argument("--state", default="open", choices=["open", "closed", "all"])
+    sub.add_parser("push").add_argument("--branch")
+    sub.add_parser("git-identity")
+    sub.add_parser("commit", add_help=False)  # parsed below: everything after `commit` belongs to git
+    if sys.argv[1:2] == ["commit"]:
+        if sys.argv[2:3] in (["-h"], ["--help"]):
+            p.print_help()  # pr's own help; no identity lookup, no git
+            sys.exit(0)
+        if not sys.argv[2:]:
+            sys.exit("pr commit needs git commit arguments, e.g. pr commit -m \"message\"")
+        try:
+            sys.exit(commit(sys.argv[2:]))
+        except gh.GhError as exc:
+            sys.exit(f"not committed: {exc}")
+    args = p.parse_args()
+
+    try:
+        repo = gh.repo()
+        if args.cmd == "create":
+            pr = gh.api(f"repos/{repo}/pulls", "POST",
+                        {"base": args.base, "head": args.head, "title": args.title, "body": body_arg(args)})
+            out({"number": pr["number"], "url": pr["html_url"]})
+        elif args.cmd == "view":
+            out(view(repo, args.number))
+        elif args.cmd == "checks":
+            out(ci(repo, view(repo, args.number)["head_sha"]))
+        elif args.cmd == "diff":
+            sys.stdout.write(gh.raw(f"repos/{repo}/pulls/{args.number}", "application/vnd.github.diff"))
+        elif args.cmd == "review":
+            # Verdicts go out as the reviewing account when its token is present (see the owner checklist).
+            rv = gh.api(f"repos/{repo}/pulls/{args.number}/reviews", "POST",
+                        {"event": "COMMENT", "body": body_arg(args), "commit_id": args.commit}, auth=gh.review_token())
+            out({"id": rv["id"], "url": rv.get("html_url")})
+        elif args.cmd == "reviews":
+            out([{"author": (r.get("user") or {}).get("login"), "at": r.get("submitted_at"), "body": r.get("body") or ""}
+                 for r in gh.api_list(f"repos/{repo}/pulls/{args.number}/reviews?per_page=100")])
+        elif args.cmd == "update-branch":
+            head = view(repo, args.number)["head_sha"]
+            out(gh.api(f"repos/{repo}/pulls/{args.number}/update-branch", "PUT", {"expected_head_sha": head}))
+        elif args.cmd == "files":
+            out(changed_files(repo, args.number))
+        elif args.cmd == "security-check":
+            reasons = security_check(repo, args.number)
+            out({"required": bool(reasons), "reasons": reasons})
+        elif args.cmd == "gate":
+            out(gate(repo, args.number))
+        elif args.cmd == "push":
+            out(push(repo, args.branch or current_branch()))
+        elif args.cmd == "git-identity":
+            lines = git_identity_lines()
+            if lines:
+                print("\n".join(lines))
+            else:
+                print("no team app configured: commits keep this machine's git identity", file=sys.stderr)
+        elif args.cmd == "merge":
+            info = view(repo, args.number)
+            if args.ci_only:
+                head_repo = ((gh.api(f"repos/{repo}/pulls/{args.number}").get("head") or {}).get("repo") or {}).get("full_name")
+                refusal = review.ci_only_allowed(info["head"], info["base"], changed_files(repo, args.number))
+                if not refusal and head_repo != repo:
+                    refusal = f"the head branch lives in {head_repo or 'a deleted fork'}"
+                if not refusal and info["head"].startswith("chore/product-team-"):
+                    problems = verify_self_update(repo, args.number, info)
+                    refusal = "; ".join(problems[:5])
+                if refusal:
+                    sys.exit(f"--ci-only refused: {refusal}")
+            if args.ci_only:
+                state = ci(repo, info["head_sha"])
+                if state["state"] != "pass":
+                    sys.exit(f"refusing to merge #{args.number}: CI is {state['state']} {state['failing'] or state['pending']}")
+            else:
+                result = gate(repo, args.number)
+                if not result["passed"]:
+                    sys.exit(f"refusing to merge #{args.number}: " + "; ".join(result["missing"]))
+            res = gh.api(f"repos/{repo}/pulls/{args.number}/merge", "PUT",
+                         {"merge_method": args.method, "sha": info["head_sha"]})
+            deleted = False
+            if args.delete_branch:
+                reason = branch_deletion_blocker(repo, args.number, info)
+                if reason:
+                    print(f"not deleting the branch: {reason}", file=sys.stderr)
+                else:
+                    gh.api(f"repos/{repo}/git/refs/heads/{quote(info['head'], safe='/')}", "DELETE")
+                    deleted = True
+            out({"merged": res.get("merged"), "sha": res.get("sha"), "branch_deleted": deleted})
+        else:
+            query = f"state={args.state}&per_page=100" + (f"&base={quote(args.base)}" if args.base else "")
+            out([{"number": x["number"], "title": x["title"], "base": x["base"]["ref"], "head": x["head"]["ref"],
+                  "url": x["html_url"]} for x in gh.api_list(f"repos/{repo}/pulls?{query}")])
+    except (gh.GhError, ValueError) as exc:
+        sys.exit(str(exc))
+
+
+if __name__ == "__main__":
+    main()

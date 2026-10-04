@@ -1,0 +1,1734 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Team Console · Direction 01 · Paper Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600&family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+/* ===== tokens: Paper Desk ===== */
+:root{
+  --font-display:"Source Serif 4",Georgia,"Times New Roman",serif;--font-body:"Source Sans 3",-apple-system,system-ui,"Segoe UI",sans-serif;--font-mono:"Source Code Pro",ui-monospace,Menlo,monospace;--fw-display:600;
+  --fs-xs:12px;--fs-sm:14px;--fs-md:15px;--fs-lg:18px;--fs-xl:22px;--fs-2xl:28px;--lh-body:1.55;--lh-tight:1.25;
+  --r-sm:6px;--r-md:10px;--r-lg:16px;
+  --btn-h:34px;--sidebar-w:256px;--pane-w:392px;--log-max:680px;--pad-x:32px;--gap-log:20px;--pad-card:18px 20px;--card-indent:40px;
+  --dur-instant:0ms;--dur-fast:140ms;--dur-base:240ms;--dur-slow:380ms;--dur-sig:620ms;
+  --ease-standard:cubic-bezier(.2,0,0,1);--ease-enter:cubic-bezier(0,0,.2,1);--ease-exit:cubic-bezier(.4,0,1,1);--ease-emph:cubic-bezier(.3,0,0,1);
+  --bg:#F7F3EC;--bg-sunken:#EFE9DF;--surface:#FFFDF9;--surface-2:#FAF6EF;--text:#29251F;--text-2:#5B5449;--text-3:#6D6459;
+  --border:#E5DDD0;--border-strong:#CFC5B5;--accent:#3E6A48;--accent-contrast:#FFFFFF;--accent-soft:#E3ECE0;--accent-text:#2F5638;
+  --success-soft:#E1EEDF;--success-text:#2D6A3E;--warning-soft:#F5E8CD;--warning-text:#7A510E;--danger-soft:#F6E0DA;--danger-text:#9A3324;
+  --focus:#3E6A48;--owner-bubble:#EAE2D4;--owner-text:#29251F;
+  --shadow-1:0 1px 2px rgba(60,45,20,.07),0 0 0 .5px rgba(60,45,20,.03);--shadow-2:0 8px 24px -8px rgba(60,45,20,.22);--shadow-3:0 -12px 40px -12px rgba(60,45,20,.28);
+}
+:root[data-theme=dark]{
+  --bg:#1C1A17;--bg-sunken:#161412;--surface:#25221E;--surface-2:#201E1A;--text:#EEE8DD;--text-2:#BDB4A5;--text-3:#999082;
+  --border:#35312B;--border-strong:#4A443B;--accent:#8FBC92;--accent-contrast:#10200F;--accent-soft:#263428;--accent-text:#A8D0AA;
+  --success-soft:#1F3122;--success-text:#9BCF9F;--warning-soft:#382D18;--warning-text:#E6BC6E;--danger-soft:#3D2420;--danger-text:#F0A091;
+  --focus:#A8D0AA;--owner-bubble:#322D27;--owner-text:#EEE8DD;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);--shadow-2:0 10px 28px -8px rgba(0,0,0,.6);--shadow-3:0 -12px 40px -12px rgba(0,0,0,.7);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#1C1A17;--bg-sunken:#161412;--surface:#25221E;--surface-2:#201E1A;--text:#EEE8DD;--text-2:#BDB4A5;--text-3:#999082;
+  --border:#35312B;--border-strong:#4A443B;--accent:#8FBC92;--accent-contrast:#10200F;--accent-soft:#263428;--accent-text:#A8D0AA;
+  --success-soft:#1F3122;--success-text:#9BCF9F;--warning-soft:#382D18;--warning-text:#E6BC6E;--danger-soft:#3D2420;--danger-text:#F0A091;
+  --focus:#A8D0AA;--owner-bubble:#322D27;--owner-text:#EEE8DD;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);--shadow-2:0 10px 28px -8px rgba(0,0,0,.6);--shadow-3:0 -12px 40px -12px rgba(0,0,0,.7);
+}}
+/* ===== shared structure; every colour, size and duration comes from the direction's tokens ===== */
+:root{
+  --hover:color-mix(in oklab,var(--text) 6%,transparent);
+  --hover-solid:color-mix(in oklab,var(--surface) 93%,var(--text) 7%);
+  --accent-hover:color-mix(in oklab,var(--accent) 88%,var(--text) 12%);
+  --page:color-mix(in oklab,var(--bg) 90%,var(--text) 10%);
+  --scrim:color-mix(in oklab,#000 36%,transparent);
+  --r-sheet:calc(var(--r-lg) + 10px);
+  --z-sheet:40;--z-toast:70;--z-chrome:60;
+}
+@media (prefers-reduced-motion:reduce){:root{--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms}}
+:root[data-motion=reduce]{--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms}
+
+*,*::before,*::after{box-sizing:border-box}
+html{color-scheme:light;-webkit-text-size-adjust:100%}
+:root[data-theme=dark]{color-scheme:dark}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark}}
+body{margin:0;background:var(--page);color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:var(--lh-body);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button,input,textarea{font:inherit;color:inherit;letter-spacing:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.sr-only{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ico{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+kbd{font-family:var(--font-mono);font-size:10px;line-height:1;padding:3px 5px;border-radius:4px;border:1px solid var(--border-strong);color:var(--text-3);background:var(--surface)}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);padding:1px 5px;border-radius:4px;word-break:break-word}
+[hidden]{display:none!important}
+
+/* ===== the note on top of the page ===== */
+.note{max-width:1720px;margin:0 auto;padding:20px 24px 4px;display:grid;gap:10px}
+.note__row{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.note__kicker{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.note h1{margin:2px 0 0;font-family:var(--font-display);font-size:var(--fs-2xl);line-height:1.1;font-weight:var(--fw-display)}
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:2px;background:var(--surface)}
+.seg button,.seg-btn{border:0;background:none;padding:6px 12px;border-radius:999px;font-size:var(--fs-xs);color:var(--text-2);min-height:32px}
+.seg button[aria-pressed=true]{background:var(--text);color:var(--bg)}
+.seg-btn{border:1px solid var(--border);background:var(--surface)}
+.note details{font-size:var(--fs-sm);color:var(--text-2)}
+.note summary{cursor:pointer;color:var(--text-2);font-weight:600;width:max-content}
+.note__grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:8px 32px;margin-top:10px}
+@media (max-width:900px){.note__grid{grid-template-columns:1fr}}
+.note p{margin:0 0 6px;max-width:75ch;line-height:1.5}
+.tok{align-content:start;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0;font-size:var(--fs-xs)}
+.tok dt{color:var(--text-3)}.tok dd{margin:0;color:var(--text-2)}
+.sw{display:inline-flex;align-items:center;gap:4px;margin-right:10px;white-space:nowrap}
+.sw i{width:12px;height:12px;border-radius:3px;border:1px solid var(--border-strong)}
+.try{font-size:var(--fs-xs);color:var(--text-3)}
+
+/* ===== stage and device frames ===== */
+.stage{display:flex;flex-wrap:wrap;gap:40px;justify-content:center;align-items:flex-start;padding:20px 24px 56px;max-width:1720px;margin:0 auto}
+.stage[data-layout=row]{flex-wrap:nowrap}
+.stage[data-view=phone] .device--mac,.stage[data-view=mac] .device--phone{display:none}
+.device{display:grid;gap:10px;justify-items:center}
+.device__label{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.phone-frame{position:relative;width:414px;height:868px;padding:12px;border-radius:62px;background:#0d0d0f;box-shadow:0 0 0 1px #34343a,0 40px 80px -36px rgba(0,0,0,.5)}
+.phone-frame>.app{width:390px;height:844px;border-radius:50px}
+.mac-frame{width:1180px;height:760px;border-radius:12px;overflow:hidden;box-shadow:0 0 0 1px var(--border-strong),0 30px 80px -34px rgba(0,0,0,.45)}
+.mac-frame>.app{height:100%}
+@media (max-width:520px){
+  .note{padding:14px 14px 0}.stage{padding:12px 0 0}
+  .phone-frame{width:100%;height:auto;padding:0;border-radius:0;background:none;box-shadow:none}
+  .phone-frame>.app{width:100%;height:100svh;border-radius:0}
+  .device--phone .device__label,.p-status,.home-ind{display:none!important}
+  .tabs{padding-bottom:max(8px,env(safe-area-inset-bottom))!important}
+}
+
+/* ===== app base ===== */
+.app{position:relative;overflow:hidden;isolation:isolate;background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:var(--lh-body)}
+.app[data-app=phone]{display:flex;flex-direction:column}
+.app[data-app=mac]{display:flex;flex-direction:column}
+.app:not(.is-space) .composer{display:none}
+.avatar{width:28px;height:28px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:10px;font-weight:700;letter-spacing:.03em}
+.avatar--pm{background:var(--accent-soft);color:var(--accent-text)}
+.avatar--owner{background:var(--text);color:var(--bg)}
+.prod-mono{width:26px;height:26px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;font-weight:700;font-size:13px;text-transform:uppercase;background:var(--accent-soft);color:var(--accent-text);font-family:var(--font-display)}
+.prod-mono[data-status=paused]{background:var(--bg-sunken);color:var(--text-3)}
+.prod-mono[data-status=failing]{background:var(--danger-soft);color:var(--danger-text)}
+.prod-mono--all{background:var(--text);color:var(--bg)}
+.prod-mono--all .ico{width:15px;height:15px}
+.count{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--accent-contrast);font-size:11px;font-weight:700;line-height:1;display:inline-grid;place-items:center;font-variant-numeric:tabular-nums;overflow:hidden;font-family:var(--font-body)}
+.count>span{grid-area:1/1}
+.status{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;background:var(--success-soft);color:var(--success-text);white-space:nowrap;text-transform:none;letter-spacing:0}
+.status i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.status--paused{background:var(--bg-sunken);color:var(--text-2)}
+.status--failing{background:var(--danger-soft);color:var(--danger-text)}
+.sdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--success-text);margin-left:6px;vertical-align:1px}
+.sdot--paused{background:var(--text-3)}.sdot--failing{background:var(--danger-text)}
+.meter{display:block;height:3px;border-radius:2px;background:var(--bg-sunken);overflow:hidden}
+.meter i{display:block;height:100%;width:var(--p);background:var(--accent);border-radius:inherit}
+.chip-btn{border:1px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:999px;padding:0 10px;height:30px;font-size:var(--fs-xs);white-space:nowrap}
+.chip-btn[aria-pressed=true]{background:var(--text);color:var(--bg);border-color:transparent}
+.empty{color:var(--text-3);font-size:var(--fs-sm);padding:12px 4px}
+.empty--big{display:grid;justify-items:center;gap:8px;text-align:center;padding:48px 16px}
+.empty--big .ico{width:32px;height:32px;color:var(--success-text)}
+.search{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text-3)}
+.search:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.search input{flex:1;min-width:0;border:0;background:none;outline:none;color:var(--text);font-size:var(--fs-sm)}
+.app[data-app=phone] .search input{font-size:16px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:var(--btn-h);padding:0 14px;border-radius:var(--r-md);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-weight:600;font-size:var(--fs-sm);white-space:nowrap;transition:background-color var(--dur-fast) var(--ease-standard),transform var(--dur-fast) var(--ease-standard)}
+.btn:hover{background:var(--hover-solid)}
+.btn:active{transform:scale(.97)}
+.btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-contrast)}
+.btn--primary:hover{background:var(--accent-hover)}
+.btn--quiet{border-color:transparent;background:none;color:var(--text-2)}
+.btn--quiet[aria-expanded=true]{background:var(--hover);color:var(--text)}
+.btn--sm{min-height:30px;padding:0 10px;font-size:var(--fs-xs)}
+.btn:disabled{opacity:.65}
+.btn kbd{display:none}
+.app[data-app=phone] .btn{min-height:44px}
+.app[data-app=phone] .btn--sm{min-height:36px}
+.icon-btn{width:40px;height:40px;flex:none;display:grid;place-items:center;border:0;background:none;border-radius:var(--r-md);color:var(--text-2)}
+.icon-btn:hover{background:var(--hover)}
+.icon-btn .ico{width:20px;height:20px}
+
+/* ===== mac window ===== */
+.win{display:flex;flex-direction:column;height:100%}
+.win__bar{position:relative;height:38px;flex:none;display:flex;align-items:center;padding:0 14px;background:var(--bg-sunken);border-bottom:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-3)}
+.lights{display:flex;gap:8px}.lights i{width:12px;height:12px;border-radius:50%;background:#fe5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.win__title{position:absolute;left:50%;translate:-50% 0;font-weight:600}
+.win__body{flex:1;display:flex;min-height:0}
+.sidebar{width:var(--sidebar-w);flex:none;display:flex;flex-direction:column;gap:2px;padding:12px 10px 10px;background:var(--bg-sunken);border-right:1px solid var(--border);overflow-y:auto}
+.brand{display:flex;align-items:center;gap:8px;padding:2px 6px 12px;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md)}
+.mark{width:22px;height:22px;color:var(--accent)}
+.search--side{height:32px;margin-bottom:8px;background:var(--bg)}
+.search--side kbd{margin-left:auto}
+.side-label{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-3);padding:14px 8px 4px;font-weight:600;letter-spacing:.04em}
+.side-label .ico{width:13px;height:13px}
+.side-list{list-style:none;margin:0;padding:0;display:grid;gap:1px}
+.side-item{width:100%;display:flex;align-items:center;gap:10px;min-height:34px;padding:5px 8px;border:0;background:none;border-radius:var(--r-md);text-align:left;color:var(--text-2);font-size:var(--fs-sm)}
+.side-item:hover{background:var(--hover)}
+.side-item[aria-current=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.side-item>kbd{margin-left:auto}
+.side-item .count{margin-left:auto}
+.side-item>kbd+.count{margin-left:6px}
+.side-prod__name{display:grid;min-width:0;flex:1}
+.side-prod__label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);font-weight:500}
+/* wraps to a second line rather than cutting the date: Russian status lines run longer */
+.side-prod small{font-size:var(--fs-xs);line-height:1.35;color:var(--text-3);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.side-prod .meter{display:none}
+.side-more{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:6px 8px;font-size:var(--fs-xs);color:var(--text-3);border-radius:var(--r-md);text-align:left}
+.side-more:hover{background:var(--hover)}
+.side-more .ico{width:14px;height:14px;transition:transform var(--dur-base) var(--ease-standard);transform:rotate(-90deg)}
+.side-more[aria-expanded=true] .ico{transform:none}
+.side-foot{margin-top:auto;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:10px 6px 2px;font-size:var(--fs-xs);color:var(--text-2);border-top:1px solid var(--border)}
+.side-foot .avatar{width:24px;height:24px}
+.side-foot__sync{margin-left:auto;display:inline-flex;align-items:center;gap:5px;color:var(--text-3);white-space:nowrap}
+.side-foot__sync i{width:6px;height:6px;border-radius:50%;background:var(--success-text)}
+.convo{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.convo__head{height:52px;flex:none;display:flex;align-items:center;gap:6px;padding:0 14px 0 20px;border-bottom:1px solid var(--border)}
+.convo__title{display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden}
+.app:has(.pane.is-open) .convo__sub,.app:has(.pane.is-open) .convo__head .lbl,.app:has(.pane.is-open) .convo__head kbd{display:none}
+.convo__title h2{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);white-space:nowrap}
+.convo__sub{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.convo__head .btn kbd{display:inline-block}
+.pane{width:0;flex:none;overflow:hidden;background:var(--surface-2);border-left:1px solid transparent;transition:width var(--dur-slow) var(--ease-standard),border-color var(--dur-slow) var(--ease-standard)}
+.pane.is-open{width:var(--pane-w);border-left-color:var(--border)}
+.pane__inner{width:var(--pane-w);height:100%;display:flex;flex-direction:column}
+.pane__tabs{height:52px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 0 12px;border-bottom:1px solid var(--border)}
+.pane__tabs .icon-btn{margin-left:auto}
+.tab-btn{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:6px 10px;border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm)}
+.tab-btn[aria-selected=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.pane__body{flex:1;overflow-y:auto}
+
+/* ===== phone ===== */
+.p-status{position:relative;height:50px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:6px 30px 0 40px;font:600 16px/1 -apple-system,"SF Pro Text",system-ui,sans-serif}
+.p-island{position:absolute;top:11px;left:50%;translate:-50% 0;width:124px;height:36px;border-radius:20px;background:#000}
+.p-status__icons{display:flex;gap:6px;align-items:center}
+.p-head{flex:none;display:flex;align-items:center;gap:4px;padding:2px 8px 8px 10px}
+.p-switch{flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:0;background:none;padding:6px;border-radius:var(--r-md);text-align:left;min-height:48px}
+.p-switch .prod-mono{width:34px;height:34px;font-size:16px}
+.p-switch__txt{display:grid;min-width:0}
+.p-switch b{font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);line-height:1.15}
+.p-switch small{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-switch>.ico{color:var(--text-3)}
+.p-strip{display:none}
+.p-needs{display:none}
+.tabs{flex:none;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border);background:var(--bg);padding:6px 4px 28px;position:relative;z-index:2}
+.tabs button{position:relative;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;min-height:48px;padding:4px 0;font-size:11px;color:var(--text-3)}
+.tabs button .ico{width:24px;height:24px}
+.tabs button[aria-current=page]{color:var(--accent-text)}
+.tabs .count{position:absolute;top:0;left:calc(50% + 6px);height:18px;min-width:18px;font-size:10px;padding:0 5px}
+.home-ind{position:absolute;bottom:8px;left:50%;translate:-50% 0;width:136px;height:5px;border-radius:3px;background:var(--text);opacity:.9;z-index:var(--z-chrome);pointer-events:none}
+.scrim{position:absolute;inset:0;z-index:30;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity var(--dur-base) var(--ease-standard)}
+.app.has-sheet .scrim{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:var(--z-sheet);max-height:88%;display:flex;flex-direction:column;background:var(--surface);border-radius:var(--r-sheet) var(--r-sheet) 0 0;box-shadow:var(--shadow-3);transform:translateY(102%);visibility:hidden;transition:transform var(--dur-slow) var(--ease-exit),visibility 0s linear var(--dur-slow)}
+.sheet.is-open{transform:none;visibility:visible;transition:transform var(--dur-slow) var(--ease-enter),visibility 0s}
+.sheet__grab{width:38px;height:5px;border-radius:3px;background:var(--border-strong);margin:8px auto 0;flex:none}
+.sheet__head{display:flex;align-items:center;justify-content:space-between;padding:6px 10px 6px 20px;flex:none}
+.sheet__head h2{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);outline:none}
+.sheet__body{overflow-y:auto;padding:0 0 36px;overscroll-behavior:contain}
+.sheet__pad{padding:0 16px 8px}
+.proj-list{padding:0 8px}
+.side-item--needs{background:var(--accent-soft);color:var(--accent-text);font-weight:600;min-height:48px}
+.side-item--needs .count{margin-left:auto}
+.side-prod--rich{min-height:56px}
+.side-prod--rich .prod-mono{width:34px;height:34px}
+.side-prod--rich .meter{display:block;margin-top:5px;width:70%}
+
+/* ===== conversation ===== */
+.log{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;outline:none}
+.log__inner{position:relative;max-width:var(--log-max);margin:0 auto;padding:24px var(--pad-x);display:flex;flex-direction:column;gap:var(--gap-log)}
+.app[data-app=phone] .log__inner{padding:12px 16px 20px}
+.day{display:flex;align-items:center;gap:12px;color:var(--text-3);font-size:var(--fs-xs);margin:6px 0}
+.day::before,.day::after{content:"";flex:1;height:1px;background:var(--border)}
+.msg{display:flex;gap:12px;align-items:flex-start}
+.msg__body{min-width:0;flex:1}
+.msg__meta{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-xs);color:var(--text-3);margin-bottom:2px}
+.msg__meta b{color:var(--text);font-weight:600}
+.bubble{overflow-wrap:anywhere}
+.bubble p{margin:0 0 .45em}.bubble p:last-child{margin:0}
+.bubble ul{margin:.2em 0 .5em;padding-left:1.2em}
+.bubble li{margin:.15em 0}
+.brief__h{font-weight:700;margin-top:.7em!important}
+.brief__foot{color:var(--text-2)}
+.ref{font-family:var(--font-mono);font-size:.86em;color:var(--accent-text)}
+.msg--owner{justify-content:flex-end}
+.msg--owner .msg__body{flex:0 1 auto;max-width:82%;display:flex;flex-direction:column;align-items:flex-end}
+.msg--owner .bubble{background:var(--owner-bubble);color:var(--owner-text);padding:9px 14px;border-radius:var(--r-lg) var(--r-lg) var(--r-sm) var(--r-lg)}
+.msg--owner .msg__meta{margin:4px 4px 0}
+.sysnote{display:flex;align-items:center;justify-content:center;gap:8px;font-size:var(--fs-xs);color:var(--text-3);text-align:center}
+.sysnote i{width:6px;height:6px;border-radius:50%;background:var(--text-3);flex:none}
+.typing{display:inline-flex;gap:4px;padding:10px 0}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:blink 1.2s infinite both}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.typing i{animation:none;opacity:.6}}
+:root[data-motion=reduce] .typing i{animation:none;opacity:.6}
+
+/* decision cards */
+.card{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:12px;padding:var(--pad-card);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);margin-left:var(--card-indent)}
+.card:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.card__head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:var(--fs-xs);color:var(--text-2)}
+.card__kind{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.card__kind .ico{width:15px;height:15px;color:var(--accent-text)}
+.card__num{font-family:var(--font-mono);color:var(--text-3)}
+.card__title{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);line-height:var(--lh-tight);font-weight:var(--fw-display)}
+.card__text{margin:0;color:var(--text-2);font-size:var(--fs-sm)}
+.steps{margin:0;padding-left:1.3em;font-size:var(--fs-sm);color:var(--text-2);display:grid;gap:4px}
+.rec{display:grid;gap:2px;padding:10px 12px;border-radius:var(--r-md);background:var(--accent-soft);font-size:var(--fs-sm)}
+.rec__label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text)}
+.rec__choice{color:var(--text)}
+.rec p{margin:2px 0 0;color:var(--text-2)}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:var(--fs-sm)}
+.check{display:flex;gap:8px;align-items:flex-start}
+.check .ico{margin-top:2px}
+.check--ok .ico{color:var(--success-text)}.check--warn .ico{color:var(--warning-text)}
+.card__foot{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap}
+.card__actions{display:flex;gap:8px;flex-wrap:wrap}
+.card__meta{font-size:var(--fs-xs);color:var(--text-3)}
+.app[data-app=phone] .card{margin-left:0}
+.app[data-app=phone] .card__foot{flex-direction:column;align-items:stretch}
+/* equal halves when both labels fit; a label too long for half the row takes a full row (Russian runs ~30% longer) */
+.app[data-app=phone] .card__actions{display:flex;flex-wrap:wrap}
+.app[data-app=phone] .card__actions .btn{flex:1 1 0;min-width:max-content}
+.is-highlight{animation:hl 1.4s var(--ease-standard)}
+@keyframes hl{0%,40%{box-shadow:0 0 0 3px var(--focus)}100%{box-shadow:var(--shadow-1)}}
+@media (prefers-reduced-motion:reduce){.is-highlight{animation:none;box-shadow:0 0 0 3px var(--focus)}}
+
+/* design thumbnail: drawn from tokens, no image assets */
+.thumb{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--bg-sunken);cursor:zoom-in}
+.thumb--big{margin:4px 0 6px}
+.tf{display:flex;flex-direction:column;gap:5px;aspect-ratio:9/15;padding:6px;border-radius:8px;background:var(--surface);border:1px solid var(--border);position:relative}
+.tf--dark{background:color-mix(in oklab,var(--text) 92%,var(--bg));border-color:transparent}
+.tf__bar{height:5px;width:55%;border-radius:3px;background:var(--border-strong)}
+.tf--dark .tf__bar,.tf--dark .tf__line{background:color-mix(in oklab,var(--bg) 35%,transparent)}
+.tf__center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.tf__icon{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--accent);background:var(--accent-soft)}
+.tf--error .tf__icon{border-color:var(--danger-text);background:var(--danger-soft)}
+.tf__line{height:3px;width:70%;border-radius:2px;background:var(--border-strong)}
+.tf__line--s{width:44%}
+.tf__btn{height:8px;width:48%;border-radius:4px;background:var(--accent);margin-top:3px}
+.tf__cap{position:absolute;left:0;right:0;bottom:-2px;translate:0 100%;font-size:10px;color:var(--text-3);text-align:center;padding-top:3px}
+.thumb{padding-bottom:26px}
+
+/* receipt: a resolved card, recorded as the owner's answer */
+.receipt{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;padding:9px 12px;border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2);margin-left:var(--card-indent);outline-offset:2px}
+.app[data-app=phone] .receipt{margin-left:0}
+.receipt__icon{width:24px;height:24px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--success-soft);color:var(--success-text)}
+.receipt__icon .ico{width:14px;height:14px;stroke-width:2.4}
+.receipt--negative .receipt__icon{background:var(--danger-soft);color:var(--danger-text)}
+.receipt--neutral .receipt__icon{background:var(--surface);color:var(--text-2)}
+.receipt__body{flex:1 1 200px;min-width:0}
+.app[data-app=phone] .receipt__meta{flex-basis:100%;padding-left:var(--receipt-indent,34px)}
+.receipt__verb{font-weight:700;color:var(--text)}
+.receipt__meta{font-size:var(--fs-xs);color:var(--text-3);font-family:var(--font-mono)}
+
+/* banners */
+.banner-wrap{padding:0 var(--pad-x) 4px}
+.app[data-app=phone] .banner-wrap{padding:0 12px 4px}
+.paused{max-width:var(--log-max);margin:0 auto;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px;border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-sm)}
+.paused span{flex:1}.paused b{font-weight:700}
+.paused--bad{background:var(--danger-soft);color:var(--danger-text)}
+
+/* composer */
+.composer{flex:none;padding:10px var(--pad-x) 16px}
+.app[data-app=phone] .composer{padding:6px 12px 8px}
+.composer__box{max-width:var(--log-max);margin:0 auto;display:flex;align-items:flex-end;gap:8px;padding:7px 7px 7px 14px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.composer__box:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.composer textarea{flex:1;min-height:34px;max-height:120px;padding:6px 0;border:0;background:none;outline:none;resize:none;font-size:var(--fs-md);line-height:1.4}
+.app[data-app=phone] .composer textarea{font-size:16px}
+.composer textarea::placeholder{color:var(--text-3)}
+.composer__hint{align-self:center}
+.send{width:34px;height:34px;flex:none;display:grid;place-items:center;border:0;border-radius:var(--r-md);background:var(--accent);color:var(--accent-contrast)}
+.app[data-app=phone] .send{width:40px;height:40px}
+
+/* toast */
+.toast{position:absolute;left:50%;bottom:150px;translate:-50% 0;z-index:var(--z-toast);padding:8px 14px;border-radius:999px;background:var(--text);color:var(--bg);font-size:var(--fs-sm);box-shadow:var(--shadow-2);white-space:nowrap;pointer-events:none}
+.app[data-app=mac] .toast{bottom:96px}
+.app[data-app=phone] .toast{top:124px;bottom:auto}
+
+/* ===== board ===== */
+.board{display:flex;flex-direction:column;gap:14px;padding:16px 20px 24px}
+.board__head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.board__kicker{display:flex;align-items:center;gap:8px;font-size:var(--fs-xs);color:var(--text-3)}
+.board__head h3{margin:4px 0 0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:1.1}
+.demo-pill{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:var(--fs-xs);font-weight:600;white-space:nowrap}
+.demo-pill .ico{width:14px;height:14px}
+.progress{height:6px;border-radius:3px;background:var(--bg-sunken);overflow:hidden}
+.progress i{display:block;height:100%;width:var(--p);background:var(--accent);border-radius:inherit}
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:0}
+.metrics div{padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md)}
+.metrics dt{font-size:var(--fs-xs);color:var(--text-3)}
+.metrics dd{margin:0;font-weight:600;font-size:var(--fs-sm);font-family:var(--font-mono)}
+.metrics dd.metrics__word{font-family:var(--font-body)} /* words read badly in mono, Cyrillic especially */
+.metrics .ok{color:var(--success-text)}.metrics .bad{color:var(--danger-text)}
+.cols{display:grid;gap:16px}
+.col h4{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.col h4 span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.col ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.item{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);font-size:var(--fs-sm)}
+.item__num{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-3)}
+.item__title{min-width:0}
+.item small{display:block;font-size:var(--fs-xs);color:var(--text-3)}
+.tier{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.tier--light{background:var(--bg-sunken);color:var(--text-2)}
+.tier--standard{background:var(--accent-soft);color:var(--accent-text)}
+.tier--heavy{background:var(--warning-soft);color:var(--warning-text)}
+.board__empty{display:flex;gap:10px;align-items:flex-start;padding:14px;border:1px dashed var(--border-strong);border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm)}
+.board__empty p{margin:0}
+.board__foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-3)}
+.app[data-app=phone] .cols{grid-auto-flow:column;grid-auto-columns:82%;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -20px;padding:0 20px 6px;scroll-padding:0 20px}
+.app[data-app=phone] .col{scroll-snap-align:start}
+
+/* ===== artifacts ===== */
+.arts{display:flex;flex-direction:column;gap:12px;padding:16px 20px 24px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.art-group h4{display:flex;gap:8px;margin:6px 0 6px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.art-group h4 span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.art-group ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.art{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-md);background:var(--surface);border:1px solid var(--border);font-size:var(--fs-sm)}
+.art>.ico{color:var(--text-3)}
+.art__icon{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:var(--r-sm);background:var(--bg-sunken);color:var(--text-2)}
+.art__icon .ico{width:16px;height:16px}
+.art__title{flex:1;min-width:0;display:grid}
+.art__title small{font-size:var(--fs-xs);color:var(--text-3)}
+.art--awaiting{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.art--awaiting .art__icon{background:var(--accent-soft);color:var(--accent-text)}
+.art__thumb{list-style:none}
+
+/* ===== cross-project views ===== */
+.log__inner--view{gap:12px}
+.needs__lead{margin:0 0 4px;color:var(--text-2);font-size:var(--fs-sm)}
+.needs__list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.need{width:100%;display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;text-align:left;padding:12px 12px 12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.need:hover{border-color:var(--border-strong)}
+.need>.ico{grid-column:2;grid-row:1/span 3;color:var(--text-3)}
+.need__top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ptag{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px 0 2px;border-radius:999px;background:var(--bg-sunken);font-size:var(--fs-xs);font-weight:600;color:var(--text)}
+.ptag .prod-mono{width:20px;height:20px;font-size:11px;border-radius:50%}
+.need__kind{font-size:var(--fs-xs);color:var(--text-3)}
+.need__title{font-weight:600;font-family:var(--font-display);line-height:var(--lh-tight)}
+.need__rec{font-size:var(--fs-xs);color:var(--text-2)}
+.ov-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.ov{width:100%;display:grid;gap:8px;text-align:left;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.ov:hover{border-color:var(--border-strong)}
+.ov__top{display:flex;align-items:center;gap:8px}
+.ov__top b{flex:1;font-family:var(--font-display);font-weight:var(--fw-display)}
+.ov__line{font-size:var(--fs-xs);color:var(--text-2)}
+.ov__foot{display:flex;justify-content:space-between;align-items:center;font-size:var(--fs-xs);color:var(--text-3);font-family:var(--font-mono)}
+.meter--wide{height:4px}
+.ov-h{display:flex;gap:8px;margin:12px 0 0;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.ov-h span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.ov-grid--quiet .ov{box-shadow:none;background:transparent}
+.app[data-app=phone] .ov-grid{grid-template-columns:1fr}
+
+/* ===== language: bilingual static blocks in the page note ===== */
+:root:not([lang=ru]) [data-lang=ru],:root[lang=ru] [data-lang=en]{display:none}
+
+/* ===== character: Paper Desk ===== */
+
+/* Paper Desk: the PM writes like a letter; decisions are stamped and become margin notes */
+.msg--pm .bubble{font-family:var(--font-display);font-size:16px;line-height:1.62}
+.app[data-app=phone] .msg--pm .bubble{font-size:16px}
+.msg--pm .brief__h{font-family:var(--font-body);font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-2)}
+.avatar--pm{background:none;border:1px solid var(--border-strong);color:var(--text-2);font-family:var(--font-display);font-style:italic;font-weight:600}
+.card__kind{font-variant:small-caps;letter-spacing:.04em;font-size:13px}
+.card{background:var(--surface);background-image:linear-gradient(var(--surface),var(--surface-2))}
+.rec{background:none;border-left:2px solid var(--accent);border-radius:0;padding:2px 0 2px 12px}
+.rec__choice{font-family:var(--font-display);font-size:16px}
+.receipt{background:none;border-left:2px solid var(--accent);border-radius:0;padding:4px 0 4px 14px;font-family:var(--font-display);font-style:italic;font-size:15px}
+.receipt--negative{border-left-color:var(--danger-text)}.receipt--neutral{border-left-color:var(--text-3)}
+.receipt__icon{background:none!important;width:18px;height:18px}
+.receipt__icon .ico{width:18px;height:18px;stroke-width:2}
+.receipt__meta{font-style:normal}
+.receipt{--receipt-indent:28px}
+.receipt.is-new .receipt__icon path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) var(--dur-fast) forwards}
+@keyframes ink{to{stroke-dashoffset:0}}
+.stamp{position:absolute;right:22px;top:calc(50% - 39px);width:78px;height:78px;color:var(--accent);pointer-events:none;opacity:0}
+.stamp svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.stamp .stamp__inner{stroke-width:1;opacity:.6}
+.stamp--negative{color:var(--danger-text)}.stamp--neutral{color:var(--text-2)}
+.sidebar{background:var(--bg-sunken)}
+.side-item[aria-current=true]{box-shadow:none;background:var(--surface);border:1px solid var(--border)}
+.side-label{font-variant:small-caps;letter-spacing:.06em;font-size:13px}
+.tabs button[aria-current=page] .ico{stroke-width:2.2}
+.need__title,.ov__top b{font-weight:600}
+.day span{font-family:var(--font-display);font-style:italic;font-size:14px}
+.msg--owner .bubble{border-radius:var(--r-lg)}
+/* status lines are words, not ids: mono spaces Cyrillic words out, so only ids stay in Source Code Pro */
+.ov__foot,.receipt__meta{font-family:var(--font-body);font-variant-numeric:tabular-nums}
+
+</style>
+</head>
+<body>
+<header class="note">
+  <div class="note__row">
+    <div><div class="note__kicker" data-i18n="page.kicker" data-i18n-num="01">Team Console · visual direction 01 of 03 · prototype for approval</div><h1>Paper Desk</h1></div>
+    <div class="controls">
+      <div class="seg" data-control="view" role="group" aria-label="Layout" data-i18n-aria="page.layout"><button type="button" data-value="phone">iPhone</button><button type="button" data-value="mac">Mac</button><button type="button" data-value="both" data-i18n="page.both">Both</button></div>
+      <div class="seg" data-control="theme" role="group" aria-label="Theme" data-i18n-aria="page.theme"><button type="button" data-value="auto" data-i18n="page.auto">Auto</button><button type="button" data-value="light" data-i18n="page.light">Light</button><button type="button" data-value="dark" data-i18n="page.dark">Dark</button></div>
+      <div class="seg" data-control="lang" role="group" aria-label="Language" data-i18n-aria="page.lang"><button type="button" data-value="ru" lang="ru" aria-label="Русский">RU</button><button type="button" data-value="en" lang="en" aria-label="English">EN</button></div>
+      <div class="seg" data-control="motion" role="group" aria-label="Motion" data-i18n-aria="page.motion"><button type="button" data-value="system" data-i18n="page.motionSystem">Motion: system</button><button type="button" data-value="reduce" data-i18n="page.motionReduce">Reduced</button></div>
+      <button type="button" class="seg-btn" data-reset data-i18n="page.reset">Reset demo</button>
+    </div>
+  </div>
+  <details><summary data-i18n="page.summary">Idea, signature moment and token sketch</summary><div data-lang="en" lang="en">
+<div class="note__grid"><div>
+<p><b>Idea.</b> A quiet, warm reading desk: the PM writes like a short letter in a serif, the interface speaks in a plain sans, and the only colour is a moss-green ink used for the next action. Nothing moves unless you act; when you do, the card is stamped and folds into a margin note that stays in the conversation as your recorded answer.</p>
+<p><b>Signature moment.</b> Ink stamp: tap Approve / Reject / Done and a stamp presses onto the card, its ring and mark draw in, then the card folds into an italic margin note (#id, time, "recorded as owner"). Reduced motion: an instant swap with a 120 ms fade.</p>
+<p class="try">Try: tap “Approve · close” on #13, switch to sheltrix (paused) and back (your place is kept), open Needs you, open Artifacts and search “ADR”, switch RU / EN (your place is kept). Mac keys after clicking in the window: B board, F artifacts, Y needs you, N message, / filter; focus a card and press its letter.</p>
+</div><dl class="tok">
+<dt>Colour</dt><dd><span class="sw"><i style="background:var(--bg)"></i>paper #F7F3EC / #1C1A17</span><span class="sw"><i style="background:var(--surface)"></i>sheet #FFFDF9 / #25221E</span><span class="sw"><i style="background:var(--text)"></i>ink #29251F / #EEE8DD</span><span class="sw"><i style="background:var(--accent)"></i>moss #3E6A48 / #8FBC92</span><span class="sw"><i style="background:var(--warning-soft)"></i>ochre</span><span class="sw"><i style="background:var(--danger-soft)"></i>clay</span></dd>
+<dt>Type</dt><dd>Source Serif 4 (voice, titles) + Source Sans 3 (UI) + Source Code Pro (ids), all OFL. Scale 12 / 14 / 15 / 18 / 22 / 28, body 1.55.</dd>
+<dt>Radius</dt><dd>6 / 10 / 16, pills for counts only. Spacing 4 px base, generous (log gap 20, card 18×20).</dd>
+<dt>Motion</dt><dd>fast 140 · base 240 · slow 380 · signature 620 ms; standard (.2,0,0,1), emphasised (.3,0,0,1), no overshoot.</dd>
+</dl></div></div><div data-lang="ru" lang="ru">
+<div class="note__grid"><div>
+<p><b>Идея.</b> Тихий тёплый письменный стол: PM пишет короткими письмами с засечками, интерфейс говорит простым гротеском, а единственный цвет — зелёные чернила для следующего действия. Ничего не движется, пока ты не действуешь; когда действуешь, на карточке появляется штамп, и она сворачивается в заметку на полях, которая остаётся в разговоре как твой ответ.</p>
+<p><b>Фирменный момент.</b> Чернильный штамп: нажми «Утвердить», «Отклонить» или «Готово» — штамп прижимается к карточке, прорисовываются кольцо и знак, затем карточка сворачивается в курсивную заметку на полях (#id, время, «записано от твоего имени»). При уменьшенной анимации — мгновенная замена с затуханием 120 мс.</p>
+<p class="try">Попробуй: нажми «Да, закрыть» в #13, переключись на sheltrix (на паузе) и обратно (место сохранится), открой «Ждут тебя», открой «Артефакты» и найди «ADR», переключи RU / EN (место тоже сохранится). Клавиши на Mac после клика в окне: B доска, F артефакты, Y ждут тебя, N сообщение, / поиск; выдели карточку и нажми букву с её кнопки. Клавиши работают и в русской раскладке.</p>
+</div><dl class="tok">
+<dt>Цвет</dt><dd><span class="sw"><i style="background:var(--bg)"></i>бумага #F7F3EC / #1C1A17</span><span class="sw"><i style="background:var(--surface)"></i>лист #FFFDF9 / #25221E</span><span class="sw"><i style="background:var(--text)"></i>чернила #29251F / #EEE8DD</span><span class="sw"><i style="background:var(--accent)"></i>мох #3E6A48 / #8FBC92</span><span class="sw"><i style="background:var(--warning-soft)"></i>охра</span><span class="sw"><i style="background:var(--danger-soft)"></i>глина</span></dd>
+<dt>Шрифты</dt><dd>Source Serif 4 (голос PM, заголовки) + Source Sans 3 (интерфейс) + Source Code Pro (номера), все под OFL, с кириллицей. Шкала 12 / 14 / 15 / 18 / 22 / 28, межстрочный 1.55.</dd>
+<dt>Скругления</dt><dd>6 / 10 / 16, «таблетки» только для счётчиков. Отступы кратны 4 px, с воздухом (между сообщениями 20, карточка 18×20).</dd>
+<dt>Движение</dt><dd>быстро 140 · обычно 240 · медленно 380 · фирменный момент 620 мс; стандартная кривая (.2,0,0,1), выразительная (.3,0,0,1), без отскока.</dd>
+</dl></div></div></details>
+</header>
+<main class="stage">
+  <section class="device device--phone" aria-label="iPhone layout" data-i18n-aria="page.phoneAria"><div class="device__label">iPhone · 390 pt</div><div class="phone-frame"><div class="app" data-app="phone"></div></div></section>
+  <section class="device device--mac" aria-label="Mac layout" data-i18n-aria="page.macAria"><div class="device__label" data-i18n="page.macLabel">Mac · window</div><div class="mac-frame"><div class="app" data-app="mac"></div></div></section>
+</main>
+<script>
+const LANGS = ["ru", "en"];
+const DIR = {
+  id: 'paper', boardOpenByDefault: false, rollCounts: false,
+  morph: { dur: '--dur-slow', ease: '--ease-emph' },
+  // An ink stamp presses onto the card, then the card folds into a margin note.
+  async before({ node, tone, H }) {
+    const glyph = tone === 'negative' ? '<path d="M24 24l16 16M40 24L24 40"/>' : tone === 'neutral' ? '<path d="M22 32h20"/>' : '<path d="M21 33l8 8 15-17"/>';
+    const s = document.createElement('div');
+    s.className = `stamp stamp--${tone}`;
+    s.setAttribute('aria-hidden', 'true');
+    s.innerHTML = `<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="28"/><circle class="stamp__inner" cx="32" cy="32" r="23"/>${glyph}</svg>`;
+    node.appendChild(s);
+    const strokes = [...s.querySelectorAll('circle,path')];
+    strokes.forEach((p) => { const l = p.getTotalLength(); p.style.strokeDasharray = l; p.style.strokeDashoffset = l; });
+    H.play(s, [{ opacity: 0, transform: 'rotate(-20deg) scale(1.4)' }, { opacity: 1, transform: 'rotate(-9deg) scale(1)' }], { duration: H.ms('--dur-base'), easing: H.cssVar('--ease-emph'), fill: 'forwards' });
+    await Promise.all(strokes.map((p, i) => H.play(p, [{ strokeDashoffset: p.style.strokeDashoffset }, { strokeDashoffset: 0 }], { duration: H.ms('--dur-sig') * 0.6, delay: i * 70, easing: H.cssVar('--ease-emph'), fill: 'forwards' })));
+    await H.wait(H.ms('--dur-base'));
+  },
+};
+/* UI strings. Russian is the reference copy (ADR 0002): short, plain, "ты" to the owner, no gendered past tense
+   addressed to the owner. Values are strings with {vars} or functions (vars, plural, x) for counted or inflected
+   phrases. t() HTML-escapes vars in strings; functions escape with x.esc. Markup lives only in these strings. */
+const I18N = {
+  en: {
+    'page.kicker': 'Team Console · visual direction {num} of 03 · prototype for approval',
+    'page.layout': 'Layout', 'page.both': 'Both',
+    'page.theme': 'Theme', 'page.auto': 'Auto', 'page.light': 'Light', 'page.dark': 'Dark',
+    'page.motion': 'Motion', 'page.motionSystem': 'Motion: system', 'page.motionReduce': 'Reduced',
+    'page.lang': 'Language', 'page.reset': 'Reset demo',
+    'page.summary': 'Idea, signature moment and token sketch',
+    'page.phoneAria': 'iPhone layout', 'page.macAria': 'Mac layout', 'page.macLabel': 'Mac · window',
+
+    'sprint': 'Sprint {n}',
+    'status.running': 'Running', 'status.paused': 'Paused', 'status.failing': 'Failing',
+    'tier.light': 'light', 'tier.standard': 'standard', 'tier.heavy': 'heavy',
+    'ci.green': 'green', 'ci.red': 'red',
+    'run.healthy': 'healthy', 'run.paused': 'paused',
+    'run.failed': ({ n }, pl) => `${n} failed ${pl(n, ['run', 'runs'])}`,
+
+    'thumb.aria': 'Open the design prototype: story editor states',
+    'thumb.empty': 'Empty', 'thumb.offline': 'Offline · dark', 'thumb.error': 'Error',
+    'card.recommends': 'Team recommends',
+    'receipt.verb': 'You: {verb}', 'receipt.meta': '#{id} · {time} · recorded as owner',
+    'pm.typing': 'PM is typing', 'msg.you': 'You,',
+
+    'board.demo': 'Demo {date}',
+    'board.progress': '{done} of {total} done',
+    'metric.done': 'Done', 'metric.prs': 'Open PRs', 'metric.ci': 'CI · main', 'metric.run': 'Run log',
+    'board.pausedBody': '<b>{name} is paused since {since}.</b> The team does not run; questions wait. {sprint} closed {done} of {total}.',
+    'board.emptyBody': '{sprint}: {done} of {total} done, nothing needs you. Columns load from GitHub in the real app.',
+    'col.approved': 'approved', 'col.progress': 'in progress', 'col.qa': 'QA', 'col.done': 'done',
+    'board.pause': 'Pause {name}', 'board.resume': 'Resume {name}',
+    'board.all': 'All projects: {r} running · {p} paused · {f} failing',
+
+    'arts.none': 'Nothing matches “{q}” in {name}.',
+    'arts.review': 'Review',
+    'arts.searchLabel': 'Search artifacts in {name}', 'arts.searchPh': 'Search {name} artifacts',
+    'arts.typeAria': 'Artifact type', 'arts.all': 'All',
+    'type.design': 'Designs and prototypes', 'type.design.short': 'Designs',
+    'type.demo': 'Demo pages', 'type.demo.short': 'Demo',
+    'type.adr': 'Decisions (ADR)', 'type.adr.short': 'Decisions',
+    'type.audit': 'Audits', 'type.audit.short': 'Audits',
+    'type.brief': 'Briefings', 'type.brief.short': 'Briefings',
+    'type.release': 'Releases and changelogs', 'type.release.short': 'Releases',
+    'type.deploy': 'Deploys', 'type.deploy.short': 'Deploys',
+
+    'side.pausedSince': 'Paused since {date}',
+    'side.withDemo': '{what} · demo {date}',
+    'side.pinned': 'Pinned', 'side.projects': 'Projects', 'side.quiet': 'Quiet projects',
+    'side.more': '{n} more, nothing needs you',
+    'side.noMatch': 'No project matches “{q}”.',
+
+    'needs.none': '<b>Nothing needs you.</b> The teams are working; you will get a push when that changes.',
+    'needs.lead': ({ n, k }, pl) => `${n} across ${k} ${pl(k, ['project', 'projects'])}. Each opens in its own conversation.`,
+    'needs.rec': 'Team recommends: {c}',
+
+    'ov.noDemo': 'no demo', 'ov.demo': 'demo {date}',
+    'ov.foot': '{done}/{total} done · {prs} PRs · CI {ci}',
+    'ov.quiet': 'Quiet projects',
+
+    'win.title': '{name} · Team Console',
+    'nav.needs': 'Needs you', 'nav.all': 'All projects', 'nav.acrossAll': 'across every project',
+    'nav.nProjects': ({ n }, pl) => `${n} ${pl(n, ['project', 'projects'])}`,
+    'nav.projectsAria': 'Projects', 'nav.sections': 'Sections', 'nav.needAll': 'Needs you, all projects',
+    'tab.chat': 'Chat', 'tab.board': 'Board', 'tab.artifacts': 'Artifacts', 'tab.needYou': 'need you',
+
+    'banner.paused': '<b>{name} is paused.</b> The team does not run; your messages wait.',
+    'banner.resume': 'Resume',
+    'banner.failing': '<b>Nightly run failing.</b> {run}; see #31.',
+
+    'log.aria': 'Conversation with the {name} PM',
+    'composer.ph': 'Message the {name} PM',
+    'composer.label': 'Message', 'composer.send': 'Send',
+
+    'sheet.projects': 'Projects', 'sheet.board': 'Sprint board', 'sheet.artifacts': 'Artifacts',
+    'sheet.title': '{title} · {name}', 'sheet.close': 'Close',
+    'filter.label': 'Filter projects', 'filter.ph': 'Filter projects',
+    'filter.phCount': ({ n }, pl) => `Filter ${n} ${pl(n, ['project', 'projects'])}`,
+
+    'toast.back': 'Back where you left {name}',
+    'toast.proto': 'Opens the prototype full-screen',
+    'note.paused': 'You paused <b>{name}</b> · the team stops after the current run',
+    'note.resumed': 'You resumed <b>{name}</b> · the next run starts within the hour',
+    'note.pausedAt': 'You paused <b>{name}</b> · {at}',
+    'count.aria': ({ n }, pl) => `${n} ${pl(n, ['needs', 'need'])} you`,
+    'announce.resolved': '{verb}: {detail}. Recorded on #{id} as your answer.',
+    'announce.pm': 'PM: {text}',
+
+    'shell.main': 'Main', 'shell.owner': 'Owner', 'shell.synced': 'GitHub synced',
+    'pane.aria': 'Detail pane', 'pane.tabs': 'Detail', 'pane.close': 'Close pane',
+  },
+
+  ru: {
+    'page.kicker': 'Team Console · визуальное направление {num} из 03 · прототип на согласование',
+    'page.layout': 'Вид', 'page.both': 'Оба',
+    'page.theme': 'Тема', 'page.auto': 'Авто', 'page.light': 'Светлая', 'page.dark': 'Тёмная',
+    'page.motion': 'Анимация', 'page.motionSystem': 'Анимация: как в системе', 'page.motionReduce': 'Меньше движения',
+    'page.lang': 'Язык', 'page.reset': 'Сбросить демо',
+    'page.summary': 'Идея, фирменный момент и набросок токенов',
+    'page.phoneAria': 'Вид на iPhone', 'page.macAria': 'Вид на Mac', 'page.macLabel': 'Mac · окно',
+
+    'sprint': 'Спринт {n}',
+    'status.running': 'В работе', 'status.paused': 'На паузе', 'status.failing': 'Сбой',
+    'tier.light': 'лёгкая', 'tier.standard': 'средняя', 'tier.heavy': 'тяжёлая',
+    'ci.green': 'зелёный', 'ci.red': 'красный',
+    'run.healthy': 'в порядке', 'run.paused': 'на паузе',
+    'run.failed': ({ n }, pl) => `${n} ${pl(n, ['упавший прогон', 'упавших прогона', 'упавших прогонов'])}`,
+
+    'thumb.aria': 'Открыть прототип: состояния редактора историй',
+    'thumb.empty': 'Пусто', 'thumb.offline': 'Офлайн · тёмная', 'thumb.error': 'Ошибка',
+    'card.recommends': 'Команда советует',
+    // Russian keeps lowercase after a colon.
+    'receipt.verb': ({ verb }, pl, x) => `Твой ответ: ${x.esc(x.lower1(verb))}`, 'receipt.meta': '#{id} · {time} · записано от твоего имени',
+    'pm.typing': 'PM печатает', 'msg.you': 'Ты,',
+
+    'board.demo': 'Демо {date}',
+    'board.progress': 'Готово {done} из {total}',
+    'metric.done': 'Готово', 'metric.prs': 'Открытые PR', 'metric.ci': 'CI · main', 'metric.run': 'Прогоны',
+    'board.pausedBody': '<b>{name} на паузе с {since}.</b> Команда не работает, вопросы ждут. {sprint} закрыт: {done} из {total}.',
+    'board.emptyBody': '{sprint}: готово {done} из {total}, от тебя ничего не нужно. В настоящем приложении колонки подтянутся из GitHub.',
+    'col.approved': 'одобрено', 'col.progress': 'в работе', 'col.qa': 'на проверке', 'col.done': 'готово',
+    'board.pause': 'Приостановить {name}', 'board.resume': 'Возобновить {name}',
+    'board.all': 'Все проекты: {r} в работе · {p} на паузе · {f} со сбоем',
+
+    'arts.none': 'В {name} ничего не нашлось по запросу «{q}».',
+    'arts.review': 'Посмотреть',
+    'arts.searchLabel': 'Поиск по артефактам {name}', 'arts.searchPh': 'Поиск по артефактам {name}',
+    'arts.typeAria': 'Тип артефакта', 'arts.all': 'Все',
+    'type.design': 'Дизайн и прототипы', 'type.design.short': 'Дизайн',
+    'type.demo': 'Демо-страницы', 'type.demo.short': 'Демо',
+    'type.adr': 'Решения (ADR)', 'type.adr.short': 'Решения',
+    'type.audit': 'Аудиты', 'type.audit.short': 'Аудиты',
+    'type.brief': 'Сводки', 'type.brief.short': 'Сводки',
+    'type.release': 'Релизы и списки изменений', 'type.release.short': 'Релизы',
+    'type.deploy': 'Деплои', 'type.deploy.short': 'Деплои',
+
+    'side.pausedSince': 'На паузе с {date}',
+    'side.withDemo': '{what} · демо {date}',
+    'side.pinned': 'Закреплённые', 'side.projects': 'Проекты', 'side.quiet': 'Без вопросов к тебе',
+    'side.more': 'Ещё {n}, без вопросов к тебе',
+    'side.noMatch': 'Нет проектов по запросу «{q}».',
+
+    'needs.none': '<b>От тебя сейчас ничего не нужно.</b> Команды работают; если понадобишься, придёт пуш.',
+    'needs.lead': ({ n, k }, pl) => `${n} ${pl(n, ['вопрос', 'вопроса', 'вопросов'])} в ${k} ${pl(k, ['проекте', 'проектах', 'проектах'])}. Каждый открывается в своём разговоре.`,
+    'needs.rec': ({ c }, pl, x) => `Команда советует: ${x.esc(x.lower1(c))}`,
+
+    'ov.noDemo': 'без демо', 'ov.demo': 'демо {date}',
+    'ov.foot': 'готово {done}/{total} · PR: {prs} · CI {ci}',
+    'ov.quiet': 'Без вопросов к тебе',
+
+    'win.title': '{name} · Team Console',
+    'nav.needs': 'Ждут тебя', 'nav.all': 'Все проекты', 'nav.acrossAll': 'во всех проектах',
+    'nav.nProjects': ({ n }, pl) => `${n} ${pl(n, ['проект', 'проекта', 'проектов'])}`,
+    'nav.projectsAria': 'Проекты', 'nav.sections': 'Разделы', 'nav.needAll': 'Ждут тебя — все проекты',
+    'tab.chat': 'Чат', 'tab.board': 'Доска', 'tab.artifacts': 'Артефакты', 'tab.needYou': 'ждут тебя',
+
+    'banner.paused': '<b>{name} на паузе.</b> Команда не работает, сообщения подождут.',
+    'banner.resume': 'Возобновить',
+    'banner.failing': '<b>Ночной прогон падает.</b> {run}, см. #31.',
+
+    'log.aria': 'Разговор с PM проекта {name}',
+    'composer.ph': 'Написать PM проекта {name}',
+    'composer.label': 'Сообщение', 'composer.send': 'Отправить',
+
+    'sheet.projects': 'Проекты', 'sheet.board': 'Доска спринта', 'sheet.artifacts': 'Артефакты',
+    'sheet.title': '{title} · {name}', 'sheet.close': 'Закрыть',
+    'filter.label': 'Найти проект', 'filter.ph': 'Найти проект',
+    'filter.phCount': ({ n }, pl) => `Найти среди ${n} ${pl(n, ['проекта', 'проектов', 'проектов'])}`,
+
+    'toast.back': 'Проект {name} открыт на том же месте',
+    'toast.proto': 'Здесь прототип откроется на весь экран',
+    'note.paused': 'Проект <b>{name}</b> на паузе · команда остановится после текущего прогона',
+    'note.resumed': 'Проект <b>{name}</b> снова в работе · следующий прогон начнётся в течение часа',
+    'note.pausedAt': '<b>{name}</b> на паузе по твоей просьбе · {at}',
+    'count.aria': ({ n }) => `Ждут тебя: ${n}`,
+    'announce.resolved': '{verb}: {detail}. Записано в #{id} как твой ответ.',
+    'announce.pm': 'PM: {text}',
+
+    'shell.main': 'Основное', 'shell.owner': 'Владелец', 'shell.synced': 'GitHub синхронизирован',
+    'pane.aria': 'Панель подробностей', 'pane.tabs': 'Подробности', 'pane.close': 'Закрыть панель',
+  },
+};
+
+/* Mock content: real examples from storify; other projects kept short.
+   L(en, ru) marks text the owner reads; repo issue and document titles stay as they are in GitHub.
+   Dates are ISO (local time) and formatted with Intl for the chosen language. */
+const DATA = (() => {
+  const L = (en, ru) => ({ en, ru });
+  const today = '2026-09-29';
+  const P = (o) => Object.assign({ pinned: false, quiet: false, status: 'running', ci: 'green', prs: 0, soon: false }, o);
+  const projects = [
+    P({ id: 'storify', name: 'storify', pinned: true, sprint: '01', demo: '2026-10-09', soon: true, done: 3, total: 9, prs: 2 }),
+    P({ id: 'team-console', name: 'team-console', pinned: true, sprint: '00', demo: '2026-10-13', soon: true, done: 1, total: 6, prs: 1 }),
+    P({ id: 'fieldnote', name: 'fieldnote', status: 'failing', sprint: '04', demo: '2026-10-02', soon: true, done: 5, total: 8, prs: 3, ci: 'red', runFails: 2 }),
+    P({ id: 'sheltrix', name: 'sheltrix', status: 'paused', pausedSince: '2026-09-22', sprint: '03', demo: null, done: 7, total: 7, prs: 2 }),
+  ];
+  const quiet = [
+    ['atlas-cli', '02', '2026-10-16', 2, 5], ['brewlog', '05', '2026-10-06', 4, 6], ['kinder', '01', '2026-10-20', 0, 4],
+    ['orbit-notes', '07', '2026-10-08', 6, 7], ['pagecraft', '02', '2026-10-14', 1, 5], ['tidy-inbox', '03', '2026-10-10', 3, 6],
+  ];
+  quiet.forEach(([name, sprint, demo, done, total], i) => projects.push(P({
+    id: name, name, quiet: true, sprint, demo, done, total, prs: i % 3,
+    status: name === 'kinder' ? 'paused' : 'running', pausedSince: '2026-09-01',
+  })));
+
+  const logs = {
+    storify: [
+      { t: 'day', date: '2026-09-28' },
+      { t: 'msg', who: 'pm', at: '2026-09-28T18:04', html: L(
+        '<p>I need your hands here: stage can’t ship without the Oracle and Cloudflare accounts. The steps are in the card, about 15 minutes.</p>',
+        '<p>Нужна твоя помощь: без аккаунтов Oracle и Cloudflare stage не выкатить. Шаги в карточке, это минут 15.</p>') },
+      {
+        t: 'card', id: '72', kind: 'action', icon: 'key', label: L('Action · access', 'Действие · доступ'),
+        title: L('Create Oracle and Cloudflare accounts and deploy secrets', 'Заведи аккаунты Oracle и Cloudflare и добавь секреты для деплоя'),
+        text: L('Only you can open these accounts. The stage deploy waits on them.', 'Открыть эти аккаунты можешь только ты. Деплой на stage ждёт их.'),
+        steps: [
+          L('Oracle Cloud Free Tier account and an API key', 'Аккаунт Oracle Cloud Free Tier и API-ключ'),
+          L('Cloudflare account and an API token with <i>Pages: Edit</i>', 'Аккаунт Cloudflare и API-токен с правом <i>Pages: Edit</i>'),
+          L('Add <code>ORACLE_API_KEY</code> and <code>CLOUDFLARE_API_TOKEN</code> to the repo’s GitHub Secrets', 'Добавь <code>ORACLE_API_KEY</code> и <code>CLOUDFLARE_API_TOKEN</code> в GitHub Secrets репозитория'),
+        ],
+        meta: L('Blocks stage deploy · asked yesterday', 'Блокирует деплой на stage · ждёт со вчера'),
+        actions: [{ id: 'done', label: L('Done', 'Готово'), key: 'd', primary: true }, { id: 'later', label: L('Not yet', 'Пока нет'), key: 'l' }],
+        receipts: {
+          done: { tone: 'positive', verb: L('Done', 'Готово'), detail: L('accounts created, secrets added', 'аккаунты заведены, секреты добавлены'),
+            pm: L('Thanks! I’ll check the secrets, start the stage deploy and tell you when it’s up.', 'Спасибо! Проверю секреты, запущу деплой на stage и напишу, когда поднимется.') },
+          later: { tone: 'neutral', verb: L('Not yet', 'Пока нет'), detail: L('remind me tomorrow 10:00', 'напомнить завтра в 10:00'),
+            pm: L('OK, I’ll remind you tomorrow at 10:00. While stage waits, we take items that don’t need a deploy.', 'Хорошо, напомню завтра в 10:00. Пока stage ждёт, берём задачи без деплоя.') },
+        },
+      },
+      { t: 'msg', who: 'pm', at: '2026-09-28T18:20', html: L(
+        '<p>The story editor states are ready: empty, error, offline. The prototype is in the card.</p>',
+        '<p>Готовы состояния редактора историй: пустое, ошибка, офлайн. Прототип в карточке.</p>') },
+      {
+        t: 'card', id: '47', kind: 'design', icon: 'image', label: L('Design approval', 'Согласование дизайна'),
+        title: L('Story editor: empty, error and offline states', 'Редактор историй: пустое состояние, ошибка и офлайн'), thumb: true,
+        text: L('Three states from the UX spec, light and dark.', 'Три состояния из UX-спеки, в светлой и тёмной теме.'),
+        meta: L('UI designer · prototype on dev', 'UI-дизайнер · прототип на dev'),
+        actions: [{ id: 'approve', label: L('Approve', 'Утвердить'), key: 'a', primary: true }, { id: 'changes', label: L('Request changes', 'Нужны правки'), key: 'c' }],
+        receipts: {
+          approve: { tone: 'positive', verb: L('Approved', 'Утверждено'), detail: L('story editor states', 'состояния редактора историй'),
+            pm: L('Design approved, handing it to development: #49 continues with it.', 'Дизайн утверждён, передаю в разработку: #49 продолжит с ним.') },
+          changes: { tone: 'neutral', verb: L('Changes requested', 'Нужны правки'), detail: L('story editor states', 'состояния редактора историй'),
+            pm: L('What should change? One sentence is enough, I’ll pass it to the designer.', 'Что поправить? Хватит одной фразы, передам дизайнеру.') },
+        },
+      },
+      { t: 'day', date: today },
+      { t: 'msg', who: 'owner', at: `${today}T10:41`, html: L('<p>what’s new?</p>', '<p>что нового?</p>') },
+      {
+        t: 'msg', who: 'pm', at: `${today}T10:41`, html: L(
+          '<p>storify in the last 24 hours, briefly.</p>' +
+          '<p class="brief__h">Shipped: 3</p>' +
+          '<ul><li>Infinite story feed <span class="ref">#41</span></li><li>Story export to PDF <span class="ref">#38</span></li><li>Magic-link sign-in <span class="ref">#29</span></li></ul>' +
+          '<p class="brief__h">Your decision needed: 2</p>' +
+          '<ul><li><span class="ref">#13</span> wip/craft-i18n: merge or close. I recommend closing.</li><li>Sprint 01 demo, 9 Oct: go / no-go.</li></ul>' +
+          '<p class="brief__foot">Still waiting since yesterday: the accounts (#72) and the editor design (#47).</p>',
+          '<p>Коротко по storify за сутки.</p>' +
+          '<p class="brief__h">Выпущено: 3</p>' +
+          '<ul><li>Лента историй с бесконечной прокруткой <span class="ref">#41</span></li><li>Экспорт истории в PDF <span class="ref">#38</span></li><li>Вход по magic-link <span class="ref">#29</span></li></ul>' +
+          '<p class="brief__h">Нужно твоё решение: 2</p>' +
+          '<ul><li><span class="ref">#13</span> wip/craft-i18n: слить или закрыть. Советую закрыть.</li><li>Демо спринта 01, 9 окт.: go / no-go.</li></ul>' +
+          '<p class="brief__foot">Со вчера ещё ждут аккаунты (#72) и дизайн редактора (#47).</p>'),
+      },
+      {
+        t: 'card', id: '13', kind: 'decision', icon: 'branch', label: L('Decision · scope', 'Решение · объём работ'),
+        title: L('Decide wip/craft-i18n: merge or close', 'wip/craft-i18n: слить или закрыть?'),
+        rec: {
+          choice: L('Close the branch', 'Закрыть ветку'),
+          why: L('It is 38 commits behind main and its strings already live in #51. Merging would reopen 6 conflicts for no new behaviour.',
+            'Ветка отстала от main на 38 коммитов, а её строки уже есть в #51. Слияние вернёт 6 конфликтов и ничего нового не даст.'),
+        },
+        meta: L('PM and tech lead · asked today', 'PM и техлид · сегодня'),
+        actions: [{ id: 'approve', label: L('Approve · close', 'Да, закрыть'), key: 'a', primary: true }, { id: 'reject', label: L('Reject · merge', 'Нет, слить'), key: 'r' }],
+        receipts: {
+          approve: { tone: 'positive', verb: L('Approved', 'Утверждено'), detail: L('close wip/craft-i18n', 'закрыть wip/craft-i18n'),
+            pm: L('Got it: closing wip/craft-i18n, the strings stay in #51.', 'Принято: закрываю wip/craft-i18n, строки остаются в #51.') },
+          reject: { tone: 'negative', verb: L('Rejected', 'Отклонено'), detail: L('merge wip/craft-i18n instead', 'слить wip/craft-i18n'),
+            pm: L('Understood, we merge. I’ll open an item for the 6 conflicts (standard) and take it into Sprint 01.', 'Хорошо, сливаем. Заведу задачу на 6 конфликтов (средняя) и возьмём её в спринт 01.') },
+        },
+      },
+      {
+        t: 'card', id: '75', kind: 'release', icon: 'flag', label: L('Release · go / no-go', 'Релиз · go / no-go'),
+        title: L('Sprint 01 demo: go / no-go', 'Демо спринта 01: go / no-go'),
+        checks: [
+          { s: 'ok', t: L('CI green on stage · 3 items shipped', 'CI на stage зелёный · выпущено 3 задачи') },
+          { s: 'ok', t: L('QA passed 14 of 14 checks', 'QA: пройдено 14 проверок из 14') },
+          { s: 'warn', t: L('1 known issue: #50 dark theme polish (light), follow-up', '1 известная проблема: #50 доводка тёмной темы (лёгкая), доделаем следом') },
+        ],
+        meta: L('Demo 9 Oct · release right after', 'Демо 9 окт. · релиз сразу после'),
+        actions: [{ id: 'go', label: L('Go', 'Проводим'), key: 'g', primary: true }, { id: 'nogo', label: L('No-go', 'Переносим'), key: 'n' }],
+        receipts: {
+          go: { tone: 'positive', verb: L('Go', 'Go'), detail: L('Sprint 01 demo on 9 Oct', 'демо спринта 01, 9 окт.'),
+            pm: L('Go recorded. The demo page opens on 9 Oct, release right after the demo.', 'Принято: go. Демо-страница откроется 9 окт., релиз сразу после демо.') },
+          nogo: { tone: 'negative', verb: L('No-go', 'No-go'), detail: L('Sprint 01 demo held', 'демо спринта 01 переносится'),
+            pm: L('No-go recorded. What must be in the demo? Tell me and I’ll move the date.', 'Принято: no-go. Что должно войти в демо? Напиши, и я перенесу дату.') },
+        },
+      },
+    ],
+    'team-console': [
+      { t: 'day', date: today },
+      { t: 'msg', who: 'pm', at: `${today}T09:12`, html: L(
+        '<p>Kickoff is done: the brief and ADR-0001 are in artifacts. Push on iPhone needs one step from you.</p>',
+        '<p>Кикофф закрыт: бриф и ADR-0001 в артефактах. Для пушей на iPhone нужен один шаг с твоей стороны.</p>') },
+      {
+        t: 'card', id: '9', kind: 'action', icon: 'key', label: L('Action · device', 'Действие · устройство'),
+        title: L('Install the dev build to the Home Screen to allow push', 'Установи dev-сборку на экран «Домой», чтобы получать пуши'),
+        text: L('iOS only delivers web push to installed apps. Open dev in Safari, Share, Add to Home Screen, then allow notifications.',
+          'iOS присылает веб-пуши только установленным приложениям. Открой dev в Safari, нажми «Поделиться» → «На экран „Домой“» и разреши уведомления.'),
+        meta: L('Needed for Sprint 00 demo · asked today', 'Нужно для демо спринта 00 · сегодня'),
+        actions: [{ id: 'done', label: L('Done', 'Готово'), key: 'd', primary: true }, { id: 'later', label: L('Not yet', 'Пока нет'), key: 'l' }],
+        receipts: {
+          done: { tone: 'positive', verb: L('Done', 'Готово'), detail: L('installed, push allowed', 'установлено, пуши разрешены'),
+            pm: L('Great, I’ll send a test push within a minute.', 'Отлично, пришлю тестовый пуш в течение минуты.') },
+          later: { tone: 'neutral', verb: L('Not yet', 'Пока нет'), detail: L('remind me tonight', 'напомнить вечером'),
+            pm: L('I’ll remind you tonight.', 'Напомню вечером.') },
+        },
+      },
+    ],
+    fieldnote: [
+      { t: 'day', date: today },
+      { t: 'msg', who: 'pm', at: `${today}T07:30`, html: L(
+        '<p>The nightly run failed for the second time in a row: the sync e2e tests time out on CI. Friday’s demo is at risk.</p>',
+        '<p>Ночной прогон упал второй раз подряд: e2e-тесты синхронизации падают по таймауту на CI. Демо в пятницу под угрозой.</p>') },
+      {
+        t: 'card', id: '31', kind: 'decision', icon: 'warn', label: L('Decision · run health', 'Решение · прогоны'),
+        title: L('Nightly run failed twice: pause fieldnote until e2e is fixed?', 'Ночной прогон упал дважды: остановить fieldnote, пока не починим e2e?'),
+        rec: {
+          choice: L('Pause feature work, fix e2e first', 'Отложить фичи, сначала починить e2e'),
+          why: L('Two failed runs in a row; the flaky sync suite blocks every PR. One heavy item, about a day.',
+            'Два упавших прогона подряд, нестабильные тесты синхронизации блокируют каждый PR. Одна тяжёлая задача, примерно день.'),
+        },
+        meta: L('Run log · 2 failures since 28 Sep', 'Журнал прогонов · 2 сбоя с 28 сент.'),
+        actions: [{ id: 'approve', label: L('Approve · fix first', 'Да, сначала починить'), key: 'a', primary: true }, { id: 'reject', label: L('Reject · keep going', 'Нет, продолжать'), key: 'r' }],
+        receipts: {
+          approve: { tone: 'positive', verb: L('Approved', 'Утверждено'), detail: L('fix e2e before features', 'сначала e2e, потом фичи'),
+            pm: L('Got it. Taking #33 (heavy), the rest waits. I’ll tell you when the run is green.', 'Принято. Беру #33 (тяжёлая), остальное ждёт. Сообщу, когда прогон позеленеет.') },
+          reject: { tone: 'negative', verb: L('Rejected', 'Отклонено'), detail: L('keep feature work going', 'продолжаем работу над фичами'),
+            pm: L('Understood, we keep going. I’ll mark e2e as a known issue for the demo.', 'Хорошо, продолжаем. Отмечу e2e как известную проблему для демо.') },
+        },
+      },
+    ],
+    sheltrix: [
+      { t: 'day', date: '2026-09-22' },
+      { t: 'msg', who: 'owner', at: '2026-09-22T19:10', html: L('<p>pause sheltrix until we finish storify</p>', '<p>поставь sheltrix на паузу, пока не закончим storify</p>') },
+      { t: 'msg', who: 'pm', at: '2026-09-22T19:11', html: L(
+        '<p>Done: sheltrix is paused. Sprint 03 is closed (7 of 7); two PRs stay open: #88 and #91. No questions for you.</p>',
+        '<p>Готово: sheltrix на паузе. Спринт 03 закрыт (7 из 7), два PR остались открытыми: #88 и #91. Вопросов к тебе нет.</p>') },
+      { t: 'note', key: 'note.pausedAt', name: 'sheltrix', at: '2026-09-22T19:12' },
+    ],
+  };
+  quiet.forEach(([name, sprint]) => {
+    logs[name] = [{ t: 'day', date: '2026-09-28' }, { t: 'msg', who: 'pm', at: '2026-09-28T09:00', html: L(
+      `<p>Sprint ${sprint} is on track, no questions for you.</p>`,
+      `<p>Спринт ${sprint} идёт по плану, вопросов к тебе нет.</p>`) }];
+  });
+
+  // Board items are GitHub issue titles and stay as written in the repo.
+  const boards = {
+    storify: {
+      approved: [{ n: 54, t: 'Share-link preview card', tier: 'light' }, { n: 57, t: 'Onboarding tour', tier: 'standard' }],
+      progress: [{ n: 49, t: 'Story editor autosave', tier: 'heavy', sub: L('PR #61 · CI running', 'PR #61 · CI идёт') }, { n: 52, t: 'Tag filter', tier: 'standard', sub: L('PR #60 · CI green', 'PR #60 · CI зелёный') }],
+      qa: [{ n: 45, t: 'Comments on stories', tier: 'standard' }, { n: 50, t: 'Dark theme polish', tier: 'light' }],
+      done: [{ n: 41, t: 'Infinite story feed', tier: 'standard' }, { n: 38, t: 'PDF export', tier: 'heavy' }, { n: 29, t: 'Magic-link sign-in', tier: 'standard' }],
+    },
+    'team-console': {
+      approved: [{ n: 4, t: 'Push relay worker', tier: 'standard' }, { n: 5, t: 'Needs-you list', tier: 'standard' }],
+      progress: [{ n: 3, t: 'GitHub auth + session', tier: 'heavy', sub: L('PR #8 · CI green', 'PR #8 · CI зелёный') }, { n: 7, t: 'Design tokens + kit', tier: 'standard' }],
+      qa: [{ n: 2, t: 'PWA shell and install', tier: 'light' }],
+      done: [{ n: 1, t: 'Repo, CI and dev deploy', tier: 'standard' }],
+    },
+    fieldnote: {
+      approved: [{ n: 36, t: 'Export to Markdown', tier: 'light' }],
+      progress: [{ n: 33, t: 'Fix flaky sync e2e', tier: 'heavy', sub: L('Run failing · 2×', 'Прогон падает · 2×') }, { n: 34, t: 'Offline badge', tier: 'light', sub: L('PR #40 · CI red', 'PR #40 · CI красный') }],
+      qa: [{ n: 30, t: 'Tag autocomplete', tier: 'standard' }],
+      done: [{ n: 25, t: 'Note sync', tier: 'heavy' }, { n: 27, t: 'Search', tier: 'standard' }, { n: 28, t: 'Pinning', tier: 'light' }, { n: 29, t: 'Share sheet', tier: 'light' }, { n: 26, t: 'Import', tier: 'standard' }],
+    },
+  };
+
+  // Titles of repo documents and issues stay as written; what the team generates for the owner is translated.
+  const A = (type, title, meta, extra) => Object.assign({ type, title, meta }, extra || {});
+  const artifacts = {
+    storify: [
+      A('design', 'Story editor: empty, error, offline', L('#47 · awaiting your approval', '#47 · ждёт твоего согласования'), { awaiting: '47' }),
+      A('design', 'Feed: infinite scroll', L('#41 · approved 24 Sep', '#41 · утверждено 24 сент.')),
+      A('demo', L('Sprint 01 demo page', 'Демо-страница спринта 01'), L('draft · opens 9 Oct', 'черновик · откроется 9 окт.')),
+      A('adr', 'ADR-0001 Stack and architecture', L('accepted 18 Sep', 'принято 18 сент.')),
+      A('adr', 'ADR-0002 PDF export via server render', L('accepted 25 Sep', 'принято 25 сент.')),
+      A('audit', L('Accessibility audit: feed', 'Аудит доступности: лента'), L('2 issues, both light', '2 замечания, оба лёгкие')),
+      A('audit', L('Security review: magic-link', 'Ревью безопасности: magic-link'), L('passed 27 Sep', 'пройдено 27 сент.')),
+      A('brief', L('Briefing 29 Sep', 'Сводка 29 сент.'), L('3 shipped · 2 questions', 'выпущено 3 · 2 вопроса')),
+      A('brief', L('Briefing 28 Sep', 'Сводка 28 сент.'), L('1 shipped · 1 question', 'выпущена 1 · 1 вопрос')),
+      A('release', L('v0.1.0 first internal build', 'v0.1.0 первая внутренняя сборка'), L('changelog · 12 items', 'список изменений · 12 пунктов')),
+      A('deploy', 'dev · dev.storify.example', L('live · updated 10:30', 'работает · обновлено в 10:30')),
+      A('deploy', 'stage · stage.storify.example', L('waiting on #72', 'ждёт #72')),
+    ],
+    'team-console': [
+      A('design', L('Visual directions 01 to 03', 'Визуальные направления 01–03'), L('kickoff · awaiting your pick', 'кикофф · ждёт твоего выбора')),
+      A('adr', 'ADR-0001 Stack and architecture', L('accepted today', 'принято сегодня')),
+      A('brief', L('Product brief', 'Бриф продукта'), L('kickoff · 29 Sep', 'кикофф · 29 сент.')),
+      A('deploy', 'dev · console-dev.example', L('live', 'работает')),
+    ],
+    fieldnote: [
+      A('audit', L('Run log: 2 failed nightly runs', 'Журнал прогонов: 2 упавших ночных прогона'), L('28 and 29 Sep', '28 и 29 сент.')),
+      A('demo', L('Sprint 04 demo page', 'Демо-страница спринта 04'), L('draft · opens 2 Oct', 'черновик · откроется 2 окт.')),
+      A('release', 'v0.4.0', L('changelog · 9 items', 'список изменений · 9 пунктов')),
+      A('deploy', 'stage · fieldnote-stage.example', L('last good build 27 Sep', 'последняя рабочая сборка 27 сент.')),
+    ],
+    sheltrix: [
+      A('release', 'v1.2.0', L('changelog · 7 items · 20 Sep', 'список изменений · 7 пунктов · 20 сент.')),
+      A('demo', L('Sprint 03 demo page', 'Демо-страница спринта 03'), L('held 19 Sep', 'прошло 19 сент.')),
+      A('adr', 'ADR-0004 Queue on Postgres', L('accepted', 'принято')),
+    ],
+  };
+  quiet.forEach(([name, sprint]) => { artifacts[name] = [A('brief', L(`Briefing: Sprint ${sprint}`, `Сводка: спринт ${sprint}`), L('Monday', 'понедельник'))]; });
+
+  const artifactTypes = ['design', 'demo', 'adr', 'audit', 'brief', 'release', 'deploy'];
+
+  const replies = {
+    running: L('Got it. I’ll add this to the backlog as light and reply when there’s a plan.', 'Принято. Заведу это в бэклог как лёгкую задачу и отвечу, когда будет план.'),
+    paused: L('The project is paused. Noted; we’ll take it after it resumes.', 'Проект на паузе. Записано, возьмём после возобновления.'),
+    failing: L('Got it. We fix the run first, then I’ll take this on.', 'Принято. Сначала чиним прогон, потом возьмусь за это.'),
+  };
+
+  return { today, projects, logs, boards, artifacts, artifactTypes, replies };
+})();
+
+/* Team Console prototype runtime, shared by all directions. DIR (declared above) supplies the character. */
+(() => {
+  'use strict';
+  const root = document.documentElement;
+  const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
+  const isReduced = () => root.dataset.motion === 'reduce' || mqReduce.matches;
+  const cssVar = (n) => getComputedStyle(root).getPropertyValue(n).trim();
+  const ms = (n) => { const v = cssVar(n); const x = parseFloat(v) || 0; return v.endsWith('ms') ? x : v.endsWith('s') ? x * 1000 : x; };
+  const wait = (t) => new Promise((r) => setTimeout(r, t));
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+
+  /* ---------- language ---------- */
+  // LANGS comes from the build: directions without a language layer get ['en'] and no toggle.
+  const LANG_KEY = 'team-console.lang';
+  function readLang() {
+    if (LANGS.length === 1) return LANGS[0];
+    try { const v = localStorage.getItem(LANG_KEY); if (LANGS.includes(v)) return v; }
+    catch (err) { console.warn('Language preference unavailable, using the device language', err); }
+    return /^ru\b/i.test(navigator.language || '') ? 'ru' : 'en';
+  }
+  function saveLang(v) {
+    try { localStorage.setItem(LANG_KEY, v); }
+    catch (err) { console.warn('Language preference not saved', err); }
+  }
+  let LANG = readLang();
+  let LOCALE = 'en';
+  let fmt = null;
+  function applyLang(v) {
+    LANG = v;
+    const nav = navigator.language || '';
+    LOCALE = v === 'ru' ? 'ru-RU' : /^en\b/i.test(nav) ? nav : 'en-GB';
+    root.lang = v;
+    fmt = {
+      date: new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short' }),
+      // inside sentences: "с 29 сент.." would double the period
+      dateLong: new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'long' }),
+      time: new Intl.DateTimeFormat(LOCALE, { hour: '2-digit', minute: '2-digit' }),
+      dateTime: new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+      weekday: new Intl.DateTimeFormat(LOCALE, { weekday: 'long' }),
+      rel: new Intl.RelativeTimeFormat(LOCALE, { numeric: 'auto' }),
+      plural: new Intl.PluralRules(LOCALE),
+    };
+  }
+  applyLang(LANG);
+  // forms: en [one, other]; ru [one, few, many]
+  const pl = (n, forms) => {
+    const c = fmt.plural.select(n);
+    if (forms.length === 2) return c === 'one' ? forms[0] : forms[1];
+    return c === 'one' ? forms[0] : c === 'few' ? forms[1] : forms[2];
+  };
+  function t(key, vars = {}) {
+    const v = (I18N[LANG] && I18N[LANG][key]) ?? I18N.en[key];
+    if (v == null) { console.warn(`Missing UI string: ${key}`); return key; }
+    if (typeof v === 'function') return v(vars, pl, { esc, lower1 });
+    return v.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? esc(vars[k]) : m));
+  }
+  // Mock content carries { en, ru } for text the owner reads; plain strings are repo text and stay as written.
+  const tr = (v) => (v && typeof v === 'object' && 'en' in v ? v[LANG] ?? v.en : v);
+  // t() returns HTML; plain() is for textContent, aria attributes set from JS and live-region text.
+  const plain = (html) => { const d = document.createElement('template'); d.innerHTML = html; return d.content.textContent; };
+  // Lowercase the first letter unless the word is an acronym or a name like "Go" / "CI".
+  const lower1 = (s) => (/^\p{Lu}\p{Ll}/u.test(s) ? s.charAt(0).toLocaleLowerCase(LOCALE) + s.slice(1) : s);
+  const cap = (s) => s.charAt(0).toLocaleUpperCase(LOCALE) + s.slice(1);
+  const parseLocal = (iso) => { const [d, tm] = iso.split('T'); const [y, m, dd] = d.split('-').map(Number); const [h, mi] = (tm || '0:0').split(':').map(Number); return new Date(y, m - 1, dd, h, mi); };
+  const dayDiff = (iso) => Math.round((parseLocal(iso.split('T')[0]) - parseLocal(DATA.today)) / 864e5);
+  const fDate = (iso) => fmt.date.format(parseLocal(iso));
+  const fDateLong = (iso) => fmt.dateLong.format(parseLocal(iso));
+  const fTime = (iso) => fmt.time.format(parseLocal(iso));
+  const fDateTime = (iso) => fmt.dateTime.format(parseLocal(iso));
+  const fIn = (iso) => fmt.rel.format(dayDiff(iso), 'day');
+  function fDay(iso) {
+    const d = dayDiff(iso);
+    if (d === 0 || d === -1) return cap(fmt.rel.format(d, 'day'));
+    if (d > -7 && d < 0) return cap(fmt.weekday.format(parseLocal(iso)));
+    return fDate(iso);
+  }
+  // Timestamps stay on the mock "today" so day separators and relative dates agree with the seeded log.
+  const clock = () => { const n = new Date(); return `${DATA.today}T${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`; };
+  const sprintName = (p) => t('sprint', { n: p.sprint });
+  const runText = (p) => (p.status === 'paused' ? t('run.paused') : p.runFails ? t('run.failed', { n: p.runFails }) : t('run.healthy'));
+
+  const nodeFrom = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+
+  async function play(el, frames, opts) {
+    if (!el || !el.animate) return;
+    try { await el.animate(frames, opts).finished; }
+    catch (err) { if (!err || err.name !== 'AbortError') throw err; } // a newer animation cancelled this one: expected
+  }
+  const H = { play, wait, ms, cssVar, isReduced };
+
+  const svg = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  const I = {
+    check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+    x: svg('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'),
+    minus: svg('<path d="M6 12h12"/>'),
+    warn: svg('<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.3v.2"/>'),
+    chat: svg('<path d="M4.5 5.5h15v10h-9l-6 4z"/>'),
+    inbox: svg('<path d="M4 13.5L6.5 5h11l2.5 8.5V19H4z"/><path d="M4 13.5h5l1 2h4l1-2h5"/>'),
+    board: svg('<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M15 4.5v15"/>'),
+    grid: svg('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'),
+    stack: svg('<path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/>'),
+    image: svg('<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M20.5 16l-5-5-8 8.5"/>'),
+    send: svg('<path d="M12 19V5M6 11l6-6 6 6"/>'),
+    chev: svg('<path d="M9.5 6l6 6-6 6"/>'),
+    down: svg('<path d="M6 9.5l6 6 6-6"/>'),
+    pause: svg('<path d="M9 5.5v13M15 5.5v13"/>'),
+    play: svg('<path d="M8 5.5l11 6.5-11 6.5z"/>'),
+    key: svg('<circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3"/>'),
+    branch: svg('<circle cx="6" cy="5.5" r="2"/><circle cx="6" cy="18.5" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7.5v9M18 10c0 4-6 3-11.5 7"/>'),
+    flag: svg('<path d="M5.5 21V4M5.5 4.5h11l-2 4 2 4h-11"/>'),
+    cal: svg('<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'),
+    edit: svg('<path d="M4 20h4L19 9l-4-4L4 16z"/>'),
+    search: svg('<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>'),
+    spark: svg('<path d="M12 3.5l1.8 6.7 6.7 1.8-6.7 1.8L12 20.5l-1.8-6.7L3.5 12l6.7-1.8z"/>'),
+    doc: svg('<path d="M6.5 3.5h8l4 4v13h-12z"/><path d="M14.5 3.5v4h4M9 12h6M9 16h6"/>'),
+    rocket: svg('<path d="M12 3c3.5 2 5 5.5 4.5 10l-2 3h-5l-2-3C7 8.5 8.5 5 12 3z"/><path d="M9.5 16l-2 4M14.5 16l2 4"/><circle cx="12" cy="9.5" r="1.5"/>'),
+    shield: svg('<path d="M12 3.5l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9v-5z"/>'),
+    link: svg('<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/>'),
+    pin: svg('<path d="M9 4h6l-1 5 3 3H7l3-3zM12 12v8"/>'),
+    mark: '<svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="6" fill="currentColor"/><path d="M7.5 9.5h9M7.5 14.5h5.5" stroke="var(--accent-contrast)" stroke-width="2.2" stroke-linecap="round"/></svg>',
+    bars: '<svg viewBox="0 0 18 12" width="18" height="12" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1" fill="currentColor"/><rect x="5" y="5" width="3" height="7" rx="1" fill="currentColor"/><rect x="10" y="2.5" width="3" height="9.5" rx="1" fill="currentColor"/><rect x="15" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg>',
+    battery: '<svg viewBox="0 0 27 13" width="27" height="13" aria-hidden="true"><rect x=".5" y=".5" width="23" height="12" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="18" height="9" rx="2" fill="currentColor"/><rect x="24.5" y="4.5" width="2" height="4" rx="1" fill="currentColor" opacity=".4"/></svg>',
+  };
+  const TYPE_ICON = { design: 'image', demo: 'rocket', adr: 'doc', audit: 'shield', brief: 'chat', release: 'flag', deploy: 'link' };
+  const statusLabel = (s) => t(`status.${s}`);
+
+  /* ---------- markup ---------- */
+  const tier = (k) => `<span class="tier tier--${k}">${t(`tier.${k}`)}</span>`;
+  const statusChip = (p) => `<span class="status status--${p.status}"><i aria-hidden="true"></i>${statusLabel(p.status)}</span>`;
+  const mono = (p) => `<span class="prod-mono" data-status="${p.status}" aria-hidden="true">${esc(p.name[0])}</span>`;
+
+  function thumbHTML(big) {
+    const frame = (mod, cap) => `<span class="tf tf--${mod}"><span class="tf__bar"></span><span class="tf__center"><span class="tf__icon"></span><span class="tf__line"></span><span class="tf__line tf__line--s"></span><span class="tf__btn"></span></span><span class="tf__cap">${cap}</span></span>`;
+    return `<button type="button" class="thumb${big ? ' thumb--big' : ''}" data-act="thumb" aria-label="${t('thumb.aria')}">${frame('empty', t('thumb.empty'))}${frame('dark', t('thumb.offline'))}${frame('error', t('thumb.error'))}</button>`;
+  }
+
+  function cardHTML(c, uid) {
+    const tid = `${uid}-t-${c.id}`;
+    let body = '';
+    if (c.rec) body += `<div class="rec"><span class="rec__label">${t('card.recommends')}</span><strong class="rec__choice">${esc(tr(c.rec.choice))}</strong><p>${esc(tr(c.rec.why))}</p></div>`;
+    if (c.text) body += `<p class="card__text">${esc(tr(c.text))}</p>`;
+    if (c.thumb) body += thumbHTML(false);
+    if (c.steps) body += `<ol class="steps">${c.steps.map((s) => `<li>${tr(s)}</li>`).join('')}</ol>`;
+    if (c.checks) body += `<ul class="checks">${c.checks.map((k) => `<li class="check check--${k.s}">${I[k.s === 'ok' ? 'check' : 'warn']}<span>${esc(tr(k.t))}</span></li>`).join('')}</ul>`;
+    const actions = c.actions.map((a) => `<button type="button" class="btn${a.primary ? ' btn--primary' : ''}" data-act="resolve" data-card="${c.id}" data-choice="${a.id}" aria-keyshortcuts="${a.key}">${esc(tr(a.label))}<kbd>${a.key.toUpperCase()}</kbd></button>`).join('');
+    return `<article class="card card--${c.kind}" data-card-id="${c.id}" tabindex="0" aria-labelledby="${tid}">
+      <header class="card__head"><span class="card__kind">${I[c.icon]}${esc(tr(c.label))}</span><span class="card__num">#${c.id}</span></header>
+      <h3 class="card__title" id="${tid}">${esc(tr(c.title))}</h3>${body}
+      <footer class="card__foot"><div class="card__actions">${actions}</div><span class="card__meta">${esc(tr(c.meta))}</span></footer>
+    </article>`;
+  }
+
+  const receiptHTML = (r) => `<div class="receipt receipt--${r.tone}" data-receipt-id="${r.id}" tabindex="-1">
+      <span class="receipt__icon">${r.tone === 'negative' ? I.x : r.tone === 'neutral' ? I.minus : I.check}</span>
+      <span class="receipt__body"><span class="receipt__verb">${t('receipt.verb', { verb: tr(r.verb) })}</span> <span class="receipt__detail">${esc(tr(r.detail))}</span></span>
+      <span class="receipt__meta">${t('receipt.meta', { id: r.id, time: fTime(r.at) })}</span>
+    </div>`;
+
+  function itemHTML(it, uid) {
+    switch (it.t) {
+      case 'day': return `<div class="day"><span>${esc(fDay(it.date))}</span></div>`;
+      case 'note': return `<div class="sysnote"><i aria-hidden="true"></i><span>${t(it.key, { name: it.name, at: it.at ? fDateTime(it.at) : '' })}</span></div>`;
+      case 'card': return cardHTML(it, uid);
+      case 'receipt': return receiptHTML(it);
+      case 'typing': return `<div class="msg msg--pm is-typing"><span class="avatar avatar--pm" aria-hidden="true">PM</span><div class="typing"><i></i><i></i><i></i><span class="sr-only">${t('pm.typing')}</span></div></div>`;
+      case 'msg': {
+        const html = it.html ? tr(it.html) : `<p>${esc(tr(it.text))}</p>`;
+        const time = `<time datetime="${it.at}">${fTime(it.at)}</time>`;
+        return it.who === 'pm'
+          ? `<div class="msg msg--pm"><span class="avatar avatar--pm" aria-hidden="true">PM</span><div class="msg__body"><div class="msg__meta"><b>PM</b>${time}</div><div class="bubble">${html}</div></div></div>`
+          : `<div class="msg msg--owner"><div class="msg__body"><div class="bubble">${html}</div><div class="msg__meta"><span class="sr-only">${t('msg.you')}</span>${time}</div></div></div>`;
+      }
+      default: return '';
+    }
+  }
+
+  function boardHTML(p, S) {
+    const cols = DATA.boards[p.id];
+    const pct = Math.round((p.done / p.total) * 100);
+    const sprint = sprintName(p);
+    const demo = p.status === 'paused' || !p.demo ? '' : `${t('board.demo', { date: fDate(p.demo) })}${p.soon ? ` · ${esc(fIn(p.demo))}` : ''}`;
+    const head = `<div class="board__head"><div><div class="board__kicker">${esc(p.name)} · ${statusChip(p)}</div><h3>${esc(sprint)}</h3></div>
+      ${demo ? `<span class="demo-pill">${I.cal}${demo}</span>` : ''}</div>`;
+    const metrics = `<div class="progress" role="img" aria-label="${t('board.progress', { done: p.done, total: p.total })}"><i style="--p:${pct}%"></i></div>
+      <dl class="metrics"><div><dt>${t('metric.done')}</dt><dd>${p.done}/${p.total}</dd></div><div><dt>${t('metric.prs')}</dt><dd>${p.prs}</dd></div>
+      <div><dt>${t('metric.ci')}</dt><dd class="metrics__word ${p.ci === 'red' ? 'bad' : 'ok'}">${t(`ci.${p.ci}`)}</dd></div><div><dt>${t('metric.run')}</dt><dd class="metrics__word ${p.status === 'failing' ? 'bad' : p.status === 'paused' ? '' : 'ok'}">${esc(runText(p))}</dd></div></dl>`;
+    let body;
+    if (p.status === 'paused') {
+      body = `<div class="board__empty">${I.pause}<p>${t('board.pausedBody', { name: p.name, since: p.pausedSince ? fDateLong(p.pausedSince) : '', sprint, done: p.done, total: p.total })}</p></div>`;
+    } else if (cols) {
+      body = `<div class="cols">${Object.entries(cols).map(([key, items]) => { const name = t(`col.${key}`); return `<section class="col" aria-label="${name}"><h4>${name}<span>${items.length}</span></h4><ul>${items.map((i) => `<li class="item"><span class="item__num">#${i.n}</span><span class="item__title">${esc(tr(i.t))}${i.sub ? `<small>${esc(tr(i.sub))}</small>` : ''}</span>${tier(i.tier)}</li>`).join('')}</ul></section>`; }).join('')}</div>`;
+    } else {
+      body = `<div class="board__empty">${I.board}<p>${t('board.emptyBody', { sprint, done: p.done, total: p.total })}</p></div>`;
+    }
+    const all = S.products;
+    const n = (s) => all.filter((x) => x.status === s).length;
+    const foot = `<div class="board__foot"><button type="button" class="btn btn--quiet" data-act="pause">${p.status === 'paused' ? I.play + t('board.resume', { name: p.name }) : I.pause + t('board.pause', { name: p.name })}</button><span>${t('board.all', { r: n('running'), p: n('paused'), f: n('failing') })}</span></div>`;
+    return `<div class="board">${head}${metrics}${body}${foot}</div>`;
+  }
+
+  function artifactGroupsHTML(p, st, S) {
+    const q = (st.artQ || '').trim().toLocaleLowerCase(LOCALE);
+    const list = DATA.artifacts[p.id] || [];
+    const hits = list.filter((a) => (st.artType === 'all' || a.type === st.artType) && (!q || `${tr(a.title)} ${tr(a.meta)}`.toLocaleLowerCase(LOCALE).includes(q)));
+    if (!hits.length) return `<p class="empty">${t('arts.none', { q: st.artQ || '', name: p.name })}</p>`;
+    return DATA.artifactTypes.map((type) => {
+      const items = hits.filter((a) => a.type === type);
+      if (!items.length) return '';
+      return `<section class="art-group"><h4>${t(`type.${type}`)}<span>${items.length}</span></h4><ul>${items.map((a) => {
+        const open = a.awaiting && S.logs[p.id].some((i) => i.t === 'card' && i.id === a.awaiting);
+        return `<li class="art${open ? ' art--awaiting' : ''}"><span class="art__icon">${I[TYPE_ICON[a.type]]}</span><span class="art__title">${esc(tr(a.title))}<small>${esc(tr(a.meta))}</small></span>${open ? `<button type="button" class="btn btn--primary btn--sm" data-act="goto" data-pid="${p.id}" data-card="${a.awaiting}">${t('arts.review')}</button>` : I.chev}</li>${open ? `<li class="art__thumb">${thumbHTML(true)}</li>` : ''}`;
+      }).join('')}</ul></section>`;
+    }).join('');
+  }
+
+  function artifactsHTML(p, st, S, uid) {
+    const types = [['all', t('arts.all')]].concat(DATA.artifactTypes.map((k) => [k, t(`type.${k}.short`)]));
+    return `<div class="arts">
+      <label class="search">${I.search}<span class="sr-only">${t('arts.searchLabel', { name: p.name })}</span><input type="search" id="${uid}-artq" data-art-q placeholder="${t('arts.searchPh', { name: p.name })}" value="${esc(st.artQ || '')}" autocomplete="off"></label>
+      <div class="chips" role="group" aria-label="${t('arts.typeAria')}">${types.map(([k, l]) => `<button type="button" class="chip-btn" data-act="art-type" data-type="${k}" aria-pressed="${st.artType === k}">${l}</button>`).join('')}</div>
+      <div data-art-groups>${artifactGroupsHTML(p, st, S)}</div></div>`;
+  }
+
+  /* ---------- app instance ---------- */
+  let uidSeq = 0;
+  // prev: state of an earlier mount on the same host (language switch keeps your place); null starts the demo fresh.
+  function mountApp(host, mode, prev) {
+    if (host.app) host.app.abort();
+    const uid = `a${++uidSeq}`;
+    const life = new AbortController();
+    const on = (el, type, fn) => el.addEventListener(type, fn, { signal: life.signal });
+    const S = prev || {
+      mode, view: 'space', product: 'storify', products: clone(DATA.projects), logs: clone(DATA.logs),
+      spaces: {}, sheet: null, moreOpen: false, filter: '',
+    };
+    const reopenSheet = S.sheet;
+    S.sheet = null;
+    S.busy = new Set();
+    const space = (pid) => (S.spaces[pid] ||= { scroll: null, pane: DIR.boardOpenByDefault && mode === 'mac' ? 'board' : null, draft: '', artQ: '', artType: 'all' });
+    const product = (pid = S.product) => S.products.find((p) => p.id === pid);
+    const openCards = (pid) => S.logs[pid].filter((i) => i.t === 'card');
+    const allNeeds = () => S.products.flatMap((p) => openCards(p.id).map((c) => ({ p, c })))
+      .sort((a, b) => (b.p.status === 'failing') - (a.p.status === 'failing'));
+    host.innerHTML = mode === 'mac' ? macShell(uid) : phoneShell(uid);
+    const slot = (n) => host.querySelector(`[data-slot="${n}"]`);
+    let lastFocus = null;
+
+    function productRow(p, rich) {
+      const pct = Math.round((p.done / p.total) * 100);
+      const sub = p.status === 'paused'
+        ? (p.pausedSince ? t('side.pausedSince', { date: fDate(p.pausedSince) }) : statusLabel('paused'))
+        : t('side.withDemo', { what: p.status === 'failing' ? runText(p) : sprintName(p), date: fDate(p.demo) });
+      const current = S.view === 'space' && p.id === S.product;
+      return `<li><button type="button" class="side-item side-prod${rich ? ' side-prod--rich' : ''}" data-act="product" data-id="${p.id}"${current ? ' aria-current="true"' : ''}>
+        ${mono(p)}<span class="side-prod__name"><span class="side-prod__label">${esc(p.name)}${p.status !== 'running' ? `<i class="sdot sdot--${p.status}" aria-label="${statusLabel(p.status)}"></i>` : ''}</span><small>${sub}</small><span class="meter" aria-hidden="true"><i style="--p:${pct}%"></i></span></span>
+        <span class="count" data-count-for="${p.id}" hidden></span></button></li>`;
+    }
+
+    function projectListHTML(rich) {
+      const f = S.filter.trim().toLowerCase();
+      const match = (p) => !f || p.name.includes(f);
+      const pinned = S.products.filter((p) => p.pinned && match(p));
+      const rest = S.products.filter((p) => !p.pinned && !p.quiet && match(p));
+      const quiet = S.products.filter((p) => p.quiet && match(p));
+      const moreOpen = S.moreOpen || !!f;
+      let h = '';
+      if (pinned.length) h += `<div class="side-label">${I.pin}${t('side.pinned')}</div><ul class="side-list">${pinned.map((p) => productRow(p, rich)).join('')}</ul>`;
+      if (rest.length || quiet.length) {
+        h += `<div class="side-label">${t('side.projects')}</div><ul class="side-list">${rest.map((p) => productRow(p, rich)).join('')}</ul>`;
+        if (quiet.length) {
+          h += `<button type="button" class="side-more" data-act="more" aria-expanded="${moreOpen}" aria-controls="${uid}-more-${rich ? 'r' : 's'}">${I.down}<span>${moreOpen ? t('side.quiet') : t('side.more', { n: quiet.length })}</span></button>
+            <ul class="side-list" id="${uid}-more-${rich ? 'r' : 's'}"${moreOpen ? '' : ' hidden'}>${quiet.map((p) => productRow(p, rich)).join('')}</ul>`;
+        }
+      }
+      if (!h) h = `<p class="empty">${t('side.noMatch', { q: S.filter })}</p>`;
+      return h;
+    }
+
+    function needsHTML() {
+      const needs = allNeeds();
+      const projCount = new Set(needs.map((n) => n.p.id)).size;
+      if (!needs.length) return `<div class="needs"><div class="empty empty--big">${I.check}<p>${t('needs.none')}</p></div></div>`;
+      return `<div class="needs"><p class="needs__lead">${t('needs.lead', { n: needs.length, k: projCount })}</p>
+        <ul class="needs__list">${needs.map(({ p, c }) => `<li><button type="button" class="need" data-act="goto" data-pid="${p.id}" data-card="${c.id}">
+          <span class="need__top"><span class="ptag">${mono(p)}${esc(p.name)}</span><span class="need__kind">${esc(tr(c.label))}</span></span>
+          <span class="need__title">#${c.id} ${esc(tr(c.title))}</span>
+          ${c.rec ? `<span class="need__rec">${t('needs.rec', { c: tr(c.rec.choice) })}</span>` : `<span class="need__rec">${esc(tr(c.meta))}</span>`}
+          ${I.chev}</button></li>`).join('')}</ul></div>`;
+    }
+
+    function overviewHTML() {
+      const main = S.products.filter((p) => !p.quiet);
+      const quiet = S.products.filter((p) => p.quiet);
+      const tile = (p) => {
+        const n = openCards(p.id).length; const pct = Math.round((p.done / p.total) * 100);
+        return `<li><button type="button" class="ov" data-act="product" data-id="${p.id}">
+          <span class="ov__top">${mono(p)}<b>${esc(p.name)}</b>${statusChip(p)}</span>
+          <span class="ov__line">${esc(sprintName(p))} · ${p.status === 'paused' || !p.demo ? t('ov.noDemo') : t('ov.demo', { date: fDate(p.demo) })}</span>
+          <span class="meter meter--wide" aria-hidden="true"><i style="--p:${pct}%"></i></span>
+          <span class="ov__foot"><span>${t('ov.foot', { done: p.done, total: p.total, prs: p.prs, ci: t(`ci.${p.ci}`) })}</span>${n ? `<span class="count">${n}</span>` : ''}</span></button></li>`;
+      };
+      return `<div class="overview"><ul class="ov-grid">${main.map(tile).join('')}</ul>
+        <h4 class="ov-h">${t('ov.quiet')} <span>${quiet.length}</span></h4><ul class="ov-grid ov-grid--quiet">${quiet.map(tile).join('')}</ul></div>`;
+    }
+
+    /* ----- render ----- */
+    function renderChrome() {
+      const p = product();
+      const demoPart = p.status === 'paused' || !p.demo ? '' : ` · ${t('ov.demo', { date: fDate(p.demo) })}`;
+      if (mode === 'mac') {
+        slot('projects').innerHTML = projectListHTML(false);
+        host.querySelectorAll('[data-act="view"]').forEach((b) => b.setAttribute('aria-current', String(S.view === b.dataset.view)));
+        slot('wintitle').textContent = plain(t('win.title', { name: S.view === 'space' ? p.name : plain(S.view === 'needs' ? t('nav.needs') : t('nav.all')) }));
+        slot('convohead').innerHTML = S.view === 'space'
+          ? `<div class="convo__title">${mono(p)}<h2>${esc(p.name)}</h2>${statusChip(p)}<span class="convo__sub">${esc(sprintName(p))}${demoPart}</span></div>
+             <button type="button" class="btn btn--quiet" data-act="pane" data-tab="board" aria-label="${t('tab.board')}" aria-expanded="${space(p.id).pane === 'board'}">${I.board}<span class="lbl">${t('tab.board')}</span><kbd>B</kbd></button>
+             <button type="button" class="btn btn--quiet" data-act="pane" data-tab="artifacts" aria-label="${t('tab.artifacts')}" aria-expanded="${space(p.id).pane === 'artifacts'}">${I.stack}<span class="lbl">${t('tab.artifacts')}</span><kbd>F</kbd></button>`
+          : `<div class="convo__title"><h2>${S.view === 'needs' ? t('nav.needs') : t('nav.all')}</h2><span class="convo__sub">${S.view === 'needs' ? t('nav.acrossAll') : t('nav.nProjects', { n: S.products.length })}</span></div>`;
+      } else {
+        const inSpace = S.view === 'space';
+        slot('phead').innerHTML = `<button type="button" class="p-switch" data-act="sheet" data-sheet="projects" aria-haspopup="dialog">${inSpace ? mono(p) : `<span class="prod-mono prod-mono--all" aria-hidden="true">${I.inbox}</span>`}
+          <span class="p-switch__txt"><b>${inSpace ? esc(p.name) : t('nav.needs')}</b><small>${inSpace ? `${statusLabel(p.status)} · ${esc(sprintName(p))}${demoPart}` : t('nav.acrossAll')}</small></span>${I.down}</button>
+          <button type="button" class="icon-btn" data-act="sheet" data-sheet="projects" aria-label="${t('nav.all')}">${I.grid}</button>`;
+        slot('strip').innerHTML = inSpace ? `<button type="button" class="p-strip" data-act="tab" data-tab="board"><span>${esc(sprintName(p))}</span><span class="meter" aria-hidden="true"><i style="--p:${Math.round((p.done / p.total) * 100)}%"></i></span><span>${p.done}/${p.total}</span><span class="sdot sdot--${p.ci === 'red' ? 'failing' : 'running'}" aria-hidden="true"></span><span>CI ${t(`ci.${p.ci}`)}</span><span>${p.prs} PR</span>${I.chev}</button>` : '';
+        host.querySelectorAll('.tabs [data-tab]').forEach((b) => {
+          const tab = b.dataset.tab;
+          const isOn = S.sheet ? S.sheet === tab : (tab === 'needs' ? S.view === 'needs' : tab === 'chat' && S.view === 'space');
+          if (isOn) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+        });
+      }
+      slot('banner').innerHTML = S.view === 'space' && p.status === 'paused'
+        ? `<div class="banner-wrap"><div class="paused">${I.pause}<span>${t('banner.paused', { name: p.name })}</span><button type="button" class="btn btn--sm" data-act="pause">${t('banner.resume')}</button></div></div>`
+        : S.view === 'space' && p.status === 'failing'
+          ? `<div class="banner-wrap"><div class="paused paused--bad">${I.warn}<span>${t('banner.failing', { run: runText(p) })}</span></div></div>` : '';
+      host.classList.toggle('is-space', S.view === 'space');
+    }
+
+    function renderMain() {
+      const log = slot('log');
+      if (S.view === 'space') {
+        log.setAttribute('role', 'log');
+        log.setAttribute('aria-label', plain(t('log.aria', { name: product().name })));
+        log.innerHTML = `<div class="log__inner">${S.logs[S.product].map((i) => itemHTML(i, uid)).join('')}</div>`;
+      } else {
+        log.removeAttribute('role');
+        log.setAttribute('aria-label', plain(S.view === 'needs' ? t('nav.needs') : t('nav.all')));
+        log.innerHTML = `<div class="log__inner log__inner--view">${S.view === 'needs' ? needsHTML() : overviewHTML()}</div>`;
+      }
+      const ta = host.querySelector('.composer textarea');
+      ta.value = S.view === 'space' ? space(S.product).draft : '';
+      ta.placeholder = t('composer.ph', { name: product().name });
+      const st = S.view === 'space' ? space(S.product).scroll : null;
+      log.scrollTop = S.view !== 'space' ? 0 : st == null ? log.scrollHeight : st;
+    }
+
+    function renderPane() {
+      if (mode !== 'mac') return;
+      const pane = slot('pane');
+      const st = space(S.product);
+      const tab = S.view === 'space' ? st.pane : null;
+      pane.classList.toggle('is-open', !!tab);
+      pane.inert = !tab;
+      host.querySelectorAll('[data-act="pane"]').forEach((b) => b.setAttribute('aria-expanded', String(tab === b.dataset.tab)));
+      host.querySelectorAll('[data-act="pane-tab"]').forEach((b) => b.setAttribute('aria-selected', String(tab === b.dataset.tab)));
+      if (!tab) return;
+      slot('panebody').innerHTML = tab === 'board' ? boardHTML(product(), S) : artifactsHTML(product(), st, S, uid);
+    }
+
+    function renderAll() { renderChrome(); renderMain(); renderPane(); updateCounts(); if (S.sheet) fillSheet(S.sheet); }
+
+    /* ----- counts ----- */
+    function setCount(b, v) {
+      const old = b.dataset.n == null ? -1 : Number(b.dataset.n);
+      if (old === v) return;
+      b.dataset.n = String(v);
+      b.hidden = v === 0;
+      b.setAttribute('aria-label', plain(t('count.aria', { n: v })));
+      if (!DIR.rollCounts || old < 0 || isReduced() || v === 0) { b.textContent = String(v); return; }
+      const out = document.createElement('span'); out.textContent = String(old);
+      const inn = document.createElement('span'); inn.textContent = String(v);
+      b.replaceChildren(out, inn);
+      const d = ms('--dur-base'); const e = cssVar('--ease-standard');
+      play(out, [{ transform: 'translateY(0)' }, { transform: 'translateY(-110%)' }], { duration: d, easing: e, fill: 'forwards' });
+      play(inn, [{ transform: 'translateY(110%)' }, { transform: 'translateY(0)' }], { duration: d, easing: e }).then(() => { b.textContent = String(v); });
+    }
+    function updateCounts() {
+      host.querySelectorAll('[data-count-for]').forEach((b) => {
+        const f = b.dataset.countFor;
+        const v = f === 'all' ? allNeeds().length : openCards(f === 'cur' ? S.product : f).length;
+        setCount(b, v);
+      });
+    }
+
+    /* ----- navigation ----- */
+    function saveSpace() {
+      if (S.view !== 'space') return;
+      const st = space(S.product);
+      const log = slot('log');
+      const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 8;
+      st.scroll = atBottom ? null : log.scrollTop;
+      st.draft = host.querySelector('.composer textarea').value;
+    }
+    async function crossfade(fn) {
+      const log = slot('log');
+      if (!isReduced()) await play(log, [{ opacity: 1 }, { opacity: 0 }], { duration: ms('--dur-fast'), easing: 'linear' });
+      fn();
+      play(log, [{ opacity: 0 }, { opacity: 1 }], { duration: isReduced() ? 1 : ms('--dur-base'), easing: 'linear' });
+    }
+    function openSpace(pid) {
+      if (S.view === 'space' && S.product === pid) { closeSheet(); return; }
+      saveSpace();
+      const returning = S.spaces[pid] && S.spaces[pid].scroll != null;
+      closeSheet(true);
+      crossfade(() => { S.view = 'space'; S.product = pid; renderAll(); });
+      if (returning) toast(plain(t('toast.back', { name: product(pid).name })));
+    }
+    function openView(view) {
+      if (S.view === view) return;
+      saveSpace();
+      closeSheet(true);
+      crossfade(() => { S.view = view; renderAll(); });
+    }
+    async function goto(pid, id) {
+      if (S.view !== 'space' || S.product !== pid) {
+        saveSpace();
+        closeSheet(true);
+        S.view = 'space'; S.product = pid; renderAll();
+      } else closeSheet(true);
+      await wait(isReduced() ? 0 : ms('--dur-fast'));
+      const node = host.querySelector(`[data-card-id="${id}"], [data-receipt-id="${id}"]`);
+      if (!node) return;
+      node.scrollIntoView({ block: 'center', behavior: isReduced() ? 'auto' : 'smooth' });
+      node.focus({ preventScroll: true });
+      node.classList.remove('is-highlight'); void node.offsetWidth; node.classList.add('is-highlight');
+    }
+
+    /* ----- sheets (phone) ----- */
+    function fillSheet(kind) {
+      const p = product();
+      slot('sheettitle').textContent = plain(kind === 'projects' ? t('sheet.projects') : t('sheet.title', { title: plain(t(`sheet.${kind}`)), name: p.name }));
+      let body = '';
+      if (kind === 'projects') {
+        body = `<div class="sheet__pad"><label class="search">${I.search}<span class="sr-only">${t('filter.label')}</span><input type="search" data-filter placeholder="${t('filter.phCount', { n: S.products.length })}" value="${esc(S.filter)}" autocomplete="off"></label></div>
+          <div class="sheet__pad"><button type="button" class="side-item side-item--needs" data-act="view" data-view="needs">${I.inbox}<span>${t('nav.needAll')}</span><span class="count" data-count-for="all"></span></button></div>
+          <div class="proj-list" data-proj-list>${projectListHTML(true)}</div>`;
+      } else if (kind === 'board') body = boardHTML(p, S);
+      else if (kind === 'artifacts') body = artifactsHTML(p, space(p.id), S, uid);
+      slot('sheetbody').innerHTML = body;
+      updateCounts();
+    }
+    function openSheet(kind, opener) {
+      if (mode !== 'phone') return;
+      if (kind !== 'projects' && S.view !== 'space') { S.view = 'space'; renderAll(); }
+      S.sheet = kind;
+      lastFocus = opener || document.activeElement;
+      fillSheet(kind);
+      host.classList.add('has-sheet');
+      slot('sheet').classList.add('is-open');
+      slot('sheet').inert = false;
+      host.querySelectorAll('[data-behind-sheet]').forEach((n) => { n.inert = true; });
+      renderChrome();
+      requestAnimationFrame(() => slot('sheettitle').focus({ preventScroll: true }));
+    }
+    function closeSheet(silent) {
+      if (mode !== 'phone' || !S.sheet) return;
+      S.sheet = null;
+      host.classList.remove('has-sheet');
+      slot('sheet').classList.remove('is-open');
+      slot('sheet').inert = true;
+      host.querySelectorAll('[data-behind-sheet]').forEach((n) => { n.inert = false; });
+      renderChrome();
+      if (!silent && lastFocus && host.contains(lastFocus)) lastFocus.focus({ preventScroll: true });
+    }
+
+    /* ----- messages ----- */
+    function scrollEnd() { const l = slot('log'); l.scrollTo({ top: l.scrollHeight, behavior: isReduced() ? 'auto' : 'smooth' }); }
+    function appendItem(item, animate) {
+      const inner = slot('log').querySelector('.log__inner');
+      const n = nodeFrom(itemHTML(item, uid));
+      inner.appendChild(n);
+      if (animate) {
+        if (isReduced()) play(n, [{ opacity: 0 }, { opacity: 1 }], { duration: 120 });
+        else play(n, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: ms('--dur-base'), easing: cssVar('--ease-enter') });
+      }
+      return n;
+    }
+    const alive = () => !life.signal.aborted;
+    const here = (pid) => alive() && S.view === 'space' && S.product === pid;
+    function announce(text) { slot('live').textContent = text; }
+    function toast(text) {
+      const el = nodeFrom('<div class="toast" role="status"></div>');
+      el.textContent = text;
+      host.appendChild(el);
+      play(el, [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: isReduced() ? 1 : ms('--dur-base'), easing: cssVar('--ease-enter') });
+      setTimeout(async () => { await play(el, [{ opacity: 1 }, { opacity: 0 }], { duration: ms('--dur-base'), fill: 'forwards' }); el.remove(); }, 2200);
+    }
+    async function pmReply(pid, text) {
+      await wait(250);
+      const typing = here(pid) ? appendItem({ t: 'typing' }, true) : null;
+      if (typing) scrollEnd();
+      await wait(1100);
+      if (typing) typing.remove();
+      const m = { t: 'msg', who: 'pm', at: clock(), text };
+      S.logs[pid].push(m);
+      if (here(pid)) { appendItem(m, true); scrollEnd(); announce(plain(t('announce.pm', { text: tr(text) }))); }
+      else if (!alive() && host.app && host.app.S === S) host.app.refresh(); // remounted mid-reply: show it in the new mount
+    }
+    async function send() {
+      const ta = host.querySelector('.composer textarea');
+      const text = ta.value.trim();
+      if (!text || S.view !== 'space') return;
+      ta.value = ''; space(S.product).draft = '';
+      const pid = S.product;
+      const m = { t: 'msg', who: 'owner', at: clock(), text };
+      S.logs[pid].push(m);
+      appendItem(m, true); scrollEnd();
+      await pmReply(pid, DATA.replies[product(pid).status]);
+    }
+    function togglePause() {
+      const p = product();
+      p.status = p.status === 'paused' ? 'running' : 'paused';
+      if (p.status === 'paused') p.pausedSince = DATA.today; else delete p.runFails;
+      const note = { t: 'note', key: p.status === 'paused' ? 'note.paused' : 'note.resumed', name: p.name };
+      S.logs[p.id].push(note);
+      renderChrome(); renderPane(); updateCounts();
+      if (S.sheet) fillSheet(S.sheet);
+      if (S.view === 'space') { appendItem(note, true); scrollEnd(); }
+      announce(plain(t(note.key, { name: p.name })));
+    }
+
+    /* ----- the signature: resolving a card into the conversation ----- */
+    async function morph(node, html, reduced) {
+      const parent = node.parentElement;
+      const kids = [...parent.children];
+      const followers = kids.slice(kids.indexOf(node) + 1);
+      const had = node.contains(document.activeElement);
+      const b = { x: node.offsetLeft, y: node.offsetTop, w: node.offsetWidth, h: node.offsetHeight, bg: getComputedStyle(node).backgroundColor };
+      const tops = followers.map((f) => f.offsetTop);
+      const next = nodeFrom(html);
+      if (reduced) {
+        node.replaceWith(next);
+        if (had) next.focus({ preventScroll: true });
+        await play(next, [{ opacity: 0 }, { opacity: 1 }], { duration: 120 });
+        return next;
+      }
+      const d = ms(DIR.morph.dur); const ease = cssVar(DIR.morph.ease); const fast = ms('--dur-fast');
+      await Promise.all([...node.children].map((c) => play(c, [{ opacity: 1 }, { opacity: 0 }], { duration: fast, easing: 'linear', fill: 'forwards' })));
+      node.replaceWith(next);
+      next.classList.add('is-new');
+      if (had) next.focus({ preventScroll: true });
+      const a = { x: next.offsetLeft, y: next.offsetTop, w: next.offsetWidth, h: next.offsetHeight, bg: getComputedStyle(next).backgroundColor };
+      const inner = [...next.children];
+      inner.forEach((c) => { c.style.opacity = '0'; });
+      // FLIP: only transform and colour animate; followers slide by transform, never by layout
+      const ops = [play(next, [
+        { transformOrigin: '0 0', transform: `translate(${b.x - a.x}px, ${b.y - a.y}px) scale(${b.w / a.w}, ${b.h / a.h})`, backgroundColor: b.bg },
+        { transformOrigin: '0 0', transform: 'none', backgroundColor: a.bg }], { duration: d, easing: ease })];
+      followers.forEach((f, k) => { const dy = tops[k] - f.offsetTop; if (dy) ops.push(play(f, [{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: d, easing: ease })); });
+      await Promise.all(ops);
+      inner.forEach((c) => { c.style.opacity = ''; play(c, [{ opacity: 0 }, { opacity: 1 }], { duration: fast, easing: 'linear' }); });
+      return next;
+    }
+
+    async function resolve(id, choice, btn) {
+      if (S.busy.has(id)) return;
+      const pid = S.product; const log = S.logs[pid];
+      const idx = log.findIndex((i) => i.t === 'card' && i.id === id);
+      if (idx < 0) return;
+      S.busy.add(id);
+      const r = log[idx].receipts[choice];
+      const node = host.querySelector(`.card[data-card-id="${id}"]`);
+      node.querySelectorAll('button').forEach((x) => { x.disabled = true; });
+      const receipt = { t: 'receipt', id, tone: r.tone, verb: r.verb, detail: r.detail, at: clock() };
+      log[idx] = receipt;
+      const reduced = isReduced();
+      try {
+        if (!reduced && DIR.before) await DIR.before({ host, node, btn, tone: r.tone, verb: tr(r.verb), H });
+        const next = await morph(node, receiptHTML(receipt), reduced);
+        if (!reduced && DIR.after) DIR.after({ host, node: next, tone: r.tone, H });
+      } finally { S.busy.delete(id); }
+      updateCounts();
+      if (mode === 'mac' && space(pid).pane === 'artifacts') renderPane();
+      announce(plain(t('announce.resolved', { verb: tr(r.verb), detail: tr(r.detail), id })));
+      await pmReply(pid, r.pm);
+    }
+
+    /* ----- events ----- */
+    on(host, 'click', (e) => {
+      const el = e.target.closest('[data-act]');
+      if (!el || !host.contains(el) || el.disabled) return;
+      switch (el.dataset.act) {
+        case 'resolve': resolve(el.dataset.card, el.dataset.choice, el); break;
+        case 'product': openSpace(el.dataset.id); break;
+        case 'view': openView(el.dataset.view); break;
+        case 'pane': { const st = space(S.product); st.pane = st.pane === el.dataset.tab ? null : el.dataset.tab; renderPane(); break; }
+        case 'pane-tab': space(S.product).pane = el.dataset.tab; renderPane(); break;
+        case 'pane-close': space(S.product).pane = null; renderPane(); break;
+        case 'tab': {
+          const tab = el.dataset.tab;
+          if (tab === 'chat') { closeSheet(true); if (S.view !== 'space') openView('space'); else renderChrome(); }
+          else if (tab === 'needs') { closeSheet(true); openView('needs'); }
+          else openSheet(tab, el);
+          break;
+        }
+        case 'sheet': openSheet(el.dataset.sheet, el); break;
+        case 'sheet-close': closeSheet(); break;
+        case 'goto': goto(el.dataset.pid || S.product, el.dataset.card); break;
+        case 'pause': togglePause(); break;
+        case 'more': S.moreOpen = !S.moreOpen; if (S.sheet === 'projects') host.querySelector('[data-proj-list]').innerHTML = projectListHTML(true); else renderChrome(); updateCounts(); break;
+        case 'thumb': toast(plain(t('toast.proto'))); break;
+        case 'art-type': {
+          const st = space(S.product); st.artType = el.dataset.type;
+          el.parentElement.querySelectorAll('[data-type]').forEach((x) => x.setAttribute('aria-pressed', String(x === el)));
+          el.closest('.arts').querySelector('[data-art-groups]').innerHTML = artifactGroupsHTML(product(), st, S);
+          break;
+        }
+        case 'focus-composer': if (S.view !== 'space') openView('space'); host.querySelector('.composer textarea').focus(); break;
+        default: break;
+      }
+    });
+    on(host, 'input', (e) => {
+      const el = e.target;
+      if (el.matches('[data-art-q]')) {
+        const st = space(S.product); st.artQ = el.value;
+        el.closest('.arts').querySelector('[data-art-groups]').innerHTML = artifactGroupsHTML(product(), st, S);
+      } else if (el.matches('[data-filter]')) {
+        S.filter = el.value;
+        const target = el.closest('.sheet') ? host.querySelector('[data-proj-list]') : slot('projects');
+        target.innerHTML = projectListHTML(!!el.closest('.sheet'));
+        updateCounts();
+      } else if (el.matches('.composer textarea')) {
+        el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+      }
+    });
+    on(host.querySelector('.composer'), 'submit', (e) => { e.preventDefault(); send(); });
+    on(host, 'keydown', (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target;
+      if (el.matches('textarea')) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+        if (e.key === 'Escape') el.blur();
+        return;
+      }
+      if (el.matches('input')) { if (e.key === 'Escape') el.blur(); return; }
+      if (e.key === 'Escape' && S.sheet) { closeSheet(); return; }
+      // Physical keys, so shortcuts also work with a Russian keyboard layout.
+      const k = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : e.code === 'Slash' ? '/' : e.key.toLowerCase();
+      const card = el.closest && el.closest('.card');
+      if (card) {
+        const c = S.logs[S.product].find((i) => i.t === 'card' && i.id === card.dataset.cardId);
+        const a = c && c.actions.find((x) => x.key === k);
+        if (a) { e.preventDefault(); resolve(c.id, a.id, card.querySelector(`[data-choice="${a.id}"]`)); return; }
+      }
+      if (mode !== 'mac') return;
+      const pane = (tab) => { if (S.view !== 'space') return; const st = space(S.product); st.pane = st.pane === tab ? null : tab; renderPane(); };
+      if (k === 'b') { e.preventDefault(); pane('board'); }
+      else if (k === 'f') { e.preventDefault(); pane('artifacts'); if (space(S.product).pane) host.querySelector('[data-art-q]').focus(); }
+      else if (k === 'n') { e.preventDefault(); host.querySelector('.composer textarea').focus(); }
+      else if (k === 'y') { e.preventDefault(); openView('needs'); }
+      else if (k === '/') { e.preventDefault(); host.querySelector('[data-filter]').focus(); }
+    });
+
+    renderAll();
+    if (reopenSheet) openSheet(reopenSheet);
+    const app = {
+      S,
+      abort: () => life.abort(),
+      snapshot: () => { saveSpace(); return S; },
+      refresh: () => { saveSpace(); renderAll(); },
+    };
+    host.app = app;
+    return app;
+  }
+
+  /* ---------- shells ---------- */
+  function macShell(uid) {
+    return `<div class="win">
+      <div class="win__bar"><span class="lights" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title" data-slot="wintitle"></span></div>
+      <div class="win__body">
+        <nav class="sidebar" aria-label="${t('nav.projectsAria')}">
+          <div class="brand">${I.mark}<span>Team Console</span></div>
+          <label class="search search--side">${I.search}<span class="sr-only">${t('filter.label')}</span><input type="search" data-filter placeholder="${t('filter.ph')}" autocomplete="off"><kbd>/</kbd></label>
+          <ul class="side-list side-list--top">
+            <li><button type="button" class="side-item" data-act="view" data-view="needs">${I.inbox}<span>${t('nav.needs')}</span><kbd>Y</kbd><span class="count" data-count-for="all" hidden></span></button></li>
+            <li><button type="button" class="side-item" data-act="view" data-view="overview">${I.grid}<span>${t('nav.all')}</span></button></li>
+          </ul>
+          <div class="side-projects" data-slot="projects"></div>
+          <div class="side-foot"><span class="avatar avatar--owner" aria-hidden="true">K</span><span>${t('shell.owner')}</span><span class="side-foot__sync"><i aria-hidden="true"></i>${t('shell.synced')}</span></div>
+        </nav>
+        <section class="convo" aria-label="${t('shell.main')}">
+          <header class="convo__head" data-slot="convohead"></header>
+          <div class="log" data-slot="log" tabindex="-1"></div>
+          <div data-slot="banner"></div>
+          <form class="composer" autocomplete="off"><div class="composer__box"><label class="sr-only" for="${uid}-msg">${t('composer.label')}</label><textarea id="${uid}-msg" rows="1"></textarea><span class="composer__hint"><kbd>N</kbd></span><button class="send" type="submit" aria-label="${t('composer.send')}">${I.send}</button></div></form>
+        </section>
+        <aside class="pane" data-slot="pane" aria-label="${t('pane.aria')}">
+          <div class="pane__inner">
+            <div class="pane__tabs" role="tablist" aria-label="${t('pane.tabs')}">
+              <button type="button" class="tab-btn" role="tab" data-act="pane-tab" data-tab="board">${I.board}${t('tab.board')}</button>
+              <button type="button" class="tab-btn" role="tab" data-act="pane-tab" data-tab="artifacts">${I.stack}${t('tab.artifacts')}</button>
+              <button type="button" class="icon-btn" data-act="pane-close" aria-label="${t('pane.close')}">${I.x}</button>
+            </div>
+            <div class="pane__body" data-slot="panebody" role="tabpanel"></div>
+          </div>
+        </aside>
+      </div>
+    </div><div class="sr-only" aria-live="polite" data-slot="live"></div>`;
+  }
+
+  function phoneShell(uid) {
+    return `<div class="p-status" aria-hidden="true"><span>9:41</span><span class="p-island"></span><span class="p-status__icons">${I.bars}${I.battery}</span></div>
+      <header class="p-head" data-slot="phead" data-behind-sheet></header>
+      <div data-slot="strip" data-behind-sheet></div>
+      <div class="log" data-slot="log" data-behind-sheet tabindex="-1"></div>
+      <div data-slot="banner" data-behind-sheet></div>
+      <form class="composer" autocomplete="off" data-behind-sheet><div class="composer__box"><label class="sr-only" for="${uid}-msg">${t('composer.label')}</label><textarea id="${uid}-msg" rows="1"></textarea><button class="send" type="submit" aria-label="${t('composer.send')}">${I.send}</button></div></form>
+      <button type="button" class="p-needs" data-act="tab" data-tab="needs" data-behind-sheet>${I.spark}<span class="count" data-count-for="all" hidden></span><span>${t('tab.needYou')}</span></button>
+      <nav class="tabs" aria-label="${t('nav.sections')}" data-behind-sheet>
+        <button type="button" data-act="tab" data-tab="needs">${I.inbox}<span>${t('nav.needs')}</span><span class="count" data-count-for="all" hidden></span></button>
+        <button type="button" data-act="tab" data-tab="chat">${I.chat}<span>${t('tab.chat')}</span></button>
+        <button type="button" data-act="tab" data-tab="board">${I.board}<span>${t('tab.board')}</span></button>
+        <button type="button" data-act="tab" data-tab="artifacts">${I.stack}<span>${t('tab.artifacts')}</span></button>
+      </nav>
+      <div class="home-ind" aria-hidden="true"></div>
+      <div class="scrim" data-act="sheet-close"></div>
+      <section class="sheet" data-slot="sheet" role="dialog" aria-modal="true" aria-labelledby="${uid}-sheet-t" inert>
+        <div class="sheet__grab" aria-hidden="true"></div>
+        <header class="sheet__head"><h2 id="${uid}-sheet-t" tabindex="-1" data-slot="sheettitle"></h2><button type="button" class="icon-btn" data-act="sheet-close" aria-label="${t('sheet.close')}">${I.x}</button></header>
+        <div class="sheet__body" data-slot="sheetbody"></div>
+      </section>
+      <div class="sr-only" aria-live="polite" data-slot="live"></div>`;
+  }
+
+  /* ---------- page controls ---------- */
+  const hosts = [...document.querySelectorAll('[data-app]')];
+  const mountAll = (keep) => hosts.forEach((h) => {
+    const prev = keep && h.app ? h.app.snapshot() : null;
+    h.className = 'app';
+    mountApp(h, h.dataset.app, prev);
+  });
+  const stage = document.querySelector('.stage');
+  const macFrame = document.querySelector('.mac-frame');
+  function fit() {
+    const W = stage.clientWidth - 48; const view = stage.dataset.view;
+    let z = 1;
+    if (view === 'mac') { z = Math.min(1, W / 1182); stage.dataset.layout = 'stack'; }
+    else if (view === 'both') {
+      const room = W - 414 - 40;
+      if (room / 1182 >= 0.62) { z = Math.min(1, room / 1182); stage.dataset.layout = 'row'; }
+      else { z = Math.min(1, W / 1182); stage.dataset.layout = 'stack'; }
+    }
+    macFrame.style.zoom = String(Math.max(z, 0.3));
+  }
+  // Static page chrome carries data-i18n (text) and data-i18n-aria (aria-label) keys.
+  function translatePage() {
+    document.querySelectorAll('[data-i18n]').forEach((el) => { el.innerHTML = t(el.dataset.i18n, el.dataset.i18nNum ? { num: el.dataset.i18nNum } : {}); });
+    document.querySelectorAll('[data-i18n-aria]').forEach((el) => el.setAttribute('aria-label', plain(t(el.dataset.i18nAria))));
+  }
+  function setControl(ctrl, val) {
+    if (ctrl === 'view') { stage.dataset.view = val; fit(); }
+    if (ctrl === 'theme') { if (val === 'auto') delete root.dataset.theme; else root.dataset.theme = val; }
+    if (ctrl === 'motion') { if (val === 'system') delete root.dataset.motion; else root.dataset.motion = val; }
+    if (ctrl === 'lang' && val !== LANG) { saveLang(val); applyLang(val); translatePage(); mountAll(true); }
+    document.querySelectorAll(`[data-control="${ctrl}"] button`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === val)));
+  }
+  document.querySelectorAll('[data-control]').forEach((g) => g.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-value]'); if (b) setControl(g.dataset.control, b.dataset.value);
+  }));
+  document.querySelector('[data-reset]').addEventListener('click', () => mountAll(false));
+  const small = matchMedia('(max-width: 520px)').matches;
+  translatePage();
+  setControl('view', small ? 'phone' : 'both');
+  setControl('theme', 'auto');
+  setControl('motion', 'system');
+  setControl('lang', LANG);
+  if (!small) document.querySelector('.note details').open = true;
+  addEventListener('resize', fit);
+  mountAll(false);
+  fit();
+})();
+
+</script>
+</body>
+</html>

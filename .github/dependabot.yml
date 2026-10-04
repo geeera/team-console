@@ -1,0 +1,18 @@
+# Dependabot config (SPEC decision, issue #41). github-actions only —
+# npm ecosystem is a separate owner decision, tracked in #44.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      timezone: "Europe/Kyiv"
+    target-branch: "dev"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "ci"

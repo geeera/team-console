@@ -1,0 +1,71 @@
+# Branch guard. Private repositories on GitHub's free plan have no branch protection, so the rule
+# "every change to dev, stage or main arrives through a pull request" is checked after the fact: a push whose
+# head commit belongs to no merged pull request opens a critical, release-blocking issue for the owner.
+name: branch-guard
+
+on:
+  push:
+    branches: [dev, stage, main]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: branch-guard-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check the branch moved through a pull request into it
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+          PUSHER: ${{ github.event.pusher.name }}
+          FORCED: ${{ github.event.forced }}
+          DELETED: ${{ github.event.deleted }}
+          CREATED: ${{ github.event.created }}
+        run: |
+          set -euo pipefail
+          # Creating the branch is not a change to guard.
+          if [ "$CREATED" = "true" ]; then exit 0; fi
+
+          # The head must be the merge commit of a PR whose base is this very branch: a commit that was
+          # merged into dev and then pushed to stage by hand has a merged PR too, just not into stage.
+          merged_into_branch() {
+            gh api "repos/$REPO/commits/$AFTER/pulls" \
+              --jq '[.[] | select(.merged_at != null and .base.ref == env.BRANCH and .merge_commit_sha == env.AFTER)] | length'
+          }
+
+          if [ "$DELETED" = "true" ]; then
+            reason="\`$BRANCH\` was deleted by $PUSHER"
+          elif [ "$FORCED" = "true" ]; then
+            reason="force-push to \`$BRANCH\` by $PUSHER ($BEFORE → $AFTER)"
+          else
+            # GitHub links a merge commit to its PR asynchronously; give it a moment before alerting.
+            for attempt in 1 2 3; do
+              if [ "$(merged_into_branch)" -gt 0 ]; then exit 0; fi
+              sleep 15
+            done
+            reason="\`$BRANCH\` moved to $AFTER by $PUSHER without a pull request merged into it"
+          fi
+
+          body=$(printf '%s\n\n%s\n\n%s\n' \
+            "**Branch guard:** $reason." \
+            "Compare: https://github.com/$REPO/compare/$BEFORE...$AFTER" \
+            "Every change to \`dev\`, \`stage\` and \`main\` must arrive as a pull request into that branch. Review the change; if it is wrong, revert it through a pull request. Close this issue once handled.")
+          title="Branch guard: $BRANCH changed outside a pull request"
+          # Labels may be missing in a repository that has not run `backlog init` since upgrading: alert anyway.
+          gh issue create -R "$REPO" --title "$title" --body "$body" \
+            --label "team:guard" --label "kind:finding" --label "sev:critical" \
+            --label "release-blocker" --label "needs:owner" --label "status:blocked" \
+            || gh issue create -R "$REPO" --title "$title" --body "$body"
+          echo "::error::$reason"
+          exit 1

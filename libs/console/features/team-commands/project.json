@@ -1,0 +1,8 @@
+{
+  "name": "console-features-team-commands",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/console/features/team-commands/src",
+  "prefix": "tc",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:console", "layer:features"]
+}

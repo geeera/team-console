@@ -1,0 +1,139 @@
+@if (needsConnect() && outcome()?.kind !== 'not-connected') {
+<section tc-callout tone="warning" aria-labelledby="add-need-connect" data-testid="need-connect">
+  <h2 tc-callout-title id="add-need-connect">
+    {{ (connection.view() === 'lost' ? 'settings.gh.lost.title' : 'settings.gh.needConnect.title') | transloco
+    }}
+  </h2>
+  <p>
+    {{ (connection.view() === 'lost' ? 'settings.gh.needConnect.lostBody' : 'settings.gh.needConnect.body') |
+    transloco }}
+  </p>
+  @if (connectRefused()) {
+  <p role="alert">{{ 'settings.gh.error.url' | transloco }}</p>
+  }
+  <tc-connect-github-button (refused)="onConnectRefused()" />
+</section>
+}
+
+<form class="form" novalidate (submit)="submit($event)">
+  <tc-field
+    [label]="'settings.add.field' | transloco"
+    [hint]="'settings.add.hint' | transloco"
+    [error]="fieldError()"
+    [note]="previewSlug() ? ('settings.add.preview' | transloco: { slug: previewSlug() }) : ''"
+    required
+  >
+    <input
+      #repoInput
+      tcInput
+      type="text"
+      name="repo"
+      inputmode="url"
+      enterkeyhint="go"
+      autocomplete="off"
+      autocapitalize="none"
+      autocorrect="off"
+      spellcheck="false"
+      data-testid="repo-field"
+      [value]="value()"
+      (input)="onInput($event)"
+    />
+  </tc-field>
+
+  @if (!network.online()) {
+  <p class="offline" role="status">
+    <tc-icon name="offline" size="sm" />{{ 'settings.add.offline' | transloco }}
+  </p>
+  }
+
+  <div class="actions">
+    <button
+      tc-button
+      variant="primary"
+      type="submit"
+      data-testid="add-submit"
+      [loading]="busy()"
+      [attr.aria-disabled]="isBlocked() ? 'true' : null"
+    >
+      {{ (busy() ? 'settings.add.submitting' : 'settings.add.submit') | transloco }}
+    </button>
+    <a tc-button variant="quiet" routerLink="/settings">{{ 'settings.common.cancel' | transloco }}</a>
+  </div>
+</form>
+
+@if (outcome(); as result) { @switch (result.kind) { @case ('checking') { @if (checklistContext(); as context)
+{
+<tc-setup-checklist [steps]="pending" [context]="context" />
+} } @case ('refused') {
+<section tc-callout tone="danger" aria-labelledby="add-result" data-testid="add-result">
+  <h2 #result tc-callout-title id="add-result" tabindex="-1">
+    {{ 'settings.add.refused.title' | transloco }}
+  </h2>
+  <p>{{ 'settings.add.refused.body' | transloco }}</p>
+</section>
+@if (checklistContext(); as context) {
+<tc-setup-checklist [steps]="refusedSteps()" [context]="context" />
+}
+<div class="actions">
+  <button
+    tc-button
+    variant="primary"
+    type="button"
+    data-testid="check-again"
+    [loading]="busy()"
+    [attr.aria-disabled]="isBlocked() ? 'true' : null"
+    (click)="submit()"
+  >
+    {{ 'settings.setup.checkAgain' | transloco }}
+  </button>
+</div>
+} @case ('unavailable') {
+<section tc-callout tone="danger" aria-labelledby="add-result" data-testid="add-result">
+  <h2 #result tc-callout-title id="add-result" tabindex="-1">
+    {{ 'settings.add.unavailable.title' | transloco }}
+  </h2>
+  <p>
+    @switch (unavailableReason()) { @case ('rate') { {{ 'settings.add.unavailable.rate' | transloco: { time:
+    (retryAt() | localTime) } }} } @case ('auth') { {{ 'settings.add.unavailable.auth' | transloco: { app:
+    connection.appName() ?? 'team-console' } }} } @default { {{ 'settings.add.unavailable.github' | transloco
+    }} } }
+  </p>
+  <button
+    tc-button
+    type="button"
+    data-testid="try-again"
+    [attr.aria-disabled]="isBlocked() ? 'true' : null"
+    (click)="submit()"
+  >
+    {{ 'settings.common.retry' | transloco }}
+  </button>
+</section>
+} @case ('not-connected') {
+<section tc-callout tone="warning" aria-labelledby="add-result" data-testid="add-result">
+  <h2 #result tc-callout-title id="add-result" tabindex="-1">
+    {{ (connection.view() === 'lost' ? 'settings.gh.lost.title' : 'settings.gh.needConnect.title') | transloco
+    }}
+  </h2>
+  <p>{{ 'settings.gh.needConnect.lostBody' | transloco }}</p>
+  @if (connectRefused()) {
+  <p role="alert">{{ 'settings.gh.error.url' | transloco }}</p>
+  }
+  <tc-connect-github-button (refused)="onConnectRefused()" />
+</section>
+} @case ('duplicate') {
+<section tc-callout aria-labelledby="add-result" data-testid="add-result">
+  <h2 #result tc-callout-title id="add-result" tabindex="-1">
+    {{ 'settings.add.duplicate' | transloco: { repo: checked()?.repo } }}
+  </h2>
+  <a class="link" data-testid="duplicate-link" [routerLink]="['/settings/projects', duplicateSlug()]">
+    {{ 'settings.add.duplicateLink' | transloco }}
+  </a>
+</section>
+} @case ('archived') {
+<section tc-callout aria-labelledby="add-result" data-testid="add-result">
+  <h2 #result tc-callout-title id="add-result" tabindex="-1">
+    {{ 'settings.add.archived' | transloco: { repo: checked()?.repo } }}
+  </h2>
+  <p>{{ 'settings.add.archivedBody' | transloco }}</p>
+</section>
+} } }

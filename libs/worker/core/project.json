@@ -1,0 +1,7 @@
+{
+  "name": "worker-core",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/worker/core/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:worker"]
+}

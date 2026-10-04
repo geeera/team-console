@@ -1,0 +1,8 @@
+{
+  "name": "console-features-answer-question",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/console/features/answer-question/src",
+  "prefix": "tc",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:console", "layer:features"]
+}

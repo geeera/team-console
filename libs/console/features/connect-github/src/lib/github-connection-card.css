@@ -1,0 +1,26 @@
+:host {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.gh__disconnect {
+  color: var(--danger-text);
+}
+
+.gh__incomplete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.gh__incomplete a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--accent-text);
+  font-weight: var(--fw-semibold);
+}

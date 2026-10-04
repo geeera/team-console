@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+"""Data for the team chat (skills/team-chat): what changed since the owner was last briefed, and what needs them.
+
+  brief [--since ISO]   JSON summary; --since defaults to the last `brief mark`
+  brief mark --at TS    record that the owner has been briefed on everything up to TS (`generated_at` of the brief)
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+
+sys.dont_write_bytecode = True  # the vendored copy lives in the product repo: no __pycache__ there
+from datetime import datetime, timezone
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ptlib import brief, gh, owner, provenance, runlogissue, runstate  # noqa: E402
+from ptlib.calendar import KYIV, pick_current_sprint  # noqa: E402
+
+LOG_LABEL = runlogissue.LABEL
+
+
+def run_log(repo: str):
+    """(log, runs, trusted comments): the team's own entries (briefing marks, runs) nobody else edited; entries
+    that cannot be trusted only make their run `unknown`."""
+    log = runlogissue.find(repo)
+    if not log:
+        return None, [], []
+    comments = gh.api_list(f"repos/{repo}/issues/{log['number']}/comments?per_page=100")
+    team = gh.team_logins(repo) | {provenance.author_of(log)}
+    trusted, untrusted = provenance.partition(comments, team, provenance.fetch(repo, log["number"]))
+    return log, runstate.parse_runs(trusted, untrusted), trusted
+
+
+def slim(i: dict) -> dict:
+    labels = [l["name"] for l in i.get("labels", [])]
+    return {"number": i["number"], "title": i["title"], "url": i["html_url"], "labels": labels,
+            "kind": next((l[5:] for l in labels if l.startswith("kind:")), None), "closed_at": i.get("closed_at"),
+            "updated_at": i.get("updated_at"), "ask": owner.ask_of(i.get("body") or "")}
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(prog="brief", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("action", nargs="?", default="show", choices=["show", "mark"])
+    p.add_argument("--since")
+    p.add_argument("--at", help="with mark: the brief's generated_at")
+    args = p.parse_args()
+    try:
+        repo = gh.repo()
+        log, runs, comments = run_log(repo)
+        if args.action == "mark":
+            if not log:
+                sys.exit("no run log yet")
+            if not args.at:
+                sys.exit("mark needs --at <generated_at of the brief the owner heard>, so nothing that happened "
+                         "during the conversation is skipped next time")
+            # Append-only, one marker per conversation: an edited marker is untrusted wherever the GraphQL edit
+            # history is unavailable, and the brief would then start over from the beginning.
+            gh.api(f"repos/{repo}/issues/{log['number']}/comments", "POST", {"body": brief.briefed_marker(args.at)})
+            print(json.dumps({"briefed_at": args.at}))
+            return
+        generated_at = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+        since = args.since or brief.briefed_at(comments)
+        since_q = f"&since={since}" if since else ""
+        # Changes come from what was touched since the last briefing; what needs the owner from everything open.
+        touched = [slim(i) for i in gh.api_list(f"repos/{repo}/issues?state=all&per_page=100{since_q}") if "pull_request" not in i]
+        open_issues = [slim(i) for i in gh.api_list(f"repos/{repo}/issues?state=open&per_page=100") if "pull_request" not in i]
+        prs = [{"number": x["number"], "title": x["title"], "url": x["html_url"], "merged_at": x.get("merged_at")}
+               for x in gh.api_list(f"repos/{repo}/pulls?state=closed&sort=updated&direction=desc&per_page=50")]
+        milestones = gh.api_list(f"repos/{repo}/milestones?state=open&per_page=100")
+        sprint = pick_current_sprint(milestones, datetime.now(KYIV).date())
+        sprint_info = ({"title": sprint["title"], "demo": sprint["due_on"][:10], "open": sprint["open_issues"],
+                        "closed": sprint["closed_issues"]} if sprint else None)
+        paused = bool(log) and "team:paused" in {l["name"] for l in log.get("labels", [])}
+        decided = []
+        team = gh.team_logins(repo) if any("team-decided" in i["labels"] for i in touched) else set()
+        for i in touched:
+            if "team-decided" in i["labels"]:
+                comments_i = gh.api_list(f"repos/{repo}/issues/{i['number']}/comments?per_page=100")
+                history_i = provenance.fetch(repo, i["number"])
+                at = owner.team_decided_at(comments_i, team, history_i)
+                decided.append(dict(i, decided_at=at or None,
+                                    handled_reversals=owner.handled_reversals(comments_i, team, history_i)))
+        result = brief.summary(since, [i for i in touched if i["closed_at"]], prs, decided,
+                               runs, [i for i in open_issues if LOG_LABEL not in i["labels"]
+                                                               and "team:inbox" not in i["labels"]],
+                               sprint_info, paused, generated_at=generated_at)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    except gh.GhError as exc:
+        sys.exit(str(exc))
+
+
+if __name__ == "__main__":
+    main()

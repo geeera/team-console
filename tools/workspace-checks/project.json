@@ -1,0 +1,7 @@
+{
+  "name": "workspace-checks",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "tools/workspace-checks/src",
+  "tags": ["type:tool", "scope:tooling"]
+}

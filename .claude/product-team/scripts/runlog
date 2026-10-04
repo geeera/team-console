@@ -1,0 +1,255 @@
+#!/usr/bin/env python3
+"""Team run log on a single GitHub issue labelled team:run-log (stop conditions, reference/schedule-and-models.md).
+
+  runlog start SLOT        → {"decision": "proceed"|"overlap"|"paused"|"pause", "run_id": ..., "history": ...}
+                             proceed: a `started` entry was written, do the work, then call finish.
+                             overlap/paused: exit without work. pause: this call paused the team — notify, exit.
+                             history: "graphql" (edit history checked) or "rest-only" (GraphQL unavailable here,
+                             e.g. Claude Code cloud sessions: entries and commands count only when REST shows
+                             them unedited; `history_error` says why).
+  runlog finish RUN_ID finished|failed [--summary-file F] [--metric key=value]... [--acted ISSUE:COMMENT_ID]...
+                           appends a finish entry for the run (the started entry is never edited); duration is
+                           recorded automatically; add counts such as prs=2 merged=1 blocked=0; --acted records
+                           each owner command the run acted on (`backlog answers` then notices when one of them
+                           is deleted later)
+  runlog stats [--days 14] → per slot: runs, failures, median minutes, summed metrics (for the demo)
+  runlog status            → recent runs and pause state
+  runlog url               → the run-log issue URL (for owner notifications); creates the log on first use
+
+The log is `team.run_log_issue` in .product-team/project.yml, else the one issue labelled team:run-log that the
+team or the owner opened; with several candidates every command refuses until one is pinned.
+  runlog pause --record-file F [--reason TEXT]   the owner's pause: label team:paused and store what was switched
+                                                 off (JSON in F: routines, workflows) for resume
+  runlog pause-record      → the active owner pause record, or null
+  runlog resume            lift the pause (label off, resume marker); prints the record that was active
+
+Exit code is 0 for proceed and finish, 3 for any decision that means "do no work".
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+
+sys.dont_write_bytecode = True  # the vendored copy lives in the product repo: no __pycache__ there
+from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ptlib import commands, gh, provenance, runlogissue, runstate  # noqa: E402
+
+TITLE = "Team run log"
+LABEL = runlogissue.LABEL
+PAUSED = "team:paused"
+
+
+def log_issue(repo: str) -> dict:
+    found = runlogissue.find(repo)
+    if found:
+        return found
+    return gh.api(f"repos/{repo}/issues", "POST", {
+        "title": TITLE,
+        "labels": [LABEL],
+        "body": "One comment per scheduled team run. Owner commands here: `/resume` after a pause.",
+    })
+
+
+def load(repo: str):
+    """The log issue, its comments and their edit history (provenance.fetch; {"error": …} when unavailable)."""
+    issue = log_issue(repo)
+    comments = gh.api_list(f"repos/{repo}/issues/{issue['number']}/comments?per_page=100")
+    return issue, comments, provenance.fetch(repo, issue["number"])
+
+
+def team_comments(issue: dict, comments: list, history: dict) -> tuple:
+    """(trusted, untrusted) team comments — run entries and pause records by the account that opened the log.
+
+    Trusted: never edited by anyone outside the team (REST-only mode: never edited at all). An edited entry could
+    fake a finished run or plant routine prompts in a pause record, so the untrusted ones only tell parse_runs
+    that a run's state is unknown."""
+    team = {(issue.get("user") or {}).get("login", "")}
+    if gh.app_mode():
+        # A log opened before the team app existed keeps working: its runs now come from the app's bot.
+        team.add(gh.token_login() or "")
+    team.discard("")
+    return provenance.partition(comments, team, history)
+
+
+def runs_of(issue: dict, comments: list, history: dict) -> list:
+    trusted, untrusted = team_comments(issue, comments, history)
+    return runstate.parse_runs(trusted, untrusted)
+
+
+def history_fields(history: dict) -> dict:
+    return {"history": provenance.mode(history), "history_error": history.get("error", "")}
+
+
+def unique_run_id(now: datetime, slot: str, runs: list) -> str:
+    """Run ids carry the start second, and a run's entries merge by id: a start in the same second as a previous
+    run of the slot (only ever seen in tests and replays) takes the next free second instead of joining it."""
+    taken = {r["id"] for r in runs}
+    while True:
+        run_id = now.strftime("%Y%m%dT%H%M%SZ") + "-" + slot
+        if run_id not in taken:
+            return run_id
+        now += timedelta(seconds=1)
+
+
+def pause_at(comments: list) -> str:
+    stamps = [c["created_at"] for c in comments if runstate.PAUSE_MARKER in (c.get("body") or "")]
+    return max(stamps) if stamps else ""
+
+
+def cmd_start(repo: str, args) -> int:
+    # No edit history (GraphQL blocked or down) is not a stop: screening falls back to REST timestamps, under
+    # which every edited entry and every edited /resume is untrusted — the same fail-closed rule, less context.
+    issue, comments, history = load(repo)
+    now = datetime.now(timezone.utc)
+    labels = {l["name"] for l in issue["labels"]}
+    owner_cmds = commands.parse(comments, gh.owner_login(repo), history, gh.acts_as_owner(repo))
+    team, untrusted = team_comments(issue, comments, history)
+    paused_since = max([pause_at(team)] + [c["created_at"] for c in team if runstate.OWNER_RESUME in (c.get("body") or "")])
+    paused = PAUSED in labels
+    if paused and runstate.resumed_after_pause(paused_since, owner_cmds):
+        gh.api(f"repos/{repo}/issues/{issue['number']}/labels/{quote(PAUSED, safe='')}", "DELETE")
+        paused = False
+    resume = commands.latest(owner_cmds, ["resume"])
+    reset_at = max(resume.get("at") or "", paused_since)
+    runs = runstate.parse_runs(team, untrusted)
+    decision = runstate.decide(runs, args.slot, now, paused, reset_at)
+
+    if decision["decision"] == "pause":
+        gh.api(f"repos/{repo}/issues/{issue['number']}/labels", "POST", {"labels": [PAUSED]})
+        gh.api(f"repos/{repo}/issues/{issue['number']}/comments", "POST", {"body": (
+            f"{runstate.PAUSE_MARKER}\n**Team paused**: {decision['reason']}. No scheduled run will do work "
+            "until the owner comments `/resume` here. Check the failed runs above.")})
+    elif decision["decision"] == "proceed":
+        run_id = unique_run_id(now, args.slot, runs)
+        c = gh.api(f"repos/{repo}/issues/{issue['number']}/comments", "POST", {"body": (
+            f"<!-- pt-run id={run_id} slot={args.slot} state=started -->\n"
+            f"**{args.slot}** started {now.isoformat(timespec='minutes')}")})
+        decision.update(run_id=run_id, comment_id=c["id"])
+    decision["log_url"] = issue["html_url"]
+    decision.update(history_fields(history))
+    print(json.dumps(decision, indent=2))
+    return 0 if decision["decision"] == "proceed" else 3
+
+
+def cmd_finish(repo: str, args) -> int:
+    if args.state not in ("finished", "failed"):
+        sys.exit("state must be finished or failed")
+    issue, comments, history = load(repo)
+    # The started entry may have been edited meanwhile (then the run is `unknown`): it still gets its finish entry.
+    target = next((r for r in runs_of(issue, comments, history) if r["id"] == args.run_id), None)
+    if not target:
+        sys.exit(f"run {args.run_id} not found in the run log")
+    summary = ""
+    if args.summary_file:
+        with open(args.summary_file, encoding="utf-8") as f:
+            summary = f.read().strip()
+    slot = target["slot"]
+    now = datetime.now(timezone.utc)
+    try:
+        metrics = runstate.parse_metrics(args.metric or [])
+        acted = runstate.parse_acted(args.acted or [])
+    except ValueError as exc:
+        sys.exit(str(exc))
+    minutes = int((now - runstate.started_at(args.run_id)).total_seconds() // 60)
+    metrics["minutes"] = minutes
+    shown = ", ".join(f"{k} {v}" for k, v in sorted(metrics.items()) if k != "minutes")
+    body = (f"<!-- pt-run id={args.run_id} slot={slot} state={args.state} -->\n"
+            f"{runstate.metrics_marker(metrics)}\n"
+            f"{runstate.acted_marker(acted) + chr(10) if acted else ''}"
+            f"**{slot}** {args.state} {now.isoformat(timespec='minutes')} · {minutes} min"
+            f"{' · ' + shown if shown else ''}\n\n{summary}").strip()
+    # Append-only: a new comment, never an edit of the started one — an edited entry is untrusted wherever the
+    # GraphQL edit history is unavailable (Claude Code cloud sessions).
+    c = gh.api(f"repos/{repo}/issues/{issue['number']}/comments", "POST", {"body": body})
+    print(json.dumps({"run_id": args.run_id, "state": args.state, "comment_id": c["id"],
+                      "log_url": issue["html_url"], **history_fields(history)}))
+    return 0
+
+
+def cmd_status(repo: str, _args) -> int:
+    issue, comments, history = load(repo)
+    now = datetime.now(timezone.utc)
+    runs = runs_of(issue, comments, history)[-10:]
+    print(json.dumps({
+        "paused": PAUSED in {l["name"] for l in issue["labels"]},
+        "log_url": issue["html_url"],
+        "runs": [dict(r, effective=runstate.effective_state(r, now)) for r in runs],
+        **history_fields(history),
+    }, indent=2))
+    return 0
+
+
+def cmd_stats(repo: str, args) -> int:
+    issue, comments, history = load(repo)
+    now = datetime.now(timezone.utc)
+    result = runstate.stats(runs_of(issue, comments, history), now, now - timedelta(days=args.days))
+    print(json.dumps({"days": args.days, "slots": result, **history_fields(history)}, indent=2))
+    return 0
+
+
+def cmd_pause(repo: str, args) -> int:
+    issue = log_issue(repo)
+    with open(args.record_file, encoding="utf-8") as f:
+        record = json.load(f)
+    if not isinstance(record, dict):
+        sys.exit("the pause record must be a JSON object")
+    now = datetime.now(timezone.utc).isoformat(timespec="minutes")
+    record["reason"] = args.reason or record.get("reason", "")
+    gh.api(f"repos/{repo}/issues/{issue['number']}/labels", "POST", {"labels": [PAUSED]})
+    gh.api(f"repos/{repo}/issues/{issue['number']}/comments", "POST", {"body": (
+        f"{runstate.PAUSE_MARKER}\n{runstate.owner_pause_marker(record)}\n"
+        f"**Development paused by the owner** {now}. {record['reason']}\n\n"
+        "Scheduled runs do no work until the owner resumes (say so in the project chat, or comment `/resume`).")})
+    print(json.dumps({"paused": True, "log_url": issue["html_url"], "record": record}, indent=2))
+    return 0
+
+
+def cmd_pause_record(repo: str, _args) -> int:
+    issue, comments, history = load(repo)
+    print(json.dumps(runstate.active_owner_pause(team_comments(issue, comments, history)[0]), indent=2))
+    return 0
+
+
+def cmd_resume(repo: str, _args) -> int:
+    issue, comments, history = load(repo)
+    record = runstate.active_owner_pause(team_comments(issue, comments, history)[0])
+    if PAUSED in {l["name"] for l in issue["labels"]}:
+        gh.api(f"repos/{repo}/issues/{issue['number']}/labels/{quote(PAUSED, safe='')}", "DELETE")
+    now = datetime.now(timezone.utc).isoformat(timespec="minutes")
+    gh.api(f"repos/{repo}/issues/{issue['number']}/comments", "POST", {"body": (
+        f"{runstate.OWNER_RESUME}\n**Development resumed** {now}.")})
+    print(json.dumps({"resumed": True, "record": record, "log_url": issue["html_url"]}, indent=2))
+    return 0
+
+
+def cmd_url(repo: str, _args) -> int:
+    print(log_issue(repo)["html_url"])
+    return 0
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(prog="runlog", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest="cmd", required=True)
+    st = sub.add_parser("start"); st.add_argument("slot")
+    fi = sub.add_parser("finish"); fi.add_argument("run_id"); fi.add_argument("state"); fi.add_argument("--summary-file")
+    fi.add_argument("--metric", action="append"); fi.add_argument("--acted", action="append")
+    sub.add_parser("status"); sub.add_parser("url")
+    stt = sub.add_parser("stats"); stt.add_argument("--days", type=int, default=14)
+    pa = sub.add_parser("pause"); pa.add_argument("--record-file", required=True); pa.add_argument("--reason")
+    sub.add_parser("pause-record"); sub.add_parser("resume")
+    args = p.parse_args()
+    handlers = {"start": cmd_start, "finish": cmd_finish, "status": cmd_status, "url": cmd_url, "stats": cmd_stats,
+                "pause": cmd_pause, "pause-record": cmd_pause_record, "resume": cmd_resume}
+    try:
+        sys.exit(handlers[args.cmd](gh.repo(), args))
+    except gh.GhError as exc:
+        sys.exit(str(exc))
+
+
+if __name__ == "__main__":
+    main()

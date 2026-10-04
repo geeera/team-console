@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+"""Print the current slot context as JSON: Kyiv local time, mode (normal | burn | freeze), cut day, caps.
+
+  slot-context                 reads the current sprint milestone from GitHub
+  slot-context --offline       calendar only (no sprint, so never freeze)
+  slot-context --now ISO       evaluate at a given instant (testing / planning)
+
+Freeze length and cap overrides come from .product-team/project.yml when present (sprint.freeze_days only;
+caps overrides are applied by the calling skill).
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+
+sys.dont_write_bytecode = True  # the vendored copy lives in the product repo: no __pycache__ there
+from datetime import date, datetime, timezone
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ptlib import calendar, gh, project  # noqa: E402
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(prog="slot-context", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--offline", action="store_true")
+    p.add_argument("--now")
+    args = p.parse_args()
+    now = datetime.fromisoformat(args.now) if args.now else datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=calendar.KYIV)
+
+    sprint_title, demo = None, None
+    if not args.offline:
+        try:
+            repo = gh.repo()
+            milestones = gh.api_list(f"repos/{repo}/milestones?state=open&per_page=100")
+        except gh.GhError as exc:
+            sys.exit(f"cannot read sprint milestones ({exc}); rerun with --offline to skip freeze detection")
+        sprint = calendar.pick_current_sprint(milestones, now.astimezone(calendar.KYIV).date())
+        if sprint:
+            sprint_title, demo = sprint["title"], date.fromisoformat(sprint["due_on"][:10])
+
+    ctx = calendar.compute(now, sprint_title, demo, project.freeze_days())
+    print(json.dumps(ctx.to_dict(), indent=2))
+
+
+if __name__ == "__main__":
+    main()

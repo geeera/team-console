@@ -1,0 +1,44 @@
+/* The two pages below Settings (New project, a project's setup) share their frame: back link, heading, sections. */
+.subpage {
+  gap: var(--space-6);
+}
+
+.subpage__crumbs a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-h-touch);
+  color: var(--accent-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+}
+
+.subpage__crumbs a:hover {
+  text-decoration: underline;
+}
+
+.subpage__title {
+  font-size: var(--fs-2xl);
+}
+
+.subpage__title:focus {
+  outline: none;
+}
+
+.subpage__title:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+.subpage__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+@media (max-width: 519.98px) {
+  .subpage__actions > * {
+    flex: 1;
+  }
+}
