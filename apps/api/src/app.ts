@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { createWorkerApp, problem, type LogSink, type WorkerHonoEnv } from '@worker/core';
+import { createWorkerApp, markAssetResponse, problem, type LogSink, type WorkerHonoEnv } from '@worker/core';
 import { authMiddleware } from './auth/auth.middleware';
 import { csrfMiddleware } from './auth/csrf.middleware';
 import type { ApiEnv } from './env';
@@ -46,11 +46,13 @@ function isApiPath(path: string): boolean {
 export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHonoEnv<ApiEnv>> {
   const app = createWorkerApp<ApiEnv>({
     service: 'api',
-    notFound: (c) =>
+    notFound: async (c) =>
       isApiPath(c.req.path)
         ? problem(c, { type: 'not-found', title: 'Not Found', status: 404 })
-        : c.env.ASSETS.fetch(c.req.raw),
+        // The SPA fallback: the assets binding's own `_headers` governs it, not this Worker's security headers.
+        : markAssetResponse(await c.env.ASSETS.fetch(c.req.raw)),
     mapError: (error) => mapGitHubError(error) ?? mapReadModelError(error),
+    noStore: true,
     ...(options.logSink === undefined ? {} : { logSink: options.logSink }),
   });
   const github = options.github ?? new ApiGitHub();

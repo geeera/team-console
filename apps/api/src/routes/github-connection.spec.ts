@@ -104,6 +104,9 @@ function expectBackToSettings(response: Response, location: string): void {
   expect(response.headers.get('set-cookie')).toBe(CLEARED);
   expect(response.headers.get('referrer-policy')).toBe('no-referrer');
   expect(response.headers.get('cache-control')).toBe('no-store');
+  // #126: the callback's own Referrer-Policy stays, and createWorkerApp adds nosniff/CSP on top of it.
+  expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+  expect(response.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
 }
 
 async function problemSlug(response: Response): Promise<string | null> {
