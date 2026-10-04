@@ -101,6 +101,8 @@ test.describe('with two active projects', () => {
       'GET /api/v1/needs-you',
       'GET /api/v1/overview',
       `GET ${TEAM_STATUS}`,
+      // The Artifacts section reads its list (#19).
+      'GET /api/v1/projects/team-console/artifacts',
     ]);
     const seen = sent.map((request) => `${request.method()} ${new URL(request.url()).pathname}`);
     expect(

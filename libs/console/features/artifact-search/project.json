@@ -1,0 +1,8 @@
+{
+  "name": "console-features-artifact-search",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/console/features/artifact-search/src",
+  "prefix": "tc",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:console", "layer:features"]
+}

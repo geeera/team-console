@@ -89,6 +89,14 @@ export type {
   OverviewSprintDto,
   OverviewTeamState,
 } from './lib/overview';
+export { ARTIFACTS_PARTIALS, ARTIFACT_TYPES, isArtifactType, isArtifactsPartial } from './lib/artifacts';
+export type {
+  ArtifactDto,
+  ArtifactSource,
+  ArtifactType,
+  ArtifactsPartial,
+  ArtifactsResponse,
+} from './lib/artifacts';
 export { PUSH_MAX_SUBSCRIPTIONS, PUSH_TEST_INTERVAL_S } from './lib/push';
 export type {
   PushConfigDto,

@@ -1,0 +1,754 @@
+{
+  "repo": "geeera/team-console",
+  "decisions": [
+    {
+      "name": "0001-stack-and-architecture.md",
+      "path": "docs/decisions/0001-stack-and-architecture.md",
+      "type": "file",
+      "html_url": "https://github.com/geeera/team-console/blob/dev/docs/decisions/0001-stack-and-architecture.md"
+    },
+    {
+      "name": "0002-visual-direction.md",
+      "path": "docs/decisions/0002-visual-direction.md",
+      "type": "file",
+      "html_url": "https://github.com/geeera/team-console/blob/dev/docs/decisions/0002-visual-direction.md"
+    },
+    {
+      "name": "0003-console-github-app.md",
+      "path": "docs/decisions/0003-console-github-app.md",
+      "type": "file",
+      "html_url": "https://github.com/geeera/team-console/blob/dev/docs/decisions/0003-console-github-app.md"
+    }
+  ],
+  "decisionFirstLines": {
+    "docs/decisions/0001-stack-and-architecture.md": "# 0001 — Stack and architecture",
+    "docs/decisions/0002-visual-direction.md": "# ADR 0002: Visual direction — Paper Desk",
+    "docs/decisions/0003-console-github-app.md": "# 0003 — The console's GitHub identity: a GitHub App per environment, owner writes on the owner's own token"
+  },
+  "designRoot": [
+    {
+      "name": "directions",
+      "path": "docs/design/directions",
+      "type": "dir",
+      "html_url": "https://github.com/geeera/team-console/tree/dev/docs/design/directions"
+    },
+    {
+      "name": "features",
+      "path": "docs/design/features",
+      "type": "dir",
+      "html_url": "https://github.com/geeera/team-console/tree/dev/docs/design/features"
+    },
+    {
+      "name": "references.md",
+      "path": "docs/design/references.md",
+      "type": "file",
+      "html_url": "https://github.com/geeera/team-console/blob/dev/docs/design/references.md"
+    }
+  ],
+  "designFolders": {
+    "docs/design/directions": [
+      {
+        "name": "01-paper-desk.html",
+        "path": "docs/design/directions/01-paper-desk.html",
+        "type": "file",
+        "html_url": "https://github.com/geeera/team-console/blob/dev/docs/design/directions/01-paper-desk.html"
+      },
+      {
+        "name": "02-switchboard.html",
+        "path": "docs/design/directions/02-switchboard.html",
+        "type": "file",
+        "html_url": "https://github.com/geeera/team-console/blob/dev/docs/design/directions/02-switchboard.html"
+      },
+      {
+        "name": "03-signal.html",
+        "path": "docs/design/directions/03-signal.html",
+        "type": "file",
+        "html_url": "https://github.com/geeera/team-console/blob/dev/docs/design/directions/03-signal.html"
+      },
+      {
+        "name": "README.md",
+        "path": "docs/design/directions/README.md",
+        "type": "file",
+        "html_url": "https://github.com/geeera/team-console/blob/dev/docs/design/directions/README.md"
+      },
+      {
+        "name": "src",
+        "path": "docs/design/directions/src",
+        "type": "dir",
+        "html_url": "https://github.com/geeera/team-console/tree/dev/docs/design/directions/src"
+      }
+    ],
+    "docs/design/features": [
+      {
+        "name": "114-team-commands.html",
+        "path": "docs/design/features/114-team-commands.html",
+        "type": "file",
+        "html_url": "https://github.com/geeera/team-console/blob/dev/docs/design/features/114-team-commands.html"
+      },
+      {
+        "name": "134-board-phone-lanes.html",
+        "path": "docs/design/features/134-board-phone-lanes.html",
+        "type": "file",
+        "html_url": "https://github.com/geeera/team-console/blob/dev/docs/design/features/134-board-phone-lanes.html"
+      },
+      {
+        "name": "24-settings-projects.html",
+        "path": "docs/design/features/24-settings-projects.html",
+        "type": "file",
+        "html_url": "https://github.com/geeera/team-console/blob/dev/docs/design/features/24-settings-projects.html"
+      },
+      {
+        "name": "36-web-push.html",
+        "path": "docs/design/features/36-web-push.html",
+        "type": "file",
+        "html_url": "https://github.com/geeera/team-console/blob/dev/docs/design/features/36-web-push.html"
+      },
+      {
+        "name": "README.md",
+        "path": "docs/design/features/README.md",
+        "type": "file",
+        "html_url": "https://github.com/geeera/team-console/blob/dev/docs/design/features/README.md"
+      },
+      {
+        "name": "src",
+        "path": "docs/design/features/src",
+        "type": "dir",
+        "html_url": "https://github.com/geeera/team-console/tree/dev/docs/design/features/src"
+      }
+    ]
+  },
+  "designIssues": {
+    "ux-spec": [
+      {
+        "number": 114,
+        "title": "Team commands, part 1: pause/resume and run now from the phone",
+        "html_url": "https://github.com/geeera/team-console/issues/114",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:done"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "tier:heavy"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "architect-note"
+          },
+          {
+            "name": "ux-spec"
+          }
+        ],
+        "author_association": "CONTRIBUTOR",
+        "user": {
+          "login": "team-console-team[bot]",
+          "type": "Bot"
+        },
+        "updated_at": "2026-10-02T01:24:00Z",
+        "body": ""
+      },
+      {
+        "number": 107,
+        "title": "Quick task capture from the phone, with a sprint request",
+        "html_url": "https://github.com/geeera/team-console/issues/107",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "ux-spec"
+          }
+        ],
+        "author_association": "CONTRIBUTOR",
+        "user": {
+          "login": "team-console-team[bot]",
+          "type": "Bot"
+        },
+        "updated_at": "2026-10-01T15:34:28Z",
+        "body": ""
+      },
+      {
+        "number": 29,
+        "title": "Team commands: pause/resume, run now, sprint and priority controls",
+        "html_url": "https://github.com/geeera/team-console/issues/29",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:blocked"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "tier:heavy"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:awaiting-approval"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "architect-note"
+          },
+          {
+            "name": "ux-spec"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "updated_at": "2026-10-01T17:59:17Z",
+        "body": ""
+      },
+      {
+        "number": 24,
+        "title": "Settings: GitHub connection and projects",
+        "html_url": "https://github.com/geeera/team-console/issues/24",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:in-progress"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "ux-spec"
+          },
+          {
+            "name": "team-decided"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "updated_at": "2026-10-01T12:22:46Z",
+        "body": ""
+      }
+    ],
+    "design:awaiting-approval": [
+      {
+        "number": 29,
+        "title": "Team commands: pause/resume, run now, sprint and priority controls",
+        "html_url": "https://github.com/geeera/team-console/issues/29",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:blocked"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "tier:heavy"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:awaiting-approval"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "architect-note"
+          },
+          {
+            "name": "ux-spec"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "updated_at": "2026-10-01T17:59:17Z",
+        "body": ""
+      }
+    ],
+    "design:approved": [
+      {
+        "number": 134,
+        "title": "Board on the phone: lanes row is as tall as the tallest lane, leaving a large blank gap under short lanes",
+        "html_url": "https://github.com/geeera/team-console/issues/134",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:done"
+          },
+          {
+            "name": "kind:finding"
+          },
+          {
+            "name": "sev:medium"
+          },
+          {
+            "name": "design:approved"
+          }
+        ],
+        "author_association": "CONTRIBUTOR",
+        "user": {
+          "login": "team-console-team[bot]",
+          "type": "Bot"
+        },
+        "updated_at": "2026-10-02T01:24:08Z",
+        "body": ""
+      },
+      {
+        "number": 132,
+        "title": "Sprint board: team run state (running / paused / failing) and last runs",
+        "html_url": "https://github.com/geeera/team-console/issues/132",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "updated_at": "2026-10-01T17:48:36Z",
+        "body": ""
+      },
+      {
+        "number": 131,
+        "title": "Sprint board: CI state for each open pull request",
+        "html_url": "https://github.com/geeera/team-console/issues/131",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "updated_at": "2026-10-01T15:16:46Z",
+        "body": ""
+      },
+      {
+        "number": 114,
+        "title": "Team commands, part 1: pause/resume and run now from the phone",
+        "html_url": "https://github.com/geeera/team-console/issues/114",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:done"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "tier:heavy"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "architect-note"
+          },
+          {
+            "name": "ux-spec"
+          }
+        ],
+        "author_association": "CONTRIBUTOR",
+        "user": {
+          "login": "team-console-team[bot]",
+          "type": "Bot"
+        },
+        "updated_at": "2026-10-02T01:24:00Z",
+        "body": ""
+      },
+      {
+        "number": 36,
+        "title": "Web push client: subscribe button, iOS guide, tap routing and badge",
+        "html_url": "https://github.com/geeera/team-console/issues/36",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:qa"
+          },
+          {
+            "name": "kind:chore"
+          },
+          {
+            "name": "tier:standard"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          },
+          {
+            "name": "security"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "updated_at": "2026-10-04T17:39:52Z",
+        "body": ""
+      },
+      {
+        "number": 28,
+        "title": "Artifacts: audits, briefings, releases and deploy links",
+        "html_url": "https://github.com/geeera/team-console/issues/28",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          },
+          {
+            "name": "team-decided"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "updated_at": "2026-10-01T11:59:26Z",
+        "body": ""
+      },
+      {
+        "number": 27,
+        "title": "All-projects overview",
+        "html_url": "https://github.com/geeera/team-console/issues/27",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:done"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "updated_at": "2026-10-02T01:23:58Z",
+        "body": ""
+      },
+      {
+        "number": 24,
+        "title": "Settings: GitHub connection and projects",
+        "html_url": "https://github.com/geeera/team-console/issues/24",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:in-progress"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "ux-spec"
+          },
+          {
+            "name": "team-decided"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "updated_at": "2026-10-01T12:22:46Z",
+        "body": ""
+      },
+      {
+        "number": 20,
+        "title": "Designs and demo screen",
+        "html_url": "https://github.com/geeera/team-console/issues/20",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:in-progress"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "tier:heavy"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          },
+          {
+            "name": "security"
+          },
+          {
+            "name": "architect-note"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "updated_at": "2026-10-04T18:10:01Z",
+        "body": ""
+      },
+      {
+        "number": 19,
+        "title": "Artifacts space",
+        "html_url": "https://github.com/geeera/team-console/issues/19",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:in-progress"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "tier:heavy"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          },
+          {
+            "name": "architect-note"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "updated_at": "2026-10-04T18:09:57Z",
+        "body": ""
+      },
+      {
+        "number": 18,
+        "title": "Sprint board (read-only)",
+        "html_url": "https://github.com/geeera/team-console/issues/18",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:in-progress"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "updated_at": "2026-10-01T15:42:47Z",
+        "body": ""
+      },
+      {
+        "number": 17,
+        "title": "PM chat",
+        "html_url": "https://github.com/geeera/team-console/issues/17",
+        "state": "open",
+        "labels": [
+          {
+            "name": "status:approved"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "complexity:high"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          },
+          {
+            "name": "security"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "updated_at": "2026-10-01T11:59:17Z",
+        "body": ""
+      },
+      {
+        "number": 16,
+        "title": "Questions and cross-project Needs you",
+        "html_url": "https://github.com/geeera/team-console/issues/16",
+        "state": "closed",
+        "labels": [
+          {
+            "name": "status:in-progress"
+          },
+          {
+            "name": "kind:feature"
+          },
+          {
+            "name": "needs-design"
+          },
+          {
+            "name": "design:approved"
+          }
+        ],
+        "author_association": "OWNER",
+        "user": {
+          "login": "geeera",
+          "type": "User"
+        },
+        "updated_at": "2026-10-01T11:48:52Z",
+        "body": ""
+      }
+    ]
+  },
+  "demoIssues": [
+    {
+      "number": 900001,
+      "title": "Sprint 1 demo",
+      "html_url": "https://github.com/geeera/team-console/issues/900001",
+      "state": "closed",
+      "labels": [
+        {
+          "name": "team:demo"
+        }
+      ],
+      "author_association": "NONE",
+      "user": {
+        "login": "team-console-team[bot]",
+        "type": "Bot"
+      },
+      "updated_at": "2026-10-02T09:00:00Z",
+      "body": ""
+    }
+  ]
+}

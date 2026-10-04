@@ -129,10 +129,10 @@ const SCREENS: readonly Screen[] = [
       }),
   },
   {
-    name: 'Project artifacts placeholder',
+    name: 'Project artifacts',
     open: (page) =>
       visit(page, '/p/team-console/artifacts', (p) =>
-        expect(p.getByText(ru('space.placeholderTitle'))).toBeVisible(),
+        expect(p.getByTestId('artifact').first()).toBeVisible(),
       ),
   },
   {

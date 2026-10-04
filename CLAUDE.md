@@ -117,6 +117,14 @@ Sprint board (#18, read-only): `@console/entities/sprint` (`isSprintDto`, `Sprin
 empty, error and 429 with an automatic retry at `Retry-After`). Kit: `Lanes`/`Lane` (a tab list of lanes on the phone, `[(selected)]` by `key`),
 `Stats`/`Stat`, `ListRow` `external`.
 
+Artifacts (#19, read-only): `GET /api/v1/projects/:slug/artifacts[?fresh=1]` (`routes/artifacts.ts`, `read-models/artifact-reads.ts`)
+reads decisions (`decisions_dir` listing + first `#` heading, ≤ 30 file reads), designs (`ux-spec`/`design:*` issues,
+`docs/design` one level deep, `design.storybook_url` if on github.com) and `team:demo` issues through `ReadCache`
+(60 s issues / 600 s contents, keyed by `cache_epoch`), each type on its own: a failed one is listed in `partial`. Pure
+readers in `@worker/read-models` `lib/artifacts/` (snapshot `fixtures/artifacts_snapshot.py`). Console:
+`@console/entities/artifact` (`ArtifactsStore`, `ArtifactList`), `@console/features/artifact-search`
+(`filterArtifacts`, `ArtifactSearch`), page `ArtifactsSectionPage` (`?type=&q=`, mirrored to `artifactFilter`).
+
 All projects (#27, read-only): `GET /api/v1/overview` (`routes/overview.ts`) builds one row per active project from the
 same cached reads (`buildOverviewRow` in `@worker/read-models`; team state by `team/team-health.ts` from the run log's
 latest 200 comments, cached 30 s) under a per-request `SubrequestBudget` (44 GitHub subrequests; a project it cannot

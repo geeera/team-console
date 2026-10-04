@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { DEFAULT_SPACE_SECTION, SPACE_SECTIONS } from '@console/entities/project';
+import { ArtifactsSectionPage } from './artifacts-section.page';
 import { BoardSectionPage } from './board-section.page';
 import { ChatPlaceholderPage } from './chat-placeholder.page';
 import { QuestionsSectionPage } from './questions-section.page';
@@ -20,7 +21,9 @@ export const projectSpaceChildRoutes: Routes = [
           ? ChatPlaceholderPage
           : section === 'board'
             ? BoardSectionPage
-            : SectionPlaceholderPage,
+            : section === 'artifacts'
+              ? ArtifactsSectionPage
+              : SectionPlaceholderPage,
     data: { section },
   })),
 ];

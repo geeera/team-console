@@ -10,7 +10,7 @@ export {
   requestBudgetError,
 } from './lib/errors';
 export type { GitHubProblem, GitHubProblemType } from './lib/errors';
-export { githubPath } from './lib/github-path';
+export { githubContentsPath, githubPath } from './lib/github-path';
 export type { GitHubPath, GitHubPathValue } from './lib/github-path';
 export { MOCK_APP_ID, MOCK_OWNER_ACCOUNT, createMockGitHub, isGitHubMockEnabled } from './lib/mock';
 export type { MockFixtures, MockGitHub, MockReply, MockRepository } from './lib/mock';

@@ -301,6 +301,68 @@
       }
     }
   },
+  "artifacts": {
+    "title": "Artifacts",
+    "loading": "Loading artifacts…",
+    "listLabel": "Artifacts found",
+    "search": "Search by title",
+    "typeFilter": "Artifact type",
+    "shown": "Showing {{n}} of {{total}}",
+    "type": {
+      "all": "All",
+      "decision": "Decisions",
+      "design": "Design",
+      "demo": "Demos"
+    },
+    "source": {
+      "file": "File",
+      "issue": "Issue",
+      "config": "Link from project.yml"
+    },
+    "state": {
+      "open": "open",
+      "closed": "closed"
+    },
+    "opensGitHub": "(opens on GitHub)",
+    "checkAgain": "Check again",
+    "loadedAt": "Updated at {{time}}",
+    "empty": {
+      "title": "No artifacts yet",
+      "hint": "Decisions, designs and demos show up here once the team creates them."
+    },
+    "noMatch": {
+      "title": "Nothing found",
+      "hint": "Change the search or pick another type.",
+      "clear": "Clear filter"
+    },
+    "partial": {
+      "title": "Not everything is shown",
+      "decision": "Couldn't load the decisions.",
+      "design": "Couldn't load the designs.",
+      "demo": "Couldn't load the demos.",
+      "decision-titles": "Some decisions are shown by file name.",
+      "design-files": "Not every docs/design folder is listed.",
+      "hint": "Press “Check again” to retry."
+    },
+    "error": {
+      "unavailable": {
+        "title": "Couldn't load the artifacts",
+        "hint": "GitHub or the console didn't respond. Try again."
+      },
+      "offline": {
+        "title": "No connection",
+        "hint": "The artifacts load when you're back online. Try again."
+      },
+      "rate-limited": {
+        "title": "GitHub asks to wait",
+        "hint": "Retry in a minute."
+      },
+      "not-installed": {
+        "title": "The console app is not installed on the repository",
+        "hint": "Install it from the project's setup in Settings, then try again."
+      }
+    }
+  },
   "overview": {
     "title": "All projects",
     "count": {
