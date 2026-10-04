@@ -48,8 +48,8 @@ function reviewerLoginsOf(root: Readonly<Record<string, unknown>>): string[] {
   return logins as string[];
 }
 
-/** Parses and checks project.yml; any doubt is a `ProjectConfigError`, never a partial config. */
-export function parseProjectConfig(text: string): ProjectConfig {
+/** The YAML root of project.yml, size-capped and parsed with the safe profile above; throws `ProjectConfigError`. */
+function parseRoot(text: string): Readonly<Record<string, unknown>> {
   if (new TextEncoder().encode(text).byteLength > PROJECT_CONFIG_MAX_BYTES) {
     throw new ProjectConfigError('too-large');
   }
@@ -77,5 +77,78 @@ export function parseProjectConfig(text: string): ProjectConfig {
   if (!isPlainObject(root)) {
     throw new ProjectConfigError('schema');
   }
-  return { reviewerLogins: reviewerLoginsOf(root) };
+  return root;
+}
+
+/** Parses and checks project.yml; any doubt is a `ProjectConfigError`, never a partial config. */
+export function parseProjectConfig(text: string): ProjectConfig {
+  return { reviewerLogins: reviewerLoginsOf(parseRoot(text)) };
+}
+
+// Far above any real Storybook or stage URL; a longer value is not one.
+const MAX_EMBED_URL_LENGTH = 2048;
+// The URL parser lowercases and punycodes hosts; anything outside this set (`*`, `_`, brackets of an IPv6 literal)
+// is not a host the console frames.
+const EMBED_HOST = /^[a-z0-9.-]+$/;
+
+/**
+ * The origin a console frame may load (#20): an absolute `https:` URL without credentials, whose host is plain
+ * DNS characters without a trailing dot, reduced to its origin.
+ * Anything else, including a non-string, is `null`.
+ */
+export function embedOriginOf(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const text = value.trim();
+  if (text === '' || text.length > MAX_EMBED_URL_LENGTH || !URL.canParse(text)) {
+    return null;
+  }
+  const url = new URL(text);
+  if (
+    url.protocol !== 'https:' ||
+    !EMBED_HOST.test(url.hostname) ||
+    url.hostname.endsWith('.') ||
+    url.username !== '' ||
+    url.password !== ''
+  ) {
+    return null;
+  }
+  return url.origin;
+}
+
+function nestedValue(root: Readonly<Record<string, unknown>>, section: readonly string[]): unknown {
+  let value: unknown = root;
+  for (const key of section) {
+    if (!isPlainObject(value)) {
+      return undefined;
+    }
+    value = value[key];
+  }
+  return value;
+}
+
+// The only two project.yml fields whose pages the console may frame; nothing else ever becomes an embed origin.
+const EMBED_URL_FIELDS: readonly (readonly string[])[] = [
+  ['design', 'storybook_url'],
+  ['environments', 'stage', 'url'],
+];
+
+/**
+ * `EmbedOriginsDto` (#20): the origins of `design.storybook_url` and `environments.stage.url`, deduplicated.
+ * Lenient on purpose: an unusable file or field means "nothing to embed", never an error, so the registry and the
+ * read models that share the file keep answering.
+ */
+export function embedOriginsOf(text: string): string[] {
+  let root: Readonly<Record<string, unknown>>;
+  try {
+    root = parseRoot(text);
+  } catch (error: unknown) {
+    if (error instanceof ProjectConfigError) {
+      return [];
+    }
+    throw error;
+  }
+  const origins = EMBED_URL_FIELDS.map((field) => embedOriginOf(nestedValue(root, field)));
+  return [...new Set(origins.filter((origin): origin is string => origin !== null))];
 }

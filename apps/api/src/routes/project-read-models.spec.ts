@@ -1,6 +1,7 @@
 import {
   PROBLEM_TYPE_PREFIX,
   isProblemDetails,
+  type EmbedOriginsDto,
   type InboxDto,
   type QuestionsDto,
   type SprintDto,
@@ -323,8 +324,46 @@ describe('GET /api/v1/projects/:slug/sprint', () => {
   });
 });
 
+describe('GET /api/v1/projects/:slug/embed-origins (#20)', () => {
+  const EMBED_YML =
+    'name: x\ndesign:\n  storybook_url: https://storify.pages.dev/?path=/docs\n' +
+    'environments:\n  stage:\n    url: http://stage.storify.workers.dev\n  production:\n    url: https://storify.example\n';
+
+  it('answers the https origins of design.storybook_url and environments.stage.url only', async () => {
+    const { github } = setup({ issues: OPEN_ISSUES, projectYml: EMBED_YML });
+    const response = await fetchApi('/api/v1/projects/tc/embed-origins', localEnv(), { github });
+
+    expect(response.status).toBe(200);
+    // The stage URL is plain http, so only the Storybook origin can be framed.
+    await expect(response.json()).resolves.toEqual({
+      embedOrigins: ['https://storify.pages.dev'],
+    } satisfies EmbedOriginsDto);
+  });
+
+  it('embeds nothing when project.yml is missing', async () => {
+    const { github } = setup({ issues: OPEN_ISSUES, projectYml: null });
+    const response = await fetchApi('/api/v1/projects/tc/embed-origins', localEnv(), { github });
+    await expect(response.json()).resolves.toEqual({ embedOrigins: [] });
+  });
+
+  it('shares the cached project.yml read with the inbox (no second contents read)', async () => {
+    const { github, stub } = setup({ issues: OPEN_ISSUES, projectYml: EMBED_YML });
+    await fetchApi('/api/v1/projects/tc/inbox', localEnv(), { github });
+    await fetchApi('/api/v1/projects/tc/embed-origins', localEnv(), { github });
+    expect(stub.reads().filter((call) => call.url.pathname.includes('/contents/'))).toHaveLength(1);
+  });
+
+  it('surfaces a GitHub failure as a problem, like the other project reads', async () => {
+    const stub = stubGitHub(() => json(500, { message: 'boom' }));
+    const github = new ApiGitHub({ fetch: stub.fetch });
+    const response = await fetchApi('/api/v1/projects/tc/embed-origins', localEnv(), { github });
+    expect(response.status).toBeGreaterThanOrEqual(500);
+    expect(isProblemDetails(await response.json())).toBe(true);
+  });
+});
+
 describe('the slug is checked before any fetch (#9 row 2)', () => {
-  it.each(['inbox', 'questions', 'sprint'])('%s', async (route) => {
+  it.each(['inbox', 'questions', 'sprint', 'embed-origins'])('%s', async (route) => {
     for (const slug of ['tc%2F..%2Fx', '..', '%2e%2e', 'tc%2Fx', 'a/b', 'TC']) {
       const { github, stub } = setup();
       const response = await fetchApi(`/api/v1/projects/${slug}/${route}`, localEnv(), { github });
