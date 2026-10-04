@@ -1806,7 +1806,60 @@
           },
           "state": "open"
         }
-      ]
+      ],
+      "issueEvents": {
+        "72": [
+          {
+            "id": 9300000001,
+            "event": "labeled",
+            "actor": {
+              "login": "geeera",
+              "id": 100001,
+              "type": "User"
+            },
+            "label": {
+              "name": "e2e:fixture",
+              "color": "ededed"
+            },
+            "performed_via_github_app": null,
+            "created_at": "2026-10-05T08:00:00Z"
+          }
+        ],
+        "90001": [
+          {
+            "id": 9300000002,
+            "event": "labeled",
+            "actor": {
+              "login": "geeera",
+              "id": 100001,
+              "type": "User"
+            },
+            "label": {
+              "name": "e2e:fixture",
+              "color": "ededed"
+            },
+            "performed_via_github_app": null,
+            "created_at": "2026-10-05T08:01:00Z"
+          }
+        ],
+        "90002": [
+          {
+            "id": 9300000003,
+            "event": "labeled",
+            "actor": {
+              "login": "geeera",
+              "id": 100001,
+              "type": "User"
+            },
+            "label": {
+              "name": "e2e:fixture",
+              "color": "ededed"
+            },
+            "performed_via_github_app": null,
+            "created_at": "2026-10-05T08:02:00Z"
+          }
+        ]
+      }
     },
     "geeera/private-product": {
       "installationId": 1001,

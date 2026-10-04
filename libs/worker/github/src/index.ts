@@ -1,7 +1,7 @@
 export { GitHubAppAuth, INSTALLATION_PERMISSIONS, createAppJwt, importAppPrivateKey } from './lib/app-auth';
 export type { GitHubAppAuthOptions, GitHubAppCredentials } from './lib/app-auth';
 export { GitHubClient } from './lib/client';
-export type { JsonGuard, PaginateOptions } from './lib/client';
+export type { JsonGuard, ListTail, PaginateOptions } from './lib/client';
 export {
   GitHubError,
   mapGitHubResponse,

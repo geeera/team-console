@@ -36,7 +36,6 @@ const WRITE_HEADERS = { 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'applic
 interface Issue {
   readonly state: string;
   readonly labels: readonly string[];
-  readonly user?: { readonly login: string; readonly type: string };
 }
 
 const BY_OWNER = { login: 'geeera', type: 'User' } as const;
@@ -48,17 +47,53 @@ const ISSUES: Record<string, Issue> = {
   '9': { state: 'open', labels: ['needs:owner', 'kind:chore'] },
   '10': { state: 'closed', labels: ['kind:question'] },
   '11': { state: 'open', labels: ['kind:feature'] },
-  // #62: what the service identity may and may not answer.
-  '20': { state: 'open', labels: ['needs:owner', 'kind:chore', 'e2e:fixture'], user: BY_TEAM },
-  '21': { state: 'open', labels: ['team:demo', 'kind:chore', 'e2e:fixture'], user: BY_OWNER },
-  '22': {
-    state: 'open',
-    labels: ['design:awaiting-approval', 'kind:feature', 'e2e:fixture'],
-    user: BY_OWNER,
-  },
-  '23': { state: 'open', labels: ['kind:question', 'e2e:fixture'], user: BY_TEAM },
-  '24': { state: 'open', labels: ['kind:question', 'e2e:fixture'], user: BY_OWNER },
-  '25': { state: 'open', labels: ['needs:owner', 'kind:chore'], user: BY_OWNER },
+  // #62 and #193: what the service identity may and may not answer.
+  '20': { state: 'open', labels: ['needs:owner', 'kind:chore', 'e2e:fixture'] },
+  '21': { state: 'open', labels: ['team:demo', 'kind:chore', 'e2e:fixture'] },
+  '22': { state: 'open', labels: ['design:awaiting-approval', 'kind:feature', 'e2e:fixture'] },
+  '23': { state: 'open', labels: ['kind:question', 'e2e:fixture'] },
+  '24': { state: 'open', labels: ['kind:question', 'owner:scope', 'e2e:fixture'] },
+  '25': { state: 'open', labels: ['needs:owner', 'kind:chore'] },
+  '26': { state: 'open', labels: ['needs:owner', 'kind:chore', 'e2e:fixture'] },
+  '27': { state: 'open', labels: ['needs:local', 'kind:chore', 'e2e:fixture'] },
+  '28': { state: 'open', labels: ['needs:owner', 'kind:chore', 'e2e:fixture'] },
+};
+
+type IssueEvent = Record<string, unknown>;
+
+function labelEvent(
+  id: number,
+  kind: 'labeled' | 'unlabeled',
+  actor: object,
+  extra: object = {},
+): IssueEvent {
+  return {
+    id,
+    event: kind,
+    actor,
+    label: { name: 'e2e:fixture', color: 'ededed' },
+    performed_via_github_app: null,
+    ...extra,
+  };
+}
+
+/** `GET …/issues/{n}/events` (oldest first) for the fixture issues; every other issue has no events. */
+const EVENTS: Record<string, readonly IssueEvent[]> = {
+  '20': [{ id: 1, event: 'subscribed', actor: BY_TEAM }, labelEvent(2, 'labeled', BY_OWNER)],
+  '21': [labelEvent(3, 'labeled', BY_OWNER)],
+  '22': [labelEvent(4, 'labeled', BY_OWNER)],
+  '23': [labelEvent(5, 'labeled', BY_OWNER)],
+  '24': [labelEvent(6, 'labeled', BY_OWNER)],
+  // A bot or app applied it.
+  '26': [labelEvent(7, 'labeled', BY_TEAM)],
+  // The owner applied it, then a bot removed it and applied it again.
+  '27': [
+    labelEvent(8, 'labeled', BY_OWNER),
+    labelEvent(9, 'unlabeled', BY_TEAM),
+    labelEvent(10, 'labeled', BY_TEAM),
+  ],
+  // The owner applied it, and it was removed afterwards (the issue's labels are a stale view).
+  '28': [labelEvent(11, 'labeled', BY_OWNER), labelEvent(12, 'unlabeled', BY_OWNER)],
 };
 
 interface Harness {
@@ -71,6 +106,10 @@ interface Harness {
   repoOwner: { login: string; id: number };
   /** Replaces the fake's answer to the comment POST (5xx, repeated 401). */
   commentReply: ((call: GitHubCall) => Response) | undefined;
+  /** Replaces the answer to the issue events read (#193: a failed read). */
+  eventsReply: (() => Response) | undefined;
+  /** Labels the issue shows from its second read on (#193: a label change between the gate and the POST). */
+  labelsOnReread: readonly string[] | undefined;
 }
 
 function toRequest(call: GitHubCall): Request {
@@ -90,6 +129,8 @@ function harness(options: { instantSleep?: boolean } = {}): Harness {
     clock: Date.now(),
     repoOwner: { login: OWNER.login, id: OWNER.id },
     commentReply: undefined,
+    eventsReply: undefined,
+    labelsOnReread: undefined,
     stub: stubGitHub(async (call) => {
       const path = call.url.pathname;
       if (call.method === 'POST' && path.endsWith('/comments')) {
@@ -98,16 +139,22 @@ function harness(options: { instantSleep?: boolean } = {}): Harness {
       if (call.url.origin === 'https://github.com' || path === '/user') {
         return fake.handle(toRequest(call));
       }
+      const events = /^\/repos\/geeera\/team-console\/issues\/(\d+)\/events$/.exec(path);
+      if (call.method === 'GET' && events !== null) {
+        return h.eventsReply?.() ?? json(200, EVENTS[events[1] ?? ''] ?? []);
+      }
       const issue = /^\/repos\/geeera\/team-console\/issues\/(\d+)$/.exec(path);
       if (call.method === 'GET' && issue !== null) {
         const found = ISSUES[issue[1] ?? ''];
+        const isReread = h.stub.calls.filter((made) => made.url.pathname === path).length > 1;
         return found === undefined
           ? json(404, { message: 'Not Found' })
           : json(200, {
               number: Number(issue[1]),
               state: found.state,
-              labels: found.labels.map((name) => ({ name })),
-              ...(found.user === undefined ? {} : { user: found.user }),
+              labels: (isReread && h.labelsOnReread !== undefined ? h.labelsOnReread : found.labels).map(
+                (name) => ({ name }),
+              ),
             });
       }
       if (call.method === 'GET' && path === `/repos/${REPO}`) {
@@ -616,7 +663,10 @@ describe('the Access service identity: fixture issues only (#62)', () => {
     expect(h.stub.reads().filter((call) => call.url.pathname === `/repos/${REPO}/issues/25`)).toHaveLength(2);
   });
 
-  it('answers on a fixture issue as the owner (201)', async () => {
+  const eventReads = (h: Harness): GitHubCall[] =>
+    h.stub.calls.filter((call) => call.url.pathname.endsWith('/events'));
+
+  it('answers on an issue the owner labelled as the owner (201), reading the label history once', async () => {
     const h = harness();
     const { response } = await asService(h, 20, { command: 'done', ownerSaid: 'сделано' });
     expect(response.status).toBe(201);
@@ -624,19 +674,126 @@ describe('the Access service identity: fixture issues only (#62)', () => {
       expect.objectContaining({ repo: REPO, issue: 20, author: OWNER.login }),
     ]);
     expect(h.logs.join('\n')).toContain('service owner write allowed on a fixture issue');
+    expect(eventReads(h).map((call) => `${call.url.pathname}${call.url.search}`)).toEqual([
+      `/repos/${REPO}/issues/20/events?per_page=100`,
+    ]);
+    // The installation token reads the history, never the owner's.
+    expect(eventReads(h)[0]?.headers.get('authorization')).toMatch(/^Bearer ghs_TESTSENTINEL/);
   });
 
-  it('answers a fixture question the owner opened (201)', async () => {
+  it('re-reads the labels right before the POST: the issue is read twice on an allowed write', async () => {
     const h = harness();
-    const { response } = await asService(h, 24, { command: 'approve', ownerSaid: 'да' });
-    expect(response.status).toBe(201);
-    expect(h.fake.comments).toHaveLength(1);
+    await asService(h, 20, { command: 'done', ownerSaid: 'сделано' });
+    const issueReads = h.stub.calls
+      .map((call, index) => ({ call, index }))
+      .filter(({ call }) => call.url.pathname === `/repos/${REPO}/issues/20`);
+    const postIndex = h.stub.calls.findIndex(
+      (call) => call.method === 'POST' && call.url.pathname.endsWith('/comments'),
+    );
+    expect(issueReads).toHaveLength(2);
+    // Nothing of the owner's token work happens between the re-read and the comment.
+    expect(postIndex).toBe((issueReads[1]?.index ?? -2) + 1);
+  });
+
+  it.each([
+    ['the label was removed', ['needs:owner', 'kind:chore'], 'service-not-fixture', 'no-fixture-label'],
+    [
+      'a protected label was added',
+      ['needs:owner', 'team:demo', 'e2e:fixture'],
+      'service-protected-item',
+      'release',
+    ],
+  ] as const)(
+    '403 when %s between the gate and the POST; nothing is posted and the claim is released',
+    async (_what, labels, slug, reason) => {
+      const h = harness();
+      h.labelsOnReread = labels;
+      const { response } = await asService(h, 20, { command: 'done', ownerSaid: 'сделано' });
+      expect(response.status).toBe(403);
+      const problemBody = await problemOf(response);
+      expect(problemBody.slug).toBe(slug);
+      expect(problemBody.body['reason']).toBe(reason);
+      expect(posts(h)).toEqual([]);
+      expect(await ownWrites()).toEqual([]);
+      const { results } = await env.DB.prepare('SELECT * FROM own_write_claims').all();
+      expect(results).toEqual([]);
+      expect(parsedLogs(h.logs)).toContainEqual(
+        expect.objectContaining({ message: 'service owner write refused', stage: 'recheck', reason }),
+      );
+    },
+  );
+
+  it.each([
+    [26, 'the label was added by a bot or app', 'fixture-not-labelled-by-owner'],
+    [27, 'the owner added it, then a bot removed and re-added it', 'fixture-not-labelled-by-owner'],
+    [28, 'the label was removed after the owner added it', 'fixture-label-removed'],
+  ] as const)(
+    '403 service-not-fixture on #%i (%s); the owner token is never read',
+    async (issue, _what, reason) => {
+      const h = harness();
+      const { response, statements } = await asService(h, issue, { command: 'done', ownerSaid: 'сделано' });
+      expect(response.status).toBe(403);
+      const problemBody = await problemOf(response);
+      expect(problemBody.slug).toBe('service-not-fixture');
+      expect(problemBody.body['reason']).toBe(reason);
+      expect(ownerTokenUses(h)).toEqual([]);
+      expect(h.fake.comments).toEqual([]);
+      expect(statements.filter((sql) => /owner_connections/i.test(sql))).toEqual([]);
+      expect(await ownWrites()).toEqual([]);
+    },
+  );
+
+  it.each([
+    ['a 500', () => json(500, { message: 'boom' })],
+    ['a 404', () => json(404, { message: 'Not Found' })],
+    ['a body that is not a list', () => json(200, { events: [] })],
+    [
+      'a last page off api.github.com',
+      () => json(200, [], { link: '<https://evil.example/x?page=2>; rel="last"' }),
+    ],
+  ] as const)('403 fixture-history-unreadable when the events read fails with %s', async (_what, reply) => {
+    const h = harness();
+    h.eventsReply = reply;
+    const { response, statements } = await asService(h, 20, { command: 'done', ownerSaid: 'сделано' });
+    expect(response.status).toBe(403);
+    const problemBody = await problemOf(response);
+    expect(problemBody.slug).toBe('service-not-fixture');
+    expect(problemBody.body['reason']).toBe('fixture-history-unreadable');
+    expect(ownerTokenUses(h)).toEqual([]);
+    expect(h.fake.comments).toEqual([]);
+    expect(statements.filter((sql) => /owner_connections/i.test(sql))).toEqual([]);
+  });
+
+  it('403 when no owner login is configured on the Worker', async () => {
+    const h = harness();
+    await seedConnection(h.fake, { environment: 'stage' });
+    const jwks = stubJwksServer();
+    const teamDomain = uniqueTeamDomain();
+    const key = await createSigningKey();
+    jwks.set(teamDomain, { keys: [key.publicJwk] });
+    const token = await signAccessToken(key, teamDomain, {
+      claims: { email: undefined, common_name: SERVICE_TOKEN_ID },
+    });
+    const response = await answer(
+      h,
+      20,
+      { command: 'done', ownerSaid: 'сделано' },
+      {
+        bindings: { ...accessEnv(teamDomain, { ENVIRONMENT: 'stage' }), OWNER_GITHUB_LOGIN: '' },
+        headers: { ...WRITE_HEADERS, 'Cf-Access-Jwt-Assertion': token },
+      },
+    );
+    expect(response.status).toBe(403);
+    expect((await problemOf(response)).body['reason']).toBe('fixture-not-labelled-by-owner');
+    expect(h.fake.comments).toEqual([]);
   });
 
   it.each([
     [21, { command: 'go', ownerSaid: 'поехали' }, 'release'],
     [22, { command: 'approve', ownerSaid: 'да' }, 'design'],
-    [23, { command: 'approve', ownerSaid: 'да' }, 'team-question'],
+    // #193: every question, the owner's own included (same_account mode cannot tell the two apart).
+    [23, { command: 'approve', ownerSaid: 'да' }, 'question'],
+    [24, { command: 'approve', ownerSaid: 'да' }, 'question'],
   ] as const)(
     '403 service-protected-item on fixture issue #%i (%j): %s is never unlocked by the label',
     async (issue, body, reason) => {
@@ -650,21 +807,30 @@ describe('the Access service identity: fixture issues only (#62)', () => {
       expect(h.fake.comments).toEqual([]);
       expect(statements.filter((sql) => /owner_connections/i.test(sql))).toEqual([]);
       expect(h.logs.join('\n')).toContain('service owner write refused');
+      // Refused on the labels alone: the history is not read.
+      expect(eventReads(h)).toEqual([]);
     },
   );
 
-  it.each([25, 21, 22, 23])('leaves the owner (a user identity) unchanged on issue #%i', async (issue) => {
-    const h = harness();
-    const command = issue === 21 ? 'go' : issue === 25 ? 'done' : 'approve';
-    const { response } = await asService(
-      h,
-      issue,
-      { command, ownerSaid: 'да' },
-      { claims: { email: OWNER_EMAIL } },
-    );
-    expect(response.status).toBe(201);
-    expect(h.fake.comments).toHaveLength(1);
-  });
+  it.each([25, 21, 22, 23, 24, 26, 27])(
+    'leaves the owner (a user identity) unchanged on issue #%i: no history read, no label re-read',
+    async (issue) => {
+      const h = harness();
+      const command = issue === 21 ? 'go' : [25, 26, 27].includes(issue) ? 'done' : 'approve';
+      const { response } = await asService(
+        h,
+        issue,
+        { command, ownerSaid: 'да' },
+        { claims: { email: OWNER_EMAIL } },
+      );
+      expect(response.status).toBe(201);
+      expect(h.fake.comments).toHaveLength(1);
+      expect(eventReads(h)).toEqual([]);
+      expect(
+        h.stub.calls.filter((call) => call.url.pathname === `/repos/${REPO}/issues/${issue}`),
+      ).toHaveLength(1);
+    },
+  );
 });
 
 describe('logs and sentinels', () => {
