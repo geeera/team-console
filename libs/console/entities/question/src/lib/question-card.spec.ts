@@ -143,12 +143,14 @@ describe('QuestionCard', () => {
       );
     });
 
-    it('never frames anything for an item from outside the team', async () => {
+    it('keeps an item from outside the team as plain text: no markdown, no links, no frame', async () => {
       const { root } = await renderRich({ authorTrusted: false });
 
       expect(root.querySelector('[data-testid="preview"]')).toBeNull();
       expect(root.querySelector('iframe')).toBeNull();
-      expect(root.querySelector('[data-testid="markdown"]')).not.toBeNull();
+      expect(root.querySelector('[data-testid="markdown"]')).toBeNull();
+      expect(root.querySelector('.question__body')?.textContent).toBe(DESIGN_BODY);
+      expect(root.querySelector('details a')).toBeNull();
     });
 
     it('has no preview when the body links only to GitHub', async () => {

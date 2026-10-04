@@ -6,7 +6,7 @@ import { fakeComments, seed } from './support/stack';
 
 /**
  * Designs and demo (#20) on the fixture repository: the designs waiting for approval (#90004 with a Storybook
- * prototype and hostile markdown, #90006 with a prototype off the allow-list) and the open demo (#90005, stage),
+ * prototype and hostile markdown, #90006 with a prototype off the allow-list) and the open demo (#90005, a link-only stage),
  * answered in place. Frames load only from the project's embed origins, which the test serves locally; any other
  * request off the app origin fails the test.
  */
@@ -30,12 +30,9 @@ function recordAnswerPosts(page: Page): Request[] {
   return posts;
 }
 
-/** Answers the two embed origins with a small accessible page instead of the internet. */
+/** Answers the one embed origin with a small accessible page instead of the internet; stage is never requested. */
 async function servePreviews(page: Page, allow: (origin: string) => void): Promise<void> {
-  for (const [origin, name] of [
-    [STORYBOOK, 'Storybook'],
-    [STAGE, 'Stage'],
-  ] as const) {
+  for (const [origin, name] of [[STORYBOOK, 'Storybook']] as const) {
     allow(origin);
     await page.route(`${origin}/**`, (route) =>
       route.fulfill({
@@ -88,7 +85,12 @@ test('lists the designs waiting for approval and the open demo, with previews on
 
   // The hostile part of the body: no element of it survives, the javascript: link has no target.
   const markdown = design.getByTestId('markdown');
+  // The renderer arrives lazily; wait for the rendered prose, not the plain-text stand-in.
+  await expect(markdown.locator('div.tc-markdown')).toBeVisible();
   await expect(markdown.locator('img, script, iframe, [onerror]')).toHaveCount(0);
+  // #189: a refused image is named in the interface language.
+  await expect(markdown).toContainText(ru('ui.markdown.image'));
+  await expect(markdown).not.toContainText(/\bimage\b/);
   await expect(markdown.getByText('ссылка')).toBeVisible();
   expect(await markdown.locator('a:not([href])').count()).toBeGreaterThan(0);
   expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
@@ -106,15 +108,48 @@ test('lists the designs waiting for approval and the open demo, with previews on
   await expect(open).toHaveAttribute('rel', 'noopener noreferrer');
   await expect(open).toHaveAttribute('target', '_blank');
 
-  // The demo previews its stage and renders its markdown table.
+  // Stage is link-only (behind Cloudflare Access; owner decision 2026-10-05): a note and Open, never a blank frame.
   const demo = card(page, 90005);
-  await expect(demo.locator('iframe')).toHaveAttribute('src', `${STAGE}/`);
+  await expect(demo.getByTestId('frame-refused')).toBeVisible();
+  await expect(demo.locator('iframe')).toHaveCount(0);
+  await expect(demo.getByTestId('frame-open')).toHaveAttribute('href', `${STAGE}/`);
   await expect(demo.getByTestId('markdown').locator('table td').first()).toHaveText('e2e');
 
   // Fits the phone: nothing widens the page past the viewport.
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
   await expectAccessible(page, 'Designs and demo');
+});
+
+/** Script responses the page loads from now on, with their text. */
+function recordScripts(page: Page): Promise<string>[] {
+  const scripts: Promise<string>[] = [];
+  page.on('response', (response) => {
+    if (response.request().resourceType() === 'script') {
+      scripts.push(response.text().catch(() => ''));
+    }
+  });
+  return scripts;
+}
+
+// A string only DOMPurify's bundle contains.
+const SANITISER_MARK = 'ALLOWED_URI_REGEXP';
+
+test('Questions and Needs you never download the markdown renderer; Designs and demo does', async ({
+  page,
+  outsideRequests,
+}) => {
+  await servePreviews(page, (origin) => outsideRequests.allow(origin));
+  const scripts = recordScripts(page);
+  await page.goto('/needs-you');
+  await expect(page.locator('li[data-number="72"]')).toBeVisible();
+  await page.goto('/p/team-console/questions');
+  await expect(page.locator('li[data-number="90004"]')).toBeVisible();
+  expect((await Promise.all(scripts)).some((text) => text.includes(SANITISER_MARK))).toBe(false);
+
+  await page.goto(SECTION);
+  await expect(card(page, 90004).locator('div.tc-markdown')).toBeVisible();
+  expect((await Promise.all(scripts)).some((text) => text.includes(SANITISER_MARK))).toBe(true);
 });
 
 test.describe('dark theme', () => {

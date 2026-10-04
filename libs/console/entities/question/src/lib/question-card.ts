@@ -1,6 +1,15 @@
-import { booleanAttribute, ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+import {
+  booleanAttribute,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  linkedSignal,
+} from '@angular/core';
 import { TranslocoPipe } from '@console/shared/i18n';
-import { Markdown, renderMarkdown } from '@console/shared/markdown';
+import { Markdown, type RenderedMarkdown } from '@console/shared/markdown';
 import { Card, CardStamp, Chip, Frame, Recommendation } from '@console/shared/ui';
 import { previewTargetOf } from './preview-target';
 import { QuestionItem } from './question.model';
@@ -11,7 +20,7 @@ let nextCardId = 0;
  * One waiting item as a Paper Desk decision card. Every text of the item is untrusted: the title and the
  * recommendation are interpolated, and the body is plain text, or — on the Designs and demo screen (#20, with
  * `embedOrigins`) — sanitised markdown plus a preview of the page it links to. An item whose author is not trusted
- * carries a visible mark and never gets a preview frame. The answer controls are projected (`[tc-question-actions]`)
+ * carries a visible mark and stays plain text everywhere, with no links and no preview. The answer controls are projected (`[tc-question-actions]`)
  * — the card itself never acts.
  */
 @Component({
@@ -48,10 +57,15 @@ let nextCardId = 0;
       @if (item().body; as body) {
         <details class="question__details" [open]="embedOrigins() !== null">
           <summary>{{ 'questions.details' | transloco }}</summary>
-          @if (embedOrigins() === null) {
-            <p class="question__body">{{ body }}</p>
+          @if (isRich()) {
+            <tc-markdown
+              class="question__markdown"
+              data-testid="markdown"
+              [text]="body"
+              (rendered)="onRendered($event)"
+            />
           } @else {
-            <tc-markdown class="question__markdown" data-testid="markdown" [text]="body" />
+            <p class="question__body">{{ body }}</p>
           }
         </details>
       }
@@ -79,14 +93,26 @@ export class QuestionCard {
    */
   readonly embedOrigins = input<readonly string[] | null>(null);
 
+  private readonly ownOrigin = inject(DOCUMENT).location.origin;
+  /** Markdown and a preview only on the Designs and demo screen, and only for the team's own items. */
+  protected readonly isRich = computed(() => this.embedOrigins() !== null && this.item().authorTrusted);
+  /** The links of the rendered body; reset whenever the body changes, until it has rendered again. */
+  private readonly links = linkedSignal<string | null, readonly string[]>({
+    source: () => this.item().body,
+    computation: () => [],
+  });
+
   protected readonly preview = computed(() => {
     const origins = this.embedOrigins();
-    const { body, authorTrusted } = this.item();
-    if (origins === null || body === null || !authorTrusted) {
+    if (origins === null || this.item().body === null || !this.isRich()) {
       return null;
     }
-    return previewTargetOf(renderMarkdown(body).links, origins);
+    return previewTargetOf(this.links(), origins, this.ownOrigin);
   });
+
+  protected onRendered(result: RenderedMarkdown): void {
+    this.links.set(result.links);
+  }
 
   protected readonly titleId = `tc-question-title-${nextCardId++}`;
 }

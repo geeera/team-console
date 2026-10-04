@@ -29,9 +29,15 @@ function isInFrameFamily(hostname: string): boolean {
 /**
  * The URL a frame may load, or `null`: an absolute `https:` URL without credentials, on a DNS name (not an IP
  * address, not loopback, no trailing dot) inside the CSP's frame families, whose `origin` is exactly one of
- * `allowedOrigins`. No prefix or substring matching. The result is the parser's own serialisation of `candidate`.
+ * `allowedOrigins` and is not `ownOrigin` (the console's own origin: a same-origin frame with `allow-scripts
+ * allow-same-origin` could lift its own sandbox and act as the console). No prefix or substring matching. The result
+ * is the parser's own serialisation of `candidate`.
  */
-export function frameSrcOf(candidate: unknown, allowedOrigins: readonly string[]): string | null {
+export function frameSrcOf(
+  candidate: unknown,
+  allowedOrigins: readonly string[],
+  ownOrigin: string,
+): string | null {
   if (typeof candidate !== 'string' || candidate.length > MAX_FRAME_URL_LENGTH || !URL.canParse(candidate)) {
     return null;
   }
@@ -44,7 +50,8 @@ export function frameSrcOf(candidate: unknown, allowedOrigins: readonly string[]
     !DNS_HOST.test(hostname) ||
     hostname.endsWith('.') ||
     isLoopbackOrIp(hostname) ||
-    !isInFrameFamily(hostname)
+    !isInFrameFamily(hostname) ||
+    url.origin === ownOrigin
   ) {
     return null;
   }
@@ -59,8 +66,9 @@ export function trustedFrameSrc(
   sanitizer: DomSanitizer,
   candidate: unknown,
   allowedOrigins: readonly string[],
+  ownOrigin: string,
 ): SafeResourceUrl | null {
-  const src = frameSrcOf(candidate, allowedOrigins);
+  const src = frameSrcOf(candidate, allowedOrigins, ownOrigin);
   return src === null ? null : sanitizer.bypassSecurityTrustResourceUrl(src);
 }
 

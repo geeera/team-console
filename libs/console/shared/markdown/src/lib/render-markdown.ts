@@ -1,15 +1,11 @@
 import DOMPurify, { type Config } from 'dompurify';
 import { Marked } from 'marked';
+import { MARKDOWN_MAX_LENGTH, type RenderedMarkdown } from './rendered-markdown';
 
-/** Sanitised HTML for `[innerHTML]` and the absolute links it contains, in document order. */
-export interface RenderedMarkdown {
-  readonly html: string;
-  /** `https:` hrefs of the links left after sanitising (including rewritten images), deduplicated. */
-  readonly links: readonly string[];
+export interface RenderMarkdownOptions {
+  /** The translated word for an image with neither alt text nor a file name. */
+  readonly imageLabel: string;
 }
-
-// GitHub caps an issue or comment body at 65,536 characters; anything longer is cut, never parsed whole.
-export const MARKDOWN_MAX_LENGTH = 65_536;
 
 const ALLOWED_TAGS = [
   'a',
@@ -86,7 +82,7 @@ function safeHrefOf(value: string | null): string | null {
 }
 
 /** An image becomes a link to it named by its alt text or file name (decision 13; `img-src 'self'` blocks it anyway). */
-function imageLabelOf(image: Element, href: string | null): string {
+function imageLabelOf(image: Element, href: string | null, fallback: string): string {
   const alt = image.getAttribute('alt')?.trim() ?? '';
   if (alt !== '') {
     return alt;
@@ -97,7 +93,7 @@ function imageLabelOf(image: Element, href: string | null): string {
       return decodeURIComponentSafe(name);
     }
   }
-  return 'image';
+  return fallback;
 }
 
 function decodeURIComponentSafe(value: string): string {
@@ -111,11 +107,11 @@ function decodeURIComponentSafe(value: string): string {
   }
 }
 
-function rewriteImages(root: DocumentFragment): void {
+function rewriteImages(root: DocumentFragment, fallbackLabel: string): void {
   const document = root.ownerDocument;
   for (const image of Array.from(root.querySelectorAll('img'))) {
     const href = safeHrefOf(image.getAttribute('src'));
-    const label = imageLabelOf(image, href);
+    const label = imageLabelOf(image, href, fallbackLabel);
     if (href !== null && href.startsWith('https:')) {
       const link = document.createElement('a');
       link.setAttribute('href', href);
@@ -153,11 +149,11 @@ function hardenLinks(root: DocumentFragment): string[] {
  * profile above, then images become links and every link is re-checked and opens in a new tab without a referrer.
  * HTML comments (the team's `<!-- pt-… -->` markers) are dropped.
  */
-export function renderMarkdown(text: string): RenderedMarkdown {
+export function renderMarkdown(text: string, options: RenderMarkdownOptions): RenderedMarkdown {
   const source = text.length > MARKDOWN_MAX_LENGTH ? text.slice(0, MARKDOWN_MAX_LENGTH) : text;
   const parsed = markdown.parse(source, { async: false });
   const fragment = DOMPurify.sanitize(parsed, PURIFY_CONFIG);
-  rewriteImages(fragment);
+  rewriteImages(fragment, options.imageLabel);
   const links = hardenLinks(fragment);
   const container = fragment.ownerDocument.createElement('div');
   container.append(fragment);

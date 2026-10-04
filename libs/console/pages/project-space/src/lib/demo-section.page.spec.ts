@@ -105,7 +105,7 @@ describe('DemoSectionPage (#20)', () => {
 
   it('lists only the designs waiting for approval and the demo, as sanitised cards with previews', async () => {
     const { http, root, settle } = await setup();
-    http.expectOne(embedOriginsUrl('tc')).flush({ embedOrigins: [STORYBOOK, STAGE] });
+    http.expectOne(embedOriginsUrl('tc')).flush({ embedOrigins: [STORYBOOK] });
     await settle();
     http.expectOne(projectQuestionsUrl('tc')).flush(QUESTIONS);
     await settle();
@@ -115,7 +115,9 @@ describe('DemoSectionPage (#20)', () => {
     expect(root.querySelector('ul')?.getAttribute('aria-label')).toBe('Дизайн и демо на ваше решение');
 
     const frames = [...root.querySelectorAll('iframe')].map((frame) => frame.getAttribute('src'));
-    expect(frames).toEqual([`${STAGE}/`, `${STORYBOOK}/?path=/story/editor`]);
+    // Stage is link-only: the demo shows a note with Open, the design its Storybook frame.
+    expect(frames).toEqual([`${STORYBOOK}/?path=/story/editor`]);
+    expect(root.querySelector('li[data-number="5"] [data-testid="frame-open"]')?.getAttribute('href')).toBe(`${STAGE}/`);
     expect(root.querySelector('[data-testid="markdown"] h2')?.textContent).toBe('Scope');
     expect(root.querySelector('img, script')).toBeNull();
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
@@ -139,7 +141,7 @@ describe('DemoSectionPage (#20)', () => {
     await settle();
 
     expect(root.querySelector('[data-testid="origins-failed"]')?.textContent).toContain(
-      'Не удалось узнать адреса Storybook и stage',
+      'Не удалось узнать адрес Storybook проекта',
     );
     expect(root.querySelector('iframe')).toBeNull();
     expect(root.querySelectorAll('[data-testid="frame-refused"]')).toHaveLength(2);

@@ -1,4 +1,7 @@
-import { MARKDOWN_MAX_LENGTH, renderMarkdown } from './render-markdown';
+import { renderMarkdown as render } from './render-markdown';
+import { MARKDOWN_MAX_LENGTH } from './rendered-markdown';
+
+const renderMarkdown = (text: string) => render(text, { imageLabel: 'изображение' });
 
 /**
  * XSS corpus (#20 acceptance criteria): classic DOMPurify/OWASP vectors plus GitHub-shaped cases. Every entry must
@@ -181,5 +184,10 @@ describe('renderMarkdown', () => {
   it('cuts a body longer than GitHub allows instead of parsing all of it', () => {
     const { html } = renderMarkdown('a'.repeat(MARKDOWN_MAX_LENGTH + 500));
     expect(parse(html).textContent?.trim().length).toBe(MARKDOWN_MAX_LENGTH);
+  });
+
+  it('names an image with neither alt text nor a usable source by the translated label (#189)', () => {
+    expect(parse(render('<img src=x>', { imageLabel: 'изображение' }).html).textContent).toBe('изображение');
+    expect(parse(render('<img src=x>', { imageLabel: 'image' }).html).textContent).toBe('image');
   });
 });

@@ -84,3 +84,9 @@
 .tc-markdown summary {
   cursor: pointer;
 }
+
+/* Before the renderer arrives, or without it: the raw text, line breaks kept. */
+.tc-markdown--plain {
+  margin: 0;
+  white-space: pre-wrap;
+}

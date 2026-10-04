@@ -127,14 +127,18 @@ readers in `@worker/read-models` `lib/artifacts/` (snapshot `fixtures/artifacts_
 
 Designs and demo (#20): `/p/:slug/demo` (`DemoSectionPage`) lists the `design` and `release` sections of
 `GET /projects/:slug/questions` through `QuestionList` (`sections`, `embedOrigins`) and answers them with the same
-`AnswerQuestion` and answer route. With `embedOrigins` a `QuestionCard` renders its body through
-`@console/shared/markdown` (`renderMarkdown`: `marked` + DOMPurify, allow-listed tags/attributes, https/mailto/# links
-only, images become links, every link `target=_blank rel="noopener noreferrer"`; never bypass Angular's sanitiser) and
-previews the body's first link (`previewTargetOf`) in the kit `Frame`. `Frame` is the only place a frame `src` is
-built: `frameSrcOf` (kit `frame/frame-src.ts`) requires https, no credentials, a DNS host outside IP/loopback inside
-the `_headers` `frame-src` families, and `new URL(src).origin` exactly in `GET /projects/:slug/embed-origins`
-(`EmbedOriginsApi`); the sandbox never has `allow-top-navigation`, `referrerpolicy="no-referrer"`, no `allow`. Anything
-else is a "can't be shown here" note with an Open link; items from outside the team get no preview.
+`AnswerQuestion` and answer route. With `embedOrigins`, a team-authored item's `QuestionCard` renders its body through
+`<tc-markdown>` (`@console/shared/markdown`; it lazy-loads `renderMarkdown` — `marked` + DOMPurify, allow-listed
+tags/attributes, https/mailto/# links only, images become links labelled through i18n, every link `target=_blank
+rel="noopener noreferrer"`; never bypass Angular's sanitiser; the barrel must not import the renderer statically, so
+Questions and Needs you never download it) and previews the body's first link (`previewTargetOf`) in the kit `Frame`.
+Items from outside the team stay plain text with no preview. `Frame` is the only place a frame `src` is built:
+`frameSrcOf` (kit `frame/frame-src.ts`) requires https, no credentials, a DNS host outside IP/loopback inside the
+`_headers` `frame-src` families (no `'self'` there), never the console's own origin, and `new URL(src).origin` exactly
+in `GET /projects/:slug/embed-origins` (`EmbedOriginsApi`: `design.storybook_url` only — stage is link-only because it
+sits behind Cloudflare Access, owner decision 2026-10-05 on #188 — and never the request's own origin); the
+sandbox never has `allow-top-navigation`, `referrerpolicy="no-referrer"`, no `allow`. Anything else is a "can't be
+shown here" note with an Open link.
 
 All projects (#27, read-only): `GET /api/v1/overview` (`routes/overview.ts`) builds one row per active project from the
 same cached reads (`buildOverviewRow` in `@worker/read-models`; team state by `team/team-health.ts` from the run log's

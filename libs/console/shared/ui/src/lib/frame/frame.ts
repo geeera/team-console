@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { DomSanitizer } from '@angular/platform-browser';
 import { TranslocoPipe } from '@console/shared/i18n';
@@ -6,7 +7,7 @@ import { externalHrefOf, frameSrcOf, trustedFrameSrc } from './frame-src';
 
 /**
  * An embedded page (Paper Desk preview): the page in a sandboxed frame when `src` passes `frameSrcOf` against
- * `allowedOrigins`, otherwise a "can't be shown here" note. Both always carry an "Open in a new tab" link, because a
+ * `allowedOrigins` (never the console's own origin), otherwise a "can't be shown here" note. Both always carry an "Open in a new tab" link, because a
  * page behind a login or with anti-framing headers fails silently inside a frame.
  *
  * The sandbox never grants top navigation, the frame sends no referrer and is delegated no features; these are
@@ -55,6 +56,7 @@ import { externalHrefOf, frameSrcOf, trustedFrameSrc } from './frame-src';
 })
 export class Frame {
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly ownOrigin = inject(DOCUMENT).location.origin;
 
   /** The page to show; untrusted until `frameSrcOf` says otherwise. */
   readonly src = input.required<string>();
@@ -64,10 +66,10 @@ export class Frame {
   readonly title = input.required<string>();
 
   protected readonly trusted = computed(() =>
-    trustedFrameSrc(this.sanitizer, this.src(), this.allowedOrigins()),
+    trustedFrameSrc(this.sanitizer, this.src(), this.allowedOrigins(), this.ownOrigin),
   );
   protected readonly href = computed(
-    () => frameSrcOf(this.src(), this.allowedOrigins()) ?? externalHrefOf(this.src()),
+    () => frameSrcOf(this.src(), this.allowedOrigins(), this.ownOrigin) ?? externalHrefOf(this.src()),
   );
   protected readonly host = computed(() => {
     const href = this.href();

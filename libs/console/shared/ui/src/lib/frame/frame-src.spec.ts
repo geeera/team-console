@@ -3,6 +3,8 @@ import { externalHrefOf, FRAME_HOST_SUFFIXES, frameSrcOf, trustedFrameSrc } from
 
 const STORYBOOK = 'https://team-console-storybook.pages.dev';
 const STAGE = 'https://team-console-stage.geeera.workers.dev';
+// The console the helper runs in; for team-console itself its own environments can appear in embedOrigins.
+const OWN = 'https://team-console-dev.geeera.workers.dev';
 const ALLOWED = [STORYBOOK, STAGE];
 
 describe('frameSrcOf', () => {
@@ -14,7 +16,7 @@ describe('frameSrcOf', () => {
     ['https://TEAM-console-storybook.PAGES.dev/x', `${STORYBOOK}/x`],
     [`${STORYBOOK}:443/x`, `${STORYBOOK}/x`],
   ])('accepts %s on an allowed origin', (candidate, expected) => {
-    expect(frameSrcOf(candidate, ALLOWED)).toBe(expected);
+    expect(frameSrcOf(candidate, ALLOWED, OWN)).toBe(expected);
   });
 
   it.each([
@@ -61,31 +63,38 @@ describe('frameSrcOf', () => {
     ['too long', `${STORYBOOK}/${'a'.repeat(2100)}`],
   ])('refuses %s', (_name, candidate) => {
     // Hostile entries in the allow-list itself must not open a door either.
-    expect(frameSrcOf(candidate, [...ALLOWED, 'https://evil.example', 'https://127.0.0.1'])).toBeNull();
+    expect(frameSrcOf(candidate, [...ALLOWED, 'https://evil.example', 'https://127.0.0.1'], OWN)).toBeNull();
   });
 
   it('refuses an IP or loopback origin even when the allow-list names it', () => {
-    expect(frameSrcOf('https://127.0.0.1/', ['https://127.0.0.1'])).toBeNull();
-    expect(frameSrcOf('https://localhost/', ['https://localhost'])).toBeNull();
+    expect(frameSrcOf('https://127.0.0.1/', ['https://127.0.0.1'], OWN)).toBeNull();
+    expect(frameSrcOf('https://localhost/', ['https://localhost'], OWN)).toBeNull();
   });
 
   it('refuses an allowed origin outside the frame families, which the CSP would block silently', () => {
-    expect(frameSrcOf('https://storify.example/x', ['https://storify.example'])).toBeNull();
+    expect(frameSrcOf('https://storify.example/x', ['https://storify.example'], OWN)).toBeNull();
+  });
+
+  it("refuses the console's own origin even when the allow-list names it (a same-origin frame lifts its sandbox)", () => {
+    expect(frameSrcOf(`${OWN}/api/v1/me`, [...ALLOWED, OWN], OWN)).toBeNull();
+    expect(frameSrcOf(`${STAGE}/p/storify`, ALLOWED, STAGE)).toBeNull();
+    // The same URL is fine from another console, where it is cross-origin.
+    expect(frameSrcOf(`${STAGE}/p/storify`, ALLOWED, OWN)).toBe(`${STAGE}/p/storify`);
   });
 
   it('refuses everything when nothing is allowed', () => {
-    expect(frameSrcOf(`${STORYBOOK}/`, [])).toBeNull();
+    expect(frameSrcOf(`${STORYBOOK}/`, [], OWN)).toBeNull();
   });
 
   it('compares whole origins, never prefixes of an allow-list entry', () => {
-    expect(frameSrcOf(`${STORYBOOK}/`, [`${STORYBOOK}/`])).toBeNull();
-    expect(frameSrcOf(`${STORYBOOK}/`, ['https://team-console-storybook.pages'])).toBeNull();
+    expect(frameSrcOf(`${STORYBOOK}/`, [`${STORYBOOK}/`], OWN)).toBeNull();
+    expect(frameSrcOf(`${STORYBOOK}/`, ['https://team-console-storybook.pages'], OWN)).toBeNull();
   });
 
   it.each([null, undefined, 42, {}, ['https://team-console-storybook.pages.dev/']])(
     'refuses a non-string %s',
     (candidate) => {
-      expect(frameSrcOf(candidate, ALLOWED)).toBeNull();
+      expect(frameSrcOf(candidate, ALLOWED, OWN)).toBeNull();
     },
   );
 
@@ -108,7 +117,7 @@ describe('trustedFrameSrc', () => {
 
   it('marks only the checked value as trusted', () => {
     const { sanitizer, calls } = sanitizerStub();
-    expect(trustedFrameSrc(sanitizer, 'https://TEAM-console-storybook.pages.dev/x', ALLOWED)).toEqual({
+    expect(trustedFrameSrc(sanitizer, 'https://TEAM-console-storybook.pages.dev/x', ALLOWED, OWN)).toEqual({
       trusted: `${STORYBOOK}/x`,
     });
     expect(calls).toEqual([`${STORYBOOK}/x`]);
@@ -116,8 +125,8 @@ describe('trustedFrameSrc', () => {
 
   it('never calls the bypass for a refused value', () => {
     const { sanitizer, calls } = sanitizerStub();
-    expect(trustedFrameSrc(sanitizer, 'javascript:alert(1)', ALLOWED)).toBeNull();
-    expect(trustedFrameSrc(sanitizer, 'https://evil.pages.dev/', ALLOWED)).toBeNull();
+    expect(trustedFrameSrc(sanitizer, 'javascript:alert(1)', ALLOWED, OWN)).toBeNull();
+    expect(trustedFrameSrc(sanitizer, 'https://evil.pages.dev/', ALLOWED, OWN)).toBeNull();
     expect(calls).toEqual([]);
   });
 });
