@@ -19,16 +19,22 @@ commands:
 
 environments:
   dev:
-    url: ''
+    url: 'https://team-console-dev.geeera.workers.dev'
   stage:
-    url: ''
+    # team-console-<env>.<account>.workers.dev is deterministic from apps/api/wrangler.jsonc's env.stage.name
+    # (ADR 0001 decision 14) — same shape as dev's confirmed URL above. Filled ahead of the first stage
+    # deploy (#25); the stage cut (dev -> stage) is what actually makes this URL answer.
+    url: 'https://team-console-stage.geeera.workers.dev'
   production:
     url: ''
 
 design:
   tokens:
     - libs/console/shared/ui/src/tokens/tokens.css
-  storybook_url: ''
+  # Cloudflare Pages direct-upload project name from deploy.yml's "Deploy Storybook" step
+  # (--project-name=team-console-storybook): <project-name>.pages.dev is deterministic once the project
+  # exists (owner checklist step 5). Published from `dev` only (ADR 0001 decision 14).
+  storybook_url: 'https://team-console-storybook.pages.dev'
 
 sprint:
   length_days: 14
