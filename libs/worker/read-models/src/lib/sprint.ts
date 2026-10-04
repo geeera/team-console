@@ -1,4 +1,10 @@
-import type { SprintDto, SprintIssueDto, SprintTier, SprintTierRowDto } from '@shared/contracts';
+import type {
+  SprintCiState,
+  SprintDto,
+  SprintIssueDto,
+  SprintTier,
+  SprintTierRowDto,
+} from '@shared/contracts';
 import { kindOf } from '@shared/owner-grammar';
 import type { IssueRecord, MilestoneRecord, PullRequestRecord } from './github-records';
 import { githubUrlOrNull, isTrustedAuthor } from './untrusted-text';
@@ -109,6 +115,8 @@ export interface SprintInput {
   /** Issues of that milestone, open and closed (pull requests may be in the list; they are dropped). */
   readonly milestoneIssues: readonly IssueRecord[];
   readonly openPullRequests: readonly PullRequestRecord[];
+  /** CI per pull request number (#131); a pull request without an entry was not read and is `unknown`. */
+  readonly ciStates?: ReadonlyMap<number, SprintCiState>;
 }
 
 export function buildSprint(input: SprintInput): SprintDto {
@@ -118,6 +126,7 @@ export function buildSprint(input: SprintInput): SprintDto {
     url: githubUrlOrNull(pull.htmlUrl),
     draft: pull.draft,
     authorTrusted: isTrustedAuthor(pull),
+    ci: input.ciStates?.get(pull.number) ?? 'unknown',
   }));
   if (input.milestone === null) {
     return {

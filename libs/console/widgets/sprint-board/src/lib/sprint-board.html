@@ -25,6 +25,20 @@
     </div>
     <div tc-stat [label]="'board.stat.stillOpen' | transloco">{{ board.carriedOver | localNumber }}</div>
     <div tc-stat [label]="'board.stat.openPrs' | transloco">{{ board.pullRequests.length | localNumber }}</div>
+    <!-- Icon and words for the most urgent CI state across the open PRs; the tone only repeats them. -->
+    <div
+      tc-stat
+      data-testid="ci-stat"
+      [attr.data-ci]="ci().state"
+      [label]="'board.stat.ci' | transloco"
+      [tone]="ciTone()"
+    >
+      <span class="board__ci"
+        ><tc-icon [name]="ciIcon()" size="sm" />{{
+          'board.ci.summary.' + ci().state | transloco: { n: (ci().count | localNumber) }
+        }}</span
+      >
+    </div>
   </dl>
 
   @if (board.issues.length === 0) {

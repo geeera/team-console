@@ -118,7 +118,25 @@ describe('createMockGitHub', () => {
     const milestones = await github.getJson(githubPath`/repos/${repo}/milestones?state=open`, isList);
     expect(milestones.map((m) => m['title'])).toEqual(['Sprint 01', 'Sprint 02']);
     const pulls = await github.getJson(githubPath`/repos/${repo}/pulls?state=open`, isList);
-    expect(pulls.map((p) => p['number'])).toEqual([45, 40]);
+    expect(pulls.map((p) => p['number'])).toEqual([92, 91, 45, 40]);
+  });
+
+  it('serves check runs per head sha (#131), and none for a sha it does not know', async () => {
+    const repo = parseRepoName('geeera/team-console');
+    const isPage = (value: unknown): value is { total_count: number; check_runs: unknown[] } =>
+      typeof value === 'object' && value !== null && 'check_runs' in value;
+    const github = client('geeera/team-console');
+    const failing = await github.getJson(
+      githubPath`/repos/${repo}/commits/${'40fa11ed'.repeat(5)}/check-runs?filter=latest`,
+      isPage,
+    );
+    expect(failing.total_count).toBe(2);
+    expect(failing.check_runs).toContainEqual(expect.objectContaining({ conclusion: 'failure' }));
+    const none = await github.getJson(
+      githubPath`/repos/${repo}/commits/${'91deadbe'.repeat(5)}/check-runs?filter=latest`,
+      isPage,
+    );
+    expect(none).toEqual({ total_count: 0, check_runs: [] });
   });
 
   it('answers 409 github-app-not-installed for a repository without the app', async () => {

@@ -10,6 +10,33 @@ export interface RepoState {
   readonly projectYml?: string | null;
   /** Replaces the contents answer (e.g. a file over GitHub's 1 MB limit). */
   readonly contents?: () => Response;
+  /** Check runs per head sha (#131); a sha not listed has none. */
+  readonly checkRuns?: Readonly<Record<string, readonly Record<string, unknown>[]>>;
+  /** Replaces the check-runs answer for every sha (e.g. 403 without the Checks permission). */
+  readonly checkRunsReply?: () => Response;
+}
+
+/** A completed or running check run as GitHub lists it. */
+export function checkRun(status: string, conclusion: string | null = null): Record<string, unknown> {
+  return { name: 'lint-test-build', status, conclusion, app: { slug: 'github-actions' } };
+}
+
+/** An open pull request as GitHub lists it, with its head commit. */
+export function pull(
+  number: number,
+  headSha: string,
+  extra: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    number,
+    title: `PR ${number}`,
+    html_url: `https://github.com/geeera/team-console/pull/${number}`,
+    draft: false,
+    author_association: 'OWNER',
+    user: { login: 'geeera', type: 'User' },
+    head: { sha: headSha },
+    ...extra,
+  };
 }
 
 export function issue(
@@ -44,7 +71,7 @@ function contentsOf(text: string): Response {
 /** Routes list and contents reads to the state of the repository in the path. */
 export function readModelGitHub(repos: Readonly<Record<string, RepoState>>): ReadHandler {
   return (call: GitHubCall) => {
-    const [, , owner, name, list] = call.url.pathname.split('/');
+    const [, , owner, name, list, sha, leaf] = call.url.pathname.split('/');
     const state = repos[`${owner}/${name}`];
     if (state === undefined) {
       return json(404, { message: 'Not Found' });
@@ -75,6 +102,13 @@ export function readModelGitHub(repos: Readonly<Record<string, RepoState>>): Rea
     }
     if (list === 'pulls') {
       return json(200, state.pulls ?? []);
+    }
+    if (list === 'commits' && leaf === 'check-runs') {
+      if (state.checkRunsReply !== undefined) {
+        return state.checkRunsReply();
+      }
+      const runs = state.checkRuns?.[sha ?? ''] ?? [];
+      return json(200, { total_count: runs.length, check_runs: runs });
     }
     return json(404, { message: 'Not Found' });
   };
