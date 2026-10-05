@@ -289,4 +289,108 @@ describe('QuestionList', () => {
     expect(root.querySelector('[data-testid="omitted"]')?.textContent).toContain('Seventh');
     expect(root.querySelectorAll('tc-question-card')).toHaveLength(1);
   });
+
+  describe('projects that need the owner outside a card (#205)', () => {
+    const CHECKLIST = 'https://github.com/geeera/private-product/blob/HEAD/.product-team/owner-checklist.md';
+    const PRIVATE = {
+      slug: 'private-product',
+      name: 'private-product',
+      setup: true,
+      setupUrl: CHECKLIST,
+      paused: false,
+      pausedUrl: null,
+      problem: null,
+    };
+    const BROKEN = {
+      slug: 'broken',
+      name: 'Broken',
+      setup: false,
+      setupUrl: null,
+      paused: false,
+      pausedUrl: null,
+      problem: { type: 'github-app-not-installed', title: 'x', status: 409 },
+    };
+
+    it('a project that needs setup is a Banner row above the cards linking to its GitHub checklist', async () => {
+      const { settle, root } = await render(null);
+      const body = needsYouBody([needsYouItem(TC, 72)]);
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush({ ...body, projects: [...body.projects, PRIVATE] });
+      await settle();
+
+      const rows = root.querySelectorAll<HTMLAnchorElement>('[data-testid="project-setup"]');
+      expect(rows).toHaveLength(1);
+      const row = rows[0] as HTMLAnchorElement;
+      expect(row.classList).toContain('tc-banner');
+      expect(row.classList).toContain('tc-banner--warning');
+      expect(row.dataset['project']).toBe('private-product');
+      expect(row.href).toBe(CHECKLIST);
+      expect(row.target).toBe('_blank');
+      expect(row.rel).toBe('noopener noreferrer');
+      expect(row.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+        'private-product: нужна настройка (откроется на GitHub)',
+      );
+      expect(root.querySelector('[data-testid="project-attention"]')?.getAttribute('aria-label')).toBe(
+        'Проекты, которые ждут вас',
+      );
+      // Above the cards, and counted in the summary line.
+      const list = root.querySelector('.questions__list') as HTMLElement;
+      expect(row.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(root.querySelector('[data-testid="lead"]')?.textContent).toContain(
+        'Ждут ответа: 1 · проектов: 2',
+      );
+    });
+
+    it('a setup link that is not a github.com page opens the project’s settings instead', async () => {
+      const { settle, root } = await render(null);
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush({
+        ...needsYouBody([]),
+        projects: [{ ...PRIVATE, setupUrl: 'https://evil.example/checklist' }],
+      });
+      await settle();
+
+      const row = root.querySelector('[data-testid="project-setup"]') as HTMLAnchorElement;
+      expect(row.getAttribute('href')).toBe('/settings/projects/private-product');
+      expect(row.target).toBe('');
+    });
+
+    it('a project whose inbox could not be read is a row linking to its settings', async () => {
+      const { settle, root } = await render(null);
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush({ ...needsYouBody([]), projects: [BROKEN] });
+      await settle();
+
+      const row = root.querySelector('[data-testid="project-problem"]') as HTMLAnchorElement;
+      expect(row.tagName).toBe('A');
+      expect(row.classList).toContain('tc-banner');
+      expect(row.getAttribute('href')).toBe('/settings/projects/broken');
+    });
+
+    it('with no questions, the rows replace "nothing needs you" and the summary still counts them', async () => {
+      const { settle, root } = await render(null);
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush({ ...needsYouBody([]), projects: [PRIVATE, BROKEN] });
+      await settle();
+
+      expect(root.querySelectorAll('.questions__attention > li')).toHaveLength(2);
+      expect(root.querySelector('[data-testid="empty"]')).toBeNull();
+      expect(root.querySelector('.questions__list')).toBeNull();
+      expect(root.querySelector('[data-testid="lead"]')?.textContent).toContain('Вопросов нет · проектов: 2');
+    });
+
+    it('when no project needs setup, nothing extra is shown', async () => {
+      const { settle, root } = await render(null);
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush(needsYouBody([]));
+      await settle();
+
+      expect(root.querySelector('[data-testid="project-attention"]')).toBeNull();
+      expect(root.querySelector('[data-testid="lead"]')).toBeNull();
+      expect(root.querySelector('[data-testid="empty"]')).not.toBeNull();
+    });
+
+    it('one project’s Questions never shows the cross-project rows', async () => {
+      const { settle, root } = await render(TC);
+      http.expectOne(projectQuestionsUrl(TC.slug)).flush({ items: [] });
+      await settle();
+
+      expect(root.querySelector('[data-testid="project-attention"]')).toBeNull();
+    });
+  });
 });

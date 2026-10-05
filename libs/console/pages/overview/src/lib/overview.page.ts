@@ -20,7 +20,7 @@ import {
 } from '@console/entities/project';
 import { httpProblemOf } from '@console/shared/api';
 import { TranslocoPipe, TranslocoPluralPipe } from '@console/shared/i18n';
-import { Banner, Button, Icon, StateBlock } from '@console/shared/ui';
+import { Banner, Button, Icon, SrOnlyOnPhone, StateBlock } from '@console/shared/ui';
 import { OVERVIEW_PENDING_PROBLEM, OverviewTile } from './overview-tile';
 
 export type OverviewFailure = 'rate-limited' | 'offline' | 'unavailable';
@@ -43,7 +43,17 @@ interface TileRow {
  */
 @Component({
   selector: 'tc-overview-page',
-  imports: [Banner, Button, Icon, OverviewTile, RouterLink, StateBlock, TranslocoPipe, TranslocoPluralPipe],
+  imports: [
+    Banner,
+    Button,
+    Icon,
+    OverviewTile,
+    RouterLink,
+    SrOnlyOnPhone,
+    StateBlock,
+    TranslocoPipe,
+    TranslocoPluralPipe,
+  ],
   templateUrl: './overview.page.html',
   styleUrl: './overview.page.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -34,7 +34,7 @@ import {
   TranslocoPipe,
   TranslocoPluralPipe,
 } from '@console/shared/i18n';
-import { Button, Chip, Icon, List, ListRow, StateBlock } from '@console/shared/ui';
+import { Button, Chip, Icon, List, ListRow, SrOnlyOnPhone, StateBlock } from '@console/shared/ui';
 import type { ProjectDto } from '@shared/contracts';
 import { FOCUS_AFTER_ARCHIVE_STATE, readNavigationState } from './settings-navigation';
 
@@ -58,6 +58,7 @@ type RowStatus = 'checking' | 'unknown' | SetupSummary;
     NgTemplateOutlet,
     PushSettingsCard,
     RouterLink,
+    SrOnlyOnPhone,
     StateBlock,
     TranslocoPipe,
     TranslocoPluralPipe,

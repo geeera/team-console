@@ -1,5 +1,5 @@
 <div class="tc-page settings">
-  <h1 #heading class="tc-page__title settings__title" tabindex="-1">{{ 'settings.title' | transloco }}</h1>
+  <h1 #heading tcSrOnlyOnPhone class="tc-page__title settings__title" tabindex="-1">{{ 'settings.title' | transloco }}</h1>
 
   @if (!network.online() && projects.loadedAt(); as loadedAt) {
   <p class="settings__offline" role="status" data-testid="offline-note">
@@ -158,6 +158,10 @@
   <tc-chip tone="warning"
     ><tc-icon name="alert" size="sm" />{{ 'settings.projects.row.missing' | translocoPlural: status.left
     }}</tc-chip
+  >
+  } @else if (isSummary(status) && status.waiting > 0) {
+  <tc-chip tone="success"
+    ><tc-icon name="clock" size="sm" />{{ 'settings.projects.row.readyWaiting' | transloco }}</tc-chip
   >
   } @else {
   <tc-chip tone="success"

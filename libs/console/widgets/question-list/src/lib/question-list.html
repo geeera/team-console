@@ -17,16 +17,77 @@
 <p class="questions__lead" data-testid="lead">
   {{ 'needsYou.lead' | transloco: { n: waiting().length, k: projectCount() } }}
 </p>
+} @else if (isAllProjects() && attentionCount() > 0) {
+<p class="questions__lead" data-testid="lead">
+  {{ 'needsYou.leadNoQuestions' | transloco: { k: projectCount() } }}
+</p>
 } @if (refreshFailed()) {
 <tc-state-block kind="error" compact data-testid="refresh-error" [title]="'questions.loadFailed' | transloco">
   <button tc-button tc-state-action size="sm" type="button" (click)="reload()">
     {{ 'ui.error.retry' | transloco }}
   </button>
 </tc-state-block>
-} @for (problem of problems(); track problem.project.slug) {
-<p class="questions__problem" data-testid="project-problem">
-  {{ 'questions.projectProblem' | transloco: { name: problem.project.name, reason: problemReason(problem) } }}
-</p>
+} @if (attentionCount() > 0) {
+<ul
+  class="questions__attention"
+  data-testid="project-attention"
+  [attr.aria-label]="'needsYou.attention.label' | transloco"
+>
+  @for (setup of setups(); track setup.project.slug) {
+  <li>
+    @if (setup.url; as url) {
+    <a
+      tc-banner
+      class="questions__attention-row"
+      data-testid="project-setup"
+      [attr.data-project]="setup.project.slug"
+      [href]="url"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <tc-icon tc-banner-icon name="lock" size="sm" />
+      <span tc-banner-text
+        >{{ 'needsYou.attention.setup' | transloco: { name: setup.project.name } }}<span class="tc-sr-only">
+          {{ 'push.arrive.external' | transloco }}</span
+        ><tc-icon class="questions__attention-go" name="external" size="sm"
+      /></span>
+    </a>
+    } @else {
+    <a
+      tc-banner
+      class="questions__attention-row"
+      data-testid="project-setup"
+      [attr.data-project]="setup.project.slug"
+      [routerLink]="settingsLinkOf(setup.project.slug)"
+    >
+      <tc-icon tc-banner-icon name="lock" size="sm" />
+      <span tc-banner-text
+        >{{ 'needsYou.attention.setup' | transloco: { name: setup.project.name } }}<tc-icon
+          class="questions__attention-go"
+          name="chevron-right"
+          size="sm"
+      /></span>
+    </a>
+    }
+  </li>
+  } @for (problem of problems(); track problem.project.slug) {
+  <li>
+    <a
+      tc-banner
+      class="questions__attention-row"
+      data-testid="project-problem"
+      [attr.data-project]="problem.project.slug"
+      [routerLink]="settingsLinkOf(problem.project.slug)"
+    >
+      <tc-icon tc-banner-icon name="alert" size="sm" />
+      <span tc-banner-text
+        >{{ 'questions.projectProblem' | transloco: { name: problem.project.name, reason:
+        problemReason(problem) } }}<tc-icon class="questions__attention-go" name="chevron-right" size="sm"
+      /></span>
+    </a>
+  </li>
+  }
+</ul>
 } @if (goneNumber(); as gone) {
 <section
   tc-callout
@@ -45,14 +106,14 @@
   /></a>
   }
 </section>
-} @if (rows().length === 0) {
+} @if (rows().length === 0 && attentionCount() === 0) {
 <tc-state-block
   kind="empty"
   data-testid="empty"
   [title]="emptyTitle() || ((isAllProjects() ? 'needsYou.emptyTitle' : 'questions.emptyTitle') | transloco)"
   [description]="emptyHint() || ('needsYou.emptyHint' | transloco)"
 />
-} @else {
+} @else if (rows().length > 0) {
 <ul class="questions__list" [attr.aria-label]="listLabel() || ('questions.listLabel' | transloco)">
   @for (row of rows(); track row.key) {
   <li class="questions__row" [attr.data-row]="row.key" [attr.data-number]="row.item.number">

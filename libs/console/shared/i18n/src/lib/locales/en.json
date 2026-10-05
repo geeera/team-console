@@ -47,7 +47,12 @@
     "emptyTitle": "Nothing needs you right now",
     "emptyHint": "The teams are working; you'll get a notification when that changes.",
     "lead": "Waiting: {{n}} · projects: {{k}}",
-    "omitted": "Not read this time: {{names}}"
+    "omitted": "Not read this time: {{names}}",
+    "leadNoQuestions": "No questions · projects: {{k}}",
+    "attention": {
+      "label": "Projects that need you",
+      "setup": "{{name}}: setup needed"
+    }
   },
   "push": {
     "title": "Notifications",
@@ -128,10 +133,9 @@
     "retry": "Try again",
     "deniedLive": "Notifications are blocked",
     "nudge": {
-      "text": "Notifications are off on this device: you only learn about new items when you open the app.",
+      "text": "Notifications are off",
       "enable": "Turn on",
       "how": "How to turn on",
-      "later": "Not now",
       "laterAria": "Hide the notifications hint",
       "laterToast": "You can turn them on in Settings → Notifications",
       "on": "Notifications are on. Next time the team needs you, this device will tell you."
@@ -524,7 +528,8 @@
         "checking": "Checking setup…",
         "unknown": "Couldn’t check setup",
         "archive": "Archive",
-        "archiveAria": "Archive {{name}}"
+        "archiveAria": "Archive {{name}}",
+        "readyWaiting": "Ready"
       },
       "loading": "Loading projects…",
       "empty": {
@@ -609,6 +614,10 @@
       "notFound": {
         "title": "Project not found",
         "body": "“{{slug}}” isn’t on the project list, or it is archived."
+      },
+      "readyWaiting": {
+        "title": "Project ready. Waiting for the first event from GitHub",
+        "body": "Nothing more is needed from you: “Events arrive” ticks itself after the first event in the repository."
       }
     },
     "step": {
@@ -644,8 +653,7 @@
       "events": {
         "title": "Events arrive",
         "done": "Last event at {{time}}.",
-        "missing": "No events from {{repo}} yet. Nothing to do: this appears after the first event.",
-        "how": "An event is a new issue, comment, pull request or CI run in the repository. GitHub sends it through the app by itself. If something has happened in the repository and this step is still missing, check step 1."
+        "missing": "No events from {{repo}} yet. Nothing to do: this appears after the first event."
       },
       "routine": {
         "title": "Routine token set",
@@ -1030,6 +1038,10 @@
     },
     "frame": {
       "title": "Preview"
+    },
+    "srOnlyOnPhone": {
+      "title": "Needs you",
+      "body": "On the phone the top bar already shows this title, so here it stays for screen readers only."
     }
   },
   "review": {

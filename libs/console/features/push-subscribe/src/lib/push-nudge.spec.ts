@@ -26,11 +26,15 @@ describe('PushNudge', () => {
   beforeEach(() => localStorage.removeItem(PUSH_NUDGE_KEY));
   afterEach(() => root?.remove());
 
-  it('says notifications are off on this device, with Turn on and Not now', async () => {
+  it('says in one line that notifications are off, with Turn on and a labelled close button', async () => {
     const { device } = await render();
 
-    expect(byTestId('push-nudge')?.textContent).toContain('Уведомления на этом устройстве выключены');
+    const text = root.querySelector('.push-nudge__text');
+    expect(text?.textContent).toBe('Уведомления выключены');
+    expect(byTestId('push-nudge')?.getAttribute('aria-labelledby')).toBe(text?.id);
     expect(byTestId('push-nudge-enable')?.textContent).toContain('Включить');
+    expect(byTestId('push-nudge-later')?.getAttribute('aria-label')).toBe('Скрыть подсказку про уведомления');
+    expect(root.querySelectorAll('.push-nudge p')).toHaveLength(1);
     expect(device.subscribe).not.toHaveBeenCalled();
   });
 
@@ -44,7 +48,7 @@ describe('PushNudge', () => {
     expect(byTestId('push-nudge-on')?.textContent).toContain('Уведомления включены');
   });
 
-  it('hides on Not now, remembers it on this device and hands focus back', async () => {
+  it('hides on close, remembers it on this device and hands focus back', async () => {
     await render();
     const dismissed = vi.fn();
     nudge.dismissed.subscribe(dismissed);
@@ -59,7 +63,7 @@ describe('PushNudge', () => {
     expect(toast).toHaveBeenCalledWith('Включить можно в Настройках → Уведомления');
   });
 
-  it('stays hidden on a device that said Not now before', async () => {
+  it('stays hidden on a device where it was closed before', async () => {
     localStorage.setItem(PUSH_NUDGE_KEY, 'dismissed');
     await render();
     expect(byTestId('push-nudge')).toBeNull();
