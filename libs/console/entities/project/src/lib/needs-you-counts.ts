@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import type { NeedsYouItemDto } from '@shared/contracts';
 import { firstValueFrom } from 'rxjs';
+import { ProjectsStore } from './projects.store';
 import { AnsweredItems } from './answered-items';
 
 export const NEEDS_YOU_URL = '/api/v1/needs-you';
@@ -69,16 +70,26 @@ function countRefs(refs: readonly NeedsYouRef[]): ReadonlyMap<string, number> {
 export class NeedsYouCounts {
   private readonly http = inject(HttpClient);
   private readonly document = inject(DOCUMENT);
+  private readonly projects = inject(ProjectsStore);
 
   private readonly answered = inject(AnsweredItems);
 
   private inFlight: Promise<void> | null = null;
   private readonly refs = signal<readonly NeedsYouRef[]>([]);
 
+  /** When the last refresh succeeded (epoch ms); null until the first one, so nothing reads 0 before it knows. */
+  readonly refreshedAt = signal<number | null>(null);
+
   readonly counts = computed(() =>
     countRefs(this.refs().filter((ref) => ref.number === null || !this.answered.has(ref.slug, ref.number))),
   );
-  readonly total = computed(() => [...this.counts().values()].reduce((sum, count) => sum + count, 0));
+  /** Active projects only once the list is known: an archived project leaves the badge at once (#24). */
+  readonly total = computed(() => {
+    const isKnown = this.projects.status() === 'ready';
+    return [...this.counts().entries()]
+      .filter(([slug]) => !isKnown || this.projects.isActive(slug))
+      .reduce((sum, [, count]) => sum + count, 0);
+  });
 
   countOf(slug: string): number {
     return this.counts().get(slug) ?? 0;
@@ -92,6 +103,7 @@ export class NeedsYouCounts {
       try {
         const body = await firstValueFrom(this.http.get<unknown>(NEEDS_YOU_URL));
         this.refs.set(needsYouRefsOf(body));
+        this.refreshedAt.set(Date.now());
       } catch {
         // Unavailable (not yet deployed, offline, rate-limited): keep what we have; the shell shows no error for a badge.
       } finally {

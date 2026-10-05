@@ -4,8 +4,10 @@ import { PersistedStateStore } from '@console/shared/persisted-state';
 import { Field, FieldControl, StateBlock } from '@console/shared/ui';
 
 /**
- * The chat section until Sprint 02 replaces it: the shared empty block plus the one draft field,
+ * The chat section until Sprint 03 (#17) replaces it: the shared empty block plus the one draft field,
  * bound to the persisted state so "restore my unsent draft" is real from day one.
+ *
+ * Unrouted while `CHAT_TAB_ENABLED` is off (#203) — kept, not deleted, so #17 only has to flip that switch.
  */
 @Component({
   selector: 'tc-chat-placeholder-page',

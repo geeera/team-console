@@ -17,12 +17,13 @@ const REDACTED_KEYS: ReadonlySet<string> = new Set([
   'set-cookie',
 ]);
 /**
- * GitHub tokens (classic, fine-grained, OAuth, installation `ghs_`, user `ghu_`, refresh `ghr_`), JWTs (`eyJ`
- * is base64url `{"`, which also covers the app JWT) and PEM private keys, whole or cut off: a credential that
- * slipped into a message or an error still never lands in a log (ADR 0003 decision 8).
+ * GitHub tokens (classic, fine-grained, OAuth, installation `ghs_`, user `ghu_`, refresh `ghr_`), Anthropic keys
+ * and routine trigger tokens (`sk-ant-…`, #114), JWTs (`eyJ` is base64url `{"`, which also covers the app JWT) and
+ * PEM private keys, whole or cut off: a credential that slipped into a message or an error still never lands in a
+ * log (ADR 0003 decision 8).
  */
 const TOKEN_PATTERN =
-  /(?:ghp_|gho_|ghs_|ghu_|ghr_|github_pat_)[A-Za-z0-9_]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*|-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)|PRIVATE KEY/g;
+  /(?:ghp_|gho_|ghs_|ghu_|ghr_|github_pat_)[A-Za-z0-9_]+|sk-ant-[A-Za-z0-9_-]*|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*|-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)|PRIVATE KEY/g;
 /**
  * The query of any absolute URL in a log string: an OAuth callback's `code` and `state`, or a token someone put
  * in a query, never reach a log (ADR 0003 decision 3). Paths stay, so a line still says which route it was.

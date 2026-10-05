@@ -1,4 +1,4 @@
-export type OwnWriteKind = 'answer' | 'chat';
+export type OwnWriteKind = 'answer' | 'chat' | 'pause' | 'resume';
 
 /** A comment the console wrote with the owner's token (`own_writes`, migration 0007). */
 export interface OwnWrite {
@@ -75,6 +75,15 @@ export class OwnWritesRepo {
       .bind(repo, issueNumber, since, bodyHash)
       .first<OwnWriteRow>();
     return row === null ? null : toOwnWrite(row);
+  }
+
+  /** Whether the console wrote this comment (#12's own-write filter); GitHub comment ids are global. */
+  async isOwnComment(commentId: number): Promise<boolean> {
+    const row = await this.db
+      .prepare('SELECT 1 AS found FROM own_writes WHERE comment_id = ?1')
+      .bind(commentId)
+      .first<{ found: number }>();
+    return row !== null;
   }
 
   /** Takes the in-flight claim on `bodyHash` unless another request holds one that has not expired. */

@@ -19,6 +19,8 @@ export interface GitHubConnectionDto {
    * #24 wrong-account copy needs it before a first connect too, and it is config, not a secret.
    */
   readonly ownerLogin?: string;
+  /** The console's GitHub App for this environment (`team-console-<env>`, ADR 0003 decision 1), named in the copy. */
+  readonly appName: string;
 }
 
 /** `POST /api/v1/github/connect`: the GitHub authorize URL the client navigates to after checking its origin. */

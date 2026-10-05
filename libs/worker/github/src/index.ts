@@ -1,10 +1,16 @@
 export { GitHubAppAuth, INSTALLATION_PERMISSIONS, createAppJwt, importAppPrivateKey } from './lib/app-auth';
 export type { GitHubAppAuthOptions, GitHubAppCredentials } from './lib/app-auth';
 export { GitHubClient } from './lib/client';
-export type { JsonGuard, PaginateOptions } from './lib/client';
-export { GitHubError, mapGitHubResponse, ownerMismatchError, ownerNotConnectedError } from './lib/errors';
+export type { JsonGuard, ListTail, PaginateOptions } from './lib/client';
+export {
+  GitHubError,
+  mapGitHubResponse,
+  ownerMismatchError,
+  ownerNotConnectedError,
+  requestBudgetError,
+} from './lib/errors';
 export type { GitHubProblem, GitHubProblemType } from './lib/errors';
-export { githubPath } from './lib/github-path';
+export { githubContentsPath, githubPath } from './lib/github-path';
 export type { GitHubPath, GitHubPathValue } from './lib/github-path';
 export { MOCK_APP_ID, MOCK_OWNER_ACCOUNT, createMockGitHub, isGitHubMockEnabled } from './lib/mock';
 export type { MockFixtures, MockGitHub, MockReply, MockRepository } from './lib/mock';

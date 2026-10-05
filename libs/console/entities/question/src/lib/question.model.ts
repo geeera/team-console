@@ -142,6 +142,22 @@ export function safeGitHubUrl(url: string | null): string | null {
   return url !== null && url.startsWith(GITHUB_PREFIX) ? url : null;
 }
 
+// `owner/name` as the registry stores it (#15): GitHub's login and repository-name characters only.
+const REPO = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/;
+
+/**
+ * The issue's page on GitHub from the project registry's `repo` and an issue number, or null. For an item the read
+ * model no longer lists (answered or closed meanwhile): the repository comes from the server, the number is an
+ * integer, and nothing of a URL fragment or route is copied into the link.
+ */
+export function githubIssueUrlOf(repo: string, number: number): string | null {
+  if (!REPO.test(repo) || !Number.isSafeInteger(number) || number < 1) {
+    return null;
+  }
+  const url = new URL(`/${repo}/issues/${String(number)}`, GITHUB_PREFIX);
+  return url.origin === 'https://github.com' ? url.href : null;
+}
+
 /**
  * The commands a card offers: the server's list, but only those the owner grammar allows for the section, so a
  * card never offers an answer the endpoint would refuse with `answer-not-allowed`.

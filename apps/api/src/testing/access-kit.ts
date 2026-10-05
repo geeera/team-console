@@ -4,6 +4,7 @@ import { createApiApp } from '../app';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import type { OwnerConnectionSource } from '../projects/owner-connection';
+import type { FetchLike } from '@worker/routines';
 
 /** Test-only: a local stand-in for a Cloudflare Access team (RSA key, JWKS endpoint, token signer). */
 
@@ -132,11 +133,19 @@ export interface ApiRequest {
   readonly method?: string;
   readonly headers?: Record<string, string>;
   readonly body?: string;
+  /** The origin the request is sent to (default `http://api.test`), for routes that read their own origin. */
+  readonly origin?: string;
   readonly logSink?: (line: string) => void;
   /** Shared across calls so the token and read caches behave as in one isolate. */
   readonly github?: ApiGitHub;
   /** Replaces the registry's owner source (by default the #59 connection in D1). */
   readonly ownerConnection?: OwnerConnectionSource;
+  /** The fake routines API's fetch (#114). */
+  readonly routinesFetch?: FetchLike;
+  readonly routinesDeadlineMs?: number;
+  /** The fake push service's fetch (#11). */
+  readonly pushFetch?: FetchLike;
+  readonly pushNow?: () => number;
 }
 
 /** Calls the app directly so each case chooses its own bindings (`SELF` is fixed to the pool's local ones). */
@@ -147,12 +156,16 @@ export async function fetchApi(path: string, bindings: ApiEnv, request: ApiReque
     logSink: request.logSink ?? (() => undefined),
     ...(request.github === undefined ? {} : { github: request.github }),
     ...(request.ownerConnection === undefined ? {} : { ownerConnection: request.ownerConnection }),
+    ...(request.routinesFetch === undefined ? {} : { routinesFetch: request.routinesFetch }),
+    ...(request.routinesDeadlineMs === undefined ? {} : { routinesDeadlineMs: request.routinesDeadlineMs }),
+    ...(request.pushFetch === undefined ? {} : { pushFetch: request.pushFetch }),
+    ...(request.pushNow === undefined ? {} : { pushNow: request.pushNow }),
   });
   const init: RequestInit = { method: request.method ?? 'GET', headers: request.headers ?? {} };
   if (request.body !== undefined) {
     init.body = request.body;
   }
-  const response = await app.fetch(new Request(`http://api.test${path}`, init), bindings, ctx);
+  const response = await app.fetch(new Request(`${request.origin ?? 'http://api.test'}${path}`, init), bindings, ctx);
   await waitOnExecutionContext(ctx);
   return response;
 }

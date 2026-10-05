@@ -1,4 +1,9 @@
-import type { MilestoneRecord } from './github-records';
+import {
+  isGitHubPullRequest,
+  pullRequestRecordOf,
+  type MilestoneRecord,
+  type PullRequestRecord,
+} from './github-records';
 import { buildSprint, declaredTier, effectiveTier, pickCurrentSprint, sprintToday } from './sprint';
 
 function milestone(number: number, dueOn: string | null, state = 'open'): MilestoneRecord {
@@ -68,6 +73,7 @@ describe('buildSprint', () => {
           title: '<b>x</b>',
           htmlUrl: 'javascript:alert(1)',
           draft: true,
+          headSha: null,
           authorAssociation: 'NONE',
           authorLogin: 'outsider',
           authorType: 'User',
@@ -82,7 +88,63 @@ describe('buildSprint', () => {
       shipped: 0,
       carriedOver: 0,
       byTier: {},
-      openPullRequests: [{ number: 7, title: '<b>x</b>', url: null, draft: true, authorTrusted: false }],
+      openPullRequests: [
+        { number: 7, title: '<b>x</b>', url: null, draft: true, authorTrusted: false, ci: 'unknown' },
+      ],
     });
+  });
+
+  it("carries each pull request's CI state (#131); one not read is unknown", () => {
+    const pull = (number: number): PullRequestRecord => ({
+      number,
+      title: `PR ${number}`,
+      htmlUrl: `https://github.com/geeera/team-console/pull/${number}`,
+      draft: false,
+      headSha: null,
+      authorAssociation: 'OWNER',
+      authorLogin: 'geeera',
+      authorType: 'User',
+    });
+    const sprint = buildSprint({
+      milestone: null,
+      milestoneIssues: [],
+      openPullRequests: [pull(3), pull(2), pull(1)],
+      ciStates: new Map([
+        [3, 'failure'],
+        [2, 'pending'],
+      ]),
+    });
+    expect(sprint.openPullRequests.map(({ number, ci }) => [number, ci])).toEqual([
+      [3, 'failure'],
+      [2, 'pending'],
+      [1, 'unknown'],
+    ]);
+  });
+});
+
+describe('pullRequestRecordOf: head sha (#131)', () => {
+  const raw = (head: unknown): Record<string, unknown> => ({
+    number: 5,
+    title: 'x',
+    html_url: 'https://github.com/o/r/pull/5',
+    author_association: 'OWNER',
+    user: { login: 'geeera', type: 'User' },
+    head,
+  });
+  const sha = 'a'.repeat(40);
+
+  it.each([
+    ['a SHA-1', { sha }, sha],
+    ['a SHA-256', { sha: 'b'.repeat(64) }, 'b'.repeat(64)],
+    ['a path', { sha: '../../issues' }, null],
+    ['upper case', { sha: 'A'.repeat(40) }, null],
+    ['no head', undefined, null],
+    ['a string head', sha, null],
+  ])('keeps %s as %j', (_name, head, expected) => {
+    const value = raw(head);
+    expect(isGitHubPullRequest(value)).toBe(true);
+    if (isGitHubPullRequest(value)) {
+      expect(pullRequestRecordOf(value).headSha).toBe(expected);
+    }
   });
 });

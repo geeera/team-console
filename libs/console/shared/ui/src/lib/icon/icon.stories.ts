@@ -23,6 +23,21 @@ const names = [
   'board',
   'stack',
   'play',
+  'archive',
+  'external',
+  'copy',
+  'link',
+  'help',
+  'offline',
+  'calendar',
+  'tier-light',
+  'tier-standard',
+  'tier-heavy',
+  'bell',
+  'bell-off',
+  'share',
+  'more',
+  'add-square',
 ];
 
 const sheet = `

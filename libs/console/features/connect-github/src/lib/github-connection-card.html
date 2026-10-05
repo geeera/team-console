@@ -1,0 +1,84 @@
+@switch (store.view()) { @case ('loading') {
+<div tc-status-card loading [loadingLabel]="'settings.gh.loading' | transloco" data-testid="gh-loading"></div>
+} @case ('error') {
+<tc-state-block kind="error" compact [title]="'settings.gh.loadFailed' | transloco">
+  <button tc-button tc-state-action size="sm" type="button" (click)="retry()">
+    {{ 'settings.common.retry' | transloco }}
+  </button>
+</tc-state-block>
+} @default { @if (errorKey(); as key) {
+<div tc-status-card tone="danger" role="alert" data-testid="gh-error">
+  <h3 #title tc-status-card-title tabindex="-1">{{ 'settings.gh.error.title' | transloco }}</h3>
+  <p tc-status-card-body>{{ key | transloco: errorParams() }}</p>
+  @if (!network.online()) {
+  <p tc-status-card-note><tc-icon name="offline" size="sm" />{{ 'settings.gh.offline' | transloco }}</p>
+  }
+  <div tc-status-card-actions><tc-connect-github-button (refused)="onRefused($event)" /></div>
+</div>
+} @else { @switch (store.view()) { @case ('connected') {
+<div tc-status-card tone="success" data-testid="gh-connected">
+  <div tc-status-card-row>
+    <span tc-status-card-mark aria-hidden="true"><tc-icon name="check" size="sm" /></span>
+    <div tc-status-card-who>
+      <h3 #title tc-status-card-title tabindex="-1">
+        {{ 'settings.gh.connected' | transloco: { login: store.login() } }}
+      </h3>
+      @if (store.connectedAt(); as connectedAt) {
+      <p tc-status-card-meta>
+        {{ 'settings.gh.connectedMeta' | transloco: { date: (connectedAt | localDay), app: store.appName() }
+        }}
+      </p>
+      }
+    </div>
+    <button
+      tc-button
+      variant="quiet"
+      type="button"
+      class="gh__disconnect"
+      [attr.aria-label]="'settings.gh.disconnectAria' | transloco: { login: store.login() }"
+      [attr.aria-disabled]="network.online() ? null : 'true'"
+      (click)="disconnect()"
+    >
+      {{ 'settings.gh.disconnect' | transloco }}
+    </button>
+  </div>
+  @if (!network.online()) {
+  <p tc-status-card-note><tc-icon name="offline" size="sm" />{{ 'settings.gh.offline' | transloco }}</p>
+  }
+</div>
+} @case ('lost') {
+<div tc-status-card tone="warning" data-testid="gh-lost">
+  <div tc-status-card-row>
+    <span tc-status-card-mark aria-hidden="true"><tc-icon name="alert" size="sm" /></span>
+    <h3 #title tc-status-card-title tabindex="-1">{{ 'settings.gh.lost.title' | transloco }}</h3>
+  </div>
+  <p tc-status-card-body>{{ 'settings.gh.lost.body' | transloco }}</p>
+  @if (!network.online()) {
+  <p tc-status-card-note><tc-icon name="offline" size="sm" />{{ 'settings.gh.offline' | transloco }}</p>
+  }
+  <div tc-status-card-actions><tc-connect-github-button (refused)="onRefused($event)" /></div>
+</div>
+} @default {
+<div tc-status-card data-testid="gh-none">
+  <div tc-status-card-row>
+    <span tc-status-card-mark aria-hidden="true"><tc-icon name="link" size="sm" /></span>
+    <h3 #title tc-status-card-title tabindex="-1">{{ 'settings.gh.none.title' | transloco }}</h3>
+  </div>
+  <p tc-status-card-body>{{ 'settings.gh.none.body' | transloco }}</p>
+  @if (!network.online()) {
+  <p tc-status-card-note><tc-icon name="offline" size="sm" />{{ 'settings.gh.offline' | transloco }}</p>
+  }
+  <div tc-status-card-actions><tc-connect-github-button (refused)="onRefused($event)" /></div>
+</div>
+} } } } } @if (manageUrl() !== undefined) {
+<p class="gh__incomplete" role="status">
+  {{ 'settings.disc.incomplete' | transloco }} @if (manageUrl(); as url) {
+  <a [href]="url" target="_blank" rel="noopener noreferrer">
+    {{ 'settings.disc.incompleteLink' | transloco }}<span class="tc-sr-only">
+      {{ 'settings.common.external' | transloco }}</span
+    >
+    <tc-icon name="external" size="sm" />
+  </a>
+  }
+</p>
+}

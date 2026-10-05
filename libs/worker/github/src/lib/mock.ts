@@ -25,13 +25,23 @@ export interface MockRepository {
   readonly files?: Readonly<Record<string, string>>;
   /**
    * Issues as GitHub sends them (pull requests included), newest first: `GET …/issues?state=&milestone=` lists
-   * them, `GET …/issues/{number}` (the answer route, #10) reads one.
+   * them, `GET …/issues/{number}` (the answer route, #10) reads one, `GET …/issues/{number}/comments` (the run log,
+   * #114) answers its thread from `comments`, an empty one for an issue not listed there.
    */
   readonly issues?: readonly Readonly<Record<string, unknown>>[];
+  /** Comments as GitHub sends them, oldest first, by issue number (the run log #22 on the board, #132). */
+  readonly comments?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
+  /**
+   * `GET …/issues/{number}/events` by issue number, oldest first (#193: the fixture label's history the service
+   * identity's gate reads); an issue listed in `issues` without an entry has no events.
+   */
+  readonly issueEvents?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
   /** `GET …/milestones?state=` */
   readonly milestones?: readonly Readonly<Record<string, unknown>>[];
   /** `GET …/pulls?state=` */
   readonly pulls?: readonly Readonly<Record<string, unknown>>[];
+  /** `GET …/commits/{sha}/check-runs` (#131), by head sha; a sha not listed has no check runs. */
+  readonly checkRuns?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
 }
 
 export interface MockFixtures {
@@ -85,6 +95,20 @@ function json(status: number, body: unknown, headers: Record<string, string> = {
 
 const notFound = (): Response => json(404, { message: 'Not Found' });
 
+function labelNamesOf(item: Readonly<Record<string, unknown>>): string[] {
+  const labels = item['labels'];
+  if (!Array.isArray(labels)) {
+    return [];
+  }
+  return labels.map((label: unknown) =>
+    typeof label === 'string'
+      ? label
+      : typeof label === 'object' && label !== null
+        ? String((label as Record<string, unknown>)['name'])
+        : '',
+  );
+}
+
 /** One page (the fixtures stay under 100 items) of a list, filtered by `state` and `milestone` as GitHub does. */
 function listOf(
   fixture: MockRepository,
@@ -94,8 +118,13 @@ function listOf(
   const items = fixture[list] ?? [];
   const state = query.get('state') ?? 'open';
   const milestone = query.get('milestone');
+  // GitHub's `labels=a,b` lists items carrying every one of them.
+  const labels = (query.get('labels') ?? '').split(',').filter((label) => label !== '');
   return items.filter((item) => {
     if (state !== 'all' && item['state'] !== state) {
+      return false;
+    }
+    if (labels.length > 0 && !labels.every((label) => labelNamesOf(item).includes(label))) {
       return false;
     }
     if (milestone === null) {
@@ -169,10 +198,20 @@ class MockGitHubServer {
     const listed = segments.length === 4 ? segments[3] : undefined;
     const isListRead = listed === 'issues' || listed === 'milestones' || listed === 'pulls';
     const isIssueRead = segments.length === 5 && segments[3] === 'issues';
+    const isCommentsRead = segments.length === 6 && segments[3] === 'issues' && segments[5] === 'comments';
+    const isEventsRead = segments.length === 6 && segments[3] === 'issues' && segments[5] === 'events';
+    const isCheckRunsRead =
+      segments.length === 6 && segments[3] === 'commits' && segments[5] === 'check-runs';
     if (
       method === 'GET' &&
       segments[0] === 'repos' &&
-      (isRepositoryRead || isContentsRead || isListRead || isIssueRead)
+      (isRepositoryRead ||
+        isContentsRead ||
+        isListRead ||
+        isIssueRead ||
+        isCommentsRead ||
+        isEventsRead ||
+        isCheckRunsRead)
     ) {
       const repo = `${segments[1]}/${segments[2]}`;
       const token = this.issued.get(bearer);
@@ -189,7 +228,7 @@ class MockGitHubServer {
         return json(reply.status, { message: 'mock reply' }, { ...reply.headers });
       }
       if (isContentsRead) {
-        return this.file(found.fixture, segments.slice(4).join('/'));
+        return this.file(found.fixture, segments.slice(4).join('/'), found.name);
       }
       if (isListRead) {
         return json(200, listOf(found.fixture, listed, url.searchParams));
@@ -197,17 +236,35 @@ class MockGitHubServer {
       if (isIssueRead) {
         return this.issue(found.fixture, segments[4] ?? '');
       }
+      if (isCheckRunsRead) {
+        const runs = found.fixture.checkRuns?.[segments[4] ?? ''] ?? [];
+        return json(200, { total_count: runs.length, check_runs: runs });
+      }
+      if (isCommentsRead) {
+        const issue = this.issue(found.fixture, segments[4] ?? '');
+        await issue.body?.cancel();
+        return issue.ok ? json(200, found.fixture.comments?.[segments[4] ?? ''] ?? []) : notFound();
+      }
+      if (isEventsRead) {
+        const number = segments[4] ?? '';
+        const issue = this.issue(found.fixture, number);
+        await issue.body?.cancel();
+        return issue.ok ? json(200, found.fixture.issueEvents?.[number] ?? []) : notFound();
+      }
       return found.fixture.repository === undefined ? notFound() : json(200, found.fixture.repository);
     }
 
     return notFound();
   }
 
-  /** The contents API's answer for a file: base64 content, as GitHub sends it. */
-  private file(fixture: MockRepository, path: string): Response {
+  /**
+   * The contents API's answer for a file (base64 content, as GitHub sends it) or, for a folder that holds fixture
+   * files, its listing: one entry per file or sub-folder directly inside it.
+   */
+  private file(fixture: MockRepository, path: string, repo: string): Response {
     const text = fixture.files?.[path];
     if (text === undefined) {
-      return notFound();
+      return this.listing(fixture, path, repo);
     }
     const bytes = new TextEncoder().encode(text);
     return json(200, {
@@ -217,6 +274,29 @@ class MockGitHubServer {
       size: bytes.byteLength,
       content: base64Of(bytes),
     });
+  }
+
+  private listing(fixture: MockRepository, path: string, repo: string): Response {
+    const prefix = `${path}/`;
+    const entries = new Map<string, { name: string; path: string; type: 'file' | 'dir' }>();
+    for (const file of Object.keys(fixture.files ?? {})) {
+      if (!file.startsWith(prefix)) {
+        continue;
+      }
+      const [name = '', ...rest] = file.slice(prefix.length).split('/');
+      const type = rest.length === 0 ? 'file' : 'dir';
+      entries.set(name, { name, path: `${prefix}${name}`, type });
+    }
+    if (entries.size === 0) {
+      return notFound();
+    }
+    return json(
+      200,
+      [...entries.values()].map((entry) => ({
+        ...entry,
+        html_url: `https://github.com/${repo}/${entry.type === 'file' ? 'blob' : 'tree'}/dev/${entry.path}`,
+      })),
+    );
   }
 
   /** An issue as GitHub sends it: labels as objects. */

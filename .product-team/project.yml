@@ -7,29 +7,34 @@ stack: >
   D1, Cloudflare Access, Playwright. See docs/decisions/0001-stack-and-architecture.md.
 decisions_dir: docs/decisions
 
-# Node 22 (.nvmrc) and npm. `e2e` and `storybook` are added by #14 and #13; until then they exit 0
-# so the contract stays runnable, but print an explicit SKIPPED line so the output cannot be read
-# as a passing run. The PRs for #14 / #13 must replace them with the real commands.
+# Node 22 (.nvmrc) and npm. `e2e` (#14) builds the console and the api, then runs Playwright against a local stack
+# per worker (fake GitHub + the api bundle on a fresh local D1); once: `npx playwright install chromium webkit`.
 commands:
   install: npm ci
   lint: npx nx run-many -t lint
   test: npx nx run-many -t test
   build: npx nx run-many -t build
-  e2e: 'echo "SKIPPED: no e2e tests ran — apps/console-e2e arrives with #14; this is NOT a pass"'
+  e2e: npx nx e2e console-e2e
   storybook: npx nx build-storybook console-shared-ui
 
 environments:
   dev:
-    url: ''
+    url: 'https://team-console-dev.geeera.workers.dev'
   stage:
-    url: ''
+    # team-console-<env>.<account>.workers.dev is deterministic from apps/api/wrangler.jsonc's env.stage.name
+    # (ADR 0001 decision 14) — same shape as dev's confirmed URL above. Filled ahead of the first stage
+    # deploy (#25); the stage cut (dev -> stage) is what actually makes this URL answer.
+    url: 'https://team-console-stage.geeera.workers.dev'
   production:
     url: ''
 
 design:
   tokens:
     - libs/console/shared/ui/src/tokens/tokens.css
-  storybook_url: ''
+  # Cloudflare Pages direct-upload project name from deploy.yml's "Deploy Storybook" step
+  # (--project-name=team-console-storybook): <project-name>.pages.dev is deterministic once the project
+  # exists (owner checklist step 5). Published from `dev` only (ADR 0001 decision 14).
+  storybook_url: 'https://team-console-storybook.pages.dev'
 
 sprint:
   length_days: 14

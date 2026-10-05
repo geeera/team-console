@@ -27,15 +27,33 @@
 <p class="questions__problem" data-testid="project-problem">
   {{ 'questions.projectProblem' | transloco: { name: problem.project.name, reason: problemReason(problem) } }}
 </p>
+} @if (goneNumber(); as gone) {
+<section
+  tc-callout
+  class="questions__gone"
+  tabindex="-1"
+  data-testid="push-gone"
+  aria-labelledby="questions-gone-title"
+>
+  <h2 tc-callout-title id="questions-gone-title">{{ 'push.arrive.goneTitle' | transloco: { n: gone } }}</h2>
+  <p>{{ 'push.arrive.goneBody' | transloco }}</p>
+  @if (goneUrl(); as url) {
+  <a class="questions__receipt-link" [href]="url" target="_blank" rel="noopener noreferrer"
+    >{{ 'push.arrive.goneLink' | transloco: { n: gone } }}<span class="tc-sr-only">
+      {{ 'push.arrive.external' | transloco }}</span
+    ><tc-icon name="external" size="sm"
+  /></a>
+  }
+</section>
 } @if (rows().length === 0) {
 <tc-state-block
   kind="empty"
   data-testid="empty"
-  [title]="(isAllProjects() ? 'needsYou.emptyTitle' : 'questions.emptyTitle') | transloco"
-  [description]="'needsYou.emptyHint' | transloco"
+  [title]="emptyTitle() || ((isAllProjects() ? 'needsYou.emptyTitle' : 'questions.emptyTitle') | transloco)"
+  [description]="emptyHint() || ('needsYou.emptyHint' | transloco)"
 />
 } @else {
-<ul class="questions__list" [attr.aria-label]="'questions.listLabel' | transloco">
+<ul class="questions__list" [attr.aria-label]="listLabel() || ('questions.listLabel' | transloco)">
   @for (row of rows(); track row.key) {
   <li class="questions__row" [attr.data-row]="row.key" [attr.data-number]="row.item.number">
     @if (row.answer === null || row.stamping) {
@@ -43,6 +61,7 @@
       [item]="row.item"
       [showProject]="isAllProjects()"
       [stamp]="row.answer !== null ? toneOf(row.answer.command) : null"
+      [embedOrigins]="embedOrigins()"
     >
       @if (row.answer === null) {
       <tc-answer-question

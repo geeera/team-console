@@ -81,7 +81,7 @@
   --control-h-sm: 30px;
   --control-h: 34px;
   --control-h-touch: 44px; /* iOS minimum tap target */
-  --control-h-touch-sm: 36px;
+  --control-h-touch-sm: 44px; /* UX spec §5: every tap target is 44px, the "sm" button is narrower, not shorter */
   --icon-size-sm: 14px;
   --icon-size: 18px;
   --icon-size-lg: 24px;
@@ -135,6 +135,8 @@
   --dur-base: 240ms;
   --dur-slow: 380ms;
   --dur-sig: 620ms;
+  /* a run in progress breathes slowly (#114); never collapsed — under reduced motion the dot stands still */
+  --dur-pulse: 1600ms;
 
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-enter: cubic-bezier(0, 0, 0.2, 1);

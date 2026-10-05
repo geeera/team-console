@@ -1,0 +1,1748 @@
+{
+ "plugin": {
+  "version": "0.10.3",
+  "sources": {
+   "scripts/runlog": "ddc722f524f65c74021b499a2557bb67d6e338a8e4fa0bc7b9b2704200d3041a",
+   "scripts/ptlib/runstate.py": "1ed923bf718fcc6d8f43b679493e737e15c5d981c7a52afb5b3206864b29ac77",
+   "scripts/ptlib/provenance.py": "92041c6c3240e73c6547db9382f30a3306389800c5ac4ccc31c429b0e73283e0"
+  }
+ },
+ "cases": [
+  {
+   "name": "empty",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [],
+   "runs": [],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "dev in progress",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1000,
+     "body": "<!-- pt-run id=r1-slot-dev slot=slot-dev state=started -->\n**slot-dev** started",
+     "created_at": "2026-10-01T11:30:00Z",
+     "updated_at": "2026-10-01T11:30:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [
+    {
+     "id": "r1-slot-dev",
+     "slot": "slot-dev",
+     "state": "started",
+     "at": "2026-10-01T11:30:00Z",
+     "commentId": 1000,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": null,
+     "effective": "started"
+    }
+   ],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "overlap",
+     "reason": "run r1-slot-dev of slot slot-dev is still in progress"
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "overlap",
+     "reason": "run r1-slot-dev of slot slot-dev is still in progress"
+    }
+   }
+  },
+  {
+   "name": "dev finished",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1001,
+     "body": "<!-- pt-run id=r1-slot-dev slot=slot-dev state=started -->\n**slot-dev** started",
+     "created_at": "2026-10-01T10:30:00Z",
+     "updated_at": "2026-10-01T10:30:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1002,
+     "body": "<!-- pt-run id=r1-slot-dev slot=slot-dev state=finished -->\n**slot-dev** finished",
+     "created_at": "2026-10-01T11:40:00Z",
+     "updated_at": "2026-10-01T11:40:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [
+    {
+     "id": "r1-slot-dev",
+     "slot": "slot-dev",
+     "state": "finished",
+     "at": "2026-10-01T10:30:00Z",
+     "commentId": 1002,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": "2026-10-01T11:40:00Z",
+     "effective": "finished"
+    }
+   ],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "dev started just under 3h",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1003,
+     "body": "<!-- pt-run id=r1-slot-dev slot=slot-dev state=started -->\n**slot-dev** started",
+     "created_at": "2026-10-01T09:01:00Z",
+     "updated_at": "2026-10-01T09:01:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [
+    {
+     "id": "r1-slot-dev",
+     "slot": "slot-dev",
+     "state": "started",
+     "at": "2026-10-01T09:01:00Z",
+     "commentId": 1003,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": null,
+     "effective": "started"
+    }
+   ],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "overlap",
+     "reason": "run r1-slot-dev of slot slot-dev is still in progress"
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "overlap",
+     "reason": "run r1-slot-dev of slot slot-dev is still in progress"
+    }
+   }
+  },
+  {
+   "name": "dev started exactly 3h",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1004,
+     "body": "<!-- pt-run id=r1-slot-dev slot=slot-dev state=started -->\n**slot-dev** started",
+     "created_at": "2026-10-01T09:00:00Z",
+     "updated_at": "2026-10-01T09:00:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [
+    {
+     "id": "r1-slot-dev",
+     "slot": "slot-dev",
+     "state": "started",
+     "at": "2026-10-01T09:00:00Z",
+     "commentId": 1004,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": null,
+     "effective": "failed"
+    }
+   ],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "dev started over 3h counts as failed",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1005,
+     "body": "<!-- pt-run id=r1-slot-dev slot=slot-dev state=started -->\n**slot-dev** started",
+     "created_at": "2026-10-01T08:00:00Z",
+     "updated_at": "2026-10-01T08:00:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [
+    {
+     "id": "r1-slot-dev",
+     "slot": "slot-dev",
+     "state": "started",
+     "at": "2026-10-01T08:00:00Z",
+     "commentId": 1005,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": null,
+     "effective": "failed"
+    }
+   ],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "three failures pause",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1006,
+     "body": "<!-- pt-run id=a slot=slot-pm state=started -->\n**slot-pm** started",
+     "created_at": "2026-10-01T02:00:00Z",
+     "updated_at": "2026-10-01T02:00:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1007,
+     "body": "<!-- pt-run id=a slot=slot-pm state=failed -->\n**slot-pm** failed",
+     "created_at": "2026-10-01T02:10:00Z",
+     "updated_at": "2026-10-01T02:10:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1008,
+     "body": "<!-- pt-run id=b slot=slot-dev state=started -->\n**slot-dev** started",
+     "created_at": "2026-10-01T03:40:00Z",
+     "updated_at": "2026-10-01T03:40:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1009,
+     "body": "<!-- pt-run id=b slot=slot-dev state=failed -->\n**slot-dev** failed",
+     "created_at": "2026-10-01T03:50:00Z",
+     "updated_at": "2026-10-01T03:50:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1010,
+     "body": "<!-- pt-run id=c slot=slot-qa state=started -->\n**slot-qa** started",
+     "created_at": "2026-10-01T05:20:00Z",
+     "updated_at": "2026-10-01T05:20:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1011,
+     "body": "<!-- pt-run id=c slot=slot-qa state=failed -->\n**slot-qa** failed",
+     "created_at": "2026-10-01T05:30:00Z",
+     "updated_at": "2026-10-01T05:30:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [
+    {
+     "id": "a",
+     "slot": "slot-pm",
+     "state": "failed",
+     "at": "2026-10-01T02:00:00Z",
+     "commentId": 1007,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": "2026-10-01T02:10:00Z",
+     "effective": "failed"
+    },
+    {
+     "id": "b",
+     "slot": "slot-dev",
+     "state": "failed",
+     "at": "2026-10-01T03:40:00Z",
+     "commentId": 1009,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": "2026-10-01T03:50:00Z",
+     "effective": "failed"
+    },
+    {
+     "id": "c",
+     "slot": "slot-qa",
+     "state": "failed",
+     "at": "2026-10-01T05:20:00Z",
+     "commentId": 1011,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": "2026-10-01T05:30:00Z",
+     "effective": "failed"
+    }
+   ],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "pause",
+     "reason": "last 3 runs failed"
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "pause",
+     "reason": "last 3 runs failed"
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "pause",
+     "reason": "last 3 runs failed"
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "an unknown run breaks the streak",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1012,
+     "body": "<!-- pt-run id=a slot=slot-pm state=started -->\n**slot-pm** started",
+     "created_at": "2026-10-01T02:00:00Z",
+     "updated_at": "2026-10-01T02:00:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1013,
+     "body": "<!-- pt-run id=a slot=slot-pm state=failed -->\n**slot-pm** failed",
+     "created_at": "2026-10-01T02:10:00Z",
+     "updated_at": "2026-10-01T02:10:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1014,
+     "body": "<!-- pt-run id=b slot=slot-dev state=started -->\n**slot-dev** started",
+     "created_at": "2026-10-01T03:40:00Z",
+     "updated_at": "2026-10-01T03:40:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1015,
+     "body": "<!-- pt-run id=b slot=slot-dev state=finished -->\n**slot-dev** finished",
+     "created_at": "2026-10-01T03:50:00Z",
+     "updated_at": "2026-10-01T03:55:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1016,
+     "body": "<!-- pt-run id=c slot=slot-qa state=started -->\n**slot-qa** started",
+     "created_at": "2026-10-01T05:20:00Z",
+     "updated_at": "2026-10-01T05:20:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1017,
+     "body": "<!-- pt-run id=c slot=slot-qa state=failed -->\n**slot-qa** failed",
+     "created_at": "2026-10-01T05:30:00Z",
+     "updated_at": "2026-10-01T05:30:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1018,
+     "body": "<!-- pt-run id=d slot=slot-qa state=started -->\n**slot-qa** started",
+     "created_at": "2026-10-01T07:00:00Z",
+     "updated_at": "2026-10-01T07:00:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1019,
+     "body": "<!-- pt-run id=d slot=slot-qa state=failed -->\n**slot-qa** failed",
+     "created_at": "2026-10-01T07:10:00Z",
+     "updated_at": "2026-10-01T07:10:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [
+    {
+     "id": "a",
+     "slot": "slot-pm",
+     "state": "failed",
+     "at": "2026-10-01T02:00:00Z",
+     "commentId": 1013,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": "2026-10-01T02:10:00Z",
+     "effective": "failed"
+    },
+    {
+     "id": "b",
+     "slot": "slot-dev",
+     "state": "started",
+     "at": "2026-10-01T03:40:00Z",
+     "commentId": 1014,
+     "metrics": {},
+     "acted": [],
+     "trusted": false,
+     "finishedAt": null,
+     "effective": "failed"
+    },
+    {
+     "id": "c",
+     "slot": "slot-qa",
+     "state": "failed",
+     "at": "2026-10-01T05:20:00Z",
+     "commentId": 1017,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": "2026-10-01T05:30:00Z",
+     "effective": "failed"
+    },
+    {
+     "id": "d",
+     "slot": "slot-qa",
+     "state": "failed",
+     "at": "2026-10-01T07:00:00Z",
+     "commentId": 1019,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": "2026-10-01T07:10:00Z",
+     "effective": "failed"
+    }
+   ],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "pause",
+     "reason": "last 3 runs failed"
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "pause",
+     "reason": "last 3 runs failed"
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "pause",
+     "reason": "last 3 runs failed"
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "an edited finish keeps a started run unknown",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1020,
+     "body": "<!-- pt-run id=a slot=slot-dev state=started -->\n**slot-dev** started",
+     "created_at": "2026-10-01T11:00:00Z",
+     "updated_at": "2026-10-01T11:00:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1021,
+     "body": "<!-- pt-run id=a slot=slot-dev state=finished -->\n**slot-dev** finished",
+     "created_at": "2026-10-01T11:30:00Z",
+     "updated_at": "2026-10-01T11:31:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [
+    {
+     "id": "a",
+     "slot": "slot-dev",
+     "state": "started",
+     "at": "2026-10-01T11:00:00Z",
+     "commentId": 1020,
+     "metrics": {},
+     "acted": [],
+     "trusted": false,
+     "finishedAt": null,
+     "effective": "started"
+    }
+   ],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "overlap",
+     "reason": "run a of slot slot-dev is still in progress"
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "overlap",
+     "reason": "run a of slot slot-dev is still in progress"
+    }
+   }
+  },
+  {
+   "name": "an edited start never creates a run",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1022,
+     "body": "<!-- pt-run id=a slot=slot-dev state=started -->\n**slot-dev** started",
+     "created_at": "2026-10-01T11:30:00Z",
+     "updated_at": "2026-10-01T11:32:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "an outsider's entry is ignored",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1023,
+     "body": "<!-- pt-run id=x slot=slot-dev state=started -->\n**slot-dev** started",
+     "created_at": "2026-10-01T11:50:00Z",
+     "updated_at": "2026-10-01T11:50:00Z",
+     "user": {
+      "login": "outsider"
+     }
+    }
+   ],
+   "runs": [],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "an outsider cannot finish a team run",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1024,
+     "body": "<!-- pt-run id=a slot=slot-dev state=started -->\n**slot-dev** started",
+     "created_at": "2026-10-01T11:00:00Z",
+     "updated_at": "2026-10-01T11:00:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1025,
+     "body": "<!-- pt-run id=a slot=slot-dev state=finished -->\n**slot-dev** finished",
+     "created_at": "2026-10-01T11:30:00Z",
+     "updated_at": "2026-10-01T11:30:00Z",
+     "user": {
+      "login": "outsider"
+     }
+    }
+   ],
+   "runs": [
+    {
+     "id": "a",
+     "slot": "slot-dev",
+     "state": "started",
+     "at": "2026-10-01T11:00:00Z",
+     "commentId": 1024,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": null,
+     "effective": "started"
+    }
+   ],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "overlap",
+     "reason": "run a of slot slot-dev is still in progress"
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "overlap",
+     "reason": "run a of slot slot-dev is still in progress"
+    }
+   }
+  },
+  {
+   "name": "author case is ignored",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1026,
+     "body": "<!-- pt-run id=a slot=slot-qa state=started -->\n**slot-qa** started",
+     "created_at": "2026-10-01T11:50:00Z",
+     "updated_at": "2026-10-01T11:50:00Z",
+     "user": {
+      "login": "GEEERA"
+     }
+    }
+   ],
+   "runs": [
+    {
+     "id": "a",
+     "slot": "slot-qa",
+     "state": "started",
+     "at": "2026-10-01T11:50:00Z",
+     "commentId": 1026,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": null,
+     "effective": "started"
+    }
+   ],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "overlap",
+     "reason": "run a of slot slot-qa is still in progress"
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "metrics and acted",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1027,
+     "body": "<!-- pt-run id=a slot=slot-dev state=started -->\n**slot-dev** started",
+     "created_at": "2026-10-01T10:20:00Z",
+     "updated_at": "2026-10-01T10:20:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1028,
+     "body": "<!-- pt-run id=a slot=slot-dev state=finished -->\n<!-- pt-metrics {\"merged\": 1, \"minutes\": 40} -->\n<!-- pt-acted [[72, 5931722592], [5, \"x\"]] -->\n**slot-dev** finished",
+     "created_at": "2026-10-01T11:00:00Z",
+     "updated_at": "2026-10-01T11:00:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [
+    {
+     "id": "a",
+     "slot": "slot-dev",
+     "state": "finished",
+     "at": "2026-10-01T10:20:00Z",
+     "commentId": 1028,
+     "metrics": {
+      "merged": 1,
+      "minutes": 40
+     },
+     "acted": [
+      [
+       72,
+       5931722592
+      ]
+     ],
+     "trusted": true,
+     "finishedAt": "2026-10-01T11:00:00Z",
+     "effective": "finished"
+    }
+   ],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "a broken metrics block",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1029,
+     "body": "<!-- pt-run id=a slot=slot-dev state=started -->\n**slot-dev** started",
+     "created_at": "2026-10-01T10:20:00Z",
+     "updated_at": "2026-10-01T10:20:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1030,
+     "body": "<!-- pt-run id=a slot=slot-dev state=finished -->\n<!-- pt-metrics {broken} -->",
+     "created_at": "2026-10-01T11:00:00Z",
+     "updated_at": "2026-10-01T11:00:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [
+    {
+     "id": "a",
+     "slot": "slot-dev",
+     "state": "finished",
+     "at": "2026-10-01T10:20:00Z",
+     "commentId": 1030,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": "2026-10-01T11:00:00Z",
+     "effective": "finished"
+    }
+   ],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "the slot comes from the first entry",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1031,
+     "body": "<!-- pt-run id=a slot=slot-dev state=started -->\n**slot-dev** started",
+     "created_at": "2026-10-01T10:20:00Z",
+     "updated_at": "2026-10-01T10:20:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1032,
+     "body": "<!-- pt-run id=a slot=slot-qa state=finished -->\n**slot-qa** finished",
+     "created_at": "2026-10-01T11:00:00Z",
+     "updated_at": "2026-10-01T11:00:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [
+    {
+     "id": "a",
+     "slot": "slot-dev",
+     "state": "finished",
+     "at": "2026-10-01T10:20:00Z",
+     "commentId": 1032,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": "2026-10-01T11:00:00Z",
+     "effective": "finished"
+    }
+   ],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "owner pause active",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1033,
+     "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"\\u043e\\u0442\\u043f\\u0443\\u0441\\u043a\", \"source\": \"team-console\"} -->\n**Development paused by the owner**",
+     "created_at": "2026-10-01T11:10:00Z",
+     "updated_at": "2026-10-01T11:10:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [],
+   "ownerPause": {
+    "record": {
+     "reason": "\u043e\u0442\u043f\u0443\u0441\u043a",
+     "source": "team-console"
+    },
+    "pausedAt": "2026-10-01T11:10:00Z"
+   },
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "owner pause resumed",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1034,
+     "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"x\", \"source\": \"team-console\"} -->\n**Development paused by the owner**",
+     "created_at": "2026-10-01T11:10:00Z",
+     "updated_at": "2026-10-01T11:10:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1035,
+     "body": "<!-- pt-owner-resume -->\n**Development resumed**",
+     "created_at": "2026-10-01T11:40:00Z",
+     "updated_at": "2026-10-01T11:40:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "paused again after a resume",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1036,
+     "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"one\"} -->\n**Development paused by the owner**",
+     "created_at": "2026-10-01T10:30:00Z",
+     "updated_at": "2026-10-01T10:30:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1037,
+     "body": "<!-- pt-owner-resume -->\n**Development resumed**",
+     "created_at": "2026-10-01T11:00:00Z",
+     "updated_at": "2026-10-01T11:00:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1038,
+     "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"two\", \"routines\": []} -->\n**Development paused by the owner**",
+     "created_at": "2026-10-01T11:30:00Z",
+     "updated_at": "2026-10-01T11:30:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [],
+   "ownerPause": {
+    "record": {
+     "reason": "two",
+     "routines": []
+    },
+    "pausedAt": "2026-10-01T11:30:00Z"
+   },
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "an edited pause record is no record",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1039,
+     "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"x\"} -->\n**Development paused by the owner**",
+     "created_at": "2026-10-01T11:10:00Z",
+     "updated_at": "2026-10-01T11:13:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "a broken pause record",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1040,
+     "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {not json} -->\n**Development paused by the owner**",
+     "created_at": "2026-10-01T11:10:00Z",
+     "updated_at": "2026-10-01T11:10:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "a pause record by an outsider",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1041,
+     "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"x\"} -->\n**Development paused by the owner**",
+     "created_at": "2026-10-01T11:10:00Z",
+     "updated_at": "2026-10-01T11:10:00Z",
+     "user": {
+      "login": "outsider"
+     }
+    }
+   ],
+   "runs": [],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "a pause record across lines",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1042,
+     "body": "<!-- pt-owner-pause {\"reason\":\n\"two lines\"} -->",
+     "created_at": "2026-10-01T11:20:00Z",
+     "updated_at": "2026-10-01T11:20:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [],
+   "ownerPause": {
+    "record": {
+     "reason": "two lines"
+    },
+    "pausedAt": "2026-10-01T11:20:00Z"
+   },
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "same second resume and pause",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1043,
+     "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"x\"} -->\n**Development paused by the owner**",
+     "created_at": "2026-10-01T11:30:00Z",
+     "updated_at": "2026-10-01T11:30:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1044,
+     "body": "<!-- pt-owner-resume -->\n**Development resumed**",
+     "created_at": "2026-10-01T11:30:00Z",
+     "updated_at": "2026-10-01T11:30:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [],
+   "ownerPause": {
+    "record": {
+     "reason": "x"
+    },
+    "pausedAt": "2026-10-01T11:30:00Z"
+   },
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "proceed",
+     "reason": ""
+    }
+   }
+  },
+  {
+   "name": "several slots",
+   "issueAuthor": "geeera",
+   "now": "2026-10-01T12:00:00Z",
+   "resetAt": "2026-10-01T04:30:00Z",
+   "comments": [
+    {
+     "id": 1045,
+     "body": "<!-- pt-run id=p slot=slot-pm state=started -->\n**slot-pm** started",
+     "created_at": "2026-10-01T05:20:00Z",
+     "updated_at": "2026-10-01T05:20:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1046,
+     "body": "<!-- pt-run id=p slot=slot-pm state=finished -->\n**slot-pm** finished",
+     "created_at": "2026-10-01T05:40:00Z",
+     "updated_at": "2026-10-01T05:40:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1047,
+     "body": "<!-- pt-run id=d slot=slot-dev state=started -->\n**slot-dev** started",
+     "created_at": "2026-10-01T10:20:00Z",
+     "updated_at": "2026-10-01T10:20:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    },
+    {
+     "id": 1048,
+     "body": "<!-- pt-run id=q slot=slot-qa state=started -->\n**slot-qa** started",
+     "created_at": "2026-10-01T11:40:00Z",
+     "updated_at": "2026-10-01T11:40:00Z",
+     "user": {
+      "login": "geeera"
+     }
+    }
+   ],
+   "runs": [
+    {
+     "id": "p",
+     "slot": "slot-pm",
+     "state": "finished",
+     "at": "2026-10-01T05:20:00Z",
+     "commentId": 1046,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": "2026-10-01T05:40:00Z",
+     "effective": "finished"
+    },
+    {
+     "id": "d",
+     "slot": "slot-dev",
+     "state": "started",
+     "at": "2026-10-01T10:20:00Z",
+     "commentId": 1047,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": null,
+     "effective": "started"
+    },
+    {
+     "id": "q",
+     "slot": "slot-qa",
+     "state": "started",
+     "at": "2026-10-01T11:40:00Z",
+     "commentId": 1048,
+     "metrics": {},
+     "acted": [],
+     "trusted": true,
+     "finishedAt": null,
+     "effective": "started"
+    }
+   ],
+   "ownerPause": null,
+   "decisions": {
+    "slot-pm running": {
+     "decision": "proceed",
+     "reason": ""
+    },
+    "slot-pm paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev running": {
+     "decision": "overlap",
+     "reason": "run d of slot slot-dev is still in progress"
+    },
+    "slot-dev paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-qa running": {
+     "decision": "overlap",
+     "reason": "run q of slot slot-qa is still in progress"
+    },
+    "slot-qa paused": {
+     "decision": "paused",
+     "reason": "run log is paused; owner must comment /resume"
+    },
+    "slot-dev after reset": {
+     "decision": "overlap",
+     "reason": "run d of slot slot-dev is still in progress"
+    }
+   }
+  }
+ ]
+}

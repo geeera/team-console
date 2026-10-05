@@ -122,6 +122,59 @@ export class ProjectsRepo {
       .first<ProjectRow>();
   }
 
+  /**
+   * Invalidates every cached read of the project (`readCacheKey` carries the epoch). Called by the hooks Worker;
+   * the column is the only cross-Worker cache signal (no Worker-to-Worker call, #9/#12).
+   */
+  async bumpCacheEpoch(slug: string): Promise<void> {
+    await this.db
+      .prepare('UPDATE projects SET cache_epoch = cache_epoch + 1 WHERE slug = ?1')
+      .bind(slug)
+      .run();
+  }
+
+  /**
+   * Marks the active project of this repository and installation as unreachable by the app (migration 0010),
+   * unless it already is; the rows that changed, so the caller tells the owner once.
+   */
+  async markAccessLost(repo: string, installationId: number, lostAt: string): Promise<ProjectRow[]> {
+    const { results } = await this.db
+      .prepare(
+        `UPDATE projects SET access_lost_at = ?3
+         WHERE archived_at IS NULL AND access_lost_at IS NULL AND lower(repo) = lower(?1) AND installation_id = ?2
+         RETURNING ${COLUMNS}`,
+      )
+      .bind(repo, installationId, lostAt)
+      .all<ProjectRow>();
+    return results;
+  }
+
+  /** `markAccessLost` for every active project of an installation (the app was uninstalled). */
+  async markInstallationLost(installationId: number, lostAt: string): Promise<ProjectRow[]> {
+    const { results } = await this.db
+      .prepare(
+        `UPDATE projects SET access_lost_at = ?2
+         WHERE archived_at IS NULL AND access_lost_at IS NULL AND installation_id = ?1
+         RETURNING ${COLUMNS}`,
+      )
+      .bind(installationId, lostAt)
+      .all<ProjectRow>();
+    return results;
+  }
+
+  /** Clears `access_lost_at` once the repository is back in the same installation; the rows that changed. */
+  async clearAccessLost(repo: string, installationId: number): Promise<ProjectRow[]> {
+    const { results } = await this.db
+      .prepare(
+        `UPDATE projects SET access_lost_at = NULL
+         WHERE archived_at IS NULL AND access_lost_at IS NOT NULL AND lower(repo) = lower(?1) AND installation_id = ?2
+         RETURNING ${COLUMNS}`,
+      )
+      .bind(repo, installationId)
+      .all<ProjectRow>();
+    return results;
+  }
+
   /** Sets `archived_at` on an active project; `false` when there is none with this slug. */
   async archive(slug: string, archivedAt: string): Promise<boolean> {
     const result = await this.db

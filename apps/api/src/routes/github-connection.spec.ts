@@ -104,6 +104,9 @@ function expectBackToSettings(response: Response, location: string): void {
   expect(response.headers.get('set-cookie')).toBe(CLEARED);
   expect(response.headers.get('referrer-policy')).toBe('no-referrer');
   expect(response.headers.get('cache-control')).toBe('no-store');
+  // #126: the callback's own Referrer-Policy stays, and createWorkerApp adds nosniff/CSP on top of it.
+  expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+  expect(response.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
 }
 
 async function problemSlug(response: Response): Promise<string | null> {
@@ -524,11 +527,15 @@ describe('GET /api/v1/github/callback', () => {
 });
 
 describe('GET /api/v1/github/connection', () => {
-  it('not connected → exactly { state, ownerLogin }, the expected login for the #89 wrong-account copy', async () => {
+  it('not connected → exactly { state, ownerLogin, appName }: the #89 wrong-account copy and the #24 app name', async () => {
     const response = await call(harness(), '/api/v1/github/connection');
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
-    expect(await response.json()).toEqual({ state: 'not-connected', ownerLogin: 'geeera' });
+    expect(await response.json()).toEqual({
+      state: 'not-connected',
+      ownerLogin: 'geeera',
+      appName: 'team-console-local',
+    });
   });
 
   it('not connected, no OWNER_GITHUB_LOGIN configured → 503 github-auth', async () => {
@@ -539,7 +546,7 @@ describe('GET /api/v1/github/connection', () => {
     expect(await problemSlug(response)).toBe('github-auth');
   });
 
-  it('connected → exactly { state, login, connectedAt }, never a token', async () => {
+  it('connected → exactly { state, login, connectedAt, appName }, never a token', async () => {
     const h = harness();
     await connectAs(h);
 
@@ -547,8 +554,8 @@ describe('GET /api/v1/github/connection', () => {
     const text = await response.text();
     const body = JSON.parse(text) as Record<string, unknown>;
 
-    expect(Object.keys(body).sort()).toEqual(['connectedAt', 'login', 'state']);
-    expect(body).toMatchObject({ state: 'connected', login: 'geeera' });
+    expect(Object.keys(body).sort()).toEqual(['appName', 'connectedAt', 'login', 'state']);
+    expect(body).toMatchObject({ state: 'connected', login: 'geeera', appName: 'team-console-local' });
     expect(Number.isNaN(Date.parse(String(body['connectedAt'])))).toBe(false);
     expect(text).not.toMatch(/gh[ur]_/);
   });
@@ -560,7 +567,11 @@ describe('GET /api/v1/github/connection', () => {
 
     const response = await call(h, '/api/v1/github/connection');
 
-    expect(await response.json()).toEqual({ state: 'not-connected', ownerLogin: 'geeera' });
+    expect(await response.json()).toEqual({
+      state: 'not-connected',
+      ownerLogin: 'geeera',
+      appName: 'team-console-local',
+    });
     expect(await storedRow()).toBeNull();
     expect(parsedLogs(h.logs)).toContainEqual(
       expect.objectContaining({ securitySignal: 'owner-not-connected', reason: 'key-id-mismatch' }),

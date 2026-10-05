@@ -22,8 +22,33 @@ export type { AnsweredItem, AnsweredItemsStorage } from './lib/answered-items';
 export {
   DEFAULT_SPACE_SECTION,
   SPACE_SECTIONS,
+  VISIBLE_SPACE_SECTIONS,
   isSpaceSection,
+  isVisibleSpaceSection,
   spaceLocationOf,
   spaceUrlOf,
 } from './lib/space-routes';
 export type { SpaceLocation, SpaceSection } from './lib/space-routes';
+export {
+  SETUP_STEP_IDS,
+  ProjectSetupApi,
+  isProjectSetupDto,
+  pendingSetupSteps,
+  refusedSetupSteps,
+  setupStepsOf,
+  setupSummaryOf,
+  setupUrlOf,
+} from './lib/project-setup';
+export type { SetupStep, SetupStepId, SetupStepState, SetupSummary } from './lib/project-setup';
+export {
+  EmbedOriginsApi,
+  UnexpectedEmbedOriginsResponse,
+  embedOriginsUrl,
+  isEmbedOriginsDto,
+} from './lib/embed-origins';
+export { OVERVIEW_URL, OverviewApi, UnexpectedOverviewResponse, isOverviewDto } from './lib/overview';
+export type { OverviewProject } from './lib/overview';
+export { normalizeRepoInput } from './lib/repo-input';
+export type { RepoInput } from './lib/repo-input';
+export { SetupChecklist } from './lib/setup-checklist/setup-checklist';
+export type { SetupChecklistContext } from './lib/setup-checklist/setup-checklist';

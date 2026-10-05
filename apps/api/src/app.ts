@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { createWorkerApp, problem, type LogSink, type WorkerHonoEnv } from '@worker/core';
+import { createWorkerApp, markAssetResponse, problem, type LogSink, type WorkerHonoEnv } from '@worker/core';
 import { authMiddleware } from './auth/auth.middleware';
 import { csrfMiddleware } from './auth/csrf.middleware';
 import type { ApiEnv } from './env';
@@ -11,7 +11,12 @@ import { connectedOwnerSource, type OwnerConnectionSource } from './projects/own
 import { createProjectRegistryRoutes } from './routes/project-registry';
 import { createProjectsRoutes } from './routes/projects';
 import { createProjectReadModelRoutes } from './routes/project-read-models';
+import { createArtifactRoutes } from './routes/artifacts';
 import { createNeedsYouRoutes } from './routes/needs-you';
+import { createOverviewRoutes } from './routes/overview';
+import { createTeamCommandsRoutes } from './routes/team-commands';
+import { createPushRoutes } from './routes/push';
+import type { FetchLike } from '@worker/routines';
 import { mapReadModelError } from './read-models/errors';
 
 export interface CreateApiAppOptions {
@@ -20,6 +25,13 @@ export interface CreateApiAppOptions {
   readonly github?: ApiGitHub;
   /** The connected owner account for the registry; defaults to the #59 connection. */
   readonly ownerConnection?: OwnerConnectionSource;
+  /** The transport of "Run now" fires (#114); a test passes the fake routines API. */
+  readonly routinesFetch?: FetchLike;
+  readonly routinesDeadlineMs?: number;
+  /** The transport of web pushes (#11); a test passes the fake push service. */
+  readonly pushFetch?: FetchLike;
+  /** Milliseconds since the epoch for the push routes; a seam for the test-push interval. */
+  readonly pushNow?: () => number;
 }
 
 function isApiPath(path: string): boolean {
@@ -34,11 +46,13 @@ function isApiPath(path: string): boolean {
 export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHonoEnv<ApiEnv>> {
   const app = createWorkerApp<ApiEnv>({
     service: 'api',
-    notFound: (c) =>
+    notFound: async (c) =>
       isApiPath(c.req.path)
         ? problem(c, { type: 'not-found', title: 'Not Found', status: 404 })
-        : c.env.ASSETS.fetch(c.req.raw),
+        // The SPA fallback: the assets binding's own `_headers` governs it, not this Worker's security headers.
+        : markAssetResponse(await c.env.ASSETS.fetch(c.req.raw)),
     mapError: (error) => mapGitHubError(error) ?? mapReadModelError(error),
+    noStore: true,
     ...(options.logSink === undefined ? {} : { logSink: options.logSink }),
   });
   const github = options.github ?? new ApiGitHub();
@@ -55,9 +69,26 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   );
   v1.route('/projects', createProjectsRoutes(github));
   v1.route('/projects', createProjectReadModelRoutes(github));
+  v1.route('/projects', createArtifactRoutes(github));
   v1.route('/needs-you', createNeedsYouRoutes(github));
+  v1.route('/overview', createOverviewRoutes(github));
   v1.route('/projects', createAnswerRoutes(github));
+  v1.route(
+    '/projects',
+    createTeamCommandsRoutes(github, {
+      ...(options.routinesFetch === undefined ? {} : { routinesFetch: options.routinesFetch }),
+      ...(options.routinesDeadlineMs === undefined ? {} : { routinesDeadlineMs: options.routinesDeadlineMs }),
+      ...(options.ownerConnection === undefined ? {} : { ownerConnection: options.ownerConnection }),
+    }),
+  );
   v1.route('/github', createGitHubConnectionRoutes(github));
+  v1.route(
+    '/push',
+    createPushRoutes({
+      ...(options.pushFetch === undefined ? {} : { fetch: options.pushFetch }),
+      ...(options.pushNow === undefined ? {} : { now: options.pushNow }),
+    }),
+  );
   app.route('/api/v1', v1);
 
   return app;

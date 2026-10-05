@@ -14,9 +14,90 @@
         }
       },
       "files": {
-        ".product-team/project.yml": "# The product team's contract for this repository (product-team plugin, reference/stack-contract.md).\nname: Team Console\nrepo: geeera/team-console\nmode: new\nstack: >\n  Nx monorepo — Angular 22 PWA (apps/console, FSD libs), Cloudflare Workers with Hono (apps/api, apps/hooks),\n  D1, Cloudflare Access, Playwright. See docs/decisions/0001-stack-and-architecture.md.\ndecisions_dir: docs/decisions\n\n# Node 22 (.nvmrc) and npm. `e2e` and `storybook` are added by #14 and #13; until then they exit 0\n# so the contract stays runnable, but print an explicit SKIPPED line so the output cannot be read\n# as a passing run. The PRs for #14 / #13 must replace them with the real commands.\ncommands:\n  install: npm ci\n  lint: npx nx run-many -t lint\n  test: npx nx run-many -t test\n  build: npx nx run-many -t build\n  e2e: 'echo \"SKIPPED: no e2e tests ran — apps/console-e2e arrives with #14; this is NOT a pass\"'\n  storybook: npx nx build-storybook console-shared-ui\n\nenvironments:\n  dev:\n    url: ''\n  stage:\n    url: ''\n  production:\n    url: ''\n\ndesign:\n  tokens:\n    - libs/console/shared/ui/src/tokens/tokens.css\n  storybook_url: ''\n\nsprint:\n  length_days: 14\n  freeze_days: 2\n\ncaps: {}\n\nreview:\n  qa: always                 # QA on every PR (owner decision 2026-09-30)\n  reviewer: code             # code review only when the PR changes a path below\n  code_paths: [\"apps/**\", \"libs/**\", \"tools/**\"]\n  max_rework_rounds: 1       # guidance: after one rework round only blockers go back; the rest become follow-ups\n\nteam:\n  plugin_ref: stable\n  reviewer_logins: ['team-console-review[bot]']\n  run_log_issue: 22\n\nowner:\n  language: ru\n  timezone: Europe/Kyiv\n"
+        ".product-team/project.yml": "# The product team's contract for this repository (product-team plugin, reference/stack-contract.md).\nname: Team Console\nrepo: geeera/team-console\nmode: new\nstack: >\n  Nx monorepo — Angular 22 PWA (apps/console, FSD libs), Cloudflare Workers with Hono (apps/api, apps/hooks),\n  D1, Cloudflare Access, Playwright. See docs/decisions/0001-stack-and-architecture.md.\ndecisions_dir: docs/decisions\n\n# Node 22 (.nvmrc) and npm. `e2e` and `storybook` are added by #14 and #13; until then they exit 0\n# so the contract stays runnable, but print an explicit SKIPPED line so the output cannot be read\n# as a passing run. The PRs for #14 / #13 must replace them with the real commands.\ncommands:\n  install: npm ci\n  lint: npx nx run-many -t lint\n  test: npx nx run-many -t test\n  build: npx nx run-many -t build\n  e2e: 'echo \"SKIPPED: no e2e tests ran — apps/console-e2e arrives with #14; this is NOT a pass\"'\n  storybook: npx nx build-storybook console-shared-ui\n\nenvironments:\n  dev:\n    url: ''\n  stage:\n    url: 'https://team-console-stage.geeera.workers.dev'\n  production:\n    url: ''\n\ndesign:\n  tokens:\n    - libs/console/shared/ui/src/tokens/tokens.css\n  storybook_url: 'https://team-console-storybook.pages.dev'\n\nsprint:\n  length_days: 14\n  freeze_days: 2\n\ncaps: {}\n\nreview:\n  qa: always                 # QA on every PR (owner decision 2026-09-30)\n  reviewer: code             # code review only when the PR changes a path below\n  code_paths: [\"apps/**\", \"libs/**\", \"tools/**\"]\n  max_rework_rounds: 1       # guidance: after one rework round only blockers go back; the rest become follow-ups\n\nteam:\n  plugin_ref: stable\n  reviewer_logins: ['team-console-review[bot]']\n  run_log_issue: 22\n\nowner:\n  language: ru\n  timezone: Europe/Kyiv\n",
+        "docs/decisions/0001-stack-and-architecture.md": "# 0001 — Stack and architecture\n\nA snapshot stub of the decision record (mock GitHub, #19).\n",
+        "docs/decisions/0002-visual-direction.md": "# ADR 0002: Visual direction — Paper Desk\n\nA snapshot stub of the decision record (mock GitHub, #19).\n",
+        "docs/decisions/0003-console-github-app.md": "# 0003 — The console's GitHub identity: a GitHub App per environment, owner writes on the owner's own token\n\nA snapshot stub of the decision record (mock GitHub, #19).\n",
+        "docs/design/directions/01-paper-desk.html": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/directions/02-switchboard.html": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/directions/03-signal.html": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/directions/README.md": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/directions/src/build.py": "# generator source, not an artifact\n",
+        "docs/design/features/114-team-commands.html": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/features/134-board-phone-lanes.html": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/features/24-settings-projects.html": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/features/36-web-push.html": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/features/README.md": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/features/src/build.py": "# generator source, not an artifact\n",
+        "docs/design/references.md": "# References\n"
       },
       "issues": [
+        {
+          "number": 90006,
+          "title": "Дизайн: онбординг (прототип вне Storybook)",
+          "body": "**Your answer:** /approve онбординг · /reject что поменять\n<!-- pt-ask -->\n\nПрототип лежит в другом проекте: https://storify-proto.pages.dev/onboarding\n",
+          "html_url": "https://github.com/geeera/team-console/issues/90006",
+          "state": "open",
+          "labels": [
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "design:awaiting-approval"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "updated_at": "2026-10-04T09:00:00Z"
+        },
+        {
+          "number": 90005,
+          "title": "Демо спринта 01",
+          "body": "**Your answer:** /go (рекомендую) · /no-go что доделать\n<!-- pt-ask -->\n\n## Что вошло\n\n- Вопросы и «Ждут вас»\n- Доска спринта\n- Артефакты\n\nStage: [team-console-stage](https://team-console-stage.geeera.workers.dev/)\n\n| Проверка | Итог |\n|---|---|\n| e2e | зелёный |\n| axe | без нарушений |\n",
+          "html_url": "https://github.com/geeera/team-console/issues/90005",
+          "state": "open",
+          "labels": [
+            {
+              "name": "team:demo"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "updated_at": "2026-10-04T09:00:00Z"
+        },
+        {
+          "number": 90004,
+          "title": "Дизайн #20: экран дизайна и демо",
+          "body": "**Your answer:** /approve экран (рекомендую) · /reject что поменять\n<!-- pt-ask -->\n\nПрототип: [карточки и предпросмотр](https://team-console-storybook.pages.dev/iframe.html?id=kit-frame--embedded&viewMode=story)\n\nPR: https://github.com/geeera/team-console/pull/176\n\n<img src=x onerror=\"window.__pwned=1\"> <iframe src=\"https://evil.pages.dev\"></iframe> [ссылка](javascript:alert(1))\n\n**Architect note**\n",
+          "html_url": "https://github.com/geeera/team-console/issues/90004",
+          "state": "open",
+          "labels": [
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "design:awaiting-approval"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "updated_at": "2026-10-04T09:00:00Z"
+        },
         {
           "number": 90002,
           "title": "Макет #24 на утверждение: подключение GitHub и проекты",
@@ -29,6 +110,9 @@
             },
             {
               "name": "owner:design"
+            },
+            {
+              "name": "e2e:fixture"
             }
           ],
           "author_association": "CONTRIBUTOR",
@@ -48,6 +132,9 @@
           "labels": [
             {
               "name": "kind:question"
+            },
+            {
+              "name": "e2e:fixture"
             }
           ],
           "author_association": "NONE",
@@ -57,6 +144,42 @@
           },
           "milestone": null,
           "closed_at": null
+        },
+        {
+          "number": 92,
+          "title": "feat(#131): CI state for each open pull request on the board",
+          "body": "",
+          "html_url": "https://github.com/geeera/team-console/pull/92",
+          "state": "open",
+          "labels": [],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "pull_request": {
+            "html_url": "https://github.com/geeera/team-console/pull/92"
+          }
+        },
+        {
+          "number": 91,
+          "title": "docs: sketch the next board section",
+          "body": "",
+          "html_url": "https://github.com/geeera/team-console/pull/91",
+          "state": "open",
+          "labels": [],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "pull_request": {
+            "html_url": "https://github.com/geeera/team-console/pull/91"
+          }
         },
         {
           "number": 89,
@@ -254,6 +377,9 @@
             },
             {
               "name": "owner:scope"
+            },
+            {
+              "name": "e2e:fixture"
             }
           ],
           "author_association": "OWNER",
@@ -969,7 +1095,8 @@
             "type": "User"
           },
           "milestone": null,
-          "closed_at": null
+          "closed_at": null,
+          "comments": 15
         },
         {
           "number": 21,
@@ -1649,6 +1776,26 @@
             "title": "Sprint 01"
           },
           "closed_at": "2026-09-29T15:11:36Z"
+        },
+        {
+          "number": 90003,
+          "title": "Sprint 1 demo",
+          "body": "",
+          "html_url": "https://github.com/geeera/team-console/issues/90003",
+          "state": "closed",
+          "labels": [
+            {
+              "name": "team:demo"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": "2026-10-02T09:00:00Z",
+          "updated_at": "2026-10-02T09:00:00Z"
         }
       ],
       "milestones": [
@@ -1673,6 +1820,36 @@
       ],
       "pulls": [
         {
+          "number": 92,
+          "title": "feat(#131): CI state for each open pull request on the board",
+          "html_url": "https://github.com/geeera/team-console/pull/92",
+          "draft": false,
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "state": "open",
+          "head": {
+            "sha": "92b1ab0092b1ab0092b1ab0092b1ab0092b1ab00"
+          }
+        },
+        {
+          "number": 91,
+          "title": "docs: sketch the next board section",
+          "html_url": "https://github.com/geeera/team-console/pull/91",
+          "draft": true,
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "state": "open",
+          "head": {
+            "sha": "91deadbe91deadbe91deadbe91deadbe91deadbe"
+          }
+        },
+        {
           "number": 45,
           "title": "chore(devops): publish docs/design to GitHub Pages via Actions",
           "html_url": "https://github.com/geeera/team-console/pull/45",
@@ -1682,7 +1859,10 @@
             "login": "geeera",
             "type": "User"
           },
-          "state": "open"
+          "state": "open",
+          "head": {
+            "sha": "45a1c0de45a1c0de45a1c0de45a1c0de45a1c0de"
+          }
         },
         {
           "number": 40,
@@ -1694,9 +1874,306 @@
             "login": "geeera",
             "type": "User"
           },
-          "state": "open"
+          "state": "open",
+          "head": {
+            "sha": "40fa11ed40fa11ed40fa11ed40fa11ed40fa11ed"
+          }
         }
-      ]
+      ],
+      "checkRuns": {
+        "92b1ab0092b1ab0092b1ab0092b1ab0092b1ab00": [
+          {
+            "name": "lint-test-build",
+            "status": "completed",
+            "conclusion": "success",
+            "app": {
+              "slug": "github-actions"
+            }
+          },
+          {
+            "name": "e2e",
+            "status": "in_progress",
+            "conclusion": null,
+            "app": {
+              "slug": "github-actions"
+            }
+          },
+          {
+            "name": "sast",
+            "status": "queued",
+            "conclusion": null,
+            "app": {
+              "slug": "github-actions"
+            }
+          }
+        ],
+        "45a1c0de45a1c0de45a1c0de45a1c0de45a1c0de": [
+          {
+            "name": "lint-test-build",
+            "status": "completed",
+            "conclusion": "success",
+            "app": {
+              "slug": "github-actions"
+            }
+          },
+          {
+            "name": "e2e",
+            "status": "completed",
+            "conclusion": "success",
+            "app": {
+              "slug": "github-actions"
+            }
+          },
+          {
+            "name": "deploy",
+            "status": "completed",
+            "conclusion": "skipped",
+            "app": {
+              "slug": "github-actions"
+            }
+          }
+        ],
+        "40fa11ed40fa11ed40fa11ed40fa11ed40fa11ed": [
+          {
+            "name": "lint-test-build",
+            "status": "completed",
+            "conclusion": "success",
+            "app": {
+              "slug": "github-actions"
+            }
+          },
+          {
+            "name": "e2e",
+            "status": "completed",
+            "conclusion": "failure",
+            "app": {
+              "slug": "github-actions"
+            }
+          }
+        ]
+      },
+      "issueEvents": {
+        "72": [
+          {
+            "id": 9300000001,
+            "event": "labeled",
+            "actor": {
+              "login": "geeera",
+              "id": 100001,
+              "type": "User"
+            },
+            "label": {
+              "name": "e2e:fixture",
+              "color": "ededed"
+            },
+            "performed_via_github_app": null,
+            "created_at": "2026-10-05T08:00:00Z"
+          }
+        ],
+        "90001": [
+          {
+            "id": 9300000002,
+            "event": "labeled",
+            "actor": {
+              "login": "geeera",
+              "id": 100001,
+              "type": "User"
+            },
+            "label": {
+              "name": "e2e:fixture",
+              "color": "ededed"
+            },
+            "performed_via_github_app": null,
+            "created_at": "2026-10-05T08:01:00Z"
+          }
+        ],
+        "90002": [
+          {
+            "id": 9300000003,
+            "event": "labeled",
+            "actor": {
+              "login": "geeera",
+              "id": 100001,
+              "type": "User"
+            },
+            "label": {
+              "name": "e2e:fixture",
+              "color": "ededed"
+            },
+            "performed_via_github_app": null,
+            "created_at": "2026-10-05T08:02:00Z"
+          }
+        ]
+      },
+      "comments": {
+        "22": [
+          {
+            "id": 2200001,
+            "body": "<!-- pt-run id=mock-r0 slot=slot-dev state=started -->\n**slot-dev** started",
+            "created_at": "2026-10-03T15:00:00Z",
+            "updated_at": "2026-10-03T15:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200001"
+          },
+          {
+            "id": 2200002,
+            "body": "<!-- pt-run id=mock-r0 slot=slot-dev state=finished -->\n**slot-dev** finished",
+            "created_at": "2026-10-03T15:50:00Z",
+            "updated_at": "2026-10-03T15:50:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200002"
+          },
+          {
+            "id": 2200003,
+            "body": "<!-- pt-run id=mock-r1 slot=slot-pm state=started -->\n**slot-pm** started",
+            "created_at": "2026-10-04T06:00:00Z",
+            "updated_at": "2026-10-04T06:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200003"
+          },
+          {
+            "id": 2200004,
+            "body": "<!-- pt-run id=mock-r1 slot=slot-pm state=finished -->\n**slot-pm** finished",
+            "created_at": "2026-10-04T06:12:00Z",
+            "updated_at": "2026-10-04T06:12:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200004"
+          },
+          {
+            "id": 2200005,
+            "body": "<!-- pt-run id=mock-r2 slot=slot-dev state=started -->\n**slot-dev** started",
+            "created_at": "2026-10-04T07:00:00Z",
+            "updated_at": "2026-10-04T07:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200005"
+          },
+          {
+            "id": 2200006,
+            "body": "<!-- pt-run id=mock-r2 slot=slot-dev state=failed -->\n**slot-dev** failed",
+            "created_at": "2026-10-04T07:40:00Z",
+            "updated_at": "2026-10-04T07:40:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200006"
+          },
+          {
+            "id": 2200007,
+            "body": "<!-- pt-run id=mock-r3 slot=slot-qa state=started -->\n**slot-qa** started",
+            "created_at": "2026-10-04T09:00:00Z",
+            "updated_at": "2026-10-04T09:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200007"
+          },
+          {
+            "id": 2200008,
+            "body": "<!-- pt-run id=mock-r3 slot=slot-qa state=finished -->\n**slot-qa** finished",
+            "created_at": "2026-10-04T09:20:00Z",
+            "updated_at": "2026-10-04T09:20:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200008"
+          },
+          {
+            "id": 2200009,
+            "body": "<!-- pt-run id=mock-r4 slot=slot-dev state=started -->\n**slot-dev** started",
+            "created_at": "2026-10-04T11:00:00Z",
+            "updated_at": "2026-10-04T11:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200009"
+          },
+          {
+            "id": 2200010,
+            "body": "<!-- pt-run id=mock-r4 slot=slot-dev state=failed -->\n**slot-dev** failed",
+            "created_at": "2026-10-04T11:30:00Z",
+            "updated_at": "2026-10-04T12:05:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200010"
+          },
+          {
+            "id": 2200011,
+            "body": "<!-- pt-run id=mock-r5 slot=slot-pm state=started -->\n**slot-pm** started",
+            "created_at": "2026-10-04T13:00:00Z",
+            "updated_at": "2026-10-04T13:00:00Z",
+            "user": {
+              "login": "team-console-team[bot]",
+              "type": "Bot"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200011"
+          },
+          {
+            "id": 2200012,
+            "body": "<!-- pt-run id=mock-r5 slot=slot-pm state=finished -->\n**slot-pm** finished",
+            "created_at": "2026-10-04T13:10:00Z",
+            "updated_at": "2026-10-04T13:10:00Z",
+            "user": {
+              "login": "team-console-team[bot]",
+              "type": "Bot"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200012"
+          },
+          {
+            "id": 2200013,
+            "body": "<!-- pt-run id=mock-r6 slot=slot-dev state=started -->\n**slot-dev** started",
+            "created_at": "2026-10-04T15:00:00Z",
+            "updated_at": "2026-10-04T15:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200013"
+          },
+          {
+            "id": 2200014,
+            "body": "<!-- pt-run id=mock-r6 slot=slot-dev state=finished -->\n**slot-dev** finished",
+            "created_at": "2026-10-04T15:45:00Z",
+            "updated_at": "2026-10-04T15:45:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200014"
+          },
+          {
+            "id": 2200015,
+            "body": "<!-- pt-run id=mock-r6 slot=slot-dev state=failed -->\n**slot-dev** failed",
+            "created_at": "2026-10-04T16:00:00Z",
+            "updated_at": "2026-10-04T16:00:00Z",
+            "user": {
+              "login": "outsider",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200015"
+          }
+        ]
+      }
     },
     "geeera/private-product": {
       "installationId": 1001,

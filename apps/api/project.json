@@ -4,13 +4,19 @@
   "projectType": "application",
   "sourceRoot": "apps/api/src",
   "tags": ["type:app", "scope:worker"],
+  "implicitDependencies": ["console"],
   "targets": {
     "build": {
       "executor": "nx:run-commands",
       "cache": true,
       "inputs": ["production", "^production", "{workspaceRoot}/dist/apps/console/browser/**/*"],
       "outputs": ["{workspaceRoot}/dist/apps/api"],
-      "dependsOn": [{ "projects": ["console"], "target": "build" }],
+      "dependsOn": [
+        {
+          "projects": ["console"],
+          "target": "build"
+        }
+      ],
       "options": {
         "commands": [
           "tsc -p apps/api/tsconfig.app.json --noEmit",
@@ -22,7 +28,7 @@
     "migrate": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "wrangler d1 migrations apply team-console-dev --local --config apps/api/wrangler.jsonc --env dev"
+        "command": "wrangler d1 migrations apply team-console-dev --local --persist-to .wrangler/state --config apps/api/wrangler.jsonc --env dev"
       }
     },
     "fake-github": {
@@ -32,12 +38,32 @@
         "command": "wrangler dev --config apps/api/fake-github/wrangler.jsonc --ip 127.0.0.1 --port 9999 --inspector-port 9339 --var FAKE_GITHUB_CLIENT_ID:Iv23liLOCALFAKE --var FAKE_GITHUB_CLIENT_SECRET:local-fake-secret"
       }
     },
+    "fake-routines": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "options": {
+        "command": "wrangler dev --config apps/api/fake-routines/wrangler.jsonc --ip 127.0.0.1 --port 9998 --inspector-port 9338"
+      }
+    },
+    "fake-push": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "options": {
+        "command": "wrangler dev --config apps/api/fake-push/wrangler.jsonc --ip 127.0.0.1 --port 9997 --inspector-port 9337"
+      }
+    },
     "serve": {
       "executor": "nx:run-commands",
       "continuous": true,
-      "dependsOn": [{ "projects": ["console"], "target": "build" }, "migrate"],
+      "dependsOn": [
+        {
+          "projects": ["console"],
+          "target": "build"
+        },
+        "migrate"
+      ],
       "options": {
-        "command": "wrangler dev --config apps/api/wrangler.jsonc --env dev --port 8787 --var ENVIRONMENT:local --var AUTH_MODE:local --var GITHUB_MOCK:true --var OWNER_GITHUB_LOGIN:geeera"
+        "command": "wrangler dev --config apps/api/wrangler.jsonc --env dev --port 8787 --persist-to .wrangler/state --var ENVIRONMENT:local --var AUTH_MODE:local --var GITHUB_MOCK:true --var OWNER_GITHUB_LOGIN:geeera"
       }
     }
   }

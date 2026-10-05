@@ -1,6 +1,11 @@
-import type { AddProjectStep, UpdateProjectRequest } from '@shared/contracts';
+import {
+  isReservedSlug,
+  isValidSlug,
+  slugFromRepoName,
+  type AddProjectStep,
+  type UpdateProjectRequest,
+} from '@shared/contracts';
 import { InvalidRepoNameError, parseRepoName, type RepoName } from '@worker/github';
-import { isReservedSlug, isValidSlug, slugFromRepoName } from './slug';
 
 /** Validation of the registry's request bodies (#15). Nothing here echoes the input back: it may be hostile. */
 

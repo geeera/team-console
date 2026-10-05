@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import {
   GITHUB_CONNECT_PATH,
+  routineSecretName,
   type AddProjectStep,
   type ProjectDto,
   type ProjectSetupDto,
@@ -14,6 +15,7 @@ import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
 import { findProject, projectNotFound, repoOf } from '../projects/lookup';
 import type { OwnerConnectionSource } from '../projects/owner-connection';
+import { slotsSetupOf } from '../team/slot-secrets';
 import {
   inStep,
   installUrlFor,
@@ -26,7 +28,6 @@ import {
   type RepositoryRead,
 } from '../projects/repository-checks';
 import { isRefusal, parseAddProject, parseUpdateProject, type RequestRefusal } from '../projects/requests';
-import { routineSecretName } from '../projects/slug';
 
 // The registry's bodies are a few short strings; anything bigger is not ours.
 const MAX_BODY_BYTES = 4 * 1024;
@@ -58,6 +59,11 @@ function hasRoutineToken(env: ApiEnv, slug: string): boolean {
   return typeof Reflect.get(env, name) === 'string' && Reflect.get(env, name) !== '';
 }
 
+/** `ProjectDto.slots` (#114): whether Run now is set up per slot, presence only. */
+function withSlots(env: ApiEnv, project: ProjectDto): ProjectDto {
+  return { ...project, slots: slotsSetupOf(env, project.slug) };
+}
+
 function setupOf(
   environment: string,
   facts: RepositoryFacts,
@@ -82,6 +88,7 @@ function setupOf(
     accessLostAt: signals.accessLostAt,
     ownerLanguage: facts.ownerLanguage,
     ...(facts.appInstalled === 'missing' ? { installUrl: installUrlFor(environment) } : {}),
+    ...(facts.owner === null ? {} : { repoOwnerLogin: facts.owner.login }),
   };
 }
 
@@ -99,7 +106,7 @@ export function createProjectRegistryRoutes(
     .get('/', async (c) => {
       const repo = new ProjectsRepo(c.env.DB);
       const rows = c.req.query('include') === 'archived' ? await repo.listAll() : await repo.listActive();
-      const body: ProjectDto[] = rows.map(toProjectDto);
+      const body: ProjectDto[] = rows.map((row) => withSlots(c.env, toProjectDto(row)));
       return c.json(body);
     })
 
@@ -163,6 +170,8 @@ export function createProjectRegistryRoutes(
           status: 409,
           step: 'repo-owner',
           detail: `${read.fullName} is owned by ${read.owner.login}, not by the connected account ${owner.login}`,
+          // Both logins are named in Settings' copy (#24), so the client never parses `detail`.
+          extensions: { repoOwner: read.owner.login, login: owner.login },
         });
       }
 
@@ -203,7 +212,7 @@ export function createProjectRegistryRoutes(
       }
       c.get('logger').info('project added', { slug });
       c.header('Location', `/api/v1/projects/${slug}`);
-      return c.json(toProjectDto(row), 201);
+      return c.json(withSlots(c.env, toProjectDto(row)), 201);
     })
 
     .patch('/:slug', limit, async (c) => {
@@ -217,7 +226,7 @@ export function createProjectRegistryRoutes(
       }
       const row = await new ProjectsRepo(c.env.DB).update(project.slug, changes);
       // Archived between the lookup and the update.
-      return row === null ? projectNotFound(c) : c.json(toProjectDto(row));
+      return row === null ? projectNotFound(c) : c.json(withSlots(c.env, toProjectDto(row)));
     })
 
     .post('/:slug/archive', async (c) => {

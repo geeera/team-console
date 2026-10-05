@@ -17,6 +17,9 @@ import { List, ListRow } from './list';
       <tc-list-row>
         <span tc-row-title>Version</span>
       </tc-list-row>
+      <tc-list-row href="https://github.com/o/r/issues/1" external>
+        <span tc-row-title>#1 on GitHub</span>
+      </tc-list-row>
     </tc-list>
   `,
 })
@@ -39,7 +42,7 @@ describe('List', () => {
     const { root, rows } = await render();
 
     expect(root.querySelector('tc-list')?.getAttribute('role')).toBe('list');
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(4);
     expect(rows.every((row) => row.getAttribute('role') === 'listitem')).toBe(true);
   });
 
@@ -49,6 +52,17 @@ describe('List', () => {
     expect(rows[0]?.querySelector('button.tc-list-row__surface')).not.toBeNull();
     expect(rows[1]?.querySelector('a.tc-list-row__surface')?.getAttribute('href')).toBe('/settings');
     expect(rows[2]?.querySelector('div.tc-list-row__surface')).not.toBeNull();
+  });
+
+  it('opens an external row in a new tab without an opener; internal links stay in place', async () => {
+    const { rows } = await render();
+    const external = rows[3]?.querySelector('a') as HTMLAnchorElement;
+    const internal = rows[1]?.querySelector('a') as HTMLAnchorElement;
+
+    expect(external.getAttribute('target')).toBe('_blank');
+    expect(external.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(internal.hasAttribute('target')).toBe(false);
+    expect(internal.hasAttribute('rel')).toBe(false);
   });
 
   it('projects title and subtitle into the button so it is its accessible name', async () => {

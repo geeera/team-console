@@ -1,4 +1,5 @@
 import type { AnswerCommand, Section } from './answer';
+import type { TeamRunDto } from './team';
 
 /**
  * Read models of a product repository (#35): what the owner's inbox, the questions list, the sprint board and
@@ -77,16 +78,46 @@ export interface SprintTierRowDto {
   readonly raised: number;
 }
 
+/**
+ * The CI of a pull request's head commit (#131), combined from its check runs: `failure` when any run failed,
+ * else `pending` while any has not finished, else `success`; `none` when the head has no check run. `unknown`:
+ * not read in this request (the subrequest budget, or GitHub refused the read) — never an error of the board.
+ */
+export type SprintCiState = 'success' | 'failure' | 'pending' | 'none' | 'unknown';
+
+export const SPRINT_CI_STATES: readonly SprintCiState[] = [
+  'success',
+  'failure',
+  'pending',
+  'none',
+  'unknown',
+];
+
+export function isSprintCiState(value: unknown): value is SprintCiState {
+  return typeof value === 'string' && (SPRINT_CI_STATES as readonly string[]).includes(value);
+}
+
 export interface SprintPullRequestDto {
   readonly number: number;
   readonly title: string;
   readonly url: string | null;
   readonly draft: boolean;
   readonly authorTrusted: boolean;
+  readonly ci: SprintCiState;
 }
 
-/** `GET /api/v1/projects/:slug/sprint`: the current sprint (`calendar.pick_current_sprint`) and its numbers. */
-export interface SprintDto {
+/**
+ * `GET /api/v1/projects/:slug/embed-origins` (#20): the only origins the console may frame for this project, those of
+ * `design.storybook_url` in its project.yml (stage is link-only: it is behind Cloudflare Access, owner decision
+ * 2026-10-05), `https:` only, never the console's own origin, as exact origins. Read per
+ * project when a space needs it, never on the registry list.
+ */
+export interface EmbedOriginsDto {
+  readonly embedOrigins: readonly string[];
+}
+
+/** The current sprint (`calendar.pick_current_sprint`) and its numbers, as read from the repository's lists. */
+export interface SprintListsDto {
   /** `null` when no open milestone has a due date today or later; the rest is then empty. */
   readonly milestone: SprintMilestoneDto | null;
   readonly issues: readonly SprintIssueDto[];
@@ -99,6 +130,11 @@ export interface SprintDto {
   readonly byTier: Readonly<Record<string, SprintTierRowDto>>;
   /** The repository's open pull requests (up to 100). */
   readonly openPullRequests: readonly SprintPullRequestDto[];
+}
+
+/** `GET /api/v1/projects/:slug/sprint`: the sprint's lists, and the team's run state from the run log (#132). */
+export interface SprintDto extends SprintListsDto {
+  readonly team: TeamRunDto;
 }
 
 export interface NeedsYouProjectRef {

@@ -8,6 +8,7 @@ export type GitHubProblemType =
   | 'github-owner-mismatch'
   | 'github-owner-not-connected'
   | 'github-rate-limit'
+  | 'github-request-budget'
   | 'github-unavailable'
   | 'github-unexpected';
 
@@ -63,6 +64,23 @@ export function githubUnavailableError(githubStatus: number | null): GitHubError
       detail: githubStatus === null ? 'GitHub could not be reached' : `GitHub answered ${githubStatus}`,
     },
     githubStatus,
+  );
+}
+
+/**
+ * The request's own subrequest budget is spent (#27): nothing was asked of GitHub. A GitHub problem so that a read
+ * shared through the read cache fails the same way for every request that waits on it.
+ */
+export function requestBudgetError(): GitHubError {
+  return new GitHubError(
+    {
+      type: 'github-request-budget',
+      title: 'Not read in this request',
+      status: 503,
+      detail: "The request's GitHub subrequest budget is spent; the next request continues",
+      retryAfter: 1,
+    },
+    null,
   );
 }
 

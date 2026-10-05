@@ -14,14 +14,35 @@ describe('GET /healthz', () => {
 });
 
 describe('unknown routes', () => {
-  it.each(['/', '/hooks/github', '/api/v1/healthz'])('%s answers a problem+json 404', async (path) => {
-    const response = await SELF.fetch(`${ORIGIN}${path}`);
+  it.each(['/', '/hooks', '/hooks/gitlab', '/api/v1/healthz'])(
+    '%s answers a problem+json 404',
+    async (path) => {
+      const response = await SELF.fetch(`${ORIGIN}${path}`);
+
+      expect(response.status).toBe(404);
+      expect(response.headers.get('content-type')).toBe('application/problem+json; charset=utf-8');
+      const body: unknown = await response.json();
+      expect(isProblemDetails(body)).toBe(true);
+      expect(body).toMatchObject({ type: `${PROBLEM_TYPE_PREFIX}not-found`, status: 404 });
+    },
+  );
+});
+
+describe('security headers (#126)', () => {
+  it('sets nosniff and the deny-all CSP on a success JSON response', async () => {
+    const response = await SELF.fetch(`${ORIGIN}/healthz`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
+  });
+
+  it('sets the same headers on a Problem Details 404', async () => {
+    const response = await SELF.fetch(`${ORIGIN}/nope`);
 
     expect(response.status).toBe(404);
-    expect(response.headers.get('content-type')).toBe('application/problem+json; charset=utf-8');
-    const body: unknown = await response.json();
-    expect(isProblemDetails(body)).toBe(true);
-    expect(body).toMatchObject({ type: `${PROBLEM_TYPE_PREFIX}not-found`, status: 404 });
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
   });
 });
 

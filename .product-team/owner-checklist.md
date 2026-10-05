@@ -215,6 +215,19 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
     2. Добавь секретом Worker'а `api` с именем `ROUTINE_TOKEN_<SLUG>`, где `<SLUG>` — `slug` продукта из
        таблицы `projects` (например `ROUTINE_TOKEN_TEAM_CONSOLE`).
 
+12. **`SLOT_TOKEN_<SLUG>_<SLOT>` и `SLOT_ROUTINE_<SLUG>_<SLOT>`** — «Запустить сейчас» из консоли (#114), по паре на
+    каждый слот продукта (`<SLOT>`: `PM`, `DEV`, `QA`). Пока их нет, панель «Команды» показывает карточку настройки,
+    а не ошибку; пауза и возобновление работают и без них.
+    1. claude.ai/code/routines → рутина продукта `slot-pm` / `slot-dev` / `slot-qa` (если у слота несколько рутин —
+       будничная) → добавь API-триггер. Токен (`sk-ant-oat01-…`) показывается один раз; id рутины (`trig_…`) — в
+       адресе триггера.
+    2. В своей копии репозитория team-console:
+       `npx wrangler secret put SLOT_ROUTINE_<SLUG>_<SLOT> --env production --config apps/api/wrangler.jsonc` и
+       `npx wrangler secret put SLOT_TOKEN_<SLUG>_<SLOT> --env production --config apps/api/wrangler.jsonc` —
+       значение wrangler спросит скрытым вводом. Токен вставляй только туда — никогда в чат, issue или агенту; если
+       он утёк, создай новый в Claude Code (старый перестанет работать).
+    3. На `dev` / `stage` — только если хочешь проверить запуск оттуда: это те же настоящие рутины.
+
 - [ ] Хостинг: не требуется отдельно — это Cloudflare Workers (см. выше).
 - [ ] Аккаунт базы данных: не требуется отдельно — это Cloudflare D1 (см. шаг 6 выше).
 
@@ -255,6 +268,8 @@ secret put` / dashboard → Workers & Pages → Worker → Settings → Variable
 | `GITHUB_APP_CLIENT_SECRET` | `api` | обмен OAuth-кода на токен владельца (ADR 0003 решение 3) | шаг 10 выше | dev, stage, production | [ ] |
 | `TOKEN_ENCRYPTION_KEY` | `api` | шифрует пару токенов владельца в D1 (ADR 0003 решение 4) | шаг 10 выше — генерируется скриптом, 32 случайных байта | dev, stage, production — свой ключ на каждое | [ ] |
 | `ROUTINE_TOKEN_<SLUG>` | `api` | будит routine PM-чата продукта `<slug>` (ADR 0001 решение 11) | шаг 11 выше | по одному на продукт, когда появится соответствующая задача | [ ] |
+| `SLOT_TOKEN_<SLUG>_<SLOT>` | `api` | bearer API-триггера рутины слота (`PM` / `DEV` / `QA`) для «Запустить сейчас» (#114) | шаг 12 выше | production (dev/stage — по желанию); по одному на слот продукта | [ ] |
+| `SLOT_ROUTINE_<SLUG>_<SLOT>` | `api` | id этой рутины (`trig_…`), чтобы он не лежал в публичном репозитории | шаг 12 выше | там же, где токен слота | [ ] |
 
 ## Усиление безопасности (сделать желательно до первого релиза)
 

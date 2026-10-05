@@ -90,10 +90,14 @@ function problemTypeOf(body: unknown): string | null {
  * Does this API failure mean the Access session is gone? An expired session makes Access answer our fetch with a
  * cross-origin redirect (status 0 in the browser) or an HTML login page (non-JSON, often with status 200 and a
  * parse error); with Access off, the Worker answers 401 `access-missing`/`access-unverified`.
+ *
+ * Status 0 is ambiguous for writes: it is also what a plain dropped connection looks like, and a reload after a
+ * POST/PATCH/etc. throws away the response without knowing whether the write landed, inviting a duplicate retry
+ * (e.g. a second identical answer comment). GET/HEAD have no such side effect, so they keep reloading on status 0.
  */
-export function needsReauthentication(error: HttpErrorResponse): boolean {
+export function needsReauthentication(error: HttpErrorResponse, method: string): boolean {
   if (error.status === 0) {
-    return true;
+    return method === 'GET' || method === 'HEAD';
   }
   if (isDeclaredNonJson(error.headers.get('Content-Type'))) {
     return true;
@@ -135,7 +139,11 @@ export const accessSessionInterceptor: HttpInterceptorFn = (request, next) => {
       return event;
     }),
     catchError((error: unknown) => {
-      if (!(error instanceof HttpErrorResponse) || !needsReauthentication(error) || !environment.isOnline()) {
+      if (
+        !(error instanceof HttpErrorResponse) ||
+        !needsReauthentication(error, request.method) ||
+        !environment.isOnline()
+      ) {
         return throwError(() => error);
       }
       const now = environment.now();

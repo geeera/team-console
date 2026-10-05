@@ -1,0 +1,365 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.cp__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5);
+  border-bottom: var(--border-w) solid var(--border);
+}
+
+.cp__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+  overflow-wrap: anywhere;
+  outline: none;
+}
+
+.cp__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  align-content: start;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-5) var(--space-8);
+}
+
+/* In the phone sheet the frame already pads and scrolls. */
+:host(.tc-commands-panel--sheet) .cp__body {
+  overflow: visible;
+  padding: var(--space-2) 0 var(--space-4);
+}
+
+.cp-kicker {
+  margin: 0 0 var(--space-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  font-variant: small-caps;
+  letter-spacing: var(--ls-caps);
+  text-transform: lowercase;
+  color: var(--text-2);
+}
+
+.cp-result {
+  margin-left: 0;
+}
+
+.cp-ext,
+.cp-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-h-touch);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: var(--fw-semibold);
+  text-decoration: underline;
+  text-decoration-thickness: var(--border-w);
+  text-underline-offset: var(--space-1);
+  cursor: pointer;
+}
+
+.cp-link[aria-disabled='true'] {
+  color: var(--text-3);
+  text-decoration: none;
+  cursor: default;
+}
+
+.cp-ext:focus-visible,
+.cp-link:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--r-xs);
+}
+
+/* status: the state is a sentence, the dot only repeats it */
+.cp-state {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.cp-state__now {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  line-height: var(--lh-tight);
+}
+
+.cp-state__now--paused-by-team {
+  color: var(--danger-text);
+  font-weight: var(--fw-semibold);
+}
+
+.cp-state__now tc-icon {
+  align-self: center;
+}
+
+.cp-dot {
+  flex: none;
+  align-self: center;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--r-round);
+  background: var(--success-text);
+}
+
+.cp-dot--paused {
+  background: var(--warning-text);
+}
+
+.cp-state__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-3);
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.cp-note a {
+  color: inherit;
+  font-weight: var(--fw-semibold);
+}
+
+/* command rows: the description is the row's text, the button names the action */
+.cmd-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--space-4);
+  background: var(--surface);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+}
+
+.cmd {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: var(--border-w) solid var(--border);
+}
+
+.cmd:first-child {
+  border-top: 0;
+}
+
+.cmd__txt {
+  display: grid;
+  gap: var(--space-px);
+  min-width: 0;
+}
+
+.cmd__title {
+  margin: 0;
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-md);
+  line-height: var(--lh-tight);
+}
+
+.cmd__hint,
+.cmd__line {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--text-2);
+}
+
+.cmd__line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.cmd__line tc-icon {
+  align-self: center;
+}
+
+.cmd__line--unknown {
+  color: var(--warning-text);
+}
+
+.cmd__why {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  margin: var(--space-1) 0 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+
+.cmd__why tc-icon {
+  margin-top: var(--space-px);
+}
+
+/* a run in progress breathes slowly; still under reduced motion */
+.cmd__live {
+  flex: none;
+  align-self: center;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--r-round);
+  background: var(--success-text);
+  animation: cp-live var(--dur-pulse) var(--ease-standard) infinite;
+}
+
+@keyframes cp-live {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cmd__live {
+    animation: none;
+  }
+}
+
+:host-context(:root[data-motion='reduce']) .cmd__live {
+  animation: none;
+}
+
+/* the phone: the team row's long verb gets its own full-width line */
+:host(.tc-commands-panel--sheet) .cmd--team {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+:host(.tc-commands-panel--sheet) .cmd--team .cmd__btn {
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
+:host(.tc-commands-panel--sheet) .cmd-list {
+  padding: 0 var(--space-3);
+}
+
+/* setup: a to-do in ochre, not an error */
+.cp-setup {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--r-lg);
+  background: var(--warning-soft);
+  color: var(--warning-text);
+}
+
+.cp-setup__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.cp-setup__head tc-icon {
+  margin-top: var(--space-px);
+}
+
+.cp-setup__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--fw-display);
+  font-size: var(--fs-lg);
+  line-height: var(--lh-tight);
+}
+
+.cp-setup__body {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+.cp-setup__how {
+  margin-left: calc(var(--space-2) * -1);
+  color: var(--warning-text);
+  text-decoration: underline;
+  text-underline-offset: var(--space-1);
+}
+
+.cp-setup__how[aria-expanded='true'] tc-icon {
+  transform: rotate(180deg);
+}
+
+.cp-how {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.cp-steps {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.cp-slots {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.cp-slot {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.cp-slot__name {
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+
+.cp-code code {
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  overflow-wrap: anywhere;
+}
+
+.cp-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--danger-soft);
+  color: var(--danger-text);
+  font-weight: var(--fw-semibold);
+}
+
+.cp-warn tc-icon {
+  flex: none;
+  margin-top: var(--space-px);
+}

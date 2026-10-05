@@ -1,0 +1,76 @@
+:host {
+  display: grid;
+  align-items: start;
+  gap: var(--space-5);
+}
+
+/* The phone's lane switcher: every lane is a pill, wrapping onto more rows rather than hiding off-screen. */
+:host(.tc-lanes--tabbed) {
+  gap: var(--space-3);
+}
+
+.tc-lanes__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tc-lanes__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  min-height: var(--control-h-touch);
+  padding: 0 var(--space-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard);
+}
+
+/* An unknown status label from GitHub can be long: it wraps inside its pill. */
+.tc-lanes__tab-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tc-lanes__tab-count {
+  font-weight: var(--fw-regular);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+
+.tc-lanes__tab:hover {
+  border-color: var(--border-strong);
+}
+
+.tc-lanes__tab:active {
+  background: var(--bg-sunken);
+}
+
+/* Ink-filled like the Paper Desk segmented controls. */
+.tc-lanes__tab[aria-selected='true'] {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+}
+
+.tc-lanes__tab[aria-selected='true'] .tc-lanes__tab-count {
+  color: inherit;
+  opacity: 0.72;
+}
+
+.tc-lanes__tab:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}

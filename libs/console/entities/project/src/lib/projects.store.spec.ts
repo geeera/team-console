@@ -41,6 +41,33 @@ describe('ProjectsStore', () => {
     await store.ready();
   });
 
+  it('upsert lists a project the Worker created; remove drops an archived one at once', async () => {
+    const ready = store.ready();
+    http.expectOne(PROJECTS_URL).flush([project('a'), project('b')]);
+    await ready;
+    expect(store.loadedAt()).not.toBeNull();
+
+    store.upsert(project('c'));
+    expect(store.activeSlugs()).toEqual(['a', 'b', 'c']);
+
+    store.remove('a');
+    expect(store.activeSlugs()).toEqual(['b', 'c']);
+    expect(store.isActive('a')).toBe(false);
+  });
+
+  it('findRegistered reads archived projects too and matches the repository case-insensitively', async () => {
+    const found = store.findRegistered('Geeera/OLD', 'old');
+    const request = http.expectOne((req) => req.url === PROJECTS_URL);
+    expect(request.request.params.get('include')).toBe('archived');
+    request.flush([project('a'), project('old', '2026-09-30T00:00:00.000Z')]);
+
+    await expect(found).resolves.toMatchObject({ slug: 'old', archivedAt: '2026-09-30T00:00:00.000Z' });
+
+    const missing = store.findRegistered('geeera/none', 'none');
+    http.expectOne((req) => req.url === PROJECTS_URL).flush([project('a')]);
+    await expect(missing).resolves.toBeNull();
+  });
+
   it('isActive is false for an archived or unknown slug', async () => {
     const ready = store.ready();
     http.expectOne(PROJECTS_URL).flush([project('a'), project('old', '2026-09-30T00:00:00.000Z')]);
@@ -54,16 +81,14 @@ describe('ProjectsStore', () => {
 
   it('records a failed load as a problem instead of throwing', async () => {
     const ready = store.ready();
-    http
-      .expectOne(PROJECTS_URL)
-      .flush(
-        {
-          type: 'https://team-console.dev/problems/github-unavailable',
-          title: 'GitHub unavailable',
-          status: 502,
-        },
-        { status: 502, statusText: 'Bad Gateway' },
-      );
+    http.expectOne(PROJECTS_URL).flush(
+      {
+        type: 'https://team-console.dev/problems/github-unavailable',
+        title: 'GitHub unavailable',
+        status: 502,
+      },
+      { status: 502, statusText: 'Bad Gateway' },
+    );
     await expect(ready).resolves.toBeUndefined();
 
     expect(store.status()).toBe('error');

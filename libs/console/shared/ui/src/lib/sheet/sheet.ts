@@ -5,7 +5,7 @@ import { Overlay } from '@angular/cdk/overlay';
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { BREAKPOINTS } from '../../tokens/breakpoints';
-import { ConfirmDialog, ConfirmOptions } from './confirm-dialog';
+import { ConfirmDialog, ConfirmDialogData, ConfirmOptions } from './confirm-dialog';
 import { SHEET_FRAME, SheetContainer, SheetFrame } from './sheet-container';
 
 export interface SheetOptions<D> {
@@ -17,6 +17,8 @@ export interface SheetOptions<D> {
   readonly role?: 'dialog' | 'alertdialog';
   /** A CSS selector inside the content to focus first; the heading by default. */
   readonly autoFocus?: string;
+  /** The id of an element inside the content that describes the dialog (`aria-describedby`). */
+  readonly describedBy?: string;
 }
 
 let nextSheetId = 0;
@@ -45,6 +47,7 @@ export class Sheet {
       role: options.role ?? 'dialog',
       ariaModal: true,
       ariaLabelledBy: frame.titleId,
+      ariaDescribedBy: options.describedBy ?? null,
       autoFocus: options.autoFocus ?? '.tc-sheet__title',
       restoreFocus: true,
       hasBackdrop: true,
@@ -59,13 +62,18 @@ export class Sheet {
     });
   }
 
-  /** Resolves `true` only when the user pressed Confirm; Escape, the scrim and Cancel give `false`. */
+  /**
+   * Resolves `true` only when the user pressed Confirm and its `action`, if any, succeeded; Escape, the scrim and
+   * Cancel give `false`. A failed action keeps the dialog open, so the promise waits for the next answer.
+   */
   async confirm(options: ConfirmOptions): Promise<boolean> {
-    const ref = this.open<boolean, ConfirmOptions>(ConfirmDialog, {
+    const messageId = `tc-confirm-message-${nextSheetId++}`;
+    const ref = this.open<boolean, ConfirmDialogData>(ConfirmDialog, {
       title: options.title,
-      data: options,
+      data: { ...options, messageId },
       role: 'alertdialog',
       autoFocus: '.tc-confirm__cancel',
+      describedBy: messageId,
     });
     const result = await firstValueFrom(ref.closed);
     return result === true;

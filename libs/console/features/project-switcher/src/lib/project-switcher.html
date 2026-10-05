@@ -9,7 +9,7 @@
     <span tc-row-title>{{ project.displayName }}</span>
     @if (countOf(project.slug); as count) {
     <tc-chip tc-row-trailing tone="accent">
-      <span aria-hidden="true">{{ count }}</span>
+      <span aria-hidden="true">{{ count | localNumber }}</span>
       <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: count } }}</span>
     </tc-chip>
     }
@@ -30,7 +30,7 @@
 } @if (otherProjects().length > 0) { @if (hasDisclosure()) {
 <button
   type="button"
-  class="switcher__more"
+  class="switcher__more tc-tap-target"
   [attr.aria-expanded]="othersVisible()"
   [attr.aria-controls]="othersId"
   (click)="toggleCollapsed()"
@@ -59,7 +59,7 @@
     <span tc-row-title>{{ project.displayName }}</span>
     @if (countOf(project.slug); as count) {
     <tc-chip tc-row-trailing tone="accent">
-      <span aria-hidden="true">{{ count }}</span>
+      <span aria-hidden="true">{{ count | localNumber }}</span>
       <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: count } }}</span>
     </tc-chip>
     }

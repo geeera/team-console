@@ -2,6 +2,7 @@ import { DIALOG_DATA } from '@angular/cdk/dialog';
 import { ApplicationInitStatus, Component, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideConsoleI18n } from '@console/shared/i18n';
+import { ConfirmFailure } from './confirm-dialog';
 import { Sheet } from './sheet';
 
 @Component({
@@ -100,5 +101,134 @@ describe('Sheet', () => {
     await settle();
     (overlay().querySelector('.tc-confirm__cancel') as HTMLButtonElement).click();
     await expect(declined).resolves.toBe(false);
+  });
+
+  it('confirm() describes the dialog with its message and shows the note', async () => {
+    const pending = sheet.confirm({
+      title: 'Archive?',
+      message: 'It leaves the list.',
+      note: 'GitHub stays.',
+    });
+    await settle();
+
+    const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+    const describedBy = dialog.getAttribute('aria-describedby') ?? '';
+    expect(document.getElementById(describedBy)?.textContent).toBe('It leaves the list.');
+    expect(dialog.querySelector('.tc-confirm__note')?.textContent).toBe('GitHub stays.');
+
+    (dialog.querySelector('.tc-confirm__cancel') as HTMLButtonElement).click();
+    await expect(pending).resolves.toBe(false);
+  });
+
+  describe('confirm() with an action', () => {
+    function deferred(): { promise: Promise<void>; resolve: () => void; reject: (error: Error) => void } {
+      let resolve: () => void = () => undefined;
+      let reject: (error: Error) => void = () => undefined;
+      const promise = new Promise<void>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    }
+
+    const escape = (): void => {
+      overlay()
+        .querySelector('tc-sheet-container')
+        ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+    };
+
+    it('stays open and busy while the action runs, ignoring Escape, then resolves true', async () => {
+      const work = deferred();
+      const pending = sheet.confirm({
+        title: 'Archive?',
+        message: 'Sure?',
+        confirmLabel: 'Archive',
+        busyLabel: 'Archiving…',
+        action: () => work.promise,
+      });
+      await settle();
+      const ok = overlay().querySelector('.tc-confirm__ok') as HTMLButtonElement;
+
+      ok.click();
+      await settle();
+      TestBed.tick();
+      expect(ok.textContent?.trim()).toBe('Archiving…');
+      expect(ok.getAttribute('aria-disabled')).toBe('true');
+      escape();
+      (overlay().querySelector('.tc-sheet__close') as HTMLButtonElement).click();
+      await settle();
+      expect(overlay().querySelector('tc-sheet-container')).not.toBeNull();
+
+      work.resolve();
+      await expect(pending).resolves.toBe(true);
+    });
+
+    it('a failed action keeps the dialog open with an alert; Cancel then resolves false', async () => {
+      const work = deferred();
+      const pending = sheet.confirm({
+        title: 'Archive?',
+        message: 'Sure?',
+        errorMessage: 'Could not archive.',
+        action: () => work.promise,
+      });
+      await settle();
+      (overlay().querySelector('.tc-confirm__ok') as HTMLButtonElement).click();
+      work.reject(new Error('offline'));
+      await settle();
+      TestBed.tick();
+
+      expect(overlay().querySelector('[role="alert"]')?.textContent?.trim()).toBe('Could not archive.');
+      expect(overlay().querySelector('tc-sheet-container')).not.toBeNull();
+
+      (overlay().querySelector('.tc-confirm__cancel') as HTMLButtonElement).click();
+      await expect(pending).resolves.toBe(false);
+    });
+
+    it('#114: shows the points and the field, passes the trimmed value, says why it failed and offers Try again', async () => {
+      const seen: string[] = [];
+      const pending = sheet.confirm({
+        title: 'Pause?',
+        message: '',
+        items: ['Runs exit at once.', 'Questions stay.'],
+        warning: 'Check the run log first.',
+        input: { label: 'Reason', hint: 'Goes into the run log.', maxLength: 300 },
+        confirmLabel: 'Pause',
+        retryLabel: 'Try again',
+        action: async (value) => {
+          seen.push(value);
+          if (seen.length === 1) {
+            throw new ConfirmFailure('Run limit reached; try at 14:00.');
+          }
+        },
+      });
+      await settle();
+      const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+      expect([...dialog.querySelectorAll('.tc-confirm__items li')].map((li) => li.textContent)).toEqual([
+        'Runs exit at once.',
+        'Questions stay.',
+      ]);
+      expect(dialog.querySelector('.tc-confirm__warning')?.textContent?.trim()).toBe(
+        'Check the run log first.',
+      );
+      const input = dialog.querySelector('input') as HTMLInputElement;
+      expect(dialog.querySelector(`label[for="${input.id}"]`)?.textContent).toBe('Reason');
+      expect(input.getAttribute('maxlength')).toBe('300');
+      input.value = '  отпуск  ';
+      input.dispatchEvent(new Event('input'));
+
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await settle();
+      TestBed.tick();
+      expect(seen).toEqual(['отпуск']);
+      expect(dialog.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
+        'Run limit reached; try at 14:00.',
+      );
+      const ok = dialog.querySelector('.tc-confirm__ok') as HTMLButtonElement;
+      expect(ok.textContent?.trim()).toBe('Try again');
+
+      ok.click();
+      await expect(pending).resolves.toBe(true);
+      expect(seen).toEqual(['отпуск', 'отпуск']);
+    });
   });
 });

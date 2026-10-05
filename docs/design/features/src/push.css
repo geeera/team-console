@@ -1,0 +1,111 @@
+/* ===== #36 Web push client, on the Paper Desk tokens (ADR 0002) =====
+   The Notifications block reuses #24's connection card (.gh, settings.css) so the two Settings blocks read as one
+   family. The system mocks (iOS alert, notification banner, Safari toolbar, Home Screen) are Apple's UI, drawn
+   only for the demo; their few values that no Paper Desk token covers are declared once here. */
+:root{
+  --sys-badge:#D70015;--sys-badge-text:#FFFFFF; /* iOS's accessible system red (Increase Contrast), 5.2:1 with white */
+  --sys-alert-w:270px;--sys-notif-w:344px;--sys-icon:60px;--sys-r:22px;
+}
+
+/* ----- the Notifications block ----- */
+.push .gh__mark .ico,.push-nudge__ico .ico{stroke-width:2}
+.gh__mark--none{color:var(--text-2)}
+.push__note{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;font-size:var(--fs-xs);color:var(--text-2);max-width:60ch}
+.push__note .ico{width:14px;height:14px;flex:none;margin-top:2px}
+.push__path{margin:0;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--surface);color:var(--text);font-size:var(--fs-sm);overflow-wrap:anywhere}
+.push__path code{font-size:.92em}
+.gh--warn .push__warn-btn{background:var(--surface);border-color:transparent;color:var(--warning-text)}
+.push__off{color:var(--text-2)}
+.push__off:hover{color:var(--danger-text);background:var(--danger-soft)}
+.push__badge{display:flex;align-items:flex-start;gap:var(--sp-3);margin:0;font-size:var(--fs-sm);color:var(--text-2);max-width:60ch}
+.push__badge-dot{flex:none;min-width:22px;height:22px;padding:0 6px;border-radius:999px;display:inline-grid;place-items:center;background:var(--sys-badge);color:var(--sys-badge-text);font-size:var(--fs-xs);font-weight:700;font-variant-numeric:tabular-nums}
+.push .res{width:100%}
+.push .res h3{margin:0;font-size:var(--fs-md);font-weight:600;line-height:var(--lh-tight);outline:none}
+.block.push h3{display:flex;align-items:center;gap:var(--sp-2);font-size:var(--fs-lg);outline:none}
+.block.push h3 .ico{width:20px;height:20px;color:var(--text-2)}
+.gh__title:focus,.sec-title:focus{outline:none}
+
+/* the Home Screen guide: three numbered steps, the ledger's marks without its states */
+.guide{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-3);width:100%}
+.guide__step{display:grid;grid-template-columns:var(--mark) minmax(0,1fr);gap:var(--sp-3);align-items:start}
+.guide__step p{margin:0;font-size:var(--fs-sm);color:var(--text);overflow-wrap:anywhere}
+.guide__step .guide__aside{margin-top:var(--sp-1);font-size:var(--fs-xs);color:var(--text-2)}
+.guide__n{width:var(--mark);height:var(--mark);border-radius:50%;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-text);font-family:var(--font-display);font-size:var(--fs-sm);font-weight:600;font-variant-numeric:lining-nums}
+.kbd-ico{display:inline-grid;place-items:center;width:26px;height:22px;margin:0 2px;vertical-align:-5px;border:1px solid var(--border-strong);border-radius:var(--r-sm);background:var(--surface);color:var(--accent-text)}
+.kbd-ico .ico{width:16px;height:16px}
+.ico .ico-dots,.ico-dots{stroke-width:3.4}
+
+/* ----- the nudge on Needs you: one quiet margin note, dismissible ----- */
+.push-nudge{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--sp-1) var(--sp-3);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-lg);background:var(--bg-sunken);border:1px solid var(--border)}
+.push-nudge__ico{grid-row:1/span 3;width:var(--mark);height:var(--mark);border-radius:50%;display:grid;place-items:center;background:var(--surface);color:var(--text-2)}
+.push-nudge__ico .ico{width:16px;height:16px}
+.push-nudge p{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.push-nudge .push-nudge__err{color:var(--danger-text);font-weight:600}
+.push-nudge__acts{display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:var(--sp-1)}
+.app[data-app=phone] .push-nudge__acts .btn{min-height:var(--target)}
+.push-nudge__done p{margin:0}
+
+/* ----- arriving from a notification ----- */
+.push-cards{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-3)}
+.push-cards .card{margin-left:0}
+.push-cards .receipt{margin-left:0}
+.push-arrive{scroll-margin:var(--sp-6)}
+.push-arrive .card__title:focus,.push-arrive:focus{outline:none}
+/* The ring marks "you came here"; it stays while the item has focus, so it is never only a flash. */
+.push-arrive.is-arrived{box-shadow:0 0 0 2px var(--focus);animation:arrive var(--dur-sig) var(--ease-emph) both}
+@keyframes arrive{0%{box-shadow:0 0 0 0 var(--focus)}35%{box-shadow:0 0 0 6px var(--accent-soft),0 0 0 2px var(--focus)}100%{box-shadow:0 0 0 2px var(--focus)}}
+@media (prefers-reduced-motion:reduce){.push-arrive.is-arrived{animation:none}}
+:root[data-motion=reduce] .push-arrive.is-arrived{animation:none}
+.res.push-arrive{border-radius:0 var(--r-md) var(--r-md) 0}
+.res.push-arrive h2{font-size:var(--fs-lg)}
+.push-nf{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
+
+/* ----- system mocks: Safari's toolbar, the permission alert, a notification, the Home Screen ----- */
+.safari{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2) var(--sp-3) var(--sp-8);background:var(--surface);border-top:1px solid var(--border)}
+.safari__btn{flex:none;width:var(--target);height:var(--target);border-radius:50%;display:grid;place-items:center;background:var(--bg-sunken);color:var(--text)}
+.safari__btn .ico{width:20px;height:20px}
+.safari__url{flex:1;min-width:0;height:var(--target);display:flex;align-items:center;justify-content:center;padding:0 var(--sp-3);border-radius:999px;background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* the guide points at the real "More" button: two slow pulses, then a steady ring */
+.safari__more.is-pointed{box-shadow:0 0 0 2px var(--accent);animation:point var(--dur-pulse) var(--ease-standard) 2}
+@keyframes point{0%{box-shadow:0 0 0 2px var(--accent)}50%{box-shadow:0 0 0 2px var(--accent),0 0 0 8px var(--accent-soft)}100%{box-shadow:0 0 0 2px var(--accent)}}
+@media (prefers-reduced-motion:reduce){.safari__more.is-pointed{animation:none}}
+:root[data-motion=reduce] .safari__more.is-pointed{animation:none}
+
+.sysmodal{position:absolute;inset:0;z-index:var(--z-sheet);display:grid;place-items:center;padding:var(--sp-6)}
+.sysmodal--mac{place-items:start center;padding-top:72px}
+.sysmodal__scrim{position:absolute;inset:0;background:var(--scrim)}
+.sysprompt{position:relative;width:var(--sys-alert-w);display:grid;text-align:center;background:var(--surface);border-radius:var(--sys-r);box-shadow:var(--shadow-2);overflow:hidden;font-family:-apple-system,system-ui,var(--font-body)}
+.sysprompt__mock{margin:var(--sp-3) 0 0;font-size:10px;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.sysprompt h2{margin:var(--sp-1) var(--sp-4) 0;font-size:var(--fs-md);font-weight:600;line-height:var(--lh-tight)}
+.sysprompt p:not(.sysprompt__mock){margin:var(--sp-1) var(--sp-4) var(--sp-4);font-size:var(--fs-xs);color:var(--text-2)}
+.sysprompt__acts{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border)}
+.sysprompt__acts button{min-height:var(--target);border:0;background:none;font:inherit;font-size:var(--fs-md);color:var(--accent-text)}
+.sysprompt__acts button+button{border-left:1px solid var(--border);font-weight:600}
+.sysprompt__acts button:hover{background:var(--hover)}
+.sysprompt__acts button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+
+.notif{position:absolute;z-index:var(--z-toast);display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--sp-3);align-items:start;padding:var(--sp-3);border:1px solid var(--border);border-radius:var(--sys-r);background:var(--surface);box-shadow:var(--shadow-2);color:var(--text);text-align:left;font-family:-apple-system,system-ui,var(--font-body)}
+.notif--phone{top:54px;left:var(--sp-3);right:var(--sp-3)}
+.notif--mac{top:48px;right:var(--sp-4);width:var(--sys-notif-w);border-radius:var(--r-lg)}
+.notif:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.notif__icon .mark{width:38px;height:38px;color:var(--accent);display:block}
+.notif__txt{display:grid;gap:1px;min-width:0;font-size:var(--fs-sm)}
+.notif__top{display:flex;justify-content:space-between;gap:var(--sp-2);font-size:var(--fs-xs);color:var(--text-2)}
+.notif__top b{font-weight:600;text-transform:uppercase;letter-spacing:var(--ls-caps)}
+.notif__title{font-weight:600}
+.notif__body{color:var(--text-2);overflow-wrap:anywhere}
+
+.app.is-home{background:linear-gradient(160deg,var(--accent-soft),var(--bg-sunken) 60%,var(--warning-soft))}
+.app.is-home .p-scroll{background:none}
+.hs{display:grid;gap:var(--sp-8);padding:var(--sp-6) var(--sp-2)}
+.hs__grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-6) var(--sp-4);justify-items:center}
+.hs__tile{width:var(--sys-icon);height:var(--sys-icon);border-radius:14px;background:hsl(var(--h) 22% 62% / .55)}
+.hs__app{display:grid;justify-items:center;gap:var(--sp-1);border:0;background:none;padding:0;color:var(--text);border-radius:14px}
+.hs__app:focus-visible{outline:2px solid var(--focus);outline-offset:4px}
+.hs__icon{position:relative;width:var(--sys-icon);height:var(--sys-icon);border-radius:14px;display:grid;place-items:center;background:var(--surface);box-shadow:var(--shadow-1)}
+.hs__icon .mark{width:44px;height:44px;color:var(--accent)}
+.hs__badge{position:absolute;top:-7px;right:-7px;min-width:24px;height:24px;padding:0 7px;border-radius:999px;display:grid;place-items:center;background:var(--sys-badge);color:var(--sys-badge-text);font:700 var(--fs-sm)/1 -apple-system,system-ui,var(--font-body);font-variant-numeric:tabular-nums}
+.hs__label{font-size:11px;font-weight:600;white-space:nowrap}
+.hs__note{margin:0 var(--sp-2);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-lg);background:var(--surface);font-size:var(--fs-sm);color:var(--text-2)}
+.push .gh__row{flex-wrap:nowrap;align-items:flex-start}
+.push .gh__row .gh__title{flex:1;min-width:0;padding-top:2px}

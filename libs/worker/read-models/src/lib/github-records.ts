@@ -14,6 +14,8 @@ export interface IssueRecord extends IssueAuthor {
   readonly labels: readonly string[];
   /** The issues API lists pull requests too; the plugin drops them (`"pull_request" not in i`). */
   readonly isPullRequest: boolean;
+  /** ISO timestamp as GitHub sends it; `null` when the answer has none. */
+  readonly updatedAt: string | null;
 }
 
 export interface MilestoneRecord {
@@ -30,6 +32,8 @@ export interface PullRequestRecord extends IssueAuthor {
   readonly title: string;
   readonly htmlUrl: string;
   readonly draft: boolean;
+  /** `head.sha`, the commit whose check runs give the CI state (#131); `null` when GitHub sent none usable. */
+  readonly headSha: string | null;
 }
 
 type JsonRecord = Readonly<Record<string, unknown>>;
@@ -99,6 +103,7 @@ export function issueRecordOf(raw: JsonRecord): IssueRecord {
     labels,
     ...authorOf(raw),
     isPullRequest: raw['pull_request'] !== undefined && raw['pull_request'] !== null,
+    updatedAt: typeof raw['updated_at'] === 'string' ? raw['updated_at'] : null,
   };
 }
 
@@ -143,6 +148,16 @@ export function pullRequestRecordOf(raw: JsonRecord): PullRequestRecord {
     title: String(raw['title']),
     htmlUrl: String(raw['html_url']),
     draft: raw['draft'] === true,
+    headSha: headShaOf(raw['head']),
     ...authorOf(raw),
   };
+}
+
+// SHA-1 (40) or SHA-256 (64) object names.
+const COMMIT_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+
+function headShaOf(head: unknown): string | null {
+  // The sha goes into a GitHub path: only a full lowercase hex sha is kept.
+  const sha = isRecord(head) ? head['sha'] : undefined;
+  return typeof sha === 'string' && COMMIT_SHA.test(sha) ? sha : null;
 }

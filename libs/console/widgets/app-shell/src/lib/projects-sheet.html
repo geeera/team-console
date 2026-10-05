@@ -4,7 +4,7 @@
     <span tc-row-title>{{ 'shell.needsYou' | transloco }}</span>
     @if (needsYou.total(); as total) {
     <tc-chip tc-row-trailing tone="accent">
-      <span aria-hidden="true">{{ total }}</span>
+      <span aria-hidden="true">{{ total | localNumber }}</span>
       <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: total } }}</span>
     </tc-chip>
     }
@@ -32,7 +32,7 @@
 </div>
 
 <div class="sheet__actions">
-  <button tc-button variant="primary" block type="button" (click)="go('/settings')">
+  <button tc-button variant="primary" block type="button" (click)="go('/settings/projects/new')">
     <tc-icon name="plus" />
     {{ 'shell.addProject' | transloco }}
   </button>

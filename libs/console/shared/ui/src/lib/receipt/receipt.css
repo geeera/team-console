@@ -26,6 +26,10 @@
   border-left-color: var(--text-3);
 }
 
+:host(.tc-receipt--warning) {
+  border-left-color: var(--warning-text);
+}
+
 .tc-receipt__icon {
   display: inline-grid;
   place-items: center;
@@ -39,6 +43,10 @@
 
 :host(.tc-receipt--neutral) .tc-receipt__icon {
   color: var(--text-2);
+}
+
+:host(.tc-receipt--warning) .tc-receipt__icon {
+  color: var(--warning-text);
 }
 
 .tc-receipt__body {

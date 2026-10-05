@@ -1,4 +1,5 @@
 import type { ProblemDetails } from './problem-details';
+import type { ProjectSlotsDto } from './team';
 
 /** A registered product repository (ADR 0001, decision 20) as the client sees it. */
 export interface ProjectDto {
@@ -12,6 +13,11 @@ export interface ProjectDto {
   readonly addedAt: string;
   /** ISO 8601 UTC; only `?include=archived` lists archived projects. */
   readonly archivedAt: string | null;
+  /**
+   * Whether "Run now" is set up per slot (#114): both `SLOT_TOKEN_<SLUG>_<SLOT>` and `SLOT_ROUTINE_<SLUG>_<SLOT>`.
+   * Set on every answer of the registry routes; optional only so DTOs built elsewhere need not invent it.
+   */
+  readonly slots?: ProjectSlotsDto;
 }
 
 /** `POST /api/v1/projects`. The slug defaults to the repository name in kebab case. */
@@ -41,6 +47,10 @@ export interface ProjectStepProblem extends ProblemDetails {
   readonly installUrl?: string;
   /** `github-owner-not-connected`: the console route that starts the owner connection (#59). */
   readonly connectUrl?: string;
+  /** `github-owner-mismatch`: the repository owner's login as GitHub spells it (#24 copy). */
+  readonly repoOwner?: string;
+  /** `github-owner-mismatch`: the connected account's login (#24 copy). */
+  readonly login?: string;
 }
 
 /**
@@ -70,4 +80,6 @@ export interface ProjectSetupDto {
   readonly ownerLanguage: 'ru' | 'en';
   /** The app's install page for this environment (#83), present only while `appInstalled` is `missing`. */
   readonly installUrl?: string;
+  /** The repository owner's login as GitHub spells it, present once it was read (`repoOwner` ok or mismatch). */
+  readonly repoOwnerLogin?: string;
 }

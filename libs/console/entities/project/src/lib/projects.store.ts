@@ -1,4 +1,4 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { isProblemDetails, ProblemDetails, ProjectDto } from '@shared/contracts';
 import { firstValueFrom } from 'rxjs';
@@ -51,6 +51,8 @@ export class ProjectsStore {
   private pending: Promise<void> | null = null;
 
   readonly status = signal<ProjectsStatus>('idle');
+  /** When the list was last loaded from the Worker (ISO 8601); the offline note quotes it. */
+  readonly loadedAt = signal<string | null>(null);
   readonly problem = signal<ProblemDetails | null>(null);
   /** Active projects only; archived ones never reach the switcher or a space. */
   readonly active = computed(() => this.list().filter((project) => project.archivedAt === null));
@@ -77,6 +79,7 @@ export class ProjectsStore {
           throw new Error('projects: unexpected response shape');
         }
         this.list.set(body);
+        this.loadedAt.set(new Date().toISOString());
         this.problem.set(null);
         this.status.set('ready');
       } catch (error: unknown) {
@@ -87,6 +90,31 @@ export class ProjectsStore {
       }
     })();
     return this.pending;
+  }
+
+  /** A project the Worker just created (201 body): listed at once, without a second round trip. */
+  upsert(project: ProjectDto): void {
+    this.list.update((list) => [...list.filter((item) => item.slug !== project.slug), project]);
+  }
+
+  /** A project the Worker just archived (204): it leaves the switcher, the badges and Settings at once. */
+  remove(slug: string): void {
+    this.list.update((list) => list.filter((item) => item.slug !== slug));
+  }
+
+  /**
+   * The registered project (active or archived) that holds this repository or slug, read from the Worker with
+   * `?include=archived` — how New project tells "already on the list" from "archived" after a 409 (#24).
+   */
+  async findRegistered(repo: string, slug: string): Promise<ProjectDto | null> {
+    const body = await firstValueFrom(
+      this.http.get<unknown>(PROJECTS_URL, { params: new HttpParams().set('include', 'archived') }),
+    );
+    if (!isProjectDtoList(body)) {
+      throw new Error('projects: unexpected response shape');
+    }
+    const wanted = repo.toLowerCase();
+    return body.find((project) => project.repo.toLowerCase() === wanted || project.slug === slug) ?? null;
   }
 
   bySlug(slug: string): ProjectDto | undefined {

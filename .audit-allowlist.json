@@ -1,0 +1,11 @@
+{
+  "entries": [
+    {
+      "ghsaId": "GHSA-vfj7-8cjw-p6xm",
+      "package": "braces",
+      "reason": "Stack-exhaustion DoS in braces' recursive AST walker on deeply nested brace patterns. No patched version exists (first_patched_version: null; latest braces is 3.0.3). Reaches only Angular/Storybook build tooling (@angular-devkit/build-angular, webpack-dev-server, @storybook/angular) — devDependencies only, never shipped in the deployed console/api/hooks build output. Owner decided option 1 (narrow, time-boxed exception) on #177.",
+      "issue": 177,
+      "expires": "2026-11-03"
+    }
+  ]
+}

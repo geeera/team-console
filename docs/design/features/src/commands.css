@@ -90,6 +90,11 @@
 .cp-slots{list-style:none;margin:var(--sp-2) 0 0;padding:0;display:grid;gap:var(--sp-3)}
 .cp-slot{display:grid;gap:var(--sp-1)}
 .cp-slot__name{font-weight:600;color:var(--text)}
+/* iPhone: the full command gets the width; Copy sits under it */
+.app[data-app=phone] .cp-slot .codeline{flex-direction:column;align-items:stretch}
+.app[data-app=phone] .cp-slot .codeline .btn{align-self:flex-start}
+.cp-setup__safe{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;padding-top:var(--sp-3);border-top:1px solid var(--border);font-weight:600;color:var(--text)}
+.cp-setup__safe .ico{flex:none;width:14px;height:14px;margin-top:3px}
 .cp-setup .how .ext{min-height:var(--target)}
 
 /* the result: the kit's receipt (a margin note), toned like the command's outcome */

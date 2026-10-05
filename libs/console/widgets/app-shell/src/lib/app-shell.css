@@ -122,3 +122,9 @@
   overscroll-behavior: contain;
   outline: none;
 }
+
+.shell__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}

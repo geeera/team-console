@@ -15,21 +15,20 @@ import {
   sectionOf,
 } from '@shared/owner-grammar';
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
-import { OwnWritesRepo, type OwnWrite } from '@worker/db';
+import { OwnerConnectionsRepo, OwnWritesRepo, type OwnWrite } from '@worker/db';
+import { githubPath, type GitHubClient, type RepoName } from '@worker/github';
 import {
-  GitHubClient,
-  GitHubError,
-  assertRepoOwnedBy,
-  githubPath,
-  type OwnerTokenSource,
-  type RepoName,
-} from '@worker/github';
-import { ownerOnlyMiddleware } from '../auth/owner-only.middleware';
+  isIssueEvent,
+  isIssueEventsPage,
+  refuseServiceWrite,
+  refuseServiceWriteOnRecheck,
+} from '../auth/service-write-gate';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub, GitHubConnection } from '../github';
 import { jsonBody } from '../json-body';
+import { isNotWritten, ownerWriter, sha256Hex } from '../owner/owner-writer';
 import { findProject, projectNotFound, repoOf } from '../projects/lookup';
-import { readRepository, repositoryClient } from '../projects/repository-checks';
+import { repositoryClient } from '../projects/repository-checks';
 
 type Context = WorkerContext<ApiEnv>;
 
@@ -81,6 +80,11 @@ function labelNames(issue: GitHubIssue): string[] {
   });
 }
 
+/** The live labels of the issue, uncached: a stale set could accept a command or a write it no longer takes. */
+async function readIssue(client: GitHubClient, repo: RepoName, number: number): Promise<GitHubIssue> {
+  return client.getJson(githubPath`/repos/${repo}/issues/${number}`, isIssue);
+}
+
 /** `AnswerRequest`, or why not. Nothing of the input is echoed back. */
 function parseAnswer(body: unknown): ParsedAnswer | string {
   if (!isRecord(body)) {
@@ -106,11 +110,6 @@ function invalid(c: Context, detail: string): Response {
   return problem(c, { type: 'validation', title: 'Invalid request', status: 422, detail });
 }
 
-async function sha256Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
 function answered(
   c: Context,
   write: Pick<OwnWrite, 'commentId' | 'url'>,
@@ -126,20 +125,6 @@ function answered(
   return c.json(body, replayed ? 200 : 201);
 }
 
-/**
- * GitHub certainly did not write the comment: the owner token was refused (403 not-connected, only thrown before or
- * instead of a write) or GitHub answered 4xx. After a timeout, a 5xx or an unreadable 2xx it may have.
- */
-function isNotWritten(error: unknown): boolean {
-  if (!(error instanceof GitHubError)) {
-    return false;
-  }
-  if (error.problem.type === 'github-owner-not-connected') {
-    return true;
-  }
-  return error.githubStatus !== null && error.githubStatus >= 400 && error.githubStatus < 500;
-}
-
 interface WriteTarget {
   readonly repo: RepoName;
   readonly registered: string;
@@ -148,23 +133,22 @@ interface WriteTarget {
 }
 
 /**
- * The owner write (ADR 0003 decision 2(b)): the repository must belong to the connected account (login and pinned
- * id), and the comment goes out on the owner's user token — the installation token only reads the repository.
+ * The comment on the owner's token (see `ownerWriter`); `onSent` marks the moment GitHub may have written it.
+ * `recheck` runs last before the POST, after the token work, and stops the write with its response.
  */
 async function writeAsOwner(
   c: Context,
   github: ApiGitHub,
   installation: GitHubConnection,
   target: WriteTarget,
+  recheck: () => Promise<Response | null>,
   onSent: () => void,
-): Promise<GitHubComment> {
-  const owner: OwnerTokenSource = await github.ownerConnection(c.env, c.get('logger'));
-  const account = await owner.account();
-  const repository = await readRepository(repositoryClient(installation, target.repo), target.repo);
-  assertRepoOwnedBy(account, repository.owner, target.registered);
-  // Everything the token needs (a refresh, the lease) fails here, before anything is sent.
-  await owner.getToken();
-  const writer = new GitHubClient(github.ownerFetch(c.env), owner);
+): Promise<GitHubComment | Response> {
+  const writer = await ownerWriter(c.env, c.get('logger'), github, installation, target);
+  const refused = await recheck();
+  if (refused !== null) {
+    return refused;
+  }
   onSent();
   return writer.postJson(
     githubPath`/repos/${target.repo}/issues/${target.number}/comments`,
@@ -176,13 +160,16 @@ async function writeAsOwner(
 /**
  * `POST /api/v1/projects/:slug/issues/:number/answer` (#10): the owner's answer to an issue in their inbox, written
  * as the plugin's `backlog answer` writes it, as the owner. Behind Access and CSRF like every `/api` route, and
- * owner-only: the CI service identity is refused in every environment until #62's fixture-label rule exists.
+ * owner-grade: the dev/stage CI service identity answers only on an issue the owner labelled `e2e:fixture` that is
+ * not a release, a design or a question (#62, #193), decided on the live labels and the label's event history before
+ * the owner token is touched, and the labels are read once more right before the comment is posted.
+ * Subrequests: the owner's path is unchanged; the service identity adds one or two event reads and one label re-read
+ * (plus one D1 read of the owner connection's pinned id, never its tokens).
  * Section and allowed commands come from the live issue, never from the client; nothing is written on any 4xx.
  */
 export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>().post(
     '/:slug/issues/:number/answer',
-    ownerOnlyMiddleware,
     bodyLimit({ maxSize: MAX_BODY_BYTES }),
     async (c) => {
       const logger = c.get('logger');
@@ -204,12 +191,25 @@ export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv
         return invalid(c, request);
       }
 
-      // Uncached on purpose: a stale label set could accept a command the issue no longer takes.
+      // Uncached on purpose: a stale label set could accept a command the issue no longer takes, or let the service
+      // identity past the fixture gate on an issue that just lost `e2e:fixture`.
       const installation = await github.connect(c.env);
-      const issue = await repositoryClient(installation, repo).getJson(
-        githubPath`/repos/${repo}/issues/${number}`,
-        isIssue,
-      );
+      const reader = repositoryClient(installation, repo);
+      const issue = await readIssue(reader, repo, number);
+      const labels = labelNames(issue);
+      const refused = await refuseServiceWrite(c, labels, {
+        labelHistory: async () =>
+          reader.lastPage(
+            githubPath`/repos/${repo}/issues/${number}/events?per_page=${100}`,
+            isIssueEvent,
+            (url) => isIssueEventsPage(url, repo, number),
+          ),
+        ownerUserId: async () =>
+          (await new OwnerConnectionsRepo(c.env.DB).find(c.env.ENVIRONMENT))?.user_id ?? null,
+      });
+      if (refused !== null) {
+        return refused;
+      }
       if (issue.state !== 'open') {
         return problem(c, {
           type: 'issue-closed',
@@ -218,7 +218,6 @@ export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv
           detail: 'Nothing is waiting for an answer on a closed issue',
         });
       }
-      const labels = labelNames(issue);
       const section = sectionOf(labels, kindOf(labels));
       let body: string;
       try {
@@ -283,15 +282,22 @@ export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv
       let isSent = false;
       let comment: GitHubComment;
       try {
-        comment = await writeAsOwner(
+        const written = await writeAsOwner(
           c,
           github,
           installation,
           { repo, registered: project.repo, number, body },
+          async () =>
+            refuseServiceWriteOnRecheck(c, async () => labelNames(await readIssue(reader, repo, number))),
           () => {
             isSent = true;
           },
         );
+        if (written instanceof Response) {
+          await writes.release(bodyHash);
+          return written;
+        }
+        comment = written;
       } catch (error: unknown) {
         if (!isSent || isNotWritten(error)) {
           await writes.release(bodyHash);

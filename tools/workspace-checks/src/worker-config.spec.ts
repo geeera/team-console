@@ -20,8 +20,17 @@ const SECRET_NAMES = [
   'WEBHOOK_SECRET',
   'VAPID_PRIVATE_KEY',
   'ROUTINE_TOKEN',
+  // #114: a slot routine's trigger token and its id are Worker secrets, never vars.
+  'SLOT_TOKEN',
+  'SLOT_ROUTINE',
 ] as const;
-const LOCAL_ONLY_VARS = ['AUTH_MODE', 'GITHUB_MOCK', 'GITHUB_FAKE_ORIGIN'] as const;
+const LOCAL_ONLY_VARS = [
+  'AUTH_MODE',
+  'GITHUB_MOCK',
+  'GITHUB_FAKE_ORIGIN',
+  'ROUTINES_FAKE_ORIGIN',
+  'PUSH_FAKE_ORIGIN',
+] as const;
 
 interface WranglerEnvConfig {
   readonly name: string;
@@ -162,6 +171,13 @@ describe('apps/api/wrangler.jsonc', () => {
     ).toBe(true);
   });
 
+  // #11 threat model, row 4: the JWT subject is an https URL; a mailto: would publish the owner's address.
+  it.each(ENVIRONMENTS)('keeps VAPID_PUBLIC_KEY empty and VAPID_SUBJECT an https URL in env %s', (env) => {
+    const { vars } = readWorkerConfig('api', env);
+    expect(vars['VAPID_PUBLIC_KEY']).toBe('');
+    expect(vars['VAPID_SUBJECT']).toMatch(/^https:\/\/[^@\s]+$/);
+  });
+
   it.each(ENVIRONMENTS)('declares no OWNER_EMAIL var in env %s — it is a Worker secret', (env) => {
     expect(readWorkerConfig('api', env).vars).not.toHaveProperty('OWNER_EMAIL');
   });
@@ -196,6 +212,14 @@ describe('apps/api/wrangler.jsonc', () => {
 });
 
 describe('apps/hooks/wrangler.jsonc', () => {
+  // #12 sends pushes with the api Worker's VAPID identity; same rule as the api (#11 threat model, row 4).
+  it.each(ENVIRONMENTS)('keeps VAPID_PUBLIC_KEY empty and VAPID_SUBJECT an https URL in env %s', (env) => {
+    const { vars } = readWorkerConfig('hooks', env);
+    expect(vars['VAPID_PUBLIC_KEY']).toBe('');
+    expect(vars['VAPID_SUBJECT']).toMatch(/^https:\/\/[^@\s]+$/);
+    expect(vars['VAPID_SUBJECT']).toBe(readWorkerConfig('api', env).vars['VAPID_SUBJECT']);
+  });
+
   // ADR 0001 decision 14: the hooks Worker is public on team-console-hooks-<env>.<account>.workers.dev — that URL
   // is the webhook target and the deploy smoke check. Turning workers_dev off here would break both.
   it.each(ENVIRONMENTS)('stays reachable on workers.dev in env %s (public webhook receiver)', (env) => {

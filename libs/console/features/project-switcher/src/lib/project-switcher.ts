@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, output } from '@a
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { NeedsYouCounts, ProjectsStore, spaceLocationOf, spaceUrlOf } from '@console/entities/project';
-import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
+import { LocalNumberPipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { PersistedStateStore } from '@console/shared/persisted-state';
 import { Chip, Icon, IconButton, List, ListRow } from '@console/shared/ui';
 import { ProjectDto } from '@shared/contracts';
@@ -17,7 +17,7 @@ let nextSwitcherId = 0;
  */
 @Component({
   selector: 'tc-project-switcher',
-  imports: [Chip, Icon, IconButton, List, ListRow, TranslocoPipe],
+  imports: [Chip, Icon, IconButton, List, ListRow, LocalNumberPipe, TranslocoPipe],
   templateUrl: './project-switcher.html',
   styleUrl: './project-switcher.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

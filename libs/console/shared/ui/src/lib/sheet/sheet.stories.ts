@@ -6,6 +6,7 @@ import { darkTheme, phoneViewport, reducedMotion } from '../../../.storybook/sto
 import { Button } from '../button/button';
 import { Chip } from '../chip/chip';
 import { List, ListRow } from '../list/list';
+import { ConfirmFailure } from './confirm-dialog';
 import { Sheet } from './sheet';
 
 @Component({
@@ -14,25 +15,32 @@ import { Sheet } from './sheet';
   template: `
     <tc-list plain [attr.aria-label]="'stories.list.ariaProjects' | transloco">
       <tc-list-row button current>
-        <span tc-row-title>Team Console</span>
+        <span tc-row-title>{{ projects[0] }}</span>
         <tc-chip tc-row-trailing tone="accent">3</tc-chip>
       </tc-list-row>
       <tc-list-row button>
-        <span tc-row-title>Sheltrix</span>
+        <span tc-row-title>{{ projects[1] }}</span>
         <span tc-row-subtitle>{{ 'stories.sheet.paused' | transloco }}</span>
       </tc-list-row>
       <tc-list-row button>
-        <span tc-row-title>Reader</span>
+        <span tc-row-title>{{ projects[2] }}</span>
       </tc-list-row>
     </tc-list>
     <div style="display: grid; gap: var(--space-2); margin-top: var(--space-4)">
-      <button tc-button variant="primary" block type="button">{{ 'stories.sheet.addProject' | transloco }}</button>
-      <button tc-button variant="quiet" block type="button">{{ 'stories.common.settings' | transloco }}</button>
+      <button tc-button variant="primary" block type="button">
+        {{ 'stories.sheet.addProject' | transloco }}
+      </button>
+      <button tc-button variant="quiet" block type="button">
+        {{ 'stories.common.settings' | transloco }}
+      </button>
     </div>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-class ProjectsSheetContent {}
+class ProjectsSheetContent {
+  /** Project names are data, not copy: the same in every language. */
+  protected readonly projects = ['Team Console', 'Sheltrix', 'Reader'] as const;
+}
 
 @Component({
   selector: 'tc-story-sheet-host',
@@ -42,7 +50,15 @@ class ProjectsSheetContent {}
       <button tc-button variant="primary" type="button" (click)="openProjects()">
         {{ 'stories.sheet.openSheet' | transloco }}
       </button>
-      <button tc-button variant="danger" type="button" (click)="archive()">{{ 'stories.sheet.archiveEllipsis' | transloco }}</button>
+      <button tc-button variant="danger" type="button" (click)="archive()">
+        {{ 'stories.sheet.archiveEllipsis' | transloco }}
+      </button>
+      <button tc-button type="button" (click)="archiveFailing()">
+        {{ 'stories.sheet.archiveFailing' | transloco }}
+      </button>
+      <button tc-button type="button" (click)="pause()">
+        {{ 'stories.sheet.pauseEllipsis' | transloco }}
+      </button>
       <span role="status" aria-live="polite">{{ result() }}</span>
     </div>
   `,
@@ -67,6 +83,51 @@ class SheetHost {
     this.result.set(
       this.transloco.translate(confirmed ? 'stories.sheet.confirmedArchived' : 'stories.sheet.confirmedKept'),
     );
+  }
+
+  /** The busy and failure states of a confirm with an action: Archiving… for a moment, then the inline alert. */
+  protected async archiveFailing(): Promise<void> {
+    const confirmed = await this.sheet.confirm({
+      title: this.transloco.translate('stories.sheet.confirmTitle'),
+      message: this.transloco.translate('stories.sheet.confirmMessage'),
+      note: this.transloco.translate('stories.sheet.note'),
+      confirmLabel: this.transloco.translate('stories.button.archive'),
+      busyLabel: this.transloco.translate('stories.sheet.busy'),
+      errorMessage: this.transloco.translate('stories.sheet.error'),
+      tone: 'danger',
+      action: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        throw new Error('story: the archive request failed');
+      },
+    });
+    this.result.set(
+      this.transloco.translate(confirmed ? 'stories.sheet.confirmedArchived' : 'stories.sheet.confirmedKept'),
+    );
+  }
+
+  /**
+   * #114's command confirmation: points, an optional reason, Sending…, then a refusal in the owner's words that
+   * keeps the dialog open with Try again; the second press succeeds.
+   */
+  protected async pause(): Promise<void> {
+    let attempts = 0;
+    const t = (key: string): string => this.transloco.translate(key);
+    const confirmed = await this.sheet.confirm({
+      title: t('stories.sheet.pauseTitle'),
+      message: '',
+      items: [t('stories.sheet.pausePoint1'), t('stories.sheet.pausePoint2')],
+      input: { label: t('stories.sheet.reasonLabel'), hint: t('stories.sheet.reasonHint'), maxLength: 300 },
+      confirmLabel: t('stories.sheet.pauseOk'),
+      busyLabel: t('stories.sheet.sending'),
+      action: async () => {
+        attempts += 1;
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        if (attempts === 1) {
+          throw new ConfirmFailure(t('stories.sheet.rateLimited'));
+        }
+      },
+    });
+    this.result.set(t(confirmed ? 'stories.sheet.paused' : 'stories.sheet.confirmedKept'));
   }
 }
 

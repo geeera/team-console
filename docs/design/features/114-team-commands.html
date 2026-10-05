@@ -681,6 +681,11 @@ code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);pa
 .cp-slots{list-style:none;margin:var(--sp-2) 0 0;padding:0;display:grid;gap:var(--sp-3)}
 .cp-slot{display:grid;gap:var(--sp-1)}
 .cp-slot__name{font-weight:600;color:var(--text)}
+/* iPhone: the full command gets the width; Copy sits under it */
+.app[data-app=phone] .cp-slot .codeline{flex-direction:column;align-items:stretch}
+.app[data-app=phone] .cp-slot .codeline .btn{align-self:flex-start}
+.cp-setup__safe{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;padding-top:var(--sp-3);border-top:1px solid var(--border);font-weight:600;color:var(--text)}
+.cp-setup__safe .ico{flex:none;width:14px;height:14px;margin-top:3px}
 .cp-setup .how .ext{min-height:var(--target)}
 
 /* the result: the kit's receipt (a margin note), toned like the command's outcome */
@@ -876,7 +881,8 @@ const I18N = {
     'setup.b': 'Planning, development and QA are separate routines, each with its own trigger token. The console needs two values per routine, set once from a computer; the runs that are set up keep working.',
     'setup.how': 'How to set it up',
     'setup.s1': 'In Claude Code, open {name}’s routines for {slots} and add an API trigger to each. Claude shows the token once; the trigger URL holds the routine id (trig_…).',
-    'setup.s2': 'Save both as the console’s secrets. Each command asks for the value, so it never lands in your shell history:',
+    'setup.s2': 'Save both as the console’s secrets: in your team-console checkout, in the terminal where you ran <code>npx wrangler login</code> (as for <code>OWNER_EMAIL</code> in the owner checklist). Each command asks for the value at a hidden prompt, so it never lands in your shell history:',
+    'setup.safe': 'Paste the token only at that hidden prompt — never into the chat, an issue or an agent. If it leaked, regenerate it in Claude Code: the old one stops working.',
     'setup.s3': 'Come back here and refresh the status: Run turns on by itself.',
     'setup.copy.id': 'Copy the command that saves the routine id for {slot}',
     'setup.copy.token': 'Copy the command that saves the trigger token for {slot}',
@@ -887,7 +893,7 @@ const I18N = {
     'p.b1': 'A run in progress finishes its work.',
     'p.b2': 'Later scheduled runs start and exit at once — the same as a pause from the team chat.',
     'p.b3': 'Questions for you stay in Needs you.',
-    'p.reason': 'Reason (optional)', 'p.reasonHint': 'Goes into the run log.', 'p.ok': 'Pause',
+    'p.reason': 'Reason (optional)', 'p.reasonHint': 'Goes into the run log, a public GitHub comment.', 'p.ok': 'Pause',
     'p.done': 'Development in {name} is paused',
     'p.conflict': '{name} is already paused since {time} (from the team chat). Nothing changed.',
     'r.t': 'Resume development in {name}?',
@@ -987,7 +993,8 @@ const I18N = {
     'setup.b': 'Планирование, разработка и проверка — отдельные рутины, у каждой свой токен запуска. Консоли нужны два значения на рутину, их задают один раз с компьютера; настроенные прогоны работают уже сейчас.',
     'setup.how': 'Как настроить',
     'setup.s1': 'В Claude Code открой у {name} рутины: {slots} — и добавь каждой триггер API. Claude один раз покажет токен, а в адресе триггера есть id рутины (trig_…).',
-    'setup.s2': 'Сохрани оба значения как секреты консоли. Каждая команда сама спросит значение, в историю терминала оно не попадёт:',
+    'setup.s2': 'Сохрани оба значения как секреты консоли: в папке team-console, в терминале, где уже выполнен <code>npx wrangler login</code> (как для <code>OWNER_EMAIL</code> в чек-листе владельца). Каждая команда спросит значение в скрытом поле, в историю терминала оно не попадёт:',
+    'setup.safe': 'Вставляй токен только в это скрытое поле — никогда в чат, issue или агенту. Если он утёк, перевыпусти его в Claude Code: старый перестанет работать.',
     'setup.s3': 'Вернись сюда и обнови статус — «Запустить» включится само.',
     'setup.copy.id': 'Скопировать команду, которая сохраняет id рутины: {slot}',
     'setup.copy.token': 'Скопировать команду, которая сохраняет токен запуска: {slot}',
@@ -998,7 +1005,7 @@ const I18N = {
     'p.b1': 'Идущий сейчас прогон доделает свою работу.',
     'p.b2': 'Следующие прогоны по расписанию будут запускаться и сразу завершаться — так же, как после паузы из чата команды.',
     'p.b3': 'Вопросы к тебе останутся в «Ждут тебя».',
-    'p.reason': 'Причина (необязательно)', 'p.reasonHint': 'Попадёт в журнал запусков.', 'p.ok': 'Приостановить',
+    'p.reason': 'Причина (необязательно)', 'p.reasonHint': 'Попадёт в журнал запусков — это публичный комментарий на GitHub.', 'p.ok': 'Приостановить',
     'p.done': 'Разработка в {name} на паузе',
     'p.conflict': '{name} уже на паузе с {time} (из чата команды). Ничего не изменено.',
     'r.t': 'Возобновить разработку в {name}?',
@@ -1357,12 +1364,13 @@ const Proto = (() => {
       const id = `${uid}-how`;
       const key = (x) => `${P.slug.toUpperCase().replace(/-/g, '_')}_${x.toUpperCase()}`;
       const line = (cmd, slot, what) => `<div class="codeline"><code>${esc(cmd)}</code><button type="button" class="btn btn--sm" data-act="copy" data-value="${esc(cmd)}" data-fk="setup-copy-${what}-${slot}" aria-label="${esc(t(`setup.copy.${what}`, { slot: t(`slot.${slot}N`) }))}">${I.copy}<span aria-hidden="true">${t('c.copy')}</span></button></div>`;
-      const cmds = missing.map((x) => `<li class="cp-slot"><span class="cp-slot__name">${t(`slot.${x}`)}</span>${line(`npx wrangler secret put SLOT_ROUTINE_${key(x)} --env production`, x, 'id')}${line(`npx wrangler secret put SLOT_TOKEN_${key(x)} --env production`, x, 'token')}</li>`).join('');
+      const cmds = missing.map((x) => `<li class="cp-slot"><span class="cp-slot__name">${t(`slot.${x}`)}</span>${line(`npx wrangler secret put SLOT_ROUTINE_${key(x)} --env production --config apps/api/wrangler.jsonc`, x, 'id')}${line(`npx wrangler secret put SLOT_TOKEN_${key(x)} --env production --config apps/api/wrangler.jsonc`, x, 'token')}</li>`).join('');
       return `<div class="cp-setup"><div class="cp-setup__head">${I.key}<h4>${t('setup.t', { slots: slotList(missing), n: missing.length })}</h4></div><p>${t('setup.b', { name: P.slug, n: missing.length })}</p>
         <button type="button" class="btn btn--quiet btn--sm how-btn" data-act="how" aria-expanded="${S.howOpen}" aria-controls="${id}" data-fk="setup-how">${t('setup.how')}${I.down}</button>
         <div class="how" id="${id}"${S.howOpen ? '' : ' hidden'}><ol class="cp-steps"><li>${t('setup.s1', { name: P.slug, slots: slotList(missing), n: missing.length })}</li>
           <li>${t('setup.s2')}<ul class="cp-slots">${cmds}</ul></li>
-          <li>${t('setup.s3')}</li></ol></div></div>`;
+          <li>${t('setup.s3')}</li></ol>
+          <p class="cp-setup__safe">${I.lock}<span>${t('setup.safe')}</span></p></div></div>`;
     }
     function panelHTML() {
       const body = G.data === 'loading'

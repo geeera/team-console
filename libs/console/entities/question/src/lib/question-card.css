@@ -44,6 +44,10 @@
 }
 
 .question__link {
+  /* WCAG 2.5.8: the line box alone is under 24 px with some system fonts (axe target-size on Linux, #14). */
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h-sm);
   color: var(--accent-text);
   text-underline-offset: var(--space-1);
 }
@@ -52,4 +56,8 @@
   outline: var(--focus-w) solid var(--focus);
   outline-offset: var(--focus-offset);
   border-radius: var(--r-xs);
+}
+
+.question__markdown {
+  margin-top: var(--space-2);
 }

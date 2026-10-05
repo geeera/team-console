@@ -152,6 +152,7 @@ describe('GET /api/v1/projects', () => {
         routineId: null,
         addedAt: '2026-09-30T00:00:00Z',
         archivedAt: null,
+        slots: { pm: 'missing', dev: 'missing', qa: 'missing' },
       },
     ]);
 
@@ -329,6 +330,7 @@ describe('POST /api/v1/projects — refusals save nothing', () => {
       step: 'repo-owner',
     });
     expect(body['detail']).toBe('acme/site is owned by acme, not by the connected account geeera');
+    expect(body).toMatchObject({ repoOwner: 'acme', login: 'geeera' });
     expect(h.stub.reads().map((call) => call.url.pathname)).toEqual(['/repos/acme/site']);
     expect(await rowCount()).toBe(0);
   });
@@ -469,6 +471,7 @@ describe('GET /api/v1/projects/:slug/setup', () => {
       connection: { state: 'connected', login: 'geeera' },
       accessLostAt: null,
       ownerLanguage: 'en',
+      repoOwnerLogin: 'geeera',
     });
   });
 
@@ -491,7 +494,10 @@ describe('GET /api/v1/projects/:slug/setup', () => {
 
   it('owner of another account → mismatch; no connection → not-checked and not-connected', async () => {
     const other = harness({ repository: repoOwnedBy({ login: 'acme', id: 200001 }) });
-    await expect((await setup(other)).json()).resolves.toMatchObject({ repoOwner: 'mismatch' });
+    await expect((await setup(other)).json()).resolves.toMatchObject({
+      repoOwner: 'mismatch',
+      repoOwnerLogin: 'acme',
+    });
 
     await resetOwnerConnections();
     const unconnected = await setup(harness(), localEnv());
@@ -531,35 +537,26 @@ describe('GET /api/v1/projects/:slug/setup', () => {
     ).resolves.toMatchObject({ routineToken: 'missing' });
   });
 
-  it('events: never without #12 table, seen with the last delivery time once one is recorded (#83)', async () => {
+  it('events: never before a delivery, seen with the last delivery time once one is recorded (#83)', async () => {
     await expect((await setup(harness())).json()).resolves.toMatchObject({
       events: 'never',
       lastEventAt: null,
     });
-    await env.DB.prepare(
-      'CREATE TABLE webhook_deliveries (delivery_id TEXT PRIMARY KEY, event TEXT NOT NULL, repo TEXT NOT NULL, received_at TEXT NOT NULL)',
-    ).run();
+    const insert =
+      'INSERT INTO webhook_deliveries (delivery_id, event, repo, body_sha256, received_at) VALUES (?1, ?2, ?3, ?1, ?4)';
     try {
-      await expect((await setup(harness())).json()).resolves.toMatchObject({
-        events: 'never',
-        lastEventAt: null,
-      });
-      await env.DB.prepare(
-        "INSERT INTO webhook_deliveries VALUES ('d1', 'push', 'Geeera/Storify', '2026-09-30T00:00:00Z')",
-      ).run();
+      await env.DB.prepare(insert).bind('d1', 'push', 'Geeera/Storify', '2026-09-30T00:00:00Z').run();
       await expect((await setup(harness())).json()).resolves.toMatchObject({
         events: 'seen',
         lastEventAt: '2026-09-30T00:00:00Z',
       });
-      await env.DB.prepare(
-        "INSERT INTO webhook_deliveries VALUES ('d2', 'issues', 'geeera/storify', '2026-09-30T05:00:00Z')",
-      ).run();
+      await env.DB.prepare(insert).bind('d2', 'issues', 'geeera/storify', '2026-09-30T05:00:00Z').run();
       await expect((await setup(harness())).json()).resolves.toMatchObject({
         events: 'seen',
         lastEventAt: '2026-09-30T05:00:00Z',
       });
     } finally {
-      await env.DB.prepare('DROP TABLE webhook_deliveries').run();
+      await env.DB.prepare('DELETE FROM webhook_deliveries').run();
     }
   });
 
@@ -622,10 +619,8 @@ describe('GET /api/v1/projects/:slug/setup', () => {
     });
   });
 
-  // Last in this file: the column stays on the file's database.
-  it('accessLostAt: null until #12 adds the column, then its value', async () => {
+  it('accessLostAt: null while the app has access, then the time it lost it (#12)', async () => {
     await expect((await setup(harness())).json()).resolves.toMatchObject({ accessLostAt: null });
-    await env.DB.prepare('ALTER TABLE projects ADD COLUMN access_lost_at TEXT').run();
     await env.DB.prepare(
       "UPDATE projects SET access_lost_at = '2026-09-30T09:00:00Z' WHERE slug = 'storify'",
     ).run();

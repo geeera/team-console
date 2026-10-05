@@ -33,8 +33,7 @@
     "placeholderTitle": "Coming soon",
     "placeholderHint": "The “{{section}}” section arrives in a later sprint.",
     "draftLabel": "Message to the PM",
-    "draftHint": "The draft stays on this device only.",
-    "tallRow": "Row {{n}}"
+    "draftHint": "The draft stays on this device only."
   },
   "notFound": {
     "projectTitle": "Project not found",
@@ -49,6 +48,102 @@
     "emptyHint": "The teams are working; you'll get a notification when that changes.",
     "lead": "Waiting: {{n}} · projects: {{k}}",
     "omitted": "Not read this time: {{names}}"
+  },
+  "push": {
+    "title": "Notifications",
+    "lead": "A push when the team needs your answer. Tapping it opens that item.",
+    "checking": "Checking notifications…",
+    "off": {
+      "title": "Notifications are off on this device",
+      "body": "Turn them on and this device tells you when your answer is needed: a question, a design to approve, a release."
+    },
+    "enable": "Turn on notifications",
+    "hint": {
+      "ios": "iPhone will ask for permission: tap Allow.",
+      "browser": "The browser will ask for permission: choose Allow."
+    },
+    "asking": "Waiting for your answer…",
+    "saving": "Turning on…",
+    "on": {
+      "title": "Notifications are on for this device",
+      "meta": "Since {{date}}",
+      "badge": "The number on the app icon is how many items wait for you, now {{n}}. It updates when you open the app."
+    },
+    "test": {
+      "send": "Send a test",
+      "sending": "Sending…",
+      "sent": "Test sent",
+      "sentBody": {
+        "one": "To {{n}} device with notifications on. It should arrive within a minute. If it doesn’t, check Focus and Team Console’s notifications in the device’s settings.",
+        "few": "To {{n}} devices with notifications on. It should arrive within a minute. If it doesn’t, check Focus and Team Console’s notifications in the device’s settings.",
+        "many": "To {{n}} devices with notifications on. It should arrive within a minute. If it doesn’t, check Focus and Team Console’s notifications in the device’s settings.",
+        "other": "To {{n}} devices with notifications on. It should arrive within a minute. If it doesn’t, check Focus and Team Console’s notifications in the device’s settings."
+      },
+      "wait": "One test every 30 seconds. Try again in {{s}} s.",
+      "failed": "The test wasn’t sent: the server didn’t answer. Try again."
+    },
+    "turnOff": "Turn off",
+    "turnOffAria": "Turn off notifications on this device",
+    "offToast": "Notifications are off on this device",
+    "offFailed": "Couldn’t turn notifications off: the server didn’t answer. Try again.",
+    "onLive": "Notifications are on for this device",
+    "install": {
+      "title": "First add Team Console to your Home Screen",
+      "body": "iPhone only sends notifications to apps on the Home Screen. It takes half a minute.",
+      "steps": "How to add it to the Home Screen",
+      "s1Before": "In Safari, tap",
+      "s1After": "next to the address, then Share.",
+      "s1NoteBefore": "With the Bottom or Top tab layout, tap",
+      "s1NoteAfter": "right away.",
+      "s2": "Scroll down and tap Add to Home Screen. Leave Open as Web App on and tap Add.",
+      "s3": "Open Team Console from its Home Screen icon and turn notifications on here, in Settings.",
+      "more": "More",
+      "share": "Share",
+      "already": "Already on your Home Screen? Open the app from there: notifications can’t be turned on in Safari."
+    },
+    "denied": {
+      "title": "Notifications are blocked",
+      "body": "The app can’t ask again. Allow them in settings, then come back:",
+      "ios": "iPhone Settings → Notifications → Team Console → turn on Allow Notifications.",
+      "safari": "Safari → Settings → Websites → Notifications → set {{host}} to Allow.",
+      "other": "Click the icon left of the address → Notifications → Allow, then reload the page."
+    },
+    "recheck": "Check again",
+    "recheckLive": "Allowed now. Turn notifications on.",
+    "recheckStill": "Notifications are still blocked.",
+    "unsupported": {
+      "title": "Notifications don’t work here",
+      "old-ios": "Web notifications need iOS 16.4 or later. Update in Settings → General → Software Update.",
+      "in-app": "Team Console is open inside another app. Open the link in Safari, then add it to your Home Screen.",
+      "no-push": "This browser has no web notifications. Open Team Console in Safari, Chrome or Firefox."
+    },
+    "error": {
+      "title": "Couldn’t turn notifications on",
+      "server": "The server didn’t accept this device, so nothing was saved. Try again; if it repeats, tell the PM in the chat.",
+      "offline": "The server didn’t answer, so nothing was saved. Try again when you’re back online.",
+      "device": "The browser couldn’t subscribe this device to notifications. Try again."
+    },
+    "offline": "You’re offline. Notifications can be turned on when you’re back online.",
+    "offlineOn": "You’re offline. The test and Turn off work again when you’re back online.",
+    "retry": "Try again",
+    "deniedLive": "Notifications are blocked",
+    "nudge": {
+      "text": "Notifications are off on this device: you only learn about new items when you open the app.",
+      "enable": "Turn on",
+      "how": "How to turn on",
+      "later": "Not now",
+      "laterAria": "Hide the notifications hint",
+      "laterToast": "You can turn them on in Settings → Notifications",
+      "on": "Notifications are on. Next time the team needs you, this device will tell you."
+    },
+    "arrive": {
+      "goneTitle": "#{{n}} no longer waits for you",
+      "goneBody": "It was answered or closed on GitHub while the notification waited.",
+      "goneLink": "Open #{{n}} on GitHub",
+      "external": "(opens GitHub)",
+      "projectHint": "It was archived or never added. Its notifications lead here until it is added again.",
+      "back": "Go to Needs you"
+    }
   },
   "questions": {
     "listLabel": "Questions for you",
@@ -73,7 +168,8 @@
       "project-config-invalid": "project.yml can't be read",
       "github-rate-limit": "GitHub asks to wait",
       "other": "GitHub didn't respond"
-    }
+    },
+    "preview": "Preview for #{{n}}"
   },
   "answer": {
     "command": {
@@ -143,15 +239,581 @@
       "unknownHint": "The console or GitHub didn't respond. Retry — it won't be posted twice."
     }
   },
+  "board": {
+    "loading": "Loading the sprint…",
+    "demo": "Demo {{date}}",
+    "demoToday": "Demo today, {{date}}",
+    "demoIn": {
+      "one": "Demo {{date}} · in {{n}} day",
+      "few": "Demo {{date}} · in {{n}} days",
+      "many": "Demo {{date}} · in {{n}} days",
+      "other": "Demo {{date}} · in {{n}} days"
+    },
+    "stat": {
+      "done": "Done",
+      "doneValue": "{{shipped}} of {{planned}}",
+      "stillOpen": "Still open",
+      "openPrs": "Open PRs",
+      "ci": "CI",
+      "runs": "Run log"
+    },
+    "lanes": "Sprint issues by status",
+    "status": {
+      "proposed": "Proposed",
+      "approved": "Approved",
+      "in-progress": "In progress",
+      "qa": "QA",
+      "blocked": "Blocked",
+      "done": "Done",
+      "none": "No status"
+    },
+    "laneEmpty": "Nothing here",
+    "tierLabel": "Tier:",
+    "tier": {
+      "light": "light",
+      "standard": "standard",
+      "heavy": "heavy"
+    },
+    "untrusted": "Not from the team",
+    "draft": "Draft",
+    "ci": {
+      "state": {
+        "success": "CI passed",
+        "failure": "CI failed",
+        "pending": "CI running",
+        "none": "No checks",
+        "unknown": "CI unknown"
+      },
+      "summary": {
+        "failure": "Failing: {{n}}",
+        "pending": "Running: {{n}}",
+        "unknown": "Unknown: {{n}}",
+        "success": "Passing: {{n}}",
+        "none": "No checks",
+        "empty": "No open PRs"
+      }
+    },
+    "team": {
+      "running": "Running",
+      "paused": "Paused",
+      "failing": "Failing",
+      "unknown": "Unknown"
+    },
+    "run": {
+      "state": {
+        "running": "Running",
+        "finished": "Finished",
+        "failed": "Failed",
+        "unknown": "Unknown"
+      },
+      "at": "{{day}}, {{time}}"
+    },
+    "runs": {
+      "title": "Recent runs",
+      "empty": "No runs yet",
+      "log": "Full run log",
+      "unavailable": "Run log unavailable",
+      "unavailableHint": "The run log couldn't be read, or someone outside the team opened it. Reload the board later, or check the run log in the Commands panel."
+    },
+    "opensGitHub": "(opens on GitHub)",
+    "pulls": "Open pull requests",
+    "pullsEmpty": "No open pull requests",
+    "emptyTitle": "Nothing planned in {{sprint}} yet",
+    "emptyHint": "Issues show up here once the PM adds them to the sprint's milestone.",
+    "noSprintTitle": "No current sprint",
+    "noSprintHint": "No open milestone has a demo date today or later. The PM plans the next sprint.",
+    "error": {
+      "unavailable": {
+        "title": "Couldn't load the board",
+        "hint": "GitHub or the console didn't respond. Try again."
+      },
+      "offline": {
+        "title": "No connection",
+        "hint": "The board loads when you're back online. Try again."
+      },
+      "rate-limited": {
+        "title": "GitHub asks to wait",
+        "hint": "The board tries again by itself at {{time}}.",
+        "hintManual": "Retry in a minute."
+      },
+      "not-installed": {
+        "title": "The console app is not installed on the repository",
+        "hint": "Install it from the project's setup in Settings, then try again."
+      }
+    }
+  },
+  "artifacts": {
+    "title": "Artifacts",
+    "loading": "Loading artifacts…",
+    "listLabel": "Artifacts found",
+    "search": "Search by title",
+    "typeFilter": "Artifact type",
+    "shown": "Showing {{n}} of {{total}}",
+    "type": {
+      "all": "All",
+      "decision": "Decisions",
+      "design": "Design",
+      "demo": "Demos"
+    },
+    "source": {
+      "file": "File",
+      "issue": "Issue",
+      "config": "Link from project.yml"
+    },
+    "state": {
+      "open": "open",
+      "closed": "closed"
+    },
+    "opensGitHub": "(opens on GitHub)",
+    "checkAgain": "Check again",
+    "loadedAt": "Updated at {{time}}",
+    "empty": {
+      "title": "No artifacts yet",
+      "hint": "Decisions, designs and demos show up here once the team creates them."
+    },
+    "noMatch": {
+      "title": "Nothing found",
+      "hint": "Change the search or pick another type.",
+      "clear": "Clear filter"
+    },
+    "partial": {
+      "title": "Not everything is shown",
+      "decision": "Couldn't load the decisions.",
+      "design": "Couldn't load the designs.",
+      "demo": "Couldn't load the demos.",
+      "decision-titles": "Some decisions are shown by file name.",
+      "design-files": "Not every docs/design folder is listed.",
+      "hint": "Press “Check again” to retry."
+    },
+    "error": {
+      "unavailable": {
+        "title": "Couldn't load the artifacts",
+        "hint": "GitHub or the console didn't respond. Try again."
+      },
+      "offline": {
+        "title": "No connection",
+        "hint": "The artifacts load when you're back online. Try again."
+      },
+      "rate-limited": {
+        "title": "GitHub asks to wait",
+        "hint": "Retry in a minute."
+      },
+      "not-installed": {
+        "title": "The console app is not installed on the repository",
+        "hint": "Install it from the project's setup in Settings, then try again."
+      }
+    }
+  },
   "overview": {
     "title": "All projects",
-    "placeholderHint": "The project overview arrives in a later sprint."
+    "count": {
+      "one": "{{n}} project",
+      "few": "{{n}} projects",
+      "many": "{{n}} projects",
+      "other": "{{n}} projects"
+    },
+    "listLabel": "Projects and their sprints",
+    "quiet": "Nothing for you",
+    "quietLabel": "Projects with nothing for you",
+    "loading": "Loading the overview…",
+    "team": {
+      "running": "Running",
+      "paused": "Paused",
+      "failing": "Failing",
+      "unknown": "Status unknown"
+    },
+    "demo": "demo {{date}}",
+    "noSprint": "No current sprint",
+    "pending": "Not loaded yet: it didn’t fit into one request",
+    "done": "{{done}} of {{total}} done",
+    "setup": "Setup needed",
+    "problem": {
+      "lead": "Couldn’t read it: {{reason}}",
+      "github-app-not-installed": "the console app is not installed on the repository",
+      "project-config-invalid": "project.yml can’t be read",
+      "github-rate-limit": "GitHub asks to wait",
+      "project-invalid": "the registry holds an invalid repository address",
+      "other": "GitHub didn’t respond"
+    },
+    "partial": {
+      "title": "Not every project is loaded",
+      "hint": "One request reads as much as GitHub’s limit allows. The rest load with the next one.",
+      "action": "Load the rest"
+    },
+    "error": {
+      "unavailable": {
+        "title": "Couldn’t load the overview",
+        "hint": "GitHub or the console didn’t respond. Try again."
+      },
+      "offline": {
+        "title": "No connection",
+        "hint": "The overview loads when you’re back online. Try again."
+      },
+      "rate-limited": {
+        "title": "GitHub asks to wait",
+        "hint": "Retry in a minute."
+      }
+    }
   },
   "settings": {
     "title": "Settings",
     "language": "Interface language",
     "switchLang": "Русский",
-    "projectsHint": "The GitHub connection and the project list will live here."
+    "breadcrumb": "Breadcrumb",
+    "gh": {
+      "title": "GitHub",
+      "loading": "Checking the connection…",
+      "loadFailed": "Couldn’t check the GitHub connection",
+      "none": {
+        "title": "GitHub isn’t connected",
+        "body": "Connect your GitHub account. The console checks repositories with it and posts your answers as you, so the team counts them. No tokens to paste."
+      },
+      "connect": "Connect GitHub",
+      "connecting": "Opening GitHub…",
+      "connected": "Connected as {{login}}",
+      "connectedMeta": "Since {{date}} · app {{app}}",
+      "disconnect": "Disconnect",
+      "disconnectAria": "Disconnect GitHub account {{login}}",
+      "lost": {
+        "title": "The GitHub connection was lost",
+        "body": "Access was revoked or has expired. Until you connect again, answers from the console aren’t sent and projects can’t be added. Your projects and their setup are still here."
+      },
+      "error": {
+        "title": "Couldn’t connect GitHub",
+        "url": "The console returned an unexpected sign-in address, so the app didn’t open it. Nothing changed.",
+        "denied": "Access wasn’t granted on GitHub. Nothing changed.",
+        "account": "GitHub was signed in as {{who}}. The console connects only to the owner’s account, {{login}}: switch accounts on GitHub and connect again. Access for {{who}} is already revoked.",
+        "accountUnknown": "GitHub was signed in as a different account. The console connects only to the owner’s account, {{login}}: switch accounts on GitHub and connect again. Access for it is already revoked.",
+        "failed": "GitHub didn’t confirm the connection: the sign-in was interrupted, expired or failed a check. Nothing changed — try connecting again.",
+        "start": "The console couldn’t start connecting. Nothing changed — try again."
+      },
+      "offline": "You’re offline: connecting or disconnecting GitHub needs a connection.",
+      "connectedLive": "Connected as {{login}}",
+      "needConnect": {
+        "title": "Connect GitHub first",
+        "body": "The console checks the repository as your account. Nothing has been sent yet.",
+        "lostBody": "Access was revoked or has expired. Nothing was saved: connect GitHub again, then select Check and add."
+      },
+      "banner": {
+        "none": "GitHub isn’t connected: step 2 can’t be checked and answers aren’t sent.",
+        "lost": "The GitHub connection was lost: answers from the console aren’t sent."
+      }
+    },
+    "disc": {
+      "title": "Disconnect GitHub?",
+      "body": "The console revokes its access to {{login}} on GitHub. Projects stay on the list, but you can’t answer from the console or add a project until you connect again.",
+      "confirm": "Disconnect",
+      "busy": "Disconnecting…",
+      "error": "Couldn’t disconnect. The connection is as it was.",
+      "toast": "GitHub disconnected",
+      "incomplete": "The console is disconnected, but GitHub didn’t confirm its access is revoked. Revoke it yourself in GitHub’s settings.",
+      "incompleteLink": "Open authorized apps on GitHub"
+    },
+    "projects": {
+      "title": "Projects",
+      "add": "Add project",
+      "lead": "Product repositories the console works with.",
+      "row": {
+        "ready": "All set",
+        "missing": {
+          "one": "{{n}} step missing",
+          "few": "{{n}} steps missing",
+          "many": "{{n}} steps missing",
+          "other": "{{n}} steps missing"
+        },
+        "checking": "Checking setup…",
+        "unknown": "Couldn’t check setup",
+        "archive": "Archive",
+        "archiveAria": "Archive {{name}}"
+      },
+      "loading": "Loading projects…",
+      "empty": {
+        "title": "No projects yet",
+        "body": "Add a product repository the team already works in. It needs a .product-team/project.yml file."
+      },
+      "error": {
+        "title": "Couldn’t load projects",
+        "body": "GitHub or the console didn’t respond. Nothing changed."
+      },
+      "offline": "You’re offline. This list is from {{time}}. Adding or archiving a project needs a connection."
+    },
+    "common": {
+      "retry": "Try again",
+      "cancel": "Cancel",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyFailed": "Couldn’t copy: select the command and copy it by hand.",
+      "external": "(opens GitHub)"
+    },
+    "add": {
+      "title": "New project",
+      "field": "GitHub repository",
+      "hint": "As owner/repo, for example geeera/storify. A link works too.",
+      "preview": "Address in the console: /p/{{slug}}",
+      "submit": "Check and add",
+      "submitting": "Checking…",
+      "checkingLive": "Checking {{repo}}…",
+      "invalid": {
+        "empty": "Enter the repository as owner/repo.",
+        "format": "“{{value}}” doesn’t look like owner/repo. Example: geeera/storify."
+      },
+      "offline": "You’re offline: checking a repository needs a connection.",
+      "duplicate": "{{repo}} is already on the list.",
+      "duplicateLink": "Open its setup",
+      "archived": "{{repo}} is archived.",
+      "archivedBody": "Restoring a project from the console isn’t available yet.",
+      "refused": {
+        "title": "Project not added",
+        "body": "A step below is missing. Nothing was saved: fix it and select Check again."
+      },
+      "unavailable": {
+        "title": "Couldn’t check",
+        "github": "GitHub didn’t respond. Nothing was saved.",
+        "rate": "GitHub asks us to wait until {{time}}. Nothing was saved.",
+        "auth": "The console can’t sign in to GitHub as the {{app}} app: its key was replaced or the app was removed. This is the console’s setup, not the repository’s: check the app with the owner checklist. Nothing was saved."
+      },
+      "saved": {
+        "title": {
+          "one": "Project added. {{n}} step left",
+          "few": "Project added. {{n}} steps left",
+          "many": "Project added. {{n}} steps left",
+          "other": "Project added. {{n}} steps left"
+        },
+        "body": "It’s on your project list now. The console shows what’s missing until everything is set."
+      }
+    },
+    "setup": {
+      "ready": {
+        "title": "{{name}} is ready",
+        "body": "All five steps are done."
+      },
+      "incomplete": {
+        "title": {
+          "one": "{{n}} step missing",
+          "few": "{{n}} steps missing",
+          "many": "{{n}} steps missing",
+          "other": "{{n}} steps missing"
+        }
+      },
+      "unknown": {
+        "title": "Some steps couldn’t be checked"
+      },
+      "checkAgain": "Check again",
+      "open": "Open project",
+      "archive": "Archive project",
+      "checkedAt": "Checked at {{time}}",
+      "repoLink": "{{repo}} on GitHub",
+      "doneLive": "Check finished: {{done}} of 5 done.",
+      "stepsAria": "Setup steps",
+      "loadFailed": "Couldn’t check the setup",
+      "notFound": {
+        "title": "Project not found",
+        "body": "“{{slug}}” isn’t on the project list, or it is archived."
+      }
+    },
+    "step": {
+      "done": "Done",
+      "missing": "Missing",
+      "pending": "Checking…",
+      "skipped": "Not checked",
+      "unknown": "Couldn’t check",
+      "waiting": "Waiting",
+      "skippedWhy": "Needs the step above first.",
+      "unknownWhy": "GitHub didn’t respond. Select Check again.",
+      "how": "How to fix",
+      "app": {
+        "title": "The {{app}} app is installed on the repo",
+        "done": "The console reads {{repo}} through the app.",
+        "missing": "The app isn’t installed on {{repo}}. Add the repository to the app’s installation on GitHub.",
+        "how": "On the install page choose Only select repositories, add {{repo}} and save. The app’s permissions stay the same. Then come back: the console checks again by itself.",
+        "link": "Open the app installation"
+      },
+      "owner": {
+        "title": "The repo’s owner is the connected account",
+        "done": "Owned by {{login}}, so your answers count.",
+        "missing": "The owner of {{repo}} is {{repoOwner}}, but {{login}} is connected. The team counts answers only from the repository’s owner.",
+        "how": "The console works with repositories of your account, {{login}}. Move the repository to it (GitHub → Settings → Transfer ownership) or add another one. Organisation repositories aren’t supported yet.",
+        "notConnected": "Can’t be checked until GitHub is connected."
+      },
+      "yml": {
+        "title": ".product-team/project.yml exists",
+        "done": "Found on the default branch.",
+        "missing": "Not on the default branch. Set up the team in this repo and merge its PR.",
+        "how": "In Claude Code in this repo: /adopt for existing code or /kickoff for a new product."
+      },
+      "events": {
+        "title": "Events arrive",
+        "done": "Last event at {{time}}.",
+        "missing": "No events from {{repo}} yet. Nothing to do: this appears after the first event.",
+        "how": "An event is a new issue, comment, pull request or CI run in the repository. GitHub sends it through the app by itself. If something has happened in the repository and this step is still missing, check step 1."
+      },
+      "routine": {
+        "title": "Routine token set",
+        "done": "{{secret}} is set.",
+        "missing": "No {{secret}} secret. Until it’s set, the PM doesn’t answer in chat.",
+        "how": "Create the PM routine for this repo with an API trigger and store its token:",
+        "copyAria": "Copy command"
+      }
+    },
+    "archive": {
+      "title": "Archive {{name}}?",
+      "body": "It leaves the project list and Needs you, and you get no notifications for it. Its issues, chat and files on GitHub stay as they are.",
+      "note": "The app installation and the routine stay. To stop the console seeing the repository at all, remove it from the app’s installation on GitHub.",
+      "confirm": "Archive",
+      "busy": "Archiving…",
+      "error": "Couldn’t archive. The project is still on the list.",
+      "toast": "{{name}} archived"
+    }
+  },
+  "commands": {
+    "open": "Commands",
+    "openAria": "Commands for {{name}}",
+    "title": "Commands · {{name}}",
+    "close": "Close commands",
+    "banner": {
+      "ownerLead": "{{name}} is paused since {{time}}.",
+      "ownerRest": "Scheduled runs exit at once without doing work.",
+      "teamLead": "{{name}}: the team paused itself.",
+      "teamRest": "Three runs in a row failed.",
+      "resume": "Resume",
+      "log": "Run log"
+    },
+    "status": {
+      "h": "Status",
+      "running": "Running",
+      "owner": "Paused by you since {{time}}",
+      "ownerNoTime": "Paused by you",
+      "team": "Paused itself: three runs in a row failed",
+      "updated": "Updated at {{time}}",
+      "refresh": "Refresh status",
+      "refreshing": "Refreshing…",
+      "log": "Run log",
+      "loading": "Loading status…",
+      "errT": "Couldn’t load the status",
+      "errB": "GitHub didn’t answer. Commands are off until the status is known — otherwise you might, say, pause a project that is already paused.",
+      "noLog": "The team hasn’t opened its run log yet, so there is nothing to pause or start. It appears after the first scheduled run.",
+      "offline": "You’re offline. Status as of {{time}}. Commands work only online.",
+      "noperm": "The console can’t write to issues in {{repo}}, so Pause and Resume are off. Run now still works.",
+      "nopermFix": "Settings › Projects"
+    },
+    "group": {
+      "team": "Team work",
+      "run": "Run now"
+    },
+    "pause": {
+      "title": "Pause development",
+      "hint": "Scheduled runs will exit at once. To switch the schedule off entirely, use the team chat.",
+      "btn": "Pause"
+    },
+    "resume": {
+      "title": "Resume development",
+      "hint": "Scheduled runs pick up work again from the next one. To start sooner, use Run now.",
+      "btn": "Resume"
+    },
+    "unknown": {
+      "title": "Pause or resume",
+      "hint": "Shows up once the status is known.",
+      "btn": "Unavailable"
+    },
+    "slot": {
+      "pm": "Planning",
+      "dev": "Development",
+      "qa": "QA",
+      "pmL": "planning",
+      "devL": "development",
+      "qaL": "QA",
+      "pmN": "planning",
+      "devN": "development",
+      "qaN": "QA"
+    },
+    "row": {
+      "btn": "Run",
+      "btnAria": "Run now: {{slot}}",
+      "last": "Last: {{when}}, succeeded",
+      "lastFailed": "Last: {{when}}, failed",
+      "lastUnknown": "Last: {{when}}, outcome unknown",
+      "never": "No run in the log yet",
+      "busy": "Running since {{time}}. Next start no earlier than {{until}}",
+      "requested": "Requested at {{time}}. It shows up in the run log in a few minutes; until then, no second start before {{until}}",
+      "unknown": "Request at {{time}} got no answer. Check the run log; you can retry after {{until}}"
+    },
+    "why": {
+      "offline": "Offline",
+      "noperm": "No write access",
+      "paused": "Resume development first",
+      "notoken": "Not set up: this routine has no trigger token",
+      "status": "Status not loaded"
+    },
+    "setup": {
+      "t": "Run now isn’t set up for {{slots}}",
+      "b": "Planning, development and QA are separate routines, each with its own trigger token. The console needs two values per routine, set once from a computer; the runs that are set up keep working.",
+      "how": "How to set it up",
+      "s1": "In Claude Code, open {{name}}’s routines for {{slots}} and add an API trigger to each. Claude shows the token once; the trigger URL holds the routine id (trig_…).",
+      "s2": "Save both as the console’s secrets: in your team-console checkout, in the terminal where you ran npx wrangler login (as for OWNER_EMAIL in the owner checklist). Each command asks for the value at a hidden prompt, so it never lands in your shell history:",
+      "warn": "Paste the token only at that hidden prompt — never into the chat, an issue or an agent. If it leaked, regenerate it in Claude Code: the old one stops working.",
+      "s3": "Come back here and refresh the status: Run turns on by itself.",
+      "copyId": "Copy the command that saves the routine id for {{slot}}",
+      "copyToken": "Copy the command that saves the trigger token for {{slot}}",
+      "copy": "Copy",
+      "copied": "Copied"
+    },
+    "dialog": {
+      "cancel": "Cancel",
+      "retry": "Try again",
+      "sending": "Sending…",
+      "pauseTitle": "Pause development in {{name}}?",
+      "pause1": "A run in progress finishes its work.",
+      "pause2": "Later scheduled runs start and exit at once — the same as a pause from the team chat.",
+      "pause3": "Questions for you stay in Needs you.",
+      "reason": "Reason (optional)",
+      "reasonHint": "Goes into the run log, a public GitHub comment.",
+      "pauseOk": "Pause",
+      "resumeTitle": "Resume development in {{name}}?",
+      "resumeBody": "Scheduled runs pick up work again from the next one. To start sooner, use Run now.",
+      "resumeTeam": "The team paused itself: the last three runs failed. Check the run log before resuming, or runs may keep failing.",
+      "resumeOk": "Resume",
+      "runTitle": "Run {{slot}} now?",
+      "run_pm": "The team reads your answers, plans the work and prepares designs.",
+      "run_dev": "The team takes up to two sprint issues.",
+      "run_qa": "The team reviews open PRs and fixes what it finds.",
+      "quota": "The run uses your subscription quota like a scheduled one and starts within a few minutes.",
+      "runOk": "Run"
+    },
+    "result": {
+      "paused": "Development in {{name}} is paused",
+      "resumed": "Development in {{name}} resumed",
+      "alreadyPaused": "{{name}} is already paused. Nothing changed.",
+      "alreadyPausedSince": "{{name}} is already paused since {{time}}. Nothing changed.",
+      "alreadyRunning": "{{name}} is already running. Nothing changed.",
+      "requested": "Requested: {{slot}}",
+      "requestedDetail": "It shows up in the run log in a few minutes.",
+      "overlap": "{{slot}}: a run is already in progress since {{time}}. Not starting a second one.",
+      "requestedAlready": "{{slot}} was requested at {{time}} and isn’t in the run log yet. Not starting a second one before {{until}}.",
+      "timeout": "The run service didn’t answer, so it’s unknown whether the run started. Check the run log in a few minutes; retry opens at {{time}}.",
+      "log": "Run log"
+    },
+    "error": {
+      "rate": "Run limit reached: at most 30 per hour for this routine, or 100 per hour across all projects of your account. You can run again at {{time}}. Nothing started.",
+      "service": "The run service didn’t answer. Nothing started.",
+      "routinePaused": "The {{slot}} routine is switched off in Claude Code, so nothing started. Switch it on at claude.ai/code/routines, then run again.",
+      "badToken": "Claude Code refused the trigger token for {{slot}}: it was regenerated or mistyped. Save {{secret}} again. Nothing started.",
+      "badRoutine": "Claude Code knows no routine with this id for {{slot}}. Check {{secret}}. Nothing started.",
+      "notConfigured": "Run now isn’t set up for {{slot}}. Refresh the status to see what to set up.",
+      "runPaused": "Development is paused. Resume it first; nothing started.",
+      "github": "GitHub didn’t answer. Nothing changed.",
+      "githubRate": "GitHub asks to wait until {{time}}. Nothing changed.",
+      "connect": "Connect GitHub in Settings first: pause and resume are written as you. Nothing changed.",
+      "noLog": "The team has no run log yet. Nothing changed.",
+      "pauseUnreliable": "Pause from the console isn’t reliable for this project yet: its run log was opened by the team, and the next run could lift the pause. Pause from the team chat instead (the pause skill). Nothing changed.",
+      "offline": "You’re offline. The command wasn’t sent.",
+      "unknown": "Something went wrong. Nothing changed."
+    },
+    "when": {
+      "today": "today {{time}}",
+      "yesterday": "yesterday {{time}}",
+      "day": "{{day}} {{time}}"
+    },
+    "external": "(opens GitHub)"
   },
   "ui": {
     "close": "Close",
@@ -170,6 +832,15 @@
     },
     "field": {
       "optional": "optional"
+    },
+    "frame": {
+      "open": "Open in a new tab",
+      "newTab": "(new tab)",
+      "refusedTitle": "This page can't be shown in the console",
+      "refusedHint": "It can only be opened in a new tab."
+    },
+    "markdown": {
+      "image": "image"
     }
   },
   "stories": {
@@ -184,7 +855,9 @@
       "archive": "Archive",
       "small": "Small",
       "disabled": "Disabled",
-      "saving": "Saving…"
+      "saving": "Saving…",
+      "run": "Run",
+      "offReason": "Not set up: this routine has no trigger token"
     },
     "card": {
       "kind": "Question",
@@ -210,7 +883,8 @@
       "langLabel": "Language",
       "langRu": "Russian",
       "langEn": "English",
-      "offlineLabel": "Not available offline"
+      "offlineLabel": "Not available offline",
+      "repoNote": "Address in the console: /p/team-console"
     },
     "list": {
       "ariaProjects": "Projects",
@@ -221,19 +895,23 @@
       "archive": "Archive",
       "offline": "Not available offline",
       "pin": "Pin",
-      "unpin": "Unpin"
+      "unpin": "Unpin",
+      "external": "Team Console on GitHub"
     },
     "topBar": {
       "search": "Search",
       "attention": "Needs your attention",
-      "longTitle": "A very long project name that does not fit on one line"
+      "longTitle": "A very long project name that does not fit on one line",
+      "commands": "Commands"
     },
     "stateBlock": {
       "emptyTitle": "Nothing is waiting",
       "emptyDescription": "All team questions are closed. Check back later.",
       "errorTitle": "Couldn't load projects",
       "errorDescription": "GitHub didn't respond. Check your connection and try again.",
-      "compactEmptyTitle": "This column is empty"
+      "compactEmptyTitle": "This column is empty",
+      "unavailableTitle": "Couldn't be read",
+      "unavailableDescription": "The source didn't answer, or it can't be trusted."
     },
     "sheet": {
       "paused": "Paused",
@@ -243,7 +921,20 @@
       "confirmedArchived": "The project is archived",
       "confirmedKept": "Left as is",
       "confirmTitle": "Move the project to the archive?",
-      "confirmMessage": "The project disappears from the list and “Needs your attention”. GitHub issues are untouched."
+      "confirmMessage": "The project disappears from the list and “Needs your attention”. GitHub issues are untouched.",
+      "archiveFailing": "Archive, failing…",
+      "note": "The app installation and the routine stay.",
+      "busy": "Archiving…",
+      "error": "Couldn’t archive. The project is still on the list.",
+      "pauseEllipsis": "Pause…",
+      "pauseTitle": "Pause development in storify?",
+      "pausePoint1": "A run in progress finishes its work.",
+      "pausePoint2": "Later scheduled runs exit at once.",
+      "reasonLabel": "Reason (optional)",
+      "reasonHint": "Goes into the run log.",
+      "pauseOk": "Pause",
+      "sending": "Sending…",
+      "rateLimited": "GitHub asks to wait until 14:05. Nothing changed."
     },
     "tabBar": {
       "aria": "Sections",
@@ -251,6 +942,41 @@
       "chat": "Chat",
       "board": "Board",
       "artifacts": "Artifacts"
+    },
+    "toast": {
+      "show": "Show a toast",
+      "archived": "storify archived"
+    },
+    "callout": {
+      "refusedTitle": "Project not added",
+      "refusedBody": "A step below is missing. Nothing was saved.",
+      "leftTitle": "Project added. 2 steps left",
+      "leftBody": "It’s on your project list now.",
+      "readyTitle": "storify is ready",
+      "neutralTitle": "Some steps couldn’t be checked"
+    },
+    "statusCard": {
+      "checking": "Checking notifications…",
+      "offTitle": "Notifications are off on this device",
+      "offBody": "Turn them on and this device tells you when your answer is needed.",
+      "turnOn": "Turn on notifications",
+      "hint": "iPhone will ask for permission: tap Allow.",
+      "onTitle": "Notifications are on for this device",
+      "onMeta": "Since 2 October",
+      "test": "Send a test",
+      "turnOff": "Turn off",
+      "blockedTitle": "Notifications are blocked",
+      "blockedBody": "The app can’t ask again. Allow them in settings.",
+      "offline": "You’re offline. Notifications can be turned on when you’re back online.",
+      "errorTitle": "Couldn’t turn notifications on",
+      "errorBody": "The server didn’t accept this device, so nothing was saved."
+    },
+    "arrival": {
+      "kind": "Question",
+      "title": "Which sign-in to keep: GitHub or email?",
+      "body": "The card a notification led to: the ring stays while it has focus.",
+      "action": "Approve",
+      "receiptVerb": "You: approved"
     },
     "recommendation": {
       "label": "Team recommends",
@@ -263,7 +989,54 @@
       "rejected": "You: reject",
       "done": "You: done",
       "detail": "Plan for the 16 October demo",
-      "meta": "#72 · 14:05 · recorded as owner"
+      "meta": "#72 · 14:05 · recorded as owner",
+      "unknown": "Unknown whether the run started"
+    },
+    "lane": {
+      "aria": "Issues by status",
+      "progress": "In progress",
+      "qa": "QA",
+      "done": "Done",
+      "empty": "Nothing here",
+      "autosave": "Story editor autosave",
+      "tagFilter": "Tag filter",
+      "feed": "Infinite story feed",
+      "light": "light",
+      "standard": "standard",
+      "heavy": "heavy"
+    },
+    "tooltip": {
+      "list": "Issues",
+      "title": "Story editor autosave",
+      "tip": "Tier: heavy"
+    },
+    "stat": {
+      "done": "Done",
+      "doneValue": "3 of 9",
+      "prs": "Open PRs",
+      "ci": "CI · main",
+      "green": "green",
+      "runs": "Run log",
+      "failed": "2 failed runs"
+    },
+    "banner": {
+      "owner": "storify is paused since 13:52. Scheduled runs exit at once.",
+      "team": "storify: the team paused itself. Three runs in a row failed.",
+      "resume": "Resume",
+      "log": "Run log"
+    },
+    "meter": {
+      "done": "{{done}} of {{total}} done"
+    },
+    "frame": {
+      "title": "Preview"
     }
+  },
+  "review": {
+    "lead": "Designs waiting for your approval and the open sprint demo.",
+    "listLabel": "Designs and demo for your decision",
+    "emptyTitle": "No designs to approve and no open demo right now",
+    "emptyHint": "When the team sends a design or opens a demo, it shows up here.",
+    "originsFailed": "Couldn't read the project's Storybook address, so previews are shown as links."
   }
 }

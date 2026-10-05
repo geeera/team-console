@@ -11,20 +11,33 @@ export interface PaginateOptions {
   readonly maxPages?: number;
 }
 
+/** The tail of a list: its last page, and whether that page is the whole list. */
+export interface ListTail<T> {
+  readonly items: readonly T[];
+  readonly isWholeList: boolean;
+}
+
 const DEFAULT_MAX_PAGES = 5;
 
-function nextPageOf(link: string | null): URL | null {
+/**
+ * The target of the `rel` link, or `null` when the header names none. `url` is `null` for a target off
+ * api.github.com (or unparsable), which is never followed: the token would go with it.
+ */
+function relLinkOf(link: string | null, rel: 'next' | 'last'): { readonly url: URL | null } | null {
   if (link === null) {
     return null;
   }
   for (const part of link.split(',')) {
-    const match = /^\s*<([^>]+)>\s*;\s*rel="next"\s*$/.exec(part);
-    if (match?.[1] !== undefined) {
-      // A next page off api.github.com is not followed: the token would go with it.
-      return onGitHubApi(match[1]);
+    const match = /^\s*<([^>]+)>\s*;\s*rel="([a-z]+)"\s*$/.exec(part);
+    if (match?.[1] !== undefined && match[2] === rel) {
+      return { url: onGitHubApi(match[1]) };
     }
   }
   return null;
+}
+
+function nextPageOf(link: string | null): URL | null {
+  return relLinkOf(link, 'next')?.url ?? null;
 }
 
 /**
@@ -52,16 +65,39 @@ export class GitHubClient {
     for (let page = 0; next !== null && page < maxPages; page += 1) {
       const response = await this.get(next);
       const nextUrl = nextPageOf(response.headers.get('link'));
-      const body = await this.parse(response, (value): value is unknown[] => Array.isArray(value));
-      for (const item of body) {
-        if (!itemGuard(item)) {
-          throw githubUnexpectedError('GitHub returned an item of an unexpected shape', response.status);
-        }
-        items.push(item);
-      }
+      items.push(...(await this.parseList(response, itemGuard)));
       next = nextUrl === null ? null : githubPathOf(nextUrl);
     }
     return items;
+  }
+
+  /**
+   * GET the last page of a chronological list (oldest first, as GitHub sends issue events): the first page and,
+   * when its `Link` names a `rel="last"` page, that page — at most two requests whatever the list's length. A last
+   * link that cannot be followed is `github-unexpected`, never a silently older tail: a caller deciding on the
+   * newest entries must not decide on stale ones. `isSameList` must accept the last link's URL as a page of the
+   * list that was asked for (GitHub may spell it differently, e.g. `/repositories/{id}/…`); anything else is
+   * `github-unexpected` too, so a link can never swap in another list's tail.
+   */
+  async lastPage<T>(
+    path: GitHubPath,
+    itemGuard: JsonGuard<T>,
+    isSameList: (url: URL) => boolean,
+  ): Promise<ListTail<T>> {
+    const first = await this.get(path);
+    const last = relLinkOf(first.headers.get('link'), 'last');
+    if (last === null) {
+      return { items: await this.parseList(first, itemGuard), isWholeList: true };
+    }
+    await discardBody(first);
+    if (last.url === null) {
+      throw githubUnexpectedError('GitHub named a last page that cannot be followed', first.status);
+    }
+    if (!isSameList(last.url)) {
+      throw githubUnexpectedError('GitHub named a last page of another list', first.status);
+    }
+    const tail = await this.get(githubPathOf(last.url));
+    return { items: await this.parseList(tail, itemGuard), isWholeList: false };
   }
 
   /**
@@ -71,13 +107,28 @@ export class GitHubClient {
    * sent again; a second 401 on the owner's token is 403 `github-owner-not-connected`, never a fallback token.
    */
   async postJson<T>(path: GitHubPath, body: unknown, guard: JsonGuard<T>): Promise<T> {
+    const response = await this.write('POST', path, body);
+    return this.parse(response, guard);
+  }
+
+  /**
+   * DELETE one resource (#114: a label off the run log), with `postJson`'s rules: one refresh on 401, never retried
+   * after a timeout or a 5xx. A 404 is `github-not-found`; the caller decides whether "already gone" is fine.
+   */
+  async delete(path: GitHubPath): Promise<void> {
+    await discardBody(await this.write('DELETE', path, undefined));
+  }
+
+  private async write(method: 'POST' | 'DELETE', path: GitHubPath, body: unknown): Promise<Response> {
+    const request = (bearer: string) =>
+      githubRequest(this.fetcher, { method, path, bearer, ...(body === undefined ? {} : { body }) });
     let token = await this.tokens.getToken();
-    let response = await githubRequest(this.fetcher, { method: 'POST', path, bearer: token, body });
+    let response = await request(token);
     if (response.status === 401) {
       await discardBody(response);
       this.tokens.invalidate(token);
       token = await this.tokens.getToken();
-      response = await githubRequest(this.fetcher, { method: 'POST', path, bearer: token, body });
+      response = await request(token);
       if (response.status === 401 && this.tokens.kind === 'owner') {
         await discardBody(response);
         throw ownerNotConnectedError();
@@ -87,7 +138,7 @@ export class GitHubClient {
       await discardBody(response);
       throw mapGitHubResponse(response);
     }
-    return this.parse(response, guard);
+    return response;
   }
 
   private async get(path: GitHubPath): Promise<Response> {
@@ -105,6 +156,16 @@ export class GitHubClient {
       throw mapGitHubResponse(response);
     }
     return response;
+  }
+
+  private async parseList<T>(response: Response, itemGuard: JsonGuard<T>): Promise<T[]> {
+    const body = await this.parse(response, (value): value is unknown[] => Array.isArray(value));
+    return body.map((item) => {
+      if (!itemGuard(item)) {
+        throw githubUnexpectedError('GitHub returned an item of an unexpected shape', response.status);
+      }
+      return item;
+    });
   }
 
   private async parse<T>(response: Response, guard: JsonGuard<T>): Promise<T> {

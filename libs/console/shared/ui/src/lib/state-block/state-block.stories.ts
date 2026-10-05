@@ -13,6 +13,7 @@ const allKinds = `
     </tc-state-block>
     <tc-state-block kind="loading" />
     <tc-state-block kind="empty" compact [title]="'stories.stateBlock.compactEmptyTitle' | transloco" />
+    <tc-state-block kind="empty" compact icon="question" [title]="'stories.stateBlock.unavailableTitle' | transloco" [description]="'stories.stateBlock.unavailableDescription' | transloco" />
     <tc-state-block kind="loading" compact />
   </div>
 `;

@@ -86,6 +86,15 @@
   transform: none;
 }
 
+:host(.tc-button--off),
+:host(.tc-button--off:hover) {
+  opacity: 1;
+  border-style: dashed;
+  border-color: var(--border-strong);
+  background: none;
+  color: var(--text-2);
+}
+
 :host(.tc-button--loading) {
   cursor: progress;
 }

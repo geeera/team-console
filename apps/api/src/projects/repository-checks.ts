@@ -7,6 +7,7 @@ import {
   type RepoName,
   type RepoOwner as RepositoryOwner,
 } from '@worker/github';
+import { decodeBase64Text } from '@worker/read-models';
 import type { GitHubConnection } from '../github';
 import { ownerLanguageOf, type OwnerLanguage } from './project-yml';
 
@@ -44,11 +45,6 @@ export function isGitHubProblem(error: unknown, type: string): error is GitHubEr
   return error instanceof GitHubError && error.problem.type === type;
 }
 
-function decodeBase64Text(content: string): string {
-  const bytes = Uint8Array.from(atob(content.replace(/\s/g, '')), (char) => char.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
-}
-
 /** A GitHub failure during a step keeps #9's type and status and gains the step it happened in. */
 export function inStep(
   error: unknown,
@@ -64,11 +60,18 @@ export function inStep(
   );
 }
 
-/** The app's install page for this environment's app (`team-console-<env>`, ADR 0003 decision 1). */
+// ENVIRONMENT is our own var, but it still goes into a URL and into copy: only a plain word is used.
+const ENVIRONMENT_WORD = /^[a-z]+$/;
+
+/** The console's GitHub App for this environment (`team-console-<env>`, ADR 0003 decision 1). */
+export function consoleAppNameFor(environment: string): string {
+  return ENVIRONMENT_WORD.test(environment) ? `team-console-${environment}` : 'team-console';
+}
+
+/** The app's install page for this environment's app; anything unexpected falls back to the apps list. */
 export function installUrlFor(environment: string): string {
-  // ENVIRONMENT is our own var, but it still goes into a URL: anything unexpected falls back to the apps list.
-  return /^[a-z]+$/.test(environment)
-    ? `https://github.com/apps/team-console-${environment}/installations/new`
+  return ENVIRONMENT_WORD.test(environment)
+    ? `https://github.com/apps/${consoleAppNameFor(environment)}/installations/new`
     : 'https://github.com/settings/installations';
 }
 

@@ -1,5 +1,6 @@
 import type { NeedsYouDto, QuestionsDto } from '@shared/contracts';
 import {
+  githubIssueUrlOf,
   isNeedsYouDto,
   isQuestionsDto,
   needsYouViewOf,
@@ -148,5 +149,19 @@ describe('safeGitHubUrl', () => {
     expect(safeGitHubUrl('https://github.com.evil.example/a')).toBeNull();
     expect(safeGitHubUrl('http://github.com/a')).toBeNull();
     expect(safeGitHubUrl(null)).toBeNull();
+  });
+});
+
+describe('githubIssueUrlOf', () => {
+  it('links the registry repository’s issue', () => {
+    expect(githubIssueUrlOf('geeera/storify', 42)).toBe('https://github.com/geeera/storify/issues/42');
+  });
+
+  it('refuses a repository or number it cannot trust', () => {
+    expect(githubIssueUrlOf('geeera/storify/../x', 42)).toBeNull();
+    expect(githubIssueUrlOf('//evil.example/x', 42)).toBeNull();
+    expect(githubIssueUrlOf('geeera', 42)).toBeNull();
+    expect(githubIssueUrlOf('geeera/storify', 0)).toBeNull();
+    expect(githubIssueUrlOf('geeera/storify', 1.5)).toBeNull();
   });
 });

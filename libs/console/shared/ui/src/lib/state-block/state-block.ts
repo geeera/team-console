@@ -32,6 +32,7 @@ const ICONS: Record<Exclude<StateKind, 'loading'>, IconName> = {
     '[class.tc-state-block--error]': 'kind() === "error"',
     '[class.tc-state-block--loading]': 'kind() === "loading"',
     '[class.tc-state-block--compact]': 'compact()',
+    '[class.tc-state-block--custom-icon]': 'icon() !== null',
     '[attr.role]': 'role()',
     '[attr.aria-live]': 'kind() === "loading" ? "polite" : null',
     '[attr.aria-busy]': 'kind() === "loading" ? "true" : null',
@@ -44,9 +45,15 @@ export class StateBlock {
   /** A single quiet line inside a list instead of a centred block. */
   readonly compact = input(false, { transform: booleanAttribute });
 
-  protected readonly icon = computed<IconName | null>(() => {
+  /**
+   * Replaces the kind's glyph (✓ for empty, ⚠ for error) when that would say the wrong thing — e.g. a question mark
+   * for "this could not be read", which is neither "nothing here" nor an alert. Ignored while loading.
+   */
+  readonly icon = input<IconName | null>(null);
+
+  protected readonly glyph = computed<IconName | null>(() => {
     const kind = this.kind();
-    return kind === 'loading' ? null : ICONS[kind];
+    return kind === 'loading' ? null : (this.icon() ?? ICONS[kind]);
   });
 
   protected readonly defaultTitleKey = computed(() => {

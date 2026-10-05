@@ -79,9 +79,18 @@ describe('App', () => {
   }
 
   afterEach(() => {
-    // The question lists (#16) read on their own; these routing tests do not look at them.
-    http.match(NEEDS_YOU_URL).forEach((request) => request.flush({ items: [], projects: [], omittedProjects: [] }));
-    http.match((request) => request.url.endsWith('/questions')).forEach((request) => request.flush({ items: [] }));
+    // The question lists (#16) and the sprint board (#18) read on their own; these routing tests do not look at them.
+    http
+      .match(NEEDS_YOU_URL)
+      .forEach((request) => request.flush({ items: [], projects: [], omittedProjects: [] }));
+    http
+      .match((request) => request.url.endsWith('/questions'))
+      .forEach((request) => request.flush({ items: [] }));
+    http.match((request) => request.url.endsWith('/sprint')).forEach((request) => request.flush(null));
+    // A project space reads its team status for the paused banner (#114); not what these tests look at.
+    http
+      .match((request) => request.url.endsWith('/team/status'))
+      .forEach((request) => request.flush({}, { status: 503, statusText: 'Service Unavailable' }));
     http.verify();
   });
 
@@ -130,22 +139,30 @@ describe('App', () => {
     await boot('/', undefined, []);
 
     expect(router.url).toBe('/needs-you');
-    expect(root().querySelector('[data-testid="no-projects"] a')?.getAttribute('href')).toBe('/settings');
+    expect(root().querySelector('[data-testid="no-projects"] a')?.getAttribute('href')).toBe(
+      '/settings/projects/new',
+    );
   });
 
-  it('restores the chat draft of a project after A → B → A', async () => {
+  // The chat tab is a placeholder until #17 ships (#203): the deep link lands on the default section instead.
+  it('redirects /chat to the project\'s default section with no error screen and no draft text box', async () => {
     await boot('/p/a/chat');
-    const draft = (): HTMLTextAreaElement =>
-      root().querySelector('[data-testid="chat-draft"]') as HTMLTextAreaElement;
-    draft().value = 'unsent words';
-    draft().dispatchEvent(new Event('input'));
 
-    await router.navigateByUrl('/p/b/questions');
-    await fixture.whenStable();
+    expect(router.url).toBe('/p/a/questions');
+    expect(text('h1')).toBe('A');
     expect(root().querySelector('[data-testid="chat-draft"]')).toBeNull();
+    expect(root().querySelector('[role="alert"]')).toBeNull();
+  });
 
-    await router.navigateByUrl('/p/a/chat');
-    await fixture.whenStable();
-    expect(draft().value).toBe('unsent words');
+  it('a project with a saved last section of `chat` opens the default section on app start (#203)', async () => {
+    const stored = JSON.stringify({
+      ...emptyPersistedState(),
+      activeSlug: 'a',
+      projects: { a: { lastPath: 'chat', scroll: {}, chatDraft: '' } },
+    });
+    await boot('/', stored);
+
+    expect(router.url).toBe('/p/a/questions');
+    expect(TestBed.inject(PersistedStateStore).projectState('a')?.lastPath).toBe('questions');
   });
 });
