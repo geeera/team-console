@@ -1,3 +1,4 @@
+import { INSTALLATION_PERMISSIONS } from '../lib/app-auth';
 import type { FetchLike } from '../lib/transport';
 
 /** Test-only helpers: a generated app key (never a real credential) and a scripted api.github.com. */
@@ -130,6 +131,8 @@ export function appFlow(
       return json(201, {
         token: `${options.tokenPrefix ?? SENTINEL_TOKEN}${minted}`,
         expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        permissions: INSTALLATION_PERMISSIONS,
+        repository_selection: 'selected',
       });
     }
     return read(call);

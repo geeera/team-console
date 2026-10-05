@@ -215,6 +215,8 @@ describe('GitHubAppAuth', () => {
         ? json(201, {
             token: `ghs_T${github.calls.length}`,
             expires_at: new Date(now + 60 * 60 * 1000).toISOString(),
+            permissions: INSTALLATION_PERMISSIONS,
+            repository_selection: 'selected',
           })
         : json(200, { id: INSTALLATION_ID }),
     );
@@ -279,7 +281,12 @@ describe('GitHubAppAuth', () => {
       }
       return fail
         ? json(500, {})
-        : json(201, { token: 'ghs_ok', expires_at: new Date(Date.now() + 3_600_000).toISOString() });
+        : json(201, {
+            token: 'ghs_ok',
+            expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+            permissions: INSTALLATION_PERMISSIONS,
+            repository_selection: 'selected',
+          });
     });
     const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
     const source = auth.tokenSourceFor(REPO);
@@ -300,5 +307,48 @@ describe('GitHubAppAuth', () => {
     );
     const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
     expect((await rejection(auth.tokenSourceFor(REPO).getToken())).problem.type).toBe('github-unexpected');
+  });
+
+  // #76: a minted token must be refused, never used, when GitHub answers with permissions or a repository
+  // scope broader (or just different) than what the console asked for.
+  it.each([
+    ['write instead of read on one permission', { ...INSTALLATION_PERMISSIONS, issues: 'write' }, 'selected'],
+    [
+      'a permission the console never asked for',
+      { ...INSTALLATION_PERMISSIONS, metadata_extra: 'read' },
+      'selected',
+    ],
+    [
+      'a permission missing',
+      Object.fromEntries(Object.entries(INSTALLATION_PERMISSIONS).filter(([name]) => name !== 'issues')),
+      'selected',
+    ],
+    ['all repositories instead of one', INSTALLATION_PERMISSIONS, 'all'],
+  ] as const)(
+    'refuses a mint whose answer has %s with 502 github-unexpected',
+    async (_label, permissions, repositorySelection) => {
+      const github = scriptedGitHub((call) =>
+        call.method === 'GET'
+          ? json(200, { id: INSTALLATION_ID })
+          : json(201, {
+              token: 'ghs_broader',
+              expires_at: '2026-09-30T13:00:00Z',
+              permissions,
+              repository_selection: repositorySelection,
+            }),
+      );
+      const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
+      const error = await rejection(auth.tokenSourceFor(REPO).getToken());
+      expect(error.problem).toMatchObject({ type: 'github-unexpected', status: 502 });
+      // Never cached: a request right after still has no usable token from this mismatched mint.
+      expect(auth.hasUsableToken(REPO)).toBe(false);
+    },
+  );
+
+  it('accepts a mint whose answer echoes exactly the requested permissions and repository_selection', async () => {
+    const github = appFlow(() => json(200, {}));
+    const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
+    await expect(auth.tokenSourceFor(REPO).getToken()).resolves.toBe(`${SENTINEL_TOKEN}1`);
+    expect(auth.hasUsableToken(REPO)).toBe(true);
   });
 });

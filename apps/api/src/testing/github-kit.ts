@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { compactVerify, importJWK } from 'jose';
-import type { FetchLike } from '@worker/github';
+import { INSTALLATION_PERMISSIONS, type FetchLike } from '@worker/github';
 import type { ApiEnv } from '../env';
 
 /** Test-only: a scripted api.github.com behind the app flow, with sentinel tokens (#9 threat row 3). */
@@ -69,6 +69,8 @@ export function stubGitHub(
       return json(201, {
         token: `${TOKEN_SENTINEL}${minted}`,
         expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        permissions: INSTALLATION_PERMISSIONS,
+        repository_selection: 'selected',
       });
     }
     return read(call);

@@ -126,7 +126,9 @@ function isInstallation(value: unknown): value is { id: number } {
   return typeof id === 'number' && Number.isSafeInteger(id) && id > 0;
 }
 
-function isMintedToken(value: unknown): value is { token: string; expires_at: string } {
+function isMintedToken(
+  value: unknown,
+): value is { token: string; expires_at: string; permissions: unknown; repository_selection: unknown } {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
@@ -136,6 +138,30 @@ function isMintedToken(value: unknown): value is { token: string; expires_at: st
     /^\S+$/.test(record['token']) &&
     typeof record['expires_at'] === 'string'
   );
+}
+
+// The only request this Worker ever sends: one repository (#9 threat row 2), so `repository_selection` can
+// never legitimately come back as anything else.
+const REQUESTED_REPOSITORY_SELECTION = 'selected';
+
+/**
+ * Whether a minted token's `permissions` and `repository_selection` are exactly what was requested
+ * (`INSTALLATION_PERMISSIONS`, one repository). GitHub is expected to always downscope to the request, but a
+ * token that came back broader — or scoped to more than one repository — must never be used as if it were not.
+ */
+function isDownscopedAsRequested(body: { permissions: unknown; repository_selection: unknown }): boolean {
+  if (body.repository_selection !== REQUESTED_REPOSITORY_SELECTION) {
+    return false;
+  }
+  if (typeof body.permissions !== 'object' || body.permissions === null || Array.isArray(body.permissions)) {
+    return false;
+  }
+  const received = body.permissions as Record<string, unknown>;
+  const wantedKeys = Object.keys(INSTALLATION_PERMISSIONS);
+  if (Object.keys(received).length !== wantedKeys.length) {
+    return false;
+  }
+  return wantedKeys.every((key) => received[key] === INSTALLATION_PERMISSIONS[key]);
 }
 
 /**
@@ -272,6 +298,14 @@ export class GitHubAppAuth {
     const expiresAt = isMintedToken(body) ? Date.parse(body.expires_at) : Number.NaN;
     if (!isMintedToken(body) || Number.isNaN(expiresAt)) {
       throw githubUnexpectedError('GitHub returned no installation token', response.status);
+    }
+    // #76: refuse a token GitHub minted with different permissions or repository scope than requested, never
+    // use it as if it were downscoped.
+    if (!isDownscopedAsRequested(body)) {
+      throw githubUnexpectedError(
+        'GitHub minted a token with different permissions or repository scope than requested',
+        response.status,
+      );
     }
     const entry: CachedToken = { token: body.token, expiresAt };
     this.tokens.set(this.cacheKey(repo), entry);
