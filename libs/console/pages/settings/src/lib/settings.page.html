@@ -1,0 +1,167 @@
+<div class="tc-page settings">
+  <h1 #heading class="tc-page__title settings__title" tabindex="-1">{{ 'settings.title' | transloco }}</h1>
+
+  @if (!network.online() && projects.loadedAt(); as loadedAt) {
+  <p class="settings__offline" role="status" data-testid="offline-note">
+    <tc-icon name="offline" size="sm" />
+    {{ 'settings.projects.offline' | transloco: { time: (loadedAt | localTime) } }}
+  </p>
+  }
+
+  <section class="settings__section" aria-labelledby="settings-gh">
+    <h2 id="settings-gh" class="settings__section-title">{{ 'settings.gh.title' | transloco }}</h2>
+    <tc-github-connection-card [outcome]="outcome()" />
+  </section>
+
+  <section class="settings__section" aria-labelledby="settings-push" data-testid="push-section">
+    <div>
+      <h2 #pushHeading id="settings-push" class="settings__section-title" tabindex="-1">
+        {{ 'push.title' | transloco }}
+      </h2>
+      <p class="settings__lead">{{ 'push.lead' | transloco }}</p>
+    </div>
+    <tc-push-settings-card />
+  </section>
+
+  <section class="settings__section" aria-labelledby="settings-projects">
+    <div class="settings__section-head">
+      <div>
+        <h2 id="settings-projects" class="settings__section-title">
+          {{ 'settings.projects.title' | transloco }}
+        </h2>
+        <p class="settings__lead">{{ 'settings.projects.lead' | transloco }}</p>
+      </div>
+      @if (projects.status() === 'ready' && projects.hasProjects()) {
+      <a
+        #addButton
+        tc-button
+        variant="primary"
+        [routerLink]="network.online() ? '/settings/projects/new' : null"
+        [attr.role]="network.online() ? null : 'button'"
+        data-testid="add-project"
+        [attr.aria-disabled]="network.online() ? null : 'true'"
+      >
+        <tc-icon name="plus" />
+        {{ 'settings.projects.add' | transloco }}
+      </a>
+      }
+    </div>
+
+    @switch (projects.status()) { @case ('ready') { @if (projects.hasProjects()) {
+    <div #list>
+      <tc-list [attr.aria-label]="'settings.projects.title' | transloco" data-testid="project-list">
+        @for (project of projects.active(); track project.slug; let index = $index) {
+        <tc-list-row button [attr.data-row]="project.slug" (click)="open(project.slug)">
+          <span tc-row-leading class="settings__mono" aria-hidden="true"
+            >{{ project.displayName.charAt(0) }}</span
+          >
+          <span tc-row-title class="settings__name">{{ project.displayName }}</span>
+          <span tc-row-subtitle class="settings__repo">{{ project.repo }}</span>
+          @let status = chipOf(project.slug);
+          <!-- The chip sits beside the text on wide screens and under the repository on the phone; one is display:none. -->
+          <span tc-row-subtitle class="settings__chip settings__chip--narrow">
+            <ng-container *ngTemplateOutlet="chip; context: { $implicit: status }" />
+          </span>
+          <span tc-row-trailing class="settings__chip settings__chip--wide" data-testid="setup-chip">
+            <ng-container *ngTemplateOutlet="chip; context: { $implicit: status }" />
+          </span>
+          <tc-icon tc-row-trailing name="chevron-right" size="sm" class="settings__chevron" />
+          <button
+            tc-row-action
+            tc-button
+            variant="quiet"
+            type="button"
+            class="settings__archive"
+            [attr.data-testid]="'archive-' + project.slug"
+            [attr.aria-label]="'settings.projects.row.archiveAria' | transloco: { name: project.displayName }"
+            [attr.aria-disabled]="network.online() ? null : 'true'"
+            (click)="archive($event, project, index)"
+          >
+            <tc-icon name="archive" />
+            <span class="settings__archive-text">{{ 'settings.projects.row.archive' | transloco }}</span>
+          </button>
+        </tc-list-row>
+        }
+      </tc-list>
+    </div>
+    } @else {
+    <tc-state-block
+      kind="empty"
+      data-testid="no-projects"
+      [title]="'settings.projects.empty.title' | transloco"
+      [description]="'settings.projects.empty.body' | transloco"
+    >
+      <a
+        #addButton
+        tc-button
+        tc-state-action
+        variant="primary"
+        [routerLink]="network.online() ? '/settings/projects/new' : null"
+        [attr.role]="network.online() ? null : 'button'"
+        data-testid="add-project"
+        [attr.aria-disabled]="network.online() ? null : 'true'"
+      >
+        <tc-icon name="plus" />
+        {{ 'settings.projects.add' | transloco }}
+      </a>
+    </tc-state-block>
+    } } @case ('error') {
+    <tc-state-block
+      kind="error"
+      [title]="'settings.projects.error.title' | transloco"
+      [description]="'settings.projects.error.body' | transloco"
+    >
+      <button tc-button tc-state-action type="button" (click)="retry()">
+        {{ 'settings.common.retry' | transloco }}
+      </button>
+    </tc-state-block>
+    } @default {
+    <div class="settings__loading" aria-busy="true" data-testid="projects-loading">
+      <span class="tc-sr-only">{{ 'settings.projects.loading' | transloco }}</span>
+      @for (row of [1, 2, 3]; track row) {
+      <div class="settings__skeleton" aria-hidden="true">
+        <span class="settings__skeleton-mono"></span>
+        <span class="settings__skeleton-line"></span>
+      </div>
+      }
+    </div>
+    } }
+  </section>
+
+  <section class="settings__section" aria-labelledby="settings-lang">
+    <h2 id="settings-lang" class="settings__section-title">{{ 'settings.language' | transloco }}</h2>
+    <div>
+      <button
+        tc-button
+        type="button"
+        data-testid="switch-lang"
+        [attr.lang]="otherLang()"
+        (click)="switchLang()"
+      >
+        {{ 'settings.switchLang' | transloco }}
+      </button>
+    </div>
+  </section>
+
+  <p class="settings__version">
+    {{ appInfo.name() }} · {{ appInfo.version() }} ·
+    <span data-testid="app-built-at">{{ appInfo.builtAt() }}</span>
+  </p>
+</div>
+
+<ng-template #chip let-status>
+  @if (status === 'checking') {
+  <tc-chip>{{ 'settings.projects.row.checking' | transloco }}</tc-chip>
+  } @else if (status === 'unknown' || (isSummary(status) && status.unknown > 0 && status.left === 0)) {
+  <tc-chip><tc-icon name="help" size="sm" />{{ 'settings.projects.row.unknown' | transloco }}</tc-chip>
+  } @else if (isSummary(status) && status.left > 0) {
+  <tc-chip tone="warning"
+    ><tc-icon name="alert" size="sm" />{{ 'settings.projects.row.missing' | translocoPlural: status.left
+    }}</tc-chip
+  >
+  } @else {
+  <tc-chip tone="success"
+    ><tc-icon name="check" size="sm" />{{ 'settings.projects.row.ready' | transloco }}</tc-chip
+  >
+  }
+</ng-template>

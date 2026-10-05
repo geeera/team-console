@@ -13,8 +13,10 @@ feature/<issue>-<slug> ──PR──▶ dev ──cut 2 days before demo──�
 - Every change arrives as a PR. **Never push directly to `dev`, `stage` or `main`** — private repos on the
   free plan have no branch protection, so this rule is enforced by you, not by GitHub.
 - `feature/*` → `dev`: merge only through the **review gate** (`scripts/pr gate`, enforced by `scripts/pr merge`):
-  CI green, `QA: APPROVED` from `qa`, `REVIEW: APPROVED` from `reviewer`, and `SECURITY: APPROVED` from
-  `security` when `scripts/pr security-check` finds auth, data, payment, upload, secret, dependency or CI changes.
+  CI green plus the verdicts the PR needs (see [Review gate](#review-gate-proportional-reviews)): `QA: APPROVED`
+  from `qa` and `REVIEW: APPROVED` from `reviewer` as `review:` in `project.yml` requires them, and
+  `SECURITY: APPROVED` from `security` whenever `scripts/pr security-check` finds auth, data, payment, upload,
+  secret, dependency or CI changes.
   Every verdict must be on the current head commit. The orchestrator merges (squash) and moves the issue
   `status:qa` → `status:done`; the developer who wrote it never does. Branch operations (stage cut, release,
   back-merges) and the self-update PR merge with `--ci-only`.
@@ -33,6 +35,50 @@ feature/<issue>-<slug> ──PR──▶ dev ──cut 2 days before demo──�
 - Deploys happen only from GitHub Actions: `dev` → dev environment, `stage` → stage environment, `main` →
   production. Agents never call provider CLIs or SSH.
 - Forge is GitHub. GitLab-hosted projects are local-mode only (the cloud network cannot reach gitlab.com).
+- **Commit and push through the scripts** (`PR` = `.claude/product-team/scripts/pr`): commit with
+  `PR commit -m "…" [git commit args]`, push with `PR push [--branch B]` — never a bare `git commit`/`git push`.
+  With the team GitHub App configured (`reference/identities.md`) they commit and push as the team's bot
+  instead of the owner's account; without it both behave like plain git. `pr push` never forces and pushes only
+  team branches: `feature/`, `fix/`, `hotfix/`, `chore/`, `backmerge/`, `revert/`, `design/`, `docs/`.
+
+## Review gate: proportional reviews
+
+Reviews cost a slot and a rework round each; they are sized to the change. `.product-team/project.yml`:
+
+```yaml
+review:
+  qa: always                 # always | code | never
+  reviewer: code             # always | code | never; code = only when the PR changes a path in code_paths
+  code_paths: ["apps/**", "libs/**"]
+  max_rework_rounds: 1
+```
+
+- `pr gate` reads the block from the PR's **base** branch (a PR cannot relax its own gate; a change to
+  `project.yml` itself needs SECURITY). Without the block, QA and REVIEW are required on every PR (the behaviour
+  before 0.10.2). SECURITY is never configurable: `pr security-check` decides it.
+- `code_paths` are globs over repository paths: `**` crosses directories, `*` does not, a pattern without `/`
+  matches a file name anywhere (`*.ts`), matching ignores case and a leading `./`. Brace sets (`{a,b}`),
+  character classes (`[ab]`) and negation (`!x`) are refused, not guessed. A renamed file counts by its old path
+  too. `code` without `code_paths` uses broad defaults (common source roots; source, script, infrastructure,
+  markup, style and build-config files anywhere).
+- `max_rework_rounds` is **guidance for the orchestrator** (`slot-qa`, `slot-dev`), **not enforced by the gate**:
+  `pr gate` only reports it under `policy`; it never passes or fails a PR because of it.
+- `pr gate` explains itself: `why` says for each of QA, REVIEW and SECURITY whether it is required and why;
+  `policy` shows the rule in force. Start only the reviewers the gate requires.
+
+**Review triage.** Only three things block a merge: a **real bug** (the change does something wrong for a user
+or for data), a **real vulnerability**, or an **acceptance criterion that is not met**. Everything else — naming,
+structure that works, a missing nice-to-have test, polish, a refactor idea — is approved and filed as a follow-up
+issue (`kind:finding` with a severity, or `kind:chore`), linked in the verdict, instead of another round.
+Reviewers list blockers first and mark each item `blocker` or `follow-up`. After `max_rework_rounds` rework
+rounds a PR goes back only for a blocker that is still open; the remaining non-blockers become follow-up issues and
+the PR merges.
+
+**Evidence before review.** The developer runs the real flow end to end — the app started, the changed path
+exercised as a user or client would (browser, API call, CLI run) — not only the unit tests, and pastes the evidence
+into the PR body under **How it was verified**: the commands, the observed result (output, status codes,
+screenshots for UI). For a change with runtime behaviour, QA treats missing evidence as an unmet criterion; docs,
+CI or config-only PRs state how they were checked instead.
 
 ## Backlog = GitHub Issues, behind the adapter
 
@@ -74,7 +120,21 @@ Status labels are prefixed (`status:*`) so they never collide with labels an ado
 | Override of a release blocker | Written reason on the demo issue → recorded as a decision | Blocker stands |
 
 Owner commands in issue comments are case-insensitive and must be written by the repository owner
-(the repository's `owner.login`); commands from anyone else are ignored.
+(the repository's `owner.login`); commands from anyone else are ignored, and so is an owner comment anyone else
+ever edited (`reference/identities.md`). Reactions are never approvals.
+
+A command counts only as the **first word of a line** of the owner's own text (indented by at most three spaces,
+one tab or non-breaking spaces): not inside a code block or inline code, a `>` quote or an HTML comment, and — in
+same-account mode — not in a team comment. An owner comment that looks like a command but is not read as one is
+listed by `backlog answers` under `ignored` with `kind: not_read` and the reason (`inside code/quote/comment`,
+`starts with a team note header`, `indented 4+ spaces`, `not at line start`, `not a command word`), so a dropped
+command is never silent; `kind: edited` marks the security case above. **Team comments** on issues start with a bold role
+header — `**Architect note**`, `**PM grooming**`, `**UX spec**`, `**UI design**`, `**Security threat model**`,
+`**QA finding**`, `**Developer note**`, `**DevOps note**`, `**Analyst note**`, `**Team note**` (the roles are listed
+in `scripts/ptlib/commands.py`, `AGENT_NOTE_ROLES`) — or a script's `<!-- pt-… -->` marker. In same-account mode
+agents post as the owner's login, so without the header a quoted `/approve` would read as the owner's; with the
+team's GitHub App they cannot post as the owner, and the header does not affect parsing. Every agent starts each
+issue comment with its header; write example commands in backticks.
 
 ## Findings and release gates
 

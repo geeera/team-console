@@ -1,0 +1,92 @@
+.tc-markdown-host {
+  display: block;
+  min-width: 0;
+}
+
+.tc-markdown {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  overflow-wrap: anywhere;
+}
+
+.tc-markdown > :first-child {
+  margin-top: 0;
+}
+
+.tc-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.tc-markdown :is(p, ul, ol, blockquote, pre, table, details) {
+  margin: 0 0 var(--space-3);
+}
+
+.tc-markdown :is(h1, h2, h3, h4, h5, h6) {
+  margin: var(--space-4) 0 var(--space-2);
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+}
+
+.tc-markdown :is(ul, ol) {
+  padding-left: var(--space-5);
+}
+
+.tc-markdown a {
+  color: var(--accent-text);
+  text-underline-offset: var(--space-1);
+}
+
+.tc-markdown a:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--r-xs);
+}
+
+.tc-markdown :is(code, kbd) {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.tc-markdown pre {
+  overflow-x: auto;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-sm);
+  background: var(--bg-sunken);
+}
+
+.tc-markdown blockquote {
+  padding-left: var(--space-3);
+  border-left: var(--border-w-strong) solid var(--border-strong);
+}
+
+/* A wide table scrolls inside the card instead of widening a 390 px screen. */
+.tc-markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.tc-markdown :is(th, td) {
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-w) solid var(--border);
+  text-align: left;
+}
+
+.tc-markdown hr {
+  border: 0;
+  border-top: var(--border-w) solid var(--border);
+}
+
+.tc-markdown summary {
+  cursor: pointer;
+}
+
+/* Before the renderer arrives, or without it: the raw text, line breaks kept. */
+.tc-markdown--plain {
+  margin: 0;
+  white-space: pre-wrap;
+}

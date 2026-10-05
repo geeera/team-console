@@ -1,0 +1,59 @@
+:host {
+  display: grid;
+}
+
+/* Where to allow notifications again: a path through the system's own settings, set apart from the prose. */
+.push__path {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  overflow-wrap: anywhere;
+}
+
+.push__badge {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  color: var(--text-2);
+}
+
+/* The number as the Home Screen icon shows it; the sentence next to it says the same in words. */
+.push__badge-count {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  min-width: var(--chip-h);
+  height: var(--chip-h);
+  padding: 0 var(--space-1);
+  border-radius: var(--r-pill);
+  background: var(--danger);
+  color: var(--danger-contrast);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.push__res-title {
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+
+.push__res-title:focus {
+  outline: none;
+}
+
+.push__off {
+  color: var(--text-2);
+}
+
+.push__off:hover {
+  color: var(--danger-text);
+  background: var(--danger-soft);
+}

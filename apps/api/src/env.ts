@@ -1,0 +1,59 @@
+import type { WorkerBaseEnv } from '@worker/core';
+
+/** Bindings of the `api` Worker. Vars are in wrangler.jsonc; secrets only in `wrangler secret`. */
+export interface ApiEnv extends WorkerBaseEnv {
+  readonly ASSETS: Fetcher;
+  /** Secret (`wrangler secret put`, #7/#8): the Access login identity is never committed to this public repo. */
+  readonly OWNER_EMAIL?: string;
+  /** Non-secret vars, empty in the repository; #21/#25 fill them per environment. */
+  readonly ACCESS_TEAM_DOMAIN: string;
+  readonly ACCESS_AUD: string;
+  /** `'true'` on dev/stage for Playwright's service token, `'false'` in production (ignored there anyway). */
+  readonly ALLOW_SERVICE_TOKEN: string;
+  /** The one service token client id (`common_name`) accepted on dev/stage; not a secret, empty in the repository. */
+  readonly ACCESS_SERVICE_TOKEN_ID: string;
+  /** `local` only via the `--var` flag of `nx serve api` / the Dockerfile; the bypass also needs ENVIRONMENT=local. */
+  readonly AUTH_MODE?: string;
+  /** `true` swaps api.github.com for the fixture GitHub of `@worker/github`; honoured only with ENVIRONMENT=local. */
+  readonly GITHUB_MOCK?: string;
+  /**
+   * A loopback origin of a fake GitHub for github.com and api.github.com (`http://127.0.0.1:9999`); honoured only
+   * with ENVIRONMENT=local, passed only as `--var` (tools/workspace-checks keeps it out of every `env.*` block).
+   */
+  readonly GITHUB_FAKE_ORIGIN?: string;
+  /**
+   * A loopback origin of the fake routines API (`http://127.0.0.1:9998`, `nx run api:fake-routines`) that "Run now"
+   * (#114) fires instead of api.anthropic.com; honoured only with ENVIRONMENT=local, passed only as `--var`.
+   */
+  readonly ROUTINES_FAKE_ORIGIN?: string;
+  /**
+   * Non-secret vars of the console's GitHub App (ADR 0003 decision 7): empty in the repository, passed by
+   * deploy.yml as `--var` from the GitHub Environment (`CONSOLE_GITHUB_APP_ID`, `CONSOLE_GITHUB_APP_CLIENT_ID`).
+   */
+  readonly GITHUB_APP_ID: string;
+  readonly GITHUB_APP_CLIENT_ID: string;
+  /** The only GitHub login the owner connection accepts (#59). */
+  readonly OWNER_GITHUB_LOGIN: string;
+  /** Secret: the app's key as PKCS#8 PEM; mints read-only installation tokens (#9). */
+  readonly GITHUB_APP_PRIVATE_KEY?: string;
+  /** Secret: OAuth client secret of the app, for the owner connection (#59). */
+  readonly GITHUB_APP_CLIENT_SECRET?: string;
+  /** Secret: 32 random bytes (base64); HKDF master key for the owner token pair at rest (#59). */
+  readonly TOKEN_ENCRYPTION_KEY?: string;
+  /** Secret (#11): the VAPID private scalar, base64url. Signs the push JWT; never logged or returned. */
+  readonly VAPID_PRIVATE_KEY?: string;
+  /** Non-secret var (#11): the VAPID public key, empty in the repository; deploy.yml passes `vars.VAPID_PUBLIC_KEY`. */
+  readonly VAPID_PUBLIC_KEY?: string;
+  /** Non-secret var (#11): the JWT `sub`, an https URL (never the owner's e-mail in this public repo). */
+  readonly VAPID_SUBJECT?: string;
+  /**
+   * A loopback origin of the fake push service (`http://127.0.0.1:9997`, `nx run api:fake-push`) that pushes go to
+   * instead of Apple, FCM or Mozilla; honoured only with ENVIRONMENT=local, passed only as `--var`.
+   */
+  readonly PUSH_FAKE_ORIGIN?: string;
+  // `ROUTINE_TOKEN_<SLUG>` secrets (one per project, #26) have names only known at run time; the registry (#15)
+  // tests their presence by name and never reads a value into anything it returns.
+  // `SLOT_TOKEN_<SLUG>_<SLOT>` (a routine's API-trigger bearer) and `SLOT_ROUTINE_<SLUG>_<SLOT>` (its `trig_…` id),
+  // `<SLOT>` ∈ PM | DEV | QA (#114, `slotSecretNames` in @shared/contracts): read by name at run time in
+  // `routes/team-commands.ts`; the token goes only into the Authorization header of the fire request.
+}

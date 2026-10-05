@@ -1,0 +1,144 @@
+@switch (card()) { @case ('checking') {
+<div tc-status-card loading [loadingLabel]="'push.checking' | transloco" data-testid="push-checking"></div>
+} @case ('install') {
+<div tc-status-card data-testid="push-install">
+  <div tc-status-card-row>
+    <span tc-status-card-mark aria-hidden="true"><tc-icon name="add-square" size="sm" /></span>
+    <h3 #title tc-status-card-title tabindex="-1">{{ 'push.install.title' | transloco }}</h3>
+  </div>
+  <p tc-status-card-body>{{ 'push.install.body' | transloco }}</p>
+  <tc-push-install-guide />
+  <p tc-status-card-note>{{ 'push.install.already' | transloco }}</p>
+</div>
+} @case ('unsupported') {
+<div tc-status-card data-testid="push-unsupported">
+  <div tc-status-card-row>
+    <span tc-status-card-mark aria-hidden="true"><tc-icon name="bell-off" size="sm" /></span>
+    <h3 #title tc-status-card-title tabindex="-1">{{ 'push.unsupported.title' | transloco }}</h3>
+  </div>
+  <p tc-status-card-body>{{ 'push.unsupported.' + store.view() | transloco }}</p>
+</div>
+} @case ('denied') {
+<div tc-status-card tone="warning" data-testid="push-denied">
+  <div tc-status-card-row>
+    <span tc-status-card-mark aria-hidden="true"><tc-icon name="bell-off" size="sm" /></span>
+    <h3 #title tc-status-card-title tabindex="-1">{{ 'push.denied.title' | transloco }}</h3>
+  </div>
+  <p tc-status-card-body>{{ 'push.denied.body' | transloco }}</p>
+  <p class="push__path" data-testid="push-denied-path">{{ deniedKey() | transloco: { host: siteHost } }}</p>
+  <div tc-status-card-actions>
+    <button tc-button type="button" data-testid="push-recheck" (click)="recheck()">
+      <tc-icon name="refresh" />{{ 'push.recheck' | transloco }}
+    </button>
+  </div>
+</div>
+} @case ('on') {
+<div tc-status-card tone="success" data-testid="push-on">
+  <div tc-status-card-row>
+    <span tc-status-card-mark aria-hidden="true"><tc-icon name="check" size="sm" /></span>
+    <div tc-status-card-who>
+      <h3 #title tc-status-card-title tabindex="-1">{{ 'push.on.title' | transloco }}</h3>
+      @if (store.since(); as since) {
+      <p tc-status-card-meta>{{ 'push.on.meta' | transloco: { date: (since | localDay) } }}</p>
+      }
+    </div>
+  </div>
+  @if (platform.isIos) {
+  <p class="push__badge" data-testid="push-badge-line">
+    <span class="push__badge-count" aria-hidden="true">{{ needsYou.total() }}</span>
+    <span>{{ 'push.on.badge' | transloco: { n: needsYou.total() } }}</span>
+  </p>
+  }
+  @if (store.testOutcome(); as outcome) { @if (outcome.kind === 'sent') {
+    <section tc-callout tone="success" data-testid="push-test-sent">
+      <p class="push__res-title">{{ 'push.test.sent' | transloco }}</p>
+      <p>{{ 'push.test.sentBody' | translocoPlural: outcome.devices }}</p>
+    </section>
+    } @else if (outcome.kind === 'wait') {
+    <section tc-callout tone="warning" data-testid="push-test-wait">
+      <p class="push__res-title">{{ 'push.test.wait' | transloco: { s: outcome.seconds } }}</p>
+    </section>
+    } @else {
+    <section tc-callout tone="danger" data-testid="push-test-failed">
+      <p class="push__res-title">{{ 'push.test.failed' | transloco }}</p>
+    </section>
+    } }
+  @if (!network.online()) {
+  <p tc-status-card-note [id]="ids.offline">
+    <tc-icon name="offline" size="sm" />{{ 'push.offlineOn' | transloco }}
+  </p>
+  }
+  <div tc-status-card-actions>
+    <button
+      tc-button
+      type="button"
+      data-testid="push-test"
+      [loading]="store.isTesting()"
+      [off]="!network.online()"
+      [attr.aria-disabled]="!network.online() || store.isTesting() ? 'true' : null"
+      [attr.aria-describedby]="network.online() ? null : ids.offline"
+      (click)="sendTest()"
+    >
+      @if (!store.isTesting()) {
+      <tc-icon name="bell" />
+      }
+      {{ (store.isTesting() ? 'push.test.sending' : 'push.test.send') | transloco }}
+    </button>
+    <button
+      tc-button
+      variant="quiet"
+      type="button"
+      class="push__off"
+      data-testid="push-turn-off"
+      [loading]="store.isTurningOff()"
+      [off]="!network.online()"
+      [attr.aria-label]="'push.turnOffAria' | transloco"
+      [attr.aria-disabled]="!network.online() || store.isTurningOff() ? 'true' : null"
+      [attr.aria-describedby]="network.online() ? null : ids.offline"
+      (click)="turnOff()"
+    >
+      {{ 'push.turnOff' | transloco }}
+    </button>
+  </div>
+</div>
+} @default {
+<div tc-status-card data-testid="push-off">
+  <div tc-status-card-row>
+    <span tc-status-card-mark aria-hidden="true"><tc-icon name="bell-off" size="sm" /></span>
+    <h3 #title tc-status-card-title tabindex="-1">{{ 'push.off.title' | transloco }}</h3>
+  </div>
+  <p tc-status-card-body>{{ 'push.off.body' | transloco }}</p>
+  @if (store.failure(); as failure) {
+  <section tc-callout tone="danger" role="alert" data-testid="push-failure">
+    <p class="push__res-title" tabindex="-1" data-focus="failure">{{ 'push.error.title' | transloco }}</p>
+    <p>{{ 'push.error.' + failure | transloco }}</p>
+  </section>
+  } @if (!network.online()) {
+  <p tc-status-card-note [id]="ids.offline">
+    <tc-icon name="offline" size="sm" />{{ 'push.offline' | transloco }}
+  </p>
+  }
+  <div tc-status-card-actions>
+    <button
+      tc-button
+      variant="primary"
+      type="button"
+      data-focus="enable"
+      data-testid="push-enable"
+      [loading]="store.isBusy()"
+      [off]="!network.online()"
+      [attr.aria-disabled]="!network.online() || store.isBusy() ? 'true' : null"
+      [attr.aria-describedby]="network.online() ? null : ids.offline"
+      (click)="enable()"
+    >
+      @if (!store.isBusy()) {
+      <tc-icon name="bell" />
+      }
+      {{ enableKey() | transloco }}
+    </button>
+  </div>
+  @if (showsHint()) {
+  <p tc-status-card-note>{{ (platform.isIos ? 'push.hint.ios' : 'push.hint.browser') | transloco }}</p>
+  }
+</div>
+} }

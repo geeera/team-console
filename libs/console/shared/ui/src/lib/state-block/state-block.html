@@ -1,0 +1,10 @@
+@if (kind() === 'loading') {
+<tc-spinner class="tc-state-block__icon" [size]="compact() ? 'sm' : 'lg'" />
+} @else if (glyph(); as name) {
+<tc-icon class="tc-state-block__icon" [name]="name" [size]="compact() ? 'md' : 'xl'" />
+}
+<p class="tc-state-block__title">{{ title() || (defaultTitleKey() | transloco) }}</p>
+@if (description()) {
+<p class="tc-state-block__description">{{ description() }}</p>
+}
+<div class="tc-state-block__actions"><ng-content select="[tc-state-action]" /></div>

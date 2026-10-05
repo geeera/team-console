@@ -1,0 +1,2258 @@
+{
+  "repositories": {
+    "geeera/team-console": {
+      "installationId": 1001,
+      "repository": {
+        "id": 900001,
+        "full_name": "geeera/team-console",
+        "private": false,
+        "default_branch": "dev",
+        "html_url": "https://github.com/geeera/team-console",
+        "owner": {
+          "login": "geeera",
+          "id": 100001
+        }
+      },
+      "files": {
+        ".product-team/project.yml": "# The product team's contract for this repository (product-team plugin, reference/stack-contract.md).\nname: Team Console\nrepo: geeera/team-console\nmode: new\nstack: >\n  Nx monorepo — Angular 22 PWA (apps/console, FSD libs), Cloudflare Workers with Hono (apps/api, apps/hooks),\n  D1, Cloudflare Access, Playwright. See docs/decisions/0001-stack-and-architecture.md.\ndecisions_dir: docs/decisions\n\n# Node 22 (.nvmrc) and npm. `e2e` and `storybook` are added by #14 and #13; until then they exit 0\n# so the contract stays runnable, but print an explicit SKIPPED line so the output cannot be read\n# as a passing run. The PRs for #14 / #13 must replace them with the real commands.\ncommands:\n  install: npm ci\n  lint: npx nx run-many -t lint\n  test: npx nx run-many -t test\n  build: npx nx run-many -t build\n  e2e: 'echo \"SKIPPED: no e2e tests ran — apps/console-e2e arrives with #14; this is NOT a pass\"'\n  storybook: npx nx build-storybook console-shared-ui\n\nenvironments:\n  dev:\n    url: ''\n  stage:\n    url: 'https://team-console-stage.geeera.workers.dev'\n  production:\n    url: ''\n\ndesign:\n  tokens:\n    - libs/console/shared/ui/src/tokens/tokens.css\n  storybook_url: 'https://team-console-storybook.pages.dev'\n\nsprint:\n  length_days: 14\n  freeze_days: 2\n\ncaps: {}\n\nreview:\n  qa: always                 # QA on every PR (owner decision 2026-09-30)\n  reviewer: code             # code review only when the PR changes a path below\n  code_paths: [\"apps/**\", \"libs/**\", \"tools/**\"]\n  max_rework_rounds: 1       # guidance: after one rework round only blockers go back; the rest become follow-ups\n\nteam:\n  plugin_ref: stable\n  reviewer_logins: ['team-console-review[bot]']\n  run_log_issue: 22\n\nowner:\n  language: ru\n  timezone: Europe/Kyiv\n",
+        "docs/decisions/0001-stack-and-architecture.md": "# 0001 — Stack and architecture\n\nA snapshot stub of the decision record (mock GitHub, #19).\n",
+        "docs/decisions/0002-visual-direction.md": "# ADR 0002: Visual direction — Paper Desk\n\nA snapshot stub of the decision record (mock GitHub, #19).\n",
+        "docs/decisions/0003-console-github-app.md": "# 0003 — The console's GitHub identity: a GitHub App per environment, owner writes on the owner's own token\n\nA snapshot stub of the decision record (mock GitHub, #19).\n",
+        "docs/design/directions/01-paper-desk.html": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/directions/02-switchboard.html": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/directions/03-signal.html": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/directions/README.md": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/directions/src/build.py": "# generator source, not an artifact\n",
+        "docs/design/features/114-team-commands.html": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/features/134-board-phone-lanes.html": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/features/24-settings-projects.html": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/features/36-web-push.html": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/features/README.md": "<!-- mock wireframe stub (#19) -->\n",
+        "docs/design/features/src/build.py": "# generator source, not an artifact\n",
+        "docs/design/references.md": "# References\n"
+      },
+      "issues": [
+        {
+          "number": 90006,
+          "title": "Дизайн: онбординг (прототип вне Storybook)",
+          "body": "**Your answer:** /approve онбординг · /reject что поменять\n<!-- pt-ask -->\n\nПрототип лежит в другом проекте: https://storify-proto.pages.dev/onboarding\n",
+          "html_url": "https://github.com/geeera/team-console/issues/90006",
+          "state": "open",
+          "labels": [
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "design:awaiting-approval"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "updated_at": "2026-10-04T09:00:00Z"
+        },
+        {
+          "number": 90005,
+          "title": "Демо спринта 01",
+          "body": "**Your answer:** /go (рекомендую) · /no-go что доделать\n<!-- pt-ask -->\n\n## Что вошло\n\n- Вопросы и «Ждут вас»\n- Доска спринта\n- Артефакты\n\nStage: [team-console-stage](https://team-console-stage.geeera.workers.dev/)\n\n| Проверка | Итог |\n|---|---|\n| e2e | зелёный |\n| axe | без нарушений |\n",
+          "html_url": "https://github.com/geeera/team-console/issues/90005",
+          "state": "open",
+          "labels": [
+            {
+              "name": "team:demo"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "updated_at": "2026-10-04T09:00:00Z"
+        },
+        {
+          "number": 90004,
+          "title": "Дизайн #20: экран дизайна и демо",
+          "body": "**Your answer:** /approve экран (рекомендую) · /reject что поменять\n<!-- pt-ask -->\n\nПрототип: [карточки и предпросмотр](https://team-console-storybook.pages.dev/iframe.html?id=kit-frame--embedded&viewMode=story)\n\nPR: https://github.com/geeera/team-console/pull/176\n\n<img src=x onerror=\"window.__pwned=1\"> <iframe src=\"https://evil.pages.dev\"></iframe> [ссылка](javascript:alert(1))\n\n**Architect note**\n",
+          "html_url": "https://github.com/geeera/team-console/issues/90004",
+          "state": "open",
+          "labels": [
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "design:awaiting-approval"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "updated_at": "2026-10-04T09:00:00Z"
+        },
+        {
+          "number": 90002,
+          "title": "Макет #24 на утверждение: подключение GitHub и проекты",
+          "body": "**Your answer:** /approve макет настроек (рекомендую) · /reject что поменять\n<!-- pt-ask -->\n\nВопрос команды, созданный приложением команды.",
+          "html_url": "https://github.com/geeera/team-console/issues/90002",
+          "state": "open",
+          "labels": [
+            {
+              "name": "kind:question"
+            },
+            {
+              "name": "owner:design"
+            },
+            {
+              "name": "e2e:fixture"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 90001,
+          "title": "<img src=x onerror=alert(1)> Please approve my change",
+          "body": "**Your answer:** /approve <img src=x onerror=alert(document.cookie)> · /reject why",
+          "html_url": "https://github.com/geeera/team-console/issues/90001",
+          "state": "open",
+          "labels": [
+            {
+              "name": "kind:question"
+            },
+            {
+              "name": "e2e:fixture"
+            }
+          ],
+          "author_association": "NONE",
+          "user": {
+            "login": "outsider",
+            "type": "User"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 92,
+          "title": "feat(#131): CI state for each open pull request on the board",
+          "body": "",
+          "html_url": "https://github.com/geeera/team-console/pull/92",
+          "state": "open",
+          "labels": [],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "pull_request": {
+            "html_url": "https://github.com/geeera/team-console/pull/92"
+          }
+        },
+        {
+          "number": 91,
+          "title": "docs: sketch the next board section",
+          "body": "",
+          "html_url": "https://github.com/geeera/team-console/pull/91",
+          "state": "open",
+          "labels": [],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "pull_request": {
+            "html_url": "https://github.com/geeera/team-console/pull/91"
+          }
+        },
+        {
+          "number": 89,
+          "title": "#24 wrong-account copy needs the owner login, which the #59 API does not expose when not connected",
+          "body": "Found by QA while checking PR #81 (#59) against the approved #24 design (`docs/design/features/24-settings-projects.html`, version `8d65b7c`).\n\n**What:** the approved wrong-account copy `gh.error.account` needs two logins: \"GitHub was signed in as `{who}`. The console connects only to the owner's ac",
+          "html_url": "https://github.com/geeera/team-console/issues/89",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:proposed"
+            },
+            {
+              "name": "kind:finding"
+            },
+            {
+              "name": "sev:low"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 88,
+          "title": "Registry (#15/PR #80) never uses the #59 owner connection; two owner-connection interfaces, 7-file merge conflict",
+          "body": "Found by QA while reviewing PR #81 (#59) next to PR #80 (#15), which are in review in parallel. Integration gap between the two, not a defect of either PR alone.\n\n**What:** the two PRs each define an owner-connection interface and neither wires them together:\n- PR #80: `apps/api/src/projects/owner-c",
+          "html_url": "https://github.com/geeera/team-console/issues/88",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:proposed"
+            },
+            {
+              "name": "kind:finding"
+            },
+            {
+              "name": "sev:medium"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 86,
+          "title": "Owner connection hardening follow-ups from PR #81 (reconnect chain, grant revoke scope, disconnect outcome, no-store)",
+          "body": "Follow-ups from the security review of PR #81 (#59). None of these is exploitable for token theft today; they are the listed risks plus small gaps.\n\n1. **Reconnect leaves the previous refresh chain live** (`apps/api/src/owner/owner-connection.ts:141-156`). A reconnect while connected overwrites the ",
+          "html_url": "https://github.com/geeera/team-console/issues/86",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:proposed"
+            },
+            {
+              "name": "kind:finding"
+            },
+            {
+              "name": "sev:low"
+            },
+            {
+              "name": "security"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 84,
+          "title": "Registry: archived repos can never be re-added (stale installation_id has no recovery); 1-char repo names need a slug the UI cannot send",
+          "body": "**QA finding** (from the PR #80 review, #15)\n\nTwo edge cases in the registry's add path that need a decision. Neither is covered by #15's acceptance criteria.\n\n1. **An archived repo can never be added again, and neither can its slug.** `ProjectsRepo.findConflict` and the `INSERT … WHERE NOT EXISTS` ",
+          "html_url": "https://github.com/geeera/team-console/issues/84",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:proposed"
+            },
+            {
+              "name": "kind:finding"
+            },
+            {
+              "name": "sev:low"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 83,
+          "title": "Setup status lacks what the approved #24 design needs: last event time, server install URL, per-step unknowns",
+          "body": "**QA finding** (from the PR #80 review, #15)\n\nThe setup status `GET /api/v1/projects/:slug/setup` matches #15's acceptance criteria exactly, but the approved #24 design (PR #42, `8d65b7c`, `docs/design/features/24-settings-projects.html`) needs three more things from it. Without them the setup page ",
+          "html_url": "https://github.com/geeera/team-console/issues/83",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:in-progress"
+            },
+            {
+              "name": "kind:finding"
+            },
+            {
+              "name": "sev:medium"
+            },
+            {
+              "name": "tier:light"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 77,
+          "title": "API JSON responses lack Cache-Control: no-store (private repo metadata cacheable)",
+          "body": "**QA finding** (from the QA review of PR #74, #9)\n\nSuccessful JSON responses of the `api` Worker carry no `Cache-Control` header, while every Problem Details response has `Cache-Control: no-store` (`libs/worker/core/src/lib/problem.ts:30`). With #9, `GET /api/v1/projects/:slug/repository` returns da",
+          "html_url": "https://github.com/geeera/team-console/issues/77",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:proposed"
+            },
+            {
+              "name": "kind:finding"
+            },
+            {
+              "name": "sev:low"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 76,
+          "title": "GitHub client hardening follow-ups (from PR #74 review)",
+          "body": "Non-blocking follow-ups from the PR #74 security review (#9):\n1. `libs/worker/github/src/lib/app-auth.ts` — check the minted token's `permissions` and `repository_selection` match what was requested; otherwise 502 `github-unexpected`.\n2. `libs/worker/github/src/lib/transport.ts` — add `AbortSignal.t",
+          "html_url": "https://github.com/geeera/team-console/issues/76",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:approved"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:light"
+            },
+            {
+              "name": "security"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 72,
+          "title": "План к демо 16 октября",
+          "body": "**Your answer:** /approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять\n<!-- pt-ask -->\n\nСегодня ты решил: инфраструктуру больше не трогаем.",
+          "html_url": "https://github.com/geeera/team-console/issues/72",
+          "state": "open",
+          "labels": [
+            {
+              "name": "kind:question"
+            },
+            {
+              "name": "owner:scope"
+            },
+            {
+              "name": "e2e:fixture"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 71,
+          "title": "workspace-checks may not run on dev PRs that only change a wrangler.jsonc (no Nx dependency on api/hooks)",
+          "body": "Found during the security review of PR #70 (outside that PR's scope).\n\n**What:** `tools/workspace-checks/src/worker-config.spec.ts` is the only check that parses `apps/api/wrangler.jsonc` and `apps/hooks/wrangler.jsonc` with wrangler's own reader (`unstable_readConfig`) and asserts each env has exac",
+          "html_url": "https://github.com/geeera/team-console/issues/71",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:proposed"
+            },
+            {
+              "name": "kind:finding"
+            },
+            {
+              "name": "sev:low"
+            },
+            {
+              "name": "security"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 62,
+          "title": "Stage owner connection + e2e service identity can post real owner commands on geeera/team-console",
+          "body": "Found in the round-2 security review of PR #57 (ADR 0003). This risk predates that PR: #10's architect note accepted it for the repo-only PAT. ADR 0003 makes it concrete, because it asks the owner to press **Connect GitHub in stage** so the Playwright e2e (#14) can answer through the Access service ",
+          "html_url": "https://github.com/geeera/team-console/issues/62",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:proposed"
+            },
+            {
+              "name": "kind:finding"
+            },
+            {
+              "name": "sev:medium"
+            },
+            {
+              "name": "security"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 59,
+          "title": "Connect GitHub: owner user access token flow (ADR 0003)",
+          "body": "**As the owner, I connect my GitHub account to the console once per environment**, so everything I say from the console (answers, later chat and team commands) is written by my own account and the team counts it — without ever typing or pasting a token.\n\nBackend only: the Settings UI (connection blo",
+          "html_url": "https://github.com/geeera/team-console/issues/59",
+          "state": "closed",
+          "labels": [
+            {
+              "name": "status:done"
+            },
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "security"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": "2026-09-30T10:19:52Z"
+        },
+        {
+          "number": 58,
+          "title": "Docker image: wrangler dev sometimes exits (500, empty ERROR) after a few POST requests",
+          "body": "Found by QA while reviewing PR #55 (#8), head 1428395. **Not caused by #55**: reproduced on `dev` b628bd9 too.\n\n**What happens**: the `wrangler dev` process in the Docker image (Dockerfile CMD, wrangler 4.124.0, `--no-bundle`, Linux container on OrbStack) sometimes exits a few seconds after start, a",
+          "html_url": "https://github.com/geeera/team-console/issues/58",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:proposed"
+            },
+            {
+              "name": "kind:finding"
+            },
+            {
+              "name": "sev:medium"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 56,
+          "title": "JWKS: negative-cache failed key-set loads",
+          "body": "From the PR #55 security review (non-blocking): `apps/api/src/auth/access-jwt.ts` does not remember a failed JWKS load. While the certs endpoint is down, or ACCESS_TEAM_DOMAIN is valid-looking but wrong, every well-formed token triggers a new fetch (probe: 10 requests → 10 fetches). Still fails clos",
+          "html_url": "https://github.com/geeera/team-console/issues/56",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:approved"
+            },
+            {
+              "name": "kind:finding"
+            },
+            {
+              "name": "sev:low"
+            },
+            {
+              "name": "tier:light"
+            },
+            {
+              "name": "security"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 53,
+          "title": "Discovery: public paid edition of the console (after demo)",
+          "body": "Parked by the owner (chat, 2026-09-29): «Окей, тогда вернёмся к этому после демо». Do not start before the demo on 2026-10-16.\n\nIdea from the owner: the console as a public, paid add-on, with sign-in \"through Claude\".\n\nNotes from the discussion (to verify during discovery):\n- No public \"Sign in with",
+          "html_url": "https://github.com/geeera/team-console/issues/53",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:proposed"
+            },
+            {
+              "name": "kind:chore"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 51,
+          "title": "/api and /api/ are answered by the SPA fallback instead of a problem+json 404",
+          "body": "Found by QA while reviewing PR #49 (#6), head 7e86d41.\n\n**Steps** (Docker image from #49, or `npx nx serve api`)\n- `curl -i http://127.0.0.1:8787/api` → `200 text/html` (the app shell, no `X-Request-Id`)\n- `curl -i http://127.0.0.1:8787/api/` → `200 text/html`\n- `curl -i http://127.0.0.1:8787/API/v1",
+          "html_url": "https://github.com/geeera/team-console/issues/51",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:proposed"
+            },
+            {
+              "name": "kind:finding"
+            },
+            {
+              "name": "sev:low"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 50,
+          "title": "Local nx serve hooks uses its own unmigrated D1, not the api Worker's",
+          "body": "Found by QA while reviewing PR #49 (#6), head 7e86d41.\n\n**Where**: `apps/hooks/wrangler.jsonc`, `apps/hooks/project.json` (`serve` target), `CLAUDE.md` \"Workers (#6)\".\n\n**Steps**\n1. Fresh clone, `npm ci`.\n2. `npx nx serve api` (runs `api:migrate`), then `npx nx serve hooks` (depends on `api:migrate`",
+          "html_url": "https://github.com/geeera/team-console/issues/50",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:proposed"
+            },
+            {
+              "name": "kind:finding"
+            },
+            {
+              "name": "sev:medium"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 48,
+          "title": "Scanner pins in security.yml (gitleaks, semgrep image) are outside Dependabot's reach",
+          "body": "Found by the security review of PR #47 (Dependabot for github-actions).\n\n`.github/dependabot.yml` only watches `uses:` references. `.github/workflows/security.yml` also pins two scanner versions in `env:`, and Dependabot never looks at those:\n- `GITLEAKS_VERSION: 8.30.1` + `GITLEAKS_SHA256` (release",
+          "html_url": "https://github.com/geeera/team-console/issues/48",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:proposed"
+            },
+            {
+              "name": "kind:finding"
+            },
+            {
+              "name": "sev:low"
+            },
+            {
+              "name": "security"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 46,
+          "title": "Переключить GitHub Pages на GitHub Actions",
+          "body": "**Your answer:** Напиши «сделал», когда переключишь источник GitHub Pages\n\nЧтобы макеты публиковались сами после слияния PR (workflow `design-pages.yml`, PR #45), нужна одна настройка репозитория, которую можешь поменять только ты. Бесплатно.\n\n- Settings → Pages → Build and deployment → Source: **Gi",
+          "html_url": "https://github.com/geeera/team-console/issues/46",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:blocked"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "needs:owner"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 45,
+          "title": "chore(devops): publish docs/design to GitHub Pages via Actions",
+          "body": "Installs `.github/workflows/design-pages.yml` from the plugin's `chore/product-team-0.9.3` template\n(`.claude/product-team/templates/workflows/design-pages.yml`, PR #33, not yet merged) so design PRs actually\npublish once merged to `dev`. `.github/workflows/design-pages.yml` did not exist in this re",
+          "html_url": "https://github.com/geeera/team-console/pull/45",
+          "state": "open",
+          "labels": [],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "pull_request": {
+            "html_url": "https://github.com/geeera/team-console/pull/45"
+          }
+        },
+        {
+          "number": 40,
+          "title": "docs(design): UX wireframe for #29 team commands",
+          "body": "UX wireframe for #29 (team commands). Docs only, no product code.\n\n- `docs/design/ux/29-team-commands.html`: a low-fidelity interactive page with grey boxes and real ru/en copy. It has a Mac and an iPhone view. Every state in the spec on #29 can be reached from the control bar: loading, status error",
+          "html_url": "https://github.com/geeera/team-console/pull/40",
+          "state": "open",
+          "labels": [],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "pull_request": {
+            "html_url": "https://github.com/geeera/team-console/pull/40"
+          }
+        },
+        {
+          "number": 37,
+          "title": "Notification privacy: hide details on the lock screen, manage devices",
+          "body": "From the security threat model on #11 (row 9) and row 8: notifications show issue titles from private repositories on a locked phone, and a lost or retired device keeps receiving them until it is removed.\n\n**User story.** As the owner, I want to hide notification details on the lock screen and remov",
+          "html_url": "https://github.com/geeera/team-console/issues/37",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:proposed"
+            },
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "needs-design"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 36,
+          "title": "Web push client: subscribe button, iOS guide, tap routing and badge",
+          "body": "Split from #11 (same approved scope). #11 keeps the server side (table, endpoints, VAPID, encryption, sending, pruning); this issue is the client. Architect note and threat model: see #11 (placement `libs/console/entities/push`, `features/push-subscribe`, `shared/lib/platform`, `shared/lib/app-badge",
+          "html_url": "https://github.com/geeera/team-console/issues/36",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:approved"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:standard"
+            },
+            {
+              "name": "security"
+            },
+            {
+              "name": "foundation"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 2,
+            "title": "Sprint 02"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 35,
+          "title": "Read models: inbox, questions, sprint and needs-you",
+          "body": "Split from #9 (same approved scope). #9 keeps the PAT-backed GitHub client, error mapping, the read cache and mock mode; this issue is the read models and their routes on top of it. Architect note and threat model: see #9 (placement `libs/worker/read-models`, `libs/shared/owner-grammar/src/section.t",
+          "html_url": "https://github.com/geeera/team-console/issues/35",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:in-progress"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:standard"
+            },
+            {
+              "name": "complexity:high"
+            },
+            {
+              "name": "security"
+            },
+            {
+              "name": "architect-note"
+            },
+            {
+              "name": "foundation"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 34,
+          "title": "UI kit primitives and Storybook (Paper Desk)",
+          "body": "Split from #13 (same approved scope, foundation step 4). #13 keeps the token set and the raw-value lint; this issue is the UI kit on top of it.\n\nCDK-based primitives in `libs/console/shared/ui` (Paper Desk, ADR 0002; look from `docs/design/directions/01-paper-desk.html`), Storybook with the a11y add",
+          "html_url": "https://github.com/geeera/team-console/issues/34",
+          "state": "closed",
+          "labels": [
+            {
+              "name": "status:done"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "foundation"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": "2026-09-30T10:20:39Z"
+        },
+        {
+          "number": 31,
+          "title": "Needs you",
+          "body": "<!-- pt-inbox -->\n**Нужно твоё внимание: 4.** Обновлено 29.09 18:32; переписывается каждым запуском.\n\n### Безопасность (1)\n_Пока это не сделано, агенты могут изобразить твоё одобрение_\n\n- [Agents use your GitHub account — add a reviewing account and team.reviewer_logins](https://github.com/geeera/te",
+          "html_url": "https://github.com/geeera/team-console/issues/31",
+          "state": "open",
+          "labels": [
+            {
+              "name": "team:inbox"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": null,
+          "closed_at": null
+        },
+        {
+          "number": 29,
+          "title": "Team commands: pause/resume, run now, sprint and priority controls",
+          "body": "The owner asked (2026-09-29) for team commands in the app, per project and from the all-projects view. Each command\nconfirms before acting when it changes what the team does; each writes what the plugin already understands.\n\n| Command | How (owner decides nothing technical here) |\n|---|---|\n| Pause ",
+          "html_url": "https://github.com/geeera/team-console/issues/29",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:approved"
+            },
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "needs-design"
+            },
+            {
+              "name": "security"
+            },
+            {
+              "name": "ux-spec"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 2,
+            "title": "Sprint 02"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 28,
+          "title": "Artifacts: audits, briefings, releases and deploy links",
+          "body": "Split from #19 (same approved scope and design). The remaining artifact types in the Artifacts space: audits,\nbriefings, releases/changelog and deploy links (ADR 0001 decision 21).\n\n## Acceptance criteria\n- [ ] Audits = `kind:finding` issues + run-log comments containing \"deep audit\" + `docs/audit/*",
+          "html_url": "https://github.com/geeera/team-console/issues/28",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:approved"
+            },
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "needs-design"
+            },
+            {
+              "name": "design:approved"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 2,
+            "title": "Sprint 02"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 27,
+          "title": "All-projects overview",
+          "body": "Split from #18 (same approved scope and design). **As the owner, I want one screen that shows all my products at a\nglance** — which team is running, paused or failing, the sprint and demo date, and progress (ADR 0001 decision 24).\n\n## Acceptance criteria\n- [ ] One row per active project: running / p",
+          "html_url": "https://github.com/geeera/team-console/issues/27",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:approved"
+            },
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "needs-design"
+            },
+            {
+              "name": "design:approved"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 2,
+            "title": "Sprint 02"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 26,
+          "title": "PM chat wakeup: routine fire and retry queue",
+          "body": "Split from #17 (same approved scope). The server side of PM chat: waking the product's PM routine when the owner\nwrites, with a retry queue that respects rate limits (ADR 0001 decision 11).\n\n## Acceptance criteria\n- [ ] On `issue_comment.created` on the `team:pm-chat` issue with the `<!-- pt-chat:ow",
+          "html_url": "https://github.com/geeera/team-console/issues/26",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:approved"
+            },
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "complexity:high"
+            },
+            {
+              "name": "security"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 2,
+            "title": "Sprint 02"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 25,
+          "title": "First deploy to dev and stage, rollback rehearsal",
+          "body": "Split from #7 so the owner's checklist (#7) can ship first. The first real deploy needs the accounts and secrets from #21.\n\n## Acceptance criteria\n- [ ] A merge to `dev` deploys the dev environment from Actions; the smoke check (`/api/v1/healthz`, app shell loads) passes\n- [ ] The stage workflow dep",
+          "html_url": "https://github.com/geeera/team-console/issues/25",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:approved"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:standard"
+            },
+            {
+              "name": "security"
+            },
+            {
+              "name": "foundation"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 2,
+            "title": "Sprint 02"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 24,
+          "title": "Settings: GitHub connection and projects",
+          "body": "Split from #15 (same approved scope). **As the owner, I want to connect my GitHub account once and add a product repository in Settings, seeing exactly which setup step is missing**, so a new project works without guessing and my answers from the console count as mine. Uses the registry API (#15) an",
+          "html_url": "https://github.com/geeera/team-console/issues/24",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:blocked"
+            },
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "needs-design"
+            },
+            {
+              "name": "design:approved"
+            },
+            {
+              "name": "security"
+            },
+            {
+              "name": "ux-spec"
+            },
+            {
+              "name": "team-decided"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 23,
+          "title": "Spaces shell: project routing, switcher and restored state",
+          "body": "Split from #15 (same approved scope). Client side of project spaces: `/p/{slug}/…` routing, the project switcher\n(pinned + collapsible, badges) and per-project UI state restored on return (ADR 0001 decisions 23–24). Reads the\nproject list from the registry API (#15). Design: Paper Desk sidebar (ADR ",
+          "html_url": "https://github.com/geeera/team-console/issues/23",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:in-progress"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:heavy"
+            },
+            {
+              "name": "complexity:high"
+            },
+            {
+              "name": "architect-note"
+            },
+            {
+              "name": "foundation"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 22,
+          "title": "Team run log",
+          "body": "One comment per scheduled team run. Owner commands here: `/resume` after a pause.\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_",
+          "html_url": "https://github.com/geeera/team-console/issues/22",
+          "state": "open",
+          "labels": [
+            {
+              "name": "team:run-log"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": null,
+          "closed_at": null,
+          "comments": 15
+        },
+        {
+          "number": 21,
+          "title": "Аккаунт Cloudflare и токены для деплоя",
+          "body": "**Your answer:** Напиши «сделал», когда заведёшь аккаунты по чеклисту из #7 · /reject причина, если что-то не подходит\n<!-- pt-ask -->\n\nЧтобы команда могла выкатить приложение на dev и stage, нужны аккаунты, которые можешь завести только ты. Всё бесплатно.\n\n- Аккаунт Cloudflare, бесплатная команда Z",
+          "html_url": "https://github.com/geeera/team-console/issues/21",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:blocked"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "needs:owner"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 20,
+          "title": "Designs and demo screen",
+          "body": "Designs awaiting approval and the demo issue with sanitised markdown, allow-listed iframes (Storybook/stage),\napprove/reject and go/no-go through the owner grammar.\n## Acceptance criteria\n- [ ] Untrusted markdown cannot run script (sanitiser tests)\n- [ ] Approve/reject and go/no-go write the same co",
+          "html_url": "https://github.com/geeera/team-console/issues/20",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:approved"
+            },
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "complexity:high"
+            },
+            {
+              "name": "needs-design"
+            },
+            {
+              "name": "design:approved"
+            },
+            {
+              "name": "security"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 2,
+            "title": "Sprint 02"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 19,
+          "title": "Artifacts space",
+          "body": "Normalised artifact read models per project (decisions, audits, designs, demo pages, briefings, releases, deploy\nlinks) with type tabs and search; Cache API with webhook invalidation.\n## Acceptance criteria\n- [ ] All artifact types of storify are found without a database of our own\n- [ ] Search is i",
+          "html_url": "https://github.com/geeera/team-console/issues/19",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:approved"
+            },
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "complexity:high"
+            },
+            {
+              "name": "needs-design"
+            },
+            {
+              "name": "design:approved"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 2,
+            "title": "Sprint 02"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 18,
+          "title": "Sprint board (read-only)",
+          "body": "**Story:** as the owner, I see how a product's sprint is going at a glance: what is in progress, what waits for review, open PRs and CI, whether the team is running, and the demo date. Read-only. Design: Paper Desk (approved).\n\nSplit by the demo plan (#72, approved 2026-09-30): this issue is the **r",
+          "html_url": "https://github.com/geeera/team-console/issues/18",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:approved"
+            },
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "needs-design"
+            },
+            {
+              "name": "design:approved"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 17,
+          "title": "PM chat",
+          "body": "`team:pm-chat` issue per product, full history, posting messages, waking the product's PM routine through the hooks\nWorker (retry queue, Retry-After), reply push. Depends on the plugin's `pm-chat` skill (plugin roadmap).\n## Acceptance criteria\n- [ ] A message gets a PM reply as a push within minutes",
+          "html_url": "https://github.com/geeera/team-console/issues/17",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:approved"
+            },
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "complexity:high"
+            },
+            {
+              "name": "needs-design"
+            },
+            {
+              "name": "design:approved"
+            },
+            {
+              "name": "security"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 2,
+            "title": "Sprint 02"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 16,
+          "title": "Questions and cross-project Needs you",
+          "body": "Inbox read model per project and the cross-project union (tagged by project); decision cards answered in one tap through the owner grammar; confirmation for go/override. Design: Paper Desk prototype (ADR 0002), approved. Answers are written by the owner's own account (ADR 0003 decision 2(b), #10/#59",
+          "html_url": "https://github.com/geeera/team-console/issues/16",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:approved"
+            },
+            {
+              "name": "kind:feature"
+            },
+            {
+              "name": "needs-design"
+            },
+            {
+              "name": "design:approved"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 15,
+          "title": "Project registry API: add, archive, setup status",
+          "body": "The project registry API on the `api` Worker: list, add, update, archive and the per-project setup status the Settings screen (#24) shows. The client shell is #23, the Settings screen #24. Source: `docs/decisions/0001-stack-and-architecture.md` decisions 19–22, amended by `docs/decisions/0003-consol",
+          "html_url": "https://github.com/geeera/team-console/issues/15",
+          "state": "closed",
+          "labels": [
+            {
+              "name": "status:done"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:standard"
+            },
+            {
+              "name": "complexity:high"
+            },
+            {
+              "name": "security"
+            },
+            {
+              "name": "architect-note"
+            },
+            {
+              "name": "foundation"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": "2026-09-29T23:53:50Z"
+        },
+        {
+          "number": 14,
+          "title": "Playwright e2e with axe",
+          "body": "Mobile and desktop projects, `BASE_URL`, local mock mode, stage via the Access service token.\n## Acceptance criteria\n- [ ] `npx nx e2e console-e2e` runs against the Docker target and against stage\n- [ ] Serious/critical axe violations fail the run\n",
+          "html_url": "https://github.com/geeera/team-console/issues/14",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:approved"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:standard"
+            },
+            {
+              "name": "security"
+            },
+            {
+              "name": "foundation"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 2,
+            "title": "Sprint 02"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 13,
+          "title": "Design kit, tokens and Storybook (Paper Desk)",
+          "body": "Paper Desk tokens (ADR 0002, token sketch in `docs/design/directions/01-paper-desk.html`), CDK-based primitives\n(button, list, sheet, empty/error/loading blocks, decision card), stories with the a11y addon, Storybook deployed from `dev`.\n## Acceptance criteria\n- [ ] No raw colours/spacing/durations ",
+          "html_url": "https://github.com/geeera/team-console/issues/13",
+          "state": "closed",
+          "labels": [
+            {
+              "name": "status:done"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:heavy"
+            },
+            {
+              "name": "foundation"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": "2026-09-29T23:23:05Z"
+        },
+        {
+          "number": 12,
+          "title": "GitHub webhook receiver",
+          "body": "The public `hooks` Worker receives the **GitHub App's** webhook deliveries (`POST /hooks/github`): HMAC verification, delivery dedupe (D1), own-write filter, cache-epoch bump, installation events, and event → push mapping. Source: `docs/decisions/0001-stack-and-architecture.md` decisions 4, 5, 8, 22",
+          "html_url": "https://github.com/geeera/team-console/issues/12",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:approved"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:standard"
+            },
+            {
+              "name": "complexity:high"
+            },
+            {
+              "name": "security"
+            },
+            {
+              "name": "architect-note"
+            },
+            {
+              "name": "foundation"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 11,
+          "title": "Web push end to end",
+          "body": "VAPID keys, subscription endpoint, `SwPush` client with the iOS \"add to Home Screen\" guide and permission only on a\ntap, sending with pruning of dead subscriptions, badge count. Source: `docs/decisions/0001-stack-and-architecture.md` decision 8.\n## Acceptance criteria\n- [ ] A test push arrives on an",
+          "html_url": "https://github.com/geeera/team-console/issues/11",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:approved"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:standard"
+            },
+            {
+              "name": "complexity:high"
+            },
+            {
+              "name": "security"
+            },
+            {
+              "name": "architect-note"
+            },
+            {
+              "name": "foundation"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 2,
+            "title": "Sprint 02"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 10,
+          "title": "Owner grammar library and the answer endpoint",
+          "body": "`libs/shared/owner-grammar` (section → allowed answers, the one-line comment body with the owner's words, identical to the plugin's `backlog answer`, golden fixtures generated with it) and the answer route `POST /api/v1/projects/:slug/issues/:number/answer`. Source: `docs/decisions/0001-stack-and-ar",
+          "html_url": "https://github.com/geeera/team-console/issues/10",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:in-progress"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:standard"
+            },
+            {
+              "name": "complexity:high"
+            },
+            {
+              "name": "security"
+            },
+            {
+              "name": "architect-note"
+            },
+            {
+              "name": "foundation"
+            },
+            {
+              "name": "team-decided"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 9,
+          "title": "GitHub client on the console app's installation tokens (ADR 0003)",
+          "body": "Installation-token-backed GitHub client in the `api` Worker (the token never reaches the client), error mapping, the read cache and mock mode. Source: `docs/decisions/0001-stack-and-architecture.md` decisions 6, 19, 20 as amended by `docs/decisions/0003-console-github-app.md` decisions 2(a), 6, 7, 8",
+          "html_url": "https://github.com/geeera/team-console/issues/9",
+          "state": "closed",
+          "labels": [
+            {
+              "name": "status:done"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:standard"
+            },
+            {
+              "name": "complexity:high"
+            },
+            {
+              "name": "security"
+            },
+            {
+              "name": "architect-note"
+            },
+            {
+              "name": "foundation"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": "2026-09-29T23:15:18Z"
+        },
+        {
+          "number": 8,
+          "title": "Cloudflare Access JWT verification",
+          "body": "Middleware verifying `Cf-Access-Jwt-Assertion` (issuer, audience, owner email), failing closed; service-token mode\nonly on dev/stage; the client detects the Access redirect and re-authenticates. Source: `docs/decisions/0001-stack-and-architecture.md` decision 5.\n## Acceptance criteria\n- [ ] Requests",
+          "html_url": "https://github.com/geeera/team-console/issues/8",
+          "state": "closed",
+          "labels": [
+            {
+              "name": "status:done"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:standard"
+            },
+            {
+              "name": "complexity:high"
+            },
+            {
+              "name": "security"
+            },
+            {
+              "name": "architect-note"
+            },
+            {
+              "name": "foundation"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": "2026-09-29T17:34:29Z"
+        },
+        {
+          "number": 7,
+          "title": "Deploy workflow and step-by-step owner checklist",
+          "body": "`deploy.yml` per environment (migrations, both Workers, Storybook direct upload, smoke checks, rollback via\n`workflow_dispatch`). Turn `.product-team/owner-checklist.md` into click-by-click steps for every account, token\nand secret in ADR 0001 → Consequences (in Russian, `owner.language: ru`).\n## Ac",
+          "html_url": "https://github.com/geeera/team-console/issues/7",
+          "state": "closed",
+          "labels": [
+            {
+              "name": "status:done"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:standard"
+            },
+            {
+              "name": "security"
+            },
+            {
+              "name": "foundation"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": "2026-09-29T19:12:57Z"
+        },
+        {
+          "number": 6,
+          "title": "API and hooks Workers skeleton with D1",
+          "body": "`apps/api` (Hono, serves the SPA assets, `/api/v1/healthz`), `apps/hooks`, D1 binding and the first migration\n(incl. `projects`), wrangler environments dev/stage/production, Dockerfile running `wrangler dev --local` on :8787. Source: `docs/decisions/0001-stack-and-architecture.md` decisions 3, 4, 19",
+          "html_url": "https://github.com/geeera/team-console/issues/6",
+          "state": "closed",
+          "labels": [
+            {
+              "name": "status:done"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:heavy"
+            },
+            {
+              "name": "complexity:high"
+            },
+            {
+              "name": "architect-note"
+            },
+            {
+              "name": "foundation"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": "2026-09-29T16:45:58Z"
+        },
+        {
+          "number": 5,
+          "title": "Contract CI: lint, test, build, security",
+          "body": "`ci.yml` (install/lint/test/build, Nx affected, `concurrency` + `cancel-in-progress`), `security.yml`\n(`npm audit --audit-level=high`, gitleaks, CodeQL is optional on a public repo). `branch-guard.yml` is already in.\n## Acceptance criteria\n- [ ] CI runs on every PR to dev/stage/main and is required ",
+          "html_url": "https://github.com/geeera/team-console/issues/5",
+          "state": "closed",
+          "labels": [
+            {
+              "name": "status:done"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:standard"
+            },
+            {
+              "name": "security"
+            },
+            {
+              "name": "foundation"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": "2026-09-29T15:36:15Z"
+        },
+        {
+          "number": 4,
+          "title": "Bilingual interface (ru, en) from the first component",
+          "body": "Runtime-switchable i18n (architect's choice of library; Angular build-time i18n cannot switch at runtime). Russian is\nthe reference copy. Default from the device language, remembered, switch in Settings. Dates/times/numbers via Intl.\nSee the brief (\"Language\") and ADR 0002.\n## Acceptance criteria\n- ",
+          "html_url": "https://github.com/geeera/team-console/issues/4",
+          "state": "open",
+          "labels": [
+            {
+              "name": "status:approved"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:standard"
+            },
+            {
+              "name": "foundation"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": null
+        },
+        {
+          "number": 3,
+          "title": "Nx workspace with the Angular PWA shell and FSD boundaries",
+          "body": "Create the Nx workspace: `apps/console` (Angular 22, zoneless, signals, strict TS), FSD layer libs with\n`enforce-module-boundaries` tags, web manifest and `ngsw-config`. Fill the commands in `.product-team/project.yml`.\n## Acceptance criteria\n- [ ] `npm ci && npx nx run-many -t lint test build` pass",
+          "html_url": "https://github.com/geeera/team-console/issues/3",
+          "state": "closed",
+          "labels": [
+            {
+              "name": "status:done"
+            },
+            {
+              "name": "kind:chore"
+            },
+            {
+              "name": "tier:heavy"
+            },
+            {
+              "name": "complexity:high"
+            },
+            {
+              "name": "architect-note"
+            },
+            {
+              "name": "foundation"
+            }
+          ],
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "milestone": {
+            "number": 1,
+            "title": "Sprint 01"
+          },
+          "closed_at": "2026-09-29T15:11:36Z"
+        },
+        {
+          "number": 90003,
+          "title": "Sprint 1 demo",
+          "body": "",
+          "html_url": "https://github.com/geeera/team-console/issues/90003",
+          "state": "closed",
+          "labels": [
+            {
+              "name": "team:demo"
+            }
+          ],
+          "author_association": "CONTRIBUTOR",
+          "user": {
+            "login": "team-console-team[bot]",
+            "type": "Bot"
+          },
+          "milestone": null,
+          "closed_at": "2026-10-02T09:00:00Z",
+          "updated_at": "2026-10-02T09:00:00Z"
+        }
+      ],
+      "milestones": [
+        {
+          "number": 1,
+          "title": "Sprint 01",
+          "state": "open",
+          "due_on": "2026-10-16T00:00:00Z",
+          "html_url": "https://github.com/geeera/team-console/milestone/1",
+          "open_issues": 10,
+          "closed_issues": 11
+        },
+        {
+          "number": 2,
+          "title": "Sprint 02",
+          "state": "open",
+          "due_on": "2026-10-30T00:00:00Z",
+          "html_url": "https://github.com/geeera/team-console/milestone/2",
+          "open_issues": 11,
+          "closed_issues": 0
+        }
+      ],
+      "pulls": [
+        {
+          "number": 92,
+          "title": "feat(#131): CI state for each open pull request on the board",
+          "html_url": "https://github.com/geeera/team-console/pull/92",
+          "draft": false,
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "state": "open",
+          "head": {
+            "sha": "92b1ab0092b1ab0092b1ab0092b1ab0092b1ab00"
+          }
+        },
+        {
+          "number": 91,
+          "title": "docs: sketch the next board section",
+          "html_url": "https://github.com/geeera/team-console/pull/91",
+          "draft": true,
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "state": "open",
+          "head": {
+            "sha": "91deadbe91deadbe91deadbe91deadbe91deadbe"
+          }
+        },
+        {
+          "number": 45,
+          "title": "chore(devops): publish docs/design to GitHub Pages via Actions",
+          "html_url": "https://github.com/geeera/team-console/pull/45",
+          "draft": false,
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "state": "open",
+          "head": {
+            "sha": "45a1c0de45a1c0de45a1c0de45a1c0de45a1c0de"
+          }
+        },
+        {
+          "number": 40,
+          "title": "docs(design): UX wireframe for #29 team commands",
+          "html_url": "https://github.com/geeera/team-console/pull/40",
+          "draft": false,
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "state": "open",
+          "head": {
+            "sha": "40fa11ed40fa11ed40fa11ed40fa11ed40fa11ed"
+          }
+        }
+      ],
+      "checkRuns": {
+        "92b1ab0092b1ab0092b1ab0092b1ab0092b1ab00": [
+          {
+            "name": "lint-test-build",
+            "status": "completed",
+            "conclusion": "success",
+            "app": {
+              "slug": "github-actions"
+            }
+          },
+          {
+            "name": "e2e",
+            "status": "in_progress",
+            "conclusion": null,
+            "app": {
+              "slug": "github-actions"
+            }
+          },
+          {
+            "name": "sast",
+            "status": "queued",
+            "conclusion": null,
+            "app": {
+              "slug": "github-actions"
+            }
+          }
+        ],
+        "45a1c0de45a1c0de45a1c0de45a1c0de45a1c0de": [
+          {
+            "name": "lint-test-build",
+            "status": "completed",
+            "conclusion": "success",
+            "app": {
+              "slug": "github-actions"
+            }
+          },
+          {
+            "name": "e2e",
+            "status": "completed",
+            "conclusion": "success",
+            "app": {
+              "slug": "github-actions"
+            }
+          },
+          {
+            "name": "deploy",
+            "status": "completed",
+            "conclusion": "skipped",
+            "app": {
+              "slug": "github-actions"
+            }
+          }
+        ],
+        "40fa11ed40fa11ed40fa11ed40fa11ed40fa11ed": [
+          {
+            "name": "lint-test-build",
+            "status": "completed",
+            "conclusion": "success",
+            "app": {
+              "slug": "github-actions"
+            }
+          },
+          {
+            "name": "e2e",
+            "status": "completed",
+            "conclusion": "failure",
+            "app": {
+              "slug": "github-actions"
+            }
+          }
+        ]
+      },
+      "issueEvents": {
+        "72": [
+          {
+            "id": 9300000001,
+            "event": "labeled",
+            "actor": {
+              "login": "geeera",
+              "id": 100001,
+              "type": "User"
+            },
+            "label": {
+              "name": "e2e:fixture",
+              "color": "ededed"
+            },
+            "performed_via_github_app": null,
+            "created_at": "2026-10-05T08:00:00Z"
+          }
+        ],
+        "90001": [
+          {
+            "id": 9300000002,
+            "event": "labeled",
+            "actor": {
+              "login": "geeera",
+              "id": 100001,
+              "type": "User"
+            },
+            "label": {
+              "name": "e2e:fixture",
+              "color": "ededed"
+            },
+            "performed_via_github_app": null,
+            "created_at": "2026-10-05T08:01:00Z"
+          }
+        ],
+        "90002": [
+          {
+            "id": 9300000003,
+            "event": "labeled",
+            "actor": {
+              "login": "geeera",
+              "id": 100001,
+              "type": "User"
+            },
+            "label": {
+              "name": "e2e:fixture",
+              "color": "ededed"
+            },
+            "performed_via_github_app": null,
+            "created_at": "2026-10-05T08:02:00Z"
+          }
+        ]
+      },
+      "comments": {
+        "22": [
+          {
+            "id": 2200001,
+            "body": "<!-- pt-run id=mock-r0 slot=slot-dev state=started -->\n**slot-dev** started",
+            "created_at": "2026-10-03T15:00:00Z",
+            "updated_at": "2026-10-03T15:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200001"
+          },
+          {
+            "id": 2200002,
+            "body": "<!-- pt-run id=mock-r0 slot=slot-dev state=finished -->\n**slot-dev** finished",
+            "created_at": "2026-10-03T15:50:00Z",
+            "updated_at": "2026-10-03T15:50:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200002"
+          },
+          {
+            "id": 2200003,
+            "body": "<!-- pt-run id=mock-r1 slot=slot-pm state=started -->\n**slot-pm** started",
+            "created_at": "2026-10-04T06:00:00Z",
+            "updated_at": "2026-10-04T06:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200003"
+          },
+          {
+            "id": 2200004,
+            "body": "<!-- pt-run id=mock-r1 slot=slot-pm state=finished -->\n**slot-pm** finished",
+            "created_at": "2026-10-04T06:12:00Z",
+            "updated_at": "2026-10-04T06:12:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200004"
+          },
+          {
+            "id": 2200005,
+            "body": "<!-- pt-run id=mock-r2 slot=slot-dev state=started -->\n**slot-dev** started",
+            "created_at": "2026-10-04T07:00:00Z",
+            "updated_at": "2026-10-04T07:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200005"
+          },
+          {
+            "id": 2200006,
+            "body": "<!-- pt-run id=mock-r2 slot=slot-dev state=failed -->\n**slot-dev** failed",
+            "created_at": "2026-10-04T07:40:00Z",
+            "updated_at": "2026-10-04T07:40:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200006"
+          },
+          {
+            "id": 2200007,
+            "body": "<!-- pt-run id=mock-r3 slot=slot-qa state=started -->\n**slot-qa** started",
+            "created_at": "2026-10-04T09:00:00Z",
+            "updated_at": "2026-10-04T09:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200007"
+          },
+          {
+            "id": 2200008,
+            "body": "<!-- pt-run id=mock-r3 slot=slot-qa state=finished -->\n**slot-qa** finished",
+            "created_at": "2026-10-04T09:20:00Z",
+            "updated_at": "2026-10-04T09:20:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200008"
+          },
+          {
+            "id": 2200009,
+            "body": "<!-- pt-run id=mock-r4 slot=slot-dev state=started -->\n**slot-dev** started",
+            "created_at": "2026-10-04T11:00:00Z",
+            "updated_at": "2026-10-04T11:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200009"
+          },
+          {
+            "id": 2200010,
+            "body": "<!-- pt-run id=mock-r4 slot=slot-dev state=failed -->\n**slot-dev** failed",
+            "created_at": "2026-10-04T11:30:00Z",
+            "updated_at": "2026-10-04T12:05:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200010"
+          },
+          {
+            "id": 2200011,
+            "body": "<!-- pt-run id=mock-r5 slot=slot-pm state=started -->\n**slot-pm** started",
+            "created_at": "2026-10-04T13:00:00Z",
+            "updated_at": "2026-10-04T13:00:00Z",
+            "user": {
+              "login": "team-console-team[bot]",
+              "type": "Bot"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200011"
+          },
+          {
+            "id": 2200012,
+            "body": "<!-- pt-run id=mock-r5 slot=slot-pm state=finished -->\n**slot-pm** finished",
+            "created_at": "2026-10-04T13:10:00Z",
+            "updated_at": "2026-10-04T13:10:00Z",
+            "user": {
+              "login": "team-console-team[bot]",
+              "type": "Bot"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200012"
+          },
+          {
+            "id": 2200013,
+            "body": "<!-- pt-run id=mock-r6 slot=slot-dev state=started -->\n**slot-dev** started",
+            "created_at": "2026-10-04T15:00:00Z",
+            "updated_at": "2026-10-04T15:00:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200013"
+          },
+          {
+            "id": 2200014,
+            "body": "<!-- pt-run id=mock-r6 slot=slot-dev state=finished -->\n**slot-dev** finished",
+            "created_at": "2026-10-04T15:45:00Z",
+            "updated_at": "2026-10-04T15:45:00Z",
+            "user": {
+              "login": "geeera",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200014"
+          },
+          {
+            "id": 2200015,
+            "body": "<!-- pt-run id=mock-r6 slot=slot-dev state=failed -->\n**slot-dev** failed",
+            "created_at": "2026-10-04T16:00:00Z",
+            "updated_at": "2026-10-04T16:00:00Z",
+            "user": {
+              "login": "outsider",
+              "type": "User"
+            },
+            "html_url": "https://github.com/geeera/team-console/issues/22#issuecomment-2200015"
+          }
+        ]
+      }
+    },
+    "geeera/private-product": {
+      "installationId": 1001,
+      "repository": {
+        "id": 900002,
+        "full_name": "geeera/private-product",
+        "private": true,
+        "default_branch": "main",
+        "html_url": "https://github.com/geeera/private-product",
+        "owner": {
+          "login": "geeera",
+          "id": 100001
+        }
+      },
+      "files": {
+        ".product-team/project.yml": "# The product team's contract for this repository.\nname: Private Product\nrepo: geeera/private-product\nmode: new\n\nowner:\n  language: en   # owner-facing copy\n  timezone: Europe/Kyiv\n"
+      }
+    },
+    "geeera/no-yml": {
+      "installationId": 1001,
+      "repository": {
+        "id": 900003,
+        "full_name": "geeera/no-yml",
+        "private": true,
+        "default_branch": "main",
+        "html_url": "https://github.com/geeera/no-yml",
+        "owner": {
+          "login": "geeera",
+          "id": 100001
+        }
+      }
+    },
+    "acme/site": {
+      "installationId": 1003,
+      "repository": {
+        "id": 900004,
+        "full_name": "acme/site",
+        "private": false,
+        "default_branch": "main",
+        "html_url": "https://github.com/acme/site",
+        "owner": {
+          "login": "acme",
+          "id": 200001
+        }
+      },
+      "files": {
+        ".product-team/project.yml": "# The product team's contract for this repository.\nname: Site\nrepo: acme/site\nmode: new\n\nowner:\n  language: en   # owner-facing copy\n  timezone: Europe/Kyiv\n"
+      }
+    },
+    "geeera/mock-rate-limited": {
+      "installationId": 1002,
+      "reply": {
+        "status": 403,
+        "headers": {
+          "x-ratelimit-remaining": "0",
+          "retry-after": "42"
+        }
+      }
+    },
+    "geeera/mock-unavailable": {
+      "installationId": 1002,
+      "reply": {
+        "status": 503
+      }
+    },
+    "geeera/mock-redirect-off-host": {
+      "installationId": 1002,
+      "reply": {
+        "status": 302,
+        "headers": {
+          "location": "https://evil.example/collect"
+        }
+      }
+    },
+    "geeera/mock-token-rejected": {
+      "installationId": 1002,
+      "reply": {
+        "status": 401
+      }
+    }
+  }
+}

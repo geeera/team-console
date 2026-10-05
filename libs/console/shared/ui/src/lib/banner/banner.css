@@ -1,0 +1,84 @@
+:host {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  animation: tc-banner-in var(--dur-base) var(--ease-enter) both;
+}
+
+:host(.tc-banner--warning) {
+  background: var(--warning-soft);
+  color: var(--warning-text);
+}
+
+:host(.tc-banner--danger) {
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}
+
+:host ::ng-deep [tc-banner-icon] {
+  flex: none;
+  align-self: flex-start;
+  margin-top: var(--space-px);
+}
+
+:host ::ng-deep [tc-banner-text] {
+  flex: 1 1 14rem;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+:host ::ng-deep [tc-banner-actions] {
+  flex: none;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* The action sits on the paper, not on the tint, so it still reads as a button. */
+:host ::ng-deep [tc-banner-actions] .tc-button {
+  border-color: transparent;
+  background: var(--surface);
+  color: inherit;
+}
+
+:host ::ng-deep [tc-banner-actions] a:not(.tc-button) {
+  color: inherit;
+  font-weight: var(--fw-semibold);
+}
+
+@media (max-width: 519.98px) {
+  :host ::ng-deep [tc-banner-actions] {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
+}
+
+@keyframes tc-banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--space-2) * -1));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :host {
+    animation: tc-banner-fade var(--dur-fade) linear both;
+  }
+}
+
+:host-context(:root[data-motion='reduce']) {
+  animation: tc-banner-fade var(--dur-fade) linear both;
+}
+
+@keyframes tc-banner-fade {
+  from {
+    opacity: 0;
+  }
+}

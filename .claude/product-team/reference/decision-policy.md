@@ -34,6 +34,8 @@ own account — ask. Otherwise decide.
 A **question** asks the owner to decide (answered with approve / reject, go / no-go). A **task only the owner can
 do** — create an account, put a secret in place, run something on their machine — is not a question: create it as
 `--kind chore` with `needs:owner` (or `needs:local`), a short checklist in the body, and it is answered with "done".
+Setting up the team's GitHub Apps (`reference/identities.md`) is such a task; the team never holds or asks for
+their private keys.
 Mixing the two gives the owner the wrong buttons.
 
 ## How to ask

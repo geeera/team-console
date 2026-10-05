@@ -33,12 +33,26 @@ sprint:
 # Optional overrides of reference/schedule-and-models.md caps, per mode.
 caps: {}
 
+# Which independent verdicts a PR needs (reference/workflow.md → Review gate). `pr gate` reads this block from the
+# PR's base branch; SECURITY is always decided by `pr security-check`. Without this block QA and REVIEW are required
+# on every PR.
+review:
+  qa: always                 # always | code | never — QA on every PR
+  reviewer: code             # always | code | never — `code`: only when the PR changes a path in code_paths
+  code_paths: ["apps/**", "libs/**", "packages/**", "src/**"]   # kickoff/adopt set the project's source roots
+  max_rework_rounds: 1       # guidance for the orchestrator, not enforced by the gate: after this many rework
+                             # rounds only blockers go back; the rest become follow-up issues
+
 team:
   # Release channel the daily self-update follows: `stable` (every release) or a tag such as v0.3.0 (pinned).
   plugin_ref: stable
-  # With a separate GitHub account for the reviewing agents, list its login here: only its verdicts then count
-  # in the merge gate, so a developer agent cannot approve its own work. Empty = any account (same-user setup).
+  # The reviewing identity: the review GitHub App's bot, quoted ('<product>-review[bot]', see
+  # reference/identities.md), or a separate reviewing account. Only its verdicts then count in the merge gate, so a
+  # developer agent cannot approve its own work. Empty = any account (same-account setup).
   reviewer_logins: []
+  # The run-log issue number (`runlog url` creates it; kickoff/adopt write it here). Pinned so an issue someone else
+  # opens and labels can never become the log that pauses and resumes the team.
+  run_log_issue: 0
 
 owner:
   timezone: Europe/Kyiv

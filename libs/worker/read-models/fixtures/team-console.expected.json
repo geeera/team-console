@@ -1,0 +1,187 @@
+{
+  "generatedBy": "python3 libs/worker/read-models/fixtures/golden.py",
+  "inbox": {
+    "reviewerLogins": ["team-console-review[bot]"],
+    "items": [
+      {
+        "section": "owner",
+        "number": 21,
+        "title": "Аккаунт Cloudflare и токены для деплоя",
+        "url": "https://github.com/geeera/team-console/issues/21",
+        "ask": "Напиши «сделал», когда заведёшь аккаунты по чеклисту из #7 · /reject причина, если что-то не подходит"
+      },
+      {
+        "section": "owner",
+        "number": 46,
+        "title": "Переключить GitHub Pages на GitHub Actions",
+        "url": "https://github.com/geeera/team-console/issues/46",
+        "ask": "Напиши «сделал», когда переключишь источник GitHub Pages"
+      }
+    ],
+    "setup": false,
+    "setupUrl": null,
+    "paused": false,
+    "pausedUrl": null
+  },
+  "sprint": {
+    "milestone": {
+      "number": 1,
+      "title": "Sprint 01",
+      "dueOn": "2026-10-16"
+    },
+    "issues": [
+      {
+        "number": 3,
+        "status": "done",
+        "kind": "chore",
+        "state": "closed"
+      },
+      {
+        "number": 4,
+        "status": "approved",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 5,
+        "status": "done",
+        "kind": "chore",
+        "state": "closed"
+      },
+      {
+        "number": 6,
+        "status": "done",
+        "kind": "chore",
+        "state": "closed"
+      },
+      {
+        "number": 7,
+        "status": "done",
+        "kind": "chore",
+        "state": "closed"
+      },
+      {
+        "number": 8,
+        "status": "done",
+        "kind": "chore",
+        "state": "closed"
+      },
+      {
+        "number": 9,
+        "status": "done",
+        "kind": "chore",
+        "state": "closed"
+      },
+      {
+        "number": 10,
+        "status": "in-progress",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 12,
+        "status": "approved",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 13,
+        "status": "done",
+        "kind": "chore",
+        "state": "closed"
+      },
+      {
+        "number": 15,
+        "status": "done",
+        "kind": "chore",
+        "state": "closed"
+      },
+      {
+        "number": 16,
+        "status": "approved",
+        "kind": "feature",
+        "state": "open"
+      },
+      {
+        "number": 18,
+        "status": "approved",
+        "kind": "feature",
+        "state": "open"
+      },
+      {
+        "number": 21,
+        "status": "blocked",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 23,
+        "status": "in-progress",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 24,
+        "status": "blocked",
+        "kind": "feature",
+        "state": "open"
+      },
+      {
+        "number": 34,
+        "status": "done",
+        "kind": "chore",
+        "state": "closed"
+      },
+      {
+        "number": 35,
+        "status": "in-progress",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 46,
+        "status": "blocked",
+        "kind": "chore",
+        "state": "open"
+      },
+      {
+        "number": 59,
+        "status": "done",
+        "kind": "feature",
+        "state": "closed"
+      },
+      {
+        "number": 72,
+        "status": "done",
+        "kind": "question",
+        "state": "closed"
+      }
+    ],
+    "byStatus": {
+      "done": 11,
+      "blocked": 3,
+      "in-progress": 3,
+      "approved": 4
+    },
+    "planned": 20,
+    "shipped": 10,
+    "carriedOver": 10,
+    "byTier": {
+      "unsized": {
+        "planned": 7,
+        "shipped": 2,
+        "raised": 0
+      },
+      "standard": {
+        "planned": 9,
+        "shipped": 5,
+        "raised": 0
+      },
+      "heavy": {
+        "planned": 4,
+        "shipped": 3,
+        "raised": 0
+      }
+    }
+  }
+}

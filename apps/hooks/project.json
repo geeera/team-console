@@ -1,0 +1,30 @@
+{
+  "name": "hooks",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/hooks/src",
+  "tags": ["type:app", "scope:worker"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["production", "^production"],
+      "outputs": ["{workspaceRoot}/dist/apps/hooks"],
+      "options": {
+        "commands": [
+          "tsc -p apps/hooks/tsconfig.app.json --noEmit",
+          "wrangler deploy --dry-run --outdir ../../dist/apps/hooks --config apps/hooks/wrangler.jsonc --env dev"
+        ],
+        "parallel": false
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "dependsOn": ["api:migrate"],
+      "options": {
+        "command": "wrangler dev --config apps/hooks/wrangler.jsonc --env dev --port 8788 --persist-to .wrangler/state --var ENVIRONMENT:local"
+      }
+    }
+  }
+}

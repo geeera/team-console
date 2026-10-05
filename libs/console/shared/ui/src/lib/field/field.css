@@ -1,0 +1,69 @@
+:host {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.tc-field__label {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+
+.tc-field__optional {
+  font-weight: var(--fw-regular);
+  color: var(--text-3);
+}
+
+.tc-field__control ::ng-deep .tc-input {
+  display: block;
+  width: 100%;
+  min-height: var(--control-h-touch);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--fs-input);
+  line-height: var(--lh-snug);
+  transition:
+    border-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+.tc-field__control ::ng-deep .tc-input::placeholder {
+  color: var(--text-3);
+}
+
+.tc-field__control ::ng-deep .tc-input:focus-visible {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 var(--border-w) var(--focus);
+}
+
+.tc-field__control ::ng-deep .tc-input:disabled {
+  opacity: var(--disabled-opacity);
+}
+
+.tc-field__control ::ng-deep textarea.tc-input {
+  resize: vertical;
+}
+
+:host(.tc-field--invalid) .tc-field__control ::ng-deep .tc-input {
+  border-color: var(--danger-text);
+}
+
+.tc-field__hint,
+.tc-field__error,
+.tc-field__note {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.tc-field__error {
+  color: var(--danger-text);
+}
+
+.tc-field__note {
+  color: var(--text-2);
+}

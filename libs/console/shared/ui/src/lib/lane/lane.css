@@ -1,0 +1,86 @@
+:host {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.tc-lane__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.tc-lane__count {
+  font-weight: var(--fw-regular);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+
+/* An empty tab panel takes the Tab stop itself (see Lane). */
+:host(:focus-visible) {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--r-md);
+}
+
+/*
+ * A lane switched to on the phone comes in from the side the owner moved towards. A hidden panel is display: none,
+ * so the animation runs again each time a lane is shown. Only transform and opacity animate.
+ */
+:host(.tc-lane--enter-forward) {
+  animation: tc-lane-enter-forward var(--dur-fast) var(--ease-enter) both;
+}
+
+:host(.tc-lane--enter-backward) {
+  animation: tc-lane-enter-backward var(--dur-fast) var(--ease-enter) both;
+}
+
+@keyframes tc-lane-enter-forward {
+  from {
+    opacity: 0;
+    transform: translateX(var(--space-2));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tc-lane-enter-backward {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--space-2) * -1));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Reduced motion: no slide, the stand-in fade only (--dur-fade does not collapse). */
+@media (prefers-reduced-motion: reduce) {
+  :host(.tc-lane--enter-forward),
+  :host(.tc-lane--enter-backward) {
+    animation: tc-lane-fade var(--dur-fade) var(--ease-enter) both;
+  }
+}
+
+:host-context(:root[data-motion='reduce']).tc-lane--enter-forward,
+:host-context(:root[data-motion='reduce']).tc-lane--enter-backward {
+  animation: tc-lane-fade var(--dur-fade) var(--ease-enter) both;
+}
+
+@keyframes tc-lane-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

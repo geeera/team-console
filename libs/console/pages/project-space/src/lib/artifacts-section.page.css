@@ -1,0 +1,27 @@
+:host {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.artifacts__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.artifacts__title {
+  margin: 0;
+  margin-inline-end: auto;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+}
+
+.artifacts__loaded {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}

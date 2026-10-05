@@ -83,6 +83,9 @@ def summary(since: Optional[str], closed: List[dict], merged: List[dict], decide
         "shipped": [{"number": i["number"], "title": i["title"], "url": i["url"]} for i in done],
         "merged_prs": [{"number": p["number"], "title": p["title"], "url": p["url"]} for p in merged if after(p.get("merged_at"))],
         "team_decisions": [{"number": d["number"], "title": d["title"], "url": d["url"]} for d in decided if after(d.get("decided_at"))],
+        # The owner's /rejects the team answered with a new decision: told explicitly, never silently absorbed.
+        "answered_rejects": [dict(h, number=d["number"], title=d["title"]) for d in decided
+                             for h in d.get("handled_reversals", []) if after(h.get("decided_at"))],
         # A run left at `started` died (usually on the usage limit): it counts as failed.
         "runs": {"total": len(recent_runs),
                  "failed": sum(1 for r in recent_runs if runstate.effective_state(r, now) == "failed")},

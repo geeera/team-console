@@ -1,0 +1,17 @@
+@if (frame.presentation === 'sheet') {
+<div class="tc-sheet__grab" aria-hidden="true"></div>
+}
+<!-- A div, not <header>: two stacked sheets (a confirmation over a panel) would give two banner landmarks. -->
+<div class="tc-sheet__head">
+  <h2 class="tc-sheet__title" [id]="frame.titleId" tabindex="-1">{{ frame.title }}</h2>
+  <button
+    tc-icon-button
+    type="button"
+    class="tc-sheet__close"
+    [attr.aria-label]="'ui.close' | transloco"
+    (click)="close()"
+  >
+    <tc-icon name="x" size="lg" />
+  </button>
+</div>
+<div class="tc-sheet__body"><ng-template cdkPortalOutlet /></div>

@@ -24,6 +24,8 @@ import os
 import shutil
 import subprocess
 import sys
+
+sys.dont_write_bytecode = True  # the vendored copy lives in the product repo: no __pycache__ there
 import tempfile
 from pathlib import Path
 

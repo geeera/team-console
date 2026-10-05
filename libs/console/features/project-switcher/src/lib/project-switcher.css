@@ -1,0 +1,73 @@
+:host {
+  display: block;
+}
+
+.switcher__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3) var(--space-2) var(--space-1);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
+  color: var(--text-3);
+}
+
+.switcher__list {
+  display: grid;
+  gap: var(--space-px);
+}
+
+.switcher__pin {
+  color: var(--text-3);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+
+.switcher__pin[aria-pressed='true'],
+.switcher__pin:focus-visible,
+.tc-list-row:hover .switcher__pin {
+  opacity: 1;
+}
+
+/* Touch has no hover: the pin is always reachable on the phone. */
+@media (hover: none) {
+  .switcher__pin {
+    opacity: 1;
+  }
+}
+
+.switcher__more {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--control-h);
+  margin-top: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.switcher__more:hover {
+  background: var(--hover);
+}
+
+.switcher__more:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: calc(-1 * var(--focus-w));
+}
+
+.switcher__chevron {
+  transition: transform var(--dur-base) var(--ease-standard);
+}
+
+.switcher__chevron--closed {
+  transform: rotate(-90deg);
+}

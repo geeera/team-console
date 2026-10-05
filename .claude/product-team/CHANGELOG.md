@@ -4,6 +4,159 @@ Products follow the `stable` channel (or a pinned tag, `team.plugin_ref` in `.pr
 first `slot-pm` of the day runs `vendor self-update` and opens a PR with the entries in between. Breaking changes (a renamed label, a changed script contract, a new required
 `project.yml` key) are marked **Breaking** with the migration step.
 
+## 0.10.3
+
+- **Fix: scheduled runs work without GitHub's GraphQL API** (every team-console cloud routine since 0.10.1 ended
+  with `runlog start` → `unverified`: Claude Code cloud sessions answer `POST /graphql` with HTTP 403 "GitHub
+  GraphQL is not available from Claude Code sessions; use the REST API", and the scripts read edit history there).
+  `ptlib/gh.graphql` recognises that 403 (`gh.GraphqlUnavailable`), remembers it for the process and stops
+  asking; every reader of edit history (`runlog`, `backlog answers`/`reversals`/`decide`/`vanished`, `brief`,
+  `demo-page decisions`) then runs in **REST-only mode**: a comment counts only when REST shows it was never
+  edited (`updated_at` exactly equals `created_at` — the former two-second slack is gone, with or without
+  GraphQL, since an edit made within it would have counted), every edited one is untrusted — whoever edited it,
+  the owner included — and an issue body is never an owner statement (`body.owner_statement: false`, `body:
+  null`, with the reason; REST cannot clear a body, whatever its timestamps say). The output says `history:
+  rest-only` with `history_error`. `runlog start` no longer answers `unverified` (the decision is gone;
+  `overlap`/`paused`/`pause`/`proceed` remain).
+- **The run log is append-only.** `runlog finish` posts a second comment for the run instead of editing the
+  `started` one; `parse_runs` merges the trusted entries of a run id (latest wins, `at` is the start). An entry
+  that cannot be trusted (edited, with no edit history to vouch for it, or edited by an outsider) supplies
+  nothing: it never creates a run and never changes a run's start, slot or state; it only flags the run of the
+  same id it postdates (`trusted: false`), whose effective state is then `unknown` once ended — not a failure,
+  and a streak-breaker, so an old edited entry can never pause the team for good — while a run still `started`
+  stays in progress (the overlap guard holds). `runlog stats` counts `unknown` runs separately.
+  **Migration**: none to do. Logs written before 0.10.3 (e.g. team-console #22) hold in-place-edited entries;
+  they still parse and count as before where GraphQL works, and are not runs in cloud sessions (only the
+  never-edited entries are — a run that died on the usage limit counts as failed, as always, so a log whose
+  last three unedited entries are dead runs pauses once; `/resume` lifts it). `brief mark` is append-only too
+  (one marker per conversation, the latest counts).
+- `inbox update` pins the "Needs you" issue best-effort: without GraphQL it warns on stderr, reports
+  `pinned: false` and the run goes on (the issue is found by its label).
+- `backlog vanished` and `backlog answers` report `history` (`graphql` | `rest-only`); an edited owner command is
+  rejected with "write the command again in a new comment" appended to the reason.
+- `reference/identities.md` and `reference/run-protocol.md` describe the cloud constraint and the REST-only rule.
+
+## 0.10.2
+
+- **Proportional reviews.** A new `review:` block in `.product-team/project.yml` says which verdicts a PR needs:
+  `qa` and `reviewer` are `always`, `code` (only when the PR changes a path matching `code_paths`) or `never`;
+  `max_rework_rounds` is guidance for orchestrators on rework rounds for non-blockers (reported by `pr gate`, not
+  enforced by it). `pr gate` / `pr merge` read the block from the PR's **base** branch (`ref=refs/heads/<base>`),
+  like `team.reviewer_logins`, so a PR cannot relax its own gate. `code_paths` globs match case-insensitively,
+  ignore a leading `./` and refuse `{a,b}`, `[ab]` and `!negation`; default `code_paths` also cover scripts,
+  Terraform, HTML/CSS, Astro/Svelte and build configs. A second `review:` block or key, or an unclosed quote,
+  is an error; `#` inside quotes is text. SECURITY is unchanged (`pr
+  security-check` decides). `pr gate` now answers `why` (for QA, REVIEW and SECURITY: required or not, and why)
+  and `policy`. An unreadable block fails the gate. **No block = the old behaviour** (QA and REVIEW on every PR):
+  existing products change only when they add the block. **Migration** (optional): copy the `review:` block from
+  `templates/project.yml` and set `code_paths` to the product's source roots; kickoff and adopt now write it
+  (`reviewer: code`).
+- **Review triage** (`reference/workflow.md` → Review gate; `slot-qa`, `slot-dev`, `qa`, `reviewer`): only a real
+  bug, a real vulnerability or an unmet acceptance criterion blocks a merge; everything else is approved and filed
+  as a follow-up issue (`kind:finding` / `kind:chore`). After `max_rework_rounds` a PR goes back only for an open
+  blocker. `slot-qa` starts only the reviewers `pr gate` requires.
+- **Evidence before review**: developers run the real flow end to end (not only unit tests) and paste the evidence
+  in the PR body under **How it was verified**; QA treats a behaviour change without it as an unmet criterion.
+- **Owner commands are read only from the owner's own prose** (from QA in geeera/team-console): a command counts
+  only as the first token of a line (indented by at most three spaces, a tab or NBSPs; a lone `\r` ends a line)
+  outside fenced code blocks, inline code, blockquotes and HTML comments. In same-account mode (`gh.acts_as_owner`)
+  a comment that starts with a team note header (`**Architect note**`, `**PM grooming**`, … —
+  `commands.AGENT_NOTE_ROLES`) or a script marker (`<!-- pt-… -->`) holds no command; with the team app it is
+  parsed normally. Every agent now starts its issue comments with its header. `/go-live` is no longer read as
+  `/go`. **Breaking** for owners who indent commands four or more spaces or fence/quote them — but never
+  silently: `backlog answers` lists every owner comment 0.10.1 would have read a command from and 0.10.2 does not
+  under `ignored` with `kind: not_read` and the reason; edited comments there now carry `kind: edited`.
+- **Owner commands on pull requests**: the edit-history read (`provenance.fetch`) uses
+  `repository.issueOrPullRequest(number:)`, so a PR number is checked like an issue instead of failing; anything
+  else still fails closed.
+- **HTTP deadline and retry** (`ptlib/gh.py`): every API call has an overall wall-clock deadline, retry included
+  (default 90 s, `PT_HTTP_DEADLINE` seconds; a slow trickling answer is cut there, not only a stalled read).
+  A `GET` is retried once after a timeout or a 5xx with a short backoff when the deadline leaves room; writes
+  (POST, PUT, PATCH, DELETE — GraphQL included) are never retried.
+
+## 0.10.1
+
+- **Security: edited owner comments no longer count** (geeera/team-console#60). GitHub keeps a comment's author when
+  someone else edits its body, so anyone with Issues write — the team app, the review app, a collaborator — could
+  turn an old owner comment into `/go`, `/approve` or `/resume` and have it read as the owner's. Owner statements
+  (`backlog answers`, `backlog reversals`, `demo-page decisions`, the run log's `/resume`, "done" reports) now count
+  only when nobody but the owner ever edited them, checked against GitHub's edit history (GraphQL
+  `userContentEdits`, `lastEditedAt` + `editor`). Anything edited by another login, by a deleted account, or with
+  more history than can be checked is ignored; when the history cannot be fetched only comments the REST timestamps
+  show unedited count.
+- `backlog answers` adds `ignored` (owner comments with a command that do not count, and why), `done` (verified
+  "done" reports; `slot-pm` reads these instead of any `<!-- pt-owner-done -->` comment), `body` (whether the issue
+  body is the owner's own words, and who edited it when) and `history_error`. `backlog show` marks edited comments.
+- The run log trusts run entries and pause records only when no one outside the team edited them (a pause record
+  holds the routine prompts `resume` re-creates). `runlog start` answers `unverified` (exit 3, do no work) when the
+  edit history cannot be read — **Breaking** for custom run protocols: treat `unverified` like `paused`.
+- The checked text comes from the same GraphQL read as its edit history (REST body only as the fallback), and a
+  comment REST shows edited but GraphQL does not is ignored. An edit GitHub reports without history entries counts
+  as unchecked. GitHub Enterprise Server without `fullDatabaseId` is read by comment URL instead of failing.
+- Team decisions are dated only by decision comments of the team's logins that nobody else edited (`backlog
+  reversals`, `brief`), so another Issues writer cannot bury an owner `/reject` under a newer marker. `backlog
+  decide` refuses while such a reversal is open unless given `--handles-reversal <comment_id>`; `backlog comment`
+  refuses decision markers. `reversals` entries carry `comment_id`.
+- The run log is `team.run_log_issue` in `project.yml` (new key; kickoff/adopt write it), else the single
+  `team:run-log` issue the team or owner opened; several candidates → every `runlog` command (and `brief`) refuses.
+  **Migration**: add `team.run_log_issue: <number>` to `.product-team/project.yml` (`runlog url` shows it). Rotation
+  is documented in `reference/schedule-and-models.md`. `brief` reads only the team's unedited run-log entries.
+- Deleted owner commands: `runlog finish --acted ISSUE:COMMENT_ID` records the commands a run acted on; the new
+  `backlog vanished [--days 30]` (once per run) lists any that were deleted since. `slot-pm` and `demo-apply` pass
+  `--acted`.
+- Decision comments count only when they start with the marker. `decide --handles-reversal` writes "Answers your
+  /reject: <link>" into the decision, and `brief` lists such answers under `answered_rejects`.
+- A labelled run-log issue opened by anyone else, or a pinned `team.run_log_issue` not opened by the team or the
+  owner, makes the scripts refuse instead of opening a new log.
+- Same-account mode is unchanged: the agents are the owner's login there, so their edits look like the owner's
+  (`reference/identities.md`, "does not isolate"), and so is anyone holding the owner's credentials, including the
+  team console's owner user token.
+
+## 0.10.0
+
+- **Agents on their own GitHub identities** (`reference/identities.md`): an optional **team app** every script and
+  push acts as, and a **review app** only verdicts are posted as. Configure with `PT_TEAM_APP_ID` +
+  `PT_TEAM_APP_KEY_FILE` / `PT_TEAM_APP_KEY` (base64 or raw PEM) and the same `PT_REVIEW_APP_*` variables. The app
+  JWT is signed with the `openssl` CLI; installation tokens are scoped to the product repository and cached until
+  shortly before they expire. `GH_TOKEN` / `GITHUB_TOKEN` / `gh auth token` and `PT_REVIEW_TOKEN` keep working when
+  no app is configured; a half-configured app is an error, never a silent fallback to the owner's token.
+- The app JWT is signed with the `openssl` CLI; an inline key reaches openssl through a pipe and never touches the
+  disk; `*_KEY_FILE` paths expand `~`. Processes the scripts start (git, openssl, gh) never inherit
+  `PT_*_APP_KEY*`, `PT_OWNER_TOKEN` or `PT_REVIEW_TOKEN`.
+- `pr gate` / `pr merge`: with the review app configured only its bot's verdicts count; the gate fails when the
+  review bot is the team bot (also caught when the two ids are a numeric id and an `Iv…` client id of one app) or
+  when `team.reviewer_logins` lists the team bot. `team.reviewer_logins` is read from the PR's base branch, accepts
+  `name[bot]` logins (quote them) and rejects anything that is not a GitHub login. The same-account warning appears
+  only when it is same-account.
+- Owner answers: only the owner's own comments count. With the team app, `backlog answer` (team chat) posts with a
+  dedicated `PT_OWNER_TOKEN` of the owner (never `GH_TOKEN`/`GITHUB_TOKEN`/`gh auth`) and refuses without it.
+  `same_account` stays true (fail closed) in any session holding a credential that resolves to the owner.
+- `pr commit -m … [git commit args]` commits as the team app's bot (nothing is committed if the bot cannot be looked
+  up; `--author` is refused); plain `git commit` without the app. `pr push [--branch B]` pushes only `feature/`,
+  `fix/`, `hotfix/`, `chore/`, `backmerge/`, `revert/`, `design/` and `docs/` branches, never forced, straight to
+  `https://github.com/<repo>.git` as the app: the token only in `GIT_CONFIG_*` env (never argv, `.git/config` or
+  output), global/system git config ignored, repository-local `insteadOf`/`pushInsteadOf` rewrites refused. Where
+  only a session git proxy reaches GitHub it fails loudly instead of falling back. Plain `git push -u origin B`
+  without the app. Developers, designers, devops, `slot-pm` (self-update) and `slot-qa` commit and push through
+  them.
+- The run log accepts entries from the team bot on a log opened by the owner, so switching keeps its history.
+- Migration (optional): create the two apps and set the variables per the owner checklist; add
+  `'<product>-review[bot]'` to `team.reviewer_logins`.
+
+## 0.9.3
+
+- Designs are published by `design-pages.yml` (GitHub Actions → Pages) from `docs/design` after a PR is merged;
+  designers commit prototypes and wireframes by PR and never push to `gh-pages` (the first team-console run was
+  rightly stopped from doing that).
+
+## 0.9.2
+
+Found in the first scheduled run on geeera/team-console.
+- Scripts no longer write `__pycache__` into the product repository (cloud sessions flagged it as untracked and
+  spent turns deleting it); the vendored copy also carries its own `.gitignore`.
+- `backlog edit N --title/--body-file`: grooming can fix an issue's title and criteria in place instead of adding
+  comments; a question's answer line is preserved.
+
 ## 0.9.1
 
 - `backlog label N -name` removed nothing and failed: argparse read `-name` as an option. Label removal works again
