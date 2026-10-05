@@ -128,10 +128,9 @@
     "retry": "Try again",
     "deniedLive": "Notifications are blocked",
     "nudge": {
-      "text": "Notifications are off on this device: you only learn about new items when you open the app.",
+      "text": "Notifications are off",
       "enable": "Turn on",
       "how": "How to turn on",
-      "later": "Not now",
       "laterAria": "Hide the notifications hint",
       "laterToast": "You can turn them on in Settings → Notifications",
       "on": "Notifications are on. Next time the team needs you, this device will tell you."
@@ -1030,6 +1029,10 @@
     },
     "frame": {
       "title": "Preview"
+    },
+    "srOnlyOnPhone": {
+      "title": "Needs you",
+      "body": "On the phone the top bar already shows this title, so here it stays for screen readers only."
     }
   },
   "review": {

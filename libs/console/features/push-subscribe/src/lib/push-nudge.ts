@@ -11,19 +11,19 @@ import { Router } from '@angular/router';
 import { PushStore } from '@console/entities/push';
 import { NetworkStatus } from '@console/shared/api';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
-import { Button, Icon, Toaster } from '@console/shared/ui';
+import { Button, Icon, IconButton, Toaster } from '@console/shared/ui';
 import { FOCUS_PUSH_SETTINGS_STATE, PushNudgeMemory } from './nudge-memory';
 
 let nextId = 0;
 
 /**
- * The quiet note on Needs you while push is off on this device (#36): that screen promises "you'll get a
- * notification", so it says when that is not true. Turn on asks for permission from this tap only; on iPhone
- * Safari it leads to the Home Screen guide in Settings instead. Not now hides it on this device.
+ * The quiet line on Needs you while push is off on this device (#36; one line since #204): that screen promises
+ * "you'll get a notification", so it says when that is not true. Turn on asks for permission from this tap only; on
+ * iPhone Safari it leads to the Home Screen guide in Settings instead. Close hides it on this device.
  */
 @Component({
   selector: 'tc-push-nudge',
-  imports: [Button, Icon, TranslocoPipe],
+  imports: [Button, Icon, IconButton, TranslocoPipe],
   templateUrl: './push-nudge.html',
   styleUrl: './push-nudge.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -31,3 +31,12 @@ export function askOf(body: string | null | undefined): string | null {
   const line = ASK_LINE.exec(body ?? '')?.[1];
   return line === undefined ? null : pyStrip(line);
 }
+
+/**
+ * The body without the answer line `askOf` reads (the label and its text), for showing the rest of a question as
+ * details. Not a plugin function: it only reuses the plugin's pattern, so both always agree on which line it is.
+ */
+export function withoutAskLine(body: string): string {
+  const match = ASK_LINE.exec(body);
+  return match === null ? body : body.slice(0, match.index) + body.slice(match.index + match[0].length);
+}

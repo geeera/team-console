@@ -58,8 +58,53 @@ describe('QuestionCard', () => {
     expect(root.querySelector('a[href^="javascript"]')).toBeNull();
     expect(root.querySelector('h2')?.textContent).toBe(item().title);
     expect(root.querySelector('tc-recommendation')?.textContent).toContain('<img src=x');
-    expect(root.querySelector('.question__body')?.textContent).toBe(item().body);
+    // The markup is stripped to words (#204); the HTML stays inert text.
+    expect(root.querySelector('.question__body')?.textContent).toBe(`bold link\n${HOSTILE}`);
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
+  });
+
+  it('says what the team recommends in plain words, not command syntax (#204)', async () => {
+    const { fixture, root } = await render();
+    const recommendation = () => root.querySelector('[data-testid="recommendation"]');
+
+    fixture.componentInstance.item.set(
+      item({
+        ask: '/approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять',
+        authorTrusted: true,
+      }),
+    );
+    await fixture.whenStable();
+    expect(recommendation()?.textContent).toContain('Команда советует');
+    expect(recommendation()?.textContent).toContain('Начинаем разработку по плану к демо 16 октября');
+    expect(recommendation()?.textContent).not.toMatch(/\/approve|\/reject|рекомендую|·/);
+
+    fixture.componentInstance.item.set(
+      item({ section: 'release', ask: '/go (рекомендую) · /no-go что доделать' }),
+    );
+    await fixture.whenStable();
+    expect(recommendation()?.textContent).toContain('Проводим');
+    expect(recommendation()?.textContent).not.toContain('/go');
+
+    fixture.componentInstance.item.set(item({ ask: '/approve · /reject' }));
+    await fixture.whenStable();
+    expect(recommendation()).toBeNull();
+  });
+
+  it('shows the details without the answer line, team markers or markup (#204)', async () => {
+    const { fixture, root } = await render();
+
+    fixture.componentInstance.item.set(
+      item({
+        body: '**Your answer:** /approve (рекомендую) · /reject why\n<!-- pt-ask -->\n\nСегодня **решено**: `dev`.',
+        authorTrusted: true,
+      }),
+    );
+    await fixture.whenStable();
+    expect(root.querySelector('.question__body')?.textContent).toBe('Сегодня решено: dev.');
+
+    fixture.componentInstance.item.set(item({ body: '**Your answer:** /go\n<!-- pt-ask -->' }));
+    await fixture.whenStable();
+    expect(root.querySelector('details')).toBeNull();
   });
 
   it('marks an item whose author is not trusted, and not a trusted one', async () => {
