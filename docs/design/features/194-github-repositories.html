@@ -1,0 +1,1924 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Team Console · #194 · All projects: add from GitHub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600&family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+/* ===== tokens: Paper Desk (generated from docs/design/directions/src/d1.py) ===== */
+:root{
+  --font-display:"Source Serif 4",Georgia,"Times New Roman",serif;--font-body:"Source Sans 3",-apple-system,system-ui,"Segoe UI",sans-serif;--font-mono:"Source Code Pro",ui-monospace,Menlo,monospace;--fw-display:600;
+  --fs-xs:12px;--fs-sm:14px;--fs-md:15px;--fs-lg:18px;--fs-xl:22px;--fs-2xl:28px;--lh-body:1.55;--lh-tight:1.25;
+  --r-sm:6px;--r-md:10px;--r-lg:16px;
+  --btn-h:34px;--sidebar-w:256px;--pane-w:392px;--log-max:680px;--pad-x:32px;--gap-log:20px;--pad-card:18px 20px;--card-indent:40px;
+  --dur-instant:0ms;--dur-fast:140ms;--dur-base:240ms;--dur-slow:380ms;--dur-sig:620ms;
+  --ease-standard:cubic-bezier(.2,0,0,1);--ease-enter:cubic-bezier(0,0,.2,1);--ease-exit:cubic-bezier(.4,0,1,1);--ease-emph:cubic-bezier(.3,0,0,1);
+  --bg:#F7F3EC;--bg-sunken:#EFE9DF;--surface:#FFFDF9;--surface-2:#FAF6EF;--text:#29251F;--text-2:#5B5449;--text-3:#6D6459;
+  --border:#E5DDD0;--border-strong:#CFC5B5;--accent:#3E6A48;--accent-contrast:#FFFFFF;--accent-soft:#E3ECE0;--accent-text:#2F5638;
+  --success-soft:#E1EEDF;--success-text:#2D6A3E;--warning-soft:#F5E8CD;--warning-text:#7A510E;--danger-soft:#F6E0DA;--danger-text:#9A3324;
+  --focus:#3E6A48;--owner-bubble:#EAE2D4;--owner-text:#29251F;
+  --shadow-1:0 1px 2px rgba(60,45,20,.07),0 0 0 .5px rgba(60,45,20,.03);--shadow-2:0 8px 24px -8px rgba(60,45,20,.22);--shadow-3:0 -12px 40px -12px rgba(60,45,20,.28);
+}
+:root[data-theme=dark]{
+  --bg:#1C1A17;--bg-sunken:#161412;--surface:#25221E;--surface-2:#201E1A;--text:#EEE8DD;--text-2:#BDB4A5;--text-3:#999082;
+  --border:#35312B;--border-strong:#4A443B;--accent:#8FBC92;--accent-contrast:#10200F;--accent-soft:#263428;--accent-text:#A8D0AA;
+  --success-soft:#1F3122;--success-text:#9BCF9F;--warning-soft:#382D18;--warning-text:#E6BC6E;--danger-soft:#3D2420;--danger-text:#F0A091;
+  --focus:#A8D0AA;--owner-bubble:#322D27;--owner-text:#EEE8DD;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);--shadow-2:0 10px 28px -8px rgba(0,0,0,.6);--shadow-3:0 -12px 40px -12px rgba(0,0,0,.7);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#1C1A17;--bg-sunken:#161412;--surface:#25221E;--surface-2:#201E1A;--text:#EEE8DD;--text-2:#BDB4A5;--text-3:#999082;
+  --border:#35312B;--border-strong:#4A443B;--accent:#8FBC92;--accent-contrast:#10200F;--accent-soft:#263428;--accent-text:#A8D0AA;
+  --success-soft:#1F3122;--success-text:#9BCF9F;--warning-soft:#382D18;--warning-text:#E6BC6E;--danger-soft:#3D2420;--danger-text:#F0A091;
+  --focus:#A8D0AA;--owner-bubble:#322D27;--owner-text:#EEE8DD;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);--shadow-2:0 10px 28px -8px rgba(0,0,0,.6);--shadow-3:0 -12px 40px -12px rgba(0,0,0,.7);
+}}
+/* ===== shared structure; every colour, size and duration comes from the direction's tokens ===== */
+:root{
+  --hover:color-mix(in oklab,var(--text) 6%,transparent);
+  --hover-solid:color-mix(in oklab,var(--surface) 93%,var(--text) 7%);
+  --accent-hover:color-mix(in oklab,var(--accent) 88%,var(--text) 12%);
+  --page:color-mix(in oklab,var(--bg) 90%,var(--text) 10%);
+  --scrim:color-mix(in oklab,#000 36%,transparent);
+  --r-sheet:calc(var(--r-lg) + 10px);
+  --z-sheet:40;--z-toast:70;--z-chrome:60;
+}
+@media (prefers-reduced-motion:reduce){:root{--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms}}
+:root[data-motion=reduce]{--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms}
+
+*,*::before,*::after{box-sizing:border-box}
+html{color-scheme:light;-webkit-text-size-adjust:100%}
+:root[data-theme=dark]{color-scheme:dark}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark}}
+body{margin:0;background:var(--page);color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:var(--lh-body);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button,input,textarea{font:inherit;color:inherit;letter-spacing:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.sr-only{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ico{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+kbd{font-family:var(--font-mono);font-size:10px;line-height:1;padding:3px 5px;border-radius:4px;border:1px solid var(--border-strong);color:var(--text-3);background:var(--surface)}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);padding:1px 5px;border-radius:4px;word-break:break-word}
+[hidden]{display:none!important}
+
+/* ===== the note on top of the page ===== */
+.note{max-width:1720px;margin:0 auto;padding:20px 24px 4px;display:grid;gap:10px}
+.note__row{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.note__kicker{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.note h1{margin:2px 0 0;font-family:var(--font-display);font-size:var(--fs-2xl);line-height:1.1;font-weight:var(--fw-display)}
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:2px;background:var(--surface)}
+.seg button,.seg-btn{border:0;background:none;padding:6px 12px;border-radius:999px;font-size:var(--fs-xs);color:var(--text-2);min-height:32px}
+.seg button[aria-pressed=true]{background:var(--text);color:var(--bg)}
+.seg-btn{border:1px solid var(--border);background:var(--surface)}
+.note details{font-size:var(--fs-sm);color:var(--text-2)}
+.note summary{cursor:pointer;color:var(--text-2);font-weight:600;width:max-content}
+.note__grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:8px 32px;margin-top:10px}
+@media (max-width:900px){.note__grid{grid-template-columns:1fr}}
+.note p{margin:0 0 6px;max-width:75ch;line-height:1.5}
+.tok{align-content:start;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0;font-size:var(--fs-xs)}
+.tok dt{color:var(--text-3)}.tok dd{margin:0;color:var(--text-2)}
+.sw{display:inline-flex;align-items:center;gap:4px;margin-right:10px;white-space:nowrap}
+.sw i{width:12px;height:12px;border-radius:3px;border:1px solid var(--border-strong)}
+.try{font-size:var(--fs-xs);color:var(--text-3)}
+
+/* ===== stage and device frames ===== */
+.stage{display:flex;flex-wrap:wrap;gap:40px;justify-content:center;align-items:flex-start;padding:20px 24px 56px;max-width:1720px;margin:0 auto}
+.stage[data-layout=row]{flex-wrap:nowrap}
+.stage[data-view=phone] .device--mac,.stage[data-view=mac] .device--phone{display:none}
+.device{display:grid;gap:10px;justify-items:center}
+.device__label{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.phone-frame{position:relative;width:414px;height:868px;padding:12px;border-radius:62px;background:#0d0d0f;box-shadow:0 0 0 1px #34343a,0 40px 80px -36px rgba(0,0,0,.5)}
+.phone-frame>.app{width:390px;height:844px;border-radius:50px}
+.mac-frame{width:1180px;height:760px;border-radius:12px;overflow:hidden;box-shadow:0 0 0 1px var(--border-strong),0 30px 80px -34px rgba(0,0,0,.45)}
+.mac-frame>.app{height:100%}
+@media (max-width:520px){
+  .note{padding:14px 14px 0}.stage{padding:12px 0 0}
+  .phone-frame{width:100%;height:auto;padding:0;border-radius:0;background:none;box-shadow:none}
+  .phone-frame>.app{width:100%;height:100svh;border-radius:0}
+  .device--phone .device__label,.p-status,.home-ind{display:none!important}
+  .tabs{padding-bottom:max(8px,env(safe-area-inset-bottom))!important}
+}
+
+/* ===== app base ===== */
+.app{position:relative;overflow:hidden;isolation:isolate;background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:var(--lh-body)}
+.app[data-app=phone]{display:flex;flex-direction:column}
+.app[data-app=mac]{display:flex;flex-direction:column}
+.app:not(.is-space) .composer{display:none}
+.avatar{width:28px;height:28px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:10px;font-weight:700;letter-spacing:.03em}
+.avatar--pm{background:var(--accent-soft);color:var(--accent-text)}
+.avatar--owner{background:var(--text);color:var(--bg)}
+.prod-mono{width:26px;height:26px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;font-weight:700;font-size:13px;text-transform:uppercase;background:var(--accent-soft);color:var(--accent-text);font-family:var(--font-display)}
+.prod-mono[data-status=paused]{background:var(--bg-sunken);color:var(--text-3)}
+.prod-mono[data-status=failing]{background:var(--danger-soft);color:var(--danger-text)}
+.prod-mono--all{background:var(--text);color:var(--bg)}
+.prod-mono--all .ico{width:15px;height:15px}
+.count{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--accent-contrast);font-size:11px;font-weight:700;line-height:1;display:inline-grid;place-items:center;font-variant-numeric:tabular-nums;overflow:hidden;font-family:var(--font-body)}
+.count>span{grid-area:1/1}
+.status{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;background:var(--success-soft);color:var(--success-text);white-space:nowrap;text-transform:none;letter-spacing:0}
+.status i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.status--paused{background:var(--bg-sunken);color:var(--text-2)}
+.status--failing{background:var(--danger-soft);color:var(--danger-text)}
+.sdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--success-text);margin-left:6px;vertical-align:1px}
+.sdot--paused{background:var(--text-3)}.sdot--failing{background:var(--danger-text)}
+.meter{display:block;height:3px;border-radius:2px;background:var(--bg-sunken);overflow:hidden}
+.meter i{display:block;height:100%;width:var(--p);background:var(--accent);border-radius:inherit}
+.chip-btn{border:1px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:999px;padding:0 10px;height:30px;font-size:var(--fs-xs);white-space:nowrap}
+.chip-btn[aria-pressed=true]{background:var(--text);color:var(--bg);border-color:transparent}
+.empty{color:var(--text-3);font-size:var(--fs-sm);padding:12px 4px}
+.empty--big{display:grid;justify-items:center;gap:8px;text-align:center;padding:48px 16px}
+.empty--big .ico{width:32px;height:32px;color:var(--success-text)}
+.search{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text-3)}
+.search:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.search input{flex:1;min-width:0;border:0;background:none;outline:none;color:var(--text);font-size:var(--fs-sm)}
+.app[data-app=phone] .search input{font-size:16px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:var(--btn-h);padding:0 14px;border-radius:var(--r-md);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-weight:600;font-size:var(--fs-sm);white-space:nowrap;transition:background-color var(--dur-fast) var(--ease-standard),transform var(--dur-fast) var(--ease-standard)}
+.btn:hover{background:var(--hover-solid)}
+.btn:active{transform:scale(.97)}
+.btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-contrast)}
+.btn--primary:hover{background:var(--accent-hover)}
+.btn--quiet{border-color:transparent;background:none;color:var(--text-2)}
+.btn--quiet[aria-expanded=true]{background:var(--hover);color:var(--text)}
+.btn--sm{min-height:30px;padding:0 10px;font-size:var(--fs-xs)}
+.btn:disabled{opacity:.65}
+.btn kbd{display:none}
+.app[data-app=phone] .btn{min-height:44px}
+.app[data-app=phone] .btn--sm{min-height:36px}
+.icon-btn{width:40px;height:40px;flex:none;display:grid;place-items:center;border:0;background:none;border-radius:var(--r-md);color:var(--text-2)}
+.icon-btn:hover{background:var(--hover)}
+.icon-btn .ico{width:20px;height:20px}
+
+/* ===== mac window ===== */
+.win{display:flex;flex-direction:column;height:100%}
+.win__bar{position:relative;height:38px;flex:none;display:flex;align-items:center;padding:0 14px;background:var(--bg-sunken);border-bottom:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-3)}
+.lights{display:flex;gap:8px}.lights i{width:12px;height:12px;border-radius:50%;background:#fe5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.win__title{position:absolute;left:50%;translate:-50% 0;font-weight:600}
+.win__body{flex:1;display:flex;min-height:0}
+.sidebar{width:var(--sidebar-w);flex:none;display:flex;flex-direction:column;gap:2px;padding:12px 10px 10px;background:var(--bg-sunken);border-right:1px solid var(--border);overflow-y:auto}
+.brand{display:flex;align-items:center;gap:8px;padding:2px 6px 12px;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md)}
+.mark{width:22px;height:22px;color:var(--accent)}
+.search--side{height:32px;margin-bottom:8px;background:var(--bg)}
+.search--side kbd{margin-left:auto}
+.side-label{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-3);padding:14px 8px 4px;font-weight:600;letter-spacing:.04em}
+.side-label .ico{width:13px;height:13px}
+.side-list{list-style:none;margin:0;padding:0;display:grid;gap:1px}
+.side-item{width:100%;display:flex;align-items:center;gap:10px;min-height:34px;padding:5px 8px;border:0;background:none;border-radius:var(--r-md);text-align:left;color:var(--text-2);font-size:var(--fs-sm)}
+.side-item:hover{background:var(--hover)}
+.side-item[aria-current=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.side-item>kbd{margin-left:auto}
+.side-item .count{margin-left:auto}
+.side-item>kbd+.count{margin-left:6px}
+.side-prod__name{display:grid;min-width:0;flex:1}
+.side-prod__label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);font-weight:500}
+/* wraps to a second line rather than cutting the date: Russian status lines run longer */
+.side-prod small{font-size:var(--fs-xs);line-height:1.35;color:var(--text-3);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.side-prod .meter{display:none}
+.side-more{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:6px 8px;font-size:var(--fs-xs);color:var(--text-3);border-radius:var(--r-md);text-align:left}
+.side-more:hover{background:var(--hover)}
+.side-more .ico{width:14px;height:14px;transition:transform var(--dur-base) var(--ease-standard);transform:rotate(-90deg)}
+.side-more[aria-expanded=true] .ico{transform:none}
+.side-foot{margin-top:auto;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:10px 6px 2px;font-size:var(--fs-xs);color:var(--text-2);border-top:1px solid var(--border)}
+.side-foot .avatar{width:24px;height:24px}
+.side-foot__sync{margin-left:auto;display:inline-flex;align-items:center;gap:5px;color:var(--text-3);white-space:nowrap}
+.side-foot__sync i{width:6px;height:6px;border-radius:50%;background:var(--success-text)}
+.convo{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.convo__head{height:52px;flex:none;display:flex;align-items:center;gap:6px;padding:0 14px 0 20px;border-bottom:1px solid var(--border)}
+.convo__title{display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden}
+.app:has(.pane.is-open) .convo__sub,.app:has(.pane.is-open) .convo__head .lbl,.app:has(.pane.is-open) .convo__head kbd{display:none}
+.convo__title h2{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);white-space:nowrap}
+.convo__sub{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.convo__head .btn kbd{display:inline-block}
+.pane{width:0;flex:none;overflow:hidden;background:var(--surface-2);border-left:1px solid transparent;transition:width var(--dur-slow) var(--ease-standard),border-color var(--dur-slow) var(--ease-standard)}
+.pane.is-open{width:var(--pane-w);border-left-color:var(--border)}
+.pane__inner{width:var(--pane-w);height:100%;display:flex;flex-direction:column}
+.pane__tabs{height:52px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 0 12px;border-bottom:1px solid var(--border)}
+.pane__tabs .icon-btn{margin-left:auto}
+.tab-btn{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:6px 10px;border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm)}
+.tab-btn[aria-selected=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.pane__body{flex:1;overflow-y:auto}
+
+/* ===== phone ===== */
+.p-status{position:relative;height:50px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:6px 30px 0 40px;font:600 16px/1 -apple-system,"SF Pro Text",system-ui,sans-serif}
+.p-island{position:absolute;top:11px;left:50%;translate:-50% 0;width:124px;height:36px;border-radius:20px;background:#000}
+.p-status__icons{display:flex;gap:6px;align-items:center}
+.p-head{flex:none;display:flex;align-items:center;gap:4px;padding:2px 8px 8px 10px}
+.p-switch{flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:0;background:none;padding:6px;border-radius:var(--r-md);text-align:left;min-height:48px}
+.p-switch .prod-mono{width:34px;height:34px;font-size:16px}
+.p-switch__txt{display:grid;min-width:0}
+.p-switch b{font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);line-height:1.15}
+.p-switch small{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-switch>.ico{color:var(--text-3)}
+.p-strip{display:none}
+.p-needs{display:none}
+.tabs{flex:none;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border);background:var(--bg);padding:6px 4px 28px;position:relative;z-index:2}
+.tabs button{position:relative;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;min-height:48px;padding:4px 0;font-size:11px;color:var(--text-3)}
+.tabs button .ico{width:24px;height:24px}
+.tabs button[aria-current=page]{color:var(--accent-text)}
+.tabs .count{position:absolute;top:0;left:calc(50% + 6px);height:18px;min-width:18px;font-size:10px;padding:0 5px}
+.home-ind{position:absolute;bottom:8px;left:50%;translate:-50% 0;width:136px;height:5px;border-radius:3px;background:var(--text);opacity:.9;z-index:var(--z-chrome);pointer-events:none}
+.scrim{position:absolute;inset:0;z-index:30;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity var(--dur-base) var(--ease-standard)}
+.app.has-sheet .scrim{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:var(--z-sheet);max-height:88%;display:flex;flex-direction:column;background:var(--surface);border-radius:var(--r-sheet) var(--r-sheet) 0 0;box-shadow:var(--shadow-3);transform:translateY(102%);visibility:hidden;transition:transform var(--dur-slow) var(--ease-exit),visibility 0s linear var(--dur-slow)}
+.sheet.is-open{transform:none;visibility:visible;transition:transform var(--dur-slow) var(--ease-enter),visibility 0s}
+.sheet__grab{width:38px;height:5px;border-radius:3px;background:var(--border-strong);margin:8px auto 0;flex:none}
+.sheet__head{display:flex;align-items:center;justify-content:space-between;padding:6px 10px 6px 20px;flex:none}
+.sheet__head h2{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);outline:none}
+.sheet__body{overflow-y:auto;padding:0 0 36px;overscroll-behavior:contain}
+.sheet__pad{padding:0 16px 8px}
+.proj-list{padding:0 8px}
+.side-item--needs{background:var(--accent-soft);color:var(--accent-text);font-weight:600;min-height:48px}
+.side-item--needs .count{margin-left:auto}
+.side-prod--rich{min-height:56px}
+.side-prod--rich .prod-mono{width:34px;height:34px}
+.side-prod--rich .meter{display:block;margin-top:5px;width:70%}
+
+/* ===== conversation ===== */
+.log{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;outline:none}
+.log__inner{position:relative;max-width:var(--log-max);margin:0 auto;padding:24px var(--pad-x);display:flex;flex-direction:column;gap:var(--gap-log)}
+.app[data-app=phone] .log__inner{padding:12px 16px 20px}
+.day{display:flex;align-items:center;gap:12px;color:var(--text-3);font-size:var(--fs-xs);margin:6px 0}
+.day::before,.day::after{content:"";flex:1;height:1px;background:var(--border)}
+.msg{display:flex;gap:12px;align-items:flex-start}
+.msg__body{min-width:0;flex:1}
+.msg__meta{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-xs);color:var(--text-3);margin-bottom:2px}
+.msg__meta b{color:var(--text);font-weight:600}
+.bubble{overflow-wrap:anywhere}
+.bubble p{margin:0 0 .45em}.bubble p:last-child{margin:0}
+.bubble ul{margin:.2em 0 .5em;padding-left:1.2em}
+.bubble li{margin:.15em 0}
+.brief__h{font-weight:700;margin-top:.7em!important}
+.brief__foot{color:var(--text-2)}
+.ref{font-family:var(--font-mono);font-size:.86em;color:var(--accent-text)}
+.msg--owner{justify-content:flex-end}
+.msg--owner .msg__body{flex:0 1 auto;max-width:82%;display:flex;flex-direction:column;align-items:flex-end}
+.msg--owner .bubble{background:var(--owner-bubble);color:var(--owner-text);padding:9px 14px;border-radius:var(--r-lg) var(--r-lg) var(--r-sm) var(--r-lg)}
+.msg--owner .msg__meta{margin:4px 4px 0}
+.sysnote{display:flex;align-items:center;justify-content:center;gap:8px;font-size:var(--fs-xs);color:var(--text-3);text-align:center}
+.sysnote i{width:6px;height:6px;border-radius:50%;background:var(--text-3);flex:none}
+.typing{display:inline-flex;gap:4px;padding:10px 0}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:blink 1.2s infinite both}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.typing i{animation:none;opacity:.6}}
+:root[data-motion=reduce] .typing i{animation:none;opacity:.6}
+
+/* decision cards */
+.card{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:12px;padding:var(--pad-card);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);margin-left:var(--card-indent)}
+.card:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.card__head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:var(--fs-xs);color:var(--text-2)}
+.card__kind{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.card__kind .ico{width:15px;height:15px;color:var(--accent-text)}
+.card__num{font-family:var(--font-mono);color:var(--text-3)}
+.card__title{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);line-height:var(--lh-tight);font-weight:var(--fw-display)}
+.card__text{margin:0;color:var(--text-2);font-size:var(--fs-sm)}
+.steps{margin:0;padding-left:1.3em;font-size:var(--fs-sm);color:var(--text-2);display:grid;gap:4px}
+.rec{display:grid;gap:2px;padding:10px 12px;border-radius:var(--r-md);background:var(--accent-soft);font-size:var(--fs-sm)}
+.rec__label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text)}
+.rec__choice{color:var(--text)}
+.rec p{margin:2px 0 0;color:var(--text-2)}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:var(--fs-sm)}
+.check{display:flex;gap:8px;align-items:flex-start}
+.check .ico{margin-top:2px}
+.check--ok .ico{color:var(--success-text)}.check--warn .ico{color:var(--warning-text)}
+.card__foot{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap}
+.card__actions{display:flex;gap:8px;flex-wrap:wrap}
+.card__meta{font-size:var(--fs-xs);color:var(--text-3)}
+.app[data-app=phone] .card{margin-left:0}
+.app[data-app=phone] .card__foot{flex-direction:column;align-items:stretch}
+/* equal halves when both labels fit; a label too long for half the row takes a full row (Russian runs ~30% longer) */
+.app[data-app=phone] .card__actions{display:flex;flex-wrap:wrap}
+.app[data-app=phone] .card__actions .btn{flex:1 1 0;min-width:max-content}
+.is-highlight{animation:hl 1.4s var(--ease-standard)}
+@keyframes hl{0%,40%{box-shadow:0 0 0 3px var(--focus)}100%{box-shadow:var(--shadow-1)}}
+@media (prefers-reduced-motion:reduce){.is-highlight{animation:none;box-shadow:0 0 0 3px var(--focus)}}
+
+/* design thumbnail: drawn from tokens, no image assets */
+.thumb{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--bg-sunken);cursor:zoom-in}
+.thumb--big{margin:4px 0 6px}
+.tf{display:flex;flex-direction:column;gap:5px;aspect-ratio:9/15;padding:6px;border-radius:8px;background:var(--surface);border:1px solid var(--border);position:relative}
+.tf--dark{background:color-mix(in oklab,var(--text) 92%,var(--bg));border-color:transparent}
+.tf__bar{height:5px;width:55%;border-radius:3px;background:var(--border-strong)}
+.tf--dark .tf__bar,.tf--dark .tf__line{background:color-mix(in oklab,var(--bg) 35%,transparent)}
+.tf__center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.tf__icon{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--accent);background:var(--accent-soft)}
+.tf--error .tf__icon{border-color:var(--danger-text);background:var(--danger-soft)}
+.tf__line{height:3px;width:70%;border-radius:2px;background:var(--border-strong)}
+.tf__line--s{width:44%}
+.tf__btn{height:8px;width:48%;border-radius:4px;background:var(--accent);margin-top:3px}
+.tf__cap{position:absolute;left:0;right:0;bottom:-2px;translate:0 100%;font-size:10px;color:var(--text-3);text-align:center;padding-top:3px}
+.thumb{padding-bottom:26px}
+
+/* receipt: a resolved card, recorded as the owner's answer */
+.receipt{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;padding:9px 12px;border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2);margin-left:var(--card-indent);outline-offset:2px}
+.app[data-app=phone] .receipt{margin-left:0}
+.receipt__icon{width:24px;height:24px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--success-soft);color:var(--success-text)}
+.receipt__icon .ico{width:14px;height:14px;stroke-width:2.4}
+.receipt--negative .receipt__icon{background:var(--danger-soft);color:var(--danger-text)}
+.receipt--neutral .receipt__icon{background:var(--surface);color:var(--text-2)}
+.receipt__body{flex:1 1 200px;min-width:0}
+.app[data-app=phone] .receipt__meta{flex-basis:100%;padding-left:var(--receipt-indent,34px)}
+.receipt__verb{font-weight:700;color:var(--text)}
+.receipt__meta{font-size:var(--fs-xs);color:var(--text-3);font-family:var(--font-mono)}
+
+/* banners */
+.banner-wrap{padding:0 var(--pad-x) 4px}
+.app[data-app=phone] .banner-wrap{padding:0 12px 4px}
+.paused{max-width:var(--log-max);margin:0 auto;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px;border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-sm)}
+.paused span{flex:1}.paused b{font-weight:700}
+.paused--bad{background:var(--danger-soft);color:var(--danger-text)}
+
+/* composer */
+.composer{flex:none;padding:10px var(--pad-x) 16px}
+.app[data-app=phone] .composer{padding:6px 12px 8px}
+.composer__box{max-width:var(--log-max);margin:0 auto;display:flex;align-items:flex-end;gap:8px;padding:7px 7px 7px 14px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.composer__box:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.composer textarea{flex:1;min-height:34px;max-height:120px;padding:6px 0;border:0;background:none;outline:none;resize:none;font-size:var(--fs-md);line-height:1.4}
+.app[data-app=phone] .composer textarea{font-size:16px}
+.composer textarea::placeholder{color:var(--text-3)}
+.composer__hint{align-self:center}
+.send{width:34px;height:34px;flex:none;display:grid;place-items:center;border:0;border-radius:var(--r-md);background:var(--accent);color:var(--accent-contrast)}
+.app[data-app=phone] .send{width:40px;height:40px}
+
+/* toast */
+.toast{position:absolute;left:50%;bottom:150px;translate:-50% 0;z-index:var(--z-toast);padding:8px 14px;border-radius:999px;background:var(--text);color:var(--bg);font-size:var(--fs-sm);box-shadow:var(--shadow-2);white-space:nowrap;pointer-events:none}
+.app[data-app=mac] .toast{bottom:96px}
+.app[data-app=phone] .toast{top:124px;bottom:auto}
+
+/* ===== board ===== */
+.board{display:flex;flex-direction:column;gap:14px;padding:16px 20px 24px}
+.board__head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.board__kicker{display:flex;align-items:center;gap:8px;font-size:var(--fs-xs);color:var(--text-3)}
+.board__head h3{margin:4px 0 0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:1.1}
+.demo-pill{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:var(--fs-xs);font-weight:600;white-space:nowrap}
+.demo-pill .ico{width:14px;height:14px}
+.progress{height:6px;border-radius:3px;background:var(--bg-sunken);overflow:hidden}
+.progress i{display:block;height:100%;width:var(--p);background:var(--accent);border-radius:inherit}
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:0}
+.metrics div{padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md)}
+.metrics dt{font-size:var(--fs-xs);color:var(--text-3)}
+.metrics dd{margin:0;font-weight:600;font-size:var(--fs-sm);font-family:var(--font-mono)}
+.metrics dd.metrics__word{font-family:var(--font-body)} /* words read badly in mono, Cyrillic especially */
+.metrics .ok{color:var(--success-text)}.metrics .bad{color:var(--danger-text)}
+.cols{display:grid;gap:16px}
+.col h4{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.col h4 span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.col ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.item{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);font-size:var(--fs-sm)}
+.item__num{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-3)}
+.item__title{min-width:0}
+.item small{display:block;font-size:var(--fs-xs);color:var(--text-3)}
+.tier{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.tier--light{background:var(--bg-sunken);color:var(--text-2)}
+.tier--standard{background:var(--accent-soft);color:var(--accent-text)}
+.tier--heavy{background:var(--warning-soft);color:var(--warning-text)}
+.board__empty{display:flex;gap:10px;align-items:flex-start;padding:14px;border:1px dashed var(--border-strong);border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm)}
+.board__empty p{margin:0}
+.board__foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-3)}
+.app[data-app=phone] .cols{grid-auto-flow:column;grid-auto-columns:82%;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -20px;padding:0 20px 6px;scroll-padding:0 20px}
+.app[data-app=phone] .col{scroll-snap-align:start}
+
+/* ===== artifacts ===== */
+.arts{display:flex;flex-direction:column;gap:12px;padding:16px 20px 24px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.art-group h4{display:flex;gap:8px;margin:6px 0 6px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.art-group h4 span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.art-group ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.art{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-md);background:var(--surface);border:1px solid var(--border);font-size:var(--fs-sm)}
+.art>.ico{color:var(--text-3)}
+.art__icon{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:var(--r-sm);background:var(--bg-sunken);color:var(--text-2)}
+.art__icon .ico{width:16px;height:16px}
+.art__title{flex:1;min-width:0;display:grid}
+.art__title small{font-size:var(--fs-xs);color:var(--text-3)}
+.art--awaiting{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.art--awaiting .art__icon{background:var(--accent-soft);color:var(--accent-text)}
+.art__thumb{list-style:none}
+
+/* ===== cross-project views ===== */
+.log__inner--view{gap:12px}
+.needs__lead{margin:0 0 4px;color:var(--text-2);font-size:var(--fs-sm)}
+.needs__list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.need{width:100%;display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;text-align:left;padding:12px 12px 12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.need:hover{border-color:var(--border-strong)}
+.need>.ico{grid-column:2;grid-row:1/span 3;color:var(--text-3)}
+.need__top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ptag{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px 0 2px;border-radius:999px;background:var(--bg-sunken);font-size:var(--fs-xs);font-weight:600;color:var(--text)}
+.ptag .prod-mono{width:20px;height:20px;font-size:11px;border-radius:50%}
+.need__kind{font-size:var(--fs-xs);color:var(--text-3)}
+.need__title{font-weight:600;font-family:var(--font-display);line-height:var(--lh-tight)}
+.need__rec{font-size:var(--fs-xs);color:var(--text-2)}
+.ov-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.ov{width:100%;display:grid;gap:8px;text-align:left;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.ov:hover{border-color:var(--border-strong)}
+.ov__top{display:flex;align-items:center;gap:8px}
+.ov__top b{flex:1;font-family:var(--font-display);font-weight:var(--fw-display)}
+.ov__line{font-size:var(--fs-xs);color:var(--text-2)}
+.ov__foot{display:flex;justify-content:space-between;align-items:center;font-size:var(--fs-xs);color:var(--text-3);font-family:var(--font-mono)}
+.meter--wide{height:4px}
+.ov-h{display:flex;gap:8px;margin:12px 0 0;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.ov-h span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.ov-grid--quiet .ov{box-shadow:none;background:transparent}
+.app[data-app=phone] .ov-grid{grid-template-columns:1fr}
+
+/* ===== language: bilingual static blocks in the page note ===== */
+:root:not([lang=ru]) [data-lang=ru],:root[lang=ru] [data-lang=en]{display:none}
+
+/* ===== character: Paper Desk ===== */
+
+/* Paper Desk: the PM writes like a letter; decisions are stamped and become margin notes */
+.msg--pm .bubble{font-family:var(--font-display);font-size:16px;line-height:1.62}
+.app[data-app=phone] .msg--pm .bubble{font-size:16px}
+.msg--pm .brief__h{font-family:var(--font-body);font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-2)}
+.avatar--pm{background:none;border:1px solid var(--border-strong);color:var(--text-2);font-family:var(--font-display);font-style:italic;font-weight:600}
+.card__kind{font-variant:small-caps;letter-spacing:.04em;font-size:13px}
+.card{background:var(--surface);background-image:linear-gradient(var(--surface),var(--surface-2))}
+.rec{background:none;border-left:2px solid var(--accent);border-radius:0;padding:2px 0 2px 12px}
+.rec__choice{font-family:var(--font-display);font-size:16px}
+.receipt{background:none;border-left:2px solid var(--accent);border-radius:0;padding:4px 0 4px 14px;font-family:var(--font-display);font-style:italic;font-size:15px}
+.receipt--negative{border-left-color:var(--danger-text)}.receipt--neutral{border-left-color:var(--text-3)}
+.receipt__icon{background:none!important;width:18px;height:18px}
+.receipt__icon .ico{width:18px;height:18px;stroke-width:2}
+.receipt__meta{font-style:normal}
+.receipt{--receipt-indent:28px}
+.receipt.is-new .receipt__icon path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) var(--dur-fast) forwards}
+@keyframes ink{to{stroke-dashoffset:0}}
+.stamp{position:absolute;right:22px;top:calc(50% - 39px);width:78px;height:78px;color:var(--accent);pointer-events:none;opacity:0}
+.stamp svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.stamp .stamp__inner{stroke-width:1;opacity:.6}
+.stamp--negative{color:var(--danger-text)}.stamp--neutral{color:var(--text-2)}
+.sidebar{background:var(--bg-sunken)}
+.side-item[aria-current=true]{box-shadow:none;background:var(--surface);border:1px solid var(--border)}
+.side-label{font-variant:small-caps;letter-spacing:.06em;font-size:13px}
+.tabs button[aria-current=page] .ico{stroke-width:2.2}
+.need__title,.ov__top b{font-weight:600}
+.day span{font-family:var(--font-display);font-style:italic;font-size:14px}
+.msg--owner .bubble{border-radius:var(--r-lg)}
+/* status lines are words, not ids: mono spaces Cyrillic words out, so only ids stay in Source Code Pro */
+.ov__foot,.receipt__meta{font-family:var(--font-body);font-variant-numeric:tabular-nums}
+
+/* ===== Feature design pages: parts shared by every page, on the Paper Desk tokens (ADR 0002) =====
+   Proposed token additions (the Paper Desk sketch names no spacing scale, target size or stagger):
+   spacing on a 4 px base, a 44 px target, a 16 px input size (stops iOS zoom), the checklist mark, the dialog
+   width, a stagger step and the 120 ms reduced-motion fade the prototype already uses. */
+:root{
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;--sp-10:40px;
+  --target:44px;--fs-input:16px;--mark:28px;--dialog-w:440px;--set-max:720px;--stamp-sm:64px;
+  --ls-caps:.06em;--stagger:70ms;--dur-fade:120ms;--dur-pulse:1600ms;--dur-toast:2400ms;
+}
+@media (prefers-reduced-motion:reduce){:root{--stagger:0ms}}
+:root[data-motion=reduce]{--stagger:0ms}
+
+/* ----- page chrome: the demo state bar ----- */
+.demo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-4);font-size:var(--fs-xs);color:var(--text-2)}
+.demo label{display:inline-flex;align-items:center;gap:var(--sp-2)}
+.demo select{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);min-height:32px;padding:0 var(--sp-2)}
+.demo input[type=checkbox]{width:var(--sp-4);height:var(--sp-4);accent-color:var(--accent)}
+.demo__help{flex-basis:100%;margin:0;color:var(--text-3);max-width:110ch}
+.note ul{margin:0 0 var(--sp-2);padding-left:1.2em;max-width:75ch}
+.note li{margin:var(--sp-1) 0}
+
+/* ----- buttons (additions to the kit) ----- */
+.btn[aria-disabled=true]{cursor:default}
+.btn--primary[aria-disabled=true],.btn--primary[aria-disabled=true]:hover{background:var(--accent-soft);color:var(--accent-text)}
+.btn:not(.btn--primary)[aria-disabled=true]{color:var(--text-3)}
+.btn[aria-disabled=true]:active{transform:none}
+.btn--danger{background:var(--danger-soft);border-color:transparent;color:var(--danger-text)}
+.btn--danger:hover{background:color-mix(in oklab,var(--danger-soft) 86%,var(--danger-text))}
+.btn--danger-quiet{background:none;color:var(--danger-text)}
+.btn--danger-quiet:hover{background:var(--danger-soft)}
+.btn--tall{min-height:var(--target)}
+.btn .typing{padding:0}
+.ext{display:inline-flex;align-items:center;gap:var(--sp-1);color:var(--accent-text);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;border-radius:var(--r-sm)}
+.ext .ico{width:14px;height:14px}
+.link-btn{border:0;background:none;padding:0;color:var(--accent-text);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;min-height:var(--target)}
+
+/* skeleton rows */
+.skel-row{display:flex;align-items:center;gap:var(--sp-3);min-height:calc(var(--target) + var(--sp-5));padding:var(--sp-3) var(--sp-4);border-top:1px solid var(--border)}
+.skel-row:first-child{border-top:0}
+.skel{display:block;border-radius:var(--r-sm);background:var(--bg-sunken);height:var(--sp-3)}
+.skel--mono{width:34px;height:34px}
+.skel-stack{flex:1;display:grid;gap:var(--sp-2)}
+.skel--a{width:38%}.skel--b{width:56%;height:var(--sp-2)}
+.skel-row .skel{animation:pulse var(--dur-pulse) var(--ease-standard) infinite}
+@keyframes pulse{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.skel-row .skel{animation:none}}
+:root[data-motion=reduce] .skel-row .skel{animation:none}
+
+/* empty and error blocks */
+.block{display:grid;justify-items:start;gap:var(--sp-2);padding:var(--sp-6);border-radius:var(--r-lg);background:var(--surface);border:1px dashed var(--border-strong)}
+.block h2,.block h3{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
+.block p{margin:0 0 var(--sp-2);color:var(--text-2);font-size:var(--fs-sm);max-width:52ch}
+.block--error{background:var(--danger-soft);border:0;color:var(--danger-text)}
+.block--error p{color:var(--danger-text)}
+.block--error .btn{border-color:transparent}
+.offline{max-width:none}
+
+/* ----- fields: label, hint, error, preview ----- */
+.field{display:grid;gap:var(--sp-1)}
+.field__label{font-weight:600;font-size:var(--fs-sm)}
+.field__hint{margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.field__input{width:100%;height:var(--target);margin-top:var(--sp-1);padding:0 var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--text);font-family:var(--font-mono);font-size:var(--fs-md);transition:border-color var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard)}
+.app[data-app=phone] .field__input{font-size:var(--fs-input)}
+.field__input::placeholder{color:var(--text-3)}
+.field__input:focus{outline:none;border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.field__input[aria-invalid=true]{border-color:var(--danger-text);box-shadow:0 0 0 1px var(--danger-text)}
+.field__err{display:flex;align-items:flex-start;gap:var(--sp-2);margin:var(--sp-1) 0 0;color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.field__err .ico{margin-top:2px}
+.field__preview{margin:var(--sp-1) 0 0;font-size:var(--fs-xs);color:var(--text-2)}
+.field__preview code{color:var(--accent-text)}
+.form-actions{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.app[data-app=phone] .form-actions .btn{flex:1 1 0;min-width:max-content}
+
+/* ----- the result note: a margin note, like the prototype's recorded answers ----- */
+.res{position:relative;display:grid;justify-items:start;gap:var(--sp-1);padding:var(--sp-1) 0 var(--sp-1) var(--sp-4);border-left:2px solid var(--accent)}
+.res h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);outline:none}
+.res p{margin:0;color:var(--text-2);font-size:var(--fs-sm);max-width:60ch}
+.res .btn,.res .link-btn{margin-top:var(--sp-2)}
+.res__time{font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
+.res--warn{border-left-color:var(--warning-text)}
+.res--bad{border-left-color:var(--danger-text)}
+.res--neutral{border-left-color:var(--text-3)}
+.res--ready{min-height:var(--stamp-sm);padding-right:calc(var(--stamp-sm) + var(--sp-4))}
+.res .stamp{right:0;top:calc(50% - var(--stamp-sm) / 2);width:var(--stamp-sm);height:var(--stamp-sm);opacity:1;transform:rotate(-9deg)}
+
+@keyframes mark-in{from{transform:scale(.6);opacity:0}}
+@keyframes fade{from{opacity:0}}
+
+/* ----- disclosure ("How to fix") and a code line with Copy ----- */
+.how-btn{margin-left:calc(-1 * var(--sp-2));color:var(--accent-text);min-height:var(--target)}
+.how-btn .ico{width:16px;height:16px;transition:transform var(--dur-base) var(--ease-standard)}
+.how-btn[aria-expanded=true]{background:none;color:var(--accent-text)}
+.how-btn[aria-expanded=true] .ico{transform:rotate(180deg)}
+.how{display:grid;gap:var(--sp-3);width:100%;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2)}
+.how p{margin:0;overflow-wrap:anywhere}
+.how dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--sp-2) var(--sp-4);margin:0}
+.how dt{color:var(--text-3)}
+.how dd{margin:0;min-width:0;color:var(--text)}
+.app[data-app=phone] .how{padding:var(--sp-3)}
+.app[data-app=phone] .how dl{grid-template-columns:minmax(0,1fr);gap:0}
+.app[data-app=phone] .how dd{margin-bottom:var(--sp-2)}
+.codeline{display:flex;align-items:flex-start;gap:var(--sp-2);width:100%}
+.codeline code{flex:1;min-width:0;padding:var(--sp-2) var(--sp-3);border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-size:var(--fs-xs);line-height:1.5;overflow-wrap:anywhere}
+.codeline .btn{min-height:var(--target);flex:none}
+.codeline .btn[data-copied] {color:var(--success-text)}
+
+/* ----- confirmation dialog (alertdialog): archive, disconnect, team commands ----- */
+.modal{position:absolute;inset:0;z-index:var(--z-sheet);display:grid;place-items:center;padding:var(--sp-6)}
+.modal__scrim{position:absolute;inset:0;background:var(--scrim)}
+.adialog{position:relative;width:min(100%,var(--dialog-w));display:grid;gap:var(--sp-3);padding:var(--sp-6);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-2)}
+.adialog h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);overflow-wrap:anywhere}
+.adialog p{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.adialog .adialog__note{font-size:var(--fs-xs);color:var(--text-2);padding-left:var(--sp-3);border-left:2px solid var(--border-strong)}
+.adialog__err{display:flex;gap:var(--sp-2);align-items:flex-start;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--danger-soft);color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.adialog__err .ico{margin-top:2px}
+.adialog__actions{display:flex;justify-content:flex-end;gap:var(--sp-2);margin-top:var(--sp-2)}
+.adialog__actions .btn{min-height:var(--target)}
+.app[data-app=phone] .modal{place-items:end stretch;padding:0}
+.app[data-app=phone] .adialog{width:100%;border-radius:var(--r-sheet) var(--r-sheet) 0 0;border-width:1px 0 0;padding:var(--sp-6) var(--sp-5) var(--sp-10);box-shadow:var(--shadow-3)}
+.app[data-app=phone] .adialog__actions .btn{flex:1 1 0}
+
+
+/* toast and live region */
+.toast[hidden]{display:none}
+.app[data-app=phone] .toast{top:auto;bottom:var(--sp-10)}
+
+/* page chrome sits on the darker --page backdrop, where tertiary text falls under AA: use secondary text there */
+.note__kicker,.device__label,.demo__help{color:var(--text-2)}
+/* ===== #24 Settings: GitHub connection and projects, on the Paper Desk tokens (ADR 0002) =====
+   Shared page parts (tokens, buttons, fields, result notes, dialogs, toast) are in kit.css. */
+
+/* ----- mac: settings in the main column ----- */
+.set-main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.set-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.set-inner{max-width:var(--set-max);margin:0 auto;padding:var(--sp-8) var(--pad-x) var(--sp-10);display:flex;flex-direction:column;gap:var(--sp-6)}
+.app[data-app=phone] .set-inner{padding:var(--sp-2) var(--sp-4) var(--sp-10);gap:var(--sp-5)}
+.crumbs ol{display:flex;align-items:center;gap:var(--sp-2);list-style:none;margin:0;padding:0;font-size:var(--fs-sm);color:var(--text-3)}
+.crumbs li{display:flex;align-items:center;gap:var(--sp-2)}
+.crumbs li+li::before{content:"/";color:var(--border-strong)}
+.crumbs a{color:var(--text-2);text-decoration:none;border-radius:var(--r-sm);padding:var(--sp-1)}
+.crumbs a:hover{color:var(--text);background:var(--hover)}
+.crumbs [aria-current=page]{color:var(--text);font-weight:600}
+.side-item--settings{margin-bottom:var(--sp-1)}
+.side-item--settings[aria-current=page]{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+.side-foot__row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2);width:100%}
+
+/* ----- phone: pushed settings pages ----- */
+.app[data-app=phone]{overflow:clip} /* focus() must never scroll the device frame itself */
+.p-bar{flex:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;min-height:var(--target);padding:0 var(--sp-2) var(--sp-1)}
+.p-back{justify-self:start;display:inline-flex;align-items:center;border:0;background:none;color:var(--accent-text);min-height:var(--target);padding:0 var(--sp-2) 0 0;font-size:var(--fs-md);border-radius:var(--r-md)}
+.p-back .ico{width:22px;height:22px;stroke-width:2.2}
+.p-bar__title{font-weight:600;font-size:var(--fs-md)}
+.p-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.p-stub{flex:1;display:grid;align-content:start;gap:var(--sp-5);padding:var(--sp-4)}
+.p-stub p{margin:0;font-family:var(--font-display);font-size:var(--fs-md);color:var(--text-2);line-height:1.62}
+.sheet-foot{display:grid;gap:1px;margin:var(--sp-2) var(--sp-2) 0;padding-top:var(--sp-2);border-top:1px solid var(--border)}
+.sheet-foot .side-item{min-height:48px;font-size:var(--fs-md)}
+.side-item--add{color:var(--accent-text);font-weight:600}
+.sheet-row__repo{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-3)}
+
+/* ----- headings ----- */
+.set-head{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:var(--sp-3) var(--sp-4)}
+.set-head h1{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-2xl);line-height:var(--lh-tight);outline:none;overflow-wrap:anywhere}
+.set-lead{margin:var(--sp-1) 0 0;color:var(--text-2);font-size:var(--fs-sm)}
+.set-head--proj{align-items:center;justify-content:flex-start;flex-wrap:nowrap}
+.set-head--proj .prod-mono{width:48px;height:48px;font-size:var(--fs-xl);border-radius:var(--r-md)}
+.set-meta{margin:var(--sp-1) 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-3);font-size:var(--fs-sm);color:var(--text-3)}
+.app[data-app=phone] .set-head .btn--primary{width:100%}
+
+/* ----- project list ----- */
+.plist{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);overflow:hidden}
+.prow{display:flex;align-items:center;gap:var(--sp-1);padding-right:var(--sp-2);border-top:1px solid var(--border);background:var(--surface)}
+.prow:first-child{border-top:0}
+.prow__link{flex:1;min-width:0;display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:var(--sp-1) var(--sp-3);min-height:calc(var(--target) + var(--sp-5));padding:var(--sp-3) var(--sp-2) var(--sp-3) var(--sp-4);color:inherit;text-decoration:none;border-radius:var(--r-md);transition:background-color var(--dur-fast) var(--ease-standard)}
+.prow__link:hover{background:var(--hover)}
+.prow__link>.ico{color:var(--text-3)}
+.prow .prod-mono{width:34px;height:34px;font-size:16px}
+.prow__txt{display:grid;min-width:0}
+.prow__name{font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md);line-height:var(--lh-tight)}
+.prow__repo{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-2);overflow-wrap:anywhere}
+.prow__arch{min-height:var(--target);color:var(--text-2);font-weight:400}
+.app[data-app=mac] .prow__arch .ico{display:none}
+.prow__arch:hover{color:var(--danger-text);background:var(--danger-soft)}
+.app[data-app=phone] .prow__link{grid-template-columns:auto minmax(0,1fr) auto;padding-left:var(--sp-3)}
+.app[data-app=phone] .prow .setchip{grid-column:2;grid-row:2;justify-self:start}
+.app[data-app=phone] .prow__link>.ico{grid-column:3;grid-row:1/span 2}
+.app[data-app=phone] .prow .prod-mono{grid-row:1/span 2}
+.app[data-app=phone] .prow__arch{width:var(--target);padding:0}
+.app[data-app=phone] .prow__archtxt{display:none}
+.app[data-app=phone] .prow__arch .ico{width:20px;height:20px}
+
+/* setup chip on a row: the word carries the status, the icon only repeats it */
+.setchip{height:auto;min-height:22px;padding:1px var(--sp-2);gap:var(--sp-1);white-space:normal}
+.setchip .ico{width:13px;height:13px;stroke-width:2.4}
+.setchip--missing{background:var(--warning-soft);color:var(--warning-text)}
+.setchip--checking,.setchip--unknown{background:var(--bg-sunken);color:var(--text-2)}
+.setchip .typing{padding:0;gap:2px}
+.setchip .typing i{width:4px;height:4px}
+
+/* ----- the checklist: a ledger of four steps ----- */
+.ledger{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.step{display:grid;grid-template-columns:var(--mark) minmax(0,1fr);gap:var(--sp-1) var(--sp-3);padding:var(--sp-4);border-top:1px solid var(--border)}
+.step:first-child{border-top:0}
+.app[data-app=phone] .step{padding:var(--sp-4) var(--sp-3)}
+.step__mark{width:var(--mark);height:var(--mark);border-radius:50%;display:grid;place-items:center;background:var(--bg-sunken);color:var(--text-2);font-family:var(--font-display);font-size:var(--fs-sm);font-weight:600;font-variant-numeric:lining-nums}
+.step__mark .ico{width:16px;height:16px;stroke-width:2.4}
+.step__mark .typing{padding:0;gap:2px}.step__mark .typing i{width:4px;height:4px}
+.step__body{display:grid;justify-items:start;gap:var(--sp-1);min-width:0}
+.step__head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:0 var(--sp-3);width:100%;min-height:var(--mark)}
+.step__title{margin:0;font-size:var(--fs-md);font-weight:600;line-height:var(--lh-tight);align-self:center}
+.step__state{font-size:var(--fs-sm);font-weight:600;font-variant:small-caps;letter-spacing:var(--ls-caps);text-transform:lowercase;white-space:nowrap}
+.step__fix{margin:0;font-size:var(--fs-sm);color:var(--text-2);overflow-wrap:anywhere}
+.step--done .step__mark{background:var(--success-soft);color:var(--success-text)}
+.step--done .step__state{color:var(--success-text)}
+.step--missing .step__mark{background:var(--warning-soft);color:var(--warning-text)}
+.step--missing .step__state{color:var(--warning-text)}
+.step--pending .step__state,.step--unknown .step__state{color:var(--text-2)}
+.step--skipped .step__mark{background:none;border:1px dashed var(--border-strong);color:var(--text-3)}
+.step--skipped .step__title{color:var(--text-2)}
+.step--skipped .step__state{color:var(--text-3)}
+
+/* ink: a step that just turned done draws its check, in step order */
+.step.is-new .step__mark{animation:mark-in var(--dur-base) var(--ease-emph) calc(var(--i, 0) * var(--stagger)) both}
+.step.is-new.step--done .step__mark path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) calc(var(--i, 0) * var(--stagger) + var(--dur-fast)) forwards}
+@media (prefers-reduced-motion:reduce){.step.is-new .step__mark,.step.is-new.step--done .step__mark path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}}
+:root[data-motion=reduce] .step.is-new .step__mark,:root[data-motion=reduce] .step.is-new.step--done .step__mark path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}
+
+/* ----- actions and the separated archive ----- */
+.danger-zone{display:flex;padding-top:var(--sp-5);border-top:1px solid var(--border)}
+.app[data-app=phone] .danger-zone .btn{width:100%}
+
+/* ----- settings sections ----- */
+.sec{display:grid;gap:var(--sp-3)}
+.sec-head{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:var(--sp-3) var(--sp-4)}
+.sec-title{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
+.app[data-app=phone] .sec-head .btn--primary{width:100%}
+
+/* ----- the GitHub connection card: one card, the state is its words ----- */
+.gh{display:grid;justify-items:start;gap:var(--sp-3);padding:var(--sp-4) var(--sp-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.app[data-app=phone] .gh{padding:var(--sp-4)}
+.gh__row{display:flex;align-items:center;flex-wrap:wrap;gap:var(--sp-2) var(--sp-3);width:100%}
+.gh__mark{flex:none;width:var(--mark);height:var(--mark);border-radius:50%;display:grid;place-items:center;background:var(--bg-sunken);color:var(--text-2)}
+.gh__mark .ico{width:16px;height:16px;stroke-width:2.4}
+.gh--ok .gh__mark{background:var(--success-soft);color:var(--success-text)}
+.gh--warn .gh__mark{background:var(--surface);color:var(--warning-text)}
+.gh__who{flex:1;min-width:0;display:grid;gap:2px}
+.gh__title{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight);outline:none;overflow-wrap:anywhere}
+.gh__title code{font-size:.9em}
+.gh__meta{margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.gh__body{margin:0;font-size:var(--fs-sm);color:var(--text-2);max-width:60ch}
+.gh__actions{display:flex;flex-wrap:wrap;gap:var(--sp-2);width:100%}
+.app[data-app=phone] .gh__actions .btn{flex:1 1 auto}
+.gh__disc{color:var(--danger-text)}
+.app[data-app=phone] .gh__disc{flex-basis:100%;justify-content:flex-start;margin-left:var(--mark);padding-left:var(--sp-3)}
+.gh__title code{white-space:nowrap}
+.gh__disc:hover{background:var(--danger-soft)}
+.gh__off{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.gh__off .ico{width:14px;height:14px;flex:none;margin-top:2px}
+.gh--warn{background:var(--warning-soft);border-color:transparent;box-shadow:none}
+.gh--warn .gh__title,.gh--warn .gh__body{color:var(--warning-text)}
+.gh--bad{background:var(--danger-soft);border-color:transparent;box-shadow:none}
+.gh--bad .gh__title,.gh--bad .gh__body{color:var(--danger-text)}
+.gh__skel{border-radius:50%}
+.gh .skel-stack{flex:1}
+/* the "connected" tick is drawn once, after the round trip to GitHub */
+.gh__mark.is-new{animation:mark-in var(--dur-base) var(--ease-emph) both}
+.gh__mark.is-new path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) var(--dur-fast) forwards}
+@media (prefers-reduced-motion:reduce){.gh__mark.is-new,.gh__mark.is-new path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}}
+:root[data-motion=reduce] .gh__mark.is-new,:root[data-motion=reduce] .gh__mark.is-new path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}
+
+/* connection reminders below Settings */
+.conn-banner{max-width:none;flex-wrap:wrap}
+.conn-banner .ico{flex:none}
+.conn-banner .btn{min-height:var(--target);background:var(--surface);border-color:transparent;color:var(--warning-text);font-weight:600}
+.app[data-app=phone] .conn-banner .btn{width:100%}
+.need-conn .btn{margin-top:var(--sp-2)}
+.app[data-app=phone] .need-conn{padding-right:0}
+.app[data-app=phone] .need-conn .btn{width:100%}
+
+/* sync state in the Mac sidebar footer and the iPhone sheet */
+.side-foot__sync .sync-dot--none,.sheet-foot__sync .sync-dot--none{background:var(--text-3)}
+.side-foot__sync .sync-dot--lost,.sheet-foot__sync .sync-dot--lost{background:var(--warning-text)}
+.side-foot__sync .sync-dot--loading,.sheet-foot__sync .sync-dot--loading{background:var(--border-strong)}
+.sheet-foot__sync{margin-left:auto;display:inline-flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-xs);color:var(--text-2);font-weight:400}
+.sheet-foot__sync i{width:6px;height:6px;border-radius:50%;background:var(--success-text)}
+
+/* ----- GitHub's authorize page, mocked for the demo only ----- */
+.gh-mock__note{margin:0;padding:var(--sp-2) var(--sp-3);border:1px dashed var(--border-strong);border-radius:var(--r-md);font-size:var(--fs-xs);color:var(--text-2)}
+.gh-mock{display:grid;justify-items:center;gap:var(--sp-3);padding:var(--sp-6) var(--sp-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);text-align:center;font-family:var(--font-body)}
+.gh-mock h1{margin:0;font-size:var(--fs-xl);font-weight:600;outline:none;overflow-wrap:anywhere}
+.gh-mock__logos{display:flex;align-items:center;gap:var(--sp-3);color:var(--text-3)}
+.gh-mock__logos .mark{width:40px;height:40px;color:var(--accent)}
+.gh-mock__logos .avatar{width:40px;height:40px;font-size:var(--fs-md)}
+.gh-mock p,.gh-mock ul{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.gh-mock ul{text-align:left;padding-left:1.2em;display:grid;gap:var(--sp-1)}
+.gh-mock .form-actions{width:100%;justify-content:center}
+.p-bar__url{justify-self:center;padding:var(--sp-1) var(--sp-4);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2)}
+.crumbs__url{font-family:var(--font-mono);font-weight:400}
+/* ===== #194 All projects: add from GitHub, on the Paper Desk tokens (ADR 0002) =====
+   Reuses settings.css (#24: ledger, result notes, callouts, project list card) and kit.css. The one new token is the
+   width of the Add dialog on the Mac: the five-step checklist with its "How to fix" lines needs more than the 440 px
+   confirmation dialog. */
+:root{--sheet-dialog-w:560px}
+
+/* ----- host: All projects ----- */
+.set-inner--wide{max-width:calc(var(--set-max) + var(--sp-10) * 2)}
+.ov-head{display:grid;gap:var(--sp-1)}
+.ov-head h1{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-2xl);line-height:var(--lh-tight);outline:none}
+.ov-count{margin:0;color:var(--text-2);font-size:var(--fs-sm)}
+.set-inner>.ov-h{margin:0}
+.ov{color:inherit;text-decoration:none}
+.ov__chips{display:inline-flex;align-items:center;gap:var(--sp-1)}
+.ov .setchip{font-family:var(--font-body)}
+.status--new{background:var(--accent-soft);color:var(--accent-text)}
+.ov-empty{display:grid;gap:var(--sp-1);padding:var(--sp-4) var(--sp-5);border:1px dashed var(--border-strong);border-radius:var(--r-lg)}
+.ov-empty h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight)}
+.ov-empty p{margin:0;color:var(--text-2);font-size:var(--fs-sm);max-width:56ch}
+
+/* ----- the block: "Available on GitHub" ----- */
+.repos{padding-top:var(--sp-5);border-top:1px solid var(--border);scroll-margin-top:var(--sp-2)}
+.repos__head .sec-title{outline:none}
+.repos__head .set-lead code,.block h3 code,.ov-empty code{font-size:.92em;overflow-wrap:anywhere}
+.repos__refresh{flex:none;color:var(--text)}
+.repos__refresh .ico{width:16px;height:16px}
+.repos__refresh.is-spinning .ico{animation:spin var(--dur-sig) linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.repos__refresh.is-spinning .ico{animation:none}}
+:root[data-motion=reduce] .repos__refresh.is-spinning .ico{animation:none}
+.app[data-app=phone] .repos__head{flex-wrap:nowrap;align-items:flex-start}
+.app[data-app=phone] .repos__refresh{padding:0 var(--sp-3)}
+.repos__partial{display:flex;gap:var(--sp-2);align-items:flex-start;padding:var(--sp-3);border-radius:var(--r-md);background:var(--bg-sunken);color:var(--text-2);font-size:var(--fs-sm)}
+.repos__partial>.ico{flex:none;margin-top:2px;width:16px;height:16px}
+.repos__partial p{margin:0 0 var(--sp-1)}
+.repos__partial .ext{min-height:var(--target);display:inline-flex}
+.repos__more{justify-self:start;color:var(--accent-text)}
+.repos__more .ico{width:16px;height:16px}
+.repos__already{margin:var(--sp-2) 0 0}
+.plist--quiet{box-shadow:none;background:transparent}
+.plist--quiet .repo{background:transparent}
+.block .btn .ico{width:16px;height:16px}
+.block__icon-h{display:flex;align-items:center;gap:var(--sp-2)}
+.block__icon-h .ico{width:20px;height:20px;color:var(--text-2)}
+.skel-row--repo{min-height:calc(var(--target) + var(--sp-6))}
+.skel--btn{width:96px;height:var(--target);border-radius:var(--r-md)}
+
+/* ----- a repository row: one action at most ----- */
+.repo{display:flex;align-items:center;gap:var(--sp-3);min-height:calc(var(--target) + var(--sp-6));padding:var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);border-top:1px solid var(--border);background:var(--surface)}
+.repo:first-child{border-top:0}
+.repo__txt{flex:1;min-width:0;display:grid;gap:2px}
+.repo__name{font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md);line-height:var(--lh-tight);overflow-wrap:anywhere}
+.repo__meta{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2);font-size:var(--fs-xs);color:var(--text-2)}
+.repo__owner{font-family:var(--font-mono)}
+.repo__priv{display:inline-flex;align-items:center;gap:var(--sp-1);min-height:20px;padding:0 var(--sp-2);border-radius:var(--r-pill, 999px);background:var(--bg-sunken);color:var(--text-2);font-weight:600}
+.repo__priv .ico{width:12px;height:12px;stroke-width:2.2}
+.repo__add{flex:none;min-width:96px;color:var(--accent-text);border-color:var(--border-strong)}
+.repo__add .ico{width:16px;height:16px;stroke-width:2.2}
+.repo__add:hover{background:var(--accent-soft)}
+.repo__add[aria-disabled=true]{color:var(--text-2)}
+.repo__add.is-busy{color:var(--text-2);background:var(--bg-sunken);border-color:transparent}
+.repo__add .typing{padding:0;gap:3px}
+.repo__add .typing i{width:4px;height:4px}
+/* "Not added": an ochre to-do line, with See why as its own 44 px target before Add */
+.repo__why{display:flex;flex-wrap:wrap;align-items:center;column-gap:var(--sp-2);margin-top:var(--sp-1);font-size:var(--fs-sm);color:var(--warning-text);font-weight:600}
+.repo__whytxt{display:inline}
+.repo__whytxt .ico{width:14px;height:14px;stroke-width:2.6;vertical-align:-2px;margin-right:var(--sp-1)}
+.repo__whybtn{display:inline-flex;align-items:center;gap:2px;color:var(--warning-text);font-size:var(--fs-sm)}
+.repo__whybtn .ico{width:14px;height:14px}
+.repo--why{background:color-mix(in oklab,var(--warning-soft) 45%,var(--surface))}
+/* a project row is one link; archived rows stay readable (text-2, AA in both themes) */
+.repo--project{padding:0}
+.repo__link{flex:1;min-width:0;display:flex;align-items:center;gap:var(--sp-3);min-height:inherit;padding:var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);color:inherit;text-decoration:none;transition:background-color var(--dur-fast) var(--ease-standard)}
+.repo__link:hover{background:var(--hover)}
+.repo__tail{flex:none;display:inline-flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-sm);font-weight:600;color:var(--accent-text)}
+.repo__tail .ico{width:16px;height:16px}
+.repo--archived .repo__name{color:var(--text-2)}
+.repo--archived .repo__tail{color:var(--text-2);font-weight:400}
+.ink{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--success-soft);color:var(--success-text)}
+.ink .ico{width:13px;height:13px;stroke-width:2.6}
+.ink.is-new{animation:mark-in var(--dur-base) var(--ease-emph) both}
+.ink.is-new path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) var(--dur-fast) forwards}
+@media (prefers-reduced-motion:reduce){.ink.is-new,.ink.is-new path{animation:none;stroke-dasharray:none}}
+:root[data-motion=reduce] .ink.is-new,:root[data-motion=reduce] .ink.is-new path{animation:none;stroke-dasharray:none}
+.app[data-app=phone] .repo{padding-left:var(--sp-3)}
+.app[data-app=phone] .repo__link{padding-left:var(--sp-3)}
+
+/* ----- "Add by name": a collapsed secondary path ----- */
+.byname{border-top:1px solid var(--border);margin-top:var(--sp-2)}
+.byname__toggle{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);width:100%;min-height:calc(var(--target) + var(--sp-2));padding:var(--sp-2) var(--sp-1);border:0;background:none;color:var(--text);text-align:left;border-radius:var(--r-md)}
+.byname__toggle:hover{background:var(--hover)}
+.byname__txt{display:grid;gap:2px}
+.byname__txt b{font-weight:600;font-size:var(--fs-md)}
+.byname__txt small{font-size:var(--fs-xs);color:var(--text-2)}
+.byname__toggle>.ico{flex:none;color:var(--text-2);transition:transform var(--dur-base) var(--ease-standard)}
+.byname__toggle[aria-expanded=true]>.ico{transform:rotate(180deg)}
+.byname__panel{display:grid;gap:var(--sp-3);padding:var(--sp-2) var(--sp-1) var(--sp-1)}
+.byname__panel[hidden]{display:none}
+.app[data-app=phone] .byname__panel .btn{width:100%}
+
+/* ----- the Add sheet: the kit Sheet, a bottom sheet on iPhone and a centred dialog on the Mac ----- */
+.asheet{position:absolute;inset:0;z-index:var(--z-sheet);display:flex;align-items:flex-end}
+.asheet__scrim{position:absolute;inset:0;background:var(--scrim)}
+.asheet__panel{position:relative;display:flex;flex-direction:column;width:100%;max-height:88%;background:var(--surface);border-radius:var(--r-sheet) var(--r-sheet) 0 0;box-shadow:var(--shadow-3)}
+.asheet--dialog{align-items:center;justify-content:center;padding:var(--sp-8)}
+.asheet--dialog .asheet__panel{width:min(100%,var(--sheet-dialog-w));max-height:min(86%,760px);border-radius:var(--r-lg);border:1px solid var(--border);box-shadow:var(--shadow-2)}
+.asheet__head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);padding:var(--sp-2) var(--sp-3) var(--sp-3) var(--sp-5)}
+.asheet--dialog .asheet__head{padding-top:var(--sp-4)}
+.asheet__title{margin:0;min-width:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight);overflow-wrap:anywhere;outline:none}
+.asheet__head .icon-btn{width:var(--target);height:var(--target)}
+.asheet__body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;align-content:start;gap:var(--sp-4);padding:var(--sp-1) var(--sp-5) var(--sp-5)}
+.asheet__body .res h3{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);outline:none;overflow-wrap:anywhere}
+.asheet__body .need-conn{padding-right:0}
+.asheet__body .step__title{font-size:var(--fs-sm)}
+.asheet__body .ledger{box-shadow:none}
+.asheet__foot{flex:none;display:flex;flex-direction:column;gap:var(--sp-2);padding:var(--sp-3) var(--sp-5) var(--sp-8);border-top:1px solid var(--border);background:var(--surface)}
+.asheet__foot .btn{width:100%;min-height:var(--target)}
+.asheet__foot .btn .typing{padding:0;margin-right:var(--sp-1)}
+.asheet--dialog .asheet__foot{flex-direction:row-reverse;justify-content:flex-start;padding:var(--sp-3) var(--sp-5) var(--sp-4);border-radius:0 0 var(--r-lg) var(--r-lg)}
+.asheet--dialog .asheet__foot .btn{width:auto}
+.need-conn h3{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);outline:none}
+
+/* the Mac sidebar footer gets the existing "Add project" entry point (#24) */
+.side-foot .side-item--add{margin-bottom:var(--sp-1)}
+.app[data-app=phone] .toast{bottom:var(--sp-10);top:auto}
+.app[data-app=phone] .repo--project{padding:0}
+.repos__head .set-lead code{background:none;padding:0;color:var(--text)}
+.app[data-app=mac] .ov-grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.asheet__body:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+
+</style>
+</head>
+<body>
+<header class="note">
+  <div class="note__row">
+    <div><div class="note__kicker" data-i18n="page.kicker">Team Console · #194 · design for approval</div><h1 data-i18n="page.title">All projects: add from GitHub</h1></div>
+    <div class="controls">
+      <div class="seg" data-control="view" role="group" aria-label="Layout" data-i18n-aria="page.layout"><button type="button" data-value="phone">iPhone</button><button type="button" data-value="mac">Mac</button><button type="button" data-value="both" data-i18n="page.both">Both</button></div>
+      <div class="seg" data-control="theme" role="group" aria-label="Theme" data-i18n-aria="page.theme"><button type="button" data-value="auto" data-i18n="page.auto">Auto</button><button type="button" data-value="light" data-i18n="page.light">Light</button><button type="button" data-value="dark" data-i18n="page.dark">Dark</button></div>
+      <div class="seg" data-control="lang" role="group" aria-label="Language" data-i18n-aria="page.lang"><button type="button" data-value="ru" lang="ru" aria-label="Русский">RU</button><button type="button" data-value="en" lang="en" aria-label="English">EN</button></div>
+      <div class="seg" data-control="motion" role="group" aria-label="Motion" data-i18n-aria="page.motion"><button type="button" data-value="system" data-i18n="page.motionSystem">Motion: system</button><button type="button" data-value="reduce" data-i18n="page.motionReduce">Reduced</button></div>
+      <button type="button" class="seg-btn" data-reset data-i18n="page.reset">Reset demo</button>
+    </div>
+  </div>
+  <div class="demo" role="group" aria-label="Demo states" data-i18n-aria="demo.aria">
+    <label><span data-i18n="demo.screen">Open</span><select id="d-screen"><option value="">—</option><option value="top" data-i18n="demo.s.top">top</option><option value="entry" data-i18n="demo.s.entry">entry</option><option value="byName" data-i18n="demo.s.byName">byName</option><option value="sheetChecking" data-i18n="demo.s.sheetChecking">sheetChecking</option><option value="sheetYml" data-i18n="demo.s.sheetYml">sheetYml</option><option value="sheetSaved" data-i18n="demo.s.sheetSaved">sheetSaved</option><option value="sheetReady" data-i18n="demo.s.sheetReady">sheetReady</option><option value="sheetGithub" data-i18n="demo.s.sheetGithub">sheetGithub</option><option value="sheetRate" data-i18n="demo.s.sheetRate">sheetRate</option><option value="sheetAuth" data-i18n="demo.s.sheetAuth">sheetAuth</option><option value="sheetLost" data-i18n="demo.s.sheetLost">sheetLost</option><option value="sheetDup" data-i18n="demo.s.sheetDup">sheetDup</option><option value="rowChecking" data-i18n="demo.s.rowChecking">rowChecking</option><option value="rowNotAdded" data-i18n="demo.s.rowNotAdded">rowNotAdded</option></select></label>
+    <label><span data-i18n="demo.projects">Your projects</span><select id="d-projects"><option value="some" data-i18n="demo.p.some">some</option><option value="none" data-i18n="demo.p.none">none</option></select></label>
+    <label><span data-i18n="demo.conn">GitHub</span><select id="d-conn"><option value="connected" data-i18n="demo.c.connected">connected</option><option value="none" data-i18n="demo.c.none">none</option><option value="lost" data-i18n="demo.c.lost">lost</option></select></label>
+    <label><span data-i18n="demo.list">Repository list</span><select id="d-list"><option value="loaded" data-i18n="demo.l.loaded">loaded</option><option value="long" data-i18n="demo.l.long">long</option><option value="partial" data-i18n="demo.l.partial">partial</option><option value="loading" data-i18n="demo.l.loading">loading</option><option value="empty" data-i18n="demo.l.empty">empty</option><option value="notInstalled" data-i18n="demo.l.notInstalled">notInstalled</option><option value="github" data-i18n="demo.l.github">github</option><option value="rate" data-i18n="demo.l.rate">rate</option><option value="auth" data-i18n="demo.l.auth">auth</option><option value="offline" data-i18n="demo.l.offline">offline</option><option value="offlineNone" data-i18n="demo.l.offlineNone">offlineNone</option></select></label>
+    <label><span data-i18n="demo.add">Add result</span><select id="d-add"><option value="auto" data-i18n="demo.a.auto">auto</option><option value="yml" data-i18n="demo.a.yml">yml</option><option value="app" data-i18n="demo.a.app">app</option><option value="saved" data-i18n="demo.a.saved">saved</option><option value="ready" data-i18n="demo.a.ready">ready</option><option value="github" data-i18n="demo.a.github">github</option><option value="rate" data-i18n="demo.a.rate">rate</option><option value="auth" data-i18n="demo.a.auth">auth</option><option value="lost" data-i18n="demo.a.lost">lost</option><option value="dup" data-i18n="demo.a.dup">dup</option></select></label>
+    <button type="button" class="seg-btn" id="d-return" data-i18n="demo.return">Back from GitHub</button>
+    <p class="demo__help" data-i18n="demo.help"></p>
+  </div>
+  <details><summary data-i18n="page.summary">What you are approving</summary><div data-lang="en" lang="en">
+<div class="note__grid"><div>
+<p><b>What you are approving.</b> How All projects looks with the repositories your console’s GitHub App can see, and how one becomes a project with one tap (#194). This follows your decisions: the list lives on <b>All projects</b>, under your own projects; Settings keeps only settings; after an add the main button is <b>Done</b>. Flow, states and copy come from the UX spec; this page decides how they look and move, on iPhone first and on the Mac, light and dark, ru and en.</p>
+<ul>
+<li><b>Your projects first, then “Available on GitHub”.</b> The tiles stay as they are today. A thin rule and the serif heading start the GitHub section, with a one-line lead (which app, which account) and a visible <b>Refresh</b>. Every “Add project” entry point (the iPhone Projects sheet, the Mac sidebar, empty states) opens All projects scrolled to this heading.</li>
+<li><b>Rows you can act on come first.</b> Each row shows the name in serif, the owner in mono and a <b>Private</b> marker as text with a small lock. Add sits on the right as a 44 px outlined button in moss ink, so a column of Add buttons stays calm. Projects and archived ones follow under a small “Already in the console” heading: a project row is one link (“Project ›”); an archived row reads “Archived” and has no control, in secondary ink that passes AA in both themes.</li>
+<li><b>Long lists fold.</b> With more than 12 addable repositories the list shows the first 10 and “Show 38 more”, so your projects and “Add by name” are never buried on the phone. Names wrap; nothing is cut with an ellipsis.</li>
+<li><b>Add opens a sheet over the list</b> (a bottom sheet on iPhone, a centred dialog on the Mac) with #24’s checklist and result notes unchanged: moss when added, the ink stamp when all five steps are done, clay when nothing was saved. Done is primary and keeps you on the list; the row turns “Project ›” with a drawn check, and the new tile settles into your projects above.</li>
+<li><b>Close it while it checks</b> and the row says “Checking…”; the result lands on the row. A refusal leaves an ochre line “Not added: step 3 is missing · See why ›” that reopens the result.</li>
+<li><b>Every state has its own block</b>: loading skeleton, partial note with the GitHub link, app sees nothing, app not installed, GitHub down, rate limit with the time, broken app credential, offline with the list kept or with nothing loaded, and “Connect GitHub first” inside the section (no list request). “Add by name” stays collapsed at the end and opens the same sheet.</li>
+</ul>
+<p class="try">Try on iPhone: tap the “All projects” title → Add project. Then Add on <code>storify</code>, <code>newsletter</code> and <code>fieldnote</code>. Set “Your projects: none yet” and “Repository list: long (48)”. The bar reaches every state.</p>
+<p><b>One question for the team (not for this approval):</b> “Open setup” and a project row lead to the #24 setup page, which lived under Settings. With Settings for settings only, the architect and the UX designer place that page (for example inside the project space); the look here does not change.</p>
+</div><dl class="tok">
+<dt>Colour</dt><dd>Paper Desk tokens only: moss (<code>--accent-text</code>) for Add and “Project ›”, <code>--bg-sunken</code> for the Private marker and the partial note, ochre (<code>--warning-*</code>) for “Not added”, clay (<code>--danger-*</code>) for load errors, <code>--text-2</code> for archived rows. Text pairs are AA in both themes, the archived row included.</dd>
+<dt>Type</dt><dd>Source Serif 4 for headings and repository names, Source Sans 3 for the interface, Source Code Pro for the owner login and paths. All OFL; no new fonts.</dd>
+<dt>Tokens</dt><dd>One new: <code>--sheet-dialog-w</code> 560 px for the Add dialog on the Mac (the 440 px confirmation width is too narrow for the checklist). Everything else is existing: 44 px target, spacing scale, <code>--r-sheet</code>, <code>--scrim</code>, motion durations.</dd>
+<dt>Kit</dt><dd>Sheet (with a footer slot for actions), List / ListRow with a row action, StateBlock, Banner, Chip, Button, Field, Toast. A <code>ListRow</code> “trailing text” variant (“Project ›”, “Archived”) and a sheet footer are the only kit additions.</dd>
+<dt>Motion</dt><dd>Sheet rises 380 ms (dialog settles 240 ms); checklist steps ink in, in order; the stamp on “ready”; the row’s check draws once; the new tile fades up 6 px. Reduced motion: 120 ms fades, no spinner turn, no skeleton pulse.</dd>
+</dl></div></div><div data-lang="ru" lang="ru">
+<div class="note__grid"><div>
+<p><b>Что вы утверждаете.</b> Как выглядят «Все проекты» вместе с репозиториями, которые видит GitHub-приложение консоли, и как один из них становится проектом в одно касание (#194). Всё по вашим решениям: список живёт на экране <b>«Все проекты»</b>, под вашими проектами; в «Настройках» остаются только настройки; после добавления главная кнопка — <b>«Готово»</b>. Сценарий, состояния и тексты — по UX-спеке; здесь решается, как это выглядит и двигается — сначала на iPhone, потом на Mac, в светлой и тёмной теме, на русском и английском.</p>
+<ul>
+<li><b>Сначала ваши проекты, потом «Доступны на GitHub».</b> Плитки проектов — как сейчас. Раздел GitHub начинается тонкой линией и заголовком с засечками, под ним одна строка — какое приложение и какой аккаунт — и видимая кнопка <b>«Обновить»</b>. Все входы «Добавить проект» (лист «Проекты» на iPhone, боковая панель на Mac, пустые состояния) открывают «Все проекты» сразу на этом заголовке.</li>
+<li><b>Сначала то, с чем можно что-то сделать.</b> В строке — имя с засечками, владелец моноширинным и пометка <b>«Приватный»</b> словом и маленьким замком. «Добавить» справа — контурная кнопка 44 px цвета мха, поэтому столбец кнопок выглядит спокойно. Проекты и архив — ниже, под небольшим заголовком «Уже в консоли»: строка проекта — одна ссылка («Проект ›»), строка в архиве — «В архиве», без кнопок, вторичными чернилами с контрастом AA в обеих темах.</li>
+<li><b>Длинный список сворачивается.</b> Если репозиториев для добавления больше 12, видны первые 10 и «Показать ещё 38», поэтому на телефоне ваши проекты и «Добавить по имени» не тонут. Имена переносятся, многоточием ничего не обрезается.</li>
+<li><b>«Добавить» открывает лист поверх списка</b> (снизу на iPhone, диалог по центру на Mac) с чек-листом и заметками-итогами из #24 без изменений: мох — добавлено, чернильный штамп — все пять шагов готовы, глина — ничего не сохранено. «Готово» — главная кнопка и оставляет вас в списке; строка становится «Проект ›» с прорисованной галочкой, а новая плитка появляется среди ваших проектов выше.</li>
+<li><b>Если закрыть лист во время проверки,</b> строка показывает «Проверяем…», и итог приходит в строку. После отказа остаётся охристая строка «Не добавлен: не хватает шага 3 · Почему ›» — она снова открывает итог.</li>
+<li><b>У каждого состояния свой блок:</b> скелетон загрузки, заметка о неполном списке со ссылкой на GitHub, приложение ничего не видит, приложение не установлено, GitHub не отвечает, лимит запросов со временем, сломан ключ приложения, нет сети со списком и без, «Сначала подключите GitHub» прямо в разделе (список не запрашивается). «Добавить по имени» свёрнуто в конце и открывает тот же лист.</li>
+</ul>
+<p class="try">Попробуйте на iPhone: нажмите заголовок «Все проекты» → «Добавить проект». Потом «Добавить» у <code>storify</code>, <code>newsletter</code> и <code>fieldnote</code>. Поставьте «Ваши проекты: пока нет» и «Список репозиториев: длинный (48)». Панель демо открывает любое состояние.</p>
+<p><b>Вопрос команде (не для этого согласования):</b> «Открыть настройку» и строка проекта ведут на страницу настройки проекта из #24, которая была в «Настройках». Раз «Настройки» теперь только для настроек, архитектор и UX-дизайнер решат, где эта страница (например, в пространстве проекта); вид здесь от этого не меняется.</p>
+</div><dl class="tok">
+<dt>Цвет</dt><dd>Только токены Paper Desk: мох (<code>--accent-text</code>) — «Добавить» и «Проект ›», <code>--bg-sunken</code> — пометка «Приватный» и заметка о неполном списке, охра (<code>--warning-*</code>) — «Не добавлен», глина (<code>--danger-*</code>) — ошибки загрузки, <code>--text-2</code> — строки в архиве. Контраст текста AA в обеих темах, включая архив.</dd>
+<dt>Шрифты</dt><dd>Source Serif 4 — заголовки и имена репозиториев, Source Sans 3 — интерфейс, Source Code Pro — логин владельца и пути. Все под OFL, новых шрифтов нет.</dd>
+<dt>Токены</dt><dd>Один новый: <code>--sheet-dialog-w</code> 560 px — ширина диалога добавления на Mac (440 px диалога-подтверждения мало для чек-листа). Остальное — существующие: цель касания 44 px, шкала отступов, <code>--r-sheet</code>, <code>--scrim</code>, длительности анимации.</dd>
+<dt>Кит</dt><dd>Sheet (со слотом под кнопки внизу), List / ListRow с действием в строке, StateBlock, Banner, Chip, Button, Field, Toast. Новое в ките — только вариант ListRow с текстом в конце («Проект ›», «В архиве») и подвал у Sheet.</dd>
+<dt>Движение</dt><dd>Лист выезжает 380 мс (диалог — 240 мс); шаги чек-листа прорисовываются по порядку; штамп на «готов»; галочка в строке рисуется один раз; новая плитка проявляется со сдвигом 6 px. При «Меньше движения» — затухание 120 мс, без вращения и пульсации скелетона.</dd>
+</dl></div></div></details>
+</header>
+<main class="stage">
+  <section class="device device--phone" aria-label="iPhone layout" data-i18n-aria="page.phoneAria"><div class="device__label">iPhone · 390 pt</div><div class="phone-frame"><div class="app" data-app="phone"></div></div></section>
+  <section class="device device--mac" aria-label="Mac layout" data-i18n-aria="page.macAria"><div class="device__label" data-i18n="page.macLabel">Mac · window</div><div class="mac-frame"><div class="app" data-app="mac"></div></div></section>
+</main>
+<script>
+/* UI strings for #194 Repositories from the connected GitHub installation, on All projects. Russian is the reference
+   copy and uses the polite «вы»; English second. New keys follow the UX spec on #194 (`repos.*`, to live under
+   `overview.repos.*` now that the block is on All projects); the checklist, the refusal and the unavailable
+   callouts reuse the shipped #24 keys (`settings.add.*`, `settings.step.*`) word for word.
+   Values are strings with {vars} or functions (vars, plural) for counted phrases; t() HTML-escapes vars. */
+const I18N = {
+  en: {
+    'page.kicker': 'Team Console · #194 · design for approval',
+    'page.title': 'All projects: add from GitHub',
+    'page.layout': 'Layout', 'page.both': 'Both',
+    'page.theme': 'Theme', 'page.auto': 'Auto', 'page.light': 'Light', 'page.dark': 'Dark',
+    'page.motion': 'Motion', 'page.motionSystem': 'Motion: system', 'page.motionReduce': 'Reduced',
+    'page.lang': 'Language', 'page.reset': 'Reset demo',
+    'page.summary': 'What you are approving, and the tokens it uses',
+    'page.phoneAria': 'iPhone layout', 'page.macAria': 'Mac layout', 'page.macLabel': 'Mac · window',
+    'demo.aria': 'Demo states',
+    'demo.screen': 'Open', 'demo.projects': 'Your projects', 'demo.conn': 'GitHub', 'demo.list': 'Repository list',
+    'demo.add': 'Add result', 'demo.return': 'Back from GitHub',
+    'demo.s.top': 'All projects', 'demo.s.entry': 'Entry: Add project', 'demo.s.byName': 'Add by name, open',
+    'demo.s.sheetChecking': 'Sheet: checking', 'demo.s.sheetYml': 'Sheet: no project.yml', 'demo.s.sheetSaved': 'Sheet: added, 2 left',
+    'demo.s.sheetReady': 'Sheet: added, all ready', 'demo.s.sheetGithub': 'Sheet: GitHub down', 'demo.s.sheetRate': 'Sheet: rate limit',
+    'demo.s.sheetAuth': 'Sheet: app credential (503)', 'demo.s.sheetLost': 'Sheet: connection lost (403)',
+    'demo.s.sheetDup': 'Sheet: already a project', 'demo.s.rowNotAdded': 'Row: not added', 'demo.s.rowChecking': 'Row: checking (sheet closed)',
+    'demo.p.some': 'three projects', 'demo.p.none': 'none yet',
+    'demo.c.connected': 'connected', 'demo.c.none': 'not connected', 'demo.c.lost': 'connection lost',
+    'demo.l.loaded': 'loaded', 'demo.l.long': 'long (48)', 'demo.l.partial': 'partial', 'demo.l.loading': 'loading',
+    'demo.l.empty': 'app sees none', 'demo.l.notInstalled': 'app not installed (409)', 'demo.l.github': 'GitHub down (502)',
+    'demo.l.rate': 'rate limit (429)', 'demo.l.auth': 'app credential (503)', 'demo.l.offline': 'offline, list loaded',
+    'demo.l.offlineNone': 'offline, nothing loaded',
+    'demo.a.auto': 'by repository', 'demo.a.yml': 'no project.yml', 'demo.a.app': 'app not on the repo', 'demo.a.saved': 'added, 2 steps left',
+    'demo.a.ready': 'added, all ready', 'demo.a.github': 'GitHub down', 'demo.a.rate': 'rate limit', 'demo.a.auth': 'app credential (503)',
+    'demo.a.lost': 'connection lost (403)', 'demo.a.dup': 'became a project elsewhere',
+    'demo.help': 'Try on iPhone: Add on <code>storify</code> (added, 2 steps left), <code>newsletter</code> (all ready: the ink stamp), <code>fieldnote</code> (no project.yml: nothing saved). Close the sheet while it checks to see the row carry the result. “Add by name” opens the same sheet. The bar reaches every state.',
+    'demo.space': 'Project spaces are in the Paper Desk prototype',
+    'demo.setup': 'The project setup page (#24) opens here',
+
+    'nav.needs': 'Needs you', 'nav.all': 'All projects', 'nav.projects': 'Projects', 'nav.settings': 'Settings',
+    'nav.add': 'Add project', 'nav.aria': 'Projects and settings', 'nav.switch': 'Choose a project',
+    'sheet.title': 'Projects', 'sheet.close': 'Close',
+    'shell.owner': 'Owner',
+
+    'overview.title': 'All projects',
+    'overview.count': ({ n }, pl) => `${n} ${pl(n, ['project', 'projects'])}`,
+    'overview.quiet': 'Nothing for you',
+    'overview.demo': 'demo {date}', 'overview.done': '{done} of {total} done',
+    'overview.team.running': 'Running', 'overview.team.paused': 'Paused',
+    'overview.setup': 'Setup needed', 'overview.new': 'New',
+    'overview.empty.title': 'No projects yet',
+    'overview.empty.body': 'Pick a repository under “Available on GitHub” below and it appears here.',
+
+    'repos.title': 'Available on GitHub',
+    'repos.lead': 'Repositories the <code>{app}</code> app can see on your account, <code>{login}</code>.',
+    'repos.listAria': 'Repositories on GitHub',
+    'repos.refresh': 'Refresh', 'repos.refreshing': 'Refreshing…',
+    'repos.refreshedLive': 'List updated. Repositories: {n}.',
+    'repos.loading': 'Loading repositories from GitHub…',
+    'repos.already': 'Already in the console',
+    'repos.more': ({ n }) => `Show ${n} more`,
+    'repos.row.private': 'Private',
+    'repos.row.add': 'Add', 'repos.row.addAria': 'Add {repo}',
+    'repos.row.adding': 'Checking…',
+    'repos.row.project': 'Project', 'repos.row.projectAria': '{repo} is a project. Open its setup',
+    'repos.row.archived': 'Archived',
+    'repos.row.notAdded': 'Not added: step\u00a0{n} is missing',
+    'repos.row.seeWhy': 'See why', 'repos.row.seeWhyAria': 'Why {repo} wasn’t added',
+    'repos.sheet.title': 'Add {repo}',
+    'repos.sheet.done': 'Done', 'repos.sheet.close': 'Close', 'repos.sheet.openSetup': 'Open setup',
+    'repos.addedToast': '{repo} added',
+    'repos.notAddedLive': '{repo} wasn’t added. Nothing was saved.',
+    'repos.partial': 'Showing the first {n}. If the one you need isn’t here, remove ones you don’t need from the app’s installation on GitHub, or add it by name below.',
+    'repos.selectLink': 'Choose repositories on GitHub',
+    'repos.empty.title': 'The <code>{app}</code> app can’t see any repositories yet',
+    'repos.empty.body': 'Add your product repositories to the app’s installation on GitHub, then come back here. The list refreshes by itself.',
+    'repos.notInstalled.title': 'The <code>{app}</code> app isn’t installed on your account',
+    'repos.notInstalled.body': 'Install it on GitHub and choose your product repositories. Then come back here. The list refreshes by itself.',
+    'repos.notInstalled.action': 'Install the app on GitHub',
+    'repos.needConnect.body': 'Then the repositories the <code>{app}</code> app can see appear here. Nothing has been sent yet.',
+    'repos.lost.body': 'Access was revoked or has expired. Connect GitHub again to see repositories and add a project.',
+    'repos.error.title': 'Couldn’t load repositories',
+    'repos.error.github': 'GitHub didn’t respond. Your projects haven’t changed.',
+    'repos.error.rate': 'GitHub asks us to wait until {time}. Your projects haven’t changed.',
+    'repos.error.auth': 'The console can’t sign in to GitHub as the <code>{app}</code> app: its key was replaced or the app was removed. This is the console’s setup, not the repositories’: check the app with the owner checklist.',
+    'repos.offline.list': 'You’re offline. This list is from {time}. Adding a project needs a connection.',
+    'repos.offline.title': 'You’re offline', 'repos.offline.body': 'Repositories load when you’re back online.',
+    'repos.byName': 'Add by name', 'repos.byNameLead': 'If the repository isn’t on the list above.',
+
+    'gh.connect': 'Connect GitHub', 'gh.connecting': 'Opening GitHub…', 'gh.connectedLive': 'Connected as {login}',
+    'gh.lost.title': 'The GitHub connection was lost',
+    'gh.needConnect.title': 'Connect GitHub first',
+    'gh.needConnect.lostBody': 'Access was revoked or has expired. Nothing was saved: connect GitHub again, then select Check again.',
+    'common.retry': 'Try again', 'common.external': '(opens GitHub)',
+
+    'add.field': 'GitHub repository',
+    'add.hint': 'As owner/repo, for example geeera/storify. A link works too.',
+    'add.preview': 'Address in the console: <code>/p/{slug}</code>',
+    'add.submit': 'Check and add', 'add.submitting': 'Checking…', 'add.checkingLive': 'Checking {repo}…',
+    'add.invalid.empty': 'Enter the repository as owner/repo.',
+    'add.invalid.format': '“{value}” doesn’t look like owner/repo. Example: geeera/storify.',
+    'add.offline': 'You’re offline: checking a repository needs a connection.',
+    'add.duplicate': '<code>{repo}</code> is already on the list.', 'add.duplicateLink': 'Open its setup',
+    'add.archived': '<code>{repo}</code> is archived.', 'add.archivedBody': 'Restoring a project from the console isn’t available yet.',
+    'add.refused.title': 'Project not added',
+    'add.refused.body': 'A step below is missing. Nothing was saved: fix it and select Check again.',
+    'add.unavailable.title': 'Couldn’t check',
+    'add.unavailable.github': 'GitHub didn’t respond. Nothing was saved.',
+    'add.unavailable.rate': 'GitHub asks us to wait until {time}. Nothing was saved.',
+    'add.unavailable.auth': 'The console can’t sign in to GitHub as the {app} app: its key was replaced or the app was removed. This is the console’s setup, not the repository’s: check the app with the owner checklist. Nothing was saved.',
+    'add.saved.title': ({ n }, pl) => `Project added. ${n} ${pl(n, ['step left', 'steps left'])}`,
+    'add.saved.body': 'It’s on your project list now. The console shows what’s missing until everything is set.',
+    'setup.ready.title': '{name} is ready', 'setup.ready.body': 'All five steps are done.',
+    'setup.checkAgain': 'Check again', 'setup.stepsAria': 'Setup steps',
+
+    'step.done': 'Done', 'step.missing': 'Missing', 'step.pending': 'Checking…', 'step.skipped': 'Not checked', 'step.unknown': 'Couldn’t check',
+    'step.waiting': 'Waiting',
+    'step.skippedWhy': 'Needs the step above first.',
+    'step.how': 'How to fix',
+    'step.app.title': 'The <code>{app}</code> app is installed on the repo',
+    'step.app.done': 'The console reads <code>{repo}</code> through the app.',
+    'step.app.missing': 'The app isn’t installed on <code>{repo}</code>. Add the repository to the app’s installation on GitHub.',
+    'step.app.how': 'On the install page choose Only select repositories, add <code>{repo}</code> and save. The app’s permissions stay the same. Then come back: the console checks again by itself.',
+    'step.app.link': 'Open the app installation',
+    'step.owner.title': 'The repo’s owner is the connected account',
+    'step.owner.done': 'Owned by <code>{login}</code>, so your answers count.',
+    'step.owner.missing': 'The owner of <code>{repo}</code> is <code>{repoOwner}</code>, but <code>{login}</code> is connected. The team counts answers only from the repository’s owner.',
+    'step.owner.how': 'The console works with repositories of your account, <code>{login}</code>. Move the repository to it (GitHub → Settings → Transfer ownership) or add another one. Organisation repositories aren’t supported yet.',
+    'step.yml.title': '<code>.product-team/project.yml</code> exists',
+    'step.yml.done': 'Found on the default branch.',
+    'step.yml.missing': 'Not on the default branch. Set up the team in this repo and merge its PR.',
+    'step.yml.how': 'In Claude Code in this repo: <code>/adopt</code> for existing code or <code>/kickoff</code> for a new product.',
+    'step.events.title': 'Events arrive', 'step.events.done': 'Last event at {time}.',
+    'step.events.missing': 'No events from <code>{repo}</code> yet. Nothing to do: this appears after the first event.',
+    'step.routine.title': 'Routine token set', 'step.routine.done': '<code>ROUTINE_TOKEN_{SLUG}</code> is set.',
+    'step.routine.missing': 'No <code>ROUTINE_TOKEN_{SLUG}</code> secret. Until it’s set, the PM doesn’t answer in chat.',
+  },
+  ru: {
+    'page.kicker': 'Team Console · #194 · дизайн на согласование',
+    'page.title': 'Все проекты: добавить с GitHub',
+    'page.layout': 'Вид', 'page.both': 'Оба',
+    'page.theme': 'Тема', 'page.auto': 'Авто', 'page.light': 'Светлая', 'page.dark': 'Тёмная',
+    'page.motion': 'Анимация', 'page.motionSystem': 'Анимация: как в системе', 'page.motionReduce': 'Меньше движения',
+    'page.lang': 'Язык', 'page.reset': 'Сбросить демо',
+    'page.summary': 'Что вы утверждаете и какие токены использует дизайн',
+    'page.phoneAria': 'Вид на iPhone', 'page.macAria': 'Вид на Mac', 'page.macLabel': 'Mac · окно',
+    'demo.aria': 'Состояния для демо',
+    'demo.screen': 'Открыть', 'demo.projects': 'Ваши проекты', 'demo.conn': 'GitHub', 'demo.list': 'Список репозиториев',
+    'demo.add': 'Результат добавления', 'demo.return': 'Вернуться с GitHub',
+    'demo.s.top': 'Все проекты', 'demo.s.entry': 'Вход: «Добавить проект»', 'demo.s.byName': '«Добавить по имени» открыто',
+    'demo.s.sheetChecking': 'Лист: проверяем', 'demo.s.sheetYml': 'Лист: нет project.yml', 'demo.s.sheetSaved': 'Лист: добавлен, осталось 2',
+    'demo.s.sheetReady': 'Лист: добавлен, всё готово', 'demo.s.sheetGithub': 'Лист: GitHub не отвечает', 'demo.s.sheetRate': 'Лист: лимит запросов',
+    'demo.s.sheetAuth': 'Лист: ключ приложения (503)', 'demo.s.sheetLost': 'Лист: подключение потеряно (403)',
+    'demo.s.sheetDup': 'Лист: уже проект', 'demo.s.rowNotAdded': 'Строка: не добавлен', 'demo.s.rowChecking': 'Строка: проверяем (лист закрыт)',
+    'demo.p.some': 'три проекта', 'demo.p.none': 'пока нет',
+    'demo.c.connected': 'подключён', 'demo.c.none': 'не подключён', 'demo.c.lost': 'подключение потеряно',
+    'demo.l.loaded': 'загружен', 'demo.l.long': 'длинный (48)', 'demo.l.partial': 'неполный', 'demo.l.loading': 'загружается',
+    'demo.l.empty': 'приложение ничего не видит', 'demo.l.notInstalled': 'приложение не установлено (409)', 'demo.l.github': 'GitHub не отвечает (502)',
+    'demo.l.rate': 'лимит запросов (429)', 'demo.l.auth': 'ключ приложения (503)', 'demo.l.offline': 'нет сети, список есть',
+    'demo.l.offlineNone': 'нет сети, ничего не загружено',
+    'demo.a.auto': 'по репозиторию', 'demo.a.yml': 'нет project.yml', 'demo.a.app': 'приложение не на репозитории', 'demo.a.saved': 'добавлен, осталось 2 шага',
+    'demo.a.ready': 'добавлен, всё готово', 'demo.a.github': 'GitHub не отвечает', 'demo.a.rate': 'лимит запросов', 'demo.a.auth': 'ключ приложения (503)',
+    'demo.a.lost': 'подключение потеряно (403)', 'demo.a.dup': 'уже стал проектом',
+    'demo.help': 'Попробуйте на iPhone: «Добавить» у <code>storify</code> (добавлен, осталось 2 шага), <code>newsletter</code> (всё готово — чернильный штамп), <code>fieldnote</code> (нет project.yml — ничего не сохранено). Закройте лист во время проверки: итог появится в строке. «Добавить по имени» открывает тот же лист. Панель открывает любое состояние.',
+    'demo.space': 'Пространства проектов — в прототипе Paper Desk',
+    'demo.setup': 'Здесь откроется страница настройки проекта (#24)',
+
+    'nav.needs': 'Ждут вас', 'nav.all': 'Все проекты', 'nav.projects': 'Проекты', 'nav.settings': 'Настройки',
+    'nav.add': 'Добавить проект', 'nav.aria': 'Проекты и настройки', 'nav.switch': 'Выбрать проект',
+    'sheet.title': 'Проекты', 'sheet.close': 'Закрыть',
+    'shell.owner': 'Владелец',
+
+    'overview.title': 'Все проекты',
+    'overview.count': ({ n }, pl) => `${n} ${pl(n, ['проект', 'проекта', 'проектов'])}`,
+    'overview.quiet': 'Без вопросов к вам',
+    'overview.demo': 'демо {date}', 'overview.done': 'готово {done} из {total}',
+    'overview.team.running': 'В работе', 'overview.team.paused': 'На паузе',
+    'overview.setup': 'Нужна настройка', 'overview.new': 'Новый',
+    'overview.empty.title': 'Проектов пока нет',
+    'overview.empty.body': 'Выберите репозиторий в разделе «Доступны на GitHub» ниже — он появится здесь.',
+
+    'repos.title': 'Доступны на GitHub',
+    'repos.lead': 'Репозитории, которые видит приложение <code>{app}</code> в вашем аккаунте <code>{login}</code>.',
+    'repos.listAria': 'Репозитории на GitHub',
+    'repos.refresh': 'Обновить', 'repos.refreshing': 'Обновляем…',
+    'repos.refreshedLive': 'Список обновлён. Репозиториев: {n}.',
+    'repos.loading': 'Загружаем репозитории с GitHub…',
+    'repos.already': 'Уже в консоли',
+    'repos.more': ({ n }) => `Показать ещё ${n}`,
+    'repos.row.private': 'Приватный',
+    'repos.row.add': 'Добавить', 'repos.row.addAria': 'Добавить {repo}',
+    'repos.row.adding': 'Проверяем…',
+    'repos.row.project': 'Проект', 'repos.row.projectAria': '{repo}: проект. Открыть настройку',
+    'repos.row.archived': 'В архиве',
+    'repos.row.notAdded': 'Не добавлен: не хватает шага\u00a0{n}',
+    'repos.row.seeWhy': 'Почему', 'repos.row.seeWhyAria': 'Почему {repo} не добавлен',
+    'repos.sheet.title': 'Добавить {repo}',
+    'repos.sheet.done': 'Готово', 'repos.sheet.close': 'Закрыть', 'repos.sheet.openSetup': 'Открыть настройку',
+    'repos.addedToast': '{repo} добавлен',
+    'repos.notAddedLive': '{repo} не добавлен. Ничего не сохранено.',
+    'repos.partial': 'Показаны первые {n}. Если нужного репозитория нет, уберите лишние из установки приложения на GitHub или добавьте его по имени ниже.',
+    'repos.selectLink': 'Выбрать репозитории на GitHub',
+    'repos.empty.title': 'Приложение <code>{app}</code> пока не видит репозиториев',
+    'repos.empty.body': 'Добавьте репозитории продуктов в установку приложения на GitHub и вернитесь сюда: список обновится сам.',
+    'repos.notInstalled.title': 'Приложение <code>{app}</code> не установлено в вашем аккаунте',
+    'repos.notInstalled.body': 'Установите его на GitHub и выберите репозитории продуктов. Потом вернитесь сюда: список обновится сам.',
+    'repos.notInstalled.action': 'Установить приложение на GitHub',
+    'repos.needConnect.body': 'Тогда здесь появятся репозитории, которые видит приложение <code>{app}</code>. Пока ничего не отправлено.',
+    'repos.lost.body': 'Доступ отозван или истёк. Подключите GitHub снова, чтобы увидеть репозитории и добавить проект.',
+    'repos.error.title': 'Не удалось загрузить репозитории',
+    'repos.error.github': 'GitHub не ответил. Ваши проекты не изменились.',
+    'repos.error.rate': 'GitHub просит подождать до {time}. Ваши проекты не изменились.',
+    'repos.error.auth': 'Консоль не может войти в GitHub как приложение <code>{app}</code>: его ключ заменён или приложение удалено. Это настройка консоли, а не репозиториев: проверьте приложение по чек-листу владельца.',
+    'repos.offline.list': 'Нет сети. Список на момент {time}. Добавить проект можно только онлайн.',
+    'repos.offline.title': 'Нет сети', 'repos.offline.body': 'Репозитории загрузятся, когда сеть вернётся.',
+    'repos.byName': 'Добавить по имени', 'repos.byNameLead': 'Если репозитория нет в списке выше.',
+
+    'gh.connect': 'Подключить GitHub', 'gh.connecting': 'Открываем GitHub…', 'gh.connectedLive': 'Подключено как {login}',
+    'gh.lost.title': 'Подключение к GitHub потеряно',
+    'gh.needConnect.title': 'Сначала подключите GitHub',
+    'gh.needConnect.lostBody': 'Доступ отозван или истёк. Ничего не сохранено: подключите GitHub снова и нажмите «Проверить снова».',
+    'common.retry': 'Повторить', 'common.external': '(откроется на GitHub)',
+
+    'add.field': 'Репозиторий на GitHub',
+    'add.hint': 'В виде владелец/репозиторий, например geeera/storify. Можно вставить ссылку.',
+    'add.preview': 'Адрес в консоли: <code>/p/{slug}</code>',
+    'add.submit': 'Проверить и добавить', 'add.submitting': 'Проверяем…', 'add.checkingLive': 'Проверяем {repo}…',
+    'add.invalid.empty': 'Введите репозиторий в виде владелец/репозиторий.',
+    'add.invalid.format': '«{value}» не похоже на владелец/репозиторий. Пример: geeera/storify.',
+    'add.offline': 'Нет сети: проверить репозиторий можно только онлайн.',
+    'add.duplicate': '<code>{repo}</code> уже есть в списке.', 'add.duplicateLink': 'Открыть его настройку',
+    'add.archived': '<code>{repo}</code> в архиве.', 'add.archivedBody': 'Вернуть проект из архива в консоли пока нельзя.',
+    'add.refused.title': 'Проект не добавлен',
+    'add.refused.body': 'Не хватает шага ниже. Ничего не сохранено: исправьте и нажмите «Проверить снова».',
+    'add.unavailable.title': 'Не удалось проверить',
+    'add.unavailable.github': 'GitHub не ответил. Ничего не сохранено.',
+    'add.unavailable.rate': 'GitHub просит подождать до {time}. Ничего не сохранено.',
+    'add.unavailable.auth': 'Консоль не может войти в GitHub как приложение {app}: его ключ заменён или приложение удалено. Это настройка консоли, а не репозитория: проверьте приложение по чек-листу владельца. Ничего не сохранено.',
+    'add.saved.title': ({ n }, pl) => `Проект добавлен. ${pl(n, ['Остался', 'Осталось', 'Осталось'])} ${n} ${pl(n, ['шаг', 'шага', 'шагов'])}`,
+    'add.saved.body': 'Он уже в списке проектов. Консоль показывает, чего не хватает, пока всё не будет готово.',
+    'setup.ready.title': '{name} готов', 'setup.ready.body': 'Все пять шагов выполнены.',
+    'setup.checkAgain': 'Проверить снова', 'setup.stepsAria': 'Шаги настройки',
+
+    'step.done': 'Готово', 'step.missing': 'Не хватает', 'step.pending': 'Проверяем…', 'step.skipped': 'Не проверено', 'step.unknown': 'Не удалось проверить',
+    'step.waiting': 'Ждём',
+    'step.skippedWhy': 'Сначала нужен шаг выше.',
+    'step.how': 'Как сделать',
+    'step.app.title': 'Приложение <code>{app}</code> установлено на репозиторий',
+    'step.app.done': 'Консоль читает <code>{repo}</code> через приложение.',
+    'step.app.missing': 'Приложение не установлено на <code>{repo}</code>. Добавьте репозиторий в установку приложения на GitHub.',
+    'step.app.how': 'На странице установки выберите Only select repositories, добавьте <code>{repo}</code> и сохраните. Права приложения не меняются. Потом вернитесь сюда: консоль проверит снова сама.',
+    'step.app.link': 'Открыть установку приложения',
+    'step.owner.title': 'Владелец репозитория — подключённый аккаунт',
+    'step.owner.done': 'Владелец — <code>{login}</code>, ответы засчитываются.',
+    'step.owner.missing': 'Владелец <code>{repo}</code> — <code>{repoOwner}</code>, а подключён <code>{login}</code>. Команда засчитывает ответы только владельца репозитория.',
+    'step.owner.how': 'Консоль работает с репозиториями вашего аккаунта <code>{login}</code>. Перенесите репозиторий к себе (GitHub → Settings → Transfer ownership) или добавьте другой. Репозитории организаций пока не поддерживаются.',
+    'step.yml.title': 'В репозитории есть <code>.product-team/project.yml</code>',
+    'step.yml.done': 'Есть в основной ветке.',
+    'step.yml.missing': 'Файла нет в основной ветке. Подключите команду в этом репозитории и смержьте её PR.',
+    'step.yml.how': 'В Claude Code в этом репозитории: <code>/adopt</code> для существующего кода или <code>/kickoff</code> для нового продукта.',
+    'step.events.title': 'События приходят', 'step.events.done': 'Последнее событие в {time}.',
+    'step.events.missing': 'Событий от <code>{repo}</code> ещё не было. Делать ничего не нужно: шаг появится после первого события.',
+    'step.routine.title': 'Токен рутины задан', 'step.routine.done': 'Секрет <code>ROUTINE_TOKEN_{SLUG}</code> задан.',
+    'step.routine.missing': 'Секрета <code>ROUTINE_TOKEN_{SLUG}</code> нет. Пока его нет, PM не отвечает в чате.',
+  },
+};
+
+/* Shared runtime of the feature design pages: motion and escaping helpers, the inline icon set, the i18n lookup
+   and the page chrome (layout, theme, language, motion). Each page passes its own I18N table and demo wiring.
+   Design prototypes only: mock data, no network. */
+const Proto = (() => {
+  'use strict';
+  const root = document.documentElement;
+  const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
+  const isReduced = () => root.dataset.motion === 'reduce' || mqReduce.matches;
+  const cssVar = (n) => getComputedStyle(root).getPropertyValue(n).trim();
+  const ms = (n) => { const v = cssVar(n); const x = parseFloat(v) || 0; return v.endsWith('ms') ? x : v.endsWith('s') ? x * 1000 : x; };
+  const wait = (t) => new Promise((r) => setTimeout(r, t));
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  async function play(el, frames, opts) {
+    if (!el || !el.animate) return;
+    try { await el.animate(frames, opts).finished; } catch (err) { if (!err || err.name !== 'AbortError') throw err; }
+  }
+  const plain = (html) => { const d = document.createElement('template'); d.innerHTML = html; return d.content.textContent; };
+
+  /* ---------- language (same preference key as the Paper Desk prototype) ---------- */
+  const LANG_KEY = 'team-console.lang';
+  function i18n(table) {
+    const L = { lang: 'ru', fmt: null };
+    try { const v = localStorage.getItem(LANG_KEY); L.lang = v === 'en' || v === 'ru' ? v : /^en\b/i.test(navigator.language || '') ? 'en' : 'ru'; }
+    catch (err) { console.warn('Language preference unavailable, using Russian', err); }
+    L.apply = (v) => {
+      L.lang = v; root.lang = v;
+      const loc = v === 'ru' ? 'ru-RU' : 'en-GB';
+      L.fmt = { time: new Intl.DateTimeFormat(loc, { hour: '2-digit', minute: '2-digit' }), plural: new Intl.PluralRules(loc) };
+    };
+    L.save = (v) => { try { localStorage.setItem(LANG_KEY, v); } catch (err) { console.warn('Language preference not saved', err); } };
+    L.pl = (n, forms) => { const c = L.fmt.plural.select(n); if (forms.length === 2) return c === 'one' ? forms[0] : forms[1]; return c === 'one' ? forms[0] : c === 'few' ? forms[1] : forms[2]; };
+    L.t = (key, vars = {}) => {
+      const v = table[L.lang][key] ?? table.en[key];
+      if (v == null) { console.warn(`Missing UI string: ${key}`); return key; }
+      if (typeof v === 'function') return v(vars, L.pl, { esc });
+      return v.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? esc(vars[k]) : m));
+    };
+    L.hhmm = (d) => L.fmt.time.format(d);
+    L.apply(L.lang);
+    return L;
+  }
+
+  /* ---------- icons: inline strokes, as in the prototype ---------- */
+  const svg = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  const I = {
+    check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'), x: svg('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'),
+    bang: svg('<path d="M12 6.5v7M12 17.3v.2"/>'), q: svg('<path d="M9.3 9a2.8 2.8 0 015.4 1c0 2-2.7 2.3-2.7 4M12 17.3v.2"/>'),
+    warn: svg('<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.3v.2"/>'),
+    chev: svg('<path d="M9.5 6l6 6-6 6"/>'), back: svg('<path d="M14.5 6l-6 6 6 6"/>'), down: svg('<path d="M6 9.5l6 6 6-6"/>'),
+    plus: svg('<path d="M12 5.5v13M5.5 12h13"/>'), minus: svg('<path d="M6 12h12"/>'),
+    gear: svg('<circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M20.5 12h-2.2M5.7 12H3.5M18 6l-1.6 1.6M7.6 16.4L6 18M18 18l-1.6-1.6M7.6 7.6L6 6"/>'),
+    ext: svg('<path d="M14 4.5h5.5V10M19.5 4.5L11 13M17 13.5v5a1 1 0 01-1 1H5.5a1 1 0 01-1-1V8a1 1 0 011-1h5"/>'),
+    copy: svg('<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V5.5a1 1 0 00-1-1h-9a1 1 0 00-1 1v9a1 1 0 001 1h3"/>'),
+    inbox: svg('<path d="M4 13.5L6.5 5h11l2.5 8.5V19H4z"/><path d="M4 13.5h5l1 2h4l1-2h5"/>'),
+    grid: svg('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'),
+    search: svg('<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>'),
+    chat: svg('<path d="M4.5 5.5h15v10h-9l-6 4z"/>'),
+    board: svg('<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M15 4.5v15"/>'),
+    stack: svg('<path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/>'),
+    archive: svg('<rect x="3.5" y="4.5" width="17" height="4.5" rx="1"/><path d="M5 9v10.5h14V9M10 13h4"/>'),
+    link: svg('<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/>'),
+    lock: svg('<rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/>'),
+    wifi: svg('<path d="M3.5 9.5a12 12 0 0117 0M6.5 12.8a7.5 7.5 0 0111 0M9.5 16a3 3 0 015 0"/><path d="M4 4l16 16"/>'),
+    pause: svg('<path d="M9 6v12M15 6v12"/>'),
+    play: svg('<path d="M8 5.5v13l10.5-6.5z"/>'),
+    refresh: svg('<path d="M19.5 12a7.5 7.5 0 11-2.2-5.3"/><path d="M19.5 4.5v4.5H15"/>'),
+    sliders: svg('<path d="M5 7h8M17 7h2M5 17h2M11 17h8"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'),
+    clock: svg('<circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/>'),
+    key: svg('<circle cx="8" cy="15" r="3.5"/><path d="M10.5 12.5l8-8M16 7l2.5 2.5M14 9l2 2"/>'),
+    mark: '<svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="6" fill="currentColor"/><path d="M7.5 9.5h9M7.5 14.5h5.5" stroke="var(--accent-contrast)" stroke-width="2.2" stroke-linecap="round"/></svg>',
+    bars: '<svg viewBox="0 0 18 12" width="18" height="12" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1" fill="currentColor"/><rect x="5" y="5" width="3" height="7" rx="1" fill="currentColor"/><rect x="10" y="2.5" width="3" height="9.5" rx="1" fill="currentColor"/><rect x="15" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg>',
+    battery: '<svg viewBox="0 0 27 13" width="27" height="13" aria-hidden="true"><rect x=".5" y=".5" width="23" height="12" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="18" height="9" rx="2" fill="currentColor"/><rect x="24.5" y="4.5" width="2" height="4" rx="1" fill="currentColor" opacity=".4"/></svg>',
+  };
+  const dots = '<span class="typing" aria-hidden="true"><i></i><i></i><i></i></span>';
+
+  /* ---------- page chrome: layout, theme, motion and language controls ---------- */
+  // `onLang(value)` re-renders the page's apps; `title` is the document title prefix ("Team Console · #24").
+  function page({ L, title, onLang }) {
+    const stage = document.querySelector('.stage');
+    const macFrame = document.querySelector('.mac-frame');
+    function fit() {
+      const W = stage.clientWidth - 48; const view = stage.dataset.view; let z = 1;
+      if (view === 'mac') { z = Math.min(1, W / 1182); stage.dataset.layout = 'stack'; }
+      else if (view === 'both') {
+        const room = W - 414 - 40;
+        if (room / 1182 >= 0.62) { z = Math.min(1, room / 1182); stage.dataset.layout = 'row'; } else { z = Math.min(1, W / 1182); stage.dataset.layout = 'stack'; }
+      }
+      macFrame.style.zoom = String(Math.max(z, 0.3));
+    }
+    function translatePage() {
+      document.querySelectorAll('[data-i18n]').forEach((el) => { el.innerHTML = L.t(el.dataset.i18n); });
+      document.querySelectorAll('[data-i18n-aria]').forEach((el) => el.setAttribute('aria-label', plain(L.t(el.dataset.i18nAria))));
+      document.title = `${title} · ${plain(L.t('page.title'))}`;
+    }
+    function setControl(ctrl, val) {
+      if (ctrl === 'view') { stage.dataset.view = val; fit(); }
+      if (ctrl === 'theme') { if (val === 'auto') delete root.dataset.theme; else root.dataset.theme = val; }
+      if (ctrl === 'motion') { if (val === 'system') delete root.dataset.motion; else root.dataset.motion = val; }
+      if (ctrl === 'lang' && val !== L.lang) { L.save(val); L.apply(val); translatePage(); onLang(val); }
+      document.querySelectorAll(`[data-control="${ctrl}"] button`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === val)));
+    }
+    document.querySelectorAll('[data-control]').forEach((g) => g.addEventListener('click', (e) => { const b = e.target.closest('button[data-value]'); if (b) setControl(g.dataset.control, b.dataset.value); }));
+    const small = matchMedia('(max-width: 520px)').matches;
+    translatePage();
+    setControl('view', small ? 'phone' : 'both');
+    setControl('theme', 'auto');
+    setControl('motion', 'system');
+    setControl('lang', L.lang);
+    document.querySelectorAll('[data-control=lang] button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === L.lang)));
+    addEventListener('resize', fit);
+    return { fit, setControl };
+  }
+
+  return { root, isReduced, cssVar, ms, wait, esc, play, plain, i18n, I, dots, page };
+})();
+
+/* #194 All projects: add from GitHub. Design prototype runtime with mock data only; the real app reads
+   GET /api/v1/github/installation/repositories and adds through #24's POST /api/v1/projects.
+   The repository block (section, rows, states, "Add by name") and the Add sheet do not know their host screen:
+   `reposBlock()` is mounted by the All projects host below and could be mounted anywhere else unchanged.
+   Two independent instances (iPhone, Mac) share the demo controls, like the other feature pages. */
+(() => {
+  'use strict';
+  const { isReduced, cssVar, ms, wait, esc, play, plain, I, dots } = Proto;
+  const L = Proto.i18n(I18N);
+  const { t, hhmm } = L;
+  const minsAgo = (m) => new Date(Date.now() - m * 60000);
+
+  /* ---------- mock data ---------- */
+  // Values the real Worker returns: the environment's app and the owner login come from the #59 connection.
+  const ENV = 'dev';
+  const APP = `team-console-${ENV}`;
+  const LOGIN = 'geeera';
+  const INSTALL_URL = `https://github.com/apps/${APP}/installations/new`;
+  const SELECTION_URL = 'https://github.com/settings/installations/1001';
+  const STEP_KEYS = ['app', 'owner', 'yml', 'events', 'routine'];
+  const N = STEP_KEYS.length;
+  const ALL = STEP_KEYS.map(() => 'done');
+  const FOLD_AT = 10; // a long list shows the first ten addable rows, then "Show N more"
+  const LONG_NAMES = ['api-gateway', 'billing-sandbox', 'blog', 'brand-assets', 'cv', 'design-tokens', 'docs-site', 'dotfiles-old', 'esp32-weather', 'expense-bot', 'family-photos', 'flashcards', 'game-jam-2023', 'gpx-tools', 'habit-tracker', 'homelab', 'interview-prep', 'invoice-cli', 'kata', 'kotlin-playground', 'landing-2024', 'leetcode', 'markdown-notes', 'meal-planner', 'micro-saas', 'nvim-config', 'pdf-merge', 'photo-sorter', 'pomodoro', 'portfolio', 'quiz-app', 'recipes', 'resume', 'rust-learning', 'scripts', 'side-project', 'snippets', 'sql-practice', 'telegram-bot', 'todo-react'];
+  const PROJECTS = [
+    { slug: 'team-console', team: 'running', sprint: 'Sprint 02', demo: new Date(2026, 9, 16), done: 9, total: 14, waiting: 2 },
+    { slug: 'sheltrix', team: 'paused', sprint: 'Sprint 01', demo: null, done: 5, total: 11, waiting: 0 },
+    { slug: 'atlas-cli', team: 'running', sprint: 'Sprint 01', demo: new Date(2026, 9, 23), done: 3, total: 8, waiting: 0, setup: true },
+  ];
+  function seedRepos(withProjects, long) {
+    const r = (name, priv, reg = 'none') => ({ fullName: `${LOGIN}/${name}`, name, private: priv, reg, slug: name });
+    const list = [
+      r('a-really-long-repository-name-to-check-wrapping', true), r('dotfiles', false), r('fieldnote', true),
+      r('newsletter', false), r('storify', true),
+      r('team-console', false, withProjects ? 'active' : 'none'), r('sheltrix', true, withProjects ? 'active' : 'none'),
+      r('atlas-cli', false, withProjects ? 'active' : 'none'),
+    ];
+    if (withProjects) list.push(r('old-landing', false, 'archived'));
+    if (long) LONG_NAMES.forEach((n, i) => list.push(r(n, i % 3 === 0)));
+    return list;
+  }
+  const ORDER = { none: 0, active: 1, archived: 2 };
+  const sorted = (list) => [...list].sort((a, b) => ORDER[a.reg] - ORDER[b.reg] || a.fullName.localeCompare(b.fullName, 'en', { sensitivity: 'base' }));
+
+  // Shared by both device frames.
+  const G = { projects: 'some', conn: 'connected', list: 'loaded', scenario: 'auto' };
+  const listed = () => ['loaded', 'long', 'partial', 'offline'].includes(G.list);
+  const offline = () => G.list === 'offline' || G.list === 'offlineNone';
+  const connected = () => G.conn === 'connected';
+  const listedAt = minsAgo(12);
+
+  const RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/;
+  function normalise(raw) {
+    const v = raw.trim().replace(/^(https?:\/\/)?(www\.)?github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, '');
+    if (!raw.trim()) return { ok: false, err: t('add.invalid.empty') };
+    if (!RE.test(v)) return { ok: false, err: t('add.invalid.format', { value: raw.trim() }) };
+    return { ok: true, repo: v };
+  }
+  const slugOf = (repo) => repo.split('/')[1].toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+  const SECRET = (slug) => slug.toUpperCase().replace(/-/g, '_');
+  const dateFmt = () => new Intl.DateTimeFormat(L.lang === 'ru' ? 'ru-RU' : 'en-GB', { day: 'numeric', month: 'short' });
+
+  const hosts = [...document.querySelectorAll('[data-app]')];
+  const renderAll = () => hosts.forEach((h) => h.app && h.app.render());
+
+  /* ---------- one app instance ---------- */
+  function mountApp(host, kind, keep) {
+    const fresh = () => ({
+      projects: G.projects === 'some' ? PROJECTS.map((p) => ({ ...p })) : [],
+      repos: seedRepos(G.projects === 'some', G.list === 'long'),
+      rows: {}, // fullName -> { kind: 'checking' } | { kind: 'notAdded', step, job }
+      sheet: null, // the Add sheet: { job, origin }
+      expanded: false, byName: false, field: '', fieldErr: null, refreshing: false, connecting: false,
+      switcher: false, inkRow: null, newTile: null, stampJob: null,
+    });
+    const S = keep || fresh();
+    host.S = S;
+    S.reset = () => Object.assign(S, fresh());
+    const uid = `${kind}-${Math.random().toString(36).slice(2, 7)}`;
+    const $ = (s) => host.querySelector(s);
+
+    host.innerHTML = kind === 'mac' ? `<div class="win">
+        <div class="win__bar"><span class="lights" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title">Team Console</span></div>
+        <div class="win__body">
+          <nav class="sidebar" aria-label="${t('nav.aria')}" data-bg>
+            <div class="brand">${I.mark}<span>Team Console</span></div>
+            <ul class="side-list side-list--top">
+              <li><button type="button" class="side-item" data-act="space">${I.inbox}<span>${t('nav.needs')}</span></button></li>
+              <li><button type="button" class="side-item" aria-current="true" data-act="top" data-fk="nav-all">${I.grid}<span>${t('nav.all')}</span></button></li>
+            </ul>
+            <div class="side-label">${t('nav.projects')}</div>
+            <ul class="side-list" data-slot="side"></ul>
+            <div class="side-foot">
+              <button type="button" class="side-item side-item--add" data-act="entry" data-fk="nav-add">${I.plus}<span>${t('nav.add')}</span></button>
+              <button type="button" class="side-item" data-act="space">${I.gear}<span>${t('nav.settings')}</span></button>
+              <div class="side-foot__row"><span class="avatar avatar--owner" aria-hidden="true">K</span><span>${t('shell.owner')}</span></div>
+            </div>
+          </nav>
+          <section class="set-main" aria-label="${t('nav.all')}" data-bg>
+            <div class="set-scroll" data-scroll><div class="set-inner set-inner--wide" data-slot="screen"></div></div>
+          </section>
+        </div>
+      </div>
+      <div data-slot="asheet"></div><div class="toast" role="status" data-slot="toast" hidden></div><div class="sr-only" aria-live="polite" data-slot="live"></div>`
+      : `<div class="p-status" aria-hidden="true"><span>9:41</span><span class="p-island"></span><span class="p-status__icons">${I.bars}${I.battery}</span></div>
+      <header class="p-head" data-bg><button type="button" class="p-switch" data-act="switcher" data-fk="switch" aria-haspopup="dialog" aria-label="${t('nav.switch')}"><span class="p-switch__txt"><b>${t('nav.all')}</b></span>${I.down}</button></header>
+      <div class="p-scroll" data-scroll data-bg><div class="set-inner" data-slot="screen"></div></div>
+      <div class="home-ind" aria-hidden="true"></div>
+      <div class="scrim" data-act="switcher-close"></div>
+      <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="${uid}-sw" data-slot="switcher" inert>
+        <div class="sheet__grab" aria-hidden="true"></div>
+        <header class="sheet__head"><h2 id="${uid}-sw" tabindex="-1">${t('sheet.title')}</h2><button type="button" class="icon-btn" data-act="switcher-close" aria-label="${t('sheet.close')}">${I.x}</button></header>
+        <div class="sheet__body" data-slot="swbody"></div>
+      </section>
+      <div data-slot="asheet"></div><div class="toast" role="status" data-slot="toast" hidden></div><div class="sr-only" aria-live="polite" data-slot="live"></div>`;
+
+    /* ----- small pieces ----- */
+    const dis = (on) => (on ? ' aria-disabled="true"' : '');
+    const mono = (slug) => `<span class="prod-mono" aria-hidden="true">${esc(slug[0])}</span>`;
+    const extBtn = (href, label, cls, fk) => `<a class="btn ${cls} btn--tall" href="${esc(href)}" target="_blank" rel="noopener noreferrer" data-act="ext" data-fk="${fk}">${label}<span class="sr-only"> ${t('common.external')}</span>${I.ext}</a>`;
+    const extLink = (href, label) => `<a class="ext" href="${esc(href)}" target="_blank" rel="noopener noreferrer" data-act="ext">${label}<span class="sr-only"> ${t('common.external')}</span>${I.ext}</a>`;
+    const connectBtn = (fk) => `<button type="button" class="btn btn--primary btn--tall" data-act="connect" data-fk="${fk}"${dis(S.connecting || offline())}>${S.connecting ? t('gh.connecting') : t('gh.connect')}</button>`;
+
+    /* ================= HOST: All projects ================= */
+    function tile(p) {
+      const pct = Math.round((p.done / p.total) * 100);
+      const chip = p.team === 'paused' ? `<span class="status status--paused"><i></i>${t('overview.team.paused')}</span>` : `<span class="status"><i></i>${t('overview.team.running')}</span>`;
+      const line = p.sprint ? `${esc(p.sprint)}${p.demo ? ` · ${t('overview.demo', { date: dateFmt().format(p.demo) })}` : ''}` : '';
+      const isNew = S.newTile === p.slug;
+      return `<li${isNew ? ' class="is-landing"' : ''}><a class="ov" href="#/p/${esc(p.slug)}" data-act="space" data-fk="tile-${esc(p.slug)}">
+        <span class="ov__top">${mono(p.slug)}<b>${esc(p.slug)}</b>${p.fresh ? `<span class="status status--new">${t('overview.new')}</span>` : chip}</span>
+        ${line ? `<span class="ov__line">${line}</span><span class="meter meter--wide" aria-hidden="true"><i style="--p:${pct}%"></i></span>` : ''}
+        <span class="ov__foot"><span>${p.total ? t('overview.done', { done: p.done, total: p.total }) : ''}</span>
+          <span class="ov__chips">${p.setup ? `<span class="status setchip setchip--missing">${t('overview.setup')}</span>` : ''}${p.waiting ? `<span class="count">${p.waiting}</span>` : ''}</span></span></a></li>`;
+    }
+    function hostScreen() {
+      const ps = S.projects;
+      let h = `<header class="ov-head"><h1 tabindex="-1" data-fk="h1">${t('overview.title')}</h1>${ps.length ? `<p class="ov-count">${t('overview.count', { n: ps.length })}</p>` : ''}</header>`;
+      if (!ps.length) {
+        h += `<div class="ov-empty"><h2>${t('overview.empty.title')}</h2><p>${t('overview.empty.body')}</p></div>`;
+      } else {
+        const main = ps.filter((p) => p.waiting); const quiet = ps.filter((p) => !p.waiting);
+        if (main.length) h += `<ul class="ov-grid">${main.map(tile).join('')}</ul>`;
+        if (quiet.length) h += `<h2 class="ov-h" id="${uid}-quiet">${t('overview.quiet')} <span>${quiet.length}</span></h2><ul class="ov-grid ov-grid--quiet" aria-labelledby="${uid}-quiet">${quiet.map(tile).join('')}</ul>`;
+      }
+      return h + reposBlock();
+    }
+
+    /* ================= BLOCK: repositories on GitHub (host-independent) ================= */
+    function rowHTML(r) {
+      const meta = `<span class="repo__meta"><span class="repo__owner">${esc(LOGIN)}</span>${r.private ? `<span class="repo__priv">${I.lock}${t('repos.row.private')}</span>` : ''}</span>`;
+      const name = `<span class="repo__name">${esc(r.name)}</span>`;
+      if (r.reg === 'active') {
+        const ink = S.inkRow === r.fullName;
+        return `<li class="repo repo--project" data-repo="${esc(r.fullName)}"><a class="repo__link" href="#/settings/projects/${esc(r.slug)}" data-act="setup" data-fk="row-${esc(r.fullName)}" aria-label="${esc(plain(t('repos.row.projectAria', { repo: r.fullName })))}">
+          <span class="repo__txt">${name}${meta}</span><span class="repo__tail">${ink ? `<span class="ink is-new" aria-hidden="true">${I.check}</span>` : ''}${t('repos.row.project')}${I.chev}</span></a></li>`;
+      }
+      if (r.reg === 'archived') {
+        return `<li class="repo repo--archived" data-repo="${esc(r.fullName)}"><span class="repo__txt">${name}${meta}</span><span class="repo__tail">${I.archive}${t('repos.row.archived')}</span></li>`;
+      }
+      const st = S.rows[r.fullName];
+      const checking = st && st.kind === 'checking';
+      const why = st && st.kind === 'notAdded' ? `<span class="repo__why"><span class="repo__whytxt">${I.bang}${t('repos.row.notAdded', { n: st.step })}</span>
+          <button type="button" class="link-btn repo__whybtn" data-act="why" data-repo="${esc(r.fullName)}" data-fk="why-${esc(r.fullName)}" aria-label="${esc(plain(t('repos.row.seeWhyAria', { repo: r.fullName })))}">${t('repos.row.seeWhy')}${I.chev}</button></span>` : '';
+      const add = checking
+        ? `<button type="button" class="btn btn--tall repo__add is-busy" data-fk="add-${esc(r.fullName)}" aria-disabled="true">${dots}<span>${t('repos.row.adding')}</span></button>`
+        : `<button type="button" class="btn btn--tall repo__add" data-act="add" data-repo="${esc(r.fullName)}" data-fk="add-${esc(r.fullName)}" aria-label="${esc(plain(t('repos.row.addAria', { repo: r.fullName })))}"${dis(offline())}>${I.plus}<span>${t('repos.row.add')}</span></button>`;
+      return `<li class="repo${why ? ' repo--why' : ''}" data-repo="${esc(r.fullName)}"><span class="repo__txt">${name}${meta}${why}</span>${add}</li>`;
+    }
+    function reposHead(withRefresh) {
+      const busy = S.refreshing || G.list === 'loading';
+      const refresh = withRefresh ? `<button type="button" class="btn btn--tall repos__refresh${S.refreshing ? ' is-spinning' : ''}" data-act="refresh" data-fk="refresh"${dis(busy || offline())}>${I.refresh}<span>${S.refreshing ? t('repos.refreshing') : t('repos.refresh')}</span></button>` : '';
+      return `<div class="sec-head repos__head"><div><h2 class="sec-title" id="${uid}-repos" tabindex="-1" data-fk="repos-h">${t('repos.title')}</h2>
+        ${connected() ? `<p class="set-lead">${t('repos.lead', { app: APP, login: LOGIN })}</p>` : ''}</div>${refresh}</div>`;
+    }
+    function reposBody() {
+      if (!connected()) {
+        const lost = G.conn === 'lost';
+        return `<div class="res res--warn need-conn"><h3 tabindex="-1" data-fk="need">${lost ? t('gh.lost.title') : t('gh.needConnect.title')}</h3>
+          <p>${lost ? t('repos.lost.body') : t('repos.needConnect.body', { app: APP })}</p>${connectBtn('connect')}</div>`;
+      }
+      const m = G.list;
+      if (m === 'loading') {
+        return `<div aria-busy="true"><span class="sr-only">${t('repos.loading')}</span><div class="plist" aria-hidden="true">${'<div class="skel-row skel-row--repo"><span class="skel-stack"><span class="skel skel--a"></span><span class="skel skel--b"></span></span><span class="skel skel--btn"></span></div>'.repeat(3)}</div></div>`;
+      }
+      if (m === 'empty') return `<div class="block"><h3>${t('repos.empty.title', { app: APP })}</h3><p>${t('repos.empty.body')}</p>${extBtn(SELECTION_URL, t('repos.selectLink'), 'btn--primary', 'select')}</div>`;
+      if (m === 'notInstalled') return `<div class="block"><h3>${t('repos.notInstalled.title', { app: APP })}</h3><p>${t('repos.notInstalled.body')}</p>${extBtn(INSTALL_URL, t('repos.notInstalled.action'), 'btn--primary', 'install')}</div>`;
+      if (m === 'github' || m === 'rate' || m === 'auth') {
+        const reason = m === 'github' ? t('repos.error.github') : m === 'rate' ? t('repos.error.rate', { time: hhmm(new Date(Date.now() + 17 * 60000)) }) : t('repos.error.auth', { app: APP });
+        return `<div class="block block--error" role="alert"><h3>${t('repos.error.title')}</h3><p>${reason}</p><button type="button" class="btn btn--tall" data-act="retry" data-fk="retry">${t('common.retry')}</button></div>`;
+      }
+      if (m === 'offlineNone') return `<div class="block"><h3 class="block__icon-h">${I.wifi}${t('repos.offline.title')}</h3><p>${t('repos.offline.body')}</p><button type="button" class="btn btn--tall" data-act="retry" data-fk="retry">${t('common.retry')}</button></div>`;
+      // a list: addable rows first, then the ones already in the console
+      const all = sorted(S.repos);
+      const addable = all.filter((r) => r.reg === 'none' || S.rows[r.fullName] || r.justAdded);
+      const already = all.filter((r) => !addable.includes(r));
+      const folded = !S.expanded && addable.length > FOLD_AT + 2;
+      const shownAdd = folded ? addable.slice(0, FOLD_AT) : addable;
+      let h = '';
+      if (m === 'offline') h += `<div class="paused offline" role="status">${I.wifi}<span>${t('repos.offline.list', { time: hhmm(listedAt) })}</span></div>`;
+      if (m === 'partial') h += `<div class="repos__partial" role="status">${I.clock}<div><p>${t('repos.partial', { n: all.length })}</p>${extLink(SELECTION_URL, t('repos.selectLink'))}</div></div>`;
+      if (shownAdd.length) {
+        h += `<ul class="plist repos__list" aria-label="${t('repos.listAria')}">${shownAdd.map(rowHTML).join('')}</ul>`;
+        if (folded) h += `<button type="button" class="btn btn--quiet btn--tall repos__more" data-act="more" data-fk="more">${I.down}${t('repos.more', { n: addable.length - FOLD_AT })}</button>`;
+      }
+      if (already.length) {
+        h += `<h3 class="ov-h repos__already" id="${uid}-already">${t('repos.already')} <span>${already.length}</span></h3>
+          <ul class="plist plist--quiet repos__list" aria-labelledby="${uid}-already">${already.map(rowHTML).join('')}</ul>`;
+      }
+      return h;
+    }
+    function byNameBlock() {
+      const open = S.byName; const id = `${uid}-byname`;
+      const norm = normalise(S.field);
+      const describedBy = [`${uid}-hint`, S.fieldErr ? `${uid}-err` : '', `${uid}-prev`].filter(Boolean).join(' ');
+      return `<div class="byname"><button type="button" class="byname__toggle" data-act="byname" aria-expanded="${open}" aria-controls="${id}" data-fk="byname">
+          <span class="byname__txt"><b>${t('repos.byName')}</b><small>${t('repos.byNameLead')}</small></span>${I.down}</button>
+        <form class="byname__panel" id="${id}" data-form novalidate${open ? '' : ' hidden'}><div class="field">
+          <label class="field__label" for="${uid}-repo">${t('add.field')}</label>
+          <p class="field__hint" id="${uid}-hint">${t('add.hint')}</p>
+          <input class="field__input" id="${uid}-repo" data-field data-fk="field" type="text" inputmode="url" enterkeyhint="go" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" value="${esc(S.field)}" aria-describedby="${describedBy}"${S.fieldErr ? ' aria-invalid="true"' : ''}>
+          ${S.fieldErr ? `<p class="field__err" id="${uid}-err">${I.warn}<span>${esc(S.fieldErr)}</span></p>` : ''}
+          <p class="field__preview" id="${uid}-prev" data-preview>${norm.ok ? t('add.preview', { slug: slugOf(norm.repo) }) : ''}</p></div>
+          ${offline() ? `<p class="field__hint">${t('add.offline')}</p>` : ''}
+          <div class="form-actions"><button type="submit" class="btn btn--primary btn--tall" data-fk="submit"${dis(offline() || !connected())}>${t('add.submit')}</button></div>
+        </form></div>`;
+    }
+    function reposBlock() {
+      const withRefresh = connected() && (listed() || G.list === 'loading');
+      return `<section class="sec repos" aria-labelledby="${uid}-repos" data-repos>${reposHead(withRefresh)}${reposBody()}${byNameBlock()}</section>`;
+    }
+
+    /* ================= the Add sheet (kit Sheet: bottom sheet on iPhone, dialog on Mac) ================= */
+    function stepHTML(i, st, ctx) {
+      const k = STEP_KEYS[i];
+      const vars = { repo: ctx.repo, SLUG: SECRET(ctx.slug), time: hhmm(new Date()), app: APP, login: LOGIN, repoOwner: ctx.repoOwner || ctx.repo.split('/')[0] };
+      const mark = st === 'done' ? I.check : st === 'missing' ? I.bang : st === 'pending' ? dots : `${i + 1}`;
+      let fix = '';
+      if (st === 'done') fix = t(`step.${k}.done`, vars);
+      if (st === 'missing') fix = t(`step.${k}.missing`, vars);
+      if (st === 'skipped') fix = t('step.skippedWhy');
+      let how = '';
+      if (st === 'missing' && (k === 'app' || k === 'owner' || k === 'yml')) {
+        const id = `${uid}-how-${i}`; const open = !!(S.sheet && S.sheet.how === i);
+        how = `<button type="button" class="btn btn--quiet btn--sm how-btn" data-act="how" data-i="${i}" aria-expanded="${open}" aria-controls="${id}" data-fk="how-${i}">${t('step.how')}${I.down}</button>
+          <div class="how" id="${id}"${open ? '' : ' hidden'}><p>${t(`step.${k}.how`, vars)}</p>${k === 'app' ? extLink(INSTALL_URL, t('step.app.link')) : ''}</div>`;
+      }
+      const isNew = ctx.fresh === i;
+      return `<li class="step step--${st}${isNew ? ' is-new' : ''}">
+        <span class="step__mark" aria-hidden="true">${mark}</span>
+        <div class="step__body"><div class="step__head"><h4 class="step__title">${t(`step.${k}.title`, vars)}</h4><span class="step__state">${t(k === 'events' && st === 'missing' ? 'step.waiting' : `step.${st}`)}</span></div>
+        ${fix ? `<p class="step__fix">${fix}</p>` : ''}${how}</div></li>`;
+    }
+    const ledger = (j) => `<ol class="ledger" aria-label="${t('setup.stepsAria')}">${j.steps.map((s, i) => stepHTML(i, s, { repo: j.repo, slug: j.slug, repoOwner: j.repoOwner, fresh: j.fresh })).join('')}</ol>`;
+    const stampSVG = '<div class="stamp" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="28"/><circle class="stamp__inner" cx="32" cy="32" r="23"/><path d="M21 33l8 8 15-17"/></svg></div>';
+
+    function sheetContent(j) {
+      const btn = (act, label, primary, fk, disabled) => `<button type="button" class="btn ${primary ? 'btn--primary' : ''} btn--tall" data-act="${act}" data-fk="${fk}"${dis(disabled)}>${label}</button>`;
+      let body = ''; let acts = [];
+      const res = (tone, title, text) => `<section class="res${tone ? ` res--${tone}` : ''}" data-res><h3 tabindex="-1" data-fk="res">${title}</h3>${text ? `<p>${text}</p>` : ''}${tone === 'ready' ? stampSVG : ''}</section>`;
+      if (j.kind === 'checking') { body = ledger(j); acts = [btn('noop', `${dots}${t('add.submitting')}`, true, 'busy', true), btn('close', t('repos.sheet.close'), false, 'close')]; }
+      if (j.kind === 'refused') { body = res('bad', t('add.refused.title'), t('add.refused.body')) + ledger(j); acts = [btn('again', t('setup.checkAgain'), true, 'again', offline()), btn('close', t('repos.sheet.close'), false, 'close')]; }
+      if (j.kind === 'saved') {
+        const left = j.steps.filter((s) => s !== 'done').length;
+        body = (left ? res('', t('add.saved.title', { n: left }), t('add.saved.body')) : res('ready', t('setup.ready.title', { name: j.slug }), t('setup.ready.body'))) + ledger(j);
+        acts = [btn('done', t('repos.sheet.done'), true, 'done'), btn('setup', t('repos.sheet.openSetup'), false, 'open-setup')];
+      }
+      if (j.kind === 'unavailable') { body = res('bad', t('add.unavailable.title'), j.reason); acts = [btn('again', t('common.retry'), true, 'again', offline()), btn('close', t('repos.sheet.close'), false, 'close')]; }
+      if (j.kind === 'lost') { body = `<div class="res res--warn need-conn"><h3 tabindex="-1" data-fk="res">${t('gh.lost.title')}</h3><p>${t('gh.needConnect.lostBody')}</p></div>`; acts = [connectBtn('sheet-connect'), btn('close', t('repos.sheet.close'), false, 'close')]; }
+      if (j.kind === 'dup') { body = `<div class="res res--neutral"><h3 tabindex="-1" data-fk="res">${t('add.duplicate', { repo: j.repo })}</h3><button type="button" class="link-btn" data-act="setup" data-fk="dup-open">${t('add.duplicateLink')}</button></div>`; acts = [btn('close', t('repos.sheet.close'), true, 'close')]; }
+      if (j.kind === 'archived') { body = `<div class="res res--neutral"><h3 tabindex="-1" data-fk="res">${t('add.archived', { repo: j.repo })}</h3><p>${t('add.archivedBody')}</p></div>`; acts = [btn('close', t('repos.sheet.close'), true, 'close')]; }
+      return { body, acts: acts.join('') };
+    }
+    function sheetHTML() {
+      const j = S.sheet.job; const c = sheetContent(j);
+      return `<div class="asheet${kind === 'mac' ? ' asheet--dialog' : ''}"><div class="asheet__scrim" data-act="close"></div>
+        <section class="asheet__panel" role="dialog" aria-modal="true" aria-labelledby="${uid}-at">
+          ${kind === 'phone' ? '<div class="sheet__grab" aria-hidden="true"></div>' : ''}
+          <div class="asheet__head"><h2 class="asheet__title" id="${uid}-at" tabindex="-1" data-fk="sheet-title">${t('repos.sheet.title', { repo: j.repo })}</h2>
+            <button type="button" class="icon-btn" data-act="close" data-fk="sheet-x" aria-label="${t('repos.sheet.close')}">${I.x}</button></div>
+          <div class="asheet__body" data-sbody tabindex="0" aria-labelledby="${uid}-at">${c.body}</div>
+          <div class="asheet__foot">${c.acts}</div>
+        </section></div>`;
+    }
+    function drawSheet(focus) {
+      const slot = $('[data-slot=asheet]');
+      if (!S.sheet) { slot.innerHTML = ''; return; }
+      const active = slot.contains(document.activeElement) ? document.activeElement.dataset.fk : null;
+      const top = slot.querySelector('[data-sbody]')?.scrollTop || 0;
+      slot.innerHTML = sheetHTML();
+      const body = slot.querySelector('[data-sbody]'); body.scrollTop = top;
+      S.sheet.job.fresh = null;
+      const f = focus || active;
+      const el = f && slot.querySelector(`[data-fk="${f}"]`);
+      if (el) el.focus({ preventScroll: !focus });
+      if (focus === 'res') { const r = slot.querySelector('[data-res], .res'); if (r) body.scrollTop = 0; }
+      if (S.stampJob === S.sheet.job) { S.stampJob = null; stamp(slot.querySelector('.res--ready .stamp')); }
+    }
+    function openSheet(job, origin) {
+      S.sheet = { job, origin, how: null };
+      host.querySelectorAll('[data-bg]').forEach((el) => { el.inert = true; });
+      drawSheet('sheet-title');
+      const panel = $('.asheet__panel'); const scrim = $('.asheet__scrim');
+      if (isReduced()) play(panel, [{ opacity: 0 }, { opacity: 1 }], { duration: ms('--dur-fade') });
+      else {
+        play(scrim, [{ opacity: 0 }, { opacity: 1 }], { duration: ms('--dur-base'), easing: cssVar('--ease-standard') });
+        play(panel, kind === 'phone' ? [{ transform: 'translateY(100%)' }, { transform: 'none' }] : [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: ms(kind === 'phone' ? '--dur-slow' : '--dur-base'), easing: cssVar('--ease-enter') });
+      }
+    }
+    function closeSheet() {
+      const s = S.sheet; if (!s) return;
+      const j = s.job;
+      S.sheet = null; drawSheet();
+      host.querySelectorAll('[data-bg]').forEach((el) => { el.inert = false; });
+      // focus: the row link after a success (the Add button is gone), else the row's Add or the by-name submit
+      let fk;
+      if (j.kind === 'saved' || j.kind === 'dup') { fk = `row-${j.repo}`; S.inkRow = j.kind === 'saved' ? j.repo : null; }
+      else fk = s.origin === 'byname' ? 'submit' : `add-${j.repo}`;
+      render({ focus: fk });
+      S.inkRow = null;
+    }
+
+    /* ----- the add check (#24's POST, unchanged); the result lands on the sheet or on the row ----- */
+    const refusedAt = (i) => STEP_KEYS.map((_, j) => (j < i ? 'done' : j === i ? 'missing' : 'skipped'));
+    function outcomeFor(repo) {
+      const owner = repo.split('/')[0];
+      const known = S.repos.find((r) => r.fullName.toLowerCase() === repo.toLowerCase());
+      const byRepo = owner.toLowerCase() !== LOGIN ? 'owner' : /no-app/i.test(repo) ? 'app' : /storify|team-console|sheltrix|atlas/i.test(repo) ? 'saved' : /newsletter/i.test(repo) ? 'ready' : known ? 'yml' : 'saved';
+      const sc = G.scenario !== 'auto' ? G.scenario : byRepo;
+      if (sc === 'app') return { kind: 'refused', steps: refusedAt(0) };
+      if (sc === 'owner') return { kind: 'refused', steps: refusedAt(1), repoOwner: owner };
+      if (sc === 'yml') return { kind: 'refused', steps: refusedAt(2) };
+      if (sc === 'github') return { kind: 'unavailable', reason: t('add.unavailable.github') };
+      if (sc === 'rate') return { kind: 'unavailable', reason: t('add.unavailable.rate', { time: hhmm(new Date(Date.now() + 17 * 60000)) }) };
+      if (sc === 'auth') return { kind: 'unavailable', reason: t('add.unavailable.auth', { app: APP }) };
+      if (sc === 'lost') return { kind: 'lost' };
+      if (sc === 'dup') return { kind: 'dup' };
+      if (sc === 'ready') return { kind: 'saved', steps: [...ALL] };
+      return { kind: 'saved', steps: ['done', 'done', 'done', 'missing', 'missing'] };
+    }
+    const sheetShows = (j) => S.sheet && S.sheet.job === j;
+    async function runCheck(repo, origin, jobIn) {
+      const out = outcomeFor(repo);
+      const job = jobIn || { repo, slug: slugOf(repo) };
+      Object.assign(job, { kind: 'checking', repoOwner: out.repoOwner, steps: STEP_KEYS.map(() => 'pending'), fresh: null });
+      S.rows[repo] = { kind: 'checking' };
+      if (sheetShows(job)) drawSheet('busy'); else openSheet(job, origin);
+      render();
+      announce(plain(t('add.checkingLive', { repo })));
+      if (out.kind === 'saved' || out.kind === 'refused') {
+        for (let i = 0; i < N; i += 1) {
+          await wait(340);
+          job.steps[i] = out.steps[i]; job.fresh = i;
+          if (sheetShows(job)) drawSheet();
+        }
+      } else await wait(1100);
+      finish(job, out);
+    }
+    function finish(job, out) {
+      const repo = job.repo; const r = S.repos.find((x) => x.fullName.toLowerCase() === repo.toLowerCase());
+      const open = sheetShows(job);
+      delete S.rows[repo];
+      if (out.kind === 'lost') { G.conn = 'lost'; Object.assign(job, { kind: 'lost' }); hosts.forEach((h) => { if (h !== host && h.app) h.app.render(); }); }
+      else if (out.kind === 'unavailable') Object.assign(job, { kind: 'unavailable', reason: out.reason });
+      else if (out.kind === 'dup') { Object.assign(job, { kind: 'dup' }); if (r) r.reg = 'active'; }
+      else if (out.kind === 'refused') {
+        Object.assign(job, { kind: 'refused', steps: out.steps });
+        S.rows[repo] = { kind: 'notAdded', step: out.steps.indexOf('missing') + 1, job };
+      } else {
+        Object.assign(job, { kind: 'saved', steps: out.steps });
+        if (r) { r.reg = 'active'; r.justAdded = true; }
+        else S.repos.push({ fullName: repo, name: repo.split('/')[1], private: false, reg: 'active', slug: job.slug, justAdded: true });
+        const left = out.steps.filter((s) => s !== 'done').length;
+        S.projects.push({ slug: job.slug, team: 'running', sprint: null, demo: null, done: 0, total: 0, waiting: 0, setup: left > 0, fresh: true });
+        S.newTile = job.slug;
+        if (!left) S.stampJob = job;
+      }
+      if (open) { render(); drawSheet('res'); }
+      else {
+        // the sheet was closed mid-check: the row carries the result, and the live region says it
+        render();
+        if (job.kind === 'saved') { toast(plain(t('repos.addedToast', { repo }))); announce(plain(t('repos.addedToast', { repo }))); }
+        else if (job.kind === 'refused') announce(plain(t('repos.notAddedLive', { repo })));
+      }
+      S.newTile = null;
+    }
+    function submitByName() {
+      if (offline() || !connected()) return;
+      const field = $('[data-field]'); if (field) S.field = field.value;
+      const norm = normalise(S.field);
+      if (!norm.ok) { S.fieldErr = norm.err; render({ focus: 'field' }); return; }
+      S.fieldErr = null;
+      const repo = norm.repo;
+      const known = S.repos.find((x) => x.fullName.toLowerCase() === repo.toLowerCase());
+      if (known && known.reg !== 'none') { openSheet({ repo: known.fullName, slug: known.slug, kind: known.reg === 'archived' ? 'archived' : 'dup', steps: [] }, 'byname'); return; }
+      runCheck(known ? known.fullName : repo, 'byname');
+    }
+
+    /* ----- list actions ----- */
+    async function reload(how) {
+      if (how === 'refresh') { if (S.refreshing || offline()) return; S.refreshing = true; render(); await wait(900); S.refreshing = false; render({ focus: 'refresh' }); announce(plain(t('repos.refreshedLive', { n: S.repos.length }))); return; }
+      // Try again / back from GitHub: skeleton, then the list; focus on the section heading
+      G.list = 'loading'; renderAll(); await wait(900);
+      G.list = 'loaded'; syncDemo(); hosts.forEach((h) => h.app.render(h === host ? { focus: how === 'retry' ? 'repos-h' : null } : {}));
+    }
+    async function connect() {
+      if (S.connecting || offline()) return;
+      S.connecting = true; render(); if (S.sheet) drawSheet();
+      await wait(800);
+      S.connecting = false; G.conn = 'connected'; syncDemo();
+      if (S.sheet) closeSheet();
+      toast(plain(t('gh.connectedLive', { login: LOGIN })));
+      reload('retry');
+    }
+
+    /* ----- render, keeping focus by data-fk ----- */
+    function chrome() {
+      if (kind === 'mac') {
+        $('[data-slot=side]').innerHTML = S.projects.map((p) => `<li><button type="button" class="side-item" data-act="space">${mono(p.slug)}<span class="side-prod__label">${esc(p.slug)}</span></button></li>`).join('');
+        return;
+      }
+      $('[data-slot=swbody]').innerHTML = `<div class="sheet__pad"><button type="button" class="side-item side-item--needs" data-act="space">${I.inbox}<span>${t('nav.needs')}</span></button>
+          <button type="button" class="side-item" aria-current="true" data-act="switcher-close">${I.grid}<span>${t('nav.all')}</span></button></div>
+        <ul class="side-list proj-list">${S.projects.map((p) => `<li><button type="button" class="side-item side-prod--rich" data-act="space">${mono(p.slug)}<span class="side-prod__name"><span class="side-prod__label">${esc(p.slug)}</span><span class="sheet-row__repo">${esc(LOGIN)}/${esc(p.slug)}</span></span></button></li>`).join('')}</ul>
+        <div class="sheet-foot"><button type="button" class="side-item side-item--add" data-act="entry" data-fk="sheet-add">${I.plus}<span>${t('nav.add')}</span></button>
+        <button type="button" class="side-item" data-act="space">${I.gear}<span>${t('nav.settings')}</span></button></div>`;
+    }
+    function render(opts = {}) {
+      const active = host.contains(document.activeElement) && !$('[data-slot=asheet]').contains(document.activeElement) ? document.activeElement.dataset.fk : null;
+      chrome();
+      $('[data-slot=screen]').innerHTML = hostScreen();
+      const target = opts.focus ? host.querySelector(`[data-slot=screen] [data-fk="${CSS.escape(opts.focus)}"], [data-fk="${CSS.escape(opts.focus)}"]`) : active ? host.querySelector(`[data-fk="${CSS.escape(active)}"]`) : null;
+      if (target && !S.sheet) target.focus({ preventScroll: !opts.focus });
+      const land = host.querySelector('.is-landing .ov');
+      if (land) play(land, isReduced() ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: ms(isReduced() ? '--dur-fade' : '--dur-base'), easing: cssVar('--ease-enter') });
+    }
+    const announce = (txt) => { const l = $('[data-slot=live]'); l.textContent = ''; setTimeout(() => { l.textContent = txt; }, 30); };
+    let toastTimer;
+    function toast(txt) {
+      const el = $('[data-slot=toast]'); el.textContent = txt; el.hidden = false;
+      play(el, isReduced() ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: ms(isReduced() ? '--dur-fade' : '--dur-base'), easing: cssVar('--ease-enter') });
+      clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, ms('--dur-toast'));
+    }
+    // Signature moment, reused from Paper Desk: the ink stamp presses onto the "ready" note.
+    function stamp(s) {
+      if (!s) return;
+      if (isReduced()) { play(s, [{ opacity: 0 }, { opacity: 1 }], { duration: ms('--dur-fade') }); return; }
+      const strokes = [...s.querySelectorAll('circle,path')];
+      strokes.forEach((p) => { const l = p.getTotalLength(); p.style.strokeDasharray = l; p.style.strokeDashoffset = l; });
+      play(s, [{ opacity: 0, transform: 'rotate(-20deg) scale(1.4)' }, { opacity: 1, transform: 'rotate(-9deg) scale(1)' }], { duration: ms('--dur-base'), easing: cssVar('--ease-emph') });
+      strokes.forEach((p, i) => play(p, [{ strokeDashoffset: p.style.strokeDashoffset }, { strokeDashoffset: 0 }], { duration: ms('--dur-sig') * 0.6, delay: i * ms('--stagger'), easing: cssVar('--ease-emph'), fill: 'forwards' }));
+    }
+    function setSwitcher(open) {
+      if (kind !== 'phone') return;
+      S.switcher = open; host.classList.toggle('has-sheet', open);
+      const sh = $('[data-slot=switcher]'); sh.classList.toggle('is-open', open); sh.inert = !open;
+      host.querySelectorAll('[data-bg]').forEach((el) => { el.inert = open; });
+      if (open) sh.querySelector('h2').focus();
+    }
+    // Every "Add project" entry point opens All projects scrolled to the GitHub section, focus on its heading.
+    function entry() {
+      setSwitcher(false);
+      const h = $('[data-fk="repos-h"]');
+      const scroller = host.querySelector('[data-scroll]');
+      const top = h.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - 8;
+      scroller.scrollTo({ top, behavior: isReduced() ? 'auto' : 'smooth' });
+      h.focus({ preventScroll: true });
+    }
+
+    /* ----- events ----- */
+    host.onclick = (e) => {
+      const el = e.target.closest('[data-act]'); if (!el || !host.contains(el)) return;
+      const act = el.dataset.act;
+      if (act === 'ext') { e.preventDefault(); toast('GitHub ↗'); return; }
+      if (el.tagName === 'A') e.preventDefault();
+      if (el.getAttribute('aria-disabled') === 'true') return;
+      const repo = el.dataset.repo;
+      switch (act) {
+        case 'add': runCheck(repo, 'row'); break;
+        case 'why': { const st = S.rows[repo]; if (st && st.job) openSheet(st.job, 'row'); break; }
+        case 'again': runCheck(S.sheet.job.repo, S.sheet.origin, S.sheet.job); break;
+        case 'close': closeSheet(); break;
+        case 'done': closeSheet(); break;
+        case 'setup': if (S.sheet) closeSheet(); toast(t('demo.setup')); break;
+        case 'how': S.sheet.how = S.sheet.how === Number(el.dataset.i) ? null : Number(el.dataset.i); drawSheet(); break;
+        case 'refresh': reload('refresh'); break;
+        case 'retry': reload('retry'); break;
+        case 'more': { S.expanded = true; render(); const next = host.querySelectorAll('.repos__list')[0].querySelectorAll('.repo')[FOLD_AT]; const f = next && next.querySelector('button, a'); if (f) f.focus(); break; }
+        case 'byname': S.byName = !S.byName; render({ focus: S.byName ? 'field' : 'byname' }); break;
+        case 'connect': connect(); break;
+        case 'entry': entry(); break;
+        case 'top': render({ focus: 'h1' }); break;
+        case 'switcher': setSwitcher(true); break;
+        case 'switcher-close': setSwitcher(false); $('[data-fk=switch]').focus(); break;
+        case 'space': toast(t('demo.space')); break;
+        default: break;
+      }
+    };
+    host.onsubmit = (e) => { e.preventDefault(); submitByName(); };
+    host.oninput = (e) => {
+      if (!e.target.matches('[data-field]')) return;
+      S.field = e.target.value;
+      const n = normalise(S.field);
+      $('[data-preview]').innerHTML = n.ok ? t('add.preview', { slug: slugOf(n.repo) }) : '';
+    };
+    host.onkeydown = (e) => {
+      if (S.sheet) {
+        if (e.key === 'Escape') { e.preventDefault(); closeSheet(); return; }
+        if (e.key === 'Tab') {
+          const f = [...host.querySelectorAll('.asheet__panel button:not([aria-disabled=true]), .asheet__panel a[href]')];
+          const i = f.indexOf(document.activeElement);
+          if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+          else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+        }
+        return;
+      }
+      if (S.switcher && e.key === 'Escape') { setSwitcher(false); $('[data-fk=switch]').focus(); }
+    };
+
+    /* ----- demo entry points ----- */
+    const SHEET_STATES = { sheetYml: 'yml', sheetSaved: 'saved', sheetReady: 'ready', sheetGithub: 'github', sheetRate: 'rate', sheetAuth: 'auth', sheetLost: 'lost', sheetDup: 'dup' };
+    const app = {
+      render, S,
+      go: async (screen) => {
+        if (S.sheet) { S.sheet = null; drawSheet(); host.querySelectorAll('[data-bg]').forEach((el) => { el.inert = false; }); }
+        setSwitcher(false);
+        if (screen === 'top') { render({ focus: 'h1' }); host.querySelector('[data-scroll]').scrollTop = 0; return; }
+        if (screen === 'entry') { render(); if (kind === 'phone') setSwitcher(true); else entry(); return; }
+        if (screen === 'byName') { S.byName = true; render(); entry(); return; }
+        const repo = `${LOGIN}/${screen === 'sheetReady' ? 'newsletter' : screen === 'sheetYml' || screen === 'rowNotAdded' ? 'fieldnote' : 'storify'}`;
+        const r = S.repos.find((x) => x.fullName === repo);
+        if (r) { r.reg = 'none'; r.justAdded = false; }
+        S.projects = S.projects.filter((p) => p.slug !== slugOf(repo)); delete S.rows[repo];
+        render();
+        const keepSc = G.scenario;
+        if (screen === 'sheetChecking') {
+          const job = { repo, slug: slugOf(repo), kind: 'checking', steps: ['done', 'done', 'pending', 'pending', 'pending'] };
+          S.rows[repo] = { kind: 'checking' }; render(); openSheet(job, 'row'); return;
+        }
+        if (screen === 'rowChecking') { S.rows[repo] = { kind: 'checking' }; render(); entry(); return; }
+        if (screen === 'rowNotAdded') {
+          const job = { repo, slug: slugOf(repo), kind: 'refused', steps: refusedAt(2) };
+          S.rows[repo] = { kind: 'notAdded', step: 3, job }; render(); entry(); return;
+        }
+        G.scenario = SHEET_STATES[screen] || 'auto';
+        const out = outcomeFor(repo);
+        G.scenario = keepSc;
+        const job = { repo, slug: slugOf(repo) };
+        Object.assign(job, { kind: 'checking', steps: STEP_KEYS.map(() => 'pending') });
+        openSheet(job, 'row');
+        finish(job, out);
+      },
+      returned: () => { if (connected() && ['empty', 'notInstalled', 'loaded', 'long', 'partial'].includes(G.list)) reload(G.list === 'empty' || G.list === 'notInstalled' ? 'retry' : 'refresh'); },
+    };
+    host.app = app;
+    render();
+    return app;
+  }
+
+  /* ---------- page controls ---------- */
+  const mountAll = (keep) => hosts.forEach((h) => { const prev = keep && h.S ? h.S : null; h.className = 'app'; mountApp(h, h.dataset.app, prev); });
+  const pageChrome = Proto.page({ L, title: 'Team Console · #194', onLang: () => mountAll(true) });
+  const sel = (id) => document.getElementById(id);
+  function syncDemo() { sel('d-projects').value = G.projects; sel('d-conn').value = G.conn; sel('d-list').value = G.list; sel('d-add').value = G.scenario; }
+  sel('d-projects').addEventListener('change', (e) => { G.projects = e.target.value; mountAll(false); });
+  sel('d-conn').addEventListener('change', (e) => { G.conn = e.target.value; renderAll(); });
+  sel('d-list').addEventListener('change', (e) => {
+    const was = G.list; G.list = e.target.value;
+    if ((was === 'long') !== (G.list === 'long')) mountAll(false); else renderAll();
+  });
+  sel('d-add').addEventListener('change', (e) => { G.scenario = e.target.value; });
+  sel('d-screen').addEventListener('change', (e) => { const v = e.target.value; if (!v) return; if (v.startsWith('sheet') || v.startsWith('row')) { G.conn = 'connected'; if (!listed()) G.list = 'loaded'; syncDemo(); } hosts.forEach((h) => h.app.go(v)); e.target.value = ''; });
+  sel('d-return').addEventListener('click', () => hosts.forEach((h) => h.app.returned()));
+  document.querySelector('[data-reset]').addEventListener('click', () => { Object.assign(G, { projects: 'some', conn: 'connected', list: 'loaded', scenario: 'auto' }); syncDemo(); mountAll(false); });
+  // the real app refetches once with ?fresh=1 when the tab is visible again after a GitHub link from this screen
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') hosts.forEach((h) => h.app.returned()); });
+  mountAll(false);
+  syncDemo();
+  pageChrome.fit();
+  window.__demo = { G, hosts, syncDemo, mountAll };
+})();
+
+</script>
+</body>
+</html>
