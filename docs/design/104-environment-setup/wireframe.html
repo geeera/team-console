@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>#104 Environment setup (UX wireframe)</title>
+<style>
+/* Low-fidelity on purpose: grey boxes, system font, no Paper Desk styling. The look is the ui-designer's job.
+   Same conventions as ux/29-team-commands.html and ux/107-quick-task.html. */
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 system-ui,-apple-system,sans-serif;color:#222;background:#eee}
+a{color:#222}
+button,input,select{font:inherit}
+:focus-visible{outline:3px solid #000;outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.demo{background:#fff;border-bottom:1px solid #bbb;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:13px}
+.demo b{font-size:14px}
+.demo label{display:flex;gap:6px;align-items:center}
+.demo p{margin:0;flex-basis:100%;color:#555}
+.stage{padding:20px;display:flex;justify-content:center}
+.frame{background:#fafafa;border:2px solid #999;display:flex;position:relative;overflow:hidden}
+.frame.mac{width:1180px;height:760px}
+.frame.phone{width:390px;height:820px;flex-direction:column;border-radius:28px}
+.side{width:220px;border-right:1px solid #bbb;background:#e6e6e6;display:flex;flex-direction:column;padding:12px;gap:4px;flex:none}
+.side .it{padding:8px;min-height:36px;color:#444}
+.side .it[aria-current="page"]{background:#bdbdbd;font-weight:600;color:#222}
+.side .lbl{font-size:12px;color:#555;margin-top:10px}
+.topbar{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid #bbb;background:#e6e6e6;min-height:52px;flex:none}
+.topbar .t{flex:1;font-weight:600}
+.route{font:12px ui-monospace,monospace;color:#666;background:#e9e9e9;border-bottom:1px solid #ccc;padding:3px 10px;flex:none}
+.col{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0}
+main{flex:1;overflow:auto;padding:20px 28px;min-width:0}
+.phone main{padding:14px}
+.split{display:flex;gap:0;flex:1;min-height:0}
+.split>.listcol{width:440px;flex:none;overflow:auto;padding:20px 20px 20px 28px;border-right:1px solid #ccc}
+.split>.guidecol{flex:1;overflow:auto;padding:20px 28px;min-width:0}
+h1{font-size:21px;margin:0 0 6px}
+h2{font-size:16px;margin:18px 0 6px}
+h3{font-size:14px;margin:14px 0 6px;color:#333}
+.lead{color:#444;margin:0 0 10px}
+.crumb{display:inline-flex;align-items:center;min-height:44px;margin:-8px 0 2px}
+.btn{min-height:44px;padding:0 14px;border:1px solid #666;background:#ddd;cursor:pointer}
+.btn.sm{min-height:36px;padding:0 10px;font-size:14px}
+.btn.primary{background:#555;color:#fff;border-color:#555}
+.btn.link{border:0;background:none;text-decoration:underline;padding:0 4px;min-height:32px}
+.btn[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+.chip{display:inline-block;border:1px solid #777;padding:0 6px;font-size:12px;background:#f3f3f3;white-space:nowrap}
+.chip.missing,.chip.failing{border-width:2px;font-weight:700;background:#fff}
+.chip.set::before{content:"✓ "}
+.chip.missing::before,.chip.failing::before{content:"! "}
+.chip.unseen::before{content:"? "}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;word-break:break-all}
+.box{background:#ddd;border:1px dashed #999;padding:12px;margin:10px 0;color:#444}
+.card{border:2px solid #777;padding:10px 12px;margin:10px 0;background:#f7f7f7}
+.card.warn{border-style:dashed;border-color:#333;background:#fff}
+.card h2{margin:0 0 4px}
+.tabs{display:flex;gap:0;border:1px solid #888;margin:10px 0;overflow-x:auto}
+.tabs [role=tab]{flex:1;min-height:44px;border:0;border-left:1px solid #888;background:#eee;cursor:pointer;padding:0 8px;white-space:nowrap}
+.tabs [role=tab]:first-child{border-left:0}
+.tabs [role=tab][aria-selected=true]{background:#555;color:#fff;font-weight:700}
+.tabs small{display:block;font-size:11px;line-height:1}
+.group{margin:16px 0}
+.group>h2{margin:0}
+.group>.hint{margin:2px 0 6px}
+.list{list-style:none;margin:0;padding:0;border:1px solid #bbb;background:#fff}
+.list>li{border-top:1px solid #ddd;padding:6px 8px}
+.list>li:first-child{border-top:0}
+.list>li[aria-current=true]{background:#e4e4e4;box-shadow:inset 4px 0 0 #555}
+.rowmain{display:flex;align-items:center;gap:8px}
+.rowbtn{flex:1;min-width:0;text-align:left;border:0;background:none;padding:4px 0;min-height:44px;cursor:pointer}
+.rowbtn small{display:block;color:#555;font-size:13px}
+.fix{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:2px 0 4px;font-size:13px}
+.code{display:flex;align-items:center;gap:6px;background:#eee;border:1px solid #bbb;padding:4px 6px;margin:6px 0;flex-wrap:wrap}
+.code code{flex:1;min-width:0;font-size:13px;word-break:break-all}
+.fix .code{margin:0;flex:1}
+.hint{color:#555;font-size:13px}
+.proj{border:1px solid #bbb;background:#fff;margin:6px 0}
+.proj>button{width:100%;display:flex;gap:8px;align-items:center;min-height:44px;border:0;background:#f3f3f3;padding:0 8px;text-align:left;cursor:pointer}
+.proj>button .grow{flex:1}
+.proj .list{border:0;border-top:1px solid #ddd}
+.skel{height:14px;background:repeating-linear-gradient(90deg,#ddd 0 70%,#eee 70% 100%);margin:8px 0}
+.err{font-weight:600}
+.err::before{content:"! "}
+.guide section{border-top:1px solid #ccc;padding:2px 0 6px}
+.guide ol,.guide ul{margin:4px 0 8px;padding-left:22px}
+.guide li{margin:3px 0}
+.meta{display:flex;flex-wrap:wrap;gap:4px 8px;margin:6px 0}
+.tag{font-size:12px;border:1px solid #999;padding:0 5px;background:#f3f3f3}
+.never{border-left:4px solid #555;background:#fff;padding:6px 10px;margin:8px 0;font-size:14px}
+.field{display:flex;flex-direction:column;gap:4px;margin:12px 0}
+.field .inrow{display:flex;gap:6px}
+.field input{flex:1;min-height:44px;padding:0 10px;border:1px solid #666;background:#fff;font-size:16px;min-width:0}
+.field input[aria-invalid=true]{border:2px solid #000}
+.field .lbl{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.res{list-style:none;padding:0;margin:8px 0;border:1px solid #bbb;background:#fff}
+.res li{padding:8px;border-top:1px solid #ddd}
+.res li:first-child{border-top:0}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.phone .actions{flex-direction:column-reverse}
+.phone .actions .btn{width:100%}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
+.phone .scrim{align-items:flex-end;padding:0}
+.dialog{background:#fff;border:2px solid #333;padding:16px 18px;max-width:520px;width:100%;max-height:92%;overflow:auto}
+.phone .dialog{max-width:none;border-radius:14px 14px 0 0}
+.dialog h2{margin-top:0}
+.toast{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);background:#333;color:#fff;padding:8px 14px;z-index:9}
+.notes{max-width:1180px;margin:0 auto 40px;padding:0 20px;font-size:13px;color:#444}
+@media (prefers-reduced-motion:no-preference){.dialog{animation:fade .12s}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+</style>
+</head>
+<body>
+<div class="demo" role="region" aria-label="Wireframe controls (not part of the design)">
+  <b>#104 Environment setup · UX wireframe</b>
+  <label>View <select id="c-view"><option value="phone">iPhone 390</option><option value="mac">Mac 1180</option></select></label>
+  <label>Lang <select id="c-lang"><option>ru</option><option>en</option></select></label>
+  <label>This console runs on <select id="c-this"><option>production</option><option>stage</option><option>dev</option></select></label>
+  <label>Status call <select id="c-data">
+    <option value="ok">loaded</option><option value="loading">loading</option><option value="error">failed (5xx / network)</option>
+    <option value="offline">offline, loaded earlier</option><option value="offline0">offline, never loaded</option>
+    <option value="forbidden">403 not the owner</option><option value="rate">429</option></select></label>
+  <label><input type="checkbox" id="c-allset"> everything visible is set</label>
+  <label>Projects <select id="c-proj"><option value="two">two</option><option value="none">none</option><option value="error">failed to load</option></select></label>
+  <label>Phase <select id="c-phase"><option value="a">A: status + guides (this issue)</option><option value="b">B: + Publish (after the ADR)</option></select></label>
+  <label>Next publish <select id="c-pub"><option value="ok">all written</option><option value="partial">partial failure</option><option value="cfRefused">Cloudflare token refused</option><option value="noAnswer">no answer</option></select></label>
+  <label>Verify (B) <select id="c-verify"><option value="running">running</option><option value="ok">all ok</option><option value="failing">one failing</option></select></label>
+  <button class="btn sm" id="c-reset" type="button">Back to Settings</button>
+  <p>Start on Settings → "Environment setup". Rows open the guide (iPhone: own page; Mac: right pane). Tabs switch the environment (arrow keys). Copy buttons are real. Nothing on this page sends anything anywhere.</p>
+</div>
+<div class="stage"><div id="app"></div></div>
+<div class="notes">The UX spec is the <code>**UX spec**</code> comment on #104. Guide texts are real copy for six items (Cloudflare API token, OWNER_EMAIL, ACCESS_AUD, VAPID private key, routine token, GitHub App key); the other items show the manifest's one-line purpose and the guide skeleton — their full text comes from the manifest (#102).</div>
+<div id="live" class="sr-only" aria-live="polite"></div>
+
+<script>
+'use strict';
+/* ---------------- copy (ru reference, en second) ---------------- */
+const S = {
+ru: {
+  'nav.needs':'Ждут вас','nav.overview':'Все проекты','nav.settings':'Настройки','nav.projects':'Проекты',
+  'settings.title':'Настройки','settings.gh':'GitHub','settings.push':'Уведомления','settings.projects':'Проекты','settings.lang':'Язык интерфейса',
+  'env.entry.section':'Окружение',
+  'env.entry.row':'Настройка окружения',
+  'env.entry.sub':'{env} · секреты и переменные: что задано и как задать недостающие',
+  'env.entry.checking':'Проверяем…','env.entry.ok':'Всё задано','env.entry.unknown':'Не проверено',
+  'env.title':'Настройка окружения',
+  'env.lead':'Какие секреты и переменные заданы и как задать недостающие. Значений консоль не показывает и не хранит.',
+  'env.tabs':'Окружение','env.tab.this':'эта консоль','env.tab.local':'локально',
+  'env.sum.missing.one':'В {env} не задана {n} настройка','env.sum.missing.few':'В {env} не заданы {n} настройки','env.sum.missing.many':'В {env} не задано {n} настроек',
+  'env.sum.missingBody':'Задайте их одной командой на своём компьютере, в папке репозитория — она спросит только то, чего не хватает:',
+  'env.sum.ok':'В {env} задано всё, что видно отсюда',
+  'env.sum.unseen.one':'Ещё {n} настройку консоль отсюда не видит — её проверяет setup:','env.sum.unseen.few':'Ещё {n} настройки консоль отсюда не видит — их проверяет setup:','env.sum.unseen.many':'Ещё {n} настроек консоль отсюда не видит — их проверяет setup:',
+  'env.sum.other':'Это консоль {this}. Что задано в {env}, видно в консоли {env} или командой на вашем компьютере:',
+  'env.sum.local':'Эти значения живут только на вашем компьютере — консоль их не видит. Проверить:',
+  'env.sum.checkedAt':'Проверено в {time}','env.recheck':'Проверить снова','env.rechecking':'Проверяем…',
+  'env.jump':'К первой незаданной',
+  'env.group.api':'Worker консоли (api)','env.group.api.hint':'Консоль проверяет их сама.',
+  'env.group.ghvar':'Переменные окружения GitHub','env.group.ghvar.hint':'Проверено по Worker’у: значение дошло до него с последним деплоем.',
+  'env.group.project':'Проекты','env.group.project.hint':'У каждого проекта свои токены рутин.',
+  'env.group.hooks':'Worker вебхуков (hooks)','env.group.hooks.hint':'Консоль их не видит — проверяет setup.',
+  'env.group.ghsec':'Секреты окружения GitHub','env.group.ghsec.hint':'Консоль их не видит — проверяет setup.',
+  'env.group.repo':'Секреты репозитория','env.group.repo.hint':'Общие для всех окружений. Консоль их не видит — проверяет setup.',
+  'env.group.local':'На вашем компьютере','env.group.local.hint':'Нужны только для e2e-тестов против stage.',
+  'env.st.set':'Задано','env.st.missing':'Не задано','env.st.unseen':'Отсюда не видно','env.st.optional':'необязательно','env.st.failing':'Не работает','env.st.verifying':'Проверяется',
+  'env.row.fix':'Задать:','env.row.check':'Проверить:',
+  'env.copy':'Копировать','env.copied':'Скопировано','env.copyAria':'Копировать команду для {name}','env.copyAriaEnv':'Копировать команду для {env}',
+  'env.copyFailed':'Не удалось скопировать: выделите команду и скопируйте вручную.',
+  'env.proj.count':'задано {set} из {total}','env.proj.none':'Проектов пока нет — токены рутин появятся здесь, когда вы добавите проект.',
+  'env.proj.error':'Не удалось загрузить проекты.','env.retry':'Повторить',
+  'env.loading':'Проверяем окружение…',
+  'env.err.load.title':'Не удалось проверить окружение','env.err.load.body':'Консоль не ответила. Инструкции открываются и без проверки.',
+  'env.err.offline':'Нет сети. Показано состояние на {time}.',
+  'env.err.offline0':'Нет сети — проверим, когда связь вернётся. Инструкции доступны и без сети.',
+  'env.err.forbidden.title':'Состояние окружения видит только владелец','env.err.forbidden.body':'Этот вход сделан не от вашего имени, поэтому ничего не показано.',
+  'env.err.rate':'Слишком много проверок подряд. Проверьте снова после {time}.',
+  'g.back':'Окружение {env}','g.close':'Закрыть инструкцию',
+  'g.kind.secret':'Секрет','g.kind.var':'Переменная',
+  'g.place.api':'Worker api','g.place.hooks':'Worker hooks','g.place.ghvar':'Переменная окружения GitHub {env}','g.place.ghsec':'Секрет окружения GitHub {env}','g.place.repo':'Секрет репозитория','g.place.project':'Worker api · проект {project}','g.place.local':'Ваш компьютер',
+  'g.src.owner':'Вводите вы','g.src.gen':'Генерирует setup','g.src.app':'Создаёт setup вместе с GitHub App',
+  'g.needs':'Нужен: {who}',
+  'g.never':'Значение консоль не показывает и не хранит — только задано оно или нет.',
+  'g.purpose':'Зачем','g.impact':'Что сломается без него','g.where':'Где взять','g.perms':'Какие права выбрать','g.life':'Срок жизни и замена','g.gotchas':'Подводные камни','g.how':'Как задать',
+  'g.where.gen':'Получать ничего не нужно: setup сгенерирует значение сам.',
+  'g.where.app':'Получать вручную ничего не нужно: setup создаёт GitHub App этого окружения и сам кладёт значение на место. Вы только подтверждаете создание приложения на GitHub.',
+  'g.how.body':'На своём компьютере, в папке репозитория. setup спросит значение со скрытым вводом и сам проверит, что оно легло:',
+  'g.how.rotate':'Заменить уже заданное значение — команда спросит подтверждение:',
+  'g.how.check':'Консоль это значение не видит. Проверить, задано ли оно:',
+  'g.link':'(откроется в новой вкладке)',
+  'g.notFound.title':'Такой настройки в {env} нет','g.notFound.body':'Возможно, её убрали из списка или она нужна в другом окружении.',
+  'g.fromManifest':'Полный текст инструкции берётся из манифеста (#102).',
+  'pub.start':'Ввести значения','pub.replace':'Заменить значение',
+  'pub.title':'Публикация в {env}',
+  'pub.lead':'Вставьте значения — консоль сразу запишет их на место и забудет. Увидеть их потом нельзя ни здесь, ни где-либо ещё.',
+  'pub.values':'Значения','pub.empty':'Пустые поля пропускаются.',
+  'pub.how':'Где взять','pub.show':'Показать','pub.hide':'Скрыть','pub.showAria':'Показать значение {name}','pub.hideAria':'Скрыть значение {name}',
+  'pub.creds':'Ключи для записи — только для этой публикации',
+  'pub.creds.lead':'Нужны один раз. Консоль их не сохраняет и очищает поля после отправки.',
+  'pub.cf':'Токен Cloudflare с правом менять секреты Worker’ов','pub.gh':'Доступ GitHub на запись секретов окружения {env}',
+  'pub.cf.how':'Как создать токен Cloudflare','pub.gh.how':'Как получить доступ GitHub',
+  'pub.send.one':'Опубликовать {n} значение в {env}','pub.send.few':'Опубликовать {n} значения в {env}','pub.send.many':'Опубликовать {n} значений в {env}',
+  'pub.send0':'Опубликовать в {env}',
+  'pub.off.none':'Вставьте хотя бы одно значение.','pub.off.cf':'Нужен токен Cloudflare.','pub.off.gh':'Нужен доступ GitHub.','pub.off.offline':'Нет сети. Значения не отправлены и не сохранены.',
+  'pub.confirm.title':'Опубликовать в {env}?','pub.confirm.body':'Запишутся (значения не показаны):','pub.confirm.replace':'заменит заданное — старое значение перестанет работать сразу',
+  'pub.confirm.prod':'Это production: изменения подействуют на рабочую консоль сразу.',
+  'pub.cancel':'Отмена','pub.go':'Опубликовать',
+  'pub.sending':'Публикуем… Не закрывайте страницу.',
+  'pub.done.title':'Опубликовано {ok} из {n}','pub.done.stamp':'Записано',
+  'pub.r.ok':'Записано','pub.r.cf':'Не записано: Cloudflare не принял токен — нет права Workers Scripts · Edit.','pub.r.gh':'Не записано: GitHub отказал — нет доступа к окружению {env}.','pub.r.unknown':'Нет ответа — неизвестно, записано ли. Повторите: запись того же значения безопасна.',
+  'pub.cfRefused':'Cloudflare не принял токен. Ничего не записано.',
+  'pub.retry.one':'Повторить для {n} незаписанного','pub.retry.many':'Повторить для {n} незаписанных',
+  'pub.retry.creds':'Вставьте ключи для записи ещё раз — консоль их не сохранила.',
+  'pub.verify':'Проверка','pub.verify.running':'Агент проверяет каждое значение пробным запросом, не видя самих значений. Результат появится здесь.','pub.verify.ok':'Проверено: всё работает.','pub.verify.failing':'Проверено: {name} не работает — {why}.','pub.verify.why':'Cloudflare отвечает «токен недействителен»',
+  'pub.back':'Готово',
+  'pub.leave.title':'Уйти со страницы?','pub.leave.body':'Введённые значения пропадут — консоль их нигде не сохраняет.','pub.leave.stay':'Остаться','pub.leave.go':'Уйти',
+  'pub.discarded':'Значения удалены со страницы',
+},
+en: {
+  'nav.needs':'Needs you','nav.overview':'All projects','nav.settings':'Settings','nav.projects':'Projects',
+  'settings.title':'Settings','settings.gh':'GitHub','settings.push':'Notifications','settings.projects':'Projects','settings.lang':'Language',
+  'env.entry.section':'Environment',
+  'env.entry.row':'Environment setup',
+  'env.entry.sub':'{env} · secrets and variables: what is set and how to set the rest',
+  'env.entry.checking':'Checking…','env.entry.ok':'All set','env.entry.unknown':'Not checked',
+  'env.title':'Environment setup',
+  'env.lead':'Which secrets and variables are set, and how to set the missing ones. The console never shows or keeps their values.',
+  'env.tabs':'Environment','env.tab.this':'this console','env.tab.local':'local',
+  'env.sum.missing.one':'{n} setting missing in {env}','env.sum.missing.few':'{n} settings missing in {env}','env.sum.missing.many':'{n} settings missing in {env}',
+  'env.sum.missingBody':'Set them with one command on your computer, in the repository folder — it asks only for what is missing:',
+  'env.sum.ok':'Everything visible from here is set in {env}',
+  'env.sum.unseen.one':'The console can’t see {n} more setting from here — setup checks it:','env.sum.unseen.few':'The console can’t see {n} more settings from here — setup checks them:','env.sum.unseen.many':'The console can’t see {n} more settings from here — setup checks them:',
+  'env.sum.other':'This is the {this} console. What is set in {env} shows in the {env} console, or with a command on your computer:',
+  'env.sum.local':'These values live only on your computer — the console can’t see them. To check:',
+  'env.sum.checkedAt':'Checked at {time}','env.recheck':'Check again','env.rechecking':'Checking…',
+  'env.jump':'Go to the first missing one',
+  'env.group.api':'Console Worker (api)','env.group.api.hint':'The console checks these itself.',
+  'env.group.ghvar':'GitHub environment variables','env.group.ghvar.hint':'Checked on the Worker: the value reached it with the last deploy.',
+  'env.group.project':'Projects','env.group.project.hint':'Each project has its own routine tokens.',
+  'env.group.hooks':'Webhook Worker (hooks)','env.group.hooks.hint':'The console can’t see these — setup checks them.',
+  'env.group.ghsec':'GitHub environment secrets','env.group.ghsec.hint':'The console can’t see these — setup checks them.',
+  'env.group.repo':'Repository secrets','env.group.repo.hint':'Shared by every environment. The console can’t see these — setup checks them.',
+  'env.group.local':'On your computer','env.group.local.hint':'Needed only to run the e2e tests against stage.',
+  'env.st.set':'Set','env.st.missing':'Missing','env.st.unseen':'Not visible here','env.st.optional':'optional','env.st.failing':'Not working','env.st.verifying':'Checking',
+  'env.row.fix':'Set it:','env.row.check':'Check:',
+  'env.copy':'Copy','env.copied':'Copied','env.copyAria':'Copy the command for {name}','env.copyAriaEnv':'Copy the command for {env}',
+  'env.copyFailed':'Couldn’t copy: select the command and copy it by hand.',
+  'env.proj.count':'{set} of {total} set','env.proj.none':'No projects yet — routine tokens show up here once you add a project.',
+  'env.proj.error':'Couldn’t load the projects.','env.retry':'Try again',
+  'env.loading':'Checking the environment…',
+  'env.err.load.title':'Couldn’t check the environment','env.err.load.body':'The console didn’t answer. The guides still open without a check.',
+  'env.err.offline':'You’re offline. This is the state at {time}.',
+  'env.err.offline0':'You’re offline — we’ll check once you’re back. The guides work offline.',
+  'env.err.forbidden.title':'Only the owner can see the environment','env.err.forbidden.body':'This session isn’t signed in as you, so nothing is shown.',
+  'env.err.rate':'Too many checks in a row. Check again after {time}.',
+  'g.back':'{env} environment','g.close':'Close the guide',
+  'g.kind.secret':'Secret','g.kind.var':'Variable',
+  'g.place.api':'api Worker','g.place.hooks':'hooks Worker','g.place.ghvar':'GitHub environment variable, {env}','g.place.ghsec':'GitHub environment secret, {env}','g.place.repo':'Repository secret','g.place.project':'api Worker · project {project}','g.place.local':'Your computer',
+  'g.src.owner':'You enter it','g.src.gen':'setup generates it','g.src.app':'setup creates it with the GitHub App',
+  'g.needs':'Needed by: {who}',
+  'g.never':'The console never shows or keeps the value — only whether it is set.',
+  'g.purpose':'What it’s for','g.impact':'What breaks without it','g.where':'Where to get it','g.perms':'Permissions to choose','g.life':'Lifetime and rotation','g.gotchas':'Gotchas','g.how':'How to set it',
+  'g.where.gen':'Nothing to get: setup generates the value itself.',
+  'g.where.app':'Nothing to get by hand: setup creates this environment’s GitHub App and puts the value in place. You only confirm the app on GitHub.',
+  'g.how.body':'On your computer, in the repository folder. setup asks for the value with hidden input and checks that it landed:',
+  'g.how.rotate':'To replace a value that is already set — the command asks you to confirm:',
+  'g.how.check':'The console can’t see this value. To check whether it is set:',
+  'g.link':'(opens in a new tab)',
+  'g.notFound.title':'There’s no such setting in {env}','g.notFound.body':'It may have been removed from the list, or it belongs to another environment.',
+  'g.fromManifest':'The full guide text comes from the manifest (#102).',
+  'pub.start':'Enter values','pub.replace':'Replace the value',
+  'pub.title':'Publish to {env}',
+  'pub.lead':'Paste the values — the console writes them to their place at once and forgets them. Nobody can see them again, here or anywhere else.',
+  'pub.values':'Values','pub.empty':'Empty fields are skipped.',
+  'pub.how':'Where to get it','pub.show':'Show','pub.hide':'Hide','pub.showAria':'Show the value of {name}','pub.hideAria':'Hide the value of {name}',
+  'pub.creds':'Write access — for this publish only',
+  'pub.creds.lead':'Needed once. The console doesn’t keep them and clears the fields after sending.',
+  'pub.cf':'Cloudflare token that can edit Worker secrets','pub.gh':'GitHub access that can write {env} environment secrets',
+  'pub.cf.how':'How to create the Cloudflare token','pub.gh.how':'How to get GitHub access',
+  'pub.send.one':'Publish {n} value to {env}','pub.send.few':'Publish {n} values to {env}','pub.send.many':'Publish {n} values to {env}',
+  'pub.send0':'Publish to {env}',
+  'pub.off.none':'Paste at least one value.','pub.off.cf':'The Cloudflare token is needed.','pub.off.gh':'GitHub access is needed.','pub.off.offline':'You’re offline. Nothing was sent or saved.',
+  'pub.confirm.title':'Publish to {env}?','pub.confirm.body':'These will be written (values not shown):','pub.confirm.replace':'replaces the set value — the old one stops working at once',
+  'pub.confirm.prod':'This is production: the change reaches the live console at once.',
+  'pub.cancel':'Cancel','pub.go':'Publish',
+  'pub.sending':'Publishing… Keep this page open.',
+  'pub.done.title':'{ok} of {n} published','pub.done.stamp':'Written',
+  'pub.r.ok':'Written','pub.r.cf':'Not written: Cloudflare refused the token — it lacks Workers Scripts · Edit.','pub.r.gh':'Not written: GitHub refused — no access to the {env} environment.','pub.r.unknown':'No answer — unknown whether it was written. Try again: writing the same value twice is safe.',
+  'pub.cfRefused':'Cloudflare refused the token. Nothing was written.',
+  'pub.retry.one':'Try again for {n} not written','pub.retry.many':'Try again for {n} not written',
+  'pub.retry.creds':'Paste the write access again — the console didn’t keep it.',
+  'pub.verify':'Check','pub.verify.running':'An agent checks each value with a test call, without seeing the values. The result shows here.','pub.verify.ok':'Checked: everything works.','pub.verify.failing':'Checked: {name} doesn’t work — {why}.','pub.verify.why':'Cloudflare says the token is invalid',
+  'pub.back':'Done',
+  'pub.leave.title':'Leave this page?','pub.leave.body':'The values you entered will be lost — the console doesn’t save them anywhere.','pub.leave.stay':'Stay','pub.leave.go':'Leave',
+  'pub.discarded':'Values removed from the page',
+}};
+
+/* ---------------- the manifest, as the wireframe imagines it (#102) ---------------- */
+const ALL = ['dev','stage','production'];
+const SLOTS = ['planning','development','qa'];
+const ITEMS = [
+  {id:'api:OWNER_EMAIL',n:'OWNER_EMAIL',k:'secret',p:'api',src:'owner',g:'ownerEmail',who:'api'},
+  {id:'api:GITHUB_APP_PRIVATE_KEY',n:'GITHUB_APP_PRIVATE_KEY',k:'secret',p:'api',src:'app',g:'appKey',who:'api'},
+  {id:'api:GITHUB_APP_CLIENT_SECRET',n:'GITHUB_APP_CLIENT_SECRET',k:'secret',p:'api',src:'app',who:'api',
+    pu:{ru:'Секрет GitHub App: им консоль подключает ваш аккаунт GitHub.',en:'The GitHub App’s secret: the console connects your GitHub account with it.'}},
+  {id:'api:TOKEN_ENCRYPTION_KEY',n:'TOKEN_ENCRYPTION_KEY',k:'secret',p:'api',src:'gen',who:'api',
+    pu:{ru:'Ключ, которым консоль шифрует ваш токен GitHub в базе.',en:'The key the console encrypts your GitHub token with in its database.'}},
+  {id:'api:VAPID_PRIVATE_KEY',n:'VAPID_PRIVATE_KEY',k:'secret',p:'api',src:'gen',g:'vapid',who:'api, hooks'},
+  {id:'var:ACCESS_TEAM_DOMAIN',n:'ACCESS_TEAM_DOMAIN',k:'var',p:'ghvar',src:'owner',who:'deploy.yml → api',
+    pu:{ru:'Домен вашей команды Cloudflare Zero Trust.',en:'Your Cloudflare Zero Trust team domain.'}},
+  {id:'var:ACCESS_AUD',n:'ACCESS_AUD',k:'var',p:'ghvar',src:'owner',g:'aud',who:'deploy.yml → api'},
+  {id:'var:VAPID_PUBLIC_KEY',n:'VAPID_PUBLIC_KEY',k:'var',p:'ghvar',src:'gen',who:'deploy.yml → api',
+    pu:{ru:'Открытый ключ веб-пушей; пара к VAPID_PRIVATE_KEY.',en:'The web push public key; pairs with VAPID_PRIVATE_KEY.'}},
+  {id:'var:CONSOLE_GITHUB_APP_ID',n:'CONSOLE_GITHUB_APP_ID',k:'var',p:'ghvar',src:'app',who:'deploy.yml → api',
+    pu:{ru:'Номер GitHub App этого окружения.',en:'This environment’s GitHub App id.'}},
+  {id:'var:CONSOLE_GITHUB_APP_CLIENT_ID',n:'CONSOLE_GITHUB_APP_CLIENT_ID',k:'var',p:'ghvar',src:'app',who:'deploy.yml → api',
+    pu:{ru:'Client ID GitHub App этого окружения.',en:'This environment’s GitHub App client id.'}},
+  {id:'var:OWNER_GITHUB_LOGIN',n:'OWNER_GITHUB_LOGIN',k:'var',p:'ghvar',src:'app',who:'deploy.yml → api',
+    pu:{ru:'Ваш логин GitHub: только он может подключить аккаунт.',en:'Your GitHub login: only it can connect an account.'}},
+  {id:'hooks:WEBHOOK_SECRET',n:'WEBHOOK_SECRET',k:'secret',p:'hooks',src:'app',who:'hooks',
+    pu:{ru:'Подпись событий от GitHub: по ней hooks отличает настоящие события.',en:'Signs GitHub’s events, so hooks can tell real ones.'}},
+  {id:'hooks:VAPID_PRIVATE_KEY',n:'VAPID_PRIVATE_KEY',k:'secret',p:'hooks',src:'gen',g:'vapid',who:'api, hooks'},
+  {id:'sec:CLOUDFLARE_API_TOKEN',n:'CLOUDFLARE_API_TOKEN',k:'secret',p:'ghsec',src:'owner',g:'cfToken',who:'deploy.yml'},
+  {id:'sec:CLOUDFLARE_ACCOUNT_ID',n:'CLOUDFLARE_ACCOUNT_ID',k:'secret',p:'ghsec',src:'owner',who:'deploy.yml',
+    pu:{ru:'Номер вашего аккаунта Cloudflare для деплоя.',en:'Your Cloudflare account id, for deploys.'}},
+  {id:'sec:ACCESS_SERVICE_TOKEN_ID',n:'ACCESS_SERVICE_TOKEN_ID',k:'secret',p:'ghsec',src:'owner',envs:['dev','stage'],who:'e2e',
+    pu:{ru:'Client ID сервисного токена Access для e2e-тестов.',en:'The Access service token’s client id, for the e2e tests.'}},
+  {id:'sec:ACCESS_SERVICE_TOKEN_SECRET',n:'ACCESS_SERVICE_TOKEN_SECRET',k:'secret',p:'ghsec',src:'owner',envs:['dev','stage'],who:'e2e',
+    pu:{ru:'Client Secret того же сервисного токена.',en:'The same service token’s client secret.'}},
+  {id:'repo:PT_NTFY_TOPIC',n:'PT_NTFY_TOPIC',k:'secret',p:'repo',src:'owner',opt:true,who:'product-team',
+    pu:{ru:'Тема ntfy для уведомлений команды. Без неё команда пишет только в задачи.',en:'The ntfy topic for team notifications. Without it the team writes to issues only.'}},
+  {id:'repo:PT_TELEGRAM_TOKEN',n:'PT_TELEGRAM_TOKEN',k:'secret',p:'repo',src:'owner',opt:true,who:'product-team',
+    pu:{ru:'Токен Telegram-бота для уведомлений команды.',en:'The Telegram bot token for team notifications.'}},
+  {id:'local:CF_ACCESS_CLIENT_ID',n:'CF_ACCESS_CLIENT_ID',k:'secret',p:'local',src:'owner',envs:['local'],who:'console-e2e',
+    pu:{ru:'Client ID сервисного токена — e2e против stage на вашем Mac.',en:'The service token client id — e2e against stage on your Mac.'}},
+  {id:'local:CF_ACCESS_CLIENT_SECRET',n:'CF_ACCESS_CLIENT_SECRET',k:'secret',p:'local',src:'owner',envs:['local'],who:'console-e2e',
+    pu:{ru:'Client Secret того же токена.',en:'The same token’s client secret.'}},
+];
+const PROJECTS = [{slug:'storify',name:'Storify'},{slug:'team-console',name:'Team Console'}];
+function projectItems(){
+  const out=[];
+  for(const pr of PROJECTS){
+    const S_=pr.slug.toUpperCase().replace(/-/g,'_');
+    out.push({id:'proj:'+pr.slug+':R',n:'ROUTINE_TOKEN_'+S_,k:'secret',p:'project',src:'owner',g:'routine',proj:pr,who:'api'});
+    for(const sl of SLOTS){
+      out.push({id:'proj:'+pr.slug+':T:'+sl,n:'SLOT_TOKEN_'+S_+'_'+sl.toUpperCase(),k:'secret',p:'project',src:'owner',proj:pr,slot:sl,who:'api',
+        pu:{ru:'Токен API-триггера рутины «'+sl+'» — для «Запустить сейчас».',en:'The API trigger token of the “'+sl+'” routine — for Run now.'}});
+      out.push({id:'proj:'+pr.slug+':I:'+sl,n:'SLOT_ROUTINE_'+S_+'_'+sl.toUpperCase(),k:'secret',p:'project',src:'owner',proj:pr,slot:sl,who:'api',
+        pu:{ru:'Id рутины «'+sl+'» (trig_… из адреса триггера).',en:'The “'+sl+'” routine id (trig_… from the trigger URL).'}});
+    }
+  }
+  return out;
+}
+/* which items are missing in the demo, on the console's own environment */
+const DEMO_MISSING = new Set(['api:VAPID_PRIVATE_KEY','var:VAPID_PUBLIC_KEY','proj:storify:T:qa','proj:storify:I:qa']);
+
+/* ---------------- guides (real copy for six items) ---------------- */
+const G = {
+ cfToken:{
+  ru:{purpose:'Даёт GitHub Actions право деплоить Worker’ы, базу D1 и Storybook в {env}.',
+      impact:'Деплой в {env} падает на первом шаге. Работающая консоль не ломается, но обновления до неё не доходят.',
+      where:[['Откройте dash.cloudflare.com → My Profile → API Tokens.','https://dash.cloudflare.com/profile/api-tokens'],['Нажмите Create Token → Create Custom Token.'],['Выберите права из списка ниже; в Account Resources — только ваш аккаунт.'],['Нажмите Continue to summary → Create Token и скопируйте значение: Cloudflare показывает его один раз.']],
+      perms:['Account · Workers Scripts · Edit','Account · D1 · Edit','Account · Account Settings · Read','Account · Cloudflare Pages · Edit'],
+      life:'Живёт, пока вы его не удалите. Чтобы заменить: в том же списке нажмите Roll, затем выполните команду замены ниже. Старое значение перестаёт работать сразу.',
+      gotchas:['Только в секреты окружения GitHub, не в секреты репозитория: оттуда его видит любой workflow на любой ветке.','Один токен на все три окружения допустим, но тогда замена задевает все три сразу.']},
+  en:{purpose:'Lets GitHub Actions deploy the Workers, the D1 database and Storybook to {env}.',
+      impact:'Deploys to {env} fail at the first step. The running console keeps working, but no update reaches it.',
+      where:[['Open dash.cloudflare.com → My Profile → API Tokens.','https://dash.cloudflare.com/profile/api-tokens'],['Click Create Token → Create Custom Token.'],['Choose the permissions below; under Account Resources, only your account.'],['Click Continue to summary → Create Token and copy the value: Cloudflare shows it once.']],
+      perms:['Account · Workers Scripts · Edit','Account · D1 · Edit','Account · Account Settings · Read','Account · Cloudflare Pages · Edit'],
+      life:'Lives until you delete it. To replace it, click Roll in the same list, then run the replace command below. The old value stops working at once.',
+      gotchas:['Environment secrets only, never repository secrets: every workflow on every branch can read those.','One token for all three environments is fine, but replacing it then affects all three at once.']}},
+ ownerEmail:{
+  ru:{purpose:'Адрес, с которым вы входите через Cloudflare Access. По нему консоль понимает, что вход — ваш.',
+      impact:'Консоль отвечает «нет доступа» на каждый запрос, в том числе вам.',
+      where:[['Это ваш адрес — тот же, что в правиле Access этого окружения: Zero Trust → Access → Applications → team-console-{env} → Policies.','https://one.dash.cloudflare.com/']],
+      life:'Не истекает. Если меняете адрес, сначала поправьте правило Access, потом этот секрет — иначе потеряете вход.',
+      gotchas:['Задаётся только на Worker’е api, не на hooks.']},
+  en:{purpose:'The address you sign in with through Cloudflare Access. The console uses it to know the session is yours.',
+      impact:'The console answers “no access” to every request, yours included.',
+      where:[['It’s your own address — the one in this environment’s Access policy: Zero Trust → Access → Applications → team-console-{env} → Policies.','https://one.dash.cloudflare.com/']],
+      life:'Doesn’t expire. To change the address, update the Access policy first, then this secret — otherwise you lock yourself out.',
+      gotchas:['Set on the api Worker only, not on hooks.']}},
+ aud:{
+  ru:{purpose:'Метка приложения Access (AUD). По ней консоль проверяет, что вход выдан именно её приложением Access.',
+      impact:'Консоль не может проверить вход и отвечает «нет доступа» на каждый запрос.',
+      where:[['Zero Trust → Access → Applications → team-console-{env} → Overview.','https://one.dash.cloudflare.com/'],['Скопируйте Application Audience (AUD) Tag.']],
+      life:'Меняется, только если пересоздать приложение Access.',
+      gotchas:['Это переменная окружения GitHub, а не секрет: значение не тайное, но до Worker’а оно доходит только со следующим деплоем.']},
+  en:{purpose:'The Access application’s tag (AUD). The console checks with it that the session was issued by its own Access application.',
+      impact:'The console can’t verify sign-ins and answers “no access” to every request.',
+      where:[['Zero Trust → Access → Applications → team-console-{env} → Overview.','https://one.dash.cloudflare.com/'],['Copy the Application Audience (AUD) Tag.']],
+      life:'Changes only if the Access application is recreated.',
+      gotchas:['A GitHub environment variable, not a secret: the value isn’t private, but it reaches the Worker only with the next deploy.']}},
+ vapid:{
+  ru:{purpose:'Закрытый ключ веб-пушей: им консоль подписывает уведомления на ваш iPhone и Mac.',
+      impact:'Уведомления не приходят; в Настройках блок «Уведомления» пишет, что сервер не настроен.',
+      life:'Не истекает. После замены каждое устройство нужно подписать заново: старые подписки перестанут получать уведомления.',
+      gotchas:['У каждого окружения своя пара: ключ из dev не подходит к production.','Задаётся одинаковым на api и на hooks; открытый ключ — переменная VAPID_PUBLIC_KEY, setup задаёт её вместе с ним.']},
+  en:{purpose:'The web push private key: the console signs the notifications to your iPhone and Mac with it.',
+      impact:'No notifications arrive; the Notifications block in Settings says the server isn’t set up.',
+      life:'Doesn’t expire. After a replacement every device has to subscribe again: old subscriptions stop receiving.',
+      gotchas:['Each environment has its own pair: a dev key doesn’t work in production.','The same value goes on api and hooks; the public key is the VAPID_PUBLIC_KEY variable, which setup sets with it.']}},
+ routine:{
+  ru:{purpose:'Токен API-триггера рутины PM проекта {project}. Им консоль будит PM, когда вы пишете в чат.',
+      impact:'PM проекта {project} не отвечает в чате.',
+      where:[['Откройте claude.ai/code/routines → рутину PM проекта {project}.','https://claude.ai/code/routines'],['Добавьте триггер: Add trigger → API.'],['Скопируйте токен: Claude показывает его один раз.']],
+      life:'Живёт, пока вы не удалите триггер. Чтобы заменить: создайте новый триггер, задайте токен командой замены ниже, затем удалите старый.',
+      gotchas:['Имя секрета строится из slug проекта заглавными буквами: {slug} → {name}.']},
+  en:{purpose:'The API trigger token of {project}’s PM routine. The console wakes the PM with it when you write in the chat.',
+      impact:'{project}’s PM doesn’t answer in the chat.',
+      where:[['Open claude.ai/code/routines → {project}’s PM routine.','https://claude.ai/code/routines'],['Add a trigger: Add trigger → API.'],['Copy the token: Claude shows it once.']],
+      life:'Lives until you delete the trigger. To replace it: create a new trigger, set the token with the replace command below, then delete the old one.',
+      gotchas:['The secret’s name is the project slug in capitals: {slug} → {name}.']}},
+ appKey:{
+  ru:{purpose:'Закрытый ключ GitHub App этого окружения: им консоль читает ваши репозитории.',
+      impact:'Консоль не видит ни одного проекта: вопросы, доска и артефакты не загружаются.',
+      life:'Не истекает. Чтобы заменить: создайте новый ключ в настройках приложения на GitHub, выполните команду замены, затем удалите старый ключ там же.',
+      gotchas:['setup переводит ключ в PKCS#8 сам — вручную конвертировать ничего не нужно.']},
+  en:{purpose:'This environment’s GitHub App private key: the console reads your repositories with it.',
+      impact:'The console can’t see any project: questions, board and artifacts don’t load.',
+      life:'Doesn’t expire. To replace it: generate a new key in the app’s settings on GitHub, run the replace command, then delete the old key there.',
+      gotchas:['setup converts the key to PKCS#8 itself — nothing to convert by hand.']}},
+};
+
+/* ---------------- state ---------------- */
+const st = {view:'phone',lang:'ru',thisEnv:'production',data:'ok',allSet:false,proj:'two',phase:'a',pubOutcome:'ok',verify:'running',
+  screen:'settings',env:'production',item:null,open:{},checking:false,copied:null,copyFailed:false,
+  pub:null,sheet:null,leave:null,toast:'',verified:null};
+const $=s=>document.querySelector(s);
+const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function t(k,p={}){let s=(S[st.lang][k]??S.ru[k]??k);for(const [a,b] of Object.entries(p))s=s.split('{'+a+'}').join(b);return s}
+function tp(base,n,p={}){const f=new Intl.PluralRules(st.lang).select(n);const key=S[st.lang][base+'.'+f]!==undefined?base+'.'+f:(S[st.lang][base+'.many']!==undefined?base+'.many':base+'.one');return t(key,{n,...p})}
+function say(m){const l=$('#live');l.textContent='';setTimeout(()=>l.textContent=m,30)}
+const TIME='14:32', LATER='14:41';
+const cmd=(env,flag='')=>'setup --env '+env+(flag?' '+flag:'');
+
+function itemsFor(env){
+  let list=ITEMS.filter(i=>(i.envs||ALL).includes(env));
+  if(env!=='local'&&st.proj==='two') list=list.concat(projectItems());
+  return list;
+}
+const VISIBLE=new Set(['api','ghvar','project']);
+function statusOf(i,env){
+  if(env==='local'||env!==st.thisEnv||!VISIBLE.has(i.p)) return 'unseen';
+  if(['loading','error','forbidden','rate','offline0'].includes(st.data)) return null;
+  const W=(st.pub&&st.pub.written)||st.verified;
+  if(W&&W.includes(i.id)&&st.phase==='b'){
+    if(st.verify==='running') return 'verifying';
+    if(st.verify==='failing'&&W[0]===i.id) return 'failing';
+    return 'set';
+  }
+  if(st.allSet) return 'set';
+  return DEMO_MISSING.has(i.id)?'missing':'set';
+}
+const PLACES=['api','ghvar','project','hooks','ghsec','repo','local'];
+function guideOf(i){const g=i.g&&G[i.g];return g?g[st.lang]:null}
+function gp(i,env){const S_=i.proj?i.proj.slug.toUpperCase().replace(/-/g,'_'):'';return {env,project:i.proj?i.proj.name:'',slug:i.proj?i.proj.slug:'',name:i.n,SLUG:S_}}
+function purposeOf(i,env){const g=guideOf(i);if(g)return t2(g.purpose,gp(i,env));return i.pu?i.pu[st.lang]:''}
+function t2(s,p){for(const [a,b] of Object.entries(p))s=s.split('{'+a+'}').join(b);return s}
+
+/* ---------------- render ---------------- */
+function chip(s,i){
+  if(!s) return '';
+  const opt=i&&i.opt&&s!=='set'?' <span class="tag">'+t('env.st.optional')+'</span>':'';
+  return '<span class="chip '+s+'">'+t('env.st.'+s)+'</span>'+opt;
+}
+function codeRow(command,aria,id){
+  const copied=st.copied===id;
+  return '<div class="code"><code class="mono">'+esc(command)+'</code><button type="button" class="btn sm" data-copy="'+esc(command)+'" data-copyid="'+esc(id)+'" aria-label="'+esc(aria)+'"><span aria-hidden="true">'+(copied?t('env.copied'):t('env.copy'))+'</span></button></div>';
+}
+function render(){
+  document.documentElement.lang=st.lang;
+  const mac=st.view==='mac';
+  let main='';
+  if(st.screen==='settings') main=settingsHtml();
+  else if(st.screen==='env') main=mac&&st.item?'<div class="split"><div class="listcol">'+envHtml()+'</div><div class="guidecol">'+guideHtml(true)+'</div></div>':envHtml();
+  else if(st.screen==='guide') main=guideHtml(false);
+  else if(st.screen==='publish') main=publishHtml();
+  const route=routeOf();
+  const splitMain=st.screen==='env'&&mac&&st.item;
+  const body=splitMain?main:'<main id="main">'+main+'</main>';
+  let html;
+  if(mac){
+    html='<div class="frame mac"><nav class="side" aria-label="App">'+
+      '<div class="it">'+t('nav.needs')+'</div><div class="it">'+t('nav.overview')+'</div><div class="lbl">'+t('nav.projects')+'</div><div class="it">Storify</div><div class="it">Team Console</div><div style="flex:1"></div>'+
+      '<div class="it" aria-current="page">'+t('nav.settings')+'</div></nav><div class="col"><div class="route">'+esc(route)+'</div>'+body+'</div>'+overlays()+'</div>';
+  } else {
+    html='<div class="frame phone"><div class="topbar"><span class="box" style="margin:0;padding:4px 8px">☰</span><span class="t">'+t('settings.title')+'</span></div><div class="route">'+esc(route)+'</div>'+body+overlays()+'</div>';
+  }
+  $('#app').innerHTML=html;
+}
+function routeOf(){
+  if(st.screen==='settings') return '/settings';
+  if(st.screen==='publish') return '/settings/environment/'+st.env+'/publish';
+  if(st.item){const i=findItem(st.item);return '/settings/environment/'+st.env+'/'+(i?(i.proj?'project/'+i.proj.slug:i.p)+'/'+i.n:'api/UNKNOWN_NAME')}
+  return '/settings/environment/'+st.env;
+}
+function counts(env){
+  const list=itemsFor(env);let missing=0,unseen=0;
+  for(const i of list){const s=statusOf(i,env);if(s==='missing'&&!i.opt)missing++;if(s==='unseen')unseen++}
+  return {missing,unseen,total:list.length};
+}
+function settingsHtml(){
+  const c=counts(st.thisEnv);
+  let ch;
+  if(st.data==='loading') ch='<span class="chip">'+t('env.entry.checking')+'</span>';
+  else if(['error','forbidden','rate','offline0'].includes(st.data)) ch='<span class="chip unseen">'+t('env.entry.unknown')+'</span>';
+  else if(c.missing) ch='<span class="chip missing">'+t('env.st.missing')+': '+c.missing+'</span>';
+  else ch='<span class="chip set">'+t('env.entry.ok')+'</span>';
+  return '<h1 tabindex="-1" id="h">'+t('settings.title')+'</h1>'+
+   '<h2>'+t('settings.gh')+'</h2><div class="box">#24 connection card</div>'+
+   '<h2>'+t('settings.push')+'</h2><div class="box">#36 push card</div>'+
+   '<section aria-labelledby="s-env"><h2 id="s-env">'+t('env.entry.section')+'</h2>'+
+   '<ul class="list"><li><div class="rowmain"><button type="button" class="rowbtn" id="open-env" data-testid="env-entry">'+
+   '<b>'+t('env.entry.row')+'</b><small>'+esc(t('env.entry.sub',{env:st.thisEnv}))+'</small></button>'+ch+'<span aria-hidden="true">›</span></div></li></ul></section>'+
+   '<h2>'+t('settings.projects')+'</h2><div class="box">#24 projects list</div>'+
+   '<h2>'+t('settings.lang')+'</h2><div class="box">ru / en</div>';
+}
+function tabsHtml(){
+  const envs=['dev','stage','production','local'];
+  return '<div class="tabs" role="tablist" aria-label="'+t('env.tabs')+'">'+envs.map(e=>{
+    const sel=e===st.env;
+    const sub=e===st.thisEnv?t('env.tab.this'):(e==='local'?t('env.tab.local'):'');
+    return '<button type="button" role="tab" id="tab-'+e+'" aria-selected="'+sel+'" aria-controls="envpanel" tabindex="'+(sel?0:-1)+'" data-env="'+e+'">'+(e==='local'?'local':e)+(sub&&e!=='local'?'<small>'+sub+'</small>':'')+'</button>';
+  }).join('')+'</div>';
+}
+function summaryHtml(){
+  const env=st.env;
+  if(env==='local') return '<div class="card"><p style="margin:0">'+t('env.sum.local')+'</p>'+codeRow(cmd('local','--check'),t('env.copyAriaEnv',{env:'local'}),'sum-local')+'</div>';
+  if(env!==st.thisEnv) return '<div class="card"><p style="margin:0">'+esc(t('env.sum.other',{this:st.thisEnv,env}))+'</p>'+codeRow(cmd(env,'--check'),t('env.copyAriaEnv',{env}),'sum-other')+'</div>';
+  if(st.data==='loading') return '<div class="card" aria-busy="true"><span class="sr-only">'+t('env.loading')+'</span><div class="skel" style="width:60%"></div><div class="skel"></div><div class="skel" style="width:40%"></div></div>';
+  if(st.data==='error') return '<div class="card warn" role="alert"><h2 tabindex="-1" id="sum-h" class="err">'+t('env.err.load.title')+'</h2><p style="margin:0 0 6px">'+t('env.err.load.body')+'</p><button type="button" class="btn" data-act="recheck">'+t('env.retry')+'</button></div>';
+  if(st.data==='forbidden') return '<div class="card warn" role="alert"><h2 tabindex="-1" id="sum-h">'+t('env.err.forbidden.title')+'</h2><p style="margin:0">'+t('env.err.forbidden.body')+'</p></div>';
+  if(st.data==='rate') return '<div class="card warn" role="alert"><p class="err" style="margin:0">'+esc(t('env.err.rate',{time:LATER}))+'</p></div>';
+  if(st.data==='offline0') return '<div class="card warn" role="status"><p style="margin:0">'+t('env.err.offline0')+'</p></div>';
+  const c=counts(env);
+  let h='<div class="card'+(c.missing?' warn':'')+'" data-testid="env-summary">';
+  if(st.data==='offline') h+='<p role="status" style="margin:0 0 6px">'+esc(t('env.err.offline',{time:TIME}))+'</p>';
+  if(c.missing){
+    h+='<h2 tabindex="-1" id="sum-h">'+esc(tp('env.sum.missing',c.missing,{env}))+'</h2><p style="margin:0">'+t('env.sum.missingBody')+'</p>'+codeRow(cmd(env),t('env.copyAriaEnv',{env}),'sum-set');
+    h+='<button type="button" class="btn link" data-act="jump">'+t('env.jump')+'</button>';
+  } else h+='<h2 tabindex="-1" id="sum-h">'+esc(t('env.sum.ok',{env}))+'</h2>';
+  if(c.unseen) h+='<p style="margin:8px 0 0">'+esc(tp('env.sum.unseen',c.unseen))+'</p>'+codeRow(cmd(env,'--check'),t('env.copyAriaEnv',{env}),'sum-check');
+  h+='<div class="actions" style="margin-top:8px;align-items:center"><span class="hint">'+esc(t('env.sum.checkedAt',{time:TIME}))+'</span>'+
+     '<button type="button" class="btn sm" data-act="recheck" '+(st.data==='offline'||st.checking?'aria-disabled="true"':'')+'>'+(st.checking?t('env.rechecking'):t('env.recheck'))+'</button>';
+  if(st.phase==='b'&&st.data!=='offline') h+='<button type="button" class="btn sm primary" data-act="publish">'+t('pub.start')+'</button>';
+  h+='</div></div>';
+  if(st.copyFailed) h+='<p role="status" class="hint">'+t('env.copyFailed')+'</p>';
+  return h;
+}
+function rowHtml(i,env){
+  const s=statusOf(i,env);
+  const cur=st.item===i.id?' aria-current="true"':'';
+  let fix='';
+  if(s==='missing') fix='<div class="fix"><span>'+t('env.row.fix')+'</span>'+codeRow(cmd(env),t('env.copyAria',{name:i.n}),'row-'+i.id)+'</div>';
+  if(s==='unseen'&&(env===st.thisEnv)) fix='';
+  return '<li'+cur+' id="row-'+esc(i.id)+'"><div class="rowmain"><button type="button" class="rowbtn" data-item="'+esc(i.id)+'"><span class="mono">'+esc(i.n)+'</span><small>'+esc(purposeOf(i,env))+'</small></button>'+chip(s,i)+'<span aria-hidden="true">›</span></div>'+fix+'</li>';
+}
+function sortRows(list,env){const r={missing:0,failing:0,verifying:1,unseen:2,set:3};return list.slice().sort((a,b)=>(r[statusOf(a,env)]??4)-(r[statusOf(b,env)]??4))}
+function envHtml(){
+  const env=st.env;
+  let h='<a href="#" class="crumb" data-act="toSettings">‹ '+t('settings.title')+'</a><h1 tabindex="-1" id="h">'+t('env.title')+'</h1><p class="lead">'+t('env.lead')+'</p>'+tabsHtml();
+  h+='<div role="tabpanel" id="envpanel" aria-labelledby="tab-'+env+'">'+summaryHtml();
+  if(st.data==='forbidden'&&env===st.thisEnv) return h+'</div>';
+  const list=itemsFor(env);
+  for(const p of PLACES){
+    if(p==='project'){
+      if(env==='local') continue;
+      h+='<section class="group" aria-labelledby="g-project"><h2 id="g-project">'+t('env.group.project')+'</h2><p class="hint">'+t('env.group.project.hint')+'</p>';
+      if(st.proj==='none') h+='<p class="box">'+t('env.proj.none')+'</p>';
+      else if(st.proj==='error') h+='<div class="box" role="alert"><span class="err">'+t('env.proj.error')+'</span> <button type="button" class="btn sm" data-act="projRetry">'+t('env.retry')+'</button></div>';
+      else for(const pr of PROJECTS){
+        const its=list.filter(i=>i.proj&&i.proj.slug===pr.slug);
+        const set=its.filter(i=>statusOf(i,env)==='set').length;
+        const miss=its.some(i=>statusOf(i,env)==='missing');
+        const open=st.open[pr.slug]??(miss||env!==st.thisEnv?true:false);
+        h+='<div class="proj"><button type="button" aria-expanded="'+open+'" aria-controls="p-'+pr.slug+'" data-proj="'+pr.slug+'"><span aria-hidden="true">'+(open?'▾':'▸')+'</span><b class="grow">'+pr.name+'</b>'+
+          (env===st.thisEnv&&statusOf(its[0],env)?'<span class="chip'+(miss?' missing':' set')+'">'+esc(t('env.proj.count',{set,total:its.length}))+'</span>':'<span class="chip unseen">'+t('env.st.unseen')+'</span>')+'</button>'+
+          '<ul class="list" id="p-'+pr.slug+'" '+(open?'':'hidden')+'>'+sortRows(its,env).map(i=>rowHtml(i,env)).join('')+'</ul></div>';
+      }
+      h+='</section>';continue;
+    }
+    const its=list.filter(i=>i.p===p);
+    if(!its.length) continue;
+    h+='<section class="group" aria-labelledby="g-'+p+'"><h2 id="g-'+p+'">'+t('env.group.'+p)+'</h2><p class="hint">'+t('env.group.'+p+'.hint')+'</p><ul class="list">'+sortRows(its,env).map(i=>rowHtml(i,env)).join('')+'</ul></section>';
+  }
+  return h+'</div>';
+}
+function findItem(id){return itemsFor(st.env).find(i=>i.id===id)}
+function guideHtml(pane){
+  const i=findItem(st.item);const env=st.env;
+  const back=pane?'<button type="button" class="btn sm" data-act="closeGuide" aria-label="'+t('g.close')+'">✕</button>':'<a href="#" class="crumb" data-act="backToEnv">‹ '+esc(t('g.back',{env}))+'</a>';
+  if(!i) return back+'<h1 tabindex="-1" id="gh">'+esc(t('g.notFound.title',{env}))+'</h1><p>'+t('g.notFound.body')+'</p>';
+  const s=statusOf(i,env);const g=guideOf(i);const p=gp(i,env);
+  let h='<article class="guide" aria-labelledby="gh">'+(pane?'<div style="display:flex;justify-content:flex-end">'+back+'</div>':back);
+  h+='<h1 tabindex="-1" id="gh" class="mono" style="font-size:19px">'+esc(i.n)+'</h1><div class="meta">'+chip(s,i)+
+    '<span class="tag">'+t('g.kind.'+i.k)+'</span><span class="tag">'+esc(t('g.place.'+i.p,{env,project:p.project}))+'</span><span class="tag">'+t('g.src.'+i.src)+'</span><span class="tag">'+esc(t('g.needs',{who:i.who}))+'</span></div>';
+  if(s==='set'&&env===st.thisEnv&&st.data==='ok') h+='<p class="hint">'+esc(t('env.sum.checkedAt',{time:TIME}))+'</p>';
+  h+='<p class="never">'+t('g.never')+'</p>';
+  h+='<section><h2>'+t('g.purpose')+'</h2><p>'+esc(purposeOf(i,env))+'</p></section>';
+  if(g&&g.impact) h+='<section><h2>'+t('g.impact')+'</h2><p>'+esc(t2(g.impact,p))+'</p></section>';
+  h+='<section><h2>'+t('g.where')+'</h2>';
+  if(i.src==='gen') h+='<p>'+t('g.where.gen')+'</p>';
+  else if(i.src==='app') h+='<p>'+t('g.where.app')+'</p>';
+  else if(g&&g.where) h+='<ol>'+g.where.map(([txt,url])=>'<li>'+esc(t2(txt,p))+(url?' <a href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">'+esc(url.replace('https://',''))+'<span class="sr-only"> '+t('g.link')+'</span> ↗</a>':'')+'</li>').join('')+'</ol>';
+  else h+='<div class="box">'+t('g.fromManifest')+'</div>';
+  h+='</section>';
+  if(g&&g.perms) h+='<section><h2>'+t('g.perms')+'</h2><ul>'+g.perms.map(x=>'<li class="mono">'+esc(x)+'</li>').join('')+'</ul></section>';
+  h+='<section><h2>'+t('g.life')+'</h2>'+(g&&g.life?'<p>'+esc(g.life)+'</p>':'<div class="box">'+t('g.fromManifest')+'</div>')+'</section>';
+  if(g&&g.gotchas) h+='<section><h2>'+t('g.gotchas')+'</h2><ul>'+g.gotchas.map(x=>'<li>'+esc(t2(x,p))+'</li>').join('')+'</ul></section>';
+  h+='<section><h2>'+t('g.how')+'</h2>';
+  if(s==='unseen'){h+='<p>'+t('g.how.check')+'</p>'+codeRow(cmd(env,'--check'),t('env.copyAria',{name:i.n}),'g-check')+'<p>'+t('g.how.body')+'</p>'+codeRow(cmd(env),t('env.copyAria',{name:i.n}),'g-set')}
+  else if(s==='set'){h+='<p>'+t('g.how.rotate')+'</p>'+codeRow(cmd(env,'--rotate'),t('env.copyAria',{name:i.n}),'g-rotate')}
+  else {h+='<p>'+t('g.how.body')+'</p>'+codeRow(cmd(env),t('env.copyAria',{name:i.n}),'g-set')}
+  if(st.phase==='b'&&env!=='local'&&i.p!=='local'&&i.p!=='repo'&&i.src==='owner'&&!st.sheet) h+='<div class="actions"><button type="button" class="btn sm primary" data-act="publish" data-pre="'+esc(i.id)+'">'+(s==='set'?t('pub.replace'):t('pub.start'))+'</button></div>';
+  h+='</section>';
+  if(st.copyFailed) h+='<p role="status" class="hint">'+t('env.copyFailed')+'</p>';
+  return h+'</article>';
+}
+/* ---------------- phase B: publish ---------------- */
+function pubTargets(){
+  const env=st.env;
+  return itemsFor(env).filter(i=>i.src==='owner'&&i.p!=='local'&&i.p!=='repo'&&(statusOf(i,env)!=='set'||st.pub.pre===i.id)).sort((a,b)=>PLACES.indexOf(a.p)-PLACES.indexOf(b.p));
+}
+function publishHtml(){
+  const env=st.env,P=st.pub;
+  let h='<a href="#" class="crumb" data-act="leavePublish">‹ '+esc(t('g.back',{env}))+'</a><h1 tabindex="-1" id="h">'+esc(t('pub.title',{env}))+'</h1><p class="lead">'+t('pub.lead')+'</p>';
+  if(P.results) return h+resultsHtml();
+  if(P.error) h+='<div class="card warn" role="alert"><p class="err" style="margin:0" tabindex="-1" id="pub-err">'+t('pub.cfRefused')+'</p></div>';
+  if(P.retryNote) h+='<div class="card warn" role="status"><p style="margin:0">'+t('pub.retry.creds')+'</p></div>';
+  const targets=P.retryOnly?pubTargets().filter(i=>P.retryOnly.includes(i.id)):pubTargets();
+  h+='<form id="pubform" autocomplete="off" novalidate><fieldset style="border:0;padding:0;margin:0" '+(P.sending?'disabled':'')+'><h2>'+t('pub.values')+'</h2><p class="hint">'+t('pub.empty')+'</p>';
+  for(const i of targets) h+=fieldHtml(i.id,i.n,purposeOf(i,env),statusOf(i,env),i.id);
+  h+='<h2>'+t('pub.creds')+'</h2><p class="hint">'+t('pub.creds.lead')+'</p>';
+  h+=fieldHtml('cred:cf',t('pub.cf'),'',null,'cfToken',true);
+  h+=fieldHtml('cred:gh',esc(t('pub.gh',{env})),'',null,null,true);
+  h+='</fieldset></form>';
+  const n=Object.entries(P.values).filter(([k,v])=>!k.startsWith('cred:')&&v).length;
+  let off='';
+  if(st.data==='offline'||st.data==='offline0') off=t('pub.off.offline');
+  else if(!n) off=t('pub.off.none');
+  else if(!P.values['cred:cf']) off=t('pub.off.cf');
+  else if(!P.values['cred:gh']) off=t('pub.off.gh');
+  h+='<div class="actions"><button type="button" class="btn primary" id="pub-send" data-act="pubSend" '+(off||P.sending?'aria-disabled="true" aria-describedby="pub-off"':'')+'>'+(P.sending?t('pub.sending'):n?esc(tp('pub.send',n,{env})):esc(t('pub.send0',{env})))+'</button></div>';
+  if(off&&!P.sending) h+='<p class="hint" id="pub-off">'+off+'</p>';
+  return h;
+}
+function fieldHtml(id,label,hint,status,guideId,cred){
+  const P=st.pub;const v=P.values[id]||'';const shown=P.show[id];
+  const fid='f-'+id.replace(/[^a-z0-9]/gi,'_');
+  return '<div class="field"><div class="lbl"><label for="'+fid+'" class="'+(cred?'':'mono')+'"><b>'+label+'</b></label>'+(status?chip(status):'')+
+    (guideId?'<button type="button" class="btn link" data-sheet="'+esc(guideId)+'">'+t(cred?'pub.cf.how':'pub.how')+'</button>':'')+'</div>'+
+    (hint?'<span class="hint" id="'+fid+'-h">'+esc(hint)+'</span>':'')+
+    '<div class="inrow"><input id="'+fid+'" data-val="'+esc(id)+'" type="'+(shown?'text':'password')+'" value="'+esc(v)+'" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true" '+(hint?'aria-describedby="'+fid+'-h"':'')+'>'+
+    '<button type="button" class="btn sm" data-showtoggle="'+esc(id)+'" aria-pressed="'+(!!shown)+'" aria-label="'+esc(t(shown?'pub.hideAria':'pub.showAria',{name:cred?label:id.split(':').pop()}))+'"><span aria-hidden="true">'+t(shown?'pub.hide':'pub.show')+'</span></button></div></div>';
+}
+function resultsHtml(){
+  const P=st.pub,env=st.env,r=P.results;
+  const ok=r.filter(x=>x.r==='ok').length;
+  let h='<div class="card" data-testid="publish-receipt"><span class="tag">'+t('pub.done.stamp')+'</span><h2 tabindex="-1" id="res-h">'+esc(t('pub.done.title',{ok,n:r.length}))+'</h2>';
+  h+='<ul class="res">'+r.map(x=>'<li><span class="mono">'+esc(x.n)+'</span> — '+(x.r==='ok'?'<span class="chip set">'+t('pub.r.ok')+'</span>':'<span class="err">'+esc(t('pub.r.'+x.r,{env}))+'</span>')+'</li>').join('')+'</ul>';
+  const failed=r.filter(x=>x.r!=='ok');
+  h+='<div class="actions">';
+  if(failed.length) h+='<button type="button" class="btn primary" data-act="pubRetry" id="pub-retry">'+esc(tp('pub.retry',failed.length))+'</button>';
+  h+='<button type="button" class="btn'+(failed.length?'':' primary')+'" data-act="pubDone">'+t('pub.back')+'</button></div></div>';
+  if(ok){
+    h+='<section class="card" aria-labelledby="ver-h"><h2 id="ver-h">'+t('pub.verify')+'</h2><p style="margin:0" role="status">';
+    if(st.verify==='running') h+=t('pub.verify.running');
+    else if(st.verify==='ok') h+=t('pub.verify.ok');
+    else h+=esc(t('pub.verify.failing',{name:r.find(x=>x.r==='ok').n,why:t('pub.verify.why')}));
+    h+='</p></section>';
+  }
+  return h;
+}
+function overlays(){
+  let h='';
+  if(st.sheet){
+    const isCf=st.sheet==='cfToken';
+    const saveItem=st.item;st.item=isCf?'sec:CLOUDFLARE_API_TOKEN':st.sheet;
+    const envSave=st.env;
+    let inner;
+    if(isCf){const g=G.cfToken[st.lang];inner='<h2 id="sheet-h" tabindex="-1">'+t('pub.cf.how')+'</h2><ol>'+g.where.map(([x,u])=>'<li>'+esc(x)+(u?' <a href="'+u+'" target="_blank" rel="noopener noreferrer">'+u.replace('https://','')+' ↗</a>':'')+'</li>').join('')+'</ol><p class="hint">'+(st.lang==='ru'?'Для публикации хватит права Workers Scripts · Edit; токен можно удалить сразу после.':'Workers Scripts · Edit is enough for publishing; you can delete the token right after.')+'</p>';}
+    else inner=guideHtml(true).replace('id="gh"','id="sheet-h"');
+    st.item=saveItem;st.env=envSave;
+    h+='<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="sheet-h">'+inner+'<div class="actions"><button type="button" class="btn" data-act="closeSheet">'+t('g.close')+'</button></div></div></div>';
+  }
+  if(st.pub&&st.pub.confirm){
+    const env=st.env;const items=pubTargets().filter(i=>st.pub.values[i.id]);
+    h+='<div class="scrim"><div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="cf-h" aria-describedby="cf-b"><h2 id="cf-h" tabindex="-1">'+esc(t('pub.confirm.title',{env}))+'</h2><p id="cf-b">'+t('pub.confirm.body')+'</p><ul>'+
+      items.map(i=>'<li><span class="mono">'+esc(i.n)+'</span> → '+esc(t('g.place.'+i.p,{env,project:i.proj?i.proj.name:''}))+(statusOf(i,env)==='set'?' — <b>'+t('pub.confirm.replace')+'</b>':'')+'</li>').join('')+'</ul>'+
+      (env==='production'?'<p><b>'+t('pub.confirm.prod')+'</b></p>':'')+
+      '<div class="actions"><button type="button" class="btn" data-act="cfCancel">'+t('pub.cancel')+'</button><button type="button" class="btn primary" data-act="cfGo">'+t('pub.go')+'</button></div></div></div>';
+  }
+  if(st.leave){
+    h+='<div class="scrim"><div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="lv-h" aria-describedby="lv-b"><h2 id="lv-h" tabindex="-1">'+t('pub.leave.title')+'</h2><p id="lv-b">'+t('pub.leave.body')+'</p><div class="actions"><button type="button" class="btn primary" data-act="lvStay">'+t('pub.leave.stay')+'</button><button type="button" class="btn" data-act="lvGo">'+t('pub.leave.go')+'</button></div></div></div>';
+  }
+  if(st.toast) h+='<div class="toast" role="status">'+esc(st.toast)+'</div>';
+  return h;
+}
+
+/* ---------------- behaviour ---------------- */
+let opener=null;
+function focus(sel){setTimeout(()=>{const e=document.querySelector(sel);if(e)e.focus()},0)}
+function go(screen,extra={}){Object.assign(st,{screen},extra);st.copied=null;st.copyFailed=false;render()}
+function openEnv(){go('env',{env:st.thisEnv,item:null});focus('#h')}
+function openItem(id,btn){opener=id;go(st.view==='mac'?'env':'guide',{item:id});focus('#gh')}
+function hasValues(){return st.pub&&Object.values(st.pub.values).some(Boolean)}
+function discard(){st.pub=null;st.toast=t('pub.discarded');render();setTimeout(()=>{st.toast='';render()},1600)}
+function startPublish(pre){
+  st.pub={values:{},show:{},pre:pre||null,sending:false,results:null,confirm:false,error:false,retryOnly:null,retryNote:false,written:null,verifyShown:false};
+  st.sheet=null;go('publish',{item:null});focus('#h');
+}
+function simulate(){
+  const P=st.pub,env=st.env;
+  const items=pubTargets().filter(i=>P.values[i.id]);
+  P.sending=true;render();say(t('pub.sending'));
+  setTimeout(()=>{
+    P.sending=false;
+    // credentials are cleared after every attempt; values of written items are dropped
+    delete P.values['cred:cf'];delete P.values['cred:gh'];P.show={};
+    P.attempts=(P.attempts||0)+1;
+    if(st.pubOutcome==='cfRefused'&&P.attempts===1){P.error=true;render();focus('#f-cred_cf');say(t('pub.cfRefused'));return}
+    let res=items.map((i,k)=>({id:i.id,n:i.n,r:'ok'}));
+    if(!P.retryNote&&!P.error){
+      if(st.pubOutcome==='partial'&&res.length) res[res.length-1].r=res.length>1?'gh':'cf';
+      if(st.pubOutcome==='noAnswer'&&res.length) res[0].r='unknown';
+    }
+    for(const x of res) if(x.r==='ok') delete P.values[x.id];
+    P.results=res;P.error=false;P.written=res.filter(x=>x.r==='ok').map(x=>x.id);P.verifyShown=true;
+    render();focus('#res-h');
+    const ok=res.filter(x=>x.r==='ok').length;say(t('pub.done.title',{ok,n:res.length}));
+  },900);
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button,a');if(!b||!b.closest('#app'))return;
+  if(b.getAttribute('aria-disabled')==='true'){e.preventDefault();const d=b.getAttribute('aria-describedby');if(d&&document.getElementById(d))say(document.getElementById(d).textContent);return}
+  if(b.id==='open-env'){openEnv();return}
+  if(b.dataset.item){openItem(b.dataset.item,b);return}
+  if(b.dataset.env){go(st.screen,{env:b.dataset.env,item:null});focus('#tab-'+b.dataset.env);return}
+  if(b.dataset.proj){const k=b.dataset.proj;const now=b.getAttribute('aria-expanded')==='true';st.open[k]=!now;render();focus('[data-proj="'+k+'"]');return}
+  if(b.dataset.copy){
+    const id=b.dataset.copyid;
+    (navigator.clipboard?navigator.clipboard.writeText(b.dataset.copy):Promise.reject()).then(()=>{st.copied=id;st.copyFailed=false;render();say(t('env.copied'));focus('[data-copyid="'+CSS.escape(id)+'"]');setTimeout(()=>{if(st.copied===id){st.copied=null;render()}},2000)},
+      ()=>{st.copyFailed=true;render();say(t('env.copyFailed'))});return}
+  if(b.dataset.showtoggle){const k=b.dataset.showtoggle;st.pub.show[k]=!st.pub.show[k];render();focus('[data-showtoggle="'+CSS.escape(k)+'"]');return}
+  if(b.dataset.sheet){opener=b;st.sheet=b.dataset.sheet;render();focus('#sheet-h');return}
+  const a=b.dataset.act;if(!a)return;e.preventDefault();
+  if(a==='toSettings'){go('settings',{item:null});focus('#open-env')}
+  else if(a==='closeGuide'&&st.sheet){st.sheet=null;render();if(opener&&opener.dataset&&opener.dataset.sheet)focus('[data-sheet="'+CSS.escape(opener.dataset.sheet)+'"]')}
+  else if(a==='backToEnv'||a==='closeGuide'){const id=st.item;go('env',{item:null});focus('[data-item="'+CSS.escape(id)+'"]')}
+  else if(a==='recheck'){if(st.data==='error')st.data='ok',$('#c-data').value='ok';st.checking=true;render();say(t('env.rechecking'));setTimeout(()=>{st.checking=false;render();const c=counts(st.env);say(c.missing?tp('env.sum.missing',c.missing,{env:st.env}):t('env.sum.ok',{env:st.env}))},700)}
+  else if(a==='jump'){const first=sortRows(itemsFor(st.env),st.env).find(i=>statusOf(i,st.env)==='missing');if(first){if(first.proj)st.open[first.proj.slug]=true;render();focus('[data-item="'+CSS.escape(first.id)+'"]')}}
+  else if(a==='projRetry'){st.proj='two';$('#c-proj').value='two';render();focus('#g-project')}
+  else if(a==='publish'){startPublish(b.dataset.pre)}
+  else if(a==='pubSend'){st.pub.confirm=true;render();focus('#cf-h')}
+  else if(a==='cfCancel'){st.pub.confirm=false;render();focus('#pub-send')}
+  else if(a==='cfGo'){st.pub.confirm=false;simulate()}
+  else if(a==='pubRetry'){const failed=st.pub.results.filter(x=>x.r!=='ok').map(x=>x.id);Object.assign(st.pub,{results:null,retryOnly:failed,retryNote:true});render();focus('#f-cred_cf')}
+  else if(a==='pubDone'){st.verified=st.pub.written&&st.pub.written.length?st.pub.written:null;st.pub=null;go('env',{item:null});focus('#sum-h')}
+  else if(a==='leavePublish'){if(hasValues()){opener=b;st.leave=true;render();focus('#lv-h')}else{st.pub=null;go('env',{item:null});focus('#h')}}
+  else if(a==='lvStay'){st.leave=null;render();focus('.crumb')}
+  else if(a==='lvGo'){st.leave=null;st.pub=null;go('env',{item:null});discard();focus('#h')}
+  else if(a==='closeSheet'){st.sheet=null;render();if(opener&&opener.dataset&&opener.dataset.sheet)focus('[data-sheet="'+CSS.escape(opener.dataset.sheet)+'"]')}
+});
+document.addEventListener('input',e=>{const k=e.target.dataset&&e.target.dataset.val;if(!k||!st.pub)return;st.pub.values[k]=e.target.value;const pos=e.target.selectionStart;const id=e.target.id;
+  // re-render only the send button state
+  const n=Object.entries(st.pub.values).filter(([x,v])=>!x.startsWith('cred:')&&v).length;
+  render();const el=document.getElementById(id);if(el){el.focus();try{el.setSelectionRange(pos,pos)}catch(_){}}});
+document.addEventListener('keydown',e=>{
+  if(e.target.getAttribute&&e.target.getAttribute('role')==='tab'&&['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){
+    const tabs=[...document.querySelectorAll('[role=tab]')];let i=tabs.indexOf(e.target);
+    i=e.key==='Home'?0:e.key==='End'?tabs.length-1:(i+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
+    e.preventDefault();go(st.screen,{env:tabs[i].dataset.env,item:null});focus('#tab-'+tabs[i].dataset.env);
+  }
+  if(e.key==='Escape'){
+    if(st.leave){st.leave=null;render();focus('.crumb')}
+    else if(st.pub&&st.pub.confirm){st.pub.confirm=false;render();focus('#pub-send')}
+    else if(st.sheet){st.sheet=null;render()}
+    else if(st.screen==='env'&&st.item&&st.view==='mac'){const id=st.item;go('env',{item:null});focus('[data-item="'+CSS.escape(id)+'"]')}
+  }
+});
+const bind=(id,key,cast=v=>v)=>$('#'+id).addEventListener('change',e=>{st[key]=cast(e.target.type==='checkbox'?e.target.checked:e.target.value);if(key==='thisEnv'&&st.screen!=='settings')st.env=st.thisEnv;if(key==='view'&&st.screen==='guide')st.screen='env';if(key==='view'&&st.screen==='env'&&st.item&&st.view==='phone')st.screen='guide';render()});
+bind('c-view','view');bind('c-lang','lang');bind('c-this','thisEnv');bind('c-data','data');bind('c-allset','allSet');bind('c-proj','proj');bind('c-phase','phase');bind('c-pub','pubOutcome');bind('c-verify','verify');
+$('#c-reset').addEventListener('click',()=>{st.pub=null;st.sheet=null;st.leave=null;go('settings',{item:null})});
+if(matchMedia('(max-width:600px)').matches){st.view='phone'}
+render();
+</script>
+</body>
+</html>
