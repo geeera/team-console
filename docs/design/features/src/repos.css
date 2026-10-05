@@ -1,0 +1,129 @@
+/* ===== #194 All projects: add from GitHub, on the Paper Desk tokens (ADR 0002) =====
+   Reuses settings.css (#24: ledger, result notes, callouts, project list card) and kit.css. The one new token is the
+   width of the Add dialog on the Mac: the five-step checklist with its "How to fix" lines needs more than the 440 px
+   confirmation dialog. */
+:root{--sheet-dialog-w:560px}
+
+/* ----- host: All projects ----- */
+.set-inner--wide{max-width:calc(var(--set-max) + var(--sp-10) * 2)}
+.ov-head{display:grid;gap:var(--sp-1)}
+.ov-head h1{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-2xl);line-height:var(--lh-tight);outline:none}
+.ov-count{margin:0;color:var(--text-2);font-size:var(--fs-sm)}
+.set-inner>.ov-h{margin:0}
+.ov{color:inherit;text-decoration:none}
+.ov__chips{display:inline-flex;align-items:center;gap:var(--sp-1)}
+.ov .setchip{font-family:var(--font-body)}
+.status--new{background:var(--accent-soft);color:var(--accent-text)}
+.ov-empty{display:grid;gap:var(--sp-1);padding:var(--sp-4) var(--sp-5);border:1px dashed var(--border-strong);border-radius:var(--r-lg)}
+.ov-empty h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight)}
+.ov-empty p{margin:0;color:var(--text-2);font-size:var(--fs-sm);max-width:56ch}
+
+/* ----- the block: "Available on GitHub" ----- */
+.repos{padding-top:var(--sp-5);border-top:1px solid var(--border);scroll-margin-top:var(--sp-2)}
+.repos__head .sec-title{outline:none}
+.repos__head .set-lead code,.block h3 code,.ov-empty code{font-size:.92em;overflow-wrap:anywhere}
+.repos__refresh{flex:none;color:var(--text)}
+.repos__refresh .ico{width:16px;height:16px}
+.repos__refresh.is-spinning .ico{animation:spin var(--dur-sig) linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.repos__refresh.is-spinning .ico{animation:none}}
+:root[data-motion=reduce] .repos__refresh.is-spinning .ico{animation:none}
+.app[data-app=phone] .repos__head{flex-wrap:nowrap;align-items:flex-start}
+.app[data-app=phone] .repos__refresh{padding:0 var(--sp-3)}
+.repos__partial{display:flex;gap:var(--sp-2);align-items:flex-start;padding:var(--sp-3);border-radius:var(--r-md);background:var(--bg-sunken);color:var(--text-2);font-size:var(--fs-sm)}
+.repos__partial>.ico{flex:none;margin-top:2px;width:16px;height:16px}
+.repos__partial p{margin:0 0 var(--sp-1)}
+.repos__partial .ext{min-height:var(--target);display:inline-flex}
+.repos__more{justify-self:start;color:var(--accent-text)}
+.repos__more .ico{width:16px;height:16px}
+.repos__already{margin:var(--sp-2) 0 0}
+.plist--quiet{box-shadow:none;background:transparent}
+.plist--quiet .repo{background:transparent}
+.block .btn .ico{width:16px;height:16px}
+.block__icon-h{display:flex;align-items:center;gap:var(--sp-2)}
+.block__icon-h .ico{width:20px;height:20px;color:var(--text-2)}
+.skel-row--repo{min-height:calc(var(--target) + var(--sp-6))}
+.skel--btn{width:96px;height:var(--target);border-radius:var(--r-md)}
+
+/* ----- a repository row: one action at most ----- */
+.repo{display:flex;align-items:center;gap:var(--sp-3);min-height:calc(var(--target) + var(--sp-6));padding:var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);border-top:1px solid var(--border);background:var(--surface)}
+.repo:first-child{border-top:0}
+.repo__txt{flex:1;min-width:0;display:grid;gap:2px}
+.repo__name{font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md);line-height:var(--lh-tight);overflow-wrap:anywhere}
+.repo__meta{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2);font-size:var(--fs-xs);color:var(--text-2)}
+.repo__owner{font-family:var(--font-mono)}
+.repo__priv{display:inline-flex;align-items:center;gap:var(--sp-1);min-height:20px;padding:0 var(--sp-2);border-radius:var(--r-pill, 999px);background:var(--bg-sunken);color:var(--text-2);font-weight:600}
+.repo__priv .ico{width:12px;height:12px;stroke-width:2.2}
+.repo__add{flex:none;min-width:96px;color:var(--accent-text);border-color:var(--border-strong)}
+.repo__add .ico{width:16px;height:16px;stroke-width:2.2}
+.repo__add:hover{background:var(--accent-soft)}
+.repo__add[aria-disabled=true]{color:var(--text-2)}
+.repo__add.is-busy{color:var(--text-2);background:var(--bg-sunken);border-color:transparent}
+.repo__add .typing{padding:0;gap:3px}
+.repo__add .typing i{width:4px;height:4px}
+/* "Not added": an ochre to-do line, with See why as its own 44 px target before Add */
+.repo__why{display:flex;flex-wrap:wrap;align-items:center;column-gap:var(--sp-2);margin-top:var(--sp-1);font-size:var(--fs-sm);color:var(--warning-text);font-weight:600}
+.repo__whytxt{display:inline}
+.repo__whytxt .ico{width:14px;height:14px;stroke-width:2.6;vertical-align:-2px;margin-right:var(--sp-1)}
+.repo__whybtn{display:inline-flex;align-items:center;gap:2px;color:var(--warning-text);font-size:var(--fs-sm)}
+.repo__whybtn .ico{width:14px;height:14px}
+.repo--why{background:color-mix(in oklab,var(--warning-soft) 45%,var(--surface))}
+/* a project row is one link; archived rows stay readable (text-2, AA in both themes) */
+.repo--project{padding:0}
+.repo__link{flex:1;min-width:0;display:flex;align-items:center;gap:var(--sp-3);min-height:inherit;padding:var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);color:inherit;text-decoration:none;transition:background-color var(--dur-fast) var(--ease-standard)}
+.repo__link:hover{background:var(--hover)}
+.repo__tail{flex:none;display:inline-flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-sm);font-weight:600;color:var(--accent-text)}
+.repo__tail .ico{width:16px;height:16px}
+.repo--archived .repo__name{color:var(--text-2)}
+.repo--archived .repo__tail{color:var(--text-2);font-weight:400}
+.ink{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--success-soft);color:var(--success-text)}
+.ink .ico{width:13px;height:13px;stroke-width:2.6}
+.ink.is-new{animation:mark-in var(--dur-base) var(--ease-emph) both}
+.ink.is-new path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) var(--dur-fast) forwards}
+@media (prefers-reduced-motion:reduce){.ink.is-new,.ink.is-new path{animation:none;stroke-dasharray:none}}
+:root[data-motion=reduce] .ink.is-new,:root[data-motion=reduce] .ink.is-new path{animation:none;stroke-dasharray:none}
+.app[data-app=phone] .repo{padding-left:var(--sp-3)}
+.app[data-app=phone] .repo__link{padding-left:var(--sp-3)}
+
+/* ----- "Add by name": a collapsed secondary path ----- */
+.byname{border-top:1px solid var(--border);margin-top:var(--sp-2)}
+.byname__toggle{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);width:100%;min-height:calc(var(--target) + var(--sp-2));padding:var(--sp-2) var(--sp-1);border:0;background:none;color:var(--text);text-align:left;border-radius:var(--r-md)}
+.byname__toggle:hover{background:var(--hover)}
+.byname__txt{display:grid;gap:2px}
+.byname__txt b{font-weight:600;font-size:var(--fs-md)}
+.byname__txt small{font-size:var(--fs-xs);color:var(--text-2)}
+.byname__toggle>.ico{flex:none;color:var(--text-2);transition:transform var(--dur-base) var(--ease-standard)}
+.byname__toggle[aria-expanded=true]>.ico{transform:rotate(180deg)}
+.byname__panel{display:grid;gap:var(--sp-3);padding:var(--sp-2) var(--sp-1) var(--sp-1)}
+.byname__panel[hidden]{display:none}
+.app[data-app=phone] .byname__panel .btn{width:100%}
+
+/* ----- the Add sheet: the kit Sheet, a bottom sheet on iPhone and a centred dialog on the Mac ----- */
+.asheet{position:absolute;inset:0;z-index:var(--z-sheet);display:flex;align-items:flex-end}
+.asheet__scrim{position:absolute;inset:0;background:var(--scrim)}
+.asheet__panel{position:relative;display:flex;flex-direction:column;width:100%;max-height:88%;background:var(--surface);border-radius:var(--r-sheet) var(--r-sheet) 0 0;box-shadow:var(--shadow-3)}
+.asheet--dialog{align-items:center;justify-content:center;padding:var(--sp-8)}
+.asheet--dialog .asheet__panel{width:min(100%,var(--sheet-dialog-w));max-height:min(86%,760px);border-radius:var(--r-lg);border:1px solid var(--border);box-shadow:var(--shadow-2)}
+.asheet__head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);padding:var(--sp-2) var(--sp-3) var(--sp-3) var(--sp-5)}
+.asheet--dialog .asheet__head{padding-top:var(--sp-4)}
+.asheet__title{margin:0;min-width:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight);overflow-wrap:anywhere;outline:none}
+.asheet__head .icon-btn{width:var(--target);height:var(--target)}
+.asheet__body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;align-content:start;gap:var(--sp-4);padding:var(--sp-1) var(--sp-5) var(--sp-5)}
+.asheet__body .res h3{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);outline:none;overflow-wrap:anywhere}
+.asheet__body .need-conn{padding-right:0}
+.asheet__body .step__title{font-size:var(--fs-sm)}
+.asheet__body .ledger{box-shadow:none}
+.asheet__foot{flex:none;display:flex;flex-direction:column;gap:var(--sp-2);padding:var(--sp-3) var(--sp-5) var(--sp-8);border-top:1px solid var(--border);background:var(--surface)}
+.asheet__foot .btn{width:100%;min-height:var(--target)}
+.asheet__foot .btn .typing{padding:0;margin-right:var(--sp-1)}
+.asheet--dialog .asheet__foot{flex-direction:row-reverse;justify-content:flex-start;padding:var(--sp-3) var(--sp-5) var(--sp-4);border-radius:0 0 var(--r-lg) var(--r-lg)}
+.asheet--dialog .asheet__foot .btn{width:auto}
+.need-conn h3{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);outline:none}
+
+/* the Mac sidebar footer gets the existing "Add project" entry point (#24) */
+.side-foot .side-item--add{margin-bottom:var(--sp-1)}
+.app[data-app=phone] .toast{bottom:var(--sp-10);top:auto}
+.app[data-app=phone] .repo--project{padding:0}
+.repos__head .set-lead code{background:none;padding:0;color:var(--text)}
+.app[data-app=mac] .ov-grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.asheet__body:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
