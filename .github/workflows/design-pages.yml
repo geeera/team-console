@@ -31,12 +31,14 @@ jobs:
           sparse-checkout: docs/design
       - name: Index of every page under docs/design
         run: |
+          set -euo pipefail
           cd docs/design
           {
             echo '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             echo '<title>Designs</title><style>body{font:16px/1.5 system-ui;max-width:640px;margin:32px auto;padding:0 16px}a{display:block;padding:8px 0}</style><h1>Designs</h1>'
             find . -name '*.html' ! -name index.html ! -path './*/src/*' | sort | sed 's|^\./||' | while read -r f; do echo "<a href=\"$f\">$f</a>"; done
-          } > index.html
+          } > "${RUNNER_TEMP}/index.html"
+          mv "${RUNNER_TEMP}/index.html" index.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs/design
