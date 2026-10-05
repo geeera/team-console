@@ -6,7 +6,12 @@ export {
   projectQuestionsOf,
   safeGitHubUrl,
 } from './lib/question.model';
-export type { NeedsYouView, QuestionItem, QuestionProjectProblem } from './lib/question.model';
+export type {
+  NeedsYouView,
+  QuestionItem,
+  QuestionProjectProblem,
+  QuestionProjectSetup,
+} from './lib/question.model';
 export {
   NEEDS_YOU_ITEMS_URL,
   QuestionsApi,

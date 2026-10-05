@@ -159,6 +159,10 @@
     ><tc-icon name="alert" size="sm" />{{ 'settings.projects.row.missing' | translocoPlural: status.left
     }}</tc-chip
   >
+  } @else if (isSummary(status) && status.waiting > 0) {
+  <tc-chip tone="success"
+    ><tc-icon name="clock" size="sm" />{{ 'settings.projects.row.readyWaiting' | transloco }}</tc-chip
+  >
   } @else {
   <tc-chip tone="success"
     ><tc-icon name="check" size="sm" />{{ 'settings.projects.row.ready' | transloco }}</tc-chip

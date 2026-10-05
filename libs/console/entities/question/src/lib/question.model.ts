@@ -36,11 +36,21 @@ export interface QuestionProjectProblem {
   readonly problem: NeedsYouProjectProblem;
 }
 
+/**
+ * A project whose security setup is not done (`team.reviewer_logins` empty, #205): the owner checklist on GitHub,
+ * or `null` when the server's link is not a github.com page.
+ */
+export interface QuestionProjectSetup {
+  readonly project: NeedsYouProjectRef;
+  readonly url: string | null;
+}
+
 export interface NeedsYouView {
   readonly items: readonly QuestionItem[];
   /** Slugs whose inbox was read in this response; answers for other projects are left alone. */
   readonly readSlugs: readonly string[];
   readonly problems: readonly QuestionProjectProblem[];
+  readonly setups: readonly QuestionProjectSetup[];
   readonly omitted: readonly NeedsYouProjectRef[];
 }
 
@@ -185,6 +195,17 @@ export function needsYouViewOf(dto: NeedsYouDto): NeedsYouView {
       project.problem === null
         ? []
         : [{ project: { slug: project.slug, name: project.name }, problem: project.problem }],
+    ),
+    // Only `true` counts: the guard leaves `setup` unchecked, so a malformed value never invents a warning.
+    setups: dto.projects.flatMap((project) =>
+      project.setup === true && project.problem === null
+        ? [
+            {
+              project: { slug: project.slug, name: project.name },
+              url: typeof project.setupUrl === 'string' ? safeGitHubUrl(project.setupUrl) : null,
+            },
+          ]
+        : [],
     ),
     omitted: dto.omittedProjects,
   };

@@ -45,9 +45,13 @@
   } @else if (summary().ready) {
   <tc-card stamp="positive" flush data-testid="setup-result">
     <h2 #result tc-card-title tabindex="-1">
-      {{ 'settings.setup.ready.title' | transloco: { name: project.displayName } }}
+      @if (summary().waiting > 0) { {{ 'settings.setup.readyWaiting.title' | transloco }} } @else { {{
+      'settings.setup.ready.title' | transloco: { name: project.displayName } }} }
     </h2>
-    <p>{{ 'settings.setup.ready.body' | transloco }}</p>
+    <p>
+      {{ (summary().waiting > 0 ? 'settings.setup.readyWaiting.body' : 'settings.setup.ready.body') |
+      transloco }}
+    </p>
     @if (checkedAt(); as checkedAt) {
     <span tc-card-meta>{{ 'settings.setup.checkedAt' | transloco: { time: (checkedAt | localTime) } }}</span>
     }

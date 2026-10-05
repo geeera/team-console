@@ -12,6 +12,7 @@ import {
   signal,
   untracked,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { AnsweredItem, AnsweredItems, answeredKeyOf, ProjectsStore } from '@console/entities/project';
 import type { QuestionArrival } from '@console/entities/push';
 import {
@@ -19,6 +20,7 @@ import {
   QuestionCard,
   QuestionItem,
   QuestionProjectProblem,
+  QuestionProjectSetup,
   QuestionsApi,
   safeGitHubUrl,
 } from '@console/entities/question';
@@ -26,6 +28,7 @@ import { AnswerGiven, AnswerQuestion } from '@console/features/answer-question';
 import { localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import {
   type Arrival,
+  Banner,
   Button,
   Callout,
   CardStamp,
@@ -72,7 +75,18 @@ interface Row {
  */
 @Component({
   selector: 'tc-question-list',
-  imports: [AnswerQuestion, Button, Callout, Icon, QuestionCard, Receipt, StateBlock, TranslocoPipe],
+  imports: [
+    AnswerQuestion,
+    Banner,
+    Button,
+    Callout,
+    Icon,
+    QuestionCard,
+    Receipt,
+    RouterLink,
+    StateBlock,
+    TranslocoPipe,
+  ],
   templateUrl: './question-list.html',
   styleUrl: './question-list.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -102,6 +116,7 @@ export class QuestionList {
   protected readonly state = signal<LoadState>('loading');
   private readonly items = signal<readonly QuestionItem[]>([]);
   protected readonly problems = signal<readonly QuestionProjectProblem[]>([]);
+  protected readonly setups = signal<readonly QuestionProjectSetup[]>([]);
   protected readonly omitted = signal<readonly NeedsYouProjectRef[]>([]);
   private readonly stamping = signal<ReadonlySet<string>>(new Set());
   protected readonly announcement = signal('');
@@ -116,7 +131,9 @@ export class QuestionList {
     }
     const answered = this.answeredItems.get(project.slug, number);
     const repo = this.projects.bySlug(project.slug)?.repo;
-    return safeGitHubUrl(answered?.url ?? null) ?? (repo === undefined ? null : githubIssueUrlOf(repo, number));
+    return (
+      safeGitHubUrl(answered?.url ?? null) ?? (repo === undefined ? null : githubIssueUrlOf(repo, number))
+    );
   });
   private handledArrival: number | null = null;
   private ring: Arrival | null = null;
@@ -141,8 +158,16 @@ export class QuestionList {
     }),
   );
   protected readonly waiting = computed(() => this.rows().filter((row) => row.answer === null));
+  /** Projects that need the owner outside a card: a setup to finish, or an inbox that could not be read (#205). */
+  protected readonly attentionCount = computed(() => this.setups().length + this.problems().length);
+  /** The lead's project count: projects with a waiting card and projects with a row above the cards alike. */
   protected readonly projectCount = computed(
-    () => new Set(this.waiting().map((row) => row.item.project.slug)).size,
+    () =>
+      new Set([
+        ...this.waiting().map((row) => row.item.project.slug),
+        ...this.setups().map((setup) => setup.project.slug),
+        ...this.problems().map((problem) => problem.project.slug),
+      ]).size,
   );
   protected readonly omittedNames = computed(() =>
     this.omitted()
@@ -199,6 +224,10 @@ export class QuestionList {
   protected problemReason(problem: QuestionProjectProblem): string {
     const slug = problemSlugOf(problem.problem.type) ?? problem.problem.type;
     return this.transloco.translate(`questions.problem.${KNOWN_PROBLEMS.has(slug) ? slug : 'other'}`);
+  }
+
+  protected settingsLinkOf(slug: string): readonly string[] {
+    return ['/settings/projects', slug];
   }
 
   protected onAnswered({ item, response }: AnswerGiven): void {
@@ -273,6 +302,7 @@ export class QuestionList {
         }
         this.items.set(view.items);
         this.problems.set(view.problems);
+        this.setups.set(view.setups);
         this.omitted.set(view.omitted);
         this.answeredItems.reconcile(view.readSlugs, this.refsOf(view.items));
       } else {
@@ -282,6 +312,7 @@ export class QuestionList {
         }
         this.items.set(items);
         this.problems.set([]);
+        this.setups.set([]);
         this.omitted.set([]);
         this.answeredItems.reconcile([project.slug], this.refsOf(items));
       }

@@ -1,7 +1,7 @@
 <ol class="ledger" [attr.aria-label]="'settings.setup.stepsAria' | transloco">
   @for (step of steps(); track step.id; let index = $index) {
   <li class="step" [class]="'step--' + step.state" [attr.data-step]="step.id">
-    <span class="step__mark" aria-hidden="true">
+    <span class="step__mark" aria-hidden="true" [attr.data-mark]="markOf(step.state)">
       @if (markOf(step.state); as mark) {
       <tc-icon [name]="mark" size="sm" />
       } @else if (step.state === 'pending') { … } @else { {{ index + 1 }} }
@@ -29,7 +29,7 @@
       </p>
       } @case ('unknown') {
       <p class="step__fix">{{ 'settings.step.unknownWhy' | transloco }}</p>
-      } } @if (step.state === 'missing' || step.state === 'waiting') {
+      } } @if (step.state === 'missing') {
       <button
         tc-button
         variant="quiet"

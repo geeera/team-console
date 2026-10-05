@@ -101,6 +101,36 @@ describe('needsYouViewOf', () => {
       },
     ]);
     expect(view.omitted).toEqual([{ slug: 'seventh', name: 'Seventh' }]);
+    expect(view.setups).toEqual([]);
+  });
+
+  it('lists projects that need setup with their github.com checklist link (#205)', () => {
+    const body = needsYou();
+    const checklist = 'https://github.com/geeera/storify/blob/HEAD/.product-team/owner-checklist.md';
+    const view = needsYouViewOf({
+      ...body,
+      projects: [
+        { ...body.projects[0]!, setup: true, setupUrl: 'https://evil.example/owner-checklist.md' },
+        { ...body.projects[1]!, setup: true, setupUrl: checklist },
+        body.projects[2]!,
+      ],
+    });
+
+    expect(view.setups).toEqual([
+      { project: { slug: 'team-console', name: 'Team Console' }, url: null },
+      { project: { slug: 'storify', name: 'Storify' }, url: checklist },
+    ]);
+  });
+
+  it('a project whose inbox could not be read is a problem, never also a setup row', () => {
+    const body = needsYou();
+    const view = needsYouViewOf({
+      ...body,
+      projects: [{ ...body.projects[2]!, setup: true, setupUrl: 'https://github.com/geeera/broken' }],
+    });
+
+    expect(view.setups).toEqual([]);
+    expect(view.problems).toHaveLength(1);
   });
 
   it('offers only the commands the owner grammar allows for the section', () => {

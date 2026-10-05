@@ -71,6 +71,16 @@ describe('SetupChecklist', () => {
     }
   });
 
+  it('a waiting step shows a clock instead of its number and offers no "How to fix" (#205)', () => {
+    const mark = step('events').querySelector('.step__mark') as HTMLElement;
+    expect(mark.dataset['mark']).toBe('clock');
+    expect(mark.querySelector('tc-icon')).not.toBeNull();
+    expect(mark.textContent?.trim()).toBe('');
+    expect(step('events').querySelector('.step__how-toggle')).toBeNull();
+    expect(step('events').querySelector('.step__how')).toBeNull();
+    expect(step('routine').querySelector('.step__how-toggle')).not.toBeNull();
+  });
+
   it('opens "How to fix" as a disclosure with the server’s install link marked external', async () => {
     const toggle = step('app').querySelector('.step__how-toggle') as HTMLButtonElement;
     const panel = root.querySelector(`#${toggle.getAttribute('aria-controls')}`) as HTMLElement;
