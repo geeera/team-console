@@ -65,10 +65,11 @@ describe('mapEvent — one test per row of the architect note', () => {
     });
   });
 
-  it('row 2: issue_comment.created with the PM marker → "PM replied" to the chat', () => {
+  // The chat tab is a placeholder until #17 ships (#203, `CHAT_TAB_ENABLED`): the push lands on the default section.
+  it('row 2: issue_comment.created with the PM marker → "PM replied" to the project\'s default section', () => {
     const result = map('issue_comment', issueCommentEvent({ body: `${PM_REPLY_MARKER}\nHere is the plan.` }));
     expect(result).toMatchObject({
-      ...pushed('/p/storify/chat', { title: 'Storify · PM ответил' }),
+      ...pushed('/p/storify/questions', { title: 'Storify · PM ответил' }),
     });
   });
 

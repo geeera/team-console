@@ -22,7 +22,9 @@ export type { AnsweredItem, AnsweredItemsStorage } from './lib/answered-items';
 export {
   DEFAULT_SPACE_SECTION,
   SPACE_SECTIONS,
+  VISIBLE_SPACE_SECTIONS,
   isSpaceSection,
+  isVisibleSpaceSection,
   spaceLocationOf,
   spaceUrlOf,
 } from './lib/space-routes';

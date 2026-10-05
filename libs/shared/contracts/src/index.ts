@@ -113,6 +113,7 @@ export type {
   ArtifactsResponse,
 } from './lib/artifacts';
 export { PUSH_MAX_SUBSCRIPTIONS, PUSH_TEST_INTERVAL_S } from './lib/push';
+export { CHAT_TAB_ENABLED } from './lib/chat-feature';
 export type {
   PushConfigDto,
   PushDeviceDto,
