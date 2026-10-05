@@ -1,0 +1,79 @@
+<ol class="ledger" [attr.aria-label]="'settings.setup.stepsAria' | transloco">
+  @for (step of steps(); track step.id; let index = $index) {
+  <li class="step" [class]="'step--' + step.state" [attr.data-step]="step.id">
+    <span class="step__mark" aria-hidden="true" [attr.data-mark]="markOf(step.state)">
+      @if (markOf(step.state); as mark) {
+      <tc-icon [name]="mark" size="sm" />
+      } @else if (step.state === 'pending') { … } @else { {{ index + 1 }} }
+    </span>
+    <div class="step__body">
+      <div class="step__head">
+        <h3 class="step__title">{{ 'settings.step.' + step.id + '.title' | transloco: params() }}</h3>
+        <span class="step__state" data-testid="step-state">{{ stateKey(step) | transloco }}</span>
+      </div>
+
+      @switch (step.state) { @case ('done') {
+      <p class="step__fix">
+        @if (step.id === 'events') { {{ 'settings.step.events.done' | transloco: { time:
+        (context().lastEventAt | localTime) } }} } @else { {{ 'settings.step.' + step.id + '.done' |
+        transloco: params() }} }
+      </p>
+      } @case ('missing') {
+      <p class="step__fix">{{ 'settings.step.' + step.id + '.missing' | transloco: params() }}</p>
+      } @case ('waiting') {
+      <p class="step__fix">{{ 'settings.step.events.missing' | transloco: params() }}</p>
+      } @case ('skipped') {
+      <p class="step__fix">
+        {{ (step.skippedBecause === 'not-connected' ? 'settings.step.owner.notConnected' :
+        'settings.step.skippedWhy') | transloco }}
+      </p>
+      } @case ('unknown') {
+      <p class="step__fix">{{ 'settings.step.unknownWhy' | transloco }}</p>
+      } } @if (step.state === 'missing') {
+      <button
+        tc-button
+        variant="quiet"
+        size="sm"
+        type="button"
+        class="step__how-toggle"
+        [attr.aria-expanded]="isOpen(step.id)"
+        [attr.aria-controls]="id + '-how-' + step.id"
+        (click)="toggle(step.id)"
+      >
+        {{ 'settings.step.how' | transloco }}
+        <tc-icon name="chevron-down" size="sm" [class.step__chevron--open]="isOpen(step.id)" />
+      </button>
+      <div class="step__how" [id]="id + '-how-' + step.id" [hidden]="!isOpen(step.id)">
+        <p>{{ 'settings.step.' + step.id + '.how' | transloco: params() }}</p>
+        @if (step.id === 'app' && context().installUrl; as installUrl) {
+        <a class="step__link" [href]="installUrl" target="_blank" rel="noopener noreferrer">
+          {{ 'settings.step.app.link' | transloco }}<span class="tc-sr-only">
+            {{ 'settings.common.external' | transloco }}</span
+          >
+          <tc-icon name="external" size="sm" />
+        </a>
+        } @if (step.id === 'routine') {
+        <div class="step__code tc-code-row">
+          <code class="tc-code-row__code">{{ command() }}</code>
+          <button
+            tc-button
+            size="sm"
+            type="button"
+            [attr.aria-label]="'settings.step.routine.copyAria' | transloco"
+            (click)="copyCommand()"
+          >
+            <tc-icon name="copy" size="sm" />
+            <span aria-hidden="true"
+              >{{ (copied() ? 'settings.common.copied' : 'settings.common.copy') | transloco }}</span
+            >
+          </button>
+        </div>
+        @if (copyFailed()) {
+        <p class="step__copy-failed" role="status">{{ 'settings.common.copyFailed' | transloco }}</p>
+        } }
+      </div>
+      }
+    </div>
+  </li>
+  }
+</ol>

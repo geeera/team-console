@@ -1,0 +1,71 @@
+<div class="tc-page overview">
+  <header class="overview__head">
+    <h1 tcSrOnlyOnPhone class="tc-page__title">{{ 'overview.title' | transloco }}</h1>
+    @if (state().kind === 'ready') {
+    <p class="overview__count" data-testid="count">{{ 'overview.count' | translocoPlural: count() }}</p>
+    }
+  </header>
+
+  @if (projects.status() !== 'ready') {
+  <tc-state-block kind="loading" [title]="'shell.loading' | transloco" />
+  } @else if (!projects.hasProjects()) {
+  <tc-state-block
+    kind="empty"
+    data-testid="no-projects"
+    [title]="'shell.noProjects' | transloco"
+    [description]="'shell.noProjectsHint' | transloco"
+  >
+    <a tc-button tc-state-action variant="primary" routerLink="/settings/projects/new"
+      >{{ 'shell.addProject' | transloco }}</a
+    >
+  </tc-state-block>
+  } @else if (state().kind === 'loading') {
+  <tc-state-block kind="loading" data-testid="loading" [title]="'overview.loading' | transloco" />
+  } @else if (failure(); as failed) {
+  <tc-state-block
+    kind="error"
+    data-testid="load-error"
+    [attr.data-failure]="failed"
+    [title]="'overview.error.' + failed + '.title' | transloco"
+    [description]="'overview.error.' + failed + '.hint' | transloco"
+  >
+    <button tc-button tc-state-action type="button" (click)="reload()">
+      {{ 'ui.error.retry' | transloco }}
+    </button>
+  </tc-state-block>
+  } @else { @if (isPartial()) {
+  <div tc-banner tone="warning" data-testid="partial">
+    <tc-icon tc-banner-icon name="clock" />
+    <p tc-banner-text>
+      <b>{{ 'overview.partial.title' | transloco }}</b> {{ 'overview.partial.hint' | transloco }}
+    </p>
+    <div tc-banner-actions>
+      <button
+        tc-button
+        size="sm"
+        type="button"
+        data-testid="load-rest"
+        [loading]="reloading()"
+        (click)="reload()"
+      >
+        {{ 'overview.partial.action' | transloco }}
+      </button>
+    </div>
+  </div>
+  } @if (attention().length > 0) {
+  <ul class="overview__grid" [attr.aria-label]="'overview.listLabel' | transloco" data-testid="overview-list">
+    @for (row of attention(); track row.project.slug) {
+    <li><tc-overview-tile [project]="row.project" [waiting]="row.waiting" /></li>
+    }
+  </ul>
+  } @if (quiet().length > 0) {
+  <h2 class="overview__group" id="overview-quiet">
+    {{ 'overview.quiet' | transloco }} <span class="overview__group-count">{{ quiet().length }}</span>
+  </h2>
+  <ul class="overview__grid" aria-labelledby="overview-quiet" data-testid="overview-quiet">
+    @for (row of quiet(); track row.project.slug) {
+    <li><tc-overview-tile class="ov--quiet" [project]="row.project" [waiting]="row.waiting" /></li>
+    }
+  </ul>
+  } }
+</div>

@@ -1,0 +1,8 @@
+{
+  "name": "console-entities-question",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/console/entities/question/src",
+  "prefix": "tc",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:console", "layer:entities"]
+}

@@ -1,0 +1,32 @@
+:host {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.tc-stat__label {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.tc-stat__value {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-tight);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+:host(.tc-stat--success) .tc-stat__value {
+  color: var(--success-text);
+}
+
+:host(.tc-stat--danger) .tc-stat__value {
+  color: var(--danger-text);
+}

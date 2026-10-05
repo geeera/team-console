@@ -1,0 +1,130 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: var(--bg);
+}
+
+:host(.tc-app-shell--sidebar) {
+  flex-direction: row;
+}
+
+.shell__skip {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: var(--z-toast);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+  transform: translateY(-200%);
+}
+
+.shell__skip:focus-visible {
+  transform: none;
+}
+
+.shell__sidebar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: var(--sidebar-w);
+  padding: calc(var(--space-3) + var(--safe-top)) var(--space-2) calc(var(--space-2) + var(--safe-bottom))
+    calc(var(--space-2) + var(--safe-left));
+  border-right: var(--border-w) solid var(--border);
+  background: var(--bg-sunken);
+  overflow-y: auto;
+}
+
+.shell__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 var(--space-2) var(--space-3);
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-display);
+}
+
+.shell__brand tc-icon {
+  color: var(--accent);
+}
+
+.shell__top,
+.shell__foot {
+  display: grid;
+  gap: var(--space-px);
+}
+
+.shell__projects {
+  flex: 1;
+  min-height: 0;
+}
+
+.shell__foot {
+  margin-top: auto;
+  padding-top: var(--space-2);
+  border-top: var(--border-w) solid var(--border);
+}
+
+.shell__bar {
+  flex: none;
+}
+
+.shell__switch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--control-h-touch);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.shell__switch:hover {
+  background: var(--hover);
+}
+
+.shell__switch:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: calc(-1 * var(--focus-w));
+}
+
+.shell__switch tc-icon {
+  color: var(--text-3);
+}
+
+.shell__switch-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.shell__main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  outline: none;
+}
+
+.shell__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}

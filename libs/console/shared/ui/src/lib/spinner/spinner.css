@@ -1,0 +1,35 @@
+:host {
+  display: inline-block;
+  flex: none;
+  width: var(--spinner-size);
+  height: var(--spinner-size);
+  border: var(--border-w-strong) solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: var(--r-round);
+  animation: tc-spin var(--dur-sig) linear infinite;
+}
+
+:host(.tc-spinner--lg) {
+  width: var(--spinner-size-lg);
+  height: var(--spinner-size-lg);
+}
+
+@keyframes tc-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* The token durations collapse under reduced motion, which would make the ring flicker: stop it instead. */
+@media (prefers-reduced-motion: reduce) {
+  :host {
+    animation: none;
+    border-top-color: var(--accent);
+    border-color: var(--accent-soft) var(--accent-soft) var(--accent-soft) var(--accent);
+  }
+}
+
+:host-context(:root[data-motion='reduce']) {
+  animation: none;
+  border-color: var(--accent-soft) var(--accent-soft) var(--accent-soft) var(--accent);
+}

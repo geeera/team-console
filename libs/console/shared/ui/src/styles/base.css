@@ -1,0 +1,146 @@
+/*
+ * Global base for every surface that renders the kit (the app and Storybook). Loaded after
+ * tokens.css and the CDK prebuilt overlay css; everything here reads tokens only.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* Text for assistive tech only; the CDK's .cdk-visually-hidden is the same idea for its own DOM. */
+.tc-sr-only {
+  position: absolute !important;
+  width: var(--space-px);
+  height: var(--space-px);
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/*
+ * A tappable inline element that is not a kit primitive (a plain link or bespoke button): the UX spec (§5)
+ * asks for a 44px tap target on the phone. Add this alongside the element's own classes instead of a
+ * per-page media query so every screen that needs it reads the same rule.
+ */
+@media (max-width: 519.98px) {
+  /* `!important`: an Angular component's emulated-encapsulation selector (its own class plus the
+     `_ngcontent-*` attribute Angular adds) outranks a plain global class no matter the source order,
+     so a specificity fight cannot win this — this utility exists to override exactly that. */
+  .tc-tap-target {
+    min-height: var(--control-h-touch) !important;
+  }
+}
+
+/* One column of content on a screen: the cross-project pages and Settings share it. */
+.tc-page {
+  display: grid;
+  gap: var(--space-4);
+  max-width: var(--log-max);
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4) calc(var(--space-8) + var(--safe-bottom));
+}
+
+.tc-page__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+}
+
+/* The CDK overlay container hosts sheets and dialogs; the scrim is our own backdrop class. */
+.cdk-overlay-container {
+  z-index: var(--z-overlay);
+}
+
+.tc-scrim {
+  background: var(--scrim);
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-standard);
+}
+
+.tc-scrim.cdk-overlay-backdrop-showing {
+  opacity: 1;
+}
+
+/*
+ * A copyable code line next to its Copy button: Settings → project setup and the commands panel's
+ * "Как настроить" both show one. `tc-code-row__code` keeps its own min-width: 0 so the row wraps the
+ * button onto its own line instead of squeezing the code and breaking an identifier mid-word.
+ */
+.tc-code-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.tc-code-row__code {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/*
+ * "You came here" (#36): the ring `markArrival()` puts on the item a notification opened. It swells once, then
+ * stays while focus is inside the item; the reduced-motion tokens collapse the swell to a frame, so it just appears.
+ */
+.tc-arrival {
+  scroll-margin: var(--space-6);
+  box-shadow: 0 0 0 var(--focus-w) var(--focus);
+  animation: tc-arrival var(--dur-sig) var(--ease-emph) both;
+}
+
+/* The ring already marks the place: the focused title inside needs no second outline. */
+.tc-arrival [tabindex='-1']:focus:not(:focus-visible),
+.tc-arrival[tabindex='-1']:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@keyframes tc-arrival {
+  0% {
+    box-shadow: 0 0 0 0 var(--focus);
+  }
+  35% {
+    box-shadow:
+      0 0 0 calc(var(--focus-w) * 3) var(--accent-soft),
+      0 0 0 var(--focus-w) var(--focus);
+  }
+  100% {
+    box-shadow: 0 0 0 var(--focus-w) var(--focus);
+  }
+}

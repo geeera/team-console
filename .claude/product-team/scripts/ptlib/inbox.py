@@ -55,8 +55,8 @@ def classify(issue: dict):
 def sections(issues: List[dict], paused_url: str = "", same_account_url: str = "", decided: List[dict] = ()) -> Dict[str, list]:
     groups: Dict[str, list] = {key: [] for key in ORDER + ("fyi",)}
     if same_account_url:
-        groups["setup"].append({"title": "Agents use your GitHub account — add a reviewing account and "
-                                         "team.reviewer_logins", "url": same_account_url})
+        groups["setup"].append({"title": "Agents use your GitHub account — give them their own GitHub Apps "
+                                         "(reference/identities.md)", "url": same_account_url})
     if paused_url:
         groups["paused"].append({"title": "Run log", "url": paused_url})
     for issue in sorted(issues, key=lambda i: i["number"]):

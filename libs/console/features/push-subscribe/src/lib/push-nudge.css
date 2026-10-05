@@ -1,0 +1,61 @@
+:host {
+  display: block;
+}
+
+/*
+ * One quiet line on sunken paper, not an alert (#204): it used to take a third of the phone screen above the list.
+ * The tap targets set the height; an error or the offline reason wraps onto a line of its own below.
+ */
+.push-nudge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-2);
+  margin: 0;
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg-sunken);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--text-2);
+}
+
+.push-nudge--done {
+  display: block;
+  padding: var(--space-3) var(--space-4);
+  line-height: var(--lh-body);
+  color: var(--text);
+}
+
+.push-nudge__icon {
+  flex: none;
+}
+
+.push-nudge__text {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+}
+
+.push-nudge__action,
+.push-nudge__close {
+  flex: none;
+}
+
+.push-nudge__note {
+  flex: 1 1 100%;
+  margin: 0;
+  padding: 0 0 var(--space-2);
+}
+
+.push-nudge__error {
+  color: var(--danger-text);
+  font-weight: var(--fw-semibold);
+}
+
+@media (max-width: 519.98px) {
+  .push-nudge__action {
+    min-height: var(--control-h-touch);
+  }
+}

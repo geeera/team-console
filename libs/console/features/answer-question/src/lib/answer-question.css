@@ -1,0 +1,54 @@
+:host {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.answer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.answer__actions [aria-disabled='true'] {
+  cursor: progress;
+}
+
+.answer__connect {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.answer__connect-title {
+  margin: 0;
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+
+.answer__connect-hint {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+tc-state-block {
+  padding: var(--space-4) var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--danger-soft);
+}
+
+/* Actions take equal halves on the phone; a label too long for half a row takes the full row. */
+@media (max-width: 519.98px) {
+  .answer__actions > * {
+    flex: 1 1 0;
+    min-width: max-content;
+  }
+
+  .answer__connect > a {
+    width: 100%;
+  }
+}

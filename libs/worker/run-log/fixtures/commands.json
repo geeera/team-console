@@ -1,0 +1,363 @@
+{
+ "plugin": {
+  "version": "0.10.3",
+  "sources": {
+   "scripts/runlog": "ddc722f524f65c74021b499a2557bb67d6e338a8e4fa0bc7b9b2704200d3041a",
+   "scripts/ptlib/runstate.py": "1ed923bf718fcc6d8f43b679493e737e15c5d981c7a52afb5b3206864b29ac77",
+   "scripts/ptlib/provenance.py": "92041c6c3240e73c6547db9382f30a3306389800c5ac4ccc31c429b0e73283e0"
+  }
+ },
+ "now": "2026-10-01T13:52:37.123456+00:00",
+ "pause": [
+  {
+   "reason": "",
+   "requests": [
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/labels",
+     "fields": {
+      "labels": [
+       "team:paused"
+      ]
+     }
+    },
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/comments",
+     "fields": {
+      "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"\", \"source\": \"team-console\"} -->\n**Development paused by the owner** 2026-10-01T13:52+00:00. \n\nScheduled runs do no work until the owner resumes (say so in the project chat, or comment `/resume`)."
+     }
+    }
+   ]
+  },
+  {
+   "reason": "\u043e\u0442\u043f\u0443\u0441\u043a",
+   "requests": [
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/labels",
+     "fields": {
+      "labels": [
+       "team:paused"
+      ]
+     }
+    },
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/comments",
+     "fields": {
+      "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"\\u043e\\u0442\\u043f\\u0443\\u0441\\u043a\", \"source\": \"team-console\"} -->\n**Development paused by the owner** 2026-10-01T13:52+00:00. \u043e\u0442\u043f\u0443\u0441\u043a\n\nScheduled runs do no work until the owner resumes (say so in the project chat, or comment `/resume`)."
+     }
+    }
+   ]
+  },
+  {
+   "reason": "back Monday",
+   "requests": [
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/labels",
+     "fields": {
+      "labels": [
+       "team:paused"
+      ]
+     }
+    },
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/comments",
+     "fields": {
+      "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"back Monday\", \"source\": \"team-console\"} -->\n**Development paused by the owner** 2026-10-01T13:52+00:00. back Monday\n\nScheduled runs do no work until the owner resumes (say so in the project chat, or comment `/resume`)."
+     }
+    }
+   ]
+  },
+  {
+   "reason": "quote \" and \\ backslash",
+   "requests": [
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/labels",
+     "fields": {
+      "labels": [
+       "team:paused"
+      ]
+     }
+    },
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/comments",
+     "fields": {
+      "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"quote \\\" and \\\\ backslash\", \"source\": \"team-console\"} -->\n**Development paused by the owner** 2026-10-01T13:52+00:00. quote \" and \\ backslash\n\nScheduled runs do no work until the owner resumes (say so in the project chat, or comment `/resume`)."
+     }
+    }
+   ]
+  },
+  {
+   "reason": "tab\there",
+   "requests": [
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/labels",
+     "fields": {
+      "labels": [
+       "team:paused"
+      ]
+     }
+    },
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/comments",
+     "fields": {
+      "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"tab\\there\", \"source\": \"team-console\"} -->\n**Development paused by the owner** 2026-10-01T13:52+00:00. tab\there\n\nScheduled runs do no work until the owner resumes (say so in the project chat, or comment `/resume`)."
+     }
+    }
+   ]
+  },
+  {
+   "reason": "line one\nline two",
+   "requests": [
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/labels",
+     "fields": {
+      "labels": [
+       "team:paused"
+      ]
+     }
+    },
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/comments",
+     "fields": {
+      "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"line one\\nline two\", \"source\": \"team-console\"} -->\n**Development paused by the owner** 2026-10-01T13:52+00:00. line one\nline two\n\nScheduled runs do no work until the owner resumes (say so in the project chat, or comment `/resume`)."
+     }
+    }
+   ]
+  },
+  {
+   "reason": "emoji \ud83d\ude00",
+   "requests": [
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/labels",
+     "fields": {
+      "labels": [
+       "team:paused"
+      ]
+     }
+    },
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/comments",
+     "fields": {
+      "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"emoji \\ud83d\\ude00\", \"source\": \"team-console\"} -->\n**Development paused by the owner** 2026-10-01T13:52+00:00. emoji \ud83d\ude00\n\nScheduled runs do no work until the owner resumes (say so in the project chat, or comment `/resume`)."
+     }
+    }
+   ]
+  },
+  {
+   "reason": "<b>not html</b>",
+   "requests": [
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/labels",
+     "fields": {
+      "labels": [
+       "team:paused"
+      ]
+     }
+    },
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/comments",
+     "fields": {
+      "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"<b>not html</b>\", \"source\": \"team-console\"} -->\n**Development paused by the owner** 2026-10-01T13:52+00:00. <b>not html</b>\n\nScheduled runs do no work until the owner resumes (say so in the project chat, or comment `/resume`)."
+     }
+    }
+   ]
+  },
+  {
+   "reason": "\u00a0nbsp",
+   "requests": [
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/labels",
+     "fields": {
+      "labels": [
+       "team:paused"
+      ]
+     }
+    },
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/comments",
+     "fields": {
+      "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"\\u00a0nbsp\", \"source\": \"team-console\"} -->\n**Development paused by the owner** 2026-10-01T13:52+00:00. \u00a0nbsp\n\nScheduled runs do no work until the owner resumes (say so in the project chat, or comment `/resume`)."
+     }
+    }
+   ]
+  },
+  {
+   "reason": "\u2028separator",
+   "requests": [
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/labels",
+     "fields": {
+      "labels": [
+       "team:paused"
+      ]
+     }
+    },
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/comments",
+     "fields": {
+      "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"\\u2028separator\", \"source\": \"team-console\"} -->\n**Development paused by the owner** 2026-10-01T13:52+00:00. \u2028separator\n\nScheduled runs do no work until the owner resumes (say so in the project chat, or comment `/resume`)."
+     }
+    }
+   ]
+  },
+  {
+   "reason": "control \u0001 char",
+   "requests": [
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/labels",
+     "fields": {
+      "labels": [
+       "team:paused"
+      ]
+     }
+    },
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/comments",
+     "fields": {
+      "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"control \\u0001 char\", \"source\": \"team-console\"} -->\n**Development paused by the owner** 2026-10-01T13:52+00:00. control \u0001 char\n\nScheduled runs do no work until the owner resumes (say so in the project chat, or comment `/resume`)."
+     }
+    }
+   ]
+  },
+  {
+   "reason": "del \u007f char",
+   "requests": [
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/labels",
+     "fields": {
+      "labels": [
+       "team:paused"
+      ]
+     }
+    },
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/comments",
+     "fields": {
+      "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"del \\u007f char\", \"source\": \"team-console\"} -->\n**Development paused by the owner** 2026-10-01T13:52+00:00. del \u007f char\n\nScheduled runs do no work until the owner resumes (say so in the project chat, or comment `/resume`)."
+     }
+    }
+   ]
+  },
+  {
+   "reason": "  spaced  ",
+   "requests": [
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/labels",
+     "fields": {
+      "labels": [
+       "team:paused"
+      ]
+     }
+    },
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/comments",
+     "fields": {
+      "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"  spaced  \", \"source\": \"team-console\"} -->\n**Development paused by the owner** 2026-10-01T13:52+00:00.   spaced  \n\nScheduled runs do no work until the owner resumes (say so in the project chat, or comment `/resume`)."
+     }
+    }
+   ]
+  },
+  {
+   "reason": "/resume",
+   "requests": [
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/labels",
+     "fields": {
+      "labels": [
+       "team:paused"
+      ]
+     }
+    },
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/comments",
+     "fields": {
+      "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"/resume\", \"source\": \"team-console\"} -->\n**Development paused by the owner** 2026-10-01T13:52+00:00. /resume\n\nScheduled runs do no work until the owner resumes (say so in the project chat, or comment `/resume`)."
+     }
+    }
+   ]
+  },
+  {
+   "reason": "**bold**",
+   "requests": [
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/labels",
+     "fields": {
+      "labels": [
+       "team:paused"
+      ]
+     }
+    },
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/comments",
+     "fields": {
+      "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"**bold**\", \"source\": \"team-console\"} -->\n**Development paused by the owner** 2026-10-01T13:52+00:00. **bold**\n\nScheduled runs do no work until the owner resumes (say so in the project chat, or comment `/resume`)."
+     }
+    }
+   ]
+  },
+  {
+   "reason": "\u00fcn\u00efc\u00f6d\u00e9 \u2014 dash",
+   "requests": [
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/labels",
+     "fields": {
+      "labels": [
+       "team:paused"
+      ]
+     }
+    },
+    {
+     "method": "POST",
+     "path": "repos/geeera/fixture-product/issues/22/comments",
+     "fields": {
+      "body": "<!-- pt-paused -->\n<!-- pt-owner-pause {\"reason\": \"\\u00fcn\\u00efc\\u00f6d\\u00e9 \\u2014 dash\", \"source\": \"team-console\"} -->\n**Development paused by the owner** 2026-10-01T13:52+00:00. \u00fcn\u00efc\u00f6d\u00e9 \u2014 dash\n\nScheduled runs do no work until the owner resumes (say so in the project chat, or comment `/resume`)."
+     }
+    }
+   ]
+  }
+ ],
+ "resume": [
+  {
+   "method": "DELETE",
+   "path": "repos/geeera/fixture-product/issues/22/labels/team%3Apaused",
+   "fields": null
+  },
+  {
+   "method": "POST",
+   "path": "repos/geeera/fixture-product/issues/22/comments",
+   "fields": {
+    "body": "<!-- pt-owner-resume -->\n**Development resumed** 2026-10-01T13:52+00:00."
+   }
+  }
+ ]
+}

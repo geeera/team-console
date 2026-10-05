@@ -1,0 +1,74 @@
+:host {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.questions__lead,
+.questions__omitted {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+/* Projects that need the owner outside the cards (#205): one compact Banner row each, the whole row is the link. */
+.questions__attention {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.questions__attention-row {
+  min-height: var(--control-h-touch);
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+  text-decoration: none;
+}
+
+.questions__attention-row:hover [tc-banner-text] {
+  text-decoration: underline;
+  text-underline-offset: var(--space-1);
+}
+
+.questions__attention-row:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+.questions__attention-go {
+  margin-left: var(--space-1);
+  vertical-align: middle;
+}
+
+.questions__list {
+  display: grid;
+  gap: var(--gap-log);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.questions__receipt-link {
+  color: var(--accent-text);
+  text-underline-offset: var(--space-1);
+}
+
+.questions__receipt-link:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--r-xs);
+}
+
+/* The note for an item a notification led to that no longer waits; ringed like a card while it has focus. */
+.questions__gone {
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+}
+
+.questions__gone a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}

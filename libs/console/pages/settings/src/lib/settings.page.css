@@ -1,0 +1,149 @@
+.settings {
+  gap: var(--space-8);
+}
+
+.settings__title {
+  font-size: var(--fs-2xl);
+}
+
+.settings__section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.settings__section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.settings__section-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+}
+
+.settings__lead {
+  margin: var(--space-1) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.settings__offline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--bg-sunken);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.settings__mono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-xl);
+  height: var(--icon-size-xl);
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-family: var(--font-display);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+}
+
+.settings__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+
+.settings__repo {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+
+.settings__chip tc-chip {
+  gap: var(--space-1);
+}
+
+.settings__chip--narrow {
+  display: none;
+}
+
+.settings__chevron {
+  color: var(--text-3);
+}
+
+.settings__archive {
+  min-height: var(--control-h-touch);
+  min-width: var(--control-h-touch);
+}
+
+.settings__loading {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.settings__skeleton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-h-touch);
+  padding: var(--space-2) var(--space-3);
+}
+
+.settings__skeleton-mono,
+.settings__skeleton-line {
+  display: block;
+  border-radius: var(--r-sm);
+  background: var(--skeleton);
+}
+
+.settings__skeleton-mono {
+  width: var(--icon-size-xl);
+  height: var(--icon-size-xl);
+}
+
+.settings__skeleton-line {
+  flex: 1;
+  height: var(--space-4);
+}
+
+.settings__version {
+  margin: 0;
+  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+/* The phone keeps the row for the name, the repository and the status; Archive becomes its 44 px icon. */
+@media (max-width: 519.98px) {
+  /* The button keeps its aria-label, so the name is unchanged when the word is hidden. */
+  .settings__archive-text {
+    display: none;
+  }
+
+  .settings__chevron,
+  .settings__chip--wide {
+    display: none;
+  }
+
+  .settings__chip--narrow {
+    display: block;
+    margin-top: var(--space-1);
+  }
+
+  .settings__section-head > a {
+    flex: 1;
+  }
+}

@@ -1,0 +1,42 @@
+:host {
+  position: absolute;
+  inset-inline-end: 0;
+  bottom: calc(100% + var(--space-2));
+  z-index: var(--z-raised);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--r-sm);
+  background: var(--text);
+  color: var(--bg);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  white-space: nowrap;
+  box-shadow: var(--shadow-2);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  translate: 0 calc(var(--space-px) * 2);
+  /* Visibility flips after the fade-out, so the pill stays visible while it fades. */
+  transition:
+    opacity var(--dur-fast) var(--ease-standard),
+    translate var(--dur-fast) var(--ease-standard),
+    visibility var(--dur-instant) linear var(--dur-fast);
+}
+
+:host(.tc-tooltip--start) {
+  inset-inline-end: calc(100% + var(--space-2));
+  top: 50%;
+  bottom: auto;
+  translate: calc(var(--space-px) * 2) -50%;
+}
+
+:host(.tc-tooltip--shown) {
+  opacity: 1;
+  visibility: visible;
+  translate: 0 0;
+  transition-delay: var(--dur-instant);
+}
+
+:host(.tc-tooltip--start.tc-tooltip--shown) {
+  translate: 0 -50%;
+}

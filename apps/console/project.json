@@ -20,7 +20,13 @@
             "input": "apps/console/public"
           }
         ],
-        "styles": ["libs/console/shared/ui/src/tokens/tokens.css", "apps/console/src/styles.css"],
+        "styles": [
+          "libs/console/shared/ui/src/tokens/tokens.css",
+          "node_modules/@angular/cdk/overlay-prebuilt.css",
+          "node_modules/@angular/cdk/a11y-prebuilt.css",
+          "libs/console/shared/ui/src/styles/base.css",
+          "libs/console/shared/ui/src/styles/overlay.css"
+        ],
         "index": "apps/console/src/index.html"
       },
       "configurations": {
@@ -38,7 +44,15 @@
             }
           ],
           "outputHashing": "all",
-          "serviceWorker": "apps/console/ngsw-config.json"
+          "optimization": {
+            "scripts": true,
+            "styles": { "minify": true, "inlineCritical": false },
+            "fonts": true
+          },
+          "serviceWorker": "apps/console/ngsw-config.json",
+          "define": {
+            "__TC_BUILT_AT__": "\"local\""
+          }
         },
         "development": {
           "optimization": false,

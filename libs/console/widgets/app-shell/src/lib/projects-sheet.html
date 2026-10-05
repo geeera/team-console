@@ -1,0 +1,43 @@
+<tc-list plain [attr.aria-label]="'shell.nav' | transloco">
+  <tc-list-row button (click)="go('/needs-you')">
+    <tc-icon tc-row-leading name="inbox" />
+    <span tc-row-title>{{ 'shell.needsYou' | transloco }}</span>
+    @if (needsYou.total(); as total) {
+    <tc-chip tc-row-trailing tone="accent">
+      <span aria-hidden="true">{{ total | localNumber }}</span>
+      <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: total } }}</span>
+    </tc-chip>
+    }
+  </tc-list-row>
+  <tc-list-row button (click)="go('/overview')">
+    <tc-icon tc-row-leading name="grid" />
+    <span tc-row-title>{{ 'shell.overview' | transloco }}</span>
+  </tc-list-row>
+</tc-list>
+
+<div class="sheet__projects">
+  @switch (projects.status()) { @case ('ready') { @if (projects.hasProjects()) {
+  <tc-project-switcher (switched)="close()" />
+  } @else {
+  <tc-state-block kind="empty" compact [title]="'shell.noProjects' | transloco" />
+  } } @case ('error') {
+  <tc-state-block kind="error" compact [title]="'shell.loadFailed' | transloco">
+    <button tc-button tc-state-action size="sm" type="button" (click)="retry()">
+      {{ 'ui.error.retry' | transloco }}
+    </button>
+  </tc-state-block>
+  } @default {
+  <tc-state-block kind="loading" compact [title]="'shell.loading' | transloco" />
+  } }
+</div>
+
+<div class="sheet__actions">
+  <button tc-button variant="primary" block type="button" (click)="go('/settings/projects/new')">
+    <tc-icon name="plus" />
+    {{ 'shell.addProject' | transloco }}
+  </button>
+  <button tc-button variant="quiet" block type="button" (click)="go('/settings')">
+    <tc-icon name="settings" />
+    {{ 'shell.settings' | transloco }}
+  </button>
+</div>

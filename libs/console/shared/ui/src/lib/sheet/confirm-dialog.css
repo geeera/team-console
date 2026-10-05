@@ -1,0 +1,100 @@
+:host {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.tc-confirm__message {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.tc-confirm__note {
+  margin: 0;
+  padding-left: var(--space-3);
+  border-left: var(--border-w-strong) solid var(--border-strong);
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+
+.tc-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+@media (max-width: 519.98px) {
+  .tc-confirm__actions {
+    flex-direction: column-reverse;
+  }
+
+  .tc-confirm__actions > * {
+    width: 100%;
+  }
+}
+
+.tc-confirm__text {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.tc-confirm__items {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.tc-confirm__warning,
+.tc-confirm__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--danger-soft);
+  color: var(--danger-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
+.tc-confirm__warning tc-icon,
+.tc-confirm__error tc-icon {
+  flex: none;
+  margin-top: var(--space-px);
+}
+
+.tc-confirm__field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.tc-confirm__label {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
+.tc-confirm__input {
+  width: 100%;
+  min-height: var(--control-h-touch);
+  padding: 0 var(--space-3);
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-input);
+}
+
+.tc-confirm__input:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+.tc-confirm__hint {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}

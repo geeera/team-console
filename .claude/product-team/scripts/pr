@@ -12,31 +12,47 @@
   pr update-branch N   merge the base into the PR branch on GitHub (no force-push); fails on conflicts
   pr files N           changed paths
   pr security-check N  does this PR need a security review? reasons from the paths and the linked issue's labels
-  pr gate N            CI plus the independent verdicts it needs: QA, REVIEW, and SECURITY when security-check says so;
-                       each must be APPROVED on the current head commit
+  pr gate N            CI plus the independent verdicts it needs, each APPROVED on the current head commit: QA and
+                       REVIEW as the `review:` block of project.yml on the PR's base branch requires them (both on
+                       every PR without the block), SECURITY whenever security-check says so. `why` explains each
+                       verdict; `policy` shows the rule, max_rework_rounds included
   pr merge N --method squash|merge [--delete-branch] [--ci-only]
                        refuses unless the gate passes. `squash` for feature/fix/hotfix PRs, `merge` for the
                        stage cut, releases and back-merges (long-lived branches must keep shared history).
                        `--ci-only` skips the verdicts and is only for those branch operations and the
                        `chore/product-team-*` self-update PR
   pr list [--base B] [--state open|closed|all]
+  pr commit -m M [git commit args…]
+                       `git commit` authored and committed by the team app's bot (plain `git commit` without a team
+                       app); fails without committing when the bot's identity cannot be looked up; --amend/-C/-c
+                       also reset the author to the bot
+  pr push [--branch B] push a feature/ fix/ hotfix/ chore/ backmerge/ revert/ design/ docs/ branch (default: the
+                       current one), never forced. With the team GitHub App configured it pushes as the app straight
+                       to GitHub and refuses URL rewrites (reference/identities.md); otherwise `git push -u origin B`
+  pr git-identity      the bot's GIT_AUTHOR_…/GIT_COMMITTER_… as `export` lines (for inspection; commit with
+                       `pr commit`); prints nothing without a team app
 
 Output is JSON (the diff is plain text).
 """
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import sys
+
+sys.dont_write_bytecode = True  # the vendored copy lives in the product repo: no __pycache__ there
 from urllib.parse import quote
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import re  # noqa: E402
 
+import shlex  # noqa: E402
 import subprocess  # noqa: E402
 import tempfile  # noqa: E402
 from pathlib import Path  # noqa: E402
+from typing import Optional  # noqa: E402
 
 from ptlib import checks, gh, project, review, vendoring  # noqa: E402
 
@@ -106,24 +122,47 @@ def linked_issue_labels(repo: str, n: int) -> list:
     return labels
 
 
-def security_check(repo: str, n: int) -> list:
-    return review.security_reasons(changed_files(repo, n), linked_issue_labels(repo, n))
+def security_check(repo: str, n: int, paths: Optional[list] = None) -> list:
+    return review.security_reasons(changed_files(repo, n) if paths is None else paths, linked_issue_labels(repo, n))
+
+
+def base_project_text(repo: str, base: str) -> str:
+    """project.yml as the PR's base branch has it ("" when it has none): a PR cannot choose its own reviewers or
+    drop a required verdict by editing project.yml, and the working tree may be any branch."""
+    try:
+        # A full ref: a tag or commit named like the branch must never stand in for it.
+        return gh.raw(f"repos/{repo}/contents/{project.PROJECT_FILE}?ref={quote('refs/heads/' + base, safe='/')}",
+                      "application/vnd.github.raw")
+    except gh.GhError as exc:
+        if "HTTP 404" in str(exc):
+            return ""
+        raise
 
 
 def gate(repo: str, n: int) -> dict:
     info = view(repo, n)
-    reasons = security_check(repo, n)
+    paths = changed_files(repo, n)
+    reasons = security_check(repo, n, paths)
     reviews = gh.api_list(f"repos/{repo}/pulls/{n}/reviews?per_page=100")
+    team_login = gh.token_login() if gh.app_mode() else None
     try:
-        logins = project.reviewer_logins()
+        config = base_project_text(repo, info["base"])
+        policy = project.review_policy_from_text(config)
+        logins, warning = review.allowed_reviewers(project.reviewer_logins_from_text(config), gh.review_login(),
+                                                   team_login)
+        roles, why = review.required_verdicts(policy, paths, reasons)
     except ValueError as exc:
         return {"passed": False, "missing": [str(exc)], "required": [], "verdicts": {}, "ci": {}, "security_reasons": []}
-    result = review.gate(reviews, info["head_sha"], bool(reasons), logins)
+    result = review.gate(reviews, info["head_sha"], bool(reasons), logins, roles)
+    result["why"] = why
+    result["policy"] = {k: policy[k] for k in ("configured", "qa", "reviewer", "code_paths", "max_rework_rounds")}
     result["ci"] = ci(repo, info["head_sha"])
     result["security_reasons"] = reasons[:10]
+    result["reviewers"] = logins
     if not logins:
-        result["warning"] = ("same-account mode: any agent can post a verdict; set team.reviewer_logins to a "
-                             "separate reviewing account (owner checklist)")
+        warning = review.unguarded_warning(gh.acts_as_owner(repo))
+    if warning:
+        result["warning"] = warning
     if result["ci"]["state"] != "pass":
         result["missing"].insert(0, f"CI: {result['ci']['state']}")
         result["passed"] = False
@@ -131,10 +170,142 @@ def gate(repo: str, n: int) -> dict:
 
 
 def git(*args: str, cwd: str = ".") -> bytes:
-    proc = subprocess.run(["git", "-C", cwd, *args], capture_output=True, check=False)
+    proc = subprocess.run(["git", "-C", cwd, *args], capture_output=True, check=False, env=gh.child_env())
     if proc.returncode != 0:
         raise gh.GhError(f"git {' '.join(args)}: {proc.stderr.decode(errors='replace').strip()[:200]}")
     return proc.stdout
+
+
+def git_host() -> str:
+    """The web host git pushes to: github.com, or the GitHub Enterprise host behind PT_GITHUB_API."""
+    if gh.API == "https://api.github.com":
+        return "https://github.com"
+    m = re.match(r"^(https://[^/]+)/api/v3$", gh.API)
+    if not m:
+        raise gh.GhError(f"cannot tell the git host from PT_GITHUB_API={gh.API}")
+    return m.group(1)
+
+
+def current_branch() -> str:
+    name = git("rev-parse", "--abbrev-ref", "HEAD").decode().strip()
+    if name == "HEAD":
+        raise gh.GhError("detached HEAD: check out the branch to push, or pass --branch")
+    return name
+
+
+# Branch prefixes the team creates (reference/workflow.md); everything else, long-lived branches and publishing
+# branches such as gh-pages included, is never pushed by an agent.
+PUSHABLE = re.compile(r"^(feature|fix|hotfix|chore|backmerge|revert|design|docs)/[A-Za-z0-9_][A-Za-z0-9._/-]*$")
+
+
+def check_pushable(branch: str) -> None:
+    if (not PUSHABLE.fullmatch(branch) or ".." in branch or "//" in branch or branch.endswith(("/", ".", ".lock"))
+            or "/." in branch):
+        raise gh.GhError(f"refusing to push {branch!r}: only feature/, fix/, hotfix/, chore/, backmerge/, revert/, "
+                         "design/ and docs/ branches are pushed; dev, stage, main and publishing branches move only "
+                         "through merged PRs")
+
+
+def _git_env(args: list, env: dict) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], capture_output=True, env=env, check=False)
+
+
+def app_push_env(url: str, host: str, header: str) -> dict:
+    """The environment of an app push: the token only here, and no global or system git config.
+
+    Global/system config is where insteadOf/pushInsteadOf rewrites and credential helpers of a session proxy live;
+    a rewritten URL would drop the host-scoped auth header and let a credential-adding proxy push as someone else
+    while this script reports the bot.
+    """
+    scoped = f"http.{host}/.extraheader"
+    return gh.child_env(
+        GIT_TERMINAL_PROMPT="0", GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_COUNT="3",
+        # An empty value first drops headers inherited from repo config (actions/checkout leaves one).
+        GIT_CONFIG_KEY_0=scoped, GIT_CONFIG_VALUE_0="",
+        GIT_CONFIG_KEY_1=scoped, GIT_CONFIG_VALUE_1=header,
+        GIT_CONFIG_KEY_2="credential.helper", GIT_CONFIG_VALUE_2="")
+
+
+def check_push_url(url: str, env: dict) -> None:
+    """Refuse unless git would push to exactly `url`: no remaining (repo-local) insteadOf/pushInsteadOf rewrite."""
+    rewrites = _git_env(["config", "--get-regexp", r"^url\..*\.(pushinsteadof|insteadof)$"], env)
+    if rewrites.returncode not in (0, 1):  # 1 = no such keys
+        raise gh.GhError(f"cannot read the repository's git config: {rewrites.stderr.decode(errors='replace')[:200]}")
+    for line in rewrites.stdout.decode(errors="replace").splitlines():
+        key, _, prefix = line.partition(" ")
+        if prefix and url.startswith(prefix):
+            raise gh.GhError(f"refusing to push: {key} rewrites {prefix} in this repository's git config, so the push "
+                             "would not go to GitHub as the team app")
+    # Second opinion from git itself (it applies insteadOf here; pushInsteadOf is covered by the scan above).
+    effective = _git_env(["ls-remote", "--get-url", url], env)
+    resolved = effective.stdout.decode(errors="replace").strip()
+    if effective.returncode != 0 or resolved != url:
+        raise gh.GhError(f"refusing to push: git would push to {resolved or 'an unknown URL'}, not {url}")
+
+
+def push(repo: str, branch: str) -> dict:
+    """Push a local team branch (never forced) — as the team app when it is configured.
+
+    The app's token reaches git only through GIT_CONFIG_* environment variables: not argv (visible to every
+    process), not .git/config, not the output. Credential helpers are off for the call, so a rejected app token
+    fails instead of quietly pushing as someone else. Where github.com is unreachable except through a session's
+    git proxy, the push fails loudly; it never falls back to the proxy.
+    """
+    check_pushable(branch)
+    sha = git("rev-parse", "--verify", f"refs/heads/{branch}").decode().strip()
+    refspec = f"refs/heads/{branch}:refs/heads/{branch}"
+    if not gh.app_mode():
+        git("push", "-u", "origin", refspec)
+        return {"branch": branch, "sha": sha, "as": "session remote (no team app configured)"}
+    token = gh.token()
+    login = gh.token_login()
+    host = git_host()
+    url = f"{host}/{repo}.git"
+    basic = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+    env = app_push_env(url, host, f"AUTHORIZATION: basic {basic}")
+    check_push_url(url, env)
+    proc = _git_env(["push", url, refspec], env)
+    if proc.returncode != 0:
+        detail = proc.stderr.decode(errors="replace").replace(token, "***").replace(basic, "***").strip()
+        raise gh.GhError(f"git push as {login} to {url} failed: {detail[-400:]}")
+    return {"branch": branch, "sha": sha, "as": login}
+
+
+def bot_identity_env() -> dict:
+    """GIT_AUTHOR_*/GIT_COMMITTER_* of the team app's bot; {} without a team app. Lookup failures raise."""
+    if not gh.app_mode():
+        return {}
+    ident = gh.app_identity()
+    env = {}
+    for role in ("AUTHOR", "COMMITTER"):
+        env[f"GIT_{role}_NAME"] = ident["name"]
+        env[f"GIT_{role}_EMAIL"] = ident["email"]
+    return env
+
+
+def git_identity_lines() -> list:
+    """`export` lines for bot_identity_env(); [] without a team app."""
+    return [f"export {k}={shlex.quote(v)}" for k, v in bot_identity_env().items()]
+
+
+def commit(git_args: list) -> int:
+    """`git commit <git_args>` authored and committed by the team app's bot (plain git commit without the app).
+
+    The identity is looked up before git runs, so a failed lookup never produces a commit under the wrong name.
+    Reusing a commit (--amend, -C, -c, --reuse-message, --reedit-message) would keep that commit's author, so
+    --reset-author is added: the result is the bot's commit.
+    """
+    identity = bot_identity_env()
+    args = list(git_args)
+    if identity:
+        if any(a == "--author" or a.startswith("--author=") for a in args):
+            raise gh.GhError("pr commit sets the author itself; drop --author")
+        if any(_REUSES_COMMIT.match(a) for a in args) and "--reset-author" not in args:
+            args.append("--reset-author")
+    return subprocess.run(["git", "commit", *args], env=gh.child_env(**identity), check=False).returncode
+
+
+_REUSES_COMMIT = re.compile(r"^(--amend|--reuse-message(=.*)?|--reedit-message(=.*)?|-[Cc].*)$", re.DOTALL)
 
 
 def show_json(rev: str, path: str) -> dict:
@@ -229,6 +400,19 @@ def main() -> None:
     m.add_argument("--method", required=True, choices=["squash", "merge", "rebase"]); m.add_argument("--delete-branch", action="store_true")
     m.add_argument("--ci-only", action="store_true")
     ls = sub.add_parser("list"); ls.add_argument("--base"); ls.add_argument("--state", default="open", choices=["open", "closed", "all"])
+    sub.add_parser("push").add_argument("--branch")
+    sub.add_parser("git-identity")
+    sub.add_parser("commit", add_help=False)  # parsed below: everything after `commit` belongs to git
+    if sys.argv[1:2] == ["commit"]:
+        if sys.argv[2:3] in (["-h"], ["--help"]):
+            p.print_help()  # pr's own help; no identity lookup, no git
+            sys.exit(0)
+        if not sys.argv[2:]:
+            sys.exit("pr commit needs git commit arguments, e.g. pr commit -m \"message\"")
+        try:
+            sys.exit(commit(sys.argv[2:]))
+        except gh.GhError as exc:
+            sys.exit(f"not committed: {exc}")
     args = p.parse_args()
 
     try:
@@ -261,6 +445,14 @@ def main() -> None:
             out({"required": bool(reasons), "reasons": reasons})
         elif args.cmd == "gate":
             out(gate(repo, args.number))
+        elif args.cmd == "push":
+            out(push(repo, args.branch or current_branch()))
+        elif args.cmd == "git-identity":
+            lines = git_identity_lines()
+            if lines:
+                print("\n".join(lines))
+            else:
+                print("no team app configured: commits keep this machine's git identity", file=sys.stderr)
         elif args.cmd == "merge":
             info = view(repo, args.number)
             if args.ci_only:

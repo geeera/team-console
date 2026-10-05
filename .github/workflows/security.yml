@@ -1,0 +1,194 @@
+# Security checks on every PR (plugin reference/workflow.md "Checks", ADR 0001 decision 8): secret scan, SAST,
+# dependency audit. Job names are stable: `scripts/pr gate` and the security reviewer read the check runs by name.
+# No secrets and no write scopes: the scanners run as plain binaries/containers, results go to the job log.
+name: security
+
+on:
+  pull_request:
+    branches: [dev, stage, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  GITLEAKS_VERSION: 8.30.1
+  GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+  SEMGREP_IMAGE: semgrep/semgrep:1.177.0@sha256:acaac22ffc7b7cc5926de0751b223bce0b2491c33d18422fa72f632c78d81198
+  ACTIONLINT_VERSION: 1.7.12
+  ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+  SHELLCHECK_VERSION: 0.11.0
+  SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
+
+jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Whole history: a secret added and removed again inside the PR is still leaked on a public repo.
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The binary instead of gitleaks-action: no token, no PR-comment write scope, checksum-verified.
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSL -o "${RUNNER_TEMP}/${archive}" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
+          echo "${GITLEAKS_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" gitleaks
+
+      - name: Scan the git history for secrets
+        # `git log --all` over the clone: every branch and tag of this repo plus this PR's merge ref (not other PRs).
+        # --verbose names file, commit and rule of a finding; --redact keeps the value out of the public log.
+        run: '"${RUNNER_TEMP}/gitleaks" git --redact --verbose --no-banner --exit-code 1 .'
+
+  sast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Registry rulesets instead of `--config auto`, which requires sending metrics.
+      - name: Semgrep
+        run: |
+          docker run --rm -v "${GITHUB_WORKSPACE}:/src" -w /src "${SEMGREP_IMAGE}" \
+            semgrep scan --config p/default --config p/typescript --config p/github-actions \
+            --metrics=off --error --severity ERROR
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      # Reads package-lock.json against the advisory database; no install needed. tools/ci/audit-gate.mjs wraps
+      # `npm audit --json` and fails on any high/critical advisory except one with an unexpired, exact-match
+      # entry in .audit-allowlist.json (#177: GHSA-vfj7-8cjw-p6xm/braces has no patched version yet).
+      - name: npm audit (gated by .audit-allowlist.json)
+        run: node tools/ci/audit-gate.mjs
+
+  workflow-lint:
+    # actionlint also runs shellcheck on every embedded `run:` script inside .github/workflows/*.yml, so this
+    # one job catches both a broken workflow and a broken `run:` block before either reaches `dev` (REVIEW/QA
+    # on PR #54: actionlint was passing locally but nothing ran it in CI). It does not look inside
+    # .github/actions/*/action.yml (composite actions) — verified empirically, not just assumed from the
+    # docs — which is why those stay small and get a manual review instead.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Install actionlint
+        run: |
+          set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "${RUNNER_TEMP}/${archive}" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" actionlint
+
+      - name: actionlint (workflows, includes shellcheck)
+        run: '"${RUNNER_TEMP}/actionlint" -color'
+
+      - name: Install shellcheck
+        run: |
+          set -euo pipefail
+          archive="shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
+          curl -fsSL -o "${RUNNER_TEMP}/${archive}" \
+            "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/${archive}"
+          echo "${SHELLCHECK_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
+          tar -xJf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" "shellcheck-v${SHELLCHECK_VERSION}/shellcheck"
+
+      # Owner-run scripts live outside the workflow files actionlint already covers (tools/owner-setup/*.sh
+      # is bash the owner runs locally with real credentials — it gets the same bar as CI's own scripts).
+      # tools/owner-setup/lib/*.sh (sourced by set-secrets.sh and create-apps.sh, #61 REVIEW round 1) is
+      # passed in the same invocation, not checked separately: shellcheck only follows a `source=` hint
+      # without `-x` when the target is itself one of the files given on the command line.
+      - name: Shellcheck owner-run scripts
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          scripts=(tools/owner-setup/*.sh tools/owner-setup/lib/*.sh)
+          if [ "${#scripts[@]}" -eq 0 ]; then
+            echo "::notice::no tools/owner-setup/*.sh scripts yet"
+            exit 0
+          fi
+          "${RUNNER_TEMP}/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" "${scripts[@]}"
+
+      # #177: the dependency-audit job's allowlist gate has its own logic for matching/expiring advisories —
+      # this proves it ignores only an exact (GHSA id, package) match before expiry and fails closed on
+      # everything else (a mismatch, an expiry, an unidentifiable advisory, a malformed report).
+      - name: Test the dependency-audit allowlist gate (tools/ci/audit-gate.mjs)
+        run: node tools/ci/audit-gate.test.mjs
+
+      # #180: the main-module guard must still run when the script's path doesn't round-trip through a plain
+      # string compare (a space, a symlink, non-ASCII) — spawns the real script from such a path with a fake
+      # npm on PATH, so this would have caught #180 before it reached review.
+      - name: Test the dependency-audit gate end to end from a path with a space (tools/ci/audit-gate.mjs)
+        run: node tools/ci/audit-gate.e2e.test.mjs
+
+      # PR #54 QA round 3: OpenSSL's `-text` output made the VAPID private key come out 33 bytes about half
+      # the time on macOS's LibreSSL. vapid-keygen.js replaced it with Node's built-in `crypto` (fixed-width
+      # JWK export) specifically to fix that; this repeats the 50-run check that caught it, in CI, so a
+      # future change to the generator can't silently reintroduce it.
+      - name: Test VAPID key generation (50 runs, exact byte lengths)
+        run: node tools/owner-setup/vapid-keygen.test.js
+
+      # PR #54 QA round 4: a fresh Cloudflare account has no Workers yet, so `wrangler secret list` fails
+      # with "Worker ... not found" the first time set-secrets.sh runs — this must be treated as "not set",
+      # while an unrelated failure (auth, network) must still abort. Stubs `gh`/`wrangler` on PATH inside a
+      # scratch copy of the repo layout; no network is needed here. The stub `gh` binary's path is asserted
+      # before set-secrets.sh runs: while developing this test on a machine with a real, already-authenticated
+      # `gh`, a `PATH=… cmd1 | cmd2` scoping bug let that real `gh` run instead of the stub, and it actually
+      # called `gh secret set` against the real repository's environments (caught from the API's
+      # `updated_at`, fixed the same round). The assertion makes that class of bug fail loudly here instead.
+      - name: Test set-secrets.sh against a fresh account and an auth failure (stubbed)
+        run: bash tools/owner-setup/set-secrets.stub-test.sh
+
+      # #61 (ADR 0003): same stub discipline as set-secrets.sh above — `gh`/`wrangler` are stubs, and the
+      # script's one real outbound call (the manifest code exchange) is pointed at a throwaway local server
+      # via CREATE_APPS_GITHUB_API_BASE, never at the real GitHub API.
+      - name: Test create-apps.sh against the App Manifest flow (stubbed)
+        run: bash tools/owner-setup/create-apps.stub-test.sh
+
+      # Regression test for the deploy.yml guard (PR #69 review): a comment mentioning the placeholder id must
+      # not block a deploy, only the real `database_id` may. Runs here, not in the `guard` job, because that
+      # job is deliberately cheap (no `npm ci`); this proves the guard script it calls is correct.
+      - name: Test the deploy.yml D1 placeholder guard distinguishes comments from real ids
+        run: node tools/deploy-guard/check-d1-placeholder.test.js
+
+      # SECURITY review: deploy.yml's `guard` job only runs this check on a push to dev/stage/main or a
+      # rollback dispatch, so a PR that regresses the wrangler.jsonc shape (or reintroduces a placeholder)
+      # would otherwise only fail at deploy time, not in this PR's own CI. Same placeholders as deploy.yml.
+      - name: Guard the real wrangler.jsonc configs for every environment (catches drift before deploy time)
+        run: |
+          set -euo pipefail
+          node tools/deploy-guard/check-d1-placeholder.js dev '00000000-0000-0000-0000-00000000dev1' \
+            apps/api/wrangler.jsonc apps/hooks/wrangler.jsonc
+          node tools/deploy-guard/check-d1-placeholder.js stage '00000000-0000-0000-0000-0000000stage' \
+            apps/api/wrangler.jsonc apps/hooks/wrangler.jsonc
+          node tools/deploy-guard/check-d1-placeholder.js production '00000000-0000-0000-0000-000000000prd' \
+            apps/api/wrangler.jsonc apps/hooks/wrangler.jsonc
