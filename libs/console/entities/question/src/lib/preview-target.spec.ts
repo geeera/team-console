@@ -23,7 +23,11 @@ describe('previewTargetOf', () => {
   it('falls back to the first link off GitHub, which the card shows as not embeddable', () => {
     expect(
       previewTargetOf(
-        ['https://github.com/geeera/team-console/pull/9', 'https://www.figma.com/file/x', 'https://evil.pages.dev/'],
+        [
+          'https://github.com/geeera/team-console/pull/9',
+          'https://www.figma.com/file/x',
+          'https://evil.pages.dev/',
+        ],
         [STORYBOOK],
         OWN,
       ),
@@ -42,11 +46,15 @@ describe('previewTargetOf', () => {
   });
 
   it('never treats a look-alike of GitHub as GitHub', () => {
-    expect(previewTargetOf(['https://github.com.evil.example/x'], [], OWN)).toBe('https://github.com.evil.example/x');
+    expect(previewTargetOf(['https://github.com.evil.example/x'], [], OWN)).toBe(
+      'https://github.com.evil.example/x',
+    );
   });
 
   it("never picks a link on the console's own origin for a frame; it is shown as not embeddable", () => {
-    expect(previewTargetOf([`${OWN}/api/v1/me`, `${STORYBOOK}/x`], [OWN, STORYBOOK], OWN)).toBe(`${STORYBOOK}/x`);
+    expect(previewTargetOf([`${OWN}/api/v1/me`, `${STORYBOOK}/x`], [OWN, STORYBOOK], OWN)).toBe(
+      `${STORYBOOK}/x`,
+    );
     expect(previewTargetOf([`${OWN}/api/v1/me`], [OWN], OWN)).toBe(`${OWN}/api/v1/me`);
   });
 });

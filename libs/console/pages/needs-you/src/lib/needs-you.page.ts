@@ -3,7 +3,7 @@ import { RouterLink } from '@angular/router';
 import { ProjectsStore } from '@console/entities/project';
 import { PushNudge } from '@console/features/push-subscribe';
 import { TranslocoPipe } from '@console/shared/i18n';
-import { Button, StateBlock } from '@console/shared/ui';
+import { Button, SrOnlyOnPhone, StateBlock } from '@console/shared/ui';
 import { QuestionList } from '@console/widgets/question-list';
 
 /**
@@ -13,10 +13,10 @@ import { QuestionList } from '@console/widgets/question-list';
  */
 @Component({
   selector: 'tc-needs-you-page',
-  imports: [Button, PushNudge, QuestionList, RouterLink, StateBlock, TranslocoPipe],
+  imports: [Button, PushNudge, QuestionList, RouterLink, SrOnlyOnPhone, StateBlock, TranslocoPipe],
   template: `
     <div class="tc-page">
-      <h1 #heading class="tc-page__title" tabindex="-1">{{ 'needsYou.title' | transloco }}</h1>
+      <h1 #heading tcSrOnlyOnPhone class="tc-page__title" tabindex="-1">{{ 'needsYou.title' | transloco }}</h1>
       @if (projects.status() === 'ready' && projects.hasProjects()) {
         <tc-push-nudge (dismissed)="focusHeading()" />
       }

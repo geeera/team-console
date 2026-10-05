@@ -1,6 +1,6 @@
 <div class="tc-page overview">
   <header class="overview__head">
-    <h1 class="tc-page__title">{{ 'overview.title' | transloco }}</h1>
+    <h1 tcSrOnlyOnPhone class="tc-page__title">{{ 'overview.title' | transloco }}</h1>
     @if (state().kind === 'ready') {
     <p class="overview__count" data-testid="count">{{ 'overview.count' | translocoPlural: count() }}</p>
     }

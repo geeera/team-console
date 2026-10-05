@@ -12,14 +12,16 @@ import { TranslocoPipe } from '@console/shared/i18n';
 import { Markdown, type RenderedMarkdown } from '@console/shared/markdown';
 import { Card, CardStamp, Chip, Frame, Recommendation } from '@console/shared/ui';
 import { previewTargetOf } from './preview-target';
+import { plainAskOf, plainDetailsOf } from './question-text';
 import { QuestionItem } from './question.model';
 
 let nextCardId = 0;
 
 /**
  * One waiting item as a Paper Desk decision card. Every text of the item is untrusted: the title and the
- * recommendation are interpolated, and the body is plain text, or — on the Designs and demo screen (#20, with
- * `embedOrigins`) — sanitised markdown plus a preview of the page it links to. An item whose author is not trusted
+ * recommendation (the answer line in plain words, #204) are interpolated, and the body is plain text with its markup
+ * stripped, or — on the Designs and demo screen (#20, with `embedOrigins`) — sanitised markdown plus a preview of
+ * the page it links to. An item whose author is not trusted
  * carries a visible mark and stays plain text everywhere, with no links and no preview. The answer controls are projected (`[tc-question-actions]`)
  * — the card itself never acts.
  */
@@ -42,8 +44,12 @@ let nextCardId = 0;
           <span>{{ 'questions.untrustedHint' | transloco }}</span>
         </p>
       }
-      @if (item().ask; as ask) {
-        <tc-recommendation [label]="'questions.recommends' | transloco">{{ ask }}</tc-recommendation>
+      @if (recommendation(); as recommendation) {
+        <tc-recommendation [label]="'questions.recommends' | transloco" data-testid="recommendation">{{
+          recommendation.kind === 'text'
+            ? recommendation.text
+            : ('answer.command.' + recommendation.command | transloco)
+        }}</tc-recommendation>
       }
       @if (preview(); as preview) {
         <tc-frame
@@ -54,18 +60,18 @@ let nextCardId = 0;
           [title]="'questions.preview' | transloco: { n: item().number }"
         />
       }
-      @if (item().body; as body) {
+      @if (details(); as details) {
         <details class="question__details" [open]="embedOrigins() !== null">
           <summary>{{ 'questions.details' | transloco }}</summary>
           @if (isRich()) {
             <tc-markdown
               class="question__markdown"
               data-testid="markdown"
-              [text]="body"
+              [text]="details"
               (rendered)="onRendered($event)"
             />
           } @else {
-            <p class="question__body">{{ body }}</p>
+            <p class="question__body">{{ details }}</p>
           }
         </details>
       }
@@ -96,6 +102,19 @@ export class QuestionCard {
   private readonly ownOrigin = inject(DOCUMENT).location.origin;
   /** Markdown and a preview only on the Designs and demo screen, and only for the team's own items. */
   protected readonly isRich = computed(() => this.embedOrigins() !== null && this.item().authorTrusted);
+  protected readonly recommendation = computed(() => plainAskOf(this.item().ask));
+  /**
+   * The body under "Details": as it is on the Designs and demo screen (#20 renders it or shows it verbatim), without
+   * the answer line and markup everywhere else; `null` hides the disclosure when nothing is left to read.
+   */
+  protected readonly details = computed(() => {
+    const body = this.item().body;
+    if (body === null) {
+      return null;
+    }
+    const text = this.embedOrigins() === null ? plainDetailsOf(body) : body;
+    return text === '' ? null : text;
+  });
   /** The links of the rendered body; reset whenever the body changes, until it has rendered again. */
   private readonly links = linkedSignal<string | null, readonly string[]>({
     source: () => this.item().body,

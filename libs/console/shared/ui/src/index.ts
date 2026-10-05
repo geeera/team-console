@@ -30,6 +30,7 @@ export type { SheetOptions } from './lib/sheet/sheet';
 export { ConfirmFailure } from './lib/sheet/confirm-dialog';
 export type { ConfirmInput, ConfirmOptions } from './lib/sheet/confirm-dialog';
 export { TOAST_DURATION_MS, ToastOutlet, Toaster } from './lib/toast/toast';
+export { SrOnlyOnPhone } from './lib/sr-only-on-phone/sr-only-on-phone';
 export { Spinner } from './lib/spinner/spinner';
 export type { SpinnerSize } from './lib/spinner/spinner';
 export { Stat, Stats } from './lib/stat/stat';
