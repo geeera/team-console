@@ -1,4 +1,4 @@
-import { isValidSlug } from '@shared/contracts';
+import { CHAT_TAB_ENABLED, isValidSlug } from '@shared/contracts';
 import { kindOf, sectionOf } from '@shared/owner-grammar';
 import {
   linkNotification,
@@ -136,7 +136,10 @@ function mapIssueComment(project: MappedProject, action: string | null, payload:
     return UNTRUSTED_AUTHOR;
   }
   if (comment.body.includes(PM_REPLY_MARKER)) {
-    return push(project, 'pm-reply', deepLinkOf(project.slug, 'chat'), {
+    // `chat` is a placeholder until #17 ships (#203); `CHAT_TAB_ENABLED` is the one switch that brings it
+    // back, in the console's `space-routes.ts` too. Until then the push lands on the project's default section.
+    const section = CHAT_TAB_ENABLED ? 'chat' : 'questions';
+    return push(project, 'pm-reply', deepLinkOf(project.slug, section), {
       number: issue.number,
       title: issue.title,
     });

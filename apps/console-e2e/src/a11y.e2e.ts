@@ -114,9 +114,13 @@ const SCREENS: readonly Screen[] = [
     },
   },
   {
-    name: 'Project chat',
+    // The chat tab is a placeholder until #17 ships (#203): the route redirects to the default section.
+    name: 'Project chat (redirects to the default section)',
     open: (page) =>
-      visit(page, '/p/team-console/chat', (p) => expect(p.getByTestId('chat-draft')).toBeVisible()),
+      visit(page, '/p/team-console/chat', async (p) => {
+        await expect(p).toHaveURL(/\/p\/team-console\/questions$/);
+        await expect(p.locator('li[data-number="72"]')).toBeVisible();
+      }),
   },
   {
     name: 'Project board',

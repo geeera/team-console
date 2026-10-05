@@ -59,7 +59,7 @@ describe('ProjectSpacePage', () => {
     return { harness, http, router: TestBed.inject(Router), state: TestBed.inject(PersistedStateStore) };
   }
 
-  it('shows the project name, the section tabs and redirects the space root to Questions', async () => {
+  it('shows the project name, the section tabs (chat hidden, #203) and redirects the space root to Questions', async () => {
     const { harness, router } = await setup();
     await harness.navigateByUrl('/p/tc');
     const root = harness.routeNativeElement as HTMLElement;
@@ -67,29 +67,29 @@ describe('ProjectSpacePage', () => {
     expect(router.url).toBe('/p/tc/questions');
     expect(root.querySelector('h1')?.textContent?.trim()).toBe('Team Console');
     const tabs = Array.from(root.querySelectorAll('nav[aria-label="Разделы"] a'));
-    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual([
-      'Вопросы',
-      'Чат',
-      'Доска',
-      'Артефакты',
-      'Демо',
-    ]);
-    expect(tabs.map((tab) => tab.getAttribute('aria-current'))).toEqual(['page', null, null, null, null]);
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Вопросы', 'Доска', 'Артефакты', 'Демо']);
+    expect(tabs.map((tab) => tab.getAttribute('aria-current'))).toEqual(['page', null, null, null]);
     expect(root.querySelector('nav.tc-tab-bar--bottom')).toBeNull();
   });
 
-  it('moves the current tab with the URL and keeps the chat draft in the store', async () => {
-    const { harness, state } = await setup();
+  it('a `/chat` deep link redirects to Questions instead of showing the placeholder (#203)', async () => {
+    const { harness, router } = await setup();
     await harness.navigateByUrl('/p/tc/chat');
     const root = harness.routeNativeElement as HTMLElement;
 
+    expect(router.url).toBe('/p/tc/questions');
+    expect(root.querySelector('[data-testid="chat-draft"]')).toBeNull();
     const tabs = Array.from(root.querySelectorAll('nav a'));
-    expect(tabs.map((tab) => tab.getAttribute('aria-current'))).toEqual([null, 'page', null, null, null]);
+    expect(tabs.map((tab) => tab.getAttribute('aria-current'))).toEqual(['page', null, null, null]);
+  });
 
-    const draft = root.querySelector('[data-testid="chat-draft"]') as HTMLTextAreaElement;
-    draft.value = 'hi';
-    draft.dispatchEvent(new Event('input'));
-    expect(state.projectState('tc')?.chatDraft).toBe('hi');
+  it('moves the current tab with the URL', async () => {
+    const { harness } = await setup();
+    await harness.navigateByUrl('/p/tc/board');
+    const root = harness.routeNativeElement as HTMLElement;
+
+    const tabs = Array.from(root.querySelectorAll('nav a'));
+    expect(tabs.map((tab) => tab.getAttribute('aria-current'))).toEqual([null, 'page', null, null]);
   });
 
   it('uses the bottom tab bar on the phone', async () => {
@@ -126,10 +126,11 @@ describe('ProjectSpacePage', () => {
 
   it('K is ignored while typing or with a modifier', async () => {
     const { harness } = await setup();
-    await harness.navigateByUrl('/p/tc/chat');
+    await harness.navigateByUrl('/p/tc/questions');
     const root = harness.routeNativeElement as HTMLElement;
-    const draft = root.querySelector('[data-testid="chat-draft"]') as HTMLTextAreaElement;
-    draft.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', code: 'KeyK', bubbles: true }));
+    const input = document.createElement('input');
+    root.appendChild(input);
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', code: 'KeyK', bubbles: true }));
     document.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'k', code: 'KeyK', metaKey: true, bubbles: true }),
     );

@@ -18,9 +18,9 @@ import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router
 import {
   isSpaceSection,
   ProjectsStore,
-  SPACE_SECTIONS,
   spaceLocationOf,
   SpaceSection,
+  VISIBLE_SPACE_SECTIONS,
 } from '@console/entities/project';
 import { TeamStatusStore } from '@console/entities/team-run';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
@@ -87,7 +87,7 @@ export class ProjectSpacePage {
   /** Bound from the route by `withComponentInputBinding()`. */
   readonly slug = input.required<string>();
 
-  protected readonly sections = SPACE_SECTIONS.map((section) => ({ section, icon: SECTION_ICONS[section] }));
+  protected readonly sections = VISIBLE_SPACE_SECTIONS.map((section) => ({ section, icon: SECTION_ICONS[section] }));
   protected readonly project = computed(() => this.projects.bySlug(this.slug()));
   protected readonly commandsProject = computed<CommandsProject>(() => {
     const project = this.project();
