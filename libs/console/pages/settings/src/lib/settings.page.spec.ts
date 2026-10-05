@@ -177,8 +177,22 @@ describe('SettingsPage', () => {
     const chip = (slug: string): string =>
       root().querySelector(`[data-row="${slug}"] [data-testid="setup-chip"]`)?.textContent?.trim() ?? '';
     expect(chip('storify')).toBe('Всё настроено');
-    expect(chip('fieldnote')).toBe('Не хватает 2 шагов');
+    expect(chip('fieldnote')).toBe('Не хватает 1 шага');
     expect(chip('atlas')).toBe('Не удалось проверить настройку');
+  });
+
+  it('a project waiting only for its first event reads "Ready", not a step missing (#205)', async () => {
+    await open('/settings');
+    flushSetups({
+      storify: READY,
+      fieldnote: { ...READY, events: 'never', lastEventAt: null },
+      atlas: READY,
+    });
+    await settle();
+
+    const chip = root().querySelector('[data-row="fieldnote"] [data-testid="setup-chip"]');
+    expect(chip?.textContent?.trim()).toBe('Готов');
+    expect(chip?.querySelector('tc-chip')?.classList).toContain('tc-chip--success');
   });
 
   describe('archive', () => {
