@@ -1,22 +1,51 @@
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button } from '../button/button';
 import { Icon } from '../icon/icon';
 
-/** An optional one-line field in a confirmation (#114: the reason for a pause); its value goes to `action`. */
+/**
+ * What `ConfirmInput.check` says about the current value, re-evaluated on every keystroke or date pick (#218: the
+ * freeze days of a chosen demo date). Already translated.
+ */
+export interface ConfirmCheck {
+  /** Why the value cannot be sent; shown under the field, the field is `aria-invalid` and Confirm does nothing. */
+  readonly error?: string;
+  /** Replaces the field's `hint` while there is no error. */
+  readonly hint?: string;
+  /** A caution under the hint in the warning tone; it does not block Confirm. */
+  readonly warning?: string;
+  /** Confirm's label for this value, e.g. "Move to 16 October". */
+  readonly confirmLabel?: string;
+  /** The value is valid but sending it changes nothing (the same date): Confirm does nothing. */
+  readonly isBlocked?: boolean;
+}
+
+/** An optional field in a confirmation (#114: the reason for a pause; #218: a date); its value goes to `action`. */
 export interface ConfirmInput {
   readonly label: string;
   readonly hint?: string;
   readonly maxLength?: number;
+  /** `date` is the native picker (`YYYY-MM-DD` values); text by default. */
+  readonly type?: 'text' | 'date';
+  /** The value the field opens with. */
+  readonly value?: string;
+  /** Bounds of a date field, `YYYY-MM-DD`; the picker pre-validates only, `check` and the server decide. */
+  readonly min?: string;
+  readonly max?: string;
+  readonly check?: (value: string) => ConfirmCheck;
 }
 
 /**
  * Thrown by a confirmation's `action` to say why it did not happen, in words the owner can act on (a rate limit and
  * when to try again). The dialog stays open with the message as an alert; any other error shows `errorMessage`.
+ * `refill` replaces the field's value (a conflict: the live value the owner should look at before sending again).
  */
 export class ConfirmFailure extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly refill?: string,
+  ) {
     super(message);
     this.name = 'ConfirmFailure';
   }
@@ -84,18 +113,36 @@ let nextFieldId = 0;
         <label class="tc-confirm__label" [for]="fieldId">{{ field.label }}</label>
         <input
           class="tc-confirm__input"
-          type="text"
           autocomplete="off"
           enterkeyhint="done"
+          [type]="field.type ?? 'text'"
           [id]="fieldId"
           [attr.maxlength]="field.maxLength ?? null"
-          [attr.aria-describedby]="field.hint ? fieldId + '-hint' : null"
+          [attr.min]="field.min ?? null"
+          [attr.max]="field.max ?? null"
+          [attr.aria-describedby]="hasHint() ? fieldId + '-hint' : null"
+          [attr.aria-invalid]="checked()?.error ? 'true' : null"
           [readOnly]="running()"
           [value]="value()"
           (input)="value.set($any($event.target).value)"
+          (change)="value.set($any($event.target).value)"
           (keydown.enter)="$event.preventDefault(); confirm()"
         />
-        @if (field.hint) {
+        @if (field.check) {
+          <!-- Follows the value: polite, so a freeze range or a refusal is read after the pick, not over it. -->
+          <div class="tc-confirm__check" [id]="fieldId + '-hint'" aria-live="polite">
+            @if (checked()?.error; as error) {
+              <p class="tc-confirm__invalid"><tc-icon name="alert" size="sm" />{{ error }}</p>
+            } @else {
+              @if (checked()?.hint ?? field.hint; as hint) {
+                <p class="tc-confirm__hint">{{ hint }}</p>
+              }
+              @if (checked()?.warning; as warning) {
+                <p class="tc-confirm__caution"><tc-icon name="alert" size="sm" />{{ warning }}</p>
+              }
+            }
+          </div>
+        } @else if (field.hint) {
           <p class="tc-confirm__hint" [id]="fieldId + '-hint'">{{ field.hint }}</p>
         }
       </div>
@@ -119,15 +166,15 @@ let nextFieldId = 0;
         class="tc-confirm__ok"
         [variant]="options.tone === 'danger' ? 'danger' : 'primary'"
         [loading]="running()"
-        [attr.aria-disabled]="running() ? 'true' : null"
+        [attr.aria-disabled]="running() || isHeld() ? 'true' : null"
         (click)="confirm()"
       >
         @if (running() && options.busyLabel) {
           {{ options.busyLabel }}
-        } @else if (failure() !== null) {
+        } @else if (failure() !== null && !isHeld()) {
           {{ options.retryLabel || ('ui.error.retry' | transloco) }}
         } @else {
-          {{ options.confirmLabel || ('ui.confirm.ok' | transloco) }}
+          {{ checked()?.confirmLabel || options.confirmLabel || ('ui.confirm.ok' | transloco) }}
         }
       </button>
     </div>
@@ -144,7 +191,16 @@ export class ConfirmDialog {
   protected readonly running = signal(false);
   /** The alert after a failed action; `null` while none failed. */
   protected readonly failure = signal<string | null>(null);
-  protected readonly value = signal('');
+  protected readonly value = signal(this.options.input?.value ?? '');
+  protected readonly checked = computed(() => this.options.input?.check?.(this.value()) ?? null);
+  /** The field's value cannot be sent as it is: Confirm stays focusable and says nothing new. */
+  protected readonly isHeld = computed(() => {
+    const checked = this.checked();
+    return checked !== null && (checked.error !== undefined || checked.isBlocked === true);
+  });
+  protected readonly hasHint = computed(
+    () => this.options.input?.check !== undefined || (this.options.input?.hint ?? '') !== '',
+  );
 
   protected cancel(): void {
     if (!this.running()) {
@@ -158,7 +214,7 @@ export class ConfirmDialog {
       this.ref.close(true);
       return;
     }
-    if (this.running()) {
+    if (this.running() || this.isHeld()) {
       return;
     }
     this.running.set(true);
@@ -174,6 +230,9 @@ export class ConfirmDialog {
           ? error.message
           : this.options.errorMessage || this.transloco.translate('ui.error.title'),
       );
+      if (error instanceof ConfirmFailure && error.refill !== undefined) {
+        this.value.set(error.refill);
+      }
       return;
     } finally {
       this.running.set(false);

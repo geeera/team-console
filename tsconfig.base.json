@@ -68,7 +68,8 @@
       "@console/entities/push": ["./libs/console/entities/push/src/index.ts"],
       "@console/features/push-subscribe": ["./libs/console/features/push-subscribe/src/index.ts"],
       "@console/shared/markdown": ["./libs/console/shared/markdown/src/index.ts"],
-      "@console/features/snooze": ["./libs/console/features/snooze/src/index.ts"]
+      "@console/features/snooze": ["./libs/console/features/snooze/src/index.ts"],
+      "@console/features/sprint-controls": ["./libs/console/features/sprint-controls/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

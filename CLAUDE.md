@@ -127,6 +127,17 @@ was edited on is `unknown`, never `failed` (`shownStateOf`); a run log GitHub re
 Mock: `MockRepository.comments` (the run log #22 of geeera/team-console); fake GitHub `POST /_fake/comment`. Console:
 `SprintRunList`, `TEAM_RUN_ICONS` (the "Run log" tile).
 
+Sprint commands (#218, #29 slice 1): `POST /api/v1/projects/:slug/sprint/demo-date` and `…/sprint/next`
+(`routes/sprint-commands.ts`, `owner-only`) PATCH/POST the milestone on the owner's token exactly as `backlog sprint
+create` writes it (`due_on: <day>T12:00:00Z`, title `Sprint NN` = highest of all milestones + 1), deciding on a live
+`state=all` milestones read in Kyiv days (`team/sprint-plan.ts`, `sprint.freeze_days` via `freezeDaysOf`; the freeze is
+`calendar.freeze_window`: demo − N through demo day); 409 `sprint-none|changed|unchanged|exists`, 422
+`sprint-date-past|after-next|early`, flat extensions. `TeamStatusDto` gains `sprint`, `progress`, `calendar` (`null` when
+the milestones read failed). Console: `@console/features/sprint-controls` (`SprintControls`, a `Sheet.confirm` with a
+checked date field: `ConfirmInput.type/value/min/max/check`, `ConfirmFailure.refill`), the panel's Sprint group and the
+board's "Move demo"; the command failure model (`commandFailureOf`, `CommandOutcome`) lives in
+`@console/entities/team-run`. Fake GitHub: `seedMilestones`, milestone writes, `/_fake/milestones`.
+
 Artifacts (#19, read-only): `GET /api/v1/projects/:slug/artifacts[?fresh=1]` (`routes/artifacts.ts`, `read-models/artifact-reads.ts`)
 reads decisions (`decisions_dir` listing + first `#` heading, ≤ 30 file reads), designs (`ux-spec`/`design:*` issues,
 `docs/design` one level deep, `design.storybook_url` if on github.com) and `team:demo` issues through `ReadCache`
@@ -247,7 +258,7 @@ E2e (#14): `npx nx e2e console-e2e` (builds first; browsers once with `npx playw
 Projects `iphone` (Chromium, 390 px), `desktop` (1440 px), `iphone-webkit` (the demo path only). Each Playwright
 worker starts its own stack in `apps/console-e2e/src/stack/local-stack.ts` — the fake GitHub plus the Docker image's
 command (`wrangler dev dist/apps/api/main.js`, fresh local D1, mock mode) wired to it — and specs call
-`stack.reset()` / `seed()` for a fresh database; logs in `tmp/console-e2e/worker-N/`. Specs live in `src/*.e2e.ts`, find
+`stack.reset()` / `seed()` for a fresh database; logs in `tmp/console-e2e/worker-N/`. `E2E_PORT_BASE=<port>` packs each worker into three ports from there (api, fake GitHub, fake push; inspectors on system-picked ports) for runs beside other local stacks. Specs live in `src/*.e2e.ts`, find
 controls through `ru()` (the ru.json copy) and `data-testid`, wait on conditions only, and fail on any request off the
 app origin, any uncaught page error and any serious/critical axe violation (`expectAccessible`). `BASE_URL` (+
 `CF_ACCESS_CLIENT_ID/SECRET` for stage) runs the suite against a running target; specs that reset data or need the

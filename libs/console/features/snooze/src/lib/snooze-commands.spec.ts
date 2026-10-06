@@ -31,6 +31,9 @@ const STATUS: TeamStatusDto = {
   environment: 'local',
   snooze: { snoozed: false },
   checkedAt: '2026-10-05T11:30:00.000Z',
+  sprint: null,
+  progress: null,
+  calendar: null,
   slots: (['pm', 'dev', 'qa'] as const).map((slot) => ({
     slot,
     setup: 'missing',

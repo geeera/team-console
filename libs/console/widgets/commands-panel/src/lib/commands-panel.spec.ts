@@ -6,6 +6,7 @@ import { provideRouter } from '@angular/router';
 import { PushStore, type PushView } from '@console/entities/push';
 import { TeamStatusStore } from '@console/entities/team-run';
 import { SnoozeCommands, type SnoozeOutcome } from '@console/features/snooze';
+import { SprintControls } from '@console/features/sprint-controls';
 import { TeamCommands, type CommandOutcome } from '@console/features/team-commands';
 import { NetworkStatus } from '@console/shared/api';
 import { provideConsoleI18n } from '@console/shared/i18n';
@@ -26,6 +27,9 @@ function status(overrides: Partial<TeamStatusDto> = {}): TeamStatusDto {
     environment: 'stage',
     snooze: { snoozed: false },
     checkedAt: new Date().toISOString(),
+    sprint: null,
+    progress: null,
+    calendar: null,
     slots: [
       {
         slot: 'pm',
@@ -66,6 +70,7 @@ describe('CommandsPanel', () => {
     resume: ReturnType<typeof vi.fn>;
     run: ReturnType<typeof vi.fn>;
   };
+  let sprintControls: { moveDemo: ReturnType<typeof vi.fn>; startNext: ReturnType<typeof vi.fn> };
   let online: ReturnType<typeof signal<boolean>>;
   let toasts: string[];
   let pushView: ReturnType<typeof signal<PushView>>;
@@ -88,6 +93,7 @@ describe('CommandsPanel', () => {
       resume: vi.fn(async () => done),
       run: vi.fn(async () => done),
     };
+    sprintControls = { moveDemo: vi.fn(async () => done), startNext: vi.fn(async () => done) };
     online = signal(true);
     toasts = [];
     pushView = signal<PushView>('on');
@@ -111,6 +117,7 @@ describe('CommandsPanel', () => {
         provideHttpClientTesting(),
         provideConsoleI18n(),
         { provide: TeamCommands, useValue: commands },
+        { provide: SprintControls, useValue: sprintControls },
         { provide: NetworkStatus, useValue: { online } },
         { provide: Toaster, useValue: { show: (text: string) => toasts.push(text) } },
         { provide: PushStore, useValue: { view: pushView, refresh: async () => undefined } },
@@ -151,6 +158,45 @@ describe('CommandsPanel', () => {
     expect(text(why)).toBe('Не настроено: у этой рутины нет токена запуска');
     qa.click();
     expect(commands.run).not.toHaveBeenCalled();
+  });
+
+  it('#218: the status card shows the sprint, its freeze and progress; the Sprint group moves the demo', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const { fixture, root } = await render(
+      status({
+        sprint: {
+          number: 4,
+          title: 'Sprint 04',
+          due: '2026-10-14',
+          freeze: { from: '2026-10-12', to: '2026-10-14' },
+          next: { number: 5, title: 'Sprint 05', due: '2026-10-28' },
+        },
+        progress: { done: 3, total: 8 },
+        calendar: { today: today < '2026-10-12' ? today : '2026-10-05', freezeDays: 2, nextTitle: 'Sprint 06' },
+      }),
+    );
+    expect(text(root.querySelector('[data-testid="status-sprint"]'))).toMatch(
+      /^Sprint 04 · демо 14 октября заморозка 12\s?–\s?14 октября$/,
+    );
+    expect(text(root.querySelector('[data-testid="status-progress"]'))).toBe('3 из 8');
+    expect(text(root.querySelector('[data-sprint="next"] .cmd__line'))).toBe('Sprint 05 уже создан: демо 28 октября');
+    expect(root.querySelector('[data-testid="sprint-next"]')).toBeNull();
+    const move = root.querySelector('[data-testid="sprint-demo"]') as HTMLButtonElement;
+    expect(move.getAttribute('aria-label')).toBe('Перенести демо Sprint 04');
+    move.click();
+    await fixture.whenStable();
+    expect(sprintControls.moveDemo).toHaveBeenCalledWith({ slug: 'tc', name: 'Team Console' });
+  });
+
+  it('#218: without the GitHub connection the sprint commands say why and do nothing', async () => {
+    const { root } = await render(
+      status({ ownerConnected: false, calendar: { today: '2026-10-05', freezeDays: 2, nextTitle: 'Sprint 01' } }),
+    );
+    expect(text(root.querySelector('[data-testid="status-sprint"]'))).toBe('Текущего спринта нет');
+    const next = root.querySelector('[data-testid="sprint-next"]') as HTMLButtonElement;
+    expect(next.getAttribute('aria-disabled')).toBe('true');
+    next.click();
+    expect(sprintControls.startNext).not.toHaveBeenCalled();
   });
 
   it('shows the setup card for the missing slot only, with copyable commands for this checkout and the token warning', async () => {
