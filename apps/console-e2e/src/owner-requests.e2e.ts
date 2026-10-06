@@ -45,7 +45,8 @@ async function openPanel(page: Page): Promise<void> {
   await expect(page.getByTestId('issues-group')).toBeVisible();
 }
 
-const dialog = (page: Page) => page.getByRole('dialog');
+// On the phone the Commands panel is a sheet too: the request dialog is the one on top.
+const dialog = (page: Page) => page.getByRole('dialog').last();
 
 async function openForm(page: Page): Promise<void> {
   await openPanel(page);
@@ -120,7 +121,7 @@ test('asks the PM for the next sprint: one owner comment, nothing else written, 
     ru('commands.request.diff', { what: ru('commands.request.dSprint', { sprint: 'Sprint 03' }) }),
   );
   await form.getByTestId('request-ok').click();
-  await expect(dialog(page)).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: new RegExp(`^#${ISSUE} `) })).toHaveCount(0);
   await expect(page.locator('.cp-result')).toContainText(ru('commands.request.done', { n: ISSUE }));
   await expect(page.locator('.cp-result')).toContainText(ru('commands.request.doneDetail'));
   await expect(page.getByTestId('ask-pending')).toHaveText(ru('commands.ask.pending', { n: 1 }));
