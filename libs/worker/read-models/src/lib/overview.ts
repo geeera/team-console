@@ -1,4 +1,10 @@
-import type { InboxDto, OverviewProjectReadDto, OverviewTeamState, SprintListsDto } from '@shared/contracts';
+import type {
+  InboxDto,
+  OverviewProjectReadDto,
+  OverviewTeamState,
+  SnoozeDto,
+  SprintListsDto,
+} from '@shared/contracts';
 
 export interface OverviewRowInput {
   readonly slug: string;
@@ -7,6 +13,8 @@ export interface OverviewRowInput {
   readonly inbox: InboxDto;
   /** The board's read model; its pull requests are not part of the row. */
   readonly sprint: SprintListsDto;
+  /** From the registry row (D1), not GitHub. */
+  readonly snooze: SnoozeDto;
 }
 
 /**
@@ -34,5 +42,6 @@ export function buildOverviewRow(input: OverviewRowInput): OverviewProjectReadDt
     needsYou: input.inbox.items.map((item) => item.number),
     setup: input.inbox.setup,
     setupUrl: input.inbox.setupUrl,
+    snooze: input.snooze,
   };
 }

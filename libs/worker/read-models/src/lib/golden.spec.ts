@@ -202,6 +202,7 @@ describe.each(CASES)('golden: %s', (_name, fixture, expected) => {
           milestone === null ? [] : issues(fixture.milestoneIssues[String(milestone.number)] ?? []),
         openPullRequests: [],
       }),
+      snooze: { snoozed: false },
     });
 
     expect(row.needsYou).toEqual(expected.inbox.items.map((item) => item.number));

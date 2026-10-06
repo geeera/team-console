@@ -1,4 +1,5 @@
 import type { NeedsYouProjectProblem } from './read-models';
+import type { SnoozeDto } from './snooze';
 import type { TeamRunState } from './team';
 
 /**
@@ -33,6 +34,8 @@ export interface OverviewProjectReadDto {
   /** "Security setup": `team.reviewer_logins` in project.yml is empty. */
   readonly setup: boolean;
   readonly setupUrl: string | null;
+  /** The project's snoozed notifications (#221) from the registry row, as the card's bell line shows them (#222). */
+  readonly snooze: SnoozeDto;
 }
 
 /**

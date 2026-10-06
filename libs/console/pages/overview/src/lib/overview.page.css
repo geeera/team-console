@@ -1,3 +1,13 @@
+:host {
+  display: flex;
+  min-height: 100%;
+}
+
+.overview {
+  flex: 1;
+  min-width: 0;
+}
+
 .overview__head {
   display: grid;
   gap: var(--space-1);
@@ -55,4 +65,12 @@
 .overview__group-count {
   font-weight: var(--fw-regular);
   font-variant-numeric: tabular-nums;
+}
+
+.overview__acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-3);
 }
