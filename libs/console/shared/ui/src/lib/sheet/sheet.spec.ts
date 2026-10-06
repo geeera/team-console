@@ -314,6 +314,44 @@ describe('Sheet', () => {
     });
   });
 
+  describe('one shell: viewport, actions and scroll lock (#274)', () => {
+    it('puts the confirmation buttons in the footer, outside the scrolling body, Confirm first', async () => {
+      void sheet.confirm({ title: 'Archive?', message: 'It stays readable.', confirmLabel: 'Archive' });
+      await settle();
+      TestBed.tick();
+
+      const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+      const foot = dialog.querySelector('.tc-sheet__foot') as HTMLElement;
+      const buttons = Array.from(foot.querySelectorAll('button')).map((button) => button.className);
+      expect(buttons[0]).toContain('tc-confirm__ok');
+      expect(buttons[1]).toContain('tc-confirm__cancel');
+      expect(dialog.querySelector('.tc-sheet__body')?.contains(foot)).toBe(false);
+    });
+
+    it('locks the page while a sheet is open and keeps only the top sheet of a stack scrollable', async () => {
+      const root = document.documentElement;
+      expect(root.hasAttribute('data-tc-scroll-lock')).toBe(false);
+
+      const below = sheet.open(Content, { title: 'Commands', data: { text: 'panel' } });
+      await settle();
+      expect(root.hasAttribute('data-tc-scroll-lock')).toBe(true);
+
+      const above = sheet.open(Content, { title: 'Ask the PM', data: { text: 'form' } });
+      await settle();
+      const panes = Array.from(overlay().querySelectorAll('.cdk-overlay-pane'));
+      expect(panes.map((pane) => pane.classList.contains('tc-overlay-covered'))).toEqual([true, false]);
+
+      above.close();
+      await settle();
+      expect(overlay().querySelector('.cdk-overlay-pane')?.classList).not.toContain('tc-overlay-covered');
+      expect(root.hasAttribute('data-tc-scroll-lock')).toBe(true);
+
+      below.close();
+      await settle();
+      expect(root.hasAttribute('data-tc-scroll-lock')).toBe(false);
+    });
+  });
+
   describe('footer and width (#194)', () => {
     it('renders the content footer outside the scrolling body, and drops it with the content', async () => {
       const ref = sheet.open(WithFooter, { title: 'Add geeera/storify', data: { text: 'checklist' } });

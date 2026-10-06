@@ -15,7 +15,7 @@
 </header>
 }
 
-<div class="cp__body">
+<div class="cp__body" [class.tc-page-scroll]="mode() !== 'sheet'">
   <p class="tc-sr-only" aria-live="polite">{{ announcement() }}</p>
 
   @if (result(); as outcome) {

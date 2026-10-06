@@ -192,7 +192,7 @@ describe('RequestChange', () => {
     const next = dialog()?.querySelector<HTMLInputElement>('[data-testid="request-sprint-next"]');
     expect(next?.disabled).toBe(true);
     expect(text(next?.closest('label'))).toContain('Следующий: ещё не создан');
-    press('.rq__actions button[type=button]');
+    press('.tc-sheet__foot button[type=button]');
     await expect(pending).resolves.toBeNull();
   });
 
@@ -211,7 +211,7 @@ describe('RequestChange', () => {
     expect(text(dialog()?.querySelector('[data-testid="request-previous"]'))).toMatch(
       /^Уже ждёт PM: убрать в бэклог \(.+\)\. Новая просьба заменит её\.$/,
     );
-    press('.rq__actions button[type=button]');
+    press('.tc-sheet__foot button[type=button]');
     await pending;
   });
 
@@ -237,7 +237,7 @@ describe('RequestChange', () => {
     expect(text(form.querySelector('[data-testid="request-error"]'))).toContain('сейчас она Sprint 05');
     expect(text(form.querySelector('[data-testid="request-now"]'))).toBe('Сейчас: Sprint 05');
     expect(form.querySelector<HTMLInputElement>('[data-testid="request-queue-up"]')?.checked).toBe(true);
-    press('.rq__actions button[type=button]');
+    press('.tc-sheet__foot button[type=button]');
     await expect(pending).resolves.toBeNull();
   });
 
@@ -256,7 +256,7 @@ describe('RequestChange', () => {
     await settle();
     expect(text(dialog()?.querySelector('[data-testid="request-error"]'))).toContain('Задачу уже закрыли');
     expect(dialog()?.querySelector('[data-testid="request-ok"]')).toBeNull();
-    press('.rq__actions button[type=button]');
+    press('.tc-sheet__foot button[type=button]');
     await expect(pending).resolves.toBeNull();
   });
 

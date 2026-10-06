@@ -99,6 +99,12 @@
 
 .repos__missing-actions > * {
   min-height: var(--control-h-touch);
+  /* The kit button keeps its label on one line; this one is long, so it wraps inside the column instead of
+     pushing the page wider than the phone (#281 QA: 372px in a 360px column). */
+  max-width: 100%;
+  padding-block: var(--space-2);
+  white-space: normal;
+  text-align: center;
 }
 
 .repos__more {

@@ -22,7 +22,8 @@ async function switchTo(page: Page, name: string): Promise<void> {
   }
 }
 
-const main = (page: Page) => page.locator('main#tc-main');
+// Only the document scrolls (#274): its scrolling element is <html>.
+const pageScroller = (page: Page) => page.locator('html');
 
 const TEAM_STATUS = '/api/v1/projects/team-console/team/status';
 
@@ -81,19 +82,19 @@ test.describe('with two active projects', () => {
   test('A → B → A restores the screen and its scroll position', async ({ page }) => {
     await page.goto('/p/team-console/questions');
     await expect(page.locator('li[data-number="72"]')).toBeVisible();
-    const scrollable = await main(page).evaluate((el) => el.scrollHeight - el.clientHeight);
+    const scrollable = await pageScroller(page).evaluate((el) => el.scrollHeight - el.clientHeight);
     expect(scrollable, 'the questions list must be long enough to scroll').toBeGreaterThan(300);
-    await main(page).evaluate((el) => el.scrollTo({ top: 300 }));
-    await expect.poll(() => main(page).evaluate((el) => el.scrollTop)).toBe(300);
+    await pageScroller(page).evaluate((el) => el.scrollTo({ top: 300 }));
+    await expect.poll(() => pageScroller(page).evaluate((el) => el.scrollTop)).toBe(300);
 
     await switchTo(page, 'private-product');
     await expect(page).toHaveURL(/\/p\/private-product\//);
-    await expect.poll(() => main(page).evaluate((el) => el.scrollTop)).toBe(0);
+    await expect.poll(() => pageScroller(page).evaluate((el) => el.scrollTop)).toBe(0);
 
     await switchTo(page, 'team-console');
     await expect(page).toHaveURL(/\/p\/team-console\/questions$/);
     await expect(page.locator('li[data-number="72"]')).toBeVisible();
-    await expect.poll(() => main(page).evaluate((el) => el.scrollTop)).toBe(300);
+    await expect.poll(() => pageScroller(page).evaluate((el) => el.scrollTop)).toBe(300);
   });
 
   // The chat tab is a placeholder until #17 ships (#203): every way to reach it lands on the default section.

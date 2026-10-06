@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button } from '../button/button';
 import { Icon } from '../icon/icon';
+import { SheetFooter } from './sheet-footer';
 
 /**
  * What `ConfirmInput.check` says about the current value, re-evaluated on every keystroke or date pick (#218: the
@@ -88,7 +89,7 @@ let nextFieldId = 0;
 /** The body of `Sheet.confirm()`: warning, message, points, note, optional field, error, Cancel (focused first), Confirm. */
 @Component({
   selector: 'tc-confirm-dialog',
-  imports: [Button, Icon, TranslocoPipe],
+  imports: [Button, Icon, SheetFooter, TranslocoPipe],
   template: `
     @if (options.warning) {
       <p class="tc-confirm__warning"><tc-icon name="alert" size="sm" />{{ options.warning }}</p>
@@ -150,16 +151,8 @@ let nextFieldId = 0;
     @if (failure(); as message) {
       <p class="tc-confirm__error" role="alert"><tc-icon name="alert" size="sm" />{{ message }}</p>
     }
-    <div class="tc-confirm__actions tc-dialog-actions">
-      <button
-        tc-button
-        type="button"
-        class="tc-confirm__cancel"
-        [attr.aria-disabled]="running() ? 'true' : null"
-        (click)="cancel()"
-      >
-        {{ options.cancelLabel || ('ui.confirm.cancel' | transloco) }}
-      </button>
+    <!-- In the frame's footer, so Cancel and Confirm stay in view however long the text is (#274). -->
+    <ng-template tcSheetFooter>
       <button
         tc-button
         type="button"
@@ -177,7 +170,16 @@ let nextFieldId = 0;
           {{ checked()?.confirmLabel || options.confirmLabel || ('ui.confirm.ok' | transloco) }}
         }
       </button>
-    </div>
+      <button
+        tc-button
+        type="button"
+        class="tc-confirm__cancel"
+        [attr.aria-disabled]="running() ? 'true' : null"
+        (click)="cancel()"
+      >
+        {{ options.cancelLabel || ('ui.confirm.cancel' | transloco) }}
+      </button>
+    </ng-template>
   `,
   styleUrl: './confirm-dialog.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
