@@ -54,6 +54,17 @@
   color: var(--accent);
 }
 
+/* The environment chip (#237) speaks in the UI face, not the brand's serif; where the name leaves no room it takes
+   the next line instead of breaking the name. */
+.shell__brand:has(tc-environment-mark tc-chip) {
+  flex-wrap: wrap;
+  row-gap: var(--space-1);
+}
+
+.shell__brand tc-environment-mark {
+  font-family: var(--font-body);
+}
+
 .shell__top,
 .shell__foot {
   display: grid;

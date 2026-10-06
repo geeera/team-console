@@ -164,6 +164,8 @@ test.describe('with two active projects', () => {
       'GET /api/v1/projects/team-console/artifacts',
       // `/chat` is a placeholder until #17 ships (#203): it redirects to Questions, which reads its own list.
       'GET /api/v1/projects/team-console/questions',
+      // The app's environment for the window title, the iOS Home Screen title and the shell mark (#237), once per load.
+      'GET /api/v1/healthz',
     ]);
     const seen = sent.map((request) => `${request.method()} ${new URL(request.url()).pathname}`);
     expect(

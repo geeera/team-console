@@ -9,6 +9,7 @@ import { createBatchAnswerRoutes } from './routes/batch-answer';
 import { createGitHubConnectionRoutes } from './routes/github-connection';
 import { createInstallationRepositoriesRoutes } from './routes/installation-repositories';
 import { healthzRoutes } from './routes/healthz';
+import { appIdentityRoutes } from './routes/app-identity';
 import { connectedOwnerSource, type OwnerConnectionSource } from './projects/owner-connection';
 import { createProjectRegistryRoutes } from './routes/project-registry';
 import { createProjectsRoutes } from './routes/projects';
@@ -61,6 +62,10 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   });
   const github = options.github ?? new ApiGitHub();
   const owners = options.ownerConnection ?? connectedOwnerSource(github);
+
+  // The manifest and the icons index.html links to, per ENVIRONMENT (#237); outside /api, so no auth middleware —
+  // Access in front of the whole origin still covers them.
+  app.route('/', appIdentityRoutes);
 
   // The only auth seam, mounted once before every router; the route-inventory test in auth.middleware.spec.ts
   // proves every /api route sits behind it. Hono's '/api/*' also matches '/api' itself.

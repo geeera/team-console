@@ -19,6 +19,7 @@ import { ProjectSwitcher } from '@console/features/project-switcher';
 import { LocalNumberPipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { PersistedStateStore, scrollKeyOf } from '@console/shared/persisted-state';
 import { AppBadge } from '@console/shared/platform';
+import { EnvironmentMark } from '@console/entities/app-info';
 import {
   BREAKPOINTS,
   Button,
@@ -48,6 +49,7 @@ import { shellAreaOf } from './shell-location';
   imports: [
     Button,
     Chip,
+    EnvironmentMark,
     Icon,
     IconButton,
     List,
