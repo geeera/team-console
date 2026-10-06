@@ -5,26 +5,31 @@ import { ru } from './support/i18n';
 import { seed, type Stack } from './support/stack';
 
 /**
- * One scroll at a time (#274), at 390×844 (iphone) and 1440×900 (desktop): no screen of the console scrolls a region
- * inside another one that moves with it, and with a dialog open only that dialog's body scrolls — the page and any
- * sheet underneath hold still. The «Попросить PM» form fits the screen with its title and actions in view.
+ * One scroll at a time (#274, root cause in the #275 spec), at 390×844 (iphone) and 1440×900 (desktop): every screen
+ * scrolls the document and nothing else — not `<main>`, never a scroll inside a scroll — so the iPhone's status-bar
+ * tap reaches the top; with a dialog open only that dialog's body scrolls, while the page and any sheet underneath
+ * hold still. The «Попросить PM» form fits the screen with its title and actions in view.
  *
  * A scroll region is an element with `overflow: auto|scroll` whose content is larger than its box, or the document
- * when it overflows. A region inside another is allowed only when it is pinned to the viewport (sticky or fixed and
- * no taller than the screen) — the Commands pane beside a wide page — because it never moves with the outer scroll.
+ * when it overflows. Besides the document only a column pinned to the viewport may scroll (sticky or fixed and no
+ * taller than the screen: the Commands pane beside a wide page), because it never moves with the page.
  */
 
 const REPO = 'geeera/team-console';
 const ISSUE = 36;
 const TODAY = calendarDayOf(Date.now());
 
+const STORYBOOK = 'https://team-console-storybook.pages.dev';
+
+/** `isTall`: long enough with the seeded data that the document itself must scroll. */
 const SCREENS = [
-  '/needs-you',
-  '/overview',
-  '/p/team-console/questions',
-  '/p/team-console/board',
-  '/p/team-console/artifacts',
-  '/settings',
+  { path: '/needs-you', isTall: true },
+  { path: '/overview', isTall: false },
+  { path: '/p/team-console/questions', isTall: true },
+  { path: '/p/team-console/demo', isTall: true },
+  { path: '/p/team-console/board', isTall: true },
+  { path: '/p/team-console/artifacts', isTall: true },
+  { path: '/settings', isTall: false },
 ] as const;
 
 interface ScrollRegion {
@@ -83,11 +88,27 @@ function scrollRegionsOf(): ScrollRegion[] {
   });
 }
 
-async function nestedScrollsOf(page: Page): Promise<string[]> {
+/** Everything that scrolls with the page besides the document itself; empty when the document is the one scroll. */
+async function strayScrollsOf(page: Page): Promise<string[]> {
   const regions = await page.evaluate(scrollRegionsOf);
   return regions
-    .filter((region) => region.inside !== null && !region.isPinned)
-    .map((region) => `${region.name} inside ${region.inside ?? ''}`);
+    .filter((region) => region.name !== 'document' && !region.isPinned)
+    .map((region) => (region.inside === null ? region.name : `${region.name} inside ${region.inside}`));
+}
+
+const documentScrolls = (page: Page): Promise<boolean> =>
+  page.evaluate(() => document.documentElement.scrollHeight > document.documentElement.clientHeight);
+
+/** Answers the Storybook embed of the demo section locally instead of the internet. */
+async function servePreviews(page: Page, allow: (origin: string) => void): Promise<void> {
+  allow(STORYBOOK);
+  await page.route(`${STORYBOOK}/**`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/html; charset=utf-8',
+      body: '<!doctype html><html lang="en"><head><title>Storybook</title></head><body><main><h1>Storybook preview</h1></main></body></html>',
+    }),
+  );
 }
 
 async function fakePost(stack: Stack, path: string, body: unknown): Promise<void> {
@@ -158,13 +179,28 @@ test.afterAll(async ({ stack }) => {
   }
 });
 
-for (const path of SCREENS) {
-  test(`${path} scrolls in one place, never a scroll inside a scroll`, async ({ page }) => {
+for (const { path, isTall } of SCREENS) {
+  test(`${path} scrolls the document only, never a scroll inside a scroll`, async ({
+    page,
+    outsideRequests,
+  }) => {
+    await servePreviews(page, (origin) => outsideRequests.allow(origin));
     await page.goto(path);
     await expect(page.locator('main#tc-main')).toBeVisible();
     // Lists arrive after the shell: wait until the page has stopped growing.
     await page.waitForLoadState('networkidle');
-    expect(await nestedScrollsOf(page)).toEqual([]);
+    expect(await strayScrollsOf(page)).toEqual([]);
+    if (isTall) {
+      expect(await documentScrolls(page), 'a long screen scrolls the document').toBe(true);
+      // What the status-bar tap does on the iPhone: the document goes to the top, and the whole page with it.
+      await page.evaluate(() => window.scrollTo({ top: 400 }));
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(400);
+      await page.evaluate(() => window.scrollTo({ top: 0 }));
+      await expect(page.locator('main#tc-main')).toBeInViewport();
+      expect(
+        await page.locator('main#tc-main').evaluate((element) => element.getBoundingClientRect().top),
+      ).toBeLessThan(200);
+    }
   });
 }
 
@@ -174,7 +210,7 @@ test('the Commands pane beside a page is a pinned column, not a scroll inside th
   await page.getByTestId('commands-open').click();
   await expect(page.getByTestId('issues-group')).toBeVisible();
   await page.waitForLoadState('networkidle');
-  expect(await nestedScrollsOf(page)).toEqual([]);
+  expect(await strayScrollsOf(page)).toEqual([]);
 });
 
 test('«Попросить PM» fits the screen: title and actions in view, only its body scrolls, the page is locked', async ({
@@ -182,8 +218,7 @@ test('«Попросить PM» fits the screen: title and actions in view, only
 }) => {
   await page.goto('/p/team-console/questions');
   await page.waitForLoadState('networkidle');
-  const main = page.locator('main#tc-main');
-  await main.evaluate((element) => element.scrollTo({ top: 400 }));
+  await page.evaluate(() => window.scrollTo({ top: 400 }));
   await openRequestForm(page);
   const form = dialog(page);
   // The sheet rises from below the screen: measure where it settles.
@@ -204,12 +239,14 @@ test('«Попросить PM» fits the screen: title and actions in view, only
   ).toEqual([]);
   expect(regions.every((region) => region.name === 'div.tc-sheet__body')).toBe(true);
 
-  // The page behind holds its place: locked, and a wheel over the scrim moves nothing.
-  const scrolledTo = await main.evaluate((element) => element.scrollTop);
-  await expect(main).toHaveCSS('overflow-y', 'hidden');
+  // The page behind holds its place: a wheel over the scrim moves nothing.
+  const pageTop = (): Promise<number> =>
+    page.evaluate(() => document.querySelector('main')?.getBoundingClientRect().top ?? NaN);
+  const before = await pageTop();
   await page.mouse.move(5, 5);
   await page.mouse.wheel(0, 600);
-  expect(await main.evaluate((element) => element.scrollTop)).toBe(scrolledTo);
+  await page.waitForTimeout(300);
+  expect(await pageTop()).toBe(before);
   await expectAccessible(page, 'Ask the PM form, fitted to the screen');
 
   // Sending from the footer still submits the form: the button names it.
@@ -221,5 +258,8 @@ test('«Попросить PM» fits the screen: title and actions in view, only
   // Every sheet closed (the phone's Commands sheet too): the page scrolls again.
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(main).toHaveCSS('overflow-y', 'auto');
+  expect(await documentScrolls(page)).toBe(true);
+  await page.evaluate(() => window.scrollTo({ top: 0 }));
+  await page.mouse.wheel(0, 300);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 });

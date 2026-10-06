@@ -1,4 +1,9 @@
-import { COVERED_PANE_CLASS, SCROLL_LOCK_ATTRIBUTE, SheetScrollLocks } from './sheet-scroll-lock';
+import {
+  COVERED_PANE_CLASS,
+  isPageScrollLocked,
+  SCROLL_LOCK_ATTRIBUTE,
+  SheetScrollLocks,
+} from './sheet-scroll-lock';
 
 describe('SheetScrollLocks', () => {
   const pane = (): HTMLElement => document.createElement('div');
@@ -41,5 +46,15 @@ describe('SheetScrollLocks', () => {
     expect(a.classList.contains(COVERED_PANE_CLASS)).toBe(false);
     locks.unlock(a);
     expect(root.hasAttribute(SCROLL_LOCK_ATTRIBUTE)).toBe(false);
+  });
+
+  it('reports the lock on the document while a pane holds it', () => {
+    const locks = new SheetScrollLocks(document.documentElement);
+    const a = pane();
+    expect(isPageScrollLocked(document)).toBe(false);
+    locks.lock(a);
+    expect(isPageScrollLocked(document)).toBe(true);
+    locks.unlock(a);
+    expect(isPageScrollLocked(document)).toBe(false);
   });
 });

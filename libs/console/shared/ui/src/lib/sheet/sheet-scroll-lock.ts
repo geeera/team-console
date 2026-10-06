@@ -2,12 +2,21 @@ import type { OverlayRef, ScrollStrategy } from '@angular/cdk/overlay';
 
 /** Set on the root element while any sheet or dialog is open; `overlay.css` stops every `.tc-page-scroll` then. */
 export const SCROLL_LOCK_ATTRIBUTE = 'data-tc-scroll-lock';
+/**
+ * Whether a sheet or dialog holds the page still. While it does, the document's scroll position is the lock's (the
+ * CDK pins `<html>` and resets it), not the owner's: a screen that remembers its position must not record it.
+ */
+export function isPageScrollLocked(document: Document): boolean {
+  return document.documentElement.hasAttribute(SCROLL_LOCK_ATTRIBUTE);
+}
+
 /** Set on the pane of every open sheet but the top one, so only the top body scrolls. */
 export const COVERED_PANE_CLASS = 'tc-overlay-covered';
 
 /**
- * The open sheets, oldest first, for one document. The console scrolls its pages in the app shell's `<main>`, not
- * the document, so the CDK's block strategy alone leaves the page behind a dialog scrollable (#274).
+ * The open sheets, oldest first, for one document. The CDK's block strategy pins the document; this also stops the
+ * columns that scroll beside it (`.tc-page-scroll`: the sidebar, the Commands pane) and every sheet under the top
+ * one, so only the top body scrolls (#274).
  */
 export class SheetScrollLocks {
   private readonly panes: HTMLElement[] = [];

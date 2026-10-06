@@ -17,7 +17,7 @@ import { of } from 'rxjs';
 import { AppShell } from './app-shell';
 import { shellAreaOf } from './shell-location';
 
-// jsdom does no layout: the scroll position is faked on `<main>` below instead of by tall content.
+// jsdom does no layout: the document's scroll position is faked below instead of by tall content.
 @Component({ template: '<div></div>' })
 class Tall {}
 
@@ -38,7 +38,6 @@ describe('AppShell', () => {
   let state: PersistedStateStore;
 
   const root = (): HTMLElement => fixture.nativeElement as HTMLElement;
-  const main = (): HTMLElement => root().querySelector('main') as HTMLElement;
 
   async function setup(wide: boolean, stored = JSON.stringify(emptyPersistedState())) {
     await TestBed.configureTestingModule({
@@ -145,17 +144,47 @@ describe('AppShell', () => {
     expect(state.activeSlug()).toBe('a');
     expect(state.projectState('a')?.lastPath).toBe('questions');
 
-    Object.defineProperty(main(), 'scrollTop', { value: 420, writable: true, configurable: true });
-    main().dispatchEvent(new Event('scroll'));
-    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
-    expect(state.scrollOf('a', 'questions')).toBe(420);
+    // Only the document scrolls (#274): the position is the document's, recorded on the window's scroll.
+    const page = document.scrollingElement ?? document.documentElement;
+    Object.defineProperty(page, 'scrollTop', { value: 420, writable: true, configurable: true });
+    try {
+      window.dispatchEvent(new Event('scroll'));
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+      expect(state.scrollOf('a', 'questions')).toBe(420);
 
-    await router.navigateByUrl('/needs-you');
-    await fixture.whenStable();
-    expect(main().scrollTop).toBe(0);
+      await router.navigateByUrl('/needs-you');
+      await fixture.whenStable();
+      expect(page.scrollTop).toBe(0);
 
+      await router.navigateByUrl('/p/a/questions');
+      await fixture.whenStable();
+      expect(page.scrollTop).toBe(420);
+    } finally {
+      delete (page as { scrollTop?: number }).scrollTop;
+    }
+  });
+
+  it('does not record the position a sheet pins the page at', async () => {
+    await setup(true);
     await router.navigateByUrl('/p/a/questions');
     await fixture.whenStable();
-    expect(main().scrollTop).toBe(420);
+    const page = document.scrollingElement ?? document.documentElement;
+    const frame = (): Promise<unknown> => new Promise((resolve) => requestAnimationFrame(resolve));
+    Object.defineProperty(page, 'scrollTop', { value: 420, writable: true, configurable: true });
+    try {
+      window.dispatchEvent(new Event('scroll'));
+      await frame();
+      expect(state.scrollOf('a', 'questions')).toBe(420);
+
+      // A sheet opens: the CDK pins <html> and its scroll position reads 0 until the sheet closes.
+      page.setAttribute('data-tc-scroll-lock', '');
+      page.scrollTop = 0;
+      window.dispatchEvent(new Event('scroll'));
+      await frame();
+      expect(state.scrollOf('a', 'questions')).toBe(420);
+    } finally {
+      page.removeAttribute('data-tc-scroll-lock');
+      delete (page as { scrollTop?: number }).scrollTop;
+    }
   });
 });

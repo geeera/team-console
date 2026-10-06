@@ -14,7 +14,7 @@ export interface ArtifactFilter {
 export interface ProjectUiState {
   /** Relative to `/p/{slug}/`, e.g. `artifacts?type=decisions`; empty until the space was visited. */
   readonly lastPath: string;
-  /** Scroll top of the shell's `<main>` per screen, keyed by `scrollKeyOf(lastPath)`. */
+  /** Scroll top of the document (the one scroll, #274) per screen, keyed by `scrollKeyOf(lastPath)`. */
   readonly scroll: Readonly<Record<string, number>>;
   readonly chatDraft: string;
   readonly artifactFilter?: ArtifactFilter;
