@@ -165,7 +165,12 @@ All projects (#27, read-only): `GET /api/v1/overview` (`routes/overview.ts`) bui
 same cached reads (`buildOverviewRow` in `@worker/read-models`; team state by `team/team-health.ts` from the run log's
 latest 200 comments, cached 30 s) under a per-request `SubrequestBudget` (44 GitHub subrequests; a project it cannot
 finish is its own `github-request-budget` row). Console: `OverviewApi` in `@console/entities/project`, page
-`console-pages-overview` (tiles link to `/p/:slug/board`); kit `Meter`.
+`console-pages-overview` (tiles link to `/p/:slug/board`); kit `Meter`. Commands from All projects (#222): every card's
+"Commands for {name}" button (the tile's `[tc-tile-actions]` slot) opens the same `@console/widgets/commands-panel` —
+`CommandsPane` beside the page on a wide screen (also the space's pane), `CommandsSheet` on the phone; K on a focused
+card (`isCommandsShortcut`, shared with the space) opens it for that card, closing returns focus to the card's button.
+`OverviewProjectReadDto.snooze` (D1, `snoozeOf`) feeds the card's struck-bell line and is pushed into
+`ProjectsStore.applySnooze`, which the cards then read, so a snooze changed from the panel shows at once.
 
 Repositories from GitHub (#194, ADR 0003 decisions 2(a)/6 as amended): `GET /api/v1/github/installation/repositories[?fresh=1]`
 (`routes/installation-repositories.ts`, a read mounted before the owner-only connection routes) → 403 `github-owner-not-connected`
@@ -280,11 +285,15 @@ E2e (#14): `npx nx e2e console-e2e` (builds first; browsers once with `npx playw
 Projects `iphone` (Chromium, 390 px), `desktop` (1440 px), `iphone-webkit` (the demo path only). Each Playwright
 worker starts its own stack in `apps/console-e2e/src/stack/local-stack.ts` — the fake GitHub plus the Docker image's
 command (`wrangler dev dist/apps/api/main.js`, fresh local D1, mock mode) wired to it — and specs call
-`stack.reset()` / `seed()` for a fresh database; logs in `tmp/console-e2e/worker-N/`. `E2E_PORT_BASE=<port>` packs each worker into three ports from there (api, fake GitHub, fake push; inspectors on system-picked ports) for runs beside other local stacks. Specs live in `src/*.e2e.ts`, find
+`stack.reset()` / `seed()` for a fresh database; logs in `tmp/console-e2e/worker-<workerIndex>/` (one directory per Playwright worker process, cleared once per run; each `wrangler dev` lifetime is appended between `===` marker lines, wrangler's own debug log sits beside it as `*.wrangler-debug.log`, and a test fails with the reason when a stack server crashed or exited while it ran, #230). `E2E_PORT_BASE=<port>` packs each worker into three ports from there (api, fake GitHub, fake push; inspectors on system-picked ports) for runs beside other local stacks. Specs live in `src/*.e2e.ts`, find
 controls through `ru()` (the ru.json copy) and `data-testid`, wait on conditions only, and fail on any request off the
 app origin, any uncaught page error and any serious/critical axe violation (`expectAccessible`). `BASE_URL` (+
 `CF_ACCESS_CLIENT_ID/SECRET` for stage) runs the suite against a running target; specs that reset data or need the
 fake GitHub skip themselves there, `smoke.e2e.ts` is the read-only part.
 Worker tests run in workerd through `@cloudflare/vitest-pool-workers` (`SELF.fetch`, an isolated in-memory D1
 migrated in `src/test-setup.ts`); `apps/api/test-assets` stands in for the Angular build. `wrangler`,
-`@cloudflare/vitest-pool-workers` and `compatibility_date` move together (one workerd for dev, Docker and tests).
+`@cloudflare/vitest-pool-workers` and `compatibility_date` move together (one workerd for dev, Docker and tests) —
+one exception (#230): `wrangler` is 4.130.0 for `wrangler dev` (e2e, Docker, `nx build`), the first release where a
+dropped dev-proxy connection no longer kills the dev server, while `@cloudflare/vitest-pool-workers` 0.22.0 (the
+latest release) keeps its own nested wrangler 4.124.0 and `deploy.yml` still pins 4.124.0. Realign when a pool
+release catches up.

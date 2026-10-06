@@ -434,6 +434,8 @@
     "pending": "Not loaded yet: it didn’t fit into one request",
     "done": "{{done}} of {{total}} done",
     "setup": "Setup needed",
+    "snoozed": "notifications snoozed",
+    "snoozedUntil": "notifications snoozed until {{until}}",
     "problem": {
       "lead": "Couldn’t read it: {{reason}}",
       "github-app-not-installed": "the console app is not installed on the repository",
