@@ -1,12 +1,14 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import {
+  isSnoozeDto,
   isTeamRunState,
   problemSlugOf,
   type OverviewDto,
   type OverviewProjectDto,
   type OverviewSprintDto,
   type OverviewTeamState,
+  type SnoozeDto,
 } from '@shared/contracts';
 import { firstValueFrom } from 'rxjs';
 
@@ -59,7 +61,8 @@ function isOverviewProject(value: unknown): value is OverviewProjectDto {
     Array.isArray(value['needsYou']) &&
     value['needsYou'].every(isIssueNumber) &&
     typeof value['setup'] === 'boolean' &&
-    (value['setupUrl'] === null || typeof value['setupUrl'] === 'string')
+    (value['setupUrl'] === null || typeof value['setupUrl'] === 'string') &&
+    isSnoozeDto(value['snooze'])
   );
 }
 
@@ -82,6 +85,8 @@ export type OverviewProject =
       readonly sprint: OverviewSprintDto | null;
       readonly needsYou: readonly number[];
       readonly setup: boolean;
+      /** As the Worker read it; the page stops showing it once `until` passes (`isSnoozeActive`). */
+      readonly snooze: SnoozeDto;
     }
   | {
       readonly kind: 'failed';
@@ -108,6 +113,7 @@ function overviewProjectOf(dto: OverviewProjectDto): OverviewProject {
     sprint: dto.sprint,
     needsYou: dto.needsYou,
     setup: dto.setup,
+    snooze: dto.snooze,
   };
 }
 

@@ -24,7 +24,7 @@
   >
     <tc-icon name="sliders" size="sm" />
     {{ 'commands.open' | transloco }}
-    <kbd class="space__kbd" aria-hidden="true">K</kbd>
+    <kbd class="tc-kbd" aria-hidden="true">K</kbd>
   </button>
   } @else {
   <!-- The phone: in the shell's top bar, as the design places it. -->
@@ -50,13 +50,7 @@
 <div class="space__main">
   <div class="space__body"><router-outlet /></div>
   @if (isPaneOpen()) {
-  <aside
-    id="tc-space-commands"
-    class="space__pane"
-    [attr.aria-label]="'commands.title' | transloco: { name: commandsProject().name }"
-  >
-    <tc-commands-panel mode="pane" [project]="commandsProject()" (closed)="closePane()" />
-  </aside>
+  <tc-commands-pane id="tc-space-commands" [project]="commandsProject()" (closed)="closePane()" />
   }
 </div>
 

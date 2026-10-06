@@ -50,7 +50,7 @@
   } @if (attention().length > 0) {
   <ul class="overview__grid" [attr.aria-label]="'overview.listLabel' | transloco" data-testid="overview-list">
     @for (row of attention(); track row.project.slug) {
-    <li><tc-overview-tile [project]="row.project" [waiting]="row.waiting" /></li>
+    <ng-container *ngTemplateOutlet="tile; context: { $implicit: row, isQuiet: false }" />
     }
   </ul>
   } @if (quiet().length > 0) {
@@ -59,10 +59,63 @@
   </h2>
   <ul class="overview__grid" aria-labelledby="overview-quiet" data-testid="overview-quiet">
     @for (row of quiet(); track row.project.slug) {
-    <li><tc-overview-tile class="ov--quiet" [project]="row.project" [waiting]="row.waiting" /></li>
+    <ng-container *ngTemplateOutlet="tile; context: { $implicit: row, isQuiet: true }" />
     }
   </ul>
   } }
 
   <tc-github-repositories-block />
 </div>
+
+@if (paneProject(); as project) {
+<tc-commands-pane id="tc-overview-commands" [project]="project" (closed)="closePane()" />
+}
+
+<!-- One card: the tile, and its own Commands (#222) opening the same panel as the space's. -->
+<ng-template #tile let-row let-isQuiet="isQuiet">
+  <li>
+    <tc-overview-tile
+      [class.ov--quiet]="isQuiet"
+      [attr.data-card-slug]="row.project.slug"
+      [project]="row.project"
+      [waiting]="row.waiting"
+      [snooze]="row.snooze"
+      [now]="now()"
+    >
+      <div tc-tile-actions class="overview__acts">
+        @if (isPhone()) {
+        <button
+          tc-button
+          size="sm"
+          type="button"
+          data-testid="commands-for"
+          aria-haspopup="dialog"
+          [attr.data-commands-for]="row.project.slug"
+          [attr.aria-label]="'commands.openAria' | transloco: { name: row.project.name }"
+          (click)="toggleCommands(row.project)"
+        >
+          <tc-icon name="sliders" size="sm" />
+          {{ 'commands.open' | transloco }}
+        </button>
+        } @else {
+        <button
+          tc-button
+          size="sm"
+          type="button"
+          data-testid="commands-for"
+          aria-keyshortcuts="K"
+          [attr.data-commands-for]="row.project.slug"
+          [attr.aria-label]="'commands.openAria' | transloco: { name: row.project.name }"
+          [attr.aria-expanded]="openSlug() === row.project.slug"
+          [attr.aria-controls]="openSlug() === row.project.slug ? 'tc-overview-commands' : null"
+          (click)="toggleCommands(row.project)"
+        >
+          <tc-icon name="sliders" size="sm" />
+          {{ 'commands.open' | transloco }}
+          <kbd class="tc-kbd" aria-hidden="true">K</kbd>
+        </button>
+        }
+      </div>
+    </tc-overview-tile>
+  </li>
+</ng-template>

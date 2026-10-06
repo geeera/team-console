@@ -165,7 +165,12 @@ All projects (#27, read-only): `GET /api/v1/overview` (`routes/overview.ts`) bui
 same cached reads (`buildOverviewRow` in `@worker/read-models`; team state by `team/team-health.ts` from the run log's
 latest 200 comments, cached 30 s) under a per-request `SubrequestBudget` (44 GitHub subrequests; a project it cannot
 finish is its own `github-request-budget` row). Console: `OverviewApi` in `@console/entities/project`, page
-`console-pages-overview` (tiles link to `/p/:slug/board`); kit `Meter`.
+`console-pages-overview` (tiles link to `/p/:slug/board`); kit `Meter`. Commands from All projects (#222): every card's
+"Commands for {name}" button (the tile's `[tc-tile-actions]` slot) opens the same `@console/widgets/commands-panel` —
+`CommandsPane` beside the page on a wide screen (also the space's pane), `CommandsSheet` on the phone; K on a focused
+card (`isCommandsShortcut`, shared with the space) opens it for that card, closing returns focus to the card's button.
+`OverviewProjectReadDto.snooze` (D1, `snoozeOf`) feeds the card's struck-bell line and is pushed into
+`ProjectsStore.applySnooze`, which the cards then read, so a snooze changed from the panel shows at once.
 
 Repositories from GitHub (#194, ADR 0003 decisions 2(a)/6 as amended): `GET /api/v1/github/installation/repositories[?fresh=1]`
 (`routes/installation-repositories.ts`, a read mounted before the owner-only connection routes) → 403 `github-owner-not-connected`
