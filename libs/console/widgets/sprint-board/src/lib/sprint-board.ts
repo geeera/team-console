@@ -29,6 +29,7 @@ import {
   TEAM_RUN_ICONS,
   UnexpectedSprintResponse,
 } from '@console/entities/sprint';
+import { SprintControls } from '@console/features/sprint-controls';
 import { httpProblemOf } from '@console/shared/api';
 import {
   localDayOf,
@@ -38,7 +39,7 @@ import {
   TranslocoPipe,
   TranslocoService,
 } from '@console/shared/i18n';
-import { Button, Chip, Icon, Lane, Lanes, Stat, Stats, StatTone, StateBlock } from '@console/shared/ui';
+import { Button, Chip, Icon, Lane, Lanes, Stat, Stats, StatTone, StateBlock, Toaster } from '@console/shared/ui';
 
 /** Without a usable `Retry-After` on a 429 (missing, invalid or 0), the board waits this long before it asks again. */
 export const DEFAULT_RETRY_SECONDS = 60;
@@ -109,6 +110,8 @@ export class SprintBoard {
   private readonly api = inject(SprintApi);
   private readonly transloco = inject(TranslocoService);
   private readonly errors = inject(ErrorHandler);
+  private readonly sprintControls = inject(SprintControls);
+  private readonly toaster = inject(Toaster);
 
   readonly project = input.required<SprintBoardProject>();
 
@@ -117,6 +120,8 @@ export class SprintBoard {
   protected readonly tiers = SPRINT_TIERS;
   /** The lane shown on the phone; kept here so a refresh (Retry, the 429 retry) keeps the owner's lane. */
   protected readonly selectedLane = signal<string | null>(null);
+  /** The Move demo dialog is open or its answer is on its way: a second press waits. */
+  protected readonly isMovingDemo = signal(false);
   private readonly lang = toSignal(this.transloco.langChanges$, {
     initialValue: this.transloco.getActiveLang(),
   });
@@ -191,6 +196,30 @@ export class SprintBoard {
       this.loadToken += 1;
       this.clearRetry();
     });
+  }
+
+  /**
+   * "Move demo" by the sprint title (#218): the Commands panel's dialog, answered with a toast because the panel and
+   * its result note are not on screen; the board reads the sprint again once the date moved.
+   */
+  protected async moveDemo(): Promise<void> {
+    if (this.isMovingDemo()) {
+      return;
+    }
+    this.isMovingDemo.set(true);
+    try {
+      const outcome = await this.sprintControls.moveDemo({
+        slug: this.project().slug,
+        name: this.project().name,
+      });
+      if (outcome === null) {
+        return;
+      }
+      this.toaster.show([outcome.verb, outcome.detail].filter((text) => text !== null).join('. '));
+      await this.load(this.project().slug, true);
+    } finally {
+      this.isMovingDemo.set(false);
+    }
   }
 
   /** Retry: the owner's action, so it may earn one more automatic retry. */

@@ -6,6 +6,10 @@
  * Issue threads (#114): an issue seeded with `seedIssue` is served like a public repository's — `GET` of the issue,
  * its comments and the repository need no token — and takes labels (`POST …/labels`, `DELETE …/labels/{name}`) and
  * comments from a live owner token, so the run log can be paused, resumed and read back in one place.
+ *
+ * Milestones (#218): a repository seeded with `seedMilestones` lists them like a public repository's
+ * (`GET …/milestones?state=`, sorted by due date as GitHub does) and takes `POST …/milestones` and
+ * `PATCH …/milestones/{number}` from a live owner token; a title already taken is GitHub's 422 `already_exists`.
  */
 
 export interface FakeUser {
@@ -22,7 +26,8 @@ export type FakeFault =
   | 'user-unavailable'
   | 'authorize-denied'
   | 'comment-token-rejected'
-  | 'comment-unavailable';
+  | 'comment-unavailable'
+  | 'milestone-unavailable';
 
 /** A comment the owner's token wrote (`POST /repos/{owner}/{repo}/issues/{n}/comments`). */
 export interface FakeComment {
@@ -94,6 +99,32 @@ export interface FakeThreadCommentSeed {
   readonly updatedAt?: number;
 }
 
+/** A milestone the fake serves (#218); `number` is assigned in seed order when left out. */
+export interface FakeMilestoneSeed {
+  readonly number?: number;
+  readonly title: string;
+  readonly state?: 'open' | 'closed';
+  /** As GitHub stores it, e.g. `2026-10-14T12:00:00Z`; `null` without a due date. */
+  readonly dueOn: string | null;
+}
+
+export interface FakeMilestone {
+  readonly number: number;
+  title: string;
+  state: 'open' | 'closed';
+  dueOn: string | null;
+}
+
+/** A milestone write as it arrived, the raw JSON body included (byte-for-byte assertions). */
+export interface FakeMilestoneWrite {
+  readonly method: 'POST' | 'PATCH';
+  readonly repo: string;
+  /** The milestone a PATCH addressed; `null` for a POST. */
+  readonly number: number | null;
+  readonly body: string;
+  readonly author: string;
+}
+
 interface FakeIssue {
   readonly seed: FakeIssueSeed;
   readonly labels: string[];
@@ -105,6 +136,7 @@ const COMMENTS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/([0-9]+)\/comments$/;
 const ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/([0-9]+)$/;
 const LABELS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/([0-9]+)\/labels(?:\/([^/]+))?$/;
 const REPO_PATH = /^\/repos\/([^/]+)\/([^/]+)$/;
+const MILESTONES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/milestones(?:\/([0-9]+))?$/;
 
 /** GitHub's second-precision timestamps. */
 function githubTime(ms: number): string {
@@ -143,6 +175,8 @@ export class FakeGitHubOAuth {
   private nextGrant = 1;
   private readonly now: () => number;
   private readonly issues = new Map<string, FakeIssue>();
+  private readonly milestones = new Map<string, FakeMilestone[]>();
+  readonly milestoneWrites: FakeMilestoneWrite[] = [];
 
   constructor(private readonly options: FakeGitHubOAuthOptions) {
     this.now = options.now ?? (() => Date.now());
@@ -216,6 +250,22 @@ export class FakeGitHubOAuth {
     return id;
   }
 
+  /** Serves `seeds` as the repository's milestones (#218); seeding again replaces them. */
+  seedMilestones(repo: string, seeds: readonly FakeMilestoneSeed[]): void {
+    let next = 1;
+    const list = seeds.map((seed): FakeMilestone => {
+      const number = seed.number ?? next;
+      next = Math.max(next, number) + 1;
+      return { number, title: seed.title, state: seed.state ?? 'open', dueOn: seed.dueOn };
+    });
+    this.milestones.set(repo.toLowerCase(), list);
+  }
+
+  /** The repository's milestones as they are now, for assertions; empty when none were seeded. */
+  milestonesOf(repo: string): readonly FakeMilestone[] {
+    return this.milestones.get(repo.toLowerCase()) ?? [];
+  }
+
   /** The labels of a seeded issue, for assertions. */
   labelsOf(repo: string, number: number): readonly string[] {
     return this.issues.get(`${repo.toLowerCase()}#${number}`)?.labels ?? [];
@@ -251,6 +301,15 @@ export class FakeGitHubOAuth {
     const comments = COMMENTS_PATH.exec(url.pathname);
     if (url.origin === 'https://api.github.com' && request.method === 'POST' && comments !== null) {
       return this.commentEndpoint(request, `${comments[1] ?? ''}/${comments[2] ?? ''}`, Number(comments[3]));
+    }
+    const milestones = MILESTONES_PATH.exec(url.pathname);
+    if (url.origin === 'https://api.github.com' && milestones !== null) {
+      return this.milestonesEndpoint(
+        request,
+        url,
+        `${milestones[1] ?? ''}/${milestones[2] ?? ''}`,
+        milestones[3] === undefined ? null : Number(milestones[3]),
+      );
     }
     if (url.origin === 'https://api.github.com') {
       const thread = await this.threadEndpoint(request, url);
@@ -427,6 +486,96 @@ export class FakeGitHubOAuth {
           });
     }
     return null;
+  }
+
+  /** Milestone reads (no token, like a public repository) and owner writes; 404 for a repository never seeded. */
+  private async milestonesEndpoint(
+    request: Request,
+    url: URL,
+    repo: string,
+    number: number | null,
+  ): Promise<Response> {
+    const list = this.milestones.get(repo.toLowerCase());
+    if (list === undefined) {
+      return json(404, { message: 'Not Found' });
+    }
+    const method = request.method;
+    if (method === 'GET' && number === null) {
+      const state = url.searchParams.get('state') ?? 'open';
+      // GitHub's default order: by due date, ascending; milestones without one last.
+      const items = list
+        .filter((milestone) => state === 'all' || milestone.state === state)
+        .sort((a, b) => (a.dueOn ?? '\uffff').localeCompare(b.dueOn ?? '\uffff'))
+        .map((milestone) => this.milestoneJson(repo, milestone));
+      return json(200, items);
+    }
+    if (method === 'GET') {
+      const found = list.find((milestone) => milestone.number === number);
+      return found === undefined ? json(404, { message: 'Not Found' }) : json(200, this.milestoneJson(repo, found));
+    }
+    if ((method === 'POST' && number === null) || (method === 'PATCH' && number !== null)) {
+      const grant = this.grantOfBearer(request);
+      if (grant === undefined) {
+        return json(401, { message: 'Bad credentials' });
+      }
+      if (this.takeFault('milestone-unavailable')) {
+        return json(502, { message: 'unavailable' });
+      }
+      const raw = await request.text();
+      this.milestoneWrites.push({ method, repo, number, body: raw, author: grant.user.login });
+      let body: { title?: unknown; due_on?: unknown; state?: unknown };
+      try {
+        body = JSON.parse(raw) as typeof body;
+      } catch {
+        return json(400, { message: 'Problems parsing JSON' });
+      }
+      const dueOn = typeof body.due_on === 'string' ? body.due_on : undefined;
+      if (method === 'POST') {
+        if (typeof body.title !== 'string' || body.title === '') {
+          return json(422, { message: 'Validation Failed' });
+        }
+        const title = body.title;
+        if (list.some((milestone) => milestone.title === title)) {
+          return json(422, {
+            message: 'Validation Failed',
+            errors: [{ resource: 'Milestone', code: 'already_exists', field: 'title' }],
+          });
+        }
+        const created: FakeMilestone = {
+          number: list.reduce((max, milestone) => Math.max(max, milestone.number), 0) + 1,
+          title,
+          state: 'open',
+          dueOn: dueOn ?? null,
+        };
+        list.push(created);
+        return json(201, this.milestoneJson(repo, created));
+      }
+      const found = list.find((milestone) => milestone.number === number);
+      if (found === undefined) {
+        return json(404, { message: 'Not Found' });
+      }
+      if (dueOn !== undefined) {
+        found.dueOn = dueOn;
+      }
+      if (typeof body.title === 'string') {
+        found.title = body.title;
+      }
+      if (body.state === 'open' || body.state === 'closed') {
+        found.state = body.state;
+      }
+      return json(200, this.milestoneJson(repo, found));
+    }
+    return json(404, { message: 'Not Found' });
+  }
+
+  private milestoneJson(repo: string, milestone: FakeMilestone): Record<string, unknown> {
+    return {
+      number: milestone.number,
+      title: milestone.title,
+      state: milestone.state,
+      due_on: milestone.dueOn,
+      html_url: `https://github.com/${repo}/milestone/${milestone.number}`,
+    };
   }
 
   private issueJson(issue: FakeIssue): Record<string, unknown> {

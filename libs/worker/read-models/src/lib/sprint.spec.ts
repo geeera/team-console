@@ -4,7 +4,15 @@ import {
   type MilestoneRecord,
   type PullRequestRecord,
 } from './github-records';
-import { buildSprint, declaredTier, effectiveTier, pickCurrentSprint, sprintToday } from './sprint';
+import {
+  buildSprint,
+  declaredTier,
+  effectiveTier,
+  nextSprintNumber,
+  pickCurrentSprint,
+  pickNextSprint,
+  sprintToday,
+} from './sprint';
 
 function milestone(number: number, dueOn: string | null, state = 'open'): MilestoneRecord {
   return { number, title: `M${number}`, state, dueOn, htmlUrl: `https://github.com/o/r/milestone/${number}` };
@@ -35,6 +43,44 @@ describe('pickCurrentSprint (calendar.pick_current_sprint)', () => {
       '2026-09-30',
     );
     expect(picked?.number).toBe(5);
+  });
+});
+
+describe('pickNextSprint', () => {
+  const current = milestone(3, '2026-10-14T12:00:00Z');
+
+  it('takes the open milestone due soonest after the current demo', () => {
+    const next = pickNextSprint(
+      [milestone(1, '2026-09-30T00:00:00Z', 'closed'), current, milestone(5, '2026-11-11T12:00:00Z'), milestone(4, '2026-10-28T12:00:00Z')],
+      current,
+    );
+    expect(next?.number).toBe(4);
+  });
+
+  it('skips closed milestones, ones without a due date and ones due the same day as the current demo', () => {
+    expect(
+      pickNextSprint(
+        [current, milestone(6, null), milestone(7, '2026-10-28T12:00:00Z', 'closed'), milestone(8, '2026-10-14T00:00:00Z')],
+        current,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('nextSprintNumber', () => {
+  const titled = (title: string, state = 'open'): MilestoneRecord => ({ ...milestone(1, null, state), title });
+
+  it('is the highest Sprint NN, open or closed, + 1 (gaps are not filled)', () => {
+    expect(nextSprintNumber([titled('Sprint 01', 'closed'), titled('Sprint 04', 'closed'), titled('Sprint 02')])).toBe(5);
+  });
+
+  it('ignores milestones that are not sprints', () => {
+    expect(nextSprintNumber([titled('Release 9'), titled('Sprint 02')])).toBe(3);
+  });
+
+  it('is 1 without any sprint yet', () => {
+    expect(nextSprintNumber([])).toBe(1);
+    expect(nextSprintNumber([titled('Launch')])).toBe(1);
   });
 });
 
