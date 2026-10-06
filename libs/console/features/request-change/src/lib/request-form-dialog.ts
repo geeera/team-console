@@ -132,6 +132,7 @@ const QUEUE_CHOICES: readonly QueueChoice[] = ['up', 'keep', 'down'];
             {{ 'commands.request.diffNone' | transloco }}
           }
         </p>
+        <p class="rq__hint" data-testid="request-reads">{{ 'commands.request.reads' | transloco }}</p>
         <p class="rq__hint">{{ 'commands.request.owner' | transloco }}</p>
         @if (failure(); as message) {
           <p tc-callout tone="danger" class="rq__note" role="alert" data-testid="request-error">

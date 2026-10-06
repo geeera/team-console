@@ -1102,7 +1102,8 @@
       "inProgress": "This request is being sent already. Wait a couple of seconds and try again.",
       "timeout": "GitHub didn't answer, so it's unknown whether the request was recorded. A retry within a minute won't record it twice; later, a new one is recorded and the PM reads the latest.",
       "open": "Open the issue",
-      "closeBtn": "Close"
+      "closeBtn": "Close",
+      "reads": "The PM reads the request at the next planning run and answers on the issue: done, or why not."
     }
   },
   "ui": {
