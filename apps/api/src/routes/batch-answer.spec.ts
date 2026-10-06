@@ -62,6 +62,11 @@ const ISSUES: Record<number, Issue> = {
   19: { labels: SCOPE, ask: APPROVE, association: 'NONE' },
   20: { labels: SCOPE, ask: '/approve to ship it · /reject why' },
   21: { labels: ['kind:question', 'owner:scope', 'owner:money'], ask: APPROVE },
+  // #233 SECURITY review: the recommended option is not first, or the recommendation is negated.
+  22: { labels: SCOPE, ask: '`/approve` to keep SeaweedFS · `/reject why` to move to R2 (recommended)' },
+  23: { labels: SCOPE, ask: '`/approve` to add the export (not recommended) · `/reject why` to skip it' },
+  24: { labels: SCOPE, ask: '`/approve` — не рекомендую; `/reject почему` — оставить как есть' },
+  25: { labels: SCOPE, ask: "We don't recommend this: `/approve` to ship anyway · `/reject why` to drop" },
   // Not waiting, or not a question at all.
   30: { state: 'closed', labels: SCOPE, ask: APPROVE },
   31: { labels: ['needs:owner', 'kind:chore'], ask: 'Напиши «сделал»' },
@@ -303,6 +308,10 @@ describe('the server re-checks every item; the client list is never trusted', ()
     ['untrusted', 19],
     ['no-recommendation', 20],
     ['money', 21],
+    ['reject', 22],
+    ['no-recommendation', 23],
+    ['no-recommendation', 24],
+    ['no-recommendation', 25],
   ] as const)(
     'refuses a %s item (#%i) with 422 batch-not-safe and writes the rest',
     async (reason, number) => {

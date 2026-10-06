@@ -64,23 +64,48 @@ export function categoryOf(labels: readonly string[]): OwnerCategory | null {
 
 // A command word as the plugin's ask lines spell it: `/approve`, `/reject`, `/go`, `/no-go`, standing on its own
 // (not inside a path or a longer word). ASCII word characters only, so Python and JavaScript agree on the edges.
-const COMMAND_WORD = /(?<![A-Za-z0-9_/-])\/(approve|reject|no-go|go)(?![A-Za-z0-9_-])/;
-const RECOMMENDS = ['recommend', 'рекоменду'] as const;
+const COMMAND_WORD = /(?<![A-Za-z0-9_/-])\/(approve|reject|no-go|go)(?![A-Za-z0-9_-])/g;
+// The separators the plugin's ask lines put between options ("/approve … · /reject …").
+const OPTION_SEPARATOR = /[·,;|]/;
+const RECOMMENDS = /recommend|рекоменд/;
+// "not recommended", "don't / doesn't / cannot recommend", "never recommend", "не рекомендую": any of these anywhere
+// on the line and the line recommends nothing a batch may act on.
+const NEGATED = /(?:not|n['’]t|never)\s+recommend|не\s*рекоменд/;
+
+function commandsOf(text: string): string[] {
+  return [...text.matchAll(COMMAND_WORD)].map((match) => match[1] ?? '');
+}
 
 /**
- * The team's recommendation in an answer line (`askOf`): its first command word, but only when the line says it
- * recommends one ("recommend…", "рекоменду…", any case). The decision policy puts the recommendation first.
+ * The team's recommendation in an answer line (`askOf`), failing closed (#233 SECURITY review). The line is split
+ * into options on `·` `,` `;` `|`; a piece without a command word belongs to the option before it ("(free,
+ * recommended)"). The answer is the command of the one option whose own text says "recommend…" / "рекоменд…" (any
+ * case) and that names one command. `null` when no option or more than one says it, when that option names several
+ * commands, when the line recommends before its first command, or when the line negates a recommendation.
  */
 export function recommendationOf(ask: string | null): TeamRecommendation | null {
   if (ask === null) {
     return null;
   }
   const lower = ask.toLowerCase();
-  if (!RECOMMENDS.some((word) => lower.includes(word))) {
+  if (!RECOMMENDS.test(lower) || NEGATED.test(lower)) {
     return null;
   }
-  const command = COMMAND_WORD.exec(ask)?.[1];
-  return isTeamRecommendation(command) ? command : null;
+  const options: string[] = [];
+  for (const piece of lower.split(OPTION_SEPARATOR)) {
+    if (commandsOf(piece).length > 0 || options.length === 0) {
+      options.push(piece);
+    } else {
+      options[options.length - 1] += `,${piece}`;
+    }
+  }
+  const recommended = options.filter((option) => RECOMMENDS.test(option));
+  if (recommended.length !== 1) {
+    return null;
+  }
+  const commands = new Set(commandsOf(recommended[0] ?? ''));
+  const [command] = commands;
+  return commands.size === 1 && isTeamRecommendation(command) ? command : null;
 }
 
 /** The facts the batch rule looks at; the read models' `InboxItemDto` carries all of them. */

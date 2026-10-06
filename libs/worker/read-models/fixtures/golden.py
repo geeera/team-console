@@ -64,14 +64,29 @@ def category_of(labels: list) -> str | None:
     return next((c for c in found if c != "scope"), found[0] if found else None)
 
 
+_OPTION_SEPARATOR = re.compile(r"[·,;|]")
+_RECOMMENDS = re.compile(r"recommend|рекоменд")
+_NEGATED = re.compile(r"(?:not|n['’]t|never)\s+recommend|не\s*рекоменд")
+
+
 def recommendation_of(ask: str | None) -> str | None:
+    """Fails closed (#233 SECURITY review): the command of the one option that says it recommends, else None."""
     if ask is None:
         return None
     lower = ask.lower()
-    if "recommend" not in lower and "рекоменду" not in lower:
+    if not _RECOMMENDS.search(lower) or _NEGATED.search(lower):
         return None
-    m = _COMMAND_WORD.search(ask)
-    return m.group(1) if m else None
+    options: list = []
+    for piece in _OPTION_SEPARATOR.split(lower):
+        if _COMMAND_WORD.search(piece) or not options:
+            options.append(piece)
+        else:
+            options[-1] += "," + piece
+    recommended = [o for o in options if _RECOMMENDS.search(o)]
+    if len(recommended) != 1:
+        return None
+    commands = set(_COMMAND_WORD.findall(recommended[0]))
+    return next(iter(commands)) if len(commands) == 1 else None
 
 
 ASKS = {
@@ -82,12 +97,17 @@ ASKS = {
         "/approve to add dark mode · /reject why",
         "/go to release 1.2.0 (recommended) · /no-go why",
         "/no-go to wait for the fix (Recommended) · /go",
+        # #233 SECURITY review: the recommended option is not first, or the line negates a recommendation.
+        "`/approve` to keep SeaweedFS · `/reject why` to move to R2 (recommended)",
+        "`/approve` to add the export (not recommended) · `/reject why` to skip it",
+        "We don't recommend this: `/approve` to ship anyway · `/reject why` to drop",
     ],
     "ru": [
         "/approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять",
         "/reject почему — оставить как есть (рекомендуем), /approve — переделать",
         "/approve купить домен за $12 в год · /reject причина",
         "/approve взять бесплатный план (Рекомендую) · /reject почему",
+        "`/approve` — не рекомендую; `/reject почему` — оставить как есть",
     ],
 }
 

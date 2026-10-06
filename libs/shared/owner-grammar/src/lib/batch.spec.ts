@@ -43,6 +43,27 @@ describe('recommendationOf', () => {
     expect(recommendationOf(ask)).toBeNull();
   });
 
+  // #233 SECURITY review: the recommendation belongs to the option that says it, and a negation means none.
+  it.each([
+    ['`/approve` to keep SeaweedFS · `/reject why` to move to R2 (recommended)', 'reject'],
+    ['/approve to keep it, /reject why to drop it (рекомендуем)', 'reject'],
+    ['/go to release now · /no-go to wait for the fix (recommended)', 'no-go'],
+  ] as const)('reads the option that says it: %s → %s', (ask, expected) => {
+    expect(recommendationOf(ask)).toBe(expected);
+  });
+
+  it.each([
+    ['`/approve` to add the export (not recommended) · `/reject why` to skip it', 'negated in English'],
+    ['`/approve` — не рекомендую; `/reject почему` — оставить как есть', 'negated in Russian'],
+    ["We don't recommend this: `/approve` to ship anyway · `/reject why` to drop", 'a negated preamble'],
+    ['/approve X (recommended) · /reject Y (recommended)', 'two options say it'],
+    ['Recommended, /approve X · /reject Y', 'said before any option'],
+    ['/approve or /reject (recommended)', 'one option names two commands'],
+    ['/approve to ship · /reject why | not recommend either', 'a negation in another option'],
+  ])('fails closed for %s (%s)', (ask) => {
+    expect(recommendationOf(ask)).toBeNull();
+  });
+
   it('null without an answer line', () => {
     expect(recommendationOf(null)).toBeNull();
   });
