@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import type { Meta, StoryObj } from '@storybook/angular';
 import { moduleMetadata } from '@storybook/angular';
 import { darkTheme, phoneViewport, reducedMotion } from '../../../.storybook/stories';
 import { Button } from '../button/button';
+import { Choice, ChoiceGroup } from '../choice/choice';
 import { Chip } from '../chip/chip';
 import { List, ListRow } from '../list/list';
 import { DialogRef } from '@angular/cdk/dialog';
@@ -68,6 +69,74 @@ class FooterSheetContent {
   protected readonly paragraphs = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 }
 
+/**
+ * #274: the shell with a form taller than the screen («Попросить PM»). The frame fits the visual viewport; the title
+ * and the footer stay in view and only the body scrolls. The submit button lives in the footer, outside the form,
+ * so it names the form with `form`.
+ */
+@Component({
+  selector: 'tc-story-long-form-sheet',
+  imports: [Button, Choice, ChoiceGroup, SheetFooter, TranslocoPipe],
+  template: `
+    <form id="tc-story-long-form" style="display: grid; gap: var(--space-4)" (submit)="send($event)">
+      <p style="margin: 0">{{ 'stories.sheet.longIntro' | transloco }}</p>
+      @for (group of groups; track group) {
+        <fieldset tc-choice-group [legend]="'stories.sheet.longSprint' | transloco">
+          @for (option of options; track option) {
+            <label tc-choice>
+              <input
+                type="radio"
+                [name]="'story-sprint-' + group"
+                [value]="option"
+                [checked]="option === 'longCurrent'"
+              />
+              {{ 'stories.sheet.' + option | transloco }}
+            </label>
+          }
+        </fieldset>
+        <p style="margin: 0; color: var(--text-2); font-size: var(--fs-sm)">
+          {{ 'stories.sheet.longHint' | transloco }}
+        </p>
+      }
+    </form>
+    <ng-template tcSheetFooter>
+      <button tc-button variant="primary" type="submit" form="tc-story-long-form">
+        {{ 'stories.sheet.longSend' | transloco }}
+      </button>
+      <button tc-button type="button" (click)="ref.close()">{{ 'ui.confirm.cancel' | transloco }}</button>
+    </ng-template>
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+class LongFormSheetContent {
+  protected readonly ref = inject(DialogRef);
+  protected readonly groups = [1, 2, 3] as const;
+  protected readonly options = ['longCurrent', 'longNext', 'longBacklog'] as const;
+
+  protected send(event: Event): void {
+    event.preventDefault();
+    this.ref.close('sent');
+  }
+}
+
+/** Opens the long form as soon as the story renders, so the story shows the shell itself. */
+@Component({
+  selector: 'tc-story-long-form-host',
+  template: '',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+class LongFormHost {
+  constructor() {
+    const sheet = inject(Sheet);
+    const transloco = inject(TranslocoService);
+    afterNextRender(() => openLongForm(sheet, transloco));
+  }
+}
+
+function openLongForm(sheet: Sheet, transloco: TranslocoService): void {
+  sheet.open(LongFormSheetContent, { title: transloco.translate('stories.sheet.longTitle') });
+}
+
 @Component({
   selector: 'tc-story-sheet-host',
   imports: [Button, TranslocoPipe],
@@ -87,6 +156,9 @@ class FooterSheetContent {
       </button>
       <button tc-button type="button" (click)="openWithFooter()">
         {{ 'stories.sheet.openFooter' | transloco }}
+      </button>
+      <button tc-button type="button" (click)="openLongForm()">
+        {{ 'stories.sheet.longEllipsis' | transloco }}
       </button>
       <button tc-button type="button" (click)="moveDate()">
         {{ 'stories.sheet.dateEllipsis' | transloco }}
@@ -110,6 +182,10 @@ class SheetHost {
       title: this.transloco.translate('stories.sheet.footerTitle', { repo: 'geeera/storify' }),
       width: 'wide',
     });
+  }
+
+  protected openLongForm(): void {
+    openLongForm(this.sheet, this.transloco);
   }
 
   protected async archive(): Promise<void> {
@@ -230,3 +306,11 @@ export const Default: Story = {};
 export const Dark: Story = { ...darkTheme };
 export const ReducedMotion: Story = { ...reducedMotion };
 export const Phone: Story = { ...phoneViewport };
+
+/** #274: the one dialog shell with a form taller than the screen — title and actions stay, only the body scrolls. */
+const longForm: Story = {
+  decorators: [moduleMetadata({ imports: [LongFormHost] })],
+  render: () => ({ template: '<tc-story-long-form-host />' }),
+};
+export const LongForm: Story = { ...longForm };
+export const LongFormPhone: Story = { ...longForm, ...phoneViewport };

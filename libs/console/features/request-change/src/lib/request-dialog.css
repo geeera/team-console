@@ -47,23 +47,3 @@
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
 }
-
-.rq__actions,
-.picker__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-}
-
-/* The phone: full-width buttons, the primary nearest the thumb. */
-@media (max-width: 519.98px) {
-  .rq__actions,
-  .picker__actions {
-    flex-direction: column-reverse;
-  }
-
-  .rq__actions > *,
-  .picker__actions > * {
-    width: 100%;
-  }
-}

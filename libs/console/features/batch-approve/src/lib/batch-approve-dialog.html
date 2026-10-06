@@ -42,10 +42,8 @@
   <p tc-banner-text>{{ message }}</p>
 </div>
 }
-<div class="tc-dialog-actions">
-  <button tc-button type="button" [attr.aria-disabled]="running() ? 'true' : null" (click)="cancel()">
-    {{ 'commands.batch.cancel' | transloco }}
-  </button>
+<!-- In the frame's footer: the list can be long, the actions stay in view (#274). -->
+<ng-template tcSheetFooter>
   @if (items().length > 0) {
   <button
     tc-button
@@ -62,4 +60,7 @@
     }} } @else { {{ 'commands.batch.ok' | transloco: { n: checkedCount() } }} }
   </button>
   }
-</div>
+  <button tc-button type="button" [attr.aria-disabled]="running() ? 'true' : null" (click)="cancel()">
+    {{ 'commands.batch.cancel' | transloco }}
+  </button>
+</ng-template>

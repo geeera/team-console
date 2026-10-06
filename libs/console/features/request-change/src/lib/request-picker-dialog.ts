@@ -9,6 +9,7 @@ import {
   FieldControl,
   List,
   ListRow,
+  SheetFooter,
   StateBlock,
 } from '@console/shared/ui';
 import type { RequestIssueDto } from '@shared/contracts';
@@ -34,7 +35,7 @@ export function matchesQuery(issue: RequestIssueDto, query: string): boolean {
  */
 @Component({
   selector: 'tc-request-picker-dialog',
-  imports: [Button, Chip, Field, FieldControl, List, ListRow, StateBlock, TranslocoPipe],
+  imports: [Button, Chip, Field, FieldControl, List, ListRow, SheetFooter, StateBlock, TranslocoPipe],
   template: `
     <div class="picker">
       <tc-field [label]="'commands.pick.find' | transloco">
@@ -82,12 +83,12 @@ export function matchesQuery(issue: RequestIssueDto, query: string): boolean {
           }
         }
       }
-      <div class="picker__actions">
-        <button tc-button type="button" (click)="ref.close()">
-          {{ 'commands.dialog.cancel' | transloco }}
-        </button>
-      </div>
     </div>
+    <ng-template tcSheetFooter>
+      <button tc-button type="button" (click)="ref.close()">
+        {{ 'commands.dialog.cancel' | transloco }}
+      </button>
+    </ng-template>
   `,
   styleUrl: './request-dialog.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

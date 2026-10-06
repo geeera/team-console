@@ -1248,7 +1248,17 @@
       "footerTitle": "Add {{repo}}",
       "footerBody": "Long content scrolls while the actions stay at the bottom: stacked with the primary first on the phone, in a row with the primary on the right in the dialog.",
       "footerDone": "Done",
-      "footerSecondary": "Open setup"
+      "footerSecondary": "Open setup",
+      "longEllipsis": "Long form…",
+      "longTitle": "#36 Web push: subscribe button, iOS guide, tap",
+      "longIntro": "A form taller than the screen: the title and the buttons stay put, only the middle scrolls.",
+      "longSprint": "Sprint",
+      "longCurrent": "Current: Sprint 02",
+      "longNext": "Next: Sprint 03",
+      "longBacklog": "Backlog, no sprint",
+      "longHint": "The PM moves the issue within the sprint's limits. If there is no room, they say what would have to go.",
+      "longSend": "Ask the PM",
+      "longSent": "Request sent"
     },
     "tabBar": {
       "aria": "Sections",

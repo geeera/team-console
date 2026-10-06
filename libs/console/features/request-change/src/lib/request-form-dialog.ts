@@ -8,6 +8,7 @@ import {
   DIALOG_DATA,
   DialogRef,
   Icon,
+  SheetFooter,
   StateBlock,
 } from '@console/shared/ui';
 import type {
@@ -63,10 +64,10 @@ const QUEUE_CHOICES: readonly QueueChoice[] = ['up', 'keep', 'down'];
  */
 @Component({
   selector: 'tc-request-form-dialog',
-  imports: [Button, Callout, Choice, ChoiceGroup, Icon, StateBlock, TranslocoPipe],
+  imports: [Button, Callout, Choice, ChoiceGroup, Icon, SheetFooter, StateBlock, TranslocoPipe],
   template: `
     @if (issue(); as issue) {
-      <form class="rq" novalidate (submit)="submit($event)">
+      <form class="rq" novalidate [id]="id" (submit)="submit($event)">
         <p class="rq__now" data-testid="request-now">
           {{ 'commands.request.now' | transloco: { where: whereText(issue) } }}
         </p>
@@ -139,33 +140,35 @@ const QUEUE_CHOICES: readonly QueueChoice[] = ['up', 'keep', 'down'];
             <tc-icon name="alert" size="sm" /><span>{{ message }}</span>
           </p>
         }
-        <div class="rq__actions">
-          <button tc-button type="button" [attr.aria-disabled]="running() ? 'true' : null" (click)="cancel()">
-            {{ (isFinal() ? 'commands.request.closeBtn' : 'commands.dialog.cancel') | transloco }}
-          </button>
-          @if (!isFinal()) {
-            <button
-              tc-button
-              type="submit"
-              variant="primary"
-              data-testid="request-ok"
-              [loading]="running()"
-              [off]="request() === null"
-              [attr.aria-disabled]="running() || request() === null ? 'true' : null"
-            >
-              @if (running()) {
-                {{ 'commands.dialog.sending' | transloco }}
-              } @else if (request() === null) {
-                {{ 'commands.request.okNone' | transloco }}
-              } @else if (failure() !== null && !isRefilled()) {
-                {{ 'commands.dialog.retry' | transloco }}
-              } @else {
-                {{ 'commands.request.ok' | transloco }}
-              }
-            </button>
-          }
-        </div>
       </form>
+      <!-- The frame's footer sits outside the form, so the submit button names it (#274). -->
+      <ng-template tcSheetFooter>
+        @if (!isFinal()) {
+          <button
+            tc-button
+            type="submit"
+            variant="primary"
+            data-testid="request-ok"
+            [attr.form]="id"
+            [loading]="running()"
+            [off]="request() === null"
+            [attr.aria-disabled]="running() || request() === null ? 'true' : null"
+          >
+            @if (running()) {
+              {{ 'commands.dialog.sending' | transloco }}
+            } @else if (request() === null) {
+              {{ 'commands.request.okNone' | transloco }}
+            } @else if (failure() !== null && !isRefilled()) {
+              {{ 'commands.dialog.retry' | transloco }}
+            } @else {
+              {{ 'commands.request.ok' | transloco }}
+            }
+          </button>
+        }
+        <button tc-button type="button" [attr.aria-disabled]="running() ? 'true' : null" (click)="cancel()">
+          {{ (isFinal() ? 'commands.request.closeBtn' : 'commands.dialog.cancel') | transloco }}
+        </button>
+      </ng-template>
     } @else if (loadFailed()) {
       <tc-state-block kind="error" compact [title]="'commands.request.loadError' | transloco">
         <button tc-button tc-state-action type="button" (click)="reload()">

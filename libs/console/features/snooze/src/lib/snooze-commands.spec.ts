@@ -119,7 +119,7 @@ describe('SnoozeCommands', () => {
       'Команда остановилась сама, нужно решение о релизе.',
     );
 
-    press('.snooze__actions button[type=button]');
+    press('.tc-sheet__foot button[type=button]');
     await expect(pending).resolves.toBeNull();
   });
 
@@ -200,7 +200,7 @@ describe('SnoozeCommands', () => {
     http.expectOne(URL).error(new ProgressEvent('error'), { status: 0 });
     await settle();
     expect(text(dialog()?.querySelector('[role="alert"]'))).toBe('Нет сети. Ничего не изменено.');
-    press('.snooze__actions button[type=button]');
+    press('.tc-sheet__foot button[type=button]');
     await expect(pending).resolves.toBeNull();
   });
 

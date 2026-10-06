@@ -2,7 +2,8 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-height: 100%;
+  /* The frame, not just its pane, is capped: the head and the foot stay on screen and only the body scrolls. */
+  max-height: var(--sheet-max-h);
   background: var(--surface);
   color: var(--text);
   border-radius: var(--r-sheet) var(--r-sheet) 0 0;
@@ -12,6 +13,7 @@
 }
 
 :host(.tc-sheet--dialog) {
+  max-height: var(--dialog-max-h);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-2);
   animation: tc-dialog-settle var(--dur-base) var(--ease-enter) both;

@@ -27,6 +27,9 @@
 }
 
 .shell__sidebar {
+  /* Positioned, like the main: an absolutely placed descendant (.tc-sr-only) stays inside instead of growing the
+     document and giving the page a second scroll (#274). */
+  position: relative;
   display: flex;
   flex: none;
   flex-direction: column;
@@ -126,6 +129,7 @@
 }
 
 .shell__main {
+  position: relative;
   flex: 1;
   min-width: 0;
   min-height: 0;
