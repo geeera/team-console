@@ -44,6 +44,19 @@ interface Issue {
 const APPROVE = '/approve to ship it (recommended) · /reject why';
 const SCOPE = ['kind:question', 'owner:scope'];
 
+const SECOND_REVIEW: readonly string[] = [
+  '/approve to ship it (not-recommended) · /reject why',
+  '/approve to ship it (no recommendation) · /reject why',
+  '/approve to ship it (unrecommended) · /reject why',
+  '/approve to ship it (recommended against) · /reject why',
+  '/approve — нет, рекомендую отклонить · /reject почему',
+  '/approve — сделать (не-рекомендуемо) · /reject почему',
+  '/approve to ship it (`recommended=false`) · /reject why',
+  '/approve to ship it (n\u043et recommended) · /reject why',
+  '/approve to ship it (not\u200b recommended) · /reject why',
+  '/approve to ship it (not re\u00adcommended) · /reject why',
+];
+
 const ISSUES: Record<number, Issue> = {
   // Safe: open scope questions from the team that recommend approving.
   1: { labels: SCOPE, ask: APPROVE },
@@ -67,6 +80,10 @@ const ISSUES: Record<number, Issue> = {
   23: { labels: SCOPE, ask: '`/approve` to add the export (not recommended) · `/reject why` to skip it' },
   24: { labels: SCOPE, ask: '`/approve` — не рекомендую; `/reject почему` — оставить как есть' },
   25: { labels: SCOPE, ask: "We don't recommend this: `/approve` to ship anyway · `/reject why` to drop" },
+  // Round 2: only the plugin's "(…, recommended)" marker counts; disguised lines count for nothing.
+  ...Object.fromEntries(
+    SECOND_REVIEW.map((ask, index): [number, Issue] => [40 + index, { labels: SCOPE, ask }]),
+  ),
   // Not waiting, or not a question at all.
   30: { state: 'closed', labels: SCOPE, ask: APPROVE },
   31: { labels: ['needs:owner', 'kind:chore'], ask: 'Напиши «сделал»' },
@@ -312,6 +329,7 @@ describe('the server re-checks every item; the client list is never trusted', ()
     ['no-recommendation', 23],
     ['no-recommendation', 24],
     ['no-recommendation', 25],
+    ...SECOND_REVIEW.map((_, index) => ['no-recommendation', 40 + index] as const),
   ] as const)(
     'refuses a %s item (#%i) with 422 batch-not-safe and writes the rest',
     async (reason, number) => {

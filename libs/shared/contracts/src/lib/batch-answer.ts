@@ -8,7 +8,11 @@ import type { ProblemDetails } from './problem-details';
 /** The owner decision a question is about: the plugin's `owner.CATEGORIES`, from its `owner:<category>` label. */
 export type OwnerCategory = 'money' | 'scope' | 'release' | 'access' | 'legal' | 'design';
 
-/** The first command of an answer line that says it recommends one (`recommendationOf` in the owner grammar). */
+/**
+ * The command of the one option of an answer line that carries the plugin's marker — "(recommended)",
+ * "(free, recommended)", "(рекомендую)", "(рекомендуем)" — as `recommendationOf` in the owner grammar reads it,
+ * failing closed (#233 SECURITY review).
+ */
 export type TeamRecommendation = 'approve' | 'reject' | 'go' | 'no-go';
 
 /**

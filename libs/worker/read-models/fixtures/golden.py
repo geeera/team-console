@@ -25,6 +25,7 @@ import json
 import os
 import re
 import sys
+import unicodedata
 from collections import Counter
 from datetime import date
 
@@ -64,28 +65,77 @@ def category_of(labels: list) -> str | None:
     return next((c for c in found if c != "scope"), found[0] if found else None)
 
 
-_OPTION_SEPARATOR = re.compile(r"[·,;|]")
-_RECOMMENDS = re.compile(r"recommend|рекоменд")
-_NEGATED = re.compile(r"(?:not|n['’]t|never)\s+recommend|не\s*рекоменд")
+_OPTION_SEPARATORS = set("·,;|")
+_MARKER_WORDS = {"recommended", "рекомендую", "рекомендуем"}
+_PARENTHESISED = re.compile(r"\(([^()]*)\)")
+_CODE_SPAN = re.compile(r"`([^`]*)`")
+_STARTS_WITH_COMMAND = re.compile(r"^/(?:approve|reject|no-go|go)(?![A-Za-z0-9_-])")
+_RECOMMEND_WORD = re.compile(r"recommend|рекоменд")
+_NEGATED = re.compile(
+    r"(?:not|n['’]t|never|no)[\s-]*recommend|recommend[A-Za-z0-9_]*\s+against|не[\s-]*рекоменд|нет,?\s*рекоменд"
+)
 
 
-def recommendation_of(ask: str | None) -> str | None:
-    """Fails closed (#233 SECURITY review): the command of the one option that says it recommends, else None."""
-    if ask is None:
-        return None
-    lower = ask.lower()
-    if not _RECOMMENDS.search(lower) or _NEGATED.search(lower):
-        return None
+def _is_word_char(ch: str) -> bool:
+    return unicodedata.category(ch)[0] in "LMN"
+
+
+def _has_mixed_script_word(text: str) -> bool:
+    word = ""
+    for ch in text + " ":
+        if _is_word_char(ch):
+            word += ch
+            continue
+        names = [unicodedata.name(c, "") for c in word]
+        if any(n.startswith("LATIN") for n in names) and any(n.startswith("CYRILLIC") for n in names):
+            return True
+        word = ""
+    return False
+
+
+def _options_of(text: str) -> list:
+    pieces, depth, current = [], 0, ""
+    for ch in text:
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        if depth == 0 and ch in _OPTION_SEPARATORS:
+            pieces.append(current)
+            current = ""
+        else:
+            current += ch
+    pieces.append(current)
     options: list = []
-    for piece in _OPTION_SEPARATOR.split(lower):
+    for piece in pieces:
         if _COMMAND_WORD.search(piece) or not options:
             options.append(piece)
         else:
-            options[-1] += "," + piece
-    recommended = [o for o in options if _RECOMMENDS.search(o)]
-    if len(recommended) != 1:
+            options[-1] += " " + piece
+    return options
+
+
+def _markers_in(text: str) -> int:
+    return sum(1 for inner in _PARENTHESISED.findall(text) if inner.split(",")[-1].strip() in _MARKER_WORDS)
+
+
+def recommendation_of(ask: str | None) -> str | None:
+    """Allowlist, fails closed (#233 SECURITY review): mirrors `recommendationOf` in owner-grammar's batch.ts."""
+    if ask is None:
         return None
-    commands = set(_COMMAND_WORD.findall(recommended[0]))
+    text = unicodedata.normalize("NFKC", ask)
+    if any(unicodedata.category(ch) == "Cf" for ch in text) or _has_mixed_script_word(text):
+        return None
+    text = _CODE_SPAN.sub(lambda m: m.group(1) if _STARTS_WITH_COMMAND.match(m.group(1).strip()) else " ", text)
+    text = text.lower()
+    if _NEGATED.search(text):
+        return None
+    if _markers_in(text) != 1 or len(_RECOMMEND_WORD.findall(text)) != 1:
+        return None
+    marked = [o for o in _options_of(text) if _markers_in(o) == 1]
+    if len(marked) != 1:
+        return None
+    commands = set(_COMMAND_WORD.findall(marked[0]))
     return next(iter(commands)) if len(commands) == 1 else None
 
 
@@ -101,6 +151,16 @@ ASKS = {
         "`/approve` to keep SeaweedFS · `/reject why` to move to R2 (recommended)",
         "`/approve` to add the export (not recommended) · `/reject why` to skip it",
         "We don't recommend this: `/approve` to ship anyway · `/reject why` to drop",
+        # Round 2: only the plugin's "(…, recommended)" marker counts; disguises count for nothing.
+        "/approve to ship it (not-recommended) · /reject why",
+        "/approve to ship it (no recommendation) · /reject why",
+        "/approve to ship it (unrecommended) · /reject why",
+        "/approve to ship it (recommended against) · /reject why",
+        "/approve to ship it (`recommended=false`) · /reject why",
+        "/approve to ship it (nоt recommended) · /reject why",
+        "/approve to ship it (not​ recommended) · /reject why",
+        "/approve to ship it (not re­commended) · /reject why",
+        "We recommend: /approve the plan",
     ],
     "ru": [
         "/approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять",
@@ -108,6 +168,8 @@ ASKS = {
         "/approve купить домен за $12 в год · /reject причина",
         "/approve взять бесплатный план (Рекомендую) · /reject почему",
         "`/approve` — не рекомендую; `/reject почему` — оставить как есть",
+        "/approve — нет, рекомендую отклонить · /reject почему",
+        "/approve — сделать (не-рекомендуемо) · /reject почему",
     ],
 }
 

@@ -19,6 +19,22 @@ describe('categoryOf', () => {
   });
 });
 
+/** Lines the second SECURITY review of #233 showed returning approve (batch-answer.spec.ts sends them too). */
+const SECOND_REVIEW: readonly (readonly [string, string])[] = [
+  ['/approve to ship it (not-recommended) · /reject why', 'hyphenated negation'],
+  ['/approve to ship it (no recommendation) · /reject why', 'no recommendation'],
+  ['/approve to ship it (unrecommended) · /reject why', 'unrecommended'],
+  ['/approve to ship it (recommended against) · /reject why', 'recommended against'],
+  ['/approve — нет, рекомендую отклонить · /reject почему', 'prose in Russian'],
+  ['/approve — сделать (не-рекомендуемо) · /reject почему', 'hyphenated Russian negation'],
+  ['/approve to ship it (`recommended=false`) · /reject why', 'a marker inside a code span'],
+  ['/approve to ship it `(recommended)` · /reject why', 'the whole marker in a code span'],
+  ['/approve to ship it (n\u043et recommended) · /reject why', 'a Cyrillic о in not'],
+  ['/approve to ship it (not\u200b recommended) · /reject why', 'a zero-width space'],
+  ['/approve to ship it (not re\u00adcommended) · /reject why', 'a soft hyphen'],
+  ['/approve to ship it (recommended\u200b) · /reject why', 'a zero-width space in the marker'],
+];
+
 describe('recommendationOf', () => {
   it.each([
     ['/approve to use R2 (recommended) · /reject why to keep SeaweedFS', 'approve'],
@@ -27,7 +43,6 @@ describe('recommendationOf', () => {
     ['/reject why to keep it (RECOMMENDED) · /approve to drop it', 'reject'],
     ['/go to release 1.2.0 (recommended) · /no-go why', 'go'],
     ['/no-go — рано (Рекомендуем) · /go', 'no-go'],
-    ['We recommend: /approve the plan', 'approve'],
   ] as const)('%s → %s', (ask, expected) => {
     expect(recommendationOf(ask)).toBe(expected);
   });
@@ -60,8 +75,18 @@ describe('recommendationOf', () => {
     ['Recommended, /approve X · /reject Y', 'said before any option'],
     ['/approve or /reject (recommended)', 'one option names two commands'],
     ['/approve to ship · /reject why | not recommend either', 'a negation in another option'],
+    ['We recommend: /approve the plan', 'prose, not the marker'],
   ])('fails closed for %s (%s)', (ask) => {
     expect(recommendationOf(ask)).toBeNull();
+  });
+
+  // #233 SECURITY review, round 2: only the plugin's marker counts, and a disguised line counts for nothing.
+  it.each(SECOND_REVIEW)('%s → null (%s)', (ask) => {
+    expect(recommendationOf(ask)).toBeNull();
+  });
+
+  it('accepts the marker after NFKC (a full-width parenthesis is a parenthesis)', () => {
+    expect(recommendationOf('/approve to ship \uff08recommended\uff09 · /reject why')).toBe('approve');
   });
 
   it('null without an answer line', () => {

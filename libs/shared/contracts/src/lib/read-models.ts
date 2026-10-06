@@ -27,8 +27,9 @@ export interface InboxItemDto {
   /** The owner decision a question is about, from its `owner:*` label (`categoryOf`); `null` without one. */
   readonly category: OwnerCategory | null;
   /**
-   * The first command of the answer line when that line says it recommends one ("recommend…" / "рекоменду…");
-   * otherwise `null`. Read from untrusted text: only the server's re-check decides what a batch may answer.
+   * The command of the one option the answer line marks "(…, recommended)" / "(рекомендую)" / "(рекомендуем)";
+   * `null` for anything else (`recommendationOf`, fails closed). Read from untrusted text: only the server's re-check
+   * decides what a batch may answer.
    */
   readonly recommendation: TeamRecommendation | null;
 }
