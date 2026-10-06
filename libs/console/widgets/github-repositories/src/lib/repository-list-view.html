@@ -223,6 +223,40 @@
     </tc-list-row>
     }
   </tc-list>
+  } @if (showsMissingStep()) {
+  <section tc-callout class="repos__missing" aria-labelledby="repos-missing" data-testid="repos-missing">
+    <h3 tc-callout-title id="repos-missing">{{ 'overview.repos.missing.title' | transloco }}</h3>
+    <p>{{ 'overview.repos.missing.body' | transloco: { app: appName() } }}</p>
+    <div class="repos__missing-actions">
+      @if (selectionUrl(); as selectionUrl) {
+      <a
+        tc-button
+        variant="primary"
+        data-testid="repos-missing-link"
+        [href]="selectionUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {{ 'overview.repos.missing.action' | transloco }}
+        <span class="tc-sr-only">{{ 'settings.common.external' | transloco }}</span>
+        <tc-icon name="external" size="sm" />
+      </a>
+      }
+      <button
+        tc-button
+        type="button"
+        data-testid="repos-missing-refresh"
+        [loading]="refreshing()"
+        [attr.aria-disabled]="!online() || refreshing() ? 'true' : null"
+        (click)="onRefresh('repos-missing-refresh')"
+      >
+        @if (!refreshing()) {
+        <tc-icon name="refresh" size="sm" />
+        }
+        {{ (refreshing() ? 'overview.repos.refreshing' : 'overview.repos.missing.refresh') | transloco }}
+      </button>
+    </div>
+  </section>
   } }
 
   <ng-content />
