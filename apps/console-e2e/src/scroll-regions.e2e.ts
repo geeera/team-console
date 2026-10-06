@@ -263,3 +263,55 @@ test('«Попросить PM» fits the screen: title and actions in view, only
   await page.mouse.wheel(0, 300);
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 });
+
+test("the phone's Projects sheet with a long list: Add project and Settings stay in view, only its body scrolls", async ({
+  page,
+}) => {
+  test.skip(
+    test.info().project.name !== 'iphone',
+    "the Projects sheet is the phone's; wide screens have the sidebar",
+  );
+  // Thirty projects: the registry answer is stretched in the browser, the seeded project is the template.
+  await page.route('**/api/v1/projects', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+    const response = await route.fetch();
+    const projects = (await response.json()) as Record<string, unknown>[];
+    const [first] = projects;
+    const extra = Array.from({ length: 30 }, (_, index) => ({
+      ...first,
+      slug: `extra-${index + 1}`,
+      repo: `geeera/extra-${index + 1}`,
+      displayName: `Extra project ${index + 1}`,
+    }));
+    await route.fulfill({ response, json: [...projects, ...extra] });
+  });
+  await page.goto('/needs-you');
+  await page.getByRole('button', { name: ru('shell.openSwitcher') }).click();
+  const sheet = dialog(page);
+  await expect(sheet.getByText('Extra project 30')).toBeAttached();
+  await sheet.evaluate(async (element) => {
+    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished));
+  });
+
+  await expectWithinViewport(page, '[role="dialog"]', 'the Projects sheet');
+  const addProject = sheet.locator('.tc-sheet__foot').getByRole('button', { name: ru('shell.addProject') });
+  const settings = sheet.locator('.tc-sheet__foot').getByRole('button', { name: ru('shell.settings') });
+  await expect(addProject).toBeInViewport({ ratio: 1 });
+  await expect(settings).toBeInViewport({ ratio: 1 });
+
+  const regions = await page.evaluate(scrollRegionsOf);
+  expect(regions.map((region) => region.name)).toEqual(['div.tc-sheet__body']);
+  expect(regions.every((region) => region.isInTopDialog)).toBe(true);
+
+  // At the end of the list the actions are still where they were.
+  await sheet
+    .locator('.tc-sheet__body')
+    .evaluate((element) => element.scrollTo({ top: element.scrollHeight }));
+  await expect(sheet.getByText('Extra project 30')).toBeInViewport();
+  await expect(addProject).toBeInViewport({ ratio: 1 });
+  await expect(settings).toBeInViewport({ ratio: 1 });
+  await expectAccessible(page, 'Projects sheet with a long list');
+});
