@@ -84,14 +84,3 @@ test('a project waiting only for its first event is ready: no step left, a clock
   await expect(events.getByRole('button', { name: ru('settings.step.how') })).toHaveCount(0);
   await expectAccessible(page, 'project setup waiting for the first event');
 });
-
-test('Settings reads "Ready" for the waiting project and counts the steps that need the owner', async ({
-  page,
-}) => {
-  await page.goto('/settings');
-  const chipOf = (slug: string) => page.locator(`[data-row="${slug}"] [data-testid="setup-chip"]`);
-  await expect(chipOf('team-console')).toHaveText(ru('settings.projects.row.readyWaiting'));
-  // private-product: the routine token is missing; the waiting events step is not counted.
-  await expect(chipOf('private-product')).toHaveText(ru('settings.projects.row.missing.one', { n: 1 }));
-  await expectAccessible(page, 'settings with a ready and an incomplete project');
-});

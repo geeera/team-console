@@ -156,6 +156,20 @@ latest 200 comments, cached 30 s) under a per-request `SubrequestBudget` (44 Git
 finish is its own `github-request-budget` row). Console: `OverviewApi` in `@console/entities/project`, page
 `console-pages-overview` (tiles link to `/p/:slug/board`); kit `Meter`.
 
+Repositories from GitHub (#194, ADR 0003 decisions 2(a)/6 as amended): `GET /api/v1/github/installation/repositories[?fresh=1]`
+(`routes/installation-repositories.ts`, a read mounted before the owner-only connection routes) → 403 `github-owner-not-connected`
+before any JWT when no owner is connected; the installation by `account.id` = the pinned `user_id` (`installationIdForAccount`,
+`GET /app/installations`, never a login; none → 409 `github-app-not-installed` + `installUrl`); the installation-wide token
+(`listTokenSourceFor`, mint body exactly `{permissions:{metadata:'read'}}`, cache key `installation:<id>`, `kind:
+'installation-list'`) is accepted only by `GitHubClient.listInstallationRepositories` (fixed path, `Link` only to
+`/installation/repositories`); every generic client method refuses it before any fetch. ≤ 10 pages under
+`SubrequestBudget(20)` (`listConnectionFor`), `partial` when the cap or the budget stops it; GitHub's part cached 60 s, the
+registry merged per request from D1. Console: `@console/entities/installation-repository` (store, guard, `repositoryGroupsOf`),
+`AddProject`/`AddJob`/`AddRepositorySheet` in `@console/features/add-project`, `@console/widgets/github-repositories`
+(`GitHubRepositoriesBlock` + presenter `RepositoryListView`, stories in the kit Storybook) on All projects; every "Add
+project" entry point is `ADD_PROJECT_URL` (`/overview#add-project`); Settings holds settings only. Kit: `SheetFooter`,
+`Sheet.open({ width: 'wide' })` (`--sheet-dialog-w`), `ListRow` `link`/`label`/`muted`/`tc-row-trailing-text`/`tc-row-detail`.
+
 Team commands (#114): `routes/team-commands.ts` (`GET /projects/:slug/team/status`, `POST …/team/pause|resume` on the
 owner's token, byte-for-byte `runlog pause`/`resume`, 60 s replay from `own_writes`; `POST …/runs {slot}` fires the
 slot's routine once, never retried, behind the run log (paused, 3-hour overlap) and the 15-minute `slot_requests` lock

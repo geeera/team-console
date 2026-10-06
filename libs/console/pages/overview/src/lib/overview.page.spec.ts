@@ -109,13 +109,21 @@ describe('OverviewPage', () => {
   const tile = (root: HTMLElement, slug: string): HTMLElement =>
     root.querySelector(`[data-project="${slug}"]`) as HTMLElement;
 
-  it('with no projects it is the empty state that points to Settings, and reads nothing', async () => {
+  it('with no projects it is a short note above the GitHub list, and reads no overview', async () => {
     const { root } = await render([]);
     expect(root.querySelector('h1')?.textContent?.trim()).toBe('Все проекты');
-    expect(root.querySelector('[data-testid="no-projects"] a')?.getAttribute('href')).toBe(
-      '/settings/projects/new',
-    );
+    const note = root.querySelector('[data-testid="no-projects"]') as HTMLElement;
+    expect(note.textContent).toContain('Проектов пока нет');
+    expect(note.textContent).toContain('Доступны на GitHub');
+    expect(root.querySelector('tc-github-repositories-block')).not.toBeNull();
     http.expectNone(OVERVIEW_URL);
+  });
+
+  it('shows "Available on GitHub" under the projects (#194)', async () => {
+    const { root } = await render([projectDto('alpha')]);
+    expect(root.querySelector('[data-testid="github-repositories"] h2')?.textContent?.trim()).toBe(
+      'Доступны на GitHub',
+    );
   });
 
   it('shows one tile per project, linking to its board; the quiet ones below', async () => {

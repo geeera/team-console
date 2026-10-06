@@ -9,16 +9,11 @@
   @if (projects.status() !== 'ready') {
   <tc-state-block kind="loading" [title]="'shell.loading' | transloco" />
   } @else if (!projects.hasProjects()) {
-  <tc-state-block
-    kind="empty"
-    data-testid="no-projects"
-    [title]="'shell.noProjects' | transloco"
-    [description]="'shell.noProjectsHint' | transloco"
-  >
-    <a tc-button tc-state-action variant="primary" routerLink="/settings/projects/new"
-      >{{ 'shell.addProject' | transloco }}</a
-    >
-  </tc-state-block>
+  <!-- No projects yet: a short note, with the list to add from right under it (#194 design). -->
+  <div class="overview__empty" data-testid="no-projects">
+    <h2 class="overview__empty-title">{{ 'overview.empty.title' | transloco }}</h2>
+    <p class="overview__empty-body">{{ 'overview.empty.body' | transloco }}</p>
+  </div>
   } @else if (state().kind === 'loading') {
   <tc-state-block kind="loading" data-testid="loading" [title]="'overview.loading' | transloco" />
   } @else if (failure(); as failed) {
@@ -68,4 +63,6 @@
     }
   </ul>
   } }
+
+  <tc-github-repositories-block />
 </div>

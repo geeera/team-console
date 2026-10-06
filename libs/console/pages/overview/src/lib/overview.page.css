@@ -30,6 +30,28 @@
   text-transform: uppercase;
 }
 
+.overview__empty {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-w) dashed var(--border-strong);
+  border-radius: var(--r-lg);
+}
+
+.overview__empty-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+}
+
+.overview__empty-body {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
 .overview__group-count {
   font-weight: var(--fw-regular);
   font-variant-numeric: tabular-nums;

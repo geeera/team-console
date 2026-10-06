@@ -1,9 +1,23 @@
-export { GitHubAppAuth, INSTALLATION_PERMISSIONS, createAppJwt, importAppPrivateKey } from './lib/app-auth';
+export {
+  GitHubAppAuth,
+  INSTALLATION_LIST_PERMISSIONS,
+  INSTALLATION_PERMISSIONS,
+  createAppJwt,
+  importAppPrivateKey,
+} from './lib/app-auth';
 export type { GitHubAppAuthOptions, GitHubAppCredentials } from './lib/app-auth';
 export { GitHubClient } from './lib/client';
-export type { JsonGuard, ListTail, PaginateOptions } from './lib/client';
+export type {
+  BoundedList,
+  InstallationRepositoriesOptions,
+  InstallationRepository,
+  JsonGuard,
+  ListTail,
+  PaginateOptions,
+} from './lib/client';
 export {
   GitHubError,
+  appNotInstalledForAccountError,
   mapGitHubResponse,
   ownerMismatchError,
   ownerNotConnectedError,
@@ -41,9 +55,11 @@ export type {
 export { InvalidRepoNameError, isValidRepoName, parseRepoName, sameRepo } from './lib/repo-name';
 export type { RepoName } from './lib/repo-name';
 export type {
+  InstallationListTokenSource,
   InstallationTokenSource,
   OwnerAccount,
   OwnerTokenSource,
+  RequestTokenSource,
   TokenSource,
 } from './lib/token-source';
 export { GITHUB_API_ORIGIN, GITHUB_DEADLINE_MS } from './lib/transport';

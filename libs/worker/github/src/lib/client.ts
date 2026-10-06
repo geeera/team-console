@@ -1,6 +1,7 @@
+import { isRepoFullName } from '@shared/contracts';
 import { githubUnexpectedError, mapGitHubResponse, ownerNotConnectedError } from './errors';
-import { githubPathOf, type GitHubPath } from './github-path';
-import type { TokenSource } from './token-source';
+import { githubPath, githubPathOf, type GitHubPath } from './github-path';
+import type { InstallationListTokenSource, RequestTokenSource, TokenSource } from './token-source';
 import { discardBody, githubRequest, onGitHubApi, readGitHubJson, type FetchLike } from './transport';
 
 /** Narrows GitHub's JSON to what a read model uses; GitHub's raw types never leave the Worker. */
@@ -11,13 +12,121 @@ export interface PaginateOptions {
   readonly maxPages?: number;
 }
 
+/** A list read up to a page cap: the items, and whether the cap (not the list's end) stopped the read. */
+export interface BoundedList<T> {
+  readonly items: readonly T[];
+  /** `false` when GitHub named another page that `maxPages` did not allow. */
+  readonly complete: boolean;
+}
+
 /** The tail of a list: its last page, and whether that page is the whole list. */
 export interface ListTail<T> {
   readonly items: readonly T[];
   readonly isWholeList: boolean;
 }
 
+/** One entry of `GET /installation/repositories`, as much of it as the console keeps. */
+export interface InstallationRepository {
+  readonly fullName: string;
+  readonly private: boolean;
+}
+
+export interface InstallationRepositoriesOptions {
+  /** Pages of 100; the caller sizes it to its subrequest budget. */
+  readonly maxPages: number;
+  /**
+   * Called with every page as soon as it is read, so a caller that is stopped mid-list (a subrequest budget)
+   * still holds the pages before it.
+   */
+  readonly onPage?: (page: readonly InstallationRepository[]) => void;
+}
+
 const DEFAULT_MAX_PAGES = 5;
+const INSTALLATION_REPOSITORIES_PATH = '/installation/repositories';
+const INSTALLATION_PAGE_QUERY: ReadonlySet<string> = new Set(['per_page', 'page']);
+
+/**
+ * ADR 0003 decision 6 as amended by #194: the installation-wide `metadata` token reads more than names on every
+ * installed repository, so the generic reads and writes refuse it before any request is sent. Reaching this is a
+ * programming error (a 500), never a GitHub problem.
+ */
+function assertRequestSource(tokens: TokenSource): asserts tokens is RequestTokenSource {
+  if (tokens.kind !== 'installation' && tokens.kind !== 'owner') {
+    throw new Error(`GitHubClient refuses a ${tokens.kind} token source here`);
+  }
+}
+
+function assertListSource(tokens: TokenSource): asserts tokens is InstallationListTokenSource {
+  if (tokens.kind !== 'installation-list') {
+    throw new Error(`listInstallationRepositories refuses a ${tokens.kind} token source`);
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isInstallationRepositoryItem(
+  value: unknown,
+): value is { id: number; full_name: string; private: boolean } {
+  return (
+    isRecord(value) &&
+    Number.isSafeInteger(value['id']) &&
+    isRepoFullName(value['full_name']) &&
+    typeof value['private'] === 'boolean'
+  );
+}
+
+function isInstallationRepositoriesPage(value: unknown): value is { repositories: unknown[] } {
+  return isRecord(value) && Array.isArray(value['repositories']);
+}
+
+/**
+ * The next page of the installation's repository list, or `null` at the end. Following `Link` is allowed onto
+ * api.github.com and `/installation/repositories` with only its paging query: a link to any other path — say a
+ * `/repos/...` read — is `github-unexpected`, so the metadata token can never be steered at another endpoint.
+ */
+function nextInstallationPageOf(response: Response): GitHubPath | null {
+  const next = relLinkOf(response.headers.get('link'), 'next');
+  if (next === null) {
+    return null;
+  }
+  const url = next.url;
+  const isSameList =
+    url !== null &&
+    url.pathname === INSTALLATION_REPOSITORIES_PATH &&
+    [...url.searchParams.keys()].every((key) => INSTALLATION_PAGE_QUERY.has(key));
+  if (!isSameList) {
+    throw githubUnexpectedError('GitHub named a next page off the installation list', response.status);
+  }
+  return githubPathOf(url);
+}
+
+/** GET with one retry after a 401 on a cached token; non-2xx → `GitHubError`. */
+async function authorizedGet(fetcher: FetchLike, tokens: TokenSource, path: GitHubPath): Promise<Response> {
+  let token = await tokens.getToken();
+  let response = await githubRequest(fetcher, { method: 'GET', path, bearer: token });
+  if (response.status === 401) {
+    // A cached token revoked or expired early (key rotation, reinstall): evict it and retry once.
+    await discardBody(response);
+    tokens.invalidate(token);
+    token = await tokens.getToken();
+    response = await githubRequest(fetcher, { method: 'GET', path, bearer: token });
+  }
+  if (!response.ok) {
+    await discardBody(response);
+    throw mapGitHubResponse(response);
+  }
+  return response;
+}
+
+async function parseBody<T>(response: Response, guard: JsonGuard<T>): Promise<T> {
+  const body = await readGitHubJson(response);
+  if (!guard(body)) {
+    throw githubUnexpectedError('GitHub returned a body of an unexpected shape', response.status);
+  }
+  return body;
+}
 
 /**
  * The target of the `rel` link, or `null` when the header names none. `url` is `null` for a target off
@@ -42,23 +151,63 @@ function nextPageOf(link: string | null): URL | null {
 
 /**
  * Typed reads from api.github.com (ADR 0001 decision 6, ADR 0003 decision 6). Constructed per request with
- * a `TokenSource`, never a token string. There is no generic "call any path" route on top of it: every
- * caller builds its path with `githubPath` from a validated `RepoName` (#9 threat row 2).
+ * a `RequestTokenSource`, never a token string. There is no generic "call any path" route on top of it: every
+ * caller builds its path with `githubPath` from a validated `RepoName` (#9 threat row 2). The installation-wide
+ * list token never reaches these methods: only `listInstallationRepositories` takes it (ADR 0003 decision 6).
  */
 export class GitHubClient {
   constructor(
     private readonly fetcher: FetchLike,
-    private readonly tokens: TokenSource,
+    private readonly tokens: RequestTokenSource,
   ) {}
+
+  /**
+   * `GET /installation/repositories?per_page=100`, `Link` followed up to `maxPages`, with the installation-wide
+   * `metadata` token (#194) — the one request that token is ever used for. The path is fixed here; no caller can
+   * hand it another one, and a per-repository or owner source is refused before any request is sent.
+   */
+  static async listInstallationRepositories(
+    fetcher: FetchLike,
+    tokens: InstallationListTokenSource,
+    options: InstallationRepositoriesOptions,
+  ): Promise<BoundedList<InstallationRepository>> {
+    assertListSource(tokens);
+    const items: InstallationRepository[] = [];
+    let next: GitHubPath | null = githubPath`/installation/repositories?per_page=${100}`;
+    for (let page = 0; next !== null && page < options.maxPages; page += 1) {
+      const response = await authorizedGet(fetcher, tokens, next);
+      const following = nextInstallationPageOf(response);
+      const body = await parseBody(response, isInstallationRepositoriesPage);
+      const read = body.repositories.map((item) => {
+        if (!isInstallationRepositoryItem(item)) {
+          throw githubUnexpectedError('GitHub returned a repository of an unexpected shape', response.status);
+        }
+        return { fullName: item.full_name, private: item.private };
+      });
+      items.push(...read);
+      options.onPage?.(read);
+      next = following;
+    }
+    return { items, complete: next === null };
+  }
 
   /** GET one resource; non-2xx → `GitHubError`, a body the guard rejects → 502 `github-unexpected`. */
   async getJson<T>(path: GitHubPath, guard: JsonGuard<T>): Promise<T> {
     const response = await this.get(path);
-    return this.parse(response, guard);
+    return parseBody(response, guard);
   }
 
   /** GET a list, following `Link: rel="next"` up to `maxPages`; each item must pass the guard. */
   async paginate<T>(path: GitHubPath, itemGuard: JsonGuard<T>, options: PaginateOptions = {}): Promise<T[]> {
+    return [...(await this.paginateBounded(path, itemGuard, options)).items];
+  }
+
+  /** `paginate`, saying whether `maxPages` cut the list short (`complete: false`) instead of dropping that fact. */
+  async paginateBounded<T>(
+    path: GitHubPath,
+    itemGuard: JsonGuard<T>,
+    options: PaginateOptions = {},
+  ): Promise<BoundedList<T>> {
     const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
     const items: T[] = [];
     let next: GitHubPath | null = path;
@@ -68,7 +217,7 @@ export class GitHubClient {
       items.push(...(await this.parseList(response, itemGuard)));
       next = nextUrl === null ? null : githubPathOf(nextUrl);
     }
-    return items;
+    return { items, complete: next === null };
   }
 
   /**
@@ -108,7 +257,7 @@ export class GitHubClient {
    */
   async postJson<T>(path: GitHubPath, body: unknown, guard: JsonGuard<T>): Promise<T> {
     const response = await this.write('POST', path, body);
-    return this.parse(response, guard);
+    return parseBody(response, guard);
   }
 
   /**
@@ -120,6 +269,7 @@ export class GitHubClient {
   }
 
   private async write(method: 'POST' | 'DELETE', path: GitHubPath, body: unknown): Promise<Response> {
+    assertRequestSource(this.tokens);
     const request = (bearer: string) =>
       githubRequest(this.fetcher, { method, path, bearer, ...(body === undefined ? {} : { body }) });
     let token = await this.tokens.getToken();
@@ -142,37 +292,17 @@ export class GitHubClient {
   }
 
   private async get(path: GitHubPath): Promise<Response> {
-    let token = await this.tokens.getToken();
-    let response = await githubRequest(this.fetcher, { method: 'GET', path, bearer: token });
-    if (response.status === 401) {
-      // A cached token revoked or expired early (key rotation, reinstall): evict it and retry once.
-      await discardBody(response);
-      this.tokens.invalidate(token);
-      token = await this.tokens.getToken();
-      response = await githubRequest(this.fetcher, { method: 'GET', path, bearer: token });
-    }
-    if (!response.ok) {
-      await discardBody(response);
-      throw mapGitHubResponse(response);
-    }
-    return response;
+    assertRequestSource(this.tokens);
+    return authorizedGet(this.fetcher, this.tokens, path);
   }
 
   private async parseList<T>(response: Response, itemGuard: JsonGuard<T>): Promise<T[]> {
-    const body = await this.parse(response, (value): value is unknown[] => Array.isArray(value));
+    const body = await parseBody(response, (value): value is unknown[] => Array.isArray(value));
     return body.map((item) => {
       if (!itemGuard(item)) {
         throw githubUnexpectedError('GitHub returned an item of an unexpected shape', response.status);
       }
       return item;
     });
-  }
-
-  private async parse<T>(response: Response, guard: JsonGuard<T>): Promise<T> {
-    const body = await readGitHubJson(response);
-    if (!guard(body)) {
-      throw githubUnexpectedError('GitHub returned a body of an unexpected shape', response.status);
-    }
-    return body;
   }
 }

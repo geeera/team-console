@@ -11,7 +11,7 @@ import { GitHubClient } from './client';
 import { GitHubError } from './errors';
 import { githubPath } from './github-path';
 import { parseRepoName } from './repo-name';
-import type { TokenSource } from './token-source';
+import type { InstallationListTokenSource, RequestTokenSource } from './token-source';
 
 const REPO = parseRepoName('geeera/team-console');
 
@@ -42,7 +42,7 @@ async function rejection(promise: Promise<unknown>): Promise<GitHubError> {
   throw new Error('expected a GitHubError');
 }
 
-function fixedTokens(token = 'ghs_fixed'): TokenSource & { invalidated: string[] } {
+function fixedTokens(token = 'ghs_fixed'): RequestTokenSource & { invalidated: string[] } {
   const invalidated: string[] = [];
   return {
     kind: 'installation',
@@ -130,7 +130,7 @@ describe('GitHubClient.postJson', () => {
     typeof (value as Record<string, unknown>)['id'] === 'number';
 
   /** An owner source whose tokens rotate on every refresh, like #59's connection. */
-  function ownerTokens(): TokenSource & { invalidated: string[]; issued: number } {
+  function ownerTokens(): RequestTokenSource & { invalidated: string[]; issued: number } {
     const state = { invalidated: [] as string[], issued: 0 };
     return {
       kind: 'owner',
@@ -416,5 +416,195 @@ describe('GitHubClient.lastPage', () => {
         )
       ).problem.type,
     ).toBe('github-not-found');
+  });
+});
+
+describe('GitHubClient.paginateBounded', () => {
+  it('says complete: false at the cap, with the items read so far', async () => {
+    const github = scriptedGitHub((call) =>
+      json(200, [1], { link: `<${call.url.split('?')[0]}?page=${github.calls.length + 1}>; rel="next"` }),
+    );
+    const list = await new GitHubClient(github.fetch, fixedTokens()).paginateBounded(
+      githubPath`/items`,
+      isNumber,
+      {
+        maxPages: 2,
+      },
+    );
+    expect(list).toEqual({ items: [1, 1], complete: false });
+    expect(github.calls).toHaveLength(2);
+  });
+
+  it('says complete: true when Link names no next page', async () => {
+    const github = scriptedGitHub(() => json(200, [1, 2]));
+    const list = await new GitHubClient(github.fetch, fixedTokens()).paginateBounded(
+      githubPath`/items`,
+      isNumber,
+    );
+    expect(list).toEqual({ items: [1, 2], complete: true });
+  });
+});
+
+describe('the installation-list token source (#194, ADR 0003 decision 6 as amended)', () => {
+  function listTokens(token = 'ghs_list'): InstallationListTokenSource & { invalidated: string[] } {
+    const invalidated: string[] = [];
+    return {
+      kind: 'installation-list',
+      installationId: 4242,
+      invalidated,
+      getToken: async () => token,
+      invalidate: (value) => invalidated.push(value),
+    };
+  }
+
+  /** Smuggles the list source past the type check, as a bug elsewhere could at run time. */
+  const smuggled = (source: InstallationListTokenSource) => source as unknown as RequestTokenSource;
+
+  const repoPage = (names: readonly string[], link?: string) =>
+    json(
+      200,
+      {
+        total_count: 999,
+        repositories: names.map((name, id) => ({ id, full_name: name, private: id % 2 === 0 })),
+      },
+      link === undefined ? {} : { link },
+    );
+
+  it('a /repos/x/y read on an installation-list source throws with zero fetch calls', async () => {
+    const github = scriptedGitHub(() => json(200, { full_name: 'x/y' }));
+    const client = new GitHubClient(github.fetch, smuggled(listTokens()));
+    await expect(client.getJson(githubPath`/repos/${parseRepoName('x/y')}`, isRepo)).rejects.toThrow(
+      /refuses a installation-list token source/,
+    );
+    expect(github.calls).toHaveLength(0);
+  });
+
+  it.each([
+    ['paginate', (client: GitHubClient) => client.paginate(githubPath`/repos/x/y/issues`, isNumber)],
+    [
+      'paginateBounded',
+      (client: GitHubClient) => client.paginateBounded(githubPath`/repos/x/y/issues`, isNumber),
+    ],
+    [
+      'lastPage',
+      (client: GitHubClient) => client.lastPage(githubPath`/repos/x/y/issues`, isNumber, () => true),
+    ],
+    [
+      'postJson',
+      (client: GitHubClient) => client.postJson(githubPath`/repos/x/y/issues/1/comments`, {}, isRepo),
+    ],
+    ['delete', (client: GitHubClient) => client.delete(githubPath`/repos/x/y/issues/1/labels/a`)],
+  ])('%s on an installation-list source throws a plain Error before any fetch', async (_name, call) => {
+    const github = scriptedGitHub(() => json(200, []));
+    const tokens = listTokens();
+    const error: unknown = await call(new GitHubClient(github.fetch, smuggled(tokens))).catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(GitHubError);
+    expect(github.calls).toHaveLength(0);
+  });
+
+  it('listInstallationRepositories refuses a per-repository source with zero fetch calls', async () => {
+    const github = scriptedGitHub(() => repoPage(['geeera/a']));
+    const perRepo = fixedTokens() as unknown as InstallationListTokenSource;
+    await expect(
+      GitHubClient.listInstallationRepositories(github.fetch, perRepo, { maxPages: 10 }),
+    ).rejects.toThrow(/refuses a installation token source/);
+    expect(github.calls).toHaveLength(0);
+  });
+
+  it('reads the fixed path with the list token: one page', async () => {
+    const github = scriptedGitHub(() => repoPage(['geeera/a', 'geeera/b']));
+    const list = await GitHubClient.listInstallationRepositories(github.fetch, listTokens(), {
+      maxPages: 10,
+    });
+    expect(list).toEqual({
+      items: [
+        { fullName: 'geeera/a', private: true },
+        { fullName: 'geeera/b', private: false },
+      ],
+      complete: true,
+    });
+    expect(github.calls.map((call) => call.url)).toEqual([
+      'https://api.github.com/installation/repositories?per_page=100',
+    ]);
+    expect(github.calls[0]?.headers.get('authorization')).toBe('Bearer ghs_list');
+  });
+
+  it('follows Link through three pages, then stops at the end', async () => {
+    const next = (page: number) =>
+      `<https://api.github.com/installation/repositories?per_page=100&page=${page}>; rel="next"`;
+    const github = scriptedGitHub((call) => {
+      const page = Number(new URL(call.url).searchParams.get('page') ?? '1');
+      return repoPage([`geeera/r${page}`], page < 3 ? next(page + 1) : undefined);
+    });
+    const pages: string[][] = [];
+    const list = await GitHubClient.listInstallationRepositories(github.fetch, listTokens(), {
+      maxPages: 10,
+      onPage: (page) => pages.push(page.map((repo) => repo.fullName)),
+    });
+    expect(list.items.map((repo) => repo.fullName)).toEqual(['geeera/r1', 'geeera/r2', 'geeera/r3']);
+    expect(list.complete).toBe(true);
+    expect(pages).toEqual([['geeera/r1'], ['geeera/r2'], ['geeera/r3']]);
+    expect(github.calls).toHaveLength(3);
+  });
+
+  it('stops at maxPages with complete: false', async () => {
+    const github = scriptedGitHub((call) => {
+      const page = Number(new URL(call.url).searchParams.get('page') ?? '1');
+      return repoPage(
+        [`geeera/r${page}`],
+        `<https://api.github.com/installation/repositories?per_page=100&page=${page + 1}>; rel="next"`,
+      );
+    });
+    const list = await GitHubClient.listInstallationRepositories(github.fetch, listTokens(), {
+      maxPages: 10,
+    });
+    expect(list.items).toHaveLength(10);
+    expect(list.complete).toBe(false);
+    expect(github.calls).toHaveLength(10);
+  });
+
+  it.each([
+    [
+      'another API path on api.github.com',
+      '<https://api.github.com/repos/geeera/a/collaborators>; rel="next"',
+    ],
+    ['another host', '<https://evil.example/installation/repositories?page=2>; rel="next"'],
+    ['an extra query member', '<https://api.github.com/installation/repositories?page=2&path=x>; rel="next"'],
+    [
+      'a path that only starts like the list',
+      '<https://api.github.com/installation/repositories/../x>; rel="next"',
+    ],
+  ])('refuses a next link to %s: github-unexpected, never followed', async (_label, link) => {
+    const github = scriptedGitHub(() => repoPage(['geeera/a'], link));
+    const error = await rejection(
+      GitHubClient.listInstallationRepositories(github.fetch, listTokens(), { maxPages: 10 }),
+    );
+    expect(error.problem.type).toBe('github-unexpected');
+    expect(github.calls).toHaveLength(1);
+  });
+
+  it.each([
+    ['an array instead of the page object', []],
+    ['a repository without full_name', { repositories: [{ id: 1, private: false }] }],
+    ['a full_name that is not owner/name', { repositories: [{ id: 1, full_name: 'a/b/c', private: false }] }],
+    ['private that is not a boolean', { repositories: [{ id: 1, full_name: 'a/b', private: 'no' }] }],
+  ])('answers 502 github-unexpected for %s', async (_label, body) => {
+    const github = scriptedGitHub(() => json(200, body));
+    const error = await rejection(
+      GitHubClient.listInstallationRepositories(github.fetch, listTokens(), { maxPages: 10 }),
+    );
+    expect(error.problem.type).toBe('github-unexpected');
+  });
+
+  it('evicts the list token on 401 and retries once', async () => {
+    let calls = 0;
+    const github = scriptedGitHub(() => (calls++ === 0 ? json(401, {}) : repoPage(['geeera/a'])));
+    const tokens = listTokens();
+    const list = await GitHubClient.listInstallationRepositories(github.fetch, tokens, { maxPages: 1 });
+    expect(list.items).toHaveLength(1);
+    expect(tokens.invalidated).toEqual(['ghs_list']);
   });
 });

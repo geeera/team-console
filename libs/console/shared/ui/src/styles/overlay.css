@@ -11,3 +11,7 @@
   width: min(var(--dialog-max-w), calc(100% - var(--space-8)));
   max-height: calc(100% - var(--space-8));
 }
+
+.tc-dialog-panel--wide {
+  width: min(var(--sheet-dialog-w), calc(100% - var(--space-8)));
+}

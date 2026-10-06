@@ -26,6 +26,7 @@ export { Receipt } from './lib/receipt/receipt';
 export type { ReceiptTone } from './lib/receipt/receipt';
 export { Recommendation } from './lib/recommendation/recommendation';
 export { Sheet } from './lib/sheet/sheet';
+export { SheetFooter } from './lib/sheet/sheet-footer';
 export type { SheetOptions } from './lib/sheet/sheet';
 export { ConfirmFailure } from './lib/sheet/confirm-dialog';
 export type { ConfirmInput, ConfirmOptions } from './lib/sheet/confirm-dialog';
