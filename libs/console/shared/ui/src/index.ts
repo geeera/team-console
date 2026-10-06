@@ -11,6 +11,7 @@ export { Callout } from './lib/callout/callout';
 export type { CalloutTone } from './lib/callout/callout';
 export { Card } from './lib/card/card';
 export type { CardStamp } from './lib/card/card';
+export { CheckRow } from './lib/check-row/check-row';
 export { Choice, ChoiceGroup } from './lib/choice/choice';
 export { Chip } from './lib/chip/chip';
 export type { ChipTone } from './lib/chip/chip';

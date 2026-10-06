@@ -15,3 +15,23 @@
 .tc-dialog-panel--wide {
   width: min(var(--sheet-dialog-w), calc(100% - var(--space-8)));
 }
+
+/*
+ * The button row at the foot of a sheet or dialog's content: Cancel, then the action, right-aligned; on the phone
+ * they stack full width with the action on top, nearest the thumb.
+ */
+.tc-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+@media (max-width: 519.98px) {
+  .tc-dialog-actions {
+    flex-direction: column-reverse;
+  }
+
+  .tc-dialog-actions > * {
+    width: 100%;
+  }
+}

@@ -23,6 +23,8 @@ type ServiceRule =
 
 const RULES: Readonly<Record<string, ServiceRule>> = {
   'POST /api/v1/projects/:slug/issues/:number/answer': 'fixture-gate',
+  // #220: it answers questions only, which the fixture gate refuses anyway (`service-protected-item: question`).
+  'POST /api/v1/projects/:slug/answers/batch': 'owner-only',
   // Not issue-scoped and not needed by e2e on dev/stage: pause/resume write on the run log as the owner, run now
   // starts a team run on the slot's trigger token.
   'POST /api/v1/projects/:slug/team/pause': 'owner-only',

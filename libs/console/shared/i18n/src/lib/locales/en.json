@@ -902,6 +902,43 @@
       "day": "{{day}} {{time}}"
     },
     "external": "(opens GitHub)",
+    "batch": {
+      "approve": "Approve team recommendations ({{n}})",
+      "approveNone": "Nothing can be approved in a batch",
+      "title": "Approve team recommendations?",
+      "titleAll": "Approve team recommendations in every project?",
+      "body": "The team recommends approving these, and none is about money, a release, legal, access or a design. Untick any you want to decide yourself.",
+      "rec": "Team recommends: {{c}}",
+      "list": "Questions to approve",
+      "out": "Left out: {{n}} — answer these one by one",
+      "why": {
+        "untrusted": "not from the team",
+        "money": "money",
+        "release": "a release",
+        "legal": "legal",
+        "access": "access",
+        "design": "a design: look at it first",
+        "uncategorised": "no category",
+        "reject": "recommends rejecting: needs your reason",
+        "no-recommendation": "no recommendation"
+      },
+      "owner": "Each answer is recorded on its own question as you: “{{said}}”.",
+      "ownerSaid": "Approving the team recommendation (batch, {{n}})",
+      "ok": "Approve {{n}}",
+      "okNone": "Nothing ticked",
+      "sending": "Sending…",
+      "retry": "Try again",
+      "cancel": "Cancel",
+      "done": "Approved: {{n}}. Recorded as you.",
+      "partial": "Approved {{ok}} of {{n}}. Not recorded: {{ids}} — GitHub didn’t answer. Try again: nothing already recorded is posted twice.",
+      "error": {
+        "connect": "GitHub is not connected, or another account is: answers are written from the repository owner's account. Connect it in Settings and try again.",
+        "rate": "GitHub asks to wait. Try again in a minute — nothing already recorded is posted twice.",
+        "offline": "No connection to the server. Try again once you are back online — nothing already recorded is posted twice.",
+        "github": "GitHub didn’t answer. Try again — nothing already recorded is posted twice.",
+        "changed": "These questions changed while the dialog was open: {{ids}}. Answer them one by one."
+      }
+    },
     "sprint": {
       "demo": "Move the demo",
       "demoHint": "{{sprint}}: demo {{date}}, freeze {{range}}",
@@ -1237,6 +1274,13 @@
     "srOnlyOnPhone": {
       "title": "Needs you",
       "body": "On the phone the top bar already shows this title, so here it stays for screen readers only."
+    },
+    "checkRow": {
+      "list": "Questions to approve",
+      "first": "Plan for the 16 October demo",
+      "second": "CSV export on the board",
+      "long": "A very long question title that wraps over several lines and must not push the tick out of place",
+      "detail": "Team recommends: start as planned"
     },
     "choice": {
       "when": "For how long",

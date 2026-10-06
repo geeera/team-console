@@ -1,5 +1,13 @@
 import type { InboxDto, InboxItemDto, QuestionDto, QuestionsDto } from '@shared/contracts';
-import { ANSWERS, askOf, kindOf, sectionOf, sectionRank } from '@shared/owner-grammar';
+import {
+  ANSWERS,
+  askOf,
+  categoryOf,
+  kindOf,
+  recommendationOf,
+  sectionOf,
+  sectionRank,
+} from '@shared/owner-grammar';
 import type { IssueRecord } from './github-records';
 import { githubUrlOrNull, isTrustedAuthor } from './untrusted-text';
 
@@ -29,6 +37,8 @@ function classified(issues: readonly IssueRecord[]): Classified[] {
     if (section === null) {
       continue;
     }
+    // brief.needs: an empty answer line is no answer line (`issue.get("ask") or …` → None).
+    const ask = askOf(issue.body) || null;
     found.push({
       issue,
       item: {
@@ -36,9 +46,10 @@ function classified(issues: readonly IssueRecord[]): Classified[] {
         number: issue.number,
         title: issue.title,
         url: githubUrlOrNull(issue.htmlUrl),
-        // brief.needs: an empty answer line is no answer line (`issue.get("ask") or …` → None).
-        ask: askOf(issue.body) || null,
+        ask,
         authorTrusted: isTrustedAuthor(issue),
+        category: categoryOf(issue.labels),
+        recommendation: recommendationOf(ask),
       },
     });
   }

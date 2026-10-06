@@ -150,7 +150,7 @@ let nextFieldId = 0;
     @if (failure(); as message) {
       <p class="tc-confirm__error" role="alert"><tc-icon name="alert" size="sm" />{{ message }}</p>
     }
-    <div class="tc-confirm__actions">
+    <div class="tc-confirm__actions tc-dialog-actions">
       <button
         tc-button
         type="button"

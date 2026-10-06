@@ -1,6 +1,7 @@
-import { ANSWERS } from '@shared/owner-grammar';
+import { ANSWERS, askOf, categoryOf, recommendationOf } from '@shared/owner-grammar';
 import edgeCases from '../../fixtures/edge-cases.json';
 import edgeCasesExpected from '../../fixtures/edge-cases.expected.json';
+import recommendations from '../../fixtures/recommendations.expected.json';
 import storify from '../../fixtures/storify.json';
 import storifyExpected from '../../fixtures/storify.expected.json';
 import teamConsole from '../../fixtures/team-console.json';
@@ -39,6 +40,8 @@ interface ExpectedItem {
   readonly title: string;
   readonly url: string | null;
   readonly ask: string | null;
+  readonly category: string | null;
+  readonly recommendation: string | null;
 }
 
 interface Expected {
@@ -101,9 +104,15 @@ describe.each(CASES)('golden: %s', (_name, fixture, expected) => {
       repoFullName: fixture.repo,
     });
 
-    expect(inbox.items.map(({ section, number, title, ask }) => ({ section, number, title, ask }))).toEqual(
-      expected.inbox.items.map(({ section, number, title, ask }) => ({ section, number, title, ask })),
-    );
+    const shape = ({ section, number, title, ask, category, recommendation }: ExpectedItem) => ({
+      section,
+      number,
+      title,
+      ask,
+      category,
+      recommendation,
+    });
+    expect(inbox.items.map(shape)).toEqual(expected.inbox.items.map(shape));
     expect(inbox.items.map((item) => item.url)).toEqual(
       expected.inbox.items.map((item) => sanitisedUrl(item.url)),
     );
@@ -224,4 +233,40 @@ describe('golden fixtures cover what they claim to', () => {
     ).toBe(true);
     expect(edgeCasesExpected.inbox.items.some((item) => item.url?.startsWith('javascript:'))).toBe(true);
   });
+
+  it('the edge cases hold every owner category and every reading of a recommendation (#220)', () => {
+    const items = edgeCasesExpected.inbox.items;
+    expect(new Set(items.map((item) => item.category))).toEqual(
+      new Set([null, 'money', 'scope', 'release', 'access', 'legal', 'design']),
+    );
+    expect(new Set(items.map((item) => item.recommendation))).toEqual(
+      new Set([null, 'approve', 'reject', 'go']),
+    );
+  });
+});
+
+// #220: the batch rule reads the plugin's own questions — `owner.question_body` in both languages, for every
+// category — as golden.py's mirror of `categoryOf` / `recommendationOf` reads them.
+describe('golden: the plugin’s own ask lines', () => {
+  const cases = recommendations.cases;
+
+  it('covers every category in both languages, with and without a recommendation', () => {
+    expect(new Set(cases.map((item) => item.category))).toEqual(
+      new Set(['money', 'scope', 'release', 'access', 'legal', 'design']),
+    );
+    expect(new Set(cases.map((item) => item.language))).toEqual(new Set(['en', 'ru']));
+    expect(new Set(cases.map((item) => item.recommendation))).toEqual(
+      new Set([null, 'approve', 'reject', 'go', 'no-go']),
+    );
+  });
+
+  it.each(cases.map((item) => [item.language, item.labels.join(','), item.ask ?? '', item] as const))(
+    '%s %s: %s',
+    (_language, _labels, _ask, item) => {
+      const ask = askOf(item.body);
+      expect(ask).toBe(item.ask);
+      expect(categoryOf(item.labels)).toBe(item.category);
+      expect(recommendationOf(ask)).toBe(item.recommendation);
+    },
+  );
 });

@@ -33,6 +33,8 @@ function question(number: number, overrides: Partial<QuestionDto>): QuestionDto 
     url: `https://github.com/geeera/tc/issues/${number}`,
     ask: null,
     authorTrusted: true,
+    category: null,
+    recommendation: null,
     body: '',
     allowedCommands: ['approve', 'reject'],
     ...overrides,

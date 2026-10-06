@@ -5,6 +5,7 @@ import { csrfMiddleware } from './auth/csrf.middleware';
 import type { ApiEnv } from './env';
 import { ApiGitHub, mapGitHubError } from './github';
 import { createAnswerRoutes } from './routes/answer';
+import { createBatchAnswerRoutes } from './routes/batch-answer';
 import { createGitHubConnectionRoutes } from './routes/github-connection';
 import { createInstallationRepositoriesRoutes } from './routes/installation-repositories';
 import { healthzRoutes } from './routes/healthz';
@@ -52,8 +53,8 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
     notFound: async (c) =>
       isApiPath(c.req.path)
         ? problem(c, { type: 'not-found', title: 'Not Found', status: 404 })
-        // The SPA fallback: the assets binding's own `_headers` governs it, not this Worker's security headers.
-        : markAssetResponse(await c.env.ASSETS.fetch(c.req.raw)),
+        : // The SPA fallback: the assets binding's own `_headers` governs it, not this Worker's security headers.
+          markAssetResponse(await c.env.ASSETS.fetch(c.req.raw)),
     mapError: (error) => mapGitHubError(error) ?? mapReadModelError(error),
     noStore: true,
     ...(options.logSink === undefined ? {} : { logSink: options.logSink }),
@@ -74,6 +75,7 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/needs-you', createNeedsYouRoutes(github));
   v1.route('/overview', createOverviewRoutes(github));
   v1.route('/projects', createAnswerRoutes(github));
+  v1.route('/projects', createBatchAnswerRoutes(github));
   v1.route(
     '/projects',
     createTeamCommandsRoutes(github, {

@@ -99,6 +99,19 @@
           "updated_at": "2026-10-04T09:00:00Z"
         },
         {
+          "number": 90007,
+          "title": "Экспорт доски в CSV",
+          "body": "**Your answer:** /approve добавить экспорт в CSV (рекомендую) · /reject почему\n<!-- pt-ask -->\n\nВопрос о составе продукта: команда предлагает экспорт доски.",
+          "html_url": "https://github.com/geeera/team-console/issues/90007",
+          "state": "open",
+          "labels": [{ "name": "kind:question" }, { "name": "owner:scope" }],
+          "author_association": "CONTRIBUTOR",
+          "user": { "login": "team-console-team[bot]", "type": "Bot" },
+          "milestone": null,
+          "closed_at": null,
+          "updated_at": "2026-10-05T09:00:00Z"
+        },
+        {
           "number": 90002,
           "title": "Макет #24 на утверждение: подключение GitHub и проекты",
           "body": "**Your answer:** /approve макет настроек (рекомендую) · /reject что поменять\n<!-- pt-ask -->\n\nВопрос команды, созданный приложением команды.",
