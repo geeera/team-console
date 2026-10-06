@@ -74,7 +74,8 @@
         "./libs/console/entities/installation-repository/src/index.ts"
       ],
       "@console/widgets/github-repositories": ["./libs/console/widgets/github-repositories/src/index.ts"],
-      "@console/features/sprint-controls": ["./libs/console/features/sprint-controls/src/index.ts"]
+      "@console/features/sprint-controls": ["./libs/console/features/sprint-controls/src/index.ts"],
+      "@console/features/request-change": ["./libs/console/features/request-change/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

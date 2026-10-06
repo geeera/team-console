@@ -1101,7 +1101,8 @@
       "notIssue": "This is a pull request, not an issue. Nothing recorded.",
       "inProgress": "This request is being sent already. Wait a couple of seconds and try again.",
       "timeout": "GitHub didn't answer, so it's unknown whether the request was recorded. A retry within a minute won't record it twice; later, a new one is recorded and the PM reads the latest.",
-      "open": "Open the issue"
+      "open": "Open the issue",
+      "closeBtn": "Close"
     }
   },
   "ui": {
