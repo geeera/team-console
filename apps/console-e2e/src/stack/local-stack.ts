@@ -32,8 +32,24 @@ export interface StackPorts {
   readonly fakePushInspector: number;
 }
 
-/** Ten ports per Playwright worker, so parallel workers never share a server or a database. */
+/**
+ * Ten ports per Playwright worker, so parallel workers never share a server or a database. `E2E_PORT_BASE` (local
+ * runs beside other stacks on one machine) packs a worker into three ports from that base — api, fake GitHub, fake
+ * push — with the devtools inspectors on ports the system picks (`--inspector-port 0`).
+ */
 export function portsFor(parallelIndex: number): StackPorts {
+  const packed = Number(process.env['E2E_PORT_BASE'] ?? '');
+  if (Number.isInteger(packed) && packed > 1024) {
+    const first = packed + parallelIndex * 3;
+    return {
+      api: first,
+      fake: first + 1,
+      apiInspector: 0,
+      fakeInspector: 0,
+      fakePush: first + 2,
+      fakePushInspector: 0,
+    };
+  }
   const base = 18_700 + parallelIndex * 10;
   return {
     api: base,

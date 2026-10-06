@@ -59,6 +59,9 @@ class ProjectsSheetContent {
       <button tc-button type="button" (click)="pause()">
         {{ 'stories.sheet.pauseEllipsis' | transloco }}
       </button>
+      <button tc-button type="button" (click)="moveDate()">
+        {{ 'stories.sheet.dateEllipsis' | transloco }}
+      </button>
       <span role="status" aria-live="polite">{{ result() }}</span>
     </div>
   `,
@@ -128,6 +131,50 @@ class SheetHost {
       },
     });
     this.result.set(t(confirmed ? 'stories.sheet.paused' : 'stories.sheet.confirmedKept'));
+  }
+
+  /**
+   * #218's date confirmation: the native picker, a hint that follows the date, a refusal under the field that holds
+   * Confirm, an ochre caution, and a conflict that refills the field with the live value.
+   */
+  protected async moveDate(): Promise<void> {
+    let attempts = 0;
+    const t = (key: string, params?: Record<string, unknown>): string => this.transloco.translate(key, params);
+    const today = new Date().toISOString().slice(0, 10);
+    const inDays = (days: number): string => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+    const current = inDays(9);
+    const confirmed = await this.sheet.confirm({
+      title: t('stories.sheet.dateTitle'),
+      message: t('stories.sheet.dateMessage', { date: current }),
+      input: {
+        label: t('stories.sheet.dateLabel'),
+        type: 'date',
+        value: current,
+        min: today,
+        check: (value) => {
+          if (value === '' || value < today) {
+            return { error: t('stories.sheet.datePast') };
+          }
+          if (value === current) {
+            return { confirmLabel: t('stories.sheet.dateSame'), isBlocked: true };
+          }
+          return {
+            hint: t('stories.sheet.dateHint', { date: value }),
+            confirmLabel: t('stories.sheet.dateOk', { date: value }),
+            ...(value <= inDays(2) ? { warning: t('stories.sheet.dateWarning') } : {}),
+          };
+        },
+      },
+      busyLabel: t('stories.sheet.sending'),
+      action: async () => {
+        attempts += 1;
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        if (attempts === 1) {
+          throw new ConfirmFailure(t('stories.sheet.dateConflict', { date: inDays(10) }), inDays(10));
+        }
+      },
+    });
+    this.result.set(t(confirmed ? 'stories.sheet.dateDone' : 'stories.sheet.confirmedKept'));
   }
 }
 

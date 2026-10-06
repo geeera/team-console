@@ -1,3 +1,5 @@
+import type { SprintCalendarDto, SprintProgressDto, TeamSprintDto } from './sprint-commands';
+
 /**
  * Team commands, part 1 (#114): pause / resume development and "Run now" for a slot. The Worker reads the run log
  * and fires the slot's routine; the client never decides a refusal itself, it renders the problem `type`.
@@ -69,6 +71,12 @@ export interface TeamStatusDto {
   readonly slots: readonly SlotStatusDto[];
   /** ISO 8601: when the Worker read the run log. */
   readonly checkedAt: string;
+  /** The current sprint (#218); `null` when there is none or the milestones could not be read (`calendar` null). */
+  readonly sprint: TeamSprintDto | null;
+  /** Done of all work issues in the current sprint; `null` without one. */
+  readonly progress: SprintProgressDto | null;
+  /** `null` when GitHub did not answer the milestones read: the sprint commands are off until it does. */
+  readonly calendar: SprintCalendarDto | null;
 }
 
 /** A pause or resume written to the run log. */

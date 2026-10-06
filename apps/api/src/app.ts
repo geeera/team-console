@@ -15,6 +15,7 @@ import { createProjectReadModelRoutes } from './routes/project-read-models';
 import { createArtifactRoutes } from './routes/artifacts';
 import { createNeedsYouRoutes } from './routes/needs-you';
 import { createOverviewRoutes } from './routes/overview';
+import { createSprintCommandsRoutes } from './routes/sprint-commands';
 import { createTeamCommandsRoutes } from './routes/team-commands';
 import { createPushRoutes } from './routes/push';
 import type { FetchLike } from '@worker/routines';
@@ -86,6 +87,7 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
       ...(options.ownerConnection === undefined ? {} : { ownerConnection: options.ownerConnection }),
     }),
   );
+  v1.route('/projects', createSprintCommandsRoutes(github));
   v1.route('/github', createGitHubConnectionRoutes(github));
   v1.route(
     '/push',

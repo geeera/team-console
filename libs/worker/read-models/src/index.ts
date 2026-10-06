@@ -50,8 +50,11 @@ export {
   SPRINT_TIME_ZONE,
   buildSprint,
   declaredTier,
+  demoDayOfMilestone,
   effectiveTier,
+  nextSprintNumber,
   pickCurrentSprint,
+  pickNextSprint,
   sprintSummary,
   sprintToday,
 } from './lib/sprint';
