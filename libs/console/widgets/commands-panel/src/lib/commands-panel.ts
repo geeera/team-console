@@ -1,4 +1,3 @@
-import { DOCUMENT } from '@angular/common';
 import {
   afterNextRender,
   ChangeDetectionStrategy,
@@ -27,8 +26,10 @@ import {
   TranslocoPipe,
   TranslocoService,
 } from '@console/shared/i18n';
-import { Banner, Button, Icon, IconButton, Meter, Receipt, StateBlock, type ReceiptTone } from '@console/shared/ui';
+import { Banner, Button, Icon, IconButton, Receipt, StateBlock, type ReceiptTone } from '@console/shared/ui';
 import { isInFreeze, isSnoozeActive, TEAM_SLOTS, type SlotStatusDto, type TeamSlot } from '@shared/contracts';
+import { CommandsSetup, type SetupLine, type SetupView } from './commands-setup';
+import { CommandsStatus, type SprintFacts } from './commands-status';
 import { listOf, secretCommandOf, whenOf } from './when';
 
 /** The project the panel commands. */
@@ -50,27 +51,12 @@ interface RunRow {
   readonly isOff: boolean;
 }
 
-/** The sprint on the status card (#218), in words. */
-interface SprintFacts {
-  /** "Sprint 04 · demo 14 October"; or why there is none. */
-  readonly line: string;
-  /** "freeze 12–14 October", or "freeze now, until the demo" (ochre); empty without a sprint. */
-  readonly freeze: string;
-  readonly isFreezeNow: boolean;
-}
-
 /** One row of the Sprint group: a command with its button, or a line that says why there is nothing to do. */
 interface SprintRow {
   readonly key: 'demo' | 'next';
   readonly hint: string;
   /** The button's accessible name; `null` when the row has no button (the next sprint exists already). */
   readonly aria: string | null;
-}
-
-interface SetupLine {
-  readonly slot: TeamSlot;
-  readonly name: string;
-  readonly commands: readonly { readonly what: 'id' | 'token'; readonly text: string }[];
 }
 
 /** The Notifications row as the template draws it (#221). */
@@ -99,7 +85,19 @@ const PUSH_OFF: ReadonlySet<PushView> = new Set<PushView>(['off', 'denied', 'no-
  */
 @Component({
   selector: 'tc-commands-panel',
-  imports: [Banner, Button, Icon, IconButton, LocalTimePipe, Meter, Receipt, RouterLink, StateBlock, TranslocoPipe],
+  imports: [
+    Banner,
+    Button,
+    CommandsSetup,
+    CommandsStatus,
+    Icon,
+    IconButton,
+    LocalTimePipe,
+    Receipt,
+    RouterLink,
+    StateBlock,
+    TranslocoPipe,
+  ],
   templateUrl: './commands-panel.html',
   styleUrl: './commands-panel.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -112,7 +110,6 @@ export class CommandsPanel {
   private readonly sprintControls = inject(SprintControls);
   private readonly network = inject(NetworkStatus);
   private readonly transloco = inject(TranslocoService);
-  private readonly document = inject(DOCUMENT);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   protected readonly store = inject(TeamStatusStore);
@@ -126,8 +123,6 @@ export class CommandsPanel {
   protected readonly slots = TEAM_SLOTS;
   protected readonly result = signal<CommandOutcome | null>(null);
   protected readonly announcement = signal('');
-  protected readonly isHowOpen = signal(false);
-  protected readonly copied = signal<string | null>(null);
   /** A confirmation is open: a second press waits for it. */
   private readonly isAsking = signal(false);
   private readonly now = signal(Date.now());
@@ -304,7 +299,7 @@ export class CommandsPanel {
     return { isSnoozed, line, why: null, whyIcon: 'offline', hasPushFix: false };
   });
 
-  protected readonly setup = computed(() => {
+  protected readonly setup = computed<SetupView | null>(() => {
     const status = this.status();
     this.lang();
     if (status === null) {
@@ -400,29 +395,6 @@ export class CommandsPanel {
     );
   }
 
-  protected async copy(text: string, event: Event): Promise<void> {
-    const button = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
-    try {
-      await this.document.defaultView?.navigator.clipboard.writeText(text);
-    } catch (error: unknown) {
-      // No clipboard (an insecure origin, a denied permission): select the line so it can be copied by hand.
-      console.warn('clipboard unavailable; the command is selected instead', error);
-      const code = button?.parentElement?.querySelector('code');
-      const selection = this.document.getSelection();
-      if (code !== null && code !== undefined && selection !== null) {
-        selection.selectAllChildren(code);
-      }
-      return;
-    }
-    this.copied.set(text);
-    this.announce(this.t('commands.setup.copied'));
-    setTimeout(() => {
-      if (this.copied() === text) {
-        this.copied.set(null);
-      }
-    }, 2400);
-  }
-
   private async act(command: () => Promise<CommandOutcome | null>): Promise<void> {
     if (this.isAsking()) {
       return;
@@ -452,7 +424,7 @@ export class CommandsPanel {
     this.announce(label === null ? why : `${label}: ${why}`);
   }
 
-  private announce(text: string): void {
+  protected announce(text: string): void {
     // Cleared first, so the same sentence twice is announced twice.
     this.announcement.set('');
     setTimeout(() => this.announcement.set(text), 30);

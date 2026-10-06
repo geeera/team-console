@@ -15,7 +15,7 @@ import { provideConsoleI18n, TranslocoService } from '@console/shared/i18n';
 import { Sheet } from '@console/shared/ui';
 import { CommandsSheet } from '@console/widgets/commands-panel';
 import type { OverviewDto, OverviewProjectDto, ProjectDto } from '@shared/contracts';
-import { of } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
 import { OverviewPage } from './overview.page';
 
 const projectDto = (slug: string): ProjectDto => ({
@@ -181,6 +181,8 @@ describe('OverviewPage', () => {
     );
     expect(root.querySelector('[data-testid="partial"]')).toBeNull();
 
+    // English is a lazy chunk (#123): loaded before the switch, as `ConsoleLanguage.use` does.
+    await firstValueFrom(TestBed.inject(TranslocoService).load('en'));
     TestBed.inject(TranslocoService).setActiveLang('en');
     await fixture.whenStable();
     expect(a.querySelector('[data-testid="progress"]')?.textContent?.trim()).toBe('3 of 8 done');

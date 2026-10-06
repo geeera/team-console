@@ -1,0 +1,58 @@
+<div class="cp-setup__head">
+  <tc-icon name="key" />
+  <h4 class="cp-setup__title">{{ 'commands.setup.t' | transloco: { slots: setup().names } }}</h4>
+</div>
+<p class="cp-setup__body">{{ 'commands.setup.b' | transloco }}</p>
+<button
+  tc-button
+  variant="quiet"
+  size="sm"
+  type="button"
+  class="cp-setup__how"
+  [attr.aria-expanded]="isHowOpen()"
+  [attr.aria-controls]="id + '-how'"
+  (click)="isHowOpen.set(!isHowOpen())"
+>
+  {{ 'commands.setup.how' | transloco }}
+  <tc-icon name="chevron-down" size="sm" />
+</button>
+<div class="cp-how" [id]="id + '-how'" [hidden]="!isHowOpen()">
+  <ol class="cp-steps">
+    <li>{{ 'commands.setup.s1' | transloco: { name: projectName(), slots: setup().names } }}</li>
+    <li>
+      {{ 'commands.setup.s2' | transloco }}
+      <ul class="cp-slots">
+        @for (line of setup().lines; track line.slot) {
+        <li class="cp-slot">
+          <span class="cp-slot__name">{{ line.name }}</span>
+          @for (command of line.commands; track command.what) {
+          <div class="cp-code tc-code-row">
+            <code class="tc-code-row__code">{{ command.text }}</code>
+            <button
+              tc-button
+              size="sm"
+              type="button"
+              [attr.aria-label]="
+                (command.what === 'id' ? 'commands.setup.copyId' : 'commands.setup.copyToken')
+                  | transloco: { slot: line.name }
+              "
+              (click)="copy(command.text, $event)"
+            >
+              <tc-icon [name]="copied() === command.text ? 'check' : 'copy'" size="sm" />
+              <span aria-hidden="true"
+                >{{ (copied() === command.text ? 'commands.setup.copied' : 'commands.setup.copy') | transloco
+                }}</span
+              >
+            </button>
+          </div>
+          }
+        </li>
+        }
+      </ul>
+      <p class="cp-warn">
+        <tc-icon name="alert" size="sm" /><span>{{ 'commands.setup.warn' | transloco }}</span>
+      </p>
+    </li>
+    <li>{{ 'commands.setup.s3' | transloco }}</li>
+  </ol>
+</div>

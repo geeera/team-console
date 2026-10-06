@@ -38,55 +38,15 @@
   } @if (status(); as status) {
   <section class="cp-state" [attr.aria-labelledby]="id + '-st'">
     <h3 class="cp-kicker" [id]="id + '-st'">{{ 'commands.status.h' | transloco }}</h3>
-    <p class="cp-state__now" [class]="'cp-state__now--' + status.state" data-testid="team-state">
-      @if (status.state === 'paused-by-team') {
-      <tc-icon name="alert" size="sm" />
-      } @else {
-      <span class="cp-dot" [class.cp-dot--paused]="paused()" aria-hidden="true"></span>
-      }
-      <span>{{ stateText() }}</span>
-    </p>
-    <dl class="cp-facts">
-      <div class="cp-fact">
-        <dt>{{ 'commands.status.sprint' | transloco }}</dt>
-        <dd data-testid="status-sprint">
-          <span>{{ sprintFacts().line }}</span>
-          @if (sprintFacts().freeze) {&ngsp;<span class="cp-fact__sub" [class.cp-fact__sub--freeze]="sprintFacts().isFreezeNow"
-            >{{ sprintFacts().freeze }}</span
-          >
-          }
-        </dd>
-      </div>
-      @if (status.progress; as progress) {
-      <div class="cp-fact">
-        <dt>{{ 'commands.status.progress' | transloco }}</dt>
-        <dd class="cp-fact__progress" data-testid="status-progress">
-          <span>{{ 'commands.status.progressVal' | transloco: { done: progress.done, total: progress.total } }}</span>
-          <tc-meter [value]="progress.done" [max]="progress.total" />
-        </dd>
-      </div>
-      }
-    </dl>
-    <p class="cp-state__meta">
-      <span>{{ 'commands.status.updated' | transloco: { time: (status.checkedAt | localTime) } }}</span>
-      <button
-        type="button"
-        class="cp-link"
-        [attr.aria-disabled]="store.refreshing() || isOffline() ? 'true' : null"
-        (click)="refresh()"
-      >
-        <tc-icon name="refresh" size="sm" />
-        {{ (store.refreshing() ? 'commands.status.refreshing' : 'commands.status.refresh') | transloco }}
-      </button>
-      @if (status.runLogUrl) {
-      <a class="cp-ext" [href]="status.runLogUrl" target="_blank" rel="noopener noreferrer">
-        {{ 'commands.status.log' | transloco }}<span class="tc-sr-only">
-          {{ 'commands.external' | transloco }}</span
-        >
-        <tc-icon name="external" size="sm" />
-      </a>
-      }
-    </p>
+    <tc-commands-status
+      [status]="status"
+      [stateText]="stateText()"
+      [sprintFacts]="sprintFacts()"
+      [paused]="paused()"
+      [refreshOff]="store.refreshing() || isOffline()"
+      [refreshing]="store.refreshing()"
+      (refresh)="refresh()"
+    />
   </section>
 
   @if (isOffline()) {
@@ -146,66 +106,12 @@
     <h3 class="cp-kicker" [id]="id + '-gr'">{{ 'commands.group.run' | transloco }}</h3>
 
     @if (setup(); as setup) {
-    <div class="cp-setup" data-testid="setup-card">
-      <div class="cp-setup__head">
-        <tc-icon name="key" />
-        <h4 class="cp-setup__title">{{ 'commands.setup.t' | transloco: { slots: setup.names } }}</h4>
-      </div>
-      <p class="cp-setup__body">{{ 'commands.setup.b' | transloco }}</p>
-      <button
-        tc-button
-        variant="quiet"
-        size="sm"
-        type="button"
-        class="cp-setup__how"
-        [attr.aria-expanded]="isHowOpen()"
-        [attr.aria-controls]="id + '-how'"
-        (click)="isHowOpen.set(!isHowOpen())"
-      >
-        {{ 'commands.setup.how' | transloco }}
-        <tc-icon name="chevron-down" size="sm" />
-      </button>
-      <div class="cp-how" [id]="id + '-how'" [hidden]="!isHowOpen()">
-        <ol class="cp-steps">
-          <li>{{ 'commands.setup.s1' | transloco: { name: project().name, slots: setup.names } }}</li>
-          <li>
-            {{ 'commands.setup.s2' | transloco }}
-            <ul class="cp-slots">
-              @for (line of setup.lines; track line.slot) {
-              <li class="cp-slot">
-                <span class="cp-slot__name">{{ line.name }}</span>
-                @for (command of line.commands; track command.what) {
-                <div class="cp-code tc-code-row">
-                  <code class="tc-code-row__code">{{ command.text }}</code>
-                  <button
-                    tc-button
-                    size="sm"
-                    type="button"
-                    [attr.aria-label]="
-                      (command.what === 'id' ? 'commands.setup.copyId' : 'commands.setup.copyToken')
-                        | transloco: { slot: line.name }
-                    "
-                    (click)="copy(command.text, $event)"
-                  >
-                    <tc-icon [name]="copied() === command.text ? 'check' : 'copy'" size="sm" />
-                    <span aria-hidden="true"
-                      >{{ (copied() === command.text ? 'commands.setup.copied' : 'commands.setup.copy') |
-                      transloco }}</span
-                    >
-                  </button>
-                </div>
-                }
-              </li>
-              }
-            </ul>
-            <p class="cp-warn">
-              <tc-icon name="alert" size="sm" /><span>{{ 'commands.setup.warn' | transloco }}</span>
-            </p>
-          </li>
-          <li>{{ 'commands.setup.s3' | transloco }}</li>
-        </ol>
-      </div>
-    </div>
+    <tc-commands-setup
+      data-testid="setup-card"
+      [setup]="setup"
+      [projectName]="project().name"
+      (announced)="announce($event)"
+    />
     }
 
     <ul class="cmd-list">
@@ -296,9 +202,7 @@
     <h3 class="cp-kicker" [id]="id + '-gs'">{{ 'commands.group.sprint' | transloco }}</h3>
     <p class="cmd__hint">{{ 'commands.sprint.unknown' | transloco }}</p>
   </section>
-  }
-
-  @if (snooze(); as snooze) {
+  } @if (snooze(); as snooze) {
   <section class="cp-group" [attr.aria-labelledby]="id + '-gn'" data-testid="notify-group">
     <h3 class="cp-kicker" [id]="id + '-gn'">{{ 'commands.group.notify' | transloco }}</h3>
     <div class="cmd-list">
@@ -344,8 +248,7 @@
       </div>
     </div>
   </section>
-  }
-  } @else if (hasNoRunLog()) {
+  } } @else if (hasNoRunLog()) {
   <tc-state-block
     kind="empty"
     [title]="'commands.status.h' | transloco"

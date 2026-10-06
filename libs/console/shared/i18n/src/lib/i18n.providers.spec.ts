@@ -50,6 +50,19 @@ describe('provideConsoleI18n', () => {
 });
 
 describe('StaticTranslationLoader', () => {
+  it('hands out the inline Russian reference copy synchronously, so the first paint needs no fetch (#123)', () => {
+    let received: unknown = null;
+    new StaticTranslationLoader().getTranslation('ru').subscribe((translation) => (received = translation));
+
+    expect(received).toBe(ru);
+  });
+
+  it('loads English from its own chunk', async () => {
+    const translation = await firstValueFrom(new StaticTranslationLoader().getTranslation('en'));
+
+    expect(translation).toEqual(en);
+  });
+
   it('rejects a language the console does not ship', async () => {
     const loader = new StaticTranslationLoader();
 

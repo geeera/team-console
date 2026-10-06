@@ -55,8 +55,9 @@ describe('TranslocoPluralPipe', () => {
     expect(text()).toBe('Не хватает 5 шагов');
 
     const transloco = TestBed.inject(TranslocoService);
-    transloco.setActiveLang('en');
+    // English is a lazy chunk (#123): loaded before the switch, as `ConsoleLanguage.use` does.
     await firstValueFrom(transloco.load('en'));
+    transloco.setActiveLang('en');
     await fixture.whenStable();
     expect(text()).toBe('5 steps missing');
   });

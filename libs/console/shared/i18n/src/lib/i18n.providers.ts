@@ -7,7 +7,7 @@ import {
   provideEnvironmentInitializer,
 } from '@angular/core';
 import { provideTransloco, TranslocoService } from '@jsverse/transloco';
-import type { Observable } from 'rxjs';
+import { catchError, tap, type Observable } from 'rxjs';
 import { ConsoleLanguage } from './language-preference';
 import { CONSOLE_LANGS, ConsoleLang, DEFAULT_LANG } from './languages';
 import { StaticTranslationLoader } from './static-translation-loader';
@@ -51,11 +51,18 @@ export function provideConsoleI18n({ start = 'reference' }: ConsoleI18nOptions =
 }
 
 /**
- * Before the first render. The loader is synchronous, so the first paint is already in `lang` — no flash of the
- * other language.
+ * Before the first render: the dictionary loads first (Russian inline, English from its lazy chunk, #123), then the
+ * language is set, so the first paint is already in `lang` — no flash of the other one. A dictionary that cannot
+ * load starts the app in the inline reference copy rather than not at all.
  */
 function startIn(lang: ConsoleLang): Observable<unknown> {
   const transloco = inject(TranslocoService);
-  transloco.setActiveLang(lang);
-  return transloco.load(lang);
+  return transloco.load(lang).pipe(
+    tap(() => transloco.setActiveLang(lang)),
+    catchError((error: unknown) => {
+      console.warn(`i18n: could not load "${lang}"; starting in "${DEFAULT_LANG}"`, error);
+      transloco.setActiveLang(DEFAULT_LANG);
+      return transloco.load(DEFAULT_LANG);
+    }),
+  );
 }
