@@ -1,6 +1,7 @@
 import type { AnswerCommand, Section } from './answer';
 import type { OwnerCategory, TeamRecommendation } from './batch-answer';
 import type { TeamRunDto } from './team';
+import type { OwnerRequestStatusDto } from './owner-request';
 
 /**
  * Read models of a product repository (#35): what the owner's inbox, the questions list, the sprint board and
@@ -78,6 +79,11 @@ export interface SprintIssueDto {
   readonly tier: SprintTier;
   readonly kind: string | null;
   readonly authorTrusted: boolean;
+  /**
+   * The owner's newest request to the PM on this issue (#219), from the console's D1 record. Set by the sprint route
+   * only; absent elsewhere (the overview reads no requests).
+   */
+  readonly request?: OwnerRequestStatusDto | null;
 }
 
 /** `metrics.sprint_summary`'s per-tier row. */
