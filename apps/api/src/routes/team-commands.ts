@@ -35,6 +35,7 @@ import { jsonBody } from '../json-body';
 import { isNotWritten, ownerWriter, sha256Hex } from '../owner/owner-writer';
 import { connectedOwnerSource, type OwnerConnectionSource } from '../projects/owner-connection';
 import { findProject, projectNotFound, repoOf } from '../projects/lookup';
+import { ProjectReads, type SprintStatus } from '../read-models/project-reads';
 import { RunLogUnavailableError, readRunLog, type RunLogView } from '../team/run-log-reader';
 import { routinesFetch } from '../team/routines';
 import { missingSlotsOf, slotTriggerOf } from '../team/slot-secrets';
@@ -178,6 +179,25 @@ function notConfigured(c: Context, extensions: ProblemInit['extensions']): Respo
     status: 409,
     ...(extensions === undefined ? {} : { extensions }),
   });
+}
+
+/**
+ * The status card's sprint (#218), or `null` when GitHub would not give the milestones: the card says so and the
+ * sprint commands stay off, while pause and Run now — which do not need the sprint — keep working.
+ */
+async function sprintStatusOrNull(c: Context, reads: ProjectReads): Promise<SprintStatus | null> {
+  try {
+    return await reads.sprintStatus();
+  } catch (error: unknown) {
+    if (!(error instanceof GitHubError)) {
+      throw error;
+    }
+    c.get('logger').warn('team status without the sprint', {
+      type: error.problem.type,
+      githubStatus: error.githubStatus,
+    });
+    return null;
+  }
 }
 
 export interface TeamCommandsOptions {
@@ -377,6 +397,7 @@ export function createTeamCommandsRoutes(
           lock,
         });
       }
+      const sprint = await sprintStatusOrNull(c, new ProjectReads(github, c.env, project, repo, github.now));
       const body: TeamStatusDto = {
         state: view.state,
         pausedAt: view.state === 'paused-by-owner' ? (view.ownerPause?.pausedAt ?? null) : null,
@@ -385,6 +406,9 @@ export function createTeamCommandsRoutes(
         environment: c.env.ENVIRONMENT,
         slots,
         checkedAt: iso(nowMs),
+        sprint: sprint?.sprint ?? null,
+        progress: sprint?.progress ?? null,
+        calendar: sprint?.calendar ?? null,
       };
       c.header('Cache-Control', 'no-store');
       return c.json(body);

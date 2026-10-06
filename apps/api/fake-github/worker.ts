@@ -2,6 +2,7 @@ import {
   FakeGitHubOAuth,
   type FakeFault,
   type FakeIssueSeed,
+  type FakeMilestoneSeed,
   type FakeThreadCommentSeed,
   type FakeUser,
 } from '@worker/github/testing';
@@ -15,7 +16,9 @@ import {
  * POST /_fake/issue (a thread to serve: repo, number, title, author, labels, repoOwner) and POST /_fake/token (a fake
  * owner token for the vendored `runlog` CLI pointed here with PT_GITHUB_API), and POST /_fake/comment (a team entry
  * written earlier into a seeded thread: repo, number, body, author, createdAt and an optional later updatedAt, in ms —
- * the board e2e, #132). Every value here is fake.
+ * the board e2e, #132), POST /_fake/milestones {"repo","milestones":[{title,state,dueOn,number?}]} (the sprint
+ * commands, #218; GET /_fake/milestones?repo= reads them back, milestone writes are in the state). Every value here
+ * is fake.
  */
 
 interface FakeEnv {
@@ -72,6 +75,36 @@ function isCommentSeed(value: unknown): value is CommentSeed {
   );
 }
 
+interface MilestonesSeed {
+  readonly repo: string;
+  readonly milestones: readonly FakeMilestoneSeed[];
+}
+
+function isMilestoneSeed(value: unknown): value is FakeMilestoneSeed {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record['title'] === 'string' &&
+    (record['dueOn'] === null || typeof record['dueOn'] === 'string') &&
+    (record['state'] === undefined || record['state'] === 'open' || record['state'] === 'closed') &&
+    (record['number'] === undefined || typeof record['number'] === 'number')
+  );
+}
+
+function isMilestonesSeed(value: unknown): value is MilestonesSeed {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record['repo'] === 'string' &&
+    Array.isArray(record['milestones']) &&
+    record['milestones'].every(isMilestoneSeed)
+  );
+}
+
 async function control(server: FakeGitHubOAuth, request: Request, path: string): Promise<Response> {
   if (path === '/_fake/state') {
     return json(200, {
@@ -79,7 +112,11 @@ async function control(server: FakeGitHubOAuth, request: Request, path: string):
       tokenEndpointCalls: server.refreshCalls(),
       calls: server.calls.map((call) => `${call.method} ${call.url}`),
       comments: server.comments,
+      milestoneWrites: server.milestoneWrites,
     });
+  }
+  if (path === '/_fake/milestones' && request.method === 'GET') {
+    return json(200, server.milestonesOf(new URL(request.url).searchParams.get('repo') ?? ''));
   }
   if (path === '/_fake/token') {
     return json(200, { token: server.issuePair().accessToken });
@@ -88,6 +125,10 @@ async function control(server: FakeGitHubOAuth, request: Request, path: string):
   if (path === '/_fake/issue' && isIssueSeed(body)) {
     server.seedIssue(body);
     return json(200, { seeded: `${body.repo}#${body.number}` });
+  }
+  if (path === '/_fake/milestones' && isMilestonesSeed(body)) {
+    server.seedMilestones(body.repo, body.milestones);
+    return json(200, { seeded: body.milestones.length });
   }
   if (path === '/_fake/comment' && isCommentSeed(body)) {
     const { repo, number, ...comment } = body;

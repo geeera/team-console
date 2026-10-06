@@ -254,6 +254,34 @@ describe('GitHubClient.postJson', () => {
       expect(github.calls).toHaveLength(1);
     });
   });
+
+  describe('patchJson (#218)', () => {
+    const MILESTONE = githubPath`/repos/${REPO}/milestones/${7}`;
+
+    it('sends the JSON body as a PATCH, refreshes once on 401 and narrows the answer', async () => {
+      const tokens = ownerTokens();
+      const github = scriptedGitHub((call) =>
+        call.headers.get('authorization') === 'Bearer owner-1'
+          ? json(401, { message: 'Bad credentials' })
+          : json(200, { id: 7 }),
+      );
+      await expect(
+        new GitHubClient(github.fetch, tokens).patchJson(MILESTONE, { due_on: '2026-10-16T12:00:00Z' }, isComment),
+      ).resolves.toEqual({ id: 7 });
+      expect(github.calls.map((call) => [call.method, call.body])).toEqual([
+        ['PATCH', '{"due_on":"2026-10-16T12:00:00Z"}'],
+        ['PATCH', '{"due_on":"2026-10-16T12:00:00Z"}'],
+      ]);
+      expect(tokens.invalidated).toEqual(['owner-1']);
+    });
+
+    it('never repeats after a 5xx', async () => {
+      const github = scriptedGitHub(() => json(502, {}));
+      const down = await rejection(new GitHubClient(github.fetch, ownerTokens()).patchJson(MILESTONE, {}, isComment));
+      expect(down.problem.type).toBe('github-unavailable');
+      expect(github.calls).toHaveLength(1);
+    });
+  });
 });
 
 describe('GitHubClient.paginate', () => {

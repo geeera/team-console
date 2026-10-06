@@ -14,11 +14,19 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { activeLock, isPaused, missingSlots, TeamStatusStore } from '@console/entities/team-run';
+import { SprintControls } from '@console/features/sprint-controls';
 import { TeamCommands, type CommandOutcome } from '@console/features/team-commands';
 import { NetworkStatus } from '@console/shared/api';
-import { LocalTimePipe, localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
-import { Banner, Button, Icon, IconButton, Receipt, StateBlock, type ReceiptTone } from '@console/shared/ui';
-import { TEAM_SLOTS, type SlotStatusDto, type TeamSlot } from '@shared/contracts';
+import {
+  localCalendarDayOf,
+  localCalendarRangeOf,
+  LocalTimePipe,
+  localTimeOf,
+  TranslocoPipe,
+  TranslocoService,
+} from '@console/shared/i18n';
+import { Banner, Button, Icon, IconButton, Meter, Receipt, StateBlock, type ReceiptTone } from '@console/shared/ui';
+import { isInFreeze, TEAM_SLOTS, type SlotStatusDto, type TeamSlot } from '@shared/contracts';
 import { listOf, secretCommandOf, whenOf } from './when';
 
 /** The project the panel commands. */
@@ -40,6 +48,23 @@ interface RunRow {
   readonly isOff: boolean;
 }
 
+/** The sprint on the status card (#218), in words. */
+interface SprintFacts {
+  /** "Sprint 04 · demo 14 October"; or why there is none. */
+  readonly line: string;
+  /** "freeze 12–14 October", or "freeze now, until the demo" (ochre); empty without a sprint. */
+  readonly freeze: string;
+  readonly isFreezeNow: boolean;
+}
+
+/** One row of the Sprint group: a command with its button, or a line that says why there is nothing to do. */
+interface SprintRow {
+  readonly key: 'demo' | 'next';
+  readonly hint: string;
+  /** The button's accessible name; `null` when the row has no button (the next sprint exists already). */
+  readonly aria: string | null;
+}
+
 interface SetupLine {
   readonly slot: TeamSlot;
   readonly name: string;
@@ -58,7 +83,7 @@ const CLOCK_TICK_MS = 30_000;
  */
 @Component({
   selector: 'tc-commands-panel',
-  imports: [Banner, Button, Icon, IconButton, LocalTimePipe, Receipt, RouterLink, StateBlock, TranslocoPipe],
+  imports: [Banner, Button, Icon, IconButton, LocalTimePipe, Meter, Receipt, RouterLink, StateBlock, TranslocoPipe],
   templateUrl: './commands-panel.html',
   styleUrl: './commands-panel.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -66,6 +91,7 @@ const CLOCK_TICK_MS = 30_000;
 })
 export class CommandsPanel {
   private readonly commands = inject(TeamCommands);
+  private readonly sprintControls = inject(SprintControls);
   private readonly network = inject(NetworkStatus);
   private readonly transloco = inject(TranslocoService);
   private readonly document = inject(DOCUMENT);
@@ -126,6 +152,77 @@ export class CommandsPanel {
       return this.t('commands.why.offline');
     }
     return status.ownerConnected ? null : this.t('commands.why.noperm');
+  });
+
+  protected readonly sprintFacts = computed<SprintFacts>(() => {
+    const status = this.status();
+    const lang = this.lang();
+    const sprint = status?.sprint ?? null;
+    if (status === null || status.calendar === null) {
+      return { line: this.t('commands.status.sprintUnknown'), freeze: '', isFreezeNow: false };
+    }
+    if (sprint === null) {
+      return { line: this.t('commands.status.noSprint'), freeze: '', isFreezeNow: false };
+    }
+    const isFreezeNow = isInFreeze(status.calendar.today, sprint.freeze);
+    return {
+      line: this.t('commands.status.sprintVal', {
+        sprint: sprint.title,
+        date: localCalendarDayOf(sprint.due, lang),
+      }),
+      freeze: isFreezeNow
+        ? this.t('commands.status.freezeNow')
+        : this.t('commands.status.freeze', {
+            range: localCalendarRangeOf(sprint.freeze.from, sprint.freeze.to, lang),
+          }),
+      isFreezeNow,
+    };
+  });
+
+  /** Move the demo (with a current sprint) and Start the next sprint, or the line that it exists already. */
+  protected readonly sprintRows = computed<SprintRow[]>(() => {
+    const status = this.status();
+    const lang = this.lang();
+    const calendar = status?.calendar ?? null;
+    if (status === null || calendar === null) {
+      return [];
+    }
+    const rows: SprintRow[] = [];
+    const sprint = status.sprint;
+    if (sprint !== null) {
+      rows.push({
+        key: 'demo',
+        hint: this.t('commands.sprint.demoHint', {
+          sprint: sprint.title,
+          date: localCalendarDayOf(sprint.due, lang),
+          range: localCalendarRangeOf(sprint.freeze.from, sprint.freeze.to, lang),
+        }),
+        aria: this.t('commands.sprint.demoAria', { sprint: sprint.title }),
+      });
+    }
+    if (sprint?.next) {
+      rows.push({
+        key: 'next',
+        hint: this.t('commands.sprint.nextExists', {
+          sprint: sprint.next.title,
+          date: localCalendarDayOf(sprint.next.due, lang),
+        }),
+        aria: null,
+      });
+    } else {
+      rows.push({
+        key: 'next',
+        hint:
+          sprint === null
+            ? this.t('commands.sprint.nextHintNow', { sprint: calendar.nextTitle })
+            : this.t('commands.sprint.nextHint', {
+                sprint: calendar.nextTitle,
+                date: localCalendarDayOf(sprint.due, lang),
+              }),
+        aria: this.t('commands.sprint.nextAria', { sprint: calendar.nextTitle }),
+      });
+    }
+    return rows;
   });
 
   protected readonly rows = computed<RunRow[]>(() => {
@@ -214,6 +311,19 @@ export class CommandsPanel {
     }
     const target = { slug: this.project().slug, name: this.project().name };
     await this.act(() => (this.paused() ? this.commands.resume(target) : this.commands.pause(target)));
+  }
+
+  /** Sprint commands write as the owner, so they are off for the same reasons as Pause / Resume. */
+  protected async sprintCommand(event: Event, row: SprintRow): Promise<void> {
+    const why = this.teamWhy();
+    if (why !== null) {
+      this.sayWhy(event, why);
+      return;
+    }
+    const target = { slug: this.project().slug, name: this.project().name };
+    await this.act(() =>
+      row.key === 'demo' ? this.sprintControls.moveDemo(target) : this.sprintControls.startNext(target),
+    );
   }
 
   protected async run(event: Event, row: RunRow): Promise<void> {

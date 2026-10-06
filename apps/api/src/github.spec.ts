@@ -81,4 +81,17 @@ describe('localIssueThreads (GITHUB_MOCK + GITHUB_FAKE_ORIGIN, #114)', () => {
     await fetch('https://api.github.com/repos/geeera/team-console', {});
     expect(seen).toHaveLength(2);
   });
+
+  it('reads the milestone list from the fake once it serves the repository (#218)', async () => {
+    const env = localEnv({ GITHUB_FAKE_ORIGIN: 'http://127.0.0.1:9999' });
+    const fake: FetchLike = async (input) =>
+      input.includes('geeera/team-console') ? answer(200, [{ number: 4 }]) : answer(404, {});
+    const mock: FetchLike = async () => answer(200, [{ number: 1 }]);
+    const fetch = localIssueThreads(env, mock, fake);
+
+    const served = await fetch('https://api.github.com/repos/geeera/team-console/milestones?state=all', {});
+    await expect(served.json()).resolves.toEqual([{ number: 4 }]);
+    const other = await fetch('https://api.github.com/repos/geeera/fieldnote/milestones?state=all', {});
+    await expect(other.json()).resolves.toEqual([{ number: 1 }]);
+  });
 });
