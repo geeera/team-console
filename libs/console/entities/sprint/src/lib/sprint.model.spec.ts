@@ -28,7 +28,12 @@ function issueDto(number: number, overrides: Partial<SprintIssueDto> = {}): Spri
 
 function sprintDto(overrides: Partial<SprintDto> = {}): SprintDto {
   return {
-    milestone: { number: 1, title: 'Sprint 01', dueOn: '2026-10-16', url: 'https://github.com/o/r/milestone/1' },
+    milestone: {
+      number: 1,
+      title: 'Sprint 01',
+      dueOn: '2026-10-16',
+      url: 'https://github.com/o/r/milestone/1',
+    },
     issues: [issueDto(1)],
     byStatus: { approved: 1 },
     planned: 1,
@@ -36,7 +41,14 @@ function sprintDto(overrides: Partial<SprintDto> = {}): SprintDto {
     carriedOver: 1,
     byTier: { standard: { planned: 1, shipped: 0, raised: 0 } },
     openPullRequests: [
-      { number: 5, title: 'PR', url: 'https://github.com/o/r/pull/5', draft: false, authorTrusted: true, ci: 'success' },
+      {
+        number: 5,
+        title: 'PR',
+        url: 'https://github.com/o/r/pull/5',
+        draft: false,
+        authorTrusted: true,
+        ci: 'success',
+      },
     ],
     team: {
       state: 'running',
@@ -60,7 +72,10 @@ describe('isSprintDto', () => {
   it.each([
     ['not an object', null],
     ['an array', []],
-    ['a milestone without a day', sprintDto({ milestone: { number: 1, title: 'S', dueOn: '16.10', url: null } })],
+    [
+      'a milestone without a day',
+      sprintDto({ milestone: { number: 1, title: 'S', dueOn: '16.10', url: null } }),
+    ],
     ['an unknown tier', sprintDto({ issues: [{ ...issueDto(1), tier: 'huge' as never }] })],
     ['an unknown issue state', sprintDto({ issues: [{ ...issueDto(1), state: 'merged' as never }] })],
     ['a title that is not text', sprintDto({ issues: [{ ...issueDto(1), title: 7 as never }] })],
@@ -69,20 +84,29 @@ describe('isSprintDto', () => {
     ['a byStatus count that is not a number', sprintDto({ byStatus: { approved: '1' as never } })],
     [
       'a pull request without a draft flag',
-      sprintDto({ openPullRequests: [{ number: 5, title: 'x', url: null, authorTrusted: true, ci: 'none' } as never] }),
+      sprintDto({
+        openPullRequests: [{ number: 5, title: 'x', url: null, authorTrusted: true, ci: 'none' } as never],
+      }),
     ],
     [
       'a pull request without a CI state',
-      sprintDto({ openPullRequests: [{ number: 5, title: 'x', url: null, draft: false, authorTrusted: true } as never] }),
+      sprintDto({
+        openPullRequests: [{ number: 5, title: 'x', url: null, draft: false, authorTrusted: true } as never],
+      }),
     ],
     [
       'a pull request with a CI state the board does not know',
       sprintDto({
-        openPullRequests: [{ number: 5, title: 'x', url: null, draft: false, authorTrusted: true, ci: 'neutral' as never }],
+        openPullRequests: [
+          { number: 5, title: 'x', url: null, draft: false, authorTrusted: true, ci: 'neutral' as never },
+        ],
       }),
     ],
     ['a board without the team', { ...sprintDto(), team: undefined }],
-    ['a team state the board does not know', sprintDto({ team: { state: 'paused-by-owner' as never, runLogUrl: null, recentRuns: [] } })],
+    [
+      'a team state the board does not know',
+      sprintDto({ team: { state: 'paused-by-owner' as never, runLogUrl: null, recentRuns: [] } }),
+    ],
     [
       'a run state the board does not know',
       sprintDto({
@@ -118,7 +142,14 @@ describe('sprintBoardOf', () => {
           issueDto(2, { url: 'https://github.com/o/r/issues/2' }),
         ],
         openPullRequests: [
-          { number: 5, title: 'x', url: 'http://github.com/o/r/pull/5', draft: true, authorTrusted: false, ci: 'pending' },
+          {
+            number: 5,
+            title: 'x',
+            url: 'http://github.com/o/r/pull/5',
+            draft: true,
+            authorTrusted: false,
+            ci: 'pending',
+          },
         ],
       }),
     );
@@ -139,7 +170,11 @@ describe('sprintBoardOf', () => {
     const run = { slot: null, slotName: 'slot-x', state: 'unknown', at: null } as const;
     const board = sprintBoardOf(
       sprintDto({
-        team: { state: 'unknown', runLogUrl: 'https://evil.example/22', recentRuns: Array.from({ length: 7 }, () => run) },
+        team: {
+          state: 'unknown',
+          runLogUrl: 'https://evil.example/22',
+          recentRuns: Array.from({ length: 7 }, () => run),
+        },
       }),
     );
     expect(board.team.runLogUrl).toBeNull();
@@ -164,7 +199,12 @@ describe('ciSummaryOf (#131)', () => {
   });
 
   it.each([
-    ['a failing one over everything else', ['success', 'failure', 'pending', 'failure', 'unknown'], 'failure', 2],
+    [
+      'a failing one over everything else',
+      ['success', 'failure', 'pending', 'failure', 'unknown'],
+      'failure',
+      2,
+    ],
     ['running ones over unread and passing', ['success', 'pending', 'unknown', 'none'], 'pending', 1],
     ['unread ones over passing', ['success', 'unknown', 'unknown', 'none'], 'unknown', 2],
     ['passing ones over those without checks', ['success', 'none', 'success'], 'success', 2],
@@ -207,7 +247,9 @@ describe('statusColumnsOf', () => {
   it('puts each issue in exactly one lane, by number within it', () => {
     const issues = [issue(9, 'done'), issue(3, 'done'), issue(4, 'in-progress'), issue(7, null)];
     const columns = statusColumnsOf(issues);
-    const byStatus = Object.fromEntries(columns.map((column) => [column.status, column.issues.map((i) => i.number)]));
+    const byStatus = Object.fromEntries(
+      columns.map((column) => [column.status, column.issues.map((i) => i.number)]),
+    );
 
     expect(byStatus).toEqual({ approved: [], 'in-progress': [4], qa: [], done: [3, 9], none: [7] });
     expect(columns.reduce((sum, column) => sum + column.issues.length, 0)).toBe(issues.length);

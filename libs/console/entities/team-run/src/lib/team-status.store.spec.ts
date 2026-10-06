@@ -18,6 +18,7 @@ function teamStatus(overrides: Partial<TeamStatusDto> = {}): TeamStatusDto {
     sprint: null,
     progress: null,
     calendar: null,
+    pendingRequests: 0,
     slots: [
       { slot: 'pm', setup: 'present', secrets: secrets('PM'), lastRun: null, lock: null },
       { slot: 'dev', setup: 'present', secrets: secrets('DEV'), lastRun: null, lock: null },
@@ -61,7 +62,12 @@ describe('team status model', () => {
     const calendar = { today: '2026-10-05', freezeDays: 2, nextTitle: 'Sprint 05' };
     const full = teamStatus({ sprint, progress: { done: 1, total: 3 }, calendar });
     expect(isTeamStatusDto(full)).toBe(true);
-    expect(isTeamStatusDto({ ...full, sprint: { ...sprint, next: { number: 5, title: 'Sprint 05', due: '2026-10-28' } } })).toBe(true);
+    expect(
+      isTeamStatusDto({
+        ...full,
+        sprint: { ...sprint, next: { number: 5, title: 'Sprint 05', due: '2026-10-28' } },
+      }),
+    ).toBe(true);
     expect(isTeamStatusDto({ ...full, sprint: { ...sprint, due: '14.10.2026' } })).toBe(false);
     expect(isTeamStatusDto({ ...full, sprint: { ...sprint, freeze: null } })).toBe(false);
     expect(isTeamStatusDto({ ...full, progress: { done: 4, total: 3 } })).toBe(false);
