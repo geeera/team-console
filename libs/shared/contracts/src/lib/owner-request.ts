@@ -93,7 +93,6 @@ export interface IssueRequestDto {
 export interface RequestIssueDto {
   readonly number: number;
   readonly title: string;
-  readonly milestone: string | null;
   readonly request: OwnerRequestStatusDto | null;
 }
 
