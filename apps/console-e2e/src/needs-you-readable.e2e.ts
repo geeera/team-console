@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { seed } from './support/stack';
+import { MIN_TAP_PX, roundedPx } from './support/tap-target';
 
 /**
  * Needs you readable on the phone (#204): the recommendation in plain words, details without markup, one title on
@@ -93,8 +94,8 @@ test('the push nudge is one line and the first card fits above the fold with the
   const action = nudge.getByTestId('push-nudge-enable').or(nudge.getByTestId('push-nudge-how'));
   for (const target of [action, nudge.getByTestId('push-nudge-later')]) {
     const box = await target.boundingBox();
-    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
-    expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+    expect(roundedPx(box?.height)).toBeGreaterThanOrEqual(MIN_TAP_PX);
+    expect(roundedPx(box?.width)).toBeGreaterThanOrEqual(MIN_TAP_PX);
   }
   await expect(nudge.getByTestId('push-nudge-later')).toHaveAccessibleName(ru('push.nudge.laterAria'));
 
