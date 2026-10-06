@@ -4,6 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ApplicationInitStatus, Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
+import { HEALTH_URL } from '@console/entities/app-info';
 import { NEEDS_YOU_URL, PROJECTS_URL, ProjectsStore } from '@console/entities/project';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import {
@@ -88,7 +89,25 @@ describe('AppShell', () => {
     await fixture.whenStable();
   }
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    // The environment mark asks where the app runs (#237); tests that do not look at it leave it unknown.
+    http.match(HEALTH_URL).forEach((request) => request.flush(null, { status: 502, statusText: 'Bad Gateway' }));
+    http.verify();
+  });
+
+  it.each([
+    [true, 'nav'],
+    [false, 'header'],
+  ] as const)('marks a non-production environment in text in the %s layout (#237)', async (wide, landmark) => {
+    await setup(wide);
+    http.expectOne(HEALTH_URL).flush({ status: 'ok', environment: 'stage', version: '0.1.0' });
+    // The environment lands a microtask after the flush.
+    await new Promise((resolve) => setTimeout(resolve));
+    await fixture.whenStable();
+
+    const mark = root().querySelector(`${landmark} [data-testid="environment-mark"]`);
+    expect(mark?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Окружение: Stage');
+  });
 
   it('wide: a sidebar with the navigation, the switcher and Settings; the badge on Needs you', async () => {
     await setup(true);

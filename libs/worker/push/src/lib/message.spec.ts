@@ -2,6 +2,7 @@ import {
   InvalidPushTargetError,
   PUSH_TEXT_MAX_LENGTH,
   cleanPushText,
+  forEnvironment,
   linkNotification,
   questionNotification,
   questionPushUrl,
@@ -127,7 +128,7 @@ describe('notification payloads (ngsw format)', () => {
               },
             },
           },
-          "icon": "/icons/icon-192.png",
+          "icon": "/icons/production/icon-192.png",
           "lang": "ru",
           "tag": "p/storify/questions/42",
           "title": "Storify · нужен ваш ответ",
@@ -202,5 +203,45 @@ describe('linkNotification (#12)', () => {
     expect(() => linkNotification({ language: 'ru', title: 't', body: 'b', url })).toThrow(
       InvalidPushTargetError,
     );
+  });
+});
+
+describe('forEnvironment (#237)', () => {
+  const question = questionNotification({
+    language: 'ru',
+    slug: 'storify',
+    projectName: 'Storify',
+    number: 42,
+    issueTitle: 'Plan',
+  });
+
+  it('leaves a production notification exactly as built', () => {
+    expect(forEnvironment(question, 'production')).toBe(question);
+  });
+
+  it.each([
+    ['dev', '[Dev] Storify · нужен ваш ответ'],
+    ['stage', '[Stage] Storify · нужен ваш ответ'],
+    ['local', '[Local] Storify · нужен ваш ответ'],
+  ] as const)('prefixes the %s title and swaps in its icon, nothing else', (environment, title) => {
+    const marked = forEnvironment(question, environment);
+
+    expect(marked.notification).toEqual({
+      ...question.notification,
+      title,
+      icon: `/icons/${environment}/icon-192.png`,
+    });
+  });
+
+  it('keeps a prefixed long title within the 120-character cut', () => {
+    const long = testNotification('en');
+    const marked = forEnvironment(
+      { notification: { ...long.notification, title: 'x'.repeat(PUSH_TEXT_MAX_LENGTH) } },
+      'stage',
+    );
+
+    expect([...marked.notification.title]).toHaveLength(PUSH_TEXT_MAX_LENGTH);
+    expect(marked.notification.title.startsWith('[Stage] x')).toBe(true);
+    expect(marked.notification.title.endsWith('…')).toBe(true);
   });
 });

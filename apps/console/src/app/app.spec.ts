@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ApplicationInitStatus } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
+import { HEALTH_URL } from '@console/entities/app-info';
 import { NEEDS_YOU_URL, PROJECTS_URL, ProjectsStore } from '@console/entities/project';
 import { provideAppConfig } from '@console/shared/config';
 import { provideConsoleI18n } from '@console/shared/i18n';
@@ -91,7 +92,26 @@ describe('App', () => {
     http
       .match((request) => request.url.endsWith('/team/status'))
       .forEach((request) => request.flush({}, { status: 503, statusText: 'Service Unavailable' }));
+    // The window title and the environment mark ask where the app runs (#237); the routing tests do not look.
+    http.match(HEALTH_URL).forEach((request) => request.flush(null, { status: 502, statusText: 'Bad Gateway' }));
     http.verify();
+  });
+
+  it.each([
+    ['stage', 'Team Console Stage'],
+    ['dev', 'Team Console Dev'],
+    ['production', 'Team Console'],
+  ] as const)('names the window and the Home Screen title after the %s Worker (#237)', async (environment, name) => {
+    await boot('/');
+    http.expectOne(HEALTH_URL).flush({ status: 'ok', environment, version: '0.1.0' });
+    // The environment lands a microtask after the flush.
+    await new Promise((resolve) => setTimeout(resolve));
+    await fixture.whenStable();
+
+    expect(document.title).toBe(name);
+    expect(document.querySelector('meta[name="apple-mobile-web-app-title"]')?.getAttribute('content')).toBe(name);
+    const marks = root().querySelectorAll('[data-testid="environment-mark"]');
+    expect(marks).toHaveLength(environment === 'production' ? 0 : 1);
   });
 
   it('sends the first visit to the cross-project inbox and later visits to the last place', async () => {

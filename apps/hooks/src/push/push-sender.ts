@@ -1,3 +1,4 @@
+import { isEnvironment } from '@shared/contracts';
 import type { Logger } from '@worker/core';
 import { PushSubscriptionsRepo } from '@worker/db';
 import {
@@ -44,7 +45,13 @@ export function webPushSenders(baseFetch: FetchLike): NotificationSenderFactory 
       logger.error('push misconfigured', { invalid: ['PUSH_FAKE_ORIGIN'] });
       return null;
     }
-    const sender = new PushSender({ vapid: vapid.config, fetch: transport, logger });
+    // The title prefix (#237) depends on it: never guess production for an unknown value.
+    const environment: string = env.ENVIRONMENT;
+    if (!isEnvironment(environment)) {
+      logger.error('push misconfigured', { invalid: ['ENVIRONMENT'] });
+      return null;
+    }
+    const sender = new PushSender({ vapid: vapid.config, fetch: transport, logger, environment });
     const store = new PushSubscriptionsRepo(env.DB);
     return { sendToAll: (notification) => sender.sendToAll(store, notification) };
   };

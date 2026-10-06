@@ -363,7 +363,9 @@ describe('POST /hooks/github — own writes and pushes', () => {
     expect(delivery).toMatchObject({ outcome: 'ok', decryptError: null });
     expect(delivery?.payload).toMatchObject({
       notification: {
-        title: 'Storify · нужен ваш ответ',
+        // The hooks specs run as env dev (#237): its pushes carry the prefix and the dev icon.
+        title: '[Dev] Storify · нужен ваш ответ',
+        icon: '/icons/dev/icon-192.png',
         body: '#42 Pick the onboarding copy',
         lang: 'ru',
         data: {
@@ -397,6 +399,17 @@ describe('POST /hooks/github — own writes and pushes', () => {
       expect.objectContaining({ message: 'push misconfigured', invalid: ['privateKey'] }),
     );
     expect(logs).toContainEqual(expect.objectContaining({ message: 'webhook fan-out', sent: 0, failed: 1 }));
+  });
+
+  it('sends nothing on an unknown ENVIRONMENT rather than an unmarked push (#237)', async () => {
+    const service = new FakePushService();
+    const endpoint = await subscribeFakeDevice(service);
+
+    const { response, logs } = await deliver(question(), { pushFetch: service.fetch, env: { ENVIRONMENT: 'prod' } });
+
+    expect(response.status).toBe(202);
+    expect(service.deliveriesTo(endpoint)).toEqual([]);
+    expect(logs).toContainEqual(expect.objectContaining({ message: 'push misconfigured', invalid: ['ENVIRONMENT'] }));
   });
 
   it('ignores an outsider’s marker comment with untrusted-author', async () => {
