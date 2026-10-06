@@ -54,10 +54,10 @@ team:
   run_log_issue: 22
   # Owner requests to the PM (#219, ADR 0005 decision 2): a request counts only when GitHub says one of these apps
   # posted it (`performed_via_github_app.slug`). The trust root for requests — changing it needs the owner's approval.
-  # One app per environment (ADR 0003 decision 1, named `team-console-<env>` by tools/owner-setup/create-apps.sh);
-  # team-console-dev is confirmed by the dev environment's CONSOLE_GITHUB_APP_SLUG variable, stage and production
-  # are the names create-apps.sh gives them and are not created yet.
-  console_app_slugs: [team-console-dev, team-console-stage, team-console-production]
+  # Dev only (owner decision 2026-10-07 on PR #267): team-console-dev is confirmed by the dev environment's
+  # CONSOLE_GITHUB_APP_SLUG variable. team-console-stage and team-console-production are added once the owner has
+  # created those apps (#152).
+  console_app_slugs: [team-console-dev]
 
 owner:
   language: ru

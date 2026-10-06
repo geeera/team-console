@@ -149,7 +149,7 @@ newest row per issue, never an input to a write or an authorisation decision. A 
 `@worker/read-models`): the hooks Worker on `issue_comment.created`, the GET on the last comment page (unedited only).
 `SprintIssueDto.request`, `TeamStatusDto.pendingRequests`, `GET …/requests` (the picker). Console:
 `@console/features/request-change` (`RequestChange`: picker, then the one-request form), the panel's Issues group, the board's
-"Ask the PM" and «ждёт PM» chip. `team.console_app_slugs` in `.product-team/project.yml` is the plugin's trust root for requests.
+"Ask the PM" and «ждёт PM» chip. `team.console_app_slugs` in `.product-team/project.yml` is the plugin's trust root for requests: `[team-console-dev]` only (owner, 2026-10-07); stage and production join after #152.
 
 Artifacts (#19, read-only): `GET /api/v1/projects/:slug/artifacts[?fresh=1]` (`routes/artifacts.ts`, `read-models/artifact-reads.ts`)
 reads decisions (`decisions_dir` listing + first `#` heading, ≤ 30 file reads), designs (`ux-spec`/`design:*` issues,
