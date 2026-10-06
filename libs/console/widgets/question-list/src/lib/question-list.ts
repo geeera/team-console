@@ -13,7 +13,13 @@ import {
   untracked,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { AnsweredItem, AnsweredItems, answeredKeyOf, ProjectsStore } from '@console/entities/project';
+import {
+  AnsweredItem,
+  AnsweredItems,
+  answeredKeyOf,
+  projectSetupRouteOf,
+  ProjectsStore,
+} from '@console/entities/project';
 import type { QuestionArrival } from '@console/entities/push';
 import {
   githubIssueUrlOf,
@@ -227,7 +233,7 @@ export class QuestionList {
   }
 
   protected settingsLinkOf(slug: string): readonly string[] {
-    return ['/settings/projects', slug];
+    return projectSetupRouteOf(slug);
   }
 
   protected onAnswered({ item, response }: AnswerGiven): void {

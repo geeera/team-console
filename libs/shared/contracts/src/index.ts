@@ -31,6 +31,14 @@ export type {
   UpdateProjectRequest,
 } from './lib/project';
 export type { ProjectRepositoryDto } from './lib/repository';
+export { isRepoFullName, repoFullNameParts } from './lib/repo-name';
+export { INSTALLATION_REPOSITORIES_URL } from './lib/installation-repositories';
+export type {
+  GitHubAppNotInstalledProblem,
+  InstallationRepositoriesDto,
+  InstallationRepositoryDto,
+  RepositoryRegistration,
+} from './lib/installation-repositories';
 export {
   RESERVED_SLUGS,
   isReservedSlug,

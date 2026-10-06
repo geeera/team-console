@@ -155,17 +155,33 @@ describe('App', () => {
     expect(root().querySelector('[role="alert"]')?.textContent).toContain('Такой страницы нет');
   });
 
-  it('with no projects, the inbox is the empty state that points to Settings', async () => {
+  it('with no projects, the inbox is the empty state that points to All projects (#194)', async () => {
     await boot('/', undefined, []);
 
     expect(router.url).toBe('/needs-you');
     expect(root().querySelector('[data-testid="no-projects"] a')?.getAttribute('href')).toBe(
-      '/settings/projects/new',
+      '/overview#add-project',
     );
   });
 
+  it('sends the old New project address to All projects at its GitHub section (#194)', async () => {
+    await boot('/settings/projects/new');
+
+    // The fragment is consumed by All projects (heading focused) and dropped from the address.
+    expect(router.url).toBe('/overview');
+    expect(text('[data-testid="github-repositories"] h2')).toBe('Доступны на GitHub');
+    http
+      .match((request) => request.url.endsWith('/github/connection'))
+      .forEach((request) =>
+        request.flush({ state: 'not-connected', ownerLogin: 'geeera', appName: 'team-console-local' }),
+      );
+    http
+      .match((request) => request.url.endsWith('/overview'))
+      .forEach((request) => request.flush({ projects: [], checkedAt: '2026-10-05T12:00:00Z' }));
+  });
+
   // The chat tab is a placeholder until #17 ships (#203): the deep link lands on the default section instead.
-  it('redirects /chat to the project\'s default section with no error screen and no draft text box', async () => {
+  it("redirects /chat to the project's default section with no error screen and no draft text box", async () => {
     await boot('/p/a/chat');
 
     expect(router.url).toBe('/p/a/questions');

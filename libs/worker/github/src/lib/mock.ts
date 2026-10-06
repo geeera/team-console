@@ -1,5 +1,9 @@
 import fixtures from '../../fixtures/mock-github.json';
-import { INSTALLATION_PERMISSIONS, type GitHubAppCredentials } from './app-auth';
+import {
+  INSTALLATION_LIST_PERMISSIONS,
+  INSTALLATION_PERMISSIONS,
+  type GitHubAppCredentials,
+} from './app-auth';
 import type { OwnerAccount } from './token-source';
 import { GITHUB_API_ORIGIN, type FetchLike } from './transport';
 
@@ -139,9 +143,30 @@ function listOf(
   });
 }
 
-interface IssuedToken {
-  readonly repo: string;
-  readonly expiresAt: number;
+/** A per-repository read token, or the installation-wide `metadata` token of the repository list (#194). */
+type IssuedToken =
+  | { readonly scope: 'repo'; readonly repo: string; readonly expiresAt: number }
+  | { readonly scope: 'installation'; readonly installationId: number; readonly expiresAt: number };
+
+const LIST_PAGE_MAX = 100;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** `owner.id`/`owner.login` of a fixture's `GET /repos/{owner}/{repo}` answer, when it has one. */
+function ownerOf(fixture: MockRepository): { id: number; login: string } | null {
+  const owner = fixture.repository?.['owner'];
+  if (!isRecord(owner) || typeof owner['id'] !== 'number' || typeof owner['login'] !== 'string') {
+    return null;
+  }
+  return { id: owner['id'], login: owner['login'] };
+}
+
+/** A positive integer query value, or the fallback. */
+function positiveIntOf(value: string | null, fallback: number): number {
+  const parsed = Number(value);
+  return value !== null && Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 class MockGitHubServer {
@@ -178,6 +203,16 @@ class MockGitHubServer {
       return (await this.isValidJwt(bearer))
         ? json(200, { id: Number(MOCK_APP_ID), slug: 'team-console-local' })
         : json(401, { message: 'A JSON web token could not be decoded' });
+    }
+
+    if (method === 'GET' && url.pathname === '/app/installations') {
+      return (await this.isValidJwt(bearer))
+        ? json(200, this.installations())
+        : json(401, { message: 'A JSON web token could not be decoded' });
+    }
+
+    if (method === 'GET' && url.pathname === '/installation/repositories') {
+      return this.installationRepositories(bearer, url);
     }
 
     if (
@@ -217,6 +252,10 @@ class MockGitHubServer {
       const token = this.issued.get(bearer);
       if (token === undefined || token.expiresAt <= Date.now()) {
         return json(401, { message: 'Bad credentials' });
+      }
+      // A test tripwire, not GitHub's behaviour (GitHub answers metadata reads): the list token reads nothing else.
+      if (token.scope === 'installation') {
+        return json(403, { message: 'mock: the installation list token must not read a repository' });
       }
       const found = this.repository(repo);
       // A downscoped token sees only its own repository; GitHub answers 404 for the rest.
@@ -305,6 +344,56 @@ class MockGitHubServer {
     return issue === undefined ? notFound() : json(200, issue);
   }
 
+  /**
+   * `GET /app/installations`: one entry per installation id in the fixtures, its account the owner of the first
+   * repository on it that names one. An installation whose fixtures name no owner is not listed.
+   */
+  private installations(): { id: number; account: { id: number; login: string; type: 'User' } }[] {
+    const accounts = new Map<number, { id: number; login: string }>();
+    for (const fixture of Object.values(this.fixtures.repositories)) {
+      const owner = ownerOf(fixture);
+      if (owner !== null && !accounts.has(fixture.installationId)) {
+        accounts.set(fixture.installationId, owner);
+      }
+    }
+    return [...accounts.entries()].map(([id, owner]) => ({
+      id,
+      account: { id: owner.id, login: owner.login, type: 'User' },
+    }));
+  }
+
+  /**
+   * `GET /installation/repositories` with the list token: the installation's fixtures, `per_page`/`page` honoured
+   * with a `Link: rel="next"`. A per-repository token gets 403 — a tripwire, since GitHub would list its one
+   * repository and a wrong token source would pass unnoticed.
+   */
+  private installationRepositories(bearer: string, url: URL): Response {
+    const token = this.issued.get(bearer);
+    if (token === undefined || token.expiresAt <= Date.now()) {
+      return json(401, { message: 'Bad credentials' });
+    }
+    if (token.scope !== 'installation') {
+      return json(403, { message: 'mock: a per-repository token must not list the installation' });
+    }
+    const all = Object.entries(this.fixtures.repositories)
+      .filter(([, fixture]) => fixture.installationId === token.installationId)
+      .map(([name, fixture]) => ({
+        id: typeof fixture.repository?.['id'] === 'number' ? fixture.repository['id'] : 0,
+        full_name:
+          typeof fixture.repository?.['full_name'] === 'string' ? fixture.repository['full_name'] : name,
+        private: fixture.repository?.['private'] === true,
+      }));
+    const perPage = Math.min(positiveIntOf(url.searchParams.get('per_page'), 30), LIST_PAGE_MAX);
+    const page = positiveIntOf(url.searchParams.get('page'), 1);
+    const slice = all.slice((page - 1) * perPage, page * perPage);
+    const headers: Record<string, string> = {};
+    if (page * perPage < all.length) {
+      headers['link'] =
+        `<${GITHUB_API_ORIGIN}/installation/repositories?per_page=${perPage}&page=${page + 1}>; rel="next"`;
+    }
+    return json(200, { total_count: all.length, repositories: slice }, headers);
+  }
+
   private repository(fullName: string): { name: string; fixture: MockRepository } | undefined {
     const wanted = fullName.toLowerCase();
     for (const [name, fixture] of Object.entries(this.fixtures.repositories)) {
@@ -330,6 +419,17 @@ class MockGitHubServer {
     if (onInstallation.length === 0) {
       return notFound();
     }
+    // #194: the installation-wide list token — no `repositories` member and exactly `metadata: read`.
+    if (
+      !('repositories' in request) &&
+      JSON.stringify(request['permissions']) === JSON.stringify(INSTALLATION_LIST_PERMISSIONS)
+    ) {
+      return this.issue201({
+        scope: 'installation',
+        installationId,
+        expiresAt: Date.now() + TOKEN_LIFETIME_MS,
+      });
+    }
     const target =
       Array.isArray(repositories) && repositories.length === 1 && typeof repositories[0] === 'string'
         ? onInstallation.find(
@@ -343,14 +443,17 @@ class MockGitHubServer {
     ) {
       return json(422, { message: 'The console must mint read-only tokens for exactly one repository' });
     }
+    return this.issue201({ scope: 'repo', repo: target[0], expiresAt: Date.now() + TOKEN_LIFETIME_MS });
+  }
+
+  private issue201(issued: IssuedToken): Response {
     const token = `ghs_mock${crypto.randomUUID().replace(/-/g, '')}`;
-    const expiresAt = Date.now() + TOKEN_LIFETIME_MS;
-    this.issued.set(token, { repo: target[0], expiresAt });
+    this.issued.set(token, issued);
     return json(201, {
       token,
-      expires_at: new Date(expiresAt).toISOString(),
-      permissions: INSTALLATION_PERMISSIONS,
-      repository_selection: 'selected',
+      expires_at: new Date(issued.expiresAt).toISOString(),
+      permissions: issued.scope === 'repo' ? INSTALLATION_PERMISSIONS : INSTALLATION_LIST_PERMISSIONS,
+      repository_selection: issued.scope === 'repo' ? 'selected' : 'all',
     });
   }
 
