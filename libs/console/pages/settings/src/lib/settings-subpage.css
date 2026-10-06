@@ -1,4 +1,4 @@
-/* The two pages below Settings (New project, a project's setup) share their frame: back link, heading, sections. */
+/* A project's setup page (#24): back link, heading, sections. */
 .subpage {
   gap: var(--space-6);
 }

@@ -6,8 +6,10 @@ import { darkTheme, phoneViewport, reducedMotion } from '../../../.storybook/sto
 import { Button } from '../button/button';
 import { Chip } from '../chip/chip';
 import { List, ListRow } from '../list/list';
+import { DialogRef } from '@angular/cdk/dialog';
 import { ConfirmFailure } from './confirm-dialog';
 import { Sheet } from './sheet';
+import { SheetFooter } from './sheet-footer';
 
 @Component({
   selector: 'tc-story-projects-sheet',
@@ -42,6 +44,30 @@ class ProjectsSheetContent {
   protected readonly projects = ['Team Console', 'Sheltrix', 'Reader'] as const;
 }
 
+/** #194: a body long enough to scroll (the body becomes a focusable region) and actions in the footer slot. */
+@Component({
+  selector: 'tc-story-footer-sheet',
+  imports: [Button, SheetFooter, TranslocoPipe],
+  template: `
+    @for (paragraph of paragraphs; track paragraph) {
+      <p>{{ 'stories.sheet.footerBody' | transloco }}</p>
+    }
+    <ng-template tcSheetFooter>
+      <button tc-button variant="primary" type="button" (click)="ref.close()">
+        {{ 'stories.sheet.footerDone' | transloco }}
+      </button>
+      <button tc-button type="button" (click)="ref.close()">
+        {{ 'stories.sheet.footerSecondary' | transloco }}
+      </button>
+    </ng-template>
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+class FooterSheetContent {
+  protected readonly ref = inject(DialogRef);
+  protected readonly paragraphs = [1, 2, 3, 4, 5, 6, 7, 8] as const;
+}
+
 @Component({
   selector: 'tc-story-sheet-host',
   imports: [Button, TranslocoPipe],
@@ -59,6 +85,9 @@ class ProjectsSheetContent {
       <button tc-button type="button" (click)="pause()">
         {{ 'stories.sheet.pauseEllipsis' | transloco }}
       </button>
+      <button tc-button type="button" (click)="openWithFooter()">
+        {{ 'stories.sheet.openFooter' | transloco }}
+      </button>
       <button tc-button type="button" (click)="moveDate()">
         {{ 'stories.sheet.dateEllipsis' | transloco }}
       </button>
@@ -74,6 +103,13 @@ class SheetHost {
 
   protected openProjects(): void {
     this.sheet.open(ProjectsSheetContent, { title: this.transloco.translate('stories.list.ariaProjects') });
+  }
+
+  protected openWithFooter(): void {
+    this.sheet.open(FooterSheetContent, {
+      title: this.transloco.translate('stories.sheet.footerTitle', { repo: 'geeera/storify' }),
+      width: 'wide',
+    });
   }
 
   protected async archive(): Promise<void> {

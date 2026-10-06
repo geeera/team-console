@@ -14,7 +14,7 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
-import { NeedsYouCounts, ProjectsStore, spaceLocationOf } from '@console/entities/project';
+import { ADD_PROJECT_URL, NeedsYouCounts, ProjectsStore, spaceLocationOf } from '@console/entities/project';
 import { ProjectSwitcher } from '@console/features/project-switcher';
 import { LocalNumberPipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { PersistedStateStore, scrollKeyOf } from '@console/shared/persisted-state';
@@ -99,6 +99,8 @@ export class AppShell {
   );
 
   protected readonly area = computed(() => shellAreaOf(this.url()));
+  /** The sidebar's Add project: All projects at its GitHub section (#194). */
+  protected readonly addProjectUrl = ADD_PROJECT_URL;
   protected readonly space = computed(() => spaceLocationOf(this.url()));
   protected readonly currentProject = computed(() => {
     const slug = this.space()?.slug;

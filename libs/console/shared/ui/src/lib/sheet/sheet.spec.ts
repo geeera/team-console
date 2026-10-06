@@ -1,9 +1,11 @@
-import { DIALOG_DATA } from '@angular/cdk/dialog';
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import { ApplicationInitStatus, Component, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideConsoleI18n } from '@console/shared/i18n';
+import { firstValueFrom } from 'rxjs';
 import { ConfirmFailure } from './confirm-dialog';
 import { Sheet } from './sheet';
+import { SheetFooter } from './sheet-footer';
 
 @Component({
   template: `<p class="content">{{ data.text }}</p>
@@ -311,4 +313,53 @@ describe('Sheet', () => {
       expect(seen).toEqual(['2026-10-06', '2026-10-15']);
     });
   });
+
+  describe('footer and width (#194)', () => {
+    it('renders the content footer outside the scrolling body, and drops it with the content', async () => {
+      const ref = sheet.open(WithFooter, { title: 'Add geeera/storify', data: { text: 'checklist' } });
+      await settle();
+      TestBed.tick();
+
+      const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+      const foot = dialog.querySelector('.tc-sheet__foot') as HTMLElement;
+      expect(foot.querySelector('.done')?.textContent).toBe('Done');
+      expect(dialog.querySelector('.tc-sheet__body')?.contains(foot)).toBe(false);
+      expect(dialog.classList).toContain('tc-sheet--with-foot');
+
+      const closed = firstValueFrom(ref.closed);
+      (foot.querySelector('.done') as HTMLButtonElement).click();
+      await expect(closed).resolves.toBe('done');
+    });
+
+    it('has no footer row for content without one, and a body that fits adds no tab stop', async () => {
+      sheet.open(Content, { title: 'Projects', data: { text: 'hello' } });
+      await settle();
+      const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+      expect(dialog.querySelector('.tc-sheet__foot')).toBeNull();
+      const body = dialog.querySelector('.tc-sheet__body') as HTMLElement;
+      expect(body.getAttribute('tabindex')).toBeNull();
+      expect(body.getAttribute('role')).toBeNull();
+    });
+
+    it('gives a wide dialog its own panel class', async () => {
+      sheet.open(Content, { title: 'Add', data: { text: 'x' }, width: 'wide' });
+      await settle();
+      const panel = overlay().querySelector('.cdk-overlay-pane') as HTMLElement;
+      // jsdom matches no phone breakpoint, so this is the centred dialog.
+      expect(panel.classList).toContain('tc-dialog-panel');
+      expect(panel.classList).toContain('tc-dialog-panel--wide');
+    });
+  });
 });
+
+@Component({
+  imports: [SheetFooter],
+  template: `<p class="content">{{ data.text }}</p>
+    <ng-template tcSheetFooter>
+      <button type="button" class="done" (click)="ref.close('done')">Done</button>
+    </ng-template>`,
+})
+class WithFooter {
+  readonly data = inject<{ text: string }>(DIALOG_DATA);
+  readonly ref = inject(DialogRef);
+}
