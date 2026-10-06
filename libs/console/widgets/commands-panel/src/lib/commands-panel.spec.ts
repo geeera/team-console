@@ -6,6 +6,7 @@ import { provideRouter } from '@angular/router';
 import { PushStore, type PushView } from '@console/entities/push';
 import { TeamStatusStore } from '@console/entities/team-run';
 import { SnoozeCommands, type SnoozeOutcome } from '@console/features/snooze';
+import { RequestChange } from '@console/features/request-change';
 import { SprintControls } from '@console/features/sprint-controls';
 import { TeamCommands, type CommandOutcome } from '@console/features/team-commands';
 import { NetworkStatus } from '@console/shared/api';
@@ -72,6 +73,7 @@ describe('CommandsPanel', () => {
     run: ReturnType<typeof vi.fn>;
   };
   let sprintControls: { moveDemo: ReturnType<typeof vi.fn>; startNext: ReturnType<typeof vi.fn> };
+  let requestChange: { ask: ReturnType<typeof vi.fn> };
   let online: ReturnType<typeof signal<boolean>>;
   let toasts: string[];
   let pushView: ReturnType<typeof signal<PushView>>;
@@ -95,6 +97,7 @@ describe('CommandsPanel', () => {
       run: vi.fn(async () => done),
     };
     sprintControls = { moveDemo: vi.fn(async () => done), startNext: vi.fn(async () => done) };
+    requestChange = { ask: vi.fn(async () => ({ ...done, verb: 'Просьба по #7 записана' })) };
     online = signal(true);
     toasts = [];
     pushView = signal<PushView>('on');
@@ -119,6 +122,7 @@ describe('CommandsPanel', () => {
         provideConsoleI18n(),
         { provide: TeamCommands, useValue: commands },
         { provide: SprintControls, useValue: sprintControls },
+        { provide: RequestChange, useValue: requestChange },
         { provide: NetworkStatus, useValue: { online } },
         { provide: Toaster, useValue: { show: (text: string) => toasts.push(text) } },
         { provide: PushStore, useValue: { view: pushView, refresh: async () => undefined } },
@@ -280,6 +284,30 @@ describe('CommandsPanel', () => {
     expect(root.querySelector('[data-testid="team-command"]')?.getAttribute('aria-disabled')).toBe('true');
     expect(text(root.querySelector('[data-slot="pm"] .cmd__why'))).toBe('Нет сети');
     expect(text(root.querySelector('.cp-note'))).toMatch(/^Нет сети\. Статус на/);
+  });
+
+  it('#219: Issues — Ask the PM opens the picker, counts the pending requests and reports the result', async () => {
+    const { fixture, root } = await render(status({ pendingRequests: 2 }));
+    const group = root.querySelector('[data-testid="issues-group"]') as HTMLElement;
+    expect(text(group.querySelector('h3'))).toBe('Задачи');
+    expect(text(group)).toContain('PM прочитает просьбу на ближайшем планировании.');
+    expect(text(group.querySelector('[data-testid="ask-pending"]'))).toBe('Ждут ответа PM: 2');
+    const button = group.querySelector('[data-testid="ask-command"]') as HTMLButtonElement;
+    expect(button.getAttribute('aria-haspopup')).toBe('dialog');
+    button.click();
+    await fixture.whenStable();
+    expect(requestChange.ask).toHaveBeenCalledWith({ slug: 'tc', name: 'Team Console' });
+    expect(text(root.querySelector('.cp-result'))).toContain('Просьба по #7 записана');
+  });
+
+  it('#219: without the GitHub connection Ask the PM says why and opens nothing', async () => {
+    const { fixture, root } = await render(status({ ownerConnected: false }));
+    const button = root.querySelector('[data-testid="ask-command"]') as HTMLButtonElement;
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(root.querySelector('[data-testid="ask-pending"]')).toBeNull();
+    button.click();
+    await fixture.whenStable();
+    expect(requestChange.ask).not.toHaveBeenCalled();
   });
 
   it('Notifications: Snooze opens the dialog, and its outcome is the result note (#221)', async () => {

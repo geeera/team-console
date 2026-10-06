@@ -1041,7 +1041,7 @@
     "ask": {
       "title": "Ask the PM about an issue",
       "hint": "Another sprint, or higher or lower in the queue. The PM reads it at the next planning run.",
-      "pending": "Waiting for the PM: {{n}} ({{ids}})",
+      "pending": "Waiting for the PM: {{n}}",
       "btn": "Pick",
       "aria": "Ask the PM about an issue: pick one"
     },
