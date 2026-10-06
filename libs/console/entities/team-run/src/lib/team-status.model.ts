@@ -1,5 +1,6 @@
 import {
   TEAM_SLOTS,
+  isSnoozeDto,
   isTeamSlot,
   type SlotLock,
   type SlotStatusDto,
@@ -72,6 +73,7 @@ export function isTeamStatusDto(value: unknown): value is TeamStatusDto {
     typeof value['ownerConnected'] === 'boolean' &&
     isText(value['environment']) &&
     isText(value['checkedAt']) &&
+    isSnoozeDto(value['snooze']) &&
     slots.length === TEAM_SLOTS.length &&
     slots.every(isSlotStatus) &&
     TEAM_SLOTS.every((slot, index) => (slots[index] as SlotStatusDto).slot === slot)

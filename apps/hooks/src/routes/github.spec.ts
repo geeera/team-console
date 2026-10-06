@@ -307,6 +307,40 @@ describe('POST /hooks/github — own writes and pushes', () => {
     expect(await cacheEpochOf('storify')).toBe(1);
   });
 
+  it('drops a snoozed project’s push (#221) but still bumps the epoch; urgent ones pass by default', async () => {
+    await env.DB.prepare(
+      "UPDATE projects SET snoozed_at = '2026-10-01T00:00:00.000Z', snoozed_until = NULL WHERE slug = 'storify'",
+    ).run();
+    const sender = new RecordingPushSender();
+    const quiet = await deliver(question(), { pushSender: sender });
+    expect(quiet.response.status).toBe(200);
+    await expect(quiet.response.json()).resolves.toEqual({ status: 'ignored', reason: 'snoozed' });
+    expect(sender.messages).toEqual([]);
+    expect(await cacheEpochOf('storify')).toBe(1);
+
+    const release = await deliver(pullRequestEvent('opened', { number: 77 }), {
+      event: 'pull_request',
+      pushSender: sender,
+    });
+    expect(release.response.status).toBe(202);
+    expect(sender.messages.map(linkOf)).toEqual(['/p/storify/demo']);
+  });
+
+  it('mutes urgent ones too when the owner said so, and an expired snooze mutes nothing', async () => {
+    const sender = new RecordingPushSender();
+    const now = () => new Date('2026-10-05T12:00:00.000Z');
+    await env.DB.prepare(
+      "UPDATE projects SET snoozed_at = '2026-10-05T11:00:00.000Z', snoozed_until = '2026-10-05T13:00:00.000Z', snooze_allows_urgent = 0 WHERE slug = 'storify'",
+    ).run();
+    const muted = await deliver(pullRequestEvent('opened'), { event: 'pull_request', pushSender: sender, now });
+    await expect(muted.response.json()).resolves.toEqual({ status: 'ignored', reason: 'snoozed' });
+
+    const later = () => new Date('2026-10-05T13:00:00.000Z');
+    const back = await deliver(question(), { pushSender: sender, now: later });
+    expect(back.response.status).toBe(202);
+    expect(sender.messages.map(linkOf)).toEqual(['/p/storify/questions#42']);
+  });
+
   it('queues a mapped push with 202 and the deep link', async () => {
     const sender = new RecordingPushSender();
     const { response, logs } = await deliver(question(), { pushSender: sender });

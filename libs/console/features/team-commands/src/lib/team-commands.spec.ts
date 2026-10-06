@@ -21,6 +21,7 @@ function status(overrides: Partial<TeamStatusDto> = {}): TeamStatusDto {
     runLogUrl: 'https://github.com/geeera/team-console/issues/22',
     ownerConnected: true,
     environment: 'production',
+    snooze: { snoozed: false },
     checkedAt: '2026-10-01T12:00:00.000Z',
     slots: (['pm', 'dev', 'qa'] as const).map((slot) => ({
       slot,

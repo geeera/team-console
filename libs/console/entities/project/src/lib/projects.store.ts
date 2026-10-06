@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { computed, inject, Injectable, signal } from '@angular/core';
-import { isProblemDetails, ProblemDetails, ProjectDto } from '@shared/contracts';
+import { isProblemDetails, isSnoozeDto, ProblemDetails, ProjectDto, type SnoozeDto } from '@shared/contracts';
 import { firstValueFrom } from 'rxjs';
 
 export const PROJECTS_URL = '/api/v1/projects';
@@ -21,7 +21,8 @@ function isProjectDto(value: unknown): value is ProjectDto {
     typeof value['displayName'] === 'string' &&
     (value['routineId'] === null || typeof value['routineId'] === 'string') &&
     typeof value['addedAt'] === 'string' &&
-    (value['archivedAt'] === null || typeof value['archivedAt'] === 'string')
+    (value['archivedAt'] === null || typeof value['archivedAt'] === 'string') &&
+    (value['snooze'] === undefined || isSnoozeDto(value['snooze']))
   );
 }
 
@@ -95,6 +96,11 @@ export class ProjectsStore {
   /** A project the Worker just created (201 body): listed at once, without a second round trip. */
   upsert(project: ProjectDto): void {
     this.list.update((list) => [...list.filter((item) => item.slug !== project.slug), project]);
+  }
+
+  /** A snooze the Worker just stored or cleared (#221): the sidebar's bell follows at once. */
+  applySnooze(slug: string, snooze: SnoozeDto): void {
+    this.list.update((list) => list.map((item) => (item.slug === slug ? { ...item, snooze } : item)));
   }
 
   /** A project the Worker just archived (204): it leaves the switcher, the badges and Settings at once. */

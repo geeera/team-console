@@ -1,6 +1,6 @@
-import type { ProjectDto } from '@shared/contracts';
+import { NOT_SNOOZED, type ProjectDto, type SnoozeDto } from '@shared/contracts';
 
-/** One row of `projects` (migrations 0001, 0006); column names as in SQL. */
+/** One row of `projects` (migrations 0001, 0006, 0011); column names as in SQL. */
 export interface ProjectRow {
   readonly slug: string;
   readonly repo: string;
@@ -11,6 +11,18 @@ export interface ProjectRow {
   readonly archived_at: string | null;
   /** The console app's installation on `repo` when the registry validated it (#15); null on legacy rows. */
   readonly installation_id: number | null;
+  /** When the owner snoozed the project's notifications (#221); `null` while not snoozed. */
+  readonly snoozed_at: string | null;
+  /** The end of the snooze; `null` while `snoozed_at` is set = until turned back on. */
+  readonly snoozed_until: string | null;
+  /** 1: urgent pushes still arrive while snoozed (the default); 0: they are muted too. */
+  readonly snooze_allows_urgent: number;
+}
+
+/** `setSnooze`'s fields; `until` is ISO 8601 UTC, already validated by the route. */
+export interface SnoozeChange {
+  readonly until: string | null;
+  readonly allowsUrgent: boolean;
 }
 
 /** What `create` inserts; the rest of the row has defaults. */
@@ -34,7 +46,9 @@ export interface ProjectConflict {
   readonly archived: boolean;
 }
 
-const COLUMNS = 'slug, repo, display_name, routine_id, cache_epoch, added_at, archived_at, installation_id';
+const COLUMNS =
+  'slug, repo, display_name, routine_id, cache_epoch, added_at, archived_at, installation_id, ' +
+  'snoozed_at, snoozed_until, snooze_allows_urgent';
 
 /** The project registry (ADR 0001 decision 20, #15). Every query is parameterised. */
 export class ProjectsRepo {
@@ -175,6 +189,33 @@ export class ProjectsRepo {
     return results;
   }
 
+  /**
+   * Snoozes an active project's notifications from `now` (#221), replacing any snooze it had; the row as it is now,
+   * or `null` when there is no active project with this slug.
+   */
+  async setSnooze(slug: string, change: SnoozeChange, now: string): Promise<ProjectRow | null> {
+    return this.db
+      .prepare(
+        `UPDATE projects SET snoozed_at = ?2, snoozed_until = ?3, snooze_allows_urgent = ?4
+         WHERE slug = ?1 AND archived_at IS NULL
+         RETURNING ${COLUMNS}`,
+      )
+      .bind(slug, now, change.until, change.allowsUrgent ? 1 : 0)
+      .first<ProjectRow>();
+  }
+
+  /** Turns an active project's notifications back on; idempotent. `null` when there is no such project. */
+  async clearSnooze(slug: string): Promise<ProjectRow | null> {
+    return this.db
+      .prepare(
+        `UPDATE projects SET snoozed_at = NULL, snoozed_until = NULL, snooze_allows_urgent = 1
+         WHERE slug = ?1 AND archived_at IS NULL
+         RETURNING ${COLUMNS}`,
+      )
+      .bind(slug)
+      .first<ProjectRow>();
+  }
+
   /** Sets `archived_at` on an active project; `false` when there is none with this slug. */
   async archive(slug: string, archivedAt: string): Promise<boolean> {
     const result = await this.db
@@ -185,7 +226,29 @@ export class ProjectsRepo {
   }
 }
 
-export function toProjectDto(row: ProjectRow): ProjectDto {
+/**
+ * Whether the row's snooze mutes at `nowMs`. An expired snooze stays in the row and simply stops counting, so no
+ * cleanup job is needed; the api and the hooks Worker both decide through this one comparison.
+ */
+export function isSnoozedAt(row: ProjectRow, nowMs: number): boolean {
+  return row.snoozed_at !== null && (row.snoozed_until === null || Date.parse(row.snoozed_until) > nowMs);
+}
+
+/** The row's snooze as the client sees it at `nowMs`. */
+export function snoozeOf(row: ProjectRow, nowMs: number): SnoozeDto {
+  if (row.snoozed_at === null || !isSnoozedAt(row, nowMs)) {
+    return NOT_SNOOZED;
+  }
+  return {
+    snoozed: true,
+    until: row.snoozed_until,
+    allowsUrgent: row.snooze_allows_urgent !== 0,
+    since: row.snoozed_at,
+  };
+}
+
+/** `nowMs` decides whether the snooze still counts (#221). */
+export function toProjectDto(row: ProjectRow, nowMs: number): ProjectDto {
   return {
     slug: row.slug,
     repo: row.repo,
@@ -193,5 +256,6 @@ export function toProjectDto(row: ProjectRow): ProjectDto {
     routineId: row.routine_id,
     addedAt: row.added_at,
     archivedAt: row.archived_at,
+    snooze: snoozeOf(row, nowMs),
   };
 }

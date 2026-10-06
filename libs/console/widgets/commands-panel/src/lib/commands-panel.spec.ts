@@ -3,7 +3,9 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationInitStatus, Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { PushStore, type PushView } from '@console/entities/push';
 import { TeamStatusStore } from '@console/entities/team-run';
+import { SnoozeCommands, type SnoozeOutcome } from '@console/features/snooze';
 import { TeamCommands, type CommandOutcome } from '@console/features/team-commands';
 import { NetworkStatus } from '@console/shared/api';
 import { provideConsoleI18n } from '@console/shared/i18n';
@@ -22,6 +24,7 @@ function status(overrides: Partial<TeamStatusDto> = {}): TeamStatusDto {
     runLogUrl: 'https://github.com/geeera/team-console/issues/22',
     ownerConnected: true,
     environment: 'stage',
+    snooze: { snoozed: false },
     checkedAt: new Date().toISOString(),
     slots: [
       {
@@ -65,6 +68,12 @@ describe('CommandsPanel', () => {
   };
   let online: ReturnType<typeof signal<boolean>>;
   let toasts: string[];
+  let pushView: ReturnType<typeof signal<PushView>>;
+  let snoozing: {
+    snooze: ReturnType<typeof vi.fn>;
+    turnBackOn: ReturnType<typeof vi.fn>;
+    untilText: (until: string) => string;
+  };
 
   async function render(initial: TeamStatusDto) {
     const done: CommandOutcome = {
@@ -81,6 +90,19 @@ describe('CommandsPanel', () => {
     };
     online = signal(true);
     toasts = [];
+    pushView = signal<PushView>('on');
+    const snoozed: SnoozeOutcome = {
+      tone: 'positive',
+      verb: 'Уведомления Team Console отложены до завтра 09:00',
+      detail: null,
+      runLogUrl: null,
+      at: new Date().toISOString(),
+    };
+    snoozing = {
+      snooze: vi.fn(async () => snoozed),
+      turnBackOn: vi.fn(async () => ({ ...snoozed, verb: 'Уведомления Team Console снова включены' })),
+      untilText: () => 'завтра 09:00',
+    };
     await TestBed.configureTestingModule({
       imports: [Host],
       providers: [
@@ -91,6 +113,8 @@ describe('CommandsPanel', () => {
         { provide: TeamCommands, useValue: commands },
         { provide: NetworkStatus, useValue: { online } },
         { provide: Toaster, useValue: { show: (text: string) => toasts.push(text) } },
+        { provide: PushStore, useValue: { view: pushView, refresh: async () => undefined } },
+        { provide: SnoozeCommands, useValue: snoozing },
       ],
     }).compileComponents();
     await TestBed.inject(ApplicationInitStatus).donePromise;
@@ -209,6 +233,84 @@ describe('CommandsPanel', () => {
     expect(root.querySelector('[data-testid="team-command"]')?.getAttribute('aria-disabled')).toBe('true');
     expect(text(root.querySelector('[data-slot="pm"] .cmd__why'))).toBe('Нет сети');
     expect(text(root.querySelector('.cp-note'))).toMatch(/^Нет сети\. Статус на/);
+  });
+
+  it('Notifications: Snooze opens the dialog, and its outcome is the result note (#221)', async () => {
+    const { fixture, root } = await render(status());
+    const group = root.querySelector('[data-testid="notify-group"]') as HTMLElement;
+    expect(text(group.querySelector('h3'))).toBe('Уведомления');
+    expect(text(group)).toContain('Пуши по Team Console — на всех ваших устройствах.');
+    expect(text(group)).not.toMatch(/дайджест/i);
+    const button = group.querySelector('[data-testid="snooze-command"]') as HTMLButtonElement;
+    expect(button.getAttribute('aria-label')).toBe('Отложить уведомления Team Console');
+    expect(button.getAttribute('aria-disabled')).toBeNull();
+
+    button.click();
+    await fixture.whenStable();
+    expect(snoozing.snooze).toHaveBeenCalledWith({ slug: 'tc', name: 'Team Console' });
+    expect(text(root.querySelector('.cp-result'))).toContain('Уведомления Team Console отложены до завтра 09:00');
+  });
+
+  it('snoozed: the struck bell with the words, and one tap turns them back on', async () => {
+    const { fixture, root } = await render(
+      status({
+        snooze: { snoozed: true, until: new Date(Date.now() + 3_600_000).toISOString(), allowsUrgent: true, since: new Date().toISOString() },
+      }),
+    );
+    expect(text(root.querySelector('[data-testid="snooze-line"]'))).toBe(
+      'Отложены до завтра 09:00. Срочное всё равно приходит.',
+    );
+    expect(root.querySelector('[data-testid="snooze-line"] tc-icon')?.getAttribute('name')).toBe('bell-off');
+    const button = root.querySelector('[data-testid="snooze-command"]') as HTMLButtonElement;
+    expect(text(button)).toBe('Включить сейчас');
+    expect(button.getAttribute('aria-label')).toBe('Включить уведомления Team Console сейчас');
+
+    button.click();
+    await fixture.whenStable();
+    expect(snoozing.turnBackOn).toHaveBeenCalledTimes(1);
+    expect(snoozing.snooze).not.toHaveBeenCalled();
+    expect(text(root.querySelector('.cp-result'))).toContain('Уведомления Team Console снова включены');
+  });
+
+  it('snoozed until turned back on with urgent ones muted says both', async () => {
+    const { root } = await render(
+      status({ snooze: { snoozed: true, until: null, allowsUrgent: false, since: new Date().toISOString() } }),
+    );
+    expect(text(root.querySelector('[data-testid="snooze-line"]'))).toBe(
+      'Отложены, пока не включите. Срочное тоже отложено.',
+    );
+  });
+
+  it('an expired snooze is not shown, with no other read', async () => {
+    const { root } = await render(
+      status({
+        snooze: { snoozed: true, until: new Date(Date.now() - 1000).toISOString(), allowsUrgent: true, since: new Date(Date.now() - 3_600_000).toISOString() },
+      }),
+    );
+    expect(root.querySelector('[data-testid="snooze-line"]')).toBeNull();
+    expect(text(root.querySelector('[data-testid="snooze-command"]'))).toBe('Отложить');
+  });
+
+  it('push off on this device: Snooze is off, says why and links to Settings; Turn back on still works', async () => {
+    const { fixture, root, store } = await render(status());
+    pushView.set('off');
+    await fixture.whenStable();
+    const button = root.querySelector('[data-testid="snooze-command"]') as HTMLButtonElement;
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(text(root.querySelector('[data-testid="snooze-why"]'))).toBe('Пуши на этом устройстве выключены');
+    expect(button.getAttribute('aria-describedby')?.split(' ')).toContain(
+      root.querySelector('[data-testid="snooze-why"]')?.id,
+    );
+    const fix = root.querySelector('.cmd__fix a') as HTMLAnchorElement;
+    expect(text(fix)).toBe('Включить в Настройках');
+    expect(fix.getAttribute('href')).toBe('/settings');
+    button.click();
+    expect(snoozing.snooze).not.toHaveBeenCalled();
+
+    store.applySnooze('tc', { snoozed: true, until: null, allowsUrgent: true, since: new Date().toISOString() });
+    await fixture.whenStable();
+    expect(root.querySelector('[data-testid="snooze-command"]')?.getAttribute('aria-disabled')).toBeNull();
+    expect(root.querySelector('[data-testid="snooze-why"]')).toBeNull();
   });
 
   it('without a status: loading, then an error with Try again; commands are not drawn', async () => {

@@ -1,7 +1,7 @@
 export { OwnerConnectionsRepo } from './lib/owner-connections.repo';
 export type { NewOwnerConnection, OwnerConnectionRow, SealedTokenPair } from './lib/owner-connections.repo';
-export { ProjectsRepo, toProjectDto } from './lib/projects.repo';
-export type { NewProject, ProjectChanges, ProjectConflict, ProjectRow } from './lib/projects.repo';
+export { ProjectsRepo, isSnoozedAt, snoozeOf, toProjectDto } from './lib/projects.repo';
+export type { NewProject, ProjectChanges, ProjectConflict, ProjectRow, SnoozeChange } from './lib/projects.repo';
 export { ProjectSignalsRepo } from './lib/project-signals.repo';
 export type { EventsSignal } from './lib/project-signals.repo';
 export { OwnWritesRepo } from './lib/own-writes.repo';

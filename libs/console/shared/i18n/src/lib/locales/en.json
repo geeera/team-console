@@ -21,7 +21,8 @@
     "loadFailedHint": "Check your connection and try again.",
     "noProjects": "No projects yet",
     "noProjectsHint": "Add a repository in Settings and its space appears here.",
-    "skip": "Skip to content"
+    "skip": "Skip to content",
+    "snoozed": "notifications snoozed"
   },
   "space": {
     "sections": "Sections",
@@ -706,7 +707,8 @@
     },
     "group": {
       "team": "Team work",
-      "run": "Run now"
+      "run": "Run now",
+      "notify": "Notifications"
     },
     "pause": {
       "title": "Pause development",
@@ -821,7 +823,47 @@
       "yesterday": "yesterday {{time}}",
       "day": "{{day}} {{time}}"
     },
-    "external": "(opens GitHub)"
+    "external": "(opens GitHub)",
+    "snooze": {
+      "title": "Snooze notifications",
+      "hint": "Pushes for {{name}}, on all your devices.",
+      "btn": "Snooze",
+      "aria": "Snooze notifications for {{name}}",
+      "until": "Snoozed until {{until}}",
+      "forever": "Snoozed until you turn them back on",
+      "urgent": "Urgent ones still come through.",
+      "quiet": "Urgent ones are snoozed too.",
+      "back": "Turn back on",
+      "backAria": "Turn {{name}} notifications back on",
+      "nopush": "Push is off on this device",
+      "nopushFix": "Turn on in Settings",
+      "when": {
+        "today": "today {{time}}",
+        "tomorrow": "tomorrow {{time}}",
+        "date": "{{day}}, {{time}}"
+      },
+      "dialog": {
+        "title": "Snooze {{name}} notifications",
+        "body": "Pushes for this project, on all your devices.",
+        "when": "For how long",
+        "hour": "For an hour",
+        "morning": "Until morning (9:00)",
+        "week": "For a week",
+        "forever": "Until I turn them back on",
+        "urgent": "Still send urgent ones",
+        "urgentHint": "The team paused itself, a release decision is needed.",
+        "ok": "Snooze",
+        "err": "Couldn’t save: the server didn’t answer. Nothing changed.",
+        "offline": "You’re offline. Nothing changed."
+      },
+      "result": {
+        "done": "{{name}} notifications snoozed until {{until}}",
+        "doneForever": "{{name}} notifications snoozed until you turn them back on",
+        "back": "{{name}} notifications are back on",
+        "backFailed": "Couldn’t turn {{name}} notifications back on: the server didn’t answer. Nothing changed.",
+        "backOffline": "You’re offline: {{name}} notifications are still snoozed. Nothing changed."
+      }
+    }
   },
   "ui": {
     "close": "Close",
@@ -1042,6 +1084,15 @@
     "srOnlyOnPhone": {
       "title": "Needs you",
       "body": "On the phone the top bar already shows this title, so here it stays for screen readers only."
+    },
+    "choice": {
+      "when": "For how long",
+      "hour": "For an hour",
+      "morning": "Until morning (9:00)",
+      "week": "For a week",
+      "forever": "Until I turn them back on",
+      "urgent": "Still send urgent ones",
+      "urgentHint": "The team paused itself, a release decision is needed."
     }
   },
   "review": {

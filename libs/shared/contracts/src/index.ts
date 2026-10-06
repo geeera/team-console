@@ -30,6 +30,8 @@ export type {
   UpdateProjectRequest,
 } from './lib/project';
 export type { ProjectRepositoryDto } from './lib/repository';
+export { NOT_SNOOZED, SNOOZE_MAX_DAYS, isSnoozeActive, isSnoozeDto } from './lib/snooze';
+export type { SnoozeDto, SnoozeRequest } from './lib/snooze';
 export {
   RESERVED_SLUGS,
   isReservedSlug,

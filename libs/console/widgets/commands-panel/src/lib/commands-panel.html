@@ -230,6 +230,54 @@
       }
     </ul>
   </section>
+
+  @if (snooze(); as snooze) {
+  <section class="cp-group" [attr.aria-labelledby]="id + '-gn'" data-testid="notify-group">
+    <h3 class="cp-kicker" [id]="id + '-gn'">{{ 'commands.group.notify' | transloco }}</h3>
+    <div class="cmd-list">
+      <div class="cmd">
+        <div class="cmd__txt">
+          <p class="cmd__title">{{ 'commands.snooze.title' | transloco }}</p>
+          @if (snooze.isSnoozed) {
+          <p class="cmd__line cmd__line--snoozed" [id]="id + '-snooze-line'" data-testid="snooze-line">
+            <tc-icon name="bell-off" size="sm" /><span>{{ snooze.line }}</span>
+          </p>
+          } @else {
+          <p class="cmd__hint" [id]="id + '-snooze-hint'">
+            {{ 'commands.snooze.hint' | transloco: { name: project().name } }}
+          </p>
+          } @if (snooze.why) {
+          <p class="cmd__why" [id]="id + '-snooze-why'" data-testid="snooze-why">
+            <tc-icon [name]="snooze.whyIcon" size="sm" /><span>{{ snooze.why }}</span>
+          </p>
+          } @if (snooze.hasPushFix) {
+          <p class="cmd__fix"><a routerLink="/settings">{{ 'commands.snooze.nopushFix' | transloco }}</a></p>
+          }
+        </div>
+        <button
+          tc-button
+          size="sm"
+          type="button"
+          class="cmd__btn"
+          data-testid="snooze-command"
+          [variant]="snooze.isSnoozed ? 'primary' : 'secondary'"
+          [off]="snooze.why !== null"
+          [attr.aria-disabled]="snooze.why !== null ? 'true' : null"
+          [attr.aria-label]="
+            (snooze.isSnoozed ? 'commands.snooze.backAria' : 'commands.snooze.aria') | transloco: { name: project().name }
+          "
+          [attr.aria-describedby]="
+            (snooze.why !== null ? id + '-snooze-why ' : '') + (snooze.isSnoozed ? id + '-snooze-line' : id + '-snooze-hint')
+          "
+          (click)="snoozeOrTurnBackOn($event)"
+        >
+          <tc-icon [name]="snooze.isSnoozed ? 'bell' : 'bell-off'" size="sm" />
+          {{ (snooze.isSnoozed ? 'commands.snooze.back' : 'commands.snooze.btn') | transloco }}
+        </button>
+      </div>
+    </div>
+  </section>
+  }
   } @else if (hasNoRunLog()) {
   <tc-state-block
     kind="empty"
