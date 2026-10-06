@@ -7,10 +7,10 @@ import { ANSWERED_ITEMS_STORAGE, AnsweredItems, NEEDS_YOU_URL } from '@console/e
 import { QuestionItem } from '@console/entities/question';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import { Sheet } from '@console/shared/ui';
-import { PROBLEM_TYPE_PREFIX, type AnswerResponse } from '@shared/contracts';
+import { ANSWER_REPLAY_WINDOW_MS, PROBLEM_TYPE_PREFIX, type AnswerResponse } from '@shared/contracts';
 import { of } from 'rxjs';
 import { AnswerGiven, AnswerQuestion } from './answer-question';
-import { answerUrl } from './answer.client';
+import { answerLookupUrl, answerUrl } from './answer.client';
 
 function item(overrides: Partial<QuestionItem> = {}): QuestionItem {
   return {
@@ -30,6 +30,7 @@ function item(overrides: Partial<QuestionItem> = {}): QuestionItem {
 }
 
 const URL = answerUrl('team-console', 72);
+const LOOKUP_URL = answerLookupUrl('team-console', 72);
 
 function written(command: AnswerResponse['command'] = 'approve'): AnswerResponse {
   return {
@@ -280,6 +281,164 @@ describe('AnswerQuestion', () => {
     http.match(NEEDS_YOU_URL).forEach((counts) => counts.flush({ items: [] }));
 
     expect(host.given[0]?.response.replayed).toBe(true);
+  });
+
+  describe('Retry past the replay window re-reads the item first (#120)', () => {
+    let clock: number;
+
+    beforeEach(() => {
+      clock = Date.parse('2026-10-06T12:00:00Z');
+      vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    /** Taps approve and loses the response (status 0); the card shows offline with Retry. */
+    async function lostAnswer() {
+      const rendered = await render();
+      rendered.button('approve').click();
+      await tick();
+      const first = http.expectOne(URL);
+      first.error(new ProgressEvent('error'), { status: 0, statusText: '' });
+      await tick();
+      await rendered.fixture.whenStable();
+      const retry = (): void =>
+        (rendered.root.querySelector('[data-testid="answer-error"] button') as HTMLButtonElement).click();
+      return { ...rendered, body: first.request.body as object, retry };
+    }
+
+    it('within the window, Retry posts the same request again and reads nothing (the endpoint replays)', async () => {
+      const { retry, body, host } = await lostAnswer();
+
+      clock += ANSWER_REPLAY_WINDOW_MS;
+      retry();
+      await tick();
+
+      http.expectNone(LOOKUP_URL);
+      const again = http.expectOne(URL);
+      expect(again.request.body).toEqual(body);
+      await answerWith(() => again, { ...written(), replayed: true }, 200);
+      expect(host.given).toHaveLength(1);
+    });
+
+    it('past the window, an answer already on GitHub is shown as answered and nothing is posted', async () => {
+      const { retry, body, host, fixture, root } = await lostAnswer();
+
+      clock += ANSWER_REPLAY_WINDOW_MS + 1_000;
+      retry();
+      await tick();
+
+      http.expectNone(URL);
+      const read = http.expectOne(LOOKUP_URL);
+      expect(read.request.method).toBe('POST');
+      expect(read.request.body).toEqual({ ...body, sentAgoMs: ANSWER_REPLAY_WINDOW_MS + 1_000 });
+      read.flush({ answer: { ...written(), replayed: true } });
+      await tick();
+      http.match(NEEDS_YOU_URL).forEach((counts) => counts.flush({ items: [] }));
+      await fixture.whenStable();
+
+      http.expectNone(URL);
+      expect(host.given).toEqual([{ item: item(), response: { ...written(), replayed: true } }]);
+      expect(TestBed.inject(AnsweredItems).get('team-console', 72)?.url).toBe(written().url);
+      expect(root.querySelector('[data-testid="answer-error"]')).toBeNull();
+    });
+
+    it('past the window, an item still waiting gets the answer posted once', async () => {
+      const { retry, body, host } = await lostAnswer();
+
+      clock += 5 * 60_000;
+      retry();
+      await tick();
+      http.expectOne(LOOKUP_URL).flush({ answer: null });
+      await tick();
+
+      const post = http.expectOne(URL);
+      expect(post.request.body).toEqual(body);
+      await answerWith(() => post, written());
+      http.expectNone(URL);
+      expect(host.given).toHaveLength(1);
+      expect(host.given[0]?.response.replayed).toBe(false);
+    });
+
+    it('the window counts from the last attempt; the re-read looks back to the first', async () => {
+      const { retry } = await lostAnswer();
+
+      clock += 30_000;
+      retry();
+      await tick();
+      http.expectOne(URL).error(new ProgressEvent('error'), { status: 0, statusText: '' });
+      await tick();
+
+      clock += 50_000;
+      retry();
+      await tick();
+      http.expectOne(URL).error(new ProgressEvent('error'), { status: 0, statusText: '' });
+      await tick();
+
+      clock += ANSWER_REPLAY_WINDOW_MS + 1;
+      retry();
+      await tick();
+      const read = http.expectOne(LOOKUP_URL);
+      expect((read.request.body as { sentAgoMs: number }).sentAgoMs).toBe(
+        30_000 + 50_000 + ANSWER_REPLAY_WINDOW_MS + 1,
+      );
+      read.flush({ answer: { ...written(), replayed: true } });
+      await tick();
+      http.match(NEEDS_YOU_URL).forEach((counts) => counts.flush({ items: [] }));
+    });
+
+    it('tapping the same answer again instead of Retry is the same repeat: re-read first', async () => {
+      const { button, host } = await lostAnswer();
+
+      clock += 2 * 60_000;
+      button('approve').click();
+      await tick();
+      http.expectNone(URL);
+      http.expectOne(LOOKUP_URL).flush({ answer: { ...written(), replayed: true } });
+      await tick();
+      http.match(NEEDS_YOU_URL).forEach((counts) => counts.flush({ items: [] }));
+
+      expect(host.given).toHaveLength(1);
+    });
+
+    it('an item that no longer takes the answer offers a fresh list, and nothing is posted', async () => {
+      const { retry, root, fixture, host } = await lostAnswer();
+
+      clock += 2 * 60_000;
+      retry();
+      await tick();
+      http.expectOne(LOOKUP_URL).flush(problem('issue-closed', 409), { status: 409, statusText: 'Conflict' });
+      await tick();
+      await fixture.whenStable();
+
+      http.expectNone(URL);
+      const error = root.querySelector('[data-testid="answer-error"]');
+      expect(error?.getAttribute('data-kind')).toBe('issue-closed');
+      (error?.querySelector('button') as HTMLButtonElement).click();
+      expect(host.refreshes).toBe(1);
+      expect(host.given).toHaveLength(0);
+    });
+
+    it('a re-read that fails offline posts nothing and keeps Retry, which re-reads again', async () => {
+      const { retry, root, fixture } = await lostAnswer();
+
+      clock += 2 * 60_000;
+      retry();
+      await tick();
+      http.expectOne(LOOKUP_URL).error(new ProgressEvent('error'), { status: 0, statusText: '' });
+      await tick();
+      await fixture.whenStable();
+
+      http.expectNone(URL);
+      expect(root.querySelector('[data-testid="answer-error"]')?.getAttribute('data-kind')).toBe('offline');
+      retry();
+      await tick();
+      http.expectOne(LOOKUP_URL).flush({ answer: null });
+      await tick();
+      await answerWith(() => http.expectOne(URL), written());
+    });
   });
 
   it('answer-in-progress waits out Retry-After, then repeats once and gets the replay', async () => {

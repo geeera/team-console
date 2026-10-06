@@ -1,3 +1,4 @@
+import { ANSWER_REPLAY_WINDOW_MS } from '@shared/contracts';
 import { commandLines } from '@shared/owner-grammar';
 import type { Page, Request } from '@playwright/test';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
@@ -235,4 +236,96 @@ test('a lost response shows offline without a reload, and Retry posts once', asy
     before.length + 1,
   );
   expect(loads).toBe(0);
+});
+
+// #120: the Worker replays an answer only within 60 s of writing it. A Retry later than that re-reads the item first.
+const LATE_MS = ANSWER_REPLAY_WINDOW_MS + 1_000;
+const isLookup = (request: Request): boolean =>
+  request.method() === 'POST' &&
+  /\/api\/v1\/projects\/[^/]+\/issues\/\d+\/answer\/lookup$/.test(request.url());
+
+/** Drops the first answer POST: after the Worker wrote it (`reachServer`), or before it got there. */
+async function dropFirstAnswer(page: Page, reachServer: boolean): Promise<void> {
+  let dropped = false;
+  await page.route(/\/api\/v1\/projects\/[^/]+\/issues\/\d+\/answer$/, async (route) => {
+    if (dropped) {
+      await route.continue();
+      return;
+    }
+    dropped = true;
+    if (reachServer) {
+      await route.fetch();
+    }
+    await route.abort('connectionclosed');
+  });
+}
+
+test('a Retry past the replay window finds the answer already on GitHub and posts nothing', async ({
+  page,
+  stack,
+}) => {
+  const issue = 21;
+  const before = await fakeComments(stack, issue);
+  await page.clock.install();
+  await openNeedsYou(page);
+  await dropFirstAnswer(page, true);
+  const posts = recordAnswerPosts(page);
+  const lookups: Request[] = [];
+  page.on('request', (request) => {
+    if (isLookup(request)) {
+      lookups.push(request);
+    }
+  });
+
+  await answerButton(page, issue, 'done').click();
+  const error = item(page, issue).getByTestId('answer-error');
+  await expect(error).toHaveAttribute('data-kind', 'offline');
+  expect(await fakeComments(stack, issue)).toHaveLength(before.length + 1);
+
+  await page.clock.fastForward(LATE_MS);
+  const reread = page.waitForResponse((response) => isLookup(response.request()));
+  await error.getByRole('button', { name: ru('answer.error.retry') }).click();
+  expect((await reread).status()).toBe(200);
+
+  const receipt = item(page, issue).locator('tc-receipt');
+  await expect(receipt).toBeVisible();
+  await expect(receipt.getByRole('link')).toHaveAttribute('href', /#issuecomment-\d+$/);
+  expect(lookups).toHaveLength(1);
+  expect(posts, 'past the window nothing is posted again').toHaveLength(1);
+  expect(await fakeComments(stack, issue), 'one comment on GitHub').toHaveLength(before.length + 1);
+  await expectAccessible(page, 'receipt after a late retry');
+});
+
+test('a Retry past the replay window on an item still waiting posts the answer once', async ({
+  page,
+  stack,
+}) => {
+  const issue = 90007;
+  const before = await fakeComments(stack, issue);
+  await page.clock.install();
+  await openNeedsYou(page);
+  await dropFirstAnswer(page, false);
+  const posts = recordAnswerPosts(page);
+
+  await answerButton(page, issue, 'approve').click();
+  const error = item(page, issue).getByTestId('answer-error');
+  await expect(error).toHaveAttribute('data-kind', 'offline');
+  expect(await fakeComments(stack, issue)).toHaveLength(before.length);
+
+  await page.clock.fastForward(LATE_MS);
+  const reread = page.waitForResponse((response) => isLookup(response.request()));
+  const written = page.waitForResponse((response) => isAnswerPost(response.request()));
+  await error.getByRole('button', { name: ru('answer.error.retry') }).click();
+  // Statuses only: Chromium may already have dropped a consumed body by the time it is asked for.
+  const [lookup, post] = [await reread, await written];
+  expect(lookup.status()).toBe(200);
+  expect(post.status()).toBe(201);
+  expect(lookup.request().timing().startTime).toBeLessThan(post.request().timing().startTime);
+
+  await expect(item(page, issue).locator('tc-receipt')).toBeVisible();
+  expect(posts).toHaveLength(2);
+  const after = await fakeComments(stack, issue);
+  expect(after).toHaveLength(before.length + 1);
+  expect(commandLines(after.at(-1)?.body ?? '')).toEqual([{ command: 'approve', text: '' }]);
+  await expectAccessible(page, 'receipt after a late retry that posted');
 });
