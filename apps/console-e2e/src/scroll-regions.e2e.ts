@@ -364,3 +364,45 @@ test("the phone's Projects sheet with a long list: Add project and Settings stay
   await expect(settings).toBeInViewport({ ratio: 1 });
   await expectAccessible(page, 'Projects sheet with a long list');
 });
+
+test('a page that grows behind an open sheet stays still: the lock does not depend on the height at open', async ({
+  page,
+}) => {
+  test.skip(
+    test.info().project.name !== 'iphone',
+    "the Projects sheet is the phone's; the lock itself is shared by every sheet",
+  );
+  // Needs you is short until its data arrives; hold the data back until the sheet is open (#281 QA).
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  for (const pattern of ['**/api/v1/needs-you*', '**/api/v1/projects/*/questions*']) {
+    await page.route(pattern, async (route) => {
+      await gate;
+      await route.fallback();
+    });
+  }
+  await page.goto('/needs-you');
+  await expect(page.locator('main#tc-main')).toBeVisible();
+  expect(await documentScrolls(page), 'short before the data').toBe(false);
+
+  await page.getByRole('button', { name: ru('shell.openSwitcher') }).click();
+  await expect(dialog(page)).toBeVisible();
+  release();
+  await page.waitForLoadState('networkidle');
+  await expect
+    .poll(() => page.evaluate(() => document.querySelector('main')?.scrollHeight ?? 0))
+    .toBeGreaterThan(page.viewportSize()?.height ?? 0);
+
+  await page.mouse.move(5, 5);
+  await page.mouse.wheel(0, 600);
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.scrollY), 'the page behind did not move').toBe(0);
+  expect(await strayScrollsOf(page)).toEqual([]);
+  expect(await documentScrolls(page), 'the document is pinned while the sheet is open').toBe(false);
+
+  // Closed: the page that grew meanwhile scrolls, from where it was.
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  expect(await documentScrolls(page)).toBe(true);
+});

@@ -20,7 +20,7 @@
 
 /*
  * The page behind an open sheet or dialog does not scroll (#274): `Sheet` sets `data-tc-scroll-lock` on the root
- * while one is open; the CDK pins the document, and the columns that scroll beside it carry `tc-page-scroll`
+ * while one is open; `SheetScrollLocks` pins the document, and the columns that scroll beside it carry `tc-page-scroll`
  * (the sidebar, the Commands pane). The gutter stays, so locking does not shift them on classic scrollbars.
  */
 .tc-page-scroll {

@@ -66,7 +66,7 @@ export class Sheet {
       backdropClass: 'tc-scrim',
       panelClass: presentation === 'sheet' ? 'tc-sheet-panel' : dialogPanel,
       positionStrategy: presentation === 'sheet' ? position.bottom('0') : position.centerVertically(),
-      scrollStrategy: new SheetScrollStrategy(this.scrollLocks, this.overlay.scrollStrategies.block()),
+      scrollStrategy: new SheetScrollStrategy(this.scrollLocks),
       providers: [{ provide: SheetFooterSlot, useValue: footer }],
       container: {
         type: SheetContainer,
