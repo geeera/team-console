@@ -1,12 +1,21 @@
 import { Hono } from 'hono';
 import { problem, type Logger, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
-import { OwnWritesRepo, ProjectsRepo, WebhookDeliveriesRepo, isSnoozedAt, type ProjectRow } from '@worker/db';
+import {
+  OwnWritesRepo,
+  OwnerRequestsRepo,
+  ProjectsRepo,
+  WebhookDeliveriesRepo,
+  isSnoozedAt,
+  type ProjectRow,
+} from '@worker/db';
+import { handledRequestOf } from '@worker/read-models';
 import type { HooksEnv } from '../env';
 import { WEBHOOK_BODY_MAX_BYTES, readBodyCapped } from '../github/body';
 import {
   commentOf,
   envelopeOf,
   isJsonObject,
+  issueOf,
   pushRefOf,
   repositoriesOf,
   type Envelope,
@@ -20,7 +29,7 @@ import type { NotificationSenderFactory } from '../push/push-sender';
 
 /** The answer GitHub gets; only its status code matters to GitHub, the body is for the delivery log. */
 export interface WebhookAck {
-  readonly status: 'pong' | 'duplicate' | 'ignored' | 'queued' | 'updated';
+  readonly status: 'pong' | 'duplicate' | 'ignored' | 'queued' | 'updated' | 'request-handled';
   readonly reason?: IgnoredReason;
 }
 
@@ -200,6 +209,43 @@ function bumpsEpoch(event: string, envelope: Envelope, payload: JsonObject): boo
 }
 
 /**
+ * The PM's answer to an owner request (#219, ADR 0005 decision 3): an `issue_comment.created` whose first line is a
+ * strict handled marker by the team's app marks the named request of this project and issue, if it came after it.
+ * No push: the PM's comment is on the issue. Whether the row exists and is older is the repository's check.
+ */
+async function markRequestHandled(
+  db: D1Database,
+  slug: string,
+  envelope: Envelope,
+  payload: JsonObject,
+): Promise<boolean> {
+  if (envelope.action !== 'created') {
+    return false;
+  }
+  const comment = commentOf(payload);
+  const issue = issueOf(payload);
+  if (comment === null || issue === null) {
+    return false;
+  }
+  const handled = handledRequestOf(
+    {
+      id: comment.id,
+      body: comment.body,
+      authorLogin: comment.author.authorLogin,
+      authorType: comment.author.authorType,
+      createdAt: comment.createdAt,
+      // A `created` delivery is the comment as first written; edits arrive as `edited` and are never read.
+      updatedAt: null,
+    },
+    false,
+  );
+  if (handled === null) {
+    return false;
+  }
+  return new OwnerRequestsRepo(db).markHandled({ ...handled, slug, issueNumber: issue.number });
+}
+
+/**
  * Steps 3–6 of the architect note: route to the project, bump its epoch, drop own writes, map to a push; then drop
  * it while the project is snoozed unless it is urgent and urgent ones are allowed (#221).
  */
@@ -229,6 +275,9 @@ async function handleRepositoryEvent(
     const comment = commentOf(payload);
     if (comment !== null && (await new OwnWritesRepo(db).isOwnComment(comment.id))) {
       return ignored('own-write');
+    }
+    if (await markRequestHandled(db, row.slug, envelope, payload)) {
+      return { httpStatus: 200, ack: { status: 'request-handled' }, messages: [] };
     }
   }
   const mapped = applySnooze(mapEvent(mappedProjectOf(row), event, envelope, payload), {
