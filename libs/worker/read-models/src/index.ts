@@ -61,3 +61,5 @@ export {
 export type { SprintInput } from './lib/sprint';
 export { TRUSTED_BOT_LOGINS, githubUrlOrNull, isTrustedAuthor } from './lib/untrusted-text';
 export type { IssueAuthor } from './lib/untrusted-text';
+export { handledRequestOf } from './lib/request-handled';
+export type { HandledCandidate, HandledRequest } from './lib/request-handled';
