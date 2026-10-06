@@ -14,7 +14,7 @@ import {
   type TeamStatusDto,
 } from '@shared/contracts';
 import { problem, type ProblemInit, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
-import { OwnWritesRepo, SlotRequestsRepo, type OwnWrite, type OwnWriteKind } from '@worker/db';
+import { OwnWritesRepo, SlotRequestsRepo, snoozeOf, type OwnWrite, type OwnWriteKind } from '@worker/db';
 import { GitHubError, githubPath, type FetchLike, type RepoName } from '@worker/github';
 import { InvalidRoutineConfigError, RoutinesClient, type FireOutcome } from '@worker/routines';
 import {
@@ -405,6 +405,7 @@ export function createTeamCommandsRoutes(
         ownerConnected: (await owners.current(c.env, c.get('logger'))) !== null,
         environment: c.env.ENVIRONMENT,
         slots,
+        snooze: snoozeOf(project, nowMs),
         checkedAt: iso(nowMs),
         sprint: sprint?.sprint ?? null,
         progress: sprint?.progress ?? null,

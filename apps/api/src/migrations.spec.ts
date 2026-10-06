@@ -37,6 +37,7 @@ describe('migrations on a fresh D1', () => {
       '0008_slot_requests.sql',
       '0009_push_subscriptions.sql',
       '0010_webhooks.sql',
+      '0011_project_snooze.sql',
     ]);
   });
 
@@ -75,12 +76,16 @@ describe('migrations on a fresh D1', () => {
       'archived_at',
       'installation_id',
       'access_lost_at',
+      'snoozed_at',
+      'snoozed_until',
+      'snooze_allows_urgent',
     ]);
     expect(results.filter((column) => column.notnull === 1).map((column) => column.name)).toEqual([
       'repo',
       'display_name',
       'cache_epoch',
       'added_at',
+      'snooze_allows_urgent',
     ]);
   });
 

@@ -13,7 +13,9 @@ import {
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { PushStore, type PushView } from '@console/entities/push';
 import { activeLock, isPaused, missingSlots, TeamStatusStore } from '@console/entities/team-run';
+import { SnoozeCommands } from '@console/features/snooze';
 import { SprintControls } from '@console/features/sprint-controls';
 import { TeamCommands, type CommandOutcome } from '@console/features/team-commands';
 import { NetworkStatus } from '@console/shared/api';
@@ -26,7 +28,7 @@ import {
   TranslocoService,
 } from '@console/shared/i18n';
 import { Banner, Button, Icon, IconButton, Meter, Receipt, StateBlock, type ReceiptTone } from '@console/shared/ui';
-import { isInFreeze, TEAM_SLOTS, type SlotStatusDto, type TeamSlot } from '@shared/contracts';
+import { isInFreeze, isSnoozeActive, TEAM_SLOTS, type SlotStatusDto, type TeamSlot } from '@shared/contracts';
 import { listOf, secretCommandOf, whenOf } from './when';
 
 /** The project the panel commands. */
@@ -71,9 +73,23 @@ interface SetupLine {
   readonly commands: readonly { readonly what: 'id' | 'token'; readonly text: string }[];
 }
 
+/** The Notifications row as the template draws it (#221). */
+interface SnoozeRow {
+  readonly isSnoozed: boolean;
+  /** "Snoozed until tomorrow 09:00. Urgent ones still come through." while snoozed. */
+  readonly line: string;
+  /** Why the button is off; `null` when it may be pressed. */
+  readonly why: string | null;
+  readonly whyIcon: 'offline' | 'bell-off';
+  /** Push is off on this device: the row links to Settings. */
+  readonly hasPushFix: boolean;
+}
+
 let nextPanelId = 0;
-/** Locks expire on the client's clock between status reads. */
+/** Locks and snoozes expire on the client's clock between status reads. */
 const CLOCK_TICK_MS = 30_000;
+/** Where this device does not get pushes; `checking` and the steps of Turn on are not "off". */
+const PUSH_OFF: ReadonlySet<PushView> = new Set<PushView>(['off', 'denied', 'no-push', 'old-ios', 'install', 'in-app']);
 
 /**
  * The Commands panel (#114): the team's state in words, Pause ↔ Resume, and Run now for planning, development and
@@ -91,6 +107,8 @@ const CLOCK_TICK_MS = 30_000;
 })
 export class CommandsPanel {
   private readonly commands = inject(TeamCommands);
+  private readonly snoozeCommands = inject(SnoozeCommands);
+  private readonly push = inject(PushStore);
   private readonly sprintControls = inject(SprintControls);
   private readonly network = inject(NetworkStatus);
   private readonly transloco = inject(TranslocoService);
@@ -257,6 +275,35 @@ export class CommandsPanel {
     });
   });
 
+  /** Snooze needs push on this device to mean anything here; Turn back on never does (design #29). */
+  protected readonly snooze = computed<SnoozeRow | null>(() => {
+    const status = this.status();
+    const nowMs = this.now();
+    this.lang();
+    if (status === null) {
+      return null;
+    }
+    const isSnoozed = isSnoozeActive(status.snooze, nowMs);
+    const isPushOff = PUSH_OFF.has(this.push.view());
+    let line = '';
+    if (isSnoozed && status.snooze.snoozed) {
+      const until = status.snooze.until;
+      line = [
+        until === null
+          ? this.t('commands.snooze.forever')
+          : this.t('commands.snooze.until', { until: this.snoozeCommands.untilText(until) }),
+        this.t(status.snooze.allowsUrgent ? 'commands.snooze.urgent' : 'commands.snooze.quiet'),
+      ].join('. ');
+    }
+    if (this.isOffline()) {
+      return { isSnoozed, line, why: this.t('commands.why.offline'), whyIcon: 'offline', hasPushFix: false };
+    }
+    if (!isSnoozed && isPushOff) {
+      return { isSnoozed, line, why: this.t('commands.snooze.nopush'), whyIcon: 'bell-off', hasPushFix: true };
+    }
+    return { isSnoozed, line, why: null, whyIcon: 'offline', hasPushFix: false };
+  });
+
   protected readonly setup = computed(() => {
     const status = this.status();
     this.lang();
@@ -287,6 +334,8 @@ export class CommandsPanel {
   constructor() {
     const tick = setInterval(() => this.now.set(Date.now()), CLOCK_TICK_MS);
     const langs = this.transloco.langChanges$.subscribe((lang) => this.lang.set(lang));
+    // Read, never asked for: whether this device gets pushes decides if Snooze is offered (#221).
+    void this.push.refresh();
     inject(DestroyRef).onDestroy(() => {
       clearInterval(tick);
       langs.unsubscribe();
@@ -333,6 +382,21 @@ export class CommandsPanel {
     }
     await this.act(() =>
       this.commands.run({ slug: this.project().slug, name: this.project().name }, row.slot),
+    );
+  }
+
+  protected async snoozeOrTurnBackOn(event: Event): Promise<void> {
+    const row = this.snooze();
+    if (row === null) {
+      return;
+    }
+    if (row.why !== null) {
+      this.sayWhy(event, row.why);
+      return;
+    }
+    const target = { slug: this.project().slug, name: this.project().name };
+    await this.act(() =>
+      row.isSnoozed ? this.snoozeCommands.turnBackOn(target) : this.snoozeCommands.snooze(target),
     );
   }
 

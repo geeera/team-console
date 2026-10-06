@@ -1,5 +1,6 @@
 import {
   TEAM_SLOTS,
+  isSnoozeDto,
   isCalendarDate,
   isTeamSlot,
   type SprintCalendarDto,
@@ -120,6 +121,7 @@ export function isTeamStatusDto(value: unknown): value is TeamStatusDto {
     typeof value['ownerConnected'] === 'boolean' &&
     isText(value['environment']) &&
     isText(value['checkedAt']) &&
+    isSnoozeDto(value['snooze']) &&
     isTeamSprint(value['sprint']) &&
     isProgress(value['progress']) &&
     isCalendar(value['calendar']) &&

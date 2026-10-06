@@ -19,6 +19,7 @@ function status(overrides: Partial<TeamStatusDto> = {}): TeamStatusDto {
     runLogUrl: null,
     ownerConnected: true,
     environment: 'local',
+    snooze: { snoozed: false },
     checkedAt: '2026-10-05T09:00:00.000Z',
     slots: [],
     sprint: {

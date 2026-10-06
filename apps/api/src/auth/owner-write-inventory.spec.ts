@@ -38,6 +38,9 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   'PUT /api/v1/push/subscriptions': 'owner-only',
   'DELETE /api/v1/push/subscriptions': 'owner-only',
   'POST /api/v1/push/test': 'owner-only',
+  // #221 (architect note on #29, amendment 6): D1 only, but the stage service key must not mute the owner's pushes.
+  'PUT /api/v1/projects/:slug/notifications/snooze': 'owner-only',
+  'DELETE /api/v1/projects/:slug/notifications/snooze': 'owner-only',
   'POST /api/v1/projects': 'no-owner-write',
   'PATCH /api/v1/projects/:slug': 'no-owner-write',
   'POST /api/v1/projects/:slug/archive': 'no-owner-write',
