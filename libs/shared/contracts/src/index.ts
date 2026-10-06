@@ -30,6 +30,8 @@ export type {
   UpdateProjectRequest,
 } from './lib/project';
 export type { ProjectRepositoryDto } from './lib/repository';
+export { NOT_SNOOZED, SNOOZE_MAX_DAYS, isSnoozeActive, isSnoozeDto } from './lib/snooze';
+export type { SnoozeDto, SnoozeRequest } from './lib/snooze';
 export { isRepoFullName, repoFullNameParts } from './lib/repo-name';
 export { INSTALLATION_REPOSITORIES_URL } from './lib/installation-repositories';
 export type {

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { problem, type Logger, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
-import { OwnWritesRepo, ProjectsRepo, WebhookDeliveriesRepo, type ProjectRow } from '@worker/db';
+import { OwnWritesRepo, ProjectsRepo, WebhookDeliveriesRepo, isSnoozedAt, type ProjectRow } from '@worker/db';
 import type { HooksEnv } from '../env';
 import { WEBHOOK_BODY_MAX_BYTES, readBodyCapped } from '../github/body';
 import {
@@ -15,6 +15,7 @@ import {
 import { sha256Hex, verifySignature, webhookSecretsOf } from '../github/signature';
 import type { PushLanguage, PushNotification } from '@worker/push';
 import { linkNotificationOf, mapEvent, settingsLinkOf, type MappedProject } from '../mapping/map-event';
+import { applySnooze } from '../mapping/snooze';
 import type { NotificationSenderFactory } from '../push/push-sender';
 
 /** The answer GitHub gets; only its status code matters to GitHub, the body is for the delivery log. */
@@ -29,7 +30,8 @@ export type IgnoredReason =
   | 'installation-mismatch'
   | 'own-write'
   | 'untrusted-author'
-  | 'no-notification';
+  | 'no-notification'
+  | 'snoozed';
 
 export interface GitHubWebhookDeps {
   /** Builds the push sender per request (bindings differ per environment); see `webPushSenders`. */
@@ -197,12 +199,16 @@ function bumpsEpoch(event: string, envelope: Envelope, payload: JsonObject): boo
   return event === 'push' && defaultBranch !== null && pushRefOf(payload) === `refs/heads/${defaultBranch}`;
 }
 
-/** Steps 3–6 of the architect note: route to the project, bump its epoch, drop own writes, map to a push. */
+/**
+ * Steps 3–6 of the architect note: route to the project, bump its epoch, drop own writes, map to a push; then drop
+ * it while the project is snoozed unless it is urgent and urgent ones are allowed (#221).
+ */
 async function handleRepositoryEvent(
   db: D1Database,
   event: string,
   envelope: Envelope,
   payload: JsonObject,
+  nowMs: number,
 ): Promise<Outcome> {
   if (envelope.repository === null) {
     return ignored('unregistered');
@@ -225,7 +231,10 @@ async function handleRepositoryEvent(
       return ignored('own-write');
     }
   }
-  const mapped = mapEvent(mappedProjectOf(row), event, envelope, payload);
+  const mapped = applySnooze(mapEvent(mappedProjectOf(row), event, envelope, payload), {
+    isSnoozed: isSnoozedAt(row, nowMs),
+    allowsUrgent: row.snooze_allows_urgent !== 0,
+  });
   if (mapped.kind === 'ignored') {
     return ignored(mapped.reason);
   }
@@ -327,7 +336,7 @@ export function githubWebhookRoutes(deps: GitHubWebhookDeps): Hono<WorkerHonoEnv
               payload,
               receivedAt.toISOString(),
             )
-          : await handleRepositoryEvent(c.env.DB, event, envelope, payload);
+          : await handleRepositoryEvent(c.env.DB, event, envelope, payload, receivedAt.getTime());
     } catch (error: unknown) {
       // Without its dedupe row, GitHub's redelivery of this delivery is processed instead of answered `duplicate`.
       try {

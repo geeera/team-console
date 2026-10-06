@@ -7,7 +7,8 @@ import {
   pushEvent,
   workflowRunEvent,
 } from '../testing/payloads';
-import { PM_REPLY_MARKER, deepLinkOf, mapEvent, settingsLinkOf, type MappedProject } from './map-event';
+import { DEMO_LABEL, PM_REPLY_MARKER, deepLinkOf, mapEvent, settingsLinkOf, type MappedProject } from './map-event';
+import { applySnooze } from './snooze';
 
 const project: MappedProject = { slug: 'storify', displayName: 'Storify', language: 'ru' };
 
@@ -37,6 +38,7 @@ describe('mapEvent — one test per row of the architect note', () => {
         number: 42,
         issueTitle: 'Pick the onboarding copy',
       }),
+      urgent: false,
     });
     expect(result).toMatchObject(pushed('/p/storify/questions#42', { title: 'Storify · нужен ваш ответ' }));
   });
@@ -172,5 +174,56 @@ describe('deep links', () => {
     expect(settingsLinkOf('storify')).toBe('/settings/projects/storify');
     expect(() => deepLinkOf('../evil', 'chat')).toThrow();
     expect(() => settingsLinkOf('Evil/Slug')).toThrow();
+  });
+});
+
+describe('mapEvent — which pushes are urgent (#221)', () => {
+  it('the team paused itself, a release is ready and a question on a team:demo issue are urgent', () => {
+    const paused = issueCommentEvent({ labels: ['team:run-log'], body: 'paused: 3 failed runs' });
+    expect(map('issue_comment', paused)).toMatchObject({ kind: 'push', urgent: true });
+    expect(map('pull_request', pullRequestEvent('opened'))).toMatchObject({ kind: 'push', urgent: true });
+    const demo = issuesEvent('opened', { labels: ['kind:question', DEMO_LABEL] });
+    expect(map('issues', demo)).toMatchObject({ kind: 'push', urgent: true });
+  });
+
+  it('an ordinary question, the PM reply and a failed deploy are not', () => {
+    expect(map('issues', issuesEvent('opened', { labels: ['kind:question'] }))).toMatchObject({ urgent: false });
+    expect(map('issue_comment', issueCommentEvent({ body: PM_REPLY_MARKER }))).toMatchObject({ urgent: false });
+    expect(map('workflow_run', workflowRunEvent({ branch: 'main' }))).toMatchObject({ urgent: false });
+  });
+});
+
+describe('the snooze gate — one row per (snoozed, urgent, allows urgent) combination (#221)', () => {
+  const ordinary = (): JsonObject => issuesEvent('opened', { labels: ['kind:question'] });
+  const urgent = (): JsonObject => issuesEvent('opened', { labels: ['kind:question', DEMO_LABEL] });
+  const snoozedDrop = { kind: 'ignored', reason: 'snoozed' };
+
+  it.each([
+    // snoozed, urgent, allowsUrgent → delivered
+    [false, false, false, true],
+    [false, false, true, true],
+    [false, true, false, true],
+    [false, true, true, true],
+    [true, false, false, false],
+    [true, false, true, false],
+    [true, true, false, false],
+    [true, true, true, true],
+  ])('snoozed %s, urgent %s, allows urgent %s → delivered %s', (isSnoozed, isUrgent, allowsUrgent, delivered) => {
+    const mapped = map('issues', isUrgent ? urgent() : ordinary());
+    const result = applySnooze(mapped, { isSnoozed, allowsUrgent });
+    if (delivered) {
+      expect(result).toBe(mapped);
+      expect(result).toMatchObject({ kind: 'push', urgent: isUrgent });
+    } else {
+      expect(result).toEqual(snoozedDrop);
+    }
+  });
+
+  it('leaves an event that maps to nothing as it was', () => {
+    const untrusted = map('issues', issuesEvent('opened', { labels: ['kind:question'], association: 'NONE' }));
+    expect(applySnooze(untrusted, { isSnoozed: true, allowsUrgent: false })).toEqual({
+      kind: 'ignored',
+      reason: 'untrusted-author',
+    });
   });
 });

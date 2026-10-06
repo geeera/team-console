@@ -106,7 +106,8 @@ export function createProjectRegistryRoutes(
     .get('/', async (c) => {
       const repo = new ProjectsRepo(c.env.DB);
       const rows = c.req.query('include') === 'archived' ? await repo.listAll() : await repo.listActive();
-      const body: ProjectDto[] = rows.map((row) => withSlots(c.env, toProjectDto(row)));
+      const nowMs = github.now();
+      const body: ProjectDto[] = rows.map((row) => withSlots(c.env, toProjectDto(row, nowMs)));
       return c.json(body);
     })
 
@@ -212,7 +213,7 @@ export function createProjectRegistryRoutes(
       }
       c.get('logger').info('project added', { slug });
       c.header('Location', `/api/v1/projects/${slug}`);
-      return c.json(withSlots(c.env, toProjectDto(row)), 201);
+      return c.json(withSlots(c.env, toProjectDto(row, github.now())), 201);
     })
 
     .patch('/:slug', limit, async (c) => {
@@ -226,7 +227,7 @@ export function createProjectRegistryRoutes(
       }
       const row = await new ProjectsRepo(c.env.DB).update(project.slug, changes);
       // Archived between the lookup and the update.
-      return row === null ? projectNotFound(c) : c.json(withSlots(c.env, toProjectDto(row)));
+      return row === null ? projectNotFound(c) : c.json(withSlots(c.env, toProjectDto(row, github.now())));
     })
 
     .post('/:slug/archive', async (c) => {

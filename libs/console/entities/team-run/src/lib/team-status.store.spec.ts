@@ -13,6 +13,7 @@ function teamStatus(overrides: Partial<TeamStatusDto> = {}): TeamStatusDto {
     runLogUrl: 'https://github.com/geeera/team-console/issues/22',
     ownerConnected: true,
     environment: 'production',
+    snooze: { snoozed: false },
     checkedAt: '2026-10-01T12:00:00.000Z',
     sprint: null,
     progress: null,
@@ -30,6 +31,14 @@ describe('team status model', () => {
   it('accepts the Worker answer and refuses anything else', () => {
     expect(isTeamStatusDto(teamStatus())).toBe(true);
     expect(isTeamStatusDto({ ...teamStatus(), state: 'stopped' })).toBe(false);
+    expect(isTeamStatusDto({ ...teamStatus(), snooze: undefined })).toBe(false);
+    expect(isTeamStatusDto({ ...teamStatus(), snooze: { snoozed: true, until: null } })).toBe(false);
+    expect(
+      isTeamStatusDto({
+        ...teamStatus(),
+        snooze: { snoozed: true, until: null, allowsUrgent: true, since: '2026-10-01T11:00:00.000Z' },
+      }),
+    ).toBe(true);
     expect(isTeamStatusDto({ ...teamStatus(), slots: teamStatus().slots.slice(1) })).toBe(false);
     expect(isTeamStatusDto({ ...teamStatus(), slots: [...teamStatus().slots].reverse() })).toBe(false);
     const badLock = teamStatus();
