@@ -21,16 +21,19 @@ const TODAY = calendarDayOf(Date.now());
 
 const STORYBOOK = 'https://team-console-storybook.pages.dev';
 
-/** `isTall`: long enough with the seeded data that the document itself must scroll. */
-const SCREENS = [
+/**
+ * `isTall`: long enough with the seeded data that the document itself must scroll. `waitFor`: a test id the screen
+ * shows once its widest content is in (All projects' missing-repository step, #278, with its long GitHub link).
+ */
+const SCREENS: readonly { path: string; isTall: boolean; waitFor?: string }[] = [
   { path: '/needs-you', isTall: true },
-  { path: '/overview', isTall: false },
+  { path: '/overview', isTall: false, waitFor: 'repos-missing' },
   { path: '/p/team-console/questions', isTall: true },
   { path: '/p/team-console/demo', isTall: true },
   { path: '/p/team-console/board', isTall: true },
   { path: '/p/team-console/artifacts', isTall: true },
   { path: '/settings', isTall: false },
-] as const;
+];
 
 interface ScrollRegion {
   /** `tag.first-class`, enough to name it in a failure. */
@@ -94,6 +97,43 @@ async function strayScrollsOf(page: Page): Promise<string[]> {
   return regions
     .filter((region) => region.name !== 'document' && !region.isPinned)
     .map((region) => (region.inside === null ? region.name : `${region.name} inside ${region.inside}`));
+}
+
+/**
+ * Sideways overflow (#281 QA): the document must never be wider than the screen, and no element may stick out past
+ * its right edge — `overflow-x: clip` on the shell would hide it, not make it readable. Content inside its own
+ * horizontal scroller (a code block, the tab bar) and visually hidden text are not page width.
+ */
+async function sidewaysOverflowOf(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const root = document.scrollingElement ?? document.documentElement;
+    const found: string[] = [];
+    if (root.scrollWidth > root.clientWidth) {
+      found.push(`document ${root.scrollWidth}px in ${root.clientWidth}px`);
+    }
+    const main = document.querySelector('main');
+    const edge = root.clientWidth;
+    const ownScroller = (element: Element): boolean => {
+      for (let node = element.parentElement; node !== null && node !== main; node = node.parentElement) {
+        if (getComputedStyle(node).overflowX !== 'visible') {
+          return true;
+        }
+      }
+      return false;
+    };
+    for (const element of Array.from(main?.querySelectorAll('*') ?? [])) {
+      const box = element.getBoundingClientRect();
+      if (box.width === 0 || box.right <= edge + 1 || element.closest('.tc-sr-only') !== null) {
+        continue;
+      }
+      if (!ownScroller(element)) {
+        found.push(
+          `${element.tagName.toLowerCase()}.${element.classList[0] ?? ''} right ${Math.round(box.right)}px`,
+        );
+      }
+    }
+    return found.slice(0, 5);
+  });
 }
 
 const documentScrolls = (page: Page): Promise<boolean> =>
@@ -179,7 +219,7 @@ test.afterAll(async ({ stack }) => {
   }
 });
 
-for (const { path, isTall } of SCREENS) {
+for (const { path, isTall, waitFor } of SCREENS) {
   test(`${path} scrolls the document only, never a scroll inside a scroll`, async ({
     page,
     outsideRequests,
@@ -189,7 +229,16 @@ for (const { path, isTall } of SCREENS) {
     await expect(page.locator('main#tc-main')).toBeVisible();
     // Lists arrive after the shell: wait until the page has stopped growing.
     await page.waitForLoadState('networkidle');
+    if (waitFor !== undefined) {
+      await expect(page.getByTestId(waitFor)).toBeVisible();
+    }
     expect(await strayScrollsOf(page)).toEqual([]);
+    expect(await sidewaysOverflowOf(page), 'nothing wider than the screen').toEqual([]);
+    // The same with wider type: CI's Linux fonts set the #278 link at 372px where macOS sets 342px, so a row that
+    // fits by a few pixels on one machine overflows on another. Text must wrap, not rely on the font's width.
+    await page.addStyleTag({ content: 'html { letter-spacing: 0.08em; }' });
+    expect(await sidewaysOverflowOf(page), 'nothing wider than the screen with wider type').toEqual([]);
+    await page.evaluate(() => document.head.lastElementChild?.remove());
     if (isTall) {
       expect(await documentScrolls(page), 'a long screen scrolls the document').toBe(true);
       // What the status-bar tap does on the iPhone: the document goes to the top, and the whole page with it.
