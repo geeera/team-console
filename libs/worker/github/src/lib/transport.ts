@@ -34,6 +34,15 @@ export type GitHubRequest = GitHubRequestAuth & {
   readonly body?: unknown;
 };
 
+export interface GitHubTransportOptions {
+  /**
+   * Seam for tests: the signal each request is sent with. Defaults to `AbortSignal.timeout(GITHUB_DEADLINE_MS)`;
+   * production code never overrides it. A spec can shorten the deadline to prove a hung `fetch` is aborted and
+   * does not hold a shared mint/read open, without a 10 s wait.
+   */
+  readonly deadlineSignal?: () => AbortSignal;
+}
+
 const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 // GitHub redirects renamed repositories once; more hops than this is not GitHub.
 const MAX_REDIRECTS = 3;
@@ -72,18 +81,24 @@ function authorizationOf(auth: GitHubRequestAuth): string {
   return `Basic ${btoa(`${auth.basic.clientId}:${auth.basic.clientSecret}`)}`;
 }
 
-async function send(fetcher: FetchLike, url: URL, request: GitHubRequest): Promise<Response> {
+async function send(
+  fetcher: FetchLike,
+  url: URL,
+  request: GitHubRequest,
+  options: GitHubTransportOptions,
+): Promise<Response> {
   const headers: Record<string, string> = {
     Accept: request.accept ?? GITHUB_JSON,
     Authorization: authorizationOf(request),
     'User-Agent': 'team-console',
     'X-GitHub-Api-Version': '2022-11-28',
   };
+  const deadlineSignal = options.deadlineSignal ?? (() => AbortSignal.timeout(GITHUB_DEADLINE_MS));
   const init: RequestInit = {
     method: request.method,
     headers,
     redirect: 'manual',
-    signal: AbortSignal.timeout(GITHUB_DEADLINE_MS),
+    signal: deadlineSignal(),
   };
   if (request.body !== undefined) {
     headers['Content-Type'] = 'application/json';
@@ -106,14 +121,18 @@ async function send(fetcher: FetchLike, url: URL, request: GitHubRequest): Promi
  * followed only for GET and only while it stays on api.github.com, so the bearer never reaches another host.
  * Returns the final response whatever its status; mapping errors is the caller's call.
  */
-export async function githubRequest(fetcher: FetchLike, request: GitHubRequest): Promise<Response> {
+export async function githubRequest(
+  fetcher: FetchLike,
+  request: GitHubRequest,
+  options: GitHubTransportOptions = {},
+): Promise<Response> {
   const first = onGitHubApi(`${GITHUB_API_ORIGIN}${request.path}`);
   if (first === null) {
     throw githubUnexpectedError('refused a GitHub URL off api.github.com');
   }
   let url: URL = first;
   for (let hop = 0; ; hop += 1) {
-    const response = await send(fetcher, url, request);
+    const response = await send(fetcher, url, request, options);
     if (!REDIRECT_STATUSES.has(response.status)) {
       return response;
     }

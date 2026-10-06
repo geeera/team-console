@@ -273,6 +273,56 @@ describe('GitHubAppAuth', () => {
     expect(github.minted()).toBe(1);
   });
 
+  it('releases every caller sharing a hung mint at the deadline, then mints again on the next request', async () => {
+    // The mint POST hangs on the first attempt — it settles only when `init.signal` aborts, as a real fetch
+    // would — and succeeds from the second attempt. Fake timers do not advance `AbortSignal.timeout`, so the
+    // deadline is shortened through `deadlineSignal` (#76) instead of waiting out the real 10 s one.
+    let postAttempts = 0;
+    const github = scriptedGitHub((call) => {
+      if (call.method === 'GET') {
+        return json(200, { id: INSTALLATION_ID });
+      }
+      postAttempts += 1;
+      if (postAttempts === 1) {
+        return new Promise<Response>((_resolve, reject) => {
+          call.signal?.addEventListener('abort', () => {
+            reject(new DOMException('The operation was aborted due to timeout', 'TimeoutError'));
+          });
+        });
+      }
+      return json(201, {
+        token: 'ghs_fresh',
+        expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+        permissions: INSTALLATION_PERMISSIONS,
+        repository_selection: 'selected',
+      });
+    });
+    const auth = new GitHubAppAuth(
+      { appId: APP_ID, privateKeyPem: key.pem },
+      { fetch: github.fetch, deadlineSignal: () => AbortSignal.timeout(20) },
+    );
+    const source = auth.tokenSourceFor(REPO);
+
+    // Three concurrent callers join the one hung mint; its timeout must reject all three, not just the one
+    // that started it, and the shared mint must not stay registered once it has failed.
+    const results = await Promise.allSettled([1, 2, 3].map(async () => source.getToken()));
+    expect(results.every((result) => result.status === 'rejected')).toBe(true);
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        expect(result.reason).toBeInstanceOf(GitHubError);
+        expect((result.reason as GitHubError).problem).toMatchObject({
+          type: 'github-unavailable',
+          status: 502,
+        });
+      }
+    }
+    expect(postAttempts).toBe(1);
+
+    // The next request does not join a dead mint: it starts a fresh one and succeeds.
+    await expect(source.getToken()).resolves.toBe('ghs_fresh');
+    expect(postAttempts).toBe(2);
+  });
+
   it('does not cache a failed mint', async () => {
     let fail = true;
     const github = scriptedGitHub((call) => {

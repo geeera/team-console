@@ -8,7 +8,14 @@ import {
 import { githubPath } from './github-path';
 import type { RepoName } from './repo-name';
 import type { InstallationTokenSource } from './token-source';
-import { discardBody, githubRequest, readGitHubJson, type FetchLike } from './transport';
+import {
+  discardBody,
+  githubRequest,
+  readGitHubJson,
+  type FetchLike,
+  type GitHubRequest,
+  type GitHubTransportOptions,
+} from './transport';
 
 /**
  * The console app's installation tokens (ADR 0003 decision 6), mirroring the plugin's `ptlib/ghapp.py`: an RS256
@@ -48,6 +55,8 @@ export interface GitHubAppAuthOptions {
   readonly fetch: FetchLike;
   /** Milliseconds since the epoch; a seam for expiry tests. */
   readonly now?: () => number;
+  /** Seam for tests: overrides every request's deadline signal (default `AbortSignal.timeout(GITHUB_DEADLINE_MS)`). */
+  readonly deadlineSignal?: () => AbortSignal;
 }
 
 interface CachedToken {
@@ -171,6 +180,7 @@ function isDownscopedAsRequested(body: { permissions: unknown; repository_select
 export class GitHubAppAuth {
   private readonly fetcher: FetchLike;
   private readonly now: () => number;
+  private readonly transportOptions: GitHubTransportOptions;
   private signingKey: CryptoKey | undefined;
   private readonly tokens = new Map<string, CachedToken>();
   /** Concurrent requests for one repository share a mint instead of each spending two subrequests. */
@@ -182,6 +192,12 @@ export class GitHubAppAuth {
   ) {
     this.fetcher = options.fetch;
     this.now = options.now ?? (() => Date.now());
+    this.transportOptions = options.deadlineSignal === undefined ? {} : { deadlineSignal: options.deadlineSignal };
+  }
+
+  /** Every GitHub call this instance makes, with its (possibly test-shortened) deadline signal. */
+  private request(request: GitHubRequest): Promise<Response> {
+    return githubRequest(this.fetcher, request, this.transportOptions);
   }
 
   /**
@@ -190,7 +206,7 @@ export class GitHubAppAuth {
    */
   async installationIdFor(repo: RepoName): Promise<number> {
     const jwt = await this.jwt();
-    const response = await githubRequest(this.fetcher, {
+    const response = await this.request({
       method: 'GET',
       path: githubPath`/repos/${repo}/installation`,
       bearer: jwt,
@@ -218,7 +234,7 @@ export class GitHubAppAuth {
    * One extra subrequest, on the 404 path only.
    */
   private async assertAppExists(jwt: string): Promise<void> {
-    const response = await githubRequest(this.fetcher, {
+    const response = await this.request({
       method: 'GET',
       path: githubPath`/app`,
       bearer: jwt,
@@ -284,7 +300,7 @@ export class GitHubAppAuth {
 
   private async mint(repo: RepoName): Promise<CachedToken> {
     const installationId = await this.installationIdFor(repo);
-    const response = await githubRequest(this.fetcher, {
+    const response = await this.request({
       method: 'POST',
       path: githubPath`/app/installations/${installationId}/access_tokens`,
       bearer: await this.jwt(),
