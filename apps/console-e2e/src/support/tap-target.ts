@@ -3,9 +3,12 @@ export const MIN_TAP_PX = 44;
 
 /**
  * Playwright's `boundingBox()` returns fractional layout values, so a target that is exactly `MIN_TAP_PX` by CSS
- * can come back a few thousandths of a pixel short (#227). Round to the nearest pixel before comparing so that
- * subpixel rounding doesn't fail the check — a real shortfall (43.5 px and below) still fails.
+ * can come back a few thousandths of a pixel short (#227) — e.g. `43.99998...`. `EPSILON_PX` absorbs only that
+ * float noise; a real shortfall (43.99 px and below) still fails `meetsMinTap`.
  */
-export function roundedPx(value: number | undefined): number {
-  return Math.round(value ?? 0);
+const EPSILON_PX = 0.01;
+
+/** `true` when `value` is at least `min` once sub-pixel float noise from `boundingBox()` is absorbed. */
+export function meetsMinTap(value: number | undefined, min: number = MIN_TAP_PX): boolean {
+  return (value ?? 0) >= min - EPSILON_PX;
 }

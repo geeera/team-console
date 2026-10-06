@@ -2,7 +2,7 @@ import type { NeedsYouDto } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { seed } from './support/stack';
-import { MIN_TAP_PX, roundedPx } from './support/tap-target';
+import { meetsMinTap } from './support/tap-target';
 
 /**
  * Setup signals (#205). On the stack, team-console is set up except for webhook events (only a deployed hooks Worker
@@ -42,7 +42,7 @@ test('a project that needs setup appears in Needs you with a working GitHub link
   // Above the cards, at least 44 px tall, and counted in the summary line.
   const rowBox = await row.boundingBox();
   const firstCard = await page.locator('.questions__list').boundingBox();
-  expect(roundedPx(rowBox?.height)).toBeGreaterThanOrEqual(MIN_TAP_PX);
+  expect(meetsMinTap(rowBox?.height)).toBe(true);
   expect((rowBox?.y ?? Infinity) < (firstCard?.y ?? 0)).toBe(true);
   const projectsNeedingYou = new Set([
     ...needsYou.items.map((item) => item.project.slug),
