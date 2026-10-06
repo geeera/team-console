@@ -74,6 +74,31 @@ export type {
   TeamState,
   TeamStatusDto,
 } from './lib/team';
+export {
+  DEFAULT_FREEZE_DAYS,
+  MAX_FREEZE_DAYS,
+  NEXT_SPRINT_DEFAULT_DAYS,
+  SPRINT_TIME_ZONE,
+  addDays,
+  calendarDayOf,
+  freezeOf,
+  isCalendarDate,
+  isInFreeze,
+  sprintNumberOf,
+  sprintTitleOf,
+} from './lib/sprint-commands';
+export type {
+  MoveDemoRequest,
+  MoveDemoResponse,
+  NextSprintRequest,
+  NextSprintResponse,
+  SprintCalendarDto,
+  SprintFreezeDto,
+  SprintProblemType,
+  SprintProgressDto,
+  SprintRefDto,
+  TeamSprintDto,
+} from './lib/sprint-commands';
 export { ANSWER_TEXT_MAX_LENGTH } from './lib/answer';
 export type {
   AnswerCommand,

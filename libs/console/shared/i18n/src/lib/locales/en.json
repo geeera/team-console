@@ -344,7 +344,8 @@
         "title": "The console app is not installed on the repository",
         "hint": "Install it from the project's setup in Settings, then try again."
       }
-    }
+    },
+    "moveDemo": "Move demo"
   },
   "artifacts": {
     "title": "Artifacts",
@@ -769,12 +770,21 @@
       "errB": "GitHub didn’t answer. Commands are off until the status is known — otherwise you might, say, pause a project that is already paused.",
       "noLog": "The team hasn’t opened its run log yet, so there is nothing to pause or start. It appears after the first scheduled run.",
       "offline": "You’re offline. Status as of {{time}}. Commands work only online.",
-      "noperm": "The console can’t write to issues in {{repo}}, so Pause and Resume are off. Run now still works.",
-      "nopermFix": "Settings › Projects"
+      "noperm": "The console can’t write to issues in {{repo}}, so Pause, Resume and the sprint commands are off. Run now still works.",
+      "nopermFix": "Settings › Projects",
+      "sprint": "Sprint",
+      "sprintVal": "{{sprint}} · demo {{date}}",
+      "freeze": "freeze {{range}}",
+      "freezeNow": "freeze now, until the demo",
+      "noSprint": "No current sprint",
+      "sprintUnknown": "GitHub didn’t give the sprint; refresh the status",
+      "progress": "Done",
+      "progressVal": "{{done}} of {{total}}"
     },
     "group": {
       "team": "Team work",
-      "run": "Run now"
+      "run": "Run now",
+      "sprint": "Sprint"
     },
     "pause": {
       "title": "Pause development",
@@ -878,7 +888,7 @@
       "runPaused": "Development is paused. Resume it first; nothing started.",
       "github": "GitHub didn’t answer. Nothing changed.",
       "githubRate": "GitHub asks to wait until {{time}}. Nothing changed.",
-      "connect": "Connect GitHub in Settings first: pause and resume are written as you. Nothing changed.",
+      "connect": "Connect GitHub in Settings first: these commands are written as you. Nothing changed.",
       "noLog": "The team has no run log yet. Nothing changed.",
       "pauseUnreliable": "Pause from the console isn’t reliable for this project yet: its run log was opened by the team, and the next run could lift the pause. Pause from the team chat instead (the pause skill). Nothing changed.",
       "offline": "You’re offline. The command wasn’t sent.",
@@ -889,7 +899,59 @@
       "yesterday": "yesterday {{time}}",
       "day": "{{day}} {{time}}"
     },
-    "external": "(opens GitHub)"
+    "external": "(opens GitHub)",
+    "sprint": {
+      "demo": "Move the demo",
+      "demoHint": "{{sprint}}: demo {{date}}, freeze {{range}}",
+      "demoAria": "Move the {{sprint}} demo",
+      "demoBtn": "Move",
+      "next": "Start the next sprint",
+      "nextHint": "{{sprint}} starts after the {{date}} demo",
+      "nextHintNow": "{{sprint}} starts today",
+      "nextExists": "{{sprint}} already exists: demo {{date}}",
+      "nextAria": "Start {{sprint}}",
+      "nextBtn": "Start",
+      "unknown": "GitHub didn’t give the sprints, so these commands are off. Refresh the status to try again.",
+      "unavailable": "Couldn’t read the sprint from GitHub. Nothing changed; try again in a moment.",
+      "noperm": "The console can’t write to this repository: connect GitHub in Settings. Nothing changed."
+    },
+    "demo": {
+      "title": "Move the {{sprint}} demo?",
+      "body": "The demo is now on {{date}}; freeze is {{range}}, through demo day: the team takes no new issues and checks stage.",
+      "field": "Demo date",
+      "freeze": "Freeze: {{range}}",
+      "same": "The date hasn’t changed",
+      "empty": "Pick a date.",
+      "past": "That date has passed (Kyiv time). Pick today or later.",
+      "afterNext": "The {{next}} demo ({{date}}) is on or before that date. Move that one first.",
+      "freezeNow": "Freeze starts at once: no new issues will be taken in this sprint.",
+      "ok": "Move to {{date}}",
+      "btn": "Move",
+      "done": "{{sprint}} demo moved to {{date}}",
+      "doneDetail": "Freeze: {{range}}.",
+      "doneFreezeNow": "Freeze has started: {{range}}. The team takes no new issues from the next run.",
+      "already": "The demo is already on {{date}}. Nothing changed.",
+      "changedUnknown": "The demo date changed while this was open. Close this and open it again.",
+      "conflict": "The demo date changed while this was open (now {{date}}). Check it and move again.",
+      "none": "There is no current sprint any more. Nothing changed."
+    },
+    "next": {
+      "title": "Start {{sprint}}?",
+      "after": "{{sprint}} starts after the {{cur}} demo ({{date}}). Issues not ready by the demo stay in {{cur}} until the PM moves them.",
+      "now": "{{sprint}} starts today. The PM adds issues to it at the next planning run.",
+      "field": "{{sprint}} demo date",
+      "hint": "Two weeks is usual. Freeze: {{range}}",
+      "early": "The {{sprint}} demo must be after {{date}}.",
+      "ok": "Create {{sprint}}",
+      "btn": "Create",
+      "done": "{{sprint}} created",
+      "doneLater": "It becomes current after the {{cur}} demo on {{after}}; its own demo is {{date}}.",
+      "doneNow": "It is the current sprint now; demo {{date}}.",
+      "exists": "{{sprint}} already exists (demo {{date}}). Nothing changed.",
+      "existsRace": "{{sprint}} already exists: the PM got there first. Nothing changed.",
+      "changed": "The current sprint changed while this was open (now {{cur}}, demo {{date}}). Check the date and create again.",
+      "changedNone": "The current sprint ended while this was open. Check the date and create again."
+    }
   },
   "ui": {
     "close": "Close",
@@ -1018,6 +1080,17 @@
       "pauseOk": "Pause",
       "sending": "Sending…",
       "rateLimited": "GitHub asks to wait until 14:05. Nothing changed.",
+      "dateEllipsis": "Move the demo…",
+      "dateTitle": "Move the Sprint 04 demo?",
+      "dateMessage": "The demo is now on {{date}}.",
+      "dateLabel": "Demo date",
+      "datePast": "That date has passed. Pick today or later.",
+      "dateSame": "The date hasn’t changed",
+      "dateHint": "Freeze ends on {{date}}",
+      "dateOk": "Move to {{date}}",
+      "dateWarning": "Freeze starts at once: no new issues will be taken.",
+      "dateConflict": "The demo date changed while this was open (now {{date}}). Check it and move again.",
+      "dateDone": "The demo moved",
       "openFooter": "Sheet with a footer",
       "footerTitle": "Add {{repo}}",
       "footerBody": "Long content scrolls while the actions stay at the bottom: stacked with the primary first on the phone, in a row with the primary on the right in the dialog.",

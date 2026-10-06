@@ -98,3 +98,40 @@
   font-size: var(--fs-xs);
   color: var(--text-2);
 }
+
+.tc-confirm__check {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.tc-confirm__invalid,
+.tc-confirm__caution {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
+.tc-confirm__invalid {
+  color: var(--danger-text);
+}
+
+/* A caution, not a refusal: ochre like the rest of what waits (#218: the freeze starts at once). */
+.tc-confirm__caution {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--warning-soft);
+  color: var(--warning-text);
+}
+
+.tc-confirm__invalid tc-icon,
+.tc-confirm__caution tc-icon {
+  flex: none;
+  margin-top: var(--space-px);
+}
+
+.tc-confirm__input[aria-invalid='true'] {
+  border-color: var(--danger-text);
+}

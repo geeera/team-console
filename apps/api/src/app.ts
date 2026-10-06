@@ -15,6 +15,7 @@ import { createProjectReadModelRoutes } from './routes/project-read-models';
 import { createArtifactRoutes } from './routes/artifacts';
 import { createNeedsYouRoutes } from './routes/needs-you';
 import { createOverviewRoutes } from './routes/overview';
+import { createSprintCommandsRoutes } from './routes/sprint-commands';
 import { createTeamCommandsRoutes } from './routes/team-commands';
 import { createPushRoutes } from './routes/push';
 import type { FetchLike } from '@worker/routines';
@@ -80,6 +81,7 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
       ...(options.ownerConnection === undefined ? {} : { ownerConnection: options.ownerConnection }),
     }),
   );
+  v1.route('/projects', createSprintCommandsRoutes(github));
   // Before the connection routes: their owner-only `use('*')` would otherwise also guard this read (#194), which
   // the service identity may make on dev/stage like every other read (installation-repositories.spec.ts proves it).
   v1.route('/github', createInstallationRepositoriesRoutes(github, owners));

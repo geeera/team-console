@@ -28,6 +28,9 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   'POST /api/v1/projects/:slug/team/pause': 'owner-only',
   'POST /api/v1/projects/:slug/team/resume': 'owner-only',
   'POST /api/v1/projects/:slug/runs': 'owner-only',
+  // #218: milestone writes on the owner's token; nothing for e2e on dev/stage to do there.
+  'POST /api/v1/projects/:slug/sprint/demo-date': 'owner-only',
+  'POST /api/v1/projects/:slug/sprint/next': 'owner-only',
   'POST /api/v1/github/connect': 'owner-only',
   'DELETE /api/v1/github/connection': 'owner-only',
   'PUT /api/v1/push/subscriptions': 'owner-only',

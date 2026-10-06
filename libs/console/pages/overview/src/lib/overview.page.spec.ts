@@ -234,6 +234,28 @@ describe('OverviewPage', () => {
     expect(tile(root, 'alpha')).not.toBeNull();
   });
 
+  it('reads the overview again when a project is added, keeping the tiles meanwhile (#242)', async () => {
+    const { root, fixture } = await render([projectDto('alpha')]);
+    await answer(fixture, { projects: [alpha], checkedAt: '2026-10-01T12:00:00Z' });
+    expect(root.querySelector('[data-testid="count"]')?.textContent?.trim()).toBe('1 проект');
+
+    TestBed.inject(ProjectsStore).upsert(projectDto('quiet'));
+    await settle(fixture);
+    expect(tile(root, 'alpha')).not.toBeNull();
+    await answer(fixture, { projects: [alpha, quietOne], checkedAt: '2026-10-01T12:01:00Z' });
+
+    expect(root.querySelector('[data-testid="count"]')?.textContent?.trim()).toBe('2 проекта');
+    expect(tile(root, 'quiet')).not.toBeNull();
+  });
+
+  it('does not read the overview again when the project list is re-read unchanged', async () => {
+    const { fixture } = await render([projectDto('alpha')]);
+    await answer(fixture, { projects: [alpha], checkedAt: '2026-10-01T12:00:00Z' });
+    TestBed.inject(ProjectsStore).upsert(projectDto('alpha'));
+    await settle(fixture);
+    http.expectNone(OVERVIEW_URL);
+  });
+
   it('shows a response of an unexpected shape as the generic failure', async () => {
     const { root, fixture } = await render([projectDto('alpha')]);
     await answer(fixture, { projects: [{ kind: 'read', slug: 'alpha' }] } as unknown as OverviewDto);

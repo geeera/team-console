@@ -106,9 +106,17 @@ export class OverviewPage {
   });
 
   constructor() {
-    // The registry decides between the empty state and the overview; read the overview once it has projects.
+    // The registry decides between the empty state and the overview; read the overview once it has projects, and
+    // again whenever its active projects change — an add from "Available on GitHub" below (#242) or an archive —
+    // so the tiles agree with the switcher without a reload. The tiles stay on screen while it reloads.
+    let readFor: string | null = null;
     effect(() => {
-      if (this.projects.status() === 'ready' && this.projects.hasProjects()) {
+      if (this.projects.status() !== 'ready' || !this.projects.hasProjects()) {
+        return;
+      }
+      const slugs = [...this.projects.activeSlugs()].sort().join(' ');
+      if (slugs !== readFor) {
+        readFor = slugs;
         untracked(() => void this.load());
       }
     });

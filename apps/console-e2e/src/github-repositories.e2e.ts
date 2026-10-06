@@ -102,6 +102,10 @@ test('a successful Add: Done, the row turns "Project" and the project is in the 
   await expect(link).toHaveAttribute('href', '/settings/projects/private-product');
   expect(await projectSlugs(stack)).toEqual(['private-product', 'team-console']);
 
+  // The tiles at the top of the same screen have it too, without a reload (#242).
+  await expect(page.getByTestId('count')).toHaveText(ru('overview.count.few', { n: 2 }));
+  await expect(page.locator('[data-testid="overview-row"][data-project="private-product"]')).toBeVisible();
+
   // The switcher has it without a reload.
   if (isPhone(page)) {
     await page.getByRole('button', { name: ru('shell.openSwitcher') }).click();

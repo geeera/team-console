@@ -57,11 +57,13 @@ export function fakeGitHubFetch(env: ApiEnv, base: FetchLike): FetchLike {
 }
 
 const ISSUE_THREAD_PATH = /^\/repos\/[^/]+\/[^/]+\/issues\/[0-9]+(?:\/comments)?$/;
+const MILESTONES_PATH = /^\/repos\/[^/]+\/[^/]+\/milestones$/;
 
 /**
- * Local runs only, with both `GITHUB_MOCK` and `GITHUB_FAKE_ORIGIN` (#114): owner writes (labels, comments) land on
- * the fake GitHub, so the reads of an issue thread the fake serves come from there too — after the mock has checked
- * the installation token, as GitHub would. Threads the fake does not serve keep the mock's answer.
+ * Local runs only, with both `GITHUB_MOCK` and `GITHUB_FAKE_ORIGIN` (#114): owner writes (labels, comments, and
+ * milestones, #218) land on the fake GitHub, so the reads of an issue thread or a milestone list the fake serves
+ * come from there too — after the mock has checked the installation token, as GitHub would. Anything the fake does
+ * not serve keeps the mock's answer.
  */
 export function localIssueThreads(env: ApiEnv, mockFetch: FetchLike, base: FetchLike): FetchLike {
   const configured = env.ENVIRONMENT === 'local' ? env.GITHUB_FAKE_ORIGIN?.trim() : undefined;
@@ -71,7 +73,9 @@ export function localIssueThreads(env: ApiEnv, mockFetch: FetchLike, base: Fetch
   const fake = fakeGitHubFetch(env, base);
   return async (input, init) => {
     const mocked = await mockFetch(input, init);
-    if ((init.method ?? 'GET') !== 'GET' || !ISSUE_THREAD_PATH.test(new URL(input).pathname) || !mocked.ok) {
+    const path = new URL(input).pathname;
+    const isServedByFake = ISSUE_THREAD_PATH.test(path) || MILESTONES_PATH.test(path);
+    if ((init.method ?? 'GET') !== 'GET' || !isServedByFake || !mocked.ok) {
       return mocked;
     }
     const faked = await fake(input, { method: 'GET', headers: { Accept: 'application/json' } });

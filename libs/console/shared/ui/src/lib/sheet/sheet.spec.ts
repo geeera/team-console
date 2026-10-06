@@ -232,6 +232,86 @@ describe('Sheet', () => {
       await expect(pending).resolves.toBe(true);
       expect(seen).toEqual(['отпуск', 'отпуск']);
     });
+
+    it('#218: a checked date field follows the value, holds Confirm on an error and refills on a conflict', async () => {
+      const seen: string[] = [];
+      const pending = sheet.confirm({
+        title: 'Move the demo?',
+        message: 'The demo is on 14 October.',
+        input: {
+          label: 'Demo date',
+          type: 'date',
+          value: '2026-10-14',
+          min: '2026-10-05',
+          check: (value) =>
+            value < '2026-10-05'
+              ? { error: 'That date has passed.' }
+              : value === '2026-10-14'
+                ? { hint: 'Freeze: 12–14 October', confirmLabel: 'The date has not changed', isBlocked: true }
+                : {
+                    hint: `Freeze ends ${value}`,
+                    confirmLabel: `Move to ${value}`,
+                    ...(value <= '2026-10-07' ? { warning: 'Freeze starts at once.' } : {}),
+                  },
+        },
+        confirmLabel: 'Move',
+        action: async (value) => {
+          seen.push(value);
+          if (seen.length === 1) {
+            throw new ConfirmFailure('The date changed meanwhile (now 15 October).', '2026-10-15');
+          }
+        },
+      });
+      await settle();
+      const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+      const input = dialog.querySelector('input') as HTMLInputElement;
+      const ok = dialog.querySelector('.tc-confirm__ok') as HTMLButtonElement;
+      const region = (): HTMLElement => dialog.querySelector(`#${input.id}-hint`) as HTMLElement;
+      const pick = async (value: string): Promise<void> => {
+        input.value = value;
+        input.dispatchEvent(new Event('change'));
+        await settle();
+        TestBed.tick();
+      };
+      TestBed.tick();
+      expect(input.type).toBe('date');
+      expect(input.value).toBe('2026-10-14');
+      expect(input.getAttribute('min')).toBe('2026-10-05');
+      expect(input.getAttribute('aria-describedby')).toBe(`${input.id}-hint`);
+      expect(region().getAttribute('aria-live')).toBe('polite');
+      expect(region().textContent?.trim()).toBe('Freeze: 12–14 October');
+      expect(ok.textContent?.trim()).toBe('The date has not changed');
+      expect(ok.getAttribute('aria-disabled')).toBe('true');
+      ok.click();
+      await settle();
+      expect(seen).toEqual([]);
+
+      await pick('2026-10-01');
+      expect(input.getAttribute('aria-invalid')).toBe('true');
+      expect(region().querySelector('.tc-confirm__invalid')?.textContent?.trim()).toBe('That date has passed.');
+      ok.click();
+      await settle();
+      expect(seen).toEqual([]);
+
+      await pick('2026-10-06');
+      expect(input.getAttribute('aria-invalid')).toBeNull();
+      expect(region().querySelector('.tc-confirm__caution')?.textContent?.trim()).toBe('Freeze starts at once.');
+      expect(ok.textContent?.trim()).toBe('Move to 2026-10-06');
+
+      ok.click();
+      await settle();
+      TestBed.tick();
+      expect(seen).toEqual(['2026-10-06']);
+      expect(dialog.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
+        'The date changed meanwhile (now 15 October).',
+      );
+      expect(input.value).toBe('2026-10-15');
+      expect(ok.textContent?.trim()).toBe('Повторить');
+
+      ok.click();
+      await expect(pending).resolves.toBe(true);
+      expect(seen).toEqual(['2026-10-06', '2026-10-15']);
+    });
   });
 
   describe('footer and width (#194)', () => {
