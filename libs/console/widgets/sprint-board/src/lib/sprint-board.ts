@@ -29,6 +29,7 @@ import {
   TEAM_RUN_ICONS,
   UnexpectedSprintResponse,
 } from '@console/entities/sprint';
+import { RequestChange } from '@console/features/request-change';
 import { SprintControls } from '@console/features/sprint-controls';
 import { httpProblemOf } from '@console/shared/api';
 import {
@@ -111,6 +112,7 @@ export class SprintBoard {
   private readonly transloco = inject(TranslocoService);
   private readonly errors = inject(ErrorHandler);
   private readonly sprintControls = inject(SprintControls);
+  private readonly requestChange = inject(RequestChange);
   private readonly toaster = inject(Toaster);
 
   readonly project = input.required<SprintBoardProject>();
@@ -122,6 +124,8 @@ export class SprintBoard {
   protected readonly selectedLane = signal<string | null>(null);
   /** The Move demo dialog is open or its answer is on its way: a second press waits. */
   protected readonly isMovingDemo = signal(false);
+  /** The Ask the PM picker or form is open: a second press waits. */
+  protected readonly isAsking = signal(false);
   private readonly lang = toSignal(this.transloco.langChanges$, {
     initialValue: this.transloco.getActiveLang(),
   });
@@ -219,6 +223,27 @@ export class SprintBoard {
       await this.load(this.project().slug, true);
     } finally {
       this.isMovingDemo.set(false);
+    }
+  }
+
+  /**
+   * "Ask the PM" (#219): the Commands panel's picker and form, answered with a toast; the board reads the sprint again
+   * so the row shows «waiting for the PM».
+   */
+  protected async askPm(): Promise<void> {
+    if (this.isAsking()) {
+      return;
+    }
+    this.isAsking.set(true);
+    try {
+      const outcome = await this.requestChange.ask({ slug: this.project().slug, name: this.project().name });
+      if (outcome === null) {
+        return;
+      }
+      this.toaster.show([outcome.verb, outcome.detail].filter((text) => text !== null).join('. '));
+      await this.load(this.project().slug, true);
+    } finally {
+      this.isAsking.set(false);
     }
   }
 

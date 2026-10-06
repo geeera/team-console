@@ -32,6 +32,18 @@
         <tc-icon name="calendar" size="sm" />
         {{ 'board.moveDemo' | transloco }}
       </button>
+      <button
+        tc-button
+        size="sm"
+        type="button"
+        data-testid="board-ask"
+        aria-haspopup="dialog"
+        [loading]="isAsking()"
+        [attr.aria-label]="'board.askAria' | transloco"
+        (click)="askPm()"
+      >
+        {{ 'board.ask' | transloco }}
+      </button>
     </div>
   </header>
 
