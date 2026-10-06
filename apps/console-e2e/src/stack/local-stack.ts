@@ -63,8 +63,11 @@ export function portsFor(parallelIndex: number): StackPorts {
   };
 }
 
-/** What miniflare logs when workerd dies under a running `wrangler dev` and it restarts workerd in place. */
-const RUNTIME_CRASH = 'The Workers runtime crashed unexpectedly';
+/**
+ * Log lines of a server that failed requests on its own: workerd died and miniflare restarted it in place, or the
+ * dev proxy lost its connection to the Worker and could not retry (a non-GET, #230).
+ */
+const INCIDENT_MARKERS = ['The Workers runtime crashed unexpectedly', 'Error inside ProxyWorker'] as const;
 
 /**
  * One `wrangler dev` and the workerd it forks. Every lifetime appends to the log between two marker lines, so a
@@ -140,7 +143,7 @@ class StackProcess {
   incidents(): string[] {
     const found = this.output()
       .split('\n')
-      .filter((line) => line.includes(RUNTIME_CRASH))
+      .filter((line) => INCIDENT_MARKERS.some((marker) => line.includes(marker)))
       .map((line) => `${this.label}: ${line.trim()}`);
     if (this.hasExited && this.stopStart === null) {
       found.push(`${this.label}: wrangler exited on its own`);
