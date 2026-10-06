@@ -32,8 +32,8 @@ describe('provideConsoleI18n', () => {
   });
 
   it('switches to English at runtime', async () => {
-    transloco.setActiveLang('en');
     await firstValueFrom(transloco.load('en'));
+    transloco.setActiveLang('en');
 
     expect(transloco.translate('shell.needsYou')).toBe('Needs you');
   });
@@ -42,8 +42,8 @@ describe('provideConsoleI18n', () => {
     const document = TestBed.inject(DOCUMENT);
     expect(document.documentElement.lang).toBe('ru');
 
-    transloco.setActiveLang('en');
     await firstValueFrom(transloco.load('en'));
+    transloco.setActiveLang('en');
 
     expect(document.documentElement.lang).toBe('en');
   });

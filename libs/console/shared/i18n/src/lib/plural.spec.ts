@@ -72,9 +72,28 @@ describe('TranslocoPluralPipe', () => {
     expect(text()).toBe('Не хватает 1\u00a0025 шагов');
 
     const transloco = TestBed.inject(TranslocoService);
-    transloco.setActiveLang('en');
+    // English is a lazy chunk (#123): loaded before the switch, as `ConsoleLanguage.use` does.
     await firstValueFrom(transloco.load('en'));
+    transloco.setActiveLang('en');
     await fixture.whenStable();
     expect(text()).toBe('1,025 steps missing');
+  });
+
+  it('re-renders once the dictionary arrives when the switch lands before it (#123)', async () => {
+    TestBed.configureTestingModule({ imports: [Host], providers: [provideConsoleI18n()] });
+    await TestBed.inject(ApplicationInitStatus).donePromise;
+    const fixture = TestBed.createComponent(Host);
+    const text = (): string => (fixture.nativeElement as HTMLElement).textContent?.trim() ?? '';
+    await fixture.whenStable();
+    expect(text()).toBe('Не хватает 1 шага');
+
+    const transloco = TestBed.inject(TranslocoService);
+    expect(transloco.getTranslation('en')).toEqual({});
+    transloco.setActiveLang('en');
+    await fixture.whenStable();
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(text()).toBe('1 step missing');
+    });
   });
 });

@@ -1,6 +1,7 @@
 import { ChangeDetectorRef, inject, Pipe, PipeTransform } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TranslocoService } from '@jsverse/transloco';
+import { catchError, of, switchMap } from 'rxjs';
 import { localNumberOf } from './local-time';
 
 /**
@@ -29,7 +30,8 @@ export function pluralKeyOf(key: string, lang: string, n: number): string {
 /**
  * `{{ 'setup.incomplete.title' | translocoPlural: n }}` — the counted form of a key, with `n` (formatted through
  * `Intl` in the active language) and any further params interpolated. Re-renders on a language switch like
- * Transloco's own pipe.
+ * Transloco's own pipe: once the language's dictionary has loaded, not merely when the language changes — English is
+ * a lazy chunk (#123), and a switch that lands before it would otherwise leave the fallback copy on screen.
  */
 @Pipe({ name: 'translocoPlural', pure: false })
 export class TranslocoPluralPipe implements PipeTransform {
@@ -37,7 +39,13 @@ export class TranslocoPluralPipe implements PipeTransform {
 
   constructor() {
     const changes = inject(ChangeDetectorRef);
-    this.transloco.langChanges$.pipe(takeUntilDestroyed()).subscribe(() => changes.markForCheck());
+    this.transloco.langChanges$
+      .pipe(
+        // A dictionary that cannot load still re-renders, in whatever Transloco falls back to.
+        switchMap((lang) => this.transloco.load(lang).pipe(catchError(() => of(null)))),
+        takeUntilDestroyed(),
+      )
+      .subscribe(() => changes.markForCheck());
   }
 
   transform(key: string, n: number, params: Readonly<Record<string, unknown>> = {}): string {

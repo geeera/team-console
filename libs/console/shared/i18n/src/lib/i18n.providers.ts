@@ -61,8 +61,7 @@ function startIn(lang: ConsoleLang): Observable<unknown> {
     tap(() => transloco.setActiveLang(lang)),
     catchError((error: unknown) => {
       console.warn(`i18n: could not load "${lang}"; starting in "${DEFAULT_LANG}"`, error);
-      transloco.setActiveLang(DEFAULT_LANG);
-      return transloco.load(DEFAULT_LANG);
+      return transloco.load(DEFAULT_LANG).pipe(tap(() => transloco.setActiveLang(DEFAULT_LANG)));
     }),
   );
 }
