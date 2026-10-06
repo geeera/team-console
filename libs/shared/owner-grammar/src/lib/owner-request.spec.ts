@@ -39,7 +39,9 @@ const markers = fixtures.markers as unknown as readonly ParsedRow[];
 function expectParsedLike(row: ParsedRow): void {
   expect(requestMarkerOf(row.body)).toEqual(row.request);
   const handled = handledMarkerOf(row.body);
-  expect(handled === null ? null : { comment_id: handled.commentId, result: handled.result }).toEqual(row.handled);
+  expect(handled === null ? null : { comment_id: handled.commentId, result: handled.result }).toEqual(
+    row.handled,
+  );
   expect(isTeamNote(row.body)).toBe(row.teamNote);
   const pairs = (sameAccount: boolean): string[][] =>
     commandLines(row.body, sameAccount).map((line) => [line.command, line.text]);
