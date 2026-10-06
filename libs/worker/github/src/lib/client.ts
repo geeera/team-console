@@ -111,6 +111,12 @@ export class GitHubClient {
     return this.parse(response, guard);
   }
 
+  /** PATCH one resource (#218: a milestone's due date), with `postJson`'s rules: one refresh on 401, never retried. */
+  async patchJson<T>(path: GitHubPath, body: unknown, guard: JsonGuard<T>): Promise<T> {
+    const response = await this.write('PATCH', path, body);
+    return this.parse(response, guard);
+  }
+
   /**
    * DELETE one resource (#114: a label off the run log), with `postJson`'s rules: one refresh on 401, never retried
    * after a timeout or a 5xx. A 404 is `github-not-found`; the caller decides whether "already gone" is fine.
@@ -119,7 +125,7 @@ export class GitHubClient {
     await discardBody(await this.write('DELETE', path, undefined));
   }
 
-  private async write(method: 'POST' | 'DELETE', path: GitHubPath, body: unknown): Promise<Response> {
+  private async write(method: 'POST' | 'PATCH' | 'DELETE', path: GitHubPath, body: unknown): Promise<Response> {
     const request = (bearer: string) =>
       githubRequest(this.fetcher, { method, path, bearer, ...(body === undefined ? {} : { body }) });
     let token = await this.tokens.getToken();

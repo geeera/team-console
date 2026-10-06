@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { httpProblemOf } from '@console/shared/api';
+import { commandFailureOf, type CommandFailureKind } from '@console/entities/team-run';
 import {
   ANSWER_TEXT_MAX_LENGTH,
   BATCH_ANSWER_MAX,
@@ -20,7 +20,7 @@ export function batchAnswerUrl(slug: string): string {
  * go through (and replays whatever was written); `changed`: the item is no longer what the owner saw, so it leaves
  * the batch to be answered one by one.
  */
-export type BatchFailureKind = 'connect' | 'mismatch' | 'rate' | 'offline' | 'github' | 'changed';
+export type BatchFailureKind = 'connect' | 'rate' | 'offline' | 'github' | 'changed';
 
 /** Problem slugs that mean the item itself changed on GitHub: a retry cannot help. */
 const CHANGED: ReadonlySet<string> = new Set([
@@ -33,7 +33,7 @@ const CHANGED: ReadonlySet<string> = new Set([
 
 const BY_SLUG: Readonly<Record<string, BatchFailureKind>> = {
   'github-owner-not-connected': 'connect',
-  'github-owner-mismatch': 'mismatch',
+  'github-owner-mismatch': 'connect',
   'github-rate-limit': 'rate',
 };
 
@@ -47,6 +47,13 @@ export function batchFailureKindOf(slug: string | null): BatchFailureKind {
   }
   return BY_SLUG[slug] ?? 'github';
 }
+
+// A whole request's failure as the team commands read it (#114, `@console/entities/team-run`), in the batch's words.
+const BY_COMMAND_FAILURE: Partial<Readonly<Record<CommandFailureKind, BatchFailureKind>>> = {
+  'not-connected': 'connect',
+  'github-rate-limited': 'rate',
+  offline: 'offline',
+};
 
 export type BatchSubmitResult =
   | { readonly ok: true; readonly results: readonly BatchAnswerResult[] }
@@ -113,8 +120,7 @@ export class BatchApproveClient {
       if (!(error instanceof HttpErrorResponse)) {
         throw error;
       }
-      const problem = httpProblemOf(error);
-      return { ok: false, failure: problem.status === 0 ? 'offline' : batchFailureKindOf(problem.slug) };
+      return { ok: false, failure: BY_COMMAND_FAILURE[commandFailureOf(error).kind] ?? 'github' };
     }
     const results = batchResultsOf(answer, request.numbers);
     // A 2xx we cannot read: some items may be written; the retry the dialog offers is answered from the replay.

@@ -46,6 +46,27 @@
       }
       <span>{{ stateText() }}</span>
     </p>
+    <dl class="cp-facts">
+      <div class="cp-fact">
+        <dt>{{ 'commands.status.sprint' | transloco }}</dt>
+        <dd data-testid="status-sprint">
+          <span>{{ sprintFacts().line }}</span>
+          @if (sprintFacts().freeze) {&ngsp;<span class="cp-fact__sub" [class.cp-fact__sub--freeze]="sprintFacts().isFreezeNow"
+            >{{ sprintFacts().freeze }}</span
+          >
+          }
+        </dd>
+      </div>
+      @if (status.progress; as progress) {
+      <div class="cp-fact">
+        <dt>{{ 'commands.status.progress' | transloco }}</dt>
+        <dd class="cp-fact__progress" data-testid="status-progress">
+          <span>{{ 'commands.status.progressVal' | transloco: { done: progress.done, total: progress.total } }}</span>
+          <tc-meter [value]="progress.done" [max]="progress.total" />
+        </dd>
+      </div>
+      }
+    </dl>
     <p class="cp-state__meta">
       <span>{{ 'commands.status.updated' | transloco: { time: (status.checkedAt | localTime) } }}</span>
       <button
@@ -230,6 +251,52 @@
       }
     </ul>
   </section>
+
+  @if (sprintRows().length > 0) {
+  <section class="cp-group" data-testid="sprint-group" [attr.aria-labelledby]="id + '-gs'">
+    <h3 class="cp-kicker" [id]="id + '-gs'">{{ 'commands.group.sprint' | transloco }}</h3>
+    <ul class="cmd-list">
+      @for (row of sprintRows(); track row.key) {
+      <li class="cmd" [attr.data-sprint]="row.key">
+        <div class="cmd__txt">
+          <p class="cmd__title">{{ 'commands.sprint.' + row.key | transloco }}</p>
+          @if (row.aria) {
+          <p class="cmd__hint" [id]="id + '-sprint-hint-' + row.key">{{ row.hint }}</p>
+          @if (teamWhy(); as why) {
+          <p class="cmd__why" [id]="id + '-sprint-why-' + row.key">
+            <tc-icon name="lock" size="sm" /><span>{{ why }}</span>
+          </p>
+          } } @else {
+          <p class="cmd__line"><tc-icon name="check" size="sm" /><span>{{ row.hint }}</span></p>
+          }
+        </div>
+        @if (row.aria) {
+        <button
+          tc-button
+          size="sm"
+          type="button"
+          class="cmd__btn"
+          [attr.data-testid]="'sprint-' + row.key"
+          [off]="teamWhy() !== null"
+          [attr.aria-disabled]="teamWhy() !== null ? 'true' : null"
+          [attr.aria-label]="row.aria"
+          [attr.aria-describedby]="(teamWhy() !== null ? id + '-sprint-why-' + row.key + ' ' : '') + id + '-sprint-hint-' + row.key"
+          (click)="sprintCommand($event, row)"
+        >
+          <tc-icon [name]="row.key === 'demo' ? 'calendar' : 'plus'" size="sm" />
+          {{ 'commands.sprint.' + row.key + 'Btn' | transloco }}
+        </button>
+        }
+      </li>
+      }
+    </ul>
+  </section>
+  } @else if (status.calendar === null) {
+  <section class="cp-group" data-testid="sprint-group" [attr.aria-labelledby]="id + '-gs'">
+    <h3 class="cp-kicker" [id]="id + '-gs'">{{ 'commands.group.sprint' | transloco }}</h3>
+    <p class="cmd__hint">{{ 'commands.sprint.unknown' | transloco }}</p>
+  </section>
+  }
   } @else if (hasNoRunLog()) {
   <tc-state-block
     kind="empty"

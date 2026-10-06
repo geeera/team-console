@@ -18,7 +18,7 @@ const problem = (slug: string, status: number) => ({
 describe('batchFailureKindOf', () => {
   it.each([
     ['github-owner-not-connected', 'connect'],
-    ['github-owner-mismatch', 'mismatch'],
+    ['github-owner-mismatch', 'connect'],
     ['github-rate-limit', 'rate'],
     ['batch-not-safe', 'changed'],
     ['issue-closed', 'changed'],
