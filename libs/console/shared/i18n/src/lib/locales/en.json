@@ -501,6 +501,12 @@
       "notAddedLive": "{{repo}} wasn’t added. Nothing was saved.",
       "partial": "Showing the first {{n}}. If the one you need isn’t here, remove ones you don’t need from the app’s installation on GitHub, or add it by name below.",
       "selectLink": "Choose repositories on GitHub",
+      "missing": {
+        "title": "Repository not here?",
+        "body": "The console sees only the repositories the {{app}} app can access. On GitHub choose All repositories or add the ones you need, private ones too. Then come back here. The list refreshes by itself.",
+        "action": "Give the app access on GitHub",
+        "refresh": "Refresh the list"
+      },
       "empty": {
         "title": "The {{app}} app can’t see any repositories yet",
         "body": "Add your product repositories to the app’s installation on GitHub, then come back here. The list refreshes by itself."
