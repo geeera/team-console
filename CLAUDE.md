@@ -184,6 +184,14 @@ SHA-256) → registry row + `installation_id` → `cache_epoch` bump → `own_wr
 (`questionNotification` / `linkNotification`) sent in `waitUntil` by `webPushSenders` (the same `PushSender`, VAPID vars and
 `PUSH_FAKE_ORIGIN` as the api; `pushFetch` in `@worker/push`, `localFakeOriginOf` in `@worker/core`). Logs carry `{deliveryId, event,
 repo, status}` only. Locally `nx serve hooks -- --var WEBHOOK_SECRET:<throwaway>` plus the push `--var`s above.
+Environment identity (#237): one console build for every environment. The api Worker answers `/manifest.webmanifest`
+(name «Team Console Dev|Stage|Local», short «TC …»; production unchanged) and `/brand/favicon.ico|apple-touch-icon.png`
+from `ENVIRONMENT` (`routes/app-identity.ts`, `run_worker_first`); the icon sets are static files in
+`apps/console/public/icons/<env>/`, generated with a bottom band by `tools/env-icons/generate.py` (Pillow, rerun when the
+production icon changes). None of those Worker paths may enter `ngsw-config.json` (a hash mismatch breaks the SW
+install). Names live in `@shared/contracts` (`appNameOf`, `environmentLabelOf`); the app sets `<title>` and
+`apple-mobile-web-app-title` from `DeploymentStore`, the shell shows `EnvironmentMark` (`@console/entities/app-info`), and
+`PushSender` takes the `environment` and prefixes titles «[Dev] …» (`forEnvironment` in `@worker/push`).
 
 ## Workers (#6)
 

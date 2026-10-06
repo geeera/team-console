@@ -1,6 +1,7 @@
 {
   "app": {
-    "name": "Team Console"
+    "name": "Team Console",
+    "environment": "Environment:"
   },
   "shell": {
     "nav": "Navigation",
