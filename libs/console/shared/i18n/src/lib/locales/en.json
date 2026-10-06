@@ -503,7 +503,7 @@
       "selectLink": "Choose repositories on GitHub",
       "missing": {
         "title": "Repository not here?",
-        "body": "GitHub shows the console only the repositories you gave the {{app}} app access to. In the installation settings choose All repositories, or add the ones you need under Only select repositories, and save. The app’s permissions stay the same. Private repositories show up marked Private. Then come back here. The list refreshes by itself.",
+        "body": "The console sees only the repositories the {{app}} app can access. On GitHub choose All repositories or add the ones you need, private ones too. Then come back here. The list refreshes by itself.",
         "action": "Give the app access on GitHub",
         "refresh": "Refresh the list"
       },
