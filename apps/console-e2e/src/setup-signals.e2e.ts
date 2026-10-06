@@ -2,14 +2,13 @@ import type { NeedsYouDto } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { seed } from './support/stack';
+import { meetsMinTap } from './support/tap-target';
 
 /**
  * Setup signals (#205). On the stack, team-console is set up except for webhook events (only a deployed hooks Worker
  * receives them), which needs nothing from the owner; private-product has no `team.reviewer_logins` and no routine
  * token, so it needs setup.
  */
-
-const MIN_TAP_PX = 44;
 
 test.beforeAll(async ({ stack }) => {
   requireLocalStack(stack);
@@ -43,8 +42,7 @@ test('a project that needs setup appears in Needs you with a working GitHub link
   // Above the cards, at least 44 px tall, and counted in the summary line.
   const rowBox = await row.boundingBox();
   const firstCard = await page.locator('.questions__list').boundingBox();
-  // Rounded to 1/100 px: a row at a fractional y reports 43.99998 for its 44 px.
-  expect(Math.round((rowBox?.height ?? 0) * 100) / 100).toBeGreaterThanOrEqual(MIN_TAP_PX);
+  expect(meetsMinTap(rowBox?.height)).toBe(true);
   expect((rowBox?.y ?? Infinity) < (firstCard?.y ?? 0)).toBe(true);
   const projectsNeedingYou = new Set([
     ...needsYou.items.map((item) => item.project.slug),
@@ -84,15 +82,4 @@ test('a project waiting only for its first event is ready: no step left, a clock
   await expect(events.locator('.step__mark')).toHaveText('');
   await expect(events.getByRole('button', { name: ru('settings.step.how') })).toHaveCount(0);
   await expectAccessible(page, 'project setup waiting for the first event');
-});
-
-test('Settings reads "Ready" for the waiting project and counts the steps that need the owner', async ({
-  page,
-}) => {
-  await page.goto('/settings');
-  const chipOf = (slug: string) => page.locator(`[data-row="${slug}"] [data-testid="setup-chip"]`);
-  await expect(chipOf('team-console')).toHaveText(ru('settings.projects.row.readyWaiting'));
-  // private-product: the routine token is missing; the waiting events step is not counted.
-  await expect(chipOf('private-product')).toHaveText(ru('settings.projects.row.missing.one', { n: 1 }));
-  await expectAccessible(page, 'settings with a ready and an incomplete project');
 });

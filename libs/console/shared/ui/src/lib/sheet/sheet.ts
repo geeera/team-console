@@ -7,6 +7,7 @@ import { firstValueFrom } from 'rxjs';
 import { BREAKPOINTS } from '../../tokens/breakpoints';
 import { ConfirmDialog, ConfirmDialogData, ConfirmOptions } from './confirm-dialog';
 import { SHEET_FRAME, SheetContainer, SheetFrame } from './sheet-container';
+import { SheetFooterSlot } from './sheet-footer';
 
 export interface SheetOptions<D> {
   /** Already translated; becomes the heading and the dialog's accessible name. */
@@ -19,6 +20,8 @@ export interface SheetOptions<D> {
   readonly autoFocus?: string;
   /** The id of an element inside the content that describes the dialog (`aria-describedby`). */
   readonly describedBy?: string;
+  /** `wide` gives the centred dialog `--sheet-dialog-w` instead of the confirmation width; the sheet is full width. */
+  readonly width?: 'default' | 'wide';
 }
 
 let nextSheetId = 0;
@@ -41,6 +44,10 @@ export class Sheet {
       presentation,
     };
     const position = this.overlay.position().global().centerHorizontally();
+    // One footer slot per sheet, shared by the frame (which renders it) and the content (which fills it).
+    const footer = new SheetFooterSlot();
+    const dialogPanel =
+      options.width === 'wide' ? ['tc-dialog-panel', 'tc-dialog-panel--wide'] : 'tc-dialog-panel';
 
     return this.dialog.open<R, D, unknown>(content, {
       data: options.data ?? null,
@@ -52,12 +59,16 @@ export class Sheet {
       restoreFocus: true,
       hasBackdrop: true,
       backdropClass: 'tc-scrim',
-      panelClass: presentation === 'sheet' ? 'tc-sheet-panel' : 'tc-dialog-panel',
+      panelClass: presentation === 'sheet' ? 'tc-sheet-panel' : dialogPanel,
       positionStrategy: presentation === 'sheet' ? position.bottom('0') : position.centerVertically(),
       scrollStrategy: this.overlay.scrollStrategies.block(),
+      providers: [{ provide: SheetFooterSlot, useValue: footer }],
       container: {
         type: SheetContainer,
-        providers: () => [{ provide: SHEET_FRAME, useValue: frame }],
+        providers: () => [
+          { provide: SHEET_FRAME, useValue: frame },
+          { provide: SheetFooterSlot, useValue: footer },
+        ],
       },
     });
   }

@@ -34,7 +34,7 @@ import { NetworkStatus } from '@console/shared/api';
 import { LocalTimePipe, TranslocoPipe, TranslocoPluralPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, Callout, Card, Icon, StateBlock } from '@console/shared/ui';
 import type { ProjectSetupDto } from '@shared/contracts';
-import { FOCUS_AFTER_ARCHIVE_STATE, readNavigationState } from './settings-navigation';
+import { readNavigationState } from './settings-navigation';
 
 /**
  * `/settings/projects/:slug` (#24): one project's five-step setup as the Worker reports it, Check again (bypasses the
@@ -163,9 +163,9 @@ export class ProjectSetupPage {
     if (project === undefined || !this.network.online()) {
       return;
     }
-    const index = this.projects.activeSlugs().indexOf(project.slug);
     if (await this.archiver.archive(project)) {
-      await this.router.navigate(['/settings'], { state: { [FOCUS_AFTER_ARCHIVE_STATE]: index } });
+      // Projects live on All projects now (#194); the archived one reads "Archived" in its GitHub list there.
+      await this.router.navigateByUrl('/overview');
     }
   }
 

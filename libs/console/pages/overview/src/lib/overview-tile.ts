@@ -90,6 +90,8 @@ const KNOWN_PROBLEMS: ReadonlySet<string> = new Set([
         </span>
       }
     </a>
+    <!-- Controls beside the tile's link, never inside it (a link holds no button): #29's Commands goes here. -->
+    <ng-content select="[tc-tile-actions]" />
   `,
   styleUrl: './overview-tile.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

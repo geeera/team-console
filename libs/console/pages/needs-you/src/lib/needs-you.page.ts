@@ -9,7 +9,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { ProjectsStore } from '@console/entities/project';
+import { ADD_PROJECT_FRAGMENT, ADD_PROJECT_PATH, ProjectsStore } from '@console/entities/project';
 import { BatchApprove, type BatchApproved } from '@console/features/batch-approve';
 import { PushNudge } from '@console/features/push-subscribe';
 import { TranslocoPipe } from '@console/shared/i18n';
@@ -64,9 +64,14 @@ import { QuestionList } from '@console/widgets/question-list';
           [title]="'shell.noProjects' | transloco"
           [description]="'shell.noProjectsHint' | transloco"
         >
-          <a tc-button tc-state-action variant="primary" routerLink="/settings/projects/new">{{
-            'shell.addProject' | transloco
-          }}</a>
+          <a
+            tc-button
+            tc-state-action
+            variant="primary"
+            [routerLink]="addProjectPath"
+            [fragment]="addProjectFragment"
+            >{{ 'shell.addProject' | transloco }}</a
+          >
         </tc-state-block>
       }
     </div>
@@ -85,6 +90,8 @@ import { QuestionList } from '@console/widgets/question-list';
 export class NeedsYouPage {
   protected readonly projects = inject(ProjectsStore);
   private readonly injector = inject(Injector);
+  protected readonly addProjectPath = ADD_PROJECT_PATH;
+  protected readonly addProjectFragment = ADD_PROJECT_FRAGMENT;
 
   private readonly heading = viewChild.required<ElementRef<HTMLElement>>('heading');
   protected readonly list = viewChild(QuestionList);

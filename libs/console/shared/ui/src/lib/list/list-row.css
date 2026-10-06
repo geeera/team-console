@@ -97,8 +97,34 @@
 
 .tc-list-row__leading:empty,
 .tc-list-row__trailing:empty,
-.tc-list-row__subtitle:empty {
+.tc-list-row__trailing-text:empty,
+.tc-list-row__subtitle:empty,
+.tc-list-row__detail:empty {
   display: none;
+}
+
+.tc-list-row__trailing-text {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+  color: var(--accent-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
+/* Unclamped, below the subtitle: a line the row needs in full (a refusal with its See why). */
+.tc-list-row__detail {
+  margin-top: var(--space-1);
+}
+
+:host(.tc-list-row--muted) .tc-list-row__title,
+:host(.tc-list-row--muted) .tc-list-row__trailing-text {
+  color: var(--text-2);
+}
+
+:host(.tc-list-row--muted) .tc-list-row__trailing-text {
+  font-weight: var(--fw-regular);
 }
 
 .tc-list-row__leading,

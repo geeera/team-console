@@ -30,13 +30,13 @@ describe('NeedsYouPage', () => {
     return { root: fixture.nativeElement as HTMLElement, fixture };
   }
 
-  it('with no projects it is the empty state that points to Settings', async () => {
+  it('with no projects it is the empty state that points to All projects (#194)', async () => {
     const { root } = await render([]);
 
     expect(root.querySelector('h1')?.textContent?.trim()).toBe('Ждут вас');
     const block = root.querySelector('[data-testid="no-projects"]') as HTMLElement;
     expect(block.textContent).toContain('Проектов пока нет');
-    expect(block.querySelector('a')?.getAttribute('href')).toBe('/settings/projects/new');
+    expect(block.querySelector('a')?.getAttribute('href')).toBe('/overview#add-project');
   });
 
   it('with projects it lists every waiting item, tagged with its project', async () => {
