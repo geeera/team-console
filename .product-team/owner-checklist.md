@@ -310,6 +310,11 @@ secret put` / dashboard → Workers & Pages → Worker → Settings → Variable
 
 `owner.language: ru` в `.product-team/project.yml` уже включает сводку и вопросы на русском.
 
+## Публикация макетов (GitHub Pages)
+- [ ] Settings → Pages → Build and deployment → **Source: «GitHub Actions»** (бесплатно для публичных
+      репозиториев). Без этого `design-pages.yml` не публикует `docs/design` после слияния в `dev`, и сайт
+      остаётся старой веткой `gh-pages` (прототип с kickoff). См. PR #45.
+
 ## Claude
 - [ ] Scheduled routines created for `slot-pm`, `slot-dev`, `slot-qa` (see the plugin README)
 - [ ] Project chat created for owner ↔ team conversation
