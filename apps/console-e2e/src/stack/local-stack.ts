@@ -101,7 +101,13 @@ class StackProcess {
         cwd: WORKSPACE_ROOT,
         detached: true,
         stdio: ['ignore', log, log],
-        env: { ...process.env, WRANGLER_SEND_METRICS: 'false', NO_COLOR: '1' },
+        env: {
+          ...process.env,
+          WRANGLER_SEND_METRICS: 'false',
+          NO_COLOR: '1',
+          // wrangler's own debug log (every level, with stacks) beside the console log, so it lands in the artifact.
+          WRANGLER_LOG_PATH: logPath.replace(/\.log$/, '.wrangler-debug.log'),
+        },
       });
       return new StackProcess(child, label, logPath, logStart);
     } finally {
