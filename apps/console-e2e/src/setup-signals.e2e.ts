@@ -43,7 +43,8 @@ test('a project that needs setup appears in Needs you with a working GitHub link
   // Above the cards, at least 44 px tall, and counted in the summary line.
   const rowBox = await row.boundingBox();
   const firstCard = await page.locator('.questions__list').boundingBox();
-  expect(rowBox?.height ?? 0).toBeGreaterThanOrEqual(MIN_TAP_PX);
+  // Rounded to 1/100 px: a row at a fractional y reports 43.99998 for its 44 px.
+  expect(Math.round((rowBox?.height ?? 0) * 100) / 100).toBeGreaterThanOrEqual(MIN_TAP_PX);
   expect((rowBox?.y ?? Infinity) < (firstCard?.y ?? 0)).toBe(true);
   const projectsNeedingYou = new Set([
     ...needsYou.items.map((item) => item.project.slug),

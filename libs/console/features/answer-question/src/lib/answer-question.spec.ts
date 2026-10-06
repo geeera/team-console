@@ -23,6 +23,8 @@ function item(overrides: Partial<QuestionItem> = {}): QuestionItem {
     body: null,
     authorTrusted: true,
     allowedCommands: ['approve', 'reject'],
+    category: 'scope',
+    recommendation: null,
     ...overrides,
   };
 }

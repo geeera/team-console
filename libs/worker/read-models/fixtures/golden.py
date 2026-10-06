@@ -7,6 +7,8 @@ For every `<name>.json` fixture next to this file, writes `<name>.expected.json`
 (`.claude/product-team/scripts`) computes from the same GitHub JSON: the inbox as `scripts/inbox` builds it
 (`inbox.sections`, `brief.needs`, the scripts' own `slim`), `team.reviewer_logins` as `project.reviewer_logins_from_text`
 reads it, and the sprint as `calendar.pick_current_sprint`, `backlog`'s `slim` and `metrics.sprint_summary` see it.
+`recommendations.expected.json` holds questions as `owner.question_body` writes them, for every category and both
+languages, with the batch rule's category and recommendation (#220).
 Needs no credentials and no network. Re-run it after vendoring a new plugin version; a diff in the output is a
 change the TypeScript port must follow.
 
@@ -21,6 +23,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import re
 import sys
 from collections import Counter
 from datetime import date
@@ -29,7 +32,7 @@ sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.abspath(os.path.join(HERE, "..", "..", "..", "..", ".claude", "product-team", "scripts"))
 sys.path.insert(0, SCRIPTS)
-from ptlib import brief, inbox, metrics, project  # noqa: E402
+from ptlib import brief, inbox, metrics, owner, project  # noqa: E402
 from ptlib.calendar import pick_current_sprint  # noqa: E402
 
 
@@ -50,6 +53,59 @@ def item(entry: dict) -> dict:
     return dict({k: entry.get(k) for k in ("section", "number", "title", "url")}, ask=entry.get("ask") or None)
 
 
+# The batch rule's two readings (#220). The plugin has no function for them: it writes the `owner:<category>` label
+# and the answer line (`backlog ask`, `owner.question_body`); these mirror `categoryOf` / `recommendationOf` in
+# libs/shared/owner-grammar/src/lib/batch.ts and run over the plugin's own labels and ask lines.
+_COMMAND_WORD = re.compile(r"(?<![A-Za-z0-9_/-])/(approve|reject|no-go|go)(?![A-Za-z0-9_-])")
+
+
+def category_of(labels: list) -> str | None:
+    found = [l[len("owner:"):] for l in labels if l.startswith("owner:") and l[len("owner:"):] in owner.CATEGORIES]
+    return next((c for c in found if c != "scope"), found[0] if found else None)
+
+
+def recommendation_of(ask: str | None) -> str | None:
+    if ask is None:
+        return None
+    lower = ask.lower()
+    if "recommend" not in lower and "рекоменду" not in lower:
+        return None
+    m = _COMMAND_WORD.search(ask)
+    return m.group(1) if m else None
+
+
+ASKS = {
+    "en": [
+        "/approve to use Cloudflare R2 (free, recommended) · /reject why to keep SeaweedFS",
+        "`/approve` to ship the widget (recommended), `/reject why` to keep the list",
+        "/reject why to keep the current flow (recommended) · /approve to switch",
+        "/approve to add dark mode · /reject why",
+        "/go to release 1.2.0 (recommended) · /no-go why",
+        "/no-go to wait for the fix (Recommended) · /go",
+    ],
+    "ru": [
+        "/approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять",
+        "/reject почему — оставить как есть (рекомендуем), /approve — переделать",
+        "/approve купить домен за $12 в год · /reject причина",
+        "/approve взять бесплатный план (Рекомендую) · /reject почему",
+    ],
+}
+
+
+def recommendations() -> list:
+    """Questions as `backlog create --kind question` / `backlog ask` writes them, for every category and language."""
+    cases = []
+    for language, asks in ASKS.items():
+        for category in owner.CATEGORIES:
+            for ask in asks:
+                body = owner.question_body(ask, "Context for the owner.", category, language)
+                labels = ["kind:question", f"owner:{category}"]
+                read = owner.ask_of(body)
+                cases.append({"language": language, "labels": labels, "body": body, "ask": read,
+                              "category": category_of(labels), "recommendation": recommendation_of(read)})
+    return cases
+
+
 def inbox_of(fixture: dict) -> dict:
     # scripts/inbox build(): open issues without pull requests, slimmed; paused = any open team:paused issue.
     issues = [INBOX.slim(i) for i in fixture["openIssues"] if "pull_request" not in i]
@@ -63,9 +119,12 @@ def inbox_of(fixture: dict) -> dict:
     needs = [item(n) for n in brief.needs(mine)]
     if rendered != needs:
         raise SystemExit(f"{fixture['repo']}: inbox.sections and brief.needs disagree; the plugin changed shape")
+    labels = {i["number"]: i["labels"] for i in mine}
+    batched = [dict(n, category=category_of(labels[n["number"]]), recommendation=recommendation_of(n["ask"]))
+               for n in needs]
     return {
         "reviewerLogins": logins,
-        "items": needs,
+        "items": batched,
         "setup": bool(groups["setup"]),
         "setupUrl": checklist or None,
         "paused": bool(groups["paused"]),
@@ -101,6 +160,8 @@ def main() -> None:
             continue
         with open(path, encoding="utf-8") as f:
             fixture = json.load(f)
+        if "openIssues" not in fixture:
+            continue  # the artifacts and check-run fixtures have their own scripts
         expected = {
             "generatedBy": "python3 libs/worker/read-models/fixtures/golden.py",
             "inbox": inbox_of(fixture),
@@ -110,6 +171,12 @@ def main() -> None:
             json.dump(expected, f, ensure_ascii=False, indent=1)
             f.write("\n")
         print(os.path.basename(path), len(expected["inbox"]["items"]), "inbox items")
+    cases = recommendations()
+    with open(os.path.join(HERE, "recommendations.expected.json"), "w", encoding="utf-8") as f:
+        json.dump({"generatedBy": "python3 libs/worker/read-models/fixtures/golden.py", "cases": cases}, f,
+                  ensure_ascii=False, indent=1)
+        f.write("\n")
+    print("recommendations.expected.json", len(cases), "questions")
 
 
 if __name__ == "__main__":

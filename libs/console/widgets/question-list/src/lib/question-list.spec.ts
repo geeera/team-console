@@ -51,6 +51,8 @@ function needsYouItem(
     url: `https://github.com/geeera/${project.slug}/issues/${number}`,
     ask: null,
     authorTrusted: true,
+    category: null,
+    recommendation: null,
     project,
     allowedCommands: ['approve', 'reject'],
     ...overrides,

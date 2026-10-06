@@ -75,6 +75,17 @@ export type {
   AnswerResponse,
   Section,
 } from './lib/answer';
+export { BATCH_ANSWER_MAX } from './lib/batch-answer';
+export type {
+  BatchAnswerFailed,
+  BatchAnswerRequest,
+  BatchAnswerResponse,
+  BatchAnswerResult,
+  BatchAnswerWritten,
+  BatchLeftOutReason,
+  OwnerCategory,
+  TeamRecommendation,
+} from './lib/batch-answer';
 export { NEEDS_YOU_MAX_PROJECTS, SPRINT_CI_STATES, isSprintCiState } from './lib/read-models';
 export type {
   EmbedOriginsDto,

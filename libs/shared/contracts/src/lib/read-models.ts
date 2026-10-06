@@ -1,4 +1,5 @@
 import type { AnswerCommand, Section } from './answer';
+import type { OwnerCategory, TeamRecommendation } from './batch-answer';
 import type { TeamRunDto } from './team';
 
 /**
@@ -23,6 +24,13 @@ export interface InboxItemDto {
    * through a template, so an untrusted item is shown marked (#9 threat row 5).
    */
   readonly authorTrusted: boolean;
+  /** The owner decision a question is about, from its `owner:*` label (`categoryOf`); `null` without one. */
+  readonly category: OwnerCategory | null;
+  /**
+   * The first command of the answer line when that line says it recommends one ("recommend…" / "рекоменду…");
+   * otherwise `null`. Read from untrusted text: only the server's re-check decides what a batch may answer.
+   */
+  readonly recommendation: TeamRecommendation | null;
 }
 
 /** `GET /api/v1/projects/:slug/inbox`: the plugin's inbox for one repository, in its order. */

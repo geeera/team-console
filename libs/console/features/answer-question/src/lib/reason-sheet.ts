@@ -38,7 +38,7 @@ export interface ReasonSheetData {
           (input)="onInput($event)"
         ></textarea>
       </tc-field>
-      <div class="reason__actions">
+      <div class="reason__actions tc-dialog-actions">
         <button tc-button type="button" (click)="ref.close()">{{ 'ui.confirm.cancel' | transloco }}</button>
         <button tc-button type="submit" [variant]="data.command === 'override' ? 'danger' : 'primary'">
           {{ 'answer.reason.submit.' + data.command | transloco }}

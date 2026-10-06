@@ -31,7 +31,7 @@ describe('authorTrusted (#9 threat row 5; the team app by the owner decision on 
 
   it('keeps an untrusted item in the list, in its place (it is marked, not dropped)', () => {
     expect(inbox.items.map((item) => item.number)).toEqual([
-      10, 11, 20, 12, 13, 14, 21, 23, 24, 15, 17, 22, 16,
+      10, 11, 20, 12, 13, 14, 21, 23, 24, 30, 31, 32, 33, 34, 35, 15, 17, 22, 16,
     ]);
   });
 });

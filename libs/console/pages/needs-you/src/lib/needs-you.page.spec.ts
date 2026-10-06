@@ -60,6 +60,8 @@ describe('NeedsYouPage', () => {
           url: 'https://github.com/g/a/issues/72',
           ask: '/approve — начинаем',
           authorTrusted: true,
+          category: 'scope',
+          recommendation: null,
           project: { slug: 'a', name: 'A' },
           allowedCommands: ['approve', 'reject'],
         },
