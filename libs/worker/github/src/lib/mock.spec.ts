@@ -256,6 +256,77 @@ describe('createMockGitHub', () => {
     const error = await rejection(client(name).getJson(githubPath`/repos/${repo}`, isObject));
     expect(error.problem.type).toBe(type);
   });
+
+  describe('the installation list (#194)', () => {
+    it('finds the owner account installation by id and lists its repositories with the list token', async () => {
+      const installationId = await auth.installationIdForAccount(MOCK_OWNER_ACCOUNT.userId);
+      expect(installationId).toBe(1001);
+      const list = await GitHubClient.listInstallationRepositories(
+        mock.fetch,
+        auth.listTokenSourceFor(installationId),
+        { maxPages: 10 },
+      );
+      expect(list.complete).toBe(true);
+      expect(list.items).toEqual(
+        expect.arrayContaining([
+          { fullName: 'geeera/team-console', private: false },
+          { fullName: 'geeera/private-product', private: true },
+          { fullName: 'geeera/no-yml', private: true },
+        ]),
+      );
+      expect(list.items.map((repo) => repo.fullName)).not.toContain('acme/site');
+    });
+
+    it('answers 409 for an account without an installation', async () => {
+      expect((await rejection(auth.installationIdForAccount(7))).problem.type).toBe(
+        'github-app-not-installed',
+      );
+    });
+
+    it('pages with per_page and a Link header', async () => {
+      const source = auth.listTokenSourceFor(1001);
+      const token = await source.getToken();
+      const first = await mock.fetch('https://api.github.com/installation/repositories?per_page=2', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = (await first.json()) as { repositories: unknown[] };
+      expect(body.repositories).toHaveLength(2);
+      expect(first.headers.get('link')).toBe(
+        '<https://api.github.com/installation/repositories?per_page=2&page=2>; rel="next"',
+      );
+    });
+
+    it('tripwires: the list token cannot read a repository, a per-repository token cannot list', async () => {
+      const listToken = await auth.listTokenSourceFor(1001).getToken();
+      const read = await mock.fetch('https://api.github.com/repos/geeera/team-console', {
+        headers: { Authorization: `Bearer ${listToken}` },
+      });
+      expect(read.status).toBe(403);
+
+      const repoToken = await auth.tokenSourceFor(parseRepoName('geeera/team-console')).getToken();
+      const list = await mock.fetch('https://api.github.com/installation/repositories?per_page=100', {
+        headers: { Authorization: `Bearer ${repoToken}` },
+      });
+      expect(list.status).toBe(403);
+    });
+
+    it('mints the list token only for exactly metadata: read without repositories', async () => {
+      let jwt = '';
+      const spyAuth = new GitHubAppAuth(mock.credentials, {
+        fetch: async (input, init) => {
+          jwt = new Headers(init.headers).get('authorization') ?? '';
+          return mock.fetch(input, init);
+        },
+      });
+      await spyAuth.installationIdForAccount(MOCK_OWNER_ACCOUNT.userId);
+      const wider = await mock.fetch('https://api.github.com/app/installations/1001/access_tokens', {
+        method: 'POST',
+        headers: { Authorization: jwt },
+        body: JSON.stringify({ permissions: { metadata: 'read', contents: 'read' } }),
+      });
+      expect(wider.status).toBe(422);
+    });
+  });
 });
 
 describe('MOCK_OWNER_ACCOUNT', () => {

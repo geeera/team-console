@@ -41,6 +41,10 @@
   </div>
 
   <tc-list plain class="shell__foot">
+    <tc-list-row button data-testid="sidebar-add-project" (click)="go(addProjectUrl)">
+      <tc-icon tc-row-leading name="plus" />
+      <span tc-row-title>{{ 'shell.addProject' | transloco }}</span>
+    </tc-list-row>
     <tc-list-row button [current]="area() === 'settings'" (click)="go('/settings')">
       <tc-icon tc-row-leading name="settings" />
       <span tc-row-title>{{ 'shell.settings' | transloco }}</span>

@@ -14,4 +14,17 @@
     <tc-icon name="x" size="lg" />
   </button>
 </div>
-<div class="tc-sheet__body"><ng-template cdkPortalOutlet /></div>
+<!-- A body that scrolls is a focusable region named by the title, so a keyboard can scroll it (axe
+     scrollable-region-focusable); one that fits adds no tab stop. -->
+<div
+  #body
+  class="tc-sheet__body"
+  [attr.tabindex]="scrollable() ? 0 : null"
+  [attr.role]="scrollable() ? 'region' : null"
+  [attr.aria-labelledby]="scrollable() ? frame.titleId : null"
+>
+  <div #content class="tc-sheet__content"><ng-template cdkPortalOutlet /></div>
+</div>
+@if (footer.template(); as actions) {
+<div class="tc-sheet__foot"><ng-container *ngTemplateOutlet="actions" /></div>
+}

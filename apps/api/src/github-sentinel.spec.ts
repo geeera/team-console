@@ -2,7 +2,9 @@ import { env } from 'cloudflare:test';
 import { createApiApp } from './app';
 import { ApiGitHub } from './github';
 import { fetchApi } from './testing/access-kit';
+import type { OwnerConnectionSource } from './projects/owner-connection';
 import {
+  INSTALLATION_ID,
   TOKEN_SENTINEL,
   json,
   localEnv,
@@ -44,6 +46,8 @@ const SCENARIOS: Record<
     read?: ReadHandler;
     installation?: () => Response;
     app?: () => Response;
+    /** `GET /app/installations` (#194); by default the owner's installation, so the list itself is read. */
+    installations?: () => Response;
     env?: Record<string, string>;
   }
 > = {
@@ -85,7 +89,15 @@ const SCENARIOS: Record<
   'PKCS#1 key': {
     env: { GITHUB_APP_PRIVATE_KEY: PEM_LIKE.replaceAll(KEY_LABEL, `RSA ${KEY_LABEL}`) },
   },
+  'installations list leaks': { installations: () => json(200, { message: LEAKY_TEXT }) },
+  'installations lookup refused': { installations: () => json(401, { message: LEAKY_TEXT }) },
 };
+
+// #194: the installation list needs a connected owner before it asks GitHub anything; pinned here so every scenario
+// reaches the lookup, the mint and the list read.
+const LIST_PATH = '/api/v1/github/installation/repositories';
+const LIST_OWNER: OwnerConnectionSource = { current: async () => ({ login: 'geeera', userId: 1001 }) };
+const ownerInstallation = () => json(200, [{ id: INSTALLATION_ID, account: { id: 1001, login: 'geeera' } }]);
 
 function concretePath(pattern: string): string {
   return pattern
@@ -128,13 +140,38 @@ it('covers the GitHub routes (the inventory is not vacuous)', () => {
       ['GET', '/api/v1/projects/tc/questions'],
       ['GET', '/api/v1/projects/tc/sprint'],
       ['GET', '/api/v1/needs-you'],
+      ['GET', LIST_PATH],
     ]),
   );
 });
 
+it('reaches the installation list with the list token (the #194 scenarios are not vacuous)', async () => {
+  const stub = stubGitHub(
+    (call) =>
+      call.url.pathname === '/installation/repositories'
+        ? json(200, { total_count: 1, repositories: [{ id: 1, full_name: 'geeera/a', private: false }] })
+        : json(404, {}),
+    undefined,
+    undefined,
+    ownerInstallation,
+  );
+  const response = await fetchApi(LIST_PATH, localEnv(), {
+    github: new ApiGitHub({ fetch: stub.fetch }),
+    ownerConnection: LIST_OWNER,
+  });
+  expect(response.status).toBe(200);
+  expect(stub.reads().map((call) => call.url.pathname)).toEqual(['/installation/repositories']);
+  expect(stub.minted()).toBe(1);
+});
+
 describe.each(Object.entries(SCENARIOS))('GitHub scenario: %s', (_name, scenario) => {
   it.each(ROUTES)('%s %s leaks no credential in body, headers or logs', async (method, path) => {
-    const stub = stubGitHub(scenario.read ?? (() => json(200, {})), scenario.installation, scenario.app);
+    const stub = stubGitHub(
+      scenario.read ?? (() => json(200, {})),
+      scenario.installation,
+      scenario.app,
+      scenario.installations ?? ownerInstallation,
+    );
     const lines: string[] = [];
 
     // A connected owner and a JSON body let the registry's writes reach GitHub instead of stopping at validation.
@@ -146,6 +183,7 @@ describe.each(Object.entries(SCENARIOS))('GitHub scenario: %s', (_name, scenario
       github: new ApiGitHub({ fetch: stub.fetch }),
       logSink: (line) => lines.push(line),
       headers: { 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json' },
+      ...(path === LIST_PATH ? { ownerConnection: LIST_OWNER } : {}),
     });
 
     expectClean('body', await response.text());

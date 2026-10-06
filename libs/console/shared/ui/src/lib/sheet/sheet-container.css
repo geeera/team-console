@@ -58,6 +58,37 @@
   padding-bottom: var(--space-5);
 }
 
+.tc-sheet__body:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: calc(-1 * var(--focus-w));
+}
+
+/* The footer takes the safe area instead of the body. */
+:host(.tc-sheet--with-foot) .tc-sheet__body {
+  padding-bottom: var(--space-4);
+}
+
+/* Phone: stacked, full width, primary first (thumb reach). Dialog: a row, primary on the right. */
+.tc-sheet__foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5) calc(var(--space-4) + var(--safe-bottom));
+  border-top: var(--border-w) solid var(--border);
+  background: var(--surface);
+}
+
+:host(.tc-sheet--dialog) .tc-sheet__foot {
+  flex-direction: row-reverse;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  padding-bottom: var(--space-4);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+}
+
 @keyframes tc-sheet-rise {
   from {
     transform: translateY(100%);
