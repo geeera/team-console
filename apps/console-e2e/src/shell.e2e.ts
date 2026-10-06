@@ -34,7 +34,10 @@ async function setLastPath(page: Page, slug: string, lastPath: string): Promise<
   await page.evaluate(
     ([key, slug, lastPath]) => {
       const raw = localStorage.getItem(key);
-      const state = raw !== null ? JSON.parse(raw) : { version: 1, activeSlug: null, pinned: [], collapsed: false, projects: {} };
+      const state =
+        raw !== null
+          ? JSON.parse(raw)
+          : { version: 1, activeSlug: null, pinned: [], collapsed: false, projects: {} };
       const project = state.projects[slug] ?? { lastPath: '', scroll: {}, chatDraft: '' };
       state.projects[slug] = { ...project, lastPath };
       localStorage.setItem(key, JSON.stringify(state));
@@ -60,14 +63,19 @@ test.describe('with two active projects', () => {
     await seed(stack, ['geeera/team-console', 'geeera/private-product']);
   });
 
-  test('Settings lists the projects and the connection', async ({ page }) => {
+  test('Settings shows the connection and no project list; All projects lists them (#194)', async ({
+    page,
+  }) => {
     await page.goto('/settings');
     await expect(page.getByRole('heading', { level: 1, name: ru('settings.title') })).toBeVisible();
     await expect(page.getByTestId('gh-connected')).toContainText('geeera');
-    const list = page.getByTestId('project-list');
-    await expect(list.locator('[data-row]')).toHaveCount(2);
-    await expect(list.locator('[data-row="team-console"]')).toBeVisible();
-    await expect(list.locator('[data-row="private-product"]')).toBeVisible();
+    await expect(page.getByTestId('project-list')).toHaveCount(0);
+
+    await page.goto('/overview');
+    const registered = page.getByTestId('repos-registered');
+    await expect(registered.locator('[data-registration="active"]')).toHaveCount(2);
+    await expect(registered.locator('[data-repo="geeera/team-console"]')).toBeVisible();
+    await expect(registered.locator('[data-repo="geeera/private-product"]')).toBeVisible();
   });
 
   test('A → B → A restores the screen and its scroll position', async ({ page }) => {
@@ -148,6 +156,9 @@ test.describe('with two active projects', () => {
       'GET /api/v1/projects',
       'GET /api/v1/needs-you',
       'GET /api/v1/overview',
+      // "Available on GitHub" on All projects (#194): the connection, then the installation's repositories.
+      'GET /api/v1/github/connection',
+      'GET /api/v1/github/installation/repositories',
       `GET ${TEAM_STATUS}`,
       // The Artifacts section reads its list (#19).
       'GET /api/v1/projects/team-console/artifacts',

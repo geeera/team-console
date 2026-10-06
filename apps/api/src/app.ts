@@ -6,6 +6,7 @@ import type { ApiEnv } from './env';
 import { ApiGitHub, mapGitHubError } from './github';
 import { createAnswerRoutes } from './routes/answer';
 import { createGitHubConnectionRoutes } from './routes/github-connection';
+import { createInstallationRepositoriesRoutes } from './routes/installation-repositories';
 import { healthzRoutes } from './routes/healthz';
 import { connectedOwnerSource, type OwnerConnectionSource } from './projects/owner-connection';
 import { createProjectRegistryRoutes } from './routes/project-registry';
@@ -57,6 +58,7 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
     ...(options.logSink === undefined ? {} : { logSink: options.logSink }),
   });
   const github = options.github ?? new ApiGitHub();
+  const owners = options.ownerConnection ?? connectedOwnerSource(github);
 
   // The only auth seam, mounted once before every router; the route-inventory test in auth.middleware.spec.ts
   // proves every /api route sits behind it. Hono's '/api/*' also matches '/api' itself.
@@ -64,10 +66,7 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
 
   const v1 = new Hono<WorkerHonoEnv<ApiEnv>>();
   v1.route('/healthz', healthzRoutes);
-  v1.route(
-    '/projects',
-    createProjectRegistryRoutes(github, options.ownerConnection ?? connectedOwnerSource(github)),
-  );
+  v1.route('/projects', createProjectRegistryRoutes(github, owners));
   v1.route('/projects', createProjectsRoutes(github));
   v1.route('/projects', createProjectReadModelRoutes(github));
   v1.route('/projects', createArtifactRoutes(github));
@@ -83,6 +82,9 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
     }),
   );
   v1.route('/projects', createSprintCommandsRoutes(github));
+  // Before the connection routes: their owner-only `use('*')` would otherwise also guard this read (#194), which
+  // the service identity may make on dev/stage like every other read (installation-repositories.spec.ts proves it).
+  v1.route('/github', createInstallationRepositoriesRoutes(github, owners));
   v1.route('/github', createGitHubConnectionRoutes(github));
   v1.route(
     '/push',

@@ -1,0 +1,18 @@
+.sheet {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.sheet__title {
+  overflow-wrap: anywhere;
+  outline: none;
+}
+
+.sheet__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h-touch);
+  color: var(--accent-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}

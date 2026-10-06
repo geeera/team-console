@@ -1,0 +1,8 @@
+{
+  "name": "console-widgets-github-repositories",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/console/widgets/github-repositories/src",
+  "prefix": "tc",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:console", "layer:widgets"]
+}

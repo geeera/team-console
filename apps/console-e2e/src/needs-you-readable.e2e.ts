@@ -60,7 +60,7 @@ for (const screen of [
   {
     path: '/settings',
     title: 'settings.title',
-    ready: (p: Page) => expect(p.getByTestId('setup-chip')).toHaveCount(2),
+    ready: (p: Page) => expect(p.getByTestId('push-section')).toBeVisible(),
   },
 ]) {
   test(`${screen.path}: one visible title on the phone, the h1 kept for assistive tech`, async ({ page }) => {

@@ -20,7 +20,7 @@
     "loadFailed": "Couldn't load projects",
     "loadFailedHint": "Check your connection and try again.",
     "noProjects": "No projects yet",
-    "noProjectsHint": "Add a repository in Settings and its space appears here.",
+    "noProjectsHint": "Add a repository on All projects and its space appears here.",
     "skip": "Skip to content"
   },
   "space": {
@@ -458,6 +458,74 @@
         "title": "GitHub asks to wait",
         "hint": "Retry in a minute."
       }
+    },
+    "repos": {
+      "title": "Available on GitHub",
+      "lead": "Repositories the {{app}} app can see on your account, {{login}}.",
+      "leadApp": "Repositories the {{app}} app can see on your account.",
+      "listAria": "Repositories on GitHub",
+      "refresh": "Refresh",
+      "refreshing": "Refreshing…",
+      "refreshedLive": "List updated. Repositories: {{n}}.",
+      "loading": "Loading repositories from GitHub…",
+      "already": "Already in the console",
+      "more": "Show {{n}} more",
+      "row": {
+        "private": "Private",
+        "add": "Add",
+        "addAria": "Add {{repo}}",
+        "adding": "Checking…",
+        "project": "Project",
+        "projectAria": "{{repo}} is a project. Open its setup",
+        "archived": "Archived",
+        "notAdded": "Not added: step {{n}} is missing",
+        "notAddedOther": "Not added",
+        "seeWhy": "See why",
+        "seeWhyAria": "Why {{repo}} wasn’t added"
+      },
+      "sheet": {
+        "title": "Add {{repo}}",
+        "done": "Done",
+        "close": "Close",
+        "openSetup": "Open setup",
+        "added": "Project added"
+      },
+      "addedToast": "{{repo}} added",
+      "notAddedLive": "{{repo}} wasn’t added. Nothing was saved.",
+      "partial": "Showing the first {{n}}. If the one you need isn’t here, remove ones you don’t need from the app’s installation on GitHub, or add it by name below.",
+      "selectLink": "Choose repositories on GitHub",
+      "empty": {
+        "title": "The {{app}} app can’t see any repositories yet",
+        "body": "Add your product repositories to the app’s installation on GitHub, then come back here. The list refreshes by itself."
+      },
+      "notInstalled": {
+        "title": "The {{app}} app isn’t installed on your account",
+        "body": "Install it on GitHub and choose your product repositories. Then come back here. The list refreshes by itself.",
+        "action": "Install the app on GitHub"
+      },
+      "needConnect": {
+        "body": "Then the repositories the {{app}} app can see appear here. Nothing has been sent yet."
+      },
+      "lost": {
+        "body": "Access was revoked or has expired. Connect GitHub again to see repositories and add a project."
+      },
+      "error": {
+        "title": "Couldn’t load repositories",
+        "github": "GitHub didn’t respond. Your projects haven’t changed.",
+        "rate": "GitHub asks us to wait until {{time}}. Your projects haven’t changed.",
+        "auth": "The console can’t sign in to GitHub as the {{app}} app: its key was replaced or the app was removed. This is the console’s setup, not the repositories’: check the app with the owner checklist."
+      },
+      "offline": {
+        "list": "You’re offline. This list is from {{time}}. Adding a project needs a connection.",
+        "title": "You’re offline",
+        "body": "Repositories load when you’re back online."
+      },
+      "byName": "Add by name",
+      "byNameLead": "If the repository isn’t on the list above."
+    },
+    "empty": {
+      "title": "No projects yet",
+      "body": "Pick a repository under “Available on GitHub” below and it appears here."
     }
   },
   "settings": {
@@ -966,7 +1034,14 @@
       "offline": "Not available offline",
       "pin": "Pin",
       "unpin": "Unpin",
-      "external": "Team Console on GitHub"
+      "external": "Team Console on GitHub",
+      "ariaRepos": "Repositories",
+      "repoProject": "Project",
+      "repoProjectAria": "{{repo}} is a project. Open its setup",
+      "repoArchived": "Archived",
+      "repoNotAdded": "Not added: step 3 is missing",
+      "repoSeeWhy": "See why",
+      "repoAdd": "Add"
     },
     "topBar": {
       "search": "Search",
@@ -1015,7 +1090,12 @@
       "dateOk": "Move to {{date}}",
       "dateWarning": "Freeze starts at once: no new issues will be taken.",
       "dateConflict": "The demo date changed while this was open (now {{date}}). Check it and move again.",
-      "dateDone": "The demo moved"
+      "dateDone": "The demo moved",
+      "openFooter": "Sheet with a footer",
+      "footerTitle": "Add {{repo}}",
+      "footerBody": "Long content scrolls while the actions stay at the bottom: stacked with the primary first on the phone, in a row with the primary on the right in the dialog.",
+      "footerDone": "Done",
+      "footerSecondary": "Open setup"
     },
     "tabBar": {
       "aria": "Sections",

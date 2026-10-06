@@ -109,13 +109,21 @@ describe('OverviewPage', () => {
   const tile = (root: HTMLElement, slug: string): HTMLElement =>
     root.querySelector(`[data-project="${slug}"]`) as HTMLElement;
 
-  it('with no projects it is the empty state that points to Settings, and reads nothing', async () => {
+  it('with no projects it is a short note above the GitHub list, and reads no overview', async () => {
     const { root } = await render([]);
     expect(root.querySelector('h1')?.textContent?.trim()).toBe('Все проекты');
-    expect(root.querySelector('[data-testid="no-projects"] a')?.getAttribute('href')).toBe(
-      '/settings/projects/new',
-    );
+    const note = root.querySelector('[data-testid="no-projects"]') as HTMLElement;
+    expect(note.textContent).toContain('Проектов пока нет');
+    expect(note.textContent).toContain('Доступны на GitHub');
+    expect(root.querySelector('tc-github-repositories-block')).not.toBeNull();
     http.expectNone(OVERVIEW_URL);
+  });
+
+  it('shows "Available on GitHub" under the projects (#194)', async () => {
+    const { root } = await render([projectDto('alpha')]);
+    expect(root.querySelector('[data-testid="github-repositories"] h2')?.textContent?.trim()).toBe(
+      'Доступны на GitHub',
+    );
   });
 
   it('shows one tile per project, linking to its board; the quiet ones below', async () => {
@@ -224,6 +232,28 @@ describe('OverviewPage', () => {
     await fixture.whenStable();
     await answer(fixture, { projects: [alpha], checkedAt: '2026-10-01T12:00:00Z' });
     expect(tile(root, 'alpha')).not.toBeNull();
+  });
+
+  it('reads the overview again when a project is added, keeping the tiles meanwhile (#242)', async () => {
+    const { root, fixture } = await render([projectDto('alpha')]);
+    await answer(fixture, { projects: [alpha], checkedAt: '2026-10-01T12:00:00Z' });
+    expect(root.querySelector('[data-testid="count"]')?.textContent?.trim()).toBe('1 проект');
+
+    TestBed.inject(ProjectsStore).upsert(projectDto('quiet'));
+    await settle(fixture);
+    expect(tile(root, 'alpha')).not.toBeNull();
+    await answer(fixture, { projects: [alpha, quietOne], checkedAt: '2026-10-01T12:01:00Z' });
+
+    expect(root.querySelector('[data-testid="count"]')?.textContent?.trim()).toBe('2 проекта');
+    expect(tile(root, 'quiet')).not.toBeNull();
+  });
+
+  it('does not read the overview again when the project list is re-read unchanged', async () => {
+    const { fixture } = await render([projectDto('alpha')]);
+    await answer(fixture, { projects: [alpha], checkedAt: '2026-10-01T12:00:00Z' });
+    TestBed.inject(ProjectsStore).upsert(projectDto('alpha'));
+    await settle(fixture);
+    http.expectNone(OVERVIEW_URL);
   });
 
   it('shows a response of an unexpected shape as the generic failure', async () => {

@@ -101,6 +101,7 @@
   --pane-w: 392px;
   --log-max: 680px;
   --dialog-max-w: 440px;
+  --sheet-dialog-w: 560px; /* a dialog that holds a checklist (#194 Add): 440 px is too narrow for its fix lines */
   --sheet-max-h: 88%;
   --pad-x: 32px;
   --pad-card: 18px 20px;
