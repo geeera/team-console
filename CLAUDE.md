@@ -138,6 +138,19 @@ checked date field: `ConfirmInput.type/value/min/max/check`, `ConfirmFailure.ref
 board's "Move demo"; the command failure model (`commandFailureOf`, `CommandOutcome`) lives in
 `@console/entities/team-run`. Fake GitHub: `seedMilestones`, milestone writes, `/_fake/milestones`.
 
+Requests to the PM (#219, ADR 0005, #29 slice 2): `POST|GET /api/v1/projects/:slug/issues/:number/request`
+(`routes/owner-request.ts`; POST `owner-only`) posts one comment on the owner's token through `postOwnerAnswer` (`own_writes.kind
+= 'request'`, 60 s replay) — `requestComment` of `@shared/owner-grammar` (first line `<!-- pt-owner-request {canonical json} -->`,
+a human line in `owner.language`, the italic trailer; golden `fixtures/owner-requests.json` from the plugin's `ownerrequests.py`) —
+and never a milestone, label or status; 409 `issue-changed` (`milestone`) / `issue-closed` / `sprint-none`, 422
+`sprint-next-missing` / `request-not-issue`. D1 `owner_requests` (migration 0012, `OwnerRequestsRepo`) is a display cache only:
+newest row per issue, never an input to a write or an authorisation decision. A request is handled by a
+`pt-owner-request-handled` first-line marker from a `type: Bot` login in `TRUSTED_BOT_LOGINS` (`handledRequestOf` in
+`@worker/read-models`): the hooks Worker on `issue_comment.created`, the GET on the last comment page (unedited only).
+`SprintIssueDto.request`, `TeamStatusDto.pendingRequests`, `GET …/requests` (the picker). Console:
+`@console/features/request-change` (`RequestChange`: picker, then the one-request form), the panel's Issues group, the board's
+"Ask the PM" and «ждёт PM» chip. `team.console_app_slugs` in `.product-team/project.yml` is the plugin's trust root for requests: `[team-console-dev]` only (owner, 2026-10-07); stage and production join after #152.
+
 Artifacts (#19, read-only): `GET /api/v1/projects/:slug/artifacts[?fresh=1]` (`routes/artifacts.ts`, `read-models/artifact-reads.ts`)
 reads decisions (`decisions_dir` listing + first `#` heading, ≤ 30 file reads), designs (`ux-spec`/`design:*` issues,
 `docs/design` one level deep, `design.storybook_url` if on github.com) and `team:demo` issues through `ReadCache`
@@ -240,7 +253,7 @@ is `ApiGitHub` (`apps/api/src/github.ts`); `GITHUB_MOCK=true` (local only) swaps
 in `libs/worker/github/fixtures`. Migrations live only in `apps/api/migrations` (`0001_init` = `projects`;
 `0005_owner_connections` #59; `0006_project_installation` #15 adds `projects.installation_id`; `0007_own_writes` #10 =
 `own_writes` + `own_write_claims`, which #12 reuses; `0008_slot_requests` #114; `0009_push_subscriptions` #11 (`push_subscriptions` +
-`push_test_sends`); `0010_webhooks` #12 = `webhook_deliveries` + `projects.access_lost_at`. No number is reserved — a new
+`push_test_sends`); `0010_webhooks` #12 = `webhook_deliveries` + `projects.access_lost_at`; `0011_project_snooze` #221; `0012_owner_requests` #219. No number is reserved — a new
 migration takes the highest number on `dev` + 1 when its PR opens and is renumbered on rebase if that number was taken,
 so 0002–0004 stay unused). The answer route (#10) is `routes/answer.ts`
 (`POST /api/v1/projects/:slug/issues/:number/answer`, owner-only): section re-derived from the live issue with

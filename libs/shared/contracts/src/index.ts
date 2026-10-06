@@ -170,3 +170,23 @@ export type {
   PushSubscriptionRequest,
   PushUnsubscribeRequest,
 } from './lib/push';
+export {
+  OWNER_REQUEST_STATES,
+  QUEUE_DIRECTIONS,
+  SPRINT_TARGETS,
+  isOwnerRequest,
+  isOwnerRequestState,
+} from './lib/owner-request';
+export type {
+  IssueRequestDto,
+  OwnerRequest,
+  OwnerRequestBody,
+  OwnerRequestProblemType,
+  OwnerRequestResponse,
+  OwnerRequestState,
+  OwnerRequestStatusDto,
+  QueueDirection,
+  RequestIssueDto,
+  RequestIssuesDto,
+  SprintTarget,
+} from './lib/owner-request';

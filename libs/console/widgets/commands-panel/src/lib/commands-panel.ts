@@ -16,6 +16,7 @@ import { RouterLink } from '@angular/router';
 import { PushStore, type PushView } from '@console/entities/push';
 import { activeLock, isPaused, missingSlots, TeamStatusStore } from '@console/entities/team-run';
 import { SnoozeCommands } from '@console/features/snooze';
+import { RequestChange } from '@console/features/request-change';
 import { SprintControls } from '@console/features/sprint-controls';
 import { TeamCommands, type CommandOutcome } from '@console/features/team-commands';
 import { NetworkStatus } from '@console/shared/api';
@@ -110,6 +111,7 @@ export class CommandsPanel {
   private readonly snoozeCommands = inject(SnoozeCommands);
   private readonly push = inject(PushStore);
   private readonly sprintControls = inject(SprintControls);
+  private readonly requestChange = inject(RequestChange);
   private readonly network = inject(NetworkStatus);
   private readonly transloco = inject(TranslocoService);
   private readonly document = inject(DOCUMENT);
@@ -373,6 +375,16 @@ export class CommandsPanel {
     await this.act(() =>
       row.key === 'demo' ? this.sprintControls.moveDemo(target) : this.sprintControls.startNext(target),
     );
+  }
+
+  /** Ask the PM (#219) writes a comment as the owner, so it is off for the same reasons as Pause / Resume. */
+  protected async askPm(event: Event): Promise<void> {
+    const why = this.teamWhy();
+    if (why !== null) {
+      this.sayWhy(event, why);
+      return;
+    }
+    await this.act(() => this.requestChange.ask({ slug: this.project().slug, name: this.project().name }));
   }
 
   protected async run(event: Event, row: RunRow): Promise<void> {

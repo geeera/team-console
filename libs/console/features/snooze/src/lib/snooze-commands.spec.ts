@@ -34,6 +34,7 @@ const STATUS: TeamStatusDto = {
   sprint: null,
   progress: null,
   calendar: null,
+  pendingRequests: 0,
   slots: (['pm', 'dev', 'qa'] as const).map((slot) => ({
     slot,
     setup: 'missing',
