@@ -34,6 +34,10 @@ export interface PullRequestRecord extends IssueAuthor {
   readonly draft: boolean;
   /** `head.sha`, the commit whose check runs give the CI state (#131); `null` when GitHub sent none usable. */
   readonly headSha: string | null;
+  /** The description, for the issue it links (#277); empty when GitHub sent none. */
+  readonly body: string;
+  /** `head.ref`, the branch name (#277); `null` when GitHub sent none. */
+  readonly headRef: string | null;
 }
 
 type JsonRecord = Readonly<Record<string, unknown>>;
@@ -149,8 +153,15 @@ export function pullRequestRecordOf(raw: JsonRecord): PullRequestRecord {
     htmlUrl: String(raw['html_url']),
     draft: raw['draft'] === true,
     headSha: headShaOf(raw['head']),
+    body: typeof raw['body'] === 'string' ? raw['body'] : '',
+    headRef: headRefOf(raw['head']),
     ...authorOf(raw),
   };
+}
+
+function headRefOf(head: unknown): string | null {
+  const ref = isRecord(head) ? head['ref'] : undefined;
+  return typeof ref === 'string' && ref !== '' ? ref : null;
 }
 
 // SHA-1 (40) or SHA-256 (64) object names.

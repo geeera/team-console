@@ -45,6 +45,29 @@ export {
 } from './lib/artifacts/designs';
 export type { DesignInput } from './lib/artifacts/designs';
 export { DEMO_LABEL, demoArtifactsOf } from './lib/artifacts/demo';
+export {
+  DESIGN_ROOT,
+  SCREENS_JSON_MAX_BYTES,
+  captionOf,
+  designFilesOf,
+  designManifestOf,
+  deviceOf,
+  fileNameOf,
+  imageTypeOf,
+  isGitHubTree,
+  isHtmlFile,
+  linkingPullRequestOf,
+  pagesUrlOf,
+  screenCaptionsOf,
+  screensJsonOf,
+  treeListingOf,
+} from './lib/designs/design-files';
+export type {
+  DesignFiles,
+  DesignManifestInput,
+  TreeEntry,
+  TreeListing,
+} from './lib/designs/design-files';
 export type { ProjectConfig, ProjectConfigFailure } from './lib/project-config';
 export {
   SPRINT_TIME_ZONE,
