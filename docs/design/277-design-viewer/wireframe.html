@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>#277 Designs viewed inside the console (UX wireframe)</title>
+<style>
+/* Low fidelity on purpose: grey boxes, system font, real copy. The look is the ui-designer's job (Paper Desk). */
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.4 system-ui,-apple-system,sans-serif;color:#222;background:#eee}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid #000;outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.demo{background:#fff;border-bottom:1px solid #bbb;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:13px}
+.demo b{font-size:14px}.demo p{margin:0;flex-basis:100%;color:#555}
+.stage{padding:20px;display:flex;gap:24px;justify-content:center;align-items:flex-start;flex-wrap:wrap}
+.frame{background:#fafafa;border:2px solid #999;position:relative;overflow:hidden;display:flex}
+.frame.phone{width:390px;height:844px;flex-direction:column;border-radius:28px}
+.frame.mac{width:1440px;height:900px;zoom:.72}
+.topbar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #bbb;background:#e6e6e6;min-height:53px;flex:none}
+.topbar b{flex:1}
+.tabbar{display:flex;border-top:1px solid #bbb;background:#e6e6e6;flex:none;height:60px}
+.tabbar span{flex:1;display:grid;place-items:center;font-size:12px}
+.tabbar [aria-current]{font-weight:700;text-decoration:underline}
+.side{width:256px;border-right:1px solid #bbb;background:#e6e6e6;padding:12px;flex:none;font-size:14px}
+.side div{padding:8px}
+.scroll{flex:1;overflow:auto;min-width:0}
+.machead{display:flex;align-items:center;gap:12px;padding:16px 32px;border-bottom:1px solid #bbb}
+.content{padding:12px 16px 24px}
+.mac .content{padding:16px 32px 32px}
+.btn{min-height:44px;padding:0 14px;border:1px solid #666;background:#ddd;cursor:pointer;white-space:nowrap;border-radius:4px}
+.btn.primary{background:#555;color:#fff;border-color:#555}
+.btn.sm{min-height:36px}
+.btn.link{border:0;background:none;text-decoration:underline;padding:0 4px;min-height:44px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border:1px solid #999;border-radius:12px;font-size:12px;white-space:nowrap;background:#fff}
+.filters{display:flex;gap:6px;margin:8px 0;flex-wrap:wrap}
+.filters .chip{min-height:36px;padding:0 12px;font-size:13px;cursor:pointer}
+.filters [aria-pressed=true]{background:#555;color:#fff}
+.dlist{display:grid;grid-template-columns:1fr;gap:8px}
+.mac .dlist{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+.ditem{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid #aaa;border-radius:8px;padding:8px;text-align:left;cursor:pointer;width:100%;min-height:72px}
+.mac .ditem{flex-direction:column;align-items:stretch}
+.dlist>div{min-width:0}
+.ditem .th{width:56px;height:56px;flex:none;background:#d6d6d6;border:1px solid #999;border-radius:4px;display:grid;place-items:center;font-size:11px;color:#555}
+.mac .ditem .th{width:100%;height:150px}
+.ditem .tx{min-width:0;flex:1}
+.ditem .tt,.ditem .meta{display:block}
+.ditem .tt{font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ditem .meta{font-size:12px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Viewer = the #274 dialog shell: full screen on the phone, large dialog on the Mac, one scrolling region. */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:10}
+.dialog{background:#fafafa;display:flex;flex-direction:column;width:100%;height:100%}
+.mac .dialog{width:1200px;height:840px;border-radius:12px;border:2px solid #666}
+.dhead{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #bbb;flex:none;min-height:53px;flex-wrap:wrap}
+.dhead h2{font-size:16px;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dtools{display:flex;gap:8px;padding:6px 12px;border-bottom:1px solid #ddd;flex:none;flex-wrap:wrap}
+.dbody{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;align-items:center;gap:8px;min-height:0}
+.dbody.frame-mode{overflow:hidden;padding:0}
+.dfoot{border-top:1px solid #bbb;padding:8px 12px;flex:none}
+.nav{display:flex;align-items:center;gap:8px}
+.nav .cap{flex:1;text-align:center;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.screen{background:#d6d6d6;border:1px solid #888;width:100%;max-width:360px;aspect-ratio:390/844;display:flex;flex-direction:column;padding:10px;gap:6px}
+.screen.wide{max-width:1000px;aspect-ratio:1440/900}
+/* Fit: the whole screen is visible at once; a tap or click zooms to 100% width inside the same scroller. */
+.mac .screen{height:100%;width:auto;max-width:100%}
+.screen i{display:block;background:#bbb;height:14px;border-radius:3px}
+.screen i.big{height:60px}
+.iframe-box{width:100%;height:100%;border:3px dashed #777;background:#ececec;display:grid;place-items:center;text-align:center;padding:16px;font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%}
+.mac .grid{grid-template-columns:repeat(6,1fr)}
+.grid button{aspect-ratio:3/4;background:#d6d6d6;border:1px solid #888;cursor:pointer;font-size:11px;display:flex;align-items:flex-end;padding:4px;text-align:left}
+.grid button[aria-current=true]{outline:3px solid #333}
+.seg{display:flex;border:1px solid #888;border-radius:6px;overflow:hidden}
+.seg button{border:0;background:#eee;min-height:36px;padding:0 10px;cursor:pointer;white-space:nowrap}
+.seg button[aria-pressed=true]{background:#555;color:#fff}
+.state{border:1px dashed #888;padding:12px;background:#f3f3f3;margin:8px 0;font-size:14px;max-width:420px}
+.skel{background:#ddd;border-radius:4px}
+.muted{color:#555;font-size:13px}
+.notes{max-width:1100px;margin:0 auto 40px;background:#fff;border:1px solid #bbb;padding:16px 20px;font-size:14px}
+.notes code{background:#eee;padding:0 3px}
+</style>
+</head>
+<body>
+<div class="demo" role="region" aria-label="Демо-панель вайрфрейма">
+  <b>#277 Дизайны прямо в консоли</b>
+  <label>Вид <select id="view"><option value="both">iPhone и Mac</option><option value="phone">iPhone 390×844</option><option value="mac">Mac 1440×900</option></select></label>
+  <label>Список <select id="liststate">
+    <option value="loaded">Дизайны с превью</option><option value="loading">Загрузка</option><option value="nothumb">Дизайн без картинок</option><option value="empty">Дизайнов нет</option>
+  </select></label>
+  <label>Просмотрщик <select id="vstate">
+    <option value="closed">Закрыт</option><option value="images">Картинки</option><option value="grid">Все экраны</option><option value="interactive">Интерактивно</option>
+    <option value="noframe">Интерактивно: нельзя показать</option><option value="loading">Экран грузится</option><option value="failed">Экран не загрузился</option>
+    <option value="toolarge">Файл слишком большой</option><option value="none">Картинок нет</option><option value="denied">Нет доступа к файлам</option><option value="offline">Нет сети</option>
+  </select></label>
+  <p>Нажмите на дизайн в списке. В просмотрщике: стрелки ← → на клавиатуре, свайп на телефоне, Esc закрывает.</p>
+</div>
+<div class="stage" id="stage"></div>
+<section class="notes" aria-label="Заметки">
+  <b>Как показываем безопасно.</b> Картинки (PNG, JPEG, WebP, GIF; не SVG) консоль получает через api Worker, привязанные к коммиту, и показывает в <code>&lt;img&gt;</code>. Так работают и приватные репозитории. HTML-вайрфрейм открывается только во вкладке «Интерактивно», в <code>&lt;iframe sandbox="allow-scripts"&gt;</code> без <code>allow-same-origin</code>, и только с разрешённого адреса GitHub Pages проекта (embed-origins, #20). <code>srcdoc</code> и HTML с адреса консоли не используем никогда. Подробнее — в спеке на #277.
+</section>
+<script>
+const D = [
+  {t:'Доска: главное на первом экране', n:275, screens:8, dev:'iPhone и Mac', html:true},
+  {t:'«Вопросы»: достаточно контекста', n:276, screens:6, dev:'iPhone и Mac', html:true},
+  {t:'Дизайны прямо в консоли', n:277, screens:6, dev:'iPhone и Mac', html:true},
+  {t:'Репозитории из GitHub', n:194, screens:20, dev:'iPhone и Mac', html:true},
+];
+const CAP = ['Список — загружено','Список — загрузка','Просмотрщик — картинки','Просмотрщик — все экраны','Интерактивно','Нет доступа'];
+let open = null, i = 0, device = 'phone';
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function list(ls){
+  let h = `<div style="display:flex;align-items:center;gap:8px"><h2 style="margin:0;font-size:20px;flex:1">Артефакты</h2><button class="btn sm">Проверить снова</button></div>
+  <div class="filters" role="group" aria-label="Тип"><button class="chip" aria-pressed="false">Все 26</button><button class="chip" aria-pressed="false">Решения 3</button><button class="chip" aria-pressed="true">Дизайн 4</button><button class="chip" aria-pressed="false">Демо 2</button></div>`;
+  if (ls==='loading') return h + `<p class="sr-only" role="status">Загружаем дизайны…</p><div class="dlist">${'<div class="ditem" aria-hidden="true"><div class="th skel"></div><div class="tx"><div class="skel" style="height:14px;width:70%"></div><div class="skel" style="height:10px;width:40%;margin-top:6px"></div></div></div>'.repeat(3)}</div>`;
+  if (ls==='empty') return h + `<div class="state"><b>Дизайнов пока нет</b><p class="muted">Когда дизайнер приложит экраны к задаче, они появятся здесь.</p></div>`;
+  return h + `<div class="dlist" role="list">` + D.map((d,k)=>{
+    const noth = ls==='nothumb' && k===3;
+    return `<div role="listitem"><button class="ditem" data-open="${k}" aria-label="${esc(d.t)}, #${d.n}. ${noth?'Без картинок':d.screens+' экранов'}. Открыть дизайн">
+      <span class="th" aria-hidden="true">${noth?'HTML':'превью'}</span><span class="tx"><span class="tt">${esc(d.t)}</span><span class="meta">#${d.n} · ${noth?'только интерактивная версия':d.screens+' экранов · '+d.dev}</span><span class="meta">Ждёт вашего согласования</span></span></button></div>`;}).join('') + `</div>`;
+}
+function body(vs){
+  const d = D[open];
+  if (vs==='loading') return `<div class="screen ${device==='mac'?'wide':''} skel" role="img" aria-label="Загружаем экран ${i+1} из ${d.screens}"></div>`;
+  if (vs==='failed') return `<div class="state" role="alert"><b>Этот экран не загрузился</b><p class="muted">Остальные экраны доступны — листайте дальше.</p><button class="btn sm">Повторить</button></div>`;
+  if (vs==='toolarge') return `<div class="state"><b>Файл слишком большой для просмотра (12 МБ)</b><p class="muted">Консоль показывает картинки до 5 МБ.</p><button class="btn link">Открыть файл на GitHub ↗</button></div>`;
+  if (vs==='none') return `<div class="state"><b>В этом дизайне нет картинок</b><p class="muted">Есть только интерактивная версия.</p><button class="btn sm" data-mode="interactive">Открыть интерактивную версию</button></div>`;
+  if (vs==='denied') return `<div class="state" role="alert"><b>Нет доступа к файлам дизайна</b><p class="muted">GitHub не отдал файлы этого репозитория. Проверьте в настройках, что приложение консоли видит репозиторий.</p><button class="btn sm">Открыть настройки</button></div>`;
+  if (vs==='offline') return `<div class="state" role="status"><b>Нет сети</b><p class="muted">Экраны, которые вы уже открывали, доступны. Остальные загрузятся, когда сеть вернётся.</p></div><div class="screen ${device==='mac'?'wide':''}" role="img" aria-label="Экран ${i+1}: ${CAP[i]}"><i></i><i class="big"></i><i></i></div>`;
+  if (vs==='interactive') return `<div class="iframe-box" role="region" aria-label="Интерактивная версия дизайна">&lt;iframe sandbox="allow-scripts" referrerpolicy="no-referrer" allow="" title="Интерактивная версия: ${esc(d.t)}"&gt;<br>https://geeera.github.io/team-console/${d.n}-…/wireframe.html<br><br>Занимает всю область между шапкой и низом. Прокрутка — только внутри фрейма; сам просмотрщик в этом режиме не прокручивается.</div>`;
+  if (vs==='noframe') return `<div class="state"><b>Интерактивную версию нельзя показать в консоли</b><p class="muted">У этого репозитория нет разрешённого адреса GitHub Pages. Картинки — во вкладке «Картинки».</p><button class="btn sm" data-mode="images">Смотреть картинки</button> <button class="btn link">Открыть в новой вкладке ↗</button></div>`;
+  if (vs==='grid') return `<h3 class="sr-only">Все экраны</h3><div class="grid" role="list">${CAP.map((c,k)=>`<div role="listitem"><button aria-current="${k===i}" data-screen="${k}" aria-label="Экран ${k+1}: ${c}">${k+1}. ${c}</button></div>`).join('')}</div>`;
+  return `<div class="screen ${device==='mac'?'wide':''}" role="img" aria-label="Экран ${i+1} из ${d.screens}: ${CAP[i%6]}"><i></i><i class="big"></i><i></i><i></i><i class="big"></i></div>`;
+}
+function viewer(vs){
+  const d = D[open]; const mode = (vs==='interactive'||vs==='noframe')?'interactive':(vs==='grid'?'grid':'images');
+  return `<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="vt">
+  <div class="dhead"><h2 id="vt">${esc(d.t)}</h2><button class="btn sm" data-close aria-label="Закрыть просмотр">✕</button></div>
+  <div class="dtools"><div class="seg" role="group" aria-label="Режим"><button aria-pressed="${mode==='images'}" data-mode="images">Картинки</button><button aria-pressed="${mode==='grid'}" data-mode="grid">Все экраны</button><button aria-pressed="${mode==='interactive'}" data-mode="interactive">Интерактивно</button></div>
+  ${mode==='images'?`<div class="seg" role="group" aria-label="Устройство"><button aria-pressed="${device==='phone'}" data-dev="phone">iPhone</button><button aria-pressed="${device==='mac'}" data-dev="mac">Mac</button></div>`:''}</div>
+  <div class="dbody ${vs==='interactive'?'frame-mode':''}">${body(vs)}</div>
+  ${mode==='images'?`<div class="dfoot"><div class="nav"><button class="btn sm" data-prev ${i===0?'aria-disabled="true"':''}>‹ Назад</button><span class="cap" aria-live="polite">${i+1} из ${d.screens} · ${CAP[i%6]}</span><button class="btn sm" data-next>Вперёд ›</button></div></div>`:''}
+  </div></div>`;
+}
+function render(){
+  const v=document.getElementById('view').value, ls=document.getElementById('liststate').value, vs=document.getElementById('vstate').value, st=document.getElementById('stage'); st.innerHTML='';
+  if (vs!=='closed' && open===null) open=0;
+  if (vs==='closed') open=null;
+  const ov = open===null?'':viewer(vs);
+  if (v!=='mac') st.insertAdjacentHTML('beforeend', `<div class="frame phone" aria-label="iPhone 390×844"><div class="topbar"><b>team-console ▾</b><button class="btn sm">Команды</button></div><main class="scroll"><div class="content">${list(ls)}</div></main><nav class="tabbar"><span>Вопросы</span><span>Доска</span><span aria-current="page">Артефакты</span><span>Демо</span></nav>${ov}</div>`);
+  if (v!=='phone') st.insertAdjacentHTML('beforeend', `<div class="frame mac" aria-label="Mac 1440×900"><aside class="side"><div><b>Консоль команды</b></div><div>Ждут вас 9</div><div>Все проекты</div><div>team-console 9</div></aside><main class="scroll"><div class="machead"><b>team-console</b><span class="chip">Вопросы</span><span class="chip">Доска</span><span class="chip">Артефакты</span><span class="chip">Демо</span></div><div class="content">${list(ls)}</div></main>${ov}</div>`);
+}
+const vsel = document.getElementById('vstate');
+let lastOpener = 0;
+function close(){ vsel.value='closed'; render(); document.querySelector(`[data-open="${lastOpener}"]`)?.focus(); }
+document.addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  if (b.dataset.open){ lastOpener=b.dataset.open; open=+b.dataset.open; i=0; vsel.value='images'; render(); document.querySelector('[data-close]')?.focus(); }
+  else if (b.hasAttribute('data-close')) close();
+  else if (b.dataset.mode){ vsel.value=b.dataset.mode; render(); document.querySelector(`[data-mode="${b.dataset.mode}"]`)?.focus(); }
+  else if (b.dataset.dev){ device=b.dataset.dev; render(); }
+  else if (b.dataset.screen){ i=+b.dataset.screen; vsel.value='images'; render(); document.querySelector('[data-next]')?.focus(); }
+  else if (b.hasAttribute('data-next')){ i=Math.min(i+1,5); render(); document.querySelector('[data-next]')?.focus(); }
+  else if (b.hasAttribute('data-prev')){ i=Math.max(i-1,0); render(); document.querySelector('[data-prev]')?.focus(); }
+});
+document.addEventListener('keydown', e=>{
+  if (vsel.value==='closed') return;
+  if (e.key==='Escape') close();
+  if (vsel.value==='images' && e.key==='ArrowRight'){ i=Math.min(i+1,5); render(); }
+  if (vsel.value==='images' && e.key==='ArrowLeft'){ i=Math.max(i-1,0); render(); }
+});
+['view','liststate','vstate'].forEach(id=>document.getElementById(id).onchange=render);
+if (matchMedia('(max-width: 600px)').matches) document.getElementById('view').value='phone';
+render();
+</script>
+</body>
+</html>
