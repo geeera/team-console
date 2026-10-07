@@ -9,6 +9,8 @@ export type { GitHubAppAuthOptions, GitHubAppCredentials } from './lib/app-auth'
 export { GitHubClient } from './lib/client';
 export type {
   BoundedList,
+  BytesOptions,
+  BytesResult,
   InstallationRepositoriesOptions,
   InstallationRepository,
   JsonGuard,
