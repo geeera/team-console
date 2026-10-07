@@ -53,6 +53,7 @@ function needsYouItem(
     authorTrusted: true,
     category: null,
     recommendation: null,
+    context: null,
     project,
     allowedCommands: ['approve', 'reject'],
     ...overrides,
@@ -130,6 +131,7 @@ describe('QuestionList', () => {
         items: golden.map((item) => ({
           ...item,
           authorTrusted: true,
+          context: null,
           body: '',
           allowedCommands: ANSWERS[item.section],
         })),

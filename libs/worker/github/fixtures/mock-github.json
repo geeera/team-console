@@ -81,7 +81,7 @@
         {
           "number": 90004,
           "title": "Дизайн #20: экран дизайна и демо",
-          "body": "**Your answer:** /approve экран (рекомендую) · /reject что поменять\n<!-- pt-ask -->\n\nПрототип: [карточки и предпросмотр](https://team-console-storybook.pages.dev/iframe.html?id=kit-frame--embedded&viewMode=story)\n\nPR: https://github.com/geeera/team-console/pull/176\n\n<img src=x onerror=\"window.__pwned=1\"> <iframe src=\"https://evil.pages.dev\"></iframe> [ссылка](javascript:alert(1))\n\n**Architect note**\n",
+          "body": "**Your answer:** /approve экран (рекомендую) · /reject что поменять\n<!-- pt-ask -->\n\nПрототип: [карточки и предпросмотр](https://team-console-storybook.pages.dev/iframe.html?id=kit-frame--embedded&viewMode=story)\n\nPR: https://github.com/geeera/team-console/pull/176\n\n<img src=x onerror=\"window.__pwned=1\"> <iframe src=\"https://evil.pages.dev\"></iframe> [ссылка](javascript:alert(1))\n\n**Architect note**\n\n## Кратко\nЭкран дизайна и демо\n\n## Вопрос\nУтвердить дизайн экрана «Дизайн и демо»: дизайны, которые ждут вашего согласования, и открытое демо спринта на одном экране.\n\n## Почему\nПовторяет уже утверждённые карточки «Ждут вас». Новых паттернов нет.\n\n## Если одобрить\nРазработчик начнёт #20 по этому дизайну, к демо 16 октября.\n\n## Если отклонить\nДизайнер переделает экран по вашему комментарию. #20 подождёт. <img src=x onerror=\"window.__pwned=1\">\n\n## Цена и риск\nБесплатно. Риск низкий: новых зависимостей нет.\n",
           "html_url": "https://github.com/geeera/team-console/issues/90004",
           "state": "open",
           "labels": [

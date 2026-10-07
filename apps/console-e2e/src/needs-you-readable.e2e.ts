@@ -22,10 +22,13 @@ test('the team recommendation reads as a sentence, not command syntax', async ({
   const recommendation = item(page, 72).getByTestId('recommendation');
 
   await expect(recommendation).toContainText(ru('questions.recommends'));
-  await expect(recommendation).toContainText('Начинаем разработку по плану к демо 16 октября');
-  await expect(recommendation).not.toContainText('/approve');
-  await expect(recommendation).not.toContainText('рекомендую');
-  await expect(recommendation).not.toContainText('·');
+  // #276: the recommended answer as a verb; the option's own words are what approving leads to.
+  await expect(recommendation).toContainText(ru('questions.recommend.approve'));
+  await expect(item(page, 72).getByTestId('outcomes')).toContainText('Начинаем разработку по плану к демо 16 октября');
+  for (const raw of ['/approve', 'рекомендую', '·']) {
+    await expect(recommendation).not.toContainText(raw);
+    await expect(item(page, 72).getByTestId('outcomes')).not.toContainText(raw);
+  }
   // The buttons still carry the commands.
   await expect(item(page, 72).locator('[data-command="approve"]')).toHaveText(ru('answer.command.approve'));
   await expect(item(page, 72).locator('[data-command="reject"]')).toHaveText(ru('answer.command.reject'));

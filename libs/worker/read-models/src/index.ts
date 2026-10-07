@@ -12,6 +12,11 @@ export type { CheckRunRecord, CheckRunsPage } from './lib/ci-state';
 export { buildInbox, buildQuestions, needsOf } from './lib/inbox';
 export type { InboxInput } from './lib/inbox';
 export { buildNeedsYou } from './lib/needs-you';
+export {
+  QUESTION_CONTEXT_HEADINGS,
+  QUESTION_CONTEXT_LIMITS,
+  questionContextOf,
+} from './lib/question-context';
 export { buildOverviewRow } from './lib/overview';
 export type { OverviewRowInput } from './lib/overview';
 export type { ProjectInboxResult } from './lib/needs-you';

@@ -132,6 +132,7 @@ export type {
   NeedsYouProjectDto,
   NeedsYouProjectProblem,
   NeedsYouProjectRef,
+  QuestionContextDto,
   QuestionDto,
   QuestionsDto,
   SprintCiState,
