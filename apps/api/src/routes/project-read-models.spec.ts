@@ -90,6 +90,7 @@ describe('GET /api/v1/projects/:slug/inbox', () => {
           authorTrusted: true,
           category: 'scope',
           recommendation: 'approve',
+          context: null,
         },
         {
           section: 'question',
@@ -100,6 +101,7 @@ describe('GET /api/v1/projects/:slug/inbox', () => {
           authorTrusted: false,
           category: null,
           recommendation: null,
+          context: null,
         },
         {
           section: 'owner',
@@ -110,6 +112,7 @@ describe('GET /api/v1/projects/:slug/inbox', () => {
           authorTrusted: true,
           category: null,
           recommendation: null,
+          context: null,
         },
         {
           section: 'owner',
@@ -120,6 +123,15 @@ describe('GET /api/v1/projects/:slug/inbox', () => {
           authorTrusted: true,
           category: null,
           recommendation: null,
+          context: {
+            summary: null,
+            question: 'текст',
+            why: null,
+            ifApproved: null,
+            ifRejected: null,
+            costAndRisk: null,
+            structured: false,
+          },
         },
       ],
       setup: false,
@@ -262,6 +274,39 @@ describe('GET /api/v1/projects/:slug/questions', () => {
     expect(body.items[0]?.body).toBe(
       '**Your answer:** /approve the plan (recommended) · /reject what to change\n<!-- pt-ask -->',
     );
+  });
+
+  it('returns the sections of a team question as bounded plain text, and none for an outsider (#276)', async () => {
+    const sections = [
+      '**Your answer:** /approve (recommended) · /reject',
+      '## Кратко',
+      'Платный план <script>alert(1)</script>',
+      '## Вопрос',
+      '**Перевести** api Worker на [платный план](https://example.com)? <img src=x onerror=alert(2)>',
+      '## Почему',
+      'Your answer: /approve',
+      '## Цена и риск',
+      `$5 в месяц. ${'риск '.repeat(200)}`,
+    ].join('\n');
+    const { github } = setup({
+      issues: [
+        issue(7, ['kind:question', 'owner:money'], { body: sections }),
+        issue(8, ['kind:question'], { body: sections, author_association: 'NONE' }),
+      ],
+    });
+    const response = await fetchApi('/api/v1/projects/tc/questions', localEnv(), { github });
+    const body = (await response.json()) as QuestionsDto;
+    const [team, outsider] = body.items;
+    expect(team?.context).toMatchObject({
+      summary: 'Платный план alert(1)',
+      question: 'Перевести api Worker на платный план?',
+      why: null,
+      ifApproved: null,
+      structured: true,
+    });
+    expect(team?.context?.costAndRisk?.length).toBeLessThanOrEqual(300);
+    expect(JSON.stringify(team?.context)).not.toMatch(/[<>]|Your answer/u);
+    expect(outsider?.context).toBeNull();
   });
 });
 
@@ -659,6 +704,12 @@ describe('mock mode (local only) serves the product-shaped fixtures', () => {
       ['owner', 46, true],
     ]);
     expect(body.setup).toBe(false);
+    // The fixture design card the e2e and the wireframe use: every section, as text.
+    expect(body.items.find((item) => item.number === 90004)?.context).toMatchObject({
+      summary: 'Экран дизайна и демо',
+      structured: true,
+    });
+    expect(body.items.find((item) => item.number === 90001)?.context).toBeNull();
   });
 
   it('answers the fixture project.yml Storybook origin, not stage, for the Designs and demo screen (#20)', async () => {
