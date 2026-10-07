@@ -363,31 +363,56 @@ describe('AnswerQuestion', () => {
       expect(host.given[0]?.response.replayed).toBe(false);
     });
 
-    it('the window counts from the last attempt; the re-read looks back to the first', async () => {
-      const { retry } = await lostAnswer();
+    it('the window counts from the first attempt: Retries under 60 s apart re-read once the first is past it', async () => {
+      const { retry, host } = await lostAnswer();
 
-      clock += 30_000;
-      retry();
-      await tick();
-      http.expectOne(URL).error(new ProgressEvent('error'), { status: 0, statusText: '' });
-      await tick();
-
+      // t = 50 s: within the window of the first attempt, the same POST goes again — and is lost too.
       clock += 50_000;
       retry();
       await tick();
+      http.expectNone(LOOKUP_URL);
       http.expectOne(URL).error(new ProgressEvent('error'), { status: 0, statusText: '' });
       await tick();
 
-      clock += ANSWER_REPLAY_WINDOW_MS + 1;
+      // t = 100 s: 50 s after the last attempt, but 100 s after the first — the endpoint no longer replays a
+      // comment written at t = 0, so the item is re-read and nothing is posted.
+      clock += 50_000;
       retry();
       await tick();
+      http.expectNone(URL);
       const read = http.expectOne(LOOKUP_URL);
-      expect((read.request.body as { sentAgoMs: number }).sentAgoMs).toBe(
-        30_000 + 50_000 + ANSWER_REPLAY_WINDOW_MS + 1,
-      );
+      expect((read.request.body as { sentAgoMs: number }).sentAgoMs).toBe(100_000);
       read.flush({ answer: { ...written(), replayed: true } });
       await tick();
       http.match(NEEDS_YOU_URL).forEach((counts) => counts.flush({ items: [] }));
+
+      http.expectNone(URL);
+      expect(host.given).toEqual([{ item: item(), response: { ...written(), replayed: true } }]);
+    });
+
+    it('after a re-read that posted, a further Retry still re-reads (the window stays counted from the first)', async () => {
+      const { retry, host } = await lostAnswer();
+
+      clock += 2 * 60_000;
+      retry();
+      await tick();
+      http.expectOne(LOOKUP_URL).flush({ answer: null });
+      await tick();
+      http.expectOne(URL).error(new ProgressEvent('error'), { status: 0, statusText: '' });
+      await tick();
+
+      clock += 10_000;
+      retry();
+      await tick();
+      http.expectNone(URL);
+      const read = http.expectOne(LOOKUP_URL);
+      expect((read.request.body as { sentAgoMs: number }).sentAgoMs).toBe(2 * 60_000 + 10_000);
+      read.flush({ answer: { ...written(), replayed: true } });
+      await tick();
+      http.match(NEEDS_YOU_URL).forEach((counts) => counts.flush({ items: [] }));
+
+      http.expectNone(URL);
+      expect(host.given).toHaveLength(1);
     });
 
     it('tapping the same answer again instead of Retry is the same repeat: re-read first', async () => {

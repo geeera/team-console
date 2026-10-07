@@ -41,11 +41,10 @@ export interface AnswerGiven {
   readonly response: AnswerResponse;
 }
 
-/** An answer the card sent, with when (`Date.now()`): first, and most recently. */
+/** An answer the card sent, with when (`Date.now()`) it was first sent: the endpoint's record dates from then. */
 interface SentAnswer {
   readonly request: AnswerRequest;
   readonly firstSentAt: number;
-  readonly lastSentAt: number;
 }
 
 function isSameRequest(a: AnswerRequest, b: AnswerRequest): boolean {
@@ -63,7 +62,7 @@ function isReasonCommand(command: AnswerCommand): command is ReasonCommand {
  * answer. No optimistic update: the card stays until the endpoint has recorded the answer, and on failure it
  * stays with the reason. A repeat (double tap, Retry) sends the same request, so the endpoint replays instead of
  * posting twice. The endpoint replays only within `ANSWER_REPLAY_WINDOW_MS` of the write, so a repeat sent later than
- * that after the last attempt re-reads the item first (#120): the answer already on GitHub is shown as answered, an
+ * that after the first attempt re-reads the item first (#120): the answer already on GitHub is shown as answered, an
  * item that no longer takes it says so, and only an item still waiting gets the answer posted, once.
  */
 @Component({
@@ -183,12 +182,14 @@ export class AnswerQuestion {
   }
 
   /**
-   * Within the replay window of the last attempt the endpoint answers a written comment from its record, so the
-   * same request goes again. Past it, the item is re-read first (#120): a repeat would post a second comment.
+   * Within the replay window of the first attempt the endpoint answers a written comment from its record, so the
+   * same request goes again. Past it, the item is re-read first (#120): a repeat would post a second comment. The
+   * window counts from the first attempt, not the last: the comment may have been written then, and the endpoint's
+   * replay counts from the write, so Retries spaced under the window apart still re-read once the first is past it.
    */
   private async repeat(last: SentAnswer): Promise<void> {
     const now = Date.now();
-    if (now - last.lastSentAt <= ANSWER_REPLAY_WINDOW_MS) {
+    if (now - last.firstSentAt <= ANSWER_REPLAY_WINDOW_MS) {
       await this.submit(last.request);
       return;
     }
@@ -265,12 +266,10 @@ export class AnswerQuestion {
 
   private async submit(request: AnswerRequest): Promise<void> {
     const item = this.item();
-    const now = Date.now();
     const last = this.lastSent;
-    this.lastSent =
-      last !== null && last.request === request
-        ? { ...last, lastSentAt: now }
-        : { request, firstSentAt: now, lastSentAt: now };
+    if (last === null || last.request !== request) {
+      this.lastSent = { request, firstSentAt: Date.now() };
+    }
     this.pending.set(request.command);
     this.keepFocusOnRetry(request.command);
     this.failure.set(null);

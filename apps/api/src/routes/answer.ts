@@ -281,7 +281,7 @@ export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv
         return prepared;
       }
       const { project, number, request, section, body } = prepared;
-      const bodyHash = await answerBodyHash({ registered: project.repo, number, body });
+      const bodyHash = await answerBodyHash({ registered: project.repo, number, body, kind: 'answer' });
       const since = new Date(github.now() - request.sentAgoMs - REPLAY_WINDOW_MS).toISOString();
       const write = await new OwnWritesRepo(c.env.DB).findRecentByHash(project.repo, number, bodyHash, since);
       c.get('logger').info('owner answer looked up', {

@@ -3,7 +3,7 @@ import { commandLines } from '@shared/owner-grammar';
 import type { Page, Request } from '@playwright/test';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
-import { apiClient, connectOwner, fakeComments, routeGitHubToFake, type Stack } from './support/stack';
+import { apiClient, connectOwner, fakeComments, routeGitHubToFake, seed, type Stack } from './support/stack';
 
 /**
  * The 2026-10-16 demo path, step by step on one stack: connect GitHub, add the project, read its setup, then answer
@@ -328,4 +328,68 @@ test('a Retry past the replay window on an item still waiting posts the answer o
   expect(after).toHaveLength(before.length + 1);
   expect(commandLines(after.at(-1)?.body ?? '')).toEqual([{ command: 'approve', text: '' }]);
   await expectAccessible(page, 'receipt after a late retry that posted');
+});
+
+test('Retries under 60 s apart re-read once the first attempt is past the window, and post nothing', async ({
+  page,
+  stack,
+}) => {
+  // #21 was answered by an earlier test in this file: start from a fresh stack so the first send is a new write.
+  await seed(stack, ['geeera/team-console']);
+  const issue = 21;
+  const before = await fakeComments(stack, issue);
+  await page.clock.install();
+  await openNeedsYou(page);
+  // The first POST is written, then its response is lost; the second never reaches the Worker.
+  let answerPosts = 0;
+  await page.route(/\/api\/v1\/projects\/[^/]+\/issues\/\d+\/answer$/, async (route) => {
+    answerPosts += 1;
+    if (answerPosts === 1) {
+      await route.fetch();
+    }
+    if (answerPosts <= 2) {
+      await route.abort('connectionclosed');
+      return;
+    }
+    await route.continue();
+  });
+  const posts = recordAnswerPosts(page);
+  const lookups: Request[] = [];
+  page.on('request', (request) => {
+    if (isLookup(request)) {
+      lookups.push(request);
+    }
+  });
+  const error = item(page, issue).getByTestId('answer-error');
+  const retry = error.getByRole('button', { name: ru('answer.error.retry') });
+
+  await answerButton(page, issue, 'done').click();
+  await expect(error).toHaveAttribute('data-kind', 'offline');
+  expect(await fakeComments(stack, issue)).toHaveLength(before.length + 1);
+
+  // +50 s: within the window of the first attempt, the same POST goes again, and is lost.
+  await page.clock.fastForward(50_000);
+  const second = page.waitForRequest((request) => isAnswerPost(request));
+  await retry.click();
+  await second;
+  await expect(error).toHaveAttribute('data-kind', 'offline');
+  expect(lookups).toHaveLength(0);
+
+  // +100 s: 50 s after the last attempt, 100 s after the first: the item is re-read, nothing is posted.
+  await page.clock.fastForward(50_000);
+  const reread = page.waitForResponse((response) => isLookup(response.request()));
+  await retry.click();
+  expect((await reread).status()).toBe(200);
+
+  const receipt = item(page, issue).locator('tc-receipt');
+  await expect(receipt).toBeVisible();
+  await expect(receipt.getByRole('link')).toHaveAttribute('href', /#issuecomment-\d+$/);
+  expect(lookups).toHaveLength(1);
+  // Counted from the first send (100 s of fast-forward plus the test's own real time), not from the last.
+  const { sentAgoMs } = JSON.parse(lookups[0]?.postData() ?? '{}') as { sentAgoMs?: number };
+  expect(sentAgoMs).toBeGreaterThanOrEqual(100_000);
+  expect(sentAgoMs).toBeLessThan(100_000 + ANSWER_REPLAY_WINDOW_MS);
+  expect(posts, 'the third press re-reads instead of posting').toHaveLength(2);
+  expect(await fakeComments(stack, issue), 'one comment on GitHub').toHaveLength(before.length + 1);
+  await expectAccessible(page, 'receipt after several retries');
 });
