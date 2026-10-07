@@ -1,6 +1,6 @@
 import { inject, Injectable, type TemplateRef } from '@angular/core';
 import { DialogRef, Sheet } from '@console/shared/ui';
-import { DesignViewerDialog, type DesignViewerData } from './design-viewer-dialog';
+import { DesignViewerDialog, type DesignViewerData, type ViewerMode } from './design-viewer-dialog';
 
 export interface DesignViewerOptions {
   readonly slug: string;
@@ -12,6 +12,10 @@ export interface DesignViewerOptions {
    * card). Rendered as given; the viewer never acts on the design itself.
    */
   readonly actions?: TemplateRef<unknown>;
+  /** The path of the screen to open on (a tapped preview, #276); its device is chosen with it. */
+  readonly screen?: string;
+  /** The mode to open in; «Картинки» by default, «Все экраны» for a card's "all screens" link. */
+  readonly mode?: ViewerMode;
 }
 
 /**
@@ -29,6 +33,8 @@ export class DesignViewer {
       issue: options.issue,
       title: options.title,
       actions: options.actions ?? null,
+      screen: options.screen ?? null,
+      mode: options.mode ?? 'images',
     };
     return this.sheet.open<void, DesignViewerData>(DesignViewerDialog, {
       title: options.title,

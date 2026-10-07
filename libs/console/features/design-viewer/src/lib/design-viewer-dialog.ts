@@ -44,6 +44,9 @@ export interface DesignViewerData {
   readonly issue: number;
   readonly title: string;
   readonly actions: TemplateRef<unknown> | null;
+  /** The path of the screen to start on; `null` starts on the first screen of the device in hand. */
+  readonly screen: string | null;
+  readonly mode: ViewerMode;
 }
 
 export type ViewerMode = 'images' | 'grid' | 'interactive';
@@ -97,7 +100,7 @@ export class DesignViewerDialog {
     return state.kind === 'ready' ? state.manifest : null;
   });
 
-  protected readonly mode = signal<ViewerMode>('images');
+  protected readonly mode = signal<ViewerMode>(this.data.mode);
   /** The device control's choice; `null` when the design names no device or one only. */
   protected readonly device = signal<DesignDevice | null>(null);
   protected readonly index = signal(0);
@@ -128,6 +131,11 @@ export class DesignViewerDialog {
     return manifest === null ? [] : screensFor(manifest, this.device());
   });
   protected readonly current = computed<DesignScreen | null>(() => this.screens()[this.index()] ?? null);
+  /** The listed screen the viewer was opened on; `null` when none was asked for or the list no longer has it. */
+  private readonly startScreen = computed<DesignScreen | null>(() => {
+    const path = this.data.screen;
+    return path === null ? null : (this.manifest()?.screens.find((screen) => screen.path === path) ?? null);
+  });
   protected readonly isFirst = computed(() => this.index() <= 0);
   protected readonly isLast = computed(() => this.index() >= this.screens().length - 1);
   /** The project's embed origins once read; empty until then, so nothing is framed early. */
@@ -152,14 +160,29 @@ export class DesignViewerDialog {
   constructor() {
     // Opening reads the list again: the team may have pushed to the design since a row loaded it.
     void this.manifests.reload(this.data.slug, this.data.issue);
-    // Both devices drawn: start on the one the owner is holding.
+    // Both devices drawn: start on the device of the screen asked for, else on the one the owner is holding.
     effect(() => {
       const devices = this.devices();
       untracked(() => {
         if (devices.length === 2 && this.device() === null) {
-          this.device.set(this.breakpoints.isMatched(BREAKPOINTS.phone) ? 'phone' : 'mac');
+          const start = this.startScreen();
+          this.device.set(
+            start?.device ?? (this.breakpoints.isMatched(BREAKPOINTS.phone) ? 'phone' : 'mac'),
+          );
         }
       });
+    });
+    // The screen asked for, once its list is in; later reads of the list keep where the owner has gone since.
+    let isStartPlaced = this.data.screen === null;
+    effect(() => {
+      const screens = this.screens();
+      const start = this.startScreen();
+      if (isStartPlaced || start === null || (this.devices().length === 2 && this.device() === null)) {
+        return;
+      }
+      isStartPlaced = true;
+      const index = screens.findIndex((screen) => screen.path === start.path);
+      untracked(() => this.index.set(Math.max(index, 0)));
     });
     // The embed origins are asked for once, the first time the interactive mode is opened.
     effect(() => {
