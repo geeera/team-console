@@ -1,6 +1,7 @@
 import type { AnswerCommand, Section } from './answer';
 import type { OwnerCategory, TeamRecommendation } from './batch-answer';
 import type { TeamRunDto } from './team';
+import type { OwnerRequestStatusDto } from './owner-request';
 
 /**
  * Read models of a product repository (#35): what the owner's inbox, the questions list, the sprint board and
@@ -32,6 +33,32 @@ export interface InboxItemDto {
    * decides what a batch may answer.
    */
   readonly recommendation: TeamRecommendation | null;
+  /**
+   * What a card needs to decide without GitHub (#276), read from the body's fixed `##` sections; `null` when the
+   * author is not trusted (outsiders' bodies are never parsed into the card) or nothing readable was found.
+   */
+  readonly context: QuestionContextDto | null;
+}
+
+/**
+ * The fixed sections of a team question's body (#276), each as bounded plain text with no markup or HTML. A missing
+ * section is `null`; the card hides its slot. Still untrusted text: interpolation only.
+ */
+export interface QuestionContextDto {
+  /** `## Кратко` / `## Summary`: one line, the card's title in the owner's language. */
+  readonly summary: string | null;
+  /** `## Вопрос` / `## Question`; without any section heading, the body's first paragraph. */
+  readonly question: string | null;
+  /** `## Почему` / `## Why`: the reason behind the team's recommendation. */
+  readonly why: string | null;
+  /** `## Если одобрить` / `## If approved`. */
+  readonly ifApproved: string | null;
+  /** `## Если отклонить` / `## If rejected`. */
+  readonly ifRejected: string | null;
+  /** `## Цена и риск` / `## Cost and risk`. */
+  readonly costAndRisk: string | null;
+  /** The body has at least one of the sections; `false` means the card falls back to the answer line's options. */
+  readonly structured: boolean;
 }
 
 /** `GET /api/v1/projects/:slug/inbox`: the plugin's inbox for one repository, in its order. */
@@ -78,6 +105,11 @@ export interface SprintIssueDto {
   readonly tier: SprintTier;
   readonly kind: string | null;
   readonly authorTrusted: boolean;
+  /**
+   * The owner's newest request to the PM on this issue (#219), from the console's D1 record. Set by the sprint route
+   * only; absent elsewhere (the overview reads no requests).
+   */
+  readonly request?: OwnerRequestStatusDto | null;
 }
 
 /** `metrics.sprint_summary`'s per-tier row. */

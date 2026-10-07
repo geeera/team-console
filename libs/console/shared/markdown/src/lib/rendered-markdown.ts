@@ -7,5 +7,4 @@ export interface RenderedMarkdown {
   readonly links: readonly string[];
 }
 
-// GitHub caps an issue or comment body at 65,536 characters; anything longer is cut, never parsed whole.
-export const MARKDOWN_MAX_LENGTH = 65_536;
+export { MARKDOWN_MAX_LENGTH } from '@shared/plain-text';

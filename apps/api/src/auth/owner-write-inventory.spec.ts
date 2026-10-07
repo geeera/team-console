@@ -35,6 +35,8 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   // #218: milestone writes on the owner's token; nothing for e2e on dev/stage to do there.
   'POST /api/v1/projects/:slug/sprint/demo-date': 'owner-only',
   'POST /api/v1/projects/:slug/sprint/next': 'owner-only',
+  // #219 (ADR 0005 decision 2): a request must be the owner's own wish; the service identity has none to make.
+  'POST /api/v1/projects/:slug/issues/:number/request': 'owner-only',
   'POST /api/v1/github/connect': 'owner-only',
   'DELETE /api/v1/github/connection': 'owner-only',
   'PUT /api/v1/push/subscriptions': 'owner-only',

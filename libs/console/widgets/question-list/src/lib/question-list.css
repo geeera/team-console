@@ -41,8 +41,11 @@
   vertical-align: middle;
 }
 
+/* As many columns of at least one card width as fit: one on the phone and tablet, two on a Mac (#276 §3). */
 .questions__list {
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--card-min-w)), 1fr));
+  align-items: start;
   gap: var(--gap-log);
   margin: 0;
   padding: 0;

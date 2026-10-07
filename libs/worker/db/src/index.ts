@@ -12,3 +12,10 @@ export { PushSubscriptionsRepo, PushTestSendsRepo } from './lib/push-subscriptio
 export type { NewPushSubscription, PushSubscriptionRow, PushTestClaim } from './lib/push-subscriptions.repo';
 export { WebhookDeliveriesRepo } from './lib/webhook-deliveries.repo';
 export type { DeliveryRecord, WebhookDelivery } from './lib/webhook-deliveries.repo';
+export { OwnerRequestsRepo } from './lib/owner-requests.repo';
+export type {
+  HandledMark,
+  OwnerRequestKind,
+  OwnerRequestRecord,
+  OwnerRequestResult,
+} from './lib/owner-requests.repo';

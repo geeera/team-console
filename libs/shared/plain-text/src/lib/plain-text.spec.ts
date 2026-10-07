@@ -1,5 +1,4 @@
-import { markdownToPlainText } from './plain-text';
-import { MARKDOWN_MAX_LENGTH } from './rendered-markdown';
+import { MARKDOWN_MAX_LENGTH, markdownToPlainText } from './plain-text';
 
 describe('markdownToPlainText', () => {
   it('drops HTML comments, including the team markers and one left open', () => {

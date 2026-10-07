@@ -1,4 +1,6 @@
 import type {
+  OwnerRequestState,
+  OwnerRequestStatusDto,
   RecentRunDto,
   RunEntryState,
   SprintCiState,
@@ -13,6 +15,8 @@ import type {
 } from '@shared/contracts';
 import {
   isGitHubPageUrl,
+  isOwnerRequest,
+  isOwnerRequestState,
   isRunEntryState,
   isSprintCiState,
   isTeamRunState,
@@ -34,6 +38,14 @@ export interface SprintIssue {
   readonly tier: SprintTier;
   readonly kind: string | null;
   readonly authorTrusted: boolean;
+  /** The owner's newest request to the PM on it (#219); `null` without one. */
+  readonly request: SprintIssueRequest | null;
+}
+
+/** What the board row says about the owner's request: the «waiting for the PM» badge while pending. */
+export interface SprintIssueRequest {
+  readonly state: OwnerRequestState;
+  readonly kind: 'sprint' | 'priority';
 }
 
 export interface SprintPullRequest {
@@ -66,6 +78,16 @@ export function ciSummaryOf(pulls: readonly SprintPullRequest[]): SprintCiSummar
     }
   }
   return { state: 'empty', count: 0 };
+}
+
+/** The PR list's order (#275 §3): failing first, then running, not read, no checks, passed. */
+const PULL_ORDER: readonly SprintCiState[] = ['failure', 'pending', 'unknown', 'none', 'success'];
+
+/** Open pull requests in `PULL_ORDER`, newest (highest number) first within a state; the input is left as it is. */
+export function pullsByUrgency(pulls: readonly SprintPullRequest[]): SprintPullRequest[] {
+  return [...pulls].sort(
+    (a, b) => PULL_ORDER.indexOf(a.ci) - PULL_ORDER.indexOf(b.ci) || b.number - a.number,
+  );
 }
 
 /** One of the team's latest runs (#132); `slotName` is team text from the run log, shown as plain text only. */
@@ -173,7 +195,23 @@ function isIssue(value: unknown): value is SprintIssueDto {
     typeof value['tier'] === 'string' &&
     TIERS.has(value['tier']) &&
     isNullableString(value['kind']) &&
-    typeof value['authorTrusted'] === 'boolean'
+    typeof value['authorTrusted'] === 'boolean' &&
+    (value['request'] === undefined || value['request'] === null || isRequestStatus(value['request']))
+  );
+}
+
+/** The request's own fields are checked; its display fields only for their type. */
+function isRequestStatus(value: unknown): value is OwnerRequestStatusDto {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const { state, requestedAt, url, handledAt, ...request } = value;
+  return (
+    isOwnerRequestState(state) &&
+    typeof requestedAt === 'string' &&
+    typeof url === 'string' &&
+    isNullableString(handledAt) &&
+    isOwnerRequest(request)
   );
 }
 
@@ -252,6 +290,10 @@ export function sprintBoardOf(dto: SprintDto): SprintBoard {
       tier: issue.tier,
       kind: issue.kind,
       authorTrusted: issue.authorTrusted,
+      request:
+        issue.request === undefined || issue.request === null
+          ? null
+          : { state: issue.request.state, kind: issue.request.kind },
     })),
     planned: dto.planned,
     shipped: dto.shipped,

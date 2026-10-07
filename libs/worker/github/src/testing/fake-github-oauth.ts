@@ -79,12 +79,18 @@ export interface FakeIssueSeed {
   readonly labels?: readonly string[];
   /** `owner.login` / `owner.id` of `GET /repos/{repo}`. */
   readonly repoOwner?: FakeUser;
+  /** The milestone's title (#219); none by default. */
+  readonly milestone?: string | null;
+  readonly state?: 'open' | 'closed';
+  /** Served as a pull request (`pull_request` set). */
+  readonly isPullRequest?: boolean;
 }
 
 interface FakeThreadComment {
   readonly id: number;
   readonly body: string;
   readonly author: string;
+  readonly authorType: 'User' | 'Bot';
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -93,6 +99,8 @@ interface FakeThreadComment {
 export interface FakeThreadCommentSeed {
   readonly body: string;
   readonly author: string;
+  /** `user.type`; `User` by default, `Bot` for an app's `…[bot]` login (#219). */
+  readonly authorType?: 'User' | 'Bot';
   /** Milliseconds since the epoch. */
   readonly createdAt: number;
   /** Defaults to `createdAt`; a later value makes the comment edited. */
@@ -129,6 +137,8 @@ interface FakeIssue {
   readonly seed: FakeIssueSeed;
   readonly labels: string[];
   readonly comments: FakeThreadComment[];
+  milestone: string | null;
+  state: 'open' | 'closed';
 }
 
 const CODE_LIFETIME_MS = 10 * 60 * 1000;
@@ -137,6 +147,7 @@ const ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/([0-9]+)$/;
 const LABELS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/([0-9]+)\/labels(?:\/([^/]+))?$/;
 const REPO_PATH = /^\/repos\/([^/]+)\/([^/]+)$/;
 const MILESTONES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/milestones(?:\/([0-9]+))?$/;
+const PULLS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls$/;
 
 /** GitHub's second-precision timestamps. */
 function githubTime(ms: number): string {
@@ -176,6 +187,7 @@ export class FakeGitHubOAuth {
   private readonly now: () => number;
   private readonly issues = new Map<string, FakeIssue>();
   private readonly milestones = new Map<string, FakeMilestone[]>();
+  private readonly pulls = new Map<string, readonly Readonly<Record<string, unknown>>[]>();
   readonly milestoneWrites: FakeMilestoneWrite[] = [];
 
   constructor(private readonly options: FakeGitHubOAuthOptions) {
@@ -230,7 +242,27 @@ export class FakeGitHubOAuth {
       seed,
       labels: [...(seed.labels ?? [])],
       comments: [],
+      milestone: seed.milestone ?? null,
+      state: seed.state ?? 'open',
     });
+  }
+
+  /** Moves a seeded issue to another milestone or closes it, as the PM would meanwhile (#219). */
+  updateIssue(
+    repo: string,
+    number: number,
+    change: { readonly milestone?: string | null; readonly state?: 'open' | 'closed' },
+  ): void {
+    const issue = this.issues.get(`${repo.toLowerCase()}#${number}`);
+    if (issue === undefined) {
+      throw new Error(`the fake GitHub serves no issue ${repo}#${number}`);
+    }
+    if (change.milestone !== undefined) {
+      issue.milestone = change.milestone;
+    }
+    if (change.state !== undefined) {
+      issue.state = change.state;
+    }
   }
 
   /** Appends a comment to a seeded thread, as if written at `createdAt`. */
@@ -244,6 +276,7 @@ export class FakeGitHubOAuth {
       id,
       body: seed.body,
       author: seed.author,
+      authorType: seed.authorType ?? 'User',
       createdAt: githubTime(seed.createdAt),
       updatedAt: githubTime(seed.updatedAt ?? seed.createdAt),
     });
@@ -259,6 +292,15 @@ export class FakeGitHubOAuth {
       return { number, title: seed.title, state: seed.state ?? 'open', dueOn: seed.dueOn };
     });
     this.milestones.set(repo.toLowerCase(), list);
+  }
+
+  /**
+   * Serves `pulls` as the repository's open pull requests, as GitHub's JSON (#277: an e2e moves a design's head
+   * commit after the console loaded its list); seeding again replaces them. A repository never seeded answers 404,
+   * so the api's mock keeps its own list.
+   */
+  seedPulls(repo: string, pulls: readonly Readonly<Record<string, unknown>>[]): void {
+    this.pulls.set(repo.toLowerCase(), pulls);
   }
 
   /** The repository's milestones as they are now, for assertions; empty when none were seeded. */
@@ -310,6 +352,15 @@ export class FakeGitHubOAuth {
         `${milestones[1] ?? ''}/${milestones[2] ?? ''}`,
         milestones[3] === undefined ? null : Number(milestones[3]),
       );
+    }
+    const pulls = PULLS_PATH.exec(url.pathname);
+    if (url.origin === 'https://api.github.com' && request.method === 'GET' && pulls !== null) {
+      const seeded = this.pulls.get(`${pulls[1] ?? ''}/${pulls[2] ?? ''}`.toLowerCase());
+      if (seeded === undefined) {
+        return json(404, { message: 'Not Found' });
+      }
+      const state = url.searchParams.get('state') ?? 'open';
+      return json(200, seeded.filter((pull) => state === 'all' || (pull['state'] ?? 'open') === state));
     }
     if (url.origin === 'https://api.github.com') {
       const thread = await this.threadEndpoint(request, url);
@@ -511,7 +562,9 @@ export class FakeGitHubOAuth {
     }
     if (method === 'GET') {
       const found = list.find((milestone) => milestone.number === number);
-      return found === undefined ? json(404, { message: 'Not Found' }) : json(200, this.milestoneJson(repo, found));
+      return found === undefined
+        ? json(404, { message: 'Not Found' })
+        : json(200, this.milestoneJson(repo, found));
     }
     if ((method === 'POST' && number === null) || (method === 'PATCH' && number !== null)) {
       const grant = this.grantOfBearer(request);
@@ -583,8 +636,12 @@ export class FakeGitHubOAuth {
     return {
       number,
       title,
-      state: 'open',
+      state: issue.state,
       body: '',
+      milestone: issue.milestone === null ? null : { title: issue.milestone },
+      ...(issue.seed.isPullRequest === true
+        ? { pull_request: { url: `https://api.github.com/repos/${repo}/pulls/${number}` } }
+        : {}),
       labels: issue.labels.map((name) => ({ name })),
       user: { login: author, type: 'User' },
       author_association: 'OWNER',
@@ -597,8 +654,8 @@ export class FakeGitHubOAuth {
     return {
       id: comment.id,
       body: comment.body,
-      user: { login: comment.author, type: 'User' },
-      author_association: 'OWNER',
+      user: { login: comment.author, type: comment.authorType },
+      author_association: comment.authorType === 'Bot' ? 'NONE' : 'OWNER',
       created_at: comment.createdAt,
       updated_at: comment.updatedAt,
       html_url: `https://github.com/${issue.seed.repo}/issues/${issue.seed.number}#issuecomment-${comment.id}`,
@@ -659,6 +716,7 @@ export class FakeGitHubOAuth {
       id: comment.id,
       body: comment.body,
       author: comment.author,
+      authorType: 'User',
       createdAt: at,
       updatedAt: at,
     });
@@ -667,6 +725,7 @@ export class FakeGitHubOAuth {
       html_url: `https://github.com/${repo}/issues/${issue}#issuecomment-${comment.id}`,
       body: comment.body,
       user: { login: grant.user.login, id: grant.user.id },
+      created_at: at,
     });
   }
 

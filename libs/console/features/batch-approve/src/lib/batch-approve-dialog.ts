@@ -2,7 +2,17 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { AnsweredItems, NeedsYouCounts } from '@console/entities/project';
 import { plainAskOf, type BatchLeftOut, type QuestionItem } from '@console/entities/question';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
-import { Banner, Button, CheckRow, Chip, DIALOG_DATA, DialogRef, Icon, List } from '@console/shared/ui';
+import {
+  Banner,
+  Button,
+  CheckRow,
+  Chip,
+  DIALOG_DATA,
+  DialogRef,
+  Icon,
+  List,
+  SheetFooter,
+} from '@console/shared/ui';
 import { BATCH_ANSWER_MAX } from '@shared/contracts';
 import {
   BatchApproveClient,
@@ -55,7 +65,7 @@ function requestsOf(items: readonly QuestionItem[]): { slug: string; items: Ques
  */
 @Component({
   selector: 'tc-batch-approve-dialog',
-  imports: [Banner, Button, CheckRow, Chip, Icon, List, TranslocoPipe],
+  imports: [Banner, Button, CheckRow, Chip, Icon, List, SheetFooter, TranslocoPipe],
   templateUrl: './batch-approve-dialog.html',
   styleUrl: './batch-approve-dialog.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

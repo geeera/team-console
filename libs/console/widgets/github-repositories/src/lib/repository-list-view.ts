@@ -19,7 +19,7 @@ import {
 } from '@console/entities/installation-repository';
 import { projectSetupRouteOf } from '@console/entities/project';
 import { LocalTimePipe, TranslocoPipe } from '@console/shared/i18n';
-import { Button, Icon, List, ListRow, StateBlock } from '@console/shared/ui';
+import { Button, Callout, Chip, Icon, List, ListRow, StateBlock } from '@console/shared/ui';
 import type { InstallationRepositoryDto } from '@shared/contracts';
 
 /** What a repository row shows while or after an add from this screen (in memory only). */
@@ -27,6 +27,8 @@ export type RepositoryRowState =
   | { readonly kind: 'checking' }
   /** Refused: `step` is the checklist step that is missing (1–3), `null` for any other refusal. */
   | { readonly kind: 'not-added'; readonly step: number | null };
+
+type RefreshControl = 'repos-refresh' | 'repos-missing-refresh';
 
 // A long list folds after ten addable rows when more than twelve would show (the #194 design).
 const FOLD_AT = 10;
@@ -39,7 +41,7 @@ const FOLD_OVER = 12;
  */
 @Component({
   selector: 'tc-repository-list-view',
-  imports: [Button, Icon, List, ListRow, LocalTimePipe, StateBlock, TranslocoPipe],
+  imports: [Button, Callout, Chip, Icon, List, ListRow, LocalTimePipe, StateBlock, TranslocoPipe],
   templateUrl: './repository-list-view.html',
   styleUrl: './repository-list-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -71,6 +73,7 @@ export class RepositoryListView {
   private readonly root = viewChild.required<ElementRef<HTMLElement>>('root');
 
   protected readonly expanded = signal(false);
+  private refreshControl: RefreshControl = 'repos-refresh';
 
   protected readonly needsConnect = computed(() => {
     const view = this.connection();
@@ -86,6 +89,11 @@ export class RepositoryListView {
     const addable = this.groups().addable;
     return this.isFolded() ? addable.slice(0, FOLD_AT) : addable;
   });
+  /**
+   * #278: GitHub lists only the repositories the installation was given, so a missing one (often a private one) is
+   * fixed on GitHub. The partial note and the empty state already carry that link.
+   */
+  protected readonly showsMissingStep = computed(() => !this.partial() && this.repositories().length > 0);
   protected readonly hiddenCount = computed(() => this.groups().addable.length - FOLD_AT);
   protected readonly rateTime = computed(() => {
     const problem = this.problem();
@@ -129,10 +137,11 @@ export class RepositoryListView {
     this.add.emit(repo);
   }
 
-  protected onRefresh(): void {
+  protected onRefresh(control: RefreshControl = 'repos-refresh'): void {
     if (!this.online() || this.refreshing()) {
       return;
     }
+    this.refreshControl = control;
     this.refresh.emit();
   }
 
@@ -170,8 +179,13 @@ export class RepositoryListView {
     (retry ?? this.heading().nativeElement).focus();
   }
 
+  /** Focus returns to the Refresh the owner pressed: the one in the head or the one in the missing step. */
   focusRefresh(): void {
-    this.root().nativeElement.querySelector<HTMLElement>('[data-testid="repos-refresh"]')?.focus();
+    const root = this.root().nativeElement;
+    const target =
+      root.querySelector<HTMLElement>(`[data-testid="${this.refreshControl}"]`) ??
+      root.querySelector<HTMLElement>('[data-testid="repos-refresh"]');
+    target?.focus();
   }
 
   private focusAddableAt(index: number): void {

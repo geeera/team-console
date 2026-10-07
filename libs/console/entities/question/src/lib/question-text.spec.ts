@@ -1,4 +1,4 @@
-import { plainAskOf, plainDetailsOf } from './question-text';
+import { askOutcomesOf, plainAskOf, plainDetailsOf } from './question-text';
 
 const text = (value: string) => ({ kind: 'text', text: value });
 
@@ -69,5 +69,37 @@ describe('plainDetailsOf', () => {
 
   it('is empty when the body holds nothing but the answer line and markers', () => {
     expect(plainDetailsOf('**Ваш ответ:** /go\n<!-- pt-ask -->\n')).toBe('');
+  });
+});
+
+describe('askOutcomesOf (#276 fallback)', () => {
+  it('reads each side’s option without its command or mark', () => {
+    expect(askOutcomesOf('/approve добавить экспорт в CSV (рекомендую) · /reject почему')).toEqual({
+      ifApproved: 'Добавить экспорт в CSV',
+      ifRejected: 'Почему',
+    });
+    expect(askOutcomesOf('`/approve` to enable branch protection (recommended) · `/reject why` to keep it')).toEqual({
+      ifApproved: 'Enable branch protection',
+      ifRejected: 'Why to keep it',
+    });
+  });
+
+  it('maps go and no-go to the same sides', () => {
+    expect(askOutcomesOf('/go (рекомендую) · /no-go что доделать')).toEqual({
+      ifApproved: null,
+      ifRejected: 'Что доделать',
+    });
+  });
+
+  it('gives nothing for an instruction, a missing line, or options with no words', () => {
+    expect(askOutcomesOf('Напишите «сделал»')).toEqual({ ifApproved: null, ifRejected: null });
+    expect(askOutcomesOf(null)).toEqual({ ifApproved: null, ifRejected: null });
+    expect(askOutcomesOf('/approve · /reject')).toEqual({ ifApproved: null, ifRejected: null });
+  });
+
+  it('keeps hostile text as inert words', () => {
+    expect(askOutcomesOf('/approve <img src=x onerror=alert(1)> · /reject why').ifApproved).toBe(
+      '<img src=x onerror=alert(1)>',
+    );
   });
 });

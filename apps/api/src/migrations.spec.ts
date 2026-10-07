@@ -17,6 +17,7 @@ describe('migrations on a fresh D1', () => {
       'own_write_claims',
       'own_writes',
       'owner_connections',
+      'owner_requests',
       'projects',
       'push_subscriptions',
       'push_test_sends',
@@ -38,6 +39,7 @@ describe('migrations on a fresh D1', () => {
       '0009_push_subscriptions.sql',
       '0010_webhooks.sql',
       '0011_project_snooze.sql',
+      '0012_owner_requests.sql',
     ]);
   });
 

@@ -22,7 +22,8 @@ async function switchTo(page: Page, name: string): Promise<void> {
   }
 }
 
-const main = (page: Page) => page.locator('main#tc-main');
+// Only the document scrolls (#274): its scrolling element is <html>.
+const pageScroller = (page: Page) => page.locator('html');
 
 const TEAM_STATUS = '/api/v1/projects/team-console/team/status';
 
@@ -81,19 +82,19 @@ test.describe('with two active projects', () => {
   test('A → B → A restores the screen and its scroll position', async ({ page }) => {
     await page.goto('/p/team-console/questions');
     await expect(page.locator('li[data-number="72"]')).toBeVisible();
-    const scrollable = await main(page).evaluate((el) => el.scrollHeight - el.clientHeight);
+    const scrollable = await pageScroller(page).evaluate((el) => el.scrollHeight - el.clientHeight);
     expect(scrollable, 'the questions list must be long enough to scroll').toBeGreaterThan(300);
-    await main(page).evaluate((el) => el.scrollTo({ top: 300 }));
-    await expect.poll(() => main(page).evaluate((el) => el.scrollTop)).toBe(300);
+    await pageScroller(page).evaluate((el) => el.scrollTo({ top: 300 }));
+    await expect.poll(() => pageScroller(page).evaluate((el) => el.scrollTop)).toBe(300);
 
     await switchTo(page, 'private-product');
     await expect(page).toHaveURL(/\/p\/private-product\//);
-    await expect.poll(() => main(page).evaluate((el) => el.scrollTop)).toBe(0);
+    await expect.poll(() => pageScroller(page).evaluate((el) => el.scrollTop)).toBe(0);
 
     await switchTo(page, 'team-console');
     await expect(page).toHaveURL(/\/p\/team-console\/questions$/);
     await expect(page.locator('li[data-number="72"]')).toBeVisible();
-    await expect.poll(() => main(page).evaluate((el) => el.scrollTop)).toBe(300);
+    await expect.poll(() => pageScroller(page).evaluate((el) => el.scrollTop)).toBe(300);
   });
 
   // The chat tab is a placeholder until #17 ships (#203): every way to reach it lands on the default section.
@@ -167,9 +168,11 @@ test.describe('with two active projects', () => {
       // The app's environment for the window title, the iOS Home Screen title and the shell mark (#237), once per load.
       'GET /api/v1/healthz',
     ]);
+    // The Artifacts section's design rows read each design's manifest and the thumbnail's bytes (#277), GETs too.
+    const designRead = /^GET \/api\/v1\/projects\/team-console\/designs\/\d+(?:\/[0-9a-f]{40,64}\/file)?$/;
     const seen = sent.map((request) => `${request.method()} ${new URL(request.url()).pathname}`);
     expect(
-      seen.filter((call) => !allowed.has(call)),
+      seen.filter((call) => !allowed.has(call) && !designRead.test(call)),
       'requests outside the allow-list',
     ).toEqual([]);
     expect(seen).toContain('GET /api/v1/projects');
@@ -178,8 +181,13 @@ test.describe('with two active projects', () => {
       statusCodes.filter((code) => code !== 200),
       'team status answers other than 200',
     ).toEqual([]);
+    // The design file route names the screen in `?path=` (#277); it is still a bodiless read.
     expect(
-      sent.filter((request) => request.postDataBuffer() !== null || new URL(request.url()).search !== ''),
+      sent.filter((request) => {
+        const url = new URL(request.url());
+        const isDesignFile = url.pathname.endsWith('/file') && designRead.test(`GET ${url.pathname}`);
+        return request.postDataBuffer() !== null || (url.search !== '' && !isDesignFile);
+      }),
       'requests with a body or a query',
     ).toEqual([]);
   });

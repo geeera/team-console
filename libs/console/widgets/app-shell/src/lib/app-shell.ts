@@ -1,5 +1,5 @@
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { NgTemplateOutlet } from '@angular/common';
+import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import {
   afterNextRender,
   ChangeDetectionStrategy,
@@ -26,6 +26,7 @@ import {
   Chip,
   Icon,
   IconButton,
+  isPageScrollLocked,
   List,
   ListRow,
   Sheet,
@@ -40,9 +41,10 @@ import { restoreScroll, type ScrollRestore } from './scroll-restore';
 import { shellAreaOf } from './shell-location';
 
 /**
- * The frame around every screen: the Paper Desk sidebar on wide screens, a top bar that opens the
- * projects sheet on the phone, and the one scrolling `<main>`. The shell owns scroll persistence:
- * it records `<main>`'s position per project screen and restores it after each navigation.
+ * The frame around every screen: the Paper Desk sidebar on wide screens (pinned beside the page), a sticky top bar
+ * that opens the projects sheet on the phone, and `<main>`. Only the document scrolls (#274): no scroll inside a
+ * scroll, and on the iPhone a tap on the status bar takes the page to the top. The shell owns scroll persistence:
+ * it records the document's position per project screen and restores it after each navigation.
  */
 @Component({
   selector: 'tc-app-shell',
@@ -67,7 +69,11 @@ import { shellAreaOf } from './shell-location';
   templateUrl: './app-shell.html',
   styleUrl: './app-shell.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'tc-app-shell', '[class.tc-app-shell--sidebar]': 'hasSidebar()' },
+  host: {
+    class: 'tc-app-shell',
+    '[class.tc-app-shell--sidebar]': 'hasSidebar()',
+    '(window:scroll)': 'onScroll()',
+  },
 })
 export class AppShell {
   private readonly router = inject(Router);
@@ -83,6 +89,7 @@ export class AppShell {
   /** The current screen's own action in the phone's top bar (#114: Commands in a project space). */
   protected readonly screenAction = inject(TopBarActions).template;
 
+  private readonly document = inject(DOCUMENT);
   private readonly main = viewChild.required<ElementRef<HTMLElement>>('main');
   private scrollFrame: number | null = null;
   private scrollRestore: ScrollRestore | null = null;
@@ -172,9 +179,14 @@ export class AppShell {
     this.scrollFrame = requestAnimationFrame(() => {
       this.scrollFrame = null;
       const location = this.space();
-      // While a restore waits for the content, scroll events are the browser clamping, not a new position.
-      if (location !== null && this.scrollRestore?.isPending() !== true) {
-        this.state.setScroll(location.slug, scrollKeyOf(location.path), this.main().nativeElement.scrollTop);
+      // While a restore waits for the content, scroll events are the browser clamping, not a new position; while a
+      // sheet is open they are the lock pinning the page.
+      if (
+        location !== null &&
+        this.scrollRestore?.isPending() !== true &&
+        !isPageScrollLocked(this.document)
+      ) {
+        this.state.setScroll(location.slug, scrollKeyOf(location.path), this.scroller().scrollTop);
       }
     });
   }
@@ -195,8 +207,13 @@ export class AppShell {
       return;
     }
     // The new screen is in the DOM only after the next render; the router's own restoration is off.
-    afterNextRender(() => (this.scrollRestore = restoreScroll(this.main().nativeElement, top)), {
-      injector: this.injector,
-    });
+    afterNextRender(
+      () => (this.scrollRestore = restoreScroll(this.scroller(), this.main().nativeElement, top)),
+      { injector: this.injector },
+    );
+  }
+
+  private scroller(): Element {
+    return this.document.scrollingElement ?? this.document.documentElement;
   }
 }

@@ -1,7 +1,7 @@
 :host {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  flex: 1 0 auto;
 }
 
 .space__head {
@@ -60,6 +60,14 @@
   width: 100%;
   margin: 0 auto;
   padding: var(--space-4) var(--pad-x) var(--space-8);
+}
+
+.space__body--wide {
+  max-width: var(--board-max);
+}
+
+:host(.tc-space--cards) .space__body {
+  max-width: var(--cards-max);
 }
 
 :host(.tc-space--phone) .space__body {

@@ -1,7 +1,12 @@
 {
   "app": {
     "name": "Team Console",
-    "environment": "Environment:"
+    "environment": "Environment:",
+    "session": {
+      "expiredTitle": "Session expired — sign in again",
+      "expiredHint": "Cloudflare Access checks the sign-in. Afterwards you come back to this same page.",
+      "signIn": "Sign in"
+    }
   },
   "shell": {
     "nav": "Navigation",
@@ -175,7 +180,28 @@
       "github-rate-limit": "GitHub asks to wait",
       "other": "GitHub didn't respond"
     },
-    "preview": "Preview for #{{n}}"
+    "preview": "Preview for #{{n}}",
+    "onGitHub": "On GitHub:",
+    "recommend": {
+      "approve": "Approve.",
+      "approveDesign": "Approve.",
+      "reject": "Reject.",
+      "go": "Hold the demo.",
+      "no-go": "Move the demo."
+    },
+    "outcome": {
+      "ifApprove": "If you approve",
+      "ifApproveDesign": "If you approve",
+      "ifReject": "If you reject",
+      "ifGo": "If you hold the demo",
+      "ifNoGo": "If you move the demo"
+    },
+    "cost": "Cost and risk:",
+    "costMissing": "No cost given — ask the PM",
+    "previews": {
+      "untrusted": "Preview hidden: someone outside the team created this question. Open it on GitHub if you trust the author."
+    },
+    "opensGitHub": "(opens in a new tab)"
   },
   "answer": {
     "command": {
@@ -246,7 +272,7 @@
     }
   },
   "board": {
-    "loading": "Loading the sprint…",
+    "loading": "Loading the board…",
     "demo": "Demo {{date}}",
     "demoToday": "Demo today, {{date}}",
     "demoIn": {
@@ -261,7 +287,17 @@
       "stillOpen": "Still open",
       "openPrs": "Open PRs",
       "ci": "CI",
-      "runs": "Run log"
+      "runs": "Run log",
+      "doneSub": "{{n}} still open",
+      "waiting": "Waiting for you",
+      "waitingValue": {
+        "one": "{{n}} question",
+        "few": "{{n}} questions",
+        "many": "{{n}} questions",
+        "other": "{{n}} questions"
+      },
+      "waitingNone": "Nothing",
+      "waitingUnknown": "Loading…"
     },
     "lanes": "Sprint issues by status",
     "status": {
@@ -291,10 +327,15 @@
         "unknown": "CI unknown"
       },
       "summary": {
-        "failure": "Failing: {{n}}",
+        "failure": {
+          "one": "{{n}} PR failed",
+          "few": "{{n}} PRs failed",
+          "many": "{{n}} PRs failed",
+          "other": "{{n}} PRs failed"
+        },
         "pending": "Running: {{n}}",
-        "unknown": "Unknown: {{n}}",
-        "success": "Passing: {{n}}",
+        "unknown": "Didn't load",
+        "success": "All green",
         "none": "No checks",
         "empty": "No open PRs"
       }
@@ -322,12 +363,12 @@
       "unavailableHint": "The run log couldn't be read, or someone outside the team opened it. Reload the board later, or check the run log in the Commands panel."
     },
     "opensGitHub": "(opens on GitHub)",
-    "pulls": "Open pull requests",
+    "pulls": "Open PRs",
     "pullsEmpty": "No open pull requests",
-    "emptyTitle": "Nothing planned in {{sprint}} yet",
-    "emptyHint": "Issues show up here once the PM adds them to the sprint's milestone.",
-    "noSprintTitle": "No current sprint",
-    "noSprintHint": "No open milestone has a demo date today or later. The PM plans the next sprint.",
+    "emptyTitle": "No issues in {{sprint}} yet",
+    "emptyHint": "The PM adds them at planning.",
+    "noSprintTitle": "No active sprint",
+    "noSprintHint": "The PM creates one at the next planning. PRs and runs are below.",
     "error": {
       "unavailable": {
         "title": "Couldn't load the board",
@@ -347,7 +388,31 @@
         "hint": "Install it from the project's setup in Settings, then try again."
       }
     },
-    "moveDemo": "Move demo"
+    "moveDemo": "Move demo",
+    "pending": "waiting for the PM",
+    "ask": "Ask the PM",
+    "askAria": "Ask the PM about an issue: pick one",
+    "tabs": {
+      "label": "Board sections",
+      "tasks": "Issues {{n}}",
+      "pulls": "PRs {{n}}",
+      "runs": "Runs {{n}}"
+    },
+    "tile": {
+      "openAria": "{{label}}: {{value}}. Open {{target}}",
+      "target": {
+        "pulls": "PRs",
+        "runs": "runs",
+        "questions": "questions"
+      }
+    },
+    "more": "Show {{n}} more",
+    "less": "Show less",
+    "lane": {
+      "showDone": "Show",
+      "showDoneAria": "Show issues: {{lane}}, {{n}}"
+    },
+    "pullsAll": "All {{n}} PRs"
   },
   "artifacts": {
     "title": "Artifacts",
@@ -408,6 +473,97 @@
       "not-installed": {
         "title": "The console app is not installed on the repository",
         "hint": "Install it from the project's setup in Settings, then try again."
+      }
+    }
+  },
+  "designs": {
+    "row": {
+      "screens": {
+        "one": "{{n}} screen",
+        "few": "{{n}} screens",
+        "many": "{{n}} screens",
+        "other": "{{n}} screens"
+      },
+      "devices": "iPhone and Mac",
+      "device": {
+        "phone": "iPhone",
+        "mac": "Mac"
+      },
+      "htmlOnly": "interactive version only",
+      "none": "no images",
+      "awaiting": "Waiting for your approval",
+      "open": "Open the design",
+      "thumbHtml": "HTML",
+      "thumbNone": "—",
+      "thumbFailed": "?"
+    },
+    "viewer": {
+      "close": "Close the viewer",
+      "loading": "Loading the design…",
+      "mode": {
+        "label": "Mode",
+        "images": "Images",
+        "grid": "All screens",
+        "interactive": "Interactive"
+      },
+      "device": {
+        "label": "Device",
+        "phone": "iPhone",
+        "mac": "Mac"
+      },
+      "prev": "‹ Back",
+      "next": "Next ›",
+      "position": "{{i}} of {{n}} · {{caption}}",
+      "screenAlt": "Screen {{i}} of {{n}}: {{caption}}",
+      "screenLoading": "Loading screen {{i}} of {{n}}",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Fit",
+      "stageLabel": "Design screen",
+      "gridTitle": "All screens",
+      "gridItem": "Screen {{i}}: {{caption}}",
+      "frameTitle": "Interactive version: {{title}}",
+      "openNewTab": "Open in a new tab",
+      "megabytes": "{{n}} MB",
+      "state": {
+        "failed": {
+          "title": "This screen did not load",
+          "hint": "The other screens are available — keep going.",
+          "retry": "Retry"
+        },
+        "tooLarge": {
+          "title": "The file is too large to view ({{size}})",
+          "hint": "The console shows images up to {{max}}.",
+          "open": "Open the file on GitHub"
+        },
+        "noImages": {
+          "title": "This design has no images",
+          "hintInteractive": "Only an interactive version exists.",
+          "hintNone": "The team has not attached screens to this issue yet.",
+          "open": "Open the interactive version"
+        },
+        "noAccess": {
+          "title": "No access to the design files",
+          "hint": "GitHub did not return this repository's files. Check in Settings that the console app can see the repository.",
+          "settings": "Open settings"
+        },
+        "interactiveRefused": {
+          "title": "The interactive version cannot be shown in the console",
+          "hint": "This repository has no allowed GitHub Pages address. The images are under “Images”.",
+          "hintNone": "This design has no interactive version.",
+          "images": "See the images"
+        },
+        "offline": {
+          "title": "No network",
+          "hint": "Screens you already opened are available. The rest load when the network is back."
+        },
+        "rateLimited": {
+          "title": "GitHub asks to wait",
+          "hint": "Retry in a minute."
+        },
+        "unavailable": {
+          "title": "The design could not be loaded",
+          "hint": "GitHub or the console did not answer. Try again."
+        }
       }
     }
   },
@@ -498,6 +654,12 @@
       "notAddedLive": "{{repo}} wasn’t added. Nothing was saved.",
       "partial": "Showing the first {{n}}. If the one you need isn’t here, remove ones you don’t need from the app’s installation on GitHub, or add it by name below.",
       "selectLink": "Choose repositories on GitHub",
+      "missing": {
+        "title": "Repository not here?",
+        "body": "The console sees only the repositories the {{app}} app can access. On GitHub choose All repositories or add the ones you need, private ones too. Then come back here. The list refreshes by itself.",
+        "action": "Give the app access on GitHub",
+        "refresh": "Refresh the list"
+      },
       "empty": {
         "title": "The {{app}} app can’t see any repositories yet",
         "body": "Add your product repositories to the app’s installation on GitHub, then come back here. The list refreshes by itself."
@@ -530,6 +692,12 @@
     "empty": {
       "title": "No projects yet",
       "body": "Pick a repository under “Available on GitHub” below and it appears here."
+    },
+    "waiting": {
+      "one": "{{n}} waiting for you",
+      "few": "{{n}} waiting for you",
+      "many": "{{n}} waiting for you",
+      "other": "{{n}} waiting for you"
     }
   },
   "settings": {
@@ -789,7 +957,8 @@
       "team": "Team work",
       "run": "Run now",
       "sprint": "Sprint",
-      "notify": "Notifications"
+      "notify": "Notifications",
+      "issues": "Issues"
     },
     "pause": {
       "title": "Pause development",
@@ -1033,6 +1202,73 @@
         "backFailed": "Couldn’t turn {{name}} notifications back on: the server didn’t answer. Nothing changed.",
         "backOffline": "You’re offline: {{name}} notifications are still snoozed. Nothing changed."
       }
+    },
+    "ask": {
+      "title": "Ask the PM about an issue",
+      "hint": "Another sprint, or higher or lower in the queue. The PM reads it at the next planning run.",
+      "pending": "Waiting for the PM: {{n}}",
+      "btn": "Pick",
+      "aria": "Ask the PM about an issue: pick one"
+    },
+    "pick": {
+      "title": "Which issue is it about?",
+      "find": "Find by number or title",
+      "empty": "No open issues.",
+      "none": "Nothing matches “{{q}}”.",
+      "loading": "Loading issues…",
+      "error": "Couldn't load the issues from GitHub. Try again.",
+      "pending": "waiting for the PM",
+      "applied": "the PM applied it",
+      "declined": "the PM declined"
+    },
+    "request": {
+      "title": "#{{n}} {{title}}",
+      "loading": "Reading the issue from GitHub…",
+      "loadError": "Couldn't read the issue from GitHub. Nothing recorded; try again.",
+      "now": "Now: {{where}}",
+      "backlogWhere": "no sprint (backlog)",
+      "pending": "Already waiting for the PM: {{what}} ({{when}}). A new request replaces it.",
+      "applied": "The PM applied your last request: {{what}}.",
+      "declined": "The PM declined your last request: {{what}}. The reason is on the issue.",
+      "sprint": "Sprint",
+      "cur": "Current: {{sprint}}",
+      "next": "Next: {{sprint}}",
+      "nextNone": "Next: not created yet",
+      "none": "Backlog, no sprint",
+      "here": "(it is here now)",
+      "sprintHint": "The PM moves it within the sprint’s limits. If there is no room, the PM says what would have to move out.",
+      "freeze": "It’s freeze: the PM adds nothing to the current sprint before the demo and answers on the issue.",
+      "prio": "Queue",
+      "up": "Up",
+      "keep": "As is",
+      "down": "Down",
+      "prioHint": "Issues have no priority label; the PM keeps the order within a sprint and moves this one at the next planning run.",
+      "one": "One request at a time: another sprint or a place in the queue. Picking one clears the other. The team sets the tier and bug severity; if one is wrong, tell the PM.",
+      "diffNone": "Pick what to ask for.",
+      "diff": "Request: {{what}}.",
+      "dSprint": "move to {{sprint}}",
+      "dCurrent": "move to the current sprint",
+      "dNext": "move to the next sprint",
+      "dBacklog": "move to the backlog",
+      "dUp": "move up the queue",
+      "dDown": "move down the queue",
+      "owner": "Recorded on the issue as a comment of yours. Only the PM changes the sprint and the order.",
+      "ok": "Send the request",
+      "okNone": "Nothing picked yet",
+      "done": "Request on #{{n}} recorded",
+      "doneDetail": "The PM reads it at the next planning run and answers on the issue.",
+      "donePaused": "Development is paused: the PM reads the request at the first planning run after you resume.",
+      "replayed": "This request was recorded less than a minute ago, so it was not sent again.",
+      "conflict": "The issue changed while this form was open: it is now {{where}}. The values are updated — check them and send again.",
+      "closed": "The issue was closed meanwhile, so there is nothing to ask. Nothing recorded.",
+      "nextMissing": "There is no next sprint yet: start it or pick something else. Nothing recorded.",
+      "noCurrent": "There is no current sprint: pick something else. Nothing recorded.",
+      "notIssue": "This is a pull request, not an issue. Nothing recorded.",
+      "inProgress": "This request is being sent already. Wait a couple of seconds and try again.",
+      "timeout": "GitHub didn't answer, so it's unknown whether the request was recorded. A retry within a minute won't record it twice; later, a new one is recorded and the PM reads the latest.",
+      "open": "Open the issue",
+      "closeBtn": "Close",
+      "reads": "The PM reads the request at the next planning run and answers on the issue: done, or why not."
     }
   },
   "ui": {
@@ -1177,7 +1413,20 @@
       "footerTitle": "Add {{repo}}",
       "footerBody": "Long content scrolls while the actions stay at the bottom: stacked with the primary first on the phone, in a row with the primary on the right in the dialog.",
       "footerDone": "Done",
-      "footerSecondary": "Open setup"
+      "footerSecondary": "Open setup",
+      "longEllipsis": "Long form…",
+      "longTitle": "#36 Web push: subscribe button, iOS guide, tap",
+      "longIntro": "A form taller than the screen: the title and the buttons stay put, only the middle scrolls.",
+      "longSprint": "Sprint",
+      "longCurrent": "Current: Sprint 02",
+      "longNext": "Next: Sprint 03",
+      "longBacklog": "Backlog, no sprint",
+      "longHint": "The PM moves the issue within the sprint's limits. If there is no room, they say what would have to go.",
+      "longSend": "Ask the PM",
+      "longSent": "Request sent",
+      "fullTitle": "A design, full screen",
+      "fullToolbarA": "Images",
+      "fullToolbarB": "All screens"
     },
     "tabBar": {
       "aria": "Sections",
@@ -1246,7 +1495,10 @@
       "feed": "Infinite story feed",
       "light": "light",
       "standard": "standard",
-      "heavy": "heavy"
+      "heavy": "heavy",
+      "approved": "Approved",
+      "blocked": "Blocked",
+      "show": "Show"
     },
     "tooltip": {
       "list": "Issues",
@@ -1260,7 +1512,17 @@
       "ci": "CI · main",
       "green": "green",
       "runs": "Run log",
-      "failed": "2 failed runs"
+      "failed": "2 failed runs",
+      "stillOpen": "6 still open",
+      "ciAction": "CI: 1 PR failed. Open PRs",
+      "ciFailed": "1 PR failed",
+      "runsAction": "Run log: running. Open runs",
+      "running": "Running",
+      "waiting": "Waiting for you",
+      "waitingAction": "Waiting for you: 9 questions. Open questions",
+      "waitingValue": "9 questions",
+      "long": "A long value",
+      "longValue": "A value that does not fit its tile"
     },
     "banner": {
       "owner": "storify is paused since 13:52. Scheduled runs exit at once.",
@@ -1293,6 +1555,22 @@
       "forever": "Until I turn them back on",
       "urgent": "Still send urgent ones",
       "urgentHint": "The team paused itself, a release decision is needed."
+    },
+    "tabs": {
+      "aria": "Board sections",
+      "tasks": "Issues 20",
+      "pulls": "PRs 4",
+      "runs": "Runs 5",
+      "dialogs": "Dialogs fit the screen",
+      "questions": "Questions: more context",
+      "requests": "Owner's requests to the PM",
+      "bundle": "Initial bundle under 500 kB",
+      "dev": "Development",
+      "heavy": "heavy",
+      "standard": "standard",
+      "ciFailed": "CI failed",
+      "ciRunning": "CI running",
+      "finished": "Finished"
     }
   },
   "review": {

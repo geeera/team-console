@@ -253,7 +253,7 @@ export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv
         return prepared;
       }
       const { project, repo, number, request, section, body, installation, reader } = prepared;
-      const target = { repo, registered: project.repo, number, body };
+      const target = { repo, registered: project.repo, number, body, kind: 'answer' as const };
       const outcome = await postOwnerAnswer(c, github, target, {
         writer: async () => ownerWriter(c.env, c.get('logger'), github, installation, target),
         recheck: async () =>

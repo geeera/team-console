@@ -5,6 +5,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
 import { HEALTH_URL } from '@console/entities/app-info';
 import { NEEDS_YOU_URL, PROJECTS_URL, ProjectsStore } from '@console/entities/project';
+import { AccessSession, PAGE_LOCATION } from '@console/shared/api';
 import { provideAppConfig } from '@console/shared/config';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import {
@@ -43,6 +44,17 @@ describe('App', () => {
   let fixture: ComponentFixture<App>;
   let http: HttpTestingController;
   let router: Router;
+  let pageLocation: { href: string; assigned: string[]; assign(url: string): void };
+
+  beforeEach(() => {
+    pageLocation = {
+      href: 'https://console.test/p/a/questions',
+      assigned: [],
+      assign(url) {
+        this.assigned.push(url);
+      },
+    };
+  });
 
   const root = (): HTMLElement => fixture.nativeElement as HTMLElement;
   const text = (selector: string): string => root().querySelector(selector)?.textContent?.trim() ?? '';
@@ -61,6 +73,7 @@ describe('App', () => {
         provideConsoleI18n(),
         provideAppConfig({ name: 'Team Console', version: '0.0.0', builtAt: 'local' }),
         { provide: PERSISTED_STATE_STORAGE, useValue: memoryPersistedStateStorage(stored) },
+        { provide: PAGE_LOCATION, useValue: pageLocation },
       ],
     }).compileComponents();
     await TestBed.inject(ApplicationInitStatus).donePromise;
@@ -93,7 +106,9 @@ describe('App', () => {
       .match((request) => request.url.endsWith('/team/status'))
       .forEach((request) => request.flush({}, { status: 503, statusText: 'Service Unavailable' }));
     // The window title and the environment mark ask where the app runs (#237); the routing tests do not look.
-    http.match(HEALTH_URL).forEach((request) => request.flush(null, { status: 502, statusText: 'Bad Gateway' }));
+    http
+      .match(HEALTH_URL)
+      .forEach((request) => request.flush(null, { status: 502, statusText: 'Bad Gateway' }));
     http.verify();
   });
 
@@ -101,18 +116,23 @@ describe('App', () => {
     ['stage', 'Team Console Stage'],
     ['dev', 'Team Console Dev'],
     ['production', 'Team Console'],
-  ] as const)('names the window and the Home Screen title after the %s Worker (#237)', async (environment, name) => {
-    await boot('/');
-    http.expectOne(HEALTH_URL).flush({ status: 'ok', environment, version: '0.1.0' });
-    // The environment lands a microtask after the flush.
-    await new Promise((resolve) => setTimeout(resolve));
-    await fixture.whenStable();
+  ] as const)(
+    'names the window and the Home Screen title after the %s Worker (#237)',
+    async (environment, name) => {
+      await boot('/');
+      http.expectOne(HEALTH_URL).flush({ status: 'ok', environment, version: '0.1.0' });
+      // The environment lands a microtask after the flush.
+      await new Promise((resolve) => setTimeout(resolve));
+      await fixture.whenStable();
 
-    expect(document.title).toBe(name);
-    expect(document.querySelector('meta[name="apple-mobile-web-app-title"]')?.getAttribute('content')).toBe(name);
-    const marks = root().querySelectorAll('[data-testid="environment-mark"]');
-    expect(marks).toHaveLength(environment === 'production' ? 0 : 1);
-  });
+      expect(document.title).toBe(name);
+      expect(document.querySelector('meta[name="apple-mobile-web-app-title"]')?.getAttribute('content')).toBe(
+        name,
+      );
+      const marks = root().querySelectorAll('[data-testid="environment-mark"]');
+      expect(marks).toHaveLength(environment === 'production' ? 0 : 1);
+    },
+  );
 
   it('sends the first visit to the cross-project inbox and later visits to the last place', async () => {
     await boot('/');
@@ -200,5 +220,20 @@ describe('App', () => {
 
     expect(router.url).toBe('/p/a/questions');
     expect(TestBed.inject(PersistedStateStore).projectState('a')?.lastPath).toBe('questions');
+  });
+
+  it('replaces the screens with the expired-session state, whose button signs in on the same page (#284)', async () => {
+    await boot('/p/a/questions');
+    TestBed.inject(AccessSession).markExpired();
+    await fixture.whenStable();
+
+    expect(root().querySelector('tc-app-shell')).toBeNull();
+    const state = root().querySelector('[data-testid="session-expired"]');
+    expect(state?.querySelector('[role="alert"]')?.textContent).toContain('Сессия истекла — войдите снова');
+    expect(text('h1')).toBe('Сессия истекла — войдите снова');
+
+    (state?.querySelector('[data-testid="session-sign-in"]') as HTMLButtonElement).click();
+    expect(pageLocation.assigned).toHaveLength(1);
+    expect(new URL(pageLocation.assigned[0] ?? '').searchParams.get('ngsw-bypass')).toBe('1');
   });
 });

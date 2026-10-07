@@ -15,11 +15,13 @@
 } @else if (board(); as board) {
 <!-- Titles, labels and the milestone name are GitHub text: interpolated only, never bound as HTML. -->
 @if (board.milestone; as milestone) {
-<section class="board__sprint" [attr.aria-labelledby]="titleId">
+<section class="board__status" [attr.aria-labelledby]="titleId">
   <header class="board__head">
     <h2 class="board__title" [id]="titleId">{{ milestone.title }}</h2>
-    <div class="board__demo">
-      <tc-chip tone="accent" data-testid="demo"><tc-icon name="calendar" size="sm" />{{ demoLine() }}</tc-chip>
+    <tc-chip class="board__demo" tone="accent" data-testid="demo"
+      ><tc-icon name="calendar" size="sm" />{{ demoLine() }}</tc-chip
+    >
+    <div class="board__actions">
       <button
         tc-button
         size="sm"
@@ -32,128 +34,234 @@
         <tc-icon name="calendar" size="sm" />
         {{ 'board.moveDemo' | transloco }}
       </button>
+      <button
+        tc-button
+        size="sm"
+        type="button"
+        data-testid="board-ask"
+        aria-haspopup="dialog"
+        [loading]="isAsking()"
+        [attr.aria-label]="'board.askAria' | transloco"
+        (click)="askPm()"
+      >
+        {{ 'board.ask' | transloco }}
+      </button>
     </div>
   </header>
 
-  <dl tc-stats data-testid="stats">
-    <div tc-stat [label]="'board.stat.done' | transloco">
+  <!-- Five tiles when the board is wide, else four (open items under Done); every state is icon plus words. -->
+  <dl tc-stats data-testid="stats" [attr.data-layout]="tileLayout()" [columns]="tileColumns()">
+    <div
+      tc-stat
+      data-testid="done-stat"
+      [label]="'board.stat.done' | transloco"
+      [sub]="tileLayout() !== 'five' ? ('board.stat.doneSub' | transloco: { n: (board.carriedOver | localNumber) }) : null"
+    >
       {{ 'board.stat.doneValue' | transloco: { shipped: (board.shipped | localNumber), planned: (board.planned
       | localNumber) } }}
     </div>
-    <div tc-stat [label]="'board.stat.stillOpen' | transloco">{{ board.carriedOver | localNumber }}</div>
-    <div tc-stat [label]="'board.stat.openPrs' | transloco">
-      {{ board.pullRequests.length | localNumber }}
+    @if (tileLayout() === 'five') {
+    <div tc-stat data-testid="open-stat" [label]="'board.stat.stillOpen' | transloco">
+      {{ board.carriedOver | localNumber }}
     </div>
-    <!-- Icon and words for the most urgent CI state across the open PRs; the tone only repeats them. -->
+    }
     <div
       tc-stat
       data-testid="ci-stat"
       [attr.data-ci]="ci().state"
       [label]="'board.stat.ci' | transloco"
       [tone]="ciTone()"
+      [icon]="ciIcon()"
+      [actionLabel]="ciAria()"
+      (activate)="jumpTo('pr')"
     >
-      <span class="board__stat-word"
-        ><tc-icon [name]="ciIcon()" size="sm" />{{ 'board.ci.summary.' + ci().state | transloco: { n:
-        (ci().count | localNumber) } }}</span
-      >
+      {{ ciValue() }}
     </div>
-    <!-- The team as runstate reads the run log (#132): icon and words, the tone only repeats them. -->
+    <!-- The team as runstate reads the run log (#132). -->
     <div
       tc-stat
       data-testid="team-stat"
       [attr.data-team]="board.team.state"
       [label]="'board.stat.runs' | transloco"
       [tone]="teamTone()"
+      [icon]="teamIcon()"
+      [actionLabel]="teamAria()"
+      (activate)="jumpTo('runs')"
     >
-      <span class="board__stat-word"
-        ><tc-icon [name]="teamIcon()" size="sm" />{{ 'board.team.' + board.team.state | transloco }}</span
-      >
+      {{ teamValue() }}
+    </div>
+    <div
+      tc-stat
+      data-testid="waiting-stat"
+      [attr.data-waiting]="waiting()"
+      [label]="'board.stat.waiting' | transloco"
+      [icon]="waiting() === 0 ? 'check' : null"
+      [actionLabel]="waitingAria()"
+      (activate)="openQuestions()"
+    >
+      {{ waitingValue() }}
     </div>
   </dl>
-
-  @if (board.issues.length === 0) {
-  <tc-state-block
-    kind="empty"
-    data-testid="empty-sprint"
-    [title]="'board.emptyTitle' | transloco: { sprint: milestone.title }"
-    [description]="'board.emptyHint' | transloco"
-  />
-  } @else {
-  <!-- The phone has no hover, so the tier bars are explained once, under the numbers. &ngsp; keeps the words apart
-       for screen readers ("Сложность: лёгкая средняя тяжёлая"). -->
-  <p class="board__legend" data-testid="tier-legend">
-    <span>{{ 'board.tierLabel' | transloco }}</span>
-    @for (tier of tiers; track tier) {&ngsp;<span class="board__legend-item"
-      ><tc-sprint-tier-icon size="sm" [tier]="tier" />{{ 'board.tier.' + tier | transloco }}</span
-    >}
-  </p>
-
-  <tc-lanes [label]="'board.lanes' | transloco" [(selected)]="selectedLane">
-    @for (column of columns(); track column.status) {
-    <tc-lane
-      [key]="column.status"
-      [heading]="laneName(column.status)"
-      [count]="column.issues.length"
-      [attr.data-status]="column.status"
-    >
-      @if (column.issues.length > 0) {
-      <tc-sprint-item-list [items]="column.issues" />
-      } @else {
-      <tc-state-block kind="empty" compact [title]="'board.laneEmpty' | transloco" />
-      }
-    </tc-lane>
-    }
-  </tc-lanes>
-  }
 </section>
-} @else {
-<tc-state-block
-  kind="empty"
-  data-testid="no-sprint"
-  [title]="'board.noSprintTitle' | transloco"
-  [description]="'board.noSprintHint' | transloco"
-/>
+} @else if (compact()) {
+<ng-container *ngTemplateOutlet="noSprint" />
 }
 
-<tc-lane
-  class="board__pulls"
-  data-testid="pulls"
-  [heading]="'board.pulls' | transloco"
-  [count]="board.pullRequests.length"
-  [level]="2"
+<tc-tabs
+  class="board__sections"
+  [class.board__sections--no-sprint]="!board.milestone"
+  [label]="'board.tabs.label' | transloco"
+  [enabled]="compact()"
+  [selected]="tab()"
+  (selectedChange)="onTab($event)"
 >
-  @if (board.pullRequests.length > 0) {
-  <tc-sprint-item-list [items]="board.pullRequests" />
-  } @else {
-  <tc-state-block kind="empty" compact [title]="'board.pullsEmpty' | transloco" />
-  }
-</tc-lane>
+  @if (board.milestone; as milestone) {
+  <tc-tab-panel
+    key="tasks"
+    class="board__tasks"
+    [label]="'board.tabs.tasks' | transloco: { n: (board.issues.length | localNumber) }"
+  >
+    @if (board.issues.length === 0) {
+    <tc-state-block
+      kind="empty"
+      data-testid="empty-sprint"
+      [title]="'board.emptyTitle' | transloco: { sprint: milestone.title }"
+      [description]="'board.emptyHint' | transloco"
+    />
+    } @else {
+    <tc-lanes
+      compactBelow="tablet"
+      [label]="'board.lanes' | transloco"
+      [preferred]="preferredLanes"
+      [(selected)]="selectedLane"
+    >
+      @for (column of columns(); track column.status) {
+      <tc-lane
+        [key]="column.status"
+        [heading]="laneName(column.status)"
+        [count]="column.issues.length"
+        [attr.data-status]="column.status"
+      >
+        @if (column.status === 'done' && !compact() && column.issues.length > 0) {
+        <button
+          tc-lane-action
+          tc-button
+          size="sm"
+          type="button"
+          data-testid="done-toggle"
+          [attr.aria-expanded]="!isFolded('done')"
+          [attr.aria-label]="isFolded('done') ? ('board.lane.showDoneAria' | transloco: { lane: laneName('done'), n: column.issues.length }) : null"
+          (click)="toggle('done')"
+        >
+          {{ (isFolded('done') ? 'board.lane.showDone' : 'board.less') | transloco }}
+        </button>
+        } @if (isFolded(column.status)) {
+        <!-- Folded: the heading and its Show button only. -->
+        } @else if (column.issues.length > 0) {
+        <tc-sprint-item-list [items]="visible(column.issues, 'lane:' + column.status)" />
+        @if (hidden(column.issues) > 0) {
+        <ng-container
+          *ngTemplateOutlet="more; context: { key: 'lane:' + column.status, n: hidden(column.issues), all: false }"
+        />
+        } } @else {
+        <p class="board__lane-empty" data-testid="lane-empty">{{ 'board.laneEmpty' | transloco }}</p>
+        }
+      </tc-lane>
+      }
+    </tc-lanes>
 
-<tc-lane
-  class="board__runs"
-  data-testid="runs"
-  [heading]="'board.runs.title' | transloco"
-  [count]="board.team.recentRuns.length"
-  [level]="2"
->
-  <!-- An unknown team means the run log could not be read or trusted (#201): never "no runs yet" with a check. -->
-  @if (board.team.state === 'unknown') {
+    <!-- The phone has no hover, so the tier bars are explained once, under the list. &ngsp; keeps the words apart
+         for screen readers ("Сложность: лёгкая средняя тяжёлая"). -->
+    <p class="board__legend" data-testid="tier-legend">
+      <span>{{ 'board.tierLabel' | transloco }}</span>
+      @for (tier of tiers; track tier) {&ngsp;<span class="board__legend-item"
+        ><tc-sprint-tier-icon size="sm" [tier]="tier" />{{ 'board.tier.' + tier | transloco }}</span
+      >}
+    </p>
+    }
+  </tc-tab-panel>
+  } @else if (!compact()) {
+  <div class="board__tasks"><ng-container *ngTemplateOutlet="noSprint" /></div>
+  }
+
+  <tc-tab-panel
+    key="pr"
+    class="board__pulls"
+    data-testid="pulls"
+    [label]="'board.tabs.pulls' | transloco: { n: (board.pullRequests.length | localNumber) }"
+  >
+    <h2 #pullsHeading class="board__section-title" tabindex="-1" [class.tc-sr-only]="compact()">
+      {{ 'board.pulls' | transloco }}&ngsp;<span class="board__section-count"
+        >{{ board.pullRequests.length | localNumber }}</span
+      >
+    </h2>
+    @if (board.pullRequests.length > 0) {
+    <tc-sprint-item-list [items]="visiblePulls()" />
+    @if (hidden(board.pullRequests) > 0) {
+    <ng-container
+      *ngTemplateOutlet="more; context: { key: 'pulls', n: board.pullRequests.length, all: true }"
+    />
+    } } @else {
+    <p class="board__lane-empty">{{ 'board.pullsEmpty' | transloco }}</p>
+    }
+  </tc-tab-panel>
+
+  <tc-tab-panel
+    key="runs"
+    class="board__runs"
+    data-testid="runs"
+    [label]="'board.tabs.runs' | transloco: { n: (board.team.recentRuns.length | localNumber) }"
+  >
+    <h2 #runsHeading class="board__section-title" tabindex="-1" [class.tc-sr-only]="compact()">
+      {{ 'board.runs.title' | transloco }}&ngsp;<span class="board__section-count"
+        >{{ board.team.recentRuns.length | localNumber }}</span
+      >
+    </h2>
+    <!-- An unknown team means the run log could not be read or trusted (#201): never "no runs yet" with a check. -->
+    @if (board.team.state === 'unknown') {
+    <tc-state-block
+      kind="empty"
+      compact
+      icon="question"
+      data-testid="runs-unavailable"
+      [title]="'board.runs.unavailable' | transloco"
+      [description]="'board.runs.unavailableHint' | transloco"
+    />
+    } @else if (board.team.recentRuns.length === 0) {
+    <tc-state-block kind="empty" compact data-testid="runs-empty" [title]="'board.runs.empty' | transloco" />
+    } @if (board.team.recentRuns.length > 0 || board.team.runLogUrl) {
+    <tc-sprint-run-list
+      [runs]="board.team.recentRuns"
+      [runLogUrl]="board.team.runLogUrl"
+      [label]="'board.runs.title' | transloco"
+    />
+    }
+  </tc-tab-panel>
+</tc-tabs>
+}
+
+<ng-template #noSprint>
   <tc-state-block
     kind="empty"
-    compact
-    icon="question"
-    data-testid="runs-unavailable"
-    [title]="'board.runs.unavailable' | transloco"
-    [description]="'board.runs.unavailableHint' | transloco"
+    data-testid="no-sprint"
+    [title]="'board.noSprintTitle' | transloco"
+    [description]="'board.noSprintHint' | transloco"
   />
-  } @else if (board.team.recentRuns.length === 0) {
-  <tc-state-block kind="empty" compact data-testid="runs-empty" [title]="'board.runs.empty' | transloco" />
-  } @if (board.team.recentRuns.length > 0 || board.team.runLogUrl) {
-  <tc-sprint-run-list
-    [runs]="board.team.recentRuns"
-    [runLogUrl]="board.team.runLogUrl"
-    [label]="'board.runs.title' | transloco"
-  />
-  }
-</tc-lane>
-}
+</ng-template>
+
+<!-- «Show N more» under a list: the new rows land before it in DOM order and focus stays on it, now «Show less». -->
+<ng-template #more let-key="key" let-n="n" let-all="all">
+  <button
+    tc-button
+    size="sm"
+    variant="quiet"
+    type="button"
+    class="board__more"
+    data-testid="show-more"
+    [attr.aria-expanded]="isExpanded(key)"
+    (click)="toggle(key)"
+  >
+    @if (isExpanded(key)) { {{ 'board.less' | transloco }} } @else if (all) { {{ 'board.pullsAll' | transloco:
+    { n: (n | localNumber) } }} } @else { {{ 'board.more' | transloco: { n: (n | localNumber) } }} }
+  </button>
+</ng-template>

@@ -1,7 +1,8 @@
+/* The document is the one scroll (#274): the shell is at least a screen tall and grows with the page. */
 :host {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  min-height: 100dvh;
   background: var(--bg);
 }
 
@@ -27,6 +28,11 @@
 }
 
 .shell__sidebar {
+  /* Pinned beside the page, a screen tall; it scrolls on its own only if the project list outgrows the screen. */
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100dvh;
   display: flex;
   flex: none;
   flex-direction: column;
@@ -125,12 +131,16 @@
   text-overflow: ellipsis;
 }
 
+/* A column, so a screen that fills the height (a space with its bottom tab bar) takes `flex: 1` on its host. */
 .shell__main {
+  position: relative;
   flex: 1;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  /* A guard, not the fix: content that is too wide must wrap where it is (scroll-regions.e2e checks that), but if
+     something slips through it is cut here rather than scrolling the whole page sideways. Clip makes no scroller. */
+  overflow-x: clip;
   outline: none;
 }
 

@@ -138,6 +138,7 @@ export type {
   NeedsYouProjectDto,
   NeedsYouProjectProblem,
   NeedsYouProjectRef,
+  QuestionContextDto,
   QuestionDto,
   QuestionsDto,
   SprintCiState,
@@ -165,6 +166,24 @@ export type {
   ArtifactsPartial,
   ArtifactsResponse,
 } from './lib/artifacts';
+export {
+  DESIGN_FILE_LIMIT,
+  DESIGN_IMAGE_MAX_BYTES,
+  DESIGN_IMAGE_TYPES,
+  designFileUrlOf,
+  designManifestUrlOf,
+  isCommitSha,
+  isDesignDevice,
+  isDesignImageType,
+} from './lib/designs';
+export type {
+  DesignDevice,
+  DesignImageType,
+  DesignInteractiveDto,
+  DesignManifestDto,
+  DesignRefKind,
+  DesignScreenDto,
+} from './lib/designs';
 export { PUSH_MAX_SUBSCRIPTIONS, PUSH_TEST_INTERVAL_S } from './lib/push';
 export { CHAT_TAB_ENABLED } from './lib/chat-feature';
 export type {
@@ -176,3 +195,23 @@ export type {
   PushSubscriptionRequest,
   PushUnsubscribeRequest,
 } from './lib/push';
+export {
+  OWNER_REQUEST_STATES,
+  QUEUE_DIRECTIONS,
+  SPRINT_TARGETS,
+  isOwnerRequest,
+  isOwnerRequestState,
+} from './lib/owner-request';
+export type {
+  IssueRequestDto,
+  OwnerRequest,
+  OwnerRequestBody,
+  OwnerRequestProblemType,
+  OwnerRequestResponse,
+  OwnerRequestState,
+  OwnerRequestStatusDto,
+  QueueDirection,
+  RequestIssueDto,
+  RequestIssuesDto,
+  SprintTarget,
+} from './lib/owner-request';

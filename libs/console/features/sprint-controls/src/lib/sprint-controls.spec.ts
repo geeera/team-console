@@ -31,6 +31,7 @@ function status(overrides: Partial<TeamStatusDto> = {}): TeamStatusDto {
     },
     progress: { done: 1, total: 3 },
     calendar: { today: '2026-10-05', freezeDays: 2, nextTitle: 'Sprint 05' },
+    pendingRequests: 0,
     ...overrides,
   };
 }

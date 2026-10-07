@@ -15,7 +15,7 @@
 </header>
 }
 
-<div class="cp__body">
+<div class="cp__body" [class.tc-page-scroll]="mode() !== 'sheet'">
   <p class="tc-sr-only" aria-live="polite">{{ announcement() }}</p>
 
   @if (result(); as outcome) {
@@ -297,6 +297,42 @@
     <p class="cmd__hint">{{ 'commands.sprint.unknown' | transloco }}</p>
   </section>
   }
+
+  <section class="cp-group" data-testid="issues-group" [attr.aria-labelledby]="id + '-gi'">
+    <h3 class="cp-kicker" [id]="id + '-gi'">{{ 'commands.group.issues' | transloco }}</h3>
+    <div class="cmd-list">
+      <div class="cmd">
+        <div class="cmd__txt">
+          <p class="cmd__title">{{ 'commands.ask.title' | transloco }}</p>
+          <p class="cmd__hint" [id]="id + '-ask-hint'">{{ 'commands.ask.hint' | transloco }}</p>
+          @if (status.pendingRequests > 0) {
+          <p class="cmd__line cmd__line--pending" data-testid="ask-pending">
+            <tc-icon name="clock" size="sm" /><span>{{ 'commands.ask.pending' | transloco: { n: status.pendingRequests } }}</span>
+          </p>
+          } @if (teamWhy(); as why) {
+          <p class="cmd__why" [id]="id + '-ask-why'">
+            <tc-icon name="lock" size="sm" /><span>{{ why }}</span>
+          </p>
+          }
+        </div>
+        <button
+          tc-button
+          size="sm"
+          type="button"
+          class="cmd__btn"
+          data-testid="ask-command"
+          aria-haspopup="dialog"
+          [off]="teamWhy() !== null"
+          [attr.aria-disabled]="teamWhy() !== null ? 'true' : null"
+          [attr.aria-label]="'commands.ask.aria' | transloco"
+          [attr.aria-describedby]="(teamWhy() !== null ? id + '-ask-why ' : '') + id + '-ask-hint'"
+          (click)="askPm($event)"
+        >
+          {{ 'commands.ask.btn' | transloco }}
+        </button>
+      </div>
+    </div>
+  </section>
 
   @if (snooze(); as snooze) {
   <section class="cp-group" [attr.aria-labelledby]="id + '-gn'" data-testid="notify-group">
