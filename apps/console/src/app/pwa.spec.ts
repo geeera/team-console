@@ -92,6 +92,18 @@ describe('ngsw-config.json', () => {
   it('keeps /api out of the navigation fallback', () => {
     expect(config.navigationUrls).toContain('!/api/**');
   });
+
+  // Cloudflare's edge owns /cdn-cgi/: Access sets its cookie on /cdn-cgi/access/authorized, so a worker that answers
+  // it with the app shell makes re-login impossible (#284).
+  it('leaves /cdn-cgi/ to the network: out of the navigation fallback and of every group', () => {
+    expect(config.navigationUrls).toContain('!/cdn-cgi/**');
+    for (const group of [...(config.assetGroups ?? []), ...(config.dataGroups ?? [])]) {
+      expect(group.resources?.files ?? [], group.name).toContain('!/cdn-cgi/**');
+      for (const pattern of [...(group.resources?.urls ?? []), ...(group.urls ?? [])]) {
+        expect(pattern, `${group.name}: ${pattern}`).not.toMatch(/^\/(\*\*|cdn-cgi)(\/|$)/);
+      }
+    }
+  });
 });
 
 describe('service worker registration', () => {
