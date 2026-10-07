@@ -81,7 +81,7 @@ interface World {
 
 function handlerFor(world: World): (call: GitHubCall) => Response {
   const pulls = world.pulls ?? [
-    pull(176, PR_SHA, { body: `Closes #${ISSUE}`, head: { sha: PR_SHA, ref: 'design/90004-demo' } }),
+    pull(176, PR_SHA, { body: `Closes #${ISSUE}`, head: { sha: PR_SHA, ref: 'design/90004-demo', repo: { full_name: REPO } } }),
   ];
   return (call) => {
     const path = call.url.pathname.replace(`/repos/${REPO}`, '');
@@ -258,7 +258,7 @@ describe('GET /api/v1/projects/:slug/designs/:issue', () => {
 });
 
 describe('GET /api/v1/projects/:slug/designs/:issue/:sha/file', () => {
-  it('serves a listed image with its exact type, nosniff, a sandboxing CSP, inline and immutable', async () => {
+  it('serves a listed image with its exact type, nosniff, a sandboxing CSP, inline and cacheable for a day', async () => {
     const { github, stub } = setup();
     const response = await file(github, `${FOLDER}/phone-01-list.png`);
 
@@ -269,18 +269,50 @@ describe('GET /api/v1/projects/:slug/designs/:issue/:sha/file', () => {
     expect(response.headers.get('x-content-type-options')).toBe(DESIGN_FILE_HEADERS['X-Content-Type-Options']);
     expect(response.headers.get('content-security-policy')).toBe("default-src 'none'; sandbox");
     expect(response.headers.get('content-disposition')).toBe('inline; filename="phone-01-list.png"');
-    expect(response.headers.get('cache-control')).toBe('private, max-age=31536000, immutable');
+    expect(response.headers.get('cache-control')).toBe('private, max-age=86400');
 
     // The private-repository path: the blob is read with the installation token and the raw media type.
     const blob = blobReads(stub).find((call) => call.url.pathname.endsWith(shaOf(`${FOLDER}/phone-01-list.png`)));
     expect(blob?.headers.get('authorization')).toBe(`Bearer ${TOKEN_SENTINEL}1`);
     expect(blob?.headers.get('accept')).toBe(RAW);
-    // Discovery at the sha the client named, with no pull request lookup: tree + screens.json + the blob.
+    // The Worker resolves the issue's commit itself (the pull requests), then reads that tree and the blob.
     expect(stub.reads().map((call) => call.url.pathname)).toEqual([
+      `/repos/${REPO}/pulls`,
       `/repos/${REPO}/git/trees/${PR_SHA}`,
       `/repos/${REPO}/git/blobs/${shaOf(`${FOLDER}/screens.json`)}`,
       `/repos/${REPO}/git/blobs/${shaOf(`${FOLDER}/phone-01-list.png`)}`,
     ]);
+  });
+
+  it('serves a file only at the sha the Worker picks for the issue: any other commit sha is 404 and reads no tree', async () => {
+    const { github, stub } = setup();
+    for (const sha of [DEV_SHA, '9'.repeat(40)]) {
+      const response = await file(github, `${FOLDER}/phone-01-list.png`, sha);
+      expect(response.status, sha).toBe(404);
+      expect(await problemSlug(response)).toBe('design-file-not-found');
+    }
+    expect(stub.reads().some((call) => call.url.pathname.includes('/git/'))).toBe(false);
+  });
+
+  it('ignores a fork or outsider pull request that mentions the issue and serves the default branch instead', async () => {
+    const outsider = pull(300, PR_SHA, {
+      title: `Fix #${ISSUE}`,
+      body: `Closes #${ISSUE}`,
+      author_association: 'NONE',
+      user: { login: 'someone', type: 'User' },
+      head: { sha: PR_SHA, ref: `design/${ISSUE}-demo`, repo: { full_name: REPO } },
+    });
+    const fork = pull(301, PR_SHA, {
+      body: `Closes #${ISSUE}`,
+      head: { sha: PR_SHA, ref: `design/${ISSUE}-demo`, repo: { full_name: 'someone/team-console' } },
+    });
+    const { github } = setup({ pulls: [outsider, fork] });
+    const body = (await (await manifest(github)).json()) as DesignManifestDto;
+    expect(body.ref).toBe('default-branch');
+    expect(body.sha).toBe(DEV_SHA);
+    // The outsider's commit is never served, even with a listed path.
+    expect((await file(github, `${FOLDER}/phone-01-list.png`, PR_SHA)).status).toBe(404);
+    expect((await file(github, `${FOLDER}/phone-01-list.png`, DEV_SHA)).status).toBe(200);
   });
 
   it('serves a jpeg with image/jpeg', async () => {

@@ -4,7 +4,8 @@
 //
 //   node libs/worker/github/fixtures/design-images.mjs
 //
-// `sharp` is already a dev dependency (Angular's image tooling), so nothing is added for this.
+// `sharp` is only a transitive dependency of the workspace (it arrives with the Angular build tooling, not from
+// package.json): this script leans on it being present in node_modules and is run by hand, never by CI or a build.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -115,7 +116,8 @@ const pull = {
   author_association: 'OWNER',
   user: { login: 'geeera', type: 'User' },
   state: 'open',
-  head: { sha: '17600176001760017600176001760017600176aa', ref: 'design/90004-demo-screen' },
+  // The branch lives in the project's own repository: a fork's pull request is never a design source.
+  head: { sha: '17600176001760017600176001760017600176aa', ref: 'design/90004-demo-screen', repo: { full_name: REPO } },
 };
 repo.pulls = [pull, ...(repo.pulls ?? []).filter((item) => item.number !== PULL)];
 

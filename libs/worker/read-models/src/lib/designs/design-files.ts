@@ -9,6 +9,7 @@ import {
   type DesignScreenDto,
 } from '@shared/contracts';
 import type { PullRequestRecord } from '../github-records';
+import { isTrustedAuthor } from '../untrusted-text';
 
 /**
  * Design discovery (#277, spec §R): for design issue N, the files under `docs/design/` whose path has a segment
@@ -245,18 +246,26 @@ export function designManifestOf(input: DesignManifestInput): DesignManifestDto 
 /**
  * The open pull request that links issue N (spec §R: the design is not merged while it waits for approval): its
  * body or title mentions `#N` as a whole number, or its head branch has a segment starting with `N-`
- * (`design/277-viewer`). Pull requests come newest first; the first match wins. `null` when none does.
+ * (`design/277-viewer`). Only a pull request the team opened (`isTrustedAuthor`) from a branch of the project's
+ * own repository counts: on a public repository anyone can open a fork pull request titled "Fix #N", and its
+ * files must never show as the team's design above «Утвердить». Pull requests come newest first; the first
+ * match wins. `null` when none does, and the caller reads the default branch instead.
  */
 export function linkingPullRequestOf(
   pulls: readonly PullRequestRecord[],
   issue: number,
+  repoFullName: string,
 ): PullRequestRecord | null {
   const mention = new RegExp(`(?:^|[^0-9A-Za-z_])#${issue}(?![0-9])`);
   const branch = new RegExp(`(?:^|/)${issue}-`);
+  const ownRepo = repoFullName.toLowerCase();
   return (
     pulls.find(
       (pull) =>
         pull.headSha !== null &&
+        pull.headRepo !== null &&
+        pull.headRepo.toLowerCase() === ownRepo &&
+        isTrustedAuthor(pull) &&
         (mention.test(pull.title) ||
           mention.test(pull.body) ||
           (pull.headRef !== null && branch.test(pull.headRef))),

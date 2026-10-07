@@ -13,13 +13,13 @@ const ISSUE_NUMBER = /^[1-9][0-9]{0,8}$/;
 
 /**
  * Every image answer (spec §R): the exact type, no sniffing, a CSP that lets the bytes do nothing even if a browser
- * ever treated them as a document, inline (never a download prompt on the phone), and cacheable for a year because
- * the URL pins the commit.
+ * ever treated them as a document, inline (never a download prompt on the phone), and cacheable privately for a
+ * day: the URL pins the commit, but a day bounds how long a file the route would no longer serve stays on a device.
  */
 export const DESIGN_FILE_HEADERS: Readonly<Record<string, string>> = {
   'X-Content-Type-Options': 'nosniff',
   'Content-Security-Policy': "default-src 'none'; sandbox",
-  'Cache-Control': 'private, max-age=31536000, immutable',
+  'Cache-Control': 'private, max-age=86400',
 };
 
 /** A `filename` parameter from characters every user agent accepts; anything else becomes `_`. */

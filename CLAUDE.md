@@ -196,7 +196,7 @@ links #N (`linkingPullRequestOf`: `#N` in body/title or a `N-…` branch segment
 listed as `tooLarge`. `…/designs/:issue/:sha/file?path=` serves one listed screen's bytes (`GitHubClient.getBytes`
 on `git/blobs/{sha}` with the installation token, so private repositories work) only after the magic bytes agree
 with the type its name claims, with `nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, `inline` and
-`private, max-age=31536000, immutable`; 404 for any other path, 413 over the cap (manifest or stream), 415 on a
+`private, max-age=86400`; 404 for any other path, 413 over the cap (manifest or stream), 415 on a
 mismatch. Pure parts in `@worker/read-models` `lib/designs/` (`designFilesOf`, `designManifestOf`,
 `imageTypeOfBytes`). Mock: `MockRepository.binaryFiles` (base64; `fixtures/design-images.mjs` regenerates them),
 `git/trees`, `git/blobs`, `branches/{name}`. Console: `@console/entities/design` (`DesignManifests` store shared by

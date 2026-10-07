@@ -71,7 +71,7 @@ test('the api lists the raster screens at the pull request head, never the SVG, 
   expect(png.headers()['x-content-type-options']).toBe('nosniff');
   expect(png.headers()['content-security-policy']).toBe("default-src 'none'; sandbox");
   expect(png.headers()['content-disposition']).toBe('inline; filename="phone-01-list.png"');
-  expect(png.headers()['cache-control']).toBe('private, max-age=31536000, immutable');
+  expect(png.headers()['cache-control']).toBe('private, max-age=86400');
   expect((await png.body()).subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
   for (const [path, type] of [
     [`${FOLDER}/mac-02-detail.webp`, 'image/webp'],

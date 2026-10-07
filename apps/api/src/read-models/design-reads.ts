@@ -80,7 +80,7 @@ export type DesignFileResult =
  * Subrequests, cold isolate and empty cache (a cached installation token saves the first two):
  *   manifest = lookup 1 + mint 1 + open pulls 1 + (repository 1 + branch 1 when no pull request links the issue)
  *              + tree 1 + screens.json ≤ 1                                          → ≤ 7
- *   file     = lookup 1 + mint 1 + (tree 1 + screens.json ≤ 1 when the manifest is not cached) + blob 1 → ≤ 5
+ *   file     = the manifest's reads when not cached (the sha must be the one the Worker picks) + blob 1 → ≤ 8
  */
 export class DesignReads {
   constructor(
@@ -98,11 +98,17 @@ export class DesignReads {
   }
 
   /**
-   * One screen's bytes at a commit the client got from a manifest. The path must be a screen of the manifest at that
-   * commit (never a path the client made up: a tree never lists `..`, and only png/jpeg/webp/gif files are screens),
-   * the manifest must not have marked it too large, and the bytes must announce the type the name claims.
+   * One screen's bytes. The sha must be the one the Worker itself picks for the issue right now (the manifest's):
+   * any other commit — one the client made up, or one that stopped being the design's — is not found, so the route
+   * never reads a tree the discovery would not. The path must be a screen of that manifest (a tree never lists
+   * `..`, and only png/jpeg/webp/gif files are screens), not marked too large, and the bytes must announce the type
+   * the name claims.
    */
   async file(issue: number, sha: string, path: string): Promise<DesignFileResult> {
+    const ref = await this.refOf(issue);
+    if (ref.sha !== sha) {
+      return { kind: 'not-found' };
+    }
     const { manifest, blobs } = await this.discover(issue, sha);
     const screen = manifest.screens.find((candidate) => candidate.path === path);
     const blob = blobs[path];
@@ -128,7 +134,7 @@ export class DesignReads {
 
   private async refOf(issue: number): Promise<DesignRef> {
     const pulls = await this.reads.openPullRequests();
-    const linking = linkingPullRequestOf(pulls, issue);
+    const linking = linkingPullRequestOf(pulls, issue, this.repo.fullName);
     if (linking?.headSha !== null && linking?.headSha !== undefined) {
       return { sha: linking.headSha, kind: 'pull-request' };
     }

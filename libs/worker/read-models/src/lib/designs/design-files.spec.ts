@@ -27,6 +27,8 @@ function listing(paths: readonly string[]): TreeListing {
   return { entries: paths.map((path) => blob(path)), truncated: false };
 }
 
+const OWN_REPO = 'geeera/team-console';
+
 function pull(number: number, extra: Record<string, unknown> = {}): PullRequestRecord {
   const raw = {
     number,
@@ -34,7 +36,7 @@ function pull(number: number, extra: Record<string, unknown> = {}): PullRequestR
     html_url: `https://github.com/geeera/team-console/pull/${number}`,
     author_association: 'OWNER',
     user: { login: 'geeera', type: 'User' },
-    head: { sha: SHA, ref: `feature/${number}-thing` },
+    head: { sha: SHA, ref: `feature/${number}-thing`, repo: { full_name: OWN_REPO } },
     ...extra,
   };
   if (!isGitHubPullRequest(raw)) {
@@ -267,26 +269,58 @@ describe('designManifestOf', () => {
 });
 
 describe('linkingPullRequestOf', () => {
+  const head = (ref: string, repo: string = OWN_REPO) => ({ sha: SHA, ref, repo: { full_name: repo } });
+  const find = (pulls: PullRequestRecord[], issue: number) => linkingPullRequestOf(pulls, issue, OWN_REPO);
+
   it('finds the newest open pull request that mentions #N in its body or title', () => {
     const pulls = [
-      pull(3, { body: 'Closes #2770', head: { sha: SHA, ref: 'docs/other' } }),
-      pull(2, { body: 'Wireframes for #277 and #276', head: { sha: SHA, ref: 'docs/275-277-ux-specs' } }),
-      pull(1, { title: 'feat(#277): viewer', head: { sha: SHA, ref: 'x' } }),
+      pull(3, { body: 'Closes #2770', head: head('docs/other') }),
+      pull(2, { body: 'Wireframes for #277 and #276', head: head('docs/275-277-ux-specs') }),
+      pull(1, { title: 'feat(#277): viewer', head: head('x') }),
     ];
-    expect(linkingPullRequestOf(pulls, 277)?.number).toBe(2);
-    expect(linkingPullRequestOf(pulls, 276)?.number).toBe(2);
-    expect(linkingPullRequestOf(pulls, 2770)?.number).toBe(3);
-    expect(linkingPullRequestOf(pulls, 27)).toBeNull();
+    expect(find(pulls, 277)?.number).toBe(2);
+    expect(find(pulls, 276)?.number).toBe(2);
+    expect(find(pulls, 2770)?.number).toBe(3);
+    expect(find(pulls, 27)).toBeNull();
   });
 
   it('matches a head branch segment starting with N-', () => {
-    const pulls = [pull(5, { body: '', head: { sha: SHA, ref: 'design/277-viewer' } })];
-    expect(linkingPullRequestOf(pulls, 277)?.number).toBe(5);
-    expect(linkingPullRequestOf(pulls, 27)).toBeNull();
-    expect(linkingPullRequestOf([pull(6, { body: '', head: { sha: SHA, ref: '277-only' } })], 277)?.number).toBe(6);
+    const pulls = [pull(5, { body: '', head: head('design/277-viewer') })];
+    expect(find(pulls, 277)?.number).toBe(5);
+    expect(find(pulls, 27)).toBeNull();
+    expect(find([pull(6, { body: '', head: head('277-only') })], 277)?.number).toBe(6);
   });
 
   it('skips a pull request without a usable head sha', () => {
-    expect(linkingPullRequestOf([pull(7, { body: 'Closes #277', head: { sha: 'short' } })], 277)).toBeNull();
+    expect(find([pull(7, { body: 'Closes #277', head: { sha: 'short', repo: { full_name: OWN_REPO } } })], 277)).toBeNull();
+  });
+
+  it("skips an outsider's pull request, whatever it says, and takes the team's one behind it", () => {
+    const outsider = pull(9, {
+      title: 'Fix #277',
+      body: 'Closes #277',
+      author_association: 'NONE',
+      user: { login: 'someone', type: 'User' },
+      head: head('design/277-viewer'),
+    });
+    const team = pull(8, { body: 'Closes #277', head: head('design/277-real') });
+    expect(find([outsider, team], 277)?.number).toBe(8);
+    expect(find([outsider], 277)).toBeNull();
+    // A trusted bot of the team counts; an unknown bot does not.
+    const teamBot = pull(10, {
+      body: 'Closes #277',
+      author_association: 'NONE',
+      user: { login: 'team-console-team[bot]', type: 'Bot' },
+    });
+    const strangerBot = { ...teamBot, number: 11, authorLogin: 'stranger[bot]' };
+    expect(find([strangerBot, teamBot], 277)?.number).toBe(10);
+  });
+
+  it('skips a pull request whose branch lives in a fork or in no repository, even from a trusted author', () => {
+    const fork = pull(12, { body: 'Closes #277', head: head('design/277-viewer', 'someone/team-console') });
+    const deletedFork = pull(13, { body: 'Closes #277', head: { sha: SHA, ref: 'design/277-viewer', repo: null } });
+    const own = pull(14, { body: 'Closes #277', head: head('design/277-viewer', 'Geeera/Team-Console') });
+    expect(find([fork, deletedFork, own], 277)?.number).toBe(14);
+    expect(find([fork, deletedFork], 277)).toBeNull();
   });
 });
