@@ -170,6 +170,34 @@ describe('SprintBoard', () => {
     },
   );
 
+  it('#219: marks an issue whose request waits for the PM and offers Ask the PM by the title', async () => {
+    const { root, settle } = await render();
+    http.expectOne(projectSprintUrl(TC.slug)).flush(
+      sprint({
+        issues: [
+          issue(18, {
+            request: {
+              kind: 'sprint',
+              target: 'next',
+              state: 'pending',
+              requestedAt: '2026-10-06T09:00:00Z',
+              url: 'https://github.com/geeera/team-console/issues/18#issuecomment-1',
+              handledAt: null,
+            },
+          }),
+          issue(14, { status: 'qa' }),
+        ],
+      }),
+    );
+    await settle();
+    const pending = root.querySelector('tc-list-row[data-number="18"] [data-testid="request-pending"]');
+    expect(pending?.textContent?.trim()).toBe('ждёт PM');
+    expect(root.querySelector('tc-list-row[data-number="14"] [data-testid="request-pending"]')).toBeNull();
+    const ask = root.querySelector('[data-testid="board-ask"]');
+    expect(ask?.getAttribute('aria-label')).toBe('Попросить PM о задаче: выбрать задачу');
+    expect(ask?.getAttribute('aria-haspopup')).toBe('dialog');
+  });
+
   it('shows the sprint, its demo date and numbers, the lanes with tiers and the open pull requests', async () => {
     const { root, settle, text } = await render();
     expect(root.querySelector('[data-testid="loading"]')?.getAttribute('role')).toBe('status');

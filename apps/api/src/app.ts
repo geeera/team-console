@@ -5,8 +5,12 @@ import { csrfMiddleware } from './auth/csrf.middleware';
 import type { ApiEnv } from './env';
 import { ApiGitHub, mapGitHubError } from './github';
 import { createAnswerRoutes } from './routes/answer';
+import { createOwnerRequestRoutes } from './routes/owner-request';
+import { createBatchAnswerRoutes } from './routes/batch-answer';
 import { createGitHubConnectionRoutes } from './routes/github-connection';
+import { createInstallationRepositoriesRoutes } from './routes/installation-repositories';
 import { healthzRoutes } from './routes/healthz';
+import { appIdentityRoutes } from './routes/app-identity';
 import { connectedOwnerSource, type OwnerConnectionSource } from './projects/owner-connection';
 import { createProjectRegistryRoutes } from './routes/project-registry';
 import { createProjectsRoutes } from './routes/projects';
@@ -14,8 +18,10 @@ import { createProjectReadModelRoutes } from './routes/project-read-models';
 import { createArtifactRoutes } from './routes/artifacts';
 import { createNeedsYouRoutes } from './routes/needs-you';
 import { createOverviewRoutes } from './routes/overview';
+import { createSprintCommandsRoutes } from './routes/sprint-commands';
 import { createTeamCommandsRoutes } from './routes/team-commands';
 import { createPushRoutes } from './routes/push';
+import { createNotificationsRoutes } from './routes/notifications';
 import type { FetchLike } from '@worker/routines';
 import { mapReadModelError } from './read-models/errors';
 
@@ -49,13 +55,18 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
     notFound: async (c) =>
       isApiPath(c.req.path)
         ? problem(c, { type: 'not-found', title: 'Not Found', status: 404 })
-        // The SPA fallback: the assets binding's own `_headers` governs it, not this Worker's security headers.
-        : markAssetResponse(await c.env.ASSETS.fetch(c.req.raw)),
+        : // The SPA fallback: the assets binding's own `_headers` governs it, not this Worker's security headers.
+          markAssetResponse(await c.env.ASSETS.fetch(c.req.raw)),
     mapError: (error) => mapGitHubError(error) ?? mapReadModelError(error),
     noStore: true,
     ...(options.logSink === undefined ? {} : { logSink: options.logSink }),
   });
   const github = options.github ?? new ApiGitHub();
+  const owners = options.ownerConnection ?? connectedOwnerSource(github);
+
+  // The manifest and the icons index.html links to, per ENVIRONMENT (#237); outside /api, so no auth middleware —
+  // Access in front of the whole origin still covers them.
+  app.route('/', appIdentityRoutes);
 
   // The only auth seam, mounted once before every router; the route-inventory test in auth.middleware.spec.ts
   // proves every /api route sits behind it. Hono's '/api/*' also matches '/api' itself.
@@ -63,16 +74,14 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
 
   const v1 = new Hono<WorkerHonoEnv<ApiEnv>>();
   v1.route('/healthz', healthzRoutes);
-  v1.route(
-    '/projects',
-    createProjectRegistryRoutes(github, options.ownerConnection ?? connectedOwnerSource(github)),
-  );
+  v1.route('/projects', createProjectRegistryRoutes(github, owners));
   v1.route('/projects', createProjectsRoutes(github));
   v1.route('/projects', createProjectReadModelRoutes(github));
   v1.route('/projects', createArtifactRoutes(github));
   v1.route('/needs-you', createNeedsYouRoutes(github));
   v1.route('/overview', createOverviewRoutes(github));
   v1.route('/projects', createAnswerRoutes(github));
+  v1.route('/projects', createBatchAnswerRoutes(github));
   v1.route(
     '/projects',
     createTeamCommandsRoutes(github, {
@@ -81,6 +90,12 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
       ...(options.ownerConnection === undefined ? {} : { ownerConnection: options.ownerConnection }),
     }),
   );
+  v1.route('/projects', createNotificationsRoutes(github));
+  v1.route('/projects', createSprintCommandsRoutes(github));
+  v1.route('/projects', createOwnerRequestRoutes(github));
+  // Before the connection routes: their owner-only `use('*')` would otherwise also guard this read (#194), which
+  // the service identity may make on dev/stage like every other read (installation-repositories.spec.ts proves it).
+  v1.route('/github', createInstallationRepositoriesRoutes(github, owners));
   v1.route('/github', createGitHubConnectionRoutes(github));
   v1.route(
     '/push',

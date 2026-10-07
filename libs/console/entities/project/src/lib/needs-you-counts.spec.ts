@@ -25,6 +25,8 @@ describe('countNeedsYouBySlug', () => {
       url: `https://github.com/geeera/${slug}/issues/${number}`,
       ask: null,
       authorTrusted,
+      category: null,
+      recommendation: null,
       project: { slug, name: slug },
       allowedCommands: ['approve', 'reject'],
     });

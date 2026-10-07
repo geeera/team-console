@@ -13,7 +13,12 @@ function teamStatus(overrides: Partial<TeamStatusDto> = {}): TeamStatusDto {
     runLogUrl: 'https://github.com/geeera/team-console/issues/22',
     ownerConnected: true,
     environment: 'production',
+    snooze: { snoozed: false },
     checkedAt: '2026-10-01T12:00:00.000Z',
+    sprint: null,
+    progress: null,
+    calendar: null,
+    pendingRequests: 0,
     slots: [
       { slot: 'pm', setup: 'present', secrets: secrets('PM'), lastRun: null, lock: null },
       { slot: 'dev', setup: 'present', secrets: secrets('DEV'), lastRun: null, lock: null },
@@ -27,6 +32,14 @@ describe('team status model', () => {
   it('accepts the Worker answer and refuses anything else', () => {
     expect(isTeamStatusDto(teamStatus())).toBe(true);
     expect(isTeamStatusDto({ ...teamStatus(), state: 'stopped' })).toBe(false);
+    expect(isTeamStatusDto({ ...teamStatus(), snooze: undefined })).toBe(false);
+    expect(isTeamStatusDto({ ...teamStatus(), snooze: { snoozed: true, until: null } })).toBe(false);
+    expect(
+      isTeamStatusDto({
+        ...teamStatus(),
+        snooze: { snoozed: true, until: null, allowsUrgent: true, since: '2026-10-01T11:00:00.000Z' },
+      }),
+    ).toBe(true);
     expect(isTeamStatusDto({ ...teamStatus(), slots: teamStatus().slots.slice(1) })).toBe(false);
     expect(isTeamStatusDto({ ...teamStatus(), slots: [...teamStatus().slots].reverse() })).toBe(false);
     const badLock = teamStatus();
@@ -36,6 +49,26 @@ describe('team status model', () => {
         slots: badLock.slots.map((slot) => ({ ...slot, lock: { kind: 'started' } })),
       }),
     ).toBe(false);
+  });
+
+  it('accepts the sprint, progress and calendar of #218 and refuses malformed ones', () => {
+    const sprint = {
+      number: 4,
+      title: 'Sprint 04',
+      due: '2026-10-14',
+      freeze: { from: '2026-10-12', to: '2026-10-14' },
+      next: null,
+    };
+    const calendar = { today: '2026-10-05', freezeDays: 2, nextTitle: 'Sprint 05' };
+    const full = teamStatus({ sprint, progress: { done: 1, total: 3 }, calendar });
+    expect(isTeamStatusDto(full)).toBe(true);
+    expect(isTeamStatusDto({ ...full, sprint: { ...sprint, next: { number: 5, title: 'Sprint 05', due: '2026-10-28' } } })).toBe(true);
+    expect(isTeamStatusDto({ ...full, sprint: { ...sprint, due: '14.10.2026' } })).toBe(false);
+    expect(isTeamStatusDto({ ...full, sprint: { ...sprint, freeze: null } })).toBe(false);
+    expect(isTeamStatusDto({ ...full, progress: { done: 4, total: 3 } })).toBe(false);
+    expect(isTeamStatusDto({ ...full, calendar: { ...calendar, freezeDays: -1 } })).toBe(false);
+    const { calendar: _dropped, ...withoutCalendar } = full;
+    expect(isTeamStatusDto(withoutCalendar)).toBe(false);
   });
 
   it('lists the slots not set up and drops a lock whose window passed', () => {

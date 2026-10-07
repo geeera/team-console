@@ -3,12 +3,23 @@
   <span class="tc-list-row__text">
     <span class="tc-list-row__title"><ng-content select="[tc-row-title]" /></span>
     <span class="tc-list-row__subtitle"><ng-content select="[tc-row-subtitle]" /></span>
+    <span class="tc-list-row__detail"><ng-content select="[tc-row-detail]" /></span>
   </span>
   <span class="tc-list-row__trailing"><ng-content select="[tc-row-trailing]" /></span>
+  <span class="tc-list-row__trailing-text"><ng-content select="[tc-row-trailing-text]" /></span>
   <ng-content />
 </ng-template>
 
-@if (href()) {
+@if (link(); as commands) {
+<a
+  class="tc-list-row__surface"
+  [routerLink]="commands"
+  [attr.aria-label]="label() || null"
+  [attr.aria-current]="current() ? 'true' : null"
+>
+  <ng-container *ngTemplateOutlet="content" />
+</a>
+} @else if (href()) {
 <a
   class="tc-list-row__surface"
   [attr.href]="href()"

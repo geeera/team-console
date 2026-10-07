@@ -1,0 +1,240 @@
+:host {
+  display: block;
+}
+
+.repos {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
+  border-top: var(--border-w) solid var(--border);
+  scroll-margin-top: var(--space-2);
+}
+
+.repos__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.repos__head-text {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.repos__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+  outline: none;
+}
+
+.repos__lead {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.repos__refresh {
+  flex: none;
+  min-height: var(--control-h-touch);
+}
+
+.repos__note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--bg-sunken);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.repos__note p {
+  margin: 0 0 var(--space-1);
+}
+
+.repos__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-h-touch);
+  color: var(--accent-text);
+  font-weight: var(--fw-semibold);
+}
+
+.repos__group {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+}
+
+.repos__group-count {
+  font-weight: var(--fw-regular);
+  font-variant-numeric: tabular-nums;
+}
+
+/* #278: the way to a repository GitHub does not list yet; the callout keeps its own body type and rule. */
+.repos__missing p {
+  margin: 0;
+}
+
+.repos__missing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.repos__missing-actions > * {
+  min-height: var(--control-h-touch);
+  /* The kit button keeps its label on one line; this one is long, so it wraps inside the column instead of
+     pushing the page wider than the phone (#281 QA: 372px in a 360px column). */
+  max-width: 100%;
+  padding-block: var(--space-2);
+  white-space: normal;
+  text-align: center;
+}
+
+.repos__more {
+  justify-self: start;
+  min-height: var(--control-h-touch);
+  color: var(--accent-text);
+}
+
+/* Rows: the name in serif and never cut, the owner in mono, Private as a word with a small lock. */
+.repo__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+  overflow-wrap: anywhere;
+}
+
+.repo__meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  color: var(--text-2);
+}
+
+.repo__owner {
+  font-family: var(--font-mono);
+}
+
+.repo__private {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--bg-sunken);
+  color: var(--text-2);
+  font-weight: var(--fw-semibold);
+}
+
+.repo__add {
+  flex: none;
+  min-width: calc(var(--space-16) + var(--space-8));
+  min-height: var(--control-h-touch);
+  margin-right: var(--space-2);
+  color: var(--accent-text);
+}
+
+.repo__add[aria-disabled='true'] {
+  color: var(--text-2);
+}
+
+/* "Not added": an ochre to-do line; See why is its own 44 px target before Add. */
+.repo__why {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-2);
+  color: var(--warning-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
+.repo__why > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.repo__why-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h-touch);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.repo__why-button:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-w);
+  border-radius: var(--r-xs);
+}
+
+.repos__loading {
+  display: grid;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.repos__skeleton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: calc(var(--control-h-touch) + var(--space-6));
+  padding: var(--space-3);
+}
+
+.repos__skeleton + .repos__skeleton {
+  border-top: var(--border-w) solid var(--border);
+}
+
+.repos__skeleton-text {
+  display: grid;
+  flex: 1;
+  gap: var(--space-2);
+}
+
+.repos__skeleton-line,
+.repos__skeleton-button {
+  display: block;
+  border-radius: var(--r-sm);
+  background: var(--skeleton);
+}
+
+.repos__skeleton-line {
+  height: var(--space-4);
+}
+
+.repos__skeleton-line--short {
+  width: 40%;
+  height: var(--space-3);
+}
+
+.repos__skeleton-button {
+  width: calc(var(--space-16) + var(--space-8));
+  height: var(--control-h-touch);
+  border-radius: var(--r-md);
+}

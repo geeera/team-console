@@ -18,6 +18,7 @@ The single machine-readable description of the product. Template: `.claude/produ
 | `design.tokens`, `design.storybook_url` | Token source file(s), deployed Storybook |
 | `sprint.length_days`, `sprint.freeze_days` | 14 and 2 unless the owner decided otherwise |
 | `caps` | Optional overrides of the default caps |
+| `team.console_app_slugs` | Optional: the team console's GitHub App slugs; owner requests to the PM count only when one of them posted the request (`reference/workflow.md` → Owner requests) |
 
 Skills fail loudly when a key they need is missing — they never guess a command.
 

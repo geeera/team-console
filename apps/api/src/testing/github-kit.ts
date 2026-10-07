@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { compactVerify, importJWK } from 'jose';
-import { INSTALLATION_PERMISSIONS, type FetchLike } from '@worker/github';
+import { INSTALLATION_LIST_PERMISSIONS, INSTALLATION_PERMISSIONS, type FetchLike } from '@worker/github';
 import type { ApiEnv } from '../env';
 
 /** Test-only: a scripted api.github.com behind the app flow, with sentinel tokens (#9 threat row 3). */
@@ -38,12 +38,14 @@ const INSTALLATION_PATH = /^\/repos\/[^/]+\/[^/]+\/installation$/;
 /**
  * Installation lookup, `GET /app` and mint answer like GitHub (tokens `ghs_TESTSENTINEL<n>`); every other request
  * goes to `read`. `installation` replaces the lookup's answer (a 404 for "not installed"), `app` the answer of
- * `GET /app` (a 404 for "GitHub knows no such app").
+ * `GET /app` (a 404 for "GitHub knows no such app"), `installations` the answer of `GET /app/installations` (#194),
+ * which otherwise goes to `read` too.
  */
 export function stubGitHub(
   read: ReadHandler,
   installation?: () => Response,
   app?: () => Response,
+  installations?: () => Response,
 ): StubGitHub {
   const calls: GitHubCall[] = [];
   let minted = 0;
@@ -61,6 +63,9 @@ export function stubGitHub(
     if (call.method === 'GET' && call.url.pathname === '/app') {
       return app?.() ?? json(200, { id: Number(env.GITHUB_APP_ID), slug: 'team-console-test' });
     }
+    if (call.method === 'GET' && call.url.pathname === '/app/installations' && installations !== undefined) {
+      return installations();
+    }
     if (
       call.method === 'POST' &&
       call.url.pathname === `/app/installations/${INSTALLATION_ID}/access_tokens`
@@ -69,8 +74,10 @@ export function stubGitHub(
       return json(201, {
         token: `${TOKEN_SENTINEL}${minted}`,
         expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-        permissions: INSTALLATION_PERMISSIONS,
-        repository_selection: 'selected',
+        // GitHub echoes the downscoping it applied (#76): the request's repository token, or the #194 list token.
+        ...(call.body !== undefined && 'repositories' in (JSON.parse(call.body) as object)
+          ? { permissions: INSTALLATION_PERMISSIONS, repository_selection: 'selected' }
+          : { permissions: INSTALLATION_LIST_PERMISSIONS, repository_selection: 'all' }),
       });
     }
     return read(call);

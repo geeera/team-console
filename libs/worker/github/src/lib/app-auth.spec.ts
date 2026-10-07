@@ -5,6 +5,7 @@ import {
   decodeJwt,
   generateAppKey,
   json,
+  mintScopeOf,
   scriptedGitHub,
   type AppKey,
 } from '../testing/github-kit';
@@ -400,5 +401,206 @@ describe('GitHubAppAuth', () => {
     const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
     await expect(auth.tokenSourceFor(REPO).getToken()).resolves.toBe(`${SENTINEL_TOKEN}1`);
     expect(auth.hasUsableToken(REPO)).toBe(true);
+  });
+});
+
+describe('the installation-wide list token (#194, ADR 0003 decisions 2(a) and 6 as amended)', () => {
+  const OWNER_ID = 100001;
+
+  /** `GET /app/installations`, the per-repo lookup and mints; tokens numbered so a re-mint is visible. */
+  function listFlow(
+    installations: unknown = [{ id: INSTALLATION_ID, account: { id: OWNER_ID, login: 'x' } }],
+  ) {
+    let minted = 0;
+    const github = scriptedGitHub((call) => {
+      const path = new URL(call.url).pathname;
+      if (call.method === 'GET' && path === '/app/installations') {
+        return json(200, installations);
+      }
+      if (call.method === 'GET' && /^\/repos\/[^/]+\/[^/]+\/installation$/.test(path)) {
+        return json(200, { id: INSTALLATION_ID });
+      }
+      if (call.method === 'POST' && /^\/app\/installations\/[0-9]+\/access_tokens$/.test(path)) {
+        minted += 1;
+        return json(201, {
+          token: `${SENTINEL_TOKEN}${minted}`,
+          expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+          ...mintScopeOf(call.body),
+        });
+      }
+      throw new Error(`unexpected ${call.method} ${path}`);
+    });
+    return { ...github, minted: () => minted };
+  }
+
+  const bearerOf = (headers: Headers | undefined) =>
+    headers?.get('authorization')?.replace(/^Bearer /, '') ?? '';
+
+  it('mints with exactly {"permissions":{"metadata":"read"}} and no repositories member', async () => {
+    const github = listFlow();
+    const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
+
+    await expect(auth.listTokenSourceFor(INSTALLATION_ID).getToken()).resolves.toBe(`${SENTINEL_TOKEN}1`);
+
+    const mint = github.calls.find((call) => call.method === 'POST');
+    expect(mint?.body).toBe('{"permissions":{"metadata":"read"}}');
+    expect(JSON.parse(mint?.body ?? '{}')).not.toHaveProperty('repositories');
+    expect(mint?.url).toBe(`https://api.github.com/app/installations/${INSTALLATION_ID}/access_tokens`);
+    expect((await decodeJwt(bearerOf(mint?.headers), key.publicKey)).signatureValid).toBe(true);
+    // The installation is given, so the mint is the only request.
+    expect(github.calls).toHaveLength(1);
+  });
+
+  it('is a source of its own kind, naming the installation and no repository', () => {
+    const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: listFlow().fetch });
+    const source = auth.listTokenSourceFor(INSTALLATION_ID);
+    expect(source.kind).toBe('installation-list');
+    expect(source.installationId).toBe(INSTALLATION_ID);
+    expect(source).not.toHaveProperty('repo');
+  });
+
+  it('caches apart from the per-repository token of the same installation, and per installation id', async () => {
+    const github = listFlow();
+    const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
+
+    const list = await auth.listTokenSourceFor(INSTALLATION_ID).getToken();
+    const repo = await auth.tokenSourceFor(REPO).getToken();
+    const other = await auth.listTokenSourceFor(INSTALLATION_ID + 1).getToken();
+
+    expect(new Set([list, repo, other]).size).toBe(3);
+    expect(await auth.listTokenSourceFor(INSTALLATION_ID).getToken()).toBe(list);
+    expect(await auth.tokenSourceFor(REPO).getToken()).toBe(repo);
+    expect(github.minted()).toBe(3);
+    expect(auth.hasUsableListToken(INSTALLATION_ID)).toBe(true);
+    expect(auth.hasUsableListToken(INSTALLATION_ID + 2)).toBe(false);
+  });
+
+  it('renews 5 minutes before expiry and re-mints after a 401 evicts it', async () => {
+    let now = Date.now();
+    const github = listFlow();
+    const auth = new GitHubAppAuth(
+      { appId: APP_ID, privateKeyPem: key.pem },
+      { fetch: github.fetch, now: () => now },
+    );
+    const source = auth.listTokenSourceFor(INSTALLATION_ID);
+
+    const first = await source.getToken();
+    now += 54 * 60 * 1000;
+    expect(await source.getToken()).toBe(first);
+    now += 2 * 60 * 1000;
+    expect(auth.hasUsableListToken(INSTALLATION_ID)).toBe(false);
+    const renewed = await source.getToken();
+    expect(renewed).not.toBe(first);
+
+    source.invalidate(renewed);
+    expect(await source.getToken()).not.toBe(renewed);
+    expect(github.minted()).toBe(3);
+  });
+
+  it.each(['all', 'selected'])(
+    'accepts a list mint answered with exactly metadata: read and repository_selection %s',
+    async (repositorySelection) => {
+      const github = scriptedGitHub(() =>
+        json(201, {
+          token: 'ghs_list',
+          expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+          permissions: { metadata: 'read' },
+          repository_selection: repositorySelection,
+        }),
+      );
+      const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
+      await expect(auth.listTokenSourceFor(INSTALLATION_ID).getToken()).resolves.toBe('ghs_list');
+    },
+  );
+
+  // #76 on the #194 token: an installation-wide token broader than `metadata: read` is refused, never cached.
+  it.each([
+    ['the repository token permissions', INSTALLATION_PERMISSIONS, 'all'],
+    ['metadata: write', { metadata: 'write' }, 'all'],
+    ['no permissions', {}, 'all'],
+    ['an unknown repository_selection', { metadata: 'read' }, 'some'],
+    ['no repository_selection', { metadata: 'read' }, undefined],
+  ] as const)(
+    'refuses a list mint answered with %s with 502 github-unexpected',
+    async (_label, permissions, repositorySelection) => {
+      const github = scriptedGitHub(() =>
+        json(201, {
+          token: 'ghs_broader',
+          expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+          permissions,
+          repository_selection: repositorySelection,
+        }),
+      );
+      const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
+      const error = await rejection(auth.listTokenSourceFor(INSTALLATION_ID).getToken());
+      expect(error.problem).toMatchObject({ type: 'github-unexpected', status: 502 });
+      expect(auth.hasUsableListToken(INSTALLATION_ID)).toBe(false);
+    },
+  );
+
+  it('finds the installation by account.id against the pinned user id, not by login', async () => {
+    const github = listFlow([
+      { id: 11, account: { id: 7, login: 'geeera' } },
+      { id: 12, account: { id: OWNER_ID, login: 'renamed-owner' } },
+    ]);
+    const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
+
+    await expect(auth.installationIdForAccount(OWNER_ID)).resolves.toBe(12);
+
+    const [call] = github.calls;
+    expect(call?.url).toBe('https://api.github.com/app/installations?per_page=100');
+    expect((await decodeJwt(bearerOf(call?.headers), key.publicKey)).claims['iss']).toBe(APP_ID);
+  });
+
+  it('answers 409 github-app-not-installed, naming no repository, when no installation is on the account', async () => {
+    const auth = new GitHubAppAuth(
+      { appId: APP_ID, privateKeyPem: key.pem },
+      { fetch: listFlow([{ id: 11, account: { id: 7 } }]).fetch },
+    );
+    const error = await rejection(auth.installationIdForAccount(OWNER_ID));
+    expect(error.problem).toMatchObject({ type: 'github-app-not-installed', status: 409 });
+    expect(error.problem.detail).not.toContain('/');
+  });
+
+  it('answers 502 github-unexpected when there is no match and GitHub names another page', async () => {
+    const github = scriptedGitHub(() =>
+      json(200, [{ id: 11, account: { id: 7 } }], {
+        link: '<https://api.github.com/app/installations?per_page=100&page=2>; rel="next"',
+      }),
+    );
+    const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
+    expect((await rejection(auth.installationIdForAccount(OWNER_ID))).problem.type).toBe('github-unexpected');
+    expect(github.calls).toHaveLength(1);
+  });
+
+  it('answers 503 github-auth when GET /app/installations is 404 because the app id is wrong', async () => {
+    const github = scriptedGitHub(() => json(404, { message: 'Integration not found' }));
+    const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
+    expect((await rejection(auth.installationIdForAccount(OWNER_ID))).problem).toMatchObject({
+      type: 'github-auth',
+      status: 503,
+    });
+    expect(github.calls.map((call) => new URL(call.url).pathname)).toEqual(['/app/installations', '/app']);
+  });
+
+  it.each([
+    ['not a list', { installations: [] }],
+    ['an entry without an account', [{ id: 11 }]],
+    ['an account without a numeric id', [{ id: 11, account: { id: 'x' } }]],
+  ])('answers 502 github-unexpected for %s', async (_label, body) => {
+    const auth = new GitHubAppAuth(
+      { appId: APP_ID, privateKeyPem: key.pem },
+      { fetch: listFlow(body).fetch },
+    );
+    expect((await rejection(auth.installationIdForAccount(OWNER_ID))).problem.type).toBe('github-unexpected');
+  });
+
+  it('maps a rate-limited installations lookup to 429 with its Retry-After', async () => {
+    const github = scriptedGitHub(() => json(429, {}, { 'retry-after': '7' }));
+    const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
+    expect((await rejection(auth.installationIdForAccount(OWNER_ID))).problem).toMatchObject({
+      type: 'github-rate-limit',
+      retryAfter: 7,
+    });
   });
 });

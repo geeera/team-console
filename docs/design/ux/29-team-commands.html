@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>#29 Team commands (UX wireframe)</title>
+<!-- Amended by #217: "Change an issue" (a direct write of sprint, tier and severity) is replaced by "Ask the PM",
+     a request recorded as one pt-owner-request comment (ADR 0005). Where this spec and ADR 0005 or the approved
+     design (PR #138, ../features/29-team-commands.html) differ, ADR 0005 and the design win. -->
 <style>
 /* Low-fidelity on purpose: grey boxes, system font, no Paper Desk styling. The look is the ui-designer's job.
    Same conventions as ux/24-settings-projects.html. */
@@ -97,6 +100,9 @@ fieldset label{display:flex;gap:8px;align-items:flex-start;min-height:36px;paddi
 .toast{position:absolute;left:50%;bottom:70px;transform:translateX(-50%);background:#333;color:#fff;padding:10px 16px;max-width:90%;z-index:6}
 .mac .toast{bottom:24px}
 .note{font-size:12px;color:#666;border:1px dotted #999;padding:4px 8px;margin:8px 0;background:#fff}
+.amend{flex-basis:100%;border:2px solid #333;background:#f7f7f7;padding:8px 10px;margin:0;font-size:13px;color:#222}
+.pend{font-size:12px;border:1px dashed #555;padding:0 5px;background:#fff;white-space:nowrap}
+.prev{border-left:3px solid #777;padding:4px 8px;margin:8px 0;background:#f3f3f3}
 @media (prefers-reduced-motion:no-preference){.toast,.dialog,.sheet{animation:fade .18s}}
 @keyframes fade{from{opacity:0}}
 </style>
@@ -108,7 +114,8 @@ fieldset label{display:flex;gap:8px;align-items:flex-start;min-height:36px;paddi
   <label>Language <select id="c-lang"><option value="ru">ru</option><option value="en">en</option></select></label>
   <label>Data <select id="c-data">
     <option value="loaded">loaded</option><option value="loading">loading</option><option value="error">status load error</option>
-    <option value="offline">offline</option><option value="noperm">console token cannot write</option><option value="notoken">no routine token</option>
+    <option value="offline">offline</option><option value="noconn">owner's GitHub not connected</option><option value="mismatch">a different GitHub account connected</option>
+    <option value="service">service identity (403 owner-only)</option><option value="notoken">no routine token</option>
   </select></label>
   <label>Project <select id="c-proj"><option value="running">running</option><option value="owner">paused by owner</option><option value="team">paused by the team (3 failed runs)</option></select></label>
   <label><input type="checkbox" id="c-overlap"> development run in progress</label>
@@ -117,9 +124,12 @@ fieldset label{display:flex;gap:8px;align-items:flex-start;min-height:36px;paddi
   <label>Next write <select id="c-res">
     <option value="ok">succeeds</option><option value="error">GitHub / trigger unavailable</option>
     <option value="rate">rate limit</option><option value="conflict">conflict (already changed / partial)</option><option value="timeout">no answer (unknown result)</option>
+    <option value="noconn">403 github-owner-not-connected</option><option value="mismatch">409 github-owner-mismatch</option><option value="ownerOnly">403 owner-only</option><option value="closed">409 issue-closed (requests)</option>
   </select></label>
+  <span>The PM's answer to pending requests: <button type="button" class="btn sm" id="c-pm-applied">PM applies</button> <button type="button" class="btn sm" id="c-pm-declined">PM declines</button></span>
   <button type="button" class="btn sm" id="c-reset">Reset</button>
   <p>Mock time: Tue 29 Sep 2026, 14:05 Kyiv. All projects share one mock state; the names change. Mac: click inside the window, then <b>K</b> opens commands (on "All projects", for the focused row).</p>
+  <p class="amend"><b>Amended by #217.</b> Where this spec differs from <a href="https://github.com/geeera/team-console/blob/dev/docs/decisions/0005-owner-requests-to-the-pm.md">ADR 0005</a> or the approved design in PR #138 (<a href="../features/29-team-commands.html">features/29-team-commands.html</a>), ADR 0005 and the design win. The console never writes a label, milestone or status on an issue: "Ask the PM" posts one <code>pt-owner-request</code> comment (sprint or queue) on the owner's own token, and the PM applies it or declines it at the next planning run. Tier and bug severity are not editable here. Owner-write states: owner's GitHub not connected, a different account connected, and the service identity (403 <code>owner-only</code>).</p>
 </div>
 <div class="stage"><div id="app"></div></div>
 <div class="sr-only" aria-live="polite" id="live"></div>
@@ -130,35 +140,38 @@ const PL = {
   ru: (n, f) => { const a = n % 10, b = n % 100; return f[a === 1 && b !== 11 ? 0 : a >= 2 && a <= 4 && (b < 12 || b > 14) ? 1 : 2]; },
   en: (n, f) => f[n === 1 ? 0 : 1],
 };
-/* ---------- copy deck (ru is the reference, en second). Keys match the spec comment on #29. ---------- */
+/* ---------- copy deck (ru is the reference, en second). Keys match the spec comment on #29, amended by #217:
+   `rq.*`, `pick.*` and `cmd.ask*` follow the approved design (PR #138), ru in the polite «вы». ---------- */
 const T = {
 ru: {
-  'nav.needs':'Ждут тебя','nav.all':'Все проекты','nav.projects':'Проекты','tab.chat':'Чат','tab.board':'Доска',
+  'nav.needs':'Ждут вас','nav.all':'Все проекты','nav.projects':'Проекты','tab.chat':'Чат','tab.board':'Доска',
   'space.commands':'Команды','space.commandsAria':'Команды проекта {name}',
   'space.chat':'Чат с PM (#17). Не меняется в этой задаче.',
   'board.head':'{sprint} · демо {date}','board.noSprint':'Текущего спринта нет','board.move':'Перенести демо',
-  'board.edit':'Изменить','board.editAria':'Изменить #{n}: спринт, уровень, важность',
+  'board.ask':'Попросить','board.askAria':'Попросить PM о #{n}','board.pending':'ждёт PM',
   'board.pause':'Приостановить разработку','board.resume':'Возобновить разработку',
   'banner.owner':'<b>{name} на паузе с {time}.</b> Прогоны по расписанию сразу завершаются без работы.',
   'banner.team':'<b>{name}: команда остановилась сама.</b> Три прогона подряд упали.',
   'banner.resume':'Возобновить','banner.log':'Журнал запусков',
   'all.title':'Все проекты','all.more':'Команды','all.moreAria':'Команды проекта {name}',
   'all.running':'В работе','all.paused':'На паузе','all.failing':'Сбой','all.snoozed':'уведомления отложены',
-  'needs.title':'Ждут тебя','needs.approve':'Одобрить советы команды ({n})','needs.approveNone':'Нет советов, которые можно одобрить пакетом',
+  'needs.title':'Ждут вас','needs.approve':'Одобрить советы команды ({n})','needs.approveNone':'Нет советов, которые можно одобрить пакетом',
   'needs.rec':'Команда советует: {c}',
 
   'panel.title':'Команды · {name}','panel.close':'Закрыть',
   'st.h':'Статус','st.state':'Состояние','st.running':'В работе',
-  'st.owner':'На паузе по твоей просьбе с {time}','st.team':'Остановилась сама: три прогона подряд упали',
+  'st.owner':'На паузе по вашей просьбе с {time}','st.team':'Остановилась сама: три прогона подряд упали',
   'st.sprint':'Спринт','st.sprintVal':'{sprint} · демо {date} · заморозка {freeze}','st.noSprint':'Текущего спринта нет',
   'st.progress':'Готово','st.progressVal':'{done} из {total}','st.now':'В работе','st.nowVal':'#41 Поиск по артефактам, #44 Пуш о сбое',
-  'st.needs':'Ждут тебя','st.last':'Последний прогон','st.lastVal':'Проверка, сегодня 04:21 — успешно',
+  'st.needs':'Ждут вас','st.last':'Последний прогон','st.lastVal':'Проверка, сегодня 04:21 — успешно',
   'st.next':'Следующий','st.nextVal':'Планирование, сегодня 18:07','st.nextPaused':'Сразу завершится, пока пауза',
   'st.updated':'Обновлено в {time}','st.refresh':'Обновить статус','st.log':'Журнал запусков',
   'st.loading':'Загружаем статус…',
   'st.errT':'Не удалось загрузить статус','st.errB':'GitHub не ответил. Пока статус неизвестен, команды выключены: неясно, например, на паузе ли проект.',
   'st.offline':'Нет сети. Статус на {time}. Команды работают только онлайн.',
-  'st.noperm':'У токена консоли нет права менять issues в {repo}. Команды, которые пишут в GitHub, выключены.','st.nopermFix':'Настройки › Проекты',
+  'st.noconn':'GitHub не подключён. Пауза, спринт, просьбы к PM и одобрение пишутся в {repo} от вашего имени, поэтому пока выключены. «Запустить сейчас» и уведомления работают.','st.noconnFix':'Подключить GitHub',
+  'st.mismatch':'Подключён не тот аккаунт GitHub: {repo} принадлежит {owner}, а подключён {login}. Пауза, спринт, просьбы к PM и одобрение выключены, пока вы не переподключите GitHub. «Запустить сейчас» и уведомления работают.','st.mismatchFix':'Настройки › GitHub',
+  'st.service':'Вы вошли служебным доступом, а не как владелец. Он только читает: всё, что что-то меняет, может только владелец.',
 
   'g.team':'Работа команды','g.run':'Запустить сейчас','g.sprint':'Спринт','g.issues':'Задачи','g.notify':'Уведомления',
   'cmd.pause':'Приостановить разработку','cmd.pauseHint':'Прогоны по расписанию будут сразу завершаться. Выключить расписание совсем можно в чате команды.',
@@ -169,81 +182,103 @@ ru: {
   'run.last':'Последний: {when}, успешно','run.pmLast':'вчера 18:07','run.devLast':'вчера 23:13','run.qaLast':'сегодня 04:21',
   'run.busy':'Идёт с {time}. Второй запуск — не раньше {until}',
   'run.requested':'Запрошен в {time}. Появится в журнале через пару минут',
-  'run.unknown':'Запрос в {time} без ответа. Проверь журнал; повторно — не раньше {until}',
-  'why.offline':'Нет сети','why.noperm':'Нет права записи','why.paused':'Сначала возобнови разработку',
+  'run.unknown':'Запрос в {time} без ответа. Проверьте журнал; повторно — не раньше {until}',
+  'why.offline':'Нет сети','why.paused':'Сначала возобновите разработку',
+  'why.noconn':'GitHub не подключён','why.mismatch':'Подключён не тот аккаунт GitHub','why.service':'Только для владельца',
   'why.notoken':'Запуск не настроен: нет токена запуска для этого проекта',
   'why.status':'Статус не загружен',
   'cmd.demo':'Перенести демо','cmd.demoHint':'{sprint}: демо {date}, заморозка {freeze}',
   'cmd.next':'Начать следующий спринт','cmd.nextHint':'{sprint} начнётся после демо {date}','cmd.nextHintNow':'{sprint} начнётся сегодня',
   'cmd.nextExists':'{sprint} уже создан: демо {date}',
-  'cmd.edit':'Изменить задачу…','cmd.editHint':'Спринт, уровень сложности, важность ошибки',
+  'cmd.ask':'Попросить PM о задаче','cmd.askHint':'Другой спринт или место в очереди. PM учтёт на ближайшем планировании.',
+  'cmd.askBtn':'Выбрать','cmd.askAria':'Попросить PM о задаче: выбрать задачу',
+  'cmd.askPending':(v)=>`Ждут PM: ${v.n} ${PL.ru(v.n,['просьба','просьбы','просьб'])} (${v.ids})`,
   'cmd.approve':'Одобрить советы команды','cmd.approveHint':(v)=>`${v.n} ${PL.ru(v.n,['вопрос','вопроса','вопросов'])} с безопасным советом`,
   'cmd.approveNone':'Сейчас нечего одобрять пакетом',
-  'cmd.snooze':'Отложить уведомления','cmd.snoozeHint':'Пуши и дайджест по {name} на всех твоих устройствах',
+  'cmd.snooze':'Отложить уведомления','cmd.snoozeHint':'Пуши и дайджест по {name} на всех ваших устройствах',
   'cmd.snoozed':'Отложены до {until}','cmd.unsnooze':'Включить сейчас','cmd.nopush':'Пуши на этом устройстве выключены',
 
   'c.cancel':'Отмена','c.retry':'Повторить','c.sending':'Отправляю…','c.close':'Закрыть','c.back':'Назад',
-  'c.owner':'Запишется от твоего имени.',
+  'c.owner':'Запишется от вашего имени.',
   'p.t':'Приостановить разработку в {name}?',
   'p.b1':'Идущий сейчас прогон доделает свою работу.',
   'p.b2':'Следующие прогоны по расписанию будут запускаться и сразу завершаться — так же, как после паузы из чата команды.',
-  'p.b3':'Вопросы к тебе останутся в «Ждут тебя».',
+  'p.b3':'Вопросы к вам останутся в «Ждут вас».',
   'p.reason':'Причина (необязательно)','p.reasonHint':'Попадёт в журнал запусков.','p.ok':'Приостановить',
   'p.done':'Разработка в {name} на паузе · {time}',
   'p.conflict':'{name} уже на паузе с 13:52 (из чата команды). Ничего не изменено.',
   'r.t':'Возобновить разработку в {name}?','r.b':'Следующий прогон по расписанию — планирование, сегодня 18:07. Раньше можно запустить командой «Запустить сейчас».',
-  'r.bTeam':'Команда остановилась сама: последние три прогона упали. Посмотри журнал запусков, прежде чем возобновлять, — иначе прогоны могут падать дальше.',
+  'r.bTeam':'Команда остановилась сама: последние три прогона упали. Посмотрите журнал запусков, прежде чем возобновлять, — иначе прогоны могут падать дальше.',
   'r.ok':'Возобновить','r.done':'Разработка в {name} возобновлена · {time}','r.conflict':'{name} уже возобновлён (из чата команды). Ничего не изменено.',
   'run.t':'Запустить {slot} сейчас?',
-  'run.pm':'Команда прочитает твои ответы, спланирует работу и подготовит дизайн.',
+  'run.pm':'Команда прочитает ваши ответы, спланирует работу и подготовит дизайн.',
   'run.dev':'Команда возьмёт до двух задач спринта.','run.devFreeze':'Сейчас заморозка: вместо новых задач прогон проверит stage.',
   'run.qa':'Команда проверит открытые PR и исправит найденное.',
   'run.quota':'Прогон расходует квоту подписки, как обычный по расписанию, и начнётся в течение пары минут.',
   'run.ok':'Запустить','run.done':'Запрошено: {slot} · {time}. Прогон появится в журнале через пару минут.',
   'run.rate':'Лимит запусков исчерпан: не больше 30 в час для проекта. Можно снова в 15:00. Ничего не запущено.',
   'run.overlap':'{slot}: прогон уже идёт с 13:40. Второй не запускаю.',
-  'run.timeout':'Сервис запусков не ответил, поэтому неизвестно, начался ли прогон. Проверь журнал через пару минут; повторный запуск откроется в 17:05.',
+  'run.timeout':'Сервис запусков не ответил, поэтому неизвестно, начался ли прогон. Проверьте журнал через пару минут; повторный запуск откроется в 17:05.',
   'run.err':'Сервис запусков не ответил. Ничего не запущено.',
   'd.t':'Перенести демо {sprint}','d.f':'Дата демо','d.hint':'Заморозка — два дня перед демо: {freeze}.',
   'd.warnFreeze':'Заморозка начнётся сразу: новые задачи в этом спринте брать уже не будут.',
-  'd.errPast':'Эта дата уже прошла. Выбери сегодня или позже.','d.errNext':'Позже демо {sprint} ({date}). Сначала перенеси его.',
+  'd.errPast':'Эта дата уже прошла. Выберите сегодня или позже.','d.errNext':'Позже демо {sprint} ({date}). Сначала перенесите его.',
   'd.ok':'Перенести на {date}','d.same':'Дата не изменилась','d.done':'Демо {sprint} перенесено на {date}',
   'n.t':'Начать {sprint}?','n.f':'Дата демо {sprint}',
-  'n.after':'{sprint} начнётся после демо {cur} ({date}). Задачи, не готовые к демо, останутся в {cur}, пока их не перенесёшь ты или PM.',
+  'n.after':'{sprint} начнётся после демо {cur} ({date}). Задачи, не готовые к демо, останутся в {cur}, пока их не перенесёт PM; попросить его можно в «Задачах».',
   'n.now':'{sprint} начнётся сегодня. Задачи в него добавит PM на ближайшем планировании.',
   'n.ok':'Создать {sprint}','n.done':'{sprint} создан · демо {date}','n.errBefore':'Демо {sprint} должно быть позже {date}.',
-  'pick.t':'Какую задачу изменить?','pick.f':'Найти по номеру или названию','pick.empty':'Открытых задач нет.','pick.none':'Ничего не нашлось по запросу «{q}».',
-  'e.t':'#{n} {title}','e.sprint':'Спринт','e.cur':'{sprint} — текущий, демо {date}','e.next':'{sprint} — демо {date}','e.backlog':'Без спринта (бэклог)',
-  'e.tier':'Уровень сложности','e.tierHint':'Уровень ставит архитектор. Меняй, если задача явно проще или сложнее, чем он оценил.',
+  'pick.t':'О какой задаче попросить?','pick.f':'Найти по номеру или названию','pick.empty':'Открытых задач нет.','pick.none':'Ничего не нашлось по запросу «{q}».',
+  'pick.pending':'ждёт PM','pick.applied':'PM выполнил просьбу','pick.declined':'PM отказал',
   'tier.light':'Лёгкая','tier.standard':'Средняя','tier.heavy':'Тяжёлая',
-  'e.sev':'Важность ошибки','e.sevHint':'Критические и высокие ошибки команда берёт первыми, сверх дневного лимита.',
   'sev.critical':'Критическая','sev.high':'Высокая','sev.medium':'Средняя','sev.low':'Низкая',
-  'e.order':'Порядок задач внутри спринта команда задаёт сама. Чтобы задача пошла раньше, оставь её в текущем спринте, а менее важные перенеси в следующий.',
-  'e.diff':'Изменится: {list}','e.none':'Пока ничего не изменено','e.ok':'Сохранить',
-  'e.done':'#{n}: {list} · записано от твоего имени',
-  'e.conflict':'Задача изменилась, пока форма была открыта. Новые значения уже подставлены — проверь и сохрани снова.',
-  'a.t':'Одобрить советы команды?','a.lead':'Команда советует одобрить, и это не деньги, не релиз, не юридическое, не доступы и не дизайн. Сними галочку с того, что хочешь решить сам.',
-  'a.excl':(v)=>`Не вошли: ${v.n} — на них отвечай по одному`,
-  'a.each':'Каждый ответ запишется в свой вопрос от твоего имени.',
-  'a.ok':(v)=>`Одобрить ${v.n}`,'a.zero':'Выбери хотя бы один вопрос',
-  'a.done':(v)=>`Одобрено: ${v.n}. Записано от твоего имени.`,
+  'rq.t':'#{n} {title}','rq.now':'Сейчас: {where} · {kind}','rq.backlog':'без спринта (бэклог)','rq.kind.feature':'функция','rq.kind.bug':'ошибка',
+  'rq.pending':'Уже ждёт PM: {what} ({when}). Новая просьба заменит её.',
+  'rq.applied':'PM выполнил прошлую просьбу: «{why}»','rq.declined':'PM отказал в прошлой просьбе: «{why}»',
+  'rq.sprint':'Спринт','rq.cur':'Текущий: {sprint}','rq.next':'Следующий: {sprint}','rq.nextNone':'Следующий: ещё не создан',
+  'rq.none':'Бэклог, без спринта','rq.here':'(сейчас здесь)',
+  'rq.sprintHint':'PM перенесёт задачу в пределах лимитов спринта. Если места нет, скажет, что пришлось бы убрать.',
+  'rq.freeze':'Сейчас заморозка: до демо PM ничего не добавляет в текущий спринт и ответит в задаче.',
+  'rq.prio':'Очередь','rq.up':'Выше','rq.keep':'Как есть','rq.down':'Ниже',
+  'rq.prioHint':'Ярлыка важности у задач нет: порядок внутри спринта держит PM и передвинет задачу на ближайшем планировании.',
+  'rq.one':'Одна просьба за раз: другой спринт или место в очереди. Выбор одного сбрасывает другое.',
+  'rq.fixed':'Уровень сложности и важность ошибки ставит команда. Если они неверны, напишите PM в чате.',
+  'rq.diffNone':'Выберите, о чём попросить.','rq.diff':'Просьба: {list}.',
+  'rq.dSprint':'перенести в {sprint}','rq.dBacklog':'убрать в бэклог','rq.dUp':'поднять в очереди','rq.dDown':'опустить в очереди',
+  'rq.owner':'Запишется в задачу от вашего имени. Спринт и порядок меняет только PM.',
+  'rq.ok':'Отправить просьбу','rq.okNone':'Пока ничего не выбрано',
+  'rq.done':'Просьба по #{n} записана','rq.doneDetail':'PM учтёт её на ближайшем планировании ({when}) или ответит в задаче, почему нет.',
+  'rq.donePaused':'Разработка на паузе: PM прочитает просьбу на первом планировании после возобновления.',
+  'rq.open':'Открыть задачу','rq.nextRun':'сегодня 18:07',
+  'rq.conflict':'Задача изменилась, пока форма была открыта: PM перенёс её в {sprint}. Новые значения уже подставлены — проверьте и отправьте снова.',
+  'rq.closed':'Задачу уже закрыли, просить не о чем. Ничего не записано.',
+  'rq.timeout':'GitHub не ответил, поэтому неизвестно, записалась ли просьба. Повторите: если она уже записана, второй не будет.',
+  'rq.pmApplied':'PM выполнил просьбу по #{n}','rq.pmDeclined':'PM отказал в просьбе по #{n}',
+  'a.t':'Одобрить советы команды?','a.lead':'Команда советует одобрить, и это не деньги, не релиз, не юридическое, не доступы и не дизайн. Снимите галочку с того, что хотите решить сами.',
+  'a.excl':(v)=>`Не вошли: ${v.n} — на них отвечайте по одному`,
+  'a.each':'Каждый ответ запишется в свой вопрос от вашего имени.',
+  'a.ok':(v)=>`Одобрить ${v.n}`,'a.zero':'Выберите хотя бы один вопрос',
+  'a.done':(v)=>`Одобрено: ${v.n}. Записано от вашего имени.`,
   'a.partial':'Одобрено 2 из 3. #58 не записан: GitHub не ответил.','a.retryRest':'Повторить для #58',
   'a.said':'Одобряю совет команды (пакетно, {n})',
   'cat.money':'деньги','cat.release':'релиз','cat.legal':'юридическое','cat.access':'доступы','cat.design':'дизайн','cat.noRec':'совет — отклонить',
   's.t':'Отложить уведомления {name}','s.when':'На сколько',
   's.hour':'На час','s.morning':'До утра (9:00)','s.week':'На неделю','s.forever':'Пока не включу',
   's.urgent':'Срочное всё равно присылать: команда остановилась сама, нужно решение о релизе',
-  's.ok':'Отложить','s.done':'Уведомления {name} отложены до {until}','s.doneForever':'Уведомления {name} отложены, пока не включишь',
+  's.ok':'Отложить','s.done':'Уведомления {name} отложены до {until}','s.doneForever':'Уведомления {name} отложены, пока не включите',
   's.on':'Уведомления {name} снова включены','s.untilHour':'15:05','s.untilMorning':'завтра 9:00','s.untilWeek':'6 окт',
   'err.github':'GitHub не ответил. Ничего не изменено.','err.rate':'GitHub просит подождать до 14:20. Ничего не изменено.',
   'err.offline':'Нет сети. Команда не отправлена.',
+  'err.connect':'Сначала подключите GitHub в настройках: эти команды пишутся от вашего имени. Ничего не изменено.',
+  'err.mismatch':'Подключён не тот аккаунт GitHub: команды пишутся от аккаунта владельца {repo}. Переподключите GitHub в настройках. Ничего не изменено.',
+  'err.ownerOnly':'Это может только владелец: служебный доступ только читает. Ничего не изменено.',
 },
 en: {
   'nav.needs':'Needs you','nav.all':'All projects','nav.projects':'Projects','tab.chat':'Chat','tab.board':'Board',
   'space.commands':'Commands','space.commandsAria':'Commands for {name}',
   'space.chat':'PM chat (#17). Unchanged by this issue.',
   'board.head':'{sprint} · demo {date}','board.noSprint':'No current sprint','board.move':'Move demo',
-  'board.edit':'Change','board.editAria':'Change #{n}: sprint, tier, severity',
+  'board.ask':'Ask','board.askAria':'Ask the PM about #{n}','board.pending':'waiting for the PM',
   'board.pause':'Pause development','board.resume':'Resume development',
   'banner.owner':'<b>{name} is paused since {time}.</b> Scheduled runs exit at once without doing work.',
   'banner.team':'<b>{name}: the team paused itself.</b> Three runs in a row failed.',
@@ -264,7 +299,9 @@ en: {
   'st.loading':'Loading status…',
   'st.errT':'Couldn’t load the status','st.errB':'GitHub didn’t answer. Commands are off until the status is known — otherwise you might, say, pause a project that is already paused.',
   'st.offline':'You’re offline. Status as of {time}. Commands work only online.',
-  'st.noperm':'The console’s token can’t change issues in {repo}. Commands that write to GitHub are off.','st.nopermFix':'Settings › Projects',
+  'st.noconn':'GitHub isn’t connected. Pause, sprint commands, requests to the PM and approvals are written to {repo} as you, so they are off for now. Run now and notifications still work.','st.noconnFix':'Connect GitHub',
+  'st.mismatch':'A different GitHub account is connected: {repo} belongs to {owner}, but {login} is connected. Pause, sprint commands, requests to the PM and approvals are off until you reconnect GitHub. Run now and notifications still work.','st.mismatchFix':'Settings › GitHub',
+  'st.service':'You’re signed in with the service access, not as the owner. It can only read: anything that changes something is for the owner only.',
 
   'g.team':'Team work','g.run':'Run now','g.sprint':'Sprint','g.issues':'Issues','g.notify':'Notifications',
   'cmd.pause':'Pause development','cmd.pauseHint':'Scheduled runs will exit at once. To switch the schedule off entirely, use the team chat.',
@@ -276,13 +313,16 @@ en: {
   'run.busy':'Running since {time}. Next start no earlier than {until}',
   'run.requested':'Requested at {time}. It shows up in the run log in a few minutes',
   'run.unknown':'Request at {time} got no answer. Check the run log; you can retry after {until}',
-  'why.offline':'Offline','why.noperm':'No write access','why.paused':'Resume development first',
+  'why.offline':'Offline','why.paused':'Resume development first',
+  'why.noconn':'GitHub not connected','why.mismatch':'A different GitHub account is connected','why.service':'Owner only',
   'why.notoken':'Not set up: this project has no routine trigger token',
   'why.status':'Status not loaded',
   'cmd.demo':'Move the demo date','cmd.demoHint':'{sprint}: demo {date}, freeze {freeze}',
   'cmd.next':'Start the next sprint','cmd.nextHint':'{sprint} starts after the {date} demo','cmd.nextHintNow':'{sprint} starts today',
   'cmd.nextExists':'{sprint} already exists: demo {date}',
-  'cmd.edit':'Change an issue…','cmd.editHint':'Sprint, tier, bug severity',
+  'cmd.ask':'Ask the PM about an issue','cmd.askHint':'Another sprint, or higher or lower in the queue. The PM applies it at the next planning run.',
+  'cmd.askBtn':'Pick','cmd.askAria':'Ask the PM about an issue: pick one',
+  'cmd.askPending':(v)=>`Waiting for the PM: ${v.n} ${PL.en(v.n,['request','requests'])} (${v.ids})`,
   'cmd.approve':'Approve team recommendations','cmd.approveHint':(v)=>`${v.n} ${PL.en(v.n,['question','questions'])} with a safe recommendation`,
   'cmd.approveNone':'Nothing to approve in a batch right now',
   'cmd.snooze':'Snooze notifications','cmd.snoozeHint':'Pushes and the digest for {name}, on all your devices',
@@ -315,19 +355,35 @@ en: {
   'd.errPast':'That date has passed. Pick today or later.','d.errNext':'The {sprint} demo ({date}) is earlier. Move that one first.',
   'd.ok':'Move to {date}','d.same':'The date hasn’t changed','d.done':'{sprint} demo moved to {date}',
   'n.t':'Start {sprint}?','n.f':'{sprint} demo date',
-  'n.after':'{sprint} starts after the {cur} demo ({date}). Issues not ready by the demo stay in {cur} until you or the PM move them.',
+  'n.after':'{sprint} starts after the {cur} demo ({date}). Issues not ready by the demo stay in {cur} until the PM moves them; you can ask for that under Issues.',
   'n.now':'{sprint} starts today. The PM adds issues at the next planning run.',
   'n.ok':'Create {sprint}','n.done':'{sprint} created · demo {date}','n.errBefore':'The {sprint} demo must be after {date}.',
-  'pick.t':'Which issue?','pick.f':'Find by number or title','pick.empty':'No open issues.','pick.none':'Nothing matches “{q}”.',
-  'e.t':'#{n} {title}','e.sprint':'Sprint','e.cur':'{sprint} — current, demo {date}','e.next':'{sprint} — demo {date}','e.backlog':'No sprint (backlog)',
-  'e.tier':'Tier','e.tierHint':'The architect sets the tier. Change it when the issue is clearly easier or harder than sized.',
+  'pick.t':'Which issue is it about?','pick.f':'Find by number or title','pick.empty':'No open issues.','pick.none':'Nothing matches “{q}”.',
+  'pick.pending':'waiting for the PM','pick.applied':'the PM applied it','pick.declined':'the PM declined',
   'tier.light':'Light','tier.standard':'Standard','tier.heavy':'Heavy',
-  'e.sev':'Bug severity','e.sevHint':'The team takes critical and high bugs first, beyond the daily cap.',
   'sev.critical':'Critical','sev.high':'High','sev.medium':'Medium','sev.low':'Low',
-  'e.order':'The team orders issues within a sprint itself. To get one done sooner, keep it in the current sprint and move less important ones to the next.',
-  'e.diff':'Changes: {list}','e.none':'Nothing changed yet','e.ok':'Save',
-  'e.done':'#{n}: {list} · recorded as you',
-  'e.conflict':'The issue changed while this form was open. The new values are filled in — check them and save again.',
+  'rq.t':'#{n} {title}','rq.now':'Now: {where} · {kind}','rq.backlog':'no sprint (backlog)','rq.kind.feature':'feature','rq.kind.bug':'bug',
+  'rq.pending':'Already waiting for the PM: {what} ({when}). A new request replaces it.',
+  'rq.applied':'The PM applied your last request: “{why}”','rq.declined':'The PM declined your last request: “{why}”',
+  'rq.sprint':'Sprint','rq.cur':'Current: {sprint}','rq.next':'Next: {sprint}','rq.nextNone':'Next: not created yet',
+  'rq.none':'Backlog, no sprint','rq.here':'(it is here now)',
+  'rq.sprintHint':'The PM moves it within the sprint’s limits. If there is no room, the PM says what would have to move out.',
+  'rq.freeze':'It’s freeze: the PM adds nothing to the current sprint before the demo and answers on the issue.',
+  'rq.prio':'Queue','rq.up':'Up','rq.keep':'As is','rq.down':'Down',
+  'rq.prioHint':'Issues have no priority label; the PM keeps the order within a sprint and moves this one at the next planning run.',
+  'rq.one':'One request at a time: another sprint or a place in the queue. Picking one clears the other.',
+  'rq.fixed':'The team sets the tier and bug severity. If one is wrong, tell the PM in the chat.',
+  'rq.diffNone':'Pick what to ask for.','rq.diff':'Request: {list}.',
+  'rq.dSprint':'move to {sprint}','rq.dBacklog':'move to the backlog','rq.dUp':'move up the queue','rq.dDown':'move down the queue',
+  'rq.owner':'Recorded on the issue as yours. Only the PM changes the sprint and the order.',
+  'rq.ok':'Send the request','rq.okNone':'Nothing picked yet',
+  'rq.done':'Request on #{n} recorded','rq.doneDetail':'The PM applies it at the next planning run ({when}) or says on the issue why not.',
+  'rq.donePaused':'Development is paused: the PM reads the request at the first planning run after you resume.',
+  'rq.open':'Open the issue','rq.nextRun':'today 18:07',
+  'rq.conflict':'The issue changed while this form was open: the PM moved it to {sprint}. The new values are filled in — check them and send again.',
+  'rq.closed':'The issue was closed meanwhile, so there is nothing to ask. Nothing recorded.',
+  'rq.timeout':'GitHub didn’t answer, so it’s unknown whether the request was recorded. Try again: if it was, it won’t be recorded twice.',
+  'rq.pmApplied':'The PM applied the request on #{n}','rq.pmDeclined':'The PM declined the request on #{n}',
   'a.t':'Approve team recommendations?','a.lead':'The team recommends approving these, and none is about money, a release, legal, access or a design. Untick any you want to decide yourself.',
   'a.excl':(v)=>`Left out: ${v.n} — answer these one by one`,
   'a.each':'Each answer is recorded on its own question as you.',
@@ -343,6 +399,9 @@ en: {
   's.on':'{name} notifications are back on','s.untilHour':'15:05','s.untilMorning':'tomorrow 9:00','s.untilWeek':'6 Oct',
   'err.github':'GitHub didn’t answer. Nothing changed.','err.rate':'GitHub asks to wait until 14:20. Nothing changed.',
   'err.offline':'You’re offline. The command wasn’t sent.',
+  'err.connect':'Connect GitHub in Settings first: these commands are written as you. Nothing changed.',
+  'err.mismatch':'A different GitHub account is connected: commands are written from the account that owns {repo}. Reconnect GitHub in Settings. Nothing changed.',
+  'err.ownerOnly':'Only the owner can do this: the service access can only read. Nothing changed.',
 }};
 
 const PROJECTS = [
@@ -352,9 +411,10 @@ const PROJECTS = [
 ];
 const ISSUES = [
   { n:41, title:'Поиск по артефактам', titleEn:'Artifact search', kind:'feature', sprint:'cur', tier:'standard' },
-  { n:44, title:'Пуш о сбое прогона', titleEn:'Push on a failed run', kind:'feature', sprint:'cur', tier:'light' },
+  { n:44, title:'Пуш о сбое прогона', titleEn:'Push on a failed run', kind:'feature', sprint:'cur', tier:'light', req:{ kind:'priority', direction:'up', at:'вчера 19:10', atEn:'yesterday 19:10' } },
   { n:52, title:'Ошибка: черновик теряется при смене проекта', titleEn:'Bug: draft lost when switching projects', kind:'bug', sprint:'cur', tier:'light', sev:'high' },
-  { n:57, title:'Экспорт истории чата', titleEn:'Export chat history', kind:'feature', sprint:'none', tier:'standard' },
+  { n:57, title:'Экспорт истории чата', titleEn:'Export chat history', kind:'feature', sprint:'none', tier:'standard',
+    answer:{ result:'declined', why:'В Спринте 04 нет места до демо, оставил в бэклоге. Предложу его в Спринт 05.', whyEn:'Sprint 04 is full until the demo, so I left it in the backlog. I’ll propose it for Sprint 05.' } },
 ];
 const QUESTIONS = [
   { n:13, p:'storify', title:'Хранить черновики в D1', titleEn:'Keep drafts in D1', rec:'approve', cat:'scope', recText:'одобрить', recEn:'approve' },
@@ -390,15 +450,30 @@ const title = (o) => (S.lang === 'ru' ? o.title : o.titleEn);
 const safeQs = (slug) => QUESTIONS.filter((q) => (!slug || q.p === slug) && q.rec === 'approve' && q.cat === 'scope' && !S.answered.includes(q.n));
 const unsafeQs = (slug) => QUESTIONS.filter((q) => (!slug || q.p === slug) && !(q.rec === 'approve' && q.cat === 'scope') && !S.answered.includes(q.n));
 const paused = () => S.proj !== 'running';
+const where = (s) => (s === 'cur' ? sprintName(P().sprint) : s === 'next' ? sprintName(P().sprint + 1) : t('rq.backlog'));
+function reqText(q) {
+  if (q.kind === 'sprint') return q.target === 'backlog' ? t('rq.dBacklog') : t('rq.dSprint', { sprint: where(q.target === 'current' ? 'cur' : 'next') });
+  return q.direction === 'up' ? t('rq.dUp') : t('rq.dDown');
+}
+/* one comment per request (ADR 0005 decision 1): a sprint move or a queue move, never both */
+function reqOf(i, v) {
+  if (v.sprint !== i.sprint) return { kind: 'sprint', target: v.sprint === 'cur' ? 'current' : v.sprint === 'next' ? 'next' : 'backlog' };
+  if (v.prio !== 'keep') return { kind: 'priority', direction: v.prio };
+  return null;
+}
 function announce(msg) { const l = $('#live'); l.textContent = ''; setTimeout(() => { l.textContent = plain(msg); }, 30); }
 
 /* why a write command is unavailable, or '' */
 function blocked(kind) {
   if (S.data === 'offline') return t('why.offline');
   if (S.data === 'loading' || S.data === 'error') return t('why.status');
+  // the service identity is refused on every write route (403 owner-only), runs and snooze included
+  if (S.data === 'service') return t('why.service');
   if (kind === 'snooze') return S.push ? '' : t('cmd.nopush');
-  if (S.data === 'noperm') return t('why.noperm');
-  if (kind === 'run') { if (S.data === 'notoken') return t('why.notoken'); if (paused()) return t('why.paused'); }
+  // runs fire the routine trigger, not the owner's GitHub token, so a missing owner connection leaves them on
+  if (kind === 'run') { if (S.data === 'notoken') return t('why.notoken'); if (paused()) return t('why.paused'); return ''; }
+  if (S.data === 'noconn') return t('why.noconn');
+  if (S.data === 'mismatch') return t('why.mismatch');
   return '';
 }
 function btn(id, label, kind, extra = '', aria = '') {
@@ -416,7 +491,9 @@ function statusCard(p) {
   const needs = safeQs(p.slug).length + unsafeQs(p.slug).length;
   return `<section class="card" aria-labelledby="st-h"><h3 id="st-h" style="margin-top:0">${t('st.h')}</h3>
     ${S.data === 'offline' ? `<p class="block warn" style="margin:4px 0">${t('st.offline', { time: '13:58' })}</p>` : ''}
-    ${S.data === 'noperm' ? `<p class="block warn" style="margin:4px 0">${t('st.noperm', { repo: p.repo })} <a href="#">${t('st.nopermFix')}</a></p>` : ''}
+    ${S.data === 'noconn' ? `<p class="block warn" style="margin:4px 0">${t('st.noconn', { repo: p.repo })} <a href="#">${t('st.noconnFix')}</a></p>` : ''}
+    ${S.data === 'mismatch' ? `<p class="block warn" style="margin:4px 0">${t('st.mismatch', { repo: p.repo, owner: 'geeera', login: 'kirill-work' })} <a href="#">${t('st.mismatchFix')}</a></p>` : ''}
+    ${S.data === 'service' ? `<p class="block warn" style="margin:4px 0">${t('st.service')}</p>` : ''}
     <dl><dt>${t('st.state')}</dt><dd>${state}</dd><dt>${t('st.sprint')}</dt><dd>${sprint}</dd>
     <dt>${t('st.progress')}</dt><dd>${t('st.progressVal', { done: 7, total: 12 })}</dd><dt>${t('st.now')}</dt><dd>${t('st.nowVal')}</dd>
     <dt>${t('st.needs')}</dt><dd>${needs}</dd><dt>${t('st.last')}</dt><dd>${t('st.lastVal')}</dd>
@@ -453,7 +530,8 @@ function panelBody() {
     ? `<div class="cmd"><div class="grow"><b>${t('cmd.next')}</b><small>${t('cmd.nextExists', { sprint: nx, date: fDate(S.next) })}</small></div></div>`
     : `<div class="cmd"><div class="grow"><b>${t('cmd.next')}</b><small>${S.nosprint ? t('cmd.nextHintNow', { sprint: nx }) : t('cmd.nextHint', { sprint: nx, date: fDate(S.demo) })}</small>${whyLine('cmd-next', 'write')}</div>${btn('cmd-next', S.lang === 'ru' ? 'Начать' : 'Start', 'write', '', t('cmd.next'))}</div>`;
   h += `<h3>${t('g.issues')}</h3>`;
-  h += `<div class="cmd"><div class="grow"><b>${t('cmd.edit')}</b><small>${t('cmd.editHint')}</small>${whyLine('cmd-edit', 'write')}</div>${btn('cmd-edit', S.lang === 'ru' ? 'Выбрать' : 'Choose', 'write', 'aria-haspopup="dialog"', t('cmd.edit'))}</div>`;
+  const pend = S.issues.filter((i) => i.req);
+  h += `<div class="cmd"><div class="grow"><b>${t('cmd.ask')}</b><small>${t('cmd.askHint')}</small>${pend.length ? `<small>${t('cmd.askPending', { n: pend.length, ids: pend.map((i) => '#' + i.n).join(', ') })}</small>` : ''}${whyLine('cmd-ask', 'write')}</div>${btn('cmd-ask', t('cmd.askBtn'), 'write', 'aria-haspopup="dialog"', t('cmd.askAria'))}</div>`;
   const n = safeQs(p.slug).length;
   h += `<div class="cmd"><div class="grow"><b>${t('cmd.approve')}</b><small>${n ? t('cmd.approveHint', { n }) : t('cmd.approveNone')}</small>${whyLine('cmd-approve', 'write')}</div>${n ? btn('cmd-approve', S.lang === 'ru' ? 'Посмотреть' : 'Review', 'write', 'aria-haspopup="dialog"', t('cmd.approve')) : ''}</div>`;
   h += `<h3>${t('g.notify')}</h3>`;
@@ -475,7 +553,8 @@ function banner(p) {
 }
 function spaceHTML() {
   const p = PROJECTS.find((x) => x.slug === S.project);
-  const rows = S.issues.filter((i) => i.sprint === 'cur').map((i) => `<li><span class="grow">#${i.n} ${esc(title(i))}<small>${t(`tier.${i.tier}`)}${i.sev ? ' · ' + t(`sev.${i.sev}`) : ''}</small></span><button type="button" class="btn sm" id="edit-${i.n}" data-act="edit" data-n="${i.n}" aria-label="${esc(t('board.editAria', { n: i.n }))}" aria-haspopup="dialog" ${blocked('write') ? 'aria-disabled="true"' : ''}>${t('board.edit')}</button></li>`).join('');
+  // tier and severity stay read-only text: the console never sets a team label (ADR 0005)
+  const rows = S.issues.filter((i) => i.sprint === 'cur').map((i) => `<li><span class="grow">#${i.n} ${esc(title(i))}<small>${t(`tier.${i.tier}`)}${i.sev ? ' · ' + t(`sev.${i.sev}`) : ''}</small></span>${i.req ? `<span class="pend">${t('board.pending')}<span class="sr-only">: ${esc(reqText(i.req))}</span></span>` : ''}<button type="button" class="btn sm" id="ask-${i.n}" data-act="ask" data-n="${i.n}" aria-label="${esc(t('board.askAria', { n: i.n }))}" aria-haspopup="dialog" ${blocked('write') ? 'aria-disabled="true"' : ''}>${t('board.ask')}</button></li>`).join('');
   const head = S.vp === 'mac' ? `<div class="hdr"><h1>${p.slug}</h1><button type="button" class="btn" id="open-panel" data-act="panel" aria-expanded="${!!S.panel}" aria-controls="panel" aria-keyshortcuts="K">${t('space.commands')} <span class="muted">K</span></button></div>` : '';
   const chat = `<div class="box">${t('space.chat')}</div>`;
   const board = `<h2>${S.nosprint ? t('board.noSprint') : t('board.head', { sprint: sprintName(p.sprint), date: fDate(S.demo) })}
@@ -533,27 +612,29 @@ function dialogHTML() {
     const q = (S.q || '').toLowerCase();
     const list = S.issues.filter((i) => !q || String(i.n).includes(q.replace('#', '')) || title(i).toLowerCase().includes(q));
     h = `<h2 id="dlg-h" tabindex="-1">${t('pick.t')}</h2><div class="field"><label for="f-q">${t('pick.f')}</label><input type="search" id="f-q" value="${esc(S.q)}" autocomplete="off" aria-controls="pick-list"></div>
-      <ul class="list" id="pick-list" aria-live="polite">${S.issues.length === 0 ? `<li>${t('pick.empty')}</li>` : list.length ? list.map((i) => `<li><button type="button" class="btn link grow" style="text-align:left" data-act="edit" data-n="${i.n}" id="pick-${i.n}">#${i.n} ${esc(title(i))}</button></li>`).join('') : `<li>${t('pick.none', { q: S.q })}</li>`}</ul>
+      <ul class="list" id="pick-list" aria-live="polite">${S.issues.length === 0 ? `<li>${t('pick.empty')}</li>` : list.length ? list.map((i) => `<li><button type="button" class="btn link grow" style="text-align:left" data-act="ask" data-n="${i.n}" id="pick-${i.n}">#${i.n} ${esc(title(i))}<small>${esc(where(i.sprint))}${i.req ? ` · ${t('pick.pending')}` : i.answer ? ` · ${t('pick.' + i.answer.result)}` : ''}</small></button></li>`).join('') : `<li>${t('pick.none', { q: S.q })}</li>`}</ul>
       <div class="actions"><button type="button" class="btn" data-act="dlg-cancel" id="dlg-cancel">${t('c.cancel')}</button></div>`;
   }
-  if (d.type === 'edit') {
+  if (d.type === 'ask') {
     const i = S.issues.find((x) => x.n === d.n); const v = d.v;
-    const ch = [];
-    const sprintLabel = (s) => s === 'cur' ? sprintName(p.sprint) : s === 'next' ? sprintName(p.sprint + 1) : t('e.backlog');
-    if (v.sprint !== i.sprint) ch.push(`${S.lang === 'ru' ? 'спринт' : 'sprint'} ${sprintLabel(i.sprint)} → ${sprintLabel(v.sprint)}`);
-    if (v.tier !== i.tier) ch.push(`${S.lang === 'ru' ? 'уровень' : 'tier'} ${t('tier.' + i.tier).toLowerCase()} → ${t('tier.' + v.tier).toLowerCase()}`);
-    if (i.sev && v.sev !== i.sev) ch.push(`${S.lang === 'ru' ? 'важность' : 'severity'} ${t('sev.' + i.sev).toLowerCase()} → ${t('sev.' + v.sev).toLowerCase()}`);
-    d.changes = ch.join('; ');
-    const radio = (name, val, cur) => `<label><input type="radio" name="${name}" value="${val}" ${cur === val ? 'checked' : ''} data-field="${name}"> ${t(name + '.' + val)}</label>`;
-    h = `<h2 id="dlg-h" tabindex="-1">${t('e.t', { n: i.n, title: title(i) })}</h2>
-      <div class="field"><label for="f-sprint">${t('e.sprint')}</label><select id="f-sprint" data-field="sprint">
-        <option value="cur" ${v.sprint === 'cur' ? 'selected' : ''}>${t('e.cur', { sprint: sprintName(p.sprint), date: fDate(S.demo) })}</option>
-        ${S.next ? `<option value="next" ${v.sprint === 'next' ? 'selected' : ''}>${t('e.next', { sprint: sprintName(p.sprint + 1), date: fDate(S.next) })}</option>` : ''}
-        <option value="none" ${v.sprint === 'none' ? 'selected' : ''}>${t('e.backlog')}</option></select></div>
-      <fieldset aria-describedby="tier-h"><legend>${t('e.tier')}</legend>${['light', 'standard', 'heavy'].map((x) => radio('tier', x, v.tier)).join('')}<span class="hint" id="tier-h">${t('e.tierHint')}</span></fieldset>
-      ${i.sev ? `<fieldset aria-describedby="sev-h"><legend>${t('e.sev')}</legend>${['critical', 'high', 'medium', 'low'].map((x) => radio('sev', x, v.sev)).join('')}<span class="hint" id="sev-h">${t('e.sevHint')}</span></fieldset>` : `<p class="hint">${t('e.order')}</p>`}
-      <p class="diff" id="e-diff" aria-live="polite">${ch.length ? t('e.diff', { list: d.changes }) + ' ' + t('c.owner') : t('e.none')}</p>
-      ${errBlock()}${actions(t('e.ok'), !ch.length)}`;
+    const q = reqOf(i, v); d.req = q;
+    const here = (s) => (i.sprint === s ? ` <span class="hint">${t('rq.here')}</span>` : '');
+    const opt = (name, val, label, off) => `<label><input type="radio" name="${name}" value="${val}" ${v[name] === val ? 'checked' : ''} ${off ? 'disabled' : ''} data-field="${name}"> <span>${label}</span></label>`;
+    const prev = i.req ? `<p class="prev">${t('rq.pending', { what: reqText(i.req), when: S.lang === 'ru' ? i.req.at : i.req.atEn })}</p>`
+      : i.answer ? `<p class="prev">${t('rq.' + i.answer.result, { why: S.lang === 'ru' ? i.answer.why : i.answer.whyEn })}</p>` : '';
+    h = `<h2 id="dlg-h" tabindex="-1">${t('rq.t', { n: i.n, title: title(i) })}</h2>
+      <p>${t('rq.now', { where: where(i.sprint), kind: t('rq.kind.' + i.kind) })}</p>${prev}
+      <fieldset aria-describedby="rq-sprint-h"><legend>${t('rq.sprint')}</legend>
+        ${S.nosprint ? '' : opt('sprint', 'cur', t('rq.cur', { sprint: sprintName(p.sprint) }) + here('cur'))}
+        ${opt('sprint', 'next', S.next ? t('rq.next', { sprint: sprintName(p.sprint + 1) }) + here('next') : t('rq.nextNone'), !S.next && i.sprint !== 'next')}
+        ${opt('sprint', 'none', t('rq.none') + here('none'))}
+        <span class="hint" id="rq-sprint-h">${t('rq.sprintHint')}</span>
+        ${v.sprint === 'cur' && i.sprint !== 'cur' && S.freeze ? `<p class="block warn">${t('rq.freeze')}</p>` : ''}</fieldset>
+      <fieldset aria-describedby="rq-prio-h"><legend>${t('rq.prio')}</legend>${['up', 'keep', 'down'].map((x) => opt('prio', x, t('rq.' + x))).join('')}<span class="hint" id="rq-prio-h">${t('rq.prioHint')}</span></fieldset>
+      <p class="hint">${t('rq.one')} ${t('rq.fixed')}</p>
+      <p class="diff" id="rq-diff" aria-live="polite">${q ? t('rq.diff', { list: reqText(q) }) : t('rq.diffNone')}</p>
+      <p class="hint">${t('rq.owner')}</p>
+      ${errBlock()}${d.closed ? `<div class="actions"><button type="button" class="btn" data-act="dlg-cancel" id="dlg-ok">${t('c.close')}</button></div>` : actions(q ? t('rq.ok') : t('rq.okNone'), !q)}`;
   }
   if (d.type === 'approve') {
     const scope = d.scope === 'all' ? null : p.slug; const safe = safeQs(scope); const un = unsafeQs(scope);
@@ -569,7 +650,7 @@ function dialogHTML() {
     h = `<h2 id="dlg-h" tabindex="-1">${t('s.t', { name: p.slug })}</h2><fieldset><legend>${t('s.when')}</legend>${['hour', 'morning', 'week', 'forever'].map(opt).join('')}</fieldset>
       <label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="f-urgent" checked> <span>${t('s.urgent')}</span></label>${errBlock()}${actions(t('s.ok'))}`;
   }
-  return `<div class="scrim" data-act="scrim"><div class="dialog" role="${d.type === 'pick' || d.type === 'edit' || d.type === 'snooze' ? 'dialog' : 'alertdialog'}" aria-modal="true" aria-labelledby="dlg-h" ${S.err ? 'aria-describedby="dlg-err"' : ''}>${h}</div></div>`;
+  return `<div class="scrim" data-act="scrim"><div class="dialog" role="${d.type === 'pick' || d.type === 'ask' || d.type === 'snooze' ? 'dialog' : 'alertdialog'}" aria-modal="true" aria-labelledby="dlg-h" ${S.err ? 'aria-describedby="dlg-err"' : ''}>${h}</div></div>`;
 }
 
 /* ---------- frame ---------- */
@@ -619,6 +700,11 @@ function confirm() {
     S.busy = false; const res = S.res; const p = P(); const now = '14:05';
     const fail = (msg) => { S.err = msg; S.focusTo = 'dlg-ok'; render(); announce(msg); };
     if (d.type === 'snooze' || d.type === 'pick') res === 'error' ? fail(t('err.github')) : (() => { const u = d.when === 'forever' ? null : t('s.until' + d.when[0].toUpperCase() + d.when.slice(1)); S.snooze = u || (S.lang === 'ru' ? 'ручного включения' : 'turned on'); done(u ? t('s.done', { name: p.slug, until: u }) : t('s.doneForever', { name: p.slug }), 'cmd-unsnooze'); })();
+    else if (res === 'noconn' && d.type !== 'run') fail(t('err.connect'));
+    else if (res === 'mismatch' && d.type !== 'run') fail(t('err.mismatch', { repo: p.repo }));
+    else if (res === 'ownerOnly') fail(t('err.ownerOnly'));
+    else if (res === 'closed' && d.type === 'ask') { d.closed = true; fail(t('rq.closed')); }
+    else if (res === 'timeout' && d.type === 'ask') fail(t('rq.timeout'));
     else if (res === 'error') fail(d.type === 'run' ? t('run.err') : t('err.github'));
     else if (res === 'rate') fail(d.type === 'run' ? t('run.rate') : t('err.rate'));
     else if (res === 'timeout' && d.type === 'run') { S.run[d.slot] = 'unknown'; done(t('run.timeout'), 'result'); }
@@ -626,7 +712,7 @@ function confirm() {
       if (d.type === 'pause') { S.proj = 'owner'; done(t('p.conflict', { name: p.slug }), 'cmd-resume'); }
       else if (d.type === 'resume') { S.proj = 'running'; done(t('r.conflict', { name: p.slug }), 'cmd-pause'); }
       else if (d.type === 'run') fail(t('run.overlap', { slot: t('slot.' + d.slot) }));
-      else if (d.type === 'edit') { const i = S.issues.find((x) => x.n === d.n); i.tier = 'heavy'; d.v = { ...d.v, tier: 'heavy' }; fail(t('e.conflict')); }
+      else if (d.type === 'ask') { const i = S.issues.find((x) => x.n === d.n); i.sprint = i.sprint === 'next' ? 'cur' : 'next'; S.next = S.next || addDays(S.demo, 14); /* the owner's choice stays; reqOf re-reads it against the new sprint */ fail(t('rq.conflict', { sprint: where(i.sprint) })); }
       else if (d.type === 'approve') { S.answered.push(...d.sel.filter((n) => n !== 58)); d.sel = [58]; fail(`${t('a.partial')}`); }
       else fail(t('err.github'));
     } else {
@@ -635,7 +721,9 @@ function confirm() {
       if (d.type === 'run') { S.run[d.slot] = 'requested'; done(`${t('run.done', { slot: t('slot.' + d.slot), time: now })} <a href="#">${t('st.log')} ↗</a>`, 'result'); }
       if (d.type === 'demo') { S.demo = d.value; done(t('d.done', { sprint: sprintName(p.sprint), date: fDate(d.value) }), 'cmd-demo'); }
       if (d.type === 'next') { S.next = d.value || addDays(S.nosprint ? TODAY : S.demo, 14); done(t('n.done', { sprint: sprintName(p.sprint + 1), date: fDate(S.next) }), 'result'); }
-      if (d.type === 'edit') { const i = S.issues.find((x) => x.n === d.n); Object.assign(i, d.v); done(t('e.done', { n: d.n, list: d.changes }), S.opener); }
+      // the request is recorded, never applied: the issue keeps its sprint, labels and order until the PM acts
+      if (d.type === 'ask') { const i = S.issues.find((x) => x.n === d.n); i.req = { ...d.req, at: now, atEn: now }; i.answer = null;
+        done(`<b>${t('rq.done', { n: d.n })}</b> ${paused() ? t('rq.donePaused') : t('rq.doneDetail', { when: t('rq.nextRun') })} <a href="#">${t('rq.open')} <span class="sr-only">(GitHub)</span>↗</a>`, S.opener); }
       if (d.type === 'approve') { const n = d.sel.length; S.answered.push(...d.sel); done(t('a.done', { n }), S.view === 'needs' ? 'frame' : 'result'); }
     }
   }, 700);
@@ -660,8 +748,8 @@ document.addEventListener('click', (e) => {
     case 'run': openDlg({ type: 'run', slot: el.dataset.slot }, id); break;
     case 'cmd-demo': openDlg({ type: 'demo', value: S.demo }, id); break;
     case 'cmd-next': openDlg({ type: 'next' }, id); break;
-    case 'cmd-edit': S.q = ''; openDlg({ type: 'pick' }, id); break;
-    case 'edit': { const i = S.issues.find((x) => x.n === +el.dataset.n); const op = S.dlg ? S.opener : id; openDlg({ type: 'edit', n: i.n, v: { sprint: i.sprint, tier: i.tier, sev: i.sev } }, op); break; }
+    case 'cmd-ask': S.q = ''; openDlg({ type: 'pick' }, id); break;
+    case 'ask': { const i = S.issues.find((x) => x.n === +el.dataset.n); const op = S.dlg ? S.opener : id; openDlg({ type: 'ask', n: i.n, v: { sprint: i.sprint, prio: 'keep' } }, op); break; }
     case 'cmd-approve': { const scope = el.dataset.scope || 'project'; const list = safeQs(scope === 'all' ? null : P().slug); openDlg({ type: 'approve', scope, sel: list.map((q) => q.n) }, id); break; }
     case 'cmd-snooze': openDlg({ type: 'snooze', when: 'morning' }, id); break;
     case 'cmd-unsnooze': S.snooze = null; S.result = { slug: P().slug, html: t('s.on', { name: P().slug }) }; announce(S.result.html); S.focusTo = 'cmd-snooze'; render(); break;
@@ -680,7 +768,12 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('change', (e) => {
   const el = e.target;
-  if (S.dlg && el.dataset.field) { const f = el.dataset.field; if (f === 'when') S.dlg.when = el.value; else S.dlg.v[f] = el.value; const id = el.id || null; render(); (id ? $('#' + id) : $(`[data-field="${f}"][value="${el.value}"]`)).focus(); return; }
+  if (S.dlg && el.dataset.field) {
+    const f = el.dataset.field; const d = S.dlg;
+    if (f === 'when') d.when = el.value; else d.v[f] = el.value;
+    if (d.type === 'ask') { const i = S.issues.find((x) => x.n === d.n); if (f === 'sprint' && el.value !== i.sprint) d.v.prio = 'keep'; if (f === 'prio' && el.value !== 'keep') d.v.sprint = i.sprint; }
+    const id = el.id || null; render(); (id ? $('#' + id) : $(`[data-field="${f}"][value="${el.value}"]`)).focus(); return;
+  }
   if (S.dlg && el.dataset.q) { const n = +el.dataset.q; S.dlg.sel = el.checked ? [...S.dlg.sel, n] : S.dlg.sel.filter((x) => x !== n); render(); $(`[data-q="${n}"]`).focus(); return; }
 });
 document.addEventListener('keydown', (e) => {
@@ -693,6 +786,21 @@ document.addEventListener('keydown', (e) => {
 const bind = (id, key, map = (x) => x) => $(id).addEventListener('change', (e) => { S[key] = map(e.target.type === 'checkbox' ? e.target.checked : e.target.value); S.result = null; render(); });
 bind('#c-vp', 'vp'); bind('#c-lang', 'lang'); bind('#c-data', 'data'); bind('#c-proj', 'proj'); bind('#c-overlap', 'overlap'); bind('#c-freeze', 'freeze'); bind('#c-nosprint', 'nosprint'); bind('#c-res', 'res');
 $('#c-reset').addEventListener('click', () => { S = init(); ['#c-data', '#c-proj', '#c-res'].forEach((s) => { $(s).selectedIndex = 0; }); ['#c-overlap', '#c-freeze', '#c-nosprint'].forEach((s) => { $(s).checked = false; }); $('#c-vp').value = S.vp; $('#c-lang').value = 'ru'; render(); });
+/* simulates the PM's handled marker arriving (hooks Worker or the form's re-read), ADR 0005 decision 3 */
+function pmAnswers(result) {
+  const pend = S.issues.filter((i) => i.req); if (!pend.length) { announce('No pending requests'); return; }
+  const msgs = pend.map((i) => {
+    const q = i.req; i.req = null;
+    if (result === 'applied' && q.kind === 'sprint') { i.sprint = q.target === 'current' ? 'cur' : q.target === 'next' ? 'next' : 'none'; if (q.target === 'next') S.next = S.next || addDays(S.demo, 14); }
+    i.answer = result === 'applied'
+      ? { result, why: `Сделал: ${reqText(q)}.`, whyEn: `Done: ${reqText(q)}.` }
+      : { result, why: 'В текущем спринте нет места до демо. Вернусь к этому на следующем планировании.', whyEn: 'The current sprint has no room before the demo. I’ll come back to it at the next planning run.' };
+    return t(result === 'applied' ? 'rq.pmApplied' : 'rq.pmDeclined', { n: i.n });
+  });
+  render(); announce(msgs.join('. '));
+}
+$('#c-pm-applied').addEventListener('click', () => pmAnswers('applied'));
+$('#c-pm-declined').addEventListener('click', () => pmAnswers('declined'));
 $('#c-vp').value = S.vp;
 render();
 </script>

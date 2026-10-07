@@ -1,0 +1,66 @@
+@if (!isRetrying()) {
+<p class="batch__body">{{ 'commands.batch.body' | transloco }}</p>
+} @if (items().length > 0) {
+<tc-list class="batch__list" data-testid="batch-list" [attr.aria-label]="'commands.batch.list' | transloco">
+  @for (item of items(); track keyOf(item)) {
+  <tc-check-row
+    [attr.data-number]="item.number"
+    [checked]="isChecked(item)"
+    [disabled]="running()"
+    (checkedChange)="toggle(item, $event)"
+  >
+    <span tc-check-title
+      >@if (showProject) {<span class="batch__project">{{ item.project.name }} · </span>}<span
+        class="batch__number"
+        >#{{ item.number }}</span
+      >
+      {{ item.title }}</span
+    >
+    @if (recOf(item); as rec) {
+    <span tc-check-detail>{{ 'commands.batch.rec' | transloco: { c: rec } }}</span>
+    }
+  </tc-check-row>
+  }
+</tc-list>
+} @if (!isRetrying() && data.leftOut.length > 0) {
+<details class="batch__out" data-testid="batch-left-out">
+  <summary>{{ 'commands.batch.out' | transloco: { n: data.leftOut.length } }}</summary>
+  <ul>
+    @for (left of data.leftOut; track keyOf(left.item)) {
+    <li [attr.data-number]="left.item.number">
+      <span class="batch__number">#{{ left.item.number }}</span> {{ left.item.title }}
+      <tc-chip>{{ reasonOf(left) }}</tc-chip>
+    </li>
+    }
+  </ul>
+</details>
+} @if (items().length > 0) {
+<p class="batch__note">{{ 'commands.batch.owner' | transloco: { said: said() } }}</p>
+} @if (failure(); as message) {
+<div tc-banner tone="danger" role="alert" data-testid="batch-error">
+  <tc-icon tc-banner-icon name="alert" size="sm" />
+  <p tc-banner-text>{{ message }}</p>
+</div>
+}
+<!-- In the frame's footer: the list can be long, the actions stay in view (#274). -->
+<ng-template tcSheetFooter>
+  @if (items().length > 0) {
+  <button
+    tc-button
+    type="button"
+    variant="primary"
+    data-testid="batch-ok"
+    [loading]="running()"
+    [off]="checkedCount() === 0"
+    [attr.aria-disabled]="running() || checkedCount() === 0 ? 'true' : null"
+    (click)="confirm()"
+  >
+    @if (running()) { {{ 'commands.batch.sending' | transloco }} } @else if (checkedCount() === 0) { {{
+    'commands.batch.okNone' | transloco }} } @else if (isRetrying()) { {{ 'commands.batch.retry' | transloco
+    }} } @else { {{ 'commands.batch.ok' | transloco: { n: checkedCount() } }} }
+  </button>
+  }
+  <button tc-button type="button" [attr.aria-disabled]="running() ? 'true' : null" (click)="cancel()">
+    {{ 'commands.batch.cancel' | transloco }}
+  </button>
+</ng-template>

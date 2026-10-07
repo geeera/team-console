@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { TranslocoPipe } from '@console/shared/i18n';
-import { Button, DIALOG_DATA, DialogRef, Field, FieldControl } from '@console/shared/ui';
+import { Button, DIALOG_DATA, DialogRef, Field, FieldControl, SheetFooter } from '@console/shared/ui';
 import { ANSWER_TEXT_MAX_LENGTH } from '@shared/contracts';
+
+let nextReasonId = 0;
 
 export type ReasonCommand = 'reject' | 'no-go' | 'override';
 
@@ -15,9 +17,9 @@ export interface ReasonSheetData {
  */
 @Component({
   selector: 'tc-answer-reason-sheet',
-  imports: [Button, Field, FieldControl, TranslocoPipe],
+  imports: [Button, Field, FieldControl, SheetFooter, TranslocoPipe],
   template: `
-    <form class="reason" (submit)="submit($event)" novalidate>
+    <form class="reason" [id]="formId" (submit)="submit($event)" novalidate>
       @if (data.command === 'override') {
         <p class="reason__warning" data-testid="override-warning">
           {{ 'answer.reason.overrideWarning' | transloco }}
@@ -38,13 +40,19 @@ export interface ReasonSheetData {
           (input)="onInput($event)"
         ></textarea>
       </tc-field>
-      <div class="reason__actions">
-        <button tc-button type="button" (click)="ref.close()">{{ 'ui.confirm.cancel' | transloco }}</button>
-        <button tc-button type="submit" [variant]="data.command === 'override' ? 'danger' : 'primary'">
-          {{ 'answer.reason.submit.' + data.command | transloco }}
-        </button>
-      </div>
     </form>
+    <!-- The frame's footer sits outside the form, so the submit button names it (#274). -->
+    <ng-template tcSheetFooter>
+      <button
+        tc-button
+        type="submit"
+        [attr.form]="formId"
+        [variant]="data.command === 'override' ? 'danger' : 'primary'"
+      >
+        {{ 'answer.reason.submit.' + data.command | transloco }}
+      </button>
+      <button tc-button type="button" (click)="ref.close()">{{ 'ui.confirm.cancel' | transloco }}</button>
+    </ng-template>
   `,
   styleUrl: './reason-sheet.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -53,6 +61,7 @@ export class ReasonSheet {
   protected readonly data = inject<ReasonSheetData>(DIALOG_DATA);
   protected readonly ref = inject<DialogRef<string>>(DialogRef);
 
+  protected readonly formId = `tc-reason-${nextReasonId++}`;
   protected readonly maxLength = ANSWER_TEXT_MAX_LENGTH;
   protected readonly reason = signal('');
   protected readonly showError = signal(false);

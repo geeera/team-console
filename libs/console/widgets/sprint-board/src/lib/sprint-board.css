@@ -26,6 +26,13 @@
   overflow-wrap: anywhere;
 }
 
+.board__demo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .board__legend {
   display: flex;
   flex-wrap: wrap;

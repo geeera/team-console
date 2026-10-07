@@ -17,7 +17,12 @@
       "executor": "nx:run-commands",
       "outputs": ["{workspaceRoot}/dist/storybook/console-shared-ui"],
       "cache": true,
-      "inputs": ["default", "^default"],
+      "inputs": [
+        "default",
+        "^default",
+        "{workspaceRoot}/libs/console/widgets/github-repositories/src/**/*",
+        "{workspaceRoot}/libs/console/shared/i18n/src/**/*"
+      ],
       "options": {
         "command": "storybook build --config-dir libs/console/shared/ui/.storybook --output-dir dist/storybook/console-shared-ui"
       }

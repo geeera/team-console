@@ -17,6 +17,8 @@ function item(overrides: Partial<QuestionItem> = {}): QuestionItem {
     body: `**bold** [link](javascript:alert(1))\n${HOSTILE}`,
     authorTrusted: false,
     allowedCommands: ['approve', 'reject'],
+    category: null,
+    recommendation: null,
     ...overrides,
   };
 }

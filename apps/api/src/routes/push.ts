@@ -3,6 +3,7 @@ import { bodyLimit } from 'hono/body-limit';
 import {
   PUSH_MAX_SUBSCRIPTIONS,
   PUSH_TEST_INTERVAL_S,
+  isEnvironment,
   type PushConfigDto,
   type PushDevicesDto,
   type PushSendResultDto,
@@ -194,6 +195,12 @@ export function createPushRoutes(options: PushRoutesOptions = {}): Hono<WorkerHo
         logger.error('push misconfigured', { invalid: ['PUSH_FAKE_ORIGIN'] });
         return problem(c, { type: 'push-misconfigured', title: 'Push is not configured', status: 503 });
       }
+      // The title prefix (#237) depends on it: never guess production for an unknown value.
+      const environment: string = c.env.ENVIRONMENT;
+      if (!isEnvironment(environment)) {
+        logger.error('push misconfigured', { invalid: ['ENVIRONMENT'] });
+        return problem(c, { type: 'push-misconfigured', title: 'Push is not configured', status: 503 });
+      }
 
       const claim = await new PushTestSendsRepo(c.env.DB).claim(now(), PUSH_TEST_INTERVAL_S * 1000);
       if (!claim.claimed) {
@@ -206,7 +213,7 @@ export function createPushRoutes(options: PushRoutesOptions = {}): Hono<WorkerHo
         });
       }
 
-      const sender = new PushSender({ vapid, fetch: transport, logger, now });
+      const sender = new PushSender({ vapid, fetch: transport, logger, now, environment });
       const result: PushSendResultDto = await sender.sendToAll(
         new PushSubscriptionsRepo(c.env.DB),
         testNotification(language),

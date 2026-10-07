@@ -1,3 +1,4 @@
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationInitStatus } from '@angular/core';
@@ -11,7 +12,10 @@ import {
   ProjectsStore,
 } from '@console/entities/project';
 import { provideConsoleI18n, TranslocoService } from '@console/shared/i18n';
+import { Sheet } from '@console/shared/ui';
+import { CommandsSheet } from '@console/widgets/commands-panel';
 import type { OverviewDto, OverviewProjectDto, ProjectDto } from '@shared/contracts';
+import { of } from 'rxjs';
 import { OverviewPage } from './overview.page';
 
 const projectDto = (slug: string): ProjectDto => ({
@@ -38,6 +42,7 @@ const alpha: OverviewProjectDto = {
   needsYou: [7, 9],
   setup: true,
   setupUrl: 'https://github.com/geeera/alpha/blob/HEAD/.product-team/owner-checklist.md',
+  snooze: { snoozed: false },
 };
 
 const quietOne: OverviewProjectDto = {
@@ -49,6 +54,7 @@ const quietOne: OverviewProjectDto = {
   needsYou: [],
   setup: false,
   setupUrl: null,
+  snooze: { snoozed: false },
 };
 
 const broken: OverviewProjectDto = {
@@ -71,8 +77,10 @@ const pending: OverviewProjectDto = {
 
 describe('OverviewPage', () => {
   let http: HttpTestingController;
+  let sheet: { open: ReturnType<typeof vi.fn> };
 
-  async function render(list: ProjectDto[]) {
+  async function render(list: ProjectDto[], { phone = false }: { phone?: boolean } = {}) {
+    sheet = { open: vi.fn() };
     await TestBed.configureTestingModule({
       imports: [OverviewPage],
       providers: [
@@ -81,6 +89,11 @@ describe('OverviewPage', () => {
         provideHttpClientTesting(),
         provideConsoleI18n(),
         { provide: ANSWERED_ITEMS_STORAGE, useValue: { read: () => null, write: () => undefined } },
+        { provide: Sheet, useValue: sheet },
+        {
+          provide: BreakpointObserver,
+          useValue: { isMatched: () => phone, observe: () => of({ matches: phone, breakpoints: {} }) },
+        },
       ],
     }).compileComponents();
     await TestBed.inject(ApplicationInitStatus).donePromise;
@@ -109,13 +122,21 @@ describe('OverviewPage', () => {
   const tile = (root: HTMLElement, slug: string): HTMLElement =>
     root.querySelector(`[data-project="${slug}"]`) as HTMLElement;
 
-  it('with no projects it is the empty state that points to Settings, and reads nothing', async () => {
+  it('with no projects it is a short note above the GitHub list, and reads no overview', async () => {
     const { root } = await render([]);
     expect(root.querySelector('h1')?.textContent?.trim()).toBe('Все проекты');
-    expect(root.querySelector('[data-testid="no-projects"] a')?.getAttribute('href')).toBe(
-      '/settings/projects/new',
-    );
+    const note = root.querySelector('[data-testid="no-projects"]') as HTMLElement;
+    expect(note.textContent).toContain('Проектов пока нет');
+    expect(note.textContent).toContain('Доступны на GitHub');
+    expect(root.querySelector('tc-github-repositories-block')).not.toBeNull();
     http.expectNone(OVERVIEW_URL);
+  });
+
+  it('shows "Available on GitHub" under the projects (#194)', async () => {
+    const { root } = await render([projectDto('alpha')]);
+    expect(root.querySelector('[data-testid="github-repositories"] h2')?.textContent?.trim()).toBe(
+      'Доступны на GitHub',
+    );
   });
 
   it('shows one tile per project, linking to its board; the quiet ones below', async () => {
@@ -226,11 +247,190 @@ describe('OverviewPage', () => {
     expect(tile(root, 'alpha')).not.toBeNull();
   });
 
+  it('reads the overview again when a project is added, keeping the tiles meanwhile (#242)', async () => {
+    const { root, fixture } = await render([projectDto('alpha')]);
+    await answer(fixture, { projects: [alpha], checkedAt: '2026-10-01T12:00:00Z' });
+    expect(root.querySelector('[data-testid="count"]')?.textContent?.trim()).toBe('1 проект');
+
+    TestBed.inject(ProjectsStore).upsert(projectDto('quiet'));
+    await settle(fixture);
+    expect(tile(root, 'alpha')).not.toBeNull();
+    await answer(fixture, { projects: [alpha, quietOne], checkedAt: '2026-10-01T12:01:00Z' });
+
+    expect(root.querySelector('[data-testid="count"]')?.textContent?.trim()).toBe('2 проекта');
+    expect(tile(root, 'quiet')).not.toBeNull();
+  });
+
+  it('does not read the overview again when the project list is re-read unchanged', async () => {
+    const { fixture } = await render([projectDto('alpha')]);
+    await answer(fixture, { projects: [alpha], checkedAt: '2026-10-01T12:00:00Z' });
+    TestBed.inject(ProjectsStore).upsert(projectDto('alpha'));
+    await settle(fixture);
+    http.expectNone(OVERVIEW_URL);
+  });
+
   it('shows a response of an unexpected shape as the generic failure', async () => {
     const { root, fixture } = await render([projectDto('alpha')]);
     await answer(fixture, { projects: [{ kind: 'read', slug: 'alpha' }] } as unknown as OverviewDto);
     expect(root.querySelector('[data-testid="load-error"]')?.getAttribute('data-failure')).toBe(
       'unavailable',
     );
+  });
+
+  describe('Commands on every card (#222)', () => {
+    const commandsFor = (root: HTMLElement, slug: string): HTMLButtonElement =>
+      root.querySelector(`[data-commands-for="${slug}"]`) as HTMLButtonElement;
+    const pane = (root: HTMLElement): HTMLElement | null => root.querySelector('#tc-overview-commands');
+    const key = (target: EventTarget, init: KeyboardEventInit): void => {
+      target.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }));
+    };
+
+    async function ready(options: { phone?: boolean } = {}) {
+      const rendered = await render([projectDto('alpha'), projectDto('quiet'), projectDto('broken')], options);
+      await answer(rendered.fixture, { projects: [alpha, quietOne, broken], checkedAt: '2026-10-01T12:00:00Z' });
+      return rendered;
+    }
+
+    it('gives every card, read or not, a Commands button named for its project, beside the link', async () => {
+      const { root } = await ready();
+      for (const [slug, name] of [
+        ['alpha', 'Alpha'],
+        ['quiet', 'Quiet'],
+        ['broken', 'Broken'],
+      ]) {
+        const button = commandsFor(root, slug);
+        expect(button.getAttribute('aria-label')).toBe(`Команды проекта ${name}`);
+        expect(button.getAttribute('aria-keyshortcuts')).toBe('K');
+        expect(button.getAttribute('aria-expanded')).toBe('false');
+        expect(button.textContent).toContain('Команды');
+        // Never inside the link: a link holds no button.
+        expect(button.closest('a')).toBeNull();
+        expect(button.closest(`[data-card-slug="${slug}"]`)).not.toBeNull();
+      }
+    });
+
+    it('opens the pane for that card, moves it to another card, and returns focus to the button on close', async () => {
+      const { root, fixture } = await ready();
+      commandsFor(root, 'alpha').click();
+      await fixture.whenStable();
+      expect(http.match('/api/v1/projects/alpha/team/status').length).toBe(1);
+      expect(pane(root)?.getAttribute('aria-label')).toBe('Команды · Alpha');
+      expect(pane(root)?.querySelector('tc-commands-panel')).not.toBeNull();
+      expect(commandsFor(root, 'alpha').getAttribute('aria-expanded')).toBe('true');
+      expect(commandsFor(root, 'alpha').getAttribute('aria-controls')).toBe('tc-overview-commands');
+      expect(document.activeElement?.classList.contains('cp__title')).toBe(true);
+
+      commandsFor(root, 'quiet').click();
+      await fixture.whenStable();
+      expect(http.match('/api/v1/projects/quiet/team/status').length).toBe(1);
+      expect(pane(root)?.getAttribute('aria-label')).toBe('Команды · Quiet');
+      expect(commandsFor(root, 'alpha').getAttribute('aria-expanded')).toBe('false');
+
+      (pane(root)?.querySelector('.cp__close') as HTMLButtonElement).click();
+      await fixture.whenStable();
+      expect(pane(root)).toBeNull();
+      expect(document.activeElement).toBe(commandsFor(root, 'quiet'));
+    });
+
+    it('K on a focused card opens its pane; K again from the pane, or Escape, closes it back to the button', async () => {
+      const { root, fixture } = await ready();
+      const link = tile(root, 'quiet');
+      link.focus();
+      key(link, { key: 'k', code: 'KeyK' });
+      await fixture.whenStable();
+      expect(pane(root)?.getAttribute('aria-label')).toBe('Команды · Quiet');
+
+      const title = pane(root)?.querySelector('.cp__title') as HTMLElement;
+      key(title, { key: 'л', code: 'KeyK' });
+      await fixture.whenStable();
+      expect(pane(root)).toBeNull();
+      expect(document.activeElement).toBe(commandsFor(root, 'quiet'));
+
+      key(commandsFor(root, 'quiet'), { key: 'K', code: 'KeyK' });
+      await fixture.whenStable();
+      expect(pane(root)).not.toBeNull();
+      key(pane(root)?.querySelector('.cp__title') as HTMLElement, { key: 'Escape', code: 'Escape' });
+      await fixture.whenStable();
+      expect(pane(root)).toBeNull();
+      expect(document.activeElement).toBe(commandsFor(root, 'quiet'));
+    });
+
+    it('leaves K alone off the cards, while typing and with a modifier', async () => {
+      const { root, fixture } = await ready();
+      key(root.querySelector('h1') as HTMLElement, { key: 'k', code: 'KeyK' });
+      const input = document.createElement('input');
+      tile(root, 'alpha').appendChild(input);
+      key(input, { key: 'k', code: 'KeyK' });
+      key(tile(root, 'alpha'), { key: 'k', code: 'KeyK', metaKey: true });
+      await fixture.whenStable();
+      expect(pane(root)).toBeNull();
+      input.remove();
+    });
+
+    it('opens the same panel in a sheet on the phone, with no K and no pane', async () => {
+      const { root, fixture } = await ready({ phone: true });
+      const button = commandsFor(root, 'alpha');
+      expect(button.getAttribute('aria-haspopup')).toBe('dialog');
+      expect(button.getAttribute('aria-keyshortcuts')).toBeNull();
+      expect(button.querySelector('kbd')).toBeNull();
+      button.click();
+      expect(http.match('/api/v1/projects/alpha/team/status').length).toBe(1);
+      expect(sheet.open).toHaveBeenCalledWith(CommandsSheet, {
+        title: 'Команды · Alpha',
+        data: { slug: 'alpha', name: 'Alpha', repo: 'geeera/alpha' },
+      });
+      key(tile(root, 'alpha'), { key: 'k', code: 'KeyK' });
+      await fixture.whenStable();
+      expect(pane(root)).toBeNull();
+      expect(sheet.open).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('the snoozed line (#222)', () => {
+    it('shows the struck bell and the words on a snoozed card, and nothing on the others', async () => {
+      const { root, fixture } = await render([projectDto('alpha'), projectDto('quiet')]);
+      const snooze = { snoozed: true, until: null, allowsUrgent: true, since: '2026-10-01T09:00:00Z' } as const;
+      await answer(fixture, { projects: [alpha, { ...quietOne, snooze }], checkedAt: '2026-10-01T12:00:00Z' });
+      const line = tile(root, 'quiet').querySelector('[data-testid="snoozed"]') as HTMLElement;
+      expect(line.textContent?.trim()).toBe('уведомления отложены');
+      expect(line.querySelector('tc-icon')?.getAttribute('name')).toBe('bell-off');
+      expect(tile(root, 'alpha').querySelector('[data-testid="snoozed"]')).toBeNull();
+      // The sidebar reads the registry list: the overview's fresher read reaches it.
+      expect(TestBed.inject(ProjectsStore).bySlug('quiet')?.snooze).toEqual(snooze);
+    });
+
+    it('says until when, and drops an expired snooze', async () => {
+      const { root, fixture } = await render([projectDto('alpha'), projectDto('quiet')]);
+      const until = new Date(Date.now() + 3_600_000).toISOString();
+      await answer(fixture, {
+        projects: [
+          { ...alpha, snooze: { snoozed: true, until, allowsUrgent: false, since: '2026-10-01T09:00:00Z' } },
+          {
+            ...quietOne,
+            snooze: { snoozed: true, until: '2020-01-01T00:00:00Z', allowsUrgent: true, since: '2019-12-31T00:00:00Z' },
+          },
+        ],
+        checkedAt: '2026-10-01T12:00:00Z',
+      });
+      expect(tile(root, 'alpha').querySelector('[data-testid="snoozed"]')?.textContent?.trim()).toMatch(
+        /^уведомления отложены до (сегодня|завтра) \d{2}:\d{2}$/,
+      );
+      expect(tile(root, 'quiet').querySelector('[data-testid="snoozed"]')).toBeNull();
+    });
+
+    it('follows a snooze changed from the panel at once', async () => {
+      const { root, fixture } = await render([projectDto('alpha')]);
+      await answer(fixture, { projects: [alpha], checkedAt: '2026-10-01T12:00:00Z' });
+      expect(tile(root, 'alpha').querySelector('[data-testid="snoozed"]')).toBeNull();
+
+      const store = TestBed.inject(ProjectsStore);
+      store.applySnooze('alpha', { snoozed: true, until: null, allowsUrgent: true, since: new Date().toISOString() });
+      await fixture.whenStable();
+      expect(tile(root, 'alpha').querySelector('[data-testid="snoozed"]')).not.toBeNull();
+
+      store.applySnooze('alpha', { snoozed: false });
+      await fixture.whenStable();
+      expect(tile(root, 'alpha').querySelector('[data-testid="snoozed"]')).toBeNull();
+    });
   });
 });

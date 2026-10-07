@@ -1,5 +1,6 @@
 import {
   appNotInstalledError,
+  appNotInstalledForAccountError,
   githubAuthError,
   githubUnexpectedError,
   type GitHubError,
@@ -7,7 +8,7 @@ import {
 } from './errors';
 import { githubPath } from './github-path';
 import type { RepoName } from './repo-name';
-import type { InstallationTokenSource } from './token-source';
+import type { InstallationListTokenSource, InstallationTokenSource } from './token-source';
 import {
   discardBody,
   githubRequest,
@@ -21,7 +22,8 @@ import {
  * The console app's installation tokens (ADR 0003 decision 6), mirroring the plugin's `ptlib/ghapp.py`: an RS256
  * JWT signed with Web Crypto (no dependency in the credential path), the installation looked up per repository,
  * a token minted per repository and downscoped to read-only at mint, cached per isolate until 5 minutes before
- * it expires. Neither the JWT nor a token is ever logged, persisted or returned to a client.
+ * it expires. #194 adds one installation-wide token per installation, `metadata: read` only, for the installation's
+ * repository list. Neither the JWT nor a token is ever logged, persisted or returned to a client.
  */
 
 /** Decision 2(a): reads only, whatever the app itself may do (it holds Issues: write for owner connections). */
@@ -31,6 +33,14 @@ export const INSTALLATION_PERMISSIONS: Readonly<Record<string, 'read'>> = Object
   pull_requests: 'read',
   contents: 'read',
   actions: 'read',
+});
+
+/**
+ * #194 (decision 2(a) as amended): the installation-wide list token. With no `repositories` member in the mint body
+ * it covers every repository of the installation, so it carries `metadata` and nothing else.
+ */
+export const INSTALLATION_LIST_PERMISSIONS: Readonly<Record<string, 'read'>> = Object.freeze({
+  metadata: 'read',
 });
 
 // GitHub tolerates little clock drift: backdate iat, and keep exp under the 10-minute maximum.
@@ -135,6 +145,22 @@ function isInstallation(value: unknown): value is { id: number } {
   return typeof id === 'number' && Number.isSafeInteger(id) && id > 0;
 }
 
+function isInstallationOfAccount(value: unknown): value is { id: number; account: { id: number } } {
+  if (!isInstallation(value)) {
+    return false;
+  }
+  const account = (value as Record<string, unknown>)['account'];
+  return (
+    typeof account === 'object' &&
+    account !== null &&
+    Number.isSafeInteger((account as Record<string, unknown>)['id'])
+  );
+}
+
+function hasNextPage(response: Response): boolean {
+  return /rel="next"/.test(response.headers.get('link') ?? '');
+}
+
 function isMintedToken(
   value: unknown,
 ): value is { token: string; expires_at: string; permissions: unknown; repository_selection: unknown } {
@@ -149,28 +175,51 @@ function isMintedToken(
   );
 }
 
-// The only request this Worker ever sends: one repository (#9 threat row 2), so `repository_selection` can
-// never legitimately come back as anything else.
-const REQUESTED_REPOSITORY_SELECTION = 'selected';
+/**
+ * What a mint asked GitHub for, and what its answer must echo. A repository token (#9 threat row 2) asks for one
+ * repository, so `repository_selection` can only legitimately come back `selected`. The installation-wide list token
+ * (#194) names no repositories, so GitHub answers with the installation's own selection (`all` or `selected`) —
+ * either is fine for a `metadata`-only token; its permissions still have to be exactly `metadata: read`.
+ */
+interface MintExpectation {
+  readonly permissions: Readonly<Record<string, 'read'>>;
+  readonly repositorySelections: readonly string[];
+}
+
+const REPO_MINT: MintExpectation = Object.freeze({
+  permissions: INSTALLATION_PERMISSIONS,
+  repositorySelections: Object.freeze(['selected']),
+});
+
+const LIST_MINT: MintExpectation = Object.freeze({
+  permissions: INSTALLATION_LIST_PERMISSIONS,
+  repositorySelections: Object.freeze(['all', 'selected']),
+});
 
 /**
- * Whether a minted token's `permissions` and `repository_selection` are exactly what was requested
- * (`INSTALLATION_PERMISSIONS`, one repository). GitHub is expected to always downscope to the request, but a
- * token that came back broader — or scoped to more than one repository — must never be used as if it were not.
+ * Whether a minted token's `permissions` and `repository_selection` are exactly what was requested. GitHub is
+ * expected to always downscope to the request, but a token that came back broader — or, for a repository token,
+ * scoped to more than one repository — must never be used as if it were not.
  */
-function isDownscopedAsRequested(body: { permissions: unknown; repository_selection: unknown }): boolean {
-  if (body.repository_selection !== REQUESTED_REPOSITORY_SELECTION) {
+function isDownscopedAsRequested(
+  body: { permissions: unknown; repository_selection: unknown },
+  expected: MintExpectation,
+): boolean {
+  if (
+    typeof body.repository_selection !== 'string' ||
+    !expected.repositorySelections.includes(body.repository_selection)
+  ) {
     return false;
   }
   if (typeof body.permissions !== 'object' || body.permissions === null || Array.isArray(body.permissions)) {
     return false;
   }
   const received = body.permissions as Record<string, unknown>;
-  const wantedKeys = Object.keys(INSTALLATION_PERMISSIONS);
+  const wantedKeys = Object.keys(expected.permissions);
   if (Object.keys(received).length !== wantedKeys.length) {
     return false;
   }
-  return wantedKeys.every((key) => received[key] === INSTALLATION_PERMISSIONS[key]);
+  return wantedKeys.every((key) => received[key] === expected.permissions[key]);
 }
 
 /**
@@ -183,7 +232,7 @@ export class GitHubAppAuth {
   private readonly transportOptions: GitHubTransportOptions;
   private signingKey: CryptoKey | undefined;
   private readonly tokens = new Map<string, CachedToken>();
-  /** Concurrent requests for one repository share a mint instead of each spending two subrequests. */
+  /** Concurrent requests for one token share a mint instead of each spending two subrequests. */
   private readonly minting = new Map<string, Promise<CachedToken>>();
 
   constructor(
@@ -192,7 +241,8 @@ export class GitHubAppAuth {
   ) {
     this.fetcher = options.fetch;
     this.now = options.now ?? (() => Date.now());
-    this.transportOptions = options.deadlineSignal === undefined ? {} : { deadlineSignal: options.deadlineSignal };
+    this.transportOptions =
+      options.deadlineSignal === undefined ? {} : { deadlineSignal: options.deadlineSignal };
   }
 
   /** Every GitHub call this instance makes, with its (possibly test-shortened) deadline signal. */
@@ -249,28 +299,95 @@ export class GitHubAppAuth {
     throw mapGitHubResponse(response, this.now());
   }
 
+  /**
+   * The console app's installation on the connected owner's account (#194): `GET /app/installations` with the JWT,
+   * matched on `account.id` against the pinned `user_id` of the #59 connection — never on a login, which can be
+   * renamed. First page only: ADR 0003 supports one installation per account ("Not yet" for more). No match →
+   * 409 `github-app-not-installed`; no match while GitHub names more pages → 502 `github-unexpected`.
+   */
+  async installationIdForAccount(userId: number): Promise<number> {
+    const jwt = await this.jwt();
+    const response = await this.request({
+      method: 'GET',
+      path: githubPath`/app/installations?per_page=${100}`,
+      bearer: jwt,
+    });
+    if (response.status === 404) {
+      await discardBody(response);
+      // A wrong GITHUB_APP_ID answers 404 here too: that is 503 github-auth, never "not installed".
+      await this.assertAppExists(jwt);
+      throw githubUnexpectedError('GitHub listed no installations for an existing app', response.status);
+    }
+    if (!response.ok) {
+      await discardBody(response);
+      throw mapGitHubResponse(response, this.now());
+    }
+    const body = await readGitHubJson(response);
+    if (!Array.isArray(body) || !body.every(isInstallationOfAccount)) {
+      throw githubUnexpectedError('GitHub returned installations of an unexpected shape', response.status);
+    }
+    const match = body.find((installation) => installation.account.id === userId);
+    if (match !== undefined) {
+      return match.id;
+    }
+    if (hasNextPage(response)) {
+      throw githubUnexpectedError(
+        'The app has more installations than the console supports',
+        response.status,
+      );
+    }
+    throw appNotInstalledForAccountError();
+  }
+
   /** Read-only token source for one repository, for `new GitHubClient(fetch, source)`. */
   tokenSourceFor(repo: RepoName): InstallationTokenSource {
+    const key = this.repoKey(repo);
     return {
       kind: 'installation',
       repo,
-      getToken: async () => this.tokenFor(repo),
-      invalidate: (token) => this.invalidate(repo, token),
+      getToken: async () => this.tokenFor(key, () => this.mintForRepo(repo)),
+      invalidate: (token) => this.invalidate(key, token),
+    };
+  }
+
+  /**
+   * The installation-wide `metadata` token (#194), for `GitHubClient.listInstallationRepositories` only. Its cache
+   * key cannot collide with a repository's: a `:` never occurs in a repository full name.
+   */
+  listTokenSourceFor(installationId: number): InstallationListTokenSource {
+    const key = this.listKey(installationId);
+    return {
+      kind: 'installation-list',
+      installationId,
+      getToken: async () => this.tokenFor(key, () => this.mintForInstallation(installationId)),
+      invalidate: (token) => this.invalidate(key, token),
     };
   }
 
   /** Whether a read for `repo` would go out without minting first (no installation lookup, no mint). */
   hasUsableToken(repo: RepoName): boolean {
-    const cached = this.tokens.get(this.cacheKey(repo));
-    return cached !== undefined && cached.expiresAt - RENEW_MARGIN_MS > this.now();
+    return this.isUsable(this.repoKey(repo));
   }
 
-  private cacheKey(repo: RepoName): string {
+  /** Whether the installation's list token is cached outside the renewal margin (no mint needed). */
+  hasUsableListToken(installationId: number): boolean {
+    return this.isUsable(this.listKey(installationId));
+  }
+
+  private repoKey(repo: RepoName): string {
     return repo.fullName.toLowerCase();
   }
 
-  private async tokenFor(repo: RepoName): Promise<string> {
-    const key = this.cacheKey(repo);
+  private listKey(installationId: number): string {
+    return `installation:${installationId}`;
+  }
+
+  private isUsable(key: string): boolean {
+    const cached = this.tokens.get(key);
+    return cached !== undefined && cached.expiresAt - RENEW_MARGIN_MS > this.now();
+  }
+
+  private async tokenFor(key: string, mint: () => Promise<CachedToken>): Promise<string> {
     const cached = this.tokens.get(key);
     if (cached !== undefined && cached.expiresAt - RENEW_MARGIN_MS > this.now()) {
       return cached.token;
@@ -278,7 +395,11 @@ export class GitHubAppAuth {
     this.tokens.delete(key);
     let pending = this.minting.get(key);
     if (pending === undefined) {
-      pending = this.mint(repo);
+      pending = (async () => {
+        const entry = await mint();
+        this.tokens.set(key, entry);
+        return entry;
+      })();
       this.minting.set(key, pending);
     }
     try {
@@ -291,41 +412,55 @@ export class GitHubAppAuth {
     }
   }
 
-  private invalidate(repo: RepoName, token: string): void {
-    const key = this.cacheKey(repo);
+  private invalidate(key: string, token: string): void {
     if (this.tokens.get(key)?.token === token) {
       this.tokens.delete(key);
     }
   }
 
-  private async mint(repo: RepoName): Promise<CachedToken> {
+  private async mintForRepo(repo: RepoName): Promise<CachedToken> {
     const installationId = await this.installationIdFor(repo);
+    return this.mint(
+      installationId,
+      { repositories: [repo.name], permissions: INSTALLATION_PERMISSIONS },
+      REPO_MINT,
+    );
+  }
+
+  /** No `repositories` member — that is what makes it installation-wide — hence `metadata` and nothing else. */
+  private async mintForInstallation(installationId: number): Promise<CachedToken> {
+    return this.mint(installationId, { permissions: INSTALLATION_LIST_PERMISSIONS }, LIST_MINT);
+  }
+
+  private async mint(
+    installationId: number,
+    body: Readonly<Record<string, unknown>>,
+    expected: MintExpectation,
+  ): Promise<CachedToken> {
     const response = await this.request({
       method: 'POST',
       path: githubPath`/app/installations/${installationId}/access_tokens`,
       bearer: await this.jwt(),
-      body: { repositories: [repo.name], permissions: INSTALLATION_PERMISSIONS },
+      body,
     });
     if (!response.ok) {
       await discardBody(response);
       throw mapGitHubResponse(response, this.now());
     }
-    const body = await readGitHubJson(response);
-    const expiresAt = isMintedToken(body) ? Date.parse(body.expires_at) : Number.NaN;
-    if (!isMintedToken(body) || Number.isNaN(expiresAt)) {
+    const minted = await readGitHubJson(response);
+    const expiresAt = isMintedToken(minted) ? Date.parse(minted.expires_at) : Number.NaN;
+    if (!isMintedToken(minted) || Number.isNaN(expiresAt)) {
       throw githubUnexpectedError('GitHub returned no installation token', response.status);
     }
     // #76: refuse a token GitHub minted with different permissions or repository scope than requested, never
     // use it as if it were downscoped.
-    if (!isDownscopedAsRequested(body)) {
+    if (!isDownscopedAsRequested(minted, expected)) {
       throw githubUnexpectedError(
         'GitHub minted a token with different permissions or repository scope than requested',
         response.status,
       );
     }
-    const entry: CachedToken = { token: body.token, expiresAt };
-    this.tokens.set(this.cacheKey(repo), entry);
-    return entry;
+    return { token: minted.token, expiresAt };
   }
 
   private async jwt(): Promise<string> {

@@ -28,7 +28,7 @@ export interface GitHubBasicCredentials {
 export type GitHubRequestAuth = { readonly bearer: string } | { readonly basic: GitHubBasicCredentials };
 
 export type GitHubRequest = GitHubRequestAuth & {
-  readonly method: 'GET' | 'POST' | 'DELETE';
+  readonly method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   readonly path: GitHubPath;
   readonly accept?: string;
   readonly body?: unknown;

@@ -1,6 +1,7 @@
 {
   "app": {
-    "name": "Team Console"
+    "name": "Team Console",
+    "environment": "Environment:"
   },
   "shell": {
     "nav": "Navigation",
@@ -20,8 +21,9 @@
     "loadFailed": "Couldn't load projects",
     "loadFailedHint": "Check your connection and try again.",
     "noProjects": "No projects yet",
-    "noProjectsHint": "Add a repository in Settings and its space appears here.",
-    "skip": "Skip to content"
+    "noProjectsHint": "Add a repository on All projects and its space appears here.",
+    "skip": "Skip to content",
+    "snoozed": "notifications snoozed"
   },
   "space": {
     "sections": "Sections",
@@ -344,7 +346,11 @@
         "title": "The console app is not installed on the repository",
         "hint": "Install it from the project's setup in Settings, then try again."
       }
-    }
+    },
+    "moveDemo": "Move demo",
+    "pending": "waiting for the PM",
+    "ask": "Ask the PM",
+    "askAria": "Ask the PM about an issue: pick one"
   },
   "artifacts": {
     "title": "Artifacts",
@@ -431,6 +437,8 @@
     "pending": "Not loaded yet: it didn’t fit into one request",
     "done": "{{done}} of {{total}} done",
     "setup": "Setup needed",
+    "snoozed": "notifications snoozed",
+    "snoozedUntil": "notifications snoozed until {{until}}",
     "problem": {
       "lead": "Couldn’t read it: {{reason}}",
       "github-app-not-installed": "the console app is not installed on the repository",
@@ -457,6 +465,80 @@
         "title": "GitHub asks to wait",
         "hint": "Retry in a minute."
       }
+    },
+    "repos": {
+      "title": "Available on GitHub",
+      "lead": "Repositories the {{app}} app can see on your account, {{login}}.",
+      "leadApp": "Repositories the {{app}} app can see on your account.",
+      "listAria": "Repositories on GitHub",
+      "refresh": "Refresh",
+      "refreshing": "Refreshing…",
+      "refreshedLive": "List updated. Repositories: {{n}}.",
+      "loading": "Loading repositories from GitHub…",
+      "already": "Already in the console",
+      "more": "Show {{n}} more",
+      "row": {
+        "private": "Private",
+        "add": "Add",
+        "addAria": "Add {{repo}}",
+        "adding": "Checking…",
+        "project": "Project",
+        "projectAria": "{{repo}} is a project. Open its setup",
+        "archived": "Archived",
+        "notAdded": "Not added: step {{n}} is missing",
+        "notAddedOther": "Not added",
+        "seeWhy": "See why",
+        "seeWhyAria": "Why {{repo}} wasn’t added"
+      },
+      "sheet": {
+        "title": "Add {{repo}}",
+        "done": "Done",
+        "close": "Close",
+        "openSetup": "Open setup",
+        "added": "Project added"
+      },
+      "addedToast": "{{repo}} added",
+      "notAddedLive": "{{repo}} wasn’t added. Nothing was saved.",
+      "partial": "Showing the first {{n}}. If the one you need isn’t here, remove ones you don’t need from the app’s installation on GitHub, or add it by name below.",
+      "selectLink": "Choose repositories on GitHub",
+      "missing": {
+        "title": "Repository not here?",
+        "body": "The console sees only the repositories the {{app}} app can access. On GitHub choose All repositories or add the ones you need, private ones too. Then come back here. The list refreshes by itself.",
+        "action": "Give the app access on GitHub",
+        "refresh": "Refresh the list"
+      },
+      "empty": {
+        "title": "The {{app}} app can’t see any repositories yet",
+        "body": "Add your product repositories to the app’s installation on GitHub, then come back here. The list refreshes by itself."
+      },
+      "notInstalled": {
+        "title": "The {{app}} app isn’t installed on your account",
+        "body": "Install it on GitHub and choose your product repositories. Then come back here. The list refreshes by itself.",
+        "action": "Install the app on GitHub"
+      },
+      "needConnect": {
+        "body": "Then the repositories the {{app}} app can see appear here. Nothing has been sent yet."
+      },
+      "lost": {
+        "body": "Access was revoked or has expired. Connect GitHub again to see repositories and add a project."
+      },
+      "error": {
+        "title": "Couldn’t load repositories",
+        "github": "GitHub didn’t respond. Your projects haven’t changed.",
+        "rate": "GitHub asks us to wait until {{time}}. Your projects haven’t changed.",
+        "auth": "The console can’t sign in to GitHub as the {{app}} app: its key was replaced or the app was removed. This is the console’s setup, not the repositories’: check the app with the owner checklist."
+      },
+      "offline": {
+        "list": "You’re offline. This list is from {{time}}. Adding a project needs a connection.",
+        "title": "You’re offline",
+        "body": "Repositories load when you’re back online."
+      },
+      "byName": "Add by name",
+      "byNameLead": "If the repository isn’t on the list above."
+    },
+    "empty": {
+      "title": "No projects yet",
+      "body": "Pick a repository under “Available on GitHub” below and it appears here."
     }
   },
   "settings": {
@@ -701,12 +783,23 @@
       "errB": "GitHub didn’t answer. Commands are off until the status is known — otherwise you might, say, pause a project that is already paused.",
       "noLog": "The team hasn’t opened its run log yet, so there is nothing to pause or start. It appears after the first scheduled run.",
       "offline": "You’re offline. Status as of {{time}}. Commands work only online.",
-      "noperm": "The console can’t write to issues in {{repo}}, so Pause and Resume are off. Run now still works.",
-      "nopermFix": "Settings › Projects"
+      "noperm": "The console can’t write to issues in {{repo}}, so Pause, Resume and the sprint commands are off. Run now still works.",
+      "nopermFix": "Settings › Projects",
+      "sprint": "Sprint",
+      "sprintVal": "{{sprint}} · demo {{date}}",
+      "freeze": "freeze {{range}}",
+      "freezeNow": "freeze now, until the demo",
+      "noSprint": "No current sprint",
+      "sprintUnknown": "GitHub didn’t give the sprint; refresh the status",
+      "progress": "Done",
+      "progressVal": "{{done}} of {{total}}"
     },
     "group": {
       "team": "Team work",
-      "run": "Run now"
+      "run": "Run now",
+      "sprint": "Sprint",
+      "notify": "Notifications",
+      "issues": "Issues"
     },
     "pause": {
       "title": "Pause development",
@@ -810,7 +903,7 @@
       "runPaused": "Development is paused. Resume it first; nothing started.",
       "github": "GitHub didn’t answer. Nothing changed.",
       "githubRate": "GitHub asks to wait until {{time}}. Nothing changed.",
-      "connect": "Connect GitHub in Settings first: pause and resume are written as you. Nothing changed.",
+      "connect": "Connect GitHub in Settings first: these commands are written as you. Nothing changed.",
       "noLog": "The team has no run log yet. Nothing changed.",
       "pauseUnreliable": "Pause from the console isn’t reliable for this project yet: its run log was opened by the team, and the next run could lift the pause. Pause from the team chat instead (the pause skill). Nothing changed.",
       "offline": "You’re offline. The command wasn’t sent.",
@@ -821,7 +914,203 @@
       "yesterday": "yesterday {{time}}",
       "day": "{{day}} {{time}}"
     },
-    "external": "(opens GitHub)"
+    "external": "(opens GitHub)",
+    "batch": {
+      "approve": "Approve team recommendations ({{n}})",
+      "approveNone": "Nothing can be approved in a batch",
+      "title": "Approve team recommendations?",
+      "titleAll": "Approve team recommendations in every project?",
+      "body": "The team recommends approving these, and none is about money, a release, legal, access or a design. Untick any you want to decide yourself.",
+      "rec": "Team recommends: {{c}}",
+      "list": "Questions to approve",
+      "out": "Left out: {{n}} — answer these one by one",
+      "why": {
+        "untrusted": "not from the team",
+        "money": "money",
+        "release": "a release",
+        "legal": "legal",
+        "access": "access",
+        "design": "a design: look at it first",
+        "uncategorised": "no category",
+        "reject": "recommends rejecting: needs your reason",
+        "no-recommendation": "no recommendation"
+      },
+      "owner": "Each answer is recorded on its own question as you: “{{said}}”.",
+      "ownerSaid": "Approving the team recommendation (batch, {{n}})",
+      "ok": "Approve {{n}}",
+      "okNone": "Nothing ticked",
+      "sending": "Sending…",
+      "retry": "Try again",
+      "cancel": "Cancel",
+      "done": "Approved: {{n}}. Recorded as you.",
+      "partial": "Approved {{ok}} of {{n}}. Not recorded: {{ids}} — GitHub didn’t answer. Try again: nothing already recorded is posted twice.",
+      "error": {
+        "connect": "GitHub is not connected, or another account is: answers are written from the repository owner's account. Connect it in Settings and try again.",
+        "rate": "GitHub asks to wait. Try again in a minute — nothing already recorded is posted twice.",
+        "offline": "No connection to the server. Try again once you are back online — nothing already recorded is posted twice.",
+        "github": "GitHub didn’t answer. Try again — nothing already recorded is posted twice.",
+        "changed": "These questions changed while the dialog was open: {{ids}}. Answer them one by one."
+      }
+    },
+    "sprint": {
+      "demo": "Move the demo",
+      "demoHint": "{{sprint}}: demo {{date}}, freeze {{range}}",
+      "demoAria": "Move the {{sprint}} demo",
+      "demoBtn": "Move",
+      "next": "Start the next sprint",
+      "nextHint": "{{sprint}} starts after the {{date}} demo",
+      "nextHintNow": "{{sprint}} starts today",
+      "nextExists": "{{sprint}} already exists: demo {{date}}",
+      "nextAria": "Start {{sprint}}",
+      "nextBtn": "Start",
+      "unknown": "GitHub didn’t give the sprints, so these commands are off. Refresh the status to try again.",
+      "unavailable": "Couldn’t read the sprint from GitHub. Nothing changed; try again in a moment.",
+      "noperm": "The console can’t write to this repository: connect GitHub in Settings. Nothing changed."
+    },
+    "demo": {
+      "title": "Move the {{sprint}} demo?",
+      "body": "The demo is now on {{date}}; freeze is {{range}}, through demo day: the team takes no new issues and checks stage.",
+      "field": "Demo date",
+      "freeze": "Freeze: {{range}}",
+      "same": "The date hasn’t changed",
+      "empty": "Pick a date.",
+      "past": "That date has passed (Kyiv time). Pick today or later.",
+      "afterNext": "The {{next}} demo ({{date}}) is on or before that date. Move that one first.",
+      "freezeNow": "Freeze starts at once: no new issues will be taken in this sprint.",
+      "ok": "Move to {{date}}",
+      "btn": "Move",
+      "done": "{{sprint}} demo moved to {{date}}",
+      "doneDetail": "Freeze: {{range}}.",
+      "doneFreezeNow": "Freeze has started: {{range}}. The team takes no new issues from the next run.",
+      "already": "The demo is already on {{date}}. Nothing changed.",
+      "changedUnknown": "The demo date changed while this was open. Close this and open it again.",
+      "conflict": "The demo date changed while this was open (now {{date}}). Check it and move again.",
+      "none": "There is no current sprint any more. Nothing changed."
+    },
+    "next": {
+      "title": "Start {{sprint}}?",
+      "after": "{{sprint}} starts after the {{cur}} demo ({{date}}). Issues not ready by the demo stay in {{cur}} until the PM moves them.",
+      "now": "{{sprint}} starts today. The PM adds issues to it at the next planning run.",
+      "field": "{{sprint}} demo date",
+      "hint": "Two weeks is usual. Freeze: {{range}}",
+      "early": "The {{sprint}} demo must be after {{date}}.",
+      "ok": "Create {{sprint}}",
+      "btn": "Create",
+      "done": "{{sprint}} created",
+      "doneLater": "It becomes current after the {{cur}} demo on {{after}}; its own demo is {{date}}.",
+      "doneNow": "It is the current sprint now; demo {{date}}.",
+      "exists": "{{sprint}} already exists (demo {{date}}). Nothing changed.",
+      "existsRace": "{{sprint}} already exists: the PM got there first. Nothing changed.",
+      "changed": "The current sprint changed while this was open (now {{cur}}, demo {{date}}). Check the date and create again.",
+      "changedNone": "The current sprint ended while this was open. Check the date and create again."
+    },
+    "snooze": {
+      "title": "Snooze notifications",
+      "hint": "Pushes for {{name}}, on all your devices.",
+      "btn": "Snooze",
+      "aria": "Snooze notifications for {{name}}",
+      "until": "Snoozed until {{until}}",
+      "forever": "Snoozed until you turn them back on",
+      "urgent": "Urgent ones still come through.",
+      "quiet": "Urgent ones are snoozed too.",
+      "back": "Turn back on",
+      "backAria": "Turn {{name}} notifications back on",
+      "nopush": "Push is off on this device",
+      "nopushFix": "Turn on in Settings",
+      "when": {
+        "today": "today {{time}}",
+        "tomorrow": "tomorrow {{time}}",
+        "date": "{{day}}, {{time}}"
+      },
+      "dialog": {
+        "title": "Snooze {{name}} notifications",
+        "body": "Pushes for this project, on all your devices.",
+        "when": "For how long",
+        "hour": "For an hour",
+        "morning": "Until morning (9:00)",
+        "week": "For a week",
+        "forever": "Until I turn them back on",
+        "urgent": "Still send urgent ones",
+        "urgentHint": "The team paused itself, a release decision is needed.",
+        "ok": "Snooze",
+        "err": "Couldn’t save: the server didn’t answer. Nothing changed.",
+        "offline": "You’re offline. Nothing changed."
+      },
+      "result": {
+        "done": "{{name}} notifications snoozed until {{until}}",
+        "doneForever": "{{name}} notifications snoozed until you turn them back on",
+        "back": "{{name}} notifications are back on",
+        "backFailed": "Couldn’t turn {{name}} notifications back on: the server didn’t answer. Nothing changed.",
+        "backOffline": "You’re offline: {{name}} notifications are still snoozed. Nothing changed."
+      }
+    },
+    "ask": {
+      "title": "Ask the PM about an issue",
+      "hint": "Another sprint, or higher or lower in the queue. The PM reads it at the next planning run.",
+      "pending": "Waiting for the PM: {{n}}",
+      "btn": "Pick",
+      "aria": "Ask the PM about an issue: pick one"
+    },
+    "pick": {
+      "title": "Which issue is it about?",
+      "find": "Find by number or title",
+      "empty": "No open issues.",
+      "none": "Nothing matches “{{q}}”.",
+      "loading": "Loading issues…",
+      "error": "Couldn't load the issues from GitHub. Try again.",
+      "pending": "waiting for the PM",
+      "applied": "the PM applied it",
+      "declined": "the PM declined"
+    },
+    "request": {
+      "title": "#{{n}} {{title}}",
+      "loading": "Reading the issue from GitHub…",
+      "loadError": "Couldn't read the issue from GitHub. Nothing recorded; try again.",
+      "now": "Now: {{where}}",
+      "backlogWhere": "no sprint (backlog)",
+      "pending": "Already waiting for the PM: {{what}} ({{when}}). A new request replaces it.",
+      "applied": "The PM applied your last request: {{what}}.",
+      "declined": "The PM declined your last request: {{what}}. The reason is on the issue.",
+      "sprint": "Sprint",
+      "cur": "Current: {{sprint}}",
+      "next": "Next: {{sprint}}",
+      "nextNone": "Next: not created yet",
+      "none": "Backlog, no sprint",
+      "here": "(it is here now)",
+      "sprintHint": "The PM moves it within the sprint’s limits. If there is no room, the PM says what would have to move out.",
+      "freeze": "It’s freeze: the PM adds nothing to the current sprint before the demo and answers on the issue.",
+      "prio": "Queue",
+      "up": "Up",
+      "keep": "As is",
+      "down": "Down",
+      "prioHint": "Issues have no priority label; the PM keeps the order within a sprint and moves this one at the next planning run.",
+      "one": "One request at a time: another sprint or a place in the queue. Picking one clears the other. The team sets the tier and bug severity; if one is wrong, tell the PM.",
+      "diffNone": "Pick what to ask for.",
+      "diff": "Request: {{what}}.",
+      "dSprint": "move to {{sprint}}",
+      "dCurrent": "move to the current sprint",
+      "dNext": "move to the next sprint",
+      "dBacklog": "move to the backlog",
+      "dUp": "move up the queue",
+      "dDown": "move down the queue",
+      "owner": "Recorded on the issue as a comment of yours. Only the PM changes the sprint and the order.",
+      "ok": "Send the request",
+      "okNone": "Nothing picked yet",
+      "done": "Request on #{{n}} recorded",
+      "doneDetail": "The PM reads it at the next planning run and answers on the issue.",
+      "donePaused": "Development is paused: the PM reads the request at the first planning run after you resume.",
+      "replayed": "This request was recorded less than a minute ago, so it was not sent again.",
+      "conflict": "The issue changed while this form was open: it is now {{where}}. The values are updated — check them and send again.",
+      "closed": "The issue was closed meanwhile, so there is nothing to ask. Nothing recorded.",
+      "nextMissing": "There is no next sprint yet: start it or pick something else. Nothing recorded.",
+      "noCurrent": "There is no current sprint: pick something else. Nothing recorded.",
+      "notIssue": "This is a pull request, not an issue. Nothing recorded.",
+      "inProgress": "This request is being sent already. Wait a couple of seconds and try again.",
+      "timeout": "GitHub didn't answer, so it's unknown whether the request was recorded. A retry within a minute won't record it twice; later, a new one is recorded and the PM reads the latest.",
+      "open": "Open the issue",
+      "closeBtn": "Close",
+      "reads": "The PM reads the request at the next planning run and answers on the issue: done, or why not."
+    }
   },
   "ui": {
     "close": "Close",
@@ -904,7 +1193,14 @@
       "offline": "Not available offline",
       "pin": "Pin",
       "unpin": "Unpin",
-      "external": "Team Console on GitHub"
+      "external": "Team Console on GitHub",
+      "ariaRepos": "Repositories",
+      "repoProject": "Project",
+      "repoProjectAria": "{{repo}} is a project. Open its setup",
+      "repoArchived": "Archived",
+      "repoNotAdded": "Not added: step 3 is missing",
+      "repoSeeWhy": "See why",
+      "repoAdd": "Add"
     },
     "topBar": {
       "search": "Search",
@@ -942,7 +1238,33 @@
       "reasonHint": "Goes into the run log.",
       "pauseOk": "Pause",
       "sending": "Sending…",
-      "rateLimited": "GitHub asks to wait until 14:05. Nothing changed."
+      "rateLimited": "GitHub asks to wait until 14:05. Nothing changed.",
+      "dateEllipsis": "Move the demo…",
+      "dateTitle": "Move the Sprint 04 demo?",
+      "dateMessage": "The demo is now on {{date}}.",
+      "dateLabel": "Demo date",
+      "datePast": "That date has passed. Pick today or later.",
+      "dateSame": "The date hasn’t changed",
+      "dateHint": "Freeze ends on {{date}}",
+      "dateOk": "Move to {{date}}",
+      "dateWarning": "Freeze starts at once: no new issues will be taken.",
+      "dateConflict": "The demo date changed while this was open (now {{date}}). Check it and move again.",
+      "dateDone": "The demo moved",
+      "openFooter": "Sheet with a footer",
+      "footerTitle": "Add {{repo}}",
+      "footerBody": "Long content scrolls while the actions stay at the bottom: stacked with the primary first on the phone, in a row with the primary on the right in the dialog.",
+      "footerDone": "Done",
+      "footerSecondary": "Open setup",
+      "longEllipsis": "Long form…",
+      "longTitle": "#36 Web push: subscribe button, iOS guide, tap",
+      "longIntro": "A form taller than the screen: the title and the buttons stay put, only the middle scrolls.",
+      "longSprint": "Sprint",
+      "longCurrent": "Current: Sprint 02",
+      "longNext": "Next: Sprint 03",
+      "longBacklog": "Backlog, no sprint",
+      "longHint": "The PM moves the issue within the sprint's limits. If there is no room, they say what would have to go.",
+      "longSend": "Ask the PM",
+      "longSent": "Request sent"
     },
     "tabBar": {
       "aria": "Sections",
@@ -1042,6 +1364,22 @@
     "srOnlyOnPhone": {
       "title": "Needs you",
       "body": "On the phone the top bar already shows this title, so here it stays for screen readers only."
+    },
+    "checkRow": {
+      "list": "Questions to approve",
+      "first": "Plan for the 16 October demo",
+      "second": "CSV export on the board",
+      "long": "A very long question title that wraps over several lines and must not push the tick out of place",
+      "detail": "Team recommends: start as planned"
+    },
+    "choice": {
+      "when": "For how long",
+      "hour": "For an hour",
+      "morning": "Until morning (9:00)",
+      "week": "For a week",
+      "forever": "Until I turn them back on",
+      "urgent": "Still send urgent ones",
+      "urgentHint": "The team paused itself, a release decision is needed."
     }
   },
   "review": {

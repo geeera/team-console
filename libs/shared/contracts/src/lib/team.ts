@@ -1,3 +1,6 @@
+import type { SnoozeDto } from './snooze';
+import type { SprintCalendarDto, SprintProgressDto, TeamSprintDto } from './sprint-commands';
+
 /**
  * Team commands, part 1 (#114): pause / resume development and "Run now" for a slot. The Worker reads the run log
  * and fires the slot's routine; the client never decides a refusal itself, it renders the problem `type`.
@@ -67,8 +70,18 @@ export interface TeamStatusDto {
   /** The Worker's environment, for the setup card's `--env`. */
   readonly environment: string;
   readonly slots: readonly SlotStatusDto[];
+  /** The project's snoozed notifications (#221), read from D1 with the run log. */
+  readonly snooze: SnoozeDto;
   /** ISO 8601: when the Worker read the run log. */
   readonly checkedAt: string;
+  /** The current sprint (#218); `null` when there is none or the milestones could not be read (`calendar` null). */
+  readonly sprint: TeamSprintDto | null;
+  /** Done of all work issues in the current sprint; `null` without one. */
+  readonly progress: SprintProgressDto | null;
+  /** `null` when GitHub did not answer the milestones read: the sprint commands are off until it does. */
+  readonly calendar: SprintCalendarDto | null;
+  /** Issues whose newest owner request still waits for the PM (#219), from D1. */
+  readonly pendingRequests: number;
 }
 
 /** A pause or resume written to the run log. */

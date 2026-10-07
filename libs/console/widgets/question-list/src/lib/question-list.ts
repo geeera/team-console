@@ -13,7 +13,13 @@ import {
   untracked,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { AnsweredItem, AnsweredItems, answeredKeyOf, ProjectsStore } from '@console/entities/project';
+import {
+  AnsweredItem,
+  AnsweredItems,
+  answeredKeyOf,
+  projectSetupRouteOf,
+  ProjectsStore,
+} from '@console/entities/project';
 import type { QuestionArrival } from '@console/entities/push';
 import {
   githubIssueUrlOf,
@@ -147,17 +153,21 @@ export class QuestionList {
     return sections === null ? items : items.filter((item) => sections.includes(item.section));
   });
   protected readonly rows = computed<Row[]>(() =>
-    this.shownItems().map((item) => {
+    this.shownItems().flatMap((item) => {
       const key = answeredKeyOf(item.project.slug, item.number);
-      return {
-        key,
-        item,
-        answer: this.answeredItems.get(item.project.slug, item.number) ?? null,
-        stamping: this.stamping().has(key),
-      };
+      const answer = this.answeredItems.get(item.project.slug, item.number) ?? null;
+      // Approved in a batch (#220): the card leaves the list; the batch's own receipt says what happened.
+      if (answer?.batch === true) {
+        return [];
+      }
+      return [{ key, item, answer, stamping: this.stamping().has(key) }];
     }),
   );
   protected readonly waiting = computed(() => this.rows().filter((row) => row.answer === null));
+  /** The items still waiting for an answer from this device, once the list is read (the batch entry reads them). */
+  readonly waitingItems = computed<readonly QuestionItem[]>(() =>
+    this.state() === 'ready' ? this.waiting().map((row) => row.item) : [],
+  );
   /** Projects that need the owner outside a card: a setup to finish, or an inbox that could not be read (#205). */
   protected readonly attentionCount = computed(() => this.setups().length + this.problems().length);
   /** The lead's project count: projects with a waiting card and projects with a row above the cards alike. */
@@ -227,7 +237,7 @@ export class QuestionList {
   }
 
   protected settingsLinkOf(slug: string): readonly string[] {
-    return ['/settings/projects', slug];
+    return projectSetupRouteOf(slug);
   }
 
   protected onAnswered({ item, response }: AnswerGiven): void {
