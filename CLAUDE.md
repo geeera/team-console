@@ -91,8 +91,13 @@ CDK dialog; `confirm()`), `Spinner`, `StateBlock`, `Tooltip` (non-interactive, `
 toolbars: `npx nx storybook console-shared-ui` on :4400, `npx nx build-storybook console-shared-ui` into
 `dist/storybook/console-shared-ui` — the `storybook` contract command), `@console/shared/i18n` (Transloco,
 `ru.json`/`en.json`, `provideConsoleI18n()`), `@console/shared/config` (`APP_CONFIG`), `@console/shared/api`
-(`provideConsoleApi()` with the interceptor chain; `accessSessionInterceptor` reloads once per 30 s to re-run the
-Access login when an `/api` call fails with status 0, a non-JSON body or 401 `access-missing|access-unverified`). Build time reaches the app through the build `define`
+(`provideConsoleApi()` with the interceptor chain; `accessSessionInterceptor` sends every `/api` call with `redirect:
+'manual'` and the `ngsw-bypass` header, and when `isAccessSessionExpired` says Access wants a new login — a redirect,
+a `*.cloudflareaccess.com` URL, 401/403 with a non-JSON body, 401 `access-missing|access-unverified`, a 2xx HTML page —
+sets `AccessSession.expired`; the app root then shows «Сессия истекла — войдите снова», whose button is a full-page
+navigation to the same URL with `?ngsw-bypass=1` (stripped again in `main.ts`), #284). `/cdn-cgi/**` stays out of
+`ngsw-config.json`: Access sets its cookie on `/cdn-cgi/access/authorized`, and an app shell served there locks the
+owner out. Build time reaches the app through the build `define`
 `__TC_BUILT_AT__` (defaults to `local`); the version comes from `package.json`.
 
 Spaces shell (#23): `@console/shared/persisted-state` (`PersistedStateStore` over `localStorage` key `tc.state.v1`,
