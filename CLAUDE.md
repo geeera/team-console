@@ -111,6 +111,14 @@ item; failures branch on the problem `type`; Retry repeats the same body so the 
 `@console/widgets/question-list` (Needs you and `/p/:slug/questions`; stamp, then a receipt). `AnsweredItems` in
 `@console/entities/project` (`localStorage` `tc.answered.v1`, 6 h) keeps answered items out of the badges while GitHub
 still lists them. Kit: `Recommendation`, `Receipt`.
+Question context (#276): `InboxItemDto.context` (`QuestionContextDto`, so on inbox, questions and Needs you) is
+`questionContextOf` in `@worker/read-models` — the body's `## Кратко|Вопрос|Почему|Если одобрить|Если отклонить|Цена и риск`
+(or `Summary|Question|Why|If approved|If rejected|Cost and risk`) as bounded plain text (no markup, tags, answer line,
+control or bidi characters; GitHub's 65,536 cut first), read only for trusted authors, `structured: false` + the first
+paragraph when no heading is there. `markdownToPlainText` lives in `@shared/plain-text` (worker and console). The card
+(`QuestionCard`) shows summary title + «На GitHub:», question, verb + why, `[tc-question-previews]` (design only, team items
+only; #277 fills it), outcomes (from the sections, else the answer line's options via `askOutcomesOf`), cost, actions,
+details; the raw answer line is never rendered on any surface.
 
 Sprint board (#18, read-only): `@console/entities/sprint` (`isSprintDto`, `SprintApi`, `statusColumnsOf` — lanes counted as
 `backlog list` counts them, `SprintItemList`), `@console/widgets/sprint-board` (`/p/:slug/board`; loading, no sprint,
