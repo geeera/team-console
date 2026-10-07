@@ -9,12 +9,14 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ArtifactList, ArtifactsStore } from '@console/entities/artifact';
+import { ArtifactList, ArtifactsStore, type Artifact } from '@console/entities/artifact';
+import { DesignPreview, DesignSummary } from '@console/entities/design';
 import {
   ARTIFACT_QUERY_MAX_LENGTH,
   ArtifactSearch,
   filterArtifacts,
 } from '@console/features/artifact-search';
+import { DesignViewer } from '@console/features/design-viewer';
 import { localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { PersistedStateStore } from '@console/shared/persisted-state';
 import { Button, Callout, StateBlock } from '@console/shared/ui';
@@ -28,7 +30,7 @@ import { map } from 'rxjs';
  */
 @Component({
   selector: 'tc-artifacts-section-page',
-  imports: [ArtifactList, ArtifactSearch, Button, Callout, StateBlock, TranslocoPipe],
+  imports: [ArtifactList, ArtifactSearch, Button, Callout, DesignPreview, DesignSummary, StateBlock, TranslocoPipe],
   template: `
     <div class="artifacts__head">
       <h2 class="artifacts__title">{{ 'artifacts.title' | transloco }}</h2>
@@ -109,7 +111,24 @@ import { map } from 'rxjs';
                 </button>
               </tc-state-block>
             } @else {
-              <tc-artifact-list [items]="visible()" [label]="'artifacts.listLabel' | transloco" />
+              <tc-artifact-list
+                [items]="visible()"
+                [label]="'artifacts.listLabel' | transloco"
+                [designLeading]="designLeading"
+                [designSubtitle]="designSubtitle"
+                (openDesign)="openDesign($event)"
+              />
+              <!-- #277: the design rows' thumbnail and summary; the viewer opens from the row. -->
+              <ng-template #designLeading let-design>
+                @if (slug(); as slug) {
+                  <tc-design-preview [slug]="slug" [issue]="design.number" />
+                }
+              </ng-template>
+              <ng-template #designSubtitle let-design>
+                @if (slug(); as slug) {
+                  <tc-design-summary [slug]="slug" [issue]="design.number" />
+                }
+              </ng-template>
             }
           }
         }
@@ -133,8 +152,9 @@ export class ArtifactsSectionPage {
   private readonly store = inject(ArtifactsStore);
   private readonly persisted = inject(PersistedStateStore);
   private readonly transloco = inject(TranslocoService);
+  private readonly viewer = inject(DesignViewer);
 
-  private readonly slug = toSignal(
+  protected readonly slug = toSignal(
     (this.route.parent ?? this.route).paramMap.pipe(map((params) => params.get('slug'))),
     { initialValue: null },
   );
@@ -192,6 +212,14 @@ export class ArtifactsSectionPage {
 
   protected checkAgain(): void {
     void this.store.checkAgain();
+  }
+
+  /** A design row (#277): the viewer over this page; focus comes back to the row when it closes. */
+  protected openDesign(design: Artifact & { readonly number: number }): void {
+    const slug = this.slug();
+    if (slug !== null) {
+      this.viewer.open({ slug, issue: design.number, title: design.title });
+    }
   }
 
   protected setFilter(type: ArtifactType | null, query: string): void {
