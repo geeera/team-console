@@ -1,4 +1,5 @@
 import {
+  afterNextRender,
   booleanAttribute,
   ChangeDetectionStrategy,
   Component,
@@ -7,6 +8,7 @@ import {
   ElementRef,
   forwardRef,
   inject,
+  Injector,
   input,
   model,
   OnInit,
@@ -60,6 +62,7 @@ let nextTabsId = 0;
   host: { class: 'tc-tabs', '[class.tc-tabs--active]': 'isActive()' },
 })
 export class Tabs {
+  private readonly injector = inject(Injector);
   /** The tab list's accessible name. */
   readonly label = input.required<string>();
   /** The selected panel's key; `null` (or a key no panel has) means the first panel. */
@@ -92,7 +95,8 @@ export class Tabs {
     }
     this.selected.set(key);
     if (options.focusPanel === true) {
-      panel.focus();
+      // The panel is still hidden until the selection renders; a hidden element cannot take focus.
+      afterNextRender(() => panel.focus(), { injector: this.injector });
     }
   }
 

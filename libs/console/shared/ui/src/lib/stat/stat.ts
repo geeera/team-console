@@ -41,7 +41,13 @@ export class Stats {}
     <dt class="tc-stat__label">{{ label() }}</dt>
     <dd class="tc-stat__value">
       @if (actionLabel(); as name) {
-        <button #action type="button" class="tc-stat__action" [attr.aria-label]="name" (click)="activate.emit()">
+        <button
+          #action
+          type="button"
+          class="tc-stat__action"
+          [attr.aria-label]="name"
+          (click)="activate.emit()"
+        >
           <span class="tc-stat__text"><ng-container [ngTemplateOutlet]="value" /></span>
           <tc-icon class="tc-stat__chevron" name="chevron-right" size="sm" />
         </button>

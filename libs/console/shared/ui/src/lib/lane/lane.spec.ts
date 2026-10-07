@@ -152,7 +152,9 @@ describe('Lanes and Lane', () => {
       const heading = done.querySelector('[role="heading"]') as HTMLElement;
 
       expect(heading.querySelector('button')).toBeNull();
-      expect(heading.parentElement?.querySelector(':scope > button[tc-lane-action]')?.textContent).toBe('Show');
+      expect(heading.parentElement?.querySelector(':scope > button[tc-lane-action]')?.textContent).toBe(
+        'Show',
+      );
     });
   });
 

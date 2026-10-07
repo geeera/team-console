@@ -158,7 +158,9 @@ describe('Tabs and TabPanel', () => {
 
     expect(tablist()).toBeNull();
     expect(shown()).toEqual(panels());
-    expect(panels().every((panel) => !panel.hasAttribute('role') && !panel.hasAttribute('tabindex'))).toBe(true);
+    expect(panels().every((panel) => !panel.hasAttribute('role') && !panel.hasAttribute('tabindex'))).toBe(
+      true,
+    );
 
     fixture.componentInstance.enabled.set(true);
     await settle();

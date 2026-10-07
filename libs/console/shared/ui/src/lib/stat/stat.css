@@ -108,3 +108,14 @@
   flex: none;
   color: var(--text-3);
 }
+
+/* Two tiles side by side on a phone: every pixel goes to the value («1 PR не прошёл» fits whole at 390 px). */
+@media (max-width: 519.98px) {
+  :host {
+    padding-inline: var(--space-2);
+  }
+
+  .tc-stat__action {
+    gap: 0;
+  }
+}

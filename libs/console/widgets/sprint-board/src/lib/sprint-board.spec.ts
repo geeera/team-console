@@ -10,7 +10,13 @@ import { CORE_STATUSES, projectSprintUrl } from '@console/entities/sprint';
 import { provideConsoleI18n, TranslocoService } from '@console/shared/i18n';
 import { memoryPersistedStateStorage, PERSISTED_STATE_STORAGE } from '@console/shared/persisted-state';
 import { BREAKPOINTS, Icon } from '@console/shared/ui';
-import type { RecentRunDto, SprintDto, SprintIssueDto, SprintPullRequestDto, TeamRunDto } from '@shared/contracts';
+import type {
+  RecentRunDto,
+  SprintDto,
+  SprintIssueDto,
+  SprintPullRequestDto,
+  TeamRunDto,
+} from '@shared/contracts';
 import { readFileSync } from 'node:fs';
 import type { MockInstance } from 'vitest';
 import { resolve } from 'node:path';
@@ -34,7 +40,12 @@ const GOLDEN_DIR = resolve(import.meta.dirname, '../../../../../worker/read-mode
 
 interface GoldenSprint {
   readonly milestone: { number: number; title: string; dueOn: string } | null;
-  readonly issues?: readonly { number: number; status: string | null; kind: string | null; state: 'open' | 'closed' }[];
+  readonly issues?: readonly {
+    number: number;
+    status: string | null;
+    kind: string | null;
+    state: 'open' | 'closed';
+  }[];
   readonly byStatus?: Readonly<Record<string, number>>;
   readonly planned?: number;
   readonly shipped?: number;
@@ -72,14 +83,25 @@ function sprint(overrides: Partial<SprintDto> = {}): SprintDto {
       dueOn: '2026-10-16',
       url: 'https://github.com/geeera/team-console/milestone/1',
     },
-    issues: [issue(18), issue(14, { status: 'qa', tier: 'heavy' }), issue(3, { status: 'done', state: 'closed' })],
+    issues: [
+      issue(18),
+      issue(14, { status: 'qa', tier: 'heavy' }),
+      issue(3, { status: 'done', state: 'closed' }),
+    ],
     byStatus: { 'in-progress': 1, qa: 1, done: 1 },
     planned: 3,
     shipped: 1,
     carriedOver: 2,
     byTier: {},
     openPullRequests: [
-      { number: 45, title: 'chore: pages', url: 'https://github.com/geeera/team-console/pull/45', draft: false, authorTrusted: true, ci: 'failure' },
+      {
+        number: 45,
+        title: 'chore: pages',
+        url: 'https://github.com/geeera/team-console/pull/45',
+        draft: false,
+        authorTrusted: true,
+        ci: 'failure',
+      },
     ],
     team: { state: 'running', runLogUrl: null, recentRuns: [] },
     ...overrides,
@@ -185,7 +207,9 @@ describe('SprintBoard', () => {
             golden.milestone === null
               ? null
               : { ...golden.milestone, url: `https://github.com/o/r/milestone/${golden.milestone.number}` },
-          issues: goldenIssues.map((item) => issue(item.number, { status: item.status, kind: item.kind, state: item.state })),
+          issues: goldenIssues.map((item) =>
+            issue(item.number, { status: item.status, kind: item.kind, state: item.state }),
+          ),
           byStatus: golden.byStatus ?? {},
           planned: golden.planned ?? 0,
           shipped: golden.shipped ?? 0,
@@ -255,14 +279,18 @@ describe('SprintBoard', () => {
     const qa = root.querySelector('tc-lane[data-status="qa"]') as HTMLElement;
     expect(qa.querySelector('[role="heading"]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Проверка 1');
     expect(qa.querySelector('[data-testid="tier"]')?.getAttribute('data-tier')).toBe('heavy');
-    expect(qa.querySelector('[data-testid="tier"] .tc-sr-only')?.textContent?.trim()).toBe('Сложность: тяжёлая');
-    // An empty lane is one quiet line.
-    expect(root.querySelector('tc-lane[data-status="approved"] [data-testid="lane-empty"]')?.textContent).toContain(
-      'Пусто',
+    expect(qa.querySelector('[data-testid="tier"] .tc-sr-only')?.textContent?.trim()).toBe(
+      'Сложность: тяжёлая',
     );
+    // An empty lane is one quiet line.
+    expect(
+      root.querySelector('tc-lane[data-status="approved"] [data-testid="lane-empty"]')?.textContent,
+    ).toContain('Пусто');
     const pulls = root.querySelector('[data-testid="pulls"]') as HTMLElement;
     expect(pulls.querySelector('h2')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Открытые PR 1');
-    expect(pulls.querySelector('a')?.getAttribute('href')).toBe('https://github.com/geeera/team-console/pull/45');
+    expect(pulls.querySelector('a')?.getAttribute('href')).toBe(
+      'https://github.com/geeera/team-console/pull/45',
+    );
   });
 
   describe('CI per open pull request (#131)', () => {
@@ -279,7 +307,13 @@ describe('SprintBoard', () => {
       const { root, settle } = await render();
       http.expectOne(projectSprintUrl(TC.slug)).flush(
         sprint({
-          openPullRequests: [pr(5, 'success'), pr(4, 'failure'), pr(3, 'pending'), pr(2, 'none'), pr(1, 'unknown')],
+          openPullRequests: [
+            pr(5, 'success'),
+            pr(4, 'failure'),
+            pr(3, 'pending'),
+            pr(2, 'none'),
+            pr(1, 'unknown'),
+          ],
         }),
       );
       await settle();
@@ -304,7 +338,9 @@ describe('SprintBoard', () => {
         ['5', 'success', 'true', 'CI пройден', true],
       ]);
       // Each state has its own glyph, so it reads without colour.
-      const glyphs = rows.map((row) => row.querySelector('[data-testid="ci"] tc-icon path')?.getAttribute('d'));
+      const glyphs = rows.map((row) =>
+        row.querySelector('[data-testid="ci"] tc-icon path')?.getAttribute('d'),
+      );
       expect(new Set(glyphs).size).toBe(5);
     });
 
@@ -462,7 +498,9 @@ describe('SprintBoard', () => {
       const lane = root.querySelector('[data-testid="runs"]') as HTMLElement;
       const block = lane.querySelector('[data-testid="runs-unavailable"]') as HTMLElement;
       expect(lane.querySelector('[data-testid="runs-empty"]')).toBeNull();
-      expect(block.querySelector('.tc-state-block__title')?.textContent?.trim()).toBe('Журнал прогонов недоступен');
+      expect(block.querySelector('.tc-state-block__title')?.textContent?.trim()).toBe(
+        'Журнал прогонов недоступен',
+      );
       expect(block.querySelector('.tc-state-block__description')?.textContent).toContain('«Команды»');
       // Not the empty kind's check: the same question mark as an unknown run.
       const unknownGlyph = TestBed.createComponent(Icon);
@@ -508,14 +546,16 @@ describe('SprintBoard', () => {
     expect(root.querySelector('img')).toBeNull();
     const marked = [...root.querySelectorAll('[data-testid="untrusted"]')];
     expect(marked).toHaveLength(2);
-    expect([...root.querySelectorAll('[tc-row-title]')].every((row) => row.textContent?.includes(title))).toBe(true);
+    expect(
+      [...root.querySelectorAll('[tc-row-title]')].every((row) => row.textContent?.includes(title)),
+    ).toBe(true);
   });
 
   it('without a current sprint says so and still lists the open pull requests', async () => {
     const { root, settle } = await render();
-    http.expectOne(projectSprintUrl(TC.slug)).flush(
-      sprint({ milestone: null, issues: [], byStatus: {}, planned: 0, shipped: 0, carriedOver: 0 }),
-    );
+    http
+      .expectOne(projectSprintUrl(TC.slug))
+      .flush(sprint({ milestone: null, issues: [], byStatus: {}, planned: 0, shipped: 0, carriedOver: 0 }));
     await settle();
 
     expect(root.querySelector('[data-testid="no-sprint"]')?.textContent).toContain('Активного спринта нет');
@@ -527,9 +567,11 @@ describe('SprintBoard', () => {
 
   it('with an empty sprint shows the sprint and an empty block instead of the lanes', async () => {
     const { root, settle } = await render();
-    http.expectOne(projectSprintUrl(TC.slug)).flush(
-      sprint({ issues: [], byStatus: {}, planned: 0, shipped: 0, carriedOver: 0, openPullRequests: [] }),
-    );
+    http
+      .expectOne(projectSprintUrl(TC.slug))
+      .flush(
+        sprint({ issues: [], byStatus: {}, planned: 0, shipped: 0, carriedOver: 0, openPullRequests: [] }),
+      );
     await settle();
 
     expect(root.querySelector('[data-testid="empty-sprint"]')?.textContent).toContain(
@@ -541,9 +583,9 @@ describe('SprintBoard', () => {
 
   it('without a current sprint on the phone has only the PR and runs tabs', async () => {
     const { root, settle } = await render(true);
-    http.expectOne(projectSprintUrl(TC.slug)).flush(
-      sprint({ milestone: null, issues: [], byStatus: {}, planned: 0, shipped: 0, carriedOver: 0 }),
-    );
+    http
+      .expectOne(projectSprintUrl(TC.slug))
+      .flush(sprint({ milestone: null, issues: [], byStatus: {}, planned: 0, shipped: 0, carriedOver: 0 }));
     await settle();
 
     expect(root.querySelector('[data-testid="no-sprint"]')).not.toBeNull();
@@ -559,7 +601,11 @@ describe('SprintBoard', () => {
     http
       .expectOne(projectSprintUrl(TC.slug))
       .flush(
-        { type: 'https://team-console/problems/github-unavailable', title: 'GitHub unavailable', status: 502 },
+        {
+          type: 'https://team-console/problems/github-unavailable',
+          title: 'GitHub unavailable',
+          status: 502,
+        },
         { status: 502, statusText: 'Bad Gateway' },
       );
     await settle();
@@ -595,10 +641,20 @@ describe('SprintBoard', () => {
     });
     afterEach(() => vi.restoreAllMocks());
 
-    function retryTimers(): { readonly delay: number; readonly fire: () => void; readonly handle: unknown }[] {
+    function retryTimers(): {
+      readonly delay: number;
+      readonly fire: () => void;
+      readonly handle: unknown;
+    }[] {
       return setTimeoutSpy.mock.calls.flatMap(([callback, delay], index) =>
         typeof delay === 'number' && delay >= SECOND && typeof callback === 'function'
-          ? [{ delay, fire: () => (callback as () => void)(), handle: setTimeoutSpy.mock.results[index]?.value }]
+          ? [
+              {
+                delay,
+                fire: () => (callback as () => void)(),
+                handle: setTimeoutSpy.mock.results[index]?.value,
+              },
+            ]
           : [],
       );
     }
@@ -711,7 +767,12 @@ describe('SprintBoard', () => {
   });
 
   it.each([
-    ['not-installed', 404, { type: 'https://team-console/problems/github-app-not-installed', title: 'x', status: 404 }, 'Приложение консоли не установлено'],
+    [
+      'not-installed',
+      404,
+      { type: 'https://team-console/problems/github-app-not-installed', title: 'x', status: 404 },
+      'Приложение консоли не установлено',
+    ],
     ['offline', 0, null, 'Нет соединения'],
   ] as const)('tells a %s failure apart', async (failure, status, body, copy) => {
     const { root, settle } = await render();
@@ -733,7 +794,9 @@ describe('SprintBoard', () => {
     http.expectOne(projectSprintUrl(TC.slug)).flush({ issues: '<b>x</b>' });
     await settle();
 
-    expect(root.querySelector('[data-testid="load-error"]')?.getAttribute('data-failure')).toBe('unavailable');
+    expect(root.querySelector('[data-testid="load-error"]')?.getAttribute('data-failure')).toBe(
+      'unavailable',
+    );
     expect(root.querySelector('tc-lanes')).toBeNull();
     expect(handled).toEqual([]);
   });
@@ -746,11 +809,9 @@ describe('SprintBoard', () => {
     const legend = root.querySelector('[data-testid="tier-legend"]') as HTMLElement;
     expect(legend.previousElementSibling?.tagName).toBe('TC-LANES');
     expect(text('[data-testid="tier-legend"]')).toBe('Сложность: лёгкая средняя тяжёлая');
-    expect([...legend.querySelectorAll('[data-tier]')].map((icon) => icon.getAttribute('data-tier'))).toEqual([
-      'light',
-      'standard',
-      'heavy',
-    ]);
+    expect([...legend.querySelectorAll('[data-tier]')].map((icon) => icon.getAttribute('data-tier'))).toEqual(
+      ['light', 'standard', 'heavy'],
+    );
   });
 
   describe('on the phone (#275)', () => {
@@ -780,7 +841,9 @@ describe('SprintBoard', () => {
         stat.getAttribute('data-testid'),
       );
       expect(stats).toEqual(['done-stat', 'ci-stat', 'team-stat', 'waiting-stat']);
-      expect(root.querySelector('[data-testid="done-stat"] .tc-stat__sub')?.textContent).toBe('ещё открыто 2');
+      expect(root.querySelector('[data-testid="done-stat"] .tc-stat__sub')?.textContent).toBe(
+        'ещё открыто 2',
+      );
       expect(root.querySelector('[role="tablist"]')?.getAttribute('aria-label')).toBe('Разделы доски');
       expect(tabs(root)).toEqual([
         ['Задачи 3', 'true'],
@@ -795,7 +858,9 @@ describe('SprintBoard', () => {
       const { root, settle } = await render(true);
       http
         .expectOne(projectSprintUrl(TC.slug))
-        .flush(sprint({ issues: [issue(18), issue(14, { status: 'qa' }), issue(20, { status: 'blocked' })] }));
+        .flush(
+          sprint({ issues: [issue(18), issue(14, { status: 'qa' }), issue(20, { status: 'blocked' })] }),
+        );
       await settle();
 
       const group = root.querySelector('.tc-lanes__switch') as HTMLElement;
@@ -819,7 +884,9 @@ describe('SprintBoard', () => {
     });
 
     it('keeps the lane the owner picked across a refresh, and falls back when it is gone', async () => {
-      const blocked = sprint({ issues: [issue(18), issue(14, { status: 'qa' }), issue(20, { status: 'blocked' })] });
+      const blocked = sprint({
+        issues: [issue(18), issue(14, { status: 'qa' }), issue(20, { status: 'blocked' })],
+      });
       const { root, fixture, settle } = await render(true);
       http.expectOne(projectSprintUrl(TC.slug)).flush(blocked);
       await settle();
@@ -883,7 +950,9 @@ describe('SprintBoard', () => {
       await settle();
       await fixture.whenStable();
       const again = fixture.nativeElement as HTMLElement;
-      expect(again.querySelector('[role="tab"][aria-selected="true"]')?.textContent?.trim()).toBe('Прогоны 0');
+      expect(again.querySelector('[role="tab"][aria-selected="true"]')?.textContent?.trim()).toBe(
+        'Прогоны 0',
+      );
     });
 
     it('opens on the tab of a deep link', async () => {

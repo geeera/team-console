@@ -23,7 +23,7 @@
   gap: var(--space-px);
   min-width: 0;
   min-height: var(--lane-cell-h);
-  padding: var(--space-1);
+  padding: var(--space-1) var(--space-px);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-md);
   background: var(--surface);

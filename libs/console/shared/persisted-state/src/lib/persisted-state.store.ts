@@ -105,7 +105,9 @@ export class PersistedStateStore {
 
   /** The board's last tab on a narrow screen (#275), so the project opens on it again. */
   setBoardTab(slug: string, boardTab: string): void {
-    this.updateProject(slug, (project) => (project.boardTab === boardTab ? project : { ...project, boardTab }));
+    this.updateProject(slug, (project) =>
+      project.boardTab === boardTab ? project : { ...project, boardTab },
+    );
   }
 
   togglePin(slug: string): void {

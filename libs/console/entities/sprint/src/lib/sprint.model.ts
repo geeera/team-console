@@ -85,7 +85,9 @@ const PULL_ORDER: readonly SprintCiState[] = ['failure', 'pending', 'unknown', '
 
 /** Open pull requests in `PULL_ORDER`, newest (highest number) first within a state; the input is left as it is. */
 export function pullsByUrgency(pulls: readonly SprintPullRequest[]): SprintPullRequest[] {
-  return [...pulls].sort((a, b) => PULL_ORDER.indexOf(a.ci) - PULL_ORDER.indexOf(b.ci) || b.number - a.number);
+  return [...pulls].sort(
+    (a, b) => PULL_ORDER.indexOf(a.ci) - PULL_ORDER.indexOf(b.ci) || b.number - a.number,
+  );
 }
 
 /** One of the team's latest runs (#132); `slotName` is team text from the run log, shown as plain text only. */

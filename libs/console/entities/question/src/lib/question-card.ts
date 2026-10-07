@@ -12,6 +12,7 @@ import { TranslocoPipe } from '@console/shared/i18n';
 import { Markdown, type RenderedMarkdown } from '@console/shared/markdown';
 import { Card, CardStamp, Chip, Frame, Recommendation } from '@console/shared/ui';
 import { previewTargetOf } from './preview-target';
+import { withoutAskLine } from '@shared/owner-grammar';
 import { plainAskOf, plainDetailsOf } from './question-text';
 import { QuestionItem } from './question.model';
 
@@ -112,8 +113,9 @@ export class QuestionCard {
     if (body === null) {
       return null;
     }
-    const text = this.embedOrigins() === null ? plainDetailsOf(body) : body;
-    return text === '' ? null : text;
+    // The answer line is the recommendation above, never raw text with its commands (#275 §7.11).
+    const text = this.embedOrigins() === null ? plainDetailsOf(body) : withoutAskLine(body);
+    return text.trim() === '' ? null : text;
   });
   /** The links of the rendered body; reset whenever the body changes, until it has rendered again. */
   private readonly links = linkedSignal<string | null, readonly string[]>({

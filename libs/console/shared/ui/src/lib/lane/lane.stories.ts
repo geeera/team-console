@@ -59,7 +59,9 @@ const fiveLanes = `
 const meta: Meta<Lane> = {
   title: 'Kit/Lane',
   component: Lane,
-  decorators: [moduleMetadata({ imports: [Button, Lane, Lanes, List, ListRow, Chip, StateBlock, TranslocoPipe] })],
+  decorators: [
+    moduleMetadata({ imports: [Button, Lane, Lanes, List, ListRow, Chip, StateBlock, TranslocoPipe] }),
+  ],
   argTypes: { level: { control: 'select', options: [2, 3, 4] } },
   args: { heading: 'In progress', count: 2, level: 3 },
   render: (args) => ({
