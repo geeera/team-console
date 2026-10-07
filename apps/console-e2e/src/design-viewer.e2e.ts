@@ -96,7 +96,7 @@ test('a design row shows its thumbnail and summary, and the viewer opens on the 
   await openArtifacts(page);
   const thumb = row(page).getByTestId('design-thumb');
   await expect(thumb).toBeVisible();
-  expect(await thumb.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+  await expect.poll(() => thumb.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
   await expect(thumb).toHaveAttribute('alt', '');
   await expect(row(page).getByTestId('design-summary')).toHaveText(`#${ISSUE} · 7 экранов · iPhone и Mac`);
   await expect(row(page).getByTestId('artifact-awaiting')).toHaveText(ru('designs.row.awaiting'));
@@ -128,7 +128,7 @@ test('a design row shows its thumbnail and summary, and the viewer opens on the 
   }
   const img = page.getByTestId('viewer-screen');
   await expect(img).toBeVisible();
-  expect(await img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
+  await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
   // The whole screen is visible: the image fits the stage, so the stage does not scroll.
   expect(
     await page.getByTestId('viewer-stage').evaluate((el) => el.scrollHeight <= el.clientHeight + 1),
