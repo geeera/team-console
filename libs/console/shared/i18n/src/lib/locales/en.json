@@ -175,7 +175,27 @@
       "github-rate-limit": "GitHub asks to wait",
       "other": "GitHub didn't respond"
     },
-    "preview": "Preview for #{{n}}"
+    "preview": "Preview for #{{n}}",
+    "onGitHub": "On GitHub:",
+    "recommend": {
+      "approve": "Approve.",
+      "approveDesign": "Approve.",
+      "reject": "Reject.",
+      "go": "Hold the demo.",
+      "no-go": "Move the demo."
+    },
+    "outcome": {
+      "ifApprove": "If you approve",
+      "ifApproveDesign": "If you approve",
+      "ifReject": "If you reject",
+      "ifGo": "If you hold the demo",
+      "ifNoGo": "If you move the demo"
+    },
+    "cost": "Cost and risk:",
+    "costMissing": "No cost given — ask the PM",
+    "previews": {
+      "untrusted": "Preview hidden: someone outside the team created this question. Open it on GitHub if you trust the author."
+    }
   },
   "answer": {
     "command": {

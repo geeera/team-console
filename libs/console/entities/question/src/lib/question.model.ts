@@ -7,6 +7,7 @@ import type {
   NeedsYouProjectDto,
   NeedsYouProjectProblem,
   NeedsYouProjectRef,
+  QuestionContextDto,
   QuestionDto,
   QuestionsDto,
   Section,
@@ -34,6 +35,8 @@ export interface QuestionItem {
   readonly category: OwnerCategory | null;
   /** The team's recommendation as the server read the answer line (#220). */
   readonly recommendation: TeamRecommendation | null;
+  /** The body's fixed sections as plain text (#276); `null` for an outsider's item or a body without any. */
+  readonly context: QuestionContextDto | null;
 }
 
 /** A project whose inbox "Needs you" could not read; the others are still listed. */
@@ -75,6 +78,16 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === 'string';
 }
 
+const CONTEXT_TEXTS = ['summary', 'question', 'why', 'ifApproved', 'ifRejected', 'costAndRisk'] as const;
+
+function isQuestionContext(value: unknown): value is QuestionContextDto {
+  return (
+    isRecord(value) &&
+    typeof value['structured'] === 'boolean' &&
+    CONTEXT_TEXTS.every((key) => isNullableString(value[key]))
+  );
+}
+
 function isProjectRef(value: unknown): value is NeedsYouProjectRef {
   return (
     isRecord(value) &&
@@ -100,7 +113,9 @@ function isInboxItem(value: unknown): value is InboxItemDto {
     isNullableString(value['ask']) &&
     typeof value['authorTrusted'] === 'boolean' &&
     (value['category'] === null || isOwnerCategory(value['category'])) &&
-    (value['recommendation'] === null || isTeamRecommendation(value['recommendation']))
+    (value['recommendation'] === null || isTeamRecommendation(value['recommendation'])) &&
+    // Absent from a server that predates #276: the card then shows what it showed before.
+    (value['context'] === undefined || value['context'] === null || isQuestionContext(value['context']))
   );
 }
 
@@ -199,6 +214,7 @@ export function needsYouViewOf(dto: NeedsYouDto): NeedsYouView {
       allowedCommands: offeredCommands(item.section, item.allowedCommands),
       category: item.category,
       recommendation: item.recommendation,
+      context: item.context ?? null,
     })),
     readSlugs: dto.projects.filter((project) => project.problem === null).map((project) => project.slug),
     problems: dto.projects.flatMap((project) =>
@@ -234,5 +250,6 @@ export function projectQuestionsOf(project: NeedsYouProjectRef, dto: QuestionsDt
     allowedCommands: offeredCommands(item.section, item.allowedCommands),
     category: item.category,
     recommendation: item.recommendation,
+    context: item.context ?? null,
   }));
 }
