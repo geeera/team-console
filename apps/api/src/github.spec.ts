@@ -82,6 +82,22 @@ describe('localIssueThreads (GITHUB_MOCK + GITHUB_FAKE_ORIGIN, #114)', () => {
     expect(seen).toHaveLength(2);
   });
 
+  it('reads the open pull requests from the fake once it serves the repository (#277), else the mock', async () => {
+    const env = localEnv({ GITHUB_FAKE_ORIGIN: 'http://127.0.0.1:9999' });
+    const fake: FetchLike = async (input) =>
+      input.includes('geeera/team-console/pulls') ? answer(200, [{ number: 176 }]) : answer(404, {});
+    const mock: FetchLike = async () => answer(200, [{ number: 92 }]);
+    const fetch = localIssueThreads(env, mock, fake);
+
+    const served = await fetch('https://api.github.com/repos/geeera/team-console/pulls?state=open', {});
+    await expect(served.json()).resolves.toEqual([{ number: 176 }]);
+    const other = await fetch('https://api.github.com/repos/geeera/fieldnote/pulls?state=open', {});
+    await expect(other.json()).resolves.toEqual([{ number: 92 }]);
+    // A single pull request is not a list the fake serves.
+    const one = await fetch('https://api.github.com/repos/geeera/team-console/pulls/176', {});
+    await expect(one.json()).resolves.toEqual([{ number: 92 }]);
+  });
+
   it('reads the milestone list from the fake once it serves the repository (#218)', async () => {
     const env = localEnv({ GITHUB_FAKE_ORIGIN: 'http://127.0.0.1:9999' });
     const fake: FetchLike = async (input) =>

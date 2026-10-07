@@ -18,8 +18,9 @@ import {
  * written earlier into a seeded thread: repo, number, body, author, createdAt and an optional later updatedAt, in ms —
  * the board e2e, #132), POST /_fake/milestones {"repo","milestones":[{title,state,dueOn,number?}]} (the sprint
  * commands, #218; GET /_fake/milestones?repo= reads them back, milestone writes are in the state), POST /_fake/issue-update
- * {repo, number, milestone?, state?} (#219: the PM moved or closed the issue meanwhile). Every value here
- * is fake.
+ * {repo, number, milestone?, state?} (#219: the PM moved or closed the issue meanwhile), POST /_fake/pulls
+ * {repo, pulls: [GitHub pull request JSON]} (#277: the design's head commit moves after the console loaded its
+ * list). Every value here is fake.
  */
 
 interface FakeEnv {
@@ -99,6 +100,24 @@ function isIssueUpdate(value: unknown): value is IssueUpdate {
   );
 }
 
+/** #277: the repository's open pull requests as GitHub's JSON, replacing the mock's list for the design reads. */
+interface PullsSeed {
+  readonly repo: string;
+  readonly pulls: readonly Readonly<Record<string, unknown>>[];
+}
+
+function isPullsSeed(value: unknown): value is PullsSeed {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record['repo'] === 'string' &&
+    Array.isArray(record['pulls']) &&
+    record['pulls'].every((pull) => typeof pull === 'object' && pull !== null)
+  );
+}
+
 interface MilestonesSeed {
   readonly repo: string;
   readonly milestones: readonly FakeMilestoneSeed[];
@@ -160,6 +179,10 @@ async function control(server: FakeGitHubOAuth, request: Request, path: string):
     } catch (error: unknown) {
       return json(404, { message: error instanceof Error ? error.message : 'no such thread' });
     }
+  }
+  if (path === '/_fake/pulls' && isPullsSeed(body)) {
+    server.seedPulls(body.repo, body.pulls);
+    return json(200, { seeded: body.pulls.length });
   }
   if (path === '/_fake/milestones' && isMilestonesSeed(body)) {
     server.seedMilestones(body.repo, body.milestones);

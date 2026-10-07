@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ApplicationInitStatus, Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { DesignManifests } from '@console/entities/design';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import type { DesignManifestDto, DesignScreenDto } from '@shared/contracts';
 import { DesignViewer } from './design-viewer';
@@ -261,16 +262,64 @@ describe('DesignViewer', () => {
     expect(byTestId('viewer-no-access')?.getAttribute('role')).toBe('alert');
   });
 
-  it('shows "this screen did not load" with Retry when the image fails, and asks again on Retry', async () => {
+  it('on a failed image refetches the list once; an unchanged list shows the failure, Retry reads the list and the image again', async () => {
     await open();
     byTestId<HTMLImageElement>('viewer-screen')?.dispatchEvent(new Event('error'));
     await settle();
+    // The list is read again before anything is shown as failed.
+    expect(byTestId('viewer-screen-failed')).toBeNull();
+    http.expectOne('/api/v1/projects/tc/designs/277').flush(MANIFEST);
+    await settle();
+    await settle();
     expect(byTestId('viewer-screen-failed')?.textContent).toContain('Этот экран не загрузился');
     expect(byTestId('viewer-zoom')).toBeNull();
+
     (byTestId('viewer-screen-failed')?.querySelector('button') as HTMLButtonElement).click();
+    await settle();
+    http.expectOne('/api/v1/projects/tc/designs/277').flush(MANIFEST);
     await settle();
     const img = byTestId<HTMLImageElement>('viewer-screen');
     expect(img?.getAttribute('src')).toContain('&attempt=1');
+
+    // A second failure at the same commit is shown at once: one recovery per commit.
+    img?.dispatchEvent(new Event('error'));
+    await settle();
+    await settle();
+    http.expectNone('/api/v1/projects/tc/designs/277');
+    expect(byTestId('viewer-screen-failed')).not.toBeNull();
+  });
+
+  it('recovers when the design moved to another commit: a 404 refetches the list and the new commit renders', async () => {
+    await open();
+    expect(byTestId<HTMLImageElement>('viewer-screen')?.getAttribute('src')).toContain(SHA);
+    byTestId<HTMLImageElement>('viewer-screen')?.dispatchEvent(new Event('error'));
+    await settle();
+    const moved = { ...MANIFEST, sha: 'b'.repeat(40) };
+    http.expectOne('/api/v1/projects/tc/designs/277').flush(moved);
+    await settle();
+    await settle();
+    expect(byTestId('viewer-screen-failed')).toBeNull();
+    expect(byTestId<HTMLImageElement>('viewer-screen')?.getAttribute('src')).toContain('b'.repeat(40));
+    expect(byTestId<HTMLImageElement>('viewer-screen')?.getAttribute('src')).not.toContain('attempt');
+  });
+
+  it('opening the viewer reads the list again, keeping the rows\' copy on screen meanwhile', async () => {
+    // A row loaded the list earlier.
+    const store = TestBed.inject(DesignManifests);
+    const state = store.stateOf('tc', 277);
+    http.expectOne('/api/v1/projects/tc/designs/277').flush(MANIFEST);
+    await settle();
+    expect(state().kind).toBe('ready');
+
+    const fixture = TestBed.createComponent(Host);
+    document.body.appendChild(fixture.nativeElement);
+    viewer.open({ slug: 'tc', issue: 277, title: 'x' });
+    await settle();
+    expect(byTestId('viewer-screen')).not.toBeNull();
+    http.expectOne('/api/v1/projects/tc/designs/277').flush({ ...MANIFEST, sha: 'b'.repeat(40) });
+    await settle();
+    await settle();
+    expect(byTestId<HTMLImageElement>('viewer-screen')?.getAttribute('src')).toContain('b'.repeat(40));
   });
 
   it('closes on Escape and returns focus to the opener', async () => {

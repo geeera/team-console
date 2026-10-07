@@ -10,6 +10,7 @@ import {
   ElementRef,
   inject,
   Injector,
+  linkedSignal,
   signal,
   untracked,
   type TemplateRef,
@@ -101,10 +102,21 @@ export class DesignViewerDialog {
   protected readonly device = signal<DesignDevice | null>(null);
   protected readonly index = signal(0);
   protected readonly zoomed = signal(false);
+  /** The commit the screens are read at; when it changes every image is new, so what loaded or failed is forgotten. */
+  private readonly sha = computed(() => this.manifest()?.sha ?? null);
   /** Screens whose image arrived or failed, by path; a retry bumps the attempt so the browser asks again. */
-  protected readonly loaded = signal<ReadonlySet<string>>(new Set());
-  protected readonly failed = signal<ReadonlySet<string>>(new Set());
-  protected readonly attempts = signal<ReadonlyMap<string, number>>(new Map());
+  protected readonly loaded = linkedSignal<string | null, ReadonlySet<string>>({
+    source: this.sha,
+    computation: () => new Set(),
+  });
+  protected readonly failed = linkedSignal<string | null, ReadonlySet<string>>({
+    source: this.sha,
+    computation: () => new Set(),
+  });
+  protected readonly attempts = linkedSignal<string | null, ReadonlyMap<string, number>>({
+    source: this.sha,
+    computation: () => new Map(),
+  });
   protected readonly origins = signal<OriginsState>({ kind: 'idle' });
 
   protected readonly devices = computed(() => {
@@ -138,6 +150,8 @@ export class DesignViewerDialog {
   private swipeStart: { x: number; y: number; isTouch: boolean } | null = null;
 
   constructor() {
+    // Opening reads the list again: the team may have pushed to the design since a row loaded it.
+    void this.manifests.reload(this.data.slug, this.data.issue);
     // Both devices drawn: start on the one the owner is holding.
     effect(() => {
       const devices = this.devices();
@@ -192,10 +206,22 @@ export class DesignViewerDialog {
     this.loaded.update((paths) => new Set(paths).add(screen.path));
   }
 
-  protected onFailed(screen: DesignScreen): void {
-    this.failed.update((paths) => new Set(paths).add(screen.path));
+  /**
+   * An image did not arrive. Most often the design moved to another commit and the Worker answers 404 for the old
+   * one: the list is read again once per commit, and a new commit renders every screen anew. Only when the list
+   * did not change (or was already refetched for this commit) is the screen shown as failed.
+   */
+  protected async onFailed(screen: DesignScreen): Promise<void> {
+    const sha = this.sha();
+    if (sha !== null && (await this.manifests.recover(this.data.slug, this.data.issue, sha)) && this.sha() !== sha) {
+      return;
+    }
+    if (this.sha() === sha) {
+      this.failed.update((paths) => new Set(paths).add(screen.path));
+    }
   }
 
+  /** «Повторить»: the list again (the commit may have moved), then the image again. */
   protected retry(screen: DesignScreen): void {
     this.failed.update((paths) => {
       const next = new Set(paths);
@@ -203,6 +229,7 @@ export class DesignViewerDialog {
       return next;
     });
     this.attempts.update((map) => new Map(map).set(screen.path, (map.get(screen.path) ?? 0) + 1));
+    void this.manifests.reload(this.data.slug, this.data.issue);
   }
 
   protected megabytes(screen: DesignScreen): number {

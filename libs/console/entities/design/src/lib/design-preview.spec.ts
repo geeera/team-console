@@ -87,9 +87,27 @@ describe('DesignPreview and DesignSummary', () => {
     );
     root.querySelector('img')?.dispatchEvent(new Event('error'));
     await settle();
+    // A failed thumbnail refetches the list once; the same commit again means the file is really gone.
+    http.expectOne('/api/v1/projects/tc/designs/277').flush({ ...MANIFEST, screens: [screen('mac-01.png')] });
+    await settle();
     await fixture.whenStable();
     expect(root.querySelector('img')).toBeNull();
     expect(root.querySelector('[data-testid="design-thumb-failed"]')).not.toBeNull();
+  });
+
+  it('recovers a thumbnail when the design moved to another commit', async () => {
+    const { fixture, root } = await render();
+    http.expectOne('/api/v1/projects/tc/designs/277').flush(MANIFEST);
+    await settle();
+    await fixture.whenStable();
+    root.querySelector('img')?.dispatchEvent(new Event('error'));
+    await settle();
+    http.expectOne('/api/v1/projects/tc/designs/277').flush({ ...MANIFEST, sha: 'b'.repeat(40) });
+    await settle();
+    await fixture.whenStable();
+    const img = root.querySelector('img');
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute('src')).toContain('b'.repeat(40));
   });
 
   it('shows the placeholder when the manifest cannot be read', async () => {

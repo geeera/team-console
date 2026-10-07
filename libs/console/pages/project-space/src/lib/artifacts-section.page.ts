@@ -10,7 +10,7 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ArtifactList, ArtifactsStore, type Artifact } from '@console/entities/artifact';
-import { DesignPreview, DesignSummary } from '@console/entities/design';
+import { DesignManifests, DesignPreview, DesignSummary } from '@console/entities/design';
 import {
   ARTIFACT_QUERY_MAX_LENGTH,
   ArtifactSearch,
@@ -153,6 +153,7 @@ export class ArtifactsSectionPage {
   private readonly persisted = inject(PersistedStateStore);
   private readonly transloco = inject(TranslocoService);
   private readonly viewer = inject(DesignViewer);
+  private readonly manifests = inject(DesignManifests);
 
   protected readonly slug = toSignal(
     (this.route.parent ?? this.route).paramMap.pipe(map((params) => params.get('slug'))),
@@ -212,6 +213,11 @@ export class ArtifactsSectionPage {
 
   protected checkAgain(): void {
     void this.store.checkAgain();
+    // The design rows' lists too (#277): the team may have pushed to a design since they loaded.
+    const slug = this.slug();
+    if (slug !== null) {
+      void this.manifests.reloadAll(slug);
+    }
   }
 
   /** A design row (#277): the viewer over this page; focus comes back to the row when it closes. */

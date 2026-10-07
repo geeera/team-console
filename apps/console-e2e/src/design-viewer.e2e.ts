@@ -222,6 +222,54 @@ test('«Интерактивно» refuses the wireframe without an allowed GitH
   await expect(page.getByTestId('viewer-screen')).toBeVisible();
 });
 
+/**
+ * The team pushes to the design PR after the console loaded the list: the Worker now serves only the new commit, the
+ * old image URLs answer 404, and the viewer refetches the list once and renders the new commit. The fake GitHub takes
+ * over the pull request list with the new head sha; a stack reset clears the Worker's 60 s read cache, as a minute
+ * would — the page, and its loaded list, stay as they are.
+ */
+test('recovers when the design moved to another commit after the list was loaded', async ({ page, stack }) => {
+  requireLocalStack(stack);
+  await openViewer(page);
+  await deviceButton(page, 'phone').click();
+  const first = page.getByTestId('viewer-screen');
+  await expect(first).toHaveAttribute('src', /17600176001760017600176001760017600176aa/);
+
+  const movedSha = 'b'.repeat(40);
+  const seeded = await fetch(`${stack.fakeURL}/_fake/pulls`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo: 'geeera/team-console',
+      pulls: [
+        {
+          number: 176,
+          title: 'design(#90004): demo screen wireframe and renders',
+          body: `Closes #${ISSUE}`,
+          html_url: 'https://github.com/geeera/team-console/pull/176',
+          draft: false,
+          author_association: 'OWNER',
+          user: { login: 'geeera', type: 'User' },
+          state: 'open',
+          head: { sha: movedSha, ref: 'design/90004-demo-screen', repo: { full_name: 'geeera/team-console' } },
+        },
+      ],
+    }),
+  });
+  expect(seeded.ok).toBe(true);
+  await seed(stack, ['geeera/team-console']);
+
+  // The next screen's image is asked for at the old commit: 404, one list refetch, and the new commit renders.
+  await page.getByTestId('viewer-next').click();
+  const img = page.getByTestId('viewer-screen');
+  await expect(img).toHaveAttribute('src', new RegExp(movedSha));
+  await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
+  await expect(page.getByTestId('viewer-screen-failed')).toHaveCount(0);
+  await expect(page.getByTestId('viewer-position')).toHaveText('2 из 5 · detail');
+  const manifest = (await (await page.request.get(MANIFEST)).json()) as DesignManifestDto;
+  expect(manifest.sha).toBe(movedSha);
+});
+
 test('Esc closes the viewer and returns focus to the row that opened it', async ({ page }) => {
   await openViewer(page);
   await page.keyboard.press('Escape');

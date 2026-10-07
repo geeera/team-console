@@ -32,7 +32,7 @@ import { screenSrcOf, thumbnailOf, type DesignManifest } from './design.model';
                 alt=""
                 loading="lazy"
                 decoding="async"
-                (error)="failed.set(true)"
+                (error)="onFailed(state.manifest.sha)"
               />
             }
           } @else {
@@ -83,4 +83,18 @@ export class DesignPreview {
   });
   /** The image did not load; reset when the source changes. */
   protected readonly failed = linkedSignal<string | null, boolean>({ source: this.src, computation: () => false });
+
+  /**
+   * The thumbnail did not arrive — usually because the design moved to another commit and the Worker answers 404
+   * for the old one. The shared list is read again once per commit; a new commit gives a new source and the image
+   * tries again. A manifest the caller handed in is theirs to refresh.
+   */
+  protected async onFailed(sha: string): Promise<void> {
+    const recovered =
+      this.manifest() === null && (await this.manifests.recover(this.slug(), this.issue(), sha));
+    const state = this.manifestState();
+    if (!recovered || (state.kind === 'ready' && state.manifest.sha === sha)) {
+      this.failed.set(true);
+    }
+  }
 }
