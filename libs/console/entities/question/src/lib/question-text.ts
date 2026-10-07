@@ -99,6 +99,34 @@ export function plainAskOf(ask: string | null): PlainAsk | null {
   return READABLE.test(text) ? { kind: 'text', text: sentenceOf(text) } : null;
 }
 
+/** What each answer leads to, for a card whose body has no `## Если одобрить` / `## Если отклонить` (#276). */
+export interface AskOutcomes {
+  /** The text after `/approve` or `/go`. */
+  readonly ifApproved: string | null;
+  /** The text after `/reject` or `/no-go`. */
+  readonly ifRejected: string | null;
+}
+
+const APPROVING: ReadonlySet<string> = new Set(['approve', 'go']);
+const REJECTING: ReadonlySet<string> = new Set(['reject', 'no-go']);
+
+/**
+ * The answer line's options as outcomes: each option's own words without its `/command` and its "(recommended)"
+ * mark; the first option per side counts, and an option with no readable words gives nothing. Plain text for
+ * interpolation, never the raw answer line.
+ */
+export function askOutcomesOf(ask: string | null): AskOutcomes {
+  if (ask === null) {
+    return { ifApproved: null, ifRejected: null };
+  }
+  const { options } = optionsOf(markdownToPlainText(ask));
+  const textOf = (commands: ReadonlySet<string>): string | null => {
+    const text = options.find((option) => commands.has(option.command))?.text ?? '';
+    return READABLE.test(text) ? sentenceOf(text) : null;
+  };
+  return { ifApproved: textOf(APPROVING), ifRejected: textOf(REJECTING) };
+}
+
 /**
  * A question's body for "Details" on screens that do not render markdown: without the answer line (the card shows
  * it as the recommendation) and without markup. Plain text for interpolation; `''` when nothing is left.
