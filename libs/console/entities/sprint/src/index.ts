@@ -14,6 +14,7 @@ export type {
   SprintBoard,
   SprintCiSummary,
   SprintIssue,
+  SprintIssueRequest,
   SprintMilestone,
   SprintPullRequest,
   SprintRun,

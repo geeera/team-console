@@ -1,11 +1,13 @@
 import { Hono } from 'hono';
-import type { EmbedOriginsDto } from '@shared/contracts';
+import type { EmbedOriginsDto, RequestIssuesDto, SprintDto } from '@shared/contracts';
 import type { WorkerContext, WorkerHonoEnv } from '@worker/core';
+import { OwnerRequestsRepo } from '@worker/db';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { findProject, projectNotFound, repoOf } from '../projects/lookup';
 import { ProjectReads } from '../read-models/project-reads';
 import { SubrequestBudget } from '../read-models/subrequest-budget';
+import { requestStatusOf } from '../team/owner-requests';
 
 /**
  * GitHub subrequests one sprint request may spend (#131). The Workers free plan allows 50 per request: this, plus the
@@ -17,7 +19,7 @@ import { SubrequestBudget } from '../read-models/subrequest-budget';
 export const SPRINT_GITHUB_BUDGET = 44;
 
 /**
- * `/api/v1/projects/:slug/{inbox,questions,sprint,embed-origins}` (#35, #20). The slug is checked before anything else, so `/`, `..`
+ * `/api/v1/projects/:slug/{inbox,questions,sprint,requests,embed-origins}` (#35, #20, #219). The slug is checked before anything else, so `/`, `..`
  * or `%2F` in it is a 404 `project-not-found` before D1 or GitHub is asked (#9 row 2); the repository comes only
  * from the registry row. Read-only installation tokens; the subrequest budget is on `ProjectReads`.
  */
@@ -51,7 +53,37 @@ export function createProjectReadModelRoutes(github: ApiGitHub): Hono<WorkerHono
     })
     .get('/:slug/sprint', async (c) => {
       const reads = await readsFor(c, github, new SubrequestBudget(SPRINT_GITHUB_BUDGET));
-      return reads instanceof Response ? reads : c.json(await reads.sprint());
+      if (reads instanceof Response) {
+        return reads;
+      }
+      const sprint = await reads.sprint();
+      // #219: the owner's requests from D1 in one query, no GitHub cost; display only.
+      const requests = await new OwnerRequestsRepo(c.env.DB).latestPerIssue(c.req.param('slug'));
+      const body: SprintDto = {
+        ...sprint,
+        issues: sprint.issues.map((issue) => {
+          const record = requests.get(issue.number);
+          return { ...issue, request: record === undefined ? null : requestStatusOf(record) };
+        }),
+      };
+      return c.json(body);
+    })
+    .get('/:slug/requests', async (c) => {
+      const reads = await readsFor(c, github);
+      if (reads instanceof Response) {
+        return reads;
+      }
+      const [issues, requests] = await Promise.all([
+        reads.requestableIssues(),
+        new OwnerRequestsRepo(c.env.DB).latestPerIssue(c.req.param('slug')),
+      ]);
+      const body: RequestIssuesDto = {
+        items: issues.map((issue) => {
+          const record = requests.get(issue.number);
+          return { ...issue, request: record === undefined ? null : requestStatusOf(record) };
+        }),
+      };
+      return c.json(body);
     })
     .get('/:slug/embed-origins', async (c) => {
       const reads = await readsFor(c, github);

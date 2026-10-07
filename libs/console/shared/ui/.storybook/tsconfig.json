@@ -6,6 +6,16 @@
     "allowSyntheticDefaultImports": true
   },
   "files": [],
-  "include": ["../src/**/*.stories.ts", "./*.ts", "../src/**/*.ts"],
-  "exclude": ["../src/**/*.spec.ts", "../src/test-setup.ts"]
+  "include": [
+    "../src/**/*.stories.ts",
+    "./*.ts",
+    "../src/**/*.ts",
+    "../../../widgets/github-repositories/src/**/*.ts"
+  ],
+  "exclude": [
+    "../src/**/*.spec.ts",
+    "../src/test-setup.ts",
+    "../../../widgets/github-repositories/src/**/*.spec.ts",
+    "../../../widgets/github-repositories/src/test-setup.ts"
+  ]
 }

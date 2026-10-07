@@ -127,6 +127,30 @@ was edited on is `unknown`, never `failed` (`shownStateOf`); a run log GitHub re
 Mock: `MockRepository.comments` (the run log #22 of geeera/team-console); fake GitHub `POST /_fake/comment`. Console:
 `SprintRunList`, `TEAM_RUN_ICONS` (the "Run log" tile).
 
+Sprint commands (#218, #29 slice 1): `POST /api/v1/projects/:slug/sprint/demo-date` and `…/sprint/next`
+(`routes/sprint-commands.ts`, `owner-only`) PATCH/POST the milestone on the owner's token exactly as `backlog sprint
+create` writes it (`due_on: <day>T12:00:00Z`, title `Sprint NN` = highest of all milestones + 1), deciding on a live
+`state=all` milestones read in Kyiv days (`team/sprint-plan.ts`, `sprint.freeze_days` via `freezeDaysOf`; the freeze is
+`calendar.freeze_window`: demo − N through demo day); 409 `sprint-none|changed|unchanged|exists`, 422
+`sprint-date-past|after-next|early`, flat extensions. `TeamStatusDto` gains `sprint`, `progress`, `calendar` (`null` when
+the milestones read failed). Console: `@console/features/sprint-controls` (`SprintControls`, a `Sheet.confirm` with a
+checked date field: `ConfirmInput.type/value/min/max/check`, `ConfirmFailure.refill`), the panel's Sprint group and the
+board's "Move demo"; the command failure model (`commandFailureOf`, `CommandOutcome`) lives in
+`@console/entities/team-run`. Fake GitHub: `seedMilestones`, milestone writes, `/_fake/milestones`.
+
+Requests to the PM (#219, ADR 0005, #29 slice 2): `POST|GET /api/v1/projects/:slug/issues/:number/request`
+(`routes/owner-request.ts`; POST `owner-only`) posts one comment on the owner's token through `postOwnerAnswer` (`own_writes.kind
+= 'request'`, 60 s replay) — `requestComment` of `@shared/owner-grammar` (first line `<!-- pt-owner-request {canonical json} -->`,
+a human line in `owner.language`, the italic trailer; golden `fixtures/owner-requests.json` from the plugin's `ownerrequests.py`) —
+and never a milestone, label or status; 409 `issue-changed` (`milestone`) / `issue-closed` / `sprint-none`, 422
+`sprint-next-missing` / `request-not-issue`. D1 `owner_requests` (migration 0012, `OwnerRequestsRepo`) is a display cache only:
+newest row per issue, never an input to a write or an authorisation decision. A request is handled by a
+`pt-owner-request-handled` first-line marker from a `type: Bot` login in `TRUSTED_BOT_LOGINS` (`handledRequestOf` in
+`@worker/read-models`): the hooks Worker on `issue_comment.created`, the GET on the last comment page (unedited only).
+`SprintIssueDto.request`, `TeamStatusDto.pendingRequests`, `GET …/requests` (the picker). Console:
+`@console/features/request-change` (`RequestChange`: picker, then the one-request form), the panel's Issues group, the board's
+"Ask the PM" and «ждёт PM» chip. `team.console_app_slugs` in `.product-team/project.yml` is the plugin's trust root for requests: `[team-console-dev]` only (owner, 2026-10-07); stage and production join after #152.
+
 Artifacts (#19, read-only): `GET /api/v1/projects/:slug/artifacts[?fresh=1]` (`routes/artifacts.ts`, `read-models/artifact-reads.ts`)
 reads decisions (`decisions_dir` listing + first `#` heading, ≤ 30 file reads), designs (`ux-spec`/`design:*` issues,
 `docs/design` one level deep, `design.storybook_url` if on github.com) and `team:demo` issues through `ReadCache`
@@ -154,7 +178,26 @@ All projects (#27, read-only): `GET /api/v1/overview` (`routes/overview.ts`) bui
 same cached reads (`buildOverviewRow` in `@worker/read-models`; team state by `team/team-health.ts` from the run log's
 latest 200 comments, cached 30 s) under a per-request `SubrequestBudget` (44 GitHub subrequests; a project it cannot
 finish is its own `github-request-budget` row). Console: `OverviewApi` in `@console/entities/project`, page
-`console-pages-overview` (tiles link to `/p/:slug/board`); kit `Meter`.
+`console-pages-overview` (tiles link to `/p/:slug/board`); kit `Meter`. Commands from All projects (#222): every card's
+"Commands for {name}" button (the tile's `[tc-tile-actions]` slot) opens the same `@console/widgets/commands-panel` —
+`CommandsPane` beside the page on a wide screen (also the space's pane), `CommandsSheet` on the phone; K on a focused
+card (`isCommandsShortcut`, shared with the space) opens it for that card, closing returns focus to the card's button.
+`OverviewProjectReadDto.snooze` (D1, `snoozeOf`) feeds the card's struck-bell line and is pushed into
+`ProjectsStore.applySnooze`, which the cards then read, so a snooze changed from the panel shows at once.
+
+Repositories from GitHub (#194, ADR 0003 decisions 2(a)/6 as amended): `GET /api/v1/github/installation/repositories[?fresh=1]`
+(`routes/installation-repositories.ts`, a read mounted before the owner-only connection routes) → 403 `github-owner-not-connected`
+before any JWT when no owner is connected; the installation by `account.id` = the pinned `user_id` (`installationIdForAccount`,
+`GET /app/installations`, never a login; none → 409 `github-app-not-installed` + `installUrl`); the installation-wide token
+(`listTokenSourceFor`, mint body exactly `{permissions:{metadata:'read'}}`, cache key `installation:<id>`, `kind:
+'installation-list'`) is accepted only by `GitHubClient.listInstallationRepositories` (fixed path, `Link` only to
+`/installation/repositories`); every generic client method refuses it before any fetch. ≤ 10 pages under
+`SubrequestBudget(20)` (`listConnectionFor`), `partial` when the cap or the budget stops it; GitHub's part cached 60 s, the
+registry merged per request from D1. Console: `@console/entities/installation-repository` (store, guard, `repositoryGroupsOf`),
+`AddProject`/`AddJob`/`AddRepositorySheet` in `@console/features/add-project`, `@console/widgets/github-repositories`
+(`GitHubRepositoriesBlock` + presenter `RepositoryListView`, stories in the kit Storybook) on All projects; every "Add
+project" entry point is `ADD_PROJECT_URL` (`/overview#add-project`); Settings holds settings only. Kit: `SheetFooter`,
+`Sheet.open({ width: 'wide' })` (`--sheet-dialog-w`), `ListRow` `link`/`label`/`muted`/`tc-row-trailing-text`/`tc-row-detail`.
 
 Team commands (#114): `routes/team-commands.ts` (`GET /projects/:slug/team/status`, `POST …/team/pause|resume` on the
 owner's token, byte-for-byte `runlog pause`/`resume`, 60 s replay from `own_writes`; `POST …/runs {slot}` fires the
@@ -184,6 +227,14 @@ SHA-256) → registry row + `installation_id` → `cache_epoch` bump → `own_wr
 (`questionNotification` / `linkNotification`) sent in `waitUntil` by `webPushSenders` (the same `PushSender`, VAPID vars and
 `PUSH_FAKE_ORIGIN` as the api; `pushFetch` in `@worker/push`, `localFakeOriginOf` in `@worker/core`). Logs carry `{deliveryId, event,
 repo, status}` only. Locally `nx serve hooks -- --var WEBHOOK_SECRET:<throwaway>` plus the push `--var`s above.
+Environment identity (#237): one console build for every environment. The api Worker answers `/manifest.webmanifest`
+(name «Team Console Dev|Stage|Local», short «TC …»; production unchanged) and `/brand/favicon.ico|apple-touch-icon.png`
+from `ENVIRONMENT` (`routes/app-identity.ts`, `run_worker_first`); the icon sets are static files in
+`apps/console/public/icons/<env>/`, generated with a bottom band by `tools/env-icons/generate.py` (Pillow, rerun when the
+production icon changes). None of those Worker paths may enter `ngsw-config.json` (a hash mismatch breaks the SW
+install). Names live in `@shared/contracts` (`appNameOf`, `environmentLabelOf`); the app sets `<title>` and
+`apple-mobile-web-app-title` from `DeploymentStore`, the shell shows `EnvironmentMark` (`@console/entities/app-info`), and
+`PushSender` takes the `environment` and prefixes titles «[Dev] …» (`forEnvironment` in `@worker/push`).
 
 ## Workers (#6)
 
@@ -202,7 +253,7 @@ is `ApiGitHub` (`apps/api/src/github.ts`); `GITHUB_MOCK=true` (local only) swaps
 in `libs/worker/github/fixtures`. Migrations live only in `apps/api/migrations` (`0001_init` = `projects`;
 `0005_owner_connections` #59; `0006_project_installation` #15 adds `projects.installation_id`; `0007_own_writes` #10 =
 `own_writes` + `own_write_claims`, which #12 reuses; `0008_slot_requests` #114; `0009_push_subscriptions` #11 (`push_subscriptions` +
-`push_test_sends`); `0010_webhooks` #12 = `webhook_deliveries` + `projects.access_lost_at`. No number is reserved — a new
+`push_test_sends`); `0010_webhooks` #12 = `webhook_deliveries` + `projects.access_lost_at`; `0011_project_snooze` #221; `0012_owner_requests` #219. No number is reserved — a new
 migration takes the highest number on `dev` + 1 when its PR opens and is renumbered on rebase if that number was taken,
 so 0002–0004 stay unused). The answer route (#10) is `routes/answer.ts`
 (`POST /api/v1/projects/:slug/issues/:number/answer`, owner-only): section re-derived from the live issue with
@@ -247,11 +298,15 @@ E2e (#14): `npx nx e2e console-e2e` (builds first; browsers once with `npx playw
 Projects `iphone` (Chromium, 390 px), `desktop` (1440 px), `iphone-webkit` (the demo path only). Each Playwright
 worker starts its own stack in `apps/console-e2e/src/stack/local-stack.ts` — the fake GitHub plus the Docker image's
 command (`wrangler dev dist/apps/api/main.js`, fresh local D1, mock mode) wired to it — and specs call
-`stack.reset()` / `seed()` for a fresh database; logs in `tmp/console-e2e/worker-N/`. Specs live in `src/*.e2e.ts`, find
+`stack.reset()` / `seed()` for a fresh database; logs in `tmp/console-e2e/worker-<workerIndex>/` (one directory per Playwright worker process, cleared once per run; each `wrangler dev` lifetime is appended between `===` marker lines, wrangler's own debug log sits beside it as `*.wrangler-debug.log`, and a test fails with the reason when a stack server crashed or exited while it ran, #230). `E2E_PORT_BASE=<port>` packs each worker into three ports from there (api, fake GitHub, fake push; inspectors on system-picked ports) for runs beside other local stacks. Specs live in `src/*.e2e.ts`, find
 controls through `ru()` (the ru.json copy) and `data-testid`, wait on conditions only, and fail on any request off the
 app origin, any uncaught page error and any serious/critical axe violation (`expectAccessible`). `BASE_URL` (+
 `CF_ACCESS_CLIENT_ID/SECRET` for stage) runs the suite against a running target; specs that reset data or need the
 fake GitHub skip themselves there, `smoke.e2e.ts` is the read-only part.
 Worker tests run in workerd through `@cloudflare/vitest-pool-workers` (`SELF.fetch`, an isolated in-memory D1
 migrated in `src/test-setup.ts`); `apps/api/test-assets` stands in for the Angular build. `wrangler`,
-`@cloudflare/vitest-pool-workers` and `compatibility_date` move together (one workerd for dev, Docker and tests).
+`@cloudflare/vitest-pool-workers` and `compatibility_date` move together (one workerd for dev, Docker and tests) —
+one exception (#230): `wrangler` is 4.130.0 for `wrangler dev` (e2e, Docker, `nx build`), the first release where a
+dropped dev-proxy connection no longer kills the dev server, while `@cloudflare/vitest-pool-workers` 0.22.0 (the
+latest release) keeps its own nested wrangler 4.124.0 and `deploy.yml` still pins 4.124.0. Realign when a pool
+release catches up.

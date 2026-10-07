@@ -1,14 +1,16 @@
-import { ChangeDetectionStrategy, Component, computed, inject, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, output, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { NeedsYouCounts, ProjectsStore, spaceLocationOf, spaceUrlOf } from '@console/entities/project';
 import { LocalNumberPipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { PersistedStateStore } from '@console/shared/persisted-state';
 import { Chip, Icon, IconButton, List, ListRow } from '@console/shared/ui';
-import { ProjectDto } from '@shared/contracts';
+import { isSnoozeActive, ProjectDto } from '@shared/contracts';
 import { filter, map } from 'rxjs';
 
 let nextSwitcherId = 0;
+/** A snooze that ends while the sidebar is open loses its bell within this. */
+const SNOOZE_TICK_MS = 60_000;
 
 /**
  * The project list of the sidebar and of the phone sheet: pinned projects first (in pin order),
@@ -28,6 +30,8 @@ export class ProjectSwitcher {
   private readonly projects = inject(ProjectsStore);
   private readonly state = inject(PersistedStateStore);
   private readonly needsYou = inject(NeedsYouCounts);
+
+  private readonly now = signal(Date.now());
 
   /** Fires after the navigation to the chosen project starts, so a sheet can close. */
   readonly switched = output<string>();
@@ -73,6 +77,22 @@ export class ProjectSwitcher {
     () => this.pinnedProjects().length > 0 && this.otherProjects().length > 0,
   );
   protected readonly othersVisible = computed(() => !this.hasDisclosure() || !this.collapsed());
+
+  /** Projects whose notifications are snoozed right now (#221): the bell with the slash, and the words. */
+  protected readonly snoozedSlugs = computed(() => {
+    const nowMs = this.now();
+    return new Set(
+      this.projects
+        .active()
+        .filter((project) => isSnoozeActive(project.snooze, nowMs))
+        .map((project) => project.slug),
+    );
+  });
+
+  constructor() {
+    const tick = setInterval(() => this.now.set(Date.now()), SNOOZE_TICK_MS);
+    inject(DestroyRef).onDestroy(() => clearInterval(tick));
+  }
 
   protected countOf(slug: string): number {
     return this.needsYou.countOf(slug);

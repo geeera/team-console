@@ -237,7 +237,9 @@ describe('POST /api/v1/push/test', () => {
     expect(delivered?.decryptError).toBeNull();
     expect(delivered?.payload).toMatchObject({
       notification: {
-        title: 'Тестовое уведомление',
+        // The api specs run with ENVIRONMENT=local (#237): the title carries its prefix, the icon is local's.
+        title: '[Local] Тестовое уведомление',
+        icon: '/icons/local/icon-192.png',
         body: 'Работает. Нажмите, чтобы открыть «Ждут вас».',
         data: { onActionClick: { default: { operation: 'navigateLastFocusedOrOpen', url: '/needs-you' } } },
       },
@@ -257,7 +259,7 @@ describe('POST /api/v1/push/test', () => {
 
     expect((await call(h, 'POST', '/test', { language: 'en' })).status).toBe(200);
     expect(h.service.deliveriesTo(device.endpoint)[0]?.payload).toMatchObject({
-      notification: { title: 'Test notification', lang: 'en' },
+      notification: { title: '[Local] Test notification', lang: 'en' },
     });
   });
 

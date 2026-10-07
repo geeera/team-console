@@ -2,12 +2,12 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationInitStatus } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { TeamStatusStore } from '@console/entities/team-run';
+import { TeamStatusStore, commandFailureOf, type CommandOutcome } from '@console/entities/team-run';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import { ConfirmFailure, Sheet, type ConfirmOptions } from '@console/shared/ui';
 import { PROBLEM_TYPE_PREFIX, type TeamStatusDto } from '@shared/contracts';
-import { TeamCommands, type CommandOutcome } from './team-commands';
-import { commandFailureOf, runUrl, teamCommandUrl } from './team-commands.client';
+import { TeamCommands } from './team-commands';
+import { runUrl, teamCommandUrl } from './team-commands.client';
 
 const TARGET = { slug: 'tc', name: 'Team Console' };
 const NOW = Date.parse('2026-10-01T12:00:00.000Z');
@@ -21,7 +21,12 @@ function status(overrides: Partial<TeamStatusDto> = {}): TeamStatusDto {
     runLogUrl: 'https://github.com/geeera/team-console/issues/22',
     ownerConnected: true,
     environment: 'production',
+    snooze: { snoozed: false },
     checkedAt: '2026-10-01T12:00:00.000Z',
+    sprint: null,
+    progress: null,
+    calendar: null,
+    pendingRequests: 0,
     slots: (['pm', 'dev', 'qa'] as const).map((slot) => ({
       slot,
       setup: 'present',
@@ -161,7 +166,7 @@ describe('TeamCommands', () => {
     );
     expect(outcome).toBeNull();
     expect(refusals).toEqual([
-      'Сначала подключите GitHub в настройках: пауза и возобновление пишутся от вашего имени. Ничего не изменено.',
+      'Сначала подключите GitHub в настройках: эти команды пишутся от вашего имени. Ничего не изменено.',
     ]);
   });
 

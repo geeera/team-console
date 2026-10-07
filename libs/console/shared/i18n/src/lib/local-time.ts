@@ -24,6 +24,35 @@ export function localDayOf(value: string | Date | number, lang: string): string 
     : new Intl.DateTimeFormat(intlLocaleOf(lang), { day: 'numeric', month: 'long' }).format(date);
 }
 
+const CALENDAR_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A `YYYY-MM-DD` calendar day as a UTC date, so formatting it in UTC never moves it to the day before or after. */
+function calendarDateOf(day: string): Date | null {
+  return CALENDAR_DAY.test(day) ? dateOf(`${day}T00:00:00Z`) : null;
+}
+
+/**
+ * "14 октября" / "14 October" for a calendar day (`YYYY-MM-DD`, e.g. a sprint's demo), the same whatever the reader's
+ * time zone; an unreadable value gives an empty string.
+ */
+export function localCalendarDayOf(day: string, lang: string): string {
+  const date = calendarDateOf(day);
+  return date === null
+    ? ''
+    : new Intl.DateTimeFormat(intlLocaleOf(lang), { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(date);
+}
+
+/** "12–14 октября" / "30 September – 2 October": two calendar days, both included, as one range. */
+export function localCalendarRangeOf(from: string, to: string, lang: string): string {
+  const start = calendarDateOf(from);
+  const end = calendarDateOf(to);
+  if (start === null || end === null) {
+    return '';
+  }
+  const format = new Intl.DateTimeFormat(intlLocaleOf(lang), { day: 'numeric', month: 'long', timeZone: 'UTC' });
+  return start.getTime() === end.getTime() ? format.format(start) : format.formatRange(start, end);
+}
+
 /**
  * "1 234" / "1,234" — a count in the active language. Not for issue numbers or versions, which are identifiers
  * (`#1234`), not quantities. A non-finite value gives an empty string rather than "NaN".

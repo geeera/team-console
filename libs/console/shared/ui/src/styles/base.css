@@ -144,3 +144,13 @@ select {
     box-shadow: 0 0 0 var(--focus-w) var(--focus);
   }
 }
+
+/* A keyboard shortcut drawn beside its button's label (Commands' K, #114 and #222); `aria-hidden`, the button names it. */
+.tc-kbd {
+  padding: 0 var(--space-1);
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--r-xs);
+  font-family: var(--font-body);
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+}

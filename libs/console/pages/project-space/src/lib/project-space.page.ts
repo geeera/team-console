@@ -26,8 +26,9 @@ import { TeamStatusStore } from '@console/entities/team-run';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { BREAKPOINTS, Button, Icon, IconName, Sheet, Tab, TabBar, TopBarAction } from '@console/shared/ui';
 import {
-  CommandsPanel,
+  CommandsPane,
   CommandsSheet,
+  isCommandsShortcut,
   PausedBanner,
   type CommandsProject,
 } from '@console/widgets/commands-panel';
@@ -41,8 +42,6 @@ const SECTION_ICONS: Record<SpaceSection, IconName> = {
   demo: 'play',
 };
 
-const TYPING = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
-
 /**
  * `/p/:slug`: the project's name, the section tabs (a bottom bar on the phone) and the outlet the
  * sections render into. Only reachable for an active slug — the route's `canMatch` guard sees to that.
@@ -53,7 +52,7 @@ const TYPING = 'input, textarea, select, [contenteditable]:not([contenteditable=
   selector: 'tc-project-space-page',
   imports: [
     Button,
-    CommandsPanel,
+    CommandsPane,
     Icon,
     PausedBanner,
     RouterLink,
@@ -150,27 +149,12 @@ export class ProjectSpacePage {
       return;
     }
     const target = event.target instanceof Element ? event.target : null;
-    if (
-      event.key === 'Escape' &&
-      this.isPaneOpen() &&
-      target?.closest('.space__pane') !== null &&
-      target !== null
-    ) {
+    if (event.key === 'Escape' && this.isPaneOpen() && target?.closest('.tc-commands-pane')) {
       event.preventDefault();
       this.closePane();
       return;
     }
-    const isTyping = target?.closest(TYPING) !== null && target !== null;
-    if (isTyping || event.metaKey || event.ctrlKey || event.altKey) {
-      return;
-    }
-    if (
-      event.code === 'KeyK' ||
-      event.key === 'k' ||
-      event.key === 'K' ||
-      event.key === 'л' ||
-      event.key === 'Л'
-    ) {
+    if (isCommandsShortcut(event)) {
       event.preventDefault();
       this.toggleCommands();
     }

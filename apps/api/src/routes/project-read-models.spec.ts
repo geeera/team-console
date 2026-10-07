@@ -88,6 +88,8 @@ describe('GET /api/v1/projects/:slug/inbox', () => {
           url: 'https://github.com/geeera/team-console/issues/72',
           ask: '/approve the plan (recommended) · /reject what to change',
           authorTrusted: true,
+          category: 'scope',
+          recommendation: 'approve',
         },
         {
           section: 'question',
@@ -96,6 +98,8 @@ describe('GET /api/v1/projects/:slug/inbox', () => {
           url: null,
           ask: null,
           authorTrusted: false,
+          category: null,
+          recommendation: null,
         },
         {
           section: 'owner',
@@ -104,6 +108,8 @@ describe('GET /api/v1/projects/:slug/inbox', () => {
           url: 'https://github.com/geeera/team-console/issues/21',
           ask: null,
           authorTrusted: true,
+          category: null,
+          recommendation: null,
         },
         {
           section: 'owner',
@@ -112,6 +118,8 @@ describe('GET /api/v1/projects/:slug/inbox', () => {
           url: 'https://github.com/geeera/team-console/issues/46',
           ask: 'Напиши «сделал», когда переключишь источник GitHub Pages',
           authorTrusted: true,
+          category: null,
+          recommendation: null,
         },
       ],
       setup: false,
@@ -646,6 +654,7 @@ describe('mock mode (local only) serves the product-shaped fixtures', () => {
       ['question', 72, true],
       ['question', 90001, false],
       ['question', 90002, true],
+      ['question', 90007, true],
       ['owner', 21, true],
       ['owner', 46, true],
     ]);

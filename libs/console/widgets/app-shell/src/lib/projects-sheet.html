@@ -31,8 +31,9 @@
   } }
 </div>
 
-<div class="sheet__actions">
-  <button tc-button variant="primary" block type="button" (click)="go('/settings/projects/new')">
+<!-- In the frame's footer: a long project list scrolls, Add project and Settings stay in view (#274). -->
+<ng-template tcSheetFooter>
+  <button tc-button variant="primary" block type="button" (click)="go(addProjectUrl)">
     <tc-icon name="plus" />
     {{ 'shell.addProject' | transloco }}
   </button>
@@ -40,4 +41,4 @@
     <tc-icon name="settings" />
     {{ 'shell.settings' | transloco }}
   </button>
-</div>
+</ng-template>

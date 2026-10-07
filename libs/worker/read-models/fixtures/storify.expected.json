@@ -8,28 +8,36 @@
         "number": 72,
         "title": "question #72",
         "url": "https://github.com/geeera/storify/issues/72",
-        "ask": null
+        "ask": null,
+        "category": null,
+        "recommendation": null
       },
       {
         "section": "question",
         "number": 151,
         "title": "question #151",
         "url": "https://github.com/geeera/storify/issues/151",
-        "ask": null
+        "ask": null,
+        "category": null,
+        "recommendation": null
       },
       {
         "section": "question",
         "number": 152,
         "title": "question #152",
         "url": "https://github.com/geeera/storify/issues/152",
-        "ask": null
+        "ask": null,
+        "category": null,
+        "recommendation": null
       },
       {
         "section": "owner",
         "number": 33,
         "title": "chore #33",
         "url": "https://github.com/geeera/storify/issues/33",
-        "ask": null
+        "ask": null,
+        "category": null,
+        "recommendation": null
       }
     ],
     "setup": true,

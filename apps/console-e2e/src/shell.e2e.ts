@@ -22,7 +22,8 @@ async function switchTo(page: Page, name: string): Promise<void> {
   }
 }
 
-const main = (page: Page) => page.locator('main#tc-main');
+// Only the document scrolls (#274): its scrolling element is <html>.
+const pageScroller = (page: Page) => page.locator('html');
 
 const TEAM_STATUS = '/api/v1/projects/team-console/team/status';
 
@@ -34,7 +35,10 @@ async function setLastPath(page: Page, slug: string, lastPath: string): Promise<
   await page.evaluate(
     ([key, slug, lastPath]) => {
       const raw = localStorage.getItem(key);
-      const state = raw !== null ? JSON.parse(raw) : { version: 1, activeSlug: null, pinned: [], collapsed: false, projects: {} };
+      const state =
+        raw !== null
+          ? JSON.parse(raw)
+          : { version: 1, activeSlug: null, pinned: [], collapsed: false, projects: {} };
       const project = state.projects[slug] ?? { lastPath: '', scroll: {}, chatDraft: '' };
       state.projects[slug] = { ...project, lastPath };
       localStorage.setItem(key, JSON.stringify(state));
@@ -60,32 +64,37 @@ test.describe('with two active projects', () => {
     await seed(stack, ['geeera/team-console', 'geeera/private-product']);
   });
 
-  test('Settings lists the projects and the connection', async ({ page }) => {
+  test('Settings shows the connection and no project list; All projects lists them (#194)', async ({
+    page,
+  }) => {
     await page.goto('/settings');
     await expect(page.getByRole('heading', { level: 1, name: ru('settings.title') })).toBeVisible();
     await expect(page.getByTestId('gh-connected')).toContainText('geeera');
-    const list = page.getByTestId('project-list');
-    await expect(list.locator('[data-row]')).toHaveCount(2);
-    await expect(list.locator('[data-row="team-console"]')).toBeVisible();
-    await expect(list.locator('[data-row="private-product"]')).toBeVisible();
+    await expect(page.getByTestId('project-list')).toHaveCount(0);
+
+    await page.goto('/overview');
+    const registered = page.getByTestId('repos-registered');
+    await expect(registered.locator('[data-registration="active"]')).toHaveCount(2);
+    await expect(registered.locator('[data-repo="geeera/team-console"]')).toBeVisible();
+    await expect(registered.locator('[data-repo="geeera/private-product"]')).toBeVisible();
   });
 
   test('A → B → A restores the screen and its scroll position', async ({ page }) => {
     await page.goto('/p/team-console/questions');
     await expect(page.locator('li[data-number="72"]')).toBeVisible();
-    const scrollable = await main(page).evaluate((el) => el.scrollHeight - el.clientHeight);
+    const scrollable = await pageScroller(page).evaluate((el) => el.scrollHeight - el.clientHeight);
     expect(scrollable, 'the questions list must be long enough to scroll').toBeGreaterThan(300);
-    await main(page).evaluate((el) => el.scrollTo({ top: 300 }));
-    await expect.poll(() => main(page).evaluate((el) => el.scrollTop)).toBe(300);
+    await pageScroller(page).evaluate((el) => el.scrollTo({ top: 300 }));
+    await expect.poll(() => pageScroller(page).evaluate((el) => el.scrollTop)).toBe(300);
 
     await switchTo(page, 'private-product');
     await expect(page).toHaveURL(/\/p\/private-product\//);
-    await expect.poll(() => main(page).evaluate((el) => el.scrollTop)).toBe(0);
+    await expect.poll(() => pageScroller(page).evaluate((el) => el.scrollTop)).toBe(0);
 
     await switchTo(page, 'team-console');
     await expect(page).toHaveURL(/\/p\/team-console\/questions$/);
     await expect(page.locator('li[data-number="72"]')).toBeVisible();
-    await expect.poll(() => main(page).evaluate((el) => el.scrollTop)).toBe(300);
+    await expect.poll(() => pageScroller(page).evaluate((el) => el.scrollTop)).toBe(300);
   });
 
   // The chat tab is a placeholder until #17 ships (#203): every way to reach it lands on the default section.
@@ -148,11 +157,16 @@ test.describe('with two active projects', () => {
       'GET /api/v1/projects',
       'GET /api/v1/needs-you',
       'GET /api/v1/overview',
+      // "Available on GitHub" on All projects (#194): the connection, then the installation's repositories.
+      'GET /api/v1/github/connection',
+      'GET /api/v1/github/installation/repositories',
       `GET ${TEAM_STATUS}`,
       // The Artifacts section reads its list (#19).
       'GET /api/v1/projects/team-console/artifacts',
       // `/chat` is a placeholder until #17 ships (#203): it redirects to Questions, which reads its own list.
       'GET /api/v1/projects/team-console/questions',
+      // The app's environment for the window title, the iOS Home Screen title and the shell mark (#237), once per load.
+      'GET /api/v1/healthz',
     ]);
     const seen = sent.map((request) => `${request.method()} ${new URL(request.url()).pathname}`);
     expect(

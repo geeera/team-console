@@ -53,6 +53,11 @@ team:
   # The run-log issue number (`runlog url` creates it; kickoff/adopt write it here). Pinned so an issue someone else
   # opens and labels can never become the log that pauses and resumes the team.
   run_log_issue: 0
+  # The team console's GitHub App slugs, one per console environment that writes to this repository (e.g.
+  # [team-console-prod]). An owner request to the PM counts only when GitHub says one of these apps posted it
+  # (reference/workflow.md → Owner requests). Empty = no request is honoured. Security-relevant: read from the
+  # default branch, so it changes only through a merged PR; adding a slug needs the owner's approval.
+  console_app_slugs: []
 
 owner:
   timezone: Europe/Kyiv

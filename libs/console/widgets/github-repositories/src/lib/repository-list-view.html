@@ -1,0 +1,263 @@
+<section #root class="repos" aria-labelledby="repos-title" data-testid="github-repositories">
+  <div class="repos__head">
+    <div class="repos__head-text">
+      <h2 #heading id="repos-title" class="repos__title" tabindex="-1">{{ 'overview.repos.title' | transloco }}</h2>
+      @if (connection() === 'connected') {
+      <p class="repos__lead">
+        @if (login(); as login) { {{ 'overview.repos.lead' | transloco: { app: appName(), login: login } }} } @else
+        { {{ 'overview.repos.leadApp' | transloco: { app: appName() } }} }
+      </p>
+      }
+    </div>
+    @if (hasList()) {
+    <button
+      tc-button
+      type="button"
+      class="repos__refresh"
+      data-testid="repos-refresh"
+      [loading]="refreshing()"
+      [attr.aria-disabled]="!online() || refreshing() ? 'true' : null"
+      (click)="onRefresh()"
+    >
+      @if (!refreshing()) {
+      <tc-icon name="refresh" size="sm" />
+      }
+      {{ (refreshing() ? 'overview.repos.refreshing' : 'overview.repos.refresh') | transloco }}
+    </button>
+    }
+  </div>
+
+  @if (needsConnect()) {
+  <ng-content select="[tc-repos-connect]" />
+  } @else if (isLoading()) {
+  <div class="repos__loading" aria-busy="true" data-testid="repos-loading">
+    <span class="tc-sr-only">{{ 'overview.repos.loading' | transloco }}</span>
+    @for (row of [1, 2, 3]; track row) {
+    <div class="repos__skeleton" aria-hidden="true">
+      <span class="repos__skeleton-text">
+        <span class="repos__skeleton-line"></span>
+        <span class="repos__skeleton-line repos__skeleton-line--short"></span>
+      </span>
+      <span class="repos__skeleton-button"></span>
+    </div>
+    }
+  </div>
+  } @else if (status() === 'error') { @switch (problem()?.kind) { @case ('not-installed') {
+  <tc-state-block
+    kind="empty"
+    icon="github"
+    data-testid="repos-not-installed"
+    [title]="'overview.repos.notInstalled.title' | transloco: { app: appName() }"
+    [description]="'overview.repos.notInstalled.body' | transloco"
+  >
+    @if (installUrl(); as installUrl) {
+    <a tc-button tc-state-action variant="primary" [href]="installUrl" target="_blank" rel="noopener noreferrer">
+      {{ 'overview.repos.notInstalled.action' | transloco }}
+      <span class="tc-sr-only">{{ 'settings.common.external' | transloco }}</span>
+      <tc-icon name="external" size="sm" />
+    </a>
+    }
+  </tc-state-block>
+  } @case ('offline') {
+  <tc-state-block
+    kind="empty"
+    icon="offline"
+    data-testid="repos-offline"
+    [title]="'overview.repos.offline.title' | transloco"
+    [description]="'overview.repos.offline.body' | transloco"
+  >
+    <button tc-button tc-state-action type="button" data-testid="repos-retry" (click)="retry.emit()">
+      {{ 'settings.common.retry' | transloco }}
+    </button>
+  </tc-state-block>
+  } @default {
+  <tc-state-block
+    kind="error"
+    data-testid="repos-error"
+    [attr.data-problem]="problem()?.kind"
+    [title]="'overview.repos.error.title' | transloco"
+    [description]="
+      rateTime()
+        ? ('overview.repos.error.rate' | transloco: { time: (rateTime() | localTime) })
+        : problem()?.kind === 'auth'
+          ? ('overview.repos.error.auth' | transloco: { app: appName() })
+          : ('overview.repos.error.github' | transloco)
+    "
+  >
+    <button tc-button tc-state-action type="button" data-testid="repos-retry" (click)="retry.emit()">
+      {{ 'settings.common.retry' | transloco }}
+    </button>
+  </tc-state-block>
+  } } } @else { @if (!online() && loadedAt(); as loadedAt) {
+  <p class="repos__note" role="status" data-testid="repos-offline-note">
+    <tc-icon name="offline" size="sm" />
+    <span>{{ 'overview.repos.offline.list' | transloco: { time: (loadedAt | localTime) } }}</span>
+  </p>
+  } @if (partial()) {
+  <div class="repos__note repos__note--partial" role="status" data-testid="repos-partial">
+    <tc-icon name="clock" size="sm" />
+    <div>
+      <p>{{ 'overview.repos.partial' | transloco: { n: repositories().length } }}</p>
+      @if (selectionUrl(); as selectionUrl) {
+      <a class="repos__link" [href]="selectionUrl" target="_blank" rel="noopener noreferrer">
+        {{ 'overview.repos.selectLink' | transloco }}
+        <span class="tc-sr-only">{{ 'settings.common.external' | transloco }}</span>
+        <tc-icon name="external" size="sm" />
+      </a>
+      }
+    </div>
+  </div>
+  } @if (repositories().length === 0) {
+  <tc-state-block
+    kind="empty"
+    icon="github"
+    data-testid="repos-empty"
+    [title]="'overview.repos.empty.title' | transloco: { app: appName() }"
+    [description]="'overview.repos.empty.body' | transloco"
+  >
+    @if (selectionUrl(); as selectionUrl) {
+    <a tc-button tc-state-action variant="primary" [href]="selectionUrl" target="_blank" rel="noopener noreferrer">
+      {{ 'overview.repos.selectLink' | transloco }}
+      <span class="tc-sr-only">{{ 'settings.common.external' | transloco }}</span>
+      <tc-icon name="external" size="sm" />
+    </a>
+    }
+  </tc-state-block>
+  } @if (shownAddable().length > 0) {
+  <tc-list
+    class="repos__list"
+    data-group="addable"
+    data-testid="repos-addable"
+    [attr.aria-label]="'overview.repos.listAria' | transloco"
+  >
+    @for (repo of shownAddable(); track keyOf(repo)) { @let state = stateOf(repo); @let route = setupRouteOf(repo);
+    <tc-list-row
+      [link]="route"
+      [label]="route ? ('overview.repos.row.projectAria' | transloco: { repo: repo.fullName }) : ''"
+      [attr.data-repo]="keyOf(repo)"
+      [attr.data-registration]="repo.registration.state"
+    >
+      <span tc-row-title class="repo__name">{{ nameOf(repo) }}</span>
+      <span tc-row-subtitle class="repo__meta">
+        <span class="repo__owner">{{ ownerOf(repo) }}</span>
+        @if (repo.private) {
+        <span class="repo__private"><tc-icon name="lock" size="sm" />{{ 'overview.repos.row.private' | transloco }}</span>
+        }
+      </span>
+      @if (state?.kind === 'not-added' && !route) {
+      <span tc-row-detail class="repo__why" data-testid="repo-not-added">
+        <span>
+          <tc-icon name="alert" size="sm" />
+          @if (missingStepOf(repo); as step) { {{ 'overview.repos.row.notAdded' | transloco: { n: step } }} } @else { {{
+          'overview.repos.row.notAddedOther' | transloco }} }
+        </span>
+        <button
+          type="button"
+          class="repo__why-button"
+          data-testid="repo-see-why"
+          [attr.aria-label]="'overview.repos.row.seeWhyAria' | transloco: { repo: repo.fullName }"
+          (click)="seeWhy.emit(repo)"
+        >
+          {{ 'overview.repos.row.seeWhy' | transloco }}<tc-icon name="chevron-right" size="sm" />
+        </button>
+      </span>
+      } @if (route) {
+      <span tc-row-trailing-text data-testid="repo-project">
+        {{ 'overview.repos.row.project' | transloco }}<tc-icon name="chevron-right" size="sm" />
+      </span>
+      } @else {
+      <button
+        tc-row-action
+        tc-button
+        type="button"
+        class="repo__add"
+        data-testid="repo-add"
+        [attr.aria-label]="
+          state?.kind === 'checking' ? null : ('overview.repos.row.addAria' | transloco: { repo: repo.fullName })
+        "
+        [attr.aria-disabled]="!online() || state?.kind === 'checking' ? 'true' : null"
+        [loading]="state?.kind === 'checking'"
+        (click)="onAdd(repo)"
+      >
+        @if (state?.kind === 'checking') { {{ 'overview.repos.row.adding' | transloco }} } @else {
+        <tc-icon name="plus" size="sm" />{{ 'overview.repos.row.add' | transloco }} }
+      </button>
+      }
+    </tc-list-row>
+    }
+  </tc-list>
+  @if (isFolded()) {
+  <button tc-button variant="quiet" type="button" class="repos__more" data-testid="repos-more" (click)="showMore()">
+    <tc-icon name="chevron-down" size="sm" />{{ 'overview.repos.more' | transloco: { n: hiddenCount() } }}
+  </button>
+  } } @if (groups().registered.length > 0) {
+  <h3 class="repos__group" id="repos-already">
+    {{ 'overview.repos.already' | transloco }}
+    <span class="repos__group-count">{{ groups().registered.length }}</span>
+  </h3>
+  <tc-list class="repos__list" aria-labelledby="repos-already" data-group="registered" data-testid="repos-registered">
+    @for (repo of groups().registered; track keyOf(repo)) { @let route = setupRouteOf(repo);
+    <tc-list-row
+      [link]="route"
+      [label]="route ? ('overview.repos.row.projectAria' | transloco: { repo: repo.fullName }) : ''"
+      [muted]="!route"
+      [attr.data-repo]="keyOf(repo)"
+      [attr.data-registration]="repo.registration.state"
+    >
+      <span tc-row-title class="repo__name">{{ nameOf(repo) }}</span>
+      <span tc-row-subtitle class="repo__meta">
+        <span class="repo__owner">{{ ownerOf(repo) }}</span>
+        @if (repo.private) {
+        <span class="repo__private"><tc-icon name="lock" size="sm" />{{ 'overview.repos.row.private' | transloco }}</span>
+        }
+      </span>
+      @if (route) {
+      <span tc-row-trailing-text data-testid="repo-project">
+        {{ 'overview.repos.row.project' | transloco }}<tc-icon name="chevron-right" size="sm" />
+      </span>
+      } @else {
+      <span tc-row-trailing-text data-testid="repo-archived">
+        <tc-icon name="archive" size="sm" />{{ 'overview.repos.row.archived' | transloco }}
+      </span>
+      }
+    </tc-list-row>
+    }
+  </tc-list>
+  } @if (showsMissingStep()) {
+  <section tc-callout class="repos__missing" aria-labelledby="repos-missing" data-testid="repos-missing">
+    <h3 tc-callout-title id="repos-missing">{{ 'overview.repos.missing.title' | transloco }}</h3>
+    <p>{{ 'overview.repos.missing.body' | transloco: { app: appName() } }}</p>
+    <div class="repos__missing-actions">
+      @if (selectionUrl(); as selectionUrl) {
+      <a
+        tc-button
+        variant="primary"
+        data-testid="repos-missing-link"
+        [href]="selectionUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {{ 'overview.repos.missing.action' | transloco }}
+        <span class="tc-sr-only">{{ 'settings.common.external' | transloco }}</span>
+        <tc-icon name="external" size="sm" />
+      </a>
+      }
+      <button
+        tc-button
+        type="button"
+        data-testid="repos-missing-refresh"
+        [loading]="refreshing()"
+        [attr.aria-disabled]="!online() || refreshing() ? 'true' : null"
+        (click)="onRefresh('repos-missing-refresh')"
+      >
+        @if (!refreshing()) {
+        <tc-icon name="refresh" size="sm" />
+        }
+        {{ (refreshing() ? 'overview.repos.refreshing' : 'overview.repos.missing.refresh') | transloco }}
+      </button>
+    </div>
+  </section>
+  } }
+
+  <ng-content />
+</section>

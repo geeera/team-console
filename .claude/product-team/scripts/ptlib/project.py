@@ -6,6 +6,8 @@ import re
 PROJECT_FILE = ".product-team/project.yml"
 # A user login, or a GitHub App's bot login (`<app-slug>[bot]`).
 _LOGIN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\[bot\])?$")
+# A GitHub App's slug as REST reports it in `performed_via_github_app.slug`.
+_SLUG = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$")
 
 
 def plugin_ref(path: str = PROJECT_FILE) -> str:
@@ -31,7 +33,42 @@ def reviewer_logins(path: str = PROJECT_FILE) -> list:
 
 def reviewer_logins_from_text(text: str) -> list:
     """reviewer_logins() of a project.yml given as text (e.g. read from the PR's base branch)."""
-    m = re.search(r"^([ \t]*)reviewer_logins:[ \t]*(.*)$", text, re.MULTILINE)
+    return _list_from_text(text, "reviewer_logins", _LOGIN, "`[a, 'app-name[bot]']` or `- a` lines of GitHub logins")
+
+
+def console_app_slugs_from_text(text: str) -> list:
+    """`team.console_app_slugs: [team-console-prod, …]` — the team console's GitHub Apps (one per environment that
+    writes to this repository). An owner request counts only when GitHub says one of them posted it
+    (`performed_via_github_app.slug`; geeera/team-console ADR 0005). App slugs, never bot logins."""
+    return _list_from_text(text, "console_app_slugs", _SLUG, "`[team-console-prod]` or `- slug` lines of GitHub "
+                           "App slugs (not `[bot]` logins)")
+
+
+def text_on_branch(repo: str, branch: str) -> str:
+    """project.yml as `branch` has it on GitHub ("" when it has none). Trust settings are read from there, never
+    from the working tree, which may be any branch an agent checked out or edited."""
+    from urllib.parse import quote
+
+    from . import gh  # local import: the readers above stay free of network access
+    try:
+        # A full ref: a tag or commit named like the branch must never stand in for it.
+        return gh.raw(f"repos/{repo}/contents/{PROJECT_FILE}?ref={quote('refs/heads/' + branch, safe='/')}",
+                      "application/vnd.github.raw")
+    except gh.GhError as exc:
+        if "HTTP 404" in str(exc):
+            return ""
+        raise
+
+
+def console_app_slugs_on_default_branch(repo: str) -> list:
+    """console_app_slugs as the repository's default branch has it: changing the trust root takes a merged PR."""
+    from . import gh
+    return console_app_slugs_from_text(text_on_branch(repo, gh.api(f"repos/{repo}")["default_branch"]))
+
+
+def _list_from_text(text: str, key: str, item: "re.Pattern[str]", hint: str) -> list:
+    """`key: [a, b]`, `key: a, b` or `- a` lines under an empty `key:`; [] when the key is absent."""
+    m = re.search(r"^([ \t]*)%s:[ \t]*(.*)$" % re.escape(key), text, re.MULTILINE)
     if not m:
         return []
     inline = m.group(2).split("#", 1)[0].strip()
@@ -43,17 +80,16 @@ def reviewer_logins_from_text(text: str) -> list:
         for line in text[m.end():].splitlines():
             if not line.strip() or line.lstrip().startswith("#"):
                 continue
-            item = re.match(r"^[ \t]+-[ \t]*([^#]*)", line)
-            if not item:
+            entry = re.match(r"^[ \t]+-[ \t]*([^#]*)", line)
+            if not entry:
                 break
-            items.append(item.group(1))
-    logins = [x.strip().strip("'\"") for x in items if x.strip().strip("'\"")]
-    unreadable = not logins and inline.replace(" ", "") != "[]"
-    # Present but unreadable: an empty or mangled list would silently accept the wrong account's verdicts.
-    if unreadable or any(not _LOGIN.match(login) for login in logins):
-        raise ValueError("team.reviewer_logins is set but could not be read; use `[a, 'app-name[bot]']` or "
-                         "`- a` lines of GitHub logins")
-    return logins
+            items.append(entry.group(1))
+    values = [x.strip().strip("'\"") for x in items if x.strip().strip("'\"")]
+    unreadable = not values and inline.replace(" ", "") != "[]"
+    # Present but unreadable: an empty or mangled list would silently trust the wrong account.
+    if unreadable or any(not item.match(v) for v in values):
+        raise ValueError(f"team.{key} is set but could not be read; use {hint}")
+    return values
 
 
 def run_log_issue(path: str = PROJECT_FILE) -> int:

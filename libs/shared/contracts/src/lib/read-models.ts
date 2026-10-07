@@ -1,5 +1,7 @@
 import type { AnswerCommand, Section } from './answer';
+import type { OwnerCategory, TeamRecommendation } from './batch-answer';
 import type { TeamRunDto } from './team';
+import type { OwnerRequestStatusDto } from './owner-request';
 
 /**
  * Read models of a product repository (#35): what the owner's inbox, the questions list, the sprint board and
@@ -23,6 +25,14 @@ export interface InboxItemDto {
    * through a template, so an untrusted item is shown marked (#9 threat row 5).
    */
   readonly authorTrusted: boolean;
+  /** The owner decision a question is about, from its `owner:*` label (`categoryOf`); `null` without one. */
+  readonly category: OwnerCategory | null;
+  /**
+   * The command of the one option the answer line marks "(…, recommended)" / "(рекомендую)" / "(рекомендуем)";
+   * `null` for anything else (`recommendationOf`, fails closed). Read from untrusted text: only the server's re-check
+   * decides what a batch may answer.
+   */
+  readonly recommendation: TeamRecommendation | null;
 }
 
 /** `GET /api/v1/projects/:slug/inbox`: the plugin's inbox for one repository, in its order. */
@@ -69,6 +79,11 @@ export interface SprintIssueDto {
   readonly tier: SprintTier;
   readonly kind: string | null;
   readonly authorTrusted: boolean;
+  /**
+   * The owner's newest request to the PM on this issue (#219), from the console's D1 record. Set by the sprint route
+   * only; absent elsewhere (the overview reads no requests).
+   */
+  readonly request?: OwnerRequestStatusDto | null;
 }
 
 /** `metrics.sprint_summary`'s per-tier row. */

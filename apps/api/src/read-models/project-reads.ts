@@ -1,10 +1,14 @@
-import type {
-  InboxDto,
-  QuestionsDto,
-  SprintCiState,
-  SprintDto,
-  SprintListsDto,
-  TeamRunDto,
+import {
+  DEFAULT_FREEZE_DAYS,
+  type InboxDto,
+  type QuestionsDto,
+  type SprintCalendarDto,
+  type SprintCiState,
+  type SprintDto,
+  type SprintListsDto,
+  type SprintProgressDto,
+  type TeamRunDto,
+  type TeamSprintDto,
 } from '@shared/contracts';
 import type { ProjectRow } from '@worker/db';
 import { GitHubClient, GitHubError, githubPath, readCacheKey, type RepoName } from '@worker/github';
@@ -26,6 +30,7 @@ import {
   parseProjectConfig,
   pickCurrentSprint,
   pullRequestRecordOf,
+  sprintSummary,
   sprintToday,
   type IssueRecord,
   type MilestoneRecord,
@@ -34,7 +39,9 @@ import {
 } from '@worker/read-models';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub, GitHubConnection } from '../github';
+import { freezeDaysOf } from '../projects/project-yml';
 import { readProjectYmlFile, type ProjectYmlFile } from '../projects/repository-checks';
+import { calendarOf, sprintPlanOf, teamSprintOf } from '../team/sprint-plan';
 import { RunLogUnavailableError, readRunLog } from '../team/run-log-reader';
 import { UNKNOWN_TEAM_RUN, teamRunOf } from '../team/team-health';
 
@@ -44,6 +51,28 @@ const LIST_TTL_SECONDS = 60;
 const CHECKS_TTL_SECONDS = 60;
 /** project.yml changes rarely: 600 s. */
 const CONFIG_TTL_SECONDS = 600;
+/** The sprint part of `TeamStatusDto` (#218). */
+export interface SprintStatus {
+  readonly sprint: TeamSprintDto | null;
+  readonly progress: SprintProgressDto | null;
+  readonly calendar: SprintCalendarDto;
+}
+
+/** Every milestone, open and closed, in one page (a product keeps far fewer than 100). Uncached: callers decide. */
+export async function readAllMilestones(client: GitHubClient, repo: RepoName): Promise<MilestoneRecord[]> {
+  const raw = await client.paginate(
+    githubPath`/repos/${repo}/milestones?state=all&per_page=${100}`,
+    isGitHubMilestone,
+    { maxPages: 1 },
+  );
+  return raw.map(milestoneRecordOf);
+}
+
+/** `sprint.freeze_days` of a project.yml read; a missing or undecodable file is the plugin's default. */
+export function freezeDaysOfFile(file: ProjectYmlFile | null): number {
+  return file === null || file.text === null ? DEFAULT_FREEZE_DAYS : freezeDaysOf(file.text);
+}
+
 /** The run state may be this old on the overview and the board; the Commands panel reads it fresh. */
 const TEAM_RUN_TTL_SECONDS = 30;
 /** The run log's latest 200 comments: the failure streak, an active pause and the last runs are always among them. */
@@ -64,6 +93,8 @@ export const LIST_MAX_PAGES = 3;
  *   sprint    = milestones 1 + sprint issues ≤ LIST_MAX_PAGES + pulls 1 + team run ≤ 4 → ≤ 11,
  *               then one check-runs read per open pull request (#131), capped by the route's SubrequestBudget
  *   current sprint (the overview) = milestones and sprint issues only     → ≤ 6
+ *   sprint status (the Commands panel, #218) = all milestones 1 + sprint issues ≤ LIST_MAX_PAGES
+ *               + project.yml 1 (shared, often cached)                  → ≤ 7
  * Reads are shared through the read cache: inbox, questions and "Needs you" read the same `open-issues` entry.
  */
 export class ProjectReads {
@@ -86,6 +117,15 @@ export class ProjectReads {
       reviewerLogins: config.reviewerLogins,
       repoFullName: this.repo.fullName,
     });
+  }
+
+  /** The open issues (no pull requests) the owner may ask the PM about (#219), newest first; shares `open-issues`. */
+  async requestableIssues(): Promise<{ number: number; title: string }[]> {
+    const issues = await this.openIssues();
+    return issues
+      .filter((issue) => !issue.isPullRequest)
+      .map((issue) => ({ number: issue.number, title: issue.title }))
+      .sort((a, b) => b.number - a.number);
   }
 
   async questions(): Promise<QuestionsDto> {
@@ -188,6 +228,25 @@ export class ProjectReads {
     return buildSprint({ milestone, milestoneIssues, openPullRequests: [] });
   }
 
+  /**
+   * The Commands panel's sprint (#218): the current sprint with its freeze and the next one, done / total of its
+   * work issues as the board counts them, and what the sprint forms validate against. Through the read cache, so
+   * it is at most a minute old; the commands themselves decide on a live read.
+   */
+  async sprintStatus(): Promise<SprintStatus> {
+    const [milestones, file] = await Promise.all([this.allMilestones(), this.projectYmlFile()]);
+    const plan = sprintPlanOf(milestones, sprintToday(this.now()), freezeDaysOfFile(file));
+    let progress: SprintProgressDto | null = null;
+    if (plan.current !== null) {
+      const issues = (await this.milestoneIssues(plan.current.number)).filter(
+        (issue) => !issue.isPullRequest,
+      );
+      const summary = sprintSummary(issues);
+      progress = { done: summary.shipped, total: summary.planned };
+    }
+    return { sprint: teamSprintOf(plan), progress, calendar: calendarOf(plan) };
+  }
+
   private cached<T>(type: string, ttlSeconds: number, fill: () => Promise<T>): Promise<T> {
     const key = readCacheKey({
       environment: this.env.ENVIRONMENT,
@@ -241,6 +300,12 @@ export class ProjectReads {
       );
       return raw.map(milestoneRecordOf);
     });
+  }
+
+  private allMilestones(): Promise<MilestoneRecord[]> {
+    return this.cached('milestones-all', LIST_TTL_SECONDS, async () =>
+      readAllMilestones(await this.connect(), this.repo),
+    );
   }
 
   private openPullRequests(): Promise<PullRequestRecord[]> {

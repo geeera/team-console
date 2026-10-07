@@ -2,6 +2,7 @@ export { PROBLEM_TYPE_PREFIX, isProblemDetails, problemSlugOf, problemTypeOf } f
 export type { ProblemDetails } from './lib/problem-details';
 export { ENVIRONMENTS, isEnvironment } from './lib/health';
 export type { Environment, HealthDto, PublicHealthDto } from './lib/health';
+export { APP_NAME, appIconDirOf, appNameOf, appShortNameOf, environmentLabelOf } from './lib/app-identity';
 export {
   githubAuthorizeUrlOf,
   isGitHubAuthorizeUrl,
@@ -30,6 +31,16 @@ export type {
   UpdateProjectRequest,
 } from './lib/project';
 export type { ProjectRepositoryDto } from './lib/repository';
+export { NOT_SNOOZED, SNOOZE_MAX_DAYS, isSnoozeActive, isSnoozeDto } from './lib/snooze';
+export type { SnoozeDto, SnoozeRequest } from './lib/snooze';
+export { isRepoFullName, repoFullNameParts } from './lib/repo-name';
+export { INSTALLATION_REPOSITORIES_URL } from './lib/installation-repositories';
+export type {
+  GitHubAppNotInstalledProblem,
+  InstallationRepositoriesDto,
+  InstallationRepositoryDto,
+  RepositoryRegistration,
+} from './lib/installation-repositories';
 export {
   RESERVED_SLUGS,
   isReservedSlug,
@@ -66,6 +77,31 @@ export type {
   TeamState,
   TeamStatusDto,
 } from './lib/team';
+export {
+  DEFAULT_FREEZE_DAYS,
+  MAX_FREEZE_DAYS,
+  NEXT_SPRINT_DEFAULT_DAYS,
+  SPRINT_TIME_ZONE,
+  addDays,
+  calendarDayOf,
+  freezeOf,
+  isCalendarDate,
+  isInFreeze,
+  sprintNumberOf,
+  sprintTitleOf,
+} from './lib/sprint-commands';
+export type {
+  MoveDemoRequest,
+  MoveDemoResponse,
+  NextSprintRequest,
+  NextSprintResponse,
+  SprintCalendarDto,
+  SprintFreezeDto,
+  SprintProblemType,
+  SprintProgressDto,
+  SprintRefDto,
+  TeamSprintDto,
+} from './lib/sprint-commands';
 export { ANSWER_TEXT_MAX_LENGTH } from './lib/answer';
 export type {
   AnswerCommand,
@@ -75,6 +111,17 @@ export type {
   AnswerResponse,
   Section,
 } from './lib/answer';
+export { BATCH_ANSWER_MAX } from './lib/batch-answer';
+export type {
+  BatchAnswerFailed,
+  BatchAnswerRequest,
+  BatchAnswerResponse,
+  BatchAnswerResult,
+  BatchAnswerWritten,
+  BatchLeftOutReason,
+  OwnerCategory,
+  TeamRecommendation,
+} from './lib/batch-answer';
 export { NEEDS_YOU_MAX_PROJECTS, SPRINT_CI_STATES, isSprintCiState } from './lib/read-models';
 export type {
   EmbedOriginsDto,
@@ -123,3 +170,23 @@ export type {
   PushSubscriptionRequest,
   PushUnsubscribeRequest,
 } from './lib/push';
+export {
+  OWNER_REQUEST_STATES,
+  QUEUE_DIRECTIONS,
+  SPRINT_TARGETS,
+  isOwnerRequest,
+  isOwnerRequestState,
+} from './lib/owner-request';
+export type {
+  IssueRequestDto,
+  OwnerRequest,
+  OwnerRequestBody,
+  OwnerRequestProblemType,
+  OwnerRequestResponse,
+  OwnerRequestState,
+  OwnerRequestStatusDto,
+  QueueDirection,
+  RequestIssueDto,
+  RequestIssuesDto,
+  SprintTarget,
+} from './lib/owner-request';
