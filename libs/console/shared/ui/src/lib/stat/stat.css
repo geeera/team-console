@@ -8,10 +8,12 @@
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-md);
   background: var(--surface);
+  /* The value's size follows the tile's own width, not the screen's (see the query below). */
+  container-type: inline-size;
 }
 
 /* Label, value and sub line keep one line each: the grid drops a column before anything wraps (#275). */
-.tc-stat__label,
+.tc-stat__label-text,
 .tc-stat__text,
 .tc-stat__sub {
   min-width: 0;
@@ -21,7 +23,21 @@
 }
 
 .tc-stat__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
   font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.tc-stat__icon {
+  flex: none;
+}
+
+.tc-stat__chevron {
+  flex: none;
+  margin-left: auto;
   color: var(--text-3);
 }
 
@@ -37,6 +53,13 @@
   color: var(--text);
 }
 
+/* Two or four tiles side by side (a phone, a Mac with the Commands pane): the value one step down the type scale. */
+@container (max-width: 12rem) {
+  .tc-stat__value {
+    font-size: var(--fs-sm);
+  }
+}
+
 .tc-stat__text {
   display: block;
 }
@@ -47,11 +70,13 @@
   color: var(--text-2);
 }
 
-:host(.tc-stat--success) .tc-stat__text {
+:host(.tc-stat--success) .tc-stat__text,
+:host(.tc-stat--success) .tc-stat__icon {
   color: var(--success-text);
 }
 
-:host(.tc-stat--danger) .tc-stat__text {
+:host(.tc-stat--danger) .tc-stat__text,
+:host(.tc-stat--danger) .tc-stat__icon {
   color: var(--danger-text);
 }
 
@@ -75,9 +100,8 @@
 }
 
 .tc-stat__action {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
+  display: block;
+  width: 100%;
   min-width: 0;
   padding: 0;
   border: 0;
@@ -93,29 +117,8 @@
   content: '';
   position: absolute;
   inset: 0;
-  border-radius: inherit;
 }
 
 .tc-stat__action:focus-visible {
   outline: none;
-}
-
-.tc-stat__action .tc-stat__text {
-  flex: 0 1 auto;
-}
-
-.tc-stat__chevron {
-  flex: none;
-  color: var(--text-3);
-}
-
-/* Two tiles side by side on a phone: every pixel goes to the value («1 PR не прошёл» fits whole at 390 px). */
-@media (max-width: 519.98px) {
-  :host {
-    padding-inline: var(--space-2);
-  }
-
-  .tc-stat__action {
-    gap: 0;
-  }
 }

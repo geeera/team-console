@@ -19,10 +19,10 @@ const tiles = `
     <div tc-stat [label]="'stories.stat.done' | transloco" [sub]="'stories.stat.stillOpen' | transloco">
       {{ 'stories.stat.doneValue' | transloco }}
     </div>
-    <div tc-stat tone="danger" [label]="'stories.stat.ci' | transloco" [actionLabel]="'stories.stat.ciAction' | transloco">
+    <div tc-stat tone="danger" icon="x" [label]="'stories.stat.ci' | transloco" [actionLabel]="'stories.stat.ciAction' | transloco">
       {{ 'stories.stat.ciFailed' | transloco }}
     </div>
-    <div tc-stat [label]="'stories.stat.runs' | transloco" [actionLabel]="'stories.stat.runsAction' | transloco">
+    <div tc-stat tone="success" icon="play" [label]="'stories.stat.runs' | transloco" [actionLabel]="'stories.stat.runsAction' | transloco">
       {{ 'stories.stat.running' | transloco }}
     </div>
     <div tc-stat [label]="'stories.stat.waiting' | transloco" [actionLabel]="'stories.stat.waitingAction' | transloco">
@@ -31,6 +31,9 @@ const tiles = `
     <div tc-stat [label]="'stories.stat.long' | transloco">{{ 'stories.stat.longValue' | transloco }}</div>
   </dl>
 `;
+
+/** A Mac with the Commands pane open (#294): four tiles in one row, values a step smaller in the narrow tiles. */
+const fourAcross = tiles.replace('<dl tc-stats>', '<dl tc-stats [columns]="4">');
 
 const meta: Meta<Stat> = {
   title: 'Kit/Stat',
@@ -55,3 +58,4 @@ export const Phone: Story = { ...phoneViewport, render: () => ({ template: numbe
 export const Tiles: Story = { render: () => ({ template: tiles }) };
 export const TilesDark: Story = { ...darkTheme, render: () => ({ template: tiles }) };
 export const TilesPhone: Story = { ...phoneViewport, render: () => ({ template: tiles }) };
+export const TilesFourAcross: Story = { render: () => ({ template: fourAcross }) };

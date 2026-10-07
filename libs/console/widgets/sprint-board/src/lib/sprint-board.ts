@@ -2,6 +2,7 @@ import { BreakpointObserver } from '@angular/cdk/layout';
 import { NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -85,6 +86,29 @@ export function isBoardTab(value: unknown): value is BoardTab {
 
 /** The lane a narrow screen opens on: the blockers when there are any, else the work in progress (#275 §3). */
 export const PREFERRED_LANES: readonly string[] = ['blocked', 'in-progress'];
+
+/**
+ * How the status tiles sit (#275, #294), by the board's own width (the Commands pane beside it takes room too):
+ * `auto` on a narrow screen (2×2, one column at large text), else as many as keep «1 PR не прошёл» whole —
+ * five in a row, four in a row (open items under Done), or 2×2.
+ */
+export type TileLayout = 'auto' | 'five' | 'four' | 'two';
+
+/** Narrowest board for five tiles in a row, and for four: every tile keeps about 180 px. */
+export const FIVE_TILES_MIN_WIDTH = 932;
+export const FOUR_TILES_MIN_WIDTH = 744;
+
+export function tileLayoutOf(boardWidth: number | null, isCompact: boolean): TileLayout {
+  if (isCompact) {
+    return 'auto';
+  }
+  if (boardWidth === null || boardWidth >= FIVE_TILES_MIN_WIDTH) {
+    return 'five';
+  }
+  return boardWidth >= FOUR_TILES_MIN_WIDTH ? 'four' : 'two';
+}
+
+const TILE_COLUMNS: Readonly<Record<TileLayout, number | null>> = { auto: null, five: 5, four: 4, two: 2 };
 
 /** The wait before the automatic retry, from the 429's `Retry-After` seconds. */
 export function retryDelaySeconds(retryAfter: number | null): number {
@@ -173,6 +197,7 @@ export class SprintBoard {
   private readonly needsYou = inject(NeedsYouCounts);
   private readonly persisted = inject(PersistedStateStore);
   private readonly breakpoints = inject(BreakpointObserver);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly project = input.required<SprintBoardProject>();
   /** The `?tab=` of a deep link; anything but a `BoardTab` is ignored. */
@@ -200,6 +225,10 @@ export class SprintBoard {
     this.breakpoints.observe(BREAKPOINTS.tablet).pipe(map((result) => result.matches)),
     { initialValue: this.breakpoints.isMatched(BREAKPOINTS.tablet) },
   );
+  /** The board's own width; `null` until measured (and where `ResizeObserver` is missing). */
+  private readonly width = signal<number | null>(null);
+  protected readonly tileLayout = computed(() => tileLayoutOf(this.width(), this.compact()));
+  protected readonly tileColumns = computed(() => TILE_COLUMNS[this.tileLayout()]);
   private readonly tabs = viewChild(Tabs);
   private readonly pullsHeading = viewChild<ElementRef<HTMLElement>>('pullsHeading');
   private readonly runsHeading = viewChild<ElementRef<HTMLElement>>('runsHeading');
@@ -315,7 +344,20 @@ export class SprintBoard {
         untracked(() => this.tab.set(wanted));
       }
     });
+    let observer: ResizeObserver | null = null;
+    afterNextRender(() => {
+      if (typeof ResizeObserver === 'undefined') {
+        return;
+      }
+      observer = new ResizeObserver(([entry]) => {
+        if (entry !== undefined) {
+          this.width.set(Math.round(entry.contentRect.width));
+        }
+      });
+      observer.observe(this.host.nativeElement);
+    });
     inject(DestroyRef).onDestroy(() => {
+      observer?.disconnect();
       this.loadToken += 1;
       this.clearRetry();
     });

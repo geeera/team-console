@@ -127,7 +127,7 @@ test('the Run log tile and the last runs show icon and words; an edited run is u
   await expect(tile).toHaveAttribute('data-team', 'running');
   await expect(tile.locator('dt')).toHaveText(ru('board.stat.runs'));
   await expect(tile.locator('dd')).toHaveText(ru('board.team.running'));
-  await expect(tile.locator('dd tc-icon').first()).toHaveAttribute('aria-hidden', 'true');
+  await expect(tile.locator('dt .tc-stat__icon')).toHaveAttribute('aria-hidden', 'true');
 
   const lane = page.getByTestId('runs');
   await lane.scrollIntoViewIfNeeded();

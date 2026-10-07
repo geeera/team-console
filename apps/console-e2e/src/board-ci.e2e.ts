@@ -62,7 +62,7 @@ test('each open pull request shows its CI with an icon and words, and the CI til
   await expect(tile).toHaveAttribute('data-ci', 'failure');
   await expect(tile.locator('dt')).toHaveText(ru('board.stat.ci'));
   await expect(tile.locator('dd')).toHaveText(ru('board.ci.summary.failure.one', { n: 1 }));
-  await expect(tile.locator('dd tc-icon').first()).toHaveAttribute('aria-hidden', 'true');
+  await expect(tile.locator('dt .tc-stat__icon')).toHaveAttribute('aria-hidden', 'true');
 
   await rowOf(page, 40).scrollIntoViewIfNeeded();
   await expectAccessible(page, 'Project board with CI states');

@@ -24,6 +24,8 @@ import { of } from 'rxjs';
 import {
   BOARD_LIST_LIMIT,
   DEFAULT_RETRY_SECONDS,
+  FIVE_TILES_MIN_WIDTH,
+  FOUR_TILES_MIN_WIDTH,
   hiddenCountOf,
   isBoardTab,
   MAX_RETRY_SECONDS,
@@ -31,6 +33,7 @@ import {
   retryDelaySeconds,
   SprintBoard,
   SprintBoardProject,
+  tileLayoutOf,
   visibleItemsOf,
 } from './sprint-board';
 
@@ -363,7 +366,7 @@ describe('SprintBoard', () => {
       expect(tile.getAttribute('data-ci')).toBe(state);
       expect(tile.querySelector('dt')?.textContent?.trim()).toBe('CI');
       expect(tile.querySelector('dd')?.textContent?.trim()).toBe(ru);
-      expect(tile.querySelector('dd tc-icon')?.getAttribute('aria-hidden')).toBe('true');
+      expect(tile.querySelector('dt .tc-stat__icon')?.getAttribute('aria-hidden')).toBe('true');
 
       TestBed.inject(TranslocoService).setActiveLang('en');
       await settle();
@@ -408,7 +411,7 @@ describe('SprintBoard', () => {
         expect(tile.getAttribute('data-team')).toBe(state);
         expect(tile.querySelector('dt')?.textContent?.trim()).toBe('Прогоны');
         expect(tile.querySelector('dd')?.textContent?.trim()).toBe(ru);
-        expect(tile.querySelector('dd tc-icon')?.getAttribute('aria-hidden')).toBe('true');
+        expect(tile.querySelector('dt .tc-stat__icon')?.getAttribute('aria-hidden')).toBe('true');
         expect(tile.classList.contains('tc-stat--danger')).toBe(state === 'failing');
 
         TestBed.inject(TranslocoService).setActiveLang('en');
@@ -598,16 +601,14 @@ describe('SprintBoard', () => {
 
   it('on a failure shows an alert with Retry, and Retry reads again', async () => {
     const { root, settle } = await render();
-    http
-      .expectOne(projectSprintUrl(TC.slug))
-      .flush(
-        {
-          type: 'https://team-console/problems/github-unavailable',
-          title: 'GitHub unavailable',
-          status: 502,
-        },
-        { status: 502, statusText: 'Bad Gateway' },
-      );
+    http.expectOne(projectSprintUrl(TC.slug)).flush(
+      {
+        type: 'https://team-console/problems/github-unavailable',
+        title: 'GitHub unavailable',
+        status: 502,
+      },
+      { status: 502, statusText: 'Bad Gateway' },
+    );
     await settle();
 
     const block = root.querySelector('[data-testid="load-error"]') as HTMLElement;
@@ -1096,8 +1097,18 @@ describe('SprintBoard', () => {
 
       const tile = root.querySelector('[data-testid="waiting-stat"]') as HTMLElement;
       expect(tile.querySelector('dd')?.textContent?.trim()).toBe('Ничего');
-      expect(tile.querySelector('dd tc-icon')).not.toBeNull();
+      expect(tile.querySelector('dt .tc-stat__icon')).not.toBeNull();
     });
+  });
+
+  it('lays the tiles out by the board width: five, four with open items under Done, or 2×2 (#294)', () => {
+    expect(tileLayoutOf(null, false)).toBe('five');
+    expect(tileLayoutOf(FIVE_TILES_MIN_WIDTH, false)).toBe('five');
+    expect(tileLayoutOf(FIVE_TILES_MIN_WIDTH - 1, false)).toBe('four');
+    expect(tileLayoutOf(FOUR_TILES_MIN_WIDTH, false)).toBe('four');
+    expect(tileLayoutOf(FOUR_TILES_MIN_WIDTH - 1, false)).toBe('two');
+    // A narrow screen fits its own grid (2×2, one column at large text), whatever the width.
+    expect(tileLayoutOf(1200, true)).toBe('auto');
   });
 
   it('accepts only the board tabs as a tab', () => {

@@ -47,10 +47,6 @@
   }
 }
 
-.board__stat-icon {
-  margin-right: var(--space-1);
-}
-
 .board__sections {
   min-width: 0;
 }
@@ -76,8 +72,12 @@
   display: none;
 }
 
-/* Wide enough for two columns: issues left, PRs then runs right, both starting at the top (#275 §3). */
-@container (min-width: 760px) {
+/*
+ * Wide enough for two columns: issues left, PRs then runs right, both starting at the top (#275 §3). By the board's
+ * own width (#294): a 1024 px screen, or a Mac with the Commands pane open, keeps them; the right column is
+ * `--board-side-w` until a third of the board is more.
+ */
+@container (min-width: 560px) {
   .board__sections:not(.tc-tabs--active) {
     display: grid;
     grid-template-areas:

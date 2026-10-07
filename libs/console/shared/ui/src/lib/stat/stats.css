@@ -1,6 +1,7 @@
 :host {
   display: grid;
-  /* Equal columns, as many as fit: two on the phone, a whole row on a wide screen; never a squeezed label. */
+  /* Equal columns, as many as fit: two on the phone, a whole row on a wide screen; never a squeezed label. A fixed
+     `columns` count overrides this from the element. */
   grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--stat-min-w)), 1fr));
   gap: var(--space-2);
   margin: 0;

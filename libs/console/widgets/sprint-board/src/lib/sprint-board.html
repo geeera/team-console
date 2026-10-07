@@ -49,18 +49,18 @@
     </div>
   </header>
 
-  <!-- The phone has four tiles (open items under Done), a wide screen five; every value is icon plus words. -->
-  <dl tc-stats data-testid="stats">
+  <!-- Five tiles when the board is wide, else four (open items under Done); every state is icon plus words. -->
+  <dl tc-stats data-testid="stats" [attr.data-layout]="tileLayout()" [columns]="tileColumns()">
     <div
       tc-stat
       data-testid="done-stat"
       [label]="'board.stat.done' | transloco"
-      [sub]="compact() ? ('board.stat.doneSub' | transloco: { n: (board.carriedOver | localNumber) }) : null"
+      [sub]="tileLayout() !== 'five' ? ('board.stat.doneSub' | transloco: { n: (board.carriedOver | localNumber) }) : null"
     >
-      {{ 'board.stat.doneValue' | transloco: { shipped: (board.shipped | localNumber), planned: (board.planned |
-      localNumber) } }}
+      {{ 'board.stat.doneValue' | transloco: { shipped: (board.shipped | localNumber), planned: (board.planned
+      | localNumber) } }}
     </div>
-    @if (!compact()) {
+    @if (tileLayout() === 'five') {
     <div tc-stat data-testid="open-stat" [label]="'board.stat.stillOpen' | transloco">
       {{ board.carriedOver | localNumber }}
     </div>
@@ -71,10 +71,11 @@
       [attr.data-ci]="ci().state"
       [label]="'board.stat.ci' | transloco"
       [tone]="ciTone()"
+      [icon]="ciIcon()"
       [actionLabel]="ciAria()"
       (activate)="jumpTo('pr')"
     >
-      <tc-icon class="board__stat-icon" [name]="ciIcon()" size="sm" />{{ ciValue() }}
+      {{ ciValue() }}
     </div>
     <!-- The team as runstate reads the run log (#132). -->
     <div
@@ -83,20 +84,22 @@
       [attr.data-team]="board.team.state"
       [label]="'board.stat.runs' | transloco"
       [tone]="teamTone()"
+      [icon]="teamIcon()"
       [actionLabel]="teamAria()"
       (activate)="jumpTo('runs')"
     >
-      <tc-icon class="board__stat-icon" [name]="teamIcon()" size="sm" />{{ teamValue() }}
+      {{ teamValue() }}
     </div>
     <div
       tc-stat
       data-testid="waiting-stat"
       [attr.data-waiting]="waiting()"
       [label]="'board.stat.waiting' | transloco"
+      [icon]="waiting() === 0 ? 'check' : null"
       [actionLabel]="waitingAria()"
       (activate)="openQuestions()"
     >
-      @if (waiting() === 0) {<tc-icon class="board__stat-icon" name="check" size="sm" />}{{ waitingValue() }}
+      {{ waitingValue() }}
     </div>
   </dl>
 </section>
@@ -188,13 +191,16 @@
     [label]="'board.tabs.pulls' | transloco: { n: (board.pullRequests.length | localNumber) }"
   >
     <h2 #pullsHeading class="board__section-title" tabindex="-1" [class.tc-sr-only]="compact()">
-      {{ 'board.pulls' | transloco }}&ngsp;<span class="board__section-count">{{ board.pullRequests.length |
-        localNumber }}</span>
+      {{ 'board.pulls' | transloco }}&ngsp;<span class="board__section-count"
+        >{{ board.pullRequests.length | localNumber }}</span
+      >
     </h2>
     @if (board.pullRequests.length > 0) {
     <tc-sprint-item-list [items]="visiblePulls()" />
     @if (hidden(board.pullRequests) > 0) {
-    <ng-container *ngTemplateOutlet="more; context: { key: 'pulls', n: board.pullRequests.length, all: true }" />
+    <ng-container
+      *ngTemplateOutlet="more; context: { key: 'pulls', n: board.pullRequests.length, all: true }"
+    />
     } } @else {
     <p class="board__lane-empty">{{ 'board.pullsEmpty' | transloco }}</p>
     }
@@ -207,8 +213,9 @@
     [label]="'board.tabs.runs' | transloco: { n: (board.team.recentRuns.length | localNumber) }"
   >
     <h2 #runsHeading class="board__section-title" tabindex="-1" [class.tc-sr-only]="compact()">
-      {{ 'board.runs.title' | transloco }}&ngsp;<span class="board__section-count">{{ board.team.recentRuns.length
-        | localNumber }}</span>
+      {{ 'board.runs.title' | transloco }}&ngsp;<span class="board__section-count"
+        >{{ board.team.recentRuns.length | localNumber }}</span
+      >
     </h2>
     <!-- An unknown team means the run log could not be read or trusted (#201): never "no runs yet" with a check. -->
     @if (board.team.state === 'unknown') {
@@ -254,7 +261,7 @@
     [attr.aria-expanded]="isExpanded(key)"
     (click)="toggle(key)"
   >
-    @if (isExpanded(key)) { {{ 'board.less' | transloco }} } @else if (all) { {{ 'board.pullsAll' | transloco: { n:
-    (n | localNumber) } }} } @else { {{ 'board.more' | transloco: { n: (n | localNumber) } }} }
+    @if (isExpanded(key)) { {{ 'board.less' | transloco }} } @else if (all) { {{ 'board.pullsAll' | transloco:
+    { n: (n | localNumber) } }} } @else { {{ 'board.more' | transloco: { n: (n | localNumber) } }} }
   </button>
 </ng-template>

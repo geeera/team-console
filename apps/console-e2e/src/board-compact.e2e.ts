@@ -1,11 +1,11 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { en, ru } from './support/i18n';
-import { seed } from './support/stack';
+import { seed, type Stack } from './support/stack';
 
 /**
  * The compact board (#275) at 390×844 (iphone) and 1440×900 (desktop), on the mock repository (20 sprint issues,
- * 10 of them done; 4 open PRs, #40 failing; 5 runs): the key status is on the first screen, no label wraps, the
+ * 10 of them done; 4 open PRs, #40 failing; 3 runs seeded per test): the key status is on the first screen, no label wraps, the
  * phone's lists are tabs and its lane switcher one row, every list stops at five rows, and the tiles jump to their
  * list.
  */
@@ -13,12 +13,59 @@ import { seed } from './support/stack';
 const BOARD = '/p/team-console/board';
 const isPhone = (page: Page): boolean => (page.viewportSize()?.width ?? 0) < 900;
 const BOARD_SCOPE = { root: 'main', skip: '' };
-/** «Прогоны N»: the run log is fake-GitHub state other specs edit, so any count. */
-const RUNS_TAB = new RegExp(`^\\s*${ru('board.tabs.runs', { n: 0 }).replace(/0$/, '')}\\d+\\s*$`);
+const REPO = 'geeera/team-console';
+const RUN_LOG = 22;
+const MINUTE = 60_000;
+/** «Прогоны 3»: the runs every test seeds. */
+const RUNS_TAB = ru('board.tabs.runs', { n: 3 });
+/** The text stress scroll-regions uses: wider type, as on CI's Linux fonts, must not cut a tile value. */
+const WIDE_TYPE = 'html { letter-spacing: 0.08em; }';
+
+async function fakePost(stack: Stack, path: string, body: unknown): Promise<void> {
+  const response = await fetch(`${stack.fakeURL ?? ''}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  expect(response.ok, `fake GitHub ${path}: ${await response.text()}`).toBe(true);
+}
+
+/**
+ * The run log is fake-GitHub state other specs rewrite (board-run-state leaves it empty): reset it to three runs —
+ * dev running, qa and pm finished — so nothing here depends on which spec ran before.
+ */
+async function seedRuns(stack: Stack): Promise<void> {
+  await fakePost(stack, '/_fake/issue', {
+    repo: REPO,
+    number: RUN_LOG,
+    title: 'Team run log',
+    author: 'geeera',
+    labels: ['team:run-log'],
+    repoOwner: { login: 'geeera', id: 100001 },
+  });
+  const now = Date.now();
+  const entries = [
+    { run: 'c-r1', slot: 'slot-pm', state: 'started', minutesAgo: 60 },
+    { run: 'c-r1', slot: 'slot-pm', state: 'finished', minutesAgo: 50 },
+    { run: 'c-r2', slot: 'slot-qa', state: 'started', minutesAgo: 40 },
+    { run: 'c-r2', slot: 'slot-qa', state: 'finished', minutesAgo: 30 },
+    { run: 'c-r3', slot: 'slot-dev', state: 'started', minutesAgo: 5 },
+  ];
+  for (const entry of entries) {
+    await fakePost(stack, '/_fake/comment', {
+      repo: REPO,
+      number: RUN_LOG,
+      body: `<!-- pt-run id=${entry.run} slot=${entry.slot} state=${entry.state} -->\n**${entry.slot}** ${entry.state}`,
+      author: 'geeera',
+      createdAt: now - entry.minutesAgo * MINUTE,
+    });
+  }
+}
 
 test.beforeEach(async ({ stack }) => {
   requireLocalStack(stack);
-  await seed(stack, ['geeera/team-console']);
+  await seed(stack, [REPO]);
+  await seedRuns(stack);
 });
 
 async function openBoard(page: Page, path = BOARD): Promise<void> {
@@ -109,6 +156,14 @@ function cutTileValuesOf(): string[] {
     .map((element) => element.textContent?.trim() ?? '');
 }
 
+/** No tile value ends in an ellipsis, also with wider type (the fit must not rest on one machine's font). */
+async function expectNoCutTileValue(page: Page): Promise<void> {
+  expect(await page.evaluate(cutTileValuesOf), 'no tile value cut').toEqual([]);
+  await page.addStyleTag({ content: WIDE_TYPE });
+  expect(await page.evaluate(cutTileValuesOf), 'no tile value cut with wider type').toEqual([]);
+  await page.evaluate(() => document.head.lastElementChild?.remove());
+}
+
 test('the key status is on the first screen: sprint, demo date and the four tiles', async ({ page }) => {
   await openBoard(page);
 
@@ -154,7 +209,7 @@ test('the key status is on the first screen: sprint, demo date and the four tile
     );
     await expect(page.getByRole('tablist')).toHaveCount(0);
   }
-  expect(await page.evaluate(cutTileValuesOf), 'no tile value cut').toEqual([]);
+  await expectNoCutTileValue(page);
   await expectAccessible(page, 'Compact board');
 });
 
@@ -290,10 +345,20 @@ test('the CI tile shows the PR list, failing first, and moves focus to it', asyn
   await expect(pulls).toBeInViewport();
 });
 
-test('the runs tile shows the runs; «Ждут вас» opens the project questions', async ({ page }) => {
+test('the runs tile shows the runs and moves focus to them; «Ждут вас» opens the questions', async ({
+  page,
+}) => {
   await openBoard(page);
   await page.getByTestId('team-stat').getByRole('button').click();
-  await expect(page.getByTestId('runs').getByTestId('run').first()).toBeInViewport();
+  const runs = page.getByTestId('runs');
+  await expect(runs.getByTestId('run')).toHaveCount(3);
+  await expect(runs.getByTestId('run').first()).toBeInViewport();
+  if (isPhone(page)) {
+    await expect(runs).toBeFocused();
+    await expect(page.getByRole('tab', { name: RUNS_TAB })).toHaveAttribute('aria-selected', 'true');
+  } else {
+    await expect(runs.getByRole('heading', { level: 2 })).toBeFocused();
+  }
 
   await page.getByTestId('waiting-stat').getByRole('button').click();
   await expect(page).toHaveURL(/\/p\/team-console\/questions$/);
@@ -311,3 +376,51 @@ test('a deep link opens the runs tab, and the phone opens on the last tab next t
     'true',
   );
 });
+
+/**
+ * #294: the board between the phone and a full Mac — a 1024 px screen, and a Mac with the Commands pane open. The
+ * layout follows the board's own width: issues and PRs stay two columns with «Открытые PR» on the first screen, the
+ * tiles fill whole rows (never one alone), and no tile value is cut.
+ */
+const MID_WIDTHS = [
+  { name: '1024×768', viewport: { width: 1024, height: 768 }, pane: false },
+  { name: '1280×800 with the Commands pane', viewport: { width: 1280, height: 800 }, pane: true },
+  { name: '1440×900 with the Commands pane', viewport: { width: 1440, height: 900 }, pane: true },
+] as const;
+
+for (const { name, viewport, pane } of MID_WIDTHS) {
+  test(`${name}: two columns, PRs on the first screen, no tile alone on its row`, async ({ page }) => {
+    test.skip(test.info().project.name !== 'desktop', 'a Mac-width layout');
+    await page.setViewportSize(viewport);
+    await openBoard(page);
+    if (pane) {
+      await page.getByTestId('commands-open').click();
+      await expect(page.locator('tc-commands-pane')).toBeVisible();
+      await page.waitForLoadState('networkidle');
+    }
+
+    const tasks = await page.locator('.board__tasks').boundingBox();
+    const pulls = page.getByTestId('pulls');
+    const pullsBox = await pulls.boundingBox();
+    expect(pullsBox?.x ?? 0, 'PRs beside the issues').toBeGreaterThan(
+      (tasks?.x ?? 0) + (tasks?.width ?? 0) - 1,
+    );
+    await expectAboveFold(page, pulls.getByRole('heading', { level: 2 }), 'the PR heading');
+
+    const tops = await page
+      .getByTestId('stats')
+      .locator('div[tc-stat]')
+      .evaluateAll((tiles) => tiles.map((tile) => Math.round(tile.getBoundingClientRect().top)));
+    const perRow = [...new Set(tops)].map((top) => tops.filter((each) => each === top).length);
+    expect(
+      perRow.every((count) => count === perRow[0]),
+      `tiles per row ${perRow.join(' + ')}`,
+    ).toBe(true);
+    for (const tile of ['done-stat', 'ci-stat', 'team-stat', 'waiting-stat']) {
+      await expectAboveFold(page, page.getByTestId(tile), tile);
+    }
+    await expectNoCutTileValue(page);
+    expect(await page.evaluate(wrappedLabelsOf, BOARD_SCOPE), 'no wrapped label').toEqual([]);
+    await expectAccessible(page, `Board at ${name}`);
+  });
+}
