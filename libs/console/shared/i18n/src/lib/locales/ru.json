@@ -1,7 +1,12 @@
 {
   "app": {
     "name": "Консоль команды",
-    "environment": "Окружение:"
+    "environment": "Окружение:",
+    "session": {
+      "expiredTitle": "Сессия истекла — войдите снова",
+      "expiredHint": "Вход проверяет Cloudflare Access. После входа вы вернётесь на эту же страницу.",
+      "signIn": "Войти"
+    }
   },
   "shell": {
     "nav": "Навигация",

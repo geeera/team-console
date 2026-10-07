@@ -1,7 +1,12 @@
 {
   "app": {
     "name": "Team Console",
-    "environment": "Environment:"
+    "environment": "Environment:",
+    "session": {
+      "expiredTitle": "Session expired — sign in again",
+      "expiredHint": "Cloudflare Access checks the sign-in. Afterwards you come back to this same page.",
+      "signIn": "Sign in"
+    }
   },
   "shell": {
     "nav": "Navigation",
