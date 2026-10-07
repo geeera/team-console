@@ -383,6 +383,19 @@ describe('QuestionCard', () => {
       expect(root.querySelector('details a')).toBeNull();
     });
 
+    it('never shows the raw answer line with its commands: it is the recommendation already (#275)', async () => {
+      const { root } = await renderRich({
+        body: '**Your answer:** /go (рекомендую) · /no-go что доделать\n<!-- pt-ask -->\n\nДемо: [стенд](https://example.com)',
+        ask: '/go (рекомендую) · /no-go что доделать',
+      });
+      await new Promise((done) => setTimeout(done, 50));
+
+      const details = root.querySelector('details')?.textContent ?? '';
+      expect(details).toContain('стенд');
+      expect(details).not.toContain('Your answer');
+      expect(details).not.toContain('/no-go');
+    });
+
     it('has no preview when the body links only to GitHub', async () => {
       const { root } = await renderRich({ body: 'See https://github.com/geeera/team-console/pull/9' });
 

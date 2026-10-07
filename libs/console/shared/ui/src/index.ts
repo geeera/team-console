@@ -44,6 +44,7 @@ export { StatusCard } from './lib/status-card/status-card';
 export type { StatusCardTone } from './lib/status-card/status-card';
 export type { StateKind } from './lib/state-block/state-block';
 export { Tab, TabBar } from './lib/tab-bar/tab-bar';
+export { TabPanel, Tabs } from './lib/tabs/tabs';
 export { Tooltip } from './lib/tooltip/tooltip';
 export type { TooltipPlacement } from './lib/tooltip/tooltip';
 export { TopBar } from './lib/top-bar/top-bar';

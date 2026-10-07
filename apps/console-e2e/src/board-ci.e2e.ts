@@ -45,7 +45,7 @@ test('the sprint read model carries a CI state per open pull request', async ({ 
 test('each open pull request shows its CI with an icon and words, and the CI tile the failing one', async ({
   page,
 }) => {
-  await page.goto('/p/team-console/board');
+  await page.goto('/p/team-console/board?tab=pr');
   await expect(page.getByTestId('loading')).toHaveCount(0);
 
   for (const { number, ci } of EXPECTED) {
@@ -61,8 +61,8 @@ test('each open pull request shows its CI with an icon and words, and the CI til
   const tile = page.getByTestId('ci-stat');
   await expect(tile).toHaveAttribute('data-ci', 'failure');
   await expect(tile.locator('dt')).toHaveText(ru('board.stat.ci'));
-  await expect(tile.locator('dd')).toHaveText(ru('board.ci.summary.failure', { n: 1 }));
-  await expect(tile.locator('dd tc-icon')).toHaveAttribute('aria-hidden', 'true');
+  await expect(tile.locator('dd')).toHaveText(ru('board.ci.summary.failure.one', { n: 1 }));
+  await expect(tile.locator('dt .tc-stat__icon')).toHaveAttribute('aria-hidden', 'true');
 
   await rowOf(page, 40).scrollIntoViewIfNeeded();
   await expectAccessible(page, 'Project board with CI states');
@@ -73,11 +73,11 @@ test('the CI copy follows the language', async ({ page }) => {
   await page.getByTestId('switch-lang').click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   // A full load: the choice is persisted, as after a PWA restart.
-  await page.goto('/p/team-console/board');
+  await page.goto('/p/team-console/board?tab=pr');
 
   await expect(rowOf(page, 40).getByTestId('ci')).toHaveText(en('board.ci.state.failure'));
   await expect(page.getByTestId('ci-stat').locator('dd')).toHaveText(
-    en('board.ci.summary.failure', { n: 1 }),
+    en('board.ci.summary.failure.one', { n: 1 }),
   );
 });
 
@@ -85,7 +85,7 @@ test.describe('dark theme', () => {
   test.use({ colorScheme: 'dark' });
 
   test('the CI chips and tile pass axe', async ({ page }) => {
-    await page.goto('/p/team-console/board');
+    await page.goto('/p/team-console/board?tab=pr');
     await expect(page.getByTestId('ci-stat')).toHaveAttribute('data-ci', 'failure');
     await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark');
     await rowOf(page, 40).scrollIntoViewIfNeeded();
