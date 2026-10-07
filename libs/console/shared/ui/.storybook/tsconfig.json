@@ -10,12 +10,18 @@
     "../src/**/*.stories.ts",
     "./*.ts",
     "../src/**/*.ts",
-    "../../../widgets/github-repositories/src/**/*.ts"
+    "../../../widgets/github-repositories/src/**/*.ts",
+    "../../../entities/design/src/**/*.ts",
+    "../../../features/design-viewer/src/**/*.ts"
   ],
   "exclude": [
     "../src/**/*.spec.ts",
     "../src/test-setup.ts",
     "../../../widgets/github-repositories/src/**/*.spec.ts",
-    "../../../widgets/github-repositories/src/test-setup.ts"
+    "../../../widgets/github-repositories/src/test-setup.ts",
+    "../../../entities/design/src/**/*.spec.ts",
+    "../../../entities/design/src/test-setup.ts",
+    "../../../features/design-viewer/src/**/*.spec.ts",
+    "../../../features/design-viewer/src/test-setup.ts"
   ]
 }

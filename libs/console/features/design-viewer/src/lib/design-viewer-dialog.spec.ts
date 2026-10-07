@@ -159,6 +159,17 @@ describe('DesignViewer', () => {
     swipe(120, 0);
     await settle();
     expect(text('viewer-position')).toBe('1 из 3 · list');
+
+    // A tap on the screen itself zooms it; one beside it does nothing.
+    const img = byTestId<HTMLImageElement>('viewer-screen') as HTMLImageElement;
+    img.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'mouse', clientX: 10, clientY: 10, bubbles: true }));
+    img.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'mouse', clientX: 12, clientY: 11, bubbles: true }));
+    await settle();
+    expect(byTestId('viewer-zoom')?.getAttribute('aria-pressed')).toBe('true');
+    stage.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'mouse', clientX: 10, clientY: 10 }));
+    stage.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'mouse', clientX: 12, clientY: 11 }));
+    await settle();
+    expect(byTestId('viewer-zoom')?.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('zooms with the toggle (aria-pressed) and makes the stage a focusable region; a new screen fits again', async () => {

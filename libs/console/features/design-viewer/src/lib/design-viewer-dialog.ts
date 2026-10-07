@@ -54,6 +54,8 @@ type OriginsState =
 
 /** A horizontal touch move at least this long, and clearly more sideways than down, turns the page. */
 const SWIPE_MIN_PX = 48;
+/** A pointer that moved less than this between down and up is a tap. */
+const TAP_MAX_PX = 8;
 
 let nextViewerId = 0;
 
@@ -129,7 +131,7 @@ export class DesignViewerDialog {
     () => this.data.actions !== null || (this.mode() === 'images' && this.screens().length > 0),
   );
 
-  private swipeStart: { x: number; y: number } | null = null;
+  private swipeStart: { x: number; y: number; isTouch: boolean } | null = null;
 
   constructor() {
     // Both devices drawn: start on the one the owner is holding.
@@ -250,18 +252,29 @@ export class DesignViewerDialog {
   }
 
   protected onPointerDown(event: PointerEvent): void {
-    this.swipeStart = event.pointerType === 'touch' ? { x: event.clientX, y: event.clientY } : null;
+    this.swipeStart = { x: event.clientX, y: event.clientY, isTouch: event.pointerType === 'touch' };
   }
 
+  /**
+   * A tap on the screen itself zooms it (the toolbar toggle is the keyboard's way, spec §6); a sideways touch move
+   * of at least `SWIPE_MIN_PX` turns the page, unless the screen is zoomed and the move scrolls it.
+   */
   protected onPointerUp(event: PointerEvent): void {
     const start = this.swipeStart;
     this.swipeStart = null;
-    if (start === null || this.mode() !== 'images' || this.zoomed()) {
+    if (start === null || this.mode() !== 'images') {
       return;
     }
     const dx = event.clientX - start.x;
     const dy = event.clientY - start.y;
-    if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(dy) * 1.5) {
+    const isTap = Math.abs(dx) < TAP_MAX_PX && Math.abs(dy) < TAP_MAX_PX;
+    if (isTap) {
+      if (event.target instanceof Element && event.target.closest('[data-testid="viewer-screen"]') !== null) {
+        this.toggleZoom();
+      }
+      return;
+    }
+    if (!start.isTouch || this.zoomed() || Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(dy) * 1.5) {
       return;
     }
     if (dx < 0) {
