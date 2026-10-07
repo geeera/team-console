@@ -1,16 +1,18 @@
-import type { Locator, Page } from '@playwright/test';
+import type { APIRequestContext, Locator, Page } from '@playwright/test';
+import type { SprintDto } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { en, ru } from './support/i18n';
 import { seed, type Stack } from './support/stack';
 
 /**
  * The compact board (#275) at 390×844 (iphone) and 1440×900 (desktop), on the mock repository (20 sprint issues,
- * 10 of them done; 4 open PRs, #40 failing; 3 runs seeded per test): the key status is on the first screen, no label wraps, the
- * phone's lists are tabs and its lane switcher one row, every list stops at five rows, and the tiles jump to their
- * list.
+ * 10 of them done, its open pull requests with #40 failing, 3 runs seeded per test): the key status is on the first
+ * screen, no label wraps, the phone's lists are tabs and its lane switcher one row, every list stops at five rows,
+ * and the tiles jump to their list.
  */
 
 const BOARD = '/p/team-console/board';
+const SPRINT = '/api/v1/projects/team-console/sprint';
 const isPhone = (page: Page): boolean => (page.viewportSize()?.width ?? 0) < 900;
 const BOARD_SCOPE = { root: 'main', skip: '' };
 const REPO = 'geeera/team-console';
@@ -18,6 +20,16 @@ const RUN_LOG = 22;
 const MINUTE = 60_000;
 /** «Прогоны 3»: the runs every test seeds. */
 const RUNS_TAB = ru('board.tabs.runs', { n: 3 });
+
+/**
+ * The PR tab's label for the fixture's current open pull request count: other PRs (#176's design review among
+ * them, #293) share this mock repository, so the count must come from the sprint read model rather than a number
+ * fixed in the spec.
+ */
+async function pullsTabLabel(request: APIRequestContext): Promise<string> {
+  const sprint = (await (await request.get(SPRINT)).json()) as SprintDto;
+  return ru('board.tabs.pulls', { n: sprint.openPullRequests.length });
+}
 /** The text stress scroll-regions uses: wider type, as on CI's Linux fonts, must not cut a tile value. */
 const WIDE_TYPE = 'html { letter-spacing: 0.08em; }';
 
@@ -254,6 +266,7 @@ for (const lang of ['ru', 'en'] as const) {
 
 test('the phone: lists are tabs, the lane switcher is one row and opens on the blockers', async ({
   page,
+  request,
 }) => {
   test.skip(!isPhone(page), 'the tabs and the lane switcher are the narrow layout');
   await openBoard(page);
@@ -261,7 +274,7 @@ test('the phone: lists are tabs, the lane switcher is one row and opens on the b
   const tabs = page.getByRole('tablist', { name: ru('board.tabs.label') }).getByRole('tab');
   await expect(tabs).toHaveText([
     ru('board.tabs.tasks', { n: 20 }),
-    ru('board.tabs.pulls', { n: 4 }),
+    await pullsTabLabel(request),
     RUNS_TAB,
   ]);
   await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
@@ -320,7 +333,10 @@ test('a list shows five rows, then «Показать ещё N»', async ({ page
   await expectAccessible(page, 'Done lane expanded');
 });
 
-test('the CI tile shows the PR list, failing first, and moves focus to it', async ({ page }) => {
+test('the CI tile shows the PR list, failing first, and moves focus to it', async ({
+  page,
+  request,
+}) => {
   await openBoard(page);
   const ci = page.getByTestId('ci-stat').getByRole('button', {
     name: ru('board.tile.openAria', {
@@ -334,7 +350,7 @@ test('the CI tile shows the PR list, failing first, and moves focus to it', asyn
   await expect(pulls).toBeVisible();
   if (isPhone(page)) {
     await expect(pulls).toBeFocused();
-    await expect(page.getByRole('tab', { name: ru('board.tabs.pulls', { n: 4 }) })).toHaveAttribute(
+    await expect(page.getByRole('tab', { name: await pullsTabLabel(request) })).toHaveAttribute(
       'aria-selected',
       'true',
     );
@@ -364,17 +380,18 @@ test('the runs tile shows the runs and moves focus to them; «Ждут вас» 
   await expect(page).toHaveURL(/\/p\/team-console\/questions$/);
 });
 
-test('a deep link opens the runs tab, and the phone opens on the last tab next time', async ({ page }) => {
+test('a deep link opens the runs tab, and the phone opens on the last tab next time', async ({
+  page,
+  request,
+}) => {
   test.skip(!isPhone(page), 'tabs are the narrow layout');
+  const pullsTab = await pullsTabLabel(request);
   await openBoard(page, `${BOARD}?tab=runs`);
   await expect(page.getByRole('tab', { name: RUNS_TAB })).toHaveAttribute('aria-selected', 'true');
-  await page.getByRole('tab', { name: ru('board.tabs.pulls', { n: 4 }) }).click();
+  await page.getByRole('tab', { name: pullsTab }).click();
 
   await openBoard(page);
-  await expect(page.getByRole('tab', { name: ru('board.tabs.pulls', { n: 4 }) })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
+  await expect(page.getByRole('tab', { name: pullsTab })).toHaveAttribute('aria-selected', 'true');
 });
 
 /**
