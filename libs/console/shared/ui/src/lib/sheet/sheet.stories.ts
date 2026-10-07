@@ -119,6 +119,51 @@ class LongFormSheetContent {
   }
 }
 
+/**
+ * #277: `size: 'full'` — the frame fills the screen (phone) or the large dialog (Mac); the body does not scroll, the
+ * content lays out as a column and owns the one scroller (here a stage of tall placeholder blocks under a toolbar).
+ */
+@Component({
+  selector: 'tc-story-full-sheet',
+  imports: [Button, SheetFooter, TranslocoPipe],
+  template: `
+    <div style="display: flex; gap: var(--space-2); padding: var(--space-2) var(--space-4); border-bottom: var(--border-w) solid var(--border)">
+      <button tc-button size="sm" type="button" aria-pressed="true">{{ 'stories.sheet.fullToolbarA' | transloco }}</button>
+      <button tc-button size="sm" type="button" aria-pressed="false">{{ 'stories.sheet.fullToolbarB' | transloco }}</button>
+    </div>
+    <div style="flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-4); display: grid; gap: var(--space-3)">
+      @for (block of blocks; track block) {
+        <div style="height: var(--stamp-size); border-radius: var(--r-md); background: var(--skeleton)"></div>
+      }
+    </div>
+    <ng-template tcSheetFooter>
+      <button tc-button variant="primary" type="button" (click)="ref.close()">
+        {{ 'stories.sheet.footerDone' | transloco }}
+      </button>
+    </ng-template>
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+class FullSheetContent {
+  protected readonly ref = inject(DialogRef);
+  protected readonly blocks = Array.from({ length: 12 }, (_, index) => index);
+}
+
+@Component({
+  selector: 'tc-story-full-sheet-host',
+  template: '',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+class FullSheetHost {
+  constructor() {
+    const sheet = inject(Sheet);
+    const transloco = inject(TranslocoService);
+    afterNextRender(() =>
+      sheet.open(FullSheetContent, { title: transloco.translate('stories.sheet.fullTitle'), size: 'full' }),
+    );
+  }
+}
+
 /** Opens the long form as soon as the story renders, so the story shows the shell itself. */
 @Component({
   selector: 'tc-story-long-form-host',
@@ -314,3 +359,11 @@ const longForm: Story = {
 };
 export const LongForm: Story = { ...longForm };
 export const LongFormPhone: Story = { ...longForm, ...phoneViewport };
+
+/** #277: the full-size shell of the design viewer — the large dialog on the Mac, the whole screen on the phone. */
+const full: Story = {
+  decorators: [moduleMetadata({ imports: [FullSheetHost] })],
+  render: () => ({ template: '<tc-story-full-sheet-host />' }),
+};
+export const Full: Story = { ...full };
+export const FullPhone: Story = { ...full, ...phoneViewport };

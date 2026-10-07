@@ -387,6 +387,19 @@ describe('Sheet', () => {
       expect(panel.classList).toContain('tc-dialog-panel');
       expect(panel.classList).toContain('tc-dialog-panel--wide');
     });
+
+    it('gives a full-size dialog its own panel and frame classes, over width (#277)', async () => {
+      sheet.open(Content, { title: 'Design', data: { text: 'x' }, size: 'full', width: 'wide' });
+      await settle();
+      const panel = overlay().querySelector('.cdk-overlay-pane') as HTMLElement;
+      expect(panel.classList).toContain('tc-dialog-panel');
+      expect(panel.classList).toContain('tc-dialog-panel--full');
+      expect(panel.classList).not.toContain('tc-dialog-panel--wide');
+      const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+      expect(dialog.classList).toContain('tc-sheet--full');
+      // The body no longer scrolls, so it is never a tab stop; the content owns the scroller.
+      expect(dialog.querySelector('.tc-sheet__body')?.getAttribute('tabindex')).toBeNull();
+    });
   });
 });
 

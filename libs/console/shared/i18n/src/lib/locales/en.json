@@ -1264,7 +1264,10 @@
       "longBacklog": "Backlog, no sprint",
       "longHint": "The PM moves the issue within the sprint's limits. If there is no room, they say what would have to go.",
       "longSend": "Ask the PM",
-      "longSent": "Request sent"
+      "longSent": "Request sent",
+      "fullTitle": "A design, full screen",
+      "fullToolbarA": "Images",
+      "fullToolbarB": "All screens"
     },
     "tabBar": {
       "aria": "Sections",
