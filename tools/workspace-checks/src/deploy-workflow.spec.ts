@@ -26,4 +26,33 @@ describe('deploy.yml Storybook step', () => {
     expect(workflow).not.toMatch(/build-storybook ui\b/);
     expect(workflow).not.toMatch(/dist\/storybook\/ui\b/);
   });
+
+  /**
+   * Regression guard for #182: PR #175 turned the dev-only Storybook steps on for the first time, and they
+   * ran between the Worker deploys and both smoke checks — a Storybook failure (missing Pages project,
+   * missing Cloudflare Pages permission, a broken build) stopped the job there with `if: success()`, so the
+   * api/hooks Workers that had just gone live on dev were never smoke-checked. The three Storybook steps
+   * must stay after both smoke checks, and none of them may opt out of failing the job.
+   */
+  it('runs both smoke checks before the Storybook steps, none of which use continue-on-error', () => {
+    const workflow = readWorkflow();
+    expect(workflow).not.toMatch(/continue-on-error:/);
+
+    const indexOf = (needle: string): number => {
+      const index = workflow.indexOf(needle);
+      expect(index).toBeGreaterThan(-1);
+      return index;
+    };
+
+    const appSmokeCheck = indexOf('Smoke check — app Worker requires Access or fails closed');
+    const hooksSmokeCheck = indexOf('Smoke check — hooks Worker is reachable');
+    const storybookCheck = indexOf('Check Storybook project exists');
+    const storybookBuild = indexOf('Build Storybook');
+    const storybookDeploy = indexOf('Deploy Storybook');
+
+    expect(appSmokeCheck).toBeLessThan(hooksSmokeCheck);
+    expect(hooksSmokeCheck).toBeLessThan(storybookCheck);
+    expect(storybookCheck).toBeLessThan(storybookBuild);
+    expect(storybookBuild).toBeLessThan(storybookDeploy);
+  });
 });
