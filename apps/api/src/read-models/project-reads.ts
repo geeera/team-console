@@ -308,7 +308,8 @@ export class ProjectReads {
     );
   }
 
-  private openPullRequests(): Promise<PullRequestRecord[]> {
+  /** The open pull requests, newest first (the board, and #277's design ref), shared as `open-pulls`. */
+  openPullRequests(): Promise<PullRequestRecord[]> {
     return this.cached('open-pulls', LIST_TTL_SECONDS, async () => {
       const client = await this.connect();
       const raw = await client.paginate(

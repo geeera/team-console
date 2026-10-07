@@ -68,6 +68,7 @@ export type {
   TreeEntry,
   TreeListing,
 } from './lib/designs/design-files';
+export { IMAGE_MAGIC_LENGTH, imageMediaTypeOf, imageTypeOfBytes } from './lib/designs/image-magic';
 export type { ProjectConfig, ProjectConfigFailure } from './lib/project-config';
 export {
   SPRINT_TIME_ZONE,
