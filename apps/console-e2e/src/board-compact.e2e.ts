@@ -13,6 +13,8 @@ import { seed } from './support/stack';
 const BOARD = '/p/team-console/board';
 const isPhone = (page: Page): boolean => (page.viewportSize()?.width ?? 0) < 900;
 const BOARD_SCOPE = { root: 'main', skip: '' };
+/** «Прогоны N»: the run log is fake-GitHub state other specs edit, so any count. */
+const RUNS_TAB = new RegExp(`^\\s*${ru('board.tabs.runs', { n: 0 }).replace(/0$/, '')}\\d+\\s*$`);
 
 test.beforeEach(async ({ stack }) => {
   requireLocalStack(stack);
@@ -205,7 +207,7 @@ test('the phone: lists are tabs, the lane switcher is one row and opens on the b
   await expect(tabs).toHaveText([
     ru('board.tabs.tasks', { n: 20 }),
     ru('board.tabs.pulls', { n: 4 }),
-    ru('board.tabs.runs', { n: 5 }),
+    RUNS_TAB,
   ]);
   await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
 
@@ -300,10 +302,7 @@ test('the runs tile shows the runs; «Ждут вас» opens the project questi
 test('a deep link opens the runs tab, and the phone opens on the last tab next time', async ({ page }) => {
   test.skip(!isPhone(page), 'tabs are the narrow layout');
   await openBoard(page, `${BOARD}?tab=runs`);
-  await expect(page.getByRole('tab', { name: ru('board.tabs.runs', { n: 5 }) })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
+  await expect(page.getByRole('tab', { name: RUNS_TAB })).toHaveAttribute('aria-selected', 'true');
   await page.getByRole('tab', { name: ru('board.tabs.pulls', { n: 4 }) }).click();
 
   await openBoard(page);
