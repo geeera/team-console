@@ -157,6 +157,10 @@ describe('QuestionCard', () => {
     expect(link.getAttribute('href')).toBe('https://github.com/geeera/team-console/issues/90001');
     expect(link.getAttribute('rel')).toBe('noopener noreferrer');
     expect(link.getAttribute('target')).toBe('_blank');
+    // The external-link pattern: a decorative icon, and the new tab said in words for a screen reader.
+    expect(link.querySelector('tc-icon[data-testid="external-icon"]')?.getAttribute('aria-hidden')).toBe('true');
+    expect(link.querySelector('.tc-sr-only')?.textContent?.trim()).toBe('(откроется в новой вкладке)');
+    expect(link.textContent?.replace(/\s+/g, ' ').trim()).toBe('Открыть #90001 на GitHub (откроется в новой вкладке)');
 
     fixture.componentInstance.item.set(item({ url: null, ask: null, body: null }));
     fixture.componentInstance.showProject.set(false);

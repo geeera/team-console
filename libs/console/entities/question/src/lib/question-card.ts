@@ -12,7 +12,7 @@ import { TranslocoPipe } from '@console/shared/i18n';
 import { Markdown, type RenderedMarkdown } from '@console/shared/markdown';
 import { withoutAskLine } from '@shared/owner-grammar';
 import type { Section, TeamRecommendation } from '@shared/contracts';
-import { Card, CardStamp, Chip, Frame, Recommendation } from '@console/shared/ui';
+import { Card, CardStamp, Chip, Frame, Icon, Recommendation } from '@console/shared/ui';
 import { previewTargetOf } from './preview-target';
 import { askOutcomesOf, plainAskOf, plainDetailsOf, type PlainAsk } from './question-text';
 import { QuestionItem } from './question.model';
@@ -66,7 +66,7 @@ function verbKeyOf(section: Section, recommendation: TeamRecommendation): string
  */
 @Component({
   selector: 'tc-question-card',
-  imports: [Card, Chip, Frame, Markdown, Recommendation, TranslocoPipe],
+  imports: [Card, Chip, Frame, Icon, Markdown, Recommendation, TranslocoPipe],
   template: `
     <tc-card flush [stamp]="stamp()" role="article" [attr.aria-labelledby]="titleId">
       <span tc-card-kind>
@@ -159,9 +159,11 @@ function verbKeyOf(section: Section, recommendation: TeamRecommendation): string
         </details>
       }
       @if (item().url; as url) {
-        <a tc-card-meta class="question__link" [href]="url" target="_blank" rel="noopener noreferrer">{{
-          'questions.openOnGitHub' | transloco: { n: item().number }
-        }}</a>
+        <a tc-card-meta class="question__link" [href]="url" target="_blank" rel="noopener noreferrer"
+          >{{ 'questions.openOnGitHub' | transloco: { n: item().number }
+          }}<span class="tc-sr-only"> {{ 'questions.opensGitHub' | transloco }}</span
+          ><tc-icon name="external" size="sm" data-testid="external-icon"
+        /></a>
       }
     </tc-card>
   `,

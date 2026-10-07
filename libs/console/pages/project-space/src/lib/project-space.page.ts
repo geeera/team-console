@@ -69,6 +69,7 @@ const SECTION_ICONS: Record<SpaceSection, IconName> = {
     class: 'tc-space',
     '[class.tc-space--phone]': 'isPhone()',
     '[class.tc-space--pane]': 'isPaneOpen()',
+    '[class.tc-space--cards]': 'hasCardGrid()',
     '(document:keydown)': 'onKeydown($event)',
   },
 })
@@ -167,5 +168,11 @@ export class ProjectSpacePage {
   protected readonly currentSection = computed<SpaceSection | null>(() => {
     const first = spaceLocationOf(this.url())?.path.split(/[/?#]/, 1)[0];
     return isSpaceSection(first) ? first : null;
+  });
+
+  /** Sections that list decision cards get the wider body, two cards side by side on a Mac (#276). */
+  protected readonly hasCardGrid = computed(() => {
+    const section = this.currentSection();
+    return section === 'questions' || section === 'demo';
   });
 }

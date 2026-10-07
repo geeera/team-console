@@ -195,7 +195,8 @@
     "costMissing": "No cost given — ask the PM",
     "previews": {
       "untrusted": "Preview hidden: someone outside the team created this question. Open it on GitHub if you trust the author."
-    }
+    },
+    "opensGitHub": "(opens in a new tab)"
   },
   "answer": {
     "command": {

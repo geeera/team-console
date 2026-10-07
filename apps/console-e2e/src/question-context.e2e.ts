@@ -111,6 +111,41 @@ for (const path of ['/needs-you', '/p/team-console/questions', '/p/team-console/
   });
 }
 
+for (const path of ['/needs-you', '/p/team-console/questions']) {
+  test(`${path}: two cards side by side on a Mac, one column on the phone`, async ({ page }) => {
+    await page.goto(path);
+    const cards = page.locator('li[data-number]');
+    await expect(cards.first()).toBeVisible();
+    const [first, second] = await Promise.all([cards.nth(0).boundingBox(), cards.nth(1).boundingBox()]);
+    const width = page.viewportSize()?.width ?? 0;
+    if (width >= 1440) {
+      expect(second?.y).toBe(first?.y);
+      expect(second?.x ?? 0).toBeGreaterThan((first?.x ?? 0) + (first?.width ?? 0));
+      for (const box of [first, second]) {
+        expect(box?.width ?? 0).toBeGreaterThanOrEqual(480);
+      }
+    } else {
+      expect(second?.x).toBe(first?.x);
+      expect(second?.y ?? 0).toBeGreaterThan((first?.y ?? 0) + (first?.height ?? 0));
+    }
+    // Nothing sticks out sideways (the #281 scroll-regions rule), with the wider page too.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(
+      true,
+    );
+    await expectAccessible(page, `${path}, card grid`);
+  });
+}
+
+test('the GitHub link reads as external: an icon, and the new tab said in words', async ({ page }) => {
+  await page.goto('/needs-you');
+  const link = card(page, 90004).locator('a.question__link');
+  await expect(link).toHaveAccessibleName(
+    `${ru('questions.openOnGitHub', { n: 90004 })} ${ru('questions.opensGitHub')}`,
+  );
+  await expect(link.getByTestId('external-icon')).toBeVisible();
+  await expect(link).toHaveAttribute('target', '_blank');
+});
+
 test('on the phone, the design card’s answer buttons are in the first screen once the card is at the top', async ({
   page,
 }) => {
