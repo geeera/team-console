@@ -347,7 +347,10 @@
         "hint": "Install it from the project's setup in Settings, then try again."
       }
     },
-    "moveDemo": "Move demo"
+    "moveDemo": "Move demo",
+    "pending": "waiting for the PM",
+    "ask": "Ask the PM",
+    "askAria": "Ask the PM about an issue: pick one"
   },
   "artifacts": {
     "title": "Artifacts",
@@ -498,6 +501,12 @@
       "notAddedLive": "{{repo}} wasn’t added. Nothing was saved.",
       "partial": "Showing the first {{n}}. If the one you need isn’t here, remove ones you don’t need from the app’s installation on GitHub, or add it by name below.",
       "selectLink": "Choose repositories on GitHub",
+      "missing": {
+        "title": "Repository not here?",
+        "body": "The console sees only the repositories the {{app}} app can access. On GitHub choose All repositories or add the ones you need, private ones too. Then come back here. The list refreshes by itself.",
+        "action": "Give the app access on GitHub",
+        "refresh": "Refresh the list"
+      },
       "empty": {
         "title": "The {{app}} app can’t see any repositories yet",
         "body": "Add your product repositories to the app’s installation on GitHub, then come back here. The list refreshes by itself."
@@ -789,7 +798,8 @@
       "team": "Team work",
       "run": "Run now",
       "sprint": "Sprint",
-      "notify": "Notifications"
+      "notify": "Notifications",
+      "issues": "Issues"
     },
     "pause": {
       "title": "Pause development",
@@ -1033,6 +1043,73 @@
         "backFailed": "Couldn’t turn {{name}} notifications back on: the server didn’t answer. Nothing changed.",
         "backOffline": "You’re offline: {{name}} notifications are still snoozed. Nothing changed."
       }
+    },
+    "ask": {
+      "title": "Ask the PM about an issue",
+      "hint": "Another sprint, or higher or lower in the queue. The PM reads it at the next planning run.",
+      "pending": "Waiting for the PM: {{n}}",
+      "btn": "Pick",
+      "aria": "Ask the PM about an issue: pick one"
+    },
+    "pick": {
+      "title": "Which issue is it about?",
+      "find": "Find by number or title",
+      "empty": "No open issues.",
+      "none": "Nothing matches “{{q}}”.",
+      "loading": "Loading issues…",
+      "error": "Couldn't load the issues from GitHub. Try again.",
+      "pending": "waiting for the PM",
+      "applied": "the PM applied it",
+      "declined": "the PM declined"
+    },
+    "request": {
+      "title": "#{{n}} {{title}}",
+      "loading": "Reading the issue from GitHub…",
+      "loadError": "Couldn't read the issue from GitHub. Nothing recorded; try again.",
+      "now": "Now: {{where}}",
+      "backlogWhere": "no sprint (backlog)",
+      "pending": "Already waiting for the PM: {{what}} ({{when}}). A new request replaces it.",
+      "applied": "The PM applied your last request: {{what}}.",
+      "declined": "The PM declined your last request: {{what}}. The reason is on the issue.",
+      "sprint": "Sprint",
+      "cur": "Current: {{sprint}}",
+      "next": "Next: {{sprint}}",
+      "nextNone": "Next: not created yet",
+      "none": "Backlog, no sprint",
+      "here": "(it is here now)",
+      "sprintHint": "The PM moves it within the sprint’s limits. If there is no room, the PM says what would have to move out.",
+      "freeze": "It’s freeze: the PM adds nothing to the current sprint before the demo and answers on the issue.",
+      "prio": "Queue",
+      "up": "Up",
+      "keep": "As is",
+      "down": "Down",
+      "prioHint": "Issues have no priority label; the PM keeps the order within a sprint and moves this one at the next planning run.",
+      "one": "One request at a time: another sprint or a place in the queue. Picking one clears the other. The team sets the tier and bug severity; if one is wrong, tell the PM.",
+      "diffNone": "Pick what to ask for.",
+      "diff": "Request: {{what}}.",
+      "dSprint": "move to {{sprint}}",
+      "dCurrent": "move to the current sprint",
+      "dNext": "move to the next sprint",
+      "dBacklog": "move to the backlog",
+      "dUp": "move up the queue",
+      "dDown": "move down the queue",
+      "owner": "Recorded on the issue as a comment of yours. Only the PM changes the sprint and the order.",
+      "ok": "Send the request",
+      "okNone": "Nothing picked yet",
+      "done": "Request on #{{n}} recorded",
+      "doneDetail": "The PM reads it at the next planning run and answers on the issue.",
+      "donePaused": "Development is paused: the PM reads the request at the first planning run after you resume.",
+      "replayed": "This request was recorded less than a minute ago, so it was not sent again.",
+      "conflict": "The issue changed while this form was open: it is now {{where}}. The values are updated — check them and send again.",
+      "closed": "The issue was closed meanwhile, so there is nothing to ask. Nothing recorded.",
+      "nextMissing": "There is no next sprint yet: start it or pick something else. Nothing recorded.",
+      "noCurrent": "There is no current sprint: pick something else. Nothing recorded.",
+      "notIssue": "This is a pull request, not an issue. Nothing recorded.",
+      "inProgress": "This request is being sent already. Wait a couple of seconds and try again.",
+      "timeout": "GitHub didn't answer, so it's unknown whether the request was recorded. A retry within a minute won't record it twice; later, a new one is recorded and the PM reads the latest.",
+      "open": "Open the issue",
+      "closeBtn": "Close",
+      "reads": "The PM reads the request at the next planning run and answers on the issue: done, or why not."
     }
   },
   "ui": {
@@ -1177,7 +1254,17 @@
       "footerTitle": "Add {{repo}}",
       "footerBody": "Long content scrolls while the actions stay at the bottom: stacked with the primary first on the phone, in a row with the primary on the right in the dialog.",
       "footerDone": "Done",
-      "footerSecondary": "Open setup"
+      "footerSecondary": "Open setup",
+      "longEllipsis": "Long form…",
+      "longTitle": "#36 Web push: subscribe button, iOS guide, tap",
+      "longIntro": "A form taller than the screen: the title and the buttons stay put, only the middle scrolls.",
+      "longSprint": "Sprint",
+      "longCurrent": "Current: Sprint 02",
+      "longNext": "Next: Sprint 03",
+      "longBacklog": "Backlog, no sprint",
+      "longHint": "The PM moves the issue within the sprint's limits. If there is no room, they say what would have to go.",
+      "longSend": "Ask the PM",
+      "longSent": "Request sent"
     },
     "tabBar": {
       "aria": "Sections",

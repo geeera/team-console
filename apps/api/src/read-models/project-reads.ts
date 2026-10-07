@@ -119,6 +119,15 @@ export class ProjectReads {
     });
   }
 
+  /** The open issues (no pull requests) the owner may ask the PM about (#219), newest first; shares `open-issues`. */
+  async requestableIssues(): Promise<{ number: number; title: string }[]> {
+    const issues = await this.openIssues();
+    return issues
+      .filter((issue) => !issue.isPullRequest)
+      .map((issue) => ({ number: issue.number, title: issue.title }))
+      .sort((a, b) => b.number - a.number);
+  }
+
   async questions(): Promise<QuestionsDto> {
     return buildQuestions(await this.openIssues());
   }
@@ -229,7 +238,9 @@ export class ProjectReads {
     const plan = sprintPlanOf(milestones, sprintToday(this.now()), freezeDaysOfFile(file));
     let progress: SprintProgressDto | null = null;
     if (plan.current !== null) {
-      const issues = (await this.milestoneIssues(plan.current.number)).filter((issue) => !issue.isPullRequest);
+      const issues = (await this.milestoneIssues(plan.current.number)).filter(
+        (issue) => !issue.isPullRequest,
+      );
       const summary = sprintSummary(issues);
       progress = { done: summary.shipped, total: summary.planned };
     }

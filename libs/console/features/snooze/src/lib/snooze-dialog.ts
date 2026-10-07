@@ -1,6 +1,15 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { TranslocoPipe } from '@console/shared/i18n';
-import { Button, Callout, Choice, ChoiceGroup, DIALOG_DATA, DialogRef, Icon } from '@console/shared/ui';
+import {
+  Button,
+  Callout,
+  Choice,
+  ChoiceGroup,
+  DIALOG_DATA,
+  DialogRef,
+  Icon,
+  SheetFooter,
+} from '@console/shared/ui';
 import type { SnoozeRequest } from '@shared/contracts';
 import { SNOOZE_OPTIONS, snoozeUntilOf, type SnoozeOption } from './snooze-until';
 
@@ -19,9 +28,9 @@ let nextDialogId = 0;
  */
 @Component({
   selector: 'tc-snooze-dialog',
-  imports: [Button, Callout, Choice, ChoiceGroup, Icon, TranslocoPipe],
+  imports: [Button, Callout, Choice, ChoiceGroup, Icon, SheetFooter, TranslocoPipe],
   template: `
-    <form class="snooze" novalidate (submit)="submit($event)">
+    <form class="snooze" novalidate [id]="id" (submit)="submit($event)">
       <p class="snooze__body" [id]="id + '-body'">{{ 'commands.snooze.dialog.body' | transloco }}</p>
       <fieldset tc-choice-group [legend]="'commands.snooze.dialog.when' | transloco">
         @for (option of options; track option) {
@@ -56,28 +65,30 @@ let nextDialogId = 0;
           <tc-icon name="alert" size="sm" /><span>{{ message }}</span>
         </p>
       }
-      <div class="snooze__actions">
-        <button tc-button type="button" [attr.aria-disabled]="running() ? 'true' : null" (click)="cancel()">
-          {{ 'commands.dialog.cancel' | transloco }}
-        </button>
-        <button
-          tc-button
-          type="submit"
-          variant="primary"
-          data-testid="snooze-ok"
-          [loading]="running()"
-          [attr.aria-disabled]="running() ? 'true' : null"
-        >
-          @if (running()) {
-            {{ 'commands.dialog.sending' | transloco }}
-          } @else if (failure() !== null) {
-            {{ 'commands.dialog.retry' | transloco }}
-          } @else {
-            {{ 'commands.snooze.dialog.ok' | transloco }}
-          }
-        </button>
-      </div>
     </form>
+    <!-- The frame's footer sits outside the form, so the submit button names it (#274). -->
+    <ng-template tcSheetFooter>
+      <button
+        tc-button
+        type="submit"
+        variant="primary"
+        data-testid="snooze-ok"
+        [attr.form]="id"
+        [loading]="running()"
+        [attr.aria-disabled]="running() ? 'true' : null"
+      >
+        @if (running()) {
+          {{ 'commands.dialog.sending' | transloco }}
+        } @else if (failure() !== null) {
+          {{ 'commands.dialog.retry' | transloco }}
+        } @else {
+          {{ 'commands.snooze.dialog.ok' | transloco }}
+        }
+      </button>
+      <button tc-button type="button" [attr.aria-disabled]="running() ? 'true' : null" (click)="cancel()">
+        {{ 'commands.dialog.cancel' | transloco }}
+      </button>
+    </ng-template>
   `,
   styleUrl: './snooze-dialog.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

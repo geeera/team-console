@@ -21,6 +21,7 @@ const ISSUE: SprintIssue = {
   tier: 'heavy',
   kind: 'feature',
   authorTrusted: true,
+  request: null,
 };
 
 const PULL: SprintPullRequest = {
@@ -34,7 +35,10 @@ const PULL: SprintPullRequest = {
 
 describe('SprintItemList', () => {
   async function render(items: readonly SprintListItem[]) {
-    await TestBed.configureTestingModule({ imports: [Host], providers: [provideConsoleI18n()] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [Host],
+      providers: [provideConsoleI18n()],
+    }).compileComponents();
     await TestBed.inject(ApplicationInitStatus).donePromise;
     const fixture = TestBed.createComponent(Host);
     fixture.componentInstance.items.set(items);
@@ -59,7 +63,9 @@ describe('SprintItemList', () => {
     expect(tier.classList.contains('sprint-tier-icon--heavy')).toBe(true);
     expect(tier.querySelector('tc-icon')?.getAttribute('aria-hidden')).toBe('true');
     // The link's name carries the tier; the tooltip only repeats it for sighted users.
-    expect(tier.querySelector('.tc-sr-only')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Сложность: тяжёлая');
+    expect(tier.querySelector('.tc-sr-only')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+      'Сложность: тяжёлая',
+    );
     const tooltip = tier.querySelector('tc-tooltip') as HTMLElement;
     expect(tooltip.getAttribute('aria-hidden')).toBe('true');
     expect(tooltip.textContent?.replace(/\s+/g, ' ').trim()).toBe('Сложность: тяжёлая');
@@ -99,5 +105,14 @@ describe('SprintItemList', () => {
     expect(rows[0]?.querySelector('[tc-row-title]')?.textContent).toContain(title);
     expect(rows[0]?.querySelector('[data-testid="untrusted"]')?.textContent?.trim()).toBe('Не от команды');
     expect((window as unknown as Record<string, unknown>)['__pwned']).toBeUndefined();
+  });
+
+  it('marks an issue whose request waits for the PM, and only while it waits (#219)', async () => {
+    const { rows } = await render([
+      { ...ISSUE, request: { state: 'pending', kind: 'sprint' } },
+      { ...ISSUE, number: 50, request: { state: 'applied', kind: 'sprint' } },
+    ]);
+    expect(rows[0]?.querySelector('[data-testid="request-pending"]')?.textContent?.trim()).toBe('ждёт PM');
+    expect(rows[1]?.querySelector('[data-testid="request-pending"]')).toBeNull();
   });
 });

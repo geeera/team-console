@@ -1,5 +1,5 @@
 import type { LogFields, ProblemInit, WorkerContext } from '@worker/core';
-import { OwnWritesRepo, type OwnWrite } from '@worker/db';
+import { OwnWritesRepo, type OwnWrite, type OwnWriteKind } from '@worker/db';
 import { githubPath, type GitHubClient, type RepoName } from '@worker/github';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
@@ -30,8 +30,10 @@ export interface OwnerAnswerTarget {
   /** `owner/name` as the registry stores it: the key of `own_writes` and the owner check. */
   readonly registered: string;
   readonly number: number;
-  /** The comment, byte for byte (`answerComment`). */
+  /** The comment, byte for byte (`answerComment`, `requestComment`). */
   readonly body: string;
+  /** What `own_writes` records it as: an answer (#10, #220) or an owner request to the PM (#219). */
+  readonly kind: Extract<OwnWriteKind, 'answer' | 'request'>;
 }
 
 export interface OwnerAnswerSteps {
@@ -133,7 +135,7 @@ export async function postOwnerAnswer(
     commentId: comment.id,
     repo: target.registered,
     issueNumber: target.number,
-    kind: 'answer',
+    kind: target.kind,
     bodyHash,
     url: comment.html_url,
     createdAt: new Date(github.now()).toISOString(),

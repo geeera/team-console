@@ -1,6 +1,8 @@
 /*
  * Overlay panes for the kit's sheets and dialogs. They render in the CDK overlay container,
  * outside any component, so their sizing lives here rather than in a component stylesheet.
+ * The frame inside (`tc-sheet-container`) repeats the max height: a percentage of a pane without a
+ * definite height resolves to none, which let a tall form run past the screen (#274).
  */
 .tc-sheet-panel {
   width: 100%;
@@ -9,7 +11,7 @@
 
 .tc-dialog-panel {
   width: min(var(--dialog-max-w), calc(100% - var(--space-8)));
-  max-height: calc(100% - var(--space-8));
+  max-height: var(--dialog-max-h);
 }
 
 .tc-dialog-panel--wide {
@@ -17,21 +19,20 @@
 }
 
 /*
- * The button row at the foot of a sheet or dialog's content: Cancel, then the action, right-aligned; on the phone
- * they stack full width with the action on top, nearest the thumb.
+ * The page behind an open sheet or dialog does not scroll (#274): `Sheet` sets `data-tc-scroll-lock` on the root
+ * while one is open; `SheetScrollLocks` pins the document, and the columns that scroll beside it carry `tc-page-scroll`
+ * (the sidebar, the Commands pane). The gutter stays, so locking does not shift them on classic scrollbars.
  */
-.tc-dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
+.tc-page-scroll {
+  scrollbar-gutter: stable;
 }
 
-@media (max-width: 519.98px) {
-  .tc-dialog-actions {
-    flex-direction: column-reverse;
-  }
+:root[data-tc-scroll-lock] .tc-page-scroll {
+  overflow: hidden;
+}
 
-  .tc-dialog-actions > * {
-    width: 100%;
-  }
+/* A sheet under another one (the Commands sheet under a confirmation) holds still too: only the top body scrolls.
+   Three classes: it must outrank the frame's own scoped `.tc-sheet__body` rule, which loads later. */
+.tc-overlay-covered .tc-sheet .tc-sheet__body {
+  overflow: hidden;
 }

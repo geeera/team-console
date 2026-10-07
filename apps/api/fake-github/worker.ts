@@ -17,7 +17,8 @@ import {
  * owner token for the vendored `runlog` CLI pointed here with PT_GITHUB_API), and POST /_fake/comment (a team entry
  * written earlier into a seeded thread: repo, number, body, author, createdAt and an optional later updatedAt, in ms —
  * the board e2e, #132), POST /_fake/milestones {"repo","milestones":[{title,state,dueOn,number?}]} (the sprint
- * commands, #218; GET /_fake/milestones?repo= reads them back, milestone writes are in the state). Every value here
+ * commands, #218; GET /_fake/milestones?repo= reads them back, milestone writes are in the state), POST /_fake/issue-update
+ * {repo, number, milestone?, state?} (#219: the PM moved or closed the issue meanwhile). Every value here
  * is fake.
  */
 
@@ -75,6 +76,29 @@ function isCommentSeed(value: unknown): value is CommentSeed {
   );
 }
 
+/** #219: the PM moved or closed a seeded issue meanwhile. */
+interface IssueUpdate {
+  readonly repo: string;
+  readonly number: number;
+  readonly milestone?: string | null;
+  readonly state?: 'open' | 'closed';
+}
+
+function isIssueUpdate(value: unknown): value is IssueUpdate {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record['repo'] === 'string' &&
+    typeof record['number'] === 'number' &&
+    (record['milestone'] === undefined ||
+      record['milestone'] === null ||
+      typeof record['milestone'] === 'string') &&
+    (record['state'] === undefined || record['state'] === 'open' || record['state'] === 'closed')
+  );
+}
+
 interface MilestonesSeed {
   readonly repo: string;
   readonly milestones: readonly FakeMilestoneSeed[];
@@ -125,6 +149,17 @@ async function control(server: FakeGitHubOAuth, request: Request, path: string):
   if (path === '/_fake/issue' && isIssueSeed(body)) {
     server.seedIssue(body);
     return json(200, { seeded: `${body.repo}#${body.number}` });
+  }
+  if (path === '/_fake/issue-update' && isIssueUpdate(body)) {
+    try {
+      server.updateIssue(body.repo, body.number, {
+        ...(body.milestone === undefined ? {} : { milestone: body.milestone }),
+        ...(body.state === undefined ? {} : { state: body.state }),
+      });
+      return json(200, { updated: `${body.repo}#${body.number}` });
+    } catch (error: unknown) {
+      return json(404, { message: error instanceof Error ? error.message : 'no such thread' });
+    }
   }
   if (path === '/_fake/milestones' && isMilestonesSeed(body)) {
     server.seedMilestones(body.repo, body.milestones);

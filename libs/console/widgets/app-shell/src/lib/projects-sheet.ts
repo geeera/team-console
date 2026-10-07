@@ -3,12 +3,23 @@ import { Router } from '@angular/router';
 import { ADD_PROJECT_URL, NeedsYouCounts, ProjectsStore } from '@console/entities/project';
 import { ProjectSwitcher } from '@console/features/project-switcher';
 import { LocalNumberPipe, TranslocoPipe } from '@console/shared/i18n';
-import { Button, Chip, DialogRef, Icon, List, ListRow, Sheet, StateBlock } from '@console/shared/ui';
+import { Button, Chip, DialogRef, Icon, List, ListRow, Sheet, SheetFooter, StateBlock } from '@console/shared/ui';
 
 /** The phone's "Projects" sheet: Needs you, the switcher, then Add project (All projects, #194) and Settings. */
 @Component({
   selector: 'tc-projects-sheet',
-  imports: [Button, Chip, Icon, List, ListRow, LocalNumberPipe, ProjectSwitcher, StateBlock, TranslocoPipe],
+  imports: [
+    Button,
+    Chip,
+    Icon,
+    List,
+    ListRow,
+    LocalNumberPipe,
+    ProjectSwitcher,
+    SheetFooter,
+    StateBlock,
+    TranslocoPipe,
+  ],
   templateUrl: './projects-sheet.html',
   styleUrl: './projects-sheet.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

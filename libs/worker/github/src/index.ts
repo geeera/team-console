@@ -18,6 +18,7 @@ export type {
 export {
   GitHubError,
   appNotInstalledForAccountError,
+  githubUnexpectedError,
   mapGitHubResponse,
   ownerMismatchError,
   ownerNotConnectedError,

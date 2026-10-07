@@ -85,6 +85,28 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* #278: the way to a repository GitHub does not list yet; the callout keeps its own body type and rule. */
+.repos__missing p {
+  margin: 0;
+}
+
+.repos__missing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.repos__missing-actions > * {
+  min-height: var(--control-h-touch);
+  /* The kit button keeps its label on one line; this one is long, so it wraps inside the column instead of
+     pushing the page wider than the phone (#281 QA: 372px in a 360px column). */
+  max-width: 100%;
+  padding-block: var(--space-2);
+  white-space: normal;
+  text-align: center;
+}
+
 .repos__more {
   justify-self: start;
   min-height: var(--control-h-touch);
