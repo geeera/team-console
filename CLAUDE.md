@@ -87,7 +87,8 @@ an explicit `lint` target in `project.json`; remove it — `@nx/eslint/plugin` i
 Shared libs that exist: `@console/shared/ui` (Paper Desk kit — tokens in `src/tokens/tokens.css` + `breakpoints.ts`,
 global `src/styles/base.css` and `overlay.css`; primitives `Button`/`IconButton`, `Card` (with the stamp), `Chip`,
 `Field`/`FieldControl`, `Icon`, `List`/`ListRow`, `Sheet` service (bottom sheet on the phone, dialog elsewhere, on the
-CDK dialog; `confirm()`), `Spinner`, `StateBlock`, `Tooltip` (non-interactive, `aria-hidden`), `TopBar`; Storybook in `.storybook/` with theme, motion and language
+CDK dialog; `confirm()`; `size: 'full'` fills the screen / `--sheet-full-w × --sheet-full-h` and hands the scrolling to
+the content, #277), `Spinner`, `StateBlock`, `Tooltip` (non-interactive, `aria-hidden`), `TopBar`; Storybook in `.storybook/` with theme, motion and language
 toolbars: `npx nx storybook console-shared-ui` on :4400, `npx nx build-storybook console-shared-ui` into
 `dist/storybook/console-shared-ui` — the `storybook` contract command), `@console/shared/i18n` (Transloco,
 `ru.json`/`en.json`, `provideConsoleI18n()`), `@console/shared/config` (`APP_CONFIG`), `@console/shared/api`
@@ -186,6 +187,25 @@ in `GET /projects/:slug/embed-origins` (`EmbedOriginsApi`: `design.storybook_url
 sits behind Cloudflare Access, owner decision 2026-10-05 on #188 — and never the request's own origin); the
 sandbox never has `allow-top-navigation`, `referrerpolicy="no-referrer"`, no `allow`. Anything else is a "can't be
 shown here" note with an Open link.
+
+Design viewer (#277, spec §R shared with #276): `GET /api/v1/projects/:slug/designs/:issue` (`routes/designs.ts`,
+`read-models/design-reads.ts`) lists the png/jpeg/webp/gif files (never SVG) under `docs/design/**` whose path has a
+segment starting with `N-`, from one `git/trees/{sha}?recursive=1` read at the head of the open pull request that
+links #N (`linkingPullRequestOf`: `#N` in body/title or a `N-…` branch segment), else the default branch head —
+`DesignManifestDto` in `@shared/contracts`, captions from an optional `screens.json`, ≤ 40 files, images over 5 MB
+listed as `tooLarge`. `…/designs/:issue/:sha/file?path=` serves one listed screen's bytes (`GitHubClient.getBytes`
+on `git/blobs/{sha}` with the installation token, so private repositories work) only after the magic bytes agree
+with the type its name claims, with `nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, `inline` and
+`private, max-age=86400`; 404 for any other path, 413 over the cap (manifest or stream), 415 on a
+mismatch. Pure parts in `@worker/read-models` `lib/designs/` (`designFilesOf`, `designManifestOf`,
+`imageTypeOfBytes`). Mock: `MockRepository.binaryFiles` (base64; `fixtures/design-images.mjs` regenerates them),
+`git/trees`, `git/blobs`, `branches/{name}`. Console: `@console/entities/design` (`DesignManifests` store shared by
+every reader, `DesignPreview` — the first screen as a decorative `<img>` for rows and the #276 cards —,
+`DesignSummary`), `@console/features/design-viewer` (`DesignViewer.open({ slug, issue, title, actions? })` on the
+kit `Sheet` with `size: 'full'`: «Картинки» / «Все экраны» / «Интерактивно», the iPhone/Mac switch, ←/→ and a swipe,
+a zoom toggle; the HTML wireframe is framed only through the embed-origins gate in the kit `Frame`'s `profile="design"`
+— `sandbox="allow-scripts"` alone, never `srcdoc` — else the «нельзя показать» state). Artifacts' design rows
+(`ArtifactDto.number` / `awaitingApproval`) are button rows with the preview and summary projected by the page.
 
 All projects (#27, read-only): `GET /api/v1/overview` (`routes/overview.ts`) builds one row per active project from the
 same cached reads (`buildOverviewRow` in `@worker/read-models`; team state by `team/team-health.ts` from the run log's

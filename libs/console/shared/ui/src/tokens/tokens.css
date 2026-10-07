@@ -108,6 +108,11 @@
   --cards-max: 1064px; /* two such cards, the list gap and the page padding */
   --dialog-max-w: 440px;
   --sheet-dialog-w: 560px; /* a dialog that holds a checklist (#194 Add): 440 px is too narrow for its fix lines */
+  /* The design viewer (#277 spec §3): a large dialog on the Mac, within the viewport; full screen on the phone. */
+  --sheet-full-w: 1200px;
+  --sheet-full-h: 840px;
+  --thumb-size: 56px; /* a design's preview in a list row (#277 spec §3) */
+  --thumb-grid-min: 120px; /* the smallest cell of the viewer's "All screens" grid */
   /* Both fit the visual viewport (dvh follows the iOS toolbars) and stay clear of the notch and home indicator. */
   --sheet-max-h: min(88dvh, calc(100dvh - var(--safe-top) - var(--space-8)));
   --dialog-max-h: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 2 * var(--space-8));

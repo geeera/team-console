@@ -476,6 +476,97 @@
       }
     }
   },
+  "designs": {
+    "row": {
+      "screens": {
+        "one": "{{n}} screen",
+        "few": "{{n}} screens",
+        "many": "{{n}} screens",
+        "other": "{{n}} screens"
+      },
+      "devices": "iPhone and Mac",
+      "device": {
+        "phone": "iPhone",
+        "mac": "Mac"
+      },
+      "htmlOnly": "interactive version only",
+      "none": "no images",
+      "awaiting": "Waiting for your approval",
+      "open": "Open the design",
+      "thumbHtml": "HTML",
+      "thumbNone": "—",
+      "thumbFailed": "?"
+    },
+    "viewer": {
+      "close": "Close the viewer",
+      "loading": "Loading the design…",
+      "mode": {
+        "label": "Mode",
+        "images": "Images",
+        "grid": "All screens",
+        "interactive": "Interactive"
+      },
+      "device": {
+        "label": "Device",
+        "phone": "iPhone",
+        "mac": "Mac"
+      },
+      "prev": "‹ Back",
+      "next": "Next ›",
+      "position": "{{i}} of {{n}} · {{caption}}",
+      "screenAlt": "Screen {{i}} of {{n}}: {{caption}}",
+      "screenLoading": "Loading screen {{i}} of {{n}}",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Fit",
+      "stageLabel": "Design screen",
+      "gridTitle": "All screens",
+      "gridItem": "Screen {{i}}: {{caption}}",
+      "frameTitle": "Interactive version: {{title}}",
+      "openNewTab": "Open in a new tab",
+      "megabytes": "{{n}} MB",
+      "state": {
+        "failed": {
+          "title": "This screen did not load",
+          "hint": "The other screens are available — keep going.",
+          "retry": "Retry"
+        },
+        "tooLarge": {
+          "title": "The file is too large to view ({{size}})",
+          "hint": "The console shows images up to {{max}}.",
+          "open": "Open the file on GitHub"
+        },
+        "noImages": {
+          "title": "This design has no images",
+          "hintInteractive": "Only an interactive version exists.",
+          "hintNone": "The team has not attached screens to this issue yet.",
+          "open": "Open the interactive version"
+        },
+        "noAccess": {
+          "title": "No access to the design files",
+          "hint": "GitHub did not return this repository's files. Check in Settings that the console app can see the repository.",
+          "settings": "Open settings"
+        },
+        "interactiveRefused": {
+          "title": "The interactive version cannot be shown in the console",
+          "hint": "This repository has no allowed GitHub Pages address. The images are under “Images”.",
+          "hintNone": "This design has no interactive version.",
+          "images": "See the images"
+        },
+        "offline": {
+          "title": "No network",
+          "hint": "Screens you already opened are available. The rest load when the network is back."
+        },
+        "rateLimited": {
+          "title": "GitHub asks to wait",
+          "hint": "Retry in a minute."
+        },
+        "unavailable": {
+          "title": "The design could not be loaded",
+          "hint": "GitHub or the console did not answer. Try again."
+        }
+      }
+    }
+  },
   "overview": {
     "title": "All projects",
     "count": {
@@ -1332,7 +1423,10 @@
       "longBacklog": "Backlog, no sprint",
       "longHint": "The PM moves the issue within the sprint's limits. If there is no room, they say what would have to go.",
       "longSend": "Ask the PM",
-      "longSent": "Request sent"
+      "longSent": "Request sent",
+      "fullTitle": "A design, full screen",
+      "fullToolbarA": "Images",
+      "fullToolbarB": "All screens"
     },
     "tabBar": {
       "aria": "Sections",

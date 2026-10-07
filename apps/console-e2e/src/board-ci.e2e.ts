@@ -12,6 +12,8 @@ import { seed } from './support/stack';
 
 const SPRINT = '/api/v1/projects/team-console/sprint';
 const EXPECTED = [
+  // The design pull request of #277's fixtures has no check runs.
+  { number: 176, ci: 'none' },
   { number: 92, ci: 'pending' },
   { number: 91, ci: 'none' },
   { number: 45, ci: 'success' },

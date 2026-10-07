@@ -636,3 +636,72 @@ describe('the installation-list token source (#194, ADR 0003 decision 6 as amend
     expect(tokens.invalidated).toEqual(['ghs_list']);
   });
 });
+
+describe('GitHubClient.getBytes (#277)', () => {
+  const RAW = 'application/vnd.github.raw+json';
+  const BLOB = githubPath`/repos/${REPO}/git/blobs/${'a'.repeat(40)}`;
+  const bytesOf = (text: string) => new TextEncoder().encode(text);
+
+  it('asks with the given accept and the bearer, and returns the body bytes', async () => {
+    const github = scriptedGitHub(() => new Response(bytesOf('PNG!'), { status: 200 }));
+    const client = new GitHubClient(github.fetch, fixedTokens());
+
+    const result = await client.getBytes(BLOB, { accept: RAW, maxBytes: 100 });
+
+    expect(result).toEqual({ kind: 'bytes', bytes: bytesOf('PNG!') });
+    expect(github.calls[0]?.headers.get('accept')).toBe(RAW);
+    expect(github.calls[0]?.headers.get('authorization')).toBe('Bearer ghs_fixed');
+  });
+
+  it('reports too-large from Content-Length and cancels the body unread', async () => {
+    let cancelled = false;
+    // An endless body: only a cancel ends it.
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new Uint8Array(10));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const github = scriptedGitHub(
+      () => new Response(stream, { status: 200, headers: { 'Content-Length': '1000' } }),
+    );
+    const client = new GitHubClient(github.fetch, fixedTokens());
+
+    const result = await client.getBytes(BLOB, { accept: RAW, maxBytes: 100 });
+
+    expect(result).toEqual({ kind: 'too-large' });
+    expect(cancelled).toBe(true);
+  });
+
+  it('stops reading a chunked body one byte past the cap, whatever the headers said', async () => {
+    let pulls = 0;
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        controller.enqueue(new Uint8Array(40));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const github = scriptedGitHub(() => new Response(stream, { status: 200 }));
+    const client = new GitHubClient(github.fetch, fixedTokens());
+
+    const result = await client.getBytes(BLOB, { accept: RAW, maxBytes: 100 });
+
+    expect(result).toEqual({ kind: 'too-large' });
+    expect(cancelled).toBe(true);
+    // 40 + 40 fit; the third chunk crossed the cap and ended the read (the stream may have pulled one ahead).
+    expect(pulls).toBeLessThanOrEqual(4);
+  });
+
+  it('maps a non-2xx answer like every other read', async () => {
+    const github = scriptedGitHub(() => json(404, { message: 'Not Found' }));
+    const client = new GitHubClient(github.fetch, fixedTokens());
+    const error = await rejection(client.getBytes(BLOB, { accept: RAW, maxBytes: 10 }));
+    expect(error.problem.type).toBe('github-not-found');
+  });
+});
