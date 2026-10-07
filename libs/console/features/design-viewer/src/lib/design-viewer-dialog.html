@@ -215,7 +215,14 @@
         @if (screen.tooLarge || hasFailed(screen)) {
         <span class="viewer__cell-blank" aria-hidden="true"></span>
         } @else {
-        <img class="viewer__cell-img" [src]="srcOf(screen)" alt="" loading="lazy" decoding="async" />
+        <img
+          class="viewer__cell-img"
+          [src]="srcOf(screen)"
+          alt=""
+          loading="lazy"
+          decoding="async"
+          (error)="onFailed(screen)"
+        />
         }
         <span class="viewer__cell-caption" aria-hidden="true">{{ i + 1 }}. {{ screen.caption }}</span>
       </button>
