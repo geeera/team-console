@@ -124,7 +124,15 @@
       [stamp]="row.answer !== null ? toneOf(row.answer.command) : null"
       [embedOrigins]="embedOrigins()"
     >
-      @if (row.answer === null) {
+      <!-- #276/#290: only the team's own design items; content is created even where the card would not show it. -->
+      @if (row.item.section === 'design' && row.item.authorTrusted) {
+      <tc-question-design-previews
+        tc-question-previews
+        [slug]="row.item.project.slug"
+        [issue]="row.item.number"
+        (opened)="openDesign(row, $event)"
+      />
+      } @if (row.answer === null) {
       <tc-answer-question
         tc-question-actions
         [item]="row.item"
@@ -157,3 +165,14 @@
   {{ 'needsYou.omitted' | transloco: { names: omittedNames() } }}
 </p>
 } } }
+
+<!-- The card's answers inside the design viewer's footer (#276 §2): the owner can decide without closing it. -->
+<ng-template #viewerActions>
+  @if (viewerItem(); as item) {
+  <tc-answer-question
+    [item]="item"
+    (answered)="onAnsweredInViewer($event)"
+    (refreshRequested)="onRefreshFromViewer()"
+  />
+  }
+</ng-template>

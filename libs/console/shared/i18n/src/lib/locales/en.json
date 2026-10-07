@@ -199,7 +199,12 @@
     "cost": "Cost and risk:",
     "costMissing": "No cost given — ask the PM",
     "previews": {
-      "untrusted": "Preview hidden: someone outside the team created this question. Open it on GitHub if you trust the author."
+      "untrusted": "Preview hidden: someone outside the team created this question. Open it on GitHub if you trust the author.",
+      "label": "Design screens, {{n}}",
+      "thumbAria": "Screen {{i}} of {{n}}: {{caption}}. Open",
+      "all": "All screens ({{n}})",
+      "none": "The team attached no screens to this design. Ask the PM to add them, or open the PR on GitHub.",
+      "failed": "Couldn't load the screens."
     },
     "opensGitHub": "(opens in a new tab)"
   },
