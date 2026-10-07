@@ -1,7 +1,12 @@
 {
   "app": {
     "name": "Консоль команды",
-    "environment": "Окружение:"
+    "environment": "Окружение:",
+    "session": {
+      "expiredTitle": "Сессия истекла — войдите снова",
+      "expiredHint": "Вход проверяет Cloudflare Access. После входа вы вернётесь на эту же страницу.",
+      "signIn": "Войти"
+    }
   },
   "shell": {
     "nav": "Навигация",
@@ -175,7 +180,28 @@
       "github-rate-limit": "GitHub просит подождать",
       "other": "GitHub не ответил"
     },
-    "preview": "Предпросмотр к #{{n}}"
+    "preview": "Предпросмотр к #{{n}}",
+    "onGitHub": "На GitHub:",
+    "recommend": {
+      "approve": "Одобрить.",
+      "approveDesign": "Утвердить.",
+      "reject": "Отклонить.",
+      "go": "Проводить демо.",
+      "no-go": "Перенести демо."
+    },
+    "outcome": {
+      "ifApprove": "Если одобрите",
+      "ifApproveDesign": "Если утвердите",
+      "ifReject": "Если отклоните",
+      "ifGo": "Если проведёте демо",
+      "ifNoGo": "Если перенесёте демо"
+    },
+    "cost": "Цена и риск:",
+    "costMissing": "Цена не указана — спросите PM",
+    "previews": {
+      "untrusted": "Превью скрыто: этот вопрос создала не команда. Откройте его на GitHub, если доверяете автору."
+    },
+    "opensGitHub": "(откроется в новой вкладке)"
   },
   "answer": {
     "command": {

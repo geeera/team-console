@@ -10,25 +10,63 @@ import {
 } from '@angular/core';
 import { TranslocoPipe } from '@console/shared/i18n';
 import { Markdown, type RenderedMarkdown } from '@console/shared/markdown';
-import { Card, CardStamp, Chip, Frame, Recommendation } from '@console/shared/ui';
-import { previewTargetOf } from './preview-target';
 import { withoutAskLine } from '@shared/owner-grammar';
-import { plainAskOf, plainDetailsOf } from './question-text';
+import type { Section, TeamRecommendation } from '@shared/contracts';
+import { Card, CardStamp, Chip, Frame, Icon, Recommendation } from '@console/shared/ui';
+import { previewTargetOf } from './preview-target';
+import { askOutcomesOf, plainAskOf, plainDetailsOf, type PlainAsk } from './question-text';
 import { QuestionItem } from './question.model';
 
 let nextCardId = 0;
 
+interface OutcomeLabels {
+  readonly approve: string;
+  readonly reject: string;
+}
+
+/** The outcome labels per section (#276 copy); action items (`owner`, `local`) have no outcomes. */
+const OUTCOME_LABELS: Readonly<Record<Section, OutcomeLabels | null>> = {
+  design: { approve: 'questions.outcome.ifApproveDesign', reject: 'questions.outcome.ifReject' },
+  question: { approve: 'questions.outcome.ifApprove', reject: 'questions.outcome.ifReject' },
+  release: { approve: 'questions.outcome.ifGo', reject: 'questions.outcome.ifNoGo' },
+  owner: null,
+  local: null,
+};
+
+interface Outcome {
+  readonly key: 'approve' | 'reject';
+  readonly label: string;
+  readonly text: string;
+}
+
 /**
- * One waiting item as a Paper Desk decision card. Every text of the item is untrusted: the title and the
- * recommendation (the answer line in plain words, #204) are interpolated, and the body is plain text with its markup
- * stripped, or — on the Designs and demo screen (#20, with `embedOrigins`) — sanitised markdown plus a preview of
- * the page it links to. An item whose author is not trusted
- * carries a visible mark and stays plain text everywhere, with no links and no preview. The answer controls are projected (`[tc-question-actions]`)
- * — the card itself never acts.
+ * "The team recommends": the recommended answer as a verb and the team's reason (#276), or — for an outsider's
+ * item, or a team item with neither — the answer line in plain words (#204).
+ */
+type Advice =
+  | { readonly kind: 'verdict'; readonly verbKey: string | null; readonly why: string | null }
+  | { readonly kind: 'ask'; readonly ask: PlainAsk };
+
+function verbKeyOf(section: Section, recommendation: TeamRecommendation): string {
+  const verb = recommendation === 'approve' && section === 'design' ? 'approveDesign' : recommendation;
+  return `questions.recommend.${verb}`;
+}
+
+/**
+ * One waiting item as a Paper Desk decision card, read top to bottom (#276): the title (the team's ru summary, with
+ * the GitHub title as one muted line), the question, what the team recommends and why, the design previews, what
+ * each answer leads to, the cost and risk, the answer controls, then the details and the GitHub link.
+ *
+ * Every text of the item is untrusted and only interpolated. The context fields come from the server as bounded
+ * plain text and only for the team's own items; an outsider's item carries a visible mark, shows no outcomes and no
+ * previews, and stays plain text everywhere. On the Designs and demo screen (#20, with `embedOrigins`) the body is
+ * sanitised markdown plus a preview of the page it links to. The answer line itself is never shown. The answer
+ * controls (`[tc-question-actions]`) and the design previews (`[tc-question-previews]`, #277) are projected — the
+ * card itself never acts.
  */
 @Component({
   selector: 'tc-question-card',
-  imports: [Card, Chip, Frame, Markdown, Recommendation, TranslocoPipe],
+  imports: [Card, Chip, Frame, Icon, Markdown, Recommendation, TranslocoPipe],
   template: `
     <tc-card flush [stamp]="stamp()" role="article" [attr.aria-labelledby]="titleId">
       <span tc-card-kind>
@@ -38,19 +76,43 @@ let nextCardId = 0;
         {{ 'questions.section.' + item().section | transloco }}
       </span>
       <span tc-card-number>#{{ item().number }}</span>
-      <h2 tc-card-title [id]="titleId" tabindex="-1">{{ item().title }}</h2>
+      <h2 tc-card-title [id]="titleId" tabindex="-1">{{ summary() ?? item().title }}</h2>
+      @if (summary() !== null) {
+        <p class="question__github-title" data-testid="github-title">
+          {{ 'questions.onGitHub' | transloco }} {{ item().title }}
+        </p>
+      }
       @if (!item().authorTrusted) {
         <p class="question__untrusted" data-testid="untrusted">
           <tc-chip tone="warning" dot>{{ 'questions.untrusted' | transloco }}</tc-chip>
           <span>{{ 'questions.untrustedHint' | transloco }}</span>
         </p>
       }
-      @if (recommendation(); as recommendation) {
-        <tc-recommendation [label]="'questions.recommends' | transloco" data-testid="recommendation">{{
-          recommendation.kind === 'text'
-            ? recommendation.text
-            : ('answer.command.' + recommendation.command | transloco)
-        }}</tc-recommendation>
+      @if (question(); as question) {
+        <p class="question__ask" data-testid="question-text">{{ question }}</p>
+      }
+      @if (advice(); as advice) {
+        <tc-recommendation [label]="'questions.recommends' | transloco" data-testid="recommendation">
+          @if (advice.kind === 'verdict') {
+            @if (advice.verbKey; as verbKey) {
+              {{ verbKey | transloco }}
+            }
+            {{ advice.why }}
+          } @else if (advice.ask.kind === 'text') {
+            {{ advice.ask.text }}
+          } @else {
+            {{ 'answer.command.' + advice.ask.command | transloco }}
+          }
+        </tc-recommendation>
+      }
+      @if (item().section === 'design') {
+        @if (item().authorTrusted) {
+          <ng-content select="[tc-question-previews]" />
+        } @else {
+          <p class="question__note" data-testid="previews-untrusted">
+            {{ 'questions.previews.untrusted' | transloco }}
+          </p>
+        }
       }
       @if (preview(); as preview) {
         <tc-frame
@@ -61,6 +123,26 @@ let nextCardId = 0;
           [title]="'questions.preview' | transloco: { n: item().number }"
         />
       }
+      @if (outcomes().length > 0) {
+        <dl class="question__outcomes" data-testid="outcomes">
+          @for (outcome of outcomes(); track outcome.key) {
+            <div class="question__outcome" [attr.data-outcome]="outcome.key">
+              <dt>{{ outcome.label | transloco }}</dt>
+              <dd>{{ outcome.text }}</dd>
+            </div>
+          }
+        </dl>
+      }
+      @if (cost(); as cost) {
+        <p class="question__cost" data-testid="cost">
+          @if (cost.text; as text) {
+            <strong>{{ 'questions.cost' | transloco }}</strong> {{ text }}
+          } @else {
+            {{ 'questions.costMissing' | transloco }}
+          }
+        </p>
+      }
+      <ng-content select="[tc-question-actions]" />
       @if (details(); as details) {
         <details class="question__details" [open]="embedOrigins() !== null">
           <summary>{{ 'questions.details' | transloco }}</summary>
@@ -76,11 +158,12 @@ let nextCardId = 0;
           }
         </details>
       }
-      <ng-content select="[tc-question-actions]" />
       @if (item().url; as url) {
-        <a tc-card-meta class="question__link" [href]="url" target="_blank" rel="noopener noreferrer">{{
-          'questions.openOnGitHub' | transloco: { n: item().number }
-        }}</a>
+        <a tc-card-meta class="question__link" [href]="url" target="_blank" rel="noopener noreferrer"
+          >{{ 'questions.openOnGitHub' | transloco: { n: item().number }
+          }}<span class="tc-sr-only"> {{ 'questions.opensGitHub' | transloco }}</span
+          ><tc-icon name="external" size="sm" data-testid="external-icon"
+        /></a>
       }
     </tc-card>
   `,
@@ -101,21 +184,73 @@ export class QuestionCard {
   readonly embedOrigins = input<readonly string[] | null>(null);
 
   private readonly ownOrigin = inject(DOCUMENT).location.origin;
+  /** The server sends context only for the team's own items; the card does not take that on trust. */
+  private readonly context = computed(() => (this.item().authorTrusted ? this.item().context : null));
   /** Markdown and a preview only on the Designs and demo screen, and only for the team's own items. */
   protected readonly isRich = computed(() => this.embedOrigins() !== null && this.item().authorTrusted);
-  protected readonly recommendation = computed(() => plainAskOf(this.item().ask));
+  protected readonly summary = computed(() => this.context()?.summary ?? null);
+  protected readonly question = computed(() => this.context()?.question ?? null);
+
   /**
-   * The body under "Details": as it is on the Designs and demo screen (#20 renders it or shows it verbatim), without
-   * the answer line and markup everywhere else; `null` hides the disclosure when nothing is left to read.
+   * Both outcomes from the body's sections; for a body without any (`structured: false`, older questions), from the
+   * answer line's options, their commands stripped (#276 fallback).
+   */
+  protected readonly outcomes = computed((): readonly Outcome[] => {
+    const item = this.item();
+    const labels = OUTCOME_LABELS[item.section];
+    if (labels === null || !item.authorTrusted) {
+      return [];
+    }
+    const context = this.context();
+    const texts = context?.structured === true ? context : askOutcomesOf(item.ask);
+    const outcomes: Outcome[] = [];
+    if (texts.ifApproved !== null) {
+      outcomes.push({ key: 'approve', label: labels.approve, text: texts.ifApproved });
+    }
+    if (texts.ifRejected !== null) {
+      outcomes.push({ key: 'reject', label: labels.reject, text: texts.ifRejected });
+    }
+    return outcomes;
+  });
+
+  protected readonly advice = computed((): Advice | null => {
+    const item = this.item();
+    if (item.authorTrusted) {
+      const why = this.context()?.why ?? null;
+      if (item.recommendation !== null || why !== null) {
+        const verbKey = item.recommendation === null ? null : verbKeyOf(item.section, item.recommendation);
+        return { kind: 'verdict', verbKey, why };
+      }
+      // The outcomes already name each option; without a marked one there is nothing more to recommend.
+      if (this.outcomes().length > 0) {
+        return null;
+      }
+    }
+    const ask = plainAskOf(item.ask);
+    return ask === null ? null : { kind: 'ask', ask };
+  });
+
+  /** The cost line; for a money decision without one, a prompt to ask the PM (#276). */
+  protected readonly cost = computed((): { readonly text: string | null } | null => {
+    const item = this.item();
+    if (!item.authorTrusted) {
+      return null;
+    }
+    const text = this.context()?.costAndRisk ?? null;
+    return text !== null || item.category === 'money' ? { text } : null;
+  });
+
+  /**
+   * The body under "Details", never with the answer line: as markdown on the Designs and demo screen (#20), without
+   * markup everywhere else; `null` hides the disclosure when nothing is left to read.
    */
   protected readonly details = computed(() => {
     const body = this.item().body;
     if (body === null) {
       return null;
     }
-    // The answer line is the recommendation above, never raw text with its commands (#275 §7.11).
-    const text = this.embedOrigins() === null ? plainDetailsOf(body) : withoutAskLine(body);
-    return text.trim() === '' ? null : text;
+    const text = this.embedOrigins() === null ? plainDetailsOf(body) : withoutAskLine(body).trim();
+    return text === '' ? null : text;
   });
   /** The links of the rendered body; reset whenever the body changes, until it has rendered again. */
   private readonly links = linkedSignal<string | null, readonly string[]>({

@@ -104,6 +104,8 @@
   --board-side-w: 320px; /* #275: the board's PR and runs column between 900 and 1279 px */
   --stat-min-w: 9rem; /* a status tile; rem, so 200% text drops a column instead of clipping */
   --lane-cell-h: 48px; /* a cell of the phone's one-row lane switcher, label above count */
+  --card-min-w: 480px; /* a decision card in a grid of cards (#276): the outcome boxes still fit side by side */
+  --cards-max: 1064px; /* two such cards, the list gap and the page padding */
   --dialog-max-w: 440px;
   --sheet-dialog-w: 560px; /* a dialog that holds a checklist (#194 Add): 440 px is too narrow for its fix lines */
   /* Both fit the visual viewport (dvh follows the iOS toolbars) and stay clear of the notch and home indicator. */
