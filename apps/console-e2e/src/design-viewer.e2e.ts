@@ -119,8 +119,10 @@ test('a design row shows its thumbnail and summary, and the viewer opens on the 
     await expect(deviceButton(page, 'phone')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByTestId('viewer-position')).toHaveText('1 из 5 · Список дизайнов');
   } else {
+    // The large dialog: 1200 wide, 840 tall or as tall as the viewport allows (spec §2, within dvh).
     expect(box?.width).toBe(1200);
-    expect(box?.height).toBe(840);
+    expect(box?.height).toBeGreaterThan(780);
+    expect(box?.height).toBeLessThanOrEqual(840);
     await expect(deviceButton(page, 'mac')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByTestId('viewer-position')).toHaveText('1 из 2 · Список дизайнов (Mac)');
   }
@@ -176,7 +178,6 @@ test('the buttons, the arrow keys and a swipe move one screen; the position is a
   await expect(zoom).toHaveAttribute('aria-pressed', 'false');
 
   // The last phone screen is a PNG whose bytes are a GIF: the api refuses it and the viewer says so.
-  await page.keyboard.press('End');
   for (let step = 0; step < 3; step += 1) {
     await page.keyboard.press('ArrowRight');
   }

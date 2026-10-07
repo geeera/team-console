@@ -118,14 +118,18 @@ export class DesignViewerDialog {
   protected readonly current = computed<DesignScreen | null>(() => this.screens()[this.index()] ?? null);
   protected readonly isFirst = computed(() => this.index() <= 0);
   protected readonly isLast = computed(() => this.index() >= this.screens().length - 1);
+  /** The project's embed origins once read; empty until then, so nothing is framed early. */
+  protected readonly allowedOrigins = computed<readonly string[]>(() => {
+    const origins = this.origins();
+    return origins.kind === 'ready' ? origins.origins : [];
+  });
   /** The wireframe's frame source when the project allows that origin (#20 gate); `null` says "cannot be shown". */
   protected readonly frameSrc = computed(() => {
     const interactive = this.manifest()?.interactive ?? null;
-    const origins = this.origins();
-    if (interactive === null || origins.kind !== 'ready') {
+    if (interactive === null || this.origins().kind !== 'ready') {
       return null;
     }
-    return frameSrcOf(interactive.url, origins.origins, this.ownOrigin);
+    return frameSrcOf(interactive.url, this.allowedOrigins(), this.ownOrigin);
   });
   protected readonly hasFooter = computed(
     () => this.data.actions !== null || (this.mode() === 'images' && this.screens().length > 0),

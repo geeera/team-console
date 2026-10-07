@@ -230,7 +230,7 @@
     fill
     data-testid="viewer-frame"
     [src]="interactive.url"
-    [allowedOrigins]="origins().kind === 'ready' ? $any(origins()).origins : []"
+    [allowedOrigins]="allowedOrigins()"
     [title]="'designs.viewer.frameTitle' | transloco: { title: data.title }"
   />
   } @else {
