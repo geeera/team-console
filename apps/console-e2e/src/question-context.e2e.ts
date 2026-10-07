@@ -60,8 +60,10 @@ test('a team question shows each section in its slot, in order, as text', async 
   );
   expect(tops).toEqual([...tops].sort((a, b) => a - b));
 
-  // The hostile tag in a section never became an element, nor visible markup.
-  await expect(design.locator('img')).toHaveCount(0);
+  // The hostile tag in a section never became an element, nor visible markup; the only images are the design's
+  // previews from the file route (#290).
+  await expect(design.locator('img:not([data-testid="design-thumb"])')).toHaveCount(0);
+  await expect(design.locator('[onerror]')).toHaveCount(0);
   await expect(design).not.toContainText('onerror');
   expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
   await expectAccessible(page, 'Needs you, question with context');
