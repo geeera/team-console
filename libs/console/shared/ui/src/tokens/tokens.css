@@ -105,6 +105,8 @@
   /* The design viewer (#277 spec §3): a large dialog on the Mac, within the viewport; full screen on the phone. */
   --sheet-full-w: 1200px;
   --sheet-full-h: 840px;
+  --thumb-size: 56px; /* a design's preview in a list row (#277 spec §3) */
+  --thumb-grid-min: 120px; /* the smallest cell of the viewer's "All screens" grid */
   /* Both fit the visual viewport (dvh follows the iOS toolbars) and stay clear of the notch and home indicator. */
   --sheet-max-h: min(88dvh, calc(100dvh - var(--safe-top) - var(--space-8)));
   --dialog-max-h: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 2 * var(--space-8));

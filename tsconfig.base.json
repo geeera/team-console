@@ -75,7 +75,9 @@
       ],
       "@console/widgets/github-repositories": ["./libs/console/widgets/github-repositories/src/index.ts"],
       "@console/features/sprint-controls": ["./libs/console/features/sprint-controls/src/index.ts"],
-      "@console/features/request-change": ["./libs/console/features/request-change/src/index.ts"]
+      "@console/features/request-change": ["./libs/console/features/request-change/src/index.ts"],
+      "@console/entities/design": ["./libs/console/entities/design/src/index.ts"],
+      "@console/features/design-viewer": ["./libs/console/features/design-viewer/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]
