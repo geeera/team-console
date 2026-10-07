@@ -246,7 +246,7 @@
     }
   },
   "board": {
-    "loading": "Loading the sprint…",
+    "loading": "Loading the board…",
     "demo": "Demo {{date}}",
     "demoToday": "Demo today, {{date}}",
     "demoIn": {
@@ -261,7 +261,17 @@
       "stillOpen": "Still open",
       "openPrs": "Open PRs",
       "ci": "CI",
-      "runs": "Run log"
+      "runs": "Run log",
+      "doneSub": "{{n}} still open",
+      "waiting": "Waiting for you",
+      "waitingValue": {
+        "one": "{{n}} question",
+        "few": "{{n}} questions",
+        "many": "{{n}} questions",
+        "other": "{{n}} questions"
+      },
+      "waitingNone": "Nothing",
+      "waitingUnknown": "Loading…"
     },
     "lanes": "Sprint issues by status",
     "status": {
@@ -291,10 +301,15 @@
         "unknown": "CI unknown"
       },
       "summary": {
-        "failure": "Failing: {{n}}",
+        "failure": {
+          "one": "{{n}} PR failed",
+          "few": "{{n}} PRs failed",
+          "many": "{{n}} PRs failed",
+          "other": "{{n}} PRs failed"
+        },
         "pending": "Running: {{n}}",
-        "unknown": "Unknown: {{n}}",
-        "success": "Passing: {{n}}",
+        "unknown": "Didn't load",
+        "success": "All green",
         "none": "No checks",
         "empty": "No open PRs"
       }
@@ -322,12 +337,12 @@
       "unavailableHint": "The run log couldn't be read, or someone outside the team opened it. Reload the board later, or check the run log in the Commands panel."
     },
     "opensGitHub": "(opens on GitHub)",
-    "pulls": "Open pull requests",
+    "pulls": "Open PRs",
     "pullsEmpty": "No open pull requests",
-    "emptyTitle": "Nothing planned in {{sprint}} yet",
-    "emptyHint": "Issues show up here once the PM adds them to the sprint's milestone.",
-    "noSprintTitle": "No current sprint",
-    "noSprintHint": "No open milestone has a demo date today or later. The PM plans the next sprint.",
+    "emptyTitle": "No issues in {{sprint}} yet",
+    "emptyHint": "The PM adds them at planning.",
+    "noSprintTitle": "No active sprint",
+    "noSprintHint": "The PM creates one at the next planning. PRs and runs are below.",
     "error": {
       "unavailable": {
         "title": "Couldn't load the board",
@@ -350,7 +365,28 @@
     "moveDemo": "Move demo",
     "pending": "waiting for the PM",
     "ask": "Ask the PM",
-    "askAria": "Ask the PM about an issue: pick one"
+    "askAria": "Ask the PM about an issue: pick one",
+    "tabs": {
+      "label": "Board sections",
+      "tasks": "Issues {{n}}",
+      "pulls": "PRs {{n}}",
+      "runs": "Runs {{n}}"
+    },
+    "tile": {
+      "openAria": "{{label}}: {{value}}. Open {{target}}",
+      "target": {
+        "pulls": "PRs",
+        "runs": "runs",
+        "questions": "questions"
+      }
+    },
+    "more": "Show {{n}} more",
+    "less": "Show less",
+    "lane": {
+      "showDone": "Show",
+      "showDoneAria": "Show issues: {{lane}}, {{n}}"
+    },
+    "pullsAll": "All {{n}} PRs"
   },
   "artifacts": {
     "title": "Artifacts",
@@ -539,6 +575,12 @@
     "empty": {
       "title": "No projects yet",
       "body": "Pick a repository under “Available on GitHub” below and it appears here."
+    },
+    "waiting": {
+      "one": "{{n}} waiting for you",
+      "few": "{{n}} waiting for you",
+      "many": "{{n}} waiting for you",
+      "other": "{{n}} waiting for you"
     }
   },
   "settings": {
@@ -1333,7 +1375,10 @@
       "feed": "Infinite story feed",
       "light": "light",
       "standard": "standard",
-      "heavy": "heavy"
+      "heavy": "heavy",
+      "approved": "Approved",
+      "blocked": "Blocked",
+      "show": "Show"
     },
     "tooltip": {
       "list": "Issues",
@@ -1347,7 +1392,17 @@
       "ci": "CI · main",
       "green": "green",
       "runs": "Run log",
-      "failed": "2 failed runs"
+      "failed": "2 failed runs",
+      "stillOpen": "6 still open",
+      "ciAction": "CI: 1 PR failed. Open PRs",
+      "ciFailed": "1 PR failed",
+      "runsAction": "Run log: running. Open runs",
+      "running": "Running",
+      "waiting": "Waiting for you",
+      "waitingAction": "Waiting for you: 9 questions. Open questions",
+      "waitingValue": "9 questions",
+      "long": "A long value",
+      "longValue": "A value that does not fit its tile"
     },
     "banner": {
       "owner": "storify is paused since 13:52. Scheduled runs exit at once.",
@@ -1380,6 +1435,22 @@
       "forever": "Until I turn them back on",
       "urgent": "Still send urgent ones",
       "urgentHint": "The team paused itself, a release decision is needed."
+    },
+    "tabs": {
+      "aria": "Board sections",
+      "tasks": "Issues 20",
+      "pulls": "PRs 4",
+      "runs": "Runs 5",
+      "dialogs": "Dialogs fit the screen",
+      "questions": "Questions: more context",
+      "requests": "Owner's requests to the PM",
+      "bundle": "Initial bundle under 500 kB",
+      "dev": "Development",
+      "heavy": "heavy",
+      "standard": "standard",
+      "ciFailed": "CI failed",
+      "ciRunning": "CI running",
+      "finished": "Finished"
     }
   },
   "review": {

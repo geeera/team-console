@@ -1,5 +1,7 @@
 :host {
+  position: relative;
   display: grid;
+  align-content: start;
   gap: var(--space-1);
   min-width: 0;
   padding: var(--space-2) var(--space-3);
@@ -8,25 +10,101 @@
   background: var(--surface);
 }
 
+/* Label, value and sub line keep one line each: the grid drops a column before anything wraps (#275). */
+.tc-stat__label,
+.tc-stat__text,
+.tc-stat__sub {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tc-stat__label {
   font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
 .tc-stat__value {
+  display: grid;
+  gap: var(--space-px);
+  min-width: 0;
   margin: 0;
   font-size: var(--fs-md);
   font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
   line-height: var(--lh-tight);
   color: var(--text);
-  overflow-wrap: anywhere;
 }
 
-:host(.tc-stat--success) .tc-stat__value {
+.tc-stat__text {
+  display: block;
+}
+
+.tc-stat__sub {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-regular);
+  color: var(--text-2);
+}
+
+:host(.tc-stat--success) .tc-stat__text {
   color: var(--success-text);
 }
 
-:host(.tc-stat--danger) .tc-stat__value {
+:host(.tc-stat--danger) .tc-stat__text {
   color: var(--danger-text);
+}
+
+/* A tile that acts: its button's hit area is the whole tile, its focus ring the tile's outline. */
+:host(.tc-stat--action) {
+  border-color: var(--border-strong);
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+:host(.tc-stat--action:hover) {
+  background: var(--surface-2);
+}
+
+:host(.tc-stat--action:active) {
+  background: var(--bg-sunken);
+}
+
+:host(.tc-stat--action:has(.tc-stat__action:focus-visible)) {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+.tc-stat__action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tc-stat__action::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.tc-stat__action:focus-visible {
+  outline: none;
+}
+
+.tc-stat__action .tc-stat__text {
+  flex: 0 1 auto;
+}
+
+.tc-stat__chevron {
+  flex: none;
+  color: var(--text-3);
 }

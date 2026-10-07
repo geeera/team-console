@@ -62,6 +62,10 @@
   padding: var(--space-4) var(--pad-x) var(--space-8);
 }
 
+.space__body--wide {
+  max-width: var(--board-max);
+}
+
 :host(.tc-space--phone) .space__body {
   padding: var(--space-3) var(--space-4) var(--space-6);
 }

@@ -4,32 +4,33 @@
   gap: var(--space-5);
 }
 
-/* The phone's lane switcher: every lane is a pill, wrapping onto more rows rather than hiding off-screen. */
 :host(.tc-lanes--tabbed) {
   gap: var(--space-3);
 }
 
-.tc-lanes__tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
+/* The narrow screen's lane switcher: one row of equal cells, whatever the number of lanes (#275 §3). */
+.tc-lanes__switch {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: var(--space-1);
 }
 
-.tc-lanes__tab {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  max-width: 100%;
-  min-height: var(--control-h-touch);
-  padding: 0 var(--space-3);
+.tc-lanes__cell {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-px);
+  min-width: 0;
+  min-height: var(--lane-cell-h);
+  padding: var(--space-1);
   border: var(--border-w) solid var(--border);
-  border-radius: var(--r-pill);
+  border-radius: var(--r-md);
   background: var(--surface);
   color: var(--text);
   font: inherit;
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-semibold);
-  text-align: left;
+  line-height: var(--lh-tight);
+  text-align: center;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition:
@@ -38,39 +39,52 @@
     border-color var(--dur-fast) var(--ease-standard);
 }
 
-/* An unknown status label from GitHub can be long: it wraps inside its pill. */
-.tc-lanes__tab-name {
-  min-width: 0;
-  overflow-wrap: anywhere;
+/* A name too long for its cell (an unknown status label from GitHub) ends in an ellipsis; the button keeps it whole. */
+.tc-lanes__cell-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.tc-lanes__tab-count {
-  font-weight: var(--fw-regular);
+.tc-lanes__cell-count {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
+}
+
+/* Nothing in it: dimmed, still a button that shows its empty lane. */
+.tc-lanes__cell--empty {
   color: var(--text-3);
 }
 
-.tc-lanes__tab:hover {
+.tc-lanes__cell:hover {
   border-color: var(--border-strong);
 }
 
-.tc-lanes__tab:active {
+.tc-lanes__cell:active {
   background: var(--bg-sunken);
 }
 
 /* Ink-filled like the Paper Desk segmented controls. */
-.tc-lanes__tab[aria-selected='true'] {
+.tc-lanes__cell[aria-pressed='true'] {
   border-color: var(--text);
   background: var(--text);
   color: var(--bg);
 }
 
-.tc-lanes__tab[aria-selected='true'] .tc-lanes__tab-count {
-  color: inherit;
-  opacity: 0.72;
-}
-
-.tc-lanes__tab:focus-visible {
+.tc-lanes__cell:focus-visible {
   outline: var(--focus-w) solid var(--focus);
   outline-offset: var(--focus-offset);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tc-lanes__cell {
+    transition: none;
+  }
+}
+
+:host-context(:root[data-motion='reduce']) .tc-lanes__cell {
+  transition: none;
 }

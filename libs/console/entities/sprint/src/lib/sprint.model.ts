@@ -80,6 +80,14 @@ export function ciSummaryOf(pulls: readonly SprintPullRequest[]): SprintCiSummar
   return { state: 'empty', count: 0 };
 }
 
+/** The PR list's order (#275 §3): failing first, then running, not read, no checks, passed. */
+const PULL_ORDER: readonly SprintCiState[] = ['failure', 'pending', 'unknown', 'none', 'success'];
+
+/** Open pull requests in `PULL_ORDER`, newest (highest number) first within a state; the input is left as it is. */
+export function pullsByUrgency(pulls: readonly SprintPullRequest[]): SprintPullRequest[] {
+  return [...pulls].sort((a, b) => PULL_ORDER.indexOf(a.ci) - PULL_ORDER.indexOf(b.ci) || b.number - a.number);
+}
+
 /** One of the team's latest runs (#132); `slotName` is team text from the run log, shown as plain text only. */
 export interface SprintRun {
   readonly slot: TeamSlot | null;

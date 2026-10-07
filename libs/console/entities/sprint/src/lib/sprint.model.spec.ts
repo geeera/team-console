@@ -6,6 +6,7 @@ import {
   demoDayOf,
   isSprintDto,
   NO_STATUS,
+  pullsByUrgency,
   SprintIssue,
   SprintPullRequest,
   sprintBoardOf,
@@ -175,6 +176,28 @@ describe('ciSummaryOf (#131)', () => {
 
   it('is empty without an open pull request', () => {
     expect(ciSummaryOf([])).toEqual({ state: 'empty', count: 0 });
+  });
+});
+
+describe('pullsByUrgency (#275)', () => {
+  const pr = (number: number, ci: SprintPullRequest['ci']): SprintPullRequest => ({
+    number,
+    title: `PR ${number}`,
+    url: null,
+    draft: false,
+    authorTrusted: true,
+    ci,
+  });
+
+  it('lists failing first, then running, unread, without checks and passed; newest first within a state', () => {
+    const pulls = [pr(45, 'success'), pr(91, 'none'), pr(92, 'pending'), pr(40, 'failure'), pr(93, 'unknown'), pr(50, 'failure')];
+    expect(pullsByUrgency(pulls).map((pull) => pull.number)).toEqual([50, 40, 92, 93, 91, 45]);
+  });
+
+  it('leaves the list it was given in its order', () => {
+    const pulls = [pr(1, 'success'), pr(2, 'failure')];
+    pullsByUrgency(pulls);
+    expect(pulls.map((pull) => pull.number)).toEqual([1, 2]);
   });
 });
 
