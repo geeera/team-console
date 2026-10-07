@@ -14,7 +14,10 @@ test.describe('service worker and the Access callback', () => {
   // The suite blocks service workers (playwright.config.ts); this one is about what the worker does.
   test.use({ serviceWorkers: 'allow' });
 
-  test('leaves a /cdn-cgi/ navigation to the network instead of serving the app shell', async ({ page, context }) => {
+  test('leaves a /cdn-cgi/ navigation to the network instead of serving the app shell', async ({
+    page,
+    context,
+  }) => {
     await page.goto('/overview');
     await page.evaluate(async () => {
       await navigator.serviceWorker.ready;
