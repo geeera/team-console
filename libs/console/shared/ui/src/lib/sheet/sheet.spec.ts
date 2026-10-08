@@ -62,6 +62,18 @@ describe('Sheet', () => {
     expect(overlay().querySelector('tc-sheet-container')).toBeNull();
   });
 
+  it('hasOpen() says whether any sheet is open (#306)', async () => {
+    expect(sheet.hasOpen()).toBe(false);
+
+    const ref = sheet.open(Content, { title: 'Projects', data: { text: 'hello' } });
+    await settle();
+    expect(sheet.hasOpen()).toBe(true);
+
+    ref.close();
+    await settle();
+    expect(sheet.hasOpen()).toBe(false);
+  });
+
   it('closes on Escape and returns focus to the opener', async () => {
     const fixture = TestBed.createComponent(Host);
     await fixture.whenStable();
