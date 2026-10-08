@@ -1,3 +1,4 @@
+import { ANSWER_REPLAY_WINDOW_MS } from '@shared/contracts';
 import type { LogFields, ProblemInit, WorkerContext } from '@worker/core';
 import { OwnWritesRepo, type OwnWrite, type OwnWriteKind } from '@worker/db';
 import { githubPath, type GitHubClient, type RepoName } from '@worker/github';
@@ -12,7 +13,7 @@ import { isNotWritten, sha256Hex } from './owner-writer';
  */
 
 /** A repeat of the same answer within this window is answered from `own_writes`, not posted again (decision 19). */
-export const REPLAY_WINDOW_MS = 60_000;
+export const REPLAY_WINDOW_MS = ANSWER_REPLAY_WINDOW_MS;
 // Two taps that arrive together: the second waits this long for the first to be recorded, then gives up.
 const CLAIM_WAIT_ATTEMPTS = 5;
 const CLAIM_WAIT_MS = 200;
@@ -64,6 +65,11 @@ function isComment(value: unknown): value is GitHubComment {
   return isRecord(value) && Number.isSafeInteger(value['id']) && typeof value['html_url'] === 'string';
 }
 
+/** The key of an answer in `own_writes`: the registered repository, the issue and the comment, byte for byte. */
+export async function answerBodyHash(target: Omit<OwnerAnswerTarget, 'repo'>): Promise<string> {
+  return sha256Hex(`${target.registered}\n${target.number}\n${target.body}`);
+}
+
 /**
  * The answer, written once. A GitHub failure is thrown (the caller maps it); the claim is released when GitHub
  * certainly did not write, and kept for the replay window when it may have (a timeout, a 5xx), so a repeat is held
@@ -78,7 +84,7 @@ export async function postOwnerAnswer(
   const logger = c.get('logger');
   const { fields } = steps;
   const writes = new OwnWritesRepo(c.env.DB);
-  const bodyHash = await sha256Hex(`${target.registered}\n${target.number}\n${target.body}`);
+  const bodyHash = await answerBodyHash(target);
   const recent = async (): Promise<OwnWrite | null> =>
     writes.findRecentByHash(
       target.registered,
