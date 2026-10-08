@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  Injector,
+  input,
+  output,
+} from '@angular/core';
 import { DesignManifests, DesignPreview, DesignSummary, previewScreensOf } from '@console/entities/design';
 import type { ViewerMode } from '@console/features/design-viewer';
 import { TranslocoPipe } from '@console/shared/i18n';
@@ -6,6 +16,15 @@ import { Button, StateBlock } from '@console/shared/ui';
 
 /** How many screens a card shows before «+N» (#276 §3). */
 export const CARD_PREVIEW_COUNT = 3;
+
+/** Where focus goes after «Повторить», first match wins (document order would put the list first anyway). */
+const FOCUS_AFTER_RETRY = [
+  '[data-testid="question-preview"]',
+  '[data-testid="question-previews-all"]',
+  '[data-testid="question-previews-failed"] button',
+  '[data-testid="question-previews-open"]',
+  '[data-testid="question-previews-none"]',
+].join(', ');
 
 /** Where the viewer should open: on a tapped screen, or in a mode. */
 export interface DesignOpenRequest {
@@ -123,6 +142,8 @@ export interface DesignOpenRequest {
 })
 export class QuestionDesignPreviews {
   private readonly manifests = inject(DesignManifests);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
 
   readonly slug = input.required<string>();
   readonly issue = input.required<number>();
@@ -164,7 +185,26 @@ export class QuestionDesignPreviews {
     this.opened.emit({ mode });
   }
 
-  protected retry(): void {
-    void this.manifests.reload(this.slug(), this.issue());
+  /**
+   * «Повторить» goes away as soon as the list loads again (#300): focus that was on it continues from the first
+   * preview, else «Все экраны», the next «Повторить» or the note — never the page.
+   */
+  protected async retry(): Promise<void> {
+    const root = this.host.nativeElement;
+    const hadFocus = root.contains(root.ownerDocument.activeElement);
+    await this.manifests.reload(this.slug(), this.issue());
+    if (!hadFocus) {
+      return;
+    }
+    afterNextRender(
+      () => {
+        const target = root.querySelector<HTMLElement>(FOCUS_AFTER_RETRY);
+        if (target?.matches('[data-testid="question-previews-none"]') === true) {
+          target.tabIndex = -1;
+        }
+        target?.focus();
+      },
+      { injector: this.injector },
+    );
   }
 }

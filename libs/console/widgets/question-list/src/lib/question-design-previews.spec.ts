@@ -87,6 +87,32 @@ const textOf = (element: Element | null | undefined): string =>
   element?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
 describe('QuestionList design previews (#290)', () => {
+  it('after «Повторить», focus moves to the first preview, or back to «Повторить» when it fails again (#300)', async () => {
+    const { fixture, card } = await render([item(DESIGN)]);
+    const fail = (): void =>
+      http.expectOne(MANIFEST_URL).flush({}, { status: 503, statusText: 'Service Unavailable' });
+    const retryButton = (): HTMLButtonElement =>
+      card(DESIGN).querySelector('[data-testid="question-previews-failed"] button') as HTMLButtonElement;
+    fail();
+    await settle();
+    await fixture.whenStable();
+
+    retryButton().focus();
+    retryButton().click();
+    await settle();
+    fail();
+    await settle();
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(retryButton());
+
+    retryButton().click();
+    await settle();
+    http.expectOne(MANIFEST_URL).flush(MANIFEST);
+    await settle();
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(card(DESIGN).querySelector('[data-testid="question-preview"]'));
+  });
+
   let http: HttpTestingController;
 
   async function settle(): Promise<void> {
