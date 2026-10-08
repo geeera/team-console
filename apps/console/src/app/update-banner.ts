@@ -14,13 +14,15 @@ import { AppUpdates } from './app-updates';
   template: `
     @if (updates.ready()) {
       <div class="tc-update">
-        <div tc-banner tone="warning" data-testid="update-banner">
-          <tc-icon tc-banner-icon name="refresh" />
-          <p tc-banner-text>{{ 'app.update.ready' | transloco }}</p>
-          <div tc-banner-actions>
-            <button tc-button size="sm" type="button" data-testid="update-apply" (click)="apply()">
-              {{ 'app.update.apply' | transloco }}
-            </button>
+        <div class="tc-update__paper">
+          <div tc-banner tone="warning" data-testid="update-banner">
+            <tc-icon tc-banner-icon name="refresh" />
+            <p tc-banner-text>{{ 'app.update.ready' | transloco }}</p>
+            <div tc-banner-actions>
+              <button tc-button size="sm" type="button" data-testid="update-apply" (click)="apply()">
+                {{ 'app.update.apply' | transloco }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -41,7 +43,10 @@ import { AppUpdates } from './app-updates';
         calc(var(--space-3) + var(--safe-bottom)) calc(var(--space-4) + var(--safe-left));
     }
 
-    .tc-update [tc-banner] {
+    /* The banner's tint is translucent; floating over the page, it needs paper under it to stay legible. */
+    .tc-update__paper {
+      border-radius: var(--r-md);
+      background: var(--surface);
       box-shadow: var(--shadow-2);
     }
   `,
