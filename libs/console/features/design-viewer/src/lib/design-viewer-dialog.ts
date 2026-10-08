@@ -13,6 +13,7 @@ import {
   linkedSignal,
   signal,
   untracked,
+  viewChild,
   type TemplateRef,
 } from '@angular/core';
 import { Router } from '@angular/router';
@@ -155,6 +156,15 @@ export class DesignViewerDialog {
     () => this.data.actions !== null || (this.mode() === 'images' && this.screens().length > 0),
   );
 
+  private readonly stage = viewChild<ElementRef<HTMLElement>>('stage');
+  /** The stage's content is taller or wider than the stage (a state block in a short stage, a tiny screen). */
+  private readonly stageOverflows = signal(false);
+  /**
+   * A stage that scrolls must be reachable and named (axe `scrollable-region-focusable`): always when zoomed, and
+   * whenever its content overflows anyway, so a fitted screen never leaves a scroller the keyboard cannot reach.
+   */
+  protected readonly isStageScrollable = computed(() => this.zoomed() || this.stageOverflows());
+
   private swipeStart: { x: number; y: number; isTouch: boolean } | null = null;
 
   constructor() {
@@ -190,6 +200,7 @@ export class DesignViewerDialog {
         untracked(() => void this.loadOrigins());
       }
     });
+    this.watchStageOverflow();
     const onKey = (event: KeyboardEvent): void => this.onKey(event);
     this.document.addEventListener('keydown', onKey);
     inject(DestroyRef).onDestroy(() => this.document.removeEventListener('keydown', onKey));
@@ -357,6 +368,45 @@ export class DesignViewerDialog {
     } else {
       this.next();
     }
+  }
+
+  /**
+   * Keeps `stageOverflows` true while the stage's content does not fit it: the stage itself resizing (a taller
+   * footer), its content resizing, or new content (another state, another screen). Without ResizeObserver (jsdom)
+   * the stage stays as the zoom toggle sets it.
+   */
+  private watchStageOverflow(): void {
+    const destroyRef = inject(DestroyRef);
+    afterNextRender(
+      () => {
+        const stage = this.stage()?.nativeElement;
+        const view = this.document.defaultView;
+        if (stage === undefined || view === null || typeof view.ResizeObserver !== 'function') {
+          return;
+        }
+        const measure = (): void =>
+          this.stageOverflows.set(
+            stage.scrollHeight > stage.clientHeight + 1 || stage.scrollWidth > stage.clientWidth + 1,
+          );
+        const resizes = new view.ResizeObserver(measure);
+        const observeContent = (): void => {
+          resizes.disconnect();
+          resizes.observe(stage);
+          for (const child of Array.from(stage.children)) {
+            resizes.observe(child);
+          }
+          measure();
+        };
+        const mutations = new view.MutationObserver(observeContent);
+        mutations.observe(stage, { childList: true, subtree: true });
+        observeContent();
+        destroyRef.onDestroy(() => {
+          resizes.disconnect();
+          mutations.disconnect();
+        });
+      },
+      { injector: this.injector },
+    );
   }
 
   private async loadOrigins(): Promise<void> {
