@@ -1306,6 +1306,21 @@
     },
     "markdown": {
       "image": "image"
+    },
+    "datePicker": {
+      "open": "Open calendar",
+      "openWith": "Change date, selected {{date}}",
+      "prev": "Previous month",
+      "next": "Next month",
+      "today": "Today",
+      "done": "Done",
+      "todayMark": "today",
+      "unavailable": "unavailable",
+      "placeholder": "DD.MM.YYYY",
+      "invalid": "That isn't a valid date. Type it as DD.MM.YYYY, for example {{example}}.",
+      "min": "Choose {{date}} or later.",
+      "max": "Choose {{date}} or earlier.",
+      "unavailableDay": "That date isn't available. Choose another one."
     }
   },
   "stories": {
@@ -1580,6 +1595,12 @@
       "ciFailed": "CI failed",
       "ciRunning": "CI running",
       "finished": "Finished"
+    },
+    "datePicker": {
+      "label": "Demo date",
+      "hint": "The demo is at 12:00 Kyiv time.",
+      "selected": "Selected: {{date}}",
+      "none": "nothing selected"
     }
   },
   "review": {

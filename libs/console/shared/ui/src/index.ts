@@ -14,6 +14,8 @@ export type { CardStamp } from './lib/card/card';
 export { CheckRow } from './lib/check-row/check-row';
 export { Choice, ChoiceGroup } from './lib/choice/choice';
 export { Chip } from './lib/chip/chip';
+export { DatePicker } from './lib/date-picker/date-picker';
+export type { DatePickerProblem, DatePickerProblemKind } from './lib/date-picker/date-picker';
 export type { ChipTone } from './lib/chip/chip';
 export { Field, FieldControl } from './lib/field/field';
 export { Frame } from './lib/frame/frame';
