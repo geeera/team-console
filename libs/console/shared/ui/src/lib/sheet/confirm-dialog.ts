@@ -1,5 +1,5 @@
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, forwardRef, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button } from '../button/button';
@@ -91,7 +91,8 @@ let nextFieldId = 0;
 /** The body of `Sheet.confirm()`: warning, message, points, note, optional field, error, Cancel (focused first), Confirm. */
 @Component({
   selector: 'tc-confirm-dialog',
-  imports: [Button, DatePicker, FormsModule, Icon, SheetFooter, TranslocoPipe],
+  // forwardRef: DatePicker opens its calendar through `Sheet`, which opens this dialog — a module cycle.
+  imports: [Button, forwardRef(() => DatePicker), FormsModule, Icon, SheetFooter, TranslocoPipe],
   template: `
     @if (options.warning) {
       <p class="tc-confirm__warning"><tc-icon name="alert" size="sm" />{{ options.warning }}</p>
