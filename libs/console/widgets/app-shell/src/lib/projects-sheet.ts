@@ -1,9 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, Injector } from '@angular/core';
 import { Router } from '@angular/router';
 import { ADD_PROJECT_URL, NeedsYouCounts, ProjectsStore } from '@console/entities/project';
 import { ProjectSwitcher } from '@console/features/project-switcher';
 import { LocalNumberPipe, TranslocoPipe } from '@console/shared/i18n';
-import { Button, Chip, DialogRef, Icon, List, ListRow, SheetFooter, StateBlock } from '@console/shared/ui';
+import { Button, Chip, DialogRef, Icon, List, ListRow, Sheet, SheetFooter, StateBlock } from '@console/shared/ui';
 
 /** The phone's "Projects" sheet: Needs you, the switcher, then Add project (All projects, #194) and Settings. */
 @Component({
@@ -44,4 +44,9 @@ export class ProjectsSheet {
   protected retry(): void {
     void this.projects.load();
   }
+}
+
+/** Opens the sheet; `AppShell` reaches it through a dynamic import, so neither it nor `Sheet` is in the initial bundle. */
+export function openProjectsSheet(injector: Injector, title: string): void {
+  injector.get(Sheet).open(ProjectsSheet, { title });
 }

@@ -1,0 +1,118 @@
+/* the state is a sentence, the dot only repeats it */
+:host {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.cp-state__now {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  line-height: var(--lh-tight);
+}
+
+.cp-state__now--paused-by-team {
+  color: var(--danger-text);
+  font-weight: var(--fw-semibold);
+}
+
+.cp-state__now tc-icon {
+  align-self: center;
+}
+
+.cp-dot {
+  flex: none;
+  align-self: center;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--r-round);
+  background: var(--success-text);
+}
+
+.cp-dot--paused {
+  background: var(--warning-text);
+}
+
+.cp-state__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-3);
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* the sprint and progress lines of the status card (#218) */
+.cp-facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+}
+
+.cp-fact {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.cp-fact dt {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.cp-fact dd {
+  display: grid;
+  gap: var(--space-px);
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.cp-fact__sub {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.cp-fact__sub--freeze {
+  color: var(--warning-text);
+  font-weight: var(--fw-semibold);
+}
+
+.cp-fact__progress {
+  gap: var(--space-1);
+}
+
+.cp-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-h-touch);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: var(--fw-semibold);
+  text-decoration: underline;
+  text-decoration-thickness: var(--border-w);
+  text-underline-offset: var(--space-1);
+  cursor: pointer;
+}
+
+.cp-link[aria-disabled='true'] {
+  color: var(--text-3);
+  text-decoration: none;
+  cursor: default;
+}
+
+.cp-link:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--r-xs);
+}

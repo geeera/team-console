@@ -97,9 +97,9 @@ describe('SettingsPage', () => {
     expect(button.lang).toBe('en');
 
     button.click();
+    // English is a lazy chunk (#123): the switch applies once it has loaded.
+    await vi.waitFor(() => expect(TestBed.inject(TranslocoService).getActiveLang()).toBe('en'));
     await settle();
-
-    expect(TestBed.inject(TranslocoService).getActiveLang()).toBe('en');
     expect(text('h1')).toBe('Settings');
     expect(Array.from(root().querySelectorAll('h2')).map((h) => h.textContent?.trim())).toEqual([
       'GitHub',

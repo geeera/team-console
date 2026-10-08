@@ -20,7 +20,7 @@ import type {
 import { readFileSync } from 'node:fs';
 import type { MockInstance } from 'vitest';
 import { resolve } from 'node:path';
-import { of } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
 import {
   BOARD_LIST_LIMIT,
   DEFAULT_RETRY_SECONDS,
@@ -368,6 +368,8 @@ describe('SprintBoard', () => {
       expect(tile.querySelector('dd')?.textContent?.trim()).toBe(ru);
       expect(tile.querySelector('dt .tc-stat__icon')?.getAttribute('aria-hidden')).toBe('true');
 
+      // English is a lazy chunk (#123): loaded before the switch, as `ConsoleLanguage.use` does.
+      await firstValueFrom(TestBed.inject(TranslocoService).load('en'));
       TestBed.inject(TranslocoService).setActiveLang('en');
       await settle();
       fixture.detectChanges();
@@ -414,6 +416,8 @@ describe('SprintBoard', () => {
         expect(tile.querySelector('dt .tc-stat__icon')?.getAttribute('aria-hidden')).toBe('true');
         expect(tile.classList.contains('tc-stat--danger')).toBe(state === 'failing');
 
+        // English is a lazy chunk (#123): loaded before the switch, as `ConsoleLanguage.use` does.
+        await firstValueFrom(TestBed.inject(TranslocoService).load('en'));
         TestBed.inject(TranslocoService).setActiveLang('en');
         await settle();
         fixture.detectChanges();
@@ -513,6 +517,8 @@ describe('SprintBoard', () => {
       expect(block.querySelector('tc-icon path')?.getAttribute('d')).toBe(expected);
       expect(lane.querySelector('tc-list')).toBeNull();
 
+      // English is a lazy chunk (#123): loaded before the switch, as `ConsoleLanguage.use` does.
+      await firstValueFrom(TestBed.inject(TranslocoService).load('en'));
       TestBed.inject(TranslocoService).setActiveLang('en');
       await settle();
       fixture.detectChanges();
@@ -525,6 +531,8 @@ describe('SprintBoard', () => {
     http.expectOne(projectSprintUrl(TC.slug)).flush(sprint());
     await settle();
 
+    // English is a lazy chunk (#123): loaded before the switch, as `ConsoleLanguage.use` does.
+    await firstValueFrom(TestBed.inject(TranslocoService).load('en'));
     TestBed.inject(TranslocoService).setActiveLang('en');
     await settle();
     fixture.detectChanges();

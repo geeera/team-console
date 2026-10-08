@@ -55,8 +55,7 @@
   margin-left: 0;
 }
 
-.cp-ext,
-.cp-link {
+.cp-ext {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
@@ -73,106 +72,15 @@
   cursor: pointer;
 }
 
-.cp-link[aria-disabled='true'] {
-  color: var(--text-3);
-  text-decoration: none;
-  cursor: default;
-}
-
-.cp-ext:focus-visible,
-.cp-link:focus-visible {
+.cp-ext:focus-visible {
   outline: var(--focus-w) solid var(--focus);
   outline-offset: var(--focus-offset);
   border-radius: var(--r-xs);
 }
 
-/* status: the state is a sentence, the dot only repeats it */
+/* the status card's section: the kicker, then the card (commands-status.css) */
 .cp-state {
   display: grid;
-  gap: var(--space-1);
-}
-
-.cp-state__now {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--fs-lg);
-  line-height: var(--lh-tight);
-}
-
-.cp-state__now--paused-by-team {
-  color: var(--danger-text);
-  font-weight: var(--fw-semibold);
-}
-
-.cp-state__now tc-icon {
-  align-self: center;
-}
-
-.cp-dot {
-  flex: none;
-  align-self: center;
-  width: var(--space-2);
-  height: var(--space-2);
-  border-radius: var(--r-round);
-  background: var(--success-text);
-}
-
-.cp-dot--paused {
-  background: var(--warning-text);
-}
-
-.cp-state__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0 var(--space-3);
-  margin: 0;
-  font-size: var(--fs-xs);
-  color: var(--text-2);
-  font-variant-numeric: tabular-nums;
-}
-
-/* the sprint and progress lines of the status card (#218) */
-.cp-facts {
-  display: grid;
-  gap: var(--space-2);
-  margin: var(--space-2) 0 0;
-}
-
-.cp-fact {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  gap: var(--space-3);
-  align-items: baseline;
-}
-
-.cp-fact dt {
-  font-size: var(--fs-sm);
-  color: var(--text-2);
-}
-
-.cp-fact dd {
-  display: grid;
-  gap: var(--space-px);
-  margin: 0;
-  font-size: var(--fs-sm);
-  font-variant-numeric: tabular-nums;
-}
-
-.cp-fact__sub {
-  font-size: var(--fs-xs);
-  color: var(--text-2);
-}
-
-.cp-fact__sub--freeze {
-  color: var(--warning-text);
-  font-weight: var(--fw-semibold);
-}
-
-.cp-fact__progress {
   gap: var(--space-1);
 }
 
@@ -302,113 +210,4 @@
 
 :host(.tc-commands-panel--sheet) .cmd-list {
   padding: 0 var(--space-3);
-}
-
-/* setup: a to-do in ochre, not an error */
-.cp-setup {
-  display: grid;
-  justify-items: start;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-  padding: var(--space-4);
-  border-radius: var(--r-lg);
-  background: var(--warning-soft);
-  color: var(--warning-text);
-}
-
-.cp-setup__head {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-}
-
-.cp-setup__head tc-icon {
-  margin-top: var(--space-px);
-}
-
-.cp-setup__title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-weight: var(--fw-display);
-  font-size: var(--fs-lg);
-  line-height: var(--lh-tight);
-}
-
-.cp-setup__body {
-  margin: 0;
-  font-size: var(--fs-sm);
-}
-
-.cp-setup__how {
-  margin-left: calc(var(--space-2) * -1);
-  color: var(--warning-text);
-  text-decoration: underline;
-  text-underline-offset: var(--space-1);
-}
-
-.cp-setup__how[aria-expanded='true'] tc-icon {
-  transform: rotate(180deg);
-}
-
-.cp-how {
-  width: 100%;
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  color: var(--text-2);
-  font-size: var(--fs-sm);
-}
-
-.cp-steps {
-  margin: 0;
-  padding-left: var(--space-5);
-  display: grid;
-  gap: var(--space-3);
-}
-
-.cp-slots {
-  list-style: none;
-  margin: var(--space-2) 0 0;
-  padding: 0;
-  display: grid;
-  gap: var(--space-3);
-}
-
-.cp-slot {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.cp-slot__name {
-  font-weight: var(--fw-semibold);
-  color: var(--text);
-}
-
-.cp-code code {
-  padding: var(--space-2) var(--space-3);
-  border: var(--border-w) solid var(--border);
-  border-radius: var(--r-sm);
-  background: var(--bg-sunken);
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-  line-height: var(--lh-snug);
-  overflow-wrap: anywhere;
-}
-
-.cp-warn {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  margin: var(--space-3) 0 0;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--r-md);
-  background: var(--danger-soft);
-  color: var(--danger-text);
-  font-weight: var(--fw-semibold);
-}
-
-.cp-warn tc-icon {
-  flex: none;
-  margin-top: var(--space-px);
 }
