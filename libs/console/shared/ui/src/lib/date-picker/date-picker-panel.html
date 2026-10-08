@@ -1,0 +1,93 @@
+<div class="tc-date-panel__frame" [cdkTrapFocus]="!isSheet">
+  <div class="tc-date-panel__head">
+    <!-- Live: a month change by PageUp/PageDown or the buttons is read out. -->
+    <div class="tc-date-panel__month" [id]="headingId" aria-live="polite">{{ monthLabel() }}</div>
+    <button
+      tc-icon-button
+      type="button"
+      class="tc-date-panel__prev"
+      [disabled]="isPrevOff()"
+      [attr.aria-label]="'ui.datePicker.prev' | transloco"
+      (click)="showMonth(-1)"
+    >
+      <tc-icon name="chevron-left" />
+    </button>
+    <button
+      tc-icon-button
+      type="button"
+      class="tc-date-panel__next"
+      [disabled]="isNextOff()"
+      [attr.aria-label]="'ui.datePicker.next' | transloco"
+      (click)="showMonth(1)"
+    >
+      <tc-icon name="chevron-right" />
+    </button>
+  </div>
+  <table class="tc-date-panel__grid" role="grid" [attr.aria-labelledby]="headingId" (keydown)="onGridKeydown($event)">
+    <thead>
+      <tr>
+        @for (weekday of names.weekdays; track weekday.long) {
+          <th scope="col" class="tc-date-panel__weekday" [attr.abbr]="weekday.long">{{ weekday.short }}</th>
+        }
+      </tr>
+    </thead>
+    @for (month of shownMonth(); track month) {
+      <tbody class="tc-date-panel__days">
+        @for (week of weeks(); track $index) {
+          <tr>
+            @for (cell of week; track $index) {
+              @if (cell) {
+                <td
+                  class="tc-date-panel__day"
+                  [class.tc-date-panel__day--today]="cell.isToday"
+                  [class.tc-date-panel__day--off]="cell.isUnavailable"
+                  [attr.data-day]="cell.day"
+                  [attr.tabindex]="cell.day === focused() ? 0 : -1"
+                  [attr.aria-label]="cell.label"
+                  [attr.aria-selected]="cell.day === selected() ? 'true' : 'false'"
+                  [attr.aria-current]="cell.isToday ? 'date' : null"
+                  [attr.aria-disabled]="cell.isUnavailable ? 'true' : null"
+                  (click)="pick(cell)"
+                >
+                  <span class="tc-date-panel__date" aria-hidden="true">{{ cell.date }}</span>
+                </td>
+              } @else {
+                <td class="tc-date-panel__blank"></td>
+              }
+            }
+          </tr>
+        }
+      </tbody>
+    }
+  </table>
+  @if (isSheet) {
+    <!-- The sheet's footer: stacked, primary first (#274 kit rule). -->
+    <ng-template tcSheetFooter>
+      <ng-container *ngTemplateOutlet="done" />
+      <ng-container *ngTemplateOutlet="today" />
+    </ng-template>
+  } @else {
+    <div class="tc-date-panel__foot">
+      <ng-container *ngTemplateOutlet="today" />
+      <ng-container *ngTemplateOutlet="done" />
+    </div>
+  }
+</div>
+
+<ng-template #today>
+  <button
+    tc-button
+    type="button"
+    class="tc-date-panel__today"
+    [variant]="isSheet ? 'secondary' : 'quiet'"
+    [disabled]="isTodayOff()"
+    (click)="selectToday()"
+  >
+    {{ 'ui.datePicker.today' | transloco }}
+  </button>
+</ng-template>
+<ng-template #done>
+  <button tc-button type="button" variant="primary" class="tc-date-panel__done" (click)="done()">
+    {{ 'ui.datePicker.done' | transloco }}
+  </button>
+</ng-template>

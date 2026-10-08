@@ -233,7 +233,7 @@ describe('Sheet', () => {
       expect(seen).toEqual(['отпуск', 'отпуск']);
     });
 
-    it('#218: a checked date field follows the value, holds Confirm on an error and refills on a conflict', async () => {
+    it('#218/#307: a checked date field follows the value, holds Confirm on an error and refills on a conflict', async () => {
       const seen: string[] = [];
       const pending = sheet.confirm({
         title: 'Move the demo?',
@@ -267,16 +267,21 @@ describe('Sheet', () => {
       const input = dialog.querySelector('input') as HTMLInputElement;
       const ok = dialog.querySelector('.tc-confirm__ok') as HTMLButtonElement;
       const region = (): HTMLElement => dialog.querySelector(`#${input.id}-hint`) as HTMLElement;
+      // Typed text is read on blur (#307), as the owner leaves the field for Confirm.
       const pick = async (value: string): Promise<void> => {
         input.value = value;
-        input.dispatchEvent(new Event('change'));
+        input.dispatchEvent(new Event('input'));
+        input.dispatchEvent(new Event('blur'));
         await settle();
         TestBed.tick();
       };
+      await settle();
       TestBed.tick();
-      expect(input.type).toBe('date');
-      expect(input.value).toBe('2026-10-14');
-      expect(input.getAttribute('min')).toBe('2026-10-05');
+      expect(dialog.querySelector('input[type="date"]')).toBeNull();
+      expect(dialog.querySelector('tc-date-picker')).not.toBeNull();
+      expect(input.type).toBe('text');
+      expect(input.value).toBe('14.10.2026');
+      expect(dialog.querySelector(`label[for="${input.id}"]`)?.textContent?.trim()).toBe('Demo date');
       expect(input.getAttribute('aria-describedby')).toBe(`${input.id}-hint`);
       expect(region().getAttribute('aria-live')).toBe('polite');
       expect(region().textContent?.trim()).toBe('Freeze: 12–14 October');
@@ -286,7 +291,13 @@ describe('Sheet', () => {
       await settle();
       expect(seen).toEqual([]);
 
-      await pick('2026-10-01');
+      await pick('31.02.2026');
+      expect(input.getAttribute('aria-invalid')).toBe('true');
+      expect(region().querySelector('.tc-confirm__invalid')?.textContent?.trim()).toMatch(/^Такой даты нет/);
+      expect(input.value).toBe('31.02.2026');
+      expect(ok.getAttribute('aria-disabled')).toBe('true');
+
+      await pick('01.10.2026');
       expect(input.getAttribute('aria-invalid')).toBe('true');
       expect(region().querySelector('.tc-confirm__invalid')?.textContent?.trim()).toBe('That date has passed.');
       ok.click();
@@ -294,6 +305,7 @@ describe('Sheet', () => {
       expect(seen).toEqual([]);
 
       await pick('2026-10-06');
+      expect(input.value).toBe('06.10.2026');
       expect(input.getAttribute('aria-invalid')).toBeNull();
       expect(region().querySelector('.tc-confirm__caution')?.textContent?.trim()).toBe('Freeze starts at once.');
       expect(ok.textContent?.trim()).toBe('Move to 2026-10-06');
@@ -305,7 +317,9 @@ describe('Sheet', () => {
       expect(dialog.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
         'The date changed meanwhile (now 15 October).',
       );
-      expect(input.value).toBe('2026-10-15');
+      await settle();
+      TestBed.tick();
+      expect(input.value).toBe('15.10.2026');
       expect(ok.textContent?.trim()).toBe('Повторить');
 
       ok.click();
