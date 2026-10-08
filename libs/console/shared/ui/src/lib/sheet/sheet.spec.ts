@@ -299,7 +299,9 @@ describe('Sheet', () => {
 
       await pick('01.10.2026');
       expect(input.getAttribute('aria-invalid')).toBe('true');
-      expect(region().querySelector('.tc-confirm__invalid')?.textContent?.trim()).toBe('That date has passed.');
+      expect(region().querySelector('.tc-confirm__invalid')?.textContent?.trim()).toBe(
+        'That date has passed.',
+      );
       ok.click();
       await settle();
       expect(seen).toEqual([]);
@@ -307,7 +309,9 @@ describe('Sheet', () => {
       await pick('2026-10-06');
       expect(input.value).toBe('06.10.2026');
       expect(input.getAttribute('aria-invalid')).toBeNull();
-      expect(region().querySelector('.tc-confirm__caution')?.textContent?.trim()).toBe('Freeze starts at once.');
+      expect(region().querySelector('.tc-confirm__caution')?.textContent?.trim()).toBe(
+        'Freeze starts at once.',
+      );
       expect(ok.textContent?.trim()).toBe('Move to 2026-10-06');
 
       ok.click();

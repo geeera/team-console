@@ -71,10 +71,6 @@
   text-align: center;
 }
 
-.tc-date-panel__days {
-  animation: tc-date-fade var(--dur-base) var(--ease-standard) both;
-}
-
 .tc-date-panel__day,
 .tc-date-panel__blank {
   width: var(--tc-date-cell);
@@ -183,14 +179,5 @@
   to {
     opacity: 0;
     transform: translateY(var(--space-1));
-  }
-}
-
-@keyframes tc-date-fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
   }
 }

@@ -110,7 +110,10 @@ export function monthGridOf(day: string): (string | null)[][] {
 
 /** Whether a whole month lies outside the bounds, so its prev/next button is off. */
 export function isMonthOutOfBounds(day: string, bounds: DayBounds): boolean {
-  return (bounds.max !== null && startOfMonth(day) > bounds.max) || (bounds.min !== null && endOfMonth(day) < bounds.min);
+  return (
+    (bounds.max !== null && startOfMonth(day) > bounds.max) ||
+    (bounds.min !== null && endOfMonth(day) < bounds.min)
+  );
 }
 
 /** The reader's own calendar day: "today" in the picker is the day on the device's clock. */

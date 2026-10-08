@@ -17,7 +17,14 @@ import { Icon } from '../icon/icon';
 import { SheetFooter } from '../sheet/sheet-footer';
 import { calendarKeyAction } from './calendar-keys';
 import { calendarNamesOf, type CalendarNames } from './calendar-names';
-import { addMonths, isMonthOutOfBounds, isOutOfBounds, isSameMonth, monthGridOf, type DayBounds } from './date-math';
+import {
+  addMonths,
+  isMonthOutOfBounds,
+  isOutOfBounds,
+  isSameMonth,
+  monthGridOf,
+  type DayBounds,
+} from './date-math';
 
 /** What the field hands the calendar it opens; `close` ends it — with a day to commit, or `null` to change nothing. */
 export interface DatePickerPanelData {
@@ -87,10 +94,12 @@ export class DatePickerPanel {
   protected readonly weeks = computed(() =>
     monthGridOf(this.focused()).map((week) => week.map((day) => (day === null ? null : this.cellOf(day)))),
   );
-  /** One entry, re-created per month, so the grid cross-fades on a month change. */
-  protected readonly shownMonth = computed(() => [this.focused().slice(0, 7)]);
-  protected readonly isPrevOff = computed(() => isMonthOutOfBounds(addMonths(this.focused(), -1), this.data.bounds));
-  protected readonly isNextOff = computed(() => isMonthOutOfBounds(addMonths(this.focused(), 1), this.data.bounds));
+  protected readonly isPrevOff = computed(() =>
+    isMonthOutOfBounds(addMonths(this.focused(), -1), this.data.bounds),
+  );
+  protected readonly isNextOff = computed(() =>
+    isMonthOutOfBounds(addMonths(this.focused(), 1), this.data.bounds),
+  );
   protected readonly isTodayOff = computed(() => this.isUnavailable(this.data.today));
 
   constructor() {
@@ -107,11 +116,11 @@ export class DatePickerPanel {
   protected showMonth(step: -1 | 1): void {
     const target = addMonths(this.focused(), step);
     // Keep the tab stop on an in-range day of the new month, so Tab into the grid lands somewhere sensible.
-    this.focused.set(isOutOfBounds(target, this.data.bounds) ? this.firstInRangeOf(target) : target);
+    this.moveTo(isOutOfBounds(target, this.data.bounds) ? this.firstInRangeOf(target) : target);
   }
 
   protected pick(cell: DayCell): void {
-    this.focused.set(cell.day);
+    this.moveTo(cell.day);
     if (!cell.isUnavailable) {
       this.selected.set(cell.day);
     }
@@ -125,7 +134,7 @@ export class DatePickerPanel {
     event.preventDefault();
     event.stopPropagation();
     if (action.kind === 'move') {
-      this.focused.set(action.day);
+      this.moveTo(action.day);
       this.focusCell();
       return;
     }
@@ -144,7 +153,7 @@ export class DatePickerPanel {
       return;
     }
     this.selected.set(this.data.today);
-    this.focused.set(this.data.today);
+    this.moveTo(this.data.today);
   }
 
   protected done(): void {
@@ -160,10 +169,37 @@ export class DatePickerPanel {
     }
   }
 
+  private moveTo(day: string): void {
+    const isNewMonth = !isSameMonth(day, this.focused());
+    this.focused.set(day);
+    if (isNewMonth) {
+      this.fadeDays();
+    }
+  }
+
+  /** A month change cross-fades the days over `--dur-base` (1 ms under reduced motion, so nothing moves). */
+  private fadeDays(): void {
+    const host = this.host.nativeElement;
+    const days = host.querySelector('.tc-date-panel__days');
+    if (!(days instanceof HTMLElement) || typeof days.animate !== 'function') {
+      return;
+    }
+    const style = getComputedStyle(host);
+    const duration = parseFloat(style.getPropertyValue('--dur-base'));
+    days.animate([{ opacity: 0 }, { opacity: 1 }], {
+      duration: Number.isFinite(duration) ? duration : 0,
+      easing: style.getPropertyValue('--ease-standard').trim() || 'ease',
+    });
+  }
+
   private cellOf(day: string): DayCell {
     const isToday = day === this.data.today;
     const isUnavailable = this.isUnavailable(day);
-    const label = [this.names.fullDay(day), isToday ? this.names.todayMark : '', isUnavailable ? this.names.unavailable : '']
+    const label = [
+      this.names.fullDay(day),
+      isToday ? this.names.todayMark : '',
+      isUnavailable ? this.names.unavailable : '',
+    ]
       .filter((part) => part !== '')
       .join(', ');
     return { day, date: Number(day.slice(8, 10)), label, isToday, isUnavailable };
@@ -190,5 +226,4 @@ export class DatePickerPanel {
       { injector: this.injector },
     );
   }
-
 }

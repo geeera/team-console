@@ -35,7 +35,10 @@ function capitalised(text: string, locale: string): string {
  * Builds the names once per opened calendar. `todayMark` and `unavailable` are the catalogue's words (already
  * translated by the caller), the rest is `Intl`, so a new language needs no new month list.
  */
-export function calendarNamesOf(lang: string, words: { todayMark: string; unavailable: string }): CalendarNames {
+export function calendarNamesOf(
+  lang: string,
+  words: { todayMark: string; unavailable: string },
+): CalendarNames {
   const locale = intlLocaleOf(lang);
   const shortWeekday = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' });
   const longWeekday = new Intl.DateTimeFormat(locale, { weekday: 'long', timeZone: 'UTC' });

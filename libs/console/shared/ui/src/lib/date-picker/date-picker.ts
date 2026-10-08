@@ -36,7 +36,14 @@ import { Field } from '../field/field';
 import { Icon } from '../icon/icon';
 import { Sheet } from '../sheet/sheet';
 import { DatePickerPanel, type DatePickerPanelData } from './date-picker-panel';
-import { firstAvailableFrom, formatTypedDay, isOutOfBounds, localTodayOf, parseTypedDay, type DayBounds } from './date-math';
+import {
+  firstAvailableFrom,
+  formatTypedDay,
+  isOutOfBounds,
+  localTodayOf,
+  parseTypedDay,
+  type DayBounds,
+} from './date-math';
 
 /** Why the typed or picked value is not acceptable to the picker itself (the caller's own checks come first). */
 export type DatePickerProblemKind = 'invalid' | 'min' | 'max' | 'unavailable';
@@ -105,7 +112,7 @@ export class DatePicker implements ControlValueAccessor, Validator {
   private readonly document = inject(DOCUMENT);
 
   private readonly group = viewChild.required<ElementRef<HTMLElement>>('group');
-  private readonly toggleButton = viewChild.required<ElementRef<HTMLButtonElement>>('toggleButton');
+  private readonly toggleButton = viewChild.required('toggleButton', { read: ElementRef<HTMLButtonElement> });
   private readonly textInput = viewChild.required<ElementRef<HTMLInputElement>>('textInput');
 
   /** The committed value. */
@@ -136,7 +143,8 @@ export class DatePicker implements ControlValueAccessor, Validator {
   private onChange: (value: string | null) => void = () => undefined;
   private onTouched: () => void = () => undefined;
   private onValidatorChange: () => void = () => undefined;
-  private popover: { ref: OverlayRef; panel: ComponentRef<DatePickerPanel>; events: Subscription } | null = null;
+  private popover: { ref: OverlayRef; panel: ComponentRef<DatePickerPanel>; events: Subscription } | null =
+    null;
   private sheetRef: DialogRef<string | null> | null = null;
 
   constructor() {
@@ -154,9 +162,7 @@ export class DatePicker implements ControlValueAccessor, Validator {
     }
     this.value.set(day);
     this.text.set(day === null ? '' : formatTypedDay(day));
-    if (day !== null) {
-      this.lastValid = day;
-    }
+    this.lastValid = day;
     this.setProblem(day === null ? null : this.problemOf(day));
   }
 
@@ -219,7 +225,10 @@ export class DatePicker implements ControlValueAccessor, Validator {
     const today = this.todayDay();
     const isUnavailable = (day: string): boolean => isOutOfBounds(day, bounds) || this.isDateDisabled()(day);
     const selected = this.value();
-    const start = selected ?? this.lastValid ?? firstAvailableFrom(isUnavailable(today) ? (bounds.min ?? today) : today, isUnavailable);
+    const start =
+      selected ??
+      this.lastValid ??
+      firstAvailableFrom(isUnavailable(today) ? (bounds.min ?? today) : today, isUnavailable);
     const presentation = this.breakpoints.isMatched(BREAKPOINTS.phone) ? 'sheet' : 'popover';
     const data: Omit<DatePickerPanelData, 'close'> = {
       presentation,
@@ -274,7 +283,12 @@ export class DatePicker implements ControlValueAccessor, Validator {
     });
     const injector = Injector.create({
       parent: this.injector,
-      providers: [{ provide: DIALOG_DATA, useValue: { ...data, close: (day: string | null) => this.closePopover(day, true) } }],
+      providers: [
+        {
+          provide: DIALOG_DATA,
+          useValue: { ...data, close: (day: string | null) => this.closePopover(day, true) },
+        },
+      ],
     });
     const panel = ref.attach(new ComponentPortal(DatePickerPanel, null, injector));
     const events = new Subscription();
@@ -339,6 +353,7 @@ export class DatePicker implements ControlValueAccessor, Validator {
   private commitText(): void {
     const text = this.text().trim();
     if (text === '') {
+      this.lastValid = null;
       this.setProblem(null);
       if (this.value() !== null) {
         this.value.set(null);
@@ -406,7 +421,10 @@ export class DatePicker implements ControlValueAccessor, Validator {
   /** A spacing token in px, for the CDK's numeric offsets; 0 when it cannot be read. */
   private spaceToken(name: string): number {
     const view = this.document.defaultView;
-    const value = view === null ? NaN : parseFloat(view.getComputedStyle(this.document.documentElement).getPropertyValue(name));
+    const value =
+      view === null
+        ? NaN
+        : parseFloat(view.getComputedStyle(this.document.documentElement).getPropertyValue(name));
     return Number.isFinite(value) ? value : 0;
   }
 
