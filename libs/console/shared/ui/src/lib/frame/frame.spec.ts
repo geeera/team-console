@@ -7,11 +7,12 @@ const STORYBOOK = 'https://team-console-storybook.pages.dev';
 
 @Component({
   imports: [Frame],
-  template: `<tc-frame [src]="src()" [allowedOrigins]="origins()" title="Storybook" />`,
+  template: `<tc-frame [src]="src()" [allowedOrigins]="origins()" [profile]="profile()" title="Storybook" />`,
 })
 class Host {
   readonly src = signal(`${STORYBOOK}/?path=/story/kit-card--default`);
   readonly origins = signal<readonly string[]>([STORYBOOK]);
+  readonly profile = signal<'page' | 'design'>('page');
 }
 
 describe('Frame', () => {
@@ -46,6 +47,20 @@ describe('Frame', () => {
     ]);
     expect(sandbox.some((token) => token.startsWith('allow-top-navigation'))).toBe(false);
     expect(element.querySelector('[data-testid="frame-refused"]')).toBeNull();
+  });
+
+  it('frames a design with scripts only — no same-origin, forms, popups or top navigation (#277)', async () => {
+    const { fixture, element } = await render();
+    fixture.componentInstance.profile.set('design');
+    await fixture.whenStable();
+    const frame = element.querySelector('iframe');
+
+    expect(frame?.getAttribute('sandbox')).toBe('allow-scripts');
+    expect(frame?.getAttribute('allow')).toBe('');
+    expect(frame?.getAttribute('referrerpolicy')).toBe('no-referrer');
+    expect(frame?.getAttribute('loading')).toBe('lazy');
+    expect(frame?.hasAttribute('srcdoc')).toBe(false);
+    expect(frame?.getAttribute('src')).toBe(`${STORYBOOK}/?path=/story/kit-card--default`);
   });
 
   it('always offers the page in a new tab without opener or referrer', async () => {

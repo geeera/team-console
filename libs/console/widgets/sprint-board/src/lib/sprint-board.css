@@ -1,19 +1,21 @@
 :host {
   display: grid;
-  gap: var(--space-6);
+  gap: var(--space-4);
+  /* The two-column layout follows the board's own width: the Commands pane beside it takes room too. */
+  container-type: inline-size;
 }
 
-.board__sprint {
+.board__status {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
   min-width: 0;
 }
 
+/* Title and demo date on one line; the chip moves down whole, never breaks inside (#275 §3). */
 .board__head {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
+  align-items: center;
   gap: var(--space-2) var(--space-3);
 }
 
@@ -27,10 +29,118 @@
 }
 
 .board__demo {
+  flex: none;
+}
+
+.board__actions {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: var(--space-2);
+  margin-left: auto;
+}
+
+/* The iPhone layout: the actions get their own row under the title. */
+@media (max-width: 899.98px) {
+  .board__actions {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+}
+
+.board__sections {
+  min-width: 0;
+}
+
+/* No tabs: the three lists one under another, until there is room for two columns. */
+.board__sections:not(.tc-tabs--active) {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.board__tasks,
+.board__pulls,
+.board__runs {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.board__tasks[hidden],
+.board__pulls[hidden],
+.board__runs[hidden] {
+  display: none;
+}
+
+/*
+ * Wide enough for two columns: issues left, PRs then runs right, both starting at the top (#275 §3). By the board's
+ * own width (#294): a 1024 px screen, or a Mac with the Commands pane open, keeps them; the right column is
+ * `--board-side-w` until a third of the board is more.
+ */
+@container (min-width: 560px) {
+  .board__sections:not(.tc-tabs--active) {
+    display: grid;
+    grid-template-areas:
+      'tasks pulls'
+      'tasks runs';
+    grid-template-columns: minmax(0, 2fr) minmax(var(--board-side-w), 1fr);
+    /* The issues column is the tall one: its extra height goes under the runs, not between PRs and runs. */
+    grid-template-rows: auto 1fr;
+    align-items: start;
+  }
+
+  .board__tasks {
+    grid-area: tasks;
+  }
+
+  .board__pulls {
+    grid-area: pulls;
+  }
+
+  .board__runs {
+    grid-area: runs;
+  }
+}
+
+.board__section-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-2);
+  scroll-margin-top: var(--space-4);
+}
+
+.board__section-title:focus {
+  outline: none;
+}
+
+.board__section-title:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--r-xs);
+}
+
+.board__section-count {
+  font-weight: var(--fw-regular);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+
+/* An empty lane is one quiet line, not a block (#275 §7.8). */
+.board__lane-empty {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+
+.board__more {
+  justify-self: start;
 }
 
 .board__legend {
@@ -47,10 +157,5 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-}
-
-.board__stat-word {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
+  white-space: nowrap;
 }

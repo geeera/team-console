@@ -30,7 +30,8 @@ const SCREENS: readonly { path: string; isTall: boolean; waitFor?: string }[] = 
   { path: '/overview', isTall: false, waitFor: 'repos-missing' },
   { path: '/p/team-console/questions', isTall: true },
   { path: '/p/team-console/demo', isTall: true },
-  { path: '/p/team-console/board', isTall: true },
+  // #275: the compact board fits the first screen with this sprint; it still never scrolls inside itself.
+  { path: '/p/team-console/board', isTall: false },
   { path: '/p/team-console/artifacts', isTall: true },
   { path: '/settings', isTall: false },
 ];

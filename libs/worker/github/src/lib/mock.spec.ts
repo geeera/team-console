@@ -120,6 +120,62 @@ describe('createMockGitHub', () => {
     },
   );
 
+  it('lists every fixture file as a blob of the tree at any sha, binary files included (#277)', async () => {
+    const repo = parseRepoName('geeera/team-console');
+    const tree = await client('geeera/team-console').getJson(
+      githubPath`/repos/${repo}/git/trees/${'a'.repeat(40)}?recursive=1`,
+      isObject,
+    );
+    const items = tree['tree'] as { path: string; type: string; sha: string; size: number }[];
+    const png = items.find((item) => item.path === 'docs/design/90004-demo-screen/phone-01-list.png');
+    expect(png).toMatchObject({ type: 'blob', size: expect.any(Number) });
+    expect(png?.sha).toMatch(/^[0-9a-f]{40}$/);
+    expect(items.some((item) => item.path === '.product-team/project.yml')).toBe(true);
+    expect(tree['truncated']).toBe(false);
+    const bad = await rejection(
+      client('geeera/team-console').getJson(githubPath`/repos/${repo}/git/trees/${'nope'}`, isObject),
+    );
+    expect(bad.problem.type).toBe('github-not-found');
+  });
+
+  it('serves a blob as raw bytes for the raw media type, with PNG magic bytes for a .png fixture', async () => {
+    const repo = parseRepoName('geeera/team-console');
+    const tree = await client('geeera/team-console').getJson(
+      githubPath`/repos/${repo}/git/trees/${'a'.repeat(40)}?recursive=1`,
+      isObject,
+    );
+    const items = tree['tree'] as { path: string; sha: string }[];
+    const sha = items.find((item) => item.path === 'docs/design/90004-demo-screen/phone-01-list.png')?.sha ?? '';
+    const result = await client('geeera/team-console').getBytes(githubPath`/repos/${repo}/git/blobs/${sha}`, {
+      accept: 'application/vnd.github.raw+json',
+      maxBytes: 1024 * 1024,
+    });
+    expect(result.kind).toBe('bytes');
+    if (result.kind === 'bytes') {
+      expect([...result.bytes.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    }
+    const missing = await rejection(
+      client('geeera/team-console').getBytes(githubPath`/repos/${repo}/git/blobs/${'b'.repeat(40)}`, {
+        accept: 'application/vnd.github.raw+json',
+        maxBytes: 10,
+      }),
+    );
+    expect(missing.problem.type).toBe('github-not-found');
+  });
+
+  it('serves the default branch with a head sha, and 404 for any other branch', async () => {
+    const repo = parseRepoName('geeera/team-console');
+    const branch = await client('geeera/team-console').getJson(
+      githubPath`/repos/${repo}/branches/${'dev'}`,
+      isObject,
+    );
+    expect(branch).toMatchObject({ name: 'dev', commit: { sha: expect.stringMatching(/^[0-9a-f]{40}$/) } });
+    const other = await rejection(
+      client('geeera/team-console').getJson(githubPath`/repos/${repo}/branches/${'main'}`, isObject),
+    );
+    expect(other.problem.type).toBe('github-not-found');
+  });
+
   it('serves no events for an issue without any, and 404 for an unknown issue', async () => {
     const repo = parseRepoName('geeera/team-console');
     await expect(
@@ -166,7 +222,7 @@ describe('createMockGitHub', () => {
     const milestones = await github.getJson(githubPath`/repos/${repo}/milestones?state=open`, isList);
     expect(milestones.map((m) => m['title'])).toEqual(['Sprint 01', 'Sprint 02']);
     const pulls = await github.getJson(githubPath`/repos/${repo}/pulls?state=open`, isList);
-    expect(pulls.map((p) => p['number'])).toEqual([92, 91, 45, 40]);
+    expect(pulls.map((p) => p['number'])).toEqual([176, 92, 91, 45, 40]);
   });
 
   it('serves check runs per head sha (#131), and none for a sha it does not know', async () => {

@@ -6,10 +6,19 @@ import { ArtifactList } from './artifact-list';
 
 @Component({
   imports: [ArtifactList],
-  template: `<tc-artifact-list [items]="items()" label="Artifacts" />`,
+  template: `<tc-artifact-list
+    [items]="items()"
+    label="Artifacts"
+    [designLeading]="leading"
+    [designSubtitle]="subtitle"
+    (openDesign)="opened.set($event.number)"
+  />
+    <ng-template #leading let-design><span class="thumb">thumb {{ design.number }}</span></ng-template>
+    <ng-template #subtitle let-design><span class="summary">#{{ design.number }} · 6 экранов</span></ng-template>`,
 })
 class Host {
   readonly items = signal<readonly Artifact[]>([]);
+  readonly opened = signal<number | null>(null);
 }
 
 const DESIGN: Artifact = {
@@ -55,6 +64,38 @@ describe('ArtifactList', () => {
     expect(link.textContent).toContain('(откроется на GitHub)');
     expect(root.textContent).toContain('Дизайн');
     expect(root.textContent).toContain('закрыта');
+  });
+
+  it('renders a design issue as a button row with the thumbnail and summary slots, and opens it (#277)', async () => {
+    const fixture = await render();
+    fixture.componentInstance.items.set([{ ...DESIGN, state: 'open', number: 277, awaitingApproval: true }]);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    const row = root.querySelector('[data-testid="artifact"]') as HTMLElement;
+    const button = row.querySelector('button') as HTMLButtonElement;
+
+    expect(row.getAttribute('data-issue')).toBe('277');
+    expect(root.querySelector('a')).toBeNull();
+    expect(button.textContent).toContain('<img src=x onerror=alert(1)> Settings');
+    expect(button.textContent).toContain('Открыть дизайн');
+    expect(button.querySelector('.thumb')?.textContent).toBe('thumb 277');
+    expect(button.querySelector('.summary')?.textContent).toBe('#277 · 6 экранов');
+    expect(row.querySelector('[data-testid="artifact-awaiting"]')?.textContent?.trim()).toBe(
+      'Ждёт вашего согласования',
+    );
+    expect(root.querySelector('img')).toBeNull();
+
+    button.click();
+    expect(fixture.componentInstance.opened()).toBe(277);
+  });
+
+  it('keeps a design issue without a number, and a design file, as plain GitHub links', async () => {
+    const fixture = await render();
+    fixture.componentInstance.items.set([DESIGN, { ...DESIGN, source: 'file', state: null, updatedAt: null }]);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelectorAll('a')).toHaveLength(2);
+    expect(root.querySelector('button')).toBeNull();
   });
 
   // No wall-clock budget here: jsdom timing does not hold on CI runners (filterArtifacts carries the perf check).

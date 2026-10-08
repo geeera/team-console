@@ -1,16 +1,26 @@
 import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
 import { DeploymentStore } from '@console/entities/app-info';
+import { AccessSession } from '@console/shared/api';
 import { AppShell } from '@console/widgets/app-shell';
 import { appNameOf } from '@shared/contracts';
+import { SessionExpired } from './session-expired';
 
 @Component({
-  imports: [AppShell],
+  imports: [AppShell, SessionExpired],
   selector: 'tc-root',
-  template: '<tc-app-shell />',
+  template: `
+    @if (session.expired()) {
+      <tc-session-expired />
+    } @else {
+      <tc-app-shell />
+    }
+  `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
+  protected readonly session = inject(AccessSession);
+
   constructor() {
     const deployment = inject(DeploymentStore);
     const title = inject(Title);

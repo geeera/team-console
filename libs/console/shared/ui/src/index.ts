@@ -33,6 +33,7 @@ export * from './lib/stat/stat';
 export * from './lib/state-block/state-block';
 export * from './lib/status-card/status-card';
 export * from './lib/tab-bar/tab-bar';
+export * from './lib/tabs/tabs';
 export * from './lib/tooltip/tooltip';
 export * from './lib/top-bar/top-bar';
 export * from './lib/top-bar/top-bar-action';
