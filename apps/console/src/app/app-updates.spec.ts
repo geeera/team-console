@@ -20,12 +20,21 @@ const READY: VersionEvent = {
   latestVersion: { hash: 'b' },
 };
 
+const HASH_MISMATCH_FAILURE: VersionEvent = {
+  type: 'VERSION_INSTALLATION_FAILED',
+  version: { hash: 'b' },
+  error: 'Error: Hash mismatch (cacheBustedFetchFromNetwork): /main.js',
+};
+
 class FakeSwUpdate {
   isEnabled = true;
   readonly versionUpdates = new Subject<VersionEvent>();
   readonly unrecoverable = new Subject<UnrecoverableStateEvent>();
-  /** What the next checks resolve with; a check that finds a version emits VERSION_READY first, as ngsw does. */
-  nextCheck: 'none' | 'ready' | 'fail' = 'none';
+  /**
+   * What the next checks resolve with. A check that finds a version emits VERSION_READY first, and one whose version
+   * fails to install emits VERSION_INSTALLATION_FAILED and resolves false, as ngsw does.
+   */
+  nextCheck: 'none' | 'ready' | 'fail' | 'broken' = 'none';
   readonly checkForUpdate = vi.fn(async (): Promise<boolean> => {
     if (this.nextCheck === 'fail') {
       throw new Error('offline');
@@ -33,6 +42,9 @@ class FakeSwUpdate {
     if (this.nextCheck === 'ready') {
       this.versionUpdates.next(READY);
       return true;
+    }
+    if (this.nextCheck === 'broken') {
+      this.versionUpdates.next(HASH_MISMATCH_FAILURE);
     }
     return false;
   });
@@ -375,8 +387,89 @@ describe('AppUpdates', () => {
         error: 'Error: Hash mismatch (cacheBustedFetchFromNetwork): /main.js',
       });
       await flush();
+      // A quiet page: healed right away.
       expect(platform.unregisterWorkers).toHaveBeenCalledTimes(1);
       expect(assigned).toHaveLength(1);
+    });
+
+    it('on unrecoverable: heals at once even with a draft open, since the running version is broken', async () => {
+      const field = document.createElement('textarea');
+      document.body.append(field);
+      field.value = 'half a reason';
+      isSheetOpen = true;
+      start();
+      await flush();
+
+      sw.unrecoverable.next({ type: 'UNRECOVERABLE_STATE', reason: 'Failed to retrieve hashed resource' });
+      await flush();
+
+      expect(platform.unregisterWorkers).toHaveBeenCalledTimes(1);
+      expect(assigned).toHaveLength(1);
+    });
+
+    describe('a hash mismatch installing a new version (#311): the running version still works', () => {
+      it('found by the interval check while a draft is typed: no reload, then heals on the next quiet resume', async () => {
+        vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+        start();
+        await flush();
+        const field = document.createElement('textarea');
+        document.body.append(field);
+        field.value = 'half a reason';
+
+        sw.nextCheck = 'broken';
+        vi.advanceTimersByTime(UPDATE_CHECK_INTERVAL_MS);
+        await flush();
+        expect(platform.clearWorkerCaches).not.toHaveBeenCalled();
+        expect(platform.unregisterWorkers).not.toHaveBeenCalled();
+        expect(assigned).toEqual([]);
+        expect(storage.getItem(RECOVERY_GUARD_KEY)).toBeNull();
+
+        await resume();
+        expect(assigned, 'the draft is still there on resume').toEqual([]);
+
+        field.value = '';
+        sw.nextCheck = 'none';
+        await resume();
+        expect(platform.unregisterWorkers).toHaveBeenCalledTimes(1);
+        expect(assigned).toEqual(['https://console.test/p/a/questions?ngsw-bypass=1#12']);
+      });
+
+      it('found by the start check under an open sheet: waits, then heals once the sheet is closed and the app resumes', async () => {
+        isSheetOpen = true;
+        sw.nextCheck = 'broken';
+        start();
+        await flush();
+        expect(assigned).toEqual([]);
+
+        isSheetOpen = false;
+        sw.nextCheck = 'none';
+        await resume();
+        expect(platform.unregisterWorkers).toHaveBeenCalledTimes(1);
+        expect(assigned).toHaveLength(1);
+      });
+
+      it('found by the start check on a quiet page: heals at once', async () => {
+        sw.nextCheck = 'broken';
+        start();
+        await flush();
+
+        expect(platform.unregisterWorkers).toHaveBeenCalledTimes(1);
+        expect(assigned).toHaveLength(1);
+      });
+
+      it('waits for a request in flight like an update does', async () => {
+        start();
+        await flush();
+        const removeTask = TestBed.inject(PendingTasks).add();
+
+        sw.versionUpdates.next(HASH_MISMATCH_FAILURE);
+        await flush();
+        expect(assigned).toEqual([]);
+
+        removeTask();
+        await flush();
+        expect(assigned).toHaveLength(1);
+      });
     });
 
     it('heals once per event burst', async () => {
