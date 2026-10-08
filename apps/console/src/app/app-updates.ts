@@ -93,9 +93,11 @@ type CheckTrigger = 'start' | 'resume' | 'interval';
  * - A version found by a start or resume check is switched to at once when nothing would be lost (no sheet open, no
  *   typed text, no request in flight); otherwise, and for one found while the app is in use, `ready()` turns on the
  *   «Обновить» banner. A pending update is also taken on the next resume when the page is quiet.
- * - A broken service worker (`unrecoverable`, or a hash mismatch installing a version) is healed without the owner
- *   clearing storage: its caches go, it is unregistered, and the page loads once past it (`ngsw-bypass`, stripped
- *   again in `main.ts`), guarded so a still-broken deploy cannot reload in a loop.
+ * - A broken service worker is healed without the owner clearing storage: its caches go, it is unregistered, and the
+ *   page loads once past it (`ngsw-bypass`, stripped again in `main.ts`), guarded so a still-broken deploy cannot
+ *   reload in a loop. `unrecoverable` heals at once — the running version is already broken. A hash mismatch
+ *   installing a new version leaves the running one working, so it heals like an update: at once on a quiet page,
+ *   otherwise on the next quiet start or resume (#311).
  */
 @Injectable({ providedIn: 'root' })
 export class AppUpdates {
@@ -114,6 +116,8 @@ export class AppUpdates {
   /** A VERSION_READY arrived that neither the banner nor an activation has taken yet. */
   private hasDownloaded = false;
   private isRecovering = false;
+  /** Why the worker needs healing, while the page holds something a reload would lose (#311). */
+  private pendingHeal: string | null = null;
   private isStarted = false;
 
   /** A newer version is downloaded and waits for «Обновить». */
@@ -175,7 +179,11 @@ export class AppUpdates {
       }
     } else if (event.type === 'VERSION_INSTALLATION_FAILED') {
       if (HASH_MISMATCH.test(event.error)) {
-        void this.recover(event.error);
+        this.pendingHeal = event.error;
+        // A start or resume check decides when it returns, as it does for VERSION_READY.
+        if (this.quietChecks === 0) {
+          void this.healIfQuiet();
+        }
       } else {
         console.error('[updates] a new version failed to install', event.error);
       }
@@ -183,6 +191,10 @@ export class AppUpdates {
   }
 
   private async resume(): Promise<void> {
+    if (this.pendingHeal !== null) {
+      await this.healIfQuiet();
+      return;
+    }
     if (this.isPending()) {
       await this.activateIfQuiet();
       return;
@@ -207,6 +219,10 @@ export class AppUpdates {
       if (isQuietTrigger) {
         this.quietChecks -= 1;
       }
+    }
+    if (isQuietTrigger && this.quietChecks === 0 && this.pendingHeal !== null) {
+      await this.healIfQuiet();
+      return;
     }
     if (isQuietTrigger && this.quietChecks === 0 && this.hasDownloaded && !this.isPending()) {
       if (!(await this.activateIfQuiet())) {
@@ -245,6 +261,19 @@ export class AppUpdates {
       }
       throw error;
     }
+  }
+
+  /** Heals a worker whose new version failed to install, unless the page holds something a reload would lose. */
+  private async healIfQuiet(): Promise<void> {
+    if (this.pendingHeal === null || this.isRecovering || !(await this.isQuiet())) {
+      return;
+    }
+    const reason = this.pendingHeal;
+    if (reason === null) {
+      return;
+    }
+    this.pendingHeal = null;
+    await this.recover(reason);
   }
 
   private async recover(reason: string): Promise<void> {

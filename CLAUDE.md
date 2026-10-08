@@ -273,8 +273,8 @@ PWA updates (#306): `AppUpdates` (`apps/console/src/app/app-updates.ts`, started
 on start, on `visibilitychange` to visible and every 5 min while visible. A version found by a start/resume check is
 activated and reloaded at once when the page is quiet (no `Sheet.hasOpen()`, no `hasUnsavedField`, app stable within
 3 s); otherwise `UpdateBanner` shows «Доступна новая версия · Обновить», and a pending update is taken on the next quiet
-resume. `unrecoverable` or a `Hash mismatch` install failure: delete the `ngsw:` caches, unregister, one navigation with
-`ngsw-bypass` (`localStorage` `tc.sw-recovery.v1` allows one heal per 10 min). `_headers` serves `/`, `/index.html`, every
+resume. `unrecoverable` (at once) or a `Hash mismatch` install failure (like an update: at once when quiet, else on the
+next quiet start/resume, #311): delete the `ngsw:` caches, unregister, one navigation with `ngsw-bypass` (`localStorage` `tc.sw-recovery.v1` allows one heal per 10 min). `_headers` serves `/`, `/index.html`, every
 client-side route (one rule each, `pwa.spec.ts` checks them against `app.routes.ts`), `ngsw.json`, `ngsw-worker.js` and
 `safety-worker.js` with `Cache-Control: no-cache` (the assets layer answers them, never the Worker code). E2e
 `pwa-updates.e2e.ts` serves a derived build B (`writeNextBuild`/`routeDeploys` in `support/service-worker.ts`).
