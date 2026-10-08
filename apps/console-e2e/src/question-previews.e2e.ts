@@ -116,6 +116,46 @@ test('tapping a preview opens the viewer on that screen; closing returns focus t
   await expect(page.getByTestId('viewer-grid-item').first()).toBeVisible();
 });
 
+test('a failed answer inside the viewer: the error fits, the screen stays whole, no stray scroller (#298)', async ({
+  page,
+}) => {
+  test.skip((page.viewportSize()?.width ?? 0) >= 520, 'the short stage is the 390 × 844 phone');
+  await page.route(`**/api/v1/projects/team-console/issues/${ISSUE}/answer`, (route) =>
+    route.fulfill({
+      status: 502,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({
+        type: 'https://team-console/problems/github-unavailable',
+        title: 'GitHub unavailable',
+        status: 502,
+      }),
+    }),
+  );
+  await showCard(page, '/p/team-console/questions');
+  await previews(page).first().click();
+  await expect(dialog(page)).toBeVisible();
+  const screen = page.getByTestId('viewer-screen');
+  await expect.poll(() => screen.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+
+  await page.getByTestId('viewer-actions').locator('[data-command="approve"]').click();
+  await expect(page.getByTestId('viewer-actions').getByTestId('answer-error')).toBeVisible();
+  await animationsSettled(page);
+
+  // The taller footer shrinks the screen instead of making the stage scroll.
+  const stage = page.getByTestId('viewer-stage');
+  await expect
+    .poll(() => stage.evaluate((el) => el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1))
+    .toBe(true);
+  const [stageBox, screenBox] = await Promise.all([stage.boundingBox(), screen.boundingBox()]);
+  expect(screenBox?.height ?? 0).toBeGreaterThan(0);
+  expect(screenBox?.y ?? -1).toBeGreaterThanOrEqual(stageBox?.y ?? 0);
+  expect((screenBox?.y ?? 0) + (screenBox?.height ?? 0)).toBeLessThanOrEqual(
+    (stageBox?.y ?? 0) + (stageBox?.height ?? 0) + 1,
+  );
+  await expect(page.locator('.tc-sheet__foot')).toBeInViewport();
+  await expectAccessible(page, 'Design viewer with a failed answer in the footer');
+});
+
 test('«Утвердить» inside the viewer answers once, closes it and folds the card into its receipt', async ({
   page,
   stack,
