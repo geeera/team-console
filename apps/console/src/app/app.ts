@@ -5,15 +5,23 @@ import { AccessSession } from '@console/shared/api';
 import { AppShell } from '@console/widgets/app-shell';
 import { appNameOf } from '@shared/contracts';
 import { SessionExpired } from './session-expired';
+import { UpdateBanner } from './update-banner';
 
 @Component({
-  imports: [AppShell, SessionExpired],
+  imports: [AppShell, SessionExpired, UpdateBanner],
   selector: 'tc-root',
   template: `
     @if (session.expired()) {
       <tc-session-expired />
     } @else {
       <tc-app-shell />
+    }
+    <tc-update-banner />
+  `,
+  // A block, so the update banner's sticky bottom has the whole page to travel in.
+  styles: `
+    :host {
+      display: block;
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
