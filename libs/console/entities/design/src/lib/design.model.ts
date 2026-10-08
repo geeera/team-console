@@ -88,10 +88,18 @@ export function screensFor(manifest: DesignManifest, device: DesignDevice | null
   return device === null ? manifest.screens : manifest.screens.filter((screen) => screen.device === device);
 }
 
+/**
+ * The screens a preview can show, the phone's first (the owner decides on the phone), each group in file-name order;
+ * a screen over the size cap has no image to show and is left out.
+ */
+export function previewScreensOf(manifest: DesignManifest): readonly DesignScreen[] {
+  const shown = manifest.screens.filter((screen) => !screen.tooLarge);
+  return [...shown.filter((screen) => screen.device === 'phone'), ...shown.filter((screen) => screen.device !== 'phone')];
+}
+
 /** The screen a list row shows: the first one that can be shown, preferring the phone's. */
 export function thumbnailOf(manifest: DesignManifest): DesignScreen | null {
-  const shown = manifest.screens.filter((screen) => !screen.tooLarge);
-  return shown.find((screen) => screen.device === 'phone') ?? shown[0] ?? null;
+  return previewScreensOf(manifest)[0] ?? null;
 }
 
 /** The `<img src>` of a screen: the api Worker's file route, pinned to the manifest's commit. */

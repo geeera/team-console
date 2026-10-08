@@ -64,9 +64,10 @@
   class="viewer__stage"
   data-testid="viewer-stage"
   [class.viewer__stage--frame]="mode() === 'interactive' && frameSrc() !== null"
-  [attr.role]="zoomed() ? 'region' : null"
-  [attr.aria-label]="zoomed() ? ('designs.viewer.stageLabel' | transloco) : null"
-  [attr.tabindex]="zoomed() ? 0 : null"
+  #stage
+  [attr.role]="isStageScrollable() ? 'region' : null"
+  [attr.aria-label]="isStageScrollable() ? ('designs.viewer.stageLabel' | transloco) : null"
+  [attr.tabindex]="isStageScrollable() ? 0 : null"
   (pointerdown)="onPointerDown($event)"
   (pointerup)="onPointerUp($event)"
 >

@@ -3,6 +3,7 @@ import {
   designManifestOf,
   devicesOf,
   megabytesOf,
+  previewScreensOf,
   screenSrcOf,
   screensFor,
   thumbnailOf,
@@ -77,6 +78,20 @@ describe('the manifest helpers', () => {
     const huge = { ...MANIFEST, screens: [screen('phone-01.png', { tooLarge: true }), screen('mac-01.png')] };
     expect(thumbnailOf(huge)?.file).toBe('mac-01.png');
     expect(thumbnailOf({ ...MANIFEST, screens: [] })).toBeNull();
+  });
+
+  it('lists the preview screens phone first, each group in file order, without the ones too large to show', () => {
+    expect(previewScreensOf(MANIFEST).map((s) => s.file)).toEqual([
+      'phone-01-list.png',
+      'phone-02-grid.png',
+      'mac-01-list.png',
+    ]);
+    const mixed = {
+      ...MANIFEST,
+      screens: [screen('01-cover.png'), screen('mac-01.png'), screen('phone-01.png', { tooLarge: true })],
+    };
+    expect(previewScreensOf(mixed).map((s) => s.file)).toEqual(['01-cover.png', 'mac-01.png']);
+    expect(previewScreensOf({ ...MANIFEST, screens: [] })).toEqual([]);
   });
 
   it('builds the image source from the file route, pinned to the commit', () => {

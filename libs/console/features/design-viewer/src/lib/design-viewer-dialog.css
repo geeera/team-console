@@ -51,18 +51,26 @@
   overflow: hidden;
 }
 
+/*
+ * One cell exactly the stage's flex space: the row is `minmax(0, 1fr)`, not `auto`, so the image's `max-height: 100%`
+ * resolves against that space and the screen shrinks to fit whatever the footer leaves (#298: a taller footer with an
+ * answer error must never make the stage scroll).
+ */
 .viewer__screen {
   position: relative;
   display: grid;
-  flex: 1;
+  flex: 1 1 0;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   place-items: center;
   width: 100%;
   min-height: 0;
+  overflow: hidden;
 }
 
 .viewer__screen--zoomed {
   flex: none;
   display: block;
+  overflow: visible;
 }
 
 .viewer__img {

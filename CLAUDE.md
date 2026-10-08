@@ -123,7 +123,8 @@ Question context (#276): `InboxItemDto.context` (`QuestionContextDto`, so on inb
 control or bidi characters; GitHub's 65,536 cut first), read only for trusted authors, `structured: false` + the first
 paragraph when no heading is there. `markdownToPlainText` lives in `@shared/plain-text` (worker and console). The card
 (`QuestionCard`) shows summary title + «На GitHub:», question, verb + why, `[tc-question-previews]` (design only, team items
-only; #277 fills it), outcomes (from the sections, else the answer line's options via `askOutcomesOf`), cost, actions,
+only; `question-list`'s `QuestionDesignPreviews` fills it, #290: three screens via `previewScreensOf` + `DesignPreview [screen]`,
+«+N», «Все экраны (N)», opening the viewer on that screen with the card's `AnswerQuestion` as its `actions`), outcomes (from the sections, else the answer line's options via `askOutcomesOf`), cost, actions,
 details; the raw answer line is never rendered on any surface.
 
 Sprint board (#18, read-only): `@console/entities/sprint` (`isSprintDto`, `SprintApi`, `statusColumnsOf` — lanes counted as
@@ -201,7 +202,7 @@ mismatch. Pure parts in `@worker/read-models` `lib/designs/` (`designFilesOf`, `
 `imageTypeOfBytes`). Mock: `MockRepository.binaryFiles` (base64; `fixtures/design-images.mjs` regenerates them),
 `git/trees`, `git/blobs`, `branches/{name}`. Console: `@console/entities/design` (`DesignManifests` store shared by
 every reader, `DesignPreview` — the first screen as a decorative `<img>` for rows and the #276 cards —,
-`DesignSummary`), `@console/features/design-viewer` (`DesignViewer.open({ slug, issue, title, actions? })` on the
+`DesignSummary`), `@console/features/design-viewer` (`DesignViewer.open({ slug, issue, title, actions?, screen?, mode? })` on the
 kit `Sheet` with `size: 'full'`: «Картинки» / «Все экраны» / «Интерактивно», the iPhone/Mac switch, ←/→ and a swipe,
 a zoom toggle; the HTML wireframe is framed only through the embed-origins gate in the kit `Frame`'s `profile="design"`
 — `sandbox="allow-scripts"` alone, never `srcdoc` — else the «нельзя показать» state). Artifacts' design rows

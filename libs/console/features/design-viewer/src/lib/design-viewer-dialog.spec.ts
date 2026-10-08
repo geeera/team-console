@@ -6,7 +6,7 @@ import { provideRouter } from '@angular/router';
 import { DesignManifests } from '@console/entities/design';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import type { DesignManifestDto, DesignScreenDto } from '@shared/contracts';
-import { DesignViewer } from './design-viewer';
+import { DesignViewer, type DesignViewerOptions } from './design-viewer';
 
 const SHA = 'a'.repeat(40);
 const PAGES = 'https://geeera.github.io';
@@ -70,12 +70,16 @@ describe('DesignViewer', () => {
     overlay()?.remove();
   });
 
-  async function open(manifest: DesignManifestDto | { status: number } = MANIFEST, issue = 277) {
+  async function open(
+    manifest: DesignManifestDto | { status: number } = MANIFEST,
+    issue = 277,
+    start: Pick<DesignViewerOptions, 'screen' | 'mode'> = {},
+  ) {
     const fixture = TestBed.createComponent(Host);
     document.body.appendChild(fixture.nativeElement);
     const opener = (fixture.nativeElement as HTMLElement).querySelector('.opener') as HTMLButtonElement;
     opener.focus();
-    const ref = viewer.open({ slug: 'tc', issue, title: 'Viewer <b>design</b>' });
+    const ref = viewer.open({ slug: 'tc', issue, title: 'Viewer <b>design</b>', ...start });
     await settle();
     const request = http.expectOne(`/api/v1/projects/tc/designs/${issue}`);
     if ('status' in manifest) {
@@ -107,6 +111,31 @@ describe('DesignViewer', () => {
     expect(img?.getAttribute('alt')).toBe('Экран 1 из 1: list');
     expect(text('viewer-position')).toBe('1 из 1 · list');
     expect(dialog().querySelector('iframe, object, embed, [srcdoc]')).toBeNull();
+  });
+
+  it('opens on the screen asked for, on its device, whatever device the owner holds', async () => {
+    await open(MANIFEST, 277, { screen: 'docs/design/277-viewer/phone-02-grid.png' });
+    const phone = allByTestId('viewer-device').find((b) => b.getAttribute('data-device') === 'phone');
+    expect(phone?.getAttribute('aria-pressed')).toBe('true');
+    expect(text('viewer-position')).toBe('2 из 3 · grid');
+    expect(byTestId<HTMLImageElement>('viewer-screen')?.getAttribute('data-path')).toContain('phone-02-grid.png');
+
+    // The start is applied once: from there the owner moves on.
+    byTestId<HTMLButtonElement>('viewer-next')?.click();
+    await settle();
+    expect(text('viewer-position')).toBe('3 из 3 · huge');
+  });
+
+  it('starts on the first screen when the screen asked for is not listed, and in the mode asked for', async () => {
+    await open(MANIFEST, 277, { screen: 'docs/design/277-viewer/gone.png', mode: 'grid' });
+    const grid = allByTestId('viewer-mode').find((b) => b.getAttribute('data-mode') === 'grid');
+    expect(grid?.getAttribute('aria-pressed')).toBe('true');
+    expect(byTestId('viewer-grid')).not.toBeNull();
+    allByTestId('viewer-mode')
+      .find((b) => b.getAttribute('data-mode') === 'images')
+      ?.dispatchEvent(new Event('click'));
+    await settle();
+    expect(text('viewer-position')).toBe('1 из 1 · list');
   });
 
   it('moves through the phone screens with the buttons and the arrow keys, announcing the position', async () => {

@@ -144,6 +144,12 @@ describe('QuestionList', () => {
         golden.map((item) => item.title),
       );
       expect(root.querySelector('[data-testid="project-tag"]')).toBeNull();
+      // Design items read their previews (#290, covered in question-design-previews.spec.ts); one read per design.
+      const designs = golden.filter((item) => item.section === 'design').map((item) => item.number);
+      const reads = http.match((request) => request.url.includes(`/projects/${TC.slug}/designs/`));
+      expect(reads.map((request) => request.request.url).sort()).toEqual(
+        designs.map((number) => `/api/v1/projects/${TC.slug}/designs/${number}`).sort(),
+      );
     },
   );
 
