@@ -140,6 +140,7 @@ test('asks the PM for the next sprint: one owner comment, nothing else written, 
   ).toBe(true);
 
   await page.goto('/p/team-console/board');
+  await showLaneOf(page, ISSUE);
   await expect(
     page.locator(`tc-list-row[data-number="${ISSUE}"] [data-testid="request-pending"]`),
   ).toHaveText(ru('board.pending'));
@@ -160,11 +161,30 @@ test('asks the PM for the next sprint: one owner comment, nothing else written, 
     .getByRole('button', { name: ru('commands.dialog.cancel') })
     .click();
   await page.goto('/p/team-console/board');
+  await showLaneOf(page, ISSUE);
   await expect(page.locator(`tc-list-row[data-number="${ISSUE}"]`)).toBeVisible();
   await expect(
     page.locator(`tc-list-row[data-number="${ISSUE}"] [data-testid="request-pending"]`),
   ).toHaveCount(0);
 });
+
+/**
+ * The board shows five rows per lane and, on a narrow screen, one lane at a time (#275): open every lane's list, then
+ * pick the lane that holds issue `number`.
+ */
+async function showLaneOf(page: Page, number: number): Promise<void> {
+  await expect(page.locator('tc-lanes')).toBeAttached();
+  for (const more of await page.locator('tc-lanes [data-testid="show-more"][aria-expanded="false"]').all()) {
+    await more.dispatchEvent('click');
+  }
+  const lane = page.locator(`tc-lanes tc-lane:has(tc-list-row[data-number="${number}"])`);
+  await expect(lane).toBeAttached();
+  const id = await lane.getAttribute('id');
+  const cell = page.locator(`.tc-lanes__cell[aria-controls="${id ?? ''}"]`);
+  if ((await cell.count()) > 0) {
+    await cell.click();
+  }
+}
 
 test('an issue the PM moved meanwhile refills the form and writes nothing', async ({ page, stack }) => {
   await openForm(page);

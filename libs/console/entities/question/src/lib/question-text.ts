@@ -19,6 +19,10 @@ const TRAILING_SEPARATORS = new Set([' ', '·', ',', ';']);
 const ENGLISH_TO = /^to\s+/iu;
 const SPACES = /\s+/gu;
 const READABLE = /[\p{L}\p{N}]/u;
+// The plugin's own placeholder words for the reject/no-go side ("owner.py", decision-policy.md): with nothing of
+// the team's own reasoning added, an option like this reads as a bare prompt, not a consequence (#291).
+const GENERIC_PROMPT =
+  /^(?:почему|что поменять|причина,? если что-то не подходит|why|what to change)$/iu;
 
 interface AskOption {
   readonly command: string;
@@ -77,26 +81,54 @@ function optionsOf(ask: string): { readonly lead: string; readonly options: read
 /**
  * An issue's answer line (`askOf`) as a plain sentence for "The team recommends": the recommended option's text
  * without its `/command`, its "(recommended)" mark and the other options, which the answer buttons already offer.
- * With no recommended option it is the line without command words; `null` when nothing readable is left. The
+ * `null` when the line marks no option as recommended (#210) — "The team recommends" has nothing to say then, and
+ * showing the leftover options or an owner instruction under that label would misrepresent them as advice. The
  * result is plain text for interpolation; any HTML in the ask stays inert text.
  */
 export function plainAskOf(ask: string | null): PlainAsk | null {
   if (ask === null) {
     return null;
   }
-  const { lead, options } = optionsOf(markdownToPlainText(ask));
+  const { options } = optionsOf(markdownToPlainText(ask));
   const recommended = options.find((option) => option.isRecommended);
-  if (recommended !== undefined) {
-    if (recommended.text !== '') {
-      return { kind: 'text', text: sentenceOf(recommended.text) };
-    }
-    if (isAnswerCommand(recommended.command)) {
-      return { kind: 'command', command: recommended.command };
-    }
+  if (recommended === undefined) {
+    return null;
   }
-  const words = [lead, ...options.map((option) => option.text)].filter((text) => text !== '').join(' · ');
-  const text = options.length === 0 ? withoutRecommendationMark(words).text.trim() : words;
-  return READABLE.test(text) ? { kind: 'text', text: sentenceOf(text) } : null;
+  if (recommended.text !== '') {
+    return { kind: 'text', text: sentenceOf(recommended.text) };
+  }
+  return isAnswerCommand(recommended.command) ? { kind: 'command', command: recommended.command } : null;
+}
+
+
+/** What each answer leads to, for a card whose body has no `## Если одобрить` / `## Если отклонить` (#276). */
+export interface AskOutcomes {
+  /** The text after `/approve` or `/go`. */
+  readonly ifApproved: string | null;
+  /** The text after `/reject` or `/no-go`. */
+  readonly ifRejected: string | null;
+}
+
+const APPROVING: ReadonlySet<string> = new Set(['approve', 'go']);
+const REJECTING: ReadonlySet<string> = new Set(['reject', 'no-go']);
+
+/**
+ * The answer line's options as outcomes: each option's own words without its `/command` and its "(recommended)"
+ * mark; the first option per side counts, and an option with no readable words gives nothing. An option that is
+ * only the plugin's placeholder prompt ("почему", "что поменять"…) gives nothing too (#291): without the team's
+ * own reasoning added, it reads as a question to answer, not a consequence to show — dropping the outcome beats
+ * showing a bare prompt. Plain text for interpolation, never the raw answer line.
+ */
+export function askOutcomesOf(ask: string | null): AskOutcomes {
+  if (ask === null) {
+    return { ifApproved: null, ifRejected: null };
+  }
+  const { options } = optionsOf(markdownToPlainText(ask));
+  const textOf = (commands: ReadonlySet<string>): string | null => {
+    const text = options.find((option) => commands.has(option.command))?.text ?? '';
+    return READABLE.test(text) && !GENERIC_PROMPT.test(text.trim()) ? sentenceOf(text) : null;
+  };
+  return { ifApproved: textOf(APPROVING), ifRejected: textOf(REJECTING) };
 }
 
 /**

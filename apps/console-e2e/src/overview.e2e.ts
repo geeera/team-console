@@ -54,7 +54,8 @@ test.describe('with two active projects', () => {
     await expect(tc.getByTestId('progress')).toHaveText(
       ru('overview.done', { done: sprint.shipped, total: sprint.planned }),
     );
-    await expect(tc.getByTestId('needs-you')).toContainText(ru('shell.badge', { n: waiting }));
+    // The count with its words (#275 §7.10); ru plural for the seeded count.
+    await expect(tc.getByTestId('needs-you')).toHaveText(new RegExp(`^${waiting} жд(ёт|ут) вас$`));
 
     // No sprint, nothing waiting and project.yml without reviewer_logins: a quiet project that needs setup.
     const pp = page.getByTestId('overview-quiet').locator('[data-project="private-product"]');

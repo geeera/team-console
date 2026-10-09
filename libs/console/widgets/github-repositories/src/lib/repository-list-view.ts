@@ -19,7 +19,7 @@ import {
 } from '@console/entities/installation-repository';
 import { projectSetupRouteOf } from '@console/entities/project';
 import { LocalTimePipe, TranslocoPipe } from '@console/shared/i18n';
-import { Button, Callout, Icon, List, ListRow, StateBlock } from '@console/shared/ui';
+import { Button, Callout, Chip, Icon, List, ListRow, StateBlock } from '@console/shared/ui';
 import type { InstallationRepositoryDto } from '@shared/contracts';
 
 /** What a repository row shows while or after an add from this screen (in memory only). */
@@ -41,7 +41,7 @@ const FOLD_OVER = 12;
  */
 @Component({
   selector: 'tc-repository-list-view',
-  imports: [Button, Callout, Icon, List, ListRow, LocalTimePipe, StateBlock, TranslocoPipe],
+  imports: [Button, Callout, Chip, Icon, List, ListRow, LocalTimePipe, StateBlock, TranslocoPipe],
   templateUrl: './repository-list-view.html',
   styleUrl: './repository-list-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

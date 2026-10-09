@@ -4,7 +4,13 @@ import { RouterLink } from '@angular/router';
 import { spaceUrlOf, type OverviewProject } from '@console/entities/project';
 import { demoDayOf } from '@console/entities/sprint';
 import { snoozeWhenOf } from '@console/features/snooze';
-import { localDayOf, LocalNumberPipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
+import {
+  localDayOf,
+  LocalNumberPipe,
+  TranslocoPipe,
+  TranslocoPluralPipe,
+  TranslocoService,
+} from '@console/shared/i18n';
 import { Chip, ChipTone, Icon, Meter } from '@console/shared/ui';
 import { isSnoozeActive, NOT_SNOOZED, type OverviewTeamState, type SnoozeDto } from '@shared/contracts';
 
@@ -35,7 +41,7 @@ const KNOWN_PROBLEMS: ReadonlySet<string> = new Set([
  */
 @Component({
   selector: 'tc-overview-tile',
-  imports: [Chip, Icon, LocalNumberPipe, Meter, RouterLink, TranslocoPipe],
+  imports: [Chip, Icon, LocalNumberPipe, Meter, RouterLink, TranslocoPipe, TranslocoPluralPipe],
   template: `
     @let row = project();
     <a class="ov" [routerLink]="boardUrl()" data-testid="overview-row" [attr.data-project]="row.slug">
@@ -71,10 +77,10 @@ const KNOWN_PROBLEMS: ReadonlySet<string> = new Set([
             <tc-chip tone="warning" data-testid="setup">{{ 'overview.setup' | transloco }}</tc-chip>
           }
           @if (waiting() > 0) {
-            <tc-chip tone="accent" data-testid="needs-you">
-              <span aria-hidden="true">{{ waiting() | localNumber }}</span>
-              <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: waiting() } }}</span>
-            </tc-chip>
+            <!-- A number with its words (#275 §7.10): a bare «9» said nothing. -->
+            <tc-chip tone="accent" data-testid="needs-you">{{
+              'overview.waiting' | translocoPlural: waiting()
+            }}</tc-chip>
           }
         </span>
       } @else if (row.problem === pendingProblem) {

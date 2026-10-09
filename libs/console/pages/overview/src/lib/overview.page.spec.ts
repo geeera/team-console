@@ -167,7 +167,8 @@ describe('OverviewPage', () => {
     expect(a.querySelector('[data-testid="progress"]')?.textContent?.trim()).toBe('готово 3 из 8');
     expect(a.querySelector('tc-meter')?.getAttribute('aria-hidden')).toBe('true');
     expect(a.querySelector('[data-testid="setup"]')?.textContent?.trim()).toBe('Нужна настройка');
-    expect(a.querySelector('[data-testid="needs-you"] .tc-sr-only')?.textContent?.trim()).toBe('Ждут вас: 2');
+    // The count with its words (#275), not a bare number.
+    expect(a.querySelector('[data-testid="needs-you"]')?.textContent?.trim()).toBe('2 ждут вас');
 
     const q = tile(root, 'quiet');
     expect(q.querySelector('[data-testid="team"]')?.textContent?.trim()).toBe('На паузе');
@@ -199,9 +200,9 @@ describe('OverviewPage', () => {
       answeredAt: new Date().toISOString(),
     });
     await fixture.whenStable();
-    expect(
-      tile(root, 'alpha').querySelector('[data-testid="needs-you"] .tc-sr-only')?.textContent?.trim(),
-    ).toBe('Ждут вас: 1');
+    expect(tile(root, 'alpha').querySelector('[data-testid="needs-you"]')?.textContent?.trim()).toBe(
+      '1 ждёт вас',
+    );
   });
 
   it('says which projects did not fit into the request and loads the rest on demand', async () => {
@@ -286,8 +287,14 @@ describe('OverviewPage', () => {
     };
 
     async function ready(options: { phone?: boolean } = {}) {
-      const rendered = await render([projectDto('alpha'), projectDto('quiet'), projectDto('broken')], options);
-      await answer(rendered.fixture, { projects: [alpha, quietOne, broken], checkedAt: '2026-10-01T12:00:00Z' });
+      const rendered = await render(
+        [projectDto('alpha'), projectDto('quiet'), projectDto('broken')],
+        options,
+      );
+      await answer(rendered.fixture, {
+        projects: [alpha, quietOne, broken],
+        checkedAt: '2026-10-01T12:00:00Z',
+      });
       return rendered;
     }
 
@@ -389,8 +396,16 @@ describe('OverviewPage', () => {
   describe('the snoozed line (#222)', () => {
     it('shows the struck bell and the words on a snoozed card, and nothing on the others', async () => {
       const { root, fixture } = await render([projectDto('alpha'), projectDto('quiet')]);
-      const snooze = { snoozed: true, until: null, allowsUrgent: true, since: '2026-10-01T09:00:00Z' } as const;
-      await answer(fixture, { projects: [alpha, { ...quietOne, snooze }], checkedAt: '2026-10-01T12:00:00Z' });
+      const snooze = {
+        snoozed: true,
+        until: null,
+        allowsUrgent: true,
+        since: '2026-10-01T09:00:00Z',
+      } as const;
+      await answer(fixture, {
+        projects: [alpha, { ...quietOne, snooze }],
+        checkedAt: '2026-10-01T12:00:00Z',
+      });
       const line = tile(root, 'quiet').querySelector('[data-testid="snoozed"]') as HTMLElement;
       expect(line.textContent?.trim()).toBe('уведомления отложены');
       expect(line.querySelector('tc-icon')?.getAttribute('name')).toBe('bell-off');
@@ -407,7 +422,12 @@ describe('OverviewPage', () => {
           { ...alpha, snooze: { snoozed: true, until, allowsUrgent: false, since: '2026-10-01T09:00:00Z' } },
           {
             ...quietOne,
-            snooze: { snoozed: true, until: '2020-01-01T00:00:00Z', allowsUrgent: true, since: '2019-12-31T00:00:00Z' },
+            snooze: {
+              snoozed: true,
+              until: '2020-01-01T00:00:00Z',
+              allowsUrgent: true,
+              since: '2019-12-31T00:00:00Z',
+            },
           },
         ],
         checkedAt: '2026-10-01T12:00:00Z',
@@ -424,7 +444,12 @@ describe('OverviewPage', () => {
       expect(tile(root, 'alpha').querySelector('[data-testid="snoozed"]')).toBeNull();
 
       const store = TestBed.inject(ProjectsStore);
-      store.applySnooze('alpha', { snoozed: true, until: null, allowsUrgent: true, since: new Date().toISOString() });
+      store.applySnooze('alpha', {
+        snoozed: true,
+        until: null,
+        allowsUrgent: true,
+        since: new Date().toISOString(),
+      });
       await fixture.whenStable();
       expect(tile(root, 'alpha').querySelector('[data-testid="snoozed"]')).not.toBeNull();
 

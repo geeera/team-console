@@ -4,3 +4,4 @@ export { ArtifactsApi, UnexpectedArtifactsResponse, projectArtifactsUrl } from '
 export { ArtifactsStore } from './lib/artifacts.store';
 export type { ArtifactsFailure, ArtifactsState } from './lib/artifacts.store';
 export { ArtifactList } from './lib/artifact-list';
+export type { DesignRowContext } from './lib/artifact-list';

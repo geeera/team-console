@@ -18,6 +18,17 @@
   width: min(var(--sheet-dialog-w), calc(100% - var(--space-8)));
 }
 
+/* `size: 'full'` (#277): the phone sheet takes the whole visual viewport; the dialog is as large as the screen allows. */
+.tc-sheet-panel--full {
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+.tc-dialog-panel--full {
+  width: min(var(--sheet-full-w), calc(100% - var(--space-8)));
+  height: min(var(--sheet-full-h), var(--dialog-max-h));
+}
+
 /*
  * The page behind an open sheet or dialog does not scroll (#274): `Sheet` sets `data-tc-scroll-lock` on the root
  * while one is open; `SheetScrollLocks` pins the document, and the columns that scroll beside it carry `tc-page-scroll`

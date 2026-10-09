@@ -24,6 +24,12 @@ export interface SheetOptions<D> {
   readonly describedBy?: string;
   /** `wide` gives the centred dialog `--sheet-dialog-w` instead of the confirmation width; the sheet is full width. */
   readonly width?: 'default' | 'wide';
+  /**
+   * `full` (#277): the sheet takes the whole screen on the phone and the dialog `--sheet-full-w × --sheet-full-h`
+   * (within the viewport) elsewhere. The body then no longer scrolls or pads: the content fills it as a column and
+   * owns the one scroller on screen. Takes precedence over `width`.
+   */
+  readonly size?: 'default' | 'full';
 }
 
 let nextSheetId = 0;
@@ -43,16 +49,22 @@ export class Sheet {
 
   open<R = unknown, D = unknown>(content: ComponentType<unknown>, options: SheetOptions<D>): DialogRef<R> {
     const presentation = this.breakpoints.isMatched(BREAKPOINTS.phone) ? 'sheet' : 'dialog';
+    const isFull = options.size === 'full';
     const frame: SheetFrame = {
       title: options.title,
       titleId: `tc-sheet-title-${nextSheetId++}`,
       presentation,
+      size: isFull ? 'full' : 'default',
     };
     const position = this.overlay.position().global().centerHorizontally();
     // One footer slot per sheet, shared by the frame (which renders it) and the content (which fills it).
     const footer = new SheetFooterSlot();
-    const dialogPanel =
-      options.width === 'wide' ? ['tc-dialog-panel', 'tc-dialog-panel--wide'] : 'tc-dialog-panel';
+    const dialogPanel = isFull
+      ? ['tc-dialog-panel', 'tc-dialog-panel--full']
+      : options.width === 'wide'
+        ? ['tc-dialog-panel', 'tc-dialog-panel--wide']
+        : 'tc-dialog-panel';
+    const sheetPanel = isFull ? ['tc-sheet-panel', 'tc-sheet-panel--full'] : 'tc-sheet-panel';
 
     return this.dialog.open<R, D, unknown>(content, {
       data: options.data ?? null,
@@ -64,7 +76,7 @@ export class Sheet {
       restoreFocus: true,
       hasBackdrop: true,
       backdropClass: 'tc-scrim',
-      panelClass: presentation === 'sheet' ? 'tc-sheet-panel' : dialogPanel,
+      panelClass: presentation === 'sheet' ? sheetPanel : dialogPanel,
       positionStrategy: presentation === 'sheet' ? position.bottom('0') : position.centerVertically(),
       scrollStrategy: new SheetScrollStrategy(this.scrollLocks),
       providers: [{ provide: SheetFooterSlot, useValue: footer }],
@@ -76,6 +88,11 @@ export class Sheet {
         ],
       },
     });
+  }
+
+  /** Whether any sheet or dialog is open: someone may be in the middle of something a reload would lose (#306). */
+  hasOpen(): boolean {
+    return this.dialog.openDialogs.length > 0;
   }
 
   /**

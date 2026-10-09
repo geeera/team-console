@@ -62,6 +62,7 @@ describe('NeedsYouPage', () => {
           authorTrusted: true,
           category: 'scope',
           recommendation: null,
+          context: null,
           project: { slug: 'a', name: 'A' },
           allowedCommands: ['approve', 'reject'],
         },

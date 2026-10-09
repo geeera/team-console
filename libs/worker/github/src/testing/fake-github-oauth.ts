@@ -147,6 +147,7 @@ const ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/([0-9]+)$/;
 const LABELS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/([0-9]+)\/labels(?:\/([^/]+))?$/;
 const REPO_PATH = /^\/repos\/([^/]+)\/([^/]+)$/;
 const MILESTONES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/milestones(?:\/([0-9]+))?$/;
+const PULLS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls$/;
 
 /** GitHub's second-precision timestamps. */
 function githubTime(ms: number): string {
@@ -186,6 +187,7 @@ export class FakeGitHubOAuth {
   private readonly now: () => number;
   private readonly issues = new Map<string, FakeIssue>();
   private readonly milestones = new Map<string, FakeMilestone[]>();
+  private readonly pulls = new Map<string, readonly Readonly<Record<string, unknown>>[]>();
   readonly milestoneWrites: FakeMilestoneWrite[] = [];
 
   constructor(private readonly options: FakeGitHubOAuthOptions) {
@@ -292,6 +294,15 @@ export class FakeGitHubOAuth {
     this.milestones.set(repo.toLowerCase(), list);
   }
 
+  /**
+   * Serves `pulls` as the repository's open pull requests, as GitHub's JSON (#277: an e2e moves a design's head
+   * commit after the console loaded its list); seeding again replaces them. A repository never seeded answers 404,
+   * so the api's mock keeps its own list.
+   */
+  seedPulls(repo: string, pulls: readonly Readonly<Record<string, unknown>>[]): void {
+    this.pulls.set(repo.toLowerCase(), pulls);
+  }
+
   /** The repository's milestones as they are now, for assertions; empty when none were seeded. */
   milestonesOf(repo: string): readonly FakeMilestone[] {
     return this.milestones.get(repo.toLowerCase()) ?? [];
@@ -341,6 +352,15 @@ export class FakeGitHubOAuth {
         `${milestones[1] ?? ''}/${milestones[2] ?? ''}`,
         milestones[3] === undefined ? null : Number(milestones[3]),
       );
+    }
+    const pulls = PULLS_PATH.exec(url.pathname);
+    if (url.origin === 'https://api.github.com' && request.method === 'GET' && pulls !== null) {
+      const seeded = this.pulls.get(`${pulls[1] ?? ''}/${pulls[2] ?? ''}`.toLowerCase());
+      if (seeded === undefined) {
+        return json(404, { message: 'Not Found' });
+      }
+      const state = url.searchParams.get('state') ?? 'open';
+      return json(200, seeded.filter((pull) => state === 'all' || (pull['state'] ?? 'open') === state));
     }
     if (url.origin === 'https://api.github.com') {
       const thread = await this.threadEndpoint(request, url);

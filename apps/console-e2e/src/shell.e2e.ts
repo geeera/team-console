@@ -168,9 +168,11 @@ test.describe('with two active projects', () => {
       // The app's environment for the window title, the iOS Home Screen title and the shell mark (#237), once per load.
       'GET /api/v1/healthz',
     ]);
+    // The Artifacts section's design rows read each design's manifest and the thumbnail's bytes (#277), GETs too.
+    const designRead = /^GET \/api\/v1\/projects\/team-console\/designs\/\d+(?:\/[0-9a-f]{40,64}\/file)?$/;
     const seen = sent.map((request) => `${request.method()} ${new URL(request.url()).pathname}`);
     expect(
-      seen.filter((call) => !allowed.has(call)),
+      seen.filter((call) => !allowed.has(call) && !designRead.test(call)),
       'requests outside the allow-list',
     ).toEqual([]);
     expect(seen).toContain('GET /api/v1/projects');
@@ -179,8 +181,13 @@ test.describe('with two active projects', () => {
       statusCodes.filter((code) => code !== 200),
       'team status answers other than 200',
     ).toEqual([]);
+    // The design file route names the screen in `?path=` (#277); it is still a bodiless read.
     expect(
-      sent.filter((request) => request.postDataBuffer() !== null || new URL(request.url()).search !== ''),
+      sent.filter((request) => {
+        const url = new URL(request.url());
+        const isDesignFile = url.pathname.endsWith('/file') && designRead.test(`GET ${url.pathname}`);
+        return request.postDataBuffer() !== null || (url.search !== '' && !isDesignFile);
+      }),
       'requests with a body or a query',
     ).toEqual([]);
   });
