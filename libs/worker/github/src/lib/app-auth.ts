@@ -9,7 +9,14 @@ import {
 import { githubPath } from './github-path';
 import type { RepoName } from './repo-name';
 import type { InstallationListTokenSource, InstallationTokenSource } from './token-source';
-import { discardBody, githubRequest, readGitHubJson, type FetchLike } from './transport';
+import {
+  discardBody,
+  githubRequest,
+  readGitHubJson,
+  type FetchLike,
+  type GitHubRequest,
+  type GitHubTransportOptions,
+} from './transport';
 
 /**
  * The console app's installation tokens (ADR 0003 decision 6), mirroring the plugin's `ptlib/ghapp.py`: an RS256
@@ -58,6 +65,8 @@ export interface GitHubAppAuthOptions {
   readonly fetch: FetchLike;
   /** Milliseconds since the epoch; a seam for expiry tests. */
   readonly now?: () => number;
+  /** Seam for tests: overrides every request's deadline signal (default `AbortSignal.timeout(GITHUB_DEADLINE_MS)`). */
+  readonly deadlineSignal?: () => AbortSignal;
 }
 
 interface CachedToken {
@@ -152,7 +161,9 @@ function hasNextPage(response: Response): boolean {
   return /rel="next"/.test(response.headers.get('link') ?? '');
 }
 
-function isMintedToken(value: unknown): value is { token: string; expires_at: string } {
+function isMintedToken(
+  value: unknown,
+): value is { token: string; expires_at: string; permissions: unknown; repository_selection: unknown } {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
@@ -165,12 +176,60 @@ function isMintedToken(value: unknown): value is { token: string; expires_at: st
 }
 
 /**
+ * What a mint asked GitHub for, and what its answer must echo. A repository token (#9 threat row 2) asks for one
+ * repository, so `repository_selection` can only legitimately come back `selected`. The installation-wide list token
+ * (#194) names no repositories, so GitHub answers with the installation's own selection (`all` or `selected`) —
+ * either is fine for a `metadata`-only token; its permissions still have to be exactly `metadata: read`.
+ */
+interface MintExpectation {
+  readonly permissions: Readonly<Record<string, 'read'>>;
+  readonly repositorySelections: readonly string[];
+}
+
+const REPO_MINT: MintExpectation = Object.freeze({
+  permissions: INSTALLATION_PERMISSIONS,
+  repositorySelections: Object.freeze(['selected']),
+});
+
+const LIST_MINT: MintExpectation = Object.freeze({
+  permissions: INSTALLATION_LIST_PERMISSIONS,
+  repositorySelections: Object.freeze(['all', 'selected']),
+});
+
+/**
+ * Whether a minted token's `permissions` and `repository_selection` are exactly what was requested. GitHub is
+ * expected to always downscope to the request, but a token that came back broader — or, for a repository token,
+ * scoped to more than one repository — must never be used as if it were not.
+ */
+function isDownscopedAsRequested(
+  body: { permissions: unknown; repository_selection: unknown },
+  expected: MintExpectation,
+): boolean {
+  if (
+    typeof body.repository_selection !== 'string' ||
+    !expected.repositorySelections.includes(body.repository_selection)
+  ) {
+    return false;
+  }
+  if (typeof body.permissions !== 'object' || body.permissions === null || Array.isArray(body.permissions)) {
+    return false;
+  }
+  const received = body.permissions as Record<string, unknown>;
+  const wantedKeys = Object.keys(expected.permissions);
+  if (Object.keys(received).length !== wantedKeys.length) {
+    return false;
+  }
+  return wantedKeys.every((key) => received[key] === expected.permissions[key]);
+}
+
+/**
  * One per isolate (the api Worker keeps it for the isolate's lifetime): the token cache lives here, so a new
  * deployment — the only way the key or the app id changes — starts empty.
  */
 export class GitHubAppAuth {
   private readonly fetcher: FetchLike;
   private readonly now: () => number;
+  private readonly transportOptions: GitHubTransportOptions;
   private signingKey: CryptoKey | undefined;
   private readonly tokens = new Map<string, CachedToken>();
   /** Concurrent requests for one token share a mint instead of each spending two subrequests. */
@@ -182,6 +241,13 @@ export class GitHubAppAuth {
   ) {
     this.fetcher = options.fetch;
     this.now = options.now ?? (() => Date.now());
+    this.transportOptions =
+      options.deadlineSignal === undefined ? {} : { deadlineSignal: options.deadlineSignal };
+  }
+
+  /** Every GitHub call this instance makes, with its (possibly test-shortened) deadline signal. */
+  private request(request: GitHubRequest): Promise<Response> {
+    return githubRequest(this.fetcher, request, this.transportOptions);
   }
 
   /**
@@ -190,7 +256,7 @@ export class GitHubAppAuth {
    */
   async installationIdFor(repo: RepoName): Promise<number> {
     const jwt = await this.jwt();
-    const response = await githubRequest(this.fetcher, {
+    const response = await this.request({
       method: 'GET',
       path: githubPath`/repos/${repo}/installation`,
       bearer: jwt,
@@ -218,7 +284,7 @@ export class GitHubAppAuth {
    * One extra subrequest, on the 404 path only.
    */
   private async assertAppExists(jwt: string): Promise<void> {
-    const response = await githubRequest(this.fetcher, {
+    const response = await this.request({
       method: 'GET',
       path: githubPath`/app`,
       bearer: jwt,
@@ -241,7 +307,7 @@ export class GitHubAppAuth {
    */
   async installationIdForAccount(userId: number): Promise<number> {
     const jwt = await this.jwt();
-    const response = await githubRequest(this.fetcher, {
+    const response = await this.request({
       method: 'GET',
       path: githubPath`/app/installations?per_page=${100}`,
       bearer: jwt,
@@ -354,16 +420,24 @@ export class GitHubAppAuth {
 
   private async mintForRepo(repo: RepoName): Promise<CachedToken> {
     const installationId = await this.installationIdFor(repo);
-    return this.mint(installationId, { repositories: [repo.name], permissions: INSTALLATION_PERMISSIONS });
+    return this.mint(
+      installationId,
+      { repositories: [repo.name], permissions: INSTALLATION_PERMISSIONS },
+      REPO_MINT,
+    );
   }
 
   /** No `repositories` member — that is what makes it installation-wide — hence `metadata` and nothing else. */
   private async mintForInstallation(installationId: number): Promise<CachedToken> {
-    return this.mint(installationId, { permissions: INSTALLATION_LIST_PERMISSIONS });
+    return this.mint(installationId, { permissions: INSTALLATION_LIST_PERMISSIONS }, LIST_MINT);
   }
 
-  private async mint(installationId: number, body: Readonly<Record<string, unknown>>): Promise<CachedToken> {
-    const response = await githubRequest(this.fetcher, {
+  private async mint(
+    installationId: number,
+    body: Readonly<Record<string, unknown>>,
+    expected: MintExpectation,
+  ): Promise<CachedToken> {
+    const response = await this.request({
       method: 'POST',
       path: githubPath`/app/installations/${installationId}/access_tokens`,
       bearer: await this.jwt(),
@@ -377,6 +451,14 @@ export class GitHubAppAuth {
     const expiresAt = isMintedToken(minted) ? Date.parse(minted.expires_at) : Number.NaN;
     if (!isMintedToken(minted) || Number.isNaN(expiresAt)) {
       throw githubUnexpectedError('GitHub returned no installation token', response.status);
+    }
+    // #76: refuse a token GitHub minted with different permissions or repository scope than requested, never
+    // use it as if it were downscoped.
+    if (!isDownscopedAsRequested(minted, expected)) {
+      throw githubUnexpectedError(
+        'GitHub minted a token with different permissions or repository scope than requested',
+        response.status,
+      );
     }
     return { token: minted.token, expiresAt };
   }

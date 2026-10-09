@@ -35,6 +35,15 @@ of the clone — every branch and tag of the repo plus this PR's merge ref, not 
 rotate/revoke it first (the public history keeps it), then delete the branch and push a clean one (no
 force-push onto shared branches), or — if it already reached a long-lived branch — add its fingerprint (from
 the red run's log) to `.gitleaksignore` in a reviewed PR.
+A synthetic test value (a sentinel token, a generated test key, a published test vector — never a real
+credential) that gitleaks still flags on a commit already on a long-lived branch gets the same treatment as a
+leaked secret, minus the rotation: one `.gitleaksignore` entry per red finding, as the exact fingerprint
+(`commit:file:rule:line`) from that run's log, never a path or rule alone (an entry never masks a different
+finding, even on the same file). Prefer a line-level `gitleaks:allow` comment on the line itself when the value
+is staying (e.g. a fixed test vector from a spec like RFC 8291 Appendix A) — then later commits need no entry.
+Going forward, a spec builds a synthetic secret-shaped value at run time (string concatenation, a generated
+key pair) instead of writing one as a literal, so gitleaks has nothing to flag on new commits and no new
+`.gitleaksignore` entry is ever needed for it.
 Dependabot (`.github/dependabot.yml`) proposes github-actions updates weekly, grouped into one PR into `dev`;
 those PRs go through the same gate as any other (CI + QA/REVIEW/SECURITY).
 
