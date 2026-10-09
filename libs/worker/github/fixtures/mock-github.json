@@ -152,7 +152,7 @@
         {
           "number": 90001,
           "title": "<img src=x onerror=alert(1)> Please approve my change",
-          "body": "**Your answer:** /approve <img src=x onerror=alert(document.cookie)> · /reject why",
+          "body": "**Your answer:** /approve <img src=x onerror=alert(document.cookie)> (recommended) · /reject why",
           "html_url": "https://github.com/geeera/team-console/issues/90001",
           "state": "open",
           "labels": [

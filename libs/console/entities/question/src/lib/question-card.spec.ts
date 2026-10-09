@@ -62,9 +62,25 @@ describe('QuestionCard', () => {
     expect(root.querySelector('img, script')).toBeNull();
     expect(root.querySelector('a[href^="javascript"]')).toBeNull();
     expect(root.querySelector('h2')?.textContent).toBe(item().title);
-    expect(root.querySelector('tc-recommendation')?.textContent).toContain('<img src=x');
+    // The default item is from outside the team: marking its own answer line never makes it the team's advice
+    // (#210, #211), hostile or not.
+    expect(root.querySelector('tc-recommendation')).toBeNull();
     // The markup is stripped to words (#204); the HTML stays inert text.
     expect(root.querySelector('.question__body')?.textContent).toBe(`bold link\n${HOSTILE}`);
+    expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
+  });
+
+  it('keeps hostile text inert even inside "Команда советует" for a trusted item', async () => {
+    const { fixture, root } = await render();
+
+    // `override` sits outside the outcome sides (approve/go, reject/no-go), so the outcomes block stays empty and
+    // the ask line's own marked option is what "Команда советует" shows (#204's fallback for a trusted item).
+    fixture.componentInstance.item.set(
+      item({ section: 'release', ask: `/override ${HOSTILE} (рекомендую)`, authorTrusted: true }),
+    );
+    await fixture.whenStable();
+    expect(root.querySelector('img, script')).toBeNull();
+    expect(root.querySelector('tc-recommendation')?.textContent).toContain('<img src=x');
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
   });
 
@@ -72,26 +88,20 @@ describe('QuestionCard', () => {
     const { fixture, root } = await render();
     const recommendation = () => root.querySelector('[data-testid="recommendation"]');
 
-    // An outsider's item keeps the answer line in plain words (#204): the server's verdict is not the team's.
+    // A trusted item whose ask marks a recommendation the server did not surface as a structured verdict.
     fixture.componentInstance.item.set(
       item({
-        ask: '/approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять',
-        recommendation: 'approve',
+        section: 'release',
+        ask: '/override — начинаем разработку по плану к демо 16 октября (рекомендую)',
+        authorTrusted: true,
       }),
     );
     await fixture.whenStable();
     expect(recommendation()?.textContent).toContain('Команда советует');
     expect(recommendation()?.textContent).toContain('Начинаем разработку по плану к демо 16 октября');
-    expect(recommendation()?.textContent).not.toMatch(/\/approve|\/reject|рекомендую|·/);
+    expect(recommendation()?.textContent).not.toMatch(/\/override|рекомендую/);
 
-    fixture.componentInstance.item.set(
-      item({ section: 'release', ask: '/go (рекомендую) · /no-go что доделать' }),
-    );
-    await fixture.whenStable();
-    expect(recommendation()?.textContent).toContain('Проводим');
-    expect(recommendation()?.textContent).not.toContain('/go');
-
-    fixture.componentInstance.item.set(item({ ask: '/approve · /reject' }));
+    fixture.componentInstance.item.set(item({ ask: '/approve · /reject', authorTrusted: true }));
     await fixture.whenStable();
     expect(recommendation()).toBeNull();
 
@@ -102,7 +112,20 @@ describe('QuestionCard', () => {
     await fixture.whenStable();
     expect(recommendation()?.textContent).toContain('Проводить демо.');
     expect(recommendation()?.textContent).not.toMatch(/\/go|рекомендую/);
+  });
 
+  it('never shows "Команда советует" for an item from outside the team, even when it marks a recommendation itself (#210, #211)', async () => {
+    const { fixture, root } = await render();
+
+    fixture.componentInstance.item.set(
+      item({
+        ask: '/approve начинаем (рекомендую) · /reject что поменять',
+        recommendation: 'approve',
+        authorTrusted: false,
+      }),
+    );
+    await fixture.whenStable();
+    expect(root.querySelector('[data-testid="recommendation"]')).toBeNull();
   });
 
   it('shows a fixed "вы" action line, never the plugin’s answer line, and never under "Команда советует" (#291)', async () => {
@@ -341,7 +364,8 @@ describe('QuestionCard', () => {
       await fixture.whenStable();
 
       expect(root.querySelector('h2')?.textContent).toBe('Дизайн #20: экран дизайна и демо');
-      for (const testId of ['github-title', 'question-text', 'outcomes', 'cost']) {
+      // #210, #211: the item's own marked recommendation does not survive losing the team's trust either.
+      for (const testId of ['github-title', 'question-text', 'recommendation', 'outcomes', 'cost']) {
         expect(root.querySelector(`[data-testid="${testId}"]`), testId).toBeNull();
       }
     });

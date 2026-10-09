@@ -32,8 +32,8 @@ test('the team recommendation reads as a sentence, not command syntax', async ({
   // The buttons still carry the commands.
   await expect(item(page, 72).locator('[data-command="approve"]')).toHaveText(ru('answer.command.approve'));
   await expect(item(page, 72).locator('[data-command="reject"]')).toHaveText(ru('answer.command.reject'));
-  // An item from outside the team marks no recommendation (#210): no "Команда советует" block, and its HTML stays
-  // inert text wherever it is shown.
+  // An item from outside the team marks `/approve … (recommended)` itself: that never makes it the team's advice
+  // (#210, #211) — no "Команда советует" block at all, and its HTML stays inert text wherever it is shown.
   await expect(item(page, 90001).getByTestId('recommendation')).toHaveCount(0);
   await expect(item(page, 90001)).toContainText('<img src=x');
   await expect(item(page, 90001).locator('img, script')).toHaveCount(0);
