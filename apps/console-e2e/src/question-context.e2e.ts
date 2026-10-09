@@ -81,13 +81,17 @@ test('an older question without the sections falls back to its first paragraph a
     'Вопрос о составе продукта: команда предлагает экспорт доски.',
   );
   await expect(older.getByTestId('recommendation')).toContainText(ru('questions.recommend.approve'));
-  await expect(older.getByTestId('outcomes').locator('dd')).toHaveText(['Добавить экспорт в CSV', 'Почему']);
-  for (const raw of ['/approve', '/reject', 'рекомендую']) {
+  // The reject side is only the plugin's placeholder prompt ("почему"): dropped, not shown as a bare prompt (#291).
+  await expect(older.getByTestId('outcomes').locator('dd')).toHaveText(['Добавить экспорт в CSV']);
+  await expect(older.getByTestId('outcomes').locator('dt')).toHaveText([ru('questions.outcome.ifApprove')]);
+  for (const raw of ['/approve', '/reject', 'рекомендую', 'Почему']) {
     await expect(older).not.toContainText(raw);
   }
-  // An outsider's question: marked, and nothing read from its body into the card.
+  // An outsider's question: marked, nothing read from its body into the card, and its own "(recommended)" mark on
+  // the answer line never becomes the team's advice (#210, #211).
   const outsider = card(page, 90001);
   await expect(outsider.getByTestId('untrusted')).toBeVisible();
+  await expect(outsider.getByTestId('recommendation')).toHaveCount(0);
   await expect(outsider.getByTestId('outcomes')).toHaveCount(0);
   await expect(outsider.getByTestId('question-text')).toHaveCount(0);
   await expectAccessible(page, 'Project questions, fallback and outsider');

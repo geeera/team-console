@@ -40,8 +40,10 @@ interface Outcome {
 }
 
 /**
- * "The team recommends": the recommended answer as a verb and the team's reason (#276), or — for an outsider's
- * item, or a team item with neither — the answer line in plain words (#204).
+ * "The team recommends": the recommended answer as a verb and the team's reason (#276), or — for a team item with
+ * neither — the answer line's own recommended option in plain words (#204). Never shown without a recognised
+ * recommendation (#210), never for an action item (#291, see `isAction` instead), and never for an item from
+ * outside the team (#210, #211): marking its own answer line `(рекомендую)` never makes it the team's advice.
  */
 type Advice =
   | { readonly kind: 'verdict'; readonly verbKey: string | null; readonly why: string | null }
@@ -50,6 +52,11 @@ type Advice =
 function verbKeyOf(section: Section, recommendation: TeamRecommendation): string {
   const verb = recommendation === 'approve' && section === 'design' ? 'approveDesign' : recommendation;
   return `questions.recommend.${verb}`;
+}
+
+/** An action item (#291): answered with "Готово" alone, never approve/reject, so it carries no recommendation. */
+function isActionSection(section: Section): boolean {
+  return section === 'owner' || section === 'local';
 }
 
 /**
@@ -90,6 +97,9 @@ function verbKeyOf(section: Section, recommendation: TeamRecommendation): string
       }
       @if (question(); as question) {
         <p class="question__ask" data-testid="question-text">{{ question }}</p>
+      }
+      @if (isAction()) {
+        <p class="question__ask" data-testid="action-text">{{ 'questions.actionHint' | transloco }}</p>
       }
       @if (advice(); as advice) {
         <tc-recommendation [label]="'questions.recommends' | transloco" data-testid="recommendation">
@@ -213,22 +223,36 @@ export class QuestionCard {
     return outcomes;
   });
 
+  /**
+   * "The team recommends"; `null` for an action item (#291, never a recommendation to make), for an item from
+   * outside the team (#210, #211 — marking its own answer line `(рекомендую)` never makes it the team's advice),
+   * and whenever nothing recognised as a recommendation was found (#210) — a neutral fallback would still dress up
+   * leftover options or an owner instruction as advice, so the block is better absent than wrong.
+   */
   protected readonly advice = computed((): Advice | null => {
     const item = this.item();
-    if (item.authorTrusted) {
-      const why = this.context()?.why ?? null;
-      if (item.recommendation !== null || why !== null) {
-        const verbKey = item.recommendation === null ? null : verbKeyOf(item.section, item.recommendation);
-        return { kind: 'verdict', verbKey, why };
-      }
-      // The outcomes already name each option; without a marked one there is nothing more to recommend.
-      if (this.outcomes().length > 0) {
-        return null;
-      }
+    if (isActionSection(item.section) || !item.authorTrusted) {
+      return null;
+    }
+    const why = this.context()?.why ?? null;
+    if (item.recommendation !== null || why !== null) {
+      const verbKey = item.recommendation === null ? null : verbKeyOf(item.section, item.recommendation);
+      return { kind: 'verdict', verbKey, why };
+    }
+    // The outcomes already name each option; without a marked one there is nothing more to recommend.
+    if (this.outcomes().length > 0) {
+      return null;
     }
     const ask = plainAskOf(item.ask);
     return ask === null ? null : { kind: 'ask', ask };
   });
+
+  /**
+   * An action item (#291): a fixed console line in "вы" ("Нажмите «Готово», когда сделаете.") under the title and
+   * the question (if any), never under "The team recommends". The plugin's own answer line can mix in its "ты"
+   * grammar and free text the console does not control, so it is never shown here, not even in part.
+   */
+  protected readonly isAction = computed(() => isActionSection(this.item().section));
 
   /** The cost line; for a money decision without one, a prompt to ask the PM (#276). */
   protected readonly cost = computed((): { readonly text: string | null } | null => {
