@@ -32,10 +32,38 @@ test('the team recommendation reads as a sentence, not command syntax', async ({
   // The buttons still carry the commands.
   await expect(item(page, 72).locator('[data-command="approve"]')).toHaveText(ru('answer.command.approve'));
   await expect(item(page, 72).locator('[data-command="reject"]')).toHaveText(ru('answer.command.reject'));
-  // An item from outside the team: its HTML stays inert text.
-  await expect(item(page, 90001).getByTestId('recommendation')).toContainText('<img src=x');
-  await expect(item(page, 90001).locator('img')).toHaveCount(0);
+  // An item from outside the team marks no recommendation (#210): no "Команда советует" block, and its HTML stays
+  // inert text wherever it is shown.
+  await expect(item(page, 90001).getByTestId('recommendation')).toHaveCount(0);
+  await expect(item(page, 90001)).toContainText('<img src=x');
+  await expect(item(page, 90001).locator('img, script')).toHaveCount(0);
   await expectAccessible(page, 'Needs you, plain recommendation');
+});
+
+test('action items show no "Команда советует" block, and nothing with no recommendation does either (#210, #291)', async ({
+  page,
+}) => {
+  await page.goto('/needs-you');
+
+  // #21 and #46 are action items (owner section, "Готово" only): the console's own "вы" phrasing shows in its own
+  // line, never the plugin's "Напиши" under "Команда советует", and never the "·" separator or the reject-side
+  // prompt (#21's body also carries `/reject причина, если что-то не подходит`, offered to no button here).
+  for (const issue of [21, 46]) {
+    const card = item(page, issue);
+    await expect(card.getByTestId('recommendation')).toHaveCount(0);
+    await expect(card.locator('[data-command="reject"]')).toHaveCount(0);
+    await expect(card).not.toContainText('Напиши');
+    await expect(card).not.toContainText('·');
+  }
+  await expect(item(page, 21).getByTestId('action-text')).toHaveText(
+    'Нажмите «Готово», когда заведёшь аккаунты по чеклисту из #7',
+  );
+
+  // #90006 is a design the team marks no recommendation for: the block is absent, not a neutral fallback of it.
+  const design = item(page, 90006);
+  await expect(design.getByTestId('recommendation')).toHaveCount(0);
+  await expect(design).not.toContainText(ru('questions.recommends'));
+  await expectAccessible(page, 'Needs you, action items and no-recommendation design');
 });
 
 test('details on project Questions show no markup, team markers or answer line', async ({ page }) => {

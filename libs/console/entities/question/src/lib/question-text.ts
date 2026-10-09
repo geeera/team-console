@@ -100,19 +100,29 @@ export function plainAskOf(ask: string | null): PlainAsk | null {
   return isAnswerCommand(recommended.command) ? { kind: 'command', command: recommended.command } : null;
 }
 
+// The plugin's own opening clause for an action item ("owner.py"'s `done` instruction): "Напиши «сделал», когда…"
+// is the plugin's "ты" command for what the card's own "Готово" button already offers — the console says the same
+// thing in its own voice instead of repeating the plugin's grammar under its label (#291).
+const DONE_INSTRUCTION = /^напиши\s*«сделал»\s*,?\s*когда\s+/iu;
+const OWN_VOICE_LEAD = 'Нажмите «Готово», когда ';
+
 /**
  * An action item's own instruction (`owner`/`local` sections, "Готово" only, #291): the answer line's lead
  * sentence, without any inline `/command` option — a Готово-only card never offers those, so neither the "·"
- * joiner nor a reject-side prompt belongs in what the card shows. `null` when nothing readable is left. The result
- * is plain text for interpolation, never a recommendation: the console shows it without a "The team recommends"
- * label, since it is the action itself, not advice about it.
+ * joiner nor a reject-side prompt belongs in what the card shows. The plugin's own "Напиши «сделал», когда…" opening
+ * becomes the console's "Нажмите «Готово», когда…", in "вы"; any other wording is kept as it is. `null` when
+ * nothing readable is left. The result is plain text for interpolation, never a recommendation: the console shows
+ * it without a "The team recommends" label, since it is the action itself, not advice about it.
  */
 export function actionAskOf(ask: string | null): string | null {
   if (ask === null) {
     return null;
   }
   const { lead } = optionsOf(markdownToPlainText(ask));
-  return READABLE.test(lead) ? sentenceOf(lead) : null;
+  if (!READABLE.test(lead)) {
+    return null;
+  }
+  return DONE_INSTRUCTION.test(lead) ? OWN_VOICE_LEAD + lead.replace(DONE_INSTRUCTION, '') : sentenceOf(lead);
 }
 
 /** What each answer leads to, for a card whose body has no `## Если одобрить` / `## Если отклонить` (#276). */

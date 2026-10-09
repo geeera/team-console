@@ -119,7 +119,8 @@ describe('QuestionCard', () => {
     await fixture.whenStable();
     expect(root.querySelector('[data-testid="recommendation"]')).toBeNull();
     const action = root.querySelector('[data-testid="action-text"]');
-    expect(action?.textContent).toBe('Напиши «сделал», когда заведёшь аккаунты по чеклисту из #7');
+    expect(action?.textContent).toBe('Нажмите «Готово», когда заведёшь аккаунты по чеклисту из #7');
+    expect(root.textContent).not.toContain('Напиши');
     expect(root.textContent).not.toContain('·');
     expect(root.textContent).not.toContain('причина, если что-то не подходит');
 
