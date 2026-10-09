@@ -1,4 +1,4 @@
-import { askOutcomesOf, plainAskOf, plainDetailsOf } from './question-text';
+import { actionAskOf, askOutcomesOf, plainAskOf, plainDetailsOf } from './question-text';
 
 const text = (value: string) => ({ kind: 'text', text: value });
 
@@ -29,11 +29,12 @@ describe('plainAskOf', () => {
     expect(plainAskOf('/go (рекомендую) · /no-go что доделать')).toEqual({ kind: 'command', command: 'go' });
   });
 
-  it('without a recommendation, shows the ask without command words', () => {
-    expect(plainAskOf('/approve онбординг · /reject что поменять')).toEqual(text('Онбординг · что поменять'));
-    expect(plainAskOf('Напиши «сделал», когда переключишь источник GitHub Pages')).toEqual(
-      text('Напиши «сделал», когда переключишь источник GitHub Pages'),
-    );
+  it('is null without a recognised recommendation, so "the team recommends" never shows the leftover options or an owner instruction as advice (#210)', () => {
+    expect(plainAskOf('/approve онбординг · /reject что поменять')).toBeNull();
+    expect(plainAskOf('Напиши «сделал», когда переключишь источник GitHub Pages')).toBeNull();
+    expect(
+      plainAskOf('Напиши «сделал», когда заведёшь аккаунты по чеклисту из #7 · /reject причина, если что-то не подходит'),
+    ).toBeNull();
   });
 
   it('is null when nothing readable is left, so the card never shows an empty block', () => {
@@ -44,8 +45,8 @@ describe('plainAskOf', () => {
   });
 
   it('keeps HTML in the ask as inert text and leaves URLs and paths alone', () => {
-    expect(plainAskOf('/approve <img src=x onerror=alert(document.cookie)> · /reject why')).toEqual(
-      text('<img src=x onerror=alert(document.cookie)> · why'),
+    expect(plainAskOf('/approve <img src=x onerror=alert(document.cookie)> (рекомендую) · /reject why')).toEqual(
+      text('<img src=x onerror=alert(document.cookie)>'),
     );
     expect(plainAskOf('/approve см. https://example.org/a/b и docs/x (рекомендую)')).toEqual(
       text('См. https://example.org/a/b и docs/x'),
@@ -56,6 +57,25 @@ describe('plainAskOf', () => {
     expect(plainAskOf('/approve — **начинаем** `сейчас` (рекомендую) · /reject')).toEqual(
       text('Начинаем сейчас'),
     );
+  });
+});
+
+describe('actionAskOf (#291)', () => {
+  it('reads the lead sentence alone, with no command, "·" or reject-side prompt', () => {
+    expect(actionAskOf('Напиши «сделал», когда переключишь источник GitHub Pages')).toBe(
+      'Напиши «сделал», когда переключишь источник GitHub Pages',
+    );
+    expect(
+      actionAskOf(
+        'Напиши «сделал», когда заведёшь аккаунты по чеклисту из #7 · /reject причина, если что-то не подходит',
+      ),
+    ).toBe('Напиши «сделал», когда заведёшь аккаунты по чеклисту из #7');
+  });
+
+  it('is null when nothing readable is left', () => {
+    expect(actionAskOf(null)).toBeNull();
+    expect(actionAskOf('')).toBeNull();
+    expect(actionAskOf('/done')).toBeNull();
   });
 });
 
@@ -74,13 +94,20 @@ describe('plainDetailsOf', () => {
 
 describe('askOutcomesOf (#276 fallback)', () => {
   it('reads each side’s option without its command or mark', () => {
-    expect(askOutcomesOf('/approve добавить экспорт в CSV (рекомендую) · /reject почему')).toEqual({
-      ifApproved: 'Добавить экспорт в CSV',
-      ifRejected: 'Почему',
-    });
     expect(askOutcomesOf('`/approve` to enable branch protection (recommended) · `/reject why` to keep it')).toEqual({
       ifApproved: 'Enable branch protection',
       ifRejected: 'Why to keep it',
+    });
+  });
+
+  it('drops a side that is only the plugin’s placeholder prompt, so it never reads as a bare question (#291)', () => {
+    expect(askOutcomesOf('/approve добавить экспорт в CSV (рекомендую) · /reject почему')).toEqual({
+      ifApproved: 'Добавить экспорт в CSV',
+      ifRejected: null,
+    });
+    expect(askOutcomesOf('/approve макет настроек (рекомендую) · /reject что поменять')).toEqual({
+      ifApproved: 'Макет настроек',
+      ifRejected: null,
     });
   });
 

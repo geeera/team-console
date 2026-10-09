@@ -14,7 +14,7 @@ function item(overrides: Partial<QuestionItem> = {}): QuestionItem {
     number: 90001,
     title: `${HOSTILE} Please approve my change`,
     url: 'https://github.com/geeera/team-console/issues/90001',
-    ask: `/approve ${HOSTILE}`,
+    ask: `/approve ${HOSTILE} (recommended)`,
     body: `**bold** [link](javascript:alert(1))\n${HOSTILE}`,
     authorTrusted: false,
     allowedCommands: ['approve', 'reject'],
@@ -103,12 +103,40 @@ describe('QuestionCard', () => {
     expect(recommendation()?.textContent).toContain('Проводить демо.');
     expect(recommendation()?.textContent).not.toMatch(/\/go|рекомендую/);
 
-    // An action item's instruction is still shown as it is.
+  });
+
+  it('shows an action item’s instruction in its own voice, never under "Команда советует" (#291)', async () => {
+    const { fixture, root } = await render();
+
     fixture.componentInstance.item.set(
-      item({ section: 'owner', ask: 'Напишите «сделал»', authorTrusted: true, allowedCommands: ['done'] }),
+      item({
+        section: 'owner',
+        ask: 'Напиши «сделал», когда заведёшь аккаунты по чеклисту из #7 · /reject причина, если что-то не подходит',
+        authorTrusted: true,
+        allowedCommands: ['done'],
+      }),
     );
     await fixture.whenStable();
-    expect(recommendation()?.textContent).toContain('Напишите «сделал»');
+    expect(root.querySelector('[data-testid="recommendation"]')).toBeNull();
+    const action = root.querySelector('[data-testid="action-text"]');
+    expect(action?.textContent).toBe('Напиши «сделал», когда заведёшь аккаунты по чеклисту из #7');
+    expect(root.textContent).not.toContain('·');
+    expect(root.textContent).not.toContain('причина, если что-то не подходит');
+
+    // A local section item behaves the same way, and a design item without a recommendation shows no block (#210).
+    fixture.componentInstance.item.set(
+      item({ section: 'local', ask: 'Переключи источник GitHub Pages', authorTrusted: true, allowedCommands: ['done'] }),
+    );
+    await fixture.whenStable();
+    expect(root.querySelector('[data-testid="recommendation"]')).toBeNull();
+    expect(root.querySelector('[data-testid="action-text"]')?.textContent).toBe('Переключи источник GitHub Pages');
+
+    fixture.componentInstance.item.set(
+      item({ section: 'design', ask: '/approve онбординг · /reject что поменять', authorTrusted: false }),
+    );
+    await fixture.whenStable();
+    expect(root.querySelector('[data-testid="recommendation"]')).toBeNull();
+    expect(root.querySelector('[data-testid="action-text"]')).toBeNull();
   });
 
   it('shows the details without the answer line, team markers or markup (#204)', async () => {
@@ -258,9 +286,9 @@ describe('QuestionCard', () => {
       expect(root.querySelector('[data-testid="github-title"]')).toBeNull();
       expect(text(root, 'question-text')).toBe('Команда предлагает экспорт.');
       expect(text(root, 'recommendation')).toContain('Одобрить.');
+      // The reject side is only the plugin's placeholder prompt ("почему"): dropped, not shown as a bare prompt (#291).
       expect(Array.from(root.querySelectorAll('[data-testid="outcomes"] dd'), (dd) => dd.textContent)).toEqual([
         'Добавить экспорт в CSV',
-        'Почему',
       ]);
       expect(root.querySelector('[data-testid="outcomes"] dt')?.textContent).toBe('Если одобрите');
       expect(root.querySelector('[data-testid="cost"]')).toBeNull();
