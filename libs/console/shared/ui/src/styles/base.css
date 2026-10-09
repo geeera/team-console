@@ -75,6 +75,11 @@ select {
   padding: var(--space-5) var(--space-4) calc(var(--space-8) + var(--safe-bottom));
 }
 
+/* A page of decision cards (#276): wide enough for two cards side by side on a Mac. */
+.tc-page--cards {
+  max-width: var(--cards-max);
+}
+
 .tc-page__title {
   margin: 0;
   font-family: var(--font-display);

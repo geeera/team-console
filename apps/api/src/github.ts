@@ -58,6 +58,8 @@ export function fakeGitHubFetch(env: ApiEnv, base: FetchLike): FetchLike {
 
 const ISSUE_THREAD_PATH = /^\/repos\/[^/]+\/[^/]+\/issues\/[0-9]+(?:\/comments)?$/;
 const MILESTONES_PATH = /^\/repos\/[^/]+\/[^/]+\/milestones$/;
+// #277: a seeded pull request list, so an e2e can move a design's head commit after the console loaded its list.
+const PULLS_PATH = /^\/repos\/[^/]+\/[^/]+\/pulls$/;
 
 /**
  * Local runs only, with both `GITHUB_MOCK` and `GITHUB_FAKE_ORIGIN` (#114): owner writes (labels, comments, and
@@ -74,7 +76,8 @@ export function localIssueThreads(env: ApiEnv, mockFetch: FetchLike, base: Fetch
   return async (input, init) => {
     const mocked = await mockFetch(input, init);
     const path = new URL(input).pathname;
-    const isServedByFake = ISSUE_THREAD_PATH.test(path) || MILESTONES_PATH.test(path);
+    const isServedByFake =
+      ISSUE_THREAD_PATH.test(path) || MILESTONES_PATH.test(path) || PULLS_PATH.test(path);
     if ((init.method ?? 'GET') !== 'GET' || !isServedByFake || !mocked.ok) {
       return mocked;
     }

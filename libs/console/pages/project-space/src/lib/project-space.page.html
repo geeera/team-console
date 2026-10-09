@@ -48,7 +48,8 @@
 <tc-paused-banner class="space__banner" [project]="commandsProject()" />
 
 <div class="space__main">
-  <div class="space__body"><router-outlet /></div>
+  <!-- The board uses the whole main column on a wide screen (#275); text screens keep the reading width. -->
+  <div class="space__body" [class.space__body--wide]="currentSection() === 'board'"><router-outlet /></div>
   @if (isPaneOpen()) {
   <tc-commands-pane id="tc-space-commands" [project]="commandsProject()" (closed)="closePane()" />
   }

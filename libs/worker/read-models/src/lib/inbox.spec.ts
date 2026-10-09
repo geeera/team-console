@@ -85,3 +85,33 @@ describe('setup and paused', () => {
     expect(inbox.items.some((item) => [1, 2, 3].includes(item.number))).toBe(false);
   });
 });
+
+describe('question context (#276)', () => {
+  const body = '**Your answer:** /approve (recommended) · /reject\n\n## Кратко\nКоротко\n\n## Вопрос\nAsk <b>now</b>?';
+  const issue = (number: number, authorAssociation: string): IssueRecord => ({
+    number,
+    title: 'A long English title',
+    body,
+    htmlUrl: `https://github.com/geeera/edge-cases/issues/${String(number)}`,
+    state: 'open',
+    labels: ['kind:question'],
+    isPullRequest: false,
+    updatedAt: null,
+    authorAssociation,
+    authorLogin: 'someone',
+    authorType: 'User',
+  });
+  const items = buildQuestions([issue(1, 'OWNER'), issue(2, 'NONE')]).items;
+  const expected = { summary: 'Коротко', question: 'Ask now?', structured: true };
+
+  it('parses a trusted author’s sections into plain text on the question card and the inbox', () => {
+    expect(items[0]?.context).toMatchObject(expected);
+    const needs = buildInbox({ openIssues: [issue(1, 'OWNER')], reviewerLogins: ['r'], repoFullName: 'a/b' });
+    expect(needs.items[0]?.context).toMatchObject(expected);
+  });
+
+  it('never reads an outsider’s body into the card', () => {
+    expect(items[1]?.authorTrusted).toBe(false);
+    expect(items[1]?.context).toBeNull();
+  });
+});

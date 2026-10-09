@@ -1,0 +1,183 @@
+/*
+ * #307 spec §2–§4. The cell is the Mac's pointer size (40 px) in the popover and the 44 px touch target in the sheet;
+ * everything in the grid is laid out from it, so the popover's width comes from its content.
+ */
+:host {
+  --tc-date-cell: var(--icon-button-size);
+  display: block;
+  color: var(--text);
+}
+
+:host(.tc-date-panel--sheet) {
+  --tc-date-cell: var(--control-h-touch);
+}
+
+/* The popover frame; in a sheet the sheet is the frame. */
+:host(:not(.tc-date-panel--sheet)) {
+  padding: var(--space-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  animation: tc-date-open var(--dur-fast) var(--ease-enter) both;
+}
+
+:host(.tc-date-panel--closing) {
+  animation: tc-date-close var(--dur-fast) var(--ease-exit) both;
+}
+
+.tc-date-panel__frame {
+  display: grid;
+  gap: var(--space-2);
+  justify-content: center;
+}
+
+.tc-date-panel__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.tc-date-panel__month {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+}
+
+:host(.tc-date-panel--sheet) .tc-date-panel__prev,
+:host(.tc-date-panel--sheet) .tc-date-panel__next {
+  width: var(--control-h-touch);
+  height: var(--control-h-touch);
+}
+
+/* Separate borders give the gaps; the negative margin takes back the spacing the table adds around its edge. */
+.tc-date-panel__grid {
+  border-collapse: separate;
+  border-spacing: var(--space-1);
+  margin: calc(-1 * var(--space-1));
+  table-layout: fixed;
+}
+
+.tc-date-panel__weekday {
+  width: var(--tc-date-cell);
+  padding: 0 0 var(--space-1);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
+  color: var(--text-3);
+  text-align: center;
+}
+
+.tc-date-panel__day,
+.tc-date-panel__blank {
+  width: var(--tc-date-cell);
+  height: var(--tc-date-cell);
+  padding: 0;
+}
+
+.tc-date-panel__day {
+  position: relative;
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-none);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+.tc-date-panel__day:hover {
+  background: var(--hover);
+}
+
+.tc-date-panel__day:active {
+  background: var(--pressed);
+}
+
+.tc-date-panel__day:focus {
+  outline: none;
+}
+
+.tc-date-panel__day:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+/* Today: a dot under the number. */
+.tc-date-panel__day--today {
+  font-weight: var(--fw-semibold);
+}
+
+.tc-date-panel__day--today::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-1);
+  width: var(--dot-size);
+  height: var(--dot-size);
+  border-radius: var(--r-round);
+  background: var(--accent);
+  transform: translateX(-50%);
+}
+
+.tc-date-panel__day[aria-selected='true'] {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: var(--fw-semibold);
+}
+
+.tc-date-panel__day--today[aria-selected='true']::after {
+  background: var(--accent-contrast);
+}
+
+/* --focus is (nearly) --accent: a surface gap keeps the ring visible on the selected fill. */
+.tc-date-panel__day[aria-selected='true']:focus-visible {
+  box-shadow: 0 0 0 var(--focus-offset) var(--surface);
+}
+
+/* Unavailable: dimmed, no hover, and its label says so — never colour alone. */
+.tc-date-panel__day--off {
+  color: var(--text-3);
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+
+.tc-date-panel__day--off:hover,
+.tc-date-panel__day--off:active {
+  background: none;
+}
+
+.tc-date-panel__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: var(--border-w) solid var(--border);
+}
+
+@keyframes tc-date-open {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-1));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tc-date-close {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(var(--space-1));
+  }
+}

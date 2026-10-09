@@ -1,4 +1,4 @@
-@if (frame.presentation === 'sheet') {
+@if (frame.presentation === 'sheet' && frame.size !== 'full') {
 <div class="tc-sheet__grab" aria-hidden="true"></div>
 }
 <!-- A div, not <header>: two stacked sheets (a confirmation over a panel) would give two banner landmarks. -->

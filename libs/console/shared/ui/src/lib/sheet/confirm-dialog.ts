@@ -1,7 +1,9 @@
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, forwardRef, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button } from '../button/button';
+import { DatePicker, type DatePickerProblem } from '../date-picker/date-picker';
 import { Icon } from '../icon/icon';
 import { SheetFooter } from './sheet-footer';
 
@@ -27,11 +29,11 @@ export interface ConfirmInput {
   readonly label: string;
   readonly hint?: string;
   readonly maxLength?: number;
-  /** `date` is the native picker (`YYYY-MM-DD` values); text by default. */
+  /** `date` is the kit's `DatePicker` (`YYYY-MM-DD` values, typed as `ДД.ММ.ГГГГ`); text by default. */
   readonly type?: 'text' | 'date';
   /** The value the field opens with. */
   readonly value?: string;
-  /** Bounds of a date field, `YYYY-MM-DD`; the picker pre-validates only, `check` and the server decide. */
+  /** Bounds of a date field, `YYYY-MM-DD`: days outside are off in the calendar; `check` and the server decide. */
   readonly min?: string;
   readonly max?: string;
   readonly check?: (value: string) => ConfirmCheck;
@@ -89,7 +91,8 @@ let nextFieldId = 0;
 /** The body of `Sheet.confirm()`: warning, message, points, note, optional field, error, Cancel (focused first), Confirm. */
 @Component({
   selector: 'tc-confirm-dialog',
-  imports: [Button, Icon, SheetFooter, TranslocoPipe],
+  // forwardRef: DatePicker opens its calendar through `Sheet`, which opens this dialog — a module cycle.
+  imports: [Button, forwardRef(() => DatePicker), FormsModule, Icon, SheetFooter, TranslocoPipe],
   template: `
     @if (options.warning) {
       <p class="tc-confirm__warning"><tc-icon name="alert" size="sm" />{{ options.warning }}</p>
@@ -112,24 +115,38 @@ let nextFieldId = 0;
     @if (options.input; as field) {
       <div class="tc-confirm__field">
         <label class="tc-confirm__label" [for]="fieldId">{{ field.label }}</label>
-        <input
-          class="tc-confirm__input"
-          autocomplete="off"
-          enterkeyhint="done"
-          [type]="field.type ?? 'text'"
-          [id]="fieldId"
-          [attr.maxlength]="field.maxLength ?? null"
-          [attr.min]="field.min ?? null"
-          [attr.max]="field.max ?? null"
-          [attr.aria-describedby]="hasHint() ? fieldId + '-hint' : null"
-          [attr.aria-invalid]="checked()?.error ? 'true' : null"
-          [readOnly]="running()"
-          [value]="value()"
-          (input)="value.set($any($event.target).value)"
-          (change)="value.set($any($event.target).value)"
-          (keydown.enter)="$event.preventDefault(); confirm()"
-        />
-        @if (field.check) {
+        @if (field.type === 'date') {
+          <tc-date-picker
+            class="tc-confirm__date"
+            [inputId]="fieldId"
+            [label]="field.label"
+            [min]="field.min ?? null"
+            [max]="field.max ?? null"
+            [describedBy]="hasHint() ? fieldId + '-hint' : null"
+            [invalid]="!!checked()?.error"
+            [readonly]="running()"
+            [ngModel]="value()"
+            (ngModelChange)="value.set($event ?? '')"
+            (problemChange)="pickerProblem.set($event)"
+            (keydown.enter)="onDateEnter($event)"
+          />
+        } @else {
+          <input
+            class="tc-confirm__input"
+            autocomplete="off"
+            enterkeyhint="done"
+            type="text"
+            [id]="fieldId"
+            [attr.maxlength]="field.maxLength ?? null"
+            [attr.aria-describedby]="hasHint() ? fieldId + '-hint' : null"
+            [attr.aria-invalid]="checked()?.error ? 'true' : null"
+            [readOnly]="running()"
+            [value]="value()"
+            (input)="value.set($any($event.target).value)"
+            (keydown.enter)="$event.preventDefault(); confirm()"
+          />
+        }
+        @if (field.check || field.type === 'date') {
           <!-- Follows the value: polite, so a freeze range or a refusal is read after the pick, not over it. -->
           <div class="tc-confirm__check" [id]="fieldId + '-hint'" aria-live="polite">
             @if (checked()?.error; as error) {
@@ -194,15 +211,42 @@ export class ConfirmDialog {
   /** The alert after a failed action; `null` while none failed. */
   protected readonly failure = signal<string | null>(null);
   protected readonly value = signal(this.options.input?.value ?? '');
-  protected readonly checked = computed(() => this.options.input?.check?.(this.value()) ?? null);
+  /** The date field's own finding (text that is not a date, a day outside min/max); `null` for a text field. */
+  protected readonly pickerProblem = signal<DatePickerProblem | null>(null);
+  /**
+   * The caller's check, except that text which is not a date is the picker's to explain; the picker's min/max finding
+   * shows only when the check found nothing (#307 spec §5: the feature's own messages come first).
+   */
+  protected readonly checked = computed((): ConfirmCheck | null => {
+    const problem = this.pickerProblem();
+    if (problem?.kind === 'invalid') {
+      return { error: problem.message };
+    }
+    const checked = this.options.input?.check?.(this.value()) ?? null;
+    if (problem !== null && checked?.error === undefined) {
+      return { ...checked, error: problem.message };
+    }
+    return checked;
+  });
   /** The field's value cannot be sent as it is: Confirm stays focusable and says nothing new. */
   protected readonly isHeld = computed(() => {
     const checked = this.checked();
     return checked !== null && (checked.error !== undefined || checked.isBlocked === true);
   });
   protected readonly hasHint = computed(
-    () => this.options.input?.check !== undefined || (this.options.input?.hint ?? '') !== '',
+    () =>
+      this.options.input?.check !== undefined ||
+      this.options.input?.type === 'date' ||
+      (this.options.input?.hint ?? '') !== '',
   );
+
+  /** Enter in the typed date sends the form, as in a text field; Enter on the calendar button opens the calendar. */
+  protected onDateEnter(event: Event): void {
+    if (event.target instanceof HTMLInputElement) {
+      event.preventDefault();
+      void this.confirm();
+    }
+  }
 
   protected cancel(): void {
     if (!this.running()) {

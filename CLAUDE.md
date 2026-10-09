@@ -95,13 +95,19 @@ an explicit `lint` target in `project.json`; remove it — `@nx/eslint/plugin` i
 
 Shared libs that exist: `@console/shared/ui` (Paper Desk kit — tokens in `src/tokens/tokens.css` + `breakpoints.ts`,
 global `src/styles/base.css` and `overlay.css`; primitives `Button`/`IconButton`, `Card` (with the stamp), `Chip`,
-`Field`/`FieldControl`, `Icon`, `List`/`ListRow`, `Sheet` service (bottom sheet on the phone, dialog elsewhere, on the
-CDK dialog; `confirm()`), `Spinner`, `StateBlock`, `Tooltip` (non-interactive, `aria-hidden`), `TopBar`; Storybook in `.storybook/` with theme, motion and language
+`Field`/`FieldControl`, `DatePicker` (#307: typed `ДД.ММ.ГГГГ` + a CDK-overlay calendar popover, a `Sheet` below 520 px; CVA with ISO `YYYY-MM-DD`; `ConfirmInput.type: 'date'` renders it; `tools/design-lint` fails on any native date/time input), `Icon`, `List`/`ListRow`, `Sheet` service (bottom sheet on the phone, dialog elsewhere, on the
+CDK dialog; `confirm()`; `size: 'full'` fills the screen / `--sheet-full-w × --sheet-full-h` and hands the scrolling to
+the content, #277), `Spinner`, `StateBlock`, `Tooltip` (non-interactive, `aria-hidden`), `TopBar`; Storybook in `.storybook/` with theme, motion and language
 toolbars: `npx nx storybook console-shared-ui` on :4400, `npx nx build-storybook console-shared-ui` into
 `dist/storybook/console-shared-ui` — the `storybook` contract command), `@console/shared/i18n` (Transloco,
 `ru.json`/`en.json`, `provideConsoleI18n()`), `@console/shared/config` (`APP_CONFIG`), `@console/shared/api`
-(`provideConsoleApi()` with the interceptor chain; `accessSessionInterceptor` reloads once per 30 s to re-run the
-Access login when an `/api` call fails with status 0, a non-JSON body or 401 `access-missing|access-unverified`). Build time reaches the app through the build `define`
+(`provideConsoleApi()` with the interceptor chain; `accessSessionInterceptor` sends every `/api` call with `redirect:
+'manual'` and the `ngsw-bypass` header, and when `isAccessSessionExpired` says Access wants a new login — a redirect,
+a `*.cloudflareaccess.com` URL, 401/403 with a non-JSON body, 401 `access-missing|access-unverified`, a 2xx HTML page —
+sets `AccessSession.expired`; the app root then shows «Сессия истекла — войдите снова», whose button is a full-page
+navigation to the same URL with `?ngsw-bypass=1` (stripped again in `main.ts`), #284). `/cdn-cgi/**` stays out of
+`ngsw-config.json`: Access sets its cookie on `/cdn-cgi/access/authorized`, and an app shell served there locks the
+owner out. Build time reaches the app through the build `define`
 `__TC_BUILT_AT__` (defaults to `local`); the version comes from `package.json`.
 
 Spaces shell (#23): `@console/shared/persisted-state` (`PersistedStateStore` over `localStorage` key `tc.state.v1`,
@@ -120,6 +126,15 @@ item; failures branch on the problem `type`; Retry repeats the same body so the 
 `@console/widgets/question-list` (Needs you and `/p/:slug/questions`; stamp, then a receipt). `AnsweredItems` in
 `@console/entities/project` (`localStorage` `tc.answered.v1`, 6 h) keeps answered items out of the badges while GitHub
 still lists them. Kit: `Recommendation`, `Receipt`.
+Question context (#276): `InboxItemDto.context` (`QuestionContextDto`, so on inbox, questions and Needs you) is
+`questionContextOf` in `@worker/read-models` — the body's `## Кратко|Вопрос|Почему|Если одобрить|Если отклонить|Цена и риск`
+(or `Summary|Question|Why|If approved|If rejected|Cost and risk`) as bounded plain text (no markup, tags, answer line,
+control or bidi characters; GitHub's 65,536 cut first), read only for trusted authors, `structured: false` + the first
+paragraph when no heading is there. `markdownToPlainText` lives in `@shared/plain-text` (worker and console). The card
+(`QuestionCard`) shows summary title + «На GitHub:», question, verb + why, `[tc-question-previews]` (design only, team items
+only; `question-list`'s `QuestionDesignPreviews` fills it, #290: three screens via `previewScreensOf` + `DesignPreview [screen]`,
+«+N», «Все экраны (N)», opening the viewer on that screen with the card's `AnswerQuestion` as its `actions`), outcomes (from the sections, else the answer line's options via `askOutcomesOf`), cost, actions,
+details; the raw answer line is never rendered on any surface.
 
 Sprint board (#18, read-only): `@console/entities/sprint` (`isSprintDto`, `SprintApi`, `statusColumnsOf` — lanes counted as
 `backlog list` counts them, `SprintItemList`), `@console/widgets/sprint-board` (`/p/:slug/board`; loading, no sprint,
@@ -183,6 +198,25 @@ sits behind Cloudflare Access, owner decision 2026-10-05 on #188 — and never t
 sandbox never has `allow-top-navigation`, `referrerpolicy="no-referrer"`, no `allow`. Anything else is a "can't be
 shown here" note with an Open link.
 
+Design viewer (#277, spec §R shared with #276): `GET /api/v1/projects/:slug/designs/:issue` (`routes/designs.ts`,
+`read-models/design-reads.ts`) lists the png/jpeg/webp/gif files (never SVG) under `docs/design/**` whose path has a
+segment starting with `N-`, from one `git/trees/{sha}?recursive=1` read at the head of the open pull request that
+links #N (`linkingPullRequestOf`: `#N` in body/title or a `N-…` branch segment), else the default branch head —
+`DesignManifestDto` in `@shared/contracts`, captions from an optional `screens.json`, ≤ 40 files, images over 5 MB
+listed as `tooLarge`. `…/designs/:issue/:sha/file?path=` serves one listed screen's bytes (`GitHubClient.getBytes`
+on `git/blobs/{sha}` with the installation token, so private repositories work) only after the magic bytes agree
+with the type its name claims, with `nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, `inline` and
+`private, max-age=86400`; 404 for any other path, 413 over the cap (manifest or stream), 415 on a
+mismatch. Pure parts in `@worker/read-models` `lib/designs/` (`designFilesOf`, `designManifestOf`,
+`imageTypeOfBytes`). Mock: `MockRepository.binaryFiles` (base64; `fixtures/design-images.mjs` regenerates them),
+`git/trees`, `git/blobs`, `branches/{name}`. Console: `@console/entities/design` (`DesignManifests` store shared by
+every reader, `DesignPreview` — the first screen as a decorative `<img>` for rows and the #276 cards —,
+`DesignSummary`), `@console/features/design-viewer` (`DesignViewer.open({ slug, issue, title, actions?, screen?, mode? })` on the
+kit `Sheet` with `size: 'full'`: «Картинки» / «Все экраны» / «Интерактивно», the iPhone/Mac switch, ←/→ and a swipe,
+a zoom toggle; the HTML wireframe is framed only through the embed-origins gate in the kit `Frame`'s `profile="design"`
+— `sandbox="allow-scripts"` alone, never `srcdoc` — else the «нельзя показать» state). Artifacts' design rows
+(`ArtifactDto.number` / `awaitingApproval`) are button rows with the preview and summary projected by the page.
+
 All projects (#27, read-only): `GET /api/v1/overview` (`routes/overview.ts`) builds one row per active project from the
 same cached reads (`buildOverviewRow` in `@worker/read-models`; team state by `team/team-health.ts` from the run log's
 latest 200 comments, cached 30 s) under a per-request `SubrequestBudget` (44 GitHub subrequests; a project it cannot
@@ -244,6 +278,15 @@ production icon changes). None of those Worker paths may enter `ngsw-config.json
 install). Names live in `@shared/contracts` (`appNameOf`, `environmentLabelOf`); the app sets `<title>` and
 `apple-mobile-web-app-title` from `DeploymentStore`, the shell shows `EnvironmentMark` (`@console/entities/app-info`), and
 `PushSender` takes the `environment` and prefixes titles «[Dev] …» (`forEnvironment` in `@worker/push`).
+PWA updates (#306): `AppUpdates` (`apps/console/src/app/app-updates.ts`, started by `provideAppUpdates()`) asks `SwUpdate`
+on start, on `visibilitychange` to visible and every 5 min while visible. A version found by a start/resume check is
+activated and reloaded at once when the page is quiet (no `Sheet.hasOpen()`, no `hasUnsavedField`, app stable within
+3 s); otherwise `UpdateBanner` shows «Доступна новая версия · Обновить», and a pending update is taken on the next quiet
+resume. `unrecoverable` (at once) or a `Hash mismatch` install failure (like an update: at once when quiet, else on the
+next quiet start/resume, #311): delete the `ngsw:` caches, unregister, one navigation with `ngsw-bypass` (`localStorage` `tc.sw-recovery.v1` allows one heal per 10 min). `_headers` serves `/`, `/index.html`, every
+client-side route (one rule each, `pwa.spec.ts` checks them against `app.routes.ts`), `ngsw.json`, `ngsw-worker.js` and
+`safety-worker.js` with `Cache-Control: no-cache` (the assets layer answers them, never the Worker code). E2e
+`pwa-updates.e2e.ts` serves a derived build B (`writeNextBuild`/`routeDeploys` in `support/service-worker.ts`).
 
 ## Workers (#6)
 

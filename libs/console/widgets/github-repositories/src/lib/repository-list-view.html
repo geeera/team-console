@@ -141,7 +141,8 @@
       <span tc-row-subtitle class="repo__meta">
         <span class="repo__owner">{{ ownerOf(repo) }}</span>
         @if (repo.private) {
-        <span class="repo__private"><tc-icon name="lock" size="sm" />{{ 'overview.repos.row.private' | transloco }}</span>
+        <span class="repo__dot" aria-hidden="true">·</span>
+        <tc-chip class="repo__private"><tc-icon name="lock" size="sm" />{{ 'overview.repos.row.private' | transloco }}</tc-chip>
         }
       </span>
       @if (state?.kind === 'not-added' && !route) {
@@ -208,7 +209,8 @@
       <span tc-row-subtitle class="repo__meta">
         <span class="repo__owner">{{ ownerOf(repo) }}</span>
         @if (repo.private) {
-        <span class="repo__private"><tc-icon name="lock" size="sm" />{{ 'overview.repos.row.private' | transloco }}</span>
+        <span class="repo__dot" aria-hidden="true">·</span>
+        <tc-chip class="repo__private"><tc-icon name="lock" size="sm" />{{ 'overview.repos.row.private' | transloco }}</tc-chip>
         }
       </span>
       @if (route) {

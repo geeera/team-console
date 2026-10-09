@@ -11,6 +11,8 @@ import {
   input,
   signal,
   untracked,
+  viewChild,
+  type TemplateRef,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
@@ -31,6 +33,7 @@ import {
   safeGitHubUrl,
 } from '@console/entities/question';
 import { AnswerGiven, AnswerQuestion } from '@console/features/answer-question';
+import { DesignViewer } from '@console/features/design-viewer';
 import { localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import {
   type Arrival,
@@ -38,6 +41,7 @@ import {
   Button,
   Callout,
   CardStamp,
+  type DialogRef,
   Icon,
   markArrival,
   Receipt,
@@ -45,6 +49,7 @@ import {
 } from '@console/shared/ui';
 import type { AnswerCommand, NeedsYouProjectRef, Section } from '@shared/contracts';
 import { problemSlugOf } from '@shared/contracts';
+import { QuestionDesignPreviews, type DesignOpenRequest } from './question-design-previews';
 
 /** How long the ink stamp shows on an answered card before it folds into its receipt (ADR 0002). */
 export const STAMP_HOLD_MS = 900;
@@ -88,6 +93,7 @@ interface Row {
     Callout,
     Icon,
     QuestionCard,
+    QuestionDesignPreviews,
     Receipt,
     RouterLink,
     StateBlock,
@@ -105,6 +111,7 @@ export class QuestionList {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly projects = inject(ProjectsStore);
+  private readonly viewer = inject(DesignViewer);
 
   /** One project's questions; without it, every active project's. */
   readonly project = input<NeedsYouProjectRef | null>(null);
@@ -141,6 +148,10 @@ export class QuestionList {
       safeGitHubUrl(answered?.url ?? null) ?? (repo === undefined ? null : githubIssueUrlOf(repo, number))
     );
   });
+  /** The item whose design the viewer shows with its answers; `null` when the viewer is closed or read-only. */
+  protected readonly viewerItem = signal<QuestionItem | null>(null);
+  private readonly viewerActions = viewChild.required<TemplateRef<unknown>>('viewerActions');
+  private viewerRef: DialogRef<void> | null = null;
   private handledArrival: number | null = null;
   private ring: Arrival | null = null;
   private loadToken = 0;
@@ -205,6 +216,7 @@ export class QuestionList {
       });
     });
     inject(DestroyRef).onDestroy(() => {
+      this.viewerRef?.close();
       this.ring?.clear();
       this.loadToken += 1;
       this.timers.forEach((timer) => clearTimeout(timer));
@@ -240,13 +252,51 @@ export class QuestionList {
     return projectSetupRouteOf(slug);
   }
 
-  protected onAnswered({ item, response }: AnswerGiven): void {
+  /**
+   * A design card's preview or «Все экраны»: the viewer on that screen or mode, with the card's answers in its
+   * footer while the item still waits. Closing it returns focus to the preview that opened it.
+   */
+  protected openDesign(row: Row, request: DesignOpenRequest): void {
+    this.viewerRef?.close();
+    const { item } = row;
+    const isWaiting = row.answer === null;
+    this.viewerItem.set(isWaiting ? item : null);
+    const ref = this.viewer.open({
+      slug: item.project.slug,
+      issue: item.number,
+      title: item.context?.summary ?? item.title,
+      ...(isWaiting ? { actions: this.viewerActions() } : {}),
+      ...request,
+    });
+    this.viewerRef = ref;
+    ref.closed.subscribe(() => {
+      if (this.viewerRef === ref) {
+        this.viewerRef = null;
+        this.viewerItem.set(null);
+      }
+    });
+  }
+
+  /** Answered from the viewer: it closes, and the card stamps and folds as if answered on the card (#276 §6). */
+  protected onAnsweredInViewer(given: AnswerGiven): void {
+    this.viewerRef?.close();
+    this.onAnswered(given, true);
+  }
+
+  protected onRefreshFromViewer(): void {
+    this.viewerRef?.close();
+    void this.reload();
+  }
+
+  /** `isFromViewer`: focus was in the viewer that just closed, so it continues from the receipt as well. */
+  protected onAnswered({ item, response }: AnswerGiven, isFromViewer = false): void {
     const key = answeredKeyOf(item.project.slug, item.number);
     const page = this.host.nativeElement.ownerDocument;
     const active = page.activeElement;
     const rowElement = this.host.nativeElement.querySelector(`[data-row="${CSS.escape(key)}"]`);
     // Focus inside the card (or already dropped to the page by a removed control) continues from the receipt.
-    const hadFocus = active === null || active === page.body || (rowElement?.contains(active) ?? false);
+    const hadFocus =
+      isFromViewer || active === null || active === page.body || (rowElement?.contains(active) ?? false);
     this.announcement.set(
       this.transloco.translate('answer.announce', { n: item.number, verb: this.verbOf(response.command) }),
     );

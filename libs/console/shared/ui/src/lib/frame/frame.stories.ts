@@ -29,6 +29,8 @@ export default meta;
 type Story = StoryObj<Frame>;
 
 export const Embedded: Story = {};
+/** #277: the design profile — `sandbox="allow-scripts"` alone — for an HTML wireframe from GitHub Pages. */
+export const DesignProfile: Story = { args: { profile: 'design' } };
 /** Not on the allow-list (another project on the same platform): a note and a link, never a frame. */
 export const NotEmbeddable: Story = { args: { src: 'https://another-project.pages.dev/', allowedOrigins: [STORYBOOK] } };
 /** A loopback address is never framed, even when listed. */

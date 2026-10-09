@@ -23,6 +23,8 @@ export interface SheetFrame {
   readonly titleId: string;
   /** Bottom sheet on the phone, centred dialog elsewhere. */
   readonly presentation: 'sheet' | 'dialog';
+  /** `full`: the frame fills its pane and the content owns the scrolling (`SheetOptions.size`). */
+  readonly size: 'default' | 'full';
 }
 
 export const SHEET_FRAME = new InjectionToken<SheetFrame>('SHEET_FRAME');
@@ -43,6 +45,7 @@ export const SHEET_FRAME = new InjectionToken<SheetFrame>('SHEET_FRAME');
     class: 'tc-sheet',
     tabindex: '-1',
     '[class.tc-sheet--dialog]': 'frame.presentation === "dialog"',
+    '[class.tc-sheet--full]': 'frame.size === "full"',
     '[class.tc-sheet--with-foot]': 'footer.template() !== null',
     '[attr.id]': '_config.id',
     '[attr.role]': '_config.role',
