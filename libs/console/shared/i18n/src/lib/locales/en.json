@@ -166,6 +166,7 @@
     "loadFailed": "Couldn't load the questions",
     "loadFailedHint": "Check your connection and try again.",
     "recommends": "Team recommends",
+    "actionHint": "Tap Done once you have.",
     "details": "Details",
     "openOnGitHub": "Open #{{n}} on GitHub",
     "untrusted": "Not from the team",

@@ -1,4 +1,4 @@
-import { actionAskOf, askOutcomesOf, plainAskOf, plainDetailsOf } from './question-text';
+import { askOutcomesOf, plainAskOf, plainDetailsOf } from './question-text';
 
 const text = (value: string) => ({ kind: 'text', text: value });
 
@@ -57,29 +57,6 @@ describe('plainAskOf', () => {
     expect(plainAskOf('/approve — **начинаем** `сейчас` (рекомендую) · /reject')).toEqual(
       text('Начинаем сейчас'),
     );
-  });
-});
-
-describe('actionAskOf (#291)', () => {
-  it('says the plugin’s "Напиши «сделал», когда…" in the console’s own voice, with no command, "·" or reject-side prompt', () => {
-    expect(actionAskOf('Напиши «сделал», когда переключишь источник GitHub Pages')).toBe(
-      'Нажмите «Готово», когда переключишь источник GitHub Pages',
-    );
-    expect(
-      actionAskOf(
-        'Напиши «сделал», когда заведёшь аккаунты по чеклисту из #7 · /reject причина, если что-то не подходит',
-      ),
-    ).toBe('Нажмите «Готово», когда заведёшь аккаунты по чеклисту из #7');
-  });
-
-  it('keeps any other wording as it is', () => {
-    expect(actionAskOf('Переключи источник GitHub Pages')).toBe('Переключи источник GitHub Pages');
-  });
-
-  it('is null when nothing readable is left', () => {
-    expect(actionAskOf(null)).toBeNull();
-    expect(actionAskOf('')).toBeNull();
-    expect(actionAskOf('/done')).toBeNull();
   });
 });
 

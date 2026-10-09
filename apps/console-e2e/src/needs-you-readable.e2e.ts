@@ -45,19 +45,23 @@ test('action items show no "Команда советует" block, and nothing 
 }) => {
   await page.goto('/needs-you');
 
-  // #21 and #46 are action items (owner section, "Готово" only): the console's own "вы" phrasing shows in its own
-  // line, never the plugin's "Напиши" under "Команда советует", and never the "·" separator or the reject-side
-  // prompt (#21's body also carries `/reject причина, если что-то не подходит`, offered to no button here).
+  // #21 and #46 are action items (owner section, "Готово" only): a fixed "вы" line shows in its own place, never
+  // the plugin's answer line (its "Напиши…" clause, any "ты" verb form from it, the "·" separator, or the
+  // reject-side prompt — #21's body also carries `/reject причина, если что-то не подходит`, offered to no button
+  // here). The console never renders the answer line at all for these, so no verb from it can leak through either.
+  const TY_VERB_ENDING = /шь |ёшь/u;
   for (const issue of [21, 46]) {
     const card = item(page, issue);
-    await expect(card.getByTestId('recommendation')).toHaveCount(0);
+    const recommendation = card.getByTestId('recommendation');
+    const actionText = card.getByTestId('action-text');
+    await expect(recommendation).toHaveCount(0);
     await expect(card.locator('[data-command="reject"]')).toHaveCount(0);
     await expect(card).not.toContainText('Напиши');
     await expect(card).not.toContainText('·');
+    await expect(actionText).toHaveText('Нажмите «Готово», когда сделаете.');
+    const actionWords = (await actionText.textContent()) ?? '';
+    expect(actionWords).not.toMatch(TY_VERB_ENDING);
   }
-  await expect(item(page, 21).getByTestId('action-text')).toHaveText(
-    'Нажмите «Готово», когда заведёшь аккаунты по чеклисту из #7',
-  );
 
   // #90006 is a design the team marks no recommendation for: the block is absent, not a neutral fallback of it.
   const design = item(page, 90006);

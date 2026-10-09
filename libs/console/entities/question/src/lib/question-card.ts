@@ -14,7 +14,7 @@ import { withoutAskLine } from '@shared/owner-grammar';
 import type { Section, TeamRecommendation } from '@shared/contracts';
 import { Card, CardStamp, Chip, Frame, Icon, Recommendation } from '@console/shared/ui';
 import { previewTargetOf } from './preview-target';
-import { actionAskOf, askOutcomesOf, plainAskOf, plainDetailsOf, type PlainAsk } from './question-text';
+import { askOutcomesOf, plainAskOf, plainDetailsOf, type PlainAsk } from './question-text';
 import { QuestionItem } from './question.model';
 
 let nextCardId = 0;
@@ -97,8 +97,8 @@ function isActionSection(section: Section): boolean {
       @if (question(); as question) {
         <p class="question__ask" data-testid="question-text">{{ question }}</p>
       }
-      @if (action(); as action) {
-        <p class="question__ask" data-testid="action-text">{{ action }}</p>
+      @if (isAction()) {
+        <p class="question__ask" data-testid="action-text">{{ 'questions.actionHint' | transloco }}</p>
       }
       @if (advice(); as advice) {
         <tc-recommendation [label]="'questions.recommends' | transloco" data-testid="recommendation">
@@ -248,13 +248,11 @@ export class QuestionCard {
   });
 
   /**
-   * An action item's own instruction (#291), shown in its own line — never under "The team recommends", since it
-   * is the action itself and the plugin writes it in its own grammar ("ты"), not the console's.
+   * An action item (#291): a fixed console line in "вы" ("Нажмите «Готово», когда сделаете.") under the title and
+   * the question (if any), never under "The team recommends". The plugin's own answer line can mix in its "ты"
+   * grammar and free text the console does not control, so it is never shown here, not even in part.
    */
-  protected readonly action = computed((): string | null => {
-    const item = this.item();
-    return isActionSection(item.section) ? actionAskOf(item.ask) : null;
-  });
+  protected readonly isAction = computed(() => isActionSection(this.item().section));
 
   /** The cost line; for a money decision without one, a prompt to ask the PM (#276). */
   protected readonly cost = computed((): { readonly text: string | null } | null => {

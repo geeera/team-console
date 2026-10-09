@@ -105,7 +105,7 @@ describe('QuestionCard', () => {
 
   });
 
-  it('shows an action item’s instruction in its own voice, never under "Команда советует" (#291)', async () => {
+  it('shows a fixed "вы" action line, never the plugin’s answer line, and never under "Команда советует" (#291)', async () => {
     const { fixture, root } = await render();
 
     fixture.componentInstance.item.set(
@@ -119,18 +119,21 @@ describe('QuestionCard', () => {
     await fixture.whenStable();
     expect(root.querySelector('[data-testid="recommendation"]')).toBeNull();
     const action = root.querySelector('[data-testid="action-text"]');
-    expect(action?.textContent).toBe('Нажмите «Готово», когда заведёшь аккаунты по чеклисту из #7');
+    expect(action?.textContent).toBe('Нажмите «Готово», когда сделаете.');
     expect(root.textContent).not.toContain('Напиши');
+    expect(root.textContent).not.toContain('заведёшь');
     expect(root.textContent).not.toContain('·');
     expect(root.textContent).not.toContain('причина, если что-то не подходит');
 
-    // A local section item behaves the same way, and a design item without a recommendation shows no block (#210).
+    // A local section item gets the same fixed line, whatever its own ask reads; a design item without a
+    // recommendation shows no block at all (#210).
     fixture.componentInstance.item.set(
       item({ section: 'local', ask: 'Переключи источник GitHub Pages', authorTrusted: true, allowedCommands: ['done'] }),
     );
     await fixture.whenStable();
     expect(root.querySelector('[data-testid="recommendation"]')).toBeNull();
-    expect(root.querySelector('[data-testid="action-text"]')?.textContent).toBe('Переключи источник GitHub Pages');
+    expect(root.querySelector('[data-testid="action-text"]')?.textContent).toBe('Нажмите «Готово», когда сделаете.');
+    expect(root.textContent).not.toContain('Переключи');
 
     fixture.componentInstance.item.set(
       item({ section: 'design', ask: '/approve онбординг · /reject что поменять', authorTrusted: false }),
