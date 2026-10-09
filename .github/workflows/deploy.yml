@@ -260,46 +260,14 @@ jobs:
             deploy --env ${{ env.ENV_NAME }}
             --var VAPID_PUBLIC_KEY:${{ vars.VAPID_PUBLIC_KEY }}
 
-      # The design kit lib landed in #13/#75 as the Nx project `console-shared-ui` (not `ui` — PR #75 review
-      # follow-up, #25): `.product-team/project.yml`'s `commands.storybook` already names it correctly. This
-      # check stays, loudly SKIPping instead of failing the whole deploy, as a guard against the project ever
-      # being renamed or removed again.
-      - name: Check Storybook project exists
-        id: storybook
-        if: env.ENV_NAME == 'dev'
-        run: |
-          set -euo pipefail
-          if npx nx show projects 2>/dev/null | grep -qx console-shared-ui; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::SKIPPED Storybook deploy — the console-shared-ui Nx project is missing; this is NOT a pass"
-          fi
-
-      - name: Build Storybook
-        if: env.ENV_NAME == 'dev' && steps.storybook.outputs.ready == 'true'
-        run: npx nx build-storybook console-shared-ui
-
-      # Direct upload (no Pages build consumed, ADR 0001 decision 14 / Pages free-tier limit table). Owner
-      # checklist creates the `team-console-storybook` Pages project up front: `wrangler pages deploy` only
-      # offers to create a missing project on an interactive terminal, and CI has none.
-      - name: Deploy Storybook
-        id: deploy_storybook
-        if: env.ENV_NAME == 'dev' && steps.storybook.outputs.ready == 'true'
-        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: 4.124.0
-          # libs/console/shared/ui's `build-storybook` target (project.json) writes here — matches the Nx
-          # project name above, not the bare `ui` this step used before #25.
-          command: pages deploy dist/storybook/console-shared-ui --project-name=team-console-storybook --branch=dev
-
       # Carry-over from PR #49 reviews (issue #7 comment 2026-09-29) plus PR #54 review: until #8 lands and
       # Access is configured, /api/v1/* answers 401 (Worker fail-closed); once Access owns the hostname, an
       # unauthenticated request never reaches the Worker at all and gets Access's 302 login redirect instead.
       # Anything else (200, 5xx, a stray 404) is a broken deploy, not a pass — this is true for every
       # environment including the very first dev deploy (owner checklist sets up Access before that run).
+      #
+      # Placed right after the two Worker deploys (issue #182): these must always run, whatever happens to the
+      # Storybook steps below, so a broken api/hooks deploy is never masked by an unrelated Storybook failure.
       - name: Smoke check — app Worker requires Access or fails closed
         env:
           API_URL: ${{ steps.deploy_api.outputs.deployment-url }}
@@ -365,3 +333,43 @@ jobs:
             echo "::error::${HOOKS_URL}/healthz did not answer 200 after deploy (last status: ${status})"
             exit 1
           fi
+
+      # The design kit lib landed in #13/#75 as the Nx project `console-shared-ui` (not `ui` — PR #75 review
+      # follow-up, #25): `.product-team/project.yml`'s `commands.storybook` already names it correctly. This
+      # check stays, loudly SKIPping instead of failing the whole deploy, as a guard against the project ever
+      # being renamed or removed again.
+      #
+      # Runs after the smoke checks above (issue #182): a Storybook failure must not hide whether the api/hooks
+      # Workers that were just deployed are healthy. Still a normal `if: success()` chain (default) — once the
+      # smoke checks above have run and passed, a Storybook failure fails the job on its own, same as before;
+      # never `continue-on-error`, so a broken Storybook build/deploy still shows red.
+      - name: Check Storybook project exists
+        id: storybook
+        if: env.ENV_NAME == 'dev'
+        run: |
+          set -euo pipefail
+          if npx nx show projects 2>/dev/null | grep -qx console-shared-ui; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SKIPPED Storybook deploy — the console-shared-ui Nx project is missing; this is NOT a pass"
+          fi
+
+      - name: Build Storybook
+        if: env.ENV_NAME == 'dev' && steps.storybook.outputs.ready == 'true'
+        run: npx nx build-storybook console-shared-ui
+
+      # Direct upload (no Pages build consumed, ADR 0001 decision 14 / Pages free-tier limit table). Owner
+      # checklist creates the `team-console-storybook` Pages project up front: `wrangler pages deploy` only
+      # offers to create a missing project on an interactive terminal, and CI has none.
+      - name: Deploy Storybook
+        id: deploy_storybook
+        if: env.ENV_NAME == 'dev' && steps.storybook.outputs.ready == 'true'
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: 4.124.0
+          # libs/console/shared/ui's `build-storybook` target (project.json) writes here — matches the Nx
+          # project name above, not the bare `ui` this step used before #25.
+          command: pages deploy dist/storybook/console-shared-ui --project-name=team-console-storybook --branch=dev
