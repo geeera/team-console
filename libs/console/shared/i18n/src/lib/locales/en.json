@@ -225,8 +225,15 @@
     "busy": "Posting your answer to #{{n}}…",
     "announce": "Answer to #{{n}} recorded: {{verb}}",
     "receipt": {
-      "verb": "You: {{verb}}",
-      "meta": "#{{n}} · {{time}} · recorded as owner",
+      "status": {
+        "approve": "Approved",
+        "reject": "Rejected",
+        "go": "Going ahead",
+        "no-go": "Postponed",
+        "override": "Overridden",
+        "done": "Done"
+      },
+      "meta": "#{{n}} · {{time}}",
       "waiting": "waiting for the team",
       "open": "Comment on GitHub"
     },

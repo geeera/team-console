@@ -79,10 +79,11 @@ function needsYouBody(items: NeedsYouItemDto[], extra: Partial<NeedsYouDto> = {}
 
 @Component({
   imports: [QuestionList],
-  template: `<tc-question-list [project]="project()" />`,
+  template: `<tc-question-list [project]="project()" [showReceipts]="showReceipts()" />`,
 })
 class Host {
   readonly project = signal<NeedsYouProjectRef | null>(null);
+  readonly showReceipts = signal(true);
 }
 
 describe('QuestionList', () => {
@@ -209,7 +210,11 @@ describe('QuestionList', () => {
 
     const receipt = root.querySelector('li[data-number="72"] tc-receipt') as HTMLElement;
     expect(root.querySelector('li[data-number="72"] tc-question-card')).toBeNull();
-    expect(receipt.textContent).toContain('Вы: Утвердить');
+    expect(receipt.querySelector('[data-testid="receipt-status"]')?.textContent).toContain('Утверждено');
+    expect(receipt.querySelector('tc-chip tc-icon')).not.toBeNull();
+    expect(receipt.textContent).toContain('#72');
+    expect(receipt.textContent).toContain('ждёт команду');
+    expect(receipt.textContent).not.toContain('от вашего имени');
     expect(receipt.querySelector('a')?.getAttribute('href')).toBe(
       'https://github.com/geeera/team-console/issues/72#issuecomment-9',
     );
@@ -243,6 +248,64 @@ describe('QuestionList', () => {
       'tc-receipt--negative',
     );
     expect(TestBed.inject(AnsweredItems).has(TC.slug, 80)).toBe(false);
+  });
+
+  describe('receipts', () => {
+    const answer = (number: number) => ({
+      slug: TC.slug,
+      number,
+      command: 'approve' as const,
+      url: `https://github.com/geeera/team-console/issues/${number}#issuecomment-1`,
+      answeredAt: new Date().toISOString(),
+    });
+    const context = {
+      summary: 'Кратко по-русски',
+      question: null,
+      why: null,
+      ifApproved: null,
+      ifRejected: null,
+      costAndRisk: null,
+      structured: true,
+    };
+
+    it('titles the receipt with the ru summary, else the GitHub title as a muted line', async () => {
+      const { settle, root, fixture } = await render(TC);
+      TestBed.inject(AnsweredItems).record(answer(72));
+      TestBed.inject(AnsweredItems).record(answer(73));
+      http.expectOne(projectQuestionsUrl(TC.slug)).flush({
+        items: [
+          { ...needsYouItem(TC, 72, { context }), body: '' },
+          { ...needsYouItem(TC, 73), body: '' },
+        ],
+      });
+      await settle();
+      await fixture.whenStable();
+
+      const withSummary = root.querySelector('li[data-number="72"] [tc-receipt-detail]') as HTMLElement;
+      expect(withSummary.textContent?.trim()).toBe('Кратко по-русски');
+      expect(withSummary.classList).not.toContain('questions__receipt-fallback');
+      const fallback = root.querySelector('li[data-number="73"] [tc-receipt-detail]') as HTMLElement;
+      expect(fallback.textContent?.trim()).toBe('Item 73');
+      expect(fallback.classList).toContain('questions__receipt-fallback');
+    });
+
+    it('lists no receipts where showReceipts is off, but still lists what waits', async () => {
+      const { settle, root, fixture } = await render(TC);
+      fixture.componentInstance.showReceipts.set(false);
+      TestBed.inject(AnsweredItems).record(answer(72));
+      http.expectOne(projectQuestionsUrl(TC.slug)).flush({
+        items: [
+          { ...needsYouItem(TC, 72), body: '' },
+          { ...needsYouItem(TC, 73), body: '' },
+        ],
+      });
+      await settle();
+      await fixture.whenStable();
+
+      expect(root.querySelector('tc-receipt')).toBeNull();
+      expect(root.querySelector('li[data-number="72"]')).toBeNull();
+      expect(root.querySelector('li[data-number="73"] tc-question-card')).not.toBeNull();
+    });
   });
 
   it('shows the shared error block when the list cannot be read, and Retry reads it again', async () => {

@@ -56,6 +56,8 @@ import {
   Chip,
   Icon,
   Lane,
+  markArrival,
+  type Arrival,
   Lanes,
   Stat,
   Stats,
@@ -232,6 +234,7 @@ export class SprintBoard {
   private readonly tabs = viewChild(Tabs);
   private readonly pullsHeading = viewChild<ElementRef<HTMLElement>>('pullsHeading');
   private readonly runsHeading = viewChild<ElementRef<HTMLElement>>('runsHeading');
+  private ring: Arrival | null = null;
   private loadToken = 0;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -358,6 +361,7 @@ export class SprintBoard {
     });
     inject(DestroyRef).onDestroy(() => {
       observer?.disconnect();
+      this.ring?.clear();
       this.loadToken += 1;
       this.clearRetry();
     });
@@ -399,8 +403,8 @@ export class SprintBoard {
   }
 
   /**
-   * A tile's jump (#275 §6): on a narrow screen its tab opens and focus moves into the panel; on a wide one focus moves
-   * to the list's heading, which brings it into view. Nothing scrolls without focus following.
+   * A tile's jump (#275 §6): on a narrow screen its tab opens and focus moves into the panel; on a wide one the list scrolls
+   * into view if needed, gets the arrival ring and focus moves to its heading.
    */
   protected jumpTo(target: 'pr' | 'runs'): void {
     if (this.compact()) {
@@ -408,8 +412,13 @@ export class SprintBoard {
       this.tabs()?.select(target, { focusPanel: true });
       return;
     }
-    const heading = target === 'pr' ? this.pullsHeading() : this.runsHeading();
-    heading?.nativeElement.focus();
+    const heading = (target === 'pr' ? this.pullsHeading() : this.runsHeading())?.nativeElement;
+    if (heading === undefined) {
+      return;
+    }
+    // The list is often on screen already: the ring (as for a #n deep link) is what says the tap did something.
+    this.ring?.clear();
+    this.ring = markArrival(heading.closest<HTMLElement>('tc-tab-panel') ?? heading, heading);
   }
 
   protected openQuestions(): void {
