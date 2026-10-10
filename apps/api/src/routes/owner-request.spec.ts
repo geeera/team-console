@@ -21,6 +21,7 @@ import {
   type GitHubCall,
 } from '../testing/github-kit';
 import { OWNER, fakeGitHub, resetOwnerConnections, seedConnection } from '../testing/owner-kit';
+import { rereadPagesOf } from './owner-request';
 
 // #219: owner requests to the PM, end to end through the Worker. The fake GitHub serves the issue, the sprints and
 // the comments, and takes the owner's comment; every call is recorded, so "nothing else was written" is checked.
@@ -38,7 +39,10 @@ interface Harness {
   readonly fake: FakeGitHubOAuth;
   readonly github: ApiGitHub;
   readonly calls: GitHubCall[];
+  /** The Worker's clock. */
   clock: number;
+  /** How far GitHub's clock is from the Worker's (negative: GitHub lags behind). */
+  githubOffsetMs: number;
   projectYml: string;
 }
 
@@ -55,8 +59,12 @@ function base64(text: string): string {
 }
 
 function harness(milestones: readonly FakeMilestoneSeed[] = SPRINTS): Harness {
-  const h = { clock: NOW, projectYml: 'name: TC\nowner:\n  language: ru\n' } as unknown as Harness;
-  const fake = fakeGitHub({ tokenTag: 'TESTSENTINEL', now: () => h.clock });
+  const h = {
+    clock: NOW,
+    githubOffsetMs: 0,
+    projectYml: 'name: TC\nowner:\n  language: ru\n',
+  } as unknown as Harness;
+  const fake = fakeGitHub({ tokenTag: 'TESTSENTINEL', now: () => h.clock + h.githubOffsetMs });
   fake.seedIssue({
     repo: REPO,
     number: 7,
@@ -138,11 +146,50 @@ function ask(
   });
 }
 
-function read(h: Harness, issue: number): Promise<Response> {
-  return fetchApi(`/api/v1/projects/tc/issues/${issue}/request`, localEnv(), {
+function read(
+  h: Harness,
+  issue: number,
+  bindings: Parameters<typeof fetchApi>[1] = localEnv(),
+  headers: Record<string, string> = {},
+): Promise<Response> {
+  return fetchApi(`/api/v1/projects/tc/issues/${issue}/request`, bindings, {
     method: 'GET',
+    headers,
     github: h.github,
   });
+}
+
+/** The comment pages the re-read asked for on `issue`, in order. */
+function commentPagesRead(h: Harness, issue: number): number[] {
+  return h.calls
+    .filter((c) => c.method === 'GET' && c.url.pathname === `/repos/${REPO}/issues/${issue}/comments`)
+    .map((c) => Number(c.url.searchParams.get('page')));
+}
+
+/** A valid Access service-token JWT and the env that trusts it (`identity.kind === 'service'`). */
+async function serviceIdentity(): Promise<{ bindings: Parameters<typeof fetchApi>[1]; token: string }> {
+  const jwks = stubJwksServer();
+  const teamDomain = uniqueTeamDomain();
+  const key = await createSigningKey();
+  jwks.set(teamDomain, { keys: [key.publicJwk] });
+  const token = await signAccessToken(key, teamDomain, {
+    claims: { email: undefined, common_name: SERVICE_TOKEN_ID },
+  });
+  return { bindings: accessEnv(teamDomain, { ENVIRONMENT: 'dev' }), token };
+}
+
+async function handledRowOf(
+  commentId: number,
+): Promise<{ handled_comment_id: number | null; result: string | null }> {
+  const row = await env.DB.prepare(
+    'SELECT handled_comment_id, result FROM owner_requests WHERE comment_id = ?1',
+  )
+    .bind(commentId)
+    .first<{ handled_comment_id: number | null; result: string | null }>();
+  if (row === null) {
+    throw new Error(`no owner_requests row for comment ${commentId}`);
+  }
+  return row;
 }
 
 /** Every call that was not a read. */
@@ -274,6 +321,45 @@ describe('POST …/issues/:number/request', () => {
     expect(writes(h)).toEqual([]);
   });
 
+  it('409 sprint-none for "current" when there is no current sprint; nothing written (#272)', async () => {
+    const h = harness([]);
+    await seedConnection(h.fake, { nowMs: h.clock });
+    const response = await ask(h, 8, {
+      request: { kind: 'sprint', target: 'current' },
+      expectedMilestone: null,
+    });
+    expect(response.status).toBe(409);
+    expect((await slugOf(response)).slug).toBe('sprint-none');
+    expect(h.fake.comments).toEqual([]);
+    expect(writes(h)).toEqual([]);
+  });
+
+  it("stores GitHub's created_at as requestedAt, so a Worker clock running ahead cannot refuse the PM's answer (#269)", async () => {
+    const h = harness();
+    // GitHub's clock is 90 s behind the Worker's.
+    h.githubOffsetMs = -90_000;
+    const githubCreatedAt = new Date(NOW - 90_000).toISOString();
+    await seedConnection(h.fake, { nowMs: h.clock });
+
+    const first = (await (await ask(h, 7, NEXT)).json()) as { commentId: number; requestedAt: string };
+    expect(first.requestedAt).toBe(githubCreatedAt);
+    const { results } = await env.DB.prepare('SELECT requested_at FROM owner_requests').all();
+    expect(results).toEqual([{ requested_at: githubCreatedAt }]);
+    const replay = (await (await ask(h, 7, NEXT)).json()) as { replayed: boolean; requestedAt: string };
+    expect(replay).toEqual(expect.objectContaining({ replayed: true, requestedAt: githubCreatedAt }));
+
+    // The PM answers 30 s after the comment by GitHub's clock — still 60 s before the Worker's time of the post.
+    h.fake.addComment(REPO, 7, {
+      body: `${handledMarker({ commentId: first.commentId, result: 'applied' })}\n**PM note**: done.`,
+      author: TEAM_BOT,
+      authorType: 'Bot',
+      createdAt: NOW - 60_000,
+    });
+    h.clock += 120_000;
+    const body = (await (await read(h, 7)).json()) as IssueRequestDto;
+    expect(body.request).toMatchObject({ state: 'applied', requestedAt: githubCreatedAt });
+  });
+
   it('403 github-owner-not-connected before GitHub is asked', async () => {
     const h = harness();
     const response = await ask(h, 7, NEXT);
@@ -372,6 +458,86 @@ describe('GET …/issues/:number/request', () => {
     h.clock += 120_000;
     expect(((await (await read(h, 7)).json()) as IssueRequestDto).request?.state).toBe('pending');
     expect(((await (await read(h, 8)).json()) as IssueRequestDto).request?.state).toBe('pending');
+  });
+
+  it('after a missed webhook, finds the marker on the page before a short last page (#270)', async () => {
+    const h = harness();
+    await seedConnection(h.fake, { nowMs: h.clock });
+    const posted = (await (await ask(h, 7, NEXT)).json()) as { commentId: number };
+    const at = h.clock + 60_000;
+    h.fake.addComment(REPO, 7, {
+      body: `${handledMarker({ commentId: posted.commentId, result: 'applied' })}\n**PM note**: done.`,
+      author: TEAM_BOT,
+      authorType: 'Bot',
+      createdAt: at,
+    });
+    // 99 later comments: the thread has 101, the last page holds one and the marker sits on page 1.
+    for (let i = 0; i < 99; i += 1) {
+      h.fake.addComment(REPO, 7, {
+        body: `discussion ${i}`,
+        author: 'collaborator',
+        createdAt: at + 1_000 + i,
+      });
+    }
+    h.clock += 120_000;
+    const body = (await (await read(h, 7)).json()) as IssueRequestDto;
+    expect(body.request?.state).toBe('applied');
+    expect(commentPagesRead(h, 7).sort()).toEqual([1, 2]);
+  });
+
+  it('reads one page while it holds the newest 100 comments, two otherwise', () => {
+    expect(rereadPagesOf(0)).toEqual([1]);
+    expect(rereadPagesOf(1)).toEqual([1]);
+    expect(rereadPagesOf(100)).toEqual([1]);
+    expect(rereadPagesOf(101)).toEqual([1, 2]);
+    expect(rereadPagesOf(200)).toEqual([2]);
+    expect(rereadPagesOf(250)).toEqual([2, 3]);
+  });
+
+  it("the GET changes a row only on a trusted bot's strict marker, also for the service identity, and never writes to GitHub (#270)", async () => {
+    const h = harness();
+    await seedConnection(h.fake, { nowMs: h.clock });
+    const posted = (await (await ask(h, 7, NEXT)).json()) as { commentId: number };
+    const at = h.clock + 60_000;
+    const marker = handledMarker({ commentId: posted.commentId, result: 'applied' });
+    h.fake.addComment(REPO, 7, { body: marker, author: OWNER.login, authorType: 'User', createdAt: at });
+    h.fake.addComment(REPO, 7, { body: marker, author: 'collaborator', authorType: 'User', createdAt: at });
+    h.fake.addComment(REPO, 7, {
+      body: `Quoting: ${marker}`,
+      author: TEAM_BOT,
+      authorType: 'Bot',
+      createdAt: at,
+    });
+    h.fake.addComment(REPO, 7, {
+      body: marker,
+      author: TEAM_BOT,
+      authorType: 'Bot',
+      createdAt: at,
+      updatedAt: at + 5_000,
+    });
+    h.clock += 120_000;
+    const callsBefore = h.calls.length;
+    const service = await serviceIdentity();
+    const serviceHeaders = { 'Cf-Access-Jwt-Assertion': service.token };
+
+    const untouched = await read(h, 7, service.bindings, serviceHeaders);
+    expect(untouched.status).toBe(200);
+    expect(((await untouched.json()) as IssueRequestDto).request?.state).toBe('pending');
+    await expect(handledRowOf(posted.commentId)).resolves.toEqual({ handled_comment_id: null, result: null });
+
+    const handledId = h.fake.addComment(REPO, 7, {
+      body: `${marker}\n**PM note**: done.`,
+      author: TEAM_BOT,
+      authorType: 'Bot',
+      createdAt: at + 10_000,
+    });
+    const handled = await read(h, 7, service.bindings, serviceHeaders);
+    expect(((await handled.json()) as IssueRequestDto).request?.state).toBe('applied');
+    await expect(handledRowOf(posted.commentId)).resolves.toEqual({
+      handled_comment_id: handledId,
+      result: 'applied',
+    });
+    expect(h.calls.slice(callsBefore).filter((c) => c.method !== 'GET')).toEqual([]);
   });
 
   it('lists the request in the issue picker, without pull requests', async () => {

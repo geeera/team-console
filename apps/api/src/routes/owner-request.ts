@@ -11,7 +11,13 @@ import {
 } from '@shared/contracts';
 import { requestComment, requestMarker } from '@shared/owner-grammar';
 import { withoutInvisibles } from '@shared/plain-text';
-import { problem, type ProblemInit, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
+import {
+  problem,
+  type LogFields,
+  type ProblemInit,
+  type WorkerContext,
+  type WorkerHonoEnv,
+} from '@worker/core';
 import { OwnerRequestsRepo, type OwnerRequestRecord } from '@worker/db';
 import {
   GitHubError,
@@ -26,7 +32,7 @@ import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
 import { ownerWriter } from '../owner/owner-writer';
-import { postOwnerAnswer } from '../owner/post-owner-answer';
+import { postOwnerAnswer, type OwnerAnswerOutcome } from '../owner/post-owner-answer';
 import { findProject, projectNotFound, repoOf } from '../projects/lookup';
 import { ownerLanguageOf } from '../projects/project-yml';
 import { repositoryClient } from '../projects/repository-checks';
@@ -54,7 +60,7 @@ interface LiveIssue {
   readonly state: 'open' | 'closed';
   readonly milestone: string | null;
   readonly isPullRequest: boolean;
-  /** How many comments the issue has: the handled re-read needs only the last page. */
+  /** How many comments the issue has: the handled re-read pages from the end (`rereadPagesOf`). */
   readonly comments: number;
 }
 
@@ -183,9 +189,42 @@ function sprintRefusal(c: Context, request: OwnerRequest, plan: SprintPlan): Res
 }
 
 /**
- * The handled re-read (ADR 0005 decision 3): the issue's last comment page, for a trusted, unedited
- * `pt-owner-request-handled` marker a missed webhook delivery would have brought. A failed read keeps the
- * request pending; the form never fails over it.
+ * When GitHub says it created the request comment (#269): the handled check compares it with the marker's
+ * `created_at`, so both must come from GitHub's clock — a Worker clock running ahead would otherwise refuse the PM's
+ * real answer and the request would wait forever. A replay answers with the row the first write recorded. The
+ * Worker's clock is the last resort, when GitHub's answer carried no timestamp.
+ */
+async function requestedAtOf(
+  c: Context,
+  outcome: Extract<OwnerAnswerOutcome, { kind: 'written' | 'replayed' }>,
+  fields: LogFields,
+): Promise<string> {
+  if (outcome.kind === 'written' && outcome.createdAt !== null) {
+    return outcome.createdAt;
+  }
+  if (outcome.kind === 'replayed') {
+    const recorded = await new OwnerRequestsRepo(c.env.DB).findByComment(outcome.write.commentId);
+    if (recorded !== null) {
+      return recorded.requestedAt;
+    }
+  }
+  c.get('logger').warn('owner request: GitHub sent no created_at, the Worker clock stands in', fields);
+  return new Date(outcome.write.createdAt).toISOString();
+}
+
+/** The pages that together hold at least the newest `perPage` comments: the last, plus the one before a short last. */
+export function rereadPagesOf(commentCount: number, perPage: number = COMMENTS_PER_PAGE): number[] {
+  const last = Math.max(1, Math.ceil(commentCount / perPage));
+  const onLastPage = commentCount - (last - 1) * perPage;
+  return last > 1 && onLastPage < perPage ? [last - 1, last] : [last];
+}
+
+/**
+ * The handled re-read (ADR 0005 decision 3): the issue's newest comments — the last page and, when it is short, the
+ * one before it, so at least the newest 100 are seen (#270) — for a trusted, unedited `pt-owner-request-handled`
+ * marker a missed webhook delivery would have brought. A failed read keeps the request pending; the form never
+ * fails over it. The only D1 write of the GET, and a row changes on nothing but a trusted bot's strict marker
+ * (`handledRequestOf`, `markHandled`) — which is why the service identity may reach it.
  */
 async function rereadHandled(
   c: Context,
@@ -195,15 +234,17 @@ async function rereadHandled(
   number: number,
   issue: LiveIssue,
 ): Promise<void> {
-  const page = Math.max(1, Math.ceil(issue.comments / COMMENTS_PER_PAGE));
   let comments: GitHubComment[];
   try {
-    comments = commentsOf(
-      await client.getJson(
-        githubPath`/repos/${repo}/issues/${number}/comments?per_page=${COMMENTS_PER_PAGE}&page=${page}`,
-        (value: unknown): value is unknown => Array.isArray(value),
+    const pages = await Promise.all(
+      rereadPagesOf(issue.comments).map((page) =>
+        client.getJson(
+          githubPath`/repos/${repo}/issues/${number}/comments?per_page=${COMMENTS_PER_PAGE}&page=${page}`,
+          (value: unknown): value is unknown => Array.isArray(value),
+        ),
       ),
     );
+    comments = pages.flatMap(commentsOf);
   } catch (error: unknown) {
     if (!(error instanceof GitHubError)) {
       throw error;
@@ -231,8 +272,8 @@ async function rereadHandled(
  * The form sends the milestone it showed; another live one is 409 `issue-changed` with the live title. A repeat
  * within 60 s is answered from `own_writes`. The D1 row is a display cache: it never decides a write.
  * Subrequests (POST): token ≤ 2 + issue 1 + milestones 1 + project.yml 1 (cached) + repo 1 + comment 1 → ≤ 7.
- * `GET …/issues/:number/request` reads the issue, the sprints and D1, and while pending the last comment page
- * for a handled marker → ≤ 6.
+ * `GET …/issues/:number/request` reads the issue, the sprints and D1, and while pending the newest comments (one or
+ * two pages) for a handled marker → ≤ 7.
  */
 export function createOwnerRequestRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>()
@@ -377,7 +418,7 @@ export function createOwnerRequestRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<
           return outcome.response;
         }
         const { write } = outcome;
-        const requestedAt = new Date(write.createdAt).toISOString();
+        const requestedAt = await requestedAtOf(c, outcome, fields);
         try {
           await new OwnerRequestsRepo(c.env.DB).record({
             commentId: write.commentId,
