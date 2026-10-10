@@ -9,6 +9,7 @@ import {
   signal,
   TemplateRef,
   ViewContainerRef,
+  WritableSignal,
 } from '@angular/core';
 
 /** `primary`: the main action(s); `secondary`: Cancel and the rest; `''`: free-form content laid out as written. */
@@ -24,7 +25,7 @@ export class SheetFooterSlot {
     () => this.freeForm() !== null || this.primary() !== null || this.secondary() !== null,
   );
 
-  signalOf(role: SheetFooterRole) {
+  signalOf(role: SheetFooterRole): WritableSignal<TemplateRef<unknown> | null> {
     return role === 'primary' ? this.primary : role === 'secondary' ? this.secondary : this.freeForm;
   }
 }

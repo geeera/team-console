@@ -104,7 +104,11 @@
   </button>
   } @case ('not-connected') {
   <tc-connect-github-button (refused)="onConnectRefused()" />
-  } @case ('duplicate') {} @case ('archived') {} @default {
+  } @case ('duplicate') {
+  <ng-container *ngTemplateOutlet="closeAsPrimary" />
+  } @case ('archived') {
+  <ng-container *ngTemplateOutlet="closeAsPrimary" />
+  } @default {
   <button
     tc-button
     variant="primary"
@@ -126,15 +130,15 @@
   <button tc-button type="button" data-testid="sheet-open-setup" (click)="openSetup(state.slug)">
     {{ 'overview.repos.sheet.openSetup' | transloco }}
   </button>
-  } @case ('refused') {
-  <button
-    tc-button
-    type="button"
-    data-testid="sheet-close"
-    [variant]="refusal()?.kind === 'duplicate' || refusal()?.kind === 'archived' ? 'primary' : 'secondary'"
-    (click)="close()"
-  >
+  } @case ('refused') { @if (refusal()?.kind !== 'duplicate' && refusal()?.kind !== 'archived') {
+  <button tc-button type="button" data-testid="sheet-close" (click)="close()">
     {{ 'overview.repos.sheet.close' | transloco }}
   </button>
-  } }
+  } } }
+</ng-template>
+<!-- Nothing to retry on a duplicate or an archived repository: Close is the one, primary, action. -->
+<ng-template #closeAsPrimary>
+  <button tc-button variant="primary" type="button" data-testid="sheet-close" (click)="close()">
+    {{ 'overview.repos.sheet.close' | transloco }}
+  </button>
 </ng-template>

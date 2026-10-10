@@ -167,6 +167,43 @@ test('the archive confirmation: Cancel is focused first and the row reads Cancel
   await expect(page.getByRole('alertdialog')).toHaveCount(0);
 });
 
+/**
+ * The design viewer's free-form footer (#277) is unchanged by #282: its nav (Prev · position · Next) and the card's
+ * answers are two full-width rows, nav above the answers, on both widths — each row reads left to right in DOM order.
+ */
+test('the design viewer: the nav row above the answers, both full width, as #277 draws it', async ({ page }) => {
+  await page.goto('/p/team-console/questions');
+  const card = page.locator('li[data-number="90004"]');
+  await expect(card.getByTestId('question-preview')).toHaveCount(3);
+  await card.getByTestId('question-preview').nth(1).click();
+  const viewer = page.locator('tc-sheet-container[role="dialog"]');
+  await expect(viewer.getByTestId('viewer-actions').locator('[data-command="approve"]')).toBeVisible();
+  await viewer.evaluate(async (element) => {
+    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished));
+  });
+
+  const foot = await viewer.locator('.tc-sheet__foot').boundingBox();
+  const nav = await viewer.locator('.viewer__nav').boundingBox();
+  const actions = await viewer.getByTestId('viewer-actions').boundingBox();
+  const prev = await viewer.getByTestId('viewer-prev').boundingBox();
+  const next = await viewer.getByTestId('viewer-next').boundingBox();
+  if (foot === null || nav === null || actions === null || prev === null || next === null) {
+    throw new Error('the viewer footer, its nav and its answers are drawn');
+  }
+  expect(nav.y + nav.height, 'nav above the answers').toBeLessThanOrEqual(actions.y + 0.5);
+  expect(Math.abs(nav.x - actions.x), 'both rows start at the same edge').toBeLessThanOrEqual(1);
+  expect(Math.abs(nav.width - actions.width), 'both rows are full width').toBeLessThanOrEqual(1);
+  expect(nav.width, 'the rows fill the footer').toBeGreaterThan(foot.width * 0.8);
+  expect(prev.x, 'Prev left of Next').toBeLessThan(next.x);
+
+  // The buttons as drawn, rows top to bottom and left to right, are the buttons as the DOM lists them.
+  const layout = await footerLayout(viewer);
+  expect(visualOrderOf(layout)).toEqual(layout.map((button) => button.name));
+  await expectAccessible(page, 'Design viewer with the answers');
+  await page.keyboard.press('Escape');
+  await expect(viewer).toBeHidden();
+});
+
 test('batch approve: the main action and Cancel read in the drawn order', async ({ page }) => {
   await page.goto('/needs-you');
   const open = page.getByTestId('batch-approve');

@@ -11,6 +11,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { DeploymentStore } from '@console/entities/app-info';
 import { ConnectGitHubButton, GitHubConnectionStore } from '@console/entities/github-connection';
@@ -48,6 +49,7 @@ export type AddRepositorySheetResult = 'done' | 'open-setup' | undefined;
     Card,
     ConnectGitHubButton,
     LocalTimePipe,
+    NgTemplateOutlet,
     RouterLink,
     SetupChecklist,
     SheetFooter,
