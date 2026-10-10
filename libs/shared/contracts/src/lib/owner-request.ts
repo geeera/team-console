@@ -57,7 +57,10 @@ export interface OwnerRequestBody {
 export interface OwnerRequestResponse {
   readonly commentId: number;
   readonly url: string;
-  /** ISO 8601: when GitHub created the comment. */
+  /**
+   * ISO 8601 UTC: GitHub's `created_at` of the comment (a replay repeats the one first recorded). The handled check
+   * compares it with the PM's marker on the same clock, never the Worker's.
+   */
   readonly requestedAt: string;
   /** Answered from the 60 s replay window, nothing written again. */
   readonly replayed: boolean;
@@ -66,7 +69,7 @@ export interface OwnerRequestResponse {
 /** The newest request on an issue as the console recorded it (a cache of GitHub comments, never a decision). */
 export type OwnerRequestStatusDto = OwnerRequest & {
   readonly state: OwnerRequestState;
-  /** ISO 8601. */
+  /** ISO 8601 UTC: GitHub's `created_at` of the request comment. */
   readonly requestedAt: string;
   /** The request comment on github.com. */
   readonly url: string;
