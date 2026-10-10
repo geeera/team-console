@@ -95,6 +95,15 @@ export class OwnerRequestsRepo {
       .run();
   }
 
+  /** The request posted as this comment, or `null` (a replay answers with the row the first write recorded). */
+  async findByComment(commentId: number): Promise<OwnerRequestRecord | null> {
+    const row = await this.db
+      .prepare(`SELECT ${COLUMNS} FROM owner_requests WHERE comment_id = ?1`)
+      .bind(commentId)
+      .first<OwnerRequestRow>();
+    return row === null ? null : toRecord(row);
+  }
+
   /** The issue's newest request, or `null`. */
   async latestFor(slug: string, issueNumber: number): Promise<OwnerRequestRecord | null> {
     const row = await this.db

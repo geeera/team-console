@@ -31,6 +31,16 @@ describe('OwnerRequestsRepo', () => {
     await expect(repo().countPending('tc')).resolves.toBe(1);
   });
 
+  it('finds a request by its comment id, as recorded, and null for an unknown one', async () => {
+    await repo().record(request(100, 7, '2026-10-06T10:00:00.000Z'));
+    await expect(repo().findByComment(100)).resolves.toMatchObject({
+      commentId: 100,
+      issueNumber: 7,
+      requestedAt: '2026-10-06T10:00:00.000Z',
+    });
+    await expect(repo().findByComment(101)).resolves.toBeNull();
+  });
+
   it('the newest request on an issue replaces the older one', async () => {
     await repo().record(request(100, 7, '2026-10-06T10:00:00.000Z'));
     await repo().record(request(101, 7, '2026-10-06T11:00:00.000Z'));

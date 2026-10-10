@@ -12,6 +12,10 @@ import {
 
 // #62: every state-changing /api route says how it treats the dev/stage Access service identity. A new route fails
 // "is classified" until someone decides; an owner write must be `owner-only` or carry the fixture gate.
+// One read route writes D1: `GET /api/v1/projects/:slug/issues/:number/request` marks a pending owner request
+// handled (`owner_requests`, a display cache) and is reachable by the service identity. That is harmless only while a
+// row changes on nothing but a trusted bot's strict handled marker — never on GitHub, never on the owner's token;
+// owner-request.spec.ts ("the GET changes a row only on a trusted bot's strict marker") pins it (#270).
 
 type ServiceRule =
   /** Refused outright by `ownerOnlyMiddleware` (403 owner-only), before any handler code runs. */

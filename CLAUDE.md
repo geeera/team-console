@@ -170,7 +170,9 @@ and never a milestone, label or status; 409 `issue-changed` (`milestone`) / `iss
 `sprint-next-missing` / `request-not-issue`. D1 `owner_requests` (migration 0012, `OwnerRequestsRepo`) is a display cache only:
 newest row per issue, never an input to a write or an authorisation decision. A request is handled by a
 `pt-owner-request-handled` first-line marker from a `type: Bot` login in `TRUSTED_BOT_LOGINS` (`handledRequestOf` in
-`@worker/read-models`): the hooks Worker on `issue_comment.created`, the GET on the last comment page (unedited only).
+`@worker/read-models`): the hooks Worker on `issue_comment.created`, the GET on the newest comments — the last page
+plus the one before a short last, at least 100 (unedited only; `requested_at` is GitHub's `created_at` of the request
+comment, so both sides of the "after the request" check are on GitHub's clock, #269/#270).
 `SprintIssueDto.request`, `TeamStatusDto.pendingRequests`, `GET …/requests` (the picker). Console:
 `@console/features/request-change` (`RequestChange`: picker, then the one-request form), the panel's Issues group, the board's
 "Ask the PM" and «ждёт PM» chip. `team.console_app_slugs` in `.product-team/project.yml` is the plugin's trust root for requests: `[team-console-dev]` only (owner, 2026-10-07); stage and production join after #152.
