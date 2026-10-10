@@ -1,3 +1,4 @@
+import type { InputSignal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { TranslocoPipe } from '@console/shared/i18n';
 import { Button, Callout } from '@console/shared/ui';
@@ -31,22 +32,23 @@ const LONG: readonly InstallationRepositoryDto[] = [
 const SELECTION_URL = 'https://github.com/settings/installations/1001';
 const INSTALL_URL = 'https://github.com/apps/team-console-dev/installations/new';
 
-type Args = Partial<
-  Pick<
-    RepositoryListView,
-    | 'connection'
-    | 'status'
-    | 'problem'
-    | 'repositories'
-    | 'rowStates'
-    | 'partial'
-    | 'online'
-    | 'loadedAt'
-    | 'refreshing'
-    | 'keepInPlace'
-  >
-> &
-  Record<string, unknown>;
+// The view's inputs are signals; the story's args are their plain values.
+type InputValue<T> = T extends InputSignal<infer Value> ? Value : never;
+type ViewInput =
+  | 'connection'
+  | 'status'
+  | 'problem'
+  | 'repositories'
+  | 'rowStates'
+  | 'partial'
+  | 'online'
+  | 'loadedAt'
+  | 'refreshing'
+  | 'keepInPlace'
+  | 'selectionUrl'
+  | 'appName'
+  | 'login';
+type Args = Partial<{ [Key in ViewInput]: InputValue<RepositoryListView[Key]> }>;
 
 const template = `
   <div style="max-width: calc(var(--sidebar-w) * 3)">

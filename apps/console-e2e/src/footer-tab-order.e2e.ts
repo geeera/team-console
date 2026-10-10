@@ -66,10 +66,17 @@ function visualOrderOf(layout: readonly FooterButton[]): string[] {
  * order; the layout itself is the one the design draws for the width (a stack with the main action on top, or a row
  * with it on the right).
  */
-async function expectReadingOrder(page: Page, frame: Locator, primary: string, secondary: string): Promise<void> {
+async function expectReadingOrder(
+  page: Page,
+  frame: Locator,
+  primary: string,
+  secondary: string,
+): Promise<void> {
   const layout = await footerLayout(frame);
   const domOrder = layout.map((button) => button.name);
-  expect(domOrder, 'two actions in the footer').toEqual(isPhone(page) ? [primary, secondary] : [secondary, primary]);
+  expect(domOrder, 'two actions in the footer').toEqual(
+    isPhone(page) ? [primary, secondary] : [secondary, primary],
+  );
   expect(visualOrderOf(layout), 'drawn in DOM order').toEqual(domOrder);
 
   const [first, second] = layout;
@@ -147,7 +154,9 @@ test('«Попросить PM»: Tab walks the footer in the order it is drawn',
   await expect(page.getByRole('dialog', { name: new RegExp(`^#${ISSUE} `) })).toHaveCount(0);
 });
 
-test('the archive confirmation: Cancel is focused first and the row reads Cancel, then Archive', async ({ page }) => {
+test('the archive confirmation: Cancel is focused first and the row reads Cancel, then Archive', async ({
+  page,
+}) => {
   await page.goto('/settings/projects/private-product');
   await expect(page.getByTestId('archive-project')).toBeVisible();
   await page.getByTestId('archive-project').click();
@@ -155,13 +164,56 @@ test('the archive confirmation: Cancel is focused first and the row reads Cancel
   await expect(confirm).toContainText(ru('settings.archive.title', { name: 'private-product' }));
   await expect(confirm.locator('.tc-confirm__cancel')).toBeFocused();
 
-  await expectReadingOrder(
-    page,
-    confirm,
-    ru('settings.archive.confirm'),
-    ru('ui.confirm.cancel'),
-  );
+  await expectReadingOrder(page, confirm, ru('settings.archive.confirm'), ru('ui.confirm.cancel'));
   await expectAccessible(page, 'Archive confirmation');
+
+  await confirm.locator('.tc-confirm__cancel').click();
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+});
+
+/**
+ * A dialog too narrow for its buttons in one row (#325): they stack full width with the main action on top, like the
+ * phone, and the DOM order follows, so Tab still walks what is drawn; widening the dialog restores the row.
+ */
+test('a dialog footer that no longer fits one row stacks with the main action on top', async ({ page }) => {
+  await page.setViewportSize({ width: 600, height: 900 });
+  await page.goto('/settings/projects/private-product');
+  await page.getByTestId('archive-project').click();
+  const confirm = page.getByRole('alertdialog');
+  await expect(confirm).toContainText(ru('settings.archive.title', { name: 'private-product' }));
+  const style = await page.addStyleTag({
+    content: 'tc-sheet-container.tc-sheet--dialog { max-width: 220px; }',
+  });
+
+  const primary = ru('settings.archive.confirm');
+  const secondary = ru('ui.confirm.cancel');
+  await expect
+    .poll(async () => (await footerLayout(confirm)).map((button) => button.name))
+    .toEqual([primary, secondary]);
+  const stacked = await footerLayout(confirm);
+  const [first, second] = stacked;
+  if (first === undefined || second === undefined) {
+    throw new Error('expected two footer buttons');
+  }
+  expect(first.top, 'stacked: the main action on top').toBeLessThan(second.top);
+  expect(first.left, 'stacked: full width').toBe(second.left);
+  expect(visualOrderOf(stacked), 'drawn in DOM order').toEqual([primary, secondary]);
+
+  const buttons = footerButtons(confirm);
+  await buttons.first().focus();
+  await page.keyboard.press('Tab');
+  await expect(buttons.nth(1)).toBeFocused();
+  await expectAccessible(page, 'Archive confirmation, stacked footer');
+
+  await style.evaluate((element) => {
+    element.textContent = '';
+  });
+  await expect
+    .poll(async () => (await footerLayout(confirm)).map((button) => button.name))
+    .toEqual([secondary, primary]);
+  const [left, right] = await footerLayout(confirm);
+  expect(Math.abs((left?.top ?? 0) - (right?.top ?? 99)), 'one row again').toBeLessThanOrEqual(4);
+  expect(left?.left ?? 0, 'Cancel on the left').toBeLessThan(right?.left ?? 0);
 
   await confirm.locator('.tc-confirm__cancel').click();
   await expect(page.getByRole('alertdialog')).toHaveCount(0);
@@ -171,7 +223,9 @@ test('the archive confirmation: Cancel is focused first and the row reads Cancel
  * The design viewer's free-form footer (#277) is unchanged by #282: its nav (Prev · position · Next) and the card's
  * answers are two full-width rows, nav above the answers, on both widths — each row reads left to right in DOM order.
  */
-test('the design viewer: the nav row above the answers, both full width, as #277 draws it', async ({ page }) => {
+test('the design viewer: the nav row above the answers, both full width, as #277 draws it', async ({
+  page,
+}) => {
   await page.goto('/p/team-console/questions');
   const card = page.locator('li[data-number="90004"]');
   await expect(card.getByTestId('question-preview')).toHaveCount(3);

@@ -136,6 +136,14 @@
   border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 
+/* A dialog footer that no longer fits one row (#325): the phone's layout, the frame having put the primary first. */
+:host(.tc-sheet--dialog) .tc-sheet__foot--stacked {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  align-items: stretch;
+}
+
 @keyframes tc-sheet-rise {
   from {
     transform: translateY(100%);
