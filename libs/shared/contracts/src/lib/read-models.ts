@@ -7,8 +7,10 @@ import type { OwnerRequestStatusDto } from './owner-request';
  * Read models of a product repository (#35): what the owner's inbox, the questions list, the sprint board and
  * the cross-project "Needs you" show. Built in the api Worker from GitHub reads; no GitHub type crosses the wire.
  *
- * Every title, body and `ask` is untrusted issue text, passed through verbatim: the client renders it as plain
- * text (Angular interpolation), never as HTML. Every `url` is `https://github.com/…` or `null`.
+ * Every title, body and `ask` is untrusted issue text: the client renders it as plain text (Angular interpolation),
+ * never as HTML. Bodies and `ask` pass through verbatim; every `title` has its invisible characters (controls,
+ * zero-width, bidi marks and overrides, fillers, tag characters) removed by `withoutInvisibles` in the builder, so
+ * an outsider's item cannot pose as another (#287). Every `url` is `https://github.com/…` or `null`.
  */
 
 /** One issue waiting for the owner, as the plugin's inbox lists it (`brief.needs`). */
@@ -41,8 +43,10 @@ export interface InboxItemDto {
 }
 
 /**
- * The fixed sections of a team question's body (#276), each as bounded plain text with no markup or HTML. A missing
- * section is `null`; the card hides its slot. Still untrusted text: interpolation only.
+ * The fixed sections of a team question's body (#276), each as bounded plain text: markup, tag-like runs and
+ * invisible characters are removed for readability, not as sanitising (`<scr<x>ipt>` comes out as `<script>`, #288).
+ * Untrusted text for interpolation only — never pass a field to tc-markdown or innerHTML. A missing section is `null`;
+ * the card hides its slot.
  */
 export interface QuestionContextDto {
   /** `## Кратко` / `## Summary`: one line, the card's title in the owner's language. */

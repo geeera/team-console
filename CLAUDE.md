@@ -128,9 +128,12 @@ item; failures branch on the problem `type`; Retry repeats the same body so the 
 still lists them. Kit: `Recommendation`, `Receipt`.
 Question context (#276): `InboxItemDto.context` (`QuestionContextDto`, so on inbox, questions and Needs you) is
 `questionContextOf` in `@worker/read-models` — the body's `## Кратко|Вопрос|Почему|Если одобрить|Если отклонить|Цена и риск`
-(or `Summary|Question|Why|If approved|If rejected|Cost and risk`) as bounded plain text (no markup, tags, answer line,
-control or bidi characters; GitHub's 65,536 cut first), read only for trusted authors, `structured: false` + the first
-paragraph when no heading is there. `markdownToPlainText` lives in `@shared/plain-text` (worker and console). The card
+(or `Summary|Question|Why|If approved|If rejected|Cost and risk`) as bounded plain text for interpolation only (markup,
+tag-like runs, the answer line and invisible characters removed — never tc-markdown or innerHTML; fences close only on
+the same marker, #288; GitHub's 65,536 cut first), read only for trusted authors, `structured: false` + the first
+paragraph when no heading is there. `markdownToPlainText` and `withoutInvisibles` (controls, zero-width, bidi, fillers,
+tag characters; applied to every title DTO, #287, and shown with `dir="auto"` + the shared `unicode-bidi: isolate` rule
+in `base.css`) live in `@shared/plain-text` (worker and console). The card
 (`QuestionCard`) shows summary title + «На GitHub:», question, verb + why, `[tc-question-previews]` (design only, team items
 only; `question-list`'s `QuestionDesignPreviews` fills it, #290: three screens via `previewScreensOf` + `DesignPreview [screen]`,
 «+N», «Все экраны (N)», opening the viewer on that screen with the card's `AnswerQuestion` as its `actions`), outcomes (from the sections, else the answer line's options via `askOutcomesOf`), cost, actions,

@@ -61,6 +61,8 @@ describe('ArtifactList', () => {
     expect(link.getAttribute('target')).toBe('_blank');
     expect(root.querySelector('img')).toBeNull();
     expect(link.textContent).toContain('<img src=x onerror=alert(1)> Settings');
+    // Direction from the title itself, isolated from the row (#287).
+    expect(link.querySelector('[tc-row-title]')?.getAttribute('dir')).toBe('auto');
     expect(link.textContent).toContain('(откроется на GitHub)');
     expect(root.textContent).toContain('Дизайн');
     expect(root.textContent).toContain('закрыта');

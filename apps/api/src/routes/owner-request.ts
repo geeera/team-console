@@ -10,6 +10,7 @@ import {
   type OwnerRequestResponse,
 } from '@shared/contracts';
 import { requestComment, requestMarker } from '@shared/owner-grammar';
+import { withoutInvisibles } from '@shared/plain-text';
 import {
   problem,
   type LogFields,
@@ -323,8 +324,9 @@ export function createOwnerRequestRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<
       }
       const body: IssueRequestDto = {
         number,
-        title: issue.title,
+        title: withoutInvisibles(issue.title),
         state: issue.state,
+        // Verbatim on purpose: the POST compares it with `expectedMilestone` character for character.
         milestone: issue.milestone,
         current: plan.current,
         next: plan.next,

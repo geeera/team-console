@@ -103,6 +103,8 @@ describe('SprintItemList', () => {
 
     expect(rows[0]?.querySelector('img')).toBeNull();
     expect(rows[0]?.querySelector('[tc-row-title]')?.textContent).toContain(title);
+    // Direction from the title itself, isolated from the row (#287).
+    expect(rows[0]?.querySelector('[tc-row-title]')?.getAttribute('dir')).toBe('auto');
     expect(rows[0]?.querySelector('[data-testid="untrusted"]')?.textContent?.trim()).toBe('Не от команды');
     expect((window as unknown as Record<string, unknown>)['__pwned']).toBeUndefined();
   });

@@ -154,7 +154,7 @@ describe('questionContextOf', () => {
   });
 
   describe('injection attempts', () => {
-    it('returns no HTML: tags are dropped, closed or not, and markup becomes text', () => {
+    it('drops tag-like runs, closed or not, and turns markup into text', () => {
       const body = [
         '## Вопрос',
         'Approve <img src=x onerror="alert(1)"> this <script>alert(2)</script> now <b>please</b>',
@@ -189,6 +189,21 @@ describe('questionContextOf', () => {
       expect(questionContextOf(hostile)?.summary).toBe('Paygro.live now 👩‍💻');
     });
 
+    it('removes the Arabic letter mark, soft hyphen, Hangul fillers and tag characters too (#288)', () => {
+      const [alm, shy, filler, halfFiller, hangulFiller, tag] = [0x61c, 0xad, 0x115f, 0x1160, 0x3164, 0xe0041].map(
+        (point) => String.fromCodePoint(point),
+      );
+      const hostile = `## Кратко\nAp${alm}prove${shy} ${filler}the${halfFiller} ${hangulFiller}plan${tag}`;
+      expect(questionContextOf(hostile)?.summary).toBe('Approve the plan');
+    });
+
+    it('is plain text for interpolation only: tag stripping may rebuild a tag, so it is never a sanitiser', () => {
+      // `<scr<x>ipt>` loses its inner tag and reads `<script>` — harmless under interpolation, fatal in innerHTML.
+      const question = questionContextOf('## Вопрос\nRun <scr<x>ipt>alert(1)</script> now')?.question ?? '';
+      expect(question).toContain('<script>');
+      expect(question).toBe('Run <script>alert(1) now');
+    });
+
     it('does not take a heading from inside a comment or a fenced block', () => {
       const body = [
         '<!--',
@@ -203,6 +218,33 @@ describe('questionContextOf', () => {
         '```',
       ].join('\n');
       expect(questionContextOf(body)).toMatchObject({ why: null, question: 'Ask?\nПочему\nCode, not a heading.' });
+    });
+
+    it('closes a fence only on the same character, so a different fence inside it is text (#288)', () => {
+      // GitHub renders `## Почему` here as code: the ``` line is content of the ~~~ block, not its end.
+      const body = ['## Вопрос', 'q', '~~~', '```', '## Почему', 'injected', '~~~'].join('\n');
+      expect(questionContextOf(body)).toMatchObject({ why: null, question: 'q\nПочему\ninjected' });
+    });
+
+    it('closes a fence only on a run at least as long as the opening one', () => {
+      const body = ['## Вопрос', 'q', '````', '```', '## Почему', 'injected', '````', '## Цена и риск', 'ok'].join(
+        '\n',
+      );
+      expect(questionContextOf(body)).toMatchObject({ why: null, costAndRisk: 'ok' });
+      // A longer closing run still closes.
+      const longer = ['## Вопрос', 'q', '```', '## Почему', 'code', '`````', '## Почему', 'real'].join('\n');
+      expect(questionContextOf(longer)).toMatchObject({ why: 'real' });
+    });
+
+    it('does not close a fence on a run with trailing text, which CommonMark reads as content', () => {
+      const body = ['## Вопрос', 'q', '```', '```js', '## Почему', 'injected', '```', '## Цена и риск', 'ok'].join(
+        '\n',
+      );
+      expect(questionContextOf(body)).toMatchObject({ why: null, costAndRisk: 'ok' });
+      // Trailing spaces are fine; an info string on the opening fence is too.
+      expect(questionContextOf('## Вопрос\nq\n```ts\n## Почему\ncode\n```  \n## Почему\nreal')).toMatchObject({
+        why: 'real',
+      });
     });
 
     it('never reaches an object prototype through a heading', () => {

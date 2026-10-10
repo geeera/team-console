@@ -172,6 +172,46 @@ describe('buildSprint', () => {
       [1, 'unknown'],
     ]);
   });
+
+  it('strips bidi overrides and zero-width characters from issue, pull request and milestone titles (#287)', () => {
+    const [rlo, pdf, zwsp] = [0x202e, 0x202c, 0x200b].map((point) => String.fromCodePoint(point));
+    const sprint = buildSprint({
+      milestone: { ...milestone(3, '2026-10-16T00:00:00Z'), title: `Sprint ${zwsp}3` },
+      milestoneIssues: [
+        {
+          number: 40,
+          title: `Ship ${rlo}tik ngised eht${pdf}`,
+          body: '',
+          htmlUrl: 'https://github.com/o/r/issues/40',
+          state: 'open',
+          labels: [],
+          authorAssociation: 'NONE',
+          authorLogin: 'outsider',
+          authorType: 'User',
+          isPullRequest: false,
+          updatedAt: null,
+        },
+      ],
+      openPullRequests: [
+        {
+          number: 41,
+          title: `fix: ${zwsp}deploy${zwsp} order`,
+          htmlUrl: 'https://github.com/o/r/pull/41',
+          draft: false,
+          headSha: null,
+          body: '',
+          headRef: null,
+          headRepo: null,
+          authorAssociation: 'NONE',
+          authorLogin: 'outsider',
+          authorType: 'User',
+        },
+      ],
+    });
+    expect(sprint.milestone?.title).toBe('Sprint 3');
+    expect(sprint.issues.map((issue) => issue.title)).toEqual(['Ship tik ngised eht']);
+    expect(sprint.openPullRequests.map((pull) => pull.title)).toEqual(['fix: deploy order']);
+  });
 });
 
 describe('pullRequestRecordOf: head sha (#131)', () => {

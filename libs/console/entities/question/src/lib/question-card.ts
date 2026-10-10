@@ -83,10 +83,10 @@ function isActionSection(section: Section): boolean {
         {{ 'questions.section.' + item().section | transloco }}
       </span>
       <span tc-card-number>#{{ item().number }}</span>
-      <h2 tc-card-title [id]="titleId" tabindex="-1">{{ summary() ?? item().title }}</h2>
+      <h2 tc-card-title [id]="titleId" tabindex="-1" dir="auto">{{ summary() ?? item().title }}</h2>
       @if (summary() !== null) {
         <p class="question__github-title" data-testid="github-title">
-          {{ 'questions.onGitHub' | transloco }} {{ item().title }}
+          {{ 'questions.onGitHub' | transloco }} <span dir="auto">{{ item().title }}</span>
         </p>
       }
       @if (!item().authorTrusted) {
