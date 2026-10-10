@@ -146,7 +146,7 @@
       <span tc-receipt-verb
         >{{ 'answer.receipt.verb' | transloco: { verb: verbOf(row.answer.command) } }}</span
       >
-      <span tc-receipt-detail>{{ row.item.title }}</span>
+      <span tc-receipt-detail dir="auto">{{ row.item.title }}</span>
       <span tc-receipt-meta>
         {{ 'answer.receipt.meta' | transloco: { n: row.item.number, time: timeOf(row.answer) } }} · {{
         'answer.receipt.waiting' | transloco }} @if (receiptUrl(row.answer); as url) { ·

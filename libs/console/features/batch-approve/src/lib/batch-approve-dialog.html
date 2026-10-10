@@ -14,7 +14,7 @@
         class="batch__number"
         >#{{ item.number }}</span
       >
-      {{ item.title }}</span
+      <span dir="auto">{{ item.title }}</span></span
     >
     @if (recOf(item); as rec) {
     <span tc-check-detail>{{ 'commands.batch.rec' | transloco: { c: rec } }}</span>
@@ -28,7 +28,7 @@
   <ul>
     @for (left of data.leftOut; track keyOf(left.item)) {
     <li [attr.data-number]="left.item.number">
-      <span class="batch__number">#{{ left.item.number }}</span> {{ left.item.title }}
+      <span class="batch__number">#{{ left.item.number }}</span> <span dir="auto">{{ left.item.title }}</span>
       <tc-chip>{{ reasonOf(left) }}</tc-chip>
     </li>
     }

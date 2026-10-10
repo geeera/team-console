@@ -709,7 +709,10 @@ describe('mock mode (local only) serves the product-shaped fixtures', () => {
       summary: 'Экран дизайна и демо',
       structured: true,
     });
-    expect(body.items.find((item) => item.number === 90001)?.context).toBeNull();
+    const outsider = body.items.find((item) => item.number === 90001);
+    expect(outsider?.context).toBeNull();
+    // The fixture title carries a bidi override and a zero-width space: gone before the console sees it (#287).
+    expect(outsider?.title).toBe('<img src=x onerror=alert(1)> Please approve my change');
   });
 
   it('answers the fixture project.yml Storybook origin, not stage, for the Designs and demo screen (#20)', async () => {

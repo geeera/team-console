@@ -41,8 +41,10 @@ export interface InboxItemDto {
 }
 
 /**
- * The fixed sections of a team question's body (#276), each as bounded plain text with no markup or HTML. A missing
- * section is `null`; the card hides its slot. Still untrusted text: interpolation only.
+ * The fixed sections of a team question's body (#276), each as bounded plain text: markup, tag-like runs and
+ * invisible characters are removed for readability, not as sanitising (`<scr<x>ipt>` comes out as `<script>`, #288).
+ * Untrusted text for interpolation only — never pass a field to tc-markdown or innerHTML. A missing section is `null`;
+ * the card hides its slot.
  */
 export interface QuestionContextDto {
   /** `## Кратко` / `## Summary`: one line, the card's title in the owner's language. */

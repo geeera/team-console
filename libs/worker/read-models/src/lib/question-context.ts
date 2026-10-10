@@ -1,10 +1,12 @@
 import type { QuestionContextDto } from '@shared/contracts';
-import { MARKDOWN_MAX_LENGTH, markdownToPlainText } from '@shared/plain-text';
+import { MARKDOWN_MAX_LENGTH, markdownToPlainText, withoutInvisibles } from '@shared/plain-text';
 
 /**
  * The context a question card shows (#276), read from the fixed `##` sections the team writes into a question's
  * body. Issue text is hostile: the body is cut at GitHub's limit before any scan, every step is linear, and each
- * field comes out as bounded plain text — no markup, no HTML tags, no answer line, no control or bidi characters.
+ * field comes out as bounded plain text without the answer line or invisible characters, for interpolation only.
+ * Tag-like runs are dropped for readability, not safety: `<scr<x>ipt>` comes out as `<script>`, so a field must never
+ * reach tc-markdown or innerHTML.
  */
 
 type ContextSlot = 'summary' | 'question' | 'why' | 'ifApproved' | 'ifRejected' | 'costAndRisk';
@@ -41,7 +43,9 @@ export const QUESTION_CONTEXT_LIMITS: Readonly<Record<ContextSlot, number>> = Ob
 const ELLIPSIS = String.fromCodePoint(0x2026);
 // A comment may hide a heading (`<!--\n## Вопрос\n-->`); one left open runs to the end, as markdownToPlainText reads it.
 const COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
-const FENCE = /^ {0,3}(?:```|~~~)/;
+// A fence opens with three or more backticks or tildes and closes only on the same character, in a run at least as
+// long (CommonMark 4.5): a ``` line inside a ~~~ block is content, so a heading after it is still code.
+const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 // A level-1 or level-2 ATX heading ends a section; `###` and deeper stay part of its text.
 const SECTION_BREAK = /^ {0,3}#{1,2}(?:[ \t]|$)/;
 const LEVEL_TWO = /^ {0,3}##(?:[ \t]|$)/;
@@ -53,23 +57,6 @@ const LEADING_QUOTE = /^[\s>]+/u;
 // A tag-like run (`<img …>`, `</b>`, `<!doctype`, `<?x`), up to its `>` or the end of the line. The scan from one `<`
 // stops at the next `<`, `>` or newline, so the whole pass stays linear.
 const TAG = /<[A-Za-z/!?][^<>\n]*(?:>|$)/gmu;
-// C0/C1 controls except tab and newline; zero-width, bidi embedding, override and isolate marks, BOM. ZWJ (U+200D)
-// stays: emoji sequences need it. Built from code points, so the source shows exactly which characters are meant.
-const INVISIBLE_RANGES: readonly (readonly [number, number])[] = [
-  [0x00, 0x08],
-  [0x0b, 0x1f],
-  [0x7f, 0x9f],
-  [0x200b, 0x200c],
-  [0x200e, 0x200f],
-  [0x202a, 0x202e],
-  [0x2060, 0x2064],
-  [0x2066, 0x2069],
-  [0xfeff, 0xfeff],
-];
-const INVISIBLE = new RegExp(
-  `[${INVISIBLE_RANGES.map(([from, to]) => `\\u{${from.toString(16)}}-\\u{${to.toString(16)}}`).join('')}]`,
-  'gu',
-);
 const INLINE_SPACE = /[ \t\u{a0}]+/gu;
 const BLANK_RUN = /\n{3,}/g;
 const ANY_SPACE = /\s+/gu;
@@ -92,6 +79,11 @@ function isAnswerLine(line: string): boolean {
   return ANSWER_LABEL.test(line.normalize('NFKC').replace(EMPHASIS, '').replace(LEADING_QUOTE, ''));
 }
 
+/** The closing run is of the opening fence's character and at least as long. */
+function closesFence(open: string, close: string): boolean {
+  return close[0] === open[0] && close.length >= open.length;
+}
+
 /** Cut to `limit` code points, at a word end when one is in the last fifth, with an ellipsis. */
 function bounded(text: string, limit: number): string {
   const points = Array.from(text);
@@ -107,11 +99,13 @@ function bounded(text: string, limit: number): string {
   return `${points.slice(0, cut).join('').trimEnd()}${ELLIPSIS}`;
 }
 
-/** Markdown lines as display text: markup, tags and invisible characters gone, spacing tidied; `null` if empty. */
+/**
+ * Markdown lines as display text: markup, tag-like runs and invisible characters gone, spacing tidied; `null` if
+ * empty. Plain text for interpolation only — see the note at the top of the file.
+ */
 function plainOf(lines: readonly string[], limit: number, oneLine: boolean): string | null {
-  const plain = markdownToPlainText(lines.join('\n'))
+  const plain = withoutInvisibles(markdownToPlainText(lines.join('\n')))
     .replace(TAG, '')
-    .replace(INVISIBLE, '')
     .split('\n')
     .map((line) => line.replace(INLINE_SPACE, ' ').trim())
     .join('\n')
@@ -151,11 +145,15 @@ export function questionContextOf(body: string): QuestionContextDto | null {
   const sections = new Map<ContextSlot, string[]>();
   const preamble: string[] = [];
   let current: string[] | null = preamble;
-  let inFence = false;
+  // The open fence's marker run (``` or ~~~…); a line closes it only with the same character, at least as many.
+  let openFence: string | null = null;
   for (const line of source.replace(/\r\n?/g, '\n').replace(COMMENT, '').split('\n')) {
-    if (FENCE.test(line)) {
-      inFence = !inFence;
-    } else if (!inFence && SECTION_BREAK.test(line)) {
+    const fence = FENCE.exec(line)?.[1] ?? null;
+    if (fence !== null && openFence === null) {
+      openFence = fence;
+    } else if (fence !== null && openFence !== null && closesFence(openFence, fence)) {
+      openFence = null;
+    } else if (openFence === null && SECTION_BREAK.test(line)) {
       const slot = QUESTION_CONTEXT_HEADINGS.get(headingKeyOf(line) ?? '');
       if (slot !== undefined && !sections.has(slot)) {
         current = [];

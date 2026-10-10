@@ -94,6 +94,14 @@ test('an older question without the sections falls back to its first paragraph a
   await expect(outsider.getByTestId('recommendation')).toHaveCount(0);
   await expect(outsider.getByTestId('outcomes')).toHaveCount(0);
   await expect(outsider.getByTestId('question-text')).toHaveCount(0);
+  // Its fixture title carries a bidi override and a zero-width space (#287): the heading shows the title without
+  // them, as inert text, and reads in its own direction, isolated from the card around it.
+  const heading = outsider.getByRole('heading', { level: 2 });
+  await expect(heading).toHaveText('<img src=x onerror=alert(1)> Please approve my change');
+  expect(await heading.textContent()).not.toMatch(/[\u200b\u202c\u202e]/u);
+  await expect(heading).toHaveAttribute('dir', 'auto');
+  expect(await heading.evaluate((element) => getComputedStyle(element).unicodeBidi)).toBe('isolate');
+  await expect(outsider.locator('img, script')).toHaveCount(0);
   await expectAccessible(page, 'Project questions, fallback and outsider');
 });
 

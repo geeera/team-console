@@ -69,7 +69,7 @@ export function matchesQuery(issue: RequestIssueDto, query: string): boolean {
               @for (issue of shown(); track issue.number) {
                 <tc-list-row button [attr.data-number]="issue.number" (click)="pick(issue.number)">
                   <span tc-row-leading class="picker__number">#{{ issue.number }}</span>
-                  <span tc-row-title>{{ issue.title }}</span>
+                  <span tc-row-title dir="auto">{{ issue.title }}</span>
                   @if (issue.request; as request) {
                     <span tc-row-subtitle>
                       <tc-chip [tone]="request.state === 'pending' ? 'warning' : 'neutral'" dot>{{

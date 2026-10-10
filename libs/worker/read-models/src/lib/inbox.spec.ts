@@ -51,6 +51,24 @@ describe('untrusted text (#9 threat row 4)', () => {
     );
   });
 
+  it('strips bidi overrides and zero-width characters from a title, so it cannot pose as another (#287)', () => {
+    const [rlo, pdf, zwsp, wj] = [0x202e, 0x202c, 0x200b, 0x2060].map((point) => String.fromCodePoint(point));
+    const outsider = openIssues.find((issue) => issue.number === 14);
+    if (outsider === undefined) {
+      throw new Error('fixture #14 missing');
+    }
+    const spoofing: IssueRecord[] = [
+      { ...outsider, number: 14, title: `Approve ${rlo}nalp wen eht${pdf}` },
+      { ...outsider, number: 16, title: `Ap${zwsp}prove the${wj} new plan` },
+    ];
+    const items = buildInbox({ openIssues: spoofing, reviewerLogins: ['r'], repoFullName: 'geeera/edge-cases' }).items;
+    expect(items.map((item) => item.title)).toEqual(['Approve nalp wen eht', 'Approve the new plan']);
+    expect(buildQuestions(spoofing).items.map((item) => item.title)).toEqual([
+      'Approve nalp wen eht',
+      'Approve the new plan',
+    ]);
+  });
+
   it('drops a javascript: url and a non-https one', () => {
     expect(byNumber(15)?.url).toBeNull();
     expect(byNumber(17)?.url).toBeNull();

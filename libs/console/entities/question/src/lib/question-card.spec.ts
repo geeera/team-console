@@ -193,6 +193,27 @@ describe('QuestionCard', () => {
     expect(root.querySelector('[data-testid="untrusted"]')).toBeNull();
   });
 
+  it('isolates the direction of the untrusted title and of the GitHub line (#287)', async () => {
+    const { fixture, root } = await render();
+    expect(root.querySelector('h2')?.getAttribute('dir')).toBe('auto');
+
+    const summaryOnly: QuestionContextDto = {
+      summary: 'Экран дизайна и демо',
+      question: null,
+      why: null,
+      ifApproved: null,
+      ifRejected: null,
+      costAndRisk: null,
+      structured: true,
+    };
+    fixture.componentInstance.item.set(
+      item({ authorTrusted: true, title: 'Дизайн #20: экран дизайна и демо', context: summaryOnly }),
+    );
+    await fixture.whenStable();
+    const githubTitle = root.querySelector('[data-testid="github-title"] [dir="auto"]');
+    expect(githubTitle?.textContent).toBe('Дизайн #20: экран дизайна и демо');
+  });
+
   it('is an article named by its title, tagged with its project, with the section and number', async () => {
     const { root } = await render();
 
