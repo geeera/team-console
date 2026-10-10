@@ -83,14 +83,7 @@ import { map } from 'rxjs';
               <p>{{ 'artifacts.partial.hint' | transloco }}</p>
             </section>
           }
-          @if (snapshot.items.length === 0) {
-            <tc-state-block
-              kind="empty"
-              data-testid="artifacts-empty"
-              [title]="'artifacts.empty.title' | transloco"
-              [description]="'artifacts.empty.hint' | transloco"
-            />
-          } @else {
+          @if (snapshot.items.length > 0) {
             <tc-artifact-search
               [items]="snapshot.items"
               [type]="type()"
@@ -99,7 +92,27 @@ import { map } from 'rxjs';
               (typeChange)="setFilter($event, query())"
               (queryChange)="setFilter(type(), $event)"
             />
-            @if (visible().length === 0) {
+          }
+          @switch (emptyState()) {
+            @case ('designs') {
+              <!-- #277 spec §4: the Design filter has its own empty copy, with or without other artifacts. -->
+              <tc-state-block
+                kind="empty"
+                icon="grid"
+                data-testid="artifacts-designs-empty"
+                [title]="'artifacts.designs.empty.title' | transloco"
+                [description]="'artifacts.designs.empty.hint' | transloco"
+              />
+            }
+            @case ('all') {
+              <tc-state-block
+                kind="empty"
+                data-testid="artifacts-empty"
+                [title]="'artifacts.empty.title' | transloco"
+                [description]="'artifacts.empty.hint' | transloco"
+              />
+            }
+            @case ('no-match') {
               <tc-state-block
                 kind="empty"
                 data-testid="artifacts-no-match"
@@ -110,7 +123,8 @@ import { map } from 'rxjs';
                   {{ 'artifacts.noMatch.clear' | transloco }}
                 </button>
               </tc-state-block>
-            } @else {
+            }
+            @default {
               <tc-artifact-list
                 [items]="visible()"
                 [label]="'artifacts.listLabel' | transloco"
@@ -134,11 +148,27 @@ import { map } from 'rxjs';
         }
       }
       @default {
-        <tc-state-block
-          kind="loading"
-          data-testid="artifacts-loading"
-          [title]="'artifacts.loading' | transloco"
-        />
+        @if (type() === 'design') {
+          <!-- #277 spec §4: three skeleton rows the shape of a design row, and a status line. -->
+          <div class="artifacts__designs-loading" data-testid="artifacts-designs-loading" aria-busy="true">
+            @for (row of skeletonRows; track row) {
+              <div class="artifacts__skeleton" aria-hidden="true">
+                <span class="artifacts__skeleton-thumb"></span>
+                <span class="artifacts__skeleton-text">
+                  <span class="artifacts__skeleton-line"></span>
+                  <span class="artifacts__skeleton-line artifacts__skeleton-line--short"></span>
+                </span>
+              </div>
+            }
+            <p class="artifacts__designs-status" role="status">{{ 'artifacts.designs.loading' | transloco }}</p>
+          </div>
+        } @else {
+          <tc-state-block
+            kind="loading"
+            data-testid="artifacts-loading"
+            [title]="'artifacts.loading' | transloco"
+          />
+        }
       }
     }
   `,
@@ -186,6 +216,21 @@ export class ArtifactsSectionPage {
   protected readonly visible = computed(() =>
     filterArtifacts(this.snapshot()?.items ?? [], { type: this.type(), query: this.query() }),
   );
+  /**
+   * Which empty block replaces the list, `null` when there is one to show. The Design filter without a search gets
+   * the #277 §4 copy whether the project has other artifacts or none; a search that finds nothing stays «Ничего не
+   * найдено», so the clear action keeps its meaning.
+   */
+  protected readonly emptyState = computed((): 'designs' | 'all' | 'no-match' | null => {
+    if (this.visible().length > 0) {
+      return null;
+    }
+    if (this.type() === 'design' && this.query() === '') {
+      return 'designs';
+    }
+    return (this.snapshot()?.items.length ?? 0) === 0 ? 'all' : 'no-match';
+  });
+  protected readonly skeletonRows = [0, 1, 2];
   protected readonly loadedTime = computed(() => {
     const snapshot = this.snapshot();
     return snapshot === null ? '' : localTimeOf(snapshot.loadedAt, this.lang());

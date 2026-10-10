@@ -453,6 +453,13 @@
       "title": "No artifacts yet",
       "hint": "Decisions, designs and demos show up here once the team creates them."
     },
+    "designs": {
+      "loading": "Loading designs…",
+      "empty": {
+        "title": "No designs yet",
+        "hint": "Once the designer attaches screens to an issue, they show up here."
+      }
+    },
     "noMatch": {
       "title": "Nothing found",
       "hint": "Change the search or pick another type.",
