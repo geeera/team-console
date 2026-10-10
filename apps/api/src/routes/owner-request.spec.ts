@@ -20,6 +20,7 @@ import {
   stubGitHub,
   type GitHubCall,
 } from '../testing/github-kit';
+import { OwnerRequestsRepo } from '@worker/db';
 import { OWNER, fakeGitHub, resetOwnerConnections, seedConnection } from '../testing/owner-kit';
 import { rereadPagesOf } from './owner-request';
 
@@ -44,6 +45,10 @@ interface Harness {
   /** How far GitHub's clock is from the Worker's (negative: GitHub lags behind). */
   githubOffsetMs: number;
   projectYml: string;
+  /** What the fake's answer to the comment post says in `created_at`; `undefined` keeps GitHub's timestamp. */
+  commentCreatedAt: unknown;
+  /** Every log line the Worker wrote, parsed. */
+  readonly logs: Record<string, unknown>[];
 }
 
 function toRequest(call: GitHubCall): Request {
@@ -63,6 +68,8 @@ function harness(milestones: readonly FakeMilestoneSeed[] = SPRINTS): Harness {
     clock: NOW,
     githubOffsetMs: 0,
     projectYml: 'name: TC\nowner:\n  language: ru\n',
+    commentCreatedAt: undefined,
+    logs: [],
   } as unknown as Harness;
   const fake = fakeGitHub({ tokenTag: 'TESTSENTINEL', now: () => h.clock + h.githubOffsetMs });
   fake.seedIssue({
@@ -115,7 +122,20 @@ function harness(milestones: readonly FakeMilestoneSeed[] = SPRINTS): Harness {
       });
       return json(200, [issue(7, 'Board filters'), issue(8, 'Backlog idea'), issue(10, 'A PR', true)]);
     }
-    return fake.handle(toRequest(call));
+    const answer = await fake.handle(toRequest(call));
+    if (
+      call.method === 'POST' &&
+      call.url.pathname.endsWith('/comments') &&
+      h.commentCreatedAt !== undefined
+    ) {
+      const posted = (await answer.json()) as Record<string, unknown>;
+      const comment = Object.fromEntries(Object.entries(posted).filter(([key]) => key !== 'created_at'));
+      return json(
+        answer.status,
+        h.commentCreatedAt === null ? comment : { ...comment, created_at: h.commentCreatedAt },
+      );
+    }
+    return answer;
   });
   Object.assign(h, {
     fake,
@@ -137,6 +157,7 @@ function ask(
     headers,
     body: JSON.stringify(body),
     github: h.github,
+    logSink: (line) => h.logs.push(JSON.parse(line) as Record<string, unknown>),
   });
 }
 
@@ -352,6 +373,99 @@ describe('POST …/issues/:number/request', () => {
     h.clock += 120_000;
     const body = (await (await read(h, 7)).json()) as IssueRequestDto;
     expect(body.request).toMatchObject({ state: 'applied', requestedAt: githubCreatedAt });
+  });
+
+  describe('without a usable created_at from GitHub (#319)', () => {
+    const WORKER_CLOCK = new Date(NOW).toISOString();
+
+    function fallbackWarnings(h: Harness): Record<string, unknown>[] {
+      return h.logs.filter(
+        (line) => line['level'] === 'warn' && String(line['message']).includes('the Worker clock stands in'),
+      );
+    }
+
+    async function recordedRequestedAt(): Promise<string[]> {
+      const { results } = await env.DB.prepare('SELECT requested_at FROM owner_requests').all<{
+        requested_at: string;
+      }>();
+      return results.map((row) => row.requested_at);
+    }
+
+    it.each([
+      ['no created_at', null],
+      ['an unparseable created_at', 'yesterday, around noon'],
+    ])(
+      'answers with the Worker clock and warns when the comment comes back with %s',
+      async (_, createdAt) => {
+        const h = harness();
+        h.githubOffsetMs = -90_000;
+        h.commentCreatedAt = createdAt;
+        await seedConnection(h.fake, { nowMs: h.clock });
+
+        const response = await ask(h, 7, NEXT);
+        expect(response.status).toBe(201);
+        await expect(response.json()).resolves.toMatchObject({ replayed: false, requestedAt: WORKER_CLOCK });
+        await expect(recordedRequestedAt()).resolves.toEqual([WORKER_CLOCK]);
+        expect(fallbackWarnings(h)).toEqual([
+          expect.objectContaining({
+            message: "owner request: GitHub's created_at is not at hand, the Worker clock stands in",
+            slug: 'tc',
+            issue: 7,
+            request: 'sprint',
+          }),
+        ]);
+        expect(h.fake.comments).toHaveLength(1);
+      },
+    );
+
+    it('a replay whose owner_requests row is gone answers with the Worker clock of the first write and warns', async () => {
+      const h = harness();
+      h.githubOffsetMs = -90_000;
+      await seedConnection(h.fake, { nowMs: h.clock });
+      const first = (await (await ask(h, 7, NEXT)).json()) as { requestedAt: string };
+      expect(first.requestedAt).toBe(new Date(NOW - 90_000).toISOString());
+      expect(fallbackWarnings(h)).toEqual([]);
+
+      await env.DB.prepare('DELETE FROM owner_requests').run();
+      h.clock += 30_000;
+      const replay = await ask(h, 7, NEXT);
+      expect(replay.status).toBe(200);
+      await expect(replay.json()).resolves.toMatchObject({ replayed: true, requestedAt: WORKER_CLOCK });
+      expect(fallbackWarnings(h)).toEqual([
+        expect.objectContaining({
+          message: "owner request: GitHub's created_at is not at hand, the Worker clock stands in",
+          issue: 7,
+        }),
+      ]);
+      // The row is re-indexed from the replay, so the board gets its badge back.
+      await expect(recordedRequestedAt()).resolves.toEqual([WORKER_CLOCK]);
+      expect(h.fake.comments).toHaveLength(1);
+    });
+
+    it('a D1 error while reading the row on a replay is a warning and the Worker clock, never a 500', async () => {
+      const h = harness();
+      h.githubOffsetMs = -90_000;
+      await seedConnection(h.fake, { nowMs: h.clock });
+      expect((await ask(h, 7, NEXT)).status).toBe(201);
+
+      vi.spyOn(OwnerRequestsRepo.prototype, 'findByComment').mockRejectedValue(
+        new Error('D1_ERROR: storage'),
+      );
+      const replay = await ask(h, 7, NEXT);
+      expect(replay.status).toBe(200);
+      expect(replay.headers.get('Idempotent-Replayed')).toBe('true');
+      await expect(replay.json()).resolves.toMatchObject({ replayed: true, requestedAt: WORKER_CLOCK });
+      expect(fallbackWarnings(h)).toEqual([
+        expect.objectContaining({
+          message: 'owner request: the recorded request could not be read, the Worker clock stands in',
+          issue: 7,
+          error: expect.objectContaining({ message: 'D1_ERROR: storage' }),
+        }),
+      ]);
+      // The first write's row keeps GitHub's timestamp: the replay never overwrites it.
+      await expect(recordedRequestedAt()).resolves.toEqual([new Date(NOW - 90_000).toISOString()]);
+      expect(h.fake.comments).toHaveLength(1);
+    });
   });
 
   it('403 github-owner-not-connected before GitHub is asked', async () => {
