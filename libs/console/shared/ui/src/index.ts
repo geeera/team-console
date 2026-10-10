@@ -31,6 +31,7 @@ export type { ReceiptTone } from './lib/receipt/receipt';
 export { Recommendation } from './lib/recommendation/recommendation';
 export { Sheet } from './lib/sheet/sheet';
 export { SheetFooter } from './lib/sheet/sheet-footer';
+export type { SheetFooterRole } from './lib/sheet/sheet-footer';
 export { isPageScrollLocked } from './lib/sheet/sheet-scroll-lock';
 export type { SheetOptions } from './lib/sheet/sheet';
 export { ConfirmFailure } from './lib/sheet/confirm-dialog';

@@ -5,11 +5,13 @@ import {
   afterNextRender,
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   ElementRef,
   inject,
   InjectionToken,
   signal,
+  TemplateRef,
   viewChild,
 } from '@angular/core';
 import { TranslocoPipe } from '@console/shared/i18n';
@@ -46,7 +48,7 @@ export const SHEET_FRAME = new InjectionToken<SheetFrame>('SHEET_FRAME');
     tabindex: '-1',
     '[class.tc-sheet--dialog]': 'frame.presentation === "dialog"',
     '[class.tc-sheet--full]': 'frame.size === "full"',
-    '[class.tc-sheet--with-foot]': 'footer.template() !== null',
+    '[class.tc-sheet--with-foot]': 'footer.hasContent()',
     '[attr.id]': '_config.id',
     '[attr.role]': '_config.role',
     '[attr.aria-modal]': '_config.ariaModal',
@@ -57,6 +59,20 @@ export const SHEET_FRAME = new InjectionToken<SheetFrame>('SHEET_FRAME');
 export class SheetContainer extends CdkDialogContainer {
   protected readonly frame = inject(SHEET_FRAME);
   protected readonly footer = inject(SheetFooterSlot, { optional: true }) ?? new SheetFooterSlot();
+  /**
+   * The footer's templates in reading order (#282): free-form content as written, then the primary over the secondary
+   * on the phone (stacked, the main action on top) and the secondary before the primary in the dialog (a row, the
+   * main action on the right). DOM order, Tab order and visual order are then one order on both presentations.
+   */
+  protected readonly footerTemplates = computed((): readonly TemplateRef<unknown>[] => {
+    const roles =
+      this.frame.presentation === 'dialog'
+        ? [this.footer.secondary(), this.footer.primary()]
+        : [this.footer.primary(), this.footer.secondary()];
+    return [this.footer.freeForm(), ...roles].filter(
+      (template): template is TemplateRef<unknown> => template !== null,
+    );
+  });
   private readonly ref = inject(DialogRef);
   private readonly body = viewChild.required<ElementRef<HTMLElement>>('body');
   private readonly content = viewChild.required<ElementRef<HTMLElement>>('content');

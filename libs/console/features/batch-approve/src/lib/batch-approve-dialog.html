@@ -43,7 +43,7 @@
 </div>
 }
 <!-- In the frame's footer: the list can be long, the actions stay in view (#274). -->
-<ng-template tcSheetFooter>
+<ng-template tcSheetFooter="primary">
   @if (items().length > 0) {
   <button
     tc-button
@@ -60,6 +60,8 @@
     }} } @else { {{ 'commands.batch.ok' | transloco: { n: checkedCount() } }} }
   </button>
   }
+</ng-template>
+<ng-template tcSheetFooter="secondary">
   <button tc-button type="button" [attr.aria-disabled]="running() ? 'true' : null" (click)="cancel()">
     {{ 'commands.batch.cancel' | transloco }}
   </button>

@@ -81,20 +81,15 @@
   } } } }
 </div>
 
-<ng-template tcSheetFooter>
+<!-- The frame orders the roles (#282): the main action on top on the phone, on the right in the dialog. -->
+<ng-template tcSheetFooter="primary">
   @switch (state.kind) { @case ('checking') {
   <button tc-button variant="primary" type="button" data-testid="sheet-busy" [loading]="true" aria-disabled="true">
     {{ 'settings.add.submitting' | transloco }}
   </button>
-  <button tc-button type="button" data-testid="sheet-close" (click)="close()">
-    {{ 'overview.repos.sheet.close' | transloco }}
-  </button>
   } @case ('added') {
   <button tc-button variant="primary" type="button" data-testid="sheet-done" (click)="done()">
     {{ 'overview.repos.sheet.done' | transloco }}
-  </button>
-  <button tc-button type="button" data-testid="sheet-open-setup" (click)="openSetup(state.slug)">
-    {{ 'overview.repos.sheet.openSetup' | transloco }}
   </button>
   } @case ('refused') { @switch (refusal()?.kind) { @case ('refused') {
   <button
@@ -120,7 +115,18 @@
   >
     {{ 'settings.common.retry' | transloco }}
   </button>
-  } }
+  } } } }
+</ng-template>
+<ng-template tcSheetFooter="secondary">
+  @switch (state.kind) { @case ('checking') {
+  <button tc-button type="button" data-testid="sheet-close" (click)="close()">
+    {{ 'overview.repos.sheet.close' | transloco }}
+  </button>
+  } @case ('added') {
+  <button tc-button type="button" data-testid="sheet-open-setup" (click)="openSetup(state.slug)">
+    {{ 'overview.repos.sheet.openSetup' | transloco }}
+  </button>
+  } @case ('refused') {
   <button
     tc-button
     type="button"

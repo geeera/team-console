@@ -111,7 +111,11 @@
   padding-bottom: var(--space-4);
 }
 
-/* Phone: stacked, full width, primary first (thumb reach). Dialog: a row, primary on the right. */
+/*
+ * Phone: stacked, full width, primary on top. Dialog: a row, right-aligned, primary on the right. The frame already
+ * renders the actions in that reading order (#282), so no `row-reverse` or `order` here: the DOM order is the Tab
+ * order and the visual order on both presentations.
+ */
 .tc-sheet__foot {
   flex: none;
   display: flex;
@@ -124,9 +128,9 @@
 }
 
 :host(.tc-sheet--dialog) .tc-sheet__foot {
-  flex-direction: row-reverse;
+  flex-direction: row;
   flex-wrap: wrap;
-  justify-content: flex-start;
+  justify-content: flex-end;
   align-items: center;
   padding-bottom: var(--space-4);
   border-radius: 0 0 var(--r-lg) var(--r-lg);

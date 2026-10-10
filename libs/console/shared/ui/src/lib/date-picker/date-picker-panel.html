@@ -58,11 +58,9 @@
     </tbody>
   </table>
   @if (isSheet) {
-  <!-- The sheet's footer: stacked, primary first (#274 kit rule). -->
-  <ng-template tcSheetFooter>
-    <ng-container *ngTemplateOutlet="doneAction" />
-    <ng-container *ngTemplateOutlet="todayAction" />
-  </ng-template>
+  <!-- The sheet's footer: the frame stacks Done over Today (#274 kit rule, #282 reading order). -->
+  <ng-template tcSheetFooter="primary"><ng-container *ngTemplateOutlet="doneAction" /></ng-template>
+  <ng-template tcSheetFooter="secondary"><ng-container *ngTemplateOutlet="todayAction" /></ng-template>
   } @else {
   <div class="tc-date-panel__foot">
     <ng-container *ngTemplateOutlet="todayAction" />
