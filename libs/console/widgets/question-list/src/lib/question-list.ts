@@ -41,6 +41,9 @@ import {
   Button,
   Callout,
   CardStamp,
+  Chip,
+  type ChipTone,
+  type IconName,
   type DialogRef,
   Icon,
   markArrival,
@@ -69,6 +72,15 @@ const TONES: Readonly<Record<AnswerCommand, CardStamp>> = {
   'no-go': 'negative',
 };
 
+const CHIP_TONES: Readonly<Record<CardStamp, ChipTone>> = {
+  positive: 'success',
+  negative: 'danger',
+  neutral: 'neutral',
+};
+
+// A glyph beside the word, so the status never rests on colour alone.
+const STATUS_ICONS: Readonly<Record<CardStamp, IconName>> = { positive: 'check', negative: 'x', neutral: 'minus' };
+
 type LoadState = 'loading' | 'ready' | 'error';
 
 interface Row {
@@ -91,6 +103,7 @@ interface Row {
     Banner,
     Button,
     Callout,
+    Chip,
     Icon,
     QuestionCard,
     QuestionDesignPreviews,
@@ -125,6 +138,8 @@ export class QuestionList {
   readonly listLabel = input('');
   readonly emptyTitle = input('');
   readonly emptyHint = input('');
+  /** Answered items fold into receipts here; the Demo screen lists only what still waits (#328). */
+  readonly showReceipts = input(true);
 
   protected readonly state = signal<LoadState>('loading');
   private readonly items = signal<readonly QuestionItem[]>([]);
@@ -173,6 +188,9 @@ export class QuestionList {
       }
       return [{ key, item, answer, stamping: this.stamping().has(key) }];
     }),
+  );
+  protected readonly visibleRows = computed(() =>
+    this.showReceipts() ? this.rows() : this.rows().filter((row) => row.answer === null || row.stamping),
   );
   protected readonly waiting = computed(() => this.rows().filter((row) => row.answer === null));
   /** The items still waiting for an answer from this device, once the list is read (the batch entry reads them). */
@@ -237,6 +255,18 @@ export class QuestionList {
 
   protected timeOf(answer: AnsweredItem): string {
     return localTimeOf(answer.answeredAt, this.transloco.getActiveLang());
+  }
+
+  protected chipToneOf(command: AnswerCommand): ChipTone {
+    return CHIP_TONES[TONES[command]];
+  }
+
+  protected statusIconOf(command: AnswerCommand): IconName {
+    return STATUS_ICONS[TONES[command]];
+  }
+
+  protected statusOf(command: AnswerCommand): string {
+    return this.transloco.translate(`answer.receipt.status.${command}`);
   }
 
   protected verbOf(command: AnswerCommand): string {

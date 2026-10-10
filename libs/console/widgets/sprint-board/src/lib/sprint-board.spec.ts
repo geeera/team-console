@@ -988,6 +988,27 @@ describe('SprintBoard', () => {
       expect(document.activeElement?.getAttribute('tabindex')).toBe('-1');
     });
 
+    it('the CI and Runs tiles scroll to their list and ring it, once at a time', async () => {
+      const { root, settle } = await render();
+      http.expectOne(projectSprintUrl(TC.slug)).flush(sprint());
+      await settle();
+      const pulls = root.querySelector('[data-testid="pulls"]') as HTMLElement;
+      const runs = root.querySelector('[data-testid="runs"]') as HTMLElement;
+      pulls.scrollIntoView = vi.fn();
+      runs.scrollIntoView = vi.fn();
+
+      (root.querySelector('[data-testid="ci-stat"] button') as HTMLButtonElement).click();
+      await settle();
+      expect(pulls.scrollIntoView).toHaveBeenCalled();
+      expect(pulls.classList).toContain('tc-arrival');
+
+      (root.querySelector('[data-testid="team-stat"] button') as HTMLButtonElement).click();
+      await settle();
+      expect(runs.classList).toContain('tc-arrival');
+      expect(pulls.classList).not.toContain('tc-arrival');
+      expect(document.activeElement).toBe(root.querySelector('[data-testid="runs"] h2'));
+    });
+
     it('folds Done to its heading until Show, and Show keeps focus as «Свернуть»', async () => {
       const { root, settle } = await render();
       http.expectOne(projectSprintUrl(TC.slug)).flush(sprint());

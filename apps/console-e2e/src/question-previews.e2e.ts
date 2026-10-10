@@ -170,7 +170,7 @@ test('«Утвердить» inside the viewer answers once, closes it and folds
   await expect(dialog(page)).toBeHidden();
   const receipt = card(page).locator('tc-receipt');
   await expect(receipt).toBeVisible();
-  await expect(receipt).toContainText(ru('answer.receipt.verb', { verb: ru('answer.command.approve') }));
+  await expect(receipt).toContainText(ru('answer.receipt.status.approve'));
   await expect(receipt).toBeFocused();
   await expect(page.getByTestId('announcement')).toContainText(`#${ISSUE}`);
 

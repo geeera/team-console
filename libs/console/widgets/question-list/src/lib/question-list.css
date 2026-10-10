@@ -75,3 +75,14 @@
   align-items: center;
   gap: var(--space-1);
 }
+
+.questions__receipt-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* No ru summary: the GitHub title stands in, quieter than a real heading. */
+.questions__receipt-fallback {
+  color: var(--text-2);
+}
