@@ -21,6 +21,9 @@
         "default",
         "^default",
         "{workspaceRoot}/libs/console/widgets/github-repositories/src/**/*",
+        "{workspaceRoot}/libs/console/widgets/question-list/src/**/*",
+        "{workspaceRoot}/libs/console/entities/design/src/**/*",
+        "{workspaceRoot}/libs/console/features/design-viewer/src/**/*",
         "{workspaceRoot}/libs/console/shared/i18n/src/**/*"
       ],
       "options": {
