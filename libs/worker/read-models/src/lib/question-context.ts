@@ -43,9 +43,11 @@ export const QUESTION_CONTEXT_LIMITS: Readonly<Record<ContextSlot, number>> = Ob
 const ELLIPSIS = String.fromCodePoint(0x2026);
 // A comment may hide a heading (`<!--\n## Вопрос\n-->`); one left open runs to the end, as markdownToPlainText reads it.
 const COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
-// A fence opens with three or more backticks or tildes and closes only on the same character, in a run at least as
-// long (CommonMark 4.5): a ``` line inside a ~~~ block is content, so a heading after it is still code.
+// A fence opens with three or more backticks or tildes (an info string may follow) and closes only on the same
+// character, in a run at least as long, with nothing but spaces after it (CommonMark 4.5): a ``` line inside a ~~~
+// block, or a ```js line, is content, so a heading after it is still code.
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
 // A level-1 or level-2 ATX heading ends a section; `###` and deeper stay part of its text.
 const SECTION_BREAK = /^ {0,3}#{1,2}(?:[ \t]|$)/;
 const LEVEL_TWO = /^ {0,3}##(?:[ \t]|$)/;
@@ -79,9 +81,9 @@ function isAnswerLine(line: string): boolean {
   return ANSWER_LABEL.test(line.normalize('NFKC').replace(EMPHASIS, '').replace(LEADING_QUOTE, ''));
 }
 
-/** The closing run is of the opening fence's character and at least as long. */
+/** The closing run is of the opening fence's character and at least as long; `''` is no closing run. */
 function closesFence(open: string, close: string): boolean {
-  return close[0] === open[0] && close.length >= open.length;
+  return close !== '' && close[0] === open[0] && close.length >= open.length;
 }
 
 /** Cut to `limit` code points, at a word end when one is in the last fifth, with an ellipsis. */
@@ -148,10 +150,9 @@ export function questionContextOf(body: string): QuestionContextDto | null {
   // The open fence's marker run (``` or ~~~…); a line closes it only with the same character, at least as many.
   let openFence: string | null = null;
   for (const line of source.replace(/\r\n?/g, '\n').replace(COMMENT, '').split('\n')) {
-    const fence = FENCE.exec(line)?.[1] ?? null;
-    if (fence !== null && openFence === null) {
-      openFence = fence;
-    } else if (fence !== null && openFence !== null && closesFence(openFence, fence)) {
+    if (openFence === null && FENCE.test(line)) {
+      openFence = FENCE.exec(line)?.[1] ?? null;
+    } else if (openFence !== null && closesFence(openFence, FENCE_CLOSE.exec(line)?.[1] ?? '')) {
       openFence = null;
     } else if (openFence === null && SECTION_BREAK.test(line)) {
       const slot = QUESTION_CONTEXT_HEADINGS.get(headingKeyOf(line) ?? '');

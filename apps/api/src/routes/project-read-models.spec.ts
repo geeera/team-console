@@ -715,6 +715,37 @@ describe('mock mode (local only) serves the product-shaped fixtures', () => {
     expect(outsider?.title).toBe('<img src=x onerror=alert(1)> Please approve my change');
   });
 
+  it('serves no invisible character under any `title` of the project read endpoints (#287 guard)', async () => {
+    // Fixture #90001's title carries U+202E, U+202C and U+200B; every endpoint that lists it must have stripped them.
+    const titlesIn = (value: unknown, found: string[] = []): string[] => {
+      if (Array.isArray(value)) {
+        value.forEach((item) => titlesIn(item, found));
+      } else if (value !== null && typeof value === 'object') {
+        for (const [key, item] of Object.entries(value)) {
+          if (key === 'title' && typeof item === 'string') {
+            found.push(item);
+          } else {
+            titlesIn(item, found);
+          }
+        }
+      }
+      return found;
+    };
+    const github = new ApiGitHub();
+    const seen: string[] = [];
+    for (const path of ['inbox', 'questions', 'sprint', 'requests']) {
+      const response = await fetchApi(`/api/v1/projects/tc/${path}`, localEnv({ GITHUB_MOCK: 'true' }), { github });
+      expect(response.status, path).toBe(200);
+      const titles = titlesIn(await response.json());
+      expect(titles.length, path).toBeGreaterThan(0);
+      for (const title of titles) {
+        expect(title, path).not.toMatch(/[\u200b\u202c\u202e]/u);
+      }
+      seen.push(...titles);
+    }
+    expect(seen.filter((title) => title.includes('Please approve my change')).length).toBeGreaterThanOrEqual(3);
+  });
+
   it('answers the fixture project.yml Storybook origin, not stage, for the Designs and demo screen (#20)', async () => {
     const response = await fetchApi('/api/v1/projects/tc/embed-origins', localEnv({ GITHUB_MOCK: 'true' }), {
       github: new ApiGitHub(),

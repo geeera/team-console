@@ -10,6 +10,7 @@ import {
   type TeamRunDto,
   type TeamSprintDto,
 } from '@shared/contracts';
+import { withoutInvisibles } from '@shared/plain-text';
 import type { ProjectRow } from '@worker/db';
 import { GitHubClient, GitHubError, githubPath, readCacheKey, type RepoName } from '@worker/github';
 import {
@@ -124,7 +125,7 @@ export class ProjectReads {
     const issues = await this.openIssues();
     return issues
       .filter((issue) => !issue.isPullRequest)
-      .map((issue) => ({ number: issue.number, title: issue.title }))
+      .map((issue) => ({ number: issue.number, title: withoutInvisibles(issue.title) }))
       .sort((a, b) => b.number - a.number);
   }
 

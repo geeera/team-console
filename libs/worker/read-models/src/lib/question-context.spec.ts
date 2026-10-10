@@ -236,6 +236,17 @@ describe('questionContextOf', () => {
       expect(questionContextOf(longer)).toMatchObject({ why: 'real' });
     });
 
+    it('does not close a fence on a run with trailing text, which CommonMark reads as content', () => {
+      const body = ['## Вопрос', 'q', '```', '```js', '## Почему', 'injected', '```', '## Цена и риск', 'ok'].join(
+        '\n',
+      );
+      expect(questionContextOf(body)).toMatchObject({ why: null, costAndRisk: 'ok' });
+      // Trailing spaces are fine; an info string on the opening fence is too.
+      expect(questionContextOf('## Вопрос\nq\n```ts\n## Почему\ncode\n```  \n## Почему\nreal')).toMatchObject({
+        why: 'real',
+      });
+    });
+
     it('never reaches an object prototype through a heading', () => {
       const body = '## constructor\nx\n## __proto__\ny\n## toString\nz\n## hasOwnProperty\nw';
       expect(questionContextOf(body)).toBeNull();

@@ -7,8 +7,10 @@ import type { OwnerRequestStatusDto } from './owner-request';
  * Read models of a product repository (#35): what the owner's inbox, the questions list, the sprint board and
  * the cross-project "Needs you" show. Built in the api Worker from GitHub reads; no GitHub type crosses the wire.
  *
- * Every title, body and `ask` is untrusted issue text, passed through verbatim: the client renders it as plain
- * text (Angular interpolation), never as HTML. Every `url` is `https://github.com/…` or `null`.
+ * Every title, body and `ask` is untrusted issue text: the client renders it as plain text (Angular interpolation),
+ * never as HTML. Bodies and `ask` pass through verbatim; every `title` has its invisible characters (controls,
+ * zero-width, bidi marks and overrides, fillers, tag characters) removed by `withoutInvisibles` in the builder, so
+ * an outsider's item cannot pose as another (#287). Every `url` is `https://github.com/…` or `null`.
  */
 
 /** One issue waiting for the owner, as the plugin's inbox lists it (`brief.needs`). */

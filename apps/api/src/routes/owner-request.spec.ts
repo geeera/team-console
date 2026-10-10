@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test';
-import { isProblemDetails, problemSlugOf, type IssueRequestDto } from '@shared/contracts';
+import { isProblemDetails, problemSlugOf, type IssueRequestDto, type RequestIssuesDto } from '@shared/contracts';
 import { commandLines, handledMarker, requestComment } from '@shared/owner-grammar';
 import type { FakeGitHubOAuth, FakeMilestoneSeed } from '@worker/github/testing';
 import { ApiGitHub } from '../github';
@@ -105,7 +105,13 @@ function harness(milestones: readonly FakeMilestoneSeed[] = SPRINTS): Harness {
         html_url: `https://github.com/${REPO}/issues/${number}`,
         ...(isPull ? { pull_request: {} } : {}),
       });
-      return json(200, [issue(7, 'Board filters'), issue(8, 'Backlog idea'), issue(10, 'A PR', true)]);
+      return json(200, [
+        issue(7, 'Board filters'),
+        issue(8, 'Backlog idea'),
+        issue(10, 'A PR', true),
+        // #287: a title with a bidi override and a zero-width space, as an outsider could write it.
+        issue(12, 'Board \u202esretlif\u202c for\u200b everyone'),
+      ]);
     }
     return fake.handle(toRequest(call));
   });
@@ -383,5 +389,29 @@ describe('GET …/issues/:number/request', () => {
       state: 'pending',
     });
     expect(items.some((item) => item.number === 10)).toBe(false);
+  });
+
+  it('strips bidi and zero-width characters from the issue title, in the form and in the picker, never from the milestone (#287)', async () => {
+    const h = harness();
+    await seedConnection(h.fake, { nowMs: h.clock });
+    h.fake.seedIssue({
+      repo: REPO,
+      number: 12,
+      title: 'Board \u202esretlif\u202c for\u200b everyone',
+      author: 'outsider',
+      repoOwner: OWNER,
+      milestone: 'Sprint 04',
+    });
+
+    const body = (await (await read(h, 12)).json()) as IssueRequestDto;
+    expect(body.title).toBe('Board sretlif for everyone');
+    expect(body.milestone).toBe('Sprint 04');
+
+    const picker = await fetchApi('/api/v1/projects/tc/requests', localEnv(), { method: 'GET', github: h.github });
+    const items = ((await picker.json()) as RequestIssuesDto).items;
+    expect(items.find((item) => item.number === 12)?.title).toBe('Board sretlif for everyone');
+    for (const item of items) {
+      expect(item.title).not.toMatch(/[\u200b\u202c\u202e]/u);
+    }
   });
 });

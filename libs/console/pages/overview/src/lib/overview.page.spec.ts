@@ -163,6 +163,10 @@ describe('OverviewPage', () => {
       'Sprint 03 <img src=x onerror=alert(1)>',
     );
     expect(a.querySelector('img')).toBeNull();
+    // Its direction comes from the title itself, isolated from the line around it (#287).
+    expect(a.querySelector('[data-testid="sprint"] [dir="auto"]')?.textContent).toBe(
+      'Sprint 03 <img src=x onerror=alert(1)>',
+    );
     expect(a.querySelector('[data-testid="sprint"]')?.textContent).toContain('демо 16 октября');
     expect(a.querySelector('[data-testid="progress"]')?.textContent?.trim()).toBe('готово 3 из 8');
     expect(a.querySelector('tc-meter')?.getAttribute('aria-hidden')).toBe('true');

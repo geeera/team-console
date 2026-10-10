@@ -35,7 +35,7 @@ export interface DesignRowContext {
             @if (designLeading(); as leading) {
               <span tc-row-leading><ng-container *ngTemplateOutlet="leading; context: { $implicit: design }" /></span>
             }
-            <span tc-row-title
+            <span tc-row-title dir="auto"
               >{{ item.title }} <span class="tc-sr-only">{{ 'designs.row.open' | transloco }}</span></span
             >
             <span tc-row-subtitle>
@@ -57,7 +57,7 @@ export interface DesignRowContext {
           </tc-list-row>
         } @else {
           <tc-list-row [href]="item.url" external data-testid="artifact" [attr.data-type]="item.type">
-            <span tc-row-title
+            <span tc-row-title dir="auto"
               >{{ item.title }} <span class="tc-sr-only">{{ 'artifacts.opensGitHub' | transloco }}</span></span
             >
             <span tc-row-subtitle>
