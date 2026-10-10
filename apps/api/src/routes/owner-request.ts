@@ -202,12 +202,22 @@ async function requestedAtOf(
     return outcome.createdAt;
   }
   if (outcome.kind === 'replayed') {
-    const recorded = await new OwnerRequestsRepo(c.env.DB).findByComment(outcome.write.commentId);
-    if (recorded !== null) {
-      return recorded.requestedAt;
+    try {
+      const recorded = await new OwnerRequestsRepo(c.env.DB).findByComment(outcome.write.commentId);
+      if (recorded !== null) {
+        return recorded.requestedAt;
+      }
+    } catch (error: unknown) {
+      // GitHub holds the comment already: a 500 here would invite a retry. The replay answers with the Worker clock.
+      const message = 'owner request: the recorded request could not be read, the Worker clock stands in';
+      c.get('logger').warn(message, { ...fields, error });
+      return new Date(outcome.write.createdAt).toISOString();
     }
   }
-  c.get('logger').warn('owner request: GitHub sent no created_at, the Worker clock stands in', fields);
+  c.get('logger').warn(
+    "owner request: GitHub's created_at is not at hand, the Worker clock stands in",
+    fields,
+  );
   return new Date(outcome.write.createdAt).toISOString();
 }
 
