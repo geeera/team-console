@@ -1,6 +1,6 @@
 import { List, ListRow } from '@console/shared/ui';
 import type { DesignManifestDto } from '@shared/contracts';
-import { applicationConfig, moduleMetadata, type Meta, type StoryObj } from '@storybook/angular';
+import { moduleMetadata, type Meta, type StoryObj } from '@storybook/angular';
 import { DesignPreview } from './design-preview';
 import { DesignSummary } from './design-summary';
 import { DesignsApi } from './designs.api';
@@ -61,9 +61,10 @@ const meta: Meta<Args> = {
   decorators: [moduleMetadata({ imports: [DesignPreview, DesignSummary, List, ListRow] })],
   render: (args) => ({
     props: args,
-    applicationConfig: applicationConfig({
+    // A plain ApplicationConfig, not the `applicationConfig()` decorator: the renderer reads `.providers` off it.
+    applicationConfig: {
       providers: [{ provide: DesignsApi, useValue: designsApi(args.answer) }],
-    }),
+    },
     template: `
       <tc-list style="max-width: calc(var(--sidebar-w) * 2)" aria-label="Designs">
         <tc-list-row button>
