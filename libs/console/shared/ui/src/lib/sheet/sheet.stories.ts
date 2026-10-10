@@ -53,10 +53,12 @@ class ProjectsSheetContent {
     @for (paragraph of paragraphs; track paragraph) {
       <p>{{ 'stories.sheet.footerBody' | transloco }}</p>
     }
-    <ng-template tcSheetFooter>
+    <ng-template tcSheetFooter="primary">
       <button tc-button variant="primary" type="button" (click)="ref.close()">
         {{ 'stories.sheet.footerDone' | transloco }}
       </button>
+    </ng-template>
+    <ng-template tcSheetFooter="secondary">
       <button tc-button type="button" (click)="ref.close()">
         {{ 'stories.sheet.footerSecondary' | transloco }}
       </button>
@@ -99,10 +101,12 @@ class FooterSheetContent {
         </p>
       }
     </form>
-    <ng-template tcSheetFooter>
+    <ng-template tcSheetFooter="primary">
       <button tc-button variant="primary" type="submit" form="tc-story-long-form">
         {{ 'stories.sheet.longSend' | transloco }}
       </button>
+    </ng-template>
+    <ng-template tcSheetFooter="secondary">
       <button tc-button type="button" (click)="ref.close()">{{ 'ui.confirm.cancel' | transloco }}</button>
     </ng-template>
   `,
@@ -136,7 +140,7 @@ class LongFormSheetContent {
         <div style="height: var(--stamp-size); border-radius: var(--r-md); background: var(--skeleton)"></div>
       }
     </div>
-    <ng-template tcSheetFooter>
+    <ng-template tcSheetFooter="primary">
       <button tc-button variant="primary" type="button" (click)="ref.close()">
         {{ 'stories.sheet.footerDone' | transloco }}
       </button>

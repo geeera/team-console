@@ -142,7 +142,7 @@ const QUEUE_CHOICES: readonly QueueChoice[] = ['up', 'keep', 'down'];
         }
       </form>
       <!-- The frame's footer sits outside the form, so the submit button names it (#274). -->
-      <ng-template tcSheetFooter>
+      <ng-template tcSheetFooter="primary">
         @if (!isFinal()) {
           <button
             tc-button
@@ -165,6 +165,8 @@ const QUEUE_CHOICES: readonly QueueChoice[] = ['up', 'keep', 'down'];
             }
           </button>
         }
+      </ng-template>
+      <ng-template tcSheetFooter="secondary">
         <button tc-button type="button" [attr.aria-disabled]="running() ? 'true' : null" (click)="cancel()">
           {{ (isFinal() ? 'commands.request.closeBtn' : 'commands.dialog.cancel') | transloco }}
         </button>

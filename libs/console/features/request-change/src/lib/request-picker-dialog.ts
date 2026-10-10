@@ -84,7 +84,7 @@ export function matchesQuery(issue: RequestIssueDto, query: string): boolean {
         }
       }
     </div>
-    <ng-template tcSheetFooter>
+    <ng-template tcSheetFooter="secondary">
       <button tc-button type="button" (click)="ref.close()">
         {{ 'commands.dialog.cancel' | transloco }}
       </button>

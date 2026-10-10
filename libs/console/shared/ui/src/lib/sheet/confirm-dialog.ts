@@ -169,7 +169,7 @@ let nextFieldId = 0;
       <p class="tc-confirm__error" role="alert"><tc-icon name="alert" size="sm" />{{ message }}</p>
     }
     <!-- In the frame's footer, so Cancel and Confirm stay in view however long the text is (#274). -->
-    <ng-template tcSheetFooter>
+    <ng-template tcSheetFooter="primary">
       <button
         tc-button
         type="button"
@@ -187,6 +187,8 @@ let nextFieldId = 0;
           {{ checked()?.confirmLabel || options.confirmLabel || ('ui.confirm.ok' | transloco) }}
         }
       </button>
+    </ng-template>
+    <ng-template tcSheetFooter="secondary">
       <button
         tc-button
         type="button"

@@ -1,4 +1,5 @@
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { ApplicationInitStatus, Component, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideConsoleI18n } from '@console/shared/i18n';
@@ -345,7 +346,7 @@ describe('Sheet', () => {
   });
 
   describe('one shell: viewport, actions and scroll lock (#274)', () => {
-    it('puts the confirmation buttons in the footer, outside the scrolling body, Confirm first', async () => {
+    it('puts the confirmation buttons in the footer, outside the scrolling body, in the dialog reading order (#282)', async () => {
       void sheet.confirm({ title: 'Archive?', message: 'It stays readable.', confirmLabel: 'Archive' });
       await settle();
       TestBed.tick();
@@ -353,8 +354,8 @@ describe('Sheet', () => {
       const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
       const foot = dialog.querySelector('.tc-sheet__foot') as HTMLElement;
       const buttons = Array.from(foot.querySelectorAll('button')).map((button) => button.className);
-      expect(buttons[0]).toContain('tc-confirm__ok');
-      expect(buttons[1]).toContain('tc-confirm__cancel');
+      expect(buttons[0]).toContain('tc-confirm__cancel');
+      expect(buttons[1]).toContain('tc-confirm__ok');
       expect(dialog.querySelector('.tc-sheet__body')?.contains(foot)).toBe(false);
     });
 
@@ -397,6 +398,38 @@ describe('Sheet', () => {
       const closed = firstValueFrom(ref.closed);
       (foot.querySelector('.done') as HTMLButtonElement).click();
       await expect(closed).resolves.toBe('done');
+    });
+
+    it('#282: in the dialog the footer lists the secondary before the primary, so Tab follows the row left to right', async () => {
+      sheet.open(WithActions, { title: 'Snooze', data: { text: 'until' } });
+      await settle();
+      TestBed.tick();
+
+      const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+      expect(dialog.classList).toContain('tc-sheet--dialog');
+      expect(dialog.classList).toContain('tc-sheet--with-foot');
+      expect(footerButtons(dialog)).toEqual(['Cancel', 'Snooze']);
+    });
+
+    it('#282: a free-form footer keeps the order it was written in, before any role', async () => {
+      sheet.open(WithMixedFooter, { title: 'Design', data: { text: 'x' } });
+      await settle();
+      TestBed.tick();
+
+      const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+      expect(footerButtons(dialog)).toEqual(['Prev', 'Next', 'Cancel', 'Save']);
+    });
+
+    it('#282: confirm() in the dialog puts Cancel first in the DOM and still focuses it first', async () => {
+      const pending = sheet.confirm({ title: 'Archive?', message: 'Sure?', confirmLabel: 'Archive' });
+      await settle();
+
+      const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+      expect(footerButtons(dialog)).toEqual(['Отмена', 'Archive']);
+      expect(document.activeElement).toBe(dialog.querySelector('.tc-confirm__cancel'));
+
+      (dialog.querySelector('.tc-confirm__cancel') as HTMLButtonElement).click();
+      await expect(pending).resolves.toBe(false);
     });
 
     it('has no footer row for content without one, and a body that fits adds no tab stop', async () => {
@@ -444,3 +477,75 @@ class WithFooter {
   readonly data = inject<{ text: string }>(DIALOG_DATA);
   readonly ref = inject(DialogRef);
 }
+
+/** Written primary first, as the phone shows it; the frame decides the DOM order per presentation (#282). */
+@Component({
+  imports: [SheetFooter],
+  template: `<p class="content">{{ data.text }}</p>
+    <ng-template tcSheetFooter="primary">
+      <button type="button" class="ok">Snooze</button>
+    </ng-template>
+    <ng-template tcSheetFooter="secondary">
+      <button type="button" class="cancel">Cancel</button>
+    </ng-template>`,
+})
+class WithActions {
+  readonly data = inject<{ text: string }>(DIALOG_DATA);
+}
+
+@Component({
+  imports: [SheetFooter],
+  template: `<p class="content">{{ data.text }}</p>
+    <ng-template tcSheetFooter="primary"><button type="button">Save</button></ng-template>
+    <ng-template tcSheetFooter>
+      <button type="button">Prev</button>
+      <button type="button">Next</button>
+    </ng-template>
+    <ng-template tcSheetFooter="secondary"><button type="button">Cancel</button></ng-template>`,
+})
+class WithMixedFooter {
+  readonly data = inject<{ text: string }>(DIALOG_DATA);
+}
+
+/** The footer's buttons as a reader meets them: DOM order, which the frame makes the visual order too. */
+function footerButtons(dialog: HTMLElement): string[] {
+  return Array.from(dialog.querySelectorAll('.tc-sheet__foot button')).map((button) => button.textContent?.trim());
+}
+
+describe('Sheet on the phone (#282)', () => {
+  let sheet: Sheet;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      providers: [provideConsoleI18n(), { provide: BreakpointObserver, useValue: { isMatched: () => true } }],
+    }).compileComponents();
+    await TestBed.inject(ApplicationInitStatus).donePromise;
+    sheet = TestBed.inject(Sheet);
+  });
+
+  afterEach(() => {
+    overlay()?.remove();
+  });
+
+  it('stacks the primary over the secondary: the DOM order is the visual order here too', async () => {
+    sheet.open(WithActions, { title: 'Snooze', data: { text: 'until' } });
+    await settle();
+    TestBed.tick();
+
+    const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+    expect(dialog.classList).not.toContain('tc-sheet--dialog');
+    expect(footerButtons(dialog)).toEqual(['Snooze', 'Cancel']);
+  });
+
+  it('confirm() lists Confirm over Cancel and still focuses Cancel first', async () => {
+    const pending = sheet.confirm({ title: 'Archive?', message: 'Sure?', confirmLabel: 'Archive' });
+    await settle();
+
+    const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+    expect(footerButtons(dialog)).toEqual(['Archive', 'Отмена']);
+    expect(document.activeElement).toBe(dialog.querySelector('.tc-confirm__cancel'));
+
+    (dialog.querySelector('.tc-confirm__cancel') as HTMLButtonElement).click();
+    await expect(pending).resolves.toBe(false);
+  });
+});

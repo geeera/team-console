@@ -1,35 +1,57 @@
 import {
+  computed,
   Directive,
   inject,
   Injectable,
+  input,
   OnDestroy,
   OnInit,
   signal,
   TemplateRef,
   ViewContainerRef,
+  WritableSignal,
 } from '@angular/core';
 
-/** The footer a sheet's content hands to its frame; one per opened sheet. */
+/** `primary`: the main action(s); `secondary`: Cancel and the rest; `''`: free-form content laid out as written. */
+export type SheetFooterRole = 'primary' | 'secondary' | '';
+
+/** The footer a sheet's content hands to its frame: one template per role, one slot per opened sheet. */
 @Injectable()
 export class SheetFooterSlot {
-  readonly template = signal<TemplateRef<unknown> | null>(null);
+  readonly freeForm = signal<TemplateRef<unknown> | null>(null);
+  readonly primary = signal<TemplateRef<unknown> | null>(null);
+  readonly secondary = signal<TemplateRef<unknown> | null>(null);
+  readonly hasContent = computed(
+    () => this.freeForm() !== null || this.primary() !== null || this.secondary() !== null,
+  );
+
+  signalOf(role: SheetFooterRole): WritableSignal<TemplateRef<unknown> | null> {
+    return role === 'primary' ? this.primary : role === 'secondary' ? this.secondary : this.freeForm;
+  }
 }
 
 /**
- * Actions that stay at the bottom of a sheet or dialog while its body scrolls (#194 design): stacked full width with
- * the primary first on the phone, in a row with the primary on the right in the dialog.
+ * Actions that stay at the bottom of a sheet or dialog while its body scrolls (#194 design). The frame lays them out
+ * in reading order on both presentations (#282, WCAG 2.4.3): stacked full width with the primary on top on the
+ * phone, a row with the primary on the right in the dialog — so the content names the role of each template and the
+ * frame decides the DOM order, which is then also the Tab order.
  *
  * ```html
- * <ng-template tcSheetFooter>
+ * <ng-template tcSheetFooter="primary">
  *   <button tc-button variant="primary" type="button">Done</button>
- *   <button tc-button type="button">Open setup</button>
+ * </ng-template>
+ * <ng-template tcSheetFooter="secondary">
+ *   <button tc-button type="button">Cancel</button>
  * </ng-template>
  * ```
  *
- * Outside a sheet (a story, a test) the actions render where the template stands.
+ * A bare `tcSheetFooter` is free-form: rendered as written, before the roles. Outside a sheet (a story, a test) every
+ * template renders where it stands.
  */
 @Directive({ selector: 'ng-template[tcSheetFooter]' })
 export class SheetFooter implements OnInit, OnDestroy {
+  readonly role = input<SheetFooterRole>('', { alias: 'tcSheetFooter' });
+
   private readonly slot = inject(SheetFooterSlot, { optional: true });
   private readonly template = inject<TemplateRef<unknown>>(TemplateRef);
   private readonly container = inject(ViewContainerRef);
@@ -39,12 +61,13 @@ export class SheetFooter implements OnInit, OnDestroy {
       this.container.createEmbeddedView(this.template);
       return;
     }
-    this.slot.template.set(this.template);
+    this.slot.signalOf(this.role()).set(this.template);
   }
 
   ngOnDestroy(): void {
-    if (this.slot?.template() === this.template) {
-      this.slot.template.set(null);
+    const target = this.slot?.signalOf(this.role());
+    if (target !== undefined && target() === this.template) {
+      target.set(null);
     }
   }
 }

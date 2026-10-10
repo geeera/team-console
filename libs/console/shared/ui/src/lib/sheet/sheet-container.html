@@ -25,6 +25,11 @@
 >
   <div #content class="tc-sheet__content"><ng-template cdkPortalOutlet /></div>
 </div>
-@if (footer.template(); as actions) {
-<div class="tc-sheet__foot"><ng-container *ngTemplateOutlet="actions" /></div>
+<!-- Reading order on both presentations (#282): the DOM order below is the Tab order and the visual order. -->
+@if (footer.hasContent()) {
+<div class="tc-sheet__foot">
+  @for (actions of footerTemplates(); track actions) {
+  <ng-container *ngTemplateOutlet="actions" />
+  }
+</div>
 }
