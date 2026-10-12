@@ -1,0 +1,127 @@
+/* ===== #108 Board by sprint: current, next and backlog, on the Paper Desk tokens (ADR 0002) =====
+   Builds on board.css (#18 as shipped, #134's lane switcher and tier icons). New here: the section headers (the next
+   sprint and the backlog as folders on the desk), the kind word and the pending-request slip on a row, the in-section
+   states, Show more, and the deep-link arrival. Only transform, opacity and background animate. */
+:root{--folder-tab-w:56px;--folder-tab-h:6px;--row-stagger:24px}
+
+/* ----- the board: three sections, then pull requests and runs (unchanged) ----- */
+.bd{gap:var(--sp-8)}
+.sx{display:grid;gap:var(--sp-4);min-width:0;scroll-margin-top:var(--sp-4)}
+
+/* A section heading carries the kicker and the name, so heading navigation reads "Next sprint Sprint 04". */
+.sx-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--sp-3);min-width:0}
+.sx-head__text{display:grid;gap:var(--sp-1);min-width:0;flex:1 1 12rem}
+.sx-title{display:grid;gap:2px;margin:0;font-weight:inherit;outline:none;border-radius:var(--r-sm)}
+.sx-title:focus-visible{outline:2px solid var(--focus);outline-offset:4px}
+.sx-kicker{font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.sx-name{font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:var(--lh-tight);color:var(--text);overflow-wrap:anywhere}
+.sx-meta{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2);font-size:var(--fs-sm);color:var(--text-2);font-variant-numeric:tabular-nums}
+.sx-meta .ico{width:16px;height:16px;color:var(--text-3)}
+.sx-meta__sep{color:var(--text-3)}
+.sx-head .btn{flex:none}
+.app[data-app=phone] .sx-head .btn{min-height:var(--target)}
+
+/* The next sprint and the backlog are folders on the desk: a manila strip with a tab, the name in the serif, and
+   one button that opens them. Closed, a folder costs nothing; open, its lanes sit under the strip. */
+.sx--folder .sx-head{position:relative;margin-top:var(--folder-tab-h);padding:var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md) var(--r-lg) var(--r-lg) var(--r-lg);box-shadow:var(--shadow-1)}
+.sx--folder .sx-head::before{content:"";position:absolute;left:-1px;bottom:100%;width:var(--folder-tab-w);height:var(--folder-tab-h);background:var(--surface-2);border:1px solid var(--border);border-bottom:0;border-radius:var(--r-sm) var(--r-sm) 0 0}
+.sx--folder .sx-name{font-size:var(--fs-lg)}
+.sx--folder.is-open .sx-head{background:var(--surface)}
+.sx--folder.is-open .sx-head::before{background:var(--surface)}
+.sx-note{margin:0;font-size:var(--fs-sm);color:var(--text-2);max-width:56ch}
+
+/* the disclosure: a chevron that turns; the label changes between Show tasks and Hide */
+.sx-toggle .ico{width:16px;height:16px;transition:transform var(--dur-base) var(--ease-standard)}
+.sx-toggle[aria-expanded=true] .ico{transform:rotate(180deg)}
+.sx-toggle[aria-expanded=false]{background:var(--text);border-color:var(--text);color:var(--bg)}
+.sx-toggle[aria-expanded=false]:hover{background:color-mix(in oklab,var(--text) 88%,var(--bg))}
+@media (prefers-reduced-motion:reduce){.sx-toggle .ico{transition:none}}
+:root[data-motion=reduce] .sx-toggle .ico{transition:none}
+
+/* the body appears at once (no height animation, UX spec §5); with motion, a --dur-fade fade only */
+.sx-body{display:grid;gap:var(--sp-4);min-width:0}
+.sx-body.is-new{animation:fade var(--dur-fade) var(--ease-enter) both}
+
+/* ----- a row: #18's row plus the kind word and the pending-request slip ----- */
+.bd-row{align-items:start;padding-block:var(--sp-3)}
+.bd-row__num{padding-top:2px}
+.bd-row .tier-ico{align-self:center}
+.bd-row__main{display:grid;gap:var(--sp-1);min-width:0}
+.bd-row__sub{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2);font-size:var(--fs-xs);color:var(--text-2)}
+.kind{font-weight:600;letter-spacing:.02em;color:var(--text-2)}
+.chip-untr{display:inline-flex;align-items:center;gap:var(--sp-1);padding:0 var(--sp-2);min-height:20px;border-radius:var(--r-pill);background:var(--warning-soft);color:var(--warning-text);font-weight:600}
+.chip-untr::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+/* The request is a slip clipped to the card: ochre tone AND a hairline outline AND the words, never colour alone. */
+.req{display:inline-flex;align-items:baseline;gap:var(--sp-2);max-width:100%;margin-top:2px;padding:2px var(--sp-2);border-radius:var(--r-sm);background:var(--warning-soft);color:var(--warning-text);box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--warning-text) 28%,transparent);font-size:var(--fs-xs);font-weight:600;line-height:1.4}
+.req .pend-dot{flex:none;width:var(--sp-2);height:var(--sp-2);border-radius:50%;background:currentColor;transform:translateY(-1px)}
+.req__when{font-weight:400;font-variant-numeric:tabular-nums}
+.app[data-app=phone] .req{display:flex;width:max-content}
+
+/* rows arrive once per load: a short rise and fade, staggered over the first rows only; reduced motion: no rise */
+.sx-body.is-new .bd-list>li{animation:row-in var(--dur-base) var(--ease-enter) both;animation-delay:calc(min(var(--i),6) * var(--row-stagger))}
+@keyframes row-in{from{opacity:0;transform:translateY(4px)}}
+@media (prefers-reduced-motion:reduce){.sx-body.is-new .bd-list>li{animation:none}}
+:root[data-motion=reduce] .sx-body.is-new .bd-list>li{animation:none}
+
+/* ----- loading: three skeleton rows in a list card, the caption beside a ring ----- */
+.sx-busy{display:flex;align-items:center;gap:var(--sp-2);margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.ring{width:16px;height:16px;flex:none;border-radius:50%;border:2px solid var(--border-strong);border-top-color:var(--accent);animation:spin 900ms linear infinite}
+@keyframes spin{to{transform:rotate(1turn)}}
+@media (prefers-reduced-motion:reduce){.ring{animation:none;border-top-color:var(--border-strong)}}
+:root[data-motion=reduce] .ring{animation:none;border-top-color:var(--border-strong)}
+.bd-list .skel-row{min-height:var(--target);padding:var(--sp-3);border-top:1px solid var(--border)}
+.bd-list li:first-child .skel-row{border-top:0}
+.skel--num{width:28px;flex:none}
+.skel--c{width:72%}.skel--d{width:30%;height:var(--sp-2)}
+.skel--tier{width:28px;height:28px;flex:none}
+
+/* ----- in-section states: compact blocks, each says what happens next ----- */
+.sx-state{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--sp-1) var(--sp-3);align-items:start;padding:var(--sp-4);border-radius:var(--r-lg);font-size:var(--fs-sm)}
+.sx-state>.ico{grid-row:span 2;width:20px;height:20px;margin-top:1px}
+.sx-state__t{margin:0;font-weight:700;color:inherit}
+.sx-state__h{margin:0;color:var(--text-2);max-width:56ch}
+.sx-state__act{grid-column:2;display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:var(--sp-2)}
+.app[data-app=phone] .sx-state__act .btn{min-height:var(--target)}
+.sx-state--empty{background:var(--surface);border:1px dashed var(--border-strong)}
+.sx-state--empty>.ico{color:var(--success-text)}
+.sx-state--error{background:var(--danger-soft);color:var(--danger-text)}
+.sx-state--error .sx-state__h{color:var(--danger-text)}
+.sx-state--error .btn{background:var(--surface);border-color:transparent}
+.sx-state--wait{background:var(--warning-soft);color:var(--warning-text)}
+.sx-state--wait .sx-state__h{color:var(--warning-text)}
+.sx-state--wait .btn{background:var(--surface);border-color:transparent}
+.sx-state--offline{background:var(--bg-sunken);color:var(--text)}
+.sx-state--offline>.ico{color:var(--text-2)}
+
+/* the partial backlog: a margin note in ochre with the GitHub link; the header count is left out */
+.sx-partial{display:grid;gap:var(--sp-1);justify-items:start;margin:0;padding:var(--sp-1) 0 var(--sp-1) var(--sp-3);border-left:2px solid var(--warning-text);font-size:var(--fs-sm);color:var(--text-2)}
+.app[data-app=phone] .sx-partial .ext{min-height:var(--target)}
+
+/* Show more: the foot of the list card, a whole-width target */
+.bd-list .sx-more-li{border-top:1px solid var(--border);margin-top:var(--sp-1);padding:var(--sp-1)}
+.sx-more{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:var(--sp-1) var(--sp-2);width:100%;min-height:var(--target);border:0;border-radius:var(--r-md);background:none;color:var(--accent-text);font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer}
+.sx-more:hover{background:var(--bg-sunken)}
+.sx-more:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.sx-more__left{font-weight:400;color:var(--text-2);font-variant-numeric:tabular-nums}
+.bd-row:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+
+/* ----- the deep-link arrival: the folder strip glows moss once, then settles; reduced motion: the focus ring only ----- */
+.sx.is-target .sx-head{animation:arrive var(--dur-pulse) var(--ease-standard) both}
+@keyframes arrive{0%,30%{background:var(--accent-soft);border-color:var(--accent)}}
+@media (prefers-reduced-motion:reduce){.sx.is-target .sx-head{animation:none}}
+:root[data-motion=reduce] .sx.is-target .sx-head{animation:none}
+
+/* ----- the current sprint keeps #18: the tiles, now five ----- */
+.bd-stats{grid-template-columns:repeat(auto-fill,minmax(128px,1fr))}
+.app[data-app=phone] .bd-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+.bd-stats .stat-word{display:inline-flex;align-items:center;gap:var(--sp-1)}
+.bd-stats .stat-word .ico{width:16px;height:16px}
+.stat-ok{color:var(--success-text)}
+
+/* the unchanged tail of the board, kept short in the design */
+.bd-tail{display:grid;gap:var(--sp-2)}
+.bd-tail__line{display:flex;justify-content:space-between;gap:var(--sp-2);padding:var(--sp-3);border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);font-size:var(--fs-sm);color:var(--text-2)}
+
+/* the Mac board column is a little wider than #18's so the folder strips and their buttons share one line */
+.bd-mac .bd{max-width:680px}
+.bd-top__acts{display:flex;align-items:center}
