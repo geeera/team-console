@@ -9,12 +9,39 @@
 # - connect-src 'self': the app and the service worker only call this origin (/api/v1, ngsw.json, assets).
 # - The OAuth connect leaves for github.com by a top-level navigation (location.assign), which CSP does not limit;
 #   form-action 'self' only covers form submissions, and the app's forms never navigate.
-# - frame-src: the outer bound for the Designs and Demo frames (#20), the free-tier homes of Storybook, stage and
+# - frame-src: the outer bound for the Designs and Demo frames (#20), the free-tier homes of Storybook and
 #   design pages. The exact gate is GET /api/v1/projects/:slug/embed-origins, which the app checks before it
-#   renders a frame.
+#   renders a frame. No 'self': the console never frames itself, and a same-origin frame with allow-scripts +
+#   allow-same-origin could lift its own sandbox.
 # - frame-ancestors 'none' + X-Frame-Options: DENY: nobody may frame the console (clickjacking on one-tap answers).
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'self' https://*.pages.dev https://*.workers.dev https://*.github.io; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src https://*.pages.dev https://*.workers.dev https://*.github.io; frame-ancestors 'none'
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: same-origin
+
+# Version metadata is never kept stale (#306): the service worker decides about updates from ngsw.json, the browser
+# about the worker from ngsw-worker.js (and safety-worker.js, the kill switch), and every page from the shell.
+# no-cache = store, but ask the origin before every reuse. Hashed files keep the assets layer's default.
+# Rules match the request path, so the shell needs one per place it is answered: `/` (/index.html redirects there)
+# and each client-side route of apps/console/src/app/app.routes.ts (the SPA fallback; pwa.spec.ts keeps them in step).
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/p/*
+  Cache-Control: no-cache
+/needs-you
+  Cache-Control: no-cache
+/overview
+  Cache-Control: no-cache
+/settings
+  Cache-Control: no-cache
+/settings/*
+  Cache-Control: no-cache
+/ngsw.json
+  Cache-Control: no-cache
+/ngsw-worker.js
+  Cache-Control: no-cache
+/safety-worker.js
+  Cache-Control: no-cache

@@ -1,5 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { List, ListRow } from './list';
 
 @Component({
@@ -102,5 +103,59 @@ describe('List', () => {
 
     action.click();
     expect(fixture.componentInstance.pins).toBe(1);
+  });
+});
+
+@Component({
+  imports: [List, ListRow],
+  template: `
+    <tc-list aria-label="Repositories">
+      <tc-list-row [link]="['/settings/projects', 'storify']">
+        <span tc-row-title>storify</span>
+        <span tc-row-trailing-text>Project</span>
+      </tc-list-row>
+      <tc-list-row muted>
+        <span tc-row-title>old-landing</span>
+        <span tc-row-trailing-text>Archived</span>
+      </tc-list-row>
+      <tc-list-row>
+        <span tc-row-title>fieldnote</span>
+        <span tc-row-detail>Not added: step 3 is missing <button type="button">See why</button></span>
+      </tc-list-row>
+    </tc-list>
+  `,
+})
+class RepositoryRows {}
+
+describe('ListRow variants (#194)', () => {
+  async function render() {
+    await TestBed.configureTestingModule({
+      imports: [RepositoryRows],
+      providers: [provideRouter([])],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(RepositoryRows);
+    await fixture.whenStable();
+    return Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('tc-list-row'));
+  }
+
+  it('makes a router-link row one in-app anchor with the trailing text inside it', async () => {
+    const [project] = await render();
+    const anchor = project?.querySelector('a.tc-list-row__surface');
+    expect(anchor?.getAttribute('href')).toBe('/settings/projects/storify');
+    expect(anchor?.getAttribute('target')).toBeNull();
+    expect(anchor?.querySelector('.tc-list-row__trailing-text')?.textContent?.trim()).toBe('Project');
+    expect(project?.classList).toContain('tc-list-row--interactive');
+  });
+
+  it('marks a muted row and keeps it static', async () => {
+    const [, archived] = await render();
+    expect(archived?.classList).toContain('tc-list-row--muted');
+    expect(archived?.querySelector('a, button')).toBeNull();
+  });
+
+  it('projects the detail line under the title, inside the static surface', async () => {
+    const [, , addable] = await render();
+    const detail = addable?.querySelector('.tc-list-row__text .tc-list-row__detail');
+    expect(detail?.querySelector('button')?.textContent).toBe('See why');
   });
 });

@@ -1,4 +1,4 @@
-import { ownerLanguageOf } from './project-yml';
+import { freezeDaysOf, ownerLanguageOf } from './project-yml';
 
 describe('ownerLanguageOf', () => {
   it('reads owner.language from the block form the plugin writes', () => {
@@ -26,5 +26,33 @@ describe('ownerLanguageOf', () => {
     ['a top-level key after the block', 'owner:\n  timezone: UTC\nlanguage: en\n'],
   ])('falls back to ru for %s', (_label, text) => {
     expect(ownerLanguageOf(text)).toBe('ru');
+  });
+});
+
+describe('freezeDaysOf (#218)', () => {
+  it('reads sprint.freeze_days from the block form the plugin writes', () => {
+    expect(freezeDaysOf('name: X\nsprint:\n  length_days: 14\n  freeze_days: 3\n')).toBe(3);
+    expect(freezeDaysOf('sprint:\n  freeze_days: 0   # no freeze\n')).toBe(0);
+  });
+
+  it.each([
+    ['the flow form', 'sprint: { length_days: 14, freeze_days: 4 }\n', 4],
+    ['quotes', 'sprint:\n  freeze_days: "5"\n', 5],
+    ['CRLF line ends', 'sprint:\r\n  freeze_days: 1\r\n', 1],
+  ])('handles %s', (_label, text, days) => {
+    expect(freezeDaysOf(text)).toBe(days);
+  });
+
+  it.each([
+    ['an empty file', ''],
+    ['no sprint block', 'name: X\nfreeze_days: 5\n'],
+    ['freeze_days of another block', 'review:\n  freeze_days: 5\nsprint:\n  length_days: 14\n'],
+    ['a negative number', 'sprint:\n  freeze_days: -1\n'],
+    ['a fraction', 'sprint:\n  freeze_days: 1.5\n'],
+    ['a word', 'sprint:\n  freeze_days: two\n'],
+    ['more than two weeks', 'sprint:\n  freeze_days: 30\n'],
+    ['a commented-out value', 'sprint:\n  # freeze_days: 5\n'],
+  ])('falls back to 2 for %s', (_label, text) => {
+    expect(freezeDaysOf(text)).toBe(2);
   });
 });

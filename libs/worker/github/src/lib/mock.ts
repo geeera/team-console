@@ -1,5 +1,9 @@
 import fixtures from '../../fixtures/mock-github.json';
-import { INSTALLATION_PERMISSIONS, type GitHubAppCredentials } from './app-auth';
+import {
+  INSTALLATION_LIST_PERMISSIONS,
+  INSTALLATION_PERMISSIONS,
+  type GitHubAppCredentials,
+} from './app-auth';
 import type { OwnerAccount } from './token-source';
 import { GITHUB_API_ORIGIN, type FetchLike } from './transport';
 
@@ -24,15 +28,29 @@ export interface MockRepository {
   /** Text files `GET /repos/{owner}/{repo}/contents/{path}` serves, by path (e.g. `.product-team/project.yml`). */
   readonly files?: Readonly<Record<string, string>>;
   /**
+   * Binary files (#277: design images), base64 by path. Listed with `files` by `GET …/git/trees/{sha}?recursive=1`
+   * (every sha answers the same tree) and read by blob sha through `GET …/git/blobs/{sha}` with the raw media type.
+   */
+  readonly binaryFiles?: Readonly<Record<string, string>>;
+  /**
    * Issues as GitHub sends them (pull requests included), newest first: `GET …/issues?state=&milestone=` lists
    * them, `GET …/issues/{number}` (the answer route, #10) reads one, `GET …/issues/{number}/comments` (the run log,
-   * #114) answers an empty thread for any of them.
+   * #114) answers its thread from `comments`, an empty one for an issue not listed there.
    */
   readonly issues?: readonly Readonly<Record<string, unknown>>[];
+  /** Comments as GitHub sends them, oldest first, by issue number (the run log #22 on the board, #132). */
+  readonly comments?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
+  /**
+   * `GET …/issues/{number}/events` by issue number, oldest first (#193: the fixture label's history the service
+   * identity's gate reads); an issue listed in `issues` without an entry has no events.
+   */
+  readonly issueEvents?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
   /** `GET …/milestones?state=` */
   readonly milestones?: readonly Readonly<Record<string, unknown>>[];
   /** `GET …/pulls?state=` */
   readonly pulls?: readonly Readonly<Record<string, unknown>>[];
+  /** `GET …/commits/{sha}/check-runs` (#131), by head sha; a sha not listed has no check runs. */
+  readonly checkRuns?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
 }
 
 export interface MockFixtures {
@@ -75,6 +93,12 @@ function bytesOfBase64Url(value: string): Uint8Array {
   return Uint8Array.from(atob(base64 + '='.repeat((4 - (base64.length % 4)) % 4)), (char) =>
     char.charCodeAt(0),
   );
+}
+
+/** A 40-hex object name for the mock's trees and blobs (SHA-1 of a label, never of real content). */
+async function sha1Hex(label: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(label));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function json(status: number, body: unknown, headers: Record<string, string> = {}): Response {
@@ -130,9 +154,30 @@ function listOf(
   });
 }
 
-interface IssuedToken {
-  readonly repo: string;
-  readonly expiresAt: number;
+/** A per-repository read token, or the installation-wide `metadata` token of the repository list (#194). */
+type IssuedToken =
+  | { readonly scope: 'repo'; readonly repo: string; readonly expiresAt: number }
+  | { readonly scope: 'installation'; readonly installationId: number; readonly expiresAt: number };
+
+const LIST_PAGE_MAX = 100;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** `owner.id`/`owner.login` of a fixture's `GET /repos/{owner}/{repo}` answer, when it has one. */
+function ownerOf(fixture: MockRepository): { id: number; login: string } | null {
+  const owner = fixture.repository?.['owner'];
+  if (!isRecord(owner) || typeof owner['id'] !== 'number' || typeof owner['login'] !== 'string') {
+    return null;
+  }
+  return { id: owner['id'], login: owner['login'] };
+}
+
+/** A positive integer query value, or the fallback. */
+function positiveIntOf(value: string | null, fallback: number): number {
+  const parsed = Number(value);
+  return value !== null && Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 class MockGitHubServer {
@@ -171,6 +216,16 @@ class MockGitHubServer {
         : json(401, { message: 'A JSON web token could not be decoded' });
     }
 
+    if (method === 'GET' && url.pathname === '/app/installations') {
+      return (await this.isValidJwt(bearer))
+        ? json(200, this.installations())
+        : json(401, { message: 'A JSON web token could not be decoded' });
+    }
+
+    if (method === 'GET' && url.pathname === '/installation/repositories') {
+      return this.installationRepositories(bearer, url);
+    }
+
     if (
       method === 'POST' &&
       segments.length === 4 &&
@@ -190,15 +245,34 @@ class MockGitHubServer {
     const isListRead = listed === 'issues' || listed === 'milestones' || listed === 'pulls';
     const isIssueRead = segments.length === 5 && segments[3] === 'issues';
     const isCommentsRead = segments.length === 6 && segments[3] === 'issues' && segments[5] === 'comments';
+    const isEventsRead = segments.length === 6 && segments[3] === 'issues' && segments[5] === 'events';
+    const isCheckRunsRead =
+      segments.length === 6 && segments[3] === 'commits' && segments[5] === 'check-runs';
+    const isTreeRead = segments.length === 6 && segments[3] === 'git' && segments[4] === 'trees';
+    const isBlobRead = segments.length === 6 && segments[3] === 'git' && segments[4] === 'blobs';
+    const isBranchRead = segments.length === 5 && segments[3] === 'branches';
     if (
       method === 'GET' &&
       segments[0] === 'repos' &&
-      (isRepositoryRead || isContentsRead || isListRead || isIssueRead || isCommentsRead)
+      (isRepositoryRead ||
+        isContentsRead ||
+        isListRead ||
+        isIssueRead ||
+        isCommentsRead ||
+        isEventsRead ||
+        isCheckRunsRead ||
+        isTreeRead ||
+        isBlobRead ||
+        isBranchRead)
     ) {
       const repo = `${segments[1]}/${segments[2]}`;
       const token = this.issued.get(bearer);
       if (token === undefined || token.expiresAt <= Date.now()) {
         return json(401, { message: 'Bad credentials' });
+      }
+      // A test tripwire, not GitHub's behaviour (GitHub answers metadata reads): the list token reads nothing else.
+      if (token.scope === 'installation') {
+        return json(403, { message: 'mock: the installation list token must not read a repository' });
       }
       const found = this.repository(repo);
       // A downscoped token sees only its own repository; GitHub answers 404 for the rest.
@@ -218,10 +292,29 @@ class MockGitHubServer {
       if (isIssueRead) {
         return this.issue(found.fixture, segments[4] ?? '');
       }
+      if (isCheckRunsRead) {
+        const runs = found.fixture.checkRuns?.[segments[4] ?? ''] ?? [];
+        return json(200, { total_count: runs.length, check_runs: runs });
+      }
+      if (isTreeRead) {
+        return this.tree(found.fixture, segments[5] ?? '');
+      }
+      if (isBlobRead) {
+        return this.blob(found.fixture, segments[5] ?? '', new Headers(init.headers).get('accept') ?? '');
+      }
+      if (isBranchRead) {
+        return this.branch(found.fixture, segments[4] ?? '');
+      }
       if (isCommentsRead) {
         const issue = this.issue(found.fixture, segments[4] ?? '');
         await issue.body?.cancel();
-        return issue.ok ? json(200, []) : notFound();
+        return issue.ok ? json(200, found.fixture.comments?.[segments[4] ?? ''] ?? []) : notFound();
+      }
+      if (isEventsRead) {
+        const number = segments[4] ?? '';
+        const issue = this.issue(found.fixture, number);
+        await issue.body?.cancel();
+        return issue.ok ? json(200, found.fixture.issueEvents?.[number] ?? []) : notFound();
       }
       return found.fixture.repository === undefined ? notFound() : json(200, found.fixture.repository);
     }
@@ -271,10 +364,111 @@ class MockGitHubServer {
     );
   }
 
+  /** Every file of the fixture as a blob (path, bytes); `sha` is derived from the path, so it is stable per run. */
+  private async blobs(fixture: MockRepository): Promise<{ path: string; sha: string; bytes: Uint8Array }[]> {
+    const texts = Object.entries(fixture.files ?? {}).map(([path, text]) => ({
+      path,
+      bytes: new TextEncoder().encode(text),
+    }));
+    const binaries = Object.entries(fixture.binaryFiles ?? {}).map(([path, base64]) => ({
+      path,
+      bytes: Uint8Array.from(atob(base64), (char) => char.charCodeAt(0)),
+    }));
+    return Promise.all(
+      [...texts, ...binaries].map(async (file) => ({ ...file, sha: await sha1Hex(`blob:${file.path}`) })),
+    );
+  }
+
+  /**
+   * `GET …/git/trees/{sha}?recursive=1` (#277): one listing whatever the sha, as the fixtures hold one snapshot.
+   * An unknown-looking sha (not hex) is GitHub's 404 for a tree it does not have.
+   */
+  private async tree(fixture: MockRepository, sha: string): Promise<Response> {
+    if (!/^[0-9a-f]{40}$/.test(sha)) {
+      return notFound();
+    }
+    const blobs = await this.blobs(fixture);
+    return json(200, {
+      sha,
+      tree: blobs.map((blob) => ({ path: blob.path, mode: '100644', type: 'blob', sha: blob.sha, size: blob.bytes.byteLength })),
+      truncated: false,
+    });
+  }
+
+  /** `GET …/git/blobs/{sha}`: raw bytes for the raw media type, else GitHub's base64 JSON. */
+  private async blob(fixture: MockRepository, sha: string, accept: string): Promise<Response> {
+    const found = (await this.blobs(fixture)).find((blob) => blob.sha === sha);
+    if (found === undefined) {
+      return notFound();
+    }
+    if (accept.includes('raw')) {
+      return new Response(found.bytes, { status: 200, headers: { 'Content-Type': 'application/vnd.github.raw' } });
+    }
+    return json(200, { sha, size: found.bytes.byteLength, encoding: 'base64', content: base64Of(found.bytes) });
+  }
+
+  /** `GET …/branches/{name}` (#277): the default branch with a head sha derived from its name. */
+  private async branch(fixture: MockRepository, name: string): Promise<Response> {
+    if (fixture.repository?.['default_branch'] !== name) {
+      return notFound();
+    }
+    return json(200, { name, commit: { sha: await sha1Hex(`branch:${name}`) } });
+  }
+
   /** An issue as GitHub sends it: labels as objects. */
   private issue(fixture: MockRepository, number: string): Response {
     const issue = fixture.issues?.find((item) => String(item['number']) === number);
     return issue === undefined ? notFound() : json(200, issue);
+  }
+
+  /**
+   * `GET /app/installations`: one entry per installation id in the fixtures, its account the owner of the first
+   * repository on it that names one. An installation whose fixtures name no owner is not listed.
+   */
+  private installations(): { id: number; account: { id: number; login: string; type: 'User' } }[] {
+    const accounts = new Map<number, { id: number; login: string }>();
+    for (const fixture of Object.values(this.fixtures.repositories)) {
+      const owner = ownerOf(fixture);
+      if (owner !== null && !accounts.has(fixture.installationId)) {
+        accounts.set(fixture.installationId, owner);
+      }
+    }
+    return [...accounts.entries()].map(([id, owner]) => ({
+      id,
+      account: { id: owner.id, login: owner.login, type: 'User' },
+    }));
+  }
+
+  /**
+   * `GET /installation/repositories` with the list token: the installation's fixtures, `per_page`/`page` honoured
+   * with a `Link: rel="next"`. A per-repository token gets 403 — a tripwire, since GitHub would list its one
+   * repository and a wrong token source would pass unnoticed.
+   */
+  private installationRepositories(bearer: string, url: URL): Response {
+    const token = this.issued.get(bearer);
+    if (token === undefined || token.expiresAt <= Date.now()) {
+      return json(401, { message: 'Bad credentials' });
+    }
+    if (token.scope !== 'installation') {
+      return json(403, { message: 'mock: a per-repository token must not list the installation' });
+    }
+    const all = Object.entries(this.fixtures.repositories)
+      .filter(([, fixture]) => fixture.installationId === token.installationId)
+      .map(([name, fixture]) => ({
+        id: typeof fixture.repository?.['id'] === 'number' ? fixture.repository['id'] : 0,
+        full_name:
+          typeof fixture.repository?.['full_name'] === 'string' ? fixture.repository['full_name'] : name,
+        private: fixture.repository?.['private'] === true,
+      }));
+    const perPage = Math.min(positiveIntOf(url.searchParams.get('per_page'), 30), LIST_PAGE_MAX);
+    const page = positiveIntOf(url.searchParams.get('page'), 1);
+    const slice = all.slice((page - 1) * perPage, page * perPage);
+    const headers: Record<string, string> = {};
+    if (page * perPage < all.length) {
+      headers['link'] =
+        `<${GITHUB_API_ORIGIN}/installation/repositories?per_page=${perPage}&page=${page + 1}>; rel="next"`;
+    }
+    return json(200, { total_count: all.length, repositories: slice }, headers);
   }
 
   private repository(fullName: string): { name: string; fixture: MockRepository } | undefined {
@@ -302,6 +496,17 @@ class MockGitHubServer {
     if (onInstallation.length === 0) {
       return notFound();
     }
+    // #194: the installation-wide list token — no `repositories` member and exactly `metadata: read`.
+    if (
+      !('repositories' in request) &&
+      JSON.stringify(request['permissions']) === JSON.stringify(INSTALLATION_LIST_PERMISSIONS)
+    ) {
+      return this.issue201({
+        scope: 'installation',
+        installationId,
+        expiresAt: Date.now() + TOKEN_LIFETIME_MS,
+      });
+    }
     const target =
       Array.isArray(repositories) && repositories.length === 1 && typeof repositories[0] === 'string'
         ? onInstallation.find(
@@ -315,14 +520,17 @@ class MockGitHubServer {
     ) {
       return json(422, { message: 'The console must mint read-only tokens for exactly one repository' });
     }
+    return this.issue201({ scope: 'repo', repo: target[0], expiresAt: Date.now() + TOKEN_LIFETIME_MS });
+  }
+
+  private issue201(issued: IssuedToken): Response {
     const token = `ghs_mock${crypto.randomUUID().replace(/-/g, '')}`;
-    const expiresAt = Date.now() + TOKEN_LIFETIME_MS;
-    this.issued.set(token, { repo: target[0], expiresAt });
+    this.issued.set(token, issued);
     return json(201, {
       token,
-      expires_at: new Date(expiresAt).toISOString(),
-      permissions: INSTALLATION_PERMISSIONS,
-      repository_selection: 'selected',
+      expires_at: new Date(issued.expiresAt).toISOString(),
+      permissions: issued.scope === 'repo' ? INSTALLATION_PERMISSIONS : INSTALLATION_LIST_PERMISSIONS,
+      repository_selection: issued.scope === 'repo' ? 'selected' : 'all',
     });
   }
 

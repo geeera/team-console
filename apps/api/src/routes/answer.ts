@@ -15,23 +15,26 @@ import {
   sectionOf,
 } from '@shared/owner-grammar';
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
-import { OwnWritesRepo, type OwnWrite } from '@worker/db';
-import { githubPath, type RepoName } from '@worker/github';
-import { ownerOnlyMiddleware } from '../auth/owner-only.middleware';
+import { OwnerConnectionsRepo, type OwnWrite } from '@worker/db';
+import { githubPath, type GitHubClient, type RepoName } from '@worker/github';
+import {
+  isIssueEvent,
+  isIssueEventsPage,
+  refuseServiceWrite,
+  refuseServiceWriteOnRecheck,
+} from '../auth/service-write-gate';
 import type { ApiEnv } from '../env';
-import type { ApiGitHub, GitHubConnection } from '../github';
+import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
-import { isNotWritten, ownerWriter, sha256Hex } from '../owner/owner-writer';
+import { ownerWriter } from '../owner/owner-writer';
+import { ANSWER_IN_PROGRESS, postOwnerAnswer } from '../owner/post-owner-answer';
 import { findProject, projectNotFound, repoOf } from '../projects/lookup';
 import { repositoryClient } from '../projects/repository-checks';
 
+export { REPLAY_WINDOW_MS } from '../owner/post-owner-answer';
+
 type Context = WorkerContext<ApiEnv>;
 
-/** A repeat of the same answer within this window is answered from `own_writes`, not posted again (decision 19). */
-export const REPLAY_WINDOW_MS = 60_000;
-// Two taps that arrive together: the second waits this long for the first to be recorded, then answers 409.
-const CLAIM_WAIT_ATTEMPTS = 5;
-const CLAIM_WAIT_MS = 200;
 // Two strings of ANSWER_TEXT_MAX_LENGTH code units at up to 3 UTF-8 bytes each, JSON escapes, and the command.
 const MAX_BODY_BYTES = 16 * 1024;
 const ISSUE_NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -48,21 +51,12 @@ interface GitHubIssue {
   readonly labels: readonly unknown[];
 }
 
-interface GitHubComment {
-  readonly id: number;
-  readonly html_url: string;
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function isIssue(value: unknown): value is GitHubIssue {
   return isRecord(value) && typeof value['state'] === 'string' && Array.isArray(value['labels']);
-}
-
-function isComment(value: unknown): value is GitHubComment {
-  return isRecord(value) && Number.isSafeInteger(value['id']) && typeof value['html_url'] === 'string';
 }
 
 /** GitHub sends labels as objects; a label without a string name is not one the plugin could have set. */
@@ -73,6 +67,11 @@ function labelNames(issue: GitHubIssue): string[] {
     }
     return isRecord(label) && typeof label['name'] === 'string' ? [label['name']] : [];
   });
+}
+
+/** The live labels of the issue, uncached: a stale set could accept a command or a write it no longer takes. */
+async function readIssue(client: GitHubClient, repo: RepoName, number: number): Promise<GitHubIssue> {
+  return client.getJson(githubPath`/repos/${repo}/issues/${number}`, isIssue);
 }
 
 /** `AnswerRequest`, or why not. Nothing of the input is echoed back. */
@@ -115,43 +114,22 @@ function answered(
   return c.json(body, replayed ? 200 : 201);
 }
 
-interface WriteTarget {
-  readonly repo: RepoName;
-  readonly registered: string;
-  readonly number: number;
-  readonly body: string;
-}
-
-/** The comment on the owner's token (see `ownerWriter`); `onSent` marks the moment GitHub may have written it. */
-async function writeAsOwner(
-  c: Context,
-  github: ApiGitHub,
-  installation: GitHubConnection,
-  target: WriteTarget,
-  onSent: () => void,
-): Promise<GitHubComment> {
-  const writer = await ownerWriter(c.env, c.get('logger'), github, installation, target);
-  onSent();
-  return writer.postJson(
-    githubPath`/repos/${target.repo}/issues/${target.number}/comments`,
-    { body: target.body },
-    isComment,
-  );
-}
-
 /**
  * `POST /api/v1/projects/:slug/issues/:number/answer` (#10): the owner's answer to an issue in their inbox, written
  * as the plugin's `backlog answer` writes it, as the owner. Behind Access and CSRF like every `/api` route, and
- * owner-only: the CI service identity is refused in every environment until #62's fixture-label rule exists.
+ * owner-grade: the dev/stage CI service identity answers only on an issue the owner labelled `e2e:fixture` that is
+ * not a release, a design or a question (#62, #193), decided on the live labels and the label's event history before
+ * the owner token is touched, and the labels are read once more right before the comment is posted.
+ * Subrequests: the owner's path is unchanged; the service identity adds one or two event reads and one label re-read
+ * (plus one D1 read of the owner connection's pinned id, never its tokens).
  * Section and allowed commands come from the live issue, never from the client; nothing is written on any 4xx.
+ * The write itself (replay, claim, comment, record) is `postOwnerAnswer`, shared with the batch route (#220).
  */
 export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>().post(
     '/:slug/issues/:number/answer',
-    ownerOnlyMiddleware,
     bodyLimit({ maxSize: MAX_BODY_BYTES }),
     async (c) => {
-      const logger = c.get('logger');
       const project = await findProject(c, c.req.param('slug'));
       if (project === null) {
         return projectNotFound(c);
@@ -170,12 +148,25 @@ export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv
         return invalid(c, request);
       }
 
-      // Uncached on purpose: a stale label set could accept a command the issue no longer takes.
+      // Uncached on purpose: a stale label set could accept a command the issue no longer takes, or let the service
+      // identity past the fixture gate on an issue that just lost `e2e:fixture`.
       const installation = await github.connect(c.env);
-      const issue = await repositoryClient(installation, repo).getJson(
-        githubPath`/repos/${repo}/issues/${number}`,
-        isIssue,
-      );
+      const reader = repositoryClient(installation, repo);
+      const issue = await readIssue(reader, repo, number);
+      const labels = labelNames(issue);
+      const refused = await refuseServiceWrite(c, labels, {
+        labelHistory: async () =>
+          reader.lastPage(
+            githubPath`/repos/${repo}/issues/${number}/events?per_page=${100}`,
+            isIssueEvent,
+            (url) => isIssueEventsPage(url, repo, number),
+          ),
+        ownerUserId: async () =>
+          (await new OwnerConnectionsRepo(c.env.DB).find(c.env.ENVIRONMENT))?.user_id ?? null,
+      });
+      if (refused !== null) {
+        return refused;
+      }
       if (issue.state !== 'open') {
         return problem(c, {
           type: 'issue-closed',
@@ -184,7 +175,6 @@ export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv
           detail: 'Nothing is waiting for an answer on a closed issue',
         });
       }
-      const labels = labelNames(issue);
       const section = sectionOf(labels, kindOf(labels));
       let body: string;
       try {
@@ -200,92 +190,32 @@ export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv
           extensions: { section, allowed: allowedAnswers(section) },
         });
       }
-      const fields = {
-        slug: project.slug,
-        issue: number,
-        command: request.command,
-        identity: c.get('identity').kind,
-      };
       if (section === null) {
         // answerComment refuses a null section; this keeps the type narrow for the response.
         throw new Error('an answer was composed for an issue without a section');
       }
 
-      const writes = new OwnWritesRepo(c.env.DB);
-      const bodyHash = await sha256Hex(`${project.repo}\n${number}\n${body}`);
-      const recent = async (): Promise<OwnWrite | null> =>
-        writes.findRecentByHash(
-          project.repo,
-          number,
-          bodyHash,
-          new Date(github.now() - REPLAY_WINDOW_MS).toISOString(),
-        );
-      const replay = async (write: OwnWrite): Promise<Response> => {
-        logger.info('owner answer replayed', fields);
-        return answered(c, write, section, request.command, true);
-      };
-
-      const previous = await recent();
-      if (previous !== null) {
-        return replay(previous);
+      const target = { repo, registered: project.repo, number, body, kind: 'answer' as const };
+      const outcome = await postOwnerAnswer(c, github, target, {
+        writer: async () => ownerWriter(c.env, c.get('logger'), github, installation, target),
+        recheck: async () =>
+          refuseServiceWriteOnRecheck(c, async () => labelNames(await readIssue(reader, repo, number))),
+        fields: {
+          slug: project.slug,
+          issue: number,
+          command: request.command,
+          identity: c.get('identity').kind,
+        },
+      });
+      switch (outcome.kind) {
+        case 'written':
+        case 'replayed':
+          return answered(c, outcome.write, section, request.command, outcome.kind === 'replayed');
+        case 'in-progress':
+          return problem(c, ANSWER_IN_PROGRESS);
+        case 'refused':
+          return outcome.response;
       }
-      if (!(await writes.claim(bodyHash, github.now(), REPLAY_WINDOW_MS))) {
-        for (let attempt = 0; attempt < CLAIM_WAIT_ATTEMPTS; attempt += 1) {
-          await github.pause(CLAIM_WAIT_MS);
-          const settled = await recent();
-          if (settled !== null) {
-            return replay(settled);
-          }
-        }
-        logger.warn('owner answer already in flight', fields);
-        return problem(c, {
-          type: 'answer-in-progress',
-          title: 'The same answer is being written',
-          status: 409,
-          retryAfter: 2,
-        });
-      }
-
-      let isSent = false;
-      let comment: GitHubComment;
-      try {
-        comment = await writeAsOwner(
-          c,
-          github,
-          installation,
-          { repo, registered: project.repo, number, body },
-          () => {
-            isSent = true;
-          },
-        );
-      } catch (error: unknown) {
-        if (!isSent || isNotWritten(error)) {
-          await writes.release(bodyHash);
-        } else {
-          logger.warn('owner answer may have been written; a repeat is held for the replay window', fields);
-        }
-        throw error;
-      }
-
-      const write: OwnWrite = {
-        commentId: comment.id,
-        repo: project.repo,
-        issueNumber: number,
-        kind: 'answer',
-        bodyHash,
-        url: comment.html_url,
-        createdAt: new Date(github.now()).toISOString(),
-      };
-      try {
-        await writes.record(write);
-        await writes.release(bodyHash);
-      } catch (error: unknown) {
-        // The comment exists: answering an error would invite a retry that posts it again. The claim (if it could
-        // not be released) still holds a repeat off for the replay window.
-        logger.error('owner answer written but not recorded', { ...fields, error });
-      }
-      logger.info('owner answer written', fields);
-      return answered(c, write, section, request.command, false);
     },
   );
 }

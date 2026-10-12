@@ -28,6 +28,24 @@ describe('unknown routes', () => {
   );
 });
 
+describe('security headers (#126)', () => {
+  it('sets nosniff and the deny-all CSP on a success JSON response', async () => {
+    const response = await SELF.fetch(`${ORIGIN}/healthz`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
+  });
+
+  it('sets the same headers on a Problem Details 404', async () => {
+    const response = await SELF.fetch(`${ORIGIN}/nope`);
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
+  });
+});
+
 describe('bindings', () => {
   it('shares the migrated database with the api Worker', async () => {
     const { results } = await env.DB.prepare(

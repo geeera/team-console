@@ -26,6 +26,8 @@ export interface SetupChecklistContext {
 const MARKS: Readonly<Partial<Record<SetupStepState, IconName>>> = {
   done: 'check',
   missing: 'alert',
+  // Ticks itself after the first event (#205): a clock, not a step number the owner would read as a to-do.
+  waiting: 'clock',
   unknown: 'help',
 };
 
@@ -33,7 +35,8 @@ let nextChecklistId = 0;
 
 /**
  * The five-step setup checklist (#24) shared by New project and the setup page. Each step says its state in words
- * (the icon is decorative); a missing step has a one-line fix and a "How to fix" disclosure.
+ * (the icon is decorative); a missing step has a one-line fix and a "How to fix" disclosure. A waiting step needs
+ * nothing from the owner, so it has neither.
  */
 @Component({
   selector: 'tc-setup-checklist',

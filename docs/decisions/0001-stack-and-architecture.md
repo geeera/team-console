@@ -79,7 +79,10 @@ Constraints that shape everything below:
 - Push works only after the app is installed to the Home Screen on iPhone; the app must teach this on first
   run. Mac (Safari and Chrome) gets push from the installed app or the browser directly.
 - The Access session expires (24 h by default): API calls then receive a redirect to the login page. The client
-  must detect a non-JSON/302 response and reload to re-authenticate instead of showing a parsing error.
+  detects this (a redirect, the Access login host, or our own `access-missing`/`access-unverified` problem; a
+  non-JSON body is only conclusive on a 401, since a non-Access 403 — a Cloudflare WAF or rate-limit page — would
+  otherwise be mistaken for an expired session) and shows a «Сессия истекла» screen with a manual sign-in button
+  instead of reloading automatically or showing a parsing error.
 - Two Workers per environment, six in total, plus one Pages project for Storybook: well inside the 100 Workers
   and 100 Pages projects free limits.
 - The native client later authenticates against the same Access-protected API; the concrete method (Access

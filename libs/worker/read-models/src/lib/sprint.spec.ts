@@ -1,5 +1,18 @@
-import type { MilestoneRecord } from './github-records';
-import { buildSprint, declaredTier, effectiveTier, pickCurrentSprint, sprintToday } from './sprint';
+import {
+  isGitHubPullRequest,
+  pullRequestRecordOf,
+  type MilestoneRecord,
+  type PullRequestRecord,
+} from './github-records';
+import {
+  buildSprint,
+  declaredTier,
+  effectiveTier,
+  nextSprintNumber,
+  pickCurrentSprint,
+  pickNextSprint,
+  sprintToday,
+} from './sprint';
 
 function milestone(number: number, dueOn: string | null, state = 'open'): MilestoneRecord {
   return { number, title: `M${number}`, state, dueOn, htmlUrl: `https://github.com/o/r/milestone/${number}` };
@@ -30,6 +43,44 @@ describe('pickCurrentSprint (calendar.pick_current_sprint)', () => {
       '2026-09-30',
     );
     expect(picked?.number).toBe(5);
+  });
+});
+
+describe('pickNextSprint', () => {
+  const current = milestone(3, '2026-10-14T12:00:00Z');
+
+  it('takes the open milestone due soonest after the current demo', () => {
+    const next = pickNextSprint(
+      [milestone(1, '2026-09-30T00:00:00Z', 'closed'), current, milestone(5, '2026-11-11T12:00:00Z'), milestone(4, '2026-10-28T12:00:00Z')],
+      current,
+    );
+    expect(next?.number).toBe(4);
+  });
+
+  it('skips closed milestones, ones without a due date and ones due the same day as the current demo', () => {
+    expect(
+      pickNextSprint(
+        [current, milestone(6, null), milestone(7, '2026-10-28T12:00:00Z', 'closed'), milestone(8, '2026-10-14T00:00:00Z')],
+        current,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('nextSprintNumber', () => {
+  const titled = (title: string, state = 'open'): MilestoneRecord => ({ ...milestone(1, null, state), title });
+
+  it('is the highest Sprint NN, open or closed, + 1 (gaps are not filled)', () => {
+    expect(nextSprintNumber([titled('Sprint 01', 'closed'), titled('Sprint 04', 'closed'), titled('Sprint 02')])).toBe(5);
+  });
+
+  it('ignores milestones that are not sprints', () => {
+    expect(nextSprintNumber([titled('Release 9'), titled('Sprint 02')])).toBe(3);
+  });
+
+  it('is 1 without any sprint yet', () => {
+    expect(nextSprintNumber([])).toBe(1);
+    expect(nextSprintNumber([titled('Launch')])).toBe(1);
   });
 });
 
@@ -68,6 +119,10 @@ describe('buildSprint', () => {
           title: '<b>x</b>',
           htmlUrl: 'javascript:alert(1)',
           draft: true,
+          headSha: null,
+          body: '',
+          headRef: null,
+          headRepo: null,
           authorAssociation: 'NONE',
           authorLogin: 'outsider',
           authorType: 'User',
@@ -82,7 +137,106 @@ describe('buildSprint', () => {
       shipped: 0,
       carriedOver: 0,
       byTier: {},
-      openPullRequests: [{ number: 7, title: '<b>x</b>', url: null, draft: true, authorTrusted: false }],
+      openPullRequests: [
+        { number: 7, title: '<b>x</b>', url: null, draft: true, authorTrusted: false, ci: 'unknown' },
+      ],
     });
+  });
+
+  it("carries each pull request's CI state (#131); one not read is unknown", () => {
+    const pull = (number: number): PullRequestRecord => ({
+      number,
+      title: `PR ${number}`,
+      htmlUrl: `https://github.com/geeera/team-console/pull/${number}`,
+      draft: false,
+      headSha: null,
+      body: '',
+      headRef: null,
+      headRepo: null,
+      authorAssociation: 'OWNER',
+      authorLogin: 'geeera',
+      authorType: 'User',
+    });
+    const sprint = buildSprint({
+      milestone: null,
+      milestoneIssues: [],
+      openPullRequests: [pull(3), pull(2), pull(1)],
+      ciStates: new Map([
+        [3, 'failure'],
+        [2, 'pending'],
+      ]),
+    });
+    expect(sprint.openPullRequests.map(({ number, ci }) => [number, ci])).toEqual([
+      [3, 'failure'],
+      [2, 'pending'],
+      [1, 'unknown'],
+    ]);
+  });
+
+  it('strips bidi overrides and zero-width characters from issue, pull request and milestone titles (#287)', () => {
+    const [rlo, pdf, zwsp] = [0x202e, 0x202c, 0x200b].map((point) => String.fromCodePoint(point));
+    const sprint = buildSprint({
+      milestone: { ...milestone(3, '2026-10-16T00:00:00Z'), title: `Sprint ${zwsp}3` },
+      milestoneIssues: [
+        {
+          number: 40,
+          title: `Ship ${rlo}tik ngised eht${pdf}`,
+          body: '',
+          htmlUrl: 'https://github.com/o/r/issues/40',
+          state: 'open',
+          labels: [],
+          authorAssociation: 'NONE',
+          authorLogin: 'outsider',
+          authorType: 'User',
+          isPullRequest: false,
+          updatedAt: null,
+        },
+      ],
+      openPullRequests: [
+        {
+          number: 41,
+          title: `fix: ${zwsp}deploy${zwsp} order`,
+          htmlUrl: 'https://github.com/o/r/pull/41',
+          draft: false,
+          headSha: null,
+          body: '',
+          headRef: null,
+          headRepo: null,
+          authorAssociation: 'NONE',
+          authorLogin: 'outsider',
+          authorType: 'User',
+        },
+      ],
+    });
+    expect(sprint.milestone?.title).toBe('Sprint 3');
+    expect(sprint.issues.map((issue) => issue.title)).toEqual(['Ship tik ngised eht']);
+    expect(sprint.openPullRequests.map((pull) => pull.title)).toEqual(['fix: deploy order']);
+  });
+});
+
+describe('pullRequestRecordOf: head sha (#131)', () => {
+  const raw = (head: unknown): Record<string, unknown> => ({
+    number: 5,
+    title: 'x',
+    html_url: 'https://github.com/o/r/pull/5',
+    author_association: 'OWNER',
+    user: { login: 'geeera', type: 'User' },
+    head,
+  });
+  const sha = 'a'.repeat(40);
+
+  it.each([
+    ['a SHA-1', { sha }, sha],
+    ['a SHA-256', { sha: 'b'.repeat(64) }, 'b'.repeat(64)],
+    ['a path', { sha: '../../issues' }, null],
+    ['upper case', { sha: 'A'.repeat(40) }, null],
+    ['no head', undefined, null],
+    ['a string head', sha, null],
+  ])('keeps %s as %j', (_name, head, expected) => {
+    const value = raw(head);
+    expect(isGitHubPullRequest(value)).toBe(true);
+    if (isGitHubPullRequest(value)) {
+      expect(pullRequestRecordOf(value).headSha).toBe(expected);
+    }
   });
 });

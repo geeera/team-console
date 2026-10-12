@@ -89,18 +89,16 @@ describe('ProjectSetupPage', () => {
     await settle();
     http.expectOne(GITHUB_CONNECTION_URL).flush(CONNECTED);
     http.expectOne(HEALTH_URL).flush({ status: 'ok', environment: 'dev', version: '0.1.0' });
-    http
-      .expectOne(PROJECTS_URL)
-      .flush([
-        {
-          slug: 'fieldnote',
-          repo: 'geeera/fieldnote',
-          displayName: 'fieldnote',
-          routineId: null,
-          addedAt: '2026-09-29T00:00:00.000Z',
-          archivedAt: null,
-        },
-      ]);
+    http.expectOne(PROJECTS_URL).flush([
+      {
+        slug: 'fieldnote',
+        repo: 'geeera/fieldnote',
+        displayName: 'fieldnote',
+        routineId: null,
+        addedAt: '2026-09-29T00:00:00.000Z',
+        archivedAt: null,
+      },
+    ]);
     await navigation;
     await settle();
   }
@@ -118,7 +116,7 @@ describe('ProjectSetupPage', () => {
     await settle();
 
     expect(states()).toEqual(['Не хватает', 'Не проверено', 'Не проверено', 'Ждём', 'Не хватает']);
-    expect(result()).toContain('Не хватает 5 шагов');
+    expect(result()).toContain('Не хватает 4 шагов');
     expect(result()).toContain('Проверено в');
     expect(document.activeElement?.tagName).toBe('H1');
     expect(root().querySelector('.setup__repo')?.getAttribute('href')).toBe(
@@ -131,7 +129,38 @@ describe('ProjectSetupPage', () => {
     setupRequest().flush(MISSING_APP);
     await settle();
 
-    expect(result()).toContain('Проект добавлен. Осталось 5 шагов');
+    expect(result()).toContain('Проект добавлен. Осталось 4 шага');
+  });
+
+  it.each([
+    [{ routineToken: 'missing' }, 'Проект добавлен. Остался 1 шаг'],
+    [{ routineToken: 'missing', projectYml: 'missing' }, 'Проект добавлен. Осталось 2 шага'],
+  ] as const)(
+    'counts only the steps that need the owner, in the right plural form',
+    async (missing, title) => {
+      await open({ [JUST_ADDED_STATE]: true });
+      setupRequest().flush({ ...READY, events: 'never', lastEventAt: null, ...missing });
+      await settle();
+
+      expect(result()).toContain(title);
+    },
+  );
+
+  it('with only the first event to wait for, the project is ready and says so (#205)', async () => {
+    await open({ [JUST_ADDED_STATE]: true });
+    setupRequest().flush({ ...READY, events: 'never', lastEventAt: null });
+    await settle();
+
+    expect(root().querySelector('[data-testid="setup-result"] h2')?.textContent?.trim()).toBe(
+      'Проект готов. Ждём первое событие от GitHub',
+    );
+    expect(result()).not.toContain('Остался');
+    expect(states()).toEqual(['Готово', 'Готово', 'Готово', 'Ждём', 'Готово']);
+    expect(root().querySelector('[data-step="events"] .step__how-toggle')).toBeNull();
+    // Nothing to fix, so coming back to the app does not re-check by itself.
+    document.dispatchEvent(new Event('visibilitychange'));
+    await settle();
+    http.expectNone((req) => req.url === SETUP_URL);
   });
 
   it('Check again bypasses the cache (?fresh=1), then focuses the result', async () => {

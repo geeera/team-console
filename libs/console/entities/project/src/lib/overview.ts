@@ -1,18 +1,20 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import {
+  isSnoozeDto,
+  isTeamRunState,
   problemSlugOf,
   type OverviewDto,
   type OverviewProjectDto,
   type OverviewSprintDto,
   type OverviewTeamState,
+  type SnoozeDto,
 } from '@shared/contracts';
 import { firstValueFrom } from 'rxjs';
 
 /** `GET /api/v1/overview` (#27): every active project's row in one request. */
 export const OVERVIEW_URL = '/api/v1/overview';
 
-const TEAM_STATES: readonly OverviewTeamState[] = ['running', 'paused', 'failing', 'unknown'];
 const DUE_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -54,13 +56,13 @@ function isOverviewProject(value: unknown): value is OverviewProjectDto {
   }
   return (
     value['kind'] === 'read' &&
-    typeof value['team'] === 'string' &&
-    (TEAM_STATES as readonly string[]).includes(value['team']) &&
+    isTeamRunState(value['team']) &&
     (value['sprint'] === null || isSprint(value['sprint'])) &&
     Array.isArray(value['needsYou']) &&
     value['needsYou'].every(isIssueNumber) &&
     typeof value['setup'] === 'boolean' &&
-    (value['setupUrl'] === null || typeof value['setupUrl'] === 'string')
+    (value['setupUrl'] === null || typeof value['setupUrl'] === 'string') &&
+    isSnoozeDto(value['snooze'])
   );
 }
 
@@ -83,6 +85,8 @@ export type OverviewProject =
       readonly sprint: OverviewSprintDto | null;
       readonly needsYou: readonly number[];
       readonly setup: boolean;
+      /** As the Worker read it; the page stops showing it once `until` passes (`isSnoozeActive`). */
+      readonly snooze: SnoozeDto;
     }
   | {
       readonly kind: 'failed';
@@ -109,6 +113,7 @@ function overviewProjectOf(dto: OverviewProjectDto): OverviewProject {
     sprint: dto.sprint,
     needsYou: dto.needsYou,
     setup: dto.setup,
+    snooze: dto.snooze,
   };
 }
 

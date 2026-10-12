@@ -1,11 +1,28 @@
 import type {
+  OwnerRequestState,
+  OwnerRequestStatusDto,
+  RecentRunDto,
+  RunEntryState,
+  SprintCiState,
   SprintDto,
   SprintIssueDto,
   SprintMilestoneDto,
   SprintPullRequestDto,
   SprintTier,
+  TeamRunDto,
+  TeamRunState,
+  TeamSlot,
 } from '@shared/contracts';
-import { isGitHubPageUrl } from '@shared/contracts';
+import {
+  isGitHubPageUrl,
+  isOwnerRequest,
+  isOwnerRequestState,
+  isRunEntryState,
+  isSprintCiState,
+  isTeamRunState,
+  isTeamSlot,
+  RECENT_RUNS_LIMIT,
+} from '@shared/contracts';
 
 /**
  * The current sprint as the board shows it, from `GET /api/v1/projects/:slug/sprint` (#35). Every title is untrusted
@@ -21,6 +38,14 @@ export interface SprintIssue {
   readonly tier: SprintTier;
   readonly kind: string | null;
   readonly authorTrusted: boolean;
+  /** The owner's newest request to the PM on it (#219); `null` without one. */
+  readonly request: SprintIssueRequest | null;
+}
+
+/** What the board row says about the owner's request: the «waiting for the PM» badge while pending. */
+export interface SprintIssueRequest {
+  readonly state: OwnerRequestState;
+  readonly kind: 'sprint' | 'priority';
 }
 
 export interface SprintPullRequest {
@@ -29,6 +54,58 @@ export interface SprintPullRequest {
   readonly url: string | null;
   readonly draft: boolean;
   readonly authorTrusted: boolean;
+  /** The head commit's CI (#131); `unknown` when the server could not read it in this load. */
+  readonly ci: SprintCiState;
+}
+
+/**
+ * The "CI" tile (#131): the state that matters most across the open pull requests and how many are in it —
+ * any failing first, then running, then not read, then passing; `empty` without an open pull request.
+ */
+export interface SprintCiSummary {
+  readonly state: SprintCiState | 'empty';
+  readonly count: number;
+}
+
+/** Most urgent first: what the owner should look at before anything else. */
+const CI_URGENCY: readonly SprintCiState[] = ['failure', 'pending', 'unknown', 'success', 'none'];
+
+export function ciSummaryOf(pulls: readonly SprintPullRequest[]): SprintCiSummary {
+  for (const state of CI_URGENCY) {
+    const count = pulls.filter((pull) => pull.ci === state).length;
+    if (count > 0) {
+      return { state, count };
+    }
+  }
+  return { state: 'empty', count: 0 };
+}
+
+/** The PR list's order (#275 §3): failing first, then running, not read, no checks, passed. */
+const PULL_ORDER: readonly SprintCiState[] = ['failure', 'pending', 'unknown', 'none', 'success'];
+
+/** Open pull requests in `PULL_ORDER`, newest (highest number) first within a state; the input is left as it is. */
+export function pullsByUrgency(pulls: readonly SprintPullRequest[]): SprintPullRequest[] {
+  return [...pulls].sort(
+    (a, b) => PULL_ORDER.indexOf(a.ci) - PULL_ORDER.indexOf(b.ci) || b.number - a.number,
+  );
+}
+
+/** One of the team's latest runs (#132); `slotName` is team text from the run log, shown as plain text only. */
+export interface SprintRun {
+  readonly slot: TeamSlot | null;
+  readonly slotName: string;
+  readonly state: RunEntryState;
+  /** ISO 8601; `null` when GitHub sent no time. */
+  readonly at: string | null;
+}
+
+/** The "Run log" tile and the latest runs (#132), as the plugin's `runstate` reads the run log. */
+export interface SprintTeam {
+  readonly state: TeamRunState;
+  /** The run-log issue on github.com; `null` without one. */
+  readonly runLogUrl: string | null;
+  /** Newest first, at most `RECENT_RUNS_LIMIT`. */
+  readonly recentRuns: readonly SprintRun[];
 }
 
 export interface SprintMilestone {
@@ -54,13 +131,21 @@ export interface SprintBoard {
   readonly shipped: number;
   readonly carriedOver: number;
   readonly pullRequests: readonly SprintPullRequest[];
+  readonly team: SprintTeam;
 }
 
 /** The lane of an issue without a `status:*` label — the key `backlog list` / the read model count it under. */
 export const NO_STATUS = 'none';
 
 /** The plugin's workflow order (reference/workflow.md → Status); a lane for any other label follows these. */
-export const STATUS_ORDER: readonly string[] = ['proposed', 'approved', 'in-progress', 'qa', 'blocked', 'done'];
+export const STATUS_ORDER: readonly string[] = [
+  'proposed',
+  'approved',
+  'in-progress',
+  'qa',
+  'blocked',
+  'done',
+];
 
 /** Lanes shown even when empty, so "nothing in QA" reads as a fact rather than a missing lane. */
 export const CORE_STATUSES: readonly string[] = ['approved', 'in-progress', 'qa', 'done'];
@@ -110,7 +195,23 @@ function isIssue(value: unknown): value is SprintIssueDto {
     typeof value['tier'] === 'string' &&
     TIERS.has(value['tier']) &&
     isNullableString(value['kind']) &&
-    typeof value['authorTrusted'] === 'boolean'
+    typeof value['authorTrusted'] === 'boolean' &&
+    (value['request'] === undefined || value['request'] === null || isRequestStatus(value['request']))
+  );
+}
+
+/** The request's own fields are checked; its display fields only for their type. */
+function isRequestStatus(value: unknown): value is OwnerRequestStatusDto {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const { state, requestedAt, url, handledAt, ...request } = value;
+  return (
+    isOwnerRequestState(state) &&
+    typeof requestedAt === 'string' &&
+    typeof url === 'string' &&
+    isNullableString(handledAt) &&
+    isOwnerRequest(request)
   );
 }
 
@@ -121,7 +222,28 @@ function isPullRequest(value: unknown): value is SprintPullRequestDto {
     typeof value['title'] === 'string' &&
     isNullableString(value['url']) &&
     typeof value['draft'] === 'boolean' &&
-    typeof value['authorTrusted'] === 'boolean'
+    typeof value['authorTrusted'] === 'boolean' &&
+    isSprintCiState(value['ci'])
+  );
+}
+
+function isRecentRun(value: unknown): value is RecentRunDto {
+  return (
+    isRecord(value) &&
+    (value['slot'] === null || isTeamSlot(value['slot'])) &&
+    typeof value['slotName'] === 'string' &&
+    isRunEntryState(value['state']) &&
+    isNullableString(value['at'])
+  );
+}
+
+function isTeamRun(value: unknown): value is TeamRunDto {
+  return (
+    isRecord(value) &&
+    isTeamRunState(value['state']) &&
+    isNullableString(value['runLogUrl']) &&
+    Array.isArray(value['recentRuns']) &&
+    value['recentRuns'].every(isRecentRun)
   );
 }
 
@@ -138,7 +260,8 @@ export function isSprintDto(value: unknown): value is SprintDto {
     isCount(value['carriedOver']) &&
     isRecord(value['byTier']) &&
     Array.isArray(value['openPullRequests']) &&
-    value['openPullRequests'].every(isPullRequest)
+    value['openPullRequests'].every(isPullRequest) &&
+    isTeamRun(value['team'])
   );
 }
 
@@ -167,6 +290,10 @@ export function sprintBoardOf(dto: SprintDto): SprintBoard {
       tier: issue.tier,
       kind: issue.kind,
       authorTrusted: issue.authorTrusted,
+      request:
+        issue.request === undefined || issue.request === null
+          ? null
+          : { state: issue.request.state, kind: issue.request.kind },
     })),
     planned: dto.planned,
     shipped: dto.shipped,
@@ -177,7 +304,19 @@ export function sprintBoardOf(dto: SprintDto): SprintBoard {
       url: safeUrl(pull.url),
       draft: pull.draft,
       authorTrusted: pull.authorTrusted,
+      ci: pull.ci,
     })),
+    team: {
+      state: dto.team.state,
+      runLogUrl: safeUrl(dto.team.runLogUrl),
+      // The server sends at most five; the board never lists more, whatever it is sent.
+      recentRuns: dto.team.recentRuns.slice(0, RECENT_RUNS_LIMIT).map((run) => ({
+        slot: run.slot,
+        slotName: run.slotName,
+        state: run.state,
+        at: run.at,
+      })),
+    },
   };
 }
 

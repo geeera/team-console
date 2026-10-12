@@ -1,5 +1,15 @@
-import type { SprintDto, SprintIssueDto, SprintTier, SprintTierRowDto } from '@shared/contracts';
+import {
+  SPRINT_TIME_ZONE as CALENDAR_TIME_ZONE,
+  calendarDayOf,
+  sprintNumberOf,
+  type SprintCiState,
+  type SprintListsDto,
+  type SprintIssueDto,
+  type SprintTier,
+  type SprintTierRowDto,
+} from '@shared/contracts';
 import { kindOf } from '@shared/owner-grammar';
+import { withoutInvisibles } from '@shared/plain-text';
 import type { IssueRecord, MilestoneRecord, PullRequestRecord } from './github-records';
 import { githubUrlOrNull, isTrustedAuthor } from './untrusted-text';
 
@@ -13,16 +23,11 @@ const TIERS: readonly SprintTier[] = ['light', 'standard', 'heavy'];
 const WORK_KINDS: ReadonlySet<string> = new Set(['kind:feature', 'kind:bug', 'kind:chore', 'kind:finding']);
 
 /** The plugin's calendar is Kyiv time (`ptlib.calendar.KYIV`), whatever the owner's timezone. */
-export const SPRINT_TIME_ZONE = 'Europe/Kyiv';
+export const SPRINT_TIME_ZONE = CALENDAR_TIME_ZONE;
 
 /** `YYYY-MM-DD` in the sprint calendar's timezone. */
 export function sprintToday(nowMs: number): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: SPRINT_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date(nowMs));
+  return calendarDayOf(nowMs);
 }
 
 /** `calendar.pick_current_sprint`: the open milestone with the earliest due date that is today or later. */
@@ -43,6 +48,47 @@ export function pickCurrentSprint(
     }
   }
   return best?.milestone ?? null;
+}
+
+/** The demo day of a milestone (the date part of `due_on`); `null` without a due date. */
+export function demoDayOfMilestone(milestone: MilestoneRecord): string | null {
+  return milestone.dueOn === null || milestone.dueOn === '' ? null : milestone.dueOn.slice(0, 10);
+}
+
+/**
+ * The sprint after `current`: the open milestone with the earliest due date after its demo — the one
+ * `pick_current_sprint` turns to once that demo has passed. `null` when there is none.
+ */
+export function pickNextSprint(
+  milestones: readonly MilestoneRecord[],
+  current: MilestoneRecord,
+): MilestoneRecord | null {
+  const after = demoDayOfMilestone(current);
+  if (after === null) {
+    return null;
+  }
+  let best: { day: string; milestone: MilestoneRecord } | null = null;
+  for (const milestone of milestones) {
+    const day = demoDayOfMilestone(milestone);
+    if (milestone.state !== 'open' || day === null || day <= after) {
+      continue;
+    }
+    if (best === null || day < best.day) {
+      best = { day, milestone };
+    }
+  }
+  return best?.milestone ?? null;
+}
+
+/**
+ * The number of the next `Sprint NN`: the highest one among all milestones, open or closed, + 1 — never "current
+ * + 1", so a closed Sprint 03 never gets a second Sprint 03. 1 for a repository without one.
+ */
+export function nextSprintNumber(milestones: readonly MilestoneRecord[]): number {
+  const numbers = milestones
+    .map((milestone) => sprintNumberOf(milestone.title))
+    .filter((number): number is number => number !== null);
+  return numbers.length === 0 ? 1 : Math.max(...numbers) + 1;
 }
 
 /** `tiers.declared`: the architect's tier; `standard` when none (or several) is set. */
@@ -109,15 +155,19 @@ export interface SprintInput {
   /** Issues of that milestone, open and closed (pull requests may be in the list; they are dropped). */
   readonly milestoneIssues: readonly IssueRecord[];
   readonly openPullRequests: readonly PullRequestRecord[];
+  /** CI per pull request number (#131); a pull request without an entry was not read and is `unknown`. */
+  readonly ciStates?: ReadonlyMap<number, SprintCiState>;
 }
 
-export function buildSprint(input: SprintInput): SprintDto {
+export function buildSprint(input: SprintInput): SprintListsDto {
   const pullRequests = input.openPullRequests.map((pull) => ({
     number: pull.number,
-    title: pull.title,
+    // Titles come from any author: a bidi override or zero-width run could pose as another item (#287).
+    title: withoutInvisibles(pull.title),
     url: githubUrlOrNull(pull.htmlUrl),
     draft: pull.draft,
     authorTrusted: isTrustedAuthor(pull),
+    ci: input.ciStates?.get(pull.number) ?? 'unknown',
   }));
   if (input.milestone === null) {
     return {
@@ -142,13 +192,13 @@ export function buildSprint(input: SprintInput): SprintDto {
   return {
     milestone: {
       number: input.milestone.number,
-      title: input.milestone.title,
+      title: withoutInvisibles(input.milestone.title),
       dueOn: (input.milestone.dueOn ?? '').slice(0, 10),
       url: githubUrlOrNull(input.milestone.htmlUrl),
     },
     issues: issues.map((issue): SprintIssueDto => ({
       number: issue.number,
-      title: issue.title,
+      title: withoutInvisibles(issue.title),
       url: githubUrlOrNull(issue.htmlUrl),
       state: issue.state,
       status: statusOf(issue.labels),

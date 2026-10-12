@@ -1,0 +1,49 @@
+:host {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-h-touch);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* A row with a hint lines the control up with the first line of words. */
+:host:has([tc-choice-hint]) {
+  align-items: flex-start;
+}
+
+:host:has([tc-choice-hint]) ::ng-deep input {
+  margin-top: var(--space-px);
+}
+
+:host ::ng-deep input {
+  flex: none;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: inherit;
+}
+
+:host ::ng-deep input:disabled,
+:host:has(input:disabled) {
+  cursor: default;
+}
+
+:host:has(input:disabled) {
+  opacity: var(--disabled-opacity);
+}
+
+.tc-choice__text {
+  display: grid;
+  gap: var(--space-px);
+  min-width: 0;
+}
+
+.tc-choice__text ::ng-deep [tc-choice-hint] {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-regular);
+  color: var(--text-2);
+}

@@ -135,6 +135,47 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* the sprint and progress lines of the status card (#218) */
+.cp-facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+}
+
+.cp-fact {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.cp-fact dt {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.cp-fact dd {
+  display: grid;
+  gap: var(--space-px);
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.cp-fact__sub {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.cp-fact__sub--freeze {
+  color: var(--warning-text);
+  font-weight: var(--fw-semibold);
+}
+
+.cp-fact__progress {
+  gap: var(--space-1);
+}
+
 .cp-note a {
   color: inherit;
   font-weight: var(--fw-semibold);
@@ -196,8 +237,16 @@
   align-self: center;
 }
 
-.cmd__line--unknown {
+/* ochre: what waits — an unanswered run request, snoozed notifications (#221) */
+.cmd__line--unknown,
+.cmd__line--snoozed,
+.cmd__line--pending {
   color: var(--warning-text);
+}
+
+.cmd__fix {
+  margin: 0;
+  font-size: var(--fs-sm);
 }
 
 .cmd__why {

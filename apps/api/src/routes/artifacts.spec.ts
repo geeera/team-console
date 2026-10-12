@@ -156,6 +156,8 @@ describe('GET /api/v1/projects/:slug/artifacts', () => {
           updatedAt: '2026-09-28T00:00:00Z',
           source: 'issue',
           state: 'open',
+          number: 29,
+          awaitingApproval: true,
         },
         {
           type: 'design',
@@ -164,6 +166,8 @@ describe('GET /api/v1/projects/:slug/artifacts', () => {
           updatedAt: '2026-09-20T00:00:00Z',
           source: 'issue',
           state: 'closed',
+          number: 24,
+          awaitingApproval: false,
         },
         {
           type: 'design',

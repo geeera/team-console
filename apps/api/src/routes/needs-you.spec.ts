@@ -52,6 +52,32 @@ describe('GET /api/v1/needs-you', () => {
     expect(body.omittedProjects).toEqual([]);
   });
 
+  it('carries each team question’s context, which the list has no body for (#276)', async () => {
+    const repos = await seed(1);
+    const body = '**Your answer:** /approve · /reject\n## Кратко\nКоротко\n## Если одобрить\n<b>Сделаем</b>.';
+    repos['geeera/p01'] = {
+      issues: [
+        issue(1, ['kind:question'], { body }),
+        issue(2, ['kind:question'], { body, author_association: 'FIRST_TIMER' }),
+      ],
+    };
+    const stub = stubGitHub(readModelGitHub(repos));
+    const response = await fetchApi(PATH, localEnv(), { github: new ApiGitHub({ fetch: stub.fetch }) });
+    const dto = (await response.json()) as NeedsYouDto;
+    expect(dto.items.map((item) => item.context)).toEqual([
+      {
+        summary: 'Коротко',
+        question: null,
+        why: null,
+        ifApproved: 'Сделаем.',
+        ifRejected: null,
+        costAndRisk: null,
+        structured: true,
+      },
+      null,
+    ]);
+  });
+
   it(`reads at most ${NEEDS_YOU_MAX_PROJECTS} projects and stays within the subrequest budget`, async () => {
     const stub = stubGitHub(readModelGitHub(await seed(NEEDS_YOU_MAX_PROJECTS + 2)));
     const response = await fetchApi(PATH, localEnv(), { github: new ApiGitHub({ fetch: stub.fetch }) });

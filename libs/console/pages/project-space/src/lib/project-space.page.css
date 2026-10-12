@@ -1,7 +1,7 @@
 :host {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  flex: 1 0 auto;
 }
 
 .space__head {
@@ -21,15 +21,6 @@
 
 .space__commands {
   margin-left: auto;
-}
-
-.space__kbd {
-  padding: 0 var(--space-1);
-  border: var(--border-w) solid var(--border-strong);
-  border-radius: var(--r-xs);
-  font-family: var(--font-body);
-  font-size: var(--fs-2xs);
-  color: var(--text-3);
 }
 
 .space__banner {
@@ -54,44 +45,6 @@
   min-height: 0;
 }
 
-/* The pane sits beside the section (non-modal): the section stays usable while it is open. */
-.space__pane {
-  flex: none;
-  width: var(--pane-w);
-  position: sticky;
-  top: 0;
-  align-self: flex-start;
-  max-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  border-left: var(--border-w) solid var(--border);
-  background: var(--surface-2);
-  animation: tc-pane-in var(--dur-base) var(--ease-enter) both;
-}
-
-@keyframes tc-pane-in {
-  from {
-    opacity: 0;
-    transform: translateX(var(--space-4));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .space__pane {
-    animation: tc-pane-fade var(--dur-fade) linear both;
-  }
-}
-
-:host-context(:root[data-motion='reduce']) .space__pane {
-  animation: tc-pane-fade var(--dur-fade) linear both;
-}
-
-@keyframes tc-pane-fade {
-  from {
-    opacity: 0;
-  }
-}
-
 .space__title {
   margin: 0;
   font-family: var(--font-display);
@@ -107,6 +60,14 @@
   width: 100%;
   margin: 0 auto;
   padding: var(--space-4) var(--pad-x) var(--space-8);
+}
+
+.space__body--wide {
+  max-width: var(--board-max);
+}
+
+:host(.tc-space--cards) .space__body {
+  max-width: var(--cards-max);
 }
 
 :host(.tc-space--phone) .space__body {

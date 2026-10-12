@@ -146,7 +146,9 @@ describe('embedOriginOf (#20)', () => {
 });
 
 describe('embedOriginsOf (#20)', () => {
-  it('reads design.storybook_url and environments.stage.url only', () => {
+  const CONSOLE = 'https://team-console-dev.geeera.workers.dev';
+
+  it('reads design.storybook_url only; stage and the other environments stay link-only', () => {
     const text = [
       'design:',
       '  storybook_url: https://storify.pages.dev/',
@@ -158,33 +160,28 @@ describe('embedOriginsOf (#20)', () => {
       '  production: { url: "https://storify.example" }',
       '',
     ].join('\n');
-    expect(embedOriginsOf(text)).toEqual(['https://storify.pages.dev', 'https://stage.storify.workers.dev']);
-  });
-
-  it('deduplicates one origin named twice', () => {
-    const text =
-      'design: { storybook_url: "https://storify.pages.dev/storybook/" }\n' +
-      'environments: { stage: { url: "https://storify.pages.dev/" } }\n';
-    expect(embedOriginsOf(text)).toEqual(['https://storify.pages.dev']);
+    expect(embedOriginsOf(text, CONSOLE)).toEqual(['https://storify.pages.dev']);
   });
 
   it('skips empty, missing and non-https values, keeping the valid one', () => {
     expect(
       embedOriginsOf(
         'design:\n  storybook_url: ""\nenvironments:\n  stage:\n    url: https://s.workers.dev\n',
+        CONSOLE,
       ),
-    ).toEqual(['https://s.workers.dev']);
-    expect(embedOriginsOf('design:\n  storybook_url: http://s.pages.dev\n')).toEqual([]);
-    expect(embedOriginsOf('name: x\n')).toEqual([]);
-    expect(embedOriginsOf('design: https://s.pages.dev\nenvironments: [stage]\n')).toEqual([]);
+    ).toEqual([]);
+    expect(embedOriginsOf('design:\n  storybook_url: http://s.pages.dev\n', CONSOLE)).toEqual([]);
+    expect(embedOriginsOf('name: x\n', CONSOLE)).toEqual([]);
+    expect(embedOriginsOf('design: https://s.pages.dev\nenvironments: [stage]\n', CONSOLE)).toEqual([]);
   });
 
   it('embeds nothing from a file the safe parser refuses, instead of throwing', () => {
-    expect(embedOriginsOf('design: &a { storybook_url: https://s.pages.dev }\nx: *a\n')).toEqual([]);
-    expect(embedOriginsOf('design: { storybook_url: !!js/function "f" }\n')).toEqual([]);
+    expect(embedOriginsOf('design: &a { storybook_url: https://s.pages.dev }\nx: *a\n', CONSOLE)).toEqual([]);
+    expect(embedOriginsOf('design: { storybook_url: !!js/function "f" }\n', CONSOLE)).toEqual([]);
     expect(
       embedOriginsOf(
         `design:\n  storybook_url: https://s.pages.dev\n#${'a'.repeat(PROJECT_CONFIG_MAX_BYTES)}\n`,
+        CONSOLE,
       ),
     ).toEqual([]);
   });
@@ -192,6 +189,14 @@ describe('embedOriginsOf (#20)', () => {
   it('does not depend on reviewer_logins being valid', () => {
     const text = 'team:\n  reviewer_logins: 42\ndesign:\n  storybook_url: https://s.pages.dev\n';
     expect(failureOf(text)).toBe('schema');
-    expect(embedOriginsOf(text)).toEqual(['https://s.pages.dev']);
+    expect(embedOriginsOf(text, CONSOLE)).toEqual(['https://s.pages.dev']);
+  });
+
+  it("drops the console's own origin, even when project.yml names it as the Storybook", () => {
+    const text = 'design: { storybook_url: "https://team-console-dev.geeera.workers.dev/storybook/" }\n';
+    expect(embedOriginsOf(text, 'https://team-console-dev.geeera.workers.dev')).toEqual([]);
+    expect(embedOriginsOf(text, 'https://team-console-stage.geeera.workers.dev')).toEqual([
+      'https://team-console-dev.geeera.workers.dev',
+    ]);
   });
 });

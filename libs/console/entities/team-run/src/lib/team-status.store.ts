@@ -1,7 +1,7 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
 import { httpProblemOf, type HttpProblem } from '@console/shared/api';
-import type { SlotLock, TeamSlot, TeamState, TeamStatusDto } from '@shared/contracts';
+import type { SlotLock, SnoozeDto, TeamSlot, TeamState, TeamStatusDto } from '@shared/contracts';
 import { firstValueFrom } from 'rxjs';
 import { isTeamStatusDto, teamStatusUrl } from './team-status.model';
 
@@ -79,6 +79,14 @@ export class TeamStatusStore {
     const status = this.status();
     if (status !== null) {
       this.status.set({ ...status, state, pausedAt: state === 'paused-by-owner' ? pausedAt : null });
+    }
+  }
+
+  /** A snooze the Worker stored or cleared (#221) for the project shown. */
+  applySnooze(slug: string, snooze: SnoozeDto): void {
+    const status = this.status();
+    if (status !== null && this.slug() === slug) {
+      this.status.set({ ...status, snooze });
     }
   }
 

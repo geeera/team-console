@@ -5,6 +5,8 @@ import { byRecentIssue, issueArtifactOf, type ContentsEntry } from './common';
 /** The plugin's design stages (`reference/workflow.md`): an issue carrying any of them is a design artifact. */
 export const DESIGN_LABELS = ['ux-spec', 'design:awaiting-approval', 'design:approved'] as const;
 
+const AWAITING_APPROVAL_LABEL: (typeof DESIGN_LABELS)[number] = 'design:awaiting-approval';
+
 export const DESIGN_DIR = 'docs/design';
 
 /**
@@ -43,7 +45,20 @@ export function designArtifactsOf(input: DesignInput): ArtifactDto[] {
       return true;
     })
     .sort(byRecentIssue)
-    .flatMap((issue) => issueArtifactOf('design', issue) ?? []);
+    .flatMap((issue): ArtifactDto[] => {
+      const artifact = issueArtifactOf('design', issue);
+      if (artifact === null) {
+        return [];
+      }
+      // #277: the viewer opens by issue number; the row says when the plugin waits for the owner's approval.
+      return [
+        {
+          ...artifact,
+          number: issue.number,
+          awaitingApproval: issue.state === 'open' && issue.labels.includes(AWAITING_APPROVAL_LABEL),
+        },
+      ];
+    });
 
   const prefix = `${DESIGN_DIR}/`;
   const files = input.files

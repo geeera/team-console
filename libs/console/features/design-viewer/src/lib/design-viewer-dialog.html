@@ -1,0 +1,310 @@
+<div class="viewer__tools" data-testid="viewer-tools">
+  <div class="viewer__seg" role="group" [attr.aria-label]="'designs.viewer.mode.label' | transloco">
+    @for (candidate of modes; track candidate) {
+    <button
+      tc-button
+      size="sm"
+      type="button"
+      data-testid="viewer-mode"
+      [attr.data-mode]="candidate"
+      [variant]="mode() === candidate ? 'primary' : 'quiet'"
+      [attr.aria-pressed]="mode() === candidate"
+      (click)="setMode(candidate)"
+    >
+      {{ 'designs.viewer.mode.' + candidate | transloco }}
+    </button>
+    }
+  </div>
+  @if (mode() === 'images' && devices().length === 2) {
+  <div class="viewer__seg" role="group" [attr.aria-label]="'designs.viewer.device.label' | transloco">
+    @for (candidate of devices(); track candidate) {
+    <button
+      tc-button
+      size="sm"
+      type="button"
+      data-testid="viewer-device"
+      [attr.data-device]="candidate"
+      [variant]="device() === candidate ? 'primary' : 'quiet'"
+      [attr.aria-pressed]="device() === candidate"
+      (click)="setDevice(candidate)"
+    >
+      {{ 'designs.viewer.device.' + candidate | transloco }}
+    </button>
+    }
+  </div>
+  }
+  <span class="viewer__spacer"></span>
+  @if (mode() === 'images' && current(); as screen) { @if (!screen.tooLarge && !hasFailed(screen)) {
+  <button
+    tc-button
+    size="sm"
+    variant="quiet"
+    type="button"
+    data-testid="viewer-zoom"
+    [attr.aria-pressed]="zoomed()"
+    (click)="toggleZoom()"
+  >
+    {{ (zoomed() ? 'designs.viewer.zoomOut' : 'designs.viewer.zoomIn') | transloco }}
+  </button>
+  } } @if (mode() === 'interactive' && manifest()?.interactive; as interactive) {
+  <a
+    tc-button
+    size="sm"
+    variant="quiet"
+    data-testid="viewer-open-interactive"
+    [href]="interactive.url"
+    target="_blank"
+    rel="noopener noreferrer"
+    >{{ 'designs.viewer.openNewTab' | transloco }}</a
+  >
+  }
+</div>
+
+<div
+  class="viewer__stage"
+  data-testid="viewer-stage"
+  [class.viewer__stage--frame]="mode() === 'interactive' && frameSrc() !== null"
+  #stage
+  [attr.role]="isStageScrollable() ? 'region' : null"
+  [attr.aria-label]="isStageScrollable() ? ('designs.viewer.stageLabel' | transloco) : null"
+  [attr.tabindex]="isStageScrollable() ? 0 : null"
+  (pointerdown)="onPointerDown($event)"
+  (pointerup)="onPointerUp($event)"
+>
+  @switch (manifestState().kind) { @case ('loading') {
+  <tc-state-block kind="loading" data-testid="viewer-loading" [title]="'designs.viewer.loading' | transloco" />
+  } @case ('failed') { @if (manifestState(); as state) { @if (state.kind === 'failed') { @switch (state.failure) {
+  @case ('no-access') {
+  <tc-state-block
+    kind="error"
+    data-testid="viewer-no-access"
+    [title]="'designs.viewer.state.noAccess.title' | transloco"
+    [description]="'designs.viewer.state.noAccess.hint' | transloco"
+  >
+    <button tc-button tc-state-action type="button" (click)="openSettings()">
+      {{ 'designs.viewer.state.noAccess.settings' | transloco }}
+    </button>
+  </tc-state-block>
+  } @case ('offline') {
+  <tc-state-block
+    kind="empty"
+    icon="offline"
+    data-testid="viewer-offline"
+    [title]="'designs.viewer.state.offline.title' | transloco"
+    [description]="'designs.viewer.state.offline.hint' | transloco"
+  >
+    <button tc-button tc-state-action type="button" (click)="reloadManifest()">
+      {{ 'ui.error.retry' | transloco }}
+    </button>
+  </tc-state-block>
+  } @case ('rate-limited') {
+  <tc-state-block
+    kind="error"
+    data-testid="viewer-failed"
+    [title]="'designs.viewer.state.rateLimited.title' | transloco"
+    [description]="'designs.viewer.state.rateLimited.hint' | transloco"
+  >
+    <button tc-button tc-state-action type="button" (click)="reloadManifest()">
+      {{ 'ui.error.retry' | transloco }}
+    </button>
+  </tc-state-block>
+  } @default {
+  <tc-state-block
+    kind="error"
+    data-testid="viewer-failed"
+    [title]="'designs.viewer.state.unavailable.title' | transloco"
+    [description]="'designs.viewer.state.unavailable.hint' | transloco"
+  >
+    <button tc-button tc-state-action type="button" (click)="reloadManifest()">
+      {{ 'ui.error.retry' | transloco }}
+    </button>
+  </tc-state-block>
+  } } } } } @case ('ready') { @switch (mode()) { @case ('images') { @if (screens().length === 0) {
+  <tc-state-block
+    kind="empty"
+    icon="question"
+    data-testid="viewer-no-images"
+    [title]="'designs.viewer.state.noImages.title' | transloco"
+    [description]="
+      (manifest()?.interactive ? 'designs.viewer.state.noImages.hintInteractive' : 'designs.viewer.state.noImages.hintNone')
+        | transloco
+    "
+  >
+    @if (manifest()?.interactive) {
+    <button tc-button tc-state-action type="button" (click)="setMode('interactive')">
+      {{ 'designs.viewer.state.noImages.open' | transloco }}
+    </button>
+    }
+  </tc-state-block>
+  } @else if (current(); as screen) { @if (screen.tooLarge) {
+  <tc-state-block
+    kind="empty"
+    icon="alert"
+    data-testid="viewer-too-large"
+    [title]="
+      'designs.viewer.state.tooLarge.title'
+        | transloco: { size: ('designs.viewer.megabytes' | transloco: { n: megabytes(screen) }) }
+    "
+    [description]="
+      'designs.viewer.state.tooLarge.hint'
+        | transloco: { max: ('designs.viewer.megabytes' | transloco: { n: maxMegabytes }) }
+    "
+  >
+    <a tc-button tc-state-action [href]="screen.url" target="_blank" rel="noopener noreferrer">
+      {{ 'designs.viewer.state.tooLarge.open' | transloco }}
+    </a>
+  </tc-state-block>
+  } @else if (hasFailed(screen)) {
+  <tc-state-block
+    kind="error"
+    data-testid="viewer-screen-failed"
+    [title]="'designs.viewer.state.failed.title' | transloco"
+    [description]="'designs.viewer.state.failed.hint' | transloco"
+  >
+    <button tc-button tc-state-action type="button" (click)="retry(screen)">
+      {{ 'designs.viewer.state.failed.retry' | transloco }}
+    </button>
+  </tc-state-block>
+  } @else {
+  <div class="viewer__screen" [class.viewer__screen--zoomed]="zoomed()">
+    @if (!isLoaded(screen)) {
+    <div
+      class="viewer__skeleton"
+      role="img"
+      data-testid="viewer-screen-loading"
+      [attr.aria-label]="'designs.viewer.screenLoading' | transloco: { i: index() + 1, n: screens().length }"
+    ></div>
+    }
+    <img
+      class="viewer__img"
+      data-testid="viewer-screen"
+      [class.viewer__img--zoomed]="zoomed()"
+      [class.viewer__img--pending]="!isLoaded(screen)"
+      [src]="srcOf(screen)"
+      [alt]="'designs.viewer.screenAlt' | transloco: { i: index() + 1, n: screens().length, caption: screen.caption }"
+      [attr.data-path]="screen.path"
+      decoding="async"
+      (load)="onLoaded(screen)"
+      (error)="onFailed(screen)"
+    />
+  </div>
+  } } } @case ('grid') {
+  <h3 class="tc-sr-only" [id]="id + '-grid'">{{ 'designs.viewer.gridTitle' | transloco }}</h3>
+  @if (screens().length === 0) {
+  <tc-state-block
+    kind="empty"
+    icon="question"
+    data-testid="viewer-no-images"
+    [title]="'designs.viewer.state.noImages.title' | transloco"
+    [description]="
+      (manifest()?.interactive ? 'designs.viewer.state.noImages.hintInteractive' : 'designs.viewer.state.noImages.hintNone')
+        | transloco
+    "
+  />
+  } @else {
+  <ul class="viewer__grid" data-testid="viewer-grid" [attr.aria-labelledby]="id + '-grid'">
+    @for (screen of screens(); track screen.path; let i = $index) {
+    <li>
+      <button
+        class="viewer__cell"
+        type="button"
+        data-testid="viewer-grid-item"
+        [attr.aria-current]="i === index() ? 'true' : null"
+        [attr.aria-label]="'designs.viewer.gridItem' | transloco: { i: i + 1, caption: screen.caption }"
+        (click)="openScreen(i)"
+      >
+        @if (screen.tooLarge || hasFailed(screen)) {
+        <span class="viewer__cell-blank" aria-hidden="true"></span>
+        } @else {
+        <img
+          class="viewer__cell-img"
+          [src]="srcOf(screen)"
+          alt=""
+          loading="lazy"
+          decoding="async"
+          (error)="onFailed(screen)"
+        />
+        }
+        <span class="viewer__cell-caption" aria-hidden="true">{{ i + 1 }}. {{ screen.caption }}</span>
+      </button>
+    </li>
+    }
+  </ul>
+  } } @case ('interactive') { @if (manifest()?.interactive; as interactive) { @if (origins().kind !== 'ready') {
+  <tc-state-block kind="loading" [title]="'designs.viewer.loading' | transloco" />
+  } @else if (frameSrc() !== null) {
+  <tc-frame
+    profile="design"
+    fill
+    data-testid="viewer-frame"
+    [src]="interactive.url"
+    [allowedOrigins]="allowedOrigins()"
+    [title]="'designs.viewer.frameTitle' | transloco: { title: data.title }"
+  />
+  } @else {
+  <tc-state-block
+    kind="empty"
+    icon="lock"
+    data-testid="viewer-interactive-refused"
+    [title]="'designs.viewer.state.interactiveRefused.title' | transloco"
+    [description]="'designs.viewer.state.interactiveRefused.hint' | transloco"
+  >
+    @if (screens().length > 0) {
+    <button tc-button tc-state-action type="button" (click)="setMode('images')">
+      {{ 'designs.viewer.state.interactiveRefused.images' | transloco }}
+    </button>
+    }
+    <a tc-button tc-state-action [href]="interactive.url" target="_blank" rel="noopener noreferrer">
+      {{ 'designs.viewer.openNewTab' | transloco }}
+    </a>
+  </tc-state-block>
+  } } @else {
+  <tc-state-block
+    kind="empty"
+    icon="question"
+    data-testid="viewer-interactive-refused"
+    [title]="'designs.viewer.state.interactiveRefused.title' | transloco"
+    [description]="'designs.viewer.state.interactiveRefused.hintNone' | transloco"
+  >
+    @if (screens().length > 0) {
+    <button tc-button tc-state-action type="button" (click)="setMode('images')">
+      {{ 'designs.viewer.state.interactiveRefused.images' | transloco }}
+    </button>
+    }
+  </tc-state-block>
+  } } } } }
+</div>
+
+@if (hasFooter()) {
+<ng-template tcSheetFooter>
+  @if (mode() === 'images' && screens().length > 0) {
+  <div class="viewer__nav">
+    <button
+      tc-button
+      size="sm"
+      type="button"
+      data-testid="viewer-prev"
+      [attr.aria-disabled]="isFirst() ? 'true' : null"
+      (click)="prev()"
+    >
+      {{ 'designs.viewer.prev' | transloco }}
+    </button>
+    <span class="viewer__position" aria-live="polite" data-testid="viewer-position">{{
+      'designs.viewer.position' | transloco: { i: index() + 1, n: screens().length, caption: current()?.caption ?? '' }
+    }}</span>
+    <button
+      tc-button
+      size="sm"
+      type="button"
+      data-testid="viewer-next"
+      [attr.aria-disabled]="isLast() ? 'true' : null"
+      (click)="next()"
+    >
+      {{ 'designs.viewer.next' | transloco }}
+    </button>
+  </div>
+  } @if (data.actions; as actions) {
+  <div class="viewer__actions" data-testid="viewer-actions"><ng-container *ngTemplateOutlet="actions" /></div>
+  }
+</ng-template>
+}

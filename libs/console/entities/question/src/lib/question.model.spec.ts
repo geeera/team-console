@@ -17,6 +17,17 @@ const needsYou = (): NeedsYouDto => ({
       url: 'https://github.com/geeera/team-console/issues/72',
       ask: '/approve — начинаем',
       authorTrusted: true,
+      category: 'scope',
+      recommendation: null,
+      context: {
+        summary: 'Кратко',
+        question: 'Начинаем?',
+        why: null,
+        ifApproved: 'Начнём.',
+        ifRejected: null,
+        costAndRisk: null,
+        structured: true,
+      },
       project: { slug: 'team-console', name: 'Team Console' },
       allowedCommands: ['approve', 'reject'],
     },
@@ -27,6 +38,9 @@ const needsYou = (): NeedsYouDto => ({
       url: null,
       ask: null,
       authorTrusted: false,
+      category: null,
+      recommendation: null,
+      context: null,
       project: { slug: 'storify', name: 'Storify' },
       allowedCommands: ['go', 'no-go', 'override'],
     },
@@ -79,8 +93,34 @@ describe('isNeedsYouDto', () => {
     ['a string number', { ...needsYou(), items: [{ ...needsYou().items[0], number: '72' }] }],
     ['no project tag', { ...needsYou(), items: [{ ...needsYou().items[0], project: null }] }],
     ['trust missing', { ...needsYou(), items: [{ ...needsYou().items[0], authorTrusted: 'yes' }] }],
+    ['an unknown category', { ...needsYou(), items: [{ ...needsYou().items[0], category: 'fun' }] }],
+    ['no category member', { ...needsYou(), items: [{ ...needsYou().items[0], category: undefined }] }],
+    [
+      'an unknown recommendation',
+      { ...needsYou(), items: [{ ...needsYou().items[0], recommendation: 'override' }] },
+    ],
+    [
+      'a context field that is not text',
+      { ...needsYou(), items: [{ ...needsYou().items[0], context: { ...needsYou().items[0]?.context, why: 1 } }] },
+    ],
+    [
+      'a context without structured',
+      { ...needsYou(), items: [{ ...needsYou().items[0], context: { summary: 'x' } }] },
+    ],
   ])('refuses %s', (_name, body) => {
     expect(isNeedsYouDto(body)).toBe(false);
+  });
+});
+
+describe('question context (#276)', () => {
+  it('carries the server context, and reads a missing one as none', () => {
+    const view = needsYouViewOf(needsYou());
+    expect(view.items[0]?.context).toMatchObject({ summary: 'Кратко', structured: true });
+    expect(view.items[1]?.context).toBeNull();
+
+    const older = { ...needsYou(), items: needsYou().items.map(({ context: _context, ...rest }) => rest) };
+    expect(isNeedsYouDto(older)).toBe(true);
+    expect(needsYouViewOf(older as unknown as NeedsYouDto).items[0]?.context).toBeNull();
   });
 });
 
@@ -101,6 +141,36 @@ describe('needsYouViewOf', () => {
       },
     ]);
     expect(view.omitted).toEqual([{ slug: 'seventh', name: 'Seventh' }]);
+    expect(view.setups).toEqual([]);
+  });
+
+  it('lists projects that need setup with their github.com checklist link (#205)', () => {
+    const body = needsYou();
+    const checklist = 'https://github.com/geeera/storify/blob/HEAD/.product-team/owner-checklist.md';
+    const view = needsYouViewOf({
+      ...body,
+      projects: [
+        { ...body.projects[0]!, setup: true, setupUrl: 'https://evil.example/owner-checklist.md' },
+        { ...body.projects[1]!, setup: true, setupUrl: checklist },
+        body.projects[2]!,
+      ],
+    });
+
+    expect(view.setups).toEqual([
+      { project: { slug: 'team-console', name: 'Team Console' }, url: null },
+      { project: { slug: 'storify', name: 'Storify' }, url: checklist },
+    ]);
+  });
+
+  it('a project whose inbox could not be read is a problem, never also a setup row', () => {
+    const body = needsYou();
+    const view = needsYouViewOf({
+      ...body,
+      projects: [{ ...body.projects[2]!, setup: true, setupUrl: 'https://github.com/geeera/broken' }],
+    });
+
+    expect(view.setups).toEqual([]);
+    expect(view.problems).toHaveLength(1);
   });
 
   it('offers only the commands the owner grammar allows for the section', () => {
@@ -127,6 +197,9 @@ describe('projectQuestionsOf / isQuestionsDto', () => {
           url: 'https://github.com/geeera/team-console/issues/21',
           ask: null,
           authorTrusted: true,
+          category: null,
+          recommendation: null,
+          context: null,
           body: 'Steps\n1. …',
           allowedCommands: ['done'],
         },

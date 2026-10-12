@@ -71,3 +71,10 @@
 .switcher__chevron--closed {
   transform: rotate(-90deg);
 }
+
+/* #221: snoozed notifications — the bell with its slash beside the words, in the row's quiet subtitle. */
+.switcher__snoozed {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}

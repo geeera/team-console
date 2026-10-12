@@ -1,0 +1,15 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+/* Focused by a jump from a tile: a ring only for the keyboard, as everywhere else. */
+:host(:focus) {
+  outline: none;
+}
+
+:host(:focus-visible) {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--r-md);
+}

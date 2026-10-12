@@ -26,22 +26,33 @@ interface HasRequestId {
   Variables: { requestId: string };
 }
 
-/** The one way a Worker answers an error (RFC 9457, ADR 0001 decision 19). */
-export function problem<E extends HasRequestId>(c: Context<E>, init: ProblemInit): Response {
+/**
+ * The Problem Details body of `init` for the request `instance`, for a problem that travels inside a larger answer
+ * (one item of a batch, #220) rather than as the response itself.
+ */
+export function problemBody(
+  init: ProblemInit,
+  instance: string,
+): ProblemDetails & Readonly<Record<string, unknown>> {
   const extensions = init.extensions ?? {};
   for (const name of Object.keys(extensions)) {
     if (STANDARD_MEMBERS.has(name)) {
       throw new Error(`a problem extension must not replace the standard member "${name}"`);
     }
   }
-  const body: ProblemDetails & Readonly<Record<string, unknown>> = {
+  return {
     type: problemTypeOf(init.type),
     title: init.title,
     status: init.status,
-    instance: c.get('requestId'),
+    instance,
     ...(init.detail === undefined ? {} : { detail: init.detail }),
     ...extensions,
   };
+}
+
+/** The one way a Worker answers an error (RFC 9457, ADR 0001 decision 19). */
+export function problem<E extends HasRequestId>(c: Context<E>, init: ProblemInit): Response {
+  const body = problemBody(init, c.get('requestId'));
   const headers: Record<string, string> = {
     'Content-Type': 'application/problem+json; charset=utf-8',
     'Cache-Control': 'no-store',

@@ -9,9 +9,11 @@
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#f7f3ec" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#1c1a17" media="(prefers-color-scheme: dark)" />
-    <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" type="image/x-icon" href="favicon.ico" />
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
+    <!-- The manifest and these icons are answered per environment by the api Worker (#237, routes/app-identity.ts).
+         use-credentials: a manifest is fetched without cookies otherwise, and Access in front of the origin needs its own. -->
+    <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials" />
+    <link rel="icon" type="image/x-icon" href="brand/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="brand/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Team Console" />

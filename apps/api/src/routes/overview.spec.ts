@@ -9,9 +9,18 @@ import {
   seedProject,
   stubGitHub,
   type GitHubCall,
+  type ReadHandler,
   type StubGitHub,
 } from '../testing/github-kit';
-import { issue, readModelGitHub, type RepoState } from '../testing/read-model-kit';
+import {
+  RUN_LOG_ISSUE,
+  issue,
+  runEntry,
+  runLogGitHub,
+  runLogIssueOf,
+  type RunLogCommentSeed,
+  type RunLogRepoState,
+} from '../testing/read-model-kit';
 import { OVERVIEW_GITHUB_BUDGET } from './overview';
 
 // #27: the all-projects overview — one row per active project, a failing project confined to its row, and the
@@ -19,30 +28,15 @@ import { OVERVIEW_GITHUB_BUDGET } from './overview';
 
 const PATH = '/api/v1/overview';
 const NOW = Date.parse('2026-10-01T12:00:00Z');
-const MINUTE = 60_000;
-const LOG = 22;
+const LOG = RUN_LOG_ISSUE;
 const OWNER = 'geeera';
 /** The Workers free plan's subrequests per request. */
 const WORKER_SUBREQUEST_LIMIT = 50;
 
-interface Comment {
-  readonly body: string;
-  readonly minutesAgo: number;
-  readonly author?: string;
-}
+type Repo = RunLogRepoState;
 
-interface Repo extends RepoState {
-  /** The run log's comments; the log itself is issue #22, opened by the owner. */
-  readonly log?: readonly Comment[];
-  readonly logLabels?: readonly string[];
-  /** GitHub's comment count on the log when it differs from the comments served. */
-  readonly logCommentCount?: number;
-}
-
-const run = (id: string, state: string, minutesAgo: number): Comment => ({
-  body: `<!-- pt-run id=${id} slot=slot-dev state=${state} -->\n**slot-dev** ${state}`,
-  minutesAgo,
-});
+const run = (id: string, state: string, minutesAgo: number): RunLogCommentSeed =>
+  runEntry(id, state, minutesAgo);
 
 function sprintIssue(number: number, labels: string[], state: 'open' | 'closed'): Record<string, unknown> {
   return issue(number, labels, { state, milestone: { number: 3 }, user: { login: OWNER } });
@@ -73,45 +67,7 @@ function activeRepo(overrides: Partial<Repo> = {}): Repo {
   };
 }
 
-function logIssue(repo: string, state: Repo): Record<string, unknown> {
-  return issue(LOG, [...(state.logLabels ?? ['team:run-log'])], {
-    user: { login: OWNER },
-    html_url: `https://github.com/${repo}/issues/${LOG}`,
-    comments: state.logCommentCount ?? state.log?.length ?? 0,
-  });
-}
-
-/** The read-model GitHub plus each repository's run log: the labelled issue and its comments. */
-function overviewGitHub(repos: Readonly<Record<string, Repo>>) {
-  const withLogs: Record<string, RepoState> = {};
-  for (const [name, state] of Object.entries(repos)) {
-    withLogs[name] =
-      state.log === undefined
-        ? state
-        : { ...state, issues: [...(state.issues ?? []), logIssue(name, state)] };
-  }
-  const reads = readModelGitHub(withLogs);
-  return (call: GitHubCall): Response | Promise<Response> => {
-    const match = /^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)\/comments$/.exec(call.url.pathname);
-    if (match !== null) {
-      const state = repos[match[1] ?? ''];
-      if (state?.log === undefined || Number(match[2]) !== LOG) {
-        return json(404, { message: 'Not Found' });
-      }
-      return json(
-        200,
-        state.log.map((comment, index) => ({
-          id: 1000 + index,
-          body: comment.body,
-          created_at: new Date(NOW - comment.minutesAgo * MINUTE).toISOString(),
-          updated_at: new Date(NOW - comment.minutesAgo * MINUTE).toISOString(),
-          user: { login: comment.author ?? OWNER },
-        })),
-      );
-    }
-    return reads(call);
-  };
-}
+const overviewGitHub = (repos: Readonly<Record<string, Repo>>): ReadHandler => runLogGitHub(repos, NOW);
 
 async function seedRepos(repos: Readonly<Record<string, Repo>>): Promise<void> {
   for (const name of Object.keys(repos)) {
@@ -160,6 +116,7 @@ describe('GET /api/v1/overview', () => {
       needsYou: [7, 34, 9],
       setup: false,
       setupUrl: null,
+      snooze: { snoozed: false },
     });
     expect(read(body.projects[1])).toMatchObject({
       team: 'running',
@@ -168,6 +125,33 @@ describe('GET /api/v1/overview', () => {
       setup: true,
       setupUrl: 'https://github.com/geeera/beta/blob/HEAD/.product-team/owner-checklist.md',
     });
+  });
+
+  it('carries each project\'s snooze from the registry row, an expired one as not snoozed (#222)', async () => {
+    const repos = {
+      'geeera/alpha': activeRepo(),
+      'geeera/beta': activeRepo(),
+      'geeera/gamma': activeRepo(),
+    };
+    await seedRepos(repos);
+    await env.DB.prepare(
+      `UPDATE projects SET snoozed_at = '2026-10-01T09:00:00Z', snoozed_until = '2026-10-02T06:00:00Z',
+       snooze_allows_urgent = 0 WHERE slug = 'alpha'`,
+    ).run();
+    await env.DB.prepare(
+      "UPDATE projects SET snoozed_at = '2026-10-01T09:00:00Z', snoozed_until = NULL WHERE slug = 'beta'",
+    ).run();
+    await env.DB.prepare(
+      "UPDATE projects SET snoozed_at = '2026-09-30T09:00:00Z', snoozed_until = '2026-10-01T11:00:00Z' WHERE slug = 'gamma'",
+    ).run();
+    const stub = stubGitHub(overviewGitHub(repos));
+    const body = await overview(githubOf(stub));
+
+    expect(body.projects.map((row) => read(row).snooze)).toEqual([
+      { snoozed: true, until: '2026-10-02T06:00:00Z', allowsUrgent: false, since: '2026-10-01T09:00:00Z' },
+      { snoozed: true, until: null, allowsUrgent: true, since: '2026-10-01T09:00:00Z' },
+      { snoozed: false },
+    ]);
   });
 
   it('leaves archived projects out', async () => {
@@ -264,7 +248,7 @@ describe('GET /api/v1/overview', () => {
     const handler = overviewGitHub(repos);
     const stub = stubGitHub((call) =>
       call.url.pathname === `/repos/geeera/alpha/issues/${LOG}`
-        ? json(200, { ...logIssue('geeera/alpha', repos['geeera/alpha']), user: { login: 'outsider' } })
+        ? json(200, { ...runLogIssueOf('geeera/alpha', repos['geeera/alpha']), user: { login: 'outsider' } })
         : handler(call),
     );
     const body = await overview(githubOf(stub));
@@ -399,12 +383,12 @@ describe('GET /api/v1/overview', () => {
     await fetchApi('/api/v1/projects/alpha/sprint', localEnv(), { github });
     const before = stub.reads().length;
     await overview(github);
-    // Only the run log is new: the labelled list and one page of comments; project.yml is the inbox's read.
+    // The board read the run log already (#132): the overview's team state is the same cache entry.
     expect(
       stub
         .reads()
         .slice(before)
         .map((call) => call.url.pathname.split('/').slice(4).join('/')),
-    ).toEqual(['issues', `issues/${LOG}/comments`]);
+    ).toEqual([]);
   });
 });

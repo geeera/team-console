@@ -2,43 +2,51 @@
   display: block;
 }
 
-/* One quiet margin note: sunken paper, not an alert. */
+/*
+ * One quiet line on sunken paper, not an alert (#204): it used to take a third of the phone screen above the list.
+ * The tap targets set the height; an error or the offline reason wraps onto a line of its own below.
+ */
 .push-nudge {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-2);
   margin: 0;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-lg);
   background: var(--bg-sunken);
   font-size: var(--fs-sm);
-  line-height: var(--lh-body);
+  line-height: var(--lh-snug);
   color: var(--text-2);
 }
 
 .push-nudge--done {
   display: block;
+  padding: var(--space-3) var(--space-4);
+  line-height: var(--lh-body);
   color: var(--text);
 }
 
 .push-nudge__icon {
-  display: grid;
-  place-items: center;
-  width: var(--avatar-size);
-  height: var(--avatar-size);
-  border-radius: var(--r-round);
-  background: var(--surface);
-  color: var(--text-2);
+  flex: none;
 }
 
-.push-nudge__content {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.push-nudge__content p {
+.push-nudge__text {
+  flex: 1 1 0;
+  min-width: 0;
   margin: 0;
+}
+
+.push-nudge__action,
+.push-nudge__close {
+  flex: none;
+}
+
+.push-nudge__note {
+  flex: 1 1 100%;
+  margin: 0;
+  padding: 0 0 var(--space-2);
 }
 
 .push-nudge__error {
@@ -46,15 +54,8 @@
   font-weight: var(--fw-semibold);
 }
 
-.push-nudge__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-1);
-}
-
 @media (max-width: 519.98px) {
-  .push-nudge__actions > * {
+  .push-nudge__action {
     min-height: var(--control-h-touch);
   }
 }

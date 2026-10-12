@@ -1,6 +1,12 @@
 import {
   TEAM_SLOTS,
+  isSnoozeDto,
+  isCalendarDate,
   isTeamSlot,
+  type SprintCalendarDto,
+  type SprintProgressDto,
+  type SprintRefDto,
+  type TeamSprintDto,
   type SlotLock,
   type SlotStatusDto,
   type TeamSlot,
@@ -59,6 +65,52 @@ function isSlotStatus(value: unknown): value is SlotStatusDto {
   );
 }
 
+const isCount = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
+
+function isSprintRef(value: unknown): value is SprintRefDto {
+  return (
+    isRecord(value) &&
+    Number.isSafeInteger(value['number']) &&
+    isText(value['title']) &&
+    isCalendarDate(value['due'])
+  );
+}
+
+function isTeamSprint(value: unknown): value is TeamSprintDto | null {
+  if (value === null) {
+    return true;
+  }
+  if (!isRecord(value) || !isSprintRef(value)) {
+    return false;
+  }
+  const record: Record<string, unknown> = value;
+  const freeze = record['freeze'];
+  const next = record['next'];
+  return (
+    isRecord(freeze) &&
+    isCalendarDate(freeze['from']) &&
+    isCalendarDate(freeze['to']) &&
+    (next === null || isSprintRef(next))
+  );
+}
+
+function isProgress(value: unknown): value is SprintProgressDto | null {
+  return (
+    value === null ||
+    (isRecord(value) && isCount(value['done']) && isCount(value['total']) && value['done'] <= value['total'])
+  );
+}
+
+function isCalendar(value: unknown): value is SprintCalendarDto | null {
+  return (
+    value === null ||
+    (isRecord(value) &&
+      isCalendarDate(value['today']) &&
+      isCount(value['freezeDays']) &&
+      isText(value['nextTitle']))
+  );
+}
+
 /** Narrows the Worker's answer; the panel renders nothing it did not check. */
 export function isTeamStatusDto(value: unknown): value is TeamStatusDto {
   if (!isRecord(value) || !Array.isArray(value['slots'])) {
@@ -72,6 +124,11 @@ export function isTeamStatusDto(value: unknown): value is TeamStatusDto {
     typeof value['ownerConnected'] === 'boolean' &&
     isText(value['environment']) &&
     isText(value['checkedAt']) &&
+    isSnoozeDto(value['snooze']) &&
+    isTeamSprint(value['sprint']) &&
+    isProgress(value['progress']) &&
+    isCalendar(value['calendar']) &&
+    isCount(value['pendingRequests']) &&
     slots.length === TEAM_SLOTS.length &&
     slots.every(isSlotStatus) &&
     TEAM_SLOTS.every((slot, index) => (slots[index] as SlotStatusDto).slot === slot)

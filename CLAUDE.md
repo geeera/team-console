@@ -35,6 +35,15 @@ of the clone — every branch and tag of the repo plus this PR's merge ref, not 
 rotate/revoke it first (the public history keeps it), then delete the branch and push a clean one (no
 force-push onto shared branches), or — if it already reached a long-lived branch — add its fingerprint (from
 the red run's log) to `.gitleaksignore` in a reviewed PR.
+A synthetic test value (a sentinel token, a generated test key, a published test vector — never a real
+credential) that gitleaks still flags on a commit already on a long-lived branch gets the same treatment as a
+leaked secret, minus the rotation: one `.gitleaksignore` entry per red finding, as the exact fingerprint
+(`commit:file:rule:line`) from that run's log, never a path or rule alone (an entry never masks a different
+finding, even on the same file). Prefer a line-level `gitleaks:allow` comment on the line itself when the value
+is staying (e.g. a fixed test vector from a spec like RFC 8291 Appendix A) — then later commits need no entry.
+Going forward, a spec builds a synthetic secret-shaped value at run time (string concatenation, a generated
+key pair) instead of writing one as a literal, so gitleaks has nothing to flag on new commits and no new
+`.gitleaksignore` entry is ever needed for it.
 Dependabot (`.github/dependabot.yml`) proposes github-actions updates weekly, grouped into one PR into `dev`;
 those PRs go through the same gate as any other (CI + QA/REVIEW/SECURITY).
 
@@ -86,13 +95,21 @@ an explicit `lint` target in `project.json`; remove it — `@nx/eslint/plugin` i
 
 Shared libs that exist: `@console/shared/ui` (Paper Desk kit — tokens in `src/tokens/tokens.css` + `breakpoints.ts`,
 global `src/styles/base.css` and `overlay.css`; primitives `Button`/`IconButton`, `Card` (with the stamp), `Chip`,
-`Field`/`FieldControl`, `Icon`, `List`/`ListRow`, `Sheet` service (bottom sheet on the phone, dialog elsewhere, on the
-CDK dialog; `confirm()`), `Spinner`, `StateBlock`, `Tooltip` (non-interactive, `aria-hidden`), `TopBar`; Storybook in `.storybook/` with theme, motion and language
+`Field`/`FieldControl`, `DatePicker` (#307: typed `ДД.ММ.ГГГГ` + a CDK-overlay calendar popover, a `Sheet` below 520 px; CVA with ISO `YYYY-MM-DD`; `ConfirmInput.type: 'date'` renders it; `tools/design-lint` fails on any native date/time input), `Icon`, `List`/`ListRow`, `Sheet` service (bottom sheet on the phone, dialog elsewhere, on the
+CDK dialog; `confirm()`; `size: 'full'` fills the screen / `--sheet-full-w × --sheet-full-h` and hands the scrolling to
+the content, #277; footer actions are `tcSheetFooter="primary" | "secondary"` templates and the frame renders them
+in reading order — primary on top on the phone, Cancel then primary in the dialog row — so DOM, Tab and visual
+order agree, #282; a bare `tcSheetFooter` is free-form), `Spinner`, `StateBlock`, `Tooltip` (non-interactive, `aria-hidden`), `TopBar`; Storybook in `.storybook/` with theme, motion and language
 toolbars: `npx nx storybook console-shared-ui` on :4400, `npx nx build-storybook console-shared-ui` into
 `dist/storybook/console-shared-ui` — the `storybook` contract command), `@console/shared/i18n` (Transloco,
 `ru.json`/`en.json`, `provideConsoleI18n()`), `@console/shared/config` (`APP_CONFIG`), `@console/shared/api`
-(`provideConsoleApi()` with the interceptor chain; `accessSessionInterceptor` reloads once per 30 s to re-run the
-Access login when an `/api` call fails with status 0, a non-JSON body or 401 `access-missing|access-unverified`). Build time reaches the app through the build `define`
+(`provideConsoleApi()` with the interceptor chain; `accessSessionInterceptor` sends every `/api` call with `redirect:
+'manual'` and the `ngsw-bypass` header, and when `isAccessSessionExpired` says Access wants a new login — a redirect,
+a `*.cloudflareaccess.com` URL, 401/403 with a non-JSON body, 401 `access-missing|access-unverified`, a 2xx HTML page —
+sets `AccessSession.expired`; the app root then shows «Сессия истекла — войдите снова», whose button is a full-page
+navigation to the same URL with `?ngsw-bypass=1` (stripped again in `main.ts`), #284). `/cdn-cgi/**` stays out of
+`ngsw-config.json`: Access sets its cookie on `/cdn-cgi/access/authorized`, and an app shell served there locks the
+owner out. Build time reaches the app through the build `define`
 `__TC_BUILT_AT__` (defaults to `local`); the version comes from `package.json`.
 
 Spaces shell (#23): `@console/shared/persisted-state` (`PersistedStateStore` over `localStorage` key `tc.state.v1`,
@@ -101,7 +118,7 @@ never sent to the Worker), `@console/entities/project` (`ProjectsStore` — `rea
 guard; `NeedsYouCounts` polls `GET /api/v1/needs-you` per minute while visible; `spaceUrlOf`/`spaceLocationOf`),
 `@console/features/project-switcher` (pinned first, the rest collapsible, badge), `@console/widgets/app-shell` (sidebar
 ≥ 900 px, top bar + `Sheet` below; owns the scrolling `<main>` and restores its position per project screen), pages
-`project-space` (tabs + section placeholders; `?e2e-tall=1` renders 60 rows in dev builds), `project-not-found`,
+`project-space` (tabs; every section maps to its page in `SECTION_PAGES`; chat is still a placeholder), `project-not-found`,
 `needs-you`, `overview`, `settings` (language switch). Routes and the two guards live in `apps/console/src/app/`.
 
 Questions (#16): `@console/entities/question` (read-model guards, `QuestionsApi`, `QuestionCard` — issue text only by
@@ -111,11 +128,59 @@ item; failures branch on the problem `type`; Retry repeats the same body so the 
 `@console/widgets/question-list` (Needs you and `/p/:slug/questions`; stamp, then a receipt). `AnsweredItems` in
 `@console/entities/project` (`localStorage` `tc.answered.v1`, 6 h) keeps answered items out of the badges while GitHub
 still lists them. Kit: `Recommendation`, `Receipt`.
+Question context (#276): `InboxItemDto.context` (`QuestionContextDto`, so on inbox, questions and Needs you) is
+`questionContextOf` in `@worker/read-models` — the body's `## Кратко|Вопрос|Почему|Если одобрить|Если отклонить|Цена и риск`
+(or `Summary|Question|Why|If approved|If rejected|Cost and risk`) as bounded plain text for interpolation only (markup,
+tag-like runs, the answer line and invisible characters removed — never tc-markdown or innerHTML; fences close only on
+the same marker, #288; GitHub's 65,536 cut first), read only for trusted authors, `structured: false` + the first
+paragraph when no heading is there. `markdownToPlainText` and `withoutInvisibles` (controls, zero-width, bidi, fillers,
+tag characters; applied to every title DTO, #287, and shown with `dir="auto"` + the shared `unicode-bidi: isolate` rule
+in `base.css`) live in `@shared/plain-text` (worker and console). The card
+(`QuestionCard`) shows summary title + «На GitHub:», question, verb + why, `[tc-question-previews]` (design only, team items
+only; `question-list`'s `QuestionDesignPreviews` fills it, #290: three screens via `previewScreensOf` + `DesignPreview [screen]`,
+«+N», «Все экраны (N)», opening the viewer on that screen with the card's `AnswerQuestion` as its `actions`), outcomes (from the sections, else the answer line's options via `askOutcomesOf`), cost, actions,
+details; the raw answer line is never rendered on any surface.
 
 Sprint board (#18, read-only): `@console/entities/sprint` (`isSprintDto`, `SprintApi`, `statusColumnsOf` — lanes counted as
 `backlog list` counts them, `SprintItemList`), `@console/widgets/sprint-board` (`/p/:slug/board`; loading, no sprint,
 empty, error and 429 with an automatic retry at `Retry-After`). Kit: `Lanes`/`Lane` (a tab list of lanes on the phone, `[(selected)]` by `key`),
-`Stats`/`Stat`, `ListRow` `external`.
+`Stats`/`Stat`, `ListRow` `external`. CI per open PR (#131): `SprintPullRequestDto.ci` (`success|failure|pending|none|unknown`)
+from one `commits/{sha}/check-runs?filter=latest` read per PR head (`ciStateOf` in `@worker/read-models`, the plugin's
+`checks.summarise` for check runs; fixtures `fixtures/check-runs.json`), cached 60 s per sha, under the sprint route's
+`SubrequestBudget` (`SPRINT_GITHUB_BUDGET` 44): a PR past it, or one GitHub refuses, is `unknown`. Console: `SprintCiChip`,
+`ciSummaryOf` (the board's "CI" tile). Run state (#132): `SprintDto.team` (`TeamRunDto`: `running|paused|failing|unknown`,
+`runLogUrl`, the last 5 runs `running|finished|failed|unknown`) from `ProjectReads.teamRun()` — the run log's latest 200
+comments through `readRunLog`, `teamRunOf` (`overviewTeamStateOf` + `recentRunsOf` of `@worker/run-log`), cached 30 s as
+`team-run`, one entry with the overview's team state; read with the lists, before CI, ≤ 4 subrequests. A run a team entry
+was edited on is `unknown`, never `failed` (`shownStateOf`); a run log GitHub refuses or the budget stops is `unknown`.
+Mock: `MockRepository.comments` (the run log #22 of geeera/team-console); fake GitHub `POST /_fake/comment`. Console:
+`SprintRunList`, `TEAM_RUN_ICONS` (the "Run log" tile).
+
+Sprint commands (#218, #29 slice 1): `POST /api/v1/projects/:slug/sprint/demo-date` and `…/sprint/next`
+(`routes/sprint-commands.ts`, `owner-only`) PATCH/POST the milestone on the owner's token exactly as `backlog sprint
+create` writes it (`due_on: <day>T12:00:00Z`, title `Sprint NN` = highest of all milestones + 1), deciding on a live
+`state=all` milestones read in Kyiv days (`team/sprint-plan.ts`, `sprint.freeze_days` via `freezeDaysOf`; the freeze is
+`calendar.freeze_window`: demo − N through demo day); 409 `sprint-none|changed|unchanged|exists`, 422
+`sprint-date-past|after-next|early`, flat extensions. `TeamStatusDto` gains `sprint`, `progress`, `calendar` (`null` when
+the milestones read failed). Console: `@console/features/sprint-controls` (`SprintControls`, a `Sheet.confirm` with a
+checked date field: `ConfirmInput.type/value/min/max/check`, `ConfirmFailure.refill`), the panel's Sprint group and the
+board's "Move demo"; the command failure model (`commandFailureOf`, `CommandOutcome`) lives in
+`@console/entities/team-run`. Fake GitHub: `seedMilestones`, milestone writes, `/_fake/milestones`.
+
+Requests to the PM (#219, ADR 0005, #29 slice 2): `POST|GET /api/v1/projects/:slug/issues/:number/request`
+(`routes/owner-request.ts`; POST `owner-only`) posts one comment on the owner's token through `postOwnerAnswer` (`own_writes.kind
+= 'request'`, 60 s replay) — `requestComment` of `@shared/owner-grammar` (first line `<!-- pt-owner-request {canonical json} -->`,
+a human line in `owner.language`, the italic trailer; golden `fixtures/owner-requests.json` from the plugin's `ownerrequests.py`) —
+and never a milestone, label or status; 409 `issue-changed` (`milestone`) / `issue-closed` / `sprint-none`, 422
+`sprint-next-missing` / `request-not-issue`. D1 `owner_requests` (migration 0012, `OwnerRequestsRepo`) is a display cache only:
+newest row per issue, never an input to a write or an authorisation decision. A request is handled by a
+`pt-owner-request-handled` first-line marker from a `type: Bot` login in `TRUSTED_BOT_LOGINS` (`handledRequestOf` in
+`@worker/read-models`): the hooks Worker on `issue_comment.created`, the GET on the newest comments — the last page
+plus the one before a short last, at least 100 (unedited only; `requested_at` is GitHub's `created_at` of the request
+comment, so both sides of the "after the request" check are on GitHub's clock, #269/#270).
+`SprintIssueDto.request`, `TeamStatusDto.pendingRequests`, `GET …/requests` (the picker). Console:
+`@console/features/request-change` (`RequestChange`: picker, then the one-request form), the panel's Issues group, the board's
+"Ask the PM" and «ждёт PM» chip. `team.console_app_slugs` in `.product-team/project.yml` is the plugin's trust root for requests: `[team-console-dev]` only (owner, 2026-10-07); stage and production join after #152.
 
 Artifacts (#19, read-only): `GET /api/v1/projects/:slug/artifacts[?fresh=1]` (`routes/artifacts.ts`, `read-models/artifact-reads.ts`)
 reads decisions (`decisions_dir` listing + first `#` heading, ≤ 30 file reads), designs (`ux-spec`/`design:*` issues,
@@ -125,11 +190,64 @@ readers in `@worker/read-models` `lib/artifacts/` (snapshot `fixtures/artifacts_
 `@console/entities/artifact` (`ArtifactsStore`, `ArtifactList`), `@console/features/artifact-search`
 (`filterArtifacts`, `ArtifactSearch`), page `ArtifactsSectionPage` (`?type=&q=`, mirrored to `artifactFilter`).
 
+Designs and demo (#20): `/p/:slug/demo` (`DemoSectionPage`) lists the `design` and `release` sections of
+`GET /projects/:slug/questions` through `QuestionList` (`sections`, `embedOrigins`) and answers them with the same
+`AnswerQuestion` and answer route. With `embedOrigins`, a team-authored item's `QuestionCard` renders its body through
+`<tc-markdown>` (`@console/shared/markdown`; it lazy-loads `renderMarkdown` — `marked` + DOMPurify, allow-listed
+tags/attributes, https/mailto/# links only, images become links labelled through i18n, every link `target=_blank
+rel="noopener noreferrer"`; never bypass Angular's sanitiser; the barrel must not import the renderer statically, so
+Questions and Needs you never download it) and previews the body's first link (`previewTargetOf`) in the kit `Frame`.
+Items from outside the team stay plain text with no preview. `Frame` is the only place a frame `src` is built:
+`frameSrcOf` (kit `frame/frame-src.ts`) requires https, no credentials, a DNS host outside IP/loopback inside the
+`_headers` `frame-src` families (no `'self'` there), never the console's own origin, and `new URL(src).origin` exactly
+in `GET /projects/:slug/embed-origins` (`EmbedOriginsApi`: `design.storybook_url` only — stage is link-only because it
+sits behind Cloudflare Access, owner decision 2026-10-05 on #188 — and never the request's own origin); the
+sandbox never has `allow-top-navigation`, `referrerpolicy="no-referrer"`, no `allow`. Anything else is a "can't be
+shown here" note with an Open link.
+
+Design viewer (#277, spec §R shared with #276): `GET /api/v1/projects/:slug/designs/:issue` (`routes/designs.ts`,
+`read-models/design-reads.ts`) lists the png/jpeg/webp/gif files (never SVG) under `docs/design/**` whose path has a
+segment starting with `N-`, from one `git/trees/{sha}?recursive=1` read at the head of the open pull request that
+links #N (`linkingPullRequestOf`: `#N` in body/title or a `N-…` branch segment), else the default branch head —
+`DesignManifestDto` in `@shared/contracts`, captions from an optional `screens.json`, ≤ 40 files, images over 5 MB
+listed as `tooLarge`. `…/designs/:issue/:sha/file?path=` serves one listed screen's bytes (`GitHubClient.getBytes`
+on `git/blobs/{sha}` with the installation token, so private repositories work) only after the magic bytes agree
+with the type its name claims, with `nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, `inline` and
+`private, max-age=86400`; 404 for any other path, 413 over the cap (manifest or stream), 415 on a
+mismatch. Pure parts in `@worker/read-models` `lib/designs/` (`designFilesOf`, `designManifestOf`,
+`imageTypeOfBytes`). Mock: `MockRepository.binaryFiles` (base64; `fixtures/design-images.mjs` regenerates them),
+`git/trees`, `git/blobs`, `branches/{name}`. Console: `@console/entities/design` (`DesignManifests` store shared by
+every reader, `DesignPreview` — the first screen as a decorative `<img>` for rows and the #276 cards —,
+`DesignSummary`), `@console/features/design-viewer` (`DesignViewer.open({ slug, issue, title, actions?, screen?, mode? })` on the
+kit `Sheet` with `size: 'full'`: «Картинки» / «Все экраны» / «Интерактивно», the iPhone/Mac switch, ←/→ and a swipe,
+a zoom toggle; the HTML wireframe is framed only through the embed-origins gate in the kit `Frame`'s `profile="design"`
+— `sandbox="allow-scripts"` alone, never `srcdoc` — else the «нельзя показать» state). Artifacts' design rows
+(`ArtifactDto.number` / `awaitingApproval`) are button rows with the preview and summary projected by the page.
+
 All projects (#27, read-only): `GET /api/v1/overview` (`routes/overview.ts`) builds one row per active project from the
 same cached reads (`buildOverviewRow` in `@worker/read-models`; team state by `team/team-health.ts` from the run log's
 latest 200 comments, cached 30 s) under a per-request `SubrequestBudget` (44 GitHub subrequests; a project it cannot
 finish is its own `github-request-budget` row). Console: `OverviewApi` in `@console/entities/project`, page
-`console-pages-overview` (tiles link to `/p/:slug/board`); kit `Meter`.
+`console-pages-overview` (tiles link to `/p/:slug/board`); kit `Meter`. Commands from All projects (#222): every card's
+"Commands for {name}" button (the tile's `[tc-tile-actions]` slot) opens the same `@console/widgets/commands-panel` —
+`CommandsPane` beside the page on a wide screen (also the space's pane), `CommandsSheet` on the phone; K on a focused
+card (`isCommandsShortcut`, shared with the space) opens it for that card, closing returns focus to the card's button.
+`OverviewProjectReadDto.snooze` (D1, `snoozeOf`) feeds the card's struck-bell line and is pushed into
+`ProjectsStore.applySnooze`, which the cards then read, so a snooze changed from the panel shows at once.
+
+Repositories from GitHub (#194, ADR 0003 decisions 2(a)/6 as amended): `GET /api/v1/github/installation/repositories[?fresh=1]`
+(`routes/installation-repositories.ts`, a read mounted before the owner-only connection routes) → 403 `github-owner-not-connected`
+before any JWT when no owner is connected; the installation by `account.id` = the pinned `user_id` (`installationIdForAccount`,
+`GET /app/installations`, never a login; none → 409 `github-app-not-installed` + `installUrl`); the installation-wide token
+(`listTokenSourceFor`, mint body exactly `{permissions:{metadata:'read'}}`, cache key `installation:<id>`, `kind:
+'installation-list'`) is accepted only by `GitHubClient.listInstallationRepositories` (fixed path, `Link` only to
+`/installation/repositories`); every generic client method refuses it before any fetch. ≤ 10 pages under
+`SubrequestBudget(20)` (`listConnectionFor`), `partial` when the cap or the budget stops it; GitHub's part cached 60 s, the
+registry merged per request from D1. Console: `@console/entities/installation-repository` (store, guard, `repositoryGroupsOf`),
+`AddProject`/`AddJob`/`AddRepositorySheet` in `@console/features/add-project`, `@console/widgets/github-repositories`
+(`GitHubRepositoriesBlock` + presenter `RepositoryListView`, stories in the kit Storybook) on All projects; every "Add
+project" entry point is `ADD_PROJECT_URL` (`/overview#add-project`); Settings holds settings only. Kit: `SheetFooter`,
+`Sheet.open({ width: 'wide' })` (`--sheet-dialog-w`), `ListRow` `link`/`label`/`muted`/`tc-row-trailing-text`/`tc-row-detail`.
 
 Team commands (#114): `routes/team-commands.ts` (`GET /projects/:slug/team/status`, `POST …/team/pause|resume` on the
 owner's token, byte-for-byte `runlog pause`/`resume`, 60 s replay from `own_writes`; `POST …/runs {slot}` fires the
@@ -159,6 +277,23 @@ SHA-256) → registry row + `installation_id` → `cache_epoch` bump → `own_wr
 (`questionNotification` / `linkNotification`) sent in `waitUntil` by `webPushSenders` (the same `PushSender`, VAPID vars and
 `PUSH_FAKE_ORIGIN` as the api; `pushFetch` in `@worker/push`, `localFakeOriginOf` in `@worker/core`). Logs carry `{deliveryId, event,
 repo, status}` only. Locally `nx serve hooks -- --var WEBHOOK_SECRET:<throwaway>` plus the push `--var`s above.
+Environment identity (#237): one console build for every environment. The api Worker answers `/manifest.webmanifest`
+(name «Team Console Dev|Stage|Local», short «TC …»; production unchanged) and `/brand/favicon.ico|apple-touch-icon.png`
+from `ENVIRONMENT` (`routes/app-identity.ts`, `run_worker_first`); the icon sets are static files in
+`apps/console/public/icons/<env>/`, generated with a bottom band by `tools/env-icons/generate.py` (Pillow, rerun when the
+production icon changes). None of those Worker paths may enter `ngsw-config.json` (a hash mismatch breaks the SW
+install). Names live in `@shared/contracts` (`appNameOf`, `environmentLabelOf`); the app sets `<title>` and
+`apple-mobile-web-app-title` from `DeploymentStore`, the shell shows `EnvironmentMark` (`@console/entities/app-info`), and
+`PushSender` takes the `environment` and prefixes titles «[Dev] …» (`forEnvironment` in `@worker/push`).
+PWA updates (#306): `AppUpdates` (`apps/console/src/app/app-updates.ts`, started by `provideAppUpdates()`) asks `SwUpdate`
+on start, on `visibilitychange` to visible and every 5 min while visible. A version found by a start/resume check is
+activated and reloaded at once when the page is quiet (no `Sheet.hasOpen()`, no `hasUnsavedField`, app stable within
+3 s); otherwise `UpdateBanner` shows «Доступна новая версия · Обновить», and a pending update is taken on the next quiet
+resume. `unrecoverable` (at once) or a `Hash mismatch` install failure (like an update: at once when quiet, else on the
+next quiet start/resume, #311): delete the `ngsw:` caches, unregister, one navigation with `ngsw-bypass` (`localStorage` `tc.sw-recovery.v1` allows one heal per 10 min). `_headers` serves `/`, `/index.html`, every
+client-side route (one rule each, `pwa.spec.ts` checks them against `app.routes.ts`), `ngsw.json`, `ngsw-worker.js` and
+`safety-worker.js` with `Cache-Control: no-cache` (the assets layer answers them, never the Worker code). E2e
+`pwa-updates.e2e.ts` serves a derived build B (`writeNextBuild`/`routeDeploys` in `support/service-worker.ts`).
 
 ## Workers (#6)
 
@@ -177,7 +312,7 @@ is `ApiGitHub` (`apps/api/src/github.ts`); `GITHUB_MOCK=true` (local only) swaps
 in `libs/worker/github/fixtures`. Migrations live only in `apps/api/migrations` (`0001_init` = `projects`;
 `0005_owner_connections` #59; `0006_project_installation` #15 adds `projects.installation_id`; `0007_own_writes` #10 =
 `own_writes` + `own_write_claims`, which #12 reuses; `0008_slot_requests` #114; `0009_push_subscriptions` #11 (`push_subscriptions` +
-`push_test_sends`); `0010_webhooks` #12 = `webhook_deliveries` + `projects.access_lost_at`. No number is reserved — a new
+`push_test_sends`); `0010_webhooks` #12 = `webhook_deliveries` + `projects.access_lost_at`; `0011_project_snooze` #221; `0012_owner_requests` #219. No number is reserved — a new
 migration takes the highest number on `dev` + 1 when its PR opens and is renumbered on rebase if that number was taken,
 so 0002–0004 stay unused). The answer route (#10) is `routes/answer.ts`
 (`POST /api/v1/projects/:slug/issues/:number/answer`, owner-only): section re-derived from the live issue with
@@ -222,11 +357,15 @@ E2e (#14): `npx nx e2e console-e2e` (builds first; browsers once with `npx playw
 Projects `iphone` (Chromium, 390 px), `desktop` (1440 px), `iphone-webkit` (the demo path only). Each Playwright
 worker starts its own stack in `apps/console-e2e/src/stack/local-stack.ts` — the fake GitHub plus the Docker image's
 command (`wrangler dev dist/apps/api/main.js`, fresh local D1, mock mode) wired to it — and specs call
-`stack.reset()` / `seed()` for a fresh database; logs in `tmp/console-e2e/worker-N/`. Specs live in `src/*.e2e.ts`, find
+`stack.reset()` / `seed()` for a fresh database; logs in `tmp/console-e2e/worker-<workerIndex>/` (one directory per Playwright worker process, cleared once per run; each `wrangler dev` lifetime is appended between `===` marker lines, wrangler's own debug log sits beside it as `*.wrangler-debug.log`, and a test fails with the reason when a stack server crashed or exited while it ran, #230). `E2E_PORT_BASE=<port>` packs each worker into three ports from there (api, fake GitHub, fake push; inspectors on system-picked ports) for runs beside other local stacks. Specs live in `src/*.e2e.ts`, find
 controls through `ru()` (the ru.json copy) and `data-testid`, wait on conditions only, and fail on any request off the
 app origin, any uncaught page error and any serious/critical axe violation (`expectAccessible`). `BASE_URL` (+
 `CF_ACCESS_CLIENT_ID/SECRET` for stage) runs the suite against a running target; specs that reset data or need the
 fake GitHub skip themselves there, `smoke.e2e.ts` is the read-only part.
 Worker tests run in workerd through `@cloudflare/vitest-pool-workers` (`SELF.fetch`, an isolated in-memory D1
 migrated in `src/test-setup.ts`); `apps/api/test-assets` stands in for the Angular build. `wrangler`,
-`@cloudflare/vitest-pool-workers` and `compatibility_date` move together (one workerd for dev, Docker and tests).
+`@cloudflare/vitest-pool-workers` and `compatibility_date` move together (one workerd for dev, Docker and tests) —
+one exception (#230): `wrangler` is 4.130.0 for `wrangler dev` (e2e, Docker, `nx build`), the first release where a
+dropped dev-proxy connection no longer kills the dev server, while `@cloudflare/vitest-pool-workers` 0.22.0 (the
+latest release) keeps its own nested wrangler 4.124.0 and `deploy.yml` still pins 4.124.0. Realign when a pool
+release catches up.

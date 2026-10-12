@@ -9,3 +9,11 @@
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
 }
+
+/* The CI chip and the outsider mark side by side under a pull request's title, wrapping on a narrow phone. */
+.sprint-item__marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}

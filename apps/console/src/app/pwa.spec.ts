@@ -1,29 +1,15 @@
 import { TestBed } from '@angular/core/testing';
 import { provideServiceWorker, SwRegistrationOptions } from '@angular/service-worker';
-import { readFileSync } from 'node:fs';
+import { appIconDirOf, ENVIRONMENTS } from '@shared/contracts';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { appRoutes } from './app.routes';
 import { serviceWorkerOptions } from './pwa';
 
 const appRoot = join(import.meta.dirname, '..', '..');
 
 function readJson(relativePath: string): unknown {
   return JSON.parse(readFileSync(join(appRoot, relativePath), 'utf8'));
-}
-
-interface ManifestIcon {
-  src: string;
-  sizes: string;
-  type: string;
-  purpose?: string;
-}
-
-interface Manifest {
-  name: string;
-  short_name: string;
-  start_url: string;
-  display: string;
-  lang: string;
-  icons: ManifestIcon[];
 }
 
 interface NgswGroup {
@@ -39,34 +25,28 @@ interface NgswConfig {
   navigationUrls?: string[];
 }
 
-describe('web manifest', () => {
-  const manifest = readJson('public/manifest.webmanifest') as Manifest;
-
-  it('installs as a standalone app from the root', () => {
-    expect(manifest.display).toBe('standalone');
-    expect(manifest.start_url).toBe('/');
-    expect(manifest.lang).toBe('ru');
-  });
-
-  it('ships the 192 and 512 PNG icons Chrome requires', () => {
-    const sizes = manifest.icons.filter((icon) => icon.type === 'image/png').map((icon) => icon.sizes);
-    expect(sizes).toEqual(expect.arrayContaining(['192x192', '512x512']));
-  });
-
-  it('points every icon at a file that exists', () => {
-    for (const icon of manifest.icons) {
-      expect(() => readFileSync(join(appRoot, 'public', icon.src))).not.toThrow();
+// The manifest itself is built per environment by the api Worker (#237, apps/api/src/routes/app-identity.spec.ts);
+// what the build must ship is every environment's icon set it points at.
+describe('icon sets', () => {
+  it.each(ENVIRONMENTS)('ships the %s icons the manifest and /brand/* serve', (environment) => {
+    for (const file of ['icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'favicon.ico']) {
+      expect(() => readFileSync(join(appRoot, 'public', appIconDirOf(environment), file))).not.toThrow();
     }
+  });
+
+  it('has no static manifest or root favicon that would shadow what the Worker answers', () => {
+    expect(existsSync(join(appRoot, 'public/manifest.webmanifest'))).toBe(false);
+    expect(existsSync(join(appRoot, 'public/favicon.ico'))).toBe(false);
   });
 });
 
 describe('index.html', () => {
   const html = readFileSync(join(appRoot, 'src/index.html'), 'utf8');
 
-  it('links the manifest and the 180px Apple touch icon', () => {
-    expect(html).toMatch(/<link rel="manifest" href="manifest\.webmanifest"/);
-    expect(html).toMatch(/<link rel="apple-touch-icon" sizes="180x180" href="icons\/apple-touch-icon\.png"/);
-    expect(() => readFileSync(join(appRoot, 'public/icons/apple-touch-icon.png'))).not.toThrow();
+  it('links the manifest (with the Access cookie) and the per-environment icons the Worker answers', () => {
+    expect(html).toMatch(/<link rel="manifest" href="manifest\.webmanifest" crossorigin="use-credentials"/);
+    expect(html).toMatch(/<link rel="icon" type="image\/x-icon" href="brand\/favicon\.ico"/);
+    expect(html).toMatch(/<link rel="apple-touch-icon" sizes="180x180" href="brand\/apple-touch-icon\.png"/);
   });
 
   it('carries the iOS Home Screen meta tags', () => {
@@ -102,8 +82,28 @@ describe('ngsw-config.json', () => {
     expect(config.dataGroups ?? []).toEqual([]);
   });
 
+  it('never hashes what the Worker answers per environment, or a dev or stage install would fail its hash check', () => {
+    const files = (config.assetGroups ?? []).flatMap((group) => group.resources?.files ?? []);
+
+    for (const path of ['/manifest.webmanifest', '/favicon.ico', '/brand/*', '/brand/**']) {
+      expect(files).not.toContain(path);
+    }
+  });
+
   it('keeps /api out of the navigation fallback', () => {
     expect(config.navigationUrls).toContain('!/api/**');
+  });
+
+  // Cloudflare's edge owns /cdn-cgi/: Access sets its cookie on /cdn-cgi/access/authorized, so a worker that answers
+  // it with the app shell makes re-login impossible (#284).
+  it('leaves /cdn-cgi/ to the network: out of the navigation fallback and of every group', () => {
+    expect(config.navigationUrls).toContain('!/cdn-cgi/**');
+    for (const group of [...(config.assetGroups ?? []), ...(config.dataGroups ?? [])]) {
+      expect(group.resources?.files ?? [], group.name).toContain('!/cdn-cgi/**');
+      for (const pattern of [...(group.resources?.urls ?? []), ...(group.urls ?? [])]) {
+        expect(pattern, `${group.name}: ${pattern}`).not.toMatch(/^\/(\*\*|cdn-cgi)(\/|$)/);
+      }
+    }
   });
 });
 
@@ -124,5 +124,63 @@ describe('service worker registration', () => {
     const options = TestBed.inject(SwRegistrationOptions);
     expect(options.enabled).toBe(true);
     expect(options.registrationStrategy).toBe('registerWhenStable:30000');
+  });
+});
+
+/** `_headers` as path → header lines; rules are unindented lines, their headers the indented ones below. */
+function headerRules(text: string): Map<string, string[]> {
+  const rules = new Map<string, string[]>();
+  let current: string[] | null = null;
+  for (const line of text.split('\n')) {
+    if (line.trim() === '' || line.trimStart().startsWith('#')) {
+      continue;
+    }
+    if (/^\s/.test(line)) {
+      current?.push(line.trim());
+    } else {
+      current = [];
+      rules.set(line.trim(), current);
+    }
+  }
+  return rules;
+}
+
+// ngsw decides about updates from ngsw.json, the browser about the worker from ngsw-worker.js, and every new page
+// starts from the shell: a stale copy of any of them keeps a device on an old version (#306).
+describe('_headers: version metadata is never cached stale', () => {
+  const rules = headerRules(readFileSync(join(appRoot, 'public/_headers'), 'utf8'));
+  const isNoCache = (path: string): boolean => (rules.get(path) ?? []).includes('Cache-Control: no-cache');
+
+  it.each(['/', '/index.html', '/ngsw.json', '/ngsw-worker.js', '/safety-worker.js'])(
+    '%s is no-cache',
+    (path) => {
+      expect(isNoCache(path)).toBe(true);
+    },
+  );
+
+  it('every client-side route answered with the shell is no-cache too', () => {
+    for (const route of appRoutes) {
+      const path = route.path ?? '';
+      if (path === '' || path === '**') {
+        continue;
+      }
+      const [first] = path.split('/');
+      const isNested = path.includes('/') || route.children !== undefined || route.loadChildren !== undefined;
+      if (!path.includes(':')) {
+        expect(isNoCache(`/${path}`), `/${path}`).toBe(true);
+      }
+      if (isNested) {
+        expect(isNoCache(`/${first}/*`), `/${first}/*`).toBe(true);
+      }
+    }
+  });
+
+  it('leaves hashed files to the default caching', () => {
+    for (const [path, lines] of rules) {
+      if (lines.some((line) => line.startsWith('Cache-Control'))) {
+        // The hashed files sit at the root: a splat there, or on an extension, would reach them.
+        expect(path, `${path} would cover hashed files`).not.toMatch(/^\/\*|\*\./);
+      }
+    }
   });
 });

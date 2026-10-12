@@ -33,6 +33,8 @@ export interface ConnectionOptions {
   readonly repo?: OwnerConnectionsRepo;
   readonly logs?: string[];
   readonly masterKey?: string;
+  /** The row's environment; `local` unless a case runs with deployed bindings (dev, stage). */
+  readonly environment?: string;
 }
 
 export async function ownerConnection(
@@ -40,10 +42,11 @@ export async function ownerConnection(
   options: ConnectionOptions = {},
 ): Promise<OwnerConnection> {
   const now = options.now ?? (() => Date.now());
+  const environment = options.environment ?? ENVIRONMENT;
   return new OwnerConnection({
-    environment: ENVIRONMENT,
+    environment,
     repo: options.repo ?? new OwnerConnectionsRepo(env.DB),
-    keys: await loadOwnerKeys(options.masterKey ?? env.TOKEN_ENCRYPTION_KEY, ENVIRONMENT),
+    keys: await loadOwnerKeys(options.masterKey ?? env.TOKEN_ENCRYPTION_KEY, environment),
     oauth: new GitHubOAuth(
       { clientId: env.GITHUB_APP_CLIENT_ID, clientSecret: env.GITHUB_APP_CLIENT_SECRET ?? '' },
       { fetch: fake.fetch, now },
@@ -57,13 +60,22 @@ export async function ownerConnection(
 /** Stores a connection whose access token has `accessSecondsLeft` to live at `nowMs`. */
 export async function seedConnection(
   fake: FakeGitHubOAuth,
-  options: { accessSecondsLeft?: number; refreshSecondsLeft?: number; nowMs?: number; user?: FakeUser } = {},
+  options: {
+    accessSecondsLeft?: number;
+    refreshSecondsLeft?: number;
+    nowMs?: number;
+    user?: FakeUser;
+    environment?: string;
+  } = {},
 ): Promise<{ accessToken: string; refreshToken: string }> {
   const nowMs = options.nowMs ?? Date.now();
   const nowSeconds = Math.floor(nowMs / 1000);
   const user = options.user ?? OWNER;
   const pair = fake.issuePair(user);
-  const connection = await ownerConnection(fake, { now: () => nowMs });
+  const connection = await ownerConnection(fake, {
+    now: () => nowMs,
+    ...(options.environment === undefined ? {} : { environment: options.environment }),
+  });
   await connection.connect(user, {
     ...pair,
     accessExpiresAt: nowSeconds + (options.accessSecondsLeft ?? 8 * 60 * 60),

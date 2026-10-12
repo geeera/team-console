@@ -15,6 +15,8 @@ export interface AnsweredItem {
   readonly url: string;
   /** ISO 8601, when the console got the answer's response. */
   readonly answeredAt: string;
+  /** Approved in a batch (#220): the card leaves the list instead of folding into its own receipt. */
+  readonly batch?: boolean;
 }
 
 export const ANSWERED_ITEMS_KEY = 'tc.answered.v1';
@@ -73,7 +75,8 @@ export function isAnsweredItem(value: unknown): value is AnsweredItem {
     isAnswerCommand(value['command']) &&
     typeof value['url'] === 'string' &&
     typeof value['answeredAt'] === 'string' &&
-    !Number.isNaN(Date.parse(value['answeredAt']))
+    !Number.isNaN(Date.parse(value['answeredAt'])) &&
+    (value['batch'] === undefined || typeof value['batch'] === 'boolean')
   );
 }
 

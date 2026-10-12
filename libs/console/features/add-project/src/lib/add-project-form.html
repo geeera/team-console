@@ -1,4 +1,5 @@
-@if (needsConnect() && outcome()?.kind !== 'not-connected') {
+<!-- Embedded on All projects, the section's own Connect callout stands for this one: never two (#194 UX spec §3). -->
+@if (needsConnect() && outcome()?.kind !== 'not-connected' && !embedded()) {
 <section tc-callout tone="warning" aria-labelledby="add-need-connect" data-testid="need-connect">
   <h2 tc-callout-title id="add-need-connect">
     {{ (connection.view() === 'lost' ? 'settings.gh.lost.title' : 'settings.gh.needConnect.title') | transloco
@@ -57,7 +58,9 @@
     >
       {{ (busy() ? 'settings.add.submitting' : 'settings.add.submit') | transloco }}
     </button>
+    @if (!embedded()) {
     <a tc-button variant="quiet" routerLink="/settings">{{ 'settings.common.cancel' | transloco }}</a>
+    }
   </div>
 </form>
 
@@ -125,7 +128,7 @@
   <h2 #result tc-callout-title id="add-result" tabindex="-1">
     {{ 'settings.add.duplicate' | transloco: { repo: checked()?.repo } }}
   </h2>
-  <a class="link" data-testid="duplicate-link" [routerLink]="['/settings/projects', duplicateSlug()]">
+  <a class="link" data-testid="duplicate-link" [routerLink]="setupRoute(duplicateSlug())">
     {{ 'settings.add.duplicateLink' | transloco }}
   </a>
 </section>

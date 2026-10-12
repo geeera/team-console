@@ -17,16 +17,77 @@
 <p class="questions__lead" data-testid="lead">
   {{ 'needsYou.lead' | transloco: { n: waiting().length, k: projectCount() } }}
 </p>
+} @else if (isAllProjects() && attentionCount() > 0) {
+<p class="questions__lead" data-testid="lead">
+  {{ 'needsYou.leadNoQuestions' | transloco: { k: projectCount() } }}
+</p>
 } @if (refreshFailed()) {
 <tc-state-block kind="error" compact data-testid="refresh-error" [title]="'questions.loadFailed' | transloco">
   <button tc-button tc-state-action size="sm" type="button" (click)="reload()">
     {{ 'ui.error.retry' | transloco }}
   </button>
 </tc-state-block>
-} @for (problem of problems(); track problem.project.slug) {
-<p class="questions__problem" data-testid="project-problem">
-  {{ 'questions.projectProblem' | transloco: { name: problem.project.name, reason: problemReason(problem) } }}
-</p>
+} @if (attentionCount() > 0) {
+<ul
+  class="questions__attention"
+  data-testid="project-attention"
+  [attr.aria-label]="'needsYou.attention.label' | transloco"
+>
+  @for (setup of setups(); track setup.project.slug) {
+  <li>
+    @if (setup.url; as url) {
+    <a
+      tc-banner
+      class="questions__attention-row"
+      data-testid="project-setup"
+      [attr.data-project]="setup.project.slug"
+      [href]="url"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <tc-icon tc-banner-icon name="lock" size="sm" />
+      <span tc-banner-text
+        >{{ 'needsYou.attention.setup' | transloco: { name: setup.project.name } }}<span class="tc-sr-only">
+          {{ 'push.arrive.external' | transloco }}</span
+        ><tc-icon class="questions__attention-go" name="external" size="sm"
+      /></span>
+    </a>
+    } @else {
+    <a
+      tc-banner
+      class="questions__attention-row"
+      data-testid="project-setup"
+      [attr.data-project]="setup.project.slug"
+      [routerLink]="settingsLinkOf(setup.project.slug)"
+    >
+      <tc-icon tc-banner-icon name="lock" size="sm" />
+      <span tc-banner-text
+        >{{ 'needsYou.attention.setup' | transloco: { name: setup.project.name } }}<tc-icon
+          class="questions__attention-go"
+          name="chevron-right"
+          size="sm"
+      /></span>
+    </a>
+    }
+  </li>
+  } @for (problem of problems(); track problem.project.slug) {
+  <li>
+    <a
+      tc-banner
+      class="questions__attention-row"
+      data-testid="project-problem"
+      [attr.data-project]="problem.project.slug"
+      [routerLink]="settingsLinkOf(problem.project.slug)"
+    >
+      <tc-icon tc-banner-icon name="alert" size="sm" />
+      <span tc-banner-text
+        >{{ 'questions.projectProblem' | transloco: { name: problem.project.name, reason:
+        problemReason(problem) } }}<tc-icon class="questions__attention-go" name="chevron-right" size="sm"
+      /></span>
+    </a>
+  </li>
+  }
+</ul>
 } @if (goneNumber(); as gone) {
 <section
   tc-callout
@@ -45,24 +106,33 @@
   /></a>
   }
 </section>
-} @if (rows().length === 0) {
+} @if (rows().length === 0 && attentionCount() === 0) {
 <tc-state-block
   kind="empty"
   data-testid="empty"
-  [title]="(isAllProjects() ? 'needsYou.emptyTitle' : 'questions.emptyTitle') | transloco"
-  [description]="'needsYou.emptyHint' | transloco"
+  [title]="emptyTitle() || ((isAllProjects() ? 'needsYou.emptyTitle' : 'questions.emptyTitle') | transloco)"
+  [description]="emptyHint() || ('needsYou.emptyHint' | transloco)"
 />
-} @else {
-<ul class="questions__list" [attr.aria-label]="'questions.listLabel' | transloco">
-  @for (row of rows(); track row.key) {
+} @else if (rows().length > 0) {
+<ul class="questions__list" [attr.aria-label]="listLabel() || ('questions.listLabel' | transloco)">
+  @for (row of visibleRows(); track row.key) {
   <li class="questions__row" [attr.data-row]="row.key" [attr.data-number]="row.item.number">
     @if (row.answer === null || row.stamping) {
     <tc-question-card
       [item]="row.item"
       [showProject]="isAllProjects()"
       [stamp]="row.answer !== null ? toneOf(row.answer.command) : null"
+      [embedOrigins]="embedOrigins()"
     >
-      @if (row.answer === null) {
+      <!-- #276/#290: only the team's own design items; content is created even where the card would not show it. -->
+      @if (row.item.section === 'design' && row.item.authorTrusted) {
+      <tc-question-design-previews
+        tc-question-previews
+        [slug]="row.item.project.slug"
+        [issue]="row.item.number"
+        (opened)="openDesign(row, $event)"
+      />
+      } @if (row.answer === null) {
       <tc-answer-question
         tc-question-actions
         [item]="row.item"
@@ -72,17 +142,20 @@
       }
     </tc-question-card>
     } @else {
-    <tc-receipt [tone]="toneOf(row.answer.command)" [attr.data-receipt]="row.key">
-      <span tc-receipt-verb
-        >{{ 'answer.receipt.verb' | transloco: { verb: verbOf(row.answer.command) } }}</span
+    <tc-receipt [tone]="toneOf(row.answer.command)" flush [hasGlyph]="false" [attr.data-receipt]="row.key">
+      <tc-chip tc-receipt-verb [tone]="chipToneOf(row.answer.command)" data-testid="receipt-status"
+        ><tc-icon [name]="statusIconOf(row.answer.command)" size="sm" />{{ statusOf(row.answer.command) }}</tc-chip
       >
-      <span tc-receipt-detail>{{ row.item.title }}</span>
+      <span tc-receipt-detail dir="auto" [class.questions__receipt-fallback]="!row.item.context?.summary">{{
+        row.item.context?.summary || row.item.title
+      }}</span>
       <span tc-receipt-meta>
         {{ 'answer.receipt.meta' | transloco: { n: row.item.number, time: timeOf(row.answer) } }} · {{
         'answer.receipt.waiting' | transloco }} @if (receiptUrl(row.answer); as url) { ·
         <a class="questions__receipt-link" [href]="url" target="_blank" rel="noopener noreferrer"
-          >{{ 'answer.receipt.open' | transloco }}</a
-        >
+          >{{ 'answer.receipt.open' | transloco }}<span class="tc-sr-only"> {{ 'push.arrive.external' | transloco }}</span
+          ><tc-icon name="external" size="sm"
+        /></a>
         }
       </span>
     </tc-receipt>
@@ -95,3 +168,14 @@
   {{ 'needsYou.omitted' | transloco: { names: omittedNames() } }}
 </p>
 } } }
+
+<!-- The card's answers inside the design viewer's footer (#276 §2): the owner can decide without closing it. -->
+<ng-template #viewerActions>
+  @if (viewerItem(); as item) {
+  <tc-answer-question
+    [item]="item"
+    (answered)="onAnsweredInViewer($event)"
+    (refreshRequested)="onRefreshFromViewer()"
+  />
+  }
+</ng-template>

@@ -25,3 +25,54 @@
   font-size: var(--fs-xs);
   color: var(--text-2);
 }
+
+/* #277 spec §4: the Design filter loads as three rows the shape of a design row (thumbnail, title, meta). */
+.artifacts__designs-loading {
+  display: grid;
+}
+
+.artifacts__skeleton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.artifacts__skeleton + .artifacts__skeleton {
+  border-top: var(--border-w) solid var(--border);
+}
+
+.artifacts__skeleton-thumb,
+.artifacts__skeleton-line {
+  display: block;
+  border-radius: var(--r-sm);
+  background: var(--skeleton);
+}
+
+.artifacts__skeleton-thumb {
+  flex: none;
+  width: var(--thumb-size);
+  height: var(--thumb-size);
+}
+
+.artifacts__skeleton-text {
+  display: grid;
+  flex: 1;
+  gap: var(--space-2);
+}
+
+.artifacts__skeleton-line {
+  height: var(--space-4);
+}
+
+.artifacts__skeleton-line--short {
+  width: 40%;
+  height: var(--space-3);
+}
+
+.artifacts__designs-status {
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+}

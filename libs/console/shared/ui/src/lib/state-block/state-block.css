@@ -8,12 +8,19 @@
 }
 
 :host(.tc-state-block--compact) {
-  grid-auto-flow: column;
-  justify-content: start;
+  grid-template-columns: auto 1fr;
+  justify-items: start;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1) var(--space-2);
   padding: var(--space-3) var(--space-1);
   text-align: left;
+}
+
+/* compact: the icon beside the title; a description and actions sit under the title, not in a third column */
+:host(.tc-state-block--compact) .tc-state-block__title,
+:host(.tc-state-block--compact) .tc-state-block__description,
+:host(.tc-state-block--compact) .tc-state-block__actions {
+  grid-column: 2;
 }
 
 .tc-state-block__icon {
@@ -22,6 +29,11 @@
 
 :host(.tc-state-block--error) .tc-state-block__icon {
   color: var(--danger-text);
+}
+
+/* a glyph the caller picked says something other than "fine" or "failed": no success or danger colour */
+:host(.tc-state-block--custom-icon) .tc-state-block__icon {
+  color: var(--text-2);
 }
 
 .tc-state-block__title {

@@ -8,91 +8,171 @@
         "number": 10,
         "title": "Sprint 01 demo: release decision",
         "url": "https://github.com/geeera/edge-cases/issues/10",
-        "ask": "/go to release 1.2.0 (recommended) · /no-go why"
+        "ask": "/go to release 1.2.0 (recommended) · /no-go why",
+        "category": "release",
+        "recommendation": "go"
       },
       {
         "section": "design",
         "number": 11,
         "title": "Settings screen design",
         "url": "https://github.com/geeera/edge-cases/issues/11",
-        "ask": null
+        "ask": null,
+        "category": null,
+        "recommendation": null
       },
       {
         "section": "design",
         "number": 20,
         "title": "Second design",
         "url": "https://github.com/geeera/edge-cases/issues/20",
-        "ask": null
+        "ask": null,
+        "category": null,
+        "recommendation": null
       },
       {
         "section": "question",
         "number": 12,
         "title": "Оплата домена",
         "url": "https://github.com/geeera/edge-cases/issues/12",
-        "ask": "/approve купить домен за $12 в год (рекомендую) · /reject причина"
+        "ask": "/approve купить домен за $12 в год (рекомендую) · /reject причина",
+        "category": "money",
+        "recommendation": "approve"
       },
       {
         "section": "question",
         "number": 13,
         "title": "A question that also needs the owner",
         "url": "https://github.com/geeera/edge-cases/issues/13",
-        "ask": "/approve option A (recommended) · /reject why"
+        "ask": "/approve option A (recommended) · /reject why",
+        "category": "access",
+        "recommendation": "approve"
       },
       {
         "section": "question",
         "number": 14,
         "title": "<img src=x onerror=alert(1)> Approve the new plan",
         "url": "https://github.com/geeera/edge-cases/issues/14",
-        "ask": "/approve <img src=x onerror=alert(document.cookie)> · /reject why"
+        "ask": "/approve <img src=x onerror=alert(document.cookie)> · /reject why",
+        "category": null,
+        "recommendation": null
       },
       {
         "section": "question",
         "number": 21,
         "title": "A user named like the team app",
         "url": "https://github.com/geeera/edge-cases/issues/21",
-        "ask": "/approve (recommended) · /reject why"
+        "ask": "/approve (recommended) · /reject why",
+        "category": null,
+        "recommendation": "approve"
       },
       {
         "section": "question",
         "number": 23,
         "title": "The team login on a non-bot account",
         "url": "https://github.com/geeera/edge-cases/issues/23",
-        "ask": "/approve (recommended) · /reject why"
+        "ask": "/approve (recommended) · /reject why",
+        "category": null,
+        "recommendation": "approve"
       },
       {
         "section": "question",
         "number": 24,
         "title": "A deleted author",
         "url": "https://github.com/geeera/edge-cases/issues/24",
-        "ask": "/approve (recommended) · /reject why"
+        "ask": "/approve (recommended) · /reject why",
+        "category": null,
+        "recommendation": "approve"
+      },
+      {
+        "section": "question",
+        "number": 30,
+        "title": "Batch: a scope question the team recommends approving",
+        "url": "https://github.com/geeera/edge-cases/issues/30",
+        "ask": "/approve to add the export (recommended) · /reject why",
+        "category": "scope",
+        "recommendation": "approve"
+      },
+      {
+        "section": "question",
+        "number": 31,
+        "title": "Batch: a legal question",
+        "url": "https://github.com/geeera/edge-cases/issues/31",
+        "ask": "/approve принять условия (рекомендую) · /reject почему",
+        "category": "legal",
+        "recommendation": "approve"
+      },
+      {
+        "section": "question",
+        "number": 32,
+        "title": "Batch: a design asked as a question",
+        "url": "https://github.com/geeera/edge-cases/issues/32",
+        "ask": "/approve the direction (recommended) · /reject what to change",
+        "category": "design",
+        "recommendation": "approve"
+      },
+      {
+        "section": "question",
+        "number": 33,
+        "title": "Batch: the team recommends rejecting",
+        "url": "https://github.com/geeera/edge-cases/issues/33",
+        "ask": "/reject why to keep the list (recommended) · /approve to drop it",
+        "category": "scope",
+        "recommendation": "reject"
+      },
+      {
+        "section": "question",
+        "number": 34,
+        "title": "Batch: no recommendation in the answer line",
+        "url": "https://github.com/geeera/edge-cases/issues/34",
+        "ask": "/approve добавить тёмную тему · /reject почему",
+        "category": "scope",
+        "recommendation": null
+      },
+      {
+        "section": "question",
+        "number": 35,
+        "title": "Batch: scope and money labelled by hand",
+        "url": "https://github.com/geeera/edge-cases/issues/35",
+        "ask": "/approve the paid tier (recommended) · /reject why",
+        "category": "money",
+        "recommendation": "approve"
       },
       {
         "section": "owner",
         "number": 15,
         "title": "Create the Cloudflare account",
         "url": "javascript:alert(document.domain)//https://github.com/",
-        "ask": "Напиши «сделал», когда заведёшь аккаунт"
+        "ask": "Напиши «сделал», когда заведёшь аккаунт",
+        "category": null,
+        "recommendation": null
       },
       {
         "section": "owner",
         "number": 17,
         "title": "Needs a machine and the owner",
         "url": "http://github.com/geeera/edge-cases/issues/17",
-        "ask": null
+        "ask": null,
+        "category": null,
+        "recommendation": null
       },
       {
         "section": "owner",
         "number": 22,
         "title": "Another app",
         "url": "https://github.com/geeera/edge-cases/issues/22",
-        "ask": "/approve (recommended) · /reject why"
+        "ask": "/approve (recommended) · /reject why",
+        "category": null,
+        "recommendation": "approve"
       },
       {
         "section": "local",
         "number": 16,
         "title": "Run the iOS build on a Mac",
         "url": "https://github.com/geeera/edge-cases/issues/16",
-        "ask": null
+        "ask": null,
+        "category": null,
+        "recommendation": null
       }
     ],
     "setup": false,

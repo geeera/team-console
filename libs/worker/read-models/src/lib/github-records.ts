@@ -32,6 +32,14 @@ export interface PullRequestRecord extends IssueAuthor {
   readonly title: string;
   readonly htmlUrl: string;
   readonly draft: boolean;
+  /** `head.sha`, the commit whose check runs give the CI state (#131); `null` when GitHub sent none usable. */
+  readonly headSha: string | null;
+  /** The description, for the issue it links (#277); empty when GitHub sent none. */
+  readonly body: string;
+  /** `head.ref`, the branch name (#277); `null` when GitHub sent none. */
+  readonly headRef: string | null;
+  /** `head.repo.full_name`, where the branch lives (#277: a fork is never a design source); `null` when unknown. */
+  readonly headRepo: string | null;
 }
 
 type JsonRecord = Readonly<Record<string, unknown>>;
@@ -146,6 +154,31 @@ export function pullRequestRecordOf(raw: JsonRecord): PullRequestRecord {
     title: String(raw['title']),
     htmlUrl: String(raw['html_url']),
     draft: raw['draft'] === true,
+    headSha: headShaOf(raw['head']),
+    body: typeof raw['body'] === 'string' ? raw['body'] : '',
+    headRef: headRefOf(raw['head']),
+    headRepo: headRepoOf(raw['head']),
     ...authorOf(raw),
   };
+}
+
+function headRefOf(head: unknown): string | null {
+  const ref = isRecord(head) ? head['ref'] : undefined;
+  return typeof ref === 'string' && ref !== '' ? ref : null;
+}
+
+function headRepoOf(head: unknown): string | null {
+  // `head.repo` is null when the fork was deleted; such a pull request has no repository to trust.
+  const repo = isRecord(head) ? head['repo'] : undefined;
+  const fullName = isRecord(repo) ? repo['full_name'] : undefined;
+  return typeof fullName === 'string' && fullName !== '' ? fullName : null;
+}
+
+// SHA-1 (40) or SHA-256 (64) object names.
+const COMMIT_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+
+function headShaOf(head: unknown): string | null {
+  // The sha goes into a GitHub path: only a full lowercase hex sha is kept.
+  const sha = isRecord(head) ? head['sha'] : undefined;
+  return typeof sha === 'string' && COMMIT_SHA.test(sha) ? sha : null;
 }

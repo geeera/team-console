@@ -31,6 +31,7 @@
       "@console/entities/app-info": ["./libs/console/entities/app-info/src/index.ts"],
       "@shared/contracts": ["./libs/shared/contracts/src/index.ts"],
       "@shared/owner-grammar": ["./libs/shared/owner-grammar/src/index.ts"],
+      "@shared/plain-text": ["./libs/shared/plain-text/src/index.ts"],
       "@worker/core": ["./libs/worker/core/src/index.ts"],
       "@worker/db": ["./libs/worker/db/src/index.ts"],
       "@worker/github": ["./libs/worker/github/src/index.ts"],
@@ -66,7 +67,18 @@
       "@console/widgets/commands-panel": ["./libs/console/widgets/commands-panel/src/index.ts"],
       "@console/shared/platform": ["./libs/console/shared/platform/src/index.ts"],
       "@console/entities/push": ["./libs/console/entities/push/src/index.ts"],
-      "@console/features/push-subscribe": ["./libs/console/features/push-subscribe/src/index.ts"]
+      "@console/features/push-subscribe": ["./libs/console/features/push-subscribe/src/index.ts"],
+      "@console/shared/markdown": ["./libs/console/shared/markdown/src/index.ts"],
+      "@console/features/batch-approve": ["./libs/console/features/batch-approve/src/index.ts"],
+      "@console/features/snooze": ["./libs/console/features/snooze/src/index.ts"],
+      "@console/entities/installation-repository": [
+        "./libs/console/entities/installation-repository/src/index.ts"
+      ],
+      "@console/widgets/github-repositories": ["./libs/console/widgets/github-repositories/src/index.ts"],
+      "@console/features/sprint-controls": ["./libs/console/features/sprint-controls/src/index.ts"],
+      "@console/features/request-change": ["./libs/console/features/request-change/src/index.ts"],
+      "@console/entities/design": ["./libs/console/entities/design/src/index.ts"],
+      "@console/features/design-viewer": ["./libs/console/features/design-viewer/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

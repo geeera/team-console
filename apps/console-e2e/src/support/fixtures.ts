@@ -15,6 +15,7 @@ interface WorkerFixtures {
 interface TestFixtures {
   outsideRequests: OutsideRequests;
   pageErrors: void;
+  stackHealth: void;
 }
 
 function externalStack(baseURL: string): Stack {
@@ -23,6 +24,7 @@ function externalStack(baseURL: string): Stack {
     fakeURL: process.env['FAKE_GITHUB_URL'] ?? null,
     isLocal: false,
     reset: () => Promise.reject(new Error('An external target (BASE_URL) cannot be reset')),
+    incidents: () => [],
   };
 }
 
@@ -36,8 +38,10 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         await use(externalStack(external));
         return;
       }
+      // Named by the worker process, not its slot: a worker restarted after a failure reuses the slot's ports but
+      // must not wipe the logs of the stack that just failed.
       const local = await LocalStack.start(
-        `worker-${workerInfo.parallelIndex}`,
+        `worker-${workerInfo.workerIndex}`,
         portsFor(workerInfo.parallelIndex),
       );
       try {
@@ -46,6 +50,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
           fakeURL: local.fakeURL,
           isLocal: true,
           reset: () => local.reset(),
+          incidents: () => local.incidents(),
         });
       } finally {
         await local.stop();
@@ -71,6 +76,18 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       });
       await use({ allow: (origin) => allowed.add(origin) });
       expect(outside, 'requests that left the app origin').toEqual([]);
+    },
+    { auto: true },
+  ],
+
+  // Every test: the stack kept serving throughout. A crash names itself here instead of surfacing as an empty screen.
+  stackHealth: [
+    async ({ stack }, use) => {
+      const before = stack.incidents().length;
+      await use();
+      expect(stack.incidents().slice(before), 'local stack servers that stopped serving during the test').toEqual(
+        [],
+      );
     },
     { auto: true },
   ],

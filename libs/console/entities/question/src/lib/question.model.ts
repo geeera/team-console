@@ -1,16 +1,19 @@
 import type {
   AnswerCommand,
   InboxItemDto,
+  OwnerCategory,
   NeedsYouDto,
   NeedsYouItemDto,
   NeedsYouProjectDto,
   NeedsYouProjectProblem,
   NeedsYouProjectRef,
+  QuestionContextDto,
   QuestionDto,
   QuestionsDto,
   Section,
+  TeamRecommendation,
 } from '@shared/contracts';
-import { ANSWERS, isAnswerCommand } from '@shared/owner-grammar';
+import { ANSWERS, isAnswerCommand, isOwnerCategory, isTeamRecommendation } from '@shared/owner-grammar';
 
 /**
  * One card the owner can answer, from either read model (#35): `GET /needs-you` (no body) or
@@ -28,6 +31,12 @@ export interface QuestionItem {
   readonly body: string | null;
   readonly authorTrusted: boolean;
   readonly allowedCommands: readonly AnswerCommand[];
+  /** From the item's `owner:*` label (#220); what a batch of approvals may take. */
+  readonly category: OwnerCategory | null;
+  /** The team's recommendation as the server read the answer line (#220). */
+  readonly recommendation: TeamRecommendation | null;
+  /** The body's fixed sections as plain text (#276); `null` for an outsider's item or a body without any. */
+  readonly context: QuestionContextDto | null;
 }
 
 /** A project whose inbox "Needs you" could not read; the others are still listed. */
@@ -36,11 +45,21 @@ export interface QuestionProjectProblem {
   readonly problem: NeedsYouProjectProblem;
 }
 
+/**
+ * A project whose security setup is not done (`team.reviewer_logins` empty, #205): the owner checklist on GitHub,
+ * or `null` when the server's link is not a github.com page.
+ */
+export interface QuestionProjectSetup {
+  readonly project: NeedsYouProjectRef;
+  readonly url: string | null;
+}
+
 export interface NeedsYouView {
   readonly items: readonly QuestionItem[];
   /** Slugs whose inbox was read in this response; answers for other projects are left alone. */
   readonly readSlugs: readonly string[];
   readonly problems: readonly QuestionProjectProblem[];
+  readonly setups: readonly QuestionProjectSetup[];
   readonly omitted: readonly NeedsYouProjectRef[];
 }
 
@@ -57,6 +76,16 @@ function isSection(value: unknown): value is Section {
 
 function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === 'string';
+}
+
+const CONTEXT_TEXTS = ['summary', 'question', 'why', 'ifApproved', 'ifRejected', 'costAndRisk'] as const;
+
+function isQuestionContext(value: unknown): value is QuestionContextDto {
+  return (
+    isRecord(value) &&
+    typeof value['structured'] === 'boolean' &&
+    CONTEXT_TEXTS.every((key) => isNullableString(value[key]))
+  );
 }
 
 function isProjectRef(value: unknown): value is NeedsYouProjectRef {
@@ -82,7 +111,11 @@ function isInboxItem(value: unknown): value is InboxItemDto {
     typeof value['title'] === 'string' &&
     isNullableString(value['url']) &&
     isNullableString(value['ask']) &&
-    typeof value['authorTrusted'] === 'boolean'
+    typeof value['authorTrusted'] === 'boolean' &&
+    (value['category'] === null || isOwnerCategory(value['category'])) &&
+    (value['recommendation'] === null || isTeamRecommendation(value['recommendation'])) &&
+    // Absent from a server that predates #276: the card then shows what it showed before.
+    (value['context'] === undefined || value['context'] === null || isQuestionContext(value['context']))
   );
 }
 
@@ -179,12 +212,26 @@ export function needsYouViewOf(dto: NeedsYouDto): NeedsYouView {
       body: null,
       authorTrusted: item.authorTrusted,
       allowedCommands: offeredCommands(item.section, item.allowedCommands),
+      category: item.category,
+      recommendation: item.recommendation,
+      context: item.context ?? null,
     })),
     readSlugs: dto.projects.filter((project) => project.problem === null).map((project) => project.slug),
     problems: dto.projects.flatMap((project) =>
       project.problem === null
         ? []
         : [{ project: { slug: project.slug, name: project.name }, problem: project.problem }],
+    ),
+    // Only `true` counts: the guard leaves `setup` unchecked, so a malformed value never invents a warning.
+    setups: dto.projects.flatMap((project) =>
+      project.setup === true && project.problem === null
+        ? [
+            {
+              project: { slug: project.slug, name: project.name },
+              url: typeof project.setupUrl === 'string' ? safeGitHubUrl(project.setupUrl) : null,
+            },
+          ]
+        : [],
     ),
     omitted: dto.omittedProjects,
   };
@@ -201,5 +248,8 @@ export function projectQuestionsOf(project: NeedsYouProjectRef, dto: QuestionsDt
     body: item.body,
     authorTrusted: item.authorTrusted,
     allowedCommands: offeredCommands(item.section, item.allowedCommands),
+    category: item.category,
+    recommendation: item.recommendation,
+    context: item.context ?? null,
   }));
 }

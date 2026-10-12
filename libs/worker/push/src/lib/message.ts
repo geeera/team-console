@@ -1,4 +1,4 @@
-import { isValidSlug } from '@shared/contracts';
+import { appIconDirOf, environmentLabelOf, isValidSlug, type Environment } from '@shared/contracts';
 import { PUSH_COPY, type PushLanguage } from './copy';
 
 /** Title and body are cut to this many characters, the ellipsis included (threat model on #11, row 6). */
@@ -7,7 +7,8 @@ export const PUSH_TEXT_MAX_LENGTH = 120;
 /** Where the test notification leads: the cross-project Needs you list. */
 export const PUSH_TEST_URL = '/needs-you';
 
-const ICON = '/icons/icon-192.png';
+const iconOf = (environment: Environment): string => `${appIconDirOf(environment)}/icon-192.png`;
+const ICON = iconOf('production');
 
 /**
  * The Angular service worker's `notification` payload: ngsw shows it and, on a tap, runs `onActionClick.default`
@@ -134,6 +135,26 @@ export function linkNotification(input: LinkNotificationInput): PushNotification
     throw new InvalidPushTargetError('url');
   }
   return notification(input.language, input.title, input.body, input.url, input.url);
+}
+
+/**
+ * The notification as the environment that sends it shows it (#237): outside production the title starts with
+ * `[Dev] ` / `[Stage] ` / `[Local] ` and the icon is that environment's, so a lock screen never passes a dev item off
+ * as a production one. Production's is returned unchanged.
+ */
+export function forEnvironment(message: PushNotification, environment: Environment): PushNotification {
+  const label = environmentLabelOf(environment);
+  if (label === null) {
+    return message;
+  }
+  return {
+    notification: {
+      ...message.notification,
+      // Cleaned again so the prefixed title still fits the 120-character cut.
+      title: cleanPushText(`[${label}] ${message.notification.title}`),
+      icon: iconOf(environment),
+    },
+  };
 }
 
 /** "Send a test" from Settings (#36): fixed text, opens Needs you. */

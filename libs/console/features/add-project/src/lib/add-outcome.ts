@@ -34,7 +34,10 @@ function stringMember(problem: HttpProblem, key: string): unknown {
  * Maps a refused `POST /api/v1/projects` to New project's outcome, from the problem's `type` and `step` members
  * (#15) — never from `detail`. Anything not recognised is "GitHub didn't respond": nothing was saved either way.
  */
-export function addOutcomeOf(problem: HttpProblem, now: number = Date.now()): AddOutcome {
+export function addOutcomeOf(
+  problem: HttpProblem,
+  now: number = Date.now(),
+): Exclude<AddOutcome, { readonly kind: 'checking' }> {
   switch (problem.slug) {
     case 'validation':
       return { kind: 'invalid' };

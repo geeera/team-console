@@ -4,7 +4,6 @@ import {
   Component,
   computed,
   contentChildren,
-  ElementRef,
   forwardRef,
   inject,
   input,
@@ -12,11 +11,10 @@ import {
   numberAttribute,
   OnInit,
   signal,
-  viewChildren,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { map } from 'rxjs';
-import { BREAKPOINTS } from '../../tokens/breakpoints';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { map, switchMap } from 'rxjs';
+import { BREAKPOINTS, type Breakpoint } from '../../tokens/breakpoints';
 
 let nextLaneId = 0;
 
@@ -26,16 +24,19 @@ export type LaneHeadingLevel = 2 | 3 | 4;
 type LaneDirection = 'forward' | 'backward';
 
 /**
- * Lanes of a board: stacked on wider screens. On the phone, with two or more lanes, a WAI-ARIA tab list of lane pills
- * (name and count) sits on top and only the selected lane is shown, at its own height, so whatever follows the board
- * starts right under it. The tab list is one Tab stop: ←/→ move and wrap, Home/End jump to the ends.
+ * Lanes of a board: stacked on wider screens. On a narrow screen (`compactBelow`, the phone by default), with two or
+ * more lanes, a one-row switcher sits on top — one equal cell per lane, its name above its count, never a second
+ * row — and only the selected lane is shown, at its own height, so whatever follows the board starts right under it.
+ * The switcher is a named group of toggle buttons (`aria-pressed`, #275 §6); a lane with nothing in it is dimmed and
+ * still focusable.
  *
- * Name it with `label` (the group's name on wider screens, the tab list's on the phone). Each lane is picked by
- * its `key` (its heading by default). The selection defaults to the first lane with items, else the first, and falls
- * back to that when the selected lane is gone; bind `[(selected)]` to keep it when the lanes are rendered anew.
+ * Name it with `label` (the group's name either way). Each lane is picked by its `key` (its heading by default). The
+ * selection defaults to the first `preferred` key whose lane has items, else the first lane with items, else the
+ * first, and falls back to that when the selected lane is gone; bind `[(selected)]` to keep it when the lanes are
+ * rendered anew.
  *
  * ```html
- * <tc-lanes label="Issues by status" [(selected)]="lane">
+ * <tc-lanes label="Issues by status" compactBelow="tablet" [preferred]="['blocked']" [(selected)]="lane">
  *   <tc-lane key="in-progress" heading="In progress" [count]="2"><tc-list>…</tc-list></tc-lane>
  * </tc-lanes>
  * ```
@@ -44,23 +45,20 @@ type LaneDirection = 'forward' | 'backward';
   selector: 'tc-lanes',
   template: `
     @if (tabbed()) {
-      <div class="tc-lanes__tabs" role="tablist" [attr.aria-label]="label()">
+      <div class="tc-lanes__switch" role="group" [attr.aria-label]="label()">
         @for (lane of lanes(); track lane.laneKey(); let index = $index) {
           <button
-            #tab
-            class="tc-lanes__tab"
+            class="tc-lanes__cell"
             type="button"
-            role="tab"
+            [class.tc-lanes__cell--empty]="lane.count() === 0"
             [id]="lane.tabId"
             [attr.aria-controls]="lane.panelId"
-            [attr.aria-selected]="lane.laneKey() === activeKey()"
-            [tabIndex]="lane.laneKey() === activeKey() ? 0 : -1"
-            (click)="select(index, false)"
-            (keydown)="onTabKey($event, index)"
+            [attr.aria-pressed]="lane.laneKey() === activeKey()"
+            (click)="select(index)"
           >
-            <!-- &ngsp; keeps one space so the tab reads "In progress 2", not "In progress2". -->
-            <span class="tc-lanes__tab-name">{{ lane.heading() }}</span
-            >&ngsp;<span class="tc-lanes__tab-count">{{ lane.count() }}</span>
+            <!-- The hidden comma is for the name only: "Blocked, 3" reads as a lane and its count. -->
+            <span class="tc-lanes__cell-name">{{ lane.heading() }}</span
+            ><span class="tc-sr-only">, </span><span class="tc-lanes__cell-count">{{ lane.count() }}</span>
           </button>
         }
       </div>
@@ -72,7 +70,7 @@ type LaneDirection = 'forward' | 'backward';
   host: {
     class: 'tc-lanes',
     '[class.tc-lanes--tabbed]': 'tabbed()',
-    // On the phone the tab list carries the name; a wrapper without a role must not.
+    // With the switcher, its group carries the name; the wrapper then has no role.
     '[attr.role]': 'tabbed() ? null : "group"',
     '[attr.aria-label]': 'tabbed() ? null : label()',
   },
@@ -80,10 +78,14 @@ type LaneDirection = 'forward' | 'backward';
 export class Lanes {
   private readonly breakpoints = inject(BreakpointObserver);
 
-  /** The accessible name: the group's on wider screens, the tab list's on the phone. */
+  /** The accessible name: the group's on wider screens, the switcher's on a narrow one. */
   readonly label = input<string | null>(null);
   /** The selected lane's key; `null` (or a key no lane has) means the default lane. */
   readonly selected = model<string | null>(null);
+  /** Below this breakpoint the lanes are shown one at a time, behind the switcher. */
+  readonly compactBelow = input<Breakpoint>('phone');
+  /** Keys to open on, in order, when their lane has items (a board opens on its blockers). */
+  readonly preferred = input<readonly string[]>([]);
 
   // forwardRef: Lane is declared below and injects Lanes, so one of the two has to come first.
   private readonly children = contentChildren(forwardRef(() => Lane));
@@ -92,15 +94,17 @@ export class Lanes {
    * lanes past their first input pass take part; a later one joining re-runs the bindings through the signals.
    */
   protected readonly lanes = computed(() => this.children().filter((lane) => lane.ready()));
-  private readonly tabs = viewChildren<ElementRef<HTMLButtonElement>>('tab');
 
-  private readonly phone = toSignal(
-    this.breakpoints.observe(BREAKPOINTS.phone).pipe(map((result) => result.matches)),
+  private readonly narrow = toSignal(
+    toObservable(this.compactBelow).pipe(
+      switchMap((breakpoint) => this.breakpoints.observe(BREAKPOINTS[breakpoint])),
+      map((result) => result.matches),
+    ),
     { initialValue: this.breakpoints.isMatched(BREAKPOINTS.phone) },
   );
 
   /** One lane needs no switcher: it is shown stacked, heading and all. */
-  readonly tabbed = computed(() => this.phone() && this.lanes().length >= 2);
+  readonly tabbed = computed(() => this.narrow() && this.lanes().length >= 2);
 
   readonly activeKey = computed(() => {
     const lanes = this.lanes();
@@ -108,20 +112,19 @@ export class Lanes {
     if (selected !== null && lanes.some((lane) => lane.laneKey() === selected)) {
       return selected;
     }
-    return (lanes.find((lane) => lane.count() > 0) ?? lanes[0])?.laneKey() ?? null;
+    const withItems = lanes.filter((lane) => lane.count() > 0);
+    const preferred = this.preferred().find((key) => withItems.some((lane) => lane.laneKey() === key));
+    return preferred ?? (withItems[0] ?? lanes[0])?.laneKey() ?? null;
   });
 
   /** Set only by a switch, so the first render and a refresh show the lane without motion. */
   readonly direction = signal<LaneDirection | null>(null);
 
-  protected select(index: number, moveFocus: boolean): void {
+  protected select(index: number): void {
     const lanes = this.lanes();
     const target = lanes[index];
     if (target === undefined) {
       return;
-    }
-    if (moveFocus) {
-      this.tabs()[index]?.nativeElement.focus();
     }
     const from = lanes.findIndex((lane) => lane.laneKey() === this.activeKey());
     if (index === from) {
@@ -130,43 +133,31 @@ export class Lanes {
     this.direction.set(index > from ? 'forward' : 'backward');
     this.selected.set(target.laneKey());
   }
-
-  /** WAI-ARIA APG tabs with automatic activation: the panels are rendered already, so switching is free. */
-  protected onTabKey(event: KeyboardEvent, index: number): void {
-    const last = this.lanes().length - 1;
-    const next: Readonly<Record<string, number>> = {
-      ArrowRight: index === last ? 0 : index + 1,
-      ArrowLeft: index === 0 ? last : index - 1,
-      Home: 0,
-      End: last,
-    };
-    const target = next[event.key];
-    if (target === undefined) {
-      return;
-    }
-    event.preventDefault();
-    this.select(target, true);
-  }
 }
 
 /**
  * One titled group of a board: a heading with the item count, then the caller's content (usually a `tc-list`, or
- * a compact empty `tc-state-block`). The heading level fits the page outline (3 by default). Inside a phone's
- * `tc-lanes` tab list it is the tab panel of its pill; its heading stays for heading navigation, visually hidden.
+ * a compact empty `tc-state-block`). The heading level fits the page outline (3 by default). Behind a `tc-lanes`
+ * switcher only the selected lane is shown; its heading stays for heading navigation, visually hidden. A control
+ * marked `tc-lane-action` (e.g. "Show") sits at the end of the heading's row.
  */
 @Component({
   selector: 'tc-lane',
   template: `
-    <div
-      class="tc-lane__head"
-      role="heading"
-      [class.tc-sr-only]="tabbed()"
-      [attr.aria-level]="level()"
-      [id]="headingId"
-    >
-      <!-- &ngsp; keeps one space so the heading reads "In progress 2", not "In progress2". -->
-      <span class="tc-lane__title">{{ heading() }}</span
-      >&ngsp;<span class="tc-lane__count">{{ count() }}</span>
+    <div class="tc-lane__bar">
+      <div
+        class="tc-lane__head"
+        role="heading"
+        [class.tc-sr-only]="tabbed()"
+        [attr.aria-level]="level()"
+        [id]="headingId"
+      >
+        <!-- &ngsp; keeps one space so the heading reads "In progress 2", not "In progress2". -->
+        <span class="tc-lane__title">{{ heading() }}</span
+        >&ngsp;<span class="tc-lane__count">{{ count() }}</span>
+      </div>
+      <!-- Beside the heading, never inside it: a control would join the heading's name. -->
+      <ng-content select="[tc-lane-action]" />
     </div>
     <ng-content />
   `,
@@ -174,12 +165,10 @@ export class Lanes {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'tc-lane',
+    role: 'group',
     '[id]': 'panelId',
-    '[attr.role]': 'tabbed() ? "tabpanel" : "group"',
-    '[attr.aria-labelledby]': 'tabbed() ? tabId : headingId',
+    '[attr.aria-labelledby]': 'headingId',
     '[hidden]': 'tabbed() && !isSelected()',
-    // An empty panel has nothing to focus, so the panel itself takes the Tab stop and reads its empty block.
-    '[attr.tabindex]': 'tabbed() && count() === 0 ? 0 : null',
     '[class.tc-lane--enter-forward]': 'enteringFrom() === "forward"',
     '[class.tc-lane--enter-backward]': 'enteringFrom() === "backward"',
   },
@@ -199,6 +188,7 @@ export class Lane implements OnInit {
   private readonly id = nextLaneId++;
   protected readonly headingId = `tc-lane-heading-${this.id}`;
   readonly panelId = `tc-lane-${this.id}`;
+  /** The id of its cell in the switcher. */
   readonly tabId = `tc-lane-tab-${this.id}`;
 
   readonly laneKey = computed(() => this.key() ?? this.heading());

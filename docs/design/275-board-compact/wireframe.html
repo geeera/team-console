@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>#275 Board: key status above the fold (UX wireframe)</title>
+<style>
+/* Low fidelity on purpose: grey boxes, system font, real copy. The look is the ui-designer's job (Paper Desk).
+   The dashed red line in each frame is the fold of a 390x844 iPhone / 1440x900 Mac. */
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.4 system-ui,-apple-system,sans-serif;color:#222;background:#eee}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid #000;outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.demo{background:#fff;border-bottom:1px solid #bbb;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:13px}
+.demo b{font-size:14px}.demo p{margin:0;flex-basis:100%;color:#555}
+.stage{padding:20px;display:flex;gap:24px;justify-content:center;align-items:flex-start;flex-wrap:wrap}
+.frame{background:#fafafa;border:2px solid #999;position:relative;overflow:hidden;display:flex}
+.frame.phone{width:390px;height:844px;flex-direction:column;border-radius:28px}
+.frame.mac{width:1440px;height:900px;zoom:.72}
+.fold{position:absolute;left:0;right:0;border-top:2px dashed #c33;pointer-events:none;z-index:5}
+.fold span{position:absolute;right:6px;top:-18px;font-size:11px;color:#c33;background:#fafafa;padding:0 4px}
+.topbar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #bbb;background:#e6e6e6;min-height:53px;flex:none}
+.topbar b{flex:1}
+.tabbar{display:flex;border-top:1px solid #bbb;background:#e6e6e6;flex:none;height:60px}
+.tabbar span{flex:1;display:grid;place-items:center;font-size:12px}
+.tabbar [aria-current]{font-weight:700;text-decoration:underline}
+.side{width:256px;border-right:1px solid #bbb;background:#e6e6e6;padding:12px;flex:none;font-size:14px}
+.side div{padding:8px}
+.scroll{flex:1;overflow:auto;min-width:0}
+.mac .scroll{display:flex;flex-direction:column}
+.machead{display:flex;align-items:center;gap:12px;padding:16px 32px;border-bottom:1px solid #bbb}
+.content{padding:12px 16px 24px}
+.mac .content{padding:16px 32px 32px;max-width:1184px;width:100%}
+.btn{min-height:44px;padding:0 12px;border:1px solid #666;background:#ddd;cursor:pointer;white-space:nowrap;border-radius:4px}
+.btn.sm{min-height:36px}
+.btn.link{border:0;background:none;text-decoration:underline;min-height:44px;padding:0 4px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border:1px solid #999;border-radius:12px;font-size:13px;white-space:nowrap;background:#fff}
+.head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.head h2{margin:0;font-size:20px;white-space:nowrap}
+.head .actions{display:flex;gap:8px;flex-wrap:wrap}
+.mac .head .actions{margin-left:auto}
+/* Status: one line per value; the row reflows, a label never breaks. */
+.status{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.mac .status{grid-template-columns:repeat(5,1fr)}
+.tile{border:1px solid #aaa;background:#fff;padding:8px 10px;min-height:56px;text-align:left;border-radius:6px;min-width:0;display:block;width:100%}
+.status>div{min-width:0}
+.tile dd.sub{font-weight:400;font-size:12px;color:#555}
+.tile .t-l,.tile .t-v{display:block}
+.tile dt,.tile .t-l{font-size:12px;color:#555;white-space:nowrap}
+.tile dd,.tile .t-v{margin:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile.alert{border-width:2px;border-color:#555}
+button.tile{cursor:pointer;font:inherit}
+button.tile .t-v::after{content:" ›";color:#777}
+[role=tablist]{display:flex;border:1px solid #888;border-radius:6px;overflow:hidden;margin:4px 0 10px}
+[role=tab]{flex:1;min-height:44px;border:0;background:#eee;cursor:pointer;white-space:nowrap}
+[role=tab][aria-selected=true]{background:#555;color:#fff;font-weight:600}
+.lanes{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:8px}
+.lanes button{min-height:48px;border:1px solid #999;background:#f3f3f3;cursor:pointer;padding:2px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;white-space:nowrap;border-radius:6px;min-width:0}
+.lanes button b{font-size:15px}
+.lanes button[aria-pressed=true]{background:#555;color:#fff}
+.lanes button.zero{color:#888}
+.list{border:1px solid #aaa;background:#fff;border-radius:6px}
+.row{display:flex;gap:8px;align-items:center;padding:10px;border-top:1px solid #ddd;min-height:44px}
+.row:first-child{border-top:0}
+.row .n{color:#666;width:36px;flex:none;font-size:13px}
+.row .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.more{margin-top:4px}
+.cols{display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start}
+.col h3,.panel h3{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:#444;margin:12px 0 6px;display:flex;gap:8px;align-items:center}
+.col h3 .btn{margin-left:auto}
+.legend{font-size:12px;color:#555;margin-top:10px}
+.skel{background:#ddd;border-radius:4px}
+.muted{color:#555;font-size:13px}
+.state{border:1px dashed #888;padding:12px;background:#f3f3f3;margin:8px 0}
+.banner{background:#e0e0e0;border:1px solid #999;padding:8px 10px;font-size:13px;margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.notes{max-width:1100px;margin:0 auto 40px;background:#fff;border:1px solid #bbb;padding:16px 20px;font-size:14px}
+.notes h2{font-size:16px}
+</style>
+</head>
+<body>
+<div class="demo" role="region" aria-label="Демо-панель вайрфрейма">
+  <b>#275 Доска: главное на первом экране</b>
+  <label>Вид <select id="view"><option value="both">iPhone и Mac</option><option value="phone">iPhone 390×844</option><option value="mac">Mac 1440×900</option></select></label>
+  <label>Состояние <select id="state">
+    <option value="loaded">Загружено</option>
+    <option value="loading">Загрузка (скелетон)</option>
+    <option value="nosprint">Нет спринта</option>
+    <option value="empty">Пустой спринт</option>
+    <option value="partial">PR не загрузились</option>
+    <option value="runsunknown">Журнал прогонов не прочитан</option>
+    <option value="offline">Нет сети</option>
+    <option value="error">Ошибка загрузки</option>
+    <option value="calm">Всё спокойно (CI зелёный, вопросов нет)</option>
+  </select></label>
+  <p>Красная пунктирная линия — край первого экрана. Всё, что выше неё, видно без прокрутки. Плитки CI, «Прогоны» и «Ждут вас» — кнопки: нажмите.</p>
+</div>
+<div class="stage" id="stage"></div>
+
+<section class="notes" aria-label="Заметки к вайрфрейму">
+  <h2>Что здесь меняется по сравнению с текущей доской (#18, #131, #132, #134)</h2>
+  <ul>
+    <li>Пять плиток статуса в одну строку на Mac и сеткой 2×2 на iPhone. «Готово» и «Ещё открыто» на iPhone в одной плитке. Значение всегда в одну строку.</li>
+    <li>Под плитками — вкладки «Задачи · PR · Прогоны» (iPhone). На Mac — две колонки: задачи слева, PR и прогоны справа, обе видны сразу.</li>
+    <li>Переключатель дорожек (#134) — одна строка из пяти ячеек «название над числом», без переноса на вторую строку.</li>
+    <li>Каждый список показывает 5 строк, остальное — «Показать ещё N». Дорожка «Готово» на Mac свёрнута до заголовка.</li>
+    <li>Легенда сложности уходит под список.</li>
+    <li>Скроллится один документ, без вложенных прокруток (#274).</li>
+  </ul>
+</section>
+
+<script>
+const T = {
+  sprint: 'Sprint 01', demo: 'Демо 16 окт · через 9 дней', moveDemo: 'Перенести демо', ask: 'Попросить PM',
+  lanes: [['Одобрено',4],['В работе',3],['Проверка',0],['Блокеры',3],['Готово',10]],
+  issues: {
+    'Одобрено': ['Bilingual interface (ru, en) from the first component','GitHub webhook receiver','Questions and cross-project Needs you','Sprint board (read-only)'],
+    'В работе': ['Owner grammar library and the answer endpoint','Spaces shell: project routing, switcher and restored state','Read models: inbox, questions, sprint and needs-you'],
+    'Проверка': [],
+    'Блокеры': ['Console dialogs: fit the viewport, one scroll, sticky actions','«Вопросы»: enough context to decide in the console','Artifacts: view designs inside the console'],
+    'Готово': ['Item 1','Item 2','Item 3','Item 4','Item 5','Item 6','Item 7','Item 8','Item 9','Item 10']
+  },
+  prs: [['#40','CI не прошёл','feat(#219): owner requests to the PM'],['#92','CI идёт','perf(#123): initial bundle under 500 kB'],['#91','Проверок нет','docs(design): #108 board by sprint'],['#45','CI пройден','fix: bump sharp override']],
+  runs: [['Разработка','Идёт','сейчас'],['QA','Завершён','12:40'],['Планирование','Завершён','09:00'],['Разработка','Сбой','вчера, 22:10'],['QA','Завершён','вчера, 18:00'],['Разработка','Завершён','вчера, 14:00']]
+};
+let tab = 'tasks', lane = 'Блокеры', expanded = {};
+
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function rows(items, max, key){
+  const open = expanded[key]; const shown = open ? items : items.slice(0,max);
+  let h = '<div class="list" role="list">' + shown.map((t,i)=>`<div class="row" role="listitem"><span class="n">#${10+i}</span><span class="t">${esc(t)}</span><span class="chip" aria-label="Сложность: средняя">▮▮▯</span></div>`).join('') + '</div>';
+  if (items.length > max) h += `<button class="btn link more" data-more="${key}" aria-expanded="${!!open}">${open ? 'Свернуть' : 'Показать ещё ' + (items.length-max)}</button>`;
+  return h;
+}
+function prRows(max){
+  const items = T.prs.slice(0,max);
+  return '<div class="list" role="list">' + items.map(p=>`<div class="row" role="listitem"><span class="n">${p[0]}</span><span class="t">${esc(p[2])}</span><span class="chip">${p[1]}</span></div>`).join('') + '</div>' + (T.prs.length>max?`<button class="btn link">Все ${T.prs.length} PR</button>`:'');
+}
+function runRows(max){
+  return '<div class="list" role="list">' + T.runs.slice(0,max).map(r=>`<div class="row" role="listitem"><span class="t">${r[0]}</span><span class="muted">${r[2]}</span><span class="chip">${r[1]}</span></div>`).join('') + '</div><button class="btn link">Журнал прогонов на GitHub ↗</button>';
+}
+function tiles(mac, s){
+  const calm = s==='calm', unk = s==='runsunknown', part = s==='partial';
+  const ci = part ? ['—','Не загрузилось'] : calm ? ['✓','Всё зелёное'] : ['✕','1 PR не прошёл'];
+  const runs = unk ? ['?','Неизвестно'] : ['▷','Идёт прогон'];
+  const wait = calm ? ['✓','Ничего'] : ['','9 вопросов'];
+  const done = mac ? `<div class="tile"><dt>Готово</dt><dd>10 из 20</dd></div><div class="tile"><dt>Ещё открыто</dt><dd>10</dd></div>`
+                   : `<div class="tile"><dt>Готово</dt><dd>10 из 20</dd><dd class="sub">ещё открыто 10</dd></div>`;
+  return `<dl class="status" aria-label="Статус спринта">${done}
+    <div><dt class="sr-only">CI</dt><dd style="margin:0"><button class="tile ${(!calm&&!part)?'alert':''}" data-go="prs" aria-label="CI: ${ci[1]}. Открыть PR"><span class="t-l">CI</span><span class="t-v">${ci[0]} ${ci[1]}</span></button></dd></div>
+    <div><dt class="sr-only">Прогоны</dt><dd style="margin:0"><button class="tile" data-go="runs" aria-label="Прогоны: ${runs[1]}. Открыть прогоны"><span class="t-l">Прогоны</span><span class="t-v">${runs[0]} ${runs[1]}</span></button></dd></div>
+    <div><dt class="sr-only">Ждут вас</dt><dd style="margin:0"><button class="tile ${calm?'':'alert'}" data-go="questions" aria-label="Ждут вас: ${wait[1]}. Открыть вопросы"><span class="t-l">Ждут вас</span><span class="t-v">${wait[0]} ${wait[1]}</span></button></dd></div>
+  </dl>`;
+}
+function header(mac){
+  return `<div class="head"><h2 id="sprint-title">${T.sprint}</h2><span class="chip">🗓 ${T.demo}</span>
+    <div class="actions"><button class="btn sm">${T.moveDemo}</button><button class="btn sm" aria-haspopup="dialog">${T.ask}</button></div></div>`;
+}
+function laneSwitch(){
+  return `<div class="lanes" role="group" aria-label="Дорожки">` + T.lanes.map(([n,c])=>`<button aria-pressed="${n===lane}" class="${c?'':'zero'}" data-lane="${n}"><span>${n}</span><b>${c}</b></button>`).join('') + '</div>';
+}
+function phoneBody(s){
+  if (s==='loading') return skeleton(false);
+  if (s==='error') return errorBlock();
+  let h = '';
+  if (s==='offline') h += `<div class="banner" role="status">Нет сети. Показываем данные от 14:02.<button class="btn sm">Обновить</button></div>`;
+  if (s==='nosprint') return h + `<div class="state"><b>Активного спринта нет</b><p class="muted">PM создаст спринт на ближайшем планировании. PR и прогоны — ниже.</p></div>` + tabsPhone(s);
+  h += header(false) + tiles(false, s) + tabsPhone(s);
+  return h;
+}
+function tabsPhone(s){
+  const tabs = [['tasks','Задачи',20],['prs','PR',4],['runs','Прогоны',6]].filter(t=>!(s==='nosprint'&&t[0]==='tasks'));
+  if (s==='nosprint' && tab==='tasks') tab='prs';
+  let h = `<div role="tablist" aria-label="Разделы доски">` + tabs.map(([k,l,c])=>`<button role="tab" id="tab-${k}" aria-controls="panel" aria-selected="${tab===k}" tabindex="${tab===k?0:-1}" data-tab="${k}">${l} ${c}</button>`).join('') + '</div>';
+  h += `<div role="tabpanel" id="panel" aria-labelledby="tab-${tab}" tabindex="-1">`;
+  if (tab==='tasks') h += s==='empty' ? `<div class="state"><b>В Sprint 01 пока нет задач</b><p class="muted">PM добавит их на планировании.</p></div>` : laneSwitch() + (T.issues[lane].length ? rows(T.issues[lane],5,'p-'+lane) : `<div class="state">Пусто</div>`) + `<p class="legend">Сложность: ▮▯▯ лёгкая · ▮▮▯ средняя · ▮▮▮ тяжёлая</p>`;
+  if (tab==='prs') h += s==='partial' ? partialBlock() : prRows(5);
+  if (tab==='runs') h += s==='runsunknown' ? unknownRuns() : runRows(5);
+  return h + '</div>';
+}
+function partialBlock(){return `<div class="state" role="alert"><b>Не удалось загрузить PR</b><p class="muted">Задачи спринта на месте. Попробуйте ещё раз.</p><button class="btn">Повторить</button></div>`}
+function unknownRuns(){return `<div class="state"><b>Не удалось прочитать журнал прогонов</b><p class="muted">Откройте его на GitHub.</p><button class="btn link">Журнал прогонов на GitHub ↗</button></div>`}
+function errorBlock(){return `<div class="state" role="alert"><b>Не удалось загрузить доску</b><p class="muted">GitHub не ответил. Попробуйте ещё раз.</p><button class="btn">Повторить</button></div>`}
+function skeleton(mac){
+  const tile = '<div class="tile" aria-hidden="true"><div class="skel" style="height:10px;width:50%"></div><div class="skel" style="height:16px;width:70%;margin-top:8px"></div></div>';
+  return `<p class="sr-only" role="status">Загружаем доску…</p><div class="skel" style="height:24px;width:40%"></div>
+  <div class="status">${tile.repeat(mac?5:4)}</div><div class="skel" style="height:44px"></div>
+  ${'<div class="skel" style="height:44px;margin-top:8px"></div>'.repeat(4)}`;
+}
+function macBody(s){
+  if (s==='loading') return skeleton(true);
+  if (s==='error') return errorBlock();
+  let h = '';
+  if (s==='offline') h += `<div class="banner" role="status">Нет сети. Показываем данные от 14:02.<button class="btn sm">Обновить</button></div>`;
+  let left;
+  if (s==='nosprint') { left = `<div class="state"><b>Активного спринта нет</b><p class="muted">PM создаст спринт на ближайшем планировании.</p></div>`; }
+  else {
+    h += header(true) + tiles(true, s);
+    left = s==='empty' ? `<div class="state"><b>В Sprint 01 пока нет задач</b><p class="muted">PM добавит их на планировании.</p></div>` :
+      T.lanes.map(([n,c])=>{
+        if (n==='Готово') return `<h3>${n} <span>${c}</span><button class="btn sm" data-more="m-done" aria-expanded="${!!expanded['m-done']}">${expanded['m-done']?'Свернуть':'Показать'}</button></h3>` + (expanded['m-done']? rows(T.issues[n],99,'m-x'):'');
+        return `<h3>${n} <span>${c}</span></h3>` + (c ? rows(T.issues[n],5,'m-'+n) : '<p class="muted">Пусто</p>');
+      }).join('') + `<p class="legend">Сложность: ▮▯▯ лёгкая · ▮▮▯ средняя · ▮▮▮ тяжёлая</p>
+      <h3>Следующий спринт и бэклог</h3><p class="muted">Разделы из #108 — свёрнуты, загружаются по нажатию.</p>`;
+  }
+  const right = `<h3 id="prs-h">Открытые PR <span>4</span></h3>` + (s==='partial'?partialBlock():prRows(5)) +
+    `<h3 id="runs-h">Прогоны <span>6</span></h3>` + (s==='runsunknown'?unknownRuns():runRows(5));
+  return h + `<div class="cols"><section class="col" aria-labelledby="tasks-h"><h3 id="tasks-h" class="sr-only">Задачи</h3>${left}</section><section class="col panel" aria-label="PR и прогоны">${right}</section></div>`;
+}
+function render(){
+  const v = document.getElementById('view').value, s = document.getElementById('state').value;
+  const st = document.getElementById('stage'); st.innerHTML = '';
+  if (v!=='mac') st.insertAdjacentHTML('beforeend', `<div class="frame phone" aria-label="iPhone 390×844"><div class="topbar"><b>team-console ▾</b><button class="btn sm">Команды</button><span>⚙</span></div><main class="scroll"><div class="content">${phoneBody(s)}</div></main><nav class="tabbar"><span>Вопросы</span><span aria-current="page">Доска</span><span>Артефакты</span><span>Демо</span></nav><div class="fold" style="top:784px"><span>край экрана (над таб-баром)</span></div></div>`);
+  if (v!=='phone') st.insertAdjacentHTML('beforeend', `<div class="frame mac" aria-label="Mac 1440×900"><aside class="side"><div><b>Консоль команды</b></div><div>Ждут вас 9</div><div>Все проекты</div><div>team-console 9</div></aside><main class="scroll"><div class="machead"><b>team-console</b><span class="chip">Вопросы</span><span class="chip">Доска</span><span class="chip">Артефакты</span><span class="chip">Демо</span><button class="btn sm" style="margin-left:auto">Команды K</button></div><div class="content">${macBody(s)}</div></main><div class="fold" style="top:897px"><span>край экрана 900</span></div></div>`);
+}
+document.addEventListener('click', e=>{
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.tab){ tab=b.dataset.tab; render(); document.getElementById('tab-'+tab)?.focus(); }
+  else if (b.dataset.lane){ lane=b.dataset.lane; render(); document.querySelector(`[data-lane="${lane}"]`)?.focus(); }
+  else if (b.dataset.more){ expanded[b.dataset.more]=!expanded[b.dataset.more]; render(); }
+  else if (b.dataset.go){
+    if (b.dataset.go==='questions'){ alert('Переход на вкладку «Вопросы» этого проекта'); return; }
+    tab=b.dataset.go; render();
+    // On the Mac both lists are visible; focus goes to the list heading instead of a tab.
+    (document.querySelector('.phone #panel') || document.getElementById(tab==='prs'?'prs-h':'runs-h'))?.focus();
+  }
+});
+document.addEventListener('keydown', e=>{
+  const t = e.target; if (t.getAttribute('role')!=='tab') return;
+  const tabs=[...t.parentElement.querySelectorAll('[role=tab]')]; let i=tabs.indexOf(t);
+  if (e.key==='ArrowRight') i=(i+1)%tabs.length; else if (e.key==='ArrowLeft') i=(i-1+tabs.length)%tabs.length; else if (e.key==='Home') i=0; else if (e.key==='End') i=tabs.length-1; else return;
+  e.preventDefault(); tab=tabs[i].dataset.tab; render(); document.getElementById('tab-'+tab)?.focus();
+});
+document.getElementById('view').onchange = render; document.getElementById('state').onchange = render;
+if (matchMedia('(max-width: 600px)').matches) document.getElementById('view').value='phone';
+render();
+</script>
+</body>
+</html>

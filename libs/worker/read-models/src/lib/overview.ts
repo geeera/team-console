@@ -1,4 +1,11 @@
-import type { InboxDto, OverviewProjectReadDto, OverviewTeamState, SprintDto } from '@shared/contracts';
+import type {
+  InboxDto,
+  OverviewProjectReadDto,
+  OverviewTeamState,
+  SnoozeDto,
+  SprintListsDto,
+} from '@shared/contracts';
+import { withoutInvisibles } from '@shared/plain-text';
 
 export interface OverviewRowInput {
   readonly slug: string;
@@ -6,7 +13,9 @@ export interface OverviewRowInput {
   readonly team: OverviewTeamState;
   readonly inbox: InboxDto;
   /** The board's read model; its pull requests are not part of the row. */
-  readonly sprint: SprintDto;
+  readonly sprint: SprintListsDto;
+  /** From the registry row (D1), not GitHub. */
+  readonly snooze: SnoozeDto;
 }
 
 /**
@@ -26,7 +35,8 @@ export function buildOverviewRow(input: OverviewRowInput): OverviewProjectReadDt
         ? null
         : {
             number: milestone.number,
-            title: milestone.title,
+            // The sprint DTO already strips the title; every title-bearing builder strips its own (#287 guard).
+            title: withoutInvisibles(milestone.title),
             dueOn: milestone.dueOn,
             planned: input.sprint.planned,
             shipped: input.sprint.shipped,
@@ -34,5 +44,6 @@ export function buildOverviewRow(input: OverviewRowInput): OverviewProjectReadDt
     needsYou: input.inbox.items.map((item) => item.number),
     setup: input.inbox.setup,
     setupUrl: input.inbox.setupUrl,
+    snooze: input.snooze,
   };
 }

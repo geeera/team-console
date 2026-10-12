@@ -18,16 +18,17 @@ import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router
 import {
   isSpaceSection,
   ProjectsStore,
-  SPACE_SECTIONS,
   spaceLocationOf,
   SpaceSection,
+  VISIBLE_SPACE_SECTIONS,
 } from '@console/entities/project';
 import { TeamStatusStore } from '@console/entities/team-run';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { BREAKPOINTS, Button, Icon, IconName, Sheet, Tab, TabBar, TopBarAction } from '@console/shared/ui';
 import {
-  CommandsPanel,
+  CommandsPane,
   CommandsSheet,
+  isCommandsShortcut,
   PausedBanner,
   type CommandsProject,
 } from '@console/widgets/commands-panel';
@@ -41,8 +42,6 @@ const SECTION_ICONS: Record<SpaceSection, IconName> = {
   demo: 'play',
 };
 
-const TYPING = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
-
 /**
  * `/p/:slug`: the project's name, the section tabs (a bottom bar on the phone) and the outlet the
  * sections render into. Only reachable for an active slug — the route's `canMatch` guard sees to that.
@@ -53,7 +52,7 @@ const TYPING = 'input, textarea, select, [contenteditable]:not([contenteditable=
   selector: 'tc-project-space-page',
   imports: [
     Button,
-    CommandsPanel,
+    CommandsPane,
     Icon,
     PausedBanner,
     RouterLink,
@@ -70,6 +69,7 @@ const TYPING = 'input, textarea, select, [contenteditable]:not([contenteditable=
     class: 'tc-space',
     '[class.tc-space--phone]': 'isPhone()',
     '[class.tc-space--pane]': 'isPaneOpen()',
+    '[class.tc-space--cards]': 'hasCardGrid()',
     '(document:keydown)': 'onKeydown($event)',
   },
 })
@@ -87,7 +87,7 @@ export class ProjectSpacePage {
   /** Bound from the route by `withComponentInputBinding()`. */
   readonly slug = input.required<string>();
 
-  protected readonly sections = SPACE_SECTIONS.map((section) => ({ section, icon: SECTION_ICONS[section] }));
+  protected readonly sections = VISIBLE_SPACE_SECTIONS.map((section) => ({ section, icon: SECTION_ICONS[section] }));
   protected readonly project = computed(() => this.projects.bySlug(this.slug()));
   protected readonly commandsProject = computed<CommandsProject>(() => {
     const project = this.project();
@@ -150,27 +150,12 @@ export class ProjectSpacePage {
       return;
     }
     const target = event.target instanceof Element ? event.target : null;
-    if (
-      event.key === 'Escape' &&
-      this.isPaneOpen() &&
-      target?.closest('.space__pane') !== null &&
-      target !== null
-    ) {
+    if (event.key === 'Escape' && this.isPaneOpen() && target?.closest('.tc-commands-pane')) {
       event.preventDefault();
       this.closePane();
       return;
     }
-    const isTyping = target?.closest(TYPING) !== null && target !== null;
-    if (isTyping || event.metaKey || event.ctrlKey || event.altKey) {
-      return;
-    }
-    if (
-      event.code === 'KeyK' ||
-      event.key === 'k' ||
-      event.key === 'K' ||
-      event.key === 'л' ||
-      event.key === 'Л'
-    ) {
+    if (isCommandsShortcut(event)) {
       event.preventDefault();
       this.toggleCommands();
     }
@@ -183,5 +168,11 @@ export class ProjectSpacePage {
   protected readonly currentSection = computed<SpaceSection | null>(() => {
     const first = spaceLocationOf(this.url())?.path.split(/[/?#]/, 1)[0];
     return isSpaceSection(first) ? first : null;
+  });
+
+  /** Sections that list decision cards get the wider body, two cards side by side on a Mac (#276). */
+  protected readonly hasCardGrid = computed(() => {
+    const section = this.currentSection();
+    return section === 'questions' || section === 'demo';
   });
 }

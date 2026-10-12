@@ -12,6 +12,8 @@ export interface Stack {
   readonly isLocal: boolean;
   /** Fresh database and api isolate. Local stacks only. */
   reset(): Promise<void>;
+  /** Every time a local server stopped serving on its own (a workerd crash, wrangler exiting); none for a target. */
+  incidents(): readonly string[];
 }
 
 export interface FakeComment {

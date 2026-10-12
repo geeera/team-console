@@ -1,3 +1,6 @@
+import type { SnoozeDto } from './snooze';
+import type { SprintCalendarDto, SprintProgressDto, TeamSprintDto } from './sprint-commands';
+
 /**
  * Team commands, part 1 (#114): pause / resume development and "Run now" for a slot. The Worker reads the run log
  * and fires the slot's routine; the client never decides a refusal itself, it renders the problem `type`.
@@ -67,8 +70,18 @@ export interface TeamStatusDto {
   /** The Worker's environment, for the setup card's `--env`. */
   readonly environment: string;
   readonly slots: readonly SlotStatusDto[];
+  /** The project's snoozed notifications (#221), read from D1 with the run log. */
+  readonly snooze: SnoozeDto;
   /** ISO 8601: when the Worker read the run log. */
   readonly checkedAt: string;
+  /** The current sprint (#218); `null` when there is none or the milestones could not be read (`calendar` null). */
+  readonly sprint: TeamSprintDto | null;
+  /** Done of all work issues in the current sprint; `null` without one. */
+  readonly progress: SprintProgressDto | null;
+  /** `null` when GitHub did not answer the milestones read: the sprint commands are off until it does. */
+  readonly calendar: SprintCalendarDto | null;
+  /** Issues whose newest owner request still waits for the PM (#219), from D1. */
+  readonly pendingRequests: number;
 }
 
 /** A pause or resume written to the run log. */
@@ -112,3 +125,51 @@ export type TeamProblemType =
   | 'team-command-in-progress'
   | 'pause-unreliable'
   | 'run-log-missing';
+
+/**
+ * The team as the plugin's `runstate` sees it (#27, #132): `paused` — the owner paused it; `failing` — the team stopped
+ * itself (three failed runs in a row), or the streak is there and the next start will stop it; `unknown` — the run
+ * log cannot be trusted (opened by someone outside the team, or several of them) or was not read in this request.
+ */
+export type TeamRunState = 'running' | 'paused' | 'failing' | 'unknown';
+
+export const TEAM_RUN_STATES: readonly TeamRunState[] = ['running', 'paused', 'failing', 'unknown'];
+
+export function isTeamRunState(value: unknown): value is TeamRunState {
+  return typeof value === 'string' && (TEAM_RUN_STATES as readonly string[]).includes(value);
+}
+
+/**
+ * One run as the board shows it (#132): `running` while its start is younger than the 3-hour overlap window,
+ * `failed` when it failed or died (a start older than the window), `unknown` whenever a team entry of the run was
+ * edited after the fact (REST cannot prove an edit harmless) or the plugin wrote a state the console does not know.
+ * An edited entry is never shown as `failed`.
+ */
+export type RunEntryState = 'running' | 'finished' | 'failed' | 'unknown';
+
+export const RUN_ENTRY_STATES: readonly RunEntryState[] = ['running', 'finished', 'failed', 'unknown'];
+
+export function isRunEntryState(value: unknown): value is RunEntryState {
+  return typeof value === 'string' && (RUN_ENTRY_STATES as readonly string[]).includes(value);
+}
+
+/** How many of the latest runs the board lists. */
+export const RECENT_RUNS_LIMIT = 5;
+
+export interface RecentRunDto {
+  /** The console's slot for the run-log slot name; `null` for a slot the console has no name for. */
+  readonly slot: TeamSlot | null;
+  /** The slot as the run log writes it (`slot-dev`): team text, shown only as plain text. */
+  readonly slotName: string;
+  readonly state: RunEntryState;
+  /** ISO 8601: when the run ended, or when it started while it runs; `null` when GitHub sent no time. */
+  readonly at: string | null;
+}
+
+/** The team's run state and its latest runs, newest first (at most `RECENT_RUNS_LIMIT`). */
+export interface TeamRunDto {
+  readonly state: TeamRunState;
+  /** The run-log issue on GitHub; `null` while the project has none or it could not be read. */
+  readonly runLogUrl: string | null;
+  readonly recentRuns: readonly RecentRunDto[];
+}

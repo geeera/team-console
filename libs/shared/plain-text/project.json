@@ -1,0 +1,7 @@
+{
+  "name": "shared-plain-text",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/plain-text/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:shared", "layer:shared"]
+}

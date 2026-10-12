@@ -97,6 +97,22 @@ export function appNotInstalledError(repo: string): GitHubError {
 }
 
 /**
+ * 409 `github-app-not-installed` for the installation list (#194): the console app has no installation on the
+ * connected owner's account. The detail names no repository, login or app; the route adds the install URL.
+ */
+export function appNotInstalledForAccountError(): GitHubError {
+  return new GitHubError(
+    {
+      type: 'github-app-not-installed',
+      title: 'The console app is not installed on the connected account',
+      status: 409,
+      detail: 'Install the console app on the connected GitHub account',
+    },
+    null,
+  );
+}
+
+/**
  * 403 `github-owner-not-connected` (ADR 0003 decision 4): no usable owner connection in this environment. The
  * extension member `connectUrl` tells the client where Connect starts; the client branches on `type`.
  */

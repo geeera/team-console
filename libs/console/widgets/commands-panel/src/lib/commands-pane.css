@@ -1,0 +1,37 @@
+/* Beside the page (non-modal): the page stays usable while the pane is open. */
+:host {
+  flex: none;
+  width: var(--pane-w);
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  border-left: var(--border-w) solid var(--border);
+  background: var(--surface-2);
+  animation: tc-pane-in var(--dur-base) var(--ease-enter) both;
+}
+
+@keyframes tc-pane-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--space-4));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :host {
+    animation: tc-pane-fade var(--dur-fade) linear both;
+  }
+}
+
+:host-context(:root[data-motion='reduce']) {
+  animation: tc-pane-fade var(--dur-fade) linear both;
+}
+
+@keyframes tc-pane-fade {
+  from {
+    opacity: 0;
+  }
+}

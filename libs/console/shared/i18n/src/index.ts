@@ -24,6 +24,8 @@ export {
   LocalDayPipe,
   LocalNumberPipe,
   LocalTimePipe,
+  localCalendarDayOf,
+  localCalendarRangeOf,
   localDayOf,
   localNumberOf,
   localTimeOf,

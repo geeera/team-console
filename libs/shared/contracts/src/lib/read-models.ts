@@ -1,11 +1,16 @@
 import type { AnswerCommand, Section } from './answer';
+import type { OwnerCategory, TeamRecommendation } from './batch-answer';
+import type { TeamRunDto } from './team';
+import type { OwnerRequestStatusDto } from './owner-request';
 
 /**
  * Read models of a product repository (#35): what the owner's inbox, the questions list, the sprint board and
  * the cross-project "Needs you" show. Built in the api Worker from GitHub reads; no GitHub type crosses the wire.
  *
- * Every title, body and `ask` is untrusted issue text, passed through verbatim: the client renders it as plain
- * text (Angular interpolation), never as HTML. Every `url` is `https://github.com/…` or `null`.
+ * Every title, body and `ask` is untrusted issue text: the client renders it as plain text (Angular interpolation),
+ * never as HTML. Bodies and `ask` pass through verbatim; every `title` has its invisible characters (controls,
+ * zero-width, bidi marks and overrides, fillers, tag characters) removed by `withoutInvisibles` in the builder, so
+ * an outsider's item cannot pose as another (#287). Every `url` is `https://github.com/…` or `null`.
  */
 
 /** One issue waiting for the owner, as the plugin's inbox lists it (`brief.needs`). */
@@ -22,6 +27,42 @@ export interface InboxItemDto {
    * through a template, so an untrusted item is shown marked (#9 threat row 5).
    */
   readonly authorTrusted: boolean;
+  /** The owner decision a question is about, from its `owner:*` label (`categoryOf`); `null` without one. */
+  readonly category: OwnerCategory | null;
+  /**
+   * The command of the one option the answer line marks "(…, recommended)" / "(рекомендую)" / "(рекомендуем)";
+   * `null` for anything else (`recommendationOf`, fails closed). Read from untrusted text: only the server's re-check
+   * decides what a batch may answer.
+   */
+  readonly recommendation: TeamRecommendation | null;
+  /**
+   * What a card needs to decide without GitHub (#276), read from the body's fixed `##` sections; `null` when the
+   * author is not trusted (outsiders' bodies are never parsed into the card) or nothing readable was found.
+   */
+  readonly context: QuestionContextDto | null;
+}
+
+/**
+ * The fixed sections of a team question's body (#276), each as bounded plain text: markup, tag-like runs and
+ * invisible characters are removed for readability, not as sanitising (`<scr<x>ipt>` comes out as `<script>`, #288).
+ * Untrusted text for interpolation only — never pass a field to tc-markdown or innerHTML. A missing section is `null`;
+ * the card hides its slot.
+ */
+export interface QuestionContextDto {
+  /** `## Кратко` / `## Summary`: one line, the card's title in the owner's language. */
+  readonly summary: string | null;
+  /** `## Вопрос` / `## Question`; without any section heading, the body's first paragraph. */
+  readonly question: string | null;
+  /** `## Почему` / `## Why`: the reason behind the team's recommendation. */
+  readonly why: string | null;
+  /** `## Если одобрить` / `## If approved`. */
+  readonly ifApproved: string | null;
+  /** `## Если отклонить` / `## If rejected`. */
+  readonly ifRejected: string | null;
+  /** `## Цена и риск` / `## Cost and risk`. */
+  readonly costAndRisk: string | null;
+  /** The body has at least one of the sections; `false` means the card falls back to the answer line's options. */
+  readonly structured: boolean;
 }
 
 /** `GET /api/v1/projects/:slug/inbox`: the plugin's inbox for one repository, in its order. */
@@ -68,6 +109,11 @@ export interface SprintIssueDto {
   readonly tier: SprintTier;
   readonly kind: string | null;
   readonly authorTrusted: boolean;
+  /**
+   * The owner's newest request to the PM on this issue (#219), from the console's D1 record. Set by the sprint route
+   * only; absent elsewhere (the overview reads no requests).
+   */
+  readonly request?: OwnerRequestStatusDto | null;
 }
 
 /** `metrics.sprint_summary`'s per-tier row. */
@@ -77,25 +123,46 @@ export interface SprintTierRowDto {
   readonly raised: number;
 }
 
+/**
+ * The CI of a pull request's head commit (#131), combined from its check runs: `failure` when any run failed,
+ * else `pending` while any has not finished, else `success`; `none` when the head has no check run. `unknown`:
+ * not read in this request (the subrequest budget, or GitHub refused the read) — never an error of the board.
+ */
+export type SprintCiState = 'success' | 'failure' | 'pending' | 'none' | 'unknown';
+
+export const SPRINT_CI_STATES: readonly SprintCiState[] = [
+  'success',
+  'failure',
+  'pending',
+  'none',
+  'unknown',
+];
+
+export function isSprintCiState(value: unknown): value is SprintCiState {
+  return typeof value === 'string' && (SPRINT_CI_STATES as readonly string[]).includes(value);
+}
+
 export interface SprintPullRequestDto {
   readonly number: number;
   readonly title: string;
   readonly url: string | null;
   readonly draft: boolean;
   readonly authorTrusted: boolean;
+  readonly ci: SprintCiState;
 }
 
 /**
  * `GET /api/v1/projects/:slug/embed-origins` (#20): the only origins the console may frame for this project, those of
- * `design.storybook_url` and `environments.stage.url` in its project.yml, `https:` only, as exact origins. Read per
+ * `design.storybook_url` in its project.yml (stage is link-only: it is behind Cloudflare Access, owner decision
+ * 2026-10-05), `https:` only, never the console's own origin, as exact origins. Read per
  * project when a space needs it, never on the registry list.
  */
 export interface EmbedOriginsDto {
   readonly embedOrigins: readonly string[];
 }
 
-/** `GET /api/v1/projects/:slug/sprint`: the current sprint (`calendar.pick_current_sprint`) and its numbers. */
-export interface SprintDto {
+/** The current sprint (`calendar.pick_current_sprint`) and its numbers, as read from the repository's lists. */
+export interface SprintListsDto {
   /** `null` when no open milestone has a due date today or later; the rest is then empty. */
   readonly milestone: SprintMilestoneDto | null;
   readonly issues: readonly SprintIssueDto[];
@@ -108,6 +175,11 @@ export interface SprintDto {
   readonly byTier: Readonly<Record<string, SprintTierRowDto>>;
   /** The repository's open pull requests (up to 100). */
   readonly openPullRequests: readonly SprintPullRequestDto[];
+}
+
+/** `GET /api/v1/projects/:slug/sprint`: the sprint's lists, and the team's run state from the run log (#132). */
+export interface SprintDto extends SprintListsDto {
+  readonly team: TeamRunDto;
 }
 
 export interface NeedsYouProjectRef {

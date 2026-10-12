@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>#276 «Вопросы»: enough context to decide (UX wireframe)</title>
+<style>
+/* Low fidelity on purpose: grey boxes, system font, real copy. The look is the ui-designer's job (Paper Desk). */
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.4 system-ui,-apple-system,sans-serif;color:#222;background:#eee}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid #000;outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.demo{background:#fff;border-bottom:1px solid #bbb;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:13px}
+.demo b{font-size:14px}.demo p{margin:0;flex-basis:100%;color:#555}
+.stage{padding:20px;display:flex;gap:24px;justify-content:center;align-items:flex-start;flex-wrap:wrap}
+.frame{background:#fafafa;border:2px solid #999;position:relative;overflow:hidden;display:flex}
+.frame.phone{width:390px;height:844px;flex-direction:column;border-radius:28px}
+.frame.mac{width:1440px;height:900px;zoom:.72}
+.fold{position:absolute;left:0;right:0;border-top:2px dashed #c33;pointer-events:none;z-index:5}
+.topbar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #bbb;background:#e6e6e6;min-height:53px;flex:none}
+.topbar b{flex:1}
+.tabbar{display:flex;border-top:1px solid #bbb;background:#e6e6e6;flex:none;height:60px}
+.tabbar span{flex:1;display:grid;place-items:center;font-size:12px}
+.tabbar [aria-current]{font-weight:700;text-decoration:underline}
+.side{width:256px;border-right:1px solid #bbb;background:#e6e6e6;padding:12px;flex:none;font-size:14px}
+.side div{padding:8px}
+.scroll{flex:1;overflow:auto;min-width:0}
+.machead{display:flex;align-items:center;gap:12px;padding:16px 32px;border-bottom:1px solid #bbb}
+.content{padding:12px 16px 24px}
+.mac .content{padding:16px 32px 32px}
+.mac .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(480px,1fr));gap:16px;align-items:start}
+.btn{min-height:44px;padding:0 14px;border:1px solid #666;background:#ddd;cursor:pointer;white-space:nowrap;border-radius:4px}
+.btn.primary{background:#555;color:#fff;border-color:#555}
+.btn.sm{min-height:36px}
+.btn.link{border:0;background:none;text-decoration:underline;padding:0 4px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border:1px solid #999;border-radius:12px;font-size:12px;white-space:nowrap;background:#fff}
+.card{background:#fff;border:1px solid #aaa;border-radius:10px;padding:14px;margin-bottom:12px}
+.kind{display:flex;justify-content:space-between;gap:8px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#555}
+.card h3{margin:6px 0 2px;font-size:18px}
+.orig{font-size:12px;color:#666;margin:0 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.q{margin:8px 0;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.rec{border-left:4px solid #555;padding:6px 10px;background:#f1f1f1;margin:10px 0}
+.rec b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.outcomes{display:grid;grid-template-columns:1fr;gap:8px;margin:10px 0}
+.mac .outcomes{grid-template-columns:1fr 1fr}
+.outcome{border:1px solid #ccc;padding:8px 10px;border-radius:6px}
+.outcome dt{font-size:12px;color:#555;font-weight:600}
+.outcome dd{margin:2px 0 0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.cost{display:flex;gap:6px;align-items:baseline;font-size:14px;margin:6px 0}
+.cost dt{font-weight:600;white-space:nowrap}.cost dd{margin:0}
+.previews{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0 4px}
+.thumb{height:112px;background:#d6d6d6;border:1px solid #999;border-radius:6px;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-end;padding:4px;font-size:11px;text-align:left;min-height:0}
+.thumb.wide{aspect-ratio:16/10}
+.thumb i{display:block;background:#bbb;height:8px;margin:3px 0;border-radius:2px}
+.thumb .more{font-weight:600}
+.answers{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+details{margin-top:8px}
+summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
+.state{border:1px dashed #888;padding:10px;background:#f3f3f3;margin:8px 0;font-size:14px}
+.skel{background:#ddd;border-radius:4px}
+.muted{color:#555;font-size:13px}
+/* Viewer: the #274 dialog shell. Full screen on the phone, a large dialog on the Mac. One scrolling region. */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:10}
+.dialog{background:#fafafa;display:flex;flex-direction:column;width:100%;height:100%}
+.mac .dialog{width:1100px;height:820px;border-radius:12px;border:2px solid #666}
+.dhead{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #bbb;flex:none;min-height:53px}
+.dhead h2{font-size:16px;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dbody{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.dfoot{border-top:1px solid #bbb;padding:8px 12px;flex:none;display:flex;flex-direction:column;gap:8px}
+.nav{display:flex;align-items:center;gap:8px}
+.nav .cap{flex:1;text-align:center;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.screen{background:#d6d6d6;border:1px solid #888;width:100%;max-width:360px;aspect-ratio:390/844;display:flex;flex-direction:column;padding:10px;gap:6px}
+.screen.wide{max-width:900px;aspect-ratio:1440/900}
+.screen i{display:block;background:#bbb;height:14px;border-radius:3px}
+.screen i.big{height:60px}
+.seg{display:flex;border:1px solid #888;border-radius:6px;overflow:hidden}
+.seg button{border:0;background:#eee;min-height:36px;padding:0 10px;cursor:pointer;white-space:nowrap}
+.seg button[aria-pressed=true]{background:#555;color:#fff}
+.notes{max-width:1100px;margin:0 auto 40px;background:#fff;border:1px solid #bbb;padding:16px 20px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="demo" role="region" aria-label="Демо-панель вайрфрейма">
+  <b>#276 «Вопросы»: достаточно контекста, чтобы решить</b>
+  <label>Вид <select id="view"><option value="both">iPhone и Mac</option><option value="phone">iPhone 390×844</option><option value="mac">Mac 1440×900</option></select></label>
+  <label>Состояние <select id="state">
+    <option value="loaded">Три вопроса: дизайн, деньги, без разметки</option>
+    <option value="loading">Загрузка (скелетон)</option>
+    <option value="noscreens">Дизайн без экранов</option>
+    <option value="screensfailed">Экраны не загрузились</option>
+    <option value="untrusted">Вопрос не от команды</option>
+    <option value="empty">Вопросов нет</option>
+  </select></label>
+  <p>Нажмите на превью дизайна — откроется просмотрщик (тот же, что в «Артефактах», #277). Ответ можно дать прямо из просмотрщика.</p>
+</div>
+<div class="stage" id="stage"></div>
+<section class="notes" aria-label="Заметки">
+  <b>Откуда берётся текст.</b> Сервер читает тело вопроса по заголовкам «## Кратко», «## Вопрос», «## Если одобрить», «## Если отклонить», «## Почему», «## Цена и риск» (или их английские варианты) и отдаёт их как обычный текст. Чего нет в теле — того нет и на карточке; пустых строк вида «неизвестно» мы не показываем. Строку ответа («Твой ответ: …») сырой не показываем никогда. Если в теле нет ни одного такого заголовка, карточка показывает варианты из строки ответа и первый абзац тела.
+</section>
+<script>
+const Q = [
+  { id:90004, kind:'Согласование дизайна', title:'Экран дизайна и демо', orig:'Дизайн #20: экран дизайна и демо', design:true,
+    q:'Утвердить дизайн экрана «Дизайн и демо»: дизайны, которые ждут вашего согласования, и открытое демо спринта на одном экране.',
+    yes:'Разработчик начнёт #20 по этому дизайну, к демо 16 октября.', no:'Дизайнер переделает экран по вашему комментарию. #20 подождёт.',
+    rec:'Утвердить', why:'Повторяет уже утверждённые карточки «Ждут вас». Новых паттернов нет.', cost:null, buttons:['Утвердить','Отклонить'], screens:6 },
+  { id:90007, kind:'Деньги', title:'Платный план Cloudflare Workers', orig:'Cloudflare Workers Paid plan for the api Worker', design:false,
+    q:'Перевести api Worker на платный план Workers за $5 в месяц?',
+    yes:'Лимит вырастет до 10 млн запросов в месяц. Доска и вопросы не упрутся в бесплатные 100 тыс. в день.', no:'Остаёмся на бесплатном плане. При 100 тыс. запросов в день консоль до полуночи по UTC будет отвечать «Слишком много запросов».',
+    rec:'Отклонить', why:'Сейчас мы используем 6% дневного лимита. Вернёмся к вопросу, когда будет 50%.', cost:'$5 в месяц. Риск при отказе — низкий, до лимита далеко.', buttons:['Одобрить','Отклонить'] },
+  { id:90009, kind:'Доступ', title:'Branch protection for stage', orig:null, design:false, plain:true,
+    yes:'to enable branch protection on stage (recommended)', no:'why — keep the branch guard only',
+    first:'The free plan has no branch protection for private repositories. The repository is public now, so we can turn it on for stage.',
+    rec:'Одобрить', why:null, cost:null, buttons:['Одобрить','Отклонить'] }
+];
+let viewer = null; // {id, i, device}
+const SCREENS = ['Доска — загружено','Доска — загрузка','Карточка дизайна','Просмотрщик','Демо открыто','Демо закрыто'];
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function previews(q, s){
+  if (s==='untrusted') return `<div class="state">Превью скрыто: этот вопрос создала не команда. Откройте его на GitHub, если доверяете автору.</div>`;
+  if (s==='noscreens') return `<div class="state">Команда не приложила экраны к этому дизайну. Попросите PM добавить их или откройте PR на GitHub.<br><button class="btn sm" aria-haspopup="dialog">Попросить PM</button></div>`;
+  if (s==='screensfailed') return `<div class="state" role="alert">Не удалось загрузить экраны.<br><button class="btn sm">Повторить</button></div>`;
+  const shown = SCREENS.slice(0,3);
+  return `<div class="previews" role="list" aria-label="Экраны дизайна, ${q.screens}">` + shown.map((c,i)=>
+    `<button class="thumb" role="listitem" data-open="${q.id}" data-i="${i}" aria-label="Экран ${i+1} из ${q.screens}: ${c}. Открыть"><i></i><i></i><i></i>${i===2?`<span class="more">+${q.screens-3}</span>`:esc(c)}</button>`).join('') +
+    `</div><button class="btn link" data-open="${q.id}" data-i="0">Все экраны (${q.screens})</button>`;
+}
+function card(q, s){
+  const untrusted = s==='untrusted' && q.design;
+  let h = `<article class="card" aria-labelledby="t${q.id}"><div class="kind"><span>${q.kind}${untrusted?' · <span class="chip">Не от команды</span>':''}</span><span>#${q.id}</span></div>
+    <h3 id="t${q.id}">${esc(q.title)}</h3>${q.orig?`<p class="orig" title="${esc(q.orig)}">На GitHub: ${esc(q.orig)}</p>`:''}`;
+  if (q.plain){
+    h += `<p class="q">${esc(q.first)}</p><dl class="outcomes"><div class="outcome"><dt>Если одобрите</dt><dd>${esc(q.yes)}</dd></div><div class="outcome"><dt>Если отклоните</dt><dd>${esc(q.no)}</dd></div></dl>
+      <div class="rec"><b>Команда советует</b>${q.rec}.</div>`;
+  } else {
+    h += `<p class="q">${esc(q.q)}</p>`;
+    h += `<div class="rec"><b>Команда советует</b>${q.rec}.${q.why?` ${esc(q.why)}`:''}</div>`;
+    if (q.design) h += previews(q, s);
+    h += `<dl class="outcomes"><div class="outcome"><dt>Если ${q.buttons[0]==='Утвердить'?'утвердите':'одобрите'}</dt><dd>${esc(q.yes)}</dd></div><div class="outcome"><dt>Если отклоните</dt><dd>${esc(q.no)}</dd></div></dl>`;
+    if (q.cost) h += `<dl class="cost"><dt>Цена и риск:</dt><dd>${esc(q.cost)}</dd></dl>`;
+  }
+  h += `<div class="answers"><button class="btn primary">${q.buttons[0]}</button><button class="btn">${q.buttons[1]}</button></div>
+    <details><summary>Подробнее</summary><p class="muted">Полный текст вопроса из GitHub, без строки ответа. Markdown как обычный текст, ссылки — только на github.com.</p><button class="btn link">Открыть #${q.id} на GitHub ↗</button></details></article>`;
+  return h;
+}
+function list(s){
+  if (s==='loading') return `<p class="sr-only" role="status">Загружаем вопросы…</p>` + `<div class="card" aria-hidden="true"><div class="skel" style="height:12px;width:40%"></div><div class="skel" style="height:20px;width:80%;margin-top:10px"></div><div class="skel" style="height:60px;margin-top:10px"></div><div class="skel" style="height:44px;margin-top:10px"></div></div>`.repeat(2);
+  if (s==='empty') return `<div class="state"><b>Вопросов нет</b><p class="muted">Когда команде понадобится ваше решение, вопрос появится здесь и придёт уведомлением.</p></div>`;
+  const qs = (s==='loaded') ? Q : [Q[0]];
+  return `<div class="cards">${qs.map(q=>card(q,s)).join('')}</div>`;
+}
+function viewerHtml(mac){
+  const q = Q.find(x=>x.id===viewer.id); const n = q.screens; const i = viewer.i;
+  return `<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="vt"><div class="dhead"><h2 id="vt">${esc(q.title)}</h2>
+    <div class="seg" role="group" aria-label="Устройство"><button aria-pressed="${viewer.device==='phone'}" data-dev="phone">iPhone</button><button aria-pressed="${viewer.device==='mac'}" data-dev="mac">Mac</button></div>
+    <button class="btn sm" data-close aria-label="Закрыть просмотр">✕</button></div>
+    <div class="dbody"><div class="screen ${viewer.device==='mac'?'wide':''}" role="img" aria-label="Экран ${i+1} из ${n}: ${SCREENS[i]}"><i></i><i class="big"></i><i></i><i></i><i class="big"></i></div></div>
+    <div class="dfoot"><div class="nav"><button class="btn sm" data-prev ${i===0?'aria-disabled="true"':''}>‹ Назад</button><span class="cap" aria-live="polite">${i+1} из ${n} · ${SCREENS[i]}</span><button class="btn sm" data-next ${i===n-1?'aria-disabled="true"':''}>Вперёд ›</button></div>
+    <div class="answers" style="margin:0"><button class="btn primary">Утвердить</button><button class="btn">Отклонить</button></div></div></div></div>`;
+}
+function render(){
+  const v=document.getElementById('view').value, s=document.getElementById('state').value, st=document.getElementById('stage'); st.innerHTML='';
+  if (v!=='mac') st.insertAdjacentHTML('beforeend', `<div class="frame phone" aria-label="iPhone 390×844"><div class="topbar"><b>team-console ▾</b><button class="btn sm">Команды</button></div><main class="scroll"><div class="content"><h2 class="sr-only">Вопросы</h2>${list(s)}</div></main><nav class="tabbar"><span aria-current="page">Вопросы</span><span>Доска</span><span>Артефакты</span><span>Демо</span></nav><div class="fold" style="top:784px"></div>${viewer?viewerHtml(false):''}</div>`);
+  if (v!=='phone') st.insertAdjacentHTML('beforeend', `<div class="frame mac" aria-label="Mac 1440×900"><aside class="side"><div><b>Консоль команды</b></div><div>Ждут вас 9</div><div>Все проекты</div><div>team-console 9</div></aside><main class="scroll"><div class="machead"><b>team-console</b><span class="chip">Вопросы</span><span class="chip">Доска</span><span class="chip">Артефакты</span><span class="chip">Демо</span></div><div class="content"><h2 class="sr-only">Вопросы</h2>${list(s)}</div></main><div class="fold" style="top:897px"></div>${viewer?viewerHtml(true):''}</div>`);
+}
+let opener = null;
+document.addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  if (b.dataset.open){ opener=b.getAttribute('aria-label')||b.textContent; viewer={id:+b.dataset.open,i:+b.dataset.i,device:'phone'}; render(); document.querySelector('[data-close]')?.focus(); }
+  else if (b.hasAttribute('data-close')){ viewer=null; render(); /* focus returns to the preview that opened it */ document.querySelector('[data-open]')?.focus(); }
+  else if (b.hasAttribute('data-next') && viewer && viewer.i<5){ viewer.i++; render(); document.querySelector('[data-next]')?.focus(); }
+  else if (b.hasAttribute('data-prev') && viewer && viewer.i>0){ viewer.i--; render(); document.querySelector('[data-prev]')?.focus(); }
+  else if (b.dataset.dev && viewer){ viewer.device=b.dataset.dev; render(); }
+});
+document.addEventListener('keydown', e=>{
+  if (!viewer) return;
+  if (e.key==='Escape'){ viewer=null; render(); document.querySelector('[data-open]')?.focus(); }
+  if (e.key==='ArrowRight' && viewer.i<5){ viewer.i++; render(); }
+  if (e.key==='ArrowLeft' && viewer.i>0){ viewer.i--; render(); }
+});
+document.getElementById('view').onchange=render; document.getElementById('state').onchange=render;
+if (matchMedia('(max-width: 600px)').matches) document.getElementById('view').value='phone';
+render();
+</script>
+</body>
+</html>

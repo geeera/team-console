@@ -1,4 +1,5 @@
 import type { ProblemDetails } from './problem-details';
+import type { SnoozeDto } from './snooze';
 import type { ProjectSlotsDto } from './team';
 
 /** A registered product repository (ADR 0001, decision 20) as the client sees it. */
@@ -18,6 +19,8 @@ export interface ProjectDto {
    * Set on every answer of the registry routes; optional only so DTOs built elsewhere need not invent it.
    */
   readonly slots?: ProjectSlotsDto;
+  /** Snoozed notifications (#221), for the sidebar's bell; set by the registry routes like `slots`. */
+  readonly snooze?: SnoozeDto;
 }
 
 /** `POST /api/v1/projects`. The slug defaults to the repository name in kebab case. */

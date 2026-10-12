@@ -1,12 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { globSync } from 'node:fs';
+import { findNativePickers } from './native-pickers.ts';
 import { extractInlineStyles, findRawValues } from './raw-values.ts';
 
 /**
  * Fails when a console stylesheet — or an inline `style="…"`/`styles: [...]` — uses a raw
  * colour, length, duration or z-index instead of a Paper Desk token. Runs as the `lint` target
- * of this project, so `nx run-many -t lint` (the contract command and CI) includes it.
+ * of this project, so `nx run-many -t lint` (the contract command and CI) includes it. It also fails on a native
+ * date or time input (#307): the console's date field is the kit's `DatePicker`.
  *
  *   node tools/design-lint/src/cli.ts [workspace root]
  */
@@ -47,8 +49,16 @@ for (const file of styleFiles) {
   }
 }
 
+let nativePickers = 0;
+
 for (const file of inlineStyleFiles) {
   const source = readFileSync(resolve(root, file), 'utf8');
+  for (const picker of findNativePickers(source)) {
+    nativePickers += 1;
+    console.error(
+      `${relative(root, resolve(root, file))}:${picker.line}  native ${picker.type} input  "${picker.snippet}"; use the kit's DatePicker (@console/shared/ui)`,
+    );
+  }
   for (const block of extractInlineStyles(source)) {
     stylesheetsChecked += 1;
     for (const finding of findRawValues(block.css)) {
@@ -61,8 +71,18 @@ for (const file of inlineStyleFiles) {
   }
 }
 
+if (nativePickers > 0) {
+  console.error(
+    `\ndesign-lint: ${nativePickers} native date/time input(s); the console uses the kit's DatePicker.`,
+  );
+}
+
 if (failures > 0) {
-  console.error(`\ndesign-lint: ${failures} raw value(s) in ${stylesheetsChecked} stylesheet(s); use the tokens in ${TOKENS_FILE}.`);
+  console.error(
+    `\ndesign-lint: ${failures} raw value(s) in ${stylesheetsChecked} stylesheet(s); use the tokens in ${TOKENS_FILE}.`,
+  );
+}
+if (failures > 0 || nativePickers > 0) {
   process.exit(1);
 }
-console.log(`design-lint: ${stylesheetsChecked} stylesheet(s) use tokens only.`);
+console.log(`design-lint: ${stylesheetsChecked} stylesheet(s) use tokens only; no native date/time inputs.`);

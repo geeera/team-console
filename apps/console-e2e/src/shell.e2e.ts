@@ -22,9 +22,41 @@ async function switchTo(page: Page, name: string): Promise<void> {
   }
 }
 
-const main = (page: Page) => page.locator('main#tc-main');
+// Only the document scrolls (#274): its scrolling element is <html>.
+const pageScroller = (page: Page) => page.locator('html');
 
 const TEAM_STATUS = '/api/v1/projects/team-console/team/status';
+
+/** The device-local UI state key (`PERSISTED_STATE_KEY` in `persisted-state.model.ts`). */
+const PERSISTED_STATE_KEY = 'tc.state.v1';
+
+/** Writes a project's saved last section directly into storage, as an older app version would have. */
+async function setLastPath(page: Page, slug: string, lastPath: string): Promise<void> {
+  await page.evaluate(
+    ([key, slug, lastPath]) => {
+      const raw = localStorage.getItem(key);
+      const state =
+        raw !== null
+          ? JSON.parse(raw)
+          : { version: 1, activeSlug: null, pinned: [], collapsed: false, projects: {} };
+      const project = state.projects[slug] ?? { lastPath: '', scroll: {}, chatDraft: '' };
+      state.projects[slug] = { ...project, lastPath };
+      localStorage.setItem(key, JSON.stringify(state));
+    },
+    [PERSISTED_STATE_KEY, slug, lastPath] as const,
+  );
+}
+
+async function lastPathOf(page: Page, slug: string): Promise<string | undefined> {
+  return page.evaluate(
+    ([key, slug]) => {
+      const raw = localStorage.getItem(key);
+      const state = raw !== null ? JSON.parse(raw) : null;
+      return state?.projects[slug]?.lastPath;
+    },
+    [PERSISTED_STATE_KEY, slug] as const,
+  );
+}
 
 test.describe('with two active projects', () => {
   test.beforeAll(async ({ stack }) => {
@@ -32,40 +64,65 @@ test.describe('with two active projects', () => {
     await seed(stack, ['geeera/team-console', 'geeera/private-product']);
   });
 
-  test('Settings lists the projects and the connection', async ({ page }) => {
+  test('Settings shows the connection and no project list; All projects lists them (#194)', async ({
+    page,
+  }) => {
     await page.goto('/settings');
     await expect(page.getByRole('heading', { level: 1, name: ru('settings.title') })).toBeVisible();
     await expect(page.getByTestId('gh-connected')).toContainText('geeera');
-    const list = page.getByTestId('project-list');
-    await expect(list.locator('[data-row]')).toHaveCount(2);
-    await expect(list.locator('[data-row="team-console"]')).toBeVisible();
-    await expect(list.locator('[data-row="private-product"]')).toBeVisible();
+    await expect(page.getByTestId('project-list')).toHaveCount(0);
+
+    await page.goto('/overview');
+    const registered = page.getByTestId('repos-registered');
+    await expect(registered.locator('[data-registration="active"]')).toHaveCount(2);
+    await expect(registered.locator('[data-repo="geeera/team-console"]')).toBeVisible();
+    await expect(registered.locator('[data-repo="geeera/private-product"]')).toBeVisible();
   });
 
-  test('A → B → A restores the screen, its scroll position and the chat draft', async ({ page }) => {
-    const draft = 'Черновик для PM: перенести демо?';
-    await page.goto('/p/team-console/chat');
-    await page.getByTestId('chat-draft').fill(draft);
-
-    await page.getByRole('link', { name: ru('space.questions') }).click();
-    await expect(page).toHaveURL(/\/p\/team-console\/questions$/);
+  test('A → B → A restores the screen and its scroll position', async ({ page }) => {
+    await page.goto('/p/team-console/questions');
     await expect(page.locator('li[data-number="72"]')).toBeVisible();
-    const scrollable = await main(page).evaluate((el) => el.scrollHeight - el.clientHeight);
+    const scrollable = await pageScroller(page).evaluate((el) => el.scrollHeight - el.clientHeight);
     expect(scrollable, 'the questions list must be long enough to scroll').toBeGreaterThan(300);
-    await main(page).evaluate((el) => el.scrollTo({ top: 300 }));
-    await expect.poll(() => main(page).evaluate((el) => el.scrollTop)).toBe(300);
+    await pageScroller(page).evaluate((el) => el.scrollTo({ top: 300 }));
+    await expect.poll(() => pageScroller(page).evaluate((el) => el.scrollTop)).toBe(300);
 
     await switchTo(page, 'private-product');
     await expect(page).toHaveURL(/\/p\/private-product\//);
-    await expect.poll(() => main(page).evaluate((el) => el.scrollTop)).toBe(0);
+    await expect.poll(() => pageScroller(page).evaluate((el) => el.scrollTop)).toBe(0);
 
     await switchTo(page, 'team-console');
     await expect(page).toHaveURL(/\/p\/team-console\/questions$/);
     await expect(page.locator('li[data-number="72"]')).toBeVisible();
-    await expect.poll(() => main(page).evaluate((el) => el.scrollTop)).toBe(300);
+    await expect.poll(() => pageScroller(page).evaluate((el) => el.scrollTop)).toBe(300);
+  });
 
-    await page.getByRole('link', { name: ru('space.chat') }).click();
-    await expect(page.getByTestId('chat-draft')).toHaveValue(draft);
+  // The chat tab is a placeholder until #17 ships (#203): every way to reach it lands on the default section.
+  test('the chat tab is hidden; its deep link, its saved last section and the switcher all land on the default section', async ({
+    page,
+  }) => {
+    await page.goto('/p/team-console/questions');
+    await expect(page.getByRole('link', { name: ru('space.chat') })).toHaveCount(0);
+
+    // A typed URL, an old bookmark or the `pm-reply` push: no error screen, no placeholder text box.
+    await page.goto('/p/team-console/chat');
+    await expect(page).toHaveURL(/\/p\/team-console\/questions$/);
+    await expect(page.locator('li[data-number="72"]')).toBeVisible();
+    await expect(page.getByTestId('chat-draft')).toHaveCount(0);
+
+    // A `lastPath` of `chat` saved before #203: app start replaces it with the section actually shown
+    // (the store debounces its write, hence the poll).
+    await setLastPath(page, 'team-console', 'chat');
+    await page.goto('/');
+    await expect(page).toHaveURL(/\/p\/team-console\/questions$/);
+    await expect.poll(() => lastPathOf(page, 'team-console')).toBe('questions');
+
+    // The switcher reopening a saved `chat` section behaves the same way.
+    await switchTo(page, 'private-product');
+    await setLastPath(page, 'team-console', 'chat');
+    await switchTo(page, 'team-console');
+    await expect(page).toHaveURL(/\/p\/team-console\/questions$/);
+    await expect.poll(() => lastPathOf(page, 'team-console')).toBe('questions');
   });
 
   test('shell screens send only bodiless GETs: projects, needs-you, the overview and the open space team status', async ({
@@ -100,13 +157,22 @@ test.describe('with two active projects', () => {
       'GET /api/v1/projects',
       'GET /api/v1/needs-you',
       'GET /api/v1/overview',
+      // "Available on GitHub" on All projects (#194): the connection, then the installation's repositories.
+      'GET /api/v1/github/connection',
+      'GET /api/v1/github/installation/repositories',
       `GET ${TEAM_STATUS}`,
       // The Artifacts section reads its list (#19).
       'GET /api/v1/projects/team-console/artifacts',
+      // `/chat` is a placeholder until #17 ships (#203): it redirects to Questions, which reads its own list.
+      'GET /api/v1/projects/team-console/questions',
+      // The app's environment for the window title, the iOS Home Screen title and the shell mark (#237), once per load.
+      'GET /api/v1/healthz',
     ]);
+    // The Artifacts section's design rows read each design's manifest and the thumbnail's bytes (#277), GETs too.
+    const designRead = /^GET \/api\/v1\/projects\/team-console\/designs\/\d+(?:\/[0-9a-f]{40,64}\/file)?$/;
     const seen = sent.map((request) => `${request.method()} ${new URL(request.url()).pathname}`);
     expect(
-      seen.filter((call) => !allowed.has(call)),
+      seen.filter((call) => !allowed.has(call) && !designRead.test(call)),
       'requests outside the allow-list',
     ).toEqual([]);
     expect(seen).toContain('GET /api/v1/projects');
@@ -115,8 +181,13 @@ test.describe('with two active projects', () => {
       statusCodes.filter((code) => code !== 200),
       'team status answers other than 200',
     ).toEqual([]);
+    // The design file route names the screen in `?path=` (#277); it is still a bodiless read.
     expect(
-      sent.filter((request) => request.postDataBuffer() !== null || new URL(request.url()).search !== ''),
+      sent.filter((request) => {
+        const url = new URL(request.url());
+        const isDesignFile = url.pathname.endsWith('/file') && designRead.test(`GET ${url.pathname}`);
+        return request.postDataBuffer() !== null || (url.search !== '' && !isDesignFile);
+      }),
       'requests with a body or a query',
     ).toEqual([]);
   });

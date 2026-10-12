@@ -17,8 +17,9 @@
     "directory": "../../dist/apps/console/browser",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    // "/api/*" alone leaves "/api" and "/api/" to the SPA fallback, outside the auth check (#51).
-    "run_worker_first": ["/api", "/api/*"],
+    // "/api/*" alone leaves "/api" and "/api/" to the SPA fallback, outside the auth check (#51). The manifest and
+    // the /brand icons are answered per ENVIRONMENT by the Worker (#237, routes/app-identity.ts).
+    "run_worker_first": ["/api", "/api/*", "/manifest.webmanifest", "/brand/*"],
   },
   "env": {
     "dev": {

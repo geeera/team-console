@@ -3,7 +3,9 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ApplicationInitStatus } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
+import { HEALTH_URL } from '@console/entities/app-info';
 import { NEEDS_YOU_URL, PROJECTS_URL, ProjectsStore } from '@console/entities/project';
+import { AccessSession, PAGE_LOCATION } from '@console/shared/api';
 import { provideAppConfig } from '@console/shared/config';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import {
@@ -42,6 +44,17 @@ describe('App', () => {
   let fixture: ComponentFixture<App>;
   let http: HttpTestingController;
   let router: Router;
+  let pageLocation: { href: string; assigned: string[]; assign(url: string): void };
+
+  beforeEach(() => {
+    pageLocation = {
+      href: 'https://console.test/p/a/questions',
+      assigned: [],
+      assign(url) {
+        this.assigned.push(url);
+      },
+    };
+  });
 
   const root = (): HTMLElement => fixture.nativeElement as HTMLElement;
   const text = (selector: string): string => root().querySelector(selector)?.textContent?.trim() ?? '';
@@ -60,6 +73,7 @@ describe('App', () => {
         provideConsoleI18n(),
         provideAppConfig({ name: 'Team Console', version: '0.0.0', builtAt: 'local' }),
         { provide: PERSISTED_STATE_STORAGE, useValue: memoryPersistedStateStorage(stored) },
+        { provide: PAGE_LOCATION, useValue: pageLocation },
       ],
     }).compileComponents();
     await TestBed.inject(ApplicationInitStatus).donePromise;
@@ -91,8 +105,34 @@ describe('App', () => {
     http
       .match((request) => request.url.endsWith('/team/status'))
       .forEach((request) => request.flush({}, { status: 503, statusText: 'Service Unavailable' }));
+    // The window title and the environment mark ask where the app runs (#237); the routing tests do not look.
+    http
+      .match(HEALTH_URL)
+      .forEach((request) => request.flush(null, { status: 502, statusText: 'Bad Gateway' }));
     http.verify();
   });
+
+  it.each([
+    ['stage', 'Team Console Stage'],
+    ['dev', 'Team Console Dev'],
+    ['production', 'Team Console'],
+  ] as const)(
+    'names the window and the Home Screen title after the %s Worker (#237)',
+    async (environment, name) => {
+      await boot('/');
+      http.expectOne(HEALTH_URL).flush({ status: 'ok', environment, version: '0.1.0' });
+      // The environment lands a microtask after the flush.
+      await new Promise((resolve) => setTimeout(resolve));
+      await fixture.whenStable();
+
+      expect(document.title).toBe(name);
+      expect(document.querySelector('meta[name="apple-mobile-web-app-title"]')?.getAttribute('content')).toBe(
+        name,
+      );
+      const marks = root().querySelectorAll('[data-testid="environment-mark"]');
+      expect(marks).toHaveLength(environment === 'production' ? 0 : 1);
+    },
+  );
 
   it('sends the first visit to the cross-project inbox and later visits to the last place', async () => {
     await boot('/');
@@ -135,28 +175,65 @@ describe('App', () => {
     expect(root().querySelector('[role="alert"]')?.textContent).toContain('Такой страницы нет');
   });
 
-  it('with no projects, the inbox is the empty state that points to Settings', async () => {
+  it('with no projects, the inbox is the empty state that points to All projects (#194)', async () => {
     await boot('/', undefined, []);
 
     expect(router.url).toBe('/needs-you');
     expect(root().querySelector('[data-testid="no-projects"] a')?.getAttribute('href')).toBe(
-      '/settings/projects/new',
+      '/overview#add-project',
     );
   });
 
-  it('restores the chat draft of a project after A → B → A', async () => {
+  it('sends the old New project address to All projects at its GitHub section (#194)', async () => {
+    await boot('/settings/projects/new');
+
+    // The fragment is consumed by All projects (heading focused) and dropped from the address.
+    expect(router.url).toBe('/overview');
+    expect(text('[data-testid="github-repositories"] h2')).toBe('Доступны на GitHub');
+    http
+      .match((request) => request.url.endsWith('/github/connection'))
+      .forEach((request) =>
+        request.flush({ state: 'not-connected', ownerLogin: 'geeera', appName: 'team-console-local' }),
+      );
+    http
+      .match((request) => request.url.endsWith('/overview'))
+      .forEach((request) => request.flush({ projects: [], checkedAt: '2026-10-05T12:00:00Z' }));
+  });
+
+  // The chat tab is a placeholder until #17 ships (#203): the deep link lands on the default section instead.
+  it("redirects /chat to the project's default section with no error screen and no draft text box", async () => {
     await boot('/p/a/chat');
-    const draft = (): HTMLTextAreaElement =>
-      root().querySelector('[data-testid="chat-draft"]') as HTMLTextAreaElement;
-    draft().value = 'unsent words';
-    draft().dispatchEvent(new Event('input'));
 
-    await router.navigateByUrl('/p/b/questions');
-    await fixture.whenStable();
+    expect(router.url).toBe('/p/a/questions');
+    expect(text('h1')).toBe('A');
     expect(root().querySelector('[data-testid="chat-draft"]')).toBeNull();
+    expect(root().querySelector('[role="alert"]')).toBeNull();
+  });
 
-    await router.navigateByUrl('/p/a/chat');
+  it('a project with a saved last section of `chat` opens the default section on app start (#203)', async () => {
+    const stored = JSON.stringify({
+      ...emptyPersistedState(),
+      activeSlug: 'a',
+      projects: { a: { lastPath: 'chat', scroll: {}, chatDraft: '' } },
+    });
+    await boot('/', stored);
+
+    expect(router.url).toBe('/p/a/questions');
+    expect(TestBed.inject(PersistedStateStore).projectState('a')?.lastPath).toBe('questions');
+  });
+
+  it('replaces the screens with the expired-session state, whose button signs in on the same page (#284)', async () => {
+    await boot('/p/a/questions');
+    TestBed.inject(AccessSession).markExpired();
     await fixture.whenStable();
-    expect(draft().value).toBe('unsent words');
+
+    expect(root().querySelector('tc-app-shell')).toBeNull();
+    const state = root().querySelector('[data-testid="session-expired"]');
+    expect(state?.querySelector('[role="alert"]')?.textContent).toContain('Сессия истекла — войдите снова');
+    expect(text('h1')).toBe('Сессия истекла — войдите снова');
+
+    (state?.querySelector('[data-testid="session-sign-in"]') as HTMLButtonElement).click();
+    expect(pageLocation.assigned).toHaveLength(1);
+    expect(new URL(pageLocation.assigned[0] ?? '').searchParams.get('ngsw-bypass')).toBe('1');
   });
 });

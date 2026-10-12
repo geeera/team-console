@@ -1,6 +1,7 @@
 import { encryptNotification, vapidHeaders } from '@block65/webcrypto-web-push';
 import type { Logger } from '@worker/core';
-import type { PushNotification } from './message';
+import type { Environment } from '@shared/contracts';
+import { forEnvironment, type PushNotification } from './message';
 import { isAllowedPushEndpoint } from './subscription';
 import type { VapidConfig } from './vapid';
 
@@ -35,6 +36,8 @@ export interface PushSenderOptions {
   readonly logger?: Logger;
   readonly now?: () => number;
   readonly timeoutMs?: number;
+  /** The sending Worker's environment: outside production every title is prefixed (#237, {@link forEnvironment}). */
+  readonly environment: Environment;
 }
 
 /** A device is dropped after this many failed deliveries in a row (threat model on #11). */
@@ -61,7 +64,7 @@ export class PushSender {
 
   async sendToAll(store: PushSubscriptionStore, message: PushNotification): Promise<PushSendResult> {
     const started = this.now();
-    const plaintext = new TextEncoder().encode(JSON.stringify(message));
+    const plaintext = new TextEncoder().encode(JSON.stringify(forEnvironment(message, this.options.environment)));
     const subscriptions = await store.list();
     let sent = 0;
     let pruned = 0;

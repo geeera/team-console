@@ -103,6 +103,8 @@ export interface CommentRef {
   readonly id: number;
   readonly body: string;
   readonly author: IssueAuthor;
+  /** ISO 8601 as GitHub sends it; `null` when the payload has none. */
+  readonly createdAt: string | null;
 }
 
 export function commentOf(payload: JsonObject): CommentRef | null {
@@ -111,7 +113,12 @@ export function commentOf(payload: JsonObject): CommentRef | null {
   if (comment === null || id === null) {
     return null;
   }
-  return { id, body: stringAt(comment, 'body') ?? '', author: authorOf(comment) };
+  return {
+    id,
+    body: stringAt(comment, 'body') ?? '',
+    author: authorOf(comment),
+    createdAt: stringAt(comment, 'created_at'),
+  };
 }
 
 export interface PullRequestRef {

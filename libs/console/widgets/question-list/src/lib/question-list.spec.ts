@@ -51,6 +51,9 @@ function needsYouItem(
     url: `https://github.com/geeera/${project.slug}/issues/${number}`,
     ask: null,
     authorTrusted: true,
+    category: null,
+    recommendation: null,
+    context: null,
     project,
     allowedCommands: ['approve', 'reject'],
     ...overrides,
@@ -76,10 +79,11 @@ function needsYouBody(items: NeedsYouItemDto[], extra: Partial<NeedsYouDto> = {}
 
 @Component({
   imports: [QuestionList],
-  template: `<tc-question-list [project]="project()" />`,
+  template: `<tc-question-list [project]="project()" [showReceipts]="showReceipts()" />`,
 })
 class Host {
   readonly project = signal<NeedsYouProjectRef | null>(null);
+  readonly showReceipts = signal(true);
 }
 
 describe('QuestionList', () => {
@@ -128,6 +132,7 @@ describe('QuestionList', () => {
         items: golden.map((item) => ({
           ...item,
           authorTrusted: true,
+          context: null,
           body: '',
           allowedCommands: ANSWERS[item.section],
         })),
@@ -140,6 +145,12 @@ describe('QuestionList', () => {
         golden.map((item) => item.title),
       );
       expect(root.querySelector('[data-testid="project-tag"]')).toBeNull();
+      // Design items read their previews (#290, covered in question-design-previews.spec.ts); one read per design.
+      const designs = golden.filter((item) => item.section === 'design').map((item) => item.number);
+      const reads = http.match((request) => request.url.includes(`/projects/${TC.slug}/designs/`));
+      expect(reads.map((request) => request.request.url).sort()).toEqual(
+        designs.map((number) => `/api/v1/projects/${TC.slug}/designs/${number}`).sort(),
+      );
     },
   );
 
@@ -199,7 +210,11 @@ describe('QuestionList', () => {
 
     const receipt = root.querySelector('li[data-number="72"] tc-receipt') as HTMLElement;
     expect(root.querySelector('li[data-number="72"] tc-question-card')).toBeNull();
-    expect(receipt.textContent).toContain('Вы: Утвердить');
+    expect(receipt.querySelector('[data-testid="receipt-status"]')?.textContent).toContain('Утверждено');
+    expect(receipt.querySelector('tc-chip tc-icon')).not.toBeNull();
+    expect(receipt.textContent).toContain('#72');
+    expect(receipt.textContent).toContain('ждёт команду');
+    expect(receipt.textContent).not.toContain('от вашего имени');
     expect(receipt.querySelector('a')?.getAttribute('href')).toBe(
       'https://github.com/geeera/team-console/issues/72#issuecomment-9',
     );
@@ -233,6 +248,64 @@ describe('QuestionList', () => {
       'tc-receipt--negative',
     );
     expect(TestBed.inject(AnsweredItems).has(TC.slug, 80)).toBe(false);
+  });
+
+  describe('receipts', () => {
+    const answer = (number: number) => ({
+      slug: TC.slug,
+      number,
+      command: 'approve' as const,
+      url: `https://github.com/geeera/team-console/issues/${number}#issuecomment-1`,
+      answeredAt: new Date().toISOString(),
+    });
+    const context = {
+      summary: 'Кратко по-русски',
+      question: null,
+      why: null,
+      ifApproved: null,
+      ifRejected: null,
+      costAndRisk: null,
+      structured: true,
+    };
+
+    it('titles the receipt with the ru summary, else the GitHub title as a muted line', async () => {
+      const { settle, root, fixture } = await render(TC);
+      TestBed.inject(AnsweredItems).record(answer(72));
+      TestBed.inject(AnsweredItems).record(answer(73));
+      http.expectOne(projectQuestionsUrl(TC.slug)).flush({
+        items: [
+          { ...needsYouItem(TC, 72, { context }), body: '' },
+          { ...needsYouItem(TC, 73), body: '' },
+        ],
+      });
+      await settle();
+      await fixture.whenStable();
+
+      const withSummary = root.querySelector('li[data-number="72"] [tc-receipt-detail]') as HTMLElement;
+      expect(withSummary.textContent?.trim()).toBe('Кратко по-русски');
+      expect(withSummary.classList).not.toContain('questions__receipt-fallback');
+      const fallback = root.querySelector('li[data-number="73"] [tc-receipt-detail]') as HTMLElement;
+      expect(fallback.textContent?.trim()).toBe('Item 73');
+      expect(fallback.classList).toContain('questions__receipt-fallback');
+    });
+
+    it('lists no receipts where showReceipts is off, but still lists what waits', async () => {
+      const { settle, root, fixture } = await render(TC);
+      fixture.componentInstance.showReceipts.set(false);
+      TestBed.inject(AnsweredItems).record(answer(72));
+      http.expectOne(projectQuestionsUrl(TC.slug)).flush({
+        items: [
+          { ...needsYouItem(TC, 72), body: '' },
+          { ...needsYouItem(TC, 73), body: '' },
+        ],
+      });
+      await settle();
+      await fixture.whenStable();
+
+      expect(root.querySelector('tc-receipt')).toBeNull();
+      expect(root.querySelector('li[data-number="72"]')).toBeNull();
+      expect(root.querySelector('li[data-number="73"] tc-question-card')).not.toBeNull();
+    });
   });
 
   it('shows the shared error block when the list cannot be read, and Retry reads it again', async () => {
@@ -288,5 +361,109 @@ describe('QuestionList', () => {
     );
     expect(root.querySelector('[data-testid="omitted"]')?.textContent).toContain('Seventh');
     expect(root.querySelectorAll('tc-question-card')).toHaveLength(1);
+  });
+
+  describe('projects that need the owner outside a card (#205)', () => {
+    const CHECKLIST = 'https://github.com/geeera/private-product/blob/HEAD/.product-team/owner-checklist.md';
+    const PRIVATE = {
+      slug: 'private-product',
+      name: 'private-product',
+      setup: true,
+      setupUrl: CHECKLIST,
+      paused: false,
+      pausedUrl: null,
+      problem: null,
+    };
+    const BROKEN = {
+      slug: 'broken',
+      name: 'Broken',
+      setup: false,
+      setupUrl: null,
+      paused: false,
+      pausedUrl: null,
+      problem: { type: 'github-app-not-installed', title: 'x', status: 409 },
+    };
+
+    it('a project that needs setup is a Banner row above the cards linking to its GitHub checklist', async () => {
+      const { settle, root } = await render(null);
+      const body = needsYouBody([needsYouItem(TC, 72)]);
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush({ ...body, projects: [...body.projects, PRIVATE] });
+      await settle();
+
+      const rows = root.querySelectorAll<HTMLAnchorElement>('[data-testid="project-setup"]');
+      expect(rows).toHaveLength(1);
+      const row = rows[0] as HTMLAnchorElement;
+      expect(row.classList).toContain('tc-banner');
+      expect(row.classList).toContain('tc-banner--warning');
+      expect(row.dataset['project']).toBe('private-product');
+      expect(row.href).toBe(CHECKLIST);
+      expect(row.target).toBe('_blank');
+      expect(row.rel).toBe('noopener noreferrer');
+      expect(row.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+        'private-product: нужна настройка (откроется на GitHub)',
+      );
+      expect(root.querySelector('[data-testid="project-attention"]')?.getAttribute('aria-label')).toBe(
+        'Проекты, которые ждут вас',
+      );
+      // Above the cards, and counted in the summary line.
+      const list = root.querySelector('.questions__list') as HTMLElement;
+      expect(row.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(root.querySelector('[data-testid="lead"]')?.textContent).toContain(
+        'Ждут ответа: 1 · проектов: 2',
+      );
+    });
+
+    it('a setup link that is not a github.com page opens the project’s settings instead', async () => {
+      const { settle, root } = await render(null);
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush({
+        ...needsYouBody([]),
+        projects: [{ ...PRIVATE, setupUrl: 'https://evil.example/checklist' }],
+      });
+      await settle();
+
+      const row = root.querySelector('[data-testid="project-setup"]') as HTMLAnchorElement;
+      expect(row.getAttribute('href')).toBe('/settings/projects/private-product');
+      expect(row.target).toBe('');
+    });
+
+    it('a project whose inbox could not be read is a row linking to its settings', async () => {
+      const { settle, root } = await render(null);
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush({ ...needsYouBody([]), projects: [BROKEN] });
+      await settle();
+
+      const row = root.querySelector('[data-testid="project-problem"]') as HTMLAnchorElement;
+      expect(row.tagName).toBe('A');
+      expect(row.classList).toContain('tc-banner');
+      expect(row.getAttribute('href')).toBe('/settings/projects/broken');
+    });
+
+    it('with no questions, the rows replace "nothing needs you" and the summary still counts them', async () => {
+      const { settle, root } = await render(null);
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush({ ...needsYouBody([]), projects: [PRIVATE, BROKEN] });
+      await settle();
+
+      expect(root.querySelectorAll('.questions__attention > li')).toHaveLength(2);
+      expect(root.querySelector('[data-testid="empty"]')).toBeNull();
+      expect(root.querySelector('.questions__list')).toBeNull();
+      expect(root.querySelector('[data-testid="lead"]')?.textContent).toContain('Вопросов нет · проектов: 2');
+    });
+
+    it('when no project needs setup, nothing extra is shown', async () => {
+      const { settle, root } = await render(null);
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush(needsYouBody([]));
+      await settle();
+
+      expect(root.querySelector('[data-testid="project-attention"]')).toBeNull();
+      expect(root.querySelector('[data-testid="lead"]')).toBeNull();
+      expect(root.querySelector('[data-testid="empty"]')).not.toBeNull();
+    });
+
+    it('one project’s Questions never shows the cross-project rows', async () => {
+      const { settle, root } = await render(TC);
+      http.expectOne(projectQuestionsUrl(TC.slug)).flush({ items: [] });
+      await settle();
+
+      expect(root.querySelector('[data-testid="project-attention"]')).toBeNull();
+    });
   });
 });

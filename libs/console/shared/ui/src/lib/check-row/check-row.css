@@ -1,0 +1,61 @@
+:host {
+  display: block;
+}
+
+:host + :host {
+  border-top: var(--border-w) solid var(--border);
+}
+
+.tc-check-row__label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-height: var(--control-h-touch);
+  padding: var(--space-3);
+  cursor: pointer;
+}
+
+.tc-check-row__box {
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  margin: var(--space-px) 0 0;
+  accent-color: var(--accent);
+  cursor: inherit;
+}
+
+.tc-check-row__box:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+.tc-check-row__box:disabled,
+.tc-check-row__box:disabled + .tc-check-row__text {
+  cursor: default;
+}
+
+.tc-check-row__text {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.tc-check-row__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.tc-check-row__detail {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.tc-check-row__detail:empty {
+  display: none;
+}

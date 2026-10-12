@@ -166,18 +166,19 @@ function nestedValue(root: Readonly<Record<string, unknown>>, section: readonly 
   return value;
 }
 
-// The only two project.yml fields whose pages the console may frame; nothing else ever becomes an embed origin.
-const EMBED_URL_FIELDS: readonly (readonly string[])[] = [
-  ['design', 'storybook_url'],
-  ['environments', 'stage', 'url'],
-];
+// The only project.yml field whose pages the console may frame; nothing else ever becomes an embed origin. Stage is
+// link-only (owner decision 2026-10-05 on #188): it sits behind Cloudflare Access, whose login page must never be
+// framed, so a stage frame could only ever be blank.
+const EMBED_URL_FIELDS: readonly (readonly string[])[] = [['design', 'storybook_url']];
 
 /**
- * `EmbedOriginsDto` (#20): the origins of `design.storybook_url` and `environments.stage.url`, deduplicated.
+ * `EmbedOriginsDto` (#20): the origin of `design.storybook_url`, unless it is `consoleOrigin` — the console's own
+ * origin, which must never be framed:
+ * a same-origin frame with `allow-scripts allow-same-origin` could lift its sandbox and act as the console.
  * Lenient on purpose: an unusable file or field means "nothing to embed", never an error, so the registry and the
  * read models that share the file keep answering.
  */
-export function embedOriginsOf(text: string): string[] {
+export function embedOriginsOf(text: string, consoleOrigin: string): string[] {
   let root: Readonly<Record<string, unknown>>;
   try {
     root = parseRoot(text);
@@ -188,5 +189,9 @@ export function embedOriginsOf(text: string): string[] {
     throw error;
   }
   const origins = EMBED_URL_FIELDS.map((field) => embedOriginOf(nestedValue(root, field)));
-  return [...new Set(origins.filter((origin): origin is string => origin !== null))];
+  return [
+    ...new Set(
+      origins.filter((origin): origin is string => origin !== null && origin !== consoleOrigin),
+    ),
+  ];
 }

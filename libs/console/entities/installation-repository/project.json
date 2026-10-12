@@ -1,0 +1,8 @@
+{
+  "name": "console-entities-installation-repository",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/console/entities/installation-repository/src",
+  "prefix": "tc",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:console", "layer:entities"]
+}

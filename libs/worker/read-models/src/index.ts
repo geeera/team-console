@@ -7,9 +7,16 @@ export {
   pullRequestRecordOf,
 } from './lib/github-records';
 export type { IssueRecord, MilestoneRecord, PullRequestRecord } from './lib/github-records';
+export { FAILED_CONCLUSIONS, checkRunsPageOf, ciStateOf, isGitHubCheckRunsPage } from './lib/ci-state';
+export type { CheckRunRecord, CheckRunsPage } from './lib/ci-state';
 export { buildInbox, buildQuestions, needsOf } from './lib/inbox';
 export type { InboxInput } from './lib/inbox';
 export { buildNeedsYou } from './lib/needs-you';
+export {
+  QUESTION_CONTEXT_HEADINGS,
+  QUESTION_CONTEXT_LIMITS,
+  questionContextOf,
+} from './lib/question-context';
 export { buildOverviewRow } from './lib/overview';
 export type { OverviewRowInput } from './lib/overview';
 export type { ProjectInboxResult } from './lib/needs-you';
@@ -43,16 +50,45 @@ export {
 } from './lib/artifacts/designs';
 export type { DesignInput } from './lib/artifacts/designs';
 export { DEMO_LABEL, demoArtifactsOf } from './lib/artifacts/demo';
+export {
+  DESIGN_ROOT,
+  SCREENS_JSON_MAX_BYTES,
+  captionOf,
+  designFilesOf,
+  designManifestOf,
+  deviceOf,
+  fileNameOf,
+  imageTypeOf,
+  isGitHubTree,
+  isHtmlFile,
+  linkingPullRequestOf,
+  pagesUrlOf,
+  screenCaptionsOf,
+  screensJsonOf,
+  treeListingOf,
+} from './lib/designs/design-files';
+export type {
+  DesignFiles,
+  DesignManifestInput,
+  TreeEntry,
+  TreeListing,
+} from './lib/designs/design-files';
+export { IMAGE_MAGIC_LENGTH, imageMediaTypeOf, imageTypeOfBytes } from './lib/designs/image-magic';
 export type { ProjectConfig, ProjectConfigFailure } from './lib/project-config';
 export {
   SPRINT_TIME_ZONE,
   buildSprint,
   declaredTier,
+  demoDayOfMilestone,
   effectiveTier,
+  nextSprintNumber,
   pickCurrentSprint,
+  pickNextSprint,
   sprintSummary,
   sprintToday,
 } from './lib/sprint';
 export type { SprintInput } from './lib/sprint';
 export { TRUSTED_BOT_LOGINS, githubUrlOrNull, isTrustedAuthor } from './lib/untrusted-text';
 export type { IssueAuthor } from './lib/untrusted-text';
+export { handledRequestOf } from './lib/request-handled';
+export type { HandledCandidate, HandledRequest } from './lib/request-handled';

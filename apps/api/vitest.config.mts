@@ -54,12 +54,14 @@ async function generateTestVapidKeys(): Promise<{ publicKey: string; privateKey:
   return { publicKey: point.toString('base64url'), privateKey: jwk.d ?? '' };
 }
 
-// The test shell plus the console's real `_headers` (#118), so the specs assert the policy that ships, applied by
+// The test shell plus the console's real `_headers` (#118) and icons (#237), so the specs assert the policy that ships, applied by
 // the same assets layer, instead of a copy that could drift.
 async function prepareTestAssets(): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), 'tc-api-test-assets-'));
   await cp(resolve(import.meta.dirname, 'test-assets'), directory, { recursive: true });
   await cp(resolve(import.meta.dirname, '../console/public/_headers'), join(directory, '_headers'));
+  // The real per-environment icon sets (#237): routes/app-identity.ts answers /brand/* from them.
+  await cp(resolve(import.meta.dirname, '../console/public/icons'), join(directory, 'icons'), { recursive: true });
   return directory;
 }
 

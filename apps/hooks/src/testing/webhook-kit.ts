@@ -205,5 +205,6 @@ export async function resetDatabase(): Promise<void> {
     env.DB.prepare('DELETE FROM own_writes'),
     env.DB.prepare('DELETE FROM projects'),
     env.DB.prepare('DELETE FROM push_subscriptions'),
+    env.DB.prepare('DELETE FROM owner_requests'),
   ]);
 }

@@ -143,12 +143,12 @@ describe('api and hooks share one D1 database', () => {
 
 describe('apps/api/wrangler.jsonc', () => {
   // "/api/*" alone leaves "/api" and "/api/" to the SPA fallback and so outside the auth middleware (#51).
-  it.each(ENVIRONMENTS)('serves the SPA with the Worker first on /api and /api/* in env %s', (env) => {
+  it.each(ENVIRONMENTS)('serves the SPA with the Worker first on /api, /api/* and the install identity in env %s', (env) => {
     expect(readWorkerConfig('api', env).assets).toEqual(
       expect.objectContaining({
         binding: 'ASSETS',
         not_found_handling: 'single-page-application',
-        run_worker_first: ['/api', '/api/*'],
+        run_worker_first: ['/api', '/api/*', '/manifest.webmanifest', '/brand/*'],
       }),
     );
   });
