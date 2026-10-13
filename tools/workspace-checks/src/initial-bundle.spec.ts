@@ -20,6 +20,7 @@ function read(path: string): string {
 const STAR_ONLY_BARRELS = [
   'libs/console/shared/ui/src/index.ts',
   'libs/console/entities/project/src/index.ts',
+  'libs/console/entities/push/src/index.ts',
 ];
 
 describe('initial bundle (#123)', () => {

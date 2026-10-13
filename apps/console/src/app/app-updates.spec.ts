@@ -2,7 +2,6 @@ import { PendingTasks } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { SwUpdate, UnrecoverableStateEvent, VersionEvent } from '@angular/service-worker';
 import { PAGE_LOCATION } from '@console/shared/api';
-import { Sheet } from '@console/shared/ui';
 import { Subject } from 'rxjs';
 import {
   AppUpdates,
@@ -77,7 +76,6 @@ describe('AppUpdates', () => {
   };
   let now: number;
   let assigned: string[];
-  let isSheetOpen: boolean;
   let visibility: DocumentVisibilityState;
 
   beforeEach(() => {
@@ -85,7 +83,7 @@ describe('AppUpdates', () => {
     storage = new MemoryStorage();
     now = 1_000_000;
     assigned = [];
-    isSheetOpen = false;
+    setSheetOpen(false);
     visibility = 'visible';
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => visibility });
     platform = {
@@ -99,7 +97,6 @@ describe('AppUpdates', () => {
       providers: [
         { provide: SwUpdate, useValue: sw },
         { provide: UPDATE_PLATFORM, useValue: platform },
-        { provide: Sheet, useValue: { hasOpen: () => isSheetOpen } },
         {
           provide: PAGE_LOCATION,
           useValue: {
@@ -112,10 +109,16 @@ describe('AppUpdates', () => {
   });
 
   afterEach(() => {
+    setSheetOpen(false);
     vi.useRealTimers();
     document.body.replaceChildren();
     Reflect.deleteProperty(document, 'visibilityState');
   });
+
+  /** What an open sheet does to the page: the kit's scroll lock marks the root element (`isPageScrollLocked`). */
+  function setSheetOpen(open: boolean): void {
+    document.documentElement.toggleAttribute('data-tc-scroll-lock', open);
+  }
 
   function start(): AppUpdates {
     const updates = TestBed.inject(AppUpdates);
@@ -260,7 +263,7 @@ describe('AppUpdates', () => {
       const updates = start();
       await flush();
       sw.versionUpdates.next(READY);
-      isSheetOpen = true;
+      setSheetOpen(true);
 
       await resume();
 
@@ -291,7 +294,7 @@ describe('AppUpdates', () => {
     });
 
     it('shows the banner instead while a sheet is open', async () => {
-      isSheetOpen = true;
+      setSheetOpen(true);
       sw.nextCheck = 'ready';
       const updates = start();
       await flush();
@@ -396,7 +399,7 @@ describe('AppUpdates', () => {
       const field = document.createElement('textarea');
       document.body.append(field);
       field.value = 'half a reason';
-      isSheetOpen = true;
+      setSheetOpen(true);
       start();
       await flush();
 
@@ -435,13 +438,13 @@ describe('AppUpdates', () => {
       });
 
       it('found by the start check under an open sheet: waits, then heals once the sheet is closed and the app resumes', async () => {
-        isSheetOpen = true;
+        setSheetOpen(true);
         sw.nextCheck = 'broken';
         start();
         await flush();
         expect(assigned).toEqual([]);
 
-        isSheetOpen = false;
+        setSheetOpen(false);
         sw.nextCheck = 'none';
         await resume();
         expect(platform.unregisterWorkers).toHaveBeenCalledTimes(1);
@@ -499,7 +502,6 @@ describe('AppUpdates', () => {
         providers: [
           { provide: SwUpdate, useValue: sw },
           { provide: UPDATE_PLATFORM, useValue: platform },
-          { provide: Sheet, useValue: { hasOpen: () => false } },
           {
             provide: PAGE_LOCATION,
             useValue: { href: 'https://console.test/', assign: (url: string) => assigned.push(url) },
