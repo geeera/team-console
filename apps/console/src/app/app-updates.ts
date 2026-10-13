@@ -12,7 +12,7 @@ import {
 } from '@angular/core';
 import { SwUpdate, VersionEvent } from '@angular/service-worker';
 import { PAGE_LOCATION, reloginUrlOf } from '@console/shared/api';
-import { Sheet } from '@console/shared/ui';
+import { isPageScrollLocked } from '@console/shared/ui';
 import { TimeoutError, filter, firstValueFrom, timeout } from 'rxjs';
 import { hasUnsavedField } from './unsaved-input';
 
@@ -105,7 +105,6 @@ export class AppUpdates {
   private readonly platform = inject(UPDATE_PLATFORM);
   private readonly location = inject(PAGE_LOCATION);
   private readonly document = inject(DOCUMENT);
-  private readonly sheet = inject(Sheet);
   private readonly appRef = inject(ApplicationRef);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -247,7 +246,9 @@ export class AppUpdates {
   }
 
   private hasUnsavedInput(): boolean {
-    return this.sheet.hasOpen() || hasUnsavedField(this.document);
+    // Every sheet and dialog holds the page still while it is open, so the lock answers `Sheet.hasOpen()` without
+    // importing `Sheet` (and the CDK dialog, overlay and forms behind it) into the initial bundle (#123).
+    return isPageScrollLocked(this.document) || hasUnsavedField(this.document);
   }
 
   /** The app is stable once no request or navigation is pending. */

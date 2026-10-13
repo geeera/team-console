@@ -1,0 +1,53 @@
+<p class="cp-state__now" [class]="'cp-state__now--' + status().state" data-testid="team-state">
+  @if (status().state === 'paused-by-team') {
+  <tc-icon name="alert" size="sm" />
+  } @else {
+  <span class="cp-dot" [class.cp-dot--paused]="paused()" aria-hidden="true"></span>
+  }
+  <span>{{ stateText() }}</span>
+</p>
+<dl class="cp-facts">
+  <div class="cp-fact">
+    <dt>{{ 'commands.status.sprint' | transloco }}</dt>
+    <dd data-testid="status-sprint">
+      <span>{{ sprintFacts().line }}</span>
+      @if (sprintFacts().freeze) {&ngsp;<span
+        class="cp-fact__sub"
+        [class.cp-fact__sub--freeze]="sprintFacts().isFreezeNow"
+        >{{ sprintFacts().freeze }}</span
+      >
+      }
+    </dd>
+  </div>
+  @if (status().progress; as progress) {
+  <div class="cp-fact">
+    <dt>{{ 'commands.status.progress' | transloco }}</dt>
+    <dd class="cp-fact__progress" data-testid="status-progress">
+      <span
+        >{{ 'commands.status.progressVal' | transloco: { done: progress.done, total: progress.total } }}</span
+      >
+      <tc-meter [value]="progress.done" [max]="progress.total" />
+    </dd>
+  </div>
+  }
+</dl>
+<p class="cp-state__meta">
+  <span>{{ 'commands.status.updated' | transloco: { time: (status().checkedAt | localTime) } }}</span>
+  <button
+    type="button"
+    class="cp-link"
+    [attr.aria-disabled]="refreshOff() ? 'true' : null"
+    (click)="refresh.emit()"
+  >
+    <tc-icon name="refresh" size="sm" />
+    {{ (refreshing() ? 'commands.status.refreshing' : 'commands.status.refresh') | transloco }}
+  </button>
+  @if (status().runLogUrl; as runLogUrl) {
+  <a class="cp-link" [href]="runLogUrl" target="_blank" rel="noopener noreferrer">
+    {{ 'commands.status.log' | transloco }}<span class="tc-sr-only">
+      {{ 'commands.external' | transloco }}</span
+    >
+    <tc-icon name="external" size="sm" />
+  </a>
+  }
+</p>

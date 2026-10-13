@@ -76,6 +76,7 @@ export class ConsoleLanguage {
   private readonly storage = inject(LANGUAGE_STORAGE);
   private readonly deviceLanguages = inject(DEVICE_LANGUAGES);
   private reportedWriteFailure = false;
+  private lastSwitch = 0;
 
   private readonly translocoLang = toSignal(this.transloco.langChanges$, {
     initialValue: this.transloco.getActiveLang(),
@@ -92,8 +93,31 @@ export class ConsoleLanguage {
     return initialLangOf(this.storage.read(), this.deviceLanguages);
   }
 
-  /** Switches the whole interface without a reload and remembers the choice on this device. */
-  use(lang: ConsoleLang): void {
+  /**
+   * Switches the whole interface without a reload and remembers the choice on this device. The language's dictionary
+   * loads first (English is a lazy chunk, #123), so nothing translates synchronously into a dictionary that is not
+   * there yet; a loaded one switches at once. The last call wins; a dictionary that cannot load keeps the language
+   * as it is. Resolves once the switch applied (or was dropped).
+   */
+  use(lang: ConsoleLang): Promise<void> {
+    const ticket = ++this.lastSwitch;
+    return new Promise((resolve) => {
+      this.transloco.load(lang).subscribe({
+        next: () => {
+          if (ticket === this.lastSwitch) {
+            this.apply(lang);
+          }
+          resolve();
+        },
+        error: (error: unknown) => {
+          console.warn(`i18n: could not load "${lang}"; the language stays as it is`, error);
+          resolve();
+        },
+      });
+    });
+  }
+
+  private apply(lang: ConsoleLang): void {
     this.transloco.setActiveLang(lang);
     try {
       this.storage.write(lang);

@@ -69,6 +69,6 @@ export class SettingsPage {
 
   /** The whole interface follows at once, and the choice is remembered on this device (#4, #125). */
   protected switchLang(): void {
-    this.language.use(this.otherLang());
+    void this.language.use(this.otherLang());
   }
 }

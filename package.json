@@ -2,6 +2,9 @@
   "name": "team-console",
   "version": "0.1.0",
   "private": true,
+  "sideEffects": [
+    "*.css"
+  ],
   "license": "MIT",
   "packageManager": "npm@10.9.9",
   "engines": {
