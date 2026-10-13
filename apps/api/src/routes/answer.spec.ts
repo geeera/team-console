@@ -188,9 +188,9 @@ async function answer(
   h: Harness,
   issue: number | string,
   body: unknown,
-  options: { bindings?: ReturnType<typeof localEnv>; headers?: Record<string, string> } = {},
+  options: { bindings?: ReturnType<typeof localEnv>; headers?: Record<string, string>; suffix?: string } = {},
 ): Promise<Response> {
-  const response = await fetchApi(PATH(issue), options.bindings ?? localEnv(), {
+  const response = await fetchApi(`${PATH(issue)}${options.suffix ?? ''}`, options.bindings ?? localEnv(), {
     method: 'POST',
     headers: options.headers ?? WRITE_HEADERS,
     body: JSON.stringify(body),
@@ -512,6 +512,120 @@ describe('the same answer twice (decision 19)', () => {
   });
 });
 
+describe('the item re-read before a late repeat (#120): POST …/answer/lookup', () => {
+  async function lookup(h: Harness, issue: number | string, body: unknown): Promise<Response> {
+    return fetchApi(`${PATH(issue)}/lookup`, localEnv(), {
+      method: 'POST',
+      headers: WRITE_HEADERS,
+      body: JSON.stringify(body),
+      github: h.github,
+      logSink: (line) => h.logs.push(line),
+    });
+  }
+
+  it('finds the comment the lost answer wrote 61 s ago and writes nothing; Retry is never needed', async () => {
+    const h = harness();
+    await seedConnection(h.fake);
+    const body = { command: 'approve', ownerSaid: 'да' };
+    const created = (await (await answer(h, 7, body)).json()) as Record<string, unknown>;
+
+    h.clock += 61_000;
+    const response = await lookup(h, 7, { ...body, sentAgoMs: 61_000 });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({ answer: { ...created, replayed: true } });
+    expect(posts(h)).toHaveLength(1);
+    expect(h.fake.comments).toHaveLength(1);
+    expect(await env.DB.prepare('SELECT * FROM own_write_claims').all()).toMatchObject({ results: [] });
+  });
+
+  it('answers null when nothing was written, so the repeat may post once', async () => {
+    const h = harness();
+    await seedConnection(h.fake);
+    const response = await lookup(h, 7, { command: 'approve', ownerSaid: 'да', sentAgoMs: 90_000 });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ answer: null });
+    expect(posts(h)).toEqual([]);
+  });
+
+  it('matches exactly this answer: another text, command or issue is not it', async () => {
+    const h = harness();
+    await seedConnection(h.fake);
+    await answer(h, 7, { command: 'reject', text: 'рано', ownerSaid: 'нет' });
+    h.clock += 120_000;
+
+    for (const [issue, body] of [
+      [7, { command: 'reject', text: 'поздно', ownerSaid: 'нет' }],
+      [7, { command: 'approve', ownerSaid: 'нет' }],
+      [8, { command: 'no-go', text: 'рано', ownerSaid: 'нет' }],
+    ] as const) {
+      const response = await lookup(h, issue, { ...body, sentAgoMs: 120_000 });
+      expect(await response.json()).toEqual({ answer: null });
+    }
+    const same = await lookup(h, 7, {
+      command: 'reject',
+      text: 'рано',
+      ownerSaid: 'нет',
+      sentAgoMs: 120_000,
+    });
+    expect(((await same.json()) as { answer: unknown }).answer).not.toBeNull();
+  });
+
+  it('looks back only to the first send plus the replay window: an older identical answer is not this one', async () => {
+    const h = harness();
+    await seedConnection(h.fake);
+    const body = { command: 'approve', ownerSaid: 'да' };
+    await answer(h, 7, body);
+
+    h.clock += 10 * 60_000;
+    const response = await lookup(h, 7, { ...body, sentAgoMs: 61_000 });
+    expect(await response.json()).toEqual({ answer: null });
+  });
+
+  it('answers the answer route’s problems when the item no longer takes the answer', async () => {
+    const h = harness();
+    await seedConnection(h.fake);
+    const closed = await lookup(h, 10, { command: 'approve', ownerSaid: 'да', sentAgoMs: 61_000 });
+    expect(closed.status).toBe(409);
+    expect((await problemOf(closed)).slug).toBe('issue-closed');
+    const notAllowed = await lookup(h, 9, { command: 'approve', ownerSaid: 'да', sentAgoMs: 61_000 });
+    expect(notAllowed.status).toBe(422);
+    expect((await problemOf(notAllowed)).slug).toBe('answer-not-allowed');
+    expect(posts(h)).toEqual([]);
+  });
+
+  it.each([
+    ['a missing sentAgoMs', { command: 'approve', ownerSaid: 'да' }],
+    ['a negative sentAgoMs', { command: 'approve', ownerSaid: 'да', sentAgoMs: -1 }],
+    ['a fractional sentAgoMs', { command: 'approve', ownerSaid: 'да', sentAgoMs: 1.5 }],
+    ['a sentAgoMs past six hours', { command: 'approve', ownerSaid: 'да', sentAgoMs: 6 * 3_600_000 + 1 }],
+    ['an unknown member', { command: 'approve', ownerSaid: 'да', sentAgoMs: 1, section: 'question' }],
+  ])('422 validation for %s, before any GitHub call', async (_, body) => {
+    const h = harness();
+    const response = await lookup(h, 7, body);
+    expect(response.status).toBe(422);
+    expect((await problemOf(response)).slug).toBe('validation');
+    expect(h.stub.calls).toEqual([]);
+  });
+
+  it('logs whether it found the answer, never the words', async () => {
+    const h = harness();
+    await seedConnection(h.fake);
+    await lookup(h, 7, {
+      command: 'reject',
+      text: 'секретная причина',
+      ownerSaid: 'мои слова',
+      sentAgoMs: 61_000,
+    });
+    const line = parsedLogs(h.logs).find((entry) => entry['message'] === 'owner answer looked up');
+    expect(line).toMatchObject({ slug: 'tc', issue: 7, command: 'reject', identity: 'local', found: false });
+    expect(h.logs.join('\n')).not.toContain('секретная');
+    expect(h.logs.join('\n')).not.toContain('мои слова');
+  });
+});
+
 describe('Access, CSRF and the service identity', () => {
   async function signed(environment: string, claims: Record<string, unknown>) {
     const jwks = stubJwksServer();
@@ -613,7 +727,12 @@ describe('the Access service identity: fixture issues only (#62)', () => {
     h: Harness,
     issue: number,
     body: unknown,
-    options: { environment?: 'dev' | 'stage'; claims?: Record<string, unknown>; isConnected?: boolean } = {},
+    options: {
+      environment?: 'dev' | 'stage';
+      claims?: Record<string, unknown>;
+      isConnected?: boolean;
+      suffix?: string;
+    } = {},
   ): Promise<{ response: Response; statements: string[] }> {
     const environment = options.environment ?? 'stage';
     if (options.isConnected !== false) {
@@ -631,6 +750,7 @@ describe('the Access service identity: fixture issues only (#62)', () => {
     const response = await answer(h, issue, body, {
       bindings: { ...bindings, DB: recordingDb(bindings.DB, statements) },
       headers: { ...WRITE_HEADERS, 'Cf-Access-Jwt-Assertion': token },
+      ...(options.suffix === undefined ? {} : { suffix: options.suffix }),
     });
     return { response, statements };
   }
@@ -666,6 +786,29 @@ describe('the Access service identity: fixture issues only (#62)', () => {
       expect(await ownWrites()).toEqual([]);
     },
   );
+
+  it('the lookup (#120) runs the same gate: 403 on an issue without e2e:fixture, a read on a fixture', async () => {
+    const h = harness();
+    const refused = await asService(
+      h,
+      25,
+      { command: 'done', ownerSaid: 'сделано', sentAgoMs: 61_000 },
+      { suffix: '/lookup' },
+    );
+    expect(refused.response.status).toBe(403);
+    expect((await problemOf(refused.response)).slug).toBe('service-not-fixture');
+
+    const allowed = await asService(
+      h,
+      20,
+      { command: 'done', ownerSaid: 'сделано', sentAgoMs: 61_000 },
+      { suffix: '/lookup', isConnected: false },
+    );
+    expect(allowed.response.status).toBe(200);
+    expect(await allowed.response.json()).toEqual({ answer: null });
+    expect(ownerTokenUses(h)).toEqual([]);
+    expect(await ownWrites()).toEqual([]);
+  });
 
   it('reads the labels live: the issue itself, with the installation token', async () => {
     const h = harness();

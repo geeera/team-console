@@ -1,8 +1,8 @@
 import { HttpErrorResponse, HttpHeaders, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { PROBLEM_TYPE_PREFIX, type AnswerResponse } from '@shared/contracts';
-import { AnswerClient, answerFailureOf, answerRequestOf, answerUrl } from './answer.client';
+import { ANSWER_LOOKUP_MAX_MS, PROBLEM_TYPE_PREFIX, type AnswerResponse } from '@shared/contracts';
+import { AnswerClient, answerFailureOf, answerLookupUrl, answerRequestOf, answerUrl } from './answer.client';
 
 function problemError(slug: string, status: number, headers: Record<string, string> = {}): HttpErrorResponse {
   return new HttpErrorResponse({
@@ -132,5 +132,49 @@ describe('AnswerClient', () => {
 
   it('encodes the slug into the path', () => {
     expect(answerUrl('a/b', 1)).toBe('/api/v1/projects/a%2Fb/issues/1/answer');
+    expect(answerLookupUrl('a/b', 1)).toBe('/api/v1/projects/a%2Fb/issues/1/answer/lookup');
+  });
+
+  describe('lookup (#120)', () => {
+    const request = { command: 'reject', text: 'рано', ownerSaid: 'Отклонить' } as const;
+
+    it('posts the same answer plus how long ago it was first sent, whole milliseconds within the cap', async () => {
+      const found = client.lookup('team-console', 72, request, 61_000.4);
+      const read = http.expectOne(answerLookupUrl('team-console', 72));
+      expect(read.request.method).toBe('POST');
+      expect(read.request.body).toEqual({ ...request, sentAgoMs: 61_000 });
+      read.flush({ answer: { ...written, command: 'reject' } });
+      await expect(found).resolves.toEqual({
+        ok: true,
+        answer: { ...written, command: 'reject', replayed: true },
+      });
+
+      const capped = client.lookup('team-console', 72, request, 10 * ANSWER_LOOKUP_MAX_MS);
+      const late = http.expectOne(answerLookupUrl('team-console', 72));
+      expect((late.request.body as { sentAgoMs: number }).sentAgoMs).toBe(ANSWER_LOOKUP_MAX_MS);
+      late.flush({ answer: null });
+      await expect(capped).resolves.toEqual({ ok: true, answer: null });
+    });
+
+    it('a problem or an unreadable body is a failure, never a throw', async () => {
+      const closed = client.lookup('team-console', 72, request, 61_000);
+      http
+        .expectOne(answerLookupUrl('team-console', 72))
+        .flush(
+          { type: `${PROBLEM_TYPE_PREFIX}issue-closed`, title: 'x', status: 409 },
+          { status: 409, statusText: 'Conflict' },
+        );
+      await expect(closed).resolves.toEqual({
+        ok: false,
+        failure: { kind: 'issue-closed', recovery: 'refresh', retryAfter: null },
+      });
+
+      const odd = client.lookup('team-console', 72, request, 61_000);
+      http.expectOne(answerLookupUrl('team-console', 72)).flush({ answer: { url: 'x' } });
+      await expect(odd).resolves.toMatchObject({
+        ok: false,
+        failure: { kind: 'unknown', recovery: 'retry' },
+      });
+    });
   });
 });

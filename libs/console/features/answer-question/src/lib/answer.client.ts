@@ -1,8 +1,10 @@
 import { HttpClient, HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import {
+  ANSWER_LOOKUP_MAX_MS,
   ANSWER_TEXT_MAX_LENGTH,
   type AnswerCommand,
+  type AnswerLookupRequest,
   type AnswerRequest,
   type AnswerResponse,
   isProblemDetails,
@@ -13,6 +15,11 @@ import { firstValueFrom } from 'rxjs';
 
 export function answerUrl(slug: string, number: number): string {
   return `/api/v1/projects/${encodeURIComponent(slug)}/issues/${number}/answer`;
+}
+
+/** The item re-read before a late repeat (#120). */
+export function answerLookupUrl(slug: string, number: number): string {
+  return `${answerUrl(slug, number)}/lookup`;
 }
 
 /** Why an answer was not recorded, as the card explains it. Each maps to `answer.error.<kind>` copy. */
@@ -41,6 +48,11 @@ export interface AnswerFailure {
 
 export type AnswerResult =
   | { readonly ok: true; readonly response: AnswerResponse }
+  | { readonly ok: false; readonly failure: AnswerFailure };
+
+/** The item re-read: the answer already written (`null`: none, the item still waits for it), or why not read. */
+export type LookupResult =
+  | { readonly ok: true; readonly answer: AnswerResponse | null }
   | { readonly ok: false; readonly failure: AnswerFailure };
 
 const BY_PROBLEM: Readonly<Record<string, AnswerFailureKind>> = {
@@ -149,5 +161,33 @@ export class AnswerClient {
     }
     const replayed = body.replayed || response.headers.get('Idempotent-Replayed') === 'true';
     return { ok: true, response: { ...body, replayed } };
+  }
+
+  /**
+   * `POST …/answer/lookup` (#120): re-reads the item before an answer first sent more than the replay window ago is
+   * repeated. `answer` is the comment already written with exactly this request (`replayed: true`), `null` when the
+   * item still waits for it. An item that no longer takes it fails as the answer would (`issue-closed`, `not-*`).
+   */
+  async lookup(
+    slug: string,
+    number: number,
+    request: AnswerRequest,
+    sentAgoMs: number,
+  ): Promise<LookupResult> {
+    const body: AnswerLookupRequest = {
+      ...request,
+      sentAgoMs: Math.min(Math.max(0, Math.round(sentAgoMs)), ANSWER_LOOKUP_MAX_MS),
+    };
+    let response: unknown;
+    try {
+      response = await firstValueFrom(this.http.post<unknown>(answerLookupUrl(slug, number), body));
+    } catch (error: unknown) {
+      return { ok: false, failure: answerFailureOf(error) };
+    }
+    if (!isRecord(response) || !(response['answer'] === null || isAnswerResponse(response['answer']))) {
+      return { ok: false, failure: answerFailureOf(null) };
+    }
+    const answer = response['answer'];
+    return { ok: true, answer: answer === null ? null : { ...answer, replayed: true } };
   }
 }
