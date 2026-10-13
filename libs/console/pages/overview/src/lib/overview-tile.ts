@@ -56,7 +56,7 @@ const KNOWN_PROBLEMS: ReadonlySet<string> = new Set([
       @if (row.kind === 'read') {
         <span class="ov__line" data-testid="sprint">
           @if (row.sprint; as sprint) {
-            {{ sprint.title }} · {{ 'overview.demo' | transloco: { date: demoDate() } }}
+            <span dir="auto">{{ sprint.title }}</span> · {{ 'overview.demo' | transloco: { date: demoDate() } }}
           } @else {
             {{ 'overview.noSprint' | transloco }}
           }

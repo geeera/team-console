@@ -19,3 +19,29 @@
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: same-origin
+
+# Version metadata is never kept stale (#306): the service worker decides about updates from ngsw.json, the browser
+# about the worker from ngsw-worker.js (and safety-worker.js, the kill switch), and every page from the shell.
+# no-cache = store, but ask the origin before every reuse. Hashed files keep the assets layer's default.
+# Rules match the request path, so the shell needs one per place it is answered: `/` (/index.html redirects there)
+# and each client-side route of apps/console/src/app/app.routes.ts (the SPA fallback; pwa.spec.ts keeps them in step).
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/p/*
+  Cache-Control: no-cache
+/needs-you
+  Cache-Control: no-cache
+/overview
+  Cache-Control: no-cache
+/settings
+  Cache-Control: no-cache
+/settings/*
+  Cache-Control: no-cache
+/ngsw.json
+  Cache-Control: no-cache
+/ngsw-worker.js
+  Cache-Control: no-cache
+/safety-worker.js
+  Cache-Control: no-cache

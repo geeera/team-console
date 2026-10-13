@@ -8,7 +8,7 @@ export interface OwnWrite {
   readonly kind: OwnWriteKind;
   readonly bodyHash: string | null;
   readonly url: string;
-  /** ISO 8601 UTC. */
+  /** ISO 8601 UTC on the Worker's clock: the replay window compares it with that clock, never with GitHub's. */
   readonly createdAt: string;
 }
 

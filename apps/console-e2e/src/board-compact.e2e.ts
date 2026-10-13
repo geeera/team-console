@@ -356,6 +356,8 @@ test('the CI tile shows the PR list, failing first, and moves focus to it', asyn
     );
   } else {
     await expect(pulls.getByRole('heading', { level: 2 })).toBeFocused();
+    // The list is already on screen at 1440: the ring is the visible outcome (#329).
+    await expect(pulls).toHaveClass(/tc-arrival/);
   }
   await expect(pulls.locator('tc-list-row').first()).toHaveAttribute('data-number', '40');
   await expect(pulls).toBeInViewport();
@@ -374,10 +376,23 @@ test('the runs tile shows the runs and moves focus to them; «Ждут вас» 
     await expect(page.getByRole('tab', { name: RUNS_TAB })).toHaveAttribute('aria-selected', 'true');
   } else {
     await expect(runs.getByRole('heading', { level: 2 })).toBeFocused();
+    await expect(runs).toHaveClass(/tc-arrival/);
   }
+  await expectAccessible(page, 'board after a tile jump');
 
   await page.getByTestId('waiting-stat').getByRole('button').click();
   await expect(page).toHaveURL(/\/p\/team-console\/questions$/);
+});
+
+test('a tile with no destination shows no › and is not a button', async ({ page }) => {
+  await openBoard(page);
+  const done = page.getByTestId('done-stat');
+  await expect(done.getByRole('button')).toHaveCount(0);
+  await expect(done.locator('.tc-stat__chevron')).toHaveCount(0);
+  for (const tile of ['ci-stat', 'team-stat', 'waiting-stat']) {
+    await expect(page.getByTestId(tile).getByRole('button')).toHaveCount(1);
+    await expect(page.getByTestId(tile).locator('.tc-stat__chevron')).toHaveCount(1);
+  }
 });
 
 test('a deep link opens the runs tab, and the phone opens on the last tab next time', async ({

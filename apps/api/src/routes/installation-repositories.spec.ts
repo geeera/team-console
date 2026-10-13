@@ -79,6 +79,9 @@ function listStub(script: ListScript = {}): ListStub {
       return json(201, {
         token: `${TOKEN_SENTINEL}list${minted}`,
         expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        // #76: GitHub echoes the downscoping it applied; the list token is refused unless it is metadata only.
+        permissions: { metadata: 'read' },
+        repository_selection: 'all',
       });
     }
     if (call.method === 'GET' && path === '/installation/repositories') {

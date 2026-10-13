@@ -2,6 +2,10 @@
   "app": {
     "name": "Team Console",
     "environment": "Environment:",
+    "update": {
+      "ready": "A new version is available",
+      "apply": "Update"
+    },
     "session": {
       "expiredTitle": "Session expired — sign in again",
       "expiredHint": "Cloudflare Access checks the sign-in. Afterwards you come back to this same page.",
@@ -162,6 +166,7 @@
     "loadFailed": "Couldn't load the questions",
     "loadFailedHint": "Check your connection and try again.",
     "recommends": "Team recommends",
+    "actionHint": "Select Done when it's done.",
     "details": "Details",
     "openOnGitHub": "Open #{{n}} on GitHub",
     "untrusted": "Not from the team",
@@ -199,7 +204,12 @@
     "cost": "Cost and risk:",
     "costMissing": "No cost given — ask the PM",
     "previews": {
-      "untrusted": "Preview hidden: someone outside the team created this question. Open it on GitHub if you trust the author."
+      "untrusted": "Preview hidden: someone outside the team created this question. Open it on GitHub if you trust the author.",
+      "label": "Design screens, {{n}}",
+      "thumbAria": "Screen {{i}} of {{n}}: {{caption}}. Open",
+      "all": "All screens ({{n}})",
+      "none": "The team attached no screens to this design. Ask the PM to add them, or open the PR on GitHub.",
+      "failed": "Couldn't load the screens."
     },
     "opensGitHub": "(opens in a new tab)"
   },
@@ -215,8 +225,15 @@
     "busy": "Posting your answer to #{{n}}…",
     "announce": "Answer to #{{n}} recorded: {{verb}}",
     "receipt": {
-      "verb": "You: {{verb}}",
-      "meta": "#{{n}} · {{time}} · recorded as owner",
+      "status": {
+        "approve": "Approved",
+        "reject": "Rejected",
+        "go": "Going ahead",
+        "no-go": "Postponed",
+        "override": "Overridden",
+        "done": "Done"
+      },
+      "meta": "#{{n}} · {{time}}",
       "waiting": "waiting for the team",
       "open": "Comment on GitHub"
     },
@@ -442,6 +459,13 @@
     "empty": {
       "title": "No artifacts yet",
       "hint": "Decisions, designs and demos show up here once the team creates them."
+    },
+    "designs": {
+      "loading": "Loading designs…",
+      "empty": {
+        "title": "No designs yet",
+        "hint": "Once the designer attaches screens to an issue, they show up here."
+      }
     },
     "noMatch": {
       "title": "Nothing found",
@@ -1297,6 +1321,21 @@
     },
     "markdown": {
       "image": "image"
+    },
+    "datePicker": {
+      "open": "Open calendar",
+      "openWith": "Change date, selected {{date}}",
+      "prev": "Previous month",
+      "next": "Next month",
+      "today": "Today",
+      "done": "Done",
+      "todayMark": "today",
+      "unavailable": "unavailable",
+      "placeholder": "DD.MM.YYYY",
+      "invalid": "That isn't a valid date. Type it as DD.MM.YYYY, for example {{example}}.",
+      "min": "Choose {{date}} or later.",
+      "max": "Choose {{date}} or earlier.",
+      "unavailableDay": "That date isn't available. Choose another one."
     }
   },
   "stories": {
@@ -1571,6 +1610,12 @@
       "ciFailed": "CI failed",
       "ciRunning": "CI running",
       "finished": "Finished"
+    },
+    "datePicker": {
+      "label": "Demo date",
+      "hint": "The demo is at 12:00 Kyiv time.",
+      "selected": "Selected: {{date}}",
+      "none": "nothing selected"
     }
   },
   "review": {

@@ -1,6 +1,7 @@
 import type { Page, Route } from '@playwright/test';
 import { expect, expectAccessible, test } from './support/fixtures';
 import { ru } from './support/i18n';
+import { underServiceWorker } from './support/service-worker';
 
 /**
  * An expired Cloudflare Access session (#284). On a deployed environment Access sits in front of the Worker: every
@@ -53,20 +54,11 @@ test.describe('service worker and the Access callback', () => {
   // The suite blocks service workers (playwright.config.ts); this one is about what the worker does.
   test.use({ serviceWorkers: 'allow' });
 
-  async function underServiceWorker(page: Page): Promise<void> {
-    await page.goto('/overview');
-    await page.evaluate(async () => {
-      await navigator.serviceWorker.ready;
-    });
-    // The worker claims the page once it activates; until then it would not see the navigation at all.
-    await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
-  }
-
   test('an Access redirect on the API shows the expired-session state, not a synthesised 504', async ({
     page,
     context,
   }) => {
-    await underServiceWorker(page);
+    await underServiceWorker(page, '/overview');
     const apiStatuses: number[] = [];
     page.on('response', (response) => {
       if (new URL(response.url()).pathname.startsWith('/api/')) {
@@ -97,7 +89,7 @@ test.describe('service worker and the Access callback', () => {
     page,
     context,
   }) => {
-    await underServiceWorker(page);
+    await underServiceWorker(page, '/overview');
 
     // Cloudflare's edge answers /cdn-cgi/ on a deployed origin; context.route also sees the worker's own fetches.
     const callbacks: string[] = [];

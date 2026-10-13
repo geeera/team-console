@@ -32,11 +32,13 @@
 </div>
 
 <!-- In the frame's footer: a long project list scrolls, Add project and Settings stay in view (#274). -->
-<ng-template tcSheetFooter>
+<ng-template tcSheetFooter="primary">
   <button tc-button variant="primary" block type="button" (click)="go(addProjectUrl)">
     <tc-icon name="plus" />
     {{ 'shell.addProject' | transloco }}
   </button>
+</ng-template>
+<ng-template tcSheetFooter="secondary">
   <button tc-button variant="quiet" block type="button" (click)="go('/settings')">
     <tc-icon name="settings" />
     {{ 'shell.settings' | transloco }}

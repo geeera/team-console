@@ -55,8 +55,12 @@ describe('isAccessSessionExpired', () => {
     expect(expired(failure({ status: 0, url: 'https://evilcloudflareaccess.com/x' }))).toBe(false);
   });
 
-  it.each([401, 403])('is true for %i with an HTML body (an Access page)', (status) => {
-    expect(expired(failure({ status, contentType: HTML, body: '<!doctype html>' }))).toBe(true);
+  it('is true for a 401 with an HTML body (an Access login page)', () => {
+    expect(expired(failure({ status: 401, contentType: HTML, body: '<!doctype html>' }))).toBe(true);
+  });
+
+  it('is false for a 403 with an HTML body that is not from Access (a Cloudflare WAF or rate-limit page)', () => {
+    expect(expired(failure({ status: 403, contentType: HTML, body: '<!doctype html>Access denied' }))).toBe(false);
   });
 
   it.each(['access-missing', 'access-unverified'])('is true for our 401 %s', (slug) => {
@@ -70,8 +74,25 @@ describe('isAccessSessionExpired', () => {
     },
   );
 
+  it.each(['access-missing', 'access-unverified'])('is true for our 403 %s', (slug) => {
+    expect(expired(failure({ status: 403, contentType: PROBLEM, body: problem(slug, 403) }))).toBe(true);
+  });
+
   it.each(['csrf', 'github-owner-not-connected'])('is false for our JSON 403 %s', (slug) => {
     expect(expired(failure({ status: 403, contentType: PROBLEM, body: problem(slug, 403) }))).toBe(false);
+  });
+
+  it('is true for a 403 whose response came from the Access login host', () => {
+    expect(
+      expired(
+        failure({
+          status: 403,
+          contentType: HTML,
+          body: '<!doctype html>',
+          url: 'https://geeera.cloudflareaccess.com/cdn-cgi/access/login/x',
+        }),
+      ),
+    ).toBe(true);
   });
 
   it('is true for a 2xx HTML page where JSON was expected (the login page after a same-origin redirect)', () => {

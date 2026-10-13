@@ -8,6 +8,7 @@ import {
   sectionOf,
   sectionRank,
 } from '@shared/owner-grammar';
+import { withoutInvisibles } from '@shared/plain-text';
 import type { IssueRecord } from './github-records';
 import { questionContextOf } from './question-context';
 import { githubUrlOrNull, isTrustedAuthor } from './untrusted-text';
@@ -46,7 +47,8 @@ function classified(issues: readonly IssueRecord[]): Classified[] {
       item: {
         section,
         number: issue.number,
-        title: issue.title,
+        // Titles come from any author: a bidi override or zero-width run could pose as another item (#287).
+        title: withoutInvisibles(issue.title),
         url: githubUrlOrNull(issue.htmlUrl),
         ask,
         authorTrusted,

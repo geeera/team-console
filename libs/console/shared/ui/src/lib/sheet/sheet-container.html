@@ -25,6 +25,12 @@
 >
   <div #content class="tc-sheet__content"><ng-template cdkPortalOutlet /></div>
 </div>
-@if (footer.template(); as actions) {
-<div class="tc-sheet__foot"><ng-container *ngTemplateOutlet="actions" /></div>
+<!-- Reading order on both presentations (#282): the DOM order below is the Tab order and the visual order. A dialog
+     footer that no longer fits one row stacks like the phone's (#325), and the order follows. -->
+@if (footer.hasContent()) {
+<div #foot class="tc-sheet__foot" [class.tc-sheet__foot--stacked]="stackedFooter()">
+  @for (actions of footerTemplates(); track actions) {
+  <ng-container *ngTemplateOutlet="actions" />
+  }
+</div>
 }

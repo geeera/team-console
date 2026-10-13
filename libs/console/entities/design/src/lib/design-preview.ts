@@ -68,6 +68,11 @@ export class DesignPreview {
   readonly variant = input<'thumb' | 'card'>('thumb');
   /** A manifest the caller already holds; otherwise the shared store loads it. */
   readonly manifest = input<DesignManifest | null>(null);
+  /**
+   * The path of the screen to show (a card's row of previews, #276); `null` shows the thumbnail. A path the manifest
+   * does not list, or a screen too large to serve, shows the "nothing" placeholder.
+   */
+  readonly screen = input<string | null>(null);
 
   protected readonly manifestState = computed(() => {
     const given = this.manifest();
@@ -78,7 +83,11 @@ export class DesignPreview {
     if (state.kind !== 'ready') {
       return null;
     }
-    const screen = thumbnailOf(state.manifest);
+    const path = this.screen();
+    const screen =
+      path === null
+        ? thumbnailOf(state.manifest)
+        : (state.manifest.screens.find((candidate) => candidate.path === path && !candidate.tooLarge) ?? null);
     return screen === null ? null : screenSrcOf(this.slug(), state.manifest, screen);
   });
   /** The image did not load; reset when the source changes. */

@@ -67,7 +67,7 @@ let nextDialogId = 0;
       }
     </form>
     <!-- The frame's footer sits outside the form, so the submit button names it (#274). -->
-    <ng-template tcSheetFooter>
+    <ng-template tcSheetFooter="primary">
       <button
         tc-button
         type="submit"
@@ -85,6 +85,8 @@ let nextDialogId = 0;
           {{ 'commands.snooze.dialog.ok' | transloco }}
         }
       </button>
+    </ng-template>
+    <ng-template tcSheetFooter="secondary">
       <button tc-button type="button" [attr.aria-disabled]="running() ? 'true' : null" (click)="cancel()">
         {{ 'commands.dialog.cancel' | transloco }}
       </button>

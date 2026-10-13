@@ -150,6 +150,14 @@ select {
   }
 }
 
+/*
+ * Untrusted text from GitHub (titles, #287) is shown with `dir="auto"`: its direction comes from its own first strong
+ * character, and isolation keeps a bidi override inside it from reordering the label before it or the text after it.
+ */
+[dir='auto'] {
+  unicode-bidi: isolate;
+}
+
 /* A keyboard shortcut drawn beside its button's label (Commands' K, #114 and #222); `aria-hidden`, the button names it. */
 .tc-kbd {
   padding: 0 var(--space-1);

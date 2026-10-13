@@ -35,6 +35,15 @@ of the clone — every branch and tag of the repo plus this PR's merge ref, not 
 rotate/revoke it first (the public history keeps it), then delete the branch and push a clean one (no
 force-push onto shared branches), or — if it already reached a long-lived branch — add its fingerprint (from
 the red run's log) to `.gitleaksignore` in a reviewed PR.
+A synthetic test value (a sentinel token, a generated test key, a published test vector — never a real
+credential) that gitleaks still flags on a commit already on a long-lived branch gets the same treatment as a
+leaked secret, minus the rotation: one `.gitleaksignore` entry per red finding, as the exact fingerprint
+(`commit:file:rule:line`) from that run's log, never a path or rule alone (an entry never masks a different
+finding, even on the same file). Prefer a line-level `gitleaks:allow` comment on the line itself when the value
+is staying (e.g. a fixed test vector from a spec like RFC 8291 Appendix A) — then later commits need no entry.
+Going forward, a spec builds a synthetic secret-shaped value at run time (string concatenation, a generated
+key pair) instead of writing one as a literal, so gitleaks has nothing to flag on new commits and no new
+`.gitleaksignore` entry is ever needed for it.
 Dependabot (`.github/dependabot.yml`) proposes github-actions updates weekly, grouped into one PR into `dev`;
 those PRs go through the same gate as any other (CI + QA/REVIEW/SECURITY).
 
@@ -86,9 +95,11 @@ an explicit `lint` target in `project.json`; remove it — `@nx/eslint/plugin` i
 
 Shared libs that exist: `@console/shared/ui` (Paper Desk kit — tokens in `src/tokens/tokens.css` + `breakpoints.ts`,
 global `src/styles/base.css` and `overlay.css`; primitives `Button`/`IconButton`, `Card` (with the stamp), `Chip`,
-`Field`/`FieldControl`, `Icon`, `List`/`ListRow`, `Sheet` service (bottom sheet on the phone, dialog elsewhere, on the
+`Field`/`FieldControl`, `DatePicker` (#307: typed `ДД.ММ.ГГГГ` + a CDK-overlay calendar popover, a `Sheet` below 520 px; CVA with ISO `YYYY-MM-DD`; `ConfirmInput.type: 'date'` renders it; `tools/design-lint` fails on any native date/time input), `Icon`, `List`/`ListRow`, `Sheet` service (bottom sheet on the phone, dialog elsewhere, on the
 CDK dialog; `confirm()`; `size: 'full'` fills the screen / `--sheet-full-w × --sheet-full-h` and hands the scrolling to
-the content, #277), `Spinner`, `StateBlock`, `Tooltip` (non-interactive, `aria-hidden`), `TopBar`; Storybook in `.storybook/` with theme, motion and language
+the content, #277; footer actions are `tcSheetFooter="primary" | "secondary"` templates and the frame renders them
+in reading order — primary on top on the phone, Cancel then primary in the dialog row — so DOM, Tab and visual
+order agree, #282; a bare `tcSheetFooter` is free-form), `Spinner`, `StateBlock`, `Tooltip` (non-interactive, `aria-hidden`), `TopBar`; Storybook in `.storybook/` with theme, motion and language
 toolbars: `npx nx storybook console-shared-ui` on :4400, `npx nx build-storybook console-shared-ui` into
 `dist/storybook/console-shared-ui` — the `storybook` contract command), `@console/shared/i18n` (Transloco,
 `ru.json`/`en.json`, `provideConsoleI18n()`), `@console/shared/config` (`APP_CONFIG`), `@console/shared/api`
@@ -119,11 +130,15 @@ item; failures branch on the problem `type`; Retry repeats the same body so the 
 still lists them. Kit: `Recommendation`, `Receipt`.
 Question context (#276): `InboxItemDto.context` (`QuestionContextDto`, so on inbox, questions and Needs you) is
 `questionContextOf` in `@worker/read-models` — the body's `## Кратко|Вопрос|Почему|Если одобрить|Если отклонить|Цена и риск`
-(or `Summary|Question|Why|If approved|If rejected|Cost and risk`) as bounded plain text (no markup, tags, answer line,
-control or bidi characters; GitHub's 65,536 cut first), read only for trusted authors, `structured: false` + the first
-paragraph when no heading is there. `markdownToPlainText` lives in `@shared/plain-text` (worker and console). The card
+(or `Summary|Question|Why|If approved|If rejected|Cost and risk`) as bounded plain text for interpolation only (markup,
+tag-like runs, the answer line and invisible characters removed — never tc-markdown or innerHTML; fences close only on
+the same marker, #288; GitHub's 65,536 cut first), read only for trusted authors, `structured: false` + the first
+paragraph when no heading is there. `markdownToPlainText` and `withoutInvisibles` (controls, zero-width, bidi, fillers,
+tag characters; applied to every title DTO, #287, and shown with `dir="auto"` + the shared `unicode-bidi: isolate` rule
+in `base.css`) live in `@shared/plain-text` (worker and console). The card
 (`QuestionCard`) shows summary title + «На GitHub:», question, verb + why, `[tc-question-previews]` (design only, team items
-only; #277 fills it), outcomes (from the sections, else the answer line's options via `askOutcomesOf`), cost, actions,
+only; `question-list`'s `QuestionDesignPreviews` fills it, #290: three screens via `previewScreensOf` + `DesignPreview [screen]`,
+«+N», «Все экраны (N)», opening the viewer on that screen with the card's `AnswerQuestion` as its `actions`), outcomes (from the sections, else the answer line's options via `askOutcomesOf`), cost, actions,
 details; the raw answer line is never rendered on any surface.
 
 Sprint board (#18, read-only): `@console/entities/sprint` (`isSprintDto`, `SprintApi`, `statusColumnsOf` — lanes counted as
@@ -160,7 +175,9 @@ and never a milestone, label or status; 409 `issue-changed` (`milestone`) / `iss
 `sprint-next-missing` / `request-not-issue`. D1 `owner_requests` (migration 0012, `OwnerRequestsRepo`) is a display cache only:
 newest row per issue, never an input to a write or an authorisation decision. A request is handled by a
 `pt-owner-request-handled` first-line marker from a `type: Bot` login in `TRUSTED_BOT_LOGINS` (`handledRequestOf` in
-`@worker/read-models`): the hooks Worker on `issue_comment.created`, the GET on the last comment page (unedited only).
+`@worker/read-models`): the hooks Worker on `issue_comment.created`, the GET on the newest comments — the last page
+plus the one before a short last, at least 100 (unedited only; `requested_at` is GitHub's `created_at` of the request
+comment, so both sides of the "after the request" check are on GitHub's clock, #269/#270).
 `SprintIssueDto.request`, `TeamStatusDto.pendingRequests`, `GET …/requests` (the picker). Console:
 `@console/features/request-change` (`RequestChange`: picker, then the one-request form), the panel's Issues group, the board's
 "Ask the PM" and «ждёт PM» chip. `team.console_app_slugs` in `.product-team/project.yml` is the plugin's trust root for requests: `[team-console-dev]` only (owner, 2026-10-07); stage and production join after #152.
@@ -201,7 +218,7 @@ mismatch. Pure parts in `@worker/read-models` `lib/designs/` (`designFilesOf`, `
 `imageTypeOfBytes`). Mock: `MockRepository.binaryFiles` (base64; `fixtures/design-images.mjs` regenerates them),
 `git/trees`, `git/blobs`, `branches/{name}`. Console: `@console/entities/design` (`DesignManifests` store shared by
 every reader, `DesignPreview` — the first screen as a decorative `<img>` for rows and the #276 cards —,
-`DesignSummary`), `@console/features/design-viewer` (`DesignViewer.open({ slug, issue, title, actions? })` on the
+`DesignSummary`), `@console/features/design-viewer` (`DesignViewer.open({ slug, issue, title, actions?, screen?, mode? })` on the
 kit `Sheet` with `size: 'full'`: «Картинки» / «Все экраны» / «Интерактивно», the iPhone/Mac switch, ←/→ and a swipe,
 a zoom toggle; the HTML wireframe is framed only through the embed-origins gate in the kit `Frame`'s `profile="design"`
 — `sandbox="allow-scripts"` alone, never `srcdoc` — else the «нельзя показать» state). Artifacts' design rows
@@ -268,6 +285,15 @@ production icon changes). None of those Worker paths may enter `ngsw-config.json
 install). Names live in `@shared/contracts` (`appNameOf`, `environmentLabelOf`); the app sets `<title>` and
 `apple-mobile-web-app-title` from `DeploymentStore`, the shell shows `EnvironmentMark` (`@console/entities/app-info`), and
 `PushSender` takes the `environment` and prefixes titles «[Dev] …» (`forEnvironment` in `@worker/push`).
+PWA updates (#306): `AppUpdates` (`apps/console/src/app/app-updates.ts`, started by `provideAppUpdates()`) asks `SwUpdate`
+on start, on `visibilitychange` to visible and every 5 min while visible. A version found by a start/resume check is
+activated and reloaded at once when the page is quiet (no `Sheet.hasOpen()`, no `hasUnsavedField`, app stable within
+3 s); otherwise `UpdateBanner` shows «Доступна новая версия · Обновить», and a pending update is taken on the next quiet
+resume. `unrecoverable` (at once) or a `Hash mismatch` install failure (like an update: at once when quiet, else on the
+next quiet start/resume, #311): delete the `ngsw:` caches, unregister, one navigation with `ngsw-bypass` (`localStorage` `tc.sw-recovery.v1` allows one heal per 10 min). `_headers` serves `/`, `/index.html`, every
+client-side route (one rule each, `pwa.spec.ts` checks them against `app.routes.ts`), `ngsw.json`, `ngsw-worker.js` and
+`safety-worker.js` with `Cache-Control: no-cache` (the assets layer answers them, never the Worker code). E2e
+`pwa-updates.e2e.ts` serves a derived build B (`writeNextBuild`/`routeDeploys` in `support/service-worker.ts`).
 
 ## Workers (#6)
 

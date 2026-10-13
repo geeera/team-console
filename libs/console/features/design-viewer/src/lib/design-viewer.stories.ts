@@ -6,13 +6,15 @@ import { EmbedOriginsApi } from '@console/entities/project';
 import { TranslocoPipe } from '@console/shared/i18n';
 import { Button } from '@console/shared/ui';
 import type { DesignManifestDto } from '@shared/contracts';
-import { applicationConfig, moduleMetadata, type Meta, type StoryObj } from '@storybook/angular';
+import { moduleMetadata, type Meta, type StoryObj } from '@storybook/angular';
 import { DesignViewer } from './design-viewer';
 
 // The kit Storybook's toolbar globals (`.storybook/stories.ts`); repeated here rather than imported across projects.
 const darkTheme = { globals: { theme: 'dark' } } satisfies Partial<StoryObj>;
 const reducedMotion = { globals: { motion: 'reduce' } } satisfies Partial<StoryObj>;
-const phoneViewport = { globals: { viewport: { value: 'iphone', isRotated: false } } } satisfies Partial<StoryObj>;
+const phoneViewport = {
+  globals: { viewport: { value: 'iphone', isRotated: false } },
+} satisfies Partial<StoryObj>;
 
 // The Storybook static dir answers this one file route with a real render (`.storybook/public/api/...`).
 const SHA = 'a'.repeat(40);
@@ -21,7 +23,10 @@ const PAGES = 'https://geeera.github.io';
 const screen = (file: string, extra: Partial<DesignManifestDto['screens'][number]> = {}) => ({
   path: `docs/design/277-design-viewer/${file}`,
   file,
-  caption: file.replace(/^(?:phone|mac)-\d+-/, '').replace(/\.\w+$/, '').replace(/-/g, ' '),
+  caption: file
+    .replace(/^(?:phone|mac)-\d+-/, '')
+    .replace(/\.\w+$/, '')
+    .replace(/-/g, ' '),
   device: file.startsWith('phone-') ? ('phone' as const) : ('mac' as const),
   type: 'png' as const,
   size: 1206,
@@ -77,7 +82,9 @@ function embedOriginsApi(scenario: Scenario): Pick<EmbedOriginsApi, 'origins'> {
   selector: 'tc-story-design-viewer-host',
   imports: [Button, TranslocoPipe],
   template: `
-    <button tc-button variant="primary" type="button" (click)="open()">{{ 'designs.row.open' | transloco }}</button>
+    <button tc-button variant="primary" type="button" (click)="open()">
+      {{ 'designs.row.open' | transloco }}
+    </button>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -105,13 +112,14 @@ const meta: Meta<Args> = {
   parameters: { a11y: { context: 'body' } },
   render: (args) => ({
     props: args,
-    applicationConfig: applicationConfig({
+    // A plain ApplicationConfig, not the `applicationConfig()` decorator: the renderer reads `.providers` off it.
+    applicationConfig: {
       providers: [
         provideRouter([]),
         { provide: DesignsApi, useValue: designsApi(args.scenario) },
         { provide: EmbedOriginsApi, useValue: embedOriginsApi(args.scenario) },
       ],
-    }),
+    },
     template: '<tc-story-design-viewer-host />',
   }),
   args: { scenario: 'images' },

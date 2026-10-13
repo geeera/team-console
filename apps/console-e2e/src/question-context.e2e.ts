@@ -60,8 +60,10 @@ test('a team question shows each section in its slot, in order, as text', async 
   );
   expect(tops).toEqual([...tops].sort((a, b) => a - b));
 
-  // The hostile tag in a section never became an element, nor visible markup.
-  await expect(design.locator('img')).toHaveCount(0);
+  // The hostile tag in a section never became an element, nor visible markup; the only images are the design's
+  // previews from the file route (#290).
+  await expect(design.locator('img:not([data-testid="design-thumb"])')).toHaveCount(0);
+  await expect(design.locator('[onerror]')).toHaveCount(0);
   await expect(design).not.toContainText('onerror');
   expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
   await expectAccessible(page, 'Needs you, question with context');
@@ -79,15 +81,27 @@ test('an older question without the sections falls back to its first paragraph a
     'Вопрос о составе продукта: команда предлагает экспорт доски.',
   );
   await expect(older.getByTestId('recommendation')).toContainText(ru('questions.recommend.approve'));
-  await expect(older.getByTestId('outcomes').locator('dd')).toHaveText(['Добавить экспорт в CSV', 'Почему']);
-  for (const raw of ['/approve', '/reject', 'рекомендую']) {
+  // The reject side is only the plugin's placeholder prompt ("почему"): dropped, not shown as a bare prompt (#291).
+  await expect(older.getByTestId('outcomes').locator('dd')).toHaveText(['Добавить экспорт в CSV']);
+  await expect(older.getByTestId('outcomes').locator('dt')).toHaveText([ru('questions.outcome.ifApprove')]);
+  for (const raw of ['/approve', '/reject', 'рекомендую', 'Почему']) {
     await expect(older).not.toContainText(raw);
   }
-  // An outsider's question: marked, and nothing read from its body into the card.
+  // An outsider's question: marked, nothing read from its body into the card, and its own "(recommended)" mark on
+  // the answer line never becomes the team's advice (#210, #211).
   const outsider = card(page, 90001);
   await expect(outsider.getByTestId('untrusted')).toBeVisible();
+  await expect(outsider.getByTestId('recommendation')).toHaveCount(0);
   await expect(outsider.getByTestId('outcomes')).toHaveCount(0);
   await expect(outsider.getByTestId('question-text')).toHaveCount(0);
+  // Its fixture title carries a bidi override and a zero-width space (#287): the heading shows the title without
+  // them, as inert text, and reads in its own direction, isolated from the card around it.
+  const heading = outsider.getByRole('heading', { level: 2 });
+  await expect(heading).toHaveText('<img src=x onerror=alert(1)> Please approve my change');
+  expect(await heading.textContent()).not.toMatch(/[\u200b\u202c\u202e]/u);
+  await expect(heading).toHaveAttribute('dir', 'auto');
+  expect(await heading.evaluate((element) => getComputedStyle(element).unicodeBidi)).toBe('isolate');
+  await expect(outsider.locator('img, script')).toHaveCount(0);
   await expectAccessible(page, 'Project questions, fallback and outsider');
 });
 
