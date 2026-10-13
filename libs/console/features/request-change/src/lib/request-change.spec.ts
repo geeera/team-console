@@ -196,6 +196,18 @@ describe('RequestChange', () => {
     await expect(pending).resolves.toBeNull();
   });
 
+  it('disables Current when there is no current sprint (#272)', async () => {
+    const { pending } = await openForm({ ...ISSUE, milestone: null, current: null, next: null });
+    const current = dialog()?.querySelector<HTMLInputElement>('[data-testid="request-sprint-current"]');
+    expect(current?.disabled).toBe(true);
+    expect(text(current?.closest('label'))).toBe('Текущий: —');
+    expect(
+      dialog()?.querySelector<HTMLInputElement>('[data-testid="request-sprint-backlog"]')?.disabled,
+    ).toBe(false);
+    press('.tc-sheet__foot button[type=button]');
+    await expect(pending).resolves.toBeNull();
+  });
+
   it('shows the pending request and that a new one replaces it', async () => {
     const { pending } = await openForm({
       ...ISSUE,

@@ -1,4 +1,5 @@
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { ApplicationInitStatus, Component, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideConsoleI18n } from '@console/shared/i18n';
@@ -60,6 +61,18 @@ describe('Sheet', () => {
     ref.close();
     await settle();
     expect(overlay().querySelector('tc-sheet-container')).toBeNull();
+  });
+
+  it('hasOpen() says whether any sheet is open (#306)', async () => {
+    expect(sheet.hasOpen()).toBe(false);
+
+    const ref = sheet.open(Content, { title: 'Projects', data: { text: 'hello' } });
+    await settle();
+    expect(sheet.hasOpen()).toBe(true);
+
+    ref.close();
+    await settle();
+    expect(sheet.hasOpen()).toBe(false);
   });
 
   it('closes on Escape and returns focus to the opener', async () => {
@@ -233,7 +246,7 @@ describe('Sheet', () => {
       expect(seen).toEqual(['отпуск', 'отпуск']);
     });
 
-    it('#218: a checked date field follows the value, holds Confirm on an error and refills on a conflict', async () => {
+    it('#218/#307: a checked date field follows the value, holds Confirm on an error and refills on a conflict', async () => {
       const seen: string[] = [];
       const pending = sheet.confirm({
         title: 'Move the demo?',
@@ -267,16 +280,21 @@ describe('Sheet', () => {
       const input = dialog.querySelector('input') as HTMLInputElement;
       const ok = dialog.querySelector('.tc-confirm__ok') as HTMLButtonElement;
       const region = (): HTMLElement => dialog.querySelector(`#${input.id}-hint`) as HTMLElement;
+      // Typed text is read on blur (#307), as the owner leaves the field for Confirm.
       const pick = async (value: string): Promise<void> => {
         input.value = value;
-        input.dispatchEvent(new Event('change'));
+        input.dispatchEvent(new Event('input'));
+        input.dispatchEvent(new Event('blur'));
         await settle();
         TestBed.tick();
       };
+      await settle();
       TestBed.tick();
-      expect(input.type).toBe('date');
-      expect(input.value).toBe('2026-10-14');
-      expect(input.getAttribute('min')).toBe('2026-10-05');
+      expect(dialog.querySelector('input[type="date"]')).toBeNull();
+      expect(dialog.querySelector('tc-date-picker')).not.toBeNull();
+      expect(input.type).toBe('text');
+      expect(input.value).toBe('14.10.2026');
+      expect(dialog.querySelector(`label[for="${input.id}"]`)?.textContent?.trim()).toBe('Demo date');
       expect(input.getAttribute('aria-describedby')).toBe(`${input.id}-hint`);
       expect(region().getAttribute('aria-live')).toBe('polite');
       expect(region().textContent?.trim()).toBe('Freeze: 12–14 October');
@@ -286,16 +304,27 @@ describe('Sheet', () => {
       await settle();
       expect(seen).toEqual([]);
 
-      await pick('2026-10-01');
+      await pick('31.02.2026');
       expect(input.getAttribute('aria-invalid')).toBe('true');
-      expect(region().querySelector('.tc-confirm__invalid')?.textContent?.trim()).toBe('That date has passed.');
+      expect(region().querySelector('.tc-confirm__invalid')?.textContent?.trim()).toMatch(/^Такой даты нет/);
+      expect(input.value).toBe('31.02.2026');
+      expect(ok.getAttribute('aria-disabled')).toBe('true');
+
+      await pick('01.10.2026');
+      expect(input.getAttribute('aria-invalid')).toBe('true');
+      expect(region().querySelector('.tc-confirm__invalid')?.textContent?.trim()).toBe(
+        'That date has passed.',
+      );
       ok.click();
       await settle();
       expect(seen).toEqual([]);
 
       await pick('2026-10-06');
+      expect(input.value).toBe('06.10.2026');
       expect(input.getAttribute('aria-invalid')).toBeNull();
-      expect(region().querySelector('.tc-confirm__caution')?.textContent?.trim()).toBe('Freeze starts at once.');
+      expect(region().querySelector('.tc-confirm__caution')?.textContent?.trim()).toBe(
+        'Freeze starts at once.',
+      );
       expect(ok.textContent?.trim()).toBe('Move to 2026-10-06');
 
       ok.click();
@@ -305,7 +334,9 @@ describe('Sheet', () => {
       expect(dialog.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
         'The date changed meanwhile (now 15 October).',
       );
-      expect(input.value).toBe('2026-10-15');
+      await settle();
+      TestBed.tick();
+      expect(input.value).toBe('15.10.2026');
       expect(ok.textContent?.trim()).toBe('Повторить');
 
       ok.click();
@@ -315,7 +346,7 @@ describe('Sheet', () => {
   });
 
   describe('one shell: viewport, actions and scroll lock (#274)', () => {
-    it('puts the confirmation buttons in the footer, outside the scrolling body, Confirm first', async () => {
+    it('puts the confirmation buttons in the footer, outside the scrolling body, in the dialog reading order (#282)', async () => {
       void sheet.confirm({ title: 'Archive?', message: 'It stays readable.', confirmLabel: 'Archive' });
       await settle();
       TestBed.tick();
@@ -323,8 +354,8 @@ describe('Sheet', () => {
       const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
       const foot = dialog.querySelector('.tc-sheet__foot') as HTMLElement;
       const buttons = Array.from(foot.querySelectorAll('button')).map((button) => button.className);
-      expect(buttons[0]).toContain('tc-confirm__ok');
-      expect(buttons[1]).toContain('tc-confirm__cancel');
+      expect(buttons[0]).toContain('tc-confirm__cancel');
+      expect(buttons[1]).toContain('tc-confirm__ok');
       expect(dialog.querySelector('.tc-sheet__body')?.contains(foot)).toBe(false);
     });
 
@@ -367,6 +398,38 @@ describe('Sheet', () => {
       const closed = firstValueFrom(ref.closed);
       (foot.querySelector('.done') as HTMLButtonElement).click();
       await expect(closed).resolves.toBe('done');
+    });
+
+    it('#282: in the dialog the footer lists the secondary before the primary, so Tab follows the row left to right', async () => {
+      sheet.open(WithActions, { title: 'Snooze', data: { text: 'until' } });
+      await settle();
+      TestBed.tick();
+
+      const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+      expect(dialog.classList).toContain('tc-sheet--dialog');
+      expect(dialog.classList).toContain('tc-sheet--with-foot');
+      expect(footerButtons(dialog)).toEqual(['Cancel', 'Snooze']);
+    });
+
+    it('#282: a free-form footer keeps the order it was written in, before any role', async () => {
+      sheet.open(WithMixedFooter, { title: 'Design', data: { text: 'x' } });
+      await settle();
+      TestBed.tick();
+
+      const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+      expect(footerButtons(dialog)).toEqual(['Prev', 'Next', 'Cancel', 'Save']);
+    });
+
+    it('#282: confirm() in the dialog puts Cancel first in the DOM and still focuses it first', async () => {
+      const pending = sheet.confirm({ title: 'Archive?', message: 'Sure?', confirmLabel: 'Archive' });
+      await settle();
+
+      const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+      expect(footerButtons(dialog)).toEqual(['Отмена', 'Archive']);
+      expect(document.activeElement).toBe(dialog.querySelector('.tc-confirm__cancel'));
+
+      (dialog.querySelector('.tc-confirm__cancel') as HTMLButtonElement).click();
+      await expect(pending).resolves.toBe(false);
     });
 
     it('has no footer row for content without one, and a body that fits adds no tab stop', async () => {
@@ -414,3 +477,75 @@ class WithFooter {
   readonly data = inject<{ text: string }>(DIALOG_DATA);
   readonly ref = inject(DialogRef);
 }
+
+/** Written primary first, as the phone shows it; the frame decides the DOM order per presentation (#282). */
+@Component({
+  imports: [SheetFooter],
+  template: `<p class="content">{{ data.text }}</p>
+    <ng-template tcSheetFooter="primary">
+      <button type="button" class="ok">Snooze</button>
+    </ng-template>
+    <ng-template tcSheetFooter="secondary">
+      <button type="button" class="cancel">Cancel</button>
+    </ng-template>`,
+})
+class WithActions {
+  readonly data = inject<{ text: string }>(DIALOG_DATA);
+}
+
+@Component({
+  imports: [SheetFooter],
+  template: `<p class="content">{{ data.text }}</p>
+    <ng-template tcSheetFooter="primary"><button type="button">Save</button></ng-template>
+    <ng-template tcSheetFooter>
+      <button type="button">Prev</button>
+      <button type="button">Next</button>
+    </ng-template>
+    <ng-template tcSheetFooter="secondary"><button type="button">Cancel</button></ng-template>`,
+})
+class WithMixedFooter {
+  readonly data = inject<{ text: string }>(DIALOG_DATA);
+}
+
+/** The footer's buttons as a reader meets them: DOM order, which the frame makes the visual order too. */
+function footerButtons(dialog: HTMLElement): string[] {
+  return Array.from(dialog.querySelectorAll('.tc-sheet__foot button')).map((button) => button.textContent?.trim());
+}
+
+describe('Sheet on the phone (#282)', () => {
+  let sheet: Sheet;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      providers: [provideConsoleI18n(), { provide: BreakpointObserver, useValue: { isMatched: () => true } }],
+    }).compileComponents();
+    await TestBed.inject(ApplicationInitStatus).donePromise;
+    sheet = TestBed.inject(Sheet);
+  });
+
+  afterEach(() => {
+    overlay()?.remove();
+  });
+
+  it('stacks the primary over the secondary: the DOM order is the visual order here too', async () => {
+    sheet.open(WithActions, { title: 'Snooze', data: { text: 'until' } });
+    await settle();
+    TestBed.tick();
+
+    const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+    expect(dialog.classList).not.toContain('tc-sheet--dialog');
+    expect(footerButtons(dialog)).toEqual(['Snooze', 'Cancel']);
+  });
+
+  it('confirm() lists Confirm over Cancel and still focuses Cancel first', async () => {
+    const pending = sheet.confirm({ title: 'Archive?', message: 'Sure?', confirmLabel: 'Archive' });
+    await settle();
+
+    const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+    expect(footerButtons(dialog)).toEqual(['Archive', 'Отмена']);
+    expect(document.activeElement).toBe(dialog.querySelector('.tc-confirm__cancel'));
+
+    (dialog.querySelector('.tc-confirm__cancel') as HTMLButtonElement).click();
+    await expect(pending).resolves.toBe(false);
+  });
+});

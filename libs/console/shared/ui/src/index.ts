@@ -12,6 +12,7 @@ export * from './lib/card/card';
 export * from './lib/check-row/check-row';
 export * from './lib/choice/choice';
 export * from './lib/chip/chip';
+export * from './lib/date-picker/date-picker';
 export * from './lib/field/field';
 export * from './lib/frame/frame';
 export * from './lib/frame/frame-src.public';

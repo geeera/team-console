@@ -254,6 +254,53 @@ describe('the JWKS endpoint', () => {
     );
   });
 
+  it('negative-caches a failed load per URL: 10 requests while down cause one fetch, still 401 (#56)', async () => {
+    jwks.set(teamDomain, { status: 500 });
+    const token = await signAccessToken(key, teamDomain);
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await expectProblem(
+        await fetchApi(PROTECTED, accessEnv(teamDomain), withToken(token)),
+        'access-unverified',
+      );
+    }
+
+    expect(jwks.fetchCount(teamDomain)).toBe(1);
+  });
+
+  it('negative-caches an unreachable endpoint the same way (#56)', async () => {
+    vi.mocked(globalThis.fetch).mockRejectedValue(new TypeError('network connection lost'));
+    const token = await signAccessToken(key, teamDomain);
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await expectProblem(
+        await fetchApi(PROTECTED, accessEnv(teamDomain), withToken(token)),
+        'access-unverified',
+      );
+    }
+
+    expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledTimes(1);
+  });
+
+  it('tries a new load after the negative-cache window passes (#56)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    jwks.set(teamDomain, { status: 500 });
+    const token = await signAccessToken(key, teamDomain);
+
+    await expectProblem(
+      await fetchApi(PROTECTED, accessEnv(teamDomain), withToken(token)),
+      'access-unverified',
+    );
+    expect(jwks.fetchCount(teamDomain)).toBe(1);
+
+    vi.setSystemTime(Date.now() + 5_001);
+    jwks.set(teamDomain, { keys: [key.publicJwk] });
+    const second = await signAccessToken(key, teamDomain);
+
+    expect((await fetchApi(PROTECTED, accessEnv(teamDomain), withToken(second))).status).toBe(200);
+    expect(jwks.fetchCount(teamDomain)).toBe(2);
+  });
+
   it('is fetched from the team domain and cached across requests', async () => {
     const token = await signAccessToken(key, teamDomain);
     await fetchApi(PROTECTED, accessEnv(teamDomain), withToken(token));

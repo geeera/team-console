@@ -42,7 +42,7 @@ export interface ReasonSheetData {
       </tc-field>
     </form>
     <!-- The frame's footer sits outside the form, so the submit button names it (#274). -->
-    <ng-template tcSheetFooter>
+    <ng-template tcSheetFooter="primary">
       <button
         tc-button
         type="submit"
@@ -51,6 +51,8 @@ export interface ReasonSheetData {
       >
         {{ 'answer.reason.submit.' + data.command | transloco }}
       </button>
+    </ng-template>
+    <ng-template tcSheetFooter="secondary">
       <button tc-button type="button" (click)="ref.close()">{{ 'ui.confirm.cancel' | transloco }}</button>
     </ng-template>
   `,

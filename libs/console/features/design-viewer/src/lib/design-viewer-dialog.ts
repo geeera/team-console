@@ -13,6 +13,7 @@ import {
   linkedSignal,
   signal,
   untracked,
+  viewChild,
   type TemplateRef,
 } from '@angular/core';
 import { Router } from '@angular/router';
@@ -44,6 +45,9 @@ export interface DesignViewerData {
   readonly issue: number;
   readonly title: string;
   readonly actions: TemplateRef<unknown> | null;
+  /** The path of the screen to start on; `null` starts on the first screen of the device in hand. */
+  readonly screen: string | null;
+  readonly mode: ViewerMode;
 }
 
 export type ViewerMode = 'images' | 'grid' | 'interactive';
@@ -97,7 +101,7 @@ export class DesignViewerDialog {
     return state.kind === 'ready' ? state.manifest : null;
   });
 
-  protected readonly mode = signal<ViewerMode>('images');
+  protected readonly mode = signal<ViewerMode>(this.data.mode);
   /** The device control's choice; `null` when the design names no device or one only. */
   protected readonly device = signal<DesignDevice | null>(null);
   protected readonly index = signal(0);
@@ -128,6 +132,11 @@ export class DesignViewerDialog {
     return manifest === null ? [] : screensFor(manifest, this.device());
   });
   protected readonly current = computed<DesignScreen | null>(() => this.screens()[this.index()] ?? null);
+  /** The listed screen the viewer was opened on; `null` when none was asked for or the list no longer has it. */
+  private readonly startScreen = computed<DesignScreen | null>(() => {
+    const path = this.data.screen;
+    return path === null ? null : (this.manifest()?.screens.find((screen) => screen.path === path) ?? null);
+  });
   protected readonly isFirst = computed(() => this.index() <= 0);
   protected readonly isLast = computed(() => this.index() >= this.screens().length - 1);
   /** The project's embed origins once read; empty until then, so nothing is framed early. */
@@ -147,19 +156,43 @@ export class DesignViewerDialog {
     () => this.data.actions !== null || (this.mode() === 'images' && this.screens().length > 0),
   );
 
+  private readonly stage = viewChild<ElementRef<HTMLElement>>('stage');
+  /** The stage's content is taller or wider than the stage (a state block in a short stage, a tiny screen). */
+  private readonly stageOverflows = signal(false);
+  /**
+   * A stage that scrolls must be reachable and named (axe `scrollable-region-focusable`): always when zoomed, and
+   * whenever its content overflows anyway, so a fitted screen never leaves a scroller the keyboard cannot reach.
+   */
+  protected readonly isStageScrollable = computed(() => this.zoomed() || this.stageOverflows());
+
   private swipeStart: { x: number; y: number; isTouch: boolean } | null = null;
 
   constructor() {
     // Opening reads the list again: the team may have pushed to the design since a row loaded it.
     void this.manifests.reload(this.data.slug, this.data.issue);
-    // Both devices drawn: start on the one the owner is holding.
+    // Both devices drawn: start on the device of the screen asked for, else on the one the owner is holding.
     effect(() => {
       const devices = this.devices();
       untracked(() => {
         if (devices.length === 2 && this.device() === null) {
-          this.device.set(this.breakpoints.isMatched(BREAKPOINTS.phone) ? 'phone' : 'mac');
+          const start = this.startScreen();
+          this.device.set(
+            start?.device ?? (this.breakpoints.isMatched(BREAKPOINTS.phone) ? 'phone' : 'mac'),
+          );
         }
       });
+    });
+    // The screen asked for, once its list is in; later reads of the list keep where the owner has gone since.
+    let isStartPlaced = this.data.screen === null;
+    effect(() => {
+      const screens = this.screens();
+      const start = this.startScreen();
+      if (isStartPlaced || start === null || (this.devices().length === 2 && this.device() === null)) {
+        return;
+      }
+      isStartPlaced = true;
+      const index = screens.findIndex((screen) => screen.path === start.path);
+      untracked(() => this.index.set(Math.max(index, 0)));
     });
     // The embed origins are asked for once, the first time the interactive mode is opened.
     effect(() => {
@@ -167,6 +200,7 @@ export class DesignViewerDialog {
         untracked(() => void this.loadOrigins());
       }
     });
+    this.watchStageOverflow();
     const onKey = (event: KeyboardEvent): void => this.onKey(event);
     this.document.addEventListener('keydown', onKey);
     inject(DestroyRef).onDestroy(() => this.document.removeEventListener('keydown', onKey));
@@ -334,6 +368,45 @@ export class DesignViewerDialog {
     } else {
       this.next();
     }
+  }
+
+  /**
+   * Keeps `stageOverflows` true while the stage's content does not fit it: the stage itself resizing (a taller
+   * footer), its content resizing, or new content (another state, another screen). Without ResizeObserver (jsdom)
+   * the stage stays as the zoom toggle sets it.
+   */
+  private watchStageOverflow(): void {
+    const destroyRef = inject(DestroyRef);
+    afterNextRender(
+      () => {
+        const stage = this.stage()?.nativeElement;
+        const view = this.document.defaultView;
+        if (stage === undefined || view === null || typeof view.ResizeObserver !== 'function') {
+          return;
+        }
+        const measure = (): void =>
+          this.stageOverflows.set(
+            stage.scrollHeight > stage.clientHeight + 1 || stage.scrollWidth > stage.clientWidth + 1,
+          );
+        const resizes = new view.ResizeObserver(measure);
+        const observeContent = (): void => {
+          resizes.disconnect();
+          resizes.observe(stage);
+          for (const child of Array.from(stage.children)) {
+            resizes.observe(child);
+          }
+          measure();
+        };
+        const mutations = new view.MutationObserver(observeContent);
+        mutations.observe(stage, { childList: true, subtree: true });
+        observeContent();
+        destroyRef.onDestroy(() => {
+          resizes.disconnect();
+          mutations.disconnect();
+        });
+      },
+      { injector: this.injector },
+    );
   }
 
   private async loadOrigins(): Promise<void> {

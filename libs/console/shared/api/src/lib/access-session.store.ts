@@ -24,6 +24,10 @@ export class AccessSession {
 
   readonly expired = this.isExpired.asReadonly();
 
+  /**
+   * Once set, stays true until a full page load (`signIn()` or a manual reload) — there is no `clearExpired()`.
+   * A future retry-after-sign-in path (e.g. without a full navigation) would need to reset this explicitly.
+   */
   markExpired(): void {
     this.isExpired.set(true);
   }

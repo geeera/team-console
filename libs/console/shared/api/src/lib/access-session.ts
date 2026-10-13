@@ -48,7 +48,10 @@ function problemTypeOf(body: unknown): string | null {
  *
  * - a redirect: our `/api` never redirects, Access does (`opaqueredirect` with `redirect: 'manual'`, or `redirected`);
  * - a response from `*.cloudflareaccess.com` (a followed redirect);
- * - 401/403 with a non-JSON body (Access's own pages), or our 401 `access-missing|access-unverified`;
+ * - 401 with a non-JSON body (Access's own login page), or our 401 `access-missing|access-unverified`;
+ * - 403 only with our own `access-missing|access-unverified` — a non-JSON 403 is left alone here because a
+ *   Cloudflare WAF or rate-limit page also answers 403 with HTML; without the Access login URL or redirect above,
+ *   nothing tells that page apart from ours, and showing «Сессия истекла» for it would be misleading (#289);
  * - a 2xx non-JSON body: Access's login page after a same-origin redirect.
  *
  * Status 0 alone (offline, aborted), a 5xx and the worker's synthesised 504 are not: re-login cannot fix them.
@@ -60,15 +63,18 @@ export function isAccessSessionExpired(response: HttpResponseBase, body: unknown
   if (isAccessLoginUrl(response.url)) {
     return true;
   }
-  const isNonJson = isDeclaredNonJson(response.headers.get('Content-Type'));
-  if (response.status === 401 || response.status === 403) {
-    if (isNonJson) {
+  if (response.status === 401) {
+    if (isDeclaredNonJson(response.headers.get('Content-Type'))) {
       return true;
     }
     const type = problemTypeOf(body);
-    return response.status === 401 && type !== null && REAUTH_PROBLEM_TYPE.test(type);
+    return type !== null && REAUTH_PROBLEM_TYPE.test(type);
   }
-  return response.status >= 200 && response.status < 300 && isNonJson;
+  if (response.status === 403) {
+    const type = problemTypeOf(body);
+    return type !== null && REAUTH_PROBLEM_TYPE.test(type);
+  }
+  return response.status >= 200 && response.status < 300 && isDeclaredNonJson(response.headers.get('Content-Type'));
 }
 
 /** The current address with the marker that makes the service worker leave the navigation to the network. */

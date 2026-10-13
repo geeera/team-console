@@ -119,3 +119,31 @@ describe('DesignPreview and DesignSummary', () => {
     expect(root.querySelector('[data-testid="design-summary"]')?.textContent?.trim()).toBe('#277');
   });
 });
+
+@Component({
+  imports: [DesignPreview],
+  template: `<tc-design-preview slug="tc" [issue]="277" variant="card" [manifest]="manifest" [screen]="screen()" />`,
+})
+class ScreenHost {
+  readonly manifest = { ...MANIFEST, screens: [...MANIFEST.screens, screen('phone-03-huge.png', { tooLarge: true })] };
+  readonly screen = signal<string | null>('docs/design/277-viewer/mac-01-list.png');
+}
+
+describe('DesignPreview of one screen', () => {
+  it('shows the screen it is given, and the placeholder for one not listed or too large to serve', async () => {
+    await TestBed.configureTestingModule({ imports: [ScreenHost], providers: [provideConsoleI18n()] }).compileComponents();
+    await TestBed.inject(ApplicationInitStatus).donePromise;
+    const fixture = TestBed.createComponent(ScreenHost);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('img')?.getAttribute('src')).toContain('mac-01-list.png');
+    expect(root.querySelector('tc-design-preview')?.classList).toContain('tc-design-preview--card');
+
+    for (const path of ['docs/design/277-viewer/phone-03-huge.png', 'docs/design/277-viewer/elsewhere.png']) {
+      fixture.componentInstance.screen.set(path);
+      await fixture.whenStable();
+      expect(root.querySelector('img'), path).toBeNull();
+      expect(root.querySelector('[data-testid="design-thumb-none"]'), path).not.toBeNull();
+    }
+  });
+});

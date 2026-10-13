@@ -5,6 +5,7 @@ import type {
   SnoozeDto,
   SprintListsDto,
 } from '@shared/contracts';
+import { withoutInvisibles } from '@shared/plain-text';
 
 export interface OverviewRowInput {
   readonly slug: string;
@@ -34,7 +35,8 @@ export function buildOverviewRow(input: OverviewRowInput): OverviewProjectReadDt
         ? null
         : {
             number: milestone.number,
-            title: milestone.title,
+            // The sprint DTO already strips the title; every title-bearing builder strips its own (#287 guard).
+            title: withoutInvisibles(milestone.title),
             dueOn: milestone.dueOn,
             planned: input.sprint.planned,
             shipped: input.sprint.shipped,

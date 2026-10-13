@@ -2,6 +2,7 @@ export {
   designManifestOf,
   devicesOf,
   megabytesOf,
+  previewScreensOf,
   screenSrcOf,
   screensFor,
   thumbnailOf,

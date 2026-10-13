@@ -25,7 +25,7 @@ function isIssue(item: SprintListItem): item is SprintIssue {
       @for (item of items(); track item.number) {
         <tc-list-row [href]="item.url ?? ''" external [attr.data-number]="item.number">
           <span tc-row-leading class="sprint-item__number">#{{ item.number }}</span>
-          <span tc-row-title
+          <span tc-row-title dir="auto"
             >{{ item.title }}
             @if (item.url) {
               <span class="tc-sr-only">{{ 'board.opensGitHub' | transloco }}</span>

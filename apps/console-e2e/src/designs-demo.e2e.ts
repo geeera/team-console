@@ -185,7 +185,9 @@ test('approves a design in one tap: exactly one /approve comment', async ({
 
   await card(page, 90004).locator('[data-command="approve"]').click();
 
-  await expect(card(page, 90004).locator('tc-receipt')).toBeVisible();
+  // «Демо» lists what still waits: the answered card leaves it, its receipt lives on «Вопросы» (#328).
+  await expect(card(page, 90004)).toHaveCount(0);
+  await expect(page.locator('tc-receipt')).toHaveCount(0);
   expect(posts).toHaveLength(1);
   const after = await fakeComments(stack, 90004);
   expect(after).toHaveLength(before.length + 1);
@@ -212,7 +214,7 @@ test('rejects a design only with a reason, from the keyboard', async ({ page, st
   await sheet.getByRole('button', { name: ru('answer.reason.submit.reject') }).focus();
   await page.keyboard.press('Enter');
 
-  await expect(card(page, 90006).locator('tc-receipt')).toBeVisible();
+  await expect(card(page, 90006)).toHaveCount(0);
   expect(posts).toHaveLength(1);
   const after = await fakeComments(stack, 90006);
   expect(after).toHaveLength(before.length + 1);
@@ -250,7 +252,7 @@ test('go asks for confirmation first, then writes exactly one /go', async ({
     .getByRole('button', { name: ru('answer.command.go') })
     .click();
 
-  await expect(demo.locator('tc-receipt')).toBeVisible();
+  await expect(demo).toHaveCount(0);
   expect(posts).toHaveLength(1);
   const after = await fakeComments(stack, 90005);
   expect(after).toHaveLength(before.length + 1);

@@ -90,6 +90,11 @@ export class Sheet {
     });
   }
 
+  /** Whether any sheet or dialog is open: someone may be in the middle of something a reload would lose (#306). */
+  hasOpen(): boolean {
+    return this.dialog.openDialogs.length > 0;
+  }
+
   /**
    * Resolves `true` only when the user pressed Confirm and its `action`, if any, succeeded; Escape, the scrim and
    * Cancel give `false`. A failed action keeps the dialog open, so the promise waits for the next answer.

@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { addDays, calendarDayOf } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
@@ -67,6 +67,14 @@ async function openPanel(page: Page): Promise<void> {
 
 const dialog = (page: Page) => page.getByRole('alertdialog');
 const dateField = (page: Page) => dialog(page).getByLabel(ru('commands.demo.field'));
+/** The kit DatePicker's typed form (#307): `ДД.ММ.ГГГГ`. */
+const shown = (day: string): string => day.split('-').reverse().join('.');
+
+/** Types a day into the date field and leaves it, as the owner does: the field reads typed text on blur. */
+async function typeDate(field: Locator, day: string): Promise<void> {
+  await field.fill(shown(day));
+  await field.blur();
+}
 
 test.describe.configure({ mode: 'serial' });
 
@@ -126,21 +134,21 @@ test('Move the demo refuses a past date, warns when the freeze starts at once, a
   await openPanel(page);
   await page.getByTestId('sprint-demo').click();
   await expect(dialog(page)).toBeVisible();
-  await expect(dateField(page)).toHaveValue(DUE);
+  await expect(dateField(page)).toHaveValue(shown(DUE));
   const ok = dialog(page).locator('.tc-confirm__ok');
   await expect(ok).toHaveText(ru('commands.demo.same'));
 
-  await dateField(page).fill(addDays(TODAY, -1));
+  await typeDate(dateField(page), addDays(TODAY, -1));
   await expect(dateField(page)).toHaveAttribute('aria-invalid', 'true');
   await expect(dialog(page)).toContainText(ru('commands.demo.past'));
   await expect(ok).toHaveAttribute('aria-disabled', 'true');
 
-  await dateField(page).fill(addDays(TODAY, 1));
+  await typeDate(dateField(page), addDays(TODAY, 1));
   await expect(dialog(page)).toContainText(ru('commands.demo.freezeNow'));
   await expectAccessible(page, 'Move the demo with the freeze warning');
 
   const moved = addDays(TODAY, 11);
-  await dateField(page).fill(moved);
+  await typeDate(dateField(page), moved);
   await expect(dialog(page)).not.toContainText(ru('commands.demo.freezeNow'));
   await ok.click();
   await expect(dialog(page)).toHaveCount(0);
@@ -160,16 +168,16 @@ test('a demo moved meanwhile refills the form with the live date and writes noth
 }) => {
   await openPanel(page);
   await page.getByTestId('sprint-demo').click();
-  await expect(dateField(page)).toHaveValue(DUE);
+  await expect(dateField(page)).toHaveValue(shown(DUE));
   // The PM moves the demo while the dialog is open.
   const live = addDays(DUE, 1);
   await seedSprints(stack, live);
   const before = (await writes(stack)).length;
 
-  await dateField(page).fill(addDays(DUE, 3));
+  await typeDate(dateField(page), addDays(DUE, 3));
   await dialog(page).locator('.tc-confirm__ok').click();
   await expect(dialog(page).getByRole('alert')).toContainText('Дату демо изменили, пока диалог был открыт');
-  await expect(dateField(page)).toHaveValue(live);
+  await expect(dateField(page)).toHaveValue(shown(live));
   expect((await writes(stack)).length).toBe(before);
   await dialog(page).locator('.tc-confirm__cancel').click();
 });
@@ -184,10 +192,10 @@ test('Start the next sprint creates Sprint 03 two weeks after the demo, then is 
   await expect(dialog(page)).toContainText('Начать Sprint 03?');
   const field = dialog(page).getByLabel(ru('commands.next.field', { sprint: 'Sprint 03' }));
   const due = addDays(DUE, 14);
-  await expect(field).toHaveValue(due);
-  await field.fill(DUE);
+  await expect(field).toHaveValue(shown(due));
+  await typeDate(field, DUE);
   await expect(dialog(page)).toContainText('Демо Sprint 03 должно быть позже');
-  await field.fill(due);
+  await typeDate(field, due);
   await dialog(page)
     .getByRole('button', { name: ru('commands.next.ok', { sprint: 'Sprint 03' }) })
     .click();
@@ -206,7 +214,7 @@ test('the board has Move demo by the sprint title, opening the same dialog', asy
   await expect(move).toHaveAccessibleName(ru('commands.sprint.demoAria', { sprint: 'Sprint 02' }));
   await move.click();
   await expect(dialog(page)).toContainText(ru('commands.demo.title', { sprint: 'Sprint 02' }));
-  await expect(dateField(page)).toHaveValue(DUE);
+  await expect(dateField(page)).toHaveValue(shown(DUE));
   await expectAccessible(page, 'Move the demo from the board');
   await dialog(page).locator('.tc-confirm__cancel').click();
   await expect(dialog(page)).toHaveCount(0);

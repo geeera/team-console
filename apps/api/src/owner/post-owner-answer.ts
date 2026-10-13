@@ -46,7 +46,8 @@ export interface OwnerAnswerSteps {
 }
 
 export type OwnerAnswerOutcome =
-  | { readonly kind: 'written'; readonly write: OwnWrite }
+  /** `createdAt`: GitHub's `created_at` of the new comment, `null` when the answer carried none. */
+  | { readonly kind: 'written'; readonly write: OwnWrite; readonly createdAt: string | null }
   | { readonly kind: 'replayed'; readonly write: OwnWrite }
   | { readonly kind: 'in-progress' }
   | { readonly kind: 'refused'; readonly response: Response };
@@ -54,6 +55,7 @@ export type OwnerAnswerOutcome =
 interface GitHubComment {
   readonly id: number;
   readonly html_url: string;
+  readonly created_at?: unknown;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -62,6 +64,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isComment(value: unknown): value is GitHubComment {
   return isRecord(value) && Number.isSafeInteger(value['id']) && typeof value['html_url'] === 'string';
+}
+
+/**
+ * GitHub's timestamp of the comment as ISO 8601 UTC, or `null` when the answer lacks one it can parse. Never a
+ * reason to fail: the comment exists by now, and a thrown error would invite a second post.
+ */
+function githubCreatedAtOf(comment: GitHubComment): string | null {
+  if (typeof comment.created_at !== 'string' || !Number.isFinite(Date.parse(comment.created_at))) {
+    return null;
+  }
+  return new Date(comment.created_at).toISOString();
 }
 
 /**
@@ -149,5 +162,5 @@ export async function postOwnerAnswer(
     logger.error('owner answer written but not recorded', { ...fields, error });
   }
   logger.info('owner answer written', fields);
-  return { kind: 'written', write };
+  return { kind: 'written', write, createdAt: githubCreatedAtOf(comment) };
 }

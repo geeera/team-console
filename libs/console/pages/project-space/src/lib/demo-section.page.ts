@@ -38,6 +38,7 @@ type OriginsState =
           <tc-question-list
             [project]="project"
             [sections]="sections"
+            [showReceipts]="false"
             [embedOrigins]="embedOrigins()"
             [listLabel]="'review.listLabel' | transloco"
             [emptyTitle]="'review.emptyTitle' | transloco"
