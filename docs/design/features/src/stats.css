@@ -1,0 +1,238 @@
+/* ===== #109 Team analytics: the space's Stats tab («Показатели»), on the Paper Desk tokens (ADR 0002) =====
+   Builds on board.css (the #18 shell, #134's tier icons). New here: the four jump tiles, the four blocks (Where the team
+   is stuck, Reviews, Sprint, Runs), "no data" as a typographic state, the review-round tally, the two-part sprint
+   meter, the in-block states and the arrival ring a tile leaves on its block. Only opacity, transform, box-shadow and
+   stroke-dashoffset animate. Proposed tokens: the meter height, the tally size and its stroke step, the reason clamp. */
+:root{--an-meter-h:10px;--tally-h:14px;--tally-w:22px;--tally-step:40ms;--reason-lines:3;--an-col-gap:var(--sp-8)}
+@media (prefers-reduced-motion:reduce){:root{--tally-step:0ms}}
+:root[data-motion=reduce]{--tally-step:0ms}
+
+.bd-scroll{position:relative}
+
+/* ----- the page: heading, meta line, tiles, then the blocks ----- */
+.an{display:grid;gap:var(--sp-6);padding:var(--sp-4) var(--sp-4) var(--sp-10)}
+.bd-mac .an{max-width:960px;margin:0 auto;padding:var(--sp-6) var(--sp-8) var(--sp-10)}
+.an-head{display:grid;gap:var(--sp-2)}
+.an-title{margin:0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:var(--lh-tight);outline:none}
+.bd-mac .an-title{font-size:var(--fs-2xl)}
+.an-meta{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-3);margin:0;font-size:var(--fs-sm);color:var(--text-2);font-variant-numeric:tabular-nums}
+.an-meta__sep{color:var(--text-3)}
+.an-meta__when{flex:1 1 auto;display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-3)}
+.an-meta .btn{margin-left:auto}
+.app[data-app=phone] .an-meta__sep--when{display:none}
+.app[data-app=phone] .an-meta__when{flex-basis:100%}
+.app[data-app=phone] .an-meta .btn{min-height:var(--target)}
+.an-meta .btn .ico{width:16px;height:16px}
+.an-meta .status{height:24px}
+.an-meta .status .ico{width:12px;height:12px}
+.an-meta .status--paused{box-shadow:inset 0 0 0 1px var(--border-strong)}
+
+/* ----- the tiles: kit Stat as in-page links; 2×2 on the phone, four across on the Mac ----- */
+.an-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-2);margin:0;padding:0;list-style:none}
+.bd-mac .an-tiles{grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sp-3)}
+.an-tiles>li{display:grid;min-width:0}
+.an-tile{position:relative;display:grid;align-content:start;gap:var(--sp-1);min-width:0;min-height:calc(var(--target) * 2);padding:var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--text);text-decoration:none;container-type:inline-size;-webkit-tap-highlight-color:transparent;transition:background-color var(--dur-fast) var(--ease-standard)}
+.an-tile:hover{background:var(--surface-2)}
+.an-tile:active{background:var(--bg-sunken)}
+.an-tile__label{display:flex;align-items:center;gap:var(--sp-1);min-width:0;font-size:var(--fs-xs);color:var(--text-2)}
+.an-tile__label>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.an-tile__label .ico{width:16px;height:16px;flex:none}
+.an-tile__go{margin-left:auto;color:var(--text-3)}
+.an-tile__value{font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:var(--lh-tight);font-variant-numeric:tabular-nums lining-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.an-tile__sub{font-size:var(--fs-xs);color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@container (max-width:9rem){.an-tile__value{font-size:var(--fs-lg)}}
+/* Marked ("needs a look"): an ochre outline twice the hairline, a ! before the label, and the number itself. Never colour alone. */
+.an-tile.is-marked{border-color:var(--warning-text);box-shadow:inset 0 0 0 1px var(--warning-text)}
+.an-tile.is-marked .an-tile__label{color:var(--warning-text);font-weight:600}
+.an-mark{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--warning-text);color:var(--surface)}
+.an-mark .ico{width:12px!important;height:12px!important;stroke-width:2.6}
+
+/* "no data" is a typographic state: the serif italic phrase where the number would be, the reason right under it */
+.nodata{font-family:var(--font-display);font-style:italic;font-weight:400;color:var(--text-2)}
+.an .an-tile__value.nodata{font-size:var(--fs-lg);font-weight:400}
+
+/* ----- the blocks: two columns on the Mac (Stuck + Reviews | Sprint + Runs), one on the phone; DOM order = phone order ----- */
+.an-cols{display:grid;gap:var(--sp-8)}
+.bd-mac .an-cols{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--an-col-gap);align-items:start}
+.an-col{display:grid;gap:var(--sp-8);min-width:0;align-content:start}
+.an-sec{display:grid;gap:var(--sp-3);min-width:0;scroll-margin-top:var(--sp-4);border-radius:var(--r-lg)}
+.an-sec__head{display:grid;gap:2px}
+.an-sec__title{display:flex;align-items:baseline;gap:var(--sp-2);margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);line-height:var(--lh-tight);outline:none;border-radius:var(--r-sm)}
+.an-sec__title:focus-visible{outline:2px solid var(--focus);outline-offset:4px}
+.an-sec__count{font-family:var(--font-body);font-size:var(--fs-sm);font-weight:400;color:var(--text-3);font-variant-numeric:tabular-nums}
+.an-sec__period{margin:0;font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2);font-variant-numeric:tabular-nums}
+.an-card{display:grid;gap:var(--sp-4);min-width:0;padding:var(--sp-4);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg)}
+.an-card--list{padding:var(--sp-1) 0;gap:0}
+.an-sub{margin:0;font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+
+/* the arrival: the kit's ring (markArrival) around the block a tile or a #fragment led to; reduced motion: no swell */
+.an-sec.tc-arrival{box-shadow:0 0 0 2px var(--focus);animation:an-arrive var(--dur-sig) var(--ease-emph) both}
+@keyframes an-arrive{0%{box-shadow:0 0 0 0 var(--focus)}35%{box-shadow:0 0 0 6px var(--accent-soft),0 0 0 2px var(--focus)}100%{box-shadow:0 0 0 2px var(--focus)}}
+.an-sec.tc-arrival .an-sec__title:focus{outline:none}
+@media (prefers-reduced-motion:reduce){.an-sec.tc-arrival{animation:none}}
+:root[data-motion=reduce] .an-sec.tc-arrival{animation:none}
+
+/* ----- list rows (blocked issues, merged PRs) ----- */
+.an-list{list-style:none;margin:0;padding:0}
+.an-row{display:grid;grid-template-columns:44px minmax(0,1fr);gap:var(--sp-1) var(--sp-2);padding:var(--sp-3) var(--sp-4) var(--sp-3) var(--sp-3);border-top:1px solid var(--border)}
+.an-list>li:first-child>.an-row{border-top:0}
+.an-row__num{padding-top:var(--sp-2);font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
+.an-row__main{display:grid;gap:var(--sp-2);min-width:0}
+.an-row__title{display:flex;align-items:center;min-height:var(--target);margin:calc(-1 * var(--sp-1)) 0;color:var(--text);font-size:var(--fs-sm);font-weight:600;line-height:var(--lh-tight);text-decoration:none;overflow-wrap:anywhere;border-radius:var(--r-sm)}
+.an-row__title:hover{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em}
+.an-row__title .ico{width:14px;height:14px;margin-left:var(--sp-1);color:var(--text-3);vertical-align:-2px}
+.an-row__chips{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2)}
+.an-row.is-new{animation:row-in var(--dur-base) var(--ease-enter) both;animation-delay:calc(var(--i) * var(--stagger))}
+@keyframes row-in{from{opacity:0;transform:translateY(4px)}}
+@media (prefers-reduced-motion:reduce){.an-row.is-new{animation:fade var(--dur-fade) linear both}}
+:root[data-motion=reduce] .an-row.is-new{animation:fade var(--dur-fade) linear both}
+
+/* chips: the words carry the meaning, the tone repeats them */
+.an-chip{display:inline-flex;align-items:center;gap:var(--sp-1);min-height:24px;padding:0 var(--sp-2);border-radius:var(--r-pill);background:var(--bg-sunken);color:var(--text-2);font-size:var(--fs-xs);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.an-chip .ico{width:14px;height:14px}
+.an-chip--strong{background:var(--warning-soft);color:var(--warning-text);box-shadow:inset 0 0 0 1px var(--warning-text)}
+.an-chip--danger{background:var(--danger-soft);color:var(--danger-text)}
+.an-chip--warn{background:var(--warning-soft);color:var(--warning-text)}
+.an-chip--untrusted{background:none;color:var(--text-2);box-shadow:inset 0 0 0 1px var(--border-strong);border:0;outline:1px dashed var(--border-strong);outline-offset:-1px}
+
+/* the reason: the last comment as a margin note in the serif, clamped to three lines with its toggle */
+.an-reason{display:grid;gap:0;justify-items:start;min-width:0}
+.an-reason__text{margin:0;padding-left:var(--sp-3);border-left:2px solid var(--border-strong);font-family:var(--font-display);font-size:var(--fs-sm);line-height:var(--lh-body);color:var(--text-2);overflow-wrap:anywhere;white-space:pre-line}
+.an-reason__text.is-clamped{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:var(--reason-lines);overflow:hidden}
+.an-reason__text--none{font-style:italic}
+.an-reason__text a{color:var(--accent-text);font-family:var(--font-body);font-size:var(--fs-xs);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em}
+.an-reason .link-btn{display:inline-flex;align-items:center;gap:var(--sp-1);margin-left:var(--sp-3);font-size:var(--fs-xs)}
+.an-reason .link-btn .ico{width:14px;height:14px;transition:transform var(--dur-base) var(--ease-standard)}
+.an-reason .link-btn[aria-expanded=true] .ico{transform:rotate(180deg)}
+@media (prefers-reduced-motion:reduce){.an-reason .link-btn .ico{transition:none}}
+:root[data-motion=reduce] .an-reason .link-btn .ico{transition:none}
+
+/* ----- figures: the headline numbers of a block, the number in the serif ----- */
+.an-figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:var(--sp-4) var(--sp-4);margin:0}
+.an-fig{display:grid;align-content:start;gap:2px;min-width:0}
+.an-fig dt{font-size:var(--fs-xs);color:var(--text-2)}
+.an-fig dd{margin:0;display:grid;gap:2px;min-width:0}
+.an-fig__v{font-family:var(--font-display);font-size:var(--fs-2xl);font-weight:var(--fw-display);line-height:var(--lh-tight);font-variant-numeric:tabular-nums lining-nums}
+.an .an-fig__v.nodata{font-size:var(--fs-lg);font-weight:400;line-height:1.6}
+.an-fig__s{font-size:var(--fs-xs);color:var(--text-2)}
+.an-fig--wide{grid-column:1/-1}
+.an-figs--3 .an-fig__v{font-size:var(--fs-xl)}
+.an-figs--sprint{grid-template-columns:auto auto minmax(0,1fr);gap:var(--sp-4) var(--sp-6)}
+
+/* ----- the review rounds: an ink tally, then the words ----- */
+.an-rounds{display:inline-flex;align-items:center;gap:var(--sp-2);min-height:24px;padding:0 var(--sp-2) 0 var(--sp-1);border-radius:var(--r-pill);font-size:var(--fs-xs);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+.an-rounds.is-strong{background:var(--warning-soft);color:var(--warning-text);box-shadow:inset 0 0 0 1px var(--warning-text)}
+.tally{height:var(--tally-h);width:auto;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.is-inking .tally path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) forwards;animation-delay:calc(var(--k) * var(--tally-step) + var(--dur-fast))}
+@media (prefers-reduced-motion:reduce){.is-inking .tally path{animation:none;stroke-dashoffset:0}}
+:root[data-motion=reduce] .is-inking .tally path{animation:none;stroke-dashoffset:0}
+.an-row--pr .an-row__head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--sp-1) var(--sp-3)}
+.an-row--pr .an-row__title{flex:1 1 12rem}
+
+/* Show N more: the foot of the list card, a whole-width target (as #108) */
+.an-more-li{border-top:1px solid var(--border);padding:var(--sp-1)}
+.an-more{display:flex;align-items:center;justify-content:center;gap:var(--sp-2);width:100%;min-height:var(--target);border:0;border-radius:var(--r-md);background:none;color:var(--accent-text);font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer}
+.an-more:hover{background:var(--bg-sunken)}
+.an-more:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.an-more .ico{width:16px;height:16px}
+
+/* ----- the sprint meter: shipped in moss ink, still open as pencil hatching; the text alternative is the sentence ----- */
+.an-meter{display:flex;height:var(--an-meter-h);border-radius:var(--r-pill);overflow:hidden;background:repeating-linear-gradient(135deg,var(--bg-sunken) 0 3px,var(--border-strong) 3px 4px);box-shadow:inset 0 0 0 1px var(--border)}
+.an-meter__done{display:block;height:100%;width:var(--p);background:var(--accent);border-radius:var(--r-pill) 0 0 var(--r-pill);transform-origin:left center}
+.an-meter__done[style*="--p:100%"]{border-radius:inherit}
+.is-inking .an-meter__done{animation:meter-in var(--dur-sig) var(--ease-emph) var(--dur-fast) both}
+@keyframes meter-in{from{transform:scaleX(0)}}
+@media (prefers-reduced-motion:reduce){.is-inking .an-meter__done{animation:none}}
+:root[data-motion=reduce] .is-inking .an-meter__done{animation:none}
+.an-legend{display:flex;flex-wrap:wrap;gap:var(--sp-1) var(--sp-4);margin:calc(-1 * var(--sp-2)) 0 0;font-size:var(--fs-xs);color:var(--text-2);font-variant-numeric:tabular-nums}
+.an-legend span{display:inline-flex;align-items:center;gap:var(--sp-1)}
+.an-sw{width:12px;height:8px;border-radius:2px}
+.an-sw--done{background:var(--accent)}
+.an-sw--open{background:repeating-linear-gradient(135deg,var(--bg-sunken) 0 2px,var(--border-strong) 2px 3px);box-shadow:inset 0 0 0 1px var(--border-strong)}
+
+/* ----- tables: the by-tier table and the Mac runs table ----- */
+.an-table{width:100%;border-collapse:collapse;font-size:var(--fs-sm);font-variant-numeric:tabular-nums}
+.an-table caption{caption-side:top;text-align:left;padding-bottom:var(--sp-2);font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.an-table th,.an-table td{padding:var(--sp-2) var(--sp-2);border-top:1px solid var(--border);text-align:right;vertical-align:baseline}
+.an-table thead th{border-top:0;padding-top:0;font-size:var(--fs-xs);font-weight:600;color:var(--text-2)}
+.an-table th[scope=row],.an-table thead th:first-child{text-align:left;font-weight:600;color:var(--text)}
+.an-table thead th:first-child{color:var(--text-2)}
+.an-table th:first-child,.an-table td:first-child{padding-left:0}
+.an-table th:last-child,.an-table td:last-child{padding-right:0}
+.an-table .tier-ico{width:22px;height:22px;margin-right:var(--sp-2);vertical-align:-6px}
+.an-table .tier-ico .ico{width:16px;height:16px}
+.an-tier-none{display:inline-block;width:22px;margin-right:var(--sp-2)}
+.an-fail{color:var(--danger-text);font-weight:700}
+.an-fn{color:var(--text-3);font-weight:400}
+.an-raw{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:400}
+
+/* the phone's runs: one line per slot */
+.an-slot{display:grid;gap:2px;padding:var(--sp-3) var(--sp-4);border-top:1px solid var(--border);font-size:var(--fs-sm)}
+.an-list>li:first-child>.an-slot{border-top:0}
+.an-slot b{font-weight:600}
+.an-slot__nums{color:var(--text-2);font-variant-numeric:tabular-nums}
+
+/* notes inside a block: the pause note, the untrusted entries, the footnote */
+.an-note{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;font-size:var(--fs-xs);color:var(--text-2);line-height:var(--lh-body)}
+.an-note .ico{width:16px;height:16px;margin-top:1px;flex:none}
+.an-note--pause{padding:var(--sp-3);border-radius:var(--r-md);background:var(--bg-sunken);color:var(--text);font-size:var(--fs-sm)}
+.an-note--untrusted{padding:var(--sp-2) var(--sp-3);border:1px dashed var(--border-strong);border-radius:var(--r-md)}
+.an-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--sp-2)}
+.app[data-app=phone] .an-foot .ext{min-height:var(--target)}
+
+/* ----- in-block states (no data, nothing blocked, budget stopped) and whole-page states ----- */
+.an-state{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--sp-1) var(--sp-3);align-items:start;padding:var(--sp-4);border-radius:var(--r-lg);font-size:var(--fs-sm)}
+.an-state>.ico{grid-row:span 2;width:20px;height:20px;margin-top:2px}
+.an-state__t{margin:0;font-weight:700;color:inherit;outline:none}
+.an-state__t.nodata{font-weight:400;font-size:var(--fs-md)}
+.an-state__h{margin:0;color:var(--text-2);max-width:56ch}
+.an-state__act{grid-column:2;display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:var(--sp-2)}
+.app[data-app=phone] .an-state__act .btn{min-height:var(--target)}
+.an-state--empty{background:var(--surface);border:1px dashed var(--border-strong)}
+.an-state--empty>.ico{color:var(--success-text)}
+.an-state--nodata{background:var(--surface);border:1px solid var(--border)}
+.an-state--nodata>.ico{color:var(--text-3)}
+.an-state--partial{background:var(--warning-soft);color:var(--warning-text)}
+.an-state--partial .an-state__h{color:var(--warning-text)}
+.an-state--partial .btn,.an-state--error .btn,.an-state--wait .btn{background:var(--surface);border-color:transparent}
+.an-state--error{background:var(--danger-soft);color:var(--danger-text)}
+.an-state--error .an-state__h{color:var(--danger-text)}
+.an-state--wait{background:var(--warning-soft);color:var(--warning-text)}
+.an-state--wait .an-state__h{color:var(--warning-text)}
+.an-state--offline{background:var(--bg-sunken);color:var(--text)}
+.an-state--offline>.ico{color:var(--text-2)}
+.an-state--setup{background:var(--surface);border:1px solid var(--border-strong)}
+.an-state--big{padding:var(--sp-6) var(--sp-5)}
+.an-state--big .an-state__t{font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display)}
+.an-state.is-new{animation:fade var(--dur-fade) var(--ease-enter) both}
+
+/* the failed refresh keeps the numbers: the kit Banner in ochre above them */
+.an-banner{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-sm);animation:fade var(--dur-base) var(--ease-enter) both}
+.an-banner .ico{width:18px;height:18px;margin-top:1px}
+
+/* a working button: the ring before the words, the button keeps its place and focus */
+.ring{width:14px;height:14px;flex:none;border-radius:50%;border:2px solid var(--border-strong);border-top-color:var(--accent);animation:spin 900ms linear infinite}
+@keyframes spin{to{transform:rotate(1turn)}}
+@media (prefers-reduced-motion:reduce){.ring{animation:none;border-top-color:var(--border-strong)}}
+:root[data-motion=reduce] .ring{animation:none;border-top-color:var(--border-strong)}
+.btn[aria-disabled=true] .ring{border-top-color:var(--accent)}
+
+/* the numbers settle in once per load: a fade, no movement */
+.is-inking .an-tile__value,.is-inking .an-fig__v{animation:fade var(--dur-base) var(--ease-enter) both}
+
+/* ----- loading: skeletons in the final layout, static under reduced motion ----- */
+.an-skel-tile{display:grid;gap:var(--sp-2);min-height:calc(var(--target) * 2);padding:var(--sp-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
+.an-skel-block{display:grid;gap:var(--sp-3)}
+.an-skel-card{display:grid;gap:var(--sp-3);padding:var(--sp-4);border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface)}
+.an .skel{animation:pulse var(--dur-pulse) var(--ease-standard) infinite}
+@media (prefers-reduced-motion:reduce){.an .skel{animation:none}}
+:root[data-motion=reduce] .an .skel{animation:none}
+.skel--t1{width:55%}.skel--t2{width:40%;height:var(--sp-5)}.skel--h{width:45%;height:var(--sp-4)}.skel--p{width:65%;height:var(--sp-2)}.skel--r{width:100%;height:var(--sp-8)}
+
+/* ----- the phone chrome: the Commands button beside the project ----- */
+.an-top{gap:var(--sp-1)}
+.an-top .bd-proj{margin-right:auto}
+.app[data-app=phone] .an-top .btn{min-height:var(--target)}
+.an-top .btn .ico{width:16px;height:16px}
+.bd-mac .convo__head .btn kbd{display:inline-block}
+.app[data-app=mac] .convo__head{gap:var(--sp-4)}
