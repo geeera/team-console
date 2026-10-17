@@ -36,7 +36,9 @@ let nextBannerId = 0;
                     | transloco: { name: project().name, time: (status.pausedAt | localTime) })
                   : ('commands.status.ownerNoTime' | transloco)
               }}</b>
-              {{ 'commands.banner.ownerRest' | transloco }}
+              {{
+                (status.pauseLiftsAtNextRun ? 'commands.banner.liftsRest' : 'commands.banner.ownerRest') | transloco
+              }}
             }
           </p>
           <div tc-banner-actions>

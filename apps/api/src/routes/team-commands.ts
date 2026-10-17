@@ -272,10 +272,10 @@ export function createTeamCommandsRoutes(
       logger.info('team command replayed', fields);
       return answer(recent, view.state, true);
     }
-    if (kind === 'pause' && issue.author.toLowerCase() !== repo.owner.toLowerCase()) {
-      // Fail safe (#141): when the team's bot opened the log, the plugin trusts only the bot's markers, so the next
-      // run after an owner /resume can lift a console pause. Until the plugin counts the owner's own markers, a pause
-      // that may not hold is refused here and the owner pauses from the team chat. Resume stays allowed.
+    if (kind === 'pause' && !view.consolePauseHolds) {
+      // Fail safe (#141): the plugin does not count the owner's pause in a log the team's bot opened, so the next run
+      // after an owner /resume would lift it. Refused until `PLUGIN_COUNTS_OWNER_PAUSE` (@worker/run-log) is lifted;
+      // the owner pauses from the team chat instead. Resume stays allowed.
       logger.warn('console pause refused: run log not opened by the owner', fields);
       return problem(c, {
         type: 'pause-unreliable',
@@ -418,6 +418,8 @@ export function createTeamCommandsRoutes(
         progress: sprint?.progress ?? null,
         calendar: sprint?.calendar ?? null,
         pendingRequests: await new OwnerRequestsRepo(c.env.DB).countPending(project.slug),
+        pauseHolds: view.consolePauseHolds,
+        pauseLiftsAtNextRun: view.liftedAtNextRun,
       };
       c.header('Cache-Control', 'no-store');
       return c.json(body);

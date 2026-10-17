@@ -154,6 +154,10 @@ export class CommandsPanel {
       return '';
     }
     if (status.state === 'paused-by-owner') {
+      if (status.pauseLiftsAtNextRun) {
+        // The team does not count this pause (#141): never "paused by you" for a pause that will not hold.
+        return this.t('commands.status.lifts');
+      }
       return status.pausedAt === null
         ? this.t('commands.status.ownerNoTime')
         : this.t('commands.status.owner', { time: localTimeOf(status.pausedAt, this.lang()) });
@@ -172,6 +176,20 @@ export class CommandsPanel {
       return this.t('commands.why.offline');
     }
     return status.ownerConnected ? null : this.t('commands.why.noperm');
+  });
+
+  /**
+   * Why the team command (Pause / Resume) is off: `teamWhy`, and for Pause also a run log the team's bot opened,
+   * where a console pause would not hold (#141). Resume always works.
+   */
+  protected readonly pauseWhy = computed<string | null>(() => {
+    const why = this.teamWhy();
+    const status = this.status();
+    this.lang();
+    if (why !== null || status === null) {
+      return why;
+    }
+    return !isPaused(status) && !status.pauseHolds ? this.t('commands.why.pauseUnreliable') : null;
   });
 
   protected readonly sprintFacts = computed<SprintFacts>(() => {
@@ -355,7 +373,7 @@ export class CommandsPanel {
   }
 
   protected async pauseOrResume(event: Event): Promise<void> {
-    const why = this.teamWhy();
+    const why = this.pauseWhy();
     if (why !== null) {
       this.sayWhy(event, why);
       return;

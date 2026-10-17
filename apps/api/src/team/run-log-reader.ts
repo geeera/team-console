@@ -3,13 +3,15 @@ import { commandLines } from '@shared/owner-grammar';
 import { githubPath, type RepoName } from '@worker/github';
 import { TRUSTED_BOT_LOGINS } from '@worker/read-models';
 import {
-  OWNER_RESUME,
   PAUSED_LABEL,
-  PAUSE_MARKER,
   RUN_LOG_LABEL,
   activeOwnerPause,
+  consolePauseHolds,
   parseRuns,
   partitionTeamComments,
+  pauseMarkerAuthorsOf,
+  pausedSinceOf,
+  resumedAfterPause,
   runLogIssueOf,
   type OwnerPause,
   type Run,
@@ -45,12 +47,20 @@ export interface RunLogView {
   readonly paused: boolean;
   readonly state: TeamState;
   /**
-   * `runlog start`'s `paused_since`: the latest team pause or owner-resume marker in the log (ISO 8601), `''` without
-   * one. Failures before it no longer count towards a streak.
+   * `runlog start`'s `paused_since`: the latest pause or owner-resume marker in the log (ISO 8601) by a login the
+   * plugin counts there (`pauseMarkerAuthorsOf`, #141), `''` without one. Failures before it no longer count towards
+   * a streak.
    */
   readonly pausedSince: string;
   /** The latest `/resume` command in a trusted comment of the repository owner (ISO 8601), `''` without one. */
   readonly ownerResumeAt: string;
+  /** Whether a pause the console writes holds at the team's next run (`consolePauseHolds`, #141). */
+  readonly consolePauseHolds: boolean;
+  /**
+   * `team:paused` is on, but an owner `/resume` is newer than `paused_since`: the next `runlog start` takes the label
+   * off and works (#141) — the pause will not hold.
+   */
+  readonly liftedAtNextRun: boolean;
 }
 
 export interface ReadRunLogOptions {
@@ -197,6 +207,8 @@ export async function readRunLog(
       state: 'running',
       pausedSince: '',
       ownerResumeAt: '',
+      consolePauseHolds: true,
+      liftedAtNextRun: false,
     };
   }
   const pages = Math.min(options.latestCommentPages ?? MAX_COMMENT_PAGES, MAX_COMMENT_PAGES);
@@ -218,9 +230,10 @@ export async function readRunLog(
   // The label is what every scheduled run checks; the record only says who paused and when.
   const paused = issue.labels.includes(PAUSED_LABEL);
   const state: TeamState = !paused ? 'running' : ownerPause !== null ? 'paused-by-owner' : 'paused-by-team';
-  const pausedSince = latestAt(
+  // `runlog start` counts only the log's author and the team's bot here, not the owner (#141).
+  const pausedSince = pausedSinceOf(
     trusted,
-    (comment) => comment.body.includes(PAUSE_MARKER) || comment.body.includes(OWNER_RESUME),
+    pauseMarkerAuthorsOf(issue.author, repo.owner, TRUSTED_BOT_LOGINS),
   );
   // `commands.parse`: the owner's own comments only, never the team's bot.
   const ownerResumeAt = latestAt(
@@ -229,5 +242,15 @@ export async function readRunLog(
       comment.author.toLowerCase() === repo.owner.toLowerCase() &&
       commandLines(comment.body).some((line) => line.command === 'resume'),
   );
-  return { issue, runs, ownerPause, paused, state, pausedSince, ownerResumeAt };
+  return {
+    issue,
+    runs,
+    ownerPause,
+    paused,
+    state,
+    pausedSince,
+    ownerResumeAt,
+    consolePauseHolds: consolePauseHolds(issue.author, repo.owner),
+    liftedAtNextRun: paused && resumedAfterPause(pausedSince, ownerResumeAt),
+  };
 }

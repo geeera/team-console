@@ -117,8 +117,8 @@
           <p class="cmd__hint" [id]="id + '-team-hint'">
             {{ (paused() ? 'commands.resume.hint' : 'commands.pause.hint') | transloco }}
           </p>
-          @if (teamWhy(); as why) {
-          <p class="cmd__why" [id]="id + '-team-why'">
+          @if (pauseWhy(); as why) {
+          <p class="cmd__why" [id]="id + '-team-why'" data-testid="team-why">
             <tc-icon name="lock" size="sm" /><span>{{ why }}</span>
           </p>
           }
@@ -129,10 +129,10 @@
           class="cmd__btn"
           data-testid="team-command"
           [variant]="paused() ? 'primary' : 'secondary'"
-          [off]="teamWhy() !== null"
-          [attr.aria-disabled]="teamWhy() !== null ? 'true' : null"
+          [off]="pauseWhy() !== null"
+          [attr.aria-disabled]="pauseWhy() !== null ? 'true' : null"
           [attr.aria-label]="(paused() ? 'commands.resume.title' : 'commands.pause.title') | transloco"
-          [attr.aria-describedby]="(teamWhy() !== null ? id + '-team-why ' : '') + id + '-team-hint'"
+          [attr.aria-describedby]="(pauseWhy() !== null ? id + '-team-why ' : '') + id + '-team-hint'"
           (click)="pauseOrResume($event)"
         >
           <tc-icon [name]="paused() ? 'play' : 'pause'" size="sm" />
