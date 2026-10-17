@@ -43,7 +43,12 @@ import { isNotWritten, ownerWriter, sha256Hex } from '../owner/owner-writer';
 import { connectedOwnerSource, type OwnerConnectionSource } from '../projects/owner-connection';
 import { findProject, projectNotFound, repoOf } from '../projects/lookup';
 import { ProjectReads, type SprintStatus } from '../read-models/project-reads';
-import { RunLogUnavailableError, readRunLog, type RunLogView } from '../team/run-log-reader';
+import {
+  RunLogIncompleteError,
+  RunLogUnavailableError,
+  readRunLog,
+  type RunLogView,
+} from '../team/run-log-reader';
 import { routinesFetch } from '../team/routines';
 import { missingSlotsOf, slotTriggerOf } from '../team/slot-secrets';
 
@@ -163,7 +168,22 @@ function runLogMissing(c: Context, reason: 'none' | 'untrusted' | 'ambiguous'): 
   });
 }
 
-/** The run log, or the 409 that says why there is none. */
+/**
+ * A run log that could not be read to its newest entry (#143): status, pause, resume and Run now all refuse, since a
+ * decision on older entries could fire a second run or misread who paused.
+ */
+function runLogIncomplete(c: Context, reason: RunLogIncompleteError['reason']): Response {
+  return problem(c, {
+    type: 'run-log-incomplete',
+    title: 'The run log could not be read in full',
+    status: 503,
+    detail:
+      'GitHub did not give the newest run-log entries in one read; nothing was changed or started. Try again.',
+    extensions: { reason },
+  });
+}
+
+/** The run log, or the problem that says why it cannot be used (409 none, 503 not read in full). */
 async function runLogOrProblem(
   c: Context,
   installation: GitHubConnection,
@@ -174,6 +194,10 @@ async function runLogOrProblem(
   } catch (error: unknown) {
     if (error instanceof RunLogUnavailableError) {
       return runLogMissing(c, error.reason);
+    }
+    if (error instanceof RunLogIncompleteError) {
+      c.get('logger').warn('run log not read in full', { reason: error.reason });
+      return runLogIncomplete(c, error.reason);
     }
     throw error;
   }

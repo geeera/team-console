@@ -23,6 +23,7 @@ import {
   type GitHubCall,
 } from '../testing/github-kit';
 import { OWNER, fakeGitHub, resetOwnerConnections, seedConnection } from '../testing/owner-kit';
+import { MAX_COMMENT_PAGES } from '../team/run-log-reader';
 import { COMMAND_REPLAY_WINDOW_MS, REQUEST_LOCK_MS } from './team-commands';
 
 // #114: team status, pause / resume and "Run now", end to end through the Worker. The fake GitHub serves the run log
@@ -52,6 +53,8 @@ interface Harness {
   readonly logs: string[];
   readonly texts: string[];
   clock: number;
+  /** Runs after GitHub answered each call, as if someone wrote to GitHub meanwhile (#143). */
+  afterCall?: (call: GitHubCall) => void;
 }
 
 function toRequest(call: GitHubCall): Request {
@@ -89,7 +92,9 @@ function harness(labels: string[] = ['team:run-log'], author: string = OWNER.log
         content: base64(PROJECT_YML),
       });
     }
-    return fake.handle(toRequest(call));
+    const response = await fake.handle(toRequest(call));
+    h.afterCall?.(call);
+    return response;
   });
   Object.assign(h, {
     fake,
@@ -540,6 +545,130 @@ describe('POST /runs', () => {
       body: { step: 'routine' },
     });
     expect(h.routines.fires).toEqual([]);
+  });
+});
+
+describe('a run log past 1000 comments (#143: the newest entries, never the oldest pages)', () => {
+  const DAY = 24 * 60 * MINUTE;
+  const LONG_LOG = 1250;
+
+  /** `count` comments of finished runs, oldest first, all older than `daysAgo` days — months of a product's life. */
+  function oldRuns(h: Harness, count: number, daysAgo = 30): void {
+    for (let i = 0; i < count; i += 1) {
+      const id = `old${Math.floor(i / 2)}-slot-dev`;
+      const state = i % 2 === 0 ? 'started' : 'finished';
+      h.fake.addComment(REPO, LOG, {
+        body: `<!-- pt-run id=${id} slot=slot-dev state=${state} -->\n**slot-dev** ${state}`,
+        author: OWNER.login,
+        createdAt: h.clock - daysAgo * DAY - (count - i) * 30 * MINUTE,
+      });
+    }
+  }
+
+  function commentReads(h: Harness): URL[] {
+    return h.calls
+      .filter((c) => c.method === 'GET' && c.url.pathname === `/repos/${REPO}/issues/${LOG}/comments`)
+      .map((c) => c.url);
+  }
+
+  it('reads the newest pages: the running run is seen, so Run now is refused as overlap and nothing fires', async () => {
+    const h = harness();
+    oldRuns(h, LONG_LOG - 1);
+    teamEntry(h, '20261001T113000Z-slot-dev', 'slot-dev', 'started', 30);
+
+    const body = await status(h);
+    expect(body.state).toBe('running');
+    expect(body.slots[1]?.lock).toMatchObject({ kind: 'started', runId: '20261001T113000Z-slot-dev' });
+    // Pages 4–13 of 13: the newest 1000, never the oldest; within MAX_COMMENT_PAGES reads.
+    const pages = commentReads(h).map((url) => Number(url.searchParams.get('page') ?? 1));
+    expect(pages).toEqual([4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    expect(pages.length).toBeLessThanOrEqual(MAX_COMMENT_PAGES);
+
+    const response = await run(h, 'dev');
+    expect(response.status).toBe(409);
+    await expect(slugOf(response)).resolves.toMatchObject({
+      slug: 'run-in-progress',
+      body: { runId: '20261001T113000Z-slot-dev', since: '2026-10-01T11:30:00Z' },
+    });
+    expect(h.routines.fires).toEqual([]);
+  });
+
+  it('sees the owner pause at the end of a long log: paused by the owner, with when', async () => {
+    const h = harness(['team:run-log', 'team:paused']);
+    await seedConnection(h.fake, { nowMs: h.clock });
+    oldRuns(h, LONG_LOG - 1);
+    h.fake.addComment(REPO, LOG, {
+      body: pauseCommentBody({ reason: 'отпуск', source: 'team-console' }, h.clock - 60 * MINUTE),
+      author: OWNER.login,
+      createdAt: h.clock - 60 * MINUTE,
+    });
+
+    await expect(status(h)).resolves.toMatchObject({
+      state: 'paused-by-owner',
+      pausedAt: '2026-10-01T11:00:00Z',
+    });
+    await expect(slugOf(await call(h, 'POST', '/team/pause', {}))).resolves.toMatchObject({
+      slug: 'team-already-paused',
+      body: { state: 'paused-by-owner', pausedAt: '2026-10-01T11:00:00Z' },
+    });
+    await expect(slugOf(await run(h, 'dev'))).resolves.toMatchObject({ slug: 'run-paused' });
+    expect(ownerWrites(h)).toEqual([]);
+    expect(h.routines.fires).toEqual([]);
+  });
+
+  it('a log that grew past the window while it was read fails closed: 503, nothing written or fired', async () => {
+    const h = harness();
+    await seedConnection(h.fake, { nowMs: h.clock });
+    oldRuns(h, 1000);
+    // The issue says 1000 comments; by the time the pages are read the team has written 150 more.
+    h.afterCall = (c) => {
+      if (c.url.pathname === `/repos/${REPO}/issues/${LOG}`) {
+        oldRuns(h, 150, 0);
+      }
+    };
+
+    const loaded = await call(h, 'GET', '/team/status');
+    expect(loaded.status).toBe(503);
+    await expect(slugOf(loaded)).resolves.toMatchObject({
+      slug: 'run-log-incomplete',
+      body: { reason: 'not-at-end' },
+    });
+    for (const response of [
+      await run(h, 'dev'),
+      await call(h, 'POST', '/team/pause', {}),
+      await call(h, 'POST', '/team/resume'),
+    ]) {
+      expect(response.status).toBe(503);
+      await expect(slugOf(response)).resolves.toMatchObject({ slug: 'run-log-incomplete' });
+    }
+    expect(commentReads(h).length).toBeLessThanOrEqual(4 * MAX_COMMENT_PAGES);
+    expect(ownerWrites(h)).toEqual([]);
+    expect(h.routines.fires).toEqual([]);
+    expect(h.logs.some((line) => line.includes('run log not read in full'))).toBe(true);
+  });
+
+  it('a paused log whose pause record is older than the window never guesses who paused (503)', async () => {
+    const h = harness(['team:run-log', 'team:paused']);
+    h.fake.addComment(REPO, LOG, {
+      body: pauseCommentBody({ reason: 'x', source: 'team-console' }, h.clock - 40 * DAY),
+      author: OWNER.login,
+      createdAt: h.clock - 40 * DAY,
+    });
+    // An outsider's chatter after the pause pushes the record out of the newest 1000 comments.
+    for (let i = 0; i < 1100; i += 1) {
+      h.fake.addComment(REPO, LOG, {
+        body: 'ping',
+        author: 'outsider',
+        createdAt: h.clock - (1100 - i) * MINUTE,
+      });
+    }
+
+    const response = await call(h, 'GET', '/team/status');
+    expect(response.status).toBe(503);
+    await expect(slugOf(response)).resolves.toMatchObject({
+      slug: 'run-log-incomplete',
+      body: { reason: 'pause-before-window' },
+    });
   });
 });
 

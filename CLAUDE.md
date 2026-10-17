@@ -252,7 +252,9 @@ project" entry point is `ADD_PROJECT_URL` (`/overview#add-project`); Settings ho
 Team commands (#114): `routes/team-commands.ts` (`GET /projects/:slug/team/status`, `POST …/team/pause|resume` on the
 owner's token, byte-for-byte `runlog pause`/`resume`, 60 s replay from `own_writes`; `POST …/runs {slot}` fires the
 slot's routine once, never retried, behind the run log (paused, 3-hour overlap) and the 15-minute `slot_requests` lock
-of migration 0008). `@worker/run-log` ports `ptlib/runstate.py` (fixtures from `libs/worker/run-log/fixtures/generate.py`
+of migration 0008). `readRunLog` (`team/run-log-reader.ts`) reads the newest ≤ 10 pages of comments from the issue's comment count
+and fails closed (`RunLogIncompleteError` → 503 `run-log-incomplete`; `unknown` on the board/overview) when it did not
+reach the list's end or a paused log's pause record lies before that window (#143). `@worker/run-log` ports `ptlib/runstate.py` (fixtures from `libs/worker/run-log/fixtures/generate.py`
 — rerun after every `vendor` update); `@worker/routines` is the only client of the routines API (`ROUTINES_FAKE_ORIGIN`
 + `nx run api:fake-routines` locally, never the real one). Secrets `SLOT_TOKEN_<SLUG>_<SLOT>` / `SLOT_ROUTINE_<SLUG>_<SLOT>`
 (`slotSecretNames`). Console: `@console/entities/team-run` (`TeamStatusStore`), `@console/features/team-commands`

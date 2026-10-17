@@ -89,6 +89,7 @@ const BY_PROBLEM: Readonly<Record<string, CommandFailureKind>> = {
   'routine-unavailable': 'service',
   'run-paused': 'run-paused',
   'run-log-missing': 'no-run-log',
+  'run-log-incomplete': 'github',
   'pause-unreliable': 'pause-unreliable',
   'sprint-none': 'sprint-none',
   'sprint-changed': 'sprint-changed',
