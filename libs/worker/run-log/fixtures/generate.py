@@ -10,6 +10,9 @@ run-state.json — `runlog`'s own reading of a run log in REST-only mode (the on
                  `decide` and `active_owner_pause`, over hand-written logs.
 commands.json  — the comment bodies the real `runlog pause --record-file F --reason R` and `runlog resume` post,
                  with GitHub stubbed out and the clock frozen.
+owner-pause.json — #141: the real `runlog start slot-dev` over the reproduction (a team auto-pause, an owner
+                 `/resume`, then the console's pause written with the owner's token, `team:paused` on), once per
+                 run-log author and mode. `PLUGIN_COUNTS_OWNER_PAUSE` in `src/lib/owner-pause.ts` must agree with it.
 
 Both record the plugin version and a SHA-256 of every plugin file they depend on; the TypeScript spec fails with
 "regenerate the fixtures" when the vendored plugin no longer matches.
@@ -39,6 +42,7 @@ SOURCES = (
     "scripts/runlog",
     "scripts/ptlib/runstate.py",
     "scripts/ptlib/provenance.py",
+    "scripts/ptlib/commands.py",
 )
 
 sys.path.insert(0, str(SCRIPTS))
@@ -230,6 +234,81 @@ def command_cases() -> dict:
     return {"now": Frozen.moment.isoformat(), "pause": pauses, "resume": resumed}
 
 
+OWNER = "geeera"
+BOT = "team-console-team[bot]"
+
+
+def console_pause_body(reason: str) -> str:
+    """The comment the console posts on the owner's token: `runlog pause`'s own bytes (see commands.json)."""
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as f:
+        json.dump({"source": "team-console"}, f)
+        record_file = f.name
+    try:
+        posted = run_with_stubs(RUNLOG.cmd_pause, argparse.Namespace(record_file=record_file, reason=reason))
+    finally:
+        os.unlink(record_file)
+    return posted[1]["fields"]["body"]
+
+
+def owner_pause_case(name: str, log_author: str, app: bool) -> dict:
+    """`runlog start slot-dev` with GitHub stubbed: the issue's reproduction, from the plugin's own decision."""
+    agent = BOT if app else OWNER
+    stamps = iter(range(5000, 6000))
+
+    def made(body: str, created: str, author: str) -> dict:
+        return {"id": next(stamps), "body": body, "created_at": created, "updated_at": created,
+                "user": {"login": author}}
+
+    comments = [
+        made(f"{runstate.PAUSE_MARKER}\n**Team paused**: 3 failed runs in a row. No scheduled run will do work "
+             "until the owner comments `/resume` here.", "2026-09-20T09:00:00Z", agent),
+        made("/resume", "2026-09-21T09:00:00Z", OWNER),
+        made(console_pause_body("vacation"), "2026-10-01T09:00:00Z", OWNER),
+    ]
+    labels = ["team:run-log", "team:paused"]
+    log = dict(LOG, user={"login": log_author}, labels=[{"name": label} for label in labels])
+    requests = []
+
+    def api(path, method="GET", fields=None, auth=None):
+        requests.append({"method": method, "path": path, "fields": fields})
+        return {"id": 1, "html_url": "https://github.com/x"}
+
+    saved = (gh.api, gh.app_mode, gh.token_login, gh.owner_login, gh.acts_as_owner, RUNLOG.load, RUNLOG.datetime)
+    gh.api = api
+    gh.app_mode = lambda: app
+    gh.token_login = lambda: agent
+    gh.owner_login = lambda repo: OWNER
+    gh.acts_as_owner = lambda repo: not app
+    RUNLOG.load = lambda repo: (log, comments, {"error": "fixtures: REST-only, like a Worker"})
+    RUNLOG.datetime = Frozen
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            RUNLOG.cmd_start(REPO, argparse.Namespace(slot="slot-dev"))
+    finally:
+        gh.api, gh.app_mode, gh.token_login, gh.owner_login, gh.acts_as_owner, RUNLOG.load, RUNLOG.datetime = saved
+    decision = json.loads(out.getvalue())["decision"]
+    return {
+        "name": name,
+        "mode": "app" if app else "same-account",
+        "logAuthor": log_author,
+        "owner": OWNER,
+        "bots": [BOT] if app else [],
+        "labels": labels,
+        "comments": comments,
+        "decision": decision,
+        "labelRemoved": any(r["method"] == "DELETE" and r["path"].endswith("/labels/team%3Apaused") for r in requests),
+    }
+
+
+def owner_pause_cases() -> list:
+    return [
+        owner_pause_case("bot-opened log, app mode", BOT, True),
+        owner_pause_case("owner-opened log, app mode", OWNER, True),
+        owner_pause_case("owner-opened log, same-account mode", OWNER, False),
+    ]
+
+
 def plugin_header() -> dict:
     manifest = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
     return {
@@ -247,6 +326,7 @@ def main() -> None:
     cases = [scenario_case(name, comments) for name, comments in SCENARIOS.items()]
     write("run-state.json", {"plugin": header, "cases": cases})
     write("commands.json", {"plugin": header, **command_cases()})
+    write("owner-pause.json", {"plugin": header, "cases": owner_pause_cases()})
     print(f"plugin {header['version']}: {len(cases)} run-log cases, commands.json written", file=sys.stderr)
 
 

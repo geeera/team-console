@@ -320,7 +320,7 @@ describe('a run log the team bot opened (#141: fail safe until the plugin counts
   it('refuses a console pause with 409 pause-unreliable and writes nothing', async () => {
     const h = harness(['team:run-log'], BOT);
     await seedConnection(h.fake, { nowMs: h.clock });
-    await expect(status(h)).resolves.toMatchObject({ state: 'running' });
+    await expect(status(h)).resolves.toMatchObject({ state: 'running', pauseHolds: false });
 
     const response = await call(h, 'POST', '/team/pause', { reason: 'vacation' });
     expect(response.status).toBe(409);
@@ -347,6 +347,80 @@ describe('a run log the team bot opened (#141: fail safe until the plugin counts
     await seedConnection(h.fake, { nowMs: h.clock });
     expect((await call(h, 'POST', '/team/pause', {})).status).toBe(201);
     expect(h.fake.labelsOf(REPO, LOG)).toContain('team:paused');
+  });
+
+  /**
+   * The issue's reproduction: a team auto-pause (by `agent`: the bot in app mode, the owner's own account in
+   * same-account mode), an owner `/resume`, then a pause record in the owner's own comment, `team:paused` on.
+   */
+  function reproduction(logAuthor: string, agent: string): Harness {
+    const h = harness(['team:run-log', 'team:paused'], logAuthor);
+    h.fake.addComment(REPO, LOG, {
+      body: '<!-- pt-paused -->\n**Team paused**: 3 failed runs in a row.',
+      author: agent,
+      createdAt: h.clock - 11 * 24 * 60 * MINUTE,
+    });
+    h.fake.addComment(REPO, LOG, {
+      body: '/resume',
+      author: OWNER.login,
+      createdAt: h.clock - 10 * 24 * 60 * MINUTE,
+    });
+    h.fake.addComment(REPO, LOG, {
+      body: pauseCommentBody({ reason: 'vacation', source: 'team-console' }, h.clock - 60 * MINUTE),
+      author: OWNER.login,
+      createdAt: h.clock - 60 * MINUTE,
+    });
+    return h;
+  }
+
+  it('status says Pause would not hold, and that the next run lifts an owner pause the team does not count', async () => {
+    const h = reproduction(BOT, BOT);
+    await seedConnection(h.fake, { nowMs: h.clock });
+    await expect(status(h)).resolves.toMatchObject({
+      state: 'paused-by-owner',
+      pauseHolds: false,
+      pauseLiftsAtNextRun: true,
+    });
+  });
+
+  it.each([
+    ['app mode: the team writes as its bot', BOT],
+    ['same-account mode: the team writes as the owner', OWNER.login],
+  ])('an owner-opened log (%s) keeps the same pause', async (_, agent) => {
+    const h = reproduction(OWNER.login, agent);
+    await seedConnection(h.fake, { nowMs: h.clock });
+    await expect(status(h)).resolves.toMatchObject({
+      state: 'paused-by-owner',
+      pauseHolds: true,
+      pauseLiftsAtNextRun: false,
+    });
+  });
+
+  it.each([
+    ['app mode', BOT],
+    ['same-account mode', OWNER.login],
+  ])('an owner-opened log (%s) takes a console pause after a team pause and a /resume', async (_, agent) => {
+    const h = harness(['team:run-log'], OWNER.login);
+    h.fake.addComment(REPO, LOG, {
+      body: '<!-- pt-paused -->\n**Team paused**: 3 failed runs in a row.',
+      author: agent,
+      createdAt: h.clock - 2 * 24 * 60 * MINUTE,
+    });
+    h.fake.addComment(REPO, LOG, {
+      body: '/resume',
+      author: OWNER.login,
+      createdAt: h.clock - 24 * 60 * MINUTE,
+    });
+    await seedConnection(h.fake, { nowMs: h.clock });
+    await expect(status(h)).resolves.toMatchObject({ pauseHolds: true, pauseLiftsAtNextRun: false });
+
+    expect((await call(h, 'POST', '/team/pause', { reason: 'vacation' })).status).toBe(201);
+    h.clock += MINUTE;
+    await expect(status(h)).resolves.toMatchObject({
+      state: 'paused-by-owner',
+      pauseHolds: true,
+      pauseLiftsAtNextRun: false,
+    });
   });
 });
 

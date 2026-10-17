@@ -82,6 +82,17 @@ export interface TeamStatusDto {
   readonly calendar: SprintCalendarDto | null;
   /** Issues whose newest owner request still waits for the PM (#219), from D1. */
   readonly pendingRequests: number;
+  /**
+   * Whether a pause from the console would hold at the team's next run (#141). `false` while the team's bot opened
+   * the run log: the plugin does not count the owner's own pause there, so Pause is off, the panel says why, and
+   * `POST …/team/pause` answers 409 `pause-unreliable`. Resume always works.
+   */
+  readonly pauseHolds: boolean;
+  /**
+   * `state` is a pause, but an owner `/resume` is newer than the last pause the team counts: the next scheduled run
+   * takes `team:paused` off and works (#141). The panel says so instead of "paused by you".
+   */
+  readonly pauseLiftsAtNextRun: boolean;
 }
 
 /** A pause or resume written to the run log. */

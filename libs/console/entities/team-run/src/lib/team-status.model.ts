@@ -129,6 +129,8 @@ export function isTeamStatusDto(value: unknown): value is TeamStatusDto {
     isProgress(value['progress']) &&
     isCalendar(value['calendar']) &&
     isCount(value['pendingRequests']) &&
+    typeof value['pauseHolds'] === 'boolean' &&
+    typeof value['pauseLiftsAtNextRun'] === 'boolean' &&
     slots.length === TEAM_SLOTS.length &&
     slots.every(isSlotStatus) &&
     TEAM_SLOTS.every((slot, index) => (slots[index] as SlotStatusDto).slot === slot)

@@ -2,8 +2,16 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import commands from '../../fixtures/commands.json';
+import ownerPause from '../../fixtures/owner-pause.json';
 import runState from '../../fixtures/run-state.json';
 import { PAUSED_LABEL, pauseCommentBody, resumeCommentBody } from './commands';
+import {
+  PLUGIN_COUNTS_OWNER_PAUSE,
+  consolePauseHolds,
+  pauseMarkerAuthorsOf,
+  pausedSinceOf,
+  resumedAfterPause,
+} from './owner-pause';
 import { activeOwnerPause, decide, effectiveState, parseRuns, timeOf, type RunLogComment } from './run-state';
 import { partitionTeamComments } from './trust';
 
@@ -35,6 +43,7 @@ describe('fixtures match the vendored plugin', () => {
   it.each([
     ['run-state.json', runState.plugin],
     ['commands.json', commands.plugin],
+    ['owner-pause.json', ownerPause.plugin],
   ])(
     '%s was generated from the vendored plugin as it is now (else: regenerate the fixtures)',
     (_, plugin) => {
@@ -117,5 +126,30 @@ describe('the comments `runlog pause` / `runlog resume` post', () => {
     expect(commands.resume.map((request) => request.method)).toEqual(['DELETE', 'POST']);
     expect(commands.resume[0]?.path).toMatch(/\/labels\/team%3Apaused$/);
     expect(commands.resume[1]?.fields).toEqual({ body: resumeCommentBody(now) });
+  });
+});
+
+describe.each(ownerPause.cases)('#141 reproduction, $name: `runlog start slot-dev`', (row) => {
+  const comments = (row.comments as RawComment[]).map(commentOf);
+  const { trusted } = partitionTeamComments(comments, [row.logAuthor, row.owner, ...row.bots]);
+  const pausedSince = pausedSinceOf(trusted, pauseMarkerAuthorsOf(row.logAuthor, row.owner, row.bots));
+  // The owner's `/resume` comments (`commands.parse`); the fixture writes the command as the whole body.
+  const ownerResumeAt = trusted
+    .filter((comment) => comment.author === row.owner && comment.body.trim() === '/resume')
+    .reduce(
+      (latest, comment) => ((comment.createdAt ?? '') > latest ? (comment.createdAt ?? '') : latest),
+      '',
+    );
+
+  it('the console pause guard agrees with the plugin (else: flip PLUGIN_COUNTS_OWNER_PAUSE in owner-pause.ts)', () => {
+    expect({ PLUGIN_COUNTS_OWNER_PAUSE, holds: consolePauseHolds(row.logAuthor, row.owner) }).toEqual({
+      PLUGIN_COUNTS_OWNER_PAUSE,
+      holds: row.decision === 'paused',
+    });
+  });
+
+  it('works out the same `paused_since`, so the console knows when the next start lifts the label', () => {
+    expect(row.labels).toContain(PAUSED_LABEL);
+    expect(resumedAfterPause(pausedSince, ownerResumeAt)).toBe(row.labelRemoved);
   });
 });

@@ -7,7 +7,7 @@ import {
   type TeamSlot,
 } from '@shared/contracts';
 import { githubUrlOrNull } from '@worker/read-models';
-import { RUN_LOG_SLOTS, decide, recentRunsOf } from '@worker/run-log';
+import { RUN_LOG_SLOTS, decide, recentRunsOf, resumedAfterPause } from '@worker/run-log';
 import type { RunLogView } from './run-log-reader';
 
 // No run carries an empty slot (the marker needs one), so `decide` checks the failure streak only.
@@ -20,8 +20,7 @@ const STREAK_ONLY = '';
  * start stops it.
  */
 export function overviewTeamStateOf(view: RunLogView, nowMs: number): OverviewTeamState {
-  const isResumed = view.pausedSince !== '' && view.ownerResumeAt > view.pausedSince;
-  if (view.paused && !isResumed) {
+  if (view.paused && !resumedAfterPause(view.pausedSince, view.ownerResumeAt)) {
     return view.ownerPause !== null ? 'paused' : 'failing';
   }
   const resetAt = view.ownerResumeAt > view.pausedSince ? view.ownerResumeAt : view.pausedSince;
