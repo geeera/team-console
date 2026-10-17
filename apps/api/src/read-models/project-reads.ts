@@ -43,7 +43,7 @@ import type { ApiGitHub, GitHubConnection } from '../github';
 import { freezeDaysOf } from '../projects/project-yml';
 import { readProjectYmlFile, type ProjectYmlFile } from '../projects/repository-checks';
 import { calendarOf, sprintPlanOf, teamSprintOf } from '../team/sprint-plan';
-import { RunLogUnavailableError, readRunLog } from '../team/run-log-reader';
+import { RunLogIncompleteError, RunLogUnavailableError, readRunLog } from '../team/run-log-reader';
 import { UNKNOWN_TEAM_RUN, teamRunOf } from '../team/team-health';
 
 /** Issues, pull requests and milestones change with every team run: 60 s (ADR 0001 decision 22). */
@@ -164,7 +164,8 @@ export class ProjectReads {
         });
         return teamRunOf(view, this.now());
       } catch (error: unknown) {
-        if (error instanceof RunLogUnavailableError) {
+        // An untrusted or ambiguous log, or one not read to its newest entry (#143): never a state from older entries.
+        if (error instanceof RunLogUnavailableError || error instanceof RunLogIncompleteError) {
           return UNKNOWN_TEAM_RUN;
         }
         throw error;
