@@ -28,8 +28,11 @@ CI on every PR into dev/stage/main (ADR 0001 decision 18): `ci.yml` job `lint-te
 lint|test|build` with `NX_BASE`/`NX_HEAD` from `nrwl/nx-set-shas` (merge-base of the PR's base branch and the PR
 merge commit), and `nx run-many` instead when the PR touches `.github/workflows/`, `package.json`, the lockfile,
 `.nvmrc`, `nx.json`, `tsconfig.base.json`, `eslint.config.mjs` or `vitest.config.mts`, and on every PR into
-stage/main; the job's "Nx scope" notice says which. `security.yml`: `secret-scan` (gitleaks over `git log --all`
-of the clone — every branch and tag of the repo plus this PR's merge ref, not other PRs), `sast` (Semgrep),
+stage/main; the job's "Nx scope" notice says which. `security.yml`: `secret-scan` (gitleaks; on a PR only the
+PR's own commits, `git log <base>..HEAD` from the merge commit's first parent — every PR commit with its own diff,
+so a secret added and removed inside the PR is still found, while another open PR's branch is never judged against
+this PR's `.gitleaksignore` (#171); on a push to dev/stage/main, where it is the only job, the full `git log --all`
+of the clone — every branch and tag; the "secret-scan scope" notice says which), `sast` (Semgrep),
 `dependency-audit` (`node tools/ci/audit-gate.mjs`, wrapping `npm audit --json`). Every action in
 `.github/workflows/` is pinned by full commit SHA; the PR workflows use no secrets. A leaked secret:
 rotate/revoke it first (the public history keeps it), then delete the branch and push a clean one (no
