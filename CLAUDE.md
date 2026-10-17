@@ -361,7 +361,11 @@ command (`wrangler dev dist/apps/api/main.js`, fresh local D1, mock mode) wired 
 controls through `ru()` (the ru.json copy) and `data-testid`, wait on conditions only, and fail on any request off the
 app origin, any uncaught page error and any serious/critical axe violation (`expectAccessible`). `BASE_URL` (+
 `CF_ACCESS_CLIENT_ID/SECRET` for stage) runs the suite against a running target; specs that reset data or need the
-fake GitHub skip themselves there, `smoke.e2e.ts` is the read-only part.
+fake GitHub skip themselves there, `smoke.e2e.ts` is the read-only part. The Access token (#142,
+`support/access-headers.ts`) reaches the target's origin only — never `extraHTTPHeaders`: a context route fetches each
+target request itself with no redirect followed, and the `request` fixture adds it per call (`page.request` carries
+none, so a spec for such a target uses `request`); with the token set the run keeps no trace and no HTML report, and
+`tools/workspace-checks` fails on any workflow job with the token or a `BASE_URL` that uploads an artifact.
 Worker tests run in workerd through `@cloudflare/vitest-pool-workers` (`SELF.fetch`, an isolated in-memory D1
 migrated in `src/test-setup.ts`); `apps/api/test-assets` stands in for the Angular build. `wrangler`,
 `@cloudflare/vitest-pool-workers` and `compatibility_date` move together (one workerd for dev, Docker and tests) —

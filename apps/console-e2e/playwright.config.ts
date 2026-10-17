@@ -1,18 +1,19 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices, type ReporterDescription } from '@playwright/test';
+import { accessHeadersFromEnv, accessRunOptions } from './src/support/access-headers';
 
 /**
  * console-e2e (#14). Each worker starts its own local stack (fake GitHub + the api bundle on a fresh local D1, see
  * src/stack/local-stack.ts) unless `BASE_URL` names a running target — a Docker container or stage. For stage,
  * `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` (the Access service token, from the environment's secrets) are
- * sent on every request; specs that reset data or need the fake GitHub skip themselves there.
+ * sent to the target's origin only (`support/fixtures.ts`, never `extraHTTPHeaders`), and such a run keeps no trace
+ * and no HTML report, which would record them (#142); specs that reset data or need the fake GitHub skip themselves
+ * there.
  */
 const isCI = process.env['CI'] !== undefined && process.env['CI'] !== '';
-const accessId = process.env['CF_ACCESS_CLIENT_ID'];
-const accessSecret = process.env['CF_ACCESS_CLIENT_SECRET'];
-const accessHeaders: Record<string, string> =
-  accessId !== undefined && accessId !== '' && accessSecret !== undefined && accessSecret !== ''
-    ? { 'CF-Access-Client-Id': accessId, 'CF-Access-Client-Secret': accessSecret }
-    : {};
+const access = accessRunOptions(accessHeadersFromEnv(process.env));
+const htmlReport: ReporterDescription[] = access.htmlReport
+  ? [['html', { open: 'never', outputFolder: '../../dist/.playwright/apps/console-e2e/report' }]]
+  : [];
 
 const iphone = devices['iPhone 13'];
 // The demo device: a 390 px wide iPhone (the 2026-10-16 demo runs on one).
@@ -31,20 +32,13 @@ export default defineConfig({
   workers: 2,
   timeout: 30_000,
   expect: { timeout: 10_000 },
-  reporter: isCI
-    ? [
-        ['github'],
-        ['list'],
-        ['html', { open: 'never', outputFolder: '../../dist/.playwright/apps/console-e2e/report' }],
-      ]
-    : [['list']],
+  reporter: isCI ? [['github'], ['list'], ...htmlReport] : [['list']],
   use: {
     locale: 'ru-RU',
     timezoneId: 'Europe/Kyiv',
     // The service worker would answer some requests itself, out of reach of page.route() and the request guard.
     serviceWorkers: 'block',
-    extraHTTPHeaders: accessHeaders,
-    trace: 'retain-on-failure',
+    trace: access.trace,
     screenshot: 'only-on-failure',
   },
   projects: [

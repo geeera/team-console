@@ -1,5 +1,6 @@
 import { test as base, expect, type Page } from '@playwright/test';
 import { LocalStack, portsFor } from '../stack/local-stack';
+import { accessHeadersFromEnv, routeAccessHeaders, scopeAccessHeaders } from './access-headers';
 import { blockingViolations } from './axe';
 import type { Stack } from './stack';
 
@@ -13,6 +14,7 @@ interface WorkerFixtures {
 }
 
 interface TestFixtures {
+  accessHeaders: void;
   outsideRequests: OutsideRequests;
   pageErrors: void;
   stackHealth: void;
@@ -63,6 +65,25 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     await use(stack.baseURL);
   },
 
+  // A target behind Cloudflare Access (#142): the service token goes to the target's origin only — the browser's
+  // requests through a context route, the `request` fixture's per call. `page.request`/`context.request` carry no
+  // token; specs that run on such a target use `request`.
+  accessHeaders: [
+    async ({ context, stack }, use) => {
+      const access = accessHeadersFromEnv(process.env);
+      if (access !== null) {
+        await routeAccessHeaders(context, stack.baseURL, access);
+      }
+      await use();
+    },
+    { auto: true },
+  ],
+
+  request: async ({ request, stack }, use) => {
+    const access = accessHeadersFromEnv(process.env);
+    await use(access === null ? request : scopeAccessHeaders(request, stack.baseURL, access));
+  },
+
   // Every test: the app talks to its own origin only (no CDN, font, analytics or GitHub request from the page).
   outsideRequests: [
     async ({ context, stack }, use) => {
@@ -85,9 +106,10 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     async ({ stack }, use) => {
       const before = stack.incidents().length;
       await use();
-      expect(stack.incidents().slice(before), 'local stack servers that stopped serving during the test').toEqual(
-        [],
-      );
+      expect(
+        stack.incidents().slice(before),
+        'local stack servers that stopped serving during the test',
+      ).toEqual([]);
     },
     { auto: true },
   ],
