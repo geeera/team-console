@@ -295,6 +295,14 @@ export class FakeGitHubOAuth {
   }
 
   /**
+   * Forgets the repository's seeded milestones (#382): its milestone reads answer 404 again, so the api's mock
+   * serves its own (dated relative to today) — what a spec leaves behind for the next one.
+   */
+  clearMilestones(repo: string): void {
+    this.milestones.delete(repo.toLowerCase());
+  }
+
+  /**
    * Serves `pulls` as the repository's open pull requests, as GitHub's JSON (#277: an e2e moves a design's head
    * commit after the console loaded its list); seeding again replaces them. A repository never seeded answers 404,
    * so the api's mock keeps its own list.

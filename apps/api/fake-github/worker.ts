@@ -17,7 +17,8 @@ import {
  * owner token for the vendored `runlog` CLI pointed here with PT_GITHUB_API), and POST /_fake/comment (a team entry
  * written earlier into a seeded thread: repo, number, body, author, createdAt and an optional later updatedAt, in ms —
  * the board e2e, #132), POST /_fake/milestones {"repo","milestones":[{title,state,dueOn,number?}]} (the sprint
- * commands, #218; GET /_fake/milestones?repo= reads them back, milestone writes are in the state), POST /_fake/issue-update
+ * commands, #218; GET /_fake/milestones?repo= reads them back, DELETE /_fake/milestones?repo= drops the seed so the
+ * api's mock answers again (#382), milestone writes are in the state), POST /_fake/issue-update
  * {repo, number, milestone?, state?} (#219: the PM moved or closed the issue meanwhile), POST /_fake/pulls
  * {repo, pulls: [GitHub pull request JSON]} (#277: the design's head commit moves after the console loaded its
  * list). Every value here is fake.
@@ -160,6 +161,10 @@ async function control(server: FakeGitHubOAuth, request: Request, path: string):
   }
   if (path === '/_fake/milestones' && request.method === 'GET') {
     return json(200, server.milestonesOf(new URL(request.url).searchParams.get('repo') ?? ''));
+  }
+  if (path === '/_fake/milestones' && request.method === 'DELETE') {
+    server.clearMilestones(new URL(request.url).searchParams.get('repo') ?? '');
+    return json(200, { cleared: true });
   }
   if (path === '/_fake/token') {
     return json(200, { token: server.issuePair().accessToken });

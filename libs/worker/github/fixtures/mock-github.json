@@ -1829,7 +1829,7 @@
           "number": 1,
           "title": "Sprint 01",
           "state": "open",
-          "due_on": "2026-10-16T00:00:00Z",
+          "due_in_days": 7,
           "html_url": "https://github.com/geeera/team-console/milestone/1",
           "open_issues": 10,
           "closed_issues": 11
@@ -1838,7 +1838,7 @@
           "number": 2,
           "title": "Sprint 02",
           "state": "open",
-          "due_on": "2026-10-30T00:00:00Z",
+          "due_in_days": 21,
           "html_url": "https://github.com/geeera/team-console/milestone/2",
           "open_issues": 11,
           "closed_issues": 0
