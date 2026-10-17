@@ -80,7 +80,7 @@ jobs:
             echo "::error title=secret-scan scope::${range} has ${count} commit(s); expected the merge commit and the PR's own"
             exit 1
           fi
-          echo "::notice title=secret-scan scope::this PR only: ${base:0:7}..HEAD, ${count} commits (merge commit included)"
+          echo "::notice title=secret-scan scope::this PR only: ${base:0:7}..HEAD, ${count} commits incl. the merge commit"
           "${gitleaks[@]}" --log-opts="${range}" .
 
   sast:
