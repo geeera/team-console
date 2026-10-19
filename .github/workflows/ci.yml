@@ -44,7 +44,7 @@ jobs:
       # ADR 0001 decision 18: NX_BASE / NX_HEAD come from nx-set-shas. On pull_request it takes the merge-base
       # of origin/<base branch> and HEAD, locally, without API calls.
       - name: Derive Nx base and head
-        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5.0.1
+        uses: nrwl/nx-set-shas@e602fada7ad5987b0f7b1905e7a99ea1c661514c # v5.1.0
         with:
           main-branch-name: dev
 
@@ -117,7 +117,7 @@ jobs:
 
       - name: Keep the report and traces of a failed run
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: console-e2e-report
           path: |
