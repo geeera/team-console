@@ -24,7 +24,7 @@
     "@angular/service-worker": "22.2.0",
     "@block65/webcrypto-web-push": "2.0.0",
     "@jsverse/transloco": "8.4.0",
-    "dompurify": "3.4.16",
+    "dompurify": "3.4.17",
     "hono": "4.13.11",
     "jose": "6.2.12",
     "marked": "18.0.14",
