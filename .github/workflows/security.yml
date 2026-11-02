@@ -79,7 +79,7 @@ jobs:
 
       # Reads package-lock.json against the advisory database; no install needed. tools/ci/audit-gate.mjs wraps
       # `npm audit --json` and fails on any high/critical advisory except one with an unexpired, exact-match
-      # entry in .audit-allowlist.json (#177: GHSA-vfj7-8cjw-p6xm/braces has no patched version yet).
+      # entry in .audit-allowlist.json (empty since #395; #177 introduced it for the braces advisory).
       - name: npm audit (gated by .audit-allowlist.json)
         run: node tools/ci/audit-gate.mjs
 

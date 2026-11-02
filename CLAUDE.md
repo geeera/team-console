@@ -54,15 +54,14 @@ an advisory with no fix yet (owner decision, never added unilaterally). A match 
 `ghsaId` and `package` to equal the advisory's; one entry never masks a different advisory, even on the same
 package. An allowlist entry's `expires` must be a real calendar date in strict `YYYY-MM-DD` form, at most 90
 days from today — the gate fails closed on anything it cannot parse or validate (a missing/unknown advisory
-severity, an `npm audit` exit that yields no parsed advisories, a malformed allowlist). Today's one entry:
-`GHSA-vfj7-8cjw-p6xm`/`braces` (#177; stack-exhaustion DoS in `braces`' AST walker, dev/build tooling only —
-Angular devkit, webpack-dev-server, Storybook — never shipped in a deployed bundle), expiring 2026-11-03. Once
-the GitHub Advisory Database lists a
-`first_patched_version` for that advisory (or the vulnerable chain — `@angular-devkit/build-angular` /
-`webpack-dev-server` / `@storybook/angular` / `braces` itself — can be bumped past it): bump the dependency,
-run `npm audit --json` locally to confirm the advisory is gone, then delete its entry from
-`.audit-allowlist.json` in the same PR (do not just let it expire — remove it as soon as a fix exists) and
-drop a comment on #177 saying so before closing it.
+severity, an `npm audit` exit that yields no parsed advisories, a malformed allowlist). The allowlist is empty today (#395 removed the
+`GHSA-vfj7-8cjw-p6xm`/`braces` entry of #177 once `npm audit --json` stopped reporting it). An entry, when the
+owner grants one, is removed in the PR that makes its advisory go away (bump the dependency, confirm with `npm
+audit --json` locally) — never left to expire — with a comment on its issue saying so.
+Transitive fixes the lockfile cannot reach inside a parent's range are exact `overrides` in `package.json` (#395:
+`miniflare.undici`, `nx.follow-redirects`, `@cloudflare/vitest-pool-workers.zod`); the deprecated
+`@angular-devkit/build-angular` and `@angular/platform-browser-dynamic` (Storybook peers) are pinned there to the
+Angular release too, since npm otherwise resolves them to the last non-deprecated major and fails on the peers.
 
 Layout, tags and aliases (architect note on #3 — binding; the boundary lint enforces the tags):
 
