@@ -25,11 +25,12 @@ async function environmentOf(request: APIRequestContext): Promise<Environment> {
   return body.environment;
 }
 
-test('the manifest and the Home Screen icons carry the environment', async ({ page }) => {
-  const environment = await environmentOf(page.request);
+// `request`, not `page.request`: only the `request` fixture carries the Access token on a target behind Access (#142).
+test('the manifest and the Home Screen icons carry the environment', async ({ request }) => {
+  const environment = await environmentOf(request);
   const expected = NAMES[environment];
 
-  const manifest = await page.request.get('/manifest.webmanifest');
+  const manifest = await request.get('/manifest.webmanifest');
   expect(manifest.status()).toBe(200);
   expect(manifest.headers()['content-type']).toContain('application/manifest+json');
   const body = (await manifest.json()) as { name: string; short_name: string; icons: { src: string }[] };
@@ -37,7 +38,7 @@ test('the manifest and the Home Screen icons carry the environment', async ({ pa
   expect(body.short_name).toBe(expected.shortName);
   for (const { src } of body.icons) {
     expect(src.startsWith(`/icons/${environment}/`), src).toBe(true);
-    const icon = await page.request.get(src);
+    const icon = await request.get(src);
     expect(icon.status(), src).toBe(200);
     expect(icon.headers()['content-type'], src).toBe('image/png');
   }
@@ -46,22 +47,25 @@ test('the manifest and the Home Screen icons carry the environment', async ({ pa
     ['/brand/apple-touch-icon.png', 'image/png'],
     ['/brand/favicon.ico', 'image/vnd.microsoft.icon'],
   ] as const) {
-    const icon = await page.request.get(path);
+    const icon = await request.get(path);
     expect(icon.status(), path).toBe(200);
     expect(icon.headers()['content-type'], path).toBe(type);
-    const original = await page.request.get(`/icons/${environment}/${path.slice('/brand/'.length)}`);
+    const original = await request.get(`/icons/${environment}/${path.slice('/brand/'.length)}`);
     expect(Buffer.compare(await icon.body(), await original.body()), path).toBe(0);
   }
 });
 
-test('the window title, the iOS title and the shell mark name the environment', async ({ page }) => {
-  const environment = await environmentOf(page.request);
+test('the window title, the iOS title and the shell mark name the environment', async ({ page, request }) => {
+  const environment = await environmentOf(request);
   const expected = NAMES[environment];
 
   await page.goto('/needs-you');
 
   await expect(page).toHaveTitle(expected.name);
-  await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute('content', expected.name);
+  await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute(
+    'content',
+    expected.name,
+  );
   const mark = page.getByTestId('environment-mark');
   if (expected.label === null) {
     await expect(mark).toHaveCount(0);
