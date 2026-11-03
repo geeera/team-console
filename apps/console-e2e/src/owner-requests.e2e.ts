@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { addDays, calendarDayOf } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
-import { seed, type Stack } from './support/stack';
+import { clearFakeMilestones, seed, type Stack } from './support/stack';
 
 /**
  * Requests to the PM (#219, ADR 0005): from the Commands panel the owner picks an issue, asks for the next sprint,
@@ -95,13 +95,7 @@ test.beforeEach(async ({ stack }) => {
 
 test.afterAll(async ({ stack }) => {
   if (stack.fakeURL !== null) {
-    await fakePost(stack, '/_fake/milestones', {
-      repo: REPO,
-      milestones: [
-        { number: 1, title: 'Sprint 01', state: 'open', dueOn: '2026-10-16T00:00:00Z' },
-        { number: 2, title: 'Sprint 02', state: 'open', dueOn: '2026-10-30T00:00:00Z' },
-      ],
-    });
+    await clearFakeMilestones(stack, REPO);
   }
 });
 
