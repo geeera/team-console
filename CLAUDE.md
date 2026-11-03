@@ -264,6 +264,11 @@ reach the list's end or a paused log's pause record lies before that window (#14
 (`slotSecretNames`). Console: `@console/entities/team-run` (`TeamStatusStore`), `@console/features/team-commands`
 (`TeamCommands`: one `Sheet.confirm` per command), `@console/widgets/commands-panel` (pane, phone sheet, paused banner);
 kit `Banner`, `Button[off]`, `Receipt` tone `warning`, `Sheet.confirm` with `items`/`input`/`ConfirmFailure`, `--dur-pulse`.
+Console pause guard (#141): the plugin's `runlog start` does not count the owner's own pause in a run log the team's
+bot opened, so `POST …/team/pause` answers 409 `pause-unreliable` there, `TeamStatusDto.pauseHolds` turns Pause off with
+the reason, and `pauseLiftsAtNextRun` replaces "paused by you" when the next run would lift the label. The one switch is
+`PLUGIN_COUNTS_OWNER_PAUSE` in `@worker/run-log` (`owner-pause.ts`); `fixtures/owner-pause.json` (the real `cmd_start`
+over the issue's reproduction) fails the golden spec until the switch agrees with the vendored plugin.
 
 Web push, server (#11; the client is #36): `@worker/push` — `checkPushSubscription` (endpoint allow-list: `https:`, push-service
 hosts only, no IP literal or port; `p256dh` 65 bytes `0x04`, `auth` 16 bytes), `checkVapidConfig`, `questionNotification` /

@@ -28,6 +28,8 @@ function view(overrides: Partial<RunLogView>): RunLogView {
     state: 'running',
     pausedSince: '',
     ownerResumeAt: '',
+    consolePauseHolds: true,
+    liftedAtNextRun: false,
     ...overrides,
   };
 }

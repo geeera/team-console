@@ -949,7 +949,8 @@
       "teamLead": "{{name}}: the team paused itself.",
       "teamRest": "Three runs in a row failed.",
       "resume": "Resume",
-      "log": "Run log"
+      "log": "Run log",
+      "liftsRest": "The next scheduled run will lift the pause: the team doesn’t count it. To stop work, pause from the team chat (the pause skill)."
     },
     "status": {
       "h": "Status",
@@ -975,7 +976,8 @@
       "noSprint": "No current sprint",
       "sprintUnknown": "GitHub didn’t give the sprint; refresh the status",
       "progress": "Done",
-      "progressVal": "{{done}} of {{total}}"
+      "progressVal": "{{done}} of {{total}}",
+      "lifts": "Paused, but the next run will lift it: the team doesn’t count this pause"
     },
     "group": {
       "team": "Team work",
@@ -1026,7 +1028,8 @@
       "noperm": "No write access",
       "paused": "Resume development first",
       "notoken": "Not set up: this routine has no trigger token",
-      "status": "Status not loaded"
+      "status": "Status not loaded",
+      "pauseUnreliable": "A pause from the console won’t hold here: the team opened the run log. Pause from the team chat (the pause skill)"
     },
     "setup": {
       "t": "Run now isn’t set up for {{slots}}",
