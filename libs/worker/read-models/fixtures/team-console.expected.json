@@ -8,14 +8,18 @@
         "number": 21,
         "title": "Аккаунт Cloudflare и токены для деплоя",
         "url": "https://github.com/geeera/team-console/issues/21",
-        "ask": "Напиши «сделал», когда заведёшь аккаунты по чеклисту из #7 · /reject причина, если что-то не подходит"
+        "ask": "Напиши «сделал», когда заведёшь аккаунты по чеклисту из #7 · /reject причина, если что-то не подходит",
+        "category": null,
+        "recommendation": null
       },
       {
         "section": "owner",
         "number": 46,
         "title": "Переключить GitHub Pages на GitHub Actions",
         "url": "https://github.com/geeera/team-console/issues/46",
-        "ask": "Напиши «сделал», когда переключишь источник GitHub Pages"
+        "ask": "Напиши «сделал», когда переключишь источник GitHub Pages",
+        "category": null,
+        "recommendation": null
       }
     ],
     "setup": false,

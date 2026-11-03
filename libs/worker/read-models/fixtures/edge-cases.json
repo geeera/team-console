@@ -395,6 +395,78 @@
       "user": null,
       "milestone": null,
       "closed_at": null
+    },
+    {
+      "number": 30,
+      "title": "Batch: a scope question the team recommends approving",
+      "body": "**Your answer:** /approve to add the export (recommended) · /reject why\n<!-- pt-ask -->\n\nContext.\n",
+      "html_url": "https://github.com/geeera/edge-cases/issues/30",
+      "state": "open",
+      "labels": [{ "name": "kind:question" }, { "name": "owner:scope" }],
+      "author_association": "CONTRIBUTOR",
+      "user": { "login": "team-console-team[bot]", "type": "Bot" },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 31,
+      "title": "Batch: a legal question",
+      "body": "**Твой ответ:** /approve принять условия (рекомендую) · /reject почему\n<!-- pt-ask -->\n\nКонтекст.\n",
+      "html_url": "https://github.com/geeera/edge-cases/issues/31",
+      "state": "open",
+      "labels": [{ "name": "kind:question" }, { "name": "owner:legal" }],
+      "author_association": "OWNER",
+      "user": { "login": "geeera", "type": "User" },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 32,
+      "title": "Batch: a design asked as a question",
+      "body": "**Your answer:** /approve the direction (recommended) · /reject what to change\n<!-- pt-ask -->\n\nLink.\n",
+      "html_url": "https://github.com/geeera/edge-cases/issues/32",
+      "state": "open",
+      "labels": [{ "name": "kind:question" }, { "name": "owner:design" }],
+      "author_association": "MEMBER",
+      "user": { "login": "teammate", "type": "User" },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 33,
+      "title": "Batch: the team recommends rejecting",
+      "body": "**Your answer:** /reject why to keep the list (recommended) · /approve to drop it\n<!-- pt-ask -->\n\nWhy.\n",
+      "html_url": "https://github.com/geeera/edge-cases/issues/33",
+      "state": "open",
+      "labels": [{ "name": "owner:scope" }, { "name": "kind:question" }],
+      "author_association": "OWNER",
+      "user": { "login": "geeera", "type": "User" },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 34,
+      "title": "Batch: no recommendation in the answer line",
+      "body": "**Ваш ответ:** /approve добавить тёмную тему · /reject почему\n<!-- pt-ask -->\n\nКонтекст.\n",
+      "html_url": "https://github.com/geeera/edge-cases/issues/34",
+      "state": "open",
+      "labels": [{ "name": "kind:question" }, { "name": "owner:scope" }],
+      "author_association": "COLLABORATOR",
+      "user": { "login": "helper", "type": "User" },
+      "milestone": null,
+      "closed_at": null
+    },
+    {
+      "number": 35,
+      "title": "Batch: scope and money labelled by hand",
+      "body": "**Your answer:** /approve the paid tier (recommended) · /reject why\n<!-- pt-ask -->\n\nCost.\n",
+      "html_url": "https://github.com/geeera/edge-cases/issues/35",
+      "state": "open",
+      "labels": [{ "name": "kind:question" }, { "name": "owner:scope" }, { "name": "owner:money" }],
+      "author_association": "OWNER",
+      "user": { "login": "geeera", "type": "User" },
+      "milestone": null,
+      "closed_at": null
     }
   ],
   "milestones": [

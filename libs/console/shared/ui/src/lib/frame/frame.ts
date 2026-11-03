@@ -1,5 +1,5 @@
 import { DOCUMENT } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { booleanAttribute, ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { DomSanitizer } from '@angular/platform-browser';
 import { TranslocoPipe } from '@console/shared/i18n';
 import { Icon } from '../icon/icon';
@@ -22,15 +22,29 @@ import { externalHrefOf, frameSrcOf, trustedFrameSrc } from './frame-src';
   imports: [Icon, TranslocoPipe],
   template: `
     @if (trusted(); as trusted) {
-      <iframe
-        class="tc-frame__view"
-        data-testid="frame"
-        [src]="trusted"
-        [title]="title()"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-        referrerpolicy="no-referrer"
-        loading="lazy"
-      ></iframe>
+      @if (profile() === 'design') {
+        <!-- The strict profile (#277 spec §R): scripts only — no same-origin, forms, popups or top navigation. -->
+        <iframe
+          class="tc-frame__view"
+          data-testid="frame"
+          [src]="trusted"
+          [title]="title()"
+          sandbox="allow-scripts"
+          allow=""
+          referrerpolicy="no-referrer"
+          loading="lazy"
+        ></iframe>
+      } @else {
+        <iframe
+          class="tc-frame__view"
+          data-testid="frame"
+          [src]="trusted"
+          [title]="title()"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+          referrerpolicy="no-referrer"
+          loading="lazy"
+        ></iframe>
+      }
     } @else {
       <div class="tc-frame__refused" data-testid="frame-refused">
         <p class="tc-frame__refused-title">{{ 'ui.frame.refusedTitle' | transloco }}</p>
@@ -52,6 +66,7 @@ import { externalHrefOf, frameSrcOf, trustedFrameSrc } from './frame-src';
   host: {
     class: 'tc-frame',
     '[class.tc-frame--refused]': 'trusted() === null',
+    '[class.tc-frame--fill]': 'fill()',
   },
 })
 export class Frame {
@@ -64,6 +79,15 @@ export class Frame {
   readonly allowedOrigins = input.required<readonly string[]>();
   /** The frame's accessible name, already translated. */
   readonly title = input.required<string>();
+  /**
+   * `page` (default): a Storybook or a demo site, which may keep its origin and open links. `design` (#277): an HTML
+   * wireframe from GitHub Pages — `sandbox="allow-scripts"` alone, so the page runs but can neither read its own
+   * origin's storage nor open or navigate anything. The two sandboxes are static attributes under `@if`: Angular
+   * refuses to bind them, and nothing should change them per page.
+   */
+  readonly profile = input<'page' | 'design'>('page');
+  /** Fills its container (the viewer's stage) instead of a page-wide aspect box, and leaves the link to the caller. */
+  readonly fill = input(false, { transform: booleanAttribute });
 
   protected readonly trusted = computed(() =>
     trustedFrameSrc(this.sanitizer, this.src(), this.allowedOrigins(), this.ownOrigin),

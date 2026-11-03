@@ -75,6 +75,11 @@ select {
   padding: var(--space-5) var(--space-4) calc(var(--space-8) + var(--safe-bottom));
 }
 
+/* A page of decision cards (#276): wide enough for two cards side by side on a Mac. */
+.tc-page--cards {
+  max-width: var(--cards-max);
+}
+
 .tc-page__title {
   margin: 0;
   font-family: var(--font-display);
@@ -143,4 +148,22 @@ select {
   100% {
     box-shadow: 0 0 0 var(--focus-w) var(--focus);
   }
+}
+
+/*
+ * Untrusted text from GitHub (titles, #287) is shown with `dir="auto"`: its direction comes from its own first strong
+ * character, and isolation keeps a bidi override inside it from reordering the label before it or the text after it.
+ */
+[dir='auto'] {
+  unicode-bidi: isolate;
+}
+
+/* A keyboard shortcut drawn beside its button's label (Commands' K, #114 and #222); `aria-hidden`, the button names it. */
+.tc-kbd {
+  padding: 0 var(--space-1);
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--r-xs);
+  font-family: var(--font-body);
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
 }

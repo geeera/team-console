@@ -11,9 +11,17 @@ import {
   input,
   signal,
   untracked,
+  viewChild,
+  type TemplateRef,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { AnsweredItem, AnsweredItems, answeredKeyOf, ProjectsStore } from '@console/entities/project';
+import {
+  AnsweredItem,
+  AnsweredItems,
+  answeredKeyOf,
+  projectSetupRouteOf,
+  ProjectsStore,
+} from '@console/entities/project';
 import type { QuestionArrival } from '@console/entities/push';
 import {
   githubIssueUrlOf,
@@ -25,6 +33,7 @@ import {
   safeGitHubUrl,
 } from '@console/entities/question';
 import { AnswerGiven, AnswerQuestion } from '@console/features/answer-question';
+import { DesignViewer } from '@console/features/design-viewer';
 import { localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import {
   type Arrival,
@@ -32,6 +41,10 @@ import {
   Button,
   Callout,
   CardStamp,
+  Chip,
+  type ChipTone,
+  type IconName,
+  type DialogRef,
   Icon,
   markArrival,
   Receipt,
@@ -39,6 +52,7 @@ import {
 } from '@console/shared/ui';
 import type { AnswerCommand, NeedsYouProjectRef, Section } from '@shared/contracts';
 import { problemSlugOf } from '@shared/contracts';
+import { QuestionDesignPreviews, type DesignOpenRequest } from './question-design-previews';
 
 /** How long the ink stamp shows on an answered card before it folds into its receipt (ADR 0002). */
 export const STAMP_HOLD_MS = 900;
@@ -57,6 +71,15 @@ const TONES: Readonly<Record<AnswerCommand, CardStamp>> = {
   reject: 'negative',
   'no-go': 'negative',
 };
+
+const CHIP_TONES: Readonly<Record<CardStamp, ChipTone>> = {
+  positive: 'success',
+  negative: 'danger',
+  neutral: 'neutral',
+};
+
+// A glyph beside the word, so the status never rests on colour alone.
+const STATUS_ICONS: Readonly<Record<CardStamp, IconName>> = { positive: 'check', negative: 'x', neutral: 'minus' };
 
 type LoadState = 'loading' | 'ready' | 'error';
 
@@ -80,8 +103,10 @@ interface Row {
     Banner,
     Button,
     Callout,
+    Chip,
     Icon,
     QuestionCard,
+    QuestionDesignPreviews,
     Receipt,
     RouterLink,
     StateBlock,
@@ -99,6 +124,7 @@ export class QuestionList {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly projects = inject(ProjectsStore);
+  private readonly viewer = inject(DesignViewer);
 
   /** One project's questions; without it, every active project's. */
   readonly project = input<NeedsYouProjectRef | null>(null);
@@ -112,6 +138,8 @@ export class QuestionList {
   readonly listLabel = input('');
   readonly emptyTitle = input('');
   readonly emptyHint = input('');
+  /** Answered items fold into receipts here; the Demo screen lists only what still waits (#328). */
+  readonly showReceipts = input(true);
 
   protected readonly state = signal<LoadState>('loading');
   private readonly items = signal<readonly QuestionItem[]>([]);
@@ -135,6 +163,10 @@ export class QuestionList {
       safeGitHubUrl(answered?.url ?? null) ?? (repo === undefined ? null : githubIssueUrlOf(repo, number))
     );
   });
+  /** The item whose design the viewer shows with its answers; `null` when the viewer is closed or read-only. */
+  protected readonly viewerItem = signal<QuestionItem | null>(null);
+  private readonly viewerActions = viewChild.required<TemplateRef<unknown>>('viewerActions');
+  private viewerRef: DialogRef<void> | null = null;
   private handledArrival: number | null = null;
   private ring: Arrival | null = null;
   private loadToken = 0;
@@ -147,17 +179,24 @@ export class QuestionList {
     return sections === null ? items : items.filter((item) => sections.includes(item.section));
   });
   protected readonly rows = computed<Row[]>(() =>
-    this.shownItems().map((item) => {
+    this.shownItems().flatMap((item) => {
       const key = answeredKeyOf(item.project.slug, item.number);
-      return {
-        key,
-        item,
-        answer: this.answeredItems.get(item.project.slug, item.number) ?? null,
-        stamping: this.stamping().has(key),
-      };
+      const answer = this.answeredItems.get(item.project.slug, item.number) ?? null;
+      // Approved in a batch (#220): the card leaves the list; the batch's own receipt says what happened.
+      if (answer?.batch === true) {
+        return [];
+      }
+      return [{ key, item, answer, stamping: this.stamping().has(key) }];
     }),
   );
+  protected readonly visibleRows = computed(() =>
+    this.showReceipts() ? this.rows() : this.rows().filter((row) => row.answer === null || row.stamping),
+  );
   protected readonly waiting = computed(() => this.rows().filter((row) => row.answer === null));
+  /** The items still waiting for an answer from this device, once the list is read (the batch entry reads them). */
+  readonly waitingItems = computed<readonly QuestionItem[]>(() =>
+    this.state() === 'ready' ? this.waiting().map((row) => row.item) : [],
+  );
   /** Projects that need the owner outside a card: a setup to finish, or an inbox that could not be read (#205). */
   protected readonly attentionCount = computed(() => this.setups().length + this.problems().length);
   /** The lead's project count: projects with a waiting card and projects with a row above the cards alike. */
@@ -195,6 +234,7 @@ export class QuestionList {
       });
     });
     inject(DestroyRef).onDestroy(() => {
+      this.viewerRef?.close();
       this.ring?.clear();
       this.loadToken += 1;
       this.timers.forEach((timer) => clearTimeout(timer));
@@ -217,6 +257,18 @@ export class QuestionList {
     return localTimeOf(answer.answeredAt, this.transloco.getActiveLang());
   }
 
+  protected chipToneOf(command: AnswerCommand): ChipTone {
+    return CHIP_TONES[TONES[command]];
+  }
+
+  protected statusIconOf(command: AnswerCommand): IconName {
+    return STATUS_ICONS[TONES[command]];
+  }
+
+  protected statusOf(command: AnswerCommand): string {
+    return this.transloco.translate(`answer.receipt.status.${command}`);
+  }
+
   protected verbOf(command: AnswerCommand): string {
     return this.transloco.translate(`answer.command.${command}`);
   }
@@ -227,16 +279,54 @@ export class QuestionList {
   }
 
   protected settingsLinkOf(slug: string): readonly string[] {
-    return ['/settings/projects', slug];
+    return projectSetupRouteOf(slug);
   }
 
-  protected onAnswered({ item, response }: AnswerGiven): void {
+  /**
+   * A design card's preview or «Все экраны»: the viewer on that screen or mode, with the card's answers in its
+   * footer while the item still waits. Closing it returns focus to the preview that opened it.
+   */
+  protected openDesign(row: Row, request: DesignOpenRequest): void {
+    this.viewerRef?.close();
+    const { item } = row;
+    const isWaiting = row.answer === null;
+    this.viewerItem.set(isWaiting ? item : null);
+    const ref = this.viewer.open({
+      slug: item.project.slug,
+      issue: item.number,
+      title: item.context?.summary ?? item.title,
+      ...(isWaiting ? { actions: this.viewerActions() } : {}),
+      ...request,
+    });
+    this.viewerRef = ref;
+    ref.closed.subscribe(() => {
+      if (this.viewerRef === ref) {
+        this.viewerRef = null;
+        this.viewerItem.set(null);
+      }
+    });
+  }
+
+  /** Answered from the viewer: it closes, and the card stamps and folds as if answered on the card (#276 §6). */
+  protected onAnsweredInViewer(given: AnswerGiven): void {
+    this.viewerRef?.close();
+    this.onAnswered(given, true);
+  }
+
+  protected onRefreshFromViewer(): void {
+    this.viewerRef?.close();
+    void this.reload();
+  }
+
+  /** `isFromViewer`: focus was in the viewer that just closed, so it continues from the receipt as well. */
+  protected onAnswered({ item, response }: AnswerGiven, isFromViewer = false): void {
     const key = answeredKeyOf(item.project.slug, item.number);
     const page = this.host.nativeElement.ownerDocument;
     const active = page.activeElement;
     const rowElement = this.host.nativeElement.querySelector(`[data-row="${CSS.escape(key)}"]`);
     // Focus inside the card (or already dropped to the page by a removed control) continues from the receipt.
-    const hadFocus = active === null || active === page.body || (rowElement?.contains(active) ?? false);
+    const hadFocus =
+      isFromViewer || active === null || active === page.body || (rowElement?.contains(active) ?? false);
     this.announcement.set(
       this.transloco.translate('answer.announce', { n: item.number, verb: this.verbOf(response.command) }),
     );

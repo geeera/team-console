@@ -33,27 +33,33 @@ const SCREENS: readonly Screen[] = [
   },
   {
     name: 'Settings',
-    open: (page) => visit(page, '/settings', (p) => expect(p.getByTestId('setup-chip')).toHaveCount(2)),
+    open: (page) => visit(page, '/settings', (p) => expect(p.getByTestId('push-section')).toBeVisible()),
   },
   {
-    name: 'Settings, archive dialog',
+    name: 'Project setup, archive dialog',
     open: async (page) => {
-      await visit(page, '/settings', (p) => expect(p.getByTestId('archive-private-product')).toBeVisible());
-      await page.getByTestId('archive-private-product').click();
+      await visit(page, '/settings/projects/private-product', (p) =>
+        expect(p.getByTestId('archive-project')).toBeVisible(),
+      );
+      await page.getByTestId('archive-project').click();
       await expect(page.getByRole('alertdialog')).toContainText(
         ru('settings.archive.title', { name: 'private-product' }),
       );
     },
   },
   {
-    name: 'New project',
-    open: (page) =>
-      visit(page, '/settings/projects/new', (p) => expect(p.getByTestId('repo-field')).toBeVisible()),
+    name: 'All projects, Add by name',
+    open: async (page) => {
+      await visit(page, '/overview', (p) => expect(p.getByTestId('repos-registered')).toBeVisible());
+      await page.getByTestId('by-name-toggle').click();
+      await expect(page.getByTestId('repo-field')).toBeVisible();
+    },
   },
   {
-    name: 'New project, refused',
+    name: 'All projects, Add by name refused',
     open: async (page) => {
-      await visit(page, '/settings/projects/new', (p) => expect(p.getByTestId('repo-field')).toBeVisible());
+      await visit(page, '/overview', (p) => expect(p.getByTestId('repos-registered')).toBeVisible());
+      await page.getByTestId('by-name-toggle').click();
       await page.getByTestId('repo-field').fill('acme/site');
       await page.getByTestId('add-submit').click();
       await expect(page.getByTestId('add-result')).toContainText(ru('settings.add.refused.title'));

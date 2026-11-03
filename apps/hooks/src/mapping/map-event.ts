@@ -25,9 +25,13 @@ export interface MappedProject {
   readonly language: PushLanguage;
 }
 
+/**
+ * `urgent` (#221): still delivered while the project is snoozed, unless the owner muted urgent ones too — the team
+ * paused itself, a release is ready, or a question on a `team:demo` issue (a release decision).
+ */
 export type MapResult =
-  | { readonly kind: 'push'; readonly notification: PushNotification }
-  | { readonly kind: 'ignored'; readonly reason: 'no-notification' | 'untrusted-author' };
+  | { readonly kind: 'push'; readonly notification: PushNotification; readonly urgent: boolean }
+  | { readonly kind: 'ignored'; readonly reason: 'no-notification' | 'untrusted-author' | 'snoozed' };
 
 type SpaceSection = 'questions' | 'chat' | 'board' | 'demo';
 
@@ -37,6 +41,9 @@ const UNTRUSTED_AUTHOR: MapResult = { kind: 'ignored', reason: 'untrusted-author
 /** The PM routine's reply marker (Sprint 02); anyone can type it, hence the author gate. */
 export const PM_REPLY_MARKER = '<!-- pt-chat:pm -->';
 const RUN_LOG_LABEL = 'team:run-log';
+/** The plugin's label for demo and release decisions; a question carrying it is urgent (#221). */
+export const DEMO_LABEL = 'team:demo';
+const URGENT_KINDS: ReadonlySet<LinkPushKind> = new Set<LinkPushKind>(['team-paused', 'release-ready']);
 const RELEASE_BASE = 'main';
 const DEPLOY_WORKFLOW = 'deploy';
 const ENVIRONMENT_OF_BRANCH: Readonly<Record<string, string>> = {
@@ -84,7 +91,7 @@ function push(
   url: string,
   input?: Omit<CopyInput, 'project'>,
 ): MapResult {
-  return { kind: 'push', notification: linkNotificationOf(project, kind, url, input) };
+  return { kind: 'push', notification: linkNotificationOf(project, kind, url, input), urgent: URGENT_KINDS.has(kind) };
 }
 
 /** Row 1: an issue that now waits for the owner — opened that way, or the label just added made it so. */
@@ -119,6 +126,7 @@ function mapIssues(project: MappedProject, action: string | null, payload: JsonO
       number: issue.number,
       issueTitle: issue.title,
     }),
+    urgent: issue.labels.includes(DEMO_LABEL),
   };
 }
 

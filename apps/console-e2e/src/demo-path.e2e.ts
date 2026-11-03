@@ -17,6 +17,13 @@ const answerButton = (page: Page, issue: number, command: string) =>
 const isAnswerPost = (request: Request): boolean =>
   request.method() === 'POST' && /\/api\/v1\/projects\/[^/]+\/issues\/\d+\/answer$/.test(request.url());
 
+/** #24's typed path, now collapsed under "Add by name" on All projects (#194). */
+async function openAddByName(page: Page): Promise<void> {
+  await page.goto('/overview');
+  await page.getByTestId('by-name-toggle').click();
+  await expect(page.getByTestId('repo-field')).toBeFocused();
+}
+
 /** Answer POSTs the page sends from now on. */
 function recordAnswerPosts(page: Page): Request[] {
   const posts: Request[] = [];
@@ -88,7 +95,7 @@ test('connects GitHub through the OAuth round trip', async ({
 });
 
 test('adds the project and shows its setup checklist', async ({ page }) => {
-  await page.goto('/settings/projects/new');
+  await openAddByName(page);
   await page.getByTestId('repo-field').fill('geeera/team-console');
   await page.getByTestId('add-submit').click();
 
@@ -108,7 +115,7 @@ test('adds the project and shows its setup checklist', async ({ page }) => {
 });
 
 test('shows a missing setup step with how to fix it', async ({ page }) => {
-  await page.goto('/settings/projects/new');
+  await openAddByName(page);
   await page.getByTestId('repo-field').fill('geeera/private-product');
   await page.getByTestId('add-submit').click();
 

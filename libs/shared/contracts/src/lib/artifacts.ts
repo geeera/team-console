@@ -19,6 +19,10 @@ export interface ArtifactDto {
   readonly source: ArtifactSource;
   /** The issue's state; `null` for files and links. */
   readonly state: 'open' | 'closed' | null;
+  /** Design issues only (#277): the issue number the design viewer opens. */
+  readonly number?: number;
+  /** Design issues only: the plugin is waiting for the owner's approval (`design:awaiting-approval`). */
+  readonly awaitingApproval?: boolean;
 }
 
 /**

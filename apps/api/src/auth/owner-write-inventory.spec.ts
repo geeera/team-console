@@ -12,6 +12,10 @@ import {
 
 // #62: every state-changing /api route says how it treats the dev/stage Access service identity. A new route fails
 // "is classified" until someone decides; an owner write must be `owner-only` or carry the fixture gate.
+// One read route writes D1: `GET /api/v1/projects/:slug/issues/:number/request` marks a pending owner request
+// handled (`owner_requests`, a display cache) and is reachable by the service identity. That is harmless only while a
+// row changes on nothing but a trusted bot's strict handled marker — never on GitHub, never on the owner's token;
+// owner-request.spec.ts ("the GET changes a row only on a trusted bot's strict marker") pins it (#270).
 
 type ServiceRule =
   /** Refused outright by `ownerOnlyMiddleware` (403 owner-only), before any handler code runs. */
@@ -23,16 +27,26 @@ type ServiceRule =
 
 const RULES: Readonly<Record<string, ServiceRule>> = {
   'POST /api/v1/projects/:slug/issues/:number/answer': 'fixture-gate',
+  // #220: it answers questions only, which the fixture gate refuses anyway (`service-protected-item: question`).
+  'POST /api/v1/projects/:slug/answers/batch': 'owner-only',
   // Not issue-scoped and not needed by e2e on dev/stage: pause/resume write on the run log as the owner, run now
   // starts a team run on the slot's trigger token.
   'POST /api/v1/projects/:slug/team/pause': 'owner-only',
   'POST /api/v1/projects/:slug/team/resume': 'owner-only',
   'POST /api/v1/projects/:slug/runs': 'owner-only',
+  // #218: milestone writes on the owner's token; nothing for e2e on dev/stage to do there.
+  'POST /api/v1/projects/:slug/sprint/demo-date': 'owner-only',
+  'POST /api/v1/projects/:slug/sprint/next': 'owner-only',
+  // #219 (ADR 0005 decision 2): a request must be the owner's own wish; the service identity has none to make.
+  'POST /api/v1/projects/:slug/issues/:number/request': 'owner-only',
   'POST /api/v1/github/connect': 'owner-only',
   'DELETE /api/v1/github/connection': 'owner-only',
   'PUT /api/v1/push/subscriptions': 'owner-only',
   'DELETE /api/v1/push/subscriptions': 'owner-only',
   'POST /api/v1/push/test': 'owner-only',
+  // #221 (architect note on #29, amendment 6): D1 only, but the stage service key must not mute the owner's pushes.
+  'PUT /api/v1/projects/:slug/notifications/snooze': 'owner-only',
+  'DELETE /api/v1/projects/:slug/notifications/snooze': 'owner-only',
   'POST /api/v1/projects': 'no-owner-write',
   'PATCH /api/v1/projects/:slug': 'no-owner-write',
   'POST /api/v1/projects/:slug/archive': 'no-owner-write',

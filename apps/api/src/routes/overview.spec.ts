@@ -116,6 +116,7 @@ describe('GET /api/v1/overview', () => {
       needsYou: [7, 34, 9],
       setup: false,
       setupUrl: null,
+      snooze: { snoozed: false },
     });
     expect(read(body.projects[1])).toMatchObject({
       team: 'running',
@@ -124,6 +125,33 @@ describe('GET /api/v1/overview', () => {
       setup: true,
       setupUrl: 'https://github.com/geeera/beta/blob/HEAD/.product-team/owner-checklist.md',
     });
+  });
+
+  it('carries each project\'s snooze from the registry row, an expired one as not snoozed (#222)', async () => {
+    const repos = {
+      'geeera/alpha': activeRepo(),
+      'geeera/beta': activeRepo(),
+      'geeera/gamma': activeRepo(),
+    };
+    await seedRepos(repos);
+    await env.DB.prepare(
+      `UPDATE projects SET snoozed_at = '2026-10-01T09:00:00Z', snoozed_until = '2026-10-02T06:00:00Z',
+       snooze_allows_urgent = 0 WHERE slug = 'alpha'`,
+    ).run();
+    await env.DB.prepare(
+      "UPDATE projects SET snoozed_at = '2026-10-01T09:00:00Z', snoozed_until = NULL WHERE slug = 'beta'",
+    ).run();
+    await env.DB.prepare(
+      "UPDATE projects SET snoozed_at = '2026-09-30T09:00:00Z', snoozed_until = '2026-10-01T11:00:00Z' WHERE slug = 'gamma'",
+    ).run();
+    const stub = stubGitHub(overviewGitHub(repos));
+    const body = await overview(githubOf(stub));
+
+    expect(body.projects.map((row) => read(row).snooze)).toEqual([
+      { snoozed: true, until: '2026-10-02T06:00:00Z', allowsUrgent: false, since: '2026-10-01T09:00:00Z' },
+      { snoozed: true, until: null, allowsUrgent: true, since: '2026-10-01T09:00:00Z' },
+      { snoozed: false },
+    ]);
   });
 
   it('leaves archived projects out', async () => {

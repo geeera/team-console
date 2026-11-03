@@ -30,8 +30,14 @@ export function isArtifact(value: unknown): value is Artifact {
     isGitHubPageUrl(value['url']) &&
     (value['updatedAt'] === null || typeof value['updatedAt'] === 'string') &&
     (value['source'] === 'file' || value['source'] === 'issue' || value['source'] === 'config') &&
-    (value['state'] === null || value['state'] === 'open' || value['state'] === 'closed')
+    (value['state'] === null || value['state'] === 'open' || value['state'] === 'closed') &&
+    (value['number'] === undefined || isIssueNumber(value['number'])) &&
+    (value['awaitingApproval'] === undefined || typeof value['awaitingApproval'] === 'boolean')
   );
+}
+
+function isIssueNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 }
 
 /**

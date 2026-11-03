@@ -134,4 +134,28 @@ describe('ProjectSwitcher', () => {
     await fixture.whenStable();
     expect(router.url).toBe('/p/reader/questions');
   });
+
+  it('marks a snoozed project with the struck bell and the words, and drops it once turned back on (#221)', async () => {
+    await setup();
+    const store = TestBed.inject(ProjectsStore);
+    store.applySnooze('sx', { snoozed: true, until: null, allowsUrgent: true, since: '2026-10-05T10:00:00.000Z' });
+    store.applySnooze('reader', {
+      snoozed: true,
+      until: '2020-01-01T00:00:00.000Z',
+      allowsUrgent: true,
+      since: '2019-12-31T00:00:00.000Z',
+    });
+    await fixture.whenStable();
+
+    const mark = rowButton('Sheltrix').querySelector('[data-testid="switcher-snoozed"]') as HTMLElement;
+    expect(mark.textContent?.trim()).toBe('уведомления отложены');
+    expect(mark.querySelector('tc-icon')?.getAttribute('name')).toBe('bell-off');
+    // An expired snooze is no snooze: no bell.
+    expect(rowButton('Reader').querySelector('[data-testid="switcher-snoozed"]')).toBeNull();
+    expect(rowButton('Team Console').querySelector('[data-testid="switcher-snoozed"]')).toBeNull();
+
+    store.applySnooze('sx', { snoozed: false });
+    await fixture.whenStable();
+    expect(rowButton('Sheltrix').querySelector('[data-testid="switcher-snoozed"]')).toBeNull();
+  });
 });

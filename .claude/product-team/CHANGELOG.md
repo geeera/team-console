@@ -4,6 +4,38 @@ Products follow the `stable` channel (or a pinned tag, `team.plugin_ref` in `.pr
 first `slot-pm` of the day runs `vendor self-update` and opens a PR with the entries in between. Breaking changes (a renamed label, a changed script contract, a new required
 `project.yml` key) are marked **Breaking** with the migration step.
 
+## 0.11.0
+
+- **Owner requests to the PM** (geeera/team-console ADR 0005). The team console lets the owner ask the PM to move
+  an issue to the current or next sprint or back to the backlog, or up or down the queue; it posts one comment on
+  the owner's token whose first line is `<!-- pt-owner-request {"kind":"sprint","target":"next","v":1} -->`
+  (`kind` `sprint` → `target` `current` | `next` | `backlog`, or `priority` → `direction` `up` | `down`).
+  `backlog requests [--milestone M|current|none] [--days 30]` lists the pending ones; `slot-pm` and `pm` read them
+  when they plan, apply each within the caps and the freeze rule or decline it with the reason, and answer every
+  one with `backlog request-done N --comment-id ID --result applied|declined [--text …]`, which posts
+  `<!-- pt-owner-request-handled {"comment_id":ID,"result":"applied","v":1} -->` as the team's identity (never
+  with the owner's token; refused when the agents act as the owner's login; `declined` needs the reason). A
+  request is advice, not an owner command: it never approves scope, changes a status or moves work in progress.
+- **Who a request counts from.** Only the exact first line with the canonical JSON (sorted keys, no spaces, no
+  other fields, `v: 1`) is a marker; the request and handled parsers never match each other's line
+  (`scripts/ptlib/ownerrequests.py`, golden fixtures in `tests/fixtures/owner-requests.json`). A request is
+  honoured only when the owner wrote it, nobody ever edited it (the owner's own edits included; REST-only:
+  `updated_at == created_at`), its `performed_via_github_app.slug` is one of `team.console_app_slugs`, compared
+  exactly, and no agent in the session can write as the owner (`gh.acts_as_owner` false — the fallback until
+  GitHub is verified to set the app on user-to-server comments). An owner-authored marker without the app (the
+  owner's `gh` token, a PAT, an agent holding either) is ignored. The newest honoured request on an issue replaces
+  older ones; it is pending until the team's own identity — never the owner's login — posted an unedited handled
+  marker for its `comment_id` after it. Requests older than `--days` are ignored ("older than the lookback"); one
+  run reads at most 25 issues with requests (owner-written console requests first, then the newest), and reports the rest under `truncated`. Every marker
+  that does not count is listed under `ignored` with the reason. Works without GraphQL.
+- New optional `project.yml` key `team.console_app_slugs` (app slugs, not `[bot]` logins; an unreadable list is
+  an error). It is the trust root for requests, so it is read from the repository's **default branch** through
+  the API, never from the working tree (`project.text_on_branch`, now shared with `pr gate`'s base-branch read).
+  `backlog comment` refuses a body that starts with either marker.
+  **Migration** (only for products that use the team console): add `console_app_slugs: [team-console-<env>]`
+  under `team:` for each console environment that writes to the repository, through a PR to the default branch.
+  Without it no request is honoured and `backlog requests` says why.
+
 ## 0.10.3
 
 - **Fix: scheduled runs work without GitHub's GraphQL API** (every team-console cloud routine since 0.10.1 ended
