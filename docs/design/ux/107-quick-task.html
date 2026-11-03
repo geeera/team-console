@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>#107 Quick task capture (UX wireframe)</title>
+<style>
+/* Low-fidelity on purpose: grey boxes, system font, no Paper Desk styling. The look is the ui-designer's job.
+   Same conventions as ux/29-team-commands.html. */
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 system-ui,-apple-system,sans-serif;color:#222;background:#eee}
+a{color:#222}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:3px solid #000;outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.demo{background:#fff;border-bottom:1px solid #bbb;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:13px}
+.demo b{font-size:14px}
+.demo label{display:flex;gap:6px;align-items:center}
+.demo p{margin:0;flex-basis:100%;color:#555}
+.stage{padding:20px;display:flex;justify-content:center}
+.frame{background:#fafafa;border:2px solid #999;display:flex;position:relative;overflow:hidden}
+.frame.mac{width:1180px;height:760px}
+.frame.phone{width:390px;height:820px;flex-direction:column;border-radius:28px}
+.side{width:220px;border-right:1px solid #bbb;background:#e6e6e6;display:flex;flex-direction:column;padding:12px;gap:4px;flex:none}
+.side button{width:100%;text-align:left;padding:8px;border:0;background:none;min-height:36px;cursor:pointer}
+.side [aria-current="page"]{background:#bdbdbd;font-weight:600}
+.side .lbl{font-size:12px;color:#555;margin-top:10px}
+main{flex:1;overflow:auto;padding:20px 28px;min-width:0}
+.phone main{padding:14px}
+.topbar{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid #bbb;background:#e6e6e6;min-height:52px}
+.topbar .switch{flex:1;text-align:left;border:0;background:none;font-weight:600;font-size:17px;min-height:44px;cursor:pointer}
+.ib{min-width:44px;min-height:44px;border:1px solid #888;background:#ddd;cursor:pointer;position:relative}
+.dot{position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:#333}
+.btn .dot{position:static;display:inline-block;margin-left:6px;vertical-align:middle}
+h1{font-size:21px;margin:0 0 6px}
+h2{font-size:17px;margin:0 0 6px}
+.hdr{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.hdr h1{flex:1;margin:0}
+.tabs{display:flex;gap:4px;margin:6px 0 12px;flex-wrap:wrap}
+.tabs span{border:1px solid #aaa;padding:4px 10px;background:#eee}
+.tabs span[aria-current]{background:#bbb;font-weight:600}
+.btn{min-height:44px;padding:0 14px;border:1px solid #666;background:#ddd;cursor:pointer}
+.btn.sm{min-height:36px;padding:0 10px}
+.btn.primary{background:#555;color:#fff;border-color:#555}
+.btn.link{border:0;background:none;text-decoration:underline;padding:0 4px;min-height:32px}
+.btn[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+kbd{border:1px solid #999;padding:0 4px;font-size:12px;background:#fff;margin-left:6px}
+.box{background:#ddd;border:1px dashed #999;padding:12px;margin:10px 0;color:#444}
+.muted{color:#555;font-size:13px}
+/* overlay */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
+.phone .scrim{align-items:flex-end;padding:0}
+.dialog{background:#fff;border:2px solid #333;width:100%;max-width:580px;max-height:94%;display:flex;flex-direction:column}
+.phone .dialog{max-width:none;height:94%;max-height:none;border-radius:14px 14px 0 0}
+.dlg-h{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #bbb;background:#f0f0f0}
+.dlg-h h2{flex:1;margin:0;font-size:17px}
+.phone .dlg-h h2{text-align:center}
+.dlg-b{overflow:auto;padding:4px 18px 16px;flex:1}
+#f{display:flex;flex-direction:column;flex:1;min-height:0}
+.dlg-f{display:flex;gap:8px;align-items:center;padding:10px 14px;border-top:1px solid #bbb;background:#f7f7f7}
+.dlg-f .grow{flex:1}
+.field{display:flex;flex-direction:column;gap:4px;margin:12px 0}
+.field label{font-weight:600}
+.field input,.field select,.field textarea{min-height:44px;padding:8px 10px;border:1px solid #666;background:#fff;font-size:16px}
+.field textarea{min-height:96px;resize:vertical}
+[aria-invalid="true"]{border:2px solid #000 !important}
+.hint{color:#555;font-size:13px;margin:0}
+.ferr{font-weight:600;font-size:13px;margin:0}
+.ferr::before{content:"! "}
+.counter{font-size:12px;color:#333;align-self:flex-end}
+.note{font-size:13px;border-left:3px solid #999;padding:2px 8px;margin:4px 0;background:#f5f5f5}
+fieldset{border:1px solid #bbb;margin:12px 0;padding:6px 10px 10px}
+legend{font-weight:600;padding:0 4px}
+.seg{display:flex;gap:0;flex-wrap:wrap}
+.seg label{flex:1;min-width:90px;display:flex;gap:6px;align-items:center;justify-content:center;min-height:44px;border:1px solid #888;background:#eee;cursor:pointer}
+.seg input:checked+span{font-weight:700;text-decoration:underline}
+.opt{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-top:1px solid #eee;min-height:44px}
+.opt:first-of-type{border-top:0}
+.opt input{margin-top:5px}
+.opt b{display:block;font-weight:600}
+.opt small{display:block;color:#555}
+.opt[data-off]{opacity:.6}
+.block{border:1px solid #999;background:#fff;padding:10px 12px;margin:12px 0}
+.block.alert{border:2px solid #333}
+.block h3{margin:0 0 4px;font-size:15px}
+.block p{margin:0 0 6px}
+.done{padding:18px 4px}
+.done .stamp{display:inline-block;border:2px dashed #555;padding:2px 8px;font-size:12px;letter-spacing:.05em;margin-bottom:8px}
+.done h2{font-size:20px}
+.done .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.phone .done .actions{flex-direction:column-reverse}
+.phone .done .actions .btn{width:100%}
+.alertdialog{background:#fff;border:2px solid #333;padding:16px;max-width:380px;width:100%}
+.phone .alertdialog{max-width:none;border-radius:14px 14px 0 0}
+.alertdialog .actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);background:#333;color:#fff;padding:10px 16px;max-width:90%;z-index:7}
+.spec{font-size:12px;color:#666;border:1px dotted #999;padding:4px 8px;margin:8px 0;background:#fff}
+@media (prefers-reduced-motion:no-preference){.dialog,.alertdialog,.toast{animation:fade .18s}}
+@keyframes fade{from{opacity:0}}
+</style>
+</head>
+<body>
+<div class="demo" role="region" aria-label="Wireframe controls">
+  <b>#107 Quick task capture, low-fidelity wireframe</b>
+  <label>View <select id="c-vp"><option value="mac">Mac</option><option value="phone">iPhone</option></select></label>
+  <label>Language <select id="c-lang"><option value="ru">ru</option><option value="en">en</option></select></label>
+  <label>Opened from <select id="c-entry"><option value="space">project space (team-console)</option><option value="needs">Needs you</option></select></label>
+  <label>Projects <select id="c-projects"><option value="many">three</option><option value="one">only one</option><option value="loading">loading</option><option value="error">load error</option><option value="none">none yet</option></select></label>
+  <label>GitHub <select id="c-conn"><option value="ok">connected</option><option value="none">not connected</option></select></label>
+  <label><input type="checkbox" id="c-offline"> offline</label>
+  <label>Sprints <select id="c-sprint"><option value="ok">current + next</option><option value="nonext">no next sprint yet</option><option value="nocur">no current sprint</option><option value="freeze">current sprint in freeze</option><option value="loading">loading</option><option value="error">load error</option></select></label>
+  <label><input type="checkbox" id="c-unsup"> team does not read sprint requests yet</label>
+  <label>Saved draft <select id="c-draft"><option value="none">none</option><option value="same">for this project</option><option value="other">for another project (storify)</option></select></label>
+  <label>Next send <select id="c-res">
+    <option value="ok">creates the issue</option><option value="not-connected">403 owner not connected</option>
+    <option value="owner-mismatch">409 different GitHub account</option><option value="app-not-installed">app not installed</option>
+    <option value="issues-disabled">410 issues disabled</option><option value="project-gone">404 project archived</option>
+    <option value="rate">429 rate limit</option><option value="invalid">422 server says title too long</option>
+    <option value="forbidden">403 not the owner (service identity)</option>
+    <option value="network">network drop</option><option value="timeout">no answer (unknown result)</option>
+  </select></label>
+  <button type="button" class="btn sm" id="c-reset">Reset</button>
+  <p>Mock time: Thu 1 Oct 2026, 14:05 Kyiv. Sprint 03 demo 14 Oct (freeze 12–13 Oct), Sprint 04 demo 28 Oct. Mac: click inside the window, then <b>T</b> opens New task; <b>⌘↩</b> / <b>Ctrl+Enter</b> sends; <b>Esc</b> closes. A retry after a failure succeeds. Caps shown: title 200, details 5000 (proposed; the architect confirms).</p>
+</div>
+<div class="stage"><div id="app"></div></div>
+<div class="sr-only" aria-live="polite" id="live"></div>
+
+<script>
+'use strict';
+/* ---------- copy deck (ru is the reference, en second). Keys match the spec comment on #107. ---------- */
+const T = {
+ru: {
+  'nav.needs':'Ждут тебя','nav.all':'Все проекты','nav.projects':'Проекты','nav.settings':'Настройки',
+  'space.chat':'Чат','space.questions':'Вопросы','space.board':'Доска','space.commands':'Команды',
+  'space.body':'Содержимое раздела (не меняется в этой задаче)','needs.body':'Список «Ждут тебя» (#16), не меняется',
+  'phone.settings':'Настройки',
+  'task.new':'Новая задача','task.newDraft':'Новая задача (есть черновик)',
+  'task.title':'Новая задача','task.close':'Закрыть',
+  'task.project.label':'Проект','task.project.choose':'Выбери проект',
+  'task.project.required':'Выбери проект — задача создаётся в его репозитории.',
+  'task.project.public':'{repo} — публичный репозиторий: задачу увидят все.',
+  'task.project.paused':'Команда {name} на паузе — задачу разберут, когда работа возобновится.',
+  'task.project.loading':'Загружаем проекты…','task.project.error':'Не удалось загрузить проекты.',
+  'task.project.none':'Проектов пока нет. Добавь репозиторий в настройках — тогда сюда можно будет заводить задачи.',
+  'task.project.toSettings':'Открыть настройки','task.retry':'Повторить',
+  'task.name.label':'Название','task.name.hint':'Одной фразой — что нужно сделать.',
+  'task.name.required':'Напиши название — по нему команда поймёт, о чём задача.',
+  'task.tooLong':'Длиннее {max} символов: сократи на {n}.','task.counter':'{n} из {max}',
+  'task.text.label':'Подробности (необязательно)','task.text.hint':'Уйдут в задачу как есть, без оформления.',
+  'task.text.commandNote':'Строки, похожие на команды (например, «/approve»), команда выполнять не будет — они останутся обычным текстом.',
+  'task.kind.legend':'Тип',
+  'task.kind.feature':'Функция','task.kind.bug':'Ошибка','task.kind.chore':'Техзадача',
+  'task.kind.featureHint':'Функция — что-то новое или изменение того, что есть.',
+  'task.kind.bugHint':'Ошибка — что-то работает не так, как должно.',
+  'task.kind.choreHint':'Техзадача — обслуживание: зависимости, сборка, чистка.',
+  'task.sprint.legend':'В какой спринт',
+  'task.sprint.current':'В текущий','task.sprint.next':'В следующий','task.sprint.backlog':'В бэклог',
+  'task.sprint.currentHint':'{sprint}, демо {date}. Если места нет, PM спросит, что из него убрать.',
+  'task.sprint.nextHint':'{sprint}, демо {date}.',
+  'task.sprint.nextNone':'Следующего спринта ещё нет — PM поставит задачу в него, когда спланирует.',
+  'task.sprint.backlogHint':'Останется предложением: на демо решишь, брать ли её.',
+  'task.sprint.genericCurrent':'Текущий спринт. Если места нет, PM спросит, что из него убрать.',
+  'task.sprint.genericNext':'Спринт после текущего.',
+  'task.sprint.noCurrent':'Текущего спринта нет.',
+  'task.sprint.freeze':'Заморозка до демо {date}: новые задачи в этот спринт уже не берут.',
+  'task.sprint.loading':'Загружаем спринты…',
+  'task.sprint.error':'Не удалось загрузить спринты. Выбор всё равно запишется в задаче, и PM его учтёт.',
+  'task.sprint.unsupported':'Команда {name} пока не читает просьбы о спринте: задача станет обычным предложением, а просьба останется в её тексте.',
+  'task.draft.restored':'Черновик от {time}.','task.draft.other':'Это незаконченный черновик для {name}. Проект можно сменить.',
+  'task.draft.clear':'Очистить','task.draft.hint':'Черновик хранится только на этом устройстве.',
+  'task.clear.title':'Очистить черновик?','task.clear.message':'Название и подробности удалятся с этого устройства.',
+  'task.clear.ok':'Очистить','task.clear.cancel':'Оставить','task.clear.done':'Черновик очищен',
+  'task.send':'Создать в {name}','task.sendNoProject':'Создать','task.sendPhone':'Создать',
+  'task.sending':'Создаём задачу…','task.retrySend':'Повторить',
+  'task.off.offline':'Нет сети. Черновик сохранён — отправишь, когда связь вернётся.',
+  'task.off.notConnected':'Сначала подключи GitHub.',
+  'task.off.projects':'Нет проекта, куда создать задачу.',
+  'task.conn.title':'Подключи GitHub, чтобы создавать задачи от своего имени',
+  'task.conn.hint':'Задача создаётся от твоего аккаунта GitHub. Черновик сохранится.',
+  'task.conn.action':'Подключить GitHub',
+  'task.shortcut':'Отправить: ⌘↩',
+  'task.done.stamp':'Создано','task.done.title':'Задача #{n} создана',
+  'task.done.meta':'{name} · {time} · от твоего имени',
+  'task.done.current':'Просьба: в текущий спринт. PM учтёт её на ближайшем планировании.',
+  'task.done.next':'Просьба: в следующий спринт. PM учтёт её на ближайшем планировании.',
+  'task.done.backlog':'Останется предложением, пока ты не решишь на демо.',
+  'task.done.unsup':'Команда разберёт её как обычное предложение; просьба о спринте записана в тексте.',
+  'task.done.open':'Открыть #{n} на GitHub','task.done.another':'Ещё задача','task.done.close':'Готово',
+  'task.done.announce':'Задача #{n} создана в {name}',
+  'task.closedKept':'Черновик сохранён',
+  'task.err.invalid':'Проверь поля и отправь снова.',
+  'err.not-connected.t':'Подключи GitHub, чтобы создавать задачи от своего имени','err.not-connected.h':'Подключение пропало или его ещё не было. Черновик сохранён.',
+  'err.owner-mismatch.t':'Подключён не тот аккаунт GitHub','err.owner-mismatch.h':'{repo} принадлежит другому аккаунту. Переподключи GitHub в настройках — черновик сохранится.',
+  'err.app-not-installed.t':'Приложение консоли не установлено в {repo}','err.app-not-installed.h':'Установи его в настройках проекта и отправь снова. Черновик сохранён.',
+  'err.issues-disabled.t':'В {repo} выключены задачи (Issues)','err.issues-disabled.h':'Включи Issues в настройках репозитория на GitHub и отправь снова.',
+  'err.project-gone.t':'Проекта {name} больше нет в консоли','err.project-gone.h':'Его убрали в архив. Выбери другой проект — текст сохранён.',
+  'err.rate.t':'GitHub просит подождать','err.rate.h':'Отправь снова после {time} — дубля не будет.',
+  'err.forbidden.t':'Создавать задачи может только владелец','err.forbidden.h':'Эта сессия вошла не от имени владельца. Ничего не создано.',
+  'err.network.t':'Нет связи','err.network.h':'Задача могла не дойти. Повтори — дубля не будет.',
+  'err.timeout.t':'Неизвестно, создана ли задача','err.timeout.h':'Консоль или GitHub не ответили. Повтори в течение минуты — дубля не будет. Позже сначала проверь задачи проекта на GitHub.',
+  'err.timeout.link':'Задачи {repo} на GitHub',
+  'err.toSettings':'Открыть настройки','err.toProjectSettings':'Настройки проекта',
+},
+en: {
+  'nav.needs':'Needs you','nav.all':'All projects','nav.projects':'Projects','nav.settings':'Settings',
+  'space.chat':'Chat','space.questions':'Questions','space.board':'Board','space.commands':'Commands',
+  'space.body':'Section content (unchanged by this issue)','needs.body':'The Needs you list (#16), unchanged',
+  'phone.settings':'Settings',
+  'task.new':'New task','task.newDraft':'New task (draft saved)',
+  'task.title':'New task','task.close':'Close',
+  'task.project.label':'Project','task.project.choose':'Choose a project',
+  'task.project.required':'Choose a project — the task is created in its repository.',
+  'task.project.public':'{repo} is a public repository: anyone can see the task.',
+  'task.project.paused':'The {name} team is paused — the task is picked up once work resumes.',
+  'task.project.loading':'Loading projects…','task.project.error':'Couldn’t load projects.',
+  'task.project.none':'No projects yet. Add a repository in Settings, then you can add tasks here.',
+  'task.project.toSettings':'Open Settings','task.retry':'Try again',
+  'task.name.label':'Title','task.name.hint':'One line — what needs doing.',
+  'task.name.required':'Write a title — the team needs it to know what the task is about.',
+  'task.tooLong':'Over {max} characters: cut {n}.','task.counter':'{n} of {max}',
+  'task.text.label':'Details (optional)','task.text.hint':'Sent to the task as is, without formatting.',
+  'task.text.commandNote':'Lines that look like commands (such as “/approve”) won’t be acted on — they stay plain text.',
+  'task.kind.legend':'Kind',
+  'task.kind.feature':'Feature','task.kind.bug':'Bug','task.kind.chore':'Chore',
+  'task.kind.featureHint':'Feature — something new, or a change to what’s there.',
+  'task.kind.bugHint':'Bug — something doesn’t work the way it should.',
+  'task.kind.choreHint':'Chore — upkeep: dependencies, build, clean-up.',
+  'task.sprint.legend':'Which sprint',
+  'task.sprint.current':'Current','task.sprint.next':'Next','task.sprint.backlog':'Backlog',
+  'task.sprint.currentHint':'{sprint}, demo {date}. If it’s full, the PM asks what to move out.',
+  'task.sprint.nextHint':'{sprint}, demo {date}.',
+  'task.sprint.nextNone':'There’s no next sprint yet — the PM puts the task there when planning it.',
+  'task.sprint.backlogHint':'Stays a proposal: you decide at a demo whether to take it.',
+  'task.sprint.genericCurrent':'The current sprint. If it’s full, the PM asks what to move out.',
+  'task.sprint.genericNext':'The sprint after the current one.',
+  'task.sprint.noCurrent':'There’s no current sprint.',
+  'task.sprint.freeze':'Freeze until the {date} demo: no new tasks join this sprint.',
+  'task.sprint.loading':'Loading sprints…',
+  'task.sprint.error':'Couldn’t load the sprints. Your choice is still recorded in the task, and the PM takes it into account.',
+  'task.sprint.unsupported':'The {name} team doesn’t read sprint requests yet: the task becomes a regular proposal, and the request stays in its text.',
+  'task.draft.restored':'Draft from {time}.','task.draft.other':'This is an unfinished draft for {name}. You can change the project.',
+  'task.draft.clear':'Clear','task.draft.hint':'The draft stays on this device only.',
+  'task.clear.title':'Clear the draft?','task.clear.message':'The title and details are removed from this device.',
+  'task.clear.ok':'Clear','task.clear.cancel':'Keep','task.clear.done':'Draft cleared',
+  'task.send':'Create in {name}','task.sendNoProject':'Create','task.sendPhone':'Create',
+  'task.sending':'Creating the task…','task.retrySend':'Try again',
+  'task.off.offline':'You’re offline. The draft is saved — send it when you’re back online.',
+  'task.off.notConnected':'Connect GitHub first.',
+  'task.off.projects':'There’s no project to create the task in.',
+  'task.conn.title':'Connect GitHub to create tasks under your name',
+  'task.conn.hint':'The task is created from your GitHub account. Your draft is kept.',
+  'task.conn.action':'Connect GitHub',
+  'task.shortcut':'Send: ⌘↩',
+  'task.done.stamp':'Created','task.done.title':'Task #{n} created',
+  'task.done.meta':'{name} · {time} · created as you',
+  'task.done.current':'Request: the current sprint. The PM takes it into account at the next planning run.',
+  'task.done.next':'Request: the next sprint. The PM takes it into account at the next planning run.',
+  'task.done.backlog':'It stays a proposal until you decide at a demo.',
+  'task.done.unsup':'The team handles it as a regular proposal; the sprint request is recorded in its text.',
+  'task.done.open':'Open #{n} on GitHub','task.done.another':'Another task','task.done.close':'Done',
+  'task.done.announce':'Task #{n} created in {name}',
+  'task.closedKept':'Draft saved',
+  'task.err.invalid':'Check the fields and send again.',
+  'err.not-connected.t':'Connect GitHub to create tasks under your name','err.not-connected.h':'The connection is gone or was never made. Your draft is kept.',
+  'err.owner-mismatch.t':'A different GitHub account is connected','err.owner-mismatch.h':'{repo} belongs to another account. Reconnect GitHub in Settings — your draft is kept.',
+  'err.app-not-installed.t':'The console app isn’t installed on {repo}','err.app-not-installed.h':'Install it in the project’s settings, then send again. Your draft is kept.',
+  'err.issues-disabled.t':'Issues are turned off in {repo}','err.issues-disabled.h':'Turn Issues on in the repository’s settings on GitHub, then send again.',
+  'err.project-gone.t':'{name} is no longer in the console','err.project-gone.h':'It was archived. Choose another project — your text is kept.',
+  'err.rate.t':'GitHub asks to wait','err.rate.h':'Send again after {time} — it won’t be created twice.',
+  'err.forbidden.t':'Only the owner can create tasks','err.forbidden.h':'This session isn’t signed in as the owner. Nothing was created.',
+  'err.network.t':'No connection','err.network.h':'The task may not have arrived. Try again — it won’t be created twice.',
+  'err.timeout.t':'Unknown whether the task was created','err.timeout.h':'The console or GitHub didn’t answer. Try again within a minute — it won’t be created twice. Later, check the project’s issues on GitHub first.',
+  'err.timeout.link':'{repo} issues on GitHub',
+  'err.toSettings':'Open Settings','err.toProjectSettings':'Project settings',
+}};
+const DATES = { ru: { d14: '14 окт', d28: '28 окт', t1: '13:52', now: '14:05', retry: '14:06' }, en: { d14: '14 Oct', d28: '28 Oct', t1: '13:52', now: '14:05', retry: '14:06' } };
+const TITLE_MAX = 200, TEXT_MAX = 5000;
+const PROJECTS = [
+  { slug: 'team-console', name: 'team-console', repo: 'geeera/team-console', public: true },
+  { slug: 'storify', name: 'storify', repo: 'geeera/storify', public: false },
+  { slug: 'sheltrix', name: 'sheltrix', repo: 'geeera/sheltrix', public: false, paused: true },
+];
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function t(k, p = {}) { let s = (T[S.lang][k] ?? k); for (const [a, b] of Object.entries(p)) s = s.split(`{${a}}`).join(b); return s; }
+const te = (k, p) => esc(t(k, p));
+const D = (k) => DATES[S.lang][k];
+
+/* ---------- state ---------- */
+const S = {};
+function emptyDraft(slug) { return { project: slug || '', title: '', text: '', kind: 'feature', sprint: 'next', saved: null }; }
+function reset() {
+  Object.assign(S, {
+    vp: $('#c-vp').value, lang: $('#c-lang').value, entry: $('#c-entry').value, projects: $('#c-projects').value,
+    conn: $('#c-conn').value, offline: $('#c-offline').checked, sprint: $('#c-sprint').value, unsup: $('#c-unsup').checked,
+    res: $('#c-res').value, open: false, step: 'form', error: null, fieldErr: {}, created: null, confirmClear: false,
+    toast: null, attempt: 0, opener: null,
+  });
+  S.draft = draftFromControl();
+}
+function contextSlug() { return S.entry === 'space' ? 'team-console' : (S.projects === 'one' ? 'team-console' : ''); }
+function draftFromControl() {
+  const v = $('#c-draft').value;
+  if (v === 'same') return { ...emptyDraft('team-console'), title: 'Показывать дату последнего прогона на доске', text: 'Сейчас не видно, когда команда работала в последний раз.', saved: D('t1') };
+  if (v === 'other') return { ...emptyDraft('storify'), title: 'Экспорт истории в PDF', kind: 'feature', sprint: 'backlog', saved: D('t1') };
+  return null;
+}
+const hasDraft = () => !!(S.draft && (S.draft.title.trim() || S.draft.text.trim()));
+const projectList = () => (S.projects === 'one' ? PROJECTS.slice(0, 1) : PROJECTS);
+const projectOf = (slug) => PROJECTS.find((p) => p.slug === slug);
+const projectsReady = () => S.projects === 'many' || S.projects === 'one';
+
+function announce(msg) { const l = $('#live'); l.textContent = ''; setTimeout(() => { l.textContent = msg; }, 30); }
+
+/* ---------- shell ---------- */
+function newTaskButton(phone) {
+  const label = hasDraft() ? t('task.newDraft') : t('task.new');
+  if (phone) return `<button type="button" class="ib" data-act="open" aria-label="${esc(label)}" aria-haspopup="dialog">+${hasDraft() ? '<span class="dot" aria-hidden="true"></span>' : ''}</button>`;
+  return `<button type="button" class="btn" data-act="open" aria-haspopup="dialog" aria-label="${esc(label)}" aria-keyshortcuts="T">${te('task.new')}${hasDraft() ? '<span class="dot" aria-hidden="true"></span>' : ''}<kbd aria-hidden="true">T</kbd></button>`;
+}
+function macShell() {
+  const inSpace = S.entry === 'space';
+  return `<div class="frame mac" id="frame">
+    <nav class="side" aria-label="Navigation" data-bg>
+      <button type="button" ${!inSpace ? 'aria-current="page"' : ''}>${te('nav.needs')}</button>
+      <button type="button">${te('nav.all')}</button>
+      <span class="lbl">${te('nav.projects')}</span>
+      ${PROJECTS.map((p) => `<button type="button" ${inSpace && p.slug === 'team-console' ? 'aria-current="page"' : ''}>${esc(p.name)}</button>`).join('')}
+      <span style="flex:1"></span><button type="button">${te('nav.settings')}</button>
+    </nav>
+    <main data-bg>
+      ${inSpace ? `<div class="hdr"><h1>team-console</h1><button type="button" class="btn">${te('space.commands')}<kbd aria-hidden="true">K</kbd></button>${newTaskButton(false)}</div>
+        <div class="tabs"><span>${te('space.chat')}</span><span>${te('space.questions')}</span><span aria-current="page">${te('space.board')}</span></div>
+        <div class="box" style="height:520px">${te('space.body')}</div>`
+      : `<div class="hdr"><h1>${te('nav.needs')}</h1>${newTaskButton(false)}</div><div class="box" style="height:560px">${te('needs.body')}</div>`}
+      <p class="spec">Spec: “New task” sits in the header of every project screen (next to #29’s Commands) and of Needs you. <b>T</b> opens it anywhere outside a text field.</p>
+    </main>
+    ${overlay()}
+  </div>`;
+}
+function phoneShell() {
+  const inSpace = S.entry === 'space';
+  return `<div class="frame phone" id="frame">
+    <header class="topbar" data-bg>
+      <button type="button" class="switch" aria-haspopup="dialog">${inSpace ? 'team-console' : te('nav.needs')} ▾</button>
+      ${newTaskButton(true)}
+      <button type="button" class="ib" aria-label="${te('phone.settings')}">⚙</button>
+    </header>
+    <main data-bg>
+      ${inSpace ? `<div class="tabs"><span>${te('space.chat')}</span><span>${te('space.questions')}</span><span aria-current="page">${te('space.board')}</span></div><div class="box" style="height:560px">${te('space.body')}</div>`
+      : `<h1>${te('nav.needs')}</h1><div class="box" style="height:560px">${te('needs.body')}</div>`}
+      <p class="spec">Spec: the “+” in the top bar is on every project screen and on Needs you; it opens a near-full-height sheet.</p>
+    </main>
+    ${overlay()}
+  </div>`;
+}
+
+/* ---------- the New task form ---------- */
+function sendBlockedReason() {
+  if (!projectsReady()) return t('task.off.projects');
+  if (S.offline) return t('task.off.offline');
+  if (S.conn === 'none') return t('task.off.notConnected');
+  return '';
+}
+function sendLabel() {
+  if (S.step === 'sending') return t('task.sending');
+  if (S.error && S.error.retry) return t('task.retrySend');
+  const p = projectOf(S.draft.project);
+  if (S.vp === 'phone') return t('task.sendPhone');
+  return p ? t('task.send', { name: p.name }) : t('task.sendNoProject');
+}
+function sendAria() {
+  const p = projectOf(S.draft.project);
+  if (S.step === 'sending') return t('task.sending');
+  if (S.error && S.error.retry) return t('task.retrySend');
+  return p ? t('task.send', { name: p.name }) : t('task.sendNoProject');
+}
+function counterHTML(id, n, max) {
+  const show = n >= max * 0.8;
+  return `<span class="counter" id="${id}" ${show ? '' : 'hidden'} aria-live="off">${te('task.counter', { n, max })}</span>`;
+}
+function projectFieldHTML() {
+  const d = S.draft, p = projectOf(d.project);
+  if (S.projects === 'loading') return `<div class="field"><span style="font-weight:600">${te('task.project.label')}</span><p class="hint" aria-busy="true">${te('task.project.loading')}</p></div>`;
+  if (S.projects === 'error') return `<div class="block alert" role="alert"><h3>${te('task.project.error')}</h3><button type="button" class="btn sm" data-act="noop">${te('task.retry')}</button></div>`;
+  if (S.projects === 'none') return `<div class="block"><p>${te('task.project.none')}</p><button type="button" class="btn sm" data-act="noop">${te('task.project.toSettings')}</button></div>`;
+  const desc = ['f-proj-hint'];
+  const err = S.fieldErr.project;
+  if (err) desc.unshift('f-proj-err');
+  let notes = '';
+  if (p && p.public) notes += `<p class="note" id="f-proj-pub">${te('task.project.public', { repo: p.repo })}</p>`;
+  if (p && p.paused) notes += `<p class="note" id="f-proj-paused">${te('task.project.paused', { name: p.name })}</p>`;
+  if (p && p.public) desc.push('f-proj-pub');
+  if (p && p.paused) desc.push('f-proj-paused');
+  return `<div class="field">
+    <label for="f-proj">${te('task.project.label')}</label>
+    ${err ? `<p class="ferr" id="f-proj-err">${te('task.project.required')}</p>` : ''}
+    <select id="f-proj" data-f="project" aria-describedby="${desc.join(' ')}" ${err ? 'aria-invalid="true"' : ''} ${S.step === 'sending' ? 'disabled' : ''}>
+      <option value="" ${d.project ? '' : 'selected'} disabled>${te('task.project.choose')}</option>
+      ${projectList().map((x) => `<option value="${x.slug}" ${x.slug === d.project ? 'selected' : ''}>${esc(x.name)} — ${esc(x.repo)}</option>`).join('')}
+    </select>
+    <p class="hint" id="f-proj-hint" hidden></p>
+    <span data-live="projnotes">${notes}</span>
+  </div>`;
+}
+function sprintFieldHTML() {
+  const d = S.draft, p = projectOf(d.project);
+  const ro = S.step === 'sending' ? 'disabled' : '';
+  if (S.sprint === 'loading') {
+    return `<fieldset aria-busy="true"><legend>${te('task.sprint.legend')}</legend><p class="hint">${te('task.sprint.loading')}</p>
+      ${['current', 'next', 'backlog'].map((v) => `<label class="opt"><input type="radio" name="f-sprint" value="${v}" data-f="sprint" ${d.sprint === v ? 'checked' : ''} ${ro}><span><b>${te('task.sprint.' + v)}</b></span></label>`).join('')}</fieldset>`;
+  }
+  const generic = S.sprint === 'error';
+  const curOff = S.sprint === 'nocur' ? t('task.sprint.noCurrent') : S.sprint === 'freeze' ? t('task.sprint.freeze', { date: D('d14') }) : '';
+  const opts = [
+    { v: 'current', hint: generic ? t('task.sprint.genericCurrent') : t('task.sprint.currentHint', { sprint: 'Sprint 03', date: D('d14') }), off: curOff },
+    { v: 'next', hint: generic ? t('task.sprint.genericNext') : (S.sprint === 'nonext' ? t('task.sprint.nextNone') : (S.sprint === 'nocur' ? t('task.sprint.nextNone') : t('task.sprint.nextHint', { sprint: 'Sprint 04', date: D('d28') }))) },
+    { v: 'backlog', hint: t('task.sprint.backlogHint') },
+  ];
+  return `<fieldset aria-describedby="${S.unsup && p ? 'f-sprint-unsup' : ''} ${generic ? 'f-sprint-err' : ''}">
+    <legend>${te('task.sprint.legend')}</legend>
+    ${generic ? `<p class="note" id="f-sprint-err">${te('task.sprint.error')}</p>` : ''}
+    ${S.unsup && p ? `<p class="note" id="f-sprint-unsup">${te('task.sprint.unsupported', { name: p.name })}</p>` : ''}
+    ${opts.map((o) => `<label class="opt" ${o.off ? 'data-off' : ''}>
+      <input type="radio" name="f-sprint" value="${o.v}" data-f="sprint" ${d.sprint === o.v ? 'checked' : ''} ${o.off ? 'aria-disabled="true" data-off="1"' : ''} aria-describedby="f-sp-${o.v}" ${ro}>
+      <span><b>${te('task.sprint.' + o.v)}</b><small id="f-sp-${o.v}">${esc(o.off || o.hint)}</small></span></label>`).join('')}
+  </fieldset>`;
+}
+function errorBlockHTML() {
+  const e = S.error; if (!e) return '';
+  const P = { repo: e.repo || '', name: e.name || '', time: D('retry') };
+  const k = e.code === 'rate' ? 'rate' : e.code;
+  let actions = '';
+  if (e.code === 'not-connected') actions = `<button type="button" class="btn sm" data-act="connect">${te('task.conn.action')}</button>`;
+  if (e.code === 'owner-mismatch') actions = `<button type="button" class="btn sm" data-act="noop">${te('err.toSettings')}</button>`;
+  if (e.code === 'app-not-installed') actions = `<button type="button" class="btn sm" data-act="noop">${te('err.toProjectSettings')}</button>`;
+  if (e.code === 'timeout') actions = `<a href="#" data-act="noop">${te('err.timeout.link', P)} ↗</a>`;
+  if (e.code === 'invalid') return `<div class="block alert" role="alert" id="f-err" tabindex="-1"><p>${te('task.err.invalid')}</p></div>`;
+  return `<div class="block alert" role="alert" id="f-err" tabindex="-1"><h3>${te('err.' + k + '.t', P)}</h3><p>${te('err.' + k + '.h', P)}</p>${actions}</div>`;
+}
+function formHTML() {
+  const d = S.draft, reason = sendBlockedReason(), sending = S.step === 'sending', ro = sending ? 'readonly aria-readonly="true"' : '';
+  const titleLen = d.title.length, textLen = d.text.length;
+  const titleErr = S.fieldErr.title, textErr = textLen > TEXT_MAX;
+  const tDesc = [titleErr ? 'f-title-err' : '', 'f-title-hint', 'f-title-count'].filter(Boolean).join(' ');
+  const dP = projectOf(d.project);
+  const draftNote = d.saved ? `<div class="note" id="f-draft">${S.entry === 'space' && d.project && d.project !== 'team-console' ? te('task.draft.other', { name: dP.name }) + ' ' : ''}${te('task.draft.restored', { time: d.saved })} <button type="button" class="btn link" data-act="clear">${te('task.draft.clear')}</button></div>` : '';
+  const connBlock = S.conn === 'none' && projectsReady() && !(S.error && S.error.code === 'not-connected') ? `<div class="block alert" id="f-conn"><h3>${te('task.conn.title')}</h3><p>${te('task.conn.hint')}</p><button type="button" class="btn sm" data-act="connect">${te('task.conn.action')}</button></div>` : '';
+  const sendBtn = `<button type="submit" class="btn primary" id="f-send" aria-label="${esc(sendAria())}" ${reason || sending ? 'aria-disabled="true"' : ''} ${reason ? 'aria-describedby="f-send-why"' : ''}>${esc(sendLabel())}</button>`;
+  const phone = S.vp === 'phone';
+  return `<form id="f" novalidate>
+    <div class="dlg-h">
+      ${phone ? `<button type="button" class="btn sm" data-act="close" ${sending ? 'aria-disabled="true"' : ''}>${te('task.close')}</button>` : ''}
+      <h2 id="f-h" tabindex="-1">${te('task.title')}</h2>
+      ${phone ? sendBtn : `<button type="button" class="btn sm" data-act="close" ${sending ? 'aria-disabled="true"' : ''}>${te('task.close')}</button>`}
+    </div>
+    <div class="dlg-b">
+      ${errorBlockHTML()}${connBlock}${draftNote}
+      ${projectFieldHTML()}
+      <div class="field">
+        <label for="f-title">${te('task.name.label')}</label>
+        ${titleErr ? `<p class="ferr" id="f-title-err">${esc(titleErr)}</p>` : ''}
+        <input id="f-title" data-f="title" type="text" autocomplete="off" enterkeyhint="next" value="${esc(d.title)}" aria-describedby="${tDesc}" aria-required="true" ${titleErr ? 'aria-invalid="true"' : ''} ${ro}>
+        <p class="hint" id="f-title-hint">${te('task.name.hint')}</p>
+        ${counterHTML('f-title-count', titleLen, TITLE_MAX)}
+      </div>
+      <div class="field">
+        <label for="f-text">${te('task.text.label')}</label>
+        ${textErr ? `<p class="ferr" id="f-text-err">${te('task.tooLong', { max: TEXT_MAX, n: textLen - TEXT_MAX })}</p>` : ''}
+        <textarea id="f-text" data-f="text" rows="4" aria-describedby="${textErr ? 'f-text-err ' : ''}f-text-hint f-text-count f-text-cmd" ${textErr ? 'aria-invalid="true"' : ''} ${ro}>${esc(d.text)}</textarea>
+        <p class="hint" id="f-text-hint">${te('task.text.hint')}</p>
+        <p class="note" id="f-text-cmd" ${/^\s*\//m.test(d.text) ? '' : 'hidden'}>${te('task.text.commandNote')}</p>
+        ${counterHTML('f-text-count', textLen, TEXT_MAX)}
+      </div>
+      <fieldset aria-describedby="f-kind-hint"><legend>${te('task.kind.legend')}</legend>
+        <div class="seg">${['feature', 'bug', 'chore'].map((k) => `<label><input type="radio" name="f-kind" value="${k}" data-f="kind" ${d.kind === k ? 'checked' : ''} ${sending ? 'disabled' : ''}><span>${te('task.kind.' + k)}</span></label>`).join('')}</div>
+        <p class="hint" id="f-kind-hint" aria-live="polite">${te('task.kind.' + d.kind + 'Hint')}</p>
+      </fieldset>
+      ${sprintFieldHTML()}
+      ${phone && reason ? `<p class="hint" id="f-send-why">${esc(reason)}</p>` : ''}
+      ${phone ? `<p class="hint">${te('task.draft.hint')}</p>` : ''}
+    </div>
+    ${phone ? '' : `<div class="dlg-f"><span class="grow hint">${reason ? `<span id="f-send-why">${esc(reason)}</span>` : `${te('task.draft.hint')} · ${te('task.shortcut')}`}</span>
+      <button type="button" class="btn" data-act="close" ${sending ? 'aria-disabled="true"' : ''}>${te('task.close')}</button>${sendBtn}</div>`}
+  </form>`;
+}
+function doneHTML() {
+  const c = S.created, p = projectOf(c.project);
+  const req = S.unsup ? t('task.done.unsup') : t('task.done.' + c.sprint);
+  return `<div class="dlg-h"><h2>${te('task.title')}</h2>${S.vp === 'phone' ? '' : `<button type="button" class="btn sm" data-act="close">${te('task.close')}</button>`}</div>
+  <div class="dlg-b"><div class="done">
+    <span class="stamp" aria-hidden="true">${te('task.done.stamp')}</span>
+    <h2 id="f-done" tabindex="-1">${te('task.done.title', { n: c.n })}</h2>
+    <p class="muted">${te('task.done.meta', { name: p.name, time: D('now') })}</p>
+    <p class="muted">“${esc(c.title)}”</p>
+    <p>${esc(req)}</p>
+    <p><a href="#" data-act="noop">${te('task.done.open', { n: c.n })} ↗</a></p>
+    <div class="actions"><button type="button" class="btn primary" data-act="close">${te('task.done.close')}</button><button type="button" class="btn" data-act="another">${te('task.done.another')}</button></div>
+    <p class="spec">Spec: the Receipt pattern from #16 (stamp, then a line with who/when). Reduced motion: no stamp animation, a 120 ms fade.</p>
+  </div></div>`;
+}
+function overlay() {
+  let out = '';
+  if (S.open) {
+    out += `<div class="scrim" id="scrim"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="${S.step === 'done' ? 'f-done' : 'f-h'}">${S.step === 'done' ? doneHTML() : formHTML()}</div></div>`;
+  }
+  if (S.confirmClear) {
+    out += `<div class="scrim" style="z-index:6"><div class="alertdialog" role="alertdialog" aria-modal="true" aria-labelledby="c-h" aria-describedby="c-m">
+      <h2 id="c-h" tabindex="-1">${te('task.clear.title')}</h2><p id="c-m">${te('task.clear.message')}</p>
+      <div class="actions"><button type="button" class="btn" data-act="clear-no">${te('task.clear.cancel')}</button><button type="button" class="btn primary" data-act="clear-yes">${te('task.clear.ok')}</button></div></div></div>`;
+  }
+  if (S.toast) out += `<div class="toast" role="status">${esc(S.toast)}</div>`;
+  return out;
+}
+
+/* ---------- render and behaviour ---------- */
+function render(focusSel) {
+  document.documentElement.lang = S.lang;
+  $('#app').innerHTML = S.vp === 'mac' ? macShell() : phoneShell();
+  const frame = $('#frame');
+  frame.querySelectorAll('[data-bg]').forEach((el) => { el.inert = S.open; });
+  if (S.confirmClear) { const d = frame.querySelector('.dialog'); if (d) d.inert = true; }
+  if (focusSel) { const el = frame.querySelector(focusSel); if (el) el.focus(); }
+}
+function openForm(opener) {
+  if (S.open) return;
+  S.opener = opener || null;
+  if (!S.draft) S.draft = emptyDraft(contextSlug());
+  else if (!S.draft.project && contextSlug()) S.draft.project = contextSlug();
+  S.open = true; S.step = 'form'; S.error = null; S.fieldErr = {};
+  render(projectsReady() ? '#f-title' : '#f-h');
+}
+function closeForm() {
+  if (S.step === 'sending') return;
+  const kept = S.step !== 'done' && hasDraft();
+  if (S.step === 'done') S.draft = null;
+  S.open = false; S.step = 'form'; S.error = null; S.fieldErr = {};
+  S.toast = kept ? t('task.closedKept') : null;
+  render('[data-act="open"]');
+  if (kept) { announce(t('task.closedKept')); setTimeout(() => { S.toast = null; const el = $('.toast'); if (el) el.remove(); }, 2500); }
+}
+function validate() {
+  const e = {}, d = S.draft;
+  if (!d.project) e.project = true;
+  if (!d.title.trim()) e.title = t('task.name.required');
+  else if (d.title.length > TITLE_MAX) e.title = t('task.tooLong', { max: TITLE_MAX, n: d.title.length - TITLE_MAX });
+  if (d.text.length > TEXT_MAX) e.text = true;
+  return e;
+}
+function submit() {
+  if (S.step === 'sending') return;
+  const why = sendBlockedReason();
+  if (why) { announce(why); return; }
+  S.fieldErr = validate();
+  if (Object.keys(S.fieldErr).length) {
+    S.error = null;
+    render(S.fieldErr.project ? '#f-proj' : S.fieldErr.title ? '#f-title' : '#f-text');
+    return;
+  }
+  S.step = 'sending'; S.error = null; S.attempt += 1;
+  announce(t('task.sending'));
+  render('#f-send');
+  const delay = S.res === 'timeout' && S.attempt === 1 ? 2200 : 1100;
+  setTimeout(() => {
+    const failing = S.attempt === 1 && S.res !== 'ok';
+    if (!failing) {
+      S.created = { n: 142, project: S.draft.project, title: S.draft.title, sprint: S.draft.sprint };
+      S.step = 'done';
+      render('#f-done');
+      announce(t('task.done.announce', { n: S.created.n, name: projectOf(S.created.project).name }));
+      return;
+    }
+    S.step = 'form';
+    if (S.res === 'invalid') {
+      S.error = { code: 'invalid' };
+      S.fieldErr = { title: t('task.tooLong', { max: TITLE_MAX, n: 3 }) };
+      render('#f-title');
+      return;
+    }
+    const retryable = ['rate', 'network', 'timeout', 'app-not-installed', 'issues-disabled'].includes(S.res);
+    const was = projectOf(S.draft.project);
+    S.error = { code: S.res, retry: retryable, name: was ? was.name : '', repo: was ? was.repo : '' };
+    if (S.res === 'project-gone') { S.draft.project = ''; }
+    render(S.res === 'not-connected' ? '#f-err [data-act="connect"]' : S.res === 'project-gone' ? '#f-proj' : retryable ? '#f-send' : '#f-err');
+  }, delay);
+}
+function syncLive(field) {
+  const d = S.draft;
+  if (field === 'title') {
+    const c = $('#f-title-count'); if (c) { c.hidden = d.title.length < TITLE_MAX * 0.8; c.textContent = t('task.counter', { n: d.title.length, max: TITLE_MAX }); }
+  }
+  if (field === 'text') {
+    const c = $('#f-text-count'); if (c) { c.hidden = d.text.length < TEXT_MAX * 0.8; c.textContent = t('task.counter', { n: d.text.length, max: TEXT_MAX }); }
+    const n = $('#f-text-cmd'); if (n) n.hidden = !/^\s*\//m.test(d.text);
+  }
+  if (field === 'kind') { const h = $('#f-kind-hint'); if (h) h.textContent = t('task.kind.' + d.kind + 'Hint'); }
+  d.saved = d.saved || null;
+}
+
+const app = $('#app');
+app.addEventListener('click', (e) => {
+  const a = e.target.closest('[data-act]'); if (!a) return;
+  const act = a.dataset.act;
+  if (a.getAttribute('aria-disabled') === 'true') { e.preventDefault(); return; }
+  if (act === 'open') openForm(a);
+  else if (act === 'close') closeForm();
+  else if (act === 'clear') { S.confirmClear = true; render('#c-h'); }
+  else if (act === 'clear-no') { S.confirmClear = false; render('#f-title'); }
+  else if (act === 'clear-yes') { S.confirmClear = false; S.draft = emptyDraft(contextSlug()); render('#f-title'); announce(t('task.clear.done')); }
+  else if (act === 'another') { const keep = S.created.project; S.draft = emptyDraft(keep); S.step = 'form'; S.attempt = 0; S.created = null; render('#f-title'); }
+  else if (act === 'connect') { e.preventDefault(); S.conn = 'ok'; $('#c-conn').value = 'ok'; S.error = null; render('#f-send'); announce('Wireframe: the #24 connect round trip happens here; the draft survives it.'); }
+  else if (act === 'noop') e.preventDefault();
+});
+app.addEventListener('submit', (e) => { e.preventDefault(); submit(); });
+app.addEventListener('input', (e) => {
+  const f = e.target.dataset && e.target.dataset.f; if (!f || !S.draft) return;
+  if (f === 'sprint' && e.target.dataset.off) { e.target.checked = false; const cur = $(`input[name="f-sprint"][value="${S.draft.sprint}"]`); if (cur) cur.checked = true; announce($('#f-sp-current').textContent); return; }
+  S.draft[f] = e.target.value;
+  if (f === 'title' && S.fieldErr.title && e.target.value.trim()) { /* clear the error on the next render only */ }
+  if (f === 'project') { S.fieldErr.project = false; render('#f-proj'); return; }
+  syncLive(f);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.target.closest && e.target.closest('.demo')) return;
+  if (e.key === 'Escape' && S.confirmClear) { S.confirmClear = false; render('#f-title'); return; }
+  if (e.key === 'Escape' && S.open) { e.preventDefault(); closeForm(); return; }
+  if (S.open && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); return; }
+  if (S.open && e.key === 'Enter' && e.target.id === 'f-title') { e.preventDefault(); $('#f-text').focus(); return; }
+  if (S.open && e.key === 'Tab') { // keep focus inside the dialog
+    const box = $(S.confirmClear ? '.alertdialog' : '.dialog'); const els = [...box.querySelectorAll('button,input,select,textarea,a[href]')].filter((x) => !x.disabled && x.offsetParent);
+    if (!els.length) return;
+    if (e.shiftKey && document.activeElement === els[0]) { e.preventDefault(); els[els.length - 1].focus(); }
+    else if (!e.shiftKey && document.activeElement === els[els.length - 1]) { e.preventDefault(); els[0].focus(); }
+    return;
+  }
+  if (!S.open && S.vp === 'mac' && e.code === 'KeyT' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.target.matches('input,textarea,select')) {
+    e.preventDefault(); openForm($('[data-act="open"]'));
+  }
+});
+document.querySelectorAll('.demo select,.demo input').forEach((c) => c.addEventListener('change', () => {
+  if (c.id === 'c-draft') { reset(); } else {
+    S.vp = $('#c-vp').value; S.lang = $('#c-lang').value; S.entry = $('#c-entry').value; S.projects = $('#c-projects').value;
+    S.conn = $('#c-conn').value; S.offline = $('#c-offline').checked; S.sprint = $('#c-sprint').value; S.unsup = $('#c-unsup').checked; S.res = $('#c-res').value; S.attempt = 0;
+  }
+  if (S.draft && !S.draft.project && contextSlug()) S.draft.project = contextSlug();
+  render();
+}));
+$('#c-reset').addEventListener('click', () => { document.querySelectorAll('.demo select').forEach((s) => { s.selectedIndex = 0; }); document.querySelectorAll('.demo input').forEach((i) => { i.checked = false; }); reset(); render(); });
+reset(); render();
+</script>
+</body>
+</html>
