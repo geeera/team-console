@@ -1,0 +1,218 @@
+/* ===== #107 New task: quick capture with a sprint request, on the Paper Desk tokens (ADR 0002) =====
+   The form is the kit Sheet: a near-full-height bottom sheet on iPhone, a centred dialog on the Mac. Shared page
+   parts (spacing, 44 px target, buttons, fields, the confirmation dialog, toast) are in kit.css.
+   Proposed tokens (for the UI kit): --task-dialog-w (the form is wider than the 440 px confirm dialog),
+   --task-sheet-max-h (the capture sheet is taller than the 88 % default sheet), --draft-dot (the unsent-draft
+   mark) and --card-tilt (the filed index card). --kb-mock-h only sizes the demo's iPhone keyboard. */
+/* Already in the kit's tokens.css, missing from the direction sketch: declared here with the kit's values. */
+:root{--r-pill:999px;--lh-prose:1.62;--fs-2xs:11px;--control-h:34px}
+:root{--task-dialog-w:600px;--task-sheet-max-h:94%;--draft-dot:8px;--card-tilt:-1.2deg;--kb-mock-h:291px}
+
+/* ----- entry points: the header button (Mac, with T) and the + in the iPhone top bar ----- */
+.nt-btn{position:relative;gap:var(--sp-2)}
+.nt-btn .ico{width:16px;height:16px;stroke-width:2.2}
+.convo__head .nt-btn kbd,.nq-head .nt-btn kbd{display:inline-block}
+.nt-plus{position:relative;width:var(--target);height:var(--target);color:var(--text)}
+.nt-plus .ico{width:22px;height:22px;stroke-width:2.2}
+.p-head .icon-btn{margin-left:0;width:var(--target);height:var(--target)}
+.p-head .p-cmd{flex:none;min-height:var(--target);gap:var(--sp-1);padding:0 var(--sp-3)}
+.p-cmd .ico{width:16px;height:16px}
+.p-head__acts{flex:none;display:flex;align-items:center;gap:0}
+/* the draft mark: an ochre ink dot on the corner; the accessible name says "(draft saved)", so it is never the only signal */
+.draft-dot{position:absolute;top:var(--sp-1);right:var(--sp-1);width:var(--draft-dot);height:var(--draft-dot);border-radius:50%;background:var(--warning-text);box-shadow:0 0 0 2px var(--bg)}
+.nt-btn .draft-dot{top:calc(-1 * var(--sp-1));right:calc(-1 * var(--sp-1))}
+.draft-dot.is-new{animation:mark-in var(--dur-base) var(--ease-emph) both}
+@media (prefers-reduced-motion:reduce){.draft-dot.is-new{animation:fade var(--dur-fade) linear both}}
+:root[data-motion=reduce] .draft-dot.is-new{animation:fade var(--dur-fade) linear both}
+
+/* ----- host screens: the project space (chat) and Needs you ----- */
+.convo__head{gap:var(--sp-2)}
+.convo__head .btn{min-height:var(--control-h)}
+.convo__head .btn .ico{width:16px;height:16px}
+.nq{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.nq-scroll{flex:1;min-height:0;overflow-y:auto}
+.nq-inner{max-width:var(--log-max);margin:0 auto;padding:var(--sp-8) var(--pad-x);display:grid;gap:var(--sp-4)}
+.app[data-app=phone] .nq-inner{padding:var(--sp-2) var(--sp-4) var(--sp-10)}
+.nq-head{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--sp-4)}
+.nq-head h1{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-2xl);line-height:var(--lh-tight)}
+.nq-head p{margin:var(--sp-1) 0 0;color:var(--text-2);font-size:var(--fs-sm)}
+.nq-list{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-3)}
+.nq-card{display:grid;gap:var(--sp-1);padding:var(--sp-4) var(--sp-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.nq-card small{font-size:var(--fs-xs);color:var(--text-2);font-variant:small-caps;letter-spacing:var(--ls-caps);text-transform:lowercase}
+.nq-card b{font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight)}
+.p-body{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
+.p-log{flex:1;min-height:0}
+
+/* ----- the sheet: bottom sheet on iPhone, dialog on the Mac ----- */
+.tsheet{position:absolute;inset:0;z-index:var(--z-sheet);display:flex;align-items:flex-end}
+.tsheet__scrim{position:absolute;inset:0;background:var(--scrim)}
+.tsheet__panel{position:relative;display:flex;flex-direction:column;width:100%;max-height:var(--task-sheet-max-h);height:var(--task-sheet-max-h);background:var(--surface);border-radius:var(--r-sheet) var(--r-sheet) 0 0;box-shadow:var(--shadow-3);outline:none}
+.tsheet.has-kb .tsheet__panel{height:auto;max-height:calc(100% - var(--kb-mock-h) - var(--sp-10));margin-bottom:var(--kb-mock-h)}
+.tsheet.has-kb{align-items:flex-end}
+.tsheet--dialog{align-items:center;justify-content:center;padding:var(--sp-8)}
+.tsheet--dialog .tsheet__panel{width:min(100%,var(--task-dialog-w));height:auto;max-height:min(92%,820px);border-radius:var(--r-lg);border:1px solid var(--border);box-shadow:var(--shadow-2)}
+/* head: Mac — title and ×; iPhone — Close · title · Create, because the keyboard covers the bottom */
+.tsheet__head{flex:none;display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-4) var(--sp-3) var(--sp-3) var(--sp-6);border-bottom:1px solid var(--border)}
+.tsheet__titles{flex:1;min-width:0;display:grid}
+.tsheet__title{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);outline:none;overflow-wrap:anywhere}
+.tsheet__into{font-size:var(--fs-xs);color:var(--text-2);font-family:var(--font-mono);overflow-wrap:anywhere}
+.tsheet__head .icon-btn{margin-left:auto;width:var(--target);height:var(--target)}
+.tsheet--phone .tsheet__head{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);padding:var(--sp-1) var(--sp-3) var(--sp-2)}
+.tsheet--phone .tsheet__titles{justify-items:center;text-align:center}
+.tsheet--phone .tsheet__title{font-size:var(--fs-lg)}
+.tsheet--phone .tsheet__close{justify-self:start;color:var(--accent-text);font-weight:400;font-size:var(--fs-md);padding:0 var(--sp-2)}
+.tsheet--phone .tsheet__send{justify-self:end;min-height:36px;padding:0 var(--sp-4);border-radius:var(--r-pill)}
+.tsheet--phone .tsheet__head .sheet__grab{grid-column:1/-1;margin:0 auto var(--sp-1)}
+.tsheet__body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;align-content:start;gap:var(--sp-5);padding:var(--sp-5) var(--sp-6) var(--sp-6)}
+.tsheet--phone .tsheet__body{padding:var(--sp-4) var(--sp-4) var(--sp-10);gap:var(--sp-5)}
+.tsheet__body:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+/* Mac footer: the draft promise and ⌘↩ on the left, Close and Create in {project} on the right */
+.tsheet__foot{flex:none;display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3) var(--sp-4) var(--sp-3) var(--sp-6);border-top:1px solid var(--border);background:var(--surface-2);border-radius:0 0 var(--r-lg) var(--r-lg)}
+.tsheet__foot .btn{min-height:var(--target)}
+.foot-hint{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2);margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.foot-hint kbd{font-size:var(--fs-2xs)}
+.foot-why{flex:1;min-width:0;display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;font-size:var(--fs-sm);color:var(--text);font-weight:600}
+.foot-why .ico{flex:none;width:16px;height:16px;margin-top:2px;color:var(--text-2)}
+.btn .typing{padding:0;margin-right:var(--sp-1)}
+.btn.is-busy{pointer-events:none}
+
+/* ----- the form ----- */
+.tform{display:grid;gap:var(--sp-5)}
+.tform[aria-busy=true] .fld-input,.tform[aria-busy=true] .fld-select{background:var(--bg-sunken);color:var(--text-2)}
+.fld{display:grid;gap:var(--sp-1);min-width:0;margin:0;padding:0;border:0}
+.fld>legend{padding:0;margin-bottom:var(--sp-2)}
+.fld__label{display:flex;align-items:baseline;gap:var(--sp-2);font-weight:600;font-size:var(--fs-sm)}
+.fld__label small{font-weight:400;color:var(--text-2);font-size:var(--fs-xs)}
+.fld__hint{margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.fld__row{display:flex;align-items:baseline;justify-content:space-between;gap:var(--sp-3)}
+.fld__count{flex:none;font-size:var(--fs-xs);color:var(--text-2);font-variant-numeric:tabular-nums}
+.fld__count[hidden]{display:none}
+.fld-input,.fld-select{width:100%;min-height:var(--target);padding:0 var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--text);font:inherit;font-size:var(--fs-md);transition:border-color var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard)}
+.app[data-app=phone] .fld-input,.app[data-app=phone] .fld-select{font-size:var(--fs-input)}
+/* the title is the thought being captured: it reads in the serif, like a card heading */
+.fld-input--title{font-family:var(--font-display);font-size:var(--fs-lg);min-height:calc(var(--target) + var(--sp-1))}
+.app[data-app=phone] .fld-input--title{font-size:var(--fs-lg)}
+textarea.fld-input{min-height:112px;padding:var(--sp-2) var(--sp-3);line-height:var(--lh-body);resize:vertical}
+.fld-input::placeholder{color:var(--text-3)}
+.fld-input:focus,.fld-select:focus{outline:none;border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.fld-input[aria-invalid=true],.fld-select[aria-invalid=true]{border-color:var(--danger-text);box-shadow:0 0 0 1px var(--danger-text)}
+.fld__err{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.fld__err .ico{flex:none;width:16px;height:16px;margin-top:2px}
+/* the project picker: a native select with the project's monogram beside it */
+.fld-proj{position:relative;display:flex;align-items:center}
+.fld-proj .prod-mono{position:absolute;left:var(--sp-2);width:28px;height:28px;font-size:var(--fs-sm);pointer-events:none}
+.fld-proj .fld-select{appearance:none;padding-left:calc(28px + var(--sp-4));padding-right:calc(var(--sp-4) + 20px);font-weight:600}
+.fld-proj .fld-select.is-empty{padding-left:var(--sp-3);font-weight:400;color:var(--text-2)}
+.fld-proj>.ico{position:absolute;right:var(--sp-3);width:18px;height:18px;color:var(--text-2);pointer-events:none}
+.fld-proj__repo{font-family:var(--font-mono);font-weight:400}
+/* notes under a field: information, never a block */
+.tnote{display:flex;align-items:flex-start;gap:var(--sp-2);margin:var(--sp-1) 0 0;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--bg-sunken);color:var(--text-2);font-size:var(--fs-sm)}
+.tnote .ico{flex:none;width:16px;height:16px;margin-top:2px}
+.tnote code{font-size:.92em;color:var(--text);overflow-wrap:anywhere}
+.tnote--warn{background:var(--warning-soft);color:var(--warning-text)}
+.tnote--cmd{border-left:2px solid var(--border-strong);border-radius:0 var(--r-md) var(--r-md) 0}
+.tnote.is-new{animation:note-in var(--dur-base) var(--ease-enter) both}
+@keyframes note-in{from{opacity:0;transform:translateY(-4px)}}
+@media (prefers-reduced-motion:reduce){.tnote.is-new{animation:fade var(--dur-fade) linear both}}
+:root[data-motion=reduce] .tnote.is-new{animation:fade var(--dur-fade) linear both}
+
+/* kind: three segments, a native radio group underneath; the chosen one is inked */
+.tseg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--border-strong);border-radius:var(--r-md);overflow:hidden;background:var(--surface)}
+.tseg label{position:relative;display:flex;align-items:center;justify-content:center;gap:var(--sp-1);min-height:var(--target);padding:0 var(--sp-2);font-size:var(--fs-sm);font-weight:600;color:var(--text-2);cursor:pointer;transition:background-color var(--dur-fast) var(--ease-standard),color var(--dur-fast) var(--ease-standard)}
+.tseg label+label{border-left:1px solid var(--border-strong)}
+.tseg input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.tseg label:hover{background:var(--hover)}
+.tseg label:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:-2px}
+.tseg label:has(input:checked){background:var(--text);color:var(--bg)}
+.tseg .ico{width:15px;height:15px;stroke-width:2.2}
+.tseg label:has(input:disabled){cursor:default}
+.app[data-app=phone] .tseg .ico{display:none}
+
+/* sprint: whole rows are the targets; the name and demo date sit under each choice */
+.topts{display:grid;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);overflow:hidden}
+.topt{position:relative;display:grid;grid-template-columns:20px minmax(0,1fr);gap:2px var(--sp-3);align-items:start;min-height:var(--target);padding:var(--sp-3);cursor:pointer;transition:background-color var(--dur-fast) var(--ease-standard)}
+.topt+.topt{border-top:1px solid var(--border)}
+.topt input{grid-row:1/span 2;width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent)}
+.topt__t{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2);font-weight:600;font-size:var(--fs-md)}
+.topt__h{grid-column:2;font-size:var(--fs-sm);color:var(--text-2)}
+.topt:hover{background:var(--hover)}
+.topt:has(input:checked){background:var(--accent-soft)}
+.topt:has(input:checked) .topt__t{color:var(--accent-text)}
+.topt:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:-2px}
+.topt--off{cursor:default}
+.topt--off:hover{background:none}
+.topt--off .topt__t{color:var(--text-2)}
+.topt--off input{accent-color:var(--text-3)}
+.topt__chip{display:inline-flex;align-items:center;gap:var(--sp-1);min-height:20px;padding:0 var(--sp-2);border-radius:var(--r-pill);background:var(--bg-sunken);color:var(--text-2);font-size:var(--fs-xs);font-weight:600}
+.topt__chip .ico{width:12px;height:12px;stroke-width:2.2}
+.topt__def{font-size:var(--fs-xs);font-weight:400;color:var(--text-2)}
+.topt:has(input:checked) .topt__def{color:var(--accent-text)}
+.fld[aria-busy=true] .topt__h{color:var(--text-3)}
+.tskel{display:inline-block;width:9em;height:var(--sp-3);border-radius:var(--r-sm);background:var(--bg-sunken);vertical-align:middle;animation:pulse var(--dur-pulse) var(--ease-standard) infinite}
+@media (prefers-reduced-motion:reduce){.tskel{animation:none}}
+:root[data-motion=reduce] .tskel{animation:none}
+
+/* ----- blocks at the top of the form: error (clay), Connect (ochre), the restored draft (a margin slip) ----- */
+.terr{display:grid;justify-items:start;gap:var(--sp-1);padding:var(--sp-4);border-radius:var(--r-md);background:var(--danger-soft);color:var(--danger-text);outline:none}
+.terr h3{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;font-size:var(--fs-md);font-weight:700;line-height:var(--lh-tight)}
+.terr h3 .ico{flex:none;width:18px;height:18px;margin-top:1px}
+.terr p{margin:0;font-size:var(--fs-sm);padding-left:calc(18px + var(--sp-2))}
+.terr .btn,.terr .ext{margin:var(--sp-2) 0 0 calc(18px + var(--sp-2))}
+.terr .btn{background:var(--surface);border-color:transparent;color:var(--danger-text);min-height:var(--target)}
+.terr .ext{color:var(--danger-text);min-height:var(--target)}
+.terr:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.terr.is-new{animation:note-in var(--dur-base) var(--ease-enter) both}
+@media (prefers-reduced-motion:reduce){.terr.is-new{animation:fade var(--dur-fade) linear both}}
+:root[data-motion=reduce] .terr.is-new{animation:fade var(--dur-fade) linear both}
+.tconn{display:grid;justify-items:start;gap:var(--sp-1);padding:var(--sp-4);border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text)}
+.tconn h3{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight)}
+.tconn p{margin:0;font-size:var(--fs-sm)}
+.tconn .btn{margin-top:var(--sp-2);min-height:var(--target)}
+.app[data-app=phone] .tconn .btn{width:100%}
+.tdraft{display:flex;align-items:center;flex-wrap:wrap;gap:0 var(--sp-3);padding:var(--sp-1) 0 var(--sp-1) var(--sp-3);border-left:2px solid var(--warning-text);font-size:var(--fs-sm);color:var(--text-2)}
+.tdraft p{flex:1 1 200px;margin:0}
+.tdraft b{color:var(--text);font-weight:600}
+.tdraft .link-btn{color:var(--accent-text)}
+.tstate{display:grid;justify-items:start;gap:var(--sp-2);padding:var(--sp-4);border:1px dashed var(--border-strong);border-radius:var(--r-md);font-size:var(--fs-sm);color:var(--text-2)}
+.tstate p{margin:0}
+.tstate .btn{min-height:var(--target)}
+.tstate--error{border:0;background:var(--danger-soft);color:var(--danger-text)}
+.tstate--error .btn{background:var(--surface);border-color:transparent;color:var(--danger-text)}
+.tphone-foot{display:grid;gap:var(--sp-2)}
+.tphone-foot .foot-why{font-size:var(--fs-sm)}
+
+/* ----- the receipt: the task is filed as an index card and stamped ----- */
+.tdone{display:grid;gap:var(--sp-4);justify-items:start}
+.tcard{position:relative;width:100%;display:grid;gap:var(--sp-2);padding:var(--sp-5) calc(var(--stamp-sm) + var(--sp-6)) var(--sp-5) var(--sp-5);background:var(--surface);background-image:linear-gradient(var(--surface),var(--surface-2));border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-1);transform:rotate(var(--card-tilt))}
+.tcard::before{content:"";position:absolute;left:var(--sp-5);right:var(--sp-5);top:calc(var(--sp-5) + 22px + var(--sp-2) / 2);border-top:1px solid var(--accent-soft)}
+.tcard__top{display:flex;align-items:center;flex-wrap:wrap;gap:var(--sp-2);min-height:22px;font-size:var(--fs-xs);color:var(--text-2)}
+.tcard__kind{display:inline-flex;align-items:center;gap:var(--sp-1);padding:0 var(--sp-2);min-height:22px;border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-text);font-weight:600;font-variant:small-caps;letter-spacing:var(--ls-caps);text-transform:lowercase}
+.tcard__kind--bug{background:var(--danger-soft);color:var(--danger-text)}
+.tcard__kind--chore{background:var(--bg-sunken);color:var(--text-2)}
+.tcard__num{font-family:var(--font-mono);color:var(--text)}
+.tcard__title{margin:0;padding-top:var(--sp-2);font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);overflow-wrap:anywhere}
+.tcard__repo{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-2)}
+.tcard .stamp{right:var(--sp-4);top:calc(50% - var(--stamp-sm) / 2);width:var(--stamp-sm);height:var(--stamp-sm);opacity:1;transform:rotate(-9deg)}
+.tdone__h{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-2xl);line-height:var(--lh-tight);outline:none}
+.tdone__kicker{margin:0 0 calc(-1 * var(--sp-3));font-size:var(--fs-sm);font-weight:700;color:var(--accent-text);font-variant:small-caps;letter-spacing:var(--ls-caps);text-transform:lowercase}
+.tdone__meta{margin:0;font-size:var(--fs-sm);color:var(--text-2);font-variant-numeric:tabular-nums}
+.tdone__req{margin:0;padding:var(--sp-1) 0 var(--sp-1) var(--sp-4);border-left:2px solid var(--accent);font-family:var(--font-display);font-style:italic;font-size:var(--fs-md);line-height:var(--lh-prose);color:var(--text)}
+.tdone__req--neutral{border-left-color:var(--text-3)}
+.tdone .ext{min-height:var(--target)}
+.tsheet__foot--done{justify-content:flex-end}
+.tphone-acts{display:grid;gap:var(--sp-2);width:100%;margin-top:var(--sp-2)}
+.tphone-acts .btn{width:100%;min-height:var(--target)}
+
+/* ----- the demo's iPhone keyboard (page chrome, not part of the design) ----- */
+.kb-mock{position:absolute;left:0;right:0;bottom:0;z-index:calc(var(--z-sheet) + 1);height:var(--kb-mock-h);padding:var(--sp-2) var(--sp-1) var(--sp-8);background:var(--bg-sunken);border-top:1px solid var(--border);display:grid;grid-template-rows:auto repeat(4,1fr);gap:var(--sp-2);pointer-events:none}
+.kb-mock__bar{display:flex;justify-content:space-around;font-size:var(--fs-sm);color:var(--text-2);padding-bottom:var(--sp-1)}
+.kb-mock__row{display:flex;justify-content:center;gap:5px}
+.kb-mock__row i{flex:0 1 32px;border-radius:5px;background:var(--surface);box-shadow:0 1px 0 var(--border-strong)}
+.kb-mock__row--wide i:last-child{flex-basis:88px}
+.kb-mock__row--wide i:first-child{flex-basis:88px}
+.fld__err[hidden],.tnote[hidden]{display:none}
+/* a wrapping link keeps its ↗ beside the last word */
+.terr .ext{display:block;padding:var(--sp-2) 0;line-height:var(--lh-body)}
+.terr .ext .ico{display:inline;vertical-align:-2px;margin-left:var(--sp-1)}
+/* three actions in the iPhone top bar (Commands, New task, Settings): icon buttons, the project name on one line */
+.p-head .p-switch b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
