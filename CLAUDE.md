@@ -28,8 +28,11 @@ CI on every PR into dev/stage/main (ADR 0001 decision 18): `ci.yml` job `lint-te
 lint|test|build` with `NX_BASE`/`NX_HEAD` from `nrwl/nx-set-shas` (merge-base of the PR's base branch and the PR
 merge commit), and `nx run-many` instead when the PR touches `.github/workflows/`, `package.json`, the lockfile,
 `.nvmrc`, `nx.json`, `tsconfig.base.json`, `eslint.config.mjs` or `vitest.config.mts`, and on every PR into
-stage/main; the job's "Nx scope" notice says which. `security.yml`: `secret-scan` (gitleaks over `git log --all`
-of the clone — every branch and tag of the repo plus this PR's merge ref, not other PRs), `sast` (Semgrep),
+stage/main; the job's "Nx scope" notice says which. `security.yml`: `secret-scan` (gitleaks; on a PR only the
+PR's own commits, `git log <base>..HEAD` from the merge commit's first parent — every PR commit with its own diff,
+so a secret added and removed inside the PR is still found, while another open PR's branch is never judged against
+this PR's `.gitleaksignore` (#171); on a push to dev/stage/main, where it is the only job, the full `git log --all`
+of the clone — every branch and tag; the "secret-scan scope" notice says which), `sast` (Semgrep),
 `dependency-audit` (`node tools/ci/audit-gate.mjs`, wrapping `npm audit --json`). Every action in
 `.github/workflows/` is pinned by full commit SHA; the PR workflows use no secrets. A leaked secret:
 rotate/revoke it first (the public history keeps it), then delete the branch and push a clean one (no
@@ -54,15 +57,14 @@ an advisory with no fix yet (owner decision, never added unilaterally). A match 
 `ghsaId` and `package` to equal the advisory's; one entry never masks a different advisory, even on the same
 package. An allowlist entry's `expires` must be a real calendar date in strict `YYYY-MM-DD` form, at most 90
 days from today — the gate fails closed on anything it cannot parse or validate (a missing/unknown advisory
-severity, an `npm audit` exit that yields no parsed advisories, a malformed allowlist). Today's one entry:
-`GHSA-vfj7-8cjw-p6xm`/`braces` (#177; stack-exhaustion DoS in `braces`' AST walker, dev/build tooling only —
-Angular devkit, webpack-dev-server, Storybook — never shipped in a deployed bundle), expiring 2026-11-03. Once
-the GitHub Advisory Database lists a
-`first_patched_version` for that advisory (or the vulnerable chain — `@angular-devkit/build-angular` /
-`webpack-dev-server` / `@storybook/angular` / `braces` itself — can be bumped past it): bump the dependency,
-run `npm audit --json` locally to confirm the advisory is gone, then delete its entry from
-`.audit-allowlist.json` in the same PR (do not just let it expire — remove it as soon as a fix exists) and
-drop a comment on #177 saying so before closing it.
+severity, an `npm audit` exit that yields no parsed advisories, a malformed allowlist). The allowlist is empty today (#395 removed the
+`GHSA-vfj7-8cjw-p6xm`/`braces` entry of #177 once `npm audit --json` stopped reporting it). An entry, when the
+owner grants one, is removed in the PR that makes its advisory go away (bump the dependency, confirm with `npm
+audit --json` locally) — never left to expire — with a comment on its issue saying so.
+Transitive fixes the lockfile cannot reach inside a parent's range are exact `overrides` in `package.json` (#395:
+`miniflare.undici`, `nx.follow-redirects`, `@cloudflare/vitest-pool-workers.zod`); the deprecated
+`@angular-devkit/build-angular` and `@angular/platform-browser-dynamic` (Storybook peers) are pinned there to the
+Angular release too, since npm otherwise resolves them to the last non-deprecated major and fails on the peers.
 
 Layout, tags and aliases (architect note on #3 — binding; the boundary lint enforces the tags):
 
@@ -165,7 +167,9 @@ create` writes it (`due_on: <day>T12:00:00Z`, title `Sprint NN` = highest of all
 the milestones read failed). Console: `@console/features/sprint-controls` (`SprintControls`, a `Sheet.confirm` with a
 checked date field: `ConfirmInput.type/value/min/max/check`, `ConfirmFailure.refill`), the panel's Sprint group and the
 board's "Move demo"; the command failure model (`commandFailureOf`, `CommandOutcome`) lives in
-`@console/entities/team-run`. Fake GitHub: `seedMilestones`, milestone writes, `/_fake/milestones`.
+`@console/entities/team-run`. Fake GitHub: `seedMilestones`, milestone writes, `/_fake/milestones` (`DELETE …?repo=` /
+`clearFakeMilestones` drops a seed so the mock answers again). The mock's milestones carry `due_in_days` (served as
+`due_on` relative to the day of the read, `milestoneAt`, #382) — never a fixed date a spec can outlive.
 
 Requests to the PM (#219, ADR 0005, #29 slice 2): `POST|GET /api/v1/projects/:slug/issues/:number/request`
 (`routes/owner-request.ts`; POST `owner-only`) posts one comment on the owner's token through `postOwnerAnswer` (`own_writes.kind
