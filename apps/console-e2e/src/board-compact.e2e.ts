@@ -2,7 +2,7 @@ import type { APIRequestContext, Locator, Page } from '@playwright/test';
 import type { SprintDto } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { en, ru } from './support/i18n';
-import { seed, type Stack } from './support/stack';
+import { clearFakeMilestones, seed, type Stack } from './support/stack';
 
 /**
  * The compact board (#275) at 390×844 (iphone) and 1440×900 (desktop), on the mock repository (20 sprint issues,
@@ -76,6 +76,8 @@ async function seedRuns(stack: Stack): Promise<void> {
 
 test.beforeEach(async ({ stack }) => {
   requireLocalStack(stack);
+  // The mock's own milestones (#382): Sprint 01 current, its demo a week from today whatever the date.
+  await clearFakeMilestones(stack, REPO);
   await seed(stack, [REPO]);
   await seedRuns(stack);
 });

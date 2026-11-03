@@ -45,7 +45,10 @@ export interface MockRepository {
    * identity's gate reads); an issue listed in `issues` without an entry has no events.
    */
   readonly issueEvents?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
-  /** `GET …/milestones?state=` */
+  /**
+   * `GET …/milestones?state=`. A milestone may carry `due_in_days` instead of `due_on` (#382): it is served with
+   * `due_on` at midnight UTC that many days from the day of the read, so the mock's current sprint never expires.
+   */
   readonly milestones?: readonly Readonly<Record<string, unknown>>[];
   /** `GET …/pulls?state=` */
   readonly pulls?: readonly Readonly<Record<string, unknown>>[];
@@ -124,13 +127,34 @@ function labelNamesOf(item: Readonly<Record<string, unknown>>): string[] {
   );
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * A fixture milestone as GitHub would send it on `nowMs` (#382): `due_in_days` becomes `due_on`, midnight UTC of
+ * that many days after the UTC day of `nowMs`; a milestone with a fixed `due_on` is served as written.
+ */
+export function milestoneAt(
+  milestone: Readonly<Record<string, unknown>>,
+  nowMs: number,
+): Readonly<Record<string, unknown>> {
+  const { due_in_days: dueInDays, ...rest } = milestone;
+  if (typeof dueInDays !== 'number' || !Number.isSafeInteger(dueInDays)) {
+    return milestone;
+  }
+  const day = new Date(Math.floor(nowMs / DAY_MS) * DAY_MS + dueInDays * DAY_MS);
+  return { ...rest, due_on: `${day.toISOString().slice(0, 10)}T00:00:00Z` };
+}
+
 /** One page (the fixtures stay under 100 items) of a list, filtered by `state` and `milestone` as GitHub does. */
 function listOf(
   fixture: MockRepository,
   list: 'issues' | 'milestones' | 'pulls',
   query: URLSearchParams,
 ): readonly Readonly<Record<string, unknown>>[] {
-  const items = fixture[list] ?? [];
+  const items =
+    list === 'milestones'
+      ? (fixture.milestones ?? []).map((milestone) => milestoneAt(milestone, Date.now()))
+      : (fixture[list] ?? []);
   const state = query.get('state') ?? 'open';
   const milestone = query.get('milestone');
   // GitHub's `labels=a,b` lists items carrying every one of them.
