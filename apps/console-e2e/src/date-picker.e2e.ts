@@ -167,10 +167,14 @@ test('pick a date in the calendar and move the demo', async ({ page, stack }) =>
       expect(meetsMinTap(box?.width), `${await target.textContent()} width`).toBe(true);
     }
   } else {
-    // The popover hangs under the field, inside the dialog's width, above it in the overlay.
+    // The popover prefers hanging under the field (CDK's `flexibleConnectedTo`, `date-picker.ts`); on a month
+    // with a sixth calendar row the grid is taller than the room below, so the strategy's fallback position
+    // flips it above the field instead — either way it must not overlap the field it belongs to.
     const field = await dateField(page).boundingBox();
     const popover = await calendar(page).boundingBox();
-    expect(popover !== null && field !== null && popover.y >= field.y + field.height).toBe(true);
+    const below = popover !== null && field !== null && popover.y >= field.y + field.height;
+    const above = popover !== null && field !== null && popover.y + popover.height <= field.y;
+    expect(below || above, 'the calendar popover must not overlap the date field').toBe(true);
   }
   expect(await strayScrollsOf(page), 'no scroller besides the document').toEqual([]);
   expect(await sidewaysOverflowOf(page), 'nothing wider than the screen').toEqual([]);
