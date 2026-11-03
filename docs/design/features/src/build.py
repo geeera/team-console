@@ -6,7 +6,7 @@ import importlib.util, pathlib
 
 HERE = pathlib.Path(__file__).parent
 DIR_SRC = HERE.parent.parent / 'directions' / 'src'
-PAGES = ['p24', 'p114', 'p134', 'p36', 'p194', 'p29', 'p107']
+PAGES = ['p24', 'p114', 'p134', 'p36', 'p194', 'p29', 'p107', 'p104', 'p108', 'p109', 'p238']
 
 
 def load(path, name):
