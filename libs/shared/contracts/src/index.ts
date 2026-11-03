@@ -102,9 +102,15 @@ export type {
   SprintRefDto,
   TeamSprintDto,
 } from './lib/sprint-commands';
-export { ANSWER_TEXT_MAX_LENGTH } from './lib/answer';
+export {
+  ANSWER_LOOKUP_MAX_MS,
+  ANSWER_REPLAY_WINDOW_MS,
+  ANSWER_TEXT_MAX_LENGTH,
+} from './lib/answer';
 export type {
   AnswerCommand,
+  AnswerLookupRequest,
+  AnswerLookupResponse,
   AnswerProblem,
   AnswerRefusalCode,
   AnswerRequest,

@@ -8,6 +8,13 @@ export {
   resumeCommentBody,
 } from './lib/commands';
 export type { ConsolePauseRecord } from './lib/commands';
+export {
+  PLUGIN_COUNTS_OWNER_PAUSE,
+  consolePauseHolds,
+  pauseMarkerAuthorsOf,
+  pausedSinceOf,
+  resumedAfterPause,
+} from './lib/owner-pause';
 export { runLogIssueOf } from './lib/project-yml';
 export { pyJsonDumps } from './lib/python-json';
 export type { PyJson } from './lib/python-json';

@@ -256,12 +256,19 @@ project" entry point is `ADD_PROJECT_URL` (`/overview#add-project`); Settings ho
 Team commands (#114): `routes/team-commands.ts` (`GET /projects/:slug/team/status`, `POST …/team/pause|resume` on the
 owner's token, byte-for-byte `runlog pause`/`resume`, 60 s replay from `own_writes`; `POST …/runs {slot}` fires the
 slot's routine once, never retried, behind the run log (paused, 3-hour overlap) and the 15-minute `slot_requests` lock
-of migration 0008). `@worker/run-log` ports `ptlib/runstate.py` (fixtures from `libs/worker/run-log/fixtures/generate.py`
+of migration 0008). `readRunLog` (`team/run-log-reader.ts`) reads the newest ≤ 10 pages of comments from the issue's comment count
+and fails closed (`RunLogIncompleteError` → 503 `run-log-incomplete`; `unknown` on the board/overview) when it did not
+reach the list's end or a paused log's pause record lies before that window (#143). `@worker/run-log` ports `ptlib/runstate.py` (fixtures from `libs/worker/run-log/fixtures/generate.py`
 — rerun after every `vendor` update); `@worker/routines` is the only client of the routines API (`ROUTINES_FAKE_ORIGIN`
 + `nx run api:fake-routines` locally, never the real one). Secrets `SLOT_TOKEN_<SLUG>_<SLOT>` / `SLOT_ROUTINE_<SLUG>_<SLOT>`
 (`slotSecretNames`). Console: `@console/entities/team-run` (`TeamStatusStore`), `@console/features/team-commands`
 (`TeamCommands`: one `Sheet.confirm` per command), `@console/widgets/commands-panel` (pane, phone sheet, paused banner);
 kit `Banner`, `Button[off]`, `Receipt` tone `warning`, `Sheet.confirm` with `items`/`input`/`ConfirmFailure`, `--dur-pulse`.
+Console pause guard (#141): the plugin's `runlog start` does not count the owner's own pause in a run log the team's
+bot opened, so `POST …/team/pause` answers 409 `pause-unreliable` there, `TeamStatusDto.pauseHolds` turns Pause off with
+the reason, and `pauseLiftsAtNextRun` replaces "paused by you" when the next run would lift the label. The one switch is
+`PLUGIN_COUNTS_OWNER_PAUSE` in `@worker/run-log` (`owner-pause.ts`); `fixtures/owner-pause.json` (the real `cmd_start`
+over the issue's reproduction) fails the golden spec until the switch agrees with the vendored plugin.
 
 Web push, server (#11; the client is #36): `@worker/push` — `checkPushSubscription` (endpoint allow-list: `https:`, push-service
 hosts only, no IP literal or port; `p256dh` 65 bytes `0x04`, `auth` 16 bytes), `checkVapidConfig`, `questionNotification` /
@@ -323,7 +330,7 @@ so 0002–0004 stay unused). The answer route (#10) is `routes/answer.ts`
 `@shared/owner-grammar` (a byte-for-byte port of the plugin's `backlog answer` and `commands.command_lines`, proven by
 fixtures that `libs/shared/owner-grammar/fixtures/generate.py` writes from the vendored plugin — rerun it after every
 `vendor` update, a spec fails until you do), owner check, then the comment on the owner's token through
-`GitHubClient.postJson` (one refresh on 401, never retried after a timeout or 5xx), 60 s replay from `own_writes`. The owner connection (#59, ADR 0003 decisions 3–4) is
+`GitHubClient.postJson` (one refresh on 401, never retried after a timeout or 5xx), 60 s replay from `own_writes` (`ANSWER_REPLAY_WINDOW_MS`); a Retry later than that after the first attempt (counted from the first, however many Retries came between) first re-reads the item through `POST …/answer/lookup` (#120: same live issue read and problems, then the console's own write of exactly that answer since it was first sent, or `null` — nothing written), so `AnswerQuestion` shows the receipt instead of posting twice. The owner connection (#59, ADR 0003 decisions 3–4) is
 `apps/api/src/owner/`: `ApiGitHub.ownerConnection(env, logger)` is the `OwnerTokenSource` for owner writes (refresh
 under the D1 lease; an unusable row → 403 `github-owner-not-connected` with `connectUrl`), routes in
 `routes/github-connection.ts` (refused for the service identity), AES-GCM helpers (`importMasterKey`,
@@ -365,7 +372,11 @@ command (`wrangler dev dist/apps/api/main.js`, fresh local D1, mock mode) wired 
 controls through `ru()` (the ru.json copy) and `data-testid`, wait on conditions only, and fail on any request off the
 app origin, any uncaught page error and any serious/critical axe violation (`expectAccessible`). `BASE_URL` (+
 `CF_ACCESS_CLIENT_ID/SECRET` for stage) runs the suite against a running target; specs that reset data or need the
-fake GitHub skip themselves there, `smoke.e2e.ts` is the read-only part.
+fake GitHub skip themselves there, `smoke.e2e.ts` is the read-only part. The Access token (#142,
+`support/access-headers.ts`) reaches the target's origin only — never `extraHTTPHeaders`: a context route fetches each
+target request itself with no redirect followed, and the `request` fixture adds it per call (`page.request` carries
+none, so a spec for such a target uses `request`); with the token set the run keeps no trace and no HTML report, and
+`tools/workspace-checks` fails on any workflow job with the token or a `BASE_URL` that uploads an artifact.
 Worker tests run in workerd through `@cloudflare/vitest-pool-workers` (`SELF.fetch`, an isolated in-memory D1
 migrated in `src/test-setup.ts`); `apps/api/test-assets` stands in for the Angular build. `wrangler`,
 `@cloudflare/vitest-pool-workers` and `compatibility_date` move together (one workerd for dev, Docker and tests) —

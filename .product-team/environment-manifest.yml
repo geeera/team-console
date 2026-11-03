@@ -1,0 +1,515 @@
+# Environment manifest (#102): every variable and secret the console needs, per environment — name, kind,
+# where it lives, whether it is generated or entered by the owner, which app or workflow needs it, a one-line
+# purpose, and a setup guide (where to obtain it, required permissions/scopes, expiry/rotation, gotchas).
+#
+# This file holds NO VALUES, no value lengths and no hashes — `tools/workspace-checks` fails the build on a
+# field this schema does not allow, and on any string that merely looks like a secret value. It is the single
+# source: `.product-team/owner-checklist.md` links here instead of repeating the name lists, and the setup
+# script (#103) and the Environment setup screen (#104) both render their guides from these `guide` blocks —
+# never from a second copy.
+#
+# Schema (enforced by tools/workspace-checks/src/environment-manifest.spec.ts):
+#   name          - the secret/variable name; a per-project pattern is written once with its placeholder(s)
+#                   literally (e.g. "ROUTINE_TOKEN_<SLUG>"), never spelled out per project.
+#   pattern       - true when `name` contains a `<...>` placeholder instead of a literal name.
+#   kind          - "secret" | "variable".
+#   origin        - "owner" (the owner obtains and enters the value) | "generated" (a setup script generates
+#                   it, or it is a fixed value already committed in the repository, e.g. ENVIRONMENT).
+#   environments  - subset of [local, dev, stage, production] this item exists in.
+#   locations     - one or more places the value lives; each is { place, app? }, place one of:
+#                   wrangler-secret | wrangler-var | github-environment-secret | github-environment-variable |
+#                   github-repository-secret | local-only; `app` ("api" | "hooks") only for the two
+#                   wrangler-* places.
+#   neededBy      - which app(s) or workflow(s) read this value.
+#   purpose       - one line: what it is for.
+#   guide         - { obtain, scopes, rotation, gotchas }, each a line of prose or null when not applicable.
+#
+# `secrets.GITHUB_TOKEN` (branch-guard.yml, owner-digest.yml) is GitHub Actions' own built-in per-run token —
+# it needs no entry here and no owner setup (CLAUDE.md, apps/*/src/env.ts).
+
+environments: [local, dev, stage, production]
+
+items:
+  # --- Worker secrets, api --------------------------------------------------------------------------------
+  - name: OWNER_EMAIL
+    kind: secret
+    origin: owner
+    environments: [dev, stage, production]
+    locations: [{ place: wrangler-secret, app: api }]
+    neededBy: ["apps/api (auth middleware, ADR 0001 decision 7)"]
+    purpose: Сверяет e-mail во входящем JWT от Cloudflare Access — впускает только владельца.
+    guide:
+      obtain: Тот же e-mail, что указан в Access-приложении этого окружения (owner-checklist шаг 7.4).
+      scopes: null
+      rotation: >-
+        `npx wrangler secret put OWNER_EMAIL --env <env> --config apps/api/wrangler.jsonc`, вручную, если
+        меняется e-mail владельца в Access.
+      gotchas: Секрет Worker'а, не GitHub — никогда var в wrangler.jsonc (репозиторий публичный).
+
+  - name: GITHUB_APP_PRIVATE_KEY
+    kind: secret
+    origin: generated
+    environments: [dev, stage, production]
+    locations: [{ place: wrangler-secret, app: api }]
+    neededBy: ["apps/api (GitHubAppAuth — минтинг JWT и installation-токенов, ADR 0003 решения 2, 6)"]
+    purpose: Приватный ключ консольного GitHub App'а этого окружения, конвертированный в PKCS#8.
+    guide:
+      obtain: Генерируется автоматически `tools/owner-setup/create-apps.sh` при создании приложения.
+      scopes: null
+      rotation: >-
+        В настройках приложения на GitHub сгенерировать новый приватный ключ, затем `wrangler secret put
+        GITHUB_APP_PRIVATE_KEY` новым PEM (конвертированным в PKCS8), либо `create-apps.sh --recreate`.
+      gotchas: Никогда не коммитится; заменяет GITHUB_TOKEN (PAT) из ADR 0001 решения 6 — этого секрета больше нет.
+
+  - name: GITHUB_APP_CLIENT_SECRET
+    kind: secret
+    origin: generated
+    environments: [dev, stage, production]
+    locations: [{ place: wrangler-secret, app: api }]
+    neededBy: ["apps/api (обмен OAuth-кода на токен владельца, ADR 0003 решение 3)"]
+    purpose: OAuth client secret консольного GitHub App'а, для подключения владельца.
+    guide:
+      obtain: Генерируется автоматически `tools/owner-setup/create-apps.sh` при создании приложения.
+      scopes: null
+      rotation: Regenerate client secret в настройках приложения на GitHub, затем `wrangler secret put` заново.
+      gotchas: null
+
+  - name: TOKEN_ENCRYPTION_KEY
+    kind: secret
+    origin: generated
+    environments: [dev, stage, production]
+    locations: [{ place: wrangler-secret, app: api }]
+    neededBy: ["apps/api (шифрует пару токенов владельца в D1, ADR 0003 решение 4)"]
+    purpose: HKDF master-key (32 случайных байта, base64) для хранения токенов владельца в D1.
+    guide:
+      obtain: Генерируется автоматически `tools/owner-setup/create-apps.sh` (свой ключ на каждое окружение).
+      scopes: null
+      rotation: >-
+        Делает нечитаемыми уже сохранённые токены владельца — после ротации владелец заново проходит
+        Settings → Connect GitHub.
+      gotchas: null
+
+  - name: VAPID_PRIVATE_KEY
+    kind: secret
+    origin: generated
+    environments: [dev, stage, production]
+    locations: [{ place: wrangler-secret, app: api }, { place: wrangler-secret, app: hooks }]
+    neededBy: ["apps/api, apps/hooks (веб-пуш, ADR 0001 решение 11)"]
+    purpose: Приватный VAPID-ключ (base64url); подписывает push JWT, своя пара на каждое окружение.
+    guide:
+      obtain: >-
+        Генерируется `tools/owner-setup/set-secrets.sh` через Node's built-in crypto (без npm-пакетов) —
+        ничего скачивать не нужно.
+      scopes: null
+      rotation: "`set-secrets.sh --rotate`; ломает все существующие подписки push — пользователь подписывается заново."
+      gotchas: Один и тот же PEM на api и на hooks в одном окружении; разные окружения не делят пару.
+
+  - name: "ROUTINE_TOKEN_<SLUG>"
+    pattern: true
+    kind: secret
+    origin: owner
+    environments: [production]
+    locations: [{ place: wrangler-secret, app: api }]
+    neededBy: ["apps/api (routes/team-commands.ts; будит routine PM-чата продукта <SLUG>, ADR 0001 решение 11)"]
+    purpose: Bearer-токен API-триггера routine продукта `<SLUG>`, один на каждый управляемый продукт.
+    guide:
+      obtain: claude.ai/code → routine продукта с API-триггером → скопировать её bearer-токен.
+      scopes: null
+      rotation: Создать новую routine/триггер в Claude Code, если токен утёк — старый просто перестанет работать.
+      gotchas: >-
+        `<SLUG>` — slug продукта из таблицы `projects` в верхнем регистре с `-` → `_`
+        (`projectSlugToRoutineTokenName` в @shared/contracts), например `ROUTINE_TOKEN_TEAM_CONSOLE`; обычно
+        только на production — dev/stage не управляют реальными продуктами.
+
+  - name: "SLOT_TOKEN_<SLUG>_<SLOT>"
+    pattern: true
+    kind: secret
+    origin: owner
+    environments: [production]
+    locations: [{ place: wrangler-secret, app: api }]
+    neededBy: ["apps/api (routes/team-commands.ts; «Запустить сейчас» по слоту, #114)"]
+    purpose: Bearer API-триггера рутины слота (`<SLOT>` ∈ PM | DEV | QA) продукта `<SLUG>`.
+    guide:
+      obtain: >-
+        claude.ai/code/routines → рутина продукта `slot-pm`/`slot-dev`/`slot-qa` → добавить API-триггер;
+        токен (`sk-ant-oat01-…`) показывается один раз.
+      scopes: null
+      rotation: Создать новый API-триггер в Claude Code, если токен утёк.
+      gotchas: >-
+        Пока секрета нет, панель «Команды» показывает карточку настройки вместо ошибки; пауза/возобновление
+        работают без него. dev/stage — только если нужно проверить запуск оттуда.
+
+  - name: "SLOT_ROUTINE_<SLUG>_<SLOT>"
+    pattern: true
+    kind: secret
+    origin: owner
+    environments: [production]
+    locations: [{ place: wrangler-secret, app: api }]
+    neededBy: ["apps/api (routes/team-commands.ts; id рутины слота, #114)"]
+    purpose: Id (`trig_…`) рутины слота `<SLOT>` продукта `<SLUG>`, чтобы он не лежал в публичном репозитории.
+    guide:
+      obtain: Тот же экран триггера что и `SLOT_TOKEN_<SLUG>_<SLOT>` — id виден в адресе триггера.
+      scopes: null
+      rotation: Меняется вместе с `SLOT_TOKEN_<SLUG>_<SLOT>`, если триггер пересоздаётся.
+      gotchas: Не секретно по формату значения, но хранится как секрет вместе со своим токеном.
+
+  # --- Worker secrets, hooks -------------------------------------------------------------------------------
+  - name: WEBHOOK_SECRET
+    kind: secret
+    origin: generated
+    environments: [dev, stage, production]
+    locations: [{ place: wrangler-secret, app: hooks }]
+    neededBy: ["apps/hooks (HMAC `X-Hub-Signature-256` входящих вебхуков, ADR 0003 решение 5)"]
+    purpose: Webhook secret консольного GitHub App'а этого окружения.
+    guide:
+      obtain: Генерируется автоматически `tools/owner-setup/create-apps.sh` вместе с созданием приложения.
+      scopes: null
+      rotation: >-
+        Задать новый webhook secret в настройках приложения на GitHub, временно держать старое значение в
+        `WEBHOOK_SECRET_PREVIOUS`, затем `wrangler secret put WEBHOOK_SECRET` новым значением.
+      gotchas: Должен совпадать именно с webhook secret'ом приложения — никогда не придумывается отдельно.
+
+  - name: WEBHOOK_SECRET_PREVIOUS
+    kind: secret
+    origin: owner
+    environments: [dev, stage, production]
+    locations: [{ place: wrangler-secret, app: hooks }]
+    neededBy: ["apps/hooks (принимает оба значения HMAC во время ротации, ADR 0003 решение 5)"]
+    purpose: Второе допустимое значение HMAC на время ротации `WEBHOOK_SECRET`.
+    guide:
+      obtain: Предыдущее значение `WEBHOOK_SECRET`, скопированное вручную перед заменой основного секрета.
+      scopes: null
+      rotation: null
+      gotchas: Удалить (`wrangler secret delete`) после того, как ротация завершена и GitHub шлёт новой подписью.
+
+  # --- Worker vars (non-secret), filled by the owner via a GitHub Environment variable + deploy.yml --var ---
+  - name: ACCESS_TEAM_DOMAIN
+    kind: variable
+    origin: owner
+    environments: [dev, stage, production]
+    locations:
+      - { place: github-environment-variable }
+      - { place: wrangler-var, app: api }
+    neededBy: ["apps/api (JWKS host для проверки JWT, ADR 0001 решение 7)", "deploy.yml (передаёт как --var)"]
+    purpose: Team domain Cloudflare Access (`<команда>.cloudflareaccess.com`) этого окружения.
+    guide:
+      obtain: Zero Trust → Settings → General, team domain (один на всю команду Zero Trust).
+      scopes: null
+      rotation: null
+      gotchas: >-
+        Пусто в wrangler.jsonc нарочно (репозиторий публичный) — единственный источник значения это
+        GitHub Environment variable, `--var` побеждает конфиг даже пустым.
+
+  - name: ACCESS_AUD
+    kind: variable
+    origin: owner
+    environments: [dev, stage, production]
+    locations:
+      - { place: github-environment-variable }
+      - { place: wrangler-var, app: api }
+    neededBy: ["apps/api (JWT audience check, ADR 0001 решение 7)", "deploy.yml (передаёт как --var)"]
+    purpose: Application Audience (AUD) Tag Access-приложения `team-console-<env>`.
+    guide:
+      obtain: Access-приложение → вкладка Overview → Application Audience (AUD) Tag.
+      scopes: null
+      rotation: null
+      gotchas: Пусто в wrangler.jsonc нарочно — тот же источник приоритета, что у ACCESS_TEAM_DOMAIN.
+
+  - name: ACCESS_SERVICE_TOKEN_ID
+    kind: variable
+    origin: owner
+    environments: [dev, stage]
+    locations: [{ place: wrangler-var, app: api }]
+    neededBy: ["apps/api (пропускает запросы e2e-сервисного токена на dev/stage, ADR 0001 решение 7)"]
+    purpose: Client ID сервисного токена Access (`common_name` в JWT), принимаемого на dev/stage.
+    guide:
+      obtain: Zero Trust → Access controls → Service Tokens → `team-console-e2e` → Client ID.
+      scopes: null
+      rotation: Создать новый Service Token и заменить значение; старый перестаёт приниматься.
+      gotchas: >-
+        Не на production (`ALLOW_SERVICE_TOKEN` там `false`). Поле существует в wrangler.jsonc всех трёх
+        окружений, но на production игнорируется.
+
+  - name: GITHUB_APP_ID
+    kind: variable
+    origin: generated
+    environments: [dev, stage, production]
+    locations: [{ place: wrangler-var, app: api }]
+    neededBy: ["apps/api (минтинг JWT приложения, ADR 0003 решение 6)"]
+    purpose: App ID консольного GitHub App'а этого окружения (Worker binding name).
+    guide:
+      obtain: >-
+        Значение приходит из GitHub Environment variable `CONSOLE_GITHUB_APP_ID` через deploy.yml's
+        `--var GITHUB_APP_ID:${{ vars.CONSOLE_GITHUB_APP_ID }}`.
+      scopes: null
+      rotation: null
+      gotchas: >-
+        Названа иначе на стороне GitHub (`CONSOLE_GITHUB_APP_ID`) потому что GitHub не разрешает
+        Environment variable с именем, начинающимся на зарезервированный префикс `GITHUB_`.
+
+  - name: GITHUB_APP_CLIENT_ID
+    kind: variable
+    origin: generated
+    environments: [dev, stage, production]
+    locations: [{ place: wrangler-var, app: api }]
+    neededBy: ["apps/api (OAuth-обмен кода на токен владельца, ADR 0003 решение 3)"]
+    purpose: OAuth client id консольного GitHub App'а этого окружения (Worker binding name).
+    guide:
+      obtain: >-
+        Значение приходит из GitHub Environment variable `CONSOLE_GITHUB_APP_CLIENT_ID` через deploy.yml's
+        `--var GITHUB_APP_CLIENT_ID:${{ vars.CONSOLE_GITHUB_APP_CLIENT_ID }}`.
+      scopes: null
+      rotation: null
+      gotchas: Та же причина переименования, что у GITHUB_APP_ID (см. его gotchas).
+
+  - name: OWNER_GITHUB_LOGIN
+    kind: variable
+    origin: generated
+    environments: [dev, stage, production]
+    locations:
+      - { place: github-environment-variable }
+      - { place: wrangler-var, app: api }
+    neededBy: ["apps/api (сверка входящего логина при OAuth-коллбэке, ADR 0003 решение 3)", "deploy.yml"]
+    purpose: Единственный GitHub-логин, который принимает подключение владельца (#59).
+    guide:
+      obtain: "`tools/owner-setup/create-apps.sh` читает его сам: `gh api repos/<repo> --jq .owner.login`."
+      scopes: null
+      rotation: null
+      gotchas: null
+
+  - name: VAPID_PUBLIC_KEY
+    kind: variable
+    origin: generated
+    environments: [dev, stage, production]
+    locations:
+      - { place: github-environment-variable }
+      - { place: wrangler-var, app: api }
+      - { place: wrangler-var, app: hooks }
+    neededBy: ["apps/api, apps/hooks (клиент подписывается на push, #11)", "deploy.yml (передаёт как --var)"]
+    purpose: Публичная половина VAPID-пары этого окружения — не секрет, но своя на каждое окружение.
+    guide:
+      obtain: Печатается в терминал `tools/owner-setup/set-secrets.sh` при генерации пары — скопировать оттуда.
+      scopes: null
+      rotation: Меняется вместе с `VAPID_PRIVATE_KEY`.
+      gotchas: Пусто в wrangler.jsonc нарочно; единственный источник — GitHub Environment variable.
+
+  # --- Fixed values, already committed in wrangler.jsonc (no owner action; still part of the manifest) -----
+  - name: ENVIRONMENT
+    kind: variable
+    origin: generated
+    environments: [dev, stage, production]
+    locations: [{ place: wrangler-var, app: api }, { place: wrangler-var, app: hooks }]
+    neededBy: ["apps/api, apps/hooks (идентичность окружения, #237; местный обход авторизации, ADR 0001 решение 7)"]
+    purpose: "`dev`/`stage`/`production` — фиксированное значение, одинаковое при каждом деплое этого окружения."
+    guide:
+      obtain: null
+      scopes: null
+      rotation: Меняется только переименованием окружения — не ожидается.
+      gotchas: "`local` существует только как `--var` флаг `nx serve`/Dockerfile, никогда в wrangler.jsonc."
+
+  - name: ALLOW_SERVICE_TOKEN
+    kind: variable
+    origin: generated
+    environments: [dev, stage, production]
+    locations: [{ place: wrangler-var, app: api }]
+    neededBy: ["apps/api (разрешает путь сервисного токена Access на dev/stage, ADR 0001 решение 7)"]
+    purpose: "`true` на dev/stage (для e2e), `false` на production — фиксировано в wrangler.jsonc."
+    guide:
+      obtain: null
+      scopes: null
+      rotation: null
+      gotchas: null
+
+  - name: VAPID_SUBJECT
+    kind: variable
+    origin: generated
+    environments: [dev, stage, production]
+    locations: [{ place: wrangler-var, app: api }, { place: wrangler-var, app: hooks }]
+    neededBy: ["apps/api, apps/hooks (JWT `sub` для push, #11 threat model row 4)"]
+    purpose: "URL репозитория (`https://github.com/geeera/team-console`) — фиксированное значение, никогда e-mail."
+    guide:
+      obtain: null
+      scopes: null
+      rotation: null
+      gotchas: Должен остаться https URL, не mailto — публикация e-mail владельца в публичном репозитории.
+
+  # --- Local-only vars (never in wrangler.jsonc; `--var` flags of `nx serve`/the Dockerfile only) ----------
+  - name: AUTH_MODE
+    kind: variable
+    origin: generated
+    environments: [local]
+    locations: [{ place: local-only }]
+    neededBy: ["apps/api (пропуск проверки JWT вместе с ENVIRONMENT=local)"]
+    purpose: "`local` обходит проверку Access JWT только локально, вместе с `ENVIRONMENT=local`."
+    guide:
+      obtain: null
+      scopes: null
+      rotation: null
+      gotchas: "`tools/workspace-checks` проваливается, если это появится в любом `env.*` блоке wrangler.jsonc."
+
+  - name: GITHUB_MOCK
+    kind: variable
+    origin: generated
+    environments: [local]
+    locations: [{ place: local-only }]
+    neededBy: ["apps/api (подменяет api.github.com на fixture GitHub из @worker/github)"]
+    purpose: "`true` переключает GitHub на локальную fixture-реализацию; только с `ENVIRONMENT=local`."
+    guide:
+      obtain: null
+      scopes: null
+      rotation: null
+      gotchas: null
+
+  - name: GITHUB_FAKE_ORIGIN
+    kind: variable
+    origin: generated
+    environments: [local]
+    locations: [{ place: local-only }]
+    neededBy: ["apps/api (origin фейкового GitHub, `npx nx serve fake-github`)"]
+    purpose: Loopback-адрес фейкового GitHub для github.com и api.github.com (`http://127.0.0.1:9999`).
+    guide:
+      obtain: null
+      scopes: null
+      rotation: null
+      gotchas: null
+
+  - name: ROUTINES_FAKE_ORIGIN
+    kind: variable
+    origin: generated
+    environments: [local]
+    locations: [{ place: local-only }]
+    neededBy: ["apps/api (origin фейковых routines, `nx run api:fake-routines`, #114)"]
+    purpose: Loopback-адрес фейкового API routines, который «Run now» дёргает вместо api.anthropic.com.
+    guide:
+      obtain: null
+      scopes: null
+      rotation: null
+      gotchas: null
+
+  - name: PUSH_FAKE_ORIGIN
+    kind: variable
+    origin: generated
+    environments: [local]
+    locations: [{ place: local-only }]
+    neededBy: ["apps/api, apps/hooks (origin фейкового push-сервиса, `nx run api:fake-push`)"]
+    purpose: Loopback-адрес фейкового push-сервиса, которому локально отправляются пуши вместо Apple/FCM/Mozilla.
+    guide:
+      obtain: null
+      scopes: null
+      rotation: null
+      gotchas: null
+
+  # --- GitHub Actions secrets ------------------------------------------------------------------------------
+  - name: CLOUDFLARE_API_TOKEN
+    kind: secret
+    origin: owner
+    environments: [dev, stage, production]
+    locations: [{ place: github-environment-secret }]
+    neededBy: ["deploy.yml (миграции D1, деплой обоих Worker'ов и Storybook)"]
+    purpose: Cloudflare API-токен с правами на Workers Scripts, D1 и Pages.
+    guide:
+      obtain: dashboard.cloudflare.com → My Profile → API Tokens → Create Token (или Roll существующего).
+      scopes: "Workers Scripts: Edit, D1: Edit, Account: Read, Cloudflare Pages: Edit."
+      rotation: "Roll в Cloudflare, затем `tools/owner-setup/set-secrets.sh --rotate`."
+      gotchas: >-
+        Заводится `tools/owner-setup/set-secrets.sh` как GitHub Environment secret на каждое окружение —
+        никогда как repository-level secret (любой workflow на любой ветке видел бы его).
+
+  - name: CLOUDFLARE_ACCOUNT_ID
+    kind: variable
+    origin: owner
+    environments: [dev, stage, production]
+    locations: [{ place: github-environment-secret }]
+    neededBy: ["deploy.yml (миграции D1, деплой обоих Worker'ов и Storybook)"]
+    purpose: Cloudflare Account ID — не секретен сам по себе, но хранится рядом с токеном как секрет.
+    guide:
+      obtain: dashboard.cloudflare.com → правая панель любой страницы аккаунта.
+      scopes: null
+      rotation: null
+      gotchas: Заводится тем же `set-secrets.sh`, что и `CLOUDFLARE_API_TOKEN`.
+
+  - name: PT_TELEGRAM_TOKEN
+    kind: secret
+    origin: owner
+    environments: [dev, stage, production]
+    locations: [{ place: github-repository-secret }]
+    neededBy: ["owner-digest.yml"]
+    purpose: Токен Telegram-бота для ежедневной сводки «нужен ты».
+    guide:
+      obtain: "Написать @BotFather → `/newbot` → скопировать токен."
+      scopes: null
+      rotation: "`/revoke` у @BotFather, затем обновить секрет."
+      gotchas: Репозиторный секрет — один на весь репозиторий, не по окружениям.
+
+  - name: PT_TELEGRAM_CHAT
+    kind: variable
+    origin: owner
+    environments: [dev, stage, production]
+    locations: [{ place: github-repository-secret }]
+    neededBy: ["owner-digest.yml"]
+    purpose: Chat id, куда бот шлёт сводку.
+    guide:
+      obtain: >-
+        Написать что-нибудь своему боту, открыть в браузере
+        `https://api.telegram.org/bot<токен>/getUpdates` и скопировать `chat.id`.
+      scopes: null
+      rotation: null
+      gotchas: Хранится секретом, хотя формально не секретен, — рядом с токеном, той же парой.
+
+  - name: PT_NTFY_TOPIC
+    kind: secret
+    origin: owner
+    environments: [dev, stage, production]
+    locations: [{ place: github-repository-secret }]
+    neededBy: ["owner-digest.yml (альтернатива Telegram)"]
+    purpose: Имя топика ntfy для сводки, если выбран ntfy вместо Telegram.
+    guide:
+      obtain: Поставить приложение ntfy, придумать длинное случайное имя топика, подписаться на него.
+      scopes: null
+      rotation: Придумать новое длинное случайное имя, если старое стало кому-то известно.
+      gotchas: Топик может прочитать любой, кто его угадает, — делать длинным и случайным.
+
+  - name: CONSOLE_GITHUB_APP_ID
+    kind: variable
+    origin: generated
+    environments: [dev, stage, production]
+    locations: [{ place: github-environment-variable }]
+    neededBy: ["deploy.yml (передаёт Worker'у `api` как `--var GITHUB_APP_ID`)"]
+    purpose: App ID консольного GitHub App'а этого окружения, на стороне GitHub.
+    guide:
+      obtain: Заводится автоматически `tools/owner-setup/create-apps.sh` после создания приложения.
+      scopes: null
+      rotation: null
+      gotchas: >-
+        Имя не `GITHUB_APP_ID` — GitHub не разрешает Environment variable с именем, начинающимся на `GITHUB_`
+        (см. gotchas у Worker-переменной `GITHUB_APP_ID`).
+
+  - name: CONSOLE_GITHUB_APP_CLIENT_ID
+    kind: variable
+    origin: generated
+    environments: [dev, stage, production]
+    locations: [{ place: github-environment-variable }]
+    neededBy: ["deploy.yml (передаёт Worker'у `api` как `--var GITHUB_APP_CLIENT_ID`)"]
+    purpose: OAuth client id консольного GitHub App'а этого окружения, на стороне GitHub.
+    guide:
+      obtain: Заводится автоматически `tools/owner-setup/create-apps.sh` после создания приложения.
+      scopes: null
+      rotation: null
+      gotchas: Та же причина переименования, что у CONSOLE_GITHUB_APP_ID.
+
+  - name: CONSOLE_GITHUB_APP_SLUG
+    kind: variable
+    origin: generated
+    environments: [dev, stage, production]
+    locations: [{ place: github-environment-variable }]
+    neededBy:
+      - "tools/owner-setup/create-apps.sh (breadcrumb — засечка незавершённой настройки)"
+      - "project.yml's team.console_app_slugs (trust root for owner requests, ADR 0005)"
+    purpose: Имя консольного GitHub App'а этого окружения (`team-console-<env>`), записанное ещё до создания.
+    guide:
+      obtain: Пишется автоматически `create-apps.sh` самим первым же шагом, до любого обращения к GitHub.
+      scopes: null
+      rotation: null
+      gotchas: >-
+        Если запуск прервался после создания приложения на GitHub, по этой переменной `create-apps.sh`
+        находит недосозданное приложение при следующем запуске.

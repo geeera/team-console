@@ -127,10 +127,13 @@ describe('AppShell', () => {
     expect(opener.textContent).toContain('Консоль команды');
 
     opener.click();
+    // The sheet is its own chunk, imported on the first tap (#123).
+    const dialog = await vi.waitFor(() => {
+      const found = document.querySelector<HTMLElement>('[role="dialog"]');
+      expect(found).not.toBeNull();
+      return found as HTMLElement;
+    });
     await fixture.whenStable();
-
-    const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
-    expect(dialog).not.toBeNull();
     expect(dialog.querySelector('tc-project-switcher')).not.toBeNull();
     expect(dialog.textContent).toContain('Добавить проект');
     dialog.querySelector<HTMLButtonElement>('.tc-sheet__close')?.click();

@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>#238 New project: idea, interview, repository, kickoff, environments, start (UX wireframe)</title>
+<style>
+/* Low fidelity on purpose: grey boxes, system font, real copy (ru reference, en second). The look is the ui-designer's
+   job (Paper Desk, ADR 0002). Names, dates and counts are examples. There is no secret field anywhere on purpose. */
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.4 system-ui,-apple-system,sans-serif;color:#222;background:#eee}
+button,select,input,textarea{font:inherit;color:inherit}
+a{color:inherit}
+:focus-visible{outline:3px solid #000;outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.demo{background:#fff;border-bottom:1px solid #bbb;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:13px}
+.demo b{font-size:14px}.demo p{margin:0;flex-basis:100%;color:#555}
+.stage{padding:20px;display:flex;gap:24px;justify-content:center;align-items:flex-start;flex-wrap:wrap}
+.frame{background:#fafafa;border:2px solid #999;position:relative;overflow:hidden;display:flex}
+.frame.phone{width:390px;height:844px;flex-direction:column;border-radius:28px}
+.frame.mac{width:1440px;height:900px;zoom:.72}
+.topbar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #bbb;background:#e6e6e6;min-height:53px;flex:none}
+.topbar b{flex:1;text-align:center}
+.side{width:256px;border-right:1px solid #bbb;background:#e6e6e6;padding:12px;flex:none;font-size:14px}
+.side div{padding:8px}.side [aria-current]{font-weight:700;text-decoration:underline}
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.machead{display:flex;align-items:center;gap:12px;padding:14px 32px;border-bottom:1px solid #bbb}
+.machead h1{margin:0;font-size:22px;flex:1}
+.macbody{flex:1;display:flex;min-height:0}
+.rail{width:248px;flex:none;border-right:1px solid #ccc;padding:16px;overflow:auto}
+.aside{width:340px;flex:none;border-left:1px solid #ccc;padding:16px;overflow:auto;background:#f3f3f3}
+.scroll{flex:1;overflow:auto;min-width:0}
+.content{padding:12px 16px 24px}
+.mac .content{padding:20px 32px 32px;max-width:760px}
+.stephead{padding:8px 16px;border-bottom:1px solid #ccc;background:#f0f0f0;font-size:13px;flex:none}
+.stephead .row{display:flex;align-items:center;gap:8px}
+.stephead .row span{flex:1}
+.segs{display:flex;gap:3px;margin-top:6px}.segs i{flex:1;height:6px;background:#ccc;border-radius:3px}
+.segs i.done{background:#666}.segs i.cur{background:#999;outline:1px solid #333}
+ol.steps{list-style:none;margin:0;padding:0}
+ol.steps li{display:flex;gap:8px;align-items:flex-start;padding:8px 6px;border-radius:4px;min-height:44px}
+ol.steps li .n{width:24px;height:24px;border:1px solid #888;border-radius:12px;display:grid;place-items:center;font-size:12px;flex:none;background:#fff}
+ol.steps li.done .n{background:#777;color:#fff}
+ol.steps li[aria-current] {background:#ddd;font-weight:600}
+ol.steps li small{display:block;font-weight:400;color:#555;font-size:12px}
+ol.steps li.future{color:#777}
+h2.step{font-size:20px;margin:4px 0 4px}
+h2.step:focus{outline:3px solid #000}
+.lead{color:#444;margin:0 0 12px;font-size:14px}
+.btn{min-height:44px;padding:0 14px;border:1px solid #666;background:#ddd;cursor:pointer;border-radius:4px}
+.btn.primary{background:#555;color:#fff;border-color:#333}
+.btn.sm{min-height:36px;font-size:14px}
+.btn.link{border:0;background:none;text-decoration:underline;padding:0 4px}
+.btn[aria-disabled=true]{opacity:.55;cursor:not-allowed}
+.actions{display:flex;flex-direction:column;gap:8px;margin:14px 0}
+.mac .actions{flex-direction:row;flex-wrap:wrap}
+.card{border:1px solid #aaa;background:#fff;border-radius:6px;padding:12px;margin:10px 0}
+.card h3{margin:0 0 4px;font-size:15px}
+.card.dashed{border-style:dashed;background:#f6f6f6}
+.card.strong{border-width:2px;border-color:#444}
+.field{margin:10px 0}
+.field label,.field .lab{display:block;font-weight:600;font-size:14px;margin-bottom:4px}
+.field .hint{font-size:12px;color:#555;margin:4px 0 0}
+.field .err{font-size:13px;margin:4px 0 0;font-weight:600}
+.field .err::before{content:"⚠ "}
+input[type=text],textarea{width:100%;border:1px solid #777;border-radius:4px;padding:10px;background:#fff;min-height:44px}
+input[aria-invalid=true],textarea[aria-invalid=true]{border:2px solid #222}
+textarea{min-height:120px;resize:vertical}
+.prefix{display:flex;align-items:center;gap:0}.prefix span{padding:10px;border:1px solid #777;border-right:0;background:#e6e6e6;border-radius:4px 0 0 4px;min-height:44px}
+.prefix input{border-radius:0 4px 4px 0}
+.radio{display:flex;gap:8px;align-items:flex-start;min-height:44px;padding:6px 0}
+.radio small{display:block;color:#555}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border:1px solid #999;border-radius:12px;font-size:12px;white-space:nowrap;background:#fff}
+.chip.strong{border-width:2px;border-color:#444;font-weight:600}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.chips .btn{border-radius:18px}
+.thread{list-style:none;margin:0;padding:0}
+.thread li{margin:8px 0}
+.q{border:1px solid #aaa;background:#fff;border-radius:6px;padding:10px}
+.a{border:1px solid #999;background:#e8e8e8;border-radius:6px;padding:10px;margin-left:32px}
+.who{font-size:12px;color:#555;display:block;margin-bottom:2px}
+.rec{border:1px dashed #666;background:#f4f4f4;padding:8px 10px;border-radius:4px;margin:8px 0}
+.rec b{display:block;font-size:12px}
+details summary{min-height:44px;display:flex;align-items:center;cursor:pointer}
+dl.brief{margin:0}
+dl.brief dt{font-weight:600;font-size:13px;margin-top:10px}
+dl.brief dd{margin:2px 0 0;white-space:pre-wrap}
+dl.brief dd.assume{font-style:italic}
+.ledger{list-style:none;margin:0;padding:0;border:1px solid #aaa;border-radius:6px;background:#fff}
+.ledger li{display:flex;gap:10px;padding:10px;border-top:1px solid #ddd;align-items:flex-start;min-height:44px}
+.ledger li:first-child{border-top:0}
+.ledger .ic{width:22px;flex:none;text-align:center;font-weight:700}
+.ledger .tx{flex:1;min-width:0}
+.ledger .tx small{display:block;color:#555;font-size:12px}
+.ledger li.need{border-left:4px solid #333}
+.state{border:1px dashed #888;padding:12px;background:#f3f3f3;margin:8px 0;border-radius:4px}
+.state b{display:block}
+.banner{background:#e0e0e0;border:1px solid #999;padding:8px 10px;font-size:13px;margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.muted{color:#555;font-size:13px}
+.skel{background:#ddd;border-radius:4px;margin:8px 0}
+.tiles{display:grid;grid-template-columns:1fr;gap:8px}
+.mac .tiles{grid-template-columns:1fr 1fr 1fr}
+.tile{border:1px solid #aaa;background:#fff;border-radius:6px;padding:10px;min-height:96px}
+.tile.draft{border-style:dashed;border-width:2px}
+.tile h3{margin:0;font-size:15px}
+.headrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.headrow h2{margin:0;flex:1;font-size:20px}
+.overlay{position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:center;z-index:5}
+.mac .overlay{align-items:center}
+.sheet{background:#fff;width:100%;border-radius:16px 16px 0 0;padding:16px;max-height:85%;overflow:auto;border:1px solid #888}
+.mac .sheet{width:560px;border-radius:8px}
+.sheet h2{margin:0 0 6px;font-size:18px}
+.sheet ul{padding-left:18px;margin:6px 0}
+.sheet .foot{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.mac .sheet .foot{flex-direction:row;justify-content:flex-end}
+.stamp{display:inline-block;border:3px double #333;padding:4px 12px;transform:rotate(-4deg);font-weight:700;letter-spacing:.05em}
+.composer{border-top:1px solid #bbb;background:#eee;padding:8px 12px;flex:none}
+.composer textarea{min-height:72px}
+.composer .row{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+.notes{max-width:1100px;margin:0 auto 40px;background:#fff;border:1px solid #bbb;padding:16px 20px;font-size:14px}
+.notes h2{font-size:16px}
+code{background:#eee;padding:0 3px;border-radius:3px;font-size:.92em}
+</style>
+</head>
+<body>
+<div class="demo" role="region" aria-label="Wireframe controls">
+  <b>#238 Новый проект</b>
+  <label>Вид <select id="view"><option value="both">iPhone и Mac</option><option value="phone">iPhone 390×844</option><option value="mac">Mac 1440×900</option></select></label>
+  <label>Язык <select id="lang"><option value="ru">ru</option><option value="en">en</option></select></label>
+  <label>Экран и состояние <select id="scene"></select></label>
+  <p>Кнопки внутри макета работают: они переводят по шагам, как в продукте, и ставят фокус туда, куда его ставит спека. Список выше открывает любое состояние напрямую. Ввода секретов здесь нет нигде, и это намеренно.</p>
+</div>
+<div class="stage" id="stage"></div>
+
+<section class="notes" aria-label="Wireframe notes">
+  <h2>Что это (коротко)</h2>
+  <ul>
+    <li>Мастер «Новый проект» (<code>/new</code>, черновик <code>/new/:id/&lt;шаг&gt;</code>). Шесть шагов: Идея → Интервью → Репозиторий → Подготовка → Окружения → Запуск.</li>
+    <li>Вход: кнопка «Новый проект» на «Все проекты» и в меню проектов, рядом с «Добавить проект» (#194, существующий репозиторий). Незаконченный проект — плитка «Создаётся» вверху «Все проекты».</li>
+    <li>Интервью — вопросы PM по одному, у каждого рекомендованный ответ. В конце бриф. Подготовка (kickoff) получает только бриф, который вы подтвердили.</li>
+    <li>Всё, что пишет в ваш GitHub (создать репозиторий, запустить kickoff, подключить команду), — отдельная кнопка с подтверждением. Удалять репозиторий консоль не умеет.</li>
+    <li>Окружения: только статусы «Задано / Не задано / Отсюда не видно». Значения вводятся на экране «Настройка окружения» (#104), не в мастере.</li>
+  </ul>
+</section>
+
+<script>
+'use strict';
+const S = { view:'both', lang:'ru', scene:'entry', otherOpen:false, focusSel:null };
+const t = (ru,en) => S.lang==='ru' ? ru : en;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const SCENES = [
+  ['entry','Все проекты: вход и черновик'],
+  ['entry-empty','Все проекты: проектов ещё нет'],
+  ['idea','1 Идея: пусто'],
+  ['idea-filled','1 Идея: заполнено'],
+  ['idea-error','1 Идея: ошибка проверки'],
+  ['idea-noconn','1 Идея: GitHub не подключён'],
+  ['interview-q','2 Интервью: вопрос с рекомендацией'],
+  ['interview-other','2 Интервью: «Ответить иначе»'],
+  ['interview-wait','2 Интервью: PM думает'],
+  ['interview-busy','2 Интервью: лимит запусков (429)'],
+  ['interview-failed','2 Интервью: PM не ответил'],
+  ['brief','2 Интервью: бриф на подтверждение'],
+  ['brief-revise','2 Интервью: поправить бриф'],
+  ['repo','3 Репозиторий: форма'],
+  ['repo-taken','3 Репозиторий: имя занято'],
+  ['repo-confirm','3 Репозиторий: подтверждение'],
+  ['repo-progress','3 Репозиторий: создаём'],
+  ['repo-access','3 Репозиторий: нужен ваш шаг (доступ приложению)'],
+  ['repo-link','3 Репозиторий: создать на GitHub (запасной путь)'],
+  ['repo-failed','3 Репозиторий: сбой на шаге'],
+  ['repo-done','3 Репозиторий: готово'],
+  ['kickoff-ready','4 Подготовка: перед запуском'],
+  ['kickoff-confirm','4 Подготовка: подтверждение'],
+  ['kickoff-running','4 Подготовка: идёт'],
+  ['kickoff-stalled','4 Подготовка: давно нет новостей'],
+  ['kickoff-failed','4 Подготовка: сбой'],
+  ['kickoff-done','4 Подготовка: готово, ждёт вас'],
+  ['env','5 Окружения: не всё задано'],
+  ['env-allset','5 Окружения: всё задано'],
+  ['start','6 Запуск: перед запуском'],
+  ['start-confirm','6 Запуск: подтверждение'],
+  ['launched','6 Запуск: команда работает'],
+  ['cancel','Отменить создание (после репозитория)'],
+  ['brief-v2','2 Интервью: бриф, версия 2'],
+  ['loading','Черновик загружается'],
+  ['offline','Нет сети'],
+  ['gone','Черновик не найден'],
+  ['denied','Не владелец (403)'],
+];
+const STEP_OF = s => s.startsWith('idea')?1 : (s.startsWith('interview')||s.startsWith('brief'))?2 : s.startsWith('repo')?3 : s.startsWith('kickoff')?4 : s.startsWith('env')?5 : (s.startsWith('start')||s==='launched')?6 : s==='cancel'?3 : 0;
+const STEPS = () => [
+  [t('Идея','Idea'), t('Пара предложений','A few sentences')],
+  [t('Интервью','Interview'), t('Вопросы PM и бриф','PM questions and the brief')],
+  [t('Репозиторий','Repository'), t('В вашем GitHub','On your GitHub')],
+  [t('Подготовка','Kickoff'), t('Настройки, бэклог, ADR','Config, backlog, ADR')],
+  [t('Окружения','Environments'), t('Что задать и где','What to set and where')],
+  [t('Запуск','Start'), t('Команда берёт работу','The team picks up work')],
+];
+const NAME = 'chess-coach', LOGIN = 'geeera';
+const IDEA = () => t('Тренер по шахматным дебютам для детей 7–12 лет: уроки по 5 минут, задачка после урока, родители видят прогресс раз в неделю.',
+               'An openings coach for kids aged 7–12: 5-minute lessons, a puzzle after each lesson, parents see progress once a week.');
+
+/* ---------- pieces ---------- */
+function btn(label, opts={}) {
+  const cls = 'btn' + (opts.primary?' primary':'') + (opts.sm?' sm':'') + (opts.link?' link':'');
+  const go = opts.go ? ` data-go="${opts.go}"` : '';
+  const dis = opts.disabled ? ` aria-disabled="true" aria-describedby="${opts.disabled}"` : '';
+  const aria = opts.aria ? ` aria-label="${esc(opts.aria)}"` : '';
+  const ext = opts.ext ? ` (${t('откроется GitHub','opens GitHub')})` : '';
+  if (opts.href) return `<a class="${cls}" href="#" data-noop${aria} style="display:inline-flex;align-items:center;text-decoration:none">${esc(label)}<span class="sr-only">${ext}</span>${opts.ext?' ↗':''}</a>`;
+  return `<button type="button" class="${cls}"${go}${dis}${aria}${opts.extra||''}>${esc(label)}</button>`;
+}
+function stepTitle(n, title, lead) {
+  return `<h2 class="step" tabindex="-1" data-step-h>${esc(title)}</h2>${lead?`<p class="lead">${lead}</p>`:''}`;
+}
+function stepper(cur, compact) {
+  const steps = STEPS();
+  return `<nav aria-label="${t('Шаги создания проекта','Project creation steps')}"><ol class="steps">` + steps.map((s,i)=>{
+    const n=i+1, done=n<cur, now=n===cur;
+    const st = done ? t('готово','done') : now ? t('сейчас','current') : t('ещё не доступно','not available yet');
+    const inner = `<span class="n" aria-hidden="true">${done?'✓':n}</span><span>${done?`<a href="#" data-go="${['','idea-filled','brief','repo-done','kickoff-done','env','start'][n]}">${esc(s[0])}</a>`:esc(s[0])}<span class="sr-only">, ${st}</span><small>${esc(s[1])}</small></span>`;
+    return `<li class="${done?'done':now?'':'future'}"${now?' aria-current="step"':''}>${inner}</li>`;
+  }).join('') + `</ol></nav>`;
+}
+function phoneStepHead(cur) {
+  const segs = STEPS().map((_,i)=>`<i class="${i+1<cur?'done':i+1===cur?'cur':''}"></i>`).join('');
+  return `<div class="stephead"><div class="row"><span>${t(`Шаг ${cur} из 6 · `,`Step ${cur} of 6 · `)}<b>${esc(STEPS()[cur-1][0])}</b></span>
+    <details style="display:inline"><summary class="btn link sm">${t('Все шаги','All steps')}</summary></details></div>
+    <div class="segs" aria-hidden="true">${segs}</div></div>`;
+}
+function sheet(title, body, primary, secondary, opts={}) {
+  return `<div class="overlay"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-t" data-sheet>
+    <h2 id="sh-t" tabindex="-1">${esc(title)}</h2>${body}
+    <div class="foot" data-foot>${primary}${secondary}</div></div></div>`;
+}
+function ledger(rows) {
+  const ic = {done:'✓', run:'…', wait:'○', need:'!', fail:'✕', skip:'–'};
+  const word = {done:t('готово','done'), run:t('идёт','in progress'), wait:t('ждёт','waiting'), need:t('нужен ваш шаг','needs you'), fail:t('не удалось','failed'), skip:t('пропущено','skipped')};
+  return `<ul class="ledger">` + rows.map(([st, label, sub, act]) =>
+    `<li class="${st==='need'||st==='fail'?'need':''}"><span class="ic" aria-hidden="true">${ic[st]}</span><span class="tx"><span class="sr-only">${word[st]}: </span>${label}${sub?`<small>${sub}</small>`:''}${act?`<div style="margin-top:6px">${act}</div>`:''}</span><span class="chip">${word[st]}</span></li>`).join('') + `</ul>`;
+}
+const live = msg => `<p class="sr-only" role="status" data-live>${esc(msg||'')}</p>`;
+
+/* ---------- brief (what kickoff gets) ---------- */
+function briefDl(revised) {
+  const rows = [
+    [t('Цель','Goal'), t('Ребёнок за 5 минут в день выучивает 10 дебютов за месяц; родитель видит, что занятия идут.','A child learns 10 openings in a month in 5 minutes a day; the parent sees the lessons are happening.')],
+    [t('Пользователи','Users'), t('Дети 7–12 лет (уроки, задачки); родители (недельный отчёт).','Kids aged 7–12 (lessons, puzzles); parents (weekly report).')],
+    [t('MVP — первый спринт','MVP — the first sprint'), t('• 10 уроков-дебютов с доской\n• задачка после урока\n• профиль ребёнка без пароля, вход через родителя\n• недельный отчёт родителю по почте','• 10 opening lessons with a board\n• a puzzle after each lesson\n• a child profile without a password, sign-in through the parent\n• a weekly report to the parent by email')],
+    [t('Не входит','Out of scope'), t('Игра с соперником, оплата, рейтинг.','Playing an opponent, payments, rating.')],
+    [t('Стек','Stack'), t('Angular PWA + Cloudflare Workers + D1 (как team-console). Шаблон: geeera/product-template.','Angular PWA + Cloudflare Workers + D1 (as team-console). Template: geeera/product-template.')],
+    [t('Демо первого спринта','First sprint demo'), revised ? t('4 ноября 2026','4 November 2026') : t('28 октября 2026','28 October 2026')],
+    [t('Референсы дизайна','Design references'), t('lichess.org/learn · duolingo.com · chesskid.com','lichess.org/learn · duolingo.com · chesskid.com')],
+    [t('Имя репозитория','Repository name'), NAME],
+  ];
+  return `<dl class="brief">` + rows.map(([k,v])=>`<dt>${esc(k)}</dt><dd dir="auto">${esc(v)}</dd>`).join('') +
+    `<dt>${t('Допущения PM','PM’s assumptions')}</dt><dd class="assume" dir="auto">${esc(t('Почта для отчётов — через бесплатный тариф; уточним на подготовке.','Report emails go through a free tier; to be settled at kickoff.'))}</dd></dl>`;
+}
+
+/* ---------- scenes: content ---------- */
+const C = {};
+C['entry'] = () => `
+  <div class="headrow"><h2 tabindex="-1" data-step-h>${t('Все проекты','All projects')} <span class="muted">${t('2 проекта','2 projects')}</span></h2>
+    ${btn(t('Новый проект','New project'),{primary:true,go:'idea'})} ${btn(t('Добавить проект','Add a project'),{sm:true})}</div>
+  <div class="tiles">
+    <div class="tile draft"><span class="chip strong">${t('Создаётся','Being created')}</span>
+      <h3 dir="auto">${t('Тренер по шахматным дебютам','Chess openings coach')}</h3>
+      <p class="muted">${t('Шаг 2 из 6 · Интервью · PM ждёт вашего ответа','Step 2 of 6 · Interview · the PM is waiting for your answer')}</p>
+      ${btn(t('Продолжить','Continue'),{go:'interview-q',aria:t('Продолжить создание: Тренер по шахматным дебютам','Continue creating: Chess openings coach')})}</div>
+    <div class="tile"><h3>team-console</h3><p class="muted">Sprint 03 · ${t('демо 28 окт','demo 28 Oct')}</p><div class="skel" style="height:24px"></div></div>
+    <div class="tile"><h3>notes-app</h3><p class="muted">Sprint 01 · ${t('демо 4 ноя','demo 4 Nov')}</p><div class="skel" style="height:24px"></div></div>
+  </div>
+  <p class="muted" style="margin-top:12px">${t('«Новый проект» — создать с нуля: интервью, репозиторий, подготовка. «Добавить проект» — подключить репозиторий, который уже есть (#194).','“New project” creates one from scratch: interview, repository, kickoff. “Add a project” connects a repository you already have (#194).')}</p>`;
+C['entry-empty'] = () => `
+  <div class="headrow"><h2 tabindex="-1" data-step-h>${t('Все проекты','All projects')}</h2></div>
+  <div class="state"><b>${t('Проектов пока нет','No projects yet')}</b>
+    <p>${t('Начните с идеи: PM задаст вопросы, команда создаст репозиторий и подготовит первый спринт. Или подключите репозиторий, который уже есть.','Start from an idea: the PM asks questions, the team creates the repository and prepares the first sprint. Or connect a repository you already have.')}</p>
+    <div class="actions">${btn(t('Создать новый проект','Create a new project'),{primary:true,go:'idea'})}${btn(t('Подключить репозиторий','Connect a repository'))}</div></div>
+  <h3>${t('Доступны на GitHub','Available on GitHub')}</h3><div class="skel" style="height:120px"></div>`;
+
+function ideaForm(filled, error) {
+  const v = filled ? IDEA() : (error ? t('Шахматы','Chess') : '');
+  return stepTitle(1, t('Что хотите сделать?','What do you want to build?'),
+      t('Опишите идею в нескольких предложениях: для кого и что должно получиться. Остальное PM спросит в интервью.','Describe the idea in a few sentences: who it is for and what it should do. The PM asks the rest in the interview.')) + `
+    <form novalidate>
+    <div class="field"><label for="idea">${t('Идея','Idea')}</label>
+      <textarea id="idea" dir="auto" maxlength="2000" ${error?'aria-invalid="true" aria-describedby="idea-err idea-hint"':'aria-describedby="idea-hint"'} placeholder="${esc(t('Например: приложение, где…','For example: an app where…'))}">${esc(v)}</textarea>
+      ${error?`<p class="err" id="idea-err">${t('Напишите хотя бы одно предложение — от 20 символов.','Write at least one sentence: 20 characters or more.')}</p>`:''}
+      <p class="hint" id="idea-hint">${t(`${v.length} из 2000. Пишите как обычно — разметка не нужна.`,`${v.length} of 2000. Write as you normally would; no formatting needed.`)}</p></div>
+    <div class="field"><span class="lab">${t('Аккаунт GitHub','GitHub account')}</span>
+      <p style="margin:0">${LOGIN} <span class="muted">· ${t('репозиторий появится здесь на шаге 3','the repository is created here at step 3')}</span></p></div>
+    </form>
+    <div class="actions">${btn(t('Начать интервью','Start the interview'),{primary:true,go:filled?'interview-wait':'idea-error'})}</div>
+    <p class="muted">${t('Пока ничего не создано. Черновик сохраняется в консоли, его можно продолжить с другого устройства.','Nothing has been created yet. The draft is kept in the console; you can continue on another device.')}</p>`;
+}
+C['idea'] = () => ideaForm(false,false);
+C['idea-filled'] = () => ideaForm(true,false);
+C['idea-error'] = () => ideaForm(false,true);
+C['idea-noconn'] = () => stepTitle(1, t('Что хотите сделать?','What do you want to build?')) + `
+  <div class="state" role="alert"><b>${t('Подключите GitHub','Connect GitHub')}</b>
+  <p>${t('Новый проект создаётся в вашем аккаунте GitHub, поэтому консоли нужно ваше подключение. Пока ничего не отправлено.','A new project is created on your GitHub account, so the console needs your connection. Nothing has been sent yet.')}</p>
+  <div class="actions">${btn(t('Подключить GitHub','Connect GitHub'),{primary:true,href:1,ext:1})}</div></div>`;
+
+const TOPICS = () => [[t('Цель','Goal'),1],[t('Пользователи','Users'),1],[t('MVP','MVP'),0],[t('Не входит','Out of scope'),0],[t('Стек','Stack'),0],[t('Демо-дата','Demo date'),0],[t('Референсы','References'),0]];
+function topics() {
+  return `<p class="muted" style="margin:0 0 4px">${t('Что уже ясно','What is settled')}</p><ul class="chips" style="list-style:none;padding:0" aria-label="${t('Темы интервью','Interview topics')}">` +
+    TOPICS().map(([n,d])=>`<li class="chip${d?' strong':''}">${d?'✓ ':''}${esc(n)}<span class="sr-only">${d?t(': ясно',': settled'):t(': ещё нет',': not yet')}</span></li>`).join('') + `</ul>`;
+}
+function history() {
+  return `<details><summary class="btn link sm">${t('Предыдущие ответы (3)','Earlier answers (3)')}</summary>
+    <ol class="thread">
+      <li><div class="a"><span class="who">${t('Вы · идея','You · idea')}</span><span dir="auto">${esc(IDEA())}</span></div></li>
+      <li><div class="q"><span class="who">PM · ${t('вопрос 1','question 1')}</span>${t('Что для вас значит «получилось» через месяц?','What does “it worked” mean to you in a month?')}</div>
+          <div class="a"><span class="who">${t('Вы','You')}</span>${t('Рекомендация принята','Recommendation accepted')}: ${t('10 дебютов за месяц.','10 openings in a month.')} ${btn(t('Изменить','Change'),{link:1,sm:1,aria:t('Изменить ответ на вопрос 1','Change the answer to question 1')})}</div></li>
+    </ol></details>`;
+}
+function question(other) {
+  return `<article class="q" aria-labelledby="q-h" style="margin-top:8px"><span class="who">PM · ${t('вопрос 4 · тема: MVP','question 4 · topic: MVP')}</span>
+    <h3 id="q-h" tabindex="-1" data-q style="margin:2px 0 6px;font-size:17px" dir="auto">${t('Что точно должно быть в первом спринте, а что подождёт?','What must be in the first sprint, and what can wait?')}</h3>
+    <p class="muted" dir="auto">${t('Почему спрашиваю: от этого зависят бэклог Sprint 01 и дата демо.','Why I ask: the Sprint 01 backlog and the demo date depend on it.')}</p>
+    <div class="rec"><b>${t('Рекомендую','I recommend')}</b><span dir="auto">${t('Уроки и задачки — в первом спринте; отчёт родителю — простым письмом раз в неделю; игра с соперником и оплата — позже.','Lessons and puzzles in the first sprint; the parent report as a plain weekly email; playing an opponent and payments later.')}</span></div>
+    ${other ? `<div class="field"><label for="ans">${t('Ваш ответ','Your answer')}</label><textarea id="ans" dir="auto" data-focus-me aria-describedby="ans-h">${esc(t('Отчёт родителю пока не нужен, остальное как вы предлагаете.','No parent report yet; the rest as you suggest.'))}</textarea>
+        <p class="hint" id="ans-h">${t('⌘ Enter или Ctrl Enter — отправить.','⌘ Enter or Ctrl Enter sends it.')}</p></div>
+        <div class="actions">${btn(t('Отправить ответ','Send the answer'),{primary:true,go:'interview-wait'})}${btn(t('Отмена','Cancel'),{go:'interview-q'})}</div>`
+      : `<div class="actions">${btn(t('Принять рекомендацию','Accept the recommendation'),{primary:true,go:'interview-wait'})}${btn(t('Ответить иначе','Answer differently'),{go:'interview-other'})}</div>`}
+  </article>
+  <div class="actions" style="margin-top:4px">${btn(t('Хватит вопросов — составить бриф','Enough questions: write the brief'),{link:1,go:'interview-wait'})}</div>
+  <p class="muted">${t('PM возьмёт свои рекомендации по оставшимся темам и отметит их в брифе как допущения.','The PM uses its recommendations for the remaining topics and marks them in the brief as assumptions.')}</p>`;
+}
+const ivHead = () => stepTitle(2, t('Интервью с PM','Interview with the PM'), t('Вопросы по одному. Можно закрыть приложение: когда придёт следующий вопрос, пришлём уведомление.','One question at a time. You can close the app: we send a notification when the next question arrives.'));
+C['interview-q'] = (m) => ivHead() + (m? '' : topics()) + history() + question(false) + live(t('Новый вопрос от PM','A new question from the PM'));
+C['interview-other'] = (m) => ivHead() + (m? '' : topics()) + history() + question(true);
+C['interview-wait'] = (m) => ivHead() + (m? '' : topics()) + history() + `
+  <div class="a" style="margin-top:8px"><span class="who">${t('Вы · вопрос 4','You · question 4')}</span>${t('Рекомендация принята','Recommendation accepted')}</div>
+  <div class="state" tabindex="-1" data-wait><b>${t('Ответ отправлен. PM думает над следующим вопросом…','Answer sent. The PM is working on the next question…')}</b>
+    <p>${t('Обычно это несколько минут. Можно закрыть приложение — пришлём уведомление.','It usually takes a few minutes. You can close the app; we will send a notification.')}</p>
+    ${btn(t('Показать следующий вопрос (демо)','Show the next question (demo)'),{sm:1,go:'brief'})}</div>` + live(t('Ответ отправлен','Answer sent'));
+C['interview-busy'] = (m) => ivHead() + history() + `
+  <div class="state" role="status"><b>${t('PM сейчас занят другим проектом','The PM is busy with another project')}</b>
+  <p>${t('Ваш ответ сохранён. PM возьмётся за него сам в 14:40 — повторять ничего не нужно.','Your answer is saved. The PM picks it up by itself at 14:40; you don’t need to repeat anything.')}</p></div>`;
+C['interview-failed'] = (m) => ivHead() + history() + `
+  <div class="state" role="alert"><b>${t('PM не ответил','The PM didn’t answer')}</b>
+  <p>${t('Запуск PM завершился сбоем. Ваш ответ сохранён. Разбудите PM ещё раз — повторный запуск один, без автоповторов.','The PM run failed. Your answer is saved. Wake the PM once more; it’s a single run, never an automatic loop.')}</p>
+  <div class="actions">${btn(t('Разбудить PM ещё раз','Wake the PM again'),{primary:true,go:'interview-wait'})}${btn(t('Журнал прогонов','Run log'),{href:1,ext:1})}</div></div>`;
+C['brief'] = (m, revised) => stepTitle(2, t('Бриф проекта','Project brief'),
+    t('PM собрал ответы. Проверьте: подготовка проекта получит ровно этот текст и ничего больше из интервью.','The PM put your answers together. Check it: kickoff gets exactly this text and nothing else from the interview.')) + `
+  <div class="card strong" data-brief><p class="muted" style="margin:0">${revised?t('Версия 2 · 14:52 · с вашей поправкой','Version 2 · 14:52 · with your change'):t('Версия 1 · 14:31','Version 1 · 14:31')}</p>${briefDl(revised)}</div>
+  <div class="actions">${btn(t('Всё верно — дальше','Looks right: continue'),{primary:true,go:'repo'})}${btn(t('Поправить','Change something'),{go:'brief-revise'})}</div>
+  <p class="muted">${t('После подтверждения бриф фиксируется. Чтобы изменить его позже, придётся подтвердить новую версию до запуска подготовки.','Once confirmed, the brief is frozen. Changing it later means confirming a new version before kickoff starts.')}</p>`;
+C['brief-revise'] = (m) => C['brief'](m) .replace(/<div class="actions">[\s\S]*?<\/div>\s*<p class="muted">[\s\S]*$/, '') + `
+  <div class="field"><label for="fix">${t('Что поправить?','What should change?')}</label>
+  <textarea id="fix" dir="auto" data-focus-me>${esc(t('Демо через три недели, не через две.','Demo in three weeks, not two.'))}</textarea></div>
+  <div class="actions">${btn(t('Отправить PM','Send to the PM'),{primary:true,go:'brief-v2'})}${btn(t('Отмена','Cancel'),{go:'brief'})}</div>`;
+C['brief-v2'] = (m) => C['brief'](m, true);
+
+function repoForm(taken) {
+  return stepTitle(3, t('Репозиторий на GitHub','Repository on GitHub'), t('Проверьте имя и доступ. Пока вы не нажмёте «Создать», в GitHub ничего не появится.','Check the name and visibility. Nothing appears on GitHub until you press “Create”.')) + `
+  <div class="field"><label for="rn">${t('Имя репозитория','Repository name')}</label>
+    <div class="prefix"><span aria-hidden="true">${LOGIN}/</span><input type="text" id="rn" value="${taken?'notes-app':NAME}" autocapitalize="off" spellcheck="false"
+      aria-describedby="${taken?'rn-err ':''}rn-h"${taken?' aria-invalid="true"':''}></div>
+    ${taken?`<p class="err" id="rn-err">${t('У вас уже есть репозиторий notes-app. Выберите другое имя.','You already have a repository called notes-app. Choose another name.')}</p>`
+           :`<p class="hint" id="rn-h" role="status">✓ ${t('Имя свободно','The name is available')} · ${t('предложено в брифе','suggested in the brief')}</p>`}
+    ${taken?`<p class="hint" id="rn-h">${t('Латиница, цифры, «-», «_» и «.», до 100 символов. Это ваш существующий проект? Подключите его через «Добавить проект».','Latin letters, digits, “-”, “_” and “.”, up to 100 characters. Is it a project you already have? Connect it with “Add a project”.')}</p>`:''}</div>
+  <div class="field"><label for="rd">${t('Описание','Description')}</label><input type="text" id="rd" dir="auto" value="${esc(t('Тренер по шахматным дебютам для детей','Chess openings coach for kids'))}"></div>
+  <fieldset class="field" style="border:0;padding:0;margin:10px 0"><legend class="lab" style="font-weight:600;font-size:14px">${t('Кто видит','Who can see it')}</legend>
+    <label class="radio"><input type="radio" name="vis" checked> <span>${t('Приватный','Private')}<small>${t('Только вы и приложения команды.','Only you and the team’s apps.')}</small></span></label>
+    <label class="radio"><input type="radio" name="vis"> <span>${t('Публичный','Public')}<small>${t('Код и задачи увидит любой. Подходит, если в репозитории никогда не будет секретов.','Anyone can see the code and issues. Fine if the repository will never hold a secret.')}</small></span></label></fieldset>
+  <div class="card"><h3>${t('Что сделаем','What happens')}</h3><ul style="margin:4px 0;padding-left:18px">
+    <li>${t(`создадим ${LOGIN}/${NAME} из шаблона geeera/product-template (стек из брифа)`,`create ${LOGIN}/${NAME} from the geeera/product-template template (the stack from the brief)`)}</li>
+    <li>${t('ветки dev, stage и main','the dev, stage and main branches')}</li>
+    <li>${t('дадим доступ приложению команды и приложению ревью','give the team app and the review app access')}</li></ul></div>
+  <div class="actions">${btn(t('Создать репозиторий','Create the repository'),{primary:true,go:taken?'repo-taken':'repo-confirm'})}</div>`;
+}
+C['repo'] = () => repoForm(false);
+C['repo-taken'] = () => repoForm(true);
+const repoRows = (o) => ledger([
+  [o.repo||'done', t(`Репозиторий ${LOGIN}/${NAME}`,`Repository ${LOGIN}/${NAME}`), o.repoSub||'', o.repoAct],
+  [o.br||'wait', t('Ветки dev, stage, main','Branches dev, stage, main')],
+  [o.team||'wait', t('Доступ приложению команды','Team app access'), o.teamSub, o.teamAct],
+  [o.rev||'wait', t('Доступ приложению ревью','Review app access')],
+]);
+C['repo-progress'] = () => stepTitle(3, t('Создаём репозиторий','Creating the repository')) + repoRows({repo:'done', br:'run'}) +
+  `<p class="muted">${t('Можно уйти с экрана — создание продолжится.','You can leave this screen; creation carries on.')}</p>` + live(t('Репозиторий создан','Repository created'));
+C['repo-access'] = () => stepTitle(3, t('Создаём репозиторий','Creating the repository')) + repoRows({br:'done', team:'need',
+  teamSub:t(`Приложение команды установлено только для выбранных репозиториев. Добавьте ${NAME} в его установку на GitHub и вернитесь — проверим сами.`,`The team app is installed for selected repositories only. Add ${NAME} to its installation on GitHub and come back; we check by ourselves.`),
+  teamAct: btn(t('Открыть доступ на GitHub','Give access on GitHub'),{primary:1,sm:1,href:1,ext:1}) + ' ' + btn(t('Проверить сейчас','Check now'),{sm:1,go:'repo-done'})});
+C['repo-link'] = () => stepTitle(3, t('Создайте репозиторий на GitHub','Create the repository on GitHub'),
+   t('Консоль не может создать репозиторий сама: у подключения нет такого права. На GitHub всё уже заполнено — останется нажать «Create repository».','The console can’t create the repository itself: the connection doesn’t have that permission. Everything is filled in on GitHub; you only press “Create repository”.')) + `
+  <div class="actions">${btn(t('Создать на GitHub','Create on GitHub'),{primary:1,href:1,ext:1})}</div>
+  <div class="state" role="status"><b>${t(`Ждём ${LOGIN}/${NAME}…`,`Waiting for ${LOGIN}/${NAME}…`)}</b><p>${t('Когда создадите, вернитесь сюда — консоль проверит сама.','When it’s created, come back here; the console checks by itself.')}</p>${btn(t('Проверить сейчас','Check now'),{sm:1,go:'repo-progress'})}</div>`;
+C['repo-failed'] = () => stepTitle(3, t('Создаём репозиторий','Creating the repository')) + repoRows({br:'fail', team:'wait'}) + `
+  <div class="state" role="alert"><b>${t('Ветки не созданы','The branches weren’t created')}</b><p>${t('GitHub не ответил. Репозиторий уже есть — его не трогаем; повторим только ветки.','GitHub didn’t respond. The repository already exists and stays as it is; only the branches are retried.')}</p>
+  ${btn(t('Повторить','Retry'),{primary:1,go:'repo-progress'})}</div>`;
+C['repo-done'] = () => stepTitle(3, t('Репозиторий готов','The repository is ready')) + repoRows({br:'done',team:'done',rev:'done'}) + `
+  <div class="actions">${btn(t('Дальше: подготовка','Next: kickoff'),{primary:1,go:'kickoff-ready'})}${btn(t(`Открыть ${NAME} на GitHub`,`Open ${NAME} on GitHub`),{href:1,ext:1})}</div>`;
+
+const KICK = () => [
+  [t('Настройки проекта','Project settings'), '.product-team/project.yml'],
+  [t('Метки и Sprint 01','Labels and Sprint 01'), t('демо 4 ноября','demo 4 November')],
+  [t('Бэклог из брифа','Backlog from the brief'), t('12 задач','12 issues')],
+  [t('ADR: стек','ADR: stack'), 'docs/decisions/0001'],
+  [t('Дизайн-направления','Design directions'), t('2–3 варианта на ваш выбор','2–3 options for you to pick')],
+  [t('Проект в консоли','Project in the console'), t('появится в «Все проекты»','appears on All projects')],
+];
+function kickRows(states, failAt) {
+  return ledger(KICK().map(([l,s],i)=>[states[i], esc(l), states[i]==='fail'?t('GitHub не принял запись бэклога.','GitHub refused the backlog write.'):s,
+    states[i]==='done'&&i<4?btn(t('Открыть','Open'),{link:1,sm:1,href:1,ext:1,aria:t(`Открыть: ${l}`,`Open: ${l}`)}):'']));
+}
+C['kickoff-ready'] = () => stepTitle(4, t('Подготовка проекта','Project kickoff'), t('Команда прочитает бриф и подготовит проект. Обычно 10–30 минут; можно закрыть приложение — пришлём уведомление.','The team reads the brief and sets the project up. Usually 10–30 minutes; you can close the app and we will notify you.')) +
+  kickRows(['wait','wait','wait','wait','wait','wait']) + `
+  <div class="actions">${btn(t('Запустить подготовку','Start kickoff'),{primary:1,go:'kickoff-confirm'})}</div>
+  <p class="muted">${t('Бриф: версия 2 от 14:52.','Brief: version 2 from 14:52.')} ${btn(t('Посмотреть бриф','View the brief'),{link:1,sm:1,go:'brief-v2'})}</p>`;
+C['kickoff-running'] = () => stepTitle(4, t('Идёт подготовка','Kickoff is running'), t('Начали в 15:02. Последнее обновление 15:09.','Started at 15:02. Last update 15:09.')) +
+  kickRows(['done','done','run','wait','wait','wait']) + live(t('Подготовка: метки и Sprint 01 готовы','Kickoff: labels and Sprint 01 done'));
+C['kickoff-stalled'] = () => stepTitle(4, t('Идёт подготовка','Kickoff is running')) + `
+  <div class="banner" role="status">${t('Новостей нет 45 минут. Запуск ещё идёт — второй не начинаем, чтобы не задвоить бэклог.','No news for 45 minutes. The run is still going; we don’t start a second one so the backlog isn’t doubled.')} ${btn(t('Журнал прогонов','Run log'),{link:1,sm:1,href:1,ext:1})}</div>` +
+  kickRows(['done','done','run','wait','wait','wait']);
+C['kickoff-failed'] = () => stepTitle(4, t('Подготовка остановилась','Kickoff stopped')) + kickRows(['done','done','fail','wait','wait','wait']) + `
+  <div class="state" role="alert"><b>${t('Не удалось создать бэклог','Couldn’t create the backlog')}</b><p>${t('Готовое не трогаем: повторный запуск продолжит с бэклога.','What’s done stays done: a new run continues from the backlog.')}</p>
+  <div class="actions">${btn(t('Продолжить подготовку','Continue kickoff'),{primary:1,go:'kickoff-running'})}${btn(t('Журнал прогонов','Run log'),{href:1,ext:1})}</div></div>`;
+C['kickoff-done'] = () => stepTitle(4, t('Проект подготовлен','The project is set up')) + kickRows(['done','done','done','done','done','done']) + `
+  <div class="card"><h3>${t('Ждут вас: 2','Waiting for you: 2')}</h3><p class="muted" style="margin:0">${t('Выбрать дизайн-направление · одобрить ADR стека. Это обычные вопросы — они уже в «Ждёт вас».','Pick a design direction · approve the stack ADR. These are ordinary questions, already in Needs you.')}</p>
+  ${btn(t('Открыть «Ждёт вас»','Open Needs you'),{link:1,sm:1})}</div>
+  <div class="actions">${btn(t('Дальше: окружения','Next: environments'),{primary:1,go:'env'})}</div>`;
+
+function envBody(all) {
+  const rows = all ? [['done','ROUTINE_TOKEN_CHESS_COACH',t('консоль · задано','console · set')],['done','CLOUDFLARE_API_TOKEN',t('GitHub · dev · задано','GitHub · dev · set')],['skip','PT_TELEGRAM_TOKEN',t('отсюда не видно · проверьте командой setup --check','not visible from here · check with setup --check')]]
+    : [['need','CLOUDFLARE_API_TOKEN',t('GitHub · dev, stage, production · не задано','GitHub · dev, stage, production · missing')],['need','CLOUDFLARE_ACCOUNT_ID',t('GitHub · dev, stage, production · не задано','GitHub · dev, stage, production · missing')],['done','ROUTINE_TOKEN_CHESS_COACH',t('консоль · задано','console · set')],['skip','PT_TELEGRAM_TOKEN',t('отсюда не видно','not visible from here')]];
+  return stepTitle(5, t('Окружения','Environments'), t('Что нужно проекту, чтобы деплоиться, и задано ли это. Значений здесь нет и не будет: их задают на экране «Настройка окружения».','What the project needs to deploy, and whether it is set. No value is shown or entered here; values are set on the Environment setup screen.')) + `
+  <div class="card ${all?'':'dashed'}"><h3>${all?t('Всё, что консоль видит, задано','Everything the console can see is set'):t('Не задано: 2','Missing: 2')}</h3>
+  <p class="muted" style="margin:0">${t('Аккаунты и оплату (Cloudflare, почта) заводите только вы — они в «Ждёт вас» вопросами от команды.','Accounts and payments (Cloudflare, email) are yours only; they are in Needs you as questions from the team.')}</p></div>` +
+  ledger(rows.map(([s,n,sub])=>[s,`<code>${n}</code>`,sub])) + `
+  <div class="actions">${btn(t('Открыть «Настройку окружения»','Open Environment setup'),{primary:!all})}${btn(t('Проверить снова','Check again'),{go:all?'env-allset':'env-allset'})}${btn(all?t('Дальше: запуск','Next: start'):t('Пропустить пока','Skip for now'),{primary:all,go:'start'})}</div>
+  ${all?'':`<p class="muted">${t('Без них команда начнёт с планирования и дизайна, а деплой в dev подождёт. Пункт останется на плитке проекта как «Нужна настройка».','Without them the team starts with planning and design, and the dev deploy waits. The project tile keeps a “Setup needed” mark.')}</p>`}`;
+}
+C['env'] = () => envBody(false);
+C['env-allset'] = () => envBody(true);
+
+C['start'] = () => stepTitle(6, t('Запуск команды','Start the team'), t('Проект войдёт в расписание общей команды. Дальше всё как в других проектах: вопросы приходят в «Ждёт вас», демо — по дате спринта.','The project joins the shared team’s schedule. From then on it works like your other projects: questions arrive in Needs you, the demo follows the sprint date.')) +
+  ledger([['done',t('Бриф подтверждён','Brief confirmed'),t('версия 2','version 2')],['done',t('Репозиторий и доступы','Repository and access'),`${LOGIN}/${NAME}`],['done',t('Подготовка','Kickoff'),t('12 задач в Sprint 01','12 issues in Sprint 01')],['need',t('Окружения','Environments'),t('не задано: 2 · можно позже','missing: 2 · can wait')]]) + `
+  <div class="actions">${btn(t('Запустить команду','Start the team'),{primary:1,go:'start-confirm'})}</div>`;
+C['launched'] = () => `<h2 class="step" tabindex="-1" data-step-h>${t('Команда работает над chess-coach','The team is working on chess-coach')}</h2>
+  <p><span class="stamp" aria-hidden="true">${t('ЗАПУЩЕНО','STARTED')}</span></p>
+  <p>${t('Первый прогон PM — сегодня в 18:00 по расписанию.','The PM’s first run is today at 18:00, on schedule.')}</p>
+  <div class="actions">${btn(t('Открыть проект','Open the project'),{primary:1})}${btn(t('Ждёт вас: 2','Waiting for you: 2'))}${btn(t('Запустить PM сейчас','Run the PM now'),{link:1})}</div>`;
+
+/* states without a step */
+C['loading'] = () => `<div aria-busy="true"><div class="skel" style="height:28px;width:60%"></div><div class="skel" style="height:16px;width:90%"></div><div class="skel" style="height:140px"></div><div class="skel" style="height:44px;width:50%"></div></div>` + live(t('Загружаем черновик…','Loading the draft…'));
+C['offline'] = () => ivHead() + history() + question(false).replace(/data-go="interview-wait"/g,'aria-disabled="true" aria-describedby="off-h"') + `
+  <div class="banner" role="status" id="off-h">${t('Нет сети. Ответить можно, когда сеть вернётся — черновик на месте.','You’re offline. You can answer once you’re back online; the draft is safe.')}</div>`;
+C['gone'] = () => `<div class="state" role="alert"><b>${t('Черновик не найден','Draft not found')}</b><p>${t('Его отменили или он уже стал проектом. Репозитории на GitHub, если были, на месте.','It was cancelled or has already become a project. Any repository on GitHub is still there.')}</p>${btn(t('Все проекты','All projects'),{primary:1,go:'entry'})}</div>`;
+C['denied'] = () => `<div class="state" role="alert"><b>${t('Создавать проекты может только владелец','Only the owner can create projects')}</b><p>${t('Этот вход не может писать в GitHub владельца. Ничего не отправлено.','This sign-in can’t write to the owner’s GitHub. Nothing was sent.')}</p></div>`;
+
+/* sheets over a scene */
+const SHEETS = {
+  'repo-confirm': ['repo', () => sheet(t(`Создать ${LOGIN}/${NAME}?`,`Create ${LOGIN}/${NAME}?`),
+    `<ul><li>${t('приватный, из шаблона geeera/product-template','private, from the geeera/product-template template')}</li><li>${t('ветки dev, stage, main','branches dev, stage, main')}</li><li>${t('доступ приложениям команды и ревью','access for the team and review apps')}</li></ul>
+     <p class="muted">${t('Репозиторий создаётся от вашего имени. Удалить его консоль не может — только вы, в настройках репозитория на GitHub.','The repository is created in your name. The console can’t delete it; only you can, in the repository’s settings on GitHub.')}</p>`,
+    btn(t('Создать','Create'),{primary:1,go:'repo-progress'}), btn(t('Отмена','Cancel'),{go:'repo'}))],
+  'kickoff-confirm': ['kickoff-ready', () => sheet(t('Запустить подготовку?','Start kickoff?'),
+    `<p>${t('Команда запишет в ${r} настройки, метки, Sprint 01, бэклог и ADR по брифу версии 2. Это один запуск команды.','The team writes the settings, labels, Sprint 01, the backlog and the ADR from brief version 2 into ${r}. It is one team run.').replace('${r}',`${LOGIN}/${NAME}`)}</p>`,
+    btn(t('Запустить','Start'),{primary:1,go:'kickoff-running'}), btn(t('Отмена','Cancel'),{go:'kickoff-ready'}))],
+  'start-confirm': ['start', () => sheet(t('Запустить команду для chess-coach?','Start the team for chess-coach?'),
+    `<p>${t('Проект войдёт в расписание: PM, разработка и QA будут брать его задачи. Поставить на паузу можно в панели «Команды».','The project joins the schedule: the PM, development and QA pick up its issues. You can pause it from the Commands panel.')}</p>`,
+    btn(t('Запустить','Start'),{primary:1,go:'launched'}), btn(t('Отмена','Cancel'),{go:'start'}))],
+  'cancel': ['repo-done', () => sheet(t('Отменить создание проекта?','Cancel creating this project?'),
+    `<p>${t('Черновик и интервью удалятся из консоли.','The draft and the interview are removed from the console.')}</p>
+     <p><b>${t(`Репозиторий ${LOGIN}/${NAME} останется на GitHub.`,`The ${LOGIN}/${NAME} repository stays on GitHub.`)}</b> ${t('Консоль не удаляет репозитории; если он не нужен, удалите его в настройках репозитория.','The console never deletes repositories; if you don’t need it, delete it in the repository’s settings.')}</p>`,
+    btn(t('Отменить создание','Cancel creating'),{primary:1,go:'entry'}), btn(t('Продолжить создание','Keep creating'),{go:'repo-done'}))],
+};
+
+/* ---------- frames ---------- */
+function body(kind) {
+  const sc = SHEETS[S.scene] ? SHEETS[S.scene][0] : S.scene;
+  const fn = C[sc] || C['entry'];
+  return fn(kind==='mac');
+}
+function aside(step) {
+  if (step===2) return `<h3 style="margin-top:0">${t('Бриф собирается','The brief so far')}</h3>${topics()}<p class="muted">${t('Ясно: цель, пользователи. Дальше PM спросит про MVP, стек, дату демо и референсы.','Settled: goal, users. Next the PM asks about the MVP, stack, demo date and references.')}</p>`;
+  if (step>=3) return `<h3 style="margin-top:0">${t('Бриф, версия 2','Brief, version 2')}</h3><details><summary class="btn link sm">${t('Показать бриф','Show the brief')}</summary>${briefDl(true)}</details>`;
+  return `<h3 style="margin-top:0">${t('Как это устроено','How it works')}</h3><p class="muted">${t('Вы — идея и решения. Команда — вопросы, репозиторий, бэклог и дизайн. Секреты и аккаунты — только вы, на экране «Настройка окружения».','You bring the idea and the decisions. The team brings the questions, repository, backlog and design. Secrets and accounts are yours only, on the Environment setup screen.')}</p>`;
+}
+function phone() {
+  const step = STEP_OF(SHEETS[S.scene]?SHEETS[S.scene][0]:S.scene);
+  const isEntry = S.scene.startsWith('entry');
+  const top = isEntry ? `<div class="topbar"><span>☰</span><b>${t('Все проекты','All projects')}</b><span style="width:24px"></span></div>`
+    : `<div class="topbar"><a href="#" data-go="entry" aria-label="${t('Все проекты','All projects')}">‹ ${t('Проекты','Projects')}</a><b>${t('Новый проект','New project')}</b>${step>=1&&step<4?btn('⋯',{sm:1,go:'cancel',aria:t('Ещё: отменить создание','More: cancel creating')}):'<span style="width:44px"></span>'}</div>`;
+  const composer = (S.scene==='interview-q'||S.scene==='interview-wait') ? '' : '';
+  const sh = SHEETS[S.scene] ? SHEETS[S.scene][1]() : '';
+  return `<div class="frame phone" data-kind="phone">${top}${step&&!isEntry&&S.scene!=='launched'?phoneStepHead(step):''}<div class="scroll"><main class="content">${body('phone')}</main></div>${composer}${sh}</div>`;
+}
+function mac() {
+  const step = STEP_OF(SHEETS[S.scene]?SHEETS[S.scene][0]:S.scene);
+  const isEntry = S.scene.startsWith('entry');
+  const side = `<nav class="side" aria-label="${t('Навигация','Navigation')}"><div>${t('Ждёт вас','Needs you')}</div><div${isEntry?' aria-current="page"':''}>${t('Все проекты','All projects')}</div><div>team-console</div><div>notes-app</div><div style="border-top:1px solid #bbb;margin-top:8px">${t('+ Новый проект','+ New project')}</div><div>${t('Добавить проект','Add a project')}</div><div>${t('Настройки','Settings')}</div></nav>`;
+  const sh = SHEETS[S.scene] ? SHEETS[S.scene][1]() : '';
+  if (isEntry) return `<div class="frame mac" data-kind="mac">${side}<div class="main"><div class="scroll"><main class="content" style="max-width:1184px">${body('mac')}</main></div></div>${sh}</div>`;
+  return `<div class="frame mac" data-kind="mac">${side}<div class="main">
+    <div class="machead"><h1>${t('Новый проект','New project')} <span class="muted" dir="auto">· ${t('Тренер по шахматным дебютам','Chess openings coach')}</span></h1>${step>=1&&step<4?btn(t('Отменить создание','Cancel creating'),{sm:1,go:'cancel'}):''}</div>
+    <div class="macbody">${step&&S.scene!=='launched'?`<div class="rail">${stepper(step)}</div>`:''}<div class="scroll"><main class="content">${body('mac')}</main></div>${step&&S.scene!=='launched'?`<aside class="aside" aria-label="${t('Бриф','Brief')}">${aside(step)}</aside>`:''}</div></div>${sh}</div>`;
+}
+
+/* ids are unique per frame: the phone and the Mac render the same scene side by side */
+function uniq(html, p) {
+  return html.replace(/\b(id|for|aria-labelledby|aria-describedby|aria-controls)="([^"]+)"/g,
+    (m, a, v) => `${a}="${v.split(' ').map(x => p + x).join(' ')}"`);
+}
+function draw(focusIn) {
+  const st = document.getElementById('stage');
+  st.innerHTML = (S.view!=='mac'?uniq(phone(),'p-'):'') + (S.view!=='phone'?uniq(mac(),'m-'):'');
+  document.documentElement.lang = S.lang;
+  if (focusIn) {
+    const fr = st.querySelector(`[data-kind="${focusIn}"]`);
+    const target = fr && (fr.querySelector('[data-sheet] [data-foot] button') ? fr.querySelector('[data-sheet] h2')
+      : fr.querySelector('[data-focus-me]') || fr.querySelector('[data-wait]') || fr.querySelector('[aria-invalid="true"]') || fr.querySelector('[data-step-h]'));
+    if (target) target.focus();
+  }
+}
+function init() {
+  const sel = document.getElementById('scene');
+  sel.innerHTML = SCENES.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
+  sel.onchange = e => { S.scene = e.target.value; draw(); };
+  document.getElementById('view').onchange = e => { S.view = e.target.value; draw(); };
+  document.getElementById('lang').onchange = e => { S.lang = e.target.value; draw(); };
+  document.getElementById('stage').addEventListener('click', e => {
+    const el = e.target.closest('[data-go],[data-noop]');
+    if (!el) return;
+    e.preventDefault();
+    if (el.hasAttribute('data-noop') || el.getAttribute('aria-disabled')==='true') return;
+    const kind = el.closest('[data-kind]').getAttribute('data-kind');
+    S.scene = el.getAttribute('data-go');
+    if ([...sel.options].some(o=>o.value===S.scene)) sel.value = S.scene;
+    draw(kind);
+  });
+  document.getElementById('stage').addEventListener('keydown', e => {
+    if (e.key==='Escape') { const go = SHEETS[S.scene]; if (go) { const kind=e.target.closest('[data-kind]')?.getAttribute('data-kind'); S.scene = go[0]; sel.value=S.scene; draw(kind); } }
+  });
+  draw();
+}
+if (typeof module !== 'undefined') module.exports = { S, C, SHEETS, SCENES, phone, mac, uniq };
+else init();
+</script>
+</body>
+</html>

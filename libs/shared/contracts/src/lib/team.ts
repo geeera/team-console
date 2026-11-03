@@ -82,6 +82,17 @@ export interface TeamStatusDto {
   readonly calendar: SprintCalendarDto | null;
   /** Issues whose newest owner request still waits for the PM (#219), from D1. */
   readonly pendingRequests: number;
+  /**
+   * Whether a pause from the console would hold at the team's next run (#141). `false` while the team's bot opened
+   * the run log: the plugin does not count the owner's own pause there, so Pause is off, the panel says why, and
+   * `POST …/team/pause` answers 409 `pause-unreliable`. Resume always works.
+   */
+  readonly pauseHolds: boolean;
+  /**
+   * `state` is a pause, but an owner `/resume` is newer than the last pause the team counts: the next scheduled run
+   * takes `team:paused` off and works (#141). The panel says so instead of "paused by you".
+   */
+  readonly pauseLiftsAtNextRun: boolean;
 }
 
 /** A pause or resume written to the run log. */
@@ -109,7 +120,8 @@ export interface RunResponse {
  * `routine-rate-limited` (`Retry-After`), `routine-paused` (switch it on at claude.ai/code/routines),
  * `routine-not-configured` (`step: token | routine`, or `missing: [slots]`), `routine-unavailable`,
  * `routine-unknown` (`until`), `team-already-paused` / `team-not-paused` (nothing changed), `run-log-missing`,
- * `pause-unreliable` (the run log was opened by the team's bot: pause from the team chat, #141).
+ * `pause-unreliable` (the run log was opened by the team's bot: pause from the team chat, #141), `run-log-incomplete`
+ * (503: the newest run-log entries could not be read, nothing done, #143).
  */
 export type TeamProblemType =
   | 'run-paused'
@@ -124,7 +136,8 @@ export type TeamProblemType =
   | 'team-not-paused'
   | 'team-command-in-progress'
   | 'pause-unreliable'
-  | 'run-log-missing';
+  | 'run-log-missing'
+  | 'run-log-incomplete';
 
 /**
  * The team as the plugin's `runstate` sees it (#27, #132): `paused` — the owner paused it; `failing` — the team stopped

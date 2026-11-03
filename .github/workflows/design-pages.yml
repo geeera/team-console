@@ -1,0 +1,59 @@
+# Publishes docs/design (prototypes, wireframes, visual directions) to GitHub Pages after it is merged into dev,
+# so designers never push to a publishing branch: designs arrive by PR like everything else.
+# Requires two owner settings (.product-team/owner-checklist.md): Settings → Pages → Source: "GitHub Actions"
+# (public repositories: free), and Settings → Environments → github-pages → Deployment branches allowing `dev`
+# (the default policy allows only gh-pages, so a deploy from dev is rejected).
+name: design-pages
+
+on:
+  push:
+    branches: [dev]
+    paths: ["docs/design/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A newer run queues behind a running one instead of cancelling it: a Pages deploy cut off mid-flight can leave
+# the site half-published.
+concurrency:
+  group: design-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: docs/design
+          persist-credentials: false
+      - name: Index of every page under docs/design
+        run: |
+          set -euo pipefail
+          cd docs/design
+          {
+            echo '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            echo '<title>Designs</title><style>body{font:16px/1.5 system-ui;max-width:640px;margin:32px auto;padding:0 16px}a{display:block;padding:8px 0}</style><h1>Designs</h1>'
+            # Names outside the safe charset are skipped, so nothing needs HTML or URL escaping.
+            find . -name '*.html' ! -name index.html ! -path './*/src/*' -print0 | sort -z | while IFS= read -r -d '' f; do
+              f="${f#./}"
+              if [[ "$f" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+                echo "<a href=\"$f\">$f</a>"
+              else
+                echo "::warning::design-pages: skipped file with unsafe name (allowed: A-Z a-z 0-9 . _ / -)"
+              fi
+            done
+          } > "${RUNNER_TEMP}/index.html"
+          mv "${RUNNER_TEMP}/index.html" index.html
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        with:
+          path: docs/design
+      - id: deploy
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

@@ -80,7 +80,7 @@ describe('ConsoleLanguage with provideConsoleI18n({ start: "remembered" })', () 
 
   it('use() switches at once and stores the choice; the next launch starts in it', async () => {
     const first = await launch(null, ['ru-RU']);
-    first.language.use('en');
+    await first.language.use('en');
     TestBed.tick();
 
     expect(first.transloco.getActiveLang()).toBe('en');
@@ -94,6 +94,24 @@ describe('ConsoleLanguage with provideConsoleI18n({ start: "remembered" })', () 
     expect(second.transloco.translate('settings.title')).toBe('Settings');
   });
 
+  it('waits for a dictionary that is not loaded yet, then switches; the last choice wins (#123)', async () => {
+    const { language, transloco } = await launch(null, ['ru-RU']);
+
+    const toEnglish = language.use('en');
+    expect(transloco.getActiveLang()).toBe('ru');
+    await toEnglish;
+    expect(transloco.getActiveLang()).toBe('en');
+    expect(transloco.translate('settings.title')).toBe('Settings');
+
+    // English is loaded now: a switch to it is immediate, and a quick back-and-forth ends where the owner left it.
+    void language.use('ru');
+    void language.use('en');
+    const back = language.use('ru');
+    expect(transloco.getActiveLang()).toBe('ru');
+    await back;
+    expect(transloco.getActiveLang()).toBe('ru');
+  });
+
   it('a storage that refuses the write keeps the switch for the session and warns once', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { language, transloco } = await launch(null, ['ru-RU']);
@@ -102,8 +120,8 @@ describe('ConsoleLanguage with provideConsoleI18n({ start: "remembered" })', () 
       throw new DOMException('quota', 'QuotaExceededError');
     });
 
-    language.use('en');
-    language.use('ru');
+    await language.use('en');
+    await language.use('ru');
 
     expect(transloco.getActiveLang()).toBe('ru');
     expect(warn).toHaveBeenCalledTimes(1);

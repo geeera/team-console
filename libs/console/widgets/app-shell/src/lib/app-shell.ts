@@ -29,14 +29,12 @@ import {
   isPageScrollLocked,
   List,
   ListRow,
-  Sheet,
   StateBlock,
   ToastOutlet,
   TopBar,
   TopBarActions,
 } from '@console/shared/ui';
 import { filter, map } from 'rxjs';
-import { ProjectsSheet } from './projects-sheet';
 import { restoreScroll, type ScrollRestore } from './scroll-restore';
 import { shellAreaOf } from './shell-location';
 
@@ -78,7 +76,6 @@ import { shellAreaOf } from './shell-location';
 export class AppShell {
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
-  private readonly sheet = inject(Sheet);
   private readonly transloco = inject(TranslocoService);
   private readonly breakpoints = inject(BreakpointObserver);
   private readonly state = inject(PersistedStateStore);
@@ -93,6 +90,7 @@ export class AppShell {
   private readonly main = viewChild.required<ElementRef<HTMLElement>>('main');
   private scrollFrame: number | null = null;
   private scrollRestore: ScrollRestore | null = null;
+  private openingProjects = false;
 
   private readonly url = toSignal(
     this.router.events.pipe(
@@ -158,8 +156,21 @@ export class AppShell {
     }
   }
 
-  protected openProjects(): void {
-    this.sheet.open(ProjectsSheet, { title: this.transloco.translate('shell.projects') });
+  /**
+   * The sheet, and the CDK dialog under it, load on the first tap rather than with the app (#123: the initial bundle);
+   * the service worker has the chunk on the device already. A second tap while it loads opens nothing more.
+   */
+  protected async openProjects(): Promise<void> {
+    if (this.openingProjects) {
+      return;
+    }
+    this.openingProjects = true;
+    try {
+      const { openProjectsSheet } = await import('./projects-sheet');
+      openProjectsSheet(this.injector, this.transloco.translate('shell.projects'));
+    } finally {
+      this.openingProjects = false;
+    }
   }
 
   /** Rows are buttons (a RouterLink on the row host would add a second tab stop); the phone's Settings icon stays a link. */

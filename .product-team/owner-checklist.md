@@ -231,45 +231,16 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
 - [ ] Хостинг: не требуется отдельно — это Cloudflare Workers (см. выше).
 - [ ] Аккаунт базы данных: не требуется отдельно — это Cloudflare D1 (см. шаг 6 выше).
 
-## Секреты GitHub Actions (Settings → Environments → `dev` / `stage` / `production` → Environment secrets,
-если не сказано иное)
-| Секрет | Для чего (какой workflow) | Как завести | Окружения | Готово |
-| ------ | -------------------------- | ------------ | --------- | ------ |
-| `CLOUDFLARE_API_TOKEN` | `deploy.yml`: миграции D1, деплой обоих Worker'ов и Storybook | `tools/owner-setup/set-secrets.sh` (шаг 2, после шага 0 — роллинга токена) | dev, stage, production | [ ] (сейчас repository-level — шаги 2–3 переносят) |
-| `CLOUDFLARE_ACCOUNT_ID` | `deploy.yml` | `tools/owner-setup/set-secrets.sh` (шаг 2) | dev, stage, production | [ ] (сейчас repository-level — шаги 2–3 переносят) |
-| `ACCESS_SERVICE_TOKEN_ID` | пока ни одним workflow не используется — появится в #14 (Playwright e2e на stage); имя закреплено сейчас, чтобы не переименовывать позже | шаг 8 выше | dev, stage (не production) | [ ] |
-| `ACCESS_SERVICE_TOKEN_SECRET` | пара к `ACCESS_SERVICE_TOKEN_ID`, появится в #14 | шаг 8 выше | dev, stage | [ ] |
-| `PT_TELEGRAM_TOKEN` | `owner-digest.yml` | см. «Ежедневная сводка на телефон» ниже | repository-level (свой канал, общий для всех окружений) | [ ] |
-| `PT_TELEGRAM_CHAT` | `owner-digest.yml` | см. «Ежедневная сводка на телефон» ниже | repository-level | [ ] |
-| `PT_NTFY_TOPIC` | `owner-digest.yml` (альтернатива Telegram) | см. «Ежедневная сводка на телефон» ниже | repository-level | [ ] |
+## Полный список переменных и секретов
 
-`secrets.GITHUB_TOKEN`, который используют `owner-digest.yml` и `branch-guard.yml`, — встроенный токен
-Actions; заводить его не нужно (`deploy.yml` его не использует).
-
-## Переменные GitHub Actions (Settings → Environments → окружение → Environment variables — это НЕ секреты,
-значения видны в логах и любому, кто может читать настройки репозитория)
-| Переменная | Для чего | Как завести | Окружения | Готово |
-| ---------- | -------- | ------------ | --------- | ------ |
-| `VAPID_PUBLIC_KEY` | публичный VAPID-ключ, читает клиентский код (появится с #11) | шаг 4 выше, значение из вывода скрипта (шаг 2) | dev, stage, production — своё значение в каждом | [ ] |
-| `ACCESS_TEAM_DOMAIN` | JWT-проверка Access в Worker'е `api` (ADR 0001 решение 7); `deploy.yml` передаёт её Worker'у через `--var`, это единственный источник (`wrangler.jsonc` в коде остаётся пустым нарочно) | шаг 7.8–7.9 выше | dev, stage, production | [ ] |
-| `ACCESS_AUD` | то же самое | шаг 7.7, 7.9 выше | dev, stage, production | [ ] |
-| `CONSOLE_GITHUB_APP_ID` | JWT-минтинг в Worker'е `api` (ADR 0003 решение 6); `deploy.yml` передаёт её Worker'у как `GITHUB_APP_ID` через `--var` (имя на стороне GitHub другое — см. шаг 10, GitHub не разрешает переменные с префиксом `GITHUB_`) | шаг 10 выше (`tools/owner-setup/create-apps.sh`) | dev, stage, production — своё значение в каждом | [ ] |
-| `CONSOLE_GITHUB_APP_CLIENT_ID` | OAuth-обмен кода на токен владельца (ADR 0003 решение 3); `deploy.yml` передаёт Worker'у как `GITHUB_APP_CLIENT_ID` через `--var` | шаг 10 выше | dev, stage, production — своё значение в каждом | [ ] |
-| `OWNER_GITHUB_LOGIN` | сверка входящего логина при OAuth-коллбэке (ADR 0003 решение 3); `deploy.yml` передаёт через `--var` | шаг 10 выше (твой логин, полученный через `gh`) | dev, stage, production | [ ] |
-
-## Секреты самих Worker'ов (Cloudflare, не GitHub — либо `tools/owner-setup/set-secrets.sh`, либо `wrangler
-secret put` / dashboard → Workers & Pages → Worker → Settings → Variables and Secrets)
-| Секрет | Worker | Для чего | Как завести | Окружения | Готово |
-| ------ | ------ | -------- | ------------ | --------- | ------ |
-| `OWNER_EMAIL` | `api` | проверка JWT от Access (ADR 0001 решение 7) | шаг 9 выше (вручную) | dev, stage, production | [ ] |
-| `VAPID_PRIVATE_KEY` | `api`, `hooks` | веб-пуш (ADR 0001 решение 11) | `tools/owner-setup/set-secrets.sh` (шаг 2) — своя пара на каждое окружение | dev, stage, production | [ ] |
-| `WEBHOOK_SECRET` | `hooks` | подпись `X-Hub-Signature-256` входящих вебхуков (ADR 0003 решение 5); значение — собственный webhook secret консольного GitHub App'а этого окружения | шаг 10 выше (`tools/owner-setup/create-apps.sh`) | dev, stage, production — своя пара приложение/секрет на каждое | [ ] |
-| `GITHUB_APP_PRIVATE_KEY` | `api` | минтинг JWT/installation-токенов для GitHub API (ADR 0003 решения 2, 6; заменяет `GITHUB_TOKEN` из ADR 0001 решения 6 — этого секрета больше нет) | шаг 10 выше — приватный ключ приложения, сконвертированный скриптом в PKCS#8 | dev, stage, production | [ ] |
-| `GITHUB_APP_CLIENT_SECRET` | `api` | обмен OAuth-кода на токен владельца (ADR 0003 решение 3) | шаг 10 выше | dev, stage, production | [ ] |
-| `TOKEN_ENCRYPTION_KEY` | `api` | шифрует пару токенов владельца в D1 (ADR 0003 решение 4) | шаг 10 выше — генерируется скриптом, 32 случайных байта | dev, stage, production — свой ключ на каждое | [ ] |
-| `ROUTINE_TOKEN_<SLUG>` | `api` | будит routine PM-чата продукта `<slug>` (ADR 0001 решение 11) | шаг 11 выше | по одному на продукт, когда появится соответствующая задача | [ ] |
-| `SLOT_TOKEN_<SLUG>_<SLOT>` | `api` | bearer API-триггера рутины слота (`PM` / `DEV` / `QA`) для «Запустить сейчас» (#114) | шаг 12 выше | production (dev/stage — по желанию); по одному на слот продукта | [ ] |
-| `SLOT_ROUTINE_<SLUG>_<SLOT>` | `api` | id этой рутины (`trig_…`), чтобы он не лежал в публичном репозитории | шаг 12 выше | там же, где токен слота | [ ] |
+Имя каждой переменной и секрета, что это такое, где она живёт (`wrangler secret`, GitHub Environment secret/variable,
+repository secret, local-only), генерируется она или вводится тобой, кому она нужна, и подробная инструкция (где
+получить значение, какие права/scopes выбрать, срок жизни и ротация, подводные камни) — в одном месте, одной
+записью на каждое имя (пара`<SLUG>`/`<SLOT>`-шаблоны перечислены один раз, а не по продукту/слоту):
+**`.product-team/environment-manifest.yml`** (#102). Шаги 0–12 выше — это как это сделать по шагам; манифест — что
+именно нужно и зачем. `tools/workspace-checks` не даёт им разойтись: падает, если код или workflow начинает
+использовать имя, которого нет в манифесте, или манифест называет то, что нигде не используется. Сам манифест
+не содержит значений, их длины или хешей — только имена и текст инструкций.
 
 ## Усиление безопасности (сделать желательно до первого релиза)
 
@@ -309,6 +280,16 @@ secret put` / dashboard → Workers & Pages → Worker → Settings → Variable
   `PT_NTFY_TOPIC`. Топик может прочитать любой, кто его угадает, — делай длинным и случайным.
 
 `owner.language: ru` в `.product-team/project.yml` уже включает сводку и вопросы на русском.
+
+## Публикация макетов (GitHub Pages)
+- [ ] Settings → Pages → Build and deployment → **Source: «GitHub Actions»** (бесплатно для публичных
+      репозиториев). Без этого `design-pages.yml` не публикует `docs/design` после слияния в `dev`, и сайт
+      остаётся старой веткой `gh-pages` (прототип с kickoff). См. PR #45.
+- [ ] Settings → Environments → **github-pages** → Deployment branches and tags: добавь `dev` (сейчас разрешён
+      только `gh-pages`). Без этого GitHub отклоняет деплой из `dev` правилом защиты окружения, и первый же
+      запуск `design-pages.yml` падает.
+- [ ] После слияния PR #45: Actions → **design-pages** → Run workflow на `dev` один раз — проверка, что сайт
+      опубликован (ссылка на сайт появится в итогах запуска).
 
 ## Claude
 - [ ] Scheduled routines created for `slot-pm`, `slot-dev`, `slot-qa` (see the plugin README)

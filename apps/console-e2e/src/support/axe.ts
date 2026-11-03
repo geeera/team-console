@@ -5,6 +5,13 @@ import type { Page } from '@playwright/test';
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'];
 const BLOCKING_IMPACTS: ReadonlySet<string> = new Set(['serious', 'critical']);
 
+/**
+ * axe leaves text on a background gradient `incomplete` instead of failing it, so a contrast regression there would
+ * pass the run unseen (#146). Text the gate cannot measure counts as a contrast failure; the fix is a solid token
+ * background, never a gradient behind text.
+ */
+const UNMEASURABLE_CONTRAST: ReadonlySet<string> = new Set(['bgGradient']);
+
 export interface BlockingViolation {
   readonly id: string;
   readonly impact: string;
@@ -47,6 +54,10 @@ export async function blockingViolations(page: Page): Promise<BlockingViolation[
   await animationsSettled(page);
   const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
   const blocking: BlockingViolation[] = [];
+  const unmeasurable = unmeasurableContrast(results.incomplete);
+  if (unmeasurable !== undefined) {
+    blocking.push(unmeasurable);
+  }
   for (const violation of results.violations) {
     if (!BLOCKING_IMPACTS.has(violation.impact ?? '')) {
       continue;
@@ -71,4 +82,37 @@ export async function blockingViolations(page: Page): Promise<BlockingViolation[
     }
   }
   return blocking;
+}
+
+type AxeResults = Awaited<ReturnType<AxeBuilder['analyze']>>;
+
+/** `color-contrast` nodes axe could not measure because of a background gradient, as one blocking entry. */
+function unmeasurableContrast(incomplete: AxeResults['incomplete']): BlockingViolation | undefined {
+  const contrast = incomplete.find((result) => result.id === 'color-contrast');
+  if (contrast === undefined) {
+    return undefined;
+  }
+  const targets = contrast.nodes
+    .filter((node) =>
+      [...node.any, ...node.all, ...node.none].some((check) => {
+        const data: unknown = check.data;
+        return (
+          typeof data === 'object' &&
+          data !== null &&
+          'messageKey' in data &&
+          typeof data.messageKey === 'string' &&
+          UNMEASURABLE_CONTRAST.has(data.messageKey)
+        );
+      }),
+    )
+    .map((node) => node.target.join(' '));
+  if (targets.length === 0) {
+    return undefined;
+  }
+  return {
+    id: 'color-contrast',
+    impact: contrast.impact ?? 'serious',
+    help: `${contrast.help} (unmeasurable: background gradient)`,
+    targets: targets.slice(0, 5),
+  };
 }

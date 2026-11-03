@@ -32,6 +32,8 @@ function status(overrides: Partial<TeamStatusDto> = {}): TeamStatusDto {
     progress: null,
     calendar: null,
     pendingRequests: 0,
+    pauseHolds: true,
+    pauseLiftsAtNextRun: false,
     slots: [
       {
         slot: 'pm',
@@ -263,6 +265,42 @@ describe('CommandsPanel', () => {
     await fixture.whenStable();
     expect(commands.resume).toHaveBeenCalledTimes(2);
     expect(toasts).toEqual(['Запрошено: разработка']);
+  });
+
+  it('#141: where a console pause would not hold, Pause is off and says why; the other commands work', async () => {
+    const { root } = await render(status({ pauseHolds: false }));
+    const team = root.querySelector('[data-testid="team-command"]') as HTMLButtonElement;
+    expect(team.getAttribute('aria-disabled')).toBe('true');
+    const why = root.querySelector('[data-testid="team-why"]');
+    expect(text(why)).toBe(
+      'Пауза из консоли здесь не удержится: журнал запусков завела команда. Поставьте паузу из чата команды (навык pause)',
+    );
+    expect(team.getAttribute('aria-describedby')?.split(' ')).toContain(why?.id);
+    team.click();
+    expect(commands.pause).not.toHaveBeenCalled();
+    expect(root.querySelector('[data-testid="ask-command"]')?.getAttribute('aria-disabled')).toBeNull();
+    expect(root.querySelector('[data-slot="pm"] button')?.getAttribute('aria-disabled')).toBeNull();
+  });
+
+  it('#141: a pause the team does not count is never "paused by you", and Resume still works', async () => {
+    const { fixture, root } = await render(
+      status({
+        state: 'paused-by-owner',
+        pausedAt: new Date().toISOString(),
+        pauseHolds: false,
+        pauseLiftsAtNextRun: true,
+      }),
+    );
+    expect(text(root.querySelector('[data-testid="team-state"]'))).toBe(
+      'На паузе, но следующий прогон её снимет: команда эту паузу не учитывает',
+    );
+    expect(text(root.querySelector('[data-testid="paused-banner"]'))).toContain(
+      'Следующий прогон по расписанию снимет паузу: команда её не учитывает.',
+    );
+    expect(root.querySelector('[data-testid="team-why"]')).toBeNull();
+    (root.querySelector('[data-testid="team-command"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(commands.resume).toHaveBeenCalledTimes(1);
   });
 
   it('paused by the team: a clay banner with the run log', async () => {

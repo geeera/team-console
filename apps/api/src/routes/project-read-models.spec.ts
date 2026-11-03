@@ -582,6 +582,27 @@ describe('GET /api/v1/projects/:slug/sprint', () => {
       expect((await sprintOf(github)).team.state).toBe('running');
     });
 
+    it('a run log whose newest page was not reached is unknown, never a state from older entries (#143)', async () => {
+      const handler = runLogGitHub({ 'geeera/team-console': { ...sprintState, log: LOG } }, Date.now());
+      const stub = stubGitHub(async (call) => {
+        const response = await handler(call);
+        if (!call.url.pathname.endsWith(`/issues/${RUN_LOG_ISSUE}/comments`)) {
+          return response;
+        }
+        // GitHub names one more page than the issue's comment count said: the log grew while it was read.
+        const next = new URL(call.url.href);
+        next.searchParams.set('page', String(Number(next.searchParams.get('page') ?? 1) + 1));
+        const headers = new Headers(response.headers);
+        headers.set('link', `<${next.href}>; rel="next"`);
+        return new Response(response.body, { status: response.status, headers });
+      });
+
+      const body = await sprintOf(new ApiGitHub({ fetch: stub.fetch }));
+
+      expect(body.milestone?.number).toBe(7);
+      expect(body.team).toEqual({ state: 'unknown', runLogUrl: null, recentRuns: [] });
+    });
+
     it('a cold load with a run log and 60 open pull requests stays within the budget, under 50 subrequests', async () => {
       const numbers = Array.from({ length: 60 }, (_, index) => 60 - index);
       const { github, stub } = setupWithLog({
@@ -734,7 +755,9 @@ describe('mock mode (local only) serves the product-shaped fixtures', () => {
     const github = new ApiGitHub();
     const seen: string[] = [];
     for (const path of ['inbox', 'questions', 'sprint', 'requests']) {
-      const response = await fetchApi(`/api/v1/projects/tc/${path}`, localEnv({ GITHUB_MOCK: 'true' }), { github });
+      const response = await fetchApi(`/api/v1/projects/tc/${path}`, localEnv({ GITHUB_MOCK: 'true' }), {
+        github,
+      });
       expect(response.status, path).toBe(200);
       const titles = titlesIn(await response.json());
       expect(titles.length, path).toBeGreaterThan(0);
@@ -743,7 +766,9 @@ describe('mock mode (local only) serves the product-shaped fixtures', () => {
       }
       seen.push(...titles);
     }
-    expect(seen.filter((title) => title.includes('Please approve my change')).length).toBeGreaterThanOrEqual(3);
+    expect(seen.filter((title) => title.includes('Please approve my change')).length).toBeGreaterThanOrEqual(
+      3,
+    );
   });
 
   it('answers the fixture project.yml Storybook origin, not stage, for the Designs and demo screen (#20)', async () => {

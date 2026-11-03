@@ -12,7 +12,8 @@
         "{workspaceRoot}/.claude/product-team/.claude-plugin/plugin.json",
         "{workspaceRoot}/.claude/product-team/scripts/runlog",
         "{workspaceRoot}/.claude/product-team/scripts/ptlib/runstate.py",
-        "{workspaceRoot}/.claude/product-team/scripts/ptlib/provenance.py"
+        "{workspaceRoot}/.claude/product-team/scripts/ptlib/provenance.py",
+        "{workspaceRoot}/.claude/product-team/scripts/ptlib/commands.py"
       ]
     }
   }

@@ -3,13 +3,15 @@ import { commandLines } from '@shared/owner-grammar';
 import { githubPath, type RepoName } from '@worker/github';
 import { TRUSTED_BOT_LOGINS } from '@worker/read-models';
 import {
-  OWNER_RESUME,
   PAUSED_LABEL,
-  PAUSE_MARKER,
   RUN_LOG_LABEL,
   activeOwnerPause,
+  consolePauseHolds,
   parseRuns,
   partitionTeamComments,
+  pauseMarkerAuthorsOf,
+  pausedSinceOf,
+  resumedAfterPause,
   runLogIssueOf,
   type OwnerPause,
   type Run,
@@ -22,10 +24,15 @@ import { readProjectYml, repositoryClient } from '../projects/repository-checks'
  * The run log as the team reads it (#114 §4–5), always fresh — no read cache: a stale label could fire a run into a
  * paused team or pause one that is paused already. Subrequests: project.yml, the issue (or the labelled list) and
  * up to `MAX_COMMENT_PAGES` pages of comments, plus the installation token on a cold isolate.
+ *
+ * GitHub lists comments oldest first, so the reader starts at the page the issue's comment count says holds the
+ * newest `MAX_COMMENT_PAGES` pages and reads to the end (#143). It never decides on a partial log: a read that does not
+ * reach the list's end (the count was stale, the log grew meanwhile), a window past the end, or a paused log whose
+ * pause record lies before the window is `RunLogIncompleteError`, never older or missing entries read as the truth.
  */
 
-/** 1000 comments: about five months of runs at the plugin's schedule. */
-const MAX_COMMENT_PAGES = 10;
+/** The newest 1000 comments: about five months of runs at the plugin's schedule, the most a read ever costs. */
+export const MAX_COMMENT_PAGES = 10;
 const COMMENTS_PER_PAGE = 100;
 
 export interface RunLogIssue {
@@ -45,12 +52,20 @@ export interface RunLogView {
   readonly paused: boolean;
   readonly state: TeamState;
   /**
-   * `runlog start`'s `paused_since`: the latest team pause or owner-resume marker in the log (ISO 8601), `''` without
-   * one. Failures before it no longer count towards a streak.
+   * `runlog start`'s `paused_since`: the latest pause or owner-resume marker in the log (ISO 8601) by a login the
+   * plugin counts there (`pauseMarkerAuthorsOf`, #141), `''` without one. Failures before it no longer count towards
+   * a streak.
    */
   readonly pausedSince: string;
   /** The latest `/resume` command in a trusted comment of the repository owner (ISO 8601), `''` without one. */
   readonly ownerResumeAt: string;
+  /** Whether a pause the console writes holds at the team's next run (`consolePauseHolds`, #141). */
+  readonly consolePauseHolds: boolean;
+  /**
+   * `team:paused` is on, but an owner `/resume` is newer than `paused_since`: the next `runlog start` takes the label
+   * off and works (#141) — the pause will not hold.
+   */
+  readonly liftedAtNextRun: boolean;
 }
 
 export interface ReadRunLogOptions {
@@ -68,6 +83,17 @@ export class RunLogUnavailableError extends Error {
   constructor(readonly reason: 'untrusted' | 'ambiguous') {
     super(`the run log is ${reason}`);
     this.name = 'RunLogUnavailableError';
+  }
+}
+
+/**
+ * The run log could not be read far enough to decide on it (#143); answered as 503 `run-log-incomplete`, and the
+ * board and the overview show the team as `unknown`. Nothing is written or fired on a log read this way.
+ */
+export class RunLogIncompleteError extends Error {
+  constructor(readonly reason: 'not-at-end' | 'past-end' | 'pause-before-window') {
+    super(`the run log was not read in full (${reason})`);
+    this.name = 'RunLogIncompleteError';
   }
 }
 
@@ -197,17 +223,28 @@ export async function readRunLog(
       state: 'running',
       pausedSince: '',
       ownerResumeAt: '',
+      consolePauseHolds: true,
+      liftedAtNextRun: false,
     };
   }
   const pages = Math.min(options.latestCommentPages ?? MAX_COMMENT_PAGES, MAX_COMMENT_PAGES);
   const firstPage = Math.max(1, Math.ceil(issue.comments / COMMENTS_PER_PAGE) - pages + 1);
-  const raw = await repositoryClient(installation, repo).paginate(
+  const read = await repositoryClient(installation, repo).paginateBounded(
     firstPage === 1
       ? githubPath`/repos/${repo}/issues/${issue.number}/comments?per_page=${COMMENTS_PER_PAGE}`
       : githubPath`/repos/${repo}/issues/${issue.number}/comments?per_page=${COMMENTS_PER_PAGE}&page=${firstPage}`,
     isGitHubComment,
     { maxPages: pages },
   );
+  if (!read.complete) {
+    // GitHub names a page after the window: the newest entries were not read.
+    throw new RunLogIncompleteError('not-at-end');
+  }
+  if (firstPage > 1 && read.items.length === 0) {
+    // Comments were deleted since the count: the window starts past the list's end and holds none of its tail.
+    throw new RunLogIncompleteError('past-end');
+  }
+  const raw = read.items;
   // The log's author and the team, as `runlog.team_comments`; the owner too, since the console writes as the owner.
   const { trusted, untrusted } = partitionTeamComments(raw.map(commentOf), [
     issue.author,
@@ -217,10 +254,15 @@ export async function readRunLog(
   const ownerPause = activeOwnerPause(trusted);
   // The label is what every scheduled run checks; the record only says who paused and when.
   const paused = issue.labels.includes(PAUSED_LABEL);
+  if (paused && firstPage > 1 && !trusted.some((comment) => comment.body.includes(PAUSE_MARKER))) {
+    // Who paused (the owner or the team) is in a record older than the window: never guess it.
+    throw new RunLogIncompleteError('pause-before-window');
+  }
   const state: TeamState = !paused ? 'running' : ownerPause !== null ? 'paused-by-owner' : 'paused-by-team';
-  const pausedSince = latestAt(
+  // `runlog start` counts only the log's author and the team's bot here, not the owner (#141).
+  const pausedSince = pausedSinceOf(
     trusted,
-    (comment) => comment.body.includes(PAUSE_MARKER) || comment.body.includes(OWNER_RESUME),
+    pauseMarkerAuthorsOf(issue.author, repo.owner, TRUSTED_BOT_LOGINS),
   );
   // `commands.parse`: the owner's own comments only, never the team's bot.
   const ownerResumeAt = latestAt(
@@ -229,5 +271,15 @@ export async function readRunLog(
       comment.author.toLowerCase() === repo.owner.toLowerCase() &&
       commandLines(comment.body).some((line) => line.command === 'resume'),
   );
-  return { issue, runs, ownerPause, paused, state, pausedSince, ownerResumeAt };
+  return {
+    issue,
+    runs,
+    ownerPause,
+    paused,
+    state,
+    pausedSince,
+    ownerResumeAt,
+    consolePauseHolds: consolePauseHolds(issue.author, repo.owner),
+    liftedAtNextRun: paused && resumedAfterPause(pausedSince, ownerResumeAt),
+  };
 }

@@ -14,7 +14,12 @@ import { AnsweredItems, NeedsYouCounts } from '@console/entities/project';
 import { QuestionItem } from '@console/entities/question';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, ButtonVariant, Sheet, StateBlock } from '@console/shared/ui';
-import type { AnswerCommand, AnswerRequest, AnswerResponse } from '@shared/contracts';
+import {
+  ANSWER_REPLAY_WINDOW_MS,
+  type AnswerCommand,
+  type AnswerRequest,
+  type AnswerResponse,
+} from '@shared/contracts';
 import { NEEDS_REASON } from '@shared/owner-grammar';
 import { AnswerClient, AnswerFailure, answerRequestOf } from './answer.client';
 import { ReasonCommand, ReasonSheet, ReasonSheetData } from './reason-sheet';
@@ -36,6 +41,16 @@ export interface AnswerGiven {
   readonly response: AnswerResponse;
 }
 
+/** An answer the card sent, with when (`Date.now()`) it was first sent: the endpoint's record dates from then. */
+interface SentAnswer {
+  readonly request: AnswerRequest;
+  readonly firstSentAt: number;
+}
+
+function isSameRequest(a: AnswerRequest, b: AnswerRequest): boolean {
+  return a.command === b.command && (a.text ?? '') === (b.text ?? '') && a.ownerSaid === b.ownerSaid;
+}
+
 function isReasonCommand(command: AnswerCommand): command is ReasonCommand {
   return NEEDS_REASON.has(command);
 }
@@ -46,7 +61,9 @@ function isReasonCommand(command: AnswerCommand): command is ReasonCommand {
  * override's confirmation); and, on an item whose author is not trusted, a warning to confirm first, whatever the
  * answer. No optimistic update: the card stays until the endpoint has recorded the answer, and on failure it
  * stays with the reason. A repeat (double tap, Retry) sends the same request, so the endpoint replays instead of
- * posting twice.
+ * posting twice. The endpoint replays only within `ANSWER_REPLAY_WINDOW_MS` of the write, so a repeat sent later than
+ * that after the first attempt re-reads the item first (#120): the answer already on GitHub is shown as answered, an
+ * item that no longer takes it says so, and only an item still waiting gets the answer posted, once.
  */
 @Component({
   selector: 'tc-answer-question',
@@ -132,7 +149,7 @@ export class AnswerQuestion {
   private readonly asking = signal(false);
   protected readonly isBusy = computed(() => this.pending() !== null || this.asking());
   protected readonly failure = signal<AnswerFailure | null>(null);
-  private lastRequest: AnswerRequest | null = null;
+  private lastSent: SentAnswer | null = null;
 
   async answer(command: AnswerCommand): Promise<void> {
     if (this.isBusy() || !this.item().allowedCommands.includes(command)) {
@@ -145,16 +162,58 @@ export class AnswerQuestion {
     } finally {
       this.asking.set(false);
     }
-    if (request !== null) {
-      await this.submit(request);
+    if (request === null) {
+      return;
     }
+    const last = this.lastSent;
+    if (last !== null && isSameRequest(last.request, request)) {
+      // The same answer tapped again after a failure: a repeat, like Retry.
+      await this.repeat(last);
+      return;
+    }
+    await this.submit(request);
   }
 
   /** Repeats the last request unchanged, so a comment that did get written is replayed, not posted again. */
   async retry(): Promise<void> {
-    if (this.lastRequest !== null && !this.isBusy()) {
-      await this.submit(this.lastRequest);
+    if (this.lastSent !== null && !this.isBusy()) {
+      await this.repeat(this.lastSent);
     }
+  }
+
+  /**
+   * Within the replay window of the first attempt the endpoint answers a written comment from its record, so the
+   * same request goes again. Past it, the item is re-read first (#120): a repeat would post a second comment. The
+   * window counts from the first attempt, not the last: the comment may have been written then, and the endpoint's
+   * replay counts from the write, so Retries spaced under the window apart still re-read once the first is past it.
+   */
+  private async repeat(last: SentAnswer): Promise<void> {
+    const now = Date.now();
+    if (now - last.firstSentAt <= ANSWER_REPLAY_WINDOW_MS) {
+      await this.submit(last.request);
+      return;
+    }
+    const item = this.item();
+    this.pending.set(last.request.command);
+    this.keepFocusOnRetry(last.request.command);
+    this.failure.set(null);
+    const found = await this.client.lookup(
+      item.project.slug,
+      item.number,
+      last.request,
+      now - last.firstSentAt,
+    );
+    if (!found.ok) {
+      this.pending.set(null);
+      this.failure.set(found.failure);
+      return;
+    }
+    if (found.answer !== null) {
+      this.pending.set(null);
+      this.recordAnswer(item, found.answer);
+      return;
+    }
+    await this.submit(last.request);
   }
 
   /** The confirmations and the reason the answer needs; `null` when the owner backs out. */
@@ -207,7 +266,10 @@ export class AnswerQuestion {
 
   private async submit(request: AnswerRequest): Promise<void> {
     const item = this.item();
-    this.lastRequest = request;
+    const last = this.lastSent;
+    if (last === null || last.request !== request) {
+      this.lastSent = { request, firstSentAt: Date.now() };
+    }
     this.pending.set(request.command);
     this.keepFocusOnRetry(request.command);
     this.failure.set(null);
@@ -223,14 +285,18 @@ export class AnswerQuestion {
       this.failure.set(result.failure);
       return;
     }
+    this.recordAnswer(item, result.response);
+  }
+
+  private recordAnswer(item: QuestionItem, response: AnswerResponse): void {
     this.answeredItems.record({
       slug: item.project.slug,
       number: item.number,
-      command: result.response.command,
-      url: result.response.url,
+      command: response.command,
+      url: response.url,
       answeredAt: new Date().toISOString(),
     });
     void this.counts.refresh();
-    this.answered.emit({ item, response: result.response });
+    this.answered.emit({ item, response });
   }
 }
