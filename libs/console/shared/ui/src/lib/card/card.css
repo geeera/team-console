@@ -7,7 +7,8 @@
   margin-left: var(--card-indent);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-lg);
-  background: var(--surface) linear-gradient(var(--surface), var(--surface-2));
+  /* Solid on purpose (#146): axe cannot measure contrast on a gradient, so text on one escapes the a11y gate. */
+  background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow-1);
   overflow: hidden;
