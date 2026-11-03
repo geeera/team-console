@@ -1,8 +1,21 @@
 export { OwnerConnectionsRepo } from './lib/owner-connections.repo';
 export type { NewOwnerConnection, OwnerConnectionRow, SealedTokenPair } from './lib/owner-connections.repo';
-export { ProjectsRepo, toProjectDto } from './lib/projects.repo';
-export type { NewProject, ProjectChanges, ProjectConflict, ProjectRow } from './lib/projects.repo';
+export { ProjectsRepo, isSnoozedAt, snoozeOf, toProjectDto } from './lib/projects.repo';
+export type { NewProject, ProjectChanges, ProjectConflict, ProjectRow, SnoozeChange } from './lib/projects.repo';
 export { ProjectSignalsRepo } from './lib/project-signals.repo';
 export type { EventsSignal } from './lib/project-signals.repo';
 export { OwnWritesRepo } from './lib/own-writes.repo';
 export type { OwnWrite, OwnWriteKind } from './lib/own-writes.repo';
+export { SlotRequestsRepo } from './lib/slot-requests.repo';
+export type { SlotRequest, SlotRequestState } from './lib/slot-requests.repo';
+export { PushSubscriptionsRepo, PushTestSendsRepo } from './lib/push-subscriptions.repo';
+export type { NewPushSubscription, PushSubscriptionRow, PushTestClaim } from './lib/push-subscriptions.repo';
+export { WebhookDeliveriesRepo } from './lib/webhook-deliveries.repo';
+export type { DeliveryRecord, WebhookDelivery } from './lib/webhook-deliveries.repo';
+export { OwnerRequestsRepo } from './lib/owner-requests.repo';
+export type {
+  HandledMark,
+  OwnerRequestKind,
+  OwnerRequestRecord,
+  OwnerRequestResult,
+} from './lib/owner-requests.repo';

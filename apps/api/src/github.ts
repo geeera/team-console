@@ -1,4 +1,4 @@
-import type { Logger, MappedError } from '@worker/core';
+import { localFakeOriginOf, type Logger, type MappedError } from '@worker/core';
 import { OwnerConnectionsRepo } from '@worker/db';
 import {
   GitHubAppAuth,
@@ -33,7 +33,6 @@ export interface ApiGitHubOptions {
 
 // The two hosts `GITHUB_FAKE_ORIGIN` stands in for; nothing else is ever rewritten.
 const FAKEABLE_ORIGINS: ReadonlySet<string> = new Set(['https://github.com', 'https://api.github.com']);
-const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['127.0.0.1', 'localhost', '[::1]']);
 
 /**
  * Local runs only (`ENVIRONMENT=local`, like `GITHUB_MOCK`): `GITHUB_FAKE_ORIGIN` sends github.com and
@@ -41,17 +40,11 @@ const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['127.0.0.1', 'localhost', '
  * end to end without GitHub. Only a loopback origin is accepted; anywhere else the variable is ignored.
  */
 export function fakeGitHubFetch(env: ApiEnv, base: FetchLike): FetchLike {
-  const configured = env.ENVIRONMENT === 'local' ? env.GITHUB_FAKE_ORIGIN?.trim() : undefined;
-  if (configured === undefined || configured === '') {
+  const fake = localFakeOriginOf(env, env.GITHUB_FAKE_ORIGIN);
+  if (fake.kind === 'off') {
     return base;
   }
-  let fake: URL;
-  try {
-    fake = new URL(configured);
-  } catch {
-    throw ownerFlowMisconfigured('GITHUB_FAKE_ORIGIN must be a loopback http(s) origin');
-  }
-  if (!LOOPBACK_HOSTS.has(fake.hostname) || (fake.protocol !== 'http:' && fake.protocol !== 'https:')) {
+  if (fake.kind === 'invalid') {
     throw ownerFlowMisconfigured('GITHUB_FAKE_ORIGIN must be a loopback http(s) origin');
   }
   return async (input, init) => {
@@ -60,6 +53,41 @@ export function fakeGitHubFetch(env: ApiEnv, base: FetchLike): FetchLike {
       throw new TypeError('the fake GitHub serves github.com and api.github.com only');
     }
     return base(`${fake.origin}/${url.host}${url.pathname}${url.search}`, init);
+  };
+}
+
+const ISSUE_THREAD_PATH = /^\/repos\/[^/]+\/[^/]+\/issues\/[0-9]+(?:\/comments)?$/;
+const MILESTONES_PATH = /^\/repos\/[^/]+\/[^/]+\/milestones$/;
+// #277: a seeded pull request list, so an e2e can move a design's head commit after the console loaded its list.
+const PULLS_PATH = /^\/repos\/[^/]+\/[^/]+\/pulls$/;
+
+/**
+ * Local runs only, with both `GITHUB_MOCK` and `GITHUB_FAKE_ORIGIN` (#114): owner writes (labels, comments, and
+ * milestones, #218) land on the fake GitHub, so the reads of an issue thread or a milestone list the fake serves
+ * come from there too — after the mock has checked the installation token, as GitHub would. Anything the fake does
+ * not serve keeps the mock's answer.
+ */
+export function localIssueThreads(env: ApiEnv, mockFetch: FetchLike, base: FetchLike): FetchLike {
+  const configured = env.ENVIRONMENT === 'local' ? env.GITHUB_FAKE_ORIGIN?.trim() : undefined;
+  if (configured === undefined || configured === '') {
+    return mockFetch;
+  }
+  const fake = fakeGitHubFetch(env, base);
+  return async (input, init) => {
+    const mocked = await mockFetch(input, init);
+    const path = new URL(input).pathname;
+    const isServedByFake =
+      ISSUE_THREAD_PATH.test(path) || MILESTONES_PATH.test(path) || PULLS_PATH.test(path);
+    if ((init.method ?? 'GET') !== 'GET' || !isServedByFake || !mocked.ok) {
+      return mocked;
+    }
+    const faked = await fake(input, { method: 'GET', headers: { Accept: 'application/json' } });
+    if (faked.status === 404) {
+      await faked.body?.cancel();
+      return mocked;
+    }
+    await mocked.body?.cancel();
+    return faked;
   };
 }
 
@@ -143,7 +171,8 @@ export class ApiGitHub {
 
   async connect(env: ApiEnv): Promise<GitHubConnection> {
     if (isGitHubMockEnabled(env)) {
-      return this.mockConnection();
+      const mock = await this.mockConnection();
+      return { auth: mock.auth, fetch: localIssueThreads(env, mock.fetch, this.fetcher) };
     }
     // Missing or malformed values fail inside GitHubAppAuth as 503 github-auth, before any request is sent.
     const appId = env.GITHUB_APP_ID ?? '';

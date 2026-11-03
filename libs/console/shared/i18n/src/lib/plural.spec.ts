@@ -60,4 +60,20 @@ describe('TranslocoPluralPipe', () => {
     await fixture.whenStable();
     expect(text()).toBe('5 steps missing');
   });
+
+  it('formats the count through Intl in the active language', async () => {
+    TestBed.configureTestingModule({ imports: [Host], providers: [provideConsoleI18n()] });
+    await TestBed.inject(ApplicationInitStatus).donePromise;
+    const fixture = TestBed.createComponent(Host);
+    const text = (): string => (fixture.nativeElement as HTMLElement).textContent?.trim() ?? '';
+    fixture.componentInstance.n.set(1025);
+    await fixture.whenStable();
+    expect(text()).toBe('Не хватает 1\u00a0025 шагов');
+
+    const transloco = TestBed.inject(TranslocoService);
+    transloco.setActiveLang('en');
+    await firstValueFrom(transloco.load('en'));
+    await fixture.whenStable();
+    expect(text()).toBe('1,025 steps missing');
+  });
 });

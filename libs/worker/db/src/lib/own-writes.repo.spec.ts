@@ -59,6 +59,12 @@ describe('OwnWritesRepo', () => {
     expect(results).toEqual([{ body_hash: null }]);
   });
 
+  it('tells a comment the console wrote from any other', async () => {
+    await repo.record(write({ commentId: 4242 }));
+    await expect(repo.isOwnComment(4242)).resolves.toBe(true);
+    await expect(repo.isOwnComment(4243)).resolves.toBe(false);
+  });
+
   it('gives a claim to one holder until it is released or expires', async () => {
     await expect(repo.claim('hash-a', 1_000, 60_000)).resolves.toBe(true);
     await expect(repo.claim('hash-a', 2_000, 60_000)).resolves.toBe(false);

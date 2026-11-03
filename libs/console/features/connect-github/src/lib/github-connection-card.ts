@@ -21,7 +21,7 @@ import {
 } from '@console/entities/github-connection';
 import { NetworkStatus } from '@console/shared/api';
 import { LocalDayPipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
-import { Button, Icon, Sheet, StateBlock, Toaster } from '@console/shared/ui';
+import { Button, Icon, Sheet, StateBlock, StatusCard, Toaster } from '@console/shared/ui';
 
 /** Why the last connect did not work: the callback's outcome, or what the client refused before leaving. */
 type ConnectError =
@@ -35,7 +35,7 @@ type ConnectError =
  */
 @Component({
   selector: 'tc-github-connection-card',
-  imports: [Button, ConnectGitHubButton, Icon, LocalDayPipe, StateBlock, TranslocoPipe],
+  imports: [Button, ConnectGitHubButton, Icon, LocalDayPipe, StateBlock, StatusCard, TranslocoPipe],
   templateUrl: './github-connection-card.html',
   styleUrl: './github-connection-card.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -60,24 +60,29 @@ export class GitHubConnectionCard {
 
   protected readonly errorKey = computed(() => {
     const error = this.error();
-    return error === null
-      ? null
-      : `settings.gh.error.${error.kind === 'wrong-account' ? 'account' : error.kind}`;
+    if (error === null) {
+      return null;
+    }
+    if (error.kind !== 'wrong-account') {
+      return `settings.gh.error.${error.kind}`;
+    }
+    // An unreadable `login` on the callback URL (#124 item 2): wording that names no one, not "?".
+    return error.who === null ? 'settings.gh.error.accountUnknown' : 'settings.gh.error.account';
   });
   protected readonly errorParams = computed(() => {
     const error = this.error();
     return {
-      who: error?.kind === 'wrong-account' ? (error.who ?? '?') : '',
+      who: error?.kind === 'wrong-account' ? (error.who ?? '') : '',
       login: this.store.ownerLogin() ?? '',
     };
   });
 
   constructor() {
     // Re-read on every visit: a connection that ended since Settings last showed it must read as lost (#24 AC 2).
-    void this.store.load();
+    const initialLoad = this.store.load();
     effect(() => {
       const outcome = this.outcome();
-      untracked(() => void this.applyOutcome(outcome));
+      untracked(() => void this.applyOutcome(outcome, initialLoad));
     });
   }
 
@@ -117,11 +122,17 @@ export class GitHubConnectionCard {
     this.focusTitle();
   }
 
-  private async applyOutcome(outcome: ConnectOutcome | null): Promise<void> {
+  private async applyOutcome(outcome: ConnectOutcome | null, initialLoad: Promise<void>): Promise<void> {
     if (outcome === null) {
       return;
     }
     if (outcome.kind !== 'connected') {
+      // Reconcile with the live state first: a failure outcome from an old link or bookmark is stale
+      // once the Worker says the connection is already up (#124 item 1).
+      await initialLoad;
+      if (this.store.isConnected()) {
+        return;
+      }
       this.error.set(
         outcome.kind === 'wrong-account'
           ? { kind: 'wrong-account', who: outcome.login }

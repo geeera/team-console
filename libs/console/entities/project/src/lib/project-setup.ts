@@ -20,10 +20,13 @@ export interface SetupStep {
 }
 
 export interface SetupSummary {
-  /** Steps the owner still has to see through: missing, waiting for the first event, or not checked yet. */
+  /** Steps the owner still has to act on: missing, or not checked yet because a step above is not done. */
   readonly left: number;
   readonly unknown: number;
   readonly done: number;
+  /** Steps that tick themselves (the first event, #205): never counted as left, never block `ready`. */
+  readonly waiting: number;
+  /** Nothing is left for the owner; `waiting` may still be above zero. */
   readonly ready: boolean;
 }
 
@@ -144,12 +147,13 @@ export function refusedSetupSteps(step: unknown): readonly SetupStep[] | null {
 export function setupSummaryOf(steps: readonly SetupStep[]): SetupSummary {
   const count = (...states: SetupStepState[]): number =>
     steps.filter((step) => states.includes(step.state)).length;
-  const left = count('missing', 'waiting', 'skipped');
+  const left = count('missing', 'skipped');
   const unknown = count('unknown');
   return {
     left,
     unknown,
     done: count('done'),
+    waiting: count('waiting'),
     ready: steps.length > 0 && left === 0 && unknown === 0 && count('pending') === 0,
   };
 }

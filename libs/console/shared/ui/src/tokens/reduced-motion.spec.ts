@@ -11,9 +11,10 @@ function tokensCss(): string {
 // the stamp even with reduced motion. Regression for #79, where both blocks set it to 1ms.
 function reducedMotionBlocks(css: string): string[] {
   const blocks: string[] = [];
-  const mediaMatch = /@media \(prefers-reduced-motion: reduce\) \{\s*:root:not\(\[data-motion='full'\]\) \{([^}]*)\}/.exec(
-    css,
-  );
+  const mediaMatch =
+    /@media \(prefers-reduced-motion: reduce\) \{\s*:root:not\(\[data-motion='full'\]\) \{([^}]*)\}/.exec(
+      css,
+    );
   if (mediaMatch?.[1]) {
     blocks.push(mediaMatch[1]);
   }
@@ -29,6 +30,13 @@ describe('reduced-motion tokens', () => {
 
   it('finds both reduced-motion blocks', () => {
     expect(blocks).toHaveLength(2);
+  });
+
+  it('never collapses --dur-pulse: a 1ms pulse would flicker; components stop the animation instead', () => {
+    for (const block of blocks) {
+      expect(block).not.toMatch(/--dur-pulse:/);
+    }
+    expect(tokensCss()).toMatch(/--dur-pulse:\s*1600ms;/);
   });
 
   it('does not override --dur-fade (stamp keeps its 120ms fade)', () => {

@@ -1,9 +1,10 @@
+import { provideRouter } from '@angular/router';
 import { TranslocoPipe } from '@console/shared/i18n';
 import type { Meta, StoryObj } from '@storybook/angular';
-import { moduleMetadata } from '@storybook/angular';
+import { applicationConfig, moduleMetadata } from '@storybook/angular';
 import { darkTheme, phoneViewport, reducedMotion } from '../../../.storybook/stories';
 import { Chip } from '../chip/chip';
-import { IconButton } from '../button/button';
+import { Button, IconButton } from '../button/button';
 import { Icon } from '../icon/icon';
 import { List, ListRow } from './list';
 
@@ -25,6 +26,11 @@ const projects = `
       <tc-icon tc-row-leading name="settings" />
       <span tc-row-title>{{ 'stories.common.settings' | transloco }}</span>
       <tc-icon tc-row-trailing name="chevron-right" />
+    </tc-list-row>
+    <tc-list-row href="https://github.com/geeera/team-console" external>
+      <tc-icon tc-row-leading name="github" />
+      <span tc-row-title>{{ 'stories.list.external' | transloco }}</span>
+      <tc-icon tc-row-trailing name="external" />
     </tc-list-row>
     <tc-list-row>
       <span tc-row-title>{{ 'stories.list.version' | transloco }}</span>
@@ -74,10 +80,35 @@ const withActions = `
   </div>
 `;
 
+/** #194: a router-link row with trailing text, a muted row with no control, and a detail line beside a row action. */
+const trailingText = `
+  <tc-list [attr.aria-label]="'stories.list.ariaRepos' | transloco">
+    <tc-list-row [link]="['/settings/projects', 'team-console']" [label]="'stories.list.repoProjectAria' | transloco: { repo: 'geeera/team-console' }">
+      <span tc-row-title>team-console</span>
+      <span tc-row-subtitle>geeera</span>
+      <span tc-row-trailing-text>{{ 'stories.list.repoProject' | transloco }}<tc-icon name="chevron-right" size="sm" /></span>
+    </tc-list-row>
+    <tc-list-row muted>
+      <span tc-row-title>old-landing</span>
+      <span tc-row-subtitle>geeera</span>
+      <span tc-row-trailing-text><tc-icon name="archive" size="sm" />{{ 'stories.list.repoArchived' | transloco }}</span>
+    </tc-list-row>
+    <tc-list-row>
+      <span tc-row-title>fieldnote</span>
+      <span tc-row-subtitle>geeera</span>
+      <span tc-row-detail>{{ 'stories.list.repoNotAdded' | transloco }} · <a href="#why">{{ 'stories.list.repoSeeWhy' | transloco }}</a></span>
+      <button tc-row-action tc-button type="button">{{ 'stories.list.repoAdd' | transloco }}</button>
+    </tc-list-row>
+  </tc-list>
+`;
+
 const meta: Meta<List> = {
   title: 'Kit/List',
   component: List,
-  decorators: [moduleMetadata({ imports: [List, ListRow, Chip, Icon, IconButton, TranslocoPipe] })],
+  decorators: [
+    applicationConfig({ providers: [provideRouter([])] }),
+    moduleMetadata({ imports: [List, ListRow, Button, Chip, Icon, IconButton, TranslocoPipe] }),
+  ],
   render: () => ({ template: projects }),
 };
 
@@ -87,6 +118,8 @@ type Story = StoryObj<List>;
 export const Rows: Story = {};
 export const Sidebar: Story = { render: () => ({ template: sidebar }) };
 export const WithRowActions: Story = { render: () => ({ template: withActions }) };
+export const TrailingTextAndDetail: Story = { render: () => ({ template: trailingText }) };
+export const TrailingTextDark: Story = { ...darkTheme, render: () => ({ template: trailingText }) };
 export const Dark: Story = { ...darkTheme };
 export const ReducedMotion: Story = { ...reducedMotion };
 export const Phone: Story = { ...phoneViewport };

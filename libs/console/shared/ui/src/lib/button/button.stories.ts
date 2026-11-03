@@ -55,3 +55,19 @@ export const Phone: Story = {
     `,
   }),
 };
+
+/** #114: an off command stays focusable and says why next to it; pressing it announces the reason instead. */
+export const OffWithReason: Story = {
+  render: () => ({
+    template: `
+      <div style="display: grid; gap: var(--space-1); justify-items: start">
+        <button tc-button off aria-disabled="true" aria-describedby="story-off-why" type="button">
+          {{ 'stories.button.run' | transloco }}
+        </button>
+        <p id="story-off-why" style="margin: 0; font-size: var(--fs-sm); color: var(--text-2)">
+          {{ 'stories.button.offReason' | transloco }}
+        </p>
+      </div>
+    `,
+  }),
+};

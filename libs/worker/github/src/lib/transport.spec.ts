@@ -1,5 +1,5 @@
 import { json, scriptedGitHub } from '../testing/github-kit';
-import { GitHubError } from './errors';
+import { GitHubError, requestBudgetError } from './errors';
 import { githubPath } from './github-path';
 import { githubRequest, onGitHubApi } from './transport';
 
@@ -73,6 +73,30 @@ describe('githubRequest', () => {
       githubRequest(timedOut.fetch, { method: 'GET', path: githubPath`/x`, bearer: BEARER }),
     );
     expect(error.problem).toMatchObject({ type: 'github-unavailable', status: 502 });
+  });
+
+  it('aborts a fetch that never answers once its deadline passes, and answers 502 github-unavailable', async () => {
+    // `fetch` is never mocked to "just time out": it is given the real signal `send()` passes, and only settles
+    // (rejects, as a real aborted fetch does) when that signal actually fires — so this proves the deadline
+    // itself ends the call, not a stub that already knows the answer. Fake timers do not advance
+    // `AbortSignal.timeout`, so the deadline is shortened through the injectable seam instead (#76).
+    const hangingUntilAborted = scriptedGitHub(
+      (call) =>
+        new Promise<Response>((_resolve, reject) => {
+          call.signal?.addEventListener('abort', () => {
+            reject(new DOMException('The operation was aborted due to timeout', 'TimeoutError'));
+          });
+        }),
+    );
+    const error = await problemOf(
+      githubRequest(
+        hangingUntilAborted.fetch,
+        { method: 'GET', path: githubPath`/x`, bearer: BEARER },
+        { deadlineSignal: () => AbortSignal.timeout(20) },
+      ),
+    );
+    expect(error.problem).toMatchObject({ type: 'github-unavailable', status: 502 });
+    expect(hangingUntilAborted.calls).toHaveLength(1);
   });
 
   it.each([301, 302, 303, 307, 308])(
@@ -154,6 +178,16 @@ describe('githubRequest', () => {
     expect(error.problem).toMatchObject({ type: 'github-unavailable', status: 502 });
     expect(error.githubStatus).toBeNull();
     expect(JSON.stringify({ ...error, message: error.message, stack: error.stack })).not.toContain(BEARER);
+  });
+
+  it('passes on a GitHub problem the transport raised before sending (a request budget)', async () => {
+    const github = scriptedGitHub(() => {
+      throw requestBudgetError();
+    });
+    const error = await problemOf(
+      githubRequest(github.fetch, { method: 'GET', path: githubPath`/x`, bearer: BEARER }),
+    );
+    expect(error.problem.type).toBe('github-request-budget');
   });
 });
 

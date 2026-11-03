@@ -1,0 +1,141 @@
+:host {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+:host(.tc-status-card--warning) {
+  border-color: var(--warning-text);
+}
+
+:host(.tc-status-card--danger) {
+  border-color: var(--danger-text);
+}
+
+:host ::ng-deep [tc-status-card-row] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+:host ::ng-deep [tc-status-card-mark] {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  border-radius: var(--r-round);
+  background: var(--bg-sunken);
+  color: var(--text-2);
+}
+
+:host(.tc-status-card--success) ::ng-deep [tc-status-card-mark] {
+  background: var(--success-soft);
+  color: var(--success-text);
+}
+
+:host(.tc-status-card--warning) ::ng-deep [tc-status-card-mark] {
+  background: var(--warning-soft);
+  color: var(--warning-text);
+}
+
+:host(.tc-status-card--danger) ::ng-deep [tc-status-card-mark] {
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}
+
+:host ::ng-deep [tc-status-card-who] {
+  display: grid;
+  flex: 1 1 auto;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+:host ::ng-deep [tc-status-card-title] {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+  overflow-wrap: anywhere;
+}
+
+:host ::ng-deep [tc-status-card-title]:focus {
+  outline: none;
+}
+
+:host ::ng-deep [tc-status-card-title]:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+:host ::ng-deep [tc-status-card-meta] {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+:host ::ng-deep [tc-status-card-body] {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+/* A quiet line under the body: offline, a hint, why an action waits. */
+:host ::ng-deep [tc-status-card-note] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+:host ::ng-deep [tc-status-card-actions] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tc-status-card__skeleton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.tc-status-card__skeleton-mark,
+.tc-status-card__skeleton-line {
+  display: block;
+  border-radius: var(--r-pill);
+  background: var(--skeleton);
+}
+
+.tc-status-card__skeleton-mark {
+  flex: none;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+}
+
+.tc-status-card__skeleton-line {
+  flex: 1;
+  height: var(--space-4);
+}
+
+@media (max-width: 519.98px) {
+  :host {
+    padding: var(--space-4);
+  }
+
+  :host ::ng-deep [tc-status-card-actions] > * {
+    flex: 1;
+  }
+}

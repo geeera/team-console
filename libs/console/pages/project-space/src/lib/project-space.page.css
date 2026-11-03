@@ -1,7 +1,7 @@
 :host {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  flex: 1 0 auto;
 }
 
 .space__head {
@@ -19,6 +19,32 @@
   border-bottom: 0;
 }
 
+.space__commands {
+  margin-left: auto;
+}
+
+.space__banner {
+  display: block;
+  max-width: var(--log-max);
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--space-3) var(--pad-x) 0;
+}
+
+.space__banner:empty {
+  display: none;
+}
+
+:host(.tc-space--phone) .space__banner {
+  padding: var(--space-2) var(--space-4) 0;
+}
+
+.space__main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
 .space__title {
   margin: 0;
   font-family: var(--font-display);
@@ -34,6 +60,14 @@
   width: 100%;
   margin: 0 auto;
   padding: var(--space-4) var(--pad-x) var(--space-8);
+}
+
+.space__body--wide {
+  max-width: var(--board-max);
+}
+
+:host(.tc-space--cards) .space__body {
+  max-width: var(--cards-max);
 }
 
 :host(.tc-space--phone) .space__body {

@@ -1,0 +1,60 @@
+:host {
+  display: block;
+}
+
+.guide {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guide__step {
+  display: grid;
+  grid-template-columns: var(--avatar-size) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.guide__step p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.guide__step .guide__aside {
+  margin-top: var(--space-1);
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.guide__n {
+  display: grid;
+  place-items: center;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  border-radius: var(--r-round);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: lining-nums;
+}
+
+/* Safari's own button, drawn as a key cap so it reads as "this button", not as decoration. */
+.guide__key {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--chip-h);
+  height: var(--chip-h);
+  padding: 0 var(--space-1);
+  vertical-align: middle;
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--accent-text);
+}

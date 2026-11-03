@@ -1,0 +1,67 @@
+:host {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* Three across at every width (#276 wireframe); `minmax(0, …)` keeps a wide image from pushing the card sideways. */
+.previews__list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.previews__list li {
+  min-width: 0;
+}
+
+.previews__thumb {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: var(--control-h-touch);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  cursor: pointer;
+}
+
+.previews__thumb:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+.previews__thumb:hover tc-design-preview {
+  border-color: var(--border-strong);
+}
+
+/* «+N» over the last preview: the screens the card does not show. */
+.previews__more {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  background: var(--scrim);
+  color: var(--accent-contrast);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+}
+
+.previews__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+}
+
+.previews__summary {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}

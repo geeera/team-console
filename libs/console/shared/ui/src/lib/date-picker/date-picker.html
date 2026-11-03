@@ -1,0 +1,34 @@
+<div class="tc-date-picker__group" #group>
+  <input
+    #textInput
+    class="tc-date-picker__input"
+    type="text"
+    inputmode="numeric"
+    autocomplete="off"
+    enterkeyhint="done"
+    [id]="controlId()"
+    [attr.aria-describedby]="describedByIds()"
+    [attr.aria-invalid]="isInvalid() ? 'true' : null"
+    [attr.aria-required]="field?.required() ? 'true' : null"
+    [placeholder]="placeholder()"
+    [value]="text()"
+    [disabled]="isDisabled()"
+    [readOnly]="readonly()"
+    (input)="onInput($event)"
+    (blur)="onBlur()"
+    (keydown)="onInputKeydown($event)"
+  />
+  <button
+    #toggleButton
+    tc-icon-button
+    type="button"
+    class="tc-date-picker__toggle"
+    aria-haspopup="dialog"
+    [attr.aria-expanded]="isOpen()"
+    [attr.aria-label]="toggleLabel()"
+    [disabled]="isDisabled() || readonly()"
+    (click)="toggle()"
+  >
+    <tc-icon name="calendar" />
+  </button>
+</div>

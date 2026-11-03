@@ -8,6 +8,7 @@ export type GitHubProblemType =
   | 'github-owner-mismatch'
   | 'github-owner-not-connected'
   | 'github-rate-limit'
+  | 'github-request-budget'
   | 'github-unavailable'
   | 'github-unexpected';
 
@@ -66,6 +67,23 @@ export function githubUnavailableError(githubStatus: number | null): GitHubError
   );
 }
 
+/**
+ * The request's own subrequest budget is spent (#27): nothing was asked of GitHub. A GitHub problem so that a read
+ * shared through the read cache fails the same way for every request that waits on it.
+ */
+export function requestBudgetError(): GitHubError {
+  return new GitHubError(
+    {
+      type: 'github-request-budget',
+      title: 'Not read in this request',
+      status: 503,
+      detail: "The request's GitHub subrequest budget is spent; the next request continues",
+      retryAfter: 1,
+    },
+    null,
+  );
+}
+
 export function appNotInstalledError(repo: string): GitHubError {
   return new GitHubError(
     {
@@ -75,6 +93,22 @@ export function appNotInstalledError(repo: string): GitHubError {
       detail: `Install the team-console app on ${repo}`,
     },
     404,
+  );
+}
+
+/**
+ * 409 `github-app-not-installed` for the installation list (#194): the console app has no installation on the
+ * connected owner's account. The detail names no repository, login or app; the route adds the install URL.
+ */
+export function appNotInstalledForAccountError(): GitHubError {
+  return new GitHubError(
+    {
+      type: 'github-app-not-installed',
+      title: 'The console app is not installed on the connected account',
+      status: 409,
+      detail: 'Install the console app on the connected GitHub account',
+    },
+    null,
   );
 }
 

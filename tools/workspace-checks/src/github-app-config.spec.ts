@@ -89,6 +89,12 @@ describe('apps/hooks (public, ADR 0003 decision 8)', () => {
   it('is deployed without any GitHub App var', () => {
     expect(deployStep('Deploy hooks Worker')).not.toMatch(HOOKS_FORBIDDEN);
   });
+
+  it('is deployed with the VAPID public key from vars.VAPID_PUBLIC_KEY (#12 sends pushes)', () => {
+    expect(deployStep('Deploy hooks Worker')).toContain(
+      '--var VAPID_PUBLIC_KEY:${{ vars.VAPID_PUBLIC_KEY }}',
+    );
+  });
 });
 
 describe('.github/workflows/deploy.yml', () => {
@@ -98,6 +104,8 @@ describe('.github/workflows/deploy.yml', () => {
     ['GITHUB_APP_ID', 'CONSOLE_GITHUB_APP_ID'],
     ['GITHUB_APP_CLIENT_ID', 'CONSOLE_GITHUB_APP_CLIENT_ID'],
     ['OWNER_GITHUB_LOGIN', 'OWNER_GITHUB_LOGIN'],
+    // #11: not an app var, but delivered the same way.
+    ['VAPID_PUBLIC_KEY', 'VAPID_PUBLIC_KEY'],
   ])('passes %s to the api Worker from vars.%s', (binding, variable) => {
     expect(step).toContain(`--var ${binding}:\${{ vars.${variable} }}`);
   });

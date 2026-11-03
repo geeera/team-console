@@ -1,0 +1,7 @@
+{
+  "name": "worker-push",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/worker/push/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:worker"]
+}

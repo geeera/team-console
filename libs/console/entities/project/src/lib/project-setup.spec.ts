@@ -30,13 +30,38 @@ const states = (setup: ProjectSetupDto): string[] => setupStepsOf(setup).map((st
 describe('setupStepsOf', () => {
   it('a ready project: five steps done', () => {
     expect(states(READY)).toEqual(['done', 'done', 'done', 'done', 'done']);
-    expect(setupSummaryOf(setupStepsOf(READY))).toEqual({ left: 0, unknown: 0, done: 5, ready: true });
+    expect(setupSummaryOf(setupStepsOf(READY))).toEqual({
+      left: 0,
+      unknown: 0,
+      done: 5,
+      waiting: 0,
+      ready: true,
+    });
   });
 
-  it('no event yet is "waiting", not "missing", and still keeps the project from ready', () => {
+  it('no event yet is "waiting": nothing for the owner to do, so it is not a step left (#205)', () => {
     const steps = setupStepsOf({ ...READY, events: 'never', lastEventAt: null });
     expect(steps[3]).toEqual({ id: 'events', state: 'waiting' });
-    expect(setupSummaryOf(steps)).toMatchObject({ left: 1, ready: false });
+    expect(setupSummaryOf(steps)).toEqual({ left: 0, unknown: 0, done: 4, waiting: 1, ready: true });
+  });
+
+  it('a waiting step never hides the steps that do need the owner', () => {
+    const steps = setupStepsOf({ ...READY, events: 'never', lastEventAt: null, routineToken: 'missing' });
+    expect(setupSummaryOf(steps)).toMatchObject({ left: 1, waiting: 1, ready: false });
+  });
+
+  it('counts missing and not-checked steps as left; pending is never ready', () => {
+    const steps = setupStepsOf({
+      ...READY,
+      appInstalled: 'missing',
+      repoOwner: 'not-checked',
+      projectYml: 'missing',
+      events: 'never',
+      lastEventAt: null,
+      routineToken: 'missing',
+    });
+    expect(setupSummaryOf(steps)).toMatchObject({ left: 4, waiting: 1, ready: false });
+    expect(setupSummaryOf(pendingSetupSteps())).toMatchObject({ left: 0, ready: false });
   });
 
   it('app not installed: step 1 missing, steps 2–3 not checked, 4–5 as reported', () => {

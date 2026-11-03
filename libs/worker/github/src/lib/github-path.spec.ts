@@ -1,4 +1,4 @@
-import { githubPath } from './github-path';
+import { githubContentsPath, githubPath } from './github-path';
 import { parseRepoName } from './repo-name';
 
 describe('githubPath', () => {
@@ -22,5 +22,25 @@ describe('githubPath', () => {
 
   it('requires an absolute path', () => {
     expect(() => githubPath`repos/${'x'}`).toThrow('a GitHub path starts with /');
+  });
+});
+
+describe('githubContentsPath', () => {
+  const repo = parseRepoName('geeera/team-console');
+
+  it('keeps the slashes of a nested path and encodes each segment', () => {
+    expect(githubContentsPath(repo, 'docs/decisions')).toBe(
+      '/repos/geeera/team-console/contents/docs/decisions',
+    );
+    expect(githubContentsPath(repo, 'docs/a b?/c#d.md')).toBe(
+      '/repos/geeera/team-console/contents/docs/a%20b%3F/c%23d.md',
+    );
+  });
+
+  it('refuses an absolute path, a traversal and an empty segment', () => {
+    expect(() => githubContentsPath(repo, '/etc')).toThrow();
+    expect(() => githubContentsPath(repo, 'docs/../../app')).toThrow();
+    expect(() => githubContentsPath(repo, 'docs//x')).toThrow();
+    expect(() => githubContentsPath(repo, '')).toThrow();
   });
 });

@@ -1,0 +1,90 @@
+:host {
+  display: grid;
+  align-items: start;
+  gap: var(--space-5);
+}
+
+:host(.tc-lanes--tabbed) {
+  gap: var(--space-3);
+}
+
+/* The narrow screen's lane switcher: one row of equal cells, whatever the number of lanes (#275 §3). */
+.tc-lanes__switch {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: var(--space-1);
+}
+
+.tc-lanes__cell {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-px);
+  min-width: 0;
+  min-height: var(--lane-cell-h);
+  padding: var(--space-1) var(--space-px);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  line-height: var(--lh-tight);
+  text-align: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard);
+}
+
+/* A name too long for its cell (an unknown status label from GitHub) ends in an ellipsis; the button keeps it whole. */
+.tc-lanes__cell-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tc-lanes__cell-count {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Nothing in it: dimmed, still a button that shows its empty lane. */
+.tc-lanes__cell--empty {
+  color: var(--text-3);
+}
+
+.tc-lanes__cell:hover {
+  border-color: var(--border-strong);
+}
+
+.tc-lanes__cell:active {
+  background: var(--bg-sunken);
+}
+
+/* Ink-filled like the Paper Desk segmented controls. */
+.tc-lanes__cell[aria-pressed='true'] {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+}
+
+.tc-lanes__cell:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tc-lanes__cell {
+    transition: none;
+  }
+}
+
+:host-context(:root[data-motion='reduce']) .tc-lanes__cell {
+  transition: none;
+}

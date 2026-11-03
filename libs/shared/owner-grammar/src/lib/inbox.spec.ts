@@ -1,4 +1,4 @@
-import { INBOX_ORDER, askOf, sectionRank } from './inbox';
+import { INBOX_ORDER, askOf, sectionRank, withoutAskLine } from './inbox';
 
 // Expected values were produced with the plugin's Python (`ptlib.owner.ask_of`, `ptlib.inbox.ORDER`); the golden
 // tests in @worker/read-models cover them over whole repositories.
@@ -30,6 +30,27 @@ describe('askOf (owner.ask_of)', () => {
   it('reads nothing from a missing body', () => {
     expect(askOf(null)).toBeNull();
     expect(askOf(undefined)).toBeNull();
+  });
+});
+
+describe('withoutAskLine', () => {
+  it.each([
+    [
+      '**Your answer:** /approve (recommended) · /reject why\n<!-- pt-ask -->\n\nbody',
+      '\n<!-- pt-ask -->\n\nbody',
+    ],
+    ['intro\n**Ваш ответ:** /go\nrest', 'intro\n\nrest'],
+    ['**Your answer:**\n/approve on the next line\nrest', '\nrest'],
+    ['intro **Your answer:** /approve mid-line', 'intro **Your answer:** /approve mid-line'],
+    ['no answer line', 'no answer line'],
+  ])('%j → %j', (body, rest) => {
+    expect(withoutAskLine(body)).toBe(rest);
+  });
+
+  it('removes exactly the line askOf reads, and only the first one', () => {
+    const body = '**Your answer:** /approve first\n**Your answer:** /approve second';
+    expect(askOf(body)).toBe('/approve first');
+    expect(withoutAskLine(body)).toBe('\n**Your answer:** /approve second');
   });
 });
 

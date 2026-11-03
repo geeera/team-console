@@ -30,3 +30,11 @@
   cursor: default;
   opacity: var(--disabled-opacity);
 }
+
+/* UX spec §5: 44px minimum tap target on the phone, same rule as the button sizes. */
+@media (max-width: 519.98px) {
+  :host {
+    width: var(--control-h-touch);
+    height: var(--control-h-touch);
+  }
+}

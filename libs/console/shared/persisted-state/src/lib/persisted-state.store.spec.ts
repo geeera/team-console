@@ -93,6 +93,31 @@ describe('PersistedStateStore', () => {
     expect(store.projects()).toEqual({});
   });
 
+  it('keeps the artifacts filter per project and empties it once cleared', () => {
+    const { store, storage } = setup();
+
+    store.setArtifactFilter('a', { type: 'design', q: 'lanes' });
+    vi.advanceTimersByTime(PERSISTED_STATE_WRITE_DELAY_MS);
+    expect(parsePersistedState(storage.read()).projects['a']?.artifactFilter).toEqual({
+      type: 'design',
+      q: 'lanes',
+    });
+
+    store.setArtifactFilter('a', { q: '' });
+    vi.advanceTimersByTime(PERSISTED_STATE_WRITE_DELAY_MS);
+    expect(store.projectState('a')?.artifactFilter).toEqual({});
+  });
+
+  it('keeps the board tab per project', () => {
+    const { store, storage } = setup();
+
+    store.setBoardTab('a', 'runs');
+    vi.advanceTimersByTime(PERSISTED_STATE_WRITE_DELAY_MS);
+
+    expect(parsePersistedState(storage.read()).projects['a']?.boardTab).toBe('runs');
+    expect(store.projectState('b')?.boardTab).toBeUndefined();
+  });
+
   it('toggles pins in pin order and the collapsed flag', () => {
     const { store } = setup();
 

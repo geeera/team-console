@@ -1,10 +1,11 @@
 <a class="shell__skip" href="#tc-main">{{ 'shell.skip' | transloco }}</a>
 
 @if (hasSidebar()) {
-<nav class="shell__sidebar" [attr.aria-label]="'shell.nav' | transloco">
+<nav class="shell__sidebar tc-page-scroll" [attr.aria-label]="'shell.nav' | transloco">
   <p class="shell__brand">
     <tc-icon name="stack" />
     {{ 'app.name' | transloco }}
+    <tc-environment-mark />
   </p>
 
   <tc-list plain class="shell__top">
@@ -13,7 +14,7 @@
       <span tc-row-title>{{ 'shell.needsYou' | transloco }}</span>
       @if (needsYou.total(); as total) {
       <tc-chip tc-row-trailing tone="accent">
-        <span aria-hidden="true">{{ total }}</span>
+        <span aria-hidden="true">{{ total | localNumber }}</span>
         <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: total } }}</span>
       </tc-chip>
       }
@@ -41,6 +42,10 @@
   </div>
 
   <tc-list plain class="shell__foot">
+    <tc-list-row button data-testid="sidebar-add-project" (click)="go(addProjectUrl)">
+      <tc-icon tc-row-leading name="plus" />
+      <span tc-row-title>{{ 'shell.addProject' | transloco }}</span>
+    </tc-list-row>
     <tc-list-row button [current]="area() === 'settings'" (click)="go('/settings')">
       <tc-icon tc-row-leading name="settings" />
       <span tc-row-title>{{ 'shell.settings' | transloco }}</span>
@@ -60,18 +65,17 @@
     <span class="shell__switch-name">{{ currentProject()?.displayName ?? (titleKey() | transloco) }}</span>
     <tc-icon name="chevron-down" size="sm" />
   </button>
-  <a
-    tc-icon-button
-    tc-top-bar-trailing
-    routerLink="/settings"
-    [attr.aria-label]="'shell.settings' | transloco"
-  >
-    <tc-icon name="settings" size="lg" />
-  </a>
+  <span tc-top-bar-trailing class="shell__actions">
+    <tc-environment-mark />
+    <ng-container [ngTemplateOutlet]="screenAction()" />
+    <a tc-icon-button routerLink="/settings" [attr.aria-label]="'shell.settings' | transloco">
+      <tc-icon name="settings" size="lg" />
+    </a>
+  </span>
 </header>
 }
 
-<main #main id="tc-main" class="shell__main" tabindex="-1" (scroll)="onScroll()">
+<main #main id="tc-main" class="shell__main" tabindex="-1">
   <router-outlet />
 </main>
 

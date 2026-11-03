@@ -2,6 +2,14 @@
  * Test and local-run only: a stateful stand-in for GitHub's side of the owner connection — the authorize step, the
  * token endpoint (code + PKCE, single-use rotating refresh tokens, errors in a 200's JSON `error`), `GET /user`,
  * grant revocation, and the owner's issue comments (#10: accepted only with a live owner access token). The api specs use it through `fetch`; `nx run api:fake-github` serves it as a local Worker.
+ *
+ * Issue threads (#114): an issue seeded with `seedIssue` is served like a public repository's — `GET` of the issue,
+ * its comments and the repository need no token — and takes labels (`POST …/labels`, `DELETE …/labels/{name}`) and
+ * comments from a live owner token, so the run log can be paused, resumed and read back in one place.
+ *
+ * Milestones (#218): a repository seeded with `seedMilestones` lists them like a public repository's
+ * (`GET …/milestones?state=`, sorted by due date as GitHub does) and takes `POST …/milestones` and
+ * `PATCH …/milestones/{number}` from a live owner token; a title already taken is GitHub's 422 `already_exists`.
  */
 
 export interface FakeUser {
@@ -18,7 +26,8 @@ export type FakeFault =
   | 'user-unavailable'
   | 'authorize-denied'
   | 'comment-token-rejected'
-  | 'comment-unavailable';
+  | 'comment-unavailable'
+  | 'milestone-unavailable';
 
 /** A comment the owner's token wrote (`POST /repos/{owner}/{repo}/issues/{n}/comments`). */
 export interface FakeComment {
@@ -60,8 +69,90 @@ export interface FakeCall {
   readonly url: string;
 }
 
+/** An issue thread the fake serves (#114). */
+export interface FakeIssueSeed {
+  readonly repo: string;
+  readonly number: number;
+  readonly title: string;
+  /** Who opened it; the run log trusts its author's entries. */
+  readonly author: string;
+  readonly labels?: readonly string[];
+  /** `owner.login` / `owner.id` of `GET /repos/{repo}`. */
+  readonly repoOwner?: FakeUser;
+  /** The milestone's title (#219); none by default. */
+  readonly milestone?: string | null;
+  readonly state?: 'open' | 'closed';
+  /** Served as a pull request (`pull_request` set). */
+  readonly isPullRequest?: boolean;
+}
+
+interface FakeThreadComment {
+  readonly id: number;
+  readonly body: string;
+  readonly author: string;
+  readonly authorType: 'User' | 'Bot';
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/** A comment put straight into a seeded thread (a team entry written earlier, an edited one). */
+export interface FakeThreadCommentSeed {
+  readonly body: string;
+  readonly author: string;
+  /** `user.type`; `User` by default, `Bot` for an app's `…[bot]` login (#219). */
+  readonly authorType?: 'User' | 'Bot';
+  /** Milliseconds since the epoch. */
+  readonly createdAt: number;
+  /** Defaults to `createdAt`; a later value makes the comment edited. */
+  readonly updatedAt?: number;
+}
+
+/** A milestone the fake serves (#218); `number` is assigned in seed order when left out. */
+export interface FakeMilestoneSeed {
+  readonly number?: number;
+  readonly title: string;
+  readonly state?: 'open' | 'closed';
+  /** As GitHub stores it, e.g. `2026-10-14T12:00:00Z`; `null` without a due date. */
+  readonly dueOn: string | null;
+}
+
+export interface FakeMilestone {
+  readonly number: number;
+  title: string;
+  state: 'open' | 'closed';
+  dueOn: string | null;
+}
+
+/** A milestone write as it arrived, the raw JSON body included (byte-for-byte assertions). */
+export interface FakeMilestoneWrite {
+  readonly method: 'POST' | 'PATCH';
+  readonly repo: string;
+  /** The milestone a PATCH addressed; `null` for a POST. */
+  readonly number: number | null;
+  readonly body: string;
+  readonly author: string;
+}
+
+interface FakeIssue {
+  readonly seed: FakeIssueSeed;
+  readonly labels: string[];
+  readonly comments: FakeThreadComment[];
+  milestone: string | null;
+  state: 'open' | 'closed';
+}
+
 const CODE_LIFETIME_MS = 10 * 60 * 1000;
 const COMMENTS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/([0-9]+)\/comments$/;
+const ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/([0-9]+)$/;
+const LABELS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/([0-9]+)\/labels(?:\/([^/]+))?$/;
+const REPO_PATH = /^\/repos\/([^/]+)\/([^/]+)$/;
+const MILESTONES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/milestones(?:\/([0-9]+))?$/;
+const PULLS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls$/;
+
+/** GitHub's second-precision timestamps. */
+function githubTime(ms: number): string {
+  return `${new Date(ms).toISOString().slice(0, 19)}Z`;
+}
 
 function random(bytes: number): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) =>
@@ -94,6 +185,10 @@ export class FakeGitHubOAuth {
   private readonly grants = new Map<number, { readonly user: FakeUser; active: boolean }>();
   private nextGrant = 1;
   private readonly now: () => number;
+  private readonly issues = new Map<string, FakeIssue>();
+  private readonly milestones = new Map<string, FakeMilestone[]>();
+  private readonly pulls = new Map<string, readonly Readonly<Record<string, unknown>>[]>();
+  readonly milestoneWrites: FakeMilestoneWrite[] = [];
 
   constructor(private readonly options: FakeGitHubOAuthOptions) {
     this.now = options.now ?? (() => Date.now());
@@ -141,6 +236,91 @@ export class FakeGitHubOAuth {
     return code;
   }
 
+  /** Serves an issue thread (#114); seeding it again resets its labels and comments. */
+  seedIssue(seed: FakeIssueSeed): void {
+    this.issues.set(`${seed.repo.toLowerCase()}#${seed.number}`, {
+      seed,
+      labels: [...(seed.labels ?? [])],
+      comments: [],
+      milestone: seed.milestone ?? null,
+      state: seed.state ?? 'open',
+    });
+  }
+
+  /** Moves a seeded issue to another milestone or closes it, as the PM would meanwhile (#219). */
+  updateIssue(
+    repo: string,
+    number: number,
+    change: { readonly milestone?: string | null; readonly state?: 'open' | 'closed' },
+  ): void {
+    const issue = this.issues.get(`${repo.toLowerCase()}#${number}`);
+    if (issue === undefined) {
+      throw new Error(`the fake GitHub serves no issue ${repo}#${number}`);
+    }
+    if (change.milestone !== undefined) {
+      issue.milestone = change.milestone;
+    }
+    if (change.state !== undefined) {
+      issue.state = change.state;
+    }
+  }
+
+  /** Appends a comment to a seeded thread, as if written at `createdAt`. */
+  addComment(repo: string, number: number, seed: FakeThreadCommentSeed): number {
+    const issue = this.issues.get(`${repo.toLowerCase()}#${number}`);
+    if (issue === undefined) {
+      throw new Error(`the fake GitHub serves no issue ${repo}#${number}`);
+    }
+    const id = 6_000_000 + issue.comments.length + 1;
+    issue.comments.push({
+      id,
+      body: seed.body,
+      author: seed.author,
+      authorType: seed.authorType ?? 'User',
+      createdAt: githubTime(seed.createdAt),
+      updatedAt: githubTime(seed.updatedAt ?? seed.createdAt),
+    });
+    return id;
+  }
+
+  /** Serves `seeds` as the repository's milestones (#218); seeding again replaces them. */
+  seedMilestones(repo: string, seeds: readonly FakeMilestoneSeed[]): void {
+    let next = 1;
+    const list = seeds.map((seed): FakeMilestone => {
+      const number = seed.number ?? next;
+      next = Math.max(next, number) + 1;
+      return { number, title: seed.title, state: seed.state ?? 'open', dueOn: seed.dueOn };
+    });
+    this.milestones.set(repo.toLowerCase(), list);
+  }
+
+  /**
+   * Forgets the repository's seeded milestones (#382): its milestone reads answer 404 again, so the api's mock
+   * serves its own (dated relative to today) — what a spec leaves behind for the next one.
+   */
+  clearMilestones(repo: string): void {
+    this.milestones.delete(repo.toLowerCase());
+  }
+
+  /**
+   * Serves `pulls` as the repository's open pull requests, as GitHub's JSON (#277: an e2e moves a design's head
+   * commit after the console loaded its list); seeding again replaces them. A repository never seeded answers 404,
+   * so the api's mock keeps its own list.
+   */
+  seedPulls(repo: string, pulls: readonly Readonly<Record<string, unknown>>[]): void {
+    this.pulls.set(repo.toLowerCase(), pulls);
+  }
+
+  /** The repository's milestones as they are now, for assertions; empty when none were seeded. */
+  milestonesOf(repo: string): readonly FakeMilestone[] {
+    return this.milestones.get(repo.toLowerCase()) ?? [];
+  }
+
+  /** The labels of a seeded issue, for assertions. */
+  labelsOf(repo: string, number: number): readonly string[] {
+    return this.issues.get(`${repo.toLowerCase()}#${number}`)?.labels ?? [];
+  }
+
   /** Issues a pair without the web flow (to seed a connection in tests). */
   issuePair(user: FakeUser = this.user): { accessToken: string; refreshToken: string } {
     const grant = this.nextGrant++;
@@ -171,6 +351,30 @@ export class FakeGitHubOAuth {
     const comments = COMMENTS_PATH.exec(url.pathname);
     if (url.origin === 'https://api.github.com' && request.method === 'POST' && comments !== null) {
       return this.commentEndpoint(request, `${comments[1] ?? ''}/${comments[2] ?? ''}`, Number(comments[3]));
+    }
+    const milestones = MILESTONES_PATH.exec(url.pathname);
+    if (url.origin === 'https://api.github.com' && milestones !== null) {
+      return this.milestonesEndpoint(
+        request,
+        url,
+        `${milestones[1] ?? ''}/${milestones[2] ?? ''}`,
+        milestones[3] === undefined ? null : Number(milestones[3]),
+      );
+    }
+    const pulls = PULLS_PATH.exec(url.pathname);
+    if (url.origin === 'https://api.github.com' && request.method === 'GET' && pulls !== null) {
+      const seeded = this.pulls.get(`${pulls[1] ?? ''}/${pulls[2] ?? ''}`.toLowerCase());
+      if (seeded === undefined) {
+        return json(404, { message: 'Not Found' });
+      }
+      const state = url.searchParams.get('state') ?? 'open';
+      return json(200, seeded.filter((pull) => state === 'all' || (pull['state'] ?? 'open') === state));
+    }
+    if (url.origin === 'https://api.github.com') {
+      const thread = await this.threadEndpoint(request, url);
+      if (thread !== null) {
+        return thread;
+      }
     }
     const revoke = /^\/applications\/([^/]+)\/grant$/.exec(url.pathname);
     if (url.origin === 'https://api.github.com' && request.method === 'DELETE' && revoke !== null) {
@@ -250,6 +454,222 @@ export class FakeGitHubOAuth {
     return json(200, this.pairBody(pair));
   }
 
+  private issueOf(
+    owner: string | undefined,
+    name: string | undefined,
+    number: string | undefined,
+  ): FakeIssue | undefined {
+    return this.issues.get(`${`${owner ?? ''}/${name ?? ''}`.toLowerCase()}#${Number(number)}`);
+  }
+
+  /** Reads and label writes of seeded issue threads; `null` when the path is not one of them. */
+  private async threadEndpoint(request: Request, url: URL): Promise<Response | null> {
+    const method = request.method;
+    const issuePath = ISSUE_PATH.exec(url.pathname);
+    if (method === 'GET' && issuePath !== null) {
+      const issue = this.issueOf(issuePath[1], issuePath[2], issuePath[3]);
+      return issue === undefined ? json(404, { message: 'Not Found' }) : json(200, this.issueJson(issue));
+    }
+    const commentsPath = COMMENTS_PATH.exec(url.pathname);
+    if (method === 'GET' && commentsPath !== null) {
+      const issue = this.issueOf(commentsPath[1], commentsPath[2], commentsPath[3]);
+      if (issue === undefined) {
+        return json(404, { message: 'Not Found' });
+      }
+      const perPage = Math.min(Math.max(Number(url.searchParams.get('per_page') ?? 30) || 30, 1), 100);
+      const page = Math.max(Number(url.searchParams.get('page') ?? 1) || 1, 1);
+      const items = issue.comments
+        .slice((page - 1) * perPage, page * perPage)
+        .map((c) => this.commentJson(issue, c));
+      const headers: Record<string, string> = {};
+      if (page * perPage < issue.comments.length) {
+        const next = new URL(url.href);
+        next.searchParams.set('page', String(page + 1));
+        next.searchParams.set('per_page', String(perPage));
+        headers['Link'] = `<${next.href}>; rel="next"`;
+      }
+      return new Response(JSON.stringify(items), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...headers },
+      });
+    }
+    const labelsPath = LABELS_PATH.exec(url.pathname);
+    if ((method === 'POST' || method === 'DELETE') && labelsPath !== null) {
+      const issue = this.issueOf(labelsPath[1], labelsPath[2], labelsPath[3]);
+      if (issue === undefined) {
+        return json(404, { message: 'Not Found' });
+      }
+      if (this.grantOfBearer(request) === undefined) {
+        return json(401, { message: 'Bad credentials' });
+      }
+      if (method === 'POST') {
+        const body = (await request.json()) as { labels?: unknown };
+        const names = Array.isArray(body.labels)
+          ? body.labels.filter((x): x is string => typeof x === 'string')
+          : [];
+        for (const name of names) {
+          if (!issue.labels.includes(name)) {
+            issue.labels.push(name);
+          }
+        }
+        return json(
+          200,
+          issue.labels.map((name) => ({ name })),
+        );
+      }
+      const name = decodeURIComponent(labelsPath[4] ?? '');
+      const at = issue.labels.indexOf(name);
+      if (at < 0) {
+        return json(404, { message: 'Label does not exist' });
+      }
+      issue.labels.splice(at, 1);
+      return json(
+        200,
+        issue.labels.map((label) => ({ name: label })),
+      );
+    }
+    const repoPath = REPO_PATH.exec(url.pathname);
+    if (method === 'GET' && repoPath !== null) {
+      const fullName = `${repoPath[1] ?? ''}/${repoPath[2] ?? ''}`;
+      const seeded = [...this.issues.values()].find(
+        (issue) =>
+          issue.seed.repo.toLowerCase() === fullName.toLowerCase() && issue.seed.repoOwner !== undefined,
+      );
+      return seeded?.seed.repoOwner === undefined
+        ? json(404, { message: 'Not Found' })
+        : json(200, {
+            full_name: seeded.seed.repo,
+            private: false,
+            default_branch: 'dev',
+            owner: { login: seeded.seed.repoOwner.login, id: seeded.seed.repoOwner.id, type: 'User' },
+          });
+    }
+    return null;
+  }
+
+  /** Milestone reads (no token, like a public repository) and owner writes; 404 for a repository never seeded. */
+  private async milestonesEndpoint(
+    request: Request,
+    url: URL,
+    repo: string,
+    number: number | null,
+  ): Promise<Response> {
+    const list = this.milestones.get(repo.toLowerCase());
+    if (list === undefined) {
+      return json(404, { message: 'Not Found' });
+    }
+    const method = request.method;
+    if (method === 'GET' && number === null) {
+      const state = url.searchParams.get('state') ?? 'open';
+      // GitHub's default order: by due date, ascending; milestones without one last.
+      const items = list
+        .filter((milestone) => state === 'all' || milestone.state === state)
+        .sort((a, b) => (a.dueOn ?? '\uffff').localeCompare(b.dueOn ?? '\uffff'))
+        .map((milestone) => this.milestoneJson(repo, milestone));
+      return json(200, items);
+    }
+    if (method === 'GET') {
+      const found = list.find((milestone) => milestone.number === number);
+      return found === undefined
+        ? json(404, { message: 'Not Found' })
+        : json(200, this.milestoneJson(repo, found));
+    }
+    if ((method === 'POST' && number === null) || (method === 'PATCH' && number !== null)) {
+      const grant = this.grantOfBearer(request);
+      if (grant === undefined) {
+        return json(401, { message: 'Bad credentials' });
+      }
+      if (this.takeFault('milestone-unavailable')) {
+        return json(502, { message: 'unavailable' });
+      }
+      const raw = await request.text();
+      this.milestoneWrites.push({ method, repo, number, body: raw, author: grant.user.login });
+      let body: { title?: unknown; due_on?: unknown; state?: unknown };
+      try {
+        body = JSON.parse(raw) as typeof body;
+      } catch {
+        return json(400, { message: 'Problems parsing JSON' });
+      }
+      const dueOn = typeof body.due_on === 'string' ? body.due_on : undefined;
+      if (method === 'POST') {
+        if (typeof body.title !== 'string' || body.title === '') {
+          return json(422, { message: 'Validation Failed' });
+        }
+        const title = body.title;
+        if (list.some((milestone) => milestone.title === title)) {
+          return json(422, {
+            message: 'Validation Failed',
+            errors: [{ resource: 'Milestone', code: 'already_exists', field: 'title' }],
+          });
+        }
+        const created: FakeMilestone = {
+          number: list.reduce((max, milestone) => Math.max(max, milestone.number), 0) + 1,
+          title,
+          state: 'open',
+          dueOn: dueOn ?? null,
+        };
+        list.push(created);
+        return json(201, this.milestoneJson(repo, created));
+      }
+      const found = list.find((milestone) => milestone.number === number);
+      if (found === undefined) {
+        return json(404, { message: 'Not Found' });
+      }
+      if (dueOn !== undefined) {
+        found.dueOn = dueOn;
+      }
+      if (typeof body.title === 'string') {
+        found.title = body.title;
+      }
+      if (body.state === 'open' || body.state === 'closed') {
+        found.state = body.state;
+      }
+      return json(200, this.milestoneJson(repo, found));
+    }
+    return json(404, { message: 'Not Found' });
+  }
+
+  private milestoneJson(repo: string, milestone: FakeMilestone): Record<string, unknown> {
+    return {
+      number: milestone.number,
+      title: milestone.title,
+      state: milestone.state,
+      due_on: milestone.dueOn,
+      html_url: `https://github.com/${repo}/milestone/${milestone.number}`,
+    };
+  }
+
+  private issueJson(issue: FakeIssue): Record<string, unknown> {
+    const { repo, number, title, author } = issue.seed;
+    return {
+      number,
+      title,
+      state: issue.state,
+      body: '',
+      milestone: issue.milestone === null ? null : { title: issue.milestone },
+      ...(issue.seed.isPullRequest === true
+        ? { pull_request: { url: `https://api.github.com/repos/${repo}/pulls/${number}` } }
+        : {}),
+      labels: issue.labels.map((name) => ({ name })),
+      user: { login: author, type: 'User' },
+      author_association: 'OWNER',
+      html_url: `https://github.com/${repo}/issues/${number}`,
+      comments: issue.comments.length,
+    };
+  }
+
+  private commentJson(issue: FakeIssue, comment: FakeThreadComment): Record<string, unknown> {
+    return {
+      id: comment.id,
+      body: comment.body,
+      user: { login: comment.author, type: comment.authorType },
+      author_association: comment.authorType === 'Bot' ? 'NONE' : 'OWNER',
+      created_at: comment.createdAt,
+      updated_at: comment.updatedAt,
+      html_url: `https://github.com/${issue.seed.repo}/issues/${issue.seed.number}#issuecomment-${comment.id}`,
+    };
+  }
+
   private userEndpoint(request: Request): Response {
     if (this.takeFault('user-unavailable')) {
       return json(503, { message: 'unavailable' });
@@ -298,11 +718,22 @@ export class FakeGitHubOAuth {
       author: grant.user.login,
     };
     this.comments.push(comment);
+    const thread = this.issues.get(`${repo.toLowerCase()}#${issue}`);
+    const at = githubTime(this.now());
+    thread?.comments.push({
+      id: comment.id,
+      body: comment.body,
+      author: comment.author,
+      authorType: 'User',
+      createdAt: at,
+      updatedAt: at,
+    });
     return json(201, {
       id: comment.id,
       html_url: `https://github.com/${repo}/issues/${issue}#issuecomment-${comment.id}`,
       body: comment.body,
       user: { login: grant.user.login, id: grant.user.id },
+      created_at: at,
     });
   }
 

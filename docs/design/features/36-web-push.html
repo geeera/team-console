@@ -1,0 +1,1735 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Team Console · #36 · Notifications</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600&family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+/* ===== tokens: Paper Desk (generated from docs/design/directions/src/d1.py) ===== */
+:root{
+  --font-display:"Source Serif 4",Georgia,"Times New Roman",serif;--font-body:"Source Sans 3",-apple-system,system-ui,"Segoe UI",sans-serif;--font-mono:"Source Code Pro",ui-monospace,Menlo,monospace;--fw-display:600;
+  --fs-xs:12px;--fs-sm:14px;--fs-md:15px;--fs-lg:18px;--fs-xl:22px;--fs-2xl:28px;--lh-body:1.55;--lh-tight:1.25;
+  --r-sm:6px;--r-md:10px;--r-lg:16px;
+  --btn-h:34px;--sidebar-w:256px;--pane-w:392px;--log-max:680px;--pad-x:32px;--gap-log:20px;--pad-card:18px 20px;--card-indent:40px;
+  --dur-instant:0ms;--dur-fast:140ms;--dur-base:240ms;--dur-slow:380ms;--dur-sig:620ms;
+  --ease-standard:cubic-bezier(.2,0,0,1);--ease-enter:cubic-bezier(0,0,.2,1);--ease-exit:cubic-bezier(.4,0,1,1);--ease-emph:cubic-bezier(.3,0,0,1);
+  --bg:#F7F3EC;--bg-sunken:#EFE9DF;--surface:#FFFDF9;--surface-2:#FAF6EF;--text:#29251F;--text-2:#5B5449;--text-3:#6D6459;
+  --border:#E5DDD0;--border-strong:#CFC5B5;--accent:#3E6A48;--accent-contrast:#FFFFFF;--accent-soft:#E3ECE0;--accent-text:#2F5638;
+  --success-soft:#E1EEDF;--success-text:#2D6A3E;--warning-soft:#F5E8CD;--warning-text:#7A510E;--danger-soft:#F6E0DA;--danger-text:#9A3324;
+  --focus:#3E6A48;--owner-bubble:#EAE2D4;--owner-text:#29251F;
+  --shadow-1:0 1px 2px rgba(60,45,20,.07),0 0 0 .5px rgba(60,45,20,.03);--shadow-2:0 8px 24px -8px rgba(60,45,20,.22);--shadow-3:0 -12px 40px -12px rgba(60,45,20,.28);
+}
+:root[data-theme=dark]{
+  --bg:#1C1A17;--bg-sunken:#161412;--surface:#25221E;--surface-2:#201E1A;--text:#EEE8DD;--text-2:#BDB4A5;--text-3:#999082;
+  --border:#35312B;--border-strong:#4A443B;--accent:#8FBC92;--accent-contrast:#10200F;--accent-soft:#263428;--accent-text:#A8D0AA;
+  --success-soft:#1F3122;--success-text:#9BCF9F;--warning-soft:#382D18;--warning-text:#E6BC6E;--danger-soft:#3D2420;--danger-text:#F0A091;
+  --focus:#A8D0AA;--owner-bubble:#322D27;--owner-text:#EEE8DD;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);--shadow-2:0 10px 28px -8px rgba(0,0,0,.6);--shadow-3:0 -12px 40px -12px rgba(0,0,0,.7);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#1C1A17;--bg-sunken:#161412;--surface:#25221E;--surface-2:#201E1A;--text:#EEE8DD;--text-2:#BDB4A5;--text-3:#999082;
+  --border:#35312B;--border-strong:#4A443B;--accent:#8FBC92;--accent-contrast:#10200F;--accent-soft:#263428;--accent-text:#A8D0AA;
+  --success-soft:#1F3122;--success-text:#9BCF9F;--warning-soft:#382D18;--warning-text:#E6BC6E;--danger-soft:#3D2420;--danger-text:#F0A091;
+  --focus:#A8D0AA;--owner-bubble:#322D27;--owner-text:#EEE8DD;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);--shadow-2:0 10px 28px -8px rgba(0,0,0,.6);--shadow-3:0 -12px 40px -12px rgba(0,0,0,.7);
+}}
+/* ===== shared structure; every colour, size and duration comes from the direction's tokens ===== */
+:root{
+  --hover:color-mix(in oklab,var(--text) 6%,transparent);
+  --hover-solid:color-mix(in oklab,var(--surface) 93%,var(--text) 7%);
+  --accent-hover:color-mix(in oklab,var(--accent) 88%,var(--text) 12%);
+  --page:color-mix(in oklab,var(--bg) 90%,var(--text) 10%);
+  --scrim:color-mix(in oklab,#000 36%,transparent);
+  --r-sheet:calc(var(--r-lg) + 10px);
+  --z-sheet:40;--z-toast:70;--z-chrome:60;
+}
+@media (prefers-reduced-motion:reduce){:root{--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms}}
+:root[data-motion=reduce]{--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms}
+
+*,*::before,*::after{box-sizing:border-box}
+html{color-scheme:light;-webkit-text-size-adjust:100%}
+:root[data-theme=dark]{color-scheme:dark}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark}}
+body{margin:0;background:var(--page);color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:var(--lh-body);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button,input,textarea{font:inherit;color:inherit;letter-spacing:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.sr-only{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ico{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+kbd{font-family:var(--font-mono);font-size:10px;line-height:1;padding:3px 5px;border-radius:4px;border:1px solid var(--border-strong);color:var(--text-3);background:var(--surface)}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);padding:1px 5px;border-radius:4px;word-break:break-word}
+[hidden]{display:none!important}
+
+/* ===== the note on top of the page ===== */
+.note{max-width:1720px;margin:0 auto;padding:20px 24px 4px;display:grid;gap:10px}
+.note__row{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.note__kicker{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.note h1{margin:2px 0 0;font-family:var(--font-display);font-size:var(--fs-2xl);line-height:1.1;font-weight:var(--fw-display)}
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:2px;background:var(--surface)}
+.seg button,.seg-btn{border:0;background:none;padding:6px 12px;border-radius:999px;font-size:var(--fs-xs);color:var(--text-2);min-height:32px}
+.seg button[aria-pressed=true]{background:var(--text);color:var(--bg)}
+.seg-btn{border:1px solid var(--border);background:var(--surface)}
+.note details{font-size:var(--fs-sm);color:var(--text-2)}
+.note summary{cursor:pointer;color:var(--text-2);font-weight:600;width:max-content}
+.note__grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:8px 32px;margin-top:10px}
+@media (max-width:900px){.note__grid{grid-template-columns:1fr}}
+.note p{margin:0 0 6px;max-width:75ch;line-height:1.5}
+.tok{align-content:start;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0;font-size:var(--fs-xs)}
+.tok dt{color:var(--text-3)}.tok dd{margin:0;color:var(--text-2)}
+.sw{display:inline-flex;align-items:center;gap:4px;margin-right:10px;white-space:nowrap}
+.sw i{width:12px;height:12px;border-radius:3px;border:1px solid var(--border-strong)}
+.try{font-size:var(--fs-xs);color:var(--text-3)}
+
+/* ===== stage and device frames ===== */
+.stage{display:flex;flex-wrap:wrap;gap:40px;justify-content:center;align-items:flex-start;padding:20px 24px 56px;max-width:1720px;margin:0 auto}
+.stage[data-layout=row]{flex-wrap:nowrap}
+.stage[data-view=phone] .device--mac,.stage[data-view=mac] .device--phone{display:none}
+.device{display:grid;gap:10px;justify-items:center}
+.device__label{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.phone-frame{position:relative;width:414px;height:868px;padding:12px;border-radius:62px;background:#0d0d0f;box-shadow:0 0 0 1px #34343a,0 40px 80px -36px rgba(0,0,0,.5)}
+.phone-frame>.app{width:390px;height:844px;border-radius:50px}
+.mac-frame{width:1180px;height:760px;border-radius:12px;overflow:hidden;box-shadow:0 0 0 1px var(--border-strong),0 30px 80px -34px rgba(0,0,0,.45)}
+.mac-frame>.app{height:100%}
+@media (max-width:520px){
+  .note{padding:14px 14px 0}.stage{padding:12px 0 0}
+  .phone-frame{width:100%;height:auto;padding:0;border-radius:0;background:none;box-shadow:none}
+  .phone-frame>.app{width:100%;height:100svh;border-radius:0}
+  .device--phone .device__label,.p-status,.home-ind{display:none!important}
+  .tabs{padding-bottom:max(8px,env(safe-area-inset-bottom))!important}
+}
+
+/* ===== app base ===== */
+.app{position:relative;overflow:hidden;isolation:isolate;background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:var(--lh-body)}
+.app[data-app=phone]{display:flex;flex-direction:column}
+.app[data-app=mac]{display:flex;flex-direction:column}
+.app:not(.is-space) .composer{display:none}
+.avatar{width:28px;height:28px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:10px;font-weight:700;letter-spacing:.03em}
+.avatar--pm{background:var(--accent-soft);color:var(--accent-text)}
+.avatar--owner{background:var(--text);color:var(--bg)}
+.prod-mono{width:26px;height:26px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;font-weight:700;font-size:13px;text-transform:uppercase;background:var(--accent-soft);color:var(--accent-text);font-family:var(--font-display)}
+.prod-mono[data-status=paused]{background:var(--bg-sunken);color:var(--text-3)}
+.prod-mono[data-status=failing]{background:var(--danger-soft);color:var(--danger-text)}
+.prod-mono--all{background:var(--text);color:var(--bg)}
+.prod-mono--all .ico{width:15px;height:15px}
+.count{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--accent-contrast);font-size:11px;font-weight:700;line-height:1;display:inline-grid;place-items:center;font-variant-numeric:tabular-nums;overflow:hidden;font-family:var(--font-body)}
+.count>span{grid-area:1/1}
+.status{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;background:var(--success-soft);color:var(--success-text);white-space:nowrap;text-transform:none;letter-spacing:0}
+.status i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.status--paused{background:var(--bg-sunken);color:var(--text-2)}
+.status--failing{background:var(--danger-soft);color:var(--danger-text)}
+.sdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--success-text);margin-left:6px;vertical-align:1px}
+.sdot--paused{background:var(--text-3)}.sdot--failing{background:var(--danger-text)}
+.meter{display:block;height:3px;border-radius:2px;background:var(--bg-sunken);overflow:hidden}
+.meter i{display:block;height:100%;width:var(--p);background:var(--accent);border-radius:inherit}
+.chip-btn{border:1px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:999px;padding:0 10px;height:30px;font-size:var(--fs-xs);white-space:nowrap}
+.chip-btn[aria-pressed=true]{background:var(--text);color:var(--bg);border-color:transparent}
+.empty{color:var(--text-3);font-size:var(--fs-sm);padding:12px 4px}
+.empty--big{display:grid;justify-items:center;gap:8px;text-align:center;padding:48px 16px}
+.empty--big .ico{width:32px;height:32px;color:var(--success-text)}
+.search{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text-3)}
+.search:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.search input{flex:1;min-width:0;border:0;background:none;outline:none;color:var(--text);font-size:var(--fs-sm)}
+.app[data-app=phone] .search input{font-size:16px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:var(--btn-h);padding:0 14px;border-radius:var(--r-md);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-weight:600;font-size:var(--fs-sm);white-space:nowrap;transition:background-color var(--dur-fast) var(--ease-standard),transform var(--dur-fast) var(--ease-standard)}
+.btn:hover{background:var(--hover-solid)}
+.btn:active{transform:scale(.97)}
+.btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-contrast)}
+.btn--primary:hover{background:var(--accent-hover)}
+.btn--quiet{border-color:transparent;background:none;color:var(--text-2)}
+.btn--quiet[aria-expanded=true]{background:var(--hover);color:var(--text)}
+.btn--sm{min-height:30px;padding:0 10px;font-size:var(--fs-xs)}
+.btn:disabled{opacity:.65}
+.btn kbd{display:none}
+.app[data-app=phone] .btn{min-height:44px}
+.app[data-app=phone] .btn--sm{min-height:36px}
+.icon-btn{width:40px;height:40px;flex:none;display:grid;place-items:center;border:0;background:none;border-radius:var(--r-md);color:var(--text-2)}
+.icon-btn:hover{background:var(--hover)}
+.icon-btn .ico{width:20px;height:20px}
+
+/* ===== mac window ===== */
+.win{display:flex;flex-direction:column;height:100%}
+.win__bar{position:relative;height:38px;flex:none;display:flex;align-items:center;padding:0 14px;background:var(--bg-sunken);border-bottom:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-3)}
+.lights{display:flex;gap:8px}.lights i{width:12px;height:12px;border-radius:50%;background:#fe5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.win__title{position:absolute;left:50%;translate:-50% 0;font-weight:600}
+.win__body{flex:1;display:flex;min-height:0}
+.sidebar{width:var(--sidebar-w);flex:none;display:flex;flex-direction:column;gap:2px;padding:12px 10px 10px;background:var(--bg-sunken);border-right:1px solid var(--border);overflow-y:auto}
+.brand{display:flex;align-items:center;gap:8px;padding:2px 6px 12px;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md)}
+.mark{width:22px;height:22px;color:var(--accent)}
+.search--side{height:32px;margin-bottom:8px;background:var(--bg)}
+.search--side kbd{margin-left:auto}
+.side-label{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-3);padding:14px 8px 4px;font-weight:600;letter-spacing:.04em}
+.side-label .ico{width:13px;height:13px}
+.side-list{list-style:none;margin:0;padding:0;display:grid;gap:1px}
+.side-item{width:100%;display:flex;align-items:center;gap:10px;min-height:34px;padding:5px 8px;border:0;background:none;border-radius:var(--r-md);text-align:left;color:var(--text-2);font-size:var(--fs-sm)}
+.side-item:hover{background:var(--hover)}
+.side-item[aria-current=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.side-item>kbd{margin-left:auto}
+.side-item .count{margin-left:auto}
+.side-item>kbd+.count{margin-left:6px}
+.side-prod__name{display:grid;min-width:0;flex:1}
+.side-prod__label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);font-weight:500}
+/* wraps to a second line rather than cutting the date: Russian status lines run longer */
+.side-prod small{font-size:var(--fs-xs);line-height:1.35;color:var(--text-3);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.side-prod .meter{display:none}
+.side-more{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:6px 8px;font-size:var(--fs-xs);color:var(--text-3);border-radius:var(--r-md);text-align:left}
+.side-more:hover{background:var(--hover)}
+.side-more .ico{width:14px;height:14px;transition:transform var(--dur-base) var(--ease-standard);transform:rotate(-90deg)}
+.side-more[aria-expanded=true] .ico{transform:none}
+.side-foot{margin-top:auto;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:10px 6px 2px;font-size:var(--fs-xs);color:var(--text-2);border-top:1px solid var(--border)}
+.side-foot .avatar{width:24px;height:24px}
+.side-foot__sync{margin-left:auto;display:inline-flex;align-items:center;gap:5px;color:var(--text-3);white-space:nowrap}
+.side-foot__sync i{width:6px;height:6px;border-radius:50%;background:var(--success-text)}
+.convo{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.convo__head{height:52px;flex:none;display:flex;align-items:center;gap:6px;padding:0 14px 0 20px;border-bottom:1px solid var(--border)}
+.convo__title{display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden}
+.app:has(.pane.is-open) .convo__sub,.app:has(.pane.is-open) .convo__head .lbl,.app:has(.pane.is-open) .convo__head kbd{display:none}
+.convo__title h2{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);white-space:nowrap}
+.convo__sub{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.convo__head .btn kbd{display:inline-block}
+.pane{width:0;flex:none;overflow:hidden;background:var(--surface-2);border-left:1px solid transparent;transition:width var(--dur-slow) var(--ease-standard),border-color var(--dur-slow) var(--ease-standard)}
+.pane.is-open{width:var(--pane-w);border-left-color:var(--border)}
+.pane__inner{width:var(--pane-w);height:100%;display:flex;flex-direction:column}
+.pane__tabs{height:52px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 0 12px;border-bottom:1px solid var(--border)}
+.pane__tabs .icon-btn{margin-left:auto}
+.tab-btn{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:6px 10px;border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm)}
+.tab-btn[aria-selected=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.pane__body{flex:1;overflow-y:auto}
+
+/* ===== phone ===== */
+.p-status{position:relative;height:50px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:6px 30px 0 40px;font:600 16px/1 -apple-system,"SF Pro Text",system-ui,sans-serif}
+.p-island{position:absolute;top:11px;left:50%;translate:-50% 0;width:124px;height:36px;border-radius:20px;background:#000}
+.p-status__icons{display:flex;gap:6px;align-items:center}
+.p-head{flex:none;display:flex;align-items:center;gap:4px;padding:2px 8px 8px 10px}
+.p-switch{flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:0;background:none;padding:6px;border-radius:var(--r-md);text-align:left;min-height:48px}
+.p-switch .prod-mono{width:34px;height:34px;font-size:16px}
+.p-switch__txt{display:grid;min-width:0}
+.p-switch b{font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);line-height:1.15}
+.p-switch small{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-switch>.ico{color:var(--text-3)}
+.p-strip{display:none}
+.p-needs{display:none}
+.tabs{flex:none;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border);background:var(--bg);padding:6px 4px 28px;position:relative;z-index:2}
+.tabs button{position:relative;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;min-height:48px;padding:4px 0;font-size:11px;color:var(--text-3)}
+.tabs button .ico{width:24px;height:24px}
+.tabs button[aria-current=page]{color:var(--accent-text)}
+.tabs .count{position:absolute;top:0;left:calc(50% + 6px);height:18px;min-width:18px;font-size:10px;padding:0 5px}
+.home-ind{position:absolute;bottom:8px;left:50%;translate:-50% 0;width:136px;height:5px;border-radius:3px;background:var(--text);opacity:.9;z-index:var(--z-chrome);pointer-events:none}
+.scrim{position:absolute;inset:0;z-index:30;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity var(--dur-base) var(--ease-standard)}
+.app.has-sheet .scrim{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:var(--z-sheet);max-height:88%;display:flex;flex-direction:column;background:var(--surface);border-radius:var(--r-sheet) var(--r-sheet) 0 0;box-shadow:var(--shadow-3);transform:translateY(102%);visibility:hidden;transition:transform var(--dur-slow) var(--ease-exit),visibility 0s linear var(--dur-slow)}
+.sheet.is-open{transform:none;visibility:visible;transition:transform var(--dur-slow) var(--ease-enter),visibility 0s}
+.sheet__grab{width:38px;height:5px;border-radius:3px;background:var(--border-strong);margin:8px auto 0;flex:none}
+.sheet__head{display:flex;align-items:center;justify-content:space-between;padding:6px 10px 6px 20px;flex:none}
+.sheet__head h2{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);outline:none}
+.sheet__body{overflow-y:auto;padding:0 0 36px;overscroll-behavior:contain}
+.sheet__pad{padding:0 16px 8px}
+.proj-list{padding:0 8px}
+.side-item--needs{background:var(--accent-soft);color:var(--accent-text);font-weight:600;min-height:48px}
+.side-item--needs .count{margin-left:auto}
+.side-prod--rich{min-height:56px}
+.side-prod--rich .prod-mono{width:34px;height:34px}
+.side-prod--rich .meter{display:block;margin-top:5px;width:70%}
+
+/* ===== conversation ===== */
+.log{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;outline:none}
+.log__inner{position:relative;max-width:var(--log-max);margin:0 auto;padding:24px var(--pad-x);display:flex;flex-direction:column;gap:var(--gap-log)}
+.app[data-app=phone] .log__inner{padding:12px 16px 20px}
+.day{display:flex;align-items:center;gap:12px;color:var(--text-3);font-size:var(--fs-xs);margin:6px 0}
+.day::before,.day::after{content:"";flex:1;height:1px;background:var(--border)}
+.msg{display:flex;gap:12px;align-items:flex-start}
+.msg__body{min-width:0;flex:1}
+.msg__meta{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-xs);color:var(--text-3);margin-bottom:2px}
+.msg__meta b{color:var(--text);font-weight:600}
+.bubble{overflow-wrap:anywhere}
+.bubble p{margin:0 0 .45em}.bubble p:last-child{margin:0}
+.bubble ul{margin:.2em 0 .5em;padding-left:1.2em}
+.bubble li{margin:.15em 0}
+.brief__h{font-weight:700;margin-top:.7em!important}
+.brief__foot{color:var(--text-2)}
+.ref{font-family:var(--font-mono);font-size:.86em;color:var(--accent-text)}
+.msg--owner{justify-content:flex-end}
+.msg--owner .msg__body{flex:0 1 auto;max-width:82%;display:flex;flex-direction:column;align-items:flex-end}
+.msg--owner .bubble{background:var(--owner-bubble);color:var(--owner-text);padding:9px 14px;border-radius:var(--r-lg) var(--r-lg) var(--r-sm) var(--r-lg)}
+.msg--owner .msg__meta{margin:4px 4px 0}
+.sysnote{display:flex;align-items:center;justify-content:center;gap:8px;font-size:var(--fs-xs);color:var(--text-3);text-align:center}
+.sysnote i{width:6px;height:6px;border-radius:50%;background:var(--text-3);flex:none}
+.typing{display:inline-flex;gap:4px;padding:10px 0}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:blink 1.2s infinite both}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.typing i{animation:none;opacity:.6}}
+:root[data-motion=reduce] .typing i{animation:none;opacity:.6}
+
+/* decision cards */
+.card{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:12px;padding:var(--pad-card);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);margin-left:var(--card-indent)}
+.card:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.card__head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:var(--fs-xs);color:var(--text-2)}
+.card__kind{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.card__kind .ico{width:15px;height:15px;color:var(--accent-text)}
+.card__num{font-family:var(--font-mono);color:var(--text-3)}
+.card__title{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);line-height:var(--lh-tight);font-weight:var(--fw-display)}
+.card__text{margin:0;color:var(--text-2);font-size:var(--fs-sm)}
+.steps{margin:0;padding-left:1.3em;font-size:var(--fs-sm);color:var(--text-2);display:grid;gap:4px}
+.rec{display:grid;gap:2px;padding:10px 12px;border-radius:var(--r-md);background:var(--accent-soft);font-size:var(--fs-sm)}
+.rec__label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text)}
+.rec__choice{color:var(--text)}
+.rec p{margin:2px 0 0;color:var(--text-2)}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:var(--fs-sm)}
+.check{display:flex;gap:8px;align-items:flex-start}
+.check .ico{margin-top:2px}
+.check--ok .ico{color:var(--success-text)}.check--warn .ico{color:var(--warning-text)}
+.card__foot{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap}
+.card__actions{display:flex;gap:8px;flex-wrap:wrap}
+.card__meta{font-size:var(--fs-xs);color:var(--text-3)}
+.app[data-app=phone] .card{margin-left:0}
+.app[data-app=phone] .card__foot{flex-direction:column;align-items:stretch}
+/* equal halves when both labels fit; a label too long for half the row takes a full row (Russian runs ~30% longer) */
+.app[data-app=phone] .card__actions{display:flex;flex-wrap:wrap}
+.app[data-app=phone] .card__actions .btn{flex:1 1 0;min-width:max-content}
+.is-highlight{animation:hl 1.4s var(--ease-standard)}
+@keyframes hl{0%,40%{box-shadow:0 0 0 3px var(--focus)}100%{box-shadow:var(--shadow-1)}}
+@media (prefers-reduced-motion:reduce){.is-highlight{animation:none;box-shadow:0 0 0 3px var(--focus)}}
+
+/* design thumbnail: drawn from tokens, no image assets */
+.thumb{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--bg-sunken);cursor:zoom-in}
+.thumb--big{margin:4px 0 6px}
+.tf{display:flex;flex-direction:column;gap:5px;aspect-ratio:9/15;padding:6px;border-radius:8px;background:var(--surface);border:1px solid var(--border);position:relative}
+.tf--dark{background:color-mix(in oklab,var(--text) 92%,var(--bg));border-color:transparent}
+.tf__bar{height:5px;width:55%;border-radius:3px;background:var(--border-strong)}
+.tf--dark .tf__bar,.tf--dark .tf__line{background:color-mix(in oklab,var(--bg) 35%,transparent)}
+.tf__center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.tf__icon{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--accent);background:var(--accent-soft)}
+.tf--error .tf__icon{border-color:var(--danger-text);background:var(--danger-soft)}
+.tf__line{height:3px;width:70%;border-radius:2px;background:var(--border-strong)}
+.tf__line--s{width:44%}
+.tf__btn{height:8px;width:48%;border-radius:4px;background:var(--accent);margin-top:3px}
+.tf__cap{position:absolute;left:0;right:0;bottom:-2px;translate:0 100%;font-size:10px;color:var(--text-3);text-align:center;padding-top:3px}
+.thumb{padding-bottom:26px}
+
+/* receipt: a resolved card, recorded as the owner's answer */
+.receipt{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;padding:9px 12px;border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2);margin-left:var(--card-indent);outline-offset:2px}
+.app[data-app=phone] .receipt{margin-left:0}
+.receipt__icon{width:24px;height:24px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--success-soft);color:var(--success-text)}
+.receipt__icon .ico{width:14px;height:14px;stroke-width:2.4}
+.receipt--negative .receipt__icon{background:var(--danger-soft);color:var(--danger-text)}
+.receipt--neutral .receipt__icon{background:var(--surface);color:var(--text-2)}
+.receipt__body{flex:1 1 200px;min-width:0}
+.app[data-app=phone] .receipt__meta{flex-basis:100%;padding-left:var(--receipt-indent,34px)}
+.receipt__verb{font-weight:700;color:var(--text)}
+.receipt__meta{font-size:var(--fs-xs);color:var(--text-3);font-family:var(--font-mono)}
+
+/* banners */
+.banner-wrap{padding:0 var(--pad-x) 4px}
+.app[data-app=phone] .banner-wrap{padding:0 12px 4px}
+.paused{max-width:var(--log-max);margin:0 auto;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px;border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-sm)}
+.paused span{flex:1}.paused b{font-weight:700}
+.paused--bad{background:var(--danger-soft);color:var(--danger-text)}
+
+/* composer */
+.composer{flex:none;padding:10px var(--pad-x) 16px}
+.app[data-app=phone] .composer{padding:6px 12px 8px}
+.composer__box{max-width:var(--log-max);margin:0 auto;display:flex;align-items:flex-end;gap:8px;padding:7px 7px 7px 14px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.composer__box:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.composer textarea{flex:1;min-height:34px;max-height:120px;padding:6px 0;border:0;background:none;outline:none;resize:none;font-size:var(--fs-md);line-height:1.4}
+.app[data-app=phone] .composer textarea{font-size:16px}
+.composer textarea::placeholder{color:var(--text-3)}
+.composer__hint{align-self:center}
+.send{width:34px;height:34px;flex:none;display:grid;place-items:center;border:0;border-radius:var(--r-md);background:var(--accent);color:var(--accent-contrast)}
+.app[data-app=phone] .send{width:40px;height:40px}
+
+/* toast */
+.toast{position:absolute;left:50%;bottom:150px;translate:-50% 0;z-index:var(--z-toast);padding:8px 14px;border-radius:999px;background:var(--text);color:var(--bg);font-size:var(--fs-sm);box-shadow:var(--shadow-2);white-space:nowrap;pointer-events:none}
+.app[data-app=mac] .toast{bottom:96px}
+.app[data-app=phone] .toast{top:124px;bottom:auto}
+
+/* ===== board ===== */
+.board{display:flex;flex-direction:column;gap:14px;padding:16px 20px 24px}
+.board__head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.board__kicker{display:flex;align-items:center;gap:8px;font-size:var(--fs-xs);color:var(--text-3)}
+.board__head h3{margin:4px 0 0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:1.1}
+.demo-pill{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:var(--fs-xs);font-weight:600;white-space:nowrap}
+.demo-pill .ico{width:14px;height:14px}
+.progress{height:6px;border-radius:3px;background:var(--bg-sunken);overflow:hidden}
+.progress i{display:block;height:100%;width:var(--p);background:var(--accent);border-radius:inherit}
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:0}
+.metrics div{padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md)}
+.metrics dt{font-size:var(--fs-xs);color:var(--text-3)}
+.metrics dd{margin:0;font-weight:600;font-size:var(--fs-sm);font-family:var(--font-mono)}
+.metrics dd.metrics__word{font-family:var(--font-body)} /* words read badly in mono, Cyrillic especially */
+.metrics .ok{color:var(--success-text)}.metrics .bad{color:var(--danger-text)}
+.cols{display:grid;gap:16px}
+.col h4{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.col h4 span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.col ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.item{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);font-size:var(--fs-sm)}
+.item__num{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-3)}
+.item__title{min-width:0}
+.item small{display:block;font-size:var(--fs-xs);color:var(--text-3)}
+.tier{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.tier--light{background:var(--bg-sunken);color:var(--text-2)}
+.tier--standard{background:var(--accent-soft);color:var(--accent-text)}
+.tier--heavy{background:var(--warning-soft);color:var(--warning-text)}
+.board__empty{display:flex;gap:10px;align-items:flex-start;padding:14px;border:1px dashed var(--border-strong);border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm)}
+.board__empty p{margin:0}
+.board__foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-3)}
+.app[data-app=phone] .cols{grid-auto-flow:column;grid-auto-columns:82%;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -20px;padding:0 20px 6px;scroll-padding:0 20px}
+.app[data-app=phone] .col{scroll-snap-align:start}
+
+/* ===== artifacts ===== */
+.arts{display:flex;flex-direction:column;gap:12px;padding:16px 20px 24px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.art-group h4{display:flex;gap:8px;margin:6px 0 6px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.art-group h4 span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.art-group ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.art{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-md);background:var(--surface);border:1px solid var(--border);font-size:var(--fs-sm)}
+.art>.ico{color:var(--text-3)}
+.art__icon{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:var(--r-sm);background:var(--bg-sunken);color:var(--text-2)}
+.art__icon .ico{width:16px;height:16px}
+.art__title{flex:1;min-width:0;display:grid}
+.art__title small{font-size:var(--fs-xs);color:var(--text-3)}
+.art--awaiting{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.art--awaiting .art__icon{background:var(--accent-soft);color:var(--accent-text)}
+.art__thumb{list-style:none}
+
+/* ===== cross-project views ===== */
+.log__inner--view{gap:12px}
+.needs__lead{margin:0 0 4px;color:var(--text-2);font-size:var(--fs-sm)}
+.needs__list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.need{width:100%;display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;text-align:left;padding:12px 12px 12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.need:hover{border-color:var(--border-strong)}
+.need>.ico{grid-column:2;grid-row:1/span 3;color:var(--text-3)}
+.need__top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ptag{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px 0 2px;border-radius:999px;background:var(--bg-sunken);font-size:var(--fs-xs);font-weight:600;color:var(--text)}
+.ptag .prod-mono{width:20px;height:20px;font-size:11px;border-radius:50%}
+.need__kind{font-size:var(--fs-xs);color:var(--text-3)}
+.need__title{font-weight:600;font-family:var(--font-display);line-height:var(--lh-tight)}
+.need__rec{font-size:var(--fs-xs);color:var(--text-2)}
+.ov-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.ov{width:100%;display:grid;gap:8px;text-align:left;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.ov:hover{border-color:var(--border-strong)}
+.ov__top{display:flex;align-items:center;gap:8px}
+.ov__top b{flex:1;font-family:var(--font-display);font-weight:var(--fw-display)}
+.ov__line{font-size:var(--fs-xs);color:var(--text-2)}
+.ov__foot{display:flex;justify-content:space-between;align-items:center;font-size:var(--fs-xs);color:var(--text-3);font-family:var(--font-mono)}
+.meter--wide{height:4px}
+.ov-h{display:flex;gap:8px;margin:12px 0 0;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.ov-h span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.ov-grid--quiet .ov{box-shadow:none;background:transparent}
+.app[data-app=phone] .ov-grid{grid-template-columns:1fr}
+
+/* ===== language: bilingual static blocks in the page note ===== */
+:root:not([lang=ru]) [data-lang=ru],:root[lang=ru] [data-lang=en]{display:none}
+
+/* ===== character: Paper Desk ===== */
+
+/* Paper Desk: the PM writes like a letter; decisions are stamped and become margin notes */
+.msg--pm .bubble{font-family:var(--font-display);font-size:16px;line-height:1.62}
+.app[data-app=phone] .msg--pm .bubble{font-size:16px}
+.msg--pm .brief__h{font-family:var(--font-body);font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-2)}
+.avatar--pm{background:none;border:1px solid var(--border-strong);color:var(--text-2);font-family:var(--font-display);font-style:italic;font-weight:600}
+.card__kind{font-variant:small-caps;letter-spacing:.04em;font-size:13px}
+.card{background:var(--surface);background-image:linear-gradient(var(--surface),var(--surface-2))}
+.rec{background:none;border-left:2px solid var(--accent);border-radius:0;padding:2px 0 2px 12px}
+.rec__choice{font-family:var(--font-display);font-size:16px}
+.receipt{background:none;border-left:2px solid var(--accent);border-radius:0;padding:4px 0 4px 14px;font-family:var(--font-display);font-style:italic;font-size:15px}
+.receipt--negative{border-left-color:var(--danger-text)}.receipt--neutral{border-left-color:var(--text-3)}
+.receipt__icon{background:none!important;width:18px;height:18px}
+.receipt__icon .ico{width:18px;height:18px;stroke-width:2}
+.receipt__meta{font-style:normal}
+.receipt{--receipt-indent:28px}
+.receipt.is-new .receipt__icon path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) var(--dur-fast) forwards}
+@keyframes ink{to{stroke-dashoffset:0}}
+.stamp{position:absolute;right:22px;top:calc(50% - 39px);width:78px;height:78px;color:var(--accent);pointer-events:none;opacity:0}
+.stamp svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.stamp .stamp__inner{stroke-width:1;opacity:.6}
+.stamp--negative{color:var(--danger-text)}.stamp--neutral{color:var(--text-2)}
+.sidebar{background:var(--bg-sunken)}
+.side-item[aria-current=true]{box-shadow:none;background:var(--surface);border:1px solid var(--border)}
+.side-label{font-variant:small-caps;letter-spacing:.06em;font-size:13px}
+.tabs button[aria-current=page] .ico{stroke-width:2.2}
+.need__title,.ov__top b{font-weight:600}
+.day span{font-family:var(--font-display);font-style:italic;font-size:14px}
+.msg--owner .bubble{border-radius:var(--r-lg)}
+/* status lines are words, not ids: mono spaces Cyrillic words out, so only ids stay in Source Code Pro */
+.ov__foot,.receipt__meta{font-family:var(--font-body);font-variant-numeric:tabular-nums}
+
+/* ===== Feature design pages: parts shared by every page, on the Paper Desk tokens (ADR 0002) =====
+   Proposed token additions (the Paper Desk sketch names no spacing scale, target size or stagger):
+   spacing on a 4 px base, a 44 px target, a 16 px input size (stops iOS zoom), the checklist mark, the dialog
+   width, a stagger step and the 120 ms reduced-motion fade the prototype already uses. */
+:root{
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;--sp-10:40px;
+  --target:44px;--fs-input:16px;--mark:28px;--dialog-w:440px;--set-max:720px;--stamp-sm:64px;
+  --ls-caps:.06em;--stagger:70ms;--dur-fade:120ms;--dur-pulse:1600ms;--dur-toast:2400ms;
+}
+@media (prefers-reduced-motion:reduce){:root{--stagger:0ms}}
+:root[data-motion=reduce]{--stagger:0ms}
+
+/* ----- page chrome: the demo state bar ----- */
+.demo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-4);font-size:var(--fs-xs);color:var(--text-2)}
+.demo label{display:inline-flex;align-items:center;gap:var(--sp-2)}
+.demo select{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);min-height:32px;padding:0 var(--sp-2)}
+.demo input[type=checkbox]{width:var(--sp-4);height:var(--sp-4);accent-color:var(--accent)}
+.demo__help{flex-basis:100%;margin:0;color:var(--text-3);max-width:110ch}
+.note ul{margin:0 0 var(--sp-2);padding-left:1.2em;max-width:75ch}
+.note li{margin:var(--sp-1) 0}
+
+/* ----- buttons (additions to the kit) ----- */
+.btn[aria-disabled=true]{cursor:default}
+.btn--primary[aria-disabled=true],.btn--primary[aria-disabled=true]:hover{background:var(--accent-soft);color:var(--accent-text)}
+.btn:not(.btn--primary)[aria-disabled=true]{color:var(--text-3)}
+.btn[aria-disabled=true]:active{transform:none}
+.btn--danger{background:var(--danger-soft);border-color:transparent;color:var(--danger-text)}
+.btn--danger:hover{background:color-mix(in oklab,var(--danger-soft) 86%,var(--danger-text))}
+.btn--danger-quiet{background:none;color:var(--danger-text)}
+.btn--danger-quiet:hover{background:var(--danger-soft)}
+.btn--tall{min-height:var(--target)}
+.btn .typing{padding:0}
+.ext{display:inline-flex;align-items:center;gap:var(--sp-1);color:var(--accent-text);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;border-radius:var(--r-sm)}
+.ext .ico{width:14px;height:14px}
+.link-btn{border:0;background:none;padding:0;color:var(--accent-text);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;min-height:var(--target)}
+
+/* skeleton rows */
+.skel-row{display:flex;align-items:center;gap:var(--sp-3);min-height:calc(var(--target) + var(--sp-5));padding:var(--sp-3) var(--sp-4);border-top:1px solid var(--border)}
+.skel-row:first-child{border-top:0}
+.skel{display:block;border-radius:var(--r-sm);background:var(--bg-sunken);height:var(--sp-3)}
+.skel--mono{width:34px;height:34px}
+.skel-stack{flex:1;display:grid;gap:var(--sp-2)}
+.skel--a{width:38%}.skel--b{width:56%;height:var(--sp-2)}
+.skel-row .skel{animation:pulse var(--dur-pulse) var(--ease-standard) infinite}
+@keyframes pulse{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.skel-row .skel{animation:none}}
+:root[data-motion=reduce] .skel-row .skel{animation:none}
+
+/* empty and error blocks */
+.block{display:grid;justify-items:start;gap:var(--sp-2);padding:var(--sp-6);border-radius:var(--r-lg);background:var(--surface);border:1px dashed var(--border-strong)}
+.block h2,.block h3{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
+.block p{margin:0 0 var(--sp-2);color:var(--text-2);font-size:var(--fs-sm);max-width:52ch}
+.block--error{background:var(--danger-soft);border:0;color:var(--danger-text)}
+.block--error p{color:var(--danger-text)}
+.block--error .btn{border-color:transparent}
+.offline{max-width:none}
+
+/* ----- fields: label, hint, error, preview ----- */
+.field{display:grid;gap:var(--sp-1)}
+.field__label{font-weight:600;font-size:var(--fs-sm)}
+.field__hint{margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.field__input{width:100%;height:var(--target);margin-top:var(--sp-1);padding:0 var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--text);font-family:var(--font-mono);font-size:var(--fs-md);transition:border-color var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard)}
+.app[data-app=phone] .field__input{font-size:var(--fs-input)}
+.field__input::placeholder{color:var(--text-3)}
+.field__input:focus{outline:none;border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.field__input[aria-invalid=true]{border-color:var(--danger-text);box-shadow:0 0 0 1px var(--danger-text)}
+.field__err{display:flex;align-items:flex-start;gap:var(--sp-2);margin:var(--sp-1) 0 0;color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.field__err .ico{margin-top:2px}
+.field__preview{margin:var(--sp-1) 0 0;font-size:var(--fs-xs);color:var(--text-2)}
+.field__preview code{color:var(--accent-text)}
+.form-actions{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.app[data-app=phone] .form-actions .btn{flex:1 1 0;min-width:max-content}
+
+/* ----- the result note: a margin note, like the prototype's recorded answers ----- */
+.res{position:relative;display:grid;justify-items:start;gap:var(--sp-1);padding:var(--sp-1) 0 var(--sp-1) var(--sp-4);border-left:2px solid var(--accent)}
+.res h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);outline:none}
+.res p{margin:0;color:var(--text-2);font-size:var(--fs-sm);max-width:60ch}
+.res .btn,.res .link-btn{margin-top:var(--sp-2)}
+.res__time{font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
+.res--warn{border-left-color:var(--warning-text)}
+.res--bad{border-left-color:var(--danger-text)}
+.res--neutral{border-left-color:var(--text-3)}
+.res--ready{min-height:var(--stamp-sm);padding-right:calc(var(--stamp-sm) + var(--sp-4))}
+.res .stamp{right:0;top:calc(50% - var(--stamp-sm) / 2);width:var(--stamp-sm);height:var(--stamp-sm);opacity:1;transform:rotate(-9deg)}
+
+@keyframes mark-in{from{transform:scale(.6);opacity:0}}
+@keyframes fade{from{opacity:0}}
+
+/* ----- disclosure ("How to fix") and a code line with Copy ----- */
+.how-btn{margin-left:calc(-1 * var(--sp-2));color:var(--accent-text);min-height:var(--target)}
+.how-btn .ico{width:16px;height:16px;transition:transform var(--dur-base) var(--ease-standard)}
+.how-btn[aria-expanded=true]{background:none;color:var(--accent-text)}
+.how-btn[aria-expanded=true] .ico{transform:rotate(180deg)}
+.how{display:grid;gap:var(--sp-3);width:100%;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2)}
+.how p{margin:0;overflow-wrap:anywhere}
+.how dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--sp-2) var(--sp-4);margin:0}
+.how dt{color:var(--text-3)}
+.how dd{margin:0;min-width:0;color:var(--text)}
+.app[data-app=phone] .how{padding:var(--sp-3)}
+.app[data-app=phone] .how dl{grid-template-columns:minmax(0,1fr);gap:0}
+.app[data-app=phone] .how dd{margin-bottom:var(--sp-2)}
+.codeline{display:flex;align-items:flex-start;gap:var(--sp-2);width:100%}
+.codeline code{flex:1;min-width:0;padding:var(--sp-2) var(--sp-3);border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-size:var(--fs-xs);line-height:1.5;overflow-wrap:anywhere}
+.codeline .btn{min-height:var(--target);flex:none}
+.codeline .btn[data-copied] {color:var(--success-text)}
+
+/* ----- confirmation dialog (alertdialog): archive, disconnect, team commands ----- */
+.modal{position:absolute;inset:0;z-index:var(--z-sheet);display:grid;place-items:center;padding:var(--sp-6)}
+.modal__scrim{position:absolute;inset:0;background:var(--scrim)}
+.adialog{position:relative;width:min(100%,var(--dialog-w));display:grid;gap:var(--sp-3);padding:var(--sp-6);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-2)}
+.adialog h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);overflow-wrap:anywhere}
+.adialog p{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.adialog .adialog__note{font-size:var(--fs-xs);color:var(--text-2);padding-left:var(--sp-3);border-left:2px solid var(--border-strong)}
+.adialog__err{display:flex;gap:var(--sp-2);align-items:flex-start;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--danger-soft);color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.adialog__err .ico{margin-top:2px}
+.adialog__actions{display:flex;justify-content:flex-end;gap:var(--sp-2);margin-top:var(--sp-2)}
+.adialog__actions .btn{min-height:var(--target)}
+.app[data-app=phone] .modal{place-items:end stretch;padding:0}
+.app[data-app=phone] .adialog{width:100%;border-radius:var(--r-sheet) var(--r-sheet) 0 0;border-width:1px 0 0;padding:var(--sp-6) var(--sp-5) var(--sp-10);box-shadow:var(--shadow-3)}
+.app[data-app=phone] .adialog__actions .btn{flex:1 1 0}
+
+
+/* toast and live region */
+.toast[hidden]{display:none}
+.app[data-app=phone] .toast{top:auto;bottom:var(--sp-10)}
+
+/* page chrome sits on the darker --page backdrop, where tertiary text falls under AA: use secondary text there */
+.note__kicker,.device__label,.demo__help{color:var(--text-2)}
+/* ===== #24 Settings: GitHub connection and projects, on the Paper Desk tokens (ADR 0002) =====
+   Shared page parts (tokens, buttons, fields, result notes, dialogs, toast) are in kit.css. */
+
+/* ----- mac: settings in the main column ----- */
+.set-main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.set-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.set-inner{max-width:var(--set-max);margin:0 auto;padding:var(--sp-8) var(--pad-x) var(--sp-10);display:flex;flex-direction:column;gap:var(--sp-6)}
+.app[data-app=phone] .set-inner{padding:var(--sp-2) var(--sp-4) var(--sp-10);gap:var(--sp-5)}
+.crumbs ol{display:flex;align-items:center;gap:var(--sp-2);list-style:none;margin:0;padding:0;font-size:var(--fs-sm);color:var(--text-3)}
+.crumbs li{display:flex;align-items:center;gap:var(--sp-2)}
+.crumbs li+li::before{content:"/";color:var(--border-strong)}
+.crumbs a{color:var(--text-2);text-decoration:none;border-radius:var(--r-sm);padding:var(--sp-1)}
+.crumbs a:hover{color:var(--text);background:var(--hover)}
+.crumbs [aria-current=page]{color:var(--text);font-weight:600}
+.side-item--settings{margin-bottom:var(--sp-1)}
+.side-item--settings[aria-current=page]{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+.side-foot__row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2);width:100%}
+
+/* ----- phone: pushed settings pages ----- */
+.app[data-app=phone]{overflow:clip} /* focus() must never scroll the device frame itself */
+.p-bar{flex:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;min-height:var(--target);padding:0 var(--sp-2) var(--sp-1)}
+.p-back{justify-self:start;display:inline-flex;align-items:center;border:0;background:none;color:var(--accent-text);min-height:var(--target);padding:0 var(--sp-2) 0 0;font-size:var(--fs-md);border-radius:var(--r-md)}
+.p-back .ico{width:22px;height:22px;stroke-width:2.2}
+.p-bar__title{font-weight:600;font-size:var(--fs-md)}
+.p-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.p-stub{flex:1;display:grid;align-content:start;gap:var(--sp-5);padding:var(--sp-4)}
+.p-stub p{margin:0;font-family:var(--font-display);font-size:var(--fs-md);color:var(--text-2);line-height:1.62}
+.sheet-foot{display:grid;gap:1px;margin:var(--sp-2) var(--sp-2) 0;padding-top:var(--sp-2);border-top:1px solid var(--border)}
+.sheet-foot .side-item{min-height:48px;font-size:var(--fs-md)}
+.side-item--add{color:var(--accent-text);font-weight:600}
+.sheet-row__repo{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-3)}
+
+/* ----- headings ----- */
+.set-head{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:var(--sp-3) var(--sp-4)}
+.set-head h1{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-2xl);line-height:var(--lh-tight);outline:none;overflow-wrap:anywhere}
+.set-lead{margin:var(--sp-1) 0 0;color:var(--text-2);font-size:var(--fs-sm)}
+.set-head--proj{align-items:center;justify-content:flex-start;flex-wrap:nowrap}
+.set-head--proj .prod-mono{width:48px;height:48px;font-size:var(--fs-xl);border-radius:var(--r-md)}
+.set-meta{margin:var(--sp-1) 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-3);font-size:var(--fs-sm);color:var(--text-3)}
+.app[data-app=phone] .set-head .btn--primary{width:100%}
+
+/* ----- project list ----- */
+.plist{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);overflow:hidden}
+.prow{display:flex;align-items:center;gap:var(--sp-1);padding-right:var(--sp-2);border-top:1px solid var(--border);background:var(--surface)}
+.prow:first-child{border-top:0}
+.prow__link{flex:1;min-width:0;display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:var(--sp-1) var(--sp-3);min-height:calc(var(--target) + var(--sp-5));padding:var(--sp-3) var(--sp-2) var(--sp-3) var(--sp-4);color:inherit;text-decoration:none;border-radius:var(--r-md);transition:background-color var(--dur-fast) var(--ease-standard)}
+.prow__link:hover{background:var(--hover)}
+.prow__link>.ico{color:var(--text-3)}
+.prow .prod-mono{width:34px;height:34px;font-size:16px}
+.prow__txt{display:grid;min-width:0}
+.prow__name{font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md);line-height:var(--lh-tight)}
+.prow__repo{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-2);overflow-wrap:anywhere}
+.prow__arch{min-height:var(--target);color:var(--text-2);font-weight:400}
+.app[data-app=mac] .prow__arch .ico{display:none}
+.prow__arch:hover{color:var(--danger-text);background:var(--danger-soft)}
+.app[data-app=phone] .prow__link{grid-template-columns:auto minmax(0,1fr) auto;padding-left:var(--sp-3)}
+.app[data-app=phone] .prow .setchip{grid-column:2;grid-row:2;justify-self:start}
+.app[data-app=phone] .prow__link>.ico{grid-column:3;grid-row:1/span 2}
+.app[data-app=phone] .prow .prod-mono{grid-row:1/span 2}
+.app[data-app=phone] .prow__arch{width:var(--target);padding:0}
+.app[data-app=phone] .prow__archtxt{display:none}
+.app[data-app=phone] .prow__arch .ico{width:20px;height:20px}
+
+/* setup chip on a row: the word carries the status, the icon only repeats it */
+.setchip{height:auto;min-height:22px;padding:1px var(--sp-2);gap:var(--sp-1);white-space:normal}
+.setchip .ico{width:13px;height:13px;stroke-width:2.4}
+.setchip--missing{background:var(--warning-soft);color:var(--warning-text)}
+.setchip--checking,.setchip--unknown{background:var(--bg-sunken);color:var(--text-2)}
+.setchip .typing{padding:0;gap:2px}
+.setchip .typing i{width:4px;height:4px}
+
+/* ----- the checklist: a ledger of four steps ----- */
+.ledger{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.step{display:grid;grid-template-columns:var(--mark) minmax(0,1fr);gap:var(--sp-1) var(--sp-3);padding:var(--sp-4);border-top:1px solid var(--border)}
+.step:first-child{border-top:0}
+.app[data-app=phone] .step{padding:var(--sp-4) var(--sp-3)}
+.step__mark{width:var(--mark);height:var(--mark);border-radius:50%;display:grid;place-items:center;background:var(--bg-sunken);color:var(--text-2);font-family:var(--font-display);font-size:var(--fs-sm);font-weight:600;font-variant-numeric:lining-nums}
+.step__mark .ico{width:16px;height:16px;stroke-width:2.4}
+.step__mark .typing{padding:0;gap:2px}.step__mark .typing i{width:4px;height:4px}
+.step__body{display:grid;justify-items:start;gap:var(--sp-1);min-width:0}
+.step__head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:0 var(--sp-3);width:100%;min-height:var(--mark)}
+.step__title{margin:0;font-size:var(--fs-md);font-weight:600;line-height:var(--lh-tight);align-self:center}
+.step__state{font-size:var(--fs-sm);font-weight:600;font-variant:small-caps;letter-spacing:var(--ls-caps);text-transform:lowercase;white-space:nowrap}
+.step__fix{margin:0;font-size:var(--fs-sm);color:var(--text-2);overflow-wrap:anywhere}
+.step--done .step__mark{background:var(--success-soft);color:var(--success-text)}
+.step--done .step__state{color:var(--success-text)}
+.step--missing .step__mark{background:var(--warning-soft);color:var(--warning-text)}
+.step--missing .step__state{color:var(--warning-text)}
+.step--pending .step__state,.step--unknown .step__state{color:var(--text-2)}
+.step--skipped .step__mark{background:none;border:1px dashed var(--border-strong);color:var(--text-3)}
+.step--skipped .step__title{color:var(--text-2)}
+.step--skipped .step__state{color:var(--text-3)}
+
+/* ink: a step that just turned done draws its check, in step order */
+.step.is-new .step__mark{animation:mark-in var(--dur-base) var(--ease-emph) calc(var(--i, 0) * var(--stagger)) both}
+.step.is-new.step--done .step__mark path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) calc(var(--i, 0) * var(--stagger) + var(--dur-fast)) forwards}
+@media (prefers-reduced-motion:reduce){.step.is-new .step__mark,.step.is-new.step--done .step__mark path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}}
+:root[data-motion=reduce] .step.is-new .step__mark,:root[data-motion=reduce] .step.is-new.step--done .step__mark path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}
+
+/* ----- actions and the separated archive ----- */
+.danger-zone{display:flex;padding-top:var(--sp-5);border-top:1px solid var(--border)}
+.app[data-app=phone] .danger-zone .btn{width:100%}
+
+/* ----- settings sections ----- */
+.sec{display:grid;gap:var(--sp-3)}
+.sec-head{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:var(--sp-3) var(--sp-4)}
+.sec-title{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
+.app[data-app=phone] .sec-head .btn--primary{width:100%}
+
+/* ----- the GitHub connection card: one card, the state is its words ----- */
+.gh{display:grid;justify-items:start;gap:var(--sp-3);padding:var(--sp-4) var(--sp-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.app[data-app=phone] .gh{padding:var(--sp-4)}
+.gh__row{display:flex;align-items:center;flex-wrap:wrap;gap:var(--sp-2) var(--sp-3);width:100%}
+.gh__mark{flex:none;width:var(--mark);height:var(--mark);border-radius:50%;display:grid;place-items:center;background:var(--bg-sunken);color:var(--text-2)}
+.gh__mark .ico{width:16px;height:16px;stroke-width:2.4}
+.gh--ok .gh__mark{background:var(--success-soft);color:var(--success-text)}
+.gh--warn .gh__mark{background:var(--surface);color:var(--warning-text)}
+.gh__who{flex:1;min-width:0;display:grid;gap:2px}
+.gh__title{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight);outline:none;overflow-wrap:anywhere}
+.gh__title code{font-size:.9em}
+.gh__meta{margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.gh__body{margin:0;font-size:var(--fs-sm);color:var(--text-2);max-width:60ch}
+.gh__actions{display:flex;flex-wrap:wrap;gap:var(--sp-2);width:100%}
+.app[data-app=phone] .gh__actions .btn{flex:1 1 auto}
+.gh__disc{color:var(--danger-text)}
+.app[data-app=phone] .gh__disc{flex-basis:100%;justify-content:flex-start;margin-left:var(--mark);padding-left:var(--sp-3)}
+.gh__title code{white-space:nowrap}
+.gh__disc:hover{background:var(--danger-soft)}
+.gh__off{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.gh__off .ico{width:14px;height:14px;flex:none;margin-top:2px}
+.gh--warn{background:var(--warning-soft);border-color:transparent;box-shadow:none}
+.gh--warn .gh__title,.gh--warn .gh__body{color:var(--warning-text)}
+.gh--bad{background:var(--danger-soft);border-color:transparent;box-shadow:none}
+.gh--bad .gh__title,.gh--bad .gh__body{color:var(--danger-text)}
+.gh__skel{border-radius:50%}
+.gh .skel-stack{flex:1}
+/* the "connected" tick is drawn once, after the round trip to GitHub */
+.gh__mark.is-new{animation:mark-in var(--dur-base) var(--ease-emph) both}
+.gh__mark.is-new path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) var(--dur-fast) forwards}
+@media (prefers-reduced-motion:reduce){.gh__mark.is-new,.gh__mark.is-new path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}}
+:root[data-motion=reduce] .gh__mark.is-new,:root[data-motion=reduce] .gh__mark.is-new path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}
+
+/* connection reminders below Settings */
+.conn-banner{max-width:none;flex-wrap:wrap}
+.conn-banner .ico{flex:none}
+.conn-banner .btn{min-height:var(--target);background:var(--surface);border-color:transparent;color:var(--warning-text);font-weight:600}
+.app[data-app=phone] .conn-banner .btn{width:100%}
+.need-conn .btn{margin-top:var(--sp-2)}
+.app[data-app=phone] .need-conn{padding-right:0}
+.app[data-app=phone] .need-conn .btn{width:100%}
+
+/* sync state in the Mac sidebar footer and the iPhone sheet */
+.side-foot__sync .sync-dot--none,.sheet-foot__sync .sync-dot--none{background:var(--text-3)}
+.side-foot__sync .sync-dot--lost,.sheet-foot__sync .sync-dot--lost{background:var(--warning-text)}
+.side-foot__sync .sync-dot--loading,.sheet-foot__sync .sync-dot--loading{background:var(--border-strong)}
+.sheet-foot__sync{margin-left:auto;display:inline-flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-xs);color:var(--text-2);font-weight:400}
+.sheet-foot__sync i{width:6px;height:6px;border-radius:50%;background:var(--success-text)}
+
+/* ----- GitHub's authorize page, mocked for the demo only ----- */
+.gh-mock__note{margin:0;padding:var(--sp-2) var(--sp-3);border:1px dashed var(--border-strong);border-radius:var(--r-md);font-size:var(--fs-xs);color:var(--text-2)}
+.gh-mock{display:grid;justify-items:center;gap:var(--sp-3);padding:var(--sp-6) var(--sp-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);text-align:center;font-family:var(--font-body)}
+.gh-mock h1{margin:0;font-size:var(--fs-xl);font-weight:600;outline:none;overflow-wrap:anywhere}
+.gh-mock__logos{display:flex;align-items:center;gap:var(--sp-3);color:var(--text-3)}
+.gh-mock__logos .mark{width:40px;height:40px;color:var(--accent)}
+.gh-mock__logos .avatar{width:40px;height:40px;font-size:var(--fs-md)}
+.gh-mock p,.gh-mock ul{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.gh-mock ul{text-align:left;padding-left:1.2em;display:grid;gap:var(--sp-1)}
+.gh-mock .form-actions{width:100%;justify-content:center}
+.p-bar__url{justify-self:center;padding:var(--sp-1) var(--sp-4);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2)}
+.crumbs__url{font-family:var(--font-mono);font-weight:400}
+/* ===== #36 Web push client, on the Paper Desk tokens (ADR 0002) =====
+   The Notifications block reuses #24's connection card (.gh, settings.css) so the two Settings blocks read as one
+   family. The system mocks (iOS alert, notification banner, Safari toolbar, Home Screen) are Apple's UI, drawn
+   only for the demo; their few values that no Paper Desk token covers are declared once here. */
+:root{
+  --sys-badge:#D70015;--sys-badge-text:#FFFFFF; /* iOS's accessible system red (Increase Contrast), 5.2:1 with white */
+  --sys-alert-w:270px;--sys-notif-w:344px;--sys-icon:60px;--sys-r:22px;
+}
+
+/* ----- the Notifications block ----- */
+.push .gh__mark .ico,.push-nudge__ico .ico{stroke-width:2}
+.gh__mark--none{color:var(--text-2)}
+.push__note{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;font-size:var(--fs-xs);color:var(--text-2);max-width:60ch}
+.push__note .ico{width:14px;height:14px;flex:none;margin-top:2px}
+.push__path{margin:0;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--surface);color:var(--text);font-size:var(--fs-sm);overflow-wrap:anywhere}
+.push__path code{font-size:.92em}
+.gh--warn .push__warn-btn{background:var(--surface);border-color:transparent;color:var(--warning-text)}
+.push__off{color:var(--text-2)}
+.push__off:hover{color:var(--danger-text);background:var(--danger-soft)}
+.push__badge{display:flex;align-items:flex-start;gap:var(--sp-3);margin:0;font-size:var(--fs-sm);color:var(--text-2);max-width:60ch}
+.push__badge-dot{flex:none;min-width:22px;height:22px;padding:0 6px;border-radius:999px;display:inline-grid;place-items:center;background:var(--sys-badge);color:var(--sys-badge-text);font-size:var(--fs-xs);font-weight:700;font-variant-numeric:tabular-nums}
+.push .res{width:100%}
+.push .res h3{margin:0;font-size:var(--fs-md);font-weight:600;line-height:var(--lh-tight);outline:none}
+.block.push h3{display:flex;align-items:center;gap:var(--sp-2);font-size:var(--fs-lg);outline:none}
+.block.push h3 .ico{width:20px;height:20px;color:var(--text-2)}
+.gh__title:focus,.sec-title:focus{outline:none}
+
+/* the Home Screen guide: three numbered steps, the ledger's marks without its states */
+.guide{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-3);width:100%}
+.guide__step{display:grid;grid-template-columns:var(--mark) minmax(0,1fr);gap:var(--sp-3);align-items:start}
+.guide__step p{margin:0;font-size:var(--fs-sm);color:var(--text);overflow-wrap:anywhere}
+.guide__step .guide__aside{margin-top:var(--sp-1);font-size:var(--fs-xs);color:var(--text-2)}
+.guide__n{width:var(--mark);height:var(--mark);border-radius:50%;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-text);font-family:var(--font-display);font-size:var(--fs-sm);font-weight:600;font-variant-numeric:lining-nums}
+.kbd-ico{display:inline-grid;place-items:center;width:26px;height:22px;margin:0 2px;vertical-align:-5px;border:1px solid var(--border-strong);border-radius:var(--r-sm);background:var(--surface);color:var(--accent-text)}
+.kbd-ico .ico{width:16px;height:16px}
+.ico .ico-dots,.ico-dots{stroke-width:3.4}
+
+/* ----- the nudge on Needs you: one quiet margin note, dismissible ----- */
+.push-nudge{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--sp-1) var(--sp-3);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-lg);background:var(--bg-sunken);border:1px solid var(--border)}
+.push-nudge__ico{grid-row:1/span 3;width:var(--mark);height:var(--mark);border-radius:50%;display:grid;place-items:center;background:var(--surface);color:var(--text-2)}
+.push-nudge__ico .ico{width:16px;height:16px}
+.push-nudge p{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.push-nudge .push-nudge__err{color:var(--danger-text);font-weight:600}
+.push-nudge__acts{display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:var(--sp-1)}
+.app[data-app=phone] .push-nudge__acts .btn{min-height:var(--target)}
+.push-nudge__done p{margin:0}
+
+/* ----- arriving from a notification ----- */
+.push-cards{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-3)}
+.push-cards .card{margin-left:0}
+.push-cards .receipt{margin-left:0}
+.push-arrive{scroll-margin:var(--sp-6)}
+.push-arrive .card__title:focus,.push-arrive:focus{outline:none}
+/* The ring marks "you came here"; it stays while the item has focus, so it is never only a flash. */
+.push-arrive.is-arrived{box-shadow:0 0 0 2px var(--focus);animation:arrive var(--dur-sig) var(--ease-emph) both}
+@keyframes arrive{0%{box-shadow:0 0 0 0 var(--focus)}35%{box-shadow:0 0 0 6px var(--accent-soft),0 0 0 2px var(--focus)}100%{box-shadow:0 0 0 2px var(--focus)}}
+@media (prefers-reduced-motion:reduce){.push-arrive.is-arrived{animation:none}}
+:root[data-motion=reduce] .push-arrive.is-arrived{animation:none}
+.res.push-arrive{border-radius:0 var(--r-md) var(--r-md) 0}
+.res.push-arrive h2{font-size:var(--fs-lg)}
+.push-nf{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
+
+/* ----- system mocks: Safari's toolbar, the permission alert, a notification, the Home Screen ----- */
+.safari{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2) var(--sp-3) var(--sp-8);background:var(--surface);border-top:1px solid var(--border)}
+.safari__btn{flex:none;width:var(--target);height:var(--target);border-radius:50%;display:grid;place-items:center;background:var(--bg-sunken);color:var(--text)}
+.safari__btn .ico{width:20px;height:20px}
+.safari__url{flex:1;min-width:0;height:var(--target);display:flex;align-items:center;justify-content:center;padding:0 var(--sp-3);border-radius:999px;background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* the guide points at the real "More" button: two slow pulses, then a steady ring */
+.safari__more.is-pointed{box-shadow:0 0 0 2px var(--accent);animation:point var(--dur-pulse) var(--ease-standard) 2}
+@keyframes point{0%{box-shadow:0 0 0 2px var(--accent)}50%{box-shadow:0 0 0 2px var(--accent),0 0 0 8px var(--accent-soft)}100%{box-shadow:0 0 0 2px var(--accent)}}
+@media (prefers-reduced-motion:reduce){.safari__more.is-pointed{animation:none}}
+:root[data-motion=reduce] .safari__more.is-pointed{animation:none}
+
+.sysmodal{position:absolute;inset:0;z-index:var(--z-sheet);display:grid;place-items:center;padding:var(--sp-6)}
+.sysmodal--mac{place-items:start center;padding-top:72px}
+.sysmodal__scrim{position:absolute;inset:0;background:var(--scrim)}
+.sysprompt{position:relative;width:var(--sys-alert-w);display:grid;text-align:center;background:var(--surface);border-radius:var(--sys-r);box-shadow:var(--shadow-2);overflow:hidden;font-family:-apple-system,system-ui,var(--font-body)}
+.sysprompt__mock{margin:var(--sp-3) 0 0;font-size:10px;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.sysprompt h2{margin:var(--sp-1) var(--sp-4) 0;font-size:var(--fs-md);font-weight:600;line-height:var(--lh-tight)}
+.sysprompt p:not(.sysprompt__mock){margin:var(--sp-1) var(--sp-4) var(--sp-4);font-size:var(--fs-xs);color:var(--text-2)}
+.sysprompt__acts{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border)}
+.sysprompt__acts button{min-height:var(--target);border:0;background:none;font:inherit;font-size:var(--fs-md);color:var(--accent-text)}
+.sysprompt__acts button+button{border-left:1px solid var(--border);font-weight:600}
+.sysprompt__acts button:hover{background:var(--hover)}
+.sysprompt__acts button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+
+.notif{position:absolute;z-index:var(--z-toast);display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--sp-3);align-items:start;padding:var(--sp-3);border:1px solid var(--border);border-radius:var(--sys-r);background:var(--surface);box-shadow:var(--shadow-2);color:var(--text);text-align:left;font-family:-apple-system,system-ui,var(--font-body)}
+.notif--phone{top:54px;left:var(--sp-3);right:var(--sp-3)}
+.notif--mac{top:48px;right:var(--sp-4);width:var(--sys-notif-w);border-radius:var(--r-lg)}
+.notif:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.notif__icon .mark{width:38px;height:38px;color:var(--accent);display:block}
+.notif__txt{display:grid;gap:1px;min-width:0;font-size:var(--fs-sm)}
+.notif__top{display:flex;justify-content:space-between;gap:var(--sp-2);font-size:var(--fs-xs);color:var(--text-2)}
+.notif__top b{font-weight:600;text-transform:uppercase;letter-spacing:var(--ls-caps)}
+.notif__title{font-weight:600}
+.notif__body{color:var(--text-2);overflow-wrap:anywhere}
+
+.app.is-home{background:linear-gradient(160deg,var(--accent-soft),var(--bg-sunken) 60%,var(--warning-soft))}
+.app.is-home .p-scroll{background:none}
+.hs{display:grid;gap:var(--sp-8);padding:var(--sp-6) var(--sp-2)}
+.hs__grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-6) var(--sp-4);justify-items:center}
+.hs__tile{width:var(--sys-icon);height:var(--sys-icon);border-radius:14px;background:hsl(var(--h) 22% 62% / .55)}
+.hs__app{display:grid;justify-items:center;gap:var(--sp-1);border:0;background:none;padding:0;color:var(--text);border-radius:14px}
+.hs__app:focus-visible{outline:2px solid var(--focus);outline-offset:4px}
+.hs__icon{position:relative;width:var(--sys-icon);height:var(--sys-icon);border-radius:14px;display:grid;place-items:center;background:var(--surface);box-shadow:var(--shadow-1)}
+.hs__icon .mark{width:44px;height:44px;color:var(--accent)}
+.hs__badge{position:absolute;top:-7px;right:-7px;min-width:24px;height:24px;padding:0 7px;border-radius:999px;display:grid;place-items:center;background:var(--sys-badge);color:var(--sys-badge-text);font:700 var(--fs-sm)/1 -apple-system,system-ui,var(--font-body);font-variant-numeric:tabular-nums}
+.hs__label{font-size:11px;font-weight:600;white-space:nowrap}
+.hs__note{margin:0 var(--sp-2);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-lg);background:var(--surface);font-size:var(--fs-sm);color:var(--text-2)}
+.push .gh__row{flex-wrap:nowrap;align-items:flex-start}
+.push .gh__row .gh__title{flex:1;min-width:0;padding-top:2px}
+
+</style>
+</head>
+<body>
+<header class="note">
+  <div class="note__row">
+    <div><div class="note__kicker" data-i18n="page.kicker">Team Console · #36 · design for approval</div><h1 data-i18n="page.title">Notifications: turn on, Home Screen guide, tap and badge</h1></div>
+    <div class="controls">
+      <div class="seg" data-control="view" role="group" aria-label="Layout" data-i18n-aria="page.layout"><button type="button" data-value="phone">iPhone</button><button type="button" data-value="mac">Mac</button><button type="button" data-value="both" data-i18n="page.both">Both</button></div>
+      <div class="seg" data-control="theme" role="group" aria-label="Theme" data-i18n-aria="page.theme"><button type="button" data-value="auto" data-i18n="page.auto">Auto</button><button type="button" data-value="light" data-i18n="page.light">Light</button><button type="button" data-value="dark" data-i18n="page.dark">Dark</button></div>
+      <div class="seg" data-control="lang" role="group" aria-label="Language" data-i18n-aria="page.lang"><button type="button" data-value="ru" lang="ru" aria-label="Русский">RU</button><button type="button" data-value="en" lang="en" aria-label="English">EN</button></div>
+      <div class="seg" data-control="motion" role="group" aria-label="Motion" data-i18n-aria="page.motion"><button type="button" data-value="system" data-i18n="page.motionSystem">Motion: system</button><button type="button" data-value="reduce" data-i18n="page.motionReduce">Reduced</button></div>
+      <button type="button" class="seg-btn" data-reset data-i18n="page.reset">Reset demo</button>
+    </div>
+  </div>
+  <div class="demo" role="group" aria-label="Demo states" data-i18n-aria="demo.aria">
+    <label><span data-i18n="demo.screen">Screen</span><select id="d-screen"><option value="settings" data-i18n="demo.s.settings">settings</option><option value="needs" data-i18n="demo.s.needs">needs</option><option value="home" data-i18n="demo.s.home">home</option></select></label>
+    <label><span data-i18n="demo.phone">iPhone opens it</span><select id="d-phone"><option value="safari" data-i18n="demo.p.safari">safari</option><option value="app" data-i18n="demo.p.app">app</option><option value="old" data-i18n="demo.p.old">old</option><option value="inapp" data-i18n="demo.p.inapp">inapp</option></select></label>
+    <label><span data-i18n="demo.mac">Mac browser</span><select id="d-mac"><option value="safari" data-i18n="demo.m.safari">safari</option><option value="chrome" data-i18n="demo.m.chrome">chrome</option><option value="old" data-i18n="demo.m.old">old</option></select></label>
+    <label><span data-i18n="demo.perm">Permission</span><select id="d-perm"><option value="default" data-i18n="demo.pm.default">default</option><option value="denied" data-i18n="demo.pm.denied">denied</option><option value="on" data-i18n="demo.pm.on">on</option></select></label>
+    <label><span data-i18n="demo.result">Server</span><select id="d-result"><option value="ok" data-i18n="demo.r.ok">ok</option><option value="error" data-i18n="demo.r.error">error</option><option value="offline" data-i18n="demo.r.offline">offline</option></select></label>
+    <label><span data-i18n="demo.target">Push about</span><select id="d-target"><option value="open" data-i18n="demo.t.open">open</option><option value="answered" data-i18n="demo.t.answered">answered</option><option value="closed" data-i18n="demo.t.closed">closed</option><option value="archived" data-i18n="demo.t.archived">archived</option></select></label>
+    <button type="button" class="seg-btn" id="d-push" data-i18n="demo.push">Send the push</button>
+    <p class="demo__help" data-i18n="demo.help"></p>
+    <p class="demo__help" id="d-opened" aria-live="polite"></p>
+  </div>
+  <details><summary data-i18n="page.summary">What you are approving</summary><div data-lang="en" lang="en">
+<div class="note__grid"><div>
+<p><b>What you are approving.</b> How push notifications are turned on and what they do on your iPhone and Mac (#36; the server is #11). Push is per device: each device turns it on once, from a button. Nothing asks for permission on its own.</p>
+<ul>
+<li><b>Where:</b> a <b>Notifications</b> block in Settings, between GitHub and Projects, with the same card as the GitHub block. While push is off on this device, a quiet note on <b>Needs you</b> offers <b>Turn on</b> and <b>Not now</b>. That screen promises “a notification will arrive”, so it should say when that isn’t true. Not now hides the note on this device only.</li>
+<li><b>iPhone in Safari:</b> instead of the button, a three-step guide: <b>•••</b> next to the address → Share → Add to Home Screen (leave Open as Web App on) → Add, then open the app from its icon. This is Apple’s current wording for iOS 26/27. The guide also covers the older tab layout. Safari’s <b>•••</b> button below gets a slow ring (two pulses, then steady) so it is easy to find.</li>
+<li><b>Every state:</b>
+  <ul>
+  <li>checking: a skeleton for a moment on load;</li>
+  <li>off: the button, and a line saying the device will ask, so tap Allow;</li>
+  <li>waiting for your answer, then turning on;</li>
+  <li>on: since when, Send a test (once per 30 s), Turn off, and on iPhone a line about the badge;</li>
+  <li>blocked: the exact place to allow it again (iPhone Settings, Safari or Chrome) and Check again;</li>
+  <li>not supported: iOS older than 16.4, inside another app, a browser without web push;</li>
+  <li>offline, and the server refusing.</li>
+  </ul></li>
+<li><b>Tapping a notification</b> opens the item in its project: <code>/p/storify/questions#42</code>. The card scrolls into view with a moss ring, and focus moves to its title. If you already answered it, the receipt is marked. If it was closed on GitHub, a note says so and links to it. An archived project shows “Project not found”. The test notification opens Needs you.</li>
+<li><b>Badge:</b> the number on the iPhone icon equals Needs you. It is set when the app opens or comes back to the front, and it is cleared at 0. In v1 a push doesn’t change it by itself (ADR 0001, “Not yet”), so the badge line in Settings says so. On the Mac, the sidebar count stays the indicator.</li>
+<li><b>Motion:</b>
+  <ul>
+  <li>the “on” tick is drawn in ink, as in the GitHub block;</li>
+  <li>a notification slides in 16 px (240 ms);</li>
+  <li>the arrival ring swells once (620 ms) and stays while the card has focus.</li>
+  </ul>
+  With reduced motion everything appears with a 120 ms fade or at once. The ring and the Safari pointer are static.</li>
+</ul>
+<p class="try">Try on iPhone: “iPhone opens it: in Safari” shows the guide. Switch to “from the Home Screen”, tap Turn on notifications, then Allow in the mock prompt. Send a test, then tap the notification. Then use “Send the push” with each “Push about” option.</p>
+</div><dl class="tok">
+<dt>Colour</dt><dd>Paper Desk tokens only. Off is neutral, on is moss (<code>--success-*</code>), blocked is ochre (<code>--warning-*</code>), the server error is clay. The ring is <code>--focus</code> with <code>--accent-soft</code>. The iOS badge red <code>#D70015</code> is Apple’s accessible red. It appears only in the mocks and the badge line, and it is 5.2:1 with white. AA in both themes.</dd>
+<dt>Type</dt><dd>Source Serif 4 for the card titles, Source Sans 3 for the rest. The system mocks use the system font.</dd>
+<dt>Tokens</dt><dd>No new app tokens: the #24 card (<code>.gh</code>), <code>--mark</code>, <code>--target</code>, <code>--dur-sig</code>, <code>--dur-pulse</code>, <code>--ease-emph</code>, <code>--dur-fade</code>. The four <code>--sys-*</code> values are mock-only.</dd>
+<dt>Kit</dt><dd>Five new glyphs: <code>bell</code>, <code>bell-off</code>, <code>share</code>, <code>more</code> and <code>add-square</code>. The guide’s numbered steps stay inside <code>features/push-subscribe</code> until a second feature needs them.</dd>
+<dt>Motion</dt><dd>sig 620 ms ring, base 240 ms notification, fast 140 ms toast. Reduced: fade 120 ms or none. Only transform, opacity, box-shadow and stroke animate.</dd>
+</dl></div></div><div data-lang="ru" lang="ru">
+<div class="note__grid"><div>
+<p><b>Что утверждаешь.</b> Как включаются пуш-уведомления и что они делают на iPhone и Mac (#36; сервер — #11). Пуши настраиваются на каждом устройстве отдельно: один раз, кнопкой. Само по себе приложение разрешение не спрашивает.</p>
+<ul>
+<li><b>Где:</b> блок <b>«Уведомления»</b> в Настройках, между GitHub и Проектами, в той же карточке, что и GitHub. Пока на этом устройстве пуши выключены, на экране <b>«Ждут тебя»</b> есть тихая заметка с кнопками <b>«Включить»</b> и <b>«Не сейчас»</b>. Этот экран обещает «придёт уведомление», и ему стоит сказать, когда это не так. «Не сейчас» скрывает заметку только на этом устройстве.</li>
+<li><b>iPhone в Safari:</b> вместо кнопки — инструкция из трёх шагов: <b>•••</b> рядом с адресом → «Поделиться» → «На экран „Домой“» (оставь «Открыть как веб‑приложение») → «Добавить», потом открыть приложение со значка. Это текущие формулировки Apple для iOS 26/27. Старый вид вкладок тоже учтён. Кнопку Safari <b>•••</b> внизу обводит медленное кольцо (два импульса, потом остаётся), чтобы её было легко найти.</li>
+<li><b>Все состояния:</b>
+  <ul>
+  <li>проверка: на мгновение скелет при загрузке;</li>
+  <li>выключено: кнопка и строка «устройство спросит — нажми „Разрешить“»;</li>
+  <li>ждём твоего ответа, потом включаем;</li>
+  <li>включено: с какого числа, «Прислать тестовое» (раз в 30 с), «Выключить», а на iPhone — строка про значок;</li>
+  <li>запрещено: где именно вернуть разрешение (Настройки iPhone, Safari или Chrome) и «Проверить снова»;</li>
+  <li>не поддерживается: iOS старше 16.4, внутри другого приложения, браузер без веб-пушей;</li>
+  <li>нет связи и сервер отказал.</li>
+  </ul></li>
+<li><b>Нажатие на уведомление</b> открывает пункт в его проекте: <code>/p/storify/questions#42</code>. Карточка прокручивается в поле зрения с моховым кольцом, фокус переходит на её заголовок. Если ты уже ответил, отмечена квитанция. Если пункт закрыли на GitHub — заметка об этом со ссылкой. Архивный проект — «Проект не найден». Тестовое уведомление открывает «Ждут тебя».</li>
+<li><b>Значок:</b> число на иконке iPhone равно «Ждут тебя». Приложение ставит его при открытии и при возвращении на экран и убирает при нуле. В v1 сам пуш число не меняет (ADR 0001, «Not yet») — строка в Настройках так и говорит. На Mac показателем остаётся счётчик в боковой панели.</li>
+<li><b>Движение:</b>
+  <ul>
+  <li>галочка «включено» рисуется чернилами, как в блоке GitHub;</li>
+  <li>уведомление въезжает на 16 px (240 мс);</li>
+  <li>кольцо прихода один раз расходится (620 мс) и остаётся, пока карточка в фокусе.</li>
+  </ul>
+  При «Меньше движения» всё появляется проявлением 120 мс или сразу. Кольцо и указатель Safari статичны.</li>
+</ul>
+<p class="try">Попробуй на iPhone: «iPhone открывает: в Safari» — инструкция. Переключи на «с экрана „Домой“», нажми «Включить уведомления», потом «Разрешить» в окне-макете. Пришли тестовое и нажми на уведомление. Потом «Прислать пуш» с каждым вариантом «Пуш про».</p>
+</div><dl class="tok">
+<dt>Цвет</dt><dd>Только токены Paper Desk. Выключено — нейтрально, включено — мох (<code>--success-*</code>), запрещено — охра (<code>--warning-*</code>), ошибка сервера — глина. Кольцо — <code>--focus</code> с <code>--accent-soft</code>. Красный значка iOS <code>#D70015</code> — доступный красный Apple. Он есть только в макетах и строке про значок и даёт 5,2:1 с белым. AA в обеих темах.</dd>
+<dt>Шрифты</dt><dd>Source Serif 4 в заголовках карточек, Source Sans 3 в остальном. Системные макеты — системным шрифтом.</dd>
+<dt>Токены</dt><dd>Новых токенов приложения нет: карточка из #24 (<code>.gh</code>), <code>--mark</code>, <code>--target</code>, <code>--dur-sig</code>, <code>--dur-pulse</code>, <code>--ease-emph</code>, <code>--dur-fade</code>. Четыре значения <code>--sys-*</code> — только для макетов.</dd>
+<dt>Кит</dt><dd>Пять новых глифов: <code>bell</code>, <code>bell-off</code>, <code>share</code>, <code>more</code> и <code>add-square</code>. Нумерованные шаги инструкции остаются внутри <code>features/push-subscribe</code>, пока не понадобятся второй фиче.</dd>
+<dt>Движение</dt><dd>sig 620 мс — кольцо, base 240 мс — уведомление, fast 140 мс — тост. При «Меньше движения» — проявление 120 мс или ничего. Анимируются только transform, opacity, box-shadow и stroke.</dd>
+</dl></div></div></details>
+</header>
+<main class="stage">
+  <section class="device device--phone" aria-label="iPhone layout" data-i18n-aria="page.phoneAria"><div class="device__label">iPhone · 390 pt</div><div class="phone-frame"><div class="app" data-app="phone"></div></div></section>
+  <section class="device device--mac" aria-label="Mac layout" data-i18n-aria="page.macAria"><div class="device__label" data-i18n="page.macLabel">Mac · window</div><div class="mac-frame"><div class="app" data-app="mac"></div></div></section>
+</main>
+<script>
+/* UI strings for #36 Web push client: the Notifications block in Settings, the iOS "Add to Home Screen" guide,
+   the nudge on Needs you and tap routing. Russian is the reference copy (ADR 0002), English second. The `push.*`
+   and `nudge.*` keys are proposed for the app's catalogue as they are; `page.*`, `demo.*` and the system mocks
+   (`sys.*`) belong to this page only. Apple's own UI names follow Apple's current iOS 26/27 wording
+   (support.apple.com, "Turn a website into an app in Safari on iPhone"). Notification titles and bodies are built
+   by the Worker (#11/#12, `libs/worker/push/src/copy.ts`), so the ones here are examples. */
+const I18N = {
+  en: {
+    'page.kicker': 'Team Console · #36 · design for approval',
+    'page.title': 'Notifications: turn on, Home Screen guide, tap and badge',
+    'page.layout': 'Layout', 'page.both': 'Both',
+    'page.theme': 'Theme', 'page.auto': 'Auto', 'page.light': 'Light', 'page.dark': 'Dark',
+    'page.motion': 'Motion', 'page.motionSystem': 'Motion: system', 'page.motionReduce': 'Reduced',
+    'page.lang': 'Language', 'page.reset': 'Reset demo',
+    'page.summary': 'What you are approving, and the tokens it uses',
+    'page.phoneAria': 'iPhone layout', 'page.macAria': 'Mac layout', 'page.macLabel': 'Mac · window',
+    'demo.aria': 'Demo states',
+    'demo.screen': 'Screen', 'demo.s.settings': 'Settings', 'demo.s.needs': 'Needs you', 'demo.s.home': 'iPhone Home Screen (badge)',
+    'demo.phone': 'iPhone opens it', 'demo.p.safari': 'in Safari (not installed)', 'demo.p.app': 'from the Home Screen',
+    'demo.p.old': 'iOS 16.3 (too old)', 'demo.p.inapp': 'inside another app (Telegram)',
+    'demo.mac': 'Mac browser', 'demo.m.safari': 'Safari', 'demo.m.chrome': 'Chrome', 'demo.m.old': 'no web push',
+    'demo.perm': 'Permission', 'demo.pm.default': 'not asked yet', 'demo.pm.denied': 'blocked', 'demo.pm.on': 'allowed, already on',
+    'demo.result': 'Server', 'demo.r.ok': 'works', 'demo.r.error': 'refuses (503)', 'demo.r.offline': 'offline',
+    'demo.target': 'Push about', 'demo.t.open': 'a waiting question (#42)', 'demo.t.answered': 'one you answered (#45)',
+    'demo.t.closed': 'one closed on GitHub (#39)', 'demo.t.archived': 'an archived project',
+    'demo.push': 'Send the push', 'demo.opened': 'Opened: <code>{url}</code>',
+    'demo.help': 'Start on iPhone “in Safari”: Settings shows the Home Screen guide. Switch to “from the Home Screen” and tap Turn on: the iPhone permission prompt (a mock) appears. After Allow, try Send a test. “Send the push” shows a notification on both frames; tap it to see where it leads. Answers on the question cards are #16’s and only show a note here.',
+    'demo.answer': 'Answering is #16; this page only shows where the push leads.',
+    'demo.space': 'Other screens are as approved in #18, #23 and #24.',
+
+    'shell.needsYou': 'Needs you', 'shell.overview': 'All projects', 'shell.projects': 'Projects', 'shell.settings': 'Settings',
+    'shell.nav': 'Navigation', 'shell.openSwitcher': 'Choose a project', 'shell.badge': 'Needs you: {n}',
+    'shell.questions': 'Questions', 'shell.crumbs': 'Breadcrumb',
+
+    'settings.title': 'Settings',
+    'settings.gh.title': 'GitHub', 'settings.gh.connected': 'Connected as <code>geeera</code>',
+    'settings.projects.title': 'Projects', 'settings.projects.lead': '3 projects · all set up',
+    'settings.language': 'Language', 'settings.switchLang': 'Русский',
+
+    'push.title': 'Notifications',
+    'push.lead': 'A push when the team needs your answer. Tapping it opens that item.',
+    'push.checking': 'Checking notifications…',
+    'push.off.title': 'Notifications are off on this device',
+    'push.off.body': 'Turn them on and this device tells you when your answer is needed: a question, a design to approve, a release.',
+    'push.enable': 'Turn on notifications',
+    'push.hint.ios': 'iPhone will ask for permission: tap Allow.',
+    'push.hint.browser': 'The browser will ask for permission: choose Allow.',
+    'push.asking': 'Waiting for your answer…',
+    'push.saving': 'Turning on…',
+    'push.on.title': 'Notifications are on for this device',
+    'push.on.meta': 'Since {date}',
+    'push.on.badge': (v, pl) => `The number on the app icon is how many items wait for you, now ${v.n}. It updates when you open the app.`,
+    'push.test': 'Send a test', 'push.testing': 'Sending…',
+    'push.test.sent': 'Test sent',
+    'push.test.sentBody': (v, pl) => `To ${v.n} ${pl(v.n, ['device', 'devices'])} with notifications on. It should arrive within a minute. If it doesn’t, check Focus and Team Console’s notifications in the device’s settings.`,
+    'push.test.wait': 'One test every 30 seconds. Try again in {s} s.',
+    'push.test.failed': 'The test wasn’t sent: the server didn’t answer. Try again.',
+    'push.turnOff': 'Turn off', 'push.turnOffAria': 'Turn off notifications on this device',
+    'push.offToast': 'Notifications are off on this device',
+    'push.onLive': 'Notifications are on for this device',
+    'push.install.title': 'First add Team Console to your Home Screen',
+    'push.install.body': 'iPhone only sends notifications to apps on the Home Screen. It takes half a minute.',
+    'push.install.steps': 'How to add it to the Home Screen',
+    'push.install.s1': 'In Safari, tap {more} next to the address, then <b>Share</b>.',
+    'push.install.s1note': 'With the Bottom or Top tab layout, tap {share} right away.',
+    'push.install.s2': 'Scroll down and tap <b>Add to Home Screen</b>. Leave <b>Open as Web App</b> on and tap <b>Add</b>.',
+    'push.install.s3': 'Open Team Console from its Home Screen icon and turn notifications on here, in Settings.',
+    'push.install.more': 'More', 'push.install.share': 'Share',
+    'push.install.already': 'Already on your Home Screen? Open the app from there: notifications can’t be turned on in Safari.',
+    'push.denied.title': 'Notifications are blocked',
+    'push.denied.body': 'The app can’t ask again. Allow them in settings, then come back:',
+    'push.denied.ios': 'iPhone <b>Settings → Notifications → Team Console</b> → turn on <b>Allow Notifications</b>.',
+    'push.denied.safari': '<b>Safari → Settings → Websites → Notifications</b> → set <code>{host}</code> to <b>Allow</b>.',
+    'push.denied.chrome': 'Click the icon left of the address → <b>Notifications</b> → <b>Allow</b>, then reload the page.',
+    'push.recheck': 'Check again',
+    'push.recheckLive': 'Allowed now. Turn notifications on.',
+    'push.unsupported.title': 'Notifications don’t work here',
+    'push.unsupported.old': 'Web notifications need iOS 16.4 or later. Update in Settings → General → Software Update.',
+    'push.unsupported.inapp': 'Team Console is open inside another app. Open the link in Safari, then add it to your Home Screen.',
+    'push.unsupported.browser': 'This browser has no web notifications. Open Team Console in Safari, Chrome or Firefox.',
+    'push.error.title': 'Couldn’t turn notifications on',
+    'push.error.server': 'The server didn’t accept this device, so nothing was saved. Try again; if it repeats, tell the PM in the chat.',
+    'push.offline': 'You’re offline. Notifications can be turned on when you’re back online.',
+    'push.retry': 'Try again',
+    'push.deniedLive': 'Notifications are blocked',
+
+    'nudge.text': 'Notifications are off on this device: you only learn about new items when you open the app.',
+    'nudge.enable': 'Turn on', 'nudge.how': 'How to turn on', 'nudge.later': 'Not now',
+    'nudge.laterAria': 'Hide the notifications hint', 'nudge.laterToast': 'You can turn them on in Settings → Notifications',
+    'nudge.on': 'Notifications are on. Next time the team needs you, this device will tell you.',
+
+    'needs.lead': 'Waiting for you: 3 · projects: 2',
+    'needs.kind.question': 'Question', 'needs.kind.design': 'Design approval', 'needs.kind.release': 'Release · go / no-go',
+    'q.42': 'Which sign-in to keep: GitHub or email?', 'q.42.text': 'Email adds a mail provider and its free tier; GitHub is already there.',
+    'q.45': 'Design: the onboarding screen', 'q.45.text': 'One screen, three states. The link opens the prototype.',
+    'q.47': 'Release 0.3 · go / no-go', 'q.47.text': 'Stage is green. 2 findings, both low.',
+    'q.51': 'Pick the board’s empty state', 'q.recommends': 'The team recommends: {x}',
+    'q.approve': 'Approve', 'q.reject': 'Reject', 'q.go': 'Go', 'q.nogo': 'No-go',
+    'q.receipt': '<b>Approved</b> · #45 · 14:02 · waiting for the team',
+    'arrive.gone.title': '#{n} no longer waits for you',
+    'arrive.gone.body': 'It was answered or closed on GitHub while the notification waited.',
+    'arrive.gone.link': 'Open #{n} on GitHub',
+    'notFound.title': 'Project not found', 'notFound.body': 'It was archived or never added. Its notifications lead here until it is added again.',
+    'notFound.back': 'Go to Needs you',
+    'space.loading': 'Loading questions…',
+
+    'sys.notif.app': 'Team Console', 'sys.notif.now': 'now',
+    'sys.notif.title': '{project} · your answer is needed',
+    'sys.notif.test': 'Test notification', 'sys.notif.testBody': 'It works. Tap to open Needs you.',
+    'sys.notif.aria': 'Notification from Team Console (mock): {title}. {body}',
+    'sys.prompt.ios': '“Team Console” Would Like to Send You Notifications',
+    'sys.prompt.iosBody': 'Notifications may include alerts, sounds and icon badges. These can be configured in Settings.',
+    'sys.prompt.mac': '“{host}” wants to show notifications',
+    'sys.prompt.macBody': 'Notifications appear in Notification Center.',
+    'sys.prompt.deny': 'Don’t Allow', 'sys.prompt.allow': 'Allow',
+    'sys.mock': 'system mock',
+    'sys.safari.aria': 'Safari toolbar (mock)', 'sys.safari.back': 'Back', 'sys.safari.more': 'More',
+    'sys.home.aria': 'iPhone Home Screen (mock)', 'sys.home.icon': 'Team Console, needs you: {n}',
+    'sys.home.note': 'The badge mirrors Needs you. It is set when the app opens or comes back to the foreground, and cleared at 0.',
+  },
+  ru: {
+    'page.kicker': 'Team Console · #36 · дизайн на согласование',
+    'page.title': 'Уведомления: включение, экран «Домой», переход и значок',
+    'page.layout': 'Вид', 'page.both': 'Оба',
+    'page.theme': 'Тема', 'page.auto': 'Авто', 'page.light': 'Светлая', 'page.dark': 'Тёмная',
+    'page.motion': 'Движение', 'page.motionSystem': 'Движение: как в системе', 'page.motionReduce': 'Меньше',
+    'page.lang': 'Язык', 'page.reset': 'Сбросить демо',
+    'page.summary': 'Что утверждаешь и какие токены используются',
+    'page.phoneAria': 'Вид на iPhone', 'page.macAria': 'Вид на Mac', 'page.macLabel': 'Mac · окно',
+    'demo.aria': 'Состояния демо',
+    'demo.screen': 'Экран', 'demo.s.settings': 'Настройки', 'demo.s.needs': 'Ждут тебя', 'demo.s.home': 'Экран «Домой» iPhone (значок)',
+    'demo.phone': 'iPhone открывает', 'demo.p.safari': 'в Safari (не установлено)', 'demo.p.app': 'с экрана «Домой»',
+    'demo.p.old': 'iOS 16.3 (слишком старый)', 'demo.p.inapp': 'внутри другого приложения (Telegram)',
+    'demo.mac': 'Браузер на Mac', 'demo.m.safari': 'Safari', 'demo.m.chrome': 'Chrome', 'demo.m.old': 'без веб-пушей',
+    'demo.perm': 'Разрешение', 'demo.pm.default': 'ещё не спрашивали', 'demo.pm.denied': 'запрещено', 'demo.pm.on': 'разрешено, уже включено',
+    'demo.result': 'Сервер', 'demo.r.ok': 'работает', 'demo.r.error': 'отказывает (503)', 'demo.r.offline': 'нет связи',
+    'demo.target': 'Пуш про', 'demo.t.open': 'ждущий вопрос (#42)', 'demo.t.answered': 'то, на что ты ответил (#45)',
+    'demo.t.closed': 'закрытое на GitHub (#39)', 'demo.t.archived': 'архивный проект',
+    'demo.push': 'Прислать пуш', 'demo.opened': 'Открыто: <code>{url}</code>',
+    'demo.help': 'Начни с iPhone «в Safari»: в Настройках — инструкция про экран «Домой». Переключи на «с экрана „Домой“» и нажми «Включить уведомления» — появится окно разрешения iPhone (макет). После «Разрешить» попробуй «Прислать тестовое». «Прислать пуш» показывает уведомление в обоих окнах — нажми на него и посмотри, куда оно ведёт. Ответы на карточках — это #16, здесь они только показывают подсказку.',
+    'demo.answer': 'Ответ — это #16; здесь только то, куда ведёт пуш.',
+    'demo.space': 'Остальные экраны — как утверждено в #18, #23 и #24.',
+
+    'shell.needsYou': 'Ждут тебя', 'shell.overview': 'Все проекты', 'shell.projects': 'Проекты', 'shell.settings': 'Настройки',
+    'shell.nav': 'Навигация', 'shell.openSwitcher': 'Выбрать проект', 'shell.badge': 'Ждут тебя: {n}',
+    'shell.questions': 'Вопросы', 'shell.crumbs': 'Навигационная цепочка',
+
+    'settings.title': 'Настройки',
+    'settings.gh.title': 'GitHub', 'settings.gh.connected': 'Подключено как <code>geeera</code>',
+    'settings.projects.title': 'Проекты', 'settings.projects.lead': '3 проекта · все настроены',
+    'settings.language': 'Язык', 'settings.switchLang': 'English',
+
+    'push.title': 'Уведомления',
+    'push.lead': 'Пуш, когда команде нужен твой ответ. Нажатие на него открывает этот пункт.',
+    'push.checking': 'Проверяем уведомления…',
+    'push.off.title': 'Уведомления на этом устройстве выключены',
+    'push.off.body': 'Включи — и устройство сообщит, когда нужен твой ответ: вопрос, дизайн на согласование, релиз.',
+    'push.enable': 'Включить уведомления',
+    'push.hint.ios': 'iPhone спросит разрешение — нажми «Разрешить».',
+    'push.hint.browser': 'Браузер спросит разрешение — выбери «Разрешить».',
+    'push.asking': 'Ждём твоего ответа…',
+    'push.saving': 'Включаем…',
+    'push.on.title': 'Уведомления на этом устройстве включены',
+    'push.on.meta': 'С {date}',
+    'push.on.badge': (v, pl) => `Число на значке приложения — сколько пунктов ждут тебя, сейчас ${v.n}. Оно обновляется, когда ты открываешь приложение.`,
+    'push.test': 'Прислать тестовое', 'push.testing': 'Отправляем…',
+    'push.test.sent': 'Тестовое отправлено',
+    'push.test.sentBody': (v, pl) => `На ${v.n} ${pl(v.n, ['устройство', 'устройства', 'устройств'])} с включёнными уведомлениями. Должно прийти в течение минуты. Не пришло — проверь режим фокусирования и уведомления Team Console в настройках устройства.`,
+    'push.test.wait': 'Тестовое — раз в 30 секунд. Попробуй через {s} с.',
+    'push.test.failed': 'Тестовое не отправлено: сервер не ответил. Попробуй ещё раз.',
+    'push.turnOff': 'Выключить', 'push.turnOffAria': 'Выключить уведомления на этом устройстве',
+    'push.offToast': 'Уведомления на этом устройстве выключены',
+    'push.onLive': 'Уведомления на этом устройстве включены',
+    'push.install.title': 'Сначала добавь Team Console на экран «Домой»',
+    'push.install.body': 'iPhone присылает уведомления только приложениям с экрана «Домой». Это займёт полминуты.',
+    'push.install.steps': 'Как добавить на экран «Домой»',
+    'push.install.s1': 'В Safari нажми {more} рядом с адресом, затем <b>«Поделиться»</b>.',
+    'push.install.s1note': 'Если вкладки внизу или сверху — сразу {share}.',
+    'push.install.s2': 'Пролистай вниз и нажми <b>«На экран „Домой“»</b>. Оставь включённым <b>«Открыть как веб‑приложение»</b> и нажми <b>«Добавить»</b>.',
+    'push.install.s3': 'Открой Team Console со значка на экране «Домой» и включи уведомления здесь, в Настройках.',
+    'push.install.more': 'Ещё', 'push.install.share': 'Поделиться',
+    'push.install.already': 'Уже на экране «Домой»? Открой приложение оттуда — в Safari уведомления не включаются.',
+    'push.denied.title': 'Уведомления запрещены',
+    'push.denied.body': 'Приложение не может спросить ещё раз. Разреши их в настройках и вернись сюда:',
+    'push.denied.ios': '<b>Настройки iPhone → Уведомления → Team Console</b> → включи <b>«Допуск уведомлений»</b>.',
+    'push.denied.safari': '<b>Safari → Настройки → Веб-сайты → Уведомления</b> → для <code>{host}</code> выбери <b>«Разрешить»</b>.',
+    'push.denied.chrome': 'Нажми значок слева от адреса → <b>«Уведомления»</b> → <b>«Разрешить»</b>, потом обнови страницу.',
+    'push.recheck': 'Проверить снова',
+    'push.recheckLive': 'Теперь разрешено. Включи уведомления.',
+    'push.unsupported.title': 'Здесь уведомления не работают',
+    'push.unsupported.old': 'Для веб-уведомлений нужен iOS 16.4 или новее. Обнови iPhone: Настройки → Основные → Обновление ПО.',
+    'push.unsupported.inapp': 'Team Console открыт внутри другого приложения. Открой ссылку в Safari и добавь на экран «Домой».',
+    'push.unsupported.browser': 'Этот браузер не умеет веб-уведомления. Открой Team Console в Safari, Chrome или Firefox.',
+    'push.error.title': 'Не удалось включить уведомления',
+    'push.error.server': 'Сервер не принял это устройство, ничего не сохранено. Попробуй ещё раз; если повторится — напиши PM в чате.',
+    'push.offline': 'Нет связи. Включить уведомления можно, когда сеть появится.',
+    'push.retry': 'Попробовать ещё раз',
+    'push.deniedLive': 'Уведомления запрещены',
+
+    'nudge.text': 'Уведомления на этом устройстве выключены — о новых пунктах ты узнаешь, только открыв приложение.',
+    'nudge.enable': 'Включить', 'nudge.how': 'Как включить', 'nudge.later': 'Не сейчас',
+    'nudge.laterAria': 'Скрыть подсказку про уведомления', 'nudge.laterToast': 'Включить можно в Настройках → Уведомления',
+    'nudge.on': 'Уведомления включены. Когда команде понадобишься, это устройство сообщит.',
+
+    'needs.lead': 'Ждут ответа: 3 · проектов: 2',
+    'needs.kind.question': 'Вопрос', 'needs.kind.design': 'Согласование дизайна', 'needs.kind.release': 'Релиз · go / no-go',
+    'q.42': 'Какой вход оставить: GitHub или почту?', 'q.42.text': 'Почта добавляет почтовый сервис и его бесплатный лимит; GitHub уже есть.',
+    'q.45': 'Дизайн: экран онбординга', 'q.45.text': 'Один экран, три состояния. Ссылка открывает прототип.',
+    'q.47': 'Релиз 0.3 · go / no-go', 'q.47.text': 'Stage зелёный. 2 находки, обе низкие.',
+    'q.51': 'Выбрать пустое состояние доски', 'q.recommends': 'Команда советует: {x}',
+    'q.approve': 'Согласовать', 'q.reject': 'Отклонить', 'q.go': 'Go', 'q.nogo': 'No-go',
+    'q.receipt': '<b>Согласовано</b> · #45 · 14:02 · ждёт команду',
+    'arrive.gone.title': '#{n} больше не ждёт тебя',
+    'arrive.gone.body': 'На него ответили или его закрыли на GitHub, пока уведомление ждало.',
+    'arrive.gone.link': 'Открыть #{n} на GitHub',
+    'notFound.title': 'Проект не найден', 'notFound.body': 'Его архивировали или не добавляли. Его уведомления ведут сюда, пока проект не добавят снова.',
+    'notFound.back': 'К «Ждут тебя»',
+    'space.loading': 'Загружаем вопросы…',
+
+    'sys.notif.app': 'Team Console', 'sys.notif.now': 'сейчас',
+    'sys.notif.title': '{project} · нужен твой ответ',
+    'sys.notif.test': 'Тестовое уведомление', 'sys.notif.testBody': 'Работает. Нажми, чтобы открыть «Ждут тебя».',
+    'sys.notif.aria': 'Уведомление Team Console (макет): {title}. {body}',
+    'sys.prompt.ios': '«Team Console» хочет отправлять Вам уведомления',
+    'sys.prompt.iosBody': 'Уведомления могут содержать предупреждения, звуки и наклейки на значках. Их можно настроить в Настройках.',
+    'sys.prompt.mac': '«{host}» хочет показывать уведомления',
+    'sys.prompt.macBody': 'Уведомления появляются в Центре уведомлений.',
+    'sys.prompt.deny': 'Не разрешать', 'sys.prompt.allow': 'Разрешить',
+    'sys.mock': 'макет системы',
+    'sys.safari.aria': 'Панель Safari (макет)', 'sys.safari.back': 'Назад', 'sys.safari.more': 'Ещё',
+    'sys.home.aria': 'Экран «Домой» iPhone (макет)', 'sys.home.icon': 'Team Console, ждут тебя: {n}',
+    'sys.home.note': 'Значок повторяет «Ждут тебя». Приложение ставит его, когда открывается или возвращается на экран, и убирает при нуле.',
+  },
+};
+
+/* Shared runtime of the feature design pages: motion and escaping helpers, the inline icon set, the i18n lookup
+   and the page chrome (layout, theme, language, motion). Each page passes its own I18N table and demo wiring.
+   Design prototypes only: mock data, no network. */
+const Proto = (() => {
+  'use strict';
+  const root = document.documentElement;
+  const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
+  const isReduced = () => root.dataset.motion === 'reduce' || mqReduce.matches;
+  const cssVar = (n) => getComputedStyle(root).getPropertyValue(n).trim();
+  const ms = (n) => { const v = cssVar(n); const x = parseFloat(v) || 0; return v.endsWith('ms') ? x : v.endsWith('s') ? x * 1000 : x; };
+  const wait = (t) => new Promise((r) => setTimeout(r, t));
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  async function play(el, frames, opts) {
+    if (!el || !el.animate) return;
+    try { await el.animate(frames, opts).finished; } catch (err) { if (!err || err.name !== 'AbortError') throw err; }
+  }
+  const plain = (html) => { const d = document.createElement('template'); d.innerHTML = html; return d.content.textContent; };
+
+  /* ---------- language (same preference key as the Paper Desk prototype) ---------- */
+  const LANG_KEY = 'team-console.lang';
+  function i18n(table) {
+    const L = { lang: 'ru', fmt: null };
+    try { const v = localStorage.getItem(LANG_KEY); L.lang = v === 'en' || v === 'ru' ? v : /^en\b/i.test(navigator.language || '') ? 'en' : 'ru'; }
+    catch (err) { console.warn('Language preference unavailable, using Russian', err); }
+    L.apply = (v) => {
+      L.lang = v; root.lang = v;
+      const loc = v === 'ru' ? 'ru-RU' : 'en-GB';
+      L.fmt = { time: new Intl.DateTimeFormat(loc, { hour: '2-digit', minute: '2-digit' }), plural: new Intl.PluralRules(loc) };
+    };
+    L.save = (v) => { try { localStorage.setItem(LANG_KEY, v); } catch (err) { console.warn('Language preference not saved', err); } };
+    L.pl = (n, forms) => { const c = L.fmt.plural.select(n); if (forms.length === 2) return c === 'one' ? forms[0] : forms[1]; return c === 'one' ? forms[0] : c === 'few' ? forms[1] : forms[2]; };
+    L.t = (key, vars = {}) => {
+      const v = table[L.lang][key] ?? table.en[key];
+      if (v == null) { console.warn(`Missing UI string: ${key}`); return key; }
+      if (typeof v === 'function') return v(vars, L.pl, { esc });
+      return v.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? esc(vars[k]) : m));
+    };
+    L.hhmm = (d) => L.fmt.time.format(d);
+    L.apply(L.lang);
+    return L;
+  }
+
+  /* ---------- icons: inline strokes, as in the prototype ---------- */
+  const svg = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  const I = {
+    check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'), x: svg('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'),
+    bang: svg('<path d="M12 6.5v7M12 17.3v.2"/>'), q: svg('<path d="M9.3 9a2.8 2.8 0 015.4 1c0 2-2.7 2.3-2.7 4M12 17.3v.2"/>'),
+    warn: svg('<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.3v.2"/>'),
+    chev: svg('<path d="M9.5 6l6 6-6 6"/>'), back: svg('<path d="M14.5 6l-6 6 6 6"/>'), down: svg('<path d="M6 9.5l6 6 6-6"/>'),
+    plus: svg('<path d="M12 5.5v13M5.5 12h13"/>'), minus: svg('<path d="M6 12h12"/>'),
+    gear: svg('<circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M20.5 12h-2.2M5.7 12H3.5M18 6l-1.6 1.6M7.6 16.4L6 18M18 18l-1.6-1.6M7.6 7.6L6 6"/>'),
+    ext: svg('<path d="M14 4.5h5.5V10M19.5 4.5L11 13M17 13.5v5a1 1 0 01-1 1H5.5a1 1 0 01-1-1V8a1 1 0 011-1h5"/>'),
+    copy: svg('<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V5.5a1 1 0 00-1-1h-9a1 1 0 00-1 1v9a1 1 0 001 1h3"/>'),
+    inbox: svg('<path d="M4 13.5L6.5 5h11l2.5 8.5V19H4z"/><path d="M4 13.5h5l1 2h4l1-2h5"/>'),
+    grid: svg('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'),
+    search: svg('<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>'),
+    chat: svg('<path d="M4.5 5.5h15v10h-9l-6 4z"/>'),
+    board: svg('<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M15 4.5v15"/>'),
+    stack: svg('<path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/>'),
+    archive: svg('<rect x="3.5" y="4.5" width="17" height="4.5" rx="1"/><path d="M5 9v10.5h14V9M10 13h4"/>'),
+    link: svg('<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/>'),
+    lock: svg('<rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/>'),
+    wifi: svg('<path d="M3.5 9.5a12 12 0 0117 0M6.5 12.8a7.5 7.5 0 0111 0M9.5 16a3 3 0 015 0"/><path d="M4 4l16 16"/>'),
+    pause: svg('<path d="M9 6v12M15 6v12"/>'),
+    play: svg('<path d="M8 5.5v13l10.5-6.5z"/>'),
+    refresh: svg('<path d="M19.5 12a7.5 7.5 0 11-2.2-5.3"/><path d="M19.5 4.5v4.5H15"/>'),
+    sliders: svg('<path d="M5 7h8M17 7h2M5 17h2M11 17h8"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'),
+    clock: svg('<circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/>'),
+    key: svg('<circle cx="8" cy="15" r="3.5"/><path d="M10.5 12.5l8-8M16 7l2.5 2.5M14 9l2 2"/>'),
+    mark: '<svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="6" fill="currentColor"/><path d="M7.5 9.5h9M7.5 14.5h5.5" stroke="var(--accent-contrast)" stroke-width="2.2" stroke-linecap="round"/></svg>',
+    bars: '<svg viewBox="0 0 18 12" width="18" height="12" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1" fill="currentColor"/><rect x="5" y="5" width="3" height="7" rx="1" fill="currentColor"/><rect x="10" y="2.5" width="3" height="9.5" rx="1" fill="currentColor"/><rect x="15" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg>',
+    battery: '<svg viewBox="0 0 27 13" width="27" height="13" aria-hidden="true"><rect x=".5" y=".5" width="23" height="12" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="18" height="9" rx="2" fill="currentColor"/><rect x="24.5" y="4.5" width="2" height="4" rx="1" fill="currentColor" opacity=".4"/></svg>',
+  };
+  const dots = '<span class="typing" aria-hidden="true"><i></i><i></i><i></i></span>';
+
+  /* ---------- page chrome: layout, theme, motion and language controls ---------- */
+  // `onLang(value)` re-renders the page's apps; `title` is the document title prefix ("Team Console · #24").
+  function page({ L, title, onLang }) {
+    const stage = document.querySelector('.stage');
+    const macFrame = document.querySelector('.mac-frame');
+    function fit() {
+      const W = stage.clientWidth - 48; const view = stage.dataset.view; let z = 1;
+      if (view === 'mac') { z = Math.min(1, W / 1182); stage.dataset.layout = 'stack'; }
+      else if (view === 'both') {
+        const room = W - 414 - 40;
+        if (room / 1182 >= 0.62) { z = Math.min(1, room / 1182); stage.dataset.layout = 'row'; } else { z = Math.min(1, W / 1182); stage.dataset.layout = 'stack'; }
+      }
+      macFrame.style.zoom = String(Math.max(z, 0.3));
+    }
+    function translatePage() {
+      document.querySelectorAll('[data-i18n]').forEach((el) => { el.innerHTML = L.t(el.dataset.i18n); });
+      document.querySelectorAll('[data-i18n-aria]').forEach((el) => el.setAttribute('aria-label', plain(L.t(el.dataset.i18nAria))));
+      document.title = `${title} · ${plain(L.t('page.title'))}`;
+    }
+    function setControl(ctrl, val) {
+      if (ctrl === 'view') { stage.dataset.view = val; fit(); }
+      if (ctrl === 'theme') { if (val === 'auto') delete root.dataset.theme; else root.dataset.theme = val; }
+      if (ctrl === 'motion') { if (val === 'system') delete root.dataset.motion; else root.dataset.motion = val; }
+      if (ctrl === 'lang' && val !== L.lang) { L.save(val); L.apply(val); translatePage(); onLang(val); }
+      document.querySelectorAll(`[data-control="${ctrl}"] button`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === val)));
+    }
+    document.querySelectorAll('[data-control]').forEach((g) => g.addEventListener('click', (e) => { const b = e.target.closest('button[data-value]'); if (b) setControl(g.dataset.control, b.dataset.value); }));
+    const small = matchMedia('(max-width: 520px)').matches;
+    translatePage();
+    setControl('view', small ? 'phone' : 'both');
+    setControl('theme', 'auto');
+    setControl('motion', 'system');
+    setControl('lang', L.lang);
+    document.querySelectorAll('[data-control=lang] button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === L.lang)));
+    addEventListener('resize', fit);
+    return { fit, setControl };
+  }
+
+  return { root, isReduced, cssVar, ms, wait, esc, play, plain, i18n, I, dots, page };
+})();
+
+/* #36 Web push client. Design prototype runtime with mock data only: no service worker, no Notification API, no
+   network. The real client reads `swPush.subscription` and `Notification.permission` on load, asks for permission
+   only from the button's click handler, then PUTs the subscription (#11). Two independent devices (iPhone, Mac):
+   each has its own permission and subscription, as real devices do; the demo bar sets the platform and the server. */
+(() => {
+  'use strict';
+  const { isReduced, cssVar, ms, wait, esc, play, plain, I } = Proto;
+  const L = Proto.i18n(I18N);
+  const { t } = L;
+
+  /* ---------- icons this feature adds to the kit (24 grid, 1.8 stroke, as icon.ts) ---------- */
+  const svg = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  const J = {
+    bell: svg('<path d="M6 16.5V11a6 6 0 0112 0v5.5l1.5 2h-15zM10 20.5a2 2 0 004 0"/>'),
+    'bell-off': svg('<path d="M8.2 6.2A6 6 0 0118 11v3.5M6 11v5.5l-1.5 2h12M10 20.5a2 2 0 004 0M4 4l16 16"/>'),
+    share: svg('<path d="M12 3.5v11M8 7.5l4-4 4 4M8.5 10.5h-2a1 1 0 00-1 1v8a1 1 0 001 1h11a1 1 0 001-1v-8a1 1 0 00-1-1h-2"/>'),
+    more: svg('<path class="ico-dots" d="M6.5 12h.01M12 12h.01M17.5 12h.01"/>'),
+    'add-square': svg('<rect x="4.5" y="4.5" width="15" height="15" rx="3.5"/><path d="M12 8.5v7M8.5 12h7"/>'),
+  };
+
+  /* ---------- mock data ---------- */
+  const HOST = 'team-console-dev.example.workers.dev';
+  const NEEDS = 3;
+  const minsAgo = (m) => new Date(Date.now() - m * 60000);
+  const dateFmt = () => new Intl.DateTimeFormat(L.lang === 'ru' ? 'ru-RU' : 'en-GB', { day: 'numeric', month: 'long' });
+  // The payload's onActionClick url is built by the Worker as a relative /p/{slug}/questions#{n} (#11, threat row 6).
+  const TARGETS = {
+    open: { slug: 'storify', n: 42, url: '/p/storify/questions#42' },
+    answered: { slug: 'storify', n: 45, url: '/p/storify/questions#45' },
+    closed: { slug: 'storify', n: 39, url: '/p/storify/questions#39' },
+    archived: { slug: 'oldmap', n: 7, url: '/p/oldmap/questions#7' },
+  };
+  const TEST = { url: '/needs-you' };
+  const Q = [
+    { n: 42, kind: 'question', rec: 'GitHub', acts: [['q.approve', 'GitHub'], ['q.reject', null]] },
+    { n: 45, kind: 'design', answered: true },
+    { n: 47, kind: 'release', acts: [['q.go'], ['q.nogo']] },
+  ];
+  // Shared by both frames: the demo bar.
+  const G = { phone: 'safari', mac: 'safari', perm: 'default', result: 'ok', target: 'open', screen: 'settings' };
+  const offline = () => G.result === 'offline';
+
+  const hosts = [...document.querySelectorAll('[data-app]')];
+  const status = document.getElementById('d-opened');
+
+  /* ---------- one device ---------- */
+  function mountApp(host, kind, keep) {
+    const fresh = () => ({ screen: G.screen, perm: G.perm === 'on' ? 'granted' : G.perm, sub: G.perm === 'on', since: minsAgo(60 * 24 * 2), busy: null, res: null, nudge: true, nudgeOn: false, checking: true, prompt: false, testAt: 0, mark: false, arrive: null, loading: false });
+    const S = keep || fresh();
+    host.S = S;
+    const uid = `${kind}-${Math.random().toString(36).slice(2, 7)}`;
+    const $ = (s) => host.querySelector(s);
+    const isPhone = kind === 'phone';
+
+    /* What this device can do. iOS: push needs the Home Screen app (iOS 16.4+); Mac browsers push in a tab. */
+    function support() {
+      if (isPhone) return { safari: 'install', app: 'ok', old: 'old', inapp: 'inapp' }[G.phone];
+      return G.mac === 'old' ? 'browser' : 'ok';
+    }
+    function state() {
+      const s = support();
+      if (s === 'install') return 'install';
+      if (s !== 'ok') return 'unsupported';
+      if (S.checking) return 'checking';
+      if (S.perm === 'denied') return 'denied';
+      return S.sub ? 'on' : 'off';
+    }
+    const inSafari = () => isPhone && G.phone === 'safari' && S.screen !== 'home';
+
+    host.innerHTML = isPhone
+      ? `<div class="p-status" aria-hidden="true"><span>9:41</span><span class="p-island"></span><span class="p-status__icons">${I.bars}${I.battery}</span></div>
+        <div data-slot="phead" data-bg></div>
+        <div class="p-scroll" data-bg data-slot="scroll"><div class="set-inner" data-slot="screen"></div></div>
+        <div data-slot="safari" data-bg></div>
+        <div class="home-ind" aria-hidden="true"></div>
+        <div data-slot="overlay"></div><div class="toast" role="status" data-slot="toast" hidden></div><div class="sr-only" aria-live="polite" data-slot="live"></div>`
+      : `<div class="win">
+          <div class="win__bar"><span class="lights" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title">Team Console</span></div>
+          <div class="win__body">
+            <nav class="sidebar" aria-label="${t('shell.nav')}" data-bg data-slot="side"></nav>
+            <section class="set-main" aria-label="Team Console" data-bg>
+              <header class="convo__head"><nav class="crumbs" aria-label="${t('shell.crumbs')}" data-slot="crumbs"></nav></header>
+              <div class="set-scroll" data-slot="scroll"><div class="set-inner" data-slot="screen"></div></div>
+            </section>
+          </div>
+        </div>
+        <div data-slot="overlay"></div><div class="toast" role="status" data-slot="toast" hidden></div><div class="sr-only" aria-live="polite" data-slot="live"></div>`;
+
+    const dis = (on, reasonId) => (on ? ` aria-disabled="true"${reasonId ? ` aria-describedby="${reasonId}"` : ''}` : '');
+    const sr = (txt) => `<span class="sr-only">${txt}</span>`;
+
+    /* ----- the Notifications block ----- */
+    function enableBtn(fk, cls = 'btn btn--primary btn--tall') {
+      const busy = S.busy === 'asking' || S.busy === 'saving';
+      const label = S.busy === 'asking' ? t('push.asking') : S.busy === 'saving' ? t('push.saving') : t('push.enable');
+      return `<button type="button" class="${cls}" data-act="enable" data-fk="${fk}"${dis(busy || offline(), offline() ? `${uid}-off` : '')}>${busy ? Proto.dots : J.bell}<span>${label}</span></button>`;
+    }
+    const offNote = () => (offline() ? `<p class="push__note" id="${uid}-off">${I.wifi}<span>${t('push.offline')}</span></p>` : '');
+    function resNote() {
+      const r = S.res; if (!r) return '';
+      if (r.kind === 'error') return `<div class="res res--bad" role="alert"><h3 tabindex="-1" data-fk="res">${t('push.error.title')}</h3><p>${t('push.error.server')}</p></div>`;
+      if (r.kind === 'sent') return `<div class="res"><h3 tabindex="-1" data-fk="res">${t('push.test.sent')}</h3><p>${t('push.test.sentBody', { n: r.n })}</p></div>`;
+      if (r.kind === 'wait') return `<div class="res res--warn"><h3 tabindex="-1" data-fk="res">${t('push.test.wait', { s: r.s })}</h3></div>`;
+      if (r.kind === 'testfail') return `<div class="res res--bad" role="alert"><h3 tabindex="-1" data-fk="res">${t('push.test.failed')}</h3></div>`;
+      return '';
+    }
+    function pushBlock() {
+      const st = state();
+      const head = `<h2 class="sec-title" id="${uid}-push" tabindex="-1" data-fk="push-h">${t('push.title')}</h2><p class="set-lead">${t('push.lead')}</p>`;
+      let card;
+      if (st === 'checking') {
+        card = `<div class="gh" aria-busy="true"><span class="sr-only">${t('push.checking')}</span><div class="gh__row" aria-hidden="true"><span class="skel skel--mono gh__skel"></span><span class="skel-stack"><span class="skel skel--a"></span><span class="skel skel--b"></span></span></div></div>`;
+      } else if (st === 'install') {
+        const more = `<span class="kbd-ico">${J.more}${sr(t('push.install.more'))}</span>`;
+        const share = `<span class="kbd-ico">${J.share}${sr(t('push.install.share'))}</span>`;
+        card = `<div class="gh push push--guide"><div class="gh__row"><span class="gh__mark" aria-hidden="true">${J['add-square']}</span><h3 class="gh__title" tabindex="-1" data-fk="state-h">${t('push.install.title')}</h3></div>
+          <p class="gh__body">${t('push.install.body')}</p>
+          <ol class="guide" aria-label="${esc(plain(t('push.install.steps')))}">
+            <li class="guide__step"><span class="guide__n" aria-hidden="true">1</span><div><p>${t('push.install.s1').replace('{more}', more)}</p><p class="guide__aside">${t('push.install.s1note').replace('{share}', share)}</p></div></li>
+            <li class="guide__step"><span class="guide__n" aria-hidden="true">2</span><div><p>${t('push.install.s2')}</p></div></li>
+            <li class="guide__step"><span class="guide__n" aria-hidden="true">3</span><div><p>${t('push.install.s3')}</p></div></li>
+          </ol>
+          <p class="push__note">${t('push.install.already')}</p></div>`;
+      } else if (st === 'unsupported') {
+        const why = isPhone ? (G.phone === 'old' ? 'old' : 'inapp') : 'browser';
+        card = `<div class="block push"><h3 tabindex="-1" data-fk="state-h">${J['bell-off']}${t('push.unsupported.title')}</h3><p>${t(`push.unsupported.${why}`)}</p></div>`;
+      } else if (st === 'denied') {
+        const how = isPhone ? t('push.denied.ios') : t(`push.denied.${G.mac}`, { host: HOST });
+        card = `<div class="gh gh--warn push"><div class="gh__row"><span class="gh__mark" aria-hidden="true">${J['bell-off']}</span><h3 class="gh__title" tabindex="-1" data-fk="state-h">${t('push.denied.title')}</h3></div>
+          <p class="gh__body">${t('push.denied.body')}</p><p class="push__path">${how}</p>
+          <div class="gh__actions"><button type="button" class="btn btn--tall push__warn-btn" data-act="recheck" data-fk="recheck">${I.refresh}${t('push.recheck')}</button></div></div>`;
+      } else if (st === 'on') {
+        const testing = S.busy === 'testing';
+        const badge = isPhone ? `<p class="push__badge"><span class="push__badge-dot" aria-hidden="true">${NEEDS}</span><span>${t('push.on.badge', { n: NEEDS })}</span></p>` : '';
+        card = `<div class="gh gh--ok push"><div class="gh__row">
+            <span class="gh__mark${S.mark ? ' is-new' : ''}" aria-hidden="true">${I.check}</span>
+            <div class="gh__who"><h3 class="gh__title" tabindex="-1" data-fk="state-h">${t('push.on.title')}</h3><p class="gh__meta">${t('push.on.meta', { date: dateFmt().format(S.since) })}</p></div></div>
+          ${badge}${resNote()}${offNote()}
+          <div class="gh__actions"><button type="button" class="btn btn--tall" data-act="test" data-fk="test"${dis(testing || offline(), offline() ? `${uid}-off` : '')}>${testing ? Proto.dots : J.bell}<span>${testing ? t('push.testing') : t('push.test')}</span></button>
+          <button type="button" class="btn btn--quiet btn--tall push__off" data-act="turn-off" data-fk="turn-off" aria-label="${esc(t('push.turnOffAria'))}"${dis(offline(), offline() ? `${uid}-off` : '')}>${t('push.turnOff')}</button></div></div>`;
+        S.mark = false;
+      } else {
+        const hint = S.perm === 'granted' ? '' : `<p class="push__note">${t(isPhone ? 'push.hint.ios' : 'push.hint.browser')}</p>`;
+        card = `<div class="gh push"><div class="gh__row"><span class="gh__mark gh__mark--none" aria-hidden="true">${J['bell-off']}</span><h3 class="gh__title" tabindex="-1" data-fk="state-h">${t('push.off.title')}</h3></div>
+          <p class="gh__body">${t('push.off.body')}</p>${resNote()}${offNote()}
+          <div class="gh__actions">${enableBtn('enable')}</div>${S.busy ? '' : hint}</div>`;
+      }
+      return `<section class="sec" aria-labelledby="${uid}-push" id="${uid}-push-sec">${head}${card}</section>`;
+    }
+
+    /* ----- screens ----- */
+    function settingsScreen() {
+      return `<div class="set-head"><h1 tabindex="-1" data-fk="h1">${t('settings.title')}</h1></div>
+        <section class="sec" aria-labelledby="${uid}-gh"><h2 class="sec-title" id="${uid}-gh">${t('settings.gh.title')}</h2>
+          <div class="gh gh--ok"><div class="gh__row"><span class="gh__mark" aria-hidden="true">${I.check}</span><p class="gh__title">${t('settings.gh.connected')}</p></div></div></section>
+        ${pushBlock()}
+        <section class="sec" aria-labelledby="${uid}-pj"><h2 class="sec-title" id="${uid}-pj">${t('settings.projects.title')}</h2><p class="set-lead">${t('settings.projects.lead')}</p></section>
+        <section class="sec" aria-labelledby="${uid}-lang"><h2 class="sec-title" id="${uid}-lang">${t('settings.language')}</h2><div><button type="button" class="btn btn--tall" data-act="noop" lang="${L.lang === 'ru' ? 'en' : 'ru'}">${t('settings.switchLang')}</button></div></section>`;
+    }
+    function nudge() {
+      if (S.nudgeOn) return `<div class="res push-nudge__done" role="status"><p>${t('nudge.on')}</p></div>`;
+      const st = state();
+      if (!S.nudge || (st !== 'off' && st !== 'install')) return '';
+      const main = st === 'install'
+        ? `<button type="button" class="btn btn--sm" data-act="how" data-fk="nudge-how">${t('nudge.how')}</button>`
+        : enableBtn('nudge-enable', 'btn btn--primary btn--sm').replace(t('push.enable'), t('nudge.enable'));
+      return `<aside class="push-nudge" aria-labelledby="${uid}-nudge"><span class="push-nudge__ico" aria-hidden="true">${J['bell-off']}</span>
+        <p id="${uid}-nudge">${t('nudge.text')}</p>${S.res && S.res.kind === 'error' ? `<p class="push-nudge__err" role="alert">${t('push.error.title')}</p>` : ''}${offline() && st === 'off' ? `<p class="push__note" id="${uid}-off">${t('push.offline')}</p>` : ''}
+        <div class="push-nudge__acts">${main}<button type="button" class="btn btn--quiet btn--sm" data-act="later" data-fk="nudge-later" aria-label="${esc(t('nudge.laterAria'))}">${t('nudge.later')}</button></div></aside>`;
+    }
+    const needRow = (q, slug) => `<li><button type="button" class="need" data-act="noop"><span class="need__top"><span class="ptag">${slug}</span><span class="need__kind">${t(`needs.kind.${q.kind}`)}</span></span><span class="need__title">${t(`q.${q.n}`)}</span>${I.chev}</button></li>`;
+    function needsScreen() {
+      return `<div class="set-head"><h1 tabindex="-1" data-fk="h1">${t('shell.needsYou')}</h1></div>${nudge()}
+        <p class="needs__lead">${t('needs.lead')}</p>
+        <ul class="needs__list">${needRow(Q[0], 'storify')}${needRow(Q[2], 'storify')}${needRow({ n: 51, kind: 'question' }, 'fieldnote')}</ul>`;
+    }
+    function card(q, target) {
+      const here = target && target.n === q.n;
+      if (q.answered) {
+        return `<li><div class="receipt push-arrive${here ? ' is-arrived' : ''}" tabindex="-1" data-q="${q.n}"><span class="receipt__icon" aria-hidden="true">${I.check}</span><span class="receipt__body">${t('q.receipt')} · ${t('q.45')}</span></div></li>`;
+      }
+      const acts = q.acts.map(([k, x], i) => `<button type="button" class="btn${i === 0 ? ' btn--primary' : ''}" data-act="answer">${t(k)}${x ? ` · ${esc(x)}` : ''}</button>`).join('');
+      return `<li><article class="card push-arrive${here ? ' is-arrived' : ''}" aria-labelledby="${uid}-q${q.n}" data-q="${q.n}">
+        <div class="card__head"><span class="card__kind">${q.kind === 'release' ? I.play : I.q}${t(`needs.kind.${q.kind}`)}</span><span class="card__num">#${q.n}</span></div>
+        <h2 class="card__title" id="${uid}-q${q.n}" tabindex="-1">${t(`q.${q.n}`)}</h2><p class="card__text">${t(`q.${q.n}.text`)}</p>
+        ${q.rec ? `<p class="card__meta">${t('q.recommends', { x: q.rec })}</p>` : ''}<div class="card__actions">${acts}</div></article></li>`;
+    }
+    function spaceScreen() {
+      const target = S.arrive;
+      const h = `<div class="set-head"><h1 tabindex="-1" data-fk="h1">${t('shell.questions')}</h1></div>`;
+      if (S.loading) return `${h}<div aria-busy="true"><span class="sr-only">${t('space.loading')}</span><div class="plist" aria-hidden="true">${'<div class="skel-row"><span class="skel skel--mono"></span><span class="skel-stack"><span class="skel skel--a"></span><span class="skel skel--b"></span></span></div>'.repeat(3)}</div></div>`;
+      const gone = target && !Q.some((q) => q.n === target.n)
+        ? `<div class="res res--neutral push-arrive is-arrived" tabindex="-1" data-q="${target.n}"><h2>${t('arrive.gone.title', { n: target.n })}</h2><p>${t('arrive.gone.body')}</p><a class="ext" href="https://github.com/geeera/storify/issues/${target.n}" target="_blank" rel="noopener noreferrer" data-act="gh">${t('arrive.gone.link', { n: target.n })}${sr(L.lang === 'ru' ? '(откроется на GitHub)' : '(opens on GitHub)')}${I.ext}</a></div>`
+        : '';
+      return `${h}${gone}<ul class="push-cards" aria-label="${t('shell.questions')}">${Q.map((q) => card(q, target)).join('')}</ul>`;
+    }
+    function notFoundScreen() {
+      return `<div class="block push-arrive is-arrived" tabindex="-1" data-q="nf"><h1 class="push-nf">${t('notFound.title')}</h1><p>${t('notFound.body')}</p><button type="button" class="btn btn--tall" data-act="go" data-to="needs">${t('notFound.back')}</button></div>`;
+    }
+    function homeScreen() {
+      const tiles = Array.from({ length: 11 }, (_, i) => `<span class="hs__tile" style="--h:${(i * 37) % 360}"></span>`);
+      tiles.splice(5, 0, `<button type="button" class="hs__app" data-act="open-app" aria-label="${esc(t('sys.home.icon', { n: NEEDS }))}"><span class="hs__icon">${I.mark}<span class="hs__badge" aria-hidden="true">${NEEDS}</span></span><span class="hs__label" aria-hidden="true">Team Console</span></button>`);
+      return `<section class="hs" aria-label="${esc(t('sys.home.aria'))}"><div class="hs__grid">${tiles.join('')}</div><p class="hs__note">${t('sys.home.note')}</p></section>`;
+    }
+
+    /* ----- chrome ----- */
+    const titleOf = () => ({ settings: t('shell.settings'), needs: t('shell.needsYou'), space: 'storify', notfound: 'oldmap' }[S.screen] || 'Team Console');
+    function chrome() {
+      if (isPhone) {
+        const head = $('[data-slot=phead]');
+        head.innerHTML = S.screen === 'home' ? '' : `<header class="p-head"><button type="button" class="p-switch" data-act="noop" aria-haspopup="dialog" aria-label="${esc(t('shell.openSwitcher'))}"><span class="p-switch__txt"><b>${esc(titleOf())}</b></span>${I.down}</button>
+          <button type="button" class="icon-btn" data-act="go" data-to="settings" aria-label="${t('shell.settings')}"${S.screen === 'settings' ? ' aria-current="page"' : ''}>${I.gear}</button></header>`;
+        $('[data-slot=safari]').innerHTML = inSafari()
+          ? `<div class="safari" role="group" aria-label="${esc(t('sys.safari.aria'))}"><span class="safari__btn" aria-hidden="true">${I.back}</span><span class="safari__url">${HOST}</span><span class="safari__btn safari__more${state() === 'install' && S.screen === 'settings' ? ' is-pointed' : ''}" aria-hidden="true">${J.more}</span></div>` : '';
+        host.classList.toggle('is-home', S.screen === 'home');
+        return;
+      }
+      const cur = (s) => (S.screen === s ? ' aria-current="true"' : '');
+      $('[data-slot=side]').innerHTML = `<div class="brand">${I.mark}<span>Team Console</span></div>
+        <ul class="side-list side-list--top">
+          <li><button type="button" class="side-item side-item--needs" data-act="go" data-to="needs"${cur('needs')}>${I.inbox}<span>${t('shell.needsYou')}</span><span class="count" aria-hidden="true">${NEEDS}</span>${sr(t('shell.badge', { n: NEEDS }))}</button></li>
+          <li><button type="button" class="side-item" data-act="noop">${I.grid}<span>${t('shell.overview')}</span></button></li></ul>
+        <div class="side-label">${t('shell.projects')}</div>
+        <ul class="side-list">${['storify', 'team-console', 'fieldnote'].map((s) => `<li><button type="button" class="side-item"${S.screen === 'space' && s === 'storify' ? ' aria-current="true"' : ''} data-act="noop"><span class="prod-mono" aria-hidden="true">${s[0]}</span><span class="side-prod__label">${s}</span></button></li>`).join('')}</ul>
+        <div class="side-foot"><button type="button" class="side-item side-item--settings" data-act="go" data-to="settings"${S.screen === 'settings' ? ' aria-current="page"' : ''}>${I.gear}<span>${t('shell.settings')}</span></button></div>`;
+      const crumbs = S.screen === 'space' ? `<ol><li>storify</li><li aria-current="page">${t('shell.questions')}</li></ol>` : `<ol><li aria-current="page">${esc(titleOf())}</li></ol>`;
+      $('[data-slot=crumbs]').innerHTML = crumbs;
+    }
+
+    function render(opts = {}) {
+      chrome();
+      const screen = S.screen === 'home' && !isPhone ? 'settings' : S.screen;
+      $('[data-slot=screen]').innerHTML = { settings: settingsScreen, needs: needsScreen, space: spaceScreen, notfound: notFoundScreen, home: homeScreen }[screen]();
+      if (opts.focus) { const el = host.querySelector(`[data-fk="${opts.focus}"]`); if (el) el.focus({ preventScroll: !!opts.noScroll }); }
+    }
+
+    /* ----- feedback ----- */
+    const announce = (txt) => { const l = $('[data-slot=live]'); l.textContent = ''; setTimeout(() => { l.textContent = txt; }, 30); };
+    let toastTimer;
+    function toast(txt) {
+      const el = $('[data-slot=toast]'); el.textContent = txt; el.hidden = false;
+      play(el, isReduced() ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: ms('--dur-fast'), easing: cssVar('--ease-enter') });
+      clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, ms('--dur-toast'));
+    }
+    const bg = (on) => host.querySelectorAll('[data-bg]').forEach((el) => { el.inert = on; });
+
+    /* ----- the system permission prompt (a mock of iOS / the browser, never our UI) ----- */
+    let promptOpener = null;
+    function openPrompt(opener) {
+      promptOpener = opener; S.prompt = true; bg(true);
+      const title = isPhone ? t('sys.prompt.ios') : t('sys.prompt.mac', { host: HOST });
+      const body = isPhone ? t('sys.prompt.iosBody') : t('sys.prompt.macBody');
+      $('[data-slot=overlay]').innerHTML = `<div class="sysmodal sysmodal--${kind}"><div class="sysmodal__scrim"></div>
+        <div class="sysprompt" role="alertdialog" aria-modal="true" aria-labelledby="${uid}-sp" aria-describedby="${uid}-spb">
+          <p class="sysprompt__mock">${t('sys.mock')}</p><h2 id="${uid}-sp">${esc(title)}</h2><p id="${uid}-spb">${esc(body)}</p>
+          <div class="sysprompt__acts"><button type="button" data-act="perm" data-v="denied">${t('sys.prompt.deny')}</button><button type="button" data-act="perm" data-v="granted" data-fk="allow">${t('sys.prompt.allow')}</button></div></div></div>`;
+      const box = $('.sysprompt');
+      play(box, isReduced() ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'scale(1.06)' }, { opacity: 1, transform: 'none' }], { duration: ms('--dur-base'), easing: cssVar('--ease-enter') });
+      box.querySelector('[data-fk=allow]').focus();
+    }
+    function closePrompt() { S.prompt = false; bg(false); $('[data-slot=overlay]').innerHTML = ''; }
+
+    /* ----- actions ----- */
+    // Permission is only ever requested here, from the button's own click (#11 AC, ADR 0001 decision 3).
+    async function enable(fk) {
+      if (offline()) { announce(t('push.offline')); return; }
+      if (S.busy) return;
+      S.res = null;
+      if (S.perm === 'default') { S.busy = 'asking'; render({ focus: fk }); openPrompt(fk); return; }
+      await save(fk);
+    }
+    async function onPermission(v) {
+      closePrompt();
+      S.perm = v;
+      if (v === 'denied') {
+        S.busy = null; render({ focus: S.screen === 'settings' ? 'state-h' : 'h1' });
+        announce(t('push.deniedLive'));
+        return;
+      }
+      await save(promptOpener);
+    }
+    async function save(fk) {
+      S.busy = 'saving'; render({ focus: fk });
+      await wait(700);
+      S.busy = null;
+      if (G.result === 'error') { S.res = { kind: 'error' }; render({ focus: S.screen === 'settings' ? 'res' : fk }); return; }
+      S.sub = true; S.since = new Date(); S.mark = true;
+      if (S.screen === 'needs') { S.nudgeOn = true; render({ focus: 'h1', noScroll: true }); } else render({ focus: 'state-h' });
+      announce(t('push.onLive'));
+    }
+    async function test() {
+      if (offline()) { announce(t('push.offline')); return; }
+      if (S.busy) return;
+      const since = Date.now() - S.testAt;
+      S.busy = 'testing'; S.res = null; render({ focus: 'test' });
+      await wait(800);
+      S.busy = null;
+      if (since < 30000) { S.res = { kind: 'wait', s: Math.ceil((30000 - since) / 1000) }; render({ focus: 'test' }); announce(plain(t('push.test.wait', { s: S.res.s }))); return; }
+      if (G.result === 'error') { S.res = { kind: 'testfail' }; render({ focus: 'test' }); return; }
+      S.testAt = Date.now();
+      const n = Math.max(1, hosts.filter((h) => h.S && h.S.sub).length);
+      S.res = { kind: 'sent', n }; render({ focus: 'test' }); announce(plain(t('push.test.sentBody', { n })));
+      await wait(1200);
+      hosts.forEach((h) => h.S && h.S.sub && h.app.notify({ title: t('sys.notif.test'), body: t('sys.notif.testBody'), url: TEST.url }));
+    }
+    function turnOff() {
+      if (offline()) { announce(t('push.offline')); return; }
+      S.sub = false; S.res = null; render({ focus: 'enable' }); toast(t('push.offToast'));
+    }
+
+    /* ----- a notification and where its tap leads ----- */
+    let notifTimer;
+    function notify(n) {
+      const ov = $('[data-slot=overlay]');
+      if (S.prompt) return;
+      ov.innerHTML = `<button type="button" class="notif notif--${kind}" data-act="tap" data-url="${esc(n.url)}" aria-label="${esc(t('sys.notif.aria', { title: n.title, body: n.body }))}">
+        <span class="notif__icon" aria-hidden="true">${I.mark}</span><span class="notif__txt" aria-hidden="true"><span class="notif__top"><b>${t('sys.notif.app')}</b><span>${t('sys.notif.now')}</span></span><b class="notif__title">${esc(n.title)}</b><span class="notif__body">${esc(n.body)}</span></span></button>`;
+      const el = ov.firstElementChild;
+      play(el, isReduced() ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: `translateY(${isPhone ? '-16px' : '0'}) translateX(${isPhone ? '0' : '16px'})` }, { opacity: 1, transform: 'none' }], { duration: ms(isReduced() ? '--dur-fade' : '--dur-base'), easing: cssVar('--ease-enter') });
+      clearTimeout(notifTimer); notifTimer = setTimeout(() => { if (el.isConnected && !el.contains(document.activeElement)) el.remove(); }, 8000);
+    }
+    // navigateLastFocusedOrOpen: the app comes to the front on the item's route; a cold start shows the list loading first.
+    async function tap(url) {
+      clearTimeout(notifTimer);
+      $('[data-slot=overlay]').innerHTML = '';
+      if (status) status.innerHTML = t('demo.opened', { url });
+      if (isPhone && G.phone === 'safari') G.phone = 'app';
+      if (url === TEST.url) { S.screen = 'needs'; S.arrive = null; render({ focus: 'h1' }); return; }
+      const target = Object.values(TARGETS).find((x) => x.url === url);
+      if (target.slug === 'oldmap') { S.screen = 'notfound'; S.arrive = target; render(); await arrive(); return; }
+      S.screen = 'space'; S.arrive = target; S.loading = true; render();
+      await wait(500);
+      S.loading = false; render(); await arrive();
+    }
+    async function arrive() {
+      const el = $('.push-arrive.is-arrived');
+      if (!el) return;
+      el.scrollIntoView({ block: 'center', behavior: isReduced() ? 'auto' : 'smooth' });
+      const focusEl = el.matches('article') ? el.querySelector('.card__title') : el;
+      focusEl.focus({ preventScroll: true });
+      // The ring stays while the item has focus, so the place is still marked after the pulse.
+      el.addEventListener('focusout', (e) => { if (!el.contains(e.relatedTarget)) el.classList.remove('is-arrived'); });
+    }
+
+    host.onclick = (e) => {
+      const el = e.target.closest('[data-act]'); if (!el || !host.contains(el)) return;
+      if (el.getAttribute('aria-disabled') === 'true') { if (offline()) announce(t('push.offline')); return; }
+      switch (el.dataset.act) {
+        case 'enable': enable(el.dataset.fk); break;
+        case 'perm': onPermission(el.dataset.v); break;
+        case 'test': test(); break;
+        case 'turn-off': turnOff(); break;
+        case 'recheck': S.perm = 'granted'; S.res = null; render({ focus: 'state-h' }); announce(t('push.recheckLive')); break;
+        case 'how': S.screen = 'settings'; render(); { const h = $('[data-fk=push-h]'); h.scrollIntoView({ block: 'start' }); h.focus({ preventScroll: true }); } break;
+        case 'later': S.nudge = false; render({ focus: 'h1' }); toast(t('nudge.laterToast')); break;
+        case 'go': S.screen = el.dataset.to; S.arrive = null; S.nudgeOn = false; render({ focus: 'h1' }); break;
+        case 'open-app': G.phone = 'app'; S.screen = 'needs'; render({ focus: 'h1' }); syncDemo(); break;
+        case 'tap': tap(el.dataset.url); break;
+        case 'answer': toast(t('demo.answer')); break;
+        case 'gh': e.preventDefault(); toast(t('demo.space')); break;
+        case 'noop': toast(t('demo.space')); break;
+        default: break;
+      }
+    };
+    host.onkeydown = (e) => {
+      if (!S.prompt) return;
+      // A mock system alert: Esc answers "Don't Allow", Tab stays inside.
+      if (e.key === 'Escape') { e.preventDefault(); onPermission('denied'); return; }
+      if (e.key === 'Tab') {
+        const f = [...host.querySelectorAll('.sysprompt button')];
+        const i = f.indexOf(document.activeElement);
+        e.preventDefault(); f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
+      }
+    };
+
+    const app = {
+      render, S, notify, tap,
+      // the real client reads swPush.subscription and Notification.permission once on load: no prompt, no request
+      settle: async () => { await wait(350); S.checking = false; render(); },
+    };
+    host.app = app;
+    render();
+    if (S.checking) app.settle();
+    return app;
+  }
+
+  /* ---------- page controls ---------- */
+  const mountAll = (keep) => hosts.forEach((h) => { const prev = keep && h.S ? h.S : null; h.className = 'app'; mountApp(h, h.dataset.app, prev); });
+  const renderAll = () => hosts.forEach((h) => h.app && h.app.render());
+  const pageChrome = Proto.page({ L, title: 'Team Console · #36', onLang: () => mountAll(true) });
+  const sel = (id) => document.getElementById(id);
+  function syncDemo() { sel('d-screen').value = G.screen; sel('d-phone').value = G.phone; sel('d-mac').value = G.mac; sel('d-perm').value = G.perm; sel('d-result').value = G.result; sel('d-target').value = G.target; }
+  sel('d-screen').addEventListener('change', (e) => { G.screen = e.target.value; hosts.forEach((h) => { h.S.screen = h.dataset.app === 'mac' && G.screen === 'home' ? 'settings' : G.screen; h.S.arrive = null; h.S.nudgeOn = false; }); renderAll(); });
+  sel('d-phone').addEventListener('change', (e) => { G.phone = e.target.value; renderAll(); });
+  sel('d-mac').addEventListener('change', (e) => { G.mac = e.target.value; renderAll(); });
+  sel('d-perm').addEventListener('change', (e) => { G.perm = e.target.value; hosts.forEach((h) => { Object.assign(h.S, { perm: G.perm === 'on' ? 'granted' : G.perm, sub: G.perm === 'on', res: null, busy: null }); }); renderAll(); });
+  sel('d-result').addEventListener('change', (e) => { G.result = e.target.value; hosts.forEach((h) => { h.S.res = null; }); renderAll(); });
+  sel('d-target').addEventListener('change', (e) => { G.target = e.target.value; });
+  sel('d-push').addEventListener('click', () => {
+    const x = TARGETS[G.target];
+    const title = t('sys.notif.title', { project: x.slug });
+    const body = x.slug === 'oldmap' ? `#${x.n} ${L.lang === 'ru' ? 'Выбрать карту по умолчанию' : 'Pick the default map'}` : `#${x.n} ${plain(t(`q.${x.n === 39 ? 51 : x.n}`))}`;
+    hosts.forEach((h) => h.app.notify({ title, body, url: x.url }));
+  });
+  document.querySelector('[data-reset]').addEventListener('click', () => { Object.assign(G, { phone: 'safari', mac: 'safari', perm: 'default', result: 'ok', target: 'open', screen: 'settings' }); if (status) status.textContent = ''; syncDemo(); mountAll(false); });
+  mountAll(false);
+  syncDemo();
+  pageChrome.fit();
+})();
+
+</script>
+</body>
+</html>

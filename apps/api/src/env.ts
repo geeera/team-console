@@ -22,6 +22,11 @@ export interface ApiEnv extends WorkerBaseEnv {
    */
   readonly GITHUB_FAKE_ORIGIN?: string;
   /**
+   * A loopback origin of the fake routines API (`http://127.0.0.1:9998`, `nx run api:fake-routines`) that "Run now"
+   * (#114) fires instead of api.anthropic.com; honoured only with ENVIRONMENT=local, passed only as `--var`.
+   */
+  readonly ROUTINES_FAKE_ORIGIN?: string;
+  /**
    * Non-secret vars of the console's GitHub App (ADR 0003 decision 7): empty in the repository, passed by
    * deploy.yml as `--var` from the GitHub Environment (`CONSOLE_GITHUB_APP_ID`, `CONSOLE_GITHUB_APP_CLIENT_ID`).
    */
@@ -35,8 +40,20 @@ export interface ApiEnv extends WorkerBaseEnv {
   readonly GITHUB_APP_CLIENT_SECRET?: string;
   /** Secret: 32 random bytes (base64); HKDF master key for the owner token pair at rest (#59). */
   readonly TOKEN_ENCRYPTION_KEY?: string;
-  /** Secret (#11). */
+  /** Secret (#11): the VAPID private scalar, base64url. Signs the push JWT; never logged or returned. */
   readonly VAPID_PRIVATE_KEY?: string;
+  /** Non-secret var (#11): the VAPID public key, empty in the repository; deploy.yml passes `vars.VAPID_PUBLIC_KEY`. */
+  readonly VAPID_PUBLIC_KEY?: string;
+  /** Non-secret var (#11): the JWT `sub`, an https URL (never the owner's e-mail in this public repo). */
+  readonly VAPID_SUBJECT?: string;
+  /**
+   * A loopback origin of the fake push service (`http://127.0.0.1:9997`, `nx run api:fake-push`) that pushes go to
+   * instead of Apple, FCM or Mozilla; honoured only with ENVIRONMENT=local, passed only as `--var`.
+   */
+  readonly PUSH_FAKE_ORIGIN?: string;
   // `ROUTINE_TOKEN_<SLUG>` secrets (one per project, #26) have names only known at run time; the registry (#15)
   // tests their presence by name and never reads a value into anything it returns.
+  // `SLOT_TOKEN_<SLUG>_<SLOT>` (a routine's API-trigger bearer) and `SLOT_ROUTINE_<SLUG>_<SLOT>` (its `trig_…` id),
+  // `<SLOT>` ∈ PM | DEV | QA (#114, `slotSecretNames` in @shared/contracts): read by name at run time in
+  // `routes/team-commands.ts`; the token goes only into the Authorization header of the fire request.
 }

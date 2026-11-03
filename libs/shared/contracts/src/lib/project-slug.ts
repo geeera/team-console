@@ -29,3 +29,16 @@ export function slugFromRepoName(name: string): string {
 export function routineSecretName(slug: string): string {
   return `ROUTINE_TOKEN_${slug.toUpperCase().replace(/-/g, '_')}`;
 }
+
+/**
+ * The two Worker secrets of a slot's routine trigger (#114): `SLOT_TOKEN_<SLUG>_<SLOT>` (the bearer) and
+ * `SLOT_ROUTINE_<SLUG>_<SLOT>` (the `trig_…` id). Their own prefix, so `storify-dev`'s chat token can never collide
+ * with `storify`'s development slot.
+ */
+export function slotSecretNames(
+  slug: string,
+  slot: 'pm' | 'dev' | 'qa',
+): { readonly token: string; readonly routine: string } {
+  const suffix = `${slug.toUpperCase().replace(/-/g, '_')}_${slot.toUpperCase()}`;
+  return { token: `SLOT_TOKEN_${suffix}`, routine: `SLOT_ROUTINE_${suffix}` };
+}

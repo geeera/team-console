@@ -65,4 +65,18 @@ export default [
       '@nx/enforce-module-boundaries': ['error', moduleBoundaries],
     },
   },
+  {
+    // #4: no hard-coded user-facing text in Angular templates (.html files and inline templates). The rule only acts
+    // on template nodes, so it is on for every file a project lints; tools/eslint-rules/rules/no-hardcoded-text.ts.
+    rules: {
+      '@nx/workspace-no-hardcoded-text': 'error',
+    },
+  },
+  {
+    // Specs render fixture copy on purpose (stories go through the catalogue like the app does).
+    files: ['**/*.spec.ts/**'],
+    rules: {
+      '@nx/workspace-no-hardcoded-text': 'off',
+    },
+  },
 ];

@@ -1,0 +1,43 @@
+@if (turnedOn()) {
+<p class="push-nudge push-nudge--done" role="status" data-testid="push-nudge-on">{{ 'push.nudge.on' | transloco }}</p>
+} @else if (isVisible()) {
+<aside class="push-nudge" [attr.aria-labelledby]="ids.text" data-testid="push-nudge">
+  <tc-icon class="push-nudge__icon" name="bell-off" size="sm" />
+  <p class="push-nudge__text" [id]="ids.text">{{ 'push.nudge.text' | transloco }}</p>
+  @if (isInstall()) {
+  <button tc-button size="sm" type="button" class="push-nudge__action" data-testid="push-nudge-how" (click)="how()">
+    {{ 'push.nudge.how' | transloco }}
+  </button>
+  } @else {
+  <button
+    tc-button
+    size="sm"
+    type="button"
+    class="push-nudge__action"
+    data-testid="push-nudge-enable"
+    [loading]="store.isBusy()"
+    [off]="!network.online()"
+    [attr.aria-disabled]="!network.online() || store.isBusy() ? 'true' : null"
+    [attr.aria-describedby]="network.online() ? null : ids.offline"
+    (click)="enable()"
+  >
+    {{ enableKey() | transloco }}
+  </button>
+  }
+  <button
+    tc-icon-button
+    type="button"
+    class="push-nudge__close"
+    data-testid="push-nudge-later"
+    [attr.aria-label]="'push.nudge.laterAria' | transloco"
+    (click)="later()"
+  >
+    <tc-icon name="x" size="sm" />
+  </button>
+  @if (store.failure()) {
+  <p class="push-nudge__note push-nudge__error" role="alert">{{ 'push.error.title' | transloco }}</p>
+  } @if (!network.online() && !isInstall()) {
+  <p class="push-nudge__note" [id]="ids.offline">{{ 'push.offline' | transloco }}</p>
+  }
+</aside>
+}

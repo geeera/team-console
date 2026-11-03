@@ -1,15 +1,17 @@
 import { ApplicationInitStatus, Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideConsoleI18n } from '@console/shared/i18n';
+import type { IconName } from '../icon/icon';
 import { StateBlock, StateKind } from './state-block';
 
 @Component({
   imports: [StateBlock],
-  template: `<tc-state-block [kind]="kind()" [title]="title()" />`,
+  template: `<tc-state-block [kind]="kind()" [title]="title()" [icon]="icon()" />`,
 })
 class Host {
   readonly kind = signal<StateKind>('loading');
   readonly title = signal('');
+  readonly icon = signal<IconName | null>(null);
 }
 
 describe('StateBlock', () => {
@@ -56,5 +58,27 @@ describe('StateBlock', () => {
 
     expect(block.getAttribute('role')).toBeNull();
     expect(title()).toBe('Ничего не ждёт');
+  });
+
+  it("shows the glyph the caller picks instead of the kind's, and the kind's again without one", async () => {
+    const { fixture, block } = await render();
+    const glyph = () => block.querySelector('tc-icon path')?.getAttribute('d');
+
+    fixture.componentInstance.kind.set('empty');
+    await fixture.whenStable();
+    const check = glyph();
+    fixture.componentInstance.icon.set('question');
+    await fixture.whenStable();
+    const question = glyph();
+
+    expect(check).toBeTruthy();
+    expect(question).toBeTruthy();
+    expect(question).not.toBe(check);
+    expect(block.classList.contains('tc-state-block--custom-icon')).toBe(true);
+    expect(block.getAttribute('role')).toBeNull();
+
+    fixture.componentInstance.icon.set(null);
+    await fixture.whenStable();
+    expect(glyph()).toBe(check);
   });
 });

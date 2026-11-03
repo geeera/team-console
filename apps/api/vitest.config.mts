@@ -38,18 +38,37 @@ function generateOwnerFlowSecrets(): { encryptionKey: string; clientSecret: stri
   };
 }
 
-// The test shell plus the console's real `_headers` (#118), so the specs assert the policy that ships, applied by
+// A VAPID pair for this run only (#11): the private half is the sentinel the push specs look for in every response
+// and log line.
+async function generateTestVapidKeys(): Promise<{ publicKey: string; privateKey: string }> {
+  const { privateKey } = await webcrypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
+    'sign',
+    'verify',
+  ]);
+  const jwk = await webcrypto.subtle.exportKey('jwk', privateKey);
+  const point = Buffer.concat([
+    Buffer.from([0x04]),
+    Buffer.from(jwk.x ?? '', 'base64url'),
+    Buffer.from(jwk.y ?? '', 'base64url'),
+  ]);
+  return { publicKey: point.toString('base64url'), privateKey: jwk.d ?? '' };
+}
+
+// The test shell plus the console's real `_headers` (#118) and icons (#237), so the specs assert the policy that ships, applied by
 // the same assets layer, instead of a copy that could drift.
 async function prepareTestAssets(): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), 'tc-api-test-assets-'));
   await cp(resolve(import.meta.dirname, 'test-assets'), directory, { recursive: true });
   await cp(resolve(import.meta.dirname, '../console/public/_headers'), join(directory, '_headers'));
+  // The real per-environment icon sets (#237): routes/app-identity.ts answers /brand/* from them.
+  await cp(resolve(import.meta.dirname, '../console/public/icons'), join(directory, 'icons'), { recursive: true });
   return directory;
 }
 
 export default defineConfig(async () => {
   const appKey = await generateTestAppKey();
   const ownerFlow = generateOwnerFlowSecrets();
+  const vapid = await generateTestVapidKeys();
   return {
     root: import.meta.dirname,
     cacheDir: '../../node_modules/.vite/apps/api',
@@ -74,6 +93,8 @@ export default defineConfig(async () => {
             GITHUB_APP_CLIENT_SECRET: ownerFlow.clientSecret,
             TOKEN_ENCRYPTION_KEY: ownerFlow.encryptionKey,
             OWNER_GITHUB_LOGIN: 'geeera',
+            VAPID_PUBLIC_KEY: vapid.publicKey,
+            VAPID_PRIVATE_KEY: vapid.privateKey,
           },
         },
       }),

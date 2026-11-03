@@ -45,4 +45,22 @@ describe('ProjectNotFoundPage', () => {
 
     expect(root.querySelector('[role="alert"]')?.textContent).toContain('Такой страницы нет');
   });
+
+  it('rings an archived project’s notification arrival and leads back to Needs you', async () => {
+    const { root } = await open('/p/oldmap/questions#7');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const block = root.querySelector('tc-state-block') as HTMLElement;
+    expect(block.textContent).toContain('Его уведомления ведут сюда');
+    expect(block.textContent).not.toContain('oldmap');
+    expect(block.classList).toContain('tc-arrival');
+    expect(document.activeElement).toBe(block);
+    expect(root.querySelector('[data-testid="not-found-back"]')?.getAttribute('href')).toBe('/needs-you');
+  });
+
+  it('keeps the plain wording for a fragment that is not an issue number', async () => {
+    const { root } = await open('/p/oldmap/questions#abc');
+    expect(root.textContent).toContain('«oldmap»');
+    expect(root.querySelector('tc-state-block')?.classList).not.toContain('tc-arrival');
+  });
 });

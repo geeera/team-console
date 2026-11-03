@@ -125,16 +125,7 @@
   font-weight: var(--fw-semibold);
 }
 
-.step__code {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
 .step__code code {
-  flex: 1 1 auto;
-  min-width: 0;
   padding: var(--space-1) var(--space-2);
   border-radius: var(--r-sm);
   background: var(--bg-sunken);

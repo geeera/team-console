@@ -81,7 +81,7 @@
   --control-h-sm: 30px;
   --control-h: 34px;
   --control-h-touch: 44px; /* iOS minimum tap target */
-  --control-h-touch-sm: 36px;
+  --control-h-touch-sm: 44px; /* UX spec §5: every tap target is 44px, the "sm" button is narrower, not shorter */
   --icon-size-sm: 14px;
   --icon-size: 18px;
   --icon-size-lg: 24px;
@@ -100,8 +100,22 @@
   --sidebar-w: 256px;
   --pane-w: 392px;
   --log-max: 680px;
+  --board-max: 1184px; /* #275: the board uses a Mac's whole main column (1440 less the sidebar) */
+  --board-side-w: 320px; /* #275: the board's PR and runs column between 900 and 1279 px */
+  --stat-min-w: 9rem; /* a status tile; rem, so 200% text drops a column instead of clipping */
+  --lane-cell-h: 48px; /* a cell of the phone's one-row lane switcher, label above count */
+  --card-min-w: 480px; /* a decision card in a grid of cards (#276): the outcome boxes still fit side by side */
+  --cards-max: 1064px; /* two such cards, the list gap and the page padding */
   --dialog-max-w: 440px;
-  --sheet-max-h: 88%;
+  --sheet-dialog-w: 560px; /* a dialog that holds a checklist (#194 Add): 440 px is too narrow for its fix lines */
+  /* The design viewer (#277 spec §3): a large dialog on the Mac, within the viewport; full screen on the phone. */
+  --sheet-full-w: 1200px;
+  --sheet-full-h: 840px;
+  --thumb-size: 56px; /* a design's preview in a list row (#277 spec §3) */
+  --thumb-grid-min: 120px; /* the smallest cell of the viewer's "All screens" grid */
+  /* Both fit the visual viewport (dvh follows the iOS toolbars) and stay clear of the notch and home indicator. */
+  --sheet-max-h: min(88dvh, calc(100dvh - var(--safe-top) - var(--space-8)));
+  --dialog-max-h: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 2 * var(--space-8));
   --pad-x: 32px;
   --pad-card: 18px 20px;
   --card-indent: 40px;
@@ -135,6 +149,8 @@
   --dur-base: 240ms;
   --dur-slow: 380ms;
   --dur-sig: 620ms;
+  /* a run in progress breathes slowly (#114); never collapsed — under reduced motion the dot stands still */
+  --dur-pulse: 1600ms;
 
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-enter: cubic-bezier(0, 0, 0.2, 1);

@@ -4,7 +4,7 @@
     "outDir": "../../dist/out-tsc",
     "types": ["@cloudflare/workers-types"]
   },
-  "include": ["src/**/*.ts", "fake-github/**/*.ts"],
+  "include": ["src/**/*.ts", "fake-github/**/*.ts", "fake-routines/**/*.ts", "fake-push/**/*.ts"],
   "exclude": [
     "src/**/*.spec.ts",
     "src/test-setup.ts",

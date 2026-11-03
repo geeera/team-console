@@ -43,7 +43,7 @@ describe('ReasonSheet', () => {
     submit.click();
     await settle();
 
-    expect(overlay().querySelector('[role="alert"]')?.textContent).toContain('Напиши причину');
+    expect(overlay().querySelector('[role="alert"]')?.textContent).toContain('Напишите причину');
     expect(textarea.getAttribute('aria-invalid')).toBe('true');
 
     textarea.value = '  Нет бюджета  ';

@@ -1,0 +1,7 @@
+{
+  "name": "worker-routines",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/worker/routines/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:worker"]
+}

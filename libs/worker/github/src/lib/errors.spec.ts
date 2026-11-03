@@ -4,6 +4,7 @@ import {
   mapGitHubResponse,
   ownerMismatchError,
   ownerNotConnectedError,
+  requestBudgetError,
   retryAfterOf,
 } from './errors';
 
@@ -87,6 +88,15 @@ describe('appNotInstalledError', () => {
       status: 409,
       detail: 'Install the team-console app on geeera/team-console',
     });
+  });
+});
+
+describe('requestBudgetError', () => {
+  it('is a 503 with no GitHub status: nothing was asked of GitHub', () => {
+    const error = requestBudgetError();
+    expect(error).toBeInstanceOf(GitHubError);
+    expect(error.githubStatus).toBeNull();
+    expect(error.problem).toMatchObject({ type: 'github-request-budget', status: 503, retryAfter: 1 });
   });
 });
 

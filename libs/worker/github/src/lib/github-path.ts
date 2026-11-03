@@ -42,6 +42,20 @@ export function githubPath(
   return path as GitHubPath;
 }
 
+/**
+ * `/repos/{owner}/{repo}/contents/{path}` for a repository path that comes from configuration (project.yml's
+ * `decisions_dir`) or a listing: each segment is encoded on its own, so the slashes stay, and an empty, `.` or `..`
+ * segment is refused rather than resolved.
+ */
+export function githubContentsPath(repo: RepoName, path: string): GitHubPath {
+  const segments = path.split('/');
+  if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) {
+    throw new Error('a contents path is relative, without empty, . or .. segments');
+  }
+  const base = githubPath`/repos/${repo}/contents`;
+  return `${base}/${segments.map((segment) => encodeURIComponent(segment)).join('/')}` as GitHubPath;
+}
+
 /** Re-brands the path of a URL already checked to be on api.github.com (pagination `Link`, same-host redirects). */
 export function githubPathOf(url: URL): GitHubPath {
   return `${url.pathname}${url.search}` as GitHubPath;

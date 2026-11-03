@@ -1,6 +1,7 @@
 import { DOCUMENT } from '@angular/common';
 import { computed, DestroyRef, inject, Injectable, signal } from '@angular/core';
 import {
+  ArtifactFilter,
   emptyProjectUiState,
   parsePersistedState,
   PersistedStateV1,
@@ -84,6 +85,28 @@ export class PersistedStateStore {
       {
         immediate: true,
       },
+    );
+  }
+
+  /** The Artifacts filter of a project; empty fields are dropped, so a cleared filter is `{}`. */
+  setArtifactFilter(slug: string, filter: ArtifactFilter): void {
+    const next: ArtifactFilter = {
+      ...(filter.type ? { type: filter.type } : {}),
+      ...(filter.q ? { q: filter.q } : {}),
+    };
+    this.updateProject(slug, (project) => {
+      const before = project.artifactFilter ?? {};
+      if (before.type === next.type && before.q === next.q) {
+        return project;
+      }
+      return { ...project, artifactFilter: next };
+    });
+  }
+
+  /** The board's last tab on a narrow screen (#275), so the project opens on it again. */
+  setBoardTab(slug: string, boardTab: string): void {
+    this.updateProject(slug, (project) =>
+      project.boardTab === boardTab ? project : { ...project, boardTab },
     );
   }
 

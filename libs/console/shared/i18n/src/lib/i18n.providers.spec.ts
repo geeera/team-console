@@ -28,7 +28,7 @@ describe('provideConsoleI18n', () => {
 
   it('starts in Russian, the reference copy', () => {
     expect(transloco.getActiveLang()).toBe('ru');
-    expect(transloco.translate('shell.needsYou')).toBe('Ждут тебя');
+    expect(transloco.translate('shell.needsYou')).toBe('Ждут вас');
   });
 
   it('switches to English at runtime', async () => {

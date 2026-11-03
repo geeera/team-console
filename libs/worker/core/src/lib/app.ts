@@ -30,11 +30,32 @@ export interface CreateWorkerAppOptions<B extends WorkerBaseEnv> {
    * the error to the generic 500. `logFields` are logged with it and must not carry credentials.
    */
   readonly mapError?: (error: unknown) => MappedError | undefined;
+  /** `api` (#126): every response also gets `Cache-Control: no-store` unless a route already set one. */
+  readonly noStore?: boolean;
 }
 
 export interface MappedError {
   readonly problem: ProblemInit;
   readonly logFields?: LogFields;
+}
+
+/** Every response the Worker builds gets these (#126); a route that sets its own value wins. */
+const SECURITY_HEADERS: Readonly<Record<string, string>> = {
+  'X-Content-Type-Options': 'nosniff',
+  'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
+};
+
+/**
+ * Responses from another layer that already governs its own headers (the assets binding's `_headers`), so
+ * `createWorkerApp`'s security-header middleware must leave them untouched. Only the api Worker's `notFound`
+ * passthrough to `ASSETS.fetch` needs this today.
+ */
+const ASSET_PASSTHROUGH = new WeakSet<Response>();
+
+/** Marks `response` so it keeps only the headers its own layer set (#126). */
+export function markAssetResponse(response: Response): Response {
+  ASSET_PASSTHROUGH.add(response);
+  return response;
 }
 
 /** Slugs for the statuses Hono itself raises (body limits, bad JSON); anything else is a plain `http-error`. */
@@ -66,6 +87,23 @@ export function createWorkerApp<B extends WorkerBaseEnv>(
   options: CreateWorkerAppOptions<B>,
 ): Hono<WorkerHonoEnv<B>> {
   const app = new Hono<WorkerHonoEnv<B>>({ strict: false });
+
+  // Wraps everything below, including the notFound and onError handlers, so Problem Details and the OAuth
+  // redirect get the same headers as a route's own success response.
+  app.use(async (c, next) => {
+    await next();
+    if (c.res === undefined || ASSET_PASSTHROUGH.has(c.res)) {
+      return;
+    }
+    for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+      if (!c.res.headers.has(name)) {
+        c.res.headers.set(name, value);
+      }
+    }
+    if (options.noStore === true && !c.res.headers.has('Cache-Control')) {
+      c.res.headers.set('Cache-Control', 'no-store');
+    }
+  });
 
   app.use(requestId());
   app.use(async (c, next) => {

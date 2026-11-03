@@ -1,10 +1,33 @@
-export { GitHubAppAuth, INSTALLATION_PERMISSIONS, createAppJwt, importAppPrivateKey } from './lib/app-auth';
+export {
+  GitHubAppAuth,
+  INSTALLATION_LIST_PERMISSIONS,
+  INSTALLATION_PERMISSIONS,
+  createAppJwt,
+  importAppPrivateKey,
+} from './lib/app-auth';
 export type { GitHubAppAuthOptions, GitHubAppCredentials } from './lib/app-auth';
 export { GitHubClient } from './lib/client';
-export type { JsonGuard, PaginateOptions } from './lib/client';
-export { GitHubError, mapGitHubResponse, ownerMismatchError, ownerNotConnectedError } from './lib/errors';
+export type {
+  BoundedList,
+  BytesOptions,
+  BytesResult,
+  InstallationRepositoriesOptions,
+  InstallationRepository,
+  JsonGuard,
+  ListTail,
+  PaginateOptions,
+} from './lib/client';
+export {
+  GitHubError,
+  appNotInstalledForAccountError,
+  githubUnexpectedError,
+  mapGitHubResponse,
+  ownerMismatchError,
+  ownerNotConnectedError,
+  requestBudgetError,
+} from './lib/errors';
 export type { GitHubProblem, GitHubProblemType } from './lib/errors';
-export { githubPath } from './lib/github-path';
+export { githubContentsPath, githubPath } from './lib/github-path';
 export type { GitHubPath, GitHubPathValue } from './lib/github-path';
 export { MOCK_APP_ID, MOCK_OWNER_ACCOUNT, createMockGitHub, isGitHubMockEnabled } from './lib/mock';
 export type { MockFixtures, MockGitHub, MockReply, MockRepository } from './lib/mock';
@@ -35,9 +58,11 @@ export type {
 export { InvalidRepoNameError, isValidRepoName, parseRepoName, sameRepo } from './lib/repo-name';
 export type { RepoName } from './lib/repo-name';
 export type {
+  InstallationListTokenSource,
   InstallationTokenSource,
   OwnerAccount,
   OwnerTokenSource,
+  RequestTokenSource,
   TokenSource,
 } from './lib/token-source';
 export { GITHUB_API_ORIGIN, GITHUB_DEADLINE_MS } from './lib/transport';

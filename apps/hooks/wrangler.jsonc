@@ -1,7 +1,8 @@
 // The public `hooks` Worker: GitHub webhooks (#12) outside Cloudflare Access (ADR 0001, decision 4).
 // It shares the api Worker's D1 database per environment; migrations live only in apps/api.
 // Secrets (declared in src/env.ts) come from `wrangler secret put`; this Worker never gets the GitHub
-// token (threat model on #12).
+// token (threat model on #12). VAPID_PUBLIC_KEY stays empty here and comes from deploy.yml's `--var`, like the api Worker's;
+// VAPID_SUBJECT is the repository URL, never an e-mail (#11 threat model, row 4).
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "team-console-hooks",
@@ -11,7 +12,11 @@
     "dev": {
       "name": "team-console-hooks-dev",
       "preview_urls": false,
-      "vars": { "ENVIRONMENT": "dev" },
+      "vars": {
+        "ENVIRONMENT": "dev",
+        "VAPID_PUBLIC_KEY": "",
+        "VAPID_SUBJECT": "https://github.com/geeera/team-console",
+      },
       "d1_databases": [
         {
           "binding": "DB",
@@ -23,7 +28,11 @@
     "stage": {
       "name": "team-console-hooks-stage",
       "preview_urls": false,
-      "vars": { "ENVIRONMENT": "stage" },
+      "vars": {
+        "ENVIRONMENT": "stage",
+        "VAPID_PUBLIC_KEY": "",
+        "VAPID_SUBJECT": "https://github.com/geeera/team-console",
+      },
       "d1_databases": [
         {
           "binding": "DB",
@@ -35,7 +44,11 @@
     "production": {
       "name": "team-console-hooks-production",
       "preview_urls": false,
-      "vars": { "ENVIRONMENT": "production" },
+      "vars": {
+        "ENVIRONMENT": "production",
+        "VAPID_PUBLIC_KEY": "",
+        "VAPID_SUBJECT": "https://github.com/geeera/team-console",
+      },
       "d1_databases": [
         {
           "binding": "DB",

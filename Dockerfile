@@ -43,8 +43,10 @@ EXPOSE 8787
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 \
   CMD node -e "fetch('http://127.0.0.1:8787/api/v1/healthz').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-# Fresh local D1 on every start, then the bundled Worker as built (`--no-bundle`). `--var AUTH_MODE:local` with
+# Fresh local D1 on every start, then the Worker bundle as built. Not `--no-bundle`: with it wrangler 4.124's esbuild
+# service stops soon after start and the runtime crashes on the next message it formats (#58; 5 crashes in 85 starts
+# locally, none in 95 starts without the flag). `--var AUTH_MODE:local` with
 # `--var ENVIRONMENT:local` is the only place the local auth bypass is switched on (#8); `--ip 0.0.0.0` is for
 # the container network and never for a deploy. In mock mode the registry treats the mock GitHub's fixture owner as
 # the connected account (#15, #59); `OWNER_GITHUB_LOGIN:geeera` is that owner, the login a connect would accept.
-CMD ["sh", "-c", "npx wrangler d1 migrations apply team-console-dev --local --config apps/api/wrangler.jsonc --env dev && exec npx wrangler dev dist/apps/api/main.js --no-bundle --config apps/api/wrangler.jsonc --env dev --ip 0.0.0.0 --port 8787 --var ENVIRONMENT:local --var AUTH_MODE:local --var GITHUB_MOCK:true --var OWNER_GITHUB_LOGIN:geeera"]
+CMD ["sh", "-c", "npx wrangler d1 migrations apply team-console-dev --local --config apps/api/wrangler.jsonc --env dev && exec npx wrangler dev dist/apps/api/main.js --config apps/api/wrangler.jsonc --env dev --ip 0.0.0.0 --port 8787 --var ENVIRONMENT:local --var AUTH_MODE:local --var GITHUB_MOCK:true --var OWNER_GITHUB_LOGIN:geeera"]
