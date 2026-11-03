@@ -44,6 +44,19 @@ function fakeOf(stack: Stack): string {
   return stack.fakeURL;
 }
 
+/**
+ * Drops the milestones a spec seeded on the fake GitHub (#382), so the repository's milestones come from the api's
+ * mock again, dated relative to today: Sprint 01 is the current sprint, its demo a week away.
+ */
+export async function clearFakeMilestones(stack: Stack, repo: string): Promise<void> {
+  const response = await fetch(`${fakeOf(stack)}/_fake/milestones?repo=${encodeURIComponent(repo)}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(`fake GitHub milestones: ${response.status}`);
+  }
+}
+
 /** Comments the fake GitHub has received, optionally on one issue. */
 export async function fakeComments(stack: Stack, issue?: number): Promise<FakeComment[]> {
   const response = await fetch(`${fakeOf(stack)}/_fake/state`);
