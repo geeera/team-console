@@ -3,7 +3,13 @@ import { GitHubClient } from './client';
 import { GitHubError } from './errors';
 import { githubPath } from './github-path';
 import fixtures from '../../fixtures/mock-github.json';
-import { MOCK_OWNER_ACCOUNT, createMockGitHub, isGitHubMockEnabled, type MockGitHub } from './mock';
+import {
+  MOCK_OWNER_ACCOUNT,
+  createMockGitHub,
+  isGitHubMockEnabled,
+  milestoneAt,
+  type MockGitHub,
+} from './mock';
 import { isRepoOwnedBy } from './owner-check';
 import { parseRepoName } from './repo-name';
 
@@ -221,8 +227,26 @@ describe('createMockGitHub', () => {
     );
     const milestones = await github.getJson(githubPath`/repos/${repo}/milestones?state=open`, isList);
     expect(milestones.map((m) => m['title'])).toEqual(['Sprint 01', 'Sprint 02']);
+    // #382: the due dates follow the day of the read, so Sprint 01 stays the current sprint on any date.
+    const inDays = (days: number): string =>
+      `${new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)}T00:00:00Z`;
+    expect(milestones.map((m) => m['due_on'])).toEqual([inDays(7), inDays(21)]);
+    expect(milestones.every((m) => !('due_in_days' in m))).toBe(true);
     const pulls = await github.getJson(githubPath`/repos/${repo}/pulls?state=open`, isList);
     expect(pulls.map((p) => p['number'])).toEqual([176, 92, 91, 45, 40]);
+  });
+
+  it('dates a `due_in_days` milestone from the day of the read and leaves a fixed `due_on` alone (#382)', () => {
+    const now = Date.parse('2026-12-31T23:30:00Z');
+    expect(milestoneAt({ number: 1, title: 'Sprint 01', due_in_days: 7 }, now)).toEqual({
+      number: 1,
+      title: 'Sprint 01',
+      due_on: '2027-01-07T00:00:00Z',
+    });
+    expect(milestoneAt({ number: 2, due_in_days: -3 }, now)).toEqual({ number: 2, due_on: '2026-12-28T00:00:00Z' });
+    const fixed = { number: 3, due_on: '2026-10-16T00:00:00Z' };
+    expect(milestoneAt(fixed, now)).toBe(fixed);
+    expect(milestoneAt({ number: 4, due_in_days: 1.5 }, now)).toEqual({ number: 4, due_in_days: 1.5 });
   });
 
   it('serves check runs per head sha (#131), and none for a sha it does not know', async () => {

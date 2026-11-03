@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { addDays, calendarDayOf } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
-import { seed, type Stack } from './support/stack';
+import { clearFakeMilestones, seed, type Stack } from './support/stack';
 
 /**
  * Sprint commands (#218): the status card shows the sprint with its demo, freeze and progress; "Move the demo"
@@ -100,13 +100,7 @@ test.beforeEach(async ({ stack }) => {
 // The fake GitHub outlives this spec: leave the mock's own milestones for the next spec of this worker.
 test.afterAll(async ({ stack }) => {
   if (stack.fakeURL !== null) {
-    await fakePost(stack, '/_fake/milestones', {
-      repo: REPO,
-      milestones: [
-        { number: 1, title: 'Sprint 01', state: 'open', dueOn: '2026-10-16T00:00:00Z' },
-        { number: 2, title: 'Sprint 02', state: 'open', dueOn: '2026-10-30T00:00:00Z' },
-      ],
-    });
+    await clearFakeMilestones(stack, REPO);
   }
 });
 
