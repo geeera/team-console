@@ -109,7 +109,8 @@ export interface RunResponse {
  * `routine-rate-limited` (`Retry-After`), `routine-paused` (switch it on at claude.ai/code/routines),
  * `routine-not-configured` (`step: token | routine`, or `missing: [slots]`), `routine-unavailable`,
  * `routine-unknown` (`until`), `team-already-paused` / `team-not-paused` (nothing changed), `run-log-missing`,
- * `pause-unreliable` (the run log was opened by the team's bot: pause from the team chat, #141).
+ * `pause-unreliable` (the run log was opened by the team's bot: pause from the team chat, #141), `run-log-incomplete`
+ * (503: the newest run-log entries could not be read, nothing done, #143).
  */
 export type TeamProblemType =
   | 'run-paused'
@@ -124,7 +125,8 @@ export type TeamProblemType =
   | 'team-not-paused'
   | 'team-command-in-progress'
   | 'pause-unreliable'
-  | 'run-log-missing';
+  | 'run-log-missing'
+  | 'run-log-incomplete';
 
 /**
  * The team as the plugin's `runstate` sees it (#27, #132): `paused` — the owner paused it; `failing` — the team stopped
