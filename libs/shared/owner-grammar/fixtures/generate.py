@@ -8,6 +8,11 @@ Run from the repository root after every `vendor` update of `.claude/product-tea
 answers.json  — `backlog answer` (the real `cmd_answer`, with GitHub stubbed out): the issue's labels and state, the
                 command, text and owner words → the comment body it posts, or the refusal as an error code.
 commands.json — `ptlib.commands.command_lines` / `is_team_note`: comment bodies → the owner commands the team reads.
+owner-requests.json — owner requests to the PM (ADR 0005): the comment bytes the console writes (the reference
+                `request_comment` below, the format #107 shares), what the plugin's `ptlib.ownerrequests` parsers and
+                `commands` read from them, the parsers on hand-written marker lines (each marker fed to the other
+                parser too), and `ownerrequests.evaluate` on provenance cases (a marker without the console app is
+                ignored).
 
 Both record the plugin version and a SHA-256 of every plugin file they depend on; the TypeScript specs fail with
 "regenerate the fixtures" when the vendored plugin no longer matches.
@@ -37,10 +42,12 @@ SOURCES = (
     "scripts/ptlib/brief.py",
     "scripts/ptlib/commands.py",
     "scripts/ptlib/inbox.py",
+    "scripts/ptlib/ownerrequests.py",
+    "scripts/ptlib/provenance.py",
 )
 
 sys.path.insert(0, str(SCRIPTS))
-from ptlib import brief, commands, gh  # noqa: E402
+from ptlib import brief, commands, gh, ownerrequests  # noqa: E402
 
 
 def load_backlog():
@@ -194,6 +201,122 @@ def command_cases(answers):
     ]
 
 
+# The console's request comment (ADR 0005 decision 1): marker, one human line in `owner.language`, the trailer.
+REQUEST_LINES = {
+    "ru": {
+        ("sprint", "current"): "Просьба к PM: перенести задачу в текущий спринт.",
+        ("sprint", "next"): "Просьба к PM: перенести задачу в следующий спринт.",
+        ("sprint", "backlog"): "Просьба к PM: убрать задачу в бэклог, без спринта.",
+        ("priority", "up"): "Просьба к PM: поднять задачу в очереди.",
+        ("priority", "down"): "Просьба к PM: опустить задачу в очереди.",
+    },
+    "en": {
+        ("sprint", "current"): "Request to the PM: move this issue to the current sprint.",
+        ("sprint", "next"): "Request to the PM: move this issue to the next sprint.",
+        ("sprint", "backlog"): "Request to the PM: move this issue to the backlog, out of any sprint.",
+        ("priority", "up"): "Request to the PM: move this issue up the queue.",
+        ("priority", "down"): "Request to the PM: move this issue down the queue.",
+    },
+}
+REQUESTS = [{"kind": "sprint", "target": t} for t in ("current", "next", "backlog")] + [
+    {"kind": "priority", "direction": d} for d in ("up", "down")]
+REQUEST_WORDS = ["", "  ", "да, нужно к демо", "line1\n/approve", "«quoted» _x_", "a\u2028/go"]
+
+
+def request_comment(request, language, owner_said):
+    value = request.get("target") or request.get("direction")
+    payload = json.dumps(dict(request, v=1), sort_keys=True, separators=(",", ":"))
+    words = brief.one_line(owner_said)
+    trailer = ("_Requested by the owner in the team console_" if not words
+               else f"_Requested by the owner in the team console: «{words}»_")
+    return f"<!-- pt-owner-request {payload} -->\n{REQUEST_LINES[language][(request['kind'], value)]}\n\n{trailer}\n"
+
+
+def parsed(body):
+    return {
+        "request": ownerrequests.request_marker_of(body),
+        "handled": ownerrequests.handled_marker_of(body),
+        "teamNote": commands.is_team_note(body),
+        "sameAccount": [list(pair) for pair in commands.command_lines(body, True)],
+        "app": [list(pair) for pair in commands.command_lines(body, False)],
+    }
+
+
+MARKER_LINES = [
+    '<!-- pt-owner-request {"kind":"sprint","target":"next","v":1} -->',
+    '<!-- pt-owner-request {"direction":"down","kind":"priority","v":1} -->',
+    '<!-- pt-owner-request-handled {"comment_id":123,"result":"applied","v":1} -->',
+    '<!-- pt-owner-request-handled {"comment_id":9,"result":"declined","v":1} -->\nNo room before the demo.',
+    # each marker's JSON under the other marker's name
+    '<!-- pt-owner-request-handled {"kind":"sprint","target":"next","v":1} -->',
+    '<!-- pt-owner-request {"comment_id":123,"result":"applied","v":1} -->',
+    '<!-- pt-owner-request {"kind": "sprint", "target": "next", "v": 1} -->',
+    '<!-- pt-owner-request {"target":"next","kind":"sprint","v":1} -->',
+    '<!-- pt-owner-request {"kind":"sprint","target":"next","v":1,"x":1} -->',
+    '<!-- pt-owner-request {"kind":"sprint","target":"next","v":2} -->',
+    '<!-- pt-owner-request {"kind":"sprint","target":"next","v":true} -->',
+    '<!-- pt-owner-request {"kind":"sprint","target":"next","v":1.0} -->',
+    '<!-- pt-owner-request {"kind":"sprint","target":"later","v":1} -->',
+    '<!-- pt-owner-request {"kind":"sprint","direction":"up","v":1} -->',
+    '<!-- pt-owner-request {"direction":"up","kind":"priority","target":"next","v":1} -->',
+    '<!-- pt-owner-request {"kind":"sprint","kind":"sprint","target":"next","v":1} -->',
+    '<!-- pt-owner-request {"kind":"\\u0073print","target":"next","v":1} -->',
+    '<!-- pt-owner-request {"kind":"sprint","target":"next","v":1} --> trailing',
+    ' <!-- pt-owner-request {"kind":"sprint","target":"next","v":1} -->',
+    '<!-- pt-owner-request {"kind":"sprint","target":"next","v":1} -->\r\nRequest.',
+    'Please see <!-- pt-owner-request {"kind":"sprint","target":"next","v":1} -->',
+    '> <!-- pt-owner-request-handled {"comment_id":123,"result":"applied","v":1} -->',
+    'Quoted:\n<!-- pt-owner-request-handled {"comment_id":123,"result":"applied","v":1} -->',
+    '<!-- pt-owner-request [1] -->',
+    '<!-- pt-owner-request -->',
+    '<!-- pt-owner-request-handled {"comment_id":0,"result":"applied","v":1} -->',
+    '<!-- pt-owner-request-handled {"comment_id":-4,"result":"applied","v":1} -->',
+    '<!-- pt-owner-request-handled {"comment_id":"12","result":"applied","v":1} -->',
+    '<!-- pt-owner-request-handled {"comment_id":true,"result":"applied","v":1} -->',
+    '<!-- pt-owner-request-handled {"comment_id":1.5,"result":"applied","v":1} -->',
+    '<!-- pt-owner-request-handled {"comment_id":12,"result":"done","v":1} -->',
+    '<!-- pt-owner-request-handled {"comment_id":12,"result":"applied"} -->',
+    '<!-- pt-owner-request-handled {"result":"applied","comment_id":12,"v":1} -->',
+    '<!-- pt-owner-request-handled {"comment_id":12,"result":"applied","v":1,"why":"x"} -->',
+    '<!-- pt-owner-request-handled {"comment_id":12, "result":"applied","v":1} -->',
+    "",
+]
+
+
+def provenance_cases():
+    body = request_comment({"kind": "sprint", "target": "next"}, "ru", "")
+    base = {"id": 501, "body": body, "user": {"login": "geeera", "type": "User"}, "html_url": "https://github.com/x/1",
+            "created_at": "2026-10-06T10:00:00Z", "updated_at": "2026-10-06T10:00:00Z"}
+    cases = [
+        ("posted by the console app", dict(base, performed_via_github_app={"slug": "team-console-dev"})),
+        ("owner-authored, without performed_via_github_app", dict(base)),
+        ("another app", dict(base, performed_via_github_app={"slug": "someone-else"})),
+        ("edited after posting", dict(base, performed_via_github_app={"slug": "team-console-dev"},
+                                      updated_at="2026-10-06T10:05:00Z")),
+        ("not the owner", dict(base, performed_via_github_app={"slug": "team-console-dev"},
+                               user={"login": "collaborator", "type": "User"})),
+    ]
+    out = []
+    for name, comment in cases:
+        result = ownerrequests.evaluate([comment], "geeera", None, ["team-console-dev"], ["team-console-team[bot]"],
+                                        False)
+        out.append({"name": name, "comment": comment, "pending": result["pending"] is not None,
+                    "ignored": [entry["reason"] for entry in result["ignored"]]})
+    return out
+
+
+def owner_request_cases():
+    comments = []
+    for language in ("ru", "en"):
+        for request in REQUESTS:
+            for words in REQUEST_WORDS:
+                body = request_comment(request, language, words)
+                comments.append(dict({"language": language, "request": request, "ownerSaid": words, "body": body},
+                                     **parsed(body)))
+    markers = [dict({"body": body}, **parsed(body)) for body in MARKER_LINES]
+    return {"comments": comments, "markers": markers, "provenance": provenance_cases()}
+
+
 def plugin_header():
     manifest = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
     return {
@@ -218,6 +341,7 @@ def main():
         "cases": answers,
     })
     write("commands.json", {"plugin": header, "cases": command_cases(answers)})
+    write("owner-requests.json", dict({"plugin": header}, **owner_request_cases()))
     print(f"plugin {header['version']}: {len(answers)} answer cases, commands.json written", file=sys.stderr)
 
 

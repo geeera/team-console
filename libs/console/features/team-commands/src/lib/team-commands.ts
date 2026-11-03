@@ -1,29 +1,17 @@
 import { inject, Injectable } from '@angular/core';
-import { TeamStatusStore, slotOf } from '@console/entities/team-run';
+import {
+  TeamStatusStore,
+  slotOf,
+  textOf,
+  type CommandFailure,
+  type CommandOutcome,
+  type CommandResult,
+  type CommandTarget,
+} from '@console/entities/team-run';
 import { localTimeOf, TranslocoService } from '@console/shared/i18n';
 import { ConfirmFailure, Sheet, type ConfirmOptions } from '@console/shared/ui';
 import type { RunResponse, SlotLock, TeamCommandResponse, TeamSlot } from '@shared/contracts';
-import { TeamCommandsClient, textOf, type CommandFailure, type CommandResult } from './team-commands.client';
-
-/** Which project a command is for: its slug and the name the owner reads. */
-export interface CommandTarget {
-  readonly slug: string;
-  readonly name: string;
-}
-
-/**
- * The result note at the top of the panel (a margin note, like an answered card): moss when done, grey when nothing
- * changed, ochre when nobody knows yet whether the run started.
- */
-export interface CommandOutcome {
-  readonly tone: 'positive' | 'neutral' | 'warning';
-  readonly verb: string;
-  readonly detail: string | null;
-  /** The run log, where the owner checks what happened. */
-  readonly runLogUrl: string | null;
-  /** ISO 8601. */
-  readonly at: string;
-}
+import { TeamCommandsClient } from './team-commands.client';
 
 /** When `Retry-After` is missing: the routine's cap is per hour, the Worker's default is ten minutes. */
 const DEFAULT_RETRY_AFTER_S = 600;

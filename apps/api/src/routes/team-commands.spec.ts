@@ -169,6 +169,7 @@ describe('GET /team/status', () => {
       runLogUrl: `https://github.com/${REPO}/issues/${LOG}`,
       ownerConnected: true,
       environment: 'local',
+      snooze: { snoozed: false },
     });
     expect(body.slots).toEqual([
       {
@@ -211,6 +212,19 @@ describe('GET /team/status', () => {
     expect(body.state).toBe('paused-by-team');
     expect(body.ownerConnected).toBe(false);
     expect(body.slots[1]?.lock).toBeNull();
+  });
+
+  it('carries the project snooze for the panel (#221), from D1', async () => {
+    const h = harness();
+    await env.DB.prepare(
+      "UPDATE projects SET snoozed_at = '2026-10-01T11:00:00.000Z', snoozed_until = NULL, snooze_allows_urgent = 0 WHERE slug = 'tc'",
+    ).run();
+    expect((await status(h)).snooze).toEqual({
+      snoozed: true,
+      until: null,
+      allowsUrgent: false,
+      since: '2026-10-01T11:00:00.000Z',
+    });
   });
 });
 

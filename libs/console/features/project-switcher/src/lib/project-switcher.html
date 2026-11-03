@@ -7,7 +7,11 @@
   @for (project of pinnedProjects(); track project.slug) {
   <tc-list-row button [current]="project.slug === currentSlug()" (click)="switchTo(project.slug)">
     <span tc-row-title>{{ project.displayName }}</span>
-    @if (countOf(project.slug); as count) {
+    @if (snoozedSlugs().has(project.slug)) {
+    <span tc-row-subtitle class="switcher__snoozed" data-testid="switcher-snoozed">
+      <tc-icon name="bell-off" size="sm" />{{ 'shell.snoozed' | transloco }}
+    </span>
+    } @if (countOf(project.slug); as count) {
     <tc-chip tc-row-trailing tone="accent">
       <span aria-hidden="true">{{ count | localNumber }}</span>
       <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: count } }}</span>
@@ -57,7 +61,11 @@
   @for (project of otherProjects(); track project.slug) {
   <tc-list-row button [current]="project.slug === currentSlug()" (click)="switchTo(project.slug)">
     <span tc-row-title>{{ project.displayName }}</span>
-    @if (countOf(project.slug); as count) {
+    @if (snoozedSlugs().has(project.slug)) {
+    <span tc-row-subtitle class="switcher__snoozed" data-testid="switcher-snoozed">
+      <tc-icon name="bell-off" size="sm" />{{ 'shell.snoozed' | transloco }}
+    </span>
+    } @if (countOf(project.slug); as count) {
     <tc-chip tc-row-trailing tone="accent">
       <span aria-hidden="true">{{ count | localNumber }}</span>
       <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: count } }}</span>

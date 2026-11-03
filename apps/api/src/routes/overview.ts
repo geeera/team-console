@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { OverviewDto, OverviewProjectDto } from '@shared/contracts';
 import type { Logger, WorkerContext, WorkerHonoEnv } from '@worker/core';
-import { ProjectsRepo, type ProjectRow } from '@worker/db';
+import { ProjectsRepo, snoozeOf, type ProjectRow } from '@worker/db';
 import { InvalidRepoNameError, parseRepoName } from '@worker/github';
 import { buildOverviewRow } from '@worker/read-models';
 import type { ApiEnv } from '../env';
@@ -72,7 +72,13 @@ async function overviewRowOf(context: RowContext, row: ProjectRow): Promise<Over
     const [inbox, sprint, teamRun] = valuesOrThrow(
       await Promise.allSettled([reads.inbox(), reads.currentSprint(), reads.teamRun()]),
     );
-    return buildOverviewRow({ ...project, team: teamRun.state, inbox, sprint });
+    return buildOverviewRow({
+      ...project,
+      team: teamRun.state,
+      inbox,
+      sprint,
+      snooze: snoozeOf(row, github.now()),
+    });
   } catch (error: unknown) {
     if (error instanceof InvalidRepoNameError) {
       logger.error('registry row holds an invalid repository name', { slug: row.slug });

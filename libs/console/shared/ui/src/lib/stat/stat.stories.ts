@@ -13,15 +13,37 @@ const numbers = `
   </dl>
 `;
 
+/** The board's status tiles (#275): a sub line, tiles that jump to their list, a value too long for its tile. */
+const tiles = `
+  <dl tc-stats>
+    <div tc-stat [label]="'stories.stat.done' | transloco" [sub]="'stories.stat.stillOpen' | transloco">
+      {{ 'stories.stat.doneValue' | transloco }}
+    </div>
+    <div tc-stat tone="danger" icon="x" [label]="'stories.stat.ci' | transloco" [actionLabel]="'stories.stat.ciAction' | transloco">
+      {{ 'stories.stat.ciFailed' | transloco }}
+    </div>
+    <div tc-stat tone="success" icon="play" [label]="'stories.stat.runs' | transloco" [actionLabel]="'stories.stat.runsAction' | transloco">
+      {{ 'stories.stat.running' | transloco }}
+    </div>
+    <div tc-stat [label]="'stories.stat.waiting' | transloco" [actionLabel]="'stories.stat.waitingAction' | transloco">
+      {{ 'stories.stat.waitingValue' | transloco }}
+    </div>
+    <div tc-stat [label]="'stories.stat.long' | transloco">{{ 'stories.stat.longValue' | transloco }}</div>
+  </dl>
+`;
+
+/** A Mac with the Commands pane open (#294): four tiles in one row, values a step smaller in the narrow tiles. */
+const fourAcross = tiles.replace('<dl tc-stats>', '<dl tc-stats [columns]="4">');
+
 const meta: Meta<Stat> = {
   title: 'Kit/Stat',
   component: Stat,
   decorators: [moduleMetadata({ imports: [Stat, Stats, TranslocoPipe] })],
   argTypes: { tone: { control: 'select', options: ['neutral', 'success', 'danger'] } },
-  args: { label: 'Open PRs', tone: 'neutral' },
+  args: { label: 'Open PRs', tone: 'neutral', sub: null, actionLabel: null },
   render: (args) => ({
     props: args,
-    template: `<dl tc-stats><div tc-stat [label]="label" [tone]="tone">2</div></dl>`,
+    template: `<dl tc-stats><div tc-stat [label]="label" [tone]="tone" [sub]="sub" [actionLabel]="actionLabel">2</div></dl>`,
   }),
 };
 
@@ -33,3 +55,7 @@ export const Tones: Story = { render: () => ({ template: numbers }) };
 export const Dark: Story = { ...darkTheme, render: () => ({ template: numbers }) };
 export const ReducedMotion: Story = { ...reducedMotion, render: () => ({ template: numbers }) };
 export const Phone: Story = { ...phoneViewport, render: () => ({ template: numbers }) };
+export const Tiles: Story = { render: () => ({ template: tiles }) };
+export const TilesDark: Story = { ...darkTheme, render: () => ({ template: tiles }) };
+export const TilesPhone: Story = { ...phoneViewport, render: () => ({ template: tiles }) };
+export const TilesFourAcross: Story = { render: () => ({ template: fourAcross }) };

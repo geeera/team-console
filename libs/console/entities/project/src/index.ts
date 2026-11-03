@@ -30,6 +30,12 @@ export {
 } from './lib/space-routes';
 export type { SpaceLocation, SpaceSection } from './lib/space-routes';
 export {
+  ADD_PROJECT_FRAGMENT,
+  ADD_PROJECT_PATH,
+  ADD_PROJECT_URL,
+  projectSetupRouteOf,
+} from './lib/project-routes';
+export {
   SETUP_STEP_IDS,
   ProjectSetupApi,
   isProjectSetupDto,

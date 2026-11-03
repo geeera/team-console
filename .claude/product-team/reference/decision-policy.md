@@ -29,6 +29,14 @@ the stack decision), then record it:
 When unsure whether something is the owner's: if it costs money, changes what users get, or needs the owner's
 own account — ask. Otherwise decide.
 
+## Requests from the owner
+
+The owner may also ask the PM from the team console to move an issue to another sprint or up or down the queue
+(`reference/workflow.md` → Owner requests). Such a request is **advice the team honours, not a decision it
+obeys**: the order of work and what fits a sprint stay the team's call. The PM applies a request when it fits the
+caps and the freeze rule, declines it with the reason otherwise, and always answers it. A request never stands in
+for an owner decision above — moving a `proposed` feature into a sprint does not approve its scope.
+
 ## Asking vs. asking the owner to do something
 
 A **question** asks the owner to decide (answered with approve / reject, go / no-go). A **task only the owner can

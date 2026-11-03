@@ -64,7 +64,9 @@ test('lists the designs waiting for approval and the open demo, with previews on
   // Inbox order: the release decision first, then the designs; nothing else of the inbox.
   await expect(page.locator('li[data-number]')).toHaveCount(3);
   expect(
-    await page.locator('li[data-number]').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-number'))),
+    await page
+      .locator('li[data-number]')
+      .evaluateAll((rows) => rows.map((row) => row.getAttribute('data-number'))),
   ).toEqual(['90005', '90004', '90006']);
   await expect(page.getByRole('list', { name: ru('review.listLabel') })).toBeVisible();
 
@@ -78,10 +80,18 @@ test('lists the designs waiting for approval and the open demo, with previews on
   await expect(frame).toHaveAttribute('referrerpolicy', 'no-referrer');
   const sandbox = (await frame.getAttribute('sandbox')) ?? '';
   expect(sandbox.split(/\s+/).sort()).toEqual(
-    ['allow-forms', 'allow-popups', 'allow-popups-to-escape-sandbox', 'allow-same-origin', 'allow-scripts'].sort(),
+    [
+      'allow-forms',
+      'allow-popups',
+      'allow-popups-to-escape-sandbox',
+      'allow-same-origin',
+      'allow-scripts',
+    ].sort(),
   );
   await frame.scrollIntoViewIfNeeded();
-  await expect(design.frameLocator('iframe').getByRole('heading', { name: 'Storybook preview' })).toBeVisible();
+  await expect(
+    design.frameLocator('iframe').getByRole('heading', { name: 'Storybook preview' }),
+  ).toBeVisible();
 
   // The hostile part of the body: no element of it survives, the javascript: link has no target.
   const markdown = design.getByTestId('markdown');
@@ -163,7 +173,11 @@ test.describe('dark theme', () => {
   });
 });
 
-test('approves a design in one tap: exactly one /approve comment', async ({ page, stack, outsideRequests }) => {
+test('approves a design in one tap: exactly one /approve comment', async ({
+  page,
+  stack,
+  outsideRequests,
+}) => {
   await servePreviews(page, (origin) => outsideRequests.allow(origin));
   const before = await fakeComments(stack, 90004);
   const posts = recordAnswerPosts(page);
@@ -171,7 +185,9 @@ test('approves a design in one tap: exactly one /approve comment', async ({ page
 
   await card(page, 90004).locator('[data-command="approve"]').click();
 
-  await expect(card(page, 90004).locator('tc-receipt')).toBeVisible();
+  // «Демо» lists what still waits: the answered card leaves it, its receipt lives on «Вопросы» (#328).
+  await expect(card(page, 90004)).toHaveCount(0);
+  await expect(page.locator('tc-receipt')).toHaveCount(0);
   expect(posts).toHaveLength(1);
   const after = await fakeComments(stack, 90004);
   expect(after).toHaveLength(before.length + 1);
@@ -198,7 +214,7 @@ test('rejects a design only with a reason, from the keyboard', async ({ page, st
   await sheet.getByRole('button', { name: ru('answer.reason.submit.reject') }).focus();
   await page.keyboard.press('Enter');
 
-  await expect(card(page, 90006).locator('tc-receipt')).toBeVisible();
+  await expect(card(page, 90006)).toHaveCount(0);
   expect(posts).toHaveLength(1);
   const after = await fakeComments(stack, 90006);
   expect(after).toHaveLength(before.length + 1);
@@ -207,7 +223,11 @@ test('rejects a design only with a reason, from the keyboard', async ({ page, st
   ]);
 });
 
-test('go asks for confirmation first, then writes exactly one /go', async ({ page, stack, outsideRequests }) => {
+test('go asks for confirmation first, then writes exactly one /go', async ({
+  page,
+  stack,
+  outsideRequests,
+}) => {
   await servePreviews(page, (origin) => outsideRequests.allow(origin));
   const before = await fakeComments(stack, 90005);
   const posts = recordAnswerPosts(page);
@@ -227,9 +247,12 @@ test('go asks for confirmation first, then writes exactly one /go', async ({ pag
   expect(posts, 'nothing is sent when the owner backs out').toHaveLength(0);
 
   await demo.locator('[data-command="go"]').click();
-  await page.getByRole('alertdialog').getByRole('button', { name: ru('answer.command.go') }).click();
+  await page
+    .getByRole('alertdialog')
+    .getByRole('button', { name: ru('answer.command.go') })
+    .click();
 
-  await expect(demo.locator('tc-receipt')).toBeVisible();
+  await expect(demo).toHaveCount(0);
   expect(posts).toHaveLength(1);
   const after = await fakeComments(stack, 90005);
   expect(after).toHaveLength(before.length + 1);

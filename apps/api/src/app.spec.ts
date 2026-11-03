@@ -143,6 +143,7 @@ describe('GET /api/v1/projects', () => {
         addedAt: '2026-09-29T00:00:00Z',
         archivedAt: null,
         slots: { pm: 'missing', dev: 'missing', qa: 'missing' },
+        snooze: { snoozed: false },
       },
     ]);
   });

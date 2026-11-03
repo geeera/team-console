@@ -1,13 +1,14 @@
 import { LiveAnnouncer } from '@angular/cdk/a11y';
-import { HttpClient } from '@angular/common/http';
 import {
   afterNextRender,
+  booleanAttribute,
   ChangeDetectionStrategy,
   Component,
   computed,
   ElementRef,
   inject,
   Injector,
+  input,
   signal,
   viewChild,
 } from '@angular/core';
@@ -15,32 +16,26 @@ import { Router, RouterLink } from '@angular/router';
 import { DeploymentStore } from '@console/entities/app-info';
 import { ConnectGitHubButton, GitHubConnectionStore } from '@console/entities/github-connection';
 import {
-  isProjectDtoList,
   normalizeRepoInput,
   pendingSetupSteps,
-  PROJECTS_URL,
-  ProjectsStore,
+  projectSetupRouteOf,
   SetupChecklist,
   type SetupChecklistContext,
 } from '@console/entities/project';
-import { httpProblemOf, NetworkStatus } from '@console/shared/api';
+import { NetworkStatus } from '@console/shared/api';
 import { LocalTimePipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, Callout, Field, FieldControl, Icon } from '@console/shared/ui';
-import type { ProjectDto } from '@shared/contracts';
-import { firstValueFrom } from 'rxjs';
-import { addOutcomeOf, type AddOutcome } from './add-outcome';
+import type { AddOutcome } from './add-outcome';
+import { AddProject, type AddRefusal, type AddResult } from './add-project';
 
 /** History state the setup page reads to say "Project added" instead of "N steps missing". */
 export const JUST_ADDED_STATE = 'tcJustAdded';
 
-function isProjectDto(value: unknown): value is ProjectDto {
-  return isProjectDtoList([value]);
-}
-
 /**
- * New project (#24): one `owner/repo` field, checked on submit only. Steps 1–3 run on the Worker before anything
+ * Add by name (#24): one `owner/repo` field, checked on submit only. Steps 1–3 run on the Worker before anything
  * is saved; a refusal shows the checklist with "Nothing was saved" and Check again re-submits the same value. Not
- * connected → it says to connect first and sends nothing.
+ * connected → it says to connect first and sends nothing. `embedded` (All projects, #194) drops the Cancel link:
+ * the disclosure around it collapses instead.
  */
 @Component({
   selector: 'tc-add-project-form',
@@ -61,13 +56,15 @@ function isProjectDto(value: unknown): value is ProjectDto {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AddProjectForm {
-  private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly announcer = inject(LiveAnnouncer);
   private readonly transloco = inject(TranslocoService);
   private readonly injector = inject(Injector);
-  private readonly projects = inject(ProjectsStore);
+  private readonly adder = inject(AddProject);
   private readonly deployment = inject(DeploymentStore);
+
+  /** Inside All projects' "Add by name" disclosure: no Cancel link (#194). */
+  readonly embedded = input(false, { transform: booleanAttribute });
 
   protected readonly connection = inject(GitHubConnectionStore);
   protected readonly network = inject(NetworkStatus);
@@ -138,6 +135,10 @@ export class AddProjectForm {
     afterNextRender(() => this.input().nativeElement.focus());
   }
 
+  protected setupRoute(slug: string | null): readonly string[] | null {
+    return slug === null ? null : projectSetupRouteOf(slug);
+  }
+
   protected onInput(event: Event): void {
     this.value.set((event.target as HTMLInputElement).value);
     // A new value makes the previous check stale: its inline error or result block must not linger (#124 item 3).
@@ -174,50 +175,27 @@ export class AddProjectForm {
       'polite',
     );
 
-    let created: unknown;
+    let result: AddResult;
     try {
-      created = await firstValueFrom(this.http.post<unknown>(PROJECTS_URL, { repo: input.repo }));
-    } catch (error: unknown) {
-      await this.showRefusal(addOutcomeOf(httpProblemOf(error)), input.repo, input.slug);
-      return;
+      result = await this.adder.add(input.repo, input.slug);
     } finally {
       this.busy.set(false);
     }
-    if (isProjectDto(created)) {
-      this.projects.upsert(created);
-    } else {
-      // A 201 whose body we cannot read: the project is saved, so the Worker's list is the truth.
-      await this.projects.load();
+    if (result.kind === 'refused') {
+      this.showRefusal(result.outcome, input.repo);
+      return;
     }
-    const slug = isProjectDto(created) ? created.slug : input.slug;
-    await this.router.navigate(['/settings/projects', slug], { state: { [JUST_ADDED_STATE]: true } });
+    await this.router.navigate(projectSetupRouteOf(result.slug), { state: { [JUST_ADDED_STATE]: true } });
   }
 
-  private async showRefusal(outcome: AddOutcome, repo: string, slug: string): Promise<void> {
+  private showRefusal(outcome: AddRefusal, repo: string): void {
     if (outcome.kind === 'invalid') {
       this.outcome.set(null);
       this.fieldError.set(this.transloco.translate('settings.add.invalid.format', { value: repo }));
       this.input().nativeElement.focus();
       return;
     }
-    if (outcome.kind === 'not-connected') {
-      this.connection.noteNotConnected();
-    }
-    this.outcome.set(outcome.kind === 'exists' ? await this.registeredOutcome(repo, slug) : outcome);
+    this.outcome.set(outcome);
     afterNextRender(() => this.result()?.nativeElement.focus(), { injector: this.injector });
-  }
-
-  /** 409 `project-exists`: the Worker's list says whether it is on the list (link to its setup) or archived. */
-  private async registeredOutcome(repo: string, slug: string): Promise<AddOutcome> {
-    try {
-      const project = await this.projects.findRegistered(repo, slug);
-      if (project === null) {
-        // Gone between the 409 and this read: nothing to link to; the owner can simply check again.
-        return { kind: 'unavailable', reason: 'github' };
-      }
-      return project.archivedAt === null ? { kind: 'duplicate', slug: project.slug } : { kind: 'archived' };
-    } catch (error: unknown) {
-      return addOutcomeOf(httpProblemOf(error));
-    }
   }
 }

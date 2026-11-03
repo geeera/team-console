@@ -1,9 +1,11 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { generateKeyPairSync, randomBytes } from 'node:crypto';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 export const WORKSPACE_ROOT = resolve(__dirname, '../../../..');
+/** One directory per Playwright worker: its servers' state and logs (the CI artifact keeps the logs). */
+export const STACKS_DIR = join(WORKSPACE_ROOT, 'tmp/console-e2e');
 
 const WRANGLER = join(WORKSPACE_ROOT, 'node_modules/.bin/wrangler');
 const API_CONFIG = 'apps/api/wrangler.jsonc';
@@ -32,8 +34,24 @@ export interface StackPorts {
   readonly fakePushInspector: number;
 }
 
-/** Ten ports per Playwright worker, so parallel workers never share a server or a database. */
+/**
+ * Ten ports per Playwright worker, so parallel workers never share a server or a database. `E2E_PORT_BASE` (local
+ * runs beside other stacks on one machine) packs a worker into three ports from that base — api, fake GitHub, fake
+ * push — with the devtools inspectors on ports the system picks (`--inspector-port 0`).
+ */
 export function portsFor(parallelIndex: number): StackPorts {
+  const packed = Number(process.env['E2E_PORT_BASE'] ?? '');
+  if (Number.isInteger(packed) && packed > 1024) {
+    const first = packed + parallelIndex * 3;
+    return {
+      api: first,
+      fake: first + 1,
+      apiInspector: 0,
+      fakeInspector: 0,
+      fakePush: first + 2,
+      fakePushInspector: 0,
+    };
+  }
   const base = 18_700 + parallelIndex * 10;
   return {
     api: base,
@@ -45,29 +63,56 @@ export function portsFor(parallelIndex: number): StackPorts {
   };
 }
 
+/**
+ * Log lines of a server that failed requests on its own: workerd died and miniflare restarted it in place, or the
+ * dev proxy lost its connection to the Worker and could not retry (a non-GET, #230).
+ */
+const INCIDENT_MARKERS = ['The Workers runtime crashed unexpectedly', 'Error inside ProxyWorker'] as const;
+
+/**
+ * One `wrangler dev` and the workerd it forks. Every lifetime appends to the log between two marker lines, so a
+ * worker's logs keep every api restart of the run (a truncating `reset()` used to drop the evidence of a crash).
+ */
 class StackProcess {
   private spawnError: Error | null = null;
+  /** Byte offset in the log where the harness began stopping this process; `null` while it runs. */
+  private stopStart: number | null = null;
 
   private constructor(
     private readonly child: ChildProcess,
+    private readonly label: string,
     private readonly logPath: string,
+    /** Byte offset in the log where this lifetime's output starts. */
+    private readonly logStart: number,
   ) {
     child.on('error', (error) => {
       this.spawnError = error;
     });
+    child.on('exit', (code, exitSignal) => {
+      const how = this.stopStart === null ? 'EXITED UNEXPECTEDLY' : 'stopped by the harness';
+      appendLog(logPath, `=== ${new Date().toISOString()} ${label} ${how} (code ${code}, signal ${exitSignal}) ===`);
+    });
   }
 
-  static spawn(args: readonly string[], logPath: string): StackProcess {
-    const log = openSync(logPath, 'w');
+  static spawn(label: string, args: readonly string[], logPath: string): StackProcess {
+    appendLog(logPath, `=== ${new Date().toISOString()} ${label} start: wrangler ${redactVars(args).join(' ')} ===`);
+    const logStart = statSync(logPath).size;
+    const log = openSync(logPath, 'a');
     try {
       // Own process group: wrangler forks workerd, and stopping the group takes both down.
       const child = spawn(WRANGLER, args, {
         cwd: WORKSPACE_ROOT,
         detached: true,
         stdio: ['ignore', log, log],
-        env: { ...process.env, WRANGLER_SEND_METRICS: 'false', NO_COLOR: '1' },
+        env: {
+          ...process.env,
+          WRANGLER_SEND_METRICS: 'false',
+          NO_COLOR: '1',
+          // wrangler's own debug log (every level, with stacks) beside the console log, so it lands in the artifact.
+          WRANGLER_LOG_PATH: logPath.replace(/\.log$/, '.wrangler-debug.log'),
+        },
       });
-      return new StackProcess(child, logPath);
+      return new StackProcess(child, label, logPath, logStart);
     } finally {
       closeSync(log);
     }
@@ -77,43 +122,77 @@ class StackProcess {
     return this.spawnError !== null || this.child.exitCode !== null || this.child.signalCode !== null;
   }
 
+  /** This lifetime's output, up to where the harness began stopping it. */
+  output(): string {
+    if (!existsSync(this.logPath)) {
+      return '';
+    }
+    const log = readFileSync(this.logPath);
+    return log.subarray(this.logStart, this.stopStart ?? log.length).toString('utf8');
+  }
+
   logTail(): string {
-    const log = existsSync(this.logPath)
-      ? readFileSync(this.logPath, 'utf8').split('\n').slice(-40).join('\n')
-      : '';
+    const log = this.output().split('\n').slice(-40).join('\n');
     return this.spawnError === null ? log : `${this.spawnError.message}\n${log}`;
   }
 
-  async stop(): Promise<void> {
-    if (this.child.pid === undefined) {
-      return;
+  /**
+   * Every time this process stopped serving on its own: a workerd crash miniflare restarted in place (the in-flight
+   * request answers 500 and the port refuses connections until workerd is back), or wrangler itself exiting.
+   */
+  incidents(): string[] {
+    const found = this.output()
+      .split('\n')
+      .filter((line) => INCIDENT_MARKERS.some((marker) => line.includes(marker)))
+      .map((line) => `${this.label}: ${line.trim()}`);
+    if (this.hasExited && this.stopStart === null) {
+      found.push(`${this.label}: wrangler exited on its own`);
     }
-    if (this.hasExited) {
-      // wrangler itself is gone; make sure no workerd it forked outlives it.
-      this.signalGroup('SIGKILL');
-      return;
-    }
-    const exited = new Promise<void>((done) => this.child.once('exit', () => done()));
-    this.signalGroup('SIGTERM');
-    const timer = setTimeout(() => this.signalGroup('SIGKILL'), STOP_TIMEOUT_MS);
-    await exited;
-    clearTimeout(timer);
+    return found;
   }
 
-  private signalGroup(signal: NodeJS.Signals): void {
+  /**
+   * SIGTERM to wrangler alone, so it disposes its workerd itself. Signalling the whole group raced the two: workerd
+   * died first, miniflare took that for a crash and began starting a new workerd while wrangler was exiting.
+   * Whatever is left in the group afterwards is killed.
+   */
+  async stop(): Promise<void> {
+    if (this.stopStart === null) {
+      this.stopStart = existsSync(this.logPath) ? statSync(this.logPath).size : 0;
+    }
     const pid = this.child.pid;
     if (pid === undefined) {
       return;
     }
-    try {
-      process.kill(-pid, signal);
-    } catch (error: unknown) {
-      // ESRCH: the group is already gone, which is what stopping wants.
-      if (!(error instanceof Error && 'code' in error && error.code === 'ESRCH')) {
-        throw error;
-      }
+    if (!this.hasExited) {
+      const exited = new Promise<void>((done) => this.child.once('exit', () => done()));
+      signal(pid, 'SIGTERM');
+      const timer = setTimeout(() => signal(-pid, 'SIGKILL'), STOP_TIMEOUT_MS);
+      await exited;
+      clearTimeout(timer);
+    }
+    signal(-pid, 'SIGKILL');
+  }
+}
+
+/** `target` is a pid, or a process group as `-pgid`. ESRCH (already gone) is what stopping wants. */
+function signal(target: number, name: NodeJS.Signals): void {
+  try {
+    process.kill(target, name);
+  } catch (error: unknown) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'ESRCH')) {
+      throw error;
     }
   }
+}
+
+function appendLog(logPath: string, line: string): void {
+  appendFileSync(logPath, `${line}\n`);
+}
+
+/** `--var NAME:value` is logged as `--var NAME:…`, so the run's throwaway keys stay out of the artifact. */
+function redactVars(args: readonly string[]): string[] {
+  return args.map((arg, index) => (args[index - 1] === '--var' ? `${arg.split(':')[0] ?? ''}:…` : arg));
 }
 
 /**
@@ -185,6 +264,7 @@ export class LocalStack {
   readonly fakePushURL: string;
   private api: StackProcess | null = null;
   private fakePush: StackProcess | null = null;
+  private readonly pastIncidents: string[] = [];
   private readonly vapid = throwawayVapidPair();
 
   private constructor(
@@ -206,10 +286,11 @@ export class LocalStack {
         );
       }
     }
-    const dir = join(WORKSPACE_ROOT, 'tmp/console-e2e', name);
+    const dir = join(STACKS_DIR, name);
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
     const fake = StackProcess.spawn(
+      `${name} fake GitHub`,
       [
         'dev',
         '--config',
@@ -245,14 +326,32 @@ export class LocalStack {
 
   /** A fresh database and a fresh api isolate (no cached connection or reads); the fake GitHub keeps running. */
   async reset(): Promise<void> {
-    await this.api?.stop();
-    this.api = null;
+    await this.retireApi();
     await this.startApi();
   }
 
-  async stop(): Promise<void> {
-    await this.api?.stop();
+  /**
+   * Every time one of this stack's servers stopped serving on its own, oldest first. A spec checks that the count did
+   * not grow while it ran, so a crash fails the test that saw it with the reason, not as an empty screen.
+   */
+  incidents(): string[] {
+    return [
+      ...this.pastIncidents,
+      ...[this.fake, this.fakePush, this.api].flatMap((process) => process?.incidents() ?? []),
+    ];
+  }
+
+  private async retireApi(): Promise<void> {
+    if (this.api === null) {
+      return;
+    }
+    await this.api.stop();
+    this.pastIncidents.push(...this.api.incidents());
     this.api = null;
+  }
+
+  async stop(): Promise<void> {
+    await this.retireApi();
     await this.fakePush?.stop();
     this.fakePush = null;
     await this.fake.stop();
@@ -261,6 +360,7 @@ export class LocalStack {
   /** The fake push service (Apple, FCM, Mozilla stand-in) of `nx run api:fake-push`, on this worker's own port. */
   private async startFakePush(): Promise<void> {
     this.fakePush = StackProcess.spawn(
+      `${this.name} fake push`,
       [
         'dev',
         '--config',
@@ -315,6 +415,7 @@ export class LocalStack {
       join(this.dir, 'migrate.log'),
     );
     this.api = StackProcess.spawn(
+      `${this.name} api`,
       [
         'dev',
         API_BUNDLE,

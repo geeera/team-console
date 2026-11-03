@@ -1,6 +1,6 @@
 <div class="tc-page subpage">
   <nav class="subpage__crumbs" [attr.aria-label]="'settings.breadcrumb' | transloco">
-    <a routerLink="/settings"><tc-icon name="chevron-left" size="sm" />{{ 'settings.title' | transloco }}</a>
+    <a routerLink="/overview"><tc-icon name="chevron-left" size="sm" />{{ 'overview.title' | transloco }}</a>
   </nav>
 
   @if (projects.status() !== 'ready') {
@@ -117,7 +117,7 @@
     {{ 'settings.setup.notFound.title' | transloco }}
   </h1>
   <tc-state-block kind="empty" [title]="'settings.setup.notFound.body' | transloco: { slug: slug() }">
-    <a tc-button tc-state-action routerLink="/settings">{{ 'settings.title' | transloco }}</a>
+    <a tc-button tc-state-action routerLink="/overview">{{ 'overview.title' | transloco }}</a>
   </tc-state-block>
   }
 </div>

@@ -120,14 +120,14 @@ test('the sprint read model carries the run state and the last five runs', async
 test('the Run log tile and the last runs show icon and words; an edited run is unknown, not failed', async ({
   page,
 }) => {
-  await page.goto('/p/team-console/board');
+  await page.goto('/p/team-console/board?tab=runs');
   await expect(page.getByTestId('loading')).toHaveCount(0);
 
   const tile = page.getByTestId('team-stat');
   await expect(tile).toHaveAttribute('data-team', 'running');
   await expect(tile.locator('dt')).toHaveText(ru('board.stat.runs'));
   await expect(tile.locator('dd')).toHaveText(ru('board.team.running'));
-  await expect(tile.locator('dd tc-icon')).toHaveAttribute('aria-hidden', 'true');
+  await expect(tile.locator('dt .tc-stat__icon')).toHaveAttribute('aria-hidden', 'true');
 
   const lane = page.getByTestId('runs');
   await lane.scrollIntoViewIfNeeded();
@@ -156,7 +156,7 @@ test('the run state follows the language', async ({ page }) => {
   await page.goto('/settings');
   await page.getByTestId('switch-lang').click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-  await page.goto('/p/team-console/board');
+  await page.goto('/p/team-console/board?tab=runs');
 
   await expect(page.getByTestId('team-stat').locator('dt')).toHaveText(en('board.stat.runs'));
   await expect(page.getByTestId('team-stat').locator('dd')).toHaveText(en('board.team.running'));
@@ -168,7 +168,7 @@ test.describe('dark theme', () => {
   test.use({ colorScheme: 'dark' });
 
   test('the run state passes axe', async ({ page }) => {
-    await page.goto('/p/team-console/board');
+    await page.goto('/p/team-console/board?tab=runs');
     await expect(page.getByTestId('team-stat')).toHaveAttribute('data-team', 'running');
     await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark');
     await page.getByTestId('runs').scrollIntoViewIfNeeded();
@@ -194,7 +194,7 @@ test.describe('a run log opened by someone outside the team', () => {
       ((await (await request.get(SPRINT)).json()) as SprintDto).team.state;
     await expect.poll(stateOf, { timeout: 45_000, intervals: [1_000, 5_000] }).toBe('unknown');
 
-    await page.goto('/p/team-console/board');
+    await page.goto('/p/team-console/board?tab=runs');
     await expect(page.getByTestId('team-stat')).toHaveAttribute('data-team', 'unknown');
     await expect(page.getByTestId('team-stat').locator('dd')).toHaveText(ru('board.team.unknown'));
 

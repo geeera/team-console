@@ -3,8 +3,8 @@ import { problem, type WorkerHonoEnv } from '@worker/core';
 import type { ApiEnv } from '../env';
 
 /**
- * Routes that act for the owner's GitHub account — the connection routes (#59), push (#11) and the team commands
- * (#114) — are for the owner only: the dev/stage CI service token passes `authMiddleware` but must not start, read
+ * Routes that act for the owner's GitHub account — the connection routes (#59), push (#11), the team commands
+ * (#114) and the batch approve (#220) — are for the owner only: the dev/stage CI service token passes `authMiddleware` but must not start, read
  * or revoke the owner's connection (#85) nor write as the owner (#62). The answer route is the one owner write the
  * service identity may reach, and only on a fixture issue (`service-write-gate.ts`). `user` (the owner's Access
  * login) and `local` (the local bypass) pass.

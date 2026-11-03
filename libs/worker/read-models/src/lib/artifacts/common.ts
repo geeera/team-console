@@ -1,4 +1,5 @@
 import type { ArtifactDto, ArtifactType } from '@shared/contracts';
+import { withoutInvisibles } from '@shared/plain-text';
 import type { IssueRecord } from '../github-records';
 import { githubUrlOrNull } from '../untrusted-text';
 
@@ -82,7 +83,14 @@ export function issueArtifactOf(type: ArtifactType, issue: IssueRecord): Artifac
   if (issue.isPullRequest || url === null) {
     return null;
   }
-  return { type, title: issue.title, url, updatedAt: issue.updatedAt, source: 'issue', state: issue.state };
+  return {
+    type,
+    title: withoutInvisibles(issue.title),
+    url,
+    updatedAt: issue.updatedAt,
+    source: 'issue',
+    state: issue.state,
+  };
 }
 
 /** Most recently updated first; undated after dated, then the higher number first. */
