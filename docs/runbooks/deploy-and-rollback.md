@@ -63,6 +63,23 @@ This repository has no branch protection on the free GitHub plan, so `branch-gua
 check — it opens a `sev:critical` issue if `dev`, `stage` or `main` ever moves without a merged PR. A
 `workflow_dispatch` deploy does not move any branch, so it never trips that guard; only a direct push would.
 
+### Redeploying the same commit gives installed apps a new version (#333)
+
+A `workflow_dispatch` redeploy of the commit an environment already runs is enough to make an installed PWA
+see an update — no fix-PR is needed to "ship a new version" (for a demo of the update banner, or to push a
+heal). The "Stamp the console build" step writes the run's own UTC time into `__TC_BUILT_AT__`, which ends up
+in the console's `main-*.js`; its content hash (and with it chunk names and `index.html`), and therefore
+`ngsw.json`'s `hashTable` all change, and the service worker treats any `ngsw.json` change as a new version.
+Checked on #333 by running that step and `nx run console:build:production` twice for one commit (`c909d40`):
+`main-Y5GCWT7W.js` → `main-APQHVW6C.js`, a different `index.html` hash and a different set of chunks in
+`ngsw.json`. What the owner then sees is `AppUpdates`' behaviour (#306): the app finds it on its 5-minute
+check while it stays on screen and shows «Доступна новая версия · Обновить»; if it was in the background, the
+next return to it (a resume check) reloads into the new version by itself, without the banner.
+
+```
+gh workflow run deploy.yml --ref dev -f environment=dev -f ref=<the sha dev already runs>
+```
+
 ### Stage-only rehearsal (#25)
 
 The demo (2026-10-16) runs on `dev`; `dev`'s Workers, variables and D1 are never touched to rehearse a
