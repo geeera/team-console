@@ -27,6 +27,7 @@ describe('countNeedsYouBySlug', () => {
       authorTrusted,
       category: null,
       recommendation: null,
+      context: null,
       project: { slug, name: slug },
       allowedCommands: ['approve', 'reject'],
     });

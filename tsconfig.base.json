@@ -31,6 +31,7 @@
       "@console/entities/app-info": ["./libs/console/entities/app-info/src/index.ts"],
       "@shared/contracts": ["./libs/shared/contracts/src/index.ts"],
       "@shared/owner-grammar": ["./libs/shared/owner-grammar/src/index.ts"],
+      "@shared/plain-text": ["./libs/shared/plain-text/src/index.ts"],
       "@worker/core": ["./libs/worker/core/src/index.ts"],
       "@worker/db": ["./libs/worker/db/src/index.ts"],
       "@worker/github": ["./libs/worker/github/src/index.ts"],
@@ -74,7 +75,10 @@
         "./libs/console/entities/installation-repository/src/index.ts"
       ],
       "@console/widgets/github-repositories": ["./libs/console/widgets/github-repositories/src/index.ts"],
-      "@console/features/sprint-controls": ["./libs/console/features/sprint-controls/src/index.ts"]
+      "@console/features/sprint-controls": ["./libs/console/features/sprint-controls/src/index.ts"],
+      "@console/features/request-change": ["./libs/console/features/request-change/src/index.ts"],
+      "@console/entities/design": ["./libs/console/entities/design/src/index.ts"],
+      "@console/features/design-viewer": ["./libs/console/features/design-viewer/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

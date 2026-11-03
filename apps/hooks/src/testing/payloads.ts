@@ -70,6 +70,9 @@ export function issueCommentEvent(
     readonly body?: string;
     readonly commentAssociation?: Association;
     readonly action?: 'created' | 'edited';
+    /** The comment's author (#219: the team's app posts handled markers). */
+    readonly commentAuthor?: { readonly login: string; readonly type: 'User' | 'Bot' };
+    readonly createdAt?: string;
   } = {},
 ): Record<string, unknown> {
   const repo = options.repo ?? 'geeera/storify';
@@ -80,7 +83,9 @@ export function issueCommentEvent(
       id: options.commentId ?? 9_000_001,
       body: options.body ?? 'Looks good.',
       author_association: options.commentAssociation ?? 'OWNER',
-      user: user('geeera'),
+      user: user(options.commentAuthor?.login ?? 'geeera', options.commentAuthor?.type ?? 'User'),
+      created_at: options.createdAt ?? '2026-10-06T12:00:00Z',
+      updated_at: options.createdAt ?? '2026-10-06T12:00:00Z',
       html_url: `https://github.com/${repo}/issues/42#issuecomment-${String(options.commentId ?? 9_000_001)}`,
     },
     ...envelope(repo, options.installationId ?? TEST_INSTALLATION_ID),

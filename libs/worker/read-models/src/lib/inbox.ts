@@ -8,7 +8,9 @@ import {
   sectionOf,
   sectionRank,
 } from '@shared/owner-grammar';
+import { withoutInvisibles } from '@shared/plain-text';
 import type { IssueRecord } from './github-records';
+import { questionContextOf } from './question-context';
 import { githubUrlOrNull, isTrustedAuthor } from './untrusted-text';
 
 /**
@@ -39,17 +41,21 @@ function classified(issues: readonly IssueRecord[]): Classified[] {
     }
     // brief.needs: an empty answer line is no answer line (`issue.get("ask") or …` → None).
     const ask = askOf(issue.body) || null;
+    const authorTrusted = isTrustedAuthor(issue);
     found.push({
       issue,
       item: {
         section,
         number: issue.number,
-        title: issue.title,
+        // Titles come from any author: a bidi override or zero-width run could pose as another item (#287).
+        title: withoutInvisibles(issue.title),
         url: githubUrlOrNull(issue.htmlUrl),
         ask,
-        authorTrusted: isTrustedAuthor(issue),
+        authorTrusted,
         category: categoryOf(issue.labels),
         recommendation: recommendationOf(ask),
+        // An outsider's body never shapes the card (#276): only the team's own questions are read for context.
+        context: authorTrusted ? questionContextOf(issue.body) : null,
       },
     });
   }

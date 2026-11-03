@@ -115,6 +115,35 @@ test('a successful Add: Done, the row turns "Project" and the project is in the 
   }
 });
 
+test('#278: private repositories from GitHub are marked, and the missing step links to GitHub and refreshes', async ({
+  page,
+}) => {
+  await page.goto('/overview');
+  for (const fullName of ['geeera/private-product', 'geeera/no-yml']) {
+    await expect(row(page, fullName).locator('.repo__private')).toHaveText(ru('overview.repos.row.private'));
+  }
+  await expect(row(page, 'geeera/team-console').locator('.repo__private')).toHaveCount(0);
+
+  const step = section(page).getByRole('region', { name: ru('overview.repos.missing.title') });
+  await expect(step).toBeVisible();
+  const link = step.getByRole('link', { name: new RegExp(ru('overview.repos.missing.action')) });
+  await expect(link).toHaveAttribute('href', 'https://github.com/settings/installations/1001');
+  await expect(link).toHaveAttribute('target', '_blank');
+  await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  await expectAccessible(page, 'All projects with the missing-repository step');
+
+  const refresh = step.getByRole('button', { name: ru('overview.repos.missing.refresh') });
+  const fresh = page.waitForRequest(
+    (sent) =>
+      new URL(sent.url()).pathname === '/api/v1/github/installation/repositories' &&
+      new URL(sent.url()).search === '?fresh=1',
+  );
+  await refresh.click();
+  await fresh;
+  await expect(refresh).toBeFocused();
+  await expect(row(page, 'geeera/private-product')).toBeVisible();
+});
+
 test('the Add project entry point opens All projects at the GitHub section', async ({ page }) => {
   await page.goto('/needs-you');
   if (isPhone(page)) {

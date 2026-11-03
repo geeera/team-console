@@ -14,6 +14,15 @@ import { fileURLToPath } from 'node:url';
 
 const SCRIPT_SOURCE = fileURLToPath(new URL('./audit-gate.mjs', import.meta.url));
 
+// A fixed calendar date eventually becomes "today" and the gate then (correctly) treats it as expired —
+// this fixture is only ever exercising the "still valid" branch, so its date is always one day ahead of
+// whenever the test runs (within the gate's 90-day cap), never a date this file pins in the source.
+function tomorrowUtc() {
+  const now = new Date();
+  const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  return tomorrow.toISOString().slice(0, 10);
+}
+
 const REAL_ALLOWLIST = {
   entries: [
     {
@@ -21,7 +30,7 @@ const REAL_ALLOWLIST = {
       package: 'braces',
       reason: 'no patched version exists; build-tooling only (#177)',
       issue: 177,
-      expires: '2026-11-03',
+      expires: tomorrowUtc(),
     },
   ],
 };

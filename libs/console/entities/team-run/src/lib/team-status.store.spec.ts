@@ -18,6 +18,7 @@ function teamStatus(overrides: Partial<TeamStatusDto> = {}): TeamStatusDto {
     sprint: null,
     progress: null,
     calendar: null,
+    pendingRequests: 0,
     slots: [
       { slot: 'pm', setup: 'present', secrets: secrets('PM'), lastRun: null, lock: null },
       { slot: 'dev', setup: 'present', secrets: secrets('DEV'), lastRun: null, lock: null },

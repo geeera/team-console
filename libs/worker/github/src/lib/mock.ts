@@ -28,6 +28,11 @@ export interface MockRepository {
   /** Text files `GET /repos/{owner}/{repo}/contents/{path}` serves, by path (e.g. `.product-team/project.yml`). */
   readonly files?: Readonly<Record<string, string>>;
   /**
+   * Binary files (#277: design images), base64 by path. Listed with `files` by `GET …/git/trees/{sha}?recursive=1`
+   * (every sha answers the same tree) and read by blob sha through `GET …/git/blobs/{sha}` with the raw media type.
+   */
+  readonly binaryFiles?: Readonly<Record<string, string>>;
+  /**
    * Issues as GitHub sends them (pull requests included), newest first: `GET …/issues?state=&milestone=` lists
    * them, `GET …/issues/{number}` (the answer route, #10) reads one, `GET …/issues/{number}/comments` (the run log,
    * #114) answers its thread from `comments`, an empty one for an issue not listed there.
@@ -40,7 +45,10 @@ export interface MockRepository {
    * identity's gate reads); an issue listed in `issues` without an entry has no events.
    */
   readonly issueEvents?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
-  /** `GET …/milestones?state=` */
+  /**
+   * `GET …/milestones?state=`. A milestone may carry `due_in_days` instead of `due_on` (#382): it is served with
+   * `due_on` at midnight UTC that many days from the day of the read, so the mock's current sprint never expires.
+   */
   readonly milestones?: readonly Readonly<Record<string, unknown>>[];
   /** `GET …/pulls?state=` */
   readonly pulls?: readonly Readonly<Record<string, unknown>>[];
@@ -90,6 +98,12 @@ function bytesOfBase64Url(value: string): Uint8Array {
   );
 }
 
+/** A 40-hex object name for the mock's trees and blobs (SHA-1 of a label, never of real content). */
+async function sha1Hex(label: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(label));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 function json(status: number, body: unknown, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -113,13 +127,34 @@ function labelNamesOf(item: Readonly<Record<string, unknown>>): string[] {
   );
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * A fixture milestone as GitHub would send it on `nowMs` (#382): `due_in_days` becomes `due_on`, midnight UTC of
+ * that many days after the UTC day of `nowMs`; a milestone with a fixed `due_on` is served as written.
+ */
+export function milestoneAt(
+  milestone: Readonly<Record<string, unknown>>,
+  nowMs: number,
+): Readonly<Record<string, unknown>> {
+  const { due_in_days: dueInDays, ...rest } = milestone;
+  if (typeof dueInDays !== 'number' || !Number.isSafeInteger(dueInDays)) {
+    return milestone;
+  }
+  const day = new Date(Math.floor(nowMs / DAY_MS) * DAY_MS + dueInDays * DAY_MS);
+  return { ...rest, due_on: `${day.toISOString().slice(0, 10)}T00:00:00Z` };
+}
+
 /** One page (the fixtures stay under 100 items) of a list, filtered by `state` and `milestone` as GitHub does. */
 function listOf(
   fixture: MockRepository,
   list: 'issues' | 'milestones' | 'pulls',
   query: URLSearchParams,
 ): readonly Readonly<Record<string, unknown>>[] {
-  const items = fixture[list] ?? [];
+  const items =
+    list === 'milestones'
+      ? (fixture.milestones ?? []).map((milestone) => milestoneAt(milestone, Date.now()))
+      : (fixture[list] ?? []);
   const state = query.get('state') ?? 'open';
   const milestone = query.get('milestone');
   // GitHub's `labels=a,b` lists items carrying every one of them.
@@ -237,6 +272,9 @@ class MockGitHubServer {
     const isEventsRead = segments.length === 6 && segments[3] === 'issues' && segments[5] === 'events';
     const isCheckRunsRead =
       segments.length === 6 && segments[3] === 'commits' && segments[5] === 'check-runs';
+    const isTreeRead = segments.length === 6 && segments[3] === 'git' && segments[4] === 'trees';
+    const isBlobRead = segments.length === 6 && segments[3] === 'git' && segments[4] === 'blobs';
+    const isBranchRead = segments.length === 5 && segments[3] === 'branches';
     if (
       method === 'GET' &&
       segments[0] === 'repos' &&
@@ -246,7 +284,10 @@ class MockGitHubServer {
         isIssueRead ||
         isCommentsRead ||
         isEventsRead ||
-        isCheckRunsRead)
+        isCheckRunsRead ||
+        isTreeRead ||
+        isBlobRead ||
+        isBranchRead)
     ) {
       const repo = `${segments[1]}/${segments[2]}`;
       const token = this.issued.get(bearer);
@@ -278,6 +319,15 @@ class MockGitHubServer {
       if (isCheckRunsRead) {
         const runs = found.fixture.checkRuns?.[segments[4] ?? ''] ?? [];
         return json(200, { total_count: runs.length, check_runs: runs });
+      }
+      if (isTreeRead) {
+        return this.tree(found.fixture, segments[5] ?? '');
+      }
+      if (isBlobRead) {
+        return this.blob(found.fixture, segments[5] ?? '', new Headers(init.headers).get('accept') ?? '');
+      }
+      if (isBranchRead) {
+        return this.branch(found.fixture, segments[4] ?? '');
       }
       if (isCommentsRead) {
         const issue = this.issue(found.fixture, segments[4] ?? '');
@@ -336,6 +386,57 @@ class MockGitHubServer {
         html_url: `https://github.com/${repo}/${entry.type === 'file' ? 'blob' : 'tree'}/dev/${entry.path}`,
       })),
     );
+  }
+
+  /** Every file of the fixture as a blob (path, bytes); `sha` is derived from the path, so it is stable per run. */
+  private async blobs(fixture: MockRepository): Promise<{ path: string; sha: string; bytes: Uint8Array }[]> {
+    const texts = Object.entries(fixture.files ?? {}).map(([path, text]) => ({
+      path,
+      bytes: new TextEncoder().encode(text),
+    }));
+    const binaries = Object.entries(fixture.binaryFiles ?? {}).map(([path, base64]) => ({
+      path,
+      bytes: Uint8Array.from(atob(base64), (char) => char.charCodeAt(0)),
+    }));
+    return Promise.all(
+      [...texts, ...binaries].map(async (file) => ({ ...file, sha: await sha1Hex(`blob:${file.path}`) })),
+    );
+  }
+
+  /**
+   * `GET …/git/trees/{sha}?recursive=1` (#277): one listing whatever the sha, as the fixtures hold one snapshot.
+   * An unknown-looking sha (not hex) is GitHub's 404 for a tree it does not have.
+   */
+  private async tree(fixture: MockRepository, sha: string): Promise<Response> {
+    if (!/^[0-9a-f]{40}$/.test(sha)) {
+      return notFound();
+    }
+    const blobs = await this.blobs(fixture);
+    return json(200, {
+      sha,
+      tree: blobs.map((blob) => ({ path: blob.path, mode: '100644', type: 'blob', sha: blob.sha, size: blob.bytes.byteLength })),
+      truncated: false,
+    });
+  }
+
+  /** `GET …/git/blobs/{sha}`: raw bytes for the raw media type, else GitHub's base64 JSON. */
+  private async blob(fixture: MockRepository, sha: string, accept: string): Promise<Response> {
+    const found = (await this.blobs(fixture)).find((blob) => blob.sha === sha);
+    if (found === undefined) {
+      return notFound();
+    }
+    if (accept.includes('raw')) {
+      return new Response(found.bytes, { status: 200, headers: { 'Content-Type': 'application/vnd.github.raw' } });
+    }
+    return json(200, { sha, size: found.bytes.byteLength, encoding: 'base64', content: base64Of(found.bytes) });
+  }
+
+  /** `GET …/branches/{name}` (#277): the default branch with a head sha derived from its name. */
+  private async branch(fixture: MockRepository, name: string): Promise<Response> {
+    if (fixture.repository?.['default_branch'] !== name) {
+      return notFound();
+    }
+    return json(200, { name, commit: { sha: await sha1Hex(`branch:${name}`) } });
   }
 
   /** An issue as GitHub sends it: labels as objects. */

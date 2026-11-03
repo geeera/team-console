@@ -5,6 +5,7 @@ import { csrfMiddleware } from './auth/csrf.middleware';
 import type { ApiEnv } from './env';
 import { ApiGitHub, mapGitHubError } from './github';
 import { createAnswerRoutes } from './routes/answer';
+import { createOwnerRequestRoutes } from './routes/owner-request';
 import { createBatchAnswerRoutes } from './routes/batch-answer';
 import { createGitHubConnectionRoutes } from './routes/github-connection';
 import { createInstallationRepositoriesRoutes } from './routes/installation-repositories';
@@ -15,6 +16,7 @@ import { createProjectRegistryRoutes } from './routes/project-registry';
 import { createProjectsRoutes } from './routes/projects';
 import { createProjectReadModelRoutes } from './routes/project-read-models';
 import { createArtifactRoutes } from './routes/artifacts';
+import { createDesignRoutes } from './routes/designs';
 import { createNeedsYouRoutes } from './routes/needs-you';
 import { createOverviewRoutes } from './routes/overview';
 import { createSprintCommandsRoutes } from './routes/sprint-commands';
@@ -77,6 +79,7 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/projects', createProjectsRoutes(github));
   v1.route('/projects', createProjectReadModelRoutes(github));
   v1.route('/projects', createArtifactRoutes(github));
+  v1.route('/projects', createDesignRoutes(github));
   v1.route('/needs-you', createNeedsYouRoutes(github));
   v1.route('/overview', createOverviewRoutes(github));
   v1.route('/projects', createAnswerRoutes(github));
@@ -91,6 +94,7 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   );
   v1.route('/projects', createNotificationsRoutes(github));
   v1.route('/projects', createSprintCommandsRoutes(github));
+  v1.route('/projects', createOwnerRequestRoutes(github));
   // Before the connection routes: their owner-only `use('*')` would otherwise also guard this read (#194), which
   // the service identity may make on dev/stage like every other read (installation-repositories.spec.ts proves it).
   v1.route('/github', createInstallationRepositoriesRoutes(github, owners));

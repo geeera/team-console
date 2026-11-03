@@ -1,4 +1,5 @@
-import { MARKDOWN_MAX_LENGTH } from './rendered-markdown';
+// GitHub caps an issue or comment body at 65,536 characters; anything longer is cut, never parsed whole.
+export const MARKDOWN_MAX_LENGTH = 65_536;
 
 // Issue text is hostile input: every pattern below either is anchored and unambiguous, or stops its scan at the
 // next marker character, so no input (a line full of `[`, `*` or spaces) makes the work grow faster than linear.

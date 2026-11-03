@@ -19,20 +19,3 @@
   flex: none;
   margin-top: var(--space-px);
 }
-
-.snooze__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-}
-
-/* The phone: full-width buttons, the primary nearest the thumb. */
-@media (max-width: 519.98px) {
-  .snooze__actions {
-    flex-direction: column-reverse;
-  }
-
-  .snooze__actions > * {
-    width: 100%;
-  }
-}

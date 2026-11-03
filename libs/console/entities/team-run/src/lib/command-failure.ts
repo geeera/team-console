@@ -3,7 +3,7 @@ import { httpProblemOf } from '@console/shared/api';
 
 /**
  * How a team command ended when it did not do what was asked, shared by every command of the Commands panel (#114
- * pause / resume / Run now, #218 sprint commands): the client branches on the problem `type` only. Lives with the
+ * pause / resume / Run now, #218 sprint commands, #219 requests to the PM): the client branches on the problem `type` only. Lives with the
  * team status so each command feature uses one mapping instead of forking it.
  */
 
@@ -57,6 +57,12 @@ export type CommandFailureKind =
   | 'sprint-date-past'
   | 'sprint-date-after-next'
   | 'sprint-date-early'
+  // owner requests to the PM (#219)
+  | 'issue-changed'
+  | 'issue-closed'
+  | 'request-not-issue'
+  | 'sprint-next-missing'
+  | 'request-in-progress'
   | 'offline'
   | 'unknown';
 
@@ -91,6 +97,11 @@ const BY_PROBLEM: Readonly<Record<string, CommandFailureKind>> = {
   'sprint-date-past': 'sprint-date-past',
   'sprint-date-after-next': 'sprint-date-after-next',
   'sprint-date-early': 'sprint-date-early',
+  'issue-changed': 'issue-changed',
+  'issue-closed': 'issue-closed',
+  'request-not-issue': 'request-not-issue',
+  'sprint-next-missing': 'sprint-next-missing',
+  'request-in-progress': 'request-in-progress',
   'github-owner-not-connected': 'not-connected',
   'github-owner-mismatch': 'not-connected',
   'github-rate-limit': 'github-rate-limited',

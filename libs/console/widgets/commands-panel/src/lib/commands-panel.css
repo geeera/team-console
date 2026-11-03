@@ -239,7 +239,8 @@
 
 /* ochre: what waits — an unanswered run request, snoozed notifications (#221) */
 .cmd__line--unknown,
-.cmd__line--snoozed {
+.cmd__line--snoozed,
+.cmd__line--pending {
   color: var(--warning-text);
 }
 

@@ -14,7 +14,7 @@
         class="batch__number"
         >#{{ item.number }}</span
       >
-      {{ item.title }}</span
+      <span dir="auto">{{ item.title }}</span></span
     >
     @if (recOf(item); as rec) {
     <span tc-check-detail>{{ 'commands.batch.rec' | transloco: { c: rec } }}</span>
@@ -28,7 +28,7 @@
   <ul>
     @for (left of data.leftOut; track keyOf(left.item)) {
     <li [attr.data-number]="left.item.number">
-      <span class="batch__number">#{{ left.item.number }}</span> {{ left.item.title }}
+      <span class="batch__number">#{{ left.item.number }}</span> <span dir="auto">{{ left.item.title }}</span>
       <tc-chip>{{ reasonOf(left) }}</tc-chip>
     </li>
     }
@@ -42,10 +42,8 @@
   <p tc-banner-text>{{ message }}</p>
 </div>
 }
-<div class="tc-dialog-actions">
-  <button tc-button type="button" [attr.aria-disabled]="running() ? 'true' : null" (click)="cancel()">
-    {{ 'commands.batch.cancel' | transloco }}
-  </button>
+<!-- In the frame's footer: the list can be long, the actions stay in view (#274). -->
+<ng-template tcSheetFooter="primary">
   @if (items().length > 0) {
   <button
     tc-button
@@ -62,4 +60,9 @@
     }} } @else { {{ 'commands.batch.ok' | transloco: { n: checkedCount() } }} }
   </button>
   }
-</div>
+</ng-template>
+<ng-template tcSheetFooter="secondary">
+  <button tc-button type="button" [attr.aria-disabled]="running() ? 'true' : null" (click)="cancel()">
+    {{ 'commands.batch.cancel' | transloco }}
+  </button>
+</ng-template>

@@ -7,6 +7,7 @@ export {
   daysUntilDemo,
   demoDayOf,
   isSprintDto,
+  pullsByUrgency,
   sprintBoardOf,
   statusColumnsOf,
 } from './lib/sprint.model';
@@ -14,6 +15,7 @@ export type {
   SprintBoard,
   SprintCiSummary,
   SprintIssue,
+  SprintIssueRequest,
   SprintMilestone,
   SprintPullRequest,
   SprintRun,

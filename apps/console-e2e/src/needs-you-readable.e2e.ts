@@ -22,17 +22,52 @@ test('the team recommendation reads as a sentence, not command syntax', async ({
   const recommendation = item(page, 72).getByTestId('recommendation');
 
   await expect(recommendation).toContainText(ru('questions.recommends'));
-  await expect(recommendation).toContainText('Начинаем разработку по плану к демо 16 октября');
-  await expect(recommendation).not.toContainText('/approve');
-  await expect(recommendation).not.toContainText('рекомендую');
-  await expect(recommendation).not.toContainText('·');
+  // #276: the recommended answer as a verb; the option's own words are what approving leads to.
+  await expect(recommendation).toContainText(ru('questions.recommend.approve'));
+  await expect(item(page, 72).getByTestId('outcomes')).toContainText('Начинаем разработку по плану к демо 16 октября');
+  for (const raw of ['/approve', 'рекомендую', '·']) {
+    await expect(recommendation).not.toContainText(raw);
+    await expect(item(page, 72).getByTestId('outcomes')).not.toContainText(raw);
+  }
   // The buttons still carry the commands.
   await expect(item(page, 72).locator('[data-command="approve"]')).toHaveText(ru('answer.command.approve'));
   await expect(item(page, 72).locator('[data-command="reject"]')).toHaveText(ru('answer.command.reject'));
-  // An item from outside the team: its HTML stays inert text.
-  await expect(item(page, 90001).getByTestId('recommendation')).toContainText('<img src=x');
-  await expect(item(page, 90001).locator('img')).toHaveCount(0);
+  // An item from outside the team marks `/approve … (recommended)` itself: that never makes it the team's advice
+  // (#210, #211) — no "Команда советует" block at all, and its HTML stays inert text wherever it is shown.
+  await expect(item(page, 90001).getByTestId('recommendation')).toHaveCount(0);
+  await expect(item(page, 90001)).toContainText('<img src=x');
+  await expect(item(page, 90001).locator('img, script')).toHaveCount(0);
   await expectAccessible(page, 'Needs you, plain recommendation');
+});
+
+test('action items show no "Команда советует" block, and nothing with no recommendation does either (#210, #291)', async ({
+  page,
+}) => {
+  await page.goto('/needs-you');
+
+  // #21 and #46 are action items (owner section, "Готово" only): a fixed "вы" line shows in its own place, never
+  // the plugin's answer line (its "Напиши…" clause, any "ты" verb form from it, the "·" separator, or the
+  // reject-side prompt — #21's body also carries `/reject причина, если что-то не подходит`, offered to no button
+  // here). The console never renders the answer line at all for these, so no verb from it can leak through either.
+  const TY_VERB_ENDING = /шь |ёшь/u;
+  for (const issue of [21, 46]) {
+    const card = item(page, issue);
+    const recommendation = card.getByTestId('recommendation');
+    const actionText = card.getByTestId('action-text');
+    await expect(recommendation).toHaveCount(0);
+    await expect(card.locator('[data-command="reject"]')).toHaveCount(0);
+    await expect(card).not.toContainText('Напиши');
+    await expect(card).not.toContainText('·');
+    await expect(actionText).toHaveText('Нажмите «Готово», когда сделаете.');
+    const actionWords = (await actionText.textContent()) ?? '';
+    expect(actionWords).not.toMatch(TY_VERB_ENDING);
+  }
+
+  // #90006 is a design the team marks no recommendation for: the block is absent, not a neutral fallback of it.
+  const design = item(page, 90006);
+  await expect(design.getByTestId('recommendation')).toHaveCount(0);
+  await expect(design).not.toContainText(ru('questions.recommends'));
+  await expectAccessible(page, 'Needs you, action items and no-recommendation design');
 });
 
 test('details on project Questions show no markup, team markers or answer line', async ({ page }) => {

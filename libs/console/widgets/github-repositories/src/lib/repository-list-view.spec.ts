@@ -153,6 +153,65 @@ describe('RepositoryListView', () => {
     expect(link.rel).toBe('noopener noreferrer');
   });
 
+  it('private repositories, addable and already added, both carry the Private word (#278)', async () => {
+    await render({
+      repositories: [
+        repo('geeera/secret-app', { state: 'none' }, true),
+        repo('geeera/secret-site', { state: 'active', slug: 'secret-site' }, true),
+      ],
+    });
+    expect(row('geeera/secret-app').querySelector('.repo__private')?.textContent?.trim()).toBe('Приватный');
+    expect(row('geeera/secret-app').querySelector('[data-testid="repo-add"]')).not.toBeNull();
+    expect(row('geeera/secret-site').querySelector('.repo__private')?.textContent?.trim()).toBe('Приватный');
+  });
+
+  it('a loaded list ends with the missing step: a heading, the GitHub access link and Refresh (#278)', async () => {
+    await render();
+    const step = root().querySelector('[data-testid="repos-missing"]') as HTMLElement;
+    const heading = step.querySelector('h3') as HTMLElement;
+    expect(heading.textContent?.trim()).toBe('Нет нужного репозитория?');
+    expect(step.getAttribute('aria-labelledby')).toBe(heading.id);
+    expect(step.textContent).toContain('team-console-dev');
+    const link = step.querySelector('[data-testid="repos-missing-link"]') as HTMLAnchorElement;
+    expect(link.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+      'Откройте доступ приложению на GitHub (откроется на GitHub)',
+    );
+    expect(link.href).toBe('https://github.com/settings/installations/1001');
+    expect(link.target).toBe('_blank');
+    expect(link.rel).toBe('noopener noreferrer');
+    expect(step.querySelector('[data-testid="repos-missing-refresh"]')?.textContent?.trim()).toBe(
+      'Обновить список',
+    );
+  });
+
+  it('no missing step where the list already links to GitHub: partial, empty, error', async () => {
+    await render({ partial: true });
+    expect(root().querySelector('[data-testid="repos-missing"]')).toBeNull();
+    TestBed.resetTestingModule();
+    await render({ repositories: [] });
+    expect(root().querySelector('[data-testid="repos-missing"]')).toBeNull();
+    TestBed.resetTestingModule();
+    await render({ status: 'error', problem: { kind: 'github' } });
+    expect(root().querySelector('[data-testid="repos-missing"]')).toBeNull();
+  });
+
+  it('the missing step Refresh emits refresh and gets focus back; offline it does nothing', async () => {
+    await render();
+    const seen: string[] = [];
+    fixture.componentInstance.refresh.subscribe(() => seen.push('refresh'));
+    const button = root().querySelector('[data-testid="repos-missing-refresh"]') as HTMLButtonElement;
+    button.click();
+    expect(seen).toEqual(['refresh']);
+    fixture.componentInstance.focusRefresh();
+    expect(document.activeElement).toBe(button);
+
+    ref.setInput('online', false);
+    await fixture.whenStable();
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    button.click();
+    expect(seen).toEqual(['refresh']);
+  });
+
   it('empty: the app sees nothing, with the link to choose repositories on GitHub', async () => {
     await render({ repositories: [] });
     expect(text('[data-testid="repos-empty"]')).toContain(

@@ -102,16 +102,61 @@ function nextInstallationPageOf(response: Response): GitHubPath | null {
   return githubPathOf(url);
 }
 
+export interface BytesOptions {
+  /** The media type to ask for, e.g. `application/vnd.github.raw+json` for a blob's bytes. */
+  readonly accept: string;
+  /** Bodies past this are not buffered: the read stops and reports `too-large`. */
+  readonly maxBytes: number;
+}
+
+export type BytesResult = { readonly kind: 'bytes'; readonly bytes: Uint8Array } | { readonly kind: 'too-large' };
+
+/** Reads at most `maxBytes` of the body; one byte more cancels the stream and reports `too-large`. */
+async function readBytesUpTo(response: Response, maxBytes: number): Promise<BytesResult> {
+  const reader = response.body?.getReader();
+  if (reader === undefined) {
+    return { kind: 'bytes', bytes: new Uint8Array(0) };
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return { kind: 'too-large' };
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return { kind: 'bytes', bytes };
+}
+
 /** GET with one retry after a 401 on a cached token; non-2xx → `GitHubError`. */
-async function authorizedGet(fetcher: FetchLike, tokens: TokenSource, path: GitHubPath): Promise<Response> {
+async function authorizedGet(
+  fetcher: FetchLike,
+  tokens: TokenSource,
+  path: GitHubPath,
+  accept?: string,
+): Promise<Response> {
+  const request = (bearer: string) =>
+    githubRequest(fetcher, { method: 'GET', path, bearer, ...(accept === undefined ? {} : { accept }) });
   let token = await tokens.getToken();
-  let response = await githubRequest(fetcher, { method: 'GET', path, bearer: token });
+  let response = await request(token);
   if (response.status === 401) {
     // A cached token revoked or expired early (key rotation, reinstall): evict it and retry once.
     await discardBody(response);
     tokens.invalidate(token);
     token = await tokens.getToken();
-    response = await githubRequest(fetcher, { method: 'GET', path, bearer: token });
+    response = await request(token);
   }
   if (!response.ok) {
     await discardBody(response);
@@ -195,6 +240,22 @@ export class GitHubClient {
   async getJson<T>(path: GitHubPath, guard: JsonGuard<T>): Promise<T> {
     const response = await this.get(path);
     return parseBody(response, guard);
+  }
+
+  /**
+   * GET one resource's raw bytes (#277: a design image through `GET /repos/{owner}/{repo}/git/blobs/{sha}` with
+   * `accept: application/vnd.github.raw+json`). The body is read up to `maxBytes`; one byte more and the read is
+   * cut short and reported as `too-large` without buffering the rest, whatever `Content-Length` said.
+   */
+  async getBytes(path: GitHubPath, options: BytesOptions): Promise<BytesResult> {
+    assertRequestSource(this.tokens);
+    const response = await authorizedGet(this.fetcher, this.tokens, path, options.accept);
+    const declared = Number(response.headers.get('content-length'));
+    if (Number.isFinite(declared) && declared > options.maxBytes) {
+      await discardBody(response);
+      return { kind: 'too-large' };
+    }
+    return readBytesUpTo(response, options.maxBytes);
   }
 
   /** GET a list, following `Link: rel="next"` up to `maxPages`; each item must pass the guard. */
