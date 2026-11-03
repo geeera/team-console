@@ -3,7 +3,7 @@ import { addDays, calendarDayOf } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { strayScrollsOf } from './support/scroll-regions';
-import { seed, type Stack } from './support/stack';
+import { clearFakeMilestones, seed, type Stack } from './support/stack';
 import { meetsMinTap } from './support/tap-target';
 
 /**
@@ -119,13 +119,7 @@ test.beforeEach(async ({ stack }) => {
 
 test.afterAll(async ({ stack }) => {
   if (stack.fakeURL !== null) {
-    await fakePost(stack, '/_fake/milestones', {
-      repo: REPO,
-      milestones: [
-        { number: 1, title: 'Sprint 01', state: 'open', dueOn: '2026-10-16T00:00:00Z' },
-        { number: 2, title: 'Sprint 02', state: 'open', dueOn: '2026-10-30T00:00:00Z' },
-      ],
-    });
+    await clearFakeMilestones(stack, REPO);
   }
 });
 
@@ -173,10 +167,14 @@ test('pick a date in the calendar and move the demo', async ({ page, stack }) =>
       expect(meetsMinTap(box?.width), `${await target.textContent()} width`).toBe(true);
     }
   } else {
-    // The popover hangs under the field, inside the dialog's width, above it in the overlay.
+    // The popover prefers hanging under the field (CDK's `flexibleConnectedTo`, `date-picker.ts`); on a month
+    // with a sixth calendar row the grid is taller than the room below, so the strategy's fallback position
+    // flips it above the field instead — either way it must not overlap the field it belongs to.
     const field = await dateField(page).boundingBox();
     const popover = await calendar(page).boundingBox();
-    expect(popover !== null && field !== null && popover.y >= field.y + field.height).toBe(true);
+    const below = popover !== null && field !== null && popover.y >= field.y + field.height;
+    const above = popover !== null && field !== null && popover.y + popover.height <= field.y;
+    expect(below || above, 'the calendar popover must not overlap the date field').toBe(true);
   }
   expect(await strayScrollsOf(page), 'no scroller besides the document').toEqual([]);
   expect(await sidewaysOverflowOf(page), 'nothing wider than the screen').toEqual([]);
