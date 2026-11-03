@@ -14,9 +14,11 @@ permissions:
   pages: write
   id-token: write
 
+# A newer run queues behind a running one instead of cancelling it: a Pages deploy cut off mid-flight can leave
+# the site half-published.
 concurrency:
   group: design-pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   publish:
