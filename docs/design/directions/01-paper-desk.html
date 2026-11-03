@@ -487,9 +487,9 @@ code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);pa
 <dt>Motion</dt><dd>fast 140 · base 240 · slow 380 · signature 620 ms; standard (.2,0,0,1), emphasised (.3,0,0,1), no overshoot.</dd>
 </dl></div></div><div data-lang="ru" lang="ru">
 <div class="note__grid"><div>
-<p><b>Идея.</b> Тихий тёплый письменный стол: PM пишет короткими письмами с засечками, интерфейс говорит простым гротеском, а единственный цвет — зелёные чернила для следующего действия. Ничего не движется, пока ты не действуешь; когда действуешь, на карточке появляется штамп, и она сворачивается в заметку на полях, которая остаётся в разговоре как твой ответ.</p>
-<p><b>Фирменный момент.</b> Чернильный штамп: нажми «Утвердить», «Отклонить» или «Готово» — штамп прижимается к карточке, прорисовываются кольцо и знак, затем карточка сворачивается в курсивную заметку на полях (#id, время, «записано от твоего имени»). При уменьшенной анимации — мгновенная замена с затуханием 120 мс.</p>
-<p class="try">Попробуй: нажми «Да, закрыть» в #13, переключись на sheltrix (на паузе) и обратно (место сохранится), открой «Ждут тебя», открой «Артефакты» и найди «ADR», переключи RU / EN (место тоже сохранится). Клавиши на Mac после клика в окне: B доска, F артефакты, Y ждут тебя, N сообщение, / поиск; выдели карточку и нажми букву с её кнопки. Клавиши работают и в русской раскладке.</p>
+<p><b>Идея.</b> Тихий тёплый письменный стол: PM пишет короткими письмами с засечками, интерфейс говорит простым гротеском, а единственный цвет — зелёные чернила для следующего действия. Ничего не движется, пока вы не действуете; когда действуете, на карточке появляется штамп, и она сворачивается в заметку на полях, которая остаётся в разговоре как ваш ответ.</p>
+<p><b>Фирменный момент.</b> Чернильный штамп: нажмите «Утвердить», «Отклонить» или «Готово» — штамп прижимается к карточке, прорисовываются кольцо и знак, затем карточка сворачивается в курсивную заметку на полях (#id, время, «записано от вашего имени»). При уменьшенной анимации — мгновенная замена с затуханием 120 мс.</p>
+<p class="try">Попробуйте: нажмите «Да, закрыть» в #13, переключитесь на sheltrix (на паузе) и обратно (место сохранится), откройте «Ждут вас», откройте «Артефакты» и найдите «ADR», переключите RU / EN (место тоже сохранится). Клавиши на Mac после клика в окне: B доска, F артефакты, Y ждут вас, N сообщение, / поиск; выделите карточку и нажмите букву с её кнопки. Клавиши работают и в русской раскладке.</p>
 </div><dl class="tok">
 <dt>Цвет</dt><dd><span class="sw"><i style="background:var(--bg)"></i>бумага #F7F3EC / #1C1A17</span><span class="sw"><i style="background:var(--surface)"></i>лист #FFFDF9 / #25221E</span><span class="sw"><i style="background:var(--text)"></i>чернила #29251F / #EEE8DD</span><span class="sw"><i style="background:var(--accent)"></i>мох #3E6A48 / #8FBC92</span><span class="sw"><i style="background:var(--warning-soft)"></i>охра</span><span class="sw"><i style="background:var(--danger-soft)"></i>глина</span></dd>
 <dt>Шрифты</dt><dd>Source Serif 4 (голос PM, заголовки) + Source Sans 3 (интерфейс) + Source Code Pro (номера), все под OFL, с кириллицей. Шкала 12 / 14 / 15 / 18 / 22 / 28, межстрочный 1.55.</dd>
@@ -521,7 +521,7 @@ const DIR = {
     await H.wait(H.ms('--dur-base'));
   },
 };
-/* UI strings. Russian is the reference copy (ADR 0002): short, plain, "ты" to the owner, no gendered past tense
+/* UI strings. Russian is the reference copy (ADR 0002; formal "вы" to the owner per the owner decision of 2026-10-01): short, plain, no gendered past tense
    addressed to the owner. Values are strings with {vars} or functions (vars, plural, x) for counted or inflected
    phrases. t() HTML-escapes vars in strings; functions escape with x.esc. Markup lives only in these strings. */
 const I18N = {
@@ -634,14 +634,14 @@ const I18N = {
     'thumb.empty': 'Пусто', 'thumb.offline': 'Офлайн · тёмная', 'thumb.error': 'Ошибка',
     'card.recommends': 'Команда советует',
     // Russian keeps lowercase after a colon.
-    'receipt.verb': ({ verb }, pl, x) => `Твой ответ: ${x.esc(x.lower1(verb))}`, 'receipt.meta': '#{id} · {time} · записано от твоего имени',
-    'pm.typing': 'PM печатает', 'msg.you': 'Ты,',
+    'receipt.verb': ({ verb }, pl, x) => `Ваш ответ: ${x.esc(x.lower1(verb))}`, 'receipt.meta': '#{id} · {time} · записано от вашего имени',
+    'pm.typing': 'PM печатает', 'msg.you': 'Вы,',
 
     'board.demo': 'Демо {date}',
     'board.progress': 'Готово {done} из {total}',
     'metric.done': 'Готово', 'metric.prs': 'Открытые PR', 'metric.ci': 'CI · main', 'metric.run': 'Прогоны',
     'board.pausedBody': '<b>{name} на паузе с {since}.</b> Команда не работает, вопросы ждут. {sprint} закрыт: {done} из {total}.',
-    'board.emptyBody': '{sprint}: готово {done} из {total}, от тебя ничего не нужно. В настоящем приложении колонки подтянутся из GitHub.',
+    'board.emptyBody': '{sprint}: готово {done} из {total}, от вас ничего не нужно. В настоящем приложении колонки подтянутся из GitHub.',
     'col.approved': 'одобрено', 'col.progress': 'в работе', 'col.qa': 'на проверке', 'col.done': 'готово',
     'board.pause': 'Приостановить {name}', 'board.resume': 'Возобновить {name}',
     'board.all': 'Все проекты: {r} в работе · {p} на паузе · {f} со сбоем',
@@ -660,23 +660,23 @@ const I18N = {
 
     'side.pausedSince': 'На паузе с {date}',
     'side.withDemo': '{what} · демо {date}',
-    'side.pinned': 'Закреплённые', 'side.projects': 'Проекты', 'side.quiet': 'Без вопросов к тебе',
-    'side.more': 'Ещё {n}, без вопросов к тебе',
+    'side.pinned': 'Закреплённые', 'side.projects': 'Проекты', 'side.quiet': 'Без вопросов к вам',
+    'side.more': 'Ещё {n}, без вопросов к вам',
     'side.noMatch': 'Нет проектов по запросу «{q}».',
 
-    'needs.none': '<b>От тебя сейчас ничего не нужно.</b> Команды работают; если понадобишься, придёт пуш.',
+    'needs.none': '<b>От вас сейчас ничего не нужно.</b> Команды работают; если понадобитесь, придёт пуш.',
     'needs.lead': ({ n, k }, pl) => `${n} ${pl(n, ['вопрос', 'вопроса', 'вопросов'])} в ${k} ${pl(k, ['проекте', 'проектах', 'проектах'])}. Каждый открывается в своём разговоре.`,
     'needs.rec': ({ c }, pl, x) => `Команда советует: ${x.esc(x.lower1(c))}`,
 
     'ov.noDemo': 'без демо', 'ov.demo': 'демо {date}',
     'ov.foot': 'готово {done}/{total} · PR: {prs} · CI {ci}',
-    'ov.quiet': 'Без вопросов к тебе',
+    'ov.quiet': 'Без вопросов к вам',
 
     'win.title': '{name} · Team Console',
-    'nav.needs': 'Ждут тебя', 'nav.all': 'Все проекты', 'nav.acrossAll': 'во всех проектах',
+    'nav.needs': 'Ждут вас', 'nav.all': 'Все проекты', 'nav.acrossAll': 'во всех проектах',
     'nav.nProjects': ({ n }, pl) => `${n} ${pl(n, ['проект', 'проекта', 'проектов'])}`,
-    'nav.projectsAria': 'Проекты', 'nav.sections': 'Разделы', 'nav.needAll': 'Ждут тебя — все проекты',
-    'tab.chat': 'Чат', 'tab.board': 'Доска', 'tab.artifacts': 'Артефакты', 'tab.needYou': 'ждут тебя',
+    'nav.projectsAria': 'Проекты', 'nav.sections': 'Разделы', 'nav.needAll': 'Ждут вас — все проекты',
+    'tab.chat': 'Чат', 'tab.board': 'Доска', 'tab.artifacts': 'Артефакты', 'tab.needYou': 'ждут вас',
 
     'banner.paused': '<b>{name} на паузе.</b> Команда не работает, сообщения подождут.',
     'banner.resume': 'Возобновить',
@@ -695,9 +695,9 @@ const I18N = {
     'toast.proto': 'Здесь прототип откроется на весь экран',
     'note.paused': 'Проект <b>{name}</b> на паузе · команда остановится после текущего прогона',
     'note.resumed': 'Проект <b>{name}</b> снова в работе · следующий прогон начнётся в течение часа',
-    'note.pausedAt': '<b>{name}</b> на паузе по твоей просьбе · {at}',
-    'count.aria': ({ n }) => `Ждут тебя: ${n}`,
-    'announce.resolved': '{verb}: {detail}. Записано в #{id} как твой ответ.',
+    'note.pausedAt': '<b>{name}</b> на паузе по вашей просьбе · {at}',
+    'count.aria': ({ n }) => `Ждут вас: ${n}`,
+    'announce.resolved': '{verb}: {detail}. Записано в #{id} как ваш ответ.',
     'announce.pm': 'PM: {text}',
 
     'shell.main': 'Основное', 'shell.owner': 'Владелец', 'shell.synced': 'GitHub синхронизирован',
@@ -732,15 +732,15 @@ const DATA = (() => {
       { t: 'day', date: '2026-09-28' },
       { t: 'msg', who: 'pm', at: '2026-09-28T18:04', html: L(
         '<p>I need your hands here: stage can’t ship without the Oracle and Cloudflare accounts. The steps are in the card, about 15 minutes.</p>',
-        '<p>Нужна твоя помощь: без аккаунтов Oracle и Cloudflare stage не выкатить. Шаги в карточке, это минут 15.</p>') },
+        '<p>Нужна ваша помощь: без аккаунтов Oracle и Cloudflare stage не выкатить. Шаги в карточке, это минут 15.</p>') },
       {
         t: 'card', id: '72', kind: 'action', icon: 'key', label: L('Action · access', 'Действие · доступ'),
-        title: L('Create Oracle and Cloudflare accounts and deploy secrets', 'Заведи аккаунты Oracle и Cloudflare и добавь секреты для деплоя'),
-        text: L('Only you can open these accounts. The stage deploy waits on them.', 'Открыть эти аккаунты можешь только ты. Деплой на stage ждёт их.'),
+        title: L('Create Oracle and Cloudflare accounts and deploy secrets', 'Заведите аккаунты Oracle и Cloudflare и добавьте секреты для деплоя'),
+        text: L('Only you can open these accounts. The stage deploy waits on them.', 'Открыть эти аккаунты можете только вы. Деплой на stage ждёт их.'),
         steps: [
           L('Oracle Cloud Free Tier account and an API key', 'Аккаунт Oracle Cloud Free Tier и API-ключ'),
           L('Cloudflare account and an API token with <i>Pages: Edit</i>', 'Аккаунт Cloudflare и API-токен с правом <i>Pages: Edit</i>'),
-          L('Add <code>ORACLE_API_KEY</code> and <code>CLOUDFLARE_API_TOKEN</code> to the repo’s GitHub Secrets', 'Добавь <code>ORACLE_API_KEY</code> и <code>CLOUDFLARE_API_TOKEN</code> в GitHub Secrets репозитория'),
+          L('Add <code>ORACLE_API_KEY</code> and <code>CLOUDFLARE_API_TOKEN</code> to the repo’s GitHub Secrets', 'Добавьте <code>ORACLE_API_KEY</code> и <code>CLOUDFLARE_API_TOKEN</code> в GitHub Secrets репозитория'),
         ],
         meta: L('Blocks stage deploy · asked yesterday', 'Блокирует деплой на stage · ждёт со вчера'),
         actions: [{ id: 'done', label: L('Done', 'Готово'), key: 'd', primary: true }, { id: 'later', label: L('Not yet', 'Пока нет'), key: 'l' }],
@@ -780,7 +780,7 @@ const DATA = (() => {
           '<p>Коротко по storify за сутки.</p>' +
           '<p class="brief__h">Выпущено: 3</p>' +
           '<ul><li>Лента историй с бесконечной прокруткой <span class="ref">#41</span></li><li>Экспорт истории в PDF <span class="ref">#38</span></li><li>Вход по magic-link <span class="ref">#29</span></li></ul>' +
-          '<p class="brief__h">Нужно твоё решение: 2</p>' +
+          '<p class="brief__h">Нужно ваше решение: 2</p>' +
           '<ul><li><span class="ref">#13</span> wip/craft-i18n: слить или закрыть. Советую закрыть.</li><li>Демо спринта 01, 9 окт.: go / no-go.</li></ul>' +
           '<p class="brief__foot">Со вчера ещё ждут аккаунты (#72) и дизайн редактора (#47).</p>'),
       },
@@ -815,7 +815,7 @@ const DATA = (() => {
           go: { tone: 'positive', verb: L('Go', 'Go'), detail: L('Sprint 01 demo on 9 Oct', 'демо спринта 01, 9 окт.'),
             pm: L('Go recorded. The demo page opens on 9 Oct, release right after the demo.', 'Принято: go. Демо-страница откроется 9 окт., релиз сразу после демо.') },
           nogo: { tone: 'negative', verb: L('No-go', 'No-go'), detail: L('Sprint 01 demo held', 'демо спринта 01 переносится'),
-            pm: L('No-go recorded. What must be in the demo? Tell me and I’ll move the date.', 'Принято: no-go. Что должно войти в демо? Напиши, и я перенесу дату.') },
+            pm: L('No-go recorded. What must be in the demo? Tell me and I’ll move the date.', 'Принято: no-go. Что должно войти в демо? Напишите, и я перенесу дату.') },
         },
       },
     ],
@@ -823,12 +823,12 @@ const DATA = (() => {
       { t: 'day', date: today },
       { t: 'msg', who: 'pm', at: `${today}T09:12`, html: L(
         '<p>Kickoff is done: the brief and ADR-0001 are in artifacts. Push on iPhone needs one step from you.</p>',
-        '<p>Кикофф закрыт: бриф и ADR-0001 в артефактах. Для пушей на iPhone нужен один шаг с твоей стороны.</p>') },
+        '<p>Кикофф закрыт: бриф и ADR-0001 в артефактах. Для пушей на iPhone нужен один шаг с вашей стороны.</p>') },
       {
         t: 'card', id: '9', kind: 'action', icon: 'key', label: L('Action · device', 'Действие · устройство'),
-        title: L('Install the dev build to the Home Screen to allow push', 'Установи dev-сборку на экран «Домой», чтобы получать пуши'),
+        title: L('Install the dev build to the Home Screen to allow push', 'Установите dev-сборку на экран «Домой», чтобы получать пуши'),
         text: L('iOS only delivers web push to installed apps. Open dev in Safari, Share, Add to Home Screen, then allow notifications.',
-          'iOS присылает веб-пуши только установленным приложениям. Открой dev в Safari, нажми «Поделиться» → «На экран „Домой“» и разреши уведомления.'),
+          'iOS присылает веб-пуши только установленным приложениям. Откройте dev в Safari, нажмите «Поделиться» → «На экран „Домой“» и разрешите уведомления.'),
         meta: L('Needed for Sprint 00 demo · asked today', 'Нужно для демо спринта 00 · сегодня'),
         actions: [{ id: 'done', label: L('Done', 'Готово'), key: 'd', primary: true }, { id: 'later', label: L('Not yet', 'Пока нет'), key: 'l' }],
         receipts: {
@@ -867,14 +867,14 @@ const DATA = (() => {
       { t: 'msg', who: 'owner', at: '2026-09-22T19:10', html: L('<p>pause sheltrix until we finish storify</p>', '<p>поставь sheltrix на паузу, пока не закончим storify</p>') },
       { t: 'msg', who: 'pm', at: '2026-09-22T19:11', html: L(
         '<p>Done: sheltrix is paused. Sprint 03 is closed (7 of 7); two PRs stay open: #88 and #91. No questions for you.</p>',
-        '<p>Готово: sheltrix на паузе. Спринт 03 закрыт (7 из 7), два PR остались открытыми: #88 и #91. Вопросов к тебе нет.</p>') },
+        '<p>Готово: sheltrix на паузе. Спринт 03 закрыт (7 из 7), два PR остались открытыми: #88 и #91. Вопросов к вам нет.</p>') },
       { t: 'note', key: 'note.pausedAt', name: 'sheltrix', at: '2026-09-22T19:12' },
     ],
   };
   quiet.forEach(([name, sprint]) => {
     logs[name] = [{ t: 'day', date: '2026-09-28' }, { t: 'msg', who: 'pm', at: '2026-09-28T09:00', html: L(
       `<p>Sprint ${sprint} is on track, no questions for you.</p>`,
-      `<p>Спринт ${sprint} идёт по плану, вопросов к тебе нет.</p>`) }];
+      `<p>Спринт ${sprint} идёт по плану, вопросов к вам нет.</p>`) }];
   });
 
   // Board items are GitHub issue titles and stay as written in the repo.
@@ -903,7 +903,7 @@ const DATA = (() => {
   const A = (type, title, meta, extra) => Object.assign({ type, title, meta }, extra || {});
   const artifacts = {
     storify: [
-      A('design', 'Story editor: empty, error, offline', L('#47 · awaiting your approval', '#47 · ждёт твоего согласования'), { awaiting: '47' }),
+      A('design', 'Story editor: empty, error, offline', L('#47 · awaiting your approval', '#47 · ждёт вашего согласования'), { awaiting: '47' }),
       A('design', 'Feed: infinite scroll', L('#41 · approved 24 Sep', '#41 · утверждено 24 сент.')),
       A('demo', L('Sprint 01 demo page', 'Демо-страница спринта 01'), L('draft · opens 9 Oct', 'черновик · откроется 9 окт.')),
       A('adr', 'ADR-0001 Stack and architecture', L('accepted 18 Sep', 'принято 18 сент.')),
@@ -917,7 +917,7 @@ const DATA = (() => {
       A('deploy', 'stage · stage.storify.example', L('waiting on #72', 'ждёт #72')),
     ],
     'team-console': [
-      A('design', L('Visual directions 01 to 03', 'Визуальные направления 01–03'), L('kickoff · awaiting your pick', 'кикофф · ждёт твоего выбора')),
+      A('design', L('Visual directions 01 to 03', 'Визуальные направления 01–03'), L('kickoff · awaiting your pick', 'кикофф · ждёт вашего выбора')),
       A('adr', 'ADR-0001 Stack and architecture', L('accepted today', 'принято сегодня')),
       A('brief', L('Product brief', 'Бриф продукта'), L('kickoff · 29 Sep', 'кикофф · 29 сент.')),
       A('deploy', 'dev · console-dev.example', L('live', 'работает')),
