@@ -1,4 +1,4 @@
-/* UI strings. Russian is the reference copy (ADR 0002): short, plain, "ты" to the owner, no gendered past tense
+/* UI strings. Russian is the reference copy (ADR 0002; formal "вы" to the owner per the owner decision of 2026-10-01): short, plain, no gendered past tense
    addressed to the owner. Values are strings with {vars} or functions (vars, plural, x) for counted or inflected
    phrases. t() HTML-escapes vars in strings; functions escape with x.esc. Markup lives only in these strings. */
 const I18N = {
@@ -111,14 +111,14 @@ const I18N = {
     'thumb.empty': 'Пусто', 'thumb.offline': 'Офлайн · тёмная', 'thumb.error': 'Ошибка',
     'card.recommends': 'Команда советует',
     // Russian keeps lowercase after a colon.
-    'receipt.verb': ({ verb }, pl, x) => `Твой ответ: ${x.esc(x.lower1(verb))}`, 'receipt.meta': '#{id} · {time} · записано от твоего имени',
-    'pm.typing': 'PM печатает', 'msg.you': 'Ты,',
+    'receipt.verb': ({ verb }, pl, x) => `Ваш ответ: ${x.esc(x.lower1(verb))}`, 'receipt.meta': '#{id} · {time} · записано от вашего имени',
+    'pm.typing': 'PM печатает', 'msg.you': 'Вы,',
 
     'board.demo': 'Демо {date}',
     'board.progress': 'Готово {done} из {total}',
     'metric.done': 'Готово', 'metric.prs': 'Открытые PR', 'metric.ci': 'CI · main', 'metric.run': 'Прогоны',
     'board.pausedBody': '<b>{name} на паузе с {since}.</b> Команда не работает, вопросы ждут. {sprint} закрыт: {done} из {total}.',
-    'board.emptyBody': '{sprint}: готово {done} из {total}, от тебя ничего не нужно. В настоящем приложении колонки подтянутся из GitHub.',
+    'board.emptyBody': '{sprint}: готово {done} из {total}, от вас ничего не нужно. В настоящем приложении колонки подтянутся из GitHub.',
     'col.approved': 'одобрено', 'col.progress': 'в работе', 'col.qa': 'на проверке', 'col.done': 'готово',
     'board.pause': 'Приостановить {name}', 'board.resume': 'Возобновить {name}',
     'board.all': 'Все проекты: {r} в работе · {p} на паузе · {f} со сбоем',
@@ -137,23 +137,23 @@ const I18N = {
 
     'side.pausedSince': 'На паузе с {date}',
     'side.withDemo': '{what} · демо {date}',
-    'side.pinned': 'Закреплённые', 'side.projects': 'Проекты', 'side.quiet': 'Без вопросов к тебе',
-    'side.more': 'Ещё {n}, без вопросов к тебе',
+    'side.pinned': 'Закреплённые', 'side.projects': 'Проекты', 'side.quiet': 'Без вопросов к вам',
+    'side.more': 'Ещё {n}, без вопросов к вам',
     'side.noMatch': 'Нет проектов по запросу «{q}».',
 
-    'needs.none': '<b>От тебя сейчас ничего не нужно.</b> Команды работают; если понадобишься, придёт пуш.',
+    'needs.none': '<b>От вас сейчас ничего не нужно.</b> Команды работают; если понадобитесь, придёт пуш.',
     'needs.lead': ({ n, k }, pl) => `${n} ${pl(n, ['вопрос', 'вопроса', 'вопросов'])} в ${k} ${pl(k, ['проекте', 'проектах', 'проектах'])}. Каждый открывается в своём разговоре.`,
     'needs.rec': ({ c }, pl, x) => `Команда советует: ${x.esc(x.lower1(c))}`,
 
     'ov.noDemo': 'без демо', 'ov.demo': 'демо {date}',
     'ov.foot': 'готово {done}/{total} · PR: {prs} · CI {ci}',
-    'ov.quiet': 'Без вопросов к тебе',
+    'ov.quiet': 'Без вопросов к вам',
 
     'win.title': '{name} · Team Console',
-    'nav.needs': 'Ждут тебя', 'nav.all': 'Все проекты', 'nav.acrossAll': 'во всех проектах',
+    'nav.needs': 'Ждут вас', 'nav.all': 'Все проекты', 'nav.acrossAll': 'во всех проектах',
     'nav.nProjects': ({ n }, pl) => `${n} ${pl(n, ['проект', 'проекта', 'проектов'])}`,
-    'nav.projectsAria': 'Проекты', 'nav.sections': 'Разделы', 'nav.needAll': 'Ждут тебя — все проекты',
-    'tab.chat': 'Чат', 'tab.board': 'Доска', 'tab.artifacts': 'Артефакты', 'tab.needYou': 'ждут тебя',
+    'nav.projectsAria': 'Проекты', 'nav.sections': 'Разделы', 'nav.needAll': 'Ждут вас — все проекты',
+    'tab.chat': 'Чат', 'tab.board': 'Доска', 'tab.artifacts': 'Артефакты', 'tab.needYou': 'ждут вас',
 
     'banner.paused': '<b>{name} на паузе.</b> Команда не работает, сообщения подождут.',
     'banner.resume': 'Возобновить',
@@ -172,9 +172,9 @@ const I18N = {
     'toast.proto': 'Здесь прототип откроется на весь экран',
     'note.paused': 'Проект <b>{name}</b> на паузе · команда остановится после текущего прогона',
     'note.resumed': 'Проект <b>{name}</b> снова в работе · следующий прогон начнётся в течение часа',
-    'note.pausedAt': '<b>{name}</b> на паузе по твоей просьбе · {at}',
-    'count.aria': ({ n }) => `Ждут тебя: ${n}`,
-    'announce.resolved': '{verb}: {detail}. Записано в #{id} как твой ответ.',
+    'note.pausedAt': '<b>{name}</b> на паузе по вашей просьбе · {at}',
+    'count.aria': ({ n }) => `Ждут вас: ${n}`,
+    'announce.resolved': '{verb}: {detail}. Записано в #{id} как ваш ответ.',
     'announce.pm': 'PM: {text}',
 
     'shell.main': 'Основное', 'shell.owner': 'Владелец', 'shell.synced': 'GitHub синхронизирован',

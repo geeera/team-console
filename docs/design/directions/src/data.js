@@ -25,15 +25,15 @@ const DATA = (() => {
       { t: 'day', date: '2026-09-28' },
       { t: 'msg', who: 'pm', at: '2026-09-28T18:04', html: L(
         '<p>I need your hands here: stage can’t ship without the Oracle and Cloudflare accounts. The steps are in the card, about 15 minutes.</p>',
-        '<p>Нужна твоя помощь: без аккаунтов Oracle и Cloudflare stage не выкатить. Шаги в карточке, это минут 15.</p>') },
+        '<p>Нужна ваша помощь: без аккаунтов Oracle и Cloudflare stage не выкатить. Шаги в карточке, это минут 15.</p>') },
       {
         t: 'card', id: '72', kind: 'action', icon: 'key', label: L('Action · access', 'Действие · доступ'),
-        title: L('Create Oracle and Cloudflare accounts and deploy secrets', 'Заведи аккаунты Oracle и Cloudflare и добавь секреты для деплоя'),
-        text: L('Only you can open these accounts. The stage deploy waits on them.', 'Открыть эти аккаунты можешь только ты. Деплой на stage ждёт их.'),
+        title: L('Create Oracle and Cloudflare accounts and deploy secrets', 'Заведите аккаунты Oracle и Cloudflare и добавьте секреты для деплоя'),
+        text: L('Only you can open these accounts. The stage deploy waits on them.', 'Открыть эти аккаунты можете только вы. Деплой на stage ждёт их.'),
         steps: [
           L('Oracle Cloud Free Tier account and an API key', 'Аккаунт Oracle Cloud Free Tier и API-ключ'),
           L('Cloudflare account and an API token with <i>Pages: Edit</i>', 'Аккаунт Cloudflare и API-токен с правом <i>Pages: Edit</i>'),
-          L('Add <code>ORACLE_API_KEY</code> and <code>CLOUDFLARE_API_TOKEN</code> to the repo’s GitHub Secrets', 'Добавь <code>ORACLE_API_KEY</code> и <code>CLOUDFLARE_API_TOKEN</code> в GitHub Secrets репозитория'),
+          L('Add <code>ORACLE_API_KEY</code> and <code>CLOUDFLARE_API_TOKEN</code> to the repo’s GitHub Secrets', 'Добавьте <code>ORACLE_API_KEY</code> и <code>CLOUDFLARE_API_TOKEN</code> в GitHub Secrets репозитория'),
         ],
         meta: L('Blocks stage deploy · asked yesterday', 'Блокирует деплой на stage · ждёт со вчера'),
         actions: [{ id: 'done', label: L('Done', 'Готово'), key: 'd', primary: true }, { id: 'later', label: L('Not yet', 'Пока нет'), key: 'l' }],
@@ -73,7 +73,7 @@ const DATA = (() => {
           '<p>Коротко по storify за сутки.</p>' +
           '<p class="brief__h">Выпущено: 3</p>' +
           '<ul><li>Лента историй с бесконечной прокруткой <span class="ref">#41</span></li><li>Экспорт истории в PDF <span class="ref">#38</span></li><li>Вход по magic-link <span class="ref">#29</span></li></ul>' +
-          '<p class="brief__h">Нужно твоё решение: 2</p>' +
+          '<p class="brief__h">Нужно ваше решение: 2</p>' +
           '<ul><li><span class="ref">#13</span> wip/craft-i18n: слить или закрыть. Советую закрыть.</li><li>Демо спринта 01, 9 окт.: go / no-go.</li></ul>' +
           '<p class="brief__foot">Со вчера ещё ждут аккаунты (#72) и дизайн редактора (#47).</p>'),
       },
@@ -108,7 +108,7 @@ const DATA = (() => {
           go: { tone: 'positive', verb: L('Go', 'Go'), detail: L('Sprint 01 demo on 9 Oct', 'демо спринта 01, 9 окт.'),
             pm: L('Go recorded. The demo page opens on 9 Oct, release right after the demo.', 'Принято: go. Демо-страница откроется 9 окт., релиз сразу после демо.') },
           nogo: { tone: 'negative', verb: L('No-go', 'No-go'), detail: L('Sprint 01 demo held', 'демо спринта 01 переносится'),
-            pm: L('No-go recorded. What must be in the demo? Tell me and I’ll move the date.', 'Принято: no-go. Что должно войти в демо? Напиши, и я перенесу дату.') },
+            pm: L('No-go recorded. What must be in the demo? Tell me and I’ll move the date.', 'Принято: no-go. Что должно войти в демо? Напишите, и я перенесу дату.') },
         },
       },
     ],
@@ -116,12 +116,12 @@ const DATA = (() => {
       { t: 'day', date: today },
       { t: 'msg', who: 'pm', at: `${today}T09:12`, html: L(
         '<p>Kickoff is done: the brief and ADR-0001 are in artifacts. Push on iPhone needs one step from you.</p>',
-        '<p>Кикофф закрыт: бриф и ADR-0001 в артефактах. Для пушей на iPhone нужен один шаг с твоей стороны.</p>') },
+        '<p>Кикофф закрыт: бриф и ADR-0001 в артефактах. Для пушей на iPhone нужен один шаг с вашей стороны.</p>') },
       {
         t: 'card', id: '9', kind: 'action', icon: 'key', label: L('Action · device', 'Действие · устройство'),
-        title: L('Install the dev build to the Home Screen to allow push', 'Установи dev-сборку на экран «Домой», чтобы получать пуши'),
+        title: L('Install the dev build to the Home Screen to allow push', 'Установите dev-сборку на экран «Домой», чтобы получать пуши'),
         text: L('iOS only delivers web push to installed apps. Open dev in Safari, Share, Add to Home Screen, then allow notifications.',
-          'iOS присылает веб-пуши только установленным приложениям. Открой dev в Safari, нажми «Поделиться» → «На экран „Домой“» и разреши уведомления.'),
+          'iOS присылает веб-пуши только установленным приложениям. Откройте dev в Safari, нажмите «Поделиться» → «На экран „Домой“» и разрешите уведомления.'),
         meta: L('Needed for Sprint 00 demo · asked today', 'Нужно для демо спринта 00 · сегодня'),
         actions: [{ id: 'done', label: L('Done', 'Готово'), key: 'd', primary: true }, { id: 'later', label: L('Not yet', 'Пока нет'), key: 'l' }],
         receipts: {
@@ -160,14 +160,14 @@ const DATA = (() => {
       { t: 'msg', who: 'owner', at: '2026-09-22T19:10', html: L('<p>pause sheltrix until we finish storify</p>', '<p>поставь sheltrix на паузу, пока не закончим storify</p>') },
       { t: 'msg', who: 'pm', at: '2026-09-22T19:11', html: L(
         '<p>Done: sheltrix is paused. Sprint 03 is closed (7 of 7); two PRs stay open: #88 and #91. No questions for you.</p>',
-        '<p>Готово: sheltrix на паузе. Спринт 03 закрыт (7 из 7), два PR остались открытыми: #88 и #91. Вопросов к тебе нет.</p>') },
+        '<p>Готово: sheltrix на паузе. Спринт 03 закрыт (7 из 7), два PR остались открытыми: #88 и #91. Вопросов к вам нет.</p>') },
       { t: 'note', key: 'note.pausedAt', name: 'sheltrix', at: '2026-09-22T19:12' },
     ],
   };
   quiet.forEach(([name, sprint]) => {
     logs[name] = [{ t: 'day', date: '2026-09-28' }, { t: 'msg', who: 'pm', at: '2026-09-28T09:00', html: L(
       `<p>Sprint ${sprint} is on track, no questions for you.</p>`,
-      `<p>Спринт ${sprint} идёт по плану, вопросов к тебе нет.</p>`) }];
+      `<p>Спринт ${sprint} идёт по плану, вопросов к вам нет.</p>`) }];
   });
 
   // Board items are GitHub issue titles and stay as written in the repo.
@@ -196,7 +196,7 @@ const DATA = (() => {
   const A = (type, title, meta, extra) => Object.assign({ type, title, meta }, extra || {});
   const artifacts = {
     storify: [
-      A('design', 'Story editor: empty, error, offline', L('#47 · awaiting your approval', '#47 · ждёт твоего согласования'), { awaiting: '47' }),
+      A('design', 'Story editor: empty, error, offline', L('#47 · awaiting your approval', '#47 · ждёт вашего согласования'), { awaiting: '47' }),
       A('design', 'Feed: infinite scroll', L('#41 · approved 24 Sep', '#41 · утверждено 24 сент.')),
       A('demo', L('Sprint 01 demo page', 'Демо-страница спринта 01'), L('draft · opens 9 Oct', 'черновик · откроется 9 окт.')),
       A('adr', 'ADR-0001 Stack and architecture', L('accepted 18 Sep', 'принято 18 сент.')),
@@ -210,7 +210,7 @@ const DATA = (() => {
       A('deploy', 'stage · stage.storify.example', L('waiting on #72', 'ждёт #72')),
     ],
     'team-console': [
-      A('design', L('Visual directions 01 to 03', 'Визуальные направления 01–03'), L('kickoff · awaiting your pick', 'кикофф · ждёт твоего выбора')),
+      A('design', L('Visual directions 01 to 03', 'Визуальные направления 01–03'), L('kickoff · awaiting your pick', 'кикофф · ждёт вашего выбора')),
       A('adr', 'ADR-0001 Stack and architecture', L('accepted today', 'принято сегодня')),
       A('brief', L('Product brief', 'Бриф продукта'), L('kickoff · 29 Sep', 'кикофф · 29 сент.')),
       A('deploy', 'dev · console-dev.example', L('live', 'работает')),

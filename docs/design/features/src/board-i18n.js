@@ -43,7 +43,7 @@ const I18N = {
     'page.theme': 'Тема', 'page.auto': 'Авто', 'page.light': 'Светлая', 'page.dark': 'Тёмная',
     'page.motion': 'Анимация', 'page.motionSystem': 'Анимация: как в системе', 'page.motionReduce': 'Меньше движения',
     'page.lang': 'Язык', 'page.reset': 'Сбросить демо',
-    'page.summary': 'Что утверждаешь и какие токены использует дизайн',
+    'page.summary': 'Что утверждаете и какие токены использует дизайн',
     'page.phoneAria': 'Вид на iPhone', 'page.macAria': 'Вид на Mac', 'page.macLabel': 'Mac · окно (без изменений)',
 
     'demo.aria': 'Состояния для демо',
@@ -51,11 +51,11 @@ const I18N = {
     'demo.data': 'Данные',
     'demo.d.sprint': 'Sprint 01 (данные QA из #129)', 'demo.d.early': 'Начало спринта: «Готово» пусто',
     'demo.d.unknown': 'Незнакомый статус из GitHub', 'demo.d.s108': 'Превью #108: текущий, следующий, бэклог',
-    'demo.help': 'На iPhone нажми дорожку в переключателе: видна только она, и «Открытые пул-реквесты» идут сразу за ней. «Сейчас: ряд со свайпом» — сегодняшняя доска с пустотой из #134. Окно Mac одинаковое в обеих версиях.',
+    'demo.help': 'На iPhone нажмите дорожку в переключателе: видна только она, и «Открытые пул-реквесты» идут сразу за ней. «Сейчас: ряд со свайпом» — сегодняшняя доска с пустотой из #134. Окно Mac одинаковое в обеих версиях.',
 
     'nav.questions': 'Вопросы', 'nav.chat': 'Чат', 'nav.board': 'Доска', 'nav.artifacts': 'Артефакты', 'nav.demo': 'Демо',
     'nav.sections': 'Разделы проекта', 'nav.switch': 'Проект {name}, сменить проект', 'nav.settings': 'Настройки',
-    'nav.app': 'Консоль команды', 'nav.waiting': 'Ждут тебя', 'nav.all': 'Все проекты', 'nav.projects': 'Проекты',
+    'nav.app': 'Консоль команды', 'nav.waiting': 'Ждут вас', 'nav.all': 'Все проекты', 'nav.projects': 'Проекты',
 
     'board.demoIn': 'Демо 16 октября · через 15 дней',
     'board.stat.done': 'Готово', 'board.stat.doneValue': '{shipped} из {planned}', 'board.stat.stillOpen': 'Ещё открыто', 'board.stat.openPrs': 'Открытые PR',
