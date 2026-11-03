@@ -29,6 +29,7 @@
   font-size: var(--fs-xl);
   font-weight: var(--fw-display);
   line-height: var(--lh-tight);
+  white-space: nowrap;
   outline: none;
 }
 
@@ -41,7 +42,14 @@
 
 .repos__refresh {
   flex: none;
-  min-height: var(--control-h-touch);
+}
+
+/* The phone: Refresh moves under the heading instead of squeezing «Доступны на GitHub» onto two lines (#275 §7.9). */
+@media (max-width: 519.98px) {
+  .repos__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 .repos__note {
@@ -85,50 +93,74 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* #278: the way to a repository GitHub does not list yet; the callout keeps its own body type and rule. */
+.repos__missing p {
+  margin: 0;
+}
+
+.repos__missing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.repos__missing-actions > * {
+  min-height: var(--control-h-touch);
+  /* The kit button keeps its label on one line; this one is long, so it wraps inside the column instead of
+     pushing the page wider than the phone (#281 QA: 372px in a 360px column). */
+  max-width: 100%;
+  padding-block: var(--space-2);
+  white-space: normal;
+  text-align: center;
+}
+
 .repos__more {
   justify-self: start;
   min-height: var(--control-h-touch);
   color: var(--accent-text);
 }
 
-/* Rows: the name in serif and never cut, the owner in mono, Private as a word with a small lock. */
+/*
+ * Rows (#275, owner 2026-10-07): as compact as the board's rows. The name in the UI sans, one meta line (owner ·
+ * Private), a standard-height Add centred beside them; nothing wraps at 390 px, a long name ends in an ellipsis
+ * (the Add button's name still carries the full repository).
+ */
 .repo__name {
-  font-family: var(--font-display);
+  display: block;
+  overflow: hidden;
   font-size: var(--fs-md);
-  font-weight: var(--fw-display);
+  font-weight: var(--fw-semibold);
   line-height: var(--lh-tight);
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .repo__meta {
-  display: inline-flex;
-  flex-wrap: wrap;
+  display: flex;
   align-items: center;
-  gap: var(--space-1) var(--space-2);
-  color: var(--text-2);
+  gap: var(--space-1);
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
 }
 
 .repo__owner {
-  font-family: var(--font-mono);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .repo__private {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: 0 var(--space-2);
-  border-radius: var(--r-pill);
-  background: var(--bg-sunken);
-  color: var(--text-2);
-  font-weight: var(--fw-semibold);
+  flex: none;
 }
 
 .repo__add {
   flex: none;
-  min-width: calc(var(--space-16) + var(--space-8));
-  min-height: var(--control-h-touch);
-  margin-right: var(--space-2);
-  color: var(--accent-text);
+  align-self: center;
+  margin-right: var(--space-3);
 }
 
 .repo__add[aria-disabled='true'] {

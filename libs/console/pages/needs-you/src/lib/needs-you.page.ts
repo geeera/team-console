@@ -36,7 +36,7 @@ import { QuestionList } from '@console/widgets/question-list';
     TranslocoPipe,
   ],
   template: `
-    <div class="tc-page">
+    <div class="tc-page tc-page--cards">
       <div class="needs-you__head">
         <h1 #heading tcSrOnlyOnPhone class="tc-page__title" tabindex="-1">
           {{ 'needsYou.title' | transloco }}

@@ -1,7 +1,7 @@
 /** How long a screen may take to load content tall enough for the saved position. */
 export const SCROLL_RESTORE_WINDOW_MS = 5_000;
 
-// Any of these on `<main>` means the owner is scrolling or acting: the saved position no longer applies.
+// Any of these anywhere on the page means the owner is scrolling or acting: the saved position no longer applies.
 const OWNER_INPUT = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
 
 export interface ScrollRestore {
@@ -13,21 +13,23 @@ export interface ScrollRestore {
 const DONE: ScrollRestore = { isPending: () => false, cancel: () => undefined };
 
 /**
- * Puts `main` back at `top`. A screen that renders its content after the first frame (the questions list loads it)
+ * Puts `scroller` (the document's scrolling element, #274) back at `top`. A screen that renders its content after the first frame (the questions list loads it)
  * is too short at first, so the browser clamps the position; then this waits for the content to grow and applies
  * the position once it fits — until the owner touches the screen, the next navigation cancels it, or `windowMs`.
  */
 export function restoreScroll(
-  main: HTMLElement,
+  scroller: Element,
+  content: HTMLElement,
   top: number,
   windowMs = SCROLL_RESTORE_WINDOW_MS,
 ): ScrollRestore {
-  main.scrollTop = top;
-  if (top <= 0 || main.scrollTop >= top) {
+  scroller.scrollTop = top;
+  if (top <= 0 || scroller.scrollTop >= top) {
     return DONE;
   }
   let isPending = true;
-  const fits = (): boolean => main.scrollHeight - main.clientHeight >= top;
+  const fits = (): boolean => scroller.scrollHeight - scroller.clientHeight >= top;
+  const page = content.ownerDocument;
   const stop = (): void => {
     if (!isPending) {
       return;
@@ -36,19 +38,19 @@ export function restoreScroll(
     observer.disconnect();
     clearTimeout(timer);
     for (const type of OWNER_INPUT) {
-      main.removeEventListener(type, stop);
+      page.removeEventListener(type, stop);
     }
   };
   const observer = new MutationObserver(() => {
     if (fits()) {
-      main.scrollTop = top;
+      scroller.scrollTop = top;
       stop();
     }
   });
   const timer = setTimeout(stop, windowMs);
-  observer.observe(main, { childList: true, subtree: true, characterData: true });
+  observer.observe(content, { childList: true, subtree: true, characterData: true });
   for (const type of OWNER_INPUT) {
-    main.addEventListener(type, stop, { passive: true });
+    page.addEventListener(type, stop, { passive: true });
   }
   return { isPending: () => isPending, cancel: stop };
 }

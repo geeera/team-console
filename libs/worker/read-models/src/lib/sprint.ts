@@ -9,6 +9,7 @@ import {
   type SprintTierRowDto,
 } from '@shared/contracts';
 import { kindOf } from '@shared/owner-grammar';
+import { withoutInvisibles } from '@shared/plain-text';
 import type { IssueRecord, MilestoneRecord, PullRequestRecord } from './github-records';
 import { githubUrlOrNull, isTrustedAuthor } from './untrusted-text';
 
@@ -161,7 +162,8 @@ export interface SprintInput {
 export function buildSprint(input: SprintInput): SprintListsDto {
   const pullRequests = input.openPullRequests.map((pull) => ({
     number: pull.number,
-    title: pull.title,
+    // Titles come from any author: a bidi override or zero-width run could pose as another item (#287).
+    title: withoutInvisibles(pull.title),
     url: githubUrlOrNull(pull.htmlUrl),
     draft: pull.draft,
     authorTrusted: isTrustedAuthor(pull),
@@ -190,13 +192,13 @@ export function buildSprint(input: SprintInput): SprintListsDto {
   return {
     milestone: {
       number: input.milestone.number,
-      title: input.milestone.title,
+      title: withoutInvisibles(input.milestone.title),
       dueOn: (input.milestone.dueOn ?? '').slice(0, 10),
       url: githubUrlOrNull(input.milestone.htmlUrl),
     },
     issues: issues.map((issue): SprintIssueDto => ({
       number: issue.number,
-      title: issue.title,
+      title: withoutInvisibles(issue.title),
       url: githubUrlOrNull(issue.htmlUrl),
       state: issue.state,
       status: statusOf(issue.labels),

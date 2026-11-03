@@ -12,6 +12,10 @@ import {
 
 // #62: every state-changing /api route says how it treats the dev/stage Access service identity. A new route fails
 // "is classified" until someone decides; an owner write must be `owner-only` or carry the fixture gate.
+// One read route writes D1: `GET /api/v1/projects/:slug/issues/:number/request` marks a pending owner request
+// handled (`owner_requests`, a display cache) and is reachable by the service identity. That is harmless only while a
+// row changes on nothing but a trusted bot's strict handled marker — never on GitHub, never on the owner's token;
+// owner-request.spec.ts ("the GET changes a row only on a trusted bot's strict marker") pins it (#270).
 
 type ServiceRule =
   /** Refused outright by `ownerOnlyMiddleware` (403 owner-only), before any handler code runs. */
@@ -33,6 +37,8 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   // #218: milestone writes on the owner's token; nothing for e2e on dev/stage to do there.
   'POST /api/v1/projects/:slug/sprint/demo-date': 'owner-only',
   'POST /api/v1/projects/:slug/sprint/next': 'owner-only',
+  // #219 (ADR 0005 decision 2): a request must be the owner's own wish; the service identity has none to make.
+  'POST /api/v1/projects/:slug/issues/:number/request': 'owner-only',
   'POST /api/v1/github/connect': 'owner-only',
   'DELETE /api/v1/github/connection': 'owner-only',
   'PUT /api/v1/push/subscriptions': 'owner-only',

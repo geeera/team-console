@@ -21,6 +21,7 @@ function item(number: number, slug = 'tc', overrides: Partial<QuestionItem> = {}
     allowedCommands: ['approve', 'reject'],
     category: 'scope',
     recommendation: 'approve',
+    context: null,
     ...overrides,
   };
 }

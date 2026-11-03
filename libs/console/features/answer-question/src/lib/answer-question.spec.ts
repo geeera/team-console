@@ -25,6 +25,7 @@ function item(overrides: Partial<QuestionItem> = {}): QuestionItem {
     allowedCommands: ['approve', 'reject'],
     category: 'scope',
     recommendation: null,
+    context: null,
     ...overrides,
   };
 }

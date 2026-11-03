@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { compactVerify, importJWK } from 'jose';
-import type { FetchLike } from '@worker/github';
+import { INSTALLATION_LIST_PERMISSIONS, INSTALLATION_PERMISSIONS, type FetchLike } from '@worker/github';
 import type { ApiEnv } from '../env';
 
 /** Test-only: a scripted api.github.com behind the app flow, with sentinel tokens (#9 threat row 3). */
@@ -74,6 +74,10 @@ export function stubGitHub(
       return json(201, {
         token: `${TOKEN_SENTINEL}${minted}`,
         expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        // GitHub echoes the downscoping it applied (#76): the request's repository token, or the #194 list token.
+        ...(call.body !== undefined && 'repositories' in (JSON.parse(call.body) as object)
+          ? { permissions: INSTALLATION_PERMISSIONS, repository_selection: 'selected' }
+          : { permissions: INSTALLATION_LIST_PERMISSIONS, repository_selection: 'all' }),
       });
     }
     return read(call);

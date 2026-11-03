@@ -165,7 +165,7 @@ async function answerItem(batch: BatchContext, number: number): Promise<BatchAns
     const outcome = await postOwnerAnswer(
       c,
       github,
-      { repo, registered: batch.registered, number, body },
+      { repo, registered: batch.registered, number, body, kind: 'answer' },
       {
         writer: async () => batch.writer,
         // The service identity never reaches this route (owner-only), so there is no fixture gate to re-check.

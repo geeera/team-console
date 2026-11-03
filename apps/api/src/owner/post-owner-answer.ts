@@ -1,5 +1,5 @@
 import type { LogFields, ProblemInit, WorkerContext } from '@worker/core';
-import { OwnWritesRepo, type OwnWrite } from '@worker/db';
+import { OwnWritesRepo, type OwnWrite, type OwnWriteKind } from '@worker/db';
 import { githubPath, type GitHubClient, type RepoName } from '@worker/github';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
@@ -30,8 +30,10 @@ export interface OwnerAnswerTarget {
   /** `owner/name` as the registry stores it: the key of `own_writes` and the owner check. */
   readonly registered: string;
   readonly number: number;
-  /** The comment, byte for byte (`answerComment`). */
+  /** The comment, byte for byte (`answerComment`, `requestComment`). */
   readonly body: string;
+  /** What `own_writes` records it as: an answer (#10, #220) or an owner request to the PM (#219). */
+  readonly kind: Extract<OwnWriteKind, 'answer' | 'request'>;
 }
 
 export interface OwnerAnswerSteps {
@@ -44,7 +46,8 @@ export interface OwnerAnswerSteps {
 }
 
 export type OwnerAnswerOutcome =
-  | { readonly kind: 'written'; readonly write: OwnWrite }
+  /** `createdAt`: GitHub's `created_at` of the new comment, `null` when the answer carried none. */
+  | { readonly kind: 'written'; readonly write: OwnWrite; readonly createdAt: string | null }
   | { readonly kind: 'replayed'; readonly write: OwnWrite }
   | { readonly kind: 'in-progress' }
   | { readonly kind: 'refused'; readonly response: Response };
@@ -52,6 +55,7 @@ export type OwnerAnswerOutcome =
 interface GitHubComment {
   readonly id: number;
   readonly html_url: string;
+  readonly created_at?: unknown;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -60,6 +64,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isComment(value: unknown): value is GitHubComment {
   return isRecord(value) && Number.isSafeInteger(value['id']) && typeof value['html_url'] === 'string';
+}
+
+/**
+ * GitHub's timestamp of the comment as ISO 8601 UTC, or `null` when the answer lacks one it can parse. Never a
+ * reason to fail: the comment exists by now, and a thrown error would invite a second post.
+ */
+function githubCreatedAtOf(comment: GitHubComment): string | null {
+  if (typeof comment.created_at !== 'string' || !Number.isFinite(Date.parse(comment.created_at))) {
+    return null;
+  }
+  return new Date(comment.created_at).toISOString();
 }
 
 /**
@@ -133,7 +148,7 @@ export async function postOwnerAnswer(
     commentId: comment.id,
     repo: target.registered,
     issueNumber: target.number,
-    kind: 'answer',
+    kind: target.kind,
     bodyHash,
     url: comment.html_url,
     createdAt: new Date(github.now()).toISOString(),
@@ -147,5 +162,5 @@ export async function postOwnerAnswer(
     logger.error('owner answer written but not recorded', { ...fields, error });
   }
   logger.info('owner answer written', fields);
-  return { kind: 'written', write };
+  return { kind: 'written', write, createdAt: githubCreatedAtOf(comment) };
 }

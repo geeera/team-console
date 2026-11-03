@@ -1,6 +1,6 @@
 {
  "plugin": {
-  "version": "0.10.3",
+  "version": "0.11.0",
   "sources": {
    "scripts/runlog": "ddc722f524f65c74021b499a2557bb67d6e338a8e4fa0bc7b9b2704200d3041a",
    "scripts/ptlib/runstate.py": "1ed923bf718fcc6d8f43b679493e737e15c5d981c7a52afb5b3206864b29ac77",

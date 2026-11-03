@@ -3,6 +3,7 @@ import { provideServiceWorker, SwRegistrationOptions } from '@angular/service-wo
 import { appIconDirOf, ENVIRONMENTS } from '@shared/contracts';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { appRoutes } from './app.routes';
 import { serviceWorkerOptions } from './pwa';
 
 const appRoot = join(import.meta.dirname, '..', '..');
@@ -92,6 +93,18 @@ describe('ngsw-config.json', () => {
   it('keeps /api out of the navigation fallback', () => {
     expect(config.navigationUrls).toContain('!/api/**');
   });
+
+  // Cloudflare's edge owns /cdn-cgi/: Access sets its cookie on /cdn-cgi/access/authorized, so a worker that answers
+  // it with the app shell makes re-login impossible (#284).
+  it('leaves /cdn-cgi/ to the network: out of the navigation fallback and of every group', () => {
+    expect(config.navigationUrls).toContain('!/cdn-cgi/**');
+    for (const group of [...(config.assetGroups ?? []), ...(config.dataGroups ?? [])]) {
+      expect(group.resources?.files ?? [], group.name).toContain('!/cdn-cgi/**');
+      for (const pattern of [...(group.resources?.urls ?? []), ...(group.urls ?? [])]) {
+        expect(pattern, `${group.name}: ${pattern}`).not.toMatch(/^\/(\*\*|cdn-cgi)(\/|$)/);
+      }
+    }
+  });
 });
 
 describe('service worker registration', () => {
@@ -111,5 +124,63 @@ describe('service worker registration', () => {
     const options = TestBed.inject(SwRegistrationOptions);
     expect(options.enabled).toBe(true);
     expect(options.registrationStrategy).toBe('registerWhenStable:30000');
+  });
+});
+
+/** `_headers` as path → header lines; rules are unindented lines, their headers the indented ones below. */
+function headerRules(text: string): Map<string, string[]> {
+  const rules = new Map<string, string[]>();
+  let current: string[] | null = null;
+  for (const line of text.split('\n')) {
+    if (line.trim() === '' || line.trimStart().startsWith('#')) {
+      continue;
+    }
+    if (/^\s/.test(line)) {
+      current?.push(line.trim());
+    } else {
+      current = [];
+      rules.set(line.trim(), current);
+    }
+  }
+  return rules;
+}
+
+// ngsw decides about updates from ngsw.json, the browser about the worker from ngsw-worker.js, and every new page
+// starts from the shell: a stale copy of any of them keeps a device on an old version (#306).
+describe('_headers: version metadata is never cached stale', () => {
+  const rules = headerRules(readFileSync(join(appRoot, 'public/_headers'), 'utf8'));
+  const isNoCache = (path: string): boolean => (rules.get(path) ?? []).includes('Cache-Control: no-cache');
+
+  it.each(['/', '/index.html', '/ngsw.json', '/ngsw-worker.js', '/safety-worker.js'])(
+    '%s is no-cache',
+    (path) => {
+      expect(isNoCache(path)).toBe(true);
+    },
+  );
+
+  it('every client-side route answered with the shell is no-cache too', () => {
+    for (const route of appRoutes) {
+      const path = route.path ?? '';
+      if (path === '' || path === '**') {
+        continue;
+      }
+      const [first] = path.split('/');
+      const isNested = path.includes('/') || route.children !== undefined || route.loadChildren !== undefined;
+      if (!path.includes(':')) {
+        expect(isNoCache(`/${path}`), `/${path}`).toBe(true);
+      }
+      if (isNested) {
+        expect(isNoCache(`/${first}/*`), `/${first}/*`).toBe(true);
+      }
+    }
+  });
+
+  it('leaves hashed files to the default caching', () => {
+    for (const [path, lines] of rules) {
+      if (lines.some((line) => line.startsWith('Cache-Control'))) {
+        // The hashed files sit at the root: a splat there, or on an extension, would reach them.
+        expect(path, `${path} would cover hashed files`).not.toMatch(/^\/\*|\*\./);
+      }
+    }
   });
 });

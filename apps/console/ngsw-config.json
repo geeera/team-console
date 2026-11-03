@@ -6,7 +6,7 @@
       "name": "app",
       "installMode": "prefetch",
       "resources": {
-        "files": ["/index.html", "/*.css", "/*.js"]
+        "files": ["/index.html", "/*.css", "/*.js", "!/cdn-cgi/**"]
       }
     },
     {
@@ -17,10 +17,11 @@
         "files": [
           "/media/**",
           "/icons/**",
-          "/**/*.(svg|cur|jpg|jpeg|png|apng|webp|avif|gif|otf|ttf|woff|woff2)"
+          "/**/*.(svg|cur|jpg|jpeg|png|apng|webp|avif|gif|otf|ttf|woff|woff2)",
+          "!/cdn-cgi/**"
         ]
       }
     }
   ],
-  "navigationUrls": ["/**", "!/**/*.*", "!/**/*__*", "!/**/*__*/**", "!/api/**"]
+  "navigationUrls": ["/**", "!/**/*.*", "!/**/*__*", "!/**/*__*/**", "!/api/**", "!/cdn-cgi/**"]
 }

@@ -104,7 +104,10 @@ function isProgress(value: unknown): value is SprintProgressDto | null {
 function isCalendar(value: unknown): value is SprintCalendarDto | null {
   return (
     value === null ||
-    (isRecord(value) && isCalendarDate(value['today']) && isCount(value['freezeDays']) && isText(value['nextTitle']))
+    (isRecord(value) &&
+      isCalendarDate(value['today']) &&
+      isCount(value['freezeDays']) &&
+      isText(value['nextTitle']))
   );
 }
 
@@ -125,6 +128,7 @@ export function isTeamStatusDto(value: unknown): value is TeamStatusDto {
     isTeamSprint(value['sprint']) &&
     isProgress(value['progress']) &&
     isCalendar(value['calendar']) &&
+    isCount(value['pendingRequests']) &&
     slots.length === TEAM_SLOTS.length &&
     slots.every(isSlotStatus) &&
     TEAM_SLOTS.every((slot, index) => (slots[index] as SlotStatusDto).slot === slot)

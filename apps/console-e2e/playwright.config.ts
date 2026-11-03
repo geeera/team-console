@@ -22,6 +22,7 @@ export default defineConfig({
   testDir: './src',
   testMatch: '**/*.e2e.ts',
   outputDir: '../../dist/.playwright/apps/console-e2e/test-output',
+  globalSetup: './src/stack/global-setup.ts',
   fullyParallel: false,
   forbidOnly: isCI,
   // No retries: a flaky step is a bug to fix, and a retried answer would hit the 60 s replay window anyway.

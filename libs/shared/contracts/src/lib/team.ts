@@ -80,6 +80,8 @@ export interface TeamStatusDto {
   readonly progress: SprintProgressDto | null;
   /** `null` when GitHub did not answer the milestones read: the sprint commands are off until it does. */
   readonly calendar: SprintCalendarDto | null;
+  /** Issues whose newest owner request still waits for the PM (#219), from D1. */
+  readonly pendingRequests: number;
 }
 
 /** A pause or resume written to the run log. */

@@ -20,6 +20,23 @@
   }
 }
 
+/* `fill` (#277): the frame is the whole stage of the design viewer; the viewer offers the link in its own toolbar. */
+:host(.tc-frame--fill) {
+  display: block;
+  height: 100%;
+}
+
+:host(.tc-frame--fill) .tc-frame__view {
+  height: 100%;
+  aspect-ratio: auto;
+  border: 0;
+  border-radius: 0;
+}
+
+:host(.tc-frame--fill) .tc-frame__open {
+  display: none;
+}
+
 .tc-frame__refused {
   display: grid;
   gap: var(--space-1);

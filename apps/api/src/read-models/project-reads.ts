@@ -10,6 +10,7 @@ import {
   type TeamRunDto,
   type TeamSprintDto,
 } from '@shared/contracts';
+import { withoutInvisibles } from '@shared/plain-text';
 import type { ProjectRow } from '@worker/db';
 import { GitHubClient, GitHubError, githubPath, readCacheKey, type RepoName } from '@worker/github';
 import {
@@ -117,6 +118,15 @@ export class ProjectReads {
       reviewerLogins: config.reviewerLogins,
       repoFullName: this.repo.fullName,
     });
+  }
+
+  /** The open issues (no pull requests) the owner may ask the PM about (#219), newest first; shares `open-issues`. */
+  async requestableIssues(): Promise<{ number: number; title: string }[]> {
+    const issues = await this.openIssues();
+    return issues
+      .filter((issue) => !issue.isPullRequest)
+      .map((issue) => ({ number: issue.number, title: withoutInvisibles(issue.title) }))
+      .sort((a, b) => b.number - a.number);
   }
 
   async questions(): Promise<QuestionsDto> {
@@ -229,7 +239,9 @@ export class ProjectReads {
     const plan = sprintPlanOf(milestones, sprintToday(this.now()), freezeDaysOfFile(file));
     let progress: SprintProgressDto | null = null;
     if (plan.current !== null) {
-      const issues = (await this.milestoneIssues(plan.current.number)).filter((issue) => !issue.isPullRequest);
+      const issues = (await this.milestoneIssues(plan.current.number)).filter(
+        (issue) => !issue.isPullRequest,
+      );
       const summary = sprintSummary(issues);
       progress = { done: summary.shipped, total: summary.planned };
     }
@@ -297,7 +309,8 @@ export class ProjectReads {
     );
   }
 
-  private openPullRequests(): Promise<PullRequestRecord[]> {
+  /** The open pull requests, newest first (the board, and #277's design ref), shared as `open-pulls`. */
+  openPullRequests(): Promise<PullRequestRecord[]> {
     return this.cached('open-pulls', LIST_TTL_SECONDS, async () => {
       const client = await this.connect();
       const raw = await client.paginate(

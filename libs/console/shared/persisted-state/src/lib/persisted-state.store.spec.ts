@@ -108,6 +108,16 @@ describe('PersistedStateStore', () => {
     expect(store.projectState('a')?.artifactFilter).toEqual({});
   });
 
+  it('keeps the board tab per project', () => {
+    const { store, storage } = setup();
+
+    store.setBoardTab('a', 'runs');
+    vi.advanceTimersByTime(PERSISTED_STATE_WRITE_DELAY_MS);
+
+    expect(parsePersistedState(storage.read()).projects['a']?.boardTab).toBe('runs');
+    expect(store.projectState('b')?.boardTab).toBeUndefined();
+  });
+
   it('toggles pins in pin order and the collapsed flag', () => {
     const { store } = setup();
 

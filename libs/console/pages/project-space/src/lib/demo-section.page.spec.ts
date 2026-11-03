@@ -35,6 +35,7 @@ function question(number: number, overrides: Partial<QuestionDto>): QuestionDto 
     authorTrusted: true,
     category: null,
     recommendation: null,
+    context: null,
     body: '',
     allowedCommands: ['approve', 'reject'],
     ...overrides,

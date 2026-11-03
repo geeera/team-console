@@ -195,7 +195,7 @@ export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv
         throw new Error('an answer was composed for an issue without a section');
       }
 
-      const target = { repo, registered: project.repo, number, body };
+      const target = { repo, registered: project.repo, number, body, kind: 'answer' as const };
       const outcome = await postOwnerAnswer(c, github, target, {
         writer: async () => ownerWriter(c.env, c.get('logger'), github, installation, target),
         recheck: async () =>
