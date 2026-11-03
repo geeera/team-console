@@ -26,8 +26,9 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           sparse-checkout: docs/design
       - name: Index of every page under docs/design
         run: |
@@ -36,11 +37,14 @@ jobs:
           {
             echo '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             echo '<title>Designs</title><style>body{font:16px/1.5 system-ui;max-width:640px;margin:32px auto;padding:0 16px}a{display:block;padding:8px 0}</style><h1>Designs</h1>'
-            find . -name '*.html' ! -name index.html ! -path './*/src/*' | sort | sed 's|^\./||' | while read -r f; do echo "<a href=\"$f\">$f</a>"; done
+            # File names are HTML-escaped, so a name with a quote or "<" cannot inject markup into the index.
+            find . -name '*.html' ! -name index.html ! -path './*/src/*' | sort | sed 's|^\./||' \
+              | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&#39;/g" \
+              | while read -r f; do echo "<a href=\"$f\">$f</a>"; done
           } > "${RUNNER_TEMP}/index.html"
           mv "${RUNNER_TEMP}/index.html" index.html
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: docs/design
       - id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
