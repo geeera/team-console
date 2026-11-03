@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>#108 Board by sprint (UX wireframe)</title>
+<style>
+/* Low-fidelity on purpose: grey boxes, system font, no Paper Desk styling. The look is the ui-designer's job.
+   Same conventions as ux/29-team-commands.html. Every string is real ru/en copy under the keys of the UX spec. */
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 system-ui,-apple-system,sans-serif;color:#222;background:#eee}
+a{color:#222}
+button,select{font:inherit}
+:focus-visible{outline:3px solid #000;outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.demo{background:#fff;border-bottom:1px solid #bbb;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:13px}
+.demo b{font-size:14px}
+.demo label{display:flex;gap:6px;align-items:center}
+.demo p{margin:0;flex-basis:100%;color:#555}
+.stage{padding:20px;display:flex;justify-content:center}
+.frame{background:#fafafa;border:2px solid #999;display:flex;position:relative;overflow:hidden}
+.frame.mac{width:1180px;height:760px}
+.frame.phone{width:390px;height:800px;flex-direction:column;border-radius:28px}
+.side{width:220px;border-right:1px solid #bbb;background:#e6e6e6;display:flex;flex-direction:column;padding:12px;gap:4px;flex:none}
+.side span{padding:8px}
+.side .cur{background:#bdbdbd;font-weight:600}
+.side .lbl{font-size:12px;color:#555;margin-top:10px;padding:0 8px}
+main{flex:1;overflow:auto;padding:20px 28px;min-width:0}
+.phone main{padding:14px}
+.topbar{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid #bbb;background:#e6e6e6;min-height:52px}
+.topbar b{flex:1;font-size:17px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid #bbb;padding:0 10px;background:#f0f0f0;overflow:auto}
+.tabs span{padding:10px 8px;white-space:nowrap;font-size:14px}
+.tabs .cur{font-weight:700;text-decoration:underline}
+.muted{color:#555;font-size:13px}
+h1{font-size:21px;margin:0 0 6px}
+.btn{min-height:44px;padding:0 14px;border:1px solid #666;background:#ddd;cursor:pointer}
+.btn.sm{min-height:36px;padding:0 10px}
+.btn.link{border:0;background:none;text-decoration:underline;padding:0 4px;min-height:32px}
+.chip{display:inline-block;border:1px solid #777;padding:0 6px;font-size:12px;background:#f3f3f3}
+.box{background:#ddd;border:1px dashed #999;padding:10px 12px;margin:8px 0;color:#444;font-size:13px}
+.skel{height:44px;background:repeating-linear-gradient(90deg,#ddd 0 70%,#eee 70% 100%);margin:6px 0;border:1px solid #e3e3e3}
+/* sections */
+.sec{border:2px solid #999;background:#fff;margin:14px 0;padding:0}
+.sec-h{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:10px 12px;background:#f0f0f0}
+.sec-h h2{margin:0;font-size:17px;flex:1;min-width:180px}
+.sec-h h2 .kick{display:block;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#555}
+.sec-h .meta{font-size:13px;color:#444}
+.sec-b{padding:8px 12px 12px}
+.state{border:1px dashed #777;background:#f7f7f7;padding:12px;margin:6px 0}
+.state b{display:block}
+.state.err{border:2px solid #555}
+.legend{font-size:13px;color:#444;margin:6px 0}
+/* lanes: Mac columns, phone = a tab list (#134) */
+.cols{display:flex;gap:10px;overflow-x:auto;align-items:flex-start;padding-bottom:4px}
+.col{flex:0 0 250px;border:1px solid #bbb;background:#fafafa}
+.col h3,.lane h3{margin:0;font-size:13px;padding:6px 8px;background:#e8e8e8;display:flex;justify-content:space-between}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.pills [role=tab]{min-height:44px;padding:0 12px;border:1px solid #777;background:#f3f3f3;cursor:pointer;border-radius:22px}
+.pills [aria-selected=true]{background:#444;color:#fff}
+.list{list-style:none;margin:0;padding:0}
+.list li{border-top:1px solid #ddd}
+.list li:first-child{border-top:0}
+.row{display:flex;gap:8px;align-items:flex-start;padding:8px;text-decoration:none;min-height:44px}
+.row:hover{background:#f0f0f0}
+.row .num{color:#555;font-variant-numeric:tabular-nums;flex:none}
+.row .grow{flex:1;min-width:0}
+.row .t{display:block}
+.row small{display:block;color:#444;font-size:12px;margin-top:2px}
+.row .req{display:inline-block;border:1px dashed #555;background:#f5f5f5;padding:0 4px;margin-top:3px}
+.row .tier{flex:none;font-size:12px;letter-spacing:-1px;color:#555}
+.more{margin:6px 8px}
+/* notes */
+.notes{max-width:1180px;margin:0 auto 30px;padding:0 20px;font-size:14px}
+.notes li{margin:3px 0}
+</style>
+</head>
+<body>
+<div class="demo" role="region" aria-label="Wireframe controls">
+  <b>#108 · <span data-t="page.title"></span></b>
+  <label><span data-t="demo.view"></span> <select id="d-view"><option value="phone">iPhone</option><option value="mac">Mac</option></select></label>
+  <label><span data-t="demo.lang"></span> <select id="d-lang"><option value="ru">RU</option><option value="en">EN</option></select></label>
+  <label><span data-t="demo.current"></span> <select id="d-cur"></select></label>
+  <label><span data-t="demo.next"></span> <select id="d-next"></select></label>
+  <label><span data-t="demo.backlog"></span> <select id="d-back"></select></label>
+  <label><input type="checkbox" id="d-req" checked> <span data-t="demo.req"></span></label>
+  <button class="btn sm" id="d-deep" type="button" data-t="demo.deep"></button>
+  <button class="btn sm" id="d-reload" type="button" data-t="demo.reload"></button>
+  <p data-t="demo.hint"></p>
+</div>
+<div class="stage"><div id="frame" class="frame phone"></div></div>
+<div id="live" class="sr-only" aria-live="polite"></div>
+<div class="notes" id="notes"></div>
+
+<script>
+'use strict';
+/* ---------- copy (ru reference, en second); keys as in the UX spec ---------- */
+const T = {
+  ru: {
+    'page.title': 'Доска по спринтам: текущий, следующий, бэклог',
+    'demo.view': 'Вид', 'demo.lang': 'Язык', 'demo.current': 'Текущий', 'demo.next': 'Следующий (при открытии)',
+    'demo.backlog': 'Бэклог (при открытии)', 'demo.req': 'Просьбы владельца ждут PM',
+    'demo.deep': 'Открыть по ссылке ?section=backlog', 'demo.reload': 'Открыть доску заново',
+    'demo.hint': 'Нажмите «Показать задачи» у следующего спринта или бэклога: раздел загрузится с исходом, выбранным выше. Low-fi: серые блоки, настоящие тексты, без стиля Paper Desk.',
+    'o.loaded': 'загружен', 'o.empty': 'пусто', 'o.error': 'ошибка', 'o.rate': 'GitHub просит подождать', 'o.offline': 'нет сети',
+    'o.none': 'не создан', 'o.partial': 'частично (лимит)', 'o.large': 'большой (показать ещё)', 'o.nosprint': 'нет спринта',
+    'shell.project': 'team-console', 'shell.board': 'Доска', 'shell.questions': 'Вопросы', 'shell.demo': 'Демо', 'shell.artifacts': 'Артефакты', 'shell.chat': 'Чат',
+    'sections.current': 'Текущий спринт', 'sections.next': 'Следующий спринт', 'sections.backlog': 'Бэклог',
+    'sections.backlogTitle': 'Задачи без спринта',
+    'sections.open': (n) => `${n} ${pl(n, ['открытая', 'открытые', 'открытых'])}`,
+    'sections.show': 'Показать задачи', 'sections.hide': 'Скрыть',
+    'sections.showAria': (s) => `Показать задачи: ${s}`, 'sections.hideAria': (s) => `Скрыть задачи: ${s}`,
+    'sections.loading': (s) => `Загружаю: ${s}…`,
+    'sections.loaded': (s, n) => `${s}: ${n} ${pl(n, ['открытая задача', 'открытые задачи', 'открытых задач'])}`,
+    'sections.next.none': 'Следующий спринт ещё не создан. PM заводит его при планировании, а начать его можно в «Командах».',
+    'sections.next.emptyTitle': (s) => `В ${s} пока ничего нет`,
+    'sections.next.emptyHint': 'PM добавит задачи при планировании. Просьбы «в следующий спринт» он учтёт там же.',
+    'sections.backlog.emptyTitle': 'В бэклоге пусто',
+    'sections.backlog.emptyHint': 'Все открытые задачи уже в спринтах.',
+    'sections.error.title': (s) => `Не удалось загрузить: ${s}`,
+    'sections.error.hint': 'GitHub или консоль не ответили. Остальная доска работает.',
+    'sections.rate.title': 'GitHub просит подождать',
+    'sections.rate.hint': (t) => `Раздел сам попробует снова в ${t}.`,
+    'sections.offline.title': 'Нет соединения',
+    'sections.offline.hint': 'Раздел загрузится, когда появится сеть.',
+    'sections.partial': (n) => `Показаны первые ${n} задач бэклога: GitHub не успел отдать остальные за одну загрузку.`,
+    'sections.openOnGitHub': 'Весь бэклог на GitHub', 'sections.opensNew': '(откроется на GitHub)',
+    'sections.more': (n) => `Показать ещё ${n}`,
+    'sections.moreLeft': (n) => `осталось ${n}`,
+    'retry': 'Повторить',
+    'board.demo': (d) => `Демо ${d}`, 'board.moveDemo': 'Перенести демо',
+    'board.statsBox': 'Плитки #18 без изменений: Готово 4 из 11 · Ещё открыто 7 · Открытые PR 2 · CI · Прогоны',
+    'board.tierLabel': 'Сложность:', 'board.tier': {light: 'лёгкая', standard: 'средняя', heavy: 'тяжёлая'},
+    'board.lanes': (s) => `Задачи по статусам: ${s}`,
+    'board.status': {proposed: 'Предложено', approved: 'Одобрено', 'in-progress': 'В работе', qa: 'Проверка', blocked: 'Блокеры', done: 'Готово', none: 'Без статуса'},
+    'board.laneEmpty': 'Пусто', 'board.untrusted': 'Не от команды', 'board.opensGitHub': '(откроется на GitHub)',
+    'board.kind': {feature: 'Функция', bug: 'Ошибка', chore: 'Техзадача', finding: 'Находка', wow: 'Вау', question: 'Вопрос'},
+    'board.request.sprint': {current: 'Просьба: в текущий спринт', next: 'Просьба: в следующий спринт', backlog: 'Просьба: в бэклог'},
+    'board.request.priority': {up: 'Просьба: выше в очереди', down: 'Просьба: ниже в очереди'},
+    'board.request.waiting': (d) => `ждёт PM с ${d}`,
+    'board.noSprintTitle': 'Текущего спринта нет',
+    'board.noSprintHint': 'Нет открытого milestone с датой демо сегодня или позже. PM спланирует следующий спринт.',
+    'board.pulls': 'Открытые пул-реквесты', 'board.runs': 'Последние прогоны', 'board.unchanged': 'без изменений с #18',
+    months: ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'],
+  },
+  en: {
+    'page.title': 'Board by sprint: current, next and backlog',
+    'demo.view': 'View', 'demo.lang': 'Language', 'demo.current': 'Current', 'demo.next': 'Next (when opened)',
+    'demo.backlog': 'Backlog (when opened)', 'demo.req': 'Owner requests waiting for the PM',
+    'demo.deep': 'Open by link ?section=backlog', 'demo.reload': 'Open the board again',
+    'demo.hint': 'Press “Show tasks” on the next sprint or the backlog: the section loads with the outcome chosen above. Low-fi: grey boxes, real copy, no Paper Desk styling.',
+    'o.loaded': 'loaded', 'o.empty': 'empty', 'o.error': 'error', 'o.rate': 'GitHub asks to wait', 'o.offline': 'offline',
+    'o.none': 'not created', 'o.partial': 'partial (limit)', 'o.large': 'large (show more)', 'o.nosprint': 'no sprint',
+    'shell.project': 'team-console', 'shell.board': 'Board', 'shell.questions': 'Questions', 'shell.demo': 'Demo', 'shell.artifacts': 'Artifacts', 'shell.chat': 'Chat',
+    'sections.current': 'Current sprint', 'sections.next': 'Next sprint', 'sections.backlog': 'Backlog',
+    'sections.backlogTitle': 'Tasks without a sprint',
+    'sections.open': (n) => `${n} open`,
+    'sections.show': 'Show tasks', 'sections.hide': 'Hide',
+    'sections.showAria': (s) => `Show tasks: ${s}`, 'sections.hideAria': (s) => `Hide tasks: ${s}`,
+    'sections.loading': (s) => `Loading ${s}…`,
+    'sections.loaded': (s, n) => `${s}: ${n} open ${n === 1 ? 'task' : 'tasks'}`,
+    'sections.next.none': 'The next sprint doesn’t exist yet. The PM creates it when planning, or you can start it from Commands.',
+    'sections.next.emptyTitle': (s) => `Nothing in ${s} yet`,
+    'sections.next.emptyHint': 'The PM adds tasks when planning, and takes your “next sprint” requests into account there.',
+    'sections.backlog.emptyTitle': 'The backlog is empty',
+    'sections.backlog.emptyHint': 'Every open task is already in a sprint.',
+    'sections.error.title': (s) => `Couldn’t load ${s}`,
+    'sections.error.hint': 'GitHub or the console didn’t answer. The rest of the board works.',
+    'sections.rate.title': 'GitHub asks to wait',
+    'sections.rate.hint': (t) => `The section tries again by itself at ${t}.`,
+    'sections.offline.title': 'You’re offline',
+    'sections.offline.hint': 'The section loads once you’re back online.',
+    'sections.partial': (n) => `Showing the first ${n} backlog tasks: GitHub didn’t return the rest within one load.`,
+    'sections.openOnGitHub': 'The whole backlog on GitHub', 'sections.opensNew': '(opens on GitHub)',
+    'sections.more': (n) => `Show ${n} more`,
+    'sections.moreLeft': (n) => `${n} left`,
+    'retry': 'Try again',
+    'board.demo': (d) => `Demo ${d}`, 'board.moveDemo': 'Move demo',
+    'board.statsBox': 'The #18 tiles, unchanged: Done 4 of 11 · Still open 7 · Open PRs 2 · CI · Run log',
+    'board.tierLabel': 'Tier:', 'board.tier': {light: 'light', standard: 'standard', heavy: 'heavy'},
+    'board.lanes': (s) => `Tasks by status: ${s}`,
+    'board.status': {proposed: 'Proposed', approved: 'Approved', 'in-progress': 'In progress', qa: 'QA', blocked: 'Blocked', done: 'Done', none: 'No status'},
+    'board.laneEmpty': 'Nothing here', 'board.untrusted': 'Not from the team', 'board.opensGitHub': '(opens on GitHub)',
+    'board.kind': {feature: 'Feature', bug: 'Bug', chore: 'Chore', finding: 'Finding', wow: 'Wow', question: 'Question'},
+    'board.request.sprint': {current: 'Request: the current sprint', next: 'Request: the next sprint', backlog: 'Request: the backlog'},
+    'board.request.priority': {up: 'Request: higher in the queue', down: 'Request: lower in the queue'},
+    'board.request.waiting': (d) => `waiting for the PM since ${d}`,
+    'board.noSprintTitle': 'No current sprint',
+    'board.noSprintHint': 'No open milestone has a demo date today or later. The PM plans the next sprint.',
+    'board.pulls': 'Open pull requests', 'board.runs': 'Recent runs', 'board.unchanged': 'unchanged from #18',
+    months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+  },
+};
+function pl(n, f) { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? f[0] : a >= 2 && a <= 4 && (b < 10 || b >= 20) ? f[1] : f[2]; }
+
+/* ---------- data (titles are GitHub text: plain text only) ---------- */
+const CUR = { title: 'Sprint 03', due: '2026-10-13', issues: [
+  [131, 'CI state per open PR on the board', 'feature', 'done', 'standard'],
+  [132, 'Run state on the board', 'feature', 'done', 'standard'],
+  [237, 'Environment name in the app title and icons', 'feature', 'done', 'light'],
+  [108, 'Board by sprint: current, next and backlog', 'feature', 'approved', 'standard'],
+  [107, 'Quick task capture from the phone, with a sprint request', 'feature', 'blocked', 'standard'],
+  [29, 'Team commands: pause/resume, run now, sprint and priority controls', 'feature', 'in-progress', 'heavy'],
+  [244, 'Sheet focus lost after a 429 retry', 'bug', 'qa', 'light', { kind: 'priority', direction: 'up', at: '2026-10-04' }],
+]};
+const NEXT = { title: 'Sprint 04', due: '2026-10-27', issues: [
+  [36, 'Web push client: subscribe button, iOS guide, tap routing and badge', 'feature', 'approved', 'standard'],
+  [104, 'Environment setup: status and a step-by-step guide per item', 'feature', 'approved', 'heavy'],
+  [177, 'Remove the braces allowlist entry once a fix exists', 'chore', 'approved', 'light'],
+  [251, 'Offline banner overlaps the iPhone top bar', 'bug', 'proposed', 'light', null, false],
+  [249, 'Export the sprint summary for the demo', 'feature', 'proposed', 'standard', { kind: 'sprint', target: 'current', at: '2026-10-05' }],
+]};
+const BACK = [
+  [253, 'Notes on a task from the phone', 'feature', 'proposed', 'standard', { kind: 'sprint', target: 'next', at: '2026-10-06' }],
+  [250, 'Dark theme contrast on the CI chip', 'bug', 'proposed', 'light', { kind: 'sprint', target: 'backlog', at: '2026-10-03' }],
+  [230, 'Search across projects', 'feature', 'proposed', 'heavy'],
+  [214, 'Should the board show closed PRs from the last day?', 'question', 'blocked', 'standard'],
+  [198, 'Bundle size budget in CI', 'chore', 'approved', 'light'],
+  [166, 'Keyboard shortcuts help sheet', 'wow', 'proposed', 'light'],
+  [22, 'Run log', null, null, 'standard'],
+];
+function largeBacklog() {
+  const out = BACK.slice();
+  for (let i = 0; i < 38; i++) out.push([160 - i, `Idea from the team ${i + 1}`, i % 4 === 0 ? 'chore' : 'feature', 'proposed', i % 3 === 0 ? 'light' : 'standard']);
+  return out;
+}
+
+/* ---------- state ---------- */
+const S = {
+  view: 'phone', lang: 'ru', cur: 'loaded', nextOutcome: 'loaded', backOutcome: 'loaded', req: true,
+  sec: { next: { open: false, state: 'idle', lane: null, shown: {} }, backlog: { open: false, state: 'idle', lane: null, shown: {} } },
+  curLane: null,
+};
+const PAGE = 30; // rows per lane before "Show more" (spec); the wireframe uses it as is
+const t = (k) => T[S.lang][k];
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+function day(iso) { const [y, m, d] = iso.split('-').map(Number); return S.lang === 'ru' ? `${d} ${t('months')[m - 1]}` : `${t('months')[m - 1]} ${d}`; }
+function say(msg) { const l = document.getElementById('live'); l.textContent = ''; setTimeout(() => { l.textContent = msg; }, 50); }
+
+const ORDER = ['proposed', 'approved', 'in-progress', 'qa', 'blocked', 'done', 'none'];
+const CORE = ['approved', 'in-progress', 'qa', 'done'];
+function lanesOf(issues, core) {
+  const by = {};
+  for (const it of issues) { const s = it[3] || 'none'; (by[s] = by[s] || []).push(it); }
+  for (const c of core) by[c] = by[c] || [];
+  // pending owner requests first inside a lane, then the #18 order (kept here as the data order)
+  return ORDER.filter((s) => by[s]).map((s) => ({ status: s, issues: by[s].slice().sort((a, b) => (S.req && b[5] ? 1 : 0) - (S.req && a[5] ? 1 : 0)) }));
+}
+
+/* ---------- rendering ---------- */
+function rowHTML(it) {
+  const [n, title, kind, , tier, req, trusted] = it;
+  const tr = t('board.tier'); const bars = { light: '▮▯▯', standard: '▮▮▯', heavy: '▮▮▮' }[tier];
+  let sub = kind ? esc(t('board.kind')[kind]) : '';
+  if (trusted === false) sub += `${sub ? ' · ' : ''}<span class="chip">${esc(t('board.untrusted'))}</span>`;
+  if (S.req && req) {
+    const what = req.kind === 'sprint' ? t('board.request.sprint')[req.target] : t('board.request.priority')[req.direction];
+    sub += `${sub ? '<br>' : ''}<span class="req" data-testid="request">${esc(what)} · ${esc(t('board.request.waiting')(day(req.at)))}</span>`;
+  }
+  return `<li><a class="row" href="#" data-n="${n}" onclick="return false"><span class="num">#${n}</span><span class="grow"><span class="t">${esc(title)}<span class="sr-only"> ${esc(t('board.opensGitHub'))}</span></span>${sub ? `<small>${sub}</small>` : ''}</span><span class="tier" aria-hidden="true">${bars}</span><span class="sr-only">${esc(t('board.tierLabel'))} ${esc(tr[tier])}</span></a></li>`;
+}
+function laneListHTML(key, lane, shown) {
+  const max = shown[lane.status] || PAGE;
+  if (!lane.issues.length) return `<p class="muted" style="padding:8px;margin:0">${esc(t('board.laneEmpty'))}</p>`;
+  const rest = lane.issues.length - max;
+  const more = rest > 0 ? `<button class="btn sm more" type="button" data-more="${key}|${lane.status}">${esc(t('sections.more')(Math.min(rest, PAGE)))} <span class="muted">· ${esc(t('sections.moreLeft')(rest))}</span></button>` : '';
+  return `<ul class="list">${lane.issues.slice(0, max).map(rowHTML).join('')}</ul>${more}`;
+}
+function lanesHTML(key, lanes, name) {
+  const st = key === 'current' ? { lane: S.curLane, shown: {} } : S.sec[key];
+  if (S.view === 'mac') {
+    return `<div class="cols" role="region" tabindex="0" aria-label="${esc(t('board.lanes')(name))}">${lanes.map((l) => `<section class="col" aria-labelledby="h-${key}-${l.status}"><h3 id="h-${key}-${l.status}"><span>${esc(t('board.status')[l.status])}</span><span>${l.issues.length}</span></h3>${laneListHTML(key, l, st.shown)}</section>`).join('')}</div>`;
+  }
+  let sel = st.lane && lanes.some((l) => l.status === st.lane) ? st.lane : (lanes.find((l) => l.issues.length) || lanes[0]).status;
+  const lane = lanes.find((l) => l.status === sel);
+  const pills = lanes.length > 1 ? `<div class="pills" role="tablist" aria-label="${esc(t('board.lanes')(name))}">${lanes.map((l, i) => `<button role="tab" type="button" id="tab-${key}-${l.status}" aria-controls="lane-${key}" aria-selected="${l.status === sel}" tabindex="${l.status === sel ? 0 : -1}" data-lane="${key}|${l.status}">${esc(t('board.status')[l.status])} ${l.issues.length}</button>`).join('')}</div>` : '';
+  return `${pills}<section class="lane" id="lane-${key}" ${lanes.length > 1 ? `role="tabpanel" aria-labelledby="tab-${key}-${sel}"` : ''}><h3><span>${esc(t('board.status')[sel])}</span><span>${lane.issues.length}</span></h3>${laneListHTML(key, lane, st.shown)}</section>`;
+}
+function legend() {
+  const tr = t('board.tier');
+  return `<p class="legend">${esc(t('board.tierLabel'))} ▮▯▯ ${esc(tr.light)} · ▮▮▯ ${esc(tr.standard)} · ▮▮▮ ${esc(tr.heavy)}</p>`;
+}
+function stateBlock(title, hint, action, err) {
+  return `<div class="state${err ? ' err' : ''}" ${err ? 'role="alert"' : ''}><b>${esc(title)}</b>${hint ? `<span>${esc(hint)}</span>` : ''}${action || ''}</div>`;
+}
+function currentHTML() {
+  if (S.cur === 'nosprint') {
+    return `<section class="sec" aria-labelledby="h-current"><div class="sec-h"><h2 id="h-current" tabindex="-1"><span class="kick">${esc(t('sections.current'))}</span>${esc(t('board.noSprintTitle'))}</h2></div><div class="sec-b">${stateBlock(t('board.noSprintTitle'), t('board.noSprintHint'))}</div></section>`;
+  }
+  const open = CUR.issues.length - CUR.issues.filter((i) => i[3] === 'done').length;
+  return `<section class="sec" aria-labelledby="h-current"><div class="sec-h"><h2 id="h-current" tabindex="-1"><span class="kick">${esc(t('sections.current'))}</span>${esc(CUR.title)}</h2><span class="meta">${esc(t('board.demo')(day(CUR.due)))} · ${esc(t('sections.open')(open))}</span><button class="btn sm" type="button">${esc(t('board.moveDemo'))}</button></div><div class="sec-b"><div class="box">${esc(t('board.statsBox'))}</div>${legend()}${lanesHTML('current', lanesOf(CUR.issues, CORE), CUR.title)}</div></section>`;
+}
+function nameOf(key) { return key === 'next' ? NEXT.title : t('sections.backlog'); }
+function sectionHTML(key) {
+  const st = S.sec[key];
+  const isNext = key === 'next';
+  const none = isNext && (S.nextOutcome === 'none' || S.cur === 'nosprint');
+  const kick = isNext ? t('sections.next') : t('sections.backlog');
+  const title = isNext ? (none ? '' : NEXT.title) : t('sections.backlogTitle');
+  const data = dataOf(key);
+  let meta = isNext && !none ? t('board.demo')(day(NEXT.due)) : '';
+  if (st.state === 'loaded' && data) meta += `${meta ? ' · ' : ''}${t('sections.open')(data.length)}`;
+  const name = nameOf(key);
+  const btn = none ? '' : `<button class="btn sm" type="button" data-toggle="${key}" aria-expanded="${st.open}" aria-controls="body-${key}" aria-label="${esc(st.open ? t('sections.hideAria')(name) : t('sections.showAria')(name))}">${esc(st.open ? t('sections.hide') : t('sections.show'))}</button>`;
+  let body = '';
+  if (none) body = `<div class="sec-b"><p class="muted" style="margin:0">${esc(t('sections.next.none'))}</p></div>`;
+  else if (st.open) {
+    let inner = '';
+    if (st.state === 'loading') inner = `<div aria-busy="true"><p class="muted">${esc(t('sections.loading')(name))}</p><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>`;
+    else if (st.state === 'error') inner = stateBlock(t('sections.error.title')(name), t('sections.error.hint'), `<p><button class="btn sm" type="button" data-retry="${key}">${esc(t('retry'))}</button></p>`, true);
+    else if (st.state === 'rate') inner = stateBlock(t('sections.rate.title'), t('sections.rate.hint')('14:06'), `<p><button class="btn sm" type="button" data-retry="${key}">${esc(t('retry'))}</button></p>`, true);
+    else if (st.state === 'offline') inner = stateBlock(t('sections.offline.title'), t('sections.offline.hint'), `<p><button class="btn sm" type="button" data-retry="${key}">${esc(t('retry'))}</button></p>`, true);
+    else if (st.state === 'loaded' && data.length === 0) inner = isNext ? stateBlock(t('sections.next.emptyTitle')(NEXT.title), t('sections.next.emptyHint')) : stateBlock(t('sections.backlog.emptyTitle'), t('sections.backlog.emptyHint'));
+    else if (st.state === 'loaded') {
+      const partial = !isNext && S.backOutcome === 'partial' ? `<p class="state">${esc(t('sections.partial')(data.length))} <a href="#" onclick="return false">${esc(t('sections.openOnGitHub'))}<span class="sr-only"> ${esc(t('sections.opensNew'))}</span></a></p>` : '';
+      inner = partial + lanesHTML(key, lanesOf(data, []), name);
+    }
+    body = `<div class="sec-b" id="body-${key}">${inner}</div>`;
+  } else body = `<div id="body-${key}" hidden></div>`;
+  return `<section class="sec" aria-labelledby="h-${key}"><div class="sec-h"><h2 id="h-${key}" tabindex="-1"><span class="kick">${esc(kick)}</span>${esc(title || t('sections.next'))}</h2>${meta ? `<span class="meta">${esc(meta)}</span>` : ''}${btn}</div>${body}</section>`;
+}
+function dataOf(key) {
+  if (key === 'next') return S.nextOutcome === 'empty' ? [] : NEXT.issues;
+  if (S.backOutcome === 'empty') return [];
+  if (S.backOutcome === 'large') return largeBacklog();
+  if (S.backOutcome === 'partial') return BACK.slice(0, 5);
+  return BACK;
+}
+function boardHTML() {
+  return `<h1>${esc(t('shell.board'))}</h1>${currentHTML()}${sectionHTML('next')}${sectionHTML('backlog')}
+  <section class="sec"><div class="sec-h"><h2>${esc(t('board.pulls'))} <span class="muted">· ${esc(t('board.unchanged'))}</span></h2></div><div class="sec-b"><div class="box">PR #252 · PR #248</div></div></section>
+  <section class="sec"><div class="sec-h"><h2>${esc(t('board.runs'))} <span class="muted">· ${esc(t('board.unchanged'))}</span></h2></div><div class="sec-b"><div class="box">slot-pm · slot-dev · slot-qa</div></div></section>`;
+}
+function render(focusSel) {
+  const f = document.getElementById('frame');
+  f.className = `frame ${S.view}`;
+  const tabs = ['shell.questions', 'shell.board', 'shell.demo', 'shell.artifacts', 'shell.chat'];
+  const chrome = S.view === 'mac'
+    ? `<nav class="side" aria-label="Projects"><span class="lbl">${esc(t('shell.project'))}</span>${tabs.map((k) => `<span class="${k === 'shell.board' ? 'cur' : ''}">${esc(t(k))}</span>`).join('')}</nav><main id="main">${boardHTML()}</main>`
+    : `<div class="topbar"><b>${esc(t('shell.project'))}</b><span class="btn sm" style="display:flex;align-items:center">+</span></div><div class="tabs">${tabs.map((k) => `<span class="${k === 'shell.board' ? 'cur' : ''}">${esc(t(k))}</span>`).join('')}</div><main id="main">${boardHTML()}</main>`;
+  f.innerHTML = chrome;
+  document.documentElement.lang = S.lang;
+  document.querySelectorAll('[data-t]').forEach((el) => { el.textContent = t(el.dataset.t); });
+  if (focusSel) { const el = f.querySelector(focusSel); if (el) el.focus(); }
+}
+
+/* ---------- behaviour ---------- */
+function load(key, after) {
+  const st = S.sec[key];
+  st.state = 'loading';
+  render(`[data-toggle="${key}"]`);
+  say(t('sections.loading')(nameOf(key)));
+  setTimeout(() => {
+    const o = key === 'next' ? S.nextOutcome : S.backOutcome;
+    st.state = ['error', 'rate', 'offline'].includes(o) ? o : 'loaded';
+    // Focus stays on the disclosure button (or wherever the owner moved it); only the result is announced.
+    const focused = document.activeElement && document.activeElement.closest('#frame') ? document.activeElement : null;
+    const sel = focused && focused.dataset.toggle ? `[data-toggle="${focused.dataset.toggle}"]` : focused && focused.dataset.retry ? `[data-toggle="${key}"]` : null;
+    render(after || sel);
+    if (st.state === 'loaded') say(t('sections.loaded')(nameOf(key), dataOf(key).length));
+    else if (st.state === 'error') say(t('sections.error.title')(nameOf(key)));
+    else if (st.state === 'rate') say(t('sections.rate.title'));
+    else say(t('sections.offline.title'));
+  }, 900);
+}
+document.getElementById('frame').addEventListener('click', (e) => {
+  const tg = e.target.closest('[data-toggle]');
+  if (tg) {
+    const key = tg.dataset.toggle; const st = S.sec[key];
+    st.open = !st.open;
+    if (st.open && st.state !== 'loaded') load(key);
+    else render(`[data-toggle="${key}"]`);
+    return;
+  }
+  const rt = e.target.closest('[data-retry]');
+  if (rt) { load(rt.dataset.retry, `[data-toggle="${rt.dataset.retry}"]`); return; }
+  const mo = e.target.closest('[data-more]');
+  if (mo) {
+    const [key, status] = mo.dataset.more.split('|'); const st = S.sec[key];
+    const first = (st.shown[status] || PAGE);
+    st.shown[status] = first + PAGE;
+    render();
+    // Focus the first newly shown row, so the owner continues reading where the list grew.
+    const rows = document.querySelectorAll(`#body-${key} .row`);
+    if (rows[first]) rows[first].focus();
+    return;
+  }
+  const lb = e.target.closest('[data-lane]');
+  if (lb) selectLane(lb.dataset.lane);
+});
+function selectLane(v, focus) {
+  const [key, status] = v.split('|');
+  if (key === 'current') S.curLane = status; else S.sec[key].lane = status;
+  render(focus ? `#tab-${key}-${status}` : `#tab-${key}-${status}`);
+}
+document.getElementById('frame').addEventListener('keydown', (e) => {
+  const tab = e.target.closest('[role=tab]');
+  if (!tab) return;
+  const all = [...tab.parentElement.querySelectorAll('[role=tab]')];
+  let i = all.indexOf(tab);
+  if (e.key === 'ArrowRight') i = (i + 1) % all.length; else if (e.key === 'ArrowLeft') i = (i - 1 + all.length) % all.length;
+  else if (e.key === 'Home') i = 0; else if (e.key === 'End') i = all.length - 1; else return;
+  e.preventDefault();
+  selectLane(all[i].dataset.lane, true);
+});
+
+function fillSelect(id, opts, val) {
+  const s = document.getElementById(id);
+  s.innerHTML = opts.map((o) => `<option value="${o}">${esc(t('o.' + o))}</option>`).join('');
+  s.value = val;
+}
+function controls() {
+  fillSelect('d-cur', ['loaded', 'nosprint'], S.cur);
+  fillSelect('d-next', ['loaded', 'empty', 'none', 'error', 'rate', 'offline'], S.nextOutcome);
+  fillSelect('d-back', ['loaded', 'large', 'partial', 'empty', 'error', 'rate', 'offline'], S.backOutcome);
+}
+function reset() { for (const k of ['next', 'backlog']) S.sec[k] = { open: false, state: 'idle', lane: null, shown: {} }; }
+document.getElementById('d-view').onchange = (e) => { S.view = e.target.value; render(); };
+document.getElementById('d-lang').onchange = (e) => { S.lang = e.target.value; controls(); render(); notes(); };
+document.getElementById('d-cur').onchange = (e) => { S.cur = e.target.value; render(); };
+document.getElementById('d-next').onchange = (e) => { S.nextOutcome = e.target.value; S.sec.next.state = S.sec.next.open ? S.sec.next.state : 'idle'; if (S.sec.next.open) load('next'); else render(); };
+document.getElementById('d-back').onchange = (e) => { S.backOutcome = e.target.value; S.sec.backlog.shown = {}; if (S.sec.backlog.open) load('backlog'); else { S.sec.backlog.state = 'idle'; render(); } };
+document.getElementById('d-req').onchange = (e) => { S.req = e.target.checked; render(); };
+document.getElementById('d-reload').onclick = () => {
+  // A new visit: sections the owner left open (remembered per project) open and load again; closed ones stay idle.
+  const keep = { next: S.sec.next.open, backlog: S.sec.backlog.open };
+  reset(); render('#h-current');
+  for (const k of ['next', 'backlog']) if (keep[k]) { S.sec[k].open = true; load(k, '#h-current'); }
+};
+document.getElementById('d-deep').onclick = () => {
+  // /p/team-console/board?section=backlog: the section opens, loads, scrolls into view and its heading takes focus.
+  S.sec.backlog.open = true; load('backlog', '#h-backlog');
+  setTimeout(() => { const h = document.getElementById('h-backlog'); h && h.scrollIntoView({ block: 'start' }); h && h.focus(); }, 950);
+};
+function notes() {
+  const ru = S.lang === 'ru';
+  document.getElementById('notes').innerHTML = ru
+    ? `<h2>Что смотреть</h2><ul><li>Три раздела сверху вниз: текущий спринт (как #18), следующий спринт, бэклог. Следующий и бэклог загружаются только по «Показать задачи».</li><li>В строке: номер, название, тип, сложность; статус — это дорожка. Просьба владельца, которую PM ещё не обработал, — строка «Просьба: … · ждёт PM с …» (включите/выключите в панели).</li><li>Строки с просьбой идут первыми в своей дорожке.</li><li>Ошибка одного раздела не трогает остальные. Только чтение: перетаскивания и переноса нет.</li><li>Клавиатура: Tab до «Показать задачи», Enter; фокус остаётся на кнопке, результат объявляется. На iPhone дорожки — список вкладок (#134), стрелки, Home, End.</li></ul>`
+    : `<h2>What to look at</h2><ul><li>Three sections top to bottom: current sprint (as #18), next sprint, backlog. Next and backlog load only on “Show tasks”.</li><li>A row: number, title, kind, tier; the status is the lane. An owner request the PM hasn’t handled yet is a line “Request: … · waiting for the PM since …” (toggle it in the bar).</li><li>Rows with a request come first in their lane.</li><li>One section failing leaves the others alone. Read-only: no drag and drop, no moving.</li><li>Keyboard: Tab to “Show tasks”, Enter; focus stays on the button and the result is announced. On iPhone the lanes are a tab list (#134): arrows, Home, End.</li></ul>`;
+}
+controls(); render(); notes();
+</script>
+</body>
+</html>
