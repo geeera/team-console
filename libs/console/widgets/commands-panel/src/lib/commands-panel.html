@@ -15,7 +15,7 @@
 </header>
 }
 
-<div class="cp__body">
+<div class="cp__body" [class.tc-page-scroll]="mode() !== 'sheet'">
   <p class="tc-sr-only" aria-live="polite">{{ announcement() }}</p>
 
   @if (result(); as outcome) {
@@ -46,6 +46,27 @@
       }
       <span>{{ stateText() }}</span>
     </p>
+    <dl class="cp-facts">
+      <div class="cp-fact">
+        <dt>{{ 'commands.status.sprint' | transloco }}</dt>
+        <dd data-testid="status-sprint">
+          <span>{{ sprintFacts().line }}</span>
+          @if (sprintFacts().freeze) {&ngsp;<span class="cp-fact__sub" [class.cp-fact__sub--freeze]="sprintFacts().isFreezeNow"
+            >{{ sprintFacts().freeze }}</span
+          >
+          }
+        </dd>
+      </div>
+      @if (status.progress; as progress) {
+      <div class="cp-fact">
+        <dt>{{ 'commands.status.progress' | transloco }}</dt>
+        <dd class="cp-fact__progress" data-testid="status-progress">
+          <span>{{ 'commands.status.progressVal' | transloco: { done: progress.done, total: progress.total } }}</span>
+          <tc-meter [value]="progress.done" [max]="progress.total" />
+        </dd>
+      </div>
+      }
+    </dl>
     <p class="cp-state__meta">
       <span>{{ 'commands.status.updated' | transloco: { time: (status.checkedAt | localTime) } }}</span>
       <button
@@ -230,6 +251,136 @@
       }
     </ul>
   </section>
+
+  @if (sprintRows().length > 0) {
+  <section class="cp-group" data-testid="sprint-group" [attr.aria-labelledby]="id + '-gs'">
+    <h3 class="cp-kicker" [id]="id + '-gs'">{{ 'commands.group.sprint' | transloco }}</h3>
+    <ul class="cmd-list">
+      @for (row of sprintRows(); track row.key) {
+      <li class="cmd" [attr.data-sprint]="row.key">
+        <div class="cmd__txt">
+          <p class="cmd__title">{{ 'commands.sprint.' + row.key | transloco }}</p>
+          @if (row.aria) {
+          <p class="cmd__hint" [id]="id + '-sprint-hint-' + row.key">{{ row.hint }}</p>
+          @if (teamWhy(); as why) {
+          <p class="cmd__why" [id]="id + '-sprint-why-' + row.key">
+            <tc-icon name="lock" size="sm" /><span>{{ why }}</span>
+          </p>
+          } } @else {
+          <p class="cmd__line"><tc-icon name="check" size="sm" /><span>{{ row.hint }}</span></p>
+          }
+        </div>
+        @if (row.aria) {
+        <button
+          tc-button
+          size="sm"
+          type="button"
+          class="cmd__btn"
+          [attr.data-testid]="'sprint-' + row.key"
+          [off]="teamWhy() !== null"
+          [attr.aria-disabled]="teamWhy() !== null ? 'true' : null"
+          [attr.aria-label]="row.aria"
+          [attr.aria-describedby]="(teamWhy() !== null ? id + '-sprint-why-' + row.key + ' ' : '') + id + '-sprint-hint-' + row.key"
+          (click)="sprintCommand($event, row)"
+        >
+          <tc-icon [name]="row.key === 'demo' ? 'calendar' : 'plus'" size="sm" />
+          {{ 'commands.sprint.' + row.key + 'Btn' | transloco }}
+        </button>
+        }
+      </li>
+      }
+    </ul>
+  </section>
+  } @else if (status.calendar === null) {
+  <section class="cp-group" data-testid="sprint-group" [attr.aria-labelledby]="id + '-gs'">
+    <h3 class="cp-kicker" [id]="id + '-gs'">{{ 'commands.group.sprint' | transloco }}</h3>
+    <p class="cmd__hint">{{ 'commands.sprint.unknown' | transloco }}</p>
+  </section>
+  }
+
+  <section class="cp-group" data-testid="issues-group" [attr.aria-labelledby]="id + '-gi'">
+    <h3 class="cp-kicker" [id]="id + '-gi'">{{ 'commands.group.issues' | transloco }}</h3>
+    <div class="cmd-list">
+      <div class="cmd">
+        <div class="cmd__txt">
+          <p class="cmd__title">{{ 'commands.ask.title' | transloco }}</p>
+          <p class="cmd__hint" [id]="id + '-ask-hint'">{{ 'commands.ask.hint' | transloco }}</p>
+          @if (status.pendingRequests > 0) {
+          <p class="cmd__line cmd__line--pending" data-testid="ask-pending">
+            <tc-icon name="clock" size="sm" /><span>{{ 'commands.ask.pending' | transloco: { n: status.pendingRequests } }}</span>
+          </p>
+          } @if (teamWhy(); as why) {
+          <p class="cmd__why" [id]="id + '-ask-why'">
+            <tc-icon name="lock" size="sm" /><span>{{ why }}</span>
+          </p>
+          }
+        </div>
+        <button
+          tc-button
+          size="sm"
+          type="button"
+          class="cmd__btn"
+          data-testid="ask-command"
+          aria-haspopup="dialog"
+          [off]="teamWhy() !== null"
+          [attr.aria-disabled]="teamWhy() !== null ? 'true' : null"
+          [attr.aria-label]="'commands.ask.aria' | transloco"
+          [attr.aria-describedby]="(teamWhy() !== null ? id + '-ask-why ' : '') + id + '-ask-hint'"
+          (click)="askPm($event)"
+        >
+          {{ 'commands.ask.btn' | transloco }}
+        </button>
+      </div>
+    </div>
+  </section>
+
+  @if (snooze(); as snooze) {
+  <section class="cp-group" [attr.aria-labelledby]="id + '-gn'" data-testid="notify-group">
+    <h3 class="cp-kicker" [id]="id + '-gn'">{{ 'commands.group.notify' | transloco }}</h3>
+    <div class="cmd-list">
+      <div class="cmd">
+        <div class="cmd__txt">
+          <p class="cmd__title">{{ 'commands.snooze.title' | transloco }}</p>
+          @if (snooze.isSnoozed) {
+          <p class="cmd__line cmd__line--snoozed" [id]="id + '-snooze-line'" data-testid="snooze-line">
+            <tc-icon name="bell-off" size="sm" /><span>{{ snooze.line }}</span>
+          </p>
+          } @else {
+          <p class="cmd__hint" [id]="id + '-snooze-hint'">
+            {{ 'commands.snooze.hint' | transloco: { name: project().name } }}
+          </p>
+          } @if (snooze.why) {
+          <p class="cmd__why" [id]="id + '-snooze-why'" data-testid="snooze-why">
+            <tc-icon [name]="snooze.whyIcon" size="sm" /><span>{{ snooze.why }}</span>
+          </p>
+          } @if (snooze.hasPushFix) {
+          <p class="cmd__fix"><a routerLink="/settings">{{ 'commands.snooze.nopushFix' | transloco }}</a></p>
+          }
+        </div>
+        <button
+          tc-button
+          size="sm"
+          type="button"
+          class="cmd__btn"
+          data-testid="snooze-command"
+          [variant]="snooze.isSnoozed ? 'primary' : 'secondary'"
+          [off]="snooze.why !== null"
+          [attr.aria-disabled]="snooze.why !== null ? 'true' : null"
+          [attr.aria-label]="
+            (snooze.isSnoozed ? 'commands.snooze.backAria' : 'commands.snooze.aria') | transloco: { name: project().name }
+          "
+          [attr.aria-describedby]="
+            (snooze.why !== null ? id + '-snooze-why ' : '') + (snooze.isSnoozed ? id + '-snooze-line' : id + '-snooze-hint')
+          "
+          (click)="snoozeOrTurnBackOn($event)"
+        >
+          <tc-icon [name]="snooze.isSnoozed ? 'bell' : 'bell-off'" size="sm" />
+          {{ (snooze.isSnoozed ? 'commands.snooze.back' : 'commands.snooze.btn') | transloco }}
+        </button>
+      </div>
+    </div>
+  </section>
+  }
   } @else if (hasNoRunLog()) {
   <tc-state-block
     kind="empty"

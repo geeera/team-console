@@ -101,6 +101,37 @@ describe('MemoryReadCache', () => {
     expect(fill).toHaveBeenCalledTimes(1);
   });
 
+  it('releases every concurrent caller when a shared fill hangs on GitHub and then times out, and starts a fresh fill next time', async () => {
+    // A hung GitHub read (the transport's own `AbortSignal.timeout`, #76) ends in a rejection, same as any
+    // other failed fill here: `ReadCache` is agnostic to why a fill failed. What matters is that none of the
+    // callers sharing it are left waiting forever, and that the next read does not join the dead fill.
+    let timedOut: (() => void) | undefined;
+    const fill = vi.fn(
+      async () =>
+        new Promise<string>((_resolve, reject) => {
+          timedOut = () => reject(new Error('github-unavailable: the GitHub read timed out'));
+        }),
+    );
+    const cache = new MemoryReadCache();
+
+    const pending = Promise.allSettled([1, 2, 3].map(async () => cache.getOrFill(key('tc'), 60, fill)));
+    // The hang is simulated: in production this is the transport's deadline firing on the shared fill's
+    // underlying GitHub call, not a second, independent fill.
+    timedOut?.();
+    const results = await pending;
+
+    expect(fill).toHaveBeenCalledTimes(1);
+    expect(results.every((result) => result.status === 'rejected')).toBe(true);
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        expect((result.reason as Error).message).toContain('github-unavailable');
+      }
+    }
+
+    await expect(cache.getOrFill(key('tc'), 60, counter('fresh'))).resolves.toBe('fresh');
+    expect(fill).toHaveBeenCalledTimes(1);
+  });
+
   it('fills again on a fresh read within the TTL and serves the new value afterwards', async () => {
     const cache = new MemoryReadCache();
     await cache.getOrFill(key('tc'), 60, counter('old'));

@@ -1,4 +1,4 @@
-@if (frame.presentation === 'sheet') {
+@if (frame.presentation === 'sheet' && frame.size !== 'full') {
 <div class="tc-sheet__grab" aria-hidden="true"></div>
 }
 <!-- A div, not <header>: two stacked sheets (a confirmation over a panel) would give two banner landmarks. -->
@@ -14,4 +14,23 @@
     <tc-icon name="x" size="lg" />
   </button>
 </div>
-<div class="tc-sheet__body"><ng-template cdkPortalOutlet /></div>
+<!-- A body that scrolls is a focusable region named by the title, so a keyboard can scroll it (axe
+     scrollable-region-focusable); one that fits adds no tab stop. -->
+<div
+  #body
+  class="tc-sheet__body"
+  [attr.tabindex]="scrollable() ? 0 : null"
+  [attr.role]="scrollable() ? 'region' : null"
+  [attr.aria-labelledby]="scrollable() ? frame.titleId : null"
+>
+  <div #content class="tc-sheet__content"><ng-template cdkPortalOutlet /></div>
+</div>
+<!-- Reading order on both presentations (#282): the DOM order below is the Tab order and the visual order. A dialog
+     footer that no longer fits one row stacks like the phone's (#325), and the order follows. -->
+@if (footer.hasContent()) {
+<div #foot class="tc-sheet__foot" [class.tc-sheet__foot--stacked]="stackedFooter()">
+  @for (actions of footerTemplates(); track actions) {
+  <ng-container *ngTemplateOutlet="actions" />
+  }
+</div>
+}

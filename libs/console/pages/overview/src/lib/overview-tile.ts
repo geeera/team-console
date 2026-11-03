@@ -3,9 +3,16 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { spaceUrlOf, type OverviewProject } from '@console/entities/project';
 import { demoDayOf } from '@console/entities/sprint';
-import { localDayOf, LocalNumberPipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
+import { snoozeWhenOf } from '@console/features/snooze';
+import {
+  localDayOf,
+  LocalNumberPipe,
+  TranslocoPipe,
+  TranslocoPluralPipe,
+  TranslocoService,
+} from '@console/shared/i18n';
 import { Chip, ChipTone, Icon, Meter } from '@console/shared/ui';
-import type { OverviewTeamState } from '@shared/contracts';
+import { isSnoozeActive, NOT_SNOOZED, type OverviewTeamState, type SnoozeDto } from '@shared/contracts';
 
 const TEAM_TONE: Readonly<Record<OverviewTeamState, ChipTone>> = {
   running: 'success',
@@ -27,12 +34,14 @@ const KNOWN_PROBLEMS: ReadonlySet<string> = new Set([
 /**
  * One project on the overview (#27, Paper Desk direction): name and team state, the sprint and its demo day, done /
  * total with a meter, what waits for the owner and whether setup is unfinished. The whole tile is the link to the
- * project's board; a project that could not be read says why in its own tile and still links there.
+ * project's board; a project that could not be read says why in its own tile and still links there. A project whose
+ * notifications are snoozed says so under the rest with the struck bell (#222). Controls projected as
+ * `[tc-tile-actions]` sit inside the card, below the link (a link holds no button).
  * The project name and the sprint title are interpolated only, never bound as HTML.
  */
 @Component({
   selector: 'tc-overview-tile',
-  imports: [Chip, Icon, LocalNumberPipe, Meter, RouterLink, TranslocoPipe],
+  imports: [Chip, Icon, LocalNumberPipe, Meter, RouterLink, TranslocoPipe, TranslocoPluralPipe],
   template: `
     @let row = project();
     <a class="ov" [routerLink]="boardUrl()" data-testid="overview-row" [attr.data-project]="row.slug">
@@ -47,7 +56,7 @@ const KNOWN_PROBLEMS: ReadonlySet<string> = new Set([
       @if (row.kind === 'read') {
         <span class="ov__line" data-testid="sprint">
           @if (row.sprint; as sprint) {
-            {{ sprint.title }} · {{ 'overview.demo' | transloco: { date: demoDate() } }}
+            <span dir="auto">{{ sprint.title }}</span> · {{ 'overview.demo' | transloco: { date: demoDate() } }}
           } @else {
             {{ 'overview.noSprint' | transloco }}
           }
@@ -68,10 +77,10 @@ const KNOWN_PROBLEMS: ReadonlySet<string> = new Set([
             <tc-chip tone="warning" data-testid="setup">{{ 'overview.setup' | transloco }}</tc-chip>
           }
           @if (waiting() > 0) {
-            <tc-chip tone="accent" data-testid="needs-you">
-              <span aria-hidden="true">{{ waiting() | localNumber }}</span>
-              <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: waiting() } }}</span>
-            </tc-chip>
+            <!-- A number with its words (#275 §7.10): a bare «9» said nothing. -->
+            <tc-chip tone="accent" data-testid="needs-you">{{
+              'overview.waiting' | translocoPlural: waiting()
+            }}</tc-chip>
           }
         </span>
       } @else if (row.problem === pendingProblem) {
@@ -89,7 +98,14 @@ const KNOWN_PROBLEMS: ReadonlySet<string> = new Set([
           {{ 'overview.problem.lead' | transloco: { reason: problemReason() } }}
         </span>
       }
+      @if (snoozeLine(); as line) {
+        <span class="ov__snoozed" data-testid="snoozed">
+          <tc-icon name="bell-off" size="sm" />
+          {{ line }}
+        </span>
+      }
     </a>
+    <ng-content select="[tc-tile-actions]" />
   `,
   styleUrl: './overview-tile.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -102,6 +118,10 @@ export class OverviewTile {
   readonly project = input.required<OverviewProject>();
   /** Items waiting for the owner, less the ones answered from this device while GitHub still lists them. */
   readonly waiting = input(0);
+  /** The project's snooze (#221); shown while it mutes at `now`. */
+  readonly snooze = input<SnoozeDto>(NOT_SNOOZED);
+  /** The page's clock, so a snooze that ends while the page is open loses its line. */
+  readonly now = input(Date.now());
 
   private readonly lang = toSignal(this.transloco.langChanges$, {
     initialValue: this.transloco.getActiveLang(),
@@ -118,6 +138,22 @@ export class OverviewTile {
     const lang = this.lang();
     const row = this.project();
     return row.kind === 'read' && row.sprint !== null ? localDayOf(demoDayOf(row.sprint.dueOn), lang) : '';
+  });
+
+  protected readonly snoozeLine = computed<string | null>(() => {
+    const snooze = this.snooze();
+    const nowMs = this.now();
+    const lang = this.lang();
+    if (!snooze.snoozed || !isSnoozeActive(snooze, nowMs)) {
+      return null;
+    }
+    if (snooze.until === null) {
+      return this.transloco.translate('overview.snoozed');
+    }
+    const when = snoozeWhenOf(snooze.until, lang, nowMs);
+    return this.transloco.translate('overview.snoozedUntil', {
+      until: this.transloco.translate(when.key, when.params),
+    });
   });
 
   protected readonly problemReason = computed(() => {

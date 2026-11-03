@@ -86,7 +86,7 @@ describe('PushSender.sendToAll', () => {
     lines.length = 0;
   });
 
-  const sender = (): PushSender => new PushSender({ vapid, fetch: service.fetch, logger });
+  const sender = (): PushSender => new PushSender({ vapid, fetch: service.fetch, logger, environment: 'production' });
 
   it('delivers an encrypted ngsw payload the browser can decrypt, with TTL 24 h and high urgency', async () => {
     const device = await service.subscribe('web.push.apple.com');
@@ -181,6 +181,7 @@ describe('PushSender.sendToAll', () => {
     store.add(broken);
     store.add(fine);
     const flaky = new PushSender({
+      environment: 'production',
       vapid,
       logger,
       fetch: async (input, init) => {
@@ -201,6 +202,7 @@ describe('PushSender.sendToAll', () => {
     store.add(device);
     const seen: RequestInit[] = [];
     const redirecting = new PushSender({
+      environment: 'production',
       vapid,
       fetch: async (_, init) => {
         seen.push(init);
@@ -226,6 +228,7 @@ describe('PushSender.sendToAll', () => {
     });
     const fetched: string[] = [];
     const guarded = new PushSender({
+      environment: 'production',
       vapid,
       fetch: async (input) => {
         fetched.push(input);
@@ -235,6 +238,19 @@ describe('PushSender.sendToAll', () => {
 
     await expect(guarded.sendToAll(store, testNotification('en'))).resolves.toEqual({ sent: 0, pruned: 1, failed: 0 });
     expect(fetched).toEqual([]);
+  });
+
+  it('marks every title and icon with a non-production environment before it encrypts (#237)', async () => {
+    const device = await service.subscribe('web.push.apple.com');
+    store.add(device);
+    const dev = new PushSender({ vapid, fetch: service.fetch, logger, environment: 'dev' });
+
+    await dev.sendToAll(store, testNotification('ru'));
+
+    const [delivery] = service.deliveriesTo(device.endpoint);
+    expect(delivery?.payload).toMatchObject({
+      notification: { title: '[Dev] Тестовое уведомление', icon: '/icons/dev/icon-192.png' },
+    });
   });
 
   it('logs the fan-out totals and duration without the private key', async () => {

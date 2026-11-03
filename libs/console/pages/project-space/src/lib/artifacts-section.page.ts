@@ -9,12 +9,14 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ArtifactList, ArtifactsStore } from '@console/entities/artifact';
+import { ArtifactList, ArtifactsStore, type Artifact } from '@console/entities/artifact';
+import { DesignManifests, DesignPreview, DesignSummary } from '@console/entities/design';
 import {
   ARTIFACT_QUERY_MAX_LENGTH,
   ArtifactSearch,
   filterArtifacts,
 } from '@console/features/artifact-search';
+import { DesignViewer } from '@console/features/design-viewer';
 import { localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { PersistedStateStore } from '@console/shared/persisted-state';
 import { Button, Callout, StateBlock } from '@console/shared/ui';
@@ -28,7 +30,7 @@ import { map } from 'rxjs';
  */
 @Component({
   selector: 'tc-artifacts-section-page',
-  imports: [ArtifactList, ArtifactSearch, Button, Callout, StateBlock, TranslocoPipe],
+  imports: [ArtifactList, ArtifactSearch, Button, Callout, DesignPreview, DesignSummary, StateBlock, TranslocoPipe],
   template: `
     <div class="artifacts__head">
       <h2 class="artifacts__title">{{ 'artifacts.title' | transloco }}</h2>
@@ -81,14 +83,7 @@ import { map } from 'rxjs';
               <p>{{ 'artifacts.partial.hint' | transloco }}</p>
             </section>
           }
-          @if (snapshot.items.length === 0) {
-            <tc-state-block
-              kind="empty"
-              data-testid="artifacts-empty"
-              [title]="'artifacts.empty.title' | transloco"
-              [description]="'artifacts.empty.hint' | transloco"
-            />
-          } @else {
+          @if (snapshot.items.length > 0) {
             <tc-artifact-search
               [items]="snapshot.items"
               [type]="type()"
@@ -97,7 +92,27 @@ import { map } from 'rxjs';
               (typeChange)="setFilter($event, query())"
               (queryChange)="setFilter(type(), $event)"
             />
-            @if (visible().length === 0) {
+          }
+          @switch (emptyState()) {
+            @case ('designs') {
+              <!-- #277 spec §4: the Design filter has its own empty copy, with or without other artifacts. -->
+              <tc-state-block
+                kind="empty"
+                icon="grid"
+                data-testid="artifacts-designs-empty"
+                [title]="'artifacts.designs.empty.title' | transloco"
+                [description]="'artifacts.designs.empty.hint' | transloco"
+              />
+            }
+            @case ('all') {
+              <tc-state-block
+                kind="empty"
+                data-testid="artifacts-empty"
+                [title]="'artifacts.empty.title' | transloco"
+                [description]="'artifacts.empty.hint' | transloco"
+              />
+            }
+            @case ('no-match') {
               <tc-state-block
                 kind="empty"
                 data-testid="artifacts-no-match"
@@ -108,18 +123,52 @@ import { map } from 'rxjs';
                   {{ 'artifacts.noMatch.clear' | transloco }}
                 </button>
               </tc-state-block>
-            } @else {
-              <tc-artifact-list [items]="visible()" [label]="'artifacts.listLabel' | transloco" />
+            }
+            @default {
+              <tc-artifact-list
+                [items]="visible()"
+                [label]="'artifacts.listLabel' | transloco"
+                [designLeading]="designLeading"
+                [designSubtitle]="designSubtitle"
+                (openDesign)="openDesign($event)"
+              />
+              <!-- #277: the design rows' thumbnail and summary; the viewer opens from the row. -->
+              <ng-template #designLeading let-design>
+                @if (slug(); as slug) {
+                  <tc-design-preview [slug]="slug" [issue]="design.number" />
+                }
+              </ng-template>
+              <ng-template #designSubtitle let-design>
+                @if (slug(); as slug) {
+                  <tc-design-summary [slug]="slug" [issue]="design.number" />
+                }
+              </ng-template>
             }
           }
         }
       }
       @default {
-        <tc-state-block
-          kind="loading"
-          data-testid="artifacts-loading"
-          [title]="'artifacts.loading' | transloco"
-        />
+        @if (type() === 'design') {
+          <!-- #277 spec §4: three skeleton rows the shape of a design row, and a status line. -->
+          <div class="artifacts__designs-loading" data-testid="artifacts-designs-loading" aria-busy="true">
+            @for (row of skeletonRows; track row) {
+              <div class="artifacts__skeleton" aria-hidden="true">
+                <span class="artifacts__skeleton-thumb"></span>
+                <span class="artifacts__skeleton-text">
+                  <span class="artifacts__skeleton-line"></span>
+                  <span class="artifacts__skeleton-line artifacts__skeleton-line--short"></span>
+                </span>
+              </div>
+            }
+            <p class="artifacts__designs-status" role="status">{{ 'artifacts.designs.loading' | transloco }}</p>
+          </div>
+        } @else {
+          <tc-state-block
+            kind="loading"
+            data-testid="artifacts-loading"
+            [title]="'artifacts.loading' | transloco"
+          />
+        }
       }
     }
   `,
@@ -133,8 +182,10 @@ export class ArtifactsSectionPage {
   private readonly store = inject(ArtifactsStore);
   private readonly persisted = inject(PersistedStateStore);
   private readonly transloco = inject(TranslocoService);
+  private readonly viewer = inject(DesignViewer);
+  private readonly manifests = inject(DesignManifests);
 
-  private readonly slug = toSignal(
+  protected readonly slug = toSignal(
     (this.route.parent ?? this.route).paramMap.pipe(map((params) => params.get('slug'))),
     { initialValue: null },
   );
@@ -165,6 +216,21 @@ export class ArtifactsSectionPage {
   protected readonly visible = computed(() =>
     filterArtifacts(this.snapshot()?.items ?? [], { type: this.type(), query: this.query() }),
   );
+  /**
+   * Which empty block replaces the list, `null` when there is one to show. The Design filter without a search gets
+   * the #277 §4 copy whether the project has other artifacts or none; a search that finds nothing stays «Ничего не
+   * найдено», so the clear action keeps its meaning.
+   */
+  protected readonly emptyState = computed((): 'designs' | 'all' | 'no-match' | null => {
+    if (this.visible().length > 0) {
+      return null;
+    }
+    if (this.type() === 'design' && this.query() === '') {
+      return 'designs';
+    }
+    return (this.snapshot()?.items.length ?? 0) === 0 ? 'all' : 'no-match';
+  });
+  protected readonly skeletonRows = [0, 1, 2];
   protected readonly loadedTime = computed(() => {
     const snapshot = this.snapshot();
     return snapshot === null ? '' : localTimeOf(snapshot.loadedAt, this.lang());
@@ -192,6 +258,19 @@ export class ArtifactsSectionPage {
 
   protected checkAgain(): void {
     void this.store.checkAgain();
+    // The design rows' lists too (#277): the team may have pushed to a design since they loaded.
+    const slug = this.slug();
+    if (slug !== null) {
+      void this.manifests.reloadAll(slug);
+    }
+  }
+
+  /** A design row (#277): the viewer over this page; focus comes back to the row when it closes. */
+  protected openDesign(design: Artifact & { readonly number: number }): void {
+    const slug = this.slug();
+    if (slug !== null) {
+      this.viewer.open({ slug, issue: design.number, title: design.title });
+    }
   }
 
   protected setFilter(type: ArtifactType | null, query: string): void {

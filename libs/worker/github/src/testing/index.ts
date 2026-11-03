@@ -6,6 +6,9 @@ export type {
   FakeFault,
   FakeGitHubOAuthOptions,
   FakeIssueSeed,
+  FakeMilestone,
+  FakeMilestoneSeed,
+  FakeMilestoneWrite,
   FakeThreadCommentSeed,
   FakeUser,
 } from './fake-github-oauth';

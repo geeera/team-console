@@ -3,7 +3,13 @@ import { GitHubClient } from './client';
 import { GitHubError } from './errors';
 import { githubPath } from './github-path';
 import fixtures from '../../fixtures/mock-github.json';
-import { MOCK_OWNER_ACCOUNT, createMockGitHub, isGitHubMockEnabled, type MockGitHub } from './mock';
+import {
+  MOCK_OWNER_ACCOUNT,
+  createMockGitHub,
+  isGitHubMockEnabled,
+  milestoneAt,
+  type MockGitHub,
+} from './mock';
 import { isRepoOwnedBy } from './owner-check';
 import { parseRepoName } from './repo-name';
 
@@ -120,6 +126,62 @@ describe('createMockGitHub', () => {
     },
   );
 
+  it('lists every fixture file as a blob of the tree at any sha, binary files included (#277)', async () => {
+    const repo = parseRepoName('geeera/team-console');
+    const tree = await client('geeera/team-console').getJson(
+      githubPath`/repos/${repo}/git/trees/${'a'.repeat(40)}?recursive=1`,
+      isObject,
+    );
+    const items = tree['tree'] as { path: string; type: string; sha: string; size: number }[];
+    const png = items.find((item) => item.path === 'docs/design/90004-demo-screen/phone-01-list.png');
+    expect(png).toMatchObject({ type: 'blob', size: expect.any(Number) });
+    expect(png?.sha).toMatch(/^[0-9a-f]{40}$/);
+    expect(items.some((item) => item.path === '.product-team/project.yml')).toBe(true);
+    expect(tree['truncated']).toBe(false);
+    const bad = await rejection(
+      client('geeera/team-console').getJson(githubPath`/repos/${repo}/git/trees/${'nope'}`, isObject),
+    );
+    expect(bad.problem.type).toBe('github-not-found');
+  });
+
+  it('serves a blob as raw bytes for the raw media type, with PNG magic bytes for a .png fixture', async () => {
+    const repo = parseRepoName('geeera/team-console');
+    const tree = await client('geeera/team-console').getJson(
+      githubPath`/repos/${repo}/git/trees/${'a'.repeat(40)}?recursive=1`,
+      isObject,
+    );
+    const items = tree['tree'] as { path: string; sha: string }[];
+    const sha = items.find((item) => item.path === 'docs/design/90004-demo-screen/phone-01-list.png')?.sha ?? '';
+    const result = await client('geeera/team-console').getBytes(githubPath`/repos/${repo}/git/blobs/${sha}`, {
+      accept: 'application/vnd.github.raw+json',
+      maxBytes: 1024 * 1024,
+    });
+    expect(result.kind).toBe('bytes');
+    if (result.kind === 'bytes') {
+      expect([...result.bytes.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    }
+    const missing = await rejection(
+      client('geeera/team-console').getBytes(githubPath`/repos/${repo}/git/blobs/${'b'.repeat(40)}`, {
+        accept: 'application/vnd.github.raw+json',
+        maxBytes: 10,
+      }),
+    );
+    expect(missing.problem.type).toBe('github-not-found');
+  });
+
+  it('serves the default branch with a head sha, and 404 for any other branch', async () => {
+    const repo = parseRepoName('geeera/team-console');
+    const branch = await client('geeera/team-console').getJson(
+      githubPath`/repos/${repo}/branches/${'dev'}`,
+      isObject,
+    );
+    expect(branch).toMatchObject({ name: 'dev', commit: { sha: expect.stringMatching(/^[0-9a-f]{40}$/) } });
+    const other = await rejection(
+      client('geeera/team-console').getJson(githubPath`/repos/${repo}/branches/${'main'}`, isObject),
+    );
+    expect(other.problem.type).toBe('github-not-found');
+  });
+
   it('serves no events for an issue without any, and 404 for an unknown issue', async () => {
     const repo = parseRepoName('geeera/team-console');
     await expect(
@@ -165,8 +227,26 @@ describe('createMockGitHub', () => {
     );
     const milestones = await github.getJson(githubPath`/repos/${repo}/milestones?state=open`, isList);
     expect(milestones.map((m) => m['title'])).toEqual(['Sprint 01', 'Sprint 02']);
+    // #382: the due dates follow the day of the read, so Sprint 01 stays the current sprint on any date.
+    const inDays = (days: number): string =>
+      `${new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)}T00:00:00Z`;
+    expect(milestones.map((m) => m['due_on'])).toEqual([inDays(7), inDays(21)]);
+    expect(milestones.every((m) => !('due_in_days' in m))).toBe(true);
     const pulls = await github.getJson(githubPath`/repos/${repo}/pulls?state=open`, isList);
-    expect(pulls.map((p) => p['number'])).toEqual([92, 91, 45, 40]);
+    expect(pulls.map((p) => p['number'])).toEqual([176, 92, 91, 45, 40]);
+  });
+
+  it('dates a `due_in_days` milestone from the day of the read and leaves a fixed `due_on` alone (#382)', () => {
+    const now = Date.parse('2026-12-31T23:30:00Z');
+    expect(milestoneAt({ number: 1, title: 'Sprint 01', due_in_days: 7 }, now)).toEqual({
+      number: 1,
+      title: 'Sprint 01',
+      due_on: '2027-01-07T00:00:00Z',
+    });
+    expect(milestoneAt({ number: 2, due_in_days: -3 }, now)).toEqual({ number: 2, due_on: '2026-12-28T00:00:00Z' });
+    const fixed = { number: 3, due_on: '2026-10-16T00:00:00Z' };
+    expect(milestoneAt(fixed, now)).toBe(fixed);
+    expect(milestoneAt({ number: 4, due_in_days: 1.5 }, now)).toEqual({ number: 4, due_in_days: 1.5 });
   });
 
   it('serves check runs per head sha (#131), and none for a sha it does not know', async () => {
@@ -255,6 +335,77 @@ describe('createMockGitHub', () => {
     const repo = parseRepoName(name);
     const error = await rejection(client(name).getJson(githubPath`/repos/${repo}`, isObject));
     expect(error.problem.type).toBe(type);
+  });
+
+  describe('the installation list (#194)', () => {
+    it('finds the owner account installation by id and lists its repositories with the list token', async () => {
+      const installationId = await auth.installationIdForAccount(MOCK_OWNER_ACCOUNT.userId);
+      expect(installationId).toBe(1001);
+      const list = await GitHubClient.listInstallationRepositories(
+        mock.fetch,
+        auth.listTokenSourceFor(installationId),
+        { maxPages: 10 },
+      );
+      expect(list.complete).toBe(true);
+      expect(list.items).toEqual(
+        expect.arrayContaining([
+          { fullName: 'geeera/team-console', private: false },
+          { fullName: 'geeera/private-product', private: true },
+          { fullName: 'geeera/no-yml', private: true },
+        ]),
+      );
+      expect(list.items.map((repo) => repo.fullName)).not.toContain('acme/site');
+    });
+
+    it('answers 409 for an account without an installation', async () => {
+      expect((await rejection(auth.installationIdForAccount(7))).problem.type).toBe(
+        'github-app-not-installed',
+      );
+    });
+
+    it('pages with per_page and a Link header', async () => {
+      const source = auth.listTokenSourceFor(1001);
+      const token = await source.getToken();
+      const first = await mock.fetch('https://api.github.com/installation/repositories?per_page=2', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = (await first.json()) as { repositories: unknown[] };
+      expect(body.repositories).toHaveLength(2);
+      expect(first.headers.get('link')).toBe(
+        '<https://api.github.com/installation/repositories?per_page=2&page=2>; rel="next"',
+      );
+    });
+
+    it('tripwires: the list token cannot read a repository, a per-repository token cannot list', async () => {
+      const listToken = await auth.listTokenSourceFor(1001).getToken();
+      const read = await mock.fetch('https://api.github.com/repos/geeera/team-console', {
+        headers: { Authorization: `Bearer ${listToken}` },
+      });
+      expect(read.status).toBe(403);
+
+      const repoToken = await auth.tokenSourceFor(parseRepoName('geeera/team-console')).getToken();
+      const list = await mock.fetch('https://api.github.com/installation/repositories?per_page=100', {
+        headers: { Authorization: `Bearer ${repoToken}` },
+      });
+      expect(list.status).toBe(403);
+    });
+
+    it('mints the list token only for exactly metadata: read without repositories', async () => {
+      let jwt = '';
+      const spyAuth = new GitHubAppAuth(mock.credentials, {
+        fetch: async (input, init) => {
+          jwt = new Headers(init.headers).get('authorization') ?? '';
+          return mock.fetch(input, init);
+        },
+      });
+      await spyAuth.installationIdForAccount(MOCK_OWNER_ACCOUNT.userId);
+      const wider = await mock.fetch('https://api.github.com/app/installations/1001/access_tokens', {
+        method: 'POST',
+        headers: { Authorization: jwt },
+        body: JSON.stringify({ permissions: { metadata: 'read', contents: 'read' } }),
+      });
+      expect(wider.status).toBe(422);
+    });
   });
 });
 

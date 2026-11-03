@@ -1,4 +1,4 @@
-import { localDayOf, localNumberOf, localTimeOf } from './local-time';
+import { localCalendarDayOf, localCalendarRangeOf, localDayOf, localNumberOf, localTimeOf } from './local-time';
 
 describe('localTimeOf / localDayOf', () => {
   // A local wall-clock time, so the expectation does not depend on the runner's time zone.
@@ -31,5 +31,20 @@ describe('localNumberOf', () => {
   it('gives an empty string rather than NaN', () => {
     expect(localNumberOf(Number.NaN, 'en')).toBe('');
     expect(localNumberOf(Number.POSITIVE_INFINITY, 'ru')).toBe('');
+  });
+});
+
+describe('localCalendarDayOf / localCalendarRangeOf (#218)', () => {
+  it('formats a calendar day without moving it to the reader time zone', () => {
+    expect(localCalendarDayOf('2026-10-14', 'ru')).toBe('14 октября');
+    expect(localCalendarDayOf('2026-10-14', 'en')).toBe('14 October');
+    expect(localCalendarDayOf('14.10.2026', 'ru')).toBe('');
+  });
+
+  it('formats a range of calendar days, both included', () => {
+    expect(localCalendarRangeOf('2026-10-12', '2026-10-14', 'ru')).toMatch(/^12\s?–\s?14 октября$/);
+    expect(localCalendarRangeOf('2026-09-30', '2026-10-02', 'en')).toMatch(/^30 September\s?–\s?2 October$/);
+    expect(localCalendarRangeOf('2026-10-14', '2026-10-14', 'en')).toBe('14 October');
+    expect(localCalendarRangeOf('', '2026-10-14', 'en')).toBe('');
   });
 });

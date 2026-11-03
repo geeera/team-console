@@ -1,0 +1,55 @@
+<tc-repository-list-view
+  [connection]="connection.view()"
+  [status]="store.status()"
+  [problem]="store.problem()"
+  [repositories]="store.repositories()"
+  [keepInPlace]="keepInPlace()"
+  [rowStates]="rowStates()"
+  [partial]="store.partial()"
+  [selectionUrl]="store.selectionUrl()"
+  [appName]="appName()"
+  [login]="connection.login()"
+  [online]="network.online()"
+  [loadedAt]="store.loadedAt()"
+  [refreshing]="store.refreshing()"
+  (add)="add($event)"
+  (seeWhy)="seeWhy($event)"
+  (retry)="retry()"
+  (refresh)="refresh()"
+>
+  <section tc-callout tc-repos-connect tone="warning" aria-labelledby="repos-connect" data-testid="repos-need-connect">
+    <h3 tc-callout-title id="repos-connect">
+      {{ (connection.view() === 'lost' ? 'settings.gh.lost.title' : 'settings.gh.needConnect.title') | transloco }}
+    </h3>
+    <p>
+      @if (connection.view() === 'lost') { {{ 'overview.repos.lost.body' | transloco }} } @else { {{
+      'overview.repos.needConnect.body' | transloco: { app: appName() } }} }
+    </p>
+    @if (connectRefused()) {
+    <p role="alert">{{ 'settings.gh.error.url' | transloco }}</p>
+    }
+    <tc-connect-github-button (refused)="onConnectRefused()" />
+  </section>
+
+  <div class="byname">
+    <button
+      type="button"
+      class="byname__toggle"
+      data-testid="by-name-toggle"
+      aria-controls="repos-by-name"
+      [attr.aria-expanded]="byNameOpen()"
+      (click)="toggleByName()"
+    >
+      <span class="byname__text">
+        <span class="byname__title">{{ 'overview.repos.byName' | transloco }}</span>
+        <span class="byname__lead">{{ 'overview.repos.byNameLead' | transloco }}</span>
+      </span>
+      <tc-icon name="chevron-down" class="byname__chevron" />
+    </button>
+    <div id="repos-by-name" class="byname__panel" [hidden]="!byNameOpen()">
+      @if (byNameOpen()) {
+      <tc-add-project-form embedded />
+      }
+    </div>
+  </div>
+</tc-repository-list-view>

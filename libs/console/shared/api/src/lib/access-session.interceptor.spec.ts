@@ -1,123 +1,117 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import {
+  HttpClient,
+  HttpErrorResponse,
+  HttpRequest,
+  type HttpEvent,
+  type HttpHandlerFn,
+} from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { firstValueFrom, type Observable } from 'rxjs';
+import { firstValueFrom, lastValueFrom, throwError, type Observable } from 'rxjs';
+import { accessSessionInterceptor } from './access-session.interceptor';
+import { AccessSession, PAGE_LOCATION, type PageLocation } from './access-session.store';
 import { provideConsoleApi } from './api.providers';
-import {
-  REAUTH_ENVIRONMENT,
-  REAUTH_FLAG_KEY,
-  REAUTH_LOOP_GUARD_MS,
-  type ReauthEnvironment,
-} from './access-session.interceptor';
 
 const PROBLEM = 'application/problem+json; charset=utf-8';
-const NOW = 1_800_000_000_000;
 
-class FakeReauthEnvironment implements ReauthEnvironment {
-  flag: string | null = null;
-  online = true;
-  storageWorks = true;
-  reloads = 0;
-  now = (): number => NOW;
-  isOnline = (): boolean => this.online;
-  readFlag = (): string | null => this.flag;
-  writeFlag = (value: string): boolean => {
-    if (!this.storageWorks) {
-      return false;
-    }
-    this.flag = value;
-    return true;
-  };
-  reload = (): void => {
-    this.reloads += 1;
-  };
+class FakeLocation implements PageLocation {
+  href = 'https://console.test/p/demo/board?lane=review';
+  readonly assigned: string[] = [];
+  assign(url: string): void {
+    this.assigned.push(url);
+  }
 }
 
-let fake: FakeReauthEnvironment;
+let location: FakeLocation;
 let http: HttpClient;
 let controller: HttpTestingController;
+let session: AccessSession;
 
 beforeEach(() => {
-  fake = new FakeReauthEnvironment();
+  location = new FakeLocation();
   TestBed.configureTestingModule({
     providers: [
       provideConsoleApi(),
       provideHttpClientTesting(),
-      { provide: REAUTH_ENVIRONMENT, useValue: fake },
+      { provide: PAGE_LOCATION, useValue: location },
     ],
   });
   http = TestBed.inject(HttpClient);
   controller = TestBed.inject(HttpTestingController);
+  session = TestBed.inject(AccessSession);
 });
 
 afterEach(() => controller.verify());
 
-/** Subscribes and records how the call ended; `pending` means it neither emitted, errored nor completed. */
-function track<T>(source: Observable<T>): {
-  outcome: () => 'pending' | 'value' | 'error' | 'complete';
-  error: () => unknown;
-} {
-  let outcome: 'pending' | 'value' | 'error' | 'complete' = 'pending';
-  let caught: unknown;
-  source.subscribe({
-    next: () => (outcome = 'value'),
-    error: (error: unknown) => {
-      outcome = 'error';
-      caught = error;
-    },
-    complete: () => {
-      if (outcome === 'pending') {
-        outcome = 'complete';
-      }
-    },
-  });
-  return { outcome: () => outcome, error: () => caught };
+async function failureOf(call: Observable<unknown>): Promise<HttpErrorResponse> {
+  try {
+    await firstValueFrom(call);
+  } catch (error: unknown) {
+    if (error instanceof HttpErrorResponse) {
+      return error;
+    }
+    throw error;
+  }
+  throw new Error('the call succeeded');
 }
 
-function problemBody(slug: string, status = 401): object {
-  return { type: `https://team-console/problems/${slug}`, title: 'Unauthorized', status };
+/** Runs the interceptor alone against a backend answer TestRequest cannot express (an opaque redirect). */
+function intercept(request: HttpRequest<unknown>, answer: HttpErrorResponse): Observable<HttpEvent<unknown>> {
+  const next: HttpHandlerFn = () => throwError(() => answer);
+  return TestBed.runInInjectionContext(() => accessSessionInterceptor(request, next));
 }
 
 describe('accessSessionInterceptor', () => {
+  it('sends /api calls past the service worker with redirects left to us', async () => {
+    const response = firstValueFrom(http.get('/api/v1/projects'));
+    const request = controller.expectOne('/api/v1/projects');
+
+    expect(request.request.redirect).toBe('manual');
+    expect(request.request.headers.get('ngsw-bypass')).toBe('true');
+    request.flush([]);
+    await response;
+  });
+
   it('passes successful JSON responses through untouched', async () => {
     const response = firstValueFrom(http.get('/api/v1/projects'));
     controller.expectOne('/api/v1/projects').flush([]);
 
     await expect(response).resolves.toEqual([]);
-    expect(fake.reloads).toBe(0);
+    expect(session.expired()).toBe(false);
   });
 
-  it('reloads when the request fails at the network level (status 0: cross-origin Access redirect)', () => {
-    const call = track(http.get('/api/v1/projects'));
-    controller.expectOne('/api/v1/projects').error(new ProgressEvent('error'));
+  it("marks the session expired on Access's redirect and still fails the call", async () => {
+    const redirect = new HttpErrorResponse({
+      status: 0,
+      responseType: 'opaqueredirect',
+      url: '/api/v1/projects',
+    });
 
-    expect(fake.reloads).toBe(1);
-    expect(fake.flag).toBe(String(NOW));
-    expect(call.outcome()).toBe('pending');
+    await expect(lastValueFrom(intercept(new HttpRequest('GET', '/api/v1/projects'), redirect))).rejects.toBe(
+      redirect,
+    );
+    expect(session.expired()).toBe(true);
   });
 
-  it('reloads when the API answers with an HTML page (Access login) instead of JSON', () => {
-    const call = track(http.get('/api/v1/projects'));
+  it('marks it on a write too: the redirect means the write never reached the Worker', async () => {
+    const redirect = new HttpErrorResponse({ status: 0, responseType: 'opaqueredirect' });
+
+    await expect(
+      lastValueFrom(intercept(new HttpRequest('POST', '/api/v1/projects/a/issues/1/answer', {}), redirect)),
+    ).rejects.toBe(redirect);
+    expect(session.expired()).toBe(true);
+  });
+
+  it('turns an HTML page delivered as 200 for a JSON call into an error and marks the session', async () => {
+    const response = failureOf(http.get('/api/v1/projects'));
     controller.expectOne('/api/v1/projects').flush('<!doctype html><title>Sign in</title>', {
       status: 200,
       statusText: 'OK',
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
 
-    expect(fake.reloads).toBe(1);
-    expect(call.outcome()).toBe('pending');
-  });
-
-  it('reloads when parsing the HTML page as JSON already failed (status 200, text/html)', () => {
-    const call = track(http.get('/api/v1/projects'));
-    controller.expectOne('/api/v1/projects').error(new ProgressEvent('error'), {
-      status: 200,
-      statusText: 'OK',
-      headers: { 'Content-Type': 'text/html' },
-    });
-
-    expect(fake.reloads).toBe(1);
-    expect(call.outcome()).toBe('pending');
+    expect((await response).status).toBe(200);
+    expect(session.expired()).toBe(true);
   });
 
   it('leaves non-JSON bodies alone when the caller asked for text', async () => {
@@ -127,144 +121,49 @@ describe('accessSessionInterceptor', () => {
       .flush('a,b', { status: 200, statusText: 'OK', headers: { 'Content-Type': 'text/csv' } });
 
     await expect(response).resolves.toBe('a,b');
-    expect(fake.reloads).toBe(0);
+    expect(session.expired()).toBe(false);
   });
 
-  it.each(['access-missing', 'access-unverified'])('reloads on 401 %s', (slug) => {
-    track(http.get('/api/v1/projects'));
-    controller.expectOne('/api/v1/projects').flush(problemBody(slug), {
+  it('marks it on our 401 access-missing', async () => {
+    const response = failureOf(http.get('/api/v1/projects'));
+    controller
+      .expectOne('/api/v1/projects')
+      .flush(
+        { type: 'https://team-console/problems/access-missing', title: 'Unauthorized', status: 401 },
+        { status: 401, statusText: 'Unauthorized', headers: { 'Content-Type': PROBLEM } },
+      );
+
+    expect((await response).status).toBe(401);
+    expect(session.expired()).toBe(true);
+  });
+
+  it('does not mark it when the connection dropped — that is the offline state, not a login', async () => {
+    const response = failureOf(http.get('/api/v1/projects'));
+    controller.expectOne('/api/v1/projects').error(new ProgressEvent('error'));
+
+    expect((await response).status).toBe(0);
+    expect(session.expired()).toBe(false);
+  });
+
+  it('does not touch requests that are not to our /api', async () => {
+    const response = failureOf(http.get('https://api.github.com/zen'));
+    const request = controller.expectOne('https://api.github.com/zen');
+    expect(request.request.headers.has('ngsw-bypass')).toBe(false);
+    request.flush('<!doctype html>', {
       status: 401,
       statusText: 'Unauthorized',
-      headers: { 'Content-Type': PROBLEM },
+      headers: { 'Content-Type': 'text/html' },
     });
 
-    expect(fake.reloads).toBe(1);
-  });
-
-  it.each(['access-forbidden', 'access-misconfigured'])(
-    'does not reload on 401 %s — signing in again cannot fix it',
-    (slug) => {
-      const call = track(http.get('/api/v1/projects'));
-      controller.expectOne('/api/v1/projects').flush(problemBody(slug), {
-        status: 401,
-        statusText: 'Unauthorized',
-        headers: { 'Content-Type': PROBLEM },
-      });
-
-      expect(fake.reloads).toBe(0);
-      expect(call.outcome()).toBe('error');
-      expect(call.error()).toBeInstanceOf(HttpErrorResponse);
-    },
-  );
-
-  it('does not reload on other JSON API errors', () => {
-    const call = track(http.get('/api/v1/nope'));
-    controller.expectOne('/api/v1/nope').flush(problemBody('not-found', 404), {
-      status: 404,
-      statusText: 'Not Found',
-      headers: { 'Content-Type': PROBLEM },
-    });
-
-    expect(fake.reloads).toBe(0);
-    expect(call.outcome()).toBe('error');
-  });
-
-  describe('loop guard', () => {
-    it('does not reload a second time within 30 s and surfaces the error instead', () => {
-      fake.flag = String(NOW - (REAUTH_LOOP_GUARD_MS - 1));
-      const call = track(http.get('/api/v1/projects'));
-      controller.expectOne('/api/v1/projects').error(new ProgressEvent('error'));
-
-      expect(fake.reloads).toBe(0);
-      expect(call.outcome()).toBe('error');
-      expect((call.error() as HttpErrorResponse).status).toBe(0);
-    });
-
-    it('reloads again once the last reload is older than 30 s', () => {
-      fake.flag = String(NOW - REAUTH_LOOP_GUARD_MS);
-      track(http.get('/api/v1/projects'));
-      controller.expectOne('/api/v1/projects').error(new ProgressEvent('error'));
-
-      expect(fake.reloads).toBe(1);
-      expect(fake.flag).toBe(String(NOW));
-    });
-
-    it('treats a corrupt flag as no previous reload', () => {
-      fake.flag = 'not-a-number';
-      track(http.get('/api/v1/projects'));
-      controller.expectOne('/api/v1/projects').error(new ProgressEvent('error'));
-
-      expect(fake.reloads).toBe(1);
-    });
-
-    it('does not reload when the flag cannot be stored — no guard, no reload', () => {
-      fake.storageWorks = false;
-      const call = track(http.get('/api/v1/projects'));
-      controller.expectOne('/api/v1/projects').error(new ProgressEvent('error'));
-
-      expect(fake.reloads).toBe(0);
-      expect(call.outcome()).toBe('error');
-    });
-  });
-
-  it('does not reload while offline — a reload cannot fix the network', () => {
-    fake.online = false;
-    const call = track(http.get('/api/v1/projects'));
-    controller.expectOne('/api/v1/projects').error(new ProgressEvent('error'));
-
-    expect(fake.reloads).toBe(0);
-    expect(call.outcome()).toBe('error');
-  });
-
-  it('does not reload a POST on status 0 — the response may have been lost after the write landed', () => {
-    const call = track(http.post('/api/v1/questions/1/answer', { body: 'hi' }));
-    controller.expectOne('/api/v1/questions/1/answer').error(new ProgressEvent('error'));
-
-    expect(fake.reloads).toBe(0);
-    expect(call.outcome()).toBe('error');
-    expect((call.error() as HttpErrorResponse).status).toBe(0);
-  });
-
-  it('still reloads a GET on status 0 — existing Access-session behaviour', () => {
-    const call = track(http.get('/api/v1/projects'));
-    controller.expectOne('/api/v1/projects').error(new ProgressEvent('error'));
-
-    expect(fake.reloads).toBe(1);
-    expect(call.outcome()).toBe('pending');
-  });
-
-  it('ignores requests that are not to our /api', () => {
-    const call = track(http.get('https://api.github.com/zen'));
-    controller.expectOne('https://api.github.com/zen').error(new ProgressEvent('error'));
-
-    expect(fake.reloads).toBe(0);
-    expect(call.outcome()).toBe('error');
+    expect((await response).status).toBe(401);
+    expect(session.expired()).toBe(false);
   });
 });
 
-describe('REAUTH_ENVIRONMENT default (browser)', () => {
-  beforeEach(() => {
-    controller.verify();
-    TestBed.resetTestingModule();
-    sessionStorage.clear();
-  });
+describe('AccessSession.signIn', () => {
+  it('navigates the whole page to where the owner is, past the service worker', () => {
+    session.signIn();
 
-  it('keeps the loop-guard flag in sessionStorage under tc.reauth', () => {
-    const browser = TestBed.inject(REAUTH_ENVIRONMENT);
-
-    expect(browser.readFlag()).toBeNull();
-    expect(browser.writeFlag('123')).toBe(true);
-    expect(browser.readFlag()).toBe('123');
-    expect(sessionStorage.getItem(REAUTH_FLAG_KEY)).toBe('123');
-  });
-
-  it('reports a refused write instead of throwing', () => {
-    const browser = TestBed.inject(REAUTH_ENVIRONMENT);
-    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new DOMException('quota', 'QuotaExceededError');
-    });
-
-    expect(browser.writeFlag('1')).toBe(false);
-    setItem.mockRestore();
+    expect(location.assigned).toEqual(['https://console.test/p/demo/board?lane=review&ngsw-bypass=1']);
   });
 });

@@ -33,6 +33,13 @@ skills. Output is JSON on stdout; errors go to stderr with a non-zero exit.
                                                  comments someone else edited are listed under "ignored"
   backlog vanished [--days 30]                   owner commands a run acted on (`runlog finish --acted`) that
                                                  were deleted since — once per run, never acted on again
+  backlog requests [--milestone M|current|none] [--days 30]
+                 pending owner requests from the team console ("sprint → next", "queue → up"): owner-written,
+                 never edited, posted by an app in team.console_app_slugs, and never while an agent here can
+                 write as the owner; the rest are listed under "ignored" with the reason
+  backlog request-done N --comment-id ID --result applied|declined [--text REASON]
+                 answer a pending request with the handled marker, as the team (never the owner's token);
+                 declined needs --text
   backlog next [--now ISO]                       what a development run takes now: ordered dispatch list,
                                                  skipped issues with reasons, missing architect notes
   backlog sprint current|list
@@ -51,7 +58,7 @@ from datetime import date, datetime, timedelta, timezone
 from urllib.parse import quote
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from ptlib import brief, commands, gh, inbox, owner, picker, project, provenance, runlogissue  # noqa: E402
+from ptlib import brief, commands, gh, inbox, owner, ownerrequests, picker, project, provenance, runlogissue  # noqa: E402
 from ptlib.calendar import KYIV, compute, pick_current_sprint  # noqa: E402
 from ptlib.labels import LABELS, STATUSES, KINDS, SEVERITIES  # noqa: E402
 
@@ -319,6 +326,8 @@ def cmd_label(repo: str, args) -> None:
 def cmd_comment(repo: str, args) -> None:
     if owner.DECISION_MARKER in body_arg(args):
         sys.exit("team decisions are recorded with `backlog decide`, not as a plain comment")
+    if ownerrequests.first_line(body_arg(args)).startswith(ownerrequests.REQUEST_PREFIX):
+        sys.exit("owner requests come only from the team console; answer one with `backlog request-done`")
     c = gh.api(f"repos/{repo}/issues/{args.number}/comments", "POST", {"body": body_arg(args)})
     out({"id": c["id"], "url": c["html_url"]})
 
@@ -375,6 +384,120 @@ def cmd_vanished(repo: str, args) -> None:
         vanished += [dict(a, reason=gone) if gone else a
                      for a in recent if a["issue"] == number and str(a["comment_id"]) not in present]
     out({"vanished": vanished, "checked": len(recent), "error": error, "history": history_mode})
+
+
+# Each issue costs up to three reads (issue, comments, edit history); a run never spends more than this on requests.
+MAX_REQUEST_ISSUES = 25
+
+
+def _request_slugs(repo: str) -> list:
+    # The trust root comes from the default branch, never the working tree: changing it takes a merged PR.
+    try:
+        return project.console_app_slugs_on_default_branch(repo)
+    except ValueError as exc:
+        sys.exit(str(exc))
+
+
+def _issue_requests(repo: str, number: int, owner_login: str, slugs: list, team: set, acts: bool,
+                    since: str = "") -> tuple:
+    """(ownerrequests.evaluate of one issue, history mode)."""
+    comments = gh.api_list(f"repos/{repo}/issues/{number}/comments?per_page=100")
+    history = provenance.fetch(repo, number)
+    found = ownerrequests.evaluate(comments, owner_login, history, slugs, team, acts, since)
+    return found, provenance.mode(history)
+
+
+def cmd_requests(repo: str, args) -> None:
+    """Pending owner requests from the team console (geeera/team-console ADR 0005), for the PM at planning time.
+
+    One repository-wide comments read finds the issues that carry a request marker since --days; each of those is
+    then read in full and checked with the provenance rules of ownerrequests.evaluate.
+    """
+    since = (datetime.now(timezone.utc) - timedelta(days=args.days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    recent = gh.api_list(f"repos/{repo}/issues/comments?since={quote(since)}&per_page=100")
+    markers = [c for c in recent if c.get("issue_url") and ownerrequests.request_marker_of(c.get("body") or "")]
+    result = {"requests": [], "handled": [], "ignored": [], "since": since, "console_app_slugs": [],
+              "acts_as_owner": None, "history": provenance.GRAPHQL, "truncated": ""}
+    if not markers:
+        out(result)
+        return
+    owner_login = gh.owner_login(repo)
+    slugs = _request_slugs(repo)
+    # Ranking key per issue: (has a plausible request, newest marker). Plausible = the owner's login and a console
+    # slug on the REST record, so outsiders flooding markers cannot push a real request past the cap. Only a
+    # ranking hint: every issue read is verified in full by ownerrequests.evaluate.
+    rank = {}
+    for c in markers:
+        number = int(c["issue_url"].rstrip("/").rsplit("/", 1)[-1])
+        plausible = (provenance.author_of(c).lower() == owner_login.lower()
+                     and ((c.get("performed_via_github_app") or {}).get("slug") or "") in slugs)
+        rank[number] = max(rank.get(number, (False, "")), (plausible, c.get("created_at") or ""))
+    numbers = sorted(rank, key=lambda n: (rank[n], n), reverse=True)
+    if len(numbers) > MAX_REQUEST_ISSUES:
+        result["truncated"] = (f"{len(numbers)} issues carry request markers; read the {MAX_REQUEST_ISSUES} with "
+                               f"the owner's console requests first, then the newest; the other "
+                               f"{len(numbers) - MAX_REQUEST_ISSUES} wait for the next run")
+        print(result["truncated"], file=sys.stderr)
+        numbers = numbers[:MAX_REQUEST_ISSUES]
+    acts = gh.acts_as_owner(repo)
+    team = gh.team_logins(repo)
+    result.update(console_app_slugs=slugs, acts_as_owner=acts)
+    milestone = None
+    if args.milestone and args.milestone != "none":
+        milestone = resolve_milestone(repo, args.milestone)["title"]
+    for number in numbers:
+        issue = gh.api(f"repos/{repo}/issues/{number}")
+        about = slim(issue)
+        if args.milestone and about["milestone"] != milestone:
+            continue
+        found, mode = _issue_requests(repo, number, owner_login, slugs, team, acts, since)
+        if mode == provenance.REST_ONLY:
+            result["history"] = provenance.REST_ONLY
+        where = {"issue": number, "title": about["title"], "milestone": about["milestone"], "status": about["status"]}
+        not_open = "it is on a pull request" if "pull_request" in issue else \
+            "the issue is closed" if issue.get("state") != "open" else ""
+        if not_open and found["pending"]:
+            found["ignored"].append({"comment_id": found["pending"]["comment_id"], "url": found["pending"]["url"],
+                                     "author": owner_login, "at": found["pending"]["at"], "reason": not_open})
+            found["pending"] = None
+        if found["pending"]:
+            result["requests"].append(dict(where, **found["pending"]))
+        result["handled"] += [dict(h, issue=number) for h in found["handled"]]
+        result["ignored"] += [dict(e, issue=number) for e in found["ignored"]]
+    for key in ("requests", "handled", "ignored"):
+        result[key].sort(key=lambda e: (e["issue"], e.get("at") or ""))
+    out(result)
+
+
+def cmd_request_done(repo: str, args) -> None:
+    """Answer a pending owner request with the handled marker, as the team — never with the owner's token."""
+    owner_login = gh.owner_login(repo)
+    agents = gh.token_login()
+    if not agents or agents.lower() == owner_login.lower():
+        sys.exit(f"the handled marker is posted only as the team's identity, and the agents here act as "
+                 f"{agents or 'an unknown account'}")
+    found, _ = _issue_requests(repo, args.number, owner_login, _request_slugs(repo), gh.team_logins(repo),
+                               gh.acts_as_owner(repo))
+    pending = found["pending"]
+    if not pending or pending["comment_id"] != args.comment_id:
+        known = next((e["reason"] for e in found["ignored"] if e["comment_id"] == args.comment_id), "")
+        done = next((h for h in found["handled"] if h["comment_id"] == args.comment_id), None)
+        why = (f"it was already answered ({done['result']}, {done['url']})" if done else
+               f"it does not count: {known}" if known else
+               f"the pending request is {pending['comment_id']} (the newest replaces older ones)" if pending else
+               "there is no pending owner request there")
+        sys.exit(f"#{args.number}: comment {args.comment_id} is not a pending owner request; {why}")
+    issue = gh.api(f"repos/{repo}/issues/{args.number}")
+    if issue.get("state") != "open" or "pull_request" in issue:
+        sys.exit(f"#{args.number} is not an open issue")
+    try:
+        body = ownerrequests.handled_comment(args.comment_id, args.result, args.text or "", pending["url"] or "",
+                                             project.owner_language())
+    except ValueError as exc:
+        sys.exit(str(exc))
+    # The agents' own token (the team app's in app mode): an owner token would make the answer look like the owner's.
+    c = gh.api(f"repos/{repo}/issues/{args.number}/comments", "POST", {"body": body})
+    out({"issue": args.number, "comment_id": args.comment_id, "result": args.result, "url": c["html_url"]})
 
 
 def cmd_next(repo: str, args) -> None:
@@ -442,6 +565,10 @@ def main() -> None:
     lp = sub.add_parser("link-pr"); lp.add_argument("number", type=int); lp.add_argument("pr", type=int)
     an = sub.add_parser("answers"); an.add_argument("number", type=int)
     va = sub.add_parser("vanished"); va.add_argument("--days", type=int, default=30)
+    rq = sub.add_parser("requests"); rq.add_argument("--milestone"); rq.add_argument("--days", type=int, default=30)
+    rd = sub.add_parser("request-done"); rd.add_argument("number", type=int)
+    rd.add_argument("--comment-id", type=int, required=True)
+    rd.add_argument("--result", required=True, choices=list(ownerrequests.RESULTS)); rd.add_argument("--text")
     nx = sub.add_parser("next"); nx.add_argument("--now")
     sp = sub.add_parser("sprint"); sp.add_argument("action", choices=["current", "list", "create"])
     sp.add_argument("title", nargs="?"); sp.add_argument("due", nargs="?")
@@ -454,7 +581,7 @@ def main() -> None:
     handlers = {
         "init": cmd_init, "list": cmd_list, "show": cmd_show, "create": cmd_create, "move": cmd_move, "close": cmd_close, "decide": cmd_decide, "ask": cmd_ask, "reversals": cmd_reversals, "answer": cmd_answer, "milestone": cmd_milestone,
         "label": cmd_label, "edit": cmd_edit, "comment": cmd_comment, "link-pr": cmd_link_pr, "answers": cmd_answers, "vanished": cmd_vanished,
-        "sprint": cmd_sprint, "next": cmd_next,
+        "sprint": cmd_sprint, "next": cmd_next, "requests": cmd_requests, "request-done": cmd_request_done,
     }
     try:
         handlers[args.cmd](gh.repo(), args)

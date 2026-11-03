@@ -129,14 +129,7 @@ def security_check(repo: str, n: int, paths: Optional[list] = None) -> list:
 def base_project_text(repo: str, base: str) -> str:
     """project.yml as the PR's base branch has it ("" when it has none): a PR cannot choose its own reviewers or
     drop a required verdict by editing project.yml, and the working tree may be any branch."""
-    try:
-        # A full ref: a tag or commit named like the branch must never stand in for it.
-        return gh.raw(f"repos/{repo}/contents/{project.PROJECT_FILE}?ref={quote('refs/heads/' + base, safe='/')}",
-                      "application/vnd.github.raw")
-    except gh.GhError as exc:
-        if "HTTP 404" in str(exc):
-            return ""
-        raise
+    return project.text_on_branch(repo, base)
 
 
 def gate(repo: str, n: int) -> dict:

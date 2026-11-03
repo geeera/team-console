@@ -1,0 +1,8 @@
+{
+  "name": "console-entities-design",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/console/entities/design/src",
+  "prefix": "tc",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:console", "layer:entities"]
+}

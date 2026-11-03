@@ -22,8 +22,11 @@ function shellControl(page: Page, copy: Copy): Locator {
 async function expectSettingsIn(page: Page, lang: 'ru' | 'en'): Promise<void> {
   const copy = lang === 'ru' ? ru : en;
   await expect(page.getByRole('heading', { level: 1, name: copy('settings.title') })).toBeVisible();
-  await expect(page.getByRole('heading', { level: 2, name: copy('settings.projects.title') })).toBeVisible();
+  // Settings holds settings only (#194): GitHub, notifications, language — projects live on All projects.
+  await expect(page.getByRole('heading', { level: 2, name: copy('settings.gh.title') })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: copy('push.title') })).toBeVisible();
   await expect(page.getByRole('heading', { level: 2, name: copy('settings.language') })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: copy('settings.projects.title') })).toHaveCount(0);
   await expect(shellControl(page, copy)).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', lang);
 }

@@ -25,7 +25,7 @@ function isIssue(item: SprintListItem): item is SprintIssue {
       @for (item of items(); track item.number) {
         <tc-list-row [href]="item.url ?? ''" external [attr.data-number]="item.number">
           <span tc-row-leading class="sprint-item__number">#{{ item.number }}</span>
-          <span tc-row-title
+          <span tc-row-title dir="auto"
             >{{ item.title }}
             @if (item.url) {
               <span class="tc-sr-only">{{ 'board.opensGitHub' | transloco }}</span>
@@ -36,19 +36,33 @@ function isIssue(item: SprintListItem): item is SprintIssue {
             <span tc-row-subtitle class="sprint-item__marks">
               <tc-sprint-ci-chip [state]="ci" data-testid="ci" />
               @if (!item.authorTrusted) {
-                <tc-chip tone="warning" dot data-testid="untrusted">{{ 'board.untrusted' | transloco }}</tc-chip>
+                <tc-chip tone="warning" dot data-testid="untrusted">{{
+                  'board.untrusted' | transloco
+                }}</tc-chip>
               }
             </span>
-          } @else if (!item.authorTrusted) {
-            <span tc-row-subtitle data-testid="untrusted">
-              <tc-chip tone="warning" dot>{{ 'board.untrusted' | transloco }}</tc-chip>
+          } @else if (!item.authorTrusted || isPending(item)) {
+            <span tc-row-subtitle class="sprint-item__marks">
+              @if (isPending(item)) {
+                <!-- #219: the owner asked the PM about this issue; the PM has not answered yet. -->
+                <tc-chip tone="warning" dot data-testid="request-pending">{{
+                  'board.pending' | transloco
+                }}</tc-chip>
+              }
+              @if (!item.authorTrusted) {
+                <tc-chip tone="warning" dot data-testid="untrusted">{{
+                  'board.untrusted' | transloco
+                }}</tc-chip>
+              }
             </span>
           }
           @if (tierOf(item); as tier) {
             <!-- The icon is not a control (the row already is a link): its name is hidden text in the link, and the
                  tooltip repeats it for the mouse and keyboard, beside the icon because the list clips above it. -->
             <tc-sprint-tier-icon tc-row-trailing [tier]="tier" data-testid="tier">
-              <span class="tc-sr-only">{{ 'board.tierLabel' | transloco }} {{ 'board.tier.' + tier | transloco }}</span>
+              <span class="tc-sr-only"
+                >{{ 'board.tierLabel' | transloco }} {{ 'board.tier.' + tier | transloco }}</span
+              >
               <tc-tooltip placement="start"
                 >{{ 'board.tierLabel' | transloco }} {{ 'board.tier.' + tier | transloco }}</tc-tooltip
               >
@@ -72,6 +86,10 @@ export class SprintItemList {
 
   protected ciOf(item: SprintListItem): SprintCiState | null {
     return isIssue(item) ? null : item.ci;
+  }
+
+  protected isPending(item: SprintListItem): boolean {
+    return isIssue(item) && item.request?.state === 'pending';
   }
 
   protected isDraft(item: SprintListItem): boolean {

@@ -3,6 +3,7 @@
   block-size: 100%;
 }
 
+
 .ov {
   display: grid;
   gap: var(--space-2);
@@ -30,6 +31,37 @@
 :host(.ov--quiet) .ov {
   background: transparent;
   box-shadow: none;
+}
+
+/* With actions, the host draws the card and the link fills its upper part, so the buttons sit inside the card. */
+:host(:has([tc-tile-actions])) {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  box-sizing: border-box;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  transition: border-color var(--dur-fast) var(--ease-standard);
+}
+
+:host(:has([tc-tile-actions]):has(.ov:hover)) {
+  border-color: var(--border-strong);
+}
+
+:host(.ov--quiet:has([tc-tile-actions])) {
+  background: transparent;
+  box-shadow: none;
+}
+
+:host(:has([tc-tile-actions])) .ov {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+:host(:has([tc-tile-actions])) .ov:hover {
+  border-color: transparent;
 }
 
 .ov__top {
@@ -83,4 +115,13 @@
 .ov__problem--pending {
   background: var(--bg-sunken);
   color: var(--text-2);
+}
+
+.ov__snoozed {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--warning-text);
+  font-size: var(--fs-xs);
+  overflow-wrap: break-word;
 }
