@@ -165,7 +165,9 @@ create` writes it (`due_on: <day>T12:00:00Z`, title `Sprint NN` = highest of all
 the milestones read failed). Console: `@console/features/sprint-controls` (`SprintControls`, a `Sheet.confirm` with a
 checked date field: `ConfirmInput.type/value/min/max/check`, `ConfirmFailure.refill`), the panel's Sprint group and the
 board's "Move demo"; the command failure model (`commandFailureOf`, `CommandOutcome`) lives in
-`@console/entities/team-run`. Fake GitHub: `seedMilestones`, milestone writes, `/_fake/milestones`.
+`@console/entities/team-run`. Fake GitHub: `seedMilestones`, milestone writes, `/_fake/milestones` (`DELETE …?repo=` /
+`clearFakeMilestones` drops a seed so the mock answers again). The mock's milestones carry `due_in_days` (served as
+`due_on` relative to the day of the read, `milestoneAt`, #382) — never a fixed date a spec can outlive.
 
 Requests to the PM (#219, ADR 0005, #29 slice 2): `POST|GET /api/v1/projects/:slug/issues/:number/request`
 (`routes/owner-request.ts`; POST `owner-only`) posts one comment on the owner's token through `postOwnerAnswer` (`own_writes.kind
