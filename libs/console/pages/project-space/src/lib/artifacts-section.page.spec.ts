@@ -10,7 +10,7 @@ import { PROJECTS_URL, ProjectsStore } from '@console/entities/project';
 import { provideConsoleI18n, TranslocoService } from '@console/shared/i18n';
 import { memoryPersistedStateStorage, PERSISTED_STATE_STORAGE } from '@console/shared/persisted-state';
 import type { ArtifactDto, ArtifactsResponse } from '@shared/contracts';
-import { of } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
 import { ProjectSpacePage } from './project-space.page';
 import { projectSpaceChildRoutes } from './project-space.routes';
 
@@ -161,6 +161,8 @@ describe('ArtifactsSectionPage, the Design filter states (#295, #277 spec §4)',
 
   it('has the English copy too', async () => {
     const { query, answer, settle } = await setup('/p/tc/artifacts?type=design');
+    // English is a lazy chunk (#123): loaded before the switch, as `ConsoleLanguage.use` does.
+    await firstValueFrom(TestBed.inject(TranslocoService).load('en'));
     TestBed.inject(TranslocoService).setActiveLang('en');
     await settle();
     expect(textOf(query('[data-testid="artifacts-designs-loading"] [role="status"]'))).toBe('Loading designs…');

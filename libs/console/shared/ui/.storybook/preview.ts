@@ -29,7 +29,8 @@ function syncLangFromToolbar(): void {
   const apply = (): void => {
     const lang = document.documentElement.getAttribute(LANG_ATTRIBUTE);
     if (isConsoleLang(lang) && lang !== transloco.getActiveLang()) {
-      transloco.setActiveLang(lang);
+      // English is a lazy chunk (#123): load it before switching, as the app does.
+      transloco.load(lang).subscribe(() => transloco.setActiveLang(lang));
     }
   };
   new MutationObserver(apply).observe(document.documentElement, {
