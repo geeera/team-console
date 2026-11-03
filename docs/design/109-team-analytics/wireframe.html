@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>#109 Team stats: how the team works (UX wireframe)</title>
+<style>
+/* Low fidelity on purpose: grey boxes, system font, real copy. The look is the ui-designer's job (Paper Desk, ADR 0002).
+   Example numbers only; the real ones come from the plugin's `runlog stats --days 14` and `sprint-metrics --milestone current`. */
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.4 system-ui,-apple-system,sans-serif;color:#222;background:#eee}
+button,select{font:inherit;color:inherit}
+a{color:inherit}
+:focus-visible{outline:3px solid #000;outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.demo{background:#fff;border-bottom:1px solid #bbb;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:13px}
+.demo b{font-size:14px}.demo p{margin:0;flex-basis:100%;color:#555}
+.stage{padding:20px;display:flex;gap:24px;justify-content:center;align-items:flex-start;flex-wrap:wrap}
+.frame{background:#fafafa;border:2px solid #999;position:relative;overflow:hidden;display:flex}
+.frame.phone{width:390px;height:844px;flex-direction:column;border-radius:28px}
+.frame.mac{width:1440px;height:900px;zoom:.72}
+.topbar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #bbb;background:#e6e6e6;min-height:53px;flex:none}
+.topbar b{flex:1}
+.tabbar{display:flex;border-top:1px solid #bbb;background:#e6e6e6;flex:none;height:60px}
+.tabbar span{flex:1;display:grid;place-items:center;font-size:11px;text-align:center}
+.tabbar [aria-current]{font-weight:700;text-decoration:underline}
+.side{width:256px;border-right:1px solid #bbb;background:#e6e6e6;padding:12px;flex:none;font-size:14px}
+.side div{padding:8px}
+.scroll{flex:1;overflow:auto;min-width:0}
+.machead{display:flex;align-items:center;gap:12px;padding:16px 32px;border-bottom:1px solid #bbb}
+.machead [aria-current]{font-weight:700;text-decoration:underline}
+.content{padding:12px 16px 24px}
+.mac .content{padding:16px 32px 32px;max-width:1184px}
+.btn{min-height:44px;padding:0 12px;border:1px solid #666;background:#ddd;cursor:pointer;white-space:nowrap;border-radius:4px}
+.btn.sm{min-height:36px}
+.btn.link{border:0;background:none;text-decoration:underline;min-height:44px;padding:0 4px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border:1px solid #999;border-radius:12px;font-size:12px;white-space:nowrap;background:#fff}
+.chip.strong{border-width:2px;border-color:#555;font-weight:600}
+.head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.head h1{margin:0;font-size:22px}
+.meta{font-size:13px;color:#555;display:flex;gap:6px 12px;flex-wrap:wrap;align-items:center;margin:4px 0 8px}
+.mac .meta .btn{margin-left:auto}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 4px;padding:0}
+.mac .tiles{grid-template-columns:repeat(4,1fr)}
+.tile{border:1px solid #aaa;background:#fff;padding:8px 10px;min-height:56px;border-radius:6px;display:block;text-decoration:none;min-width:0}
+.tile .l{display:block;font-size:12px;color:#555;white-space:nowrap}
+.tile .v{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .s{display:block;font-size:12px;color:#555}
+.tile.alert{border-width:2px;border-color:#555}
+.tile .v::after{content:" ›";color:#777}
+.cols{display:block}
+.mac .cols{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
+section.block{margin-top:16px}
+section.block h2{font-size:15px;margin:0 0 2px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+section.block h2:focus{outline:3px solid #000}
+.period{font-size:12px;color:#555;margin:0 0 6px}
+.list{border:1px solid #aaa;background:#fff;border-radius:6px;margin:0;padding:0;list-style:none}
+.list>li{padding:10px;border-top:1px solid #ddd;min-height:44px}
+.list>li:first-child{border-top:0}
+.rowtop{display:flex;gap:8px;align-items:baseline}
+.rowtop .n{color:#666;flex:none;font-size:13px}
+.rowtop .t{flex:1;min-width:0}
+.rowtop .t a{text-decoration:none}
+.rowtop .t a:hover{text-decoration:underline}
+.reason{font-size:13px;color:#333;margin:4px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.reason.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.chips{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+dl.kv{display:grid;grid-template-columns:1fr auto;gap:0;margin:0;border:1px solid #aaa;background:#fff;border-radius:6px}
+dl.kv dt,dl.kv dd{padding:8px 10px;border-top:1px solid #ddd;margin:0}
+dl.kv dt:first-of-type,dl.kv dt:first-of-type+dd{border-top:0}
+dl.kv dd{text-align:right;font-weight:600}
+dl.kv dd small{display:block;font-weight:400;color:#555;font-size:12px;text-align:right}
+table{border-collapse:collapse;width:100%;background:#fff;border:1px solid #aaa;font-size:14px}
+caption{text-align:left;font-size:12px;color:#555;padding:4px 0}
+th,td{padding:8px;border-top:1px solid #ddd;text-align:right}
+th[scope=row],thead th:first-child{text-align:left}
+thead th{font-size:12px;color:#555;font-weight:600}
+.slot{display:block}
+.slot .nums{font-size:13px;color:#333}
+.nodata{font-weight:400;color:#555}
+.nodata b{font-weight:600;color:#222}
+.meter{height:10px;background:#ddd;border-radius:5px;overflow:hidden;margin:6px 0 2px;display:flex}
+.meter i{display:block;background:#777}
+.meter i+i{background:#bbb}
+.muted{color:#555;font-size:13px}
+.state{border:1px dashed #888;padding:12px;background:#f3f3f3;margin:8px 0}
+.state b{display:block}
+.banner{background:#e0e0e0;border:1px solid #999;padding:8px 10px;font-size:13px;margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.skel{background:#ddd;border-radius:4px}
+.notes{max-width:1100px;margin:0 auto 40px;background:#fff;border:1px solid #bbb;padding:16px 20px;font-size:14px}
+.notes h2{font-size:16px}
+</style>
+</head>
+<body>
+<div class="demo" role="region" aria-label="Wireframe controls">
+  <b>#109 Показатели команды</b>
+  <label>Вид <select id="view"><option value="both">iPhone и Mac</option><option value="phone">iPhone 390×844</option><option value="mac">Mac 1440×900</option></select></label>
+  <label>Язык <select id="lang"><option value="ru">ru</option><option value="en">en</option></select></label>
+  <label>Состояние <select id="state">
+    <option value="loaded">Загружено (есть блокеры и сбои)</option>
+    <option value="calm">Всё спокойно (блокеров нет, сбоев нет)</option>
+    <option value="loading">Загрузка (скелетон)</option>
+    <option value="paused">Команда на паузе</option>
+    <option value="nolog">Журнала прогонов нет</option>
+    <option value="nosprint">Нет текущего спринта</option>
+    <option value="early">Начало спринта (ничего не закрыто, QA ещё не проверял)</option>
+    <option value="partial">Проверки не уместились в одну загрузку</option>
+    <option value="untrusted">Блокер с причиной не от команды</option>
+    <option value="offline">Нет сети</option>
+    <option value="ratelimited">GitHub просит подождать (429)</option>
+    <option value="notinstalled">Приложение не установлено</option>
+    <option value="error">Ошибка загрузки</option>
+  </select></label>
+  <p>Плитки вверху — ссылки на блоки ниже: нажмите, фокус перейдёт на заголовок блока. «Показать причину целиком» и «Показать ещё» работают. Числа — пример.</p>
+</div>
+<div class="stage" id="stage"></div>
+
+<section class="notes" aria-label="Wireframe notes">
+  <h2>Что это (коротко)</h2>
+  <ul>
+    <li>Новая вкладка проекта «Показатели» (<code>/p/:slug/stats</code>) между «Доской» и «Артефактами». Только чтение.</li>
+    <li>Сверху четыре плитки: «В блокерах», «Сбои прогонов», «QA с первого раза», «Готово». Каждая ведёт к своему блоку.</li>
+    <li>Блоки по порядку: «Где застряли» (блокеры с причиной и возрастом) → «Проверки» (круги ревью по PR) → «Спринт» (план, сделано, ещё открыто, по сложности, цикл) → «Прогоны за 14 дней» (по слотам).</li>
+    <li>У каждого блока подписан период: «сейчас», «Sprint 01», «за 14 дней». Переключателя периода нет.</li>
+    <li>Нет данных — пишем «нет данных» и почему. Ноль показываем только там, где это настоящий ноль.</li>
+  </ul>
+</section>
+
+<script>
+const L = {
+ru: {
+  tabs:['Вопросы','Доска','Показатели','Артефакты','Демо'], commands:'Команды', proj:'team-console',
+  title:'Как работает команда', sprintMeta:'Sprint 01 · демо 16 окт', asOf:'Данные на 14:05', refresh:'Обновить', refreshing:'Обновляю…',
+  team:{running:'В работе',paused:'На паузе с 11 окт, 09:00',failing:'Сбой'},
+  tiles:{blocked:'В блокерах', fails:'Сбои прогонов', qa:'QA с первого раза', done:'Готово'},
+  tileVals:{blocked:'3 · самый давний 9 дн.', blocked0:'Нет', fails:'4 из 41', fails0:'0 из 38', qa:'60 % · 6 из 10', done:'10 из 20'},
+  tileAria:(l,v)=>`${l}: ${v}. Перейти к блоку`,
+  noData:'нет данных',
+  stuck:{h:'Где застряли', period:'Сейчас · задачи со статусом «Блокер»', days:n=>`${n} ${plural(n,'день','дня','дней')} в блокере`,
+    more:'Показать причину целиком', less:'Свернуть причину', none:'Причина не указана: у задачи нет комментариев.',
+    emptyT:'Блокеров нет', emptyH:'Ни одна задача не ждёт решения или внешней зависимости.', untrusted:'Не от команды',
+    opens:'(откроется на GitHub)', reasonLabel:'Причина — последний комментарий:'},
+  reviews:{h:'Проверки', period:'PR этого спринта · с 2 окт',
+    first:'QA одобрил с первого раза', firstSub:'6 из 10 проверенных PR', changes:'Запросов правок', changesSub:'QA и REVIEW вместе',
+    listH:'Круги проверки по смёрженным PR', rounds:n=>`${n} ${plural(n,'круг','круга','кругов')}`,
+    qaCh:n=>`QA: правки ×${n}`, rvCh:n=>`REVIEW: правки ×${n}`, failed:'ревью не прошло', tierUp:'сложность поднята',
+    showMore:n=>`Показать ещё ${n}`, earlyFirst:'QA ещё не проверял PR в этом спринте', earlyList:'В этом спринте ещё ничего не смёржено.',
+    partialT:'Проверки посчитаны не все', partialH:'За одну загрузку GitHub отдал не все PR, поэтому числа не показываем: они были бы неточными.', retry:'Загрузить ещё раз'},
+  sprint:{h:'Спринт', period:'Sprint 01 · со 2 по 16 окт', planned:'Запланировано', shipped:'Сделано', open:'Ещё открыто',
+    openSub:'перейдут в следующий спринт, если не закрыть до демо', cycle:'Медиана цикла', cycleVal:'2,4 дня', cycleSub:'от «В работе» до закрытия · по 10 задачам',
+    cycleEarly:'в спринте ещё ничего не закрыто', tierCap:'По сложности', tierCols:['Сложность','План','Сделано','Подняли'],
+    tiers:['лёгкая','средняя','тяжёлая','без оценки'], noSprintT:'Текущего спринта нет', noSprintH:'Числа спринта появятся, когда PM создаст спринт на планировании. Прогоны и блокеры — в других блоках.',
+    meterAria:'Сделано 10 из 20 запланированных, ещё открыто 10'},
+  runs:{h:'Прогоны', period:'За 14 дней · с 28 сен', slots:{dev:'Разработка',qa:'Проверка (QA)',pm:'Планирование'},
+    cols:['Слот','Прогоны','Сбои','Медиана'], runs:n=>`${n} ${plural(n,'прогон','прогона','прогонов')}`, fails:n=>`${n} ${plural(n,'сбой','сбоя','сбоев')}`,
+    min:n=>`${n} мин`, noMin:'нет данных', noMinWhy:'прогоны не сообщают длительность',
+    unknown:'2 записи в журнале оставил кто-то вне команды: они не считаются ни успехом, ни сбоем.',
+    log:'Журнал прогонов на GitHub', noLogT:'нет данных: журнала прогонов ещё нет', noLogH:'Команда заводит журнал при первом прогоне по расписанию. До этого прогоны посчитать не из чего.',
+    pausedNote:'Команда на паузе с 11 окт: прогоны по расписанию завершаются сразу и не считаются сбоями.'},
+  errT:'Не удалось загрузить показатели', errH:'GitHub или консоль не ответили. Попробуйте ещё раз.', retry:'Попробовать ещё раз',
+  offT:'Нет соединения', offH:'Показатели загрузятся, когда появится сеть.',
+  rateT:'GitHub просит подождать', rateH:'Показатели сами попробуют снова в 14:08.',
+  niT:'Приложение консоли не установлено в репозиторий', niH:'Установите его в настройке проекта в «Настройках» и попробуйте ещё раз.',
+  loading:'Загружаем показатели…', loaded:'Показатели загружены',
+},
+en: {
+  tabs:['Questions','Board','Stats','Artifacts','Demo'], commands:'Commands', proj:'team-console',
+  title:'How the team works', sprintMeta:'Sprint 01 · demo Oct 16', asOf:'As of 14:05', refresh:'Refresh', refreshing:'Refreshing…',
+  team:{running:'Running',paused:'Paused since Oct 11, 09:00',failing:'Failing'},
+  tiles:{blocked:'Blocked', fails:'Failed runs', qa:'QA first pass', done:'Done'},
+  tileVals:{blocked:'3 · oldest 9 d', blocked0:'None', fails:'4 of 41', fails0:'0 of 38', qa:'60% · 6 of 10', done:'10 of 20'},
+  tileAria:(l,v)=>`${l}: ${v}. Go to the section`,
+  noData:'no data',
+  stuck:{h:'Where the team is stuck', period:'Now · issues with the Blocked status', days:n=>`blocked for ${n} ${n===1?'day':'days'}`,
+    more:'Show the whole reason', less:'Collapse the reason', none:'No reason given: the issue has no comments.',
+    emptyT:'Nothing is blocked', emptyH:'No issue is waiting for a decision or an outside dependency.', untrusted:'Not from the team',
+    opens:'(opens on GitHub)', reasonLabel:'Reason — the last comment:'},
+  reviews:{h:'Reviews', period:'This sprint\'s PRs · since Oct 2',
+    first:'QA approved first time', firstSub:'6 of 10 reviewed PRs', changes:'Change requests', changesSub:'QA and REVIEW together',
+    listH:'Review rounds per merged PR', rounds:n=>`${n} ${n===1?'round':'rounds'}`,
+    qaCh:n=>`QA: changes ×${n}`, rvCh:n=>`REVIEW: changes ×${n}`, failed:'review failed', tierUp:'tier raised',
+    showMore:n=>`Show ${n} more`, earlyFirst:'QA hasn\'t reviewed a PR this sprint yet', earlyList:'Nothing has been merged this sprint yet.',
+    partialT:'Not every review was counted', partialH:'GitHub didn\'t return every PR within one load, so the numbers are hidden: they would be wrong.', retry:'Load again'},
+  sprint:{h:'Sprint', period:'Sprint 01 · Oct 2 to Oct 16', planned:'Planned', shipped:'Shipped', open:'Still open',
+    openSub:'carried over to the next sprint unless closed by the demo', cycle:'Median cycle time', cycleVal:'2.4 days', cycleSub:'from In progress to closed · over 10 issues',
+    cycleEarly:'nothing in the sprint is closed yet', tierCap:'By tier', tierCols:['Tier','Planned','Shipped','Raised'],
+    tiers:['light','standard','heavy','unsized'], noSprintT:'No current sprint', noSprintH:'Sprint numbers appear once the PM creates a sprint at planning. Runs and blocked issues are in the other sections.',
+    meterAria:'Shipped 10 of 20 planned, 10 still open'},
+  runs:{h:'Runs', period:'Last 14 days · since Sep 28', slots:{dev:'Development',qa:'Review (QA)',pm:'Planning'},
+    cols:['Slot','Runs','Failed','Median'], runs:n=>`${n} ${n===1?'run':'runs'}`, fails:n=>`${n} failed`,
+    min:n=>`${n} min`, noMin:'no data', noMinWhy:'the runs don\'t report a duration',
+    unknown:'2 run log entries were left by someone outside the team: they count as neither a success nor a failure.',
+    log:'Run log on GitHub', noLogT:'no data: there is no run log yet', noLogH:'The team opens the run log on its first scheduled run. Until then there is nothing to count.',
+    pausedNote:'The team is paused since Oct 11: scheduled runs end at once and don\'t count as failures.'},
+  errT:'Couldn\'t load the stats', errH:'GitHub or the console didn\'t answer. Try again.', retry:'Try again',
+  offT:'You\'re offline', offH:'The stats load once you\'re back online.',
+  rateT:'GitHub asks to wait', rateH:'The stats try again by themselves at 14:08.',
+  niT:'The console app isn\'t installed in the repository', niH:'Install it from the project\'s setup in Settings, then try again.',
+  loading:'Loading the stats…', loaded:'Stats loaded',
+}};
+function plural(n,one,few,many){const m10=n%10,m100=n%100;if(m10===1&&m100!==11)return one;if(m10>=2&&m10<=4&&(m100<12||m100>14))return few;return many;}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+// Reason text is plain text; only https://github.com/ URLs become links (the criterion). Everything else stays text.
+function reasonHtml(s){return esc(s).replace(/https:\/\/github\.com\/[^\s<"]+/g,u=>`<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`)}
+
+const BLOCKED = [
+  {n:274, t:'Console dialogs: fit the viewport, one scroll, sticky actions', d:9, r:'Ждём решения владельца: какой размер окна считать основным на Mac — 1280 или 1440. Вопрос в https://github.com/geeera/team-console/issues/280. Без ответа дизайн не утвердить.\nПока делаем остальное.'},
+  {n:276, t:'«Вопросы»: enough context to decide in the console', d:3, r:'QA: e2e на webkit падает на загрузке превью, нужен фикс в #290. Ссылка на прогон: https://example.com/run/123'},
+  {n:152, t:'Stage and production GitHub Apps', d:1, r:''},
+];
+const PRS = [
+  {n:301, t:'feat(#277): design viewer', rounds:3, qa:1, rv:1, failed:true, up:true},
+  {n:296, t:'feat(#276): question context on cards', rounds:2, qa:1, rv:0, failed:false, up:false},
+  {n:288, t:'fix(#288): fences close on the same marker', rounds:2, qa:0, rv:1, failed:false, up:false},
+  {n:284, t:'feat(#284): session expired screen', rounds:1, qa:0, rv:0},
+  {n:282, t:'fix(#282): sheet footer order', rounds:1, qa:0, rv:0},
+  {n:279, t:'chore: bump wrangler to 4.130.0', rounds:1, qa:0, rv:0},
+  {n:271, t:'feat(#219): owner requests to the PM', rounds:1, qa:0, rv:0},
+];
+let open = {}, prMore = false;
+
+function tiles(s,T,mac,pfx){
+  const calm = s==='calm';
+  const noLog = s==='nolog', early = s==='early', part = s==='partial', noSprint = s==='nosprint';
+  const v = T.tileVals;
+  const t = [
+    ['stuck', T.tiles.blocked, calm ? v.blocked0 : v.blocked, !calm],
+    ['runs', T.tiles.fails, noLog ? T.noData : (calm||s==='paused') ? v.fails0 : v.fails, !(calm||noLog||s==='paused')],
+    ['reviews', T.tiles.qa, (early||part||noSprint) ? T.noData : v.qa, false],
+    ['sprint', T.tiles.done, noSprint ? T.noData : early ? (T===L.ru?'0 из 20':'0 of 20') : v.done, false],
+  ];
+  return `<ul class="tiles" role="list" aria-label="${T===L.ru?'Главное':'At a glance'}">` + t.map(([k,l,val,alert])=>
+    `<li style="list-style:none"><a class="tile ${alert?'alert':''}" href="#${pfx}-${k}" data-jump="${pfx}-${k}" aria-label="${esc(T.tileAria(l,val))}"><span class="l">${l}</span><span class="v ${val===T.noData?'nodata':''}">${val}</span></a></li>`).join('') + '</ul>';
+}
+function stuckBlock(s,T,pfx){
+  const S = T.stuck;
+  let body;
+  if (s==='calm') body = `<div class="state"><b>${S.emptyT}</b><span class="muted">${S.emptyH}</span></div>`;
+  else body = '<ul class="list">' + BLOCKED.map((b,i)=>{
+    const key = pfx+b.n, isOpen = open[key], untrusted = s==='untrusted' && i===1;
+    const reason = b.r ? `<p class="reason ${isOpen?'':'clamp'}" id="${pfx}-r${b.n}" dir="auto"><span class="sr-only">${S.reasonLabel} </span>${reasonHtml(b.r)}</p>` +
+      (b.r.length>120 ? `<button class="btn link" data-open="${key}" aria-expanded="${!!isOpen}" aria-controls="${pfx}-r${b.n}">${isOpen?S.less:S.more}</button>` : '')
+      : `<p class="reason muted">${S.none}</p>`;
+    return `<li><div class="rowtop"><span class="n">#${b.n}</span><span class="t" dir="auto"><a href="https://github.com/geeera/team-console/issues/${b.n}" target="_blank" rel="noopener noreferrer">${esc(b.t)} <span class="sr-only">${S.opens}</span></a></span></div>
+      <div class="chips"><span class="chip ${b.d>=7?'strong':''}">${S.days(b.d)}</span>${untrusted?`<span class="chip">${S.untrusted}</span>`:''}</div>${reason}</li>`;
+  }).join('') + '</ul>';
+  return `<section class="block" aria-labelledby="${pfx}-stuck"><h2 id="${pfx}-stuck" tabindex="-1">${S.h} ${s==='calm'?'':'<span class="chip">3</span>'}</h2><p class="period">${S.period}</p>${body}</section>`;
+}
+function reviewsBlock(s,T,pfx){
+  const R = T.reviews;
+  let body;
+  if (s==='nosprint') body = `<div class="state"><b>${T.noData}</b><span class="muted">${T.sprint.noSprintT}</span></div>`;
+  else if (s==='partial') body = `<div class="state" role="status"><b>${R.partialT}</b><span class="muted">${R.partialH}</span><br><button class="btn sm">${R.retry}</button></div>`;
+  else {
+    const early = s==='early';
+    body = `<dl class="kv"><dt>${R.first}</dt><dd>${early?`<span class="nodata">${T.noData}</span><small>${R.earlyFirst}</small>`:`60 %<small>${R.firstSub}</small>`}</dd>
+      <dt>${R.changes}</dt><dd>${early?'0':'5'}<small>${R.changesSub}</small></dd></dl>
+      <h3 class="period" style="margin-top:10px">${R.listH}</h3>`;
+    if (early) body += `<p class="muted">${R.earlyList}</p>`;
+    else {
+      const shown = prMore ? PRS : PRS.slice(0,5);
+      body += '<ul class="list">' + shown.map(p=>`<li><div class="rowtop"><span class="n">#${p.n}</span><span class="t" dir="auto"><a href="https://github.com/geeera/team-console/pull/${p.n}" target="_blank" rel="noopener noreferrer">${esc(p.t)} <span class="sr-only">${T.stuck.opens}</span></a></span><span class="chip ${p.rounds>2?'strong':''}">${R.rounds(p.rounds)}</span></div>
+        ${(p.qa||p.rv||p.failed||p.up)?`<div class="chips">${p.qa?`<span class="chip">${R.qaCh(p.qa)}</span>`:''}${p.rv?`<span class="chip">${R.rvCh(p.rv)}</span>`:''}${p.failed?`<span class="chip">${R.failed}</span>`:''}${p.up?`<span class="chip">${R.tierUp}</span>`:''}</div>`:''}</li>`).join('') + '</ul>';
+      if (!prMore) body += `<button class="btn link" data-prmore="1" aria-expanded="false">${R.showMore(PRS.length-5)}</button>`;
+    }
+  }
+  return `<section class="block" aria-labelledby="${pfx}-reviews"><h2 id="${pfx}-reviews" tabindex="-1">${R.h}</h2><p class="period">${R.period}</p>${body}</section>`;
+}
+function sprintBlock(s,T,pfx){
+  const P = T.sprint;
+  let body;
+  if (s==='nosprint') body = `<div class="state"><b>${P.noSprintT}</b><span class="muted">${P.noSprintH}</span></div>`;
+  else {
+    const early = s==='early';
+    const sh = early?0:10, op = early?20:10;
+    body = `<div class="meter" role="img" aria-label="${early?P.meterAria.replace(/10/,'0').replace(/10/,'20'):P.meterAria}"><i style="width:${sh*5}%"></i><i style="width:${op*5}%"></i></div>
+      <dl class="kv"><dt>${P.planned}</dt><dd>20</dd><dt>${P.shipped}</dt><dd>${sh}</dd><dt>${P.open}</dt><dd>${op}<small>${P.openSub}</small></dd>
+      <dt>${P.cycle}</dt><dd>${early?`<span class="nodata">${T.noData}</span><small>${P.cycleEarly}</small>`:`${P.cycleVal}<small>${P.cycleSub}</small>`}</dd></dl>
+      <table style="margin-top:10px"><caption>${P.tierCap}</caption><thead><tr>${P.tierCols.map(c=>`<th scope="col">${c}</th>`).join('')}</tr></thead><tbody>
+      ${[[0,6,early?0:4,0],[1,11,early?0:5,early?0:1],[2,2,early?0:1,0],[3,1,0,null]].map(([i,a,b,c])=>`<tr><th scope="row">${P.tiers[i]}</th><td>${a}</td><td>${b}</td><td>${c===null?'—':c}</td></tr>`).join('')}</tbody></table>`;
+  }
+  return `<section class="block" aria-labelledby="${pfx}-sprint"><h2 id="${pfx}-sprint" tabindex="-1">${P.h}</h2><p class="period">${s==='nosprint'?'':P.period}</p>${body}</section>`;
+}
+function runsBlock(s,T,pfx,mac){
+  const R = T.runs;
+  let body;
+  if (s==='nolog') body = `<div class="state"><b>${R.noLogT}</b><span class="muted">${R.noLogH}</span></div>`;
+  else {
+    const calm = s==='calm'||s==='paused';
+    const rows = [['dev',18,calm?0:3,24],['qa',14,calm?0:1,12],['pm',9,0,null]];
+    if (mac) body = `<table><caption class="sr-only">${R.h}, ${R.period}</caption><thead><tr>${R.cols.map(c=>`<th scope="col">${c}</th>`).join('')}</tr></thead><tbody>${rows.map(([k,r,f,m])=>
+      `<tr><th scope="row">${R.slots[k]}</th><td>${r}</td><td>${f?`<b>${f}</b>`:0}</td><td>${m===null?`<span class="nodata">${R.noMin}</span>`:R.min(m)}</td></tr>`).join('')}</tbody></table>`;
+    else body = '<ul class="list">' + rows.map(([k,r,f,m])=>`<li class="slot"><b>${R.slots[k]}</b><div class="nums">${R.runs(r)} · ${f?`<b>${R.fails(f)}</b>`:R.fails(0)} · ${m===null?`${T===L.ru?'медиана':'median'}: <span class="nodata">${R.noMin}</span>`:(T===L.ru?'медиана ':'median ')+R.min(m)}</div></li>`).join('') + '</ul>';
+    body += `<p class="muted">${T===L.ru?'Планирование':'Planning'}: ${R.noMinWhy}.</p>`;
+    if (s==='paused') body = `<p class="banner" role="note">${R.pausedNote}</p>` + body;
+    if (s!=='calm') body += `<p class="muted">${R.unknown}</p>`;
+  }
+  body += `<a class="btn link" href="https://github.com/geeera/team-console/issues/22" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center">${R.log} ↗</a>`;
+  return `<section class="block" aria-labelledby="${pfx}-runs"><h2 id="${pfx}-runs" tabindex="-1">${R.h}</h2><p class="period">${R.period}</p>${body}</section>`;
+}
+function header(s,T){
+  const st = s==='paused' ? T.team.paused : (s==='calm'||s==='nolog'||s==='nosprint'||s==='early') ? T.team.running : T.team.running;
+  return `<div class="head"><h1 tabindex="-1">${T.title}</h1></div>
+    <div class="meta"><span>${s==='nosprint'?'':T.sprintMeta}</span><span class="chip ${s==='paused'?'strong':''}">${st}</span><span>${T.asOf}</span><button class="btn sm">${T.refresh}</button></div>`;
+}
+function skeleton(T,mac){
+  const tile = '<div class="tile" aria-hidden="true"><div class="skel" style="height:10px;width:50%"></div><div class="skel" style="height:16px;width:70%;margin-top:8px"></div></div>';
+  const block = '<div aria-hidden="true" style="margin-top:16px"><div class="skel" style="height:16px;width:40%"></div>' + '<div class="skel" style="height:44px;margin-top:8px"></div>'.repeat(3) + '</div>';
+  return `<div class="head"><h1>${T.title}</h1></div><p class="sr-only" role="status">${T.loading}</p><div class="skel" style="height:14px;width:60%;margin:6px 0 10px" aria-hidden="true"></div>
+    <div class="tiles" aria-hidden="true">${tile.repeat(4)}</div>${mac?`<div class="cols"><div>${block+block}</div><div>${block+block}</div></div>`:block+block}<div aria-busy="true"></div>`;
+}
+function whole(s,T){
+  const m = {error:[T.errT,T.errH,true], offline:[T.offT,T.offH,true], ratelimited:[T.rateT,T.rateH,false], notinstalled:[T.niT,T.niH,true]}[s];
+  return `<div class="head"><h1>${T.title}</h1></div><div class="state" role="alert"><b>${m[0]}</b><span class="muted">${m[1]}</span>${m[2]?`<br><button class="btn" style="margin-top:8px">${T.retry}</button>`:''}</div>`;
+}
+function body(s,T,mac,pfx){
+  if (s==='loading') return skeleton(T,mac);
+  if (['error','offline','ratelimited','notinstalled'].includes(s)) return whole(s,T);
+  const left = stuckBlock(s,T,pfx) + reviewsBlock(s,T,pfx);
+  const right = sprintBlock(s,T,pfx) + runsBlock(s,T,pfx,mac);
+  return header(s,T) + tiles(s,T,mac,pfx) + `<div class="cols"><div>${left}</div><div>${right}</div></div><p class="sr-only" role="status">${T.loaded}</p>`;
+}
+function render(){
+  const v = document.getElementById('view').value, s = document.getElementById('state').value, lang = document.getElementById('lang').value;
+  const T = L[lang]; document.documentElement.lang = lang;
+  const st = document.getElementById('stage'); st.innerHTML = '';
+  const tabsPhone = T.tabs.map((t,i)=>`<span ${i===2?'aria-current="page"':''}>${t}</span>`).join('');
+  if (v!=='mac') st.insertAdjacentHTML('beforeend', `<div class="frame phone" aria-label="iPhone 390×844"><div class="topbar"><b>${T.proj} ▾</b><button class="btn sm">${T.commands}</button><span aria-hidden="true">⚙</span></div><main class="scroll"><div class="content">${body(s,T,false,'p')}</div></main><nav class="tabbar">${tabsPhone}</nav></div>`);
+  if (v!=='phone') st.insertAdjacentHTML('beforeend', `<div class="frame mac" aria-label="Mac 1440×900"><aside class="side"><div><b>${lang==='ru'?'Консоль команды':'Team console'}</b></div><div>${lang==='ru'?'Ждут вас':'Needs you'} 9</div><div>${lang==='ru'?'Все проекты':'All projects'}</div><div>${T.proj} 9</div></aside><main class="scroll"><div class="machead"><b>${T.proj}</b>${T.tabs.map((t,i)=>`<span class="chip" ${i===2?'aria-current="page"':''}>${t}</span>`).join('')}<button class="btn sm" style="margin-left:auto">${T.commands} K</button></div><div class="content">${body(s,T,true,'m')}</div></main></div>`);
+}
+document.addEventListener('click', e=>{
+  const a = e.target.closest('[data-jump]');
+  if (a){ e.preventDefault(); const h = document.getElementById(a.dataset.jump); h?.scrollIntoView({block:'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'}); h?.focus({preventScroll:true}); return; }
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.open){ const k=b.dataset.open; open[k]=!open[k]; render(); document.querySelector(`[data-open="${k}"]`)?.focus(); }
+  else if (b.dataset.prmore){ prMore=true; render(); document.querySelectorAll('section[aria-labelledby$="-reviews"] .list > li:nth-child(6) a')[0]?.focus(); }
+});
+['view','state','lang'].forEach(id=>document.getElementById(id).onchange = ()=>{ open={}; prMore=false; render(); });
+if (matchMedia('(max-width: 600px)').matches) document.getElementById('view').value='phone';
+render();
+</script>
+</body>
+</html>
