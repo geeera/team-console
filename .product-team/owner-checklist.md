@@ -314,6 +314,11 @@ secret put` / dashboard → Workers & Pages → Worker → Settings → Variable
 - [ ] Settings → Pages → Build and deployment → **Source: «GitHub Actions»** (бесплатно для публичных
       репозиториев). Без этого `design-pages.yml` не публикует `docs/design` после слияния в `dev`, и сайт
       остаётся старой веткой `gh-pages` (прототип с kickoff). См. PR #45.
+- [ ] Settings → Environments → **github-pages** → Deployment branches and tags: добавь `dev` (сейчас разрешён
+      только `gh-pages`). Без этого GitHub отклоняет деплой из `dev` правилом защиты окружения, и первый же
+      запуск `design-pages.yml` падает.
+- [ ] После слияния PR #45: Actions → **design-pages** → Run workflow на `dev` один раз — проверка, что сайт
+      опубликован (ссылка на сайт появится в итогах запуска).
 
 ## Claude
 - [ ] Scheduled routines created for `slot-pm`, `slot-dev`, `slot-qa` (see the plugin README)

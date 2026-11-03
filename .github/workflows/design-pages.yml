@@ -1,6 +1,8 @@
 # Publishes docs/design (prototypes, wireframes, visual directions) to GitHub Pages after it is merged into dev,
 # so designers never push to a publishing branch: designs arrive by PR like everything else.
-# Requires Settings → Pages → Source: "GitHub Actions" (public repositories: free).
+# Requires two owner settings (.product-team/owner-checklist.md): Settings → Pages → Source: "GitHub Actions"
+# (public repositories: free), and Settings → Environments → github-pages → Deployment branches allowing `dev`
+# (the default policy allows only gh-pages, so a deploy from dev is rejected).
 name: design-pages
 
 on:
