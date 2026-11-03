@@ -3,7 +3,7 @@ import { addDays, calendarDayOf } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { scrollRegionsOf, strayScrollsOf } from './support/scroll-regions';
-import { seed, type Stack } from './support/stack';
+import { clearFakeMilestones, seed, type Stack } from './support/stack';
 
 /**
  * One scroll at a time (#274, root cause in the #275 spec), at 390×844 (iphone) and 1440×900 (desktop): every screen
@@ -147,13 +147,7 @@ test.beforeAll(async ({ stack }) => {
 
 test.afterAll(async ({ stack }) => {
   if (stack.fakeURL !== null) {
-    await fakePost(stack, '/_fake/milestones', {
-      repo: REPO,
-      milestones: [
-        { number: 1, title: 'Sprint 01', state: 'open', dueOn: '2026-10-16T00:00:00Z' },
-        { number: 2, title: 'Sprint 02', state: 'open', dueOn: '2026-10-30T00:00:00Z' },
-      ],
-    });
+    await clearFakeMilestones(stack, REPO);
   }
 });
 
