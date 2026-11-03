@@ -4,6 +4,7 @@ import { githubPath, type RepoName } from '@worker/github';
 import { TRUSTED_BOT_LOGINS } from '@worker/read-models';
 import {
   PAUSED_LABEL,
+  PAUSE_MARKER,
   RUN_LOG_LABEL,
   activeOwnerPause,
   consolePauseHolds,
