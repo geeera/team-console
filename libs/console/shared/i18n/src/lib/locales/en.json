@@ -968,7 +968,7 @@
       "errB": "GitHub didn’t answer. Commands are off until the status is known — otherwise you might, say, pause a project that is already paused.",
       "noLog": "The team hasn’t opened its run log yet, so there is nothing to pause or start. It appears after the first scheduled run.",
       "offline": "You’re offline. Status as of {{time}}. Commands work only online.",
-      "noperm": "GitHub isn’t connected: Pause, Resume, the sprint commands and requests to the PM are off. Run now still works.",
+      "noperm": "GitHub isn’t connected: Pause, Resume, the sprint commands, batch approval and requests to the PM are off. Run now still works.",
       "sprint": "Sprint",
       "sprintVal": "{{sprint}} · demo {{date}}",
       "freeze": "freeze {{range}}",

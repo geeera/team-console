@@ -249,7 +249,7 @@ describe('CommandsPanel', () => {
     const { root } = await render(status({ ownerConnected: false }));
     const note = root.querySelector('[data-testid="cp-not-connected"]') as HTMLElement;
     expect(text(note.querySelector('[tc-banner-text]'))).toBe(
-      'GitHub не подключён: пауза, возобновление, команды спринта и просьбы PM выключены. «Запустить сейчас» работает.',
+      'GitHub не подключён: пауза, возобновление, команды спринта, пакетное одобрение и просьбы PM выключены. «Запустить сейчас» работает.',
     );
     expect(text(note)).not.toContain('Настройки › Проекты');
     expect(note.querySelector('a')).toBeNull();
