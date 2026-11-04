@@ -109,13 +109,15 @@
   };
 
   /* ---------- demo state (page-wide) ---------- */
-  const G = { screen: 'board', data: 'loaded', variant: 'progress', write: 'ok', imp: 'banner', freeze: false, nofuture: false, draft: false };
+  const G = { screen: 'board', data: 'loaded', variant: 'progress', write: 'ok', imp: 'banner', freeze: false, nofuture: false, draft: false, expired: false };
+  // Keys already used in this environment (ADR 0006: unique per environment).
+  const TAKEN_KEYS = { TC: 'team-console', GH: 'ghost' };
   const hosts = [...document.querySelectorAll('[data-app]')];
 
   function mountApp(host, kind) {
     const phone = kind === 'phone';
     const uid = `${kind}-${Math.random().toString(36).slice(2, 6)}`;
-    const S = host.S = { view: 'board', proj: 'tc', P: { tc: project('tc'), st: project('st') }, menu: null, toast: null, fail: null, tk: null, sd: null, nt: null, modal: null, find: { q: '', state: 'idle' }, imp: 'banner', pending: null, isNew: {} };
+    const S = host.S = { view: 'board', proj: 'tc', P: { tc: project('tc'), st: project('st') }, menu: null, toast: null, fail: null, tk: null, sd: null, nt: null, modal: null, find: { q: '', state: 'idle' }, imp: 'banner', pending: null, isNew: {}, key: 'ST' };
     const P = () => S.P[S.proj];
     const key = (n, p = P()) => `${p.prefix}-${n}`;
     const itemOf = (n, p = P()) => p.items.find((x) => x.n === n);
@@ -399,7 +401,23 @@
     }
 
     /* ================= the move to the console (storify) ================= */
-    const stepIdx = { intro: 0, copying: 0, failed: 1, ready: 1, mismatch: 1, switching: 2, swfail: 2, switched: 3 };
+    const keyErr = (v) => (!/^[A-Z]{2,5}$/.test(v) ? t('imp.key.errPattern') : TAKEN_KEYS[v] ? t('imp.key.errTaken', { prefix: v, name: TAKEN_KEYS[v] }) : '');
+    function keyFieldHTML() {
+      const v = S.key; const err = keyErr(v);
+      return `<div class="fld im-keyf"><div class="fld__row"><label class="fld__label" for="${uid}-key">${t('imp.key.label')}</label><span class="fld__count">${t('imp.key.proposed')}</span></div>
+        <p class="fld__err" id="${uid}-keye"${err ? '' : ' hidden'}>${I.warn}<span>${err}</span></p>
+        <input class="fld-input im-key-input" id="${uid}-key" data-fk="imp-key" data-bind="imp-key" value="${esc(v)}" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="${uid}-keye ${uid}-keyh"${err ? ' aria-invalid="true"' : ''}>
+        <p class="fld__hint" id="${uid}-keyh"><span data-key-preview>${err ? '' : t('imp.key.preview', { prefix: v })}</span> ${t('imp.key.hint', { prefix: err ? 'ST' : v })}</p></div>`;
+    }
+    const keyBad = () => !!keyErr(S.key);
+    function checkTableHTML(diff, failed) {
+      const grp = (title, rows) => `<tbody><tr class="im-grp"><th scope="rowgroup" colspan="4">${title}</th></tr>${rows.map(([w, g, c]) => `<tr${g !== c ? ' class="is-diff"' : ''}><th scope="row">${w}</th><td>${g}</td><td>${c}</td><td>${g === c ? `<span class="res-ok">${I.check}${t('imp.check.match')}</span>` : `<span class="res-diff">${I.warn}${t('imp.check.diff')}</span>`}</td></tr>`).join('')}</tbody>`;
+      const sprints = [['Sprint 03', 6, 6], ['Sprint 04', diff ? 5 : 4, 4], [t('board.sections.backlog'), 31, 31], [t('imp.check.closed'), 371, failed ? 369 : 371]];
+      const statuses = [['proposed', 24, 24], ['approved', diff ? 9 : 8, 8], ['in-progress', 3, 3], ['qa', 2, 2], ['blocked', 1, 1], ['done', 2, 2]].map(([k, g, c]) => [t(`board.status.${k}`), g, c]);
+      const comments = [[t('imp.check.comments'), 2104, failed ? 2087 : 2104]];
+      return `<table class="im-tbl"><caption>${t('imp.check.compare')}</caption><thead><tr><th scope="col">${t('imp.check.col.where')}</th><th scope="col">${t('imp.check.col.gh')}</th><th scope="col">${t('imp.check.col.tc')}</th><th scope="col">${t('imp.check.col.ok')}</th></tr></thead>${grp(t('imp.check.bySprint'), sprints)}${grp(t('imp.check.byStatus'), statuses)}${grp(t('imp.check.comments'), comments)}</table>`;
+    }
+    const stepIdx = { intro: 0, copying: 0, failed: 1, ready: 1, mismatch: 1, delta: 1, switching: 2, swfail: 2, switched: 3, rolledback: 3 };
     function stepsHTML(step) {
       const at = stepIdx[step] ?? 0;
       return `<ol class="im-steps" aria-label="${esc(t('imp.steps'))}">${['copy', 'check', 'switch'].map((k, j) => `<li class="${j < at ? 'is-done' : ''}"${j === at ? ' aria-current="step"' : ''}><b>${j + 1}. ${t(`imp.step.${k}`)}</b><span class="sr-only">, ${j < at ? t('imp.step.done') : j === at ? t('imp.step.now') : ''}</span></li>`).join('')}</ol>`;
@@ -412,27 +430,28 @@
         return `<div class="im">${offNote}${head(`<h1 tabindex="-1" data-fk="im-h">${t('imp.t', { name })}</h1>`)}${stepsHTML(step)}<p class="im-lead">${t('imp.intro.lead')}</p>
           <div class="im-cols"><section class="im-col"><h2>${t('imp.intro.what')}</h2><ul class="im-list im-list--in">${['w1', 'w2', 'w3', 'w4'].map((k) => `<li>${I.check}<span>${t(`imp.intro.${k}`)}</span></li>`).join('')}</ul></section>
           <section class="im-col"><h2>${t('imp.intro.stays')}</h2><ul class="im-list im-list--stay">${['s1', 's2'].map((k) => `<li>${I.minus}<span>${t(`imp.intro.${k}`)}</span></li>`).join('')}</ul></section></div>
-          <p class="im-key">${I.key}<span>${t('imp.intro.key', { prefix: 'ST' })}</span></p>
-          <div class="im-acts"><button type="button" class="btn btn--primary" data-act="imp-copy" data-fk="imp-copy">${t('imp.intro.go')}</button><small>${t('imp.intro.time')}</small></div></div>`;
+          ${keyFieldHTML()}
+          <div class="im-acts"><button type="button" class="btn btn--primary" data-act="imp-copy" data-fk="imp-copy"${keyBad() ? ` aria-disabled="true" aria-describedby="${uid}-keye"` : ''}>${t('imp.intro.go')}</button><small>${t('imp.intro.time')}</small></div></div>`;
       }
       if (step === 'copying') {
         const a = S.copyN ?? 172;
         return `<div class="im">${offNote}${head(`<h1 tabindex="-1" data-fk="im-h">${t('imp.copy.h')}</h1>`)}${stepsHTML(step)}
           <dl class="im-ledger"><div><dt>${t('imp.copy.sprints')}</dt><dd>${I.check} ${t('imp.copy.of', { a: 5, b: 5 })}</dd></div>
-          <div><dt id="${uid}-pl">${t('imp.copy.items')}</dt><dd>${t('imp.copy.of', { a, b: 412 })}</dd><progress class="im-bar" max="412" value="${a}" aria-labelledby="${uid}-pl"></progress></div>
+          <div><dt id="${uid}-pl">${t('imp.copy.items')}</dt><dd data-copy-items>${t('imp.copy.of', { a, b: 412 })}</dd></div>
           <div><dt>${t('imp.copy.comments')}</dt><dd>${t('imp.copy.of', { a: Math.round(a * 5.1), b: 2104 })}</dd></div></dl>
+          <div class="im-progress"><span class="im-progress__l" id="${uid}-pbl">${t('imp.copy.progress')}</span><progress class="im-bar" max="412" value="${a}" aria-labelledby="${uid}-pbl"></progress></div>
           <p class="im-note">${t('imp.copy.leave')}</p><div class="im-acts"><button type="button" class="btn" data-act="imp-stop" data-fk="imp-stop">${t('imp.copy.cancel')}</button></div></div>`;
       }
-      if (['failed', 'ready', 'mismatch'].includes(step)) {
-        const failed = step === 'failed'; const diff = step === 'mismatch';
-        const rows = [['Sprint 03', 6, 6], ['Sprint 04', diff ? 5 : 4, 4], [t('board.sections.backlog'), 31, 31], [t('imp.check.closed'), 371, failed ? 369 : 371]];
-        const tbl = `<table class="im-tbl"><caption>${t('imp.check.compare')}</caption><thead><tr><th scope="col">${t('imp.check.col.where')}</th><th scope="col">${t('imp.check.col.gh')}</th><th scope="col">${t('imp.check.col.tc')}</th><th scope="col">${t('imp.check.col.ok')}</th></tr></thead><tbody>${rows.map(([w, g, c]) => `<tr${g !== c ? ' class="is-diff"' : ''}><th scope="row">${w}</th><td>${g}</td><td>${c}</td><td>${g === c ? `<span class="res-ok">${I.check}${t('imp.check.match')}</span>` : `<span class="res-diff">${I.warn}${t('imp.check.diff')}</span>`}</td></tr>`).join('')}</tbody></table>`;
+      if (['failed', 'ready', 'mismatch', 'delta'].includes(step)) {
+        const failed = step === 'failed'; const diff = step === 'mismatch' || step === 'delta'; const busy = step === 'delta';
         const fail = failed ? `<div class="wblk wblk--bad" role="alert"><h2>${I.warn}<span>${t('imp.check.failed', { n: 2 })}</span></h2><ul class="im-fail">${[77, 203].map((n) => `<li>${t('imp.check.failedRow', { n })}</li>`).join('')}</ul><div class="wblk__acts"><button type="button" class="btn" data-act="imp-refail" data-fk="imp-refail">${I.refresh}${t('imp.check.retryFailed')}</button></div></div>` : '';
-        const changed = `<section class="im-sec"><h2>${t('imp.check.changed')}</h2><ul class="im-list im-list--in">${['c1', 'c2', 'c3', 'c4'].map((k) => `<li>${I.check}<span>${t(`imp.check.${k}`)}</span></li>`).join('')}</ul></section>`;
+        const mism = diff ? `<div class="wblk wblk--warn" role="${busy ? 'status' : 'alert'}" tabindex="-1" data-fk="imp-diff"><h2>${I.warn}<span>${t('imp.check.diff')}</span></h2><p>${t('imp.check.mismatchNote')}</p><div class="wblk__acts">${busy ? `<span class="sx-busy"><span class="ring" aria-hidden="true"></span>${t('imp.check.retrying')}</span>` : `<button type="button" class="btn btn--primary" data-act="imp-delta" data-fk="imp-delta">${I.refresh}${t('imp.check.retry')}</button>`}</div></div>` : '';
+        const changed = `<section class="im-sec"><h2>${t('imp.check.changed')}</h2><ul class="im-list im-list--in">${['c1', 'c2', 'c3', 'c4'].map((k) => `<li>${I.check}<span>${t(`imp.check.${k}`, { prefix: keyBad() ? 'ST' : S.key })}</span></li>`).join('')}</ul></section>`;
         const swId = `${uid}-swoff`;
-        return `<div class="im">${offNote}${head(`<h1 tabindex="-1" data-fk="im-h">${t(failed ? 'imp.check.hFailed' : 'imp.check.h')}</h1>`)}${stepsHTML(step)}<p class="im-lead">${t('imp.check.lead', { items: failed ? 410 : 412, sprints: 5, comments: 2104 })}</p>
-          ${fail}${tbl}${diff ? `<p class="im-note">${t('imp.check.mismatchNote')}</p>` : ''}${changed}
-          <div class="im-acts"><button type="button" class="btn btn--primary" data-act="imp-switch" data-fk="imp-switch"${failed ? ` aria-disabled="true" aria-describedby="${swId}"` : ''}>${t('imp.check.switch')}</button><button type="button" class="btn" data-act="imp-copy" data-fk="imp-again">${t('imp.check.again')}</button><button type="button" class="btn btn--danger-quiet" data-act="imp-cancel" data-fk="imp-cancel">${t('imp.check.cancel')}</button>${failed ? `<small id="${swId}">${t('imp.check.switchOff')}</small>` : ''}</div></div>`;
+        const why = failed ? t('imp.check.switchOff') : diff ? t('imp.check.switchMismatch') : keyBad() ? t('imp.key.fix') : '';
+        return `<div class="im">${offNote}${head(`<h1 tabindex="-1" data-fk="im-h">${t(failed ? 'imp.check.hFailed' : 'imp.check.h')}</h1>`)}${stepsHTML(step)}<p class="im-lead">${t('imp.check.lead', { items: failed ? 410 : 412, sprints: 5, comments: failed ? 2087 : 2104 })}</p>
+          ${fail}${mism}${checkTableHTML(diff, failed)}${keyFieldHTML()}${changed}
+          <div class="im-acts"><button type="button" class="btn btn--primary" data-act="imp-switch" data-fk="imp-switch"${why ? ` aria-disabled="true" aria-describedby="${swId}"` : ''}>${t('imp.check.switch')}</button><button type="button" class="btn" data-act="imp-copy" data-fk="imp-again">${t('imp.check.again')}</button><button type="button" class="btn btn--danger-quiet" data-act="imp-cancel" data-fk="imp-cancel">${t('imp.check.cancel')}</button>${why ? `<small id="${swId}" data-switch-why>${why}</small>` : `<small id="${swId}" data-switch-why hidden></small>`}</div></div>`;
       }
       if (step === 'switching' || step === 'swfail') {
         const k = S.swStep ?? 2;
@@ -444,9 +463,18 @@
         const fail = step === 'swfail' ? `<div class="wblk wblk--bad" role="alert" tabindex="-1" data-fk="sw-fail"><h2>${I.warn}<span>${t('imp.swfail.t')}</span></h2><p>${t('imp.swfail.b')}</p><div class="wblk__acts"><button type="button" class="btn" data-act="imp-switch" data-fk="sw-retry">${I.refresh}${t('imp.swfail.retry')}</button></div></div>` : '';
         return `<div class="im">${offNote}${head(`<h1 tabindex="-1" data-fk="im-h">${t('imp.sw.h', { name })}</h1>`)}${stepsHTML(step)}${fail}<ol class="im-run" aria-busy="${step === 'switching'}">${lines}</ol>${step === 'switching' ? `<p class="im-note">${t('imp.sw.stay')}</p>` : ''}</div>`;
       }
-      // switched
-      return `<div class="im">${head('')}${stepsHTML(step)}<div class="im-done"><p class="im-done__kicker" aria-hidden="true">${t('imp.done.stamp')}</p><h2 tabindex="-1" data-fk="im-done">${t('imp.done.h', { name })}</h2><p>${t('imp.done.b')}</p>${STAMP().replace('class="stamp"', 'class="stamp" data-stamp')}</div>
-        <div class="im-acts"><button type="button" class="btn btn--primary" data-act="imp-board" data-fk="imp-board">${t('imp.done.board')}</button><button type="button" class="btn" data-act="find" data-fk="imp-find">${I.search}${t('imp.done.find')}</button></div></div>`;
+      if (step === 'rolledback') {
+        return `<div class="im">${head('')}<div class="im-done im-done--neutral"><p class="im-done__kicker" aria-hidden="true">${t('imp.rb.stamp')}</p><h2 tabindex="-1" data-fk="im-done">${t('imp.rb.h', { name })}</h2><p>${t('imp.rb.b', { n: 12 })}</p>${STAMP('<path d="M22 32h20"/>').replace('class="stamp"', 'class="stamp stamp--neutral" data-stamp')}</div>
+          <div class="im-acts"><button type="button" class="btn btn--primary" data-act="imp-rb-board" data-fk="imp-board">${t('imp.done.board')}</button></div></div>`;
+      }
+      // switched: the stamped card, the key now read-only, and the 14-day way back (owner only)
+      const until = day([11, 18]);
+      const backId = `${uid}-back`;
+      const back = `<section class="im-back" aria-labelledby="${uid}-bh"><h2 id="${uid}-bh">${t('imp.back.h')}</h2>
+          <p id="${backId}">${G.expired ? t('imp.back.expired', { date: until }) : t('imp.back.until', { date: until, name })}</p>
+          <button type="button" class="btn btn--danger-quiet btn--tall" data-act="imp-back" data-fk="imp-back"${G.expired ? ` aria-disabled="true" aria-describedby="${backId}"` : ''}>${IC.lock && G.expired ? IC.lock : I.back}${t('imp.back.go')}</button></section>`;
+      return `<div class="im">${head('')}${stepsHTML(step)}<div class="im-done"><p class="im-done__kicker" aria-hidden="true">${t('imp.done.stamp')}</p><h2 tabindex="-1" data-fk="im-done">${t('imp.done.h', { name })}</h2><p>${t('imp.done.b', { prefix: S.key })}</p><p class="im-done__key">${I.key}<span>${t('imp.key.ro', { prefix: S.key })}</span></p>${STAMP().replace('class="stamp"', 'class="stamp" data-stamp')}</div>
+        <div class="im-acts"><button type="button" class="btn btn--primary" data-act="imp-board" data-fk="imp-board">${t('imp.done.board')}</button><button type="button" class="btn" data-act="find" data-fk="imp-find">${I.search}${t('imp.done.find')}</button></div>${back}</div>`;
     }
 
     /* ================= chrome ================= */
@@ -604,6 +632,14 @@
         return `<div class="modal"><div class="modal__scrim"></div><section class="adialog adialog--wide" role="alertdialog" aria-modal="true" aria-labelledby="${uid}-ct" aria-describedby="${uid}-cl" data-dialog><h2 id="${uid}-ct" tabindex="-1" data-fk="cf-h">${t('imp.confirm.t', { name })}</h2>
           <ol class="im-lines" id="${uid}-cl">${['l1', 'l2', 'l3', 'l4'].map((k) => `<li>${t(`imp.confirm.${k}`)}</li>`).join('')}</ol>
           <div class="adialog__actions"><button type="button" class="btn" data-act="cf-keep" data-fk="cf-keep">${t('imp.confirm.keep')}</button><button type="button" class="btn btn--primary" data-act="cf-ok">${t('imp.confirm.ok', { name })}</button></div></section></div>`;
+      }
+      if (m === 'rollback') {
+        const name = 'storify'; const r = S.rb; const busy = r.busy;
+        return `<div class="modal"><div class="modal__scrim" data-act="rb-keep"></div><section class="adialog adialog--wide" role="dialog" aria-modal="true" aria-labelledby="${uid}-rbt" aria-describedby="${uid}-rbl" data-dialog><h2 id="${uid}-rbt">${t('imp.back.t', { name })}</h2>
+          ${r.wErr ? `<div class="terr is-new" role="alert" tabindex="-1" data-fk="rb-err"><h3>${I.warn}<span>${t(`err.${r.wErr}.t`)}</span></h3><p>${t(`err.${r.wErr}.b`)}</p></div>` : ''}
+          <ol class="im-lines" id="${uid}-rbl"><li>${t('imp.back.l1')}</li><li class="im-lines__warn">${t('imp.back.l2', { date: day([11, 4]), n: 12 })}</li><li>${t('imp.back.l3')}</li></ol>
+          <form class="tform" data-form="rollback" novalidate${busy ? ' aria-busy="true"' : ''}><div class="fld"><label class="fld__label" for="${uid}-rbr">${t('imp.back.reason')}</label>${r.err ? `<p class="fld__err" id="${uid}-rbre">${I.warn}<span>${t('imp.back.reasonReq')}</span></p>` : ''}<textarea class="fld-input" id="${uid}-rbr" rows="3" data-fk="rb-text" data-bind="rb-reason" aria-describedby="${r.err ? `${uid}-rbre ` : ''}${uid}-rbh"${r.err ? ' aria-invalid="true"' : ''}${busy ? ' readonly' : ''}>${esc(r.text)}</textarea><p class="fld__hint" id="${uid}-rbh">${t('imp.back.reasonHint')}</p></div>
+          <div class="adialog__actions"><button type="button" class="btn" data-act="rb-keep" data-fk="rb-keep">${t('imp.back.keep')}</button><button type="submit" class="btn btn--danger${busy ? ' is-busy' : ''}" data-fk="rb-ok">${busy ? `${Proto.dots}${t('imp.back.busy')}` : t('imp.back.ok', { name })}</button></div></form></section></div>`;
       }
       return '';
     }
@@ -801,8 +837,10 @@
     /* the move to the console */
     let impTimer = null;
     function setImp(step, focus = 'im-h') {
-      clearInterval(impTimer); S.imp = step; S.view = step === 'banner' ? 'board' : 'import'; S.proj = 'st';
-      if (step === 'switched') { S.P.st.switched = true; S.isNew.stamp = true; focus = 'im-done'; } else if (step !== 'confirm') S.P.st.switched = false;
+      clearInterval(impTimer); clearTimeout(impTimer); S.imp = step; S.view = step === 'banner' ? 'board' : 'import'; S.proj = 'st';
+      if (step === 'rollback') { S.imp = 'switched'; S.view = 'import'; S.P.st.switched = true; S.P.st.prefix = S.key; S.rb = { text: '', err: false }; S.modal = 'rollback'; render('rb-text'); return; }
+      if (step === 'switched') { S.P.st.switched = true; S.P.st.prefix = S.key; S.isNew.stamp = true; focus = 'im-done'; } else if (step !== 'confirm') S.P.st.switched = false;
+      if (step === 'rolledback') { S.isNew.stamp = true; focus = 'im-done'; }
       if (step === 'confirm') { S.imp = 'ready'; S.view = 'import'; S.modal = 'confirm'; render('cf-h'); return; }
       render(step === 'banner' ? 'imp-start' : focus);
       if (step === 'copying') {
@@ -811,10 +849,13 @@
           S.copyN = Math.min(412, S.copyN + 37);
           const pct = Math.floor((S.copyN / 412) * 4) * 25;
           const bar = host.querySelector('.im-bar');
-          if (bar) { bar.value = S.copyN; bar.previousElementSibling.textContent = plain(t('imp.copy.of', { a: S.copyN, b: 412 })); }
+          if (bar) { bar.value = S.copyN; const dd = host.querySelector('[data-copy-items]'); if (dd) dd.textContent = plain(t('imp.copy.of', { a: S.copyN, b: 412 })); }
           if (pct > said) { said = pct; say(t('imp.announce', { p: pct })); }
           if (S.copyN >= 412) { clearInterval(impTimer); setTimeout(() => { if (S.imp === 'copying') setImp('ready'); }, 500); }
         }, 260);
+      }
+      if (step === 'delta') {
+        impTimer = setTimeout(() => { if (S.imp !== 'delta') return; setImp('ready'); say(`${t('imp.check.h')}. ${t('imp.check.match')}`); }, 1400);
       }
       if (step === 'switching') {
         S.swStep = 0;
@@ -889,6 +930,10 @@
         case 'imp-refail': setImp('ready'); break;
         case 'imp-cancel': setImp('banner'); break;
         case 'imp-switch': S.modal = 'confirm'; render('cf-h'); break;
+        case 'imp-delta': setImp('delta', 'imp-diff'); break;
+        case 'imp-back': S.rb = { text: '', err: false }; S.modal = 'rollback'; render('rb-text'); break;
+        case 'rb-keep': if (S.rb && S.rb.busy) break; S.modal = null; render('imp-back'); break;
+        case 'imp-rb-board': S.imp = 'banner'; S.view = 'board'; S.P.st.switched = false; render('imp-start'); break;
         case 'cf-keep': S.modal = null; render(S.imp === 'swfail' ? 'sw-retry' : 'imp-switch'); break;
         case 'cf-ok': S.modal = null; if (consume('switch') !== 'ok') { setImp('swfail', 'sw-fail'); break; } setImp('switching'); break;
         case 'imp-board': S.imp = 'switched'; S.view = 'board'; render('hd-find'); break;
@@ -918,6 +963,21 @@
       if (b === 'sd-name') { S.sd.name = v; const ok = host.querySelector('[data-fk="sd-ok"]'); if (ok && !S.sd.busy) ok.textContent = plain(t('sprintNew.ok', { sprint: v.trim() || '…' })); }
       if (b === 'sd-date') { S.sd.date = v; render(); }
       if (b === 'reason') S.reason.text = v;
+      if (b === 'rb-reason') S.rb.text = v;
+      if (b === 'imp-key') {
+        // Inline validation in place, so the caret stays where the owner types.
+        const up = v.toUpperCase(); if (up !== v) { const pos = e.target.selectionStart; e.target.value = up; e.target.setSelectionRange(pos, pos); }
+        S.key = up; const err = keyErr(up);
+        const ep = host.querySelector(`#${uid}-keye`); ep.hidden = !err; ep.querySelector('span').textContent = plain(err);
+        e.target.setAttribute('aria-invalid', String(!!err));
+        host.querySelector('[data-key-preview]').textContent = err ? '' : plain(t('imp.key.preview', { prefix: up }));
+        const btn = host.querySelector('[data-fk="imp-copy"], [data-fk="imp-switch"]');
+        const why = host.querySelector('[data-switch-why]');
+        if (btn && btn.dataset.fk === 'imp-copy') { if (err) { btn.setAttribute('aria-disabled', 'true'); btn.setAttribute('aria-describedby', `${uid}-keye`); } else { btn.removeAttribute('aria-disabled'); btn.removeAttribute('aria-describedby'); } }
+        if (btn && btn.dataset.fk === 'imp-switch' && !['failed', 'mismatch', 'delta'].includes(S.imp)) {
+          if (err) { btn.setAttribute('aria-disabled', 'true'); btn.setAttribute('aria-describedby', why.id); why.hidden = false; why.textContent = plain(t('imp.key.fix')); } else { btn.removeAttribute('aria-disabled'); btn.removeAttribute('aria-describedby'); why.hidden = true; }
+        }
+      }
       if (b === 'nt-title') S.nt.title = v;
     });
     host.addEventListener('change', (e) => {
@@ -937,6 +997,17 @@
         if (!S.reason.text.trim()) { S.reason.err = true; render('rs-text'); return; }
         const why = S.reason.text.trim(); S.modal = null;
         write('reject', () => { const i = itemOf(S.tk.n); S.tk.dec = 'rejected'; addEv({ ev: ['item.ev.rejected', { why }], decision: true, negative: true }); S.isNew.stamp = true; S.isNew.receipt = true; i.closed = false; say(`${t('dec.done.reject')}. ${t('dec.doneMeta', { key: key(i.n), time: NOW })}`); return 'receipt'; });
+      }
+      if (f === 'rollback') {
+        const r = S.rb; if (r.busy) return;
+        if (!r.text.trim()) { r.err = true; render('rb-text'); return; }
+        r.err = false; const out = consume('rollback'); r.busy = true; r.wErr = null; render('rb-ok');
+        setTimeout(() => {
+          r.busy = false;
+          if (out !== 'ok') { r.wErr = out; render('rb-err'); return; }
+          S.modal = null; S.P.st.switched = false; setImp('rolledback');
+          say(t('imp.rb.h', { name: 'storify' }));
+        }, 900);
       }
       if (f === 'sprint') submitSprint();
       if (f === 'nt') submitTask();
@@ -1019,6 +1090,7 @@
         if (S.modal === 'discard') { S.modal = null; render('e-title'); return; }
         if (S.modal === 'reason') { S.modal = null; render('reject'); return; }
         if (S.modal === 'confirm') { S.modal = null; render('imp-switch'); return; }
+        if (S.modal === 'rollback') { if (!S.rb.busy) { S.modal = null; render('imp-back'); } return; }
         if (S.sd) { const back = S.sd.opener; S.sd = null; render(back); return; }
         if (S.nt) { const back = S.nt.opener; S.nt = null; render(back); return; }
         if (S.view === 'task' && !phone && !(S.tk && S.tk.edit && typing)) { closeTask(); return; }
@@ -1049,7 +1121,7 @@
         if (screen === 'new') S.nt = { step: 'form', sprint: G.nofuture ? 'backlog' : 'next', title: t('task.sample'), k: 'feature', opener: 'hd-new' };
         render();
       },
-      reset() { S.P = { tc: project('tc'), st: project('st') }; S.imp = 'banner'; },
+      reset() { S.P = { tc: project('tc'), st: project('st') }; S.imp = 'banner'; S.key = 'ST'; },
     };
     host.api.apply(G.screen);
   }
@@ -1058,9 +1130,10 @@
   hosts.forEach((h) => mountApp(h, h.dataset.app));
   const renderAll = () => hosts.forEach((h) => h.api.render());
   const pageChrome = Proto.page({ L, title: 'Team Console · #409', onLang: renderAll });
+  document.querySelectorAll('[data-control=lang] button').forEach((b) => b.setAttribute('aria-label', b.dataset.value === 'ru' ? 'RU, Русский' : 'EN, English'));
   const sel = (id) => document.getElementById(id);
   const CTRL = { 'd-screen': 'screen', 'd-data': 'data', 'd-var': 'variant', 'd-write': 'write', 'd-imp': 'imp' };
-  function syncDemo() { Object.entries(CTRL).forEach(([id, k]) => { sel(id).value = G[k]; }); sel('d-freeze').checked = G.freeze; sel('d-nofuture').checked = G.nofuture; sel('d-draft').checked = G.draft; }
+  function syncDemo() { Object.entries(CTRL).forEach(([id, k]) => { sel(id).value = G[k]; }); sel('d-expired').checked = G.expired; sel('d-freeze').checked = G.freeze; sel('d-nofuture').checked = G.nofuture; sel('d-draft').checked = G.draft; }
   const applyAll = () => hosts.forEach((h) => h.api.apply(G.screen));
   sel('d-screen').addEventListener('change', (e) => { G.screen = e.target.value; applyAll(); });
   sel('d-data').addEventListener('change', (e) => { G.data = e.target.value; renderAll(); });
@@ -1068,10 +1141,11 @@
   sel('d-write').addEventListener('change', (e) => { G.write = e.target.value; });
   sel('d-imp').addEventListener('change', (e) => { G.imp = e.target.value; G.screen = 'import'; syncDemo(); applyAll(); });
   sel('d-freeze').addEventListener('change', (e) => { G.freeze = e.target.checked; renderAll(); });
+  sel('d-expired').addEventListener('change', (e) => { G.expired = e.target.checked; if (G.imp !== 'switched') { G.imp = 'switched'; } G.screen = 'import'; syncDemo(); applyAll(); });
   sel('d-nofuture').addEventListener('change', (e) => { G.nofuture = e.target.checked; hosts.forEach((h) => h.api.reset()); applyAll(); });
   sel('d-draft').addEventListener('change', (e) => { G.draft = e.target.checked; if (G.draft) { G.screen = 'task'; syncDemo(); } applyAll(); });
   document.querySelector('[data-reset]').addEventListener('click', () => {
-    Object.assign(G, { screen: 'board', data: 'loaded', variant: 'progress', write: 'ok', imp: 'banner', freeze: false, nofuture: false, draft: false });
+    Object.assign(G, { screen: 'board', data: 'loaded', variant: 'progress', write: 'ok', imp: 'banner', freeze: false, nofuture: false, draft: false, expired: false });
     hosts.forEach((h) => h.api.reset()); syncDemo(); applyAll();
   });
   syncDemo();
@@ -1080,6 +1154,6 @@
   const q = new URLSearchParams(location.search);
   let hooked = false;
   [['screen', 'screen'], ['data', 'data'], ['variant', 'variant'], ['imp', 'imp'], ['write', 'write']].forEach(([qk, gk]) => { if (q.get(qk)) { G[gk] = q.get(qk); hooked = true; } });
-  ['freeze', 'nofuture', 'draft'].forEach((k) => { if (q.get(k) === '1') { G[k] = true; hooked = true; } });
+  ['freeze', 'nofuture', 'draft', 'expired'].forEach((k) => { if (q.get(k) === '1') { G[k] = true; hooked = true; } });
   if (hooked) { syncDemo(); hosts.forEach((h) => h.api.reset()); applyAll(); }
 })();

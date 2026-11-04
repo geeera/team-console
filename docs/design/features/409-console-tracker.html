@@ -1209,7 +1209,7 @@ textarea.fld-input{min-height:112px;padding:var(--sp-2) var(--sp-3);line-height:
 .tk-edit{display:grid;gap:var(--sp-4)}
 .tk-edit .form-actions{align-items:center}
 .tk-edit .form-actions .btn{min-height:var(--target)}
-.tk-edit .form-actions kbd{display:inline-block;margin-left:var(--sp-1);background:none;color:inherit;border-color:currentColor;opacity:.8}
+.tk-edit .form-actions kbd{display:inline-block;margin-left:var(--sp-1);background:none;color:inherit;border-color:currentColor}
 .app[data-app=phone] .tk-edit .form-actions kbd{display:none}
 .tk-edit[aria-busy=true] .fld-input{background:var(--bg-sunken);color:var(--text-2)}
 
@@ -1398,6 +1398,28 @@ mark{background:var(--accent-soft);color:inherit;border-radius:2px;padding:0 1px
 .bd-mac.has-pane .convo__title{flex:1 1 auto;min-width:6em}
 .mnu__list{display:grid}
 
+/* ----- after the architect's decisions (2026-11-04): the task key field, the full comparison, the 14-day way back ----- */
+.im-keyf{max-width:360px}
+.im-key-input{font-family:var(--font-mono);font-size:var(--fs-lg);letter-spacing:.06em;text-transform:uppercase;max-width:9em}
+.app[data-app=phone] .im-key-input{font-size:var(--fs-lg)}
+.im-keyf .fld__count{color:var(--text-2)}
+.im-tbl tr.im-grp th{padding-top:var(--sp-4);font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2);border-bottom:1px solid var(--border-strong)}
+.im-done__key{display:flex;align-items:center;gap:var(--sp-2);margin-top:var(--sp-1)!important;font-size:var(--fs-xs)!important}
+.im-done__key .ico{width:14px;height:14px;color:var(--text-2)}
+.im-done--neutral .im-done__kicker{color:var(--text-2)}
+/* the way back: a quiet ruled section under the result, clay only on its own button; off after 14 days with the date */
+.im-back{display:grid;justify-items:start;gap:var(--sp-2);padding-top:var(--sp-4);border-top:1px solid var(--border)}
+.im-back h2{margin:0;font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.im-back p{margin:0;font-size:var(--fs-sm);color:var(--text-2);max-width:60ch}
+.im-back .btn .ico{width:16px;height:16px}
+.im-back .btn[aria-disabled=true]{color:var(--text-2)}
+.im-back .btn[aria-disabled=true]:hover{background:none}
+.adialog .im-lines__warn{padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-weight:600}
+.adialog .fld__err{color:var(--danger-text)}
+.adialog .fld__hint{font-size:var(--fs-xs)}
+.im-progress{display:grid;gap:var(--sp-1);margin-top:calc(-1 * var(--sp-3))}
+.im-progress__l{font-size:var(--fs-xs);color:var(--text-2)}
+
 </style>
 </head>
 <body>
@@ -1417,7 +1439,8 @@ mark{background:var(--accent-soft);color:inherit;border-radius:2px;padding:0 1px
     <label><span data-i18n="demo.data">Data</span><select id="d-data"><option value="loaded" data-i18n="demo.d.loaded">loaded</option><option value="loading" data-i18n="demo.d.loading">loading</option><option value="error" data-i18n="demo.d.error">error</option><option value="offline" data-i18n="demo.d.offline">offline</option><option value="stale" data-i18n="demo.d.stale">stale</option><option value="empty" data-i18n="demo.d.empty">empty</option><option value="notfound" data-i18n="demo.d.notfound">notfound</option></select></label>
     <label><span data-i18n="demo.task">Task</span><select id="d-var"><option value="progress" data-i18n="demo.v.progress">progress</option><option value="decision" data-i18n="demo.v.decision">decision</option><option value="closed" data-i18n="demo.v.closed">closed</option><option value="untrusted" data-i18n="demo.v.untrusted">untrusted</option></select></label>
     <label><span data-i18n="demo.write">Next write</span><select id="d-write"><option value="ok" data-i18n="demo.w.ok">ok</option><option value="conflict" data-i18n="demo.w.conflict">conflict</option><option value="invalid" data-i18n="demo.w.invalid">invalid</option><option value="gone" data-i18n="demo.w.gone">gone</option><option value="forbidden" data-i18n="demo.w.forbidden">forbidden</option><option value="network" data-i18n="demo.w.network">network</option><option value="timeout" data-i18n="demo.w.timeout">timeout</option></select></label>
-    <label><span data-i18n="demo.imp">Move step</span><select id="d-imp"><option value="banner" data-i18n="demo.i.banner">banner</option><option value="intro" data-i18n="demo.i.intro">intro</option><option value="copying" data-i18n="demo.i.copying">copying</option><option value="failed" data-i18n="demo.i.failed">failed</option><option value="ready" data-i18n="demo.i.ready">ready</option><option value="mismatch" data-i18n="demo.i.mismatch">mismatch</option><option value="confirm" data-i18n="demo.i.confirm">confirm</option><option value="switching" data-i18n="demo.i.switching">switching</option><option value="swfail" data-i18n="demo.i.swfail">swfail</option><option value="switched" data-i18n="demo.i.switched">switched</option></select></label>
+    <label><span data-i18n="demo.imp">Move step</span><select id="d-imp"><option value="banner" data-i18n="demo.i.banner">banner</option><option value="intro" data-i18n="demo.i.intro">intro</option><option value="copying" data-i18n="demo.i.copying">copying</option><option value="failed" data-i18n="demo.i.failed">failed</option><option value="ready" data-i18n="demo.i.ready">ready</option><option value="mismatch" data-i18n="demo.i.mismatch">mismatch</option><option value="confirm" data-i18n="demo.i.confirm">confirm</option><option value="switching" data-i18n="demo.i.switching">switching</option><option value="swfail" data-i18n="demo.i.swfail">swfail</option><option value="switched" data-i18n="demo.i.switched">switched</option><option value="rollback" data-i18n="demo.i.rollback">rollback</option><option value="rolledback" data-i18n="demo.i.rolledback">rolledback</option></select></label>
+    <label><input type="checkbox" id="d-expired"> <span data-i18n="demo.expired">14 days have passed</span></label>
     <label><input type="checkbox" id="d-freeze"> <span data-i18n="demo.freeze">Freeze</span></label>
     <label><input type="checkbox" id="d-nofuture"> <span data-i18n="demo.nofuture">No future sprint</span></label>
     <label><input type="checkbox" id="d-draft"> <span data-i18n="demo.draft">Unsaved edit on this device</span></label>
@@ -1438,10 +1461,17 @@ mark{background:var(--accent-soft);color:inherit;border-radius:2px;padding:0 1px
 <li><b>Create a sprint (changed #29).</b> #107’s dialog / sheet frame: Name in the serif, prefilled “Sprint 06”, the date, and a moss-ruled note that works out the start and the freeze days as you change the date. Errors sit above their field. On success the new folder opens, takes focus and glows once (#108’s arrival).</li>
 <li><b>New task (changed #107).</b> The project list keeps storify but off, with the lock note. Each place says the status it sets (“· as Approved”, “· as Proposed”). The receipt card reads <code>TC-413</code>, “In Sprint 04, 10th in the queue.”, and <b>Open the task</b>. The Connect block, the public-repository and command notes and the GitHub errors are gone.</li>
 <li><b>Find (new).</b> A page with a ruled search field (<kbd>/</kbd> on the Mac, ⌕ on the iPhone). Results are one index list: key in mono, title in the serif with the matched words in moss, kind · status · sprint or “closed”. A link to another project is a moss margin note with <b>Open GH-12 in ghost</b>. A link to a project not moved yet is a grey note linking to GitHub.</li>
-<li><b>Move storify to the console (new).</b> A banner on that project’s board: a white sheet with a moss rule. Then a three-step strip (Copy · Check · Switch) that runs the whole flow. Copying shows a ledger with a real <code>progress</code> bar. The check is a ruled table: GitHub against the console, “matches” with a tick, a mismatched row in ochre with “differs”, never colour alone. Failures are a clay list, and Switch stays off with its reason. The confirm is an alertdialog with the four lines numbered and Not yet first. Switching ticks off five lines in ink. A failed switch is clay and says nothing is lost. <b>Switched</b> stamps the project card (Paper Desk’s ink stamp).</li>
+<li><b>Move storify to the console (new).</b> A banner on that project’s board: a white sheet with a moss rule. Then a three-step strip (Copy · Check · Switch) that runs the whole flow. Copying shows a ledger with a real <code>progress</code> bar. The check is a ruled table in three groups, the ADR’s comparison set: by sprint (and closed), open tasks by status, and comments. Each row is GitHub against the console: “matches” with a tick, or the row in ochre with “differs”, never colour alone. Failures are a clay list. The confirm is an alertdialog with the four lines numbered and Not yet first. Switching ticks off five lines in ink. A failed switch is clay and says nothing is lost. <b>Switched</b> stamps the project card (Paper Desk’s ink stamp).</li>
+<li><b>After the architect’s decisions of 4 Nov (on #409):</b>
+  <ul>
+  <li><b>Task key.</b> A mono field on “What moves” and on the check, prefilled from the name (<code>ST</code>, “proposed from the name”). Its line shows “GitHub #142 becomes ST-142”. Validation is inline as you type: 2–5 capital Latin letters, and unique in this environment (“The key TC already belongs to team-console”). Until the key is valid, Make the copy and Switch are off with the reason. After the switch the key is a read-only line on the stamped card.</li>
+  <li><b>Any count differs → Switch stays off.</b> The difference marker stays, and an ochre block gives the reason and <b>Run the import again</b> (the delta). While it runs, the block shows a ring and the button is gone. Switch turns on only when every row agrees.</li>
+  <li><b>The confirm now says that every imported issue, open and closed, gets the link and is locked</b>, and that for 14 days you can return. The switching line says this happens in batches.</li>
+  <li><b>The way back, 14 days, owner only.</b> Under the Switched card there is a quiet ruled section “Return to GitHub”, with the end date and a clay-text button. Its sheet lists what happens, and the line “changes made in the console since 4 Nov are not written back: 12 changes stay only here” is ochre. A reason is required (#16’s rule), and Stay in the console comes first. The result is a neutral stamp: “storify is back on GitHub”. After 14 days the button stays visible but is off, with a lock and “You could return until Nov 18”.</li>
+  </ul></li>
 </ul>
 <p><b>QA notes from PR #413, addressed here:</b> keys <code>TC-n</code> and <code>PR #n</code>. First focus: Create sprint on Name, the reject sheet on its reason field, pickers on the checked option, the discard and switch confirms on their heading. The “Was GitHub #n” link’s accessible name starts with its visible text (WCAG 2.5.3). ru plurals use one / few / many (“1 открытая”, “4 задачи”, “Уже 9 задач”). An off item’s reason is <code>--text-2</code> on the surface (AA in both themes), never faded by opacity. After Try again, focus waits on the task’s h1 (or the section heading on the board) and then goes to the action’s own target.</p>
-<p class="try">Try it on iPhone: press ⋯ on TC-408, pick Sprint 04, then Undo. Open TC-395 and change its Status. Pick “TC-345 waits for you” and Approve. Set the next write to “changed meanwhile” and save an edit. Pick Screen → Move storify and press Make the copy.</p>
+<p class="try">Try it on iPhone: press ⋯ on TC-408, pick Sprint 04, then Undo. Open TC-395 and change its Status. Pick “TC-345 waits for you” and Approve. Set the next write to “changed meanwhile” and save an edit. Pick Screen → Move storify and press Make the copy. Then pick Move step → “counts differ” and Run the import again, or “switched → return to GitHub”.</p>
 </div><dl class="tok">
 <dt>Colour</dt><dd>Paper Desk tokens only. Ink (<code>--text</code> on <code>--bg</code>) for the Undo slip and the open menu button. Moss (<code>--accent</code>, <code>--accent-soft</code>) for your history entries, a landed row, a matched word, the import banner rule and the stamp. Ochre (<code>--warning-*</code>) for a full sprint, the in-progress note, the conflict and a mismatched count. Clay (<code>--danger-*</code>) for failures, <code>--bg-sunken</code> for offline. Off items use <code>--text-2</code>; contrast is AA in both themes.</dd>
 <dt>Type</dt><dd>Source Serif 4 for titles, details, comments and the sprint name. Source Sans 3 for the UI, small caps for the ledger labels. Source Code Pro for keys and branches. No new fonts.</dd>
@@ -1463,10 +1493,17 @@ mark{background:var(--accent-soft);color:inherit;border-radius:2px;padding:0 1px
 <li><b>Новый спринт (изменено #29).</b> Окно / лист в рамке #107: Название с засечками, заранее «Sprint 06», дата и заметка с зелёной чертой — она сама пересчитывает начало и дни заморозки, когда вы меняете дату. Ошибки стоят над своим полем. После создания новая папка открывается, получает фокус и один раз подсвечивается (как в #108 по ссылке).</li>
 <li><b>Новая задача (изменено #107).</b> В списке проектов storify остаётся, но выключен, с пояснением и замком. У каждого варианта места видно, какой статус он ставит («· статус «Одобрено»», «· статус «Предложено»»). Карточка-квитанция: <code>TC-413</code>, «В Sprint 04, 10-я в очереди.» и <b>«Открыть задачу»</b>. Блок подключения GitHub, заметки про публичный репозиторий и команды, ошибки GitHub убраны.</li>
 <li><b>Поиск (новое).</b> Страница с разлинованным полем (<kbd>/</kbd> на Mac, ⌕ на iPhone). Результаты — один список-картотека: ключ моноширинным, название с засечками, найденные слова подсвечены зелёным; тип · статус · спринт или «закрыта». Ссылка на другой проект — зелёная заметка на полях с <b>«Открыть GH-12 в ghost»</b>. Ссылка на ещё не перенесённый проект — серая заметка со ссылкой на GitHub.</li>
-<li><b>Перенос storify в консоль (новое).</b> Плашка на доске проекта: белый лист с зелёной чертой. Дальше полоска из трёх шагов (Копия · Сверка · Переключение) — по ней идёт весь перенос. Копирование — ведомость с настоящим индикатором <code>progress</code>. Сверка — разлинованная таблица «GitHub / консоль»: «совпадает» с галочкой, несовпавшая строка охристая и со словом «не совпадает», не только цветом. Ошибки копии — список цвета глины, «Переключиться» выключено с причиной. Подтверждение — alertdialog: четыре пронумерованные строки, «Пока нет» первым. При переключении пять строк по очереди отмечаются чернилами. Неудача — блок цвета глины, в нём сказано, что ничего не потеряно. <b>«Переключено»</b> — штамп Paper Desk на карточке проекта.</li>
+<li><b>Перенос storify в консоль (новое).</b> Плашка на доске проекта: белый лист с зелёной чертой. Дальше полоска из трёх шагов (Копия · Сверка · Переключение) — по ней идёт весь перенос. Копирование — ведомость с настоящим индикатором <code>progress</code>. Сверка — разлинованная таблица из трёх групп, как в ADR: по спринтам (и закрытые), открытые по статусам, комментарии. В каждой строке «GitHub / консоль»: «совпадает» с галочкой или охристая строка со словом «не совпадает» — не только цветом. Ошибки копии — список цвета глины. Подтверждение — alertdialog: четыре пронумерованные строки, «Пока нет» первым. При переключении пять строк по очереди отмечаются чернилами. Неудача — блок цвета глины, в нём сказано, что ничего не потеряно. <b>«Переключено»</b> — штамп Paper Desk на карточке проекта.</li>
+<li><b>После решений архитектора от 4 ноя (в #409):</b>
+  <ul>
+  <li><b>Ключ задач.</b> Моноширинное поле на шаге «Что перенесётся» и на сверке, заранее заполнено по названию (<code>ST</code>, «предложен по названию»). Под ним строка «#142 с GitHub станет ST-142». Проверка сразу при вводе: 2–5 латинских заглавных букв и уникальность в этом окружении («Ключ TC уже у проекта team-console»). Пока ключ неверный, «Сделать копию» и «Переключиться» выключены с причиной. После переключения ключ — строка только для чтения на карточке со штампом.</li>
+  <li><b>Если хоть одно число не совпало, «Переключиться» выключено.</b> Отметка расхождения остаётся, а охристый блок объясняет причину и даёт кнопку <b>«Повторить импорт»</b> (докопировать изменения). Пока импорт идёт, в блоке кольцо, кнопки нет. «Переключиться» включается, только когда совпадают все строки.</li>
+  <li><b>В подтверждении теперь сказано: каждая перенесённая задача, открытая и закрытая, получит ссылку и будет закрыта для комментариев</b>, а 14 дней проект можно вернуть. Строка переключения говорит, что это идёт частями.</li>
+  <li><b>Возврат на GitHub — 14 дней, только владелец.</b> Под карточкой «Переключено» — тихий раздел «Вернуться на GitHub»: дата окончания и кнопка с текстом цвета глины. В листе подтверждения перечислено, что произойдёт. Строка «изменения в консоли с 4 ноя на GitHub не перенесутся: 12 изменений останутся только здесь» выделена охрой. Причина обязательна (правило #16), «Остаться в консоли» — первой. Итог — нейтральный штамп «storify снова на GitHub». Через 14 дней кнопка остаётся на месте, но выключена: замок и «Вернуться можно было до 18 ноя».</li>
+  </ul></li>
 </ul>
 <p><b>Замечания QA из PR #413, учтены:</b> ключи <code>TC-n</code> и <code>PR #n</code>. Первый фокус: «Новый спринт» — на Названии, лист отказа — на поле причины, выбор значения — на отмеченном пункте, подтверждения отмены правки и переключения — на заголовке. Доступное имя ссылки «Была на GitHub: #n» начинается с видимого текста (WCAG 2.5.3). Русские числа по формам one / few / many («1 открытая», «4 задачи», «Уже 9 задач»). Причина у выключенного пункта — <code>--text-2</code> на поверхности (AA в обеих темах), без прозрачности. После «Повторить» фокус ждёт на h1 задачи (на доске — на заголовке раздела), а потом переходит туда, куда ведёт само действие.</p>
-<p class="try">Попробуйте на iPhone: нажмите ⋯ у TC-408, выберите Sprint 04, потом «Отменить». Откройте TC-395 и смените Статус. Выберите «TC-345 ждёт вас» и нажмите «Утвердить». Поставьте следующее изменение «изменилась тем временем» и сохраните правку. Выберите Экран → «Перенос storify» и нажмите «Сделать копию».</p>
+<p class="try">Попробуйте на iPhone: нажмите ⋯ у TC-408, выберите Sprint 04, потом «Отменить». Откройте TC-395 и смените Статус. Выберите «TC-345 ждёт вас» и нажмите «Утвердить». Поставьте следующее изменение «изменилась тем временем» и сохраните правку. Выберите Экран → «Перенос storify» и нажмите «Сделать копию». Потом Шаг переноса → «числа не совпали» и «Повторить импорт» или «переключено → вернуться на GitHub».</p>
 </div><dl class="tok">
 <dt>Цвет</dt><dd>Только токены Paper Desk. Чернила (<code>--text</code> на <code>--bg</code>) — плашка «Отменить» и открытая кнопка меню. Мох (<code>--accent</code>, <code>--accent-soft</code>) — ваши записи в истории, строка на новом месте, найденное слово, черта на плашке переноса, штамп. Охра (<code>--warning-*</code>) — полный спринт, заметка «в работе», конфликт, несовпавшее число. Глина (<code>--danger-*</code>) — сбои, <code>--bg-sunken</code> — нет сети. Выключенные пункты — <code>--text-2</code>, контраст AA в обеих темах.</dd>
 <dt>Шрифты</dt><dd>Source Serif 4 — названия, подробности, комментарии, имя спринта. Source Sans 3 — интерфейс, подписи ведомости капителью. Source Code Pro — ключи и ветки. Новых шрифтов нет.</dd>
@@ -1647,7 +1684,6 @@ const I18N = {
     'imp.intro.lead': 'First the console makes a copy. Nothing changes on GitHub, and the team keeps working as usual.',
     'imp.intro.what': 'What moves', 'imp.intro.w1': 'Every task, open and closed, with the same numbers', 'imp.intro.w2': 'Sprints with their demo dates', 'imp.intro.w3': 'Status, kind, tier and labels', 'imp.intro.w4': 'Comments and your decisions (Approve, Reject)',
     'imp.intro.stays': 'What stays on GitHub', 'imp.intro.s1': 'Pull requests, code and CI checks', 'imp.intro.s2': 'Reactions and attachments: the task links to the original',
-    'imp.intro.key': 'Tasks get the key {prefix}: GitHub #142 becomes {prefix}-142.',
     'imp.intro.go': 'Make the copy', 'imp.intro.time': 'It usually takes a few minutes. You can close this screen: a notification tells you when it’s done.',
     'imp.step.copy': 'Copy', 'imp.step.check': 'Check', 'imp.step.switch': 'Switch', 'imp.steps': 'Steps of the move', 'imp.step.now': 'current step', 'imp.step.done': 'done',
     'imp.copy.h': 'Copying tasks', 'imp.copy.sprints': 'Sprints', 'imp.copy.items': 'Tasks', 'imp.copy.comments': 'Comments', 'imp.copy.of': '{a} of {b}', 'imp.copy.progress': 'Tasks copied',
@@ -1655,23 +1691,39 @@ const I18N = {
     'imp.check.h': 'The copy is ready', 'imp.check.hFailed': 'The copy is ready, with failures', 'imp.check.lead': (v, pl) => `Copied ${v.items} ${pl(v.items, ['task', 'tasks'])}, ${v.sprints} ${pl(v.sprints, ['sprint', 'sprints'])} and ${v.comments} ${pl(v.comments, ['comment', 'comments'])}. Nothing has changed on GitHub yet.`,
     'imp.check.compare': 'Checked against GitHub', 'imp.check.col.where': 'Where', 'imp.check.col.gh': 'GitHub', 'imp.check.col.tc': 'Console', 'imp.check.col.ok': 'Result', 'imp.check.match': 'matches', 'imp.check.diff': 'differs', 'imp.check.closed': 'Closed',
     'imp.check.changed': 'What changed',
-    'imp.check.c1': 'Numbers are the same: GitHub #142 is ST-142 here. New tasks start at ST-425, after the last issue and pull request.',
+    'imp.check.c1': 'Numbers are the same: GitHub #142 is {prefix}-142 here. New tasks start at {prefix}-425, after the last issue and pull request.',
     'imp.check.c2': '14 labels that aren’t status or kind are kept as the task’s labels.',
     'imp.check.c3': '4 tasks were opened by people outside the team — they’re marked “Not from the team”.', 'imp.check.c4': '12 pull requests weren’t copied — they stay on GitHub.',
     'imp.check.failed': (v, pl) => `Not copied: ${v.n}`, 'imp.check.retryFailed': 'Copy them again', 'imp.check.failedRow': 'GitHub #{n} — GitHub didn’t return its comments',
     'imp.check.switchOff': 'The switch is off until every task is copied.',
-    'imp.check.mismatchNote': 'Sprint 04 has one more task on GitHub: it was added after the copy. Before the switch the console copies everything that changed.',
+    'imp.check.mismatchNote': 'Sprint 04 and Approved have one more task on GitHub than in the console. The switch is off until every count agrees: run the import again.',
     'imp.check.again': 'Copy again', 'imp.check.cancel': 'Cancel the move', 'imp.check.switch': 'Switch to the console…',
     'imp.confirm.t': 'Switch {name} to the console?', 'imp.confirm.l1': 'The team pauses for a few minutes while the console copies the latest changes.',
-    'imp.confirm.l2': 'From then on the team reads and writes tasks only here.', 'imp.confirm.l3': 'Each open GitHub issue gets a link here, and the team no longer reads new issues there.',
-    'imp.confirm.l4': 'The old issues on GitHub stay readable.', 'imp.confirm.ok': 'Switch {name}', 'imp.confirm.keep': 'Not yet',
-    'imp.sw.h': 'Switching {name}', 'imp.sw.s1': 'Pausing the team', 'imp.sw.s2': 'Copying the latest changes: {n}', 'imp.sw.s3': 'Moving the team to the console', 'imp.sw.s4': 'Leaving links on GitHub', 'imp.sw.s5': 'Resuming the team',
+    'imp.confirm.l2': 'From then on the team reads and writes tasks only here.', 'imp.confirm.l3': 'Every imported GitHub issue, open and closed, gets a link here and is locked for comments. The team no longer reads new issues there.',
+    'imp.confirm.l4': 'The old issues on GitHub stay readable. For 14 days you can return the project to GitHub.', 'imp.confirm.ok': 'Switch {name}', 'imp.confirm.keep': 'Not yet',
+    'imp.sw.h': 'Switching {name}', 'imp.sw.s1': 'Pausing the team', 'imp.sw.s2': 'Copying the latest changes: {n}', 'imp.sw.s3': 'Moving the team to the console', 'imp.sw.s4': 'Linking and locking every imported issue on GitHub, in batches', 'imp.sw.s5': 'Resuming the team',
     'imp.sw.stay': 'You can close this screen: the switch runs on the server.',
     'imp.swfail.t': 'The switch didn’t finish', 'imp.swfail.b': 'Nothing is lost: the tasks are still on GitHub, and the team works with them again. The copy in the console is kept.', 'imp.swfail.retry': 'Try again',
-    'imp.done.stamp': 'Switched', 'imp.done.h': '{name}’s tasks now live in the console', 'imp.done.b': 'Numbers are the same: #142 on GitHub is ST-142 here. You can paste a GitHub link into search.',
+    'imp.done.stamp': 'Switched', 'imp.done.h': '{name}’s tasks now live in the console', 'imp.done.b': 'Numbers are the same: #142 on GitHub is {prefix}-142 here. You can paste a GitHub link into search.',
     'imp.done.board': 'To the board', 'imp.done.find': 'Find a task',
     'imp.offline': 'You’re offline. The move runs on the server; this updates once you’re back online.',
     'imp.announce': 'Copied: {p} %',
+    'imp.check.retry': 'Run the import again', 'imp.check.retrying': 'Running the import again: copying what changed…',
+    'imp.check.switchMismatch': 'The switch is on once every count agrees.',
+    'imp.check.bySprint': 'By sprint', 'imp.check.byStatus': 'Open, by status', 'imp.check.comments': 'Comments',
+    'imp.key.label': 'Task key', 'imp.key.hint': 'It goes into branch names, PR titles and commits: {prefix}-142. 2–5 capital Latin letters. You can’t change it after the switch.',
+    'imp.key.proposed': 'proposed from the name', 'imp.key.errPattern': 'Use 2–5 capital Latin letters, for example ST.', 'imp.key.errTaken': 'The key {prefix} already belongs to {name}.',
+    'imp.key.preview': 'GitHub #142 becomes {prefix}-142.', 'imp.key.fix': 'Fix the task key first.',
+    'imp.key.ro': 'Task key: {prefix} · set at the switch, can’t be changed',
+    'imp.back.h': 'Return to GitHub', 'imp.back.until': 'Until {date} you can return {name} to GitHub. Changes made in the console after the switch aren’t written back.',
+    'imp.back.go': 'Return to GitHub…', 'imp.back.expired': 'You could return until {date}. Now the GitHub issues are an archive only.', 'imp.back.ownerOnly': 'Only the owner can do this.',
+    'imp.back.t': 'Return {name} to GitHub?', 'imp.back.l1': 'The team pauses for a few minutes and works with the GitHub issues again; they are unlocked.',
+    'imp.back.l2': 'What changed in the console since {date} is not written back to GitHub: {n} changes stay only here, in the archived copy.',
+    'imp.back.l3': 'The task key and the console copy are kept; you can move again later.',
+    'imp.back.reason': 'Why are you returning?', 'imp.back.reasonHint': 'The architect and the PM read it; it goes into the decision record.', 'imp.back.reasonReq': 'Write a reason — without it the team won’t know what went wrong.',
+    'imp.back.keep': 'Stay in the console', 'imp.back.ok': 'Return {name} to GitHub', 'imp.back.busy': 'Returning…',
+    'imp.rb.h': '{name} is back on GitHub', 'imp.rb.b': 'The team works with the GitHub issues again. The console copy is kept as an archive, with {n} changes that were not written back.', 'imp.rb.stamp': 'Returned',
+    'demo.i.rollback': 'switched → return to GitHub', 'demo.i.rolledback': 'returned to GitHub', 'demo.expired': '14 days have passed',
   },
 
   ru: {
@@ -1826,7 +1878,6 @@ const I18N = {
     'imp.intro.lead': 'Сначала консоль сделает копию. На GitHub при этом ничего не меняется, и команда продолжает работать как обычно.',
     'imp.intro.what': 'Что перенесётся', 'imp.intro.w1': 'Все задачи, открытые и закрытые, с теми же номерами', 'imp.intro.w2': 'Спринты с датами демо', 'imp.intro.w3': 'Статус, тип, сложность и метки', 'imp.intro.w4': 'Комментарии и ваши решения («Утвердить», «Отклонить»)',
     'imp.intro.stays': 'Что останется на GitHub', 'imp.intro.s1': 'Пул-реквесты, код и проверки CI', 'imp.intro.s2': 'Реакции и вложения: в задаче будет ссылка на оригинал',
-    'imp.intro.key': 'У задач будет ключ {prefix}: #142 с GitHub станет {prefix}-142.',
     'imp.intro.go': 'Сделать копию', 'imp.intro.time': 'Обычно это несколько минут. Экран можно закрыть: придёт уведомление.',
     'imp.step.copy': 'Копия', 'imp.step.check': 'Сверка', 'imp.step.switch': 'Переключение', 'imp.steps': 'Шаги переноса', 'imp.step.now': 'текущий шаг', 'imp.step.done': 'готово',
     'imp.copy.h': 'Копируем задачи', 'imp.copy.sprints': 'Спринты', 'imp.copy.items': 'Задачи', 'imp.copy.comments': 'Комментарии', 'imp.copy.of': '{a} из {b}', 'imp.copy.progress': 'Скопировано задач',
@@ -1834,23 +1885,39 @@ const I18N = {
     'imp.check.h': 'Копия готова', 'imp.check.hFailed': 'Копия готова, но не вся', 'imp.check.lead': (v, pl) => `Скопировано: ${v.items} ${pl(v.items, ['задача', 'задачи', 'задач'])}, ${v.sprints} ${pl(v.sprints, ['спринт', 'спринта', 'спринтов'])} и ${v.comments} ${pl(v.comments, ['комментарий', 'комментария', 'комментариев'])}. На GitHub пока ничего не менялось.`,
     'imp.check.compare': 'Сверка с GitHub', 'imp.check.col.where': 'Где', 'imp.check.col.gh': 'GitHub', 'imp.check.col.tc': 'Консоль', 'imp.check.col.ok': 'Итог', 'imp.check.match': 'совпадает', 'imp.check.diff': 'не совпадает', 'imp.check.closed': 'Закрытые',
     'imp.check.changed': 'Что изменилось',
-    'imp.check.c1': 'Номера прежние: #142 на GitHub — это ST-142 здесь. Новые задачи начнутся с ST-425, после последней задачи и пул-реквеста.',
+    'imp.check.c1': 'Номера прежние: #142 на GitHub — это {prefix}-142 здесь. Новые задачи начнутся с {prefix}-425, после последней задачи и пул-реквеста.',
     'imp.check.c2': '14 меток не про статус и тип — сохранены как метки задачи.',
     'imp.check.c3': '4 задачи открыли люди вне команды — у них пометка «Не от команды».', 'imp.check.c4': '12 пул-реквестов не копировались — они остаются на GitHub.',
     'imp.check.failed': (v) => `Не скопировались: ${v.n}`, 'imp.check.retryFailed': 'Скопировать их ещё раз', 'imp.check.failedRow': 'GitHub #{n} — GitHub не отдал комментарии',
     'imp.check.switchOff': 'Переключиться можно, когда скопируется всё.',
-    'imp.check.mismatchNote': 'В Sprint 04 на GitHub на одну задачу больше: её добавили после копии. Перед переключением консоль докопирует всё, что изменилось.',
+    'imp.check.mismatchNote': 'В Sprint 04 и в «Одобрено» на GitHub на одну задачу больше, чем в консоли. Переключиться можно, когда совпадут все числа: повторите импорт.',
     'imp.check.again': 'Скопировать заново', 'imp.check.cancel': 'Отменить перенос', 'imp.check.switch': 'Переключиться на консоль…',
     'imp.confirm.t': 'Переключить {name} на консоль?', 'imp.confirm.l1': 'Команда приостановится на несколько минут, консоль докопирует последние изменения.',
-    'imp.confirm.l2': 'Дальше команда читает и пишет задачи только здесь.', 'imp.confirm.l3': 'На GitHub в каждой открытой задаче появится ссылка сюда, а новые задачи там команда читать не будет.',
-    'imp.confirm.l4': 'Старые задачи на GitHub останутся для чтения.', 'imp.confirm.ok': 'Переключить {name}', 'imp.confirm.keep': 'Пока нет',
-    'imp.sw.h': 'Переключаем {name}', 'imp.sw.s1': 'Приостанавливаем команду', 'imp.sw.s2': 'Докопируем изменения: {n}', 'imp.sw.s3': 'Переводим команду на консоль', 'imp.sw.s4': 'Оставляем ссылки на GitHub', 'imp.sw.s5': 'Возобновляем команду',
+    'imp.confirm.l2': 'Дальше команда читает и пишет задачи только здесь.', 'imp.confirm.l3': 'Каждая перенесённая задача на GitHub, открытая и закрытая, получит ссылку сюда и будет закрыта для комментариев. Новые задачи там команда читать не будет.',
+    'imp.confirm.l4': 'Старые задачи на GitHub останутся для чтения. 14 дней проект можно будет вернуть на GitHub.', 'imp.confirm.ok': 'Переключить {name}', 'imp.confirm.keep': 'Пока нет',
+    'imp.sw.h': 'Переключаем {name}', 'imp.sw.s1': 'Приостанавливаем команду', 'imp.sw.s2': 'Докопируем изменения: {n}', 'imp.sw.s3': 'Переводим команду на консоль', 'imp.sw.s4': 'Ставим ссылки и закрываем для комментариев все перенесённые задачи на GitHub, частями', 'imp.sw.s5': 'Возобновляем команду',
     'imp.sw.stay': 'Экран можно закрыть: переключение идёт на сервере.',
     'imp.swfail.t': 'Переключение не завершилось', 'imp.swfail.b': 'Ничего не потеряно: задачи по-прежнему на GitHub, и команда снова работает с ними. Копия в консоли осталась.', 'imp.swfail.retry': 'Попробовать снова',
-    'imp.done.stamp': 'Переключено', 'imp.done.h': 'Задачи {name} теперь живут в консоли', 'imp.done.b': 'Номера прежние: #142 на GitHub — это ST-142 здесь. Ссылку с GitHub можно вставить в поиск.',
+    'imp.done.stamp': 'Переключено', 'imp.done.h': 'Задачи {name} теперь живут в консоли', 'imp.done.b': 'Номера прежние: #142 на GitHub — это {prefix}-142 здесь. Ссылку с GitHub можно вставить в поиск.',
     'imp.done.board': 'К доске', 'imp.done.find': 'Найти задачу',
     'imp.offline': 'Нет сети. Перенос идёт на сервере; состояние обновится, когда связь вернётся.',
     'imp.announce': 'Скопировано: {p} %',
+    'imp.check.retry': 'Повторить импорт', 'imp.check.retrying': 'Повторяем импорт: докопируем то, что изменилось…',
+    'imp.check.switchMismatch': 'Переключиться можно, когда совпадут все числа.',
+    'imp.check.bySprint': 'По спринтам', 'imp.check.byStatus': 'Открытые, по статусам', 'imp.check.comments': 'Комментарии',
+    'imp.key.label': 'Ключ задач', 'imp.key.hint': 'Он попадёт в названия веток, PR и коммитов: {prefix}-142. 2–5 латинских заглавных букв. После переключения его не изменить.',
+    'imp.key.proposed': 'предложен по названию', 'imp.key.errPattern': 'Только 2–5 латинских заглавных букв, например ST.', 'imp.key.errTaken': 'Ключ {prefix} уже у проекта {name}.',
+    'imp.key.preview': '#142 с GitHub станет {prefix}-142.', 'imp.key.fix': 'Сначала исправьте ключ задач.',
+    'imp.key.ro': 'Ключ задач: {prefix} · задан при переключении, изменить нельзя',
+    'imp.back.h': 'Вернуться на GitHub', 'imp.back.until': 'До {date} проект {name} можно вернуть на GitHub. Изменения, сделанные в консоли после переключения, туда не перенесутся.',
+    'imp.back.go': 'Вернуться на GitHub…', 'imp.back.expired': 'Вернуться можно было до {date}. Теперь задачи на GitHub — только архив.', 'imp.back.ownerOnly': 'Это может сделать только владелец.',
+    'imp.back.t': 'Вернуть {name} на GitHub?', 'imp.back.l1': 'Команда приостановится на несколько минут и снова будет работать с задачами на GitHub; они откроются для комментариев.',
+    'imp.back.l2': 'Изменения в консоли с {date} на GitHub не перенесутся: {n} изменений останутся только здесь, в архивной копии.',
+    'imp.back.l3': 'Ключ задач и копия в консоли сохранятся — перенести проект можно будет снова.',
+    'imp.back.reason': 'Почему возвращаете?', 'imp.back.reasonHint': 'Причину прочитают архитектор и PM, она попадёт в запись о решении.', 'imp.back.reasonReq': 'Напишите причину — без неё команда не поймёт, что пошло не так.',
+    'imp.back.keep': 'Остаться в консоли', 'imp.back.ok': 'Вернуть {name} на GitHub', 'imp.back.busy': 'Возвращаем…',
+    'imp.rb.h': '{name} снова на GitHub', 'imp.rb.b': 'Команда снова работает с задачами на GitHub. Копия в консоли сохранена как архив, в ней {n} изменений, которые туда не перенеслись.', 'imp.rb.stamp': 'Возвращено',
+    'demo.i.rollback': 'переключено → вернуться на GitHub', 'demo.i.rolledback': 'возвращено на GitHub', 'demo.expired': 'Прошло 14 дней',
   },
 };
 
@@ -2081,13 +2148,15 @@ const Proto = (() => {
   };
 
   /* ---------- demo state (page-wide) ---------- */
-  const G = { screen: 'board', data: 'loaded', variant: 'progress', write: 'ok', imp: 'banner', freeze: false, nofuture: false, draft: false };
+  const G = { screen: 'board', data: 'loaded', variant: 'progress', write: 'ok', imp: 'banner', freeze: false, nofuture: false, draft: false, expired: false };
+  // Keys already used in this environment (ADR 0006: unique per environment).
+  const TAKEN_KEYS = { TC: 'team-console', GH: 'ghost' };
   const hosts = [...document.querySelectorAll('[data-app]')];
 
   function mountApp(host, kind) {
     const phone = kind === 'phone';
     const uid = `${kind}-${Math.random().toString(36).slice(2, 6)}`;
-    const S = host.S = { view: 'board', proj: 'tc', P: { tc: project('tc'), st: project('st') }, menu: null, toast: null, fail: null, tk: null, sd: null, nt: null, modal: null, find: { q: '', state: 'idle' }, imp: 'banner', pending: null, isNew: {} };
+    const S = host.S = { view: 'board', proj: 'tc', P: { tc: project('tc'), st: project('st') }, menu: null, toast: null, fail: null, tk: null, sd: null, nt: null, modal: null, find: { q: '', state: 'idle' }, imp: 'banner', pending: null, isNew: {}, key: 'ST' };
     const P = () => S.P[S.proj];
     const key = (n, p = P()) => `${p.prefix}-${n}`;
     const itemOf = (n, p = P()) => p.items.find((x) => x.n === n);
@@ -2371,7 +2440,23 @@ const Proto = (() => {
     }
 
     /* ================= the move to the console (storify) ================= */
-    const stepIdx = { intro: 0, copying: 0, failed: 1, ready: 1, mismatch: 1, switching: 2, swfail: 2, switched: 3 };
+    const keyErr = (v) => (!/^[A-Z]{2,5}$/.test(v) ? t('imp.key.errPattern') : TAKEN_KEYS[v] ? t('imp.key.errTaken', { prefix: v, name: TAKEN_KEYS[v] }) : '');
+    function keyFieldHTML() {
+      const v = S.key; const err = keyErr(v);
+      return `<div class="fld im-keyf"><div class="fld__row"><label class="fld__label" for="${uid}-key">${t('imp.key.label')}</label><span class="fld__count">${t('imp.key.proposed')}</span></div>
+        <p class="fld__err" id="${uid}-keye"${err ? '' : ' hidden'}>${I.warn}<span>${err}</span></p>
+        <input class="fld-input im-key-input" id="${uid}-key" data-fk="imp-key" data-bind="imp-key" value="${esc(v)}" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="${uid}-keye ${uid}-keyh"${err ? ' aria-invalid="true"' : ''}>
+        <p class="fld__hint" id="${uid}-keyh"><span data-key-preview>${err ? '' : t('imp.key.preview', { prefix: v })}</span> ${t('imp.key.hint', { prefix: err ? 'ST' : v })}</p></div>`;
+    }
+    const keyBad = () => !!keyErr(S.key);
+    function checkTableHTML(diff, failed) {
+      const grp = (title, rows) => `<tbody><tr class="im-grp"><th scope="rowgroup" colspan="4">${title}</th></tr>${rows.map(([w, g, c]) => `<tr${g !== c ? ' class="is-diff"' : ''}><th scope="row">${w}</th><td>${g}</td><td>${c}</td><td>${g === c ? `<span class="res-ok">${I.check}${t('imp.check.match')}</span>` : `<span class="res-diff">${I.warn}${t('imp.check.diff')}</span>`}</td></tr>`).join('')}</tbody>`;
+      const sprints = [['Sprint 03', 6, 6], ['Sprint 04', diff ? 5 : 4, 4], [t('board.sections.backlog'), 31, 31], [t('imp.check.closed'), 371, failed ? 369 : 371]];
+      const statuses = [['proposed', 24, 24], ['approved', diff ? 9 : 8, 8], ['in-progress', 3, 3], ['qa', 2, 2], ['blocked', 1, 1], ['done', 2, 2]].map(([k, g, c]) => [t(`board.status.${k}`), g, c]);
+      const comments = [[t('imp.check.comments'), 2104, failed ? 2087 : 2104]];
+      return `<table class="im-tbl"><caption>${t('imp.check.compare')}</caption><thead><tr><th scope="col">${t('imp.check.col.where')}</th><th scope="col">${t('imp.check.col.gh')}</th><th scope="col">${t('imp.check.col.tc')}</th><th scope="col">${t('imp.check.col.ok')}</th></tr></thead>${grp(t('imp.check.bySprint'), sprints)}${grp(t('imp.check.byStatus'), statuses)}${grp(t('imp.check.comments'), comments)}</table>`;
+    }
+    const stepIdx = { intro: 0, copying: 0, failed: 1, ready: 1, mismatch: 1, delta: 1, switching: 2, swfail: 2, switched: 3, rolledback: 3 };
     function stepsHTML(step) {
       const at = stepIdx[step] ?? 0;
       return `<ol class="im-steps" aria-label="${esc(t('imp.steps'))}">${['copy', 'check', 'switch'].map((k, j) => `<li class="${j < at ? 'is-done' : ''}"${j === at ? ' aria-current="step"' : ''}><b>${j + 1}. ${t(`imp.step.${k}`)}</b><span class="sr-only">, ${j < at ? t('imp.step.done') : j === at ? t('imp.step.now') : ''}</span></li>`).join('')}</ol>`;
@@ -2384,27 +2469,28 @@ const Proto = (() => {
         return `<div class="im">${offNote}${head(`<h1 tabindex="-1" data-fk="im-h">${t('imp.t', { name })}</h1>`)}${stepsHTML(step)}<p class="im-lead">${t('imp.intro.lead')}</p>
           <div class="im-cols"><section class="im-col"><h2>${t('imp.intro.what')}</h2><ul class="im-list im-list--in">${['w1', 'w2', 'w3', 'w4'].map((k) => `<li>${I.check}<span>${t(`imp.intro.${k}`)}</span></li>`).join('')}</ul></section>
           <section class="im-col"><h2>${t('imp.intro.stays')}</h2><ul class="im-list im-list--stay">${['s1', 's2'].map((k) => `<li>${I.minus}<span>${t(`imp.intro.${k}`)}</span></li>`).join('')}</ul></section></div>
-          <p class="im-key">${I.key}<span>${t('imp.intro.key', { prefix: 'ST' })}</span></p>
-          <div class="im-acts"><button type="button" class="btn btn--primary" data-act="imp-copy" data-fk="imp-copy">${t('imp.intro.go')}</button><small>${t('imp.intro.time')}</small></div></div>`;
+          ${keyFieldHTML()}
+          <div class="im-acts"><button type="button" class="btn btn--primary" data-act="imp-copy" data-fk="imp-copy"${keyBad() ? ` aria-disabled="true" aria-describedby="${uid}-keye"` : ''}>${t('imp.intro.go')}</button><small>${t('imp.intro.time')}</small></div></div>`;
       }
       if (step === 'copying') {
         const a = S.copyN ?? 172;
         return `<div class="im">${offNote}${head(`<h1 tabindex="-1" data-fk="im-h">${t('imp.copy.h')}</h1>`)}${stepsHTML(step)}
           <dl class="im-ledger"><div><dt>${t('imp.copy.sprints')}</dt><dd>${I.check} ${t('imp.copy.of', { a: 5, b: 5 })}</dd></div>
-          <div><dt id="${uid}-pl">${t('imp.copy.items')}</dt><dd>${t('imp.copy.of', { a, b: 412 })}</dd><progress class="im-bar" max="412" value="${a}" aria-labelledby="${uid}-pl"></progress></div>
+          <div><dt id="${uid}-pl">${t('imp.copy.items')}</dt><dd data-copy-items>${t('imp.copy.of', { a, b: 412 })}</dd></div>
           <div><dt>${t('imp.copy.comments')}</dt><dd>${t('imp.copy.of', { a: Math.round(a * 5.1), b: 2104 })}</dd></div></dl>
+          <div class="im-progress"><span class="im-progress__l" id="${uid}-pbl">${t('imp.copy.progress')}</span><progress class="im-bar" max="412" value="${a}" aria-labelledby="${uid}-pbl"></progress></div>
           <p class="im-note">${t('imp.copy.leave')}</p><div class="im-acts"><button type="button" class="btn" data-act="imp-stop" data-fk="imp-stop">${t('imp.copy.cancel')}</button></div></div>`;
       }
-      if (['failed', 'ready', 'mismatch'].includes(step)) {
-        const failed = step === 'failed'; const diff = step === 'mismatch';
-        const rows = [['Sprint 03', 6, 6], ['Sprint 04', diff ? 5 : 4, 4], [t('board.sections.backlog'), 31, 31], [t('imp.check.closed'), 371, failed ? 369 : 371]];
-        const tbl = `<table class="im-tbl"><caption>${t('imp.check.compare')}</caption><thead><tr><th scope="col">${t('imp.check.col.where')}</th><th scope="col">${t('imp.check.col.gh')}</th><th scope="col">${t('imp.check.col.tc')}</th><th scope="col">${t('imp.check.col.ok')}</th></tr></thead><tbody>${rows.map(([w, g, c]) => `<tr${g !== c ? ' class="is-diff"' : ''}><th scope="row">${w}</th><td>${g}</td><td>${c}</td><td>${g === c ? `<span class="res-ok">${I.check}${t('imp.check.match')}</span>` : `<span class="res-diff">${I.warn}${t('imp.check.diff')}</span>`}</td></tr>`).join('')}</tbody></table>`;
+      if (['failed', 'ready', 'mismatch', 'delta'].includes(step)) {
+        const failed = step === 'failed'; const diff = step === 'mismatch' || step === 'delta'; const busy = step === 'delta';
         const fail = failed ? `<div class="wblk wblk--bad" role="alert"><h2>${I.warn}<span>${t('imp.check.failed', { n: 2 })}</span></h2><ul class="im-fail">${[77, 203].map((n) => `<li>${t('imp.check.failedRow', { n })}</li>`).join('')}</ul><div class="wblk__acts"><button type="button" class="btn" data-act="imp-refail" data-fk="imp-refail">${I.refresh}${t('imp.check.retryFailed')}</button></div></div>` : '';
-        const changed = `<section class="im-sec"><h2>${t('imp.check.changed')}</h2><ul class="im-list im-list--in">${['c1', 'c2', 'c3', 'c4'].map((k) => `<li>${I.check}<span>${t(`imp.check.${k}`)}</span></li>`).join('')}</ul></section>`;
+        const mism = diff ? `<div class="wblk wblk--warn" role="${busy ? 'status' : 'alert'}" tabindex="-1" data-fk="imp-diff"><h2>${I.warn}<span>${t('imp.check.diff')}</span></h2><p>${t('imp.check.mismatchNote')}</p><div class="wblk__acts">${busy ? `<span class="sx-busy"><span class="ring" aria-hidden="true"></span>${t('imp.check.retrying')}</span>` : `<button type="button" class="btn btn--primary" data-act="imp-delta" data-fk="imp-delta">${I.refresh}${t('imp.check.retry')}</button>`}</div></div>` : '';
+        const changed = `<section class="im-sec"><h2>${t('imp.check.changed')}</h2><ul class="im-list im-list--in">${['c1', 'c2', 'c3', 'c4'].map((k) => `<li>${I.check}<span>${t(`imp.check.${k}`, { prefix: keyBad() ? 'ST' : S.key })}</span></li>`).join('')}</ul></section>`;
         const swId = `${uid}-swoff`;
-        return `<div class="im">${offNote}${head(`<h1 tabindex="-1" data-fk="im-h">${t(failed ? 'imp.check.hFailed' : 'imp.check.h')}</h1>`)}${stepsHTML(step)}<p class="im-lead">${t('imp.check.lead', { items: failed ? 410 : 412, sprints: 5, comments: 2104 })}</p>
-          ${fail}${tbl}${diff ? `<p class="im-note">${t('imp.check.mismatchNote')}</p>` : ''}${changed}
-          <div class="im-acts"><button type="button" class="btn btn--primary" data-act="imp-switch" data-fk="imp-switch"${failed ? ` aria-disabled="true" aria-describedby="${swId}"` : ''}>${t('imp.check.switch')}</button><button type="button" class="btn" data-act="imp-copy" data-fk="imp-again">${t('imp.check.again')}</button><button type="button" class="btn btn--danger-quiet" data-act="imp-cancel" data-fk="imp-cancel">${t('imp.check.cancel')}</button>${failed ? `<small id="${swId}">${t('imp.check.switchOff')}</small>` : ''}</div></div>`;
+        const why = failed ? t('imp.check.switchOff') : diff ? t('imp.check.switchMismatch') : keyBad() ? t('imp.key.fix') : '';
+        return `<div class="im">${offNote}${head(`<h1 tabindex="-1" data-fk="im-h">${t(failed ? 'imp.check.hFailed' : 'imp.check.h')}</h1>`)}${stepsHTML(step)}<p class="im-lead">${t('imp.check.lead', { items: failed ? 410 : 412, sprints: 5, comments: failed ? 2087 : 2104 })}</p>
+          ${fail}${mism}${checkTableHTML(diff, failed)}${keyFieldHTML()}${changed}
+          <div class="im-acts"><button type="button" class="btn btn--primary" data-act="imp-switch" data-fk="imp-switch"${why ? ` aria-disabled="true" aria-describedby="${swId}"` : ''}>${t('imp.check.switch')}</button><button type="button" class="btn" data-act="imp-copy" data-fk="imp-again">${t('imp.check.again')}</button><button type="button" class="btn btn--danger-quiet" data-act="imp-cancel" data-fk="imp-cancel">${t('imp.check.cancel')}</button>${why ? `<small id="${swId}" data-switch-why>${why}</small>` : `<small id="${swId}" data-switch-why hidden></small>`}</div></div>`;
       }
       if (step === 'switching' || step === 'swfail') {
         const k = S.swStep ?? 2;
@@ -2416,9 +2502,18 @@ const Proto = (() => {
         const fail = step === 'swfail' ? `<div class="wblk wblk--bad" role="alert" tabindex="-1" data-fk="sw-fail"><h2>${I.warn}<span>${t('imp.swfail.t')}</span></h2><p>${t('imp.swfail.b')}</p><div class="wblk__acts"><button type="button" class="btn" data-act="imp-switch" data-fk="sw-retry">${I.refresh}${t('imp.swfail.retry')}</button></div></div>` : '';
         return `<div class="im">${offNote}${head(`<h1 tabindex="-1" data-fk="im-h">${t('imp.sw.h', { name })}</h1>`)}${stepsHTML(step)}${fail}<ol class="im-run" aria-busy="${step === 'switching'}">${lines}</ol>${step === 'switching' ? `<p class="im-note">${t('imp.sw.stay')}</p>` : ''}</div>`;
       }
-      // switched
-      return `<div class="im">${head('')}${stepsHTML(step)}<div class="im-done"><p class="im-done__kicker" aria-hidden="true">${t('imp.done.stamp')}</p><h2 tabindex="-1" data-fk="im-done">${t('imp.done.h', { name })}</h2><p>${t('imp.done.b')}</p>${STAMP().replace('class="stamp"', 'class="stamp" data-stamp')}</div>
-        <div class="im-acts"><button type="button" class="btn btn--primary" data-act="imp-board" data-fk="imp-board">${t('imp.done.board')}</button><button type="button" class="btn" data-act="find" data-fk="imp-find">${I.search}${t('imp.done.find')}</button></div></div>`;
+      if (step === 'rolledback') {
+        return `<div class="im">${head('')}<div class="im-done im-done--neutral"><p class="im-done__kicker" aria-hidden="true">${t('imp.rb.stamp')}</p><h2 tabindex="-1" data-fk="im-done">${t('imp.rb.h', { name })}</h2><p>${t('imp.rb.b', { n: 12 })}</p>${STAMP('<path d="M22 32h20"/>').replace('class="stamp"', 'class="stamp stamp--neutral" data-stamp')}</div>
+          <div class="im-acts"><button type="button" class="btn btn--primary" data-act="imp-rb-board" data-fk="imp-board">${t('imp.done.board')}</button></div></div>`;
+      }
+      // switched: the stamped card, the key now read-only, and the 14-day way back (owner only)
+      const until = day([11, 18]);
+      const backId = `${uid}-back`;
+      const back = `<section class="im-back" aria-labelledby="${uid}-bh"><h2 id="${uid}-bh">${t('imp.back.h')}</h2>
+          <p id="${backId}">${G.expired ? t('imp.back.expired', { date: until }) : t('imp.back.until', { date: until, name })}</p>
+          <button type="button" class="btn btn--danger-quiet btn--tall" data-act="imp-back" data-fk="imp-back"${G.expired ? ` aria-disabled="true" aria-describedby="${backId}"` : ''}>${IC.lock && G.expired ? IC.lock : I.back}${t('imp.back.go')}</button></section>`;
+      return `<div class="im">${head('')}${stepsHTML(step)}<div class="im-done"><p class="im-done__kicker" aria-hidden="true">${t('imp.done.stamp')}</p><h2 tabindex="-1" data-fk="im-done">${t('imp.done.h', { name })}</h2><p>${t('imp.done.b', { prefix: S.key })}</p><p class="im-done__key">${I.key}<span>${t('imp.key.ro', { prefix: S.key })}</span></p>${STAMP().replace('class="stamp"', 'class="stamp" data-stamp')}</div>
+        <div class="im-acts"><button type="button" class="btn btn--primary" data-act="imp-board" data-fk="imp-board">${t('imp.done.board')}</button><button type="button" class="btn" data-act="find" data-fk="imp-find">${I.search}${t('imp.done.find')}</button></div>${back}</div>`;
     }
 
     /* ================= chrome ================= */
@@ -2576,6 +2671,14 @@ const Proto = (() => {
         return `<div class="modal"><div class="modal__scrim"></div><section class="adialog adialog--wide" role="alertdialog" aria-modal="true" aria-labelledby="${uid}-ct" aria-describedby="${uid}-cl" data-dialog><h2 id="${uid}-ct" tabindex="-1" data-fk="cf-h">${t('imp.confirm.t', { name })}</h2>
           <ol class="im-lines" id="${uid}-cl">${['l1', 'l2', 'l3', 'l4'].map((k) => `<li>${t(`imp.confirm.${k}`)}</li>`).join('')}</ol>
           <div class="adialog__actions"><button type="button" class="btn" data-act="cf-keep" data-fk="cf-keep">${t('imp.confirm.keep')}</button><button type="button" class="btn btn--primary" data-act="cf-ok">${t('imp.confirm.ok', { name })}</button></div></section></div>`;
+      }
+      if (m === 'rollback') {
+        const name = 'storify'; const r = S.rb; const busy = r.busy;
+        return `<div class="modal"><div class="modal__scrim" data-act="rb-keep"></div><section class="adialog adialog--wide" role="dialog" aria-modal="true" aria-labelledby="${uid}-rbt" aria-describedby="${uid}-rbl" data-dialog><h2 id="${uid}-rbt">${t('imp.back.t', { name })}</h2>
+          ${r.wErr ? `<div class="terr is-new" role="alert" tabindex="-1" data-fk="rb-err"><h3>${I.warn}<span>${t(`err.${r.wErr}.t`)}</span></h3><p>${t(`err.${r.wErr}.b`)}</p></div>` : ''}
+          <ol class="im-lines" id="${uid}-rbl"><li>${t('imp.back.l1')}</li><li class="im-lines__warn">${t('imp.back.l2', { date: day([11, 4]), n: 12 })}</li><li>${t('imp.back.l3')}</li></ol>
+          <form class="tform" data-form="rollback" novalidate${busy ? ' aria-busy="true"' : ''}><div class="fld"><label class="fld__label" for="${uid}-rbr">${t('imp.back.reason')}</label>${r.err ? `<p class="fld__err" id="${uid}-rbre">${I.warn}<span>${t('imp.back.reasonReq')}</span></p>` : ''}<textarea class="fld-input" id="${uid}-rbr" rows="3" data-fk="rb-text" data-bind="rb-reason" aria-describedby="${r.err ? `${uid}-rbre ` : ''}${uid}-rbh"${r.err ? ' aria-invalid="true"' : ''}${busy ? ' readonly' : ''}>${esc(r.text)}</textarea><p class="fld__hint" id="${uid}-rbh">${t('imp.back.reasonHint')}</p></div>
+          <div class="adialog__actions"><button type="button" class="btn" data-act="rb-keep" data-fk="rb-keep">${t('imp.back.keep')}</button><button type="submit" class="btn btn--danger${busy ? ' is-busy' : ''}" data-fk="rb-ok">${busy ? `${Proto.dots}${t('imp.back.busy')}` : t('imp.back.ok', { name })}</button></div></form></section></div>`;
       }
       return '';
     }
@@ -2773,8 +2876,10 @@ const Proto = (() => {
     /* the move to the console */
     let impTimer = null;
     function setImp(step, focus = 'im-h') {
-      clearInterval(impTimer); S.imp = step; S.view = step === 'banner' ? 'board' : 'import'; S.proj = 'st';
-      if (step === 'switched') { S.P.st.switched = true; S.isNew.stamp = true; focus = 'im-done'; } else if (step !== 'confirm') S.P.st.switched = false;
+      clearInterval(impTimer); clearTimeout(impTimer); S.imp = step; S.view = step === 'banner' ? 'board' : 'import'; S.proj = 'st';
+      if (step === 'rollback') { S.imp = 'switched'; S.view = 'import'; S.P.st.switched = true; S.P.st.prefix = S.key; S.rb = { text: '', err: false }; S.modal = 'rollback'; render('rb-text'); return; }
+      if (step === 'switched') { S.P.st.switched = true; S.P.st.prefix = S.key; S.isNew.stamp = true; focus = 'im-done'; } else if (step !== 'confirm') S.P.st.switched = false;
+      if (step === 'rolledback') { S.isNew.stamp = true; focus = 'im-done'; }
       if (step === 'confirm') { S.imp = 'ready'; S.view = 'import'; S.modal = 'confirm'; render('cf-h'); return; }
       render(step === 'banner' ? 'imp-start' : focus);
       if (step === 'copying') {
@@ -2783,10 +2888,13 @@ const Proto = (() => {
           S.copyN = Math.min(412, S.copyN + 37);
           const pct = Math.floor((S.copyN / 412) * 4) * 25;
           const bar = host.querySelector('.im-bar');
-          if (bar) { bar.value = S.copyN; bar.previousElementSibling.textContent = plain(t('imp.copy.of', { a: S.copyN, b: 412 })); }
+          if (bar) { bar.value = S.copyN; const dd = host.querySelector('[data-copy-items]'); if (dd) dd.textContent = plain(t('imp.copy.of', { a: S.copyN, b: 412 })); }
           if (pct > said) { said = pct; say(t('imp.announce', { p: pct })); }
           if (S.copyN >= 412) { clearInterval(impTimer); setTimeout(() => { if (S.imp === 'copying') setImp('ready'); }, 500); }
         }, 260);
+      }
+      if (step === 'delta') {
+        impTimer = setTimeout(() => { if (S.imp !== 'delta') return; setImp('ready'); say(`${t('imp.check.h')}. ${t('imp.check.match')}`); }, 1400);
       }
       if (step === 'switching') {
         S.swStep = 0;
@@ -2861,6 +2969,10 @@ const Proto = (() => {
         case 'imp-refail': setImp('ready'); break;
         case 'imp-cancel': setImp('banner'); break;
         case 'imp-switch': S.modal = 'confirm'; render('cf-h'); break;
+        case 'imp-delta': setImp('delta', 'imp-diff'); break;
+        case 'imp-back': S.rb = { text: '', err: false }; S.modal = 'rollback'; render('rb-text'); break;
+        case 'rb-keep': if (S.rb && S.rb.busy) break; S.modal = null; render('imp-back'); break;
+        case 'imp-rb-board': S.imp = 'banner'; S.view = 'board'; S.P.st.switched = false; render('imp-start'); break;
         case 'cf-keep': S.modal = null; render(S.imp === 'swfail' ? 'sw-retry' : 'imp-switch'); break;
         case 'cf-ok': S.modal = null; if (consume('switch') !== 'ok') { setImp('swfail', 'sw-fail'); break; } setImp('switching'); break;
         case 'imp-board': S.imp = 'switched'; S.view = 'board'; render('hd-find'); break;
@@ -2890,6 +3002,21 @@ const Proto = (() => {
       if (b === 'sd-name') { S.sd.name = v; const ok = host.querySelector('[data-fk="sd-ok"]'); if (ok && !S.sd.busy) ok.textContent = plain(t('sprintNew.ok', { sprint: v.trim() || '…' })); }
       if (b === 'sd-date') { S.sd.date = v; render(); }
       if (b === 'reason') S.reason.text = v;
+      if (b === 'rb-reason') S.rb.text = v;
+      if (b === 'imp-key') {
+        // Inline validation in place, so the caret stays where the owner types.
+        const up = v.toUpperCase(); if (up !== v) { const pos = e.target.selectionStart; e.target.value = up; e.target.setSelectionRange(pos, pos); }
+        S.key = up; const err = keyErr(up);
+        const ep = host.querySelector(`#${uid}-keye`); ep.hidden = !err; ep.querySelector('span').textContent = plain(err);
+        e.target.setAttribute('aria-invalid', String(!!err));
+        host.querySelector('[data-key-preview]').textContent = err ? '' : plain(t('imp.key.preview', { prefix: up }));
+        const btn = host.querySelector('[data-fk="imp-copy"], [data-fk="imp-switch"]');
+        const why = host.querySelector('[data-switch-why]');
+        if (btn && btn.dataset.fk === 'imp-copy') { if (err) { btn.setAttribute('aria-disabled', 'true'); btn.setAttribute('aria-describedby', `${uid}-keye`); } else { btn.removeAttribute('aria-disabled'); btn.removeAttribute('aria-describedby'); } }
+        if (btn && btn.dataset.fk === 'imp-switch' && !['failed', 'mismatch', 'delta'].includes(S.imp)) {
+          if (err) { btn.setAttribute('aria-disabled', 'true'); btn.setAttribute('aria-describedby', why.id); why.hidden = false; why.textContent = plain(t('imp.key.fix')); } else { btn.removeAttribute('aria-disabled'); btn.removeAttribute('aria-describedby'); why.hidden = true; }
+        }
+      }
       if (b === 'nt-title') S.nt.title = v;
     });
     host.addEventListener('change', (e) => {
@@ -2909,6 +3036,17 @@ const Proto = (() => {
         if (!S.reason.text.trim()) { S.reason.err = true; render('rs-text'); return; }
         const why = S.reason.text.trim(); S.modal = null;
         write('reject', () => { const i = itemOf(S.tk.n); S.tk.dec = 'rejected'; addEv({ ev: ['item.ev.rejected', { why }], decision: true, negative: true }); S.isNew.stamp = true; S.isNew.receipt = true; i.closed = false; say(`${t('dec.done.reject')}. ${t('dec.doneMeta', { key: key(i.n), time: NOW })}`); return 'receipt'; });
+      }
+      if (f === 'rollback') {
+        const r = S.rb; if (r.busy) return;
+        if (!r.text.trim()) { r.err = true; render('rb-text'); return; }
+        r.err = false; const out = consume('rollback'); r.busy = true; r.wErr = null; render('rb-ok');
+        setTimeout(() => {
+          r.busy = false;
+          if (out !== 'ok') { r.wErr = out; render('rb-err'); return; }
+          S.modal = null; S.P.st.switched = false; setImp('rolledback');
+          say(t('imp.rb.h', { name: 'storify' }));
+        }, 900);
       }
       if (f === 'sprint') submitSprint();
       if (f === 'nt') submitTask();
@@ -2991,6 +3129,7 @@ const Proto = (() => {
         if (S.modal === 'discard') { S.modal = null; render('e-title'); return; }
         if (S.modal === 'reason') { S.modal = null; render('reject'); return; }
         if (S.modal === 'confirm') { S.modal = null; render('imp-switch'); return; }
+        if (S.modal === 'rollback') { if (!S.rb.busy) { S.modal = null; render('imp-back'); } return; }
         if (S.sd) { const back = S.sd.opener; S.sd = null; render(back); return; }
         if (S.nt) { const back = S.nt.opener; S.nt = null; render(back); return; }
         if (S.view === 'task' && !phone && !(S.tk && S.tk.edit && typing)) { closeTask(); return; }
@@ -3021,7 +3160,7 @@ const Proto = (() => {
         if (screen === 'new') S.nt = { step: 'form', sprint: G.nofuture ? 'backlog' : 'next', title: t('task.sample'), k: 'feature', opener: 'hd-new' };
         render();
       },
-      reset() { S.P = { tc: project('tc'), st: project('st') }; S.imp = 'banner'; },
+      reset() { S.P = { tc: project('tc'), st: project('st') }; S.imp = 'banner'; S.key = 'ST'; },
     };
     host.api.apply(G.screen);
   }
@@ -3030,9 +3169,10 @@ const Proto = (() => {
   hosts.forEach((h) => mountApp(h, h.dataset.app));
   const renderAll = () => hosts.forEach((h) => h.api.render());
   const pageChrome = Proto.page({ L, title: 'Team Console · #409', onLang: renderAll });
+  document.querySelectorAll('[data-control=lang] button').forEach((b) => b.setAttribute('aria-label', b.dataset.value === 'ru' ? 'RU, Русский' : 'EN, English'));
   const sel = (id) => document.getElementById(id);
   const CTRL = { 'd-screen': 'screen', 'd-data': 'data', 'd-var': 'variant', 'd-write': 'write', 'd-imp': 'imp' };
-  function syncDemo() { Object.entries(CTRL).forEach(([id, k]) => { sel(id).value = G[k]; }); sel('d-freeze').checked = G.freeze; sel('d-nofuture').checked = G.nofuture; sel('d-draft').checked = G.draft; }
+  function syncDemo() { Object.entries(CTRL).forEach(([id, k]) => { sel(id).value = G[k]; }); sel('d-expired').checked = G.expired; sel('d-freeze').checked = G.freeze; sel('d-nofuture').checked = G.nofuture; sel('d-draft').checked = G.draft; }
   const applyAll = () => hosts.forEach((h) => h.api.apply(G.screen));
   sel('d-screen').addEventListener('change', (e) => { G.screen = e.target.value; applyAll(); });
   sel('d-data').addEventListener('change', (e) => { G.data = e.target.value; renderAll(); });
@@ -3040,10 +3180,11 @@ const Proto = (() => {
   sel('d-write').addEventListener('change', (e) => { G.write = e.target.value; });
   sel('d-imp').addEventListener('change', (e) => { G.imp = e.target.value; G.screen = 'import'; syncDemo(); applyAll(); });
   sel('d-freeze').addEventListener('change', (e) => { G.freeze = e.target.checked; renderAll(); });
+  sel('d-expired').addEventListener('change', (e) => { G.expired = e.target.checked; if (G.imp !== 'switched') { G.imp = 'switched'; } G.screen = 'import'; syncDemo(); applyAll(); });
   sel('d-nofuture').addEventListener('change', (e) => { G.nofuture = e.target.checked; hosts.forEach((h) => h.api.reset()); applyAll(); });
   sel('d-draft').addEventListener('change', (e) => { G.draft = e.target.checked; if (G.draft) { G.screen = 'task'; syncDemo(); } applyAll(); });
   document.querySelector('[data-reset]').addEventListener('click', () => {
-    Object.assign(G, { screen: 'board', data: 'loaded', variant: 'progress', write: 'ok', imp: 'banner', freeze: false, nofuture: false, draft: false });
+    Object.assign(G, { screen: 'board', data: 'loaded', variant: 'progress', write: 'ok', imp: 'banner', freeze: false, nofuture: false, draft: false, expired: false });
     hosts.forEach((h) => h.api.reset()); syncDemo(); applyAll();
   });
   syncDemo();
@@ -3052,7 +3193,7 @@ const Proto = (() => {
   const q = new URLSearchParams(location.search);
   let hooked = false;
   [['screen', 'screen'], ['data', 'data'], ['variant', 'variant'], ['imp', 'imp'], ['write', 'write']].forEach(([qk, gk]) => { if (q.get(qk)) { G[gk] = q.get(qk); hooked = true; } });
-  ['freeze', 'nofuture', 'draft'].forEach((k) => { if (q.get(k) === '1') { G[k] = true; hooked = true; } });
+  ['freeze', 'nofuture', 'draft', 'expired'].forEach((k) => { if (q.get(k) === '1') { G[k] = true; hooked = true; } });
   if (hooked) { syncDemo(); hosts.forEach((h) => h.api.reset()); applyAll(); }
 })();
 

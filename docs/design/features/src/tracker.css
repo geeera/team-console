@@ -182,7 +182,7 @@
 .tk-edit{display:grid;gap:var(--sp-4)}
 .tk-edit .form-actions{align-items:center}
 .tk-edit .form-actions .btn{min-height:var(--target)}
-.tk-edit .form-actions kbd{display:inline-block;margin-left:var(--sp-1);background:none;color:inherit;border-color:currentColor;opacity:.8}
+.tk-edit .form-actions kbd{display:inline-block;margin-left:var(--sp-1);background:none;color:inherit;border-color:currentColor}
 .app[data-app=phone] .tk-edit .form-actions kbd{display:none}
 .tk-edit[aria-busy=true] .fld-input{background:var(--bg-sunken);color:var(--text-2)}
 
@@ -370,3 +370,25 @@ mark{background:var(--accent-soft);color:inherit;border-radius:2px;padding:0 1px
 .bd-mac.has-pane .convo__head{padding-left:var(--sp-5);gap:var(--sp-2)}
 .bd-mac.has-pane .convo__title{flex:1 1 auto;min-width:6em}
 .mnu__list{display:grid}
+
+/* ----- after the architect's decisions (2026-11-04): the task key field, the full comparison, the 14-day way back ----- */
+.im-keyf{max-width:360px}
+.im-key-input{font-family:var(--font-mono);font-size:var(--fs-lg);letter-spacing:.06em;text-transform:uppercase;max-width:9em}
+.app[data-app=phone] .im-key-input{font-size:var(--fs-lg)}
+.im-keyf .fld__count{color:var(--text-2)}
+.im-tbl tr.im-grp th{padding-top:var(--sp-4);font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2);border-bottom:1px solid var(--border-strong)}
+.im-done__key{display:flex;align-items:center;gap:var(--sp-2);margin-top:var(--sp-1)!important;font-size:var(--fs-xs)!important}
+.im-done__key .ico{width:14px;height:14px;color:var(--text-2)}
+.im-done--neutral .im-done__kicker{color:var(--text-2)}
+/* the way back: a quiet ruled section under the result, clay only on its own button; off after 14 days with the date */
+.im-back{display:grid;justify-items:start;gap:var(--sp-2);padding-top:var(--sp-4);border-top:1px solid var(--border)}
+.im-back h2{margin:0;font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.im-back p{margin:0;font-size:var(--fs-sm);color:var(--text-2);max-width:60ch}
+.im-back .btn .ico{width:16px;height:16px}
+.im-back .btn[aria-disabled=true]{color:var(--text-2)}
+.im-back .btn[aria-disabled=true]:hover{background:none}
+.adialog .im-lines__warn{padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-weight:600}
+.adialog .fld__err{color:var(--danger-text)}
+.adialog .fld__hint{font-size:var(--fs-xs)}
+.im-progress{display:grid;gap:var(--sp-1);margin-top:calc(-1 * var(--sp-3))}
+.im-progress__l{font-size:var(--fs-xs);color:var(--text-2)}
