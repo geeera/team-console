@@ -38,6 +38,8 @@ jobs:
         run: |
           set -euo pipefail
           cd docs/design
+          # fd 3 is the run log: the page body below goes to the index file, the warnings must not.
+          exec 3>&1
           {
             echo '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             echo '<title>Designs</title><style>body{font:16px/1.5 system-ui;max-width:640px;margin:32px auto;padding:0 16px}a{display:block;padding:8px 0}</style><h1>Designs</h1>'
@@ -47,7 +49,7 @@ jobs:
               if [[ "$f" =~ ^[A-Za-z0-9._/-]+$ ]]; then
                 echo "<a href=\"$f\">$f</a>"
               else
-                echo "::warning::design-pages: skipped file with unsafe name (allowed: A-Z a-z 0-9 . _ / -)"
+                echo "::warning::design-pages: skipped file with unsafe name (allowed: A-Z a-z 0-9 . _ / -)" >&3
               fi
             done
           } > "${RUNNER_TEMP}/index.html"
