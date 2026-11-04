@@ -2,9 +2,10 @@
 
 Issue #408 (Phase 0 of #309). Date: 2026-11-04. Author: the security role. Reviews the target architecture in
 [ADR 0006](../decisions/0006-console-source-of-truth.md) (`docs/decisions/0006-console-source-of-truth.md`, PR #412,
-not merged when this was written; section names below are the ADR's). The security review of PR #412 asked for
-changes. Its findings 1–9 are referred to here as **R1–R9**, and this model assumes the ADR is amended as they
-ask. Where an amendment has not landed, the row's residual says so. Builds on the earlier models of ADR 0001
+reviewed at its head `319037e`; section names below are the ADR's). The security review of PR #412 asked for
+changes. Its findings 1–9 are referred to here as **R1–R9**, and all of them landed in the ADR at `319037e`. Where
+this model asks for more than that ADR text says, the row names the criterion, and "ADR wording to align" below
+lists the differences. Builds on the earlier models of ADR 0001
 decision 8 and ADR 0003 decision 8, which stay in force for what they cover (Access, the SPA, the `api` and
 `hooks` Workers, owner OAuth).
 
@@ -40,13 +41,15 @@ barrier), **High** (one control away from that), **Medium** (a bounded integrity
 | Role private keys (Ed25519, per runner × role) | sign verdicts of that role | runner host, same directory as the runner key | the key agent inside the runner | `POST /runner/keys` with a new key, old row `revoked_at`; revoking the runner revokes all |
 | Job token | one role, one project, one lease | the job process environment (`TC_JOB_TOKEN`) | the job, through the runner's proxy (R4) | lease-bound `exp`; refused after `finish`, `lost`, `cancelled` or a runner revoke |
 | Enrolment code | creates a runner | the owner's screen; `runner_enrolments.code_hash` | whoever types it in 10 min | single use, 10 min |
-| Claude Code credential of the job user (only with a dedicated job user) | the owner's Claude subscription | the runner's config, injected into the job | the job | `claude setup-token` again; revoke in claude.ai |
+| Claude Code credential of the job user (only with a dedicated job user) | the owner's Claude subscription | `_tcrunner`'s config, 0600. The runner injects it **per job** into the job's environment (or the job's fresh `HOME`, wiped after the job); it never rests in a home `_tcjob` keeps between jobs. | the job, for its lifetime | `claude setup-token` again; revoke in claude.ai |
 | The owner's own credentials on the Mac (`gh` token in the Keychain, SSH keys, browser profiles, `~/.zshenv` app keys until Phase 6) | owner, on GitHub and beyond | the owner's macOS user | any process running as the owner | out of scope of the console; see C4 |
 | The tracker (D1 rows), verdicts, job events | integrity of every decision | D1 of the team's environment | `api` Worker | D1 Time Travel (7 days on the Free plan) for restore; append-only tables |
 | `.product-team/project.yml` on the default branch | the review policy and `commands` the jobs run | the repository | anyone who can merge | reviewed PRs only (gate + R1 ruleset) |
 
 **Agents never see secret values.** The job environment is `TC_API_URL`, `TC_JOB_TOKEN`, `TC_RUNNER_SOCKET`, the
-worktree and `PATH`, plus the Claude Code credential once jobs run as their own user. The job token is a credential
+worktree and `PATH`, plus the Claude Code credential the runner injects per job once jobs run as their own user.
+`TC_API_URL` is HTTP over the runner's Unix socket, not a TCP loopback port: any local user can reach a loopback
+port, while the socket checks the peer uid. The job token is a credential
 the job is meant to hold. It names one role and one project and is useless off-host once R4 lands. No key path, app
 key, service token, VCS app key, owner token or `TOKEN_ENCRYPTION_KEY` is passed to a job. Whether a job can *reach*
 one anyway depends on the operating-system boundary between the runner and the job (C4). Until the dedicated job
@@ -56,7 +59,7 @@ user exists, the honest statement is "agents are not given secret values", not "
 
 | # | Boundary | Crossed by |
 | - | -------- | ---------- |
-| TB1 | Internet → Cloudflare Access → `api` Worker | owner (Access JWT), runner (service token + runner JWT), jobs (via the runner, R4) |
+| TB1 | Internet → Cloudflare Access → `api` Worker | owner (Access JWT), runner (service token + runner JWT), jobs (via the runner, R4: Access must admit the runner's service token on `/api/v1/projects/:slug/*` too, where the Worker still requires the runner JWT **and** the job token) |
 | TB2 | `api` Worker → D1 | parameterised repos in `@worker/db`; `policy.ts` decides before any write |
 | TB3 | `api` Worker ↔ VCS provider | `VcsAdapter`: app JWT, installation tokens, merge; per-job write tokens out to the runner |
 | TB4 | VCS → `hooks` Worker (public) | HMAC-signed webhooks; only `pull_requests`, `ci_state`, `cache_epoch` written |
@@ -99,11 +102,12 @@ must carry it. "Phase 2 API" and similar refer to the rows of the ADR's "Phases 
 | Threat | STRIDE | Mitigation | Where | Residual |
 | ------ | ------ | ---------- | ----- | -------- |
 | **A dev job forges a QA / REVIEW / SECURITY verdict** with its own token | S, E | The console refuses `POST verdicts` from a non-reviewer role before the signature check (403 `verdict-role`). The key agent signs only with the role of the token presented. | ADR decision 6; Phase 2 API, Phase 2 runner v0 | Low |
-| **The orchestrator (or the dev agent in the same Claude Code session) obtains a reviewer token** through `POST …/jobs/:id/children` and approves its own work | S, E | R2: reviewer roles are never children. They run only as top-level `review` jobs enqueued by the console with payload `{pr, head_sha, role}`. The console refuses a verdict whose job lineage includes a job that pushed to that PR's head. | Phase 2 API, Phase 2 runner v0, plugin 0.12 (`slot-qa` enqueues reviews instead of dispatching them) | Low after R2; **Critical** without it, because the session that wrote the code approves it |
+| **The orchestrator (or the dev agent in the same Claude Code session) obtains a reviewer token** through `POST …/jobs/:id/children` and approves its own work | S, E | R2: reviewer roles are never children. They run only as top-level `review` jobs enqueued by the console with payload `{pr, head_sha, role}`. The console refuses a verdict whose job lineage includes a job that pushed to that PR's head. The lineage follows **child-token parentage** (a sub-job token's parent, up to the root job), not who enqueued the review. Otherwise every review a slot enqueued would be refused, or a rule weakened to let them pass. The enqueue route (`POST …/prs/:number/reviews`, `orchestrator`) is in the matrix and takes no role or SHA: the console derives the required roles from the gate and `head_sha` from the PR's current head. | Phase 2 API, Phase 2 runner v0, plugin 0.12 (`slot-qa` enqueues reviews instead of dispatching them) | Low after R2; **Critical** without it, because the session that wrote the code approves it |
 | A reviewer job of project A, or of PR 1, approves PR 2 or project B | E | R6: `pr` must be in the job's project and equal the review job's payload; `head_sha` must equal the payload's and the PR's current head | Phase 2 API | Low |
 | **Replay of a signed verdict** (an old approval on a new head, the same approval twice, an approval from another environment) | T | Signed `head_sha` + check against the current head (409 `verdict-stale-head`); `nonce` UNIQUE (409 `verdict-replay`); `issued_at` ≤ 10 min; `pr` names provider/owner/repo/number; the job must be running. Add `env` (the console's `aud`) to the signed payload so a dev-environment signature is never valid on production. | ADR "Role keys and the gate"; `env` field: Phase 2 API | Low |
 | A same-user process reads the role key files and signs anything | S, E | Dedicated job user (C4, "Dedicated macOS user") | Phase 4 (prerequisite of the first cutover) | **High** until then |
 | A job on a concurrent runner slot reads another job's token from its environment (`ps eww` shows environments of the same user's processes; verify on macOS 26) | S | `max_concurrency = 1` on the Mac. A per-job uid (`_tcjob1…n`) or container before concurrency > 1. | Phase 4 | Low at concurrency 1 |
+| **A job leaves state that runs inside the next job on the same `_tcjob` uid**: a `SessionStart` hook or instructions in `~/.claude/settings.json` / `~/.claude/CLAUDE.md`; `core.hooksPath`, `core.fsmonitor` or `include` in the shared bare mirror; a poisoned `~/.npmrc`, `~/.gitconfig` or shell profile; a `~/Library/LaunchAgents` plist; a detached (`setsid`/double-fork) process that survives the tree kill. The next `review` job runs that code with its own token, passes the peer-uid and token checks and signs `approved`, which undoes R2. Concurrency 1 does not help: the jobs are sequential. | E, T | (a) A fresh per-job `HOME` and `TMPDIR` created by the runner and wiped after the job. `_tcjob`'s account home (`NFSHomeDirectory`) is root-owned and not writable, so launchd and tools find nothing to load. Claude Code runs with runner-owned, read-only **managed settings** with user and project hooks disabled. (b) The bare mirror is owned by `_tcrunner` and read-only to `_tcjob`. Each job gets a fresh clone (or a worktree whose config the runner writes), and the runner refuses to launch when that clone's config holds `core.hooksPath`, `core.fsmonitor`, `include`/`includeIf` or any `*.hooks`-type key. (c) `pkill -9 -u _tcjob` before and after every job, and the runner launches the next job only when no `_tcjob` process remains. (d) A sweep of `_tcjob`-owned files outside the per-job directories (`/tmp`, `/private/var/tmp`, `/Users/Shared`), with removal and a `notice`. (e) A test: one job plants a Claude hook, a git config entry, an `.npmrc` and a detached process, and the next job observes none of them. | Phase 2 runner v0 (a, b, e), Phase 4 (c, d, the L3 layout) | Low after (a)–(e); **High** until then (it defeats reviewer separation) |
 | The review text (`body`) is altered after signing | T | `body` is stored beside the signature, not in it. Sign `sha256(body)` in the payload so the text the owner reads is the text that was signed. | Phase 2 API | Low |
 | Who approved what cannot be shown later | R | Verdict rows keep `payload`, `signature`, `role_key_id`; the public key stays in D1 after revocation | Phase 2 API | Low |
 
@@ -126,7 +130,8 @@ must carry it. "Phase 2 API" and similar refer to the rows of the ADR's "Phases 
 | Threat | STRIDE | Mitigation | Where | Residual |
 | ------ | ------ | ---------- | ----- | -------- |
 | **A job merges or pushes to `dev`/`stage`/`main` directly with its write token, bypassing the gate** | E, T | R1. Job tokens are minted with `contents: write` (+ `pull_requests: write` only if the runner creates PRs) and never `checks`, `statuses`, `administration` or `actions`. The console posts `team-console/gate` on the head SHA. A ruleset on long-lived branches requires a PR and that check with expected source = the console app, has no bypass actors and blocks force-push and deletion. Verify at Phase 3 which permission the merge API needs. | Phase 3 (+ an owner `access` question for the ruleset) | Low after R1; **Critical** without it (no branch protection today) |
-| A job pushes a workflow that exfiltrates repository or environment secrets on `push` | E, I | R8: `workflows: write` only for an item flagged for it (that PR already needs `security`). Deploy secrets only in GitHub Environments with deployment-branch policies; `production` with required reviewers; PR workflows use no secrets (already true). | Phase 3 | Medium (a flagged job still holds it for an hour) |
+| A job pushes a workflow that exfiltrates repository or environment secrets on `push` | E, I | R8: `workflows: write` only for an item flagged `workflow-change` (that PR already needs `security`). Only the owner or the `security` role may set that flag; it is a row of the R5 transition table. Deploy secrets only in GitHub Environments with deployment-branch policies; `production` with required reviewers; PR workflows use no secrets (already true). | Phase 3 | Medium (a flagged job still holds it for an hour) |
+| **An approved PR is retargeted** (`dev` → `main`) by a job with `pull_requests: write` and merged, skipping `stage` | E, T | The gate status is **per target branch**: the console posts `team-console/gate/<base>`, and each branch's ruleset requires its own context. On a base change (`pull_request.edited` with `changes.base`) the console marks every gate status on that head `failure`. The gate policy is evaluated against the PR's current base. | Phase 3 | Low after; Medium without it (production's required reviewers remain) |
 | A write token leaks from the job | I | ≤ 1 h; per repository; credential helper outside the worktree (R9e); reviewer roles get read only | Phase 2 runner v0, Phase 3 | Medium (GitHub cannot revoke an installation token early except by suspending the installation) |
 | The adapter builds a path from untrusted input (path traversal on `files.read`, SSRF via `Link` headers) | T, I | Paths from `RepoRef` only (`githubPath` rule); `Link` follow-up only on the provider host and the same resource path (as ADR 0003's events read) | Phase 3, Phase 5 | Low |
 | The app key leaks (now with repository write) | E | Unchanged: one Worker secret, incident runbook; blast radius grows from Issues write to Contents/PR/Workflows write, which the R1 ruleset bounds on long-lived branches. Update ADR 0003 decision 8's asset row. | Phase 3 | High (unchanged grade, wider reach) |
@@ -164,7 +169,7 @@ must carry it. "Phase 2 API" and similar refer to the rows of the ADR's "Phases 
 
 | Scenario | Rows | Outcome after the ADR amendments |
 | -------- | ---- | -------------------------------- |
-| A dev key forging a QA / REVIEW / SECURITY verdict | C3 rows 1–3, C4 row 2 | refused at the console (role), at the key agent (role), and structurally (no reviewer children, lineage check). With the same macOS user it still holds the keys, hence the job user. |
+| A dev key forging a QA / REVIEW / SECURITY verdict | C3 rows 1–3 and 7, C4 row 2 | refused at the console (role), at the key agent (role), and structurally (no reviewer children, lineage check, no state carried from one job to the next). With the same macOS user it still holds the keys, hence the job user. |
 | A stolen runner credential | C4 row 1 | needs both halves; revocable in one screen plus Zero Trust; High residual, detected by the owner |
 | Prompt injection from item text into a role run | C8 | bounded by server-side controls; Medium residual for the role's own verdict |
 | Replay of signed verdicts | C3 row 4 | nonce, head, age, PR, environment |
@@ -189,26 +194,28 @@ File permissions protect nothing between processes of one user. Mitigation ladde
 | L0 | Same user, 0600 files, separate directory (ADR as written) | nothing from a job | none | not acceptable for the team's environment |
 | L1 | Claude Code's sandbox / permission deny rules for the key directory, `~/.ssh`, `~/.config/gh`, the Keychain CLI | casual reads by the model's tools | settings only | defence in depth only: dependency scripts and anything outside Claude Code's tools are not covered |
 | L2 | Runner secrets in the Keychain with an ACL for the runner binary | silent reads of those items | small | does not stop `gh auth token`, the socket or `ps`; the job is still the owner |
-| **L3** | **Runner as a LaunchDaemon under `_tcrunner`; jobs as `_tcjob` (no admin, no login shell, own home, no access to the owner's home); one sudoers rule `_tcrunner ALL=(_tcjob) NOPASSWD: <the job-exec wrapper>`; the socket in a directory `_tcrunner:_tcjob 0750`; keys and config `_tcrunner` 0600; worktrees owned by `_tcjob`; toolchain read-only for `_tcjob`** | reads of runner and owner secrets; tampering with the runner or the plugin | owner admin steps once (create two users, install the daemon); a Claude Code credential for `_tcjob` (`claude setup-token`, a declared job secret); the Homebrew/Node toolchain must be readable by `_tcjob` | **recommended**; prerequisite of the first cutover; Phase 4 |
+| **L3** | **Runner as a LaunchDaemon under `_tcrunner`; jobs as `_tcjob` (no admin, no login shell, own home, no access to the owner's home, a root-owned account home and a fresh `HOME` per job); one sudoers rule `_tcrunner ALL=(_tcjob) NOPASSWD: <the job-exec wrapper>`; the socket in a directory `_tcrunner:_tcjob 0750`; keys and config `_tcrunner` 0600; the bare mirror owned by `_tcrunner` and read-only to `_tcjob`, a fresh clone per job; toolchain read-only for `_tcjob`; no `_tcjob` process outlives a job** | reads of runner and owner secrets; tampering with the runner or the plugin | owner admin steps once (create two users, install the daemon); a Claude Code credential for `_tcjob` (`claude setup-token`, held by `_tcrunner` and injected per job); the Homebrew/Node toolchain must be readable by `_tcjob` | **recommended**; prerequisite of the first cutover; Phase 4 |
 | L4 | Jobs in a Linux VM or container on the Mac (Lima/Docker), the same image as the server runner | everything L3 stops, and kernel-level isolation | RAM/CPU on the Mac, a VM to keep updated | the server-runner path; optional later |
 
 With L3 the remaining exposure inside a job is its own token (useless off-host with R4), the per-job write token (R1
 bounds it) and the Claude Code credential. That credential gives use of the owner's subscription, not their
-accounts. It is rotatable and recorded as a Medium residual. Concurrency above 1 needs a uid per slot or L4 (C3
+accounts. It is rotatable and recorded as a Medium residual. One uid shared by sequential jobs is a channel between
+them (C3, the cross-job persistence row). L3 is complete only with the per-job `HOME`, the read-only mirror and the
+no-leftover-process check. Concurrency above 1 needs a uid per slot or L4 (C3
 row 6).
 
 ## Mitigations by phase (criteria to copy into the phase issues)
 
 | Phase / issue | Criteria |
 | ------------- | -------- |
-| 1a (#410) | `tracker` gate (409 `tracker-not-cut-over`); bounded columns and plain-text rendering; `If-Match` versioning; append-only `comments`/`item_events` (no UPDATE/DELETE path in `@worker/db`, tested); `policy.ts` transition table for owner-semantic status and flags (R5); CSRF on every owner write. |
+| 1a (#410) | `tracker` gate (409 `tracker-not-cut-over`); `workflow-change` settable only by the owner or `security` (transition table); bounded columns and plain-text rendering; `If-Match` versioning; append-only `comments`/`item_events` (no UPDATE/DELETE path in `@worker/db`, tested); `policy.ts` transition table for owner-semantic status and flags (R5); CSRF on every owner write. |
 | 1a′ (new) | `owner_decisions`/`owner_requests` owner-only (403 for `job`/`runner`, inventory test); decisions apply their effects in the same transaction; one open ask per item; per-job ask/comment caps; `via` enum matches what is written. |
 | 1b import + cutover screen (new) | Deterministic import, no LLM; imported owner commands never authorise (R7); non-collaborator items import as `proposed`; counts and the refusal on a mismatch; pending decisions re-confirmed by the owner; imported text rendered plain. |
 | Plugin 0.12 | `slot-qa` and rework rounds enqueue `review` jobs instead of dispatching reviewers in-process (R2); `console.py` calls go to the runner proxy, never to the internet directly (R4); no key path or secret in any script's environment. |
-| 2 API (new) | `policy.ts` + inventory spec incl. `/children`; children never reviewer roles; verdict checks: role, token-role match, runner's unrevoked key, signature, `issued_at`, nonce, current head, PR ∈ project, PR/head = job payload, lineage not the author, `env` in the payload, `sha256(body)` signed; gate computed server-side and re-run in `merge`; enrolment code entropy, constant-time compare, rate limit; runner JWT `jti`; job tokens accepted only with the claiming runner's identity; CSRF exemption only for bearer identities; job project scope. |
-| 2 runner v0 (new) | The key agent signs only for a token it launched and only that token's role, refuses others with a `notice`; API proxy on the socket (R4); credential helper and plugin outside the worktree; event redactor; reviewer roles get read tokens only. |
-| 3 adapter (new) | Job tokens minted with the minimal permission set, never `checks`/`statuses`/`administration`/`actions`; `workflows: write` only on a flagged item; `team-console/gate` status from the console; owner `access` question for the ruleset (PR required, gate check from the console app, no bypass, no force-push or deletion) on `dev`/`stage`/`main`; deploy secrets in environment-scoped secrets with branch policies; ADR 0003 decision 8 asset row updated; `files.read` path rule. |
-| 4 scheduling + daemon (new) | L3 job user (prerequisite of cutover); `max_concurrency = 1` until per-slot uids; lease and kill at `maxMinutes`; event batching and per-job caps; runner presence and new-runner push; per-runner project allow-list; runner installed from a tagged release, not writable by the job user. |
+| 2 API (new) | `policy.ts` + inventory spec incl. `/children`; children never reviewer roles; verdict checks: role, token-role match, runner's unrevoked key, signature, `issued_at`, nonce, current head, PR ∈ project, PR/head = job payload, lineage (child-token parentage to the root) holds no job that pushed to the head; `POST …/prs/:number/reviews` in the matrix, with roles and `head_sha` derived by the console, never taken from the requester; `env` in the payload, `sha256(body)` signed; gate computed server-side and re-run in `merge`; enrolment code entropy, constant-time compare, rate limit; runner JWT `jti`; job tokens accepted only with the claiming runner's identity; the Access application admits the runner's service token on `/api/v1/projects/:slug/*` for proxied job calls (the Worker still requires the runner JWT and the job token there); CSRF exemption only for bearer identities; job project scope. |
+| 2 runner v0 (new) | The key agent signs only for a token it launched and only that token's role, refuses others with a `notice`; API proxy on the socket (R4), with `TC_API_URL` as HTTP over that Unix socket (no TCP loopback port); fresh per-job `HOME`/`TMPDIR` and runner-owned read-only Claude managed settings with user and project hooks disabled; the bare mirror read-only to the job user, a fresh clone per job, launch refused on hook-type git config; the Claude credential injected per job; the plant-then-verify persistence test; credential helper and plugin outside the worktree; event redactor; reviewer roles get read tokens only. |
+| 3 adapter (new) | Job tokens minted with the minimal permission set, never `checks`/`statuses`/`administration`/`actions`; `workflows: write` only on a `workflow-change` item; `team-console/gate/<base>` status per target branch from the console, failed on a base change; owner `access` question for the ruleset (PR required, gate check from the console app, no bypass, no force-push or deletion) on `dev`/`stage`/`main`; deploy secrets in environment-scoped secrets with branch policies; ADR 0003 decision 8 asset row updated; `files.read` path rule. |
+| 4 scheduling + daemon (new) | L3 job user (prerequisite of cutover); `max_concurrency = 1` until per-slot uids; lease and kill at `maxMinutes`; event batching and per-job caps; runner presence and new-runner push; the owner alerted on a claim from a new IP country; `pkill -9 -u _tcjob` before and after every job and no launch while a `_tcjob` process remains; sweep of `_tcjob`-owned files outside the per-job directories; root-owned `_tcjob` account home; per-runner project allow-list; runner installed from a tagged release, not writable by the job user. |
 | 5 GitLab (new) | GitLab protected branches (no one may push, merge only through the console token), external status check for the gate, project access tokens per job with the minimal scope, webhook token verification, the `hooks` config test extended. |
 | 6 cutover (new) | Freeze and delta checks; retire old credentials only after the 14-day window; the cutover screen lists live legacy credentials; L3 and R1 verified on the team's environment before the switch. |
 
@@ -224,7 +231,21 @@ row 6).
 | RR6 | The Claude Code credential of `_tcjob` is in the job's reach | Medium | The CLI needs it to run | rotate on suspicion; usage visible in claude.ai |
 | RR7 | Two credential sets live during the 14-day rollback window | Medium | The owner's hard-cutover rollback | Phase 6 retire step |
 | RR8 | D1 free limits are the availability ceiling | Medium | $0 constraint | Phase 4 budget alarm |
-| RR9 | The R1–R9 amendments have not landed in ADR 0006 yet | High until they do | PR #412 is in review | the architect |
+| RR9 | ADR 0006 wording differs from this model in four places (below) | Medium until aligned | landed at `319037e` except these | the architect |
+| RR10 | Cross-job state the sweep misses (an unlisted world-writable path, a macOS facility that persists per uid) | Low after the C3 controls | One uid for sequential jobs; L4 or per-job uids remove it | Phase 4; L4 later |
+
+### ADR wording to align
+
+R1–R9 landed in ADR 0006 at `319037e`. Four places differ from this model and should follow it (or be argued in
+an amendment):
+
+1. **Claude credential**: the ADR says it is the job user's own credential. This model prefers it held by
+   `_tcrunner` and injected per job, so it never rests in a home that sequential jobs share.
+2. **Bare mirror ownership**: the ADR's "Run" has `work/<slug>/` owned by `_tcjob`. This model needs it owned by
+   `_tcrunner` and read-only to `_tcjob`, with a fresh clone per job.
+3. **`TC_API_URL`**: the ADR calls it "the runner's loopback proxy". It should be HTTP over the Unix socket.
+4. **Lineage**: the ADR follows `requested_by` to the root. It should follow child-token parentage, and the
+   enqueue-review route should be in the matrix with console-derived roles and head.
 
 ## Questions for the owner
 
