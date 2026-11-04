@@ -333,7 +333,7 @@ is `ApiGitHub` (`apps/api/src/github.ts`); `GITHUB_MOCK=true` (local only) swaps
 in `libs/worker/github/fixtures`. Migrations live only in `apps/api/migrations` (`0001_init` = `projects`;
 `0005_owner_connections` #59; `0006_project_installation` #15 adds `projects.installation_id`; `0007_own_writes` #10 =
 `own_writes` + `own_write_claims`, which #12 reuses; `0008_slot_requests` #114; `0009_push_subscriptions` #11 (`push_subscriptions` +
-`push_test_sends`); `0010_webhooks` #12 = `webhook_deliveries` + `projects.access_lost_at`; `0011_project_snooze` #221; `0012_owner_requests` #219. No number is reserved — a new
+`push_test_sends`); `0010_webhooks` #12 = `webhook_deliveries` + `projects.access_lost_at`; `0011_project_snooze` #221; `0012_owner_requests` #219; `0013_tracker` #410 (ADR 0006 tracker core: `projects` + `provider|tracker|key_prefix|next_item_number|cutover_at|default_branch`, `labels`, `sprints`, `items`, `item_labels`, `comments`, `item_events`, `idempotency_keys`; enumerations as CHECKs, comments/events append-only and items never deleted by triggers; repos `TrackerProjectsRepo`/`LabelsRepo`/`SprintsRepo`/`ItemsRepo`/`CommentsRepo`/`ItemEventsRepo`/`IdempotencyKeysRepo` in `@worker/db`, each write one batch with its event; `LABELS_SEED` from `libs/worker/db/scripts/generate-labels-seed.py` — rerun after every `vendor` update). No number is reserved — a new
 migration takes the highest number on `dev` + 1 when its PR opens and is renumbered on rebase if that number was taken,
 so 0002–0004 stay unused). The answer route (#10) is `routes/answer.ts`
 (`POST /api/v1/projects/:slug/issues/:number/answer`, owner-only): section re-derived from the live issue with

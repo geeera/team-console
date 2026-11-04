@@ -1,7 +1,13 @@
 export { OwnerConnectionsRepo } from './lib/owner-connections.repo';
 export type { NewOwnerConnection, OwnerConnectionRow, SealedTokenPair } from './lib/owner-connections.repo';
 export { ProjectsRepo, isSnoozedAt, snoozeOf, toProjectDto } from './lib/projects.repo';
-export type { NewProject, ProjectChanges, ProjectConflict, ProjectRow, SnoozeChange } from './lib/projects.repo';
+export type {
+  NewProject,
+  ProjectChanges,
+  ProjectConflict,
+  ProjectRow,
+  SnoozeChange,
+} from './lib/projects.repo';
 export { ProjectSignalsRepo } from './lib/project-signals.repo';
 export type { EventsSignal } from './lib/project-signals.repo';
 export { OwnWritesRepo } from './lib/own-writes.repo';
@@ -19,3 +25,31 @@ export type {
   OwnerRequestRecord,
   OwnerRequestResult,
 } from './lib/owner-requests.repo';
+export { LABELS_SEED } from './lib/tracker/labels-seed';
+export type { LabelSeed } from './lib/tracker/labels-seed';
+export { TrackerProjectsRepo } from './lib/tracker/tracker-projects.repo';
+export type { TrackerProject, TrackerSwitch } from './lib/tracker/tracker-projects.repo';
+export { LabelsRepo } from './lib/tracker/labels.repo';
+export type { LabelRecord, NewLabel } from './lib/tracker/labels.repo';
+export { SprintsRepo } from './lib/tracker/sprints.repo';
+export type { NewSprint, SprintChanges, SprintRecord } from './lib/tracker/sprints.repo';
+export { ItemsRepo } from './lib/tracker/items.repo';
+export type {
+  FlagsPatch,
+  ItemColumnsPatch,
+  ItemFilter,
+  ItemPage,
+  ItemRecord,
+  ItemSummaryRecord,
+  NewItem,
+} from './lib/tracker/items.repo';
+export { CommentsRepo } from './lib/tracker/comments.repo';
+export type { CommentRecord } from './lib/tracker/comments.repo';
+export { ItemEventsRepo } from './lib/tracker/item-events.repo';
+export type { ItemEventRecord, NewItemEvent, TrackerActor } from './lib/tracker/item-events.repo';
+export { IdempotencyKeysRepo } from './lib/tracker/idempotency-keys.repo';
+export type {
+  IdempotencyClaim,
+  IdempotencyRef,
+  IdempotentResultKind,
+} from './lib/tracker/idempotency-keys.repo';
