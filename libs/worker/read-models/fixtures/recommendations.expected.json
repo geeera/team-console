@@ -195,6 +195,158 @@
     },
     {
       "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve (&#110;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (&#110;ot, recommended) · /reject",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve (&#x6e;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (&#x6e;ot, recommended) · /reject",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve (n&shy;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n&shy;ot, recommended) · /reject",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve (n<!-- -->ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n<!-- -->ot, recommended) · /reject",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve to ship <!-- (recommended) --> · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship <!-- (recommended) --> · /reject why",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve to ship ~~(recommended)~~ · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship ~~(recommended)~~ · /reject why",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve to ship ~(recommended)~ · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship ~(recommended)~ · /reject why",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve (nοt, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (nοt, recommended) · /reject",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve (ոot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (ոot, recommended) · /reject",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve (n̲ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n̲ot, recommended) · /reject",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve (ńot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (ńot, recommended) · /reject",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve (nöt, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (nöt, recommended) · /reject",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve (cannot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (cannot, recommended) · /reject",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve (without, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (without, recommended) · /reject",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve (deprecated, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (deprecated, recommended) · /reject",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve (if x, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (if x, recommended) · /reject",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve to add a casino game (recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to add a casino game (recommended) · /reject why",
+      "category": "money",
+      "recommendation": "approve"
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve to tie the knot (recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to tie the knot (recommended) · /reject why",
+      "category": "money",
+      "recommendation": "approve"
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Your answer:** /approve to keep it (low risk, recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to keep it (low risk, recommended) · /reject why",
+      "category": "money",
+      "recommendation": "approve"
+    },
+    {
+      "language": "en",
       "labels": ["kind:question", "owner:scope"],
       "body": "**Your answer:** /approve to use Cloudflare R2 (free, recommended) · /reject why to keep SeaweedFS\n<!-- pt-ask -->\n\nContext for the owner.\n",
       "ask": "/approve to use Cloudflare R2 (free, recommended) · /reject why to keep SeaweedFS",
@@ -387,6 +539,158 @@
     },
     {
       "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve (&#110;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (&#110;ot, recommended) · /reject",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve (&#x6e;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (&#x6e;ot, recommended) · /reject",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve (n&shy;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n&shy;ot, recommended) · /reject",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve (n<!-- -->ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n<!-- -->ot, recommended) · /reject",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve to ship <!-- (recommended) --> · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship <!-- (recommended) --> · /reject why",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve to ship ~~(recommended)~~ · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship ~~(recommended)~~ · /reject why",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve to ship ~(recommended)~ · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship ~(recommended)~ · /reject why",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve (nοt, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (nοt, recommended) · /reject",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve (ոot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (ոot, recommended) · /reject",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve (n̲ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n̲ot, recommended) · /reject",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve (ńot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (ńot, recommended) · /reject",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve (nöt, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (nöt, recommended) · /reject",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve (cannot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (cannot, recommended) · /reject",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve (without, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (without, recommended) · /reject",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve (deprecated, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (deprecated, recommended) · /reject",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve (if x, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (if x, recommended) · /reject",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve to add a casino game (recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to add a casino game (recommended) · /reject why",
+      "category": "scope",
+      "recommendation": "approve"
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve to tie the knot (recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to tie the knot (recommended) · /reject why",
+      "category": "scope",
+      "recommendation": "approve"
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Your answer:** /approve to keep it (low risk, recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to keep it (low risk, recommended) · /reject why",
+      "category": "scope",
+      "recommendation": "approve"
+    },
+    {
+      "language": "en",
       "labels": ["kind:question", "owner:release"],
       "body": "**Your answer:** /approve to use Cloudflare R2 (free, recommended) · /reject why to keep SeaweedFS\n<!-- pt-ask -->\n\nContext for the owner.\n",
       "ask": "/approve to use Cloudflare R2 (free, recommended) · /reject why to keep SeaweedFS",
@@ -579,6 +883,158 @@
     },
     {
       "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve (&#110;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (&#110;ot, recommended) · /reject",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve (&#x6e;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (&#x6e;ot, recommended) · /reject",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve (n&shy;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n&shy;ot, recommended) · /reject",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve (n<!-- -->ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n<!-- -->ot, recommended) · /reject",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve to ship <!-- (recommended) --> · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship <!-- (recommended) --> · /reject why",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve to ship ~~(recommended)~~ · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship ~~(recommended)~~ · /reject why",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve to ship ~(recommended)~ · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship ~(recommended)~ · /reject why",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve (nοt, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (nοt, recommended) · /reject",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve (ոot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (ոot, recommended) · /reject",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve (n̲ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n̲ot, recommended) · /reject",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve (ńot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (ńot, recommended) · /reject",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve (nöt, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (nöt, recommended) · /reject",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve (cannot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (cannot, recommended) · /reject",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve (without, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (without, recommended) · /reject",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve (deprecated, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (deprecated, recommended) · /reject",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve (if x, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (if x, recommended) · /reject",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve to add a casino game (recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to add a casino game (recommended) · /reject why",
+      "category": "release",
+      "recommendation": "approve"
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve to tie the knot (recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to tie the knot (recommended) · /reject why",
+      "category": "release",
+      "recommendation": "approve"
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Your answer:** /approve to keep it (low risk, recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to keep it (low risk, recommended) · /reject why",
+      "category": "release",
+      "recommendation": "approve"
+    },
+    {
+      "language": "en",
       "labels": ["kind:question", "owner:access"],
       "body": "**Your answer:** /approve to use Cloudflare R2 (free, recommended) · /reject why to keep SeaweedFS\n<!-- pt-ask -->\n\nContext for the owner.\n",
       "ask": "/approve to use Cloudflare R2 (free, recommended) · /reject why to keep SeaweedFS",
@@ -771,6 +1227,158 @@
     },
     {
       "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve (&#110;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (&#110;ot, recommended) · /reject",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve (&#x6e;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (&#x6e;ot, recommended) · /reject",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve (n&shy;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n&shy;ot, recommended) · /reject",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve (n<!-- -->ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n<!-- -->ot, recommended) · /reject",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve to ship <!-- (recommended) --> · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship <!-- (recommended) --> · /reject why",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve to ship ~~(recommended)~~ · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship ~~(recommended)~~ · /reject why",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve to ship ~(recommended)~ · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship ~(recommended)~ · /reject why",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve (nοt, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (nοt, recommended) · /reject",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve (ոot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (ոot, recommended) · /reject",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve (n̲ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n̲ot, recommended) · /reject",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve (ńot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (ńot, recommended) · /reject",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve (nöt, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (nöt, recommended) · /reject",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve (cannot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (cannot, recommended) · /reject",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve (without, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (without, recommended) · /reject",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve (deprecated, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (deprecated, recommended) · /reject",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve (if x, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (if x, recommended) · /reject",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve to add a casino game (recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to add a casino game (recommended) · /reject why",
+      "category": "access",
+      "recommendation": "approve"
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve to tie the knot (recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to tie the knot (recommended) · /reject why",
+      "category": "access",
+      "recommendation": "approve"
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Your answer:** /approve to keep it (low risk, recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to keep it (low risk, recommended) · /reject why",
+      "category": "access",
+      "recommendation": "approve"
+    },
+    {
+      "language": "en",
       "labels": ["kind:question", "owner:legal"],
       "body": "**Your answer:** /approve to use Cloudflare R2 (free, recommended) · /reject why to keep SeaweedFS\n<!-- pt-ask -->\n\nContext for the owner.\n",
       "ask": "/approve to use Cloudflare R2 (free, recommended) · /reject why to keep SeaweedFS",
@@ -963,6 +1571,158 @@
     },
     {
       "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve (&#110;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (&#110;ot, recommended) · /reject",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve (&#x6e;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (&#x6e;ot, recommended) · /reject",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve (n&shy;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n&shy;ot, recommended) · /reject",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve (n<!-- -->ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n<!-- -->ot, recommended) · /reject",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve to ship <!-- (recommended) --> · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship <!-- (recommended) --> · /reject why",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve to ship ~~(recommended)~~ · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship ~~(recommended)~~ · /reject why",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve to ship ~(recommended)~ · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship ~(recommended)~ · /reject why",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve (nοt, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (nοt, recommended) · /reject",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve (ոot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (ոot, recommended) · /reject",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve (n̲ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n̲ot, recommended) · /reject",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve (ńot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (ńot, recommended) · /reject",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve (nöt, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (nöt, recommended) · /reject",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve (cannot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (cannot, recommended) · /reject",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve (without, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (without, recommended) · /reject",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve (deprecated, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (deprecated, recommended) · /reject",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve (if x, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (if x, recommended) · /reject",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve to add a casino game (recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to add a casino game (recommended) · /reject why",
+      "category": "legal",
+      "recommendation": "approve"
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve to tie the knot (recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to tie the knot (recommended) · /reject why",
+      "category": "legal",
+      "recommendation": "approve"
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Your answer:** /approve to keep it (low risk, recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to keep it (low risk, recommended) · /reject why",
+      "category": "legal",
+      "recommendation": "approve"
+    },
+    {
+      "language": "en",
       "labels": ["kind:question", "owner:design"],
       "body": "**Your answer:** /approve to use Cloudflare R2 (free, recommended) · /reject why to keep SeaweedFS\n<!-- pt-ask -->\n\nContext for the owner.\n",
       "ask": "/approve to use Cloudflare R2 (free, recommended) · /reject why to keep SeaweedFS",
@@ -1154,6 +1914,158 @@
       "recommendation": null
     },
     {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve (&#110;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (&#110;ot, recommended) · /reject",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve (&#x6e;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (&#x6e;ot, recommended) · /reject",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve (n&shy;ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n&shy;ot, recommended) · /reject",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve (n<!-- -->ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n<!-- -->ot, recommended) · /reject",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve to ship <!-- (recommended) --> · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship <!-- (recommended) --> · /reject why",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve to ship ~~(recommended)~~ · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship ~~(recommended)~~ · /reject why",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve to ship ~(recommended)~ · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to ship ~(recommended)~ · /reject why",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve (nοt, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (nοt, recommended) · /reject",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve (ոot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (ոot, recommended) · /reject",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve (n̲ot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (n̲ot, recommended) · /reject",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve (ńot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (ńot, recommended) · /reject",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve (nöt, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (nöt, recommended) · /reject",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve (cannot, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (cannot, recommended) · /reject",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve (without, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (without, recommended) · /reject",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve (deprecated, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (deprecated, recommended) · /reject",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve (if x, recommended) · /reject\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (if x, recommended) · /reject",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve to add a casino game (recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to add a casino game (recommended) · /reject why",
+      "category": "design",
+      "recommendation": "approve"
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve to tie the knot (recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to tie the knot (recommended) · /reject why",
+      "category": "design",
+      "recommendation": "approve"
+    },
+    {
+      "language": "en",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Your answer:** /approve to keep it (low risk, recommended) · /reject why\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve to keep it (low risk, recommended) · /reject why",
+      "category": "design",
+      "recommendation": "approve"
+    },
+    {
       "language": "ru",
       "labels": ["kind:question", "owner:money"],
       "body": "**Твой ответ:** /approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять\n<!-- pt-ask -->\n\nContext for the owner.\n",
@@ -1235,6 +2147,46 @@
     },
     {
       "language": "ru",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Твой ответ:** /approve (нельзя, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (нельзя, рекомендую) · /reject почему",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Твой ответ:** /approve (без, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (без, рекомендую) · /reject почему",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Твой ответ:** /approve (никогда, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (никогда, рекомендую) · /reject почему",
+      "category": "money",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Твой ответ:** /approve — мне кажется, так лучше (рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve — мне кажется, так лучше (рекомендую) · /reject почему",
+      "category": "money",
+      "recommendation": "approve"
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:money"],
+      "body": "**Твой ответ:** /approve — оставить (по умолчанию, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve — оставить (по умолчанию, рекомендую) · /reject почему",
+      "category": "money",
+      "recommendation": "approve"
+    },
+    {
+      "language": "ru",
       "labels": ["kind:question", "owner:scope"],
       "body": "**Твой ответ:** /approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять\n<!-- pt-ask -->\n\nContext for the owner.\n",
       "ask": "/approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять",
@@ -1315,6 +2267,46 @@
     },
     {
       "language": "ru",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Твой ответ:** /approve (нельзя, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (нельзя, рекомендую) · /reject почему",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Твой ответ:** /approve (без, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (без, рекомендую) · /reject почему",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Твой ответ:** /approve (никогда, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (никогда, рекомендую) · /reject почему",
+      "category": "scope",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Твой ответ:** /approve — мне кажется, так лучше (рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve — мне кажется, так лучше (рекомендую) · /reject почему",
+      "category": "scope",
+      "recommendation": "approve"
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:scope"],
+      "body": "**Твой ответ:** /approve — оставить (по умолчанию, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve — оставить (по умолчанию, рекомендую) · /reject почему",
+      "category": "scope",
+      "recommendation": "approve"
+    },
+    {
+      "language": "ru",
       "labels": ["kind:question", "owner:release"],
       "body": "**Твой ответ:** /approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять\n<!-- pt-ask -->\n\nContext for the owner.\n",
       "ask": "/approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять",
@@ -1395,6 +2387,46 @@
     },
     {
       "language": "ru",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Твой ответ:** /approve (нельзя, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (нельзя, рекомендую) · /reject почему",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Твой ответ:** /approve (без, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (без, рекомендую) · /reject почему",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Твой ответ:** /approve (никогда, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (никогда, рекомендую) · /reject почему",
+      "category": "release",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Твой ответ:** /approve — мне кажется, так лучше (рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve — мне кажется, так лучше (рекомендую) · /reject почему",
+      "category": "release",
+      "recommendation": "approve"
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:release"],
+      "body": "**Твой ответ:** /approve — оставить (по умолчанию, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve — оставить (по умолчанию, рекомендую) · /reject почему",
+      "category": "release",
+      "recommendation": "approve"
+    },
+    {
+      "language": "ru",
       "labels": ["kind:question", "owner:access"],
       "body": "**Твой ответ:** /approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять\n<!-- pt-ask -->\n\nContext for the owner.\n",
       "ask": "/approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять",
@@ -1475,6 +2507,46 @@
     },
     {
       "language": "ru",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Твой ответ:** /approve (нельзя, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (нельзя, рекомендую) · /reject почему",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Твой ответ:** /approve (без, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (без, рекомендую) · /reject почему",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Твой ответ:** /approve (никогда, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (никогда, рекомендую) · /reject почему",
+      "category": "access",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Твой ответ:** /approve — мне кажется, так лучше (рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve — мне кажется, так лучше (рекомендую) · /reject почему",
+      "category": "access",
+      "recommendation": "approve"
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:access"],
+      "body": "**Твой ответ:** /approve — оставить (по умолчанию, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve — оставить (по умолчанию, рекомендую) · /reject почему",
+      "category": "access",
+      "recommendation": "approve"
+    },
+    {
+      "language": "ru",
       "labels": ["kind:question", "owner:legal"],
       "body": "**Твой ответ:** /approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять\n<!-- pt-ask -->\n\nContext for the owner.\n",
       "ask": "/approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять",
@@ -1555,6 +2627,46 @@
     },
     {
       "language": "ru",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Твой ответ:** /approve (нельзя, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (нельзя, рекомендую) · /reject почему",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Твой ответ:** /approve (без, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (без, рекомендую) · /reject почему",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Твой ответ:** /approve (никогда, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (никогда, рекомендую) · /reject почему",
+      "category": "legal",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Твой ответ:** /approve — мне кажется, так лучше (рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve — мне кажется, так лучше (рекомендую) · /reject почему",
+      "category": "legal",
+      "recommendation": "approve"
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:legal"],
+      "body": "**Твой ответ:** /approve — оставить (по умолчанию, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve — оставить (по умолчанию, рекомендую) · /reject почему",
+      "category": "legal",
+      "recommendation": "approve"
+    },
+    {
+      "language": "ru",
       "labels": ["kind:question", "owner:design"],
       "body": "**Твой ответ:** /approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять\n<!-- pt-ask -->\n\nContext for the owner.\n",
       "ask": "/approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять",
@@ -1632,6 +2744,76 @@
       "ask": "/approve — выпускать (против, рекомендую) · /reject почему",
       "category": "design",
       "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Твой ответ:** /approve (нельзя, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (нельзя, рекомендую) · /reject почему",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Твой ответ:** /approve (без, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (без, рекомендую) · /reject почему",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Твой ответ:** /approve (никогда, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve (никогда, рекомендую) · /reject почему",
+      "category": "design",
+      "recommendation": null
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Твой ответ:** /approve — мне кажется, так лучше (рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve — мне кажется, так лучше (рекомендую) · /reject почему",
+      "category": "design",
+      "recommendation": "approve"
+    },
+    {
+      "language": "ru",
+      "labels": ["kind:question", "owner:design"],
+      "body": "**Твой ответ:** /approve — оставить (по умолчанию, рекомендую) · /reject почему\n<!-- pt-ask -->\n\nContext for the owner.\n",
+      "ask": "/approve — оставить (по умолчанию, рекомендую) · /reject почему",
+      "category": "design",
+      "recommendation": "approve"
+    }
+  ],
+  "rawCases": [
+    {
+      "ask": "/approve (n\u0000ot, recommended) · /reject",
+      "recommendation": null
+    },
+    {
+      "ask": "/approve (n\u0007ot, recommended) · /reject",
+      "recommendation": null
+    },
+    {
+      "ask": "/approve (recommended\u001f) · /reject",
+      "recommendation": null
+    },
+    {
+      "ask": "/approve (recommended\u001c) · /reject",
+      "recommendation": null
+    },
+    {
+      "ask": "/approve (recommended) · /reject",
+      "recommendation": null
+    },
+    {
+      "ask": "/approve (recommended ) · /reject",
+      "recommendation": "approve"
+    },
+    {
+      "ask": "/approve (recommended　) · /reject",
+      "recommendation": "approve"
     }
   ]
 }

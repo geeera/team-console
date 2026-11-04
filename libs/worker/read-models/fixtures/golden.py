@@ -71,14 +71,24 @@ _PARENTHESISED = re.compile(r"\(([^()]*)\)")
 _CODE_SPAN = re.compile(r"`([^`]*)`")
 _STARTS_WITH_COMMAND = re.compile(r"^/(?:approve|reject|no-go|go)(?![A-Za-z0-9_-])")
 _RECOMMEND_WORD = re.compile(r"recommend|рекоменд")
-# #250: a standalone negation word with only punctuation, brackets or markup before "recommend…", and a negation
-# word in an earlier comma part of the marker group; the explicit edges keep Python and JavaScript in step.
-_NEGATION_WORDS = r"(?:(?<![a-z0-9\u0400-\u04ff])(?:not|never|no|against|не|нет|против)|n['’]t)"
+_WORD_CHARS = r"a-z0-9\u0400-\u04ff"
+_NEGATION_WORDS = r"(?:(?<![" + _WORD_CHARS + r"])(?:not|never|no|against|не|нет|против)|n['’]t)"
 _NEGATED = re.compile(
     r"(?:not|n['’]t|never|no)[\s-]*recommend|recommend[A-Za-z0-9_]*\s+against|не[\s-]*рекоменд|нет,?\s*рекоменд"
-    r"|" + _NEGATION_WORDS + r"[^a-z0-9\u0400-\u04ff]*(?:recommend|рекоменд)"
+    r"|" + _NEGATION_WORDS + r"[^" + _WORD_CHARS + r"]*(?:recommend|рекоменд)"
 )
-_NEGATION_WORD = re.compile(_NEGATION_WORDS + r"(?![a-z0-9\u0400-\u04ff])")
+_NEGATION_WORD = re.compile(_NEGATION_WORDS + r"(?![" + _WORD_CHARS + r"])")
+_MARKER_QUALIFIERS = {"free", "cheap", "safe", "default", "low risk",
+                      "бесплатно", "дешево", "дёшево", "безопасно", "по умолчанию", "низкий риск"}
+_MARKUP = re.compile(r"&[#A-Za-z0-9]|<[A-Za-z/!?]|~")
+
+
+def _is_disguise_char(ch: str) -> bool:
+    """A control character, a combining mark, or a letter outside Basic Latin and Cyrillic (#250)."""
+    category = unicodedata.category(ch)
+    if category == "Cc" or category[0] == "M":
+        return True
+    return category[0] == "L" and not (ch.isascii() or "\u0400" <= ch <= "\u04ff")
 
 
 def _is_word_char(ch: str) -> bool:
@@ -122,8 +132,8 @@ def _options_of(text: str) -> list:
 
 def _markers_in(text: str) -> int:
     def is_marker(inner: str) -> bool:
-        *earlier, last = inner.split(",")
-        return last.strip() in _MARKER_WORDS and not any(_NEGATION_WORD.search(part) for part in earlier)
+        *earlier, last = [part.strip() for part in inner.split(",")]
+        return last in _MARKER_WORDS and all(p in _MARKER_QUALIFIERS and not _NEGATION_WORD.search(p) for p in earlier)
 
     return sum(1 for inner in _PARENTHESISED.findall(text) if is_marker(inner))
 
@@ -133,7 +143,8 @@ def recommendation_of(ask: str | None) -> str | None:
     if ask is None:
         return None
     text = unicodedata.normalize("NFKC", ask)
-    if any(unicodedata.category(ch) == "Cf" for ch in text) or _has_mixed_script_word(text):
+    if (any(unicodedata.category(ch) == "Cf" or _is_disguise_char(ch) for ch in text) or _MARKUP.search(text)
+            or _has_mixed_script_word(text)):
         return None
     text = _CODE_SPAN.sub(lambda m: m.group(1) if _STARTS_WITH_COMMAND.match(m.group(1).strip()) else " ", text)
     text = text.lower()
@@ -177,6 +188,27 @@ ASKS = {
         "/approve to ship (no, recommended) · /reject why",
         "/approve to ship (strongly against, recommended) · /reject why",
         "/approve to ship — not ~~(recommended)~~ · /reject why",
+        # PR #427 SECURITY review: markup, other scripts, marks, controls and unknown qualifiers count for nothing.
+        "/approve (&#110;ot, recommended) · /reject",
+        "/approve (&#x6e;ot, recommended) · /reject",
+        "/approve (n&shy;ot, recommended) · /reject",
+        "/approve (n<!-- -->ot, recommended) · /reject",
+        "/approve to ship <!-- (recommended) --> · /reject why",
+        "/approve to ship ~~(recommended)~~ · /reject why",
+        "/approve to ship ~(recommended)~ · /reject why",
+        "/approve (n\u03bft, recommended) · /reject",
+        "/approve (\u0578ot, recommended) · /reject",
+        "/approve (n\u0332ot, recommended) · /reject",
+        "/approve (\u0144ot, recommended) · /reject",
+        "/approve (n\u00f6t, recommended) · /reject",
+        "/approve (cannot, recommended) · /reject",
+        "/approve (without, recommended) · /reject",
+        "/approve (deprecated, recommended) · /reject",
+        "/approve (if x, recommended) · /reject",
+        # Plain approvals: a negation word only inside a longer word, and the neutral qualifiers.
+        "/approve to add a casino game (recommended) · /reject why",
+        "/approve to tie the knot (recommended) · /reject why",
+        "/approve to keep it (low risk, recommended) · /reject why",
     ],
     "ru": [
         "/approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять",
@@ -190,8 +222,30 @@ ASKS = {
         "/approve to ship — не (рекомендую) · /reject why",
         "/approve to ship (не, recommended) · /reject why",
         "/approve — выпускать (против, рекомендую) · /reject почему",
+        "/approve (нельзя, рекомендую) · /reject почему",
+        "/approve (без, рекомендую) · /reject почему",
+        "/approve (никогда, рекомендую) · /reject почему",
+        "/approve — мне кажется, так лучше (рекомендую) · /reject почему",
+        "/approve — оставить (по умолчанию, рекомендую) · /reject почему",
     ],
 }
+
+
+# Lines `owner.question_body` would rewrite (it turns control characters into spaces), so they reach the rule only
+# as raw answer lines: the parity of `recommendation_of` itself on them (PR #427 SECURITY review, findings 4–5).
+RAW_ASKS = [
+    "/approve (n\x00ot, recommended) · /reject",
+    "/approve (n\x07ot, recommended) · /reject",
+    "/approve (recommended\x1f) · /reject",
+    "/approve (recommended\x1c) · /reject",
+    "/approve (recommended\x85) · /reject",
+    "/approve (recommended\u2028) · /reject",
+    "/approve (recommended\u3000) · /reject",
+]
+
+
+def raw_recommendations() -> list:
+    return [{"ask": ask, "recommendation": recommendation_of(ask)} for ask in RAW_ASKS]
 
 
 def recommendations() -> list:
@@ -275,8 +329,8 @@ def main() -> None:
         print(os.path.basename(path), len(expected["inbox"]["items"]), "inbox items")
     cases = recommendations()
     with open(os.path.join(HERE, "recommendations.expected.json"), "w", encoding="utf-8") as f:
-        json.dump({"generatedBy": "python3 libs/worker/read-models/fixtures/golden.py", "cases": cases}, f,
-                  ensure_ascii=False, indent=1)
+        json.dump({"generatedBy": "python3 libs/worker/read-models/fixtures/golden.py", "cases": cases,
+                   "rawCases": raw_recommendations()}, f, ensure_ascii=False, indent=1)
         f.write("\n")
     print("recommendations.expected.json", len(cases), "questions")
 

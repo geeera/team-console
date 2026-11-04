@@ -1,10 +1,5 @@
 import { env } from 'cloudflare:test';
-import {
-  ANSWER_REPLAY_WINDOW_MS,
-  BATCH_ANSWER_MAX,
-  isProblemDetails,
-  problemSlugOf,
-} from '@shared/contracts';
+import { ANSWER_REPLAY_WINDOW_MS, BATCH_ANSWER_MAX, isProblemDetails, problemSlugOf } from '@shared/contracts';
 import { answerComment } from '@shared/owner-grammar';
 import type { FakeGitHubOAuth } from '@worker/github/testing';
 import { ApiGitHub } from '../github';
@@ -73,6 +68,11 @@ const NEXT_TO_MARKER: readonly string[] = [
   '/approve to ship (strongly against, recommended) · /reject why',
   '/approve — выпускать (категорически против, рекомендую) · /reject почему',
   '/approve to ship — not ~~(recommended)~~ · /reject why',
+  // PR #427 SECURITY review: markup, another script and an unknown qualifier.
+  '/approve (&#110;ot, recommended) · /reject',
+  '/approve to ship <!-- (recommended) --> · /reject why',
+  '/approve (n\u03bft, recommended) · /reject',
+  '/approve (cannot, recommended) · /reject',
 ];
 
 const ISSUES: Record<number, Issue> = {

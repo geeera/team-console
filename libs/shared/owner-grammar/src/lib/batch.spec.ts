@@ -65,6 +65,51 @@ const PLAIN_APPROVALS: readonly (readonly [string, string])[] = [
   ['/reject why — the annotation stays (recommended) · /approve to drop it', 'reject'],
 ];
 
+/** The SECURITY review of PR #427 (findings 1–6): disguises a denylist cannot follow; golden.py sends them too. */
+const ALLOWLIST_REVIEW: readonly (readonly [string, string])[] = [
+  ['/approve (&#110;ot, recommended) · /reject', 'a decimal entity'],
+  ['/approve (&#x6e;ot, recommended) · /reject', 'a hex entity'],
+  ['/approve (n&#111;t, recommended) · /reject', 'an entity inside the word'],
+  ['/approve (n&shy;ot, recommended) · /reject', 'a named entity'],
+  ['/approve (n<!-- -->ot, recommended) · /reject', 'an HTML comment inside the word'],
+  ['/approve to ship <!-- (recommended) --> · /reject why', 'a marker hidden in an HTML comment'],
+  ['/approve to ship <span hidden>(recommended)</span> · /reject why', 'a marker in a tag'],
+  ['/approve to ship ~~(recommended)~~ · /reject why', 'a struck-through marker'],
+  ['/approve to ship ~(recommended)~ · /reject why', 'a single-tilde strikethrough'],
+  ['/approve (n\u03bft, recommended) · /reject', 'a Greek omicron'],
+  ['/approve (\u0578ot, recommended) · /reject', 'an Armenian vo'],
+  ['/approve (\u1d0eot, recommended) · /reject', 'a small-capital reversed n'],
+  ['/approve (n\u0332ot, recommended) · /reject', 'a combining underline'],
+  ['/approve (\u1e47ot, recommended) · /reject', 'n with a dot below'],
+  ['/approve (n\u01ebt, recommended) · /reject', 'o with an ogonek'],
+  ['/approve (\u0144ot, recommended) · /reject', 'n with an acute'],
+  ['/approve (n\u00f6t, recommended) · /reject', 'o with a diaeresis'],
+  ['/approve (cannot, recommended) · /reject', 'cannot'],
+  ['/approve (dont, recommended) · /reject', 'dont'],
+  ['/approve (without, recommended) · /reject', 'without'],
+  ['/approve (avoid, recommended) · /reject', 'avoid'],
+  ['/approve (nope, recommended) · /reject', 'nope'],
+  ['/approve (neither, recommended) · /reject', 'neither'],
+  ['/approve (deprecated, recommended) · /reject', 'deprecated'],
+  ['/approve (if x, recommended) · /reject', 'a condition'],
+  ['/approve (maybe, recommended) · /reject', 'maybe'],
+  ['/approve (нельзя, рекомендую) · /reject', 'нельзя'],
+  ['/approve (без, рекомендую) · /reject', 'без'],
+  ['/approve (никогда, рекомендую) · /reject', 'никогда'],
+  ['/approve (n\u0000ot, recommended) · /reject', 'a NUL inside the word'],
+  ['/approve (n\u0007ot, recommended) · /reject', 'a BEL inside the word'],
+  ['/approve (recommended\u001f) · /reject', 'a unit separator Python strips'],
+  ['/approve (recommended\u001c) · /reject', 'a file separator Python strips'],
+];
+
+/** The neutral qualifiers the marker group allows before the marker. */
+const QUALIFIED_APPROVALS: readonly string[] = [
+  '/approve to use Cloudflare R2 (Free, recommended) · /reject why',
+  '/approve to keep it (low risk, recommended) · /reject why',
+  '/approve — оставить (по умолчанию, рекомендую) · /reject почему',
+  '/approve — взять (дёшево, рекомендуем) · /reject почему',
+];
+
 describe('recommendationOf', () => {
   it.each([
     ['/approve to use R2 (recommended) · /reject why to keep SeaweedFS', 'approve'],
@@ -121,6 +166,14 @@ describe('recommendationOf', () => {
 
   it.each(PLAIN_APPROVALS)('still reads %s → %s (#250)', (ask, expected) => {
     expect(recommendationOf(ask)).toBe(expected);
+  });
+
+  it.each(ALLOWLIST_REVIEW)('%s → null (%s, PR #427 SECURITY review)', (ask) => {
+    expect(recommendationOf(ask)).toBeNull();
+  });
+
+  it.each(QUALIFIED_APPROVALS)('accepts a neutral qualifier before the marker: %s', (ask) => {
+    expect(recommendationOf(ask)).toBe('approve');
   });
 
   it('accepts the marker after NFKC (a full-width parenthesis is a parenthesis)', () => {
