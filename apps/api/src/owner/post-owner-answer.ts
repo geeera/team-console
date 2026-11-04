@@ -12,8 +12,6 @@ import { isNotWritten, sha256Hex } from './owner-writer';
  * token, and the record. The caller has already decided that the issue takes this answer and composed `body`.
  */
 
-/** A repeat of the same answer within this window is answered from `own_writes`, not posted again (decision 19). */
-export const REPLAY_WINDOW_MS = ANSWER_REPLAY_WINDOW_MS;
 // Two taps that arrive together: the second waits this long for the first to be recorded, then gives up.
 const CLAIM_WAIT_ATTEMPTS = 5;
 const CLAIM_WAIT_MS = 200;
@@ -103,7 +101,7 @@ export async function postOwnerAnswer(
       target.registered,
       target.number,
       bodyHash,
-      new Date(github.now() - REPLAY_WINDOW_MS).toISOString(),
+      new Date(github.now() - ANSWER_REPLAY_WINDOW_MS).toISOString(),
     );
   const replay = (write: OwnWrite): OwnerAnswerOutcome => {
     logger.info('owner answer replayed', fields);
@@ -114,7 +112,7 @@ export async function postOwnerAnswer(
   if (previous !== null) {
     return replay(previous);
   }
-  if (!(await writes.claim(bodyHash, github.now(), REPLAY_WINDOW_MS))) {
+  if (!(await writes.claim(bodyHash, github.now(), ANSWER_REPLAY_WINDOW_MS))) {
     for (let attempt = 0; attempt < CLAIM_WAIT_ATTEMPTS; attempt += 1) {
       await github.pause(CLAIM_WAIT_MS);
       const settled = await recent();

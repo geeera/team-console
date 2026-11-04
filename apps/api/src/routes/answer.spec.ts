@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test';
-import { isProblemDetails, problemSlugOf } from '@shared/contracts';
+import { ANSWER_REPLAY_WINDOW_MS, isProblemDetails, problemSlugOf } from '@shared/contracts';
 import { answerComment } from '@shared/owner-grammar';
 import type { FakeGitHubOAuth } from '@worker/github/testing';
 import { ApiGitHub } from '../github';
@@ -24,7 +24,6 @@ import {
   type StubGitHub,
 } from '../testing/github-kit';
 import { OWNER, fakeGitHub, parsedLogs, resetOwnerConnections, seedConnection } from '../testing/owner-kit';
-import { REPLAY_WINDOW_MS } from './answer';
 
 // #10: POST /api/v1/projects/:slug/issues/:number/answer, end to end through the Worker. The fake GitHub holds the
 // owner's tokens (tagged TESTSENTINEL) and takes the comments; the stub answers the installation-token reads.
@@ -459,7 +458,7 @@ describe('a refused owner token, a timeout, a 5xx', () => {
     expect(repeat.headers.get('retry-after')).toBe('2');
     expect(posts(h)).toHaveLength(1);
 
-    h.clock += REPLAY_WINDOW_MS + 1_000;
+    h.clock += ANSWER_REPLAY_WINDOW_MS + 1_000;
     expect((await answer(h, 7, { command: 'approve', ownerSaid: 'да' })).status).toBe(201);
     expect(posts(h)).toHaveLength(2);
   });

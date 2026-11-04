@@ -11,6 +11,7 @@ export type { ConsolePauseRecord } from './lib/commands';
 export {
   PLUGIN_COUNTS_OWNER_PAUSE,
   consolePauseHolds,
+  ownerResumeAtOf,
   pauseMarkerAuthorsOf,
   pausedSinceOf,
   resumedAfterPause,

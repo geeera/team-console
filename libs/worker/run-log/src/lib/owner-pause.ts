@@ -1,3 +1,4 @@
+import { commandLines } from '@shared/owner-grammar';
 import { OWNER_RESUME, PAUSE_MARKER, type RunLogComment } from './run-state';
 
 /**
@@ -52,6 +53,25 @@ export function pausedSinceOf(comments: readonly RunLogComment[], authors: reado
       counted.has(comment.author.toLowerCase()) &&
       (comment.body.includes(PAUSE_MARKER) || comment.body.includes(OWNER_RESUME)) &&
       at > latest
+    ) {
+      latest = at;
+    }
+  }
+  return latest;
+}
+
+/**
+ * When the owner last wrote `/resume` among `comments` (already screened as unedited), as `commands.parse` reads it:
+ * the owner's own comments only, never the team's bot; `''` without one.
+ */
+export function ownerResumeAtOf(comments: readonly RunLogComment[], owner: string): string {
+  let latest = '';
+  for (const comment of comments) {
+    const at = comment.createdAt ?? '';
+    if (
+      sameLogin(comment.author, owner) &&
+      at > latest &&
+      commandLines(comment.body).some((line) => line.command === 'resume')
     ) {
       latest = at;
     }

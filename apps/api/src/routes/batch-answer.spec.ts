@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test';
-import { BATCH_ANSWER_MAX, isProblemDetails, problemSlugOf } from '@shared/contracts';
+import { ANSWER_REPLAY_WINDOW_MS, BATCH_ANSWER_MAX, isProblemDetails, problemSlugOf } from '@shared/contracts';
 import { answerComment } from '@shared/owner-grammar';
 import type { FakeGitHubOAuth } from '@worker/github/testing';
 import { ApiGitHub } from '../github';
@@ -22,7 +22,6 @@ import {
   type StubGitHub,
 } from '../testing/github-kit';
 import { OWNER, fakeGitHub, parsedLogs, resetOwnerConnections, seedConnection } from '../testing/owner-kit';
-import { REPLAY_WINDOW_MS } from '../owner/post-owner-answer';
 import { BATCH_GITHUB_BUDGET } from './batch-answer';
 
 // #220: POST /api/v1/projects/:slug/answers/batch, end to end through the Worker. The fake GitHub holds the owner's
@@ -393,7 +392,7 @@ describe('one item failing', () => {
     const held = await resultsOf(await batch(h, { numbers: [2], ownerSaid: SAID }));
     expect(slugOf(held[0])).toBe('answer-in-progress');
 
-    h.clock += REPLAY_WINDOW_MS + 1_000;
+    h.clock += ANSWER_REPLAY_WINDOW_MS + 1_000;
     const retried = await resultsOf(await batch(h, { numbers: [2], ownerSaid: SAID }));
     expect(retried[0]).toMatchObject({ number: 2, ok: true, replayed: false });
     expect(h.fake.comments.map((comment) => comment.issue)).toEqual([1, 2]);

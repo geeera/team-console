@@ -8,6 +8,7 @@ import { PAUSED_LABEL, pauseCommentBody, resumeCommentBody } from './commands';
 import {
   PLUGIN_COUNTS_OWNER_PAUSE,
   consolePauseHolds,
+  ownerResumeAtOf,
   pauseMarkerAuthorsOf,
   pausedSinceOf,
   resumedAfterPause,
@@ -133,13 +134,7 @@ describe.each(ownerPause.cases)('#141 reproduction, $name: `runlog start slot-de
   const comments = (row.comments as RawComment[]).map(commentOf);
   const { trusted } = partitionTeamComments(comments, [row.logAuthor, row.owner, ...row.bots]);
   const pausedSince = pausedSinceOf(trusted, pauseMarkerAuthorsOf(row.logAuthor, row.owner, row.bots));
-  // The owner's `/resume` comments (`commands.parse`); the fixture writes the command as the whole body.
-  const ownerResumeAt = trusted
-    .filter((comment) => comment.author === row.owner && comment.body.trim() === '/resume')
-    .reduce(
-      (latest, comment) => ((comment.createdAt ?? '') > latest ? (comment.createdAt ?? '') : latest),
-      '',
-    );
+  const ownerResumeAt = ownerResumeAtOf(trusted, row.owner);
 
   it('the console pause guard agrees with the plugin (else: flip PLUGIN_COUNTS_OWNER_PAUSE in owner-pause.ts)', () => {
     expect({ PLUGIN_COUNTS_OWNER_PAUSE, holds: consolePauseHolds(row.logAuthor, row.owner) }).toEqual({

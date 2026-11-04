@@ -1,7 +1,7 @@
 import { workspaceRoot } from '@nx/devkit';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { unstable_readConfig } from 'wrangler';
+import { DEPLOY_ENVIRONMENTS, readWorkerConfig, type DeployEnvironment } from './support/wrangler-config';
 
 /**
  * ADR 0003 verification map, decisions 1 and 7 (#9): the PAT is gone from the api Worker, the api Worker
@@ -9,7 +9,7 @@ import { unstable_readConfig } from 'wrangler';
  * and deploy.yml hands the app's three vars to the api Worker of every environment.
  */
 
-const ENVIRONMENTS = ['dev', 'stage', 'production'] as const;
+const ENVIRONMENTS = DEPLOY_ENVIRONMENTS;
 const APP_VARS = ['GITHUB_APP_ID', 'GITHUB_APP_CLIENT_ID', 'OWNER_GITHUB_LOGIN'] as const;
 const APP_SECRETS = ['GITHUB_APP_PRIVATE_KEY', 'GITHUB_APP_CLIENT_SECRET', 'TOKEN_ENCRYPTION_KEY'] as const;
 const HOOKS_FORBIDDEN = /GITHUB_APP_|GITHUB_TOKEN|TOKEN_ENCRYPTION_KEY/;
@@ -31,12 +31,8 @@ function filesUnder(relativeDir: string): string[] {
   return walk(root);
 }
 
-function apiVars(env: (typeof ENVIRONMENTS)[number]): Record<string, unknown> {
-  const config = unstable_readConfig(
-    { config: join(workspaceRoot, 'apps/api/wrangler.jsonc'), env },
-    { hideWarnings: true },
-  ) as { vars?: Record<string, unknown> };
-  return config.vars ?? {};
+function apiVars(env: DeployEnvironment): Readonly<Record<string, unknown>> {
+  return readWorkerConfig('api', env).vars;
 }
 
 /** The `- name: <title>` step of deploy.yml up to the next step. */
