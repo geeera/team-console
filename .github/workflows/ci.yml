@@ -147,16 +147,14 @@ jobs:
         timeout-minutes: 11
         run: |
           set -euo pipefail
-          attempt_install() {
-            if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
-              npx playwright install-deps ${{ matrix.browser }}
-            else
-              npx playwright install --with-deps ${{ matrix.browser }}
-            fi
-          }
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            cmd=(npx playwright install-deps ${{ matrix.browser }})
+          else
+            cmd=(npx playwright install --with-deps ${{ matrix.browser }})
+          fi
           for attempt in 1 2; do
             echo "::group::browser install attempt ${attempt}"
-            if timeout 5m bash -c "$(declare -f attempt_install); attempt_install"; then
+            if timeout 5m "${cmd[@]}"; then
               echo "::endgroup::"
               exit 0
             fi
