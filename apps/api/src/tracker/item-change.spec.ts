@@ -32,7 +32,7 @@ describe('planItemUpdate', () => {
       plan: {
         patch: { title: 'New' },
         flags: { add: [], remove: [] },
-        event: { kind: 'edited', before: { title: 'Title' }, after: { title: 'New' } },
+        events: [{ kind: 'edited', before: { title: 'Title' }, after: { title: 'New' } }],
         transition: {
           before: { status: 'in-progress', flags: ['needs-design'], closed: false },
           after: { status: 'in-progress', flags: ['needs-design'], closed: false },
@@ -55,10 +55,37 @@ describe('planItemUpdate', () => {
 
   it('names a single status, flag or sprint change by its own event kind', () => {
     const kindOf = (outcome: ReturnType<typeof planItemUpdate>) =>
-      outcome.kind === 'change' ? outcome.plan.event.kind : outcome.kind;
+      outcome.kind === 'change' ? outcome.plan.events.map((event) => event.kind).join(',') : outcome.kind;
     expect(kindOf(planItemUpdate(ITEM, { status: 'qa' }, undefined, AT))).toBe('status');
     expect(kindOf(planItemUpdate(ITEM, { addLabels: ['security'] }, undefined, AT))).toBe('labels');
     expect(kindOf(planItemUpdate(ITEM, { sprint: 4 }, { id: 40, number: 4 }, AT))).toBe('sprint');
+  });
+
+  it('keeps the status in its own event when a change also edits other fields', () => {
+    const outcome = planItemUpdate(
+      ITEM,
+      { title: 'New', status: 'qa', addLabels: ['security'] },
+      undefined,
+      AT,
+    );
+    expect(outcome).toMatchObject({
+      kind: 'change',
+      plan: {
+        events: [
+          { kind: 'status', before: { status: 'in-progress' }, after: { status: 'qa' } },
+          {
+            kind: 'edited',
+            before: { title: 'Title', flags: ['needs-design'] },
+            after: { title: 'New', flags: ['needs-design', 'security'] },
+          },
+        ],
+      },
+    });
+    const closing = planItemUpdate(ITEM, { status: 'done', sprint: 4 }, { id: 40, number: 4 }, AT);
+    expect(closing.kind === 'change' ? closing.plan.events.map((event) => event.kind) : []).toEqual([
+      'closed',
+      'sprint',
+    ]);
   });
 
   it('closes on done and reopens when the status leaves done', () => {
@@ -67,14 +94,14 @@ describe('planItemUpdate', () => {
       kind: 'change',
       plan: {
         patch: { status: 'done', closedAt: AT, closedReason: 'done' },
-        event: { kind: 'closed' },
+        events: [{ kind: 'closed' }],
         transition: { after: { closed: true }, changesOtherFields: false },
       },
     });
     const done = { ...ITEM, status: 'done' as const, closedAt: AT, closedReason: 'done' as const };
     expect(planItemUpdate(done, { status: 'qa' }, undefined, AT)).toMatchObject({
       kind: 'change',
-      plan: { patch: { status: 'qa', closedAt: null, closedReason: null }, event: { kind: 'reopened' } },
+      plan: { patch: { status: 'qa', closedAt: null, closedReason: null }, events: [{ kind: 'reopened' }] },
     });
   });
 
@@ -82,12 +109,12 @@ describe('planItemUpdate', () => {
     const closing = planItemUpdate(ITEM, { state: 'closed', closedReason: 'not-planned' }, undefined, AT);
     expect(closing).toMatchObject({
       kind: 'change',
-      plan: { patch: { closedAt: AT, closedReason: 'not-planned' }, event: { kind: 'closed' } },
+      plan: { patch: { closedAt: AT, closedReason: 'not-planned' }, events: [{ kind: 'closed' }] },
     });
     const closed = { ...ITEM, closedAt: AT, closedReason: 'not-planned' as const };
     expect(planItemUpdate(closed, { state: 'open' }, undefined, AT)).toMatchObject({
       kind: 'change',
-      plan: { patch: { closedAt: null, closedReason: null }, event: { kind: 'reopened' } },
+      plan: { patch: { closedAt: null, closedReason: null }, events: [{ kind: 'reopened' }] },
     });
   });
 

@@ -88,6 +88,24 @@ describe('CommentsRepo', () => {
     });
   });
 
+  it('refuses INSERT OR REPLACE / REPLACE INTO over a comment, keeping plain inserts working', async () => {
+    const itemId = await seedItem();
+    const id = await comments().create(itemId, { kind: 'comment', body: 'as typed' }, OWNER_ACTOR, AT);
+    for (const verb of ['INSERT OR REPLACE INTO', 'REPLACE INTO']) {
+      await expect(
+        env.DB.prepare(
+          `${verb} comments (id, item_id, kind, author_kind, author, body, created_at) VALUES (?1, ?2, 'comment', 'owner', 'owner', 'rewritten', ?3)`,
+        )
+          .bind(id, itemId, AT)
+          .run(),
+      ).rejects.toThrow(/append-only/);
+    }
+    await expect(comments().find(itemId, id)).resolves.toMatchObject({ body: 'as typed' });
+    await expect(comments().create(itemId, { kind: 'comment', body: 'next' }, OWNER_ACTOR, AT)).resolves.toBe(
+      id + 1,
+    );
+  });
+
   it('refuses an empty body and an unknown kind', async () => {
     const itemId = await seedItem();
     await expect(comments().create(itemId, { kind: 'comment', body: '' }, OWNER_ACTOR, AT)).rejects.toThrow(

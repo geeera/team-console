@@ -47,9 +47,24 @@ describe('IdempotencyKeysRepo', () => {
     expect(await keys().claim('k-4', 'new', NOW + DAY, HOLD)).toEqual({ state: 'claimed' });
   });
 
+  it('lets only the same request take over a pending claim whose hold ran out', async () => {
+    await keys().claim('k-5', 'h', NOW, HOLD);
+    expect(await keys().claim('k-5', 'other', NOW + HOLD + 1, HOLD)).toEqual({ state: 'mismatch' });
+    // Another key's claim prunes expired rows, but never someone's pending claim inside its lifetime.
+    await keys().claim('k-5-other', 'h', NOW + HOLD + 2, HOLD);
+    expect(await keys().claim('k-5', 'other', NOW + HOLD + 3, HOLD)).toEqual({ state: 'mismatch' });
+    expect(await keys().claim('k-5', 'h', NOW + HOLD + 4, HOLD)).toEqual({ state: 'claimed' });
+  });
+
+  it('frees an abandoned pending claim for any request after 24 hours', async () => {
+    await keys().claim('k-6', 'h', NOW, HOLD);
+    expect(await keys().claim('k-6', 'other', NOW + DAY, HOLD)).toEqual({ state: 'claimed' });
+  });
+
   it('prunes expired keys as it claims', async () => {
     await keys().claim('k-old', 'h', NOW, HOLD);
-    await keys().claim('k-new', 'h', NOW + HOLD + 1, HOLD);
+    await complete('k-old', 'h', '1');
+    await keys().claim('k-new', 'h', NOW + DAY + 1, HOLD);
     await expect(
       env.DB.prepare("SELECT key FROM idempotency_keys WHERE key = 'k-old'").first(),
     ).resolves.toBeNull();

@@ -209,7 +209,7 @@ replay answers the resource with `Idempotent-Replayed: true`, 409 `idempotency-i
 `auth/policy.ts` (`transitionRefusal`: owner-semantic status/flags — approving, `design:approved`, `owner:*`, closing
 `team:demo` — are 403 `transition-owner-only` for any job, `workflow-change` owner/`security` only, removing
 `release-blocker`/`security` needs `security`/`pm`, `dev*`/`qa` only the status of a held item; the owner may make every
-change) → one D1 batch with its `item_events` row (`tracker/item-change.ts` plans the columns and the before/after of the
+change) → one D1 batch with its `item_events` rows, one per kind of change — the lifecycle (`status|closed|reopened`) apart from `labels|sprint|edited` (`tracker/item-change.ts` plans the columns and the before/after of the
 changed fields). Lists: `?after=&limit≤100`, items also `status|kind|severity|tier|sprint(=N|none)|label|state`. DTOs
 `ItemDto`, `TrackerSprintDto`, `CommentDto`, `ItemEventDto`, `LabelDto` (separate from the GitHub-backed board DTOs).
 Specs seed a fresh project per case (`testing/tracker-kit.ts`); `createApiApp({ trackerPolicyActorOf })` is the specs'

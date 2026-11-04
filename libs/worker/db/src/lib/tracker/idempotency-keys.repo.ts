@@ -28,6 +28,11 @@ interface KeyRow {
 
 /** Expired keys removed per claim; enough to keep the table small without a scheduled job. */
 const PRUNE_BATCH = 20;
+/**
+ * How long a pending claim (a write that never completed) still belongs to its own request: a different request
+ * under the key cannot take it over before then, however long ago its hold ran out (ADR 0006: keys live 24 h).
+ */
+const PENDING_KEY_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
 /**
  * `Idempotency-Key` for tracker writes (ADR 0006: 24 h). `claim` before the write; the write's batch carries
@@ -37,23 +42,32 @@ const PRUNE_BATCH = 20;
 export class IdempotencyKeysRepo {
   constructor(private readonly db: D1Database) {}
 
+  /**
+   * A completed key is free again once it expired (24 h). A pending claim whose hold ran out is taken over only by
+   * the same request (a retry after a crash); a different request under that key stays `mismatch`, so two writes
+   * never run under one key.
+   */
   async claim(key: string, requestHash: string, nowMs: number, holdMs: number): Promise<IdempotencyClaim> {
+    const abandonedBefore = new Date(nowMs - PENDING_KEY_LIFETIME_MS).toISOString();
     const [, inserted] = await this.db.batch([
       this.db
         .prepare(
           `DELETE FROM idempotency_keys WHERE key IN
-             (SELECT key FROM idempotency_keys WHERE expires_at <= ?1 AND key <> ?2 LIMIT ${String(PRUNE_BATCH)})`,
+             (SELECT key FROM idempotency_keys WHERE expires_at <= ?1 AND key <> ?2
+                AND (status IS NOT NULL OR created_at <= ?3) LIMIT ${String(PRUNE_BATCH)})`,
         )
-        .bind(nowMs, key),
+        .bind(nowMs, key, abandonedBefore),
       this.db
         .prepare(
           `INSERT INTO idempotency_keys (key, request_hash, status, result_kind, result_ref, created_at, expires_at)
            VALUES (?1, ?2, NULL, NULL, NULL, ?3, ?4)
            ON CONFLICT (key) DO UPDATE SET request_hash = excluded.request_hash, status = NULL, result_kind = NULL,
              result_ref = NULL, created_at = excluded.created_at, expires_at = excluded.expires_at
-           WHERE idempotency_keys.expires_at <= ?5`,
+           WHERE idempotency_keys.expires_at <= ?5
+             AND (idempotency_keys.status IS NOT NULL OR idempotency_keys.request_hash = excluded.request_hash
+                  OR idempotency_keys.created_at <= ?6)`,
         )
-        .bind(key, requestHash, new Date(nowMs).toISOString(), nowMs + holdMs, nowMs),
+        .bind(key, requestHash, new Date(nowMs).toISOString(), nowMs + holdMs, nowMs, abandonedBefore),
     ]);
     if (inserted?.meta.changes === 1) {
       return { state: 'claimed' };

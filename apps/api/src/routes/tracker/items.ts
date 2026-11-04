@@ -327,18 +327,25 @@ export function createTrackerItemRoutes(
           if (denied !== null) {
             return denied;
           }
-          const { patch, flags, event } = outcome.plan;
+          const { patch, flags, events } = outcome.plan;
           if (
-            !(await new ItemsRepo(c.env.DB).update(item.id, expectedVersion, patch, flags, actor, event, at, [
-              done,
-            ]))
+            !(await new ItemsRepo(c.env.DB).update(
+              item.id,
+              expectedVersion,
+              patch,
+              flags,
+              actor,
+              events,
+              at,
+              [done],
+            ))
           ) {
             return stale();
           }
           c.get('logger').info('tracker item changed', {
             slug: project.slug,
             number: item.number,
-            kind: event.kind,
+            kinds: events.map((event) => event.kind).join(','),
           });
           return itemResponse(c, project, item.number, 200);
         },

@@ -2,11 +2,15 @@ import type { ItemEventKind, UpdateItemInput } from '@shared/contracts';
 import type { FlagsPatch, ItemColumnsPatch, ItemRecord, NewItemEvent } from '@worker/db';
 import type { ItemTransition } from '../auth/policy';
 
-/** What a validated `PATCH` does to an item: the columns, the flags, the audit row and what the policy judges. */
+/** What a validated `PATCH` does to an item: the columns, the flags, the audit rows and what the policy judges. */
 export interface ItemUpdatePlan {
   readonly patch: ItemColumnsPatch;
   readonly flags: FlagsPatch;
-  readonly event: NewItemEvent;
+  /**
+   * One row per kind of change: the lifecycle (`status`, `closed`, `reopened`) first, then the rest (`labels`,
+   * `sprint`, `edited`), so the status history stays queryable when a PATCH also edits the title.
+   */
+  readonly events: readonly NewItemEvent[];
   readonly transition: ItemTransition;
 }
 
@@ -95,7 +99,7 @@ export function planItemUpdate(
     plan: {
       patch: patch as ItemColumnsPatch,
       flags: { add, remove },
-      event: { kind: eventKindOf(changed, wasClosed, isClosed), before, after },
+      events: eventsOf(before, after, wasClosed, isClosed),
       transition: {
         before: { status: item.status, flags: item.flags, closed: wasClosed },
         after: { status, flags, closed: isClosed },
@@ -105,18 +109,42 @@ export function planItemUpdate(
   };
 }
 
-function eventKindOf(changed: readonly string[], wasClosed: boolean, isClosed: boolean): ItemEventKind {
-  if (!wasClosed && isClosed) {
-    return 'closed';
+const LIFECYCLE_FIELDS: readonly string[] = ['status', 'closedReason'];
+
+function eventsOf(
+  before: Readonly<Record<string, unknown>>,
+  after: Readonly<Record<string, unknown>>,
+  wasClosed: boolean,
+  isClosed: boolean,
+): NewItemEvent[] {
+  const part = (fields: readonly string[]) => ({
+    before: Object.fromEntries(fields.map((field) => [field, before[field]])),
+    after: Object.fromEntries(fields.map((field) => [field, after[field]])),
+  });
+  const changed = Object.keys(after);
+  const lifecycle = changed.filter((field) => LIFECYCLE_FIELDS.includes(field));
+  const rest = changed.filter((field) => !LIFECYCLE_FIELDS.includes(field));
+  const events: NewItemEvent[] = [];
+  if (lifecycle.length > 0) {
+    const kind: ItemEventKind =
+      !wasClosed && isClosed
+        ? 'closed'
+        : wasClosed && !isClosed
+          ? 'reopened'
+          : lifecycle.includes('status')
+            ? 'status'
+            : 'closed';
+    events.push({ kind, ...part(lifecycle) });
   }
-  if (wasClosed && !isClosed) {
-    return 'reopened';
+  if (rest.length > 0) {
+    const [only] = rest;
+    const kind: ItemEventKind =
+      rest.length === 1 && only === 'flags'
+        ? 'labels'
+        : rest.length === 1 && only === 'sprint'
+          ? 'sprint'
+          : 'edited';
+    events.push({ kind, ...part(rest) });
   }
-  if (changed.length === 1) {
-    const [only] = changed;
-    if (only === 'status') return 'status';
-    if (only === 'flags') return 'labels';
-    if (only === 'sprint') return 'sprint';
-  }
-  return 'edited';
+  return events;
 }

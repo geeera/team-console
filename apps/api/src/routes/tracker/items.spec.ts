@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:test';
 import type { ItemDto, ItemEventListDto, ItemListDto } from '@shared/contracts';
 import {
   countRows,
@@ -14,6 +15,11 @@ import {
 // #410: the items of the console's own tracker over the API — success and the relevant 4xx for every route.
 
 const itemsPath = (slug: string): string => `/api/v1/projects/${slug}/items`;
+
+async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
 
 async function createItem(project: SeededProject, body: Record<string, unknown> = {}): Promise<ItemDto> {
   const response = await send('POST', itemsPath(project.slug), { title: 'Item', kind: 'feature', ...body });
@@ -109,6 +115,30 @@ describe('POST /projects/:slug/items', () => {
       expect(response.status).toBe(400);
       expect(await slugOf(response)).toBe('idempotency-key');
     }
+    expect(await countRows('items', project.slug)).toBe(1);
+  });
+
+  it('never lets a different request take over a pending claim whose hold ran out', async () => {
+    const project = await seedTrackerProject();
+    const key = newKey();
+    const path = itemsPath(project.slug);
+    const raw = JSON.stringify({ title: 'First', kind: 'bug' });
+    const hash = await sha256Hex(['POST', path, '', raw].join('\n'));
+    // A first write whose 30 s hold has run out while it still writes.
+    await env.DB.prepare(
+      'INSERT INTO idempotency_keys (key, request_hash, created_at, expires_at) VALUES (?1, ?2, ?3, ?4)',
+    )
+      .bind(key, hash, new Date().toISOString(), Date.now() - 1)
+      .run();
+
+    const other = await send('POST', path, { title: 'Second', kind: 'bug' }, { key });
+    expect(other.status).toBe(422);
+    expect(await slugOf(other)).toBe('idempotency-key-reused');
+    expect(await countRows('items', project.slug)).toBe(0);
+
+    // The same request (a retry) may take it over.
+    const retry = await send('POST', path, raw, { key });
+    expect(retry.status).toBe(201);
     expect(await countRows('items', project.slug)).toBe(1);
   });
 
@@ -274,11 +304,30 @@ describe('PATCH /projects/:slug/items/:key', () => {
     const events = (await (
       await send('GET', `${itemsPath(project.slug)}/${item.key}/events`)
     ).json()) as ItemEventListDto;
-    expect(events.events.at(-1)).toMatchObject({
-      kind: 'edited',
-      before: { status: 'proposed', flags: ['needs-design'] },
-      after: { status: 'approved', flags: ['design:approved'] },
-    });
+    expect(events.events.slice(-2)).toMatchObject([
+      { kind: 'status', before: { status: 'proposed' }, after: { status: 'approved' } },
+      { kind: 'labels', before: { flags: ['needs-design'] }, after: { flags: ['design:approved'] } },
+    ]);
+  });
+
+  it('writes a status event beside the edit when one PATCH changes the title and the status', async () => {
+    const project = await seedTrackerProject();
+    const item = await createItem(project);
+    const path = `${itemsPath(project.slug)}/${item.key}`;
+    const response = await send(
+      'PATCH',
+      path,
+      { title: 'Renamed', status: 'in-progress' },
+      { ifMatch: '"1"' },
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ title: 'Renamed', status: 'in-progress', version: 2 });
+    const { events } = (await (await send('GET', `${path}/events`)).json()) as ItemEventListDto;
+    expect(events.map((event) => [event.kind, event.before, event.after])).toEqual([
+      ['created', null, expect.anything()],
+      ['status', { status: 'proposed' }, { status: 'in-progress' }],
+      ['edited', { title: 'Item' }, { title: 'Renamed' }],
+    ]);
   });
 
   it('closes on done, reopens on another status, and closes as not planned', async () => {
