@@ -1,5 +1,10 @@
 import { env } from 'cloudflare:test';
-import { ANSWER_REPLAY_WINDOW_MS, BATCH_ANSWER_MAX, isProblemDetails, problemSlugOf } from '@shared/contracts';
+import {
+  ANSWER_REPLAY_WINDOW_MS,
+  BATCH_ANSWER_MAX,
+  isProblemDetails,
+  problemSlugOf,
+} from '@shared/contracts';
 import { answerComment } from '@shared/owner-grammar';
 import type { FakeGitHubOAuth } from '@worker/github/testing';
 import { ApiGitHub } from '../github';
@@ -56,6 +61,20 @@ const SECOND_REVIEW: readonly string[] = [
   '/approve to ship it (not re\u00adcommended) · /reject why',
 ];
 
+/** #250: a negation next to the marker or in an earlier part of the marker group (batch.spec.ts holds them too). */
+const NEXT_TO_MARKER: readonly string[] = [
+  '/approve to ship — not (recommended) · /reject why',
+  '/approve to ship — NOT (recommended) · /reject why',
+  '/approve to ship — never (recommended) · /reject why',
+  "/approve to ship — don't (recommended) · /reject why",
+  '/approve to ship — не (рекомендую) · /reject почему',
+  '/approve to ship (no, recommended) · /reject why',
+  '/approve to ship (не, recommended) · /reject why',
+  '/approve to ship (strongly against, recommended) · /reject why',
+  '/approve — выпускать (категорически против, рекомендую) · /reject почему',
+  '/approve to ship — not ~~(recommended)~~ · /reject why',
+];
+
 const ISSUES: Record<number, Issue> = {
   // Safe: open scope questions from the team that recommend approving.
   1: { labels: SCOPE, ask: APPROVE },
@@ -83,6 +102,12 @@ const ISSUES: Record<number, Issue> = {
   ...Object.fromEntries(
     SECOND_REVIEW.map((ask, index): [number, Issue] => [40 + index, { labels: SCOPE, ask }]),
   ),
+  ...Object.fromEntries(
+    NEXT_TO_MARKER.map((ask, index): [number, Issue] => [60 + index, { labels: SCOPE, ask }]),
+  ),
+  // #250: a negation word only inside a longer word still recommends approving.
+  4: { labels: SCOPE, ask: '/approve to add a casino game (recommended) · /reject why' },
+  5: { labels: SCOPE, ask: '/approve — мне кажется, так лучше (рекомендую) · /reject почему' },
   // Not waiting, or not a question at all.
   30: { state: 'closed', labels: SCOPE, ask: APPROVE },
   31: { labels: ['needs:owner', 'kind:chore'], ask: 'Напиши «сделал»' },
@@ -329,6 +354,7 @@ describe('the server re-checks every item; the client list is never trusted', ()
     ['no-recommendation', 24],
     ['no-recommendation', 25],
     ...SECOND_REVIEW.map((_, index) => ['no-recommendation', 40 + index] as const),
+    ...NEXT_TO_MARKER.map((_, index) => ['no-recommendation', 60 + index] as const),
   ] as const)(
     'refuses a %s item (#%i) with 422 batch-not-safe and writes the rest',
     async (reason, number) => {
@@ -343,6 +369,19 @@ describe('the server re-checks every item; the client list is never trusted', ()
       expect(h.fake.comments.map((comment) => comment.issue)).toEqual([1]);
     },
   );
+
+  it('still writes a plain approval whose only negation word sits inside a longer word (#250)', async () => {
+    const h = harness();
+    await seedConnection(h.fake);
+
+    const results = await resultsOf(await batch(h, { numbers: [4, 5], ownerSaid: SAID }));
+
+    expect(results).toMatchObject([
+      { number: 4, ok: true },
+      { number: 5, ok: true },
+    ]);
+    expect(h.fake.comments.map((comment) => comment.issue)).toEqual([4, 5]);
+  });
 
   it.each([
     ['issue-closed', 30, 409],

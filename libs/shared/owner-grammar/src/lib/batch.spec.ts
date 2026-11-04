@@ -35,6 +35,36 @@ const SECOND_REVIEW: readonly (readonly [string, string])[] = [
   ['/approve to ship it (recommended\u200b) · /reject why', 'a zero-width space in the marker'],
 ];
 
+/**
+ * #250: a negation next to the marker, or in an earlier comma part of the marker group (batch-answer.spec.ts and
+ * golden.py send them too). Every one returned approve before the fix.
+ */
+const NEXT_TO_MARKER: readonly (readonly [string, string])[] = [
+  ['/approve to ship — not (recommended) · /reject why', 'not before the marker'],
+  ['/approve to ship — NOT (recommended) · /reject why', 'NOT in capitals'],
+  ['/approve to ship — never (recommended) · /reject why', 'never before the marker'],
+  ["/approve to ship — don't (recommended) · /reject why", "n't before the marker"],
+  ['/approve to ship — не (рекомендую) · /reject почему', 'не before the marker'],
+  ['/approve to ship — нет: (рекомендуем) · /reject почему', 'нет and a colon before the marker'],
+  ['/approve to ship (no, recommended) · /reject why', 'no as an earlier part'],
+  ['/approve to ship (не, recommended) · /reject why', 'не as an earlier part'],
+  ['/approve to ship (strongly against, recommended) · /reject why', 'against in an earlier part'],
+  ['/approve — выпускать (категорически против, рекомендую) · /reject почему', 'против in an earlier part'],
+  ['/approve to ship — not ~~(recommended)~~ · /reject why', 'struck-through marker'],
+  ['/approve to ship — not «(рекомендую)» · /reject почему', 'quoted marker'],
+];
+
+/** Plain approvals that hold a negation word only inside a longer word: they still enter the batch (#250). */
+const PLAIN_APPROVALS: readonly (readonly [string, string])[] = [
+  ['/approve to add a casino game (recommended) · /reject why', 'approve'],
+  ['/approve to tie the knot (recommended) · /reject why', 'approve'],
+  ['/approve to ship it now (recommended) · /reject why', 'approve'],
+  ['/approve to keep notes (free, recommended) · /reject why', 'approve'],
+  ['/approve — мне кажется, так лучше (рекомендую) · /reject почему', 'approve'],
+  ['/approve — внедрение по плану (бесплатно, рекомендуем) · /reject почему', 'approve'],
+  ['/reject why — the annotation stays (recommended) · /approve to drop it', 'reject'],
+];
+
 describe('recommendationOf', () => {
   it.each([
     ['/approve to use R2 (recommended) · /reject why to keep SeaweedFS', 'approve'],
@@ -83,6 +113,14 @@ describe('recommendationOf', () => {
   // #233 SECURITY review, round 2: only the plugin's marker counts, and a disguised line counts for nothing.
   it.each(SECOND_REVIEW)('%s → null (%s)', (ask) => {
     expect(recommendationOf(ask)).toBeNull();
+  });
+
+  it.each(NEXT_TO_MARKER)('%s → null (%s, #250)', (ask) => {
+    expect(recommendationOf(ask)).toBeNull();
+  });
+
+  it.each(PLAIN_APPROVALS)('still reads %s → %s (#250)', (ask, expected) => {
+    expect(recommendationOf(ask)).toBe(expected);
   });
 
   it('accepts the marker after NFKC (a full-width parenthesis is a parenthesis)', () => {

@@ -74,9 +74,17 @@ const PARENTHESISED = /\(([^()]*)\)/g;
 const CODE_SPAN = /`([^`]*)`/g;
 const STARTS_WITH_COMMAND = /^\/(?:approve|reject|no-go|go)(?![A-Za-z0-9_-])/;
 const RECOMMEND_WORD = /recommend|рекоменд/g;
-// Defence in depth behind the allowlist: a line that negates a recommendation anywhere recommends nothing.
+// Defence in depth behind the allowlist: a line that negates a recommendation anywhere recommends nothing. The
+// second half is #250: a negation word standing on its own with only punctuation, brackets or markup between it and
+// "recommend…" ("— not (recommended)", "not ~~(recommended)~~", "(no, recommended)"). Fails closed: any character
+// that is not a Latin or Cyrillic letter or a digit may sit between the two. The edge is explicit (not `\b`) so
+// Python and JavaScript agree on it.
 const NEGATED =
-  /(?:not|n['’]t|never|no)[\s-]*recommend|recommend\w*\s+against|не[\s-]*рекоменд|нет,?\s*рекоменд/;
+  /(?:not|n['’]t|never|no)[\s-]*recommend|recommend\w*\s+against|не[\s-]*рекоменд|нет,?\s*рекоменд|(?:(?<![a-z0-9\u0400-\u04ff])(?:not|never|no|against|не|нет|против)|n['’]t)[^a-z0-9\u0400-\u04ff]*(?:recommend|рекоменд)/;
+// #250: a marker group whose earlier comma part holds a negation ("(no, recommended)", "(strongly against,
+// recommended)") is not a recommendation.
+const NEGATION_WORD =
+  /(?:(?<![a-z0-9\u0400-\u04ff])(?:not|never|no|against|не|нет|против)|n['’]t)(?![a-z0-9\u0400-\u04ff])/;
 const FORMAT_CHARACTER = /\p{Cf}/u;
 const WORD = /[\p{L}\p{M}\p{N}]+/gu;
 const LATIN = /\p{Script=Latin}/u;
@@ -130,8 +138,9 @@ function optionsOf(text: string): string[] {
 
 function markersIn(text: string): number {
   return [...text.matchAll(PARENTHESISED)].filter(([, inner]) => {
-    const last = (inner ?? '').split(',').pop()?.trim() ?? '';
-    return MARKER_WORDS.has(last);
+    const parts = (inner ?? '').split(',');
+    const last = parts.pop()?.trim() ?? '';
+    return MARKER_WORDS.has(last) && !parts.some((part) => NEGATION_WORD.test(part));
   }).length;
 }
 
@@ -141,8 +150,9 @@ function markersIn(text: string): number {
  * hyphen…) or a word that mixes Latin and Cyrillic. Code spans other than a command are dropped. A recommendation is
  * only the plugin's marker — a parenthesised group whose last part is exactly "recommended", "рекомендую" or
  * "рекомендуем" (any case) — and it counts only when the line holds exactly one such marker, it sits in exactly one
- * option, that option names exactly one command, no other "recommend…"/"рекоменд…" appears on the line, and nothing
- * negates a recommendation. Anything else is `null`: the owner answers it one by one.
+ * option, that option names exactly one command, no other "recommend…"/"рекоменд…" appears on the line, no earlier
+ * part of the marker group holds a negation word, and nothing negates a recommendation — also with only punctuation
+ * or brackets between the negation and the word (#250). Anything else is `null`: the owner answers it one by one.
  */
 export function recommendationOf(ask: string | null): TeamRecommendation | null {
   if (ask === null) {

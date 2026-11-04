@@ -71,9 +71,14 @@ _PARENTHESISED = re.compile(r"\(([^()]*)\)")
 _CODE_SPAN = re.compile(r"`([^`]*)`")
 _STARTS_WITH_COMMAND = re.compile(r"^/(?:approve|reject|no-go|go)(?![A-Za-z0-9_-])")
 _RECOMMEND_WORD = re.compile(r"recommend|рекоменд")
+# #250: a standalone negation word with only punctuation, brackets or markup before "recommend…", and a negation
+# word in an earlier comma part of the marker group; the explicit edges keep Python and JavaScript in step.
+_NEGATION_WORDS = r"(?:(?<![a-z0-9\u0400-\u04ff])(?:not|never|no|against|не|нет|против)|n['’]t)"
 _NEGATED = re.compile(
     r"(?:not|n['’]t|never|no)[\s-]*recommend|recommend[A-Za-z0-9_]*\s+against|не[\s-]*рекоменд|нет,?\s*рекоменд"
+    r"|" + _NEGATION_WORDS + r"[^a-z0-9\u0400-\u04ff]*(?:recommend|рекоменд)"
 )
+_NEGATION_WORD = re.compile(_NEGATION_WORDS + r"(?![a-z0-9\u0400-\u04ff])")
 
 
 def _is_word_char(ch: str) -> bool:
@@ -116,7 +121,11 @@ def _options_of(text: str) -> list:
 
 
 def _markers_in(text: str) -> int:
-    return sum(1 for inner in _PARENTHESISED.findall(text) if inner.split(",")[-1].strip() in _MARKER_WORDS)
+    def is_marker(inner: str) -> bool:
+        *earlier, last = inner.split(",")
+        return last.strip() in _MARKER_WORDS and not any(_NEGATION_WORD.search(part) for part in earlier)
+
+    return sum(1 for inner in _PARENTHESISED.findall(text) if is_marker(inner))
 
 
 def recommendation_of(ask: str | None) -> str | None:
@@ -161,6 +170,13 @@ ASKS = {
         "/approve to ship it (not​ recommended) · /reject why",
         "/approve to ship it (not re­commended) · /reject why",
         "We recommend: /approve the plan",
+        # #250: a negation next to the marker, or in an earlier part of the marker group.
+        "/approve to ship — not (recommended) · /reject why",
+        "/approve to ship — NOT (recommended) · /reject why",
+        "/approve to ship — never (recommended) · /reject why",
+        "/approve to ship (no, recommended) · /reject why",
+        "/approve to ship (strongly against, recommended) · /reject why",
+        "/approve to ship — not ~~(recommended)~~ · /reject why",
     ],
     "ru": [
         "/approve — начинаем разработку по плану к демо 16 октября (рекомендую) · /reject что поменять",
@@ -170,6 +186,10 @@ ASKS = {
         "`/approve` — не рекомендую; `/reject почему` — оставить как есть",
         "/approve — нет, рекомендую отклонить · /reject почему",
         "/approve — сделать (не-рекомендуемо) · /reject почему",
+        # #250: a negation next to the marker, or in an earlier part of the marker group.
+        "/approve to ship — не (рекомендую) · /reject why",
+        "/approve to ship (не, recommended) · /reject why",
+        "/approve — выпускать (против, рекомендую) · /reject почему",
     ],
 }
 
