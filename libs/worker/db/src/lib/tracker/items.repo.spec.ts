@@ -106,7 +106,7 @@ describe('ItemsRepo', () => {
         {},
         { add: ['security'], remove: ['needs-design'] },
         OWNER_ACTOR,
-        event,
+        [event],
         LATER,
       ),
     ).toBe(true);
@@ -128,7 +128,7 @@ describe('ItemsRepo', () => {
     const item = await items().findByNumber(slug, number);
     const id = item?.id ?? 0;
     const event = { kind: 'edited' as const, before: { title: 'Item' }, after: { title: 'B' } };
-    await items().update(id, 1, { title: 'A' }, { add: [], remove: [] }, OWNER_ACTOR, event, LATER);
+    await items().update(id, 1, { title: 'A' }, { add: [], remove: [] }, OWNER_ACTOR, [event], LATER);
     expect(
       await items().update(
         id,
@@ -136,7 +136,7 @@ describe('ItemsRepo', () => {
         { title: 'B' },
         { add: ['security'], remove: [] },
         OWNER_ACTOR,
-        event,
+        [event],
         LATER,
       ),
     ).toBe(false);
@@ -146,6 +146,37 @@ describe('ItemsRepo', () => {
       flags: [],
     });
     expect(await events().list(id, 0, 10)).toHaveLength(2);
+  });
+
+  it('rethrows a failure at the current version instead of calling it stale', async () => {
+    const { slug } = await seedTrackerProject();
+    const number = await create(slug);
+    const id = (await items().findByNumber(slug, number))?.id ?? 0;
+    const event = { kind: 'labels' as const, before: { flags: [] }, after: { flags: ['no-such-label'] } };
+    await expect(
+      items().update(id, 1, {}, { add: ['no-such-label'], remove: [] }, OWNER_ACTOR, [event], LATER),
+    ).rejects.toThrow(/FOREIGN KEY/);
+    await expect(items().findByNumber(slug, number)).resolves.toMatchObject({ version: 1 });
+  });
+
+  it('writes one event per kind of change in the same batch', async () => {
+    const { slug } = await seedTrackerProject();
+    const number = await create(slug);
+    const id = (await items().findByNumber(slug, number))?.id ?? 0;
+    const status = { kind: 'status' as const, before: { status: 'proposed' }, after: { status: 'approved' } };
+    const edited = { kind: 'edited' as const, before: { title: 'Item' }, after: { title: 'New' } };
+    expect(
+      await items().update(
+        id,
+        1,
+        { status: 'approved', title: 'New' },
+        { add: [], remove: [] },
+        OWNER_ACTOR,
+        [status, edited],
+        LATER,
+      ),
+    ).toBe(true);
+    expect((await events().list(id, 0, 10)).map((row) => row.kind)).toEqual(['created', 'status', 'edited']);
   });
 
   it('closes as done with the status and refuses a done item that is open', async () => {
@@ -160,7 +191,7 @@ describe('ItemsRepo', () => {
         { status: 'done' },
         { add: [], remove: [] },
         OWNER_ACTOR,
-        event,
+        [event],
         LATER,
       ),
     ).rejects.toThrow(/CHECK constraint failed/);
@@ -171,7 +202,7 @@ describe('ItemsRepo', () => {
         { status: 'done', closedAt: LATER, closedReason: 'done' },
         { add: [], remove: [] },
         OWNER_ACTOR,
-        event,
+        [event],
         LATER,
       ),
     ).toBe(true);
@@ -206,6 +237,45 @@ describe('ItemsRepo', () => {
     await expect(numbersOf({ state: 'all', sprint: 'none' })).resolves.toEqual([a, c]);
     await expect(numbersOf({ state: 'all', flag: 'security' })).resolves.toEqual([b]);
     await expect(numbersOf({ state: 'all', status: 'done' })).resolves.toEqual([c]);
+  });
+
+  it('refuses INSERT OR REPLACE / REPLACE INTO over an item or an event, keeping plain inserts working', async () => {
+    const { slug } = await seedTrackerProject();
+    const number = await create(slug);
+    const item = await items().findByNumber(slug, number);
+    const id = item?.id ?? 0;
+    const [event] = await events().list(id, 0, 1);
+    for (const verb of ['INSERT OR REPLACE INTO', 'REPLACE INTO']) {
+      await expect(
+        env.DB.prepare(
+          `${verb} items (id, project_slug, number, kind, status, title, created_by_kind, created_by, created_at, updated_at)
+           VALUES (?1, ?2, ?3, 'bug', 'proposed', 'Replaced', 'owner', 'owner', ?4, ?4)`,
+        )
+          .bind(id, slug, number, AT)
+          .run(),
+      ).rejects.toThrow(/never deleted/);
+      // Through the UNIQUE (project_slug, number) with a fresh id.
+      await expect(
+        env.DB.prepare(
+          `${verb} items (project_slug, number, kind, status, title, created_by_kind, created_by, created_at, updated_at)
+           VALUES (?1, ?2, 'bug', 'proposed', 'Replaced', 'owner', 'owner', ?3, ?3)`,
+        )
+          .bind(slug, number, AT)
+          .run(),
+      ).rejects.toThrow(/never deleted/);
+      await expect(
+        env.DB.prepare(
+          `${verb} item_events (id, item_id, at, actor_kind, actor, kind) VALUES (?1, ?2, ?3, 'owner', 'x', 'edited')`,
+        )
+          .bind(event?.id ?? 0, id, AT)
+          .run(),
+      ).rejects.toThrow(/append-only/);
+    }
+    await expect(items().findByNumber(slug, number)).resolves.toMatchObject({
+      title: `Item ${String(number)}`,
+    });
+    expect(await events().list(id, 0, 10)).toEqual([event]);
+    await expect(create(slug)).resolves.toBe(number + 1);
   });
 
   it('never deletes an item, and its events can be neither changed nor deleted', async () => {

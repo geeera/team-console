@@ -154,6 +154,30 @@ BEFORE DELETE ON items
 BEGIN
   SELECT RAISE(ABORT, 'items are closed, never deleted');
 END;
+-- `INSERT OR REPLACE` / `REPLACE INTO` deletes the conflicting row without firing DELETE triggers (recursive
+-- triggers are off), so an insert that would replace a row is refused here. A plain insert never conflicts on these
+-- keys, so it is unaffected; an explicit duplicate key now fails here instead of on the constraint.
+CREATE TRIGGER comments_never_replaced
+BEFORE INSERT ON comments
+WHEN EXISTS (SELECT 1 FROM comments WHERE id = NEW.id)
+BEGIN
+  SELECT RAISE(ABORT, 'comments are append-only');
+END;
+CREATE TRIGGER item_events_never_replaced
+BEFORE INSERT ON item_events
+WHEN EXISTS (SELECT 1 FROM item_events WHERE id = NEW.id)
+BEGIN
+  SELECT RAISE(ABORT, 'item_events are append-only');
+END;
+-- Items also replace through their UNIQUE (project_slug, number).
+CREATE TRIGGER items_never_replaced
+BEFORE INSERT ON items
+WHEN EXISTS (
+  SELECT 1 FROM items WHERE id = NEW.id OR (project_slug = NEW.project_slug AND number = NEW.number)
+)
+BEGIN
+  SELECT RAISE(ABORT, 'items are closed, never deleted');
+END;
 
 -- `Idempotency-Key` on tracker writes (ADR 0006 "API and authorisation", 24 h; the `own_write_claims` pattern). A
 -- pending row (`status` NULL) is a claim held for a short while; the write's own batch completes it, so a key is done

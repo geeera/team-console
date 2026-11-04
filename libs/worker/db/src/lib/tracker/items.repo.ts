@@ -7,7 +7,6 @@ import type {
   ItemStatus,
   ItemTier,
 } from '@shared/contracts';
-import { isConstraintError } from './constraint-error';
 import { itemEventStatement, type NewItemEvent, type TrackerActor } from './item-events.repo';
 
 /** An item without its body: what lists carry. */
@@ -156,9 +155,6 @@ const PATCH_COLUMNS: readonly (readonly [keyof ItemColumnsPatch, string])[] = [
   ['closedReason', 'closed_reason'],
 ];
 
-/** The marker of a stale `expectedVersion`: the update sets `version` to NULL, which NOT NULL refuses. */
-const VERSION_MISMATCH = 'NOT NULL constraint failed: items.version';
-
 /**
  * A project's items (migration 0013). Every write is one D1 batch — the item, its flag rows, its `item_events` row
  * and the caller's `extra` (the idempotency key's completion) — so a change and its audit land together or not at
@@ -280,7 +276,7 @@ export class ItemsRepo {
 
   /**
    * Applies `patch` and `flags` to item `id` if it is still at `expectedVersion`, bumping the version and writing
-   * `event`. `false` on a stale version: the batch then fails as a whole and nothing is written (412 `item-version`).
+   * `events` (one per kind of change, so the status history stays queryable on its own). `false` on a stale version: the batch then fails as a whole and nothing is written (412 `item-version`).
    */
   async update(
     id: number,
@@ -288,7 +284,7 @@ export class ItemsRepo {
     patch: ItemColumnsPatch,
     flags: FlagsPatch,
     actor: TrackerActor,
-    event: NewItemEvent,
+    events: readonly NewItemEvent[],
     at: string,
     extra: readonly D1PreparedStatement[] = [],
   ): Promise<boolean> {
@@ -321,15 +317,25 @@ export class ItemsRepo {
             )
             .bind(id, flag),
         ),
-        itemEventStatement(this.db, { id }, actor, event, at),
+        ...events.map((event) => itemEventStatement(this.db, { id }, actor, event, at)),
         ...extra,
       ]);
       return true;
     } catch (error: unknown) {
-      if (isConstraintError(error, VERSION_MISMATCH)) {
+      // A stale version makes the first statement set `version` to NULL, which NOT NULL refuses, so the whole batch
+      // rolls back. Which failure it was is decided by the row, not by the driver's message: the version moved on.
+      if ((await this.versionOf(id)) !== expectedVersion) {
         return false;
       }
       throw error;
     }
+  }
+
+  private async versionOf(id: number): Promise<number | null> {
+    const row = await this.db
+      .prepare('SELECT version FROM items WHERE id = ?1')
+      .bind(id)
+      .first<{ version: number }>();
+    return row?.version ?? null;
   }
 }
