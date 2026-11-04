@@ -1,4 +1,5 @@
 import type { BatchLeftOutReason, OwnerCategory, Section, TeamRecommendation } from '@shared/contracts';
+import { pyStrip } from './python-text';
 
 /**
  * What a batch of approvals may contain (#220, architect note on #29 §4). One rule for the read models, the client's
@@ -74,10 +75,42 @@ const PARENTHESISED = /\(([^()]*)\)/g;
 const CODE_SPAN = /`([^`]*)`/g;
 const STARTS_WITH_COMMAND = /^\/(?:approve|reject|no-go|go)(?![A-Za-z0-9_-])/;
 const RECOMMEND_WORD = /recommend|рекоменд/g;
-// Defence in depth behind the allowlist: a line that negates a recommendation anywhere recommends nothing.
-const NEGATED =
-  /(?:not|n['’]t|never|no)[\s-]*recommend|recommend\w*\s+against|не[\s-]*рекоменд|нет,?\s*рекоменд/;
+// A word edge spelled out (not `\b`) so Python and JavaScript agree on it; golden.py mirrors these sources.
+const WORD_CHARS = 'a-z0-9\\u0400-\\u04ff';
+const NEGATION_WORDS = `(?:(?<![${WORD_CHARS}])(?:not|never|no|against|не|нет|против)|n['’]t)`;
+// Defence in depth behind the allowlists: a line that negates a recommendation anywhere recommends nothing. The
+// first alternatives are the original #233 guard (they also catch a negation glued to a longer word, "cannot
+// recommend"); the last is #250: a standalone negation word with only punctuation, brackets or markup before
+// "recommend…" ("— not (recommended)", "not ~~(recommended)~~").
+const NEGATED = new RegExp(
+  "(?:not|n['’]t|never|no)[\\s-]*recommend|recommend\\w*\\s+against|не[\\s-]*рекоменд|нет,?\\s*рекоменд" +
+    `|${NEGATION_WORDS}[^${WORD_CHARS}]*(?:recommend|рекоменд)`,
+);
+const NEGATION_WORD = new RegExp(`${NEGATION_WORDS}(?![${WORD_CHARS}])`);
+// #250: what may stand before the marker in its group ("(free, recommended)"). The plugin writes only "free"; any
+// other qualifier ("no", "strongly against", "deprecated", "if x") means the owner answers it one by one.
+const MARKER_QUALIFIERS: ReadonlySet<string> = new Set([
+  'free',
+  'cheap',
+  'safe',
+  'default',
+  'low risk',
+  'бесплатно',
+  'дешево',
+  'дёшево',
+  'безопасно',
+  'по умолчанию',
+  'низкий риск',
+]);
 const FORMAT_CHARACTER = /\p{Cf}/u;
+// #250 SECURITY review: GitHub renders the ask line as Markdown, so an entity (`&#110;ot` reads "not"), an HTML
+// comment, a tag or a strikethrough (`~`, `~~`) can show the owner other words than the guard reads. The plugin's ask
+// lines hold none of them.
+const MARKUP = /&[#A-Za-z0-9]|<[A-Za-z/!?]|~/;
+// Letters outside Basic Latin and Cyrillic (Greek ο, Armenian ո, ǹ, ö…), combining marks and control characters
+// are disguises the denylists cannot follow; owner lines are Russian or English.
+const FOREIGN_LETTER = /(?![A-Za-z\u0400-\u04ff])\p{L}/u;
+const MARK_OR_CONTROL = /[\p{M}\p{Cc}]/u;
 const WORD = /[\p{L}\p{M}\p{N}]+/gu;
 const LATIN = /\p{Script=Latin}/u;
 const CYRILLIC = /\p{Script=Cyrillic}/u;
@@ -130,26 +163,38 @@ function optionsOf(text: string): string[] {
 
 function markersIn(text: string): number {
   return [...text.matchAll(PARENTHESISED)].filter(([, inner]) => {
-    const last = (inner ?? '').split(',').pop()?.trim() ?? '';
-    return MARKER_WORDS.has(last);
+    const parts = (inner ?? '').split(',').map(pyStrip);
+    const last = parts.pop() ?? '';
+    return (
+      MARKER_WORDS.has(last) &&
+      parts.every((part) => MARKER_QUALIFIERS.has(part) && !NEGATION_WORD.test(part))
+    );
   }).length;
 }
 
 /**
  * The team's recommendation in an answer line (`askOf`), as an allowlist that fails closed (#233 SECURITY review).
  * The line is NFKC-normalised and refused outright if it holds a format character (`\p{Cf}`: zero-width space, soft
- * hyphen…) or a word that mixes Latin and Cyrillic. Code spans other than a command are dropped. A recommendation is
+ * hyphen…), a control character or combining mark, a letter outside Basic Latin and Cyrillic, an HTML entity, comment
+ * or tag, or a word that mixes Latin and Cyrillic. Code spans other than a command are dropped. A recommendation is
  * only the plugin's marker — a parenthesised group whose last part is exactly "recommended", "рекомендую" or
  * "рекомендуем" (any case) — and it counts only when the line holds exactly one such marker, it sits in exactly one
- * option, that option names exactly one command, no other "recommend…"/"рекоменд…" appears on the line, and nothing
- * negates a recommendation. Anything else is `null`: the owner answers it one by one.
+ * option, that option names exactly one command, no other "recommend…"/"рекоменд…" appears on the line, every
+ * earlier part of the marker group is a known neutral qualifier ("free"), and nothing negates a recommendation — also
+ * with only punctuation or brackets between the negation and the word (#250). Anything else is `null`: the owner answers it one by one.
  */
 export function recommendationOf(ask: string | null): TeamRecommendation | null {
   if (ask === null) {
     return null;
   }
   const normalised = ask.normalize('NFKC');
-  if (FORMAT_CHARACTER.test(normalised) || hasMixedScriptWord(normalised)) {
+  if (
+    FORMAT_CHARACTER.test(normalised) ||
+    MARK_OR_CONTROL.test(normalised) ||
+    FOREIGN_LETTER.test(normalised) ||
+    MARKUP.test(normalised) ||
+    hasMixedScriptWord(normalised)
+  ) {
     return null;
   }
   const text = withoutCodeSpans(normalised).toLowerCase();
