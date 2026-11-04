@@ -1,0 +1,124 @@
+:host {
+  display: block;
+}
+
+:host + :host {
+  border-top: var(--border-w) solid var(--border);
+}
+
+/* A missing row carries an ochre rule as well as its word and icon, never colour alone. */
+:host(.row--missing) {
+  box-shadow: inset var(--space-1) 0 0 var(--warning-text);
+}
+
+.row__link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-h-touch);
+  padding: var(--space-3) var(--space-4);
+  color: var(--text);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+.row__link:hover {
+  background: var(--hover);
+}
+
+.row__link:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: calc(-1 * var(--focus-w));
+}
+
+.row__link[aria-current='page'] {
+  background: var(--accent-soft);
+}
+
+.row__text {
+  display: grid;
+  flex: 1;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* A secret's name is never truncated: a cut name is useless (UX spec §5). */
+.row__name {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+}
+
+.row__purpose {
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-2);
+}
+
+.row__code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+}
+
+.row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+}
+
+.row__chevron {
+  flex: none;
+  color: var(--text-3);
+}
+
+.row__status,
+.row__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+}
+
+.row__status[data-status='set'] {
+  background: var(--success-soft);
+  color: var(--success-text);
+}
+
+.row__status[data-status='missing'] {
+  background: var(--warning-soft);
+  color: var(--warning-text);
+}
+
+.row__status[data-status='unseen'] {
+  background: var(--bg-sunken);
+  color: var(--text-2);
+}
+
+.row__tag {
+  border: var(--border-w) solid var(--border);
+  color: var(--text-2);
+  font-weight: var(--fw-regular);
+}
+
+.row__fix {
+  display: grid;
+  gap: var(--space-1);
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.row__fix-label {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row__link {
+    transition: none;
+  }
+}

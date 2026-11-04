@@ -124,18 +124,3 @@
   font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);
 }
-
-.step__code code {
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--r-sm);
-  background: var(--bg-sunken);
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-  word-break: break-all;
-}
-
-.step__copy-failed {
-  margin: 0;
-  font-size: var(--fs-xs);
-  color: var(--danger-text);
-}

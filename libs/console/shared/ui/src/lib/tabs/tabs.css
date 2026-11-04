@@ -40,6 +40,35 @@
     color var(--dur-fast) var(--ease-standard);
 }
 
+/* The optional second line ("this console"): smaller, under the label, the dot marks it beside the word. */
+.tc-tabs__note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-tight);
+}
+
+.tc-tabs__note-dot {
+  width: var(--dot-size);
+  height: var(--dot-size);
+  border-radius: var(--r-round);
+  background: var(--success-text);
+}
+
+.tc-tabs__tab:has(.tc-tabs__note) {
+  display: grid;
+  align-content: center;
+  padding-block: var(--space-1);
+}
+
+:host(.tc-tabs--dense) .tc-tabs__tab {
+  padding: 0 var(--space-1);
+  font-size: var(--fs-xs);
+}
+
 .tc-tabs__tab:first-child {
   border-left: 0;
 }

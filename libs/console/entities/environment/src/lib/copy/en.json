@@ -1,0 +1,142 @@
+{
+  "entry": {
+    "section": "Environment",
+    "row": "Environment setup",
+    "sub": "{{env}} · secrets and variables: what is set and how to set the rest",
+    "checking": "Checking…",
+    "missing": "Missing: {{n}}",
+    "ok": "All set",
+    "unknown": "Not checked"
+  },
+  "title": "Environment setup",
+  "lead": "Which secrets and variables are set, and how to set the missing ones. The console never shows or keeps their values.",
+  "crumb": "Settings",
+  "tabs": "Environments",
+  "tab": { "this": "this console" },
+  "checkingSr": "Checking the environment…",
+  "sum": {
+    "missing": {
+      "one": "{{n}} setting missing in {{env}}",
+      "few": "{{n}} settings missing in {{env}}",
+      "many": "{{n}} settings missing in {{env}}",
+      "other": "{{n}} settings missing in {{env}}"
+    },
+    "missingBody": "Set them with one command on your computer, in the repository folder — it asks only for what is missing:",
+    "ok": "Everything visible from here is set in {{env}}",
+    "unseen": {
+      "one": "The console can't see {{n}} more setting from here — setup checks it:",
+      "few": "The console can't see {{n}} more settings from here — setup checks them:",
+      "many": "The console can't see {{n}} more settings from here — setup checks them:",
+      "other": "The console can't see {{n}} more settings from here — setup checks them:"
+    },
+    "other": "This is the {{this}} console. What is set in {{env}} shows in the {{env}} console, or with a command on your computer:",
+    "otherUnknown": "This console can't see {{env}}. A command on your computer shows what is set there:",
+    "local": "These values live only on your computer — the console can't see them. To check:",
+    "checkedAt": "Checked at {{time}}",
+    "recheck": "Check again",
+    "rechecking": "Checking…",
+    "jump": "Go to the first missing one",
+    "copySetAria": "Copy the setup command for {{env}}",
+    "copyCheckAria": "Copy the check command for {{env}}"
+  },
+  "group": {
+    "api": { "title": "Console Worker (api)", "hint": "The console checks these itself." },
+    "github-vars": {
+      "title": "GitHub environment variables",
+      "hint": "Checked on the Worker: the value reached it with the last deploy."
+    },
+    "projects": { "title": "Projects", "hint": "Each project has its own routine tokens." },
+    "hooks": {
+      "title": "Webhook Worker (hooks)",
+      "hint": "The console can't see these — setup checks them."
+    },
+    "github-secrets": {
+      "title": "GitHub environment secrets",
+      "hint": "The console can't see these — setup checks them."
+    },
+    "repo": {
+      "title": "Repository secrets",
+      "hint": "Shared by every environment. The console can't see these — setup checks them."
+    },
+    "local": {
+      "title": "On your computer",
+      "hint": "The --var flags of a local run: nx serve api and Docker."
+    }
+  },
+  "st": {
+    "set": "Set",
+    "missing": "Missing",
+    "unseen": "Not visible here",
+    "unknown": "Status unknown",
+    "optional": "optional"
+  },
+  "row": {
+    "fix": "Set it:",
+    "check": "Check:",
+    "copyAria": "Copy the command for {{name}}",
+    "aria": "{{name}}, {{status}}"
+  },
+  "proj": {
+    "count": "{{set}} of {{total}} set",
+    "none": "No projects yet — routine tokens show up here once you add a project.",
+    "error": "Couldn't load the projects.",
+    "retry": "Try again"
+  },
+  "err": {
+    "load": {
+      "title": "Couldn't check the environment",
+      "body": "The console didn't answer. The guides still open without a check."
+    },
+    "retry": "Try again",
+    "offline": "You're offline. This is the state at {{time}}.",
+    "offline0": "You're offline — we'll check once you're back. The guides work offline.",
+    "offlineWhy": "You're offline — nothing can be checked right now.",
+    "forbidden": {
+      "title": "Only the owner can see the environment",
+      "body": "This session isn't signed in as you, so nothing is shown."
+    },
+    "rate": "Too many checks in a row. Check again after {{time}}."
+  },
+  "g": {
+    "back": "{{env}} environment",
+    "close": "Close the guide",
+    "never": "The console never shows or keeps the value — only whether it is set.",
+    "purpose": "What it's for",
+    "impact": "What breaks without it",
+    "where": "Where to get it",
+    "scopes": "Permissions to choose",
+    "rotation": "Lifetime and rotation",
+    "gotchas": "Gotchas",
+    "how": "How to set it",
+    "metaAria": "About this setting",
+    "kind": { "secret": "Secret", "variable": "Variable" },
+    "src": {
+      "owner": "You enter it",
+      "generated": "setup generates it",
+      "app": "setup creates it with the GitHub App",
+      "fixed": "Fixed in the repository"
+    },
+    "place": {
+      "api": "Console Worker (api)",
+      "github-vars": "GitHub {{env}} environment variable",
+      "projects": "Console Worker (api), project {{project}}",
+      "hooks": "Webhook Worker (hooks)",
+      "github-secrets": "GitHub {{env}} environment secret",
+      "repo": "Repository secret",
+      "local": "On your computer"
+    },
+    "neededBy": "Needed by: {{list}}",
+    "whereGen": "Nothing to get: setup generates the value itself.",
+    "whereApp": "Nothing to get by hand: setup creates this environment's GitHub App and puts the value in place. You only confirm the app on GitHub.",
+    "howBody": "On your computer, in the repository folder. setup asks for the value with hidden input and checks that it landed:",
+    "howRotate": "To replace a value that is already set — the command asks you to confirm:",
+    "howCheck": "The console can't see this value. To check whether it is set:",
+    "howThen": "If it is missing, set it:",
+    "checkedAt": "Checked at {{time}}",
+    "ruOnly": "The guide text is in Russian for now.",
+    "notFound": {
+      "title": "There's no such setting in {{env}}",
+      "body": "It may have been removed from the list, or it belongs to another environment."
+    }
+  }
+}

@@ -5,9 +5,14 @@ import { WORKSPACE_ROOT } from '../stack/local-stack';
 type Copy = (key: string, params?: Readonly<Record<string, string | number>>) => string;
 
 function catalogue(lang: 'ru' | 'en'): Copy {
-  const root: unknown = JSON.parse(
+  const main: unknown = JSON.parse(
     readFileSync(join(WORKSPACE_ROOT, `libs/console/shared/i18n/src/lib/locales/${lang}.json`), 'utf8'),
   );
+  // Environment setup's copy (#104) ships in its own lazy chunk and is merged under `env` at run time.
+  const env: unknown = JSON.parse(
+    readFileSync(join(WORKSPACE_ROOT, `libs/console/entities/environment/src/lib/copy/${lang}.json`), 'utf8'),
+  );
+  const root: unknown = { ...(main as Record<string, unknown>), env };
   return (key, params = {}) => {
     let node: unknown = root;
     for (const part of key.split('.')) {

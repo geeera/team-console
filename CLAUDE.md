@@ -306,6 +306,20 @@ production icon changes). None of those Worker paths may enter `ngsw-config.json
 install). Names live in `@shared/contracts` (`appNameOf`, `environmentLabelOf`); the app sets `<title>` and
 `apple-mobile-web-app-title` from `DeploymentStore`, the shell shows `EnvironmentMark` (`@console/entities/app-info`), and
 `PushSender` takes the `environment` and prefixes titles «[Dev] …» (`forEnvironment` in `@worker/push`).
+Environment setup (#104): `.product-team/environment-manifest.yml` (#102) reaches code as
+`@shared/environment`'s `manifest.generated.ts` (`node libs/shared/environment/scripts/generate-manifest.mjs` after
+every manifest change; `manifest.spec.ts` fails until the two agree). `environmentRowsOf(env, slugs)` expands it into
+rows by place (`api`, `github-vars`, `projects`, `hooks`, `github-secrets`, `repo`, `local`; the row id is the guide's
+URL); a row's `binding` is what that environment's own api Worker can read, null for what it cannot see.
+`GET /api/v1/environment/status` (`routes/environment.ts`, owner-only — the service identity gets 403) answers
+`{ environment, items: [{ id, status: set|missing }] }` from `environmentStatusOf` — presence only (an empty string is
+missing), never a value, length, prefix or hash; optional items (`optional: true`) never count as missing. Console:
+`@console/entities/environment` (`EnvironmentStatusStore`, in memory only; `environmentViewOf`, `entryChipOf`), the
+Settings "Environment" row, and `/settings/environment/:env[/:place/:name | /project/:slug/:name]` in
+`console-pages-settings` (lazy chunks; list-detail from a 900 px page). Its `env.*` copy is
+`entities/environment/src/lib/copy/{ru,en}.json`, merged into Transloco by the `environmentCopyReady` guard — never in
+the inline `ru.json` (#337). Kit: `CopyCode`, `Tabs [dense]`, `TabPanel [note]`. The fix command is
+`setupCommandOf` (`setup --env <env>[ --rotate| --check]`) until #103 fixes the invocation.
 PWA updates (#306): `AppUpdates` (`apps/console/src/app/app-updates.ts`, started by `provideAppUpdates()`) asks `SwUpdate`
 on start, on `visibilitychange` to visible and every 5 min while visible. A version found by a start/resume check is
 activated and reloaded at once when the page is quiet (no `Sheet.hasOpen()`, no `hasUnsavedField`, app stable within

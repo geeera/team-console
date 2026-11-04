@@ -1,0 +1,245 @@
+<div class="tc-page env" [class.env--guide-open]="screen.openId() !== null">
+  <div class="env__list subpage">
+    <nav class="subpage__crumbs" [attr.aria-label]="'settings.breadcrumb' | transloco">
+      <a routerLink="/settings"><tc-icon name="chevron-left" size="sm" />{{ 'env.crumb' | transloco }}</a>
+    </nav>
+    <div class="env__head">
+      <h1 #heading class="tc-page__title subpage__title" tabindex="-1">{{ 'env.title' | transloco }}</h1>
+      <p class="env__lead">{{ 'env.lead' | transloco }}</p>
+    </div>
+
+    @if (forbidden()) {
+    <div role="alert" data-testid="env-forbidden">
+      <tc-state-block
+        kind="error"
+        [title]="'env.err.forbidden.title' | transloco"
+        [description]="'env.err.forbidden.body' | transloco"
+      />
+    </div>
+    } @else {
+    <tc-tabs dense [label]="'env.tabs' | transloco" [selected]="env()" (selectedChange)="selectTab($event)">
+      @for (tab of environments; track tab) {
+      <tc-tab-panel
+        [key]="tab"
+        [label]="tab"
+        [note]="tab === thisEnvironment() ? ('env.tab.this' | transloco) : null"
+      >
+        @if (tab === env()) {
+        <div class="env__panel" data-testid="env-panel" [attr.aria-busy]="checking() ? 'true' : null">
+          @if (checking()) {
+          <span class="tc-sr-only" role="status">{{ 'env.checkingSr' | transloco }}</span>
+          }
+          <ng-container *ngTemplateOutlet="summary" />
+          @for (group of view().groups; track group.group) {
+          <section
+            class="env__group"
+            [attr.aria-labelledby]="'env-g-' + group.group"
+            [attr.data-group]="group.group"
+            data-testid="env-group"
+          >
+            <div class="env__group-head">
+              <h2 class="env__group-title" [id]="'env-g-' + group.group">
+                {{ 'env.group.' + group.group + '.title' | transloco }}
+              </h2>
+              <p class="env__group-hint">{{ 'env.group.' + group.group + '.hint' | transloco }}</p>
+            </div>
+            @if (group.group === 'projects') { @if (group.projects.length === 0) { @if
+            (screen.projectsFailed()) {
+            <div class="env__note env__note--error" role="alert">
+              <p>{{ 'env.proj.error' | transloco }}</p>
+              <button tc-button size="sm" type="button" (click)="retryProjects()">
+                {{ 'env.proj.retry' | transloco }}
+              </button>
+            </div>
+            } @else {
+            <p class="env__note">{{ 'env.proj.none' | transloco }}</p>
+            } } @for (block of group.projects; track block.slug) {
+            <div class="env__project" data-testid="env-project">
+              <button
+                class="env__project-head"
+                type="button"
+                [attr.aria-expanded]="isProjectOpen(block.slug, block.hasMissing)"
+                [attr.aria-controls]="'env-p-' + block.slug"
+                (click)="toggleProject(block.slug, block.hasMissing)"
+              >
+                <tc-icon
+                  name="chevron-down"
+                  size="sm"
+                  class="env__chevron"
+                  [class.env__chevron--open]="isProjectOpen(block.slug, block.hasMissing)"
+                />
+                <span class="env__project-name">{{ block.slug }}</span>
+                @if (isThisTab()) {
+                <span class="env__project-count">
+                  {{ 'env.proj.count' | transloco: { set: block.set, total: block.total } }}
+                </span>
+                }
+              </button>
+              <div
+                class="env__rows"
+                role="list"
+                [id]="'env-p-' + block.slug"
+                [hidden]="!isProjectOpen(block.slug, block.hasMissing)"
+              >
+                @for (view of block.rows; track view.row.id) {
+                <tc-environment-row
+                  [view]="view"
+                  [environment]="env()"
+                  [current]="screen.openId() === view.row.id"
+                />
+                }
+              </div>
+            </div>
+            } } @else {
+            <div class="env__rows" role="list">
+              @for (view of group.rows; track view.row.id) {
+              <tc-environment-row
+                [view]="view"
+                [environment]="env()"
+                [current]="screen.openId() === view.row.id"
+              />
+              }
+            </div>
+            }
+          </section>
+          }
+        </div>
+        }
+      </tc-tab-panel>
+      }
+    </tc-tabs>
+    }
+  </div>
+
+  @if (!forbidden()) {
+  <div class="env__guide">
+    <router-outlet />
+  </div>
+  }
+</div>
+
+<ng-template #summary>
+  @if (!isThisTab()) {
+  <section class="env__summary env__summary--other" data-testid="env-summary" aria-labelledby="env-sum">
+    <p id="env-sum" class="env__summary-line">
+      <tc-icon name="eye-off" size="sm" />
+      @if (env() === 'local') { {{ 'env.sum.local' | transloco }} } @else if (thisEnvironment(); as current) {
+      {{ 'env.sum.other' | transloco: { this: current, env: env() } }} } @else { {{ 'env.sum.otherUnknown' |
+      transloco: { env: env() } }} }
+    </p>
+    <tc-copy-code
+      [code]="checkCommand()"
+      [ariaLabel]="'env.sum.copyCheckAria' | transloco: { env: env() }"
+      [copyLabel]="'settings.common.copy' | transloco"
+      [copiedLabel]="'settings.common.copied' | transloco"
+      [failedNote]="'settings.common.copyFailed' | transloco"
+    />
+  </section>
+  } @else if (!hasAnswer()) { @if (checking()) {
+  <div class="env__summary env__skeleton" data-testid="env-summary" aria-hidden="true">
+    <span class="env__bar env__bar--wide"></span><span class="env__bar"></span
+    ><span class="env__bar env__bar--short"></span>
+  </div>
+  } @else if (problem()?.kind === 'offline') {
+  <p class="env__note" role="status" data-testid="env-offline">{{ 'env.err.offline0' | transloco }}</p>
+  } @else if (rateUntil(); as until) {
+  <p class="env__note" role="status" data-testid="env-rate">
+    {{ 'env.err.rate' | transloco: { time: (until | localTime) } }}
+  </p>
+  } @else {
+  <section
+    class="env__summary env__summary--error"
+    role="alert"
+    data-testid="env-error"
+    aria-labelledby="env-sum"
+  >
+    <h2 #summaryHeading id="env-sum" class="env__summary-title" tabindex="-1">
+      {{ 'env.err.load.title' | transloco }}
+    </h2>
+    <p class="env__summary-line">{{ 'env.err.load.body' | transloco }}</p>
+    <div>
+      <button tc-button type="button" data-testid="env-retry" (click)="recheck()">
+        <tc-icon name="refresh" size="sm" />{{ 'env.err.retry' | transloco }}
+      </button>
+    </div>
+  </section>
+  } } @else {
+  <section
+    class="env__summary"
+    [class.env__summary--missing]="view().missing > 0"
+    data-testid="env-summary"
+    aria-labelledby="env-sum"
+  >
+    <div class="env__summary-head">
+      @if (view().missing > 0) {
+      <span class="env__count" aria-hidden="true">{{ view().missing }}</span>
+      } @else {
+      <span class="env__count env__count--ok" aria-hidden="true"><tc-icon name="check" /></span>
+      }
+      <h2 #summaryHeading id="env-sum" class="env__summary-title" tabindex="-1">
+        @if (view().missing > 0) { {{ 'env.sum.missing' | translocoPlural: view().missing : { env: env() } }}
+        } @else { {{ 'env.sum.ok' | transloco: { env: env() } }} }
+      </h2>
+    </div>
+    @if (view().missing > 0) {
+    <p class="env__summary-line">{{ 'env.sum.missingBody' | transloco }}</p>
+    <tc-copy-code
+      [code]="setCommand()"
+      [ariaLabel]="'env.sum.copySetAria' | transloco: { env: env() }"
+      [copyLabel]="'settings.common.copy' | transloco"
+      [copiedLabel]="'settings.common.copied' | transloco"
+      [failedNote]="'settings.common.copyFailed' | transloco"
+    />
+    <a class="env__jump" href="#" data-testid="env-jump" (click)="jumpToFirstMissing($event)">
+      {{ 'env.sum.jump' | transloco }}
+    </a>
+    } @if (view().unseen > 0) {
+    <div class="env__unseen">
+      <p class="env__summary-line">
+        <tc-icon name="eye-off" size="sm" />{{ 'env.sum.unseen' | translocoPlural: view().unseen }}
+      </p>
+      <tc-copy-code
+        [code]="checkCommand()"
+        [ariaLabel]="'env.sum.copyCheckAria' | transloco: { env: env() }"
+        [copyLabel]="'settings.common.copy' | transloco"
+        [copiedLabel]="'settings.common.copied' | transloco"
+        [failedNote]="'settings.common.copyFailed' | transloco"
+      />
+    </div>
+    } @if (problem()?.kind === 'offline') {
+    <p class="env__note" role="status" data-testid="env-offline">
+      {{ 'env.err.offline' | transloco: { time: (status.checkedAt() | localTime) } }}
+    </p>
+    } @else if (rateUntil(); as until) {
+    <p class="env__note" role="status" data-testid="env-rate">
+      {{ 'env.err.rate' | transloco: { time: (until | localTime) } }}
+    </p>
+    } @else if (problem()?.kind === 'failed') {
+    <p class="env__note env__note--error" role="alert">{{ 'env.err.load.title' | transloco }}</p>
+    }
+    <div class="env__summary-foot">
+      @if (status.checkedAt(); as checkedAt) {
+      <span class="env__checked"
+        >{{ 'env.sum.checkedAt' | transloco: { time: (checkedAt | localTime) } }}</span
+      >
+      }
+      <button
+        tc-button
+        type="button"
+        data-testid="env-recheck"
+        [loading]="checking()"
+        [attr.aria-disabled]="recheckOff() ? 'true' : null"
+        [attr.aria-describedby]="!network.online() ? 'env-offline-why' : null"
+        (click)="recheck()"
+      >
+        @if (!checking()) {
+        <tc-icon name="refresh" size="sm" />
+        } {{ (checking() ? 'env.sum.rechecking' : 'env.sum.recheck') | transloco }}
+      </button>
+      @if (!network.online()) {
+      <span id="env-offline-why" class="tc-sr-only">{{ 'env.err.offlineWhy' | transloco }}</span>
+      }
+    </div>
+  </section>
+  }
+</ng-template>

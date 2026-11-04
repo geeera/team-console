@@ -4,7 +4,9 @@ import { ApplicationInitStatus } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
+import { HEALTH_URL } from '@console/entities/app-info';
 import { GITHUB_CONNECTION_URL, ExternalNavigation } from '@console/entities/github-connection';
+import { ENVIRONMENT_STATUS_URL, type EnvironmentStatusDto } from '@shared/environment';
 import { NetworkStatus } from '@console/shared/api';
 import { provideAppConfig } from '@console/shared/config';
 import {
@@ -21,6 +23,16 @@ const CONNECTED = {
   login: 'geeera',
   connectedAt: '2026-09-28T10:00:00.000Z',
   appName: 'team-console-dev',
+};
+
+/** Two api secrets missing on dev (#104); the Settings row counts them. */
+const DEV_STATUS: EnvironmentStatusDto = {
+  environment: 'dev',
+  items: [
+    { id: 'api/OWNER_EMAIL', status: 'missing' },
+    { id: 'api/VAPID_PRIVATE_KEY', status: 'missing' },
+    { id: 'api/TOKEN_ENCRYPTION_KEY', status: 'set' },
+  ],
 };
 
 async function settle(): Promise<void> {
@@ -40,7 +52,10 @@ describe('SettingsPage', () => {
   const text = (selector: string): string => root().querySelector(selector)?.textContent?.trim() ?? '';
   const overlay = (): HTMLElement => document.querySelector('.cdk-overlay-container') as HTMLElement;
 
-  async function open(url: string, { connection = CONNECTED as object } = {}): Promise<void> {
+  async function open(
+    url: string,
+    { connection = CONNECTED as object, environment = DEV_STATUS as object | number } = {},
+  ): Promise<void> {
     TestBed.configureTestingModule({
       providers: [
         provideConsoleI18n(),
@@ -63,6 +78,14 @@ describe('SettingsPage', () => {
     http.expectOne(GITHUB_CONNECTION_URL).flush(connection);
     await navigation;
     await settle();
+    http.expectOne(HEALTH_URL).flush({ environment: 'dev' });
+    const status = http.expectOne(ENVIRONMENT_STATUS_URL);
+    if (typeof environment === 'number') {
+      status.flush(null, { status: environment, statusText: 'Refused' });
+    } else {
+      status.flush(environment);
+    }
+    await settle();
   }
 
   beforeEach(() => {
@@ -84,6 +107,7 @@ describe('SettingsPage', () => {
     expect(Array.from(root().querySelectorAll('h2')).map((h) => h.textContent?.trim())).toEqual([
       'GitHub',
       'Уведомления',
+      'Окружение',
       'Язык интерфейса',
     ]);
     expect(text('[data-testid="gh-connected"] h3')).toBe('Подключено как geeera');
@@ -104,6 +128,7 @@ describe('SettingsPage', () => {
     expect(Array.from(root().querySelectorAll('h2')).map((h) => h.textContent?.trim())).toEqual([
       'GitHub',
       'Notifications',
+      'Environment',
       'Interface language',
     ]);
     expect(languageStorage.value).toBe('en');
@@ -115,6 +140,28 @@ describe('SettingsPage', () => {
     await settle();
     expect(text('h1')).toBe('Настройки');
     expect(languageStorage.value).toBe('ru');
+  });
+
+  it("has an Environment setup row that opens this console's environment with the missing count (#104)", async () => {
+    await open('/settings');
+
+    const row = root().querySelector('[data-testid="env-entry"] a') as HTMLAnchorElement;
+    expect(row.getAttribute('href')).toBe('/settings/environment/dev');
+    expect(row.textContent).toContain('Настройка окружения');
+    expect(row.textContent).toContain('dev · секреты и переменные');
+    expect(text('[data-testid="env-entry-chip"]')).toBe('Не задано: 2');
+  });
+
+  it('says "All set" when nothing is missing', async () => {
+    await open('/settings', {
+      environment: { environment: 'dev', items: [{ id: 'api/OWNER_EMAIL', status: 'set' }] },
+    });
+    expect(text('[data-testid="env-entry-chip"]')).toBe('Всё задано');
+  });
+
+  it('says "Not checked" when the status call is refused (403)', async () => {
+    await open('/settings', { environment: 403 });
+    expect(text('[data-testid="env-entry-chip"]')).toBe('Не проверено');
   });
 
   it('lists no projects and offers no Add project: Settings holds settings only (#194)', async () => {

@@ -34,6 +34,7 @@ const ALLOWED_TOP_KEYS = new Set(['environments', 'items']);
 const ALLOWED_ITEM_KEYS = new Set([
   'name',
   'pattern',
+  'optional',
   'kind',
   'origin',
   'environments',
@@ -60,6 +61,7 @@ interface ManifestGuide {
 interface ManifestItem {
   readonly name: string;
   readonly pattern?: boolean;
+  readonly optional?: boolean;
   readonly kind: 'secret' | 'variable';
   readonly origin: 'owner' | 'generated';
   readonly environments: readonly string[];
@@ -169,7 +171,12 @@ describe('environment-manifest source extractors (synthetic text)', () => {
   });
 
   it('unions vars keys across environments', () => {
-    expect(extractWranglerVarNames([{ A: '1', B: '2' }, { B: '2', C: '3' }]).sort()).toEqual(['A', 'B', 'C']);
+    expect(
+      extractWranglerVarNames([
+        { A: '1', B: '2' },
+        { B: '2', C: '3' },
+      ]).sort(),
+    ).toEqual(['A', 'B', 'C']);
   });
 
   it('reads secrets./vars. names, skips comment lines, and drops the GITHUB_TOKEN builtin', () => {
@@ -233,6 +240,7 @@ describe('the manifest holds no values, value lengths or hashes', () => {
       expect(item.name, 'name').toBeTruthy();
       expect(['secret', 'variable'], item.name).toContain(item.kind);
       expect(['owner', 'generated'], item.name).toContain(item.origin);
+      expect([undefined, true], `${item.name}.optional`).toContain(item.optional);
       expect(Array.isArray(item.locations), item.name).toBe(true);
       expect(item.locations.length, item.name).toBeGreaterThan(0);
       for (const location of item.locations) {
@@ -250,7 +258,18 @@ describe('the manifest holds no values, value lengths or hashes', () => {
   it('never names a field that could carry a value, a length or a hash', () => {
     // A conservative key-shaped scan (word at the start of a YAML key), not a substring scan — so prose that
     // happens to contain one of these words (there is none today) would not itself be a false failure.
-    const forbidden = ['value', 'values', 'length', 'len', 'hash', 'checksum', 'secretvalue', 'default', 'example', 'sample'];
+    const forbidden = [
+      'value',
+      'values',
+      'length',
+      'len',
+      'hash',
+      'checksum',
+      'secretvalue',
+      'default',
+      'example',
+      'sample',
+    ];
     for (const word of forbidden) {
       const keyPattern = new RegExp(`^\\s*-?\\s*${word}\\s*:`, 'im');
       expect(keyPattern.test(raw), word).toBe(false);
@@ -282,7 +301,9 @@ describe('environment-manifest completeness against the real repository', () => 
     ),
   );
 
-  const workflowFiles = readdirSync(join(workspaceRoot, WORKFLOWS_DIR)).filter((file) => file.endsWith('.yml'));
+  const workflowFiles = readdirSync(join(workspaceRoot, WORKFLOWS_DIR)).filter((file) =>
+    file.endsWith('.yml'),
+  );
   const workflowText = workflowFiles.map((file) => readText(join(WORKFLOWS_DIR, file))).join('\n');
   const workflowNames = new Set(extractWorkflowNames(workflowText));
 

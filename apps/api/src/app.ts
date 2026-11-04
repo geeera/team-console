@@ -23,6 +23,7 @@ import { createSprintCommandsRoutes } from './routes/sprint-commands';
 import { createTeamCommandsRoutes } from './routes/team-commands';
 import { createPushRoutes } from './routes/push';
 import { createNotificationsRoutes } from './routes/notifications';
+import { createEnvironmentRoutes } from './routes/environment';
 import type { FetchLike } from '@worker/routines';
 import { mapReadModelError } from './read-models/errors';
 
@@ -106,6 +107,7 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
       ...(options.pushNow === undefined ? {} : { now: options.pushNow }),
     }),
   );
+  v1.route('/environment', createEnvironmentRoutes());
   app.route('/api/v1', v1);
 
   return app;

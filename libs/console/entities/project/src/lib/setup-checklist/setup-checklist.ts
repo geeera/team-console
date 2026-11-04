@@ -1,8 +1,6 @@
-import { LiveAnnouncer } from '@angular/cdk/a11y';
-import { DOCUMENT } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
-import { LocalTimePipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
-import { Button, Icon, IconName } from '@console/shared/ui';
+import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import { LocalTimePipe, TranslocoPipe } from '@console/shared/i18n';
+import { Button, CopyCode, Icon, IconName } from '@console/shared/ui';
 import { routineSecretName } from '@shared/contracts';
 import type { SetupStep, SetupStepState } from '../project-setup';
 
@@ -40,23 +38,17 @@ let nextChecklistId = 0;
  */
 @Component({
   selector: 'tc-setup-checklist',
-  imports: [Button, Icon, LocalTimePipe, TranslocoPipe],
+  imports: [Button, CopyCode, Icon, LocalTimePipe, TranslocoPipe],
   templateUrl: './setup-checklist.html',
   styleUrl: './setup-checklist.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SetupChecklist {
-  private readonly announcer = inject(LiveAnnouncer);
-  private readonly transloco = inject(TranslocoService);
-  private readonly clipboard = inject(DOCUMENT).defaultView?.navigator.clipboard ?? null;
-
   readonly steps = input.required<readonly SetupStep[]>();
   readonly context = input.required<SetupChecklistContext>();
 
   protected readonly id = `tc-setup-${nextChecklistId++}`;
   protected readonly open = signal<ReadonlySet<string>>(new Set());
-  protected readonly copied = signal(false);
-  protected readonly copyFailed = signal(false);
 
   protected readonly secretName = computed(() => routineSecretName(this.context().slug));
   protected readonly command = computed(
@@ -93,21 +85,5 @@ export class SetupChecklist {
       next.add(id);
     }
     this.open.set(next);
-  }
-
-  protected async copyCommand(): Promise<void> {
-    this.copyFailed.set(false);
-    try {
-      if (this.clipboard === null) {
-        throw new Error('clipboard unavailable');
-      }
-      await this.clipboard.writeText(this.command());
-    } catch {
-      // Denied permission or no clipboard (an insecure origin): say so and leave the command selectable.
-      this.copyFailed.set(true);
-      return;
-    }
-    this.copied.set(true);
-    await this.announcer.announce(this.transloco.translate('settings.common.copied'), 'polite');
   }
 }

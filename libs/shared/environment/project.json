@@ -1,0 +1,12 @@
+{
+  "name": "shared-environment",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/environment/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:shared", "layer:shared"],
+  "targets": {
+    "test": {
+      "inputs": ["default", "^default", "{workspaceRoot}/.product-team/environment-manifest.yml"]
+    }
+  }
+}

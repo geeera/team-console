@@ -51,6 +51,11 @@ let nextTabsId = 0;
             (keydown)="onKey($event, index)"
           >
             {{ panel.label() }}
+            @if (panel.note(); as note) {
+              <span class="tc-tabs__note"
+                ><i class="tc-tabs__note-dot" aria-hidden="true"></i>{{ note }}</span
+              >
+            }
           </button>
         }
       </div>
@@ -59,7 +64,7 @@ let nextTabsId = 0;
   `,
   styleUrl: './tabs.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'tc-tabs', '[class.tc-tabs--active]': 'isActive()' },
+  host: { class: 'tc-tabs', '[class.tc-tabs--active]': 'isActive()', '[class.tc-tabs--dense]': 'dense()' },
 })
 export class Tabs {
   private readonly injector = inject(Injector);
@@ -69,6 +74,8 @@ export class Tabs {
   readonly selected = model<string | null>(null);
   /** `false`: no tab list, every panel shown. */
   readonly enabled = input(true, { transform: booleanAttribute });
+  /** Smaller text and padding, so four or more tabs keep whole words at 390 px ("production"). */
+  readonly dense = input(false, { transform: booleanAttribute });
 
   // forwardRef: TabPanel is declared below and injects Tabs.
   private readonly children = contentChildren(forwardRef(() => TabPanel));
@@ -153,6 +160,8 @@ export class TabPanel implements OnInit {
   readonly key = input.required<string>();
   /** The tab's text, count included ("PR 4"). */
   readonly label = input.required<string>();
+  /** A second, smaller line under the label with a dot ("this console"); part of the tab's name. */
+  readonly note = input<string | null>(null);
 
   readonly ready = signal(false);
 
