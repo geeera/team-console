@@ -135,13 +135,19 @@
   color: var(--text-3);
 }
 
+/*
+ * The track is minmax(0, 1fr), not the implicit auto: an auto track grows to a nowrap title's full string, so the
+ * title's own ellipsis never applies and it runs under the trailing control (#374).
+ */
 .tc-list-row__text {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   flex: 1;
   min-width: 0;
 }
 
 .tc-list-row__title {
+  min-width: 0;
   font-weight: var(--fw-medium);
   overflow-wrap: anywhere;
 }
