@@ -12,3 +12,5 @@ export type {
   FakeThreadCommentSeed,
   FakeUser,
 } from './fake-github-oauth';
+export { mintScopeOf, repositoryOwners } from './mint-scope';
+export type { MintScope } from './mint-scope';
