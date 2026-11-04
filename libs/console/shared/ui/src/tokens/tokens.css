@@ -97,6 +97,10 @@
   --spinner-size-lg: 32px;
   --stamp-size: 78px;
 
+  /* The bottom tab bar's rendered box (top padding + the 44px tap target + bottom padding + its top border),
+     safe-area excluded since that is added where this is consumed (#192: scroll-padding on the shell). */
+  --tab-bar-h: calc(var(--control-h-touch) + 2 * var(--space-1) + var(--border-w));
+
   --sidebar-w: 256px;
   --pane-w: 392px;
   --log-max: 680px;
