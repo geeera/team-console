@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { addDays, calendarDayOf } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
-import { clearFakeMilestones, seed, type Stack } from './support/stack';
+import { clearFakeMilestones, fakePost, seed } from './support/stack';
 
 /**
  * Dialog footers read in one order (#282, WCAG 2.4.3 Focus Order, 1.3.2 Meaningful Sequence): at 390×844 the actions
@@ -25,15 +25,6 @@ interface FooterButton {
 const isPhone = (page: Page): boolean => (page.viewportSize()?.width ?? 0) < 520;
 const dialog = (page: Page) => page.getByRole('dialog').or(page.getByRole('alertdialog')).last();
 const footerButtons = (frame: Locator) => frame.locator('.tc-sheet__foot').getByRole('button');
-
-async function fakePost(stack: Stack, path: string, body: unknown): Promise<void> {
-  const response = await fetch(`${stack.fakeURL ?? ''}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  expect(response.ok, `fake GitHub ${path}: ${await response.text()}`).toBe(true);
-}
 
 /** The footer's buttons in DOM order, each with where it is drawn once the sheet has settled. */
 async function footerLayout(frame: Locator): Promise<FooterButton[]> {

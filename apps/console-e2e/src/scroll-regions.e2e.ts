@@ -3,7 +3,7 @@ import { addDays, calendarDayOf } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { scrollRegionsOf, strayScrollsOf } from './support/scroll-regions';
-import { clearFakeMilestones, seed, type Stack } from './support/stack';
+import { clearFakeMilestones, fakePost, seed } from './support/stack';
 
 /**
  * One scroll at a time (#274, root cause in the #275 spec), at 390×844 (iphone) and 1440×900 (desktop): every screen
@@ -87,15 +87,6 @@ async function servePreviews(page: Page, allow: (origin: string) => void): Promi
       body: '<!doctype html><html lang="en"><head><title>Storybook</title></head><body><main><h1>Storybook preview</h1></main></body></html>',
     }),
   );
-}
-
-async function fakePost(stack: Stack, path: string, body: unknown): Promise<void> {
-  const response = await fetch(`${stack.fakeURL ?? ''}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  expect(response.ok, `fake GitHub ${path}: ${await response.text()}`).toBe(true);
 }
 
 /** Every element of `selector` lies wholly inside the viewport. */

@@ -57,6 +57,43 @@ export async function clearFakeMilestones(stack: Stack, repo: string): Promise<v
   }
 }
 
+/** A JSON POST to one of the fake GitHub's `/_fake/*` seeding endpoints; throws unless it answers 2xx. */
+export async function fakePost(stack: Stack, path: string, body: unknown): Promise<void> {
+  const response = await fetch(`${fakeOf(stack)}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`fake GitHub ${path}: ${response.status} ${await response.text()}`);
+  }
+}
+
+/** The team's run log issue (`project.yml` `run_log_issue`) the fake GitHub serves on the fixture repository. */
+export const RUN_LOG_ISSUE = 22;
+
+export interface FakeRunLogOptions {
+  /** Who opened the thread: the owner (default) or the team's bot, which changes how a pause counts (#141). */
+  readonly author?: string;
+  /** Labels besides `team:run-log`, e.g. `team:paused`. */
+  readonly labels?: readonly string[];
+}
+
+/**
+ * Opens (or resets) the run log thread on `geeera/team-console` in the fake GitHub, so the Commands panel and the
+ * board read it and an owner's pause lands on it as on GitHub. Owner-opened and running unless told otherwise.
+ */
+export async function seedFakeRunLog(stack: Stack, options: FakeRunLogOptions = {}): Promise<void> {
+  await fakePost(stack, '/_fake/issue', {
+    repo: 'geeera/team-console',
+    number: RUN_LOG_ISSUE,
+    title: 'Team run log',
+    author: options.author ?? 'geeera',
+    labels: ['team:run-log', ...(options.labels ?? [])],
+    repoOwner: { login: 'geeera', id: 100001 },
+  });
+}
+
 /** Comments the fake GitHub has received, optionally on one issue. */
 export async function fakeComments(stack: Stack, issue?: number): Promise<FakeComment[]> {
   const response = await fetch(`${fakeOf(stack)}/_fake/state`);

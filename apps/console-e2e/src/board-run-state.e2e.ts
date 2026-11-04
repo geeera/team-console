@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import type { SprintDto } from '@shared/contracts';
 import { expect, expectAccessible, test } from './support/fixtures';
 import { en, ru } from './support/i18n';
-import { seed, type Stack } from './support/stack';
+import { fakePost, seed, seedFakeRunLog, type Stack } from './support/stack';
 
 /**
  * The team's run state on the board (#132): the "Run log" tile says running / paused / failing / unknown as the
@@ -49,25 +49,9 @@ const EXPECTED = [
   { slot: 'dev', state: 'failed' },
 ] as const;
 
-async function fakePost(stack: Stack, path: string, body: unknown): Promise<void> {
-  const response = await fetch(`${stack.fakeURL ?? ''}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  expect(response.ok, `fake GitHub ${path}: ${await response.text()}`).toBe(true);
-}
-
 /** Serves the run log thread from the fake GitHub, opened by `logAuthor`, reset to `entries`. */
 async function seedRunLog(stack: Stack, entries: readonly Entry[], logAuthor = 'geeera'): Promise<void> {
-  await fakePost(stack, '/_fake/issue', {
-    repo: REPO,
-    number: LOG,
-    title: 'Team run log',
-    author: logAuthor,
-    labels: ['team:run-log'],
-    repoOwner: { login: 'geeera', id: 100001 },
-  });
+  await seedFakeRunLog(stack, { author: logAuthor });
   const now = Date.now();
   for (const entry of entries) {
     await fakePost(stack, '/_fake/comment', {

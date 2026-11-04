@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import type { NeedsYouDto, OverviewDto, SprintDto } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
-import { apiClient, seed } from './support/stack';
+import { apiClient, seed, seedFakeRunLog } from './support/stack';
 
 /**
  * All projects (#27): one tile per active project from one request — team state, sprint and demo day, done / total
@@ -123,19 +123,7 @@ test.describe('with the team paused by the owner', () => {
     requireLocalStack(stack);
     await seed(stack, ['geeera/team-console', 'geeera/private-product']);
     // The fake GitHub serves the run log thread (#22), so the owner's pause lands on it as on GitHub.
-    const seeded = await fetch(`${stack.fakeURL ?? ''}/_fake/issue`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        repo: 'geeera/team-console',
-        number: 22,
-        title: 'Team run log',
-        author: 'geeera',
-        labels: ['team:run-log'],
-        repoOwner: { login: 'geeera', id: 100001 },
-      }),
-    });
-    expect(seeded.ok, 'the fake GitHub takes the run log').toBe(true);
+    await seedFakeRunLog(stack);
     const api = await apiClient(stack);
     try {
       const paused = await api.post('/api/v1/projects/team-console/team/pause', { data: { reason: 'e2e' } });

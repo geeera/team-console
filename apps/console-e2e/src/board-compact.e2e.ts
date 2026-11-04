@@ -2,7 +2,7 @@ import type { APIRequestContext, Locator, Page } from '@playwright/test';
 import type { SprintDto } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { en, ru } from './support/i18n';
-import { clearFakeMilestones, seed, type Stack } from './support/stack';
+import { clearFakeMilestones, fakePost, seed, seedFakeRunLog, type Stack } from './support/stack';
 
 /**
  * The compact board (#275) at 390×844 (iphone) and 1440×900 (desktop), on the mock repository (20 sprint issues,
@@ -33,28 +33,12 @@ async function pullsTabLabel(request: APIRequestContext): Promise<string> {
 /** The text stress scroll-regions uses: wider type, as on CI's Linux fonts, must not cut a tile value. */
 const WIDE_TYPE = 'html { letter-spacing: 0.08em; }';
 
-async function fakePost(stack: Stack, path: string, body: unknown): Promise<void> {
-  const response = await fetch(`${stack.fakeURL ?? ''}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  expect(response.ok, `fake GitHub ${path}: ${await response.text()}`).toBe(true);
-}
-
 /**
  * The run log is fake-GitHub state other specs rewrite (board-run-state leaves it empty): reset it to three runs —
  * dev running, qa and pm finished — so nothing here depends on which spec ran before.
  */
 async function seedRuns(stack: Stack): Promise<void> {
-  await fakePost(stack, '/_fake/issue', {
-    repo: REPO,
-    number: RUN_LOG,
-    title: 'Team run log',
-    author: 'geeera',
-    labels: ['team:run-log'],
-    repoOwner: { login: 'geeera', id: 100001 },
-  });
+  await seedFakeRunLog(stack);
   const now = Date.now();
   const entries = [
     { run: 'c-r1', slot: 'slot-pm', state: 'started', minutesAgo: 60 },

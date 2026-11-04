@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
-import { apiClient, fakeComments, seed, type Stack } from './support/stack';
+import { apiClient, fakeComments, seed, seedFakeRunLog } from './support/stack';
 import { meetsMinTap } from './support/tap-target';
 
 /**
@@ -33,28 +33,12 @@ async function openOverview(page: Page): Promise<void> {
   await expect(page.getByTestId('overview-row')).toHaveCount(2);
 }
 
-async function fakePost(stack: Stack, path: string, body: unknown): Promise<void> {
-  const response = await fetch(`${stack.fakeURL ?? ''}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  expect(response.ok, `fake GitHub ${path}: ${await response.text()}`).toBe(true);
-}
-
 test.describe.configure({ mode: 'serial' });
 
 test.beforeEach(async ({ stack }) => {
   requireLocalStack(stack);
   // The panel's status card reads the run log; the owner's pause lands on it as on GitHub.
-  await fakePost(stack, '/_fake/issue', {
-    repo: REPO,
-    number: RUN_LOG,
-    title: 'Team run log',
-    author: 'geeera',
-    labels: ['team:run-log'],
-    repoOwner: { login: 'geeera', id: 100001 },
-  });
+  await seedFakeRunLog(stack);
   await seed(stack, [REPO, 'geeera/private-product']);
 });
 
