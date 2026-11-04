@@ -1,9 +1,10 @@
+import { createLogger, type Logger } from '@worker/core';
 import {
   appNotInstalledError,
   appNotInstalledForAccountError,
   githubAuthError,
+  GitHubError,
   githubUnexpectedError,
-  type GitHubError,
   mapGitHubResponse,
 } from './errors';
 import { githubPath } from './github-path';
@@ -67,6 +68,8 @@ export interface GitHubAppAuthOptions {
   readonly now?: () => number;
   /** Seam for tests: overrides every request's deadline signal (default `AbortSignal.timeout(GITHUB_DEADLINE_MS)`). */
   readonly deadlineSignal?: () => AbortSignal;
+  /** Where a failed revoke of a refused token is reported (#317); defaults to a redacting JSON line on stdout. */
+  readonly logger?: Logger;
 }
 
 interface CachedToken {
@@ -161,17 +164,26 @@ function hasNextPage(response: Response): boolean {
   return /rel="next"/.test(response.headers.get('link') ?? '');
 }
 
-function isMintedToken(
-  value: unknown,
-): value is { token: string; expires_at: string; permissions: unknown; repository_selection: unknown } {
+interface MintedToken {
+  readonly token: string;
+  readonly expires_at: string;
+  readonly permissions: unknown;
+  readonly repository_selection: unknown;
+  readonly repositories: unknown;
+}
+
+/** The token of a mint answer, when it has one that could be sent as a bearer (and so revoked). */
+function mintedTokenOf(value: unknown): string | undefined {
   if (typeof value !== 'object' || value === null) {
-    return false;
+    return undefined;
   }
-  const record = value as Record<string, unknown>;
+  const token = (value as Record<string, unknown>)['token'];
+  return typeof token === 'string' && /^\S+$/.test(token) ? token : undefined;
+}
+
+function isMintedToken(value: unknown): value is MintedToken {
   return (
-    typeof record['token'] === 'string' &&
-    /^\S+$/.test(record['token']) &&
-    typeof record['expires_at'] === 'string'
+    mintedTokenOf(value) !== undefined && typeof (value as Record<string, unknown>)['expires_at'] === 'string'
   );
 }
 
@@ -184,16 +196,18 @@ function isMintedToken(
 interface MintExpectation {
   readonly permissions: Readonly<Record<string, 'read'>>;
   readonly repositorySelections: readonly string[];
+  /** #317: the one repository a repository token must be for; `null` for the installation-wide list token. */
+  readonly repository: RepoName | null;
 }
 
-const REPO_MINT: MintExpectation = Object.freeze({
-  permissions: INSTALLATION_PERMISSIONS,
-  repositorySelections: Object.freeze(['selected']),
-});
+function repoMint(repository: RepoName): MintExpectation {
+  return { permissions: INSTALLATION_PERMISSIONS, repositorySelections: ['selected'], repository };
+}
 
 const LIST_MINT: MintExpectation = Object.freeze({
   permissions: INSTALLATION_LIST_PERMISSIONS,
   repositorySelections: Object.freeze(['all', 'selected']),
+  repository: null,
 });
 
 /**
@@ -223,6 +237,47 @@ function isDownscopedAsRequested(
 }
 
 /**
+ * #317: a repository token is for exactly the requested repository — `repositories` must list that one and no
+ * other. A missing or malformed list is refused too: GitHub always lists the repositories a scoped token covers.
+ * Matched on `full_name`, case-insensitively, since a `RepoName` carries no repository id to compare.
+ */
+function coversOnly(repositories: unknown, repo: RepoName): boolean {
+  if (!Array.isArray(repositories) || repositories.length !== 1) {
+    return false;
+  }
+  const [entry] = repositories as unknown[];
+  if (typeof entry !== 'object' || entry === null) {
+    return false;
+  }
+  const fullName = (entry as Record<string, unknown>)['full_name'];
+  return typeof fullName === 'string' && fullName.toLowerCase() === repo.fullName.toLowerCase();
+}
+
+type MintVerdict =
+  | { readonly accepted: true; readonly entry: CachedToken }
+  | { readonly accepted: false; readonly detail: string };
+
+/** Whether a mint answer's token may be used and cached, or why it is refused. */
+function judgeMint(minted: unknown, expected: MintExpectation): MintVerdict {
+  const expiresAt = isMintedToken(minted) ? Date.parse(minted.expires_at) : Number.NaN;
+  if (!isMintedToken(minted) || Number.isNaN(expiresAt)) {
+    return { accepted: false, detail: 'GitHub returned no installation token' };
+  }
+  // #76: refuse a token GitHub minted with different permissions or repository scope than requested, never
+  // use it as if it were downscoped.
+  if (!isDownscopedAsRequested(minted, expected)) {
+    return {
+      accepted: false,
+      detail: 'GitHub minted a token with different permissions or repository scope than requested',
+    };
+  }
+  if (expected.repository !== null && !coversOnly(minted.repositories, expected.repository)) {
+    return { accepted: false, detail: 'GitHub minted a token for other repositories than the one requested' };
+  }
+  return { accepted: true, entry: { token: minted.token, expiresAt } };
+}
+
+/**
  * One per isolate (the api Worker keeps it for the isolate's lifetime): the token cache lives here, so a new
  * deployment — the only way the key or the app id changes — starts empty.
  */
@@ -230,6 +285,7 @@ export class GitHubAppAuth {
   private readonly fetcher: FetchLike;
   private readonly now: () => number;
   private readonly transportOptions: GitHubTransportOptions;
+  private readonly logger: Logger;
   private signingKey: CryptoKey | undefined;
   private readonly tokens = new Map<string, CachedToken>();
   /** Concurrent requests for one token share a mint instead of each spending two subrequests. */
@@ -243,6 +299,7 @@ export class GitHubAppAuth {
     this.now = options.now ?? (() => Date.now());
     this.transportOptions =
       options.deadlineSignal === undefined ? {} : { deadlineSignal: options.deadlineSignal };
+    this.logger = options.logger ?? createLogger({ component: 'github-app-auth' });
   }
 
   /** Every GitHub call this instance makes, with its (possibly test-shortened) deadline signal. */
@@ -423,7 +480,7 @@ export class GitHubAppAuth {
     return this.mint(
       installationId,
       { repositories: [repo.name], permissions: INSTALLATION_PERMISSIONS },
-      REPO_MINT,
+      repoMint(repo),
     );
   }
 
@@ -448,19 +505,42 @@ export class GitHubAppAuth {
       throw mapGitHubResponse(response, this.now());
     }
     const minted = await readGitHubJson(response);
-    const expiresAt = isMintedToken(minted) ? Date.parse(minted.expires_at) : Number.NaN;
-    if (!isMintedToken(minted) || Number.isNaN(expiresAt)) {
-      throw githubUnexpectedError('GitHub returned no installation token', response.status);
+    const verdict = judgeMint(minted, expected);
+    if (verdict.accepted) {
+      return verdict.entry;
     }
-    // #76: refuse a token GitHub minted with different permissions or repository scope than requested, never
-    // use it as if it were downscoped.
-    if (!isDownscopedAsRequested(minted, expected)) {
-      throw githubUnexpectedError(
-        'GitHub minted a token with different permissions or repository scope than requested',
-        response.status,
-      );
+    const refusedToken = mintedTokenOf(minted);
+    if (refusedToken !== undefined) {
+      await this.revoke(refusedToken, installationId);
     }
-    return { token: minted.token, expiresAt };
+    throw githubUnexpectedError(verdict.detail, response.status);
+  }
+
+  /**
+   * #317: best-effort `DELETE /installation/token` for a token the console refused, which would otherwise stay live
+   * at GitHub for up to an hour. A failure is only logged — with GitHub's status or the error type, never the
+   * token — and never replaces the refusal the caller is about to throw.
+   */
+  private async revoke(token: string, installationId: number): Promise<void> {
+    try {
+      const response = await this.request({
+        method: 'DELETE',
+        path: githubPath`/installation/token`,
+        bearer: token,
+      });
+      await discardBody(response);
+      if (!response.ok) {
+        this.logger.warn('refused installation token not revoked', {
+          installationId,
+          githubStatus: response.status,
+        });
+      }
+    } catch (error: unknown) {
+      this.logger.warn('refused installation token not revoked', {
+        installationId,
+        reason: error instanceof GitHubError ? error.problem.type : 'unexpected-error',
+      });
+    }
   }
 
   private async jwt(): Promise<string> {

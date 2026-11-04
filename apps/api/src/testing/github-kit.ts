@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:test';
 import { compactVerify, importJWK } from 'jose';
-import { INSTALLATION_LIST_PERMISSIONS, INSTALLATION_PERMISSIONS, type FetchLike } from '@worker/github';
+import type { FetchLike } from '@worker/github';
+import { mintScopeOf, repositoryOwners } from '@worker/github/testing';
 import type { ApiEnv } from '../env';
 
 /** Test-only: a scripted api.github.com behind the app flow, with sentinel tokens (#9 threat row 3). */
@@ -49,6 +50,7 @@ export function stubGitHub(
 ): StubGitHub {
   const calls: GitHubCall[] = [];
   let minted = 0;
+  const owners = repositoryOwners();
   const fetch: FetchLike = async (input, init) => {
     const call: GitHubCall = {
       url: new URL(input),
@@ -58,6 +60,7 @@ export function stubGitHub(
     };
     calls.push(call);
     if (call.method === 'GET' && INSTALLATION_PATH.test(call.url.pathname)) {
+      owners.record(call.url.pathname);
       return installation?.() ?? json(200, { id: INSTALLATION_ID });
     }
     if (call.method === 'GET' && call.url.pathname === '/app') {
@@ -74,10 +77,8 @@ export function stubGitHub(
       return json(201, {
         token: `${TOKEN_SENTINEL}${minted}`,
         expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-        // GitHub echoes the downscoping it applied (#76): the request's repository token, or the #194 list token.
-        ...(call.body !== undefined && 'repositories' in (JSON.parse(call.body) as object)
-          ? { permissions: INSTALLATION_PERMISSIONS, repository_selection: 'selected' }
-          : { permissions: INSTALLATION_LIST_PERMISSIONS, repository_selection: 'all' }),
+        // GitHub echoes the downscoping it applied (#76, #317): the request's repository token, or the #194 list token.
+        ...mintScopeOf(call.body, owners.ownerOf),
       });
     }
     return read(call);

@@ -236,7 +236,7 @@ export function createTrackerItemRoutes(
               status: value.status,
               severity: value.severity,
               tier: value.tier,
-              sprintId: sprint?.id ?? null,
+              sprint,
               title: withoutInvisibles(value.title),
               body: value.body,
               flags: value.labels,

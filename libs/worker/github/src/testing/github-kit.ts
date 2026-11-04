@@ -1,5 +1,5 @@
-import { INSTALLATION_LIST_PERMISSIONS, INSTALLATION_PERMISSIONS } from '../lib/app-auth';
 import type { FetchLike } from '../lib/transport';
+import { INSTALLATION_LOOKUP, mintScopeOf, repositoryOwners } from './mint-scope';
 
 /** Test-only helpers: a generated app key (never a real credential) and a scripted api.github.com. */
 
@@ -107,20 +107,8 @@ export function json(status: number, body: unknown, headers: Record<string, stri
 
 export const INSTALLATION_ID = 4242;
 
-/**
- * The `permissions` and `repository_selection` GitHub echoes for a mint body (#76): a repository mint downscoped to
- * `INSTALLATION_PERMISSIONS` and `selected`; a mint naming no repositories (the #194 list token) gets
- * `INSTALLATION_LIST_PERMISSIONS` and the installation's own selection, `all` here.
- */
-export function mintScopeOf(body: string | undefined): {
-  permissions: Readonly<Record<string, 'read'>>;
-  repository_selection: 'selected' | 'all';
-} {
-  const request = JSON.parse(body ?? '{}') as Record<string, unknown>;
-  return 'repositories' in request
-    ? { permissions: INSTALLATION_PERMISSIONS, repository_selection: 'selected' }
-    : { permissions: INSTALLATION_LIST_PERMISSIONS, repository_selection: 'all' };
-}
+export { mintScopeOf, repositoryOwners };
+
 // Assembled at run time so the repository's secret scanners never see a token-shaped literal.
 export const SENTINEL_TOKEN = ['ghs', 'TESTSENTINEL'].join('_');
 
@@ -133,9 +121,11 @@ export function appFlow(
   options: { tokenPrefix?: string } = {},
 ): ScriptedGitHub & { minted: () => number } {
   let minted = 0;
+  const owners = repositoryOwners();
   const github = scriptedGitHub(async (call) => {
     const path = new URL(call.url).pathname;
-    if (call.method === 'GET' && /^\/repos\/[^/]+\/[^/]+\/installation$/.test(path)) {
+    if (call.method === 'GET' && INSTALLATION_LOOKUP.test(path)) {
+      owners.record(path);
       return json(200, { id: INSTALLATION_ID });
     }
     if (call.method === 'GET' && path === '/app') {
@@ -146,7 +136,7 @@ export function appFlow(
       return json(201, {
         token: `${options.tokenPrefix ?? SENTINEL_TOKEN}${minted}`,
         expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-        ...mintScopeOf(call.body),
+        ...mintScopeOf(call.body, owners.ownerOf),
       });
     }
     return read(call);

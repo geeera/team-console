@@ -44,7 +44,8 @@ export interface NewItem {
   readonly status: ItemStatus;
   readonly severity: ItemSeverity | null;
   readonly tier: ItemTier | null;
-  readonly sprintId: number | null;
+  /** The sprint's row id and its number in the project (the event records the number). */
+  readonly sprint: { readonly id: number; readonly number: number } | null;
   readonly title: string;
   readonly body: string;
   readonly flags: readonly string[];
@@ -237,7 +238,7 @@ export class ItemsRepo {
           item.status,
           item.severity,
           item.tier,
-          item.sprintId,
+          item.sprint?.id ?? null,
           item.title,
           item.body,
           closed ? at : null,
@@ -266,7 +267,7 @@ export class ItemsRepo {
             status: item.status,
             severity: item.severity,
             tier: item.tier,
-            sprintId: item.sprintId,
+            sprint: item.sprint?.number ?? null,
             title: item.title,
             flags: [...item.flags].sort(),
           },
