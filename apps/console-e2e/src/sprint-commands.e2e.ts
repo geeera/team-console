@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { addDays, calendarDayOf } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
-import { clearFakeMilestones, seed, type Stack } from './support/stack';
+import { clearFakeMilestones, fakePost, seed, seedFakeRunLog, type Stack } from './support/stack';
 
 /**
  * Sprint commands (#218): the status card shows the sprint with its demo, freeze and progress; "Move the demo"
@@ -28,15 +28,6 @@ interface FakeWrite {
   readonly method: string;
   readonly number: number | null;
   readonly body: string;
-}
-
-async function fakePost(stack: Stack, path: string, body: unknown): Promise<void> {
-  const response = await fetch(`${stack.fakeURL ?? ''}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  expect(response.ok, `fake GitHub ${path}: ${await response.text()}`).toBe(true);
 }
 
 async function seedSprints(stack: Stack, due: string): Promise<void> {
@@ -81,14 +72,7 @@ test.describe.configure({ mode: 'serial' });
 test.beforeAll(async ({ stack }) => {
   requireLocalStack(stack);
   // The status card reads the run log; an empty one owned by the owner is enough.
-  await fakePost(stack, '/_fake/issue', {
-    repo: REPO,
-    number: 22,
-    title: 'Team run log',
-    author: 'geeera',
-    labels: ['team:run-log'],
-    repoOwner: { login: 'geeera', id: 100001 },
-  });
+  await seedFakeRunLog(stack);
 });
 
 // A fresh api isolate each time: no sprint cached by the test before (the status read keeps it a minute).

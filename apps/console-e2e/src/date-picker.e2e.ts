@@ -3,7 +3,7 @@ import { addDays, calendarDayOf } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { strayScrollsOf } from './support/scroll-regions';
-import { clearFakeMilestones, seed, type Stack } from './support/stack';
+import { clearFakeMilestones, fakePost, seed, seedFakeRunLog, type Stack } from './support/stack';
 import { meetsMinTap } from './support/tap-target';
 
 /**
@@ -20,15 +20,6 @@ const DUE = addDays(TODAY, 9);
 
 /** The field's typed form, as the owner reads it. */
 const shown = (day: string): string => day.split('-').reverse().join('.');
-
-async function fakePost(stack: Stack, path: string, body: unknown): Promise<void> {
-  const response = await fetch(`${stack.fakeURL ?? ''}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  expect(response.ok, `fake GitHub ${path}: ${await response.text()}`).toBe(true);
-}
 
 async function milestoneWrites(
   stack: Stack,
@@ -96,14 +87,7 @@ test.describe.configure({ mode: 'serial' });
 
 test.beforeAll(async ({ stack }) => {
   requireLocalStack(stack);
-  await fakePost(stack, '/_fake/issue', {
-    repo: REPO,
-    number: 22,
-    title: 'Team run log',
-    author: 'geeera',
-    labels: ['team:run-log'],
-    repoOwner: { login: 'geeera', id: 100001 },
-  });
+  await seedFakeRunLog(stack);
 });
 
 test.beforeEach(async ({ stack }) => {

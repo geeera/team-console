@@ -2,7 +2,7 @@ import type { Page, Route } from '@playwright/test';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { underServiceWorker } from './support/service-worker';
-import { seed } from './support/stack';
+import { seed, seedFakeRunLog } from './support/stack';
 
 /**
  * An expired Cloudflare Access session (#284). On a deployed environment Access sits in front of the Worker: every
@@ -59,19 +59,7 @@ test.describe('a sheet open when the session expires (#367)', () => {
   test.beforeEach(async ({ stack }) => {
     requireLocalStack(stack);
     // The Commands panel reads the run log: an owner-opened, running one, so Pause is on.
-    const response = await fetch(`${stack.fakeURL ?? ''}/_fake/issue`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        repo: REPO,
-        number: 22,
-        title: 'Team run log',
-        author: 'geeera',
-        labels: ['team:run-log'],
-        repoOwner: { login: 'geeera', id: 100001 },
-      }),
-    });
-    expect(response.ok, await response.text()).toBe(true);
+    await seedFakeRunLog(stack);
     await seed(stack, [REPO]);
   });
 
