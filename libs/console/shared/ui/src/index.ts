@@ -23,6 +23,7 @@ export * from './lib/list/list';
 export * from './lib/receipt/receipt';
 export * from './lib/recommendation/recommendation';
 export * from './lib/sheet/sheet';
+export * from './lib/sheet/open-sheets';
 export * from './lib/sheet/sheet-footer.public';
 export * from './lib/sheet/sheet-scroll-lock.public';
 export * from './lib/sheet/confirm-dialog.public';
