@@ -1,5 +1,4 @@
 import type { TeamState } from '@shared/contracts';
-import { commandLines } from '@shared/owner-grammar';
 import { githubPath, type RepoName } from '@worker/github';
 import { TRUSTED_BOT_LOGINS } from '@worker/read-models';
 import {
@@ -8,6 +7,7 @@ import {
   RUN_LOG_LABEL,
   activeOwnerPause,
   consolePauseHolds,
+  ownerResumeAtOf,
   parseRuns,
   partitionTeamComments,
   pauseMarkerAuthorsOf,
@@ -148,13 +148,6 @@ function issueOf(raw: JsonRecord): RunLogIssue {
   };
 }
 
-function latestAt(comments: readonly RunLogComment[], matches: (comment: RunLogComment) => boolean): string {
-  return comments
-    .filter(matches)
-    .map((comment) => comment.createdAt ?? '')
-    .reduce((latest, at) => (at > latest ? at : latest), '');
-}
-
 function commentOf(raw: JsonRecord): RunLogComment {
   const text = (key: string): string | null => (typeof raw[key] === 'string' ? (raw[key] as string) : null);
   return {
@@ -265,13 +258,7 @@ export async function readRunLog(
     trusted,
     pauseMarkerAuthorsOf(issue.author, repo.owner, TRUSTED_BOT_LOGINS),
   );
-  // `commands.parse`: the owner's own comments only, never the team's bot.
-  const ownerResumeAt = latestAt(
-    trusted,
-    (comment) =>
-      comment.author.toLowerCase() === repo.owner.toLowerCase() &&
-      commandLines(comment.body).some((line) => line.command === 'resume'),
-  );
+  const ownerResumeAt = ownerResumeAtOf(trusted, repo.owner);
   return {
     issue,
     runs,

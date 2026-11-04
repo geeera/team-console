@@ -1,7 +1,7 @@
 import { workspaceRoot } from '@nx/devkit';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { unstable_readConfig } from 'wrangler';
+import { DEPLOY_ENVIRONMENTS, readWorkerConfig } from './support/wrangler-config';
 
 /**
  * Guards on the committed Worker configuration (architect note and threat models on #6, #8, #12):
@@ -9,8 +9,7 @@ import { unstable_readConfig } from 'wrangler';
  * gets the GitHub token. Wrangler's own reader validates the files, so config drift fails here first.
  */
 
-const ENVIRONMENTS = ['dev', 'stage', 'production'] as const;
-type DeployEnvironment = (typeof ENVIRONMENTS)[number];
+const ENVIRONMENTS = DEPLOY_ENVIRONMENTS;
 
 const SECRET_NAMES = [
   'GITHUB_TOKEN',
@@ -31,52 +30,6 @@ const LOCAL_ONLY_VARS = [
   'ROUTINES_FAKE_ORIGIN',
   'PUSH_FAKE_ORIGIN',
 ] as const;
-
-interface WranglerEnvConfig {
-  readonly name: string;
-  readonly main: string;
-  readonly compatibility_date: string;
-  readonly vars: Readonly<Record<string, unknown>>;
-  readonly d1_databases: readonly {
-    binding: string;
-    database_name: string;
-    database_id: string;
-    migrations_dir?: string;
-  }[];
-  readonly workers_dev?: boolean;
-  readonly preview_urls?: boolean;
-  readonly assets?: {
-    binding?: string;
-    not_found_handling?: string;
-    run_worker_first?: readonly string[] | boolean;
-  };
-}
-
-function isWranglerEnvConfig(value: unknown): value is WranglerEnvConfig {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const config = value as Record<string, unknown>;
-  return (
-    typeof config['name'] === 'string' &&
-    typeof config['main'] === 'string' &&
-    typeof config['compatibility_date'] === 'string' &&
-    typeof config['vars'] === 'object' &&
-    config['vars'] !== null &&
-    Array.isArray(config['d1_databases'])
-  );
-}
-
-function readWorkerConfig(app: 'api' | 'hooks', env: DeployEnvironment): WranglerEnvConfig {
-  const config: unknown = unstable_readConfig(
-    { config: join(workspaceRoot, 'apps', app, 'wrangler.jsonc'), env },
-    { hideWarnings: true },
-  );
-  if (!isWranglerEnvConfig(config)) {
-    throw new Error(`wrangler returned an unexpected config shape for apps/${app} env ${env}`);
-  }
-  return config;
-}
 
 function readText(relativePath: string): string {
   return readFileSync(join(workspaceRoot, relativePath), 'utf8');

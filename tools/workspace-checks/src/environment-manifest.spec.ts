@@ -2,7 +2,7 @@ import { workspaceRoot } from '@nx/devkit';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
-import { unstable_readConfig } from 'wrangler';
+import { DEPLOY_ENVIRONMENTS, WORKER_APPS, readWorkerConfig } from './support/wrangler-config';
 
 /**
  * #102: `.product-team/environment-manifest.yml` is the single source listing every secret and variable the
@@ -16,7 +16,6 @@ import { unstable_readConfig } from 'wrangler';
 
 const MANIFEST_PATH = '.product-team/environment-manifest.yml';
 const WORKFLOWS_DIR = '.github/workflows';
-const ENVIRONMENTS = ['dev', 'stage', 'production'] as const;
 
 // GitHub Actions' own built-in per-run token (branch-guard.yml, owner-digest.yml): never configured by the
 // owner, so it needs no manifest entry (CLAUDE.md, apps/*/src/env.ts already document this).
@@ -279,17 +278,7 @@ describe('environment-manifest completeness against the real repository', () => 
 
   const wranglerVarNames = new Set(
     extractWranglerVarNames(
-      (['api', 'hooks'] as const).flatMap((app) =>
-        ENVIRONMENTS.map(
-          (env) =>
-            (
-              unstable_readConfig(
-                { config: join(workspaceRoot, 'apps', app, 'wrangler.jsonc'), env },
-                { hideWarnings: true },
-              ) as { vars: Record<string, unknown> }
-            ).vars,
-        ),
-      ),
+      WORKER_APPS.flatMap((app) => DEPLOY_ENVIRONMENTS.map((env) => readWorkerConfig(app, env).vars)),
     ),
   );
 
