@@ -282,6 +282,8 @@
       "needs-reasonHint": "Write why, then answer again.",
       "rate-limited": "GitHub asks to wait",
       "rate-limitedHint": "Retry in a minute — it won't be posted twice.",
+      "session-expired": "Your session expired",
+      "session-expiredHint": "The answer was not posted. Sign in again and answer once more.",
       "offline": "No connection",
       "offlineHint": "The answer may not have arrived. Retry — it won't be posted twice.",
       "unknown": "The answer was not posted",

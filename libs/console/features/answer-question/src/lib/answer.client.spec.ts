@@ -51,6 +51,15 @@ describe('answerFailureOf', () => {
     expect(answerFailureOf(new HttpErrorResponse({ status: 0 })).kind).toBe('offline');
     expect(answerFailureOf(new Error('boom')).kind).toBe('unknown');
   });
+
+  it('an Access redirect is an expired session with no retry, not offline (#367)', () => {
+    const redirect = new HttpErrorResponse({ status: 0, responseType: 'opaqueredirect' });
+    expect(answerFailureOf(redirect)).toEqual({
+      kind: 'session-expired',
+      recovery: 'none',
+      retryAfter: null,
+    });
+  });
 });
 
 describe('answerRequestOf', () => {

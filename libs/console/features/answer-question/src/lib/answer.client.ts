@@ -1,5 +1,6 @@
 import { HttpClient, HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
+import { isAccessSessionExpired } from '@console/shared/api';
 import {
   ANSWER_LOOKUP_MAX_MS,
   ANSWER_TEXT_MAX_LENGTH,
@@ -33,6 +34,7 @@ export type AnswerFailureKind =
   | 'not-allowed'
   | 'needs-reason'
   | 'rate-limited'
+  | 'session-expired'
   | 'offline'
   | 'unknown';
 
@@ -77,6 +79,8 @@ const RECOVERY: Readonly<Record<AnswerFailureKind, AnswerRecovery>> = {
   'not-allowed': 'refresh',
   'needs-reason': 'none',
   'rate-limited': 'retry',
+  // Only a new login helps; the app root shows its sign-in instead of the card (#367).
+  'session-expired': 'none',
   offline: 'retry',
   unknown: 'retry',
 };
@@ -91,15 +95,19 @@ function retryAfterOf(error: HttpErrorResponse): number | null {
 
 /**
  * The failure behind an error of the answer request. Branches on the problem `type` slug only (never on `title`
- * or `detail`); a network failure is `offline`, anything unknown is `unknown`. A repeat of either is safe: the
- * endpoint replays an answer it already wrote within 60 s instead of posting it again.
+ * or `detail`); an expired Access session is `session-expired`, a network failure `offline`, anything unknown
+ * `unknown`. A repeat of either of the last two is safe: the endpoint replays an answer it already wrote within
+ * 60 s instead of posting it again.
  */
 export function answerFailureOf(error: unknown): AnswerFailure {
   let kind: AnswerFailureKind = 'unknown';
   let retryAfter: number | null = null;
   if (error instanceof HttpErrorResponse) {
     retryAfter = retryAfterOf(error);
-    if (error.status === 0) {
+    // Before the status-0 check: Access's redirect arrives as an opaque status 0 but the network works (#367).
+    if (isAccessSessionExpired(error, error.error)) {
+      kind = 'session-expired';
+    } else if (error.status === 0) {
       kind = 'offline';
     } else if (isProblemDetails(error.error)) {
       const slug = problemSlugOf(error.error.type);

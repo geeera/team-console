@@ -8,6 +8,7 @@ import { NEEDS_YOU_URL, PROJECTS_URL, ProjectsStore } from '@console/entities/pr
 import { AccessSession, PAGE_LOCATION } from '@console/shared/api';
 import { provideAppConfig } from '@console/shared/config';
 import { provideConsoleI18n } from '@console/shared/i18n';
+import { Sheet } from '@console/shared/ui';
 import {
   emptyPersistedState,
   memoryPersistedStateStorage,
@@ -235,5 +236,23 @@ describe('App', () => {
     (state?.querySelector('[data-testid="session-sign-in"]') as HTMLButtonElement).click();
     expect(pageLocation.assigned).toHaveLength(1);
     expect(new URL(pageLocation.assigned[0] ?? '').searchParams.get('ngsw-bypass')).toBe('1');
+  });
+
+  it('closes every open sheet once the session expires and puts focus on the sign-in (#367)', async () => {
+    await boot('/p/a/questions');
+    document.body.appendChild(root());
+    const sheet = TestBed.inject(Sheet);
+    const pending = sheet.confirm({ title: 'Приостановить?', message: 'Точно?' });
+    await fixture.whenStable();
+    expect(sheet.hasOpen()).toBe(true);
+
+    TestBed.inject(AccessSession).markExpired();
+    await fixture.whenStable();
+
+    expect(sheet.hasOpen()).toBe(false);
+    expect(document.querySelector('.cdk-overlay-container tc-sheet-container')).toBeNull();
+    await expect(pending).resolves.toBe(false);
+    expect(document.activeElement).toBe(root().querySelector('[data-testid="session-sign-in"]'));
+    root().remove();
   });
 });
