@@ -16,7 +16,7 @@ function newItem(number: number, overrides: Partial<NewItem> = {}): NewItem {
     status: 'proposed',
     severity: null,
     tier: null,
-    sprintId: null,
+    sprint: null,
     title: `Item ${String(number)}`,
     body: 'What and why',
     flags: [],
@@ -85,7 +85,9 @@ describe('ItemsRepo', () => {
     await new SprintsRepo(env.DB).create(other.slug, 1, { dueOn: null, description: '', at: AT });
     const foreign = await new SprintsRepo(env.DB).findByNumber(other.slug, 1);
     await expect(create(slug, { flags: ['status:qa'] })).rejects.toThrow(/CHECK constraint failed/);
-    await expect(create(slug, { sprintId: foreign?.id ?? 0 })).rejects.toThrow(/FOREIGN KEY/);
+    await expect(create(slug, { sprint: { id: foreign?.id ?? 0, number: 1 } })).rejects.toThrow(
+      /FOREIGN KEY/,
+    );
   });
 
   it('updates at the expected version, bumps it and records the event with the flags in the same batch', async () => {
@@ -185,7 +187,7 @@ describe('ItemsRepo', () => {
     await new SprintsRepo(env.DB).create(slug, 1, { dueOn: '2026-11-17', description: '', at: AT });
     const sprint = await new SprintsRepo(env.DB).findByNumber(slug, 1);
     const a = await create(slug, { kind: 'bug', severity: 'high' });
-    const b = await create(slug, { flags: ['security'], sprintId: sprint?.id ?? null });
+    const b = await create(slug, { flags: ['security'], sprint: { id: sprint?.id ?? 0, number: 1 } });
     const c = await create(slug, { status: 'done' });
 
     const open = await items().list(slug, { state: 'open' }, 0, 1);

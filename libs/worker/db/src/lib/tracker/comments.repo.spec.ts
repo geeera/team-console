@@ -17,7 +17,7 @@ async function seedItem(): Promise<number> {
       status: 'approved',
       severity: null,
       tier: null,
-      sprintId: null,
+      sprint: null,
       title: 'Item',
       body: '',
       flags: [],
