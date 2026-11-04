@@ -12,6 +12,7 @@ import {
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { ConnectGitHubButton, type ConnectRefusal } from '@console/entities/github-connection';
 import { PushStore, type PushView } from '@console/entities/push';
 import { activeLock, isPaused, missingSlots, TeamStatusStore } from '@console/entities/team-run';
 import { SnoozeCommands } from '@console/features/snooze';
@@ -91,6 +92,7 @@ const PUSH_OFF: ReadonlySet<PushView> = new Set<PushView>(['off', 'denied', 'no-
     Button,
     CommandsSetup,
     CommandsStatus,
+    ConnectGitHubButton,
     Icon,
     IconButton,
     LocalTimePipe,
@@ -125,6 +127,8 @@ export class CommandsPanel {
   protected readonly slots = TEAM_SLOTS;
   protected readonly result = signal<CommandOutcome | null>(null);
   protected readonly announcement = signal('');
+  /** Connect GitHub stayed: the start was refused or GitHub's address did not check out. */
+  protected readonly connectRefused = signal<ConnectRefusal | null>(null);
   /** A confirmation is open: a second press waits for it. */
   private readonly isAsking = signal(false);
   private readonly now = signal(Date.now());

@@ -18,7 +18,7 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { NeedsYouCounts, spaceUrlOf } from '@console/entities/project';
+import { NeedsYouCounts, ProjectSetupLink, spaceUrlOf } from '@console/entities/project';
 import {
   ciSummaryOf,
   daysUntilDemo,
@@ -173,6 +173,7 @@ type TileTarget = 'pulls' | 'runs' | 'questions';
     Lanes,
     LocalNumberPipe,
     NgTemplateOutlet,
+    ProjectSetupLink,
     SprintItemList,
     SprintRunList,
     SprintTierIcon,

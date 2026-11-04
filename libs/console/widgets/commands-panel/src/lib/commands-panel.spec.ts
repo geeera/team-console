@@ -239,11 +239,27 @@ describe('CommandsPanel', () => {
     const { root } = await render(status({ ownerConnected: false }));
     const team = root.querySelector('[data-testid="team-command"]') as HTMLButtonElement;
     expect(team.getAttribute('aria-disabled')).toBe('true');
-    expect(text(root.querySelector('.cmd--team .cmd__why'))).toBe('Нет права записи');
+    expect(text(root.querySelector('.cmd--team .cmd__why'))).toBe('Сначала подключите GitHub');
     team.click();
     expect(commands.pause).not.toHaveBeenCalled();
     expect(root.querySelector('[data-slot="pm"] button')?.getAttribute('aria-disabled')).toBeNull();
-    expect(text(root.querySelector('.cp-note'))).toContain('geeera/team-console');
+  });
+
+  it('#366: without the GitHub connection the note says so and offers Connect GitHub right after its text', async () => {
+    const { root } = await render(status({ ownerConnected: false }));
+    const note = root.querySelector('[data-testid="cp-not-connected"]') as HTMLElement;
+    expect(text(note.querySelector('[tc-banner-text]'))).toBe(
+      'GitHub не подключён: пауза, возобновление, команды спринта и просьбы PM выключены. «Запустить сейчас» работает.',
+    );
+    expect(text(note)).not.toContain('Настройки › Проекты');
+    expect(note.querySelector('a')).toBeNull();
+    const focusable = [...note.querySelectorAll('a, button')];
+    expect(focusable).toHaveLength(1);
+    expect(text(focusable[0] as HTMLElement)).toBe('Подключить GitHub');
+    expect(focusable[0]?.closest('tc-connect-github-button')).not.toBeNull();
+    for (const why of ['.cmd--team .cmd__why', '[id$="-ask-why"]']) {
+      expect(text(root.querySelector(why))).toBe('Сначала подключите GitHub');
+    }
   });
 
   it('paused by the owner: a banner with Resume, the team row resumes, run rows say resume first', async () => {

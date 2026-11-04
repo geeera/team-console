@@ -258,6 +258,25 @@ describe('AnswerQuestion', () => {
     expect(host.given).toHaveLength(0);
   });
 
+  it("409 github-app-not-installed links to the project's setup page right after the error text (#366)", async () => {
+    const { button, root, fixture } = await render();
+
+    button('approve').click();
+    await tick();
+    http
+      .expectOne(URL)
+      .flush(problem('github-app-not-installed', 409), { status: 409, statusText: 'Conflict' });
+    await tick();
+    await fixture.whenStable();
+
+    const block = root.querySelector('[data-testid="answer-error"]') as HTMLElement;
+    expect(block.textContent).toContain('Установите его на странице настройки проекта');
+    const actions = block.querySelectorAll('a, button');
+    expect(actions).toHaveLength(1);
+    expect(actions[0]?.getAttribute('href')).toBe('/settings/projects/team-console');
+    expect(actions[0]?.textContent?.trim()).toBe('Открыть настройку проекта');
+  });
+
   it('Retry repeats the identical request after a network failure, and a replay counts as answered', async () => {
     const { button, root, fixture, host } = await render();
 
