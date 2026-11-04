@@ -16,7 +16,7 @@ describe('answerFailureOf', () => {
   it.each([
     ['github-owner-not-connected', 403, 'not-connected', 'settings'],
     ['github-owner-mismatch', 409, 'owner-mismatch', 'settings'],
-    ['github-app-not-installed', 409, 'app-not-installed', 'settings'],
+    ['github-app-not-installed', 409, 'app-not-installed', 'project-setup'],
     ['issue-closed', 409, 'issue-closed', 'refresh'],
     ['answer-in-progress', 409, 'in-progress', 'retry'],
     ['answer-not-waiting', 422, 'not-waiting', 'refresh'],

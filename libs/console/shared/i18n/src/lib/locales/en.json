@@ -269,7 +269,7 @@
       "owner-mismatch": "A different GitHub account is connected",
       "owner-mismatchHint": "The project's repository belongs to another account. Reconnect GitHub in Settings.",
       "app-not-installed": "The console app is not installed on the repository",
-      "app-not-installedHint": "Install it in the project's settings, then answer again.",
+      "app-not-installedHint": "Install it from the project's setup page, then answer again.",
       "issue-closed": "This item is already closed",
       "issue-closedHint": "No answer is needed any more. Refresh the list.",
       "in-progress": "This answer is already being posted",
@@ -404,7 +404,7 @@
       },
       "not-installed": {
         "title": "The console app is not installed on the repository",
-        "hint": "Install it from the project's setup in Settings, then try again."
+        "hint": "Install it from the project's setup page, then try again."
       }
     },
     "moveDemo": "Move demo",
@@ -498,7 +498,7 @@
       },
       "not-installed": {
         "title": "The console app is not installed on the repository",
-        "hint": "Install it from the project's setup in Settings, then try again."
+        "hint": "Install it from the project's setup page, then try again."
       }
     }
   },
@@ -872,6 +872,7 @@
       },
       "checkAgain": "Check again",
       "open": "Open project",
+      "openSetup": "Open project setup",
       "archive": "Archive project",
       "checkedAt": "Checked at {{time}}",
       "repoLink": "{{repo}} on GitHub",
@@ -969,8 +970,7 @@
       "errB": "GitHub didn’t answer. Commands are off until the status is known — otherwise you might, say, pause a project that is already paused.",
       "noLog": "The team hasn’t opened its run log yet, so there is nothing to pause or start. It appears after the first scheduled run.",
       "offline": "You’re offline. Status as of {{time}}. Commands work only online.",
-      "noperm": "The console can’t write to issues in {{repo}}, so Pause, Resume and the sprint commands are off. Run now still works.",
-      "nopermFix": "Settings › Projects",
+      "noperm": "GitHub isn’t connected: Pause, Resume, the sprint commands, batch approval and requests to the PM are off. Run now still works.",
       "sprint": "Sprint",
       "sprintVal": "{{sprint}} · demo {{date}}",
       "freeze": "freeze {{range}}",
@@ -1027,7 +1027,7 @@
     },
     "why": {
       "offline": "Offline",
-      "noperm": "No write access",
+      "noperm": "Connect GitHub first",
       "paused": "Resume development first",
       "notoken": "Not set up: this routine has no trigger token",
       "status": "Status not loaded",
@@ -1153,7 +1153,7 @@
       "nextBtn": "Start",
       "unknown": "GitHub didn’t give the sprints, so these commands are off. Refresh the status to try again.",
       "unavailable": "Couldn’t read the sprint from GitHub. Nothing changed; try again in a moment.",
-      "noperm": "The console can’t write to this repository: connect GitHub in Settings. Nothing changed."
+      "noperm": "GitHub isn’t connected: connect it in Settings, then try again. Nothing changed."
     },
     "demo": {
       "title": "Move the {{sprint}} demo?",
@@ -1231,6 +1231,15 @@
         "backFailed": "Couldn’t turn {{name}} notifications back on: the server didn’t answer. Nothing changed.",
         "backOffline": "You’re offline: {{name}} notifications are still snoozed. Nothing changed."
       }
+    },
+    "approve": {
+      "title": "Approve team recommendations",
+      "hint": "{{n}} can be approved together.",
+      "hintLeft": "{{n}} can be approved together; {{m}} only one by one.",
+      "btn": "Review",
+      "aria": "Approve team recommendations: {{n}}",
+      "none": "Nothing to approve in a batch right now",
+      "error": "Couldn't read the project's questions. Refresh the status above."
     },
     "ask": {
       "title": "Ask the PM about an issue",

@@ -84,11 +84,6 @@
   gap: var(--space-1);
 }
 
-.cp-note a {
-  color: inherit;
-  font-weight: var(--fw-semibold);
-}
-
 /* command rows: the description is the row's text, the button names the action */
 .cmd-list {
   list-style: none;

@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { RouterLink } from '@angular/router';
-import { AnsweredItems, NeedsYouCounts } from '@console/entities/project';
+import { AnsweredItems, NeedsYouCounts, ProjectSetupLink } from '@console/entities/project';
 import { QuestionItem } from '@console/entities/question';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, ButtonVariant, Sheet, StateBlock } from '@console/shared/ui';
@@ -67,7 +67,7 @@ function isReasonCommand(command: AnswerCommand): command is ReasonCommand {
  */
 @Component({
   selector: 'tc-answer-question',
-  imports: [Button, RouterLink, StateBlock, TranslocoPipe],
+  imports: [Button, ProjectSetupLink, RouterLink, StateBlock, TranslocoPipe],
   template: `
     <div class="answer__actions" role="group" [attr.aria-label]="item().title">
       @for (command of item().allowedCommands; track command) {
@@ -119,6 +119,9 @@ function isReasonCommand(command: AnswerCommand): command is ReasonCommand {
             }
             @case ('settings') {
               <a tc-button tc-state-action routerLink="/settings">{{ 'shell.settings' | transloco }}</a>
+            }
+            @case ('project-setup') {
+              <tc-project-setup-link tc-state-action [slug]="item().project.slug" />
             }
           }
         </tc-state-block>
