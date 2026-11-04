@@ -1,6 +1,9 @@
 # Contract CI (plugin reference/stack-contract.md, ADR 0001 decision 18): install, lint, test, build on every PR.
 # The job name `lint-test-build` is stable: `scripts/pr gate` and QA read the check runs by name.
-# Job `e2e` runs apps/console-e2e (#14).
+# Job `e2e` runs apps/console-e2e (#14), sharded one Playwright project per job (#404: the single job was
+# landing at 16-20 min against a 20 min timeout and several PR runs were cancelled at the limit); the `e2e`
+# job itself is a thin aggregator over the `e2e-shard` matrix so the check name CI consumers look for
+# (`scripts/pr gate`, branch rules) never changes.
 # Also runs on push to dev (owner-approved 2026-10-01): two PRs can each be green alone and still break dev
 # once merged together (#136 + #139) — that combination is only ever tested here, after the merge.
 name: ci
@@ -94,10 +97,25 @@ jobs:
   # #14: the Playwright suite (apps/console-e2e) on every PR, whatever it touches — it is the regression guard for
   # the demo path. Each Playwright worker starts its own fake GitHub and the api bundle on a fresh local D1 (the
   # same `wrangler dev dist/apps/api/main.js` the Docker image runs); nothing reaches GitHub or Cloudflare.
-  # Chromium at 390 px and desktop, WebKit for the demo path only. No secrets.
-  e2e:
+  # One job per Playwright project instead of one job for all three (#404): `iphone` and `desktop` run the full
+  # suite (the bulk of the ~350 tests) and are now the long pole at roughly half the old wall time each; the much
+  # smaller `iphone-webkit` project (the demo path only) stays quick. Each shard rebuilds the app itself — no
+  # cross-job cache — so this costs more total minutes than the single job did, in exchange for reliably finishing
+  # instead of hitting the timeout (#404: a cancelled run at 20 min wasted the full 20 min for nothing).
+  e2e-shard:
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [iphone, desktop, iphone-webkit]
+        include:
+          - project: iphone
+            browser: chromium
+          - project: desktop
+            browser: chromium
+          - project: iphone-webkit
+            browser: webkit
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -107,20 +125,44 @@ jobs:
 
       - run: npm ci
 
-      - name: Install the browsers
-        run: npx playwright install --with-deps chromium webkit
+      # Builds console then api (project.json dependsOn chain) — the same bundle the e2e stack and the Docker
+      # image run. Done explicitly here (rather than through `nx e2e`) so this step is shared by every shard
+      # while the playwright invocation below is scoped to just the one project.
+      - name: Build the app under test
+        run: npx nx build api
 
-      - name: e2e
+      - name: Install the browser
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Typecheck the suite
+        run: npx tsc -p apps/console-e2e/tsconfig.json --noEmit
+
+      - name: e2e (${{ matrix.project }})
         env:
           WRANGLER_SEND_METRICS: 'false'
-        run: npx nx e2e console-e2e
+        run: npx playwright test --config apps/console-e2e/playwright.config.ts --project=${{ matrix.project }}
 
       - name: Keep the report and traces of a failed run
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: console-e2e-report
+          name: console-e2e-report-${{ matrix.project }}
           path: |
             dist/.playwright/apps/console-e2e
             tmp/console-e2e/*/*.log
           retention-days: 7
+
+  # Thin aggregator: `scripts/pr gate` and branch rules read the check named `e2e`, so the matrix above keeps
+  # its own name (`e2e-shard`) and this job turns its result into the one check consumers already look for.
+  e2e:
+    name: e2e
+    needs: e2e-shard
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Require every e2e shard to pass
+        if: needs.e2e-shard.result != 'success'
+        run: |
+          echo "::error::e2e-shard result was '${{ needs.e2e-shard.result }}' — see the e2e-shard matrix jobs"
+          exit 1

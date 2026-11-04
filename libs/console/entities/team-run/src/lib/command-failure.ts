@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { httpProblemOf } from '@console/shared/api';
+import { httpProblemOf, isAccessSessionExpired } from '@console/shared/api';
 
 /**
  * How a team command ended when it did not do what was asked, shared by every command of the Commands panel (#114
@@ -63,6 +63,8 @@ export type CommandFailureKind =
   | 'request-not-issue'
   | 'sprint-next-missing'
   | 'request-in-progress'
+  // Cloudflare Access wants a new login: the app root swaps to its sign-in screen and closes the sheets (#367)
+  | 'session-expired'
   | 'offline'
   | 'unknown';
 
@@ -121,6 +123,10 @@ export function textOf(failure: CommandFailure, name: string): string | null {
 export function commandFailureOf(error: unknown): CommandFailure {
   if (!(error instanceof HttpErrorResponse)) {
     return { kind: 'unknown', retryAfter: null, extensions: {} };
+  }
+  // Before the status-0 check: Access's redirect arrives as an opaque status 0 but the network works (#367).
+  if (isAccessSessionExpired(error, error.error)) {
+    return { kind: 'session-expired', retryAfter: null, extensions: {} };
   }
   const problem = httpProblemOf(error);
   if (problem.status === 0) {

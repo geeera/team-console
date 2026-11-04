@@ -75,6 +75,29 @@ describe('Sheet', () => {
     expect(sheet.hasOpen()).toBe(false);
   });
 
+  it('closeAll() closes every open sheet, a busy confirmation too, and unlocks the page (#367)', async () => {
+    const below = sheet.open(Content, { title: 'Commands', data: { text: 'panel' } });
+    const pending = sheet.confirm({
+      title: 'Pause?',
+      message: 'Sure?',
+      action: () => new Promise<void>(() => undefined),
+    });
+    await settle();
+    (overlay().querySelector('.tc-confirm__ok') as HTMLButtonElement).click();
+    await settle();
+    let belowResult: unknown = 'open';
+    below.closed.subscribe((result) => (belowResult = result));
+
+    sheet.closeAll();
+    await settle();
+
+    expect(sheet.hasOpen()).toBe(false);
+    expect(overlay().querySelector('tc-sheet-container')).toBeNull();
+    expect(belowResult).toBeUndefined();
+    await expect(pending).resolves.toBe(false);
+    expect(document.documentElement.hasAttribute('data-tc-scroll-lock')).toBe(false);
+  });
+
   it('closes on Escape and returns focus to the opener', async () => {
     const fixture = TestBed.createComponent(Host);
     await fixture.whenStable();

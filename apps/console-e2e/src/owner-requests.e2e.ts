@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { addDays, calendarDayOf } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
-import { clearFakeMilestones, seed, type Stack } from './support/stack';
+import { clearFakeMilestones, fakePost, seed, seedFakeRunLog, type Stack } from './support/stack';
 
 /**
  * Requests to the PM (#219, ADR 0005): from the Commands panel the owner picks an issue, asks for the next sprint,
@@ -21,15 +21,6 @@ interface FakeComment {
   readonly issue: number;
   readonly body: string;
   readonly author: string;
-}
-
-async function fakePost(stack: Stack, path: string, body: unknown): Promise<void> {
-  const response = await fetch(`${stack.fakeURL ?? ''}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  expect(response.ok, `fake GitHub ${path}: ${await response.text()}`).toBe(true);
 }
 
 async function fakeState(
@@ -63,14 +54,7 @@ test.describe.configure({ mode: 'serial' });
 
 test.beforeAll(async ({ stack }) => {
   requireLocalStack(stack);
-  await fakePost(stack, '/_fake/issue', {
-    repo: REPO,
-    number: 22,
-    title: 'Team run log',
-    author: 'geeera',
-    labels: ['team:run-log'],
-    repoOwner: { login: 'geeera', id: 100001 },
-  });
+  await seedFakeRunLog(stack);
 });
 
 test.beforeEach(async ({ stack }) => {

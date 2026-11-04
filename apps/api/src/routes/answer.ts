@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import {
   ANSWER_LOOKUP_MAX_MS,
+  ANSWER_REPLAY_WINDOW_MS,
   ANSWER_TEXT_MAX_LENGTH,
   type AnswerCommand,
   type AnswerLookupResponse,
@@ -31,14 +32,11 @@ import { jsonBody } from '../json-body';
 import { ownerWriter } from '../owner/owner-writer';
 import {
   ANSWER_IN_PROGRESS,
-  REPLAY_WINDOW_MS,
   answerBodyHash,
   postOwnerAnswer,
 } from '../owner/post-owner-answer';
 import { findProject, projectNotFound, repoOf } from '../projects/lookup';
 import { repositoryClient } from '../projects/repository-checks';
-
-export { REPLAY_WINDOW_MS } from '../owner/post-owner-answer';
 
 type Context = WorkerContext<ApiEnv>;
 
@@ -282,7 +280,7 @@ export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv
       }
       const { project, number, request, section, body } = prepared;
       const bodyHash = await answerBodyHash({ registered: project.repo, number, body, kind: 'answer' });
-      const since = new Date(github.now() - request.sentAgoMs - REPLAY_WINDOW_MS).toISOString();
+      const since = new Date(github.now() - request.sentAgoMs - ANSWER_REPLAY_WINDOW_MS).toISOString();
       const write = await new OwnWritesRepo(c.env.DB).findRecentByHash(project.repo, number, bodyHash, since);
       c.get('logger').info('owner answer looked up', {
         slug: project.slug,

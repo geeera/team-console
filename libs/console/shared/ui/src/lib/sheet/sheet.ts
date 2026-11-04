@@ -96,6 +96,14 @@ export class Sheet {
   }
 
   /**
+   * Closes every open sheet and dialog, top first, each with no result — also one whose action is still running.
+   * For when the screens behind them are gone (an expired session, #367): a sheet left over the page would hide it.
+   */
+  closeAll(): void {
+    this.dialog.closeAll();
+  }
+
+  /**
    * Resolves `true` only when the user pressed Confirm and its `action`, if any, succeeded; Escape, the scrim and
    * Cancel give `false`. A failed action keeps the dialog open, so the promise waits for the next answer.
    */

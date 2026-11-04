@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  inject,
+  viewChild,
+} from '@angular/core';
 import { AccessSession } from '@console/shared/api';
 import { TranslocoPipe } from '@console/shared/i18n';
 import { Button, StateBlock } from '@console/shared/ui';
@@ -24,6 +31,7 @@ import { Button, StateBlock } from '@console/shared/ui';
           type="button"
           variant="primary"
           data-testid="session-sign-in"
+          #signIn
           (click)="session.signIn()"
         >
           {{ 'app.session.signIn' | transloco }}
@@ -43,4 +51,11 @@ import { Button, StateBlock } from '@console/shared/ui';
 })
 export class SessionExpired {
   protected readonly session = inject(AccessSession);
+  private readonly signInButton = viewChild.required('signIn', { read: ElementRef<HTMLButtonElement> });
+
+  constructor() {
+    // The screens and any sheet the owner was in are gone, so focus would fall to the body (#367): the one way
+    // forward takes it. The h1 and the alert give the screen reader the title.
+    afterNextRender(() => this.signInButton().nativeElement.focus());
+  }
 }

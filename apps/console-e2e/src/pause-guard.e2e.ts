@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
-import { fakeComments, seed, type Stack } from './support/stack';
+import { fakeComments, fakePost, seed, seedFakeRunLog, type Stack } from './support/stack';
 
 /**
  * A console pause the team would not keep (#141): in a run log the team's bot opened, the plugin does not count the
@@ -19,24 +19,8 @@ const OWNER_PAUSE =
   '<!-- pt-paused -->\n<!-- pt-owner-pause {"reason": "vacation", "source": "team-console"} -->\n' +
   '**Development paused by the owner**';
 
-async function fakePost(stack: Stack, path: string, body: unknown): Promise<void> {
-  const response = await fetch(`${stack.fakeURL ?? ''}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  expect(response.ok, `fake GitHub ${path}: ${await response.text()}`).toBe(true);
-}
-
 async function seedRunLog(stack: Stack, author: string, labels: readonly string[]): Promise<void> {
-  await fakePost(stack, '/_fake/issue', {
-    repo: REPO,
-    number: LOG,
-    title: 'Team run log',
-    author,
-    labels: ['team:run-log', ...labels],
-    repoOwner: { login: 'geeera', id: 100001 },
-  });
+  await seedFakeRunLog(stack, { author, labels });
 }
 
 async function comment(stack: Stack, body: string, author: string, createdAt: number): Promise<void> {
