@@ -36,8 +36,11 @@ export type AnswerFailureKind =
   | 'offline'
   | 'unknown';
 
-/** What the card offers next: the same request again, a fresh list, or Settings. */
-export type AnswerRecovery = 'retry' | 'refresh' | 'settings' | 'none';
+/**
+ * What the card offers next: the same request again, a fresh list, Settings (the GitHub connection) or the project's
+ * setup page (the console app's installation, #366).
+ */
+export type AnswerRecovery = 'retry' | 'refresh' | 'settings' | 'project-setup' | 'none';
 
 export interface AnswerFailure {
   readonly kind: AnswerFailureKind;
@@ -70,7 +73,7 @@ const BY_PROBLEM: Readonly<Record<string, AnswerFailureKind>> = {
 const RECOVERY: Readonly<Record<AnswerFailureKind, AnswerRecovery>> = {
   'not-connected': 'settings',
   'owner-mismatch': 'settings',
-  'app-not-installed': 'settings',
+  'app-not-installed': 'project-setup',
   'issue-closed': 'refresh',
   'in-progress': 'retry',
   'not-waiting': 'refresh',

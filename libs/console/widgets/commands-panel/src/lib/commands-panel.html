@@ -57,12 +57,18 @@
     </p>
   </div>
   } @else if (!status.ownerConnected) {
-  <div tc-banner tone="warning" class="cp-note">
+  <div tc-banner tone="warning" class="cp-note" data-testid="cp-not-connected">
     <tc-icon tc-banner-icon name="lock" size="sm" />
     <p tc-banner-text>
-      {{ 'commands.status.noperm' | transloco: { repo: project().repo } }}
-      <a routerLink="/settings">{{ 'commands.status.nopermFix' | transloco }}</a>
+      {{ 'commands.status.noperm' | transloco }} @if (connectRefused(); as refused) {
+      <span role="alert" data-testid="cp-connect-refused"
+        >{{ 'settings.gh.error.' + refused | transloco }}</span
+      >
+      }
     </p>
+    <div tc-banner-actions>
+      <tc-connect-github-button variant="secondary" (refused)="connectRefused.set($event)" />
+    </div>
   </div>
   }
 

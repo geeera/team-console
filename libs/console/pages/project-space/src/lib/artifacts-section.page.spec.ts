@@ -159,6 +159,34 @@ describe('ArtifactsSectionPage, the Design filter states (#295, #277 spec §4)',
     http.match(/\/designs\/277$/);
   });
 
+  it("#366: not installed links to the project's setup page before Retry", async () => {
+    const { http, query, settle } = await setup('/p/tc/artifacts');
+    http
+      .expectOne(projectArtifactsUrl('tc'))
+      .flush(
+        { type: 'https://team-console/problems/github-app-not-installed', title: 'x', status: 409 },
+        { status: 409, statusText: 'Conflict' },
+      );
+    await settle();
+    const block = query('[data-testid="artifacts-error"]');
+    expect(block?.getAttribute('data-failure')).toBe('not-installed');
+    expect(textOf(block?.querySelector('.tc-state-block__description'))).toBe(
+      'Установите его на странице настройки проекта и попробуйте ещё раз.',
+    );
+    const actions = [...(block?.querySelectorAll('a, button') ?? [])];
+    expect(actions.map((el) => textOf(el))).toEqual(['Открыть настройку проекта', 'Повторить']);
+    expect(actions[0]?.getAttribute('href')).toBe('/settings/projects/tc');
+  });
+
+  it('offers only Retry when the list could not be read for another reason', async () => {
+    const { http, query, settle } = await setup('/p/tc/artifacts');
+    http.expectOne(projectArtifactsUrl('tc')).error(new ProgressEvent('error'), { status: 0 });
+    await settle();
+    const block = query('[data-testid="artifacts-error"]');
+    expect(block?.getAttribute('data-failure')).toBe('offline');
+    expect(block?.querySelector('[data-testid="project-setup-link"]')).toBeNull();
+  });
+
   it('has the English copy too', async () => {
     const { query, answer, settle } = await setup('/p/tc/artifacts?type=design');
     // English is a lazy chunk (#123): loaded before the switch, as `ConsoleLanguage.use` does.

@@ -798,6 +798,32 @@ describe('SprintBoard', () => {
     expect(block.textContent).toContain(copy);
   });
 
+  it("#366: not installed links to the project's setup page before Retry", async () => {
+    const { root, settle } = await render();
+    http
+      .expectOne(projectSprintUrl(TC.slug))
+      .flush(
+        { type: 'https://team-console/problems/github-app-not-installed', title: 'x', status: 409 },
+        { status: 409, statusText: 'Conflict' },
+      );
+    await settle();
+
+    const block = root.querySelector('[data-testid="load-error"]') as HTMLElement;
+    expect(block.textContent).toContain('Установите его на странице настройки проекта');
+    expect(block.textContent).not.toContain('«Настройках»');
+    const actions = [...block.querySelectorAll('a, button')];
+    expect(actions.map((el) => el.textContent?.trim())).toEqual(['Открыть настройку проекта', 'Повторить']);
+    expect(actions[0]?.getAttribute('href')).toBe(`/settings/projects/${TC.slug}`);
+  });
+
+  it('offers no setup link for a failure the setup page cannot fix', async () => {
+    const { root, settle } = await render();
+    http.expectOne(projectSprintUrl(TC.slug)).error(new ProgressEvent('error'), { status: 0 });
+    await settle();
+
+    expect(root.querySelector('[data-testid="load-error"] [data-testid="project-setup-link"]')).toBeNull();
+  });
+
   it('shows nothing of a response with the wrong shape', async () => {
     const { root, settle } = await render();
     http.expectOne(projectSprintUrl(TC.slug)).flush({ issues: '<b>x</b>' });

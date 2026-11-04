@@ -11,6 +11,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ArtifactList, ArtifactsStore, type Artifact } from '@console/entities/artifact';
 import { DesignManifests, DesignPreview, DesignSummary } from '@console/entities/design';
+import { ProjectSetupLink } from '@console/entities/project';
 import {
   ARTIFACT_QUERY_MAX_LENGTH,
   ArtifactSearch,
@@ -30,7 +31,17 @@ import { map } from 'rxjs';
  */
 @Component({
   selector: 'tc-artifacts-section-page',
-  imports: [ArtifactList, ArtifactSearch, Button, Callout, DesignPreview, DesignSummary, StateBlock, TranslocoPipe],
+  imports: [
+    ArtifactList,
+    ArtifactSearch,
+    Button,
+    Callout,
+    DesignPreview,
+    DesignSummary,
+    ProjectSetupLink,
+    StateBlock,
+    TranslocoPipe,
+  ],
   template: `
     <div class="artifacts__head">
       <h2 class="artifacts__title">{{ 'artifacts.title' | transloco }}</h2>
@@ -61,6 +72,9 @@ import { map } from 'rxjs';
             [title]="'artifacts.error.' + failure + '.title' | transloco"
             [description]="'artifacts.error.' + failure + '.hint' | transloco"
           >
+            @if (failure === 'not-installed' && slug(); as slug) {
+              <tc-project-setup-link tc-state-action [slug]="slug" />
+            }
             <button tc-button tc-state-action type="button" (click)="reload()">
               {{ 'ui.error.retry' | transloco }}
             </button>

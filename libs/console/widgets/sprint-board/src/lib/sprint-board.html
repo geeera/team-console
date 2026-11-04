@@ -8,6 +8,9 @@
   [title]="'board.error.' + failed.failure + '.title' | transloco"
   [description]="failureHintKey() | transloco: { time: retryTime() }"
 >
+  @if (failed.failure === 'not-installed') {
+  <tc-project-setup-link tc-state-action [slug]="project().slug" />
+  }
   <button tc-button tc-state-action type="button" (click)="reload()">
     {{ 'ui.error.retry' | transloco }}
   </button>

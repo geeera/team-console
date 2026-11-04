@@ -145,7 +145,7 @@ describe('CommandsPanel — Approve team recommendations (#246)', () => {
     const button = root.querySelector('[data-testid="approve-command"]') as HTMLButtonElement;
     expect(button.getAttribute('aria-disabled')).toBe('true');
     const why = root.querySelector(`#${button.getAttribute('aria-describedby')?.split(' ')[0]}`);
-    expect(text(why)).toBe('Нет права записи');
+    expect(text(why)).toBe('Сначала подключите GitHub');
     button.click();
     expect(opener.open).not.toHaveBeenCalled();
   });
