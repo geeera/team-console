@@ -258,3 +258,56 @@ test('go asks for confirmation first, then writes exactly one /go', async ({
   expect(after).toHaveLength(before.length + 1);
   expect(commandLines(after.at(-1)?.body ?? '')).toEqual([{ command: 'go', text: '' }]);
 });
+
+/**
+ * #192 (WCAG 2.2 SC 2.4.11 Focus Not Obscured): the scroller's `scroll-padding-bottom` must keep a newly
+ * focused control clear of the sticky bottom tab bar. A browser only re-scrolls on focus when the control is
+ * not already "in view" by its own rules, so the viewport is first shrunk to put the button's bottom edge
+ * exactly on the window's own bottom edge — on-screen by a plain viewport check whatever height the demo
+ * content happens to render at, and exactly where it would sit fully hidden under the tab bar without
+ * scroll-padding.
+ */
+test('focusing the release card\'s override button scrolls it clear of the sticky bottom tab bar', async ({
+  page,
+  outsideRequests,
+}) => {
+  test.skip(test.info().project.name !== 'iphone', 'the sticky bottom tab bar is the phone layout (#192)');
+  await servePreviews(page, (origin) => outsideRequests.allow(origin));
+  await openSection(page);
+
+  const override = card(page, 90005).locator('[data-command="override"]');
+  await expect(override).toBeVisible();
+  const box = await override.boundingBox();
+  if (box === null) {
+    throw new Error('the override button is drawn');
+  }
+  const viewport = page.viewportSize();
+  if (viewport === null) {
+    throw new Error('a viewport is set');
+  }
+  await page.setViewportSize({ width: viewport.width, height: Math.ceil(box.y + box.height) });
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+
+  await override.focus();
+  await expect(override).toBeFocused();
+
+  const hiddenPoint = await override.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    // Inset past the button's own border-radius (--r-md, 10px) so a probe does not land on the rounded
+    // corner's background pixel and read as "obscured" for a reason that has nothing to do with the tab bar.
+    const inset = 12;
+    const points: [number, number][] = [
+      [box.left + box.width / 2, box.top + box.height / 2],
+      [box.left + inset, box.top + inset],
+      [box.right - inset, box.top + inset],
+      [box.left + inset, box.bottom - inset],
+      [box.right - inset, box.bottom - inset],
+    ];
+    return points.find(([x, y]) => {
+      const hit = document.elementFromPoint(x, y);
+      return hit === null || !element.contains(hit);
+    });
+  });
+  expect(hiddenPoint, 'the tab bar must not cover any part of the focused button').toBeUndefined();
+  await expectAccessible(page, 'Designs and demo, override button focused');
+});

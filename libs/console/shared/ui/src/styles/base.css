@@ -12,6 +12,18 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/*
+ * The document is the one scroll (#274), and on the phone the bottom tab bar sits sticky over its last
+ * --tab-bar-h + the safe-area inset (#192). Without scroll-padding a focused control or `scrollIntoView`
+ * target can land fully under the bar, violating WCAG 2.2 SC 2.4.11. Scoped to the width where the tab
+ * bar renders, matching `.tc-tap-target` above.
+ */
+@media (max-width: 519.98px) {
+  html {
+    scroll-padding-bottom: calc(var(--tab-bar-h) + var(--safe-bottom));
+  }
+}
+
 body {
   margin: 0;
   min-height: 100dvh;
