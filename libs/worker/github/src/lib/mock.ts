@@ -555,6 +555,10 @@ class MockGitHubServer {
       expires_at: new Date(issued.expiresAt).toISOString(),
       permissions: issued.scope === 'repo' ? INSTALLATION_PERMISSIONS : INSTALLATION_LIST_PERMISSIONS,
       repository_selection: issued.scope === 'repo' ? 'selected' : 'all',
+      // #317: a repository token lists the one repository it covers, as GitHub's answer does.
+      ...(issued.scope === 'repo'
+        ? { repositories: [{ name: issued.repo.split('/')[1] ?? '', full_name: issued.repo }] }
+        : {}),
     });
   }
 

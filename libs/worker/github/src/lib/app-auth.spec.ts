@@ -6,16 +6,24 @@ import {
   generateAppKey,
   json,
   mintScopeOf,
+  repositoryOwners,
   scriptedGitHub,
   type AppKey,
 } from '../testing/github-kit';
 import { GitHubAppAuth, INSTALLATION_PERMISSIONS, createAppJwt, importAppPrivateKey } from './app-auth';
+import type { Logger } from '@worker/core';
 import { GitHubError } from './errors';
 import { parseRepoName } from './repo-name';
 
 const APP_ID = '123456';
 const REPO = parseRepoName('geeera/team-console');
 const NOW = Date.parse('2026-09-30T12:00:00Z');
+/** What GitHub echoes for a mint of `REPO` downscoped as requested (#76, #317). */
+const REPO_SCOPE = {
+  permissions: INSTALLATION_PERMISSIONS,
+  repository_selection: 'selected',
+  repositories: [{ id: 1, name: 'team-console', full_name: 'geeera/team-console' }],
+} as const;
 
 // Assembled at run time so the repository's secret scanners never see a key-shaped literal.
 const PKCS8_LABEL = `${'PRIVATE'} KEY`;
@@ -216,8 +224,7 @@ describe('GitHubAppAuth', () => {
         ? json(201, {
             token: `ghs_T${github.calls.length}`,
             expires_at: new Date(now + 60 * 60 * 1000).toISOString(),
-            permissions: INSTALLATION_PERMISSIONS,
-            repository_selection: 'selected',
+            ...REPO_SCOPE,
           })
         : json(200, { id: INSTALLATION_ID }),
     );
@@ -294,8 +301,7 @@ describe('GitHubAppAuth', () => {
       return json(201, {
         token: 'ghs_fresh',
         expires_at: new Date(Date.now() + 3_600_000).toISOString(),
-        permissions: INSTALLATION_PERMISSIONS,
-        repository_selection: 'selected',
+        ...REPO_SCOPE,
       });
     });
     const auth = new GitHubAppAuth(
@@ -335,8 +341,7 @@ describe('GitHubAppAuth', () => {
         : json(201, {
             token: 'ghs_ok',
             expires_at: new Date(Date.now() + 3_600_000).toISOString(),
-            permissions: INSTALLATION_PERMISSIONS,
-            repository_selection: 'selected',
+            ...REPO_SCOPE,
           });
     });
     const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
@@ -386,6 +391,7 @@ describe('GitHubAppAuth', () => {
               expires_at: '2026-09-30T13:00:00Z',
               permissions,
               repository_selection: repositorySelection,
+              repositories: REPO_SCOPE.repositories,
             }),
       );
       const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
@@ -404,6 +410,194 @@ describe('GitHubAppAuth', () => {
   });
 });
 
+describe('the repositories a repository token covers (#317)', () => {
+  const REFUSED = `${SENTINEL_TOKEN}refused`;
+  const EXPIRES_AT = '2026-09-30T13:00:00Z';
+
+  interface LogEntry {
+    readonly level: string;
+    readonly message: string;
+    readonly fields: unknown;
+  }
+
+  function recordingLogger(): Logger & { readonly entries: LogEntry[] } {
+    const entries: LogEntry[] = [];
+    const log =
+      (level: string) =>
+      (message: string, fields?: unknown): void => {
+        entries.push({ level, message, fields });
+      };
+    return { entries, info: log('info'), warn: log('warn'), error: log('error') };
+  }
+
+  /** Lookup, a mint answered with `answer`, and the revoke answered by `revoke`. */
+  function mintAnswering(
+    answer: Record<string, unknown>,
+    revoke: () => Response | Promise<Response> = () => new Response(null, { status: 204 }),
+  ) {
+    return scriptedGitHub((call) => {
+      const path = new URL(call.url).pathname;
+      if (call.method === 'GET' && path === '/repos/geeera/team-console/installation') {
+        return json(200, { id: INSTALLATION_ID });
+      }
+      if (call.method === 'POST' && path === `/app/installations/${INSTALLATION_ID}/access_tokens`) {
+        return json(201, { token: REFUSED, expires_at: EXPIRES_AT, ...answer });
+      }
+      if (call.method === 'DELETE' && path === '/installation/token') {
+        return revoke();
+      }
+      throw new Error(`unexpected ${call.method} ${path}`);
+    });
+  }
+
+  function authOver(github: ReturnType<typeof scriptedGitHub>, logger = recordingLogger()) {
+    return new GitHubAppAuth(
+      { appId: APP_ID, privateKeyPem: key.pem },
+      { fetch: github.fetch, now: () => NOW, logger },
+    );
+  }
+
+  const revokes = (github: ReturnType<typeof scriptedGitHub>) =>
+    github.calls.filter((call) => call.method === 'DELETE');
+
+  const other = { id: 2, name: 'other', full_name: 'geeera/other' };
+  const scopeWith = (repositories: unknown) => ({
+    permissions: INSTALLATION_PERMISSIONS,
+    repository_selection: 'selected',
+    repositories,
+  });
+
+  it.each([
+    ['the exact repository', [{ id: 1, name: 'team-console', full_name: 'geeera/team-console' }]],
+    [
+      'the repository in another letter case',
+      [{ id: 1, name: 'Team-Console', full_name: 'Geeera/Team-Console' }],
+    ],
+  ])('accepts, caches and keeps a mint whose repositories list is %s', async (_label, repositories) => {
+    const github = mintAnswering(scopeWith(repositories));
+    const auth = authOver(github);
+
+    await expect(auth.tokenSourceFor(REPO).getToken()).resolves.toBe(REFUSED);
+    expect(auth.hasUsableToken(REPO)).toBe(true);
+    expect(revokes(github)).toHaveLength(0);
+  });
+
+  it.each([
+    ['extra repositories', [REPO_SCOPE.repositories[0], other]],
+    ['a different repository', [other]],
+    [
+      'a repository of the same name under another owner',
+      [{ id: 3, name: 'team-console', full_name: 'evil/team-console' }],
+    ],
+    ['a missing list', undefined],
+    ['an empty list', []],
+    ['a list that is not an array', { full_name: 'geeera/team-console' }],
+    ['an entry without full_name', [{ id: 1, name: 'team-console' }]],
+    ['an entry that is not an object', ['geeera/team-console']],
+  ])(
+    'refuses a mint with %s with 502 github-unexpected, never caches it and revokes it',
+    async (_label, repositories) => {
+      const github = mintAnswering(scopeWith(repositories));
+      const auth = authOver(github);
+
+      const error = await rejection(auth.tokenSourceFor(REPO).getToken());
+      expect(error.problem).toMatchObject({ type: 'github-unexpected', status: 502 });
+      expect(auth.hasUsableToken(REPO)).toBe(false);
+      expect(JSON.stringify(error.problem)).not.toContain(REFUSED);
+      expect(error.message).not.toContain(REFUSED);
+
+      const [revoke] = revokes(github);
+      expect(revokes(github)).toHaveLength(1);
+      expect(revoke?.url).toBe('https://api.github.com/installation/token');
+      expect(revoke?.headers.get('authorization')).toBe(`Bearer ${REFUSED}`);
+      expect(revoke?.body).toBeUndefined();
+    },
+  );
+
+  it('mints again on the next request after a refusal, since the refused token was never cached', async () => {
+    const github = mintAnswering(scopeWith([other]));
+    const auth = authOver(github);
+    const source = auth.tokenSourceFor(REPO);
+
+    await rejection(source.getToken());
+    await rejection(source.getToken());
+    expect(github.calls.filter((call) => call.method === 'POST')).toHaveLength(2);
+    expect(revokes(github)).toHaveLength(2);
+  });
+
+  it('logs nothing when the revoke succeeds', async () => {
+    const logger = recordingLogger();
+    const github = mintAnswering(scopeWith([other]));
+    await rejection(authOver(github, logger).tokenSourceFor(REPO).getToken());
+    expect(revokes(github)).toHaveLength(1);
+    expect(logger.entries).toHaveLength(0);
+  });
+
+  it.each([
+    ['GitHub answers 500', () => json(500, { message: 'boom' }), { githubStatus: 500 }],
+    ['GitHub answers 401', () => json(401, { message: 'Bad credentials' }), { githubStatus: 401 }],
+    [
+      'the request fails in transit',
+      () => Promise.reject(new TypeError(`network error sending ${REFUSED}`)),
+      { reason: 'github-unavailable' },
+    ],
+  ] as const)(
+    'when the revoke fails (%s): logs it without the token and still answers the 502',
+    async (_label, revoke, logged) => {
+      const logger = recordingLogger();
+      const github = mintAnswering(scopeWith([other]), revoke);
+
+      const error = await rejection(authOver(github, logger).tokenSourceFor(REPO).getToken());
+      expect(error.problem).toMatchObject({
+        type: 'github-unexpected',
+        status: 502,
+        detail: 'GitHub minted a token for other repositories than the one requested',
+      });
+      expect(logger.entries).toEqual([
+        {
+          level: 'warn',
+          message: 'refused installation token not revoked',
+          fields: { installationId: INSTALLATION_ID, ...logged },
+        },
+      ]);
+      expect(JSON.stringify(logger.entries)).not.toContain(REFUSED);
+    },
+  );
+
+  it('revokes a token refused for its permissions (#76) too', async () => {
+    const github = mintAnswering({
+      ...scopeWith(REPO_SCOPE.repositories),
+      permissions: { ...INSTALLATION_PERMISSIONS, issues: 'write' },
+    });
+    const error = await rejection(authOver(github).tokenSourceFor(REPO).getToken());
+    expect(error.problem.type).toBe('github-unexpected');
+    expect(revokes(github)).toHaveLength(1);
+  });
+
+  it('revokes a refused installation-wide list token (#194) too', async () => {
+    const github = scriptedGitHub((call) =>
+      call.method === 'DELETE'
+        ? new Response(null, { status: 204 })
+        : json(201, {
+            token: REFUSED,
+            expires_at: EXPIRES_AT,
+            permissions: INSTALLATION_PERMISSIONS,
+            repository_selection: 'all',
+          }),
+    );
+    const error = await rejection(authOver(github).listTokenSourceFor(INSTALLATION_ID).getToken());
+    expect(error.problem.type).toBe('github-unexpected');
+    expect(revokes(github)[0]?.headers.get('authorization')).toBe(`Bearer ${REFUSED}`);
+  });
+
+  it('sends no revoke when the mint answer carries no usable token', async () => {
+    const github = mintAnswering({ token: 'ghs_x y', ...scopeWith(REPO_SCOPE.repositories) });
+    const error = await rejection(authOver(github).tokenSourceFor(REPO).getToken());
+    expect(error.problem.type).toBe('github-unexpected');
+    expect(revokes(github)).toHaveLength(0);
+  });
+});
+
 describe('the installation-wide list token (#194, ADR 0003 decisions 2(a) and 6 as amended)', () => {
   const OWNER_ID = 100001;
 
@@ -412,12 +606,14 @@ describe('the installation-wide list token (#194, ADR 0003 decisions 2(a) and 6 
     installations: unknown = [{ id: INSTALLATION_ID, account: { id: OWNER_ID, login: 'x' } }],
   ) {
     let minted = 0;
+    const owners = repositoryOwners();
     const github = scriptedGitHub((call) => {
       const path = new URL(call.url).pathname;
       if (call.method === 'GET' && path === '/app/installations') {
         return json(200, installations);
       }
       if (call.method === 'GET' && /^\/repos\/[^/]+\/[^/]+\/installation$/.test(path)) {
+        owners.record(path);
         return json(200, { id: INSTALLATION_ID });
       }
       if (call.method === 'POST' && /^\/app\/installations\/[0-9]+\/access_tokens$/.test(path)) {
@@ -425,7 +621,7 @@ describe('the installation-wide list token (#194, ADR 0003 decisions 2(a) and 6 
         return json(201, {
           token: `${SENTINEL_TOKEN}${minted}`,
           expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-          ...mintScopeOf(call.body),
+          ...mintScopeOf(call.body, owners.ownerOf),
         });
       }
       throw new Error(`unexpected ${call.method} ${path}`);
