@@ -1230,6 +1230,15 @@
         "backOffline": "You’re offline: {{name}} notifications are still snoozed. Nothing changed."
       }
     },
+    "approve": {
+      "title": "Approve team recommendations",
+      "hint": "{{n}} can be approved together.",
+      "hintLeft": "{{n}} can be approved together; {{m}} only one by one.",
+      "btn": "Review",
+      "aria": "Approve team recommendations: {{n}}",
+      "none": "Nothing to approve in a batch right now",
+      "error": "Couldn't read the project's questions. Refresh the status above."
+    },
     "ask": {
       "title": "Ask the PM about an issue",
       "hint": "Another sprint, or higher or lower in the queue. The PM reads it at the next planning run.",
