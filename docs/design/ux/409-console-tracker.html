@@ -1,0 +1,998 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>#409 Tasks and sprints in the console (UX wireframe)</title>
+<style>
+/* Low-fidelity on purpose: grey boxes, system font, no Paper Desk styling. The look is the ui-designer's job.
+   Same conventions as ux/107-quick-task.html and ux/29-team-commands.html. */
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 system-ui,-apple-system,sans-serif;color:#222;background:#eee}
+a{color:#222}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:3px solid #000;outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.demo{background:#fff;border-bottom:1px solid #bbb;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:13px}
+.demo b{font-size:14px}
+.demo label{display:flex;gap:6px;align-items:center}
+.demo p{margin:0;flex-basis:100%;color:#555}
+.demo fieldset{border:1px dotted #aaa;margin:0;padding:2px 8px;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+.demo legend{font-weight:600;font-size:12px}
+.stage{padding:20px;display:flex;justify-content:center}
+.frame{background:#fafafa;border:2px solid #999;display:flex;position:relative;overflow:hidden}
+.frame.mac{width:1280px;height:800px}
+.frame.phone{width:390px;height:844px;flex-direction:column;border-radius:28px}
+.side{width:220px;border-right:1px solid #bbb;background:#e6e6e6;display:flex;flex-direction:column;padding:12px;gap:4px;flex:none}
+.side button{width:100%;text-align:left;padding:8px;border:0;background:none;min-height:36px;cursor:pointer}
+.side [aria-current="page"]{background:#bdbdbd;font-weight:600}
+.side .lbl{font-size:12px;color:#555;margin-top:10px}
+main{flex:1;overflow:auto;padding:20px 28px;min-width:0}
+.phone main{padding:14px}
+.topbar{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid #bbb;background:#e6e6e6;min-height:52px}
+.topbar .switch{flex:1;text-align:left;border:0;background:none;font-weight:600;font-size:17px;min-height:44px;cursor:pointer}
+.topbar h1{flex:1;font-size:16px;margin:0;text-align:center}
+.ib{min-width:44px;min-height:44px;border:1px solid #888;background:#ddd;cursor:pointer;position:relative}
+h1{font-size:21px;margin:0 0 6px}
+h2{font-size:17px;margin:0 0 6px}
+h3{font-size:14px;margin:10px 0 4px}
+.hdr{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.hdr h1{flex:1;margin:0}
+.tabs{display:flex;gap:4px;margin:6px 0 12px;flex-wrap:wrap}
+.tabs span{border:1px solid #aaa;padding:4px 10px;background:#eee}
+.tabs span[aria-current]{background:#bbb;font-weight:600}
+.btn{min-height:44px;padding:0 14px;border:1px solid #666;background:#ddd;cursor:pointer}
+.btn.sm{min-height:36px;padding:0 10px}
+.btn.primary{background:#555;color:#fff;border-color:#555}
+.btn.link{border:0;background:none;text-decoration:underline;padding:0 4px;min-height:32px}
+.btn[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+kbd{border:1px solid #999;padding:0 4px;font-size:12px;background:#fff;margin-left:6px}
+.muted{color:#555;font-size:13px}
+.spec{font-size:12px;color:#666;border:1px dotted #999;padding:4px 8px;margin:8px 0;background:#fff}
+.chg{font-size:11px;font-weight:700;border:1px solid #333;padding:0 4px;margin-left:6px;background:#fff;vertical-align:middle}
+.banner{border:2px solid #555;background:#fff;padding:10px 12px;margin:0 0 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.banner p{margin:0;flex:1;min-width:200px}
+.block{border:1px solid #999;background:#fff;padding:10px 12px;margin:12px 0}
+.block.alert{border:2px solid #333}
+.block h3{margin:0 0 4px;font-size:15px}
+.block p{margin:0 0 6px}
+.skel{height:44px;background:#ddd;margin:6px 0;border:1px dashed #bbb}
+/* board */
+.sec{border:1px solid #bbb;background:#fff;margin:0 0 14px;padding:10px 12px}
+.sec-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sec-h h2{flex:1;margin:0;font-size:16px}
+.sec-h h2 small{display:block;font-weight:400;font-size:12px;color:#555}
+.lanes{display:block}
+.mac .lanes{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.lane h3{border-bottom:1px solid #ccc}
+.row{display:flex;align-items:stretch;border:1px solid #ccc;background:#f7f7f7;margin:4px 0;min-height:44px}
+.row a{flex:1;padding:6px 8px;text-decoration:none;display:block;min-width:0}
+.row a b{font-weight:600}
+.row a small{display:block;color:#555}
+.row .mv{min-width:44px;border:0;border-left:1px solid #ccc;background:#e8e8e8;cursor:pointer}
+.row.moved{outline:2px dashed #555}
+/* overlay */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
+.phone .scrim{align-items:flex-end;padding:0}
+.dialog{background:#fff;border:2px solid #333;width:100%;max-width:560px;max-height:94%;display:flex;flex-direction:column}
+.phone .dialog{max-width:none;max-height:92%;border-radius:14px 14px 0 0}
+.dlg-h{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #bbb;background:#f0f0f0}
+.dlg-h h2{flex:1;margin:0;font-size:17px}
+.dlg-b{overflow:auto;padding:4px 18px 16px;flex:1}
+.dlg-f{display:flex;gap:8px;align-items:center;padding:10px 14px;border-top:1px solid #bbb;background:#f7f7f7;flex-wrap:wrap}
+.dlg-f .grow{flex:1}
+.menu{background:#fff;border:2px solid #333;width:100%;max-width:360px;padding:6px 0}
+.phone .menu{max-width:none;border-radius:14px 14px 0 0;padding-bottom:18px}
+.menu h2{font-size:15px;margin:4px 14px 8px}
+.menu [role=menuitem]{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 14px;min-height:44px;cursor:pointer}
+.menu [role=menuitem] small{display:block;color:#555;font-size:12px}
+.menu [role=menuitem][aria-disabled=true]{opacity:.55}
+.menu [role=menuitem]:focus{background:#ddd}
+.menu hr{border:0;border-top:1px solid #ccc;margin:4px 0}
+.field{display:flex;flex-direction:column;gap:4px;margin:12px 0}
+.field label{font-weight:600}
+.field input,.field select,.field textarea{min-height:44px;padding:8px 10px;border:1px solid #666;background:#fff;font-size:16px}
+.field textarea{min-height:96px;resize:vertical}
+[aria-invalid="true"]{border:2px solid #000 !important}
+.hint{color:#555;font-size:13px;margin:0}
+.ferr{font-weight:600;font-size:13px;margin:0}
+.ferr::before{content:"! "}
+fieldset.f{border:1px solid #bbb;margin:12px 0;padding:6px 10px 10px}
+fieldset.f legend{font-weight:600;padding:0 4px}
+.opt{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-top:1px solid #eee;min-height:44px}
+.opt:first-of-type{border-top:0}
+.opt input{margin-top:5px}
+.opt b{display:block;font-weight:600}
+.opt small{display:block;color:#555}
+.opt[data-off]{opacity:.6}
+.seg{display:flex;flex-wrap:wrap}
+.seg label{flex:1;min-width:90px;display:flex;gap:6px;align-items:center;justify-content:center;min-height:44px;border:1px solid #888;background:#eee;cursor:pointer}
+.done{padding:14px 4px}
+.stamp{display:inline-block;border:2px dashed #555;padding:2px 8px;font-size:12px;letter-spacing:.05em;margin-bottom:8px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.phone .done .actions{flex-direction:column-reverse}
+.phone .done .actions .btn{width:100%}
+.toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);background:#333;color:#fff;padding:8px 12px;max-width:92%;z-index:7;display:flex;gap:10px;align-items:center}
+.toast .btn{background:#fff;color:#000;min-height:36px}
+.alertdialog{background:#fff;border:2px solid #333;padding:16px;max-width:440px;width:100%}
+.phone .alertdialog{max-width:none;border-radius:14px 14px 0 0}
+.alertdialog ul{padding-left:18px}
+/* item */
+.props{display:grid;grid-template-columns:120px 1fr;gap:4px 10px;margin:10px 0;align-items:center}
+.phone .props{grid-template-columns:96px 1fr}
+.props dt{color:#555;font-size:13px}
+.props dd{margin:0}
+.pick{min-height:44px;border:1px solid #888;background:#eee;padding:0 10px;cursor:pointer;text-align:left}
+.tag{display:inline-block;border:1px solid #999;padding:0 6px;font-size:12px;margin:2px 4px 2px 0;background:#f2f2f2}
+.body{white-space:pre-wrap;border:1px solid #ccc;background:#fff;padding:10px;margin:6px 0}
+.decision{border:2px solid #333;background:#fff;padding:10px 12px;margin:12px 0}
+.tl{list-style:none;padding:0;margin:8px 0}
+.tl li{border-left:3px solid #bbb;padding:4px 10px;margin:6px 0;background:#fff}
+.tl li.ev{border-left-style:dotted;background:none;color:#444;font-size:13px}
+.tl .who{font-weight:600;font-size:13px}
+.tl .txt{white-space:pre-wrap}
+.composer{border-top:1px solid #bbb;padding-top:8px;margin-top:10px}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:16px}
+/* import */
+.steps{list-style:none;padding:0;margin:8px 0}
+.steps li{display:flex;gap:8px;align-items:center;padding:6px 0;border-top:1px solid #eee}
+.steps li .st{min-width:22px;text-align:center;font-weight:700}
+progress{width:160px;height:14px}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:6px 0}
+th,td{border:1px solid #ccc;padding:4px 6px;text-align:left}
+.list{list-style:none;padding:0;margin:6px 0}
+.list li{border-top:1px solid #eee;padding:6px 0}
+@media (prefers-reduced-motion:no-preference){.dialog,.alertdialog,.menu,.toast{animation:fade .18s}}
+@keyframes fade{from{opacity:0}}
+</style>
+</head>
+<body>
+<div class="demo" role="region" aria-label="Wireframe controls">
+  <b>#409 Tasks and sprints in the console, low-fidelity wireframe</b>
+  <label>View <select id="c-vp"><option value="mac">Mac 1440</option><option value="phone">iPhone 390</option></select></label>
+  <label>Language <select id="c-lang"><option value="ru">ru</option><option value="en">en</option></select></label>
+  <label>Screen <select id="c-screen">
+    <option value="board">Board by sprint (#108 + changes)</option>
+    <option value="item">Task (new screen)</option>
+    <option value="new">New task (#107 + changes)</option>
+    <option value="find">Find a task (new)</option>
+    <option value="import">Move tasks to the console (import and switch)</option>
+  </select></label>
+  <label>Data <select id="c-data"><option value="ok">loaded</option><option value="loading">loading</option><option value="error">error</option><option value="offline">offline</option><option value="empty">empty project</option><option value="notfound">task not found (Task)</option></select></label>
+  <fieldset><legend>Board</legend>
+    <label><input type="checkbox" id="c-freeze"> current sprint in freeze</label>
+    <label><input type="checkbox" id="c-nonext"> no future sprints</label>
+  </fieldset>
+  <fieldset><legend>Task</legend>
+    <label><input type="checkbox" id="c-decision" checked> waiting for your decision</label>
+    <label><input type="checkbox" id="c-imported" checked> imported from GitHub</label>
+    <label><input type="checkbox" id="c-closed"> closed (not needed)</label>
+  </fieldset>
+  <label>Next write <select id="c-res">
+    <option value="ok">succeeds</option><option value="conflict">409 changed by someone else</option>
+    <option value="invalid">422 field too long</option><option value="gone">409 decision no longer waiting</option>
+    <option value="forbidden">403 not the owner (service identity)</option>
+    <option value="network">network drop</option><option value="timeout">no answer (unknown result)</option>
+  </select></label>
+  <label>Import <select id="c-imp">
+    <option value="before">not started (banner)</option><option value="intro">what moves</option><option value="copying">copying</option>
+    <option value="copyfail">copied with 2 failures</option><option value="check">copied, ready to switch</option><option value="mismatch">copied, counts differ</option>
+    <option value="switching">switching</option><option value="switchfail">switch failed, rolled back</option><option value="done">switched</option>
+  </select></label>
+  <button type="button" class="btn sm" id="c-reset">Reset</button>
+  <p>Mock time: Wed 4 Nov 2026, 14:05 (with freeze: Thu 12 Nov). Sprint 03 demo 13 Nov (freeze 11–12 Nov), Sprint 04 demo 27 Nov, Sprint 05 demo 11 Dec. Project team-console is switched; storify still on GitHub. Rows open the task; ⋯ on a row moves it. Mac: <b>T</b> new task, <b>/</b> find a task, <b>⌘↩</b> saves or sends, <b>Esc</b> closes. Marks <span class="chg">CHANGED</span> and <span class="chg">NEW</span> show what goes to design approval; everything else is the approved #107 / #108 design as is.</p>
+</div>
+<div class="stage"><div id="app"></div></div>
+<div class="sr-only" aria-live="polite" id="live"></div>
+
+<script>
+'use strict';
+/* ---------- copy deck (ru is the reference, en second). Keys match the spec comment on #409. ---------- */
+const T = {
+ru: {
+  'nav.needs':'Ждут вас','nav.all':'Все проекты','nav.projects':'Проекты','nav.settings':'Настройки',
+  'space.chat':'Чат','space.questions':'Вопросы','space.board':'Доска','space.artifacts':'Артефакты','space.commands':'Команды',
+  'task.new':'Новая задача','find.open':'Найти задачу','back.board':'Доска','close':'Закрыть',
+  /* board (#108 keys reused; changes below) */
+  'board.sections.current':'Текущий спринт','board.sections.next':'Следующий спринт','board.sections.later':'Позже',
+  'board.sections.backlog':'Бэклог','board.sections.backlogTitle':'Задачи без спринта',
+  'board.sections.open':'{n} открытых','board.demo':'Демо {date}','board.freeze':'заморозка до демо',
+  'board.sections.show':'Показать задачи','board.sections.hide':'Скрыть',
+  'board.sections.loading':'Загружаю: {section}…','board.loading':'Загружаем доску…',
+  'board.sections.next.none':'Следующего спринта пока нет.',
+  'board.sections.next.emptyTitle':'В {sprint} пока ничего нет',
+  'board.sections.next.emptyHint':'Перенесите сюда задачи из бэклога: кнопка «⋯» у задачи.',
+  'board.sections.backlog.emptyTitle':'В бэклоге пусто','board.sections.backlog.emptyHint':'Все открытые задачи уже в спринтах.',
+  'board.empty.title':'Задач пока нет','board.empty.hint':'Заведите первую — она появится в бэклоге или в выбранном спринте.',
+  'board.error.unavailable.title':'Не удалось загрузить доску','board.error.unavailable.hint':'Консоль не ответила. Попробуйте ещё раз.',
+  'board.error.offline.title':'Нет соединения','board.error.offline.hint':'Доска загрузится, когда появится сеть. Попробуйте ещё раз.',
+  'board.status.proposed':'Предложено','board.status.approved':'Одобрено','board.status.in-progress':'В работе','board.status.qa':'Проверка','board.status.blocked':'Блокеры','board.status.done':'Готово','board.status.closed':'Не нужна',
+  'board.kind.feature':'Функция','board.kind.bug':'Ошибка','board.kind.chore':'Техзадача','board.kind.finding':'Находка','board.kind.wow':'Вау','board.kind.question':'Вопрос',
+  'board.tier.light':'лёгкая','board.tier.standard':'средняя','board.tier.heavy':'тяжёлая','board.tierLabel':'Сложность:',
+  'board.untrusted':'Не от команды','ui.retry':'Повторить',
+  'sprint.create':'Создать спринт','sprint.createNamed':'Создать {sprint}',
+  /* plan: move a task */
+  'plan.move':'Переместить','plan.moveAria':'Переместить #{n}: {title}','plan.menuTitle':'#{n} · куда переместить',
+  'plan.to':'В {sprint}','plan.toCurrent':'В {sprint} — текущий','plan.toBacklog':'В бэклог',
+  'plan.here':'Сейчас здесь','plan.count':'{n} задач · демо {date}','plan.full':'Уже {n} задач: команда обычно успевает {cap}',
+  'plan.freeze':'Заморозка до демо {date}: в этот спринт новые задачи не берут',
+  'plan.up':'Выше в очереди','plan.down':'Ниже в очереди','plan.top':'Первой в очереди',
+  'plan.upNone':'Уже первая','plan.downNone':'Уже последняя',
+  'plan.position':'#{n}: {pos}-я из {total} в «{lane}»',
+  'plan.moved':'#{n} → {where}','plan.undo':'Отменить','plan.undone':'Возвращено: #{n} снова в {where}',
+  'plan.inProgressWarn':'Задача уже в работе: команда закончит текущий шаг и продолжит её в новом спринте.',
+  /* item */
+  'item.loading':'Загружаем задачу…','item.notFound.title':'Задачи #{n} нет в {name}','item.notFound.hint':'Возможно, номер другой или задача в другом проекте.',
+  'item.error.title':'Не удалось загрузить задачу','item.error.hint':'Консоль не ответила. Попробуйте ещё раз.',
+  'item.offline':'Нет сети. Показано на {time}; изменить можно, когда связь вернётся.','item.offlineOff':'Нет сети',
+  'item.status':'Статус','item.kind':'Тип','item.sprint':'Спринт','item.queue':'Очередь','item.tier':'Сложность','item.flags':'Метки','item.from':'Завела',
+  'item.queueVal':'{pos}-я из {total} в «{lane}»','item.tierHint':'Её ставит архитектор',
+  'item.created':'{who} · {date}','item.you':'Вы','item.github':'Была на GitHub: #{n}','item.githubAria':'Открыть #{n} на GitHub (старая копия, только для чтения)',
+  'item.details':'Подробности','item.noDetails':'Подробностей нет.','item.edit':'Изменить','item.editAria':'Изменить название и подробности',
+  'item.title':'Название','item.save':'Сохранить','item.saving':'Сохраняем…','item.cancel':'Отмена','item.saved':'Сохранено',
+  'item.discard.t':'Отменить изменения?','item.discard.b':'Новое название и текст не сохранятся.','item.discard.keep':'Продолжить правку','item.discard.ok':'Отменить изменения',
+  'item.history':'История','item.earlier':'Показать раньше: {n}',
+  'item.comment':'Комментарий','item.commentHint':'Команда прочитает его на ближайшем прогоне. Уйдёт как есть, без оформления.',
+  'item.commentSend':'Отправить','item.commentSending':'Отправляем…','item.commentSent':'Комментарий добавлен',
+  'item.commentCmd':'Комментарий ничего не утверждает и не отклоняет. Для решения есть кнопки «Утвердить» и «Отклонить» выше.',
+  'item.commentCmdNoDecision':'Комментарий ничего не утверждает и не отклоняет: сейчас задача не ждёт вашего решения.',
+  'item.closedNote':'Задача закрыта: не нужна. Её нет на доске, но она находится поиском.','item.reopen':'Вернуть в работу',
+  'item.status.hint.proposed':'Ждёт решения: брать ли её.','item.status.hint.approved':'Решено делать. Команда возьмёт по очереди.',
+  'item.status.hint.in-progress':'Обычно ставит команда, когда берёт задачу.','item.status.hint.qa':'Обычно ставит команда, когда открыт PR.',
+  'item.status.hint.blocked':'Ждёт вас или что-то внешнее. Причина — в истории.','item.status.hint.done':'Сделано. Остаётся в «Готово» до конца спринта.',
+  'item.status.hint.closed':'Не будем делать. Задача уйдёт с доски.',
+  'item.kind.hint.feature':'Что-то новое или изменение того, что есть.','item.kind.hint.bug':'Что-то работает не так, как должно.',
+  'item.kind.hint.chore':'Обслуживание: зависимости, сборка, чистка.','item.kind.hint.finding':'Проблема, которую нашла команда.',
+  'item.kind.hint.wow':'Идея, которая порадует.','item.kind.hint.question':'Команде нужен ваш ответ.',
+  'item.picker.status':'Статус #{n}','item.picker.kind':'Тип #{n}','item.picker.sprint':'Спринт #{n}',
+  'item.changed':'{field}: {from} → {to}','item.changedAria':'{field} изменён: {to}',
+  'item.ev.imported':'Перенесена из GitHub #{n}','item.ev.created':'Создана','item.ev.status':'Статус: {from} → {to}','item.ev.sprint':'Спринт: {from} → {to}',
+  'item.ev.edit':'Изменены название и подробности','item.ev.approved':'Вы утвердили','item.ev.rejected':'Вы отклонили: «{why}»',
+  /* decision (#16 copy reused) */
+  'dec.h':'Ждёт вашего решения','dec.recommends':'Команда советует: утвердить.','dec.approve':'Утвердить','dec.reject':'Отклонить',
+  'dec.busy':'Записываем ответ на #{n}…','dec.done.approve':'Утверждено','dec.done.reject':'Отклонено','dec.doneMeta':'#{n} · {time} · команда прочитает на ближайшем прогоне',
+  'dec.reason.t':'Почему отклоняете?','dec.reason.l':'Причина','dec.reason.hint':'Команда прочитает её в истории задачи.','dec.reason.req':'Напишите причину — без неё команда не поймёт, что менять.',
+  /* write errors (a subset of #107's table; GitHub ones are gone) */
+  'err.conflict.t':'Задача изменилась, пока вы её правили','err.conflict.b':'PM изменил подробности в 14:03. Ваш текст остался в полях.','err.conflict.see':'Показать их версию','err.conflict.mine':'Сохранить мою поверх',
+  'err.theirs':'Версия PM, 14:03','err.invalid.t':'Проверьте поля','err.invalid.b':'Подробности длиннее 5000 символов: сократите на 212.',
+  'err.gone.t':'Решение больше не ждёт вас','err.gone.b':'Команда уже изменила задачу. Обновите её.','err.refresh':'Обновить задачу',
+  'err.forbidden.t':'Менять задачи может только владелец','err.forbidden.b':'Эта сессия вошла не как владелец. Ничего не изменилось.',
+  'err.network.t':'Нет связи','err.network.b':'Изменение могло не дойти. Повторите — дубля не будет.',
+  'err.timeout.t':'Неизвестно, сохранилось ли','err.timeout.b':'Консоль не ответила. Повторите в течение минуты — дубля не будет. Позже сначала обновите задачу.',
+  /* new task: only the changed keys */
+  'task.title':'Новая задача','task.project.label':'Проект','task.project.github':'{name} — задачи пока на GitHub. Сначала перенесите их в консоль.',
+  'task.name.label':'Название','task.name.hint':'Одной фразой — что нужно сделать.','task.text.label':'Подробности (необязательно)','task.text.hint':'Уйдут в задачу как есть, без оформления.',
+  'task.kind.label':'Тип','task.sprint.label':'Куда поставить',
+  'task.sprint.current':'В текущий','task.sprint.next':'В следующий','task.sprint.backlog':'В бэклог',
+  'task.sprint.currentHint':'{sprint}, демо {date}. Задача сразу встанет в конец очереди.','task.sprint.nextHint':'{sprint}, демо {date}.',
+  'task.sprint.backlogHint':'Останется предложением, пока вы не решите её взять.','task.sprint.nextNone':'Следующего спринта нет — задача останется в бэклоге. Спринт можно создать на доске.',
+  'task.sprint.freeze':'Заморозка до демо {date}: новые задачи в этот спринт уже не берут.',
+  'task.send':'Создать в {name}','task.sending':'Создаём задачу…',
+  'task.done.stamp':'Создано','task.done.h':'Задача #{n} создана','task.done.meta':'{name} · {time}','task.done.where':'В {sprint}, {pos}-я в очереди.','task.done.whereBacklog':'В бэклоге, предложением.',
+  'task.done.open':'Открыть задачу','task.done.another':'Ещё задача','task.done.close':'Готово','task.done.announce':'Задача #{n} создана в {name}',
+  /* create sprint (#29 "Start the next sprint" copy reused, extended) */
+  'sprintNew.t':'Новый спринт','sprintNew.name':'Название','sprintNew.date':'Дата демо','sprintNew.hint':'Спринт начнётся после демо {prev} ({date}). Заморозка — два дня перед демо: {freeze}.',
+  'sprintNew.errBefore':'Демо {sprint} должно быть позже демо {prev} ({date}).','sprintNew.errPast':'Эта дата уже прошла. Выберите сегодня или позже.',
+  'sprintNew.errName':'Спринт с таким названием уже есть.','sprintNew.errNameEmpty':'Напишите название спринта.',
+  'sprintNew.ok':'Создать {sprint}','sprintNew.done':'{sprint} создан · демо {date}',
+  /* find */
+  'find.t':'Найти задачу','find.label':'Номер, слова из названия или ссылка на GitHub','find.hint':'Номера с GitHub остались прежними: #142 там — это #142 здесь.',
+  'find.none':'Ничего не нашлось','find.noneHint':'Закрытые задачи тоже ищутся. Попробуйте другое слово или номер.',
+  'find.results':'Найдено: {n}','find.otherRepo':'Это задача из {repo}. Она в проекте {name}.','find.otherOpen':'Открыть в {name}',
+  'find.notImported':'Это ссылка на {repo}, а его задачи ещё на GitHub.','find.typing':'Ищем…',
+  /* import and switch */
+  'imp.banner':'Задачи {name} пока живут на GitHub. Перенесите их в консоль — тогда здесь можно будет их заводить, менять и планировать.','imp.bannerGo':'Перенести в консоль',
+  'imp.t':'Перенос задач {name} в консоль',
+  'imp.intro.lead':'Сначала консоль сделает копию. На GitHub при этом ничего не меняется, и команда продолжает работать как обычно.',
+  'imp.intro.what':'Что перенесётся','imp.intro.w1':'Все задачи, открытые и закрытые, с теми же номерами','imp.intro.w2':'Спринты с датами демо','imp.intro.w3':'Статус, тип, сложность и метки','imp.intro.w4':'Комментарии и ваши решения («Утвердить», «Отклонить»)',
+  'imp.intro.stays':'Что останется на GitHub','imp.intro.s1':'Пул-реквесты, код и проверки CI','imp.intro.s2':'Реакции и вложения: в задаче будет ссылка на оригинал',
+  'imp.intro.go':'Сделать копию','imp.intro.time':'Обычно это несколько минут. Экран можно закрыть: придёт уведомление.',
+  'imp.copy.h':'Копируем задачи','imp.copy.sprints':'Спринты','imp.copy.items':'Задачи','imp.copy.comments':'Комментарии','imp.copy.of':'{a} из {b}',
+  'imp.copy.leave':'Можно закрыть экран — копирование продолжится. Пришлём уведомление, когда закончится.','imp.copy.cancel':'Остановить копирование',
+  'imp.check.h':'Копия готова','imp.check.lead':'Скопировано {items} задач, {sprints} спринтов и {comments} комментариев. На GitHub пока ничего не менялось.',
+  'imp.check.compare':'Сверка с GitHub','imp.check.col.where':'Где','imp.check.col.gh':'GitHub','imp.check.col.tc':'Консоль','imp.check.match':'совпадает','imp.check.diff':'не совпадает',
+  'imp.check.changed':'Что изменилось','imp.check.c1':'Номера прежние: #1–#412. Новые задачи начнутся с #413.','imp.check.c2':'14 меток не про статус и тип — сохранены как метки задачи.',
+  'imp.check.c3':'4 задачи открыли люди вне команды — у них пометка «Не от команды».','imp.check.c4':'12 пул-реквестов не копировались — они остаются на GitHub.',
+  'imp.check.failed':'Не скопировались: {n}','imp.check.retryFailed':'Скопировать их ещё раз','imp.check.failedRow':'#{n} — GitHub не отдал комментарии',
+  'imp.check.mismatchNote':'В Sprint 04 на GitHub на одну задачу больше: её добавили после копии. Перед переключением консоль докопирует всё, что изменилось.',
+  'imp.check.again':'Скопировать заново','imp.check.cancel':'Отменить перенос','imp.check.switch':'Переключиться на консоль…',
+  'imp.confirm.t':'Переключить {name} на консоль?','imp.confirm.l1':'Команда приостановится на несколько минут, консоль докопирует последние изменения.',
+  'imp.confirm.l2':'Дальше команда читает и пишет задачи только здесь.','imp.confirm.l3':'На GitHub в каждой открытой задаче появится ссылка сюда, а новые задачи там команда читать не будет.',
+  'imp.confirm.l4':'Старые задачи на GitHub останутся для чтения.','imp.confirm.ok':'Переключить {name}','imp.confirm.keep':'Пока нет',
+  'imp.sw.h':'Переключаем {name}','imp.sw.s1':'Приостанавливаем команду','imp.sw.s2':'Докопируем изменения: {n}','imp.sw.s3':'Переводим команду на консоль','imp.sw.s4':'Оставляем ссылки на GitHub','imp.sw.s5':'Возобновляем команду',
+  'imp.sw.stay':'Экран можно закрыть: переключение идёт на сервере.',
+  'imp.swfail.t':'Переключение не завершилось','imp.swfail.b':'Ничего не потеряно: задачи по-прежнему на GitHub, и команда снова работает с ними. Копия в консоли осталась.','imp.swfail.retry':'Попробовать снова',
+  'imp.done.stamp':'Переключено','imp.done.h':'Задачи {name} теперь живут в консоли','imp.done.b':'Номера прежние: #142 на GitHub — это #142 здесь. Ссылку с GitHub можно вставить в поиск.',
+  'imp.done.board':'К доске','imp.done.find':'Найти задачу',
+  'imp.offline':'Нет сети. Перенос идёт на сервере; состояние обновится, когда связь вернётся.',
+  'state.offline':'Нет сети',
+},
+en: {
+  'nav.needs':'Needs you','nav.all':'All projects','nav.projects':'Projects','nav.settings':'Settings',
+  'space.chat':'Chat','space.questions':'Questions','space.board':'Board','space.artifacts':'Artifacts','space.commands':'Commands',
+  'task.new':'New task','find.open':'Find a task','back.board':'Board','close':'Close',
+  'board.sections.current':'Current sprint','board.sections.next':'Next sprint','board.sections.later':'Later',
+  'board.sections.backlog':'Backlog','board.sections.backlogTitle':'Tasks without a sprint',
+  'board.sections.open':'{n} open','board.demo':'Demo {date}','board.freeze':'freeze until the demo',
+  'board.sections.show':'Show tasks','board.sections.hide':'Hide',
+  'board.sections.loading':'Loading {section}…','board.loading':'Loading the board…',
+  'board.sections.next.none':'There’s no next sprint yet.',
+  'board.sections.next.emptyTitle':'Nothing in {sprint} yet',
+  'board.sections.next.emptyHint':'Move tasks here from the backlog with a task’s “⋯” button.',
+  'board.sections.backlog.emptyTitle':'The backlog is empty','board.sections.backlog.emptyHint':'Every open task is already in a sprint.',
+  'board.empty.title':'No tasks yet','board.empty.hint':'Add the first one — it shows up in the backlog or in the sprint you pick.',
+  'board.error.unavailable.title':'Couldn’t load the board','board.error.unavailable.hint':'The console didn’t answer. Try again.',
+  'board.error.offline.title':'You’re offline','board.error.offline.hint':'The board loads once you’re back online. Try again.',
+  'board.status.proposed':'Proposed','board.status.approved':'Approved','board.status.in-progress':'In progress','board.status.qa':'QA','board.status.blocked':'Blocked','board.status.done':'Done','board.status.closed':'Not needed',
+  'board.kind.feature':'Feature','board.kind.bug':'Bug','board.kind.chore':'Chore','board.kind.finding':'Finding','board.kind.wow':'Wow','board.kind.question':'Question',
+  'board.tier.light':'light','board.tier.standard':'standard','board.tier.heavy':'heavy','board.tierLabel':'Tier:',
+  'board.untrusted':'Not from the team','ui.retry':'Try again',
+  'sprint.create':'Create a sprint','sprint.createNamed':'Create {sprint}',
+  'plan.move':'Move','plan.moveAria':'Move #{n}: {title}','plan.menuTitle':'#{n} · move to',
+  'plan.to':'To {sprint}','plan.toCurrent':'To {sprint} — current','plan.toBacklog':'To the backlog',
+  'plan.here':'It’s here now','plan.count':'{n} tasks · demo {date}','plan.full':'Already {n} tasks: the team usually finishes {cap}',
+  'plan.freeze':'Freeze until the {date} demo: no new tasks join this sprint',
+  'plan.up':'Up the queue','plan.down':'Down the queue','plan.top':'First in the queue',
+  'plan.upNone':'Already first','plan.downNone':'Already last',
+  'plan.position':'#{n}: {pos} of {total} in {lane}',
+  'plan.moved':'#{n} → {where}','plan.undo':'Undo','plan.undone':'Undone: #{n} is back in {where}',
+  'plan.inProgressWarn':'The task is in progress: the team finishes its current step and carries on with it in the new sprint.',
+  'item.loading':'Loading the task…','item.notFound.title':'There’s no task #{n} in {name}','item.notFound.hint':'The number may be different, or the task is in another project.',
+  'item.error.title':'Couldn’t load the task','item.error.hint':'The console didn’t answer. Try again.',
+  'item.offline':'You’re offline. Showing it as of {time}; you can change it once you’re back online.','item.offlineOff':'You’re offline',
+  'item.status':'Status','item.kind':'Kind','item.sprint':'Sprint','item.queue':'Queue','item.tier':'Tier','item.flags':'Labels','item.from':'Opened by',
+  'item.queueVal':'{pos} of {total} in {lane}','item.tierHint':'Set by the architect',
+  'item.created':'{who} · {date}','item.you':'You','item.github':'Was GitHub #{n}','item.githubAria':'Open #{n} on GitHub (old copy, read only)',
+  'item.details':'Details','item.noDetails':'No details.','item.edit':'Edit','item.editAria':'Edit the title and details',
+  'item.title':'Title','item.save':'Save','item.saving':'Saving…','item.cancel':'Cancel','item.saved':'Saved',
+  'item.discard.t':'Discard your changes?','item.discard.b':'The new title and text won’t be saved.','item.discard.keep':'Keep editing','item.discard.ok':'Discard changes',
+  'item.history':'History','item.earlier':'Show earlier: {n}',
+  'item.comment':'Comment','item.commentHint':'The team reads it on its next run. Sent as is, without formatting.',
+  'item.commentSend':'Send','item.commentSending':'Sending…','item.commentSent':'Comment added',
+  'item.commentCmd':'A comment doesn’t approve or reject anything. Use Approve or Reject above for that.',
+  'item.commentCmdNoDecision':'A comment doesn’t approve or reject anything: the task isn’t waiting for your decision now.',
+  'item.closedNote':'This task is closed as not needed. It’s off the board, but search still finds it.','item.reopen':'Reopen',
+  'item.status.hint.proposed':'Waiting for a decision on whether to do it.','item.status.hint.approved':'Decided to do. The team takes it in queue order.',
+  'item.status.hint.in-progress':'Usually set by the team when it picks the task up.','item.status.hint.qa':'Usually set by the team once a PR is open.',
+  'item.status.hint.blocked':'Waiting for you or for something outside. The reason is in the history.','item.status.hint.done':'Done. It stays under Done until the sprint ends.',
+  'item.status.hint.closed':'Won’t be done. The task leaves the board.',
+  'item.kind.hint.feature':'Something new, or a change to what’s there.','item.kind.hint.bug':'Something doesn’t work the way it should.',
+  'item.kind.hint.chore':'Upkeep: dependencies, build, clean-up.','item.kind.hint.finding':'A problem the team found.',
+  'item.kind.hint.wow':'An idea that delights.','item.kind.hint.question':'The team needs your answer.',
+  'item.picker.status':'Status of #{n}','item.picker.kind':'Kind of #{n}','item.picker.sprint':'Sprint of #{n}',
+  'item.changed':'{field}: {from} → {to}','item.changedAria':'{field} changed: {to}',
+  'item.ev.imported':'Moved over from GitHub #{n}','item.ev.created':'Created','item.ev.status':'Status: {from} → {to}','item.ev.sprint':'Sprint: {from} → {to}',
+  'item.ev.edit':'Title and details changed','item.ev.approved':'You approved','item.ev.rejected':'You rejected: “{why}”',
+  'dec.h':'Waiting for your decision','dec.recommends':'The team recommends: approve.','dec.approve':'Approve','dec.reject':'Reject',
+  'dec.busy':'Recording your answer on #{n}…','dec.done.approve':'Approved','dec.done.reject':'Rejected','dec.doneMeta':'#{n} · {time} · the team reads it on its next run',
+  'dec.reason.t':'Why are you rejecting it?','dec.reason.l':'Reason','dec.reason.hint':'The team reads it in the task’s history.','dec.reason.req':'Write a reason — without it the team won’t know what to change.',
+  'err.conflict.t':'The task changed while you were editing','err.conflict.b':'The PM changed the details at 14:03. Your text is still in the fields.','err.conflict.see':'Show their version','err.conflict.mine':'Save mine over it',
+  'err.theirs':'The PM’s version, 14:03','err.invalid.t':'Check the fields','err.invalid.b':'The details are over 5000 characters: cut 212.',
+  'err.gone.t':'The decision isn’t waiting for you any more','err.gone.b':'The team has already changed the task. Refresh it.','err.refresh':'Refresh the task',
+  'err.forbidden.t':'Only the owner can change tasks','err.forbidden.b':'This session isn’t signed in as the owner. Nothing changed.',
+  'err.network.t':'No connection','err.network.b':'The change may not have arrived. Try again — it won’t be applied twice.',
+  'err.timeout.t':'Unknown whether it was saved','err.timeout.b':'The console didn’t answer. Try again within a minute — it won’t be applied twice. Later, refresh the task first.',
+  'task.title':'New task','task.project.label':'Project','task.project.github':'{name} — its tasks are still on GitHub. Move them to the console first.',
+  'task.name.label':'Title','task.name.hint':'One line — what needs doing.','task.text.label':'Details (optional)','task.text.hint':'Sent to the task as is, without formatting.',
+  'task.kind.label':'Kind','task.sprint.label':'Where to put it',
+  'task.sprint.current':'Current','task.sprint.next':'Next','task.sprint.backlog':'Backlog',
+  'task.sprint.currentHint':'{sprint}, demo {date}. The task joins the end of its queue at once.','task.sprint.nextHint':'{sprint}, demo {date}.',
+  'task.sprint.backlogHint':'Stays a proposal until you decide to take it.','task.sprint.nextNone':'There’s no next sprint — the task stays in the backlog. You can create a sprint on the board.',
+  'task.sprint.freeze':'Freeze until the {date} demo: no new tasks join this sprint.',
+  'task.send':'Create in {name}','task.sending':'Creating the task…',
+  'task.done.stamp':'Created','task.done.h':'Task #{n} created','task.done.meta':'{name} · {time}','task.done.where':'In {sprint}, {pos} in the queue.','task.done.whereBacklog':'In the backlog, as a proposal.',
+  'task.done.open':'Open the task','task.done.another':'Another task','task.done.close':'Done','task.done.announce':'Task #{n} created in {name}',
+  'sprintNew.t':'New sprint','sprintNew.name':'Name','sprintNew.date':'Demo date','sprintNew.hint':'It starts after the {prev} demo ({date}). Freeze is the two days before the demo: {freeze}.',
+  'sprintNew.errBefore':'The {sprint} demo must be after the {prev} demo ({date}).','sprintNew.errPast':'That date has passed. Pick today or later.',
+  'sprintNew.errName':'A sprint with this name already exists.','sprintNew.errNameEmpty':'Write a name for the sprint.',
+  'sprintNew.ok':'Create {sprint}','sprintNew.done':'{sprint} created · demo {date}',
+  'find.t':'Find a task','find.label':'Number, words from the title, or a GitHub link','find.hint':'GitHub numbers stayed the same: #142 there is #142 here.',
+  'find.none':'Nothing found','find.noneHint':'Closed tasks are searched too. Try another word or number.',
+  'find.results':'Found: {n}','find.otherRepo':'This task is from {repo}. It’s in the {name} project.','find.otherOpen':'Open in {name}',
+  'find.notImported':'This links to {repo}, whose tasks are still on GitHub.','find.typing':'Searching…',
+  'imp.banner':'{name}’s tasks still live on GitHub. Move them to the console to add, change and plan them here.','imp.bannerGo':'Move to the console',
+  'imp.t':'Moving {name}’s tasks to the console',
+  'imp.intro.lead':'First the console makes a copy. Nothing changes on GitHub, and the team keeps working as usual.',
+  'imp.intro.what':'What moves','imp.intro.w1':'Every task, open and closed, with the same numbers','imp.intro.w2':'Sprints with their demo dates','imp.intro.w3':'Status, kind, tier and labels','imp.intro.w4':'Comments and your decisions (Approve, Reject)',
+  'imp.intro.stays':'What stays on GitHub','imp.intro.s1':'Pull requests, code and CI checks','imp.intro.s2':'Reactions and attachments: the task links to the original',
+  'imp.intro.go':'Make the copy','imp.intro.time':'It usually takes a few minutes. You can close this screen: a notification tells you when it’s done.',
+  'imp.copy.h':'Copying tasks','imp.copy.sprints':'Sprints','imp.copy.items':'Tasks','imp.copy.comments':'Comments','imp.copy.of':'{a} of {b}',
+  'imp.copy.leave':'You can close this screen — copying carries on. A notification tells you when it’s done.','imp.copy.cancel':'Stop copying',
+  'imp.check.h':'The copy is ready','imp.check.lead':'Copied {items} tasks, {sprints} sprints and {comments} comments. Nothing has changed on GitHub yet.',
+  'imp.check.compare':'Checked against GitHub','imp.check.col.where':'Where','imp.check.col.gh':'GitHub','imp.check.col.tc':'Console','imp.check.match':'matches','imp.check.diff':'differs',
+  'imp.check.changed':'What changed','imp.check.c1':'Numbers are the same: #1–#412. New tasks start at #413.','imp.check.c2':'14 labels that aren’t status or kind are kept as the task’s labels.',
+  'imp.check.c3':'4 tasks were opened by people outside the team — they’re marked “Not from the team”.','imp.check.c4':'12 pull requests weren’t copied — they stay on GitHub.',
+  'imp.check.failed':'Not copied: {n}','imp.check.retryFailed':'Copy them again','imp.check.failedRow':'#{n} — GitHub didn’t return its comments',
+  'imp.check.mismatchNote':'Sprint 04 has one more task on GitHub: it was added after the copy. Before the switch the console copies everything that changed.',
+  'imp.check.again':'Copy again','imp.check.cancel':'Cancel the move','imp.check.switch':'Switch to the console…',
+  'imp.confirm.t':'Switch {name} to the console?','imp.confirm.l1':'The team pauses for a few minutes while the console copies the latest changes.',
+  'imp.confirm.l2':'From then on the team reads and writes tasks only here.','imp.confirm.l3':'Each open GitHub issue gets a link here, and the team no longer reads new issues there.',
+  'imp.confirm.l4':'The old issues on GitHub stay readable.','imp.confirm.ok':'Switch {name}','imp.confirm.keep':'Not yet',
+  'imp.sw.h':'Switching {name}','imp.sw.s1':'Pausing the team','imp.sw.s2':'Copying the latest changes: {n}','imp.sw.s3':'Moving the team to the console','imp.sw.s4':'Leaving links on GitHub','imp.sw.s5':'Resuming the team',
+  'imp.sw.stay':'You can close this screen: the switch runs on the server.',
+  'imp.swfail.t':'The switch didn’t finish','imp.swfail.b':'Nothing is lost: the tasks are still on GitHub, and the team works with them again. The copy in the console is kept.','imp.swfail.retry':'Try again',
+  'imp.done.stamp':'Switched','imp.done.h':'{name}’s tasks now live in the console','imp.done.b':'Numbers are the same: #142 on GitHub is #142 here. You can paste a GitHub link into search.',
+  'imp.done.board':'To the board','imp.done.find':'Find a task',
+  'imp.offline':'You’re offline. The move runs on the server; this updates once you’re back online.',
+  'state.offline':'You’re offline',
+}};
+
+/* ---------- mock data ---------- */
+const SPRINTS = [
+  { id:'s03', name:'Sprint 03', demo:{ru:'13 ноя',en:'Nov 13'}, freeze:{ru:'11–12 ноя',en:'Nov 11–12'} },
+  { id:'s04', name:'Sprint 04', demo:{ru:'27 ноя',en:'Nov 27'}, freeze:{ru:'25–26 ноя',en:'Nov 25–26'} },
+  { id:'s05', name:'Sprint 05', demo:{ru:'11 дек',en:'Dec 11'}, freeze:{ru:'9–10 дек',en:'Dec 9–10'} },
+];
+const CAP = 8;
+const seed = () => [
+  { n:395, t:'Ответ не записывается при медленной сети', k:'bug', s:'in-progress', sp:'s03', tier:'standard' },
+  { n:407, t:'ADR: консоль как источник правды', k:'chore', s:'in-progress', sp:'s03', tier:'heavy' },
+  { n:408, t:'Модель угроз: трекер, ключи ролей, runner', k:'chore', s:'approved', sp:'s03', tier:'standard' },
+  { n:192, t:'Кнопка «Повторить» теряет фокус', k:'finding', s:'approved', sp:'s03', tier:'light' },
+  { n:409, t:'UX-спека: задачи и спринты в консоли', k:'chore', s:'qa', sp:'s03', tier:'standard' },
+  { n:246, t:'Счётчик PR не обновляется после слияния', k:'finding', s:'done', sp:'s03', tier:'light' },
+  { n:410, t:'Свой трекер: таблицы D1 и API', k:'feature', s:'approved', sp:'s04', tier:'heavy' },
+  { n:104, t:'Экран настройки окружения', k:'feature', s:'approved', sp:'s04', tier:'standard' },
+  { n:337, t:'Запас по размеру приложения', k:'chore', s:'approved', sp:'s04', tier:'light' },
+  { n:250, t:'Проверять подпись вебхука до разбора тела', k:'finding', s:'approved', sp:'s04', tier:'light' },
+  { n:107, t:'Быстрая задача с телефона', k:'feature', s:'approved', sp:'s05', tier:'standard' },
+  { n:108, t:'Доска по спринтам', k:'feature', s:'approved', sp:'s05', tier:'standard' },
+  { n:17, t:'Чат с PM', k:'feature', s:'proposed', sp:null, tier:null },
+  { n:345, t:'Звук штампа при утверждении', k:'wow', s:'proposed', sp:null, tier:null },
+  { n:366, t:'Пустой экран артефактов мигает', k:'finding', s:'proposed', sp:null, tier:'light' },
+  { n:388, t:'Подписка на чужой репозиторий', k:'feature', s:'proposed', sp:null, tier:null, untrusted:true },
+];
+const LANES = ['proposed','approved','in-progress','qa','blocked','done'];
+
+/* ---------- state ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const S = {};
+function reset() {
+  Object.assign(S, {
+    items: seed(), sprints: SPRINTS.slice(), open: { s03:true, s04:true, s05:false, backlog:false },
+    itemN: 410, edit: null, overlay: null, toast: null, decision: 'waiting', comments: [], events: [],
+    findQ: '', newDone: null, impStep: null, err: null, theirs: false, sending: false, lastFocus: null,
+  });
+}
+reset();
+const C = () => ({
+  vp: $('#c-vp').value, lang: $('#c-lang').value, screen: $('#c-screen').value, data: $('#c-data').value,
+  freeze: $('#c-freeze').checked, nonext: $('#c-nonext').checked, decision: $('#c-decision').checked,
+  imported: $('#c-imported').checked, closed: $('#c-closed').checked, res: $('#c-res').value, imp: $('#c-imp').value,
+});
+function t(key, v = {}) {
+  const lang = $('#c-lang').value;
+  const s = (T[lang][key] ?? T.en[key] ?? key);
+  return s.replace(/\{(\w+)\}/g, (_, k) => (v[k] ?? `{${k}}`));
+}
+const live = (msg) => { const l = $('#live'); l.textContent = ''; setTimeout(() => { l.textContent = msg; }, 30); };
+const sp = (id) => S.sprints.find((x) => x.id === id);
+const L = () => $('#c-lang').value;
+const sprintsShown = (c) => (c.nonext ? S.sprints.filter((x) => x.id === 's03') : S.sprints);
+const ord = (n) => (L() === 'ru' ? `${n}` : ({ 1:'1st', 2:'2nd', 3:'3rd' }[n] || `${n}th`));
+const where = (id) => (id ? sp(id).name : t('board.sections.backlog'));
+const laneItems = (spId, lane) => S.items.filter((i) => i.sp === spId && i.s === lane);
+
+/* ---------- shell ---------- */
+function shell(c, inner, phoneTitle) {
+  if (c.vp === 'mac') {
+    return `<div class="frame mac" id="frame"><nav class="side" aria-label="${L() === 'ru' ? 'Навигация' : 'Navigation'}">
+      <button type="button">${t('nav.needs')}</button><button type="button">${t('nav.all')}</button>
+      <div class="lbl">${t('nav.projects')}</div>
+      <button type="button" aria-current="page">team-console</button><button type="button">storify</button>
+      <div style="flex:1"></div><button type="button">${t('nav.settings')}</button></nav>
+      <main id="main">${inner}</main>${overlay(c)}${toast()}</div>`;
+  }
+  return `<div class="frame phone" id="frame"><div class="topbar">${phoneTitle || `<button type="button" class="switch">team-console ▾</button>
+      <button type="button" class="ib" data-act="find" aria-label="${t('find.open')}">⌕</button>
+      <button type="button" class="ib" data-act="new" aria-label="${t('task.new')}">+</button>
+      <button type="button" class="ib" aria-label="${t('space.commands')}">⌘</button>`}</div>
+    <main id="main">${inner}</main>${overlay(c)}${toast()}</div>`;
+}
+function spaceHead(c) {
+  const tabs = `<div class="tabs" aria-label="${L() === 'ru' ? 'Разделы' : 'Sections'}"><span>${t('space.chat')}</span><span>${t('space.questions')}</span><span aria-current="page">${t('space.board')}</span><span>${t('space.artifacts')}</span></div>`;
+  if (c.vp === 'phone') return tabs;
+  return `<div class="hdr"><h1>team-console</h1>
+    <button type="button" class="btn" data-act="find" aria-keyshortcuts="/">${t('find.open')}<kbd>/</kbd></button><span class="chg">NEW</span>
+    <button type="button" class="btn">${t('space.commands')}<kbd>K</kbd></button>
+    <button type="button" class="btn" data-act="new" aria-keyshortcuts="T">${t('task.new')}<kbd>T</kbd></button></div>${tabs}`;
+}
+
+/* ---------- board ---------- */
+function row(i, c) {
+  const kind = t(`board.kind.${i.k}`);
+  const tier = i.tier ? ` · ${t('board.tierLabel')} ${t(`board.tier.${i.tier}`)}` : '';
+  const ut = i.untrusted ? ` · ${t('board.untrusted')}` : '';
+  return `<div class="row" data-row="${i.n}"><a href="#" data-open="${i.n}"><b>#${i.n}</b> ${esc(i.t)}<small>${kind}${tier}${ut}</small></a>
+    <button type="button" class="mv" data-move="${i.n}" aria-haspopup="menu" aria-label="${esc(t('plan.moveAria', { n:i.n, title:i.t }))}" ${c.data === 'offline' ? 'aria-disabled="true"' : ''}>⋯</button></div>`;
+}
+function lanes(spId, c, all) {
+  const ls = LANES.filter((l) => all || laneItems(spId, l).length);
+  return `<div class="lanes">${ls.map((l) => {
+    const its = laneItems(spId, l);
+    return `<div class="lane"><h3>${t(`board.status.${l}`)} ${its.length}</h3>${its.length ? its.map((i) => row(i, c)).join('') : `<p class="muted">${L() === 'ru' ? 'Пусто' : 'Empty'}</p>`}</div>`;
+  }).join('')}</div>`;
+}
+function section(id, c, idx) {
+  const isBacklog = id === 'backlog';
+  const s = isBacklog ? null : sp(id);
+  const isCurrent = id === 's03';
+  const open = isCurrent || S.open[id];
+  const count = S.items.filter((i) => i.sp === (isBacklog ? null : id) && i.s !== 'done').length;
+  const kicker = isBacklog ? t('board.sections.backlog') : isCurrent ? t('board.sections.current') : idx === 1 ? t('board.sections.next') : t('board.sections.later');
+  const title = isBacklog ? t('board.sections.backlogTitle') : s.name;
+  const meta = isBacklog ? '' : `${t('board.demo', { date:s.demo[L()] })}${isCurrent && c.freeze ? ` · ${t('board.freeze')}` : ''}`;
+  const btn = isCurrent ? `<button type="button" class="btn sm">${L() === 'ru' ? 'Перенести демо' : 'Move demo'}</button>`
+    : `<button type="button" class="btn sm" data-toggle="${id}" aria-expanded="${open}" aria-controls="sec-${id}-body" aria-label="${esc((open ? t('board.sections.hide') : t('board.sections.show')) + ': ' + title)}">${open ? t('board.sections.hide') : t('board.sections.show')}</button>`;
+  let body = '';
+  if (open) {
+    const empty = count === 0 && !S.items.some((i) => i.sp === (isBacklog ? null : id));
+    body = empty ? `<div class="block"><h3>${isBacklog ? t('board.sections.backlog.emptyTitle') : t('board.sections.next.emptyTitle', { sprint:title })}</h3><p class="muted">${isBacklog ? t('board.sections.backlog.emptyHint') : t('board.sections.next.emptyHint')}</p></div>`
+      : lanes(isBacklog ? null : id, c, isCurrent);
+  }
+  return `<section class="sec" aria-labelledby="sec-${id}-h" id="sec-${id}"><div class="sec-h"><h2 id="sec-${id}-h" tabindex="-1"><small>${kicker}</small>${esc(title)}</h2>
+    <span class="muted">${meta}${open ? ` · ${t('board.sections.open', { n:count })}` : ''}</span>${btn}</div>
+    <div id="sec-${id}-body">${body}</div></section>`;
+}
+function board(c) {
+  let inner = spaceHead(c);
+  if (c.data === 'loading') inner += `<div aria-busy="true"><p class="muted" role="status">${t('board.loading')}</p><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>`;
+  else if (c.data === 'error') inner += `<div class="block alert" role="alert"><h3>${t('board.error.unavailable.title')}</h3><p>${t('board.error.unavailable.hint')}</p><button type="button" class="btn">${t('ui.retry')}</button></div>`;
+  else if (c.data === 'offline' && !S.wasLoaded) inner += `<div class="block alert" role="alert"><h3>${t('board.error.offline.title')}</h3><p>${t('board.error.offline.hint')}</p><button type="button" class="btn">${t('ui.retry')}</button></div>
+    <p class="spec">Offline before the board loaded in this visit: this block (#18 as shipped). Open the board loaded first, then switch to offline: the board stays with a note, and ⋯ is aria-disabled.</p>`;
+  else if (c.data === 'empty') inner += `<div class="block"><h3>${t('board.empty.title')}</h3><p>${t('board.empty.hint')}</p><button type="button" class="btn primary" data-act="new">${t('task.new')}</button></div>`;
+  else {
+    S.wasLoaded = true;
+    if (c.data === 'offline') inner += `<p class="block" role="status">${t('item.offline', { time:'14:05' })}</p>`;
+    inner += `<p class="spec">Approved #108 layout. <b>Changed:</b> rows open the task in the console (not GitHub); every row has ⋯ Move; no “Request … waiting for the PM” slip; every future sprint is a folder (the first is “Next sprint”, later ones “Later”); “no next sprint” offers Create a sprint; no partial-backlog / GitHub-link state and no “GitHub asks to wait” (the data is the console’s own). Lanes: #134 (tab list on iPhone, columns on Mac), drawn as stacked groups here.</p>`;
+    inner += section('s03', c, 0);
+    const fut = sprintsShown(c).filter((x) => x.id !== 's03');
+    fut.forEach((s, i) => { inner += section(s.id, c, i + 1); });
+    if (!fut.length) inner += `<section class="sec" aria-labelledby="sec-none-h"><div class="sec-h"><h2 id="sec-none-h"><small>${t('board.sections.next')}</small>${t('board.sections.next.none')}</h2></div><button type="button" class="btn" data-act="sprint">${t('sprint.create')}</button> <span class="chg">CHANGED</span></section>`;
+    else inner += `<p><button type="button" class="btn sm" data-act="sprint">${t('sprint.create')}</button> <span class="chg">NEW</span></p>`;
+    inner += section('backlog', c, 9);
+  }
+  return shell(c, inner);
+}
+
+/* ---------- move menu ---------- */
+function moveMenu(c, n) {
+  const i = S.items.find((x) => x.n === n);
+  const opts = [];
+  sprintsShown(c).forEach((s) => {
+    const isCur = s.id === 's03';
+    const cnt = S.items.filter((x) => x.sp === s.id && x.s !== 'done').length;
+    let hint = t('plan.count', { n:cnt, date:s.demo[L()] }), off = false;
+    if (i.sp === s.id) { hint = t('plan.here'); off = true; }
+    else if (isCur && c.freeze) { hint = t('plan.freeze', { date:s.demo[L()] }); off = true; }
+    else if (cnt >= CAP) hint = t('plan.full', { n:cnt, cap:CAP });
+    opts.push({ id:`to:${s.id}`, label: isCur ? t('plan.toCurrent', { sprint:s.name }) : t('plan.to', { sprint:s.name }), hint, off });
+  });
+  opts.push({ id:'to:', label:t('plan.toBacklog'), hint: i.sp === null ? t('plan.here') : '', off: i.sp === null });
+  const peers = laneItems(i.sp, i.s), pos = peers.indexOf(i);
+  opts.push('hr');
+  opts.push({ id:'top', label:t('plan.top'), hint: pos === 0 ? t('plan.upNone') : '', off: pos === 0 });
+  opts.push({ id:'up', label:t('plan.up'), hint: pos === 0 ? t('plan.upNone') : '', off: pos === 0 });
+  opts.push({ id:'down', label:t('plan.down'), hint: pos === peers.length - 1 ? t('plan.downNone') : '', off: pos === peers.length - 1 });
+  const warn = i.s === 'in-progress' ? `<p class="muted" style="margin:0 14px 6px">${t('plan.inProgressWarn')}</p>` : '';
+  return `<div class="scrim" data-scrim><div class="menu" role="menu" aria-labelledby="mm-h" data-menu="${n}"><h2 id="mm-h">${esc(t('plan.menuTitle', { n }))}</h2>${warn}
+    ${opts.map((o) => (o === 'hr' ? '<hr>' : `<button type="button" role="menuitem" tabindex="-1" data-mi="${o.id}" ${o.off ? 'aria-disabled="true"' : ''}>${esc(o.label)}${o.hint ? `<small>${esc(o.hint)}</small>` : ''}</button>`)).join('')}
+    </div></div>`;
+}
+function applyMove(n, id, c) {
+  const i = S.items.find((x) => x.n === n);
+  const before = { sp:i.sp, idx:S.items.indexOf(i) };
+  if (id.startsWith('to:')) {
+    i.sp = id.slice(3) || null;
+    S.items.splice(S.items.indexOf(i), 1); S.items.push(i); // end of the target queue
+    if (i.sp) S.open[i.sp] = S.open[i.sp] || false;
+    S.toast = { msg:t('plan.moved', { n, where:where(i.sp) }), undo:{ n, ...before } };
+    live(S.toast.msg);
+    return 'left';
+  }
+  const peers = laneItems(i.sp, i.s), pos = peers.indexOf(i);
+  const target = id === 'top' ? peers[0] : id === 'up' ? peers[pos - 1] : peers[pos + 1];
+  S.items.splice(S.items.indexOf(i), 1);
+  const ti = S.items.indexOf(target);
+  S.items.splice(id === 'down' ? ti + 1 : ti, 0, i);
+  const np = laneItems(i.sp, i.s).indexOf(i) + 1;
+  live(t('plan.position', { n, pos:np, total:peers.length, lane:t(`board.status.${i.s}`) }));
+  return 'stay';
+}
+function toast() {
+  if (!S.toast) return '';
+  return `<div class="toast" role="status"><span>${esc(S.toast.msg)}</span>${S.toast.undo ? `<button type="button" class="btn sm" data-undo>${t('plan.undo')}</button>` : ''}</div>`;
+}
+
+/* ---------- item ---------- */
+function item(c) {
+  const n = S.itemN;
+  const i = S.items.find((x) => x.n === n) || S.items[6];
+  const phoneTitle = `<button type="button" class="ib" data-act="board" aria-label="${t('back.board')}">‹</button><h1>#${n}</h1><span style="width:44px"></span>`;
+  const head = c.vp === 'mac' ? `<p><a href="#" data-act="board">‹ ${t('back.board')}</a> · team-console <span class="chg">NEW</span></p>
+    <p class="spec">On Mac the task opens as a pane next to the board (the #114 Commands pane pattern), so the board stays in view; drawn full width here. Direct link: /p/team-console/t/${n}.</p>` : '';
+  if (c.data === 'loading') return shell(c, `${head}<div aria-busy="true"><p class="muted" role="status">${t('item.loading')}</p><div class="skel" style="height:32px"></div><div class="skel"></div><div class="skel" style="height:120px"></div></div>`, phoneTitle);
+  if (c.data === 'error') return shell(c, `${head}<div class="block alert" role="alert"><h3>${t('item.error.title')}</h3><p>${t('item.error.hint')}</p><button type="button" class="btn">${t('ui.retry')}</button></div>`, phoneTitle);
+  if (c.data === 'notfound') return shell(c, `${head}<div class="block"><h2 tabindex="-1" id="nf">${t('item.notFound.title', { n:999, name:'team-console' })}</h2><p>${t('item.notFound.hint')}</p><button type="button" class="btn primary" data-act="find">${t('find.open')}</button> <button type="button" class="btn" data-act="board">${t('back.board')}</button></div>`, phoneTitle);
+  const off = c.data === 'offline';
+  const dis = off ? `aria-disabled="true" aria-describedby="off-note"` : '';
+  const closed = c.closed;
+  const st = closed ? 'closed' : i.s;
+  const peers = laneItems(i.sp, i.s), pos = peers.indexOf(i) + 1;
+  let inner = head;
+  if (off) inner += `<p class="block" id="off-note" role="status">${t('item.offline', { time:'14:05' })}</p>`;
+  if (S.err) inner += errBlock();
+  if (closed) inner += `<div class="block"><p>${t('item.closedNote')}</p><button type="button" class="btn" ${dis}>${t('item.reopen')}</button></div>`;
+  // title + details (view or edit)
+  if (S.edit) {
+    inner += `<form id="ef" novalidate><div class="field"><label for="e-title">${t('item.title')}</label><input id="e-title" value="${esc(S.edit.title)}" ${S.sending ? 'readonly' : ''}></div>
+      <div class="field"><label for="e-body">${t('item.details')}</label><textarea id="e-body" rows="6" aria-describedby="e-hint${S.err === 'invalid' ? ' e-err' : ''}" ${S.err === 'invalid' ? 'aria-invalid="true"' : ''} ${S.sending ? 'readonly' : ''}>${esc(S.edit.body)}</textarea>
+      ${S.err === 'invalid' ? `<p class="ferr" id="e-err">${t('err.invalid.b')}</p>` : ''}<p class="hint" id="e-hint">${t('task.text.hint')}</p></div>
+      ${S.theirs ? `<div class="block"><h3>${t('err.theirs')}</h3><div class="body">${esc(i.body2 || 'Две таблицы: items и item_events. Метки — отдельная таблица.')}</div></div>` : ''}
+      <div class="actions"><button type="button" class="btn" data-act="edit-cancel">${t('item.cancel')}</button><button type="submit" class="btn primary" ${dis}>${S.sending ? t('item.saving') : t('item.save')}</button>${c.vp === 'mac' ? '<span class="muted">⌘↩</span>' : ''}</div></form>`;
+  } else {
+    inner += `<div class="hdr"><h1 id="it-h" tabindex="-1">${esc(i.t)}</h1><button type="button" class="btn sm" data-act="edit" aria-label="${t('item.editAria')}" ${dis}>${t('item.edit')}</button></div>`;
+  }
+  // decision (#16 card, unchanged except where it lives)
+  if (c.decision && !closed) {
+    if (S.decision === 'waiting') inner += `<section class="decision" aria-labelledby="dec-h"><h2 id="dec-h">${t('dec.h')}</h2>
+      <p>${L() === 'ru' ? 'Утвердить план: хранить события задачи отдельной таблицей?' : 'Approve the plan: keep task events in a separate table?'}</p><p class="muted">${t('dec.recommends')}</p>
+      <div class="actions"><button type="button" class="btn primary" data-dec="approve" ${dis}>${t('dec.approve')}</button><button type="button" class="btn" data-dec="reject" ${dis}>${t('dec.reject')}</button></div>
+      <p class="spec">#16’s question card and reason sheet as approved. Changed: the receipt links to this task’s history instead of “Comment on GitHub”; the GitHub-connection errors are gone. The same card stays on Needs you.</p></section>`;
+    else if (S.decision === 'busy') inner += `<section class="decision" aria-busy="true"><p role="status">${t('dec.busy', { n })}</p></section>`;
+    else inner += `<section class="decision" aria-labelledby="dec-done"><span class="stamp">${t(`dec.done.${S.decision}`)}</span><h2 id="dec-done" tabindex="-1">${t(`dec.done.${S.decision}`)}</h2><p class="muted">${t('dec.doneMeta', { n, time:'14:05' })}</p></section>`;
+  }
+  const props = `<dl class="props">
+    <dt>${t('item.status')}</dt><dd><button type="button" class="pick" data-pick="status" aria-haspopup="dialog" aria-label="${t('item.status')}: ${t(`board.status.${st}`)}" ${dis}>${t(`board.status.${st}`)} ▾</button></dd>
+    <dt>${t('item.kind')}</dt><dd><button type="button" class="pick" data-pick="kind" aria-haspopup="dialog" aria-label="${t('item.kind')}: ${t(`board.kind.${i.k}`)}" ${dis}>${t(`board.kind.${i.k}`)} ▾</button></dd>
+    <dt>${t('item.sprint')}</dt><dd><button type="button" class="pick" data-move="${n}" aria-haspopup="menu" aria-label="${t('item.sprint')}: ${where(i.sp)}" ${dis}>${esc(where(i.sp))} ▾</button></dd>
+    ${closed ? '' : `<dt>${t('item.queue')}</dt><dd>${t('item.queueVal', { pos:ord(pos), total:peers.length, lane:t(`board.status.${i.s}`) })}</dd>`}
+    <dt>${t('item.tier')}</dt><dd>${i.tier ? t(`board.tier.${i.tier}`) : '—'} <span class="muted">· ${t('item.tierHint')}</span></dd>
+    <dt>${t('item.flags')}</dt><dd><span class="tag">complexity:high</span><span class="tag">security</span></dd>
+    <dt>${t('item.from')}</dt><dd>${t('item.created', { who:'PM', date:L() === 'ru' ? '3 ноя' : 'Nov 3' })}${c.imported ? ` · <a href="#" aria-label="${t('item.githubAria', { n })}">${t('item.github', { n })} ↗</a>` : ''}</dd></dl>`;
+  const details = S.edit ? '' : `<h2>${t('item.details')}</h2><div class="body">${esc(L() === 'ru' ? 'Эпик: #309, этап 1a.\n\nТаблицы D1 для задач, спринтов, статусов, меток, комментариев и решений владельца, плюс API.' : 'Epic: #309, Phase 1a.\n\nD1 tables for items, sprints, statuses, labels, comments and owner decisions, plus an API.')}</div>`;
+  const evs = [];
+  if (c.imported) evs.push(`<li class="ev">${t('item.ev.imported', { n })} · ${L() === 'ru' ? '3 ноя' : 'Nov 3'}</li>`);
+  else evs.push(`<li class="ev">${t('item.ev.created')} · ${L() === 'ru' ? '3 ноя' : 'Nov 3'}</li>`);
+  evs.push(`<li><div class="who">PM · ${L() === 'ru' ? '3 ноя, 18:20' : 'Nov 3, 18:20'}</div><div class="txt">${esc(L() === 'ru' ? 'PM grooming: Sprint 04, после ADR #407.' : 'PM grooming: Sprint 04, after ADR #407.')}</div></li>`);
+  evs.push(`<li class="ev">${t('item.ev.status', { from:t('board.status.proposed'), to:t('board.status.approved') })} · ${t('item.you')} · ${L() === 'ru' ? '3 ноя' : 'Nov 3'}</li>`);
+  S.events.forEach((e) => evs.push(`<li class="ev">${esc(e)} · ${t('item.you')} · 14:05</li>`));
+  S.comments.forEach((m) => evs.push(`<li><div class="who">${t('item.you')} · 14:05</div><div class="txt">${esc(m)}</div></li>`));
+  const draft = S.commentDraft || '';
+  const cmd = /^\s*\/\w+/m.test(draft);
+  const composer = closed ? '' : `<form class="composer" id="cf" novalidate><div class="field"><label for="c-text">${t('item.comment')}</label>
+    <textarea id="c-text" rows="3" aria-describedby="c-hint${cmd ? ' c-cmd' : ''}" ${S.sending === 'comment' ? 'readonly' : ''}>${esc(draft)}</textarea>
+    ${cmd ? `<p class="note hint" id="c-cmd">${c.decision && S.decision === 'waiting' ? t('item.commentCmd') : t('item.commentCmdNoDecision')}</p>` : ''}
+    <p class="hint" id="c-hint">${t('item.commentHint')}</p></div>
+    <button type="submit" class="btn primary" ${dis}>${S.sending === 'comment' ? t('item.commentSending') : t('item.commentSend')}</button>${c.vp === 'mac' ? '<span class="muted"> ⌘↩</span>' : ''}</form>`;
+  const history = `<h2>${t('item.history')}</h2><button type="button" class="btn link">${t('item.earlier', { n:4 })}</button><ol class="tl">${evs.join('')}</ol>${composer}`;
+  inner += c.vp === 'mac' ? `<div class="cols"><div>${props}${details}</div><div>${history}</div></div>` : `${props}${details}${history}`;
+  return shell(c, inner, phoneTitle);
+}
+function errBlock() {
+  const e = S.err;
+  if (e === 'invalid') return `<div class="block alert" role="alert" tabindex="-1" id="err"><h3>${t('err.invalid.t')}</h3></div>`;
+  const map = {
+    conflict: `<h3>${t('err.conflict.t')}</h3><p>${t('err.conflict.b')}</p><div class="actions"><button type="button" class="btn" data-act="theirs">${t('err.conflict.see')}</button><button type="button" class="btn primary" data-act="mine">${t('err.conflict.mine')}</button></div>`,
+    gone: `<h3>${t('err.gone.t')}</h3><p>${t('err.gone.b')}</p><button type="button" class="btn" data-act="refresh">${t('err.refresh')}</button>`,
+    forbidden: `<h3>${t('err.forbidden.t')}</h3><p>${t('err.forbidden.b')}</p>`,
+    network: `<h3>${t('err.network.t')}</h3><p>${t('err.network.b')}</p><button type="button" class="btn primary" data-act="retry">${t('ui.retry')}</button>`,
+    timeout: `<h3>${t('err.timeout.t')}</h3><p>${t('err.timeout.b')}</p><button type="button" class="btn primary" data-act="retry">${t('ui.retry')}</button>`,
+  };
+  return `<div class="block alert" role="alert" tabindex="-1" id="err">${map[e]}</div>`;
+}
+function picker(c, kind) {
+  const n = S.itemN, i = S.items.find((x) => x.n === n);
+  const vals = kind === 'status' ? [...LANES, 'closed'] : ['feature','bug','chore','finding','wow','question'];
+  const cur = kind === 'status' ? (c.closed ? 'closed' : i.s) : i.k;
+  return `<div class="scrim" data-scrim><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="pk-h"><div class="dlg-h"><h2 id="pk-h">${t(`item.picker.${kind}`, { n })}</h2><button type="button" class="btn sm" data-act="close">${t('close')}</button></div>
+    <div class="dlg-b"><fieldset class="f"><legend class="sr-only">${t(`item.${kind}`)}</legend>${vals.map((v) => `<label class="opt"><input type="radio" name="pk" value="${v}" ${v === cur ? 'checked' : ''}><span><b>${t(kind === 'status' ? `board.status.${v}` : `board.kind.${v}`)}</b><small>${t(`item.${kind}.hint.${v}`)}</small></span></label>`).join('')}</fieldset>
+    <p class="spec">Picking an option saves at once and closes (no Save button). On Mac this is a popover anchored to the field; on iPhone a bottom sheet. Arrow keys move, Enter / Space picks.</p></div></div></div>`;
+}
+
+/* ---------- new task (only the changed parts are drawn in full) ---------- */
+function newTask(c) {
+  const cur = sp('s03'), nxt = c.nonext ? null : sp('s04');
+  if (S.newDone) {
+    const d = S.newDone;
+    return shell(c, `<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="nd-h"><div class="dlg-b"><div class="done">
+      <span class="stamp">${t('task.done.stamp')}</span><h2 id="nd-h" tabindex="-1">${t('task.done.h', { n:d.n })}</h2><p class="muted">${t('task.done.meta', { name:'team-console', time:'14:05' })}</p>
+      <blockquote>${esc(d.title)}</blockquote><p>${d.sp ? t('task.done.where', { sprint:sp(d.sp).name, pos:ord(d.pos) }) : t('task.done.whereBacklog')} <span class="chg">CHANGED</span></p>
+      <div class="actions"><button type="button" class="btn" data-act="another">${t('task.done.another')}</button><button type="button" class="btn" data-act="opennew">${t('task.done.open')}</button><button type="button" class="btn primary" data-act="close">${t('task.done.close')}</button></div>
+      <p class="spec">#107 receipt (stamp, number, project, time, title). Changed: no “created as you” / GitHub link; the line says where it landed (no request); “Open the task” opens the console task.</p></div></div></div></div>`);
+  }
+  const off = c.data === 'offline';
+  const sel = S.newSprint || 'next';
+  const opt = (v, label, hint, offR) => `<label class="opt" ${offR ? 'data-off' : ''}><input type="radio" name="ns" value="${v}" ${sel === v ? 'checked' : ''} ${offR ? `aria-disabled="true" aria-describedby="ns-${v}"` : `aria-describedby="ns-${v}"`}><span><b>${label}</b><small id="ns-${v}">${hint}</small></span></label>`;
+  const form = `<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="nt-h"><div class="dlg-h"><button type="button" class="btn sm" data-act="close">${t('close')}</button><h2 id="nt-h">${t('task.title')}</h2>${c.vp === 'phone' ? `<button type="submit" form="nf" class="btn sm primary" aria-label="${t('task.send', { name:'team-console' })}" ${off ? 'aria-disabled="true"' : ''}>${L() === 'ru' ? 'Создать' : 'Create'}</button>` : ''}</div>
+    <form id="nf" class="dlg-b" novalidate>
+    <div class="field"><label for="n-proj">${t('task.project.label')}</label><select id="n-proj" aria-describedby="n-proj-h"><option>team-console</option><option disabled>storify</option></select>
+      <p class="hint" id="n-proj-h">${t('task.project.github', { name:'storify' })} <span class="chg">CHANGED</span></p></div>
+    <div class="field"><label for="n-title">${t('task.name.label')}</label><input id="n-title" enterkeyhint="next" aria-required="true" aria-describedby="n-title-h" value="${esc(S.newTitle || '')}"><p class="hint" id="n-title-h">${t('task.name.hint')}</p></div>
+    <div class="field"><label for="n-body">${t('task.text.label')}</label><textarea id="n-body" aria-describedby="n-body-h"></textarea><p class="hint" id="n-body-h">${t('task.text.hint')}</p></div>
+    <fieldset class="f"><legend>${t('task.kind.label')}</legend><div class="seg"><label><input type="radio" name="nk" checked> ${t('board.kind.feature')}</label><label><input type="radio" name="nk"> ${t('board.kind.bug')}</label><label><input type="radio" name="nk"> ${t('board.kind.chore')}</label></div></fieldset>
+    <fieldset class="f"><legend>${t('task.sprint.label')} <span class="chg">CHANGED</span></legend>
+      ${opt('current', t('task.sprint.current'), c.freeze ? t('task.sprint.freeze', { date:cur.demo[L()] }) : t('task.sprint.currentHint', { sprint:cur.name, date:cur.demo[L()] }), c.freeze)}
+      ${opt('next', t('task.sprint.next'), nxt ? t('task.sprint.nextHint', { sprint:nxt.name, date:nxt.demo[L()] }) : t('task.sprint.nextNone'), !nxt)}
+      ${opt('backlog', t('task.sprint.backlog'), t('task.sprint.backlogHint'), false)}
+    </fieldset>
+    <p class="spec">Everything not marked is #107 as approved: entry points and draft dot, one draft per device, restored / other-project draft, Clear confirmation, caps and counters, Enter-in-title, ⌘↩, offline, validation, sending, idempotent retry. Removed: Connect GitHub block, public-repository note, command-line note, “team doesn’t read sprint requests yet”, the GitHub errors (not connected, other account, app not installed, Issues off, GitHub 429). Kept errors: 404 project archived, 422, 403 not owner, network drop, no answer.</p>
+    </form>
+    ${c.vp === 'mac' ? `<div class="dlg-f"><span class="grow muted">⌘↩</span><button type="button" class="btn" data-act="close">${t('close')}</button><button type="submit" form="nf" class="btn primary" ${off ? 'aria-disabled="true"' : ''}>${t('task.send', { name:'team-console' })}</button></div>` : ''}
+    </div></div>`;
+  return shell(c, `<p class="muted">${L() === 'ru' ? 'Экран проекта под листом' : 'Project screen under the sheet'}</p>${form}`);
+}
+
+/* ---------- create sprint ---------- */
+function sprintDialog(c) {
+  const last = S.sprints[S.sprints.length - 1];
+  const nextNo = String(S.sprints.length + 3).padStart(2, '0');
+  const name = S.sd?.name ?? `Sprint ${nextNo}`;
+  const date = S.sd?.date ?? '2026-12-25';
+  const e = S.sd?.err || {};
+  return `<div class="scrim" data-scrim><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="sd-h"><div class="dlg-h"><h2 id="sd-h">${t('sprintNew.t')}</h2><button type="button" class="btn sm" data-act="close">${t('close')}</button></div>
+    <form id="sdf" class="dlg-b" novalidate>
+    <div class="field"><label for="sd-name">${t('sprintNew.name')}</label>${e.name ? `<p class="ferr" id="sd-name-e">${e.name}</p>` : ''}<input id="sd-name" value="${esc(name)}" ${e.name ? 'aria-invalid="true" aria-describedby="sd-name-e"' : ''}></div>
+    <div class="field"><label for="sd-date">${t('sprintNew.date')}</label>${e.date ? `<p class="ferr" id="sd-date-e">${e.date}</p>` : ''}<input id="sd-date" type="date" value="${esc(date)}" aria-describedby="${e.date ? 'sd-date-e ' : ''}sd-hint" ${e.date ? 'aria-invalid="true"' : ''}>
+      <p class="hint" id="sd-hint">${t('sprintNew.hint', { prev:last.name, date:last.demo[L()], freeze:L() === 'ru' ? '23–24 дек' : 'Dec 23–24' })}</p></div>
+    <p class="spec">Reuses #29’s “Start the next sprint” dialog and its copy (n.*). Changed: the name is editable (default: the next number), it is reachable from the board as well as Commands, and it creates the sprint after the latest one, not only the next. Try: a name that exists (Sprint 05), an empty name, a date before 11 Dec, a past date.</p></form>
+    <div class="dlg-f"><span class="grow"></span><button type="button" class="btn" data-act="close">${t('close')}</button><button type="submit" form="sdf" class="btn primary" ${c.data === 'offline' ? 'aria-disabled="true"' : ''}>${t('sprintNew.ok', { sprint:esc(name) })}</button></div></div></div>`;
+}
+
+/* ---------- find ---------- */
+function find(c) {
+  const q = S.findQ.trim();
+  let res = '';
+  if (q) {
+    const m = q.match(/github\.com\/([\w.-]+\/[\w.-]+)\/issues\/(\d+)/);
+    if (m && m[1] === 'geeera/storify') res = `<div class="block"><p>${t('find.notImported', { repo:m[1] })}</p><a href="#">${L() === 'ru' ? `Открыть #${m[2]} на GitHub` : `Open #${m[2]} on GitHub`} ↗</a></div>`;
+    else {
+      const num = m ? +m[2] : (q.match(/^#?(\d+)$/) || [])[1];
+      const all = [...S.items, { n:142, t:'Карточки вопросов: превью дизайна', k:'feature', s:'done', sp:null, closed:true }];
+      const hits = num ? all.filter((i) => i.n === +num) : all.filter((i) => i.t.toLowerCase().includes(q.toLowerCase()));
+      res = hits.length ? `<p role="status">${t('find.results', { n:hits.length })}</p><ul class="list">${hits.map((i) => `<li><a href="#" data-open="${i.n}"><b>#${i.n}</b> ${esc(i.t)}</a><br><small class="muted">${t(`board.kind.${i.k}`)} · ${t(`board.status.${i.s}`)} · ${esc(i.closed ? (L() === 'ru' ? 'закрыта' : 'closed') : where(i.sp))}</small></li>`).join('')}</ul>`
+        : `<div class="block" role="status"><h3>${t('find.none')}</h3><p>${t('find.noneHint')}</p></div>`;
+    }
+  }
+  const inner = `${c.vp === 'mac' ? `<p><a href="#" data-act="board">‹ ${t('back.board')}</a> <span class="chg">NEW</span></p>` : ''}<h1 id="fd-h">${t('find.t')}</h1>
+    <form role="search" id="ff"><div class="field"><label for="f-q">${t('find.label')}</label><input id="f-q" type="search" value="${esc(S.findQ)}" aria-describedby="f-h" autocomplete="off"><p class="hint" id="f-h">${t('find.hint')}</p></div></form>
+    <div id="f-res">${res}</div>
+    <p class="spec">Try “142” (closed), “#410”, “спринт”, “https://github.com/geeera/team-console/issues/108”, “https://github.com/geeera/storify/issues/12”. Searches open and closed tasks of this project by number and title. Mac: “/” opens it from anywhere in the project space; iPhone: ⌕ in the top bar. A pasted GitHub link to another switched project offers “Open in {name}”.</p>`;
+  return shell(c, inner, `<button type="button" class="ib" data-act="board" aria-label="${t('back.board')}">‹</button><h1>${t('find.t')}</h1><span style="width:44px"></span>`);
+}
+
+/* ---------- import ---------- */
+function imp(c) {
+  const raw = S.impStep || c.imp, name = 'storify';
+  const step = raw === 'confirm' ? 'check' : raw;
+  const ph = `<button type="button" class="ib" data-act="board" aria-label="${t('back.board')}">‹</button><h1>storify</h1><span style="width:44px"></span>`;
+  if (step === 'before') {
+    return shell(c, `${c.vp === 'mac' ? `<div class="hdr"><h1>storify</h1></div>` : ''}<div class="tabs"><span>${t('space.chat')}</span><span>${t('space.questions')}</span><span aria-current="page">${t('space.board')}</span></div>
+      <div class="banner" role="region" aria-label="${t('imp.bannerGo')}"><p>${t('imp.banner', { name })}</p><button type="button" class="btn primary" data-imp="intro">${t('imp.bannerGo')}</button></div>
+      <p class="spec">Until a project switches, its board is #108 exactly as approved (GitHub data, read only, the request slip, Ask the PM). The banner is the entry point; the same action sits in Settings › Projects › storify. New task lists the project as unavailable with the reason.</p><div class="box skel" style="height:300px"></div>`, ph);
+  }
+  let b = `<h1 id="imp-h" tabindex="-1">${t('imp.t', { name })} <span class="chg">NEW</span></h1>`;
+  if (c.data === 'offline') b += `<p class="block" role="status">${t('imp.offline')}</p>`;
+  if (step === 'intro') {
+    b += `<p>${t('imp.intro.lead')}</p><h2>${t('imp.intro.what')}</h2><ul><li>${t('imp.intro.w1')}</li><li>${t('imp.intro.w2')}</li><li>${t('imp.intro.w3')}</li><li>${t('imp.intro.w4')}</li></ul>
+      <h2>${t('imp.intro.stays')}</h2><ul><li>${t('imp.intro.s1')}</li><li>${t('imp.intro.s2')}</li></ul>
+      <button type="button" class="btn primary" data-imp="copying">${t('imp.intro.go')}</button><p class="muted">${t('imp.intro.time')}</p>`;
+  } else if (step === 'copying') {
+    b += `<h2>${t('imp.copy.h')}</h2><ul class="steps" aria-live="off">
+      <li><span class="st">✓</span>${t('imp.copy.sprints')} · ${t('imp.copy.of', { a:5, b:5 })}</li>
+      <li><span class="st">…</span>${t('imp.copy.items')} · <progress max="412" value="310" aria-label="${t('imp.copy.items')}"></progress> ${t('imp.copy.of', { a:310, b:412 })}</li>
+      <li><span class="st">·</span>${t('imp.copy.comments')}</li></ul>
+      <p>${t('imp.copy.leave')}</p><button type="button" class="btn" data-imp="intro">${t('imp.copy.cancel')}</button> <button type="button" class="btn sm" data-imp="check">(mock: finish)</button>
+      <p class="spec">Progress is announced at most every 25 % and at the end (polite), not on every count.</p>`;
+  } else if (['check','copyfail','mismatch'].includes(step)) {
+    const rows = [['Sprint 03', 6, 6], ['Sprint 04', step === 'mismatch' ? 5 : 4, 4], ['Sprint 05', 2, 2], [t('board.sections.backlog'), 31, 31], [L() === 'ru' ? 'Закрытые' : 'Closed', 369, 369]];
+    b += `<div class="block"><span class="stamp">${t('imp.check.h')}</span><p>${t('imp.check.lead', { items:412, sprints:5, comments:'3 112' })}</p></div>
+      <h2>${t('imp.check.compare')}</h2><table><thead><tr><th>${t('imp.check.col.where')}</th><th>${t('imp.check.col.gh')}</th><th>${t('imp.check.col.tc')}</th><th></th></tr></thead><tbody>
+      ${rows.map(([w, g, k]) => `<tr><td>${w}</td><td>${g}</td><td>${k}</td><td>${g === k ? `✓ ${t('imp.check.match')}` : `<b>! ${t('imp.check.diff')}</b>`}</td></tr>`).join('')}</tbody></table>
+      ${step === 'mismatch' ? `<p class="block">${t('imp.check.mismatchNote')}</p>` : ''}
+      ${step === 'copyfail' ? `<div class="block alert" role="alert"><h3>${t('imp.check.failed', { n:2 })}</h3><ul class="list"><li>${t('imp.check.failedRow', { n:57 })}</li><li>${t('imp.check.failedRow', { n:203 })}</li></ul><button type="button" class="btn" data-imp="check">${t('imp.check.retryFailed')}</button></div>` : ''}
+      <h2>${t('imp.check.changed')}</h2><ul><li>${t('imp.check.c1')}</li><li>${t('imp.check.c2')}</li><li>${t('imp.check.c3')}</li><li>${t('imp.check.c4')}</li></ul>
+      <div class="actions"><button type="button" class="btn primary" data-imp="confirm" ${step === 'copyfail' ? 'aria-disabled="true" aria-describedby="cf-why"' : ''}>${t('imp.check.switch')}</button><button type="button" class="btn" data-imp="copying">${t('imp.check.again')}</button><button type="button" class="btn link" data-imp="before">${t('imp.check.cancel')}</button></div>
+      ${step === 'copyfail' ? `<p class="hint" id="cf-why">${L() === 'ru' ? 'Сначала скопируйте задачи, которые не скопировались.' : 'Copy the tasks that failed first.'}</p>` : ''}`;
+  } else if (step === 'switching') {
+    b += `<h2>${t('imp.sw.h', { name })}</h2><ul class="steps"><li><span class="st">✓</span>${t('imp.sw.s1')}</li><li><span class="st">✓</span>${t('imp.sw.s2', { n:3 })}</li><li><span class="st">…</span>${t('imp.sw.s3')}</li><li><span class="st">·</span>${t('imp.sw.s4')}</li><li><span class="st">·</span>${t('imp.sw.s5')}</li></ul>
+      <p class="muted">${t('imp.sw.stay')}</p><button type="button" class="btn sm" data-imp="done">(mock: finish)</button>`;
+  } else if (step === 'switchfail') {
+    b += `<div class="block alert" role="alert"><h3>${t('imp.swfail.t')}</h3><p>${t('imp.swfail.b')}</p><button type="button" class="btn primary" data-imp="confirm">${t('imp.swfail.retry')}</button></div>`;
+  } else if (step === 'done') {
+    b += `<div class="done"><span class="stamp">${t('imp.done.stamp')}</span><h2 id="imp-done" tabindex="-1">${t('imp.done.h', { name })}</h2><p>${t('imp.done.b')}</p>
+      <div class="actions"><button type="button" class="btn primary" data-act="board">${t('imp.done.board')}</button><button type="button" class="btn" data-act="find">${t('imp.done.find')}</button></div></div>`;
+  }
+  let ov = '';
+  if (raw === 'confirm') ov = `<div class="scrim"><div class="alertdialog" role="alertdialog" aria-modal="true" aria-labelledby="ic-h" aria-describedby="ic-b"><h2 id="ic-h" tabindex="-1">${t('imp.confirm.t', { name })}</h2>
+    <ul id="ic-b"><li>${t('imp.confirm.l1')}</li><li>${t('imp.confirm.l2')}</li><li>${t('imp.confirm.l3')}</li><li>${t('imp.confirm.l4')}</li></ul>
+    <div class="actions"><button type="button" class="btn" data-imp="check">${t('imp.confirm.keep')}</button><button type="button" class="btn primary" data-imp="switching">${t('imp.confirm.ok', { name })}</button></div></div></div>`;
+  return shell(c, b, ph).replace('</main>', `</main>${ov}`);
+}
+
+/* ---------- overlay dispatcher ---------- */
+function overlay(c) {
+  if (!S.overlay) return '';
+  if (S.overlay.type === 'move') return moveMenu(c, S.overlay.n);
+  if (S.overlay.type === 'pick') return picker(c, S.overlay.kind);
+  if (S.overlay.type === 'sprint') return sprintDialog(c);
+  if (S.overlay.type === 'discard') return `<div class="scrim"><div class="alertdialog" role="alertdialog" aria-modal="true" aria-labelledby="dc-h"><h2 id="dc-h" tabindex="-1">${t('item.discard.t')}</h2><p>${t('item.discard.b')}</p><div class="actions"><button type="button" class="btn" data-act="discard-keep">${t('item.discard.keep')}</button><button type="button" class="btn primary" data-act="discard-ok">${t('item.discard.ok')}</button></div></div></div>`;
+  if (S.overlay.type === 'reason') return `<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="rs-h"><div class="dlg-h"><h2 id="rs-h">${t('dec.reason.t')}</h2><button type="button" class="btn sm" data-act="close">${t('close')}</button></div>
+    <form id="rf" class="dlg-b" novalidate><div class="field"><label for="r-text">${t('dec.reason.l')}</label>${S.overlay.err ? `<p class="ferr" id="r-err">${t('dec.reason.req')}</p>` : ''}<textarea id="r-text" aria-describedby="r-hint${S.overlay.err ? ' r-err' : ''}" ${S.overlay.err ? 'aria-invalid="true"' : ''}></textarea><p class="hint" id="r-hint">${t('dec.reason.hint')}</p></div>
+    <button type="submit" class="btn primary">${t('dec.reject')}</button></form></div></div>`;
+  return '';
+}
+
+/* ---------- render + focus ---------- */
+let pendingFocus = null;
+function render() {
+  const c = C();
+  document.documentElement.lang = c.lang;
+  let html;
+  if (c.screen === 'board') html = board(c);
+  else if (c.screen === 'item') html = item(c);
+  else if (c.screen === 'new') html = newTask(c);
+  else if (c.screen === 'find') html = find(c);
+  else html = imp(c);
+  $('#app').innerHTML = html;
+  if (pendingFocus) { const el = typeof pendingFocus === 'string' ? $(pendingFocus) : pendingFocus(); pendingFocus = null; if (el) el.focus(); }
+  const menu = $('[role=menu]');
+  if (menu && !menu.contains(document.activeElement)) (menu.querySelector('[role=menuitem]:not([aria-disabled])') || menu.querySelector('[role=menuitem]')).focus();
+  const dlg = $('.scrim [role=dialog], .scrim [role=alertdialog]');
+  if (dlg && !dlg.contains(document.activeElement)) (dlg.querySelector('input:checked, input, textarea, [tabindex="-1"], button') || dlg).focus();
+}
+const go = (screen) => { $('#c-screen').value = screen; S.overlay = null; render(); };
+function closeOverlay() { const back = S.lastFocus; S.overlay = null; render(); if (back) { const el = $(back); if (el) el.focus(); } }
+
+function writeOutcome(onOk) {
+  const res = $('#c-res').value;
+  if (res === 'ok' || S.retried) { S.err = null; S.retried = false; onOk(); return true; }
+  S.err = res; S.retried = true; return false;
+}
+
+document.addEventListener('click', (e) => {
+  const c = C();
+  const a = e.target.closest('[data-act],[data-open],[data-move],[data-toggle],[data-mi],[data-undo],[data-pick],[data-dec],[data-imp]');
+  if (e.target.matches('[data-scrim]')) { closeOverlay(); return; }
+  if (!a || !$('#app').contains(a)) return;
+  e.preventDefault();
+  if (a.getAttribute('aria-disabled') === 'true' && a.dataset.mi) { live(a.querySelector('small')?.textContent || ''); return; }
+  if (a.getAttribute('aria-disabled') === 'true') { live(a.getAttribute('aria-describedby') ? ($('#' + a.getAttribute('aria-describedby').split(' ')[0])?.textContent || t('state.offline')) : t('state.offline')); return; }
+  const act = a.dataset.act;
+  if (a.dataset.open) { S.itemN = +a.dataset.open; S.err = null; S.edit = null; go('item'); pendingFocus = '#it-h'; render(); return; }
+  if (a.dataset.toggle) { const id = a.dataset.toggle; S.open[id] = !S.open[id]; render(); $(`[data-toggle="${id}"]`).focus(); live(S.open[id] ? t('board.sections.open', { n:S.items.filter((i) => i.sp === (id === 'backlog' ? null : id)).length }) : ''); return; }
+  if (a.dataset.move) { S.lastFocus = `[data-move="${a.dataset.move}"]`; S.overlay = { type:'move', n:+a.dataset.move }; render(); return; }
+  if (a.dataset.mi) {
+    const n = S.overlay.n, id = a.dataset.mi;
+    if (a.getAttribute('aria-disabled') === 'true') return;
+    const lane = S.items.find((x) => x.n === n);
+    const fromWhere = where(lane.sp);
+    const peersBefore = laneItems(lane.sp, lane.s).filter((x) => x.n !== n);
+    const idxBefore = laneItems(lane.sp, lane.s).indexOf(lane);
+    const r = applyMove(n, id, c);
+    S.overlay = null;
+    if (c.screen === 'item') { if (r === 'left') S.events.push(t('item.ev.sprint', { from:fromWhere, to:where(lane.sp) })); render(); $('[data-move]').focus(); return; }
+    render();
+    if (r === 'stay') { $(`[data-move="${n}"]`).focus(); return; }
+    const nextRow = peersBefore[idxBefore] || peersBefore[idxBefore - 1];
+    const tgt = nextRow ? $(`[data-move="${nextRow.n}"]`) : null;
+    (tgt || $('[data-undo]') || $('#sec-s03-h')).focus();
+    return;
+  }
+  if (a.dataset.undo !== undefined) { const u = S.toast.undo, i = S.items.find((x) => x.n === u.n); i.sp = u.sp; S.items.splice(S.items.indexOf(i), 1); S.items.splice(u.idx, 0, i); S.toast = null; render(); live(t('plan.undone', { n:u.n, where:where(u.sp) })); const el = $(`[data-move="${u.n}"]`); if (el) el.focus(); return; }
+  if (a.dataset.pick) { S.lastFocus = `[data-pick="${a.dataset.pick}"]`; S.overlay = { type:'pick', kind:a.dataset.pick }; render(); return; }
+  if (a.dataset.dec) {
+    if (a.dataset.dec === 'reject') { S.lastFocus = '[data-dec="reject"]'; S.overlay = { type:'reason' }; render(); return; }
+    S.decision = 'busy'; render();
+    setTimeout(() => { if (writeOutcome(() => { S.decision = 'approve'; S.events.push(t('item.ev.approved')); })) { render(); $('#dec-done').focus(); live(t('dec.done.approve')); } else { S.decision = 'waiting'; render(); $('#err').focus(); } }, 500);
+    return;
+  }
+  if (a.dataset.imp) { S.impStep = a.dataset.imp; $('#c-imp').value = a.dataset.imp === 'confirm' ? $('#c-imp').value : a.dataset.imp; render(); const f = $('#ic-h') || $('#imp-done') || $('#imp-h'); if (f) f.focus(); return; }
+  switch (act) {
+    case 'board': S.impStep = null; go('board'); break;
+    case 'find': S.lastFocus = null; go('find'); $('#f-q').focus(); break;
+    case 'new': S.newDone = null; go('new'); break;
+    case 'close': if (c.screen === 'new') { S.newDone = null; go('board'); } else closeOverlay(); break;
+    case 'another': S.newDone = null; render(); $('#n-title').focus(); break;
+    case 'opennew': S.itemN = S.newDone.n; S.newDone = null; go('item'); $('#it-h').focus(); break;
+    case 'sprint': S.lastFocus = '[data-act="sprint"]'; S.sd = null; S.overlay = { type:'sprint' }; render(); break;
+    case 'edit': { const i = S.items.find((x) => x.n === S.itemN); S.edit = { title:i.t, body:'', orig:i.t }; render(); $('#e-title').focus(); break; }
+    case 'edit-cancel': { const ti = $('#e-title'); if (ti.value !== S.edit.orig) { S.overlay = { type:'discard' }; render(); } else { S.edit = null; S.err = null; render(); $('[data-act="edit"]').focus(); } break; }
+    case 'discard-keep': S.overlay = null; render(); $('#e-title').focus(); break;
+    case 'discard-ok': S.overlay = null; S.edit = null; S.err = null; S.theirs = false; render(); $('[data-act="edit"]').focus(); break;
+    case 'theirs': S.theirs = true; render(); $('#e-body').focus(); break;
+    case 'mine': S.err = null; S.retried = true; $('#ef').requestSubmit(); break;
+    case 'refresh': S.err = null; S.decision = 'waiting'; $('#c-decision').checked = false; render(); $('#it-h').focus(); break;
+    case 'retry': S.retried = true; S.err = null; render(); break;
+  }
+});
+
+document.addEventListener('change', (e) => {
+  if (e.target.closest('.demo')) { if (e.target.id === 'c-imp') S.impStep = null; S.overlay = null; S.toast = null; S.err = null; S.newDone = null; render(); return; }
+  if (e.target.name === 'pk') {
+    const c = C(), kind = S.overlay.kind, i = S.items.find((x) => x.n === S.itemN), v = e.target.value;
+    const from = kind === 'status' ? t(`board.status.${i.s}`) : t(`board.kind.${i.k}`);
+    const to = kind === 'status' ? t(`board.status.${v}`) : t(`board.kind.${v}`);
+    S.overlay = null;
+    const ok = writeOutcome(() => { if (kind === 'status') { if (v === 'closed') $('#c-closed').checked = true; else { i.s = v; $('#c-closed').checked = false; } } else i.k = v; S.events.push(t('item.changed', { field:t(`item.${kind}`), from, to })); });
+    render();
+    if (ok) { $(`[data-pick="${kind}"]`).focus(); live(t('item.changedAria', { field:t(`item.${kind}`), to })); } else $('#err').focus();
+  }
+  if (e.target.name === 'ns') S.newSprint = e.target.value;
+});
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'f-q') { S.findQ = e.target.value; const pos = e.target.selectionStart; render(); const f = $('#f-q'); f.focus(); f.setSelectionRange(pos, pos); }
+  if (e.target.id === 'c-text') { const had = /^\s*\/\w+/m.test(S.commentDraft || ''); S.commentDraft = e.target.value; if (had !== /^\s*\/\w+/m.test(S.commentDraft)) { const pos = e.target.selectionStart; render(); const f = $('#c-text'); f.focus(); f.setSelectionRange(pos, pos); } }
+  if (e.target.id === 'n-title') S.newTitle = e.target.value;
+});
+document.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const c = C(), f = e.target;
+  if (f.id === 'ef') {
+    if (c.data === 'offline') return;
+    S.edit.title = $('#e-title').value; S.edit.body = $('#e-body').value;
+    S.sending = true; render();
+    setTimeout(() => {
+      S.sending = false;
+      if (writeOutcome(() => { const i = S.items.find((x) => x.n === S.itemN); i.t = S.edit.title; S.edit = null; S.theirs = false; S.events.push(t('item.ev.edit')); })) { render(); $('#it-h').focus(); live(t('item.saved')); }
+      else { render(); (S.err === 'invalid' ? $('#e-body') : $('#err')).focus(); }
+    }, 400);
+  }
+  if (f.id === 'cf') {
+    const v = $('#c-text').value.trim(); if (!v || c.data === 'offline') return;
+    S.sending = 'comment'; render();
+    setTimeout(() => {
+      S.sending = false;
+      if (writeOutcome(() => { S.comments.push(v); S.commentDraft = ''; })) { render(); $('#c-text').focus(); live(t('item.commentSent')); }
+      else { render(); $('#err').focus(); }
+    }, 400);
+  }
+  if (f.id === 'rf') {
+    const v = $('#r-text').value.trim();
+    if (!v) { S.overlay.err = true; render(); $('#r-text').focus(); return; }
+    S.overlay = null; S.decision = 'reject'; S.events.push(t('item.ev.rejected', { why:v })); render(); $('#dec-done').focus(); live(t('dec.done.reject'));
+  }
+  if (f.id === 'sdf') {
+    const name = $('#sd-name').value.trim(), date = $('#sd-date').value, err = {};
+    if (!name) err.name = t('sprintNew.errNameEmpty');
+    else if (S.sprints.some((s) => s.name.toLowerCase() === name.toLowerCase())) err.name = t('sprintNew.errName');
+    if (date && date < '2026-11-04') err.date = t('sprintNew.errPast');
+    else if (!date || date <= '2026-12-11') err.date = t('sprintNew.errBefore', { sprint:name || 'Sprint', prev:'Sprint 05', date:L() === 'ru' ? '11 дек' : 'Dec 11' });
+    S.sd = { name, date, err };
+    if (Object.keys(err).length) { render(); (err.name ? $('#sd-name') : $('#sd-date')).focus(); return; }
+    const d = new Date(date + 'T12:00:00'); const label = { ru:d.toLocaleDateString('ru', { day:'numeric', month:'short' }).replace('.', ''), en:d.toLocaleDateString('en', { month:'short', day:'numeric' }) };
+    const id = 's' + (S.sprints.length + 10);
+    S.sprints.push({ id, name, demo:label, freeze:label }); S.open[id] = true; S.overlay = null;
+    $('#c-nonext').checked = false; render(); $(`#sec-${id}-h`).focus(); live(t('sprintNew.done', { sprint:name, date:label[L()] }));
+  }
+  if (f.id === 'nf') {
+    if (c.data === 'offline') return;
+    const title = ($('#n-title').value || '').trim(); if (!title) { $('#n-title').setAttribute('aria-invalid', 'true'); $('#n-title').focus(); return; }
+    const spSel = S.newSprint || 'next', spId = spSel === 'current' ? 's03' : spSel === 'next' ? (c.nonext ? null : 's04') : null;
+    const n = 413 + S.items.filter((i) => i.n >= 413).length;
+    S.items.push({ n, t:title, k:'feature', s: spId ? 'approved' : 'proposed', sp:spId, tier:null });
+    S.newDone = { n, title, sp:spId, pos: spId ? laneItems(spId, 'approved').length : 0 }; S.newTitle = '';
+    render(); $('#nd-h').focus(); live(t('task.done.announce', { n, name:'team-console' }));
+  }
+  if (f.id === 'ff') { /* search is live */ }
+});
+document.addEventListener('keydown', (e) => {
+  const menu = $('[role=menu]');
+  if (e.key === 'Escape') { if (S.overlay) { e.preventDefault(); if (S.overlay.type === 'discard') { S.overlay = null; render(); $('#e-title').focus(); } else closeOverlay(); } else if (C().screen === 'new') go('board'); return; }
+  if (menu && ['ArrowDown','ArrowUp','Home','End'].includes(e.key)) {
+    e.preventDefault(); const items = [...menu.querySelectorAll('[role=menuitem]')]; let i = items.indexOf(document.activeElement);
+    i = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length; items[i].focus(); return;
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { const f = e.target.closest('form'); if (f) { e.preventDefault(); f.requestSubmit(); } return; }
+  const inField = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+  if (inField || e.metaKey || e.ctrlKey || e.altKey || C().vp !== 'mac' || !$('#app').contains(e.target) && e.target !== document.body) return;
+  if (e.code === 'KeyT') { e.preventDefault(); go('new'); }
+  if (e.code === 'Slash') { e.preventDefault(); go('find'); $('#f-q').focus(); }
+});
+$('#c-reset').addEventListener('click', () => { document.querySelectorAll('.demo select').forEach((s) => { s.selectedIndex = 0; }); $('#c-freeze').checked = false; $('#c-nonext').checked = false; $('#c-decision').checked = true; $('#c-imported').checked = true; $('#c-closed').checked = false; reset(); render(); });
+if (matchMedia('(max-width: 700px)').matches) $('#c-vp').value = 'phone';
+render();
+</script>
+</body>
+</html>
