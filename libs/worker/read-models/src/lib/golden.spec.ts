@@ -270,4 +270,12 @@ describe('golden: the plugin’s own ask lines', () => {
       expect(recommendationOf(ask)).toBe(item.recommendation);
     },
   );
+
+  // Raw answer lines the plugin would rewrite: the rule itself must agree with golden.py on them (PR #427).
+  it.each(recommendations.rawCases.map((item) => [JSON.stringify(item.ask), item] as const))(
+    'raw %s',
+    (_ask, item) => {
+      expect(recommendationOf(item.ask)).toBe(item.recommendation);
+    },
+  );
 });
