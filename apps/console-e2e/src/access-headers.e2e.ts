@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingHttpHeaders, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { expect, test } from '@playwright/test';
 import { routeAccessHeaders, scopeAccessHeaders, type AccessHeaders } from './support/access-headers';
 
@@ -42,7 +41,11 @@ async function origin(page: (other: string) => string, other: () => string): Pro
     }
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const { port } = server.address() as AddressInfo;
+  const address = server.address();
+  if (address === null || typeof address === 'string') {
+    throw new Error(`the origin server listens on ${String(address)}, not a TCP port`);
+  }
+  const { port } = address;
   return {
     url: `http://127.0.0.1:${port}`,
     seen,

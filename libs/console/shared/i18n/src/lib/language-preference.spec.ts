@@ -2,6 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { ApplicationInitStatus } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { TranslocoService } from '@jsverse/transloco';
+import { EMPTY, throwError } from 'rxjs';
 import { provideConsoleI18n } from './i18n.providers';
 import {
   ConsoleLanguage,
@@ -110,6 +111,25 @@ describe('ConsoleLanguage with provideConsoleI18n({ start: "remembered" })', () 
     expect(transloco.getActiveLang()).toBe('ru');
     await back;
     expect(transloco.getActiveLang()).toBe('ru');
+  });
+
+  it.each([
+    ['fails', () => throwError(() => new Error('offline'))],
+    ['completes without a dictionary', () => EMPTY],
+  ])('a dictionary load that %s keeps the language, stores nothing and warns', async (_label, load) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { language, storage, transloco } = await launch(null, ['ru-RU']);
+    vi.spyOn(transloco, 'load').mockImplementation(load);
+
+    await language.use('en');
+
+    expect(transloco.getActiveLang()).toBe('ru');
+    expect(storage.value).toBeNull();
+    expect(warn).toHaveBeenCalledWith(
+      'i18n: could not load "en"; the language stays as it is',
+      expect.anything(),
+    );
+    warn.mockRestore();
   });
 
   it('a storage that refuses the write keeps the switch for the session and warns once', async () => {

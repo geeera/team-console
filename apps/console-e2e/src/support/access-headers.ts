@@ -73,11 +73,6 @@ export async function routeAccessHeaders(
 
 const SENDING = new Set<string | symbol>(['fetch', 'get', 'post', 'put', 'patch', 'delete', 'head']);
 
-type Send = (
-  urlOrRequest: string | { url(): string },
-  options?: { headers?: Record<string, string> },
-) => unknown;
-
 /**
  * An `APIRequestContext` that adds the Access headers to calls on `target`'s origin only, and follows no redirect on
  * those calls (Playwright keeps custom headers across a redirect, also to another origin) — a redirect is returned
@@ -94,23 +89,21 @@ export function scopeAccessHeaders(
       if (typeof value !== 'function') {
         return value;
       }
-      const method = value as Send;
       if (!SENDING.has(property)) {
-        return method.bind(subject);
+        return (...args: unknown[]): unknown => Reflect.apply(value, subject, args);
       }
       return (
         urlOrRequest: string | { url(): string },
         options: { headers?: Record<string, string> } = {},
-      ) => {
+      ): unknown => {
         const url = typeof urlOrRequest === 'string' ? urlOrRequest : urlOrRequest.url();
         if (!isTargetOrigin(url, target)) {
-          return method.call(subject, urlOrRequest, options);
+          return Reflect.apply(value, subject, [urlOrRequest, options]);
         }
-        return method.call(subject, urlOrRequest, {
-          ...options,
-          headers: { ...options.headers, ...access },
-          maxRedirects: 0,
-        });
+        return Reflect.apply(value, subject, [
+          urlOrRequest,
+          { ...options, headers: { ...options.headers, ...access }, maxRedirects: 0 },
+        ]);
       };
     },
   });
