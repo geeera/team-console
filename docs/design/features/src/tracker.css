@@ -1,0 +1,372 @@
+/* ===== #409 Tasks and sprints in the console, on the Paper Desk tokens (ADR 0002) =====
+   Builds on board.css + sprints.css (#18, #134, #108 as approved) and task.css (#107's sheet, fields, receipt card).
+   New here: the row's ⋯ button and the Move menu, the Undo slip, the blank folder (Create a sprint), the task screen
+   (the #114 pane on the Mac, a page on the iPhone), Find, and the move to the console. Only opacity, transform and
+   background animate; nothing animates height.
+   Proposed tokens for the kit: --task-pane-w (the task needs more room than #114's 392 px pane), --menu-w (Move
+   menu and pickers), --undo-ms (the Undo slip's 10 s), --ledger-label (the field ledger's label column). */
+:root{--task-pane-w:480px;--menu-w:320px;--undo-ms:10000ms;--ledger-label:112px;--ruled:color-mix(in oklab,var(--accent) 22%,transparent)}
+
+/* ----- top bars: Find and New task (Mac header), ⌕ and + (iPhone) ----- */
+.bd-mac .convo__head{gap:var(--sp-3);padding-right:var(--sp-4)}
+.hd-acts{display:flex;align-items:center;gap:var(--sp-2);margin-left:auto}
+.hd-acts .btn{min-height:var(--control-h)}
+.hd-acts .btn kbd{display:inline-block;margin-left:var(--sp-1)}
+.hd-acts .btn .ico{width:16px;height:16px}
+.app[data-app=phone] .bd-top .bd-proj{min-width:0;flex:1 1 auto;justify-content:flex-start;overflow:hidden}
+.app[data-app=phone] .bd-top .bd-proj>span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bd-top__acts{flex:none}
+
+/* ----- a row: the link opens the task; ⋯ is its own 44 px tab stop, never inside the link ----- */
+.bd-list>li.mv-li{display:grid;grid-template-columns:minmax(0,1fr) var(--target);align-items:center;padding-right:var(--sp-1)}
+.mv-li .bd-row{grid-template-columns:52px 1fr auto;padding-right:var(--sp-2)}
+.bd-row__key{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-2);font-variant-numeric:tabular-nums;padding-top:2px;white-space:nowrap}
+.mv{display:grid;place-items:center;width:var(--target);height:var(--target);border:0;border-radius:var(--r-md);background:none;color:var(--text-2)}
+.mv svg{width:20px;height:20px}
+.mv:hover{background:var(--hover)}
+.mv[aria-expanded=true]{background:var(--text);color:var(--bg)}
+.mv[aria-disabled=true]{color:var(--text-3)}
+.mv:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.mv-li.is-current .bd-row{background:var(--accent-soft)}
+/* a row that leaves for another section: a short fade and drift, then the list reflows at once (no height animation) */
+.mv-li.is-leaving{animation:leave var(--dur-base) var(--ease-exit) both}
+@keyframes leave{to{opacity:0;transform:translateX(12px)}}
+/* a row that moved in its queue, or came back with Undo: the paper under it glows moss once */
+.mv-li.is-landed .bd-row{animation:landed var(--dur-pulse) var(--ease-standard) both}
+@keyframes landed{0%,25%{background:var(--accent-soft)}}
+@media (prefers-reduced-motion:reduce){.mv-li.is-leaving,.mv-li.is-landed .bd-row{animation:none}}
+:root[data-motion=reduce] .mv-li.is-leaving,:root[data-motion=reduce] .mv-li.is-landed .bd-row{animation:none}
+
+/* ----- the Move menu and the pickers: a paper slip on the Mac, a bottom action sheet on the iPhone ----- */
+.mo{position:absolute;inset:0;z-index:var(--z-sheet)}
+.mo__scrim{position:absolute;inset:0;background:transparent}
+.app[data-app=phone] .mo__scrim{background:var(--scrim)}
+.mnu{position:absolute;width:var(--menu-w);max-height:min(560px,calc(100% - var(--sp-8)));overflow-y:auto;overscroll-behavior:contain;display:grid;align-content:start;padding:var(--sp-1) 0 var(--sp-2);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-2);outline:none;animation:menu-in var(--dur-fast) var(--ease-enter) both}
+@keyframes menu-in{from{opacity:0;transform:translateY(-4px)}}
+.app[data-app=phone] .mnu{left:0!important;right:0;top:auto!important;bottom:0;width:auto;max-height:86%;padding:0 0 var(--sp-10);border-radius:var(--r-sheet) var(--r-sheet) 0 0;border-width:1px 0 0;box-shadow:var(--shadow-3);animation:sheet-in var(--dur-slow) var(--ease-enter) both}
+@keyframes sheet-in{from{transform:translateY(100%)}}
+@media (prefers-reduced-motion:reduce){.mnu,.app[data-app=phone] .mnu{animation:fade var(--dur-fade) linear both}}
+:root[data-motion=reduce] .mnu,:root[data-motion=reduce] .app[data-app=phone] .mnu{animation:fade var(--dur-fade) linear both}
+.mnu__grab{width:38px;height:5px;margin:var(--sp-2) auto var(--sp-1);border-radius:3px;background:var(--border-strong)}
+.mnu__head{display:grid;gap:2px;padding:var(--sp-2) var(--sp-4) var(--sp-2)}
+.mnu__title{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md);line-height:var(--lh-tight)}
+.mnu__title .key{font-family:var(--font-mono);font-weight:400;font-size:var(--fs-sm);color:var(--text-2)}
+.app[data-app=phone] .mnu__title{font-size:var(--fs-lg)}
+.mnu__sub{margin:0;font-size:var(--fs-xs);color:var(--text-2);overflow-wrap:anywhere}
+.mnu__warn{display:flex;gap:var(--sp-2);margin:var(--sp-1) var(--sp-3) var(--sp-2);padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-xs);font-weight:600}
+.mnu__warn .ico{flex:none;width:16px;height:16px}
+.mnu__group{padding:var(--sp-2) var(--sp-4) var(--sp-1);font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.mnu__sep{height:1px;margin:var(--sp-2) var(--sp-4);background:var(--border)}
+.mi{display:grid;grid-template-columns:20px minmax(0,1fr);gap:0 var(--sp-3);align-items:start;width:100%;min-height:var(--target);padding:var(--sp-2) var(--sp-4);border:0;background:none;color:var(--text);text-align:left;font-size:var(--fs-sm)}
+.app[data-app=phone] .mi{min-height:52px;font-size:var(--fs-md)}
+.mi>.ico{width:18px;height:18px;margin-top:1px;color:var(--text-2)}
+.mi__t{font-weight:600;overflow-wrap:anywhere}
+.mi__h{grid-column:2;font-size:var(--fs-xs);color:var(--text-2);font-variant-numeric:tabular-nums}
+.mi__h--full{color:var(--warning-text);font-weight:600}
+.mi:hover,.mi:focus{background:var(--hover);outline:none}
+.mi:focus-visible{box-shadow:inset 0 0 0 2px var(--focus)}
+/* an off item keeps its place and focus, and says why; its reason is --text-2 (AA), never faded by opacity */
+.mi[aria-disabled=true] .mi__t{color:var(--text-2);font-weight:400}
+.mi[aria-disabled=true]>.ico{color:var(--text-3)}
+.mi[aria-disabled=true]:hover{background:none}
+.mi[aria-checked=true]{background:var(--accent-soft)}
+.mi[aria-checked=true] .mi__t{color:var(--accent-text)}
+.mi[aria-checked=true]>.ico{color:var(--accent-text)}
+.mi__team{display:inline-block;margin-left:var(--sp-2);padding:0 var(--sp-2);border-radius:var(--r-pill);background:var(--bg-sunken);color:var(--text-2);font-size:var(--fs-xs);font-weight:400}
+.mnu__cancel{margin:var(--sp-2) var(--sp-4) 0;min-height:var(--target)}
+
+/* ----- the Undo slip: ink on paper, the action underlined; a hairline runs down the 10 s and pauses on hover/focus ----- */
+.utoast{position:absolute;left:50%;bottom:var(--sp-6);translate:-50% 0;z-index:var(--z-toast);display:flex;align-items:center;gap:var(--sp-2);max-width:calc(100% - var(--sp-8));padding:var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-4);border-radius:var(--r-md);background:var(--text);color:var(--bg);box-shadow:var(--shadow-2);font-size:var(--fs-sm);overflow:hidden;animation:toast-in var(--dur-base) var(--ease-enter) both}
+.app[data-app=phone] .utoast{bottom:calc(var(--sp-10) + 64px);left:var(--sp-4);right:var(--sp-4);translate:none;max-width:none}
+@keyframes toast-in{from{opacity:0;transform:translateY(6px)}}
+.utoast__msg{flex:1;min-width:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.utoast__msg b{font-family:var(--font-mono);font-weight:600}
+.utoast__undo{flex:none;min-height:var(--target);padding:0 var(--sp-3);border:0;border-radius:var(--r-sm);background:none;color:var(--bg);font-weight:700;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em}
+.utoast__undo:hover{background:color-mix(in oklab,var(--bg) 14%,transparent)}
+.utoast__undo:focus-visible{outline:2px solid var(--bg);outline-offset:-2px}
+.utoast__undo kbd{margin-left:var(--sp-2);background:none;color:inherit;border-color:color-mix(in oklab,var(--bg) 40%,transparent);text-decoration:none}
+.app[data-app=phone] .utoast__undo kbd{display:none}
+.utoast__bar{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--accent);transform-origin:left;animation:undo-run var(--undo-ms) linear both}
+.utoast:hover .utoast__bar,.utoast:focus-within .utoast__bar{animation-play-state:paused}
+@keyframes undo-run{to{transform:scaleX(0)}}
+@media (prefers-reduced-motion:reduce){.utoast{animation:fade var(--dur-fade) linear both}.utoast__bar{display:none}}
+:root[data-motion=reduce] .utoast{animation:fade var(--dur-fade) linear both}
+:root[data-motion=reduce] .utoast__bar{display:none}
+
+/* a move that failed: the section's own alert, where the slip would have been */
+.mv-fail{margin:0}
+
+/* ----- Later folders and the blank folder that creates a sprint ----- */
+.sx-ghost{position:relative;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--sp-2) var(--sp-3);margin-top:var(--folder-tab-h);padding:var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);border:1px dashed var(--border-strong);border-radius:var(--r-md) var(--r-lg) var(--r-lg) var(--r-lg);color:var(--text-2);font-size:var(--fs-sm)}
+.sx-ghost::before{content:"";position:absolute;left:-1px;bottom:100%;width:var(--folder-tab-w);height:var(--folder-tab-h);border:1px dashed var(--border-strong);border-bottom:0;border-radius:var(--r-sm) var(--r-sm) 0 0}
+.sx-ghost .btn .ico,.sx-head .btn .ico{width:16px;height:16px}
+.app[data-app=phone] .sx-ghost .btn{min-height:var(--target)}
+.sx-note+.btn{margin-top:var(--sp-2)}
+.sx-freeze{display:inline-flex;align-items:center;gap:var(--sp-1);padding:0 var(--sp-2);min-height:20px;border-radius:var(--r-pill);background:var(--bg-sunken);color:var(--text-2);font-size:var(--fs-xs);font-weight:600}
+.sx-freeze .ico{width:12px;height:12px}
+
+/* ----- notes across the board: offline after load, and the not-yet-moved project's banner ----- */
+.stale{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--bg-sunken);color:var(--text);font-size:var(--fs-sm)}
+.stale .ico{flex:none;width:16px;height:16px;margin-top:3px;color:var(--text-2)}
+.imp-banner{display:grid;gap:var(--sp-2);justify-items:start;padding:var(--sp-4) var(--sp-4) var(--sp-4) var(--sp-5);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--r-sm) var(--r-lg) var(--r-lg) var(--r-sm);background:var(--surface);box-shadow:var(--shadow-1)}
+.imp-banner p{margin:0;font-family:var(--font-display);font-size:var(--fs-md);line-height:var(--lh-prose);max-width:60ch}
+.imp-banner .btn{min-height:var(--target)}
+
+/* ----- the task screen: a sheet of paper. Mac: the #114 pane beside the board; iPhone: its own page ----- */
+.win__body .convo{min-width:0}
+.tk-pane{width:var(--task-pane-w);flex:none;display:flex;flex-direction:column;min-height:0;background:var(--surface);border-left:1px solid var(--border);box-shadow:-8px 0 24px -20px rgba(60,45,20,.35);animation:pane-in var(--dur-slow) var(--ease-enter) both}
+@keyframes pane-in{from{opacity:0;transform:translateX(16px)}}
+@media (prefers-reduced-motion:reduce){.tk-pane{animation:fade var(--dur-fade) linear both}}
+:root[data-motion=reduce] .tk-pane{animation:fade var(--dur-fade) linear both}
+.tk-pane.is-quiet{animation:none}
+.tk-bar{flex:none;display:flex;align-items:center;gap:var(--sp-2);min-height:52px;padding:0 var(--sp-2) 0 var(--sp-5);border-bottom:1px solid var(--border)}
+.tk-bar__key{flex:1;min-width:0;font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--text-2)}
+.tk-bar .icon-btn{width:var(--target);height:var(--target)}
+.app[data-app=phone] .tk-bar{padding:0 var(--sp-2);border-bottom:0}
+.app[data-app=phone] .tk-bar__key{text-align:center}
+.tk-back{display:inline-flex;align-items:center;gap:var(--sp-1);min-height:var(--target);padding:0 var(--sp-2);border:0;background:none;color:var(--accent-text);font-size:var(--fs-md)}
+.tk-back .ico{width:20px;height:20px}
+.tk-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;background:var(--surface)}
+.tk{display:grid;gap:var(--sp-6);padding:var(--sp-5) var(--sp-6) var(--sp-10)}
+.app[data-app=phone] .tk{padding:var(--sp-2) var(--sp-4) var(--sp-10);gap:var(--sp-5)}
+.tk>*{min-width:0}
+
+/* the head: the key and kind as a typed tab, then the title in the serif, then Edit */
+.tk-head{display:grid;gap:var(--sp-2)}
+.tk-tag{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2);font-size:var(--fs-xs);color:var(--text-2)}
+.tk-tag .key{font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--text)}
+.tk-title{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-2xl);line-height:var(--lh-tight);overflow-wrap:anywhere;outline:none}
+.app[data-app=phone] .tk-title{font-size:var(--fs-xl)}
+.tk-title:focus-visible{outline:2px solid var(--focus);outline-offset:4px;border-radius:var(--r-sm)}
+.tk-head__acts{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.tk-head__acts .btn{min-height:var(--target)}
+.tk-head__acts .btn .ico{width:16px;height:16px}
+.tk.is-closed .tk-title{color:var(--text-2);text-decoration:line-through;text-decoration-thickness:1px;text-decoration-color:var(--border-strong)}
+
+/* the field ledger: labels in small caps on the left, each value a picker you can press; read-only values are plain */
+.ledger{display:grid;margin:0;border-top:1px solid var(--border)}
+.ledger>div{display:grid;grid-template-columns:var(--ledger-label) minmax(0,1fr);align-items:center;gap:var(--sp-3);min-height:calc(var(--target) + var(--sp-2));padding:var(--sp-1) 0;border-bottom:1px solid var(--border)}
+.ledger dt{font-size:var(--fs-sm);color:var(--text-2);font-variant:small-caps;letter-spacing:var(--ls-caps);text-transform:lowercase}
+.ledger dd{margin:0;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2);font-size:var(--fs-sm)}
+.ledger small{font-size:var(--fs-xs);color:var(--text-2)}
+.app[data-app=phone] .ledger>div{grid-template-columns:96px minmax(0,1fr)}
+.pick{display:inline-flex;align-items:center;gap:var(--sp-2);max-width:100%;min-height:var(--target);margin-left:calc(-1 * var(--sp-2));padding:0 var(--sp-2);border:0;border-radius:var(--r-md);background:none;color:var(--text);font-size:var(--fs-sm);font-weight:600;text-align:left}
+.pick>span{min-width:0;overflow-wrap:anywhere;text-decoration:underline;text-decoration-color:var(--border-strong);text-decoration-thickness:1px;text-underline-offset:.3em}
+.pick .ico{width:16px;height:16px;color:var(--text-2)}
+.pick:hover{background:var(--hover)}
+.pick[aria-expanded=true]{background:var(--text);color:var(--bg)}
+.pick[aria-expanded=true] .ico{color:var(--bg)}
+.pick[aria-disabled=true]{color:var(--text-2)}
+.pick[aria-disabled=true]>span{text-decoration:none}
+.pick.is-changed>span{animation:ink-in var(--dur-pulse) var(--ease-standard) both}
+@keyframes ink-in{0%,30%{background:var(--accent-soft)}}
+@media (prefers-reduced-motion:reduce){.pick.is-changed>span{animation:none}}
+:root[data-motion=reduce] .pick.is-changed>span{animation:none}
+.sdot2{width:8px;height:8px;flex:none;border-radius:50%;border:1.5px solid currentColor}
+.sdot2--approved,.sdot2--done{background:var(--success-text);border-color:var(--success-text)}
+.sdot2--in-progress,.sdot2--qa{background:var(--accent);border-color:var(--accent)}
+.sdot2--blocked{background:var(--warning-text);border-color:var(--warning-text)}
+.sdot2--proposed,.sdot2--closed{color:var(--text-3)}
+.lbl-chip{display:inline-flex;align-items:center;min-height:22px;padding:0 var(--sp-2);border:1px solid var(--border);border-radius:var(--r-pill);font-size:var(--fs-xs);color:var(--text-2);font-family:var(--font-mono)}
+.tk .ext{min-height:var(--target)}
+
+/* sections: Details and History as h2 with a ruled line, like a form's sections */
+.tk-sec{display:grid;gap:var(--sp-3)}
+.tk-h2{display:flex;align-items:center;gap:var(--sp-3);margin:0;font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.tk-h2::after{content:"";flex:1;height:1px;background:var(--border)}
+.tk-body{margin:0;font-family:var(--font-display);font-size:16px;line-height:var(--lh-prose);white-space:pre-wrap;overflow-wrap:anywhere}
+.tk-body--none{font-family:var(--font-body);font-size:var(--fs-sm);color:var(--text-2)}
+.theirs{display:grid;gap:var(--sp-1);margin:var(--sp-2) 0 0;padding:var(--sp-2) var(--sp-3);border-left:2px solid var(--warning-text);background:var(--bg-sunken);border-radius:0 var(--r-md) var(--r-md) 0}
+.theirs b{font-size:var(--fs-xs);color:var(--warning-text)}
+.theirs p{margin:0;font-family:var(--font-display);font-size:var(--fs-sm);line-height:var(--lh-prose);white-space:pre-wrap;color:var(--text)}
+.tk-edit{display:grid;gap:var(--sp-4)}
+.tk-edit .form-actions{align-items:center}
+.tk-edit .form-actions .btn{min-height:var(--target)}
+.tk-edit .form-actions kbd{display:inline-block;margin-left:var(--sp-1);background:none;color:inherit;border-color:currentColor;opacity:.8}
+.app[data-app=phone] .tk-edit .form-actions kbd{display:none}
+.tk-edit[aria-busy=true] .fld-input{background:var(--bg-sunken);color:var(--text-2)}
+
+/* history: a margin rule, author and time first; the newest entry last, just above the comment box */
+.hist{list-style:none;margin:0;padding:0 0 0 var(--sp-4);display:grid;gap:var(--sp-4);border-left:1px solid var(--ruled)}
+.hist li{position:relative;display:grid;gap:2px}
+.hist li::before{content:"";position:absolute;left:calc(-1 * var(--sp-4) - 4px);top:7px;width:7px;height:7px;border-radius:50%;background:var(--surface);border:1.5px solid var(--border-strong)}
+.hist .ev-who{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--sp-1) var(--sp-2);font-size:var(--fs-xs);color:var(--text-2)}
+.hist .ev-who b{color:var(--text);font-weight:600;font-size:var(--fs-sm)}
+.hist .ev-what{margin:0;font-size:var(--fs-sm);color:var(--text-2);overflow-wrap:anywhere}
+.hist .ev-what code{font-size:.9em}
+.hist .ev-text{margin:0;font-family:var(--font-display);font-size:var(--fs-md);line-height:var(--lh-prose);color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere}
+.hist li.ev--you::before{background:var(--accent);border-color:var(--accent)}
+.hist li.ev--decision::before{background:var(--accent);border-color:var(--accent);width:9px;height:9px;left:calc(-1 * var(--sp-4) - 5px)}
+.hist li.ev--negative::before{background:var(--danger-text);border-color:var(--danger-text)}
+.hist li.is-new{animation:note-in var(--dur-base) var(--ease-enter) both}
+@media (prefers-reduced-motion:reduce){.hist li.is-new{animation:fade var(--dur-fade) linear both}}
+:root[data-motion=reduce] .hist li.is-new{animation:fade var(--dur-fade) linear both}
+.tk .link-btn{justify-self:start}
+
+/* the comment box: a ruled card with the hint under its label */
+.cbox{display:grid;gap:var(--sp-2);padding:var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r-lg);background:var(--surface-2)}
+.cbox:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.cbox textarea{width:100%;min-height:72px;padding:0;border:0;background:none;outline:none;resize:vertical;font-family:var(--font-display);font-size:var(--fs-md);line-height:var(--lh-prose);color:var(--text)}
+.app[data-app=phone] .cbox textarea{font-size:var(--fs-input)}
+.cbox textarea::placeholder{color:var(--text-3)}
+.cbox__foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--sp-2)}
+.cbox__foot .btn{min-height:var(--target)}
+.cbox .fld__label{font-size:var(--fs-sm)}
+
+/* the decision card is #16's; on the task screen it sits flush (no chat indent) */
+.tk .card,.tk .receipt{margin-left:0}
+.tk .card h2{margin:0}
+.tk .receipt{outline:none}
+.tk .receipt .stamp{position:static;width:var(--stamp-sm);height:var(--stamp-sm);margin-left:auto;opacity:1;transform:rotate(-9deg)}
+
+/* write blocks at the top of the screen: clay for failures (#107's), ochre for "it changed", sunken for offline */
+.wblk{display:grid;justify-items:start;gap:var(--sp-1);padding:var(--sp-4);border-radius:var(--r-md);outline:none}
+.wblk h2,.wblk h3{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;font-size:var(--fs-md);font-weight:700;line-height:var(--lh-tight)}
+.wblk h2 .ico,.wblk h3 .ico{flex:none;width:18px;height:18px;margin-top:1px}
+.wblk p{margin:0;font-size:var(--fs-sm);padding-left:calc(18px + var(--sp-2))}
+.wblk__acts{display:flex;flex-wrap:wrap;gap:var(--sp-2);margin:var(--sp-2) 0 0 calc(18px + var(--sp-2))}
+.wblk__acts .btn{min-height:var(--target);background:var(--surface);border-color:transparent;color:inherit}
+.wblk--bad{background:var(--danger-soft);color:var(--danger-text)}
+.wblk--warn{background:var(--warning-soft);color:var(--warning-text)}
+.wblk--warn .wblk__acts .btn--primary{background:var(--text);color:var(--bg)}
+.wblk--quiet{background:var(--bg-sunken);color:var(--text)}
+.wblk:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.wblk.is-new{animation:note-in var(--dur-base) var(--ease-enter) both}
+@media (prefers-reduced-motion:reduce){.wblk.is-new{animation:fade var(--dur-fade) linear both}}
+:root[data-motion=reduce] .wblk.is-new{animation:fade var(--dur-fade) linear both}
+.tk-skel{display:grid;gap:var(--sp-4)}
+.tk-skel .skel{animation:pulse var(--dur-pulse) var(--ease-standard) infinite}
+.tk-skel .skel--h{height:28px;width:78%}
+.tk-skel .skel--l{height:var(--sp-3);width:92%}
+.tk-skel .skel--s{height:var(--sp-3);width:54%}
+@media (prefers-reduced-motion:reduce){.tk-skel .skel{animation:none}}
+:root[data-motion=reduce] .tk-skel .skel{animation:none}
+
+/* ----- Find: the search field as a ruled index line, results as index cards in one list ----- */
+.fd{display:grid;gap:var(--sp-4);padding:var(--sp-6) var(--sp-6) var(--sp-10);max-width:680px;margin:0 auto;width:100%}
+.app[data-app=phone] .fd{padding:var(--sp-2) var(--sp-4) var(--sp-10)}
+.fd h1{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-2xl);line-height:var(--lh-tight);outline:none}
+.fd-field{display:flex;align-items:center;gap:var(--sp-2);min-height:calc(var(--target) + var(--sp-2));padding:0 var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface)}
+.fd-field:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.fd-field .ico{color:var(--text-2)}
+.fd-field input{flex:1;min-width:0;height:var(--target);border:0;background:none;outline:none;font-size:var(--fs-md);color:var(--text)}
+.app[data-app=phone] .fd-field input{font-size:var(--fs-input)}
+.fd-field kbd{flex:none}
+.fd-try{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2);font-size:var(--fs-xs);color:var(--text-2)}
+.fd-try .chip-btn{min-height:32px;font-family:var(--font-mono);max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.app[data-app=phone] .fd-try .chip-btn{min-height:var(--target)}
+.fd-count{margin:0;font-size:var(--fs-sm);color:var(--text-2);font-variant-numeric:tabular-nums}
+.fd-list{list-style:none;margin:0;padding:var(--sp-1) 0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg)}
+.fd-list li+li{border-top:1px solid var(--border)}
+.fd-hit{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:var(--sp-1) var(--sp-3);align-items:start;min-height:var(--target);padding:var(--sp-3) var(--sp-4);color:inherit;text-decoration:none;border-radius:var(--r-md)}
+.fd-hit:hover{background:var(--bg-sunken)}
+.fd-hit:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.fd-hit .key{font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--text-2);padding-top:1px}
+.fd-hit__t{font-family:var(--font-display);font-size:var(--fs-md);line-height:var(--lh-tight);overflow-wrap:anywhere}
+.fd-hit__sub{grid-column:2;display:flex;flex-wrap:wrap;gap:var(--sp-1) var(--sp-2);font-size:var(--fs-xs);color:var(--text-2)}
+.fd-hit__enter{grid-row:1/span 2;grid-column:3;align-self:center;font-size:var(--fs-xs);color:var(--text-2)}
+.fd-hit.is-closed .fd-hit__t{color:var(--text-2)}
+mark{background:var(--accent-soft);color:inherit;border-radius:2px;padding:0 1px}
+.fd-other{display:grid;justify-items:start;gap:var(--sp-2);padding:var(--sp-1) 0 var(--sp-1) var(--sp-4);border-left:2px solid var(--accent);font-size:var(--fs-sm);color:var(--text-2)}
+.fd-other p{margin:0}
+.fd-other .btn,.fd-other .ext{min-height:var(--target)}
+.fd-other--gh{border-left-color:var(--text-3)}
+
+/* ----- the move to the console: a three-step strip, a ledger for counts, the comparison as a ruled table ----- */
+.im{display:grid;gap:var(--sp-6);padding:var(--sp-6) var(--sp-6) var(--sp-10);max-width:680px;margin:0 auto;width:100%}
+.app[data-app=phone] .im{padding:var(--sp-2) var(--sp-4) var(--sp-10);gap:var(--sp-5)}
+.im>*{min-width:0}
+.im-kicker{margin:0;font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.im h1,.im h2.im-h{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-2xl);line-height:var(--lh-tight);outline:none;overflow-wrap:anywhere}
+.app[data-app=phone] .im h1,.app[data-app=phone] .im h2.im-h{font-size:var(--fs-xl)}
+.im-lead{margin:0;font-family:var(--font-display);font-size:16px;line-height:var(--lh-prose);max-width:60ch}
+.im-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--sp-2)}
+.im-steps li{display:grid;gap:var(--sp-1);padding-top:var(--sp-2);border-top:3px solid var(--border);font-size:var(--fs-xs);color:var(--text-2)}
+.im-steps li b{font-size:var(--fs-sm);color:var(--text-2);font-weight:600}
+.im-steps li[aria-current=step]{border-top-color:var(--text)}
+.im-steps li[aria-current=step] b{color:var(--text)}
+.im-steps li.is-done{border-top-color:var(--accent)}
+.im-steps li.is-done b{color:var(--accent-text)}
+.im-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-5)}
+.app[data-app=phone] .im-cols{grid-template-columns:minmax(0,1fr)}
+.im-col h2,.im-sec h2{margin:0 0 var(--sp-2);font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.im-list{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-2);font-size:var(--fs-sm)}
+.im-list li{display:flex;gap:var(--sp-2);align-items:flex-start}
+.im-list .ico{flex:none;width:16px;height:16px;margin-top:3px}
+.im-list--in .ico{color:var(--success-text)}
+.im-list--stay .ico{color:var(--text-2)}
+.im-key{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm)}
+.im-key code{background:var(--surface)}
+.im-acts{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-3)}
+.im-acts .btn{min-height:var(--target)}
+.app[data-app=phone] .im-acts .btn{flex:1 1 100%}
+.im-acts small{font-size:var(--fs-xs);color:var(--text-2);flex-basis:100%}
+.im-ledger{margin:0;display:grid;border-top:1px solid var(--border)}
+.im-ledger>div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--sp-1) var(--sp-3);align-items:center;padding:var(--sp-3) 0;border-bottom:1px solid var(--border)}
+.im-ledger dt{font-size:var(--fs-sm);font-weight:600}
+.im-ledger dd{margin:0;font-size:var(--fs-sm);color:var(--text-2);font-variant-numeric:tabular-nums}
+.im-ledger dd .ico{width:16px;height:16px;color:var(--success-text);vertical-align:-3px}
+.im-bar{grid-column:1/-1;-webkit-appearance:none;appearance:none;width:100%;height:6px;border:0;border-radius:3px;background:var(--bg-sunken);overflow:hidden}
+.im-bar::-webkit-progress-bar{background:var(--bg-sunken);border-radius:3px}
+.im-bar::-webkit-progress-value{background:var(--accent);border-radius:3px;transition:width var(--dur-slow) var(--ease-standard)}
+.im-bar::-moz-progress-bar{background:var(--accent);border-radius:3px}
+.im-note{margin:0;font-size:var(--fs-sm);color:var(--text-2);max-width:60ch}
+.im-tbl{width:100%;border-collapse:collapse;font-size:var(--fs-sm);font-variant-numeric:tabular-nums}
+.im-tbl caption{text-align:left;margin-bottom:var(--sp-2);font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.im-tbl th,.im-tbl td{padding:var(--sp-2) var(--sp-2);border-bottom:1px solid var(--border);text-align:right}
+.im-tbl th:first-child,.im-tbl td:first-child{text-align:left;padding-left:0}
+.im-tbl thead th{font-size:var(--fs-xs);font-weight:600;color:var(--text-2)}
+.im-tbl tbody th{font-weight:600}
+.im-tbl .res-ok{color:var(--success-text);white-space:nowrap}
+.im-tbl .res-diff{color:var(--warning-text);font-weight:700;white-space:nowrap}
+.im-tbl .res-ok .ico,.im-tbl .res-diff .ico{width:14px;height:14px;vertical-align:-2px;margin-right:2px}
+.im-tbl tr.is-diff th,.im-tbl tr.is-diff td{background:var(--warning-soft);color:var(--warning-text)}
+.app[data-app=phone] .im-tbl th,.app[data-app=phone] .im-tbl td{padding:var(--sp-2) var(--sp-1)}
+.im-fail{list-style:none;margin:var(--sp-2) 0 0;padding:0 0 0 calc(18px + var(--sp-2));display:grid;gap:var(--sp-1);font-size:var(--fs-sm)}
+.im-fail code{background:var(--surface)}
+/* switching: five lines of a ledger, each ticks in ink when it finishes; the running one has the ring */
+.im-run{list-style:none;margin:0;padding:0;display:grid;border-top:1px solid var(--border)}
+.im-run li{display:flex;align-items:center;gap:var(--sp-3);min-height:var(--target);padding:var(--sp-2) 0;border-bottom:1px solid var(--border);font-size:var(--fs-sm);color:var(--text-2)}
+.im-run li .mark2{flex:none;display:grid;place-items:center;width:20px;height:20px}
+.im-run li.is-done{color:var(--text)}
+.im-run li.is-done .mark2 .ico{width:18px;height:18px;color:var(--success-text);stroke-width:2.2}
+.im-run li.is-now{color:var(--text);font-weight:600}
+.im-run li .mark2 i{width:8px;height:8px;border-radius:50%;border:1.5px solid var(--border-strong)}
+.im-run li.is-done.is-new .mark2 path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) forwards}
+@media (prefers-reduced-motion:reduce){.im-run li.is-done.is-new .mark2 path{animation:none;stroke-dashoffset:0}}
+:root[data-motion=reduce] .im-run li.is-done.is-new .mark2 path{animation:none;stroke-dashoffset:0}
+/* the confirm's four lines, numbered like a short letter */
+.adialog ol.im-lines{margin:0;padding-left:1.3em;display:grid;gap:var(--sp-2);font-size:var(--fs-sm);color:var(--text)}
+.adialog--wide{--dialog-w:520px}
+/* switched: the project's card is stamped (Paper Desk's ink stamp, as #16 and #107 use it) */
+.im-done{position:relative;display:grid;gap:var(--sp-2);padding:var(--sp-6) calc(var(--stamp-sm) + var(--sp-8)) var(--sp-6) var(--sp-6);background:var(--surface);background-image:linear-gradient(var(--surface),var(--surface-2));border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-1)}
+.app[data-app=phone] .im-done{padding:var(--sp-5) calc(var(--stamp-sm) + var(--sp-5)) var(--sp-5) var(--sp-5)}
+.im-done .stamp{right:var(--sp-5);top:calc(50% - var(--stamp-sm) / 2);width:var(--stamp-sm);height:var(--stamp-sm);opacity:1;transform:rotate(-9deg)}
+.im-done__kicker{margin:0;font-size:var(--fs-sm);font-weight:700;color:var(--accent-text);font-variant:small-caps;letter-spacing:var(--ls-caps);text-transform:lowercase}
+.im-done h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);outline:none}
+.im-done p{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+
+/* ----- Create a sprint: #29's dialog, now with an editable name; the hint reads like a calendar note ----- */
+.sd-hint{margin:0;padding:var(--sp-2) var(--sp-3);border-left:2px solid var(--accent);font-size:var(--fs-sm);color:var(--text-2);font-variant-numeric:tabular-nums}
+.sd-hint b{color:var(--text);font-weight:600}
+.fld-input[type=date]{font-variant-numeric:tabular-nums}
+.tsheet--sd .tsheet__panel{height:auto}
+.tsheet--dialog.tsheet--sd .tsheet__panel{width:min(100%,var(--dialog-w))}
+
+/* ----- #107, changed parts only: the off project, the status a choice sets ----- */
+.topt__as{font-size:var(--fs-xs);font-weight:400;color:var(--text-2)}
+.topt:has(input:checked) .topt__as{color:var(--accent-text)}
+.tcard__num{font-family:var(--font-mono)}
+
+/* the Mac board column narrows next to the task pane: lanes keep their full width */
+.bd-mac.has-pane .bd{padding-inline:var(--sp-5)}
+.reason-err{margin:0}
+.tk .receipt h2{margin:0;display:inline;font:inherit;font-weight:700;color:var(--text);outline:none}
+.tk .receipt h2:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:var(--r-sm)}
+.bd-mac__name{margin:0}
+.bd-mac .convo__title{flex:0 1 auto;min-width:0}
+.bd-mac__name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hd-find{min-width:var(--control-h);padding:0 var(--sp-2)}
+.bd-mac.has-pane .convo__head{padding-left:var(--sp-5);gap:var(--sp-2)}
+.bd-mac.has-pane .convo__title{flex:1 1 auto;min-width:6em}
+.mnu__list{display:grid}
