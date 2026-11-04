@@ -102,6 +102,40 @@ const trailingText = `
   </tc-list>
 `;
 
+/**
+ * #374: a nowrap title (a repository name) ends in an ellipsis inside its column, beside trailing text, a muted
+ * trailing label and a row action alike. The nowrap rule is the consumer's; the kit only has to let it shrink.
+ */
+const longNowrapTitle = `
+  <tc-list [attr.aria-label]="'stories.list.ariaRepos' | transloco">
+    <tc-list-row [link]="['/settings/projects', 'long']" [label]="'stories.list.repoProjectAria' | transloco: { repo: 'geeera/' + longName }">
+      <span tc-row-title class="story-nowrap">{{ longName }}</span>
+      <span tc-row-subtitle>geeera</span>
+      <span tc-row-trailing-text>{{ 'stories.list.repoProject' | transloco }}<tc-icon name="chevron-right" size="sm" /></span>
+    </tc-list-row>
+    <tc-list-row muted>
+      <span tc-row-title class="story-nowrap">{{ longName }}</span>
+      <span tc-row-subtitle>geeera</span>
+      <span tc-row-trailing-text><tc-icon name="archive" size="sm" />{{ 'stories.list.repoArchived' | transloco }}</span>
+    </tc-list-row>
+    <tc-list-row>
+      <span tc-row-title class="story-nowrap">{{ longName }}</span>
+      <span tc-row-subtitle>geeera</span>
+      <button tc-row-action tc-button type="button">{{ 'stories.list.repoAdd' | transloco }}</button>
+    </tc-list-row>
+  </tc-list>
+`;
+
+const longNowrapTitleStory = {
+  render: () => ({
+    template: longNowrapTitle,
+    props: { longName: 'a-really-long-repository-name-to-check-wrapping' },
+    styles: [
+      '.story-nowrap { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
+    ],
+  }),
+} satisfies Partial<StoryObj<List>>;
+
 const meta: Meta<List> = {
   title: 'Kit/List',
   component: List,
@@ -123,3 +157,9 @@ export const TrailingTextDark: Story = { ...darkTheme, render: () => ({ template
 export const Dark: Story = { ...darkTheme };
 export const ReducedMotion: Story = { ...reducedMotion };
 export const Phone: Story = { ...phoneViewport };
+export const LongNowrapTitle: Story = { ...longNowrapTitleStory };
+export const LongNowrapTitlePhone: Story = { ...phoneViewport, ...longNowrapTitleStory };
+export const LongNowrapTitlePhoneDark: Story = {
+  globals: { ...phoneViewport.globals, ...darkTheme.globals },
+  ...longNowrapTitleStory,
+};

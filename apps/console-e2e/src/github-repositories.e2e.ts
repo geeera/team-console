@@ -1,4 +1,9 @@
 import type { Page } from '@playwright/test';
+import {
+  INSTALLATION_REPOSITORIES_URL,
+  type InstallationRepositoriesDto,
+  type InstallationRepositoryDto,
+} from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { apiClient, seed } from './support/stack';
@@ -143,6 +148,77 @@ test('#278: private repositories from GitHub are marked, and the missing step li
   await expect(refresh).toBeFocused();
   await expect(row(page, 'geeera/private-product')).toBeVisible();
 });
+
+/**
+ * #374: long enough to overflow the text column at 1440 px too, so the check means the same on both widths, and
+ * within GitHub's 100 characters with its suffix (the client drops a longer name as not a repository).
+ */
+const LONG_NAME = `a-really-long-repository-name-to-check-wrapping-${'x'.repeat(40)}`;
+const LONG_ROWS: readonly InstallationRepositoryDto[] = [
+  { fullName: `geeera/${LONG_NAME}-add`, private: true, registration: { state: 'none' } },
+  {
+    fullName: `geeera/${LONG_NAME}-project`,
+    private: false,
+    registration: { state: 'active', slug: 'long-project' },
+  },
+  {
+    fullName: `geeera/${LONG_NAME}-archived`,
+    private: false,
+    registration: { state: 'archived', slug: 'long-archived' },
+  },
+];
+
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`#374: a long repository name ends in an ellipsis before Add, Project and Archived (${colorScheme})`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme });
+    // The installation's list is stretched in the browser: the api's mock repositories stay as other specs expect.
+    await page.route(`**${INSTALLATION_REPOSITORIES_URL}*`, async (route) => {
+      const response = await route.fetch();
+      const body = (await response.json()) as InstallationRepositoriesDto;
+      await route.fulfill({
+        response,
+        json: { ...body, repositories: [...LONG_ROWS, ...body.repositories] },
+      });
+    });
+    await page.goto('/overview');
+    await expect(page.locator('html')).toHaveCSS('color-scheme', colorScheme);
+
+    const cases = [
+      { fullName: LONG_ROWS[0]?.fullName ?? '', trailing: 'repo-add' },
+      { fullName: LONG_ROWS[1]?.fullName ?? '', trailing: 'repo-project' },
+      { fullName: LONG_ROWS[2]?.fullName ?? '', trailing: 'repo-archived' },
+    ];
+    for (const { fullName, trailing } of cases) {
+      const name = row(page, fullName).locator('.repo__name');
+      const control = row(page, fullName).getByTestId(trailing);
+      await expect(name).toBeVisible();
+      await expect(control).toBeVisible();
+      const nameBox = await name.boundingBox();
+      const controlBox = await control.boundingBox();
+      expect(nameBox, `${trailing}: name box`).not.toBeNull();
+      expect(controlBox, `${trailing}: control box`).not.toBeNull();
+      expect(
+        (nameBox?.x ?? 0) + (nameBox?.width ?? 0),
+        `${trailing}: the name ends left of the control`,
+      ).toBeLessThanOrEqual(controlBox?.x ?? 0);
+      // Cut inside its own box (the ellipsis applies), not merely clipped by the card.
+      expect(
+        await name.evaluate((element) => element.scrollWidth > element.clientWidth),
+        `${trailing}: the name is truncated`,
+      ).toBe(true);
+      await expect(name).toHaveCSS('text-overflow', 'ellipsis');
+    }
+    // The Add button still names the whole repository.
+    await expect(
+      row(page, LONG_ROWS[0]?.fullName ?? '').getByRole('button', {
+        name: ru('overview.repos.row.addAria', { repo: LONG_ROWS[0]?.fullName ?? '' }),
+      }),
+    ).toBeVisible();
+    await expectAccessible(page, `All projects with long repository names (${colorScheme})`);
+  });
+}
 
 test('the Add project entry point opens All projects at the GitHub section', async ({ page }) => {
   await page.goto('/needs-you');
