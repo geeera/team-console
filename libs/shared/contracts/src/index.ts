@@ -259,3 +259,35 @@ export type {
   SprintState,
   TrackerMode,
 } from './lib/tracker/vocabulary';
+export {
+  checkCreateCommentInput,
+  checkCreateItemInput,
+  checkCreateLabelInput,
+  checkCreateSprintInput,
+  checkUpdateItemInput,
+  checkUpdateSprintInput,
+} from './lib/tracker/inputs';
+export type {
+  CreateCommentInput,
+  CreateItemInput,
+  CreateLabelInput,
+  CreateSprintInput,
+  InputCheck,
+  UpdateItemInput,
+  UpdateSprintInput,
+} from './lib/tracker/inputs';
+export type {
+  ActorDto,
+  CommentDto,
+  CommentListDto,
+  ItemDto,
+  ItemEventDto,
+  ItemEventListDto,
+  ItemListDto,
+  ItemSummaryDto,
+  LabelDto,
+  LabelListDto,
+  TrackerProblemType,
+  TrackerSprintDto,
+  TrackerSprintListDto,
+} from './lib/tracker/dto';
