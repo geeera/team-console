@@ -4,17 +4,20 @@ import {
   Component,
   computed,
   DestroyRef,
+  effect,
   ElementRef,
   inject,
   Injector,
   input,
   output,
   signal,
+  untracked,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ConnectGitHubButton, type ConnectRefusal } from '@console/entities/github-connection';
 import { PushStore, type PushView } from '@console/entities/push';
 import { activeLock, isPaused, missingSlots, TeamStatusStore } from '@console/entities/team-run';
+import { BatchApproveOpener, type BatchApproved } from '@console/features/batch-approve';
 import { SnoozeCommands } from '@console/features/snooze';
 import { RequestChange } from '@console/features/request-change';
 import { SprintControls } from '@console/features/sprint-controls';
@@ -32,6 +35,7 @@ import { Banner, Button, Icon, IconButton, Receipt, StateBlock, type ReceiptTone
 import { isInFreeze, isSnoozeActive, TEAM_SLOTS, type SlotStatusDto, type TeamSlot } from '@shared/contracts';
 import { CommandsSetup, type SetupLine, type SetupView } from './commands-setup';
 import { CommandsStatus, type SprintFacts } from './commands-status';
+import { ProjectBatch } from './project-batch';
 import { listOf, secretCommandOf, whenOf } from './when';
 
 /** The project the panel commands. */
@@ -60,6 +64,12 @@ interface SprintRow {
   /** The button's accessible name; `null` when the row has no button (the next sprint exists already). */
   readonly aria: string | null;
 }
+
+/** The Approve team recommendations row (#246): the batch to review, nothing to batch, or the questions unread. */
+type ApproveRow =
+  | { readonly kind: 'ready'; readonly hint: string; readonly aria: string }
+  /** `line`: the i18n key of the line that stands in for the button. */
+  | { readonly kind: 'none' | 'error'; readonly line: string };
 
 /** The Notifications row as the template draws it (#221). */
 interface SnoozeRow {
@@ -104,6 +114,7 @@ const PUSH_OFF: ReadonlySet<PushView> = new Set<PushView>(['off', 'denied', 'no-
   templateUrl: './commands-panel.html',
   styleUrl: './commands-panel.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [ProjectBatch],
   host: { class: 'tc-commands-panel', '[class.tc-commands-panel--sheet]': 'mode() === "sheet"' },
 })
 export class CommandsPanel {
@@ -112,6 +123,8 @@ export class CommandsPanel {
   private readonly push = inject(PushStore);
   private readonly sprintControls = inject(SprintControls);
   private readonly requestChange = inject(RequestChange);
+  private readonly batchOpener = inject(BatchApproveOpener);
+  protected readonly batch = inject(ProjectBatch);
   private readonly network = inject(NetworkStatus);
   private readonly transloco = inject(TranslocoService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -133,6 +146,11 @@ export class CommandsPanel {
   private readonly isAsking = signal(false);
   private readonly now = signal(Date.now());
   private readonly lang = signal(this.transloco.getActiveLang());
+
+  /** Whose questions the batch row reads: a new object for the same project reads nothing again. */
+  private readonly questionsRef = computed(() => ({ slug: this.project().slug, name: this.project().name }), {
+    equal: (a, b) => a.slug === b.slug,
+  });
 
   protected readonly status = computed(() =>
     this.store.slug() === this.project().slug ? this.store.status() : null,
@@ -294,6 +312,28 @@ export class CommandsPanel {
     });
   });
 
+  /** Hidden until the project's questions are read; the count is the Needs you button's for this project. */
+  protected readonly approveRow = computed<ApproveRow | null>(() => {
+    const view = this.batch.view();
+    this.lang();
+    if (view.kind === 'loading') {
+      return null;
+    }
+    if (view.kind === 'error') {
+      return { kind: 'error', line: 'commands.approve.error' };
+    }
+    if (view.count === 0) {
+      return { kind: 'none', line: 'commands.approve.none' };
+    }
+    const params = { n: view.count, m: view.leftOut };
+    return {
+      kind: 'ready',
+      hint: this.t(view.leftOut > 0 ? 'commands.approve.hintLeft' : 'commands.approve.hint', params),
+      aria: this.t('commands.approve.aria', params),
+    };
+  });
+  protected readonly batchOpen = this.batchOpener.isOpen;
+
   /** Snooze needs push on this device to mean anything here; Turn back on never does (design #29). */
   protected readonly snooze = computed<SnoozeRow | null>(() => {
     const status = this.status();
@@ -318,7 +358,13 @@ export class CommandsPanel {
       return { isSnoozed, line, why: this.t('commands.why.offline'), whyIcon: 'offline', hasPushFix: false };
     }
     if (!isSnoozed && isPushOff) {
-      return { isSnoozed, line, why: this.t('commands.snooze.nopush'), whyIcon: 'bell-off', hasPushFix: true };
+      return {
+        isSnoozed,
+        line,
+        why: this.t('commands.snooze.nopush'),
+        whyIcon: 'bell-off',
+        hasPushFix: true,
+      };
     }
     return { isSnoozed, line, why: null, whyIcon: 'offline', hasPushFix: false };
   });
@@ -351,6 +397,13 @@ export class CommandsPanel {
   });
 
   constructor() {
+    effect(() => {
+      const ref = this.questionsRef();
+      untracked(() => {
+        this.batch.reset();
+        void this.batch.load(ref);
+      });
+    });
     const tick = setInterval(() => this.now.set(Date.now()), CLOCK_TICK_MS);
     const langs = this.transloco.langChanges$.subscribe((lang) => this.lang.set(lang));
     // Read, never asked for: whether this device gets pushes decides if Snooze is offered (#221).
@@ -368,6 +421,7 @@ export class CommandsPanel {
   protected refresh(): void {
     if (!this.store.refreshing() && !this.isOffline()) {
       void this.store.refresh();
+      void this.batch.load(this.questionsRef());
     }
   }
 
@@ -402,6 +456,44 @@ export class CommandsPanel {
       return;
     }
     await this.act(() => this.requestChange.ask({ slug: this.project().slug, name: this.project().name }));
+  }
+
+  /**
+   * Approve team recommendations (#246): the same batch dialog as Needs you, over this project's waiting items. It
+   * answers as the owner, so it is off for the same reasons as Pause / Resume. Cancel leaves focus on the button
+   * (the dialog restores it); approved items are said in the result note, which takes focus as after any command.
+   */
+  protected async approve(event: Event): Promise<void> {
+    const why = this.teamWhy();
+    if (why !== null) {
+      this.sayWhy(event, why);
+      return;
+    }
+    if (this.isAsking()) {
+      return;
+    }
+    this.isAsking.set(true);
+    let result: BatchApproved | null;
+    try {
+      result = await this.batchOpener.open(this.batch.waiting());
+    } finally {
+      this.isAsking.set(false);
+    }
+    if (result === null) {
+      return;
+    }
+    if (result.hasChanged) {
+      void this.batch.load(this.questionsRef());
+    }
+    if (result.approved.length > 0) {
+      this.show({
+        tone: 'positive',
+        verb: this.t('commands.batch.done', { n: result.approved.length }),
+        detail: null,
+        runLogUrl: null,
+        at: new Date().toISOString(),
+      });
+    }
   }
 
   protected async run(event: Event, row: RunRow): Promise<void> {
@@ -440,9 +532,12 @@ export class CommandsPanel {
     } finally {
       this.isAsking.set(false);
     }
-    if (outcome === null) {
-      return;
+    if (outcome !== null) {
+      this.show(outcome);
     }
+  }
+
+  private show(outcome: CommandOutcome): void {
     this.result.set(outcome);
     this.announce([outcome.verb, outcome.detail].filter((text) => text !== null).join(' '));
     // The note replaces nothing the owner was on; focus goes to it so the outcome is read next.

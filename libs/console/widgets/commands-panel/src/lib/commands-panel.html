@@ -243,6 +243,42 @@
           {{ 'commands.ask.btn' | transloco }}
         </button>
       </div>
+      @if (approveRow(); as row) {
+      <div class="cmd" data-testid="approve-row">
+        <div class="cmd__txt">
+          <p class="cmd__title">{{ 'commands.approve.title' | transloco }}</p>
+          @if (row.kind === 'ready') {
+          <p class="cmd__hint" [id]="id + '-approve-hint'" data-testid="approve-hint">{{ row.hint }}</p>
+          @if (teamWhy(); as why) {
+          <p class="cmd__why" [id]="id + '-approve-why'">
+            <tc-icon name="lock" size="sm" /><span>{{ why }}</span>
+          </p>
+          } } @else {
+          <p class="cmd__line" data-testid="approve-line">
+            <tc-icon [name]="row.kind === 'none' ? 'minus' : 'alert'" size="sm" /><span>{{ row.line | transloco }}</span>
+          </p>
+          }
+        </div>
+        @if (row.kind === 'ready') {
+        <button
+          tc-button
+          size="sm"
+          type="button"
+          class="cmd__btn"
+          data-testid="approve-command"
+          aria-haspopup="dialog"
+          [off]="teamWhy() !== null || batchOpen()"
+          [attr.aria-disabled]="teamWhy() !== null || batchOpen() ? 'true' : null"
+          [attr.aria-label]="row.aria"
+          [attr.aria-describedby]="(teamWhy() !== null ? id + '-approve-why ' : '') + id + '-approve-hint'"
+          (click)="approve($event)"
+        >
+          <tc-icon name="stack" size="sm" />
+          {{ 'commands.approve.btn' | transloco }}
+        </button>
+        }
+      </div>
+      }
     </div>
   </section>
 
