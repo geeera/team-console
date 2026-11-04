@@ -131,8 +131,40 @@ jobs:
       - name: Build the app under test
         run: npx nx build api
 
+      # #404: this step alone hung twice until the job's 15 min timeout (apt mirror stalls fetching system
+      # deps for webkit), so the shard never got to run a single test. The browser binary is cached by
+      # Playwright version (package-lock.json) so a cache hit only needs `install-deps` (apt), not the
+      # binary download; a bounded per-attempt timeout plus one retry absorbs a single slow/flaky mirror
+      # without burning the whole job timeout on a hang.
+      - name: Cache Playwright browser binaries
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ matrix.browser }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install the browser
-        run: npx playwright install --with-deps ${{ matrix.browser }}
+        timeout-minutes: 11
+        run: |
+          set -euo pipefail
+          attempt_install() {
+            if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+              npx playwright install-deps ${{ matrix.browser }}
+            else
+              npx playwright install --with-deps ${{ matrix.browser }}
+            fi
+          }
+          for attempt in 1 2; do
+            echo "::group::browser install attempt ${attempt}"
+            if timeout 5m bash -c "$(declare -f attempt_install); attempt_install"; then
+              echo "::endgroup::"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "::warning::browser install attempt ${attempt} timed out or failed"
+          done
+          echo "::error::browser install failed after 2 attempts"
+          exit 1
 
       - name: Typecheck the suite
         run: npx tsc -p apps/console-e2e/tsconfig.json --noEmit
