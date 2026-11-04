@@ -17,6 +17,8 @@
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
   gap: 0;
+  /* Sized by the token the shell's scroll-padding reads (#192), so the two cannot drift apart. */
+  min-height: calc(var(--tab-bar-h) + var(--safe-bottom));
   padding: var(--space-1) var(--space-1) calc(var(--space-1) + var(--safe-bottom));
   border-radius: 0;
   border-top: var(--border-w) solid var(--border);
