@@ -5,6 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import { firstValueFrom } from 'rxjs';
 import { ConfirmFailure } from './confirm-dialog';
+import { OpenSheets } from './open-sheets';
 import { Sheet } from './sheet';
 import { SheetFooter } from './sheet-footer';
 
@@ -96,6 +97,19 @@ describe('Sheet', () => {
     expect(belowResult).toBeUndefined();
     await expect(pending).resolves.toBe(false);
     expect(document.documentElement.hasAttribute('data-tc-scroll-lock')).toBe(false);
+  });
+
+  it('OpenSheets.closeAll() closes what Sheet opened, without the caller importing Sheet (#337)', async () => {
+    const pending = sheet.confirm({ title: 'Pause?', message: 'Sure?' });
+    await settle();
+    expect(sheet.hasOpen()).toBe(true);
+
+    TestBed.inject(OpenSheets).closeAll();
+    await settle();
+
+    expect(sheet.hasOpen()).toBe(false);
+    expect(overlay().querySelector('tc-sheet-container')).toBeNull();
+    await expect(pending).resolves.toBe(false);
   });
 
   it('closes on Escape and returns focus to the opener', async () => {

@@ -7,6 +7,7 @@ import { inject, Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { BREAKPOINTS } from '../../tokens/breakpoints';
 import { ConfirmDialog, ConfirmDialogData, ConfirmOptions } from './confirm-dialog';
+import { OpenSheets } from './open-sheets';
 import { SHEET_FRAME, SheetContainer, SheetFrame } from './sheet-container';
 import { SheetFooterSlot } from './sheet-footer';
 import { SheetScrollLocks, SheetScrollStrategy } from './sheet-scroll-lock';
@@ -46,6 +47,10 @@ export class Sheet {
   private readonly overlay = inject(Overlay);
   private readonly breakpoints = inject(BreakpointObserver);
   private readonly scrollLocks = new SheetScrollLocks(inject(DOCUMENT).documentElement);
+
+  constructor() {
+    inject(OpenSheets).attach(() => this.closeAll());
+  }
 
   open<R = unknown, D = unknown>(content: ComponentType<unknown>, options: SheetOptions<D>): DialogRef<R> {
     const presentation = this.breakpoints.isMatched(BREAKPOINTS.phone) ? 'sheet' : 'dialog';

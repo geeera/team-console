@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 /**
- * What keeps the console's initial bundle under its 500 kB warning budget (#123).
+ * What keeps the console's initial bundle under its 500 kB budget (#123), an error since #337.
  *
  * With code splitting, esbuild assigns modules to chunks by file reachability: a barrel line
  * `export { X } from './x'` makes `./x` part of the chunk of anyone who imports the barrel, used or not, so a lib
@@ -76,7 +76,7 @@ describe('initial bundle (#123)', () => {
     }
   });
 
-  it('keeps the 500 kB initial and 4 kB per-component style warning budgets', () => {
+  it('fails the build over a 500 kB initial bundle and warns over 490 kB and 4 kB per-component styles', () => {
     const project: unknown = JSON.parse(read('apps/console/project.json'));
 
     expect(project).toMatchObject({
@@ -85,7 +85,7 @@ describe('initial bundle (#123)', () => {
           configurations: {
             production: {
               budgets: expect.arrayContaining([
-                expect.objectContaining({ type: 'initial', maximumWarning: '500kb' }),
+                expect.objectContaining({ type: 'initial', maximumWarning: '490kb', maximumError: '500kb' }),
                 expect.objectContaining({ type: 'anyComponentStyle', maximumWarning: '4kb' }),
               ]),
             },
