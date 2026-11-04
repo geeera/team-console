@@ -2,6 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { computed, inject, Injectable, InjectionToken, Signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { TranslocoService } from '@jsverse/transloco';
+import { firstValueFrom, tap } from 'rxjs';
 import { ConsoleLang, DEFAULT_LANG, deviceLangOf, isConsoleLang } from './languages';
 
 /** Device-local, never sent to the Worker; its own key so the `tc.state.v1` shape stays as it is. */
@@ -99,22 +100,23 @@ export class ConsoleLanguage {
    * there yet; a loaded one switches at once. The last call wins; a dictionary that cannot load keeps the language
    * as it is. Resolves once the switch applied (or was dropped).
    */
-  use(lang: ConsoleLang): Promise<void> {
+  async use(lang: ConsoleLang): Promise<void> {
     const ticket = ++this.lastSwitch;
-    return new Promise((resolve) => {
-      this.transloco.load(lang).subscribe({
-        next: () => {
-          if (ticket === this.lastSwitch) {
-            this.apply(lang);
-          }
-          resolve();
-        },
-        error: (error: unknown) => {
-          console.warn(`i18n: could not load "${lang}"; the language stays as it is`, error);
-          resolve();
-        },
-      });
-    });
+    try {
+      // Applied in `tap`, not after the await: a dictionary that is already loaded emits synchronously, so the
+      // switch to it stays immediate.
+      await firstValueFrom(
+        this.transloco.load(lang).pipe(
+          tap(() => {
+            if (ticket === this.lastSwitch) {
+              this.apply(lang);
+            }
+          }),
+        ),
+      );
+    } catch (error: unknown) {
+      console.warn(`i18n: could not load "${lang}"; the language stays as it is`, error);
+    }
   }
 
   private apply(lang: ConsoleLang): void {

@@ -97,9 +97,15 @@
   --spinner-size-lg: 32px;
   --stamp-size: 78px;
 
-  /* The bottom tab bar's rendered box (top padding + the 44px tap target + bottom padding + its top border),
-     safe-area excluded since that is added where this is consumed (#192: scroll-padding on the shell). */
-  --tab-bar-h: calc(var(--control-h-touch) + 2 * var(--space-1) + var(--border-w));
+  /* One bottom tab: a large icon over a one-line --fs-2xs label, --space-1 around and between them, never under
+     the tap target. The tab's min-height and --tab-bar-h both read it, so the bar is exactly this tall (#404). */
+  --tab-bar-tab-h: max(
+    var(--control-h-touch),
+    calc(3 * var(--space-1) + var(--icon-size-lg) + var(--fs-2xs) * var(--lh-tight))
+  );
+  /* The bottom tab bar's rendered box (top padding + one tab + bottom padding + its top border), safe-area
+     excluded since that is added where this is consumed (#192: scroll-padding on the shell; the bar's min-height). */
+  --tab-bar-h: calc(var(--tab-bar-tab-h) + 2 * var(--space-1) + var(--border-w));
 
   --sidebar-w: 256px;
   --pane-w: 392px;

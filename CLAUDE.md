@@ -21,6 +21,16 @@ Node 22 (`.nvmrc`), npm, `npm ci` only — versions are pinned exactly, no `^`. 
 support Angular 22). Commands: `npx nx run-many -t lint`, `-t test`, `-t build`; a single project with
 `npx nx test console-pages-settings`. Unit tests are Vitest through `@analogjs/vitest-angular`; the app is zoneless.
 
+The root `package.json` declares `sideEffects: ["*.css"]`, so the bundler drops any module none of whose exports is
+used. This rules out bare side-effecting imports (`import './x'`) in any lib or app source, stylesheets aside: a
+polyfill, guard or interceptor registered that way would vanish from the build silently. Register it from an export
+the app calls (a provider, an initializer). The barrels the shell reaches eagerly (`@console/shared/ui`,
+`@console/entities/project`, `@console/entities/push`) are `export * from './…'` lines only, never
+`export { X } from`, because with code splitting esbuild puts a named re-export's whole file into the importer's
+chunk (#123). When a file holds private parts too, its public names go into a `*.public.ts` sibling, and the barrel
+re-exports that file. `tools/workspace-checks/src/initial-bundle.spec.ts` guards all of this (the `sideEffects`
+value, no bare imports, the barrel shape) along with the 500 kB initial and 4 kB component-style budgets.
+
 npm is pinned to `package.json#packageManager` (10.9.9; `engines.npm` allows 10.x only) — the lockfile must be
 written by npm 10, npm 11 rewrites it.
 

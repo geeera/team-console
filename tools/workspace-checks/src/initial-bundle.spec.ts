@@ -1,6 +1,6 @@
 import { workspaceRoot } from '@nx/devkit';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, relative } from 'node:path';
 
 /**
  * What keeps the console's initial bundle under its 500 kB budget (#123), an error since #337.
@@ -23,11 +23,45 @@ const STAR_ONLY_BARRELS = [
   'libs/console/entities/push/src/index.ts',
 ];
 
+/** Shipped sources: every `src/` under apps/ and libs/, without specs, stories, e2e specs and test setup. */
+function shippedSources(): string[] {
+  const skipped = /(\.spec|\.e2e|\.stories)\.ts$|(^|\/)test-setup\.ts$/;
+  const walk = (dir: string, inSrc: boolean): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        return entry.name === 'node_modules' || entry.name.startsWith('.')
+          ? []
+          : walk(full, inSrc || entry.name === 'src');
+      }
+      const path = relative(workspaceRoot, full);
+      return inSrc && path.endsWith('.ts') && !skipped.test(path) ? [path] : [];
+    });
+  return ['apps', 'libs'].flatMap((root) => walk(join(workspaceRoot, root), false));
+}
+
+const BARE_IMPORT = /^\s*import\s+['"]([^'"]+)['"]/gm;
+
 describe('initial bundle (#123)', () => {
   it('declares the workspace sources free of side effects except stylesheets', () => {
     const pkg: unknown = JSON.parse(read('package.json'));
 
     expect(pkg).toMatchObject({ sideEffects: ['*.css'] });
+  });
+
+  // `sideEffects: ["*.css"]` lets the bundler drop any module none of whose exports is used, and a bare
+  // `import 'x'` uses none: a polyfill, guard or interceptor registered that way would silently vanish from the build.
+  it('has no bare side-effect import in shipped sources, stylesheets aside', () => {
+    const sources = shippedSources();
+    const bare = sources.flatMap((path) =>
+      [...read(path).matchAll(BARE_IMPORT)]
+        .map((match) => match[1] ?? '')
+        .filter((specifier) => !specifier.endsWith('.css'))
+        .map((specifier) => `${path}: import '${specifier}'`),
+    );
+
+    expect(sources.length).toBeGreaterThan(100);
+    expect(bare).toEqual([]);
   });
 
   it.each(STAR_ONLY_BARRELS)('%s re-exports whole files only', (barrel) => {
