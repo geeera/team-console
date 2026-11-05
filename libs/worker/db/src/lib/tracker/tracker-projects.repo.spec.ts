@@ -19,6 +19,17 @@ describe('TrackerProjectsRepo', () => {
     await expect(repo().find('nope')).resolves.toBeNull();
   });
 
+  it('lists every active project’s tracker columns by slug, archived ones left out', async () => {
+    const github = await seedGitHubProject();
+    const { slug, keyPrefix } = await seedTrackerProject();
+    const archived = await seedGitHubProject();
+    await env.DB.prepare('UPDATE projects SET archived_at = ?2 WHERE slug = ?1').bind(archived, AT).run();
+    const all = await repo().listActive();
+    expect(all.get(github)?.tracker).toBe('github');
+    expect(all.get(slug)).toMatchObject({ tracker: 'console', keyPrefix });
+    expect(all.has(archived)).toBe(false);
+  });
+
   it('allocates no number while the project is on GitHub Issues, or for an unknown one', async () => {
     const slug = await seedGitHubProject();
     await expect(repo().allocateItemNumber(slug)).resolves.toBeNull();

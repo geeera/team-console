@@ -17,6 +17,12 @@ import type { OwnerRequestStatusDto } from './owner-request';
 export interface InboxItemDto {
   readonly section: Section;
   readonly number: number;
+  /**
+   * The console tracker's key (`TC-310`, #434) of an item read from D1 rows; `null` for a GitHub-era issue. The
+   * server always sends it; optional so a payload from a server that predates #434 still reads. A row has no `url`:
+   * the console links it by key.
+   */
+  readonly key?: string | null;
   readonly title: string;
   readonly url: string | null;
   /** The answer line ("**Your answer:** …") — the team's recommendation; `null` when the issue has none. */

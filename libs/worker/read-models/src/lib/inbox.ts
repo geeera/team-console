@@ -19,11 +19,14 @@ import { githubUrlOrNull, isTrustedAuthor } from './untrusted-text';
  * section order and then issue number.
  */
 
+/** Flags of the plugin's own bookkeeping issues, never an owner's item (`scripts/inbox`'s `mine`). */
+export const INBOX_EXCLUDED_FLAGS: readonly string[] = ['team:inbox', 'team:run-log'];
+
 /** The issues `scripts/inbox` classifies (`mine`). */
 function ownerFacing(issues: readonly IssueRecord[]): IssueRecord[] {
   return issues.filter(
     (issue) =>
-      !issue.isPullRequest && !issue.labels.includes('team:inbox') && !issue.labels.includes('team:run-log'),
+      !issue.isPullRequest && !INBOX_EXCLUDED_FLAGS.some((flag) => issue.labels.includes(flag)),
   );
 }
 
@@ -47,6 +50,7 @@ function classified(issues: readonly IssueRecord[]): Classified[] {
       item: {
         section,
         number: issue.number,
+        key: null,
         // Titles come from any author: a bidi override or zero-width run could pose as another item (#287).
         title: withoutInvisibles(issue.title),
         url: githubUrlOrNull(issue.htmlUrl),

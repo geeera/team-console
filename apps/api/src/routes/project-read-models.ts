@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
 import type { EmbedOriginsDto, RequestIssuesDto, SprintDto } from '@shared/contracts';
 import type { WorkerContext, WorkerHonoEnv } from '@worker/core';
-import { OwnerRequestsRepo } from '@worker/db';
+import { OwnerRequestsRepo, TrackerProjectsRepo } from '@worker/db';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { findProject, projectNotFound, repoOf } from '../projects/lookup';
 import { ProjectReads } from '../read-models/project-reads';
 import { SubrequestBudget } from '../read-models/subrequest-budget';
+import { TrackerReads, readsRows } from '../read-models/tracker-reads';
 import { requestStatusOf } from '../team/owner-requests';
 
 /**
@@ -19,7 +20,8 @@ import { requestStatusOf } from '../team/owner-requests';
 export const SPRINT_GITHUB_BUDGET = 44;
 
 /**
- * `/api/v1/projects/:slug/{inbox,questions,sprint,requests,embed-origins}` (#35, #20, #219). The slug is checked before anything else, so `/`, `..`
+ * `/api/v1/projects/:slug/{inbox,questions,sprint,requests,embed-origins}` (#35, #20, #219; inbox and questions of a
+ * console-tracker project from D1, #434). The slug is checked before anything else, so `/`, `..`
  * or `%2F` in it is a 404 `project-not-found` before D1 or GitHub is asked (#9 row 2); the repository comes only
  * from the registry row. Read-only installation tokens; the subrequest budget is on `ProjectReads`.
  */
@@ -41,14 +43,30 @@ async function readsFor(
   return new ProjectReads(github, c.env, project, repo, github.now, connection);
 }
 
+/**
+ * The inbox reads of the project: from D1 rows once its tracker left GitHub (`cutover` | `console`, #434), else the
+ * GitHub reads. Same slug check and the same 404 either way; a row-backed project costs no GitHub subrequest.
+ */
+async function inboxReadsFor(
+  c: WorkerContext<ApiEnv>,
+  github: ApiGitHub,
+): Promise<TrackerReads | ProjectReads | Response> {
+  const reads = await readsFor(c, github);
+  if (reads instanceof Response) {
+    return reads;
+  }
+  const tracker = await new TrackerProjectsRepo(c.env.DB).find(c.req.param('slug') ?? '');
+  return readsRows(tracker) ? TrackerReads.of(c.env.DB, tracker, c.get('logger')) : reads;
+}
+
 export function createProjectReadModelRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>()
     .get('/:slug/inbox', async (c) => {
-      const reads = await readsFor(c, github);
+      const reads = await inboxReadsFor(c, github);
       return reads instanceof Response ? reads : c.json(await reads.inbox());
     })
     .get('/:slug/questions', async (c) => {
-      const reads = await readsFor(c, github);
+      const reads = await inboxReadsFor(c, github);
       return reads instanceof Response ? reads : c.json(await reads.questions());
     })
     .get('/:slug/sprint', async (c) => {

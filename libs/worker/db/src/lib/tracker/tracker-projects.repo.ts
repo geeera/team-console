@@ -28,6 +28,16 @@ interface TrackerRow {
   cutover_at: string | null;
 }
 
+function trackerProjectOf(row: TrackerRow): TrackerProject {
+  return {
+    slug: row.slug,
+    tracker: row.tracker,
+    keyPrefix: row.key_prefix,
+    nextItemNumber: row.next_item_number,
+    cutoverAt: row.cutover_at,
+  };
+}
+
 /** The tracker side of the project registry (ADR 0006 decisions 1-2). Every query is parameterised. */
 export class TrackerProjectsRepo {
   constructor(private readonly db: D1Database) {}
@@ -41,15 +51,17 @@ export class TrackerProjectsRepo {
       )
       .bind(slug)
       .first<TrackerRow>();
-    return row === null
-      ? null
-      : {
-          slug: row.slug,
-          tracker: row.tracker,
-          keyPrefix: row.key_prefix,
-          nextItemNumber: row.next_item_number,
-          cutoverAt: row.cutover_at,
-        };
+    return row === null ? null : trackerProjectOf(row);
+  }
+
+  /** Every active project's tracker columns in one read, by slug (Needs you branches on them, #434). */
+  async listActive(): Promise<ReadonlyMap<string, TrackerProject>> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT slug, tracker, key_prefix, next_item_number, cutover_at FROM projects WHERE archived_at IS NULL`,
+      )
+      .all<TrackerRow>();
+    return new Map(results.map((row) => [row.slug, trackerProjectOf(row)]));
   }
 
   /**
