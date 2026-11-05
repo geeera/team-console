@@ -5,6 +5,7 @@ import { TranslocoService } from '@jsverse/transloco';
 import { firstValueFrom, throwError } from 'rxjs';
 import { provideConsoleAppI18n, provideConsoleI18n } from './i18n.providers';
 import { DEVICE_LANGUAGES, LANGUAGE_STORAGE, memoryLanguageStorage } from './language-preference';
+import { DEFAULT_LANG } from './languages';
 import { LazyTranslationLoader } from './lazy-translation-loader';
 import en from './locales/en.json';
 import ru from './locales/ru.json';
@@ -120,7 +121,12 @@ describe('provideConsoleAppI18n', () => {
     configure();
 
     await expect(TestBed.inject(ApplicationInitStatus).donePromise).resolves.toBeUndefined();
-    expect(handleError).toHaveBeenCalledWith(expect.any(Error));
+    // Transloco's own fallback (`fallbackLang`) wraps the loader's rejection into its `TranslationLoadError`
+    // before it reaches `startIn`'s own catchError — that wrapper, not a bare `Error`, is the fallback error.
+    expect(handleError).toHaveBeenCalledTimes(1);
+    expect(handleError).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'TranslationLoadError', lang: DEFAULT_LANG }),
+    );
     vi.restoreAllMocks();
   });
 });
