@@ -55,6 +55,8 @@ const GLYPHS = {
     'M3 3l18 18M10.6 6.2A9 9 0 0112 6c4.6 0 8 4 9 6a15 15 0 01-2.6 3.3M6.5 7.6C4.6 9 3.5 10.8 3 12c1 2 4.4 6 9 6 1.5 0 2.9-.4 4.1-1M9.9 9.9a3 3 0 004.2 4.2',
   'add-square':
     'M8 4.5h8A3.5 3.5 0 0119.5 8v8a3.5 3.5 0 01-3.5 3.5H8A3.5 3.5 0 014.5 16V8A3.5 3.5 0 018 4.5zM12 8.5v7M8.5 12h7',
+  // The task screen (#409): Edit.
+  pencil: 'M15.5 4.5a2.1 2.1 0 013 3L8 18l-4 1 1-4zM13.5 6.5l3 3',
 } as const;
 
 export type IconName = keyof typeof GLYPHS;

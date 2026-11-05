@@ -48,6 +48,7 @@ function needsYouItem(
     section: 'question',
     number,
     key: null,
+    askId: null,
     title: `Item ${number}`,
     url: `https://github.com/geeera/${project.slug}/issues/${number}`,
     ask: null,
@@ -133,6 +134,7 @@ describe('QuestionList', () => {
         items: golden.map((item) => ({
           ...item,
           key: null,
+          askId: null,
           authorTrusted: true,
           context: null,
           body: '',

@@ -144,6 +144,8 @@ describe('GET /api/v1/projects', () => {
         archivedAt: null,
         slots: { pm: 'missing', dev: 'missing', qa: 'missing' },
         snooze: { snoozed: false },
+        tracker: 'github',
+        keyPrefix: null,
       },
     ]);
   });

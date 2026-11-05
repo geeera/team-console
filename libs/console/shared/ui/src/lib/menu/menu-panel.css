@@ -1,0 +1,181 @@
+/* #409: a paper slip on the Mac, the body of a bottom sheet on the phone (the sheet is the frame there). */
+:host {
+  display: grid;
+  align-content: start;
+  color: var(--text);
+}
+
+:host(:not(.tc-menu--sheet)) {
+  width: var(--menu-w);
+  max-height: calc(100dvh - var(--space-16));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-1) 0 var(--space-2);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  animation: tc-menu-in var(--dur-fast) var(--ease-enter) both;
+}
+
+@keyframes tc-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--space-1)));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :host(:not(.tc-menu--sheet)) {
+    animation: tc-menu-fade var(--dur-fade) linear both;
+  }
+}
+
+@keyframes tc-menu-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.tc-menu__head {
+  display: grid;
+  gap: var(--space-px);
+  padding: var(--space-2) var(--space-4);
+}
+
+.tc-menu__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--fw-display);
+  font-size: var(--fs-md);
+  line-height: var(--lh-tight);
+}
+
+.tc-menu__sub {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.tc-menu__sub--sheet {
+  padding: 0 0 var(--space-2);
+}
+
+.tc-menu__warn {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-1) var(--space-3) var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--warning-soft);
+  color: var(--warning-text);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+}
+
+:host(.tc-menu--sheet) .tc-menu__warn {
+  margin: 0 0 var(--space-2);
+}
+
+.tc-menu__group {
+  padding: var(--space-2) var(--space-4) var(--space-1);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.tc-menu__sep {
+  height: var(--border-w);
+  margin: var(--space-2) var(--space-4);
+  background: var(--border);
+}
+
+:host(.tc-menu--sheet) .tc-menu__group,
+:host(.tc-menu--sheet) .tc-menu__item {
+  padding-inline: 0;
+}
+
+:host(.tc-menu--sheet) .tc-menu__sep {
+  margin-inline: 0;
+}
+
+.tc-menu__item {
+  display: grid;
+  grid-template-columns: var(--icon-size) minmax(0, 1fr);
+  gap: 0 var(--space-3);
+  align-items: start;
+  width: 100%;
+  min-height: var(--control-h-touch);
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+:host(.tc-menu--sheet) .tc-menu__item {
+  font-size: var(--fs-md);
+}
+
+.tc-menu__icon {
+  display: grid;
+  place-items: center;
+  min-height: calc(var(--fs-sm) * var(--lh-body));
+  color: var(--text-2);
+}
+
+.tc-menu__label {
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+}
+
+.tc-menu__hint {
+  grid-column: 2;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.tc-menu__hint--warning {
+  color: var(--warning-text);
+  font-weight: var(--fw-semibold);
+}
+
+.tc-menu__item:hover,
+.tc-menu__item:focus {
+  background: var(--hover);
+  outline: none;
+}
+
+.tc-menu__item:focus-visible {
+  box-shadow: inset 0 0 0 var(--focus-w) var(--focus);
+}
+
+/* An off item keeps its place and focus and says why; the reason is --text-2 (AA), never faded by opacity. */
+.tc-menu__item[aria-disabled='true'] {
+  cursor: default;
+}
+
+.tc-menu__item[aria-disabled='true'] .tc-menu__label {
+  color: var(--text-2);
+  font-weight: var(--fw-regular);
+}
+
+.tc-menu__item[aria-disabled='true']:hover {
+  background: none;
+}
+
+.tc-menu__item[aria-checked='true'] {
+  background: var(--accent-soft);
+}
+
+.tc-menu__item[aria-checked='true'] .tc-menu__label,
+.tc-menu__item[aria-checked='true'] .tc-menu__icon {
+  color: var(--accent-text);
+}

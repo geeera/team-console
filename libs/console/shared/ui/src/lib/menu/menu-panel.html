@@ -1,0 +1,57 @@
+@if (!isSheet && (spec.title || spec.subtitle)) {
+<div class="tc-menu__head">
+  @if (spec.title) {
+  <p class="tc-menu__title">{{ spec.title }}</p>
+  } @if (spec.subtitle) {
+  <p class="tc-menu__sub" dir="auto">{{ spec.subtitle }}</p>
+  }
+</div>
+} @else if (isSheet && spec.subtitle) {
+<p class="tc-menu__sub tc-menu__sub--sheet" dir="auto">{{ spec.subtitle }}</p>
+} @if (spec.warning) {
+<p class="tc-menu__warn">
+  <tc-icon name="alert" size="sm" />
+  <span>{{ spec.warning }}</span>
+</p>
+}
+<div class="tc-menu__list" role="menu" [attr.aria-label]="spec.label">
+  @for (group of spec.groups; track $index; let g = $index) { @if (g > 0) {
+  <div class="tc-menu__sep" role="separator"></div>
+  }
+  <div role="group" [attr.aria-label]="group.label || null">
+    @if (group.label) {
+    <div class="tc-menu__group" aria-hidden="true">{{ group.label }}</div>
+    } @for (item of group.items; track item.id; let i = $index) {
+    <button
+      type="button"
+      class="tc-menu__item"
+      tabindex="-1"
+      [attr.role]="spec.radio ? 'menuitemradio' : 'menuitem'"
+      [attr.aria-checked]="spec.radio ? (item.checked ? 'true' : 'false') : null"
+      [attr.aria-disabled]="item.off !== undefined ? 'true' : null"
+      [attr.aria-describedby]="item.hint || item.off ? hintId(g, i) : null"
+      [attr.data-item]="item.id"
+      (click)="pick(item)"
+    >
+      <span class="tc-menu__icon">
+        @if (spec.radio && item.checked) {
+        <tc-icon name="check" size="sm" />
+        } @else if (item.icon) {
+        <tc-icon [name]="item.icon" size="sm" />
+        }
+      </span>
+      <span class="tc-menu__label" dir="auto">{{ item.label }}</span>
+      @if (item.off || item.hint) {
+      <span
+        class="tc-menu__hint"
+        [class.tc-menu__hint--warning]="item.hintTone === 'warning' && !item.off"
+        [id]="hintId(g, i)"
+        >{{ item.off ?? item.hint }}</span
+      >
+      }
+    </button>
+    }
+  </div>
+  }
+</div>
+<p class="tc-sr-only" aria-live="polite">{{ announced() }}</p>

@@ -1,0 +1,30 @@
+:host {
+  display: contents;
+}
+
+/* The status dot of #409: filled for decided and done, moss while the team works, ochre when blocked. */
+.tc-item-field-picker__dot {
+  flex: none;
+  width: var(--dot-size);
+  height: var(--dot-size);
+  border: var(--border-w) solid currentColor;
+  border-radius: var(--r-round);
+  color: var(--text-3);
+}
+
+.tc-item-field-picker__dot[data-status='approved'],
+.tc-item-field-picker__dot[data-status='done'] {
+  background: var(--success-text);
+  border-color: var(--success-text);
+}
+
+.tc-item-field-picker__dot[data-status='in-progress'],
+.tc-item-field-picker__dot[data-status='qa'] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.tc-item-field-picker__dot[data-status='blocked'] {
+  background: var(--warning-text);
+  border-color: var(--warning-text);
+}

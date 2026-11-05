@@ -1,0 +1,28 @@
+/* The board keeps the main column; the task pane sits beside it at --task-pane-w (#409, #114's pattern). */
+:host {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-4);
+  min-height: 0;
+}
+
+.task-section__board {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-section__task {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  max-height: calc(100dvh - var(--space-16));
+}
+
+:host(.task-section--phone) {
+  display: block;
+}
+
+:host(.task-section--phone) .task-section__task {
+  position: static;
+  max-height: none;
+}

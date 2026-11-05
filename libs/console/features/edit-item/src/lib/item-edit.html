@@ -1,0 +1,111 @@
+@if (theirs(); as theirs) {
+<div class="tc-item-edit__conflict" role="alert" tabindex="-1" data-testid="edit-conflict">
+  <h2 class="tc-item-edit__conflict-title">{{ 'item.err.conflict.title' | transloco }}</h2>
+  <p>{{ 'item.err.conflict.message' | transloco: { time: (theirs.updatedAt | localTime) } }}</p>
+  <div class="tc-item-edit__conflict-actions">
+    <button
+      tc-button
+      type="button"
+      data-testid="conflict-theirs"
+      [attr.aria-expanded]="isTheirsShown()"
+      (click)="toggleTheirs()"
+    >
+      {{ (isTheirsShown() ? 'item.err.conflict.hide' : 'item.err.conflict.see') | transloco }}
+    </button>
+    <button
+      tc-button
+      variant="primary"
+      type="button"
+      data-testid="conflict-mine"
+      [loading]="isSaving()"
+      [off]="off() !== null"
+      [attr.aria-disabled]="off() !== null ? 'true' : null"
+      (click)="saveMine()"
+    >
+      {{ 'item.err.conflict.mine' | transloco }}
+    </button>
+  </div>
+</div>
+} @else if (failure(); as failure) {
+<tc-tracker-failure [failure]="failure" (retry)="retry()" (refresh)="cancel()" />
+} @if (draftAt(); as draftAt) {
+<p class="tc-item-edit__draft" data-testid="edit-draft">
+  <span>{{ 'item.draft' | transloco: { time: (draftAt | localTime) } }}</span>
+  <button tc-button size="sm" variant="quiet" type="button" (click)="dropDraft()">
+    {{ 'item.draftDrop' | transloco }}
+  </button>
+</p>
+}
+<form
+  class="tc-item-edit__form"
+  novalidate
+  [attr.aria-busy]="isSaving() ? 'true' : null"
+  (submit)="$event.preventDefault(); save()"
+  (keydown)="onKeydown($event)"
+>
+  <tc-field
+    [label]="'item.title' | transloco"
+    [error]="titleError()"
+    [note]="showTitleCounter() ? ('item.counter' | transloco: { n: titleLength(), max: titleMax }) : ''"
+    required
+  >
+    <input
+      #titleInput
+      tcInput
+      type="text"
+      class="tc-item-edit__title"
+      name="title"
+      autocomplete="off"
+      data-testid="edit-title"
+      [value]="title()"
+      (input)="setTitle($any($event.target).value)"
+      [readOnly]="isSaving()"
+    />
+  </tc-field>
+  <tc-field
+    [label]="'item.details' | transloco"
+    [error]="bodyError()"
+    [note]="showBodyCounter() ? ('item.counter' | transloco: { n: bodyLength(), max: bodyMax }) : ''"
+  >
+    <textarea
+      #bodyInput
+      tcInput
+      rows="8"
+      name="body"
+      data-testid="edit-body"
+      [value]="body()"
+      (input)="setBody($any($event.target).value)"
+      [readOnly]="isSaving()"
+    ></textarea>
+  </tc-field>
+  @if (theirs(); as theirs) { @if (isTheirsShown()) {
+  <div
+    class="tc-item-edit__theirs"
+    role="region"
+    data-testid="edit-theirs"
+    [attr.aria-label]="'item.err.conflict.theirs' | transloco: { time: (theirs.updatedAt | localTime) }"
+  >
+    <b>{{ 'item.err.conflict.theirs' | transloco: { time: (theirs.updatedAt | localTime) } }}</b>
+    <p class="tc-item-edit__theirs-title" dir="auto">{{ theirs.title }}</p>
+    <p class="tc-item-edit__theirs-body" dir="auto">{{ theirs.body }}</p>
+  </div>
+  } }
+  <div class="tc-item-edit__actions">
+    <button
+      tc-button
+      variant="primary"
+      type="submit"
+      data-testid="edit-save"
+      [loading]="isSaving()"
+      [off]="off() !== null"
+      [attr.aria-disabled]="off() !== null ? 'true' : null"
+      [attr.aria-describedby]="off() !== null ? 'tc-task-off' : null"
+    >
+      {{ (isSaving() ? 'item.saving' : 'item.save') | transloco }}
+      <kbd class="tc-kbd tc-item-edit__kbd" aria-hidden="true">⌘↩</kbd>
+    </button>
+    <button tc-button type="button" data-testid="edit-cancel" (click)="cancel()">
+      {{ 'item.cancel' | transloco }}
+    </button>
+  </div>
+</form>

@@ -6,6 +6,8 @@ import {
   parsePersistedState,
   PersistedStateV1,
   ProjectUiState,
+  TASK_DRAFTS_MAX,
+  TaskDraft,
 } from './persisted-state.model';
 import { PERSISTED_STATE_STORAGE } from './persisted-state.storage';
 
@@ -107,6 +109,53 @@ export class PersistedStateStore {
   setBoardTab(slug: string, boardTab: string): void {
     this.updateProject(slug, (project) =>
       project.boardTab === boardTab ? project : { ...project, boardTab },
+    );
+  }
+
+  taskDraftOf(slug: string, number: number): TaskDraft | undefined {
+    return this.state().projects[slug]?.taskDrafts?.[String(number)];
+  }
+
+  /**
+   * Keeps one part of a task's draft (`edit` or `comment`), written at once like the chat draft: iOS may evict a
+   * backgrounded PWA at any time. `null` drops that part; a draft with no part left is removed.
+   */
+  setTaskDraft(
+    slug: string,
+    number: number,
+    part: { readonly edit: TaskDraft['edit'] | null } | { readonly comment: string | null },
+    savedAt: string = new Date().toISOString(),
+  ): void {
+    const key = String(number);
+    this.updateProject(
+      slug,
+      (project) => {
+        const drafts = { ...(project.taskDrafts ?? {}) };
+        const before = drafts[key];
+        const merged: Record<string, unknown> = { ...(before ?? {}), savedAt };
+        if ('edit' in part) {
+          if (part.edit === null) delete merged['edit'];
+          else merged['edit'] = part.edit;
+        } else if (part.comment === null || part.comment === '') {
+          delete merged['comment'];
+        } else {
+          merged['comment'] = part.comment;
+        }
+        if (merged['edit'] === undefined && merged['comment'] === undefined) {
+          if (before === undefined) {
+            return project;
+          }
+          delete drafts[key];
+        } else {
+          drafts[key] = merged as unknown as TaskDraft;
+        }
+        // Bounded: the oldest drafts go first.
+        const kept = Object.entries(drafts)
+          .sort(([, a], [, b]) => b.savedAt.localeCompare(a.savedAt))
+          .slice(0, TASK_DRAFTS_MAX);
+        return { ...project, taskDrafts: Object.fromEntries(kept) };
+      },
+      { immediate: true },
     );
   }
 

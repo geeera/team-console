@@ -110,7 +110,8 @@ export function askDtoOf(ask: AskRecord): AskDto {
   return {
     id: ask.id,
     category: ask.category,
-    ask: ask.ask,
+    // A job writes the ask, possibly steered by item text: no bidi override or zero-width run may reshape it (#443).
+    ask: withoutInvisibles(ask.ask),
     commands: ask.commands,
     recommended: ask.recommended,
     createdAt: ask.createdAt,

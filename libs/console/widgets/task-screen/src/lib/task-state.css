@@ -1,0 +1,74 @@
+.tc-task-state__body {
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-5) var(--space-6) var(--space-10);
+}
+
+@media (max-width: 519.98px) {
+  .tc-task-state__body {
+    padding: var(--space-2) var(--space-4) var(--space-10);
+  }
+}
+
+.tc-task-state__busy {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.tc-task-state__skeleton {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.tc-task-state__skel {
+  display: block;
+  width: 92%;
+  height: var(--space-3);
+  border-radius: var(--r-xs);
+  background: var(--bg-sunken);
+}
+
+.tc-task-state__skel--h {
+  width: 78%;
+  height: var(--space-7);
+}
+
+.tc-task-state__skel--s {
+  width: 54%;
+}
+
+.tc-task-state__block {
+  gap: var(--space-3);
+}
+
+.tc-task-state__hint {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.tc-task-state__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--fw-display);
+  font-size: var(--fs-xl);
+  line-height: var(--lh-tight);
+  overflow-wrap: anywhere;
+  outline: none;
+}
+
+.tc-task-state__title:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--space-1);
+  border-radius: var(--r-sm);
+}
+
+.tc-task-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

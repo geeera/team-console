@@ -1,0 +1,222 @@
+/* #409: the task as a sheet of paper. The #114 pane beside the board on a Mac, its own page on the iPhone. */
+:host {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--surface);
+}
+
+:host(.tc-task-screen--pane) {
+  width: var(--task-pane-w);
+  flex: none;
+  border-left: var(--border-w) solid var(--border);
+  box-shadow: var(--shadow-2);
+}
+
+.tc-task-screen__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--space-12);
+  padding: 0 var(--space-2) 0 var(--space-5);
+  border-bottom: var(--border-w) solid var(--border);
+}
+
+:host(:not(.tc-task-screen--pane)) .tc-task-screen__bar {
+  padding: 0 var(--space-2);
+  border-bottom: 0;
+}
+
+.tc-task-screen__bar-key {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+:host(:not(.tc-task-screen--pane)) .tc-task-screen__bar-key {
+  text-align: center;
+}
+
+.tc-task-screen__bar-end {
+  flex: 1;
+}
+
+.tc-task-screen__back {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-h-touch);
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: var(--fs-md);
+  cursor: pointer;
+}
+
+.tc-task-screen__back:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  border-radius: var(--r-sm);
+}
+
+.tc-task-screen__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+:host(:not(.tc-task-screen--pane)) .tc-task-screen__scroll {
+  overflow: visible;
+}
+
+.tc-task-screen__body {
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-5) var(--space-6) var(--space-10);
+}
+
+.tc-task-screen__body > * {
+  min-width: 0;
+}
+
+@media (max-width: 519.98px) {
+  .tc-task-screen__body {
+    gap: var(--space-5);
+    padding: var(--space-2) var(--space-4) var(--space-10);
+  }
+}
+
+.tc-task-screen__head {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.tc-task-screen__tag {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.tc-task-screen__key {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+.tc-task-screen__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--fw-display);
+  font-size: var(--fs-2xl);
+  line-height: var(--lh-tight);
+  overflow-wrap: anywhere;
+  outline: none;
+}
+
+@media (max-width: 519.98px) {
+  .tc-task-screen__title {
+    font-size: var(--fs-xl);
+  }
+}
+
+.tc-task-screen__title:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--space-1);
+  border-radius: var(--r-sm);
+}
+
+.tc-task-screen--closed .tc-task-screen__title {
+  color: var(--text-2);
+  text-decoration: line-through;
+  text-decoration-thickness: var(--border-w);
+  text-decoration-color: var(--border-strong);
+}
+
+.tc-task-screen__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tc-task-screen__stale,
+.tc-task-screen__closed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+
+.tc-task-screen__closed p {
+  flex: 1 1 16rem;
+  margin: 0;
+}
+
+.tc-task-screen__small {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.tc-task-screen__ext {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-h-touch);
+  color: var(--accent-text);
+  font-weight: var(--fw-semibold);
+}
+
+.tc-task-screen__section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.tc-task-screen__h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.tc-task-screen__h2::after {
+  content: '';
+  flex: 1;
+  height: var(--border-w);
+  background: var(--border);
+}
+
+.tc-task-screen__details {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-input);
+  line-height: var(--lh-prose);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tc-task-screen__details--none {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}

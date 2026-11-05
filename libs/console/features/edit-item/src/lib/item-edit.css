@@ -1,0 +1,109 @@
+:host {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.tc-item-edit__form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.tc-item-edit__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+}
+
+.tc-item-edit__form[aria-busy='true'] .tc-input {
+  background: var(--bg-sunken);
+  color: var(--text-2);
+}
+
+.tc-item-edit__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tc-item-edit__kbd {
+  margin-left: var(--space-1);
+  background: none;
+  color: inherit;
+  border-color: currentColor;
+}
+
+@media (max-width: 519.98px) {
+  .tc-item-edit__kbd {
+    display: none;
+  }
+}
+
+.tc-item-edit__draft {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--bg-sunken);
+  font-size: var(--fs-sm);
+}
+
+/* "It changed": ochre, the owner's text stays in the fields below. */
+.tc-item-edit__conflict {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border-radius: var(--r-md);
+  background: var(--warning-soft);
+  color: var(--warning-text);
+  outline: none;
+}
+
+.tc-item-edit__conflict p {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+.tc-item-edit__conflict-title {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+}
+
+.tc-item-edit__conflict-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.tc-item-edit__theirs {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-left: var(--border-w-strong) solid var(--warning-text);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  background: var(--bg-sunken);
+}
+
+.tc-item-edit__theirs b {
+  font-size: var(--fs-xs);
+  color: var(--warning-text);
+}
+
+.tc-item-edit__theirs p {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-prose);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tc-item-edit__theirs-title {
+  font-weight: var(--fw-semibold);
+}

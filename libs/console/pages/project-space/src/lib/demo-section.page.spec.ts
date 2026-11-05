@@ -30,6 +30,7 @@ function question(number: number, overrides: Partial<QuestionDto>): QuestionDto 
     section: 'question',
     number,
     key: null,
+    askId: null,
     title: `Item ${number}`,
     url: `https://github.com/geeera/tc/issues/${number}`,
     ask: null,

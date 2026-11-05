@@ -167,6 +167,10 @@ export class ProjectSpacePage {
 
   protected readonly currentSection = computed<SpaceSection | null>(() => {
     const first = spaceLocationOf(this.url())?.path.split(/[/?#]/, 1)[0];
+    // A task (`t/:n`, #435) belongs to the board: its tab stays current and the body keeps the board's width.
+    if (first === 't') {
+      return 'board';
+    }
     return isSpaceSection(first) ? first : null;
   });
 

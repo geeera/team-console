@@ -22,6 +22,7 @@ describe('countNeedsYouBySlug', () => {
       section: 'question',
       number,
       key: null,
+      askId: null,
       title: `#${number}`,
       url: `https://github.com/geeera/${slug}/issues/${number}`,
       ask: null,

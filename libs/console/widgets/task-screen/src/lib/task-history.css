@@ -1,0 +1,72 @@
+:host {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.tc-task-history__earlier {
+  justify-self: start;
+}
+
+/* History: a margin rule, author and time first, the newest entry last just above the comment box. */
+.tc-task-history__list {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0 0 0 var(--space-4);
+  list-style: none;
+  border-left: var(--border-w) solid var(--border-strong);
+}
+
+.tc-task-history__list li {
+  position: relative;
+  display: grid;
+  gap: var(--space-px);
+}
+
+.tc-task-history__list li::before {
+  content: '';
+  position: absolute;
+  left: calc(-1 * var(--space-4) - var(--space-1));
+  top: var(--space-2);
+  width: var(--space-2);
+  height: var(--space-2);
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--r-round);
+  background: var(--surface);
+}
+
+.tc-task-history__list li.tc-task-history__entry--owner::before {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.tc-task-history__who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.tc-task-history__who b {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
+.tc-task-history__what {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.tc-task-history__text {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  line-height: var(--lh-prose);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

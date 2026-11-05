@@ -23,6 +23,11 @@ export interface InboxItemDto {
    * has no `url`: the console links it by key.
    */
   readonly key: string | null;
+  /**
+   * The open console ask a decision on this row must name (`CreateDecisionInput.askId`, #443); `null` for a GitHub-era
+   * issue and for a row the team has not asked about (its section's commands apply). #435.
+   */
+  readonly askId: number | null;
   readonly title: string;
   readonly url: string | null;
   /** The answer line ("**Your answer:** …") — the team's recommendation; `null` when the issue has none. */
