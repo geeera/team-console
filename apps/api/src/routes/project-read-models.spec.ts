@@ -84,6 +84,7 @@ describe('GET /api/v1/projects/:slug/inbox', () => {
         {
           section: 'question',
           number: 72,
+          key: null,
           title: 'Issue 72',
           url: 'https://github.com/geeera/team-console/issues/72',
           ask: '/approve the plan (recommended) · /reject what to change',
@@ -95,6 +96,7 @@ describe('GET /api/v1/projects/:slug/inbox', () => {
         {
           section: 'question',
           number: 99,
+          key: null,
           title: '<img src=x onerror=alert(1)>',
           url: null,
           ask: null,
@@ -106,6 +108,7 @@ describe('GET /api/v1/projects/:slug/inbox', () => {
         {
           section: 'owner',
           number: 21,
+          key: null,
           title: 'Issue 21',
           url: 'https://github.com/geeera/team-console/issues/21',
           ask: null,
@@ -117,6 +120,7 @@ describe('GET /api/v1/projects/:slug/inbox', () => {
         {
           section: 'owner',
           number: 46,
+          key: null,
           title: 'Issue 46',
           url: 'https://github.com/geeera/team-console/issues/46',
           ask: 'Напиши «сделал», когда переключишь источник GitHub Pages',

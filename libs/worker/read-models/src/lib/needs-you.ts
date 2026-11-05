@@ -1,4 +1,5 @@
 import type {
+  AnswerCommand,
   InboxDto,
   NeedsYouDto,
   NeedsYouItemDto,
@@ -10,7 +11,15 @@ import { ANSWERS, sectionRank } from '@shared/owner-grammar';
 
 /** One project's share of "Needs you": its inbox, or why it could not be read. */
 export type ProjectInboxResult =
-  | { readonly project: NeedsYouProjectRef; readonly inbox: InboxDto }
+  | {
+      readonly project: NeedsYouProjectRef;
+      readonly inbox: InboxDto;
+      /**
+       * The commands an item accepts by number, when they are not its section's (`ANSWERS`): a console-tracker
+       * item with an open ask accepts the ask's commands (#434).
+       */
+      readonly allowedCommands?: ReadonlyMap<number, readonly AnswerCommand[]>;
+    }
   | { readonly project: NeedsYouProjectRef; readonly problem: NeedsYouProjectProblem };
 
 /**
@@ -35,7 +44,8 @@ export function buildNeedsYou(
       };
     }
     for (const item of result.inbox.items) {
-      items.push({ item: { ...item, project: ref, allowedCommands: ANSWERS[item.section] }, projectIndex });
+      const allowedCommands = result.allowedCommands?.get(item.number) ?? ANSWERS[item.section];
+      items.push({ item: { ...item, project: ref, allowedCommands }, projectIndex });
     }
     return {
       ...ref,

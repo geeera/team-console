@@ -1,21 +1,27 @@
 import { Hono } from 'hono';
 import { NEEDS_YOU_MAX_PROJECTS, type NeedsYouProjectRef } from '@shared/contracts';
 import type { WorkerHonoEnv } from '@worker/core';
-import { ProjectsRepo } from '@worker/db';
+import { ProjectsRepo, TrackerProjectsRepo } from '@worker/db';
 import { GitHubError, InvalidRepoNameError, parseRepoName } from '@worker/github';
 import { buildNeedsYou, type ProjectInboxResult } from '@worker/read-models';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { projectProblemOf } from '../read-models/errors';
 import { ProjectReads } from '../read-models/project-reads';
+import { TrackerReads, readsRows } from '../read-models/tracker-reads';
+
+/** A project's inbox as read, before it is tagged with the project. */
+type ProjectInbox = Omit<Extract<ProjectInboxResult, { readonly inbox: unknown }>, 'project'>;
 
 /**
  * `GET /api/v1/needs-you` (#35, #9 row 8): the inbox of every active project, merged.
  *
- * Subrequest budget (Workers free plan: 50 per request). The first NEEDS_YOU_MAX_PROJECTS (6) active projects are
- * read, each at most 6 subrequests on a cold isolate (installation lookup, token mint, ≤ 3 pages of open issues,
- * project.yml; see `ProjectReads`) → ≤ 36, plus 1 D1 query and the Access key set → ≤ 38. Later projects are
- * listed in `omittedProjects`, not read. Within the read cache's TTL a project costs nothing.
+ * Subrequest budget (Workers free plan: 50 per request). The first NEEDS_YOU_MAX_PROJECTS (6) GitHub-backed active
+ * projects are read, each at most 6 subrequests on a cold isolate (installation lookup, token mint, ≤ 3 pages of
+ * open issues, project.yml; see `ProjectReads`) → ≤ 36, plus 2 D1 queries (the registry, its tracker columns) and the
+ * Access key set → ≤ 39. Later GitHub-backed projects are listed in `omittedProjects`, not read. Within the read
+ * cache's TTL a project costs nothing. A console-tracker project (#434) is one D1 query and no subrequest, so every
+ * one is read and none counts against the cap.
  *
  * A project that fails is reported on its own row and the others are still shown — except a GitHub rate limit,
  * which the whole answer surfaces as 429 with `Retry-After` (the longest wait any project got), because the next
@@ -23,16 +29,29 @@ import { ProjectReads } from '../read-models/project-reads';
  */
 export function createNeedsYouRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>().get('/', async (c) => {
-    const active = await new ProjectsRepo(c.env.DB).listActive();
-    const read = active.slice(0, NEEDS_YOU_MAX_PROJECTS);
+    const [active, trackers] = await Promise.all([
+      new ProjectsRepo(c.env.DB).listActive(),
+      new TrackerProjectsRepo(c.env.DB).listActive(),
+    ]);
+    // The cap is GitHub's subrequest budget: row-backed projects are read in full, in registry order with the rest.
+    let githubBacked = 0;
+    const read = active.filter(
+      (row) => readsRows(trackers.get(row.slug)) || ++githubBacked <= NEEDS_YOU_MAX_PROJECTS,
+    );
     const omitted: NeedsYouProjectRef[] = active
-      .slice(NEEDS_YOU_MAX_PROJECTS)
+      .filter((row) => !read.includes(row))
       .map((row) => ({ slug: row.slug, name: row.display_name }));
 
     const settled = await Promise.allSettled(
-      read.map(async (row) =>
-        new ProjectReads(github, c.env, row, parseRepoName(row.repo), github.now).inbox(),
-      ),
+      read.map(async (row): Promise<ProjectInbox> => {
+        const tracker = trackers.get(row.slug);
+        if (readsRows(tracker)) {
+          return TrackerReads.of(c.env.DB, tracker, c.get('logger')).needsYou();
+        }
+        return {
+          inbox: await new ProjectReads(github, c.env, row, parseRepoName(row.repo), github.now).inbox(),
+        };
+      }),
     );
 
     let rateLimit: GitHubError | undefined;
@@ -43,7 +62,7 @@ export function createNeedsYouRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiE
       }
       const project = { slug: row.slug, name: row.display_name };
       if (outcome.status === 'fulfilled') {
-        return { project, inbox: outcome.value };
+        return { project, ...outcome.value };
       }
       const error: unknown = outcome.reason;
       if (error instanceof GitHubError && error.problem.type === 'github-rate-limit') {
