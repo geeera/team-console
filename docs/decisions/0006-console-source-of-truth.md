@@ -110,6 +110,28 @@ writes of #386), the old `owner_requests`. The PM chat (ADR 0001 decision 11) mo
 (`project_slug`, `author_kind`, `body`, `job_id`, `created_at`) in Phase 4; the demo page is an item with the
 `team:demo` flag whose go/no-go is an `owner_decisions` row.
 
+Amendment (Phase 1a′, #434, migration `0014_decisions`; architect note on #434):
+
+- `asks` `+ project_slug` (every project table carries it; the item is referenced by (`item_id`, `project_slug`)),
+  `+ source` (`console` \| `import`, R7: an imported open ask is re-confirmed on the cutover screen, never listed in
+  Needs you nor answered as is) and `+ recommended` (one of `commands` or NULL; the batch answer needs it).
+- The table the ADR calls `owner_requests` (recreated) is **`item_requests`**: 0012's `owner_requests` is live until
+  Phase 6 (`routes/owner-request.ts`, `apps/hooks`, `request-handled.ts` read it) and a rename inside a migration
+  would race the deploy. Phase 6 drops 0012's table and may rename this one. `payload` is
+  `@shared/owner-grammar`'s `canonicalRequest` (the bytes the GitHub marker carries); `item_requests` also carries
+  `project_slug`.
+- `owner_decisions` `+ source_url` (import only). `idempotency_key` is NULL only on `via = 'import'` rows; it is kept
+  for the audit while `idempotency_keys` drives the replay.
+- `owner:*` is written by a job's ask as well: setting `owner:<category>` (and removing any other `owner:*`) is a
+  second R5 exception, applied **as the effect of an `asks` row** in the same transaction (`askEffectOf` in
+  `policy.ts`), as `backlog ask` has always done; a job's own PATCH of an `owner:*` flag stays 403
+  `transition-owner-only`.
+- The `team:demo` item closes (`status: done`) on **any** release decision (`go`, `no-go`, `override`), not after
+  `demo-apply`; the decision row is the release record, and the plugin's `demo-apply` (1b) reads
+  `GET …/items/:key/decisions` of the demo item instead of a comment block. Keeping it open until applied would be
+  one line in `decisionEffectOf` and this paragraph — decide before 1b.
+- `idempotency_keys.result_kind` admits `ask`, `decision`, `request` (the table is rebuilt by copy, keys kept).
+
 ## API and authorisation
 
 Routes under `/api/v1`, JSON, RFC 9457 problems with stable `type` slugs, `Idempotency-Key` on every write that

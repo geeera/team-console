@@ -1,5 +1,5 @@
 /** What a tracker write created or changed, so a replay can answer it again. */
-export type IdempotentResultKind = 'item' | 'sprint' | 'comment' | 'label';
+export type IdempotentResultKind = 'item' | 'sprint' | 'comment' | 'label' | 'ask' | 'decision' | 'request';
 
 export type IdempotencyClaim =
   /** This request owns the key: write, and complete the key in the write's own batch. */
@@ -16,8 +16,29 @@ export type IdempotencyClaim =
       readonly ref: string;
     };
 
-/** The resource a completed key points at: a value known before the batch, or the comment the batch inserted. */
-export type IdempotencyRef = { readonly value: string } | { readonly newestCommentOf: number };
+/**
+ * The resource a completed key points at: a value known before the batch, or the row the batch inserted on the item
+ * (the newest comment, ask, decision or request of that item id; the batch is one transaction).
+ */
+export type IdempotencyRef =
+  | { readonly value: string }
+  | { readonly newestCommentOf: number }
+  | { readonly newestAskOf: number }
+  | { readonly newestDecisionOf: number }
+  | { readonly newestRequestOf: number };
+
+/** Fixed table names per ref, so no caller value ever names a table. */
+function refSql(ref: IdempotencyRef): { readonly sql: string; readonly value: string | number } {
+  const newest = (table: string, itemId: number) => ({
+    sql: `(SELECT CAST(MAX(id) AS TEXT) FROM ${table} WHERE item_id = ?3)`,
+    value: itemId,
+  });
+  if ('value' in ref) return { sql: '?3', value: ref.value };
+  if ('newestCommentOf' in ref) return newest('comments', ref.newestCommentOf);
+  if ('newestAskOf' in ref) return newest('asks', ref.newestAskOf);
+  if ('newestDecisionOf' in ref) return newest('owner_decisions', ref.newestDecisionOf);
+  return newest('item_requests', ref.newestRequestOf);
+}
 
 interface KeyRow {
   request_hash: string;
@@ -96,13 +117,7 @@ export class IdempotencyKeysRepo {
     result: { readonly status: number; readonly kind: IdempotentResultKind; readonly ref: IdempotencyRef },
     expiresAtMs: number,
   ): D1PreparedStatement {
-    const ref =
-      'value' in result.ref
-        ? { sql: '?3', value: result.ref.value }
-        : {
-            sql: '(SELECT CAST(MAX(id) AS TEXT) FROM comments WHERE item_id = ?3)',
-            value: result.ref.newestCommentOf,
-          };
+    const ref = refSql(result.ref);
     return this.db
       .prepare(
         `UPDATE idempotency_keys SET status = ?1, result_kind = ?2, result_ref = ${ref.sql}, expires_at = ?4

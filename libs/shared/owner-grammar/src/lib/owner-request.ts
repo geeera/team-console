@@ -53,8 +53,11 @@ function keyOf(request: OwnerRequest): string {
   return request.kind === 'sprint' ? `sprint:${request.target}` : `priority:${request.direction}`;
 }
 
-/** The marker's JSON with sorted keys and no whitespace, as Python's `json.dumps(sort_keys=True)` writes it. */
-function canonicalRequest(request: OwnerRequest): string {
+/**
+ * The marker's JSON with sorted keys and no whitespace, as Python's `json.dumps(sort_keys=True)` writes it. Also the
+ * `item_requests.payload` of the console's own tracker (#434), so both carry the same bytes.
+ */
+export function canonicalRequest(request: OwnerRequest): string {
   return request.kind === 'sprint'
     ? `{"kind":"sprint","target":"${request.target}","v":1}`
     : `{"direction":"${request.direction}","kind":"priority","v":1}`;
@@ -104,9 +107,16 @@ function parsedObject(raw: string): Record<string, unknown> | null {
  * line, which rejects spacing, key order, duplicate keys and escapes exactly as the plugin's `_canonical` does.
  */
 export function requestMarkerOf(body: string): OwnerRequest | null {
-  const match = REQUEST.exec(firstLineOf(body));
-  const raw = match?.[1];
-  const data = raw === undefined ? null : parsedObject(raw);
+  const raw = REQUEST.exec(firstLineOf(body))?.[1];
+  return raw === undefined ? null : requestOfCanonical(raw);
+}
+
+/**
+ * The request whose canonical JSON is exactly `raw` (`canonicalRequest`), or `null` for anything else: another
+ * version, an unknown value, spacing, key order, duplicate keys or escapes.
+ */
+export function requestOfCanonical(raw: string): OwnerRequest | null {
+  const data = parsedObject(raw);
   if (data === null || data['v'] !== 1) {
     return null;
   }

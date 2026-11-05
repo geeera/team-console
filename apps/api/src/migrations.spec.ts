@@ -1,4 +1,5 @@
-import { env } from 'cloudflare:test';
+import { applyD1Migrations, env } from 'cloudflare:test';
+import { IdempotencyKeysRepo } from '@worker/db';
 
 interface SqliteMasterRow {
   name: string;
@@ -13,16 +14,20 @@ describe('migrations on a fresh D1', () => {
     ).all<SqliteMasterRow>();
 
     expect(results.map((row) => row.name)).toEqual([
+      'asks',
       'comments',
       'd1_migrations',
       'idempotency_keys',
+      'import_map',
       'item_events',
       'item_labels',
+      'item_requests',
       'items',
       'labels',
       'own_write_claims',
       'own_writes',
       'owner_connections',
+      'owner_decisions',
       'owner_requests',
       'projects',
       'push_subscriptions',
@@ -48,6 +53,7 @@ describe('migrations on a fresh D1', () => {
       '0011_project_snooze.sql',
       '0012_owner_requests.sql',
       '0013_tracker.sql',
+      '0014_decisions.sql',
     ]);
   });
 
@@ -190,5 +196,58 @@ describe('migrations on a fresh D1', () => {
       insert.bind('d-2', 'issues', 'acme/app', 'hash-1', '2026-10-01T00:00:01Z').run(),
     ).rejects.toThrow(/UNIQUE/);
     await env.DB.prepare('DELETE FROM webhook_deliveries').run();
+  });
+
+  it('keep the idempotency keys of the previous deploy through the 0014 rebuild, and they still replay', async () => {
+    const db = env.MIGRATION_DB;
+    const before = env.TEST_MIGRATIONS.filter((migration) => migration.name < '0014');
+    await applyD1Migrations(db, before);
+    const now = Date.parse('2026-11-05T10:00:00.000Z');
+    await db
+      .prepare(
+        `INSERT INTO idempotency_keys (key, request_hash, status, result_kind, result_ref, created_at, expires_at)
+         VALUES ('key-before-0014', 'hash', 201, 'comment', '7', '2026-11-05T09:59:00.000Z', ?1),
+                ('key-in-flight', 'hash-2', NULL, NULL, NULL, '2026-11-05T09:59:30.000Z', ?2)`,
+      )
+      .bind(now + 60_000, now + 30_000)
+      .run();
+    await expect(
+      db
+        .prepare(
+          `INSERT INTO idempotency_keys (key, request_hash, status, result_kind, result_ref, created_at, expires_at)
+           VALUES ('key-ask', 'h', 201, 'ask', '1', '2026-11-05T09:59:00.000Z', 1)`,
+        )
+        .run(),
+    ).rejects.toThrow(/CHECK/);
+
+    await applyD1Migrations(db, env.TEST_MIGRATIONS);
+
+    const keys = new IdempotencyKeysRepo(db);
+    expect(await keys.claim('key-before-0014', 'hash', now, 30_000)).toEqual({
+      state: 'done',
+      status: 201,
+      kind: 'comment',
+      ref: '7',
+    });
+    expect(await keys.claim('key-in-flight', 'hash-2', now, 30_000)).toEqual({ state: 'in-flight' });
+    // The rebuilt CHECK admits the new kinds and still refuses an unknown one.
+    await db
+      .prepare(
+        `INSERT INTO idempotency_keys (key, request_hash, status, result_kind, result_ref, created_at, expires_at)
+         VALUES ('key-ask', 'h', 201, 'ask', '1', '2026-11-05T09:59:00.000Z', 1)`,
+      )
+      .run();
+    await expect(
+      db
+        .prepare(
+          `INSERT INTO idempotency_keys (key, request_hash, status, result_kind, result_ref, created_at, expires_at)
+           VALUES ('key-x', 'h', 201, 'job', '1', '2026-11-05T09:59:00.000Z', 1)`,
+        )
+        .run(),
+    ).rejects.toThrow(/CHECK/);
+    const { results } = await db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'idempotency_keys'")
+      .all<{ name: string }>();
+    expect(results.map((row) => row.name)).toContain('idempotency_keys_expiry');
   });
 });

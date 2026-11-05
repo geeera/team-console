@@ -1,4 +1,15 @@
-import { isFlagName, isItemStatus, itemKeyOf, itemNumberOfKey } from './vocabulary';
+import {
+  isAskCategory,
+  isAskCommand,
+  isDecisionCommand,
+  isDecisionVia,
+  isFlagName,
+  isItemStatus,
+  isRequestKind,
+  isRequestResult,
+  itemKeyOf,
+  itemNumberOfKey,
+} from './vocabulary';
 
 describe('tracker vocabulary', () => {
   it('narrows only the listed values', () => {
@@ -34,5 +45,17 @@ describe('tracker vocabulary', () => {
     expect(itemNumberOfKey('04', 'TC')).toBeNull();
     expect(itemNumberOfKey('1e3', 'TC')).toBeNull();
     expect(itemNumberOfKey('TC-1234567890', 'TC')).toBeNull();
+  });
+
+  it('narrows the 1a′ vocabulary (#434)', () => {
+    expect(isAskCategory('legal')).toBe(true);
+    expect(isAskCategory('owner:legal')).toBe(false);
+    expect(isDecisionCommand('resume')).toBe(true);
+    expect(isAskCommand('resume')).toBe(false);
+    expect(isAskCommand('no-go')).toBe(true);
+    expect(isDecisionVia('import')).toBe(true);
+    expect(isDecisionVia('job')).toBe(false);
+    expect(isRequestKind('priority')).toBe(true);
+    expect(isRequestResult('pending')).toBe(false);
   });
 });

@@ -19,10 +19,12 @@ export { INBOX_ORDER, askOf, sectionRank, withoutAskLine } from './lib/inbox';
 export type { InboxSection } from './lib/inbox';
 export { kindOf, sectionOf } from './lib/section';
 export {
+  canonicalRequest,
   handledMarker,
   handledMarkerOf,
   requestComment,
   requestMarker,
   requestMarkerOf,
+  requestOfCanonical,
 } from './lib/owner-request';
 export type { HandledMarker, HandledResult, RequestCommentInput, RequestLanguage } from './lib/owner-request';

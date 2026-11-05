@@ -1,4 +1,8 @@
 import {
+  checkCreateAskInput,
+  checkCreateDecisionInput,
+  checkCreateRequestInput,
+  checkHandleRequestInput,
   checkCreateCommentInput,
   checkCreateItemInput,
   checkCreateLabelInput,
@@ -121,5 +125,131 @@ describe('sprint, comment and label inputs', () => {
     });
     expect(checkCreateLabelInput({ name: 'tier:huge', color: 'ededed' })).toEqual(failure('name'));
     expect(checkCreateLabelInput({ name: 'x', color: '#EDEDED' })).toEqual(failure('color'));
+  });
+});
+
+// #434: asks, decisions and requests. Server-owned members are refused by name; any other unknown member names the body.
+const FORGED = [
+  'author',
+  'authorKind',
+  'jobId',
+  'decidedAt',
+  'projectSlug',
+  'itemId',
+  'handledByJobId',
+  'requestedAt',
+  'source',
+] as const;
+
+describe('checkCreateAskInput', () => {
+  const ask = { category: 'scope', ask: 'Ship now?', commands: ['approve', 'reject'] };
+
+  it('accepts an ask and defaults the recommendation to null', () => {
+    expect(checkCreateAskInput(ask)).toEqual({ ok: true, value: { ...ask, recommended: null } });
+    expect(checkCreateAskInput({ ...ask, recommended: 'reject' })).toMatchObject({
+      ok: true,
+      value: { recommended: 'reject' },
+    });
+  });
+
+  it.each([
+    [{ ...ask, category: 'taste' }, 'category'],
+    [{ ...ask, ask: '' }, 'ask'],
+    [{ ...ask, ask: '  ' }, 'ask'],
+    [{ ...ask, ask: 'x'.repeat(2049) }, 'ask'],
+    [{ ...ask, commands: [] }, 'commands'],
+    [{ ...ask, commands: ['approve', 'resume'] }, 'commands'],
+    [{ ...ask, commands: ['approve', 'approve'] }, 'commands'],
+    [{ ...ask, commands: 'approve' }, 'commands'],
+    [{ ...ask, recommended: 'go' }, 'recommended'],
+    [{ ...ask, kind: 'question' }, 'body'],
+    [[], 'body'],
+  ])('refuses %j on %s', (body, field) => {
+    expect(checkCreateAskInput(body)).toEqual(failure(field));
+  });
+
+  it.each(FORGED)('names the forged member %s', (member) => {
+    expect(checkCreateAskInput({ ...ask, [member]: 'x' })).toEqual(failure(member));
+  });
+});
+
+describe('checkCreateDecisionInput', () => {
+  it('accepts a decision with its defaults', () => {
+    expect(checkCreateDecisionInput({ command: 'approve', via: 'web' })).toEqual({
+      ok: true,
+      value: { command: 'approve', text: '', askId: null, reversesCommentId: null, via: 'web' },
+    });
+    expect(
+      checkCreateDecisionInput({
+        command: 'reject',
+        text: 'No',
+        askId: 3,
+        reversesCommentId: 9,
+        via: 'push',
+      }),
+    ).toMatchObject({ ok: true, value: { askId: 3, reversesCommentId: 9, via: 'push' } });
+  });
+
+  it.each([
+    [{ command: 'merge', via: 'web' }, 'command'],
+    [{ command: 'approve', via: 'import' }, 'via'],
+    [{ command: 'approve' }, 'via'],
+    [{ command: 'approve', via: 'web', text: 'x'.repeat(2001) }, 'text'],
+    [{ command: 'approve', via: 'web', askId: 0 }, 'askId'],
+    [{ command: 'approve', via: 'web', askId: '3' }, 'askId'],
+    [{ command: 'approve', via: 'web', reversesCommentId: 1.5 }, 'reversesCommentId'],
+    [{ command: 'approve', via: 'web', ownerSaid: 'yes' }, 'body'],
+  ])('refuses %j on %s', (body, field) => {
+    expect(checkCreateDecisionInput(body)).toEqual(failure(field));
+  });
+
+  it.each(FORGED)('names the forged member %s', (member) => {
+    expect(checkCreateDecisionInput({ command: 'approve', via: 'web', [member]: 'x' })).toEqual(
+      failure(member),
+    );
+  });
+});
+
+describe('checkCreateRequestInput', () => {
+  it('accepts exactly the owner request shapes', () => {
+    expect(checkCreateRequestInput({ kind: 'sprint', target: 'next' })).toEqual({
+      ok: true,
+      value: { kind: 'sprint', target: 'next' },
+    });
+    expect(checkCreateRequestInput({ kind: 'priority', direction: 'down' })).toMatchObject({ ok: true });
+  });
+
+  it.each([
+    [{ kind: 'label', target: 'next' }, 'kind'],
+    [{ kind: 'sprint', target: 'later' }, 'target'],
+    [{ kind: 'sprint', target: 'next', direction: 'up' }, 'target'],
+    [{ kind: 'priority', direction: 'sideways' }, 'direction'],
+    [{ kind: 'sprint', target: 'next', milestone: 'S1' }, 'body'],
+  ])('refuses %j on %s', (body, field) => {
+    expect(checkCreateRequestInput(body)).toEqual(failure(field));
+  });
+
+  it.each(FORGED)('names the forged member %s', (member) => {
+    expect(checkCreateRequestInput({ kind: 'sprint', target: 'next', [member]: 'x' })).toEqual(
+      failure(member),
+    );
+  });
+});
+
+describe('checkHandleRequestInput', () => {
+  it('accepts the answer and defaults the reason to empty', () => {
+    expect(checkHandleRequestInput({ result: 'applied' })).toEqual({
+      ok: true,
+      value: { result: 'applied', reason: '' },
+    });
+  });
+
+  it.each([
+    [{ result: 'done' }, 'result'],
+    [{ result: 'declined', reason: 'x'.repeat(1025) }, 'reason'],
+    [{ result: 'declined', handledBy: 'pm' }, 'body'],
+    [{ result: 'declined', handledByJobId: 'job-1' }, 'handledByJobId'],
+  ])('refuses %j on %s', (body, field) => {
+    expect(checkHandleRequestInput(body)).toEqual(failure(field));
   });
 });

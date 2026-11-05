@@ -45,6 +45,14 @@ export type {
 } from './lib/tracker/items.repo';
 export { CommentsRepo } from './lib/tracker/comments.repo';
 export type { CommentRecord } from './lib/tracker/comments.repo';
+export { AsksRepo } from './lib/tracker/asks.repo';
+export type { AskRecord, NewAsk } from './lib/tracker/asks.repo';
+export { OwnerDecisionsRepo } from './lib/tracker/owner-decisions.repo';
+export type { DecisionRecord, NewDecision } from './lib/tracker/owner-decisions.repo';
+export { ItemRequestsRepo } from './lib/tracker/item-requests.repo';
+export type { ItemRequestRecord, RequestHandling } from './lib/tracker/item-requests.repo';
+export { INBOX_ROW_CAP, InboxRepo } from './lib/tracker/inbox.repo';
+export type { InboxRowRecord, InboxRows } from './lib/tracker/inbox.repo';
 export { ItemEventsRepo } from './lib/tracker/item-events.repo';
 export type { ItemEventRecord, NewItemEvent, TrackerActor } from './lib/tracker/item-events.repo';
 export { IdempotencyKeysRepo } from './lib/tracker/idempotency-keys.repo';

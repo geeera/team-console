@@ -1,3 +1,6 @@
+import type { AnswerCommand } from '../answer';
+import type { OwnerCategory } from '../batch-answer';
+
 /**
  * The console's own tracker (#410, ADR 0006 "Data model"): the enumerations and bounds migration 0013 enforces with
  * CHECK constraints, shared by the Worker's validation and, from Phase 1b, the console's forms. The lists follow the
@@ -55,6 +58,55 @@ export type ItemEventKind = (typeof ITEM_EVENT_KINDS)[number];
 export const SPRINT_STATES = ['open', 'closed'] as const;
 export type SprintState = (typeof SPRINT_STATES)[number];
 
+/**
+ * Asks, owner decisions and owner requests (#434, ADR 0006 Phase 1a′, migration 0014). `ASK_CATEGORIES` is the
+ * plugin's `owner.CATEGORIES` (`OWNER_CATEGORIES` of `@shared/owner-grammar`, which also pins it against the plugin).
+ */
+export const ASK_CATEGORIES = [
+  'money',
+  'scope',
+  'release',
+  'access',
+  'legal',
+  'design',
+] as const satisfies readonly OwnerCategory[];
+export type AskCategory = OwnerCategory;
+
+/**
+ * What an `owner_decisions` row records: the plugin's `ANSWERABLE` plus `resume` (Phase 4's `team_state`; refused by
+ * the route until then, admitted by the CHECK so it never changes).
+ */
+export const DECISION_COMMANDS = [
+  'approve',
+  'reject',
+  'go',
+  'no-go',
+  'done',
+  'override',
+  'resume',
+] as const satisfies readonly (AnswerCommand | 'resume')[];
+export type DecisionCommand = (typeof DECISION_COMMANDS)[number];
+
+/** The commands an ask may offer: what an answer can carry (`ANSWERABLE`), so not `resume`. */
+export type AskCommand = AnswerCommand;
+
+/** How a decision reached the console; `import` is written by the import writer only, never through a route. */
+export const DECISION_VIA = ['web', 'push', 'import'] as const;
+export type DecisionVia = (typeof DECISION_VIA)[number];
+
+export const REQUEST_KINDS = ['sprint', 'priority'] as const;
+export type RequestKind = (typeof REQUEST_KINDS)[number];
+
+export const REQUEST_RESULTS = ['applied', 'declined'] as const;
+export type RequestResult = (typeof REQUEST_RESULTS)[number];
+
+export const ASK_TEXT_MAX_LENGTH = 2048;
+/** A decision's `text`, as for an answer on GitHub (`ANSWER_TEXT_MAX_LENGTH`). */
+export const DECISION_TEXT_MAX_LENGTH = 2000;
+export const REQUEST_REASON_MAX_LENGTH = 1024;
+/** At most every answer command once. */
+export const ASK_COMMANDS_MAX = 6;
+
 /** Label prefixes that are columns (ADR decision 3): never an `item_labels` row, never a custom label. */
 export const COLUMN_LABEL_PREFIXES = ['status:', 'kind:', 'tier:', 'sev:'] as const;
 
@@ -83,6 +135,14 @@ export const isActorKind = (value: unknown): value is ActorKind => isOneOf(ACTOR
 export const isCommentKind = (value: unknown): value is CommentKind => isOneOf(COMMENT_KINDS, value);
 export const isItemEventKind = (value: unknown): value is ItemEventKind => isOneOf(ITEM_EVENT_KINDS, value);
 export const isSprintState = (value: unknown): value is SprintState => isOneOf(SPRINT_STATES, value);
+export const isDecisionCommand = (value: unknown): value is DecisionCommand =>
+  isOneOf(DECISION_COMMANDS, value);
+export const isAskCommand = (value: unknown): value is AskCommand =>
+  isDecisionCommand(value) && value !== 'resume';
+export const isAskCategory = (value: unknown): value is AskCategory => isOneOf(ASK_CATEGORIES, value);
+export const isDecisionVia = (value: unknown): value is DecisionVia => isOneOf(DECISION_VIA, value);
+export const isRequestKind = (value: unknown): value is RequestKind => isOneOf(REQUEST_KINDS, value);
+export const isRequestResult = (value: unknown): value is RequestResult => isOneOf(REQUEST_RESULTS, value);
 
 /** Whether `name` is a well-formed flag: a label name outside the column-backed prefixes. */
 export function isFlagName(name: unknown): name is string {
