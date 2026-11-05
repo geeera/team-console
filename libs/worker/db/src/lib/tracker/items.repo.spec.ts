@@ -169,7 +169,7 @@ describe('ItemsRepo', () => {
       await items().update(
         id,
         1,
-        { status: 'approved', title: 'New' },
+        { status: 'approved', title: 'New', approvedAt: LATER },
         { add: [], remove: [] },
         OWNER_ACTOR,
         [status, edited],
@@ -210,6 +210,30 @@ describe('ItemsRepo', () => {
       status: 'done',
       closedAt: LATER,
       closedReason: 'done',
+    });
+  });
+
+  // #452: the owner's approval is a recorded fact, kept by the schema.
+  it('records the approval of an item created in a workable status, and none for a proposed or done one', async () => {
+    const { slug } = await seedTrackerProject();
+    const approvedAtOf = async (number: number) => (await items().findByNumber(slug, number))?.approvedAt;
+    await expect(approvedAtOf(await create(slug, { status: 'in-progress' }))).resolves.toBe(AT);
+    await expect(approvedAtOf(await create(slug))).resolves.toBeNull();
+    await expect(approvedAtOf(await create(slug, { status: 'done' }))).resolves.toBeNull();
+  });
+
+  it('refuses a workable status without an approval, and never clears or changes one', async () => {
+    const { slug } = await seedTrackerProject();
+    const id = (await items().findByNumber(slug, await create(slug)))?.id ?? 0;
+    const move = (patch: Parameters<ItemsRepo['update']>[2], version: number) =>
+      items().update(id, version, patch, { add: [], remove: [] }, OWNER_ACTOR, [], LATER);
+    await expect(move({ status: 'in-progress' }, 1)).rejects.toThrow(/approved_at must be set/);
+    await expect(move({ status: 'in-progress', approvedAt: LATER }, 1)).resolves.toBe(true);
+    await expect(move({ approvedAt: AT }, 2)).rejects.toThrow(/never cleared or changed/);
+    await expect(move({ status: 'proposed' }, 2)).resolves.toBe(true);
+    await expect(items().findByNumber(slug, 1)).resolves.toMatchObject({
+      status: 'proposed',
+      approvedAt: LATER,
     });
   });
 

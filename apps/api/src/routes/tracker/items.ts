@@ -7,6 +7,7 @@ import {
   isItemSeverity,
   isItemStatus,
   isItemTier,
+  isWorkableStatus,
   type ItemEventListDto,
   type ItemListDto,
 } from '@shared/contracts';
@@ -218,7 +219,12 @@ export function createTrackerItemRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
             c,
             {
               before: null,
-              after: { status: value.status, flags: [...value.labels], closed: false },
+              after: {
+                status: value.status,
+                flags: [...value.labels],
+                closed: false,
+                approved: isWorkableStatus(value.status),
+              },
               changesOtherFields: true,
             },
             null,

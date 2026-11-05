@@ -2,6 +2,7 @@ import type { ItemStatus } from '@shared/contracts';
 import type { Identity } from './auth.types';
 import type { DecisionCommand, Section } from '@shared/contracts';
 import type { ItemRecord } from '@worker/db';
+import { JOB_ROLES } from './job-roles';
 import {
   askEffectOf,
   commentKindRefusal,
@@ -26,9 +27,12 @@ const job = (role: string, holdsItem = false): PolicyActor => ({
   items: holdsItem ? [1] : [],
 });
 
+// By default an item past `proposed` carries its approval; `unapproved` builds the exceptions.
 function state(status: ItemStatus, flags: string[] = [], closed = status === 'done'): ItemPolicyState {
-  return { status, flags, closed };
+  return { status, flags, closed, approved: status !== 'proposed' };
 }
+
+const unapproved = (state: ItemPolicyState): ItemPolicyState => ({ ...state, approved: false });
 
 function change(
   before: ItemPolicyState | null,
@@ -52,7 +56,7 @@ describe('transition table: owner-semantic changes (transition-owner-only)', () 
     ['closing the demo item as done', change(state('qa', ['team:demo']), state('done', ['team:demo']))],
     [
       'closing the demo item as not planned',
-      change(state('qa', ['team:demo']), { status: 'qa', flags: ['team:demo'], closed: true }),
+      change(state('qa', ['team:demo']), state('qa', ['team:demo'], true)),
     ],
   ];
 
@@ -71,6 +75,79 @@ describe('transition table: owner-semantic changes (transition-owner-only)', () 
       type: 'transition-owner-only',
       reason: 'approve',
     });
+  });
+
+  // #452: approval is not the one edge `proposed → approved`.
+  it('refuses every job leaving proposed, or reaching approved, by any status', () => {
+    const others = ['in-progress', 'qa', 'done', 'blocked'] as const;
+    for (const role of JOB_ROLES) {
+      for (const status of others) {
+        expect(refusal(job(role, true), change(state('proposed'), state(status)))).toEqual({
+          type: 'transition-owner-only',
+          reason: 'leave-proposed',
+        });
+        expect(refusal(job(role, true), change(state(status), state('approved')))).toEqual({
+          type: 'transition-owner-only',
+          reason: 'approve',
+        });
+        expect(refusal(job(role), change(null, state(status)))).toEqual({
+          type: 'transition-owner-only',
+          reason: 'leave-proposed',
+        });
+      }
+    }
+  });
+
+  it('leaves closing a proposed item as not planned or duplicate to the editing roles', () => {
+    const closing = change(state('proposed'), state('proposed', [], true));
+    for (const role of ['pm', 'architect', 'orchestrator']) {
+      expect(refusal(job(role), closing)).toBeNull();
+    }
+  });
+
+  // Security review of #458: the release decision closes a proposed demo item as done, never approving it.
+  it('lets no job take an unapproved done item into work, only back to proposed', () => {
+    const released = unapproved(state('done', ['team:demo']));
+    for (const role of JOB_ROLES) {
+      for (const status of ['in-progress', 'qa', 'blocked'] as const) {
+        expect(refusal(job(role, true), change(released, state(status, ['team:demo'])))).toEqual({
+          type: 'transition-owner-only',
+          reason: 'not-approved',
+        });
+      }
+      expect(refusal(job(role, true), change(released, state('approved', ['team:demo'])))?.reason).toBe(
+        'approve',
+      );
+    }
+    expect(refusal(job('pm'), change(released, state('proposed', ['team:demo'])))).toBeNull();
+    expect(refusal(OWNER, change(released, state('in-progress', ['team:demo'])))).toBeNull();
+  });
+
+  it('keeps reopening an approved, closed item to the roles that may today', () => {
+    const closed = state('done');
+    expect(refusal(job('pm'), change(closed, state('in-progress')))).toBeNull();
+    expect(refusal(job('dev', true), change(closed, state('in-progress')))).toBeNull();
+    expect(refusal(job('analyst', true), change(closed, state('in-progress')))?.reason).toBe(
+      'role-cannot-edit',
+    );
+  });
+
+  it('keeps team:demo on a closed item', () => {
+    const closed = state('done', ['team:demo']);
+    for (const role of JOB_ROLES) {
+      expect(refusal(job(role, true), change(closed, state('done')))).toEqual({
+        type: 'transition-owner-only',
+        reason: 'demo-flag',
+      });
+    }
+    expect(refusal(OWNER, change(closed, state('done')))).toBeNull();
+    expect(refusal(job('pm'), change(state('qa', ['team:demo']), state('qa')))).toBeNull();
+  });
+
+  it('lets the owner make every one of those moves', () => {
+    expect(refusal(OWNER, change(state('proposed'), state('blocked')))).toBeNull();
+    expect(refusal(OWNER, change(state('blocked'), state('approved')))).toBeNull();
+    expect(refusal(OWNER, change(null, state('in-progress')))).toBeNull();
   });
 
   it('lets a role move an approved item on without the owner', () => {
@@ -122,9 +199,9 @@ describe('transition table: role limits (transition-role)', () => {
     expect(
       refusal(job('dev', true), change(state('in-progress'), state('in-progress', ['needs-design'])))?.reason,
     ).toBe('role-cannot-edit');
-    expect(
-      refusal(job('qa', true), change(state('qa'), { status: 'qa', flags: [], closed: true }))?.reason,
-    ).toBe('role-cannot-edit');
+    expect(refusal(job('qa', true), change(state('qa'), state('qa', [], true)))?.reason).toBe(
+      'role-cannot-edit',
+    );
     expect(refusal(job('dev', true), change(null, state('proposed')))?.reason).toBe('role-cannot-edit');
   });
 
@@ -311,6 +388,7 @@ describe('askEffectOf', () => {
     flags,
     closedAt: null,
     closedReason: null,
+    approvedAt: AT,
     createdByKind: 'owner',
     createdBy: 'owner',
     createdAt: AT,

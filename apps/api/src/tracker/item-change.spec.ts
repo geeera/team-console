@@ -15,6 +15,7 @@ const ITEM: ItemRecord = {
   flags: ['needs-design'],
   closedAt: null,
   closedReason: null,
+  approvedAt: AT,
   createdByKind: 'owner',
   createdBy: 'owner',
   createdAt: AT,
@@ -34,8 +35,8 @@ describe('planItemUpdate', () => {
         flags: { add: [], remove: [] },
         events: [{ kind: 'edited', before: { title: 'Title' }, after: { title: 'New' } }],
         transition: {
-          before: { status: 'in-progress', flags: ['needs-design'], closed: false },
-          after: { status: 'in-progress', flags: ['needs-design'], closed: false },
+          before: { status: 'in-progress', flags: ['needs-design'], closed: false, approved: true },
+          after: { status: 'in-progress', flags: ['needs-design'], closed: false, approved: true },
           changesOtherFields: true,
         },
       },
@@ -145,6 +146,42 @@ describe('planItemUpdate', () => {
         flags: { add: ['design:approved'], remove: ['needs-design'] },
         transition: { after: { flags: ['design:approved'] }, changesOtherFields: false },
       },
+    });
+  });
+
+  // #452: the approval is recorded with the first workable status, never by closing.
+  describe('the approval', () => {
+    const PROPOSED: ItemRecord = { ...ITEM, status: 'proposed', approvedAt: null };
+    const LATER = '2026-11-06T09:00:00.000Z';
+    const planOf = (item: ItemRecord, input: Parameters<typeof planItemUpdate>[1]) => {
+      const outcome = planItemUpdate(item, input, undefined, LATER);
+      if (outcome.kind !== 'change') {
+        throw new Error(`expected a change, got ${outcome.kind}`);
+      }
+      return outcome.plan;
+    };
+
+    it.each(['approved', 'in-progress', 'qa', 'blocked'] as const)(
+      'is set when the item becomes %s',
+      (status) => {
+        const plan = planOf(PROPOSED, { status });
+        expect(plan.patch.approvedAt).toBe(LATER);
+        expect(plan.transition.before?.approved).toBe(false);
+        expect(plan.transition.after.approved).toBe(true);
+      },
+    );
+
+    it('is not set by closing a proposed item as done or not planned', () => {
+      expect(planOf(PROPOSED, { status: 'done' }).patch).not.toHaveProperty('approvedAt');
+      expect(planOf(PROPOSED, { state: 'closed', closedReason: 'not-planned' }).patch).not.toHaveProperty(
+        'approvedAt',
+      );
+    });
+
+    it('is kept as it was on an approved item', () => {
+      const plan = planOf(ITEM, { status: 'qa' });
+      expect(plan.patch).not.toHaveProperty('approvedAt');
+      expect(plan.transition.before?.approved).toBe(true);
     });
   });
 });

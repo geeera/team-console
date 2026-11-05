@@ -1,4 +1,4 @@
-import type { ItemEventKind, UpdateItemInput } from '@shared/contracts';
+import { isWorkableStatus, type ItemEventKind, type UpdateItemInput } from '@shared/contracts';
 import type { FlagsPatch, ItemColumnsPatch, ItemRecord, NewItemEvent } from '@worker/db';
 import type { ItemTransition } from '../auth/policy';
 
@@ -94,6 +94,12 @@ export function planItemUpdate(
   if (changed.length === 0) {
     return { kind: 'unchanged' };
   }
+  // #452: the first workable status records the approval. The transition table admits that change to an
+  // unapproved item only from the owner or an owner decision's effect, so a refused plan never lands it.
+  const isApproved = item.approvedAt !== null || isWorkableStatus(status);
+  if (item.approvedAt === null && isApproved) {
+    patch['approvedAt'] = at;
+  }
   return {
     kind: 'change',
     plan: {
@@ -101,8 +107,13 @@ export function planItemUpdate(
       flags: { add, remove },
       events: eventsOf(before, after, wasClosed, isClosed),
       transition: {
-        before: { status: item.status, flags: item.flags, closed: wasClosed },
-        after: { status, flags, closed: isClosed },
+        before: {
+          status: item.status,
+          flags: item.flags,
+          closed: wasClosed,
+          approved: item.approvedAt !== null,
+        },
+        after: { status, flags, closed: isClosed, approved: isApproved },
         changesOtherFields: changed.some((field) => !['status', 'flags', 'closedReason'].includes(field)),
       },
     },

@@ -1,10 +1,11 @@
-import type {
-  AskCategory,
-  CommentKind,
-  DecisionCommand,
-  ItemStatus,
-  Section,
-  UpdateItemInput,
+import {
+  isWorkableStatus,
+  type AskCategory,
+  type CommentKind,
+  type DecisionCommand,
+  type ItemStatus,
+  type Section,
+  type UpdateItemInput,
 } from '@shared/contracts';
 import type { ItemRecord } from '@worker/db';
 import type { ApiEnv } from '../env';
@@ -39,6 +40,8 @@ export interface ItemPolicyState {
   readonly status: ItemStatus;
   readonly flags: readonly string[];
   readonly closed: boolean;
+  /** The item carries the owner's recorded scope approval (`items.approved_at`, #452). */
+  readonly approved: boolean;
 }
 
 /** What else the change touches (title, body, kind, severity, tier, sprint): only the editing roles may. */
@@ -54,9 +57,12 @@ export type TransitionRefusal = {
   /** A stable reason for the log and the problem's `reason` extension. */
   readonly reason:
     | 'approve'
+    | 'leave-proposed'
+    | 'not-approved'
     | 'design-approved'
     | 'owner-flag'
     | 'close-demo'
+    | 'demo-flag'
     | 'workflow-change'
     | 'remove-guard-flag'
     | 'role-cannot-edit'
@@ -100,9 +106,20 @@ function ownerOnlyRefusal(transition: ItemTransition): TransitionRefusal | null 
   const { before, after } = transition;
   const { added, removed } = changedFlags(before, after);
   const touched = [...added, ...removed];
-  // Approving is the owner's scope decision; a new item created as approved would be the same decision.
-  if (after.status === 'approved' && (before === null || before.status === 'proposed')) {
+  // Approving is the owner's scope decision (#452). A job never reaches `approved` from another status, and an
+  // item leaves `proposed` (or is created past it) only that way, so no detour such as `proposed → blocked →
+  // approved` skips it. Closing a proposed item as not planned or duplicate keeps its status, so a job may still do it.
+  const wasStatus = before?.status ?? 'proposed';
+  if (after.status === 'approved' && before?.status !== 'approved') {
     return { type: 'transition-owner-only', reason: 'approve' };
+  }
+  if (wasStatus === 'proposed' && after.status !== 'proposed') {
+    return { type: 'transition-owner-only', reason: 'leave-proposed' };
+  }
+  // The status alone does not prove an approval: the release decision closes a proposed demo item as `done`. Work
+  // needs the recorded approval (`items.approved_at`); without it, a job may only take the item back to `proposed`.
+  if (isWorkableStatus(after.status) && !(before?.approved ?? false)) {
+    return { type: 'transition-owner-only', reason: 'not-approved' };
   }
   if (touched.includes(DESIGN_APPROVED)) {
     return { type: 'transition-owner-only', reason: 'design-approved' };
@@ -113,6 +130,10 @@ function ownerOnlyRefusal(transition: ItemTransition): TransitionRefusal | null 
   const isDemo = (before?.flags ?? []).includes(DEMO) || after.flags.includes(DEMO);
   if (isDemo && after.closed && !(before?.closed ?? false)) {
     return { type: 'transition-owner-only', reason: 'close-demo' };
+  }
+  // The flag marks the release record; dropped from a closed item, the item would look like any other closed one.
+  if ((before?.closed ?? false) && removed.includes(DEMO)) {
+    return { type: 'transition-owner-only', reason: 'demo-flag' };
   }
   return null;
 }
