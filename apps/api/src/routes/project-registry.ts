@@ -8,7 +8,14 @@ import {
   type ProjectSetupDto,
 } from '@shared/contracts';
 import { problem, type ProblemInit, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
-import { ProjectSignalsRepo, ProjectsRepo, toProjectDto, type EventsSignal } from '@worker/db';
+import {
+  ProjectSignalsRepo,
+  ProjectsRepo,
+  TrackerProjectsRepo,
+  toProjectDto,
+  type EventsSignal,
+  type TrackerProject,
+} from '@worker/db';
 import { isRepoOwnedBy, isValidRepoName, readCacheKey, type OwnerAccount } from '@worker/github';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
@@ -64,6 +71,11 @@ function withSlots(env: ApiEnv, project: ProjectDto): ProjectDto {
   return { ...project, slots: slotsSetupOf(env, project.slug) };
 }
 
+/** `ProjectDto.tracker`/`keyPrefix` (#435): an archived or unknown project reads as still on GitHub. */
+function withTracker(project: ProjectDto, tracker: TrackerProject | null | undefined): ProjectDto {
+  return { ...project, tracker: tracker?.tracker ?? 'github', keyPrefix: tracker?.keyPrefix ?? null };
+}
+
 function setupOf(
   environment: string,
   facts: RepositoryFacts,
@@ -107,7 +119,10 @@ export function createProjectRegistryRoutes(
       const repo = new ProjectsRepo(c.env.DB);
       const rows = c.req.query('include') === 'archived' ? await repo.listAll() : await repo.listActive();
       const nowMs = github.now();
-      const body: ProjectDto[] = rows.map((row) => withSlots(c.env, toProjectDto(row, nowMs)));
+      const trackers = await new TrackerProjectsRepo(c.env.DB).listActive();
+      const body: ProjectDto[] = rows.map((row) =>
+        withTracker(withSlots(c.env, toProjectDto(row, nowMs)), trackers.get(row.slug)),
+      );
       return c.json(body);
     })
 
@@ -213,7 +228,7 @@ export function createProjectRegistryRoutes(
       }
       c.get('logger').info('project added', { slug });
       c.header('Location', `/api/v1/projects/${slug}`);
-      return c.json(withSlots(c.env, toProjectDto(row, github.now())), 201);
+      return c.json(withTracker(withSlots(c.env, toProjectDto(row, github.now())), null), 201);
     })
 
     .patch('/:slug', limit, async (c) => {
@@ -227,7 +242,11 @@ export function createProjectRegistryRoutes(
       }
       const row = await new ProjectsRepo(c.env.DB).update(project.slug, changes);
       // Archived between the lookup and the update.
-      return row === null ? projectNotFound(c) : c.json(withSlots(c.env, toProjectDto(row, github.now())));
+      if (row === null) {
+        return projectNotFound(c);
+      }
+      const tracker = await new TrackerProjectsRepo(c.env.DB).find(row.slug);
+      return c.json(withTracker(withSlots(c.env, toProjectDto(row, github.now())), tracker));
     })
 
     .post('/:slug/archive', async (c) => {

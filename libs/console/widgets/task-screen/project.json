@@ -1,0 +1,8 @@
+{
+  "name": "console-widgets-task-screen",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/console/widgets/task-screen/src",
+  "prefix": "tc",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:console", "layer:widgets"]
+}

@@ -6,6 +6,7 @@ function item(section: InboxItemDto['section'], number: number): InboxItemDto {
     section,
     number,
     key: null,
+    askId: null,
     title: `#${number}`,
     url: null,
     ask: null,

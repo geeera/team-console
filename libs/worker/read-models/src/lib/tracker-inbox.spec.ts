@@ -92,6 +92,7 @@ describe('buildTrackerInbox', () => {
       {
         ...ROW,
         ask: {
+          id: 41,
           ask: 'Approve $12?',
           category: 'money',
           commands: ['approve', 'reject'],
@@ -105,6 +106,7 @@ describe('buildTrackerInbox', () => {
           section: 'question',
           number: 7,
           key: 'TC-7',
+          askId: 41,
           title: 'Pay for the domain?',
           url: null,
           ask: 'Approve $12?',
@@ -125,7 +127,7 @@ describe('buildTrackerInbox', () => {
     const [item] = buildTrackerInbox([
       {
         ...ROW,
-        ask: { ask: 'Done?', category: 'access', commands: ['done', 'override'], recommended: 'done' },
+        ask: { id: 42, ask: 'Done?', category: 'access', commands: ['done', 'override'], recommended: 'done' },
       },
       { ...ROW, number: 8, key: 'TC-8' },
     ]).items;
@@ -141,6 +143,7 @@ describe('buildTrackerInbox', () => {
     const row: TrackerInboxRow = {
       ...ROW,
       ask: {
+        id: 44,
         ask: `Approve ${rlo}21$${zwsp} for the ${bom}domain?`,
         category: 'money',
         commands: ['approve', 'reject'],
@@ -180,7 +183,7 @@ describe('buildTrackerInbox', () => {
 describe('trackerInboxItemsOf and buildTrackerQuestions', () => {
   it('take the open ask’s commands, else the section’s', () => {
     const rows: TrackerInboxRow[] = [
-      { ...ROW, ask: { ask: 'Approve?', category: 'scope', commands: ['approve'], recommended: null } },
+      { ...ROW, ask: { id: 43, ask: 'Approve?', category: 'scope', commands: ['approve'], recommended: null } },
       { ...ROW, number: 8, key: 'TC-8' },
     ];
     expect(trackerInboxItemsOf(rows).map(({ allowedCommands }) => allowedCommands)).toEqual([

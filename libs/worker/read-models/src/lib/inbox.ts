@@ -51,6 +51,7 @@ function classified(issues: readonly IssueRecord[]): Classified[] {
         section,
         number: issue.number,
         key: null,
+        askId: null,
         // Titles come from any author: a bidi override or zero-width run could pose as another item (#287).
         title: withoutInvisibles(issue.title),
         url: githubUrlOrNull(issue.htmlUrl),

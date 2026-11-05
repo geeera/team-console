@@ -109,6 +109,9 @@
 
   --sidebar-w: 256px;
   --pane-w: 392px;
+  --task-pane-w: 480px; /* #409: the task screen beside the board on a Mac; #114's pane is too narrow for its ledger */
+  --menu-w: 320px; /* #409: the Move menu and the field pickers as a popover */
+  --ledger-label: 112px; /* #409: the label column of a field ledger */
   --log-max: 680px;
   --board-max: 1184px; /* #275: the board uses a Mac's whole main column (1440 less the sidebar) */
   --board-side-w: 320px; /* #275: the board's PR and runs column between 900 and 1279 px */

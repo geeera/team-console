@@ -326,7 +326,8 @@
       "qa": "QA",
       "blocked": "Blocked",
       "done": "Done",
-      "none": "No status"
+      "none": "No status",
+      "closed": "Not needed"
     },
     "laneEmpty": "Nothing here",
     "tierLabel": "Tier:",
@@ -431,7 +432,175 @@
       "showDone": "Show",
       "showDoneAria": "Show issues: {{lane}}, {{n}}"
     },
-    "pullsAll": "All {{n}} PRs"
+    "pullsAll": "All {{n}} PRs",
+    "kind": {
+      "feature": "Feature",
+      "bug": "Bug",
+      "chore": "Chore",
+      "finding": "Finding",
+      "wow": "Wow",
+      "question": "Question"
+    }
+  },
+  "item": {
+    "loading": "Loading the task…",
+    "notFound": {
+      "title": "There’s no task {{key}} in {{name}}",
+      "hint": "The number may be different, or the task is in another project.",
+      "board": "Board"
+    },
+    "error": {
+      "title": "Couldn’t load the task",
+      "hint": "The console didn’t answer. Try again."
+    },
+    "offlineNever": {
+      "title": "You’re offline",
+      "hint": "The task loads once you’re back online. Try again."
+    },
+    "offline": "You’re offline. Showing it as of {{time}}; you can change it once you’re back online.",
+    "offlineReason": "You’re offline",
+    "forbiddenRead": {
+      "title": "Only the owner sees tasks",
+      "hint": "This session isn’t signed in as the owner."
+    },
+    "back": "Board",
+    "close": "Close the task",
+    "paneLabel": "Task {{key}}",
+    "status": "Status",
+    "kind": "Kind",
+    "sprint": "Sprint",
+    "queue": "Queue",
+    "tier": "Tier",
+    "flags": "Labels",
+    "from": "Opened by",
+    "queueVal": "{{pos}} of {{total}} in {{lane}}",
+    "tierHint": "Set by the architect",
+    "noSprint": "Backlog",
+    "noQueue": "Not on the board",
+    "none": "—",
+    "sprintCurrent": "{{sprint}} — current",
+    "created": "{{who}} · {{date}}",
+    "github": "Was GitHub #{{n}}",
+    "githubAria": "Was GitHub #{{n}}, opens the old read-only copy on GitHub",
+    "details": "Details",
+    "noDetails": "No details.",
+    "edit": "Edit",
+    "editAria": "Edit the title and details",
+    "title": "Title",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "saved": "Saved",
+    "counter": "{{n}} / {{max}}",
+    "tooLong": "Over {{max}} characters: shorten it by {{n}}.",
+    "titleEmpty": "Write the task’s title.",
+    "draft": "Draft from {{time}}, kept on this device.",
+    "draftDrop": "Delete it",
+    "discard": {
+      "title": "Discard your changes?",
+      "message": "The new title and text won’t be saved.",
+      "keep": "Keep editing",
+      "ok": "Discard changes"
+    },
+    "history": "History",
+    "earlier": "Show earlier: {{n}}",
+    "comment": "Comment",
+    "commentHint": "The team reads it on its next run. Sent as is, without formatting.",
+    "commentSend": "Send",
+    "commentSending": "Sending…",
+    "commentSent": "Comment added",
+    "commentCmd": "A comment doesn’t approve or reject anything. Use Approve or Reject above for that.",
+    "commentCmdNoDecision": "A comment doesn’t approve or reject anything: the task isn’t waiting for your decision now.",
+    "closedNote": "This task is closed as not needed. It’s off the board, but search still finds it.",
+    "reopen": "Reopen",
+    "statusHint": {
+      "proposed": "Waiting for a decision on whether to do it.",
+      "approved": "Decided to do. The team takes it in queue order.",
+      "in-progress": "Usually set by the team when it picks the task up.",
+      "qa": "Usually set by the team once a PR is open.",
+      "blocked": "Waiting for you or for something outside. The reason is in the history.",
+      "done": "Done. It stays under Done until the sprint ends.",
+      "closed": "Won’t be done. The task leaves the board."
+    },
+    "kindHint": {
+      "feature": "Something new, or a change to what exists.",
+      "bug": "Something doesn’t work as it should.",
+      "chore": "Upkeep: dependencies, the build, clean-up.",
+      "finding": "A problem the team found.",
+      "wow": "An idea that delights.",
+      "question": "The team needs your answer."
+    },
+    "pickerStatus": "Status of {{key}}",
+    "pickerKind": "Kind of {{key}}",
+    "changed": "{{field}}: now {{to}}",
+    "ev": {
+      "imported": "Moved over from GitHub",
+      "created": "Created",
+      "status": "Status: {{from}} → {{to}}",
+      "kind": "Kind: {{from}} → {{to}}",
+      "sprint": "Sprint: {{from}} → {{to}}",
+      "edit": "Title or details changed",
+      "labels": "Labels changed",
+      "approved": "Approved",
+      "rejected": "Rejected: “{{why}}”",
+      "decided": "Decision: {{command}}",
+      "closedDone": "Closed: done",
+      "closed": "Closed: not needed",
+      "reopened": "Reopened",
+      "asked": "The team asked you",
+      "requested": "A request to the PM",
+      "handled": "The PM answered the request",
+      "pr": "A pull request was opened"
+    },
+    "who": {
+      "owner": "You",
+      "pm": "PM",
+      "dev": "Developer",
+      "architect": "Architect",
+      "qa": "QA",
+      "system": "Console",
+      "import": "GitHub"
+    },
+    "err": {
+      "conflict": {
+        "title": "The task changed while you were editing",
+        "message": "It was changed at {{time}}. Your text is still in the fields.",
+        "see": "Show their version",
+        "hide": "Hide their version",
+        "mine": "Save mine over it",
+        "theirs": "Current version, {{time}}"
+      },
+      "changed": {
+        "title": "The task changed",
+        "message": "It was changed while you were choosing. Refresh the task and try again."
+      },
+      "invalid": {
+        "title": "Check the fields",
+        "message": "The console didn’t accept this change. Check the field and save again."
+      },
+      "gone": {
+        "title": "The decision isn’t waiting for you any more",
+        "message": "The team has already changed the task. Refresh it.",
+        "refresh": "Refresh the task"
+      },
+      "forbidden": {
+        "title": "Only the owner can change tasks",
+        "message": "This session isn’t signed in as the owner. Nothing changed."
+      },
+      "network": {
+        "title": "No connection",
+        "message": "The change may not have arrived. Try again — it won’t be applied twice."
+      },
+      "timeout": {
+        "title": "Unknown whether it was saved",
+        "message": "The console didn’t answer. Try again within a minute — it won’t be applied twice. Later, refresh the task first."
+      },
+      "notFound": {
+        "title": "The task is gone",
+        "message": "It wasn’t found in this project. Refresh the task."
+      },
+      "retry": "Try again"
+    }
   },
   "artifacts": {
     "title": "Artifacts",
@@ -1633,6 +1802,30 @@
       "hint": "The demo is at 12:00 Kyiv time.",
       "selected": "Selected: {{date}}",
       "none": "nothing selected"
+    },
+    "ledger": {
+      "status": "Status",
+      "kind": "Kind",
+      "tier": "Tier",
+      "approved": "Approved",
+      "bug": "Bug",
+      "standard": "standard",
+      "offline": "You’re offline"
+    },
+    "menu": {
+      "open": "Move",
+      "label": "Move TC-408",
+      "title": "TC-408 · where to move it",
+      "subtitle": "Threat model: tracker, role keys, runner",
+      "warning": "The task is in progress: the team finishes its current step and carries on with it in the new sprint.",
+      "sprints": "Sprints",
+      "current": "To Sprint 03 — current",
+      "here": "It’s here now",
+      "next": "To Sprint 04",
+      "nextHint": "5 tasks · demo Nov 27",
+      "later": "To Sprint 05",
+      "full": "Already 9 tasks: the team usually finishes 8",
+      "backlog": "To the backlog"
     }
   },
   "review": {

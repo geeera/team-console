@@ -184,3 +184,15 @@ describe('GET /projects/:slug/items/:key/asks', () => {
     expect(await slugOf(await sendAsService('GET', `${path}/asks`))).toBe('owner-only');
   });
 });
+
+describe('GET /projects/:slug/items/:key/asks text', () => {
+  it('strips invisible characters from the job-written ask, as the inbox does (#443, #435)', async () => {
+    const project = await seedTrackerProject();
+    const { path } = await seedItem(project);
+    // A right-to-left override and a zero-width space could make the owner read another question.
+    const posed = `Pay ${String.fromCodePoint(0x202e)}21$${String.fromCodePoint(0x200b)} a year?`;
+    expect((await send('POST', `${path}/asks`, { ...ASK, ask: posed }, { job: PM })).status).toBe(201);
+    const list = (await (await send('GET', `${path}/asks`)).json()) as AskListDto;
+    expect(list.asks.map((ask) => ask.ask)).toEqual(['Pay 21$ a year?']);
+  });
+});
