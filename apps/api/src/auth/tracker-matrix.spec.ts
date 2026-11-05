@@ -14,10 +14,10 @@ import {
 } from '../testing/tracker-kit';
 import type { TestJob } from '../testing/local-job-kit';
 import { JOB_ROLES, type JobRole } from './job-roles';
-import { TRACKER_MATRIX, type TrackerRoute } from './tracker-matrix';
+import { TRACKER_MATRIX, isTrackerMatrixRoute, type TrackerRoute } from './tracker-matrix';
 
-// #444: the tracker's route matrix, cell by cell — every tracker route × the owner, each job role, a job of another
-// project and the service identity. A refusal writes nothing.
+// #444: the tracker's route matrix, cell by cell — every tracker route × the owner, each job role (the local
+// stand-in, through the real auth seam), a job of another project and the service identity. A refusal writes nothing.
 
 type Who = 'owner' | JobRole;
 type Expected = { readonly status: number; readonly slug?: string };
@@ -255,6 +255,17 @@ describe('the route matrix covers the tracker', () => {
 
   it('has a scenario for every row', () => {
     expect([...new Set(ROWS.map((row) => row.route))].sort()).toEqual(Object.keys(TRACKER_MATRIX).sort());
+  });
+
+  it('matches a row’s concrete paths, never a longer or another path', () => {
+    expect(isTrackerMatrixRoute('GET', '/api/v1/projects/acme/items/TC-1')).toBe(true);
+    expect(isTrackerMatrixRoute('GET', '/api/v1/projects/acme/items/TC-1/')).toBe(true);
+    expect(isTrackerMatrixRoute('DELETE', '/api/v1/projects/acme/items/TC-1')).toBe(false);
+    expect(isTrackerMatrixRoute('GET', '/api/v1/projects/acme/items/TC-1/x')).toBe(false);
+    expect(isTrackerMatrixRoute('GET', '/api/v1/projects/acme/inbox')).toBe(false);
+    expect(isTrackerMatrixRoute('GET', '/api/v1/projects/acme')).toBe(false);
+    expect(isTrackerMatrixRoute('GET', '/api/v1/projects/a/b/items')).toBe(false);
+    expect(isTrackerMatrixRoute('POST', '/api/v1/projects/acme/issues/1/answer')).toBe(false);
   });
 });
 

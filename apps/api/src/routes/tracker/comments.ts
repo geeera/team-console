@@ -3,7 +3,7 @@ import { checkCreateCommentInput, type CommentListDto } from '@shared/contracts'
 import { problem, type WorkerHonoEnv } from '@worker/core';
 import { CommentsRepo } from '@worker/db';
 import { commentKindRefusal } from '../../auth/policy';
-import { trackerAccess, type PolicyActorOf } from '../../auth/tracker-access.middleware';
+import { trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
 import { invalid, itemOf, trackerProjectOf } from '../../tracker/context';
 import { commentDtoOf } from '../../tracker/dto';
@@ -16,10 +16,10 @@ import { trackerWriteContextOf } from '../../tracker/write-context';
  * is the identity, never a body member. The owner writes `comment`s; a job also `note`s and team `decision`s
  * (formerly `backlog decide`), a team decision not as `dev-light` (#444, `commentKindRefusal`).
  */
-export function createTrackerCommentRoutes(actorOf: PolicyActorOf): Hono<WorkerHonoEnv<ApiEnv>> {
+export function createTrackerCommentRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
   const guard = {
-    list: trackerAccess('GET /api/v1/projects/:slug/items/:key/comments', actorOf),
-    create: trackerAccess('POST /api/v1/projects/:slug/items/:key/comments', actorOf),
+    list: trackerAccess('GET /api/v1/projects/:slug/items/:key/comments'),
+    create: trackerAccess('POST /api/v1/projects/:slug/items/:key/comments'),
   };
   return new Hono<WorkerHonoEnv<ApiEnv>>()
     .get('/:slug/items/:key/comments', guard.list, async (c) => {

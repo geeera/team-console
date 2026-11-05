@@ -1,9 +1,8 @@
 import { Hono } from 'hono';
 import { createWorkerApp, markAssetResponse, problem, type LogSink, type WorkerHonoEnv } from '@worker/core';
 import { authMiddleware } from './auth/auth.middleware';
-import type { Identity } from './auth/auth.types';
 import { csrfMiddleware } from './auth/csrf.middleware';
-import { policyActorOf, type PolicyActor } from './auth/policy';
+import { jobScopeMiddleware } from './auth/tracker-access.middleware';
 import type { ApiEnv } from './env';
 import { ApiGitHub, mapGitHubError } from './github';
 import { createAnswerRoutes } from './routes/answer';
@@ -49,12 +48,6 @@ export interface CreateApiAppOptions {
   readonly pushFetch?: FetchLike;
   /** Milliseconds since the epoch for the push routes; a seam for the test-push interval. */
   readonly pushNow?: () => number;
-  /**
-   * Who the tracker's route matrix and transition table judge (#410, #434, #444). Only route specs pass one, standing
-   * in for the job identity so every job cell of the matrix is proven end to end; the deployed Worker never sets it,
-   * and without it no identity maps to a job.
-   */
-  readonly trackerPolicyActorOf?: (identity: Identity, env: ApiEnv) => PolicyActor | null;
 }
 
 function isApiPath(path: string): boolean {
@@ -86,8 +79,9 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   app.route('/', appIdentityRoutes);
 
   // The only auth seam, mounted once before every router; the route-inventory test in auth.middleware.spec.ts
-  // proves every /api route sits behind it. Hono's '/api/*' also matches '/api' itself.
-  app.use('/api/*', authMiddleware, csrfMiddleware);
+  // proves every /api route sits behind it. Hono's '/api/*' also matches '/api' itself. A job identity goes no
+  // further than the tracker's matrix routes (#444).
+  app.use('/api/*', authMiddleware, jobScopeMiddleware, csrfMiddleware);
 
   const v1 = new Hono<WorkerHonoEnv<ApiEnv>>();
   v1.route('/healthz', healthzRoutes);
@@ -112,16 +106,14 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/projects', createSprintCommandsRoutes(github));
   v1.route('/projects', createOwnerRequestRoutes(github));
   // The console's own tracker (#410, #434, ADR 0006): D1 only, it never calls GitHub. Every route passes its row of
-  // the route matrix (`auth/tracker-matrix.ts`); the job-only writes refuse every deployed identity until a job
-  // identity exists.
-  const trackerActorOf = options.trackerPolicyActorOf ?? policyActorOf;
-  v1.route('/projects', createTrackerItemRoutes(trackerActorOf));
-  v1.route('/projects', createTrackerCommentRoutes(trackerActorOf));
-  v1.route('/projects', createTrackerSprintRoutes(trackerActorOf));
-  v1.route('/projects', createTrackerLabelRoutes(trackerActorOf));
-  v1.route('/projects', createTrackerAskRoutes(trackerActorOf));
-  v1.route('/projects', createTrackerDecisionRoutes(trackerActorOf));
-  v1.route('/projects', createTrackerRequestRoutes(trackerActorOf));
+  // the route matrix (`auth/tracker-matrix.ts`); a job identity exists only under the local bypass until Phase 2.
+  v1.route('/projects', createTrackerItemRoutes());
+  v1.route('/projects', createTrackerCommentRoutes());
+  v1.route('/projects', createTrackerSprintRoutes());
+  v1.route('/projects', createTrackerLabelRoutes());
+  v1.route('/projects', createTrackerAskRoutes());
+  v1.route('/projects', createTrackerDecisionRoutes());
+  v1.route('/projects', createTrackerRequestRoutes());
   // Before the connection routes: their owner-only `use('*')` would otherwise also guard this read (#194), which
   // the service identity may make on dev/stage like every other read (installation-repositories.spec.ts proves it).
   v1.route('/github', createInstallationRepositoriesRoutes(github, owners));

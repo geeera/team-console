@@ -3,7 +3,7 @@ import { checkCreateAskInput, type AskListDto } from '@shared/contracts';
 import { problem, type WorkerHonoEnv } from '@worker/core';
 import { AsksRepo, type ItemRecord } from '@worker/db';
 import { askEffectOf } from '../../auth/policy';
-import { trackerAccess, type PolicyActorOf } from '../../auth/tracker-access.middleware';
+import { trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
 import { invalid, itemClosed, itemOf } from '../../tracker/context';
 import { askDtoOf } from '../../tracker/dto';
@@ -19,10 +19,10 @@ import { trackerWriteContextOf } from '../../tracker/write-context';
  * local stand-in, so every deployed caller is refused. An ask replaces the item's open ask and sets
  * `owner:<category>` in the same batch (`askEffectOf`, the second R5 exception).
  */
-export function createTrackerAskRoutes(actorOf: PolicyActorOf): Hono<WorkerHonoEnv<ApiEnv>> {
+export function createTrackerAskRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
   const guard = {
-    list: trackerAccess('GET /api/v1/projects/:slug/items/:key/asks', actorOf),
-    create: trackerAccess('POST /api/v1/projects/:slug/items/:key/asks', actorOf),
+    list: trackerAccess('GET /api/v1/projects/:slug/items/:key/asks'),
+    create: trackerAccess('POST /api/v1/projects/:slug/items/:key/asks'),
   };
   return new Hono<WorkerHonoEnv<ApiEnv>>()
     .get('/:slug/items/:key/asks', guard.list, async (c) => {

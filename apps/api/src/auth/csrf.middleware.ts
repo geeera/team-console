@@ -30,7 +30,10 @@ export const csrfMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = async (c
   // Browsers that send Sec-Fetch-Site are judged by it alone; older ones by an Origin equal to our own.
   const isSameOrigin =
     fetchSite !== undefined ? fetchSite === 'same-origin' : origin === new URL(c.req.url).origin;
-  if (!isSameOrigin) {
+  // A job authenticates by an `Authorization` bearer, which no cross-site page can attach without a preflight we
+  // never answer; only a bearer identity is exempt (ADR 0006 decision 8, R4), never a cookie-borne one.
+  const isBearerIdentity = c.get('identity').kind === 'job';
+  if (!isSameOrigin && !isBearerIdentity) {
     c.get('logger').warn('write rejected', { reason: 'csrf', method: c.req.method, path: c.req.path });
     return problem(c, { type: 'csrf', title: 'Forbidden', status: 403 });
   }

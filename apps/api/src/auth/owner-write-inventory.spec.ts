@@ -6,11 +6,15 @@ import {
   SERVICE_TOKEN_ID,
   accessEnv,
   createSigningKey,
+  fetchApi,
   signAccessToken,
   stubJwksServer,
   uniqueTeamDomain,
 } from '../testing/access-kit';
-import { seedTrackerProject, send, sendAsService, slugOf } from '../testing/tracker-kit';
+import { localEnv } from '../testing/github-kit';
+import { localJobHeader } from '../testing/local-job-kit';
+import { jobActor, seedTrackerProject, send, sendAsService, slugOf } from '../testing/tracker-kit';
+import { JOB_ROLES } from './job-roles';
 import { TRACKER_MATRIX } from './tracker-matrix';
 
 // #62: every state-changing /api route says how it treats the dev/stage Access service identity. A new route fails
@@ -86,13 +90,14 @@ function normalised(path: string): string {
   return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
 }
 
-const routes = [
+const apiRoutes = [
   ...new Set(
     createApiApp()
-      .routes.filter((route) => STATE_CHANGING.has(route.method) && route.path.startsWith('/api/'))
+      .routes.filter((route) => route.method !== 'ALL' && route.path.startsWith('/api/'))
       .map((route) => `${route.method} ${normalised(route.path)}`),
   ),
 ];
+const routes = apiRoutes.filter((route) => STATE_CHANGING.has(route.split(' ')[0] ?? ''));
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -179,13 +184,13 @@ describe('owner-write inventory (#62)', () => {
   });
 
   it.each(ownerOnly)('%s answers 403 owner-only to an identity of an unknown kind', async (route) => {
-    const forgedApp = await appWithForgedIdentity({ kind: 'job', role: 'pm' });
+    const forgedApp = await appWithForgedIdentity({ kind: 'runner', runnerId: 'r1' });
     const lines: string[] = [];
     await expectOwnerOnly(await sendAsServiceToken(route, lines, forgedApp));
     // The forged kind really crossed the auth seam and was refused for what it is.
     const log = lines.join('\n');
-    expect(log).toContain('"identity":"job"');
-    expect(log).toContain('"reason":"job"');
+    expect(log).toContain('"identity":"runner"');
+    expect(log).toContain('"reason":"runner"');
   });
 
   // #443: the fixture-gate routes skip ownerOnlyMiddleware for the service identity only; any other kind is refused
@@ -195,10 +200,10 @@ describe('owner-write inventory (#62)', () => {
     .map(([route]) => route);
 
   it.each(fixtureGated)('%s answers 403 owner-only to an identity of an unknown kind', async (route) => {
-    const forgedApp = await appWithForgedIdentity({ kind: 'job', role: 'pm' });
+    const forgedApp = await appWithForgedIdentity({ kind: 'runner', runnerId: 'r1' });
     const lines: string[] = [];
     await expectOwnerOnly(await sendAsServiceToken(route, lines, forgedApp));
-    expect(lines.join('\n')).toContain('"reason":"job"');
+    expect(lines.join('\n')).toContain('"reason":"runner"');
   });
 
   const trackerWrites = Object.entries(RULES)
@@ -210,14 +215,9 @@ describe('owner-write inventory (#62)', () => {
     expect(trackerWrites.filter((route) => !(route in TRACKER_MATRIX))).toEqual([]);
   });
 
-  it.each(trackerWrites)(
-    '%s answers 403 owner-only to the service identity and an unknown kind',
-    async (route) => {
-      await expectOwnerOnly(await sendAsServiceToken(route));
-      const forgedApp = await appWithForgedIdentity({ kind: 'job', role: 'pm' });
-      await expectOwnerOnly(await sendAsServiceToken(route, [], forgedApp));
-    },
-  );
+  it.each(trackerWrites)('%s answers 403 owner-only to the service identity', async (route) => {
+    await expectOwnerOnly(await sendAsServiceToken(route));
+  });
 
   const jobOnly = Object.entries(RULES)
     .filter(([, rule]) => rule === 'job-only')
@@ -241,4 +241,62 @@ describe('owner-write inventory (#62)', () => {
       expect(await slugOf(service)).toBe('owner-only');
     },
   );
+
+  // #444, the job column. A job identity on a deployed config (here forged past the Access check, since nothing there
+  // can mint one) maps to no policy actor: the tracker refuses it like the service, every other route never lets
+  // it in.
+  it.each(routes)('%s answers 403 owner-only to a job identity on a deployed config', async (route) => {
+    const forgedApp = await appWithForgedIdentity({
+      kind: 'job',
+      role: 'pm',
+      projectSlug: 'x',
+      jobId: 'job-forged',
+      items: [1],
+    });
+    await expectOwnerOnly(await sendAsServiceToken(route, [], forgedApp));
+  });
 });
+
+// #444: the local job stand-in reaches the tracker's matrix routes and nothing else — not the GitHub-backed reads,
+// the registry, the answer or connection routes, whatever its role.
+describe('the job column off the tracker (#444)', () => {
+  const offTracker = apiRoutes.filter((route) => !(route in TRACKER_MATRIX));
+
+  it('finds routes off the tracker (the check is not vacuous)', () => {
+    expect(offTracker).toEqual(
+      expect.arrayContaining(['GET /api/v1/projects', 'POST /api/v1/projects/:slug/issues/:number/answer']),
+    );
+  });
+
+  it.each(offTracker)('%s answers 403 owner-only to the local job stand-in of every role', async (route) => {
+    const [method = '', pattern = ''] = route.split(' ');
+    const { slug } = await seedTrackerProject();
+    const path = pattern
+      .replace(':slug', slug)
+      .replace(/:[^/]+/g, '1')
+      .replace(/\*/g, 'x');
+    for (const role of JOB_ROLES) {
+      const response = await send(method as 'POST', path, method === 'GET' ? undefined : {}, {
+        job: jobActor(role),
+      });
+      expect(response.status, `${role} on ${route}`).toBe(403);
+      expect(await slugOf(response)).toBe('owner-only');
+    }
+  });
+
+  it('answers 403 to the stand-in on every method of a tracker path the matrix does not list', async () => {
+    const { slug } = await seedTrackerProject();
+    for (const method of ['PUT', 'DELETE'] as const) {
+      const response = await fetchAsJob(method, `/api/v1/projects/${slug}/items/1`);
+      expect(response.status).toBe(403);
+    }
+  });
+});
+
+async function fetchAsJob(method: string, path: string): Promise<Response> {
+  return fetchApi(path, localEnv(), {
+    method,
+    headers: { Authorization: localJobHeader(jobActor('pm'), path), 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+}

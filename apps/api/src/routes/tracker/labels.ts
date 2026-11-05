@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { checkCreateLabelInput, type LabelListDto } from '@shared/contracts';
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import { LabelsRepo, type TrackerProject } from '@worker/db';
-import { trackerAccess, type PolicyActorOf } from '../../auth/tracker-access.middleware';
+import { trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
 import { invalid, trackerProjectOf } from '../../tracker/context';
 import { labelDtoOf } from '../../tracker/dto';
@@ -28,10 +28,10 @@ async function labelResponse(
  * A project's label set (#410): the plugin's builtin labels, seeded when the tracker leaves GitHub, and the owner's
  * custom flags. Labels are never renamed or deleted here: items reference them.
  */
-export function createTrackerLabelRoutes(actorOf: PolicyActorOf): Hono<WorkerHonoEnv<ApiEnv>> {
+export function createTrackerLabelRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
   const guard = {
-    list: trackerAccess('GET /api/v1/projects/:slug/labels', actorOf),
-    create: trackerAccess('POST /api/v1/projects/:slug/labels', actorOf),
+    list: trackerAccess('GET /api/v1/projects/:slug/labels'),
+    create: trackerAccess('POST /api/v1/projects/:slug/labels'),
   };
   return new Hono<WorkerHonoEnv<ApiEnv>>()
     .get('/:slug/labels', guard.list, async (c) => {

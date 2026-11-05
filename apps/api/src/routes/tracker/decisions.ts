@@ -16,7 +16,7 @@ import {
   type TrackerProject,
 } from '@worker/db';
 import { decisionEffectOf } from '../../auth/policy';
-import { trackerAccess, type PolicyActorOf } from '../../auth/tracker-access.middleware';
+import { trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
 import { invalid, itemOf } from '../../tracker/context';
 import { decisionDtoOf, labelsOf } from '../../tracker/dto';
@@ -180,10 +180,10 @@ async function decide(
  * `decisionEffectOf`) land in one batch. No `If-Match`: the decision is about the ask, not a version the owner
  * edited; a moved version re-reads once, then 409 `item-changed`.
  */
-export function createTrackerDecisionRoutes(actorOf: PolicyActorOf): Hono<WorkerHonoEnv<ApiEnv>> {
+export function createTrackerDecisionRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
   const guard = {
-    list: trackerAccess('GET /api/v1/projects/:slug/items/:key/decisions', actorOf),
-    create: trackerAccess('POST /api/v1/projects/:slug/items/:key/decisions', actorOf),
+    list: trackerAccess('GET /api/v1/projects/:slug/items/:key/decisions'),
+    create: trackerAccess('POST /api/v1/projects/:slug/items/:key/decisions'),
   };
   return new Hono<WorkerHonoEnv<ApiEnv>>()
     .get('/:slug/items/:key/decisions', guard.list, async (c) => {
