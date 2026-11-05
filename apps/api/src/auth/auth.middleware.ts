@@ -4,6 +4,7 @@ import type { ApiEnv } from '../env';
 import { readAccessConfig } from './access-config';
 import { identityOf, verifyAccessJwt } from './access-jwt';
 import type { Identity } from './auth.types';
+import { isLocalBypass } from './local-bypass';
 
 const ACCESS_HEADER = 'Cf-Access-Jwt-Assertion';
 
@@ -24,7 +25,7 @@ export const authMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = async (c
     await next();
   };
 
-  if (c.env.ENVIRONMENT === 'local' && c.env.AUTH_MODE === 'local') {
+  if (isLocalBypass(c.env)) {
     await grant({ kind: 'local' });
     return;
   }

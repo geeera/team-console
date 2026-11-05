@@ -1,5 +1,7 @@
 import type { ItemStatus } from '@shared/contracts';
+import type { ApiEnv } from '../env';
 import type { Identity } from './auth.types';
+import { isOwnerIdentity } from './owner-only.middleware';
 
 /**
  * Who may change what on a tracker item: the transition table of ADR 0006 "API and authorisation" (threat model
@@ -130,9 +132,13 @@ export function transitionRefusal(actor: PolicyActor, transition: ItemTransition
 }
 
 /**
- * The policy actor of an identity that passed `ownerOnlyMiddleware`: the owner's Access login, or the local bypass
- * (`ENVIRONMENT=local` + `AUTH_MODE=local` only). `null` for the service identity, which never acts on the tracker.
+ * The policy actor of an identity: the owner for the allowlist `ownerOnlyMiddleware` passes (the owner's Access
+ * login, or the local bypass with `ENVIRONMENT=local` + `AUTH_MODE=local`). `null` for every other kind — the
+ * service identity and any kind added later — so nothing acts on the tracker until it is mapped here on purpose.
  */
-export function policyActorOf(identity: Identity): PolicyActor | null {
-  return identity.kind === 'service' ? null : { kind: 'owner' };
+export function policyActorOf(
+  identity: Identity,
+  env: Pick<ApiEnv, 'ENVIRONMENT' | 'AUTH_MODE'>,
+): PolicyActor | null {
+  return isOwnerIdentity(identity, env) ? { kind: 'owner' } : null;
 }

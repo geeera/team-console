@@ -1,4 +1,5 @@
 import type { ItemStatus } from '@shared/contracts';
+import type { Identity } from './auth.types';
 import {
   policyActorOf,
   transitionRefusal,
@@ -129,9 +130,20 @@ describe('transition table: role limits (transition-role)', () => {
 });
 
 describe('policyActorOf', () => {
+  const local = { ENVIRONMENT: 'local', AUTH_MODE: 'local' };
+  const deployed = { ENVIRONMENT: 'production' };
+
   it('maps the owner and the local bypass to the owner, and the service identity to nothing', () => {
-    expect(policyActorOf({ kind: 'user', email: 'owner@example.com' })).toEqual({ kind: 'owner' });
-    expect(policyActorOf({ kind: 'local' })).toEqual({ kind: 'owner' });
-    expect(policyActorOf({ kind: 'service', commonName: 'ci' })).toBeNull();
+    expect(policyActorOf({ kind: 'user', email: 'owner@example.com' }, deployed)).toEqual({ kind: 'owner' });
+    expect(policyActorOf({ kind: 'local' }, local)).toEqual({ kind: 'owner' });
+    expect(policyActorOf({ kind: 'service', commonName: 'ci' }, local)).toBeNull();
+  });
+
+  it('is an allowlist (#434): the local kind outside the bypass and an unknown kind map to nothing', () => {
+    expect(policyActorOf({ kind: 'local' }, deployed)).toBeNull();
+    expect(policyActorOf({ kind: 'local' }, { ENVIRONMENT: 'local' })).toBeNull();
+    const futureKind = { kind: 'job', role: 'pm' } as unknown as Identity;
+    expect(policyActorOf(futureKind, local)).toBeNull();
+    expect(policyActorOf(futureKind, deployed)).toBeNull();
   });
 });

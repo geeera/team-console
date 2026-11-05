@@ -1,10 +1,11 @@
 import { isProblemDetails, problemSlugOf } from '@shared/contracts';
 import { createApiApp } from '../app';
+import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
+import type { CreateApiAppOptions } from '../app';
 import {
   SERVICE_TOKEN_ID,
   accessEnv,
   createSigningKey,
-  fetchApi,
   signAccessToken,
   stubJwksServer,
   uniqueTeamDomain,
@@ -80,6 +81,22 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// #434: a fresh copy of the app whose Access claims map to an identity of a kind `authMiddleware` cannot mint today
+// (the Phase 2 `job` identity, or any later one), so the request still crosses the real auth seam.
+async function appWithForgedIdentity(identity: unknown): Promise<typeof createApiApp> {
+  vi.resetModules();
+  vi.doMock('./access-jwt', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('./access-jwt')>()),
+    identityOf: () => ({ ok: true, identity }),
+  }));
+  try {
+    const fresh: typeof import('../app') = await import('../app');
+    return fresh.createApiApp;
+  } finally {
+    vi.doUnmock('./access-jwt');
+  }
+}
+
 describe('owner-write inventory (#62)', () => {
   it('finds the state-changing routes (the inventory is not vacuous)', () => {
     expect(routes).toEqual(
@@ -102,7 +119,11 @@ describe('owner-write inventory (#62)', () => {
     .filter(([, rule]) => rule === 'owner-only')
     .map(([route]) => route);
 
-  it.each(ownerOnly)('%s answers 403 owner-only to the service identity', async (route) => {
+  async function sendAsServiceToken(
+    route: string,
+    lines: string[] = [],
+    app: (options: CreateApiAppOptions) => ReturnType<typeof createApiApp> = createApiApp,
+  ): Promise<Response> {
     const [method = '', pattern = ''] = route.split(' ');
     const jwks = stubJwksServer();
     const teamDomain = uniqueTeamDomain();
@@ -111,7 +132,8 @@ describe('owner-write inventory (#62)', () => {
     const token = await signAccessToken(key, teamDomain, {
       claims: { email: undefined, common_name: SERVICE_TOKEN_ID },
     });
-    const response = await fetchApi(pattern.replace(/:[^/]+/g, 'x'), accessEnv(teamDomain), {
+    const ctx = createExecutionContext();
+    const request = new Request(`http://api.test${pattern.replace(/:[^/]+/g, 'x')}`, {
       method,
       headers: {
         'Cf-Access-Jwt-Assertion': token,
@@ -120,8 +142,32 @@ describe('owner-write inventory (#62)', () => {
       },
       body: '{}',
     });
+    const response = await app({ logSink: (line) => lines.push(line) }).fetch(
+      request,
+      accessEnv(teamDomain),
+      ctx,
+    );
+    await waitOnExecutionContext(ctx);
+    return response;
+  }
+
+  async function expectOwnerOnly(response: Response): Promise<void> {
     expect(response.status).toBe(403);
     const body: unknown = await response.json();
     expect(isProblemDetails(body) ? problemSlugOf(body.type) : body).toBe('owner-only');
+  }
+
+  it.each(ownerOnly)('%s answers 403 owner-only to the service identity', async (route) => {
+    await expectOwnerOnly(await sendAsServiceToken(route));
+  });
+
+  it.each(ownerOnly)('%s answers 403 owner-only to an identity of an unknown kind', async (route) => {
+    const forgedApp = await appWithForgedIdentity({ kind: 'job', role: 'pm' });
+    const lines: string[] = [];
+    await expectOwnerOnly(await sendAsServiceToken(route, lines, forgedApp));
+    // The forged kind really crossed the auth seam and was refused for what it is.
+    const log = lines.join('\n');
+    expect(log).toContain('"identity":"job"');
+    expect(log).toContain('"reason":"job"');
   });
 });
