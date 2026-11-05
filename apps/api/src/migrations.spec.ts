@@ -13,7 +13,13 @@ describe('migrations on a fresh D1', () => {
     ).all<SqliteMasterRow>();
 
     expect(results.map((row) => row.name)).toEqual([
+      'comments',
       'd1_migrations',
+      'idempotency_keys',
+      'item_events',
+      'item_labels',
+      'items',
+      'labels',
       'own_write_claims',
       'own_writes',
       'owner_connections',
@@ -22,6 +28,7 @@ describe('migrations on a fresh D1', () => {
       'push_subscriptions',
       'push_test_sends',
       'slot_requests',
+      'sprints',
       'webhook_deliveries',
     ]);
   });
@@ -40,6 +47,7 @@ describe('migrations on a fresh D1', () => {
       '0010_webhooks.sql',
       '0011_project_snooze.sql',
       '0012_owner_requests.sql',
+      '0013_tracker.sql',
     ]);
   });
 
@@ -81,6 +89,12 @@ describe('migrations on a fresh D1', () => {
       'snoozed_at',
       'snoozed_until',
       'snooze_allows_urgent',
+      'provider',
+      'key_prefix',
+      'tracker',
+      'next_item_number',
+      'cutover_at',
+      'default_branch',
     ]);
     expect(results.filter((column) => column.notnull === 1).map((column) => column.name)).toEqual([
       'repo',
@@ -88,6 +102,9 @@ describe('migrations on a fresh D1', () => {
       'cache_epoch',
       'added_at',
       'snooze_allows_urgent',
+      'provider',
+      'tracker',
+      'next_item_number',
     ]);
   });
 
