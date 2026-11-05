@@ -54,6 +54,7 @@ export type TransitionRefusal = {
   /** A stable reason for the log and the problem's `reason` extension. */
   readonly reason:
     | 'approve'
+    | 'leave-proposed'
     | 'design-approved'
     | 'owner-flag'
     | 'close-demo'
@@ -100,9 +101,15 @@ function ownerOnlyRefusal(transition: ItemTransition): TransitionRefusal | null 
   const { before, after } = transition;
   const { added, removed } = changedFlags(before, after);
   const touched = [...added, ...removed];
-  // Approving is the owner's scope decision; a new item created as approved would be the same decision.
-  if (after.status === 'approved' && (before === null || before.status === 'proposed')) {
+  // Approving is the owner's scope decision (#452): `approved` is reached from no status by a job, and an item
+  // leaves `proposed` (or is created past it) only that way, so no detour such as `proposed → blocked → approved`
+  // skips it. Closing a proposed item as not planned or duplicate keeps its status, and stays a job's to make.
+  const wasStatus = before?.status ?? 'proposed';
+  if (after.status === 'approved' && before?.status !== 'approved') {
     return { type: 'transition-owner-only', reason: 'approve' };
+  }
+  if (wasStatus === 'proposed' && after.status !== 'proposed') {
+    return { type: 'transition-owner-only', reason: 'leave-proposed' };
   }
   if (touched.includes(DESIGN_APPROVED)) {
     return { type: 'transition-owner-only', reason: 'design-approved' };

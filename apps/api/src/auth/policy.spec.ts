@@ -2,6 +2,7 @@ import type { ItemStatus } from '@shared/contracts';
 import type { Identity } from './auth.types';
 import type { DecisionCommand, Section } from '@shared/contracts';
 import type { ItemRecord } from '@worker/db';
+import { JOB_ROLES } from './job-roles';
 import {
   askEffectOf,
   commentKindRefusal,
@@ -71,6 +72,40 @@ describe('transition table: owner-semantic changes (transition-owner-only)', () 
       type: 'transition-owner-only',
       reason: 'approve',
     });
+  });
+
+  // #452: approval is not the one edge `proposed → approved`.
+  it('refuses every job leaving proposed, or reaching approved, by any status', () => {
+    const others = ['in-progress', 'qa', 'done', 'blocked'] as const;
+    for (const role of JOB_ROLES) {
+      for (const status of others) {
+        expect(refusal(job(role, true), change(state('proposed'), state(status)))).toEqual({
+          type: 'transition-owner-only',
+          reason: 'leave-proposed',
+        });
+        expect(refusal(job(role, true), change(state(status), state('approved')))).toEqual({
+          type: 'transition-owner-only',
+          reason: 'approve',
+        });
+        expect(refusal(job(role), change(null, state(status)))).toEqual({
+          type: 'transition-owner-only',
+          reason: 'leave-proposed',
+        });
+      }
+    }
+  });
+
+  it('leaves closing a proposed item as not planned or duplicate to the editing roles', () => {
+    const closing = change(state('proposed'), { status: 'proposed', flags: [], closed: true });
+    for (const role of ['pm', 'architect', 'orchestrator']) {
+      expect(refusal(job(role), closing)).toBeNull();
+    }
+  });
+
+  it('lets the owner make every one of those moves', () => {
+    expect(refusal(OWNER, change(state('proposed'), state('blocked')))).toBeNull();
+    expect(refusal(OWNER, change(state('blocked'), state('approved')))).toBeNull();
+    expect(refusal(OWNER, change(null, state('in-progress')))).toBeNull();
   });
 
   it('lets a role move an approved item on without the owner', () => {
