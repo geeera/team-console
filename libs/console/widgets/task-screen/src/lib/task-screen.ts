@@ -28,6 +28,7 @@ import {
 import { SprintTierIcon } from '@console/entities/sprint';
 import { ItemComment } from '@console/features/comment-item';
 import { ItemEdit, ItemFieldPicker, ItemReopen } from '@console/features/edit-item';
+import { ItemSprintPicker } from '@console/features/move-item';
 import { NetworkStatus } from '@console/shared/api';
 import { LocalDayPipe, LocalTimePipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, Chip, Icon, IconButton, Ledger, LedgerRow } from '@console/shared/ui';
@@ -59,6 +60,7 @@ type LoadState = TaskLoadState | 'ready';
     ItemEdit,
     ItemFieldPicker,
     ItemReopen,
+    ItemSprintPicker,
     Ledger,
     LedgerRow,
     LocalDayPipe,

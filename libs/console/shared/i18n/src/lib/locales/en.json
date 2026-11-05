@@ -446,6 +446,56 @@
       "question": "Question"
     }
   },
+  "sprintNew": {
+    "create": "Create a sprint",
+    "title": "New sprint",
+    "titleNamed": "New sprint: {{sprint}}",
+    "date": "Demo date",
+    "after": "A new sprint always goes after the latest one. The console names it by its number.",
+    "hint": "It starts after the {{prev}} demo ({{date}}). Freeze is the two days before the demo: {{freeze}}.",
+    "hintFirst": "Freeze is the two days before the demo: {{freeze}}.",
+    "errEmpty": "Pick the demo date.",
+    "errPast": "This date has passed. Pick today or later.",
+    "errBefore": "The {{sprint}} demo must be after the {{prev}} demo ({{date}}).",
+    "errInvalid": "The console didn’t accept this date. Pick another one.",
+    "ok": "Create {{sprint}}",
+    "busy": "Creating…",
+    "done": "{{sprint}} created · demo {{date}}",
+    "doneVerb": "{{sprint}} created"
+  },
+  "plan": {
+    "menuAria": "Move {{key}}",
+    "menuTitle": "{{key}} · where to move it",
+    "sprints": "Sprints",
+    "to": "To {{sprint}}",
+    "toCurrent": "To {{sprint}} — current",
+    "toBacklog": "To the backlog",
+    "backlog": "the backlog",
+    "here": "It’s here now",
+    "count": {
+      "one": "{{n}} task · demo {{date}}",
+      "few": "{{n}} tasks · demo {{date}}",
+      "many": "{{n}} tasks · demo {{date}}",
+      "other": "{{n}} tasks · demo {{date}}"
+    },
+    "backlogCount": {
+      "one": "{{n}} task",
+      "few": "{{n}} tasks",
+      "many": "{{n}} tasks",
+      "other": "{{n}} tasks"
+    },
+    "full": {
+      "one": "Already {{n}} task: the team usually finishes {{cap}}",
+      "few": "Already {{n}} tasks: the team usually finishes {{cap}}",
+      "many": "Already {{n}} tasks: the team usually finishes {{cap}}",
+      "other": "Already {{n}} tasks: the team usually finishes {{cap}}"
+    },
+    "freeze": "Freeze until the {{date}} demo: no new tasks join this sprint",
+    "inProgressWarn": "The task is in progress: the team finishes its current step and carries on with it in the new sprint.",
+    "moved": "{{key}} → {{where}}",
+    "undo": "Undo",
+    "undone": "Undone: {{key}} is back in {{where}}"
+  },
   "item": {
     "loading": "Loading the task…",
     "notFound": {

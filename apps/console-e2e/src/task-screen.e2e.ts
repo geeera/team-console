@@ -59,7 +59,7 @@ test('opens the task with its fields, details and history, focused on the title'
   await expect(
     page.getByRole('button', { name: `${ru('item.kind')}: ${ru('board.kind.bug')}` }),
   ).toBeVisible();
-  await expect(page.getByTestId('task-sprint')).toHaveText(/Sprint 01 — текущий/);
+  await expect(page.getByTestId('pick-sprint')).toHaveAccessibleName(/^Спринт: Sprint 01 — текущий/);
   await expect(page.getByTestId('task-queue')).toHaveText(/^(\d+)-я из \1 в «Одобрено»$/);
   await expect(page.getByTestId('task-details')).toHaveText('On a slow network the answer goes out twice.');
   await expect(page.getByTestId('task-history')).toContainText(ru('item.ev.created'));

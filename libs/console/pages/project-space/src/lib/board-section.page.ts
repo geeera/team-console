@@ -2,6 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { ProjectsStore } from '@console/entities/project';
+import { CreateSprint } from '@console/features/create-sprint';
+import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
+import { Button, Icon, Toaster } from '@console/shared/ui';
 import { SprintBoard, SprintBoardProject } from '@console/widgets/sprint-board';
 import { map } from 'rxjs';
 
@@ -11,16 +14,34 @@ import { map } from 'rxjs';
  */
 @Component({
   selector: 'tc-board-section-page',
-  imports: [SprintBoard],
+  imports: [Button, Icon, SprintBoard, TranslocoPipe],
   template: `
+    @if (isTracker()) {
+      <div class="board-section__plan">
+        <button tc-button type="button" data-testid="create-sprint" (click)="createSprint()">
+          <tc-icon name="plus" size="sm" />
+          {{ 'sprintNew.create' | transloco }}
+        </button>
+      </div>
+    }
     @if (project(); as project) {
       <tc-sprint-board [project]="project" [initialTab]="tab()" />
+    }
+  `,
+  styles: `
+    .board-section__plan {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: var(--space-3);
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BoardSectionPage {
   private readonly projects = inject(ProjectsStore);
+  private readonly sprints = inject(CreateSprint);
+  private readonly toaster = inject(Toaster);
+  private readonly transloco = inject(TranslocoService);
   private readonly route = inject(ActivatedRoute);
 
   private readonly slug = toSignal(
@@ -32,6 +53,27 @@ export class BoardSectionPage {
   protected readonly tab = toSignal(this.route.queryParamMap.pipe(map((params) => params.get('tab'))), {
     initialValue: null,
   });
+
+  /**
+   * A console-tracker project (#435) plans its sprints here: Create a sprint. The board itself is still #18's view of
+   * the GitHub sprint until #108 moves it onto the tracker.
+   */
+  protected readonly isTracker = computed(() => {
+    const slug = this.slug();
+    const tracker = slug === null ? undefined : this.projects.bySlug(slug)?.tracker;
+    return tracker !== undefined && tracker !== 'github';
+  });
+
+  protected async createSprint(): Promise<void> {
+    const slug = this.slug();
+    if (slug === null) {
+      return;
+    }
+    const sprint = await this.sprints.open({ slug });
+    if (sprint !== null) {
+      this.toaster.show(this.transloco.translate('sprintNew.doneVerb', { sprint: sprint.title }));
+    }
+  }
 
   // Equal by value: a registry refresh must not reload the board it feeds.
   protected readonly project = computed<SprintBoardProject | null>(

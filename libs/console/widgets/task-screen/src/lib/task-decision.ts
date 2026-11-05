@@ -102,6 +102,8 @@ export function decisionItemOf(
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'tc-task-decision' },
+  // Nothing waits: no empty row in the screen's grid.
+  styles: ':host { display: block; } :host(:empty) { display: none; }',
 })
 export class TaskDecision {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
