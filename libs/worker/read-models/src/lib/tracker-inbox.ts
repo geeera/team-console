@@ -74,7 +74,9 @@ function classifiedRows(rows: readonly TrackerInboxRow[]): ClassifiedRow[] {
         title: withoutInvisibles(row.title),
         // A row has no GitHub page; the console links it by key.
         url: null,
-        ask: row.ask?.ask ?? null,
+        // A job writes the ask, possibly steered by item text: no bidi override or zero-width run may reshape the
+        // question the owner approves (#287, #443).
+        ask: row.ask === null ? null : withoutInvisibles(row.ask.ask),
         authorTrusted,
         category: row.ask?.category ?? categoryOf(row.labels),
         // Fails closed: `done` or `override` is not a recommendation a batch could take.

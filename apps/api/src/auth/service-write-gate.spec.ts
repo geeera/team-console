@@ -1,10 +1,17 @@
+import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test';
+import { isProblemDetails, problemSlugOf } from '@shared/contracts';
+import { createWorkerApp } from '@worker/core';
 import { parseRepoName } from '@worker/github';
+import type { ApiEnv } from '../env';
+import type { Identity } from './auth.types';
 import {
   FIXTURE_LABEL,
   fixtureLabellerOf,
   fixtureProvenanceRefusal,
   isIssueEventsPage,
   labelRefusal,
+  refuseServiceWrite,
+  refuseServiceWriteOnRecheck,
 } from './service-write-gate';
 
 // #62 and #193: which issues the Access service identity may write on as the owner. The route wiring is in
@@ -224,5 +231,93 @@ describe('isIssueEventsPage (#193)', () => {
     '/app/installations',
   ])('refuses %s', (path) => {
     expect(isIssueEventsPage(page(path), REPO, 72)).toBe(false);
+  });
+});
+
+// #443 (security review of #438, finding 1): the answer route is not behind ownerOnlyMiddleware, so these two
+// functions are its identity check. The owner passes, the service identity is gated, every other kind is 403.
+describe('refuseServiceWrite and its recheck by identity kind (#443)', () => {
+  const FUTURE_KIND = { kind: 'job', role: 'pm' } as unknown as Identity;
+  const FIXTURE_LABELS = ['needs:owner', 'kind:chore', FIXTURE_LABEL];
+  const deployed: ApiEnv = { ...env, ENVIRONMENT: 'dev', AUTH_MODE: '' };
+  const local: ApiEnv = { ...env, ENVIRONMENT: 'local', AUTH_MODE: 'local' };
+
+  /** Both gates on a fixture issue the owner labelled; `reads` counts every read the gates make. */
+  async function probe(
+    identity: Identity,
+    bindings: ApiEnv,
+  ): Promise<{ first: Response; recheck: Response; reads: string[] }> {
+    const reads: string[] = [];
+    const app = createWorkerApp<ApiEnv>({ service: 'service-write-gate-probe', logSink: () => undefined });
+    app.use('*', async (c, next) => {
+      c.set('identity', identity);
+      await next();
+    });
+    app.post('/first', async (c) => {
+      const refused = await refuseServiceWrite(c, FIXTURE_LABELS, {
+        labelHistory: async () => {
+          reads.push('history');
+          return whole([event('labeled', OWNER)]);
+        },
+        ownerUserId: async () => {
+          reads.push('owner');
+          return OWNER_ID;
+        },
+      });
+      return refused ?? c.json({ allowed: true });
+    });
+    app.post('/recheck', async (c) => {
+      const refused = await refuseServiceWriteOnRecheck(c, async () => {
+        reads.push('labels');
+        return FIXTURE_LABELS;
+      });
+      return refused ?? c.json({ allowed: true });
+    });
+    const send = async (path: string): Promise<Response> => {
+      const ctx = createExecutionContext();
+      const response = await app.fetch(
+        new Request(`http://api.test${path}`, { method: 'POST' }),
+        bindings,
+        ctx,
+      );
+      await waitOnExecutionContext(ctx);
+      return response;
+    };
+    return { first: await send('/first'), recheck: await send('/recheck'), reads };
+  }
+
+  async function slugOf(response: Response): Promise<string | null> {
+    const body: unknown = await response.json();
+    return isProblemDetails(body) ? problemSlugOf(body.type) : null;
+  }
+
+  it('passes the owner without a single read', async () => {
+    const { first, recheck, reads } = await probe({ kind: 'user', email: 'owner@example.com' }, deployed);
+    expect([first.status, recheck.status]).toEqual([200, 200]);
+    expect(reads).toEqual([]);
+  });
+
+  it('passes the local bypass only while ENVIRONMENT=local and AUTH_MODE=local', async () => {
+    const allowed = await probe({ kind: 'local' }, local);
+    expect([allowed.first.status, allowed.recheck.status]).toEqual([200, 200]);
+    const forged = await probe({ kind: 'local' }, deployed);
+    expect([forged.first.status, forged.recheck.status]).toEqual([403, 403]);
+    expect(await slugOf(forged.first)).toBe('owner-only');
+    expect(await slugOf(forged.recheck)).toBe('owner-only');
+    expect(forged.reads).toEqual([]);
+  });
+
+  it('runs the fixture gate for the service identity', async () => {
+    const { first, recheck, reads } = await probe({ kind: 'service', commonName: 'ci' }, deployed);
+    expect([first.status, recheck.status]).toEqual([200, 200]);
+    expect(reads).toEqual(['history', 'owner', 'labels']);
+  });
+
+  it('refuses any other kind (the Phase 2 job identity) with 403 owner-only, before any read', async () => {
+    const { first, recheck, reads } = await probe(FUTURE_KIND, deployed);
+    expect([first.status, recheck.status]).toEqual([403, 403]);
+    expect(await slugOf(first)).toBe('owner-only');
+    expect(await slugOf(recheck)).toBe('owner-only');
+    expect(reads).toEqual([]);
   });
 });

@@ -1,6 +1,7 @@
 import { problem, type WorkerContext } from '@worker/core';
 import { GitHubError, type ListTail, type RepoName } from '@worker/github';
 import type { ApiEnv } from '../env';
+import { isOwnerIdentity } from './owner-only.middleware';
 
 /**
  * The fixture-label gate of #62 and #193 (ADR 0003 decisions 1 and 8). The Access service identity (dev/stage only)
@@ -188,6 +189,33 @@ function refusalResponse(c: WorkerContext<ApiEnv>, refusal: ServiceWriteRefusal,
   });
 }
 
+/**
+ * Who may reach an owner write that is not behind `ownerOnlyMiddleware` (the answer route): the owner passes
+ * (`'owner'`), the service identity goes on to the fixture gate (`'service'`), and every other kind — the Phase 2
+ * `job` identity included — is a 403 `owner-only` before anything is read (#443). An allowlist, like
+ * `isOwnerIdentity`: a kind added later is refused until a route opts it in.
+ */
+export function ownerWriteGate(c: WorkerContext<ApiEnv>): 'owner' | 'service' | Response {
+  const identity = c.get('identity');
+  if (isOwnerIdentity(identity, c.env)) {
+    return 'owner';
+  }
+  if (identity.kind === 'service') {
+    return 'service';
+  }
+  c.get('logger').warn('owner write refused', {
+    reason: identity.kind,
+    method: c.req.method,
+    path: c.req.path,
+  });
+  return problem(c, {
+    type: 'owner-only',
+    title: 'Forbidden',
+    status: 403,
+    detail: 'Only the owner can use this route',
+  });
+}
+
 export interface ServiceWriteReads {
   /** The issue's events with the read-only installation token (one or two subrequests, `GitHubClient.lastPage`). */
   readonly labelHistory: () => Promise<ListTail<Record<string, unknown>>>;
@@ -196,9 +224,9 @@ export interface ServiceWriteReads {
 }
 
 /**
- * For the service identity: the 403 that refuses an owner write on this issue, or `null` to go on. Any other
- * identity passes untouched and costs no request. Call it on labels read live, before the owner token is read,
- * refreshed or used. Each read runs only when the previous step allows the write: labels, then the history, then
+ * For the service identity: the 403 that refuses an owner write on this issue, or `null` to go on. The owner
+ * passes untouched and costs no request; any other kind is 403 `owner-only` (`ownerWriteGate`). Call it on labels
+ * read live, before the owner token is read, refreshed or used. Each read runs only when the previous step allows the write: labels, then the history, then
  * the owner connection's pinned id (only once the newest labeller is a plain `User`).
  */
 export async function refuseServiceWrite(
@@ -206,8 +234,9 @@ export async function refuseServiceWrite(
   labels: readonly string[],
   reads: ServiceWriteReads,
 ): Promise<Response | null> {
-  if (c.get('identity').kind !== 'service') {
-    return null;
+  const gate = ownerWriteGate(c);
+  if (gate !== 'service') {
+    return gate === 'owner' ? null : gate;
   }
   const byLabels = labelRefusal(labels);
   if (byLabels !== null) {
@@ -249,8 +278,9 @@ export async function refuseServiceWriteOnRecheck(
   c: WorkerContext<ApiEnv>,
   readLabels: () => Promise<readonly string[]>,
 ): Promise<Response | null> {
-  if (c.get('identity').kind !== 'service') {
-    return null;
+  const gate = ownerWriteGate(c);
+  if (gate !== 'service') {
+    return gate === 'owner' ? null : gate;
   }
   const refusal = labelRefusal(await readLabels());
   return refusal === null ? null : refusalResponse(c, refusal, 'recheck');

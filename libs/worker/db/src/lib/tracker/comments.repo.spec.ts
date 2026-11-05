@@ -69,22 +69,38 @@ describe('CommentsRepo', () => {
     });
   });
 
+  /** An owner decision on the item that reverses `commentId` (0015 accepts no other as its reversal mark). */
+  async function reversingDecision(itemId: number, commentId: number, key: string): Promise<number> {
+    const row = await env.DB.prepare(
+      `INSERT INTO owner_decisions (project_slug, item_id, command, text, decided_at, via, idempotency_key,
+         reverses_comment_id)
+       SELECT project_slug, id, 'reject', 'No', ?2, 'web', ?3, ?4 FROM items WHERE id = ?1 RETURNING id`,
+    )
+      .bind(itemId, AT, key, commentId)
+      .first<{ id: number }>();
+    return row?.id ?? 0;
+  }
+
   it('can be neither edited nor deleted, and the reversal mark is set only once', async () => {
     const itemId = await seedItem();
-    const id = await comments().create(itemId, { kind: 'comment', body: 'as typed' }, OWNER_ACTOR, AT);
+    const id = await comments().create(itemId, { kind: 'decision', body: 'as typed' }, OWNER_ACTOR, AT);
+    const first = await reversingDecision(itemId, id, 'key-reversal-1');
+    const second = await reversingDecision(itemId, id, 'key-reversal-2');
     await expect(
       env.DB.prepare("UPDATE comments SET body = 'edited' WHERE id = ?1").bind(id).run(),
     ).rejects.toThrow(/append-only/);
     await expect(env.DB.prepare('DELETE FROM comments WHERE id = ?1').bind(id).run()).rejects.toThrow(
       /append-only/,
     );
-    await env.DB.prepare('UPDATE comments SET reversed_by_decision_id = 7 WHERE id = ?1').bind(id).run();
+    await env.DB.prepare('UPDATE comments SET reversed_by_decision_id = ?2 WHERE id = ?1')
+      .bind(id, first)
+      .run();
     await expect(
-      env.DB.prepare('UPDATE comments SET reversed_by_decision_id = 8 WHERE id = ?1').bind(id).run(),
+      env.DB.prepare('UPDATE comments SET reversed_by_decision_id = ?2 WHERE id = ?1').bind(id, second).run(),
     ).rejects.toThrow(/append-only/);
     await expect(comments().find(itemId, id)).resolves.toMatchObject({
       body: 'as typed',
-      reversedByDecisionId: 7,
+      reversedByDecisionId: first,
     });
   });
 

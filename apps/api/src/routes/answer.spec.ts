@@ -1,4 +1,4 @@
-import { env } from 'cloudflare:test';
+import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test';
 import { ANSWER_REPLAY_WINDOW_MS, isProblemDetails, problemSlugOf } from '@shared/contracts';
 import { answerComment } from '@shared/owner-grammar';
 import type { FakeGitHubOAuth } from '@worker/github/testing';
@@ -1075,5 +1075,60 @@ describe('logs and sentinels', () => {
     );
     expect(written).toMatchObject({ slug: 'tc', issue: 7, command: 'reject', identity: 'local' });
     expect(parsedLogs(h.logs)).toContainEqual(expect.objectContaining({ message: 'owner answer replayed' }));
+  });
+});
+
+// #443 (security review of #438, finding 1): the answer route is not behind ownerOnlyMiddleware. An identity of a
+// kind `authMiddleware` cannot mint today (the Phase 2 `job` identity) must not reach the owner's token through it.
+describe('an identity that is neither the owner nor the service (#443)', () => {
+  async function asForgedKind(h: Harness, issue: number, body: unknown, suffix: string): Promise<Response> {
+    vi.resetModules();
+    vi.doMock('../auth/access-jwt', async (importOriginal) => ({
+      ...(await importOriginal<typeof import('../auth/access-jwt')>()),
+      identityOf: () => ({ ok: true, identity: { kind: 'job', role: 'pm' } }),
+    }));
+    let createApp: typeof import('../app').createApiApp;
+    try {
+      createApp = (await import('../app')).createApiApp;
+    } finally {
+      vi.doUnmock('../auth/access-jwt');
+    }
+    await seedConnection(h.fake, { environment: 'stage' });
+    const jwks = stubJwksServer();
+    const teamDomain = uniqueTeamDomain();
+    const key = await createSigningKey();
+    jwks.set(teamDomain, { keys: [key.publicJwk] });
+    const token = await signAccessToken(key, teamDomain, {
+      claims: { email: undefined, common_name: SERVICE_TOKEN_ID },
+    });
+    const ctx = createExecutionContext();
+    const response = await createApp({ github: h.github, logSink: (line) => h.logs.push(line) }).fetch(
+      new Request(`http://api.test${PATH(issue)}${suffix}`, {
+        method: 'POST',
+        headers: { ...WRITE_HEADERS, 'Cf-Access-Jwt-Assertion': token },
+        body: JSON.stringify(body),
+      }),
+      accessEnv(teamDomain, { ENVIRONMENT: 'stage' }),
+      ctx,
+    );
+    await waitOnExecutionContext(ctx);
+    return response;
+  }
+
+  it.each([
+    ['a fixture issue the owner labelled', 20, { command: 'done', ownerSaid: 'сделано' }, ''],
+    ['a question', 7, { command: 'approve', ownerSaid: 'да' }, ''],
+    ['the lookup', 20, { command: 'done', ownerSaid: 'сделано', sentAgoMs: 61_000 }, '/lookup'],
+  ])('403 owner-only on %s; no GitHub call, nothing written', async (_case, issue, body, suffix) => {
+    const h = harness();
+    const response = await asForgedKind(h, issue, body, suffix);
+    expect(response.status).toBe(403);
+    expect((await problemOf(response)).slug).toBe('owner-only');
+    expect(h.stub.calls).toEqual([]);
+    expect(h.fake.comments).toEqual([]);
+    expect(await ownWrites()).toEqual([]);
+    const log = h.logs.join('\n');
+    expect(log).toContain('"identity":"job"');
+    expect(log).toContain('"reason":"job"');
   });
 });

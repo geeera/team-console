@@ -133,6 +133,25 @@ describe('buildTrackerInbox', () => {
     expect(buildTrackerInbox([{ ...ROW, number: 8, key: 'TC-8' }]).items[0]?.category).toBe('scope');
   });
 
+  // #443 (security review of #442, finding 1): a job writes the ask, so it gets the titles' treatment (#287).
+  it('strips invisible characters from the ask a job wrote, on the inbox and the questions', () => {
+    const rlo = String.fromCodePoint(0x202e);
+    const zwsp = String.fromCodePoint(0x200b);
+    const bom = String.fromCodePoint(0xfeff);
+    const row: TrackerInboxRow = {
+      ...ROW,
+      ask: {
+        ask: `Approve ${rlo}21$${zwsp} for the ${bom}domain?`,
+        category: 'money',
+        commands: ['approve', 'reject'],
+        recommended: 'approve',
+      },
+    };
+    expect(buildTrackerInbox([row]).items[0]?.ask).toBe('Approve 21$ for the domain?');
+    expect(buildTrackerQuestions([row]).items[0]?.ask).toBe('Approve 21$ for the domain?');
+    expect(trackerInboxItemsOf([row])[0]?.item.ask).toBe('Approve 21$ for the domain?');
+  });
+
   it('marks an imported row untrusted and never reads its body', () => {
     const [item] = buildTrackerInbox([{ ...ROW, createdByKind: 'import' }]).items;
     expect(item).toMatchObject({ authorTrusted: false, context: null });

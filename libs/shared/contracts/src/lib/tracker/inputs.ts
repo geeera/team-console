@@ -110,7 +110,10 @@ export interface CreateAskInput {
 export interface CreateDecisionInput {
   readonly command: DecisionCommand;
   readonly text: string;
-  /** The open ask the owner read; another open ask (or none) is 409 `ask-not-open`. */
+  /**
+   * The open ask the owner read; another open ask (or none) is 409 `ask-not-open`, and so is `null` while a console
+   * ask is open (#443): a decision always names the question it answers.
+   */
   readonly askId: number | null;
   /** A team decision (`comments.kind = 'decision'`) this `/reject` reverses. */
   readonly reversesCommentId: number | null;

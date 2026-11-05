@@ -13,6 +13,7 @@ const needsYou = (): NeedsYouDto => ({
     {
       section: 'question',
       number: 72,
+      key: null,
       title: 'План к демо',
       url: 'https://github.com/geeera/team-console/issues/72',
       ask: '/approve — начинаем',
@@ -34,6 +35,7 @@ const needsYou = (): NeedsYouDto => ({
     {
       section: 'release',
       number: 9,
+      key: null,
       title: 'Demo go / no-go',
       url: null,
       ask: null,
@@ -82,6 +84,12 @@ describe('isNeedsYouDto', () => {
     expect(isNeedsYouDto(needsYou())).toBe(true);
   });
 
+  it('accepts a console-tracker row by its key (#434)', () => {
+    expect(
+      isNeedsYouDto({ ...needsYou(), items: [{ ...needsYou().items[0], key: 'TC-310', url: null }] }),
+    ).toBe(true);
+  });
+
   it.each([
     ['a non-object', 'x'],
     ['items missing', { projects: [], omittedProjects: [] }],
@@ -95,6 +103,8 @@ describe('isNeedsYouDto', () => {
     ['trust missing', { ...needsYou(), items: [{ ...needsYou().items[0], authorTrusted: 'yes' }] }],
     ['an unknown category', { ...needsYou(), items: [{ ...needsYou().items[0], category: 'fun' }] }],
     ['no category member', { ...needsYou(), items: [{ ...needsYou().items[0], category: undefined }] }],
+    ['no key member', { ...needsYou(), items: [{ ...needsYou().items[0], key: undefined }] }],
+    ['a key that is not text', { ...needsYou(), items: [{ ...needsYou().items[0], key: 310 }] }],
     [
       'an unknown recommendation',
       { ...needsYou(), items: [{ ...needsYou().items[0], recommendation: 'override' }] },
@@ -193,6 +203,7 @@ describe('projectQuestionsOf / isQuestionsDto', () => {
         {
           section: 'owner',
           number: 21,
+          key: null,
           title: 'Cloudflare account',
           url: 'https://github.com/geeera/team-console/issues/21',
           ask: null,

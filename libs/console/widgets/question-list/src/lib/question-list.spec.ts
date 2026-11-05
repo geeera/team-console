@@ -47,6 +47,7 @@ function needsYouItem(
   return {
     section: 'question',
     number,
+    key: null,
     title: `Item ${number}`,
     url: `https://github.com/geeera/${project.slug}/issues/${number}`,
     ask: null,
@@ -131,6 +132,7 @@ describe('QuestionList', () => {
       const body: QuestionsDto = {
         items: golden.map((item) => ({
           ...item,
+          key: null,
           authorTrusted: true,
           context: null,
           body: '',

@@ -2,7 +2,18 @@ import type { InboxDto, InboxItemDto } from '@shared/contracts';
 import { buildNeedsYou } from './needs-you';
 
 function item(section: InboxItemDto['section'], number: number): InboxItemDto {
-  return { section, number, title: `#${number}`, url: null, ask: null, authorTrusted: true };
+  return {
+    section,
+    number,
+    key: null,
+    title: `#${number}`,
+    url: null,
+    ask: null,
+    authorTrusted: true,
+    category: null,
+    recommendation: null,
+    context: null,
+  };
 }
 
 function inbox(items: InboxItemDto[], setup = false): InboxDto {

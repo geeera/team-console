@@ -54,6 +54,7 @@ describe('migrations on a fresh D1', () => {
       '0012_owner_requests.sql',
       '0013_tracker.sql',
       '0014_decisions.sql',
+      '0015_decision_guards.sql',
     ]);
   });
 

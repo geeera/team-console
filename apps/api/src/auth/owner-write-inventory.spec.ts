@@ -182,6 +182,19 @@ describe('owner-write inventory (#62)', () => {
     expect(log).toContain('"reason":"job"');
   });
 
+  // #443: the fixture-gate routes skip ownerOnlyMiddleware for the service identity only; any other kind is refused
+  // before the project is even looked up.
+  const fixtureGated = Object.entries(RULES)
+    .filter(([, rule]) => rule === 'fixture-gate')
+    .map(([route]) => route);
+
+  it.each(fixtureGated)('%s answers 403 owner-only to an identity of an unknown kind', async (route) => {
+    const forgedApp = await appWithForgedIdentity({ kind: 'job', role: 'pm' });
+    const lines: string[] = [];
+    await expectOwnerOnly(await sendAsServiceToken(route, lines, forgedApp));
+    expect(lines.join('\n')).toContain('"reason":"job"');
+  });
+
   const jobOnly = Object.entries(RULES)
     .filter(([, rule]) => rule === 'job-only')
     .map(([route]) => route);

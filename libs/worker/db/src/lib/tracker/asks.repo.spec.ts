@@ -117,10 +117,10 @@ describe('AsksRepo', () => {
     await expect(env.DB.batch([asks().withdrawStatement(id, '2026-11-05T00:00:00.000Z')])).rejects.toThrow(
       /append-only/,
     );
-    // A withdrawn ask is never answered (the CHECK keeps the two apart).
+    // A withdrawn ask is never answered (the CHECK keeps the two apart; 0015 refuses a decision that is not its own).
     await expect(
       env.DB.prepare('UPDATE asks SET answered_by_decision_id = 1 WHERE id = ?1').bind(id).run(),
-    ).rejects.toThrow(/CHECK|FOREIGN KEY/);
+    ).rejects.toThrow(/CHECK|FOREIGN KEY|answered_by_decision_id must be/);
   });
 
   it('refuses commands outside ANSWERABLE, duplicates, an empty list and a recommendation outside them', async () => {

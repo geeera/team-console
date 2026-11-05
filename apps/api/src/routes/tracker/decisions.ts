@@ -11,7 +11,6 @@ import {
   AsksRepo,
   CommentsRepo,
   OwnerDecisionsRepo,
-  type AskRecord,
   type ItemRecord,
   type TrackerActor,
   type TrackerProject,
@@ -46,7 +45,6 @@ function sectionOfItem(item: ItemRecord): Section | null {
 }
 
 interface Judged {
-  readonly ask: AskRecord | null;
   readonly plan: ItemUpdatePlan | null;
 }
 
@@ -65,6 +63,19 @@ async function judge(
     return commandRefusal(c, 'This item is not waiting for the owner');
   }
   const open = await new AsksRepo(c.env.DB).findOpen(item.id);
+  // #443: a decision names the console ask it answers. Without `askId` the owner may be answering an ask that was
+  // replaced (new wording, new commands) between their read and the write, so an open console ask demands it.
+  const isAskMissing = input.askId === null && open !== null && open.source === 'console';
+  if (isAskMissing || (input.askId !== null && input.askId !== open?.id)) {
+    return problem(c, {
+      type: 'ask-not-open',
+      title: 'The question changed',
+      status: 409,
+      detail: isAskMissing
+        ? 'The item has an open question; send its askId'
+        : 'The ask was answered or replaced since it was read; read the item again',
+    });
+  }
   const allowed = open !== null && open.source === 'console' ? open.commands : ANSWERS[section];
   // `resume` is Phase 4's (`team_state`): the CHECK admits it, the route does not yet.
   if (!isAnswerCommand(input.command) || !allowed.includes(input.command)) {
@@ -72,14 +83,6 @@ async function judge(
   }
   if (NEEDS_REASON.has(input.command) && input.text.trim() === '') {
     return invalid(c, 'decision-invalid', 'text', `${input.command} needs the reason in text`);
-  }
-  if (input.askId !== null && input.askId !== open?.id) {
-    return problem(c, {
-      type: 'ask-not-open',
-      title: 'The question changed',
-      status: 409,
-      detail: 'The ask was answered or replaced since it was read; read the item again',
-    });
   }
   if (open !== null && open.source === 'import') {
     // R7: an imported question is re-confirmed on the cutover screen, never answered as is.
@@ -108,14 +111,14 @@ async function judge(
   }
   const effect = decisionEffectOf(section, input.command, item);
   if (effect === null) {
-    return { ask: open, plan: null };
+    return { plan: null };
   }
   const outcome = planItemUpdate(item, effect, undefined, at);
   if (outcome.kind === 'invalid') {
     // The table only names changes `planItemUpdate` accepts; anything else is a bug, never a partial write.
     throw new Error(`decision effect refused: ${outcome.field}`);
   }
-  return { ask: open, plan: outcome.kind === 'change' ? outcome.plan : null };
+  return { plan: outcome.kind === 'change' ? outcome.plan : null };
 }
 
 const OWNER: TrackerActor = { kind: 'owner', name: 'owner', jobId: null };
@@ -139,8 +142,8 @@ async function decide(
     if (judged instanceof Response) {
       return judged;
     }
-    // Without `askId` the open console ask, if any, is still the one answered.
-    const askId = judged.ask?.id ?? null;
+    // `judge` has bound `input.askId` to the open console ask; an imported one never gets here (R7).
+    const askId = input.askId;
     const written = await writeWithItemEffect(c.env.DB, item, judged.plan, OWNER, at, [
       ...decisions.createStatements(
         project.slug,
