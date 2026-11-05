@@ -29,12 +29,7 @@ describe('POST /projects/:slug/items/:key/asks', () => {
   it('records the ask, sets owner:<category> in the same batch and keeps the kind', async () => {
     const project = await seedTrackerProject();
     const { path } = await seedItem(project, { kind: 'feature', labels: ['owner:scope', 'needs:owner'] });
-    const response = await send(
-      'POST',
-      `${path}/asks`,
-      { ...ASK, recommended: 'reject' },
-      { policyActor: PM },
-    );
+    const response = await send('POST', `${path}/asks`, { ...ASK, recommended: 'reject' }, { job: PM });
     expect(response.status).toBe(201);
     const ask = (await response.json()) as AskDto;
     expect(ask).toMatchObject({
@@ -62,12 +57,12 @@ describe('POST /projects/:slug/items/:key/asks', () => {
   it('replaces the open ask instead of stacking a second one', async () => {
     const project = await seedTrackerProject();
     const { path } = await seedItem(project);
-    const first = (await (await send('POST', `${path}/asks`, ASK, { policyActor: PM })).json()) as AskDto;
+    const first = (await (await send('POST', `${path}/asks`, ASK, { job: PM })).json()) as AskDto;
     const response = await send(
       'POST',
       `${path}/asks`,
       { category: 'scope', ask: 'Rather ship without it?', commands: ['approve', 'reject'] },
-      { policyActor: jobActor('architect') },
+      { job: jobActor('architect') },
     );
     expect(response.status).toBe(201);
     const second = (await response.json()) as AskDto;
@@ -88,8 +83,8 @@ describe('POST /projects/:slug/items/:key/asks', () => {
     const project = await seedTrackerProject();
     const { path } = await seedItem(project);
     const key = newKey();
-    const first = await send('POST', `${path}/asks`, ASK, { key, policyActor: PM });
-    const again = await send('POST', `${path}/asks`, ASK, { key, policyActor: PM });
+    const first = await send('POST', `${path}/asks`, ASK, { key, job: PM });
+    const again = await send('POST', `${path}/asks`, ASK, { key, job: PM });
     expect(again.status).toBe(201);
     expect(again.headers.get('Idempotent-Replayed')).toBe('true');
     expect(await again.json()).toEqual(await first.json());
@@ -103,12 +98,12 @@ describe('POST /projects/:slug/items/:key/asks', () => {
     expect(owner.status).toBe(403);
     expect(await slugOf(owner)).toBe('ask-role');
     for (const role of ['dev', 'dev-light', 'dev-heavy']) {
-      const response = await send('POST', `${path}/asks`, ASK, { policyActor: jobActor(role) });
+      const response = await send('POST', `${path}/asks`, ASK, { job: jobActor(role) });
       expect(response.status).toBe(403);
       expect(await slugOf(response)).toBe('ask-role');
     }
     for (const role of ['qa', 'security', 'orchestrator', 'ux-designer']) {
-      const response = await send('POST', `${path}/asks`, ASK, { policyActor: jobActor(role) });
+      const response = await send('POST', `${path}/asks`, ASK, { job: jobActor(role) });
       expect(response.status).toBe(201);
     }
     expect(await countRows('asks', project.slug)).toBe(4);
@@ -135,7 +130,7 @@ describe('POST /projects/:slug/items/:key/asks', () => {
   ])('422 ask-invalid on %j (field %s), nothing written', async (body, field) => {
     const project = await seedTrackerProject();
     const { path } = await seedItem(project);
-    const response = await send('POST', `${path}/asks`, body, { policyActor: PM });
+    const response = await send('POST', `${path}/asks`, body, { job: PM });
     expect(response.status).toBe(422);
     expect(await slugOf(response)).toBe('ask-invalid');
     expect(await response.json()).toMatchObject({ field });
@@ -146,23 +141,21 @@ describe('POST /projects/:slug/items/:key/asks', () => {
     const project = await seedTrackerProject();
     const { path } = await seedItem(project, { kind: 'chore', status: 'approved' });
     await send('PATCH', path, { status: 'done' }, { ifMatch: '"1"' });
-    const response = await send('POST', `${path}/asks`, ASK, { policyActor: PM });
+    const response = await send('POST', `${path}/asks`, ASK, { job: PM });
     expect(response.status).toBe(409);
     expect(await slugOf(response)).toBe('item-closed');
   });
 
   it('404 for an unknown project or item, 409 tracker-not-cut-over on a GitHub project', async () => {
     const project = await seedTrackerProject();
+    expect(await slugOf(await send('POST', `/api/v1/projects/nope/items/1/asks`, ASK, { job: PM }))).toBe(
+      'project-not-found',
+    );
     expect(
-      await slugOf(await send('POST', `/api/v1/projects/nope/items/1/asks`, ASK, { policyActor: PM })),
-    ).toBe('project-not-found');
-    expect(
-      await slugOf(
-        await send('POST', `/api/v1/projects/${project.slug}/items/99/asks`, ASK, { policyActor: PM }),
-      ),
+      await slugOf(await send('POST', `/api/v1/projects/${project.slug}/items/99/asks`, ASK, { job: PM })),
     ).toBe('item-not-found');
     const github = await seedGitHubProject();
-    const refused = await send('POST', `/api/v1/projects/${github}/items/1/asks`, ASK, { policyActor: PM });
+    const refused = await send('POST', `/api/v1/projects/${github}/items/1/asks`, ASK, { job: PM });
     expect(refused.status).toBe(409);
     expect(await slugOf(refused)).toBe('tracker-not-cut-over');
   });
@@ -170,12 +163,7 @@ describe('POST /projects/:slug/items/:key/asks', () => {
   it('413 over the limit', async () => {
     const project = await seedTrackerProject();
     const { path } = await seedItem(project);
-    const response = await send(
-      'POST',
-      `${path}/asks`,
-      { ...ASK, ask: 'x'.repeat(17_000) },
-      { policyActor: PM },
-    );
+    const response = await send('POST', `${path}/asks`, { ...ASK, ask: 'x'.repeat(17_000) }, { job: PM });
     expect(response.status).toBe(413);
   });
 });
@@ -184,15 +172,15 @@ describe('GET /projects/:slug/items/:key/asks', () => {
   it('pages the asks oldest first for the owner, no-store; the service identity is refused', async () => {
     const project = await seedTrackerProject();
     const { path } = await seedItem(project);
-    await send('POST', `${path}/asks`, ASK, { policyActor: PM });
-    await send('POST', `${path}/asks`, { ...ASK, category: 'legal' }, { policyActor: PM });
+    await send('POST', `${path}/asks`, ASK, { job: PM });
+    await send('POST', `${path}/asks`, { ...ASK, category: 'legal' }, { job: PM });
     const page = await send('GET', `${path}/asks?limit=1`);
     expect(page.headers.get('Cache-Control')).toBe('no-store');
     const first = (await page.json()) as AskListDto;
     expect(first.asks.map((ask) => ask.category)).toEqual(['money']);
     const rest = (await (await send('GET', `${path}/asks?after=${String(first.next)}`)).json()) as AskListDto;
     expect(rest).toMatchObject({ asks: [{ category: 'legal', state: 'open' }], next: null });
-    expect((await send('GET', `${path}/asks`, undefined, { policyActor: PM })).status).toBe(200);
+    expect((await send('GET', `${path}/asks`, undefined, { job: PM })).status).toBe(200);
     expect(await slugOf(await sendAsService('GET', `${path}/asks`))).toBe('owner-only');
   });
 });

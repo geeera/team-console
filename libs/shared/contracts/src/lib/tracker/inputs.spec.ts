@@ -112,10 +112,24 @@ describe('sprint, comment and label inputs', () => {
   it('checks a comment', () => {
     expect(checkCreateCommentInput({ body: 'Looks good' })).toEqual({
       ok: true,
-      value: { body: 'Looks good' },
+      value: { kind: 'comment', body: 'Looks good' },
     });
     expect(checkCreateCommentInput({ body: '  \n' })).toEqual(failure('body'));
-    expect(checkCreateCommentInput({ body: 'x', kind: 'decision' })).toEqual(failure('body'));
+    expect(checkCreateCommentInput({ body: 'x', author: 'owner' })).toEqual(failure('body'));
+  });
+
+  it('checks a comment kind (#444): comment by default, note or decision when named, nothing else', () => {
+    expect(checkCreateCommentInput({ kind: 'note', body: 'x' })).toEqual({
+      ok: true,
+      value: { kind: 'note', body: 'x' },
+    });
+    expect(checkCreateCommentInput({ kind: 'decision', body: 'x' })).toEqual({
+      ok: true,
+      value: { kind: 'decision', body: 'x' },
+    });
+    for (const kind of ['verdict', 'approve', '', null, 1]) {
+      expect(checkCreateCommentInput({ kind, body: 'x' })).toEqual(failure('kind'));
+    }
   });
 
   it('checks a custom label', () => {

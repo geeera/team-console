@@ -201,7 +201,7 @@ Own tracker, core (#410, ADR 0006 Phase 1a; no UI and no import yet): `routes/tr
 under `/api/v1/projects/:slug/` — `GET|POST items`, `GET|PATCH items/:key` (`TC-310` or `310`; `ETag`/`If-Match:
 "<version>"`, 428 `item-version-required`, 412 `item-version`), `GET items/:key/events`, `GET|POST items/:key/comments`
 (append-only, no edit route), `GET|POST sprints`, `GET|PATCH sprints/:number` (`Sprint NN`), `GET|POST labels`. D1 only,
-owner-only in Phase 1a, reads included (the `job` identity and the route matrix come with Phase 2). Every write, in
+behind the route matrix (#444, below), reads included. Every write, in
 this order: 404 project → 409 `tracker-not-cut-over` while `projects.tracker = 'github'` → `Idempotency-Key` (400
 `idempotency-key`; `tracker/idempotency.ts` over `idempotency_keys`, completed inside the write's own batch, 24 h;
 replay answers the resource with `Idempotent-Replayed: true`, 409 `idempotency-in-flight`, 422
@@ -213,8 +213,8 @@ replay answers the resource with `Idempotent-Replayed: true`, 409 `idempotency-i
 change) → one D1 batch with its `item_events` rows, one per kind of change — the lifecycle (`status|closed|reopened`) apart from `labels|sprint|edited` (`tracker/item-change.ts` plans the columns and the before/after of the
 changed fields). Lists: `?after=&limit≤100`, items also `status|kind|severity|tier|sprint(=N|none)|label|state`. DTOs
 `ItemDto`, `TrackerSprintDto`, `CommentDto`, `ItemEventDto`, `LabelDto` (separate from the GitHub-backed board DTOs).
-Specs seed a fresh project per case (`testing/tracker-kit.ts`); `createApiApp({ trackerPolicyActorOf })` is the specs'
-stand-in for the Phase 2 job actor, never set by `main.ts`.
+Specs seed a fresh project per case (`testing/tracker-kit.ts`; `send(…, { job })` sends as a job through
+`createApiApp({ trackerPolicyActorOf })`, the specs' stand-in for the job identity, never set by `main.ts`).
 Asks, owner decisions and requests (#434, Phase 1a′): `routes/tracker/{asks,decisions,requests}.ts` — `GET|POST
 items/:key/asks` (job-only: any role but `dev*`, the owner 403 `ask-role`; replaces the open ask and sets
 `owner:<category>` in its batch, `askEffectOf`), `GET|POST items/:key/decisions` (owner-only, `via: web|push`, no
@@ -222,6 +222,16 @@ items/:key/asks` (job-only: any role but `dev*`, the owner 403 `ask-role`; repla
 effects by `decisionEffectOf` through `planItemUpdate` in one batch, a moved version re-read once then 409
 `item-changed`), `GET|POST items/:key/requests` (owner-only, no sprint logic) and `POST requests/:id/handled` (`pm` job
 only, 409 `request-handled`); the job-only writes refuse every deployed identity until Phase 2.
+Route matrix (#444, ADR 0006 decision 11; Phase 2 keeps the table and swaps the identity behind the job actor):
+`auth/tracker-matrix.ts` (`TRACKER_MATRIX`, one row per tracker route) enforced by `trackerAccess(route)` in
+`auth/tracker-access.middleware.ts`, which replaces `ownerOnlyMiddleware` on every tracker route — no policy actor (the
+service) 403 `owner-only` before anything is read; a job of another project 404 `project-not-found` (never 403); then
+the row's 403: reads owner + any role; `POST|PATCH items` any role, judged by `transitionRefusal` (holds = the item's
+number in the job's `items`; R2: `qa`/`reviewer`/`security` never set or clear `qa:changes-requested|review-failed|tier-up`,
+`verdict-flag`); comments any role, `kind: comment|note|decision` (`commentKindRefusal`: the owner `comment` only,
+`decision` not as `dev-light`, 403 `comment-kind`); sprints owner + `pm` (403 `sprint-role`); labels, decisions, requests
+owner only; asks any role but `dev*` (`ask-role`); handled `pm` only. Roles are `auth/job-roles.ts`.
+`tracker-matrix.spec.ts` proves every row × owner, each role, another project's job and the service.
 
 Artifacts (#19, read-only): `GET /api/v1/projects/:slug/artifacts[?fresh=1]` (`routes/artifacts.ts`, `read-models/artifact-reads.ts`)
 reads decisions (`decisions_dir` listing + first `#` heading, ≤ 30 file reads), designs (`ux-spec`/`design:*` issues,

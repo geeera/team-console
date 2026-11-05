@@ -11,6 +11,7 @@ import {
   uniqueTeamDomain,
 } from '../testing/access-kit';
 import { seedTrackerProject, send, sendAsService, slugOf } from '../testing/tracker-kit';
+import { TRACKER_MATRIX } from './tracker-matrix';
 
 // #62: every state-changing /api route says how it treats the dev/stage Access service identity. A new route fails
 // "is classified" until someone decides; an owner write must be `owner-only` or carry the fixture gate.
@@ -30,7 +31,12 @@ type ServiceRule =
    * #434: a job write (an ask, the PM's handled answer). No deployed identity maps to a job before Phase 2, so every
    * real caller is refused — the owner with a role 403, the service with 403 owner-only; proven in the route specs.
    */
-  | 'job-only';
+  | 'job-only'
+  /**
+   * #444: a tracker write behind `trackerAccess` — the service is refused there (403 owner-only), the owner and the
+   * jobs as their row of `TRACKER_MATRIX` says; every cell is proven in `tracker-matrix.spec.ts`.
+   */
+  | 'tracker-matrix';
 
 const RULES: Readonly<Record<string, ServiceRule>> = {
   'POST /api/v1/projects/:slug/issues/:number/answer': 'fixture-gate',
@@ -56,17 +62,17 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   // #221 (architect note on #29, amendment 6): D1 only, but the stage service key must not mute the owner's pushes.
   'PUT /api/v1/projects/:slug/notifications/snooze': 'owner-only',
   'DELETE /api/v1/projects/:slug/notifications/snooze': 'owner-only',
-  // #410 (ADR 0006): the console's own tracker, D1 only. Owner-only in Phase 1a, reads included (their route specs
-  // prove the GETs too); the `job` identity and the route matrix arrive with Phase 2 of #309.
-  'POST /api/v1/projects/:slug/items': 'owner-only',
-  'PATCH /api/v1/projects/:slug/items/:key': 'owner-only',
-  'POST /api/v1/projects/:slug/items/:key/comments': 'owner-only',
-  'POST /api/v1/projects/:slug/sprints': 'owner-only',
-  'PATCH /api/v1/projects/:slug/sprints/:number': 'owner-only',
-  'POST /api/v1/projects/:slug/labels': 'owner-only',
-  // #434 (ADR 0006 Phase 1a′): decisions and requests are the owner's own; asks and the PM's answer are job writes.
-  'POST /api/v1/projects/:slug/items/:key/decisions': 'owner-only',
-  'POST /api/v1/projects/:slug/items/:key/requests': 'owner-only',
+  // #410/#444 (ADR 0006): the console's own tracker, D1 only, behind the route matrix (reads included).
+  'POST /api/v1/projects/:slug/items': 'tracker-matrix',
+  'PATCH /api/v1/projects/:slug/items/:key': 'tracker-matrix',
+  'POST /api/v1/projects/:slug/items/:key/comments': 'tracker-matrix',
+  'POST /api/v1/projects/:slug/sprints': 'tracker-matrix',
+  'PATCH /api/v1/projects/:slug/sprints/:number': 'tracker-matrix',
+  'POST /api/v1/projects/:slug/labels': 'tracker-matrix',
+  // #434 (ADR 0006 Phase 1a′): decisions and requests are the owner's own (a job gets 403 owner-only from the
+  // matrix); asks and the PM's answer are job writes.
+  'POST /api/v1/projects/:slug/items/:key/decisions': 'tracker-matrix',
+  'POST /api/v1/projects/:slug/items/:key/requests': 'tracker-matrix',
   'POST /api/v1/projects/:slug/items/:key/asks': 'job-only',
   'POST /api/v1/projects/:slug/requests/:id/handled': 'job-only',
   'POST /api/v1/projects': 'no-owner-write',
@@ -195,6 +201,24 @@ describe('owner-write inventory (#62)', () => {
     expect(lines.join('\n')).toContain('"reason":"job"');
   });
 
+  const trackerWrites = Object.entries(RULES)
+    .filter(([, rule]) => rule === 'tracker-matrix' || rule === 'job-only')
+    .map(([route]) => route);
+
+  it('finds the tracker writes, each a row of the route matrix', () => {
+    expect(trackerWrites.length).toBeGreaterThan(0);
+    expect(trackerWrites.filter((route) => !(route in TRACKER_MATRIX))).toEqual([]);
+  });
+
+  it.each(trackerWrites)(
+    '%s answers 403 owner-only to the service identity and an unknown kind',
+    async (route) => {
+      await expectOwnerOnly(await sendAsServiceToken(route));
+      const forgedApp = await appWithForgedIdentity({ kind: 'job', role: 'pm' });
+      await expectOwnerOnly(await sendAsServiceToken(route, [], forgedApp));
+    },
+  );
+
   const jobOnly = Object.entries(RULES)
     .filter(([, rule]) => rule === 'job-only')
     .map(([route]) => route);
@@ -203,15 +227,18 @@ describe('owner-write inventory (#62)', () => {
     expect(jobOnly.length).toBeGreaterThan(0);
   });
 
-  it.each(jobOnly)('%s refuses the owner (a role 403) and the service identity (403 owner-only)', async (route) => {
-    const [method = '', pattern = ''] = route.split(' ');
-    const { slug } = await seedTrackerProject();
-    const path = pattern.replace(':slug', slug).replace(/:[^/]+/g, '1');
-    const owner = await send(method as 'POST', path, {});
-    expect(owner.status).toBe(403);
-    expect(['ask-role', 'request-handled-role']).toContain(await slugOf(owner));
-    const service = await sendAsService(method, path, {});
-    expect(service.status).toBe(403);
-    expect(await slugOf(service)).toBe('owner-only');
-  });
+  it.each(jobOnly)(
+    '%s refuses the owner (a role 403) and the service identity (403 owner-only)',
+    async (route) => {
+      const [method = '', pattern = ''] = route.split(' ');
+      const { slug } = await seedTrackerProject();
+      const path = pattern.replace(':slug', slug).replace(/:[^/]+/g, '1');
+      const owner = await send(method as 'POST', path, {});
+      expect(owner.status).toBe(403);
+      expect(['ask-role', 'request-handled-role']).toContain(await slugOf(owner));
+      const service = await sendAsService(method, path, {});
+      expect(service.status).toBe(403);
+      expect(await slugOf(service)).toBe('owner-only');
+    },
+  );
 });
