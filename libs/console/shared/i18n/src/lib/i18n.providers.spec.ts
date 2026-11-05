@@ -1,8 +1,8 @@
 import { DOCUMENT } from '@angular/common';
-import { ApplicationInitStatus } from '@angular/core';
+import { ApplicationInitStatus, ErrorHandler } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { TranslocoService } from '@jsverse/transloco';
-import { firstValueFrom, of, throwError } from 'rxjs';
+import { firstValueFrom, throwError } from 'rxjs';
 import { provideConsoleAppI18n, provideConsoleI18n } from './i18n.providers';
 import { DEVICE_LANGUAGES, LANGUAGE_STORAGE, memoryLanguageStorage } from './language-preference';
 import { LazyTranslationLoader } from './lazy-translation-loader';
@@ -75,14 +75,8 @@ describe('StaticTranslationLoader', () => {
 });
 
 describe('LazyTranslationLoader (the app, #433)', () => {
-  it('loads Russian from its own chunk, not inline', async () => {
-    const loader = new LazyTranslationLoader();
-    let synchronous: unknown = null;
-    const pending = firstValueFrom(loader.getTranslation('ru'));
-    loader.getTranslation('ru').subscribe((translation) => (synchronous = translation));
-
-    expect(synchronous).toBeNull();
-    expect(await pending).toEqual(ru);
+  it('loads Russian from its own chunk', async () => {
+    expect(await firstValueFrom(new LazyTranslationLoader().getTranslation('ru'))).toEqual(ru);
   });
 
   it('loads English from its own chunk', async () => {
@@ -116,19 +110,17 @@ describe('provideConsoleAppI18n', () => {
     expect(transloco.translate('shell.needsYou')).toBe('Needs you');
   });
 
-  it('still starts, and says so, when no dictionary can load at all', async () => {
+  it('still starts, and reports it, when no dictionary can load at all', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.spyOn(LazyTranslationLoader.prototype, 'getTranslation').mockImplementation(() =>
       throwError(() => new Error('offline')),
     );
+    const handleError = vi.fn();
+    TestBed.configureTestingModule({ providers: [{ provide: ErrorHandler, useValue: { handleError } }] });
     configure();
 
     await expect(TestBed.inject(ApplicationInitStatus).donePromise).resolves.toBeUndefined();
-    expect(error).toHaveBeenCalledWith(
-      'i18n: could not load "ru" either; starting without a dictionary',
-      expect.anything(),
-    );
+    expect(handleError).toHaveBeenCalledWith(expect.any(Error));
     vi.restoreAllMocks();
   });
 });

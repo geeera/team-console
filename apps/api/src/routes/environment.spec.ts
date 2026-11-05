@@ -59,7 +59,10 @@ function expectNoLeak(text: string): void {
   expect(text).not.toContain(SENTINEL);
   expect(text).not.toContain(SENTINEL.slice(0, 12));
   expect(text).not.toContain(SENTINEL.slice(-8));
-  expect(text).not.toMatch(new RegExp(`\\b${SENTINEL.length}\\b`));
+  // A bare `\b${SENTINEL.length}\b` match is too broad: it also fires on unrelated digits that happen to share
+  // the sentinel's length, e.g. a timestamp's seconds field. Only flag it where a 'length' key points at it —
+  // the shape a masking bug that logs `value.length` instead of the masked value would actually produce.
+  expect(text).not.toMatch(new RegExp(`length["'\\s:=]{1,6}${SENTINEL.length}\\b`, 'i'));
 }
 
 beforeEach(async () => {
