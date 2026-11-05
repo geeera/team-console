@@ -191,7 +191,7 @@ describe('GET /projects/:slug/items/:key/asks text', () => {
     const { path } = await seedItem(project);
     // A right-to-left override and a zero-width space could make the owner read another question.
     const posed = `Pay ${String.fromCodePoint(0x202e)}21$${String.fromCodePoint(0x200b)} a year?`;
-    expect((await send('POST', `${path}/asks`, { ...ASK, ask: posed }, { policyActor: PM })).status).toBe(201);
+    expect((await send('POST', `${path}/asks`, { ...ASK, ask: posed }, { job: PM })).status).toBe(201);
     const list = (await (await send('GET', `${path}/asks`)).json()) as AskListDto;
     expect(list.asks.map((ask) => ask.ask)).toEqual(['Pay 21$ a year?']);
   });
