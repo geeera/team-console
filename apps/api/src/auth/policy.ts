@@ -1,5 +1,7 @@
-import type { ItemStatus } from '@shared/contracts';
+import type { AskCategory, DecisionCommand, ItemStatus, Section, UpdateItemInput } from '@shared/contracts';
+import type { ItemRecord } from '@worker/db';
 import type { ApiEnv } from '../env';
+import { planItemUpdate, type ItemUpdatePlan } from '../tracker/item-change';
 import type { Identity } from './auth.types';
 import { isOwnerIdentity } from './owner-only.middleware';
 
@@ -13,8 +15,11 @@ import { isOwnerIdentity } from './owner-only.middleware';
 
 export type PolicyActor =
   | { readonly kind: 'owner' }
-  /** `holdsItem`: the job's payload names this item (Phase 2 derives it; nothing in a body can claim it). */
-  | { readonly kind: 'job'; readonly role: string; readonly holdsItem: boolean };
+  /**
+   * `holdsItem`: the job's payload names this item; `jobId`: the job the token belongs to (Phase 2 derives both from
+   * the job identity; nothing in a body can claim either).
+   */
+  | { readonly kind: 'job'; readonly role: string; readonly holdsItem: boolean; readonly jobId: string };
 
 /** The parts of an item the table judges, before and after a change. */
 export interface ItemPolicyState {
@@ -52,6 +57,7 @@ const STATUS_ONLY_ROLE = /^(dev(-[a-z]+)?|qa)$/;
 /** Flags only the owner sets or clears; outside Phase 1a′'s decision effects, never a job. */
 const OWNER_FLAG_PREFIX = 'owner:';
 const DESIGN_APPROVED = 'design:approved';
+const DESIGN_AWAITING = 'design:awaiting-approval';
 const DEMO = 'team:demo';
 const WORKFLOW_CHANGE = 'workflow-change';
 /** Removing one of these needs `security` or `pm`, so a job cannot quietly unblock a release or a review. */
@@ -141,4 +147,56 @@ export function policyActorOf(
   env: Pick<ApiEnv, 'ENVIRONMENT' | 'AUTH_MODE'>,
 ): PolicyActor | null {
   return isOwnerIdentity(identity, env) ? { kind: 'owner' } : null;
+}
+
+/**
+ * What an owner decision does to its item (R5, ADR 0006 "API and authorisation"): the owner-semantic changes a job
+ * can never make itself, applied by the decision route through `planItemUpdate` in the decision's own batch, so the
+ * events and the version bump are the same code as a PATCH. `null`: the decision row and its `decided` event only.
+ */
+export function decisionEffectOf(
+  section: Section,
+  command: DecisionCommand,
+  item: { readonly status: ItemStatus },
+): UpdateItemInput | null {
+  // The owner-only `proposed → approved`; an item already past it keeps its status.
+  const approve: UpdateItemInput = item.status === 'proposed' ? { status: 'approved' } : {};
+  switch (section) {
+    case 'question':
+      // `reject` changes nothing: the PM closes the item as not planned, which a job may do.
+      return command === 'approve' && item.status === 'proposed' ? approve : null;
+    case 'design':
+      if (command === 'approve') {
+        return { ...approve, addLabels: [DESIGN_APPROVED], removeLabels: [DESIGN_AWAITING] };
+      }
+      // The designer re-submits; the reason is the decision's text.
+      return command === 'reject' ? { removeLabels: [DESIGN_AWAITING] } : null;
+    case 'release':
+      // The demo item closes on any release decision; the decision row is the release record (ADR 0006 amendment).
+      return command === 'go' || command === 'no-go' || command === 'override' ? { status: 'done' } : null;
+    case 'owner':
+      return command === 'done' ? { removeLabels: ['needs:owner'] } : null;
+    case 'local':
+      return command === 'done' ? { removeLabels: ['needs:local'] } : null;
+  }
+}
+
+/**
+ * What a job's ask does to its item, as `backlog ask` does on GitHub: `owner:<category>` is set and any other
+ * `owner:*` removed; the kind and `needs:owner` are left alone. The second R5 exception (ADR 0006 amendment): applied
+ * only as the effect of an `asks` row in the ask's own batch, never through the job's PATCH. `null` when the item
+ * already carries exactly that flag.
+ */
+export function askEffectOf(item: ItemRecord, category: AskCategory, at: string): ItemUpdatePlan | null {
+  const flag = `${OWNER_FLAG_PREFIX}${category}`;
+  const outcome = planItemUpdate(
+    item,
+    {
+      addLabels: [flag],
+      removeLabels: item.flags.filter((name) => name.startsWith(OWNER_FLAG_PREFIX) && name !== flag),
+    },
+    undefined,
+    at,
+  );
+  return outcome.kind === 'change' ? outcome.plan : null;
 }

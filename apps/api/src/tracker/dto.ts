@@ -1,5 +1,8 @@
 import {
   itemKeyOf,
+  type AskDto,
+  type DecisionDto,
+  type ItemRequestDto,
   type CommentDto,
   type ItemDto,
   type ItemEventDto,
@@ -9,6 +12,9 @@ import {
 } from '@shared/contracts';
 import { withoutInvisibles } from '@shared/plain-text';
 import type {
+  AskRecord,
+  DecisionRecord,
+  ItemRequestRecord,
   CommentRecord,
   ItemEventRecord,
   ItemRecord,
@@ -98,4 +104,43 @@ export function itemEventDtoOf(event: ItemEventRecord): ItemEventDto {
 
 export function labelDtoOf(label: LabelRecord): LabelDto {
   return { name: label.name, color: label.color, description: label.description, builtin: label.builtin };
+}
+
+export function askDtoOf(ask: AskRecord): AskDto {
+  return {
+    id: ask.id,
+    category: ask.category,
+    ask: ask.ask,
+    commands: ask.commands,
+    recommended: ask.recommended,
+    createdAt: ask.createdAt,
+    source: ask.source,
+    state: ask.answeredByDecisionId !== null ? 'answered' : ask.withdrawnAt !== null ? 'withdrawn' : 'open',
+    answeredByDecisionId: ask.answeredByDecisionId,
+    withdrawnAt: ask.withdrawnAt,
+  };
+}
+
+export function decisionDtoOf(decision: DecisionRecord): DecisionDto {
+  return {
+    id: decision.id,
+    command: decision.command,
+    text: decision.text,
+    askId: decision.askId,
+    reversesCommentId: decision.reversesCommentId,
+    via: decision.via,
+    decidedAt: decision.decidedAt,
+    sourceUrl: decision.sourceUrl,
+  };
+}
+
+export function itemRequestDtoOf(request: ItemRequestRecord): ItemRequestDto {
+  return {
+    id: request.id,
+    request: request.request,
+    requestedAt: request.requestedAt,
+    result: request.result,
+    reason: request.reason,
+    handledAt: request.handledAt,
+  };
 }

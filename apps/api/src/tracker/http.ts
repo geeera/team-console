@@ -25,6 +25,11 @@ export function writeLimit(maxBytes: number): MiddlewareHandler<WorkerHonoEnv<Ap
 
 export const TEXT_WRITE_MAX_BYTES = 512 * 1024;
 export const SMALL_WRITE_MAX_BYTES = 4 * 1024;
+/**
+ * Asks (2,048 characters), decision texts (2,000) and the PM's reasons (1,024): above `SMALL_WRITE_MAX_BYTES`, since
+ * a Cyrillic or escaped text within its bound already outgrows 4 KB.
+ */
+export const ASK_WRITE_MAX_BYTES = 16 * 1024;
 
 export interface Page {
   readonly after: number;

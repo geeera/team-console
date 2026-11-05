@@ -70,6 +70,8 @@ describe('OwnerDecisionsRepo', () => {
       idempotencyKey: 'key-decide-1',
     });
     expect(await decisions().find(itemId, recorded?.id ?? 0)).toEqual(recorded);
+    expect(await decisions().findByKey(itemId, 'key-decide-1')).toEqual(recorded);
+    expect(await decisions().findByKey(itemId, 'key-other')).toBeNull();
     expect(await new AsksRepo(env.DB).find(itemId, askId)).toMatchObject({
       answeredByDecisionId: recorded?.id,
     });

@@ -1,6 +1,10 @@
 import type { ItemStatus } from '@shared/contracts';
 import type { Identity } from './auth.types';
+import type { DecisionCommand, Section } from '@shared/contracts';
+import type { ItemRecord } from '@worker/db';
 import {
+  askEffectOf,
+  decisionEffectOf,
   policyActorOf,
   transitionRefusal,
   type ItemPolicyState,
@@ -11,7 +15,12 @@ import {
 // R5 of the #408 threat model: owner-semantic status and flags are the owner's alone; roles act within the table.
 
 const OWNER: PolicyActor = { kind: 'owner' };
-const job = (role: string, holdsItem = false): PolicyActor => ({ kind: 'job', role, holdsItem });
+const job = (role: string, holdsItem = false): PolicyActor => ({
+  kind: 'job',
+  role,
+  holdsItem,
+  jobId: 'job-test-1',
+});
 
 function state(status: ItemStatus, flags: string[] = [], closed = status === 'done'): ItemPolicyState {
   return { status, flags, closed };
@@ -145,5 +154,99 @@ describe('policyActorOf', () => {
     const futureKind = { kind: 'job', role: 'pm' } as unknown as Identity;
     expect(policyActorOf(futureKind, local)).toBeNull();
     expect(policyActorOf(futureKind, deployed)).toBeNull();
+  });
+});
+
+// #434 §5: every (section, command) cell of the decision table. A cell not named is `null` (the row and its event).
+describe('decisionEffectOf', () => {
+  const proposed = { status: 'proposed' } as const;
+  const inProgress = { status: 'in-progress' } as const;
+  const commands: readonly DecisionCommand[] = [
+    'approve',
+    'reject',
+    'go',
+    'no-go',
+    'done',
+    'override',
+    'resume',
+  ];
+  const expected: Record<Section, Partial<Record<DecisionCommand, unknown>>> = {
+    question: { approve: { status: 'approved' } },
+    design: {
+      approve: {
+        status: 'approved',
+        addLabels: ['design:approved'],
+        removeLabels: ['design:awaiting-approval'],
+      },
+      reject: { removeLabels: ['design:awaiting-approval'] },
+    },
+    release: { go: { status: 'done' }, 'no-go': { status: 'done' }, override: { status: 'done' } },
+    owner: { done: { removeLabels: ['needs:owner'] } },
+    local: { done: { removeLabels: ['needs:local'] } },
+  };
+  const cells = (Object.keys(expected) as Section[]).flatMap((section) =>
+    commands.map((command) => [section, command, expected[section][command] ?? null] as const),
+  );
+
+  it.each(cells)('%s + %s on a proposed item → %j', (section, command, effect) => {
+    expect(decisionEffectOf(section, command, proposed)).toEqual(effect);
+  });
+
+  it('approves only a proposed item; past it, approve changes the status of nothing', () => {
+    expect(decisionEffectOf('question', 'approve', inProgress)).toBeNull();
+    expect(decisionEffectOf('design', 'approve', inProgress)).toEqual({
+      addLabels: ['design:approved'],
+      removeLabels: ['design:awaiting-approval'],
+    });
+  });
+});
+
+describe('askEffectOf', () => {
+  const AT = '2026-11-05T09:00:00.000Z';
+  const item = (flags: string[]): ItemRecord => ({
+    id: 1,
+    number: 7,
+    kind: 'feature',
+    status: 'in-progress',
+    severity: null,
+    tier: null,
+    sprintNumber: null,
+    title: 'T',
+    body: '',
+    flags,
+    closedAt: null,
+    closedReason: null,
+    createdByKind: 'owner',
+    createdBy: 'owner',
+    createdAt: AT,
+    updatedAt: AT,
+    version: 2,
+    source: 'console',
+    sourceUrl: null,
+  });
+
+  it('sets owner:<category> and removes any other owner flag, nothing else', () => {
+    const plan = askEffectOf(item(['needs:owner', 'owner:scope', 'security']), 'money', AT);
+    expect(plan?.flags).toEqual({ add: ['owner:money'], remove: ['owner:scope'] });
+    expect(plan?.patch).toEqual({});
+    expect(plan?.events.map((event) => event.kind)).toEqual(['labels']);
+    expect(plan?.transition.after.flags).toEqual(['needs:owner', 'owner:money', 'security']);
+  });
+
+  it('keeps the kind: an ask on a feature stays a feature', () => {
+    expect(askEffectOf(item([]), 'scope', AT)?.patch).toEqual({});
+  });
+
+  it('is null when the item already carries exactly that flag', () => {
+    expect(askEffectOf(item(['owner:legal']), 'legal', AT)).toBeNull();
+  });
+
+  it('is an effect a job could never make by PATCH (the R5 exception is the ask row)', () => {
+    const plan = askEffectOf(item([]), 'design', AT);
+    expect(plan).not.toBeNull();
+    expect(transitionRefusal(job('pm'), plan?.transition ?? change(null, state('proposed')))).toEqual({
+      type: 'transition-owner-only',
+      reason: 'owner-flag',
+    });
   });
 });

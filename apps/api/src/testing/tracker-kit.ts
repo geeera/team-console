@@ -1,6 +1,12 @@
 import { env } from 'cloudflare:test';
-import { isProblemDetails, problemSlugOf } from '@shared/contracts';
-import { TrackerProjectsRepo } from '@worker/db';
+import {
+  isProblemDetails,
+  problemSlugOf,
+  type AskDto,
+  type CreateItemInput,
+  type ItemDto,
+} from '@shared/contracts';
+import { CommentsRepo, ItemsRepo, TrackerProjectsRepo } from '@worker/db';
 import type { PolicyActor } from '../auth/policy';
 import {
   SERVICE_TOKEN_ID,
@@ -126,10 +132,22 @@ export async function sendWithoutIdentity(method: string, path: string): Promise
 }
 
 export async function countRows(
-  table: 'items' | 'item_events' | 'item_labels' | 'comments' | 'sprints' | 'labels',
+  table:
+    | 'items'
+    | 'item_events'
+    | 'item_labels'
+    | 'comments'
+    | 'sprints'
+    | 'labels'
+    | 'asks'
+    | 'owner_decisions'
+    | 'item_requests',
   slug: string,
 ): Promise<number> {
   const where: Record<typeof table, string> = {
+    asks: 'project_slug = ?1',
+    owner_decisions: 'project_slug = ?1',
+    item_requests: 'project_slug = ?1',
     items: 'project_slug = ?1',
     sprints: 'project_slug = ?1',
     labels: 'project_slug = ?1',
@@ -141,4 +159,74 @@ export async function countRows(
     .bind(slug)
     .first<{ n: number }>();
   return row?.n ?? 0;
+}
+
+/** The specs' stand-in for a Phase 2 job identity of `role` (#434); only `trackerPolicyActorOf` can mint it. */
+export function jobActor(role: string, jobId = 'job-test-1'): PolicyActor {
+  return { kind: 'job', role, holdsItem: false, jobId };
+}
+
+export const PM: PolicyActor = jobActor('pm');
+
+/** An item created by the owner through the API; its key and the API path of the item. */
+export async function seedItem(
+  project: SeededProject,
+  item: Partial<CreateItemInput> = {},
+): Promise<{ key: string; path: string }> {
+  const response = await send('POST', `/api/v1/projects/${project.slug}/items`, {
+    title: 'Item',
+    kind: 'question',
+    ...item,
+  });
+  if (response.status !== 201) {
+    throw new Error(`seeding an item answered ${String(response.status)}`);
+  }
+  const { key } = (await response.json()) as ItemDto;
+  return { key, path: `/api/v1/projects/${project.slug}/items/${key}` };
+}
+
+/** An ask written by the PM job through the API (#434). */
+export async function seedAsk(
+  itemPath: string,
+  ask: { category?: string; ask?: string; commands?: string[]; recommended?: string | null } = {},
+): Promise<AskDto> {
+  const response = await send(
+    'POST',
+    `${itemPath}/asks`,
+    { category: 'scope', ask: 'Ship it now?', commands: ['approve', 'reject'], ...ask },
+    { policyActor: PM },
+  );
+  if (response.status !== 201) {
+    throw new Error(`seeding an ask answered ${String(response.status)}`);
+  }
+  return (await response.json()) as AskDto;
+}
+
+/** A GitHub-era open ask as the import writer (Phase 1b) will store it: `source = 'import'`. */
+export async function seedImportedAsk(slug: string, itemNumber: number): Promise<number> {
+  const row = await env.DB.prepare(
+    `INSERT INTO asks (project_slug, item_id, category, ask, commands, created_at, source)
+     SELECT ?1, id, 'scope', 'Imported question?', '["approve","reject"]', '2026-11-01T00:00:00.000Z', 'import'
+     FROM items WHERE project_slug = ?1 AND number = ?2 RETURNING id`,
+  )
+    .bind(slug, itemNumber)
+    .first<{ id: number }>();
+  if (row === null) {
+    throw new Error('seeding an imported ask found no item');
+  }
+  return row.id;
+}
+
+/** A team decision (`comments.kind = 'decision'`, formerly `backlog decide`) on the item, by a job. */
+export async function seedTeamDecision(slug: string, itemNumber: number): Promise<number> {
+  const item = await new ItemsRepo(env.DB).findByNumber(slug, itemNumber);
+  if (item === null) {
+    throw new Error('seeding a team decision found no item');
+  }
+  return new CommentsRepo(env.DB).create(
+    item.id,
+    { kind: 'decision', body: 'We ship without the export' },
+    { kind: 'job', name: 'architect', jobId: 'job-test-2' },
+    '2026-11-01T00:00:00.000Z',
+  );
 }

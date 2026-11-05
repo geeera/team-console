@@ -78,6 +78,15 @@ export class OwnerDecisionsRepo {
     return row === null ? null : toRecord(row);
   }
 
+  /** The decision a route wrote under the client's `Idempotency-Key` (unique per environment). */
+  async findByKey(itemId: number, idempotencyKey: string): Promise<DecisionRecord | null> {
+    const row = await this.db
+      .prepare(`SELECT ${COLUMNS} FROM owner_decisions WHERE item_id = ?1 AND idempotency_key = ?2`)
+      .bind(itemId, idempotencyKey)
+      .first<DecisionRow>();
+    return row === null ? null : toRecord(row);
+  }
+
   /** Oldest first, after the decision id `after` (the cursor), at most `limit`; imported history included. */
   async list(itemId: number, after: number, limit: number): Promise<DecisionRecord[]> {
     const { results } = await this.db

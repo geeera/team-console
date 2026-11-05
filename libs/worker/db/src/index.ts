@@ -45,6 +45,7 @@ export type {
 } from './lib/tracker/items.repo';
 export { CommentsRepo } from './lib/tracker/comments.repo';
 export type { CommentRecord } from './lib/tracker/comments.repo';
+export { batchUnlessConflict, isAppendOnlyConflict } from './lib/tracker/constraint-error';
 export { AsksRepo } from './lib/tracker/asks.repo';
 export type { AskRecord, NewAsk } from './lib/tracker/asks.repo';
 export { OwnerDecisionsRepo } from './lib/tracker/owner-decisions.repo';
