@@ -7,7 +7,6 @@ import {
   type ItemDto,
 } from '@shared/contracts';
 import { CommentsRepo, ItemsRepo, TrackerProjectsRepo } from '@worker/db';
-import type { PolicyActor } from '../auth/policy';
 import {
   SERVICE_TOKEN_ID,
   accessEnv,
@@ -18,11 +17,13 @@ import {
   uniqueTeamDomain,
 } from './access-kit';
 import { localEnv } from './github-kit';
+import { testJobActor, type TestJob } from './local-job-kit';
 
 /**
  * Test-only kit for the tracker routes (#410). Tracker rows are append-only and reference their project, so every
  * case seeds its own project instead of clearing tables. Requests go through the whole app with the local bypass
- * (the owner), so the auth seam, CSRF and the owner-only gate all run.
+ * — the owner, or a job through `trackerPolicyActorOf` (#434, #444) — so the auth seam, CSRF and the route matrix
+ * all run.
  */
 
 let counter = 0;
@@ -68,7 +69,8 @@ export interface TrackerRequest {
   readonly key?: string | null;
   readonly ifMatch?: string;
   readonly headers?: Record<string, string>;
-  readonly policyActor?: PolicyActor;
+  /** Send as this job instead of the owner; its project defaults to the path's. */
+  readonly job?: TestJob;
 }
 
 /** A request as the owner's console sends it: same-origin, JSON, a fresh `Idempotency-Key` on writes. */
@@ -87,12 +89,12 @@ export async function send(
   if (options.ifMatch !== undefined) {
     headers['If-Match'] = options.ifMatch;
   }
-  const policyActor = options.policyActor;
+  const job = options.job === undefined ? undefined : testJobActor(options.job, path);
   return fetchApi(path, localEnv(), {
     method,
     headers: { ...headers, ...options.headers },
     ...(body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }),
-    ...(policyActor === undefined ? {} : { trackerPolicyActorOf: () => policyActor }),
+    ...(job === undefined ? {} : { trackerPolicyActorOf: () => job }),
   });
 }
 
@@ -161,12 +163,12 @@ export async function countRows(
   return row?.n ?? 0;
 }
 
-/** The specs' stand-in for a Phase 2 job identity of `role` (#434); only `trackerPolicyActorOf` can mint it. */
-export function jobActor(role: string, jobId = 'job-test-1'): PolicyActor {
-  return { kind: 'job', role, holdsItem: false, jobId };
+/** A job of `role` for `send` (#434, #444), standing in for the job identity. */
+export function jobActor(role: string, jobId = 'job-test-1', items: readonly number[] = []): TestJob {
+  return { role, jobId, items };
 }
 
-export const PM: PolicyActor = jobActor('pm');
+export const PM: TestJob = jobActor('pm');
 
 /** An item created by the owner through the API; its key and the API path of the item. */
 export async function seedItem(
@@ -194,7 +196,7 @@ export async function seedAsk(
     'POST',
     `${itemPath}/asks`,
     { category: 'scope', ask: 'Ship it now?', commands: ['approve', 'reject'], ...ask },
-    { policyActor: PM },
+    { job: PM },
   );
   if (response.status !== 201) {
     throw new Error(`seeding an ask answered ${String(response.status)}`);

@@ -1,4 +1,11 @@
-import type { AskCategory, DecisionCommand, ItemStatus, Section, UpdateItemInput } from '@shared/contracts';
+import type {
+  AskCategory,
+  CommentKind,
+  DecisionCommand,
+  ItemStatus,
+  Section,
+  UpdateItemInput,
+} from '@shared/contracts';
 import type { ItemRecord } from '@worker/db';
 import type { ApiEnv } from '../env';
 import { planItemUpdate, type ItemUpdatePlan } from '../tracker/item-change';
@@ -7,19 +14,24 @@ import { isOwnerIdentity } from './owner-only.middleware';
 
 /**
  * Who may change what on a tracker item: the transition table of ADR 0006 "API and authorisation" (threat model
- * #408, R5), a table in code rather than checks spread over handlers. In Phase 1a only the owner reaches the tracker
- * routes (`ownerOnlyMiddleware`); the `job` actor is here so the owner-semantic rules are fixed and tested before the
- * job identity and the route matrix arrive with Phase 2 of #309. Imported text never reaches this table as an actor:
- * an imported row is data, it does not authorise a change.
+ * #408, R5), a table in code rather than checks spread over handlers. Which identity reaches which tracker route is
+ * the route matrix (`tracker-matrix.ts`); this table then judges the change itself. Imported text never reaches
+ * this table as an actor: an imported row is data, it does not authorise a change.
  */
 
 export type PolicyActor =
   | { readonly kind: 'owner' }
   /**
-   * `holdsItem`: the job's payload names this item; `jobId`: the job the token belongs to (Phase 2 derives both from
-   * the job identity; nothing in a body can claim either).
+   * A job of one role in one project. `items`: the item numbers its payload names, the items it "holds"; `jobId`:
+   * the job the token belongs to. All from the identity, never from a body.
    */
-  | { readonly kind: 'job'; readonly role: string; readonly holdsItem: boolean; readonly jobId: string };
+  | {
+      readonly kind: 'job';
+      readonly role: string;
+      readonly projectSlug: string;
+      readonly jobId: string;
+      readonly items: readonly number[];
+    };
 
 /** The parts of an item the table judges, before and after a change. */
 export interface ItemPolicyState {
@@ -47,7 +59,8 @@ export type TransitionRefusal = {
     | 'workflow-change'
     | 'remove-guard-flag'
     | 'role-cannot-edit'
-    | 'item-not-held';
+    | 'item-not-held'
+    | 'verdict-flag';
 };
 
 /** Roles that create and edit items within the table (ADR 0006: `pm`, `architect`, `orchestrator`). */
@@ -62,6 +75,12 @@ const DEMO = 'team:demo';
 const WORKFLOW_CHANGE = 'workflow-change';
 /** Removing one of these needs `security` or `pm`, so a job cannot quietly unblock a release or a review. */
 const GUARD_FLAGS: readonly string[] = ['release-blocker', 'security'];
+/**
+ * Flags that record a review's outcome (`slot-qa` sets them as the orchestrator). R2: a reviewer role never writes
+ * state that reads as a verdict — its verdict is the signed row of Phase 2 — so it neither sets nor clears these.
+ */
+const VERDICT_FLAGS: readonly string[] = ['qa:changes-requested', 'review-failed', 'tier-up'];
+const REVIEWER_ROLES: ReadonlySet<string> = new Set(['qa', 'reviewer', 'security']);
 
 function changedFlags(
   before: ItemPolicyState | null,
@@ -97,7 +116,7 @@ function ownerOnlyRefusal(transition: ItemTransition): TransitionRefusal | null 
   return null;
 }
 
-function roleRefusal(role: string, holdsItem: boolean, transition: ItemTransition): TransitionRefusal | null {
+function roleRefusal(role: string, isHeld: boolean, transition: ItemTransition): TransitionRefusal | null {
   const { before, after } = transition;
   const { added, removed } = changedFlags(before, after);
   if ([...added, ...removed].includes(WORKFLOW_CHANGE) && role !== 'security') {
@@ -105,6 +124,9 @@ function roleRefusal(role: string, holdsItem: boolean, transition: ItemTransitio
   }
   if (removed.some((flag) => GUARD_FLAGS.includes(flag)) && role !== 'security' && role !== 'pm') {
     return { type: 'transition-role', reason: 'remove-guard-flag' };
+  }
+  if (REVIEWER_ROLES.has(role) && [...added, ...removed].some((flag) => VERDICT_FLAGS.includes(flag))) {
+    return { type: 'transition-role', reason: 'verdict-flag' };
   }
   if (EDITING_ROLES.has(role)) {
     return null;
@@ -124,17 +146,41 @@ function roleRefusal(role: string, holdsItem: boolean, transition: ItemTransitio
     if (changesFlags || (!changesStatus && before.closed !== after.closed)) {
       return cannotEdit;
     }
-    return holdsItem ? null : { type: 'transition-role', reason: 'item-not-held' };
+    return isHeld ? null : { type: 'transition-role', reason: 'item-not-held' };
   }
   return cannotEdit;
 }
 
-/** Why `actor` may not make `transition`, or `null` when it may. The owner may make every change. */
-export function transitionRefusal(actor: PolicyActor, transition: ItemTransition): TransitionRefusal | null {
+/** Whether the job's payload names item `number` (threat model C2: "holds" is the payload, never a body member). */
+export function holdsItem(actor: PolicyActor, number: number | null): boolean {
+  return actor.kind === 'job' && number !== null && actor.items.includes(number);
+}
+
+/**
+ * Why `actor` may not make `transition` on item `itemNumber` (`null` for a new item), or `null` when it may. The
+ * owner may make every change.
+ */
+export function transitionRefusal(
+  actor: PolicyActor,
+  transition: ItemTransition,
+  itemNumber: number | null,
+): TransitionRefusal | null {
   if (actor.kind === 'owner') {
     return null;
   }
-  return ownerOnlyRefusal(transition) ?? roleRefusal(actor.role, actor.holdsItem, transition);
+  return ownerOnlyRefusal(transition) ?? roleRefusal(actor.role, holdsItem(actor, itemNumber), transition);
+}
+
+export type CommentKindRefusal = { readonly type: 'comment-kind'; readonly reason: CommentKind };
+
+/**
+ * Which comment kinds an actor writes (ADR 0006 matrix): the owner `comment`s only — their decisions are
+ * `owner_decisions` rows; a job any kind, but a team `decision` not as `dev-light`.
+ */
+export function commentKindRefusal(actor: PolicyActor, kind: CommentKind): CommentKindRefusal | null {
+  const isAllowed =
+    actor.kind === 'owner' ? kind === 'comment' : kind !== 'decision' || actor.role !== 'dev-light';
+  return isAllowed ? null : { type: 'comment-kind', reason: kind };
 }
 
 /**

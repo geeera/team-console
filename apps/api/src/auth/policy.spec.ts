@@ -4,7 +4,9 @@ import type { DecisionCommand, Section } from '@shared/contracts';
 import type { ItemRecord } from '@worker/db';
 import {
   askEffectOf,
+  commentKindRefusal,
   decisionEffectOf,
+  holdsItem,
   policyActorOf,
   transitionRefusal,
   type ItemPolicyState,
@@ -15,11 +17,13 @@ import {
 // R5 of the #408 threat model: owner-semantic status and flags are the owner's alone; roles act within the table.
 
 const OWNER: PolicyActor = { kind: 'owner' };
+// Every transition below is on item 1; a job holds it when its payload names 1.
 const job = (role: string, holdsItem = false): PolicyActor => ({
   kind: 'job',
   role,
-  holdsItem,
+  projectSlug: 'acme',
   jobId: 'job-test-1',
+  items: holdsItem ? [1] : [],
 });
 
 function state(status: ItemStatus, flags: string[] = [], closed = status === 'done'): ItemPolicyState {
@@ -34,7 +38,8 @@ function change(
   return { before, after, changesOtherFields };
 }
 
-const refusal = (actor: PolicyActor, transition: ItemTransition) => transitionRefusal(actor, transition);
+const refusal = (actor: PolicyActor, transition: ItemTransition) =>
+  transitionRefusal(actor, transition, transition.before === null ? null : 1);
 
 describe('transition table: owner-semantic changes (transition-owner-only)', () => {
   const cases: [string, ItemTransition][] = [
@@ -157,6 +162,72 @@ describe('policyActorOf', () => {
   });
 });
 
+describe('holdsItem', () => {
+  it('is the payload’s item list, and never the owner’s or a new item’s', () => {
+    expect(holdsItem(job('dev', true), 1)).toBe(true);
+    expect(holdsItem(job('dev', true), 2)).toBe(false);
+    expect(holdsItem(job('dev', true), null)).toBe(false);
+    expect(holdsItem(OWNER, 1)).toBe(false);
+  });
+});
+
+describe('R2: reviewer roles never write verdict-like state', () => {
+  it.each(['qa:changes-requested', 'review-failed', 'tier-up'])(
+    'refuses %s to qa, reviewer and security (set or cleared), leaves it to the orchestrator',
+    (flag) => {
+      const adding = change(state('in-progress'), state('in-progress', [flag]));
+      const removing = change(state('in-progress', [flag]), state('in-progress'));
+      for (const role of ['qa', 'reviewer', 'security']) {
+        expect(refusal(job(role, true), adding)).toEqual({ type: 'transition-role', reason: 'verdict-flag' });
+        expect(refusal(job(role, true), removing)?.reason).toBe('verdict-flag');
+      }
+      expect(refusal(job('orchestrator'), adding)).toBeNull();
+      expect(refusal(job('orchestrator'), removing)).toBeNull();
+      expect(refusal(OWNER, adding)).toBeNull();
+    },
+  );
+
+  it('lets the reviewer role change nothing at all', () => {
+    expect(refusal(job('reviewer', true), change(state('qa'), state('done')))?.reason).toBe(
+      'role-cannot-edit',
+    );
+    expect(refusal(job('reviewer', true), change(state('qa'), state('qa', ['security'])))?.reason).toBe(
+      'role-cannot-edit',
+    );
+    expect(refusal(job('reviewer'), change(null, state('proposed')))?.reason).toBe('role-cannot-edit');
+  });
+});
+
+describe('commentKindRefusal', () => {
+  it('lets the owner write comments only', () => {
+    expect(commentKindRefusal(OWNER, 'comment')).toBeNull();
+    expect(commentKindRefusal(OWNER, 'note')).toEqual({ type: 'comment-kind', reason: 'note' });
+    expect(commentKindRefusal(OWNER, 'decision')).toEqual({ type: 'comment-kind', reason: 'decision' });
+  });
+
+  it('lets every role write each kind, except a team decision as dev-light', () => {
+    for (const role of [
+      'pm',
+      'architect',
+      'orchestrator',
+      'dev',
+      'dev-heavy',
+      'qa',
+      'reviewer',
+      'security',
+    ]) {
+      for (const kind of ['comment', 'note', 'decision'] as const) {
+        expect(commentKindRefusal(job(role), kind)).toBeNull();
+      }
+    }
+    expect(commentKindRefusal(job('dev-light'), 'decision')).toEqual({
+      type: 'comment-kind',
+      reason: 'decision',
+    });
+    expect(commentKindRefusal(job('dev-light'), 'note')).toBeNull();
+  });
+});
+
 // #434 §5: every (section, command) cell of the decision table. A cell not named is `null` (the row and its event).
 describe('decisionEffectOf', () => {
   const proposed = { status: 'proposed' } as const;
@@ -244,7 +315,7 @@ describe('askEffectOf', () => {
   it('is an effect a job could never make by PATCH (the R5 exception is the ask row)', () => {
     const plan = askEffectOf(item([]), 'design', AT);
     expect(plan).not.toBeNull();
-    expect(transitionRefusal(job('pm'), plan?.transition ?? change(null, state('proposed')))).toEqual({
+    expect(transitionRefusal(job('pm'), plan?.transition ?? change(null, state('proposed')), 7)).toEqual({
       type: 'transition-owner-only',
       reason: 'owner-flag',
     });

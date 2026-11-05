@@ -50,10 +50,9 @@ export interface CreateApiAppOptions {
   /** Milliseconds since the epoch for the push routes; a seam for the test-push interval. */
   readonly pushNow?: () => number;
   /**
-   * Who the tracker's transition table and route matrix judge (#410, #434). Only route specs pass one, standing in
-   * for the Phase 2 `job` identity so the 403 `transition-owner-only` path and the job-only routes (asks, handled)
-   * are proven end to end; the deployed Worker never sets it. It opens no owner-only route to anyone
-   * (`ownerOnlyMiddleware` still runs first), and without it no deployed identity maps to a job.
+   * Who the tracker's route matrix and transition table judge (#410, #434, #444). Only route specs pass one, standing
+   * in for the job identity so every job cell of the matrix is proven end to end; the deployed Worker never sets it,
+   * and without it no identity maps to a job.
    */
   readonly trackerPolicyActorOf?: (identity: Identity, env: ApiEnv) => PolicyActor | null;
 }
@@ -112,14 +111,14 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/projects', createNotificationsRoutes(github));
   v1.route('/projects', createSprintCommandsRoutes(github));
   v1.route('/projects', createOwnerRequestRoutes(github));
-  // The console's own tracker (#410, ADR 0006): D1 only, it never calls GitHub.
+  // The console's own tracker (#410, #434, ADR 0006): D1 only, it never calls GitHub. Every route passes its row of
+  // the route matrix (`auth/tracker-matrix.ts`); the job-only writes refuse every deployed identity until a job
+  // identity exists.
   const trackerActorOf = options.trackerPolicyActorOf ?? policyActorOf;
   v1.route('/projects', createTrackerItemRoutes(trackerActorOf));
-  v1.route('/projects', createTrackerCommentRoutes());
-  v1.route('/projects', createTrackerSprintRoutes());
-  v1.route('/projects', createTrackerLabelRoutes());
-  // Asks, owner decisions and requests (#434, Phase 1a′): the job-only writes refuse every deployed identity until
-  // the Phase 2 job identity maps one.
+  v1.route('/projects', createTrackerCommentRoutes(trackerActorOf));
+  v1.route('/projects', createTrackerSprintRoutes(trackerActorOf));
+  v1.route('/projects', createTrackerLabelRoutes(trackerActorOf));
   v1.route('/projects', createTrackerAskRoutes(trackerActorOf));
   v1.route('/projects', createTrackerDecisionRoutes(trackerActorOf));
   v1.route('/projects', createTrackerRequestRoutes(trackerActorOf));

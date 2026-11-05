@@ -21,9 +21,12 @@ import {
   type ItemFilter,
   type TrackerProject,
 } from '@worker/db';
-import { ownerOnlyMiddleware } from '../../auth/owner-only.middleware';
-import type { Identity } from '../../auth/auth.types';
-import { transitionRefusal, type ItemTransition, type PolicyActor } from '../../auth/policy';
+import { transitionRefusal, type ItemTransition } from '../../auth/policy';
+import {
+  policyActorOfContext,
+  trackerAccess,
+  type PolicyActorOf,
+} from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
 import {
   invalid,
@@ -149,26 +152,27 @@ async function unknownLabels(
 }
 
 /**
- * Items of the console's own tracker (#410, ADR 0006): list, read, create and change. Owner-only in Phase 1a (the
- * `job` identity arrives with Phase 2 of #309); every write passes the tracker gate first, carries an
- * `Idempotency-Key`, is judged by the transition table (`auth/policy.ts`, for the actor `policyActorOf` names) and
- * lands with its `item_events` row in one D1 batch.
+ * Items of the console's own tracker (#410, ADR 0006): list, read, create and change. Who reaches each route is the
+ * route matrix (`trackerAccess`: the owner and the jobs of the project); every write passes the tracker gate first,
+ * carries an `Idempotency-Key`, is judged by the transition table (`auth/policy.ts`) and lands with its
+ * `item_events` row in one D1 batch.
  */
-export function createTrackerItemRoutes(
-  policyActorOf: (identity: Identity, env: ApiEnv) => PolicyActor | null,
-): Hono<WorkerHonoEnv<ApiEnv>> {
-  // The transition table's verdict for this request; no actor (the service identity) is refused outright.
-  const judge = (c: Context, transition: ItemTransition): Response | null => {
-    const actor = policyActorOf(c.get('identity'), c.env);
-    if (actor === null) {
-      return problem(c, { type: 'owner-only', title: 'Forbidden', status: 403 });
-    }
-    const refusal = transitionRefusal(actor, transition);
+export function createTrackerItemRoutes(actorOf: PolicyActorOf): Hono<WorkerHonoEnv<ApiEnv>> {
+  // The transition table's verdict on the admitted actor; `itemNumber` is `null` for a new item.
+  const judge = (c: Context, transition: ItemTransition, itemNumber: number | null): Response | null => {
+    const refusal = transitionRefusal(policyActorOfContext(c), transition, itemNumber);
     return refusal === null ? null : transitionProblem(c, refusal);
+  };
+  const guard = {
+    list: trackerAccess('GET /api/v1/projects/:slug/items', actorOf),
+    create: trackerAccess('POST /api/v1/projects/:slug/items', actorOf),
+    read: trackerAccess('GET /api/v1/projects/:slug/items/:key', actorOf),
+    change: trackerAccess('PATCH /api/v1/projects/:slug/items/:key', actorOf),
+    events: trackerAccess('GET /api/v1/projects/:slug/items/:key/events', actorOf),
   };
 
   return new Hono<WorkerHonoEnv<ApiEnv>>()
-    .get('/:slug/items', ownerOnlyMiddleware, async (c) => {
+    .get('/:slug/items', guard.list, async (c) => {
       const project = await trackerProjectOf(c);
       if (project instanceof Response) {
         return project;
@@ -190,7 +194,7 @@ export function createTrackerItemRoutes(
       return c.json(body);
     })
 
-    .post('/:slug/items', ownerOnlyMiddleware, writeLimit(TEXT_WRITE_MAX_BYTES), async (c) => {
+    .post('/:slug/items', guard.create, writeLimit(TEXT_WRITE_MAX_BYTES), async (c) => {
       const context = await trackerWriteContextOf(c);
       if (context instanceof Response) {
         return context;
@@ -214,11 +218,15 @@ export function createTrackerItemRoutes(
           if (labels !== null) {
             return labels;
           }
-          const denied = judge(c, {
-            before: null,
-            after: { status: value.status, flags: [...value.labels], closed: false },
-            changesOtherFields: true,
-          });
+          const denied = judge(
+            c,
+            {
+              before: null,
+              after: { status: value.status, flags: [...value.labels], closed: false },
+              changesOtherFields: true,
+            },
+            null,
+          );
           if (denied !== null) {
             return denied;
           }
@@ -251,7 +259,7 @@ export function createTrackerItemRoutes(
       );
     })
 
-    .get('/:slug/items/:key', ownerOnlyMiddleware, async (c) => {
+    .get('/:slug/items/:key', guard.read, async (c) => {
       const project = await trackerProjectOf(c);
       if (project instanceof Response) {
         return project;
@@ -265,7 +273,7 @@ export function createTrackerItemRoutes(
       return c.json(itemDtoOf(keyPrefixOf(project), item));
     })
 
-    .patch('/:slug/items/:key', ownerOnlyMiddleware, writeLimit(TEXT_WRITE_MAX_BYTES), async (c) => {
+    .patch('/:slug/items/:key', guard.change, writeLimit(TEXT_WRITE_MAX_BYTES), async (c) => {
       const context = await trackerWriteContextOf(c);
       if (context instanceof Response) {
         return context;
@@ -323,7 +331,7 @@ export function createTrackerItemRoutes(
             await done.run();
             return itemResponse(c, project, item.number, 200);
           }
-          const denied = judge(c, outcome.plan.transition);
+          const denied = judge(c, outcome.plan.transition, item.number);
           if (denied !== null) {
             return denied;
           }
@@ -352,7 +360,7 @@ export function createTrackerItemRoutes(
       );
     })
 
-    .get('/:slug/items/:key/events', ownerOnlyMiddleware, async (c) => {
+    .get('/:slug/items/:key/events', guard.events, async (c) => {
       const project = await trackerProjectOf(c);
       if (project instanceof Response) {
         return project;

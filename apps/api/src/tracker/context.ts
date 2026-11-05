@@ -7,8 +7,7 @@ import {
   type TrackerActor,
   type TrackerProject,
 } from '@worker/db';
-import type { Identity } from '../auth/auth.types';
-import { policyActorOf, type PolicyActor, type TransitionRefusal } from '../auth/policy';
+import type { PolicyActor, TransitionRefusal } from '../auth/policy';
 import type { ApiEnv } from '../env';
 import { projectNotFound } from '../projects/lookup';
 
@@ -60,19 +59,6 @@ export async function itemOf(c: Context, project: TrackerProject): Promise<ItemR
   return item ?? problem(c, { type: 'item-not-found', title: 'Item not found', status: 404 });
 }
 
-/** Maps an identity to its policy actor: `policyActorOf`, or the specs' stand-in for the Phase 2 job identity. */
-export type PolicyActorOf = (identity: Identity, env: ApiEnv) => PolicyActor | null;
-
-/** The policy actor of the request, or the 403 `owner-only` for an identity that maps to none (the service). */
-export function policyActorOfRequest(
-  c: Context,
-  actorOf: PolicyActorOf = policyActorOf,
-): PolicyActor | Response {
-  return (
-    actorOf(c.get('identity'), c.env) ?? problem(c, { type: 'owner-only', title: 'Forbidden', status: 403 })
-  );
-}
-
 /**
  * How a policy actor is recorded on a row: the owner as `owner`, a job by its role and job id. Derived from the
  * identity alone (ADR 0006 decision 4): no body member names an author.
@@ -121,18 +107,6 @@ export function invalid(
     detail,
     extensions,
   });
-}
-
-/** 403 for an actor the route does not admit, with a stable `reason` for the log and the problem. */
-export function roleRefusal(
-  c: Context,
-  type: 'ask-role' | 'request-handled-role' | 'owner-only',
-  actor: PolicyActor,
-  detail: string,
-): Response {
-  const reason = actor.kind === 'owner' ? 'owner' : actor.role;
-  c.get('logger').warn('tracker route refused', { type, reason });
-  return problem(c, { type, title: 'Forbidden', status: 403, detail, extensions: { reason } });
 }
 
 export function itemClosed(c: Context): Response {
