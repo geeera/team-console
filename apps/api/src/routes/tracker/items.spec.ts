@@ -203,7 +203,7 @@ describe('POST /projects/:slug/items', () => {
       'POST',
       itemsPath(project.slug),
       { title: 'T', kind: 'feature', status: 'approved' },
-      { policyActor: { kind: 'job', role: 'pm', holdsItem: false } },
+      { policyActor: { kind: 'job', role: 'pm', holdsItem: false, jobId: 'job-test-1' } },
     );
     expect(response.status).toBe(403);
     expect(await response.json()).toMatchObject({
@@ -451,7 +451,7 @@ describe('PATCH /projects/:slug/items/:key', () => {
       const item = await createItem(project);
       const response = await send('PATCH', `${itemsPath(project.slug)}/${item.key}`, body, {
         ifMatch: '"1"',
-        policyActor: { kind: 'job', role: 'orchestrator', holdsItem: true },
+        policyActor: { kind: 'job', role: 'orchestrator', holdsItem: true, jobId: 'job-test-1' },
       });
       expect(response.status).toBe(403);
       expect(await response.json()).toMatchObject({
@@ -476,7 +476,7 @@ describe('PATCH /projects/:slug/items/:key', () => {
       'PATCH',
       `${itemsPath(project.slug)}/${item.key}`,
       { addLabels: ['workflow-change'] },
-      { ifMatch: '"1"', policyActor: { kind: 'job', role: 'pm', holdsItem: true } },
+      { ifMatch: '"1"', policyActor: { kind: 'job', role: 'pm', holdsItem: true, jobId: 'job-test-1' } },
     );
     expect(response.status).toBe(403);
     expect(await response.json()).toMatchObject({

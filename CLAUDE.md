@@ -214,6 +214,13 @@ changed fields). Lists: `?after=&limit≤100`, items also `status|kind|severity|
 `ItemDto`, `TrackerSprintDto`, `CommentDto`, `ItemEventDto`, `LabelDto` (separate from the GitHub-backed board DTOs).
 Specs seed a fresh project per case (`testing/tracker-kit.ts`); `createApiApp({ trackerPolicyActorOf })` is the specs'
 stand-in for the Phase 2 job actor, never set by `main.ts`.
+Asks, owner decisions and requests (#434, Phase 1a′): `routes/tracker/{asks,decisions,requests}.ts` — `GET|POST
+items/:key/asks` (job-only: any role but `dev*`, the owner 403 `ask-role`; replaces the open ask and sets
+`owner:<category>` in its batch, `askEffectOf`), `GET|POST items/:key/decisions` (owner-only, `via: web|push`, no
+`If-Match`; section by `sectionOf`, commands from the open console ask or `ANSWERS`, 409 `ask-not-open|ask-imported`,
+effects by `decisionEffectOf` through `planItemUpdate` in one batch, a moved version re-read once then 409
+`item-changed`), `GET|POST items/:key/requests` (owner-only, no sprint logic) and `POST requests/:id/handled` (`pm` job
+only, 409 `request-handled`); the job-only writes refuse every deployed identity until Phase 2.
 
 Artifacts (#19, read-only): `GET /api/v1/projects/:slug/artifacts[?fresh=1]` (`routes/artifacts.ts`, `read-models/artifact-reads.ts`)
 reads decisions (`decisions_dir` listing + first `#` heading, ≤ 30 file reads), designs (`ux-spec`/`design:*` issues,
@@ -369,7 +376,7 @@ is `ApiGitHub` (`apps/api/src/github.ts`); `GITHUB_MOCK=true` (local only) swaps
 in `libs/worker/github/fixtures`. Migrations live only in `apps/api/migrations` (`0001_init` = `projects`;
 `0005_owner_connections` #59; `0006_project_installation` #15 adds `projects.installation_id`; `0007_own_writes` #10 =
 `own_writes` + `own_write_claims`, which #12 reuses; `0008_slot_requests` #114; `0009_push_subscriptions` #11 (`push_subscriptions` +
-`push_test_sends`); `0010_webhooks` #12 = `webhook_deliveries` + `projects.access_lost_at`; `0011_project_snooze` #221; `0012_owner_requests` #219; `0013_tracker` #410 (ADR 0006 tracker core: `projects` + `provider|tracker|key_prefix|next_item_number|cutover_at|default_branch`, `labels`, `sprints`, `items`, `item_labels`, `comments`, `item_events`, `idempotency_keys`; enumerations as CHECKs, comments/events append-only and items never deleted by triggers; repos `TrackerProjectsRepo`/`LabelsRepo`/`SprintsRepo`/`ItemsRepo`/`CommentsRepo`/`ItemEventsRepo`/`IdempotencyKeysRepo` in `@worker/db`, each write one batch with its event; `LABELS_SEED` from `libs/worker/db/scripts/generate-labels-seed.py` — rerun after every `vendor` update). No number is reserved — a new
+`push_test_sends`); `0010_webhooks` #12 = `webhook_deliveries` + `projects.access_lost_at`; `0011_project_snooze` #221; `0012_owner_requests` #219; `0013_tracker` #410 (ADR 0006 tracker core: `projects` + `provider|tracker|key_prefix|next_item_number|cutover_at|default_branch`, `labels`, `sprints`, `items`, `item_labels`, `comments`, `item_events`, `idempotency_keys`; enumerations as CHECKs, comments/events append-only and items never deleted by triggers; repos `TrackerProjectsRepo`/`LabelsRepo`/`SprintsRepo`/`ItemsRepo`/`CommentsRepo`/`ItemEventsRepo`/`IdempotencyKeysRepo` in `@worker/db`, each write one batch with its event; `LABELS_SEED` from `libs/worker/db/scripts/generate-labels-seed.py` — rerun after every `vendor` update); `0014_decisions` #434 (`asks`, `owner_decisions`, `item_requests` — the ADR's recreated `owner_requests`, named apart from 0012's live table — and the `import_map` stub, append-only by triggers incl. the `*_never_replaced` guards; `idempotency_keys` rebuilt by copy for `ask|decision|request`; repos `AsksRepo`/`OwnerDecisionsRepo`/`ItemRequestsRepo`/`InboxRepo`). No number is reserved — a new
 migration takes the highest number on `dev` + 1 when its PR opens and is renumbered on rebase if that number was taken,
 so 0002–0004 stay unused). The answer route (#10) is `routes/answer.ts`
 (`POST /api/v1/projects/:slug/issues/:number/answer`, owner-only): section re-derived from the live issue with

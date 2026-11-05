@@ -209,4 +209,19 @@ export type TrackerProblemType =
   | 'idempotency-key-reused'
   | 'idempotency-in-flight'
   | 'transition-owner-only'
-  | 'transition-role';
+  | 'transition-role'
+  // #434: asks, decisions, requests.
+  | 'ask-invalid'
+  | 'ask-not-found'
+  | 'ask-role'
+  | 'ask-not-open'
+  | 'ask-imported'
+  | 'decision-invalid'
+  | 'decision-command'
+  | 'decision-not-found'
+  | 'request-invalid'
+  | 'request-not-found'
+  | 'request-handled'
+  | 'request-handled-role'
+  | 'item-closed'
+  | 'item-changed';

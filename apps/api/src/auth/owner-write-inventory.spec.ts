@@ -10,6 +10,7 @@ import {
   stubJwksServer,
   uniqueTeamDomain,
 } from '../testing/access-kit';
+import { seedTrackerProject, send, sendAsService, slugOf } from '../testing/tracker-kit';
 
 // #62: every state-changing /api route says how it treats the dev/stage Access service identity. A new route fails
 // "is classified" until someone decides; an owner write must be `owner-only` or carry the fixture gate.
@@ -24,7 +25,12 @@ type ServiceRule =
   /** An owner write allowed only on an `e2e:fixture` issue (`service-write-gate.ts`); proven in its route spec. */
   | 'fixture-gate'
   /** Writes the console's own D1 rows only, never GitHub on the owner's token. */
-  | 'no-owner-write';
+  | 'no-owner-write'
+  /**
+   * #434: a job write (an ask, the PM's handled answer). No deployed identity maps to a job before Phase 2, so every
+   * real caller is refused — the owner with a role 403, the service with 403 owner-only; proven in the route specs.
+   */
+  | 'job-only';
 
 const RULES: Readonly<Record<string, ServiceRule>> = {
   'POST /api/v1/projects/:slug/issues/:number/answer': 'fixture-gate',
@@ -58,6 +64,11 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   'POST /api/v1/projects/:slug/sprints': 'owner-only',
   'PATCH /api/v1/projects/:slug/sprints/:number': 'owner-only',
   'POST /api/v1/projects/:slug/labels': 'owner-only',
+  // #434 (ADR 0006 Phase 1a′): decisions and requests are the owner's own; asks and the PM's answer are job writes.
+  'POST /api/v1/projects/:slug/items/:key/decisions': 'owner-only',
+  'POST /api/v1/projects/:slug/items/:key/requests': 'owner-only',
+  'POST /api/v1/projects/:slug/items/:key/asks': 'job-only',
+  'POST /api/v1/projects/:slug/requests/:id/handled': 'job-only',
   'POST /api/v1/projects': 'no-owner-write',
   'PATCH /api/v1/projects/:slug': 'no-owner-write',
   'POST /api/v1/projects/:slug/archive': 'no-owner-write',
@@ -169,5 +180,25 @@ describe('owner-write inventory (#62)', () => {
     const log = lines.join('\n');
     expect(log).toContain('"identity":"job"');
     expect(log).toContain('"reason":"job"');
+  });
+
+  const jobOnly = Object.entries(RULES)
+    .filter(([, rule]) => rule === 'job-only')
+    .map(([route]) => route);
+
+  it('finds the job-only routes', () => {
+    expect(jobOnly.length).toBeGreaterThan(0);
+  });
+
+  it.each(jobOnly)('%s refuses the owner (a role 403) and the service identity (403 owner-only)', async (route) => {
+    const [method = '', pattern = ''] = route.split(' ');
+    const { slug } = await seedTrackerProject();
+    const path = pattern.replace(':slug', slug).replace(/:[^/]+/g, '1');
+    const owner = await send(method as 'POST', path, {});
+    expect(owner.status).toBe(403);
+    expect(['ask-role', 'request-handled-role']).toContain(await slugOf(owner));
+    const service = await sendAsService(method, path, {});
+    expect(service.status).toBe(403);
+    expect(await slugOf(service)).toBe('owner-only');
   });
 });
