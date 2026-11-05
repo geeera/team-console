@@ -1223,14 +1223,16 @@
         "urgentHint": "The team paused itself, a release decision is needed.",
         "ok": "Snooze",
         "err": "Couldn’t save: the server didn’t answer. Nothing changed.",
-        "offline": "You’re offline. Nothing changed."
+        "offline": "You’re offline. Nothing changed.",
+        "sessionExpired": "Your session expired. Sign in again — nothing changed."
       },
       "result": {
         "done": "{{name}} notifications snoozed until {{until}}",
         "doneForever": "{{name}} notifications snoozed until you turn them back on",
         "back": "{{name}} notifications are back on",
         "backFailed": "Couldn’t turn {{name}} notifications back on: the server didn’t answer. Nothing changed.",
-        "backOffline": "You’re offline: {{name}} notifications are still snoozed. Nothing changed."
+        "backOffline": "You’re offline: {{name}} notifications are still snoozed. Nothing changed.",
+        "backSessionExpired": "Your session expired. Sign in again — {{name}} notifications are still snoozed."
       }
     },
     "approve": {

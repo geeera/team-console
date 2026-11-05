@@ -151,6 +151,35 @@ test('a guide: from the manifest only, the command that fits, Back returns to th
   await expect(row).toBeFocused();
 });
 
+/**
+ * The `env.*` copy chunks (#104), by content rather than by their hashed filename: a marker from each one's
+ * `.lead` string, present nowhere else in the bundle.
+ */
+const COPY_CHUNK_MARKERS = ['Какие секреты и переменные заданы', 'secrets and variables: what is set'];
+
+test('environment copy: Try again that fails again falls back to a full reload, not a frozen SPA error', async ({
+  page,
+}) => {
+  await page.route('**/*.js', async (route) => {
+    const response = await route.fetch();
+    const body = await response.text();
+    if (COPY_CHUNK_MARKERS.some((marker) => body.includes(marker))) {
+      await route.abort('failed');
+      return;
+    }
+    await route.fulfill({ response });
+  });
+
+  await page.goto('/settings/environment/local');
+  await expect(page.getByTestId('env-copy-failed')).toBeVisible();
+
+  // A real reload, not just the SPA re-trying in place: waiting for the frame's next `load` event is how to tell.
+  await Promise.all([page.waitForEvent('load'), page.getByTestId('env-copy-retry').click()]);
+
+  // The outage is still simulated: the reloaded page shows the same readable error, not a blank or stuck screen.
+  await expect(page.getByTestId('env-copy-failed')).toBeVisible();
+});
+
 test('the status endpoint carries presence only — no value of any binding', async ({ stack }) => {
   const api = await apiClient(stack);
   try {

@@ -1,4 +1,5 @@
 import { LiveAnnouncer } from '@angular/cdk/a11y';
+import { DOCUMENT } from '@angular/common';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationInitStatus, ErrorHandler, signal } from '@angular/core';
@@ -67,6 +68,8 @@ describe('EnvironmentSetupPage (#104)', () => {
     readonly projects?: readonly object[] | number;
     /** Replaces the lazy copy chunks (a failing one for the error state). */
     readonly copyLoader?: () => Promise<EnvironmentCopyChunks>;
+    /** Overrides `DOCUMENT` (e.g. to observe a `location.reload()` jsdom itself refuses to redefine). */
+    readonly document?: Document;
   }
 
   async function open(url: string, answers: Answers = {}): Promise<void> {
@@ -82,6 +85,7 @@ describe('EnvironmentSetupPage (#104)', () => {
         ...(answers.copyLoader === undefined
           ? []
           : [{ provide: ENVIRONMENT_COPY_LOADER, useValue: answers.copyLoader }]),
+        ...(answers.document === undefined ? [] : [{ provide: DOCUMENT, useValue: answers.document }]),
       ],
     });
     await TestBed.inject(ApplicationInitStatus).donePromise;
@@ -302,10 +306,31 @@ describe('EnvironmentSetupPage (#104)', () => {
     expect(text('[data-testid="env-guide"] h1')).toBe('Такой настройки в production нет');
   });
 
+  /**
+   * jsdom's own `Location` refuses a redefined `reload` (non-configurable), so the double is a standalone object:
+   * this page only ever calls `location.reload()`, never reads from it.
+   */
+  function documentWithReloadSpy(): { readonly document: Document; readonly reload: ReturnType<typeof vi.fn> } {
+    const reload = vi.fn();
+    const location = { reload } as unknown as Document['location'];
+    const documentProxy = new Proxy(document, {
+      get: (target, prop) => {
+        if (prop === 'location') {
+          return location;
+        }
+        const value = Reflect.get(target, prop, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    return { document: documentProxy, reload };
+  }
+
   it('shows a readable error, never raw env.* keys, when the copy chunk cannot load; Try again recovers', async () => {
     const chunkError = new Error('Failed to fetch dynamically imported module');
+    const { document: documentProxy, reload } = documentWithReloadSpy();
     let fail = true;
     await open('/settings/environment/production', {
+      document: documentProxy,
       copyLoader: async () => {
         if (fail) {
           throw chunkError;
@@ -326,6 +351,26 @@ describe('EnvironmentSetupPage (#104)', () => {
     expect(root().querySelector('[data-testid="env-copy-failed"]')).toBeNull();
     expect(text('h1')).toBe('Настройка окружения');
     expect(text('[data-testid="env-summary"] h2')).toBe('В production не заданы 2 настройки');
+    // A recovered retry is not a failed one: no fallback reload, nothing to interrupt the page the owner is on.
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('falls back to a full reload when Try again fails a second time: a failed dynamic import stays failed', async () => {
+    const { document: documentProxy, reload } = documentWithReloadSpy();
+    await open('/settings/environment/production', {
+      document: documentProxy,
+      copyLoader: async () => {
+        throw new Error('Failed to fetch dynamically imported module');
+      },
+    });
+
+    expect(root().querySelector('[data-testid="env-copy-failed"]')).not.toBeNull();
+    expect(reload).not.toHaveBeenCalled();
+
+    (root().querySelector('[data-testid="env-copy-retry"]') as HTMLButtonElement).click();
+    await settle();
+
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 
   it("opens this console's environment for an unknown one", async () => {
