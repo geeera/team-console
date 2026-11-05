@@ -196,6 +196,25 @@ comment, so both sides of the "after the request" check are on GitHub's clock, #
 `@console/features/request-change` (`RequestChange`: picker, then the one-request form), the panel's Issues group, the board's
 "Ask the PM" and «ждёт PM» chip. `team.console_app_slugs` in `.product-team/project.yml` is the plugin's trust root for requests: `[team-console-dev]` only (owner, 2026-10-07); stage and production join after #152.
 
+Own tracker, core (#410, ADR 0006 Phase 1a; no UI and no import yet): `routes/tracker/{items,comments,sprints,labels}.ts`
+under `/api/v1/projects/:slug/` — `GET|POST items`, `GET|PATCH items/:key` (`TC-310` or `310`; `ETag`/`If-Match:
+"<version>"`, 428 `item-version-required`, 412 `item-version`), `GET items/:key/events`, `GET|POST items/:key/comments`
+(append-only, no edit route), `GET|POST sprints`, `GET|PATCH sprints/:number` (`Sprint NN`), `GET|POST labels`. D1 only,
+owner-only in Phase 1a, reads included (the `job` identity and the route matrix come with Phase 2). Every write, in
+this order: 404 project → 409 `tracker-not-cut-over` while `projects.tracker = 'github'` → `Idempotency-Key` (400
+`idempotency-key`; `tracker/idempotency.ts` over `idempotency_keys`, completed inside the write's own batch, 24 h;
+replay answers the resource with `Idempotent-Replayed: true`, 409 `idempotency-in-flight`, 422
+`idempotency-key-reused`) → body checks from `@shared/contracts` (`checkCreateItemInput` …, 422 `*-invalid` with
+`field`; titles through `withoutInvisibles`; 413 over 512 KB, labels 4 KB) → the transition table
+`auth/policy.ts` (`transitionRefusal`: owner-semantic status/flags — approving, `design:approved`, `owner:*`, closing
+`team:demo` — are 403 `transition-owner-only` for any job, `workflow-change` owner/`security` only, removing
+`release-blocker`/`security` needs `security`/`pm`, `dev*`/`qa` only the status of a held item; the owner may make every
+change) → one D1 batch with its `item_events` rows, one per kind of change — the lifecycle (`status|closed|reopened`) apart from `labels|sprint|edited` (`tracker/item-change.ts` plans the columns and the before/after of the
+changed fields). Lists: `?after=&limit≤100`, items also `status|kind|severity|tier|sprint(=N|none)|label|state`. DTOs
+`ItemDto`, `TrackerSprintDto`, `CommentDto`, `ItemEventDto`, `LabelDto` (separate from the GitHub-backed board DTOs).
+Specs seed a fresh project per case (`testing/tracker-kit.ts`); `createApiApp({ trackerPolicyActorOf })` is the specs'
+stand-in for the Phase 2 job actor, never set by `main.ts`.
+
 Artifacts (#19, read-only): `GET /api/v1/projects/:slug/artifacts[?fresh=1]` (`routes/artifacts.ts`, `read-models/artifact-reads.ts`)
 reads decisions (`decisions_dir` listing + first `#` heading, ≤ 30 file reads), designs (`ux-spec`/`design:*` issues,
 `docs/design` one level deep, `design.storybook_url` if on github.com) and `team:demo` issues through `ReadCache`

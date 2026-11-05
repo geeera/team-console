@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
 import { createWorkerApp, markAssetResponse, problem, type LogSink, type WorkerHonoEnv } from '@worker/core';
 import { authMiddleware } from './auth/auth.middleware';
+import type { Identity } from './auth/auth.types';
 import { csrfMiddleware } from './auth/csrf.middleware';
+import { policyActorOf, type PolicyActor } from './auth/policy';
 import type { ApiEnv } from './env';
 import { ApiGitHub, mapGitHubError } from './github';
 import { createAnswerRoutes } from './routes/answer';
@@ -23,6 +25,10 @@ import { createSprintCommandsRoutes } from './routes/sprint-commands';
 import { createTeamCommandsRoutes } from './routes/team-commands';
 import { createPushRoutes } from './routes/push';
 import { createNotificationsRoutes } from './routes/notifications';
+import { createTrackerCommentRoutes } from './routes/tracker/comments';
+import { createTrackerItemRoutes } from './routes/tracker/items';
+import { createTrackerLabelRoutes } from './routes/tracker/labels';
+import { createTrackerSprintRoutes } from './routes/tracker/sprints';
 import type { FetchLike } from '@worker/routines';
 import { mapReadModelError } from './read-models/errors';
 
@@ -39,6 +45,12 @@ export interface CreateApiAppOptions {
   readonly pushFetch?: FetchLike;
   /** Milliseconds since the epoch for the push routes; a seam for the test-push interval. */
   readonly pushNow?: () => number;
+  /**
+   * Who the tracker's transition table judges (#410). Only route specs pass one, standing in for the Phase 2 `job`
+   * identity so the 403 `transition-owner-only` path is proven end to end; the deployed Worker never sets it, and it
+   * opens no route to anyone: `ownerOnlyMiddleware` still runs first.
+   */
+  readonly trackerPolicyActorOf?: (identity: Identity) => PolicyActor | null;
 }
 
 function isApiPath(path: string): boolean {
@@ -95,6 +107,11 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/projects', createNotificationsRoutes(github));
   v1.route('/projects', createSprintCommandsRoutes(github));
   v1.route('/projects', createOwnerRequestRoutes(github));
+  // The console's own tracker (#410, ADR 0006): D1 only, it never calls GitHub.
+  v1.route('/projects', createTrackerItemRoutes(options.trackerPolicyActorOf ?? policyActorOf));
+  v1.route('/projects', createTrackerCommentRoutes());
+  v1.route('/projects', createTrackerSprintRoutes());
+  v1.route('/projects', createTrackerLabelRoutes());
   // Before the connection routes: their owner-only `use('*')` would otherwise also guard this read (#194), which
   // the service identity may make on dev/stage like every other read (installation-repositories.spec.ts proves it).
   v1.route('/github', createInstallationRepositoriesRoutes(github, owners));
