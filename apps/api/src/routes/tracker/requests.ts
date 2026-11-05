@@ -2,10 +2,9 @@ import { Hono } from 'hono';
 import { checkCreateRequestInput, checkHandleRequestInput, type ItemRequestListDto } from '@shared/contracts';
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import { ItemRequestsRepo, type ItemRequestRecord } from '@worker/db';
-import { ownerOnlyMiddleware } from '../../auth/owner-only.middleware';
-import type { PolicyActor } from '../../auth/policy';
+import { trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
-import { invalid, itemClosed, itemOf, roleRefusal, type PolicyActorOf } from '../../tracker/context';
+import { invalid, itemClosed, itemOf } from '../../tracker/context';
 import { itemRequestDtoOf } from '../../tracker/dto';
 import { ASK_WRITE_MAX_BYTES, SMALL_WRITE_MAX_BYTES, nextCursor, writeLimit } from '../../tracker/http';
 import { idempotent } from '../../tracker/idempotency';
@@ -15,19 +14,6 @@ import { trackerWriteContextOf } from '../../tracker/write-context';
 type Context = WorkerContext<ApiEnv>;
 
 const REQUEST_ID = /^[1-9][0-9]{0,15}$/;
-
-function ownerOnly(c: Context, actor: PolicyActor): Response | null {
-  return actor.kind === 'owner'
-    ? null
-    : roleRefusal(c, 'owner-only', actor, 'A request to the PM is the owner’s own wish');
-}
-
-/** The PM answers requests (ADR 0005, never silently): the record of who handled it is the job, so not the owner. */
-function pmOnly(c: Context, actor: PolicyActor): Response | null {
-  return actor.kind === 'job' && actor.role === 'pm'
-    ? null
-    : roleRefusal(c, 'request-handled-role', actor, 'Only the PM job answers a request');
-}
 
 function requestNotFound(c: Context): Response {
   return problem(c, { type: 'request-not-found', title: 'Request not found', status: 404 });
@@ -44,13 +30,18 @@ function requestResponse(c: Context, request: ItemRequestRecord | null, status: 
 /**
  * The owner's requests to the PM on an item (#434; ADR 0005 as rows, `item_requests`). The owner records a wish;
  * nothing here moves a sprint or a priority — the PM decides at planning and answers with `…/requests/:id/handled`,
- * a job write that records the job (`handled_by_job_id` from the actor, never from the body). That route refuses
- * every deployed identity until the Phase 2 job identity exists; the specs reach it through `trackerPolicyActorOf`.
+ * a job write that records the job (`handled_by_job_id` from the actor, never from the body), `pm` only by the route
+ * matrix. Until Phase 2 the only job identity is the local stand-in, so every deployed caller is refused there.
  */
-export function createTrackerRequestRoutes(actorOf: PolicyActorOf): Hono<WorkerHonoEnv<ApiEnv>> {
+export function createTrackerRequestRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
+  const guard = {
+    list: trackerAccess('GET /api/v1/projects/:slug/items/:key/requests'),
+    create: trackerAccess('POST /api/v1/projects/:slug/items/:key/requests'),
+    handled: trackerAccess('POST /api/v1/projects/:slug/requests/:id/handled'),
+  };
   return new Hono<WorkerHonoEnv<ApiEnv>>()
-    .get('/:slug/items/:key/requests', async (c) => {
-      const read = await itemReadOf(c, actorOf);
+    .get('/:slug/items/:key/requests', guard.list, async (c) => {
+      const read = await itemReadOf(c);
       if (read instanceof Response) {
         return read;
       }
@@ -67,8 +58,8 @@ export function createTrackerRequestRoutes(actorOf: PolicyActorOf): Hono<WorkerH
       return c.json(body);
     })
 
-    .post('/:slug/items/:key/requests', ownerOnlyMiddleware, writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
-      const context = await trackerWriteContextOf(c, actorOf, (actor) => ownerOnly(c, actor));
+    .post('/:slug/items/:key/requests', guard.create, writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
+      const context = await trackerWriteContextOf(c);
       if (context instanceof Response) {
         return context;
       }
@@ -110,8 +101,8 @@ export function createTrackerRequestRoutes(actorOf: PolicyActorOf): Hono<WorkerH
       );
     })
 
-    .post('/:slug/requests/:id/handled', writeLimit(ASK_WRITE_MAX_BYTES), async (c) => {
-      const context = await trackerWriteContextOf(c, actorOf, (actor) => pmOnly(c, actor));
+    .post('/:slug/requests/:id/handled', guard.handled, writeLimit(ASK_WRITE_MAX_BYTES), async (c) => {
+      const context = await trackerWriteContextOf(c);
       if (context instanceof Response) {
         return context;
       }

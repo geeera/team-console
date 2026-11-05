@@ -9,10 +9,12 @@ import {
   REQUEST_REASON_MAX_LENGTH,
   isAskCategory,
   isAskCommand,
+  isCommentKind,
   isDecisionCommand,
   isRequestResult,
   type AskCategory,
   type AskCommand,
+  type CommentKind,
   type DecisionCommand,
   type RequestResult,
   ITEM_BODY_MAX_LENGTH,
@@ -81,8 +83,12 @@ export interface UpdateSprintInput {
   readonly state?: SprintState;
 }
 
-/** `POST …/items/:key/comments`. The owner writes `comment`s; notes and decisions are the roles' (Phase 2). */
+/**
+ * `POST …/items/:key/comments`. `kind` defaults to `comment`; which kinds an actor may write is the route's
+ * (#444: the owner `comment`s only, a job any kind but `decision` as `dev-light`).
+ */
 export interface CreateCommentInput {
+  readonly kind: CommentKind;
   readonly body: string;
 }
 
@@ -375,12 +381,13 @@ export function checkUpdateSprintInput(body: unknown): InputCheck<UpdateSprintIn
 
 export function checkCreateCommentInput(body: unknown): InputCheck<CreateCommentInput> {
   return checked(() => {
-    const input = record(body, ['body']);
+    const input = record(body, ['kind', 'body']);
+    const kind = input['kind'] === undefined ? 'comment' : oneOf('kind', input['kind'], isCommentKind);
     const value = text('body', input['body'], COMMENT_BODY_MAX_LENGTH, 1);
     if (value.trim().length === 0) {
       throw new InputError('body', 'body must not be blank');
     }
-    return { body: value };
+    return { kind, body: value };
   });
 }
 

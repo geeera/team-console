@@ -11,6 +11,7 @@ import {
   stubJwksServer,
   uniqueTeamDomain,
 } from '../testing/access-kit';
+import type { Identity } from './auth.types';
 import { csrfMiddleware } from './csrf.middleware';
 
 // Threat model #8, row 5. No write route exists yet (#10 adds the first), so the rules are proven on a probe app
@@ -18,24 +19,32 @@ import { csrfMiddleware } from './csrf.middleware';
 
 const ORIGIN = 'https://team-console-dev.example.workers.dev';
 
-function probeApp(): Hono<WorkerHonoEnv<ApiEnv>> {
+// The probe stands where authMiddleware sits in the real app: the identity is set before csrfMiddleware runs.
+function probeApp(identity: Identity): Hono<WorkerHonoEnv<ApiEnv>> {
   const app = createWorkerApp<ApiEnv>({ service: 'csrf-probe' });
+  app.use('/api/*', async (c, next) => {
+    c.set('identity', identity);
+    await next();
+  });
   app.use('/api/*', csrfMiddleware);
   app.all('/api/v1/probe', (c) => c.json({ reached: true }));
   return app;
 }
 
+const JOB: Identity = { kind: 'job', role: 'pm', projectSlug: 'acme', jobId: 'job-1', items: [] };
+
 async function send(
   method: string,
   headers: Record<string, string>,
   body?: string | ReadableStream<Uint8Array>,
+  identity: Identity = { kind: 'user', email: 'owner@example.com' },
 ): Promise<Response> {
   const ctx = createExecutionContext();
   const init: RequestInit = { method, headers };
   if (body !== undefined) {
     init.body = body;
   }
-  const response = await probeApp().fetch(new Request(`${ORIGIN}/api/v1/probe`, init), env, ctx);
+  const response = await probeApp(identity).fetch(new Request(`${ORIGIN}/api/v1/probe`, init), env, ctx);
   await waitOnExecutionContext(ctx);
   return response;
 }
@@ -138,6 +147,31 @@ describe('csrfMiddleware', () => {
     const body = new Blob(['{}']).stream();
     const response = await send('POST', { 'Sec-Fetch-Site': 'same-origin' }, body);
     await expectProblem(response, 'unsupported-media-type', 415);
+  });
+
+  // #444, ADR 0006 R4: a bearer identity is exempt from the origin check, a cookie-borne one never.
+  it('lets a job (a bearer identity) write without Sec-Fetch-Site or Origin', async () => {
+    const response = await send('POST', JSON_TYPE, '{}', JOB);
+    expect(response.status).toBe(200);
+  });
+
+  it('still refuses a cross-site write by the owner and the local bypass', async () => {
+    const crossSite = { 'Sec-Fetch-Site': 'cross-site', ...JSON_TYPE };
+    await expectProblem(await send('POST', crossSite, '{}'), 'csrf', 403);
+    await expectProblem(await send('POST', crossSite, '{}', { kind: 'local' }), 'csrf', 403);
+    await expectProblem(
+      await send('POST', crossSite, '{}', { kind: 'service', commonName: 'ci' }),
+      'csrf',
+      403,
+    );
+  });
+
+  it('still requires a JSON body from a job', async () => {
+    await expectProblem(
+      await send('POST', { 'Content-Type': 'text/plain' }, '{}', JOB),
+      'unsupported-media-type',
+      415,
+    );
   });
 });
 

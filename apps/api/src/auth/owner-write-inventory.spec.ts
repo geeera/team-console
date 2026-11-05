@@ -6,11 +6,16 @@ import {
   SERVICE_TOKEN_ID,
   accessEnv,
   createSigningKey,
+  fetchApi,
   signAccessToken,
   stubJwksServer,
   uniqueTeamDomain,
 } from '../testing/access-kit';
-import { seedTrackerProject, send, sendAsService, slugOf } from '../testing/tracker-kit';
+import { localEnv } from '../testing/github-kit';
+import { localJobHeader } from '../testing/local-job-kit';
+import { jobActor, seedTrackerProject, send, sendAsService, slugOf } from '../testing/tracker-kit';
+import { JOB_ROLES } from './job-roles';
+import { TRACKER_MATRIX } from './tracker-matrix';
 
 // #62: every state-changing /api route says how it treats the dev/stage Access service identity. A new route fails
 // "is classified" until someone decides; an owner write must be `owner-only` or carry the fixture gate.
@@ -30,7 +35,12 @@ type ServiceRule =
    * #434: a job write (an ask, the PM's handled answer). No deployed identity maps to a job before Phase 2, so every
    * real caller is refused — the owner with a role 403, the service with 403 owner-only; proven in the route specs.
    */
-  | 'job-only';
+  | 'job-only'
+  /**
+   * #444: a tracker write behind `trackerAccess` — the service is refused there (403 owner-only), the owner and the
+   * jobs as their row of `TRACKER_MATRIX` says; every cell is proven in `tracker-matrix.spec.ts`.
+   */
+  | 'tracker-matrix';
 
 const RULES: Readonly<Record<string, ServiceRule>> = {
   'POST /api/v1/projects/:slug/issues/:number/answer': 'fixture-gate',
@@ -56,17 +66,17 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   // #221 (architect note on #29, amendment 6): D1 only, but the stage service key must not mute the owner's pushes.
   'PUT /api/v1/projects/:slug/notifications/snooze': 'owner-only',
   'DELETE /api/v1/projects/:slug/notifications/snooze': 'owner-only',
-  // #410 (ADR 0006): the console's own tracker, D1 only. Owner-only in Phase 1a, reads included (their route specs
-  // prove the GETs too); the `job` identity and the route matrix arrive with Phase 2 of #309.
-  'POST /api/v1/projects/:slug/items': 'owner-only',
-  'PATCH /api/v1/projects/:slug/items/:key': 'owner-only',
-  'POST /api/v1/projects/:slug/items/:key/comments': 'owner-only',
-  'POST /api/v1/projects/:slug/sprints': 'owner-only',
-  'PATCH /api/v1/projects/:slug/sprints/:number': 'owner-only',
-  'POST /api/v1/projects/:slug/labels': 'owner-only',
-  // #434 (ADR 0006 Phase 1a′): decisions and requests are the owner's own; asks and the PM's answer are job writes.
-  'POST /api/v1/projects/:slug/items/:key/decisions': 'owner-only',
-  'POST /api/v1/projects/:slug/items/:key/requests': 'owner-only',
+  // #410/#444 (ADR 0006): the console's own tracker, D1 only, behind the route matrix (reads included).
+  'POST /api/v1/projects/:slug/items': 'tracker-matrix',
+  'PATCH /api/v1/projects/:slug/items/:key': 'tracker-matrix',
+  'POST /api/v1/projects/:slug/items/:key/comments': 'tracker-matrix',
+  'POST /api/v1/projects/:slug/sprints': 'tracker-matrix',
+  'PATCH /api/v1/projects/:slug/sprints/:number': 'tracker-matrix',
+  'POST /api/v1/projects/:slug/labels': 'tracker-matrix',
+  // #434 (ADR 0006 Phase 1a′): decisions and requests are the owner's own (a job gets 403 owner-only from the
+  // matrix); asks and the PM's answer are job writes.
+  'POST /api/v1/projects/:slug/items/:key/decisions': 'tracker-matrix',
+  'POST /api/v1/projects/:slug/items/:key/requests': 'tracker-matrix',
   'POST /api/v1/projects/:slug/items/:key/asks': 'job-only',
   'POST /api/v1/projects/:slug/requests/:id/handled': 'job-only',
   'POST /api/v1/projects': 'no-owner-write',
@@ -80,13 +90,14 @@ function normalised(path: string): string {
   return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
 }
 
-const routes = [
+const apiRoutes = [
   ...new Set(
     createApiApp()
-      .routes.filter((route) => STATE_CHANGING.has(route.method) && route.path.startsWith('/api/'))
+      .routes.filter((route) => route.method !== 'ALL' && route.path.startsWith('/api/'))
       .map((route) => `${route.method} ${normalised(route.path)}`),
   ),
 ];
+const routes = apiRoutes.filter((route) => STATE_CHANGING.has(route.split(' ')[0] ?? ''));
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -173,13 +184,13 @@ describe('owner-write inventory (#62)', () => {
   });
 
   it.each(ownerOnly)('%s answers 403 owner-only to an identity of an unknown kind', async (route) => {
-    const forgedApp = await appWithForgedIdentity({ kind: 'job', role: 'pm' });
+    const forgedApp = await appWithForgedIdentity({ kind: 'runner', runnerId: 'r1' });
     const lines: string[] = [];
     await expectOwnerOnly(await sendAsServiceToken(route, lines, forgedApp));
     // The forged kind really crossed the auth seam and was refused for what it is.
     const log = lines.join('\n');
-    expect(log).toContain('"identity":"job"');
-    expect(log).toContain('"reason":"job"');
+    expect(log).toContain('"identity":"runner"');
+    expect(log).toContain('"reason":"runner"');
   });
 
   // #443: the fixture-gate routes skip ownerOnlyMiddleware for the service identity only; any other kind is refused
@@ -189,10 +200,23 @@ describe('owner-write inventory (#62)', () => {
     .map(([route]) => route);
 
   it.each(fixtureGated)('%s answers 403 owner-only to an identity of an unknown kind', async (route) => {
-    const forgedApp = await appWithForgedIdentity({ kind: 'job', role: 'pm' });
+    const forgedApp = await appWithForgedIdentity({ kind: 'runner', runnerId: 'r1' });
     const lines: string[] = [];
     await expectOwnerOnly(await sendAsServiceToken(route, lines, forgedApp));
-    expect(lines.join('\n')).toContain('"reason":"job"');
+    expect(lines.join('\n')).toContain('"reason":"runner"');
+  });
+
+  const trackerWrites = Object.entries(RULES)
+    .filter(([, rule]) => rule === 'tracker-matrix' || rule === 'job-only')
+    .map(([route]) => route);
+
+  it('finds the tracker writes, each a row of the route matrix', () => {
+    expect(trackerWrites.length).toBeGreaterThan(0);
+    expect(trackerWrites.filter((route) => !(route in TRACKER_MATRIX))).toEqual([]);
+  });
+
+  it.each(trackerWrites)('%s answers 403 owner-only to the service identity', async (route) => {
+    await expectOwnerOnly(await sendAsServiceToken(route));
   });
 
   const jobOnly = Object.entries(RULES)
@@ -203,15 +227,76 @@ describe('owner-write inventory (#62)', () => {
     expect(jobOnly.length).toBeGreaterThan(0);
   });
 
-  it.each(jobOnly)('%s refuses the owner (a role 403) and the service identity (403 owner-only)', async (route) => {
-    const [method = '', pattern = ''] = route.split(' ');
-    const { slug } = await seedTrackerProject();
-    const path = pattern.replace(':slug', slug).replace(/:[^/]+/g, '1');
-    const owner = await send(method as 'POST', path, {});
-    expect(owner.status).toBe(403);
-    expect(['ask-role', 'request-handled-role']).toContain(await slugOf(owner));
-    const service = await sendAsService(method, path, {});
-    expect(service.status).toBe(403);
-    expect(await slugOf(service)).toBe('owner-only');
+  it.each(jobOnly)(
+    '%s refuses the owner (a role 403) and the service identity (403 owner-only)',
+    async (route) => {
+      const [method = '', pattern = ''] = route.split(' ');
+      const { slug } = await seedTrackerProject();
+      const path = pattern.replace(':slug', slug).replace(/:[^/]+/g, '1');
+      const owner = await send(method as 'POST', path, {});
+      expect(owner.status).toBe(403);
+      expect(['ask-role', 'request-handled-role']).toContain(await slugOf(owner));
+      const service = await sendAsService(method, path, {});
+      expect(service.status).toBe(403);
+      expect(await slugOf(service)).toBe('owner-only');
+    },
+  );
+
+  // #444, the job column. A job identity on a deployed config (here forged past the Access check, since nothing there
+  // can mint one) maps to no policy actor: the tracker refuses it like the service, every other route never lets
+  // it in.
+  it.each(routes)('%s answers 403 owner-only to a job identity on a deployed config', async (route) => {
+    const forgedApp = await appWithForgedIdentity({
+      kind: 'job',
+      role: 'pm',
+      projectSlug: 'x',
+      jobId: 'job-forged',
+      items: [1],
+    });
+    await expectOwnerOnly(await sendAsServiceToken(route, [], forgedApp));
   });
 });
+
+// #444: the local job stand-in reaches the tracker's matrix routes and nothing else — not the GitHub-backed reads,
+// the registry, the answer or connection routes, whatever its role.
+describe('the job column off the tracker (#444)', () => {
+  const offTracker = apiRoutes.filter((route) => !(route in TRACKER_MATRIX));
+
+  it('finds routes off the tracker (the check is not vacuous)', () => {
+    expect(offTracker).toEqual(
+      expect.arrayContaining(['GET /api/v1/projects', 'POST /api/v1/projects/:slug/issues/:number/answer']),
+    );
+  });
+
+  it.each(offTracker)('%s answers 403 owner-only to the local job stand-in of every role', async (route) => {
+    const [method = '', pattern = ''] = route.split(' ');
+    const { slug } = await seedTrackerProject();
+    const path = pattern
+      .replace(':slug', slug)
+      .replace(/:[^/]+/g, '1')
+      .replace(/\*/g, 'x');
+    for (const role of JOB_ROLES) {
+      const response = await send(method as 'POST', path, method === 'GET' ? undefined : {}, {
+        job: jobActor(role),
+      });
+      expect(response.status, `${role} on ${route}`).toBe(403);
+      expect(await slugOf(response)).toBe('owner-only');
+    }
+  });
+
+  it('answers 403 to the stand-in on every method of a tracker path the matrix does not list', async () => {
+    const { slug } = await seedTrackerProject();
+    for (const method of ['PUT', 'DELETE'] as const) {
+      const response = await fetchAsJob(method, `/api/v1/projects/${slug}/items/1`);
+      expect(response.status).toBe(403);
+    }
+  });
+});
+
+async function fetchAsJob(method: string, path: string): Promise<Response> {
+  return fetchApi(path, localEnv(), {
+    method,
+    headers: { Authorization: localJobHeader(jobActor('pm'), path), 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+}

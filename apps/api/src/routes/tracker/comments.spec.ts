@@ -1,6 +1,8 @@
+import { env } from 'cloudflare:test';
 import type { CommentDto, CommentListDto, ItemDto, ItemEventListDto } from '@shared/contracts';
 import {
   countRows,
+  jobActor,
   newKey,
   seedGitHubProject,
   seedTrackerProject,
@@ -61,7 +63,7 @@ describe('POST /projects/:slug/items/:key/comments', () => {
     [{ body: '' }, 'body'],
     [{ body: ' \n ' }, 'body'],
     [{ body: 'x'.repeat(65_537) }, 'body'],
-    [{ body: 'x', kind: 'decision' }, 'body'],
+    [{ body: 'x', kind: 'verdict' }, 'kind'],
     [{ body: 'x', author: 'qa' }, 'body'],
   ])('answers 422 comment-invalid for %j', async (body, field) => {
     const project = await seedTrackerProject();
@@ -83,6 +85,56 @@ describe('POST /projects/:slug/items/:key/comments', () => {
     expect(await slugOf(gated)).toBe('tracker-not-cut-over');
     const keyless = await send('POST', await seedItem(project), { body: 'x' }, { key: null });
     expect(keyless.status).toBe(400);
+  });
+
+  // #444: the owner's decisions are `owner_decisions` rows, so the owner writes comments only.
+  it.each(['note', 'decision'])('answers 403 comment-kind to the owner writing a %s', async (kind) => {
+    const project = await seedTrackerProject();
+    const path = await seedItem(project);
+    const response = await send('POST', path, { kind, body: 'x' });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      type: expect.stringContaining('comment-kind'),
+      reason: kind,
+    });
+    expect(await countRows('comments', project.slug)).toBe(0);
+  });
+
+  it('records a job’s note and team decision under its role and job id, the kind on the commented event', async () => {
+    const project = await seedTrackerProject();
+    const path = await seedItem(project);
+    const architect = jobActor('architect', 'job-arch-3');
+    const note = await send('POST', path, { kind: 'note', body: 'Implementation note' }, { job: architect });
+    const decision = await send('POST', path, { kind: 'decision', body: 'We ship it' }, { job: architect });
+    expect([note.status, decision.status]).toEqual([201, 201]);
+    const written = (await decision.json()) as CommentDto;
+    expect(written).toMatchObject({ kind: 'decision', author: { kind: 'job', name: 'architect' } });
+    // The job id is the token's, kept on the row for the audit; the DTO shows the role only.
+    const row = await env.DB.prepare('SELECT job_id FROM comments WHERE id = ?1')
+      .bind(written.id)
+      .first<{ job_id: string }>();
+    expect(row?.job_id).toBe('job-arch-3');
+    const events = (await (
+      await send('GET', path.replace(/comments$/, 'events'))
+    ).json()) as ItemEventListDto;
+    expect(events.events.filter((event) => event.kind === 'commented').map((event) => event.after)).toEqual([
+      expect.objectContaining({ kind: 'note' }),
+      expect.objectContaining({ kind: 'decision' }),
+    ]);
+  });
+
+  it('answers 403 comment-kind to dev-light writing a team decision; its note is fine', async () => {
+    const project = await seedTrackerProject();
+    const path = await seedItem(project);
+    const light = jobActor('dev-light');
+    const refused = await send('POST', path, { kind: 'decision', body: 'x' }, { job: light });
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({
+      type: expect.stringContaining('comment-kind'),
+      reason: 'decision',
+    });
+    expect((await send('POST', path, { kind: 'note', body: 'x' }, { job: light })).status).toBe(201);
+    expect(await countRows('comments', project.slug)).toBe(1);
   });
 
   it('has no route to edit or delete a comment', async () => {
@@ -114,7 +166,7 @@ describe('GET /projects/:slug/items/:key/comments', () => {
   });
 });
 
-describe('the comment routes are the owner’s', () => {
+describe('the comment routes refuse identities without a policy actor', () => {
   it.each(['GET', 'POST'])(
     '%s answers 401 without an identity and 403 owner-only to the service identity',
     async (method) => {

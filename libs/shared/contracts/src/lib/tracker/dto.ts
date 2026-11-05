@@ -224,4 +224,7 @@ export type TrackerProblemType =
   | 'request-handled'
   | 'request-handled-role'
   | 'item-closed'
-  | 'item-changed';
+  | 'item-changed'
+  // #444: the route matrix and the comment kinds.
+  | 'sprint-role'
+  | 'comment-kind';
