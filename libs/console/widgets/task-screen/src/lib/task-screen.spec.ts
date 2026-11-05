@@ -101,6 +101,7 @@ async function answerLoad(http: HttpTestingController, item: ItemDto | null): Pr
       next: null,
     });
   http.expectOne((r) => r.url === `${BASE}/items/7/decisions`).flush({ decisions: [], next: null });
+  http.expectOne((r) => r.url === `${BASE}/items/7/asks`).flush({ asks: [], next: null });
   http
     .expectOne((r) => r.url === `${BASE}/items` && r.params.get('status') === 'approved')
     .flush({

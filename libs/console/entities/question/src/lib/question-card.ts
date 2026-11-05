@@ -8,6 +8,7 @@ import {
   input,
   linkedSignal,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@console/shared/i18n';
 import { Markdown, type RenderedMarkdown } from '@console/shared/markdown';
 import { withoutAskLine } from '@shared/owner-grammar';
@@ -73,7 +74,7 @@ function isActionSection(section: Section): boolean {
  */
 @Component({
   selector: 'tc-question-card',
-  imports: [Card, Chip, Frame, Icon, Markdown, Recommendation, TranslocoPipe],
+  imports: [Card, Chip, Frame, Icon, Markdown, Recommendation, RouterLink, TranslocoPipe],
   template: `
     <tc-card flush [stamp]="stamp()" role="article" [attr.aria-labelledby]="titleId">
       <span tc-card-kind>
@@ -82,7 +83,7 @@ function isActionSection(section: Section): boolean {
         }
         {{ 'questions.section.' + item().section | transloco }}
       </span>
-      <span tc-card-number>#{{ item().number }}</span>
+      <span tc-card-number>{{ item().key ?? '#' + item().number }}</span>
       <h2 tc-card-title [id]="titleId" tabindex="-1" dir="auto">{{ summary() ?? item().title }}</h2>
       @if (summary() !== null) {
         <p class="question__github-title" data-testid="github-title">
@@ -168,7 +169,15 @@ function isActionSection(section: Section): boolean {
           }
         </details>
       }
-      @if (item().url; as url) {
+      @if (item().key && showTaskLink()) {
+        <a
+          tc-card-meta
+          class="question__link"
+          data-testid="open-task"
+          [routerLink]="['/p', item().project.slug, 't', item().number]"
+          >{{ 'questions.openTask' | transloco: { key: item().key } }}</a
+        >
+      } @else if (item().url; as url) {
         <a tc-card-meta class="question__link" [href]="url" target="_blank" rel="noopener noreferrer"
           >{{ 'questions.openOnGitHub' | transloco: { n: item().number }
           }}<span class="tc-sr-only"> {{ 'questions.opensGitHub' | transloco }}</span
@@ -183,6 +192,8 @@ function isActionSection(section: Section): boolean {
 })
 export class QuestionCard {
   readonly item = input.required<QuestionItem>();
+  /** A console-tracker item links its task screen (#435); off on that screen itself. */
+  readonly showTaskLink = input(true);
   /** Cross-project lists tag every card with its project. */
   readonly showProject = input(false, { transform: booleanAttribute });
   /** The ink stamp while an answered card folds away. */

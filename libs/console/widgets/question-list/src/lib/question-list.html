@@ -156,6 +156,13 @@
           >{{ 'answer.receipt.open' | transloco }}<span class="tc-sr-only"> {{ 'push.arrive.external' | transloco }}</span
           ><tc-icon name="external" size="sm"
         /></a>
+        } @else if (row.item.key) { ·
+        <a
+          class="questions__receipt-link"
+          data-testid="receipt-task"
+          [routerLink]="['/p', row.item.project.slug, 't', row.item.number]"
+          >{{ 'questions.openTaskHistory' | transloco }}</a
+        >
         }
       </span>
     </tc-receipt>

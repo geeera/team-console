@@ -100,9 +100,16 @@
         (failed)="onFailed($event)"
       />
     </div>
+    } @if (asks(); as asks) {
+    <tc-task-decision
+      [slug]="slug()"
+      [projectName]="projectName()"
+      [item]="item"
+      [asks]="asks"
+      (decided)="onDecided()"
+      (refreshRequested)="load(slug(), number(), true)"
+    />
     }
-
-    <ng-content select="[tc-task-decision]" />
 
     <dl tc-ledger>
       <div tc-ledger-row [label]="'item.status' | transloco">
@@ -193,6 +200,7 @@
       <tc-item-comment
         [slug]="slug()"
         [number]="item.number"
+        [isDecisionWaiting]="isDecisionWaiting()"
         [off]="off()"
         (commented)="onCommented()"
         (failed)="onFailed($event)"
