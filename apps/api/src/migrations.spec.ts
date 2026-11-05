@@ -55,6 +55,7 @@ describe('migrations on a fresh D1', () => {
       '0013_tracker.sql',
       '0014_decisions.sql',
       '0015_decision_guards.sql',
+      '0016_item_approval.sql',
     ]);
   });
 
@@ -250,5 +251,58 @@ describe('migrations on a fresh D1', () => {
       .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'idempotency_keys'")
       .all<{ name: string }>();
     expect(results.map((row) => row.name)).toContain('idempotency_keys_expiry');
+  });
+
+  // #452: 0016 backfills the approval from the status and, for a done item, from its history; it fails closed.
+  it('backfill the approval of the items already there', async () => {
+    const db = env.MIGRATION_DB_0016;
+    await applyD1Migrations(
+      db,
+      env.TEST_MIGRATIONS.filter((migration) => migration.name < '0016'),
+    );
+    const T0 = '2026-11-01T00:00:00.000Z';
+    await db
+      .prepare(
+        `INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at) VALUES ('m16', 'a/m16', 'm16', 0, ?1)`,
+      )
+      .bind(T0)
+      .run();
+    const insert = (number: number, status: string, closed: boolean) =>
+      db
+        .prepare(
+          `INSERT INTO items (project_slug, number, kind, status, title, closed_at, closed_reason, created_by_kind,
+             created_by, created_at, updated_at)
+           VALUES ('m16', ?1, 'feature', ?2, 'Item', ?3, ?4, 'owner', 'owner', ?5, ?5)`,
+        )
+        .bind(number, status, closed ? T0 : null, closed ? 'done' : null, T0)
+        .run();
+    await insert(1, 'proposed', false);
+    await insert(2, 'in-progress', false);
+    await insert(3, 'done', true); // Went through work: approved.
+    await insert(4, 'done', true); // Closed by the release decision straight from proposed: not approved.
+    const event = (number: number, kind: string, after: unknown, at: string) =>
+      db
+        .prepare(
+          `INSERT INTO item_events (item_id, at, actor_kind, actor, kind, before, after)
+           SELECT id, ?2, 'owner', 'owner', ?3, NULL, ?4 FROM items WHERE project_slug = 'm16' AND number = ?1`,
+        )
+        .bind(number, at, kind, JSON.stringify(after))
+        .run();
+    await event(2, 'status', { status: 'approved' }, '2026-11-02T00:00:00.000Z');
+    await event(3, 'status', { status: 'in-progress' }, '2026-11-03T00:00:00.000Z');
+    await event(3, 'closed', { status: 'done' }, '2026-11-04T00:00:00.000Z');
+    await event(4, 'closed', { status: 'done' }, '2026-11-04T00:00:00.000Z');
+
+    await applyD1Migrations(db, env.TEST_MIGRATIONS);
+
+    const { results } = await db
+      .prepare(`SELECT number, approved_at FROM items WHERE project_slug = 'm16' ORDER BY number`)
+      .all<{ number: number; approved_at: string | null }>();
+    expect(results).toEqual([
+      { number: 1, approved_at: null },
+      { number: 2, approved_at: '2026-11-02T00:00:00.000Z' },
+      { number: 3, approved_at: '2026-11-03T00:00:00.000Z' },
+      { number: 4, approved_at: null },
+    ]);
   });
 });

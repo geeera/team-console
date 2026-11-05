@@ -577,3 +577,109 @@ describe('#452: no job skips the owner’s approval', () => {
     expect(response.status).toBe(200);
   });
 });
+
+// Security review of #458: the release decision closes a proposed demo item as `done` without approving it. The
+// approval is a recorded fact (`items.approved_at`), so the status alone no longer lets a job reopen it into work.
+describe('#452: an item the owner closed without approving stays out of work', () => {
+  /** The repro: a pm flags a proposed item `team:demo`, the owner answers the release; the item is now done. */
+  async function released(
+    project: SeededProject,
+  ): Promise<{ path: string; number: number; version: number }> {
+    const { path, number } = await item(project, { kind: 'chore' });
+    const flagging = await send(
+      'PATCH',
+      path,
+      { addLabels: ['team:demo'] },
+      { ifMatch: '"1"', job: jobActor('pm') },
+    );
+    expect(flagging.status).toBe(200);
+    const decision = await send('POST', `${path}/decisions`, {
+      command: 'no-go',
+      text: 'Not now',
+      via: 'web',
+    });
+    expect(decision.status).toBe(201);
+    const closed = (await (await send('GET', path)).json()) as ItemDto;
+    expect(closed).toMatchObject({ status: 'done', closedReason: 'done' });
+    return { path, number, version: closed.version };
+  }
+
+  async function expectRefused(response: Response, reason: string, label: string): Promise<void> {
+    expect(response.status, label).toBe(403);
+    expect(await response.json(), label).toMatchObject({
+      type: expect.stringContaining('transition-owner-only') as unknown,
+      reason,
+    });
+  }
+
+  const reopening = JOB_ROLES.flatMap((role) =>
+    (['in-progress', 'qa', 'blocked', 'approved'] as const).map((status) => [role, status] as const),
+  );
+  it.each(reopening)('%s moving the released item to %s gets 403, writing nothing', async (role, status) => {
+    const project = await seedTrackerProject();
+    const { path, number, version } = await released(project);
+    const before = await snapshot(project.slug);
+    await expectRefused(
+      await send(
+        'PATCH',
+        path,
+        { status },
+        { ifMatch: `"${String(version)}"`, job: jobActor(role, `job-${role}`, [number]) },
+      ),
+      status === 'approved' ? 'approve' : 'not-approved',
+      `${role}: done → ${status}`,
+    );
+    expect(await snapshot(project.slug), 'a refusal writes nothing').toEqual(before);
+  });
+
+  it.each(JOB_ROLES)('%s removing team:demo from the closed item gets 403, writing nothing', async (role) => {
+    const project = await seedTrackerProject();
+    const { path, number, version } = await released(project);
+    const before = await snapshot(project.slug);
+    await expectRefused(
+      await send(
+        'PATCH',
+        path,
+        { removeLabels: ['team:demo'] },
+        { ifMatch: `"${String(version)}"`, job: jobActor(role, `job-${role}`, [number]) },
+      ),
+      'demo-flag',
+      `${role}: remove team:demo`,
+    );
+    expect(await snapshot(project.slug), 'a refusal writes nothing').toEqual(before);
+  });
+
+  it('lets the owner reopen the released item into work, which records the approval', async () => {
+    const project = await seedTrackerProject();
+    const { path, number, version } = await released(project);
+    const owner = await send('PATCH', path, { status: 'in-progress' }, { ifMatch: `"${String(version)}"` });
+    expect(owner.status).toBe(200);
+    const dev = await send(
+      'PATCH',
+      path,
+      { status: 'qa' },
+      { ifMatch: `"${String(version + 1)}"`, job: jobActor('dev', 'job-dev', [number]) },
+    );
+    expect(dev.status).toBe(200);
+  });
+
+  // An approved item that was closed is reopened by the same roles as before #452.
+  it.each(JOB_ROLES)('%s reopening an approved, done item into work is judged as before', async (role) => {
+    const project = await seedTrackerProject();
+    const { path, number } = await item(project, { kind: 'feature', status: 'qa' });
+    expect((await send('PATCH', path, { status: 'done' }, { ifMatch: '"1"' })).status).toBe(200);
+    const response = await send(
+      'PATCH',
+      path,
+      { status: 'in-progress' },
+      { ifMatch: '"2"', job: jobActor(role, `job-${role}`, [number]) },
+    );
+    if (EDITORS.includes(role) || STATUS_MOVERS.includes(role)) {
+      expect(response.status, role).toBe(200);
+      expect(await response.json(), role).toMatchObject({ status: 'in-progress', state: 'open' });
+    } else {
+      expect(response.status, role).toBe(403);
+      expect(await slugOf(response), role).toBe('transition-role');
+    }
+  });
+});

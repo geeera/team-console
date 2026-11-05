@@ -1,4 +1,6 @@
 import {
+  ITEM_STATUSES,
+  isWorkableStatus,
   isAskCategory,
   isAskCommand,
   isDecisionCommand,
@@ -16,6 +18,10 @@ describe('tracker vocabulary', () => {
     expect(isItemStatus('qa')).toBe(true);
     expect(isItemStatus('status:qa')).toBe(false);
     expect(isItemStatus(undefined)).toBe(false);
+  });
+
+  it('counts every status but proposed and done as workable', () => {
+    expect(ITEM_STATUSES.filter(isWorkableStatus)).toEqual(['approved', 'in-progress', 'qa', 'blocked']);
   });
 
   it.each(['security', 'design:approved', 'agent:dev-light', 'release-blocker', 'needs:owner'])(

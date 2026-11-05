@@ -1,11 +1,12 @@
-import type {
-  ActorKind,
-  ClosedReason,
-  ItemKind,
-  ItemSeverity,
-  ItemSource,
-  ItemStatus,
-  ItemTier,
+import {
+  isWorkableStatus,
+  type ActorKind,
+  type ClosedReason,
+  type ItemKind,
+  type ItemSeverity,
+  type ItemSource,
+  type ItemStatus,
+  type ItemTier,
 } from '@shared/contracts';
 import { itemEventStatement, type NewItemEvent, type TrackerActor } from './item-events.repo';
 
@@ -24,6 +25,8 @@ export interface ItemSummaryRecord {
   readonly flags: readonly string[];
   readonly closedAt: string | null;
   readonly closedReason: ClosedReason | null;
+  /** When the item first reached a workable status, by the owner or an owner decision (#452); `null`: never approved. */
+  readonly approvedAt: string | null;
   readonly createdByKind: ActorKind;
   readonly createdBy: string;
   readonly createdAt: string;
@@ -61,6 +64,7 @@ export interface ItemColumnsPatch {
   readonly sprintId?: number | null;
   readonly closedAt?: string | null;
   readonly closedReason?: ClosedReason | null;
+  readonly approvedAt?: string;
 }
 
 export interface FlagsPatch {
@@ -99,6 +103,7 @@ export interface ItemRow {
   flags: string;
   closed_at: string | null;
   closed_reason: ClosedReason | null;
+  approved_at: string | null;
   created_by_kind: ActorKind;
   created_by: string;
   created_at: string;
@@ -109,8 +114,8 @@ export interface ItemRow {
 }
 
 export const ITEM_SUMMARY_COLUMNS = `items.id, items.number, items.kind, items.status, items.severity, items.tier,
-  sprints.number AS sprint_number, items.title, items.closed_at, items.closed_reason, items.created_by_kind,
-  items.created_by, items.created_at, items.updated_at, items.version, items.source, items.source_url,
+  sprints.number AS sprint_number, items.title, items.closed_at, items.closed_reason, items.approved_at,
+  items.created_by_kind, items.created_by, items.created_at, items.updated_at, items.version, items.source, items.source_url,
   (SELECT json_group_array(name) FROM (SELECT name FROM item_labels WHERE item_id = items.id ORDER BY name)) AS flags`;
 
 export const ITEM_FROM = 'FROM items LEFT JOIN sprints ON sprints.id = items.sprint_id';
@@ -133,6 +138,7 @@ export function itemSummaryOf(row: ItemRow): ItemSummaryRecord {
     flags: flagsOf(row.flags),
     closedAt: row.closed_at,
     closedReason: row.closed_reason,
+    approvedAt: row.approved_at,
     createdByKind: row.created_by_kind,
     createdBy: row.created_by,
     createdAt: row.created_at,
@@ -154,6 +160,7 @@ const PATCH_COLUMNS: readonly (readonly [keyof ItemColumnsPatch, string])[] = [
   ['sprintId', 'sprint_id'],
   ['closedAt', 'closed_at'],
   ['closedReason', 'closed_reason'],
+  ['approvedAt', 'approved_at'],
 ];
 
 /**
@@ -211,7 +218,8 @@ export class ItemsRepo {
 
   /**
    * Inserts the item (number from `TrackerProjectsRepo.allocateItemNumber`), its flags and its `created` event.
-   * Closed from the start only as `done`. Throws on a constraint the route should have refused (an unknown flag).
+   * Closed from the start only as `done`. Created in a workable status, it is approved from the start: only the owner
+   * may create it so (the transition table). Throws on a constraint the route should have refused (an unknown flag).
    */
   async create(
     slug: string,
@@ -225,8 +233,9 @@ export class ItemsRepo {
       this.db
         .prepare(
           `INSERT INTO items (project_slug, number, kind, status, severity, tier, sprint_id, title, body, closed_at,
-             closed_reason, created_by_kind, created_by, created_at, updated_at, version, source, source_url)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?14, 1, 'console', NULL)`,
+             closed_reason, created_by_kind, created_by, created_at, updated_at, version, source, source_url,
+             approved_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?14, 1, 'console', NULL, ?15)`,
         )
         .bind(
           slug,
@@ -243,6 +252,7 @@ export class ItemsRepo {
           actor.kind,
           actor.name,
           at,
+          isWorkableStatus(item.status) ? at : null,
         ),
       ...item.flags.map((flag) =>
         this.db
