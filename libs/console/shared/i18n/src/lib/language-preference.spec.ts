@@ -3,7 +3,7 @@ import { ApplicationInitStatus } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { TranslocoService } from '@jsverse/transloco';
 import { EMPTY, throwError } from 'rxjs';
-import { provideConsoleI18n } from './i18n.providers';
+import { provideConsoleAppI18n, provideConsoleI18n } from './i18n.providers';
 import {
   ConsoleLanguage,
   DEVICE_LANGUAGES,
@@ -43,12 +43,12 @@ describe('initialLangOf', () => {
   });
 });
 
-describe('ConsoleLanguage with provideConsoleI18n({ start: "remembered" })', () => {
+describe('ConsoleLanguage with provideConsoleAppI18n()', () => {
   async function launch(stored: string | null, device: readonly string[]) {
     const storage = memoryLanguageStorage(stored);
     TestBed.configureTestingModule({
       providers: [
-        provideConsoleI18n({ start: 'remembered' }),
+        provideConsoleAppI18n(),
         { provide: LANGUAGE_STORAGE, useValue: storage },
         { provide: DEVICE_LANGUAGES, useValue: device },
       ],

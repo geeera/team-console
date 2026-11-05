@@ -1,26 +1,18 @@
 import { Injectable } from '@angular/core';
 import { Translation, TranslocoLoader } from '@jsverse/transloco';
-import { from, map, Observable, of, throwError } from 'rxjs';
-import { isConsoleLang } from './languages';
+import { Observable, of } from 'rxjs';
+import { loadCatalogue } from './lazy-translation-loader';
 import ru from './locales/ru.json';
 
 /**
- * Russian — the reference copy and Transloco's fallback, loaded beside whichever language is active — ships inside
- * the initial bundle and loads synchronously, so the first paint works offline.
- *
- * English is its own lazy chunk (#123), kept out of the initial bundle: the start initializer waits for it before
- * the first render, so an English start shows no flash of Russian, and the service worker prefetches every `*.js`
- * on install (`ngsw-config.json`, group `app`), so an offline English start finds it on the device.
+ * Specs and Storybook only (`provideConsoleI18n()`): the Russian reference copy inline, handed out synchronously, so
+ * a spec renders it without awaiting a chunk. English still comes from its lazy chunk. The app never reaches this
+ * file — it would put the whole Russian catalogue back into the initial bundle (#433); it uses
+ * `LazyTranslationLoader` through `provideConsoleAppI18n()`.
  */
 @Injectable({ providedIn: 'root' })
 export class StaticTranslationLoader implements TranslocoLoader {
   getTranslation(lang: string): Observable<Translation> {
-    if (!isConsoleLang(lang)) {
-      return throwError(() => new Error(`Unsupported language "${lang}"`));
-    }
-    if (lang === 'ru') {
-      return of(ru);
-    }
-    return from(import('./locales/en.json')).pipe(map((module): Translation => module.default));
+    return lang === 'ru' ? of(ru) : loadCatalogue(lang);
   }
 }

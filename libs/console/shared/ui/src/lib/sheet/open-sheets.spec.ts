@@ -15,4 +15,20 @@ describe('OpenSheets', () => {
 
     expect(closeAll).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps the first closer and ignores a second attach with a warning (#433)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const sheets = TestBed.inject(OpenSheets);
+    const first = vi.fn();
+    const second = vi.fn();
+    sheets.attach(first);
+
+    sheets.attach(second);
+    sheets.closeAll();
+
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith('OpenSheets: a closer is already attached; ignoring the second attach');
+    warn.mockRestore();
+  });
 });
