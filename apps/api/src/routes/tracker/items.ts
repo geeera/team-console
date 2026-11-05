@@ -22,11 +22,7 @@ import {
   type TrackerProject,
 } from '@worker/db';
 import { transitionRefusal, type ItemTransition } from '../../auth/policy';
-import {
-  policyActorOfContext,
-  trackerAccess,
-  type PolicyActorOf,
-} from '../../auth/tracker-access.middleware';
+import { policyActorOfContext, trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
 import {
   invalid,
@@ -157,18 +153,18 @@ async function unknownLabels(
  * carries an `Idempotency-Key`, is judged by the transition table (`auth/policy.ts`) and lands with its
  * `item_events` row in one D1 batch.
  */
-export function createTrackerItemRoutes(actorOf: PolicyActorOf): Hono<WorkerHonoEnv<ApiEnv>> {
+export function createTrackerItemRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
   // The transition table's verdict on the admitted actor; `itemNumber` is `null` for a new item.
   const judge = (c: Context, transition: ItemTransition, itemNumber: number | null): Response | null => {
     const refusal = transitionRefusal(policyActorOfContext(c), transition, itemNumber);
     return refusal === null ? null : transitionProblem(c, refusal);
   };
   const guard = {
-    list: trackerAccess('GET /api/v1/projects/:slug/items', actorOf),
-    create: trackerAccess('POST /api/v1/projects/:slug/items', actorOf),
-    read: trackerAccess('GET /api/v1/projects/:slug/items/:key', actorOf),
-    change: trackerAccess('PATCH /api/v1/projects/:slug/items/:key', actorOf),
-    events: trackerAccess('GET /api/v1/projects/:slug/items/:key/events', actorOf),
+    list: trackerAccess('GET /api/v1/projects/:slug/items'),
+    create: trackerAccess('POST /api/v1/projects/:slug/items'),
+    read: trackerAccess('GET /api/v1/projects/:slug/items/:key'),
+    change: trackerAccess('PATCH /api/v1/projects/:slug/items/:key'),
+    events: trackerAccess('GET /api/v1/projects/:slug/items/:key/events'),
   };
 
   return new Hono<WorkerHonoEnv<ApiEnv>>()

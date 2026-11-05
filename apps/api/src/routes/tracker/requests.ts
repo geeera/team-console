@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { checkCreateRequestInput, checkHandleRequestInput, type ItemRequestListDto } from '@shared/contracts';
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import { ItemRequestsRepo, type ItemRequestRecord } from '@worker/db';
-import { trackerAccess, type PolicyActorOf } from '../../auth/tracker-access.middleware';
+import { trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
 import { invalid, itemClosed, itemOf } from '../../tracker/context';
 import { itemRequestDtoOf } from '../../tracker/dto';
@@ -33,11 +33,11 @@ function requestResponse(c: Context, request: ItemRequestRecord | null, status: 
  * a job write that records the job (`handled_by_job_id` from the actor, never from the body), `pm` only by the route
  * matrix. Until Phase 2 the only job identity is the local stand-in, so every deployed caller is refused there.
  */
-export function createTrackerRequestRoutes(actorOf: PolicyActorOf): Hono<WorkerHonoEnv<ApiEnv>> {
+export function createTrackerRequestRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
   const guard = {
-    list: trackerAccess('GET /api/v1/projects/:slug/items/:key/requests', actorOf),
-    create: trackerAccess('POST /api/v1/projects/:slug/items/:key/requests', actorOf),
-    handled: trackerAccess('POST /api/v1/projects/:slug/requests/:id/handled', actorOf),
+    list: trackerAccess('GET /api/v1/projects/:slug/items/:key/requests'),
+    create: trackerAccess('POST /api/v1/projects/:slug/items/:key/requests'),
+    handled: trackerAccess('POST /api/v1/projects/:slug/requests/:id/handled'),
   };
   return new Hono<WorkerHonoEnv<ApiEnv>>()
     .get('/:slug/items/:key/requests', guard.list, async (c) => {

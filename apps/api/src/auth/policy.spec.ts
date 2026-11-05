@@ -156,9 +156,33 @@ describe('policyActorOf', () => {
   it('is an allowlist (#434): the local kind outside the bypass and an unknown kind map to nothing', () => {
     expect(policyActorOf({ kind: 'local' }, deployed)).toBeNull();
     expect(policyActorOf({ kind: 'local' }, { ENVIRONMENT: 'local' })).toBeNull();
-    const futureKind = { kind: 'job', role: 'pm' } as unknown as Identity;
+    const futureKind = { kind: 'runner', runnerId: 'r1' } as unknown as Identity;
     expect(policyActorOf(futureKind, local)).toBeNull();
     expect(policyActorOf(futureKind, deployed)).toBeNull();
+  });
+
+  // #444: the job identity's only minter is the local stand-in, so it maps only while the local bypass holds.
+  const job: Identity = { kind: 'job', role: 'qa', projectSlug: 'acme', jobId: 'job-9', items: [4, 7] };
+
+  it('maps the job identity to the job actor under the local bypass', () => {
+    expect(policyActorOf(job, local)).toEqual({
+      kind: 'job',
+      role: 'qa',
+      projectSlug: 'acme',
+      jobId: 'job-9',
+      items: [4, 7],
+    });
+  });
+
+  it.each([
+    ['dev', { ENVIRONMENT: 'dev', AUTH_MODE: 'local' }],
+    ['stage', { ENVIRONMENT: 'stage', AUTH_MODE: 'local' }],
+    ['production', { ENVIRONMENT: 'production', AUTH_MODE: 'local' }],
+    ['production without AUTH_MODE', { ENVIRONMENT: 'production' }],
+    ['local without AUTH_MODE', { ENVIRONMENT: 'local' }],
+    ['AUTH_MODE=local with an empty ENVIRONMENT', { ENVIRONMENT: '', AUTH_MODE: 'local' }],
+  ])('maps the job identity to nothing on %s', (_, env) => {
+    expect(policyActorOf(job, env)).toBeNull();
   });
 });
 

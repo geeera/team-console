@@ -10,6 +10,7 @@ import type { ItemRecord } from '@worker/db';
 import type { ApiEnv } from '../env';
 import { planItemUpdate, type ItemUpdatePlan } from '../tracker/item-change';
 import type { Identity } from './auth.types';
+import { isLocalBypass } from './local-bypass';
 import { isOwnerIdentity } from './owner-only.middleware';
 
 /**
@@ -185,14 +186,23 @@ export function commentKindRefusal(actor: PolicyActor, kind: CommentKind): Comme
 
 /**
  * The policy actor of an identity: the owner for the allowlist `ownerOnlyMiddleware` passes (the owner's Access
- * login, or the local bypass with `ENVIRONMENT=local` + `AUTH_MODE=local`). `null` for every other kind — the
- * service identity and any kind added later — so nothing acts on the tracker until it is mapped here on purpose.
+ * login, or the local bypass with `ENVIRONMENT=local` + `AUTH_MODE=local`); a job for the `job` identity, and only
+ * while the local bypass holds (#444) — its only minter today is the local stand-in, so a `job` that reached a
+ * deployed Worker some other way still maps to nothing. `null` for every other kind (the service identity, any
+ * kind added later), so nothing acts on the tracker until it is mapped here on purpose.
  */
 export function policyActorOf(
   identity: Identity,
   env: Pick<ApiEnv, 'ENVIRONMENT' | 'AUTH_MODE'>,
 ): PolicyActor | null {
-  return isOwnerIdentity(identity, env) ? { kind: 'owner' } : null;
+  if (isOwnerIdentity(identity, env)) {
+    return { kind: 'owner' };
+  }
+  if (identity.kind === 'job' && isLocalBypass(env)) {
+    const { role, projectSlug, jobId, items } = identity;
+    return { kind: 'job', role, projectSlug, jobId, items };
+  }
+  return null;
 }
 
 /**

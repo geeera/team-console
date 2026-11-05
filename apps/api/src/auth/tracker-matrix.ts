@@ -94,3 +94,22 @@ export function matrixRefusal(rule: TrackerRouteRule, actor: PolicyActor): Track
   const isAdmitted = actor.kind === 'owner' ? rule.owner : rule.job(actor.role);
   return isAdmitted ? null : rule.refusal;
 }
+
+const PARAM = /:[a-z]+/g;
+
+const MATRIX_PATTERNS: readonly { method: string; path: RegExp }[] = Object.keys(TRACKER_MATRIX).map(
+  (route) => {
+    const [method = '', pattern = ''] = route.split(' ');
+    // Route params never match `/`; a trailing slash is the same route to the router.
+    const source = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(PARAM, '[^/]+');
+    return { method, path: new RegExp(`^${source}/?$`) };
+  },
+);
+
+/**
+ * Whether `method path` is a matrix route. The job identity is confined to these: every other `/api` route
+ * refuses it before its own code runs (`jobScopeMiddleware`), so no GitHub-backed or registry route becomes a job's.
+ */
+export function isTrackerMatrixRoute(method: string, path: string): boolean {
+  return MATRIX_PATTERNS.some((pattern) => pattern.method === method && pattern.path.test(path));
+}

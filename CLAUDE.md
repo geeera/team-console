@@ -213,8 +213,7 @@ replay answers the resource with `Idempotent-Replayed: true`, 409 `idempotency-i
 change) → one D1 batch with its `item_events` rows, one per kind of change — the lifecycle (`status|closed|reopened`) apart from `labels|sprint|edited` (`tracker/item-change.ts` plans the columns and the before/after of the
 changed fields). Lists: `?after=&limit≤100`, items also `status|kind|severity|tier|sprint(=N|none)|label|state`. DTOs
 `ItemDto`, `TrackerSprintDto`, `CommentDto`, `ItemEventDto`, `LabelDto` (separate from the GitHub-backed board DTOs).
-Specs seed a fresh project per case (`testing/tracker-kit.ts`; `send(…, { job })` sends as a job through
-`createApiApp({ trackerPolicyActorOf })`, the specs' stand-in for the job identity, never set by `main.ts`).
+Specs seed a fresh project per case (`testing/tracker-kit.ts`; `send(…, { job })` sends as the local job stand-in).
 Asks, owner decisions and requests (#434, Phase 1a′): `routes/tracker/{asks,decisions,requests}.ts` — `GET|POST
 items/:key/asks` (job-only: any role but `dev*`, the owner 403 `ask-role`; replaces the open ask and sets
 `owner:<category>` in its batch, `askEffectOf`), `GET|POST items/:key/decisions` (owner-only, `via: web|push`, no
@@ -222,7 +221,7 @@ items/:key/asks` (job-only: any role but `dev*`, the owner 403 `ask-role`; repla
 effects by `decisionEffectOf` through `planItemUpdate` in one batch, a moved version re-read once then 409
 `item-changed`), `GET|POST items/:key/requests` (owner-only, no sprint logic) and `POST requests/:id/handled` (`pm` job
 only, 409 `request-handled`); the job-only writes refuse every deployed identity until Phase 2.
-Route matrix (#444, ADR 0006 decision 11; Phase 2 keeps the table and swaps the identity behind the job actor):
+Route matrix and the local job stand-in (#444, ADR 0006 decision 11; Phase 2 keeps the table and swaps the token):
 `auth/tracker-matrix.ts` (`TRACKER_MATRIX`, one row per tracker route) enforced by `trackerAccess(route)` in
 `auth/tracker-access.middleware.ts`, which replaces `ownerOnlyMiddleware` on every tracker route — no policy actor (the
 service) 403 `owner-only` before anything is read; a job of another project 404 `project-not-found` (never 403); then
@@ -230,7 +229,12 @@ the row's 403: reads owner + any role; `POST|PATCH items` any role, judged by `t
 number in the job's `items`; R2: `qa`/`reviewer`/`security` never set or clear `qa:changes-requested|review-failed|tier-up`,
 `verdict-flag`); comments any role, `kind: comment|note|decision` (`commentKindRefusal`: the owner `comment` only,
 `decision` not as `dev-light`, 403 `comment-kind`); sprints owner + `pm` (403 `sprint-role`); labels, decisions, requests
-owner only; asks any role but `dev*` (`ask-role`); handled `pm` only. Roles are `auth/job-roles.ts`.
+owner only; asks any role but `dev*` (`ask-role`); handled `pm` only. `jobScopeMiddleware` (on `/api/*` after auth)
+refuses a job on every non-matrix route (403 `owner-only`); CSRF exempts the bearer `job` identity only (JSON still
+required). The job identity's only minter is the local stand-in (`auth/local-job.ts`): under `isLocalBypass` alone,
+`Authorization: Bearer local-job.<base64url({"role","project_slug","job_id","items"})>` (exact members, a role of
+`auth/job-roles.ts`, ≤ 100 items) is that job; any other `Authorization` there is 401 `job-token-invalid` (never the
+owner); a stand-in anywhere else is 401 `job-token-refused`; `policyActorOf` maps a `job` only under the bypass too.
 `tracker-matrix.spec.ts` proves every row × owner, each role, another project's job and the service.
 
 Artifacts (#19, read-only): `GET /api/v1/projects/:slug/artifacts[?fresh=1]` (`routes/artifacts.ts`, `read-models/artifact-reads.ts`)
@@ -417,7 +421,8 @@ sets `c.get('identity')`; every failure is a 401 problem (`access-missing|unveri
 empty or malformed Access vars fail closed. `csrfMiddleware` then requires `Sec-Fetch-Site: same-origin` (or an own
 `Origin`) and JSON bodies on writes (403 `csrf`, 415). Only `ENVIRONMENT=local` + `AUTH_MODE=local` together skip
 the JWT check (the api vitest config binds both so route specs run; `auth.middleware.spec.ts` uses
-`src/testing/access-kit.ts` to sign tokens and stub the JWKS). Log `identity.kind` only, never the email or token.
+`src/testing/access-kit.ts` to sign tokens and stub the JWKS). Log `identity.kind` only, never the email or token
+(nor a job stand-in's token or payload).
 
 Commands: `npx nx serve api` (builds the console, applies migrations, `wrangler dev` on :8787), `npx nx run
 api:migrate` (fresh local D1), `npx nx build api` (`tsc --noEmit` + `wrangler deploy --dry-run`), `docker build -t

@@ -17,13 +17,13 @@ import {
   uniqueTeamDomain,
 } from './access-kit';
 import { localEnv } from './github-kit';
-import { testJobActor, type TestJob } from './local-job-kit';
+import { localJobHeader, type TestJob } from './local-job-kit';
 
 /**
  * Test-only kit for the tracker routes (#410). Tracker rows are append-only and reference their project, so every
  * case seeds its own project instead of clearing tables. Requests go through the whole app with the local bypass
- * — the owner, or a job through `trackerPolicyActorOf` (#434, #444) — so the auth seam, CSRF and the route matrix
- * all run.
+ * — the owner, or a job through the local stand-in token (#444) — so the auth seam, CSRF and the route matrix all
+ * run.
  */
 
 let counter = 0;
@@ -69,7 +69,7 @@ export interface TrackerRequest {
   readonly key?: string | null;
   readonly ifMatch?: string;
   readonly headers?: Record<string, string>;
-  /** Send as this job instead of the owner; its project defaults to the path's. */
+  /** Send as this job (the `local-job.` stand-in) instead of the owner; its project defaults to the path's. */
   readonly job?: TestJob;
 }
 
@@ -89,12 +89,13 @@ export async function send(
   if (options.ifMatch !== undefined) {
     headers['If-Match'] = options.ifMatch;
   }
-  const job = options.job === undefined ? undefined : testJobActor(options.job, path);
+  if (options.job !== undefined) {
+    headers['Authorization'] = localJobHeader(options.job, path);
+  }
   return fetchApi(path, localEnv(), {
     method,
     headers: { ...headers, ...options.headers },
     ...(body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }),
-    ...(job === undefined ? {} : { trackerPolicyActorOf: () => job }),
   });
 }
 
@@ -163,7 +164,7 @@ export async function countRows(
   return row?.n ?? 0;
 }
 
-/** A job of `role` for `send` (#434, #444), standing in for the job identity. */
+/** A job of `role` for `send` (#434, #444): sent as the local stand-in token, so the real auth seam mints it. */
 export function jobActor(role: string, jobId = 'job-test-1', items: readonly number[] = []): TestJob {
   return { role, jobId, items };
 }

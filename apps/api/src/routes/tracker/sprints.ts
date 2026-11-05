@@ -7,7 +7,7 @@ import {
 } from '@shared/contracts';
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import { SprintsRepo, type TrackerProject } from '@worker/db';
-import { trackerAccess, type PolicyActorOf } from '../../auth/tracker-access.middleware';
+import { trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
 import { invalid, trackerProjectOf } from '../../tracker/context';
 import { sprintDtoOf } from '../../tracker/dto';
@@ -45,12 +45,12 @@ async function sprintResponse(
  * create`; addressed by that number, never by a row id. The demo-date rules of the GitHub-backed sprint commands
  * (#218) stay with those routes until Phase 1b moves the board here.
  */
-export function createTrackerSprintRoutes(actorOf: PolicyActorOf): Hono<WorkerHonoEnv<ApiEnv>> {
+export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
   const guard = {
-    list: trackerAccess('GET /api/v1/projects/:slug/sprints', actorOf),
-    read: trackerAccess('GET /api/v1/projects/:slug/sprints/:number', actorOf),
-    create: trackerAccess('POST /api/v1/projects/:slug/sprints', actorOf),
-    change: trackerAccess('PATCH /api/v1/projects/:slug/sprints/:number', actorOf),
+    list: trackerAccess('GET /api/v1/projects/:slug/sprints'),
+    read: trackerAccess('GET /api/v1/projects/:slug/sprints/:number'),
+    create: trackerAccess('POST /api/v1/projects/:slug/sprints'),
+    change: trackerAccess('PATCH /api/v1/projects/:slug/sprints/:number'),
   };
   return new Hono<WorkerHonoEnv<ApiEnv>>()
     .get('/:slug/sprints', guard.list, async (c) => {
