@@ -46,6 +46,14 @@ function endToEndHeaders(headers: IncomingHttpHeaders): OutgoingHttpHeaders {
 export async function startCloseRelay(target: string, onError: (error: Error) => void): Promise<CloseRelay> {
   const upstreamOrigin = new URL(target);
   const server = createServer((incoming, outgoing) => {
+    // Set once the api side went away first: the upstream torn down for it is not an upstream failure.
+    let isDownstreamGone = false;
+    const failUpstream = (error: Error): void => {
+      if (!isDownstreamGone) {
+        onError(error);
+      }
+      outgoing.destroy();
+    };
     const upstream = request(
       {
         protocol: upstreamOrigin.protocol,
@@ -62,12 +70,22 @@ export async function startCloseRelay(target: string, onError: (error: Error) =>
           ...endToEndHeaders(answer.headers),
           connection: 'close',
         });
+        // `pipe` forwards no errors: a body cut mid-way must drop the api's socket, not leave it hanging.
+        answer.on('error', failUpstream);
         answer.pipe(outgoing);
       },
     );
-    upstream.on('error', (error) => {
-      onError(error);
-      outgoing.destroy();
+    upstream.on('error', failUpstream);
+    // The api aborted (or its request body broke) before the answer was out: release the upstream socket too.
+    outgoing.on('close', () => {
+      if (!outgoing.writableFinished) {
+        isDownstreamGone = true;
+        upstream.destroy();
+      }
+    });
+    incoming.on('error', () => {
+      isDownstreamGone = true;
+      upstream.destroy();
     });
     incoming.pipe(upstream);
   });

@@ -357,22 +357,47 @@ export class LocalStack {
     this.api = null;
   }
 
+  /** Api first, then what it talks to; every step runs even when an earlier one fails, so nothing is leaked. */
   async stop(): Promise<void> {
-    await this.retireApi();
-    await this.relays.github?.close();
-    await this.relays.push?.close();
+    const { github, push } = this.relays;
     this.relays.github = null;
     this.relays.push = null;
-    await this.fakePush?.stop();
+    const fakePush = this.fakePush;
     this.fakePush = null;
-    await this.fake.stop();
+    const failures: unknown[] = [];
+    for (const step of [
+      () => this.retireApi(),
+      async () => {
+        const closed = await Promise.allSettled([github?.close(), push?.close()]);
+        failures.push(...closed.flatMap((result) => (result.status === 'rejected' ? [result.reason] : [])));
+      },
+      async () => fakePush?.stop(),
+      () => this.fake.stop(),
+    ]) {
+      try {
+        await step();
+      } catch (error: unknown) {
+        failures.push(error);
+      }
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(failures, `${this.name}: ${failures.length} part(s) of the stack did not stop`);
+    }
   }
 
   /** Upstream failures land in `relay.log` beside the servers' logs, so the CI artifact keeps them. */
   private async startRelays(): Promise<void> {
     const log = join(this.dir, 'relay.log');
-    const onError = (to: string) => (error: Error) =>
-      appendLog(log, `${new Date().toISOString()} ${this.name} relay to ${to}: ${error.message}`);
+    const onError = (to: string) => (error: Error) => {
+      const line = `${new Date().toISOString()} ${this.name} relay to ${to}: ${error.message}`;
+      // Called from a socket event: a throw here would take the whole Playwright worker down.
+      try {
+        appendLog(log, line);
+      } catch (logError: unknown) {
+        const why = logError instanceof Error ? logError.message : String(logError);
+        process.stderr.write(`${line}\n(relay.log not writable: ${why})\n`);
+      }
+    };
     this.relays.github = await startCloseRelay(this.fakeURL, onError('fake GitHub'));
     this.relays.push = await startCloseRelay(this.fakePushURL, onError('fake push'));
   }
