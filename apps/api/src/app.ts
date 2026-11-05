@@ -51,7 +51,7 @@ export interface CreateApiAppOptions {
    * identity so the 403 `transition-owner-only` path is proven end to end; the deployed Worker never sets it, and it
    * opens no route to anyone: `ownerOnlyMiddleware` still runs first.
    */
-  readonly trackerPolicyActorOf?: (identity: Identity) => PolicyActor | null;
+  readonly trackerPolicyActorOf?: (identity: Identity, env: ApiEnv) => PolicyActor | null;
 }
 
 function isApiPath(path: string): boolean {

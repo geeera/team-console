@@ -155,11 +155,11 @@ async function unknownLabels(
  * lands with its `item_events` row in one D1 batch.
  */
 export function createTrackerItemRoutes(
-  policyActorOf: (identity: Identity) => PolicyActor | null,
+  policyActorOf: (identity: Identity, env: ApiEnv) => PolicyActor | null,
 ): Hono<WorkerHonoEnv<ApiEnv>> {
   // The transition table's verdict for this request; no actor (the service identity) is refused outright.
   const judge = (c: Context, transition: ItemTransition): Response | null => {
-    const actor = policyActorOf(c.get('identity'));
+    const actor = policyActorOf(c.get('identity'), c.env);
     if (actor === null) {
       return problem(c, { type: 'owner-only', title: 'Forbidden', status: 403 });
     }

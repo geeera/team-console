@@ -279,7 +279,7 @@ describe('the CI service token is refused on every #59 route (#85)', () => {
       expect(h.fake.calls).toEqual([]);
       expect(await storedRow()).toEqual(before);
       expect(parsedLogs(h.logs)).toContainEqual(
-        expect.objectContaining({ message: 'owner route refused', reason: 'service-identity' }),
+        expect.objectContaining({ message: 'owner route refused', reason: 'service' }),
       );
     },
   );

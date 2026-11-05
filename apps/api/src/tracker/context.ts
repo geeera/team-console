@@ -64,7 +64,7 @@ export async function itemOf(c: Context, project: TrackerProject): Promise<ItemR
  * author. The tracker routes are owner-only, so the service identity never gets here; it still gets a 403 if it does.
  */
 export function trackerActorOf(c: Context): TrackerActor | Response {
-  const actor = policyActorOf(c.get('identity'));
+  const actor = policyActorOf(c.get('identity'), c.env);
   if (actor === null) {
     return problem(c, { type: 'owner-only', title: 'Forbidden', status: 403 });
   }
