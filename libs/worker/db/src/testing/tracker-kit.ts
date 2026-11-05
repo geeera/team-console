@@ -1,6 +1,41 @@
 import { env } from 'cloudflare:test';
+import type { ItemKind, ItemStatus } from '@shared/contracts';
+import { ItemsRepo } from '../lib/tracker/items.repo';
 import { TrackerProjectsRepo } from '../lib/tracker/tracker-projects.repo';
 import type { TrackerActor } from '../lib/tracker/item-events.repo';
+
+/** A job actor as the Phase 2 job identity will record it. */
+export const JOB_ACTOR: TrackerActor = { kind: 'job', name: 'pm', jobId: 'job-test-1' };
+
+/** An open item in `slug` (number `number`) with `flags`; its row id. */
+export async function seedTrackerItem(
+  slug: string,
+  number: number,
+  item: { readonly kind?: ItemKind; readonly status?: ItemStatus; readonly flags?: readonly string[] } = {},
+): Promise<number> {
+  const items = new ItemsRepo(env.DB);
+  await items.create(
+    slug,
+    {
+      number,
+      kind: item.kind ?? 'question',
+      status: item.status ?? 'proposed',
+      severity: null,
+      tier: null,
+      sprint: null,
+      title: `Item ${String(number)}`,
+      body: '',
+      flags: item.flags ?? [],
+    },
+    OWNER_ACTOR,
+    AT,
+  );
+  const created = await items.findByNumber(slug, number);
+  if (created === null) {
+    throw new Error('the seeded item is missing');
+  }
+  return created.id;
+}
 
 /** Test-only. Tracker rows are append-only and reference their project, so each case takes a fresh project. */
 

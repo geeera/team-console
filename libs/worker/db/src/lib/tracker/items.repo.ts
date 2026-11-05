@@ -85,7 +85,8 @@ export interface ItemPage {
   readonly next: number | null;
 }
 
-interface ItemRow {
+/** A row of `ITEM_SUMMARY_COLUMNS` (plus `body` when selected); shared with the read-only inbox query. */
+export interface ItemRow {
   id: number;
   number: number;
   kind: ItemKind;
@@ -107,19 +108,19 @@ interface ItemRow {
   source_url: string | null;
 }
 
-const SUMMARY_COLUMNS = `items.id, items.number, items.kind, items.status, items.severity, items.tier,
+export const ITEM_SUMMARY_COLUMNS = `items.id, items.number, items.kind, items.status, items.severity, items.tier,
   sprints.number AS sprint_number, items.title, items.closed_at, items.closed_reason, items.created_by_kind,
   items.created_by, items.created_at, items.updated_at, items.version, items.source, items.source_url,
   (SELECT json_group_array(name) FROM (SELECT name FROM item_labels WHERE item_id = items.id ORDER BY name)) AS flags`;
 
-const FROM = 'FROM items LEFT JOIN sprints ON sprints.id = items.sprint_id';
+export const ITEM_FROM = 'FROM items LEFT JOIN sprints ON sprints.id = items.sprint_id';
 
 function flagsOf(json: string): string[] {
   const parsed: unknown = JSON.parse(json);
   return Array.isArray(parsed) ? parsed.filter((name): name is string => typeof name === 'string') : [];
 }
 
-function toSummary(row: ItemRow): ItemSummaryRecord {
+export function itemSummaryOf(row: ItemRow): ItemSummaryRecord {
   return {
     id: row.id,
     number: row.number,
@@ -166,11 +167,11 @@ export class ItemsRepo {
   async findByNumber(slug: string, number: number): Promise<ItemRecord | null> {
     const row = await this.db
       .prepare(
-        `SELECT ${SUMMARY_COLUMNS}, items.body ${FROM} WHERE items.project_slug = ?1 AND items.number = ?2`,
+        `SELECT ${ITEM_SUMMARY_COLUMNS}, items.body ${ITEM_FROM} WHERE items.project_slug = ?1 AND items.number = ?2`,
       )
       .bind(slug, number)
       .first<ItemRow>();
-    return row === null ? null : { ...toSummary(row), body: row.body ?? '' };
+    return row === null ? null : { ...itemSummaryOf(row), body: row.body ?? '' };
   }
 
   /** In number order after the item number `after`, at most `limit` (≤ 100, the route's bound). */
@@ -199,12 +200,12 @@ export class ItemsRepo {
     params.push(limit + 1);
     const { results } = await this.db
       .prepare(
-        `SELECT ${SUMMARY_COLUMNS} ${FROM} WHERE ${conditions.join(' AND ')}
+        `SELECT ${ITEM_SUMMARY_COLUMNS} ${ITEM_FROM} WHERE ${conditions.join(' AND ')}
          ORDER BY items.number LIMIT ?${String(params.length)}`,
       )
       .bind(...params)
       .all<ItemRow>();
-    const page = results.slice(0, limit).map(toSummary);
+    const page = results.slice(0, limit).map(itemSummaryOf);
     return { items: page, next: results.length > limit ? (page.at(-1)?.number ?? null) : null };
   }
 

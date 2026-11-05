@@ -1,5 +1,11 @@
+import type { OwnerRequest } from '../owner-request';
 import type {
   ActorKind,
+  AskCategory,
+  AskCommand,
+  DecisionCommand,
+  DecisionVia,
+  RequestResult,
   ClosedReason,
   CommentKind,
   ItemEventKind,
@@ -122,6 +128,64 @@ export interface LabelDto {
 
 export interface LabelListDto {
   readonly labels: readonly LabelDto[];
+}
+
+/**
+ * A question to the owner (#434, `asks`). `ask` is the asking job's plain text; render it by interpolation only.
+ * `source: 'import'` is a GitHub-era ask that is re-confirmed on the cutover screen, never answered as is.
+ */
+export interface AskDto {
+  readonly id: number;
+  readonly category: AskCategory;
+  readonly ask: string;
+  readonly commands: readonly AskCommand[];
+  readonly recommended: AskCommand | null;
+  readonly createdAt: string;
+  readonly source: ItemSource;
+  /** `open` until a decision answers it or a newer ask replaces it. */
+  readonly state: 'open' | 'answered' | 'withdrawn';
+  readonly answeredByDecisionId: number | null;
+  readonly withdrawnAt: string | null;
+}
+
+export interface AskListDto {
+  readonly asks: readonly AskDto[];
+  /** The `after` cursor (an ask id) of the next page. */
+  readonly next: number | null;
+}
+
+/** An owner decision (`owner_decisions`), append-only. `via: 'import'` rows are history and drove nothing. */
+export interface DecisionDto {
+  readonly id: number;
+  readonly command: DecisionCommand;
+  readonly text: string;
+  readonly askId: number | null;
+  readonly reversesCommentId: number | null;
+  readonly via: DecisionVia;
+  readonly decidedAt: string;
+  readonly sourceUrl: string | null;
+}
+
+export interface DecisionListDto {
+  readonly decisions: readonly DecisionDto[];
+  readonly next: number | null;
+}
+
+/** An owner request to the PM on an item (`item_requests`). The newest per item is the one the PM still owes. */
+export interface ItemRequestDto {
+  readonly id: number;
+  /** `null` when the stored payload is not a request this version knows (it is then never acted on). */
+  readonly request: OwnerRequest | null;
+  readonly requestedAt: string;
+  /** `null` while the PM has not answered. */
+  readonly result: RequestResult | null;
+  readonly reason: string | null;
+  readonly handledAt: string | null;
+}
+
+export interface ItemRequestListDto {
+  readonly requests: readonly ItemRequestDto[];
+  readonly next: number | null;
 }
 
 /** Problem types of the tracker routes, beyond `owner-only`, `csrf` and `project-not-found`. */

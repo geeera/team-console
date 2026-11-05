@@ -1,7 +1,20 @@
 import { withoutInvisibles } from '@shared/plain-text';
+import { isOwnerRequest, type OwnerRequest } from '../owner-request';
 import { isCalendarDate } from '../sprint-commands';
 import {
+  ASK_COMMANDS_MAX,
+  ASK_TEXT_MAX_LENGTH,
   COMMENT_BODY_MAX_LENGTH,
+  DECISION_TEXT_MAX_LENGTH,
+  REQUEST_REASON_MAX_LENGTH,
+  isAskCategory,
+  isAskCommand,
+  isDecisionCommand,
+  isRequestResult,
+  type AskCategory,
+  type AskCommand,
+  type DecisionCommand,
+  type RequestResult,
   ITEM_BODY_MAX_LENGTH,
   ITEM_TITLE_MAX_LENGTH,
   LABEL_COLOR_PATTERN,
@@ -80,6 +93,39 @@ export interface CreateLabelInput {
   readonly description: string;
 }
 
+/** `POST …/items/:key/asks` (a job's question to the owner, formerly `backlog ask`). */
+export interface CreateAskInput {
+  readonly category: AskCategory;
+  readonly ask: string;
+  /** Unique, in the order given; the owner's answer must be one of them. */
+  readonly commands: readonly AskCommand[];
+  /** The team's recommendation, one of `commands`. */
+  readonly recommended: AskCommand | null;
+}
+
+/**
+ * `POST …/items/:key/decisions`. `via` is how the owner answered (`import` is never a body value). Who decided and
+ * when is the server's: the owner identity and the clock, never a member.
+ */
+export interface CreateDecisionInput {
+  readonly command: DecisionCommand;
+  readonly text: string;
+  /** The open ask the owner read; another open ask (or none) is 409 `ask-not-open`. */
+  readonly askId: number | null;
+  /** A team decision (`comments.kind = 'decision'`) this `/reject` reverses. */
+  readonly reversesCommentId: number | null;
+  readonly via: 'web' | 'push';
+}
+
+/** `POST …/items/:key/requests`: exactly the `OwnerRequest` shape of ADR 0005. */
+export type CreateRequestInput = OwnerRequest;
+
+/** `POST …/requests/:id/handled`: the PM's answer. Which job handled it is the actor's, never a member. */
+export interface HandleRequestInput {
+  readonly result: RequestResult;
+  readonly reason: string;
+}
+
 export type InputCheck<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly field: string; readonly detail: string };
@@ -107,12 +153,43 @@ function codePoints(text: string): number {
   return count;
 }
 
-function record(body: unknown, allowed: readonly string[]): Record<string, unknown> {
+/**
+ * Members the server alone fills (author, job, time, project, item, provenance). A body that carries one is a forgery
+ * attempt, refused with the member named (#434): the name comes from this list, never echoed from the client.
+ */
+const SERVER_MEMBERS: readonly string[] = [
+  'author',
+  'authorKind',
+  'actor',
+  'actorKind',
+  'jobId',
+  'handledByJobId',
+  'createdAt',
+  'decidedAt',
+  'requestedAt',
+  'handledAt',
+  'projectSlug',
+  'itemId',
+  'source',
+  'sourceUrl',
+  'idempotencyKey',
+];
+
+function record(
+  body: unknown,
+  allowed: readonly string[],
+  { nameServerMembers = false }: { readonly nameServerMembers?: boolean } = {},
+): Record<string, unknown> {
   if (!isRecord(body)) {
     throw new InputError('body', 'The body must be a JSON object');
   }
-  // The member's name is the client's text, so the problem names the body, not the member.
-  if (Object.keys(body).some((key) => !allowed.includes(key))) {
+  const unknown = Object.keys(body).filter((key) => !allowed.includes(key));
+  const forged = nameServerMembers ? SERVER_MEMBERS.find((member) => unknown.includes(member)) : undefined;
+  if (forged !== undefined) {
+    throw new InputError(forged, `${forged} is set by the server, never by the request`);
+  }
+  // Any other member's name is the client's text, so the problem names the body, not the member.
+  if (unknown.length > 0) {
     throw new InputError('body', `Only these members are allowed: ${allowed.join(', ')}`);
   }
   return body;
@@ -323,5 +400,94 @@ export function checkCreateLabelInput(body: unknown): InputCheck<CreateLabelInpu
         ? ''
         : withoutInvisibles(text('description', input['description'], LABEL_DESCRIPTION_MAX_LENGTH)).trim();
     return { name, color, description };
+  });
+}
+
+function positiveId(field: string, value: unknown): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
+    throw new InputError(field, `${field} must be a positive integer id`);
+  }
+  return value;
+}
+
+function nonBlank(field: string, value: unknown, max: number): string {
+  const typed = text(field, value, max, 1);
+  if (typed.trim().length === 0) {
+    throw new InputError(field, `${field} must not be blank`);
+  }
+  return typed;
+}
+
+function askCommands(value: unknown): AskCommand[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > ASK_COMMANDS_MAX) {
+    throw new InputError('commands', `commands must list 1 to ${String(ASK_COMMANDS_MAX)} answer commands`);
+  }
+  if (!value.every(isAskCommand) || new Set(value).size !== value.length) {
+    throw new InputError('commands', 'commands must be distinct answer commands (ANSWERABLE)');
+  }
+  return value;
+}
+
+export function checkCreateAskInput(body: unknown): InputCheck<CreateAskInput> {
+  return checked(() => {
+    const input = record(body, ['category', 'ask', 'commands', 'recommended'], { nameServerMembers: true });
+    const category = oneOf('category', input['category'], isAskCategory);
+    const ask = nonBlank('ask', input['ask'], ASK_TEXT_MAX_LENGTH);
+    const commands = askCommands(input['commands']);
+    const recommended = input['recommended'] ?? null;
+    if (recommended !== null && !(isAskCommand(recommended) && commands.includes(recommended))) {
+      throw new InputError('recommended', 'recommended must be one of commands, or null');
+    }
+    return { category, ask, commands, recommended };
+  });
+}
+
+const isRouteVia = (value: unknown): value is 'web' | 'push' => value === 'web' || value === 'push';
+
+export function checkCreateDecisionInput(body: unknown): InputCheck<CreateDecisionInput> {
+  return checked(() => {
+    const input = record(body, ['command', 'text', 'askId', 'reversesCommentId', 'via'], {
+      nameServerMembers: true,
+    });
+    return {
+      command: oneOf('command', input['command'], isDecisionCommand),
+      text: input['text'] === undefined ? '' : text('text', input['text'], DECISION_TEXT_MAX_LENGTH),
+      askId:
+        input['askId'] === undefined || input['askId'] === null ? null : positiveId('askId', input['askId']),
+      reversesCommentId:
+        input['reversesCommentId'] === undefined || input['reversesCommentId'] === null
+          ? null
+          : positiveId('reversesCommentId', input['reversesCommentId']),
+      // `import` is the import writer's alone (R7): a route never records one.
+      via: oneOf('via', input['via'], isRouteVia),
+    };
+  });
+}
+
+export function checkCreateRequestInput(body: unknown): InputCheck<CreateRequestInput> {
+  return checked(() => {
+    const input = record(body, ['kind', 'target', 'direction'], { nameServerMembers: true });
+    if (input['kind'] !== 'sprint' && input['kind'] !== 'priority') {
+      throw new InputError('kind', 'kind must be "sprint" or "priority"');
+    }
+    if (!isOwnerRequest(input)) {
+      throw new InputError(
+        input['kind'] === 'sprint' ? 'target' : 'direction',
+        input['kind'] === 'sprint'
+          ? 'A sprint request carries target: current, next or backlog, and nothing else'
+          : 'A priority request carries direction: up or down, and nothing else',
+      );
+    }
+    return input;
+  });
+}
+
+export function checkHandleRequestInput(body: unknown): InputCheck<HandleRequestInput> {
+  return checked(() => {
+    const input = record(body, ['result', 'reason'], { nameServerMembers: true });
+    return {
+      result: oneOf('result', input['result'], isRequestResult),
+      reason: input['reason'] === undefined ? '' : text('reason', input['reason'], REQUEST_REASON_MAX_LENGTH),
+    };
   });
 }
