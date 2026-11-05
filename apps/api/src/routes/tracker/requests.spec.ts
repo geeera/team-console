@@ -93,9 +93,7 @@ describe('POST /projects/:slug/items/:key/requests', () => {
   it('403 owner-only for a job and the service identity, 401 without identity, 404/409 by project', async () => {
     const project = await seedTrackerProject();
     const { path } = await seedItem(project);
-    expect(await slugOf(await send('POST', `${path}/requests`, NEXT, { policyActor: PM }))).toBe(
-      'owner-only',
-    );
+    expect(await slugOf(await send('POST', `${path}/requests`, NEXT, { job: PM }))).toBe('owner-only');
     expect(await slugOf(await sendAsService('POST', `${path}/requests`, NEXT))).toBe('owner-only');
     expect((await sendWithoutIdentity('POST', `${path}/requests`)).status).toBe(401);
     expect(await slugOf(await send('POST', '/api/v1/projects/nope/items/1/requests', NEXT))).toBe(
@@ -116,7 +114,7 @@ describe('POST /projects/:slug/requests/:id/handled', () => {
       'POST',
       `/api/v1/projects/${slug}/requests/${String(request.id)}/handled`,
       { result: 'declined', reason: 'Freeze' },
-      { policyActor: jobActor('pm', 'job-pm-7') },
+      { job: jobActor('pm', 'job-pm-7') },
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ id: request.id, result: 'declined', reason: 'Freeze' });
@@ -135,7 +133,7 @@ describe('POST /projects/:slug/requests/:id/handled', () => {
       'POST',
       `/api/v1/projects/${slug}/requests/${String(request.id)}/handled`,
       { result: 'applied' },
-      { policyActor: PM },
+      { job: PM },
     );
     expect(again.status).toBe(409);
     expect(await slugOf(again)).toBe('request-handled');
@@ -149,7 +147,7 @@ describe('POST /projects/:slug/requests/:id/handled', () => {
     expect(await slugOf(owner)).toBe('request-handled-role');
     for (const role of ['architect', 'orchestrator', 'dev']) {
       expect(
-        await slugOf(await send('POST', handledPath, { result: 'applied' }, { policyActor: jobActor(role) })),
+        await slugOf(await send('POST', handledPath, { result: 'applied' }, { job: jobActor(role) })),
       ).toBe('request-handled-role');
     }
     expect(await slugOf(await sendAsService('POST', handledPath, { result: 'applied' }))).toBe('owner-only');
@@ -162,19 +160,13 @@ describe('POST /projects/:slug/requests/:id/handled', () => {
       'POST',
       `/api/v1/projects/${other.slug}/requests/${String(request.id)}/handled`,
       { result: 'applied' },
-      { policyActor: PM },
+      { job: PM },
     );
     expect(inOther.status).toBe(404);
     expect(await slugOf(inOther)).toBe('request-not-found');
     expect(
-      (
-        await send(
-          'POST',
-          `/api/v1/projects/${slug}/requests/x1/handled`,
-          { result: 'applied' },
-          { policyActor: PM },
-        )
-      ).status,
+      (await send('POST', `/api/v1/projects/${slug}/requests/x1/handled`, { result: 'applied' }, { job: PM }))
+        .status,
     ).toBe(404);
     const handledPath = `/api/v1/projects/${slug}/requests/${String(request.id)}/handled`;
     for (const [body, field] of [
@@ -182,7 +174,7 @@ describe('POST /projects/:slug/requests/:id/handled', () => {
       [{ result: 'applied', handledByJobId: 'job-forged' }, 'handledByJobId'],
       [{ result: 'applied', reason: 'x'.repeat(1025) }, 'reason'],
     ] as const) {
-      const response = await send('POST', handledPath, body, { policyActor: PM });
+      const response = await send('POST', handledPath, body, { job: PM });
       expect(await slugOf(response)).toBe('request-invalid');
       expect(await response.json()).toMatchObject({ field });
     }

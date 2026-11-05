@@ -7,7 +7,7 @@ import {
 } from '@shared/contracts';
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import { SprintsRepo, type TrackerProject } from '@worker/db';
-import { ownerOnlyMiddleware } from '../../auth/owner-only.middleware';
+import { trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
 import { invalid, trackerProjectOf } from '../../tracker/context';
 import { sprintDtoOf } from '../../tracker/dto';
@@ -46,8 +46,14 @@ async function sprintResponse(
  * (#218) stay with those routes until Phase 1b moves the board here.
  */
 export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
+  const guard = {
+    list: trackerAccess('GET /api/v1/projects/:slug/sprints'),
+    read: trackerAccess('GET /api/v1/projects/:slug/sprints/:number'),
+    create: trackerAccess('POST /api/v1/projects/:slug/sprints'),
+    change: trackerAccess('PATCH /api/v1/projects/:slug/sprints/:number'),
+  };
   return new Hono<WorkerHonoEnv<ApiEnv>>()
-    .get('/:slug/sprints', ownerOnlyMiddleware, async (c) => {
+    .get('/:slug/sprints', guard.list, async (c) => {
       const project = await trackerProjectOf(c);
       if (project instanceof Response) {
         return project;
@@ -62,7 +68,7 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       return c.json(body);
     })
 
-    .get('/:slug/sprints/:number', ownerOnlyMiddleware, async (c) => {
+    .get('/:slug/sprints/:number', guard.read, async (c) => {
       const project = await trackerProjectOf(c);
       if (project instanceof Response) {
         return project;
@@ -71,7 +77,7 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       return SPRINT_NUMBER.test(number) ? sprintResponse(c, project, Number(number), 200) : sprintNotFound(c);
     })
 
-    .post('/:slug/sprints', ownerOnlyMiddleware, writeLimit(TEXT_WRITE_MAX_BYTES), async (c) => {
+    .post('/:slug/sprints', guard.create, writeLimit(TEXT_WRITE_MAX_BYTES), async (c) => {
       const context = await trackerWriteContextOf(c);
       if (context instanceof Response) {
         return context;
@@ -108,7 +114,7 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       );
     })
 
-    .patch('/:slug/sprints/:number', ownerOnlyMiddleware, writeLimit(TEXT_WRITE_MAX_BYTES), async (c) => {
+    .patch('/:slug/sprints/:number', guard.change, writeLimit(TEXT_WRITE_MAX_BYTES), async (c) => {
       const context = await trackerWriteContextOf(c);
       if (context instanceof Response) {
         return context;

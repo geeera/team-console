@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
-import { apiClient, fakeComments, seed, seedFakeRunLog } from './support/stack';
+import { apiClient, fakeComments, RUN_LOG_ISSUE, seed, seedFakeRunLog } from './support/stack';
 import { meetsMinTap } from './support/tap-target';
 
 /**
@@ -12,7 +12,6 @@ import { meetsMinTap } from './support/tap-target';
  */
 
 const REPO = 'geeera/team-console';
-const RUN_LOG = 22;
 const SNOOZE = '/api/v1/projects/private-product/notifications/snooze';
 const isWide = (page: Page): boolean => (page.viewportSize()?.width ?? 0) >= 520;
 
@@ -92,7 +91,7 @@ test('every card opens the same Commands panel; Pause from here writes the run l
   }
   await expectAccessible(page, 'All projects, Commands open');
 
-  const before = (await fakeComments(stack, RUN_LOG)).length;
+  const before = (await fakeComments(stack, RUN_LOG_ISSUE)).length;
   await panel.getByTestId('team-command').click();
   const confirm = page.getByRole('alertdialog');
   await expect(confirm).toBeVisible();
@@ -101,7 +100,7 @@ test('every card opens the same Commands panel; Pause from here writes the run l
   await expect(panel.locator('.cp-result')).toBeVisible();
   // Pause turned into Resume: the panel took the Worker's answer, as it does in the space.
   await expect(panel.getByTestId('team-command')).toHaveAccessibleName(ru('commands.resume.title'));
-  const written = await fakeComments(stack, RUN_LOG);
+  const written = await fakeComments(stack, RUN_LOG_ISSUE);
   expect(written.length).toBe(before + 1);
   expect(written.at(-1)?.body.startsWith('<!-- pt-paused -->\n')).toBe(true);
 
