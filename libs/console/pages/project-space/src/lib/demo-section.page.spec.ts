@@ -13,10 +13,7 @@ import {
 } from '@console/entities/project';
 import { projectQuestionsUrl } from '@console/entities/question';
 import { provideConsoleI18n } from '@console/shared/i18n';
-import {
-  memoryPersistedStateStorage,
-  PERSISTED_STATE_STORAGE,
-} from '@console/shared/persisted-state';
+import { memoryPersistedStateStorage, PERSISTED_STATE_STORAGE } from '@console/shared/persisted-state';
 import type { QuestionDto, QuestionsDto } from '@shared/contracts';
 import { of } from 'rxjs';
 import { ProjectSpacePage } from './project-space.page';
@@ -122,15 +119,17 @@ describe('DemoSectionPage (#20)', () => {
     const frames = [...root.querySelectorAll('iframe')].map((frame) => frame.getAttribute('src'));
     // Stage is link-only: the demo shows a note with Open, the design its Storybook frame.
     expect(frames).toEqual([`${STORYBOOK}/?path=/story/editor`]);
-    expect(root.querySelector('li[data-number="5"] [data-testid="frame-open"]')?.getAttribute('href')).toBe(`${STAGE}/`);
+    expect(root.querySelector('li[data-number="5"] [data-testid="frame-open"]')?.getAttribute('href')).toBe(
+      `${STAGE}/`,
+    );
     expect(root.querySelector('[data-testid="markdown"] h2')?.textContent).toBe('Scope');
     expect(root.querySelector('img, script')).toBeNull();
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
 
     const demo = root.querySelector('li[data-number="5"]') as HTMLElement;
-    expect([...demo.querySelectorAll('[data-command]')].map((button) => button.getAttribute('data-command'))).toEqual(
-      ['go', 'no-go', 'override'],
-    );
+    expect(
+      [...demo.querySelectorAll('[data-command]')].map((button) => button.getAttribute('data-command')),
+    ).toEqual(['go', 'no-go', 'override']);
     const design = root.querySelector('li[data-number="7"]') as HTMLElement;
     expect(
       [...design.querySelectorAll('[data-command]')].map((button) => button.getAttribute('data-command')),
@@ -140,7 +139,9 @@ describe('DemoSectionPage (#20)', () => {
 
   it('shows previews as links, with a note, when the embed origins cannot be read', async () => {
     const { http, root, settle } = await setup();
-    http.expectOne(embedOriginsUrl('tc')).flush({ message: 'boom' }, { status: 502, statusText: 'Bad Gateway' });
+    http
+      .expectOne(embedOriginsUrl('tc'))
+      .flush({ message: 'boom' }, { status: 502, statusText: 'Bad Gateway' });
     await settle();
     http.expectOne(projectQuestionsUrl('tc')).flush(QUESTIONS);
     await settle();

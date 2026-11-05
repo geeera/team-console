@@ -1,0 +1,77 @@
+<search class="tc-find" data-testid="find">
+  <h1 #heading class="tc-find__title" tabindex="-1">{{ 'find.title' | transloco }}</h1>
+  <form class="tc-find__form" role="presentation" (submit)="onEnter($event)">
+    <label class="tc-find__label" for="tc-find-field">{{ 'find.label' | transloco }}</label>
+    <div class="tc-find__field">
+      <tc-icon name="search" size="sm" />
+      <input
+        #field
+        id="tc-find-field"
+        type="search"
+        class="tc-find__input"
+        autocomplete="off"
+        enterkeyhint="search"
+        data-testid="find-field"
+        aria-describedby="tc-find-hint"
+        [value]="text()"
+        (input)="onInput($any($event.target).value)"
+      />
+    </div>
+    <p class="tc-find__hint" id="tc-find-hint">
+      {{ 'find.hint' | transloco: { key: here().keyPrefix ?? '' } }}
+    </p>
+  </form>
+
+  <p class="tc-sr-only" aria-live="polite" data-testid="find-status">
+    @switch (outcome().kind) { @case ('searching') { {{ 'find.typing' | transloco }} } @case ('found') { {{
+    'find.results' | transloco: { n: shown().length } }} } @case ('none') { {{ 'find.none' | transloco }} } }
+  </p>
+
+  @switch (outcome().kind) { @case ('found') {
+  <p class="tc-find__count" aria-hidden="true">{{ 'find.results' | transloco: { n: shown().length } }}</p>
+  <ul class="tc-find__results" data-testid="find-results">
+    @for (item of shown(); track item.number) {
+    <li>
+      <a class="tc-find__row" [routerLink]="routeOf(item)">
+        <span class="tc-find__key">{{ item.key }}</span>
+        <span class="tc-find__row-title" dir="auto">{{ item.title }}</span>
+        <span class="tc-find__meta">
+          {{ 'board.kind.' + item.kind | transloco }} · {{ 'board.status.' + statusOf(item) | transloco }} ·
+          @if (item.state === 'closed') { {{ 'find.closed' | transloco }} } @else if (item.sprint !== null) {
+          {{ 'find.sprint' | transloco: { n: item.sprint } }} } @else { {{ 'item.noSprint' | transloco }} }
+        </span>
+      </a>
+    </li>
+    }
+  </ul>
+  } @case ('none') {
+  <div class="tc-find__note" data-testid="find-none">
+    <p class="tc-find__note-title">{{ 'find.none' | transloco }}</p>
+    <p>{{ 'find.noneHint' | transloco }}</p>
+  </div>
+  } @case ('elsewhere') { @if (outcome(); as outcome) { @if (outcome.kind === 'elsewhere') {
+  <div class="tc-find__note" data-testid="find-elsewhere">
+    @if (outcome.project.isOnConsole) {
+    <p>{{ 'find.otherRepo' | transloco: { repo: outcome.project.repo, name: outcome.project.name } }}</p>
+    <a class="tc-find__link" [routerLink]="routeElsewhere(outcome.project, outcome.number)"
+      >{{ 'find.otherOpen' | transloco: { key: (outcome.project.keyPrefix ?? '') + '-' + outcome.number, name:
+      outcome.project.name } }}</a
+    >
+    } @else {
+    <p>{{ 'find.notImported' | transloco: { repo: outcome.project.repo } }}</p>
+    @if (githubOf(outcome.project, outcome.number); as url) {
+    <a class="tc-find__link" [href]="url" target="_blank" rel="noopener noreferrer"
+      >{{ 'find.onGitHub' | transloco: { n: outcome.number } }}<tc-icon name="external" size="sm"
+    /></a>
+    } }
+  </div>
+  } } } @case ('unknown-link') {
+  <div class="tc-find__note" data-testid="find-unknown">
+    <p>{{ 'find.unknownLink' | transloco }}</p>
+  </div>
+  } @case ('failed') {
+  <div class="tc-find__note" role="alert" data-testid="find-failed">
+    <p>{{ (isOffline() ? 'find.offline' : 'item.error.hint') | transloco }}</p>
+  </div>
+  } }
+</search>

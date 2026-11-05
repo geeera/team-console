@@ -446,6 +446,23 @@
       "question": "Question"
     }
   },
+  "find": {
+    "title": "Find a task",
+    "label": "Number, key, words from the title, or a GitHub link",
+    "hint": "GitHub numbers stayed the same: #142 there is {{key}}-142 here. Closed tasks are searched too.",
+    "typing": "Searching…",
+    "results": "Found: {{n}}",
+    "none": "Nothing found",
+    "noneHint": "Closed tasks are searched too. Try another word or number.",
+    "closed": "closed",
+    "sprint": "Sprint {{n}}",
+    "otherRepo": "This task is from {{repo}}. It is in the {{name}} project.",
+    "otherOpen": "Open {{key}} in {{name}}",
+    "notImported": "This links to {{repo}}, whose tasks are still on GitHub.",
+    "onGitHub": "Open #{{n}} on GitHub",
+    "unknownLink": "This link goes to a repository that is not one of your projects.",
+    "offline": "You’re offline. Search works again once you’re back online."
+  },
   "sprintNew": {
     "create": "Create a sprint",
     "title": "New sprint",

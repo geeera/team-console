@@ -10,6 +10,19 @@
     </a>
     }
   </nav>
+  } @if (!isPhone() && canFind()) {
+  <button
+    tc-button
+    type="button"
+    class="space__find"
+    data-testid="find-open"
+    aria-keyshortcuts="/"
+    (click)="openFind()"
+  >
+    <tc-icon name="search" size="sm" />
+    {{ 'find.title' | transloco }}
+    <kbd class="tc-kbd" aria-hidden="true">/</kbd>
+  </button>
   } @if (!isPhone()) {
   <button
     tc-button
@@ -29,6 +42,17 @@
   } @else {
   <!-- The phone: in the shell's top bar, as the design places it. -->
   <ng-template tcTopBarAction>
+    @if (canFind()) {
+    <button
+      tc-icon-button
+      type="button"
+      data-testid="find-open"
+      [attr.aria-label]="'find.title' | transloco"
+      (click)="openFind()"
+    >
+      <tc-icon name="search" />
+    </button>
+    }
     <button
       tc-button
       size="sm"

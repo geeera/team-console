@@ -24,7 +24,17 @@ import {
 } from '@console/entities/project';
 import { TeamStatusStore } from '@console/entities/team-run';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
-import { BREAKPOINTS, Button, Icon, IconName, Sheet, Tab, TabBar, TopBarAction } from '@console/shared/ui';
+import {
+  BREAKPOINTS,
+  Button,
+  Icon,
+  IconButton,
+  IconName,
+  Sheet,
+  Tab,
+  TabBar,
+  TopBarAction,
+} from '@console/shared/ui';
 import {
   CommandsPane,
   CommandsSheet,
@@ -33,6 +43,13 @@ import {
   type CommandsProject,
 } from '@console/widgets/commands-panel';
 import { filter, map } from 'rxjs';
+
+function isTyping(target: Element | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+  );
+}
 
 const SECTION_ICONS: Record<SpaceSection, IconName> = {
   questions: 'inbox',
@@ -54,6 +71,7 @@ const SECTION_ICONS: Record<SpaceSection, IconName> = {
     Button,
     CommandsPane,
     Icon,
+    IconButton,
     PausedBanner,
     RouterLink,
     RouterOutlet,
@@ -87,11 +105,19 @@ export class ProjectSpacePage {
   /** Bound from the route by `withComponentInputBinding()`. */
   readonly slug = input.required<string>();
 
-  protected readonly sections = VISIBLE_SPACE_SECTIONS.map((section) => ({ section, icon: SECTION_ICONS[section] }));
+  protected readonly sections = VISIBLE_SPACE_SECTIONS.map((section) => ({
+    section,
+    icon: SECTION_ICONS[section],
+  }));
   protected readonly project = computed(() => this.projects.bySlug(this.slug()));
   protected readonly commandsProject = computed<CommandsProject>(() => {
     const project = this.project();
     return { slug: this.slug(), name: project?.displayName ?? this.slug(), repo: project?.repo ?? '' };
+  });
+  /** Find a task (#435) is for projects on the console tracker; a GitHub project's tasks are on GitHub. */
+  protected readonly canFind = computed(() => {
+    const tracker = this.project()?.tracker;
+    return tracker !== undefined && tracker !== 'github';
   });
   /** The Commands pane on a wide screen; the phone opens a sheet instead. */
   protected readonly isPaneOpen = signal(false);
@@ -155,10 +181,20 @@ export class ProjectSpacePage {
       this.closePane();
       return;
     }
+    // `/` opens Find (#409 §1), unless the owner is typing.
+    if (event.key === '/' && this.canFind() && !isTyping(target) && !event.metaKey && !event.ctrlKey) {
+      event.preventDefault();
+      this.openFind();
+      return;
+    }
     if (isCommandsShortcut(event)) {
       event.preventDefault();
       this.toggleCommands();
     }
+  }
+
+  protected openFind(): void {
+    void this.router.navigate(['/p', this.slug(), 'find']);
   }
 
   private query(selector: string): HTMLElement | null {
@@ -168,7 +204,7 @@ export class ProjectSpacePage {
   protected readonly currentSection = computed<SpaceSection | null>(() => {
     const first = spaceLocationOf(this.url())?.path.split(/[/?#]/, 1)[0];
     // A task (`t/:n`, #435) belongs to the board: its tab stays current and the body keeps the board's width.
-    if (first === 't') {
+    if (first === 't' || first === 'find') {
       return 'board';
     }
     return isSpaceSection(first) ? first : null;

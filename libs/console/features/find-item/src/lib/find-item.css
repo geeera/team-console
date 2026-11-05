@@ -1,0 +1,146 @@
+/* #409: the search field as a ruled index line, results as index cards in one list. */
+.tc-find {
+  display: grid;
+  gap: var(--space-4);
+  max-width: var(--log-max);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-6) var(--space-10);
+}
+
+@media (max-width: 519.98px) {
+  .tc-find {
+    padding: var(--space-2) var(--space-4) var(--space-10);
+  }
+}
+
+.tc-find__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--fw-display);
+  font-size: var(--fs-2xl);
+  line-height: var(--lh-tight);
+  outline: none;
+}
+
+.tc-find__form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.tc-find__label {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
+.tc-find__field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: calc(var(--control-h-touch) + var(--space-2));
+  padding: 0 var(--space-3);
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text-2);
+}
+
+.tc-find__field:focus-within {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 var(--border-w) var(--focus);
+}
+
+.tc-find__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  outline: none;
+  font: inherit;
+  font-size: var(--fs-input);
+  color: var(--text);
+}
+
+.tc-find__hint,
+.tc-find__count {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.tc-find__results {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.tc-find__results li + li {
+  border-top: var(--border-w) solid var(--border);
+}
+
+.tc-find__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  min-height: var(--control-h-touch);
+  padding: var(--space-3) var(--space-4);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.tc-find__row:hover {
+  background: var(--hover);
+}
+
+.tc-find__row:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: calc(-1 * var(--focus-w));
+}
+
+.tc-find__key {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  padding-top: var(--space-px);
+}
+
+.tc-find__row-title {
+  font-size: var(--fs-md);
+  overflow-wrap: anywhere;
+}
+
+.tc-find__meta {
+  grid-column: 2;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.tc-find__note {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border-radius: var(--r-md);
+  background: var(--bg-sunken);
+  font-size: var(--fs-sm);
+}
+
+.tc-find__note p {
+  margin: 0;
+}
+
+.tc-find__note-title {
+  font-weight: var(--fw-bold);
+}
+
+.tc-find__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-h-touch);
+  color: var(--accent-text);
+  font-weight: var(--fw-semibold);
+}
