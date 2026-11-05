@@ -1085,7 +1085,7 @@ describe('an identity that is neither the owner nor the service (#443)', () => {
     vi.resetModules();
     vi.doMock('../auth/access-jwt', async (importOriginal) => ({
       ...(await importOriginal<typeof import('../auth/access-jwt')>()),
-      identityOf: () => ({ ok: true, identity: { kind: 'job', role: 'pm' } }),
+      identityOf: () => ({ ok: true, identity: { kind: 'runner', runnerId: 'r1' } }),
     }));
     let createApp: typeof import('../app').createApiApp;
     try {
@@ -1128,7 +1128,7 @@ describe('an identity that is neither the owner nor the service (#443)', () => {
     expect(h.fake.comments).toEqual([]);
     expect(await ownWrites()).toEqual([]);
     const log = h.logs.join('\n');
-    expect(log).toContain('"identity":"job"');
-    expect(log).toContain('"reason":"job"');
+    expect(log).toContain('"identity":"runner"');
+    expect(log).toContain('"reason":"runner"');
   });
 });

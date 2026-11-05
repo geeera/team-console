@@ -325,7 +325,14 @@ export class LocalStack {
       await stack.signInAsMockOwner();
       await stack.startApi();
     } catch (error: unknown) {
-      await stack.stop();
+      try {
+        await stack.stop();
+      } catch (stopError: unknown) {
+        // stop() itself can throw an AggregateError (several parts failed to shut down); that must never
+        // replace the start failure the caller actually needs to see.
+        const why = stopError instanceof Error ? stopError.message : String(stopError);
+        process.stderr.write(`${name}: cleanup after a failed start also failed: ${why}\n`);
+      }
       throw error;
     }
     return stack;

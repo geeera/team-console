@@ -1,6 +1,6 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type JWTPayload } from 'jose';
-import { createApiApp, type CreateApiAppOptions } from '../app';
+import { createApiApp } from '../app';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import type { OwnerConnectionSource } from '../projects/owner-connection';
@@ -146,8 +146,6 @@ export interface ApiRequest {
   /** The fake push service's fetch (#11). */
   readonly pushFetch?: FetchLike;
   readonly pushNow?: () => number;
-  /** The tracker's policy actor (#410), standing in for the Phase 2 job identity. */
-  readonly trackerPolicyActorOf?: CreateApiAppOptions['trackerPolicyActorOf'];
 }
 
 /** Calls the app directly so each case chooses its own bindings (`SELF` is fixed to the pool's local ones). */
@@ -162,15 +160,16 @@ export async function fetchApi(path: string, bindings: ApiEnv, request: ApiReque
     ...(request.routinesDeadlineMs === undefined ? {} : { routinesDeadlineMs: request.routinesDeadlineMs }),
     ...(request.pushFetch === undefined ? {} : { pushFetch: request.pushFetch }),
     ...(request.pushNow === undefined ? {} : { pushNow: request.pushNow }),
-    ...(request.trackerPolicyActorOf === undefined
-      ? {}
-      : { trackerPolicyActorOf: request.trackerPolicyActorOf }),
   });
   const init: RequestInit = { method: request.method ?? 'GET', headers: request.headers ?? {} };
   if (request.body !== undefined) {
     init.body = request.body;
   }
-  const response = await app.fetch(new Request(`${request.origin ?? 'http://api.test'}${path}`, init), bindings, ctx);
+  const response = await app.fetch(
+    new Request(`${request.origin ?? 'http://api.test'}${path}`, init),
+    bindings,
+    ctx,
+  );
   await waitOnExecutionContext(ctx);
   return response;
 }

@@ -2,7 +2,7 @@ import type { APIRequestContext, Locator, Page } from '@playwright/test';
 import type { SprintDto } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { en, ru } from './support/i18n';
-import { clearFakeMilestones, fakePost, seed, seedFakeRunLog, type Stack } from './support/stack';
+import { clearFakeMilestones, fakePost, RUN_LOG_ISSUE, seed, seedFakeRunLog, type Stack } from './support/stack';
 
 /**
  * The compact board (#275) at 390×844 (iphone) and 1440×900 (desktop), on the mock repository (20 sprint issues,
@@ -16,7 +16,6 @@ const SPRINT = '/api/v1/projects/team-console/sprint';
 const isPhone = (page: Page): boolean => (page.viewportSize()?.width ?? 0) < 900;
 const BOARD_SCOPE = { root: 'main', skip: '' };
 const REPO = 'geeera/team-console';
-const RUN_LOG = 22;
 const MINUTE = 60_000;
 /** «Прогоны 3»: the runs every test seeds. */
 const RUNS_TAB = ru('board.tabs.runs', { n: 3 });
@@ -50,7 +49,7 @@ async function seedRuns(stack: Stack): Promise<void> {
   for (const entry of entries) {
     await fakePost(stack, '/_fake/comment', {
       repo: REPO,
-      number: RUN_LOG,
+      number: RUN_LOG_ISSUE,
       body: `<!-- pt-run id=${entry.run} slot=${entry.slot} state=${entry.state} -->\n**${entry.slot}** ${entry.state}`,
       author: 'geeera',
       createdAt: now - entry.minutesAgo * MINUTE,

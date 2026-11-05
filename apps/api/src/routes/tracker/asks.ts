@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
 import { checkCreateAskInput, type AskListDto } from '@shared/contracts';
-import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
+import { problem, type WorkerHonoEnv } from '@worker/core';
 import { AsksRepo, type ItemRecord } from '@worker/db';
-import { askEffectOf, type PolicyActor } from '../../auth/policy';
+import { askEffectOf } from '../../auth/policy';
+import { trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
-import { invalid, itemClosed, itemOf, roleRefusal, type PolicyActorOf } from '../../tracker/context';
+import { invalid, itemClosed, itemOf } from '../../tracker/context';
 import { askDtoOf } from '../../tracker/dto';
 import { withOneRetry, writeWithItemEffect } from '../../tracker/effect-batch';
 import { ASK_WRITE_MAX_BYTES, nextCursor, writeLimit } from '../../tracker/http';
@@ -12,29 +13,20 @@ import { idempotent } from '../../tracker/idempotency';
 import { itemReadOf } from '../../tracker/item-reads';
 import { trackerWriteContextOf } from '../../tracker/write-context';
 
-type Context = WorkerContext<ApiEnv>;
-
-/** ADR 0006 "API and authorisation": any role asks the owner except the developers. */
-const DEVELOPER_ROLE = /^dev(-[a-z]+)?$/;
-
-/** The owner never asks (the owner decides); a developer does not either. */
-function askRefusal(c: Context, actor: PolicyActor): Response | null {
-  if (actor.kind === 'job' && !DEVELOPER_ROLE.test(actor.role)) {
-    return null;
-  }
-  return roleRefusal(c, 'ask-role', actor, 'Questions to the owner are asked by a team role other than dev');
-}
-
 /**
- * Questions to the owner (#434, ADR 0006 Phase 1a′; formerly `backlog ask`). Job-only: until the Phase 2 job
- * identity exists, no deployed identity maps to a job, so the POST refuses every real caller (the owner with 403
- * `ask-role`, the service with 403 `owner-only`); the specs reach it through `trackerPolicyActorOf`. An ask replaces
- * the item's open ask and sets `owner:<category>` in the same batch (`askEffectOf`, the second R5 exception).
+ * Questions to the owner (#434, ADR 0006 Phase 1a′; formerly `backlog ask`). Job-only, any role but `dev*` (the route
+ * matrix; the owner gets 403 `ask-role`, the service 403 `owner-only`): until Phase 2 the only job identity is the
+ * local stand-in, so every deployed caller is refused. An ask replaces the item's open ask and sets
+ * `owner:<category>` in the same batch (`askEffectOf`, the second R5 exception).
  */
-export function createTrackerAskRoutes(actorOf: PolicyActorOf): Hono<WorkerHonoEnv<ApiEnv>> {
+export function createTrackerAskRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
+  const guard = {
+    list: trackerAccess('GET /api/v1/projects/:slug/items/:key/asks'),
+    create: trackerAccess('POST /api/v1/projects/:slug/items/:key/asks'),
+  };
   return new Hono<WorkerHonoEnv<ApiEnv>>()
-    .get('/:slug/items/:key/asks', async (c) => {
-      const read = await itemReadOf(c, actorOf);
+    .get('/:slug/items/:key/asks', guard.list, async (c) => {
+      const read = await itemReadOf(c);
       if (read instanceof Response) {
         return read;
       }
@@ -47,8 +39,8 @@ export function createTrackerAskRoutes(actorOf: PolicyActorOf): Hono<WorkerHonoE
       return c.json(body);
     })
 
-    .post('/:slug/items/:key/asks', writeLimit(ASK_WRITE_MAX_BYTES), async (c) => {
-      const context = await trackerWriteContextOf(c, actorOf, (actor) => askRefusal(c, actor));
+    .post('/:slug/items/:key/asks', guard.create, writeLimit(ASK_WRITE_MAX_BYTES), async (c) => {
+      const context = await trackerWriteContextOf(c);
       if (context instanceof Response) {
         return context;
       }
