@@ -25,6 +25,7 @@ import { createSprintCommandsRoutes } from './routes/sprint-commands';
 import { createTeamCommandsRoutes } from './routes/team-commands';
 import { createPushRoutes } from './routes/push';
 import { createNotificationsRoutes } from './routes/notifications';
+import { createEnvironmentRoutes } from './routes/environment';
 import { createTrackerCommentRoutes } from './routes/tracker/comments';
 import { createTrackerItemRoutes } from './routes/tracker/items';
 import { createTrackerLabelRoutes } from './routes/tracker/labels';
@@ -123,6 +124,7 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
       ...(options.pushNow === undefined ? {} : { now: options.pushNow }),
     }),
   );
+  v1.route('/environment', createEnvironmentRoutes());
   app.route('/api/v1', v1);
 
   return app;

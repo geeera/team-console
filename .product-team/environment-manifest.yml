@@ -12,6 +12,8 @@
 #   name          - the secret/variable name; a per-project pattern is written once with its placeholder(s)
 #                   literally (e.g. "ROUTINE_TOKEN_<SLUG>"), never spelled out per project.
 #   pattern       - true when `name` contains a `<...>` placeholder instead of a literal name.
+#   optional      - true when the console works without it (an alternative, a rotation aid, a local fake); the
+#                   Environment setup screen (#104) never counts an optional item as missing. Omitted otherwise.
 #   kind          - "secret" | "variable".
 #   origin        - "owner" (the owner obtains and enters the value) | "generated" (a setup script generates
 #                   it, or it is a fixed value already committed in the repository, e.g. ENVIRONMENT).
@@ -123,6 +125,7 @@ items:
 
   - name: "SLOT_TOKEN_<SLUG>_<SLOT>"
     pattern: true
+    optional: true
     kind: secret
     origin: owner
     environments: [production]
@@ -141,6 +144,7 @@ items:
 
   - name: "SLOT_ROUTINE_<SLUG>_<SLOT>"
     pattern: true
+    optional: true
     kind: secret
     origin: owner
     environments: [production]
@@ -170,6 +174,7 @@ items:
       gotchas: Должен совпадать именно с webhook secret'ом приложения — никогда не придумывается отдельно.
 
   - name: WEBHOOK_SECRET_PREVIOUS
+    optional: true
     kind: secret
     origin: owner
     environments: [dev, stage, production]
@@ -348,6 +353,7 @@ items:
       gotchas: "`tools/workspace-checks` проваливается, если это появится в любом `env.*` блоке wrangler.jsonc."
 
   - name: GITHUB_MOCK
+    optional: true
     kind: variable
     origin: generated
     environments: [local]
@@ -361,6 +367,7 @@ items:
       gotchas: null
 
   - name: GITHUB_FAKE_ORIGIN
+    optional: true
     kind: variable
     origin: generated
     environments: [local]
@@ -374,6 +381,7 @@ items:
       gotchas: null
 
   - name: ROUTINES_FAKE_ORIGIN
+    optional: true
     kind: variable
     origin: generated
     environments: [local]
@@ -387,6 +395,7 @@ items:
       gotchas: null
 
   - name: PUSH_FAKE_ORIGIN
+    optional: true
     kind: variable
     origin: generated
     environments: [local]
@@ -429,6 +438,7 @@ items:
       gotchas: Заводится тем же `set-secrets.sh`, что и `CLOUDFLARE_API_TOKEN`.
 
   - name: PT_TELEGRAM_TOKEN
+    optional: true
     kind: secret
     origin: owner
     environments: [dev, stage, production]
@@ -442,6 +452,7 @@ items:
       gotchas: Репозиторный секрет — один на весь репозиторий, не по окружениям.
 
   - name: PT_TELEGRAM_CHAT
+    optional: true
     kind: variable
     origin: owner
     environments: [dev, stage, production]
@@ -457,6 +468,7 @@ items:
       gotchas: Хранится секретом, хотя формально не секретен, — рядом с токеном, той же парой.
 
   - name: PT_NTFY_TOPIC
+    optional: true
     kind: secret
     origin: owner
     environments: [dev, stage, production]

@@ -1,0 +1,125 @@
+<ng-template #prose let-segments>
+  @for (segment of segments; track $index) { @if (segment.code) {<code class="guide__code"
+    >{{ segment.text }}</code
+  >} @else {{{ segment.text }}} }
+</ng-template>
+
+<article class="guide" data-testid="env-guide" [attr.aria-labelledby]="'guide-title'">
+  <nav class="guide__crumb" [attr.aria-label]="'settings.breadcrumb' | transloco">
+    <a [routerLink]="backLink()"
+      ><tc-icon name="chevron-left" size="sm" />{{ 'env.g.back' | transloco: { env: env() } }}</a
+    >
+  </nav>
+  <a
+    class="guide__close tc-tap-target"
+    data-testid="env-guide-close"
+    [routerLink]="backLink()"
+    [attr.aria-label]="'env.g.close' | transloco"
+  >
+    <tc-icon name="x" />
+  </a>
+
+  @if (view(); as view) {
+  <h1 #heading id="guide-title" class="guide__title" tabindex="-1">{{ view.row.name }}</h1>
+
+  <ul class="guide__meta" [attr.aria-label]="'env.g.metaAria' | transloco">
+    @if (statusIcon(view.status); as icon) {
+    <li class="guide__tag guide__tag--status" [attr.data-status]="view.status" data-testid="env-guide-status">
+      <tc-icon [name]="icon" size="sm" />{{ 'env.st.' + view.status | transloco }}
+    </li>
+    }
+    <li class="guide__tag">{{ 'env.g.kind.' + view.row.item.kind | transloco }}</li>
+    <li class="guide__tag">
+      {{ 'env.g.place.' + view.row.group | transloco: { env: env(), project: view.row.project ?? '' } }}
+    </li>
+    @if (source(); as source) {
+    <li class="guide__tag">{{ 'env.g.src.' + source | transloco }}</li>
+    } @if (view.row.item.optional) {
+    <li class="guide__tag">{{ 'env.st.optional' | transloco }}</li>
+    } @if (neededBy()) {
+    <li class="guide__tag" lang="ru">{{ 'env.g.neededBy' | transloco: { list: neededBy() } }}</li>
+    }
+  </ul>
+
+  <p class="guide__never"><tc-icon name="lock" size="sm" />{{ 'env.g.never' | transloco }}</p>
+  @if (!isRussian()) {
+  <p class="guide__lang">{{ 'env.g.ruOnly' | transloco }}</p>
+  }
+
+  <section class="guide__section" aria-labelledby="guide-purpose">
+    <h2 id="guide-purpose" class="guide__heading">{{ 'env.g.purpose' | transloco }}</h2>
+    <p lang="ru"><ng-container *ngTemplateOutlet="prose; context: { $implicit: purpose() }" /></p>
+  </section>
+
+  @if (source() === 'app' || source() === 'generated' || obtain()) {
+  <section class="guide__section" aria-labelledby="guide-where">
+    <h2 id="guide-where" class="guide__heading">{{ 'env.g.where' | transloco }}</h2>
+    @if (source() === 'app') {
+    <p>{{ 'env.g.whereApp' | transloco }}</p>
+    } @else if (source() === 'generated') {
+    <p>{{ 'env.g.whereGen' | transloco }}</p>
+    } @if (obtain(); as obtain) {
+    <p lang="ru"><ng-container *ngTemplateOutlet="prose; context: { $implicit: obtain }" /></p>
+    }
+  </section>
+  } @for (section of sections(); track section.key) {
+  <section
+    class="guide__section"
+    [attr.aria-labelledby]="'guide-' + section.key"
+    [attr.data-section]="section.key"
+  >
+    <h2 class="guide__heading" [id]="'guide-' + section.key">{{ 'env.g.' + section.key | transloco }}</h2>
+    <p lang="ru"><ng-container *ngTemplateOutlet="prose; context: { $implicit: section.segments }" /></p>
+  </section>
+  }
+
+  <section class="guide__section" aria-labelledby="guide-how" data-testid="env-guide-how">
+    <h2 id="guide-how" class="guide__heading">{{ 'env.g.how' | transloco }}</h2>
+    @switch (view.status) { @case ('set') {
+    <p>{{ 'env.g.howRotate' | transloco }}</p>
+    <tc-copy-code
+      [code]="rotateCommand()"
+      [ariaLabel]="'env.row.copyAria' | transloco: { name: view.row.name }"
+      [copyLabel]="'settings.common.copy' | transloco"
+      [copiedLabel]="'settings.common.copied' | transloco"
+      [failedNote]="'settings.common.copyFailed' | transloco"
+    />
+    } @case ('unseen') {
+    <p>{{ 'env.g.howCheck' | transloco }}</p>
+    <tc-copy-code
+      [code]="checkCommand()"
+      [ariaLabel]="'env.sum.copyCheckAria' | transloco: { env: env() }"
+      [copyLabel]="'settings.common.copy' | transloco"
+      [copiedLabel]="'settings.common.copied' | transloco"
+      [failedNote]="'settings.common.copyFailed' | transloco"
+    />
+    <p>{{ 'env.g.howThen' | transloco }}</p>
+    <tc-copy-code
+      [code]="setCommand()"
+      [ariaLabel]="'env.row.copyAria' | transloco: { name: view.row.name }"
+      [copyLabel]="'settings.common.copy' | transloco"
+      [copiedLabel]="'settings.common.copied' | transloco"
+      [failedNote]="'settings.common.copyFailed' | transloco"
+    />
+    } @default {
+    <p>{{ 'env.g.howBody' | transloco }}</p>
+    <tc-copy-code
+      [code]="setCommand()"
+      [ariaLabel]="'env.row.copyAria' | transloco: { name: view.row.name }"
+      [copyLabel]="'settings.common.copy' | transloco"
+      [copiedLabel]="'settings.common.copied' | transloco"
+      [failedNote]="'settings.common.copyFailed' | transloco"
+    />
+    } } @if (view.status === 'set' && screen.status.checkedAt(); as checkedAt) {
+    <p class="guide__checked">{{ 'env.g.checkedAt' | transloco: { time: (checkedAt | localTime) } }}</p>
+    }
+  </section>
+  } @else if (waiting()) {
+  <tc-state-block kind="loading" [title]="'env.checkingSr' | transloco" />
+  } @else {
+  <h1 #heading id="guide-title" class="guide__title guide__title--plain" tabindex="-1">
+    {{ 'env.g.notFound.title' | transloco: { env: env() } }}
+  </h1>
+  <tc-state-block kind="empty" [title]="'env.g.notFound.body' | transloco" data-testid="env-guide-missing" />
+  }
+</article>

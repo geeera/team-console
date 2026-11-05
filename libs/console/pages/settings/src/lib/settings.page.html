@@ -1,5 +1,7 @@
 <div class="tc-page settings">
-  <h1 #heading tcSrOnlyOnPhone class="tc-page__title settings__title" tabindex="-1">{{ 'settings.title' | transloco }}</h1>
+  <h1 #heading tcSrOnlyOnPhone class="tc-page__title settings__title" tabindex="-1">
+    {{ 'settings.title' | transloco }}
+  </h1>
 
   <section class="settings__section" aria-labelledby="settings-gh">
     <h2 id="settings-gh" class="settings__section-title">{{ 'settings.gh.title' | transloco }}</h2>
@@ -15,6 +17,37 @@
     </div>
     <tc-push-settings-card />
   </section>
+
+  @if (environmentCopy.failed()) {
+  <section class="settings__section" data-testid="env-section">
+    <div class="settings__env-failed" role="alert" data-testid="env-copy-failed">
+      <p>{{ 'settings.common.envFailed' | transloco }}</p>
+      <button tc-button size="sm" type="button" (click)="retryEnvironmentCopy()">
+        {{ 'settings.common.retry' | transloco }}
+      </button>
+    </div>
+  </section>
+  } @else {
+  <section class="settings__section" aria-labelledby="settings-env" data-testid="env-section">
+    <h2 id="settings-env" class="settings__section-title">{{ 'env.entry.section' | transloco }}</h2>
+    <tc-list [attr.aria-labelledby]="'settings-env'">
+      <tc-list-row [link]="environmentLink()" data-testid="env-entry">
+        <tc-icon tc-row-leading name="key" />
+        <span tc-row-title>{{ 'env.entry.row' | transloco }}</span>
+        <span tc-row-subtitle>{{ 'env.entry.sub' | transloco: { env: environmentName() } }}</span>
+        <tc-chip
+          tc-row-trailing
+          data-testid="env-entry-chip"
+          [tone]="entryChip().kind === 'missing' ? 'warning' : entryChip().kind === 'ok' ? 'success' : 'neutral'"
+        >
+          @switch (entryChip().kind) { @case ('missing') { {{ 'env.entry.missing' | transloco: { n:
+          entryMissing() } }} } @case ('ok') { {{ 'env.entry.ok' | transloco }} } @case ('checking') { {{
+          'env.entry.checking' | transloco }} } @default { {{ 'env.entry.unknown' | transloco }} } }
+        </tc-chip>
+      </tc-list-row>
+    </tc-list>
+  </section>
+  }
 
   <section class="settings__section" aria-labelledby="settings-lang">
     <h2 id="settings-lang" class="settings__section-title">{{ 'settings.language' | transloco }}</h2>

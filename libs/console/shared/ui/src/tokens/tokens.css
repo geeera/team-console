@@ -117,6 +117,7 @@
   --card-min-w: 480px; /* a decision card in a grid of cards (#276): the outcome boxes still fit side by side */
   --cards-max: 1064px; /* two such cards, the list gap and the page padding */
   --dialog-max-w: 440px;
+  --list-pane-w: 440px; /* the list of a list-detail page beside its detail pane (#104 Environment setup) */
   --sheet-dialog-w: 560px; /* a dialog that holds a checklist (#194 Add): 440 px is too narrow for its fix lines */
   /* The design viewer (#277 spec §3): a large dialog on the Mac, within the viewport; full screen on the phone. */
   --sheet-full-w: 1200px;

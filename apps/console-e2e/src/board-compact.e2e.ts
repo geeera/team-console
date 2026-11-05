@@ -216,6 +216,8 @@ for (const lang of ['ru', 'en'] as const) {
     if (lang === 'en') {
       await page.goto('/settings');
       await page.getByTestId('switch-lang').click();
+      // The choice is stored once English has loaded; the full load below must not race it.
+      await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     }
     await openBoard(page);
     expect(await page.evaluate(wrappedLabelsOf, BOARD_SCOPE), 'the board').toEqual([]);

@@ -1,0 +1,29 @@
+:host {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* A command is never truncated: it wraps anywhere, a cut command would be useless. */
+.tc-copy-code__code {
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.tc-copy-code__button {
+  flex: none;
+}
+
+.tc-copy-code__failed {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--danger-text);
+}

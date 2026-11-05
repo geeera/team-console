@@ -53,24 +53,15 @@
           <tc-icon name="external" size="sm" />
         </a>
         } @if (step.id === 'routine') {
-        <div class="step__code tc-code-row">
-          <code class="tc-code-row__code">{{ command() }}</code>
-          <button
-            tc-button
-            size="sm"
-            type="button"
-            [attr.aria-label]="'settings.step.routine.copyAria' | transloco"
-            (click)="copyCommand()"
-          >
-            <tc-icon name="copy" size="sm" />
-            <span aria-hidden="true"
-              >{{ (copied() ? 'settings.common.copied' : 'settings.common.copy') | transloco }}</span
-            >
-          </button>
-        </div>
-        @if (copyFailed()) {
-        <p class="step__copy-failed" role="status">{{ 'settings.common.copyFailed' | transloco }}</p>
-        } }
+        <tc-copy-code
+          class="step__code"
+          [code]="command()"
+          [ariaLabel]="'settings.step.routine.copyAria' | transloco"
+          [copyLabel]="'settings.common.copy' | transloco"
+          [copiedLabel]="'settings.common.copied' | transloco"
+          [failedNote]="'settings.common.copyFailed' | transloco"
+        />
+        }
       </div>
       }
     </div>

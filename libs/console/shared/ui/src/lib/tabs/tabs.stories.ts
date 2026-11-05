@@ -19,7 +19,7 @@ const sections = (enabled: boolean, selected = 'tasks') => `
     <tc-tab-panel key="tasks" [label]="'stories.tabs.tasks' | transloco">
       <tc-list>${row(10, 'dialogs', 'heavy', 'warning')}${row(11, 'questions', 'standard', 'accent')}</tc-list>
     </tc-tab-panel>
-    <tc-tab-panel key="pulls" [label]="'stories.tabs.pulls' | transloco">
+    <tc-tab-panel key="pulls" [label]="'stories.tabs.pulls' | transloco" [note]="note ? ('stories.chip.active' | transloco) : null">
       <tc-list>${row(40, 'requests', 'ciFailed', 'danger')}${row(92, 'bundle', 'ciRunning', 'warning')}</tc-list>
     </tc-tab-panel>
     <tc-tab-panel key="runs" [label]="'stories.tabs.runs' | transloco">
@@ -32,7 +32,7 @@ const meta: Meta<Tabs> = {
   title: 'Kit/Tabs',
   component: Tabs,
   decorators: [moduleMetadata({ imports: [Tabs, TabPanel, List, ListRow, Chip, TranslocoPipe] })],
-  render: () => ({ template: sections(true) }),
+  render: () => ({ props: { note: false }, template: sections(true) }),
 };
 
 export default meta;
@@ -42,6 +42,13 @@ type Story = StoryObj<Tabs>;
 export const Default: Story = {};
 export const SecondSelected: Story = { render: () => ({ template: sections(true, 'pulls') }) };
 /** Turned off on a wide screen: every section is a plain block, laid out by the page. */
+/** A tab with a second line under its label (Environment setup marks "this console" this way, #104). */
+export const WithNote: Story = {
+  render: () => ({
+    props: { note: true },
+    template: sections(true, 'pulls').replace('<tc-tabs ', '<tc-tabs dense '),
+  }),
+};
 export const Off: Story = { render: () => ({ template: sections(false) }) };
 export const Dark: Story = { ...darkTheme };
 export const ReducedMotion: Story = { ...reducedMotion };

@@ -50,7 +50,11 @@ const GLYPHS = {
   share: 'M12 3.5v11M8 7.5l4-4 4 4M8.5 10.5h-2a1 1 0 00-1 1v8a1 1 0 001 1h11a1 1 0 001-1v-8a1 1 0 00-1-1h-2',
   // Safari's "More": three dots drawn as small rings, so the one stroke width still reads as solid dots.
   more: 'M6.5 11.2a.8.8 0 110 1.6.8.8 0 010-1.6zM12 11.2a.8.8 0 110 1.6.8.8 0 010-1.6zM17.5 11.2a.8.8 0 110 1.6.8.8 0 010-1.6z',
-  'add-square': 'M8 4.5h8A3.5 3.5 0 0119.5 8v8a3.5 3.5 0 01-3.5 3.5H8A3.5 3.5 0 014.5 16V8A3.5 3.5 0 018 4.5zM12 8.5v7M8.5 12h7',
+  // Environment setup (#104): "not visible here".
+  'eye-off':
+    'M3 3l18 18M10.6 6.2A9 9 0 0112 6c4.6 0 8 4 9 6a15 15 0 01-2.6 3.3M6.5 7.6C4.6 9 3.5 10.8 3 12c1 2 4.4 6 9 6 1.5 0 2.9-.4 4.1-1M9.9 9.9a3 3 0 004.2 4.2',
+  'add-square':
+    'M8 4.5h8A3.5 3.5 0 0119.5 8v8a3.5 3.5 0 01-3.5 3.5H8A3.5 3.5 0 014.5 16V8A3.5 3.5 0 018 4.5zM12 8.5v7M8.5 12h7',
 } as const;
 
 export type IconName = keyof typeof GLYPHS;

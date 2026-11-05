@@ -5,11 +5,12 @@ import { TabPanel, Tabs } from './tabs';
 interface PanelData {
   readonly key: string;
   readonly label: string;
+  readonly note?: string;
 }
 
 const SECTIONS: readonly PanelData[] = [
   { key: 'tasks', label: 'Tasks 20' },
-  { key: 'pulls', label: 'PR 4' },
+  { key: 'pulls', label: 'PR 4', note: 'this one' },
   { key: 'runs', label: 'Runs 5' },
 ];
 
@@ -18,7 +19,7 @@ const SECTIONS: readonly PanelData[] = [
   template: `
     <tc-tabs label="Board sections" [enabled]="enabled()" [(selected)]="selected">
       @for (panel of panels(); track panel.key) {
-        <tc-tab-panel [key]="panel.key" [label]="panel.label">
+        <tc-tab-panel [key]="panel.key" [label]="panel.label" [note]="panel.note ?? null">
           <a href="#{{ panel.key }}">{{ panel.key }} link</a>
         </tc-tab-panel>
       }
@@ -66,7 +67,13 @@ describe('Tabs and TabPanel', () => {
     const { tablist, tabs, panels } = await render();
 
     expect(tablist()?.getAttribute('aria-label')).toBe('Board sections');
-    expect(tabs().map((tab) => tab.textContent?.trim())).toEqual(['Tasks 20', 'PR 4', 'Runs 5']);
+    expect(tabs().map((tab) => tab.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+      'Tasks 20',
+      'PR 4 this one',
+      'Runs 5',
+    ]);
+    // The note is part of the tab's name; its dot is decoration.
+    expect(tabs()[1]?.querySelector('.tc-tabs__note-dot')?.getAttribute('aria-hidden')).toBe('true');
     tabs().forEach((tab, index) => {
       const panel = panels()[index] as HTMLElement;
       expect(tab.getAttribute('aria-controls')).toBe(panel.id);

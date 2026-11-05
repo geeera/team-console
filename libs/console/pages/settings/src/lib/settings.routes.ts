@@ -1,5 +1,7 @@
 import { Route } from '@angular/router';
+import { environmentCopyReady } from '@console/entities/environment';
 import { ADD_PROJECT_URL } from '@console/entities/project';
+import { environmentRoutes } from './environment/environment.routes';
 import { ProjectSetupPage } from './project-setup.page';
 import { SettingsPage } from './settings.page';
 
@@ -9,8 +11,10 @@ import { SettingsPage } from './settings.page';
  * `projects/:slug` so "new" never reads as a slug. The setup page keeps its address until it moves out of Settings.
  */
 export const settingsRoutes: Route[] = [
-  { path: '', pathMatch: 'full', component: SettingsPage },
+  // The Environment row's copy lives in the environment chunk (#104), so Settings waits for it too.
+  { path: '', pathMatch: 'full', component: SettingsPage, canActivate: [environmentCopyReady] },
   { path: 'projects', pathMatch: 'full', redirectTo: '' },
   { path: 'projects/new', pathMatch: 'full', redirectTo: ADD_PROJECT_URL },
   { path: 'projects/:slug', component: ProjectSetupPage },
+  ...environmentRoutes,
 ];

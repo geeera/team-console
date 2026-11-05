@@ -815,6 +815,7 @@
       "copy": "Copy",
       "copied": "Copied",
       "copyFailed": "Couldn’t copy: select the command and copy it by hand.",
+      "envFailed": "Environment setup didn't open — check the connection and try again.",
       "external": "(opens GitHub)"
     },
     "add": {
