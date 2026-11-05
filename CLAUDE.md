@@ -312,13 +312,16 @@ every manifest change; `manifest.spec.ts` fails until the two agree). `environme
 rows by place (`api`, `github-vars`, `projects`, `hooks`, `github-secrets`, `repo`, `local`; the row id is the guide's
 URL); a row's `binding` is what that environment's own api Worker can read, null for what it cannot see.
 `GET /api/v1/environment/status` (`routes/environment.ts`, owner-only — the service identity gets 403) answers
-`{ environment, items: [{ id, status: set|missing }] }` from `environmentStatusOf` — presence only (an empty string is
-missing), never a value, length, prefix or hash; optional items (`optional: true`) never count as missing. Console:
+`{ environment, items: [{ id, status: set|missing, optional }] }` from `environmentStatusOf` — presence only (an empty
+string is missing), never a value, length, prefix or hash; optional items never count as missing (`countedMissingOf`).
+The DTO, its guard and `setupCommandOf` live in `status-dto.ts`, which imports no manifest, so the Settings chunk never
+carries the guide prose (the barrel is `export *` only). Console:
 `@console/entities/environment` (`EnvironmentStatusStore`, in memory only; `environmentViewOf`, `entryChipOf`), the
 Settings "Environment" row, and `/settings/environment/:env[/:place/:name | /project/:slug/:name]` in
 `console-pages-settings` (lazy chunks; list-detail from a 900 px page). Its `env.*` copy is
 `entities/environment/src/lib/copy/{ru,en}.json`, merged into Transloco by the `environmentCopyReady` guard — never in
-the inline `ru.json` (#337). Kit: `CopyCode`, `Tabs [dense]`, `TabPanel [note]`. The fix command is
+the inline `ru.json` (#337); a chunk that cannot load is reported to `ErrorHandler` and both screens show
+`settings.common.envFailed` with Try again instead of raw keys (`ENVIRONMENT_COPY_LOADER` is the specs' seam). Kit: `CopyCode`, `Tabs [dense]`, `TabPanel [note]`. The fix command is
 `setupCommandOf` (`setup --env <env>[ --rotate| --check]`) until #103 fixes the invocation.
 PWA updates (#306): `AppUpdates` (`apps/console/src/app/app-updates.ts`, started by `provideAppUpdates()`) asks `SwUpdate`
 on start, on `visibilitychange` to visible and every 5 min while visible. A version found by a start/resume check is

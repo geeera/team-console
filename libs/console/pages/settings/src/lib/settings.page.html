@@ -18,6 +18,16 @@
     <tc-push-settings-card />
   </section>
 
+  @if (environmentCopy.failed()) {
+  <section class="settings__section" data-testid="env-section">
+    <div class="settings__env-failed" role="alert" data-testid="env-copy-failed">
+      <p>{{ 'settings.common.envFailed' | transloco }}</p>
+      <button tc-button size="sm" type="button" (click)="retryEnvironmentCopy()">
+        {{ 'settings.common.retry' | transloco }}
+      </button>
+    </div>
+  </section>
+  } @else {
   <section class="settings__section" aria-labelledby="settings-env" data-testid="env-section">
     <h2 id="settings-env" class="settings__section-title">{{ 'env.entry.section' | transloco }}</h2>
     <tc-list [attr.aria-labelledby]="'settings-env'">
@@ -37,6 +47,7 @@
       </tc-list-row>
     </tc-list>
   </section>
+  }
 
   <section class="settings__section" aria-labelledby="settings-lang">
     <h2 id="settings-lang" class="settings__section-title">{{ 'settings.language' | transloco }}</h2>

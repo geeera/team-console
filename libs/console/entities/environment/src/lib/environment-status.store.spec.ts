@@ -8,8 +8,8 @@ import { EnvironmentStatusStore } from './environment-status.store';
 const ANSWER: EnvironmentStatusDto = {
   environment: 'dev',
   items: [
-    { id: 'api/OWNER_EMAIL', status: 'set' },
-    { id: 'api/VAPID_PRIVATE_KEY', status: 'missing' },
+    { id: 'api/OWNER_EMAIL', status: 'set', optional: false },
+    { id: 'api/VAPID_PRIVATE_KEY', status: 'missing', optional: false },
   ],
 };
 

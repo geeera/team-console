@@ -112,7 +112,7 @@ describe('GET /api/v1/environment/status (#104)', () => {
     expect(byId.has('github-secrets/CLOUDFLARE_API_TOKEN')).toBe(false);
     expect(byId.has('local/GITHUB_FAKE_ORIGIN')).toBe(false);
     for (const item of status.items) {
-      expect(Object.keys(item).sort()).toEqual(['id', 'status']);
+      expect(Object.keys(item).sort()).toEqual(['id', 'optional', 'status']);
     }
 
     expectNoLeak(text);

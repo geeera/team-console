@@ -1,4 +1,5 @@
-import { environmentStatusOf, isBindingSet, isEnvironmentStatusDto, setupCommandOf } from './status';
+import { environmentStatusOf } from './status';
+import { countedMissingOf, isBindingSet, isEnvironmentStatusDto, setupCommandOf } from './status-dto';
 
 // Built at run time so no scanner sees a credential-shaped literal.
 const SENTINEL = ['SENTINEL', 'value', 'never', 'shown'].join('-');
@@ -44,8 +45,17 @@ describe('environmentStatusOf', () => {
     expect(text).not.toContain(SENTINEL.slice(0, 6));
     expect(text).not.toContain(String(SENTINEL.length));
     for (const item of environmentStatusOf('production', read, ['storify']).items) {
-      expect(Object.keys(item).sort()).toEqual(['id', 'status']);
+      expect(Object.keys(item).sort()).toEqual(['id', 'optional', 'status']);
     }
+  });
+});
+
+describe('countedMissingOf', () => {
+  it('counts missing items the console needs, never an optional one', () => {
+    const status = environmentStatusOf('production', () => undefined, ['storify']);
+    const optional = status.items.filter((item) => item.optional);
+    expect(optional.map((item) => item.id)).toContain('project/storify/SLOT_TOKEN_STORIFY_PM');
+    expect(countedMissingOf(status)).toBe(status.items.length - optional.length);
   });
 });
 
@@ -57,9 +67,16 @@ describe('isEnvironmentStatusDto', () => {
   it.each([
     ['no environment', { items: [] }],
     ['an unknown environment', { environment: 'qa', items: [] }],
-    ['an unknown status', { environment: 'dev', items: [{ id: 'api/OWNER_EMAIL', status: 'maybe' }] }],
-    ['an id that is not a row id', { environment: 'dev', items: [{ id: '<img>', status: 'set' }] }],
+    [
+      'an unknown status',
+      { environment: 'dev', items: [{ id: 'api/OWNER_EMAIL', status: 'maybe', optional: false }] },
+    ],
+    [
+      'an id that is not a row id',
+      { environment: 'dev', items: [{ id: '<img>', status: 'set', optional: false }] },
+    ],
     ['items that are not a list', { environment: 'dev', items: {} }],
+    ['no optional flag', { environment: 'dev', items: [{ id: 'api/OWNER_EMAIL', status: 'set' }] }],
   ])('refuses %s', (_, value) => {
     expect(isEnvironmentStatusDto(value)).toBe(false);
   });

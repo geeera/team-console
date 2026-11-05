@@ -15,6 +15,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
+import { EnvironmentCopy } from '@console/entities/environment';
 import { ProjectsStore } from '@console/entities/project';
 import { NetworkStatus } from '@console/shared/api';
 import {
@@ -70,6 +71,8 @@ export class EnvironmentSetupPage {
   protected readonly projects = inject(ProjectsStore);
   protected readonly network = inject(NetworkStatus);
   protected readonly status = this.screen.status;
+  /** The `env.*` copy chunk; when it could not load, the page is a readable error with Try again. */
+  protected readonly copy = inject(EnvironmentCopy);
 
   /** The route's `:env`, already checked by the route guard. */
   readonly env = input.required<Environment>();
@@ -165,6 +168,12 @@ export class EnvironmentSetupPage {
         afterNextRender(() => this.summaryHeading()?.nativeElement.focus(), { injector: this.injector });
       }
       await this.announceSummary();
+    }
+  }
+
+  protected async retryCopy(): Promise<void> {
+    if (await this.copy.ready()) {
+      afterNextRender(() => this.heading().nativeElement.focus(), { injector: this.injector });
     }
   }
 

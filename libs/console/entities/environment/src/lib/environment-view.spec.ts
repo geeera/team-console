@@ -1,12 +1,12 @@
 import { ENVIRONMENT_MANIFEST, environmentRowsOf, type EnvironmentStatusDto } from '@shared/environment';
 import {
-  entryChipOf,
   environmentViewOf,
   guideSourceOf,
   projectSlugsOf,
   proseSegmentsOf,
   type EnvironmentView,
 } from './environment-view';
+import { entryChipOf } from './environment-entry';
 
 function item(name: string) {
   const found = ENVIRONMENT_MANIFEST.items.find((candidate) => candidate.name === name);
@@ -25,7 +25,11 @@ function productionStatus(
     environment: 'production',
     items: environmentRowsOf('production', slugs)
       .filter((row) => row.binding !== null)
-      .map((row) => ({ id: row.id, status: missing.includes(row.id) ? 'missing' : 'set' })),
+      .map((row) => ({
+        id: row.id,
+        status: missing.includes(row.id) ? 'missing' : 'set',
+        optional: row.item.optional === true,
+      })),
   };
 }
 

@@ -148,32 +148,6 @@ export function projectSlugsOf(snapshot: EnvironmentStatusDto | null): string[] 
   return [...slugs];
 }
 
-/** The Settings row's chip (UX spec §3): it follows the same status call as the screen. */
-export type EnvironmentEntryChip =
-  | { readonly kind: 'checking' }
-  | { readonly kind: 'missing'; readonly n: number }
-  | { readonly kind: 'ok' }
-  | { readonly kind: 'unknown' };
-
-export function entryChipOf(
-  state: 'idle' | 'loading' | 'ready' | 'error',
-  snapshot: EnvironmentStatusDto | null,
-): EnvironmentEntryChip {
-  if (state === 'idle' || (state === 'loading' && snapshot === null)) {
-    return { kind: 'checking' };
-  }
-  if (snapshot === null) {
-    return { kind: 'unknown' };
-  }
-  const { missing } = environmentViewOf({
-    environment: snapshot.environment,
-    thisEnvironment: snapshot.environment,
-    projectSlugs: projectSlugsOf(snapshot),
-    snapshot,
-  });
-  return missing > 0 ? { kind: 'missing', n: missing } : { kind: 'ok' };
-}
-
 /** Who provides the value, for the guide's meta line. */
 export type GuideSource = 'owner' | 'generated' | 'app' | 'fixed';
 

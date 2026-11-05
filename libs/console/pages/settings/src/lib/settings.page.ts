@@ -11,7 +11,7 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AppInfoStore, DeploymentStore } from '@console/entities/app-info';
-import { EnvironmentStatusStore, entryChipOf } from '@console/entities/environment';
+import { EnvironmentCopy, EnvironmentStatusStore, entryChipOf } from '@console/entities/environment';
 import { connectOutcomeOf } from '@console/entities/github-connection';
 import { GitHubConnectionCard } from '@console/features/connect-github';
 import { FOCUS_PUSH_SETTINGS_STATE, PushSettingsCard } from '@console/features/push-subscribe';
@@ -47,6 +47,8 @@ export class SettingsPage {
   protected readonly appInfo = inject(AppInfoStore);
   private readonly deployment = inject(DeploymentStore);
   private readonly environmentStatus = inject(EnvironmentStatusStore);
+  /** Its `env.*` copy is a lazy chunk; when it failed, the row is a readable error with Try again instead. */
+  protected readonly environmentCopy = inject(EnvironmentCopy);
 
   /** The Environment row (#104): the same status call as the screen it opens. */
   protected readonly entryChip = computed(() =>
@@ -97,6 +99,10 @@ export class SettingsPage {
     } else {
       afterNextRender(() => this.heading().nativeElement.focus());
     }
+  }
+
+  protected retryEnvironmentCopy(): void {
+    void this.environmentCopy.ready();
   }
 
   /** The whole interface follows at once, and the choice is remembered on this device (#4, #125). */

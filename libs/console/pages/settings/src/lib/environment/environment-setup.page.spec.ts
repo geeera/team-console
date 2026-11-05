@@ -1,11 +1,16 @@
 import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ApplicationInitStatus, signal } from '@angular/core';
+import { ApplicationInitStatus, ErrorHandler, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { HEALTH_URL } from '@console/entities/app-info';
+import {
+  ENVIRONMENT_COPY_LOADER,
+  loadEnvironmentCopyChunks,
+  type EnvironmentCopyChunks,
+} from '@console/entities/environment';
 import { PROJECTS_URL } from '@console/entities/project';
 import { NetworkStatus } from '@console/shared/api';
 import { provideConsoleI18n } from '@console/shared/i18n';
@@ -27,7 +32,11 @@ function productionStatus(missing: readonly string[]): EnvironmentStatusDto {
     environment: 'production',
     items: environmentRowsOf('production', ['storify'])
       .filter((row) => row.binding !== null)
-      .map((row) => ({ id: row.id, status: missing.includes(row.id) ? 'missing' : 'set' })),
+      .map((row) => ({
+        id: row.id,
+        status: missing.includes(row.id) ? 'missing' : 'set',
+        optional: row.item.optional === true,
+      })),
   };
 }
 
@@ -43,6 +52,7 @@ describe('EnvironmentSetupPage (#104)', () => {
   let harness: RouterTestingHarness;
   const online = signal(true);
   const announce = vi.fn(async () => undefined);
+  const handleError = vi.fn();
 
   const root = (): HTMLElement => harness.routeNativeElement as HTMLElement;
   const all = (selector: string): HTMLElement[] => Array.from(root().querySelectorAll<HTMLElement>(selector));
@@ -55,6 +65,8 @@ describe('EnvironmentSetupPage (#104)', () => {
   interface Answers {
     readonly status?: EnvironmentStatusDto | number;
     readonly projects?: readonly object[] | number;
+    /** Replaces the lazy copy chunks (a failing one for the error state). */
+    readonly copyLoader?: () => Promise<EnvironmentCopyChunks>;
   }
 
   async function open(url: string, answers: Answers = {}): Promise<void> {
@@ -66,17 +78,27 @@ describe('EnvironmentSetupPage (#104)', () => {
         provideRouter([{ path: 'settings', children: settingsRoutes }], withComponentInputBinding()),
         { provide: NetworkStatus, useValue: { online } },
         { provide: LiveAnnouncer, useValue: { announce } },
+        { provide: ErrorHandler, useValue: { handleError } },
+        ...(answers.copyLoader === undefined
+          ? []
+          : [{ provide: ENVIRONMENT_COPY_LOADER, useValue: answers.copyLoader }]),
       ],
     });
     await TestBed.inject(ApplicationInitStatus).donePromise;
     http = TestBed.inject(HttpTestingController);
     harness = await RouterTestingHarness.create();
     document.body.appendChild(harness.fixture.nativeElement);
-    const navigation = harness.navigateByUrl(url);
-    await settle();
-    // The unknown-env guard asks the Worker which environment this is before the page opens.
-    for (const request of http.match(HEALTH_URL)) {
-      request.flush({ environment: 'production' });
+    // The guards are async (the copy chunk, then, for an unknown env, the Worker's environment): wait for the
+    // navigation itself, answering the environment question whenever it is asked, never a fixed number of ticks.
+    let navigated = false;
+    const navigation = harness.navigateByUrl(url).then(() => {
+      navigated = true;
+    });
+    for (let i = 0; i < 200 && !navigated; i += 1) {
+      for (const request of http.match(HEALTH_URL)) {
+        request.flush({ environment: 'production' });
+      }
+      await settle();
     }
     await navigation;
     await settle();
@@ -104,6 +126,7 @@ describe('EnvironmentSetupPage (#104)', () => {
   beforeEach(() => {
     online.set(true);
     announce.mockClear();
+    handleError.mockClear();
   });
 
   afterEach(() => {
@@ -277,6 +300,32 @@ describe('EnvironmentSetupPage (#104)', () => {
     await open('/settings/environment/production/api/NOT_A_SETTING');
 
     expect(text('[data-testid="env-guide"] h1')).toBe('Такой настройки в production нет');
+  });
+
+  it('shows a readable error, never raw env.* keys, when the copy chunk cannot load; Try again recovers', async () => {
+    const chunkError = new Error('Failed to fetch dynamically imported module');
+    let fail = true;
+    await open('/settings/environment/production', {
+      copyLoader: async () => {
+        if (fail) {
+          throw chunkError;
+        }
+        return loadEnvironmentCopyChunks();
+      },
+    });
+
+    expect(handleError).toHaveBeenCalledWith(chunkError);
+    const failed = root().querySelector('[data-testid="env-copy-failed"]') as HTMLElement;
+    expect(failed.querySelector('[role="alert"]')?.textContent).toContain('Настройка окружения не открылась');
+    expect(root().textContent).not.toMatch(/env\.[a-z]/);
+    expect(document.activeElement).toBe(root().querySelector('h1'));
+
+    fail = false;
+    (root().querySelector('[data-testid="env-copy-retry"]') as HTMLButtonElement).click();
+    await settle();
+    expect(root().querySelector('[data-testid="env-copy-failed"]')).toBeNull();
+    expect(text('h1')).toBe('Настройка окружения');
+    expect(text('[data-testid="env-summary"] h2')).toBe('В production не заданы 2 настройки');
   });
 
   it("opens this console's environment for an unknown one", async () => {

@@ -1,10 +1,15 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ApplicationInitStatus } from '@angular/core';
+import { ApplicationInitStatus, ErrorHandler } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { HEALTH_URL } from '@console/entities/app-info';
+import {
+  ENVIRONMENT_COPY_LOADER,
+  loadEnvironmentCopyChunks,
+  type EnvironmentCopyChunks,
+} from '@console/entities/environment';
 import { GITHUB_CONNECTION_URL, ExternalNavigation } from '@console/entities/github-connection';
 import { ENVIRONMENT_STATUS_URL, type EnvironmentStatusDto } from '@shared/environment';
 import { NetworkStatus } from '@console/shared/api';
@@ -29,9 +34,9 @@ const CONNECTED = {
 const DEV_STATUS: EnvironmentStatusDto = {
   environment: 'dev',
   items: [
-    { id: 'api/OWNER_EMAIL', status: 'missing' },
-    { id: 'api/VAPID_PRIVATE_KEY', status: 'missing' },
-    { id: 'api/TOKEN_ENCRYPTION_KEY', status: 'set' },
+    { id: 'api/OWNER_EMAIL', status: 'missing', optional: false },
+    { id: 'api/VAPID_PRIVATE_KEY', status: 'missing', optional: false },
+    { id: 'api/TOKEN_ENCRYPTION_KEY', status: 'set', optional: false },
   ],
 };
 
@@ -54,7 +59,11 @@ describe('SettingsPage', () => {
 
   async function open(
     url: string,
-    { connection = CONNECTED as object, environment = DEV_STATUS as object | number } = {},
+    {
+      connection = CONNECTED as object,
+      environment = DEV_STATUS as object | number,
+      copyLoader = undefined as (() => Promise<EnvironmentCopyChunks>) | undefined,
+    } = {},
   ): Promise<void> {
     TestBed.configureTestingModule({
       providers: [
@@ -66,6 +75,8 @@ describe('SettingsPage', () => {
         { provide: NetworkStatus, useValue: { online } },
         { provide: ExternalNavigation, useValue: { assign: vi.fn() } },
         { provide: LANGUAGE_STORAGE, useValue: languageStorage },
+        { provide: ErrorHandler, useValue: { handleError } },
+        ...(copyLoader === undefined ? [] : [{ provide: ENVIRONMENT_COPY_LOADER, useValue: copyLoader }]),
       ],
     });
     await TestBed.inject(ApplicationInitStatus).donePromise;
@@ -73,10 +84,10 @@ describe('SettingsPage', () => {
     harness = await RouterTestingHarness.create();
     // Focus moves only inside the document: attach the harness so focus assertions mean something.
     document.body.appendChild(harness.fixture.nativeElement);
-    const navigation = harness.navigateByUrl(url);
+    // The route waits for the lazy env.* copy (an async guard), so wait for the navigation, not a number of ticks.
+    await harness.navigateByUrl(url);
     await settle();
     http.expectOne(GITHUB_CONNECTION_URL).flush(connection);
-    await navigation;
     await settle();
     http.expectOne(HEALTH_URL).flush({ environment: 'dev' });
     const status = http.expectOne(ENVIRONMENT_STATUS_URL);
@@ -88,7 +99,10 @@ describe('SettingsPage', () => {
     await settle();
   }
 
+  const handleError = vi.fn();
+
   beforeEach(() => {
+    handleError.mockClear();
     online.set(true);
     languageStorage = memoryLanguageStorage();
   });
@@ -154,7 +168,7 @@ describe('SettingsPage', () => {
 
   it('says "All set" when nothing is missing', async () => {
     await open('/settings', {
-      environment: { environment: 'dev', items: [{ id: 'api/OWNER_EMAIL', status: 'set' }] },
+      environment: { environment: 'dev', items: [{ id: 'api/OWNER_EMAIL', status: 'set', optional: false }] },
     });
     expect(text('[data-testid="env-entry-chip"]')).toBe('Всё задано');
   });
@@ -162,6 +176,43 @@ describe('SettingsPage', () => {
   it('says "Not checked" when the status call is refused (403)', async () => {
     await open('/settings', { environment: 403 });
     expect(text('[data-testid="env-entry-chip"]')).toBe('Не проверено');
+  });
+
+  it('waits for a slow env.* copy chunk before Settings renders (the guard is awaited, not timed)', async () => {
+    await open('/settings', {
+      copyLoader: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        return loadEnvironmentCopyChunks();
+      },
+    });
+    expect(text('[data-testid="env-entry-chip"]')).toBe('Не задано: 2');
+  });
+
+  it('shows a readable error with Try again, never raw env.* keys, when the copy chunk cannot load', async () => {
+    const chunkError = new Error('Failed to fetch dynamically imported module');
+    let fail = true;
+    await open('/settings', {
+      copyLoader: async () => {
+        if (fail) {
+          throw chunkError;
+        }
+        return loadEnvironmentCopyChunks();
+      },
+    });
+
+    expect(handleError).toHaveBeenCalledWith(chunkError);
+    const failed = root().querySelector('[data-testid="env-copy-failed"]') as HTMLElement;
+    expect(failed.getAttribute('role')).toBe('alert');
+    expect(failed.textContent).toContain('Настройка окружения не открылась');
+    expect(root().textContent).not.toMatch(/env\.[a-z]/);
+    // The rest of Settings is untouched.
+    expect(text('h1')).toBe('Настройки');
+
+    fail = false;
+    (failed.querySelector('button') as HTMLButtonElement).click();
+    await settle();
+    expect(root().querySelector('[data-testid="env-copy-failed"]')).toBeNull();
+    expect(text('[data-testid="env-entry-chip"]')).toBe('Не задано: 2');
   });
 
   it('lists no projects and offers no Add project: Settings holds settings only (#194)', async () => {

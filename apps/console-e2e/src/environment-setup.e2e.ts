@@ -163,7 +163,7 @@ test('the status endpoint carries presence only — no value of any binding', as
     const body = JSON.parse(text) as { environment: string; items: { id: string; status: string }[] };
     expect(body.environment).toBe('local');
     for (const item of body.items) {
-      expect(Object.keys(item).sort()).toEqual(['id', 'status']);
+      expect(Object.keys(item).sort()).toEqual(['id', 'optional', 'status']);
       expect(['set', 'missing']).toContain(item.status);
     }
   } finally {

@@ -1,3 +1,18 @@
+@if (copy.failed()) {
+<div class="tc-page subpage" data-testid="env-copy-failed">
+  <nav class="subpage__crumbs" [attr.aria-label]="'settings.breadcrumb' | transloco">
+    <a routerLink="/settings"><tc-icon name="chevron-left" size="sm" />{{ 'settings.title' | transloco }}</a>
+  </nav>
+  <h1 #heading class="tc-page__title subpage__title" tabindex="-1">{{ 'settings.title' | transloco }}</h1>
+  <div role="alert">
+    <tc-state-block kind="error" [title]="'settings.common.envFailed' | transloco">
+      <button tc-button tc-state-action type="button" data-testid="env-copy-retry" (click)="retryCopy()">
+        {{ 'settings.common.retry' | transloco }}
+      </button>
+    </tc-state-block>
+  </div>
+</div>
+} @else {
 <div class="tc-page env" [class.env--guide-open]="screen.openId() !== null">
   <div class="env__list subpage">
     <nav class="subpage__crumbs" [attr.aria-label]="'settings.breadcrumb' | transloco">
@@ -117,6 +132,7 @@
   </div>
   }
 </div>
+}
 
 <ng-template #summary>
   @if (!isThisTab()) {
