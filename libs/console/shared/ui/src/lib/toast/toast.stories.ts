@@ -45,3 +45,26 @@ export const Default: Story = {};
 export const Dark: Story = { ...darkTheme };
 export const ReducedMotion: Story = { ...reducedMotion };
 export const Phone: Story = { ...phoneViewport };
+
+/** #409's Undo slip: the message, Undo (⌘Z on a Mac) and the 10 s hairline. */
+@Component({
+  selector: 'tc-story-undo-toast-host',
+  imports: [ToastOutlet],
+  template: '<tc-toast-outlet />',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+class UndoToastHost {
+  constructor() {
+    const transloco = inject(TranslocoService);
+    inject(Toaster).offerUndo(transloco.translate('stories.menu.moved'), {
+      label: transloco.translate('plan.undo'),
+      run: () => undefined,
+    });
+  }
+}
+
+export const Undo: Story = {
+  decorators: [moduleMetadata({ imports: [UndoToastHost] })],
+  render: () => ({ template: '<tc-story-undo-toast-host />' }),
+};
+export const UndoPhone: Story = { ...Undo, ...phoneViewport };

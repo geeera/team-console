@@ -1878,7 +1878,8 @@
       "nextHint": "5 tasks · demo Nov 27",
       "later": "To Sprint 05",
       "full": "Already 9 tasks: the team usually finishes 8",
-      "backlog": "To the backlog"
+      "backlog": "To the backlog",
+      "moved": "TC-408 → Sprint 04"
     }
   },
   "review": {
