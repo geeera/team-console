@@ -9,5 +9,5 @@
       "vitest"
     ]
   },
-  "include": ["src/**/*.spec.ts", "src/test-setup.ts", "src/**/*.d.ts"]
+  "include": ["src/**/*.spec.ts", "src/test-setup.ts", "src/testing/**/*.ts", "src/**/*.d.ts"]
 }

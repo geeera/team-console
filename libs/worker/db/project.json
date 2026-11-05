@@ -6,7 +6,13 @@
   "tags": ["type:lib", "scope:worker"],
   "targets": {
     "test": {
-      "inputs": ["default", "^default", "{workspaceRoot}/apps/api/migrations/**/*"]
+      "inputs": [
+        "default",
+        "^default",
+        "{workspaceRoot}/apps/api/migrations/**/*",
+        "{workspaceRoot}/.claude/product-team/.claude-plugin/plugin.json",
+        "{workspaceRoot}/.claude/product-team/scripts/ptlib/labels.py"
+      ]
     }
   }
 }

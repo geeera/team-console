@@ -49,6 +49,14 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   // #221 (architect note on #29, amendment 6): D1 only, but the stage service key must not mute the owner's pushes.
   'PUT /api/v1/projects/:slug/notifications/snooze': 'owner-only',
   'DELETE /api/v1/projects/:slug/notifications/snooze': 'owner-only',
+  // #410 (ADR 0006): the console's own tracker, D1 only. Owner-only in Phase 1a, reads included (their route specs
+  // prove the GETs too); the `job` identity and the route matrix arrive with Phase 2 of #309.
+  'POST /api/v1/projects/:slug/items': 'owner-only',
+  'PATCH /api/v1/projects/:slug/items/:key': 'owner-only',
+  'POST /api/v1/projects/:slug/items/:key/comments': 'owner-only',
+  'POST /api/v1/projects/:slug/sprints': 'owner-only',
+  'PATCH /api/v1/projects/:slug/sprints/:number': 'owner-only',
+  'POST /api/v1/projects/:slug/labels': 'owner-only',
   'POST /api/v1/projects': 'no-owner-write',
   'PATCH /api/v1/projects/:slug': 'no-owner-write',
   'POST /api/v1/projects/:slug/archive': 'no-owner-write',
