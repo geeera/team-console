@@ -102,6 +102,14 @@ jobs:
   # smaller `iphone-webkit` project (the demo path only) stays quick. Each shard rebuilds the app itself — no
   # cross-job cache — so this costs more total minutes than the single job did, in exchange for reliably finishing
   # instead of hitting the timeout (#404: a cancelled run at 20 min wasted the full 20 min for nothing).
+  # #404 follow-up: even with the browser binary cached, `iphone-webkit` kept failing "browser install failed
+  # after 2 attempts" — the cache only skips the binary download; `playwright install-deps` still apt-get installs
+  # ~140 MB of OS libraries (gstreamer, codecs, fonts) from the Ubuntu mirror every run, which is what was timing
+  # out, and the bounded `timeout 5m` left the child apt-get running so the retry immediately hit a held dpkg
+  # lock. `iphone-webkit` now runs inside Microsoft's own Playwright image, which ships that browser and every
+  # OS dependency already installed (pulled straight from MCR, not through apt) — no install-deps, no apt mirror,
+  # no retry loop needed for this shard. `iphone`/`desktop` (chromium) are untouched: that shard was never the
+  # one timing out, and keeping it on the bare runner avoids the extra minutes a container pull would add there.
   e2e-shard:
     strategy:
       fail-fast: false
@@ -114,7 +122,13 @@ jobs:
             browser: chromium
           - project: iphone-webkit
             browser: webkit
+            # Digest of mcr.microsoft.com/playwright:v1.63.0-noble, matching package.json's @playwright/test pin
+            # exactly (the image's Playwright version must match the npm package's or the browser revision
+            # mismatches). Pinned by digest, not tag, same as the action pins below.
+            container: mcr.microsoft.com/playwright@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
     runs-on: ubuntu-latest
+    # Empty string for iphone/desktop is the documented way to make this a no-op for the rest of the matrix.
+    container: ${{ matrix.container }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -132,11 +146,15 @@ jobs:
         run: npx nx build api
 
       # #404: this step alone hung twice until the job's 15 min timeout (apt mirror stalls fetching system
-      # deps for webkit), so the shard never got to run a single test. The browser binary is cached by
-      # Playwright version (package-lock.json) so a cache hit only needs `install-deps` (apt), not the
-      # binary download; a bounded per-attempt timeout plus one retry absorbs a single slow/flaky mirror
-      # without burning the whole job timeout on a hang.
+      # deps). The browser binary is cached by Playwright version (package-lock.json) so a cache hit only
+      # needs `install-deps` (apt), not the binary download; a bounded per-attempt timeout plus one retry
+      # absorbs a single slow/flaky mirror without burning the whole job timeout on a hang.
+      # `iphone-webkit` skips this: it runs in the Microsoft Playwright image (see the `container:` on this
+      # job above), which already has the webkit binary and every OS dep baked in — nothing to cache or
+      # apt-get here, and that is the shard this step kept failing for (chromium's deps are mostly already on
+      # the `ubuntu-latest` image, so its own install-deps stays fast).
       - name: Cache Playwright browser binaries
+        if: matrix.project != 'iphone-webkit'
         id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -144,6 +162,7 @@ jobs:
           key: ${{ runner.os }}-playwright-${{ matrix.browser }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install the browser
+        if: matrix.project != 'iphone-webkit'
         timeout-minutes: 11
         run: |
           set -euo pipefail
