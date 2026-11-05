@@ -133,8 +133,14 @@
         />
       </div>
       <div tc-ledger-row [label]="'item.sprint' | transloco">
-        <ng-content select="[tc-task-sprint]" />
-        <span class="tc-task-screen__sprint" data-testid="task-sprint">{{ sprintLabel() }}</span>
+        <tc-item-sprint-picker
+          [slug]="slug()"
+          [item]="item"
+          [value]="sprintLabel()"
+          [off]="off()"
+          (changed)="applyChange($event)"
+          (failed)="onFailed($event)"
+        />
       </div>
       <div tc-ledger-row [label]="'item.queue' | transloco">
         @if (queue(); as queue) {

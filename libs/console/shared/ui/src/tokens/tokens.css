@@ -165,6 +165,8 @@
   --dur-sig: 620ms;
   /* a run in progress breathes slowly (#114); never collapsed — under reduced motion the dot stands still */
   --dur-pulse: 1600ms;
+  /* #409: how long Undo stays offered after a move (the toast's hairline); `UNDO_DURATION_MS` in TS */
+  --undo-ms: 10000ms;
 
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-enter: cubic-bezier(0, 0, 0.2, 1);

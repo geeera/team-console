@@ -20,6 +20,7 @@ import {
   isItemDto,
   isItemEventListDto,
   isItemListDto,
+  isTrackerSprintDto,
   isTrackerSprintListDto,
 } from './item.model';
 import { TRACKER_WRITE_TIMEOUT_MS, trackerFailureOf, type TrackerFailure } from './tracker-failure';
@@ -150,6 +151,16 @@ export class ItemsApi {
   ): Promise<TrackerWrite<CommentDto>> {
     const headers = new HttpHeaders({ 'Idempotency-Key': idempotencyKey });
     return this.write('POST', `${itemUrl(slug, number)}/comments`, { body }, headers, isCommentDto);
+  }
+
+  /** `POST …/sprints`: the next number, titled `Sprint NN` by the server; the demo day is the owner's. */
+  async createSprint(
+    slug: string,
+    dueOn: string,
+    idempotencyKey: string,
+  ): Promise<TrackerWrite<TrackerSprintDto>> {
+    const headers = new HttpHeaders({ 'Idempotency-Key': idempotencyKey });
+    return this.write('POST', sprintsUrl(slug), { dueOn }, headers, isTrackerSprintDto);
   }
 
   /** A write of `body` to `url`, answered as `T`; the timeout makes a hanging write a `timeout` failure. */

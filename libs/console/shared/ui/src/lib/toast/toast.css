@@ -27,3 +27,88 @@
     opacity: 0;
   }
 }
+
+/* #409's Undo slip: the action underlined, a hairline that runs down --undo-ms and stops on hover or focus. */
+:host(.tc-toast-outlet--action) {
+  pointer-events: auto;
+}
+
+.tc-toast--undo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4);
+  overflow: hidden;
+}
+
+.tc-toast__message {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.tc-toast__undo {
+  flex: none;
+  min-height: var(--control-h-touch);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--bg);
+  font: inherit;
+  font-weight: var(--fw-bold);
+  text-decoration: underline;
+  text-underline-offset: var(--space-1);
+  cursor: pointer;
+}
+
+.tc-toast__undo:focus-visible {
+  outline: var(--focus-w) solid var(--bg);
+  outline-offset: calc(-1 * var(--focus-w));
+}
+
+.tc-toast__kbd {
+  margin-left: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.tc-toast__bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--border-w-strong);
+  background: var(--accent);
+  transform-origin: left;
+  animation: tc-toast-undo-run var(--undo-ms) linear both;
+}
+
+.tc-toast--undo:hover .tc-toast__bar,
+.tc-toast--undo:focus-within .tc-toast__bar {
+  animation-play-state: paused;
+}
+
+@keyframes tc-toast-undo-run {
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@media (max-width: 519.98px) {
+  :host(.tc-toast-outlet--action) {
+    bottom: calc(var(--tab-bar-h) + var(--space-4) + var(--safe-bottom));
+  }
+
+  .tc-toast__kbd {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tc-toast__bar {
+    display: none;
+  }
+}
