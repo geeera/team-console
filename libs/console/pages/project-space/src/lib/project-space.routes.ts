@@ -42,4 +42,10 @@ export const projectSpaceChildRoutes: Routes = [
     loadComponent: () => import('./task-section.page').then((m) => m.TaskSectionPage),
     data: { section: 'board' },
   },
+  // #435: Find a task (`?q=`), its own lazy chunk.
+  {
+    path: 'find',
+    loadComponent: () => import('./find-section.page').then((m) => m.FindSectionPage),
+    data: { section: 'board' },
+  },
 ];

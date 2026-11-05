@@ -139,7 +139,9 @@ describe('ArtifactsSectionPage, the Design filter states (#295, #277 spec §4)',
     const { query, answer } = await setup('/p/tc/artifacts?type=design&q=nothing+like+this');
     await answer([DESIGN, DECISION]);
     // A search over the Design filter that finds nothing: the clear action must stay.
-    expect(textOf(query('[data-testid="artifacts-no-match"] .tc-state-block__title'))).toBe('Ничего не найдено');
+    expect(textOf(query('[data-testid="artifacts-no-match"] .tc-state-block__title'))).toBe(
+      'Ничего не найдено',
+    );
     expect(query('[data-testid="artifacts-no-match"] button')).not.toBeNull();
     expect(query('[data-testid="artifacts-designs-empty"]')).toBeNull();
   });
@@ -147,7 +149,9 @@ describe('ArtifactsSectionPage, the Design filter states (#295, #277 spec §4)',
   it('shows the generic empty state without a filter when there is nothing at all', async () => {
     const { query, answer } = await setup('/p/tc/artifacts');
     await answer([]);
-    expect(textOf(query('[data-testid="artifacts-empty"] .tc-state-block__title'))).toBe('Артефактов пока нет');
+    expect(textOf(query('[data-testid="artifacts-empty"] .tc-state-block__title'))).toBe(
+      'Артефактов пока нет',
+    );
     expect(query('[data-testid="artifacts-designs-empty"]')).toBeNull();
   });
 
@@ -193,7 +197,9 @@ describe('ArtifactsSectionPage, the Design filter states (#295, #277 spec §4)',
     await firstValueFrom(TestBed.inject(TranslocoService).load('en'));
     TestBed.inject(TranslocoService).setActiveLang('en');
     await settle();
-    expect(textOf(query('[data-testid="artifacts-designs-loading"] [role="status"]'))).toBe('Loading designs…');
+    expect(textOf(query('[data-testid="artifacts-designs-loading"] [role="status"]'))).toBe(
+      'Loading designs…',
+    );
     await answer([DECISION]);
     const empty = query('[data-testid="artifacts-designs-empty"]');
     expect(textOf(empty?.querySelector('.tc-state-block__title'))).toBe('No designs yet');
