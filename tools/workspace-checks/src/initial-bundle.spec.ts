@@ -76,6 +76,15 @@ describe('initial bundle (#123)', () => {
     }
   });
 
+  // `provideConsoleI18n()` holds the Russian catalogue inline for specs; in the app it is ~87 kB of `main` (#433).
+  it('the app loads its i18n catalogues lazily, through provideConsoleAppI18n()', () => {
+    const appSources = shippedSources().filter((path) => path.startsWith('apps/console/src/'));
+    const inline = appSources.filter((path) => /\bprovideConsoleI18n\s*\(/.test(read(path)));
+
+    expect(read('apps/console/src/app/app.config.ts')).toMatch(/\bprovideConsoleAppI18n\(\)/);
+    expect(inline).toEqual([]);
+  });
+
   it('fails the build over a 500 kB initial bundle and warns over 490 kB and 4 kB per-component styles', () => {
     const project: unknown = JSON.parse(read('apps/console/project.json'));
 

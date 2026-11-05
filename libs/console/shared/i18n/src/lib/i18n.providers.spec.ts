@@ -2,8 +2,10 @@ import { DOCUMENT } from '@angular/common';
 import { ApplicationInitStatus } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { TranslocoService } from '@jsverse/transloco';
-import { firstValueFrom } from 'rxjs';
-import { provideConsoleI18n } from './i18n.providers';
+import { firstValueFrom, of, throwError } from 'rxjs';
+import { provideConsoleAppI18n, provideConsoleI18n } from './i18n.providers';
+import { DEVICE_LANGUAGES, LANGUAGE_STORAGE, memoryLanguageStorage } from './language-preference';
+import { LazyTranslationLoader } from './lazy-translation-loader';
 import en from './locales/en.json';
 import ru from './locales/ru.json';
 import { StaticTranslationLoader } from './static-translation-loader';
@@ -69,6 +71,65 @@ describe('StaticTranslationLoader', () => {
     await expect(firstValueFrom(loader.getTranslation('de'))).rejects.toThrowError(
       'Unsupported language "de"',
     );
+  });
+});
+
+describe('LazyTranslationLoader (the app, #433)', () => {
+  it('loads Russian from its own chunk, not inline', async () => {
+    const loader = new LazyTranslationLoader();
+    let synchronous: unknown = null;
+    const pending = firstValueFrom(loader.getTranslation('ru'));
+    loader.getTranslation('ru').subscribe((translation) => (synchronous = translation));
+
+    expect(synchronous).toBeNull();
+    expect(await pending).toEqual(ru);
+  });
+
+  it('loads English from its own chunk', async () => {
+    expect(await firstValueFrom(new LazyTranslationLoader().getTranslation('en'))).toEqual(en);
+  });
+
+  it('rejects a language the console does not ship', async () => {
+    await expect(firstValueFrom(new LazyTranslationLoader().getTranslation('de'))).rejects.toThrowError(
+      'Unsupported language "de"',
+    );
+  });
+});
+
+describe('provideConsoleAppI18n', () => {
+  function configure(): void {
+    TestBed.configureTestingModule({
+      providers: [
+        provideConsoleAppI18n(),
+        { provide: LANGUAGE_STORAGE, useValue: memoryLanguageStorage('en') },
+        { provide: DEVICE_LANGUAGES, useValue: ['ru-RU'] },
+      ],
+    });
+  }
+
+  it('renders the first screen in the stored language once its lazy dictionary is in', async () => {
+    configure();
+    await TestBed.inject(ApplicationInitStatus).donePromise;
+    const transloco = TestBed.inject(TranslocoService);
+
+    expect(transloco.getActiveLang()).toBe('en');
+    expect(transloco.translate('shell.needsYou')).toBe('Needs you');
+  });
+
+  it('still starts, and says so, when no dictionary can load at all', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(LazyTranslationLoader.prototype, 'getTranslation').mockImplementation(() =>
+      throwError(() => new Error('offline')),
+    );
+    configure();
+
+    await expect(TestBed.inject(ApplicationInitStatus).donePromise).resolves.toBeUndefined();
+    expect(error).toHaveBeenCalledWith(
+      'i18n: could not load "ru" either; starting without a dictionary',
+      expect.anything(),
+    );
+    vi.restoreAllMocks();
   });
 });
 

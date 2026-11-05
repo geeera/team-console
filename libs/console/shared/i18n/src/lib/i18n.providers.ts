@@ -5,11 +5,13 @@ import {
   isDevMode,
   provideAppInitializer,
   provideEnvironmentInitializer,
+  Type,
 } from '@angular/core';
-import { provideTransloco, TranslocoService } from '@jsverse/transloco';
-import { catchError, tap, type Observable } from 'rxjs';
+import { provideTransloco, TranslocoLoader, TranslocoService } from '@jsverse/transloco';
+import { catchError, of, tap, type Observable } from 'rxjs';
 import { ConsoleLanguage } from './language-preference';
 import { CONSOLE_LANGS, ConsoleLang, DEFAULT_LANG } from './languages';
+import { LazyTranslationLoader } from './lazy-translation-loader';
 import { StaticTranslationLoader } from './static-translation-loader';
 
 /** Keeps `<html lang>` in step with the active language so screen readers switch voice. */
@@ -21,16 +23,23 @@ function syncDocumentLang(): void {
   });
 }
 
-export interface ConsoleI18nOptions {
-  /**
-   * `remembered` — the app: the language stored on this device, else the device's own (#4).
-   * `reference` (default) — specs and Storybook: always the Russian reference copy, whatever the runner's locale or
-   * an earlier spec stored.
-   */
-  readonly start?: 'remembered' | 'reference';
+/**
+ * The app (#4, #433): starts in the language stored on this device, else the device's own; every catalogue is a lazy
+ * chunk. The app must call this, never `provideConsoleI18n()` — `initial-bundle.spec.ts` checks it.
+ */
+export function provideConsoleAppI18n(): EnvironmentProviders[] {
+  return consoleI18n(LazyTranslationLoader, () => inject(ConsoleLanguage).initial());
 }
 
-export function provideConsoleI18n({ start = 'reference' }: ConsoleI18nOptions = {}): EnvironmentProviders[] {
+/**
+ * Specs and Storybook: always the Russian reference copy, whatever the runner's locale or an earlier spec stored,
+ * and inline, so it is there synchronously.
+ */
+export function provideConsoleI18n(): EnvironmentProviders[] {
+  return consoleI18n(StaticTranslationLoader, () => DEFAULT_LANG);
+}
+
+function consoleI18n(loader: Type<TranslocoLoader>, startLang: () => ConsoleLang): EnvironmentProviders[] {
   return [
     ...provideTransloco({
       config: {
@@ -41,19 +50,18 @@ export function provideConsoleI18n({ start = 'reference' }: ConsoleI18nOptions =
         prodMode: !isDevMode(),
         missingHandler: { logMissingKey: isDevMode(), useFallbackTranslation: true, allowEmpty: false },
       },
-      loader: StaticTranslationLoader,
+      loader,
     }),
     provideEnvironmentInitializer(syncDocumentLang),
-    provideAppInitializer(() =>
-      startIn(start === 'remembered' ? inject(ConsoleLanguage).initial() : DEFAULT_LANG),
-    ),
+    provideAppInitializer(() => startIn(startLang())),
   ];
 }
 
 /**
- * Before the first render: the dictionary loads first (Russian inline, English from its lazy chunk, #123), then the
- * language is set, so the first paint is already in `lang` — no flash of the other one. A dictionary that cannot
- * load starts the app in the inline reference copy rather than not at all.
+ * Before the first render: the dictionary loads first, then the language is set, so the first paint is already in
+ * `lang` — no flash of keys or of the other one. A dictionary that cannot load falls back to the reference copy; if
+ * that cannot load either (a chunk gone after a deploy), the app still starts, so the update flow (#306) can heal it,
+ * rather than a blank page that nothing reloads.
  */
 function startIn(lang: ConsoleLang): Observable<unknown> {
   const transloco = inject(TranslocoService);
@@ -61,7 +69,13 @@ function startIn(lang: ConsoleLang): Observable<unknown> {
     tap(() => transloco.setActiveLang(lang)),
     catchError((error: unknown) => {
       console.warn(`i18n: could not load "${lang}"; starting in "${DEFAULT_LANG}"`, error);
-      return transloco.load(DEFAULT_LANG).pipe(tap(() => transloco.setActiveLang(DEFAULT_LANG)));
+      return transloco.load(DEFAULT_LANG).pipe(
+        tap(() => transloco.setActiveLang(DEFAULT_LANG)),
+        catchError((fallbackError: unknown) => {
+          console.error(`i18n: could not load "${DEFAULT_LANG}" either; starting without a dictionary`, fallbackError);
+          return of(null);
+        }),
+      );
     }),
   );
 }

@@ -9,8 +9,16 @@ import { Injectable } from '@angular/core';
 export class OpenSheets {
   private closer: (() => void) | null = null;
 
-  /** Called by `Sheet` only. */
+  /**
+   * @internal The root `Sheet`'s hook, called once from its constructor; not for app code. The first closer stays:
+   * a second one (a `Sheet` provided again below the root) is ignored with a warning, so it can never replace the
+   * root's closer and leave the root's sheets open on `closeAll()`.
+   */
   attach(closeAll: () => void): void {
+    if (this.closer !== null) {
+      console.warn('OpenSheets: a closer is already attached; ignoring the second attach');
+      return;
+    }
     this.closer = closeAll;
   }
 

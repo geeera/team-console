@@ -1,5 +1,4 @@
-export { provideConsoleI18n } from './lib/i18n.providers';
-export type { ConsoleI18nOptions } from './lib/i18n.providers';
+export { provideConsoleAppI18n, provideConsoleI18n } from './lib/i18n.providers';
 export {
   CONSOLE_LANGS,
   DEFAULT_LANG,

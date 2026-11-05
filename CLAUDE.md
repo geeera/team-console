@@ -114,7 +114,8 @@ in reading order — primary on top on the phone, Cancel then primary in the dia
 order agree, #282; a bare `tcSheetFooter` is free-form), `Spinner`, `StateBlock`, `Tooltip` (non-interactive, `aria-hidden`), `TopBar`; Storybook in `.storybook/` with theme, motion and language
 toolbars: `npx nx storybook console-shared-ui` on :4400, `npx nx build-storybook console-shared-ui` into
 `dist/storybook/console-shared-ui` — the `storybook` contract command), `@console/shared/i18n` (Transloco,
-`ru.json`/`en.json`, `provideConsoleI18n()`), `@console/shared/config` (`APP_CONFIG`), `@console/shared/api`
+`ru.json`/`en.json`; the app calls `provideConsoleAppI18n()` — every catalogue a lazy chunk, #433 — and specs and
+Storybook `provideConsoleI18n()`, Russian inline and synchronous), `@console/shared/config` (`APP_CONFIG`), `@console/shared/api`
 (`provideConsoleApi()` with the interceptor chain; `accessSessionInterceptor` sends every `/api` call with `redirect:
 'manual'` and the `ngsw-bypass` header, and when `isAccessSessionExpired` says Access wants a new login — a redirect,
 a `*.cloudflareaccess.com` URL, 401/403 with a non-JSON body, 401 `access-missing|access-unverified`, a 2xx HTML page —
