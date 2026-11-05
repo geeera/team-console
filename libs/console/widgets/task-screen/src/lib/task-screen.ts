@@ -31,7 +31,8 @@ import { ItemEdit, ItemFieldPicker, ItemReopen } from '@console/features/edit-it
 import { NetworkStatus } from '@console/shared/api';
 import { LocalDayPipe, LocalTimePipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, Chip, Icon, IconButton, Ledger, LedgerRow } from '@console/shared/ui';
-import type { ItemDto, ItemSummaryDto, TrackerSprintDto } from '@shared/contracts';
+import type { AskDto, ItemDto, ItemSummaryDto, TrackerSprintDto } from '@shared/contracts';
+import { decisionItemOf, TaskDecision } from './task-decision';
 import { TaskHistory } from './task-history';
 import { TaskNames } from './task-names';
 import { TaskState, type TaskLoadState } from './task-state';
@@ -63,6 +64,7 @@ type LoadState = TaskLoadState | 'ready';
     LocalDayPipe,
     LocalTimePipe,
     SprintTierIcon,
+    TaskDecision,
     TaskHistory,
     TaskState,
     TrackerFailureBlock,
@@ -98,6 +100,7 @@ export class TaskScreen {
   protected readonly item = signal<ItemDto | null>(null);
   protected readonly history = signal<readonly HistoryEntry[]>([]);
   protected readonly sprints = signal<readonly TrackerSprintDto[]>([]);
+  protected readonly asks = signal<readonly AskDto[]>([]);
   protected readonly peers = signal<readonly ItemSummaryDto[]>([]);
   protected readonly loadedAt = signal<string | null>(null);
   protected readonly isEditing = signal(false);
@@ -116,6 +119,14 @@ export class TaskScreen {
   protected readonly off = computed(() =>
     this.network.online() ? null : this.transloco.translate('item.offlineReason'),
   );
+  /** A decision waits on the task: the comment box then points at Approve / Reject. */
+  protected readonly isDecisionWaiting = computed(() => {
+    const item = this.item();
+    return (
+      item !== null &&
+      decisionItemOf({ slug: this.slug(), name: this.projectName() }, item, this.asks()) !== null
+    );
+  });
   protected readonly isClosed = computed(() => {
     const item = this.item();
     return item !== null && isClosedAsNotNeeded(item);
@@ -188,11 +199,13 @@ export class TaskScreen {
   private async loadHistory(): Promise<void> {
     const slug = this.slug();
     const number = this.number();
-    const [events, comments, decisions] = await Promise.all([
+    const [events, comments, decisions, asks] = await Promise.all([
       this.api.events(slug, number),
       this.api.comments(slug, number),
       this.api.decisions(slug, number),
+      this.api.asks(slug, number),
     ]);
+    this.asks.set(asks.ok ? asks.value : []);
     if (events.ok && comments.ok) {
       this.history.set(historyOf(events.value, comments.value, decisions.ok ? decisions.value : []));
     }
@@ -245,6 +258,14 @@ export class TaskScreen {
       before.state !== item.state
     ) {
       void this.loadPeers();
+    }
+  }
+
+  /** A decision was recorded: read the task again in place, so the receipt keeps focus. */
+  protected async onDecided(): Promise<void> {
+    const read = await this.api.item(this.slug(), this.number());
+    if (read.ok) {
+      this.applyChange(read.value);
     }
   }
 

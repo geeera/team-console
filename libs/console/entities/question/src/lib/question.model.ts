@@ -24,6 +24,13 @@ export interface QuestionItem {
   readonly project: NeedsYouProjectRef;
   readonly section: Section;
   readonly number: number;
+  /**
+   * The console tracker's key (`TC-310`) of a row-backed item, `null` (or absent) for a GitHub issue (#434). A keyed
+   * item is answered with a decision (`POST …/items/:n/decisions`, #435) and linked to its task screen.
+   */
+  readonly key?: string | null;
+  /** The open console ask a decision must name (#443); `null` when the item has none. */
+  readonly askId?: number | null;
   readonly title: string;
   readonly url: string | null;
   readonly ask: string | null;
@@ -110,6 +117,10 @@ function isInboxItem(value: unknown): value is InboxItemDto {
     value['number'] > 0 &&
     // The same Worker serves the app and the API, so every API this app meets sends `key` (#434, #443).
     isNullableString(value['key']) &&
+    // #435: absent from a server that predates it, which also never asked for one.
+    (value['askId'] === undefined ||
+      value['askId'] === null ||
+      (typeof value['askId'] === 'number' && Number.isSafeInteger(value['askId']) && value['askId'] > 0)) &&
     typeof value['title'] === 'string' &&
     isNullableString(value['url']) &&
     isNullableString(value['ask']) &&
@@ -208,6 +219,8 @@ export function needsYouViewOf(dto: NeedsYouDto): NeedsYouView {
       project: { slug: item.project.slug, name: item.project.name },
       section: item.section,
       number: item.number,
+      key: item.key,
+      askId: item.askId ?? null,
       title: item.title,
       url: safeGitHubUrl(item.url),
       ask: item.ask,
@@ -244,6 +257,8 @@ export function projectQuestionsOf(project: NeedsYouProjectRef, dto: QuestionsDt
     project: { slug: project.slug, name: project.name },
     section: item.section,
     number: item.number,
+    key: item.key,
+    askId: item.askId ?? null,
     title: item.title,
     url: safeGitHubUrl(item.url),
     ask: item.ask,

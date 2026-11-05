@@ -21,7 +21,7 @@ import {
   type AnswerResponse,
 } from '@shared/contracts';
 import { NEEDS_REASON } from '@shared/owner-grammar';
-import { AnswerClient, AnswerFailure, answerRequestOf } from './answer.client';
+import { AnswerClient, AnswerFailure, answerRequestOf, type AnswerResult } from './answer.client';
 import { ReasonCommand, ReasonSheet, ReasonSheetData } from './reason-sheet';
 
 /** The longest `Retry-After` of `answer-in-progress` the card waits out on its own before it asks the owner. */
@@ -45,6 +45,8 @@ export interface AnswerGiven {
 interface SentAnswer {
   readonly request: AnswerRequest;
   readonly firstSentAt: number;
+  /** A console-tracker decision's `Idempotency-Key`: a repeat sends it again, never a second decision. */
+  readonly idempotencyKey: string;
 }
 
 function isSameRequest(a: AnswerRequest, b: AnswerRequest): boolean {
@@ -192,7 +194,8 @@ export class AnswerQuestion {
    */
   private async repeat(last: SentAnswer): Promise<void> {
     const now = Date.now();
-    if (now - last.firstSentAt <= ANSWER_REPLAY_WINDOW_MS) {
+    // A decision is idempotent by its key for a day: no lookup, the same request again.
+    if (this.isTracker() || now - last.firstSentAt <= ANSWER_REPLAY_WINDOW_MS) {
       await this.submit(last.request);
       return;
     }
@@ -271,17 +274,31 @@ export class AnswerQuestion {
     const item = this.item();
     const last = this.lastSent;
     if (last === null || last.request !== request) {
-      this.lastSent = { request, firstSentAt: Date.now() };
+      this.lastSent = { request, firstSentAt: Date.now(), idempotencyKey: crypto.randomUUID() };
     }
+    const key = this.lastSent?.idempotencyKey ?? crypto.randomUUID();
     this.pending.set(request.command);
     this.keepFocusOnRetry(request.command);
     this.failure.set(null);
-    let result = await this.client.submit(item.project.slug, item.number, request);
+    const send = (): Promise<AnswerResult> =>
+      this.isTracker()
+        ? this.client.decide(
+            {
+              slug: item.project.slug,
+              number: item.number,
+              section: item.section,
+              askId: item.askId ?? null,
+            },
+            request,
+            key,
+          )
+        : this.client.submit(item.project.slug, item.number, request);
+    let result = await send();
     if (!result.ok && result.failure.kind === 'in-progress') {
       // The same answer is being written by an earlier tap: wait for it, then the repeat is answered as a replay.
       const wait = Math.min(result.failure.retryAfter ?? 2, IN_PROGRESS_MAX_WAIT_S);
       await new Promise<void>((resolve) => setTimeout(resolve, wait * 1000));
-      result = await this.client.submit(item.project.slug, item.number, request);
+      result = await send();
     }
     this.pending.set(null);
     if (!result.ok) {
@@ -289,6 +306,12 @@ export class AnswerQuestion {
       return;
     }
     this.recordAnswer(item, result.response);
+  }
+
+  /** A console-tracker item (#435): answered with an owner decision, not a GitHub comment. */
+  private isTracker(): boolean {
+    const key = this.item().key;
+    return key !== undefined && key !== null;
   }
 
   private recordAnswer(item: QuestionItem, response: AnswerResponse): void {

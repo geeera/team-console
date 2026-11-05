@@ -6,11 +6,13 @@ export {
   answerLookupUrl,
   answerRequestOf,
   answerUrl,
+  decisionUrl,
 } from './lib/answer.client';
 export type {
   AnswerFailure,
   AnswerFailureKind,
   AnswerRecovery,
   AnswerResult,
+  DecisionTarget,
   LookupResult,
 } from './lib/answer.client';
