@@ -108,6 +108,8 @@ function isInboxItem(value: unknown): value is InboxItemDto {
     typeof value['number'] === 'number' &&
     Number.isSafeInteger(value['number']) &&
     value['number'] > 0 &&
+    // The same Worker serves the app and the API, so every API this app meets sends `key` (#434, #443).
+    isNullableString(value['key']) &&
     typeof value['title'] === 'string' &&
     isNullableString(value['url']) &&
     isNullableString(value['ask']) &&

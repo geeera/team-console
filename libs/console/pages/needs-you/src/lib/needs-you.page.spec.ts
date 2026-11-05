@@ -56,6 +56,7 @@ describe('NeedsYouPage', () => {
         {
           section: 'question',
           number: 72,
+          key: null,
           title: 'План к демо 16 октября',
           url: 'https://github.com/g/a/issues/72',
           ask: '/approve — начинаем',

@@ -197,11 +197,29 @@ describe('POST /projects/:slug/items/:key/decisions — what the item accepts', 
     expect(await countRows('owner_decisions', project.slug)).toBe(0);
   });
 
-  it('answers the open console ask even without askId', async () => {
+  // #443 (security review of #441, finding 1): an ask replaced between the owner's read and the click is never
+  // answered by a decision that does not name it.
+  it('409 ask-not-open without askId while a console ask is open, even a replaced one; nothing written', async () => {
+    const { project, path } = await seeded();
+    await seedAsk(path);
+    const replaced = await seedAsk(path, { category: 'legal', commands: ['approve', 'reject'] });
+    for (const via of ['web', 'push']) {
+      const response = await decide(path, { command: 'approve', via });
+      expect(response.status).toBe(409);
+      expect(await slugOf(response)).toBe('ask-not-open');
+    }
+    expect(await countRows('owner_decisions', project.slug)).toBe(0);
+    expect((await item(path)).status).toBe('proposed');
+    const answered = await decide(path, { command: 'approve', askId: replaced.id, via: 'web' });
+    expect(answered.status).toBe(201);
+    expect(((await answered.json()) as DecisionDto).askId).toBe(replaced.id);
+  });
+
+  it('decides without askId when no ask is open', async () => {
     const { path } = await seeded();
-    const ask = await seedAsk(path);
-    const decision = (await (await decide(path, { command: 'approve', via: 'web' })).json()) as DecisionDto;
-    expect(decision.askId).toBe(ask.id);
+    const response = await decide(path, { command: 'approve', via: 'web' });
+    expect(response.status).toBe(201);
+    expect(((await response.json()) as DecisionDto).askId).toBeNull();
   });
 });
 

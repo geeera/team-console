@@ -11,11 +11,19 @@ export function isConstraintError(error: unknown, marker: string): boolean {
 }
 
 /**
+ * The one CHECK a lost race trips: 0014's `asks` CHECK that keeps an answer and a withdrawal apart (an ask withdrawn
+ * by a new ask while the owner's decision was in flight). SQLite names an unnamed CHECK by its expression.
+ */
+const ASK_ANSWERED_OR_WITHDRAWN =
+  'CHECK constraint failed: answered_by_decision_id IS NULL OR withdrawn_at IS NULL';
+
+/**
  * Whether a failed batch lost a race on an append-only row (#434): a trigger refused a second answer, withdrawal,
- * reversal or open ask, or a CHECK refused answering a withdrawn ask. The caller re-reads and decides again.
+ * reversal or open ask, or the asks CHECK refused answering a withdrawn ask. The caller re-reads and decides again.
+ * Any other constraint is a bug and is rethrown, never retried into a 409 `item-changed` (#443).
  */
 export function isAppendOnlyConflict(error: unknown): boolean {
-  return isConstraintError(error, 'are append-only') || isConstraintError(error, 'CHECK constraint failed');
+  return isConstraintError(error, 'are append-only') || isConstraintError(error, ASK_ANSWERED_OR_WITHDRAWN);
 }
 
 /** Runs `statements` as one batch; `false` when it lost a race on an append-only row, so nothing was written. */

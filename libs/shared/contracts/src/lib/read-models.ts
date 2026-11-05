@@ -8,9 +8,10 @@ import type { OwnerRequestStatusDto } from './owner-request';
  * the cross-project "Needs you" show. Built in the api Worker from GitHub reads; no GitHub type crosses the wire.
  *
  * Every title, body and `ask` is untrusted issue text: the client renders it as plain text (Angular interpolation),
- * never as HTML. Bodies and `ask` pass through verbatim; every `title` has its invisible characters (controls,
- * zero-width, bidi marks and overrides, fillers, tag characters) removed by `withoutInvisibles` in the builder, so
- * an outsider's item cannot pose as another (#287). Every `url` is `https://github.com/…` or `null`.
+ * never as HTML. Bodies and a GitHub issue's `ask` pass through verbatim; every `title`, and the `ask` a job wrote on
+ * a console-tracker row (#443), has its invisible characters (controls, zero-width, bidi marks and overrides,
+ * fillers, tag characters) removed by `withoutInvisibles` in the builder, so an outsider's item cannot pose as
+ * another (#287). Every `url` is `https://github.com/…` or `null`.
  */
 
 /** One issue waiting for the owner, as the plugin's inbox lists it (`brief.needs`). */
@@ -18,11 +19,10 @@ export interface InboxItemDto {
   readonly section: Section;
   readonly number: number;
   /**
-   * The console tracker's key (`TC-310`, #434) of an item read from D1 rows; `null` for a GitHub-era issue. The
-   * server always sends it; optional so a payload from a server that predates #434 still reads. A row has no `url`:
-   * the console links it by key.
+   * The console tracker's key (`TC-310`, #434) of an item read from D1 rows; `null` for a GitHub-era issue. A row
+   * has no `url`: the console links it by key.
    */
-  readonly key?: string | null;
+  readonly key: string | null;
   readonly title: string;
   readonly url: string | null;
   /** The answer line ("**Your answer:** …") — the team's recommendation; `null` when the issue has none. */

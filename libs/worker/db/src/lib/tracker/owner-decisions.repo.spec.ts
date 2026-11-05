@@ -202,7 +202,7 @@ describe('OwnerDecisionsRepo', () => {
     const otherItem = await seedTrackerItem(slug, 2);
     await expect(
       env.DB.batch(decisions().createStatements(slug, otherItem, decision({ askId }), OWNER_ACTOR, AT)),
-    ).rejects.toThrow(/FOREIGN KEY/);
+    ).rejects.toThrow(/FOREIGN KEY|owner_decisions\.ask_id must be an ask of this item/);
   });
 
   // R7: an imported decision is history. Nothing derives effects from a row, so it changes no item, answers no ask,

@@ -132,6 +132,17 @@ Amendment (Phase 1a′, #434, migration `0014_decisions`; architect note on #434
   one line in `decisionEffectOf` and this paragraph — decide before 1b.
 - `idempotency_keys.result_kind` admits `ask`, `decision`, `request` (the table is rebuilt by copy, keys kept).
 
+Amendment (#443, migration `0015_decision_guards`; security review of Phase 1a′):
+
+- The schema enforces what the repos already do: an ask is answered only by a decision on the same item that names it
+  (`owner_decisions.ask_id`), a team decision is reversed only by a decision on the same item that names it
+  (`reverses_comment_id`, `kind = 'decision'`), and R7 holds at the row level — a `web`/`push` decision never names or
+  answers an imported ask, an `import` decision never a console ask.
+- `import_map` is append-only: the Phase 1b import may insert the same mapping again (skipped), never re-point one
+  (`UPDATE`, `DELETE` and a `REPLACE` with another target are refused).
+- A decision names the ask it answers: while a console ask is open, a decision without `askId` is 409 `ask-not-open`,
+  so an ask replaced between the owner's read and the click is never answered by it.
+
 ## API and authorisation
 
 Routes under `/api/v1`, JSON, RFC 9457 problems with stable `type` slugs, `Idempotency-Key` on every write that

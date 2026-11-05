@@ -23,6 +23,7 @@ import { githubPath, type GitHubClient, type RepoName } from '@worker/github';
 import {
   isIssueEvent,
   isIssueEventsPage,
+  ownerWriteGate,
   refuseServiceWrite,
   refuseServiceWriteOnRecheck,
 } from '../auth/service-write-gate';
@@ -141,6 +142,12 @@ async function prepareAnswer<T extends ParsedAnswer>(
   github: ApiGitHub,
   parse: (body: unknown) => T | string,
 ): Promise<(PreparedAnswer & { readonly request: T }) | Response> {
+  // Not behind ownerOnlyMiddleware (the service identity may answer a fixture issue), so the identity's kind is
+  // checked here first: anything but the owner or the service is refused before a project or GitHub read.
+  const gate = ownerWriteGate(c);
+  if (gate instanceof Response) {
+    return gate;
+  }
   const project = await findProject(c, c.req.param('slug') ?? '');
   if (project === null) {
     return projectNotFound(c);

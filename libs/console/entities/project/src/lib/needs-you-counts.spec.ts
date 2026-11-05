@@ -21,6 +21,7 @@ describe('countNeedsYouBySlug', () => {
     const item = (slug: string, number: number, authorTrusted: boolean): NeedsYouDto['items'][number] => ({
       section: 'question',
       number,
+      key: null,
       title: `#${number}`,
       url: `https://github.com/geeera/${slug}/issues/${number}`,
       ask: null,

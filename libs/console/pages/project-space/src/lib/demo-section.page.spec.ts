@@ -29,6 +29,7 @@ function question(number: number, overrides: Partial<QuestionDto>): QuestionDto 
   return {
     section: 'question',
     number,
+    key: null,
     title: `Item ${number}`,
     url: `https://github.com/geeera/tc/issues/${number}`,
     ask: null,
