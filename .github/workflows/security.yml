@@ -41,11 +41,15 @@ jobs:
           persist-credentials: false
 
       # The binary instead of gitleaks-action: no token, no PR-comment write scope, checksum-verified.
+      # `--retry` (PR #458: a bare curl failed the whole job on a one-off 504 from GitHub's release CDN) only
+      # retries curl's own default transient set (connect/timeout errors and 408/429/5xx) with backoff — never
+      # on a real 404, so a genuinely missing asset (wrong version/arch) still fails fast instead of retrying
+      # for a minute. The checksum check right after still has the final say on what actually got downloaded.
       - name: Install gitleaks
         run: |
           set -euo pipefail
           archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          curl -fsSL -o "${RUNNER_TEMP}/${archive}" \
+          curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused -o "${RUNNER_TEMP}/${archive}" \
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
           echo "${GITLEAKS_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
           tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" gitleaks
@@ -138,11 +142,12 @@ jobs:
           node-version-file: .nvmrc
           package-manager-cache: false
 
+      # Same CDN-flake fix as secret-scan's gitleaks download (PR #458).
       - name: Install actionlint
         run: |
           set -euo pipefail
           archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
-          curl -fsSL -o "${RUNNER_TEMP}/${archive}" \
+          curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused -o "${RUNNER_TEMP}/${archive}" \
             "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
           echo "${ACTIONLINT_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
           tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" actionlint
@@ -150,11 +155,12 @@ jobs:
       - name: actionlint (workflows, includes shellcheck)
         run: '"${RUNNER_TEMP}/actionlint" -color'
 
+      # Same CDN-flake fix as secret-scan's gitleaks download (PR #458).
       - name: Install shellcheck
         run: |
           set -euo pipefail
           archive="shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
-          curl -fsSL -o "${RUNNER_TEMP}/${archive}" \
+          curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused -o "${RUNNER_TEMP}/${archive}" \
             "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/${archive}"
           echo "${SHELLCHECK_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
           tar -xJf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" "shellcheck-v${SHELLCHECK_VERSION}/shellcheck"
