@@ -1,6 +1,7 @@
 import { DOCUMENT } from '@angular/common';
 import {
   EnvironmentProviders,
+  ErrorHandler,
   inject,
   isDevMode,
   provideAppInitializer,
@@ -65,6 +66,7 @@ function consoleI18n(loader: Type<TranslocoLoader>, startLang: () => ConsoleLang
  */
 function startIn(lang: ConsoleLang): Observable<unknown> {
   const transloco = inject(TranslocoService);
+  const errors = inject(ErrorHandler);
   return transloco.load(lang).pipe(
     tap(() => transloco.setActiveLang(lang)),
     catchError((error: unknown) => {
@@ -72,7 +74,9 @@ function startIn(lang: ConsoleLang): Observable<unknown> {
       return transloco.load(DEFAULT_LANG).pipe(
         tap(() => transloco.setActiveLang(DEFAULT_LANG)),
         catchError((fallbackError: unknown) => {
-          console.error(`i18n: could not load "${DEFAULT_LANG}" either; starting without a dictionary`, fallbackError);
+          // No dictionary at all (the reference copy's own chunk is gone too): worth reporting, not just a
+          // console line, since the app then starts with every key raw (#306 heals it on the next deploy).
+          errors.handleError(fallbackError);
           return of(null);
         }),
       );

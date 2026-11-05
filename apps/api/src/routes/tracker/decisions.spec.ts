@@ -87,7 +87,7 @@ describe('POST /projects/:slug/items/:key/decisions — effects (R5)', () => {
 
   it('proves R5 end to end: the PM job cannot approve, the owner decision does', async () => {
     const { path } = await seeded();
-    const patched = await send('PATCH', path, { status: 'approved' }, { ifMatch: '"1"', policyActor: PM });
+    const patched = await send('PATCH', path, { status: 'approved' }, { ifMatch: '"1"', job: PM });
     expect(patched.status).toBe(403);
     expect(await slugOf(patched)).toBe('transition-owner-only');
     const response = await decide(path, { command: 'approve', via: 'push' });
@@ -326,7 +326,7 @@ describe('POST /projects/:slug/items/:key/decisions — forgery, replay, races',
 describe('POST /projects/:slug/items/:key/decisions — who and where', () => {
   it('403 owner-only for a job (the seam), the service identity; 401 without identity', async () => {
     const { project, path } = await seeded();
-    const job = await decide(path, { command: 'approve', via: 'web' }, { policyActor: PM });
+    const job = await decide(path, { command: 'approve', via: 'web' }, { job: PM });
     expect(job.status).toBe(403);
     expect(await slugOf(job)).toBe('owner-only');
     const service = await sendAsService('POST', `${path}/decisions`, { command: 'approve', via: 'web' });

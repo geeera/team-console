@@ -15,6 +15,7 @@ import {
   type JwksServer,
   type SigningKey,
 } from '../testing/access-kit';
+import { localJobToken } from '../testing/local-job-kit';
 
 // Tests per row of the threat model on #8 (rows 1–4, 6–9) and the PM grooming criteria. Row 5 (CSRF) is in
 // csrf.middleware.spec.ts, row 10 (ngsw) in apps/console/src/app/pwa.spec.ts.
@@ -468,6 +469,102 @@ describe('the local bypass (row 7)', () => {
   it('is off when the flags differ in case', async () => {
     const local = accessEnv(teamDomain, { ENVIRONMENT: 'local', AUTH_MODE: 'LOCAL' });
     await expectProblem(await fetchApi(PROTECTED, local), 'access-missing');
+  });
+});
+
+// #444: the local job stand-in. Honoured under the local bypass alone; refused, never ignored, everywhere else.
+describe('the local job stand-in (#444)', () => {
+  const TRACKER = '/api/v1/projects/acme/items';
+  const standIn = localJobToken({ role: 'pm', project_slug: 'acme', job_id: 'job-7', items: [3] });
+  const bearer = (token: string): { headers: Record<string, string> } => ({
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  it('is the job it names under ENVIRONMENT=local and AUTH_MODE=local', async () => {
+    const lines: string[] = [];
+    const local = accessEnv(teamDomain, { ENVIRONMENT: 'local', AUTH_MODE: 'local' });
+    const response = await fetchApi(TRACKER, local, {
+      ...bearer(standIn),
+      logSink: (line) => lines.push(line),
+    });
+    // Past the auth seam and the matrix: the project simply does not exist.
+    expect(response.status).toBe(404);
+    expect(lines.join('\n')).toContain('"identity":"job"');
+  });
+
+  it.each([
+    ['not a stand-in', 'Bearer something-else'],
+    ['a bare prefix', 'Bearer local-job.'],
+    ['not base64url', 'Bearer local-job.***'],
+    [
+      'an unknown role',
+      `Bearer ${localJobToken({ role: 'owner', project_slug: 'acme', job_id: 'j', items: [] })}`,
+    ],
+    ['no scheme', standIn],
+  ])('answers 401 job-token-invalid under the local bypass for %s — never the owner', async (_, header) => {
+    const local = accessEnv(teamDomain, { ENVIRONMENT: 'local', AUTH_MODE: 'local' });
+    await expectProblem(
+      await fetchApi(TRACKER, local, { headers: { Authorization: header } }),
+      'job-token-invalid',
+    );
+  });
+
+  // The committed vars of each deployed environment (wrangler.jsonc), with and without a stray AUTH_MODE.
+  const deployed: [string, Record<string, string | undefined>][] = [
+    ['dev', { ENVIRONMENT: 'dev', ALLOW_SERVICE_TOKEN: 'true' }],
+    ['stage', { ENVIRONMENT: 'stage', ALLOW_SERVICE_TOKEN: 'true' }],
+    ['production', { ENVIRONMENT: 'production', ALLOW_SERVICE_TOKEN: 'false' }],
+  ];
+
+  it.each(deployed)('is refused on %s, alone or beside a valid owner token', async (_, vars) => {
+    for (const authMode of [undefined, 'local']) {
+      const config = accessEnv(teamDomain, { ...vars, AUTH_MODE: authMode });
+      await expectProblem(await fetchApi(TRACKER, config, bearer(standIn)), 'job-token-refused');
+      const owner = await signAccessToken(key, teamDomain);
+      const both = await fetchApi(TRACKER, config, {
+        headers: { Authorization: `Bearer ${standIn}`, 'Cf-Access-Jwt-Assertion': owner },
+      });
+      await expectProblem(both, 'job-token-refused');
+    }
+  });
+
+  it.each([
+    ['ENVIRONMENT=local alone', { ENVIRONMENT: 'local', AUTH_MODE: undefined }],
+    ['AUTH_MODE=local alone', { ENVIRONMENT: undefined, AUTH_MODE: 'local' }],
+    ['the flags in another case', { ENVIRONMENT: 'local', AUTH_MODE: 'LOCAL' }],
+    ['ENVIRONMENT in another case', { ENVIRONMENT: 'Local', AUTH_MODE: 'local' }],
+  ])('is refused with %s', async (_, flags) => {
+    await expectProblem(
+      await fetchApi(TRACKER, accessEnv(teamDomain, flags), bearer(standIn)),
+      'job-token-refused',
+    );
+  });
+
+  it('never logs the token or its payload', async () => {
+    const lines: string[] = [];
+    const sentinel = localJobToken({
+      role: 'qa',
+      project_slug: 'sentinel-slug',
+      job_id: 'sentinel-job',
+      items: [],
+    });
+    const logSink = (line: string): void => {
+      lines.push(line);
+    };
+    await fetchApi(TRACKER, accessEnv(teamDomain, { ENVIRONMENT: 'local', AUTH_MODE: 'local' }), {
+      ...bearer(sentinel),
+      logSink,
+    });
+    await fetchApi(TRACKER, accessEnv(teamDomain), { ...bearer(sentinel), logSink });
+    await fetchApi(TRACKER, accessEnv(teamDomain, { ENVIRONMENT: 'local', AUTH_MODE: 'local' }), {
+      ...bearer(`${sentinel}x`),
+      logSink,
+    });
+    const log = lines.join('\n');
+    expect(log).toContain('"reason":"job-token-refused"');
+    expect(log).not.toContain(sentinel.slice('local-job.'.length, 40));
+    expect(log).not.toContain('sentinel-job');
+    expect(log).not.toContain('sentinel-slug');
   });
 });
 

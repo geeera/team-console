@@ -15,10 +15,10 @@ import {
   type TrackerActor,
   type TrackerProject,
 } from '@worker/db';
-import { ownerOnlyMiddleware } from '../../auth/owner-only.middleware';
-import { decisionEffectOf, type PolicyActor } from '../../auth/policy';
+import { decisionEffectOf } from '../../auth/policy';
+import { trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
-import { invalid, itemOf, roleRefusal, type PolicyActorOf } from '../../tracker/context';
+import { invalid, itemOf } from '../../tracker/context';
 import { decisionDtoOf, labelsOf } from '../../tracker/dto';
 import { withOneRetry, writeWithItemEffect } from '../../tracker/effect-batch';
 import { ASK_WRITE_MAX_BYTES, nextCursor, writeLimit } from '../../tracker/http';
@@ -28,12 +28,6 @@ import { itemReadOf } from '../../tracker/item-reads';
 import { trackerWriteContextOf } from '../../tracker/write-context';
 
 type Context = WorkerContext<ApiEnv>;
-
-function ownerOnly(c: Context, actor: PolicyActor): Response | null {
-  return actor.kind === 'owner'
-    ? null
-    : roleRefusal(c, 'owner-only', actor, 'Only the owner decides; a decision is never a job write');
-}
 
 function commandRefusal(c: Context, detail: string): Response {
   return invalid(c, 'decision-command', 'command', detail);
@@ -181,15 +175,19 @@ async function decide(
 }
 
 /**
- * The owner's decisions (#434, ADR 0006 decision 4 and Phase 1a′). Owner-only (the allowlist, then the actor);
+ * The owner's decisions (#434, ADR 0006 decision 4 and Phase 1a′). Owner-only (the route matrix; a job gets 403);
  * the decision, the answer of its ask, the reversal of a team decision and the item's effects (R5's transition table,
  * `decisionEffectOf`) land in one batch. No `If-Match`: the decision is about the ask, not a version the owner
  * edited; a moved version re-reads once, then 409 `item-changed`.
  */
-export function createTrackerDecisionRoutes(actorOf: PolicyActorOf): Hono<WorkerHonoEnv<ApiEnv>> {
+export function createTrackerDecisionRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
+  const guard = {
+    list: trackerAccess('GET /api/v1/projects/:slug/items/:key/decisions'),
+    create: trackerAccess('POST /api/v1/projects/:slug/items/:key/decisions'),
+  };
   return new Hono<WorkerHonoEnv<ApiEnv>>()
-    .get('/:slug/items/:key/decisions', async (c) => {
-      const read = await itemReadOf(c, actorOf);
+    .get('/:slug/items/:key/decisions', guard.list, async (c) => {
+      const read = await itemReadOf(c);
       if (read instanceof Response) {
         return read;
       }
@@ -206,8 +204,8 @@ export function createTrackerDecisionRoutes(actorOf: PolicyActorOf): Hono<Worker
       return c.json(body);
     })
 
-    .post('/:slug/items/:key/decisions', ownerOnlyMiddleware, writeLimit(ASK_WRITE_MAX_BYTES), async (c) => {
-      const context = await trackerWriteContextOf(c, actorOf, (actor) => ownerOnly(c, actor));
+    .post('/:slug/items/:key/decisions', guard.create, writeLimit(ASK_WRITE_MAX_BYTES), async (c) => {
+      const context = await trackerWriteContextOf(c);
       if (context instanceof Response) {
         return context;
       }

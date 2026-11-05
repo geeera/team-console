@@ -206,6 +206,21 @@ describe('SnoozeCommands', () => {
     await expect(pending).resolves.toBeNull();
   });
 
+  it('an expired Access session says so in the dialog, not "offline" nor the generic error (#418 security)', async () => {
+    const pending = commands.snooze(TARGET);
+    await settle();
+    press('[data-testid="snooze-ok"]');
+    http
+      .expectOne(URL)
+      .flush('<html>sign in</html>', { status: 401, statusText: 'Unauthorized', headers: { 'Content-Type': 'text/html' } });
+    await settle();
+    expect(text(dialog()?.querySelector('[role="alert"]'))).toBe(
+      'Сессия истекла. Войдите снова — ничего не изменено.',
+    );
+    press('.tc-sheet__foot button[type=button]');
+    await expect(pending).resolves.toBeNull();
+  });
+
   it('turns notifications back on in one tap, with no dialog', async () => {
     const snoozed: SnoozeDto = {
       snoozed: true,
@@ -244,6 +259,25 @@ describe('SnoozeCommands', () => {
     expect(await pending).toMatchObject({
       tone: 'warning',
       verb: 'Не удалось включить уведомления Team Console: сервер не ответил. Ничего не изменено.',
+    });
+    expect(projects.bySlug('tc')?.snooze).toEqual(snoozed);
+  });
+
+  it('a Turn back on blocked by an expired Access session says so, not "offline" (#418 security)', async () => {
+    const snoozed: SnoozeDto = {
+      snoozed: true,
+      until: null,
+      allowsUrgent: true,
+      since: '2026-10-05T10:00:00.000Z',
+    };
+    projects.applySnooze('tc', snoozed);
+    const pending = commands.turnBackOn(TARGET);
+    http
+      .expectOne(URL)
+      .flush('<html>sign in</html>', { status: 401, statusText: 'Unauthorized', headers: { 'Content-Type': 'text/html' } });
+    expect(await pending).toMatchObject({
+      tone: 'warning',
+      verb: 'Сессия истекла. Войдите снова — уведомления Team Console пока отложены.',
     });
     expect(projects.bySlug('tc')?.snooze).toEqual(snoozed);
   });

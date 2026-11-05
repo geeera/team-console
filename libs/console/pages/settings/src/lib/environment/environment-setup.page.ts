@@ -1,5 +1,5 @@
 import { LiveAnnouncer } from '@angular/cdk/a11y';
-import { NgTemplateOutlet } from '@angular/common';
+import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import {
   afterNextRender,
   ChangeDetectionStrategy,
@@ -66,6 +66,7 @@ export class EnvironmentSetupPage {
   private readonly announcer = inject(LiveAnnouncer);
   private readonly transloco = inject(TranslocoService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly document = inject(DOCUMENT);
 
   protected readonly screen = inject(EnvironmentScreen);
   protected readonly projects = inject(ProjectsStore);
@@ -172,8 +173,16 @@ export class EnvironmentSetupPage {
   }
 
   protected async retryCopy(): Promise<void> {
+    const hadFailed = this.copy.failed();
     if (await this.copy.ready()) {
       afterNextRender(() => this.heading().nativeElement.focus(), { injector: this.injector });
+      return;
+    }
+    // A failed dynamic import() stays failed for the page's lifetime in a real browser: this Try again click
+    // already saw a prior failure (the route guard's own load), so a second one can't recover in place — a full
+    // reload is the only way back.
+    if (hadFailed) {
+      this.document.location.reload();
     }
   }
 

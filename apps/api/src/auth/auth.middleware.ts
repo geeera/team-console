@@ -5,6 +5,7 @@ import { readAccessConfig } from './access-config';
 import { identityOf, verifyAccessJwt } from './access-jwt';
 import type { Identity } from './auth.types';
 import { isLocalBypass } from './local-bypass';
+import { bearerOf, parseLocalJobToken } from './local-job';
 
 const ACCESS_HEADER = 'Cf-Access-Jwt-Assertion';
 
@@ -15,7 +16,8 @@ const ACCESS_HEADER = 'Cf-Access-Jwt-Assertion';
  * login is Access's job, not ours. Only the header is read — the `CF_Authorization` cookie is not accepted.
  *
  * The local bypass needs both flags; they are passed only as `--var` by `nx serve api` and the Dockerfile, never
- * from an `env.*` block (tools/workspace-checks).
+ * from an `env.*` block (tools/workspace-checks). Under it a request is the owner (`local`), or the job its
+ * `Authorization: Bearer local-job.…` stand-in names (#444).
  */
 export const authMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = async (c, next) => {
   const logger = c.get('logger');
@@ -25,9 +27,28 @@ export const authMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = async (c
     await next();
   };
 
+  const bearer = bearerOf(c.req.header('Authorization'));
   if (isLocalBypass(c.env)) {
-    await grant({ kind: 'local' });
+    if (bearer.kind === 'none') {
+      await grant({ kind: 'local' });
+      return;
+    }
+    // A header that is not a well-formed stand-in is refused rather than read as the owner: a job whose token is
+    // wrong must not quietly get the owner's rights.
+    const job = bearer.kind === 'local-job' ? parseLocalJobToken(bearer.token) : null;
+    if (job === null) {
+      logger.warn('access rejected', { reason: 'job-token-invalid' });
+      return problem(c, { type: 'job-token-invalid', title: 'Unauthorized', status: 401 });
+    }
+    await grant(job);
     return;
+  }
+
+  // #444: the stand-in exists only under the local bypass. Anywhere else it is refused outright — never ignored, so a
+  // job script pointed at a deployed console cannot ride an owner's Access session either.
+  if (bearer.kind === 'local-job') {
+    logger.warn('access rejected', { reason: 'job-token-refused' });
+    return problem(c, { type: 'job-token-refused', title: 'Unauthorized', status: 401 });
   }
 
   const configResult = readAccessConfig(c.env);

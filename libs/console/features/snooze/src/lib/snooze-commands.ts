@@ -71,15 +71,7 @@ export class SnoozeCommands {
       this.apply(target.slug, result.snooze);
       return this.outcome('positive', this.t('commands.snooze.result.back', { name: target.name }));
     }
-    return this.outcome(
-      'warning',
-      this.t(
-        result.failure === 'offline'
-          ? 'commands.snooze.result.backOffline'
-          : 'commands.snooze.result.backFailed',
-        { name: target.name },
-      ),
-    );
+    return this.outcome('warning', this.t(this.backFailureKeyOf(result.failure), { name: target.name }));
   }
 
   /** "today 13:00", "tomorrow 09:00", "12 October, 09:00" in the active language. */
@@ -104,7 +96,24 @@ export class SnoozeCommands {
   }
 
   private failureText(failure: SnoozeFailure): string {
-    return this.t(failure === 'offline' ? 'commands.snooze.dialog.offline' : 'commands.snooze.dialog.err');
+    const key =
+      failure === 'offline'
+        ? 'commands.snooze.dialog.offline'
+        : failure === 'session-expired'
+          ? 'commands.snooze.dialog.sessionExpired'
+          : 'commands.snooze.dialog.err';
+    return this.t(key);
+  }
+
+  /** The owner's Access session is gone (#418 security): say so, never "offline" nor the generic "no server". */
+  private backFailureKeyOf(failure: SnoozeFailure): string {
+    if (failure === 'offline') {
+      return 'commands.snooze.result.backOffline';
+    }
+    if (failure === 'session-expired') {
+      return 'commands.snooze.result.backSessionExpired';
+    }
+    return 'commands.snooze.result.backFailed';
   }
 
   private outcome(tone: SnoozeOutcome['tone'], verb: string): SnoozeOutcome {
