@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { startCloseRelay, type CloseRelay } from './close-relay';
 
 export const WORKSPACE_ROOT = resolve(__dirname, '../../../..');
 /** One directory per Playwright worker: its servers' state and logs (the CI artifact keeps the logs). */
@@ -264,6 +265,11 @@ export class LocalStack {
   readonly fakePushURL: string;
   private api: StackProcess | null = null;
   private fakePush: StackProcess | null = null;
+  /** The api's way to the fakes (#400, `close-relay.ts`); the browser and the specs still reach them direct. */
+  private readonly relays: { github: CloseRelay | null; push: CloseRelay | null } = {
+    github: null,
+    push: null,
+  };
   private readonly pastIncidents: string[] = [];
   private readonly vapid = throwawayVapidPair();
 
@@ -315,6 +321,7 @@ export class LocalStack {
     try {
       await waitForOk(`${stack.fakeURL}/_fake/state`, fake, `${name} fake GitHub`);
       await stack.startFakePush();
+      await stack.startRelays();
       await stack.signInAsMockOwner();
       await stack.startApi();
     } catch (error: unknown) {
@@ -352,9 +359,29 @@ export class LocalStack {
 
   async stop(): Promise<void> {
     await this.retireApi();
+    await this.relays.github?.close();
+    await this.relays.push?.close();
+    this.relays.github = null;
+    this.relays.push = null;
     await this.fakePush?.stop();
     this.fakePush = null;
     await this.fake.stop();
+  }
+
+  /** Upstream failures land in `relay.log` beside the servers' logs, so the CI artifact keeps them. */
+  private async startRelays(): Promise<void> {
+    const log = join(this.dir, 'relay.log');
+    const onError = (to: string) => (error: Error) =>
+      appendLog(log, `${new Date().toISOString()} ${this.name} relay to ${to}: ${error.message}`);
+    this.relays.github = await startCloseRelay(this.fakeURL, onError('fake GitHub'));
+    this.relays.push = await startCloseRelay(this.fakePushURL, onError('fake push'));
+  }
+
+  private relayOrigin(relay: CloseRelay | null): string {
+    if (relay === null) {
+      throw new Error(`${this.name}: the relays start before the api`);
+    }
+    return relay.origin;
   }
 
   /** The fake push service (Apple, FCM, Mozilla stand-in) of `nx run api:fake-push`, on this worker's own port. */
@@ -442,7 +469,7 @@ export class LocalStack {
         '--var',
         'OWNER_GITHUB_LOGIN:geeera',
         '--var',
-        `GITHUB_FAKE_ORIGIN:${this.fakeURL}`,
+        `GITHUB_FAKE_ORIGIN:${this.relayOrigin(this.relays.github)}`,
         '--var',
         `GITHUB_APP_CLIENT_ID:${FAKE_CLIENT_ID}`,
         '--var',
@@ -454,7 +481,7 @@ export class LocalStack {
         'ROUTINE_TOKEN_TEAM_CONSOLE:local-fake-routine',
         // Web push (#36) against the fake push service only, with this run's throwaway VAPID pair.
         '--var',
-        `PUSH_FAKE_ORIGIN:${this.fakePushURL}`,
+        `PUSH_FAKE_ORIGIN:${this.relayOrigin(this.relays.push)}`,
         '--var',
         `VAPID_PUBLIC_KEY:${this.vapid.publicKey}`,
         '--var',
