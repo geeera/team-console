@@ -1,0 +1,35 @@
+<form class="tc-item-comment__box" novalidate (submit)="$event.preventDefault(); send()">
+  <label class="tc-item-comment__label" [attr.for]="id">{{ 'item.comment' | transloco }}</label>
+  <p class="tc-item-comment__hint" [id]="id + '-hint'">{{ 'item.commentHint' | transloco }}</p>
+  <textarea
+    #field
+    rows="3"
+    class="tc-item-comment__field"
+    data-testid="comment-field"
+    [id]="id"
+    [value]="text()"
+    [readOnly]="isSending()"
+    [attr.aria-describedby]="describedBy()"
+    (input)="setText($any($event.target).value)"
+    (keydown)="onKeydown($event)"
+  ></textarea>
+  @if (isCommandLike()) {
+  <p class="tc-item-comment__cmd" data-testid="comment-command-note" [id]="id + '-cmd'">
+    {{ (isDecisionWaiting() ? 'item.commentCmd' : 'item.commentCmdNoDecision') | transloco }}
+  </p>
+  }
+  <div class="tc-item-comment__foot">
+    <button
+      tc-button
+      variant="primary"
+      type="submit"
+      data-testid="comment-send"
+      [loading]="isSending()"
+      [off]="off() !== null || isSending()"
+      [attr.aria-disabled]="off() !== null || isSending() ? 'true' : null"
+      [attr.aria-describedby]="off() !== null ? 'tc-task-off' : null"
+    >
+      {{ (isSending() ? 'item.commentSending' : 'item.commentSend') | transloco }}
+    </button>
+  </div>
+</form>

@@ -36,4 +36,10 @@ function routeOf(section: SpaceSection): Route {
 export const projectSpaceChildRoutes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: DEFAULT_SPACE_SECTION },
   ...SPACE_SECTIONS.map(routeOf),
+  // #435: a task of the console tracker, a pane beside the board (a page on the phone); its own lazy chunk.
+  {
+    path: 't/:n',
+    loadComponent: () => import('./task-section.page').then((m) => m.TaskSectionPage),
+    data: { section: 'board' },
+  },
 ];

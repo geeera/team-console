@@ -22,6 +22,7 @@ import { questionContextOf } from './question-context';
 
 /** The open console ask of an item (an imported ask never reaches the read model, R7). */
 export interface TrackerInboxAsk {
+  readonly id: number;
   readonly ask: string;
   readonly category: AskCategory;
   readonly commands: readonly AskCommand[];
@@ -71,6 +72,7 @@ function classifiedRows(rows: readonly TrackerInboxRow[]): ClassifiedRow[] {
         section,
         number: row.number,
         key: row.key,
+        askId: row.ask?.id ?? null,
         title: withoutInvisibles(row.title),
         // A row has no GitHub page; the console links it by key.
         url: null,

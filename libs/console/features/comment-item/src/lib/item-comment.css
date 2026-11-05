@@ -1,0 +1,54 @@
+/* #409: a ruled card with the hint under its label. */
+.tc-item-comment__box {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+
+.tc-item-comment__box:focus-within {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 var(--border-w) var(--focus);
+}
+
+.tc-item-comment__label {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
+.tc-item-comment__hint {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.tc-item-comment__field {
+  width: 100%;
+  min-height: var(--space-16);
+  padding: 0;
+  border: 0;
+  background: none;
+  outline: none;
+  resize: vertical;
+  font-family: var(--font-display);
+  font-size: var(--fs-input);
+  line-height: var(--lh-prose);
+  color: var(--text);
+}
+
+.tc-item-comment__cmd {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--warning-soft);
+  color: var(--warning-text);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+}
+
+.tc-item-comment__foot {
+  display: flex;
+  justify-content: flex-end;
+}

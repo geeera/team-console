@@ -45,10 +45,10 @@ async function seedGitHubProjects(count: number, from = 1): Promise<Record<strin
 }
 
 /** A console project with a question (asked), a question with an imported ask, a needs:owner chore and a feature. */
-async function seedConsoleProject(): Promise<SeededProject> {
+async function seedConsoleProject(): Promise<SeededProject & { readonly askId: number }> {
   const project = await seedTrackerProject();
   const asked = await seedItem(project, { title: 'Pay for the domain?', kind: 'question' });
-  await seedAsk(asked.path, {
+  const ask = await seedAsk(asked.path, {
     category: 'money',
     ask: 'Approve $12 a year?',
     commands: ['approve'],
@@ -63,7 +63,7 @@ async function seedConsoleProject(): Promise<SeededProject> {
     labels: ['needs:owner'],
   });
   await seedItem(project, { title: 'Just a feature', kind: 'feature', status: 'approved' });
-  return project;
+  return { ...project, askId: ask.id };
 }
 
 describe('GET /api/v1/needs-you over console-tracker rows', () => {
@@ -89,6 +89,11 @@ describe('GET /api/v1/needs-you over console-tracker rows', () => {
       authorTrusted: true,
     });
     expect(console[1]).toMatchObject({ ask: null, category: null });
+    // #435: a decision must name the open console ask (#443), so the row carries its id; none for the others.
+    expect(console.map((item) => item.askId)).toEqual([project.askId, null, null]);
+    expect(
+      body.items.filter((item) => item.project.slug !== project.slug).every((item) => item.askId === null),
+    ).toBe(true);
     // Inbox order first, then registry order: the GitHub project was registered first.
     expect(body.items.map((item) => item.section)).toEqual([
       'question',
@@ -143,6 +148,8 @@ describe('GET /api/v1/projects/:slug/{inbox,questions} of a console project', ()
     const questions = (await (
       await fetchApi(`/api/v1/projects/${project.slug}/questions`, localEnv(), { github })
     ).json()) as QuestionsDto;
+    expect(inbox.items.map((item) => item.askId)).toEqual([project.askId, null, null]);
+    expect(questions.items.map((item) => item.askId)).toEqual([project.askId, null, null]);
     expect(questions.items.map((item) => item.allowedCommands)).toEqual([
       ['approve'],
       ['approve', 'reject'],

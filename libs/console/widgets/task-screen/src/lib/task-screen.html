@@ -1,0 +1,204 @@
+<div class="tc-task-screen__bar">
+  @if (presentation() === 'page') {
+  <button type="button" class="tc-task-screen__back" data-testid="task-back" (click)="close()">
+    <tc-icon name="chevron-left" />
+    {{ 'item.back' | transloco }}
+  </button>
+  <span class="tc-task-screen__bar-key" aria-hidden="true">{{ key() }}</span>
+  <span class="tc-task-screen__bar-end"></span>
+  } @else {
+  <span class="tc-task-screen__bar-key">{{ key() }}</span>
+  <button
+    tc-icon-button
+    type="button"
+    data-testid="task-close"
+    [attr.aria-label]="'item.close' | transloco"
+    (click)="close()"
+  >
+    <tc-icon name="x" />
+  </button>
+  }
+</div>
+
+<div class="tc-task-screen__scroll">
+  @if (loadState(); as loadState) {
+  <tc-task-state
+    [state]="loadState"
+    [key]="key()"
+    [slug]="slug()"
+    [projectName]="projectName()"
+    (retry)="load(slug(), number(), true)"
+  />
+  } @else { @if (item(); as item) {
+  <article class="tc-task-screen__body" [class.tc-task-screen--closed]="isClosed()">
+    @if (off() !== null) {
+    <p class="tc-task-screen__stale" id="tc-task-off" data-testid="task-stale">
+      <tc-icon name="offline" size="sm" />
+      <span>{{ 'item.offline' | transloco: { time: (loadedAt() | localTime) } }}</span>
+    </p>
+    } @if (failedWrite(); as failed) {
+    <tc-tracker-failure
+      [failure]="failed.failure"
+      (retry)="retryWrite()"
+      (refresh)="load(slug(), number(), true)"
+    />
+    }
+
+    <div class="tc-task-screen__head">
+      <p class="tc-task-screen__tag">
+        <span class="tc-task-screen__key">{{ item.key }}</span>
+        <span aria-hidden="true">·</span>
+        <span>{{ names.kind(item.kind) }}</span>
+        @if (item.createdBy.kind === 'import') {
+        <tc-chip tone="warning">{{ 'board.untrusted' | transloco }}</tc-chip>
+        }
+      </p>
+      @if (!isEditing()) {
+      <h1
+        class="tc-task-screen__title"
+        tabindex="-1"
+        data-focus="task-title"
+        data-testid="task-title"
+        dir="auto"
+      >
+        {{ item.title }}
+      </h1>
+      <div class="tc-task-screen__actions">
+        <button
+          tc-button
+          type="button"
+          data-testid="item-edit"
+          [off]="off() !== null"
+          [attr.aria-disabled]="off() !== null ? 'true' : null"
+          [attr.aria-label]="'item.editAria' | transloco"
+          [attr.aria-describedby]="off() !== null ? 'tc-task-off' : null"
+          (click)="startEdit()"
+        >
+          <tc-icon name="pencil" size="sm" />{{ 'item.edit' | transloco }}
+        </button>
+      </div>
+      } @else {
+      <h1 class="tc-sr-only" tabindex="-1" data-focus="task-title" dir="auto">{{ item.title }}</h1>
+      <tc-item-edit
+        [slug]="slug()"
+        [item]="item"
+        [off]="off()"
+        (saved)="onSaved($event)"
+        (closed)="onEditClosed()"
+      />
+      }
+    </div>
+
+    @if (isClosed()) {
+    <div class="tc-task-screen__closed" data-testid="task-closed">
+      <p>{{ 'item.closedNote' | transloco }}</p>
+      <tc-item-reopen
+        [slug]="slug()"
+        [item]="item"
+        [off]="off()"
+        (changed)="applyChange($event)"
+        (failed)="onFailed($event)"
+      />
+    </div>
+    }
+
+    <ng-content select="[tc-task-decision]" />
+
+    <dl tc-ledger>
+      <div tc-ledger-row [label]="'item.status' | transloco">
+        <tc-item-field-picker
+          field="status"
+          [slug]="slug()"
+          [item]="item"
+          [off]="off()"
+          (changed)="applyChange($event)"
+          (failed)="onFailed($event)"
+        />
+      </div>
+      <div tc-ledger-row [label]="'item.kind' | transloco">
+        <tc-item-field-picker
+          field="kind"
+          [slug]="slug()"
+          [item]="item"
+          [off]="off()"
+          (changed)="applyChange($event)"
+          (failed)="onFailed($event)"
+        />
+      </div>
+      <div tc-ledger-row [label]="'item.sprint' | transloco">
+        <ng-content select="[tc-task-sprint]" />
+        <span class="tc-task-screen__sprint" data-testid="task-sprint">{{ sprintLabel() }}</span>
+      </div>
+      <div tc-ledger-row [label]="'item.queue' | transloco">
+        @if (queue(); as queue) {
+        <span data-testid="task-queue"
+          >{{ 'item.queueVal' | transloco: { pos: queue.position, total: queue.total, lane:
+          names.status(item.status) } }}</span
+        >
+        } @else {
+        <span>{{ 'item.noQueue' | transloco }}</span>
+        }
+      </div>
+      <div tc-ledger-row [label]="'item.tier' | transloco">
+        @if (item.tier) {
+        <tc-sprint-tier-icon [tier]="item.tier" size="sm" />
+        <span>{{ 'board.tier.' + item.tier | transloco }}</span>
+        } @else {
+        <span>{{ 'item.none' | transloco }}</span>
+        }
+        <small class="tc-task-screen__small">{{ 'item.tierHint' | transloco }}</small>
+      </div>
+      <div tc-ledger-row [label]="'item.flags' | transloco">
+        @for (flag of item.flags; track flag) {
+        <tc-chip>{{ flag }}</tc-chip>
+        } @empty {
+        <span>{{ 'item.none' | transloco }}</span>
+        }
+      </div>
+      <div tc-ledger-row [label]="'item.from' | transloco">
+        <span
+          >{{ 'item.created' | transloco: { who: names.who(item.createdBy), date: (item.createdAt | localDay)
+          } }}</span
+        >
+        @if (githubUrl(); as url) {
+        <a
+          class="tc-task-screen__ext"
+          target="_blank"
+          rel="noopener noreferrer"
+          [href]="url"
+          [attr.aria-label]="'item.githubAria' | transloco: { n: githubNumber() }"
+        >
+          {{ 'item.github' | transloco: { n: githubNumber() } }}
+          <tc-icon name="external" size="sm" />
+        </a>
+        }
+      </div>
+    </dl>
+
+    @if (!isEditing()) {
+    <section class="tc-task-screen__section" aria-labelledby="tc-task-details">
+      <h2 class="tc-task-screen__h2" id="tc-task-details">{{ 'item.details' | transloco }}</h2>
+      @if (item.body) {
+      <p class="tc-task-screen__details" data-testid="task-details" dir="auto">{{ item.body }}</p>
+      } @else {
+      <p class="tc-task-screen__details tc-task-screen__details--none">{{ 'item.noDetails' | transloco }}</p>
+      }
+    </section>
+    }
+
+    <section class="tc-task-screen__section" aria-labelledby="tc-task-history">
+      <h2 class="tc-task-screen__h2" id="tc-task-history">{{ 'item.history' | transloco }}</h2>
+      <tc-task-history [history]="history()" [names]="names" />
+      @if (!isClosed()) {
+      <tc-item-comment
+        [slug]="slug()"
+        [number]="item.number"
+        [off]="off()"
+        (commented)="onCommented()"
+        (failed)="onFailed($event)"
+      />
+      }
+    </section>
+  </article>
+  } }
+</div>

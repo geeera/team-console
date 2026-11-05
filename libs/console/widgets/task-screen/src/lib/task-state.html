@@ -1,0 +1,54 @@
+@switch (state()) { @case ('loading') {
+<div class="tc-task-state__body" aria-busy="true">
+  <p class="tc-task-state__busy" role="status"><tc-spinner />{{ 'item.loading' | transloco }}</p>
+  <div class="tc-task-state__skeleton" aria-hidden="true">
+    <span class="tc-task-state__skel tc-task-state__skel--s"></span>
+    <span class="tc-task-state__skel tc-task-state__skel--h"></span>
+    <span class="tc-task-state__skel"></span>
+    <span class="tc-task-state__skel"></span>
+    <span class="tc-task-state__skel"></span>
+    <span class="tc-task-state__skel tc-task-state__skel--s"></span>
+  </div>
+</div>
+} @case ('not-found') {
+<div class="tc-task-state__body tc-task-state__block" data-testid="task-not-found">
+  <h1 class="tc-task-state__title" tabindex="-1" data-focus="task-title">
+    {{ 'item.notFound.title' | transloco: { key: key(), name: projectName() } }}
+  </h1>
+  <p class="tc-task-state__hint">{{ 'item.notFound.hint' | transloco }}</p>
+  <div class="tc-task-state__actions">
+    <a tc-button [routerLink]="['/p', slug(), 'board']">{{ 'item.notFound.board' | transloco }}</a>
+  </div>
+</div>
+} @case ('error') {
+<div class="tc-task-state__body tc-task-state__block" role="alert" data-testid="task-error">
+  <h1 class="tc-task-state__title tc-task-state__title--sm" tabindex="-1" data-focus="task-title">
+    {{ 'item.error.title' | transloco }}
+  </h1>
+  <p class="tc-task-state__hint">{{ 'item.error.hint' | transloco }}</p>
+  <div class="tc-task-state__actions">
+    <button tc-button type="button" (click)="retry.emit()">
+      <tc-icon name="refresh" size="sm" />{{ 'item.err.retry' | transloco }}
+    </button>
+  </div>
+</div>
+} @case ('offline') {
+<div class="tc-task-state__body tc-task-state__block" data-testid="task-offline">
+  <h1 class="tc-task-state__title tc-task-state__title--sm" tabindex="-1" data-focus="task-title">
+    {{ 'item.offlineNever.title' | transloco }}
+  </h1>
+  <p class="tc-task-state__hint">{{ 'item.offlineNever.hint' | transloco }}</p>
+  <div class="tc-task-state__actions">
+    <button tc-button type="button" (click)="retry.emit()">
+      <tc-icon name="refresh" size="sm" />{{ 'item.err.retry' | transloco }}
+    </button>
+  </div>
+</div>
+} @case ('forbidden') {
+<div class="tc-task-state__body tc-task-state__block" data-testid="task-forbidden">
+  <h1 class="tc-task-state__title tc-task-state__title--sm" tabindex="-1" data-focus="task-title">
+    {{ 'item.forbiddenRead.title' | transloco }}
+  </h1>
+  <p class="tc-task-state__hint">{{ 'item.forbiddenRead.hint' | transloco }}</p>
+</div>
+} }

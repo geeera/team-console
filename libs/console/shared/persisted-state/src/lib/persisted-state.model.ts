@@ -11,6 +11,19 @@ export interface ArtifactFilter {
   readonly q?: string;
 }
 
+/**
+ * An unsaved edit or an unsent comment on one task (#435), kept on the device so an Access re-login or an iOS
+ * eviction never loses it. `edit` holds the title and details as typed; `savedAt` is when it was last typed.
+ */
+export interface TaskDraft {
+  readonly edit?: { readonly title: string; readonly body: string; readonly baseVersion: number };
+  readonly comment?: string;
+  readonly savedAt: string;
+}
+
+/** At most this many tasks keep a draft per project; the oldest goes first. */
+export const TASK_DRAFTS_MAX = 20;
+
 export interface ProjectUiState {
   /** Relative to `/p/{slug}/`, e.g. `artifacts?type=decisions`; empty until the space was visited. */
   readonly lastPath: string;
@@ -19,6 +32,8 @@ export interface ProjectUiState {
   readonly chatDraft: string;
   readonly artifactFilter?: ArtifactFilter;
   readonly boardTab?: string;
+  /** Per item number (#435). */
+  readonly taskDrafts?: Readonly<Record<string, TaskDraft>>;
 }
 
 export interface PersistedStateV1 {
@@ -69,6 +84,25 @@ function isArtifactFilter(value: unknown): value is ArtifactFilter {
   );
 }
 
+function isTaskDraft(value: unknown): value is TaskDraft {
+  if (!isRecord(value) || typeof value['savedAt'] !== 'string') {
+    return false;
+  }
+  const edit = value['edit'];
+  const isEdit =
+    edit === undefined ||
+    (isRecord(edit) &&
+      typeof edit['title'] === 'string' &&
+      typeof edit['body'] === 'string' &&
+      typeof edit['baseVersion'] === 'number' &&
+      Number.isSafeInteger(edit['baseVersion']));
+  return isEdit && (value['comment'] === undefined || typeof value['comment'] === 'string');
+}
+
+function isTaskDrafts(value: unknown): value is Record<string, TaskDraft> {
+  return isRecord(value) && Object.values(value).every(isTaskDraft);
+}
+
 export function isProjectUiState(value: unknown): value is ProjectUiState {
   if (!isRecord(value)) {
     return false;
@@ -78,7 +112,8 @@ export function isProjectUiState(value: unknown): value is ProjectUiState {
     isScrollMap(value['scroll']) &&
     typeof value['chatDraft'] === 'string' &&
     (value['artifactFilter'] === undefined || isArtifactFilter(value['artifactFilter'])) &&
-    (value['boardTab'] === undefined || typeof value['boardTab'] === 'string')
+    (value['boardTab'] === undefined || typeof value['boardTab'] === 'string') &&
+    (value['taskDrafts'] === undefined || isTaskDrafts(value['taskDrafts']))
   );
 }
 

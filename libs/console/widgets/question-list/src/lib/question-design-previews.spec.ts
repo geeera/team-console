@@ -58,6 +58,7 @@ function item(number: number, overrides: Partial<NeedsYouItemDto> = {}): NeedsYo
     section: 'design',
     number,
     key: null,
+    askId: null,
     title: `Design ${number}`,
     url: `https://github.com/geeera/team-console/issues/${number}`,
     ask: null,

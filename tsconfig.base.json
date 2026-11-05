@@ -80,7 +80,11 @@
       "@console/features/sprint-controls": ["./libs/console/features/sprint-controls/src/index.ts"],
       "@console/features/request-change": ["./libs/console/features/request-change/src/index.ts"],
       "@console/entities/design": ["./libs/console/entities/design/src/index.ts"],
-      "@console/features/design-viewer": ["./libs/console/features/design-viewer/src/index.ts"]
+      "@console/features/design-viewer": ["./libs/console/features/design-viewer/src/index.ts"],
+      "@console/entities/item": ["./libs/console/entities/item/src/index.ts"],
+      "@console/features/edit-item": ["./libs/console/features/edit-item/src/index.ts"],
+      "@console/features/comment-item": ["./libs/console/features/comment-item/src/index.ts"],
+      "@console/widgets/task-screen": ["./libs/console/widgets/task-screen/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

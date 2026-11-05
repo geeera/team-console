@@ -154,6 +154,8 @@ describe('GET /api/v1/projects', () => {
         archivedAt: null,
         slots: { pm: 'missing', dev: 'missing', qa: 'missing' },
         snooze: { snoozed: false },
+        tracker: 'github',
+        keyPrefix: null,
       },
     ]);
 
@@ -163,6 +165,20 @@ describe('GET /api/v1/projects', () => {
     expect(all.map((project) => [project.slug, project.archivedAt])).toEqual([
       ['active', null],
       ['gone', '2026-09-30T12:00:00Z'],
+    ]);
+  });
+});
+
+describe('GET /api/v1/projects — tracker (#435)', () => {
+  it('says which projects moved to the console tracker and their key prefix', async () => {
+    await seedProject('on-github', 'geeera/on-github');
+    await seedProject('on-console', 'geeera/on-console');
+    // The columns only: `switchTracker` also seeds labels, which would keep `resetProjects` from deleting the row.
+    await env.DB.prepare("UPDATE projects SET tracker = 'console', key_prefix = 'OC' WHERE slug = 'on-console'").run();
+    const body = (await (await fetchApi('/api/v1/projects', localEnv())).json()) as ProjectDto[];
+    expect(body.map((project) => [project.slug, project.tracker, project.keyPrefix])).toEqual([
+      ['on-console', 'console', 'OC'],
+      ['on-github', 'github', null],
     ]);
   });
 });
