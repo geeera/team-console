@@ -170,11 +170,17 @@ export async function deliver(body: unknown, options: DeliverOptions = {}): Prom
 export async function seedProject(
   slug: string,
   repo: string,
-  options: { installationId?: number | null; archivedAt?: string; displayName?: string } = {},
+  options: {
+    installationId?: number | null;
+    archivedAt?: string;
+    displayName?: string;
+    /** `projects.repo_id` (#463); unset, as on a row the T-2 backfill has not reached. */
+    repoId?: number;
+  } = {},
 ): Promise<void> {
   await env.DB.prepare(
-    `INSERT INTO projects (slug, repo, display_name, installation_id, added_at, archived_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+    `INSERT INTO projects (slug, repo, display_name, installation_id, added_at, archived_at, repo_id)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
   )
     .bind(
       slug,
@@ -183,6 +189,7 @@ export async function seedProject(
       options.installationId === undefined ? TEST_INSTALLATION_ID : options.installationId,
       '2026-10-01T00:00:00Z',
       options.archivedAt ?? null,
+      options.repoId ?? null,
     )
     .run();
 }
@@ -201,6 +208,7 @@ export async function deliveryCount(): Promise<number> {
 
 export async function resetDatabase(): Promise<void> {
   await env.DB.batch([
+    env.DB.prepare('DELETE FROM pull_requests'),
     env.DB.prepare('DELETE FROM webhook_deliveries'),
     env.DB.prepare('DELETE FROM own_writes'),
     env.DB.prepare('DELETE FROM projects'),

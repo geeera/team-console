@@ -4,6 +4,7 @@ import {
   OwnWritesRepo,
   OwnerRequestsRepo,
   ProjectsRepo,
+  PullRequestsRepo,
   WebhookDeliveriesRepo,
   isSnoozedAt,
   type ProjectRow,
@@ -247,6 +248,32 @@ async function markRequestHandled(
 }
 
 /**
+ * `pull_requests` (#463, ADR 0006: the hooks Worker writes only `pull_requests`, `ci_state` and `cache_epoch`): a
+ * pull request delivery upserts its row — unless the row holds a later change or the delivery's repository id is not
+ * the project's — and a finished workflow run marks its head's CI stale. The delivery is signed, its text still
+ * untrusted: the adapter's parse keeps only validated fields and builds the URL itself.
+ */
+async function syncPullRequests(
+  db: D1Database,
+  slug: string,
+  event: string,
+  payload: JsonObject,
+  receivedAt: string,
+): Promise<void> {
+  const parsed = githubWebhooks.parse({ event, payload });
+  if (parsed === null) {
+    return;
+  }
+  const repositoryId = Number(parsed.repository.externalId);
+  const pulls = new PullRequestsRepo(db);
+  if ('pullRequest' in parsed) {
+    await pulls.upsert(slug, parsed.pullRequest, { repositoryId, syncedAt: receivedAt });
+  } else if (parsed.kind === 'ci.completed') {
+    await pulls.markCiStale(slug, parsed.sha, repositoryId);
+  }
+}
+
+/**
  * Steps 3–6 of the architect note: route to the project, bump its epoch, drop own writes, map to a push; then drop
  * it while the project is snoozed unless it is urgent and urgent ones are allowed (#221).
  */
@@ -271,6 +298,9 @@ async function handleRepositoryEvent(
   }
   if (bumpsEpoch(event, envelope, payload)) {
     await projects.bumpCacheEpoch(row.slug);
+  }
+  if (event === 'pull_request' || event === 'workflow_run') {
+    await syncPullRequests(db, row.slug, event, payload, new Date(nowMs).toISOString());
   }
   if (event === 'issue_comment') {
     const comment = commentOf(payload);
