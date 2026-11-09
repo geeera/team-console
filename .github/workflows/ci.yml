@@ -210,6 +210,9 @@ jobs:
         env:
           WRANGLER_SEND_METRICS: 'false'
         # `matrix.shard` is unset (empty string) for iphone-webkit, which runs unsharded.
+        # `shell: bash` because iphone-webkit's container (mcr.microsoft.com/playwright) defaults steps to
+        # `sh`, which has neither `pipefail` nor array syntax; the bare runner defaults to bash already.
+        shell: bash
         run: |
           set -euo pipefail
           args=(test --config apps/console-e2e/playwright.config.ts --project=${{ matrix.project }})
