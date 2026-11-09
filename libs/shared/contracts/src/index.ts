@@ -37,7 +37,7 @@ export { isRepoFullName, repoFullNameParts } from './lib/repo-name';
 export {
   ACCOUNT_PLANS,
   AUDIT_ACTOR_KINDS,
-  AUDIT_DETAILS_MAX_LENGTH,
+  AUDIT_DETAILS_MAX_BYTES,
   AUDIT_EVENT_KINDS,
   AUDIT_PAGE_MAX,
   IDENTITY_PROVIDERS,

@@ -1,6 +1,6 @@
 import { redact } from '@worker/core';
 import {
-  AUDIT_DETAILS_MAX_LENGTH,
+  AUDIT_DETAILS_MAX_BYTES,
   AUDIT_PAGE_MAX,
   type AuditActorKind,
   type AuditEventKind,
@@ -52,19 +52,47 @@ interface AuditEventRow {
 
 /** Thrown for details that stay over the column's bound after redaction: a caller bug, never truncated silently. */
 export class AuditDetailsTooLargeError extends Error {
-  constructor(length: number) {
-    super(`audit details are ${length} characters, more than ${AUDIT_DETAILS_MAX_LENGTH}`);
+  constructor(bytes: number) {
+    super(`audit details are ${bytes} bytes, more than ${AUDIT_DETAILS_MAX_BYTES}`);
     this.name = 'AuditDetailsTooLargeError';
   }
 }
 
 const COUNTRY = /^[A-Z]{2}$/;
+const REDACTED = '[redacted]';
+/**
+ * Keys whose values are credentials whatever they look like. `redact` only knows prefixed formats (`ghs_`, `sk-ant-`,
+ * JWTs, PEM), but invite tokens, session ids and enrolment codes are bare random strings, and an append-only row can
+ * never be cleaned later. Over-matching (`errorCode`) costs a display value, never a secret.
+ */
+const SECRET_KEY = /token|secret|password|passphrase|credential|cookie|session|code|key$/i;
+/** As deep as `redact` goes; deeper values are cut by it anyway. */
+const MAX_DEPTH = 6;
 
-/** The redacted, bounded JSON of `details`: a credential that slipped into it never lands in D1. */
+function withoutSecretKeys(value: unknown, depth: number): unknown {
+  if (value === null || typeof value !== 'object' || depth >= MAX_DEPTH) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => withoutSecretKeys(item, depth + 1));
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, field]) => [
+      key,
+      SECRET_KEY.test(key) ? REDACTED : withoutSecretKeys(field, depth + 1),
+    ]),
+  );
+}
+
+/**
+ * The redacted, bounded JSON of `details`: a credential that slipped into it, by key or by format, never lands in D1.
+ * The bound is UTF-8 bytes, as the column's CHECK counts them.
+ */
 export function auditDetailsJson(details: Readonly<Record<string, unknown>> | undefined): string {
-  const json = JSON.stringify(redact(details ?? {}));
-  if (json.length > AUDIT_DETAILS_MAX_LENGTH) {
-    throw new AuditDetailsTooLargeError(json.length);
+  const json = JSON.stringify(redact(withoutSecretKeys(details ?? {}, 0)));
+  const bytes = new TextEncoder().encode(json).length;
+  if (bytes > AUDIT_DETAILS_MAX_BYTES) {
+    throw new AuditDetailsTooLargeError(bytes);
   }
   return json;
 }

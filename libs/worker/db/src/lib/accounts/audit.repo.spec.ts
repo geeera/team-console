@@ -88,8 +88,42 @@ describe('AuditRepo', () => {
     expect(JSON.parse(stored ?? '{}')).toEqual({ note: 'token [redacted]', authorization: '[redacted]' });
   });
 
+  // Security review of #473: invite tokens, session ids and enrolment codes are bare random strings no value pattern
+  // recognises, so their keys decide.
+  it('redacts values under credential-like keys, at any depth, whatever they look like', () => {
+    const bare = 'q3Vb9_x-Lm2Pz7Rt0Yw4Kc8Hd1Fs6Gj5Nu3Ea9Bo2Ix'; // 43 base64url characters, no prefix
+    expect(bare).toHaveLength(43);
+
+    const stored = JSON.parse(
+      auditDetailsJson({
+        inviteToken: bare,
+        session: bare,
+        enrolmentCode: bare,
+        nested: { clientSecret: bare, apiKey: bare, list: [{ password: bare }] },
+        role: 'member',
+        keyId: 'k-1',
+      }),
+    ) as unknown;
+
+    expect(JSON.stringify(stored)).not.toContain(bare);
+    expect(stored).toEqual({
+      inviteToken: '[redacted]',
+      session: '[redacted]',
+      enrolmentCode: '[redacted]',
+      nested: { clientSecret: '[redacted]', apiKey: '[redacted]', list: [{ password: '[redacted]' }] },
+      role: 'member',
+      keyId: 'k-1',
+    });
+  });
+
   it('refuses details over the bound instead of cutting them', () => {
     expect(() => auditDetailsJson({ text: 'x'.repeat(5000) })).toThrow(AuditDetailsTooLargeError);
+  });
+
+  it('counts the bound in UTF-8 bytes, as the column does', () => {
+    // About 2,100 characters, about 4,200 bytes.
+    expect(() => auditDetailsJson({ text: 'é'.repeat(2100) })).toThrow(AuditDetailsTooLargeError);
+    expect(() => auditDetailsJson({ text: 'é'.repeat(2000) })).not.toThrow();
   });
 
   it('drops an ip country that is not two capital letters', async () => {

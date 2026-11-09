@@ -119,14 +119,19 @@ export class AccountsRepo {
       ]);
       return 'created';
     } catch (error: unknown) {
-      if (isConstraintError(error, 'UNIQUE constraint failed: accounts.slug')) {
+      // 0018's `accounts_slug_taken` trigger answers before the UNIQUE index (it also stops REPLACE).
+      if (isConstraintError(error, 'accounts.slug is taken')) {
         return 'slug-taken';
       }
       throw error;
     }
   }
 
-  /** Every account the user belongs to, read per request (memberships are never cached in a cookie, C9). */
+  /**
+   * Every account the user belongs to, read per request (memberships are never cached in a cookie, C9). Suspended
+   * accounts are included: a membership is still a membership, and "suspended: reads only, no jobs claimed" is the
+   * T-2 chokepoint's rule to apply with `AccountRecord.suspendedAt`, not something this list hides.
+   */
   async membershipsOf(userId: string): Promise<Membership[]> {
     const { results } = await this.db
       .prepare(

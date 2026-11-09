@@ -123,6 +123,16 @@ describe('AccountsRepo', () => {
   });
 });
 
+describe('AccountsRepo memberships of a suspended account', () => {
+  it('still lists them; read-only is the T-2 chokepoint’s rule', async () => {
+    const repo = new AccountsRepo(env.DB);
+    await env.DB.prepare('UPDATE accounts SET suspended_at = ?2 WHERE id = ?1').bind(ACME, T0).run();
+
+    await expect(repo.membershipsOf(ALICE)).resolves.toEqual([{ accountId: ACME, role: 'owner' }]);
+    expect((await repo.findById(ACME))?.suspendedAt).toBe(T0);
+  });
+});
+
 describe('UsersRepo', () => {
   const repo = new UsersRepo(env.DB);
 

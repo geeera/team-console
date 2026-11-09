@@ -77,8 +77,8 @@ export type AuditEventKind = (typeof AUDIT_EVENT_KINDS)[number];
 export const isAuditEventKind = (value: unknown): value is AuditEventKind =>
   (AUDIT_EVENT_KINDS as readonly unknown[]).includes(value);
 
-/** The serialized `details` of one audit row, after redaction; `audit_events` CHECKs the same bound. */
-export const AUDIT_DETAILS_MAX_LENGTH = 4096;
+/** UTF-8 bytes of one audit row's serialized `details`, after redaction; `audit_events` CHECKs the same bound. */
+export const AUDIT_DETAILS_MAX_BYTES = 4096;
 export const AUDIT_PAGE_MAX = 100;
 
 /** What an account may use (decision 6). Every limit check reads it through `entitlementsOf`, never the JSON. */
