@@ -1,4 +1,4 @@
-import { HttpClient, HttpErrorResponse, HttpResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders, HttpResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { isAccessSessionExpired } from '@console/shared/api';
 import {
@@ -36,6 +36,7 @@ export type AnswerFailureKind =
   | 'rate-limited'
   | 'session-expired'
   | 'offline'
+  | 'forbidden'
   | 'unknown';
 
 /**
@@ -70,6 +71,16 @@ const BY_PROBLEM: Readonly<Record<string, AnswerFailureKind>> = {
   'answer-not-allowed': 'not-allowed',
   'answer-needs-reason': 'needs-reason',
   'github-rate-limit': 'rate-limited',
+  // The console tracker's decisions route (#434, #443, #435).
+  'ask-not-open': 'not-waiting',
+  'ask-imported': 'not-waiting',
+  'item-changed': 'not-waiting',
+  'decision-command': 'not-allowed',
+  'decision-invalid': 'needs-reason',
+  'item-closed': 'issue-closed',
+  'item-not-found': 'issue-closed',
+  'idempotency-in-flight': 'in-progress',
+  'owner-only': 'forbidden',
 };
 
 const RECOVERY: Readonly<Record<AnswerFailureKind, AnswerRecovery>> = {
@@ -85,6 +96,8 @@ const RECOVERY: Readonly<Record<AnswerFailureKind, AnswerRecovery>> = {
   // Only a new login helps; the app root shows its sign-in instead of the card (#367).
   'session-expired': 'none',
   offline: 'retry',
+  // Not the owner: nothing changed, and a repeat would not change that.
+  forbidden: 'none',
   unknown: 'retry',
 };
 
@@ -151,6 +164,23 @@ export function answerRequestOf(command: AnswerCommand, ownerSaid: string, reaso
   return text === '' ? { command, ownerSaid } : { command, text, ownerSaid };
 }
 
+/** `POST /api/v1/projects/:slug/items/:number/decisions` (#434): the console tracker's owner decisions. */
+export function decisionUrl(slug: string, number: number): string {
+  return `/api/v1/projects/${encodeURIComponent(slug)}/items/${String(number)}/decisions`;
+}
+
+/** What a decision answers: the item's section and the open console ask it names (`null`: none is open). */
+export interface DecisionTarget {
+  readonly slug: string;
+  readonly number: number;
+  readonly section: AnswerResponse['section'];
+  readonly askId: number | null;
+}
+
+function isDecisionResponse(value: unknown): value is { id: number; command: string } {
+  return isRecord(value) && typeof value['id'] === 'number' && isAnswerCommand(value['command']);
+}
+
 /** `POST /api/v1/projects/:slug/issues/:number/answer` (#10). Never throws: every outcome is an `AnswerResult`. */
 @Injectable({ providedIn: 'root' })
 export class AnswerClient {
@@ -172,6 +202,49 @@ export class AnswerClient {
     }
     const replayed = body.replayed || response.headers.get('Idempotent-Replayed') === 'true';
     return { ok: true, response: { ...body, replayed } };
+  }
+
+  /**
+   * A decision on a console-tracker item (#435): `{command, text, askId, via: 'web'}` with the caller's
+   * `Idempotency-Key`, which a repeat sends again so the decision is recorded once (24 h on the server). The answer
+   * reads like a GitHub answer to the card (`commentId` is the decision's id, no GitHub `url`).
+   */
+  async decide(
+    target: DecisionTarget,
+    request: AnswerRequest,
+    idempotencyKey: string,
+  ): Promise<AnswerResult> {
+    const body = {
+      command: request.command,
+      text: request.text ?? '',
+      askId: target.askId,
+      reversesCommentId: null,
+      via: 'web',
+    };
+    let response: HttpResponse<unknown>;
+    try {
+      response = await firstValueFrom(
+        this.http.post<unknown>(decisionUrl(target.slug, target.number), body, {
+          observe: 'response',
+          headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+        }),
+      );
+    } catch (error: unknown) {
+      return { ok: false, failure: answerFailureOf(error) };
+    }
+    if (!isDecisionResponse(response.body)) {
+      return { ok: false, failure: answerFailureOf(null) };
+    }
+    return {
+      ok: true,
+      response: {
+        commentId: response.body.id,
+        url: '',
+        section: target.section,
+        command: request.command,
+        replayed: response.status === 200 || response.headers.get('Idempotent-Replayed') === 'true',
+      },
+    };
   }
 
   /**

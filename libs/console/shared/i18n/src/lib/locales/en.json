@@ -211,7 +211,9 @@
       "none": "The team attached no screens to this design. Ask the PM to add them, or open the PR on GitHub.",
       "failed": "Couldn't load the screens."
     },
-    "opensGitHub": "(opens in a new tab)"
+    "opensGitHub": "(opens in a new tab)",
+    "openTask": "Open task {{key}}",
+    "openTaskHistory": "The task’s history"
   },
   "answer": {
     "command": {
@@ -287,7 +289,9 @@
       "offline": "No connection",
       "offlineHint": "The answer may not have arrived. Retry — it won't be posted twice.",
       "unknown": "The answer was not posted",
-      "unknownHint": "The console or GitHub didn't respond. Retry — it won't be posted twice."
+      "unknownHint": "The console or GitHub didn't respond. Retry — it won't be posted twice.",
+      "forbidden": "Only the owner decides",
+      "forbiddenHint": "This session isn’t signed in as the owner. Nothing changed."
     }
   },
   "board": {
@@ -600,7 +604,8 @@
         "message": "It wasn’t found in this project. Refresh the task."
       },
       "retry": "Try again"
-    }
+    },
+    "decisionMeta": "{{key}} · {{time}} · the team reads it on its next run"
   },
   "artifacts": {
     "title": "Artifacts",
