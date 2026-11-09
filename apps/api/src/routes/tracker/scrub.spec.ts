@@ -35,7 +35,7 @@ async function leakedItem(project: SeededProject): Promise<string> {
   return path;
 }
 
-async function eventsOf(path: string): Promise<ItemEventDto[]> {
+async function eventsOf(path: string): Promise<readonly ItemEventDto[]> {
   return ((await (await send('GET', `${path}/events`)).json()) as ItemEventListDto).events;
 }
 

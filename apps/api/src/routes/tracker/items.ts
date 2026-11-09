@@ -231,6 +231,7 @@ export function createTrackerItemRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
                 },
                 changesText: true,
                 changesPlanning: true,
+                changesUnclassified: false,
               },
               null,
             );
