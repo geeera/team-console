@@ -56,6 +56,25 @@ export { INBOX_ROW_CAP, InboxRepo } from './lib/tracker/inbox.repo';
 export type { InboxRowRecord, InboxRows } from './lib/tracker/inbox.repo';
 export { ItemEventsRepo } from './lib/tracker/item-events.repo';
 export type { ItemEventRecord, NewItemEvent, TrackerActor } from './lib/tracker/item-events.repo';
+export { AccountsRepo } from './lib/accounts/accounts.repo';
+export type {
+  AccountRecord,
+  CreateAccountResult,
+  MemberRecord,
+  Membership,
+  NewAccount,
+} from './lib/accounts/accounts.repo';
+export { UsersRepo } from './lib/accounts/users.repo';
+export type { UserRecord } from './lib/accounts/users.repo';
+export { InstallationsRepo } from './lib/accounts/installations.repo';
+export type { InstallationRecord } from './lib/accounts/installations.repo';
+export {
+  AuditDetailsTooLargeError,
+  AuditRepo,
+  auditDetailsJson,
+  auditEventStatement,
+} from './lib/accounts/audit.repo';
+export type { AuditEventRecord, AuditPage, NewAuditEvent } from './lib/accounts/audit.repo';
 export { IdempotencyKeysRepo } from './lib/tracker/idempotency-keys.repo';
 export type {
   IdempotencyClaim,
