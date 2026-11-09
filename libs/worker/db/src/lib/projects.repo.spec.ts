@@ -101,9 +101,10 @@ describe('ProjectsRepo', () => {
   it('enforces the unique repository constraint from the migration', async () => {
     await seed({ slug: 'a', repo: 'acme/dup', displayName: 'A', addedAt: '2026-09-01T00:00:00Z' });
 
+    // 0018's `projects_never_replaced` refuses the duplicate before the UNIQUE index does.
     await expect(
       seed({ slug: 'b', repo: 'acme/dup', displayName: 'B', addedAt: '2026-09-01T00:00:00Z' }),
-    ).rejects.toThrow(/UNIQUE/);
+    ).rejects.toThrow(/projects are never replaced/);
   });
 });
 
