@@ -15,7 +15,9 @@ Claude credential held by the runner, cross-job isolation). Phase 0 of #309
 views); [ADR 0003](0003-console-github-app.md) becomes the GitHub implementation of the VCS adapter (decision 7
 below); [ADR 0005](0005-owner-requests-to-the-pm.md) is superseded at cutover (decision 4). Number 0004 stays
 reserved by ADR 0003; #386 takes 0007. The threat model is #408 (`docs/security/309-threat-model.md`, linked from
-"Threat model" below); the UX spec is #409.
+"Threat model" below); the UX spec is #409. Amended by [ADR 0008](0008-multi-tenant-console.md) (2026-11-09):
+accounts as the tenant, sign-in beyond Access, two execution modes (self-hosted runner, hosted BYOK) — decisions 1,
+6, 8, 10 and 11 and "Runner and job queue" below are read with it; the owner's Mac is no longer a special path.
 
 ## Context
 
