@@ -5,6 +5,7 @@ import { CommentsRepo } from '@worker/db';
 import { commentKindRefusal } from '../../auth/policy';
 import { trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
+import { bodySecretRefusal } from '../../tracker/body-secret';
 import { invalid, itemOf, trackerProjectOf } from '../../tracker/context';
 import { commentDtoOf } from '../../tracker/dto';
 import { TEXT_WRITE_MAX_BYTES, nextCursor, pageOf, writeLimit } from '../../tracker/http';
@@ -70,6 +71,10 @@ export function createTrackerCommentRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
           const input = checkCreateCommentInput(write.body);
           if (!input.ok) {
             return invalid(c, 'comment-invalid', input.field, input.detail);
+          }
+          const secret = bodySecretRefusal(c, policyActor, { body: input.value.body });
+          if (secret !== null) {
+            return secret;
           }
           const refusal = commentKindRefusal(policyActor, input.value.kind);
           if (refusal !== null) {

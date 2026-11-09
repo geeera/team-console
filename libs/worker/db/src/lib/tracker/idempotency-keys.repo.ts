@@ -1,5 +1,14 @@
 /** What a tracker write created or changed, so a replay can answer it again. */
-export type IdempotentResultKind = 'item' | 'sprint' | 'comment' | 'label' | 'ask' | 'decision' | 'request';
+export type IdempotentResultKind =
+  | 'item'
+  | 'sprint'
+  | 'comment'
+  | 'label'
+  | 'ask'
+  | 'decision'
+  | 'request'
+  /** #462: an item event (the owner's scrub). */
+  | 'event';
 
 export type IdempotencyClaim =
   /** This request owns the key: write, and complete the key in the write's own batch. */
@@ -18,14 +27,15 @@ export type IdempotencyClaim =
 
 /**
  * The resource a completed key points at: a value known before the batch, or the row the batch inserted on the item
- * (the newest comment, ask, decision or request of that item id; the batch is one transaction).
+ * (the newest comment, ask, decision, request or event of that item id; the batch is one transaction).
  */
 export type IdempotencyRef =
   | { readonly value: string }
   | { readonly newestCommentOf: number }
   | { readonly newestAskOf: number }
   | { readonly newestDecisionOf: number }
-  | { readonly newestRequestOf: number };
+  | { readonly newestRequestOf: number }
+  | { readonly newestEventOf: number };
 
 /** Fixed table names per ref, so no caller value ever names a table. */
 function refSql(ref: IdempotencyRef): { readonly sql: string; readonly value: string | number } {
@@ -37,6 +47,7 @@ function refSql(ref: IdempotencyRef): { readonly sql: string; readonly value: st
   if ('newestCommentOf' in ref) return newest('comments', ref.newestCommentOf);
   if ('newestAskOf' in ref) return newest('asks', ref.newestAskOf);
   if ('newestDecisionOf' in ref) return newest('owner_decisions', ref.newestDecisionOf);
+  if ('newestEventOf' in ref) return newest('item_events', ref.newestEventOf);
   return newest('item_requests', ref.newestRequestOf);
 }
 

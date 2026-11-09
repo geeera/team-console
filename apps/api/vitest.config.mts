@@ -85,7 +85,11 @@ export default defineConfig(async () => {
           // Empty D1s that migrations.spec.ts migrates step by step (#434: the 0014 rebuild of
           // idempotency_keys keeps the rows of the previous deploy); one per step test, since a step cannot be undone
           // (#452: the 0016 approval backfill).
-          d1Databases: { MIGRATION_DB: 'migration-steps', MIGRATION_DB_0016: 'migration-steps-0016' },
+          d1Databases: {
+            MIGRATION_DB: 'migration-steps',
+            MIGRATION_DB_0016: 'migration-steps-0016',
+            MIGRATION_DB_0019: 'migration-steps-0019',
+          },
           bindings: {
             TEST_MIGRATIONS: await readD1Migrations(resolve(import.meta.dirname, 'migrations')),
             // The auth placeholder fails closed; route specs run with the local bypass the way `nx serve api`

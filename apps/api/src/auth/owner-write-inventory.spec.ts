@@ -77,6 +77,7 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   // matrix); asks and the PM's answer are job writes.
   'POST /api/v1/projects/:slug/items/:key/decisions': 'tracker-matrix',
   'POST /api/v1/projects/:slug/items/:key/requests': 'tracker-matrix',
+  'POST /api/v1/projects/:slug/items/:key/events/scrub': 'tracker-matrix',
   'POST /api/v1/projects/:slug/items/:key/asks': 'job-only',
   'POST /api/v1/projects/:slug/requests/:id/handled': 'job-only',
   'POST /api/v1/projects': 'no-owner-write',

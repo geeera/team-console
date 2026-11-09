@@ -227,4 +227,6 @@ export type TrackerProblemType =
   | 'item-changed'
   // #444: the route matrix and the comment kinds.
   | 'sprint-role'
-  | 'comment-kind';
+  | 'comment-kind'
+  // #462: a job's text carries a secret shape (`@shared/redaction`).
+  | 'body-secret';

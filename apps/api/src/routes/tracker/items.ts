@@ -33,8 +33,10 @@ import {
   trackerProjectOf,
   transitionProblem,
 } from '../../tracker/context';
+import { bodySecretRefusal } from '../../tracker/body-secret';
 import { itemDtoOf, itemEventDtoOf, itemSummaryDtoOf } from '../../tracker/dto';
 import {
+  SMALL_WRITE_MAX_BYTES,
   TEXT_WRITE_MAX_BYTES,
   etagOf,
   expectedVersionOf,
@@ -166,222 +168,283 @@ export function createTrackerItemRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
     read: trackerAccess('GET /api/v1/projects/:slug/items/:key'),
     change: trackerAccess('PATCH /api/v1/projects/:slug/items/:key'),
     events: trackerAccess('GET /api/v1/projects/:slug/items/:key/events'),
+    scrub: trackerAccess('POST /api/v1/projects/:slug/items/:key/events/scrub'),
   };
 
-  return new Hono<WorkerHonoEnv<ApiEnv>>()
-    .get('/:slug/items', guard.list, async (c) => {
-      const project = await trackerProjectOf(c);
-      if (project instanceof Response) {
-        return project;
-      }
-      const filter = filterOf(c);
-      const page = pageOf(c);
-      if (filter instanceof Response) {
-        return filter;
-      }
-      if (page instanceof Response) {
-        return page;
-      }
-      const result = await new ItemsRepo(c.env.DB).list(project.slug, filter, page.after, page.limit);
-      const body: ItemListDto = {
-        items: result.items.map((item) => itemSummaryDtoOf(keyPrefixOf(project), item)),
-        next: result.next,
-      };
-      c.header('Cache-Control', 'no-store');
-      return c.json(body);
-    })
+  return (
+    new Hono<WorkerHonoEnv<ApiEnv>>()
+      .get('/:slug/items', guard.list, async (c) => {
+        const project = await trackerProjectOf(c);
+        if (project instanceof Response) {
+          return project;
+        }
+        const filter = filterOf(c);
+        const page = pageOf(c);
+        if (filter instanceof Response) {
+          return filter;
+        }
+        if (page instanceof Response) {
+          return page;
+        }
+        const result = await new ItemsRepo(c.env.DB).list(project.slug, filter, page.after, page.limit);
+        const body: ItemListDto = {
+          items: result.items.map((item) => itemSummaryDtoOf(keyPrefixOf(project), item)),
+          next: result.next,
+        };
+        c.header('Cache-Control', 'no-store');
+        return c.json(body);
+      })
 
-    .post('/:slug/items', guard.create, writeLimit(TEXT_WRITE_MAX_BYTES), async (c) => {
-      const context = await trackerWriteContextOf(c);
-      if (context instanceof Response) {
-        return context;
-      }
-      const { project, actor, write } = context;
-      return idempotent(
-        c,
-        write,
-        (ref, status) => itemResponse(c, project, Number(ref), status === 201 ? 201 : 200),
-        async (complete) => {
-          const input = checkCreateItemInput(write.body);
-          if (!input.ok) {
-            return invalid(c, 'item-invalid', input.field, input.detail);
-          }
-          const { value } = input;
-          const sprint = await sprintOf(c, project, value.sprint);
-          if (sprint instanceof Response) {
-            return sprint;
-          }
-          const labels = await unknownLabels(c, project, 'labels', value.labels);
-          if (labels !== null) {
-            return labels;
-          }
-          const denied = judge(
-            c,
-            {
-              before: null,
-              after: {
-                status: value.status,
-                flags: [...value.labels],
-                closed: false,
-                approved: isWorkableStatus(value.status),
+      .post('/:slug/items', guard.create, writeLimit(TEXT_WRITE_MAX_BYTES), async (c) => {
+        const context = await trackerWriteContextOf(c);
+        if (context instanceof Response) {
+          return context;
+        }
+        const { project, actor, policyActor, write } = context;
+        return idempotent(
+          c,
+          write,
+          (ref, status) => itemResponse(c, project, Number(ref), status === 201 ? 201 : 200),
+          async (complete) => {
+            const input = checkCreateItemInput(write.body);
+            if (!input.ok) {
+              return invalid(c, 'item-invalid', input.field, input.detail);
+            }
+            const { value } = input;
+            const secret = bodySecretRefusal(c, policyActor, { title: value.title, body: value.body });
+            if (secret !== null) {
+              return secret;
+            }
+            const sprint = await sprintOf(c, project, value.sprint);
+            if (sprint instanceof Response) {
+              return sprint;
+            }
+            const labels = await unknownLabels(c, project, 'labels', value.labels);
+            if (labels !== null) {
+              return labels;
+            }
+            const denied = judge(
+              c,
+              {
+                before: null,
+                after: {
+                  status: value.status,
+                  flags: [...value.labels],
+                  closed: false,
+                  approved: isWorkableStatus(value.status),
+                },
+                changesText: true,
+                changesPlanning: true,
               },
-              changesText: true,
-              changesPlanning: true,
-            },
-            null,
-          );
-          if (denied !== null) {
-            return denied;
-          }
-          const number = await new TrackerProjectsRepo(c.env.DB).allocateItemNumber(project.slug);
-          if (number === null) {
-            // The project went back to GitHub Issues (or was archived) between the gate and here.
-            return trackerNotCutOver(c);
-          }
-          const at = new Date().toISOString();
-          await new ItemsRepo(c.env.DB).create(
-            project.slug,
-            {
-              number,
-              kind: value.kind,
-              status: value.status,
-              severity: value.severity,
-              tier: value.tier,
-              sprint,
-              title: withoutInvisibles(value.title),
-              body: value.body,
-              flags: value.labels,
-            },
-            actor,
-            at,
-            [complete(201, 'item', { value: String(number) })],
-          );
-          c.get('logger').info('tracker item created', { slug: project.slug, number });
-          return itemResponse(c, project, number, 201);
-        },
-      );
-    })
-
-    .get('/:slug/items/:key', guard.read, async (c) => {
-      const project = await trackerProjectOf(c);
-      if (project instanceof Response) {
-        return project;
-      }
-      const item = await itemOf(c, project);
-      if (item instanceof Response) {
-        return item;
-      }
-      c.header('ETag', etagOf(item.version));
-      c.header('Cache-Control', 'no-store');
-      return c.json(itemDtoOf(keyPrefixOf(project), item));
-    })
-
-    .patch('/:slug/items/:key', guard.change, writeLimit(TEXT_WRITE_MAX_BYTES), async (c) => {
-      const context = await trackerWriteContextOf(c);
-      if (context instanceof Response) {
-        return context;
-      }
-      // Checked before the key is claimed; the key's request hash covers If-Match too.
-      const expectedVersion = expectedVersionOf(c);
-      if (expectedVersion === null) {
-        return problem(c, {
-          type: 'item-version-required',
-          title: 'If-Match required',
-          status: 428,
-          detail: 'Send the item version you changed as If-Match: "<version>" (the ETag of the item)',
-        });
-      }
-      const { project, actor, write } = context;
-      return idempotent(
-        c,
-        write,
-        (ref) => itemResponse(c, project, Number(ref), 200),
-        async (complete) => {
-          const item = await itemOf(c, project);
-          if (item instanceof Response) {
-            return item;
-          }
-          const stale = (): Response =>
-            problem(c, {
-              type: 'item-version',
-              title: 'The item changed since it was read',
-              status: 412,
-              detail: 'Read the item again and apply the change to its current version',
-            });
-          if (item.version !== expectedVersion) {
-            return stale();
-          }
-          const input = checkUpdateItemInput(write.body);
-          if (!input.ok) {
-            return invalid(c, 'item-invalid', input.field, input.detail);
-          }
-          const { value } = input;
-          const sprint = value.sprint === undefined ? undefined : await sprintOf(c, project, value.sprint);
-          if (sprint instanceof Response) {
-            return sprint;
-          }
-          const labels = await unknownLabels(c, project, 'addLabels', value.addLabels ?? []);
-          if (labels !== null) {
-            return labels;
-          }
-          const at = new Date().toISOString();
-          const outcome = planItemUpdate(item, value, sprint, at);
-          if (outcome.kind === 'invalid') {
-            return invalid(c, 'item-invalid', outcome.field, outcome.detail);
-          }
-          const done = complete(200, 'item', { value: String(item.number) });
-          if (outcome.kind === 'unchanged') {
-            await done.run();
-            return itemResponse(c, project, item.number, 200);
-          }
-          const denied = judge(c, outcome.plan.transition, item.number);
-          if (denied !== null) {
-            return denied;
-          }
-          const { patch, flags, events } = outcome.plan;
-          if (
-            !(await new ItemsRepo(c.env.DB).update(
-              item.id,
-              expectedVersion,
-              patch,
-              flags,
+              null,
+            );
+            if (denied !== null) {
+              return denied;
+            }
+            const number = await new TrackerProjectsRepo(c.env.DB).allocateItemNumber(project.slug);
+            if (number === null) {
+              // The project went back to GitHub Issues (or was archived) between the gate and here.
+              return trackerNotCutOver(c);
+            }
+            const at = new Date().toISOString();
+            await new ItemsRepo(c.env.DB).create(
+              project.slug,
+              {
+                number,
+                kind: value.kind,
+                status: value.status,
+                severity: value.severity,
+                tier: value.tier,
+                sprint,
+                title: withoutInvisibles(value.title),
+                body: value.body,
+                flags: value.labels,
+              },
               actor,
-              events,
               at,
-              [done],
-            ))
-          ) {
-            return stale();
-          }
-          c.get('logger').info('tracker item changed', {
-            slug: project.slug,
-            number: item.number,
-            kinds: events.map((event) => event.kind).join(','),
-          });
-          return itemResponse(c, project, item.number, 200);
-        },
-      );
-    })
+              [complete(201, 'item', { value: String(number) })],
+            );
+            c.get('logger').info('tracker item created', { slug: project.slug, number });
+            return itemResponse(c, project, number, 201);
+          },
+        );
+      })
 
-    .get('/:slug/items/:key/events', guard.events, async (c) => {
-      const project = await trackerProjectOf(c);
-      if (project instanceof Response) {
-        return project;
-      }
-      const item = await itemOf(c, project);
-      if (item instanceof Response) {
-        return item;
-      }
-      const page = pageOf(c);
-      if (page instanceof Response) {
-        return page;
-      }
-      const rows = await new ItemEventsRepo(c.env.DB).list(item.id, page.after, page.limit + 1);
-      const body: ItemEventListDto = {
-        events: rows.slice(0, page.limit).map(itemEventDtoOf),
-        next: nextCursor(rows, page.limit),
-      };
-      c.header('Cache-Control', 'no-store');
-      return c.json(body);
-    });
+      .get('/:slug/items/:key', guard.read, async (c) => {
+        const project = await trackerProjectOf(c);
+        if (project instanceof Response) {
+          return project;
+        }
+        const item = await itemOf(c, project);
+        if (item instanceof Response) {
+          return item;
+        }
+        c.header('ETag', etagOf(item.version));
+        c.header('Cache-Control', 'no-store');
+        return c.json(itemDtoOf(keyPrefixOf(project), item));
+      })
+
+      .patch('/:slug/items/:key', guard.change, writeLimit(TEXT_WRITE_MAX_BYTES), async (c) => {
+        const context = await trackerWriteContextOf(c);
+        if (context instanceof Response) {
+          return context;
+        }
+        // Checked before the key is claimed; the key's request hash covers If-Match too.
+        const expectedVersion = expectedVersionOf(c);
+        if (expectedVersion === null) {
+          return problem(c, {
+            type: 'item-version-required',
+            title: 'If-Match required',
+            status: 428,
+            detail: 'Send the item version you changed as If-Match: "<version>" (the ETag of the item)',
+          });
+        }
+        const { project, actor, policyActor, write } = context;
+        return idempotent(
+          c,
+          write,
+          (ref) => itemResponse(c, project, Number(ref), 200),
+          async (complete) => {
+            const item = await itemOf(c, project);
+            if (item instanceof Response) {
+              return item;
+            }
+            const stale = (): Response =>
+              problem(c, {
+                type: 'item-version',
+                title: 'The item changed since it was read',
+                status: 412,
+                detail: 'Read the item again and apply the change to its current version',
+              });
+            if (item.version !== expectedVersion) {
+              return stale();
+            }
+            const input = checkUpdateItemInput(write.body);
+            if (!input.ok) {
+              return invalid(c, 'item-invalid', input.field, input.detail);
+            }
+            const { value } = input;
+            const secret = bodySecretRefusal(c, policyActor, { title: value.title, body: value.body });
+            if (secret !== null) {
+              return secret;
+            }
+            const sprint = value.sprint === undefined ? undefined : await sprintOf(c, project, value.sprint);
+            if (sprint instanceof Response) {
+              return sprint;
+            }
+            const labels = await unknownLabels(c, project, 'addLabels', value.addLabels ?? []);
+            if (labels !== null) {
+              return labels;
+            }
+            const at = new Date().toISOString();
+            const outcome = planItemUpdate(item, value, sprint, at);
+            if (outcome.kind === 'invalid') {
+              return invalid(c, 'item-invalid', outcome.field, outcome.detail);
+            }
+            const done = complete(200, 'item', { value: String(item.number) });
+            if (outcome.kind === 'unchanged') {
+              await done.run();
+              return itemResponse(c, project, item.number, 200);
+            }
+            const denied = judge(c, outcome.plan.transition, item.number);
+            if (denied !== null) {
+              return denied;
+            }
+            const { patch, flags, events } = outcome.plan;
+            if (
+              !(await new ItemsRepo(c.env.DB).update(
+                item.id,
+                expectedVersion,
+                patch,
+                flags,
+                actor,
+                events,
+                at,
+                [done],
+              ))
+            ) {
+              return stale();
+            }
+            c.get('logger').info('tracker item changed', {
+              slug: project.slug,
+              number: item.number,
+              kinds: events.map((event) => event.kind).join(','),
+            });
+            return itemResponse(c, project, item.number, 200);
+          },
+        );
+      })
+
+      .get('/:slug/items/:key/events', guard.events, async (c) => {
+        const project = await trackerProjectOf(c);
+        if (project instanceof Response) {
+          return project;
+        }
+        const item = await itemOf(c, project);
+        if (item instanceof Response) {
+          return item;
+        }
+        const page = pageOf(c);
+        if (page instanceof Response) {
+          return page;
+        }
+        const rows = await new ItemEventsRepo(c.env.DB).list(item.id, page.after, page.limit + 1);
+        const body: ItemEventListDto = {
+          events: rows.slice(0, page.limit).map(itemEventDtoOf),
+          next: nextCursor(rows, page.limit),
+        };
+        c.header('Cache-Control', 'no-store');
+        return c.json(body);
+      })
+
+      // #462 (ADR 0008 row 2-0): incident response for a secret that reached an item's title or body. The owner corrects
+      // the item, then masks the old text its created/edited events keep; the scrub records itself as a `scrubbed` event.
+      .post('/:slug/items/:key/events/scrub', guard.scrub, writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
+        const context = await trackerWriteContextOf(c);
+        if (context instanceof Response) {
+          return context;
+        }
+        const { project, actor, write } = context;
+        const item = await itemOf(c, project);
+        if (item instanceof Response) {
+          return item;
+        }
+        const events = new ItemEventsRepo(c.env.DB);
+        const respond = async (id: number, status: 200 | 201): Promise<Response> => {
+          const event = await events.find(item.id, id);
+          if (event === null) {
+            return problem(c, { type: 'item-not-found', title: 'Item event not found', status: 404 });
+          }
+          c.header('Cache-Control', 'no-store');
+          return c.json(itemEventDtoOf(event), status);
+        };
+        return idempotent(
+          c,
+          write,
+          (ref, status) => respond(Number(ref), status === 201 ? 201 : 200),
+          async (complete) => {
+            if (!isEmptyBody(write.body)) {
+              return invalid(c, 'item-invalid', 'body', 'A scrub takes no members; send {} or no body');
+            }
+            const scrub = await events.scrub(item.id, actor, new Date().toISOString(), [
+              complete(201, 'event', { newestEventOf: item.id }),
+            ]);
+            c.get('logger').info('tracker item events scrubbed', {
+              slug: project.slug,
+              number: item.number,
+              events: scrub.masked,
+            });
+            return respond(scrub.eventId, 201);
+          },
+        );
+      })
+  );
+}
+
+/** No body, or an empty JSON object. */
+function isEmptyBody(body: unknown): boolean {
+  return (
+    body === undefined ||
+    (typeof body === 'object' && body !== null && !Array.isArray(body) && Object.keys(body).length === 0)
+  );
 }
