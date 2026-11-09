@@ -19,8 +19,13 @@
   border-bottom: 0;
 }
 
-.space__commands {
+.space__commands,
+.space__find {
   margin-left: auto;
+}
+
+.space__find + .space__commands {
+  margin-left: 0;
 }
 
 .space__banner {

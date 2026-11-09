@@ -174,7 +174,9 @@ import { map } from 'rxjs';
                 </span>
               </div>
             }
-            <p class="artifacts__designs-status" role="status">{{ 'artifacts.designs.loading' | transloco }}</p>
+            <p class="artifacts__designs-status" role="status">
+              {{ 'artifacts.designs.loading' | transloco }}
+            </p>
           </div>
         } @else {
           <tc-state-block
