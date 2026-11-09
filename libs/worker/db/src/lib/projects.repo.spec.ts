@@ -1,5 +1,9 @@
 import { env } from 'cloudflare:test';
+import { OWNER_ACCOUNT_ID } from '@shared/contracts';
 import { ProjectsRepo, isSnoozedAt, snoozeOf, toProjectDto, type ProjectRow } from './projects.repo';
+
+const OTHER_ACCOUNT = '01M6YSNJ00000000000000PR02';
+const OWNER_SCOPE = [OWNER_ACCOUNT_ID];
 
 interface Seed {
   slug: string;
@@ -7,21 +11,40 @@ interface Seed {
   displayName: string;
   addedAt: string;
   archivedAt?: string;
+  accountId?: string;
+  repoId?: number;
 }
 
 async function seed(project: Seed): Promise<void> {
   await env.DB.prepare(
-    'INSERT INTO projects (slug, repo, display_name, added_at, archived_at) VALUES (?1, ?2, ?3, ?4, ?5)',
+    `INSERT INTO projects (slug, repo, display_name, added_at, archived_at, account_id, repo_id)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
   )
-    .bind(project.slug, project.repo, project.displayName, project.addedAt, project.archivedAt ?? null)
+    .bind(
+      project.slug,
+      project.repo,
+      project.displayName,
+      project.addedAt,
+      project.archivedAt ?? null,
+      project.accountId ?? OWNER_ACCOUNT_ID,
+      project.repoId ?? null,
+    )
     .run();
 }
+
+beforeAll(async () => {
+  await env.DB.prepare(
+    `INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'other-pr', 'Other', '2026-11-01T00:00:00Z')`,
+  )
+    .bind(OTHER_ACCOUNT)
+    .run();
+});
 
 describe('ProjectsRepo', () => {
   const repo = new ProjectsRepo(env.DB);
 
   it('lists nothing on a fresh database', async () => {
-    await expect(repo.listActive()).resolves.toEqual([]);
+    await expect(repo.listActive(OWNER_SCOPE)).resolves.toEqual([]);
   });
 
   it('lists active projects in registration order and skips archived ones', async () => {
@@ -35,12 +58,19 @@ describe('ProjectsRepo', () => {
       archivedAt: '2026-09-10T00:00:00Z',
     });
 
-    const rows = await repo.listActive();
+    const rows = await repo.listActive(OWNER_SCOPE);
 
     expect(rows.map((row) => row.slug)).toEqual(['first', 'later']);
     expect(rows[0]).toEqual({
       slug: 'first',
       repo: 'acme/first',
+      account_id: OWNER_ACCOUNT_ID,
+      repo_id: null,
+      provider: 'github',
+      tracker: 'github',
+      key_prefix: null,
+      next_item_number: 1,
+      cutover_at: null,
       display_name: 'First',
       routine_id: null,
       cache_epoch: 0,
@@ -51,6 +81,49 @@ describe('ProjectsRepo', () => {
       snoozed_until: null,
       snooze_allows_urgent: 1,
     });
+  });
+
+  // ADR 0008 decision 2: a list is the scope's; an empty scope lists nothing rather than everything.
+  it('lists only the projects of the accounts in scope', async () => {
+    await seed({
+      slug: 'theirs',
+      repo: 'acme/theirs',
+      displayName: 'Theirs',
+      addedAt: '2026-09-03T00:00:00Z',
+      accountId: OTHER_ACCOUNT,
+    });
+
+    expect((await repo.listActive(OWNER_SCOPE)).map((row) => row.slug)).not.toContain('theirs');
+    expect((await repo.listActive([OTHER_ACCOUNT])).map((row) => row.slug)).toEqual(['theirs']);
+    expect((await repo.listActive([OWNER_ACCOUNT_ID, OTHER_ACCOUNT])).map((row) => row.slug)).toContain(
+      'theirs',
+    );
+    await expect(repo.listActive([])).resolves.toEqual([]);
+    await expect(repo.listAll([])).resolves.toEqual([]);
+    expect((await repo.listAll([OTHER_ACCOUNT])).map((row) => row.slug)).toEqual(['theirs']);
+  });
+
+  it('finds an active project by the provider repository id and records it once', async () => {
+    await seed({
+      slug: 'by-id',
+      repo: 'acme/by-id',
+      displayName: 'By id',
+      addedAt: '2026-09-01T00:00:00Z',
+      repoId: 990001,
+    });
+    await seed({ slug: 'no-id', repo: 'acme/no-id', displayName: 'No id', addedAt: '2026-09-01T00:00:00Z' });
+
+    await expect(repo.findActiveByRepoId('github', 990001)).resolves.toMatchObject({ slug: 'by-id' });
+    await expect(repo.findActiveByRepoId('github', 990002)).resolves.toBeNull();
+    await expect(repo.findActiveByRepoId('gitlab', 990001)).resolves.toBeNull();
+
+    await expect(repo.setRepoId('no-id', 990002)).resolves.toBe(true);
+    await expect(repo.findActiveByRepoId('github', 990002)).resolves.toMatchObject({ slug: 'no-id' });
+    // Set once: a second id is refused, and an id another project holds is a `false`, never a thrown UNIQUE.
+    await expect(repo.setRepoId('no-id', 990003)).resolves.toBe(false);
+    await seed({ slug: 'no-id-2', repo: 'acme/no-id-2', displayName: 'x', addedAt: '2026-09-01T00:00:00Z' });
+    await expect(repo.setRepoId('no-id-2', 990001)).resolves.toBe(false);
+    await expect(repo.findActiveByRepoId('github', 990001)).resolves.toMatchObject({ slug: 'by-id' });
   });
 
   it('finds an active project by repository, ignoring case', async () => {
@@ -110,41 +183,78 @@ describe('ProjectsRepo', () => {
 
 describe('ProjectsRepo writes (#15)', () => {
   const repo = new ProjectsRepo(env.DB);
-  const project = (slug: string, name: string) => ({
+  const project = (slug: string, name: string, repoId: number | null = null) => ({
     slug,
     repo: `acme/${name}`,
     displayName: name,
     installationId: 1001,
     addedAt: '2026-09-30T00:00:00Z',
+    accountId: OWNER_ACCOUNT_ID,
+    repoId,
   });
 
-  it('creates a row with its installation id', async () => {
-    await expect(repo.create(project('w-new', 'w-new'))).resolves.toBe(true);
+  it('creates a row with its installation id, account and repository id', async () => {
+    await expect(repo.create(project('w-new', 'w-new', 770001))).resolves.toBe('created');
     await expect(repo.findActiveBySlug('w-new')).resolves.toMatchObject({
       repo: 'acme/w-new',
       installation_id: 1001,
+      account_id: OWNER_ACCOUNT_ID,
+      repo_id: 770001,
       cache_epoch: 0,
       archived_at: null,
       routine_id: null,
     });
   });
 
+  it('creates in the account it is given and refuses an account that does not exist', async () => {
+    await expect(
+      repo.create({ ...project('w-theirs', 'w-theirs'), accountId: OTHER_ACCOUNT }),
+    ).resolves.toBe('created');
+    await expect(repo.findActiveBySlug('w-theirs')).resolves.toMatchObject({ account_id: OTHER_ACCOUNT });
+    await expect(
+      repo.create({ ...project('w-nobody', 'w-nobody'), accountId: '01M6YSNJ00000000000000N0PE' }),
+    ).rejects.toThrow(/projects.account_id must be an account/);
+  });
+
   it('refuses a second row with the slug or the repository (any case), archived rows included', async () => {
     await repo.create(project('w-dup', 'w-dup'));
-    await expect(repo.create(project('w-dup', 'w-other'))).resolves.toBe(false);
-    await expect(repo.create({ ...project('w-dup2', 'x'), repo: 'ACME/W-DUP' })).resolves.toBe(false);
+    await expect(repo.create(project('w-dup', 'w-other'))).resolves.toBe('slug-taken');
+    await expect(repo.create({ ...project('w-dup2', 'x'), repo: 'ACME/W-DUP' })).resolves.toBe('repo-taken');
     await expect(repo.findConflict('w-dup2', 'Acme/W-Dup')).resolves.toEqual({
       slug: 'w-dup',
       archived: false,
     });
 
     await repo.archive('w-dup', '2026-09-30T01:00:00Z');
-    await expect(repo.create(project('w-dup3', 'w-dup'))).resolves.toBe(false);
+    await expect(repo.create(project('w-dup3', 'w-dup'))).resolves.toBe('repo-taken');
     await expect(repo.findConflict('w-dup', 'acme/unrelated')).resolves.toEqual({
       slug: 'w-dup',
       archived: true,
     });
     await expect(repo.findConflict('w-free', 'acme/w-free')).resolves.toBeNull();
+  });
+
+  // #472 review: a race the statement's own check misses hits 0018's `projects_never_replaced` trigger; the
+  // registry answers 409, never 500.
+  it('answers repo-taken, not a thrown trigger, when the repository id is already held', async () => {
+    await repo.create(project('w-id', 'w-id', 770002));
+    await expect(repo.create(project('w-id-2', 'w-id-2', 770002))).resolves.toBe('repo-taken');
+    await expect(repo.findActiveBySlug('w-id-2')).resolves.toBeNull();
+  });
+
+  it('maps the trigger to slug-taken when a racing row took the slug', async () => {
+    // The trigger fires on the exact-case repository the statement's lower() check also sees, so drive the
+    // trigger's own message through the mapping: a bound slug that exists answers slug-taken.
+    await repo.create(project('w-trig', 'w-trig'));
+    await expect(
+      env.DB.prepare(
+        `INSERT INTO projects (slug, repo, display_name, installation_id, added_at, account_id)
+         VALUES ('w-trig', 'acme/w-trig-other', 'x', 1001, '2026-09-30T00:00:00Z', ?1)`,
+      )
+        .bind(OWNER_ACCOUNT_ID)
+        .run(),
+    ).rejects.toThrow(/projects are never replaced/);
+    await expect(repo.create(project('w-trig', 'w-trig-other'))).resolves.toBe('slug-taken');
   });
 
   it('updates the display name and the routine id independently, and clears the routine id with null', async () => {
@@ -170,9 +280,9 @@ describe('ProjectsRepo writes (#15)', () => {
     await expect(repo.archive('w-arc', '2026-09-30T02:00:00Z')).resolves.toBe(true);
     await expect(repo.archive('w-arc', '2026-09-30T03:00:00Z')).resolves.toBe(false);
     await expect(repo.update('w-arc', { displayName: 'x' })).resolves.toBeNull();
-    expect((await repo.listActive()).map((row) => row.slug)).not.toContain('w-arc');
+    expect((await repo.listActive(OWNER_SCOPE)).map((row) => row.slug)).not.toContain('w-arc');
 
-    const all = await repo.listAll();
+    const all = await repo.listAll(OWNER_SCOPE);
     const archived = all.find((row) => row.slug === 'w-arc');
     expect(archived?.archived_at).toBe('2026-09-30T02:00:00Z');
     // Archived rows come after every active one.
@@ -204,6 +314,8 @@ describe('ProjectsRepo webhook writes (#12)', () => {
         displayName: slug,
         installationId,
         addedAt: '2026-10-01T00:00:00Z',
+        accountId: OWNER_ACCOUNT_ID,
+        repoId: null,
       });
     }
   });
@@ -215,33 +327,41 @@ describe('ProjectsRepo webhook writes (#12)', () => {
     await expect(repo.findActiveBySlug('h-two')).resolves.toMatchObject({ cache_epoch: 0 });
   });
 
-  it('marks access lost by repository (any case) and installation, once', async () => {
-    const changed = await repo.markAccessLost('ACME/H-One', 2001, '2026-10-01T10:00:00Z');
+  const A = OWNER_ACCOUNT_ID;
+
+  it('marks access lost by repository (any case), installation and account, once', async () => {
+    const changed = await repo.markAccessLost('ACME/H-One', 2001, A, '2026-10-01T10:00:00Z');
     expect(changed.map((row) => row.slug)).toEqual(['h-one']);
     expect(await accessLostAt('h-one')).toBe('2026-10-01T10:00:00Z');
 
-    await expect(repo.markAccessLost('acme/h-one', 2001, '2026-10-01T11:00:00Z')).resolves.toEqual([]);
+    await expect(repo.markAccessLost('acme/h-one', 2001, A, '2026-10-01T11:00:00Z')).resolves.toEqual([]);
     expect(await accessLostAt('h-one')).toBe('2026-10-01T10:00:00Z');
   });
 
-  it('does not mark a project of another installation or an archived one', async () => {
-    await expect(repo.markAccessLost('acme/h-other', 2001, '2026-10-01T10:00:00Z')).resolves.toEqual([]);
+  it('does not mark a project of another installation, another account or an archived one', async () => {
+    await expect(repo.markAccessLost('acme/h-other', 2001, A, '2026-10-01T10:00:00Z')).resolves.toEqual([]);
+    await expect(
+      repo.markAccessLost('acme/h-one', 2001, OTHER_ACCOUNT, '2026-10-01T10:00:00Z'),
+    ).resolves.toEqual([]);
     await repo.archive('h-two', '2026-10-01T09:00:00Z');
-    await expect(repo.markAccessLost('acme/h-two', 2001, '2026-10-01T10:00:00Z')).resolves.toEqual([]);
+    await expect(repo.markAccessLost('acme/h-two', 2001, A, '2026-10-01T10:00:00Z')).resolves.toEqual([]);
+    expect(await accessLostAt('h-one')).toBeNull();
     expect(await accessLostAt('h-other')).toBeNull();
     expect(await accessLostAt('h-two')).toBeNull();
   });
 
-  it('marks every active project of a deleted installation', async () => {
-    const changed = await repo.markInstallationLost(2001, '2026-10-01T10:00:00Z');
+  it('marks every active project of a deleted installation in its account only', async () => {
+    await expect(repo.markInstallationLost(2001, OTHER_ACCOUNT, '2026-10-01T10:00:00Z')).resolves.toEqual([]);
+    const changed = await repo.markInstallationLost(2001, A, '2026-10-01T10:00:00Z');
     expect(changed.map((row) => row.slug).sort()).toEqual(['h-one', 'h-two']);
     expect(await accessLostAt('h-other')).toBeNull();
   });
 
-  it('clears access lost for the same installation only', async () => {
-    await repo.markAccessLost('acme/h-one', 2001, '2026-10-01T10:00:00Z');
-    await expect(repo.clearAccessLost('acme/h-one', 2002)).resolves.toEqual([]);
-    const cleared = await repo.clearAccessLost('Acme/h-one', 2001);
+  it('clears access lost for the same installation and account only', async () => {
+    await repo.markAccessLost('acme/h-one', 2001, A, '2026-10-01T10:00:00Z');
+    await expect(repo.clearAccessLost('acme/h-one', 2002, A)).resolves.toEqual([]);
+    await expect(repo.clearAccessLost('acme/h-one', 2001, OTHER_ACCOUNT)).resolves.toEqual([]);
+    const cleared = await repo.clearAccessLost('Acme/h-one', 2001, A);
     expect(cleared.map((row) => row.slug)).toEqual(['h-one']);
     expect(await accessLostAt('h-one')).toBeNull();
   });
@@ -250,6 +370,13 @@ describe('ProjectsRepo webhook writes (#12)', () => {
 const ROW: ProjectRow = {
   slug: 'tc',
   repo: 'geeera/team-console',
+  account_id: OWNER_ACCOUNT_ID,
+  repo_id: 1234,
+  provider: 'github',
+  tracker: 'github',
+  key_prefix: null,
+  next_item_number: 1,
+  cutover_at: null,
   display_name: 'Team Console',
   routine_id: 'trig_123',
   cache_epoch: 4,
@@ -263,7 +390,7 @@ const ROW: ProjectRow = {
 const NOW = Date.parse('2026-10-05T12:00:00Z');
 
 describe('toProjectDto', () => {
-  it('exposes only the client-facing fields (no cache epoch, no installation id)', () => {
+  it('exposes only the client-facing fields (no cache epoch, no installation id, no account)', () => {
     expect(toProjectDto(ROW, NOW)).toEqual({
       slug: 'tc',
       repo: 'geeera/team-console',

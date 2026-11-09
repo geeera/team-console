@@ -3,6 +3,7 @@ import { isProblemDetails, problemSlugOf } from '@shared/contracts';
 import { createWorkerApp } from '@worker/core';
 import type { ApiEnv } from '../env';
 import type { Identity } from './auth.types';
+import { ACCESS_OWNER_MEMBERSHIPS } from './scope';
 import { isOwnerIdentity, ownerOnlyMiddleware } from './owner-only.middleware';
 
 // #434 (threat model #408, C1 row 1): owner-only is an allowlist. The probe app sets the identity itself, so the
@@ -40,8 +41,22 @@ const local: ApiEnv = { ...env, ...LOCAL };
 
 describe('ownerOnlyMiddleware', () => {
   it("lets the owner's Access login through", async () => {
-    const response = await probe({ kind: 'user', email: 'owner@example.com' }, deployed);
+    const response = await probe({ kind: 'user', door: 'access', userId: null, memberships: ACCESS_OWNER_MEMBERSHIPS }, deployed);
     expect(response.status).toBe(200);
+  });
+
+  // #466: the routes behind this gate act on the environment-wide owner connection and devices, which T-4 binds
+  // per user; a session user — even an owner of the `owner` account — is refused until then.
+  it('refuses a session user with 403 owner-only, whatever accounts it owns', async () => {
+    const session: Identity = {
+      kind: 'user',
+      door: 'session',
+      userId: '01M6YSNJ00000000000000US01',
+      memberships: ACCESS_OWNER_MEMBERSHIPS,
+    };
+    const response = await probe(session, deployed);
+    expect(response.status).toBe(403);
+    expect(await slugOf(response)).toBe('owner-only');
   });
 
   it('lets the local bypass through only with ENVIRONMENT=local and AUTH_MODE=local', async () => {
@@ -76,9 +91,13 @@ describe('ownerOnlyMiddleware', () => {
 
 describe('isOwnerIdentity', () => {
   it('is an allowlist of the owner login and the local bypass', () => {
-    expect(isOwnerIdentity({ kind: 'user', email: 'owner@example.com' }, { ENVIRONMENT: 'production' })).toBe(
-      true,
-    );
+    expect(isOwnerIdentity({ kind: 'user', door: 'access', userId: null, memberships: ACCESS_OWNER_MEMBERSHIPS }, { ENVIRONMENT: 'production' })).toBe(true);
+    expect(
+      isOwnerIdentity(
+        { kind: 'user', door: 'session', userId: 'u', memberships: ACCESS_OWNER_MEMBERSHIPS },
+        { ENVIRONMENT: 'production' },
+      ),
+    ).toBe(false);
     expect(isOwnerIdentity({ kind: 'local' }, LOCAL)).toBe(true);
     expect(isOwnerIdentity({ kind: 'local' }, { ENVIRONMENT: 'production' })).toBe(false);
     expect(isOwnerIdentity({ kind: 'service', commonName: 'ci' }, LOCAL)).toBe(false);

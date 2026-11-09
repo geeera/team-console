@@ -113,9 +113,16 @@ export function localEnv(
   return { ...env, ...overrides } as ApiEnv;
 }
 
-/** D1 storage is isolated per spec file, not per test: each test starts from an empty registry. */
+/**
+ * D1 storage is isolated per spec file, not per test: each test starts from an empty registry. Installation links
+ * are unlinked (final, as 0018 says — a new link is a new row), so the fixture installation can be any account's
+ * in the next case (#466).
+ */
 export async function resetProjects(): Promise<void> {
-  await env.DB.prepare('DELETE FROM projects').run();
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM projects'),
+    env.DB.prepare(`UPDATE installations SET unlinked_at = '2026-11-10T00:00:00.000Z' WHERE unlinked_at IS NULL`),
+  ]);
 }
 
 export async function seedProject(slug: string, repo: string, epoch = 0): Promise<void> {

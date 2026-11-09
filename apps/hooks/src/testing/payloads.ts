@@ -1,4 +1,4 @@
-import { TEST_INSTALLATION_ID } from './webhook-kit';
+import { TEST_INSTALLATION_ID, repoIdOf } from './webhook-kit';
 
 /**
  * Webhook payloads trimmed from real GitHub App deliveries to the fields the Worker reads plus a little noise
@@ -7,9 +7,9 @@ import { TEST_INSTALLATION_ID } from './webhook-kit';
 
 type Association = 'OWNER' | 'MEMBER' | 'COLLABORATOR' | 'CONTRIBUTOR' | 'NONE';
 
-function repository(repo: string): Record<string, unknown> {
+function repository(repo: string, id = repoIdOf(repo)): Record<string, unknown> {
   return {
-    id: 860001,
+    id,
     name: repo.split('/')[1],
     full_name: repo,
     private: false,
@@ -22,9 +22,9 @@ function user(login: string, type: 'User' | 'Bot' = 'User'): Record<string, unkn
   return { login, id: 1001, type };
 }
 
-function envelope(repo: string, installationId: number): Record<string, unknown> {
+function envelope(repo: string, installationId: number, repoId?: number): Record<string, unknown> {
   return {
-    repository: repository(repo),
+    repository: repository(repo, repoId),
     installation: { id: installationId, node_id: 'MDIzOkludGVncmF0aW9uSW5zdGFsbGF0aW9u' },
     sender: user('geeera'),
   };
@@ -37,6 +37,8 @@ export interface IssueOptions {
   readonly labels?: readonly string[];
   readonly association?: Association;
   readonly installationId?: number;
+  /** The repository id GitHub sends; defaults to `repoIdOf(repo)`. A renamed repository keeps its id. */
+  readonly repoId?: number;
 }
 
 function issue(options: IssueOptions): Record<string, unknown> {
@@ -60,7 +62,7 @@ export function issuesEvent(
     action,
     issue: issue(options),
     ...(options.addedLabel === undefined ? {} : { label: { name: options.addedLabel } }),
-    ...envelope(repo, options.installationId ?? TEST_INSTALLATION_ID),
+    ...envelope(repo, options.installationId ?? TEST_INSTALLATION_ID, options.repoId),
   };
 }
 

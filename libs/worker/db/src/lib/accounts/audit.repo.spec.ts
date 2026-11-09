@@ -85,7 +85,11 @@ describe('AuditRepo', () => {
 
     expect(stored).not.toContain(token);
     expect(stored).not.toContain('Bearer x');
-    expect(JSON.parse(stored ?? '{}')).toEqual({ note: 'token [redacted]', authorization: '[redacted]' });
+    // The shared pattern list names the kind; `redact`'s own formats would have masked it as `[redacted]`.
+    expect(JSON.parse(stored ?? '{}')).toEqual({
+      note: 'token [redacted:github-token]',
+      authorization: '[redacted]',
+    });
   });
 
   // Security review of #473: invite tokens, session ids and enrolment codes are bare random strings no value pattern
@@ -113,6 +117,33 @@ describe('AuditRepo', () => {
       nested: { clientSecret: '[redacted]', apiKey: '[redacted]', list: [{ password: '[redacted]' }] },
       role: 'member',
       keyId: 'k-1',
+    });
+  });
+
+  // #474 security re-check: free text in `details` goes through `@shared/redaction` first, so a job token, an
+  // Anthropic key or a PEM in a value is masked whatever key it sits under.
+  it('masks every secret shape of @shared/redaction in string values, at any depth', async () => {
+    const jobToken = `tcj_${'b'.repeat(43)}`;
+    const anthropic = `sk-ant-${'c'.repeat(40)}`;
+    const pat = `github_pat_${'d'.repeat(30)}`;
+    await repo.append(
+      event({
+        target: 'shapes',
+        details: { reason: `use ${jobToken} now`, nested: { list: [anthropic] }, label: pat },
+      }),
+    );
+
+    const stored = await env.DB.prepare(
+      `SELECT details FROM audit_events WHERE target = 'shapes'`,
+    ).first<string>('details');
+
+    for (const secret of [jobToken, anthropic, pat]) {
+      expect(stored).not.toContain(secret);
+    }
+    expect(JSON.parse(stored ?? '{}')).toEqual({
+      reason: 'use [redacted:job-token] now',
+      nested: { list: ['[redacted:anthropic-key]'] },
+      label: '[redacted:github-token]',
     });
   });
 
@@ -169,5 +200,28 @@ describe('@worker/db sources', () => {
       /\b(?:UPDATE\s+audit_events|DELETE\s+FROM\s+audit_events|REPLACE\s+INTO\s+audit_events|INSERT\s+OR\s+REPLACE\s+INTO\s+audit_events)\b/i;
     const offenders = sources.filter(([, text]) => writes.test(text)).map(([path]) => path);
     expect(offenders).toEqual([]);
+  });
+
+  // #472/#473 security re-review: `UPDATE OR REPLACE` (and any other `UPDATE OR …` conflict clause) on a tenancy
+  // table resolves a UNIQUE collision by deleting the other row without its DELETE triggers — another account's
+  // empty project, or an installation link, could vanish through the slug or repository index. The 0018 triggers
+  // guard INSERT; this guards the statements.
+  it.each(['accounts', 'users', 'projects', 'installations'])(
+    'hold no UPDATE OR … / REPLACE INTO of %s',
+    (table) => {
+      const conflicting = new RegExp(
+        String.raw`\b(?:UPDATE\s+OR\s+\w+\s+${table}|REPLACE\s+INTO\s+${table}|INSERT\s+OR\s+REPLACE\s+INTO\s+${table})\b`,
+        'i',
+      );
+      const offenders = sources.filter(([, text]) => conflicting.test(text)).map(([path]) => path);
+      expect(offenders).toEqual([]);
+    },
+  );
+
+  it('would catch an UPDATE OR REPLACE (the scan is not vacuous)', () => {
+    const conflicting = /\bUPDATE\s+OR\s+\w+\s+projects\b/i;
+    expect(conflicting.test('UPDATE OR REPLACE projects SET slug = ?1')).toBe(true);
+    expect(conflicting.test('UPDATE OR IGNORE projects SET slug = ?1')).toBe(true);
+    expect(conflicting.test('UPDATE projects SET slug = ?1')).toBe(false);
   });
 });

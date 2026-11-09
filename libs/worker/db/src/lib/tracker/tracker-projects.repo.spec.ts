@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:test';
+import { OWNER_ACCOUNT_ID } from '@shared/contracts';
 import { AT, seedGitHubProject, seedTrackerProject } from '../../testing/tracker-kit';
 import { LABELS_SEED } from './labels-seed';
 import { LabelsRepo } from './labels.repo';
@@ -11,6 +12,7 @@ describe('TrackerProjectsRepo', () => {
     const slug = await seedGitHubProject();
     await expect(repo().find(slug)).resolves.toEqual({
       slug,
+      accountId: OWNER_ACCOUNT_ID,
       tracker: 'github',
       keyPrefix: null,
       nextItemNumber: 1,

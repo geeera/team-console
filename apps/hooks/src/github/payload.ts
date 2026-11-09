@@ -28,6 +28,8 @@ function positiveIntAt(source: JsonObject, key: string): number | null {
 
 export interface RepositoryRef {
   readonly fullName: string;
+  /** GitHub's repository id: what a delivery is routed by (ADR 0008 decision 2), never the name. */
+  readonly id: number | null;
   readonly defaultBranch: string | null;
 }
 
@@ -47,7 +49,11 @@ export function envelopeOf(payload: JsonObject): Envelope {
     repository:
       repository === null || fullName === null
         ? null
-        : { fullName, defaultBranch: stringAt(repository, 'default_branch') },
+        : {
+            fullName,
+            id: positiveIntAt(repository, 'id'),
+            defaultBranch: stringAt(repository, 'default_branch'),
+          },
     installationId: installation === null ? null : positiveIntAt(installation, 'id'),
   };
 }

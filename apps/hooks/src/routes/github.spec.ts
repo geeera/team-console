@@ -20,8 +20,11 @@ import {
   cacheEpochOf,
   deliver,
   deliveryCount,
+  linkInstallation,
   nextDeliveryId,
+  repoIdOf,
   resetDatabase,
+  seedAccount,
   seedProject,
   signatureOf,
 } from '../testing/webhook-kit';
@@ -239,6 +242,104 @@ describe('POST /hooks/github — routing (ADR 0003 decision 5, threat model row 
     await expect(response.json()).resolves.toEqual({ status: 'ignored', reason });
     expect(await cacheEpochOf('storify')).toBe(0);
     expect(sender.messages).toEqual([]);
+  });
+
+  // ADR 0008 decision 2 (#466): a delivery is routed by the repository id, never by `full_name`, and reaches a
+  // project only when its installation is linked to the project's account.
+  describe('the account invariant (threat model C9)', () => {
+    it('follows a renamed repository by its id and ignores a reused name with another id', async () => {
+      const renamed = await deliver(
+        issuesEvent('closed', { repo: 'geeera/storify-renamed', repoId: repoIdOf('geeera/storify') }),
+      );
+      expect(renamed.response.status).toBe(200);
+      expect(await cacheEpochOf('storify')).toBe(1);
+
+      const reusedName = await deliver(issuesEvent('closed', { repo: 'geeera/storify', repoId: 123456 }));
+      await expect(reusedName.response.json()).resolves.toEqual({ status: 'ignored', reason: 'unregistered' });
+      expect(await cacheEpochOf('storify')).toBe(1);
+    });
+
+    it('never lands on another account’s project through its installation', async () => {
+      const other = await seedAccount();
+      // Account B registered a project on installation 999, which B linked; a delivery for A's repository through
+      // B's installation, and a delivery for B's repository through A's installation, both stop.
+      await seedProject('theirs', 'other/theirs', { installationId: 999, accountId: other });
+      const viaTheirs = await deliver(issuesEvent('closed', { repo: 'geeera/storify', installationId: 999 }));
+      await expect(viaTheirs.response.json()).resolves.toEqual({
+        status: 'ignored',
+        reason: 'installation-mismatch',
+      });
+      const viaOurs = await deliver(issuesEvent('closed', { repo: 'other/theirs' }));
+      await expect(viaOurs.response.json()).resolves.toEqual({
+        status: 'ignored',
+        reason: 'installation-mismatch',
+      });
+      expect(await cacheEpochOf('storify')).toBe(0);
+      expect(await cacheEpochOf('theirs')).toBe(0);
+    });
+
+    it('refuses a project whose installation is linked to another account, or to none', async () => {
+      const other = await seedAccount();
+      await seedProject('crossed', 'other/crossed', { installationId: 4242, accountId: other, link: false });
+      await linkInstallation(4242);
+      const crossed = await deliver(issuesEvent('closed', { repo: 'other/crossed', installationId: 4242 }));
+      await expect(crossed.response.json()).resolves.toEqual({
+        status: 'ignored',
+        reason: 'installation-mismatch',
+      });
+      expect(crossed.logs).toContainEqual(
+        expect.objectContaining({ reason: 'installation-account-mismatch', slug: 'crossed' }),
+      );
+
+      await seedProject('unlinked', 'other/unlinked', { installationId: 4343, link: false });
+      const unlinked = await deliver(issuesEvent('closed', { repo: 'other/unlinked', installationId: 4343 }));
+      await expect(unlinked.response.json()).resolves.toEqual({
+        status: 'ignored',
+        reason: 'installation-mismatch',
+      });
+      expect(await cacheEpochOf('crossed')).toBe(0);
+      expect(await cacheEpochOf('unlinked')).toBe(0);
+    });
+
+    it('backfills the repository id of a row registered before 0018 from a matching signed delivery, once', async () => {
+      await seedProject('legacy-id', 'geeera/legacy-id', { repoId: null });
+      const wrongInstallation = await deliver(
+        issuesEvent('closed', { repo: 'geeera/legacy-id', installationId: 999 }),
+      );
+      await expect(wrongInstallation.response.json()).resolves.toEqual({
+        status: 'ignored',
+        reason: 'unregistered',
+      });
+
+      const first = await deliver(issuesEvent('closed', { repo: 'geeera/legacy-id' }));
+      expect(first.response.status).toBe(200);
+      const row = await env.DB.prepare('SELECT repo_id FROM projects WHERE slug = ?1')
+        .bind('legacy-id')
+        .first<{ repo_id: number | null }>();
+      expect(row?.repo_id).toBe(repoIdOf('geeera/legacy-id'));
+
+      // With the id recorded, the name no longer identifies the row.
+      const otherId = await deliver(issuesEvent('closed', { repo: 'geeera/legacy-id', repoId: 777 }));
+      await expect(otherId.response.json()).resolves.toEqual({ status: 'ignored', reason: 'unregistered' });
+      expect(await cacheEpochOf('legacy-id')).toBe(1);
+    });
+
+    it('installation events touch the linked account’s projects only', async () => {
+      const other = await seedAccount();
+      await seedProject('theirs', 'other/theirs', { installationId: 999, accountId: other });
+      // Our installation says it lost B's repository: B's row is untouched.
+      await deliver(installationRepositoriesEvent('removed', ['other/theirs']), {
+        event: 'installation_repositories',
+      });
+      expect(await accessLostAt('theirs')).toBeNull();
+      // An installation nobody linked reaches nothing.
+      const unlinked = await deliver(installationEvent('deleted', 5555), { event: 'installation' });
+      await expect(unlinked.response.json()).resolves.toEqual({
+        status: 'ignored',
+        reason: 'installation-mismatch',
+      });
+      expect(await accessLostAt('storify')).toBeNull();
+    });
   });
 
   it('ignores an archived project and one without a stored installation', async () => {
@@ -468,10 +569,11 @@ describe('POST /hooks/github — installation events', () => {
   });
 
   it('ignores a removal from another installation or of an unregistered repository', async () => {
+    // #466: an installation nobody linked is refused before the repositories are read.
     const other = await deliver(installationRepositoriesEvent('removed', ['geeera/storify'], 999), {
       event: 'installation_repositories',
     });
-    await expect(other.response.json()).resolves.toEqual({ status: 'ignored', reason: 'unregistered' });
+    await expect(other.response.json()).resolves.toEqual({ status: 'ignored', reason: 'installation-mismatch' });
     await deliver(installationRepositoriesEvent('removed', ['geeera/unknown']), {
       event: 'installation_repositories',
     });

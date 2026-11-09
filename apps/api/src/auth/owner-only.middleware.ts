@@ -5,14 +5,16 @@ import type { Identity } from './auth.types';
 import { isLocalBypass } from './local-bypass';
 
 /**
- * Whether `identity` is the owner: the owner's Access login, or the local bypass while `ENVIRONMENT=local` and
- * `AUTH_MODE=local` both hold. An allowlist (#434), so the service identity, the `job` identity (#444) and any kind
- * added later are refused until a route opts it in.
+ * Whether `identity` is **the environment's owner**: the owner's Access login, or the local bypass while
+ * `ENVIRONMENT=local` and `AUTH_MODE=local` both hold. An allowlist (#434), so the service identity, the `job`
+ * identity (#444), a session user (#466 — the routes behind this act on the environment-wide owner connection and
+ * devices, which T-4 binds per user; until then only the Access door reaches them, whatever account the session
+ * user owns) and any kind added later are refused until a route opts it in.
  */
 export function isOwnerIdentity(identity: Identity, env: Pick<ApiEnv, 'ENVIRONMENT' | 'AUTH_MODE'>): boolean {
   switch (identity.kind) {
     case 'user':
-      return true;
+      return identity.door === 'access';
     case 'local':
       return isLocalBypass(env);
     default:

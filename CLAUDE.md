@@ -15,6 +15,12 @@ visual direction, 0006 the console as the source of truth — the #309 target ar
 - Owner answers written by the app use the plugin's grammar exactly (`libs/shared/owner-grammar`).
 - Design tokens only (Paper Desk, ADR 0002); no raw colours, spacing, durations or z-index in components —
   `tools/design-lint` (part of `nx run-many -t lint`) fails on one in any `libs/console/**` or `apps/console` css.
+- Accounts are the tenant (ADR 0008, #466): every account-level table carries `account_id`; every route registered on
+  the api Worker declares a scope rule in `apps/api/src/auth/route-scope.ts` and `route-scope.spec.ts` fails on one
+  that does not; every project is reached through `projects/lookup.ts` with the request's scope (404
+  `project-not-found` outside it, the same as a missing slug); listings use `scopedProjectsOf`; repos never take a
+  `project_slug` or `account_id` from a body; the hooks Worker matches repositories by id and requires
+  `installations.account_id = projects.account_id`; `audit_events.details` holds ids and enums only.
 
 ## Workspace
 Node 22 (`.nvmrc`), npm, `npm ci` only — versions are pinned exactly, no `^`. Nx 23 / Angular 22 (Nx 22 does not
@@ -227,9 +233,14 @@ effects by `decisionEffectOf` through `planItemUpdate` in one batch, a moved ver
 only, 409 `request-handled`); the job-only writes refuse every deployed identity until Phase 2.
 Route matrix and the local job stand-in (#444, ADR 0006 decision 11; Phase 2 keeps the table and swaps the token):
 `auth/tracker-matrix.ts` (`TRACKER_MATRIX`, one row per tracker route) enforced by `trackerAccess(route)` in
-`auth/tracker-access.middleware.ts`, which replaces `ownerOnlyMiddleware` on every tracker route — no policy actor (the
-service) 403 `owner-only` before anything is read; a job of another project 404 `project-not-found` (never 403); then
-the row's 403: reads owner + any role; `POST|PATCH items` any role, judged by `transitionRefusal` (holds = the item's
+`auth/tracker-access.middleware.ts`, which replaces `ownerOnlyMiddleware` on every tracker route — an identity that
+can act on no account (the service, a job off the bypass) 403 `owner-only` before anything is read; the project
+through the scoped lookup (a job's other project, a user's other account and a missing slug are one 404
+`project-not-found`, never 403); the policy actor in the project's account (`policyActorOf(identity, env, accountId)`:
+an `owner` member → `owner`, a `member` → `member`, none → 403 `owner-only`); then the row's 403: reads owner +
+member + any role; a member's writes are refused by the row (`member-role`) until the tracker tables know a `user`
+actor kind (T-3) — the policy for them (`proposed` items, `comment`s) is already in `transitionRefusal`/
+`commentKindRefusal`; `POST|PATCH items` any role, judged by `transitionRefusal` (holds = the item's
 number in the job's `items`; R2: `qa`/`reviewer`/`security` never set or clear `qa:changes-requested|review-failed|tier-up`,
 `verdict-flag`); comments any role, `kind: comment|note|decision` (`commentKindRefusal`: the owner `comment` only,
 `decision` not as `dev-light`, 403 `comment-kind`); sprints owner + `pm` (403 `sprint-role`); labels, decisions, requests
@@ -431,6 +442,32 @@ empty or malformed Access vars fail closed. `csrfMiddleware` then requires `Sec-
 the JWT check (the api vitest config binds both so route specs run; `auth.middleware.spec.ts` uses
 `src/testing/access-kit.ts` to sign tokens and stub the JWKS). Log `identity.kind` only, never the email or token
 (nor a job stand-in's token or payload).
+Account scope (#466, ADR 0008 decision 2, T-2): before the Access check, a live `__Host-tc_session` cookie
+(`auth/session.ts`: 43 base64url characters, SHA-256 looked up in `sessions`, unrevoked and unexpired; T-3 creates
+them) mints `{kind: 'user', door: 'session', userId, memberships}` with the memberships read from `account_members`
+per request; a cookie that is not a live session grants nothing and the request goes on to Access. The Access owner
+is `{door: 'access'}` and owns the `owner` account by construction (`ACCESS_OWNER_MEMBERSHIPS`, the door — never an
+email comparison), plus the memberships of the user row whose `access_subject` equals the JWT `sub` (the explicit
+link of decision 3, T-3). `isOwnerIdentity` (push, the owner connection, environment, team/sprint commands, snooze,
+batch answers) is the Access door and the local bypass only: those routes act on the environment-wide owner
+connection and devices until T-4 binds them per user, so a session user gets 403 `owner-only` there whatever it
+owns. `scopeOf(identity, env)` (`auth/scope.ts`): a user its account ids, the local bypass and the service identity
+the owner account, a job its own slug, anything else nothing. `routeScopeMiddleware` (after `jobScopeMiddleware`)
+answers 404 `not-found` for a path `ROUTE_SCOPES` does not list and refuses an identity whose scope cannot hold the
+rule (`project` | `projects` | `account` | `own-user` | `operator` | `runner` | `public`); `route-scope.spec.ts`
+walks `app.routes`, fails on an unlisted route, and proves for every `project` route that a user of another account
+is answered exactly as for a slug that does not exist. `GET /api/v1/accounts/:id/{settings,members,audit}`
+(`routes/accounts.ts`): owner-of-account; a non-member (the service identity included) 404 `account-not-found`, a
+member 403 `account-owner-only`. `POST /api/v1/projects` creates in the caller's one owner membership (several:
+`accountId` in the body, which must be one of them; else 403 `account-owner-only`), links the installation to that
+account first (`InstallationsRepo.link`; another account's → 409 `installation-other-account`), records
+`projects.repo_id` from `GET /repos/{repo}` and audits `project.created` (`details`: ids only); a lost race answers
+409 `slug-taken` | `repo-taken` (the 0018 trigger mapped in `ProjectsRepo.create`, never a 500); `GET …/setup`
+backfills `repo_id` once for rows registered before 0018; update and archive audit `project.updated` (field names)
+and `project.archived`. Hooks (`routes/github.ts`): a repository delivery is routed by `repository.id`
+(`findActiveByRepoId`; a row with `repo_id IS NULL` is matched by name and its registered installation once, which
+records the id), then refused unless the row's installation is the delivery's and `installations.findLinked` names the
+row's account (`ignored: installation-mismatch`); installation events touch the linked account's rows only.
 
 Commands: `npx nx serve api` (builds the console, applies migrations, `wrangler dev` on :8787), `npx nx run
 api:migrate` (fresh local D1), `npx nx build api` (`tsc --noEmit` + `wrangler deploy --dry-run`), `docker build -t

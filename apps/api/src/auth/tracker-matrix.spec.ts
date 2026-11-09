@@ -1,4 +1,4 @@
-import { ITEM_STATUSES, type ItemDto, type ItemRequestDto, type ItemStatus } from '@shared/contracts';
+import { ITEM_STATUSES, OWNER_ACCOUNT_ID, type ItemDto, type ItemRequestDto, type ItemStatus } from '@shared/contracts';
 import { createApiApp } from '../app';
 import {
   countRows,
@@ -13,6 +13,7 @@ import {
   type SeededProject,
 } from '../testing/tracker-kit';
 import type { TestJob } from '../testing/local-job-kit';
+import { seedMembership, seedSessionUser, sendAsSession, type SessionUser } from '../testing/session-kit';
 import { JOB_ROLES, type JobRole } from './job-roles';
 import { TRACKER_MATRIX, isTrackerMatrixRoute, matrixRefusal, type TrackerRoute } from './tracker-matrix';
 
@@ -311,6 +312,65 @@ const REFUSED_ROWS: Readonly<Record<JobRole, readonly TrackerRoute[]>> = {
   'ux-designer': TEAM_REFUSED,
   'ui-designer': TEAM_REFUSED,
 };
+
+// #466: the `member` actor is decided on every row — reads only until the tables know a `user` actor (T-3).
+describe('the member actor is decided on every row', () => {
+  const routes = Object.keys(TRACKER_MATRIX) as TrackerRoute[];
+  const member = { kind: 'member', userId: '01M6YSNJ00000000000000VS01' } as const;
+
+  it.each(routes)('%s', (route) => {
+    const rule = TRACKER_MATRIX[route];
+    const isRead = route.startsWith('GET ');
+    expect(rule.member, 'a member reads everything and writes nothing yet').toBe(isRead);
+    expect(matrixRefusal(rule, member)).toBe(isRead ? null : rule.refusal);
+  });
+
+  // Through the whole app: a session user who is a `member` of the project's account, a session `owner` of it,
+  // and a session owner of another account (404, the same as a slug that does not exist). The project is the
+  // environment owner's (so the scenarios' seeding through the local bypass works); the session users are members
+  // of that account.
+  describe.each(ROWS.map((row) => [label(row), row] as const))('%s', (_, row) => {
+    let owner: SessionUser;
+    let member: SessionUser;
+    let stranger: SessionUser;
+
+    beforeAll(async () => {
+      owner = await seedSessionUser('owner');
+      await seedMembership(OWNER_ACCOUNT_ID, owner.userId, 'owner');
+      member = await seedSessionUser('member');
+      await seedMembership(OWNER_ACCOUNT_ID, member.userId, 'member');
+      stranger = await seedSessionUser('owner');
+    });
+
+    it('as a session owner, a session member and an owner of another account', async () => {
+      const project = await seedTrackerProject();
+      const scenario = await row.setup(project);
+      const before = await snapshot(project.slug);
+      const sendAs = (user: SessionUser) =>
+        sendAsSession(user, scenario.method, scenario.path, scenario.body, {
+          ...(scenario.ifMatch === undefined ? {} : { headers: { 'If-Match': scenario.ifMatch } }),
+        });
+
+      const strangerResponse = await sendAs(stranger);
+      await expectOutcome(strangerResponse, refused('project-not-found', 404), 'another account');
+      expect(await snapshot(project.slug), 'a refusal writes nothing').toEqual(before);
+
+      const memberResponse = await sendAs(member);
+      const rule = TRACKER_MATRIX[row.route];
+      await expectOutcome(
+        memberResponse,
+        scenario.method === 'GET' ? ok(200) : refused(rule.refusal),
+        'member',
+      );
+      if (scenario.method !== 'GET') {
+        expect(await snapshot(project.slug), 'a refusal writes nothing').toEqual(before);
+      }
+
+      const expected = row.expect('owner');
+      await expectOutcome(await sendAs(owner), expected, 'session owner');
+    });
+  });
+});
 
 describe('every job role is decided on every row', () => {
   const routes = Object.keys(TRACKER_MATRIX) as TrackerRoute[];

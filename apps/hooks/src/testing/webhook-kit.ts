@@ -1,8 +1,8 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test';
 import { createHooksApp } from '../app';
 import type { HooksEnv } from '../env';
-import { PUSH_MAX_SUBSCRIPTIONS } from '@shared/contracts';
-import { PushSubscriptionsRepo } from '@worker/db';
+import { OWNER_ACCOUNT_ID, PUSH_MAX_SUBSCRIPTIONS } from '@shared/contracts';
+import { InstallationsRepo, PushSubscriptionsRepo } from '@worker/db';
 import {
   decodeBase64Url,
   encodeBase64Url,
@@ -167,24 +167,81 @@ export async function deliver(body: unknown, options: DeliverOptions = {}): Prom
   return { response, rawLogs, logs: rawLogs.map((line) => JSON.parse(line) as Record<string, unknown>) };
 }
 
+/**
+ * The repository id GitHub would send for `owner/name` (`payloads.ts` uses the same), stable and case-insensitive
+ * as GitHub's ids are to renames of case; distinct per repository.
+ */
+export function repoIdOf(repo: string): number {
+  let hash = 7;
+  for (const char of repo.toLowerCase()) {
+    hash = (hash * 31 + char.charCodeAt(0)) % 1_000_003;
+  }
+  return 800_000 + hash;
+}
+
+let accountCounter = 0;
+
+/** A second account (ADR 0008 decision 1), for the two-account cases; never the owner's. */
+export async function seedAccount(): Promise<string> {
+  accountCounter += 1;
+  const id = `01M6YSNJ0000000000HK${String(accountCounter).padStart(6, '0')}`;
+  await env.DB.prepare(
+    `INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, ?2, 'Other', '2026-10-01T00:00:00Z')`,
+  )
+    .bind(id, `hooks-acct-${String(accountCounter)}`)
+    .run();
+  return id;
+}
+
+/** Links the installation to the account as the registry does (`InstallationsRepo.link`); the invariant's input. */
+export async function linkInstallation(installationId: number, accountId = OWNER_ACCOUNT_ID): Promise<void> {
+  const result = await new InstallationsRepo(env.DB).link({
+    accountId,
+    provider: 'github',
+    installationId: String(installationId),
+    accountLogin: 'geeera',
+    linkedByUserId: null,
+    at: '2026-10-01T00:00:00Z',
+  });
+  if (result === 'linked-elsewhere') {
+    throw new Error(`installation ${String(installationId)} is linked to another account in this spec`);
+  }
+}
+
 export async function seedProject(
   slug: string,
   repo: string,
-  options: { installationId?: number | null; archivedAt?: string; displayName?: string } = {},
+  options: {
+    installationId?: number | null;
+    archivedAt?: string;
+    displayName?: string;
+    accountId?: string;
+    /** `null`: a row registered before 0018, with no repository id yet (the backfill case). */
+    repoId?: number | null;
+    /** `false`: the row's installation is left unlinked (the invariant's refusal case). */
+    link?: boolean;
+  } = {},
 ): Promise<void> {
+  const installationId = options.installationId === undefined ? TEST_INSTALLATION_ID : options.installationId;
+  const accountId = options.accountId ?? OWNER_ACCOUNT_ID;
   await env.DB.prepare(
-    `INSERT INTO projects (slug, repo, display_name, installation_id, added_at, archived_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+    `INSERT INTO projects (slug, repo, display_name, installation_id, added_at, archived_at, account_id, repo_id)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
   )
     .bind(
       slug,
       repo,
       options.displayName ?? slug,
-      options.installationId === undefined ? TEST_INSTALLATION_ID : options.installationId,
+      installationId,
       '2026-10-01T00:00:00Z',
       options.archivedAt ?? null,
+      accountId,
+      options.repoId === undefined ? repoIdOf(repo) : options.repoId,
     )
     .run();
+  if (installationId !== null && options.link !== false) {
+    await linkInstallation(installationId, accountId);
+  }
 }
 
 export async function cacheEpochOf(slug: string): Promise<number | undefined> {
@@ -204,6 +261,7 @@ export async function resetDatabase(): Promise<void> {
     env.DB.prepare('DELETE FROM webhook_deliveries'),
     env.DB.prepare('DELETE FROM own_writes'),
     env.DB.prepare('DELETE FROM projects'),
+    env.DB.prepare('DELETE FROM installations'),
     env.DB.prepare('DELETE FROM push_subscriptions'),
     env.DB.prepare('DELETE FROM owner_requests'),
   ]);

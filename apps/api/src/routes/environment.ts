@@ -2,9 +2,9 @@ import { Hono } from 'hono';
 import { isEnvironment } from '@shared/contracts';
 import { environmentStatusOf, type EnvironmentStatusDto } from '@shared/environment';
 import { problem, type WorkerHonoEnv } from '@worker/core';
-import { ProjectsRepo } from '@worker/db';
 import { ownerOnlyMiddleware } from '../auth/owner-only.middleware';
 import type { ApiEnv } from '../env';
+import { scopedProjectsOf } from '../projects/lookup';
 
 /**
  * `GET /api/v1/environment/status` (#104): which manifest items this Worker's own environment has, set or missing.
@@ -27,7 +27,7 @@ export function createEnvironmentRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         detail: 'This Worker does not know which environment it runs in',
       });
     }
-    const projects = await new ProjectsRepo(c.env.DB).listActive();
+    const projects = await scopedProjectsOf(c);
     // Per-project secrets have names known only at run time, so the bindings are read by name.
     const bindings = c.env as unknown as Readonly<Record<string, unknown>>;
     const body: EnvironmentStatusDto = environmentStatusOf(

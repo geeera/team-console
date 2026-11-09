@@ -8,19 +8,20 @@ import {
   type TrackerProject,
 } from '@worker/db';
 import type { PolicyActor, TransitionRefusal } from '../auth/policy';
+import { trackerProjectOfContext } from '../auth/tracker-access.middleware';
 import type { ApiEnv } from '../env';
 import { projectNotFound } from '../projects/lookup';
 
 type Context = WorkerContext<ApiEnv>;
 
-// The registry's lookup rule (projects/lookup.ts): a slug with `/`, `..` or an encoded slash never reaches D1.
-const SLUG_PATTERN = /^[a-z0-9-]{1,40}$/;
-
-/** The active project behind `:slug` with its tracker columns, or the 404. */
+/**
+ * The project `trackerAccess` admitted (inside the request's scope, #466), as its tracker columns. Re-read so a
+ * cutover or archive between the gate and the handler is seen; the scope was judged by the gate on the same slug.
+ */
 export async function trackerProjectOf(c: Context): Promise<TrackerProject | Response> {
-  const slug = c.req.param('slug') ?? '';
-  const project = SLUG_PATTERN.test(slug) ? await new TrackerProjectsRepo(c.env.DB).find(slug) : null;
-  return project ?? projectNotFound(c);
+  const admitted = trackerProjectOfContext(c);
+  const current = await new TrackerProjectsRepo(c.env.DB).find(admitted.slug);
+  return current === null || current.accountId !== admitted.account_id ? projectNotFound(c) : current;
 }
 
 /** A project whose tracker is still GitHub Issues takes no tracker write (ADR 0006 decision 1). */
@@ -64,9 +65,15 @@ export async function itemOf(c: Context, project: TrackerProject): Promise<ItemR
  * identity alone (ADR 0006 decision 4): no body member names an author.
  */
 export function trackerActorFrom(actor: PolicyActor): TrackerActor {
-  return actor.kind === 'owner'
-    ? { kind: 'owner', name: 'owner', jobId: null }
-    : { kind: 'job', name: actor.role, jobId: actor.jobId };
+  switch (actor.kind) {
+    case 'owner':
+      return { kind: 'owner', name: 'owner', jobId: null };
+    case 'job':
+      return { kind: 'job', name: actor.role, jobId: actor.jobId };
+    case 'member':
+      // The matrix admits no member write until the tables know a `user` actor (T-3); reaching here is a bug.
+      throw new Error('a member write reached the tracker before the user actor kind exists');
+  }
 }
 
 export function transitionProblem(c: Context, refusal: TransitionRefusal): Response {

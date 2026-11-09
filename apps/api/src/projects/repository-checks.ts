@@ -19,6 +19,8 @@ import { ownerLanguageOf, type OwnerLanguage } from './project-yml';
 export interface RepositoryRead {
   /** `owner/name` as GitHub spells it now. */
   readonly fullName: string;
+  /** GitHub's repository id (ADR 0008 decision 2: what webhooks route by); `null` only from an answer without it. */
+  readonly id: number | null;
   readonly owner: RepositoryOwner;
 }
 
@@ -93,7 +95,12 @@ export function repositoryClient(github: GitHubConnection, repo: RepoName): GitH
 
 export async function readRepository(client: GitHubClient, repo: RepoName): Promise<RepositoryRead> {
   const read = await client.getJson(githubPath`/repos/${repo}`, isRepositoryWithOwner);
-  return { fullName: read.full_name, owner: { login: read.owner.login, id: read.owner.id } };
+  const id = (read as { id?: unknown }).id;
+  return {
+    fullName: read.full_name,
+    id: typeof id === 'number' && Number.isSafeInteger(id) && id > 0 ? id : null,
+    owner: { login: read.owner.login, id: read.owner.id },
+  };
 }
 
 /** `.product-team/project.yml` as the contents API describes it. */
@@ -162,6 +169,8 @@ export interface RepositoryFacts {
   readonly ownerCheckFailed: boolean;
   readonly projectYml: CheckState;
   readonly ownerLanguage: OwnerLanguage;
+  /** The repository id GitHub reported with the owner read; `null` when that read failed or answered none. */
+  readonly repoId: number | null;
 }
 
 /** Subrequests: 1 when the app is missing (2 on the lookup's 404 path), else up to 5 on a cold isolate. */
@@ -188,15 +197,19 @@ export async function repositoryFacts(github: GitHubConnection, repo: RepoName):
       ownerCheckFailed: appInstalled === 'unknown',
       projectYml: appInstalled === 'unknown' ? 'unknown' : 'missing',
       ownerLanguage: 'ru',
+      repoId: null,
     };
   }
 
   const client = repositoryClient(github, repo);
 
   let owner: RepositoryOwner | null = null;
+  let repoId: number | null = null;
   let ownerCheckFailed = false;
   try {
-    owner = (await readRepository(client, repo)).owner;
+    const read = await readRepository(client, repo);
+    owner = read.owner;
+    repoId = read.id;
   } catch (error: unknown) {
     if (!(error instanceof GitHubError)) {
       throw error;
@@ -217,5 +230,5 @@ export async function repositoryFacts(github: GitHubConnection, repo: RepoName):
     projectYml = 'unknown';
   }
 
-  return { appInstalled, owner, ownerCheckFailed, projectYml, ownerLanguage };
+  return { appInstalled, owner, ownerCheckFailed, projectYml, ownerLanguage, repoId };
 }

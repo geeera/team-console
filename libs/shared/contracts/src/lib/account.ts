@@ -72,6 +72,10 @@ export const AUDIT_EVENT_KINDS = [
   'cutover.rolled-back',
   'plan.changed',
   'entitlements.changed',
+  // The owner's registry actions (T-2, #466).
+  'project.created',
+  'project.updated',
+  'project.archived',
 ] as const;
 export type AuditEventKind = (typeof AUDIT_EVENT_KINDS)[number];
 export const isAuditEventKind = (value: unknown): value is AuditEventKind =>

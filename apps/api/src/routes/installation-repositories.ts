@@ -5,7 +5,7 @@ import type {
   RepositoryRegistration,
 } from '@shared/contracts';
 import type { WorkerHonoEnv } from '@worker/core';
-import { ProjectsRepo, type ProjectRow } from '@worker/db';
+import type { ProjectRow } from '@worker/db';
 import {
   GitHubClient,
   GitHubError,
@@ -15,6 +15,7 @@ import {
 } from '@worker/github';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub, GitHubConnection } from '../github';
+import { scopedProjectsOf } from '../projects/lookup';
 import type { OwnerConnectionSource } from '../projects/owner-connection';
 import { installUrlFor, isGitHubProblem } from '../projects/repository-checks';
 import { SubrequestBudget } from '../read-models/subrequest-budget';
@@ -162,7 +163,9 @@ export function createInstallationRepositoriesRoutes(
       }
       throw error;
     }
-    const rows = await new ProjectsRepo(c.env.DB).listAll();
+    // The registrations shown are the scope's (ADR 0008 decision 2): another account's project on the same
+    // repository reads as unregistered here.
+    const rows = await scopedProjectsOf(c, 'all');
     return c.json(installationRepositoriesOf(list, rows));
   });
 }

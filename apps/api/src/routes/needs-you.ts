@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import { NEEDS_YOU_MAX_PROJECTS, type NeedsYouProjectRef } from '@shared/contracts';
 import type { WorkerHonoEnv } from '@worker/core';
-import { ProjectsRepo, TrackerProjectsRepo } from '@worker/db';
 import { GitHubError, InvalidRepoNameError, parseRepoName } from '@worker/github';
 import { buildNeedsYou, type ProjectInboxResult } from '@worker/read-models';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
+import { scopedProjectsOf, trackerProjectOf } from '../projects/lookup';
 import { projectProblemOf } from '../read-models/errors';
 import { ProjectReads } from '../read-models/project-reads';
 import { TrackerReads, readsRows } from '../read-models/tracker-reads';
@@ -14,7 +14,8 @@ import { TrackerReads, readsRows } from '../read-models/tracker-reads';
 type ProjectInbox = Omit<Extract<ProjectInboxResult, { readonly inbox: unknown }>, 'project'>;
 
 /**
- * `GET /api/v1/needs-you` (#35, #9 row 8): the inbox of every active project, merged.
+ * `GET /api/v1/needs-you` (#35, #9 row 8): the inbox of every active project **of the request's scope** (ADR 0008
+ * decision 2, #466), merged.
  *
  * Subrequest budget (Workers free plan: 50 per request). The first NEEDS_YOU_MAX_PROJECTS (6) GitHub-backed active
  * projects are read, each at most 6 subrequests on a cold isolate (installation lookup, token mint, ≤ 3 pages of
@@ -29,10 +30,8 @@ type ProjectInbox = Omit<Extract<ProjectInboxResult, { readonly inbox: unknown }
  */
 export function createNeedsYouRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>().get('/', async (c) => {
-    const [active, trackers] = await Promise.all([
-      new ProjectsRepo(c.env.DB).listActive(),
-      new TrackerProjectsRepo(c.env.DB).listActive(),
-    ]);
+    const active = await scopedProjectsOf(c);
+    const trackers = new Map(active.map((row) => [row.slug, trackerProjectOf(row)]));
     // The cap is GitHub's subrequest budget: row-backed projects are read in full, in registry order with the rest.
     let githubBacked = 0;
     const read = active.filter(

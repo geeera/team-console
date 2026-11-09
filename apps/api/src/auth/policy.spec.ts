@@ -1,5 +1,7 @@
 import type { ItemStatus } from '@shared/contracts';
 import type { Identity } from './auth.types';
+import { OWNER_ACCOUNT_ID } from '@shared/contracts';
+import { ACCESS_OWNER_MEMBERSHIPS } from './scope';
 import type { DecisionCommand, Section } from '@shared/contracts';
 import type { ItemRecord } from '@worker/db';
 import { EDITING_ROLES, JOB_ROLES, type JobRole } from './job-roles';
@@ -391,26 +393,52 @@ describe('transition table: every role decided on every role-dependent case', ()
 describe('policyActorOf', () => {
   const local = { ENVIRONMENT: 'local', AUTH_MODE: 'local' };
   const deployed = { ENVIRONMENT: 'production' };
+  const OTHER_ACCOUNT = '01M6YSNJ00000000000000PA02';
+  const accessOwner: Identity = {
+    kind: 'user',
+    door: 'access',
+    userId: null,
+    memberships: ACCESS_OWNER_MEMBERSHIPS,
+  };
 
-  it('maps the owner and the local bypass to the owner, and the service identity to nothing', () => {
-    expect(policyActorOf({ kind: 'user', email: 'owner@example.com' }, deployed)).toEqual({ kind: 'owner' });
-    expect(policyActorOf({ kind: 'local' }, local)).toEqual({ kind: 'owner' });
-    expect(policyActorOf({ kind: 'service', commonName: 'ci' }, local)).toBeNull();
+  it('maps the Access owner and the local bypass to the owner of the owner account, and the service identity to nothing', () => {
+    expect(policyActorOf(accessOwner, deployed, OWNER_ACCOUNT_ID)).toEqual({ kind: 'owner' });
+    expect(policyActorOf({ kind: 'local' }, local, OWNER_ACCOUNT_ID)).toEqual({ kind: 'owner' });
+    expect(policyActorOf({ kind: 'service', commonName: 'ci' }, local, OWNER_ACCOUNT_ID)).toBeNull();
+  });
+
+  // #466 (ADR 0008 decision 3): "the owner" is an `owner` member of the project's account; a `member` is its own
+  // actor; a user outside the account is nothing — the lookup already answered 404 for it.
+  it('maps a session user by its role in the project’s account', () => {
+    const session = (role: 'owner' | 'member'): Identity => ({
+      kind: 'user',
+      door: 'session',
+      userId: '01M6YSNJ00000000000000US01',
+      memberships: [{ accountId: OTHER_ACCOUNT, role }],
+    });
+    expect(policyActorOf(session('owner'), deployed, OTHER_ACCOUNT)).toEqual({ kind: 'owner' });
+    expect(policyActorOf(session('member'), deployed, OTHER_ACCOUNT)).toEqual({
+      kind: 'member',
+      userId: '01M6YSNJ00000000000000US01',
+    });
+    expect(policyActorOf(session('owner'), deployed, OWNER_ACCOUNT_ID)).toBeNull();
+    expect(policyActorOf(accessOwner, deployed, OTHER_ACCOUNT)).toBeNull();
+    expect(policyActorOf({ kind: 'local' }, local, OTHER_ACCOUNT)).toBeNull();
   });
 
   it('is an allowlist (#434): the local kind outside the bypass and an unknown kind map to nothing', () => {
-    expect(policyActorOf({ kind: 'local' }, deployed)).toBeNull();
-    expect(policyActorOf({ kind: 'local' }, { ENVIRONMENT: 'local' })).toBeNull();
+    expect(policyActorOf({ kind: 'local' }, deployed, OWNER_ACCOUNT_ID)).toBeNull();
+    expect(policyActorOf({ kind: 'local' }, { ENVIRONMENT: 'local' }, OWNER_ACCOUNT_ID)).toBeNull();
     const futureKind = { kind: 'runner', runnerId: 'r1' } as unknown as Identity;
-    expect(policyActorOf(futureKind, local)).toBeNull();
-    expect(policyActorOf(futureKind, deployed)).toBeNull();
+    expect(policyActorOf(futureKind, local, OWNER_ACCOUNT_ID)).toBeNull();
+    expect(policyActorOf(futureKind, deployed, OWNER_ACCOUNT_ID)).toBeNull();
   });
 
   // #444: the job identity's only minter is the local stand-in, so it maps only while the local bypass holds.
   const job: Identity = { kind: 'job', role: 'qa', projectSlug: 'acme', jobId: 'job-9', items: [4, 7] };
 
   it('maps the job identity to the job actor under the local bypass', () => {
-    expect(policyActorOf(job, local)).toEqual({
+    expect(policyActorOf(job, local, OWNER_ACCOUNT_ID)).toEqual({
       kind: 'job',
       role: 'qa',
       projectSlug: 'acme',
@@ -427,7 +455,49 @@ describe('policyActorOf', () => {
     ['local without AUTH_MODE', { ENVIRONMENT: 'local' }],
     ['AUTH_MODE=local with an empty ENVIRONMENT', { ENVIRONMENT: '', AUTH_MODE: 'local' }],
   ])('maps the job identity to nothing on %s', (_, env) => {
-    expect(policyActorOf(job, env)).toBeNull();
+    expect(policyActorOf(job, env, OWNER_ACCOUNT_ID)).toBeNull();
+  });
+});
+
+// #466: a member proposes (a new item at `proposed`) and comments; every other change is refused before the
+// role table — and the owner-only part of the table (approve, leave proposed) still comes first.
+describe('the member actor in the transition table', () => {
+  const member: PolicyActor = { kind: 'member', userId: '01M6YSNJ00000000000000US01' };
+  const proposed: ItemPolicyState = { status: 'proposed', flags: [], closed: false, approved: false };
+  const create = (after: ItemPolicyState): ItemTransition => ({
+    before: null,
+    after,
+    changesText: true,
+    changesPlanning: true,
+    changesUnclassified: false,
+  });
+
+  it('creates a proposed item and nothing past it', () => {
+    expect(transitionRefusal(member, create(proposed), null)).toBeNull();
+    expect(transitionRefusal(member, create({ ...proposed, status: 'approved' }), null)).toEqual({
+      type: 'transition-owner-only',
+      reason: 'approve',
+    });
+  });
+
+  it('edits no existing item, not even its own proposed one', () => {
+    const edit: ItemTransition = {
+      before: proposed,
+      after: proposed,
+      changesText: true,
+      changesPlanning: false,
+      changesUnclassified: false,
+    };
+    expect(transitionRefusal(member, edit, 1)).toEqual({
+      type: 'transition-role',
+      reason: 'member-proposes-only',
+    });
+  });
+
+  it('writes comments only, like the owner', () => {
+    expect(commentKindRefusal(member, 'comment')).toBeNull();
+    expect(commentKindRefusal(member, 'note')).toEqual({ type: 'comment-kind', reason: 'note' });
+    expect(commentKindRefusal(member, 'decision')).toEqual({ type: 'comment-kind', reason: 'decision' });
   });
 });
 

@@ -42,6 +42,8 @@ export interface TokenOptions {
   readonly notBeforeInSeconds?: number;
   readonly issuedAt?: boolean;
   readonly claims?: JWTPayload;
+  /** The `sub` claim; the key of the explicit Access↔GitHub link (#466). */
+  readonly subject?: string;
 }
 
 /** A token shaped like Access's: RS256, `kid`, `iss` = team URL, `aud` array, `iat`/`nbf`/`exp`. */
@@ -55,7 +57,7 @@ export async function signAccessToken(
     .setProtectedHeader({ alg: 'RS256', kid: key.kid })
     .setIssuer(options.issuer ?? `https://${teamDomain}`)
     .setAudience(options.audience ?? [AUDIENCE])
-    .setSubject('owner-sub');
+    .setSubject(options.subject ?? 'owner-sub');
   if (options.issuedAt !== false) {
     jwt.setIssuedAt(now);
   }
