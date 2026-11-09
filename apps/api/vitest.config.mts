@@ -84,8 +84,14 @@ export default defineConfig(async () => {
           assets: { directory: await prepareTestAssets() },
           // Empty D1s that migrations.spec.ts migrates step by step (#434: the 0014 rebuild of
           // idempotency_keys keeps the rows of the previous deploy); one per step test, since a step cannot be undone
-          // (#452: the 0016 approval backfill).
-          d1Databases: { MIGRATION_DB: 'migration-steps', MIGRATION_DB_0016: 'migration-steps-0016' },
+          // (#452: the 0016 approval backfill; #465: the 0018 owner backfill, connected, unconnected and ambiguous).
+          d1Databases: {
+            MIGRATION_DB: 'migration-steps',
+            MIGRATION_DB_0016: 'migration-steps-0016',
+            MIGRATION_DB_0018: 'migration-steps-0018',
+            MIGRATION_DB_0018_NO_OWNER: 'migration-steps-0018-no-owner',
+            MIGRATION_DB_0018_AMBIGUOUS: 'migration-steps-0018-ambiguous',
+          },
           bindings: {
             TEST_MIGRATIONS: await readD1Migrations(resolve(import.meta.dirname, 'migrations')),
             // The auth placeholder fails closed; route specs run with the local bypass the way `nx serve api`
