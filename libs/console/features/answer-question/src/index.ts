@@ -6,7 +6,7 @@ export {
   answerLookupUrl,
   answerRequestOf,
   answerUrl,
-  decisionUrl,
+  decisionFailureOf,
 } from './lib/answer.client';
 export type {
   AnswerFailure,

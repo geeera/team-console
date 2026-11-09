@@ -72,6 +72,17 @@ describe('moveMenuOf', () => {
     expect(spec.warning).toBe('In progress');
   });
 
+  it("freezes by the project's own freeze_days, not the plugin's default (#457)", () => {
+    const menu = (freezeDays: number) =>
+      moveMenuOf(
+        { item: { ...ITEM, sprint: null }, sprints, counts: new Map(), today: '2026-11-09', freezeDays },
+        COPY,
+      ).groups[0]?.items[0]?.off;
+    // Demo on the 13th: two freeze days start on the 11th, five on the 8th.
+    expect(menu(2)).toBeUndefined();
+    expect(menu(5)).toBe('Freeze');
+  });
+
   it('reads a picked id back to a target', () => {
     expect(moveTargetOf('sprint:4')).toBe(4);
     expect(moveTargetOf('backlog')).toBeNull();

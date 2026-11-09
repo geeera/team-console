@@ -56,6 +56,7 @@ describe('migrations on a fresh D1', () => {
       '0014_decisions.sql',
       '0015_decision_guards.sql',
       '0016_item_approval.sql',
+      '0017_item_approval_guards.sql',
       '0019_event_scrub.sql',
     ]);
   });
@@ -480,5 +481,85 @@ describe('migrations on a fresh D1', () => {
         /append-only/,
       );
     });
+  });
+});
+
+// #457: 0017 holds direct SQL to what the Worker writes — a UTC timestamp, set only as the item enters work.
+describe('items.approved_at guards (0017)', () => {
+  const T0 = '2026-11-01T00:00:00.000Z';
+  let number = 0;
+
+  beforeAll(async () => {
+    await env.DB.prepare(
+      `INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at) VALUES ('m17', 'a/m17', 'm17', 0, ?1)`,
+    )
+      .bind(T0)
+      .run();
+  });
+
+  const insert = (status: string, approvedAt: unknown) => {
+    number += 1;
+    const closed = status === 'done';
+    return env.DB.prepare(
+      `INSERT INTO items (project_slug, number, kind, status, title, closed_at, closed_reason, created_by_kind,
+         created_by, created_at, updated_at, approved_at)
+       VALUES ('m17', ?1, 'feature', ?2, 'Item', ?3, ?4, 'owner', 'owner', ?5, ?5, ?6)`,
+    )
+      .bind(number, status, closed ? T0 : null, closed ? 'done' : null, T0, approvedAt)
+      .run()
+      .then(() => number);
+  };
+  const update = (item: number, set: string, ...values: unknown[]) =>
+    env.DB.prepare(`UPDATE items SET ${set} WHERE project_slug = 'm17' AND number = ?1`)
+      .bind(item, ...values)
+      .run();
+
+  it.each([T0, '2026-11-01T00:00:00Z'])('accept the timestamp %s on a workable item', async (at) => {
+    await expect(insert('approved', at)).resolves.toBeGreaterThan(0);
+  });
+
+  it.each([
+    'yes',
+    '1',
+    '2026-11-01',
+    '2026-11-01 00:00:00',
+    '2026-11-01T00:00:00+02:00',
+    '2026-02-30T00:00:00.000Z',
+    '2026-11-01T25:00:00.000Z',
+    '2026-11-01T00:00:00.000Zjunk',
+  ])('refuse %j as an approval time, on insert and on update', async (value) => {
+    await expect(insert('approved', value)).rejects.toThrow(/approved_at must be a UTC timestamp/);
+    const item = await insert('proposed', null);
+    await expect(update(item, "status = 'approved', approved_at = ?2", value)).rejects.toThrow(
+      /approved_at must be a UTC timestamp/,
+    );
+  });
+
+  it('refuse a number as an approval time', async () => {
+    await expect(insert('approved', 1_762_000_000)).rejects.toThrow(/approved_at must be a UTC timestamp/);
+  });
+
+  it.each(['proposed', 'done'])('refuse an approval inserted on a %s item', async (status) => {
+    await expect(insert(status, T0)).rejects.toThrow(/set only while the item enters a workable status/);
+  });
+
+  it('refuse setting the approval while the item stays proposed or moves to done', async () => {
+    const proposed = await insert('proposed', null);
+    await expect(update(proposed, 'approved_at = ?2', T0)).rejects.toThrow(/workable status/);
+    await expect(
+      update(proposed, "status = 'done', closed_at = ?2, closed_reason = 'done', approved_at = ?2", T0),
+    ).rejects.toThrow(/workable status/);
+  });
+
+  it('allow the approval in the statement that makes the item workable, and keep it once it is done', async () => {
+    const item = await insert('proposed', null);
+    await update(item, "status = 'in-progress', approved_at = ?2", T0);
+    await update(item, "status = 'done', closed_at = ?2, closed_reason = 'done'", T0);
+    const row = await env.DB.prepare(
+      `SELECT status, approved_at FROM items WHERE project_slug = 'm17' AND number = ?1`,
+    )
+      .bind(item)
+      .first();
+    expect(row).toEqual({ status: 'done', approved_at: T0 });
   });
 });

@@ -90,7 +90,12 @@ export function decisionItemOf(
         }}</span>
       </tc-receipt>
     } @else if (question(); as question) {
-      <tc-question-card [item]="question" [showTaskLink]="false" data-testid="task-decision">
+      <tc-question-card
+        [item]="question"
+        [showTaskLink]="false"
+        [heading]="'item.decisionHeading' | transloco"
+        data-testid="task-decision"
+      >
         <tc-answer-question
           tc-question-actions
           [item]="question"

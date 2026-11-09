@@ -12,10 +12,10 @@ import {
 } from '@angular/core';
 import {
   calendarTodayOf,
+  freezeDaysOrDefault,
   ItemsApi,
   newIdempotencyKey,
   openSprintsOf,
-  TRACKER_FREEZE_DAYS,
   type FailedWrite,
 } from '@console/entities/item';
 import { localCalendarDayOf, pluralKeyOf, TranslocoService } from '@console/shared/i18n';
@@ -80,9 +80,10 @@ export class ItemSprintPicker {
     }
     this.isOpen.set(true);
     this.isBusy.set(true);
-    const [sprints, open] = await Promise.all([
+    const [sprints, open, freezeDays] = await Promise.all([
       this.api.sprints(this.slug()),
       this.api.items(this.slug(), { state: 'open' }),
+      this.api.freezeDays(this.slug()),
     ]);
     this.isBusy.set(false);
     if (!sprints.ok || !open.ok) {
@@ -107,7 +108,7 @@ export class ItemSprintPicker {
           sprints: openSprints,
           counts,
           today: calendarTodayOf(this.now()),
-          freezeDays: TRACKER_FREEZE_DAYS,
+          freezeDays: freezeDaysOrDefault(freezeDays),
         },
         this.copy(item),
       ),

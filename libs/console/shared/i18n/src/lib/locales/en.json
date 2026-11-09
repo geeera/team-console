@@ -466,12 +466,15 @@
   "sprintNew": {
     "create": "Create a sprint",
     "title": "New sprint",
-    "titleNamed": "New sprint: {{sprint}}",
+    "name": "Name",
     "date": "Demo date",
-    "after": "A new sprint always goes after the latest one. The console names it by its number.",
-    "hint": "It starts after the {{prev}} demo ({{date}}). Freeze is the two days before the demo: {{freeze}}.",
-    "hintFirst": "Freeze is the two days before the demo: {{freeze}}.",
+    "after": "A new sprint always goes after the latest one.",
+    "hint": "It starts after the {{prev}} demo ({{date}}). Freeze before the demo: {{freeze}}.",
+    "hintFirst": "Freeze before the demo: {{freeze}}.",
     "errEmpty": "Pick the demo date.",
+    "errNameEmpty": "Write a name for the sprint.",
+    "errName": "A sprint with this name already exists.",
+    "errNameInvalid": "The console didn’t accept this name. Write another one.",
     "errPast": "This date has passed. Pick today or later.",
     "errBefore": "The {{sprint}} demo must be after the {{prev}} demo ({{date}}).",
     "errInvalid": "The console didn’t accept this date. Pick another one.",
@@ -672,6 +675,7 @@
       },
       "retry": "Try again"
     },
+    "decisionHeading": "Waiting for your decision",
     "decisionMeta": "{{key}} · {{time}} · the team reads it on its next run"
   },
   "artifacts": {
@@ -1379,6 +1383,7 @@
         "rate": "GitHub asks to wait. Try again in a minute — nothing already recorded is posted twice.",
         "offline": "No connection to the server. Try again once you are back online — nothing already recorded is posted twice.",
         "github": "GitHub didn’t answer. Try again — nothing already recorded is posted twice.",
+        "console": "The console did not record the approval. Try again — nothing already recorded is recorded twice.",
         "changed": "These questions changed while the dialog was open: {{ids}}. Answer them one by one."
       }
     },
@@ -1882,7 +1887,11 @@
       "approved": "Approved",
       "bug": "Bug",
       "standard": "standard",
-      "offline": "You’re offline"
+      "offline": "You’re offline",
+      "sprint": "Sprint",
+      "sprintValue": "Sprint 03 — current",
+      "longValue": "Sprint 12 · Checkout, refunds and receipts — current, demo 18 December",
+      "longLabel": "Responsible for the review"
     },
     "menu": {
       "open": "Move",

@@ -18,9 +18,9 @@ export function batchAnswerUrl(slug: string): string {
 /**
  * Why a batch or one of its items was not recorded, as the dialog words it. `retryable`: the same request again may
  * go through (and replays whatever was written); `changed`: the item is no longer what the owner saw, so it leaves
- * the batch to be answered one by one.
+ * the batch to be answered one by one; `console`: a console-tracker decision the console did not record (#457).
  */
-export type BatchFailureKind = 'connect' | 'rate' | 'offline' | 'github' | 'changed';
+export type BatchFailureKind = 'connect' | 'rate' | 'offline' | 'github' | 'console' | 'changed';
 
 /** Problem slugs that mean the item itself changed on GitHub: a retry cannot help. */
 const CHANGED: ReadonlySet<string> = new Set([
