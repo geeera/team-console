@@ -4,7 +4,9 @@ Status: accepted (owner direction in chat, 2026-11-09: the console becomes a pai
 execution modes — a customer-installed runner or a hosted runner on the customer's own Anthropic API key; the
 owner's team follows the same rules as any customer and depends on no particular machine; billing is designed as a
 seam only. The owner accepted every recommendation of "Owner decisions" below on 2026-11-09 in the team chat,
-recorded on #446. Everything below that is not one of those decisions is a team decision under
+recorded on #446, except items 1–2, which he revised the same day (his team on a self-hosted runner with his own
+subscription instead of the Actions packaging with an API key). Everything below that is not one of those decisions
+is a team decision under
 `reference/decision-policy.md`, reversible with `/reject why`). Date: 2026-11-09, revised the same day after the QA
 and SECURITY reviews of PR #460 (an `actions-ephemeral` backend; the delivery plan inside the ADR; deny-by-default
 route scope; the GitHub Actions packaging's auth and secret design; hosted network isolation and key handling; the
