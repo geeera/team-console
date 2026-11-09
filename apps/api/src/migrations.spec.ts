@@ -36,6 +36,7 @@ describe('migrations on a fresh D1', () => {
       'owner_decisions',
       'owner_requests',
       'projects',
+      'pull_requests',
       'push_subscriptions',
       'push_test_sends',
       'sessions',
@@ -68,6 +69,7 @@ describe('migrations on a fresh D1', () => {
       '0017_item_approval_guards.sql',
       '0018_accounts.sql',
       '0019_event_scrub.sql',
+      '0020_pull_requests.sql',
     ]);
   });
 

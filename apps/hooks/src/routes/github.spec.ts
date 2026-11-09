@@ -5,6 +5,7 @@ import {
   installationRepositoriesEvent,
   issueCommentEvent,
   issuesEvent,
+  PULL_HEAD_SHA,
   pingEvent,
   pullRequestEvent,
   pushEvent,
@@ -332,7 +333,11 @@ describe('POST /hooks/github — own writes and pushes', () => {
     await env.DB.prepare(
       "UPDATE projects SET snoozed_at = '2026-10-05T11:00:00.000Z', snoozed_until = '2026-10-05T13:00:00.000Z', snooze_allows_urgent = 0 WHERE slug = 'storify'",
     ).run();
-    const muted = await deliver(pullRequestEvent('opened'), { event: 'pull_request', pushSender: sender, now });
+    const muted = await deliver(pullRequestEvent('opened'), {
+      event: 'pull_request',
+      pushSender: sender,
+      now,
+    });
     await expect(muted.response.json()).resolves.toEqual({ status: 'ignored', reason: 'snoozed' });
 
     const later = () => new Date('2026-10-05T13:00:00.000Z');
@@ -405,11 +410,16 @@ describe('POST /hooks/github — own writes and pushes', () => {
     const service = new FakePushService();
     const endpoint = await subscribeFakeDevice(service);
 
-    const { response, logs } = await deliver(question(), { pushFetch: service.fetch, env: { ENVIRONMENT: 'prod' } });
+    const { response, logs } = await deliver(question(), {
+      pushFetch: service.fetch,
+      env: { ENVIRONMENT: 'prod' },
+    });
 
     expect(response.status).toBe(202);
     expect(service.deliveriesTo(endpoint)).toEqual([]);
-    expect(logs).toContainEqual(expect.objectContaining({ message: 'push misconfigured', invalid: ['ENVIRONMENT'] }));
+    expect(logs).toContainEqual(
+      expect.objectContaining({ message: 'push misconfigured', invalid: ['ENVIRONMENT'] }),
+    );
   });
 
   it('ignores an outsider’s marker comment with untrusted-author', async () => {
@@ -442,6 +452,112 @@ describe('POST /hooks/github — own writes and pushes', () => {
       await env.DB.prepare('ALTER TABLE projects RENAME COLUMN cache_epoch_x TO cache_epoch').run();
     }
     expect((await deliver(issuesEvent('closed'), { deliveryId })).response.status).toBe(200);
+  });
+});
+
+interface PullRequestRowView {
+  readonly state: string;
+  readonly title: string;
+  readonly head_sha: string;
+  readonly url: string;
+  readonly ci_state: string;
+  readonly ci_stale: number;
+  readonly updated_at: string;
+}
+
+async function pullRow(slug: string, number: number): Promise<PullRequestRowView | null> {
+  return env.DB.prepare(
+    'SELECT state, title, head_sha, url, ci_state, ci_stale, updated_at FROM pull_requests WHERE project_slug = ?1 AND number = ?2',
+  )
+    .bind(slug, number)
+    .first<PullRequestRowView>();
+}
+
+async function pullCount(): Promise<number> {
+  return (await env.DB.prepare('SELECT count(*) AS n FROM pull_requests').first<{ n: number }>())?.n ?? -1;
+}
+
+describe('POST /hooks/github — pull_requests sync (#463)', () => {
+  const NEXT_HEAD = 'f'.repeat(40);
+
+  it('writes the row of an opened pull request, its URL built here, its CI unknown until read', async () => {
+    const { response } = await deliver(pullRequestEvent('opened', { number: 12, base: 'dev' }), {
+      event: 'pull_request',
+    });
+    expect(response.status).toBeLessThan(300);
+    await expect(pullRow('storify', 12)).resolves.toEqual({
+      state: 'open',
+      title: 'Release 0.4.0',
+      head_sha: PULL_HEAD_SHA,
+      url: 'https://github.com/geeera/storify/pull/12',
+      ci_state: 'unknown',
+      ci_stale: 1,
+      updated_at: '2026-10-06T12:00:00.000Z',
+    });
+  });
+
+  it('follows a new head and a merge, and drops a delivery older than the row', async () => {
+    await deliver(pullRequestEvent('opened', { number: 12 }), { event: 'pull_request' });
+    await env.DB.prepare("UPDATE pull_requests SET ci_state = 'success', ci_stale = 0").run();
+    await deliver(
+      pullRequestEvent('synchronize', { number: 12, headSha: NEXT_HEAD, updatedAt: '2026-10-06T13:00:00Z' }),
+      { event: 'pull_request' },
+    );
+    expect(await pullRow('storify', 12)).toMatchObject({
+      head_sha: NEXT_HEAD,
+      ci_state: 'unknown',
+      ci_stale: 1,
+    });
+
+    await deliver(
+      pullRequestEvent('edited', { number: 12, title: 'Older title', updatedAt: '2026-10-06T12:30:00Z' }),
+      { event: 'pull_request' },
+    );
+    expect(await pullRow('storify', 12)).toMatchObject({ title: 'Release 0.4.0', head_sha: NEXT_HEAD });
+
+    await deliver(
+      pullRequestEvent('closed', {
+        number: 12,
+        headSha: NEXT_HEAD,
+        updatedAt: '2026-10-06T14:00:00Z',
+        mergedAt: '2026-10-06T14:00:00Z',
+      }),
+      { event: 'pull_request' },
+    );
+    expect(await pullRow('storify', 12)).toMatchObject({ state: 'merged' });
+  });
+
+  it('marks the CI of a head stale when a workflow run on it completes', async () => {
+    await deliver(pullRequestEvent('opened', { number: 12 }), { event: 'pull_request' });
+    await env.DB.prepare("UPDATE pull_requests SET ci_state = 'pending', ci_stale = 0").run();
+    await deliver(workflowRunEvent({ headSha: NEXT_HEAD }), { event: 'workflow_run' });
+    expect(await pullRow('storify', 12)).toMatchObject({ ci_state: 'pending', ci_stale: 0 });
+    await deliver(workflowRunEvent({ headSha: PULL_HEAD_SHA }), { event: 'workflow_run' });
+    expect(await pullRow('storify', 12)).toMatchObject({ ci_state: 'pending', ci_stale: 1 });
+  });
+
+  it('writes nothing when the delivery’s repository id is not the project’s (a rename or a transfer)', async () => {
+    await resetDatabase();
+    await seedProject('storify', 'geeera/storify', { repoId: 860001 });
+    await deliver(pullRequestEvent('opened', { number: 12, repoId: 990001 }), { event: 'pull_request' });
+    expect(await pullCount()).toBe(0);
+    await deliver(pullRequestEvent('opened', { number: 12, repoId: 860001 }), { event: 'pull_request' });
+    expect(await pullCount()).toBe(1);
+  });
+
+  it('writes nothing for an unregistered repository, another installation, a label change or a bad payload', async () => {
+    await deliver(pullRequestEvent('opened', { repo: 'geeera/elsewhere' }), { event: 'pull_request' });
+    await resetDatabase();
+    await seedProject('storify', 'geeera/storify', { installationId: 999 });
+    await deliver(pullRequestEvent('opened'), { event: 'pull_request' });
+    await resetDatabase();
+    await seedProject('storify', 'geeera/storify');
+    await deliver(pullRequestEvent('labeled'), { event: 'pull_request' });
+    const { response } = await deliver(pullRequestEvent('opened', { headSha: 'not-a-sha' }), {
+      event: 'pull_request',
+    });
+    expect(response.status).toBeLessThan(300);
+    expect(await pullCount()).toBe(0);
   });
 });
 
