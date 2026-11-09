@@ -1846,6 +1846,7 @@
       ],
       "pulls": [
         {
+          "id": 1760001,
           "number": 176,
           "title": "design(#90004): demo screen wireframe and renders",
           "body": "Closes #90004\n\nWireframe and phone/Mac renders under docs/design/90004-demo-screen.",
@@ -1857,15 +1858,21 @@
             "type": "User"
           },
           "state": "open",
+          "merged_at": null,
+          "updated_at": "2026-10-05T09:00:00Z",
           "head": {
             "sha": "17600176001760017600176001760017600176aa",
             "ref": "design/90004-demo-screen",
             "repo": {
               "full_name": "geeera/team-console"
             }
+          },
+          "base": {
+            "ref": "dev"
           }
         },
         {
+          "id": 920001,
           "number": 92,
           "title": "feat(#131): CI state for each open pull request on the board",
           "html_url": "https://github.com/geeera/team-console/pull/92",
@@ -1876,11 +1883,21 @@
             "type": "User"
           },
           "state": "open",
+          "merged_at": null,
+          "updated_at": "2026-10-03T12:00:00Z",
           "head": {
-            "sha": "92b1ab0092b1ab0092b1ab0092b1ab0092b1ab00"
+            "sha": "92b1ab0092b1ab0092b1ab0092b1ab0092b1ab00",
+            "ref": "feature/board-ci-state",
+            "repo": {
+              "full_name": "geeera/team-console"
+            }
+          },
+          "base": {
+            "ref": "dev"
           }
         },
         {
+          "id": 910001,
           "number": 91,
           "title": "docs: sketch the next board section",
           "html_url": "https://github.com/geeera/team-console/pull/91",
@@ -1891,11 +1908,21 @@
             "type": "User"
           },
           "state": "open",
+          "merged_at": null,
+          "updated_at": "2026-10-02T08:30:00Z",
           "head": {
-            "sha": "91deadbe91deadbe91deadbe91deadbe91deadbe"
+            "sha": "91deadbe91deadbe91deadbe91deadbe91deadbe",
+            "ref": "docs/board-sketch",
+            "repo": {
+              "full_name": "geeera/team-console"
+            }
+          },
+          "base": {
+            "ref": "dev"
           }
         },
         {
+          "id": 450001,
           "number": 45,
           "title": "chore(devops): publish docs/design to GitHub Pages via Actions",
           "html_url": "https://github.com/geeera/team-console/pull/45",
@@ -1906,11 +1933,21 @@
             "type": "User"
           },
           "state": "open",
+          "merged_at": null,
+          "updated_at": "2026-09-28T16:00:00Z",
           "head": {
-            "sha": "45a1c0de45a1c0de45a1c0de45a1c0de45a1c0de"
+            "sha": "45a1c0de45a1c0de45a1c0de45a1c0de45a1c0de",
+            "ref": "chore/design-pages",
+            "repo": {
+              "full_name": "geeera/team-console"
+            }
+          },
+          "base": {
+            "ref": "dev"
           }
         },
         {
+          "id": 400001,
           "number": 40,
           "title": "docs(design): UX wireframe for #29 team commands",
           "html_url": "https://github.com/geeera/team-console/pull/40",
@@ -1921,11 +1958,68 @@
             "type": "User"
           },
           "state": "open",
+          "merged_at": null,
+          "updated_at": "2026-09-25T10:00:00Z",
           "head": {
-            "sha": "40fa11ed40fa11ed40fa11ed40fa11ed40fa11ed"
+            "sha": "40fa11ed40fa11ed40fa11ed40fa11ed40fa11ed",
+            "ref": "docs/team-commands-wireframe",
+            "repo": {
+              "full_name": "geeera/team-console"
+            }
+          },
+          "base": {
+            "ref": "dev"
+          }
+        },
+        {
+          "id": 380001,
+          "number": 38,
+          "title": "feat(#21): settings language switch",
+          "html_url": "https://github.com/geeera/team-console/pull/38",
+          "draft": false,
+          "author_association": "OWNER",
+          "user": {
+            "login": "geeera",
+            "type": "User"
+          },
+          "state": "closed",
+          "merged_at": "2026-09-20T11:00:00Z",
+          "updated_at": "2026-09-20T11:00:00Z",
+          "head": {
+            "sha": "38c0ffee38c0ffee38c0ffee38c0ffee38c0ffee",
+            "ref": "feature/settings-language",
+            "repo": {
+              "full_name": "geeera/team-console"
+            }
+          },
+          "base": {
+            "ref": "dev"
           }
         }
       ],
+      "pullFiles": {
+        "92": [
+          {
+            "filename": "libs/worker/read-models/src/lib/ci-state.ts",
+            "status": "added",
+            "additions": 80,
+            "deletions": 0
+          },
+          {
+            "filename": "apps/api/src/read-models/project-reads.ts",
+            "status": "modified",
+            "additions": 40,
+            "deletions": 3
+          },
+          {
+            "filename": "apps/console/src/old-ci.ts",
+            "previous_filename": "apps/console/src/ci.ts",
+            "status": "renamed",
+            "additions": 0,
+            "deletions": 0
+          }
+        ]
+      },
       "checkRuns": {
         "92b1ab0092b1ab0092b1ab0092b1ab0092b1ab00": [
           {

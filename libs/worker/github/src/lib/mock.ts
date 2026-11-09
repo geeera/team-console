@@ -50,8 +50,13 @@ export interface MockRepository {
    * `due_on` at midnight UTC that many days from the day of the read, so the mock's current sprint never expires.
    */
   readonly milestones?: readonly Readonly<Record<string, unknown>>[];
-  /** `GET …/pulls?state=` */
+  /**
+   * `GET …/pulls?state=&base=` (paged by `per_page`/`page` with a `Link: rel="next"`, #463) and `GET …/pulls/{number}`,
+   * which reads one whatever its state.
+   */
   readonly pulls?: readonly Readonly<Record<string, unknown>>[];
+  /** `GET …/pulls/{number}/files` by pull request number (#463); a listed pull request without an entry has none. */
+  readonly pullFiles?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
   /** `GET …/commits/{sha}/check-runs` (#131), by head sha; a sha not listed has no check runs. */
   readonly checkRuns?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
 }
@@ -74,7 +79,8 @@ export const MOCK_APP_ID = '424242';
 export const MOCK_OWNER_ACCOUNT: OwnerAccount = Object.freeze({ login: 'geeera', userId: 100001 });
 
 const TOKEN_LIFETIME_MS = 60 * 60 * 1000;
-const DEFAULT_FIXTURES: MockFixtures = fixtures;
+/** The fixture world `createMockGitHub` serves by default; a spec extends it with repositories of its own. */
+export const MOCK_FIXTURES: MockFixtures = fixtures;
 
 export function isGitHubMockEnabled(env: {
   readonly ENVIRONMENT: string;
@@ -145,7 +151,7 @@ export function milestoneAt(
   return { ...rest, due_on: `${day.toISOString().slice(0, 10)}T00:00:00Z` };
 }
 
-/** One page (the fixtures stay under 100 items) of a list, filtered by `state` and `milestone` as GitHub does. */
+/** A list filtered by `state`, `labels`, `milestone` and (pull requests) `base` as GitHub does, before paging. */
 function listOf(
   fixture: MockRepository,
   list: 'issues' | 'milestones' | 'pulls',
@@ -159,7 +165,12 @@ function listOf(
   const milestone = query.get('milestone');
   // GitHub's `labels=a,b` lists items carrying every one of them.
   const labels = (query.get('labels') ?? '').split(',').filter((label) => label !== '');
+  const base = list === 'pulls' ? query.get('base') : null;
   return items.filter((item) => {
+    const itemBase = item['base'];
+    if (base !== null && !(isRecord(itemBase) && itemBase['ref'] === base)) {
+      return false;
+    }
     if (state !== 'all' && item['state'] !== state) {
       return false;
     }
@@ -202,6 +213,22 @@ function ownerOf(fixture: MockRepository): { id: number; login: string } | null 
 function positiveIntOf(value: string | null, fallback: number): number {
   const parsed = Number(value);
   return value !== null && Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+/**
+ * One page of `items` as GitHub pages a list: `per_page` (default 30, at most 100) and `page`, with a `Link: rel="next"`
+ * to the same path and query while items remain.
+ */
+function pageOf(items: readonly unknown[], url: URL): Response {
+  const perPage = Math.min(positiveIntOf(url.searchParams.get('per_page'), 30), LIST_PAGE_MAX);
+  const page = positiveIntOf(url.searchParams.get('page'), 1);
+  const headers: Record<string, string> = {};
+  if (page * perPage < items.length) {
+    const next = new URL(url.href);
+    next.searchParams.set('page', String(page + 1));
+    headers['link'] = `<${next.href}>; rel="next"`;
+  }
+  return json(200, items.slice((page - 1) * perPage, page * perPage), headers);
 }
 
 class MockGitHubServer {
@@ -275,6 +302,9 @@ class MockGitHubServer {
     const isTreeRead = segments.length === 6 && segments[3] === 'git' && segments[4] === 'trees';
     const isBlobRead = segments.length === 6 && segments[3] === 'git' && segments[4] === 'blobs';
     const isBranchRead = segments.length === 5 && segments[3] === 'branches';
+    const isBranchListRead = segments.length === 4 && segments[3] === 'branches';
+    const isPullRead = segments.length === 5 && segments[3] === 'pulls';
+    const isPullFilesRead = segments.length === 6 && segments[3] === 'pulls' && segments[5] === 'files';
     if (
       method === 'GET' &&
       segments[0] === 'repos' &&
@@ -287,7 +317,10 @@ class MockGitHubServer {
         isCheckRunsRead ||
         isTreeRead ||
         isBlobRead ||
-        isBranchRead)
+        isBranchRead ||
+        isBranchListRead ||
+        isPullRead ||
+        isPullFilesRead)
     ) {
       const repo = `${segments[1]}/${segments[2]}`;
       const token = this.issued.get(bearer);
@@ -311,7 +344,20 @@ class MockGitHubServer {
         return this.file(found.fixture, segments.slice(4).join('/'), found.name);
       }
       if (isListRead) {
-        return json(200, listOf(found.fixture, listed, url.searchParams));
+        const items = listOf(found.fixture, listed, url.searchParams);
+        // Only pull requests are paged (#463); the other lists stay one page, as the readers built on them expect.
+        return listed === 'pulls' ? pageOf(items, url) : json(200, items);
+      }
+      if (isPullRead || isPullFilesRead) {
+        const pull = found.fixture.pulls?.find((item) => String(item['number']) === segments[4]);
+        if (pull === undefined) {
+          return notFound();
+        }
+        return isPullRead ? json(200, pull) : pageOf(found.fixture.pullFiles?.[segments[4] ?? ''] ?? [], url);
+      }
+      if (isBranchListRead) {
+        const branch = await this.branch(found.fixture, String(found.fixture.repository?.['default_branch']));
+        return branch.ok ? pageOf([(await branch.json()) as Record<string, unknown>], url) : branch;
       }
       if (isIssueRead) {
         return this.issue(found.fixture, segments[4] ?? '');
@@ -350,7 +396,7 @@ class MockGitHubServer {
    * The contents API's answer for a file (base64 content, as GitHub sends it) or, for a folder that holds fixture
    * files, its listing: one entry per file or sub-folder directly inside it.
    */
-  private file(fixture: MockRepository, path: string, repo: string): Response {
+  private async file(fixture: MockRepository, path: string, repo: string): Promise<Response> {
     const text = fixture.files?.[path];
     if (text === undefined) {
       return this.listing(fixture, path, repo);
@@ -360,6 +406,8 @@ class MockGitHubServer {
       type: 'file',
       encoding: 'base64',
       path,
+      // The blob's object id, as `git/trees` lists it (#463: `files.read` returns it).
+      sha: await sha1Hex(`blob:${path}`),
       size: bytes.byteLength,
       content: base64Of(bytes),
     });
@@ -414,7 +462,13 @@ class MockGitHubServer {
     const blobs = await this.blobs(fixture);
     return json(200, {
       sha,
-      tree: blobs.map((blob) => ({ path: blob.path, mode: '100644', type: 'blob', sha: blob.sha, size: blob.bytes.byteLength })),
+      tree: blobs.map((blob) => ({
+        path: blob.path,
+        mode: '100644',
+        type: 'blob',
+        sha: blob.sha,
+        size: blob.bytes.byteLength,
+      })),
       truncated: false,
     });
   }
@@ -426,9 +480,17 @@ class MockGitHubServer {
       return notFound();
     }
     if (accept.includes('raw')) {
-      return new Response(found.bytes, { status: 200, headers: { 'Content-Type': 'application/vnd.github.raw' } });
+      return new Response(found.bytes, {
+        status: 200,
+        headers: { 'Content-Type': 'application/vnd.github.raw' },
+      });
     }
-    return json(200, { sha, size: found.bytes.byteLength, encoding: 'base64', content: base64Of(found.bytes) });
+    return json(200, {
+      sha,
+      size: found.bytes.byteLength,
+      encoding: 'base64',
+      content: base64Of(found.bytes),
+    });
   }
 
   /** `GET …/branches/{name}` (#277): the default branch with a head sha derived from its name. */
@@ -590,7 +652,7 @@ class MockGitHubServer {
 }
 
 /** A fresh fake GitHub with its own app key; the api Worker keeps one per isolate. */
-export async function createMockGitHub(mockFixtures: MockFixtures = DEFAULT_FIXTURES): Promise<MockGitHub> {
+export async function createMockGitHub(mockFixtures: MockFixtures = MOCK_FIXTURES): Promise<MockGitHub> {
   const keyPair = await crypto.subtle.generateKey(
     {
       name: 'RSASSA-PKCS1-v1_5',

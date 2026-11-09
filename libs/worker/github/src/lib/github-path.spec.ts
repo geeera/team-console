@@ -37,6 +37,16 @@ describe('githubContentsPath', () => {
     );
   });
 
+  it('adds a ref as the one query value, encoded whole, and refuses an empty one', () => {
+    expect(githubContentsPath(repo, '.product-team/project.yml', 'feature/463-x')).toBe(
+      '/repos/geeera/team-console/contents/.product-team/project.yml?ref=feature%2F463-x',
+    );
+    expect(githubContentsPath(repo, 'a.md', 'main&x=1#y')).toBe(
+      '/repos/geeera/team-console/contents/a.md?ref=main%26x%3D1%23y',
+    );
+    expect(() => githubContentsPath(repo, 'a.md', '')).toThrow();
+  });
+
   it('refuses an absolute path, a traversal and an empty segment', () => {
     expect(() => githubContentsPath(repo, '/etc')).toThrow();
     expect(() => githubContentsPath(repo, 'docs/../../app')).toThrow();

@@ -45,15 +45,20 @@ export function githubPath(
 /**
  * `/repos/{owner}/{repo}/contents/{path}` for a repository path that comes from configuration (project.yml's
  * `decisions_dir`) or a listing: each segment is encoded on its own, so the slashes stay, and an empty, `.` or `..`
- * segment is refused rather than resolved.
+ * segment is refused rather than resolved. `ref` (a branch, tag or commit, #463) becomes the one `?ref=` value,
+ * encoded whole.
  */
-export function githubContentsPath(repo: RepoName, path: string): GitHubPath {
+export function githubContentsPath(repo: RepoName, path: string, ref?: string): GitHubPath {
   const segments = path.split('/');
   if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) {
     throw new Error('a contents path is relative, without empty, . or .. segments');
   }
+  if (ref === '') {
+    throw new Error('a contents ref is not empty');
+  }
   const base = githubPath`/repos/${repo}/contents`;
-  return `${base}/${segments.map((segment) => encodeURIComponent(segment)).join('/')}` as GitHubPath;
+  const query = ref === undefined ? '' : `?ref=${encodeURIComponent(ref)}`;
+  return `${base}/${segments.map((segment) => encodeURIComponent(segment)).join('/')}${query}` as GitHubPath;
 }
 
 /** Re-brands the path of a URL already checked to be on api.github.com (pagination `Link`, same-host redirects). */
