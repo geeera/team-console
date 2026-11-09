@@ -93,10 +93,9 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
           if (!input.ok) {
             return invalid(c, 'sprint-invalid', input.field, input.detail);
           }
-          const secret = bodySecretRefusal(c, policyActor, {
-            title: input.value.title,
-            description: input.value.description,
-          });
+          // The title is validated plain text already (`checkCreateSprintInput`); this only judges it for secrets.
+          const { title, description } = input.value;
+          const secret = bodySecretRefusal(c, policyActor, { title, description });
           if (secret !== null) {
             return secret;
           }
