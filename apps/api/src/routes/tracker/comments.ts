@@ -5,6 +5,7 @@ import { CommentsRepo } from '@worker/db';
 import { commentKindRefusal } from '../../auth/policy';
 import { trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
+import { bodySecretRefusal } from '../../tracker/body-secret';
 import { invalid, itemOf, trackerProjectOf } from '../../tracker/context';
 import { commentDtoOf } from '../../tracker/dto';
 import { TEXT_WRITE_MAX_BYTES, nextCursor, pageOf, writeLimit } from '../../tracker/http';
@@ -84,6 +85,11 @@ export function createTrackerCommentRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
                   : 'A team decision is not written by this role',
               extensions: { reason: refusal.reason },
             });
+          }
+          // Authorisation first (#474 review): a kind the role may not write is 403, whatever its text.
+          const secret = bodySecretRefusal(c, policyActor, { body: input.value.body });
+          if (secret !== null) {
+            return secret;
           }
           const id = await new CommentsRepo(c.env.DB).create(
             item.id,

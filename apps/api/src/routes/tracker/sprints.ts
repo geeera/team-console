@@ -9,6 +9,7 @@ import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import { SprintsRepo, type TrackerProject } from '@worker/db';
 import { trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
+import { bodySecretRefusal } from '../../tracker/body-secret';
 import { invalid, trackerProjectOf } from '../../tracker/context';
 import { sprintDtoOf } from '../../tracker/dto';
 import { TEXT_WRITE_MAX_BYTES, writeLimit } from '../../tracker/http';
@@ -82,7 +83,7 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       if (context instanceof Response) {
         return context;
       }
-      const { project, write } = context;
+      const { project, policyActor, write } = context;
       return idempotent(
         c,
         write,
@@ -91,6 +92,12 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
           const input = checkCreateSprintInput(write.body);
           if (!input.ok) {
             return invalid(c, 'sprint-invalid', input.field, input.detail);
+          }
+          // The title is validated plain text already (`checkCreateSprintInput`); this only judges it for secrets.
+          const { title, description } = input.value;
+          const secret = bodySecretRefusal(c, policyActor, { title, description });
+          if (secret !== null) {
+            return secret;
           }
           const repo = new SprintsRepo(c.env.DB);
           const number = await repo.nextNumber(project.slug);
@@ -119,7 +126,7 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       if (context instanceof Response) {
         return context;
       }
-      const { project, write } = context;
+      const { project, policyActor, write } = context;
       const param = c.req.param('number');
       const number = SPRINT_NUMBER.test(param) ? Number(param) : null;
       return idempotent(
@@ -135,6 +142,10 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
           const input = checkUpdateSprintInput(write.body);
           if (!input.ok) {
             return invalid(c, 'sprint-invalid', input.field, input.detail);
+          }
+          const secret = bodySecretRefusal(c, policyActor, { description: input.value.description });
+          if (secret !== null) {
+            return secret;
           }
           await repo.update(project.slug, number, input.value, new Date().toISOString(), [
             complete(200, 'sprint', { value: String(number) }),

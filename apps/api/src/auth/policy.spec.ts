@@ -41,7 +41,13 @@ function change(
   after: ItemPolicyState,
   edits: 'none' | 'planning' | 'text' = 'none',
 ): ItemTransition {
-  return { before, after, changesText: edits === 'text', changesPlanning: edits === 'planning' };
+  return {
+    before,
+    after,
+    changesText: edits === 'text',
+    changesPlanning: edits === 'planning',
+    changesUnclassified: false,
+  };
 }
 
 const refusal = (actor: PolicyActor, transition: ItemTransition) =>
@@ -243,6 +249,7 @@ describe('transition table: edit-after-approval', () => {
       after: state('in-progress'),
       changesText: true,
       changesPlanning: true,
+      changesUnclassified: false,
     };
     for (const role of JOB_ROLES) {
       expect(refusal(job(role, true), textAndMove)?.reason).toBe('edit-after-approval');
@@ -264,6 +271,26 @@ describe('transition table: edit-after-approval', () => {
       const released = unapproved(state('done', ['team:demo']));
       expect(refusal(job(role), change(released, released, 'text'))).toBeNull();
     }
+  });
+
+  // #471 security review: a field neither text nor planning is refused to every job, whatever the item's state.
+  it.each(JOB_ROLES)('refuses %s a change to an unclassified field', (role) => {
+    for (const before of [state('proposed'), state('approved'), null]) {
+      const transition: ItemTransition = {
+        ...change(before, before ?? state('proposed')),
+        changesUnclassified: true,
+      };
+      expect(refusal(job(role, true), transition)).toEqual({
+        type: 'transition-owner-only',
+        reason: 'unclassified-field',
+      });
+    }
+  });
+
+  it('leaves an unclassified field to the owner', () => {
+    expect(
+      refusal(OWNER, { ...change(state('approved'), state('approved')), changesUnclassified: true }),
+    ).toBeNull();
   });
 
   it('leaves the owner free to correct an approved text', () => {

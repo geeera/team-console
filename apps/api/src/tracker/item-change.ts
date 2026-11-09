@@ -23,6 +23,15 @@ export type ItemUpdateOutcome =
 // What the transition table tells apart (#462): the approved text, and the sizing and planning around it.
 const TEXT_FIELDS: readonly string[] = ['title', 'body'];
 const PLANNING_FIELDS: readonly string[] = ['kind', 'severity', 'tier', 'sprint'];
+// Fail closed (#471 security review): a changed field outside these lists is unclassified, and the table refuses it
+// to every job until someone decides which list it belongs to.
+const CLASSIFIED_FIELDS: readonly string[] = [
+  ...TEXT_FIELDS,
+  ...PLANNING_FIELDS,
+  'status',
+  'closedReason',
+  'flags',
+];
 
 /** `sprintId` is the id of the sprint `input.sprint` names, already resolved in the project (or `null`). */
 export function planItemUpdate(
@@ -120,6 +129,7 @@ export function planItemUpdate(
         after: { status, flags, closed: isClosed, approved: isApproved },
         changesText: changed.some((field) => TEXT_FIELDS.includes(field)),
         changesPlanning: changed.some((field) => PLANNING_FIELDS.includes(field)),
+        changesUnclassified: changed.some((field) => !CLASSIFIED_FIELDS.includes(field)),
       },
     },
   };

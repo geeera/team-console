@@ -54,6 +54,8 @@ export interface ItemTransition {
   readonly changesText: boolean;
   /** The kind, severity, tier or sprint: sizing and planning, which go on after the approval. */
   readonly changesPlanning: boolean;
+  /** Any other field: no job may change it until it is classified (fail closed). */
+  readonly changesUnclassified: boolean;
 }
 
 export type TransitionRefusal = {
@@ -62,6 +64,7 @@ export type TransitionRefusal = {
   readonly reason:
     | 'approve'
     | 'edit-after-approval'
+    | 'unclassified-field'
     | 'leave-proposed'
     | 'not-approved'
     | 'design-approved'
@@ -110,6 +113,9 @@ function ownerOnlyRefusal(transition: ItemTransition): TransitionRefusal | null 
   // item leaves `proposed` (or is created past it) only that way, so no detour such as `proposed → blocked →
   // approved` skips it. Closing a proposed item as not planned or duplicate keeps its status, so a job may still do it.
   const wasStatus = before?.status ?? 'proposed';
+  if (transition.changesUnclassified) {
+    return { type: 'transition-owner-only', reason: 'unclassified-field' };
+  }
   if (after.status === 'approved' && before?.status !== 'approved') {
     return { type: 'transition-owner-only', reason: 'approve' };
   }

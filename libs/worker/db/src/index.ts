@@ -54,7 +54,7 @@ export { ItemRequestsRepo } from './lib/tracker/item-requests.repo';
 export type { ItemRequestRecord, RequestHandling } from './lib/tracker/item-requests.repo';
 export { INBOX_ROW_CAP, InboxRepo } from './lib/tracker/inbox.repo';
 export type { InboxRowRecord, InboxRows } from './lib/tracker/inbox.repo';
-export { ItemEventsRepo } from './lib/tracker/item-events.repo';
+export { ItemEventsRepo, SCRUBBED_TEXT } from './lib/tracker/item-events.repo';
 export type { ItemEventRecord, NewItemEvent, TrackerActor } from './lib/tracker/item-events.repo';
 export { AccountsRepo } from './lib/accounts/accounts.repo';
 export type {

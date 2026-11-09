@@ -5,6 +5,7 @@ import { AsksRepo, type ItemRecord } from '@worker/db';
 import { askEffectOf } from '../../auth/policy';
 import { trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
+import { bodySecretRefusal } from '../../tracker/body-secret';
 import { invalid, itemClosed, itemOf } from '../../tracker/context';
 import { askDtoOf } from '../../tracker/dto';
 import { withOneRetry, writeWithItemEffect } from '../../tracker/effect-batch';
@@ -44,7 +45,7 @@ export function createTrackerAskRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       if (context instanceof Response) {
         return context;
       }
-      const { project, actor, write } = context;
+      const { project, actor, policyActor, write } = context;
       const found = await itemOf(c, project);
       if (found instanceof Response) {
         return found;
@@ -66,6 +67,10 @@ export function createTrackerAskRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
           const input = checkCreateAskInput(write.body);
           if (!input.ok) {
             return invalid(c, 'ask-invalid', input.field, input.detail);
+          }
+          const secret = bodySecretRefusal(c, policyActor, { ask: input.value.ask });
+          if (secret !== null) {
+            return secret;
           }
           return withOneRetry(c, async (isRetry) => {
             const item: ItemRecord | Response = isRetry ? await itemOf(c, project) : found;
