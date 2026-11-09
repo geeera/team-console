@@ -26,6 +26,7 @@ describe('SprintsRepo', () => {
       closedAt: null,
     });
     await expect(sprints().list(slug, 'all')).resolves.toHaveLength(2);
+    await expect(sprints().findByNumber(slug, 2)).resolves.toMatchObject({ title: 'Sprint 02' });
     await expect(sprints().findByNumber(other.slug, 1)).resolves.toBeNull();
   });
 
@@ -39,6 +40,14 @@ describe('SprintsRepo', () => {
     await expect(
       env.DB.prepare("SELECT key FROM idempotency_keys WHERE key = 'sprint-race'").first(),
     ).resolves.toBeNull();
+  });
+
+  it("titles a sprint with the owner's name when one is given (#457)", async () => {
+    const { slug } = await seedTrackerProject();
+    await sprints().create(slug, 1, { dueOn: null, description: '', title: 'Checkout', at: AT });
+    await sprints().create(slug, 2, { dueOn: null, description: '', title: null, at: AT });
+    const titles = (await sprints().list(slug, 'all')).map((sprint) => sprint.title);
+    expect(titles).toEqual(['Checkout', 'Sprint 02']);
   });
 
   it('closes and reopens a sprint, changing only the fields it is given', async () => {

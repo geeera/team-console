@@ -1,10 +1,12 @@
 import {
+  DEFAULT_FREEZE_DAYS,
   PROBLEM_TYPE_PREFIX,
   isProblemDetails,
   type EmbedOriginsDto,
   type InboxDto,
   type QuestionsDto,
   type SprintDto,
+  type SprintFreezeDaysDto,
 } from '@shared/contracts';
 import { MemoryReadCache } from '@worker/github';
 import { ApiGitHub } from '../github';
@@ -697,8 +699,42 @@ describe('GET /api/v1/projects/:slug/embed-origins (#20)', () => {
   });
 });
 
+describe('GET /api/v1/projects/:slug/sprint-freeze (#457)', () => {
+  it("answers project.yml's sprint.freeze_days", async () => {
+    const { github } = setup({ issues: OPEN_ISSUES, projectYml: 'name: x\nsprint:\n  freeze_days: 3\n' });
+    const response = await fetchApi('/api/v1/projects/tc/sprint-freeze', localEnv(), { github });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ freezeDays: 3 } satisfies SprintFreezeDaysDto);
+  });
+
+  it.each([
+    ['no project.yml', null],
+    ['no sprint block', 'name: x\n'],
+    ['a value past the bound', 'sprint:\n  freeze_days: 40\n'],
+  ])("answers the plugin's default with %s", async (_case, projectYml) => {
+    const { github } = setup({ issues: OPEN_ISSUES, projectYml });
+    const response = await fetchApi('/api/v1/projects/tc/sprint-freeze', localEnv(), { github });
+    await expect(response.json()).resolves.toEqual({ freezeDays: DEFAULT_FREEZE_DAYS });
+  });
+
+  it('shares the cached project.yml read with the inbox (no second contents read)', async () => {
+    const { github, stub } = setup({ issues: OPEN_ISSUES, projectYml: 'sprint:\n  freeze_days: 1\n' });
+    await fetchApi('/api/v1/projects/tc/inbox', localEnv(), { github });
+    await fetchApi('/api/v1/projects/tc/sprint-freeze', localEnv(), { github });
+    expect(stub.reads().filter((call) => call.url.pathname.includes('/contents/'))).toHaveLength(1);
+  });
+
+  it('surfaces a GitHub failure as a problem instead of guessing a value', async () => {
+    const stub = stubGitHub(() => json(500, { message: 'boom' }));
+    const github = new ApiGitHub({ fetch: stub.fetch });
+    const response = await fetchApi('/api/v1/projects/tc/sprint-freeze', localEnv(), { github });
+    expect(response.status).toBeGreaterThanOrEqual(500);
+    expect(isProblemDetails(await response.json())).toBe(true);
+  });
+});
+
 describe('the slug is checked before any fetch (#9 row 2)', () => {
-  it.each(['inbox', 'questions', 'sprint', 'embed-origins'])('%s', async (route) => {
+  it.each(['inbox', 'questions', 'sprint', 'embed-origins', 'sprint-freeze'])('%s', async (route) => {
     for (const slug of ['tc%2F..%2Fx', '..', '%2e%2e', 'tc%2Fx', 'a/b', 'TC']) {
       const { github, stub } = setup();
       const response = await fetchApi(`/api/v1/projects/${slug}/${route}`, localEnv(), { github });
