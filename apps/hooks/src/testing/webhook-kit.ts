@@ -258,6 +258,7 @@ export async function deliveryCount(): Promise<number> {
 
 export async function resetDatabase(): Promise<void> {
   await env.DB.batch([
+    env.DB.prepare('DELETE FROM pull_requests'),
     env.DB.prepare('DELETE FROM webhook_deliveries'),
     env.DB.prepare('DELETE FROM own_writes'),
     env.DB.prepare('DELETE FROM projects'),

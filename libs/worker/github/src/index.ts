@@ -29,7 +29,13 @@ export {
 export type { GitHubProblem, GitHubProblemType } from './lib/errors';
 export { githubContentsPath, githubPath } from './lib/github-path';
 export type { GitHubPath, GitHubPathValue } from './lib/github-path';
-export { MOCK_APP_ID, MOCK_OWNER_ACCOUNT, createMockGitHub, isGitHubMockEnabled } from './lib/mock';
+export {
+  MOCK_APP_ID,
+  MOCK_FIXTURES,
+  MOCK_OWNER_ACCOUNT,
+  createMockGitHub,
+  isGitHubMockEnabled,
+} from './lib/mock';
 export type { MockFixtures, MockGitHub, MockReply, MockRepository } from './lib/mock';
 export {
   GITHUB_OAUTH_AUTHORIZE_URL,

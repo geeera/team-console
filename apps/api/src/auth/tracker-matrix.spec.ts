@@ -1,4 +1,11 @@
-import { ITEM_STATUSES, OWNER_ACCOUNT_ID, type ItemDto, type ItemRequestDto, type ItemStatus } from '@shared/contracts';
+import { env } from 'cloudflare:test';
+import {
+  ITEM_STATUSES,
+  OWNER_ACCOUNT_ID,
+  type ItemDto,
+  type ItemRequestDto,
+  type ItemStatus,
+} from '@shared/contracts';
 import { createApiApp } from '../app';
 import {
   countRows,
@@ -81,6 +88,17 @@ const ROWS: readonly Row[] = [
   reads(`GET ${P}/:slug/sprints`, async (project) => `${P}/${project.slug}/sprints`),
   reads(`GET ${P}/:slug/sprints/:number`, sprint),
   reads(`GET ${P}/:slug/labels`, async (project) => `${P}/${project.slug}/labels`),
+  reads(`GET ${P}/:slug/prs`, async (project) => `${P}/${project.slug}/prs`),
+  reads(`GET ${P}/:slug/prs/:number`, async (project) => {
+    await env.DB.prepare(
+      `INSERT INTO pull_requests (project_slug, external_id, number, title, head_ref, head_sha, base_ref, state, url,
+         updated_at, synced_at)
+       VALUES (?1, '1', 1, 'PR', 'feature/x', ?2, 'dev', 'open', 'https://github.com/acme/x/pull/1', ?3, ?3)`,
+    )
+      .bind(project.slug, 'a'.repeat(40), '2026-11-09T00:00:00.000Z')
+      .run();
+    return `${P}/${project.slug}/prs/1`;
+  }),
   {
     route: `POST ${P}/:slug/items`,
     setup: async (project) => ({
@@ -252,7 +270,7 @@ describe('the route matrix covers the tracker', () => {
         .routes.filter(
           (route) =>
             route.method !== 'ALL' &&
-            /^\/api\/v1\/projects\/:slug\/(items|sprints|labels|requests\/:id)\b/.test(route.path),
+            /^\/api\/v1\/projects\/:slug\/(items|sprints|labels|prs|requests\/:id)\b/.test(route.path),
         )
         .map((route) => `${route.method} ${route.path}`),
     ),

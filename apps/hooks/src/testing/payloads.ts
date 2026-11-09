@@ -94,29 +94,58 @@ export function issueCommentEvent(
   };
 }
 
+export const PULL_HEAD_SHA = 'a1b2c3d4'.repeat(5);
+
 export function pullRequestEvent(
-  action: 'opened' | 'ready_for_review' | 'closed',
-  options: { repo?: string; base?: string; association?: Association; number?: number } = {},
+  action: 'opened' | 'ready_for_review' | 'closed' | 'synchronize' | 'edited' | 'labeled',
+  options: {
+    repo?: string;
+    base?: string;
+    association?: Association;
+    number?: number;
+    title?: string;
+    headSha?: string;
+    updatedAt?: string;
+    mergedAt?: string;
+    /** The repository's id in the delivery (#463: matched against `projects.repo_id`). */
+    repoId?: number;
+  } = {},
 ): Record<string, unknown> {
   const repo = options.repo ?? 'geeera/storify';
+  const base = envelope(repo, TEST_INSTALLATION_ID);
   return {
     action,
     number: options.number ?? 77,
     pull_request: {
+      id: 5_550_000 + (options.number ?? 77),
       number: options.number ?? 77,
-      title: 'Release 0.4.0',
+      title: options.title ?? 'Release 0.4.0',
+      state: action === 'closed' ? 'closed' : 'open',
       draft: false,
+      merged_at: options.mergedAt ?? null,
+      updated_at: options.updatedAt ?? '2026-10-06T12:00:00Z',
+      html_url: `https://github.com/${repo}/pull/${String(options.number ?? 77)}`,
       base: { ref: options.base ?? 'main' },
-      head: { ref: 'stage' },
+      head: { ref: 'stage', sha: options.headSha ?? PULL_HEAD_SHA, repo: { full_name: repo } },
       author_association: options.association ?? 'OWNER',
       user: user('geeera'),
     },
-    ...envelope(repo, TEST_INSTALLATION_ID),
+    ...base,
+    ...(options.repoId === undefined
+      ? {}
+      : { repository: { ...(base['repository'] as Record<string, unknown>), id: options.repoId } }),
   };
 }
 
 export function workflowRunEvent(
-  options: { repo?: string; name?: string; conclusion?: string; branch?: string; headRepo?: string } = {},
+  options: {
+    repo?: string;
+    name?: string;
+    conclusion?: string;
+    branch?: string;
+    headRepo?: string;
+    headSha?: string;
+  } = {},
 ): Record<string, unknown> {
   const repo = options.repo ?? 'geeera/storify';
   return {
@@ -128,6 +157,7 @@ export function workflowRunEvent(
       status: 'completed',
       conclusion: options.conclusion ?? 'failure',
       head_branch: options.branch ?? 'stage',
+      head_sha: options.headSha ?? PULL_HEAD_SHA,
       head_repository: { full_name: options.headRepo ?? repo },
     },
     ...envelope(repo, TEST_INSTALLATION_ID),

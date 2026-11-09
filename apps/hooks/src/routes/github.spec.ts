@@ -5,6 +5,7 @@ import {
   installationRepositoriesEvent,
   issueCommentEvent,
   issuesEvent,
+  PULL_HEAD_SHA,
   pingEvent,
   pullRequestEvent,
   pushEvent,
@@ -255,7 +256,10 @@ describe('POST /hooks/github — routing (ADR 0003 decision 5, threat model row 
       expect(await cacheEpochOf('storify')).toBe(1);
 
       const reusedName = await deliver(issuesEvent('closed', { repo: 'geeera/storify', repoId: 123456 }));
-      await expect(reusedName.response.json()).resolves.toEqual({ status: 'ignored', reason: 'unregistered' });
+      await expect(reusedName.response.json()).resolves.toEqual({
+        status: 'ignored',
+        reason: 'unregistered',
+      });
       expect(await cacheEpochOf('storify')).toBe(1);
     });
 
@@ -322,6 +326,46 @@ describe('POST /hooks/github — routing (ADR 0003 decision 5, threat model row 
       const otherId = await deliver(issuesEvent('closed', { repo: 'geeera/legacy-id', repoId: 777 }));
       await expect(otherId.response.json()).resolves.toEqual({ status: 'ignored', reason: 'unregistered' });
       expect(await cacheEpochOf('legacy-id')).toBe(1);
+    });
+
+    // #463 security re-review: `pull_requests` rows are written only behind the same invariant, by repository id.
+    it('writes no pull_requests row for another account’s delivery, or for a row without a repository id', async () => {
+      const other = await seedAccount();
+      await seedProject('theirs', 'other/theirs', { installationId: 999, accountId: other });
+      const count = async (): Promise<number> =>
+        (await env.DB.prepare('SELECT count(*) AS n FROM pull_requests').first<{ n: number }>())?.n ?? -1;
+
+      // B's installation delivering A's repository: refused before the sync.
+      const crossed = await deliver(
+        pullRequestEvent('opened', { number: 5, repoId: repoIdOf('geeera/storify') }),
+        { event: 'pull_request' },
+      );
+      expect(crossed.response.status).toBe(202);
+      const viaTheirs = await deliver(
+        {
+          ...pullRequestEvent('opened', { number: 6, repoId: repoIdOf('geeera/storify') }),
+          installation: { id: 999 },
+        },
+        { event: 'pull_request' },
+      );
+      await expect(viaTheirs.response.json()).resolves.toEqual({
+        status: 'ignored',
+        reason: 'installation-mismatch',
+      });
+      expect(await count()).toBe(1);
+      const rows = await env.DB.prepare('SELECT project_slug, number FROM pull_requests').all();
+      expect(rows.results).toEqual([{ project_slug: 'storify', number: 5 }]);
+
+      // A pre-0018 row is backfilled by the matching delivery first, so the write that follows is by id.
+      await seedProject('legacy-pr', 'geeera/legacy-pr', { repoId: null });
+      await deliver(pullRequestEvent('opened', { number: 7, repo: 'geeera/legacy-pr' }), {
+        event: 'pull_request',
+      });
+      const legacy = await env.DB.prepare('SELECT repo_id FROM projects WHERE slug = ?1')
+        .bind('legacy-pr')
+        .first<{ repo_id: number | null }>();
+      expect(legacy?.repo_id).toBe(repoIdOf('geeera/legacy-pr'));
+      expect(await count()).toBe(2);
     });
 
     it('installation events touch the linked account’s projects only', async () => {
@@ -433,7 +477,11 @@ describe('POST /hooks/github — own writes and pushes', () => {
     await env.DB.prepare(
       "UPDATE projects SET snoozed_at = '2026-10-05T11:00:00.000Z', snoozed_until = '2026-10-05T13:00:00.000Z', snooze_allows_urgent = 0 WHERE slug = 'storify'",
     ).run();
-    const muted = await deliver(pullRequestEvent('opened'), { event: 'pull_request', pushSender: sender, now });
+    const muted = await deliver(pullRequestEvent('opened'), {
+      event: 'pull_request',
+      pushSender: sender,
+      now,
+    });
     await expect(muted.response.json()).resolves.toEqual({ status: 'ignored', reason: 'snoozed' });
 
     const later = () => new Date('2026-10-05T13:00:00.000Z');
@@ -506,11 +554,16 @@ describe('POST /hooks/github — own writes and pushes', () => {
     const service = new FakePushService();
     const endpoint = await subscribeFakeDevice(service);
 
-    const { response, logs } = await deliver(question(), { pushFetch: service.fetch, env: { ENVIRONMENT: 'prod' } });
+    const { response, logs } = await deliver(question(), {
+      pushFetch: service.fetch,
+      env: { ENVIRONMENT: 'prod' },
+    });
 
     expect(response.status).toBe(202);
     expect(service.deliveriesTo(endpoint)).toEqual([]);
-    expect(logs).toContainEqual(expect.objectContaining({ message: 'push misconfigured', invalid: ['ENVIRONMENT'] }));
+    expect(logs).toContainEqual(
+      expect.objectContaining({ message: 'push misconfigured', invalid: ['ENVIRONMENT'] }),
+    );
   });
 
   it('ignores an outsider’s marker comment with untrusted-author', async () => {
@@ -546,6 +599,112 @@ describe('POST /hooks/github — own writes and pushes', () => {
   });
 });
 
+interface PullRequestRowView {
+  readonly state: string;
+  readonly title: string;
+  readonly head_sha: string;
+  readonly url: string;
+  readonly ci_state: string;
+  readonly ci_stale: number;
+  readonly updated_at: string;
+}
+
+async function pullRow(slug: string, number: number): Promise<PullRequestRowView | null> {
+  return env.DB.prepare(
+    'SELECT state, title, head_sha, url, ci_state, ci_stale, updated_at FROM pull_requests WHERE project_slug = ?1 AND number = ?2',
+  )
+    .bind(slug, number)
+    .first<PullRequestRowView>();
+}
+
+async function pullCount(): Promise<number> {
+  return (await env.DB.prepare('SELECT count(*) AS n FROM pull_requests').first<{ n: number }>())?.n ?? -1;
+}
+
+describe('POST /hooks/github — pull_requests sync (#463)', () => {
+  const NEXT_HEAD = 'f'.repeat(40);
+
+  it('writes the row of an opened pull request, its URL built here, its CI unknown until read', async () => {
+    const { response } = await deliver(pullRequestEvent('opened', { number: 12, base: 'dev' }), {
+      event: 'pull_request',
+    });
+    expect(response.status).toBeLessThan(300);
+    await expect(pullRow('storify', 12)).resolves.toEqual({
+      state: 'open',
+      title: 'Release 0.4.0',
+      head_sha: PULL_HEAD_SHA,
+      url: 'https://github.com/geeera/storify/pull/12',
+      ci_state: 'unknown',
+      ci_stale: 1,
+      updated_at: '2026-10-06T12:00:00.000Z',
+    });
+  });
+
+  it('follows a new head and a merge, and drops a delivery older than the row', async () => {
+    await deliver(pullRequestEvent('opened', { number: 12 }), { event: 'pull_request' });
+    await env.DB.prepare("UPDATE pull_requests SET ci_state = 'success', ci_stale = 0").run();
+    await deliver(
+      pullRequestEvent('synchronize', { number: 12, headSha: NEXT_HEAD, updatedAt: '2026-10-06T13:00:00Z' }),
+      { event: 'pull_request' },
+    );
+    expect(await pullRow('storify', 12)).toMatchObject({
+      head_sha: NEXT_HEAD,
+      ci_state: 'unknown',
+      ci_stale: 1,
+    });
+
+    await deliver(
+      pullRequestEvent('edited', { number: 12, title: 'Older title', updatedAt: '2026-10-06T12:30:00Z' }),
+      { event: 'pull_request' },
+    );
+    expect(await pullRow('storify', 12)).toMatchObject({ title: 'Release 0.4.0', head_sha: NEXT_HEAD });
+
+    await deliver(
+      pullRequestEvent('closed', {
+        number: 12,
+        headSha: NEXT_HEAD,
+        updatedAt: '2026-10-06T14:00:00Z',
+        mergedAt: '2026-10-06T14:00:00Z',
+      }),
+      { event: 'pull_request' },
+    );
+    expect(await pullRow('storify', 12)).toMatchObject({ state: 'merged' });
+  });
+
+  it('marks the CI of a head stale when a workflow run on it completes', async () => {
+    await deliver(pullRequestEvent('opened', { number: 12 }), { event: 'pull_request' });
+    await env.DB.prepare("UPDATE pull_requests SET ci_state = 'pending', ci_stale = 0").run();
+    await deliver(workflowRunEvent({ headSha: NEXT_HEAD }), { event: 'workflow_run' });
+    expect(await pullRow('storify', 12)).toMatchObject({ ci_state: 'pending', ci_stale: 0 });
+    await deliver(workflowRunEvent({ headSha: PULL_HEAD_SHA }), { event: 'workflow_run' });
+    expect(await pullRow('storify', 12)).toMatchObject({ ci_state: 'pending', ci_stale: 1 });
+  });
+
+  it('writes nothing when the delivery’s repository id is not the project’s (a rename or a transfer)', async () => {
+    await resetDatabase();
+    await seedProject('storify', 'geeera/storify', { repoId: 860001 });
+    await deliver(pullRequestEvent('opened', { number: 12, repoId: 990001 }), { event: 'pull_request' });
+    expect(await pullCount()).toBe(0);
+    await deliver(pullRequestEvent('opened', { number: 12, repoId: 860001 }), { event: 'pull_request' });
+    expect(await pullCount()).toBe(1);
+  });
+
+  it('writes nothing for an unregistered repository, another installation, a label change or a bad payload', async () => {
+    await deliver(pullRequestEvent('opened', { repo: 'geeera/elsewhere' }), { event: 'pull_request' });
+    await resetDatabase();
+    await seedProject('storify', 'geeera/storify', { installationId: 999 });
+    await deliver(pullRequestEvent('opened'), { event: 'pull_request' });
+    await resetDatabase();
+    await seedProject('storify', 'geeera/storify');
+    await deliver(pullRequestEvent('labeled'), { event: 'pull_request' });
+    const { response } = await deliver(pullRequestEvent('opened', { headSha: 'not-a-sha' }), {
+      event: 'pull_request',
+    });
+    expect(response.status).toBeLessThan(300);
+    expect(await pullCount()).toBe(0);
+  });
+});
+
 describe('POST /hooks/github — installation events', () => {
   it('installation_repositories.removed marks the project and queues "access lost"; added clears it', async () => {
     const sender = new RecordingPushSender();
@@ -573,7 +732,10 @@ describe('POST /hooks/github — installation events', () => {
     const other = await deliver(installationRepositoriesEvent('removed', ['geeera/storify'], 999), {
       event: 'installation_repositories',
     });
-    await expect(other.response.json()).resolves.toEqual({ status: 'ignored', reason: 'installation-mismatch' });
+    await expect(other.response.json()).resolves.toEqual({
+      status: 'ignored',
+      reason: 'installation-mismatch',
+    });
     await deliver(installationRepositoriesEvent('removed', ['geeera/unknown']), {
       event: 'installation_repositories',
     });

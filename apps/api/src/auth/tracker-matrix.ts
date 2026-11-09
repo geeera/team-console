@@ -79,6 +79,9 @@ export const TRACKER_MATRIX = {
   [`GET ${P}/sprints`]: READ,
   [`GET ${P}/sprints/:number`]: READ,
   [`GET ${P}/labels`]: READ,
+  // #463: the VCS mirror; `?fresh=1` reads GitHub with the read-only installation token, writes only `pull_requests`.
+  [`GET ${P}/prs`]: READ,
+  [`GET ${P}/prs/:number`]: READ,
   // Any role reaches them; the transition table decides what it may change (R5) and refuses with its own 403s.
   [`POST ${P}/items`]: WRITE('Items are written within the transition table'),
   [`PATCH ${P}/items/:key`]: WRITE('Items are written within the transition table'),

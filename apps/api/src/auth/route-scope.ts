@@ -77,6 +77,9 @@ export const ROUTE_SCOPES = {
   [`PATCH ${P}/sprints/:number`]: PROJECT,
   [`GET ${P}/labels`]: PROJECT,
   [`POST ${P}/labels`]: PROJECT,
+  // Pull requests (#463): the mirror in D1; `?fresh=1` is the account's (never a job's) and reads by `repo_id`.
+  [`GET ${P}/prs`]: PROJECT,
+  [`GET ${P}/prs/:number`]: PROJECT,
   // Which repositories the installation sees, with the scope's registrations only.
   'GET /api/v1/github/installation/repositories': 'projects',
   'POST /api/v1/github/connect': 'own-user',

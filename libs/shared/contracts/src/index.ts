@@ -367,3 +367,10 @@ export type {
   TrackerSprintDto,
   TrackerSprintListDto,
 } from './lib/tracker/dto';
+export type {
+  PullRequestDto,
+  PullRequestListDto,
+  PullRequestProblemType,
+  PullRequestStateDto,
+  PullRequestSyncDto,
+} from './lib/pull-requests';

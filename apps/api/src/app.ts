@@ -36,6 +36,8 @@ import { createTrackerLabelRoutes } from './routes/tracker/labels';
 import { createTrackerSprintRoutes } from './routes/tracker/sprints';
 import type { FetchLike } from '@worker/routines';
 import { mapReadModelError } from './read-models/errors';
+import { createPullRequestRoutes } from './routes/pull-requests';
+import { mapVcsError } from '@worker/vcs';
 
 export interface CreateApiAppOptions {
   readonly logSink?: LogSink;
@@ -69,7 +71,7 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
         ? problem(c, { type: 'not-found', title: 'Not Found', status: 404 })
         : // The SPA fallback: the assets binding's own `_headers` governs it, not this Worker's security headers.
           markAssetResponse(await c.env.ASSETS.fetch(c.req.raw)),
-    mapError: (error) => mapGitHubError(error) ?? mapReadModelError(error),
+    mapError: (error) => mapGitHubError(error) ?? mapVcsError(error) ?? mapReadModelError(error),
     noStore: true,
     ...(options.logSink === undefined ? {} : { logSink: options.logSink }),
   });
@@ -117,6 +119,8 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/projects', createTrackerAskRoutes());
   v1.route('/projects', createTrackerDecisionRoutes());
   v1.route('/projects', createTrackerRequestRoutes());
+  // Pull requests (#463): D1's mirror behind the same matrix; `?fresh=1` reads GitHub through the VCS adapter.
+  v1.route('/projects', createPullRequestRoutes(github));
   // Before the connection routes: their owner-only `use('*')` would otherwise also guard this read (#194), which
   // the service identity may make on dev/stage like every other read (installation-repositories.spec.ts proves it).
   v1.route('/github', createInstallationRepositoriesRoutes(github, owners));

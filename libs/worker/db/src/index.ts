@@ -26,6 +26,15 @@ export type {
   OwnerRequestRecord,
   OwnerRequestResult,
 } from './lib/owner-requests.repo';
+export { PullRequestsRepo } from './lib/pull-requests.repo';
+export type {
+  PullRequestFilter,
+  PullRequestPage,
+  PullRequestRecord,
+  PullRequestRowState,
+  PullRequestSnapshot,
+  PullRequestWrite,
+} from './lib/pull-requests.repo';
 export { LABELS_SEED } from './lib/tracker/labels-seed';
 export type { LabelSeed } from './lib/tracker/labels-seed';
 export { TrackerProjectsRepo } from './lib/tracker/tracker-projects.repo';
