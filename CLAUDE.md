@@ -204,14 +204,17 @@ under `/api/v1/projects/:slug/` — `GET|POST items`, `GET|PATCH items/:key` (`T
 behind the route matrix (#444, below), reads included; their freeze hints read project.yml's `sprint.freeze_days` from `GET
 /projects/:slug/sprint-freeze` (`SprintFreezeDaysDto`, the shared cached project.yml read, #457) instead. Console (#457): `ItemsApi.decide|freezeDays|createSprint({dueOn,title})` in `@console/entities/item`; every tracker problem slug is mapped once, in `trackerFailureOf` (`KIND_BY_PROBLEM`), and `AnswerClient.decide` and the batch dialog read only its kinds; `TC-n` items in the batch dialog are approved one decision each (with the open `askId`, a key per item), GitHub items stay on `answers/batch`. Every write, in
 this order: 404 project → 409 `tracker-not-cut-over` while `projects.tracker = 'github'` → `Idempotency-Key` (400
-`idempotency-key`; `tracker/idempotency.ts` over `idempotency_keys`, completed inside the write's own batch, 24 h;
+`idempotency-key`; `tracker/idempotency.ts` over `idempotency_keys`, completed inside the write's own batch, 24 h; per
+identity (#462: the row key is a hash of the identity kind + owner login | job id, then the client key; the request hash
+covers that scope too), so another identity's same key is a fresh request;
 replay answers the resource with `Idempotent-Replayed: true`, 409 `idempotency-in-flight`, 422
 `idempotency-key-reused`) → body checks from `@shared/contracts` (`checkCreateItemInput` …, 422 `*-invalid` with
 `field`; titles through `withoutInvisibles`; 413 over 512 KB, labels 4 KB) → the transition table
 `auth/policy.ts` (`transitionRefusal`: owner-semantic status/flags — approving, `design:approved`, `owner:*`, closing
 `team:demo` — are 403 `transition-owner-only` for any job, `workflow-change` owner/`security` only, removing
-`release-blocker`/`security` needs `security`/`pm`, `dev*`/`qa` only the status of a held item; the owner may make every
-change) → one D1 batch with its `item_events` rows, one per kind of change — the lifecycle (`status|closed|reopened`) apart from `labels|sprint|edited` (`tracker/item-change.ts` plans the columns and the before/after of the
+`release-blocker`/`security` needs `security`/`pm`, `dev*`/`qa` only the status of a held item; once `approved_at` is
+set, `title`/`body` are 403 `transition-owner-only` reason `edit-after-approval` for every job while `kind`, `severity`,
+`tier`, `sprint` stay the editing roles' (#462, `changesText`/`changesPlanning`); the owner may make every change) → one D1 batch with its `item_events` rows, one per kind of change — the lifecycle (`status|closed|reopened`) apart from `labels|sprint|edited` (`tracker/item-change.ts` plans the columns and the before/after of the
 changed fields). Lists: `?after=&limit≤100`, items also `status|kind|severity|tier|sprint(=N|none)|label|state`. DTOs
 `ItemDto`, `TrackerSprintDto`, `CommentDto`, `ItemEventDto`, `LabelDto` (separate from the GitHub-backed board DTOs).
 Specs seed a fresh project per case (`testing/tracker-kit.ts`; `send(…, { job })` sends as the local job stand-in).
@@ -231,10 +234,13 @@ number in the job's `items`; R2: `qa`/`reviewer`/`security` never set or clear `
 `verdict-flag`); comments any role, `kind: comment|note|decision` (`commentKindRefusal`: the owner `comment` only,
 `decision` not as `dev-light`, 403 `comment-kind`); sprints owner + `pm` (403 `sprint-role`); labels, decisions, requests
 owner only; asks any role but `dev*` (`ask-role`); handled `pm` only. `jobScopeMiddleware` (on `/api/*` after auth)
-refuses a job on every non-matrix route (403 `owner-only`); CSRF exempts the bearer `job` identity only (JSON still
+refuses a job on every non-matrix route (403 `owner-only`; `isTrackerMatrixRoute` matches `c.req.path` exactly, the
+path the non-strict router already stripped of one trailing slash, #462); CSRF exempts the bearer `job` identity only (JSON still
 required). The job identity's only minter is the local stand-in (`auth/local-job.ts`): under `isLocalBypass` alone,
 `Authorization: Bearer local-job.<base64url({"role","project_slug","job_id","items"})>` (exact members, a role of
-`auth/job-roles.ts`, ≤ 100 items) is that job; any other `Authorization` there is 401 `job-token-invalid` (never the
+`auth/job-roles.ts`, ≤ 100 items) is that job; `JobRole` is typed through `Identity`, `PolicyActor` and the matrix
+(`job: Record<JobRole, boolean>` per row), and the role groups (`EDITING_ROLES`, `STATUS_ONLY_ROLES`, `REVIEWER_ROLES`,
+`DEVELOPER_ROLES`) are defined once there from a `Record<JobRole, traits>`, so a new role must be decided (#462); any other `Authorization` there is 401 `job-token-invalid` (never the
 owner); a stand-in anywhere else is 401 `job-token-refused`; `policyActorOf` maps a `job` only under the bypass too.
 `tracker-matrix.spec.ts` proves every row × owner, each role, another project's job and the service.
 

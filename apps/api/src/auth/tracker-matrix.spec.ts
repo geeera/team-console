@@ -14,7 +14,7 @@ import {
 } from '../testing/tracker-kit';
 import type { TestJob } from '../testing/local-job-kit';
 import { JOB_ROLES, type JobRole } from './job-roles';
-import { TRACKER_MATRIX, isTrackerMatrixRoute, type TrackerRoute } from './tracker-matrix';
+import { TRACKER_MATRIX, isTrackerMatrixRoute, matrixRefusal, type TrackerRoute } from './tracker-matrix';
 
 // #444: the tracker's route matrix, cell by cell — every tracker route × the owner, each job role (the local
 // stand-in, through the real auth seam), a job of another project and the service identity. A refusal writes nothing.
@@ -23,9 +23,9 @@ type Who = 'owner' | JobRole;
 type Expected = { readonly status: number; readonly slug?: string };
 
 const P = '/api/v1/projects';
-const EDITORS: readonly string[] = ['pm', 'architect', 'orchestrator'];
-const STATUS_MOVERS: readonly string[] = ['dev', 'dev-light', 'dev-heavy', 'qa'];
-const DEVELOPERS: readonly string[] = ['dev', 'dev-light', 'dev-heavy'];
+const EDITORS: readonly Who[] = ['pm', 'architect', 'orchestrator'];
+const STATUS_MOVERS: readonly Who[] = ['dev', 'dev-light', 'dev-heavy', 'qa'];
+const DEVELOPERS: readonly Who[] = ['dev', 'dev-light', 'dev-heavy'];
 
 const ok = (status: number): Expected => ({ status });
 const refused = (slug: string, status = 403): Expected => ({ status, slug });
@@ -259,13 +259,92 @@ describe('the route matrix covers the tracker', () => {
 
   it('matches a row’s concrete paths, never a longer or another path', () => {
     expect(isTrackerMatrixRoute('GET', '/api/v1/projects/acme/items/TC-1')).toBe(true);
-    expect(isTrackerMatrixRoute('GET', '/api/v1/projects/acme/items/TC-1/')).toBe(true);
+    // The router's path (`c.req.path`) has its one trailing slash dropped already (strict: false); see below.
+    expect(isTrackerMatrixRoute('GET', '/api/v1/projects/acme/items/TC-1/')).toBe(false);
     expect(isTrackerMatrixRoute('DELETE', '/api/v1/projects/acme/items/TC-1')).toBe(false);
     expect(isTrackerMatrixRoute('GET', '/api/v1/projects/acme/items/TC-1/x')).toBe(false);
     expect(isTrackerMatrixRoute('GET', '/api/v1/projects/acme/inbox')).toBe(false);
     expect(isTrackerMatrixRoute('GET', '/api/v1/projects/acme')).toBe(false);
     expect(isTrackerMatrixRoute('GET', '/api/v1/projects/a/b/items')).toBe(false);
     expect(isTrackerMatrixRoute('POST', '/api/v1/projects/acme/issues/1/answer')).toBe(false);
+  });
+});
+
+// #462: every job role decided on every row. A `Record<JobRole, …>`, so a role added to JOB_ROLES does not compile
+// here until each row is decided for it; the rows below list what a role is refused, everything else it reaches.
+const OWNER_ROWS: readonly TrackerRoute[] = [
+  `POST ${P}/:slug/labels`,
+  `POST ${P}/:slug/items/:key/decisions`,
+  `POST ${P}/:slug/items/:key/requests`,
+];
+const PLANNING_ROWS: readonly TrackerRoute[] = [
+  `POST ${P}/:slug/sprints`,
+  `PATCH ${P}/:slug/sprints/:number`,
+];
+const PM_ROWS: readonly TrackerRoute[] = [`POST ${P}/:slug/requests/:id/handled`];
+const ASK_ROW: TrackerRoute = `POST ${P}/:slug/items/:key/asks`;
+const TEAM_REFUSED: readonly TrackerRoute[] = [...OWNER_ROWS, ...PLANNING_ROWS, ...PM_ROWS];
+
+const REFUSED_ROWS: Readonly<Record<JobRole, readonly TrackerRoute[]>> = {
+  pm: OWNER_ROWS,
+  architect: TEAM_REFUSED,
+  orchestrator: TEAM_REFUSED,
+  dev: [...TEAM_REFUSED, ASK_ROW],
+  'dev-light': [...TEAM_REFUSED, ASK_ROW],
+  'dev-heavy': [...TEAM_REFUSED, ASK_ROW],
+  qa: TEAM_REFUSED,
+  reviewer: TEAM_REFUSED,
+  security: TEAM_REFUSED,
+  devops: TEAM_REFUSED,
+  analyst: TEAM_REFUSED,
+  scribe: TEAM_REFUSED,
+  'ux-designer': TEAM_REFUSED,
+  'ui-designer': TEAM_REFUSED,
+};
+
+describe('every job role is decided on every row', () => {
+  const routes = Object.keys(TRACKER_MATRIX) as TrackerRoute[];
+  const cells = JOB_ROLES.flatMap((role) => routes.map((route) => [role, route] as const));
+
+  it.each(cells)('%s on %s', (role, route) => {
+    const rule = TRACKER_MATRIX[route];
+    expect(Object.keys(rule.job).sort(), 'the row decides exactly the job roles').toEqual(
+      [...JOB_ROLES].sort(),
+    );
+    const actor = { kind: 'job', role, projectSlug: 'acme', jobId: 'job-1', items: [] } as const;
+    const isRefused = REFUSED_ROWS[role].includes(route);
+    expect(matrixRefusal(rule, actor)).toBe(isRefused ? rule.refusal : null);
+  });
+});
+
+// #462: the job scope and the router judge one path. `createWorkerApp` routes with `strict: false`, which drops one
+// trailing slash before matching, so `…/items/` is the items route for both; `…/items//` is a route for neither.
+describe('a trailing slash is judged as the router judges it', () => {
+  it('lets a job reach a matrix route with one trailing slash, as the owner does', async () => {
+    const project = await seedTrackerProject();
+    const path = `${P}/${project.slug}/items/`;
+    expect((await send('GET', path)).status).toBe(200);
+    expect((await send('GET', path, undefined, { job: jobActor('dev') })).status).toBe(200);
+  });
+
+  it('refuses a job a path no route matches (two trailing slashes) before any route, 403 owner-only', async () => {
+    const project = await seedTrackerProject();
+    const path = `${P}/${project.slug}/items//`;
+    expect((await send('GET', path)).status).toBe(404);
+    const response = await send('GET', path, undefined, { job: jobActor('dev') });
+    expect(response.status).toBe(403);
+    expect(await slugOf(response)).toBe('owner-only');
+  });
+
+  it('keeps a write with one trailing slash under the matrix and the transition table', async () => {
+    const project = await seedTrackerProject();
+    const path = `${P}/${project.slug}/items/`;
+    const refused = await send('POST', path, { title: 'New', kind: 'chore' }, { job: jobActor('dev') });
+    expect(refused.status).toBe(403);
+    expect(await slugOf(refused)).toBe('transition-role');
+    expect((await send('POST', path, { title: 'New', kind: 'chore' }, { job: jobActor('pm') })).status).toBe(
+      201,
+    );
   });
 });
 
