@@ -7,7 +7,10 @@ changes. Its findings 1–9 are referred to here as **R1–R9**, and all of them
 this model asks for more than that ADR text says, the row names the criterion, and "ADR wording to align" below
 lists the differences. Builds on the earlier models of ADR 0001
 decision 8 and ADR 0003 decision 8, which stay in force for what they cover (Access, the SPA, the `api` and
-`hooks` Workers, owner OAuth).
+`hooks` Workers, owner OAuth). Amended 2026-11-09 with [ADR 0008](../decisions/0008-multi-tenant-console.md)
+(multi-tenant console, two execution modes): components C9–C11, residuals RR11–RR14 and owner questions 4–7
+below; "the owner" in every row now means an `owner` member of the project's account, and "the Mac" rows describe
+one of the runner's isolation backends (`user`), not the product's only host.
 
 Severity: **Critical** (owner impersonation or an unreviewed merge into a long-lived branch with no further
 barrier), **High** (one control away from that), **Medium** (a bounded integrity, availability or disclosure loss),
@@ -165,6 +168,42 @@ must carry it. "Phase 2 API" and similar refer to the rows of the ADR's "Phases 
 | Injection makes a job spam rows, asks or pushes to the owner | D | One open ask per item (partial unique index); per-job caps on comments/asks/events; push rate-limited per hour | Phase 1a′, Phase 4 | Low |
 | A malicious dependency's install script runs inside the job | E, I | Same boundary as C4 (job user); job token useless off-host (R4) | Phase 4 | Medium |
 
+### C9 — Multi-tenant isolation (ADR 0008 decisions 1–5)
+
+| Threat | STRIDE | Mitigation | Where | Residual |
+| ------ | ------ | ---------- | ----- | -------- |
+| **A user, job or runner of account A reads or writes a project of account B** (a guessed slug, a job token replayed against another project, a runner claiming another account's job) | S, E, I | One chokepoint: `projects/lookup.ts` takes the request's account scope (memberships of the session user; the one account of a job or runner token) and answers 404 `project-not-found` outside it — the same answer as a missing slug; `jobs.account_id` is checked at claim against `runners.account_id`; the **account inventory spec** fails on any `/projects/:slug` or `/accounts/:id` route that bypasses the lookup or the account check; repos never take a `project_slug` from a body | T-2 (account scope) | Low after the spec; **Critical** without it |
+| A member acts as an owner (approves, answers an ask, changes members, sets a key) | E | `member` is its own policy actor with reads, comments, `proposed` items and requests only; every account route is owner-of-account; the last owner cannot be demoted | T-2, T-3 | Low |
+| Session theft (cookie exfiltration, fixation, a stale session after a role change) | S | Opaque 256-bit session id stored hashed; `HttpOnly; Secure; SameSite=Lax`; rotated on sign-in; 24 h idle / 30 d absolute; revocable per user ("sign out everywhere"); memberships are read per request, never cached in the cookie; the CSRF rules of ADR 0001 stay for every cookie-borne write | T-3 | Low |
+| An invite link is leaked or replayed | S | Hashed single-use token, 7 days, optionally bound to a GitHub login, accepted only by a signed-in user; the acceptance is an `audit_events` row | T-3 | Low |
+| An installation is linked to the wrong account (a crafted setup redirect) | S, E | The setup URL's `state` is signed and names the account and the user; the console verifies through the app JWT that the installation exists and that the signed-in user administers the installed org/user before linking; relinking needs the owner | T-4 | Low |
+| The operator (us) reads a customer's tracker | I | Operator routes (`/api/v1/admin/*`) behind Access touch plans and entitlements only; there is no operator read of project rows; the operator's D1 access is the Cloudflare account itself (recorded as the trust assumption of a hosted product) | T-2, T-6 | Medium (platform trust) |
+| Cross-tenant data in shared read models or caches (`cache_epoch`, inbox, overview) | I | Read models are built per project through the same lookup; the overview lists the scope's projects only; the e2e asserts a second account sees nothing of the first | T-2, 2-E | Low |
+| Audit rows are edited or lost | R, T | `audit_events` append-only (no UPDATE/DELETE in `@worker/db`, tested); written in the same batch as the action; the redactor runs on `details` | T-1 | Low |
+
+### C10 — BYOK inference keys and the hosted sandbox (ADR 0008 decisions 7–9)
+
+| Threat | STRIDE | Mitigation | Where | Residual |
+| ------ | ------ | ---------- | ----- | -------- |
+| **A customer's Anthropic key is read from D1, a log, an event or the console** | I | Sealed with AES-256-GCM under an HKDF subkey of `TOKEN_ENCRYPTION_KEY`, AAD `account:<id>:anthropic` (a ciphertext moved between accounts does not decrypt); only `last4` and `key_id` are ever returned; decrypted only by the hosted dispatcher at `start`, into the sandbox's environment; redactor pattern `sk-ant-` on events, bodies and audit details; sentinel test as `github-sentinel.spec.ts` | H-1 | Low |
+| The key of account A is injected into a job of account B | E, I | `jobs.account_id` (copied from the project at enqueue) must equal `inference_keys.account_id` before decryption; the hosted runner identity is per account (`runners.hosted = 1`, one per account), so the claiming identity, the job and the key agree or the dispatch is refused and audited | H-1 | Low |
+| A job inside the sandbox exfiltrates the key it runs on (prompt injection, a dependency) | I | Inherent: the CLI needs the key in its process. Bounded by: the key is the customer's and used on their behalf; per-account and per-job spend caps from the CLI's reported cost; rotation and revoke in one screen; the recommendation that customers create a **workspace-scoped key with a spend limit in the Anthropic Console**; the sandbox is destroyed at `finish` | H-1, H-2 | Medium (same class as RR6) |
+| A Claude.ai OAuth credential reaches our servers (a customer pastes a session token, a config mount in hosted mode) | — (terms) | The hosted dispatcher refuses to start a job whose environment or mounts carry a Claude OAuth credential (`CLAUDE_CODE_OAUTH_TOKEN`, a `.claude` credentials file); the key form is validated as an API key (`sk-ant-api…`) at upload; the UI says why. Self-hosted: the runner passes credential *locations*, never values, and never uploads them | H-1, 2-B | Low |
+| Spend runaway (a looping job, a stolen key used through our fleet) | D, E | `spend_cap_usd_month` and `payload.maxUsd` checked before `start` and reconciled at `finish` from `total_cost_usd`; `max_concurrency` per account from entitlements; the owner alerted at 80 % of the cap | H-2 | Low |
+| Cross-job or cross-account state in the hosted fleet (a leftover volume, a reused machine, a shared cache) | E, I | One ephemeral machine or container per job from the runner's pinned image; no persistent volume; destroyed at `finish` and swept past `maxMinutes + 5`; no shared mirror in hosted mode (a fresh clone each job); the plant-then-verify test runs against the hosted backend too | H-2 | Low |
+| The bootstrap token is intercepted and another machine claims the job | S | 10 minutes, single use, hashed in `jobs.bootstrap_token_hash`, bound to the job id; claim with it requires the dispatch's `hosted_instance_id` to be unfinished; a second claim is 409 and audited | H-2 | Low |
+| Provider compromise (Fly or Cloudflare) | E, I | Platform trust, same class as the Cloudflare account itself; recorded, not mitigated | — | Medium |
+
+### C11 — Runner installer and release supply chain (ADR 0008 decisions 7–8)
+
+| Threat | STRIDE | Mitigation | Where | Residual |
+| ------ | ------ | ---------- | ----- | -------- |
+| **A tampered runner release** (a replaced tarball, a malicious update) runs on every customer machine with their key and their repositories | T, E | Release assets built by `deploy.yml` from a tag on `main` only; `SHA256SUMS` signed with the release key (public half in the repository and shown in the console); the installer verifies the checksum and the signature; the runner self-updates only to the version the console names (`GET /api/v1/runner/release`) and verifies it the same way; container images referenced by digest; the release key lives in a GitHub Environment secret with required reviewers | 2-B, 3b | Medium (a compromised GitHub Environment or release key) |
+| `curl … \| sh` as the documented install | T | Not offered: the documented path is the checked release asset, a Homebrew formula pinned to the checksum, or the image by digest | 2-B | Low |
+| A dependency of the runner is compromised (`npm` supply chain) | T, E | `npm ci` from the lockfile with exact versions; the runner bundles to one file at release so the customer installs no `node_modules`; dependency audit in CI; a minimal dependency set is an acceptance criterion of 2-B | 2-B | Medium |
+| The installer escalates on the customer's machine | E | The installer creates only the runner's directories and, for the `user` backend, the two local users with the documented single sudoers rule; it never writes outside its prefix; the `container` backend needs no privilege beyond the container runtime | 2-B | Low |
+| The GitHub Actions packaging leaks the customer's key or job output in public logs | I | The workflow prints nothing but the job id; events go to the console; the runner's redactor plus `::add-mask::` for the key; the documentation says a public repository's logs are public and recommends environment secrets | 2-B | Low |
+
 ## Required scenarios (issue #408)
 
 | Scenario | Rows | Outcome after the ADR amendments |
@@ -233,6 +272,10 @@ row 6).
 | RR8 | D1 free limits are the availability ceiling | Medium | $0 constraint | Phase 4 budget alarm |
 | RR9 | ADR 0006 wording differs from this model in four places (below) | Medium until aligned | landed at `319037e` except these | the architect |
 | RR10 | Cross-job state the sweep misses (an unlisted world-writable path, a macOS facility that persists per uid) | Low after the C3 controls | One uid for sequential jobs; L4 or per-job uids remove it | Phase 4; L4 later |
+| RR11 | A job can exfiltrate the inference key it runs on (BYOK or the customer's own key on a self-hosted runner) | Medium | The CLI holds the key in its process (C10 row 3) | spend caps, rotation, workspace-scoped keys with a limit; H-2 |
+| RR12 | Row-level tenancy in one D1: a missed chokepoint is a cross-account read | Low with the account inventory spec; Critical without | One database per environment (ADR 0008 decision 1) | T-2; denormalise `account_id` if a leak is ever found |
+| RR13 | The release key and the GitHub Environment that holds it are the runner fleet's root of trust | Medium | A signed release is the only distribution a customer can verify | required reviewers on the release environment; 2-B/3b |
+| RR14 | Platform trust: the operator's Cloudflare account and the hosted provider see every tenant's data and sandbox | Medium | Inherent to a hosted product | documented for customers; later ADR for per-tenant encryption of bodies if demanded |
 
 ### ADR wording to align
 
@@ -256,4 +299,17 @@ an amendment):
    and `main` that requires a PR and the console's gate check and allows no bypass, not even for your account?
    Your own releases would then go through the console's merge as well.
 3. **Claude Code credential** — is a long-lived `claude setup-token` for the job user acceptable on your
-   subscription, rotated on suspicion?
+   subscription, rotated on suspicion? *(Superseded by ADR 0008 decision 10: the owner's team runs on his own API
+   key like any customer; a subscription credential may exist only on a self-hosted runner of his own, never on the
+   hosted tier.)*
+4. **Hosted provider and spend** (ADR 0008 decision 9) — may the team spend on Fly Machines (pay per second, no idle
+   cost, roughly $0.02–0.03 per 90-minute job) or Cloudflare Containers (Workers Paid, $5 a month plus usage) for
+   the hosted tier? Recommendation: Fly first; nothing is deployed before your `/approve`.
+5. **Your team's inference cost** (decision 10) — the team runs on your Anthropic API key under a monthly spend
+   cap you set (default $50). Recommendation: a workspace-scoped key with a limit in the Anthropic Console; the
+   Mac on your subscription stays possible only as a self-hosted runner you choose to run.
+6. **Sign-in with GitHub as the only customer door** (decision 3) and the retirement of Cloudflare Access from
+   `/api/*` at the first customer — recommendation: yes; Access stays for the operator routes and for dev/stage.
+7. **Platform trust** (RR14) — the hosted product's terms must tell customers that the operator's Cloudflare account
+   and the hosted provider can technically reach their data; recommendation: write it into the terms before the
+   first customer.
