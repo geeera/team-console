@@ -110,24 +110,44 @@ jobs:
   # OS dependency already installed (pulled straight from MCR, not through apt) — no install-deps, no apt mirror,
   # no retry loop needed for this shard. `iphone`/`desktop` (chromium) are untouched: that shard was never the
   # one timing out, and keeping it on the bare runner avoids the extra minutes a container pull would add there.
+  # The suite kept growing past this: `iphone`/`desktop` were at ~12-15 min against the 15 min timeout (one PR's
+  # `iphone` shard was cancelled at the limit with every executed test passing). Each of those two chromium
+  # projects is now Playwright-sharded 1/2 + 2/2 (matrix `name` iphone-1/iphone-2, desktop-1/desktop-2) so the
+  # ~223 tests each run split two ways instead of growing the single job past budget again; `iphone-webkit`
+  # (10 tests, already quick) stays a single unsharded shard in its own container. `project`/`browser`/`shard`
+  # stay separate matrix fields from the display `name` so the cache key (keyed on `browser`) and the `--project`/
+  # `--shard` flags below don't have to parse the display name back apart.
   e2e-shard:
+    name: e2e-shard (${{ matrix.name }})
     strategy:
       fail-fast: false
       matrix:
-        project: [iphone, desktop, iphone-webkit]
         include:
-          - project: iphone
+          - name: iphone-1
+            project: iphone
             browser: chromium
-          - project: desktop
+            shard: '1/2'
+          - name: iphone-2
+            project: iphone
             browser: chromium
-          - project: iphone-webkit
+            shard: '2/2'
+          - name: desktop-1
+            project: desktop
+            browser: chromium
+            shard: '1/2'
+          - name: desktop-2
+            project: desktop
+            browser: chromium
+            shard: '2/2'
+          - name: iphone-webkit
+            project: iphone-webkit
             browser: webkit
             # Digest of mcr.microsoft.com/playwright:v1.63.0-noble, matching package.json's @playwright/test pin
             # exactly (the image's Playwright version must match the npm package's or the browser revision
             # mismatches). Pinned by digest, not tag, same as the action pins below.
             container: mcr.microsoft.com/playwright@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
     runs-on: ubuntu-latest
-    # Empty string for iphone/desktop is the documented way to make this a no-op for the rest of the matrix.
+    # Empty string for the chromium shards is the documented way to make this a no-op for the rest of the matrix.
     container: ${{ matrix.container }}
     timeout-minutes: 15
     steps:
@@ -186,16 +206,22 @@ jobs:
       - name: Typecheck the suite
         run: npx tsc -p apps/console-e2e/tsconfig.json --noEmit
 
-      - name: e2e (${{ matrix.project }})
+      - name: e2e (${{ matrix.name }})
         env:
           WRANGLER_SEND_METRICS: 'false'
-        run: npx playwright test --config apps/console-e2e/playwright.config.ts --project=${{ matrix.project }}
+        # `matrix.shard` is unset (empty string) for iphone-webkit, which runs unsharded.
+        run: |
+          set -euo pipefail
+          args=(test --config apps/console-e2e/playwright.config.ts --project=${{ matrix.project }})
+          shard='${{ matrix.shard }}'
+          [ -n "$shard" ] && args+=(--shard="$shard")
+          npx playwright "${args[@]}"
 
       - name: Keep the report and traces of a failed run
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: console-e2e-report-${{ matrix.project }}
+          name: console-e2e-report-${{ matrix.name }}
           path: |
             dist/.playwright/apps/console-e2e
             tmp/console-e2e/*/*.log
