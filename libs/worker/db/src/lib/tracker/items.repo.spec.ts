@@ -314,10 +314,48 @@ describe('ItemsRepo', () => {
     await expect(env.DB.prepare('DELETE FROM item_events').run()).rejects.toThrow(/append-only/);
   });
 
-  it('exposes no update or delete for events (append-only in the repo API too)', () => {
+  it('scrubs the text of the created and edited events of one item, counts them and records the scrub', async () => {
+    const { slug } = await seedTrackerProject();
+    const number = await create(slug, { title: 'Leaked' });
+    const other = await create(slug, { title: 'Untouched' });
+    const item = await items().findByNumber(slug, number);
+    if (item === null) {
+      throw new Error('no item');
+    }
+    await items().update(
+      item.id,
+      1,
+      { title: 'Clean', status: 'proposed' },
+      { add: [], remove: [] },
+      OWNER_ACTOR,
+      [{ kind: 'edited', before: { title: 'Leaked' }, after: { title: 'Clean' } }],
+      LATER,
+    );
+
+    const first = await events().scrub(item.id, OWNER_ACTOR, LATER);
+    expect(first.masked).toBe(2);
+    const trail = await events().list(item.id, 0, 10);
+    expect(trail.map((event) => [event.kind, event.before, event.after])).toEqual([
+      ['created', null, expect.objectContaining({ title: '[scrubbed]', kind: 'feature' })],
+      ['edited', { title: '[scrubbed]' }, { title: '[scrubbed]' }],
+      ['scrubbed', null, { events: 2, fields: ['title', 'body'] }],
+    ]);
+    expect(await events().find(item.id, first.eventId)).toMatchObject({
+      kind: 'scrubbed',
+      actorKind: 'owner',
+    });
+    expect((await events().scrub(item.id, OWNER_ACTOR, LATER)).masked).toBe(0);
+
+    const otherItem = await items().findByNumber(slug, other);
+    expect((await events().list(otherItem?.id ?? 0, 0, 10))[0]?.after).toMatchObject({ title: 'Untouched' });
+    expect(await events().find(otherItem?.id ?? 0, first.eventId)).toBeNull();
+  });
+
+  // #462: the one update is the owner's scrub, which migration 0019's trigger confines to masking title and body.
+  it('exposes no update or delete for events but the scrub (append-only in the repo API too)', () => {
     const methods = Object.getOwnPropertyNames(ItemEventsRepo.prototype).filter(
       (name) => name !== 'constructor',
     );
-    expect(methods).toEqual(['list']);
+    expect(methods.sort()).toEqual(['find', 'list', 'scrub']);
   });
 });

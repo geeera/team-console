@@ -101,7 +101,8 @@ function eventLineOf(event: ItemEventDto, decisions: ReadonlyMap<number, Decisio
       return { kind: 'pr-linked' };
     case 'commented':
     case 'answered':
-      // The comment itself is listed; an ask's answer is the decision's own line.
+    case 'scrubbed':
+      // The comment itself is listed; an ask's answer is the decision's own line. A scrub (#462) changes no field.
       return null;
   }
 }

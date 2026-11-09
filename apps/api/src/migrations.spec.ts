@@ -67,6 +67,7 @@ describe('migrations on a fresh D1', () => {
       '0016_item_approval.sql',
       '0017_item_approval_guards.sql',
       '0018_accounts.sql',
+      '0019_event_scrub.sql',
     ]);
   });
 
@@ -318,6 +319,181 @@ describe('migrations on a fresh D1', () => {
       { number: 3, approved_at: '2026-11-03T00:00:00.000Z' },
       { number: 4, approved_at: null },
     ]);
+  });
+
+  // #462: 0019 rebuilds item_events (the `scrubbed` kind) and idempotency_keys (the `event` result) keeping every row.
+  it('keep the events and the idempotency keys through the 0019 rebuild', async () => {
+    const db = env.MIGRATION_DB_0019;
+    await applyD1Migrations(
+      db,
+      env.TEST_MIGRATIONS.filter((migration) => migration.name < '0019'),
+    );
+    const T0 = '2026-11-01T00:00:00.000Z';
+    await db
+      .prepare(
+        `INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at) VALUES ('m19', 'a/m19', 'm19', 0, ?1)`,
+      )
+      .bind(T0)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO items (project_slug, number, kind, status, title, created_by_kind, created_by, created_at,
+           updated_at) VALUES ('m19', 1, 'feature', 'proposed', 'Item', 'owner', 'owner', ?1, ?1)`,
+      )
+      .bind(T0)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO item_events (id, item_id, at, actor_kind, actor, job_id, kind, before, after)
+         SELECT 41, id, ?1, 'job', 'pm', 'job-1', 'edited', '{"title":"A"}', '{"title":"B"}' FROM items
+         WHERE project_slug = 'm19'`,
+      )
+      .bind(T0)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO idempotency_keys (key, request_hash, status, result_kind, result_ref, created_at, expires_at)
+         VALUES ('key-before-0019', 'hash', 201, 'comment', '7', ?1, ?2)`,
+      )
+      .bind(T0, Date.parse(T0) + 60_000)
+      .run();
+
+    await applyD1Migrations(db, env.TEST_MIGRATIONS);
+
+    expect(
+      await db.prepare('SELECT id, actor, job_id, kind, before, after FROM item_events').all(),
+    ).toMatchObject({
+      results: [
+        {
+          id: 41,
+          actor: 'pm',
+          job_id: 'job-1',
+          kind: 'edited',
+          before: '{"title":"A"}',
+          after: '{"title":"B"}',
+        },
+      ],
+    });
+    expect(
+      await new IdempotencyKeysRepo(db).claim('key-before-0019', 'hash', Date.parse(T0), 30_000),
+    ).toEqual({
+      state: 'done',
+      status: 201,
+      kind: 'comment',
+      ref: '7',
+    });
+    // The rebuilt CHECKs admit the new values.
+    await db
+      .prepare(
+        `INSERT INTO item_events (item_id, at, actor_kind, actor, kind, after)
+         SELECT id, ?1, 'owner', 'owner', 'scrubbed', '{"events":0}' FROM items WHERE project_slug = 'm19'`,
+      )
+      .bind(T0)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO idempotency_keys (key, request_hash, status, result_kind, result_ref, created_at, expires_at)
+         VALUES ('key-event', 'h', 201, 'event', '42', ?1, 1)`,
+      )
+      .bind(T0)
+      .run();
+    const { results } = await db
+      .prepare(
+        `SELECT name FROM sqlite_master WHERE type IN ('index', 'trigger')
+           AND tbl_name IN ('item_events', 'idempotency_keys') AND name NOT LIKE 'sqlite_%' ORDER BY name`,
+      )
+      .all<{ name: string }>();
+    expect(results.map((row) => row.name)).toEqual([
+      'idempotency_keys_expiry',
+      'item_events_append_only_delete',
+      'item_events_append_only_update',
+      'item_events_item',
+      'item_events_never_replaced',
+    ]);
+  });
+
+  describe('item_events after 0019 stay append-only but for the scrub', () => {
+    const T0 = '2026-11-01T00:00:00.000Z';
+    const scrubbed = (column: string): string =>
+      `json_replace(${column}, '$.title', '[scrubbed]', '$.body', '[scrubbed]')`;
+
+    async function seedEvent(kind: string, before: unknown, after: unknown): Promise<number> {
+      const slug = `s19-${crypto.randomUUID().slice(0, 8)}`;
+      await env.DB.prepare(
+        `INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at) VALUES (?1, ?2, ?1, 0, ?3)`,
+      )
+        .bind(slug, `a/${slug}`, T0)
+        .run();
+      await env.DB.prepare(
+        `INSERT INTO items (project_slug, number, kind, status, title, created_by_kind, created_by, created_at,
+           updated_at) VALUES (?1, 1, 'feature', 'proposed', 'Item', 'owner', 'owner', ?2, ?2)`,
+      )
+        .bind(slug, T0)
+        .run();
+      const row = await env.DB.prepare(
+        `INSERT INTO item_events (item_id, at, actor_kind, actor, kind, before, after)
+         SELECT id, ?2, 'owner', 'owner', ?3, ?4, ?5 FROM items WHERE project_slug = ?1 RETURNING id`,
+      )
+        .bind(slug, T0, kind, before === null ? null : JSON.stringify(before), JSON.stringify(after))
+        .first<{ id: number }>();
+      if (row === null) {
+        throw new Error('seeding an event inserted nothing');
+      }
+      return row.id;
+    }
+
+    it('admits the scrub of a created or edited event, masking title and body only', async () => {
+      const cases = [
+        ['edited', { title: 'Old', body: 'leak', tier: 'light' }],
+        ['created', null],
+      ] as const;
+      for (const [kind, before] of cases) {
+        const id = await seedEvent(kind, before, { title: 'New', body: 'clean', tier: 'heavy' });
+        await env.DB.prepare(
+          `UPDATE item_events SET before = ${scrubbed('before')}, after = ${scrubbed('after')} WHERE id = ?1`,
+        )
+          .bind(id)
+          .run();
+        const row = await env.DB.prepare('SELECT before, after FROM item_events WHERE id = ?1')
+          .bind(id)
+          .first<{ before: string | null; after: string }>();
+        expect(JSON.parse(row?.after ?? 'null')).toEqual({
+          title: '[scrubbed]',
+          body: '[scrubbed]',
+          tier: 'heavy',
+        });
+        const masked = row?.before === null || row?.before === undefined ? null : JSON.parse(row.before);
+        expect(masked).toEqual(
+          before === null ? null : { title: '[scrubbed]', body: '[scrubbed]', tier: 'light' },
+        );
+      }
+    });
+
+    it.each([
+      ['another member', `after = json_replace(after, '$.tier', 'light')`, 'edited'],
+      ['another value', `after = json_replace(after, '$.title', 'Rewritten')`, 'edited'],
+      ['the actor', "actor = 'pm'", 'edited'],
+      ['the time', "at = '2026-12-01T00:00:00.000Z'", 'edited'],
+      ['the kind', "kind = 'status'", 'edited'],
+      [
+        'a status event, scrub-shaped',
+        `before = ${scrubbed('before')}, after = ${scrubbed('after')}`,
+        'status',
+      ],
+      ['the after, blanked', 'after = NULL', 'edited'],
+    ])('refuses an update of %s', async (_, set, kind) => {
+      const id = await seedEvent(kind, { title: 'Old' }, { title: 'New', tier: 'heavy' });
+      await expect(
+        env.DB.prepare(`UPDATE item_events SET ${set} WHERE id = ?1`).bind(id).run(),
+      ).rejects.toThrow(/append-only/);
+    });
+
+    it('still refuses a delete', async () => {
+      const id = await seedEvent('edited', { title: 'Old' }, { title: 'New' });
+      await expect(env.DB.prepare('DELETE FROM item_events WHERE id = ?1').bind(id).run()).rejects.toThrow(
+        /append-only/,
+      );
+    });
   });
 });
 
