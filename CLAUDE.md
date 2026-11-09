@@ -205,7 +205,7 @@ behind the route matrix (#444, below), reads included; their freeze hints read p
 /projects/:slug/sprint-freeze` (`SprintFreezeDaysDto`, the shared cached project.yml read, #457) instead. Console (#457): `ItemsApi.decide|freezeDays|createSprint({dueOn,title})` in `@console/entities/item`; every tracker problem slug is mapped once, in `trackerFailureOf` (`KIND_BY_PROBLEM`), and `AnswerClient.decide` and the batch dialog read only its kinds; `TC-n` items in the batch dialog are approved one decision each (with the open `askId`, a key per item), GitHub items stay on `answers/batch`. Every write, in
 this order: 404 project → 409 `tracker-not-cut-over` while `projects.tracker = 'github'` → `Idempotency-Key` (400
 `idempotency-key`; `tracker/idempotency.ts` over `idempotency_keys`, completed inside the write's own batch, 24 h; per
-identity (#462: the row key is a hash of the identity kind + owner login | job id, then the client key; the request hash
+identity (#462: the row key is a hash of the identity kind + owner login | job project, role and id, then the client key; the request hash
 covers that scope too), so another identity's same key is a fresh request;
 replay answers the resource with `Idempotent-Replayed: true`, 409 `idempotency-in-flight`, 422
 `idempotency-key-reused`) → body checks from `@shared/contracts` (`checkCreateItemInput` …, 422 `*-invalid` with
