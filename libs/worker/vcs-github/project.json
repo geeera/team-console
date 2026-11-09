@@ -1,0 +1,7 @@
+{
+  "name": "worker-vcs-github",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/worker/vcs-github/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:worker"]
+}

@@ -9,6 +9,7 @@ import {
   type ProjectRow,
 } from '@worker/db';
 import { handledRequestOf } from '@worker/read-models';
+import { githubWebhooks } from '@worker/vcs-github';
 import type { HooksEnv } from '../env';
 import { WEBHOOK_BODY_MAX_BYTES, readBodyCapped } from '../github/body';
 import {
@@ -21,7 +22,7 @@ import {
   type Envelope,
   type JsonObject,
 } from '../github/payload';
-import { sha256Hex, verifySignature, webhookSecretsOf } from '../github/signature';
+import { sha256Hex, webhookSecretsOf } from '../github/signature';
 import type { PushLanguage, PushNotification } from '@worker/push';
 import { linkNotificationOf, mapEvent, settingsLinkOf, type MappedProject } from '../mapping/map-event';
 import { applySnooze } from '../mapping/snooze';
@@ -327,7 +328,7 @@ export function githubWebhookRoutes(deps: GitHubWebhookDeps): Hono<WorkerHonoEnv
         status: 413,
       });
     }
-    if (!(await verifySignature(secrets, body.bytes, c.req.header('x-hub-signature-256')))) {
+    if (!(await githubWebhooks.verify(body.bytes, c.req.header('x-hub-signature-256'), secrets))) {
       return reject(c, 'rejected:signature', {
         type: 'webhook-signature',
         title: 'Unauthorized',
