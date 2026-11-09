@@ -15,7 +15,7 @@ import {
   PERSISTED_STATE_STORAGE,
   PersistedStateStore,
 } from '@console/shared/persisted-state';
-import { ProjectDto } from '@shared/contracts';
+import { ProjectDto, isReservedSlug } from '@shared/contracts';
 import { App } from './app';
 import { appRoutes } from './app.routes';
 import { projectExists } from './shell.guards';
@@ -38,6 +38,16 @@ describe('appRoutes', () => {
     expect(spaceRoutes[1]?.canMatch).toBeUndefined();
     expect(spaceRoutes[1]?.data).toEqual({ reason: 'project' });
     expect(appRoutes.at(-1)?.path).toBe('**');
+  });
+
+  // ADR 0008 decision 1: no project or account slug may take a top-level console route's name.
+  it('uses only reserved slugs as top-level segments', () => {
+    const segments = appRoutes
+      .map((route) => route.path?.split('/')[0] ?? '')
+      .filter((segment) => segment !== '' && segment !== '**');
+
+    expect(segments).toEqual(expect.arrayContaining(['p', 'needs-you', 'overview', 'settings']));
+    expect(segments.filter((segment) => !isReservedSlug(segment))).toEqual([]);
   });
 });
 

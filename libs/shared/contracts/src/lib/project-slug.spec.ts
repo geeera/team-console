@@ -24,8 +24,34 @@ describe('isReservedSlug', () => {
     expect(isReservedSlug(slug)).toBe(true);
   });
 
+  // ADR 0008 decision 1.
+  it.each([
+    'admin',
+    'owner',
+    'github',
+    'hooks',
+    'runner',
+    'accounts',
+    'p',
+    'a',
+    't',
+    'auth',
+    'invites',
+    'jobs',
+    'projects',
+    'push',
+    'environment',
+    'healthz',
+    'brand',
+    'icons',
+  ])('reserves the system slug %s', (slug) => {
+    expect(isReservedSlug(slug)).toBe(true);
+  });
+
   it('does not reserve project names', () => {
     expect(isReservedSlug('storify')).toBe(false);
+    expect(isReservedSlug('team-console')).toBe(false);
+    expect(isReservedSlug('owners')).toBe(false);
   });
 });
 

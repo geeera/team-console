@@ -174,7 +174,9 @@ describe('GET /api/v1/projects — tracker (#435)', () => {
     await seedProject('on-github', 'geeera/on-github');
     await seedProject('on-console', 'geeera/on-console');
     // The columns only: `switchTracker` also seeds labels, which would keep `resetProjects` from deleting the row.
-    await env.DB.prepare("UPDATE projects SET tracker = 'console', key_prefix = 'OC' WHERE slug = 'on-console'").run();
+    await env.DB.prepare(
+      "UPDATE projects SET tracker = 'console', key_prefix = 'OC' WHERE slug = 'on-console'",
+    ).run();
     const body = (await (await fetchApi('/api/v1/projects', localEnv())).json()) as ProjectDto[];
     expect(body.map((project) => [project.slug, project.tracker, project.keyPrefix])).toEqual([
       ['on-console', 'console', 'OC'],
@@ -275,7 +277,8 @@ describe('POST /api/v1/projects — refusals save nothing', () => {
     expect(await rowCount()).toBe(0);
   });
 
-  it.each(['needs-you', 'overview', 'settings', 'api'])(
+  // The ADR 0008 system slugs (`owner`, `admin`, …) join the console routes (#465).
+  it.each(['needs-you', 'overview', 'settings', 'api', 'owner', 'admin', 'accounts', 'runner'])(
     'reserved slug %s → 422, given or derived',
     async (slug) => {
       const h = harness();

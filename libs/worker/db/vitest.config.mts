@@ -1,6 +1,6 @@
 /// <reference types='vitest' />
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-pool-workers';
 import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
@@ -20,6 +20,15 @@ function vendoredLabels(): { version: string; sha256: string } {
   return { version: manifest.version, sha256 };
 }
 
+// The library's own non-test sources, for the audit spec's "no UPDATE or DELETE of audit_events" scan (#465).
+function librarySources(): Record<string, string> {
+  const root = resolve(import.meta.dirname, 'src');
+  const files = readdirSync(root, { recursive: true, encoding: 'utf8' }).filter(
+    (file) => file.endsWith('.ts') && !file.endsWith('.spec.ts') && !file.endsWith('.d.ts'),
+  );
+  return Object.fromEntries(files.map((file) => [file, readFileSync(resolve(root, file), 'utf8')]));
+}
+
 // Runs inside workerd with an in-memory D1. The migrations are the api Worker's — the one place they live —
 // so the repository is tested against the schema that will be deployed.
 export default defineConfig(async () => ({
@@ -37,6 +46,7 @@ export default defineConfig(async () => ({
           ),
           TEST_PLUGIN_VERSION: vendoredLabels().version,
           TEST_PLUGIN_LABELS_SHA256: vendoredLabels().sha256,
+          TEST_LIBRARY_SOURCES: librarySources(),
         },
       },
     }),

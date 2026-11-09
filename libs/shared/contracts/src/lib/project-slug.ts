@@ -4,8 +4,38 @@
  */
 const PROJECT_SLUG = /^[a-z0-9][a-z0-9-]{1,38}$/;
 
-/** Top-level console routes a project slug would shadow. */
-export const RESERVED_SLUGS: ReadonlySet<string> = new Set(['needs-you', 'overview', 'settings', 'api']);
+/**
+ * System slugs no project or account may take (ADR 0008 decision 1): every top-level segment of the console and the
+ * API Worker, every `/api/v1` segment present or planned, and the owner's account (`owner`, created by migration
+ * 0018). `p`, `a` and `t` are too short to be valid anyway; they are listed so the list reads as the ADR's.
+ */
+export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
+  // ADR 0008 decision 1.
+  'admin',
+  'api',
+  'owner',
+  'settings',
+  'needs-you',
+  'overview',
+  'github',
+  'hooks',
+  'runner',
+  'accounts',
+  'p',
+  'a',
+  't',
+  // Top-level paths the api Worker or the assets answer (`run_worker_first`, the icon sets).
+  'brand',
+  'icons',
+  // `/api/v1` segments, today's and the ones ADR 0008 plans.
+  'auth',
+  'environment',
+  'healthz',
+  'invites',
+  'jobs',
+  'projects',
+  'push',
+]);
 
 export function isValidSlug(slug: string): boolean {
   return PROJECT_SLUG.test(slug) && !slug.endsWith('-');
