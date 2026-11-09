@@ -42,6 +42,8 @@
       "@worker/routines": ["./libs/worker/routines/src/index.ts"],
       "@worker/routines/testing": ["./libs/worker/routines/src/testing/index.ts"],
       "@worker/run-log": ["./libs/worker/run-log/src/index.ts"],
+      "@worker/vcs": ["./libs/worker/vcs/src/index.ts"],
+      "@worker/vcs-github": ["./libs/worker/vcs-github/src/index.ts"],
       "@worker/push": ["./libs/worker/push/src/index.ts"],
       "@worker/push/testing": ["./libs/worker/push/src/testing/index.ts"],
       "@console/shared/persisted-state": ["./libs/console/shared/persisted-state/src/index.ts"],
