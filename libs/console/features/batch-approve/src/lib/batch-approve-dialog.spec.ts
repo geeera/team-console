@@ -1,10 +1,16 @@
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
+import { ItemsApi, type TrackerWrite } from '@console/entities/item';
 import { AnsweredItems, NeedsYouCounts } from '@console/entities/project';
 import type { QuestionItem } from '@console/entities/question';
 import { provideConsoleI18n, TranslocoService } from '@console/shared/i18n';
 import { DIALOG_DATA, DialogRef } from '@console/shared/ui';
-import { PROBLEM_TYPE_PREFIX, type BatchAnswerRequest } from '@shared/contracts';
+import {
+  PROBLEM_TYPE_PREFIX,
+  type BatchAnswerRequest,
+  type CreateDecisionInput,
+  type DecisionDto,
+} from '@shared/contracts';
 import { BatchApproveDialog, BatchSession, type BatchApproveData } from './batch-approve-dialog';
 import { BatchApproveClient, type BatchSubmitResult } from './batch-approve.client';
 
@@ -39,12 +45,41 @@ const failedWith = (number: number, slug: string) => ({
   problem: { type: `${PROBLEM_TYPE_PREFIX}${slug}`, title: 'x', status: 502 },
 });
 
+/** A console-tracker item (#434): keyed, with the open ask it waits on. */
+function tracked(number: number, askId: number): QuestionItem {
+  return item(number, 'tc', { key: `TC-${String(number)}`, askId });
+}
+
+interface DecisionCall {
+  readonly slug: string;
+  readonly number: number;
+  readonly decision: CreateDecisionInput;
+  readonly key: string;
+}
+
+const recordedDecision = (call: DecisionCall): TrackerWrite<DecisionDto> => ({
+  ok: true,
+  replayed: false,
+  value: {
+    id: call.number * 100,
+    command: 'approve',
+    text: call.decision.text,
+    askId: call.decision.askId,
+    reversesCommentId: null,
+    via: 'web',
+    decidedAt: '2026-11-09T10:00:00.000Z',
+    sourceUrl: null,
+  },
+});
+
 async function render(
   candidates: QuestionItem[],
   answer: (slug: string, request: BatchAnswerRequest) => BatchSubmitResult,
   data: Partial<BatchApproveData> = {},
+  decide: (call: DecisionCall) => TrackerWrite<DecisionDto> = recordedDecision,
 ) {
   const calls: { slug: string; request: BatchAnswerRequest }[] = [];
+  const decisions: DecisionCall[] = [];
   const close = vi.fn();
   const recorded: unknown[] = [];
   const session = new BatchSession();
@@ -59,6 +94,16 @@ async function render(
           submit: async (slug: string, request: BatchAnswerRequest) => {
             calls.push({ slug, request });
             return answer(slug, request);
+          },
+        },
+      },
+      {
+        provide: ItemsApi,
+        useValue: {
+          decide: async (slug: string, number: number, decision: CreateDecisionInput, key: string) => {
+            const call = { slug, number, decision, key };
+            decisions.push(call);
+            return decide(call);
           },
         },
       },
@@ -77,7 +122,7 @@ async function render(
     await new Promise((resolve) => setTimeout(resolve));
     await fixture.whenStable();
   };
-  return { fixture, root, ok, press, calls, close, recorded, session };
+  return { fixture, root, ok, press, calls, decisions, close, recorded, session };
 }
 
 describe('BatchApproveDialog', () => {
@@ -173,5 +218,103 @@ describe('BatchApproveDialog', () => {
     expect(ok().getAttribute('aria-disabled')).toBe('true');
     await press();
     expect(calls).toEqual([]);
+  });
+
+  describe('console-tracker items (#457)', () => {
+    const failing = (status: number, slug: string | null): TrackerWrite<DecisionDto> => ({
+      ok: false,
+      failure: {
+        kind: slug === 'ask-not-open' ? 'gone' : status === 0 ? 'network' : 'unknown',
+        field: null,
+        retryAfter: null,
+      },
+    });
+
+    it('approves each with an owner decision naming its open ask; only GitHub items go to the batch route', async () => {
+      const { press, calls, decisions, recorded, session, close } = await render(
+        [tracked(5, 51), item(1), tracked(6, 61)],
+        (_slug, request) => ({ ok: true, results: request.numbers.map(written) }),
+      );
+
+      await press();
+
+      expect(calls).toEqual([
+        { slug: 'tc', request: { numbers: [1], ownerSaid: 'Одобряю совет команды (пакетно, 3)' } },
+      ]);
+      expect(decisions.map(({ number, decision }) => ({ number, decision }))).toEqual([
+        {
+          number: 5,
+          decision: {
+            command: 'approve',
+            text: 'Одобряю совет команды (пакетно, 3)',
+            askId: 51,
+            reversesCommentId: null,
+            via: 'web',
+          },
+        },
+        {
+          number: 6,
+          decision: {
+            command: 'approve',
+            text: 'Одобряю совет команды (пакетно, 3)',
+            askId: 61,
+            reversesCommentId: null,
+            via: 'web',
+          },
+        },
+      ]);
+      expect(new Set(decisions.map((call) => call.key)).size).toBe(2);
+      expect(recorded).toContainEqual(expect.objectContaining({ number: 5, url: '', batch: true }));
+      expect(session.approved().map((approved) => approved.number)).toEqual([5, 6, 1]);
+      expect(close).toHaveBeenCalled();
+    });
+
+    it('retries a dropped decision with the same key and the same words', async () => {
+      let attempt = 0;
+      const { root, press, decisions, close } = await render(
+        [tracked(5, 51)],
+        () => ({ ok: true, results: [] }),
+        {},
+        (call) => {
+          attempt += 1;
+          return attempt === 1 ? failing(0, null) : recordedDecision(call);
+        },
+      );
+
+      await press();
+      expect(close).not.toHaveBeenCalled();
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain('Нет связи');
+
+      await press();
+      expect(decisions).toHaveLength(2);
+      expect(decisions[1]?.key).toBe(decisions[0]?.key);
+      expect(decisions[1]?.decision).toEqual(decisions[0]?.decision);
+      expect(close).toHaveBeenCalled();
+    });
+
+    it('drops an item whose ask moved on, like a changed GitHub question', async () => {
+      const { root, press, session } = await render(
+        [tracked(5, 51)],
+        () => ({ ok: true, results: [] }),
+        {},
+        () => failing(409, 'ask-not-open'),
+      );
+      await press();
+      expect(session.changed().map((changed) => changed.number)).toEqual([5]);
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain('#5');
+    });
+
+    it('says the console, not GitHub, did not record it', async () => {
+      const { root, press } = await render(
+        [tracked(5, 51)],
+        () => ({ ok: true, results: [] }),
+        {},
+        () => failing(500, null),
+      );
+      await press();
+      const alert = root.querySelector('[role="alert"]')?.textContent ?? '';
+      expect(alert).toContain('Консоль не записала');
+      expect(alert).not.toContain('GitHub');
+    });
   });
 });

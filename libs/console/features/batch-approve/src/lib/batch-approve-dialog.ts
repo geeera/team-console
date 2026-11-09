@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ItemsApi, newIdempotencyKey, type TrackerFailure } from '@console/entities/item';
 import { AnsweredItems, NeedsYouCounts } from '@console/entities/project';
 import { plainAskOf, type BatchLeftOut, type QuestionItem } from '@console/entities/question';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
@@ -41,6 +42,29 @@ function keyOf(item: QuestionItem): string {
   return `${item.project.slug}#${item.number}`;
 }
 
+/** A console-tracker item (`TC-n`, #434): approved with an owner decision, never through the GitHub batch route. */
+function isTrackerItem(item: QuestionItem): boolean {
+  return item.key !== undefined && item.key !== null;
+}
+
+/**
+ * A console-tracker decision's failure in the batch's words. `gone`, `conflict` and `not-found` mean the item is no
+ * longer what the owner ticked (another ask, closed, moved): it leaves the batch like a changed GitHub question.
+ */
+function trackerBatchFailureOf(failure: TrackerFailure): BatchFailureKind {
+  switch (failure.kind) {
+    case 'gone':
+    case 'conflict':
+    case 'not-found':
+      return 'changed';
+    case 'network':
+    case 'timeout':
+      return 'offline';
+    default:
+      return 'console';
+  }
+}
+
 /** Ticked items per project, in list order, in requests of at most `BATCH_ANSWER_MAX`. */
 function requestsOf(items: readonly QuestionItem[]): { slug: string; items: QuestionItem[] }[] {
   const requests: { slug: string; items: QuestionItem[] }[] = [];
@@ -74,6 +98,7 @@ export class BatchApproveDialog {
   protected readonly data = inject<BatchApproveData>(DIALOG_DATA);
   private readonly ref = inject<DialogRef<void>>(DialogRef);
   private readonly client = inject(BatchApproveClient);
+  private readonly tracker = inject(ItemsApi);
   private readonly transloco = inject(TranslocoService);
   private readonly answeredItems = inject(AnsweredItems);
   private readonly counts = inject(NeedsYouCounts);
@@ -85,6 +110,8 @@ export class BatchApproveDialog {
   /** After a partial batch only the failed items are shown, without the intro and the left-out list. */
   protected readonly isRetrying = signal(false);
   private ownerSaid: string | null = null;
+  /** One `Idempotency-Key` per console-tracker item for the dialog's life: Try again never records it twice. */
+  private readonly decisionKeys = new Map<string, string>();
 
   protected readonly showProject = new Set(this.data.candidates.map((item) => item.project.slug)).size > 1;
   protected readonly checkedCount = computed(
@@ -145,7 +172,19 @@ export class BatchApproveDialog {
     const changed: QuestionItem[] = [];
     let worst: BatchFailureKind | null = null;
     try {
-      for (const request of requestsOf(chosen)) {
+      for (const item of chosen.filter(isTrackerItem)) {
+        const kind = await this.decide(item, ownerSaid);
+        if (kind === null) {
+          continue;
+        }
+        if (kind === 'changed') {
+          changed.push(item);
+        } else {
+          failed.push(item);
+          worst ??= kind;
+        }
+      }
+      for (const request of requestsOf(chosen.filter((item) => !isTrackerItem(item)))) {
         const answer = await this.client.submit(request.slug, {
           numbers: request.items.map((item) => item.number),
           ownerSaid,
@@ -187,6 +226,27 @@ export class BatchApproveDialog {
     }
     void this.counts.refresh();
     this.showFailed(failed, changed, worst);
+  }
+
+  /**
+   * `POST …/items/:n/decisions` for one console-tracker item, naming the open ask the owner saw (#443, #457). `null`
+   * when it is recorded (or replayed), else why not.
+   */
+  private async decide(item: QuestionItem, ownerSaid: string): Promise<BatchFailureKind | null> {
+    const id = keyOf(item);
+    const key = this.decisionKeys.get(id) ?? newIdempotencyKey();
+    this.decisionKeys.set(id, key);
+    const result = await this.tracker.decide(
+      item.project.slug,
+      item.number,
+      { command: 'approve', text: ownerSaid, askId: item.askId ?? null, reversesCommentId: null, via: 'web' },
+      key,
+    );
+    if (!result.ok) {
+      return trackerBatchFailureOf(result.failure);
+    }
+    this.record(item, '');
+    return null;
   }
 
   private record(item: QuestionItem, url: string): void {

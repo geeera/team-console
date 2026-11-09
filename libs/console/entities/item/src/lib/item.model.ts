@@ -11,6 +11,7 @@ import {
   isItemStatus,
   isItemTier,
   isSprintState,
+  MAX_FREEZE_DAYS,
   type ActorDto,
   type AskDto,
   type AskListDto,
@@ -23,6 +24,7 @@ import {
   type ItemEventListDto,
   type ItemListDto,
   type ItemSummaryDto,
+  type SprintFreezeDaysDto,
   type TrackerSprintDto,
   type TrackerSprintListDto,
 } from '@shared/contracts';
@@ -180,6 +182,12 @@ function isDecision(value: unknown): value is DecisionDto {
 
 export function isDecisionDto(value: unknown): value is DecisionDto {
   return isDecision(value);
+}
+
+/** `GET …/sprint-freeze` (#457): a whole number of days within the bound the Worker reads project.yml with. */
+export function isSprintFreezeDaysDto(value: unknown): value is SprintFreezeDaysDto {
+  const days = isRecord(value) ? value['freezeDays'] : undefined;
+  return typeof days === 'number' && Number.isInteger(days) && days >= 0 && days <= MAX_FREEZE_DAYS;
 }
 
 export function isDecisionListDto(value: unknown): value is DecisionListDto {

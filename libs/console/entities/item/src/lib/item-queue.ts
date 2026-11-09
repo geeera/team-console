@@ -1,4 +1,5 @@
-import type { ItemSummaryDto, TrackerSprintDto } from '@shared/contracts';
+import { DEFAULT_FREEZE_DAYS, type ItemSummaryDto, type TrackerSprintDto } from '@shared/contracts';
+import type { TrackerRead } from './items.api';
 
 /** "3rd of 6 in Approved": the item's place in its lane of its sprint (or the backlog). */
 export interface QueuePosition {
@@ -37,10 +38,12 @@ export function openSprintsOf(sprints: readonly TrackerSprintDto[]): TrackerSpri
 }
 
 /**
- * `sprint.freeze_days` of the team's project.yml (the plugin's default, 2): the tracker API does not carry the
- * project's own value yet, so the console's freeze checks use this until it does.
+ * The freeze length the tracker screens compute with: the project's `sprint.freeze_days` as the Worker read it from
+ * project.yml (#457), or the plugin's default when that read failed — the freeze is a hint there, never a refusal.
  */
-export const TRACKER_FREEZE_DAYS = 2;
+export function freezeDaysOrDefault(read: TrackerRead<number>): number {
+  return read.ok ? read.value : DEFAULT_FREEZE_DAYS;
+}
 
 /** Today as a calendar day (`YYYY-MM-DD`) on this device. */
 export function calendarTodayOf(now: Date): string {
