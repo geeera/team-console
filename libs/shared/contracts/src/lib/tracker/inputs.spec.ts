@@ -98,9 +98,17 @@ describe('sprint, comment and label inputs', () => {
   it('checks a sprint', () => {
     expect(checkCreateSprintInput({ dueOn: '2026-11-17' })).toEqual({
       ok: true,
-      value: { dueOn: '2026-11-17', description: '' },
+      value: { dueOn: '2026-11-17', description: '', title: null },
     });
     expect(checkCreateSprintInput({ dueOn: '2026-02-30' })).toEqual(failure('dueOn'));
+    expect(checkCreateSprintInput({ title: ' \u2066Q4\tpush\u2069 ' })).toMatchObject({
+      ok: true,
+      value: { title: 'Q4 push' },
+    });
+    expect(checkCreateSprintInput({ title: 'x'.repeat(64) })).toMatchObject({ ok: true });
+    expect(checkCreateSprintInput({ title: 'x'.repeat(65) })).toEqual(failure('title'));
+    expect(checkCreateSprintInput({ title: '\u200b' })).toEqual(failure('title'));
+    expect(checkCreateSprintInput({ title: ['Sprint 01'] })).toEqual(failure('title'));
     expect(checkUpdateSprintInput({ state: 'closed', dueOn: null })).toEqual({
       ok: true,
       value: { state: 'closed', dueOn: null },

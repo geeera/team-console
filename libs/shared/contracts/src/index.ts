@@ -128,6 +128,7 @@ export type {
 export { NEEDS_YOU_MAX_PROJECTS, SPRINT_CI_STATES, isSprintCiState } from './lib/read-models';
 export type {
   EmbedOriginsDto,
+  SprintFreezeDaysDto,
   InboxDto,
   InboxItemDto,
   NeedsYouDto,
@@ -232,6 +233,7 @@ export {
   LABEL_DESCRIPTION_MAX_LENGTH,
   LABEL_NAME_PATTERN,
   SPRINT_DESCRIPTION_MAX_LENGTH,
+  SPRINT_TITLE_MAX_LENGTH,
   SPRINT_STATES,
   TRACKER_MODES,
   ASK_CATEGORIES,
