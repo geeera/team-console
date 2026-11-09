@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
-import type { EmbedOriginsDto, RequestIssuesDto, SprintDto } from '@shared/contracts';
+import type { EmbedOriginsDto, RequestIssuesDto, SprintDto, SprintFreezeDaysDto } from '@shared/contracts';
 import type { WorkerContext, WorkerHonoEnv } from '@worker/core';
 import { OwnerRequestsRepo, TrackerProjectsRepo } from '@worker/db';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { findProject, projectNotFound, repoOf } from '../projects/lookup';
-import { ProjectReads } from '../read-models/project-reads';
+import { ProjectReads, freezeDaysOfFile } from '../read-models/project-reads';
 import { SubrequestBudget } from '../read-models/subrequest-budget';
 import { TrackerReads, readsRows } from '../read-models/tracker-reads';
 import { requestStatusOf } from '../team/owner-requests';
@@ -20,8 +20,8 @@ import { requestStatusOf } from '../team/owner-requests';
 export const SPRINT_GITHUB_BUDGET = 44;
 
 /**
- * `/api/v1/projects/:slug/{inbox,questions,sprint,requests,embed-origins}` (#35, #20, #219; inbox and questions of a
- * console-tracker project from D1, #434). The slug is checked before anything else, so `/`, `..`
+ * `/api/v1/projects/:slug/{inbox,questions,sprint,requests,embed-origins,sprint-freeze}` (#35, #20, #219, #457; inbox
+ * and questions of a console-tracker project from D1, #434). The slug is checked before anything else, so `/`, `..`
  * or `%2F` in it is a 404 `project-not-found` before D1 or GitHub is asked (#9 row 2); the repository comes only
  * from the registry row. Read-only installation tokens; the subrequest budget is on `ProjectReads`.
  */
@@ -110,6 +110,16 @@ export function createProjectReadModelRoutes(github: ApiGitHub): Hono<WorkerHono
       }
       // The SPA and the api share one origin per environment, so the request's origin is the console's own.
       const body: EmbedOriginsDto = { embedOrigins: await reads.embedOrigins(new URL(c.req.url).origin) };
+      return c.json(body);
+    })
+    .get('/:slug/sprint-freeze', async (c) => {
+      const reads = await readsFor(c, github);
+      if (reads instanceof Response) {
+        return reads;
+      }
+      // project.yml stays in the repository (ADR 0006 decision 9): the console tracker's freeze hints read it here,
+      // through the shared cached read, so the tracker routes themselves stay D1 only.
+      const body: SprintFreezeDaysDto = { freezeDays: freezeDaysOfFile(await reads.projectYmlFile()) };
       return c.json(body);
     });
 }

@@ -22,6 +22,7 @@ import {
   LABEL_COLOR_PATTERN,
   LABEL_DESCRIPTION_MAX_LENGTH,
   SPRINT_DESCRIPTION_MAX_LENGTH,
+  SPRINT_TITLE_MAX_LENGTH,
   isFlagName,
   isItemKind,
   isItemSeverity,
@@ -71,10 +72,12 @@ export interface UpdateItemInput {
   readonly closedReason?: 'not-planned' | 'duplicate';
 }
 
-/** `POST …/sprints`: the next number, titled `Sprint NN`. */
+/** `POST …/sprints`: the next number, titled `title` or, without one, `Sprint NN`. */
 export interface CreateSprintInput {
   readonly dueOn: string | null;
   readonly description: string;
+  /** The owner's name for the sprint (#457), one line of plain text; `null` names it `Sprint NN`. */
+  readonly title: string | null;
 }
 
 export interface UpdateSprintInput {
@@ -211,6 +214,18 @@ function title(value: unknown): string {
   const cleaned = withoutInvisibles(value).trim();
   if (cleaned.length === 0 || codePoints(cleaned) > ITEM_TITLE_MAX_LENGTH) {
     throw new InputError('title', `title must be 1 to ${String(ITEM_TITLE_MAX_LENGTH)} characters`);
+  }
+  return cleaned;
+}
+
+/** A sprint name: one line of plain text, invisibles removed and whitespace runs collapsed, 1 to the bound. */
+function sprintTitle(value: unknown): string {
+  if (typeof value !== 'string') {
+    throw new InputError('title', 'title must be a string');
+  }
+  const cleaned = withoutInvisibles(value).replace(/\s+/gu, ' ').trim();
+  if (cleaned.length === 0 || codePoints(cleaned) > SPRINT_TITLE_MAX_LENGTH) {
+    throw new InputError('title', `title must be 1 to ${String(SPRINT_TITLE_MAX_LENGTH)} characters`);
   }
   return cleaned;
 }
@@ -352,13 +367,14 @@ export function checkUpdateItemInput(body: unknown): InputCheck<UpdateItemInput>
 
 export function checkCreateSprintInput(body: unknown): InputCheck<CreateSprintInput> {
   return checked(() => {
-    const input = record(body, ['dueOn', 'description']);
+    const input = record(body, ['dueOn', 'description', 'title']);
     return {
       dueOn: input['dueOn'] === undefined ? null : dueOn(input['dueOn']),
       description:
         input['description'] === undefined
           ? ''
           : text('description', input['description'], SPRINT_DESCRIPTION_MAX_LENGTH),
+      title: input['title'] === undefined || input['title'] === null ? null : sprintTitle(input['title']),
     };
   });
 }

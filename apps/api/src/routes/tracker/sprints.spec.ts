@@ -49,10 +49,26 @@ describe('POST /projects/:slug/sprints', () => {
     expect(await countRows('sprints', project.slug)).toBe(1);
   });
 
+  it("names the sprint with the owner's title, cleaned to one line of plain text (#457)", async () => {
+    const project = await seedTrackerProject();
+    const named = await send('POST', sprintsPath(project.slug), {
+      dueOn: '2026-11-17',
+      title: '  \u202eCheckout\u200b\n  polish ',
+    });
+    expect(named.status).toBe(201);
+    expect(await named.json()).toMatchObject({ number: 1, title: 'Checkout polish' });
+    const unnamed = await send('POST', sprintsPath(project.slug), { title: null });
+    expect(await unnamed.json()).toMatchObject({ number: 2, title: 'Sprint 02' });
+  });
+
   it.each([
     [{ dueOn: '17.11.2026' }, 'dueOn'],
     [{ dueOn: '2026-02-30' }, 'dueOn'],
-    [{ title: 'Sprint 99' }, 'body'],
+    [{ title: '   ' }, 'title'],
+    [{ title: '\u200b\u202e' }, 'title'],
+    [{ title: 'x'.repeat(65) }, 'title'],
+    [{ title: 7 }, 'title'],
+    [{ name: 'Sprint 99' }, 'body'],
   ])('answers 422 sprint-invalid for %j', async (body, field) => {
     const project = await seedTrackerProject();
     const response = await send('POST', sprintsPath(project.slug), body);

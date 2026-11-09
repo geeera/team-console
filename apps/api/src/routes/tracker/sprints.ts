@@ -42,7 +42,7 @@ async function sprintResponse(
 
 /**
  * Sprints of the console's own tracker (#410): numbered per project and titled `Sprint NN` like `backlog sprint
- * create`; addressed by that number, never by a row id. The demo-date rules of the GitHub-backed sprint commands
+ * create`, or with the owner's name (#457); addressed by that number, never by a row id. The demo-date rules of the GitHub-backed sprint commands
  * (#218) stay with those routes until Phase 1b moves the board here.
  */
 export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
