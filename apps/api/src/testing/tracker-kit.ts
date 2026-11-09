@@ -48,7 +48,9 @@ export async function seedGitHubProject(): Promise<string> {
 /** A project on the console's tracker, its builtin labels seeded, items numbered from `nextItemNumber`. */
 export async function seedTrackerProject(nextItemNumber = 1): Promise<SeededProject> {
   const slug = await seedGitHubProject();
-  const keyPrefix = `T${String.fromCharCode(65 + (counter % 26))}${String.fromCharCode(65 + Math.floor(counter / 26))}`;
+  // Three base-26 letters: a spec file may seed more than 26² projects (the #452 matrices do).
+  const letter = (n: number): string => String.fromCharCode(65 + (Math.floor(n) % 26));
+  const keyPrefix = `T${letter(counter)}${letter(counter / 26)}${letter(counter / 676)}`;
   await new TrackerProjectsRepo(env.DB).switchTracker(slug, {
     tracker: 'console',
     keyPrefix,

@@ -16,6 +16,18 @@ export type ItemKind = (typeof ITEM_KINDS)[number];
 
 export const ITEM_STATUSES = ['proposed', 'approved', 'in-progress', 'qa', 'done', 'blocked'] as const;
 export type ItemStatus = (typeof ITEM_STATUSES)[number];
+/**
+ * Statuses that say the item is being worked on, so they need the owner's scope approval (#452). Excluded are
+ * `proposed` (waiting for it) and `done` (closed; the release decision closes items it never approved).
+ */
+export const WORKABLE_STATUSES = [
+  'approved',
+  'in-progress',
+  'qa',
+  'blocked',
+] as const satisfies readonly ItemStatus[];
+export const isWorkableStatus = (status: ItemStatus): boolean =>
+  (WORKABLE_STATUSES as readonly ItemStatus[]).includes(status);
 
 export const ITEM_SEVERITIES = ['critical', 'high', 'medium', 'low'] as const;
 export type ItemSeverity = (typeof ITEM_SEVERITIES)[number];
