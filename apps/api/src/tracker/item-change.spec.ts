@@ -39,6 +39,7 @@ describe('planItemUpdate', () => {
           after: { status: 'in-progress', flags: ['needs-design'], closed: false, approved: true },
           changesText: true,
           changesPlanning: false,
+          changesUnclassified: false,
         },
       },
     });
@@ -57,6 +58,23 @@ describe('planItemUpdate', () => {
     expect(text({ kind: 'feature', severity: 'high', tier: 'heavy' })).toEqual([false, true]);
     expect(text({ title: 'New', tier: 'heavy' })).toEqual([true, true]);
     expect(text({ status: 'qa', addLabels: ['security'] })).toEqual([false, false]);
+    // Every field planItemUpdate records today is classified; a new one would fail closed for jobs.
+    const everything = planItemUpdate(
+      ITEM,
+      {
+        title: 'New',
+        body: 'New body',
+        kind: 'bug',
+        severity: 'high',
+        tier: 'heavy',
+        status: 'done',
+        addLabels: ['security'],
+        removeLabels: ['needs-design'],
+      },
+      { id: 5, number: 2 },
+      AT,
+    );
+    expect(everything).toMatchObject({ plan: { transition: { changesUnclassified: false } } });
     expect(planItemUpdate(ITEM, {}, { id: 5, number: 2 }, AT)).toMatchObject({
       plan: { transition: { changesText: false, changesPlanning: true } },
     });

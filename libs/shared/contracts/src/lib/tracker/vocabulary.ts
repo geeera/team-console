@@ -64,6 +64,8 @@ export const ITEM_EVENT_KINDS = [
   'handled',
   'pr-linked',
   'imported',
+  // #462: the owner masked the title and body in the item's created/edited events (`…/events/scrub`).
+  'scrubbed',
 ] as const;
 export type ItemEventKind = (typeof ITEM_EVENT_KINDS)[number];
 

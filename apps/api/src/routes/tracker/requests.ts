@@ -4,6 +4,7 @@ import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import { ItemRequestsRepo, type ItemRequestRecord } from '@worker/db';
 import { trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
+import { bodySecretRefusal } from '../../tracker/body-secret';
 import { invalid, itemClosed, itemOf } from '../../tracker/context';
 import { itemRequestDtoOf } from '../../tracker/dto';
 import { ASK_WRITE_MAX_BYTES, SMALL_WRITE_MAX_BYTES, nextCursor, writeLimit } from '../../tracker/http';
@@ -129,6 +130,10 @@ export function createTrackerRequestRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
           const input = checkHandleRequestInput(write.body);
           if (!input.ok) {
             return invalid(c, 'request-invalid', input.field, input.detail);
+          }
+          const secret = bodySecretRefusal(c, policyActor, { reason: input.value.reason });
+          if (secret !== null) {
+            return secret;
           }
           if (request.handledAt !== null) {
             return handled();

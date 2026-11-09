@@ -186,6 +186,15 @@ const ROWS: readonly Row[] = [
     expect: (who) => (who === 'owner' ? ok(201) : refused('owner-only')),
   },
   {
+    route: `POST ${P}/:slug/items/:key/events/scrub`,
+    setup: async (project) => ({
+      method: 'POST',
+      path: `${(await item(project)).path}/events/scrub`,
+      body: {},
+    }),
+    expect: (who) => (who === 'owner' ? ok(201) : refused('owner-only')),
+  },
+  {
     route: `POST ${P}/:slug/requests/:id/handled`,
     setup: async (project) => {
       const { path } = await item(project, { kind: 'feature', status: 'approved' });
@@ -276,6 +285,7 @@ const OWNER_ROWS: readonly TrackerRoute[] = [
   `POST ${P}/:slug/labels`,
   `POST ${P}/:slug/items/:key/decisions`,
   `POST ${P}/:slug/items/:key/requests`,
+  `POST ${P}/:slug/items/:key/events/scrub`,
 ];
 const PLANNING_ROWS: readonly TrackerRoute[] = [
   `POST ${P}/:slug/sprints`,

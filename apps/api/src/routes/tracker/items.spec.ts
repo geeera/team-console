@@ -247,6 +247,24 @@ describe('Idempotency-Key per identity', () => {
     expect(await countRows('items', project.slug)).toBe(2);
   });
 
+  // #471 security review: the job id alone is not the scope; the role and the project are part of it.
+  it('keeps the same job id apart across roles and projects', async () => {
+    const project = await seedTrackerProject();
+    const other = await seedTrackerProject();
+    const key = newKey();
+    const pm = jobActor('pm', 'job-shared');
+    const architect = jobActor('architect', 'job-shared');
+    expect((await send('POST', itemsPath(project.slug), body, { key, job: pm })).status).toBe(201);
+    const otherRole = await send('POST', itemsPath(project.slug), body, { key, job: architect });
+    expect(otherRole.status).toBe(201);
+    expect(otherRole.headers.get('Idempotent-Replayed')).toBeNull();
+    const otherProject = await send('POST', itemsPath(other.slug), body, { key, job: pm });
+    expect(otherProject.status).toBe(201);
+    expect(otherProject.headers.get('Idempotent-Replayed')).toBeNull();
+    expect(await countRows('items', project.slug)).toBe(2);
+    expect(await countRows('items', other.slug)).toBe(1);
+  });
+
   it('still refuses the same identity reusing its key on a different request', async () => {
     const project = await seedTrackerProject();
     const key = newKey();

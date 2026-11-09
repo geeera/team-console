@@ -42,7 +42,8 @@ async function sha256Hex(text: string): Promise<string> {
 }
 
 /**
- * Who a key belongs to: the identity kind and the owner's login or the job id. Hashed before it is stored, so no
+ * Who a key belongs to: the identity kind and the owner's login, or a job's project, role and job id (#471 security
+ * review: a job id alone would let two tokens naming the same id share replays). Hashed before it is stored, so no
  * email lands in the key table.
  */
 function scopeOf(identity: Identity): string {
@@ -54,7 +55,7 @@ function scopeOf(identity: Identity): string {
     case 'service':
       return `service\n${identity.commonName}`;
     case 'job':
-      return `job\n${identity.jobId}`;
+      return `job\n${identity.projectSlug}\n${identity.role}\n${identity.jobId}`;
   }
 }
 
