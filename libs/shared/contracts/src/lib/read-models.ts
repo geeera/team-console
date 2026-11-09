@@ -172,6 +172,15 @@ export interface EmbedOriginsDto {
   readonly embedOrigins: readonly string[];
 }
 
+/**
+ * `GET /api/v1/projects/:slug/sprint-freeze` (#457): `sprint.freeze_days` of the project's project.yml (the plugin's
+ * `calendar.freeze_window`: the demo day and the N days before it), `DEFAULT_FREEZE_DAYS` when the file is missing or
+ * does not set a usable value. The console tracker's own screens compute their freeze hints from it.
+ */
+export interface SprintFreezeDaysDto {
+  readonly freezeDays: number;
+}
+
 /** The current sprint (`calendar.pick_current_sprint`) and its numbers, as read from the repository's lists. */
 export interface SprintListsDto {
   /** `null` when no open milestone has a due date today or later; the rest is then empty. */

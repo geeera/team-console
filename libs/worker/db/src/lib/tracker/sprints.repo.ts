@@ -16,6 +16,8 @@ export interface SprintRecord {
 export interface NewSprint {
   readonly dueOn: string | null;
   readonly description: string;
+  /** The owner's name (#457); `null` (or absent) titles it `Sprint NN`. */
+  readonly title?: string | null;
   readonly at: string;
 }
 
@@ -83,8 +85,8 @@ export class SprintsRepo {
   }
 
   /**
-   * Sprint `number` (from `nextNumber`) titled `Sprint NN`, with `extra` in the same batch. `false` when another
-   * request took that number first; the batch then writes nothing.
+   * Sprint `number` (from `nextNumber`) titled `sprint.title` or `Sprint NN`, with `extra` in the same batch.
+   * `false` when another request took that number first; the batch then writes nothing.
    */
   async create(
     slug: string,
@@ -99,7 +101,14 @@ export class SprintsRepo {
             `INSERT INTO sprints (project_slug, number, title, due_on, state, description, created_at)
              VALUES (?1, ?2, ?3, ?4, 'open', ?5, ?6)`,
           )
-          .bind(slug, number, sprintTitleOf(number), sprint.dueOn, sprint.description, sprint.at),
+          .bind(
+            slug,
+            number,
+            sprint.title ?? sprintTitleOf(number),
+            sprint.dueOn,
+            sprint.description,
+            sprint.at,
+          ),
         ...extra,
       ]);
       return true;

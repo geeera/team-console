@@ -4,6 +4,7 @@ import { httpProblemOf, isAccessSessionExpired } from '@console/shared/api';
 import type {
   AskDto,
   CommentDto,
+  CreateDecisionInput,
   DecisionDto,
   ItemDto,
   ItemEventDto,
@@ -16,10 +17,12 @@ import {
   isAskListDto,
   isCommentDto,
   isCommentListDto,
+  isDecisionDto,
   isDecisionListDto,
   isItemDto,
   isItemEventListDto,
   isItemListDto,
+  isSprintFreezeDaysDto,
   isTrackerSprintDto,
   isTrackerSprintListDto,
 } from './item.model';
@@ -36,6 +39,16 @@ export function itemUrl(slug: string, number: number): string {
 
 export function sprintsUrl(slug: string): string {
   return `/api/v1/projects/${encodeURIComponent(slug)}/sprints`;
+}
+
+/** `POST …/items/:n/decisions` (#434): the owner's answer to a console-tracker item. */
+export function decisionsUrl(slug: string, number: number): string {
+  return `${itemUrl(slug, number)}/decisions`;
+}
+
+/** `GET …/sprint-freeze` (#457): project.yml's `sprint.freeze_days`, read by the Worker. */
+export function sprintFreezeUrl(slug: string): string {
+  return `/api/v1/projects/${encodeURIComponent(slug)}/sprint-freeze`;
 }
 
 /** How a read ended, as the screens show it: the value, or why not. */
@@ -127,6 +140,27 @@ export class ItemsApi {
     return read.ok ? { ok: true, value: [...read.value.sprints] } : read;
   }
 
+  /** The project's freeze length in days; the screens fall back to the plugin's default when it cannot be read. */
+  async freezeDays(slug: string): Promise<TrackerRead<number>> {
+    const read = await this.read(sprintFreezeUrl(slug), isSprintFreezeDaysDto);
+    return read.ok ? { ok: true, value: read.value.freezeDays } : read;
+  }
+
+  /**
+   * `POST …/items/:n/decisions` (#434), no `If-Match`: the owner's decision names the open ask it answers (`askId`,
+   * required while a console ask is open, #443). The caller keeps one key per intended decision, so a repeat after a
+   * drop or a timeout is answered from the first write (`replayed`), never recorded twice.
+   */
+  async decide(
+    slug: string,
+    number: number,
+    decision: CreateDecisionInput,
+    idempotencyKey: string,
+  ): Promise<TrackerWrite<DecisionDto>> {
+    const headers = new HttpHeaders({ 'Idempotency-Key': idempotencyKey });
+    return this.write('POST', decisionsUrl(slug, number), decision, headers, isDecisionDto);
+  }
+
   /** `PATCH …/items/:n` with `If-Match: "<version>"`; a 412 is `conflict`. */
   async update(
     slug: string,
@@ -153,14 +187,16 @@ export class ItemsApi {
     return this.write('POST', `${itemUrl(slug, number)}/comments`, { body }, headers, isCommentDto);
   }
 
-  /** `POST …/sprints`: the next number, titled `Sprint NN` by the server; the demo day is the owner's. */
+  /** `POST …/sprints`: the next number, named `title` (#457) or `Sprint NN` by the server; the demo day is the owner's. */
   async createSprint(
     slug: string,
-    dueOn: string,
+    sprint: { readonly dueOn: string; readonly title: string | null },
     idempotencyKey: string,
   ): Promise<TrackerWrite<TrackerSprintDto>> {
     const headers = new HttpHeaders({ 'Idempotency-Key': idempotencyKey });
-    return this.write('POST', sprintsUrl(slug), { dueOn }, headers, isTrackerSprintDto);
+    const body =
+      sprint.title === null ? { dueOn: sprint.dueOn } : { dueOn: sprint.dueOn, title: sprint.title };
+    return this.write('POST', sprintsUrl(slug), body, headers, isTrackerSprintDto);
   }
 
   /** A write of `body` to `url`, answered as `T`; the timeout makes a hanging write a `timeout` failure. */

@@ -1,5 +1,6 @@
-import { HttpClient, HttpErrorResponse, HttpHeaders, HttpResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
+import { ItemsApi, type TrackerFailure, type TrackerFailureKind } from '@console/entities/item';
 import { isAccessSessionExpired } from '@console/shared/api';
 import {
   ANSWER_LOOKUP_MAX_MS,
@@ -71,17 +72,29 @@ const BY_PROBLEM: Readonly<Record<string, AnswerFailureKind>> = {
   'answer-not-allowed': 'not-allowed',
   'answer-needs-reason': 'needs-reason',
   'github-rate-limit': 'rate-limited',
-  // The console tracker's decisions route (#434, #443, #435).
-  'ask-not-open': 'not-waiting',
-  'ask-imported': 'not-waiting',
-  'item-changed': 'not-waiting',
-  'decision-command': 'not-allowed',
-  'decision-invalid': 'needs-reason',
-  'item-closed': 'issue-closed',
-  'item-not-found': 'issue-closed',
-  'idempotency-in-flight': 'in-progress',
-  'owner-only': 'forbidden',
 };
+
+/**
+ * A console-tracker decision's failure in the card's words. The problem slugs are read once, by `trackerFailureOf`
+ * of `@console/entities/item` (#457): this maps only its kinds, so the two can never disagree about a slug.
+ */
+const BY_TRACKER_KIND: Readonly<Record<TrackerFailureKind, AnswerFailureKind>> = {
+  conflict: 'not-waiting',
+  gone: 'not-waiting',
+  invalid: 'needs-reason',
+  forbidden: 'forbidden',
+  network: 'offline',
+  timeout: 'offline',
+  'in-flight': 'in-progress',
+  'not-found': 'issue-closed',
+  'session-expired': 'session-expired',
+  unknown: 'unknown',
+};
+
+export function decisionFailureOf(failure: TrackerFailure): AnswerFailure {
+  const kind = BY_TRACKER_KIND[failure.kind];
+  return { kind, recovery: RECOVERY[kind], retryAfter: failure.retryAfter };
+}
 
 const RECOVERY: Readonly<Record<AnswerFailureKind, AnswerRecovery>> = {
   'not-connected': 'settings',
@@ -164,11 +177,6 @@ export function answerRequestOf(command: AnswerCommand, ownerSaid: string, reaso
   return text === '' ? { command, ownerSaid } : { command, text, ownerSaid };
 }
 
-/** `POST /api/v1/projects/:slug/items/:number/decisions` (#434): the console tracker's owner decisions. */
-export function decisionUrl(slug: string, number: number): string {
-  return `/api/v1/projects/${encodeURIComponent(slug)}/items/${String(number)}/decisions`;
-}
-
 /** What a decision answers: the item's section and the open console ask it names (`null`: none is open). */
 export interface DecisionTarget {
   readonly slug: string;
@@ -177,14 +185,11 @@ export interface DecisionTarget {
   readonly askId: number | null;
 }
 
-function isDecisionResponse(value: unknown): value is { id: number; command: string } {
-  return isRecord(value) && typeof value['id'] === 'number' && isAnswerCommand(value['command']);
-}
-
 /** `POST /api/v1/projects/:slug/issues/:number/answer` (#10). Never throws: every outcome is an `AnswerResult`. */
 @Injectable({ providedIn: 'root' })
 export class AnswerClient {
   private readonly http = inject(HttpClient);
+  private readonly items = inject(ItemsApi);
 
   async submit(slug: string, number: number, request: AnswerRequest): Promise<AnswerResult> {
     let response: HttpResponse<unknown>;
@@ -214,35 +219,29 @@ export class AnswerClient {
     request: AnswerRequest,
     idempotencyKey: string,
   ): Promise<AnswerResult> {
-    const body = {
-      command: request.command,
-      text: request.text ?? '',
-      askId: target.askId,
-      reversesCommentId: null,
-      via: 'web',
-    };
-    let response: HttpResponse<unknown>;
-    try {
-      response = await firstValueFrom(
-        this.http.post<unknown>(decisionUrl(target.slug, target.number), body, {
-          observe: 'response',
-          headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
-        }),
-      );
-    } catch (error: unknown) {
-      return { ok: false, failure: answerFailureOf(error) };
-    }
-    if (!isDecisionResponse(response.body)) {
-      return { ok: false, failure: answerFailureOf(null) };
+    const result = await this.items.decide(
+      target.slug,
+      target.number,
+      {
+        command: request.command,
+        text: request.text ?? '',
+        askId: target.askId,
+        reversesCommentId: null,
+        via: 'web',
+      },
+      idempotencyKey,
+    );
+    if (!result.ok) {
+      return { ok: false, failure: decisionFailureOf(result.failure) };
     }
     return {
       ok: true,
       response: {
-        commentId: response.body.id,
+        commentId: result.value.id,
         url: '',
         section: target.section,
         command: request.command,
-        replayed: response.status === 200 || response.headers.get('Idempotent-Replayed') === 'true',
+        replayed: result.replayed,
       },
     };
   }

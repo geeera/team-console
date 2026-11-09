@@ -27,16 +27,31 @@ function item(overrides: Partial<QuestionItem> = {}): QuestionItem {
 
 @Component({
   imports: [QuestionCard],
-  template: `<tc-question-card [item]="item()" [showProject]="showProject()" [embedOrigins]="origins()"
-    ><div tc-question-previews data-testid="slot-previews">Screens</div
-    ><button tc-question-actions type="button">Act</button></tc-question-card
+  template: `<tc-question-card
+    [item]="item()"
+    [showProject]="showProject()"
+    [embedOrigins]="origins()"
+    [heading]="heading()"
+    ><div tc-question-previews data-testid="slot-previews">Screens</div>
+    <button tc-question-actions type="button">Act</button></tc-question-card
   >`,
 })
 class Host {
   readonly item = signal(item());
   readonly showProject = signal(true);
   readonly origins = signal<readonly string[] | null>(null);
+  readonly heading = signal<string | null>(null);
 }
+
+const CONTEXT_NONE: QuestionContextDto = {
+  summary: null,
+  question: null,
+  why: null,
+  ifApproved: null,
+  ifRejected: null,
+  costAndRisk: null,
+  structured: true,
+};
 
 const STORYBOOK = 'https://team-console-storybook.pages.dev';
 const DESIGN_BODY =
@@ -107,7 +122,12 @@ describe('QuestionCard', () => {
 
     // A team item says the recommended answer as a verb (#276).
     fixture.componentInstance.item.set(
-      item({ section: 'release', ask: '/go (рекомендую) · /no-go', recommendation: 'go', authorTrusted: true }),
+      item({
+        section: 'release',
+        ask: '/go (рекомендую) · /no-go',
+        recommendation: 'go',
+        authorTrusted: true,
+      }),
     );
     await fixture.whenStable();
     expect(recommendation()?.textContent).toContain('Проводить демо.');
@@ -151,11 +171,18 @@ describe('QuestionCard', () => {
     // A local section item gets the same fixed line, whatever its own ask reads; a design item without a
     // recommendation shows no block at all (#210).
     fixture.componentInstance.item.set(
-      item({ section: 'local', ask: 'Переключи источник GitHub Pages', authorTrusted: true, allowedCommands: ['done'] }),
+      item({
+        section: 'local',
+        ask: 'Переключи источник GitHub Pages',
+        authorTrusted: true,
+        allowedCommands: ['done'],
+      }),
     );
     await fixture.whenStable();
     expect(root.querySelector('[data-testid="recommendation"]')).toBeNull();
-    expect(root.querySelector('[data-testid="action-text"]')?.textContent).toBe('Нажмите «Готово», когда сделаете.');
+    expect(root.querySelector('[data-testid="action-text"]')?.textContent).toBe(
+      'Нажмите «Готово», когда сделаете.',
+    );
     expect(root.textContent).not.toContain('Переключи');
 
     fixture.componentInstance.item.set(
@@ -226,6 +253,20 @@ describe('QuestionCard', () => {
     expect(root.querySelector('button')?.textContent).toBe('Act');
   });
 
+  it('reads the given heading instead of the title, which the page already shows (#457)', async () => {
+    const { fixture, root } = await render();
+    const host = fixture.componentInstance;
+    host.item.set(item({ authorTrusted: true, context: { ...CONTEXT_NONE, summary: 'Краткое' } }));
+    host.heading.set('Ждёт вашего решения');
+    await fixture.whenStable();
+
+    const title = root.querySelector('h2') as HTMLElement;
+    expect(title.textContent?.trim()).toBe('Ждёт вашего решения');
+    expect(root.querySelector('[role="article"]')?.getAttribute('aria-labelledby')).toBe(title.id);
+    expect(root.textContent).not.toContain('Please approve my change');
+    expect(root.querySelector('[data-testid="github-title"]')).toBeNull();
+  });
+
   it('links to GitHub in a new tab without an opener, and shows no link without a url', async () => {
     const { fixture, root } = await render();
 
@@ -234,9 +275,13 @@ describe('QuestionCard', () => {
     expect(link.getAttribute('rel')).toBe('noopener noreferrer');
     expect(link.getAttribute('target')).toBe('_blank');
     // The external-link pattern: a decorative icon, and the new tab said in words for a screen reader.
-    expect(link.querySelector('tc-icon[data-testid="external-icon"]')?.getAttribute('aria-hidden')).toBe('true');
+    expect(link.querySelector('tc-icon[data-testid="external-icon"]')?.getAttribute('aria-hidden')).toBe(
+      'true',
+    );
     expect(link.querySelector('.tc-sr-only')?.textContent?.trim()).toBe('(откроется в новой вкладке)');
-    expect(link.textContent?.replace(/\s+/g, ' ').trim()).toBe('Открыть #90001 на GitHub (откроется в новой вкладке)');
+    expect(link.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+      'Открыть #90001 на GitHub (откроется в новой вкладке)',
+    );
 
     fixture.componentInstance.item.set(item({ url: null, ask: null, body: null }));
     fixture.componentInstance.showProject.set(false);
@@ -315,7 +360,9 @@ describe('QuestionCard', () => {
 
       fixture.componentInstance.origins.set([STORYBOOK]);
       await fixture.whenStable();
-      expect(root.querySelector('[data-testid="markdown"]')?.textContent).not.toMatch(/Your answer|\/approve/);
+      expect(root.querySelector('[data-testid="markdown"]')?.textContent).not.toMatch(
+        /Your answer|\/approve/,
+      );
     });
 
     it('falls back for a body without the sections: the answer line’s options become outcomes', async () => {
@@ -325,7 +372,16 @@ describe('QuestionCard', () => {
           ...TEAM_DESIGN,
           section: 'question',
           ask: '/approve добавить экспорт в CSV (рекомендую) · /reject почему',
-          context: { ...CONTEXT, summary: null, why: null, ifApproved: null, ifRejected: null, costAndRisk: null, structured: false, question: 'Команда предлагает экспорт.' },
+          context: {
+            ...CONTEXT,
+            summary: null,
+            why: null,
+            ifApproved: null,
+            ifRejected: null,
+            costAndRisk: null,
+            structured: false,
+            question: 'Команда предлагает экспорт.',
+          },
         }),
       );
       await fixture.whenStable();
@@ -335,9 +391,9 @@ describe('QuestionCard', () => {
       expect(text(root, 'question-text')).toBe('Команда предлагает экспорт.');
       expect(text(root, 'recommendation')).toContain('Одобрить.');
       // The reject side is only the plugin's placeholder prompt ("почему"): dropped, not shown as a bare prompt (#291).
-      expect(Array.from(root.querySelectorAll('[data-testid="outcomes"] dd'), (dd) => dd.textContent)).toEqual([
-        'Добавить экспорт в CSV',
-      ]);
+      expect(
+        Array.from(root.querySelectorAll('[data-testid="outcomes"] dd'), (dd) => dd.textContent),
+      ).toEqual(['Добавить экспорт в CSV']);
       expect(root.querySelector('[data-testid="outcomes"] dt')?.textContent).toBe('Если одобрите');
       expect(root.querySelector('[data-testid="cost"]')).toBeNull();
       expect(root.textContent).not.toMatch(/\/approve|\/reject|рекомендую/);

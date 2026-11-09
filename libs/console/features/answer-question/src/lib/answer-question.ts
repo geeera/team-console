@@ -47,10 +47,22 @@ interface SentAnswer {
   readonly firstSentAt: number;
   /** A console-tracker decision's `Idempotency-Key`: a repeat sends it again, never a second decision. */
   readonly idempotencyKey: string;
+  /** The console ask the decision answered when it was first sent; a repeat names the same one. */
+  readonly askId: number | null;
 }
 
-function isSameRequest(a: AnswerRequest, b: AnswerRequest): boolean {
-  return a.command === b.command && (a.text ?? '') === (b.text ?? '') && a.ownerSaid === b.ownerSaid;
+/**
+ * Whether a tap repeats the answer last sent. For a console-tracker item the ask counts too (#457): an answer to a
+ * newer ask is a new decision with a new key, never a replay of the one given to the ask before it.
+ */
+function isSameRequest(last: SentAnswer, request: AnswerRequest, askId: number | null): boolean {
+  const sent = last.request;
+  return (
+    sent.command === request.command &&
+    (sent.text ?? '') === (request.text ?? '') &&
+    sent.ownerSaid === request.ownerSaid &&
+    last.askId === askId
+  );
 }
 
 function isReasonCommand(command: AnswerCommand): command is ReasonCommand {
@@ -171,7 +183,7 @@ export class AnswerQuestion {
       return;
     }
     const last = this.lastSent;
-    if (last !== null && isSameRequest(last.request, request)) {
+    if (last !== null && isSameRequest(last, request, this.item().askId ?? null)) {
       // The same answer tapped again after a failure: a repeat, like Retry.
       await this.repeat(last);
       return;
@@ -273,10 +285,16 @@ export class AnswerQuestion {
   private async submit(request: AnswerRequest): Promise<void> {
     const item = this.item();
     const last = this.lastSent;
-    if (last === null || last.request !== request) {
-      this.lastSent = { request, firstSentAt: Date.now(), idempotencyKey: crypto.randomUUID() };
-    }
-    const key = this.lastSent?.idempotencyKey ?? crypto.randomUUID();
+    const sent: SentAnswer =
+      last !== null && last.request === request
+        ? last
+        : {
+            request,
+            firstSentAt: Date.now(),
+            idempotencyKey: crypto.randomUUID(),
+            askId: item.askId ?? null,
+          };
+    this.lastSent = sent;
     this.pending.set(request.command);
     this.keepFocusOnRetry(request.command);
     this.failure.set(null);
@@ -287,10 +305,10 @@ export class AnswerQuestion {
               slug: item.project.slug,
               number: item.number,
               section: item.section,
-              askId: item.askId ?? null,
+              askId: sent.askId,
             },
             request,
-            key,
+            sent.idempotencyKey,
           )
         : this.client.submit(item.project.slug, item.number, request);
     let result = await send();
@@ -315,6 +333,8 @@ export class AnswerQuestion {
   }
 
   private recordAnswer(item: QuestionItem, response: AnswerResponse): void {
+    // Recorded: nothing is left to repeat, so a later tap is a new answer with a new key (#457).
+    this.lastSent = null;
     this.answeredItems.record({
       slug: item.project.slug,
       number: item.number,
