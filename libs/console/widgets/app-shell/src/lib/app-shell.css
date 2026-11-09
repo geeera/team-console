@@ -97,6 +97,8 @@
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
+  /* A button sizes to its content: without the cap a long project name pushes past the bar instead of ending in "…". */
+  max-width: 100%;
   min-height: var(--control-h-touch);
   padding: 0 var(--space-2);
   border: 0;
@@ -122,10 +124,12 @@
 }
 
 .shell__switch tc-icon {
+  flex: none;
   color: var(--text-3);
 }
 
 .shell__switch-name {
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;

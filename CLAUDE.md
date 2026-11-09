@@ -202,7 +202,7 @@ under `/api/v1/projects/:slug/` — `GET|POST items`, `GET|PATCH items/:key` (`T
 "<version>"`, 428 `item-version-required`, 412 `item-version`), `GET items/:key/events`, `GET|POST items/:key/comments`
 (append-only, no edit route), `GET|POST sprints`, `GET|PATCH sprints/:number` (`Sprint NN`, or the optional one-line `title` of `POST`, ≤ `SPRINT_TITLE_MAX_LENGTH`, #457), `GET|POST labels`. D1 only,
 behind the route matrix (#444, below), reads included; their freeze hints read project.yml's `sprint.freeze_days` from `GET
-/projects/:slug/sprint-freeze` (`SprintFreezeDaysDto`, the shared cached project.yml read, #457) instead. Every write, in
+/projects/:slug/sprint-freeze` (`SprintFreezeDaysDto`, the shared cached project.yml read, #457) instead. Console (#457): `ItemsApi.decide|freezeDays|createSprint({dueOn,title})` in `@console/entities/item`; every tracker problem slug is mapped once, in `trackerFailureOf` (`KIND_BY_PROBLEM`), and `AnswerClient.decide` and the batch dialog read only its kinds; `TC-n` items in the batch dialog are approved one decision each (with the open `askId`, a key per item), GitHub items stay on `answers/batch`. Every write, in
 this order: 404 project → 409 `tracker-not-cut-over` while `projects.tracker = 'github'` → `Idempotency-Key` (400
 `idempotency-key`; `tracker/idempotency.ts` over `idempotency_keys`, completed inside the write's own batch, 24 h;
 replay answers the resource with `Idempotent-Replayed: true`, 409 `idempotency-in-flight`, 422

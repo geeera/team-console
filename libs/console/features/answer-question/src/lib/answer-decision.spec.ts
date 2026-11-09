@@ -6,7 +6,7 @@ import type { QuestionItem } from '@console/entities/question';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import { Sheet } from '@console/shared/ui';
 import { AnswerQuestion } from './answer-question';
-import { decisionUrl } from './answer.client';
+import { decisionsUrl } from '@console/entities/item';
 
 const ITEM: QuestionItem = {
   project: { slug: 'team-console', name: 'team-console' },
@@ -25,7 +25,7 @@ const ITEM: QuestionItem = {
   context: null,
 };
 
-const URL = decisionUrl('team-console', 345);
+const URL = decisionsUrl('team-console', 345);
 const DECISION = {
   id: 9,
   command: 'approve',
@@ -100,5 +100,61 @@ describe('AnswerQuestion on a console-tracker item (#435)', () => {
         .querySelector('[data-testid="answer-error"]')
         ?.getAttribute('data-kind'),
     ).toBe('not-waiting');
+  });
+
+  it('forgets a recorded decision: the next tap is a new decision with a new key (#457)', async () => {
+    const { fixture, http } = setup();
+    const first = fixture.componentInstance.answer('approve');
+    await Promise.resolve();
+    const sent = http.expectOne(URL);
+    const key = sent.request.headers.get('Idempotency-Key');
+    sent.flush(DECISION, { status: 201, statusText: 'Created' });
+    await first;
+    // Nothing waits for a repeat any more: Retry sends nothing.
+    await fixture.componentInstance.retry();
+    http.expectNone(URL);
+    const second = fixture.componentInstance.answer('approve');
+    await Promise.resolve();
+    const again = http.expectOne(URL);
+    expect(again.request.headers.get('Idempotency-Key')).not.toBe(key);
+    again.flush(DECISION, { status: 201, statusText: 'Created' });
+    await second;
+  });
+
+  it('answers a newer ask as a new decision, never as a repeat of the last one (#457)', async () => {
+    const { fixture, http } = setup();
+    const first = fixture.componentInstance.answer('approve');
+    await Promise.resolve();
+    const dropped = http.expectOne(URL);
+    const key = dropped.request.headers.get('Idempotency-Key');
+    dropped.error(new ProgressEvent('error'), { status: 0 });
+    await first;
+    // The list was read again meanwhile: the team replaced the ask.
+    fixture.componentRef.setInput('item', { ...ITEM, askId: 18 });
+    fixture.detectChanges();
+    const second = fixture.componentInstance.answer('approve');
+    await Promise.resolve();
+    const fresh = http.expectOne(URL);
+    expect(fresh.request.headers.get('Idempotency-Key')).not.toBe(key);
+    expect(fresh.request.body).toMatchObject({ command: 'approve', askId: 18 });
+    fresh.flush({ ...DECISION, askId: 18 }, { status: 201, statusText: 'Created' });
+    await second;
+  });
+
+  it('repeats a dropped decision for the ask it answered, even after the list moved on', async () => {
+    const { fixture, http } = setup();
+    const first = fixture.componentInstance.answer('approve');
+    await Promise.resolve();
+    const dropped = http.expectOne(URL);
+    const key = dropped.request.headers.get('Idempotency-Key');
+    dropped.error(new ProgressEvent('error'), { status: 0 });
+    await first;
+    fixture.componentRef.setInput('item', { ...ITEM, askId: 18 });
+    const retried = fixture.componentInstance.retry();
+    const repeat = http.expectOne(URL);
+    expect(repeat.request.headers.get('Idempotency-Key')).toBe(key);
+    expect(repeat.request.body).toMatchObject({ askId: 17 });
+    repeat.flush(DECISION, { status: 201, statusText: 'Created' });
+    await retried;
   });
 });

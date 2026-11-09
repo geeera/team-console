@@ -2,7 +2,8 @@ import { HttpHeaders, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { itemFixture } from './item.fixture';
-import { itemUrl, ItemsApi } from './items.api';
+import { freezeDaysOrDefault } from './item-queue';
+import { decisionsUrl, itemUrl, ItemsApi, sprintFreezeUrl, sprintsUrl } from './items.api';
 import { trackerFailureOf } from './tracker-failure';
 import { HttpErrorResponse } from '@angular/common/http';
 
@@ -47,6 +48,49 @@ describe('ItemsApi', () => {
     await expect(dropped).resolves.toEqual({ ok: false, reason: 'offline' });
   });
 
+  it('records a decision with its key and reads a replay as replayed (#457)', async () => {
+    const decision = { command: 'approve', text: '', askId: 4, reversesCommentId: null, via: 'web' } as const;
+    const pending = api.decide('team-console', 7, decision, 'key-2');
+    const request = http.expectOne(decisionsUrl('team-console', 7));
+    expect(request.request.method).toBe('POST');
+    expect(request.request.headers.get('Idempotency-Key')).toBe('key-2');
+    expect(request.request.headers.has('If-Match')).toBe(false);
+    expect(request.request.body).toEqual(decision);
+    request.flush(
+      { id: 3, ...decision, decidedAt: '2026-11-09T10:00:00.000Z', sourceUrl: null },
+      { headers: { 'Idempotent-Replayed': 'true' } },
+    );
+    await expect(pending).resolves.toMatchObject({ ok: true, replayed: true, value: { id: 3 } });
+  });
+
+  it('names a sprint only when given a name (#457)', async () => {
+    const sprint = { state: 'open', description: '', createdAt: 'x', closedAt: null };
+    const named = api.createSprint('team-console', { dueOn: '2026-12-11', title: 'Checkout' }, 'k');
+    const first = http.expectOne(sprintsUrl('team-console'));
+    expect(first.request.body).toEqual({ dueOn: '2026-12-11', title: 'Checkout' });
+    first.flush({ ...sprint, number: 3, title: 'Checkout', dueOn: '2026-12-11' });
+    await expect(named).resolves.toMatchObject({ ok: true, value: { title: 'Checkout' } });
+    const unnamed = api.createSprint('team-console', { dueOn: '2026-12-25', title: null }, 'k2');
+    const second = http.expectOne(sprintsUrl('team-console'));
+    expect(second.request.body).toEqual({ dueOn: '2026-12-25' });
+    second.flush({ ...sprint, number: 4, title: 'Sprint 04', dueOn: '2026-12-25' });
+    await unnamed;
+  });
+
+  it("reads the project's freeze days and falls back to the plugin's default (#457)", async () => {
+    const read = api.freezeDays('team-console');
+    http.expectOne(sprintFreezeUrl('team-console')).flush({ freezeDays: 3 });
+    const days = await read;
+    expect(days).toEqual({ ok: true, value: 3 });
+    expect(freezeDaysOrDefault(days)).toBe(3);
+    const odd = api.freezeDays('team-console');
+    http.expectOne(sprintFreezeUrl('team-console')).flush({ freezeDays: 99 });
+    expect(freezeDaysOrDefault(await odd)).toBe(2);
+    const failed = api.freezeDays('team-console');
+    http.expectOne(sprintFreezeUrl('team-console')).error(new ProgressEvent('error'), { status: 0 });
+    expect(freezeDaysOrDefault(await failed)).toBe(2);
+  });
+
   it('pages a cursor list until next is null', async () => {
     const pending = api.events('team-console', 7);
     const first = http.expectOne(
@@ -85,5 +129,18 @@ describe('trackerFailureOf', () => {
     expect(trackerFailureOf(problem(409, 'idempotency-in-flight')).kind).toBe('in-flight');
     expect(trackerFailureOf(new HttpErrorResponse({ status: 0 })).kind).toBe('network');
     expect(trackerFailureOf(new Error('boom')).kind).toBe('unknown');
+  });
+
+  it('reads every tracker slug from the one table, before the status (#457)', () => {
+    expect(trackerFailureOf(problem(409, 'item-version-required')).kind).toBe('conflict');
+    expect(trackerFailureOf(problem(409, 'ask-imported')).kind).toBe('gone');
+    expect(trackerFailureOf(problem(409, 'decision-command')).kind).toBe('gone');
+    expect(trackerFailureOf(problem(409, 'item-closed')).kind).toBe('gone');
+    expect(trackerFailureOf(problem(404, 'project-not-found')).kind).toBe('not-found');
+    expect(trackerFailureOf(problem(409, 'item-not-found')).kind).toBe('not-found');
+    // An unlisted slug falls to its status; `Object.prototype` names are never slugs.
+    expect(trackerFailureOf(problem(422, 'decision-invalid', { field: 'text' })).kind).toBe('invalid');
+    expect(trackerFailureOf(problem(500, 'constructor')).kind).toBe('unknown');
+    expect(trackerFailureOf(problem(500, 'toString')).kind).toBe('unknown');
   });
 });

@@ -84,8 +84,12 @@ function isActionSection(section: Section): boolean {
         {{ 'questions.section.' + item().section | transloco }}
       </span>
       <span tc-card-number>{{ item().key ?? '#' + item().number }}</span>
-      <h2 tc-card-title [id]="titleId" tabindex="-1" dir="auto">{{ summary() ?? item().title }}</h2>
-      @if (summary() !== null) {
+      @if (heading(); as heading) {
+        <h2 tc-card-title [id]="titleId" tabindex="-1">{{ heading }}</h2>
+      } @else {
+        <h2 tc-card-title [id]="titleId" tabindex="-1" dir="auto">{{ summary() ?? item().title }}</h2>
+      }
+      @if (heading() === null && summary() !== null) {
         <p class="question__github-title" data-testid="github-title">
           {{ 'questions.onGitHub' | transloco }} <span dir="auto">{{ item().title }}</span>
         </p>
@@ -194,6 +198,11 @@ export class QuestionCard {
   readonly item = input.required<QuestionItem>();
   /** A console-tracker item links its task screen (#435); off on that screen itself. */
   readonly showTaskLink = input(true);
+  /**
+   * Replaces the title with this heading where the item's title is already the page's h1 (the task screen, #457):
+   * the card then reads "Waiting for your decision", not the same title twice.
+   */
+  readonly heading = input<string | null>(null);
   /** Cross-project lists tag every card with its project. */
   readonly showProject = input(false, { transform: booleanAttribute });
   /** The ink stamp while an answered card folds away. */

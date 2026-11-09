@@ -93,8 +93,9 @@ test('creates a sprint from the board after the latest one, refusing a date befo
 }) => {
   await page.goto(`/p/${SLUG}/board`);
   await page.getByTestId('create-sprint').click();
-  const dialog = page.getByRole('alertdialog', { name: 'Новый спринт: Sprint 03' });
+  const dialog = page.getByRole('dialog', { name: ru('sprintNew.title') });
   await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel(ru('sprintNew.name'))).toHaveValue('Sprint 03');
   const date = dialog.getByLabel(ru('sprintNew.date'));
   await expect(date).toHaveValue('12.02.2030');
   await expect(dialog).toContainText('Спринт начнётся после демо Sprint 02 (29 января)');

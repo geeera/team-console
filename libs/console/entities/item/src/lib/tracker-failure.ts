@@ -1,5 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { httpProblemOf, isAccessSessionExpired } from '@console/shared/api';
+import type { TrackerProblemType } from '@shared/contracts';
 import { TimeoutError } from 'rxjs';
 
 /**
@@ -46,14 +47,29 @@ export interface FailedWrite {
 /** A write that gets no answer in this long is reported as `timeout`; its retry reuses the key. */
 export const TRACKER_WRITE_TIMEOUT_MS = 20_000;
 
-const CONFLICTS: ReadonlySet<string> = new Set(['item-version', 'item-changed', 'item-version-required']);
-const GONE: ReadonlySet<string> = new Set([
-  'ask-not-open',
-  'ask-imported',
-  'decision-command',
-  'item-closed',
-]);
-const NOT_FOUND: ReadonlySet<string> = new Set(['item-not-found', 'project-not-found', 'sprint-not-found']);
+/**
+ * The one table from a tracker problem slug to its kind (#457): the task screen's writes and the owner decisions of
+ * `AnswerQuestion` and the batch dialog all read their failures through `trackerFailureOf`, so the slugs can never be
+ * mapped two ways. Typed by the server's `TrackerProblemType`, so a renamed slug fails to compile here. A slug not
+ * listed falls to its status (403, 404, 412, 422) below.
+ */
+const KIND_BY_PROBLEM: Partial<
+  Readonly<Record<TrackerProblemType | 'project-not-found', TrackerFailureKind>>
+> = {
+  'item-version': 'conflict',
+  'item-version-required': 'conflict',
+  'item-changed': 'conflict',
+  'ask-not-open': 'gone',
+  'ask-imported': 'gone',
+  'decision-command': 'gone',
+  'item-closed': 'gone',
+  'item-not-found': 'not-found',
+  'project-not-found': 'not-found',
+  'sprint-not-found': 'not-found',
+  'idempotency-in-flight': 'in-flight',
+};
+
+const KINDS: ReadonlyMap<string, TrackerFailureKind | undefined> = new Map(Object.entries(KIND_BY_PROBLEM));
 
 /** Whether a failure is worth the same request again (the idempotency key makes that safe). */
 export function isRetryable(failure: TrackerFailure): boolean {
@@ -79,25 +95,22 @@ export function trackerFailureOf(error: unknown): TrackerFailure {
     return { kind: 'session-expired', ...none };
   }
   const problem = httpProblemOf(error);
-  const slug = problem.slug ?? '';
   const retryAfter = problem.retryAfterSeconds;
   const field = typeof problem.extensions['field'] === 'string' ? problem.extensions['field'] : null;
   if (problem.status === 0) {
     return { kind: 'network', field: null, retryAfter };
   }
-  if (slug === 'idempotency-in-flight') {
-    return { kind: 'in-flight', field: null, retryAfter };
+  const listed = problem.slug === null ? undefined : KINDS.get(problem.slug);
+  if (listed !== undefined) {
+    return { kind: listed, field: null, retryAfter };
   }
-  if (problem.status === 412 || CONFLICTS.has(slug)) {
+  if (problem.status === 412) {
     return { kind: 'conflict', field: null, retryAfter };
-  }
-  if (GONE.has(slug)) {
-    return { kind: 'gone', field: null, retryAfter };
   }
   if (problem.status === 403) {
     return { kind: 'forbidden', field: null, retryAfter };
   }
-  if (problem.status === 404 || NOT_FOUND.has(slug)) {
+  if (problem.status === 404) {
     return { kind: 'not-found', field: null, retryAfter };
   }
   if (problem.status === 422 || problem.status === 413) {
