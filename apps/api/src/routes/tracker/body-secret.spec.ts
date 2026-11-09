@@ -181,10 +181,15 @@ describe.each(CASES.map((each) => [each.name, each] as const))(
 );
 
 describe('a secret split by invisible characters', () => {
+  // Every Default_Ignorable_Code_Point the security review of #474 found slipping, and the earlier ones.
   it.each([
-    ['a zero-width space', '​'],
-    ['a zero-width joiner', '‍'],
-    ['a soft hyphen', '­'],
+    ['a zero-width space', '\u200b'],
+    ['a zero-width joiner', '\u200d'],
+    ['a soft hyphen', '\u00ad'],
+    ['variation selector 16', '\ufe0f'],
+    ['a combining grapheme joiner', '\u034f'],
+    ['a Mongolian vowel separator', '\u180e'],
+    ['a halfwidth Hangul filler', '\uffa0'],
   ])('is still refused when %s hides it', async (_, invisible) => {
     const project = await seedTrackerProject();
     const { path } = await seedItem(project);
@@ -194,6 +199,68 @@ describe('a secret split by invisible characters', () => {
       'body',
       'github-token',
     );
+  });
+});
+
+// Security review of #474: the sprint title is job-written, never editable afterwards and not scrubbable.
+describe('a sprint title', () => {
+  it('is refused 422 body-secret when the PM names a sprint with a token, writing nothing', async () => {
+    const project = await seedTrackerProject();
+    const before = await snapshot(project.slug);
+    const response = await send(
+      'POST',
+      `${P}/${project.slug}/sprints`,
+      { title: GITHUB_TOKEN, description: 'Goal' },
+      { job: PM },
+    );
+    await expectBodySecret(response, 'title', 'github-token');
+    expect(await snapshot(project.slug)).toEqual(before);
+    expect(
+      (
+        await send(
+          'POST',
+          `${P}/${project.slug}/sprints`,
+          { title: 'Payments', description: 'Goal' },
+          { job: PM },
+        )
+      ).status,
+    ).toBe(201);
+  });
+});
+
+describe('the order of the checks', () => {
+  it('answers a comment kind the role may not write with 403 comment-kind before judging its text', async () => {
+    const project = await seedTrackerProject();
+    const { path } = await seedItem(project);
+    const response = await send(
+      'POST',
+      `${path}/comments`,
+      { kind: 'decision', body: leak(GITHUB_TOKEN) },
+      { job: jobActor('dev-light') },
+    );
+    expect(response.status).toBe(403);
+    expect(await slugOf(response)).toBe('comment-kind');
+  });
+
+  it('answers an item change the role may not make with the transition table’s 403 before judging its text', async () => {
+    const project = await seedTrackerProject();
+    const created = await send(
+      'POST',
+      `${P}/${project.slug}/items`,
+      { title: 'New', kind: 'chore', body: leak(GITHUB_TOKEN) },
+      { job: jobActor('dev') },
+    );
+    expect(created.status).toBe(403);
+    expect(await slugOf(created)).toBe('transition-role');
+    const approved = await seedItem(project, { kind: 'feature', status: 'approved' });
+    const edited = await send(
+      'PATCH',
+      approved.path,
+      { body: leak(GITHUB_TOKEN) },
+      { ifMatch: '"1"', job: jobActor('pm') },
+    );
+    expect(edited.status).toBe(403);
+    expect(await slugOf(edited)).toBe('transition-owner-only');
   });
 });
 

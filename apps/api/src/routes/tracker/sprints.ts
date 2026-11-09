@@ -93,7 +93,10 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
           if (!input.ok) {
             return invalid(c, 'sprint-invalid', input.field, input.detail);
           }
-          const secret = bodySecretRefusal(c, policyActor, { description: input.value.description });
+          const secret = bodySecretRefusal(c, policyActor, {
+            title: input.value.title,
+            description: input.value.description,
+          });
           if (secret !== null) {
             return secret;
           }

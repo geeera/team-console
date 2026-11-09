@@ -43,7 +43,17 @@ const SECRETS: readonly (readonly [string, SecretKind, string])[] = [
   ['TC_JOB_TOKEN as an assignment', 'job-token', join('TC_JOB', '_TOKEN=', 'opaque-value-1234')],
   ['TC_JOB_TOKEN quoted after a colon', 'job-token', join('TC_JOB', '_TOKEN: "', 'opaque-value-1234"')],
   ['an Anthropic API key', 'anthropic-key', join('sk-', 'ant-', 'api03-', 'w'.repeat(40))],
+  [
+    'a PGP private key block',
+    'private-key',
+    join('-----BEGIN PGP ', 'PRIVATE KEY BLOCK-----\n\nlQOYBF\n-----END PGP ', 'PRIVATE KEY BLOCK-----'),
+  ],
+  ['an npm token', 'npm-token', join('np', 'm_', 'Qw3e'.repeat(9))],
+  ['an AWS access key id', 'aws-access-key', join('AK', 'IA', 'Z7Q2'.repeat(4))],
+  ['an AWS temporary access key id', 'aws-access-key', join('AS', 'IA', 'Z7Q2'.repeat(4))],
 ];
+
+const GITHUB = join('gh', 'p_', 'Z9y8'.repeat(9));
 
 describe('findSecret', () => {
   it.each(SECRETS)('finds %s', (_, kind, secret) => {
@@ -55,9 +65,16 @@ describe('findSecret', () => {
     ['plain prose', 'The job token is stored as a hash; GitHub tokens start with a prefix.'],
     ['a prefix without a token', join('gh', 's_ and gh', 'p_ and gl', 'pat- and ', JOB_TOKEN_PREFIX)],
     ['a token prefix too short to be a token', join('gh', 's_', 'abc123')],
-    ['a prefix inside a longer word', join('xgh', 's_', 'a'.repeat(36))],
     ['a job-token prefix with too few characters', join(JOB_TOKEN_PREFIX, 'k'.repeat(42))],
-    ['a job-token prefix with too many characters', join(JOB_TOKEN_PREFIX, 'k'.repeat(44))],
+    ['npm words', 'Run npm_config_cache=1 npm install; see npm_package_version.'],
+    [
+      'an AWS-like prefix with a short or lower-case tail',
+      join('AK', 'IA12345 and AS', 'IAabcdefghijklmnop'),
+    ],
+    [
+      'a PGP public key block',
+      '-----BEGIN PGP PUBLIC KEY BLOCK-----\nmQINBF\n-----END PGP PUBLIC KEY BLOCK-----',
+    ],
     ['one base64 segment that is no JWT', b64url('{"just":"json"}')],
     ['the name of the variable alone', join('Set TC_JOB', '_TOKEN in the environment')],
     ['a public key', '-----BEGIN PUBLIC KEY-----\nMIIBIjANBg\n-----END PUBLIC KEY-----'],
@@ -67,11 +84,31 @@ describe('findSecret', () => {
     expect(findSecret(text)).toBeNull();
   });
 
-  it('scans a long text with many near-misses quickly', () => {
-    const text = join('eyJ', 'a-'.repeat(32_000));
+  // #474 review: no word-boundary anchor, so a token glued to a word or an underscore is still found.
+  it.each([
+    ['glued after a word', join('token', GITHUB)],
+    ['glued after an underscore', join('GH_TOKEN_', GITHUB)],
+    ['followed by an underscore', join(GITHUB, '_x')],
+    ['inside a longer word', join('x', GITHUB, 'y')],
+  ])('finds a GitHub token %s', (_, text) => {
+    expect(findSecret(text)).toBe('github-token');
+  });
+
+  it('finds a job token in a longer run (fail closed)', () => {
+    expect(findSecret(join(JOB_TOKEN_PREFIX, 'k'.repeat(44)))).toBe('job-token');
+    expect(findSecret(join('X', JOB_TOKEN_PREFIX, 'k'.repeat(43)))).toBe('job-token');
+  });
+
+  it.each([
+    ['one JWT prefix and a long tail', join('eyJ', 'a-'.repeat(32_000))],
+    ['JWT prefixes back to back', 'eyJ'.repeat(21_000)],
+    ['JWT prefixes between dashes', 'eyJ-'.repeat(16_000)],
+    ['GitHub prefixes back to back', join('gh', 'p_').repeat(16_000)],
+    ['private-key headers without an end', '-----BEGIN PRIVATE KEY-'.repeat(2_500)],
+  ])('scans a 64 KB text of %s quickly', (_, text) => {
     const started = performance.now();
-    expect(findSecret(text)).toBeNull();
-    expect(redactSecrets(text)).toBe(text);
+    findSecret(text);
+    redactSecrets(text);
     expect(performance.now() - started).toBeLessThan(1_000);
   });
 });

@@ -72,10 +72,6 @@ export function createTrackerCommentRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
           if (!input.ok) {
             return invalid(c, 'comment-invalid', input.field, input.detail);
           }
-          const secret = bodySecretRefusal(c, policyActor, { body: input.value.body });
-          if (secret !== null) {
-            return secret;
-          }
           const refusal = commentKindRefusal(policyActor, input.value.kind);
           if (refusal !== null) {
             c.get('logger').warn('tracker comment refused', { type: refusal.type, reason: refusal.reason });
@@ -89,6 +85,11 @@ export function createTrackerCommentRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
                   : 'A team decision is not written by this role',
               extensions: { reason: refusal.reason },
             });
+          }
+          // Authorisation first (#474 review): a kind the role may not write is 403, whatever its text.
+          const secret = bodySecretRefusal(c, policyActor, { body: input.value.body });
+          if (secret !== null) {
+            return secret;
           }
           const id = await new CommentsRepo(c.env.DB).create(
             item.id,

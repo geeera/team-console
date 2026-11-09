@@ -28,7 +28,7 @@ CREATE INDEX item_events_item ON item_events (item_id, at);
 
 -- The one update an event ever gets: `title` and `body` of a `created` or `edited` event replaced by the marker, every
 -- other column and member as it was. Anything else is refused as before. The expression is the one
--- `ItemEventsRepo.scrubStatement` writes, so a scrub passes and nothing else does; a second scrub is a no-op.
+-- `ItemEventsRepo.scrub` writes, so a scrub passes and nothing else does; a second scrub is a no-op.
 CREATE TRIGGER item_events_append_only_update
 BEFORE UPDATE ON item_events
 WHEN NOT (
@@ -59,7 +59,8 @@ BEGIN
 END;
 
 -- idempotency_keys: the scrub's key points at its `scrubbed` event, a result kind 0014 does not admit. Rebuilt as 0014
--- did, rows copied, so keys of writes in flight across the deploy still replay.
+-- did, rows copied. Those rows are kept only until they expire (24 h): since #462 part 1 a key row is scoped to the
+-- caller, so a key written before that deploy never matches a new request and is not replayed.
 CREATE TABLE idempotency_keys_new (
   key          TEXT PRIMARY KEY NOT NULL,
   request_hash TEXT NOT NULL,                 -- SHA-256 hex of the caller's scope, method, path and body

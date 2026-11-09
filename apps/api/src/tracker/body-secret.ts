@@ -4,8 +4,10 @@ import { problem, type WorkerContext } from '@worker/core';
 import type { PolicyActor } from '../auth/policy';
 import type { ApiEnv } from '../env';
 
-// Judged as the reader sees it: an invisible character (ZWJ included) inside a token does not hide it.
-const visibleText = (text: string): string => withoutInvisibles(text).replace(/\u200d/g, '');
+// Judged as the reader sees it: no control or Default_Ignorable_Code_Point (ZWJ, variation selectors, CGJ, U+180E,
+// fillers, tags …) inside a token hides it. Only the copy that is judged is stripped; the stored text is unchanged.
+const IGNORABLE = /\p{Default_Ignorable_Code_Point}/gu;
+const visibleText = (text: string): string => withoutInvisibles(text).replace(IGNORABLE, '');
 
 /**
  * A job's free text never stores a secret (#462, #446 decision 5): `item_events` keeps every `before`/`after` and

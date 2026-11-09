@@ -211,10 +211,6 @@ export function createTrackerItemRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
               return invalid(c, 'item-invalid', input.field, input.detail);
             }
             const { value } = input;
-            const secret = bodySecretRefusal(c, policyActor, { title: value.title, body: value.body });
-            if (secret !== null) {
-              return secret;
-            }
             const sprint = await sprintOf(c, project, value.sprint);
             if (sprint instanceof Response) {
               return sprint;
@@ -240,6 +236,11 @@ export function createTrackerItemRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
             );
             if (denied !== null) {
               return denied;
+            }
+            // After the transition table (#474 review): a change the role may not make is 403, whatever its text.
+            const secret = bodySecretRefusal(c, policyActor, { title: value.title, body: value.body });
+            if (secret !== null) {
+              return secret;
             }
             const number = await new TrackerProjectsRepo(c.env.DB).allocateItemNumber(project.slug);
             if (number === null) {
@@ -324,10 +325,6 @@ export function createTrackerItemRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
               return invalid(c, 'item-invalid', input.field, input.detail);
             }
             const { value } = input;
-            const secret = bodySecretRefusal(c, policyActor, { title: value.title, body: value.body });
-            if (secret !== null) {
-              return secret;
-            }
             const sprint = value.sprint === undefined ? undefined : await sprintOf(c, project, value.sprint);
             if (sprint instanceof Response) {
               return sprint;
@@ -349,6 +346,11 @@ export function createTrackerItemRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
             const denied = judge(c, outcome.plan.transition, item.number);
             if (denied !== null) {
               return denied;
+            }
+            // After the transition table (#474 review): a change the role may not make is 403, whatever its text.
+            const secret = bodySecretRefusal(c, policyActor, { title: value.title, body: value.body });
+            if (secret !== null) {
+              return secret;
             }
             const { patch, flags, events } = outcome.plan;
             if (
