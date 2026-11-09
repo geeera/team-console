@@ -15,11 +15,13 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ConnectGitHubButton, type ConnectRefusal } from '@console/entities/github-connection';
+import { ProjectsStore } from '@console/entities/project';
 import { PushStore, type PushView } from '@console/entities/push';
 import { activeLock, isPaused, missingSlots, TeamStatusStore } from '@console/entities/team-run';
 import { BatchApproveOpener, type BatchApproved } from '@console/features/batch-approve';
 import { SnoozeCommands } from '@console/features/snooze';
 import { RequestChange } from '@console/features/request-change';
+import { CreateSprint } from '@console/features/create-sprint';
 import { SprintControls } from '@console/features/sprint-controls';
 import { TeamCommands, type CommandOutcome } from '@console/features/team-commands';
 import { NetworkStatus } from '@console/shared/api';
@@ -87,7 +89,14 @@ let nextPanelId = 0;
 /** Locks and snoozes expire on the client's clock between status reads. */
 const CLOCK_TICK_MS = 30_000;
 /** Where this device does not get pushes; `checking` and the steps of Turn on are not "off". */
-const PUSH_OFF: ReadonlySet<PushView> = new Set<PushView>(['off', 'denied', 'no-push', 'old-ios', 'install', 'in-app']);
+const PUSH_OFF: ReadonlySet<PushView> = new Set<PushView>([
+  'off',
+  'denied',
+  'no-push',
+  'old-ios',
+  'install',
+  'in-app',
+]);
 
 /**
  * The Commands panel (#114): the team's state in words, Pause ↔ Resume, and Run now for planning, development and
@@ -122,6 +131,8 @@ export class CommandsPanel {
   private readonly snoozeCommands = inject(SnoozeCommands);
   private readonly push = inject(PushStore);
   private readonly sprintControls = inject(SprintControls);
+  private readonly createSprint = inject(CreateSprint);
+  private readonly projectsStore = inject(ProjectsStore);
   private readonly requestChange = inject(RequestChange);
   private readonly batchOpener = inject(BatchApproveOpener);
   protected readonly batch = inject(ProjectBatch);
@@ -443,6 +454,23 @@ export class CommandsPanel {
       return;
     }
     const target = { slug: this.project().slug, name: this.project().name };
+    // A console-tracker project (#435) keeps its sprints in the console, not in GitHub milestones.
+    const tracker = this.projectsStore.bySlug(target.slug)?.tracker ?? 'github';
+    if (row.key === 'next' && tracker !== 'github') {
+      await this.act(async () => {
+        const sprint = await this.createSprint.open({ slug: target.slug });
+        return sprint === null
+          ? null
+          : {
+              tone: 'positive',
+              verb: this.transloco.translate('sprintNew.doneVerb', { sprint: sprint.title }),
+              detail: null,
+              runLogUrl: null,
+              at: new Date().toISOString(),
+            };
+      });
+      return;
+    }
     await this.act(() =>
       row.key === 'demo' ? this.sprintControls.moveDemo(target) : this.sprintControls.startNext(target),
     );
