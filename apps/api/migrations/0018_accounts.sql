@@ -47,14 +47,37 @@ WHEN NEW.id IS NOT OLD.id OR NEW.provider IS NOT OLD.provider OR NEW.provider_us
 BEGIN
   SELECT RAISE(ABORT, 'users keep their identity');
 END;
+-- `INSERT OR REPLACE` / `REPLACE INTO` deletes the conflicting row without firing DELETE or UPDATE triggers
+-- (recursive triggers are off), so it would re-key a user under the same id or rewrite its Access link; every
+-- table whose UPDATE triggers guard identity or tenancy refuses an insert over an existing key here. This also turns
+-- `ON CONFLICT DO NOTHING|UPDATE` into an abort: writers select first, then insert or update.
+CREATE TRIGGER users_never_replaced
+BEFORE INSERT ON users
+WHEN EXISTS (
+  SELECT 1 FROM users
+  WHERE id = NEW.id
+     OR (provider = NEW.provider AND provider_user_id = NEW.provider_user_id)
+     OR access_subject = NEW.access_subject
+)
+BEGIN
+  SELECT RAISE(ABORT, 'users are never replaced');
+END;
 
 -- The console's own sessions (decision 3; used from T-3). The cookie holds a 256-bit random id, D1 its SHA-256.
 CREATE TABLE sessions (
   id_hash         TEXT PRIMARY KEY NOT NULL CHECK (length(id_hash) = 64 AND id_hash NOT GLOB '*[^0-9a-f]*'),
   user_id         TEXT NOT NULL REFERENCES users (id),
-  created_at      TEXT NOT NULL,
-  last_seen_at    TEXT NOT NULL,
-  expires_at      TEXT NOT NULL,
+  -- Compared as text against the Worker's `toISOString` now, so each must be a real UTC timestamp of that shape:
+  -- strftime reads it back to the same seconds (NULL for 'never', which would otherwise never expire) and it ends in Z.
+  created_at      TEXT NOT NULL CHECK (
+    strftime('%Y-%m-%dT%H:%M:%S', created_at) IS substr(created_at, 1, 19) AND substr(created_at, -1) = 'Z'
+  ),
+  last_seen_at    TEXT NOT NULL CHECK (
+    strftime('%Y-%m-%dT%H:%M:%S', last_seen_at) IS substr(last_seen_at, 1, 19) AND substr(last_seen_at, -1) = 'Z'
+  ),
+  expires_at      TEXT NOT NULL CHECK (
+    strftime('%Y-%m-%dT%H:%M:%S', expires_at) IS substr(expires_at, 1, 19) AND substr(expires_at, -1) = 'Z'
+  ),
   ip_country      TEXT CHECK (ip_country IS NULL OR (length(ip_country) = 2 AND ip_country NOT GLOB '*[^A-Z]*')),
   user_agent_hash TEXT CHECK (
     user_agent_hash IS NULL OR (length(user_agent_hash) = 64 AND user_agent_hash NOT GLOB '*[^0-9a-f]*')
@@ -115,8 +138,13 @@ CREATE TABLE invites (
   role        TEXT NOT NULL CHECK (role IN ('owner', 'member')),
   login       TEXT CHECK (login IS NULL OR length(login) BETWEEN 1 AND 39),
   created_by  TEXT NOT NULL REFERENCES users (id),
-  created_at  TEXT NOT NULL,
-  expires_at  TEXT NOT NULL,
+  -- Real UTC timestamps (as `sessions`), so the 72-hour bound below is never NULL and a non-date never "never expires".
+  created_at  TEXT NOT NULL CHECK (
+    strftime('%Y-%m-%dT%H:%M:%S', created_at) IS substr(created_at, 1, 19) AND substr(created_at, -1) = 'Z'
+  ),
+  expires_at  TEXT NOT NULL CHECK (
+    strftime('%Y-%m-%dT%H:%M:%S', expires_at) IS substr(expires_at, 1, 19) AND substr(expires_at, -1) = 'Z'
+  ),
   accepted_by TEXT REFERENCES users (id),
   accepted_at TEXT,
   revoked_at  TEXT,
@@ -153,6 +181,26 @@ BEFORE UPDATE OF id, account_id, provider, installation_id, linked_by_user_id, l
 BEGIN
   SELECT RAISE(ABORT, 'an installation link is never re-pointed');
 END;
+-- Unlinking is final: reviving the row in place would bring back its old account.
+CREATE TRIGGER installations_unlinked_once
+BEFORE UPDATE OF unlinked_at ON installations
+WHEN OLD.unlinked_at IS NOT NULL AND NEW.unlinked_at IS NOT OLD.unlinked_at
+BEGIN
+  SELECT RAISE(ABORT, 'an installation link is never re-pointed');
+END;
+-- REPLACE through the id or the live (provider, installation_id) index would hand a linked installation to another
+-- account without a trace (see `users_never_replaced`).
+CREATE TRIGGER installations_never_replaced
+BEFORE INSERT ON installations
+WHEN EXISTS (
+  SELECT 1 FROM installations
+  WHERE id = NEW.id
+     OR (provider = NEW.provider AND installation_id = NEW.installation_id
+         AND unlinked_at IS NULL AND NEW.unlinked_at IS NULL)
+)
+BEGIN
+  SELECT RAISE(ABORT, 'an installation link is never re-pointed');
+END;
 
 -- The ADR 0003 token pair per user (decision 4), sealed as `owner_connections` is. Filled by T-4, which moves the
 -- owner's pair here and drops `owner_connections` in the same step; copying it now would leave a second refresh
@@ -181,8 +229,9 @@ CREATE TABLE audit_events (
   actor      TEXT NOT NULL CHECK (length(actor) BETWEEN 1 AND 255),
   kind       TEXT NOT NULL CHECK (length(kind) BETWEEN 1 AND 64 AND kind GLOB '[a-z]*' AND kind NOT GLOB '*[^a-z.-]*'),
   target     TEXT CHECK (target IS NULL OR length(target) BETWEEN 1 AND 255),
+  -- 4 KiB of UTF-8, counted in bytes (`length()` of text counts characters).
   details    TEXT NOT NULL DEFAULT '{}' CHECK (
-    json_valid(details) AND json_type(details) = 'object' AND length(details) <= 4096
+    json_valid(details) AND json_type(details) = 'object' AND length(CAST(details AS BLOB)) <= 4096
   ),
   ip_country TEXT CHECK (ip_country IS NULL OR (length(ip_country) = 2 AND ip_country NOT GLOB '*[^A-Z]*')),
   -- Only the operator and the system act outside an account.
@@ -276,6 +325,33 @@ CREATE TRIGGER accounts_id_kept
 BEFORE UPDATE OF id ON accounts
 BEGIN
   SELECT RAISE(ABORT, 'accounts keep their id');
+END;
+-- REPLACE over a project (its slug, repository, key prefix or repository id) would move it and its whole tracker to
+-- another account and rewrite `repo_id` without an UPDATE trigger firing (see `users_never_replaced`).
+CREATE TRIGGER projects_never_replaced
+BEFORE INSERT ON projects
+WHEN EXISTS (
+  SELECT 1 FROM projects
+  WHERE slug = NEW.slug
+     OR repo = NEW.repo
+     OR key_prefix = NEW.key_prefix
+     OR (provider = NEW.provider AND repo_id = NEW.repo_id)
+)
+BEGIN
+  SELECT RAISE(ABORT, 'projects are never replaced');
+END;
+CREATE TRIGGER accounts_never_replaced
+BEFORE INSERT ON accounts
+WHEN EXISTS (SELECT 1 FROM accounts WHERE id = NEW.id)
+BEGIN
+  SELECT RAISE(ABORT, 'accounts are never replaced');
+END;
+-- A taken slug fails here before REPLACE could delete its account; `AccountsRepo.create` answers `slug-taken` on it.
+CREATE TRIGGER accounts_slug_taken
+BEFORE INSERT ON accounts
+WHEN EXISTS (SELECT 1 FROM accounts WHERE slug = NEW.slug)
+BEGIN
+  SELECT RAISE(ABORT, 'accounts.slug is taken');
 END;
 
 -- The backfill's own audit rows, so the account's history starts with how it came to be.

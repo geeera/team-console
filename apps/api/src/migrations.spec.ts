@@ -649,8 +649,65 @@ describe('the 0018 account guards', () => {
         `INSERT INTO accounts (id, slug, name, created_at) VALUES ('01M6YSNJ00000000000000000C', 'acme', 'x', ?1)`,
         T0,
       ),
-    ).rejects.toThrow(/UNIQUE/);
+    ).rejects.toThrow(/accounts.slug is taken/);
   });
+
+  // Security review of #472: REPLACE deletes the conflicting row without firing DELETE or UPDATE triggers.
+  it.each(['INSERT OR REPLACE', 'REPLACE'])('refuses %s over an account, by id or by slug', async (verb) => {
+    await expect(
+      run(
+        `${verb} INTO accounts (id, slug, name, created_at) VALUES (?1, 'acme-new', 'x', ?2)`,
+        OTHER_ACCOUNT,
+        T0,
+      ),
+    ).rejects.toThrow(/accounts are never replaced/);
+    await expect(
+      run(
+        `${verb} INTO accounts (id, slug, name, created_at) VALUES ('01M6YSNJ00000000000000000D', 'acme', 'x', ?1)`,
+        T0,
+      ),
+    ).rejects.toThrow(/accounts.slug is taken/);
+    expect(
+      await env.DB.prepare(`SELECT slug FROM accounts WHERE id = ?1`).bind(OTHER_ACCOUNT).first('slug'),
+    ).toBe('acme');
+  });
+
+  it.each(['INSERT OR REPLACE', 'REPLACE'])(
+    'refuses %s that would move a project to another account or rewrite its repo id',
+    async (verb) => {
+      const slug = verb === 'REPLACE' ? 'r2' : 'r1';
+      await run(
+        `INSERT INTO projects (slug, repo, display_name, added_at, repo_id) VALUES (?1, ?2, ?1, ?3, ?4)`,
+        slug,
+        `acme/${slug}`,
+        T0,
+        slug === 'r1' ? 701 : 702,
+      );
+      const replace = (values: { slug: string; repo: string; repoId: number }) =>
+        run(
+          `${verb} INTO projects (slug, repo, display_name, added_at, account_id, repo_id)
+           VALUES (?1, ?2, 'x', ?3, ?4, ?5)`,
+          values.slug,
+          values.repo,
+          T0,
+          OTHER_ACCOUNT,
+          values.repoId,
+        );
+      // By the slug, the repository and the repository id.
+      await expect(replace({ slug, repo: `acme/${slug}`, repoId: 999 })).rejects.toThrow(
+        /projects are never replaced/,
+      );
+      await expect(replace({ slug: `${slug}-x`, repo: `acme/${slug}`, repoId: 998 })).rejects.toThrow(
+        /projects are never replaced/,
+      );
+      await expect(
+        replace({ slug: `${slug}-y`, repo: `acme/${slug}-y`, repoId: slug === 'r1' ? 701 : 702 }),
+      ).rejects.toThrow(/projects are never replaced/);
+      expect(
+        await env.DB.prepare('SELECT account_id, repo_id FROM projects WHERE slug = ?1').bind(slug).first(),
+      ).toEqual({ account_id: OWNER_ACCOUNT_ID, repo_id: slug === 'r1' ? 701 : 702 });
+    },
+  );
 
   it('refuses entitlements that are not a JSON object', async () => {
     await expect(
@@ -725,8 +782,38 @@ describe('the 0018 account guards', () => {
          VALUES ('01M6YSNJ00000000000000000W', 'github', '3003', 'dup', ?1, ?1)`,
         T0,
       ),
-    ).rejects.toThrow(/UNIQUE/);
+    ).rejects.toThrow(/users are never replaced/);
   });
+
+  it.each(['INSERT OR REPLACE', 'REPLACE'])(
+    'refuses %s that would re-key a user or rewrite its Access link',
+    async (verb) => {
+      const replace = (id: string, providerUserId: string, accessSubject: string | null) =>
+        run(
+          `${verb} INTO users (id, provider, provider_user_id, login, access_subject, created_at, last_seen_at)
+           VALUES (?1, 'github', ?2, 'attacker', ?3, ?4, ?4)`,
+          id,
+          providerUserId,
+          accessSubject,
+          T0,
+        );
+      // Same id, another GitHub user: would hand the user's memberships to GitHub id 777.
+      await expect(replace(OTHER_USER, '777', null)).rejects.toThrow(/users are never replaced/);
+      // Same GitHub user under a fresh id.
+      await expect(replace('01M6YSNJ00000000000000000V', '3003', null)).rejects.toThrow(
+        /users are never replaced/,
+      );
+      // Same Access identity on another row.
+      await expect(replace('01M6YSNJ00000000000000000T', '778', 'access-sub-1')).rejects.toThrow(
+        /users are never replaced/,
+      );
+      expect(
+        await env.DB.prepare('SELECT provider_user_id, access_subject FROM users WHERE id = ?1')
+          .bind(OTHER_USER)
+          .first(),
+      ).toEqual({ provider_user_id: '3003', access_subject: 'access-sub-1' });
+    },
+  );
 
   it('binds owner invites to a login and keeps open invites member-only and short', async () => {
     const insert = (hash: string, role: string, login: string | null, expiresAt: string) =>
@@ -749,6 +836,47 @@ describe('the 0018 account guards', () => {
     await expect(insert('F', 'member', null, '2026-11-10T00:00:00.000Z')).rejects.toThrow(/CHECK/);
   });
 
+  // Security review of #472: julianday('never') is NULL, which a bare CHECK would pass as "never expires".
+  it.each([
+    'never',
+    '2026-11-10',
+    '2026-11-10 00:00:00',
+    '2026-02-30T00:00:00.000Z',
+    '2026-11-10T00:00:00+02:00',
+  ])('refuses %j as an invite or session expiry', async (expiresAt) => {
+    const hash = (seed: string) => seed.repeat(64);
+    await expect(
+      run(
+        `INSERT INTO invites (token_hash, account_id, role, login, created_by, created_at, expires_at)
+           VALUES (?1, ?2, 'member', NULL, ?3, ?4, ?5)`,
+        hash('7'),
+        OTHER_ACCOUNT,
+        OTHER_USER,
+        T0,
+        expiresAt,
+      ),
+    ).rejects.toThrow(/CHECK/);
+    await expect(
+      run(
+        `INSERT INTO sessions (id_hash, user_id, created_at, last_seen_at, expires_at) VALUES (?1, ?2, ?3, ?3, ?4)`,
+        hash('8'),
+        OTHER_USER,
+        T0,
+        expiresAt,
+      ),
+    ).rejects.toThrow(/CHECK/);
+  });
+
+  it('accepts a session with real UTC timestamps', async () => {
+    await run(
+      `INSERT INTO sessions (id_hash, user_id, created_at, last_seen_at, expires_at) VALUES (?1, ?2, ?3, ?3, ?4)`,
+      '9'.repeat(64),
+      OTHER_USER,
+      T0,
+      '2026-12-09T00:00:00Z',
+    );
+  });
+
   it('links an installation once while linked and never re-points it', async () => {
     const link = (installationId: string, unlinkedAt: string | null) =>
       run(
@@ -761,12 +889,71 @@ describe('the 0018 account guards', () => {
       );
     await link('900', T0);
     await link('900', null);
-    await expect(link('900', null)).rejects.toThrow(/UNIQUE/);
+    await expect(link('900', null)).rejects.toThrow(/never re-pointed/);
     await expect(link('9a', null)).rejects.toThrow(/CHECK/);
     await expect(
       run(`UPDATE installations SET account_id = ?1 WHERE installation_id = '900'`, OWNER_ACCOUNT_ID),
     ).rejects.toThrow(/never re-pointed/);
   });
+
+  it('never revives an unlinked installation in place', async () => {
+    await expect(
+      run(
+        `UPDATE installations SET unlinked_at = NULL WHERE installation_id = '900' AND unlinked_at IS NOT NULL`,
+      ),
+    ).rejects.toThrow(/never re-pointed/);
+    await expect(
+      run(
+        `UPDATE installations SET unlinked_at = '2026-12-01T00:00:00.000Z' WHERE installation_id = '900' AND unlinked_at IS NOT NULL`,
+      ),
+    ).rejects.toThrow(/never re-pointed/);
+    // Unlinking a live link is the one change it gets.
+    await run(
+      `UPDATE installations SET unlinked_at = ?1 WHERE installation_id = '900' AND unlinked_at IS NULL`,
+      T0,
+    );
+  });
+
+  it.each(['INSERT OR REPLACE', 'REPLACE'])(
+    'refuses %s that would take over a live installation link',
+    async (verb) => {
+      const installationId = verb === 'REPLACE' ? '911' : '910';
+      await run(
+        `INSERT INTO installations (account_id, provider, installation_id, account_login, linked_at)
+         VALUES (?1, 'github', ?2, 'owner-login', ?3)`,
+        OWNER_ACCOUNT_ID,
+        installationId,
+        T0,
+      );
+      const id = await env.DB.prepare(`SELECT id FROM installations WHERE installation_id = ?1`)
+        .bind(installationId)
+        .first<number>('id');
+      // Through the live (provider, installation_id) index, and through the row id.
+      await expect(
+        run(
+          `${verb} INTO installations (account_id, provider, installation_id, account_login, linked_at)
+           VALUES (?1, 'github', ?2, 'acme', ?3)`,
+          OTHER_ACCOUNT,
+          installationId,
+          T0,
+        ),
+      ).rejects.toThrow(/never re-pointed/);
+      await expect(
+        run(
+          `${verb} INTO installations (id, account_id, provider, installation_id, account_login, linked_at)
+           VALUES (?1, ?2, 'github', '999999', 'acme', ?3)`,
+          id,
+          OTHER_ACCOUNT,
+          T0,
+        ),
+      ).rejects.toThrow(/never re-pointed/);
+      expect(
+        await env.DB.prepare('SELECT account_id, unlinked_at FROM installations WHERE id = ?1')
+          .bind(id)
+          .first(),
+      ).toEqual({ account_id: OWNER_ACCOUNT_ID, unlinked_at: null });
+    },
+  );
 
   it('keeps audit_events append-only: no update, no delete, no replace', async () => {
     await run(
@@ -804,6 +991,14 @@ describe('the 0018 account guards', () => {
     ['a kind outside the shape', 'acct', 'user', 'Auth Signed In', '{}'],
     ['details that are not an object', 'acct', 'user', 'auth.signed-in', '[]'],
     ['oversized details', 'acct', 'user', 'auth.signed-in', JSON.stringify({ x: 'y'.repeat(4100) })],
+    // 2,100 characters but over 4 KiB of UTF-8: the bound counts bytes.
+    [
+      'details over 4 KiB in bytes',
+      'acct',
+      'user',
+      'auth.signed-in',
+      JSON.stringify({ x: 'é'.repeat(2100) }),
+    ],
   ])('refuses an audit row with %s', async (_label, account, actorKind, kind, details) => {
     await expect(
       run(
