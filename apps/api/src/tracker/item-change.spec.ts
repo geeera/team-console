@@ -37,9 +37,28 @@ describe('planItemUpdate', () => {
         transition: {
           before: { status: 'in-progress', flags: ['needs-design'], closed: false, approved: true },
           after: { status: 'in-progress', flags: ['needs-design'], closed: false, approved: true },
-          changesOtherFields: true,
+          changesText: true,
+          changesPlanning: false,
         },
       },
+    });
+  });
+
+  // #462: the transition table freezes the text after the approval and leaves planning to the editing roles.
+  it('tells a text edit from a planning edit', () => {
+    const text = (input: Parameters<typeof planItemUpdate>[1]) => {
+      const outcome = planItemUpdate(ITEM, input, undefined, AT);
+      return outcome.kind === 'change'
+        ? [outcome.plan.transition.changesText, outcome.plan.transition.changesPlanning]
+        : null;
+    };
+    expect(text({ body: 'New body' })).toEqual([true, false]);
+    expect(text({ title: 'New' })).toEqual([true, false]);
+    expect(text({ kind: 'feature', severity: 'high', tier: 'heavy' })).toEqual([false, true]);
+    expect(text({ title: 'New', tier: 'heavy' })).toEqual([true, true]);
+    expect(text({ status: 'qa', addLabels: ['security'] })).toEqual([false, false]);
+    expect(planItemUpdate(ITEM, {}, { id: 5, number: 2 }, AT)).toMatchObject({
+      plan: { transition: { changesText: false, changesPlanning: true } },
     });
   });
 
@@ -96,7 +115,7 @@ describe('planItemUpdate', () => {
       plan: {
         patch: { status: 'done', closedAt: AT, closedReason: 'done' },
         events: [{ kind: 'closed' }],
-        transition: { after: { closed: true }, changesOtherFields: false },
+        transition: { after: { closed: true }, changesText: false, changesPlanning: false },
       },
     });
     const done = { ...ITEM, status: 'done' as const, closedAt: AT, closedReason: 'done' as const };
@@ -144,7 +163,7 @@ describe('planItemUpdate', () => {
       kind: 'change',
       plan: {
         flags: { add: ['design:approved'], remove: ['needs-design'] },
-        transition: { after: { flags: ['design:approved'] }, changesOtherFields: false },
+        transition: { after: { flags: ['design:approved'] }, changesText: false, changesPlanning: false },
       },
     });
   });

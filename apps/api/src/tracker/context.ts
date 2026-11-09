@@ -76,9 +76,11 @@ export function transitionProblem(c: Context, refusal: TransitionRefusal): Respo
     title: 'Forbidden',
     status: 403,
     detail:
-      refusal.type === 'transition-owner-only'
-        ? 'Only an owner decision makes this change'
-        : 'This role cannot make this change',
+      refusal.reason === 'edit-after-approval'
+        ? 'The approved title and body are the owner’s to change; add a note comment instead'
+        : refusal.type === 'transition-owner-only'
+          ? 'Only an owner decision makes this change'
+          : 'This role cannot make this change',
     extensions: { reason: refusal.reason },
   });
 }

@@ -11,6 +11,7 @@ import type { ItemRecord } from '@worker/db';
 import type { ApiEnv } from '../env';
 import { planItemUpdate, type ItemUpdatePlan } from '../tracker/item-change';
 import type { Identity } from './auth.types';
+import { EDITING_ROLES, REVIEWER_ROLES, STATUS_ONLY_ROLES, type JobRole } from './job-roles';
 import { isLocalBypass } from './local-bypass';
 import { isOwnerIdentity } from './owner-only.middleware';
 
@@ -29,7 +30,7 @@ export type PolicyActor =
    */
   | {
       readonly kind: 'job';
-      readonly role: string;
+      readonly role: JobRole;
       readonly projectSlug: string;
       readonly jobId: string;
       readonly items: readonly number[];
@@ -44,12 +45,15 @@ export interface ItemPolicyState {
   readonly approved: boolean;
 }
 
-/** What else the change touches (title, body, kind, severity, tier, sprint): only the editing roles may. */
+/** What else the change touches: only the editing roles may, and the text only before the owner's approval. */
 export interface ItemTransition {
   /** `null` for a new item. */
   readonly before: ItemPolicyState | null;
   readonly after: ItemPolicyState;
-  readonly changesOtherFields: boolean;
+  /** The title or the body: the text the owner approves (#462, `edit-after-approval`). */
+  readonly changesText: boolean;
+  /** The kind, severity, tier or sprint: sizing and planning, which go on after the approval. */
+  readonly changesPlanning: boolean;
 }
 
 export type TransitionRefusal = {
@@ -57,6 +61,7 @@ export type TransitionRefusal = {
   /** A stable reason for the log and the problem's `reason` extension. */
   readonly reason:
     | 'approve'
+    | 'edit-after-approval'
     | 'leave-proposed'
     | 'not-approved'
     | 'design-approved'
@@ -70,10 +75,6 @@ export type TransitionRefusal = {
     | 'verdict-flag';
 };
 
-/** Roles that create and edit items within the table (ADR 0006: `pm`, `architect`, `orchestrator`). */
-const EDITING_ROLES: ReadonlySet<string> = new Set(['pm', 'architect', 'orchestrator']);
-/** Roles that may only move the status of an item they hold. */
-const STATUS_ONLY_ROLE = /^(dev(-[a-z]+)?|qa)$/;
 /** Flags only the owner sets or clears; outside Phase 1a′'s decision effects, never a job. */
 const OWNER_FLAG_PREFIX = 'owner:';
 const DESIGN_APPROVED = 'design:approved';
@@ -87,7 +88,6 @@ const GUARD_FLAGS: readonly string[] = ['release-blocker', 'security'];
  * state that reads as a verdict — its verdict is the signed row of Phase 2 — so it neither sets nor clears these.
  */
 const VERDICT_FLAGS: readonly string[] = ['qa:changes-requested', 'review-failed', 'tier-up'];
-const REVIEWER_ROLES: ReadonlySet<string> = new Set(['qa', 'reviewer', 'security']);
 
 function changedFlags(
   before: ItemPolicyState | null,
@@ -116,6 +116,11 @@ function ownerOnlyRefusal(transition: ItemTransition): TransitionRefusal | null 
   if (wasStatus === 'proposed' && after.status !== 'proposed') {
     return { type: 'transition-owner-only', reason: 'leave-proposed' };
   }
+  // The approved text is frozen for jobs (#462): what the owner approved is what the team builds. Corrections are a
+  // `note` comment or the owner's own edit; planning fields stay the editing roles'.
+  if ((before?.approved ?? false) && transition.changesText) {
+    return { type: 'transition-owner-only', reason: 'edit-after-approval' };
+  }
   // The status alone does not prove an approval: the release decision closes a proposed demo item as `done`. Work
   // needs the recorded approval (`items.approved_at`); without it, a job may only take the item back to `proposed`.
   if (isWorkableStatus(after.status) && !(before?.approved ?? false)) {
@@ -138,7 +143,7 @@ function ownerOnlyRefusal(transition: ItemTransition): TransitionRefusal | null 
   return null;
 }
 
-function roleRefusal(role: string, isHeld: boolean, transition: ItemTransition): TransitionRefusal | null {
+function roleRefusal(role: JobRole, isHeld: boolean, transition: ItemTransition): TransitionRefusal | null {
   const { before, after } = transition;
   const { added, removed } = changedFlags(before, after);
   if ([...added, ...removed].includes(WORKFLOW_CHANGE) && role !== 'security') {
@@ -154,7 +159,7 @@ function roleRefusal(role: string, isHeld: boolean, transition: ItemTransition):
     return null;
   }
   const cannotEdit: TransitionRefusal = { type: 'transition-role', reason: 'role-cannot-edit' };
-  if (before === null || transition.changesOtherFields) {
+  if (before === null || transition.changesText || transition.changesPlanning) {
     return cannotEdit;
   }
   const changesFlags = added.length > 0 || removed.length > 0;
@@ -163,7 +168,7 @@ function roleRefusal(role: string, isHeld: boolean, transition: ItemTransition):
     // Flags only (`security`, `release-blocker`, `workflow-change`, …): no status, no closing.
     return !changesStatus && before.closed === after.closed ? null : cannotEdit;
   }
-  if (STATUS_ONLY_ROLE.test(role)) {
+  if (STATUS_ONLY_ROLES.has(role)) {
     // The status alone (`done` closes), of an item the job holds.
     if (changesFlags || (!changesStatus && before.closed !== after.closed)) {
       return cannotEdit;

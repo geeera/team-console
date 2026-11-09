@@ -2,7 +2,7 @@ import type { ItemStatus } from '@shared/contracts';
 import type { Identity } from './auth.types';
 import type { DecisionCommand, Section } from '@shared/contracts';
 import type { ItemRecord } from '@worker/db';
-import { JOB_ROLES } from './job-roles';
+import { EDITING_ROLES, JOB_ROLES, type JobRole } from './job-roles';
 import {
   askEffectOf,
   commentKindRefusal,
@@ -13,13 +13,14 @@ import {
   type ItemPolicyState,
   type ItemTransition,
   type PolicyActor,
+  type TransitionRefusal,
 } from './policy';
 
 // R5 of the #408 threat model: owner-semantic status and flags are the owner's alone; roles act within the table.
 
 const OWNER: PolicyActor = { kind: 'owner' };
 // Every transition below is on item 1; a job holds it when its payload names 1.
-const job = (role: string, holdsItem = false): PolicyActor => ({
+const job = (role: JobRole, holdsItem = false): PolicyActor => ({
   kind: 'job',
   role,
   projectSlug: 'acme',
@@ -34,12 +35,13 @@ function state(status: ItemStatus, flags: string[] = [], closed = status === 'do
 
 const unapproved = (state: ItemPolicyState): ItemPolicyState => ({ ...state, approved: false });
 
+/** `edits`: which other fields the change touches besides status and flags. */
 function change(
   before: ItemPolicyState | null,
   after: ItemPolicyState,
-  changesOtherFields = false,
+  edits: 'none' | 'planning' | 'text' = 'none',
 ): ItemTransition {
-  return { before, after, changesOtherFields };
+  return { before, after, changesText: edits === 'text', changesPlanning: edits === 'planning' };
 }
 
 const refusal = (actor: PolicyActor, transition: ItemTransition) =>
@@ -61,7 +63,7 @@ describe('transition table: owner-semantic changes (transition-owner-only)', () 
   ];
 
   it.each(cases)('%s is refused to every role, PM and orchestrator included', (_, transition) => {
-    for (const role of ['pm', 'architect', 'orchestrator', 'security', 'dev', 'qa']) {
+    for (const role of ['pm', 'architect', 'orchestrator', 'security', 'dev', 'qa'] as const) {
       expect(refusal(job(role, true), transition)?.type).toBe('transition-owner-only');
     }
   });
@@ -100,7 +102,7 @@ describe('transition table: owner-semantic changes (transition-owner-only)', () 
 
   it('leaves closing a proposed item as not planned or duplicate to the editing roles', () => {
     const closing = change(state('proposed'), state('proposed', [], true));
-    for (const role of ['pm', 'architect', 'orchestrator']) {
+    for (const role of EDITING_ROLES) {
       expect(refusal(job(role), closing)).toBeNull();
     }
   });
@@ -158,9 +160,9 @@ describe('transition table: owner-semantic changes (transition-owner-only)', () 
 
 describe('transition table: role limits (transition-role)', () => {
   it('lets the editing roles create and edit within the table', () => {
-    for (const role of ['pm', 'architect', 'orchestrator']) {
+    for (const role of EDITING_ROLES) {
       expect(refusal(job(role), change(null, state('proposed', ['needs-design'])))).toBeNull();
-      expect(refusal(job(role), change(state('proposed'), state('proposed'), true))).toBeNull();
+      expect(refusal(job(role), change(state('proposed'), state('proposed'), 'planning'))).toBeNull();
     }
   });
 
@@ -193,7 +195,7 @@ describe('transition table: role limits (transition-role)', () => {
       type: 'transition-role',
       reason: 'item-not-held',
     });
-    expect(refusal(job('dev', true), change(state('in-progress'), state('qa'), true))?.reason).toBe(
+    expect(refusal(job('dev', true), change(state('in-progress'), state('qa'), 'planning'))?.reason).toBe(
       'role-cannot-edit',
     );
     expect(
@@ -208,14 +210,153 @@ describe('transition table: role limits (transition-role)', () => {
   it('lets the security role change flags and nothing else', () => {
     expect(refusal(job('security'), change(state('qa'), state('qa', ['release-blocker'])))).toBeNull();
     expect(refusal(job('security'), change(state('qa'), state('done')))?.reason).toBe('role-cannot-edit');
-    expect(refusal(job('security'), change(state('qa'), state('qa'), true))?.reason).toBe('role-cannot-edit');
+    expect(refusal(job('security'), change(state('qa'), state('qa'), 'planning'))?.reason).toBe(
+      'role-cannot-edit',
+    );
   });
 
   it('refuses every other role', () => {
-    for (const role of ['analyst', 'scribe', 'ux-designer', 'devops', 'runner']) {
+    for (const role of ['analyst', 'scribe', 'ux-designer', 'ui-designer', 'devops'] as const) {
       expect(refusal(job(role, true), change(state('approved'), state('in-progress')))?.reason).toBe(
         'role-cannot-edit',
       );
+    }
+  });
+});
+
+// #462 (ADR 0008 row 2-0): the text the owner approved is frozen for jobs; planning goes on after the approval.
+describe('transition table: edit-after-approval', () => {
+  it.each(JOB_ROLES)('refuses %s a title or body edit of an approved item, held or not', (role) => {
+    for (const held of [true, false]) {
+      for (const status of ['approved', 'in-progress', 'qa', 'blocked', 'done'] as const) {
+        expect(refusal(job(role, held), change(state(status), state(status), 'text'))).toEqual({
+          type: 'transition-owner-only',
+          reason: 'edit-after-approval',
+        });
+      }
+    }
+  });
+
+  it('refuses the text edit even when the same change also moves the status or plans', () => {
+    const textAndMove: ItemTransition = {
+      before: state('approved'),
+      after: state('in-progress'),
+      changesText: true,
+      changesPlanning: true,
+    };
+    for (const role of JOB_ROLES) {
+      expect(refusal(job(role, true), textAndMove)?.reason).toBe('edit-after-approval');
+    }
+  });
+
+  it('keeps kind, severity, tier and sprint editable by the editing roles after the approval', () => {
+    for (const role of EDITING_ROLES) {
+      for (const status of ['approved', 'in-progress', 'qa', 'blocked'] as const) {
+        expect(refusal(job(role), change(state(status), state(status), 'planning'))).toBeNull();
+      }
+    }
+  });
+
+  it('lets the editing roles edit the text while the item is not approved', () => {
+    for (const role of EDITING_ROLES) {
+      expect(refusal(job(role), change(state('proposed'), state('proposed'), 'text'))).toBeNull();
+      // The release decision closes a demo item without approving it: its text is not an approved text.
+      const released = unapproved(state('done', ['team:demo']));
+      expect(refusal(job(role), change(released, released, 'text'))).toBeNull();
+    }
+  });
+
+  it('leaves the owner free to correct an approved text', () => {
+    expect(refusal(OWNER, change(state('in-progress'), state('in-progress'), 'text'))).toBeNull();
+  });
+});
+
+type Verdict = TransitionRefusal['reason'] | null;
+
+/** The role-dependent cases of the table, each on item 1 (`held`: the job holds it). */
+const ROLE_CASES = {
+  textAfterApproval: change(state('approved'), state('approved'), 'text'),
+  planningAfterApproval: change(state('approved'), state('approved'), 'planning'),
+  textBeforeApproval: change(state('proposed'), state('proposed'), 'text'),
+  create: change(null, state('proposed')),
+  moveHeld: change(state('approved'), state('in-progress')),
+  moveNotHeld: change(state('approved'), state('in-progress')),
+  flag: change(state('approved'), state('approved', ['needs-design'])),
+  verdictFlag: change(state('qa'), state('qa', ['review-failed'])),
+  removeGuard: change(state('qa', ['release-blocker']), state('qa')),
+  workflowChange: change(state('approved'), state('approved', ['workflow-change'])),
+} as const satisfies Record<string, ItemTransition>;
+
+type RoleCase = keyof typeof ROLE_CASES;
+
+const C = 'role-cannot-edit';
+const FROZEN = 'edit-after-approval';
+const EDITOR = {
+  textAfterApproval: FROZEN,
+  planningAfterApproval: null,
+  textBeforeApproval: null,
+  create: null,
+  moveHeld: null,
+  moveNotHeld: null,
+  flag: null,
+  verdictFlag: null,
+  removeGuard: 'remove-guard-flag',
+  workflowChange: 'workflow-change',
+} as const satisfies Record<RoleCase, Verdict>;
+const DEVELOPER = {
+  textAfterApproval: FROZEN,
+  planningAfterApproval: C,
+  textBeforeApproval: C,
+  create: C,
+  moveHeld: null,
+  moveNotHeld: 'item-not-held',
+  flag: C,
+  verdictFlag: C,
+  removeGuard: 'remove-guard-flag',
+  workflowChange: 'workflow-change',
+} as const satisfies Record<RoleCase, Verdict>;
+const NO_EDITS = {
+  ...DEVELOPER,
+  moveHeld: C,
+  moveNotHeld: C,
+} as const satisfies Record<RoleCase, Verdict>;
+
+// A `Record<JobRole, …>`: a role added to JOB_ROLES does not compile here until every case is decided for it.
+const DECIDED: Readonly<Record<JobRole, Readonly<Record<RoleCase, Verdict>>>> = {
+  pm: { ...EDITOR, removeGuard: null },
+  architect: EDITOR,
+  orchestrator: EDITOR,
+  dev: DEVELOPER,
+  'dev-light': DEVELOPER,
+  'dev-heavy': DEVELOPER,
+  qa: { ...DEVELOPER, verdictFlag: 'verdict-flag' },
+  reviewer: { ...NO_EDITS, verdictFlag: 'verdict-flag' },
+  security: { ...NO_EDITS, flag: null, verdictFlag: 'verdict-flag', removeGuard: null, workflowChange: null },
+  devops: NO_EDITS,
+  analyst: NO_EDITS,
+  scribe: NO_EDITS,
+  'ux-designer': NO_EDITS,
+  'ui-designer': NO_EDITS,
+};
+
+describe('transition table: every role decided on every role-dependent case', () => {
+  const cells = JOB_ROLES.flatMap((role) =>
+    (Object.keys(ROLE_CASES) as RoleCase[]).map((name) => [role, name] as const),
+  );
+
+  it.each(cells)('%s on %s', (role, name) => {
+    const held = name !== 'moveNotHeld';
+    const outcome = transitionRefusal(
+      job(role, held),
+      ROLE_CASES[name],
+      ROLE_CASES[name].before === null ? null : 1,
+    );
+    expect(outcome?.reason ?? null).toBe(DECIDED[role][name]);
+  });
+
+  it('lets the owner make every one of them', () => {
+    for (const transition of Object.values(ROLE_CASES)) {
+      expect(refusal(OWNER, transition)).toBeNull();
     }
   });
 });
@@ -278,7 +419,7 @@ describe('R2: reviewer roles never write verdict-like state', () => {
     (flag) => {
       const adding = change(state('in-progress'), state('in-progress', [flag]));
       const removing = change(state('in-progress', [flag]), state('in-progress'));
-      for (const role of ['qa', 'reviewer', 'security']) {
+      for (const role of ['qa', 'reviewer', 'security'] as const) {
         expect(refusal(job(role, true), adding)).toEqual({ type: 'transition-role', reason: 'verdict-flag' });
         expect(refusal(job(role, true), removing)?.reason).toBe('verdict-flag');
       }
@@ -307,16 +448,7 @@ describe('commentKindRefusal', () => {
   });
 
   it('lets every role write each kind, except a team decision as dev-light', () => {
-    for (const role of [
-      'pm',
-      'architect',
-      'orchestrator',
-      'dev',
-      'dev-heavy',
-      'qa',
-      'reviewer',
-      'security',
-    ]) {
+    for (const role of JOB_ROLES.filter((each) => each !== 'dev-light')) {
       for (const kind of ['comment', 'note', 'decision'] as const) {
         expect(commentKindRefusal(job(role), kind)).toBeNull();
       }

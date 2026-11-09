@@ -1,3 +1,4 @@
+import { DEVELOPER_ROLES, roleDecisions, type JobRole } from './job-roles';
 import type { PolicyActor } from './policy';
 
 /**
@@ -15,16 +16,16 @@ export type TrackerRefusalType = 'owner-only' | 'ask-role' | 'request-handled-ro
 
 export interface TrackerRouteRule {
   readonly owner: boolean;
-  /** Which job roles the route admits. */
-  readonly job: (role: string) => boolean;
+  /** Which job roles the route admits: every role decided (`roleDecisions`), so none falls through by default. */
+  readonly job: Readonly<Record<JobRole, boolean>>;
   /** The 403 for an actor the row does not admit. */
   readonly refusal: TrackerRefusalType;
   readonly detail: string;
 }
 
-const ANY_ROLE = (): boolean => true;
-const NO_ROLE = (): boolean => false;
-const DEVELOPER = /^dev(-[a-z]+)?$/;
+const ANY_ROLE = roleDecisions(() => true);
+const NO_ROLE = roleDecisions(() => false);
+const PM_ONLY = roleDecisions((role) => role === 'pm');
 
 const READ: TrackerRouteRule = {
   owner: true,
@@ -42,7 +43,7 @@ const OWNER_ONLY = (detail: string): TrackerRouteRule => ({
 
 const SPRINT_WRITE: TrackerRouteRule = {
   owner: true,
-  job: (role) => role === 'pm',
+  job: PM_ONLY,
   refusal: 'sprint-role',
   detail: 'Sprints are planned by the owner and the PM',
 };
@@ -71,7 +72,7 @@ export const TRACKER_MATRIX = {
   [`POST ${P}/labels`]: OWNER_ONLY('Labels are the owner’s'),
   [`POST ${P}/items/:key/asks`]: {
     owner: false,
-    job: (role) => !DEVELOPER.test(role),
+    job: roleDecisions((role) => !DEVELOPER_ROLES.has(role)),
     refusal: 'ask-role',
     detail: 'Questions to the owner are asked by a team role other than dev',
   },
@@ -81,7 +82,7 @@ export const TRACKER_MATRIX = {
   // ADR 0005: the PM answers a request, never silently; the record of who handled it is the job.
   [`POST ${P}/requests/:id/handled`]: {
     owner: false,
-    job: (role) => role === 'pm',
+    job: PM_ONLY,
     refusal: 'request-handled-role',
     detail: 'Only the PM job answers a request',
   },
@@ -91,7 +92,7 @@ export type TrackerRoute = keyof typeof TRACKER_MATRIX;
 
 /** The refusal of `actor` on a row, or `null` when the row admits it. Project scope is the middleware's. */
 export function matrixRefusal(rule: TrackerRouteRule, actor: PolicyActor): TrackerRefusalType | null {
-  const isAdmitted = actor.kind === 'owner' ? rule.owner : rule.job(actor.role);
+  const isAdmitted = actor.kind === 'owner' ? rule.owner : rule.job[actor.role];
   return isAdmitted ? null : rule.refusal;
 }
 
@@ -100,15 +101,20 @@ const PARAM = /:[a-z]+/g;
 const MATRIX_PATTERNS: readonly { method: string; path: RegExp }[] = Object.keys(TRACKER_MATRIX).map(
   (route) => {
     const [method = '', pattern = ''] = route.split(' ');
-    // Route params never match `/`; a trailing slash is the same route to the router.
+    // Route params never match `/`. No optional trailing slash: the path judged is the router's own (below).
     const source = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(PARAM, '[^/]+');
-    return { method, path: new RegExp(`^${source}/?$`) };
+    return { method, path: new RegExp(`^${source}$`) };
   },
 );
 
 /**
  * Whether `method path` is a matrix route. The job identity is confined to these: every other `/api` route
  * refuses it before its own code runs (`jobScopeMiddleware`), so no GitHub-backed or registry route becomes a job's.
+ *
+ * `path` is `c.req.path`, the path the router matches: `createWorkerApp` routes with `strict: false`, which drops
+ * one trailing slash before matching and before `c.req.path` is set. So this matches exactly, as the router does on
+ * that path (#462): `/items/` arrives here as `/items` and is a matrix route; `/items//` arrives as `/items/`, which
+ * no route matches, and is not.
  */
 export function isTrackerMatrixRoute(method: string, path: string): boolean {
   return MATRIX_PATTERNS.some((pattern) => pattern.method === method && pattern.path.test(path));

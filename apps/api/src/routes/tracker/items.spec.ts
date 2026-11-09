@@ -1,7 +1,9 @@
 import { env } from 'cloudflare:test';
 import type { ItemDto, ItemEventListDto, ItemListDto } from '@shared/contracts';
 import {
+  PM,
   countRows,
+  jobActor,
   newKey,
   seedGitHubProject,
   seedTrackerProject,
@@ -123,12 +125,14 @@ describe('POST /projects/:slug/items', () => {
     const key = newKey();
     const path = itemsPath(project.slug);
     const raw = JSON.stringify({ title: 'First', kind: 'bug' });
-    const hash = await sha256Hex(['POST', path, '', raw].join('\n'));
+    // The owner under the local bypass: the key row is scoped to the `local` identity (#462).
+    const hash = await sha256Hex(['local', 'POST', path, '', raw].join('\n'));
+    const claimKey = `${(await sha256Hex('local')).slice(0, 32)}.${key}`;
     // A first write whose 30 s hold has run out while it still writes.
     await env.DB.prepare(
       'INSERT INTO idempotency_keys (key, request_hash, created_at, expires_at) VALUES (?1, ?2, ?3, ?4)',
     )
-      .bind(key, hash, new Date().toISOString(), Date.now() - 1)
+      .bind(claimKey, hash, new Date().toISOString(), Date.now() - 1)
       .run();
 
     const other = await send('POST', path, { title: 'Second', kind: 'bug' }, { key });
@@ -211,6 +215,141 @@ describe('POST /projects/:slug/items', () => {
       reason: 'approve',
     });
     expect(await countRows('items', project.slug)).toBe(0);
+  });
+});
+
+// #462 (ADR 0008 row 2-0): an Idempotency-Key belongs to the identity that sent it.
+describe('Idempotency-Key per identity', () => {
+  const body = { title: 'Same request', kind: 'chore' };
+
+  it('treats the owner’s key sent by a job as a fresh request, never a replay of the owner’s write', async () => {
+    const project = await seedTrackerProject();
+    const key = newKey();
+    const owner = await send('POST', itemsPath(project.slug), body, { key });
+    expect(owner.status).toBe(201);
+    const job = await send('POST', itemsPath(project.slug), body, { key, job: PM });
+    expect(job.status).toBe(201);
+    expect(job.headers.get('Idempotent-Replayed')).toBeNull();
+    expect(((await job.json()) as ItemDto).number).not.toBe(((await owner.json()) as ItemDto).number);
+    expect(await countRows('items', project.slug)).toBe(2);
+  });
+
+  it('keeps two jobs’ keys apart, and replays a job’s own key to that job only', async () => {
+    const project = await seedTrackerProject();
+    const key = newKey();
+    const first = jobActor('pm', 'job-a');
+    const second = jobActor('pm', 'job-b');
+    expect((await send('POST', itemsPath(project.slug), body, { key, job: first })).status).toBe(201);
+    expect((await send('POST', itemsPath(project.slug), body, { key, job: second })).status).toBe(201);
+    const replay = await send('POST', itemsPath(project.slug), body, { key, job: first });
+    expect(replay.status).toBe(201);
+    expect(replay.headers.get('Idempotent-Replayed')).toBe('true');
+    expect(await countRows('items', project.slug)).toBe(2);
+  });
+
+  it('still refuses the same identity reusing its key on a different request', async () => {
+    const project = await seedTrackerProject();
+    const key = newKey();
+    await send('POST', itemsPath(project.slug), body, { key, job: PM });
+    const reused = await send('POST', itemsPath(project.slug), { ...body, title: 'Other' }, { key, job: PM });
+    expect(reused.status).toBe(422);
+    expect(await slugOf(reused)).toBe('idempotency-key-reused');
+  });
+
+  it('stores the key under a hash of its scope, not the bare client key', async () => {
+    const project = await seedTrackerProject();
+    const key = newKey();
+    await send('POST', itemsPath(project.slug), body, { key });
+    const rows = await env.DB.prepare('SELECT key FROM idempotency_keys WHERE key LIKE ?1')
+      .bind(`%${key}`)
+      .all<{ key: string }>();
+    expect(rows.results.map((row) => row.key)).toEqual([`${(await sha256Hex('local')).slice(0, 32)}.${key}`]);
+  });
+});
+
+// #462 (ADR 0008 row 2-0, decision 4 of the #446 note): the text the owner approved is frozen for jobs.
+describe('PATCH an approved item as a job (edit-after-approval)', () => {
+  async function approvedItem(project: SeededProject): Promise<ItemDto> {
+    return createItem(project, { status: 'approved' });
+  }
+
+  it.each([
+    ['the title', { title: 'Rewritten' }],
+    ['the body', { body: 'Rewritten body' }],
+    ['the title with a tier', { title: 'Rewritten', tier: 'heavy' }],
+  ])('answers 403 transition-owner-only to the PM changing %s, writing nothing', async (_, change) => {
+    const project = await seedTrackerProject();
+    const item = await approvedItem(project);
+    const response = await send('PATCH', `${itemsPath(project.slug)}/${item.key}`, change, {
+      ifMatch: '"1"',
+      job: { role: 'pm', items: [item.number] },
+    });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      type: expect.stringContaining('transition-owner-only'),
+      reason: 'edit-after-approval',
+      detail: expect.stringContaining('note comment'),
+    });
+    expect(await (await send('GET', `${itemsPath(project.slug)}/${item.key}`)).json()).toMatchObject({
+      title: 'Item',
+      version: 1,
+    });
+    expect(await countRows('item_events', project.slug)).toBe(1);
+  });
+
+  it('lets the editing roles change kind, severity, tier and sprint after the approval', async () => {
+    const project = await seedTrackerProject();
+    expect((await send('POST', `/api/v1/projects/${project.slug}/sprints`, {})).status).toBe(201);
+    const item = await approvedItem(project);
+    let version = 1;
+    for (const [role, change] of [
+      ['pm', { kind: 'bug', severity: 'high' }],
+      ['architect', { tier: 'heavy' }],
+      ['orchestrator', { sprint: 1 }],
+    ] as const) {
+      const response = await send('PATCH', `${itemsPath(project.slug)}/${item.key}`, change, {
+        ifMatch: `"${String(version)}"`,
+        job: { role, items: [item.number] },
+      });
+      expect(response.status, role).toBe(200);
+      version += 1;
+    }
+    expect(await (await send('GET', `${itemsPath(project.slug)}/${item.key}`)).json()).toMatchObject({
+      kind: 'bug',
+      severity: 'high',
+      tier: 'heavy',
+      sprint: 1,
+      title: 'Item',
+    });
+  });
+
+  it('lets the PM edit the text of a proposed item, and the owner that of an approved one', async () => {
+    const project = await seedTrackerProject();
+    const proposed = await createItem(project);
+    expect(
+      (
+        await send(
+          'PATCH',
+          `${itemsPath(project.slug)}/${proposed.key}`,
+          { title: 'Sharper' },
+          {
+            ifMatch: '"1"',
+            job: PM,
+          },
+        )
+      ).status,
+    ).toBe(200);
+    const approved = await approvedItem(project);
+    expect(
+      (
+        await send(
+          'PATCH',
+          `${itemsPath(project.slug)}/${approved.key}`,
+          { body: 'Owner fix' },
+          { ifMatch: '"1"' },
+        )
+      ).status,
+    ).toBe(200);
   });
 });
 

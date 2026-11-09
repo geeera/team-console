@@ -225,7 +225,8 @@ export function createTrackerItemRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
                 closed: false,
                 approved: isWorkableStatus(value.status),
               },
-              changesOtherFields: true,
+              changesText: true,
+              changesPlanning: true,
             },
             null,
           );

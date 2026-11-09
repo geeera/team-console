@@ -1,3 +1,5 @@
+import type { JobRole } from './job-roles';
+
 /**
  * Who a request to `/api/*` acts as, decided once by `authMiddleware` (ADR 0001 decision 7). Downstream code
  * reads `c.get('identity')` and never looks at Access headers itself. Only `kind` is ever logged.
@@ -12,7 +14,7 @@ export type Identity =
    */
   | {
       readonly kind: 'job';
-      readonly role: string;
+      readonly role: JobRole;
       readonly projectSlug: string;
       readonly jobId: string;
       readonly items: readonly number[];

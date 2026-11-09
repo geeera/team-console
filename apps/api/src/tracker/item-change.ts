@@ -20,6 +20,10 @@ export type ItemUpdateOutcome =
   | { readonly kind: 'unchanged' }
   | { readonly kind: 'invalid'; readonly field: string; readonly detail: string };
 
+// What the transition table tells apart (#462): the approved text, and the sizing and planning around it.
+const TEXT_FIELDS: readonly string[] = ['title', 'body'];
+const PLANNING_FIELDS: readonly string[] = ['kind', 'severity', 'tier', 'sprint'];
+
 /** `sprintId` is the id of the sprint `input.sprint` names, already resolved in the project (or `null`). */
 export function planItemUpdate(
   item: ItemRecord,
@@ -114,7 +118,8 @@ export function planItemUpdate(
           approved: item.approvedAt !== null,
         },
         after: { status, flags, closed: isClosed, approved: isApproved },
-        changesOtherFields: changed.some((field) => !['status', 'flags', 'closedReason'].includes(field)),
+        changesText: changed.some((field) => TEXT_FIELDS.includes(field)),
+        changesPlanning: changed.some((field) => PLANNING_FIELDS.includes(field)),
       },
     },
   };

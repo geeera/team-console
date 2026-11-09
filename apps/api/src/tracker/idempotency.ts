@@ -1,5 +1,6 @@
 import { problem, type WorkerContext } from '@worker/core';
 import { IdempotencyKeysRepo, type IdempotencyRef, type IdempotentResultKind } from '@worker/db';
+import type { Identity } from '../auth/auth.types';
 import type { ApiEnv } from '../env';
 
 type Context = WorkerContext<ApiEnv>;
@@ -11,9 +12,18 @@ const CLAIM_HOLD_MS = 30_000;
 // A UUID fits; anything that could smuggle a path or a separator does not.
 const KEY_PATTERN = /^[A-Za-z0-9_-]{8,128}$/;
 
-/** One tracker write as received: its key, a hash binding the key to exactly this request, and the parsed body. */
+/**
+ * One tracker write as received: the client's key, the key row it claims, a hash binding the key to exactly this
+ * request, and the parsed body.
+ */
 export interface TrackerWrite {
+  /** The `Idempotency-Key` as the client sent it (an owner decision records it). */
   readonly key: string;
+  /**
+   * The key row's primary key: the caller's scope and the client's key (#462, ADR 0008 row 2-0). Keys are per
+   * identity, so a job reusing the owner's key (or another job's) makes a fresh request, never a replay of theirs.
+   */
+  readonly claimKey: string;
   readonly requestHash: string;
   /** The JSON body, `undefined` when there is none or it is not JSON (the route's check then refuses it). */
   readonly body: unknown;
@@ -29,6 +39,23 @@ export type CompleteKey = (
 async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Who a key belongs to: the identity kind and the owner's login or the job id. Hashed before it is stored, so no
+ * email lands in the key table.
+ */
+function scopeOf(identity: Identity): string {
+  switch (identity.kind) {
+    case 'user':
+      return `user\n${identity.email}`;
+    case 'local':
+      return 'local';
+    case 'service':
+      return `service\n${identity.commonName}`;
+    case 'job':
+      return `job\n${identity.jobId}`;
+  }
 }
 
 /** Reads the `Idempotency-Key` and the body once; 400 `idempotency-key` without a usable key. */
@@ -50,10 +77,13 @@ export async function trackerWriteOf(c: Context): Promise<TrackerWrite | Respons
     // Malformed JSON is the client's input, answered by the route's check; the parser's message is dropped.
     body = undefined;
   }
+  const scope = scopeOf(c.get('identity'));
   const requestHash = await sha256Hex(
-    [c.req.method, new URL(c.req.url).pathname, c.req.header('If-Match') ?? '', raw].join('\n'),
+    [scope, c.req.method, new URL(c.req.url).pathname, c.req.header('If-Match') ?? '', raw].join('\n'),
   );
-  return { key, requestHash, body };
+  // 32 hex characters (128 bits) of the scope keep the row's key short; `.` never occurs in a client key.
+  const claimKey = `${(await sha256Hex(scope)).slice(0, 32)}.${key}`;
+  return { key, claimKey, requestHash, body };
 }
 
 /**
@@ -70,7 +100,7 @@ export async function idempotent(
 ): Promise<Response> {
   const keys = new IdempotencyKeysRepo(c.env.DB);
   const now = Date.now();
-  const claim = await keys.claim(request.key, request.requestHash, now, CLAIM_HOLD_MS);
+  const claim = await keys.claim(request.claimKey, request.requestHash, now, CLAIM_HOLD_MS);
   switch (claim.state) {
     case 'mismatch':
       return problem(c, {
@@ -96,16 +126,21 @@ export async function idempotent(
       break;
   }
   const complete: CompleteKey = (status, kind, ref) =>
-    keys.completeStatement(request.key, request.requestHash, { status, kind, ref }, now + IDEMPOTENCY_TTL_MS);
+    keys.completeStatement(
+      request.claimKey,
+      request.requestHash,
+      { status, kind, ref },
+      now + IDEMPOTENCY_TTL_MS,
+    );
   let response: Response;
   try {
     response = await write(complete);
   } catch (error: unknown) {
-    await keys.release(request.key, request.requestHash);
+    await keys.release(request.claimKey, request.requestHash);
     throw error;
   }
   if (!response.ok) {
-    await keys.release(request.key, request.requestHash);
+    await keys.release(request.claimKey, request.requestHash);
   }
   return response;
 }
