@@ -34,7 +34,43 @@ export type { ProjectRepositoryDto } from './lib/repository';
 export { NOT_SNOOZED, SNOOZE_MAX_DAYS, isSnoozeActive, isSnoozeDto } from './lib/snooze';
 export type { SnoozeDto, SnoozeRequest } from './lib/snooze';
 export { isRepoFullName, repoFullNameParts } from './lib/repo-name';
-export { OWNER_ACCOUNT_ID, OWNER_ACCOUNT_SLUG, OWNER_USER_ID, isUlid } from './lib/account';
+export {
+  ACCOUNT_PLANS,
+  AUDIT_ACTOR_KINDS,
+  AUDIT_DETAILS_MAX_BYTES,
+  AUDIT_EVENT_KINDS,
+  AUDIT_PAGE_MAX,
+  IDENTITY_PROVIDERS,
+  MEMBER_ROLES,
+  OWNER_ACCOUNT_ID,
+  OWNER_ACCOUNT_SLUG,
+  OWNER_USER_ID,
+  PLAN_ENTITLEMENTS,
+  entitlementsOf,
+  isAccountDto,
+  isAccountMemberDto,
+  isAccountPlan,
+  isAuditActorKind,
+  isAuditEventDto,
+  isAuditEventKind,
+  isAuditEventListDto,
+  isEntitlementsOverride,
+  isIdentityProvider,
+  isMemberRole,
+  isUlid,
+} from './lib/account';
+export type {
+  AccountDto,
+  AccountEntitlements,
+  AccountMemberDto,
+  AccountPlan,
+  AuditActorKind,
+  AuditEventDto,
+  AuditEventKind,
+  AuditEventListDto,
+  IdentityProvider,
+  MemberRole,
+} from './lib/account';
 export { INSTALLATION_REPOSITORIES_URL } from './lib/installation-repositories';
 export type {
   GitHubAppNotInstalledProblem,
