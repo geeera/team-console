@@ -616,6 +616,7 @@
       "edit": "Title or details changed",
       "labels": "Labels changed",
       "approved": "Approved",
+      "approvedSaid": "Approved: “{{said}}”",
       "rejected": "Rejected: “{{why}}”",
       "decided": "Decision: {{command}}",
       "closedDone": "Closed: done",
@@ -656,6 +657,10 @@
         "title": "The decision isn’t waiting for you any more",
         "message": "The team has already changed the task. Refresh it.",
         "refresh": "Refresh the task"
+      },
+      "decisionGone": {
+        "title": "This decision no longer fits the task",
+        "message": "While you were answering, the task was closed or already answered another way. Refresh it."
       },
       "forbidden": {
         "title": "Only the owner can change tasks",

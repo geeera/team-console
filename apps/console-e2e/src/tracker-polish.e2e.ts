@@ -206,3 +206,24 @@ test('a long project name ends in an ellipsis in the top bar instead of running 
     await expect(page.getByRole('button', { name: ru('shell.openSwitcher') })).toBeVisible();
   }
 });
+
+test('at 390 px the Commands label is an icon and the Local badge shrinks, giving the name its room back (#470 item 1)', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'iphone', 'the top bar is the phone layout (390 px)');
+  await page.goto(`/p/${SLUG}/board`);
+  const badge = page.getByTestId('environment-mark');
+  await expect(badge).toContainText('Local');
+  const commandsLabel = page.locator('[data-testid="commands-open"] .space__commands-phone-label');
+  const commandsButton = page.getByTestId('commands-open');
+  const [badgeBox, labelDisplay] = await Promise.all([
+    badge.evaluate((element) => getComputedStyle(element).fontSize),
+    commandsLabel.evaluate((element) => getComputedStyle(element).display),
+  ]);
+  // 11px (--fs-2xs), not the ordinary chip's 12px (--fs-xs): the badge gave up some of its own room too.
+  expect(badgeBox).toBe('11px');
+  expect(labelDisplay).toBe('none');
+  // The icon-only button still names itself for assistive tech and stays reachable.
+  await expect(commandsButton).toHaveAccessibleName(ru('commands.openAria', { name: SLUG }));
+  await expectAccessible(page, 'phone top bar at 390 px');
+});

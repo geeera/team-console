@@ -216,6 +216,34 @@ describe('CreateSprintDialog (#457)', () => {
     expect(close).toHaveBeenCalled();
   });
 
+  it('rotates the key when the name changes after a drop, so the edit is a fresh request (#470 item 2)', async () => {
+    let attempt = 0;
+    const { type, submit, calls } = await render({}, () => {
+      attempt += 1;
+      return attempt === 1
+        ? { ok: false, failure: { kind: 'network', field: null, retryAfter: null } }
+        : {
+            ok: true,
+            replayed: false,
+            value: { ...SPRINT_2, number: 3, title: 'Checkout', dueOn: '2026-12-11' },
+          };
+    });
+    await submit();
+    await type('Checkout');
+    await submit();
+    expect(calls[0]).toEqual({
+      slug: 'team-console',
+      sprint: { dueOn: '2026-12-11', title: null },
+      key: 'key-1',
+    });
+    expect(calls[1]).toEqual({
+      slug: 'team-console',
+      sprint: { dueOn: '2026-12-11', title: 'Checkout' },
+      key: expect.stringMatching(/^[0-9a-f-]{36}$/),
+    });
+    expect(calls[1]?.key).not.toBe('key-1');
+  });
+
   it('shows a name the server refused at the name field', async () => {
     const { root, name, type, submit } = await render({}, () => ({
       ok: false,

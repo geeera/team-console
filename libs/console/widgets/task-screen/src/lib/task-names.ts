@@ -61,8 +61,12 @@ export class TaskNames {
       case 'closed':
         return this.t(line.reason === 'done' ? 'item.ev.closedDone' : 'item.ev.closed');
       case 'decided':
+        // A batch approval records its "Одобряю советы команды…" phrase as the decision's text, an individual
+        // approve sends none (#470 item 4): shown only when there is one, so the common case stays the plain word.
         if (line.command === 'approve') {
-          return this.t('item.ev.approved');
+          return line.text === ''
+            ? this.t('item.ev.approved')
+            : this.t('item.ev.approvedSaid', { said: line.text });
         }
         return line.command === 'reject'
           ? this.t('item.ev.rejected', { why: line.text })

@@ -577,6 +577,30 @@ describe('items.approved_at guards (0017)', () => {
       .first();
     expect(row).toEqual({ status: 'done', approved_at: T0 });
   });
+
+  // #470 item 6: 0017 only guards the NULL -> value direction (an approval set while already non-workable). A
+  // later move away from a workable status (approved/in-progress/qa/blocked -> proposed/done) is legitimate and
+  // must not clear approved_at — but that is already 0016's job: `items_approval_kept` fires on any UPDATE that
+  // names the `approved_at` column and refuses a changed value once it is set, independent of `status`, and a
+  // status-only UPDATE that never names the column leaves it untouched by ordinary SQL semantics. No 0017 trigger
+  // fires on `UPDATE OF status` alone, so no new trigger is needed for this direction; these pin the decision.
+  it('keeps the approval when status moves away from workable without naming the column', async () => {
+    const item = await insert('approved', T0);
+    await update(item, "status = 'proposed'");
+    const row = await env.DB.prepare(
+      `SELECT status, approved_at FROM items WHERE project_slug = 'm17' AND number = ?1`,
+    )
+      .bind(item)
+      .first();
+    expect(row).toEqual({ status: 'proposed', approved_at: T0 });
+  });
+
+  it('refuses clearing the approval in the same statement that moves status away from workable', async () => {
+    const item = await insert('approved', T0);
+    await expect(update(item, "status = 'proposed', approved_at = NULL")).rejects.toThrow(
+      /approved_at is never cleared or changed/,
+    );
+  });
 });
 
 // #465, ADR 0008 decision 1: 0018 attaches what exists to the owner's account; the owner's user and membership come

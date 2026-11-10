@@ -45,6 +45,16 @@ export function sprintNameOf(value: string): string {
   return value.replace(/\s+/gu, ' ').trim();
 }
 
+/** The body `createSprint` sends: what the server records, so a changed body after a failed send needs a new key. */
+export interface CreateSprintBody {
+  readonly dueOn: string;
+  readonly title: string | null;
+}
+
+function isSameSprintBody(a: CreateSprintBody, b: CreateSprintBody): boolean {
+  return a.dueOn === b.dueOn && a.title === b.title;
+}
+
 /**
  * "New sprint" (#409 §2.3, #457): the name — prefilled with the next `Sprint NN`, editable — and the demo date,
  * checked as the owner types (an empty or taken name; a past date or one not after the latest demo), with the hint
@@ -151,6 +161,10 @@ export class CreateSprintDialog {
   protected readonly failure = signal<string | null>(null);
   /** A refusal of the name by the server (422 `field: title`): shown until the name changes. */
   private readonly refusedName = signal<string | null>(null);
+  /** The key the next send uses; starts as the dialog's own, rotates once the body changes after a failed send
+   * (#470 item 2, as `AnswerQuestion` does) so a retry replays but an edited body is a fresh request. */
+  private idempotencyKey = this.data.idempotencyKey;
+  private lastSent: CreateSprintBody | null = null;
 
   private readonly latest = [...this.data.sprints].sort((a, b) => b.number - a.number)[0] ?? null;
   private readonly takenNames = new Set(this.data.sprints.map((sprint) => sprint.title.toLocaleLowerCase()));
@@ -219,15 +233,16 @@ export class CreateSprintDialog {
       return;
     }
     const name = sprintNameOf(this.name());
+    const body: CreateSprintBody = { dueOn: this.dueOn(), title: name === this.data.suggestedName ? null : name };
+    if (this.lastSent !== null && !isSameSprintBody(this.lastSent, body)) {
+      this.idempotencyKey = crypto.randomUUID();
+    }
+    this.lastSent = body;
     this.running.set(true);
     this.failure.set(null);
     // aria-disabled, not disabled: the focused button keeps focus while the write runs.
     this.ref.disableClose = true;
-    const result = await this.api.createSprint(
-      this.data.slug,
-      { dueOn: this.dueOn(), title: name === this.data.suggestedName ? null : name },
-      this.data.idempotencyKey,
-    );
+    const result = await this.api.createSprint(this.data.slug, body, this.idempotencyKey);
     this.running.set(false);
     this.ref.disableClose = false;
     if (!result.ok) {

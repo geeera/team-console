@@ -24,7 +24,22 @@ describe('withoutInvisibles', () => {
   });
 
   it('keeps the zero-width joiner, so emoji sequences stay whole', () => {
-    expect(withoutInvisibles('👩‍💻 and 🏳️‍🌈')).toBe('👩‍💻 and 🏳️‍🌈');
+    expect(withoutInvisibles('👩‍💻 and 🧑‍🤝‍🧑')).toBe('👩‍💻 and 🧑‍🤝‍🧑');
+  });
+
+  it('removes the variation selectors, so a presentation hint does not pass for content', () => {
+    const vs16 = point(0xfe0f);
+    expect(withoutInvisibles(`🏳${vs16}‍🌈`)).toBe('🏳‍🌈');
+    expect(withoutInvisibles([0xfe00, 0xfe0d, 0xfe0f].map(point).join(''))).toBe('');
+  });
+
+  it('removes the Mongolian variation selectors', () => {
+    expect(withoutInvisibles([0x180b, 0x180c, 0x180d, 0x180f].map(point).join(''))).toBe('');
+  });
+
+  it('removes the Braille blank pattern, so an all-blank title does not look like content', () => {
+    expect(withoutInvisibles(`a${point(0x2800)}${point(0x2800)}b`)).toBe('ab');
+    expect(withoutInvisibles(point(0x2800).repeat(3))).toBe('');
   });
 
   it('leaves ordinary text, Cyrillic, Arabic and Hebrew letters as they are', () => {

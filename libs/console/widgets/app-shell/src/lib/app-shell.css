@@ -153,3 +153,12 @@
   align-items: center;
   gap: var(--space-1);
 }
+
+/* #470 item 1: at 390 px the project name next to the Local badge, search, Commands and settings showed as only
+   ~3 letters — the badge shrinks here so the name gets the room back. */
+@media (max-width: 400px) {
+  .shell__actions tc-environment-mark ::ng-deep tc-chip {
+    padding: 0 var(--space-1);
+    font-size: var(--fs-2xs);
+  }
+}
