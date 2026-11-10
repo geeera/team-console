@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:test';
 import { isProblemDetails, problemSlugOf } from '@shared/contracts';
 import { createApiApp } from '../app';
 import { ApiGitHub } from '../github';
@@ -142,6 +143,11 @@ describe('account scope on every route (threat model C9, RR12)', () => {
       '%s',
       async (route) => {
         const theirs = await seedTrackerProject();
+        // A repository name that does not carry the slug, so the check is on names as well as slugs (#482 QA).
+        const hiddenRepo = `hidden-org/${crypto.randomUUID().slice(0, 8)}`;
+        await env.DB.prepare('UPDATE projects SET repo = ?2 WHERE slug = ?1')
+          .bind(theirs.slug, hiddenRepo)
+          .run();
         const mine = await seedAccountProject(other.account, { tracker: 'console' });
         const { method, path } = concrete(route, '');
 
@@ -151,6 +157,8 @@ describe('account scope on every route (threat model C9, RR12)', () => {
         expect(response.status).toBe(200);
         expect(text).toContain(mine.slug);
         expect(text).not.toContain(theirs.slug);
+        expect(text).not.toContain(hiddenRepo);
+        expect(text).not.toContain('hidden-org');
       },
     );
 
@@ -164,13 +172,17 @@ describe('account scope on every route (threat model C9, RR12)', () => {
     // The environment map and the installation list are the environment owner's (ownerOnlyMiddleware, T-4 binds
     // them per user); a session user gets the same 403 as the service identity, with no slug in it.
     it.each(['GET /api/v1/environment/status', 'GET /api/v1/github/installation/repositories'] as const)(
-      '%s names no project of another account',
+      '%s names no project or repository of another account',
       async (route) => {
         const theirs = await seedTrackerProject();
         const { method, path } = concrete(route, '');
         const response = await sendAsSession(other, method, path, undefined, { github: github() });
         expect(response.status).toBe(403);
-        expect(await response.text()).not.toContain(theirs.slug);
+        expect(await slugOf(response)).toBe('owner-only');
+        const text = await response.text();
+        expect(text).not.toContain(theirs.slug);
+        expect(text).not.toContain('acme/');
+        expect(text).not.toContain('repositories');
       },
     );
 

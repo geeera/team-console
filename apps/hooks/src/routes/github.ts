@@ -272,6 +272,7 @@ async function markRequestHandled(
  * T-2 backfill) — a row that already has an id is never matched by name.
  */
 async function projectOf(
+  db: D1Database,
   projects: ProjectsRepo,
   repository: { readonly id: number | null; readonly fullName: string },
   installationId: number | null,
@@ -286,6 +287,11 @@ async function projectOf(
   }
   const byName = await projects.findActiveByRepo(repository.fullName);
   if (byName === null || byName.repo_id !== null || byName.installation_id !== installationId) {
+    return null;
+  }
+  // The id is recorded for good (0018 trigger), so the account invariant is checked before it is (#482 review).
+  if ((await linkedAccountOf(db, installationId)) !== byName.account_id) {
+    logger.warn('webhook refused', { reason: 'installation-account-mismatch', slug: byName.slug });
     return null;
   }
   const recorded = await projects.setRepoId(byName.slug, repository.id);
@@ -335,7 +341,7 @@ async function handleRepositoryEvent(
     return ignored('unregistered');
   }
   const projects = new ProjectsRepo(db);
-  const row = await projectOf(projects, envelope.repository, envelope.installationId, logger);
+  const row = await projectOf(db, projects, envelope.repository, envelope.installationId, logger);
   if (row === null) {
     return ignored('unregistered');
   }

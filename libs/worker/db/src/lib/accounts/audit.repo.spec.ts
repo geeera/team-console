@@ -206,7 +206,7 @@ describe('@worker/db sources', () => {
   // table resolves a UNIQUE collision by deleting the other row without its DELETE triggers — another account's
   // empty project, or an installation link, could vanish through the slug or repository index. The 0018 triggers
   // guard INSERT; this guards the statements.
-  it.each(['accounts', 'users', 'projects', 'installations'])(
+  it.each(['accounts', 'users', 'projects', 'installations', 'account_members', 'sessions'])(
     'hold no UPDATE OR … / REPLACE INTO of %s',
     (table) => {
       const conflicting = new RegExp(

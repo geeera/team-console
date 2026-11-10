@@ -1,7 +1,7 @@
 import { problem, type WorkerContext } from '@worker/core';
 import { ProjectsRepo, type ProjectRow, type TrackerProject } from '@worker/db';
 import { InvalidRepoNameError, parseRepoName, type RepoName } from '@worker/github';
-import { admits, scopeOf } from '../auth/scope';
+import { admits, roleIn, scopeOf } from '../auth/scope';
 import type { ApiEnv } from '../env';
 
 // Threat row 2 of #9: a slug with `/`, `..` or an encoded slash never reaches D1 or GitHub. Looser than the
@@ -65,6 +65,26 @@ export function trackerProjectOf(row: ProjectRow): TrackerProject {
     nextItemNumber: row.next_item_number,
     cutoverAt: row.cutover_at,
   };
+}
+
+/**
+ * 403 `account-owner-only` unless the identity is an `owner` of the project's account (#482 security review: the
+ * owner-grade project writes — registry edits, answers, team and sprint commands, snooze — are the account owner's,
+ * not any member's, and not the Access owner's on an account it is merely a member of). The dev/stage service
+ * identity keeps the path its own gates give it. Called after `findProject`, so it never reveals a slug.
+ */
+export function projectOwnerRefusal(c: WorkerContext<ApiEnv>, project: ProjectRow): Response | null {
+  const identity = c.get('identity');
+  if (identity.kind === 'service' || roleIn(identity, c.env, project.account_id) === 'owner') {
+    return null;
+  }
+  c.get('logger').warn('project write refused', { reason: 'account-owner-only', identity: identity.kind });
+  return problem(c, {
+    type: 'account-owner-only',
+    title: 'Forbidden',
+    status: 403,
+    detail: 'Only an owner of the project’s account can make this change',
+  });
 }
 
 export function projectNotFound(c: WorkerContext<ApiEnv>): Response {

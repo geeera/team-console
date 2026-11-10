@@ -22,10 +22,12 @@ import { isRepoOwnedBy, isValidRepoName, readCacheKey, type OwnerAccount } from 
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
+import { isOwnerIdentity } from '../auth/owner-only.middleware';
 import { auditActorOf, membershipsOf } from '../auth/scope';
 import {
   findProject,
   projectNotFound,
+  projectOwnerRefusal,
   repoOf,
   scopedProjectsOf,
   trackerProjectOf,
@@ -158,6 +160,23 @@ export function createProjectRegistryRoutes(
     })
 
     .post('/', limit, async (c) => {
+      // #482 security review: the add checks repository ownership against the environment owner's connection and
+      // mints with the environment's app, so until T-4 binds a connection per user only the Access owner (and the
+      // service identity on its dev/stage path) adds a project — the same rule as the `own-user` routes.
+      const identity = c.get('identity');
+      if (!isOwnerIdentity(identity, c.env) && identity.kind !== 'service') {
+        c.get('logger').warn('owner route refused', {
+          reason: identity.kind,
+          method: c.req.method,
+          path: c.req.path,
+        });
+        return problem(c, {
+          type: 'owner-only',
+          title: 'Forbidden',
+          status: 403,
+          detail: 'Projects are added by the environment owner until connections are per user',
+        });
+      }
       const request = parseAddProject(await jsonBody(c));
       if (isRefusal(request)) {
         return refused(c, request);
@@ -166,7 +185,9 @@ export function createProjectRegistryRoutes(
       const projects = new ProjectsRepo(c.env.DB);
       // The account the project is created in: an `owner` membership of the identity (ADR 0008 decision 2 — never
       // a body member). One owner membership decides; several need `accountId`, which must be one of them.
-      const owned = membershipsOf(c.get('identity'), c.env).filter((membership) => membership.role === 'owner');
+      const owned = membershipsOf(c.get('identity'), c.env).filter(
+        (membership) => membership.role === 'owner',
+      );
       const accountId =
         request.accountId === undefined
           ? owned.length === 1
@@ -266,7 +287,6 @@ export function createProjectRegistryRoutes(
       // one GitHub installation is one account's, so a repository of another account's installation is refused
       // before the row exists.
       const at = new Date().toISOString();
-      const identity = c.get('identity');
       const actor = auditActorOf(identity);
       const linked = await new InstallationsRepo(c.env.DB).link({
         accountId,
@@ -335,6 +355,10 @@ export function createProjectRegistryRoutes(
       if (project === null) {
         return projectNotFound(c);
       }
+      const ownerRefusal = projectOwnerRefusal(c, project);
+      if (ownerRefusal !== null) {
+        return ownerRefusal;
+      }
       const changes = parseUpdateProject(await jsonBody(c));
       if (isRefusal(changes)) {
         return refused(c, changes);
@@ -355,12 +379,13 @@ export function createProjectRegistryRoutes(
       if (project === null) {
         return projectNotFound(c);
       }
+      const ownerRefusal = projectOwnerRefusal(c, project);
+      if (ownerRefusal !== null) {
+        return ownerRefusal;
+      }
       const at = new Date().toISOString();
       const actor = auditActorOf(c.get('identity'));
-      const [archived] = await c.env.DB.batch([
-        c.env.DB
-          .prepare('UPDATE projects SET archived_at = ?2 WHERE slug = ?1 AND archived_at IS NULL')
-          .bind(project.slug, at),
+      const archived = await new ProjectsRepo(c.env.DB).archive(project.slug, at, [
         auditEventStatement(c.env.DB, {
           accountId: project.account_id,
           at,
@@ -371,7 +396,7 @@ export function createProjectRegistryRoutes(
           ipCountry: c.req.header('CF-IPCountry') ?? null,
         }),
       ]);
-      if (archived?.meta.changes !== 1) {
+      if (!archived) {
         return projectNotFound(c);
       }
       c.get('logger').info('project archived', { slug: project.slug });

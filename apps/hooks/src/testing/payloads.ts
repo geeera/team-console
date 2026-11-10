@@ -186,7 +186,7 @@ export function installationRepositoriesEvent(
   installationId = TEST_INSTALLATION_ID,
 ): Record<string, unknown> {
   const list = repos.map((fullName) => ({
-    id: 1,
+    id: repoIdOf(fullName),
     name: fullName.split('/')[1],
     full_name: fullName,
     private: false,

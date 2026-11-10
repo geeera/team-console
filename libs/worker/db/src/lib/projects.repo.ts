@@ -71,6 +71,19 @@ const COLUMNS =
   'slug, repo, account_id, repo_id, provider, tracker, key_prefix, next_item_number, cutover_at, display_name, ' +
   'routine_id, cache_epoch, added_at, archived_at, installation_id, snoozed_at, snoozed_until, snooze_allows_urgent';
 
+/**
+ * A repository as a webhook names it: by the provider's id when the row has one recorded (ADR 0008 decision 2), by
+ * name only for a row registered before 0018 whose id is not backfilled yet.
+ */
+export interface RepositoryMatch {
+  readonly id: number | null;
+  readonly fullName: string;
+}
+
+/** `?1` the id, `?2` the name. */
+const REPOSITORY_MATCH =
+  '((?1 IS NOT NULL AND repo_id = ?1) OR (repo_id IS NULL AND lower(repo) = lower(?2)))';
+
 /** `WHERE account_id IN (…)` over a bound list; an empty scope matches nothing, so no row ever leaks by default. */
 function accountFilter(accountIds: readonly string[]): { readonly sql: string; readonly binds: string[] } {
   if (accountIds.length === 0) {
@@ -93,7 +106,9 @@ export class ProjectsRepo {
   async listActive(accountIds: readonly string[]): Promise<ProjectRow[]> {
     const filter = accountFilter(accountIds);
     const { results } = await this.db
-      .prepare(`SELECT ${COLUMNS} FROM projects WHERE archived_at IS NULL AND ${filter.sql} ORDER BY added_at, slug`)
+      .prepare(
+        `SELECT ${COLUMNS} FROM projects WHERE archived_at IS NULL AND ${filter.sql} ORDER BY added_at, slug`,
+      )
       .bind(...filter.binds)
       .all<ProjectRow>();
     return results;
@@ -250,25 +265,29 @@ export class ProjectsRepo {
    * unless it already is; the rows that changed, so the caller tells the owner once.
    */
   async markAccessLost(
-    repo: string,
+    repo: RepositoryMatch,
     installationId: number,
     accountId: string,
     lostAt: string,
   ): Promise<ProjectRow[]> {
     const { results } = await this.db
       .prepare(
-        `UPDATE projects SET access_lost_at = ?4
-         WHERE archived_at IS NULL AND access_lost_at IS NULL AND lower(repo) = lower(?1)
-           AND installation_id = ?2 AND account_id = ?3
+        `UPDATE projects SET access_lost_at = ?5
+         WHERE archived_at IS NULL AND access_lost_at IS NULL AND ${REPOSITORY_MATCH}
+           AND installation_id = ?3 AND account_id = ?4
          RETURNING ${COLUMNS}`,
       )
-      .bind(repo, installationId, accountId, lostAt)
+      .bind(repo.id, repo.fullName, installationId, accountId, lostAt)
       .all<ProjectRow>();
     return results;
   }
 
   /** `markAccessLost` for every active project of an installation in its account (the app was uninstalled). */
-  async markInstallationLost(installationId: number, accountId: string, lostAt: string): Promise<ProjectRow[]> {
+  async markInstallationLost(
+    installationId: number,
+    accountId: string,
+    lostAt: string,
+  ): Promise<ProjectRow[]> {
     const { results } = await this.db
       .prepare(
         `UPDATE projects SET access_lost_at = ?3
@@ -281,15 +300,19 @@ export class ProjectsRepo {
   }
 
   /** Clears `access_lost_at` once the repository is back in the same installation and account; the rows that changed. */
-  async clearAccessLost(repo: string, installationId: number, accountId: string): Promise<ProjectRow[]> {
+  async clearAccessLost(
+    repo: RepositoryMatch,
+    installationId: number,
+    accountId: string,
+  ): Promise<ProjectRow[]> {
     const { results } = await this.db
       .prepare(
         `UPDATE projects SET access_lost_at = NULL
-         WHERE archived_at IS NULL AND access_lost_at IS NOT NULL AND lower(repo) = lower(?1)
-           AND installation_id = ?2 AND account_id = ?3
+         WHERE archived_at IS NULL AND access_lost_at IS NOT NULL AND ${REPOSITORY_MATCH}
+           AND installation_id = ?3 AND account_id = ?4
          RETURNING ${COLUMNS}`,
       )
-      .bind(repo, installationId, accountId)
+      .bind(repo.id, repo.fullName, installationId, accountId)
       .all<ProjectRow>();
     return results;
   }
@@ -321,13 +344,28 @@ export class ProjectsRepo {
       .first<ProjectRow>();
   }
 
-  /** Sets `archived_at` on an active project; `false` when there is none with this slug. */
-  async archive(slug: string, archivedAt: string): Promise<boolean> {
-    const result = await this.db
-      .prepare('UPDATE projects SET archived_at = ?2 WHERE slug = ?1 AND archived_at IS NULL')
-      .bind(slug, archivedAt)
-      .run();
-    return result.meta.changes === 1;
+  /**
+   * Sets `archived_at` on an active project, with `extra` statements (its audit row) in the same batch; `false`
+   * when there is none with this slug, in which case nothing of the batch is kept.
+   */
+  async archive(
+    slug: string,
+    archivedAt: string,
+    extra: readonly D1PreparedStatement[] = [],
+  ): Promise<boolean> {
+    // A no-op update would still commit `extra` (a batch is one transaction, not a condition), so the row is
+    // checked first; the window between the check and the update only risks a second audit row, never a write.
+    const active = await this.findActiveBySlug(slug);
+    if (active === null) {
+      return false;
+    }
+    const [result] = await this.db.batch([
+      this.db
+        .prepare('UPDATE projects SET archived_at = ?2 WHERE slug = ?1 AND archived_at IS NULL')
+        .bind(slug, archivedAt),
+      ...extra,
+    ]);
+    return result?.meta.changes === 1;
   }
 }
 

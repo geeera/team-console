@@ -462,9 +462,14 @@ per request; a cookie that is not a live session grants nothing and the request 
 is `{door: 'access'}` and owns the `owner` account by construction (`ACCESS_OWNER_MEMBERSHIPS`, the door — never an
 email comparison), plus the memberships of the user row whose `access_subject` equals the JWT `sub` (the explicit
 link of decision 3, T-3). `isOwnerIdentity` (push, the owner connection, environment, team/sprint commands, snooze,
-batch answers) is the Access door and the local bypass only: those routes act on the environment-wide owner
-connection and devices until T-4 binds them per user, so a session user gets 403 `owner-only` there whatever it
-owns. `scopeOf(identity, env)` (`auth/scope.ts`): a user its account ids, the local bypass and the service identity
+batch answers, `POST /projects` and `GET /github/installation/repositories` — the last two judge repositories
+against the environment owner's connection and list its installation, #482 review) is the Access door and the local
+bypass only: those routes act on the environment-wide owner connection and devices until T-4 binds them per user,
+so a session user gets 403 `owner-only` there whatever it owns. On top of it, every owner-grade write on a project
+(`PATCH`/archive in the registry, answers and the batch, team pause/resume/run, sprint commands, snooze, owner
+requests) calls `projectOwnerRefusal` after `findProject`: the identity must be an `owner` of the project's account
+(403 `account-owner-only` for a member, and for the Access owner on an account its linked user is merely a member
+of); the service identity keeps its own gates. `scopeOf(identity, env)` (`auth/scope.ts`): a user its account ids, the local bypass and the service identity
 the owner account, a job its own slug, anything else nothing. `routeScopeMiddleware` (after `jobScopeMiddleware`)
 answers 404 `not-found` for a path `ROUTE_SCOPES` does not list and refuses an identity whose scope cannot hold the
 rule (`project` | `projects` | `account` | `own-user` | `operator` | `runner` | `public`); `route-scope.spec.ts`
@@ -479,8 +484,10 @@ account first (`InstallationsRepo.link`; another account's → 409 `installation
 backfills `repo_id` once for rows registered before 0018; update and archive audit `project.updated` (field names)
 and `project.archived`. Hooks (`routes/github.ts`): a repository delivery is routed by `repository.id`
 (`findActiveByRepoId`; a row with `repo_id IS NULL` is matched by name and its registered installation once, which
-records the id), then refused unless the row's installation is the delivery's and `installations.findLinked` names the
-row's account (`ignored: installation-mismatch`); installation events touch the linked account's rows only.
+records the id — after the account invariant below passed, since the id is permanent), then refused unless the
+row's installation is the delivery's and `installations.findLinked` names the row's account (`ignored:
+installation-mismatch`); installation events touch the linked account's rows only and match a repository by the id
+the payload carries (`RepositoryMatch`: by name only for a row whose `repo_id` is still unset).
 `pull_requests` (#463) under the same scope: `PullRequestsRepo.upsert`/`markCiStale` write only when the write's
 repository id equals the project's recorded `repo_id` (a row without one takes nothing — fail closed; the hooks
 Worker backfills it from a matching delivery, the api Worker through `ensureRepoId` before a sync, 409

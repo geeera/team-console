@@ -7,6 +7,7 @@ export type {
   ProjectChanges,
   ProjectConflict,
   ProjectRow,
+  RepositoryMatch,
   SnoozeChange,
 } from './lib/projects.repo';
 export { ProjectSignalsRepo } from './lib/project-signals.repo';

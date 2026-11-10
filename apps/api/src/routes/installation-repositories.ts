@@ -4,7 +4,7 @@ import type {
   InstallationRepositoryDto,
   RepositoryRegistration,
 } from '@shared/contracts';
-import type { WorkerHonoEnv } from '@worker/core';
+import { problem, type WorkerHonoEnv } from '@worker/core';
 import type { ProjectRow } from '@worker/db';
 import {
   GitHubClient,
@@ -15,6 +15,7 @@ import {
 } from '@worker/github';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub, GitHubConnection } from '../github';
+import { isOwnerIdentity } from '../auth/owner-only.middleware';
 import { scopedProjectsOf } from '../projects/lookup';
 import type { OwnerConnectionSource } from '../projects/owner-connection';
 import { installUrlFor, isGitHubProblem } from '../projects/repository-checks';
@@ -131,6 +132,23 @@ export function createInstallationRepositoriesRoutes(
   owners: OwnerConnectionSource,
 ): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>().get('/installation/repositories', async (c) => {
+    // #482 security review: the list is the environment owner's installation (private names included), read with
+    // the owner's connection; until T-4 binds a connection per user only the Access owner and the dev/stage
+    // service identity read it — a session user of any account gets the same 403 as on the connection routes.
+    const identity = c.get('identity');
+    if (!isOwnerIdentity(identity, c.env) && identity.kind !== 'service') {
+      c.get('logger').warn('owner route refused', {
+        reason: identity.kind,
+        method: c.req.method,
+        path: c.req.path,
+      });
+      return problem(c, {
+        type: 'owner-only',
+        title: 'Forbidden',
+        status: 403,
+        detail: 'The installation list is the environment owner’s until connections are per user',
+      });
+    }
     const owner = await owners.current(c.env, c.get('logger'));
     if (owner === null) {
       throw ownerNotConnectedError();

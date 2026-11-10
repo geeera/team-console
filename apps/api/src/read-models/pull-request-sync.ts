@@ -16,8 +16,8 @@ const OPEN_PAGES = 3;
 const RECHECK_MAX = 10;
 /** One sync per project and epoch per isolate at most this often; a webhook bump starts a new key. */
 const SYNC_TTL_SECONDS = 30;
-/** `GET …/prs/:number?fresh=1`: token 2 + the pull request 1 + its CI 1. */
-export const PULL_REQUEST_READ_BUDGET = 6;
+/** `GET …/prs/:number?fresh=1`: token 2 + the repository (its id checked) 1 + the pull request 1 + its CI 1. */
+export const PULL_REQUEST_READ_BUDGET = 7;
 
 export interface SyncOutcome {
   readonly complete: boolean;
@@ -95,6 +95,9 @@ export function syncPullRequests(
     const adapter = await adapterFor(github, env, repo, PULL_REQUEST_SYNC_BUDGET);
     const rows = new PullRequestsRepo(env.DB);
     const ref = refOf(repo, repoId);
+    // The lists and reads below go by name; one repository read per sync proves the name still carries the
+    // registered id (`vcs-repository-changed` otherwise), so a repository recreated under the name writes nothing.
+    await adapter.repository(ref);
     const syncedAt = (): string => new Date(now()).toISOString();
     let complete = true;
 
@@ -178,6 +181,7 @@ export async function syncPullRequest(
 ): Promise<boolean> {
   const adapter = await adapterFor(github, env, repo, PULL_REQUEST_READ_BUDGET);
   const ref = refOf(repo, repoId);
+  await adapter.repository(ref);
   const pull = await adapter.pullRequests.get(ref, number);
   if (pull === null) {
     return false;

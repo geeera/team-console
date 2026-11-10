@@ -207,9 +207,9 @@ describe('ProjectsRepo writes (#15)', () => {
   });
 
   it('creates in the account it is given and refuses an account that does not exist', async () => {
-    await expect(
-      repo.create({ ...project('w-theirs', 'w-theirs'), accountId: OTHER_ACCOUNT }),
-    ).resolves.toBe('created');
+    await expect(repo.create({ ...project('w-theirs', 'w-theirs'), accountId: OTHER_ACCOUNT })).resolves.toBe(
+      'created',
+    );
     await expect(repo.findActiveBySlug('w-theirs')).resolves.toMatchObject({ account_id: OTHER_ACCOUNT });
     await expect(
       repo.create({ ...project('w-nobody', 'w-nobody'), accountId: '01M6YSNJ00000000000000N0PE' }),
@@ -330,24 +330,61 @@ describe('ProjectsRepo webhook writes (#12)', () => {
   const A = OWNER_ACCOUNT_ID;
 
   it('marks access lost by repository (any case), installation and account, once', async () => {
-    const changed = await repo.markAccessLost('ACME/H-One', 2001, A, '2026-10-01T10:00:00Z');
+    const changed = await repo.markAccessLost(
+      { id: null, fullName: 'ACME/H-One' },
+      2001,
+      A,
+      '2026-10-01T10:00:00Z',
+    );
     expect(changed.map((row) => row.slug)).toEqual(['h-one']);
     expect(await accessLostAt('h-one')).toBe('2026-10-01T10:00:00Z');
 
-    await expect(repo.markAccessLost('acme/h-one', 2001, A, '2026-10-01T11:00:00Z')).resolves.toEqual([]);
+    await expect(
+      repo.markAccessLost({ id: null, fullName: 'acme/h-one' }, 2001, A, '2026-10-01T11:00:00Z'),
+    ).resolves.toEqual([]);
     expect(await accessLostAt('h-one')).toBe('2026-10-01T10:00:00Z');
   });
 
   it('does not mark a project of another installation, another account or an archived one', async () => {
-    await expect(repo.markAccessLost('acme/h-other', 2001, A, '2026-10-01T10:00:00Z')).resolves.toEqual([]);
     await expect(
-      repo.markAccessLost('acme/h-one', 2001, OTHER_ACCOUNT, '2026-10-01T10:00:00Z'),
+      repo.markAccessLost({ id: null, fullName: 'acme/h-other' }, 2001, A, '2026-10-01T10:00:00Z'),
+    ).resolves.toEqual([]);
+    await expect(
+      repo.markAccessLost({ id: null, fullName: 'acme/h-one' }, 2001, OTHER_ACCOUNT, '2026-10-01T10:00:00Z'),
     ).resolves.toEqual([]);
     await repo.archive('h-two', '2026-10-01T09:00:00Z');
-    await expect(repo.markAccessLost('acme/h-two', 2001, A, '2026-10-01T10:00:00Z')).resolves.toEqual([]);
+    await expect(
+      repo.markAccessLost({ id: null, fullName: 'acme/h-two' }, 2001, A, '2026-10-01T10:00:00Z'),
+    ).resolves.toEqual([]);
     expect(await accessLostAt('h-one')).toBeNull();
     expect(await accessLostAt('h-other')).toBeNull();
     expect(await accessLostAt('h-two')).toBeNull();
+  });
+
+  // #482 review item 9: a row with a recorded id is matched by the id the payload carries, never by its name.
+  it('matches by repository id once the row has one, and by name only while it has none', async () => {
+    await env.DB.prepare('UPDATE projects SET repo_id = 770101 WHERE slug = ?1').bind('h-one').run();
+    await expect(
+      repo.markAccessLost({ id: null, fullName: 'acme/h-one' }, 2001, A, '2026-10-01T10:00:00Z'),
+    ).resolves.toEqual([]);
+    await expect(
+      repo.markAccessLost({ id: 770999, fullName: 'acme/h-one' }, 2001, A, '2026-10-01T10:00:00Z'),
+    ).resolves.toEqual([]);
+    const byId = await repo.markAccessLost(
+      { id: 770101, fullName: 'acme/renamed-since' },
+      2001,
+      A,
+      '2026-10-01T10:00:00Z',
+    );
+    expect(byId.map((row) => row.slug)).toEqual(['h-one']);
+    // A legacy row (no id yet) still answers to its name, whatever id the payload carries.
+    const byName = await repo.markAccessLost(
+      { id: 770202, fullName: 'acme/h-two' },
+      2001,
+      A,
+      '2026-10-01T10:00:00Z',
+    );
+    expect(byName.map((row) => row.slug)).toEqual(['h-two']);
   });
 
   it('marks every active project of a deleted installation in its account only', async () => {
@@ -358,10 +395,12 @@ describe('ProjectsRepo webhook writes (#12)', () => {
   });
 
   it('clears access lost for the same installation and account only', async () => {
-    await repo.markAccessLost('acme/h-one', 2001, A, '2026-10-01T10:00:00Z');
-    await expect(repo.clearAccessLost('acme/h-one', 2002, A)).resolves.toEqual([]);
-    await expect(repo.clearAccessLost('acme/h-one', 2001, OTHER_ACCOUNT)).resolves.toEqual([]);
-    const cleared = await repo.clearAccessLost('Acme/h-one', 2001, A);
+    await repo.markAccessLost({ id: null, fullName: 'acme/h-one' }, 2001, A, '2026-10-01T10:00:00Z');
+    await expect(repo.clearAccessLost({ id: null, fullName: 'acme/h-one' }, 2002, A)).resolves.toEqual([]);
+    await expect(
+      repo.clearAccessLost({ id: null, fullName: 'acme/h-one' }, 2001, OTHER_ACCOUNT),
+    ).resolves.toEqual([]);
+    const cleared = await repo.clearAccessLost({ id: null, fullName: 'Acme/h-one' }, 2001, A);
     expect(cleared.map((row) => row.slug)).toEqual(['h-one']);
     expect(await accessLostAt('h-one')).toBeNull();
   });

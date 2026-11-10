@@ -673,9 +673,9 @@ describe('POST /api/v1/projects — the account (#466)', () => {
       .bind('storify')
       .first();
     expect(row).toEqual({ account_id: OWNER_ACCOUNT_ID, repo_id: 860123 });
-    await expect(new InstallationsRepo(env.DB).findLinked('github', String(INSTALLATION_ID))).resolves.toMatchObject(
-      { accountId: OWNER_ACCOUNT_ID, accountLogin: 'geeera' },
-    );
+    await expect(
+      new InstallationsRepo(env.DB).findLinked('github', String(INSTALLATION_ID)),
+    ).resolves.toMatchObject({ accountId: OWNER_ACCOUNT_ID, accountLogin: 'geeera' });
     const audit = await new AuditRepo(env.DB).listForAccount(OWNER_ACCOUNT_ID, null, 10);
     expect(audit.events[0]).toMatchObject({
       kind: 'project.created',
@@ -685,63 +685,41 @@ describe('POST /api/v1/projects — the account (#466)', () => {
     });
   });
 
-  it('a session owner of another account creates there; a member of it is refused', async () => {
-    const owner = await seedSessionUser('owner');
-    const h = harness();
-    const created = await sendAsSession(owner, 'POST', '/api/v1/projects', { repo: 'geeera/storify' }, { github: h.github }, SESSION_ENV());
-    expect(created.status).toBe(201);
-    const row = await env.DB.prepare('SELECT account_id FROM projects WHERE slug = ?1').bind('storify').first();
-    expect(row).toEqual({ account_id: owner.account.id });
-    // Only the owner of A sees it; the environment owner's list does not.
-    expect(await (await sendAsSession(owner, 'GET', '/api/v1/projects', undefined, {}, SESSION_ENV())).text()).toContain('storify');
-    expect(await (await fetchApi('/api/v1/projects', ownerEnv())).text()).not.toContain('storify');
+  // #482 security review item 3: the add judges repository ownership against the environment owner's connection
+  // and mints with the environment's app, so until T-4 a session user — owner or member of any account — is
+  // refused before anything is read or linked.
+  it.each(['owner', 'member'] as const)(
+    'a session %s of another account is refused with 403 owner-only, nothing written, nothing linked',
+    async (role) => {
+      const user = await seedSessionUser(role);
+      const h = harness();
+      const response = await sendAsSession(
+        user,
+        'POST',
+        '/api/v1/projects',
+        { repo: 'geeera/storify' },
+        { github: h.github },
+        SESSION_ENV(),
+      );
+      await expectProblem(response, 403, 'owner-only');
+      expect(h.stub.calls).toHaveLength(0);
+      expect(await rowCount()).toBe(0);
+      await expect(
+        new InstallationsRepo(env.DB).findLinked('github', String(INSTALLATION_ID)),
+      ).resolves.toBeNull();
+    },
+  );
 
-    const member = await seedSessionUser('member');
-    const refused = await sendAsSession(member, 'POST', '/api/v1/projects', { repo: 'geeera/second' }, { github: harness().github }, SESSION_ENV());
-    await expectProblem(refused, 403, 'account-owner-only');
-    expect(await rowCount()).toBe(1);
-  });
-
-  it('accountId names one of the caller’s own accounts, never another', async () => {
-    const owner = await seedSessionUser('owner');
-    const second = await seedSessionUser('owner');
-    await seedMembership(second.account.id, owner.userId, 'owner');
-    const ambiguous = await sendAsSession(owner, 'POST', '/api/v1/projects', { repo: 'geeera/storify' }, { github: harness().github }, SESSION_ENV());
-    const body = await expectProblem(ambiguous, 403, 'account-owner-only');
-    expect(body['detail']).toMatch(/accountId/);
-
+  it('accountId must name one of the caller’s own accounts (the Access owner linked to several, T-3)', async () => {
+    // The Access owner owns the owner account by construction; a body naming another account is refused.
     const stranger = await seedSessionUser('owner');
-    const elsewhere = await sendAsSession(
-      owner,
-      'POST',
-      '/api/v1/projects',
-      { repo: 'geeera/storify', accountId: stranger.account.id },
-      { github: harness().github },
-      SESSION_ENV(),
-    );
+    const elsewhere = await add({ repo: 'geeera/storify', accountId: stranger.account.id }, harness());
     await expectProblem(elsewhere, 403, 'account-owner-only');
     expect(await rowCount()).toBe(0);
-
-    const chosen = await sendAsSession(
-      owner,
-      'POST',
-      '/api/v1/projects',
-      { repo: 'geeera/storify', accountId: second.account.id },
-      { github: harness().github },
-      SESSION_ENV(),
-    );
-    expect(chosen.status).toBe(201);
-    const row = await env.DB.prepare('SELECT account_id FROM projects WHERE slug = ?1').bind('storify').first();
-    expect(row).toEqual({ account_id: second.account.id });
-    const malformed = await sendAsSession(
-      owner,
-      'POST',
-      '/api/v1/projects',
-      { repo: 'geeera/other', accountId: 'nope' },
-      { github: harness().github },
-      SESSION_ENV(),
-    );
+    const malformed = await add({ repo: 'geeera/storify', accountId: 'nope' }, harness());
     await expectProblem(malformed, 422, 'validation');
+    const own = await add({ repo: 'geeera/storify', accountId: OWNER_ACCOUNT_ID }, harness());
+    expect(own.status).toBe(201);
   });
 
   it('refuses a repository of an installation linked to another account (409 installation-other-account)', async () => {
@@ -761,10 +739,14 @@ describe('POST /api/v1/projects — the account (#466)', () => {
 
   it('answers 409 repo-taken, not 500, when the repository id is already held under another name', async () => {
     expect(
-      (await add({ repo: 'geeera/first' }, harness({ repository: repoWithId('geeera/first', 860777) }))).status,
+      (await add({ repo: 'geeera/first' }, harness({ repository: repoWithId('geeera/first', 860777) })))
+        .status,
     ).toBe(201);
     // The same GitHub repository id reached through another name: the pre-check by name passes, the id does not.
-    const response = await add({ repo: 'geeera/second' }, harness({ repository: repoWithId('geeera/second', 860777) }));
+    const response = await add(
+      { repo: 'geeera/second' },
+      harness({ repository: repoWithId('geeera/second', 860777) }),
+    );
     await expectProblem(response, 409, 'repo-taken', { step: 'unique' });
     expect(await rowCount()).toBe(1);
   });
@@ -795,12 +777,70 @@ describe('POST /api/v1/projects — the account (#466)', () => {
     expect(JSON.stringify(audit.events)).not.toContain('ghp_');
   });
 
+  // #482 security review item 1: renaming and archiving (one-way) are the account owner's, never a member's.
+  it('a session member of the account cannot update or archive its project (403 account-owner-only)', async () => {
+    await seedProject('storify', 'geeera/storify');
+    const member = await seedSessionUser('member');
+    await seedMembership(OWNER_ACCOUNT_ID, member.userId, 'member');
+    const updated = await sendAsSession(
+      member,
+      'PATCH',
+      '/api/v1/projects/storify',
+      { displayName: 'x' },
+      {},
+      SESSION_ENV(),
+    );
+    await expectProblem(updated, 403, 'account-owner-only');
+    const archived = await sendAsSession(
+      member,
+      'POST',
+      '/api/v1/projects/storify/archive',
+      {},
+      {},
+      SESSION_ENV(),
+    );
+    await expectProblem(archived, 403, 'account-owner-only');
+    const row = await env.DB.prepare('SELECT display_name, archived_at FROM projects WHERE slug = ?1')
+      .bind('storify')
+      .first();
+    expect(row).toEqual({ display_name: 'storify', archived_at: null });
+    // A session owner of the account may.
+    const owner = await seedSessionUser('owner');
+    await seedMembership(OWNER_ACCOUNT_ID, owner.userId, 'owner');
+    const renamed = await sendAsSession(
+      owner,
+      'PATCH',
+      '/api/v1/projects/storify',
+      { displayName: 'Renamed' },
+      {},
+      SESSION_ENV(),
+    );
+    expect(renamed.status).toBe(200);
+    expect(
+      (await sendAsSession(owner, 'POST', '/api/v1/projects/storify/archive', {}, {}, SESSION_ENV())).status,
+    ).toBe(204);
+  });
+
   it('a session user of another account cannot update or archive the owner’s project (404)', async () => {
     await seedProject('storify', 'geeera/storify');
     const other = await seedSessionUser('owner');
-    const updated = await sendAsSession(other, 'PATCH', '/api/v1/projects/storify', { displayName: 'x' }, {}, SESSION_ENV());
+    const updated = await sendAsSession(
+      other,
+      'PATCH',
+      '/api/v1/projects/storify',
+      { displayName: 'x' },
+      {},
+      SESSION_ENV(),
+    );
     await expectProblem(updated, 404, 'project-not-found');
-    const archived = await sendAsSession(other, 'POST', '/api/v1/projects/storify/archive', {}, {}, SESSION_ENV());
+    const archived = await sendAsSession(
+      other,
+      'POST',
+      '/api/v1/projects/storify/archive',
+      {},
+      {},
+      SESSION_ENV(),
+    );
     await expectProblem(archived, 404, 'project-not-found');
     expect(await rowCount()).toBe(1);
   });
