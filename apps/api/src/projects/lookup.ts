@@ -1,6 +1,7 @@
 import { problem, type WorkerContext } from '@worker/core';
 import { ProjectsRepo, type ProjectRow, type TrackerProject } from '@worker/db';
 import { InvalidRepoNameError, parseRepoName, type RepoName } from '@worker/github';
+import { isOwnerIdentity } from '../auth/owner-only.middleware';
 import { admits, roleIn, scopeOf } from '../auth/scope';
 import type { ApiEnv } from '../env';
 
@@ -85,6 +86,25 @@ export function projectOwnerRefusal(c: WorkerContext<ApiEnv>, project: ProjectRo
     status: 403,
     detail: 'Only an owner of the project’s account can make this change',
   });
+}
+
+/**
+ * 403 `owner-only` unless the identity is the environment owner (`isOwnerIdentity`: the Access door or the local
+ * bypass) or the dev/stage service identity (#482 security review): the routes that judge repositories against the
+ * environment owner's connection or list its installation stay the owner's until T-4 binds a connection per user,
+ * whatever account a session user owns. `detail` says which route; the log and the problem are one shape.
+ */
+export function ownerOrServiceRefusal(c: WorkerContext<ApiEnv>, detail: string): Response | null {
+  const identity = c.get('identity');
+  if (isOwnerIdentity(identity, c.env) || identity.kind === 'service') {
+    return null;
+  }
+  c.get('logger').warn('owner route refused', {
+    reason: identity.kind,
+    method: c.req.method,
+    path: c.req.path,
+  });
+  return problem(c, { type: 'owner-only', title: 'Forbidden', status: 403, detail });
 }
 
 export function projectNotFound(c: WorkerContext<ApiEnv>): Response {

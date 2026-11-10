@@ -22,10 +22,10 @@ import { isRepoOwnedBy, isValidRepoName, readCacheKey, type OwnerAccount } from 
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
-import { isOwnerIdentity } from '../auth/owner-only.middleware';
 import { auditActorOf, membershipsOf } from '../auth/scope';
 import {
   findProject,
+  ownerOrServiceRefusal,
   projectNotFound,
   projectOwnerRefusal,
   repoOf,
@@ -163,20 +163,14 @@ export function createProjectRegistryRoutes(
       // #482 security review: the add checks repository ownership against the environment owner's connection and
       // mints with the environment's app, so until T-4 binds a connection per user only the Access owner (and the
       // service identity on its dev/stage path) adds a project — the same rule as the `own-user` routes.
-      const identity = c.get('identity');
-      if (!isOwnerIdentity(identity, c.env) && identity.kind !== 'service') {
-        c.get('logger').warn('owner route refused', {
-          reason: identity.kind,
-          method: c.req.method,
-          path: c.req.path,
-        });
-        return problem(c, {
-          type: 'owner-only',
-          title: 'Forbidden',
-          status: 403,
-          detail: 'Projects are added by the environment owner until connections are per user',
-        });
+      const refusal = ownerOrServiceRefusal(
+        c,
+        'Projects are added by the environment owner until connections are per user',
+      );
+      if (refusal !== null) {
+        return refusal;
       }
+      const identity = c.get('identity');
       const request = parseAddProject(await jsonBody(c));
       if (isRefusal(request)) {
         return refused(c, request);

@@ -2,9 +2,10 @@ import { env } from 'cloudflare:test';
 import { isProblemDetails, problemSlugOf } from '@shared/contracts';
 import { createApiApp } from '../app';
 import { ApiGitHub } from '../github';
-import { json, stubGitHub } from '../testing/github-kit';
+import { fetchApi } from '../testing/access-kit';
+import { json, localEnv, stubGitHub } from '../testing/github-kit';
 import { seedAccountProject, seedSessionUser, sendAsSession, type SessionUser } from '../testing/session-kit';
-import { jobActor, seedTrackerProject, send, sendAsService } from '../testing/tracker-kit';
+import { jobActor, newKey, seedTrackerProject, send, sendAsService } from '../testing/tracker-kit';
 import { ROUTE_SCOPES, routeScopeOf, type ScopeRule, type ScopedRoute } from './route-scope';
 
 // ADR 0008 decision 2, threat model C9 (#466): every route registered on the Hono app declares a scope rule, and the
@@ -124,7 +125,17 @@ describe('account scope on every route (threat model C9, RR12)', () => {
     it('does not answer project-not-found to the project’s own account', async () => {
       const project = await seedTrackerProject();
       const { method, path } = concrete(route, project.slug);
-      const response = await send(method as 'GET', path, method === 'GET' ? undefined : {});
+      // The owner through the local bypass, with the GitHub stub: a GitHub-backed read must never reach the network.
+      const response = await fetchApi(path, localEnv(), {
+        method,
+        headers: {
+          'Sec-Fetch-Site': 'same-origin',
+          'Content-Type': 'application/json',
+          'Idempotency-Key': newKey(),
+        },
+        ...(method === 'GET' ? {} : { body: '{}' }),
+        github: github(),
+      });
       expect(await slugOf(response)).not.toBe('project-not-found');
     });
 
