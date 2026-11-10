@@ -71,6 +71,27 @@ describe('PullRequestsRepo', () => {
     expect((await repo().find('storify', 7))?.state).toBe('merged');
   });
 
+  it('lets the later write win a same-second tie, the accepted limit of a 1-second updated_at (#481)', async () => {
+    const second = '2026-11-09T11:00:00.000Z';
+    await repo().upsert('storify', pull(7, { title: 'first', updatedAt: second }), write);
+    await expect(
+      repo().upsert('storify', pull(7, { title: 'second', headSha: NEXT_HEAD, updatedAt: second }), write),
+    ).resolves.toBe(true);
+    expect(await repo().find('storify', 7)).toMatchObject({ title: 'second', headSha: NEXT_HEAD });
+    // A late arrival of the same second wins too; the next change (a later second) corrects it.
+    await repo().upsert('storify', pull(7, { title: 'first', updatedAt: second }), write);
+    expect((await repo().find('storify', 7))?.title).toBe('first');
+    await repo().upsert(
+      'storify',
+      pull(7, { title: 'third', headSha: NEXT_HEAD, updatedAt: '2026-11-09T11:00:01.000Z' }),
+      write,
+    );
+    await expect(
+      repo().upsert('storify', pull(7, { title: 'first', updatedAt: second }), write),
+    ).resolves.toBe(false);
+    expect(await repo().find('storify', 7)).toMatchObject({ title: 'third', headSha: NEXT_HEAD });
+  });
+
   it('keeps CI while the head stays, resets it to unknown + stale when the head moves', async () => {
     await repo().upsert('storify', pull(7), { ...write, ci: 'success' });
     expect(await repo().find('storify', 7)).toMatchObject({ ciState: 'success', ciStale: false });

@@ -76,6 +76,12 @@ export function isBranchName(value: unknown): value is string {
 /** GitHub's 256-character title limit, with room for the multi-unit characters `length` counts twice. */
 export const TITLE_MAX_LENGTH = 1024;
 const LOGIN_MAX_LENGTH = 39;
+// A user's login or an app's `slug[bot]`; anything else (a payload's free text in `login`) is no author.
+const LOGIN = /^[A-Za-z0-9-]+(\[bot\])?$/;
+
+function isAuthorLogin(value: string | null): value is string {
+  return value !== null && value.length <= LOGIN_MAX_LENGTH && LOGIN.test(value);
+}
 
 /** An ISO 8601 instant normalised to `toISOString` (`…T10:00:00.000Z`), so stored values compare as strings. */
 export function instantOf(value: unknown): string | null {
@@ -144,7 +150,7 @@ export function pullRequestOf(raw: unknown, repoFullName: string): PullRequest |
     headSha,
     baseRef,
     headRepository: isRepoFullName(headRepository) ? headRepository : null,
-    authorLogin: login !== null && login.length <= LOGIN_MAX_LENGTH ? login : null,
+    authorLogin: isAuthorLogin(login) ? login : null,
     url: pullRequestUrlOf(repoFullName, number),
     updatedAt,
   };

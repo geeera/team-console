@@ -151,6 +151,26 @@ describe('parseGitHubDelivery', () => {
     });
   });
 
+  it.each([
+    ['geeera', 'geeera'],
+    ['dependabot[bot]', 'dependabot[bot]'],
+    ['team-console-dev[bot]', 'team-console-dev[bot]'],
+    ['a'.repeat(39), 'a'.repeat(39)],
+    ['a'.repeat(40), null],
+    ['', null],
+    ['gee era', null],
+    ['geeera<b>', null],
+    ['geeera‮', null],
+    ['geeera[bot][bot]', null],
+    ['[bot]', null],
+    ['ge/eera', null],
+  ])('keeps the author login %j only in GitHub’s login shape (#481)', (login, expected) => {
+    const event = parseGitHubDelivery(pullRequestDelivery('opened', pull({ user: { login } })));
+    expect(event !== null && 'pullRequest' in event ? event.pullRequest.authorLogin : 'unparsed').toBe(
+      expected,
+    );
+  });
+
   it('turns a completed workflow run into ci.completed for its head, and ignores other actions', () => {
     const run = (action: string, headSha: unknown) => ({
       event: 'workflow_run',

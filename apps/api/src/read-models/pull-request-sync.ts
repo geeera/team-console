@@ -1,5 +1,5 @@
 import { ProjectsRepo, PullRequestsRepo, type ProjectRow } from '@worker/db';
-import { readCacheKey, type RepoName } from '@worker/github';
+import { readCacheKey, type ReadCacheKey, type RepoName } from '@worker/github';
 import { VcsError, type CiState, type PullRequest, type RepoRef, type VcsAdapter } from '@worker/vcs';
 import { GitHubVcsAdapter } from '@worker/vcs-github';
 import type { ApiEnv } from '../env';
@@ -18,6 +18,8 @@ const RECHECK_MAX = 10;
 const SYNC_TTL_SECONDS = 30;
 /** `GET …/prs/:number?fresh=1`: token 2 + the repository (its id checked) 1 + the pull request 1 + its CI 1. */
 export const PULL_REQUEST_READ_BUDGET = 7;
+/** One provider read of a number per project and epoch per isolate at most this often, a missing number included. */
+const READ_TTL_SECONDS = 30;
 
 export interface SyncOutcome {
   readonly complete: boolean;
@@ -56,6 +58,36 @@ export async function ensureRepoId(
   return (await new ProjectsRepo(env.DB).setRepoId(project.slug, repoId)) ? repoId : null;
 }
 
+type Outcome<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: VcsError };
+
+/**
+ * `fill` through the read cache with its provider failure cached too (#481): a number GitHub does not have (`false`)
+ * and a first list page that failed answer from the cache until the TTL ends, so a loop on either spends one read per
+ * TTL instead of one per request of the installation's shared hourly quota. A failure that is not the provider's (a
+ * bug, D1) is never cached.
+ */
+async function cachedRead<T>(
+  github: ApiGitHub,
+  key: ReadCacheKey,
+  ttlSeconds: number,
+  fill: () => Promise<T>,
+): Promise<T> {
+  const outcome = await github.readCache.getOrFill<Outcome<T>>(key, ttlSeconds, async () => {
+    try {
+      return { ok: true, value: await fill() };
+    } catch (error: unknown) {
+      if (error instanceof VcsError) {
+        return { ok: false, error };
+      }
+      throw error;
+    }
+  });
+  if (!outcome.ok) {
+    throw outcome.error;
+  }
+  return outcome.value;
+}
+
 /** Errors the sync absorbs (the rest of the rows still answer); anything else is a bug and propagates. */
 function isAbsorbed(error: unknown): boolean {
   return error instanceof VcsError && error.kind !== 'forbidden';
@@ -75,7 +107,8 @@ async function adapterFor(
  * Reads the project's pull requests from the provider into `pull_requests`: every open one, the rows D1 still has as
  * open that the list no longer shows (closed or merged since), then the CI of each open head whose state is stale.
  * The first list page must succeed (its failure is the request's problem); later reads that fail leave their rows as
- * they were and make the outcome incomplete. Shared per isolate for `SYNC_TTL_SECONDS` through the read cache.
+ * they were and make the outcome incomplete. Shared per isolate for `SYNC_TTL_SECONDS` through the read cache, a
+ * provider failure of the first page included.
  */
 export function syncPullRequests(
   github: ApiGitHub,
@@ -91,7 +124,7 @@ export function syncPullRequests(
     epoch: project.cache_epoch,
     type: 'pull-requests-sync',
   });
-  return github.readCache.getOrFill(key, SYNC_TTL_SECONDS, async () => {
+  return cachedRead(github, key, SYNC_TTL_SECONDS, async () => {
     const adapter = await adapterFor(github, env, repo, PULL_REQUEST_SYNC_BUDGET);
     const rows = new PullRequestsRepo(env.DB);
     const ref = refOf(repo, repoId);
@@ -168,9 +201,32 @@ export function syncPullRequests(
 
 /**
  * One pull request read from the provider into its row, with its head's CI (`GET …/prs/:number?fresh=1`, and the
- * first read of a number D1 does not hold). `null` when the provider has no such pull request.
+ * first read of a number D1 does not hold). `false` when the provider has no such pull request. Shared per isolate,
+ * project, epoch and number for `READ_TTL_SECONDS` through the read cache — a missing number and a failed read too,
+ * so an owner or a member looping on a number spends one read per TTL (#481); a delivery that writes the row bumps
+ * the epoch, so a pull request opened since is not hidden behind a cached `false`.
  */
-export async function syncPullRequest(
+export function syncPullRequest(
+  github: ApiGitHub,
+  env: ApiEnv,
+  project: ProjectRow,
+  repo: RepoName,
+  repoId: number,
+  number: number,
+  now: () => number,
+): Promise<boolean> {
+  const key = readCacheKey({
+    environment: env.ENVIRONMENT,
+    slug: project.slug,
+    epoch: project.cache_epoch,
+    type: `pull-request-${String(number)}`,
+  });
+  return cachedRead(github, key, READ_TTL_SECONDS, () =>
+    readPullRequest(github, env, project, repo, repoId, number, now),
+  );
+}
+
+async function readPullRequest(
   github: ApiGitHub,
   env: ApiEnv,
   project: ProjectRow,

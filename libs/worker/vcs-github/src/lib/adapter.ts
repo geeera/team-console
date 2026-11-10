@@ -324,7 +324,11 @@ export class GitHubVcsAdapter implements VcsAdapter {
     return client;
   }
 
-  /** One page of a list; GitHub's `Link: rel="next"` says only whether there is another, it is never followed. */
+  /**
+   * One page of a list; GitHub's `Link: rel="next"` says only whether there is another, it is never followed. A next
+   * link off api.github.com is `github-unexpected`, never "the last page": a caller deciding that a row it no longer
+   * sees is closed must not decide it on a list GitHub said goes on (#481).
+   */
   private async page<T>(
     repo: RepoName,
     path: GitHubPath,
@@ -332,7 +336,10 @@ export class GitHubVcsAdapter implements VcsAdapter {
     map: (raw: unknown) => T | null,
   ): Promise<Page<T>> {
     return translated(async () => {
-      const read = await this.client(repo).paginateBounded(path, mappable(map), { maxPages: 1 });
+      const read = await this.client(repo).paginateBounded(path, mappable(map), {
+        maxPages: 1,
+        unfollowableNext: 'unexpected',
+      });
       return { items: read.items.map((raw) => mapped(raw, map)), nextPage: read.complete ? null : page + 1 };
     });
   }
