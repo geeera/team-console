@@ -1,3 +1,4 @@
+import type { RunnerCapabilitiesDto, RunnerIsolation } from '@shared/contracts';
 import type { Membership } from '@worker/db';
 import type { JobRole } from './job-roles';
 
@@ -30,7 +31,24 @@ export type Identity =
       readonly projectSlug: string;
       readonly jobId: string;
       readonly items: readonly number[];
-    };
+    }
+  /**
+   * An enrolled runner on `/api/v1/runner/*` (#467, ADR 0008 decision 2): its EdDSA JWT alone mints it
+   * (`runner-auth.ts`). Its scope is `allowedProjects` inside `accountId`, never the account itself.
+   */
+  | {
+      readonly kind: 'runner';
+      readonly runnerId: string;
+      readonly accountId: string;
+      readonly allowedProjects: readonly string[];
+      readonly isolation: RunnerIsolation;
+      readonly capabilities: RunnerCapabilitiesDto;
+    }
+  /**
+   * `POST /api/v1/runner/enrol` only: no identity yet — the one-time code in the body is the credential, judged by
+   * the route. Carries no ambient authority, so the CSRF rules for cookie-borne identities do not apply to it.
+   */
+  | { readonly kind: 'enrolment' };
 
 declare module 'hono' {
   interface ContextVariableMap {

@@ -144,7 +144,8 @@ export type InputCheck<T> =
 
 const MAX_LABELS = 50;
 
-class InputError extends Error {
+/** A refused member: the check that threw it becomes a 422 with `field` (shared with the other input checks of this lib). */
+export class InputError extends Error {
   constructor(
     readonly field: string,
     detail: string,
@@ -153,7 +154,7 @@ class InputError extends Error {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
@@ -187,7 +188,7 @@ const SERVER_MEMBERS: readonly string[] = [
   'idempotencyKey',
 ];
 
-function record(
+export function record(
   body: unknown,
   allowed: readonly string[],
   { nameServerMembers = false }: { readonly nameServerMembers?: boolean } = {},
@@ -232,7 +233,7 @@ function sprintTitle(value: unknown): string {
   return cleaned;
 }
 
-function text(field: string, value: unknown, max: number, min = 0): string {
+export function text(field: string, value: unknown, max: number, min = 0): string {
   if (typeof value !== 'string') {
     throw new InputError(field, `${field} must be a string`);
   }
@@ -243,7 +244,7 @@ function text(field: string, value: unknown, max: number, min = 0): string {
   return value;
 }
 
-function oneOf<T>(field: string, value: unknown, is: (value: unknown) => value is T): T {
+export function oneOf<T>(field: string, value: unknown, is: (value: unknown) => value is T): T {
   if (!is(value)) {
     throw new InputError(field, `${field} is not one of the allowed values`);
   }
@@ -284,7 +285,7 @@ function dueOn(value: unknown): string | null {
   return value;
 }
 
-function checked<T>(build: () => T): InputCheck<T> {
+export function checked<T>(build: () => T): InputCheck<T> {
   try {
     return { ok: true, value: build() };
   } catch (error: unknown) {

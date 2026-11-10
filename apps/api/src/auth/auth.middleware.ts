@@ -6,6 +6,15 @@ import { identityOf, verifyAccessJwt } from './access-jwt';
 import type { Identity } from './auth.types';
 import { isLocalBypass } from './local-bypass';
 import { bearerOf, parseLocalJobToken } from './local-job';
+import {
+  isEnrolRequest,
+  isRunnerPath,
+  recordSighting,
+  runnerIdentityOf,
+  runnerJwtOf,
+  runnerRefusal,
+  verifyRunnerJwt,
+} from './runner-auth';
 import { accessOwnerIdentityOf, sessionIdentityOf } from './session';
 
 const ACCESS_HEADER = 'Cf-Access-Jwt-Assertion';
@@ -31,6 +40,28 @@ export const authMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = async (c
     logger.info('access granted', { identity: identity.kind });
     await next();
   };
+
+  // The runner's door (#467): on `/api/v1/runner/*` the runner JWT is the only credential, whatever else the request
+  // carries — the local bypass, a session cookie and the Access header are not read there. Enrolment has no
+  // identity yet; the code in its body is judged by the route.
+  if (isRunnerPath(c.req.path)) {
+    if (isEnrolRequest(c.req.method, c.req.path)) {
+      await grant({ kind: 'enrolment' });
+      return;
+    }
+    const token = runnerJwtOf(c.req.header('Authorization'));
+    if (token === null) {
+      logger.warn('runner rejected', { reason: 'runner-jwt-missing' });
+      return problem(c, { type: 'runner-jwt-missing', title: 'Unauthorized', status: 401 });
+    }
+    const verification = await verifyRunnerJwt(c, token);
+    if (!verification.ok) {
+      return runnerRefusal(c, logger, verification);
+    }
+    await recordSighting(c, verification.runner, logger);
+    await grant(runnerIdentityOf(verification.runner));
+    return;
+  }
 
   const bearer = bearerOf(c.req.header('Authorization'));
   if (isLocalBypass(c.env)) {

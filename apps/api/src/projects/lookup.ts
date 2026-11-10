@@ -45,6 +45,12 @@ export async function scopedProjectsOf(
       const row = await findProject(c, scope.slug);
       return row === null ? [] : [row];
     }
+    case 'runner': {
+      // A runner lists its allowed projects of its own account (ADR 0008 decision 2); a slug of another account is
+      // not its, whatever `allowed_projects` says.
+      const rows = await repo.listActive([scope.accountId]);
+      return rows.filter((row) => scope.slugs.includes(row.slug));
+    }
     case 'none':
       return [];
   }

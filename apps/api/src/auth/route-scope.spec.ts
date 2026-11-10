@@ -1,9 +1,10 @@
 import { env } from 'cloudflare:test';
-import { isProblemDetails, problemSlugOf } from '@shared/contracts';
+import { OWNER_ACCOUNT_ID, isProblemDetails, problemSlugOf } from '@shared/contracts';
 import { createApiApp } from '../app';
 import { ApiGitHub } from '../github';
 import { fetchApi } from '../testing/access-kit';
 import { json, localEnv, stubGitHub } from '../testing/github-kit';
+import { enrolRunner, sendAsRunner } from '../testing/runner-kit';
 import { seedAccountProject, seedSessionUser, sendAsSession, type SessionUser } from '../testing/session-kit';
 import { jobActor, newKey, seedTrackerProject, send, sendAsService } from '../testing/tracker-kit';
 import { ROUTE_SCOPES, routeScopeOf, type ScopeRule, type ScopedRoute } from './route-scope';
@@ -235,7 +236,7 @@ describe('account scope on every route (threat model C9, RR12)', () => {
       '%s is unreachable for a job and answers the service identity 404',
       async (route) => {
         const [method = '', pattern = ''] = route.split(' ');
-        const path = pattern.replace(':id', other.account.id);
+        const path = pattern.replace(':id', other.account.id).replace(/:[a-z]+/g, '01M6YSNJ0000000000000RUNR1');
         const job = await send(method as 'GET', path, undefined, { job: jobActor('pm') });
         expect(job.status).toBe(403);
         const service = await sendAsService(method, path);
@@ -243,5 +244,66 @@ describe('account scope on every route (threat model C9, RR12)', () => {
         expect(await slugOf(service)).toBe('account-not-found');
       },
     );
+
+    it.each(ofRule('account').filter((route) => route.includes('/runners/:runner')))(
+      '%s answers another account’s runner as it answers one that does not exist',
+      async (route) => {
+        const [method = '', pattern = ''] = route.split(' ');
+        const theirs = await enrolRunner(OWNER_ACCOUNT_ID);
+        const body = method === 'GET' ? undefined : { allowedProjects: [] };
+        const foreign = await sendAsSession(other, method, pattern.replace(':id', other.account.id).replace(':runner', theirs.id), body);
+        const unknown = await sendAsSession(
+          other,
+          method,
+          pattern.replace(':id', other.account.id).replace(':runner', '01M6YSNJ0000000000000NOPE1'),
+          body,
+        );
+        expect(foreign.status).toBe(404);
+        expect([foreign.status, await slugOf(foreign)]).toEqual([unknown.status, await slugOf(unknown)]);
+      },
+    );
+  });
+
+  // The runner's door (#467): the JWT alone mints `runner`, and nothing else reaches a `runner` route — not the
+  // local owner, not a session, not a job, not the service identity (the auth seam answers 401 before the rule).
+  describe('runner routes', () => {
+    it.each(ofRule('runner'))('%s refuses every identity but a runner', async (route) => {
+      const { method, path } = concrete(route, '');
+      const body = method === 'GET' ? undefined : {};
+      for (const [response, slug] of [
+        [await send(method as 'GET', path, body), 'runner-jwt-missing'],
+        [await sendAsSession(other, method, path, body, {}, localEnv()), 'runner-jwt-missing'],
+        // The job stand-in is a bearer, read as a would-be runner JWT and refused as one.
+        [await send(method as 'GET', path, body, { job: jobActor('pm') }), 'runner-jwt-invalid'],
+        [await sendAsService(method, path, body), 'runner-jwt-missing'],
+      ] as const) {
+        expect(response.status).toBe(401);
+        expect(await slugOf(response)).toBe(slug);
+      }
+      const runner = await enrolRunner(OWNER_ACCOUNT_ID);
+      expect((await sendAsRunner(runner, method, path, body)).status).toBeLessThan(400);
+    });
+
+    it.each(ofRule('enrolment'))('%s is open to the enrolment identity only, judged by the code', async (route) => {
+      const { method, path } = concrete(route, '');
+      // A session cookie or the owner's bypass grants nothing here: the body's code decides (422 without one).
+      const asOwner = await send(method as 'GET', path, {});
+      expect(asOwner.status).toBe(422);
+      const asSession = await sendAsSession(other, method, path, {}, {}, localEnv());
+      expect(asSession.status).toBe(422);
+    });
+
+    it('never lets a runner reach a project, listing, own-user or account route with its JWT', async () => {
+      const runner = await enrolRunner(OWNER_ACCOUNT_ID);
+      for (const route of [...ofRule('project'), ...ofRule('projects'), ...ofRule('own-user'), ...ofRule('account')]) {
+        const [method = '', pattern = ''] = route.split(' ');
+        const path = pattern
+          .replace(':slug', 'zz-slug')
+          .replace(':id', OWNER_ACCOUNT_ID)
+          .replace(/:[a-z]+/g, '1');
+        const response = await sendAsRunner(runner, method, path, method === 'GET' ? undefined : {});
+        expect(response.status, route).toBe(401);
+      }
+    });
   });
 });

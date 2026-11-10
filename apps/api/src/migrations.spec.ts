@@ -39,6 +39,11 @@ describe('migrations on a fresh D1', () => {
       'pull_requests',
       'push_subscriptions',
       'push_test_sends',
+      'rate_limits',
+      'role_keys',
+      'runner_enrolments',
+      'runner_nonces',
+      'runners',
       'sessions',
       'slot_requests',
       'sprints',
@@ -70,6 +75,7 @@ describe('migrations on a fresh D1', () => {
       '0018_accounts.sql',
       '0019_event_scrub.sql',
       '0020_pull_requests.sql',
+      '0021_runners.sql',
     ]);
   });
 

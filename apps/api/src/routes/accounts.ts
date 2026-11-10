@@ -26,7 +26,7 @@ function accountNotFound(c: Context): Response {
  * owner-of-account only). A non-member gets the same 404 as an id that does not exist, so no account is enumerable;
  * a `member` knows the account exists and gets 403 `account-owner-only`.
  */
-async function ownedAccountOf(c: Context): Promise<AccountRecord | Response> {
+export async function ownedAccountOf(c: Context): Promise<AccountRecord | Response> {
   const id = c.req.param('id') ?? '';
   const role = isUlid(id) ? roleIn(c.get('identity'), c.env, id) : null;
   if (role === null) {

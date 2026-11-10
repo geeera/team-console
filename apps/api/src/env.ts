@@ -51,6 +51,13 @@ export interface ApiEnv extends WorkerBaseEnv {
    * instead of Apple, FCM or Mozilla; honoured only with ENVIRONMENT=local, passed only as `--var`.
    */
   readonly PUSH_FAKE_ORIGIN?: string;
+  /**
+   * Non-secret vars (#467, ADR 0008 decision 8): the runner release the console names on `GET /api/v1/runner/release`
+   * and the signed minimum below which a runner refuses to run; empty in the repository until 2-B publishes one.
+   * The runner verifies the release against the trust root pinned in its binary, never against these values.
+   */
+  readonly RUNNER_RELEASE_VERSION?: string;
+  readonly RUNNER_MINIMUM_VERSION?: string;
   // `ROUTINE_TOKEN_<SLUG>` secrets (one per project, #26) have names only known at run time; the registry (#15)
   // tests their presence by name and never reads a value into anything it returns.
   // `SLOT_TOKEN_<SLUG>_<SLOT>` (a routine's API-trigger bearer) and `SLOT_ROUTINE_<SLUG>_<SLOT>` (its `trig_…` id),

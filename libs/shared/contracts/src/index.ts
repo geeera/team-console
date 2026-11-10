@@ -71,6 +71,40 @@ export type {
   IdentityProvider,
   MemberRole,
 } from './lib/account';
+export {
+  ENROLMENT_CODE_TTL_SECONDS,
+  RUNNER_ALLOWED_PROJECTS_MAX,
+  RUNNER_ISOLATIONS,
+  RUNNER_JWT_MAX_AGE_SECONDS,
+  RUNNER_NAME_MAX_LENGTH,
+  RUNNER_ONLINE_WINDOW_SECONDS,
+  RUNNER_POLL_SECONDS,
+  RUNNER_SUSPECT_REASONS,
+  checkCreateEnrolmentCodeInput,
+  checkEnrolRunnerInput,
+  checkUpdateRunnerInput,
+  isEd25519PublicJwk,
+  isRunnerId,
+  isRunnerIsolation,
+  isRunnerVersion,
+  runnerAudienceOf,
+} from './lib/runner';
+export type {
+  CreateEnrolmentCodeInput,
+  Ed25519PublicJwk,
+  EnrolRunnerInput,
+  EnrolRunnerResponse,
+  EnrolmentCodeDto,
+  RunnerCapabilitiesDto,
+  RunnerDto,
+  RunnerHostDto,
+  RunnerIsolation,
+  RunnerListDto,
+  RunnerReleaseDto,
+  RunnerSuspectDto,
+  RunnerSuspectReason,
+  UpdateRunnerInput,
+} from './lib/runner';
 export { INSTALLATION_REPOSITORIES_URL } from './lib/installation-repositories';
 export type {
   GitHubAppNotInstalledProblem,

@@ -587,8 +587,23 @@ describe('route inventory (row 6)', () => {
     );
   });
 
-  it.each(apiRoutes)('%s %s answers 401 without a JWT', async (method, path) => {
+  // The runner's door (#467) is the one exception: there the runner JWT is the credential (401 `runner-jwt-missing`
+  // without it, whatever Access says), and enrolment has no identity at all — the code in the body is judged by the
+  // route, so an empty request is refused as input (422), never admitted.
+  const runnerRoutes = apiRoutes.filter(([, path]) => path.startsWith('/api/v1/runner/'));
+  const accessRoutes = apiRoutes.filter(([, path]) => !path.startsWith('/api/v1/runner/'));
+
+  it.each(accessRoutes)('%s %s answers 401 without a JWT', async (method, path) => {
     await expectProblem(await fetchApi(path, accessEnv(teamDomain), { method }), 'access-missing');
+  });
+
+  it.each(runnerRoutes)('%s %s never admits an Access-less request as anyone', async (method, path) => {
+    const response = await fetchApi(path, accessEnv(teamDomain), { method });
+    if (method === 'POST' && path === '/api/v1/runner/enrol') {
+      expect(response.status).toBe(422);
+    } else {
+      await expectProblem(response, 'runner-jwt-missing');
+    }
   });
 
   it.each(['/api', '/api/', '/api/v1', '/api/v1/', '/api/v1/nope', '/api/v2/x', '/api/v1/healthz/'])(

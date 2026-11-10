@@ -14,6 +14,8 @@ import { isLocalBypass } from './local-bypass';
 export type Scope =
   | { readonly kind: 'accounts'; readonly accountIds: readonly string[] }
   | { readonly kind: 'project'; readonly slug: string }
+  /** A runner: its `allowed_projects`, and only inside its own account (ADR 0008 decision 2, #467). */
+  | { readonly kind: 'runner'; readonly accountId: string; readonly slugs: readonly string[] }
   | { readonly kind: 'none' };
 
 /**
@@ -61,6 +63,10 @@ export function scopeOf(identity: Identity, env: Pick<ApiEnv, 'ENVIRONMENT' | 'A
       return { kind: 'accounts', accountIds: [OWNER_ACCOUNT_ID] };
     case 'job':
       return isLocalBypass(env) ? { kind: 'project', slug: identity.projectSlug } : { kind: 'none' };
+    case 'runner':
+      return { kind: 'runner', accountId: identity.accountId, slugs: identity.allowedProjects };
+    case 'enrolment':
+      return { kind: 'none' };
     default:
       // A kind the type does not know (forged past the seam in a test, or added later): nothing is in reach.
       return { kind: 'none' };
@@ -77,6 +83,8 @@ export function admits(
       return scope.accountIds.includes(project.account_id);
     case 'project':
       return scope.slug === project.slug;
+    case 'runner':
+      return scope.accountId === project.account_id && scope.slugs.includes(project.slug);
     case 'none':
       return false;
   }
@@ -84,7 +92,7 @@ export function admits(
 
 /** The audit `actor` of an identity: the user's id, or a stable name for the doors that have no user row yet. */
 export function auditActorOf(identity: Identity): {
-  readonly kind: 'user' | 'job' | 'system';
+  readonly kind: 'user' | 'job' | 'runner' | 'system';
   readonly actor: string;
 } {
   switch (identity.kind) {
@@ -94,6 +102,10 @@ export function auditActorOf(identity: Identity): {
       return { kind: 'user', actor: 'local-owner' };
     case 'job':
       return { kind: 'job', actor: identity.jobId };
+    case 'runner':
+      return { kind: 'runner', actor: identity.runnerId };
+    case 'enrolment':
+      return { kind: 'system', actor: 'enrolment' };
     case 'service':
       return { kind: 'system', actor: identity.commonName };
     default:

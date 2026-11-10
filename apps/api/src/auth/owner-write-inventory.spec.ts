@@ -40,9 +40,21 @@ type ServiceRule =
    * #444: a tracker write behind `trackerAccess` — the service is refused there (403 owner-only), the owner and the
    * jobs as their row of `TRACKER_MATRIX` says; every cell is proven in `tracker-matrix.spec.ts`.
    */
-  | 'tracker-matrix';
+  | 'tracker-matrix'
+  /**
+   * #467: the runner's own door. No identity of this seam reaches it — the one-time code (enrol) or the runner JWT
+   * is the credential, judged by `runner-auth.ts` and the route; the service identity, a session and the local
+   * owner get 401 `runner-jwt-missing` or, on enrol, the 422 of an empty body. Proven in `runner.spec.ts` and
+   * `route-scope.spec.ts`.
+   */
+  | 'runner-door';
 
 const RULES: Readonly<Record<string, ServiceRule>> = {
+  // #467: D1 only, owner-of-account (the service identity is no member: 404 `account-not-found`, account-runners.spec.ts).
+  'POST /api/v1/accounts/:id/runners/enrolment-code': 'no-owner-write',
+  'PATCH /api/v1/accounts/:id/runners/:runner': 'no-owner-write',
+  'POST /api/v1/accounts/:id/runners/:runner/revoke': 'no-owner-write',
+  'POST /api/v1/runner/enrol': 'runner-door',
   'POST /api/v1/projects/:slug/issues/:number/answer': 'fixture-gate',
   // #120: writes nothing (it reads the console's own record of an answer); the answer route's gate, shared code.
   'POST /api/v1/projects/:slug/issues/:number/answer/lookup': 'fixture-gate',
@@ -246,27 +258,56 @@ describe('owner-write inventory (#62)', () => {
   // #444, the job column. A job identity on a deployed config (here forged past the Access check, since nothing there
   // can mint one) maps to no policy actor: the tracker refuses it like the service, every other route never lets
   // it in.
-  it.each(routes)('%s answers 403 owner-only to a job identity on a deployed config', async (route) => {
-    const forgedApp = await appWithForgedIdentity({
-      kind: 'job',
-      role: 'pm',
-      projectSlug: 'x',
-      jobId: 'job-forged',
-      items: [1],
-    });
+  const forgedJob = {
+    kind: 'job',
+    role: 'pm',
+    projectSlug: 'x',
+    jobId: 'job-forged',
+    items: [1],
+  };
+  const seamRoutes = routes.filter((route) => RULES[route] !== 'runner-door');
+  const runnerDoor = routes.filter((route) => RULES[route] === 'runner-door');
+
+  it.each(seamRoutes)('%s answers 403 owner-only to a job identity on a deployed config', async (route) => {
+    const forgedApp = await appWithForgedIdentity(forgedJob);
     await expectOwnerOnly(await sendAsServiceToken(route, [], forgedApp));
+  });
+
+  // #467: the runner's door never reads the Access seam, so a forged Access identity is not even minted there; an
+  // empty enrol body is refused as input, never admitted as anyone.
+  it.each(runnerDoor)('%s never admits a forged identity of the Access seam', async (route) => {
+    const forgedApp = await appWithForgedIdentity(forgedJob);
+    const response = await sendAsServiceToken(route, [], forgedApp);
+    expect(response.status).toBe(422);
+    expect(await slugOf(response)).toBe('enrol-invalid');
   });
 });
 
 // #444: the local job stand-in reaches the tracker's matrix routes and nothing else — not the GitHub-backed reads,
 // the registry, the answer or connection routes, whatever its role.
 describe('the job column off the tracker (#444)', () => {
-  const offTracker = apiRoutes.filter((route) => !(route in TRACKER_MATRIX));
+  const isRunnerDoor = (route: string): boolean => route.includes(' /api/v1/runner/');
+  const offTracker = apiRoutes.filter((route) => !(route in TRACKER_MATRIX) && !isRunnerDoor(route));
+  const runnerDoor = apiRoutes.filter(isRunnerDoor);
 
   it('finds routes off the tracker (the check is not vacuous)', () => {
     expect(offTracker).toEqual(
       expect.arrayContaining(['GET /api/v1/projects', 'POST /api/v1/projects/:slug/issues/:number/answer']),
     );
+    expect(runnerDoor).toEqual(expect.arrayContaining(['POST /api/v1/runner/enrol', 'GET /api/v1/runner/release']));
+  });
+
+  // #467: on the runner's door the stand-in is a bearer that is no runner JWT (401), or an empty enrol body (422).
+  it.each(runnerDoor)('%s never admits the local job stand-in as a runner', async (route) => {
+    const [method = '', pattern = ''] = route.split(' ');
+    for (const [index, role] of JOB_ROLES.entries()) {
+      const response = await send(method as 'POST', pattern, method === 'GET' ? undefined : {}, {
+        job: jobActor(role),
+        // One address per role: the enrol limit per address judges one case, not the fourteen.
+        headers: { 'CF-Connecting-IP': `10.44.7.${String(index + 1)}` },
+      });
+      expect([401, 422], `${role} on ${route}`).toContain(response.status);
+    }
   });
 
   it.each(offTracker)('%s answers 403 owner-only to the local job stand-in of every role', async (route) => {

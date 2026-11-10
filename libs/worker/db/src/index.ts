@@ -92,6 +92,17 @@ export {
   auditEventStatement,
 } from './lib/accounts/audit.repo';
 export type { AuditEventRecord, AuditPage, NewAuditEvent } from './lib/accounts/audit.repo';
+export { RunnersRepo, TWO_POLLERS_WINDOW_MS } from './lib/runners/runners.repo';
+export type {
+  EnrolmentRecord,
+  NewEnrolment,
+  NewRunner,
+  RunnerRecord,
+  RunnerSighting,
+  SightingOutcome,
+} from './lib/runners/runners.repo';
+export { RateLimitsRepo, rateWindowOf } from './lib/runners/rate-limits.repo';
+export type { RateLimitOutcome } from './lib/runners/rate-limits.repo';
 export { IdempotencyKeysRepo } from './lib/tracker/idempotency-keys.repo';
 export type {
   IdempotencyClaim,

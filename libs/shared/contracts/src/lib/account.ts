@@ -60,6 +60,10 @@ export const AUDIT_EVENT_KINDS = [
   'runner.enrolled',
   'runner.revoked',
   'runner.policy-changed',
+  // 2-A (#467): the one-time code, allowed-projects changes and the detection rows of threat model C4.
+  'enrolment-code.created',
+  'runner.updated',
+  'runner.suspect',
   'inference-key.set',
   'inference-key.rotated',
   'inference-key.deleted',

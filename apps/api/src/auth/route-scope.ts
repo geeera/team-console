@@ -15,10 +15,21 @@ import { scopeOf } from './scope';
  * - `projects`: a listing over the scope's projects (`scopedProjectsOf`), never the environment's.
  * - `account`: `/api/v1/accounts/:id/*`, owner-of-account; a non-member gets 404 `account-not-found`.
  * - `own-user`: the user's own connection and devices; the owner's until T-4 binds them per user.
- * - `operator` / `runner`: `/admin/*` and `/runner/*` (T-5, 2-A); no identity satisfies them yet.
+ * - `runner`: `/runner/*` (#467): the `runner` identity alone, minted from its JWT by `runner-auth.ts`; what it
+ *   then reaches is its `allowed_projects` inside its account (the claim statement and `projects/lookup.ts`).
+ * - `enrolment`: `POST /runner/enrol` only — no identity yet, the one-time code in the body is the credential.
+ * - `operator`: `/admin/*` (T-5); no identity satisfies it yet.
  * - `public`: no scope (`/healthz`).
  */
-export type ScopeRule = 'project' | 'projects' | 'account' | 'own-user' | 'operator' | 'runner' | 'public';
+export type ScopeRule =
+  | 'project'
+  | 'projects'
+  | 'account'
+  | 'own-user'
+  | 'operator'
+  | 'runner'
+  | 'enrolment'
+  | 'public';
 
 const P = '/api/v1/projects/:slug';
 const PROJECT = 'project' satisfies ScopeRule;
@@ -96,6 +107,14 @@ export const ROUTE_SCOPES = {
   'GET /api/v1/accounts/:id/settings': 'account',
   'GET /api/v1/accounts/:id/members': 'account',
   'GET /api/v1/accounts/:id/audit': 'account',
+  // Runners of the account (#467, ADR 0008 row 2-A): owner-of-account; a runner id of another account is 404.
+  'POST /api/v1/accounts/:id/runners/enrolment-code': 'account',
+  'GET /api/v1/accounts/:id/runners': 'account',
+  'PATCH /api/v1/accounts/:id/runners/:runner': 'account',
+  'POST /api/v1/accounts/:id/runners/:runner/revoke': 'account',
+  // The runner's own door: the JWT alone (`runner-auth.ts`); enrolment by the one-time code.
+  'POST /api/v1/runner/enrol': 'enrolment',
+  'GET /api/v1/runner/release': 'runner',
 } as const satisfies Readonly<Record<string, ScopeRule>>;
 
 export type ScopedRoute = keyof typeof ROUTE_SCOPES;
@@ -157,8 +176,18 @@ export const routeScopeMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = as
         return refuse('no-account-scope');
       }
       break;
-    case 'operator':
     case 'runner':
+      // The auth seam mints `runner` on these paths or answers 401 itself; anything else here is a bug, refused.
+      if (identity.kind !== 'runner') {
+        return refuse('not-a-runner');
+      }
+      break;
+    case 'enrolment':
+      if (identity.kind !== 'enrolment') {
+        return refuse('not-an-enrolment');
+      }
+      break;
+    case 'operator':
       return refuse('rule-not-served');
   }
   await next();
