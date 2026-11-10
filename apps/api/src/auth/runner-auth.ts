@@ -110,6 +110,13 @@ export async function verifyRunnerJwt(
     // An unknown id and a bad signature are one answer: a runner id is not enumerable through this door.
     return { ok: false, refusal: 'runner-jwt-invalid' };
   }
+  // #489 review: `exp - iat ≤ 300` alone would admit a token minted with a future `iat` for as long as it says.
+  // `maxTokenAge` refuses an `iat` older than five minutes or in the future (beyond the tolerance), and the ceiling
+  // below refuses an `exp` further ahead than any honest token can carry, so a nonce row never outlives one window.
+  const nowSeconds = Math.floor(now.getTime() / 1000);
+  if (claims.exp > nowSeconds + RUNNER_JWT_MAX_AGE_SECONDS + CLOCK_TOLERANCE_SECONDS) {
+    return { ok: false, refusal: 'runner-jwt-invalid' };
+  }
   try {
     const key = await importJWK({ ...runner.publicKeyJwk }, 'EdDSA');
     await jwtVerify(token, key, {
@@ -118,6 +125,7 @@ export async function verifyRunnerJwt(
       subject: runner.id,
       clockTolerance: CLOCK_TOLERANCE_SECONDS,
       currentDate: now,
+      maxTokenAge: RUNNER_JWT_MAX_AGE_SECONDS,
       requiredClaims: ['sub', 'aud', 'iat', 'exp', 'jti'],
     });
   } catch (error: unknown) {

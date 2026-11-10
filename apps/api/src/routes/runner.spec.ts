@@ -237,6 +237,10 @@ describe('the runner JWT on /api/v1/runner/*', () => {
     ['no jti', { omit: ['jti'] as const }, 'runner-jwt-invalid'],
     ['no exp', { omit: ['exp'] as const }, 'runner-jwt-invalid'],
     ['an expired token', { issuedAt: Math.floor(Date.now() / 1000) - 600, lifetimeSeconds: 200 }, 'runner-jwt-expired'],
+    // #489 review: a future `iat` with `exp = iat + 300` would otherwise be a token good for as long as it says.
+    ['a future iat (an hour ahead)', { issuedAt: Math.floor(Date.now() / 1000) + 3600, lifetimeSeconds: 300 }, 'runner-jwt-invalid'],
+    ['a future iat just past the tolerance', { issuedAt: Math.floor(Date.now() / 1000) + 120, lifetimeSeconds: 300 }, 'runner-jwt-invalid'],
+    ['a stale iat (six minutes old, exp still ahead by the clock tolerance)', { issuedAt: Math.floor(Date.now() / 1000) - 360, lifetimeSeconds: 300 }, 'runner-jwt-expired'],
   ])('refuses %s', async (_, jwt, slug) => {
     const runner = await enrolRunner(OWNER_ACCOUNT_ID);
     const response = await sendAsRunner(runner, 'GET', RELEASE, undefined, { jwt });

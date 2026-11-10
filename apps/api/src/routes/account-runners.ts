@@ -16,6 +16,7 @@ import {
 import { ENROLMENT_CODE_PREFIX } from '@shared/redaction';
 import {
   problem,
+  randomOpaqueToken,
   sha256Hex,
   type ProblemExtensionValue,
   type WorkerContext,
@@ -50,12 +51,7 @@ function runnerNotFound(c: Context): Response {
 
 /** A 256-bit one-time code under the prefix the redactor knows, so it never survives in a log or an audit row. */
 function newEnrolmentCode(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  const base64url = btoa(String.fromCharCode(...bytes))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-  return `${ENROLMENT_CODE_PREFIX}${base64url}`;
+  return randomOpaqueToken(ENROLMENT_CODE_PREFIX);
 }
 
 /**

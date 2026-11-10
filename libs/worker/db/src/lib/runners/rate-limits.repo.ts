@@ -16,17 +16,23 @@ export class RateLimitsRepo {
    * or under `limit`. A single UPSERT, so concurrent hits are counted, not lost.
    */
   async hit(key: string, window: string, limit: number): Promise<RateLimitOutcome> {
-    const row = await this.db
-      .prepare(
-        `INSERT INTO rate_limits (key, window_start, count) VALUES (?1, ?2, 1)
-         ON CONFLICT (key) DO UPDATE SET
-           count = CASE WHEN window_start = excluded.window_start THEN count + 1 ELSE 1 END,
-           window_start = excluded.window_start
-         RETURNING count`,
-      )
-      .bind(key, window)
-      .first<{ count: number }>();
-    const count = row?.count ?? limit + 1;
+    const [, upsert] = await this.db.batch<{ count: number }>([
+      // Rows of past windows are swept on every hit (#489 review), as the nonce rows are: a flood of addresses leaves
+      // nothing behind once its window has passed. Windows are numeric bucket labels (`rateWindowOf`).
+      this.db
+        .prepare(`DELETE FROM rate_limits WHERE CAST(window_start AS INTEGER) < CAST(?1 AS INTEGER) - 1`)
+        .bind(window),
+      this.db
+        .prepare(
+          `INSERT INTO rate_limits (key, window_start, count) VALUES (?1, ?2, 1)
+           ON CONFLICT (key) DO UPDATE SET
+             count = CASE WHEN window_start = excluded.window_start THEN count + 1 ELSE 1 END,
+             window_start = excluded.window_start
+           RETURNING count`,
+        )
+        .bind(key, window),
+    ]);
+    const count = upsert?.results[0]?.count ?? limit + 1;
     return { allowed: count <= limit, count };
   }
 }

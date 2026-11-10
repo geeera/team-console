@@ -17,6 +17,7 @@ export {
 export type { MasterKey } from './lib/sealed';
 export { newUlid } from './lib/ulid';
 export { sha256Hex } from './lib/digest';
+export { randomOpaqueToken } from './lib/opaque-token';
 export { createWorkerApp, markAssetResponse } from './lib/app';
 export type {
   CreateWorkerAppOptions,
