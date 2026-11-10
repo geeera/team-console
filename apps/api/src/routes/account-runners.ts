@@ -1,0 +1,246 @@
+import { Hono } from 'hono';
+import {
+  ENROLMENT_CODE_TTL_SECONDS,
+  RUNNER_ONLINE_WINDOW_SECONDS,
+  checkCreateEnrolmentCodeInput,
+  checkUpdateRunnerInput,
+  isRunnerId,
+  runnerAudienceOf,
+  type EnrolmentCodeDto,
+  type RunnerDto,
+  type RunnerListDto,
+} from '@shared/contracts';
+import { ENROLMENT_CODE_PREFIX } from '@shared/redaction';
+import {
+  problem,
+  randomOpaqueToken,
+  sha256Hex,
+  type ProblemExtensionValue,
+  type WorkerContext,
+  type WorkerHonoEnv,
+} from '@worker/core';
+import { ProjectsRepo, RunnersRepo, type AccountRecord, type NewAuditEvent, type RunnerRecord } from '@worker/db';
+import { auditActorOf } from '../auth/scope';
+import type { ApiEnv } from '../env';
+import { jsonBody } from '../json-body';
+import { SMALL_WRITE_MAX_BYTES, writeLimit } from '../tracker/http';
+import { ownedAccountOf } from './accounts';
+
+type Context = WorkerContext<ApiEnv>;
+
+function invalid(c: Context, type: string, field: string, detail: string): Response {
+  const extensions: Record<string, ProblemExtensionValue> = { field };
+  return problem(c, { type, title: 'Invalid request', status: 422, detail, extensions });
+}
+
+function runnerNotFound(c: Context): Response {
+  return problem(c, { type: 'runner-not-found', title: 'Runner not found', status: 404 });
+}
+
+/** A 256-bit one-time code under the prefix the redactor knows, so it never survives in a log or an audit row. */
+function newEnrolmentCode(): string {
+  return randomOpaqueToken(ENROLMENT_CODE_PREFIX);
+}
+
+/**
+ * The slugs that are not active projects of the account (ADR 0008 security re-review: an `allowed_projects` write
+ * rejects another account's slugs — and an archived or unknown one — before anything is stored).
+ */
+async function foreignSlugsOf(c: Context, account: AccountRecord, slugs: readonly string[]): Promise<string[]> {
+  const own = new Set((await new ProjectsRepo(c.env.DB).listActive([account.id])).map((row) => row.slug));
+  return slugs.filter((slug) => !own.has(slug));
+}
+
+export function runnerDtoOf(runner: RunnerRecord, now: Date): RunnerDto {
+  const online =
+    runner.revokedAt === null &&
+    runner.lastSeenAt !== null &&
+    now.getTime() - Date.parse(runner.lastSeenAt) <= RUNNER_ONLINE_WINDOW_SECONDS * 1000;
+  return {
+    id: runner.id,
+    name: runner.name,
+    isolation: runner.isolation,
+    hosted: runner.hosted,
+    version: runner.version,
+    pinnedVersion: runner.pinnedVersion,
+    host: runner.host,
+    capabilities: runner.capabilities,
+    allowedProjects: runner.allowedProjects,
+    enrolledAt: runner.enrolledAt,
+    lastSeenAt: runner.lastSeenAt,
+    lastSeenCountry: runner.lastSeenCountry,
+    online,
+    suspect:
+      runner.suspectAt !== null && runner.suspectReason !== null
+        ? { at: runner.suspectAt, reason: runner.suspectReason }
+        : null,
+    revokedAt: runner.revokedAt,
+  };
+}
+
+function auditOf(
+  c: Context,
+  account: AccountRecord,
+  at: string,
+  kind: NewAuditEvent['kind'],
+  target: string,
+  details: Readonly<Record<string, unknown>>,
+): NewAuditEvent {
+  const actor = auditActorOf(c.get('identity'));
+  return {
+    accountId: account.id,
+    at,
+    actorKind: actor.kind,
+    actor: actor.actor,
+    kind,
+    target,
+    details,
+    ipCountry: c.req.header('CF-IPCountry') ?? null,
+  };
+}
+
+/**
+ * `POST /api/v1/accounts/:id/runners/enrolment-code`, `GET …/runners`, `PATCH …/runners/:runner`,
+ * `POST …/runners/:runner/revoke` (#467, ADR 0008 row 2-A): owner-of-account, as every account route. A runner of
+ * another account is 404 `runner-not-found`, the same as one that does not exist; an allowed-projects list names
+ * the account's own active projects only. Every change is an `audit_events` row in the change's batch.
+ */
+export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
+  return new Hono<WorkerHonoEnv<ApiEnv>>()
+    .post('/:id/runners/enrolment-code', writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
+      const account = await ownedAccountOf(c);
+      if (account instanceof Response) {
+        return account;
+      }
+      const input = checkCreateEnrolmentCodeInput(await jsonBody(c));
+      if (!input.ok) {
+        return invalid(c, 'enrolment-code-invalid-input', input.field, input.detail);
+      }
+      const foreign = await foreignSlugsOf(c, account, input.value.allowedProjects);
+      if (foreign.length > 0) {
+        return invalid(
+          c,
+          'allowed-projects-invalid',
+          'allowedProjects',
+          'allowedProjects must name active projects of this account',
+        );
+      }
+      const now = new Date();
+      const at = now.toISOString();
+      const expiresAt = new Date(now.getTime() + ENROLMENT_CODE_TTL_SECONDS * 1000).toISOString();
+      const code = newEnrolmentCode();
+      await new RunnersRepo(c.env.DB).createEnrolment(
+        {
+          codeHash: await sha256Hex(code),
+          accountId: account.id,
+          name: input.value.name,
+          allowedProjects: input.value.allowedProjects,
+          createdBy: auditActorOf(c.get('identity')).actor,
+          at,
+          expiresAt,
+        },
+        auditOf(c, account, at, 'enrolment-code.created', 'enrolment-code', {
+          name: input.value.name,
+          allowedProjects: input.value.allowedProjects,
+          expiresAt,
+        }),
+      );
+      c.get('logger').info('enrolment code created', { accountId: account.id });
+      const body: EnrolmentCodeDto = {
+        code,
+        expiresAt,
+        apiUrl: new URL(c.req.url).origin,
+        audience: runnerAudienceOf(c.env.ENVIRONMENT),
+        name: input.value.name,
+        allowedProjects: input.value.allowedProjects,
+      };
+      return c.json(body, 201);
+    })
+
+    .get('/:id/runners', async (c) => {
+      const account = await ownedAccountOf(c);
+      if (account instanceof Response) {
+        return account;
+      }
+      const now = new Date();
+      const body: RunnerListDto = {
+        runners: (await new RunnersRepo(c.env.DB).listForAccount(account.id)).map((runner) =>
+          runnerDtoOf(runner, now),
+        ),
+      };
+      return c.json(body);
+    })
+
+    .patch('/:id/runners/:runner', writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
+      const account = await ownedAccountOf(c);
+      if (account instanceof Response) {
+        return account;
+      }
+      const runnerId = c.req.param('runner');
+      const runners = new RunnersRepo(c.env.DB);
+      const runner = isRunnerId(runnerId) ? await runners.findInAccount(account.id, runnerId) : null;
+      if (runner === null) {
+        return runnerNotFound(c);
+      }
+      const input = checkUpdateRunnerInput(await jsonBody(c));
+      if (!input.ok) {
+        return invalid(c, 'runner-invalid', input.field, input.detail);
+      }
+      const foreign = await foreignSlugsOf(c, account, input.value.allowedProjects);
+      if (foreign.length > 0) {
+        return invalid(
+          c,
+          'allowed-projects-invalid',
+          'allowedProjects',
+          'allowedProjects must name active projects of this account',
+        );
+      }
+      const now = new Date();
+      await runners.setAllowedProjects(
+        account.id,
+        runner.id,
+        input.value.allowedProjects,
+        auditOf(c, account, now.toISOString(), 'runner.updated', runner.id, {
+          allowedProjects: input.value.allowedProjects,
+          before: runner.allowedProjects,
+        }),
+      );
+      const updated = await runners.findInAccount(account.id, runner.id);
+      return c.json(runnerDtoOf(updated ?? runner, now));
+    })
+
+    .post('/:id/runners/:runner/revoke', async (c) => {
+      const account = await ownedAccountOf(c);
+      if (account instanceof Response) {
+        return account;
+      }
+      const runnerId = c.req.param('runner');
+      const runners = new RunnersRepo(c.env.DB);
+      const runner = isRunnerId(runnerId) ? await runners.findInAccount(account.id, runnerId) : null;
+      if (runner === null) {
+        return runnerNotFound(c);
+      }
+      if (runner.revokedAt !== null) {
+        return problem(c, {
+          type: 'runner-revoked',
+          title: 'Conflict',
+          status: 409,
+          detail: 'The runner is already revoked',
+        });
+      }
+      const now = new Date();
+      const at = now.toISOString();
+      const revoked = await runners.revoke(
+        account.id,
+        runner.id,
+        at,
+        auditOf(c, account, at, 'runner.revoked', runner.id, { name: runner.name }),
+      );
+      if (!revoked) {
+        return problem(c, { type: 'runner-revoked', title: 'Conflict', status: 409 });
+      }
+      c.get('logger').info('runner revoked', { runnerId: runner.id });
+      const updated = await runners.findInAccount(account.id, runner.id);
+      return c.json(runnerDtoOf(updated ?? runner, now));
+    });
+}

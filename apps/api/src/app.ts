@@ -5,6 +5,8 @@ import { csrfMiddleware } from './auth/csrf.middleware';
 import { routeScopeMiddleware } from './auth/route-scope';
 import { jobScopeMiddleware } from './auth/tracker-access.middleware';
 import { createAccountRoutes } from './routes/accounts';
+import { createAccountRunnerRoutes } from './routes/account-runners';
+import { createRunnerRoutes } from './routes/runner';
 import type { ApiEnv } from './env';
 import { ApiGitHub, mapGitHubError } from './github';
 import { createAnswerRoutes } from './routes/answer';
@@ -135,6 +137,10 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/environment', createEnvironmentRoutes());
   // The account's own settings, members and audit (ADR 0008 decision 5, T-2): owner-of-account only.
   v1.route('/accounts', createAccountRoutes());
+  // Runners of the account (#467, ADR 0008 row 2-A): enrolment codes, list, allowed projects, revoke.
+  v1.route('/accounts', createAccountRunnerRoutes());
+  // The runner's own door: enrolment by the one-time code, then the runner JWT alone (`auth/runner-auth.ts`).
+  v1.route('/runner', createRunnerRoutes());
   app.route('/api/v1', v1);
 
   return app;

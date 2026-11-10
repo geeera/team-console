@@ -37,6 +37,8 @@
         "OWNER_GITHUB_LOGIN": "",
         "VAPID_PUBLIC_KEY": "",
         "VAPID_SUBJECT": "https://github.com/geeera/team-console",
+        "RUNNER_RELEASE_VERSION": "",
+        "RUNNER_MINIMUM_VERSION": "",
       },
       "d1_databases": [
         {
@@ -65,6 +67,8 @@
         "OWNER_GITHUB_LOGIN": "",
         "VAPID_PUBLIC_KEY": "",
         "VAPID_SUBJECT": "https://github.com/geeera/team-console",
+        "RUNNER_RELEASE_VERSION": "",
+        "RUNNER_MINIMUM_VERSION": "",
       },
       "d1_databases": [
         {
@@ -90,6 +94,8 @@
         "OWNER_GITHUB_LOGIN": "",
         "VAPID_PUBLIC_KEY": "",
         "VAPID_SUBJECT": "https://github.com/geeera/team-console",
+        "RUNNER_RELEASE_VERSION": "",
+        "RUNNER_MINIMUM_VERSION": "",
       },
       "d1_databases": [
         {

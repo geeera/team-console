@@ -57,6 +57,11 @@ function scopeOf(identity: Identity): string {
       return `service\n${identity.commonName}`;
     case 'job':
       return `job\n${identity.projectSlug}\n${identity.role}\n${identity.jobId}`;
+    case 'runner':
+      return `runner\n${identity.runnerId}`;
+    case 'enrolment':
+      // Never reaches a tracker write (the route scope refuses it); a key of its own keeps the switch exhaustive.
+      return 'enrolment';
   }
 }
 
