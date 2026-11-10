@@ -80,6 +80,7 @@ describe('ProjectsRepo', () => {
       snoozed_at: null,
       snoozed_until: null,
       snooze_allows_urgent: 1,
+      runner_policy: null,
     });
   });
 
@@ -425,6 +426,7 @@ const ROW: ProjectRow = {
   snoozed_at: null,
   snoozed_until: null,
   snooze_allows_urgent: 1,
+  runner_policy: null,
 };
 const NOW = Date.parse('2026-10-05T12:00:00Z');
 

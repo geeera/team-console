@@ -1,6 +1,6 @@
 import { isReservedSlug, isUlid, isValidSlug, type AccountPlan, type MemberRole } from '@shared/contracts';
 import { isConstraintError } from '../tracker/constraint-error';
-import { auditEventStatement } from './audit.repo';
+import { auditEventStatement, type NewAuditEvent } from './audit.repo';
 
 /** One `accounts` row (migration 0018). `entitlements` is the operator's parsed override; read it via `entitlementsOf`. */
 export interface AccountRecord {
@@ -11,6 +11,8 @@ export interface AccountRecord {
   readonly entitlements: unknown;
   readonly createdAt: string;
   readonly suspendedAt: string | null;
+  /** The account-wide placement policy JSON (ADR 0008 decision 12, #467); `null` means `any`. */
+  readonly defaultRunnerPolicy: string | null;
 }
 
 export interface Membership {
@@ -45,9 +47,10 @@ interface AccountRow {
   entitlements: string;
   created_at: string;
   suspended_at: string | null;
+  default_runner_policy: string | null;
 }
 
-const COLUMNS = 'id, slug, name, plan, entitlements, created_at, suspended_at';
+const COLUMNS = 'id, slug, name, plan, entitlements, created_at, suspended_at, default_runner_policy';
 
 function toRecord(row: AccountRow): AccountRecord {
   return {
@@ -59,12 +62,29 @@ function toRecord(row: AccountRow): AccountRecord {
     entitlements: JSON.parse(row.entitlements) as unknown,
     createdAt: row.created_at,
     suspendedAt: row.suspended_at,
+    defaultRunnerPolicy: row.default_runner_policy,
   };
 }
 
 /** Accounts and their memberships (ADR 0008 decisions 1 and 3). Every query is parameterised. */
 export class AccountsRepo {
   constructor(private readonly db: D1Database) {}
+
+  /** The account's default placement (ADR 0008 decision 12, #467), validated by the route, with its audit row. */
+  async setDefaultRunnerPolicy(accountId: string, policyJson: string | null, audit: NewAuditEvent): Promise<void> {
+    await this.db.batch([
+      this.db.prepare(`UPDATE accounts SET default_runner_policy = ?2 WHERE id = ?1`).bind(accountId, policyJson),
+      auditEventStatement(this.db, audit),
+    ]);
+  }
+
+  /** A project's own placement, with its audit row; the project was reached through the scoped lookup. */
+  async setProjectRunnerPolicy(slug: string, policyJson: string | null, audit: NewAuditEvent): Promise<void> {
+    await this.db.batch([
+      this.db.prepare(`UPDATE projects SET runner_policy = ?2 WHERE slug = ?1`).bind(slug, policyJson),
+      auditEventStatement(this.db, audit),
+    ]);
+  }
 
   async findById(id: string): Promise<AccountRecord | null> {
     const row = await this.db

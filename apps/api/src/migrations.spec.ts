@@ -29,6 +29,8 @@ describe('migrations on a fresh D1', () => {
       'item_labels',
       'item_requests',
       'items',
+      'job_events',
+      'jobs',
       'labels',
       'own_write_claims',
       'own_writes',
@@ -47,6 +49,7 @@ describe('migrations on a fresh D1', () => {
       'sessions',
       'slot_requests',
       'sprints',
+      'team_state',
       'user_connections',
       'users',
       'webhook_deliveries',
@@ -76,6 +79,7 @@ describe('migrations on a fresh D1', () => {
       '0019_event_scrub.sql',
       '0020_pull_requests.sql',
       '0021_runners.sql',
+      '0022_jobs.sql',
     ]);
   });
 
@@ -125,6 +129,7 @@ describe('migrations on a fresh D1', () => {
       'default_branch',
       'account_id',
       'repo_id',
+      'runner_policy',
     ]);
     expect(results.filter((column) => column.notnull === 1).map((column) => column.name)).toEqual([
       'repo',

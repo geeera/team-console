@@ -156,6 +156,47 @@ export async function runnerJwt(
   return jwt.sign(runner.privateKey);
 }
 
+/** A job's proxied call (R4): the job token as the bearer, the runner's JWT in `X-Runner-Jwt`. */
+export async function sendAsJob(
+  runner: Pick<TestRunner, 'id' | 'privateKey'>,
+  jobToken: string,
+  method: string,
+  path: string,
+  body?: unknown,
+  options: { jwt?: RunnerJwtOptions; headers?: Record<string, string>; bindings?: ApiEnv; logSink?: (line: string) => void } = {},
+): Promise<Response> {
+  const token = await runnerJwt(runner, options.jwt);
+  return fetchApi(path, options.bindings ?? localEnv(), {
+    method,
+    headers: {
+      Authorization: `Bearer ${jobToken}`,
+      'X-Runner-Jwt': token,
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json', 'Idempotency-Key': newKey() }),
+      ...options.headers,
+    },
+    ...(body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }),
+    ...(options.logSink === undefined ? {} : { logSink: options.logSink }),
+  });
+}
+
+/** Run now, enqueued by the owner through the API; the job's id. */
+export async function enqueueJob(slug: string, input: Record<string, unknown> = {}, as: SessionUser | 'local' = 'local'): Promise<string> {
+  const body = { kind: 'slot-dev', ...input };
+  const path = `/api/v1/projects/${slug}/jobs`;
+  const response =
+    as === 'local'
+      ? await fetchApi(path, localEnv(), {
+          method: 'POST',
+          headers: { 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+      : await sendAsSession(as, 'POST', path, body);
+  if (response.status !== 201) {
+    throw new Error(`enqueueing answered ${String(response.status)}: ${await response.text()}`);
+  }
+  return ((await response.json()) as { id: string }).id;
+}
+
 /** A call on the runner's door with its JWT, as the runner binary sends it. */
 export async function sendAsRunner(
   runner: Pick<TestRunner, 'id' | 'privateKey'>,

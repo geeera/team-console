@@ -102,6 +102,10 @@ export type {
   SightingOutcome,
 } from './lib/runners/runners.repo';
 export { RateLimitsRepo, rateWindowOf } from './lib/runners/rate-limits.repo';
+export { JobsRepo, effectivePolicyOf } from './lib/jobs/jobs.repo';
+export type { ClaimRequest, JobEventRecord, JobFilter, JobRecord, NewJob } from './lib/jobs/jobs.repo';
+export { FAILURE_STREAK_PAUSER, TeamStateRepo } from './lib/jobs/team-state.repo';
+export type { TeamStateRecord } from './lib/jobs/team-state.repo';
 export type { RateLimitOutcome } from './lib/runners/rate-limits.repo';
 export { IdempotencyKeysRepo } from './lib/tracker/idempotency-keys.repo';
 export type {

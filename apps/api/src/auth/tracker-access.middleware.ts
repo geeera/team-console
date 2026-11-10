@@ -39,7 +39,10 @@ export function trackerAccess(route: TrackerRoute): MiddlewareHandler<WorkerHono
   return async (c, next) => {
     const logger = c.get('logger');
     const identity = c.get('identity');
-    if (identity.kind === 'service' || (identity.kind === 'job' && !isLocalBypass(c.env))) {
+    if (
+      identity.kind === 'service' ||
+      (identity.kind === 'job' && identity.source !== 'token' && !isLocalBypass(c.env))
+    ) {
       return ownerOnly(c, identity.kind);
     }
     const project = await findProject(c, c.req.param('slug') ?? '');

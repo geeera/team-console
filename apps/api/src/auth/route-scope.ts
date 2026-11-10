@@ -112,9 +112,22 @@ export const ROUTE_SCOPES = {
   'GET /api/v1/accounts/:id/runners': 'account',
   'PATCH /api/v1/accounts/:id/runners/:runner': 'account',
   'POST /api/v1/accounts/:id/runners/:runner/revoke': 'account',
+  // #467 jobs: the queue behind the matrix (a job reads its own project's), placement per project and per account.
+  [`GET ${P}/jobs`]: PROJECT,
+  [`POST ${P}/jobs`]: PROJECT,
+  [`GET ${P}/jobs/:id`]: PROJECT,
+  [`GET ${P}/jobs/:id/events`]: PROJECT,
+  [`GET ${P}/runner-policy`]: PROJECT,
+  [`PUT ${P}/runner-policy`]: PROJECT,
+  'GET /api/v1/accounts/:id/runner-policy': 'account',
+  'PUT /api/v1/accounts/:id/runner-policy': 'account',
   // The runner's own door: the JWT alone (`runner-auth.ts`); enrolment by the one-time code.
   'POST /api/v1/runner/enrol': 'enrolment',
   'GET /api/v1/runner/release': 'runner',
+  'POST /api/v1/runner/jobs/claim': 'runner',
+  'POST /api/v1/runner/jobs/:id/heartbeat': 'runner',
+  'POST /api/v1/runner/jobs/:id/events': 'runner',
+  'POST /api/v1/runner/jobs/:id/finish': 'runner',
 } as const satisfies Readonly<Record<string, ScopeRule>>;
 
 export type ScopedRoute = keyof typeof ROUTE_SCOPES;

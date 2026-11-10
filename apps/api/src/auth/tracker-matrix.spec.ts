@@ -39,7 +39,7 @@ const ok = (status: number): Expected => ({ status });
 const refused = (slug: string, status = 403): Expected => ({ status, slug });
 
 interface Scenario {
-  readonly method: 'GET' | 'POST' | 'PATCH';
+  readonly method: 'GET' | 'POST' | 'PATCH' | 'PUT';
   readonly path: string;
   readonly body?: unknown;
   readonly ifMatch?: string;
@@ -77,7 +77,31 @@ const reads = (route: TrackerRoute, path: (project: SeededProject) => Promise<st
   expect: () => ok(200),
 });
 
+/** A queued job of the project (#467), through Run now as the owner. */
+async function job(project: SeededProject): Promise<string> {
+  const response = await send('POST', `${P}/${project.slug}/jobs`, { kind: 'chat' });
+  if (response.status !== 201) {
+    throw new Error(`seeding a job answered ${String(response.status)}`);
+  }
+  return ((await response.json()) as { id: string }).id;
+}
+
 const ROWS: readonly Row[] = [
+  // #467: the queue and its run log are read by every actor of the project; Run now and placement are the owner's.
+  reads(`GET ${P}/:slug/jobs`, async (project) => `${P}/${project.slug}/jobs`),
+  reads(`GET ${P}/:slug/jobs/:id`, async (project) => `${P}/${project.slug}/jobs/${await job(project)}`),
+  reads(`GET ${P}/:slug/jobs/:id/events`, async (project) => `${P}/${project.slug}/jobs/${await job(project)}/events`),
+  reads(`GET ${P}/:slug/runner-policy`, async (project) => `${P}/${project.slug}/runner-policy`),
+  {
+    route: `POST ${P}/:slug/jobs`,
+    setup: async (project) => ({ method: 'POST', path: `${P}/${project.slug}/jobs`, body: { kind: 'slot-dev' } }),
+    expect: (who) => (who === 'owner' ? ok(201) : refused('owner-only')),
+  },
+  {
+    route: `PUT ${P}/:slug/runner-policy`,
+    setup: async (project) => ({ method: 'PUT', path: `${P}/${project.slug}/runner-policy`, body: { mode: 'any' } }),
+    expect: (who) => (who === 'owner' ? ok(200) : refused('owner-only')),
+  },
   reads(`GET ${P}/:slug/items`, async (project) => `${P}/${project.slug}/items`),
   reads(`GET ${P}/:slug/items/:key`, async (project) => (await item(project)).path),
   reads(`GET ${P}/:slug/items/:key/events`, async (project) => `${(await item(project)).path}/events`),
@@ -270,7 +294,9 @@ describe('the route matrix covers the tracker', () => {
         .routes.filter(
           (route) =>
             route.method !== 'ALL' &&
-            /^\/api\/v1\/projects\/:slug\/(items|sprints|labels|prs|requests\/:id)\b/.test(route.path),
+            /^\/api\/v1\/projects\/:slug\/(items|sprints|labels|prs|requests\/:id|jobs|runner-policy)\b/.test(
+              route.path,
+            ),
         )
         .map((route) => `${route.method} ${route.path}`),
     ),
@@ -302,6 +328,9 @@ describe('the route matrix covers the tracker', () => {
 // here until each row is decided for it; the rows below list what a role is refused, everything else it reaches.
 const OWNER_ROWS: readonly TrackerRoute[] = [
   `POST ${P}/:slug/labels`,
+  // #467: Run now and placement are the owner's.
+  `POST ${P}/:slug/jobs`,
+  `PUT ${P}/:slug/runner-policy`,
   `POST ${P}/:slug/items/:key/decisions`,
   `POST ${P}/:slug/items/:key/requests`,
   `POST ${P}/:slug/items/:key/events/scrub`,

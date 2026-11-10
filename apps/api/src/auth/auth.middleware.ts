@@ -5,6 +5,7 @@ import { readAccessConfig } from './access-config';
 import { identityOf, verifyAccessJwt } from './access-jwt';
 import type { Identity } from './auth.types';
 import { isLocalBypass } from './local-bypass';
+import { jobIdentityOf } from './job-auth';
 import { bearerOf, parseLocalJobToken } from './local-job';
 import {
   isEnrolRequest,
@@ -64,6 +65,16 @@ export const authMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = async (c
   }
 
   const bearer = bearerOf(c.req.header('Authorization'));
+  // A job token (#467): judged the same way in every environment, the local bypass included, so a job script and
+  // the runner's proxy behave against `wrangler dev` as they do against a deployment.
+  if (bearer.kind === 'job-token') {
+    const job = await jobIdentityOf(c, bearer.token, logger);
+    if (job instanceof Response) {
+      return job;
+    }
+    await grant(job);
+    return;
+  }
   if (isLocalBypass(c.env)) {
     if (bearer.kind === 'none') {
       await grant({ kind: 'local' });

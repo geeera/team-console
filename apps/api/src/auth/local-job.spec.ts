@@ -14,6 +14,7 @@ describe('parseLocalJobToken', () => {
       projectSlug: 'acme-1',
       jobId: 'job-2026.11:a_b',
       items: [12, 3],
+      source: 'stand-in',
     });
   });
 

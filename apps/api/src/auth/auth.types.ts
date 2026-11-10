@@ -31,6 +31,12 @@ export type Identity =
       readonly projectSlug: string;
       readonly jobId: string;
       readonly items: readonly number[];
+      /**
+       * `token`: the opaque `tcj_` job token of a claimed job, presented with the claiming runner's JWT (#467,
+       * `job-auth.ts`) — valid in every environment. `stand-in`: the local `local-job.` token (#444), honoured under
+       * the local bypass alone; absent (a forged identity) reads as a stand-in and is refused off the bypass.
+       */
+      readonly source?: 'token' | 'stand-in';
     }
   /**
    * An enrolled runner on `/api/v1/runner/*` (#467, ADR 0008 decision 2): its EdDSA JWT alone mints it

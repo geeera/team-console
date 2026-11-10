@@ -82,6 +82,13 @@ export const TRACKER_MATRIX = {
   // #463: the VCS mirror; `?fresh=1` reads GitHub with the read-only installation token, writes only `pull_requests`.
   [`GET ${P}/prs`]: READ,
   [`GET ${P}/prs/:number`]: READ,
+  // #467: the queue and its run log; a job reads its own project's (R4), the owner enqueues (Run now).
+  [`GET ${P}/jobs`]: READ,
+  [`GET ${P}/jobs/:id`]: READ,
+  [`GET ${P}/jobs/:id/events`]: READ,
+  [`GET ${P}/runner-policy`]: READ,
+  [`POST ${P}/jobs`]: OWNER_ONLY('Run now is the owner’s'),
+  [`PUT ${P}/runner-policy`]: OWNER_ONLY('Placement is the owner’s'),
   // Any role reaches them; the transition table decides what it may change (R5) and refuses with its own 403s.
   [`POST ${P}/items`]: WRITE('Items are written within the transition table'),
   [`PATCH ${P}/items/:key`]: WRITE('Items are written within the transition table'),
