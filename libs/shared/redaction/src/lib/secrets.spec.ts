@@ -124,13 +124,25 @@ describe('findSecret', () => {
   });
 });
 
-describe('the JWT prefix guard (#474 re-review)', () => {
-  // The JWT pattern alone has a prefix guard: `eyJ` inside a base64url run is a continuation, not a header start.
-  it('does not read eyJ inside a base64url run as a JWT start, and still finds a delimited JWT', () => {
-    expect(findSecret(join('abc', jwt))).toBeNull();
-    expect(findSecret(join('token=', jwt))).toBe('jwt');
-    expect(findSecret(join('(', jwt, ')'))).toBe('jwt');
-    expect(redactSecrets(join('abc', jwt), 'loose')).toBe(join('abc', jwt));
+describe('JWTs are judged run by run (#474 re-review, #488 review)', () => {
+  // A JWT glued to a preceding character of its own alphabet is still a JWT: the shape is tested at every `eyJ` of
+  // the run, not only at the run's start, and the mask starts at the JWT.
+  it.each([
+    ['a percent-encoded quote', '%22'],
+    ['an escaped newline', '\\n'],
+    ['an underscore word', 'token_'],
+    ['letters', 'abc'],
+    ['a key and equals', 'token='],
+    ['a bracket', '('],
+  ])('finds and masks a JWT glued after %s', (_, before) => {
+    expect(findSecret(join(before, jwt, ')'))).toBe('jwt');
+    expect(redactSecrets(join(before, jwt, ')'), 'loose')).toBe(join(before, '[redacted:jwt]', ')'));
+    expect(redactSecrets(join(before, jwt, ')'))).toBe(join(before, '[redacted:jwt]', ')'));
+  });
+
+  it('masks every JWT of a text and leaves a run with fewer than two dots alone', () => {
+    expect(redactSecrets(join(jwt, ' ', jwt))).toBe('[redacted:jwt] [redacted:jwt]');
+    expect(redactSecrets(join('eyJ', 'abcdef.ghijkl'))).toBe(join('eyJ', 'abcdef.ghijkl'));
   });
 
   it('scans a 64 KB field of eyJ characters well inside the review’s budget', () => {

@@ -1,4 +1,3 @@
-import { redactSecrets } from '@shared/redaction';
 import { redact } from '@worker/core';
 import {
   AUDIT_DETAILS_MAX_BYTES,
@@ -71,14 +70,11 @@ const SECRET_KEY = /token|secret|password|passphrase|credential|cookie|session|c
 const MAX_DEPTH = 6;
 
 /**
- * `details` holds ids and enums (#474 security re-check): a string is masked by the one pattern list the API, the
- * logger and the runner share (`@shared/redaction`, strict here and loose again inside `redact`), because an
- * append-only row can never be scrubbed.
+ * `details` holds ids and enums (#474 security re-check): credential-like keys are masked here, every string value
+ * by `redact` below — the one pattern list in its loose mode, one pass (#488 review) — because an append-only row
+ * can never be scrubbed.
  */
 function withoutSecretKeys(value: unknown, depth: number): unknown {
-  if (typeof value === 'string') {
-    return redactSecrets(value);
-  }
   if (value === null || typeof value !== 'object' || depth >= MAX_DEPTH) {
     return value;
   }

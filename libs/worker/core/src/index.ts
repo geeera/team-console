@@ -15,6 +15,7 @@ export {
   timingSafeEqualText,
 } from './lib/sealed';
 export type { MasterKey } from './lib/sealed';
+export { randomOpaqueToken } from './lib/opaque-token';
 export { createWorkerApp, markAssetResponse } from './lib/app';
 export type {
   CreateWorkerAppOptions,
