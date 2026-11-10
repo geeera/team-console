@@ -102,7 +102,9 @@ export function trackerFailureOf(error: unknown): TrackerFailure {
   }
   const listed = problem.slug === null ? undefined : KINDS.get(problem.slug);
   if (listed !== undefined) {
-    return { kind: listed, field: null, retryAfter };
+    // `decision-command` is the one `gone` problem that names a field (`command`, #470 item 3): kept here so the
+    // screen can word it apart from `ask-not-open`/`ask-imported`/`item-closed`, which never do.
+    return { kind: listed, field, retryAfter };
   }
   if (problem.status === 412) {
     return { kind: 'conflict', field: null, retryAfter };

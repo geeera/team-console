@@ -134,8 +134,13 @@ describe('trackerFailureOf', () => {
   it('reads every tracker slug from the one table, before the status (#457)', () => {
     expect(trackerFailureOf(problem(409, 'item-version-required')).kind).toBe('conflict');
     expect(trackerFailureOf(problem(409, 'ask-imported')).kind).toBe('gone');
-    expect(trackerFailureOf(problem(409, 'decision-command')).kind).toBe('gone');
-    expect(trackerFailureOf(problem(409, 'item-closed')).kind).toBe('gone');
+    // decision-command is a 422 that names the `command` field (#470 item 3); kept so the screen can word it
+    // apart from the other `gone` problems, which never name one.
+    expect(trackerFailureOf(problem(422, 'decision-command', { field: 'command' }))).toMatchObject({
+      kind: 'gone',
+      field: 'command',
+    });
+    expect(trackerFailureOf(problem(409, 'item-closed'))).toMatchObject({ kind: 'gone', field: null });
     expect(trackerFailureOf(problem(404, 'project-not-found')).kind).toBe('not-found');
     expect(trackerFailureOf(problem(409, 'item-not-found')).kind).toBe('not-found');
     // An unlisted slug falls to its status; `Object.prototype` names are never slugs.

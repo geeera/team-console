@@ -52,6 +52,8 @@ describe('checkCreateItemInput', () => {
     [{ kind: 'bug' }, 'title'],
     [{ title: '​ ‎', kind: 'bug' }, 'title'],
     [{ title: 'x'.repeat(257), kind: 'bug' }, 'title'],
+    [{ title: '️', kind: 'bug' }, 'title'],
+    [{ title: '⠀⠀', kind: 'bug' }, 'title'],
     [{ title: 'T', kind: 'epic' }, 'kind'],
     [{ title: 'T', kind: 'bug', status: 'done' }, 'status'],
     [{ title: 'T', kind: 'bug', body: 'x'.repeat(65_537) }, 'body'],
@@ -65,6 +67,18 @@ describe('checkCreateItemInput', () => {
 
   it('counts the title in characters, not UTF-16 units', () => {
     expect(checkCreateItemInput({ title: '😀'.repeat(256), kind: 'bug' }).ok).toBe(true);
+  });
+
+  // #470 item 5, round 2: a variation selector or a ZWJ sequence attached to real content is kept, never stripped.
+  it('keeps a variation selector or a ZWJ sequence attached to real content', () => {
+    expect(checkCreateItemInput({ title: 'Favorites ❤️', kind: 'bug' })).toMatchObject({
+      ok: true,
+      value: { title: 'Favorites ❤️' },
+    });
+    expect(checkCreateItemInput({ title: '🏳️‍🌈', kind: 'bug' })).toMatchObject({
+      ok: true,
+      value: { title: '🏳️‍🌈' },
+    });
   });
 });
 
@@ -108,6 +122,8 @@ describe('sprint, comment and label inputs', () => {
     expect(checkCreateSprintInput({ title: 'x'.repeat(64) })).toMatchObject({ ok: true });
     expect(checkCreateSprintInput({ title: 'x'.repeat(65) })).toEqual(failure('title'));
     expect(checkCreateSprintInput({ title: '\u200b' })).toEqual(failure('title'));
+    expect(checkCreateSprintInput({ title: '\ufe0f' })).toEqual(failure('title'));
+    expect(checkCreateSprintInput({ title: '\u2800\u2800' })).toEqual(failure('title'));
     expect(checkCreateSprintInput({ title: ['Sprint 01'] })).toEqual(failure('title'));
     expect(checkUpdateSprintInput({ state: 'closed', dueOn: null })).toEqual({
       ok: true,

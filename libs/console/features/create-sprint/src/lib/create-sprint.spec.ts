@@ -216,6 +216,57 @@ describe('CreateSprintDialog (#457)', () => {
     expect(close).toHaveBeenCalled();
   });
 
+  it('rotates the key when the name changes after a drop, so the edit is a fresh request (#470 item 2)', async () => {
+    let attempt = 0;
+    const { type, submit, calls } = await render({}, () => {
+      attempt += 1;
+      return attempt === 1
+        ? { ok: false, failure: { kind: 'network', field: null, retryAfter: null } }
+        : {
+            ok: true,
+            replayed: false,
+            value: { ...SPRINT_2, number: 3, title: 'Checkout', dueOn: '2026-12-11' },
+          };
+    });
+    await submit();
+    await type('Checkout');
+    await submit();
+    expect(calls[0]).toEqual({
+      slug: 'team-console',
+      sprint: { dueOn: '2026-12-11', title: null },
+      key: 'key-1',
+    });
+    expect(calls[1]).toEqual({
+      slug: 'team-console',
+      sprint: { dueOn: '2026-12-11', title: 'Checkout' },
+      key: expect.stringMatching(/^[0-9a-f-]{36}$/),
+    });
+    expect(calls[1]?.key).not.toBe('key-1');
+  });
+
+  // Security review on #483: a plain "last body" field would mint a third key here, creating a second sprint A if
+  // the first A reached the server despite the dropped response. A body already sent reuses its own key instead.
+  it('reuses A’s own key on send A, B, A — never a third key for a body already sent', async () => {
+    let attempt = 0;
+    const { type, submit, calls } = await render({}, () => {
+      attempt += 1;
+      // A "drops" (the owner never sees the 201, but the server committed it) — B and the second A succeed.
+      return attempt === 1
+        ? { ok: false, failure: { kind: 'network', field: null, retryAfter: null } }
+        : { ok: true, replayed: false, value: { ...SPRINT_2, number: 3, title: 'Checkout', dueOn: '2026-12-11' } };
+    });
+    await submit(); // A, key-1, dropped
+    await type('Checkout'); // B
+    await submit(); // B, a fresh key
+    await type('Sprint 03'); // back to A (the suggested name, sent as no title)
+    await submit(); // A again
+    expect(calls.map((call) => ({ sprint: call.sprint, key: call.key }))).toEqual([
+      { sprint: { dueOn: '2026-12-11', title: null }, key: 'key-1' },
+      { sprint: { dueOn: '2026-12-11', title: 'Checkout' }, key: expect.stringMatching(/^[0-9a-f-]{36}$/) },
+      { sprint: { dueOn: '2026-12-11', title: null }, key: 'key-1' },
+    ]);
+  });
+
   it('shows a name the server refused at the name field', async () => {
     const { root, name, type, submit } = await render({}, () => ({
       ok: false,

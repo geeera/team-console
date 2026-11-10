@@ -3,11 +3,14 @@
   align-items: center;
   gap: var(--space-1);
   height: var(--chip-h);
-  padding: 0 var(--space-2);
+  /* `--chip-px`/`--chip-fs` are this instance's own, set by a caller that needs a tighter chip (the phone top bar's
+     environment mark at 390 px, #470 item 1) — a custom property crosses the component boundary CSS tag/class
+     selectors cannot, so no `::ng-deep` is needed. Unset, they fall back to the ordinary size. */
+  padding: 0 var(--chip-px, var(--space-2));
   border-radius: var(--r-pill);
   background: var(--bg-sunken);
   color: var(--text-2);
-  font-size: var(--fs-xs);
+  font-size: var(--chip-fs, var(--fs-xs));
   font-weight: var(--fw-semibold);
   line-height: var(--lh-none);
   white-space: nowrap;

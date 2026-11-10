@@ -28,6 +28,15 @@ const COPY: Readonly<Record<TrackerFailure['kind'], string>> = {
 };
 
 /**
+ * Which `item.err.*` copy a failure reads (#470 item 3): `decision-command` (the owner's command no longer fits
+ * the item — it closed, or its open ask moved on) names the `command` field, the one `gone` problem that does; it
+ * gets its own wording apart from `ask-not-open`, `ask-imported` and `item-closed`, which read the same otherwise.
+ */
+export function copyKeyOf(failure: TrackerFailure): string {
+  return failure.kind === 'gone' && failure.field === 'command' ? 'decisionGone' : COPY[failure.kind];
+}
+
+/**
  * A tracker write that failed (#409 §2.1), as a block at the top of the screen: `role="alert"`, clay for a failure,
  * ochre for "it changed". It takes focus on arrival — its primary action when it has one (Try again, Refresh the
  * task), else the block itself (`tabindex="-1"`). Try again repeats the same request with the same idempotency key.
@@ -75,7 +84,7 @@ export class TrackerFailureBlock {
   readonly retry = output<void>();
   readonly refresh = output<void>();
 
-  protected readonly copy = computed(() => COPY[this.failure().kind]);
+  protected readonly copy = computed(() => copyKeyOf(this.failure()));
   protected readonly canRetry = computed(() => isRetryable(this.failure()));
   protected readonly canRefresh = computed(() =>
     ['conflict', 'gone', 'not-found', 'invalid'].includes(this.failure().kind),

@@ -45,6 +45,33 @@ export function sprintNameOf(value: string): string {
   return value.replace(/\s+/gu, ' ').trim();
 }
 
+/** The body `createSprint` sends: what the server records, so a changed body after a failed send needs a new key. */
+export interface CreateSprintBody {
+  readonly dueOn: string;
+  readonly title: string | null;
+}
+
+/** `createSprint`'s idempotency key for one body, stable for the dialog's life. Over a plain "last body" field
+ * (round 1): A (drops, but the server committed it) → edit to B → back to A must replay A's own key, not mint a
+ * third one and create a second sprint A — security review on #483. `\u0000` cannot appear in a title, so this is
+ * injective over `{ dueOn, title }`. */
+export class SprintKeys {
+  private readonly byBody = new Map<string, string>();
+
+  constructor(private readonly firstKey: string) {}
+
+  keyFor(body: CreateSprintBody): string {
+    const id = `${body.dueOn}\u0000${body.title ?? ''}`;
+    const existing = this.byBody.get(id);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const key = this.byBody.size === 0 ? this.firstKey : crypto.randomUUID();
+    this.byBody.set(id, key);
+    return key;
+  }
+}
+
 /**
  * "New sprint" (#409 §2.3, #457): the name — prefilled with the next `Sprint NN`, editable — and the demo date,
  * checked as the owner types (an empty or taken name; a past date or one not after the latest demo), with the hint
@@ -151,6 +178,9 @@ export class CreateSprintDialog {
   protected readonly failure = signal<string | null>(null);
   /** A refusal of the name by the server (422 `field: title`): shown until the name changes. */
   private readonly refusedName = signal<string | null>(null);
+  /** One key per distinct body for the dialog's life (#470 item 2, round 2): a retry of the same body reuses its
+   * key, so the Worker replays instead of creating a second sprint, whichever body was sent most recently. */
+  private readonly keys = new SprintKeys(this.data.idempotencyKey);
 
   private readonly latest = [...this.data.sprints].sort((a, b) => b.number - a.number)[0] ?? null;
   private readonly takenNames = new Set(this.data.sprints.map((sprint) => sprint.title.toLocaleLowerCase()));
@@ -219,15 +249,13 @@ export class CreateSprintDialog {
       return;
     }
     const name = sprintNameOf(this.name());
+    const body: CreateSprintBody = { dueOn: this.dueOn(), title: name === this.data.suggestedName ? null : name };
+    const key = this.keys.keyFor(body);
     this.running.set(true);
     this.failure.set(null);
     // aria-disabled, not disabled: the focused button keeps focus while the write runs.
     this.ref.disableClose = true;
-    const result = await this.api.createSprint(
-      this.data.slug,
-      { dueOn: this.dueOn(), title: name === this.data.suggestedName ? null : name },
-      this.data.idempotencyKey,
-    );
+    const result = await this.api.createSprint(this.data.slug, body, key);
     this.running.set(false);
     this.ref.disableClose = false;
     if (!result.ok) {

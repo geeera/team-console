@@ -153,3 +153,14 @@
   align-items: center;
   gap: var(--space-1);
 }
+
+/* #470 item 1: at 390 px the project name next to the Local badge, search, Commands and settings showed as only
+   ~3 letters — the badge shrinks here so the name gets the room back. `--chip-px`/`--chip-fs` are `tc-chip`'s own
+   sizing hook (`chip.css`): a custom property cascades into the environment mark's chip with no `::ng-deep`, which
+   a tag or class selector cannot reach there (`tc-chip` is that component's own child, not this one's). */
+@media (max-width: 400px) {
+  .shell__actions tc-environment-mark {
+    --chip-px: var(--space-1);
+    --chip-fs: var(--fs-2xs);
+  }
+}

@@ -57,13 +57,16 @@
       tc-button
       size="sm"
       type="button"
+      class="space__commands-phone"
       data-testid="commands-open"
       aria-haspopup="dialog"
       [attr.aria-label]="'commands.openAria' | transloco: { name: commandsProject().name }"
       (click)="toggleCommands()"
     >
       <tc-icon name="sliders" size="sm" />
-      {{ 'commands.open' | transloco }}
+      <!-- At 390 px the top bar has no room for the label too (#470); the aria-label above still names the
+           button, so hiding this visually loses nothing for assistive tech. -->
+      <span class="space__commands-phone-label">{{ 'commands.open' | transloco }}</span>
     </button>
   </ng-template>
   }

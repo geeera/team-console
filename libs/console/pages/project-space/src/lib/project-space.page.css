@@ -78,3 +78,11 @@
 :host(.tc-space--phone) .space__body {
   padding: var(--space-3) var(--space-4) var(--space-6);
 }
+
+/* #470 item 1: the 390 px top bar (project name, the Local badge, search, Commands, settings) has no room for the
+   Commands label too — the icon alone, with the button's aria-label, stays reachable and named. */
+@media (max-width: 400px) {
+  .space__commands-phone-label {
+    display: none;
+  }
+}

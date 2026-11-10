@@ -316,5 +316,20 @@ describe('BatchApproveDialog', () => {
       expect(alert).toContain('Консоль не записала');
       expect(alert).not.toContain('GitHub');
     });
+
+    // #470 item 3: an earlier tap's decision is still being written (409 `idempotency-in-flight`) — the dialog's
+    // `console` copy (retry, no duplicate) is the right words for that too, so this pins it rather than a dedicated kind.
+    it('offers the same retry copy when an earlier tap is still in flight', async () => {
+      const { root, press } = await render(
+        [tracked(5, 51)],
+        () => ({ ok: true, results: [] }),
+        {},
+        () => ({ ok: false, failure: { kind: 'in-flight', field: null, retryAfter: 2 } }),
+      );
+      await press();
+      const alert = root.querySelector('[role="alert"]')?.textContent ?? '';
+      expect(alert).toContain('Консоль не записала');
+      expect(alert).toContain('Повторите');
+    });
   });
 });

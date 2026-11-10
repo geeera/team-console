@@ -2,7 +2,12 @@ import { booleanAttribute, ChangeDetectionStrategy, Component, input } from '@an
 
 export type ChipTone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger';
 
-/** A status pill: one short word, an optional dot. Colour never carries the meaning alone — the text does. */
+/**
+ * A status pill: one short word, an optional dot. Colour never carries the meaning alone — the text does. A caller
+ * with no room to spare (the phone top bar's environment mark at 390 px, #470 item 1) sets the `--chip-px`/`--chip-fs`
+ * custom properties on an ancestor instead of a size input — see `chip.css` — since they cross the component
+ * boundary a tag or class selector cannot, with no `::ng-deep`.
+ */
 @Component({
   selector: 'tc-chip',
   template: `

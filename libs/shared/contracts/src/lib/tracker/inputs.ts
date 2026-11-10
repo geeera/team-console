@@ -1,4 +1,4 @@
-import { withoutInvisibles } from '@shared/plain-text';
+import { looksBlank, withoutInvisibles } from '@shared/plain-text';
 import { isOwnerRequest, type OwnerRequest } from '../owner-request';
 import { isCalendarDate } from '../sprint-commands';
 import {
@@ -212,7 +212,9 @@ function title(value: unknown): string {
     throw new InputError('title', 'title must be a string');
   }
   const cleaned = withoutInvisibles(value).trim();
-  if (cleaned.length === 0 || codePoints(cleaned) > ITEM_TITLE_MAX_LENGTH) {
+  // A variation selector or the like carries meaning attached to a base character; alone, it still reads blank
+  // (#470 item 5, round 2) — caught here rather than by stripping it from real content in `withoutInvisibles`.
+  if (cleaned.length === 0 || looksBlank(cleaned) || codePoints(cleaned) > ITEM_TITLE_MAX_LENGTH) {
     throw new InputError('title', `title must be 1 to ${String(ITEM_TITLE_MAX_LENGTH)} characters`);
   }
   return cleaned;
@@ -224,7 +226,7 @@ function sprintTitle(value: unknown): string {
     throw new InputError('title', 'title must be a string');
   }
   const cleaned = withoutInvisibles(value).replace(/\s+/gu, ' ').trim();
-  if (cleaned.length === 0 || codePoints(cleaned) > SPRINT_TITLE_MAX_LENGTH) {
+  if (cleaned.length === 0 || looksBlank(cleaned) || codePoints(cleaned) > SPRINT_TITLE_MAX_LENGTH) {
     throw new InputError('title', `title must be 1 to ${String(SPRINT_TITLE_MAX_LENGTH)} characters`);
   }
   return cleaned;
