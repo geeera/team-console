@@ -7,6 +7,8 @@ import { jobScopeMiddleware } from './auth/tracker-access.middleware';
 import { createAccountRoutes } from './routes/accounts';
 import { createAccountRunnerRoutes } from './routes/account-runners';
 import { createRunnerRoutes } from './routes/runner';
+import { createRunnerJobRoutes } from './routes/runner-jobs';
+import { createJobRoutes } from './routes/jobs';
 import type { ApiEnv } from './env';
 import { ApiGitHub, mapGitHubError } from './github';
 import { createAnswerRoutes } from './routes/answer';
@@ -141,6 +143,9 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/accounts', createAccountRunnerRoutes());
   // The runner's own door: enrolment by the one-time code, then the runner JWT alone (`auth/runner-auth.ts`).
   v1.route('/runner', createRunnerRoutes());
+  // The queue (#467): the owner's Run now and the reads behind the matrix; the runner's claim, heartbeat, events, finish.
+  v1.route('/projects', createJobRoutes());
+  v1.route('/runner', createRunnerJobRoutes());
   app.route('/api/v1', v1);
 
   return app;

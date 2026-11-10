@@ -280,8 +280,9 @@ describe('account scope on every route (threat model C9, RR12)', () => {
         expect(response.status).toBe(401);
         expect(await slugOf(response)).toBe(slug);
       }
+      // A runner is admitted: whatever the route then says about the placeholder id, it is never the door's 401/403.
       const runner = await enrolRunner(OWNER_ACCOUNT_ID);
-      expect((await sendAsRunner(runner, method, path, body)).status).toBeLessThan(400);
+      expect([401, 403]).not.toContain((await sendAsRunner(runner, method, path, body)).status);
     });
 
     it.each(ofRule('enrolment'))('%s is open to the enrolment identity only, judged by the code', async (route) => {

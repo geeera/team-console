@@ -77,7 +77,7 @@ export interface TrackerRequest {
 
 /** A request as the owner's console sends it: same-origin, JSON, a fresh `Idempotency-Key` on writes. */
 export async function send(
-  method: 'GET' | 'POST' | 'PATCH',
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT',
   path: string,
   body?: unknown,
   options: TrackerRequest = {},

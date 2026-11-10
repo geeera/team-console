@@ -1,3 +1,4 @@
+import { JOB_TOKEN_PREFIX } from '@shared/redaction';
 import type { Identity } from './auth.types';
 import { isJobRole } from './job-roles';
 
@@ -28,7 +29,9 @@ export type BearerOf =
   | { readonly kind: 'none' }
   /** Some other `Authorization` value; the stand-in's checks never look inside it. */
   | { readonly kind: 'other' }
-  | { readonly kind: 'local-job'; readonly token: string };
+  | { readonly kind: 'local-job'; readonly token: string }
+  /** A `tcj_` job token of a claimed job (#467, `job-auth.ts`). */
+  | { readonly kind: 'job-token'; readonly token: string };
 
 /** What the `Authorization` header carries, without judging it. */
 export function bearerOf(header: string | undefined): BearerOf {
@@ -36,7 +39,10 @@ export function bearerOf(header: string | undefined): BearerOf {
     return { kind: 'none' };
   }
   const token = BEARER.exec(header.trim())?.[1];
-  return token?.startsWith(LOCAL_JOB_PREFIX) === true ? { kind: 'local-job', token } : { kind: 'other' };
+  if (token?.startsWith(LOCAL_JOB_PREFIX) === true) {
+    return { kind: 'local-job', token };
+  }
+  return token?.startsWith(JOB_TOKEN_PREFIX) === true ? { kind: 'job-token', token } : { kind: 'other' };
 }
 
 function decodeBase64url(text: string): string | null {
@@ -111,5 +117,5 @@ export function parseLocalJobToken(token: string): LocalJobIdentity | null {
   ) {
     return null;
   }
-  return { kind: 'job', role, projectSlug, jobId, items: [...new Set<number>(items)] };
+  return { kind: 'job', role, projectSlug, jobId, items: [...new Set<number>(items)], source: 'stand-in' };
 }

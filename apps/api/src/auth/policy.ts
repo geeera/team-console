@@ -248,7 +248,7 @@ export function policyActorOf(
   accountId: string,
 ): PolicyActor | null {
   if (identity.kind === 'job') {
-    if (!isLocalBypass(env)) {
+    if (identity.source !== 'token' && !isLocalBypass(env)) {
       return null;
     }
     const { role, projectSlug, jobId, items } = identity;

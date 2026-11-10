@@ -51,6 +51,7 @@ describe('AccountsRepo', () => {
       entitlements: {},
       createdAt: T0,
       suspendedAt: null,
+      defaultRunnerPolicy: null,
     });
     await expect(repo.roleOf(ACME, ALICE)).resolves.toBe('owner');
     await expect(repo.roleOf(ACME, BOB)).resolves.toBeNull();

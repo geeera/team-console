@@ -28,6 +28,8 @@ export interface ProjectRow {
   readonly snoozed_until: string | null;
   /** 1: urgent pushes still arrive while snoozed (the default); 0: they are muted too. */
   readonly snooze_allows_urgent: number;
+  /** The placement policy JSON of ADR 0008 decision 12 (#467); `null` falls back to the account default. */
+  readonly runner_policy: string | null;
 }
 
 /** `setSnooze`'s fields; `until` is ISO 8601 UTC, already validated by the route. */
@@ -69,7 +71,8 @@ export interface ProjectConflict {
 
 const COLUMNS =
   'slug, repo, account_id, repo_id, provider, tracker, key_prefix, next_item_number, cutover_at, display_name, ' +
-  'routine_id, cache_epoch, added_at, archived_at, installation_id, snoozed_at, snoozed_until, snooze_allows_urgent';
+  'routine_id, cache_epoch, added_at, archived_at, installation_id, snoozed_at, snoozed_until, snooze_allows_urgent, ' +
+  'runner_policy';
 
 /**
  * A repository as a webhook names it: by the provider's id when the row has one recorded (ADR 0008 decision 2), by

@@ -62,7 +62,10 @@ export function scopeOf(identity: Identity, env: Pick<ApiEnv, 'ENVIRONMENT' | 'A
       // The dev/stage CI token reads the team's own projects (#62); it is no member and maps to no policy actor.
       return { kind: 'accounts', accountIds: [OWNER_ACCOUNT_ID] };
     case 'job':
-      return isLocalBypass(env) ? { kind: 'project', slug: identity.projectSlug } : { kind: 'none' };
+      // A real job token (#467) holds in every environment; the stand-in only under the bypass (#444).
+      return identity.source === 'token' || isLocalBypass(env)
+        ? { kind: 'project', slug: identity.projectSlug }
+        : { kind: 'none' };
     case 'runner':
       return { kind: 'runner', accountId: identity.accountId, slugs: identity.allowedProjects };
     case 'enrolment':

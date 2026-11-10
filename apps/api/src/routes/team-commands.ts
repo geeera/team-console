@@ -11,6 +11,7 @@ import {
   type TeamCommandResponse,
   type TeamSlot,
   type TeamState,
+  type TeamStateDto,
   type TeamStatusDto,
 } from '@shared/contracts';
 import { problem, type ProblemInit, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
@@ -18,10 +19,14 @@ import {
   OwnWritesRepo,
   OwnerRequestsRepo,
   SlotRequestsRepo,
+  TeamStateRepo,
   snoozeOf,
+  type NewAuditEvent,
   type OwnWrite,
   type OwnWriteKind,
+  type ProjectRow,
 } from '@worker/db';
+import { auditActorOf } from '../auth/scope';
 import { GitHubError, githubPath, type FetchLike, type RepoName } from '@worker/github';
 import { InvalidRoutineConfigError, RoutinesClient, type FireOutcome } from '@worker/routines';
 import {
@@ -53,6 +58,47 @@ import { routinesFetch } from '../team/routines';
 import { missingSlotsOf, slotTriggerOf } from '../team/slot-secrets';
 
 type Context = WorkerContext<ApiEnv>;
+
+/**
+ * Pause and resume on the console's tracker (#467): `team_state` is the record the claim statement reads, so a paused
+ * project hands out no job until resumed; resuming also clears the failure streak. 409 when already in that state.
+ */
+async function consoleTeamCommand(c: Context, project: ProjectRow, kind: 'pause' | 'resume'): Promise<Response> {
+  const repo = new TeamStateRepo(c.env.DB);
+  const state = await repo.get(project.slug);
+  if (kind === 'pause' && state.pausedAt !== null) {
+    return problem(c, { type: 'team-already-paused', title: 'The team is already paused', status: 409 });
+  }
+  if (kind === 'resume' && state.pausedAt === null) {
+    return problem(c, { type: 'team-not-paused', title: 'The team is not paused', status: 409 });
+  }
+  const now = new Date().toISOString();
+  const actor = auditActorOf(c.get('identity'));
+  const audit: NewAuditEvent = {
+    accountId: project.account_id,
+    at: now,
+    actorKind: actor.kind,
+    actor: actor.actor,
+    kind: kind === 'pause' ? 'team.paused' : 'team.resumed',
+    target: project.slug,
+    details: { previousPausedBy: state.pausedBy, failedStreak: state.failedStreak },
+    ipCountry: c.req.header('CF-IPCountry') ?? null,
+  };
+  if (kind === 'pause') {
+    await repo.pause(project.slug, actor.actor, now, audit);
+  } else {
+    await repo.resume(project.slug, now, audit);
+  }
+  const after = await repo.get(project.slug);
+  const body: TeamStateDto = {
+    paused: after.pausedAt !== null,
+    pausedAt: after.pausedAt,
+    pausedBy: after.pausedBy,
+    failedStreak: after.failedStreak,
+  };
+  c.header('Cache-Control', 'no-store');
+  return c.json(body, 201);
+}
 
 /** A repeat of the same pause or resume within this window is answered from `own_writes`, not written again. */
 export const COMMAND_REPLAY_WINDOW_MS = 60_000;
@@ -263,6 +309,11 @@ export function createTeamCommandsRoutes(
     const ownerRefusal = projectOwnerRefusal(c, project);
     if (ownerRefusal !== null) {
       return ownerRefusal;
+    }
+    // #467 (ADR 0006 "Report"): a project on the console's tracker pauses in `team_state`, which the claim honours;
+    // the GitHub run log below is the GitHub-tracker path.
+    if (project.tracker === 'console') {
+      return consoleTeamCommand(c, project, kind);
     }
     const repo = repoOf(c, project);
     if (repo instanceof Response) {

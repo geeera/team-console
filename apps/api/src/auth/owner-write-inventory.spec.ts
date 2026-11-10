@@ -55,6 +55,14 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   'PATCH /api/v1/accounts/:id/runners/:runner': 'no-owner-write',
   'POST /api/v1/accounts/:id/runners/:runner/revoke': 'no-owner-write',
   'POST /api/v1/runner/enrol': 'runner-door',
+  'POST /api/v1/runner/jobs/claim': 'runner-door',
+  'POST /api/v1/runner/jobs/:id/heartbeat': 'runner-door',
+  'POST /api/v1/runner/jobs/:id/events': 'runner-door',
+  'POST /api/v1/runner/jobs/:id/finish': 'runner-door',
+  'PUT /api/v1/accounts/:id/runner-policy': 'no-owner-write',
+  // #467: Run now and placement, owner rows of the matrix (the service is refused there like on every tracker write).
+  'POST /api/v1/projects/:slug/jobs': 'tracker-matrix',
+  'PUT /api/v1/projects/:slug/runner-policy': 'tracker-matrix',
   'POST /api/v1/projects/:slug/issues/:number/answer': 'fixture-gate',
   // #120: writes nothing (it reads the console's own record of an answer); the answer route's gate, shared code.
   'POST /api/v1/projects/:slug/issues/:number/answer/lookup': 'fixture-gate',
@@ -278,8 +286,13 @@ describe('owner-write inventory (#62)', () => {
   it.each(runnerDoor)('%s never admits a forged identity of the Access seam', async (route) => {
     const forgedApp = await appWithForgedIdentity(forgedJob);
     const response = await sendAsServiceToken(route, [], forgedApp);
-    expect(response.status).toBe(422);
-    expect(await slugOf(response)).toBe('enrol-invalid');
+    if (route === 'POST /api/v1/runner/enrol') {
+      expect(response.status).toBe(422);
+      expect(await slugOf(response)).toBe('enrol-invalid');
+    } else {
+      expect(response.status).toBe(401);
+      expect(await slugOf(response)).toBe('runner-jwt-missing');
+    }
   });
 });
 

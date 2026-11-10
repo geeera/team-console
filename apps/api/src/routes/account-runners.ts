@@ -3,12 +3,15 @@ import {
   ENROLMENT_CODE_TTL_SECONDS,
   RUNNER_ONLINE_WINDOW_SECONDS,
   checkCreateEnrolmentCodeInput,
+  checkRunnerPolicy,
   checkUpdateRunnerInput,
   isRunnerId,
   runnerAudienceOf,
+  runnerIdsOfPolicy,
   type EnrolmentCodeDto,
   type RunnerDto,
   type RunnerListDto,
+  type RunnerPolicyDto,
 } from '@shared/contracts';
 import { ENROLMENT_CODE_PREFIX } from '@shared/redaction';
 import {
@@ -18,7 +21,16 @@ import {
   type WorkerContext,
   type WorkerHonoEnv,
 } from '@worker/core';
-import { ProjectsRepo, RunnersRepo, type AccountRecord, type NewAuditEvent, type RunnerRecord } from '@worker/db';
+import {
+  AccountsRepo,
+  JobsRepo,
+  ProjectsRepo,
+  RunnersRepo,
+  effectivePolicyOf,
+  type AccountRecord,
+  type NewAuditEvent,
+  type RunnerRecord,
+} from '@worker/db';
 import { auditActorOf } from '../auth/scope';
 import type { ApiEnv } from '../env';
 import { jsonBody } from '../json-body';
@@ -161,6 +173,46 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       return c.json(body, 201);
     })
 
+    // Placement (ADR 0008 decision 12): the account default a project without its own policy falls back to.
+    .get('/:id/runner-policy', async (c) => {
+      const account = await ownedAccountOf(c);
+      if (account instanceof Response) {
+        return account;
+      }
+      const body: RunnerPolicyDto = {
+        policy: account.defaultRunnerPolicy === null ? null : effectivePolicyOf(account.defaultRunnerPolicy, null),
+        effective: effectivePolicyOf(account.defaultRunnerPolicy, null),
+      };
+      return c.json(body);
+    })
+
+    .put('/:id/runner-policy', writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
+      const account = await ownedAccountOf(c);
+      if (account instanceof Response) {
+        return account;
+      }
+      const body = await jsonBody(c);
+      const policy = body === null ? null : checkRunnerPolicy(body);
+      if (policy !== null && !policy.ok) {
+        return invalid(c, 'runner-policy-invalid', policy.field, policy.detail);
+      }
+      const value = policy === null ? null : policy.value;
+      if (value !== null) {
+        const live = await new RunnersRepo(c.env.DB).liveIdsOf(account.id);
+        if (!runnerIdsOfPolicy(value).every((id) => live.includes(id))) {
+          return invalid(c, 'runner-policy-invalid', 'runner', 'The policy must name unrevoked runners of this account');
+        }
+      }
+      const json = value === null ? null : JSON.stringify(value);
+      await new AccountsRepo(c.env.DB).setDefaultRunnerPolicy(
+        account.id,
+        json,
+        auditOf(c, account, new Date().toISOString(), 'runner.policy-changed', account.id, { scope: 'account', policy: value }),
+      );
+      const dto: RunnerPolicyDto = { policy: value, effective: effectivePolicyOf(json, null) };
+      return c.json(dto);
+    })
+
     .get('/:id/runners', async (c) => {
       const account = await ownedAccountOf(c);
       if (account instanceof Response) {
@@ -234,11 +286,13 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       }
       const now = new Date();
       const at = now.toISOString();
+      // ADR 0006: revoking a runner cancels the jobs it holds, in the same batch (their tokens die with it).
       const revoked = await runners.revoke(
         account.id,
         runner.id,
         at,
         auditOf(c, account, at, 'runner.revoked', runner.id, { name: runner.name }),
+        new JobsRepo(c.env.DB).cancelForRunnerStatements(runner.id, at),
       );
       if (!revoked) {
         return problem(c, { type: 'runner-revoked', title: 'Conflict', status: 409 });
