@@ -311,11 +311,13 @@ export class RunnersRepo {
     id: string,
     allowedProjects: readonly string[],
     audit: NewAuditEvent,
+    alsoInBatch: readonly D1PreparedStatement[] = [],
   ): Promise<boolean> {
     const [update] = await this.db.batch<{ id: string }>([
       this.db
         .prepare(`UPDATE runners SET allowed_projects = ?3 WHERE id = ?1 AND account_id = ?2 RETURNING id`)
         .bind(id, accountId, JSON.stringify(allowedProjects)),
+      ...alsoInBatch,
       auditEventStatement(this.db, audit),
     ]);
     return (update?.results.length ?? 0) === 1;

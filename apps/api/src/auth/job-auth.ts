@@ -35,7 +35,9 @@ export async function jobIdentityOf(
   if (job === null) {
     return refuse('job-token-invalid', 401);
   }
-  if (job.runnerId !== verification.runner.id) {
+  // The runner's allow-list is judged again here (#490 review): a project removed from it after the claim closes
+  // the job's door at once, whatever the cancel batch managed.
+  if (job.runnerId !== verification.runner.id || !verification.runner.allowedProjects.includes(job.projectSlug)) {
     return refuse('job-runner-mismatch', 403);
   }
   if (

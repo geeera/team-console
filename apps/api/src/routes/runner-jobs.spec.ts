@@ -129,6 +129,21 @@ describe('POST /api/v1/runner/jobs/claim', () => {
     });
   });
 
+  it('skips a job of a suspended account and of an archived project (#490 review)', async () => {
+    const other = await seedSessionUser('owner');
+    const theirs = await seedAccountProject(other.account, { tracker: 'console' });
+    await enqueueJob(theirs.slug, {}, other);
+    const theirRunner = await enrolRunner(other.account.id, { as: other, allowedProjects: [theirs.slug] });
+    await env.DB.prepare(`UPDATE accounts SET suspended_at = '2026-11-10T00:00:00.000Z' WHERE id = ?1`).bind(other.account.id).run();
+    expect(await claim(theirRunner)).toBeNull();
+
+    const project = await seedTrackerProject();
+    const runner = await runnerFor([project.slug]);
+    await enqueueJob(project.slug);
+    await env.DB.prepare(`UPDATE projects SET archived_at = '2026-11-10T00:00:00.000Z' WHERE slug = ?1`).bind(project.slug).run();
+    expect(await claim(runner)).toBeNull();
+  });
+
   it('refuses a none-isolation runner on production', async () => {
     const project = await seedTrackerProject();
     const runner = await runnerFor([project.slug], { isolation: 'none' });
@@ -251,8 +266,79 @@ describe('the job token (R4) and the job’s life', () => {
     expect(await claim(runner)).toBeNull();
     const state = await env.DB.prepare(`SELECT paused_by, failed_streak FROM team_state WHERE project_slug = ?1`).bind(project.slug).first<{ paused_by: string; failed_streak: number }>();
     expect(state).toEqual({ paused_by: 'system:failure-streak', failed_streak: 3 });
+    const audit = await env.DB.prepare(`SELECT actor_kind, actor, details FROM audit_events WHERE kind = 'team.paused' AND target = ?1`)
+      .bind(project.slug)
+      .first<{ actor_kind: string; actor: string; details: string }>();
+    expect(audit).toMatchObject({ actor_kind: 'system', actor: 'failure-streak' });
+    expect(JSON.parse(audit?.details ?? '{}')).toMatchObject({ reason: 'failure-streak' });
     expect((await send('POST', `/api/v1/projects/${project.slug}/team/resume`, {})).status).toBe(201);
     expect((await claim(runner))?.job.projectSlug).toBe(project.slug);
+  });
+
+  it('refuses malformed events and finish bodies with 422, and a done job with 409 job-finished (#490 review)', async () => {
+    const project = await seedTrackerProject();
+    const runner = await runnerFor([project.slug]);
+    await enqueueJob(project.slug);
+    const { job } = (await claim(runner)) as ClaimResponse;
+    const base = `/api/v1/runner/jobs/${job.id}`;
+    const badEvents = await sendAsRunner(runner, 'POST', `${base}/events`, { events: [{ level: 'loud', kind: 'log', payload: {} }] });
+    expect(badEvents.status).toBe(422);
+    expect(await slugOf(badEvents)).toBe('job-events-invalid');
+    expect(((await badEvents.json()) as { field: string }).field).toBe('events[0].level');
+    const badFinish = await sendAsRunner(runner, 'POST', `${base}/finish`, { result: 'finished', summary: 1 });
+    expect(badFinish.status).toBe(422);
+    expect(await slugOf(badFinish)).toBe('job-finish-invalid');
+    expect((await sendAsRunner(runner, 'POST', `${base}/finish`, { result: 'finished', summary: 'ok' })).status).toBe(200);
+    for (const [path, body] of [
+      ['events', { events: [{ level: 'info', kind: 'log', payload: {} }] }],
+      ['finish', { result: 'failed', summary: 'again' }],
+    ] as const) {
+      const response = await sendAsRunner(runner, 'POST', `${base}/${path}`, body);
+      expect(response.status).toBe(409);
+      expect(await slugOf(response)).toBe('job-finished');
+    }
+  });
+
+  it('cancels the live job of a project the runner’s allow-list loses, and closes its door at once (#490 review)', async () => {
+    const kept = await seedTrackerProject();
+    const lost = await seedTrackerProject();
+    const runner = await runnerFor([kept.slug, lost.slug]);
+    await enqueueJob(lost.slug);
+    const { jobToken, job } = (await claim(runner)) as ClaimResponse;
+    const narrowed = await send('PATCH', `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/${runner.id}`, { allowedProjects: [kept.slug] });
+    expect(narrowed.status).toBe(200);
+    const after = (await (await send('GET', `/api/v1/projects/${lost.slug}/jobs/${job.id}`)).json()) as JobDto;
+    expect(after).toMatchObject({ state: 'cancelled', result: { reason: 'runner-allow-list' } });
+    expect((await sendAsJob(runner, jobToken, 'GET', `/api/v1/projects/${lost.slug}/items`)).status).toBe(401);
+    expect((await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${job.id}/heartbeat`, {})).status).toBe(404);
+  });
+
+  it('never extends a lease past started_at + maxMinutes (#490 review)', async () => {
+    const project = await seedTrackerProject();
+    const runner = await runnerFor([project.slug]);
+    await enqueueJob(project.slug, { maxMinutes: 2 });
+    const { job } = (await claim(runner)) as ClaimResponse;
+    const base = `/api/v1/runner/jobs/${job.id}`;
+    const beat = await sendAsRunner(runner, 'POST', `${base}/heartbeat`, {});
+    expect(beat.status).toBe(200);
+    const { leaseUntil } = (await beat.json()) as { leaseUntil: string };
+    expect(Date.parse(leaseUntil) - Date.parse(job.claimedAt ?? '')).toBeLessThanOrEqual(2 * 60 * 1000);
+    await env.DB.prepare(`UPDATE jobs SET started_at = '2026-01-01T00:00:00.000Z' WHERE id = ?1`).bind(job.id).run();
+    const late = await sendAsRunner(runner, 'POST', `${base}/heartbeat`, {});
+    expect(late.status).toBe(409);
+    expect(await slugOf(late)).toBe('job-lease-expired');
+  });
+
+  it('judges X-Runner-Jwt on a job call as the runner door does: a future iat is refused (#489 review)', async () => {
+    const project = await seedTrackerProject();
+    const runner = await runnerFor([project.slug]);
+    await enqueueJob(project.slug);
+    const { jobToken } = (await claim(runner)) as ClaimResponse;
+    const response = await sendAsJob(runner, jobToken, 'GET', `/api/v1/projects/${project.slug}/items`, undefined, {
+      jwt: { issuedAt: Math.floor(Date.now() / 1000) + 3600, lifetimeSeconds: 300 },
+    });
+    expect(response.status).toBe(401);
+    expect(await slugOf(response)).toBe('runner-jwt-invalid');
   });
 
   it('cancels a revoked runner’s live job and its token', async () => {

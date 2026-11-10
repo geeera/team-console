@@ -62,6 +62,8 @@ export class TeamStateRepo {
     projectSlug: string,
     outcome: 'finished' | 'failed',
     now: string,
+    /** The `team.paused` audit row written when this outcome pauses the project (#490 review). */
+    pauseAudit?: NewAuditEvent,
   ): Promise<{ readonly failedStreak: number; readonly paused: boolean }> {
     const row = await this.db
       .prepare(
@@ -77,9 +79,11 @@ export class TeamStateRepo {
       .bind(projectSlug, outcome === 'failed' ? 1 : 0, TEAM_FAILURE_STREAK_PAUSE, now, FAILURE_STREAK_PAUSER)
       .first<{ failed_streak: number; paused_by: string | null }>();
     const failedStreak = row?.failed_streak ?? 0;
-    return {
-      failedStreak,
-      paused: outcome === 'failed' && failedStreak === TEAM_FAILURE_STREAK_PAUSE && row?.paused_by === FAILURE_STREAK_PAUSER,
-    };
+    const paused =
+      outcome === 'failed' && failedStreak === TEAM_FAILURE_STREAK_PAUSE && row?.paused_by === FAILURE_STREAK_PAUSER;
+    if (paused && pauseAudit !== undefined) {
+      await auditEventStatement(this.db, pauseAudit).run();
+    }
+    return { failedStreak, paused };
   }
 }

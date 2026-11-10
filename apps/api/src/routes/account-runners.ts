@@ -248,6 +248,7 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         );
       }
       const now = new Date();
+      // Narrowing the list cancels the runner's live jobs in the projects it loses, in the same batch (#490 review).
       await runners.setAllowedProjects(
         account.id,
         runner.id,
@@ -256,6 +257,7 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
           allowedProjects: input.value.allowedProjects,
           before: runner.allowedProjects,
         }),
+        new JobsRepo(c.env.DB).cancelOutsideStatements(runner.id, input.value.allowedProjects, now.toISOString()),
       );
       const updated = await runners.findInAccount(account.id, runner.id);
       return c.json(runnerDtoOf(updated ?? runner, now));

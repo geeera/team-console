@@ -155,7 +155,11 @@ export function effectivePolicyOf(projectPolicy: string | null, accountPolicy: s
 }
 
 export class JobsRepo {
-  constructor(private readonly db: D1Database) {}
+  /** `eventsCap`: the per-job run-log cap; the default is the product's, a spec lowers it to reach the cap path. */
+  constructor(
+    private readonly db: D1Database,
+    private readonly eventsCap: number = JOB_EVENTS_MAX_PER_JOB,
+  ) {}
 
   /** `job-exists` when a live job holds the dedupe key (the 0022 partial unique index), nothing written then. */
   async enqueue(job: NewJob, audit: NewAuditEvent): Promise<'ok' | 'job-exists'> {
@@ -272,7 +276,7 @@ export class JobsRepo {
       .prepare(
         `UPDATE jobs SET state = 'claimed', runner_id = ?1, claimed_at = ?2, lease_until = ?3, token_hash = ?4,
            attempt = attempt + 1
-         WHERE id = (
+         WHERE state = 'queued' AND id = (
            SELECT j.id FROM jobs j
            JOIN projects p ON p.slug = j.project_slug
            JOIN accounts a ON a.id = j.account_id
@@ -336,7 +340,7 @@ export class JobsRepo {
          SELECT ?1, COALESCE((SELECT MAX(seq) FROM job_events WHERE job_id = ?1), 0) + 1, ?2, ?3, ?4, ?5
          WHERE (SELECT COUNT(*) FROM job_events WHERE job_id = ?1) < ?6`,
       )
-      .bind(jobId, at, event.level, event.kind, JSON.stringify(redactedPayload(event.payload)), JOB_EVENTS_MAX_PER_JOB);
+      .bind(jobId, at, event.level, event.kind, JSON.stringify(redactedPayload(event.payload)), this.eventsCap);
   }
 
   /**
@@ -384,13 +388,19 @@ export class JobsRepo {
     audit: NewAuditEvent,
   ): Promise<boolean> {
     const result = redactedPayload({ summary: outcome.summary, metrics: outcome.metrics, acted: outcome.acted });
-    const [update] = await this.db.batch<{ id: string }>([
-      this.db
-        .prepare(
-          `UPDATE jobs SET state = ?3, finished_at = ?4, result = ?5, token_hash = NULL, lease_until = NULL
-           WHERE id = ?1 AND runner_id = ?2 AND state IN ('claimed', 'running') RETURNING id`,
-        )
-        .bind(id, runnerId, outcome.result, now, JSON.stringify(result)),
+    // The guarded UPDATE first; the event and the audit row only once it took (#490 review): a lapsed lease or
+    // another runner's call writes nothing that reads as a finish.
+    const update = await this.db
+      .prepare(
+        `UPDATE jobs SET state = ?3, finished_at = ?4, result = ?5, token_hash = NULL, lease_until = NULL
+         WHERE id = ?1 AND runner_id = ?2 AND state IN ('claimed', 'running') AND lease_until >= ?4 RETURNING id`,
+      )
+      .bind(id, runnerId, outcome.result, now, JSON.stringify(result))
+      .first<{ id: string }>();
+    if (update === null) {
+      return false;
+    }
+    await this.db.batch([
       this.eventStatement(id, now, {
         level: outcome.result === 'failed' ? 'error' : 'info',
         kind: outcome.result,
@@ -398,7 +408,19 @@ export class JobsRepo {
       }),
       auditEventStatement(this.db, audit),
     ]);
-    return (update?.results.length ?? 0) === 1;
+    return true;
+  }
+
+  /** The statements that cancel this runner's live jobs outside `slugs`, for the allow-list write's batch (#490 review). */
+  cancelOutsideStatements(runnerId: string, slugs: readonly string[], now: string): D1PreparedStatement[] {
+    return [
+      this.db
+        .prepare(
+          `UPDATE jobs SET state = 'cancelled', finished_at = ?2, result = '{"reason":"runner-allow-list"}', token_hash = NULL, lease_until = NULL
+           WHERE runner_id = ?1 AND state IN ('claimed', 'running') AND project_slug NOT IN (SELECT value FROM json_each(?3))`,
+        )
+        .bind(runnerId, now, JSON.stringify(slugs)),
+    ];
   }
 
   /** The statements that cancel a runner's live jobs, for the revoke batch (ADR 0006: revoking cancels claimed jobs). */

@@ -10,7 +10,14 @@ import {
   type JobEventsResponse,
 } from '@shared/contracts';
 import { JOB_TOKEN_PREFIX } from '@shared/redaction';
-import { problem, sha256Hex, type ProblemExtensionValue, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
+import {
+  problem,
+  randomOpaqueToken,
+  sha256Hex,
+  type ProblemExtensionValue,
+  type WorkerContext,
+  type WorkerHonoEnv,
+} from '@worker/core';
 import { AuditRepo, JobsRepo, TeamStateRepo, type JobRecord, type NewAuditEvent } from '@worker/db';
 import type { Identity } from '../auth/auth.types';
 import type { ApiEnv } from '../env';
@@ -32,8 +39,7 @@ function runnerOf(c: Context): RunnerIdentity {
 
 /** A 256-bit opaque job token under the prefix the redactor knows (ADR 0006 decision 8, ADR 0008 decision 1). */
 function newJobToken(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return `${JOB_TOKEN_PREFIX}${btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
+  return randomOpaqueToken(JOB_TOKEN_PREFIX);
 }
 
 function invalid(c: Context, type: string, field: string, detail: string): Response {
@@ -45,7 +51,8 @@ function invalid(c: Context, type: string, field: string, detail: string): Respo
 async function heldJobOf(c: Context, runner: RunnerIdentity, now: string): Promise<JobRecord | Response> {
   const id = c.req.param('id') ?? '';
   const job = isUlid(id) ? await new JobsRepo(c.env.DB).findById(id) : null;
-  if (job === null || job.runnerId !== runner.runnerId) {
+  // The allow-list is judged again (#490 review): a project the runner lost since the claim is no longer its.
+  if (job === null || job.runnerId !== runner.runnerId || !runner.allowedProjects.includes(job.projectSlug)) {
     return problem(c, { type: 'job-not-found', title: 'Job not found', status: 404 });
   }
   if (job.state !== 'claimed' && job.state !== 'running') {
@@ -117,7 +124,14 @@ export function createRunnerJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       if (job instanceof Response) {
         return job;
       }
-      const leaseUntil = new Date(now.getTime() + JOB_LEASE_SECONDS * 1000).toISOString();
+      // The lease never runs past the job's wall-clock limit (#490 review): `maxMinutes` is a server-side cap, not
+      // only the runner's kill, counted from the start (or the claim, before any `started` event).
+      const since = Date.parse(job.startedAt ?? job.claimedAt ?? now.toISOString());
+      const deadline = since + job.maxMinutes * 60 * 1000;
+      if (deadline <= now.getTime()) {
+        return problem(c, { type: 'job-lease-expired', title: 'Conflict', status: 409, detail: 'The job is past its maxMinutes' });
+      }
+      const leaseUntil = new Date(Math.min(now.getTime() + JOB_LEASE_SECONDS * 1000, deadline)).toISOString();
       if (!(await new JobsRepo(c.env.DB).heartbeat(job.id, runner.runnerId, now.toISOString(), leaseUntil))) {
         return problem(c, { type: 'job-lease-expired', title: 'Conflict', status: 409 });
       }
@@ -166,7 +180,16 @@ export function createRunnerJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       if (!finished) {
         return problem(c, { type: 'job-lease-expired', title: 'Conflict', status: 409 });
       }
-      const streak = await new TeamStateRepo(c.env.DB).recordOutcome(job.projectSlug, input.value.result, now);
+      const streak = await new TeamStateRepo(c.env.DB).recordOutcome(job.projectSlug, input.value.result, now, {
+        accountId: job.accountId,
+        at: now,
+        actorKind: 'system',
+        actor: 'failure-streak',
+        kind: 'team.paused',
+        target: job.projectSlug,
+        details: { reason: 'failure-streak', jobId: job.id },
+        ipCountry: null,
+      });
       if (streak.paused) {
         c.get('logger').warn('team paused on the failure streak', { slug: job.projectSlug });
       }
