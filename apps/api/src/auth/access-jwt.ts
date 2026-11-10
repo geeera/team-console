@@ -94,7 +94,8 @@ export async function verifyAccessJwt(token: string, config: AccessConfig): Prom
 }
 
 export type IdentityDecision =
-  | { readonly ok: true; readonly identity: Identity }
+  /** `accessSubject`: the JWT `sub`, the key of the explicit Access↔GitHub link (ADR 0008 decision 3). */
+  | { readonly ok: true; readonly identity: Identity; readonly accessSubject: string | null }
   | { readonly ok: false; readonly reason: 'not-owner' | 'service-token-not-allowed' | 'no-subject' };
 
 function stringClaim(payload: JWTPayload, name: string): string | null {
@@ -109,14 +110,19 @@ function stringClaim(payload: JWTPayload, name: string): string | null {
 export function identityOf(payload: JWTPayload, config: AccessConfig): IdentityDecision {
   const email = stringClaim(payload, 'email');
   if (email !== null) {
+    // The memberships and the linked user row are the auth seam's to read (`accessOwnerIdentityOf`).
     return email.toLowerCase() === config.ownerEmail
-      ? { ok: true, identity: { kind: 'user', email } }
+      ? {
+          ok: true,
+          identity: { kind: 'user', door: 'access', userId: null, memberships: [] },
+          accessSubject: stringClaim(payload, 'sub'),
+        }
       : { ok: false, reason: 'not-owner' };
   }
   const commonName = stringClaim(payload, 'common_name');
   if (commonName !== null) {
     return config.serviceTokenId !== null && commonName === config.serviceTokenId
-      ? { ok: true, identity: { kind: 'service', commonName } }
+      ? { ok: true, identity: { kind: 'service', commonName }, accessSubject: null }
       : { ok: false, reason: 'service-token-not-allowed' };
   }
   return { ok: false, reason: 'no-subject' };

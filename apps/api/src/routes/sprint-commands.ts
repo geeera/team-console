@@ -16,7 +16,7 @@ import type { ApiEnv } from '../env';
 import type { ApiGitHub, GitHubConnection } from '../github';
 import { jsonBody } from '../json-body';
 import { ownerWriter } from '../owner/owner-writer';
-import { findProject, projectNotFound, repoOf } from '../projects/lookup';
+import { findProject, projectNotFound, projectOwnerRefusal, repoOf } from '../projects/lookup';
 import { repositoryClient } from '../projects/repository-checks';
 import { ProjectReads, freezeDaysOfFile, readAllMilestones } from '../read-models/project-reads';
 import {
@@ -189,6 +189,10 @@ export function createSprintCommandsRoutes(github: ApiGitHub): Hono<WorkerHonoEn
     const project = await findProject(c, c.req.param('slug') ?? '');
     if (project === null) {
       return projectNotFound(c);
+    }
+    const ownerRefusal = projectOwnerRefusal(c, project);
+    if (ownerRefusal !== null) {
+      return ownerRefusal;
     }
     const repo = repoOf(c, project);
     if (repo instanceof Response) {

@@ -1,4 +1,4 @@
-import { PullRequestsRepo, type ProjectRow } from '@worker/db';
+import { ProjectsRepo, PullRequestsRepo, type ProjectRow } from '@worker/db';
 import { readCacheKey, type RepoName } from '@worker/github';
 import { VcsError, type CiState, type PullRequest, type RepoRef, type VcsAdapter } from '@worker/vcs';
 import { GitHubVcsAdapter } from '@worker/vcs-github';
@@ -16,16 +16,44 @@ const OPEN_PAGES = 3;
 const RECHECK_MAX = 10;
 /** One sync per project and epoch per isolate at most this often; a webhook bump starts a new key. */
 const SYNC_TTL_SECONDS = 30;
-/** `GET …/prs/:number?fresh=1`: token 2 + the pull request 1 + its CI 1. */
-export const PULL_REQUEST_READ_BUDGET = 6;
+/** `GET …/prs/:number?fresh=1`: token 2 + the repository (its id checked) 1 + the pull request 1 + its CI 1. */
+export const PULL_REQUEST_READ_BUDGET = 7;
 
 export interface SyncOutcome {
   readonly complete: boolean;
 }
 
-function refOf(repo: RepoName): RepoRef {
-  // T-2 records `projects.repo_id`; until then the registered name is the reference, as in every other read.
-  return { provider: 'github', owner: repo.owner, name: repo.name, externalId: null };
+/** The registered repository **by id** (ADR 0008 decision 2): the adapter refuses a name that now points elsewhere. */
+function refOf(repo: RepoName, repoId: number): RepoRef {
+  return { provider: 'github', owner: repo.owner, name: repo.name, externalId: String(repoId) };
+}
+
+/**
+ * The project's repository id, recorded once from the provider when a row registered before 0018 has none (the T-2
+ * backfill); `null` when the provider's id could not be recorded (another project holds it), in which case nothing
+ * is synced — fail closed. Costs one read only on the backfill.
+ */
+export async function ensureRepoId(
+  github: ApiGitHub,
+  env: ApiEnv,
+  project: ProjectRow,
+  repo: RepoName,
+): Promise<number | null> {
+  if (project.repo_id !== null) {
+    return project.repo_id;
+  }
+  const adapter = await adapterFor(github, env, repo, PULL_REQUEST_READ_BUDGET);
+  const read = await adapter.repository({
+    provider: 'github',
+    owner: repo.owner,
+    name: repo.name,
+    externalId: null,
+  });
+  const repoId = Number(read.externalId);
+  if (!Number.isSafeInteger(repoId) || repoId <= 0) {
+    return null;
+  }
+  return (await new ProjectsRepo(env.DB).setRepoId(project.slug, repoId)) ? repoId : null;
 }
 
 /** Errors the sync absorbs (the rest of the rows still answer); anything else is a bug and propagates. */
@@ -54,6 +82,7 @@ export function syncPullRequests(
   env: ApiEnv,
   project: ProjectRow,
   repo: RepoName,
+  repoId: number,
   now: () => number,
 ): Promise<SyncOutcome> {
   const key = readCacheKey({
@@ -65,7 +94,10 @@ export function syncPullRequests(
   return github.readCache.getOrFill(key, SYNC_TTL_SECONDS, async () => {
     const adapter = await adapterFor(github, env, repo, PULL_REQUEST_SYNC_BUDGET);
     const rows = new PullRequestsRepo(env.DB);
-    const ref = refOf(repo);
+    const ref = refOf(repo, repoId);
+    // The lists and reads below go by name; one repository read per sync proves the name still carries the
+    // registered id (`vcs-repository-changed` otherwise), so a repository recreated under the name writes nothing.
+    await adapter.repository(ref);
     const syncedAt = (): string => new Date(now()).toISOString();
     let complete = true;
 
@@ -88,7 +120,7 @@ export function syncPullRequests(
       complete = false;
     }
     for (const pull of open) {
-      await rows.upsert(project.slug, pull, { repositoryId: null, syncedAt: syncedAt() });
+      await rows.upsert(project.slug, pull, { repositoryId: repoId, syncedAt: syncedAt() });
     }
 
     // Only when the open list is whole can "not listed" mean "no longer open".
@@ -103,7 +135,7 @@ export function syncPullRequests(
         try {
           const pull = await adapter.pullRequests.get(ref, number);
           if (pull !== null) {
-            await rows.upsert(project.slug, pull, { repositoryId: null, syncedAt: syncedAt() });
+            await rows.upsert(project.slug, pull, { repositoryId: repoId, syncedAt: syncedAt() });
           }
         } catch (error: unknown) {
           if (!isAbsorbed(error)) {
@@ -143,11 +175,13 @@ export async function syncPullRequest(
   env: ApiEnv,
   project: ProjectRow,
   repo: RepoName,
+  repoId: number,
   number: number,
   now: () => number,
 ): Promise<boolean> {
   const adapter = await adapterFor(github, env, repo, PULL_REQUEST_READ_BUDGET);
-  const ref = refOf(repo);
+  const ref = refOf(repo, repoId);
+  await adapter.repository(ref);
   const pull = await adapter.pullRequests.get(ref, number);
   if (pull === null) {
     return false;
@@ -162,7 +196,7 @@ export async function syncPullRequest(
     ci = undefined;
   }
   await new PullRequestsRepo(env.DB).upsert(project.slug, pull, {
-    repositoryId: null,
+    repositoryId: repoId,
     syncedAt: new Date(now()).toISOString(),
     ...(ci === undefined ? {} : { ci }),
   });

@@ -13,7 +13,7 @@ import { planItemUpdate, type ItemUpdatePlan } from '../tracker/item-change';
 import type { Identity } from './auth.types';
 import { EDITING_ROLES, REVIEWER_ROLES, STATUS_ONLY_ROLES, type JobRole } from './job-roles';
 import { isLocalBypass } from './local-bypass';
-import { isOwnerIdentity } from './owner-only.middleware';
+import { roleIn } from './scope';
 
 /**
  * Who may change what on a tracker item: the transition table of ADR 0006 "API and authorisation" (threat model
@@ -23,7 +23,13 @@ import { isOwnerIdentity } from './owner-only.middleware';
  */
 
 export type PolicyActor =
+  /** An `owner` member of the project's account (ADR 0008 decision 3), or the environment's owner. */
   | { readonly kind: 'owner' }
+  /**
+   * A `member` of the project's account (#466): reads, `comment`s, `proposed` items and requests — never decisions,
+   * asks' answers, approvals, sprints, labels or settings. `userId` is how a write would be recorded.
+   */
+  | { readonly kind: 'member'; readonly userId: string }
   /**
    * A job of one role in one project. `items`: the item numbers its payload names, the items it "holds"; `jobId`:
    * the job the token belongs to. All from the identity, never from a body.
@@ -75,7 +81,8 @@ export type TransitionRefusal = {
     | 'remove-guard-flag'
     | 'role-cannot-edit'
     | 'item-not-held'
-    | 'verdict-flag';
+    | 'verdict-flag'
+    | 'member-proposes-only';
 };
 
 /** Flags only the owner sets or clears; outside Phase 1a′'s decision effects, never a job. */
@@ -189,6 +196,11 @@ export function holdsItem(actor: PolicyActor, number: number | null): boolean {
   return actor.kind === 'job' && number !== null && actor.items.includes(number);
 }
 
+/** A member proposes: a new item, which the owner-only part keeps at `proposed`; never an edit of an existing one. */
+function memberRefusal(transition: ItemTransition): TransitionRefusal | null {
+  return transition.before === null ? null : { type: 'transition-role', reason: 'member-proposes-only' };
+}
+
 /**
  * Why `actor` may not make `transition` on item `itemNumber` (`null` for a new item), or `null` when it may. The
  * owner may make every change.
@@ -201,40 +213,58 @@ export function transitionRefusal(
   if (actor.kind === 'owner') {
     return null;
   }
-  return ownerOnlyRefusal(transition) ?? roleRefusal(actor.role, holdsItem(actor, itemNumber), transition);
+  const ownerOnly = ownerOnlyRefusal(transition);
+  if (ownerOnly !== null) {
+    return ownerOnly;
+  }
+  return actor.kind === 'member'
+    ? memberRefusal(transition)
+    : roleRefusal(actor.role, holdsItem(actor, itemNumber), transition);
 }
 
 export type CommentKindRefusal = { readonly type: 'comment-kind'; readonly reason: CommentKind };
 
 /**
- * Which comment kinds an actor writes (ADR 0006 matrix): the owner `comment`s only — their decisions are
- * `owner_decisions` rows; a job any kind, but a team `decision` not as `dev-light`.
+ * Which comment kinds an actor writes (ADR 0006 matrix): the owner and a member `comment` only — the owner's
+ * decisions are `owner_decisions` rows; a job any kind, but a team `decision` not as `dev-light`.
  */
 export function commentKindRefusal(actor: PolicyActor, kind: CommentKind): CommentKindRefusal | null {
   const isAllowed =
-    actor.kind === 'owner' ? kind === 'comment' : kind !== 'decision' || actor.role !== 'dev-light';
+    actor.kind === 'job' ? kind !== 'decision' || actor.role !== 'dev-light' : kind === 'comment';
   return isAllowed ? null : { type: 'comment-kind', reason: kind };
 }
 
 /**
- * The policy actor of an identity: the owner for the allowlist `ownerOnlyMiddleware` passes (the owner's Access
- * login, or the local bypass with `ENVIRONMENT=local` + `AUTH_MODE=local`); a job for the `job` identity, and only
+ * The policy actor of an identity **in the account of the project it addresses** (ADR 0008 "Identity, routes and
+ * the matrix"): `owner` for an `owner` member of that account (the Access owner and the local bypass own the
+ * `owner` account by construction, `scope.ts`), `member` for a `member`; a job for the `job` identity, and only
  * while the local bypass holds (#444) — its only minter today is the local stand-in, so a `job` that reached a
- * deployed Worker some other way still maps to nothing. `null` for every other kind (the service identity, any
- * kind added later), so nothing acts on the tracker until it is mapped here on purpose.
+ * deployed Worker some other way still maps to nothing. `null` for every other case (the service identity, a user
+ * outside the account, any kind added later), so nothing acts on the tracker until it is mapped here on purpose.
  */
 export function policyActorOf(
   identity: Identity,
   env: Pick<ApiEnv, 'ENVIRONMENT' | 'AUTH_MODE'>,
+  accountId: string,
 ): PolicyActor | null {
-  if (isOwnerIdentity(identity, env)) {
-    return { kind: 'owner' };
-  }
-  if (identity.kind === 'job' && isLocalBypass(env)) {
+  if (identity.kind === 'job') {
+    if (!isLocalBypass(env)) {
+      return null;
+    }
     const { role, projectSlug, jobId, items } = identity;
     return { kind: 'job', role, projectSlug, jobId, items };
   }
-  return null;
+  switch (roleIn(identity, env, accountId)) {
+    case 'owner':
+      return { kind: 'owner' };
+    case 'member':
+      // A member is always a session user with a row; the Access owner is never a `member` of anything by construction.
+      return identity.kind === 'user' && identity.userId !== null
+        ? { kind: 'member', userId: identity.userId }
+        : null;
+    case null:
+      return null;
+  }
 }
 
 /**

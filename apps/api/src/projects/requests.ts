@@ -1,5 +1,6 @@
 import {
   isReservedSlug,
+  isUlid,
   isValidSlug,
   slugFromRepoName,
   type AddProjectStep,
@@ -19,6 +20,8 @@ export interface AddProject {
   readonly repo: RepoName;
   readonly slug: string;
   readonly displayName: string;
+  /** Which of the caller's own accounts (#466); absent when the caller owns exactly one. */
+  readonly accountId?: string;
 }
 
 export interface UpdateProject {
@@ -70,9 +73,16 @@ export function parseAddProject(body: unknown): AddProject | RequestRefusal {
   if (!isRecord(body)) {
     return refuse('repo-format', 'The body must be a JSON object with repo: "owner/name"');
   }
-  const unknown = Object.keys(body).filter((key) => !['repo', 'displayName', 'slug'].includes(key));
+  const unknown = Object.keys(body).filter(
+    (key) => !['repo', 'displayName', 'slug', 'accountId'].includes(key),
+  );
   if (unknown.length > 0) {
-    return refuse('repo-format', 'Only repo, displayName and slug may be sent');
+    return refuse('repo-format', 'Only repo, displayName, slug and accountId may be sent');
+  }
+  // Which of the caller's own accounts (the route checks the membership); never an account by itself.
+  const accountId = body['accountId'];
+  if (accountId !== undefined && !isUlid(accountId)) {
+    return refuse('repo-format', 'accountId must be an account id');
   }
   const rawRepo = body['repo'];
   let repo: RepoName;
@@ -104,7 +114,7 @@ export function parseAddProject(body: unknown): AddProject | RequestRefusal {
   if (isRefusal(displayName)) {
     return displayName;
   }
-  return { repo, slug, displayName };
+  return { repo, slug, displayName, ...(accountId === undefined ? {} : { accountId }) };
 }
 
 /** `{ displayName?, routineId? }` with at least one of them. */

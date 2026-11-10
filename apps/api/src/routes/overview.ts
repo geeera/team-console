@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
 import type { OverviewDto, OverviewProjectDto } from '@shared/contracts';
 import type { Logger, WorkerContext, WorkerHonoEnv } from '@worker/core';
-import { ProjectsRepo, snoozeOf, type ProjectRow } from '@worker/db';
+import { snoozeOf, type ProjectRow } from '@worker/db';
 import { InvalidRepoNameError, parseRepoName } from '@worker/github';
 import { buildOverviewRow } from '@worker/read-models';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
+import { scopedProjectsOf } from '../projects/lookup';
 import { projectProblemOf } from '../read-models/errors';
 import { ProjectReads } from '../read-models/project-reads';
 import { SubrequestBudget } from '../read-models/subrequest-budget';
@@ -103,7 +104,8 @@ async function overviewRowOf(context: RowContext, row: ProjectRow): Promise<Over
 }
 
 /**
- * `GET /api/v1/overview` (#27): one row per active project — the team running, paused or failing, the current sprint
+ * `GET /api/v1/overview` (#27): one row per active project of the request's scope (ADR 0008 decision 2, #466) — the
+ * team running, paused or failing, the current sprint
  * with its demo day and done / total, what waits for the owner, the security setup — in one request.
  *
  * Every project is read through the same cached reads as "Needs you", the board and the team status (60 s; the team
@@ -116,7 +118,7 @@ async function overviewRowOf(context: RowContext, row: ProjectRow): Promise<Over
  */
 export function createOverviewRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>().get('/', async (c) => {
-    const active = await new ProjectsRepo(c.env.DB).listActive();
+    const active = await scopedProjectsOf(c);
     const context: RowContext = {
       c,
       github,

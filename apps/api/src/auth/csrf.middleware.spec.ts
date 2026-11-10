@@ -12,6 +12,7 @@ import {
   uniqueTeamDomain,
 } from '../testing/access-kit';
 import type { Identity } from './auth.types';
+import { ACCESS_OWNER_MEMBERSHIPS } from './scope';
 import { csrfMiddleware } from './csrf.middleware';
 
 // Threat model #8, row 5. No write route exists yet (#10 adds the first), so the rules are proven on a probe app
@@ -37,7 +38,7 @@ async function send(
   method: string,
   headers: Record<string, string>,
   body?: string | ReadableStream<Uint8Array>,
-  identity: Identity = { kind: 'user', email: 'owner@example.com' },
+  identity: Identity = { kind: 'user', door: 'access', userId: null, memberships: ACCESS_OWNER_MEMBERSHIPS },
 ): Promise<Response> {
   const ctx = createExecutionContext();
   const init: RequestInit = { method, headers };

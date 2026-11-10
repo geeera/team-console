@@ -4,7 +4,7 @@ import type { WorkerContext, WorkerHonoEnv } from '@worker/core';
 import { OwnerRequestsRepo, TrackerProjectsRepo } from '@worker/db';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
-import { findProject, projectNotFound, repoOf } from '../projects/lookup';
+import { findProject, projectNotFound, repoOf, trackerProjectOf } from '../projects/lookup';
 import { ProjectReads, freezeDaysOfFile } from '../read-models/project-reads';
 import { SubrequestBudget } from '../read-models/subrequest-budget';
 import { TrackerReads, readsRows } from '../read-models/tracker-reads';
@@ -55,7 +55,7 @@ async function inboxReadsFor(
   if (reads instanceof Response) {
     return reads;
   }
-  const tracker = await new TrackerProjectsRepo(c.env.DB).find(c.req.param('slug') ?? '');
+  const tracker = trackerProjectOf(reads.project);
   return readsRows(tracker) ? TrackerReads.of(c.env.DB, tracker, c.get('logger')) : reads;
 }
 

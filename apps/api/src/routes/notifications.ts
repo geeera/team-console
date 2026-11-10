@@ -7,7 +7,7 @@ import { ownerOnlyMiddleware } from '../auth/owner-only.middleware';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
-import { findProject, projectNotFound } from '../projects/lookup';
+import { findProject, projectNotFound, projectOwnerRefusal } from '../projects/lookup';
 
 type Context = WorkerContext<ApiEnv>;
 
@@ -68,6 +68,10 @@ export function createNotificationsRoutes(github: ApiGitHub): Hono<WorkerHonoEnv
       if (project === null) {
         return projectNotFound(c);
       }
+      const ownerRefusal = projectOwnerRefusal(c, project);
+      if (ownerRefusal !== null) {
+        return ownerRefusal;
+      }
       const nowMs = github.now();
       const change = parseSnooze(await jsonBody(c), nowMs);
       if (typeof change === 'string') {
@@ -95,6 +99,10 @@ export function createNotificationsRoutes(github: ApiGitHub): Hono<WorkerHonoEnv
       const project = await findProject(c, c.req.param('slug'));
       if (project === null) {
         return projectNotFound(c);
+      }
+      const ownerRefusal = projectOwnerRefusal(c, project);
+      if (ownerRefusal !== null) {
+        return ownerRefusal;
       }
       const row = await new ProjectsRepo(c.env.DB).clearSnooze(project.slug);
       if (row === null) {

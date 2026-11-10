@@ -1,9 +1,10 @@
 import type { TrackerMode } from '@shared/contracts';
 import { LABELS_SEED } from './labels-seed';
 
-/** A project's tracker columns (migration 0013). */
+/** A project's tracker columns (migration 0013) and its account (0018, the scope every read is judged by). */
 export interface TrackerProject {
   readonly slug: string;
+  readonly accountId: string;
   readonly tracker: TrackerMode;
   /** Set whenever `tracker` is not `github` (a CHECK constraint). */
   readonly keyPrefix: string | null;
@@ -22,6 +23,7 @@ export interface TrackerSwitch {
 
 interface TrackerRow {
   slug: string;
+  account_id: string;
   tracker: TrackerMode;
   key_prefix: string | null;
   next_item_number: number;
@@ -31,6 +33,7 @@ interface TrackerRow {
 function trackerProjectOf(row: TrackerRow): TrackerProject {
   return {
     slug: row.slug,
+    accountId: row.account_id,
     tracker: row.tracker,
     keyPrefix: row.key_prefix,
     nextItemNumber: row.next_item_number,
@@ -46,7 +49,7 @@ export class TrackerProjectsRepo {
   async find(slug: string): Promise<TrackerProject | null> {
     const row = await this.db
       .prepare(
-        `SELECT slug, tracker, key_prefix, next_item_number, cutover_at FROM projects
+        `SELECT slug, account_id, tracker, key_prefix, next_item_number, cutover_at FROM projects
          WHERE slug = ?1 AND archived_at IS NULL`,
       )
       .bind(slug)
@@ -58,7 +61,8 @@ export class TrackerProjectsRepo {
   async listActive(): Promise<ReadonlyMap<string, TrackerProject>> {
     const { results } = await this.db
       .prepare(
-        `SELECT slug, tracker, key_prefix, next_item_number, cutover_at FROM projects WHERE archived_at IS NULL`,
+        `SELECT slug, account_id, tracker, key_prefix, next_item_number, cutover_at FROM projects
+         WHERE archived_at IS NULL`,
       )
       .all<TrackerRow>();
     return new Map(results.map((row) => [row.slug, trackerProjectOf(row)]));

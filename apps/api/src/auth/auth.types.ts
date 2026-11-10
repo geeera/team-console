@@ -1,11 +1,23 @@
+import type { Membership } from '@worker/db';
 import type { JobRole } from './job-roles';
 
 /**
  * Who a request to `/api/*` acts as, decided once by `authMiddleware` (ADR 0001 decision 7). Downstream code
- * reads `c.get('identity')` and never looks at Access headers itself. Only `kind` is ever logged.
+ * reads `c.get('identity')` and never looks at Access headers or cookies itself. Only `kind` is ever logged.
  */
 export type Identity =
-  | { readonly kind: 'user'; readonly email: string }
+  /**
+   * A signed-in person (ADR 0008 decision 3, #466). `door` says which seam minted it: `access` is the environment's
+   * owner behind the Cloudflare Access perimeter (`OWNER_EMAIL`), `session` the console's own `__Host-tc_session`
+   * cookie. `memberships` is the scope (decision 2), read from D1 per request and never from the cookie. `userId`
+   * is `null` only for the Access owner before the explicit link of decision 3 and without the 0018 owner row.
+   */
+  | {
+      readonly kind: 'user';
+      readonly door: 'access' | 'session';
+      readonly userId: string | null;
+      readonly memberships: readonly Membership[];
+    }
   | { readonly kind: 'service'; readonly commonName: string }
   | { readonly kind: 'local' }
   /**

@@ -4,6 +4,7 @@ import { createWorkerApp } from '@worker/core';
 import { parseRepoName } from '@worker/github';
 import type { ApiEnv } from '../env';
 import type { Identity } from './auth.types';
+import { ACCESS_OWNER_MEMBERSHIPS } from './scope';
 import {
   FIXTURE_LABEL,
   fixtureLabellerOf,
@@ -292,7 +293,7 @@ describe('refuseServiceWrite and its recheck by identity kind (#443)', () => {
   }
 
   it('passes the owner without a single read', async () => {
-    const { first, recheck, reads } = await probe({ kind: 'user', email: 'owner@example.com' }, deployed);
+    const { first, recheck, reads } = await probe({ kind: 'user', door: 'access', userId: null, memberships: ACCESS_OWNER_MEMBERSHIPS }, deployed);
     expect([first.status, recheck.status]).toEqual([200, 200]);
     expect(reads).toEqual([]);
   });

@@ -1,5 +1,6 @@
 import { DEVELOPER_ROLES, roleDecisions, type JobRole } from './job-roles';
 import type { PolicyActor } from './policy';
+import { matchRoute, routePatternsOf } from './route-pattern';
 
 /**
  * The tracker's route matrix (ADR 0006 decision 11 and "API and authorisation", #444): who reaches each tracker
@@ -12,10 +13,21 @@ import type { PolicyActor } from './policy';
  * `owner-only`. Phase 2 swaps the identity behind the `job` actor, not this table.
  */
 
-export type TrackerRefusalType = 'owner-only' | 'ask-role' | 'request-handled-role' | 'sprint-role';
+export type TrackerRefusalType =
+  | 'owner-only'
+  | 'ask-role'
+  | 'request-handled-role'
+  | 'sprint-role'
+  | 'member-role';
 
 export interface TrackerRouteRule {
   readonly owner: boolean;
+  /**
+   * The `member` actor of the account (#466): reads, comments, proposed items and requests (ADR 0008). Until T-3
+   * gives the tracker tables a `user` actor kind, a member's writes are refused here (`member-role`), so a
+   * membership never records a write under another actor's name.
+   */
+  readonly member: boolean;
   /** Which job roles the route admits: every role decided (`roleDecisions`), so none falls through by default. */
   readonly job: Readonly<Record<JobRole, boolean>>;
   /** The 403 for an actor the row does not admit. */
@@ -29,13 +41,18 @@ const PM_ONLY = roleDecisions((role) => role === 'pm');
 
 const READ: TrackerRouteRule = {
   owner: true,
+  member: true,
   job: ANY_ROLE,
   refusal: 'owner-only',
-  detail: 'Tracker reads are for the owner and the jobs of the project',
+  detail: 'Tracker reads are for the account’s members and the jobs of the project',
 };
+
+/** A write any role may attempt; the transition table or the comment kind then judges it. A member's turn is T-3. */
+const WRITE = (detail: string): TrackerRouteRule => ({ ...READ, member: false, refusal: 'member-role', detail });
 
 const OWNER_ONLY = (detail: string): TrackerRouteRule => ({
   owner: true,
+  member: false,
   job: NO_ROLE,
   refusal: 'owner-only',
   detail,
@@ -43,6 +60,7 @@ const OWNER_ONLY = (detail: string): TrackerRouteRule => ({
 
 const SPRINT_WRITE: TrackerRouteRule = {
   owner: true,
+  member: false,
   job: PM_ONLY,
   refusal: 'sprint-role',
   detail: 'Sprints are planned by the owner and the PM',
@@ -65,16 +83,17 @@ export const TRACKER_MATRIX = {
   [`GET ${P}/prs`]: READ,
   [`GET ${P}/prs/:number`]: READ,
   // Any role reaches them; the transition table decides what it may change (R5) and refuses with its own 403s.
-  [`POST ${P}/items`]: { ...READ, detail: 'Items are written within the transition table' },
-  [`PATCH ${P}/items/:key`]: { ...READ, detail: 'Items are written within the transition table' },
+  [`POST ${P}/items`]: WRITE('Items are written within the transition table'),
+  [`PATCH ${P}/items/:key`]: WRITE('Items are written within the transition table'),
   // Any role; which `kind` it may write is `commentKindRefusal`'s.
-  [`POST ${P}/items/:key/comments`]: { ...READ, detail: 'Comments are written by the owner and the jobs' },
+  [`POST ${P}/items/:key/comments`]: WRITE('Comments are written by the owner and the jobs'),
   [`POST ${P}/sprints`]: SPRINT_WRITE,
   [`PATCH ${P}/sprints/:number`]: SPRINT_WRITE,
   // The owner's custom flags; the builtin set is seeded at cut-over, so no job needs to add one.
   [`POST ${P}/labels`]: OWNER_ONLY('Labels are the owner’s'),
   [`POST ${P}/items/:key/asks`]: {
     owner: false,
+    member: false,
     job: roleDecisions((role) => !DEVELOPER_ROLES.has(role)),
     refusal: 'ask-role',
     detail: 'Questions to the owner are asked by a team role other than dev',
@@ -87,6 +106,7 @@ export const TRACKER_MATRIX = {
   // ADR 0005: the PM answers a request, never silently; the record of who handled it is the job.
   [`POST ${P}/requests/:id/handled`]: {
     owner: false,
+    member: false,
     job: PM_ONLY,
     refusal: 'request-handled-role',
     detail: 'Only the PM job answers a request',
@@ -97,20 +117,12 @@ export type TrackerRoute = keyof typeof TRACKER_MATRIX;
 
 /** The refusal of `actor` on a row, or `null` when the row admits it. Project scope is the middleware's. */
 export function matrixRefusal(rule: TrackerRouteRule, actor: PolicyActor): TrackerRefusalType | null {
-  const isAdmitted = actor.kind === 'owner' ? rule.owner : rule.job[actor.role];
+  const isAdmitted =
+    actor.kind === 'owner' ? rule.owner : actor.kind === 'member' ? rule.member : rule.job[actor.role];
   return isAdmitted ? null : rule.refusal;
 }
 
-const PARAM = /:[a-z]+/g;
-
-const MATRIX_PATTERNS: readonly { method: string; path: RegExp }[] = Object.keys(TRACKER_MATRIX).map(
-  (route) => {
-    const [method = '', pattern = ''] = route.split(' ');
-    // Route params never match `/`. No optional trailing slash: the path judged is the router's own (below).
-    const source = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(PARAM, '[^/]+');
-    return { method, path: new RegExp(`^${source}$`) };
-  },
-);
+const MATRIX_PATTERNS = routePatternsOf(Object.keys(TRACKER_MATRIX) as TrackerRoute[]);
 
 /**
  * Whether `method path` is a matrix route. The job identity is confined to these: every other `/api` route
@@ -122,5 +134,5 @@ const MATRIX_PATTERNS: readonly { method: string; path: RegExp }[] = Object.keys
  * no route matches, and is not.
  */
 export function isTrackerMatrixRoute(method: string, path: string): boolean {
-  return MATRIX_PATTERNS.some((pattern) => pattern.method === method && pattern.path.test(path));
+  return matchRoute(MATRIX_PATTERNS, method, path) !== null;
 }

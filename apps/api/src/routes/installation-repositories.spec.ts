@@ -1,3 +1,4 @@
+import { seedSessionUser, sendAsSession } from '../testing/session-kit';
 import { env } from 'cloudflare:test';
 import { PROBLEM_TYPE_PREFIX, isProblemDetails, type InstallationRepositoriesDto } from '@shared/contracts';
 import { ApiGitHub } from '../github';
@@ -374,4 +375,20 @@ describe('readInstallationList: the subrequest budget', () => {
     });
     expect(stub.listReads()).toBe(0);
   });
+});
+
+// #482 security review item 2 (QA's blocker): the list is the environment owner's installation, private names
+// included, read with the owner's connection; a session user of any account — owner or member — gets 403 until T-4.
+describe('GET /api/v1/github/installation/repositories as a session user (#466)', () => {
+  it.each(['owner', 'member'] as const)(
+    'a session %s of another account gets 403 owner-only and no names',
+    async (role) => {
+      const user = await seedSessionUser(role);
+      const response = await sendAsSession(user, 'GET', '/api/v1/github/installation/repositories');
+      expect(response.status).toBe(403);
+      const body = (await response.json()) as { type: string };
+      expect(body.type).toBe('https://team-console/problems/owner-only');
+      expect(JSON.stringify(body)).not.toContain('repositories');
+    },
+  );
 });

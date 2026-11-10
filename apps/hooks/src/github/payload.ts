@@ -28,6 +28,8 @@ function positiveIntAt(source: JsonObject, key: string): number | null {
 
 export interface RepositoryRef {
   readonly fullName: string;
+  /** GitHub's repository id: what a delivery is routed by (ADR 0008 decision 2), never the name. */
+  readonly id: number | null;
   readonly defaultBranch: string | null;
 }
 
@@ -47,7 +49,11 @@ export function envelopeOf(payload: JsonObject): Envelope {
     repository:
       repository === null || fullName === null
         ? null
-        : { fullName, defaultBranch: stringAt(repository, 'default_branch') },
+        : {
+            fullName,
+            id: positiveIntAt(repository, 'id'),
+            defaultBranch: stringAt(repository, 'default_branch'),
+          },
     installationId: installation === null ? null : positiveIntAt(installation, 'id'),
   };
 }
@@ -170,17 +176,17 @@ export function pushRefOf(payload: JsonObject): string | null {
   return stringAt(payload, 'ref');
 }
 
-/** `installation_repositories`: the `full_name`s of `repositories_added` or `repositories_removed`. */
+/** `installation_repositories`: the entries of `repositories_added` or `repositories_removed`, id and name. */
 export function repositoriesOf(
   payload: JsonObject,
   key: 'repositories_added' | 'repositories_removed',
-): string[] {
+): { readonly id: number | null; readonly fullName: string }[] {
   const list = payload[key];
   if (!Array.isArray(list)) {
     return [];
   }
   return list.flatMap((item: unknown) => {
     const name = isJsonObject(item) ? stringAt(item, 'full_name') : null;
-    return name === null ? [] : [name];
+    return name === null || !isJsonObject(item) ? [] : [{ id: positiveIntAt(item, 'id'), fullName: name }];
   });
 }

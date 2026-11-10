@@ -104,7 +104,8 @@ export class ProjectReads {
   constructor(
     private readonly github: ApiGitHub,
     private readonly env: ApiEnv,
-    private readonly project: ProjectRow,
+    /** The scoped registry row the reads are of; the read-model routes branch on its tracker columns. */
+    readonly project: ProjectRow,
     private readonly repo: RepoName,
     private readonly now: () => number = () => Date.now(),
     /** The transport and token minting to read through; the overview passes one that counts its budget. */

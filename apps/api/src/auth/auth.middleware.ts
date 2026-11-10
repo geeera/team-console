@@ -6,6 +6,7 @@ import { identityOf, verifyAccessJwt } from './access-jwt';
 import type { Identity } from './auth.types';
 import { isLocalBypass } from './local-bypass';
 import { bearerOf, parseLocalJobToken } from './local-job';
+import { accessOwnerIdentityOf, sessionIdentityOf } from './session';
 
 const ACCESS_HEADER = 'Cf-Access-Jwt-Assertion';
 
@@ -18,6 +19,10 @@ const ACCESS_HEADER = 'Cf-Access-Jwt-Assertion';
  * The local bypass needs both flags; they are passed only as `--var` by `nx serve api` and the Dockerfile, never
  * from an `env.*` block (tools/workspace-checks). Under it a request is the owner (`local`), or the job its
  * `Authorization: Bearer local-job.…` stand-in names (#444).
+ *
+ * Before the Access check, a live `__Host-tc_session` cookie is the console's own door (ADR 0008 decision 3, #466):
+ * its user and memberships come from D1. A cookie that is not a live session grants nothing and the request goes
+ * on to the Access check, so a stale cookie never locks the owner out and a forged one never gets in.
  */
 export const authMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = async (c, next) => {
   const logger = c.get('logger');
@@ -51,6 +56,12 @@ export const authMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = async (c
     return problem(c, { type: 'job-token-refused', title: 'Unauthorized', status: 401 });
   }
 
+  const session = await sessionIdentityOf(c, logger);
+  if (session !== null) {
+    await grant(session);
+    return;
+  }
+
   const configResult = readAccessConfig(c.env);
   if (!configResult.ok) {
     // Names of the bad bindings only; their values may be private (OWNER_EMAIL is a secret).
@@ -81,6 +92,10 @@ export const authMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = async (c
     logger.warn('access rejected', { reason: 'access-forbidden', detail: decision.reason });
     return problem(c, { type: 'access-forbidden', title: 'Unauthorized', status: 401 });
   }
-  await grant(decision.identity);
+  const identity =
+    decision.identity.kind === 'user' && decision.identity.door === 'access'
+      ? await accessOwnerIdentityOf(c, decision.accessSubject)
+      : decision.identity;
+  await grant(identity);
   return;
 };

@@ -2,7 +2,9 @@ import { Hono } from 'hono';
 import { createWorkerApp, markAssetResponse, problem, type LogSink, type WorkerHonoEnv } from '@worker/core';
 import { authMiddleware } from './auth/auth.middleware';
 import { csrfMiddleware } from './auth/csrf.middleware';
+import { routeScopeMiddleware } from './auth/route-scope';
 import { jobScopeMiddleware } from './auth/tracker-access.middleware';
+import { createAccountRoutes } from './routes/accounts';
 import type { ApiEnv } from './env';
 import { ApiGitHub, mapGitHubError } from './github';
 import { createAnswerRoutes } from './routes/answer';
@@ -82,8 +84,9 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
 
   // The only auth seam, mounted once before every router; the route-inventory test in auth.middleware.spec.ts
   // proves every /api route sits behind it. Hono's '/api/*' also matches '/api' itself. A job identity goes no
-  // further than the tracker's matrix routes (#444).
-  app.use('/api/*', authMiddleware, jobScopeMiddleware, csrfMiddleware);
+  // further than the tracker's matrix routes (#444). Then the deny-by-default scope inventory (#466,
+  // `route-scope.spec.ts`): a route it does not list is unreachable.
+  app.use('/api/*', authMiddleware, jobScopeMiddleware, routeScopeMiddleware, csrfMiddleware);
 
   const v1 = new Hono<WorkerHonoEnv<ApiEnv>>();
   v1.route('/healthz', healthzRoutes);
@@ -130,6 +133,8 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
     }),
   );
   v1.route('/environment', createEnvironmentRoutes());
+  // The account's own settings, members and audit (ADR 0008 decision 5, T-2): owner-of-account only.
+  v1.route('/accounts', createAccountRoutes());
   app.route('/api/v1', v1);
 
   return app;

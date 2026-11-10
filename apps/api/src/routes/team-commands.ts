@@ -41,7 +41,7 @@ import type { ApiGitHub, GitHubConnection } from '../github';
 import { jsonBody } from '../json-body';
 import { isNotWritten, ownerWriter, sha256Hex } from '../owner/owner-writer';
 import { connectedOwnerSource, type OwnerConnectionSource } from '../projects/owner-connection';
-import { findProject, projectNotFound, repoOf } from '../projects/lookup';
+import { findProject, projectNotFound, projectOwnerRefusal, repoOf } from '../projects/lookup';
 import { ProjectReads, type SprintStatus } from '../read-models/project-reads';
 import {
   RunLogIncompleteError,
@@ -260,6 +260,10 @@ export function createTeamCommandsRoutes(
     if (project === null) {
       return projectNotFound(c);
     }
+    const ownerRefusal = projectOwnerRefusal(c, project);
+    if (ownerRefusal !== null) {
+      return ownerRefusal;
+    }
     const repo = repoOf(c, project);
     if (repo instanceof Response) {
       return repo;
@@ -461,6 +465,10 @@ export function createTeamCommandsRoutes(
       const project = await findProject(c, c.req.param('slug'));
       if (project === null) {
         return projectNotFound(c);
+      }
+      const ownerRefusal = projectOwnerRefusal(c, project);
+      if (ownerRefusal !== null) {
+        return ownerRefusal;
       }
       const repo = repoOf(c, project);
       if (repo instanceof Response) {

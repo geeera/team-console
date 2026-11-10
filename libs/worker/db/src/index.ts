@@ -2,10 +2,12 @@ export { OwnerConnectionsRepo } from './lib/owner-connections.repo';
 export type { NewOwnerConnection, OwnerConnectionRow, SealedTokenPair } from './lib/owner-connections.repo';
 export { ProjectsRepo, isSnoozedAt, snoozeOf, toProjectDto } from './lib/projects.repo';
 export type {
+  CreateProjectResult,
   NewProject,
   ProjectChanges,
   ProjectConflict,
   ProjectRow,
+  RepositoryMatch,
   SnoozeChange,
 } from './lib/projects.repo';
 export { ProjectSignalsRepo } from './lib/project-signals.repo';
@@ -76,7 +78,13 @@ export type {
 export { UsersRepo } from './lib/accounts/users.repo';
 export type { UserRecord } from './lib/accounts/users.repo';
 export { InstallationsRepo } from './lib/accounts/installations.repo';
-export type { InstallationRecord } from './lib/accounts/installations.repo';
+export type {
+  InstallationRecord,
+  LinkInstallationResult,
+  NewInstallationLink,
+} from './lib/accounts/installations.repo';
+export { SessionsRepo, sessionIdHashOf } from './lib/accounts/sessions.repo';
+export type { SessionRecord } from './lib/accounts/sessions.repo';
 export {
   AuditDetailsTooLargeError,
   AuditRepo,

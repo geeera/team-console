@@ -31,11 +31,11 @@ export interface PullRequestRecord extends PullRequestSnapshot {
 
 export interface PullRequestWrite {
   /**
-   * The provider's repository id of the delivery (webhooks): the row is written only when the project's `repo_id`
-   * is unset or equal, so a renamed or transferred repository never lands on the project. `null` for reads the api
-   * Worker made through the registered repository itself.
+   * The provider's repository id the pull request was read or delivered for: the row is written only when it
+   * equals the project's `repo_id` (T-2, #466: fail closed — a project without a recorded id takes no row, so a
+   * renamed or transferred repository never lands on it; the api Worker backfills the id before it syncs).
    */
-  readonly repositoryId: number | null;
+  readonly repositoryId: number;
   /** The head's CI read together with the snapshot; absent keeps the row's CI while the head is unchanged. */
   readonly ci?: SprintCiState;
   readonly syncedAt: string;
@@ -110,7 +110,8 @@ export class PullRequestsRepo {
    * Inserts or updates the row of `pull.number`, unless the row already holds a later provider change (two
    * deliveries racing, or a sync after a newer webhook): the older one is dropped. A moved head resets CI to
    * `unknown` + stale unless `write.ci` brings the new head's state. Nothing is written for an archived or
-   * unknown project, or when `write.repositoryId` is not the project's `repo_id`. Returns whether a row changed.
+   * unknown project, or when `write.repositoryId` is not the project's recorded `repo_id`. Returns whether a row
+   * changed.
    */
   async upsert(slug: string, pull: PullRequestSnapshot, write: PullRequestWrite): Promise<boolean> {
     const hasCi = write.ci !== undefined;
@@ -121,7 +122,7 @@ export class PullRequestsRepo {
            draft, url, ci_state, ci_stale, updated_at, synced_at)
          SELECT p.slug, p.provider, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15
          FROM projects p
-         WHERE p.slug = ?1 AND p.archived_at IS NULL AND (?16 IS NULL OR p.repo_id IS NULL OR p.repo_id = ?16)
+         WHERE p.slug = ?1 AND p.archived_at IS NULL AND p.repo_id = ?16
          ON CONFLICT (project_slug, number) DO UPDATE SET
            external_id = excluded.external_id,
            title = excluded.title,
@@ -189,13 +190,12 @@ export class PullRequestsRepo {
    * A CI run on `headSha` finished (a delivery): the open pull requests with that head read their CI again. Only the
    * stale flag moves; the state stays what was last read.
    */
-  async markCiStale(slug: string, headSha: string, repositoryId: number | null): Promise<number> {
+  async markCiStale(slug: string, headSha: string, repositoryId: number): Promise<number> {
     const result = await this.db
       .prepare(
         `UPDATE pull_requests SET ci_stale = 1
          WHERE project_slug = ?1 AND head_sha = ?2 AND state = 'open'
-           AND EXISTS (SELECT 1 FROM projects p WHERE p.slug = ?1
-                       AND (?3 IS NULL OR p.repo_id IS NULL OR p.repo_id = ?3))`,
+           AND EXISTS (SELECT 1 FROM projects p WHERE p.slug = ?1 AND p.repo_id = ?3)`,
       )
       .bind(slug, headSha, repositoryId)
       .run();

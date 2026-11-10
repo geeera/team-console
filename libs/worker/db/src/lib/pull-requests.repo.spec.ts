@@ -31,7 +31,7 @@ async function seedProject(slug: string, repoId: number | null, archived = false
     .run();
 }
 
-const write = { repositoryId: null, syncedAt: SYNCED } as const;
+const write = { repositoryId: 860001, syncedAt: SYNCED } as const;
 
 describe('PullRequestsRepo', () => {
   beforeEach(async () => {
@@ -102,12 +102,14 @@ describe('PullRequestsRepo', () => {
     await expect(repo().upsert('nope', pull(1), write)).resolves.toBe(false);
     await expect(repo().upsert('storify', pull(1), { ...write, repositoryId: 999 })).resolves.toBe(false);
     await expect(repo().upsert('storify', pull(1), { ...write, repositoryId: 860001 })).resolves.toBe(true);
-    // A project without a recorded repository id (before T-2's backfill) takes the delivery.
-    await expect(repo().upsert('legacy', pull(1), { ...write, repositoryId: 999 })).resolves.toBe(true);
+    // T-2 (#466), fail closed: a project without a recorded repository id takes no row from any delivery or read —
+    // the api Worker backfills the id first (`ensureRepoId`), the hooks Worker from a matching delivery.
+    await expect(repo().upsert('legacy', pull(1), { ...write, repositoryId: 999 })).resolves.toBe(false);
+    await expect(repo().markCiStale('legacy', HEAD, 999)).resolves.toBe(0);
     const { results } = await env.DB.prepare(
       'SELECT project_slug FROM pull_requests ORDER BY project_slug',
     ).all();
-    expect(results).toEqual([{ project_slug: 'legacy' }, { project_slug: 'storify' }]);
+    expect(results).toEqual([{ project_slug: 'storify' }]);
   });
 
   it('sets CI only for the head it was read for', async () => {

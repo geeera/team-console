@@ -31,12 +31,8 @@ import type { ApiEnv } from '../env';
 import type { ApiGitHub, GitHubConnection } from '../github';
 import { jsonBody } from '../json-body';
 import { ownerWriter } from '../owner/owner-writer';
-import {
-  ANSWER_IN_PROGRESS,
-  answerBodyHash,
-  postOwnerAnswer,
-} from '../owner/post-owner-answer';
-import { findProject, projectNotFound, repoOf } from '../projects/lookup';
+import { ANSWER_IN_PROGRESS, answerBodyHash, postOwnerAnswer } from '../owner/post-owner-answer';
+import { findProject, projectNotFound, projectOwnerRefusal, repoOf } from '../projects/lookup';
 import { repositoryClient } from '../projects/repository-checks';
 
 type Context = WorkerContext<ApiEnv>;
@@ -151,6 +147,10 @@ async function prepareAnswer<T extends ParsedAnswer>(
   const project = await findProject(c, c.req.param('slug') ?? '');
   if (project === null) {
     return projectNotFound(c);
+  }
+  const ownerRefusal = projectOwnerRefusal(c, project);
+  if (ownerRefusal !== null) {
+    return ownerRefusal;
   }
   const repo = repoOf(c, project);
   if (repo instanceof Response) {

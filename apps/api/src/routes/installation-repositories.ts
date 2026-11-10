@@ -5,7 +5,7 @@ import type {
   RepositoryRegistration,
 } from '@shared/contracts';
 import type { WorkerHonoEnv } from '@worker/core';
-import { ProjectsRepo, type ProjectRow } from '@worker/db';
+import type { ProjectRow } from '@worker/db';
 import {
   GitHubClient,
   GitHubError,
@@ -15,6 +15,7 @@ import {
 } from '@worker/github';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub, GitHubConnection } from '../github';
+import { ownerOrServiceRefusal, scopedProjectsOf } from '../projects/lookup';
 import type { OwnerConnectionSource } from '../projects/owner-connection';
 import { installUrlFor, isGitHubProblem } from '../projects/repository-checks';
 import { SubrequestBudget } from '../read-models/subrequest-budget';
@@ -130,6 +131,16 @@ export function createInstallationRepositoriesRoutes(
   owners: OwnerConnectionSource,
 ): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>().get('/installation/repositories', async (c) => {
+    // #482 security review: the list is the environment owner's installation (private names included), read with
+    // the owner's connection; until T-4 binds a connection per user only the Access owner and the dev/stage
+    // service identity read it — a session user of any account gets the same 403 as on the connection routes.
+    const refusal = ownerOrServiceRefusal(
+      c,
+      'The installation list is the environment owner’s until connections are per user',
+    );
+    if (refusal !== null) {
+      return refusal;
+    }
     const owner = await owners.current(c.env, c.get('logger'));
     if (owner === null) {
       throw ownerNotConnectedError();
@@ -162,7 +173,9 @@ export function createInstallationRepositoriesRoutes(
       }
       throw error;
     }
-    const rows = await new ProjectsRepo(c.env.DB).listAll();
+    // The registrations shown are the scope's (ADR 0008 decision 2): another account's project on the same
+    // repository reads as unregistered here.
+    const rows = await scopedProjectsOf(c, 'all');
     return c.json(installationRepositoriesOf(list, rows));
   });
 }

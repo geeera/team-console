@@ -28,7 +28,7 @@ import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
 import { ownerWriter } from '../owner/owner-writer';
 import { ANSWER_IN_PROGRESS, postOwnerAnswer } from '../owner/post-owner-answer';
-import { findProject, projectNotFound, repoOf } from '../projects/lookup';
+import { findProject, projectNotFound, projectOwnerRefusal, repoOf } from '../projects/lookup';
 import { repositoryClient } from '../projects/repository-checks';
 import { SubrequestBudget } from '../read-models/subrequest-budget';
 
@@ -225,6 +225,10 @@ export function createBatchAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<A
       const project = await findProject(c, c.req.param('slug'));
       if (project === null) {
         return projectNotFound(c);
+      }
+      const ownerRefusal = projectOwnerRefusal(c, project);
+      if (ownerRefusal !== null) {
+        return ownerRefusal;
       }
       const repo = repoOf(c, project);
       if (repo instanceof Response) {

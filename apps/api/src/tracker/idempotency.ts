@@ -49,7 +49,8 @@ async function sha256Hex(text: string): Promise<string> {
 function scopeOf(identity: Identity): string {
   switch (identity.kind) {
     case 'user':
-      return `user\n${identity.email}`;
+      // The door and the user row; the Access owner before the link is one principal (`access-owner`).
+      return `user\n${identity.door}\n${identity.userId ?? 'access-owner'}`;
     case 'local':
       return 'local';
     case 'service':

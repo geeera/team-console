@@ -9,11 +9,11 @@ import {
   type ProjectRow,
 } from '@worker/db';
 import { isPullRequestState } from '@worker/vcs';
-import { trackerAccess } from '../auth/tracker-access.middleware';
+import { policyActorOfContext, trackerAccess } from '../auth/tracker-access.middleware';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { findProject, projectNotFound, repoOf } from '../projects/lookup';
-import { syncPullRequest, syncPullRequests } from '../read-models/pull-request-sync';
+import { ensureRepoId, syncPullRequest, syncPullRequests } from '../read-models/pull-request-sync';
 import { invalid } from '../tracker/context';
 import { pageOf } from '../tracker/http';
 
@@ -63,6 +63,42 @@ async function projectOf(c: Context): Promise<ProjectRow | Response> {
 }
 
 /**
+ * A provider read on demand is the account's to ask for (T-2, #466): a job of the project reads the rows D1 holds,
+ * never spends the budget (403 `fresh-role`). The owner and the members may.
+ */
+function freshRefusal(c: Context): Response | null {
+  if (policyActorOfContext(c).kind !== 'job') {
+    return null;
+  }
+  return problem(c, {
+    type: 'fresh-role',
+    title: 'Forbidden',
+    status: 403,
+    detail: 'A job reads the pull requests the console holds; a fresh read is the account’s',
+  });
+}
+
+/** The registered repository id, backfilled on first use; 409 `repo-id-unknown` when it cannot be recorded. */
+async function repoIdOf(
+  c: Context,
+  github: ApiGitHub,
+  project: ProjectRow,
+  repo: Parameters<typeof ensureRepoId>[3],
+): Promise<number | Response> {
+  const repoId = await ensureRepoId(github, c.env, project, repo);
+  if (repoId !== null) {
+    return repoId;
+  }
+  c.get('logger').warn('pull request sync refused', { reason: 'repo-id-unknown', slug: project.slug });
+  return problem(c, {
+    type: 'repo-id-unknown',
+    title: 'The repository id is not recorded',
+    status: 409,
+    detail: 'The provider’s id of this repository could not be recorded for the project',
+  });
+}
+
+/**
  * A project's pull requests (#463, ADR 0008 row 3a) from `pull_requests`, which the hooks Worker keeps current from
  * signed deliveries. `?fresh=1` first reads the provider through the VCS adapter (read-only installation token,
  * budgeted) and writes what it read — a GET that writes D1, like the request read of #270: only the provider's own
@@ -96,11 +132,19 @@ export function createPullRequestRoutes(
       }
       let sync: PullRequestSyncDto | null = null;
       if (fresh) {
+        const refused = freshRefusal(c);
+        if (refused !== null) {
+          return refused;
+        }
         const repo = repoOf(c, project);
         if (repo instanceof Response) {
           return repo;
         }
-        sync = await syncPullRequests(github, c.env, project, repo, now);
+        const repoId = await repoIdOf(c, github, project, repo);
+        if (repoId instanceof Response) {
+          return repoId;
+        }
+        sync = await syncPullRequests(github, c.env, project, repo, repoId, now);
       }
       const result = await new PullRequestsRepo(c.env.DB).list(
         project.slug,
@@ -139,12 +183,24 @@ export function createPullRequestRoutes(
       const rows = new PullRequestsRepo(c.env.DB);
       let row = await rows.find(project.slug, number);
       if (fresh || row === null) {
-        const repo = repoOf(c, project);
-        if (repo instanceof Response) {
-          return repo;
-        }
-        if (await syncPullRequest(github, c.env, project, repo, number, now)) {
-          row = await rows.find(project.slug, number);
+        const refused = freshRefusal(c);
+        if (refused !== null) {
+          // A job gets the row the console holds, or its 404; the provider is not asked on its behalf.
+          if (fresh) {
+            return refused;
+          }
+        } else {
+          const repo = repoOf(c, project);
+          if (repo instanceof Response) {
+            return repo;
+          }
+          const repoId = await repoIdOf(c, github, project, repo);
+          if (repoId instanceof Response) {
+            return repoId;
+          }
+          if (await syncPullRequest(github, c.env, project, repo, repoId, number, now)) {
+            row = await rows.find(project.slug, number);
+          }
         }
       }
       if (row === null) {

@@ -33,7 +33,7 @@ import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
 import { ownerWriter } from '../owner/owner-writer';
 import { postOwnerAnswer, type OwnerAnswerOutcome } from '../owner/post-owner-answer';
-import { findProject, projectNotFound, repoOf } from '../projects/lookup';
+import { findProject, projectNotFound, projectOwnerRefusal, repoOf } from '../projects/lookup';
 import { ownerLanguageOf } from '../projects/project-yml';
 import { repositoryClient } from '../projects/repository-checks';
 import { ProjectReads, freezeDaysOfFile, readAllMilestones } from '../read-models/project-reads';
@@ -345,6 +345,10 @@ export function createOwnerRequestRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<
         const project = await findProject(c, c.req.param('slug'));
         if (project === null) {
           return projectNotFound(c);
+        }
+        const ownerRefusal = projectOwnerRefusal(c, project);
+        if (ownerRefusal !== null) {
+          return ownerRefusal;
         }
         const repo = repoOf(c, project);
         if (repo instanceof Response) {

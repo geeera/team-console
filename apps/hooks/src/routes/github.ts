@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { problem, type Logger, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import {
+  InstallationsRepo,
   OwnWritesRepo,
   OwnerRequestsRepo,
   ProjectsRepo,
@@ -163,33 +164,50 @@ async function pruneDeliveries(deliveries: WebhookDeliveriesRepo, now: Date, log
   }
 }
 
-/** `installation_repositories` and `installation`: keep `projects.access_lost_at` in step (ADR 0003 decision 5). */
+/**
+ * The account a delivery's installation is linked to (ADR 0008 decision 2, threat model C9): the signature says
+ * "one of our app's installations", the link says whose. An unlinked installation reaches no project.
+ */
+async function linkedAccountOf(db: D1Database, installationId: number | null): Promise<string | null> {
+  if (installationId === null) {
+    return null;
+  }
+  const link = await new InstallationsRepo(db).findLinked('github', String(installationId));
+  return link === null || link.suspendedAt !== null ? null : link.accountId;
+}
+
+/**
+ * `installation_repositories` and `installation`: keep `projects.access_lost_at` in step (ADR 0003 decision 5),
+ * for the projects of the account the installation is linked to and no other.
+ */
 async function handleInstallation(
-  projects: ProjectsRepo,
+  db: D1Database,
   event: string,
   envelope: Envelope,
   payload: JsonObject,
   receivedAt: string,
 ): Promise<Outcome> {
   const installationId = envelope.installationId;
-  if (installationId === null) {
+  const accountId = await linkedAccountOf(db, installationId);
+  if (installationId === null || accountId === null) {
     return ignored('installation-mismatch');
   }
+  const projects = new ProjectsRepo(db);
   let lost: ProjectRow[] = [];
   if (event === 'installation_repositories' && envelope.action === 'removed') {
     for (const repo of repositoriesOf(payload, 'repositories_removed')) {
-      lost.push(...(await projects.markAccessLost(repo, installationId, receivedAt)));
+      lost.push(...(await projects.markAccessLost(repo, installationId, accountId, receivedAt)));
     }
   } else if (event === 'installation_repositories' && envelope.action === 'added') {
     let restored = 0;
     for (const repo of repositoriesOf(payload, 'repositories_added')) {
-      restored += (await projects.clearAccessLost(repo, installationId)).length;
+      restored += (await projects.clearAccessLost(repo, installationId, accountId)).length;
     }
     return restored === 0
       ? ignored('unregistered')
       : { httpStatus: 200, ack: { status: 'updated' }, messages: [] };
   } else if (event === 'installation' && envelope.action === 'deleted') {
-    lost = await projects.markInstallationLost(installationId, receivedAt);
+    lost = await projects.markInstallationLost(installationId, accountId, receivedAt);
   } else {
     return ignored('no-notification');
   }
@@ -248,6 +266,40 @@ async function markRequestHandled(
 }
 
 /**
+ * The project a repository delivery is for (ADR 0008 decision 2): by the repository **id**, never by `full_name`,
+ * so a rename or a transfer cannot land on another account's project. A row registered before 0018 has no id yet;
+ * its name and its registered installation still identify it, and this signed delivery records the id once (the
+ * T-2 backfill) — a row that already has an id is never matched by name.
+ */
+async function projectOf(
+  db: D1Database,
+  projects: ProjectsRepo,
+  repository: { readonly id: number | null; readonly fullName: string },
+  installationId: number | null,
+  logger: Logger,
+): Promise<ProjectRow | null> {
+  if (repository.id === null) {
+    return null;
+  }
+  const byId = await projects.findActiveByRepoId('github', repository.id);
+  if (byId !== null) {
+    return byId;
+  }
+  const byName = await projects.findActiveByRepo(repository.fullName);
+  if (byName === null || byName.repo_id !== null || byName.installation_id !== installationId) {
+    return null;
+  }
+  // The id is recorded for good (0018 trigger), so the account invariant is checked before it is (#482 review).
+  if ((await linkedAccountOf(db, installationId)) !== byName.account_id) {
+    logger.warn('webhook refused', { reason: 'installation-account-mismatch', slug: byName.slug });
+    return null;
+  }
+  const recorded = await projects.setRepoId(byName.slug, repository.id);
+  logger.info('project repo id backfilled', { slug: byName.slug, recorded });
+  return recorded ? { ...byName, repo_id: repository.id } : null;
+}
+
+/**
  * `pull_requests` (#463, ADR 0006: the hooks Worker writes only `pull_requests`, `ci_state` and `cache_epoch`): a
  * pull request delivery upserts its row — unless the row holds a later change or the delivery's repository id is not
  * the project's — and a finished workflow run marks its head's CI stale. The delivery is signed, its text still
@@ -283,17 +335,25 @@ async function handleRepositoryEvent(
   envelope: Envelope,
   payload: JsonObject,
   nowMs: number,
+  logger: Logger,
 ): Promise<Outcome> {
   if (envelope.repository === null) {
     return ignored('unregistered');
   }
   const projects = new ProjectsRepo(db);
-  const row = await projects.findActiveByRepo(envelope.repository.fullName);
+  const row = await projectOf(db, projects, envelope.repository, envelope.installationId, logger);
   if (row === null) {
     return ignored('unregistered');
   }
-  // ADR 0003 decision 5: the signature says "one of our app's installations", this says "the one we registered".
+  // ADR 0003 decision 5: the signature says "one of our app's installations", this says "the one we registered";
+  // ADR 0008 decision 2: and that installation is linked to the project's account (`installations.account_id =
+  // projects.account_id`), so a delivery never crosses accounts.
   if (row.installation_id === null || row.installation_id !== envelope.installationId) {
+    return ignored('installation-mismatch');
+  }
+  const accountId = await linkedAccountOf(db, envelope.installationId);
+  if (accountId !== row.account_id) {
+    logger.warn('webhook refused', { reason: 'installation-account-mismatch', slug: row.slug });
     return ignored('installation-mismatch');
   }
   if (bumpsEpoch(event, envelope, payload)) {
@@ -409,14 +469,8 @@ export function githubWebhookRoutes(deps: GitHubWebhookDeps): Hono<WorkerHonoEnv
     try {
       outcome =
         event === 'installation' || event === 'installation_repositories'
-          ? await handleInstallation(
-              new ProjectsRepo(c.env.DB),
-              event,
-              envelope,
-              payload,
-              receivedAt.toISOString(),
-            )
-          : await handleRepositoryEvent(c.env.DB, event, envelope, payload, receivedAt.getTime());
+          ? await handleInstallation(c.env.DB, event, envelope, payload, receivedAt.toISOString())
+          : await handleRepositoryEvent(c.env.DB, event, envelope, payload, receivedAt.getTime(), logger);
     } catch (error: unknown) {
       // Without its dedupe row, GitHub's redelivery of this delivery is processed instead of answered `duplicate`.
       try {

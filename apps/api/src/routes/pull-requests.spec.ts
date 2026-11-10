@@ -5,6 +5,8 @@ import { fetchApi } from '../testing/access-kit';
 import { localEnv } from '../testing/github-kit';
 import { jobActor, slugOf } from '../testing/tracker-kit';
 import { localJobHeader } from '../testing/local-job-kit';
+import { OWNER_ACCOUNT_ID } from '@shared/contracts';
+import { seedAccountProject, seedSessionUser, sendAsSession } from '../testing/session-kit';
 
 // #463 through the app in workerd, against @worker/github's mock GitHub (GITHUB_MOCK=true: the real app flow with a
 // fake transport and the fixture world of `mock-github.json`): the D1 list, `?fresh=1` through the VCS adapter, one
@@ -219,5 +221,103 @@ describe('GET /api/v1/projects/:slug/prs/:number', () => {
     const unknown = await get(`${P}/nope/prs/92`);
     expect(unknown.status).toBe(404);
     expect(await slugOf(unknown)).toBe('project-not-found');
+  });
+});
+
+// T-2 (#466): the pull requests of one account are never another's, through `?fresh=1` any more than through a
+// webhook; a fresh read is the account's, not a job's; a row without `repo_id` is backfilled before anything is written.
+describe('pull requests across accounts (#466)', () => {
+  const SESSION_ENV = localEnv({ GITHUB_MOCK: 'true', AUTH_MODE: undefined });
+
+  it('a user of another account is told the project does not exist, with or without fresh=1, and nothing is written', async () => {
+    const other = await seedSessionUser('owner');
+    for (const path of [`${P}/tc/prs`, `${P}/tc/prs?fresh=1`, `${P}/tc/prs/92`, `${P}/tc/prs/92?fresh=1`]) {
+      const response = await sendAsSession(
+        other,
+        'GET',
+        path,
+        undefined,
+        { github: new ApiGitHub() },
+        SESSION_ENV,
+      );
+      expect(response.status, path).toBe(404);
+      expect(await slugOf(response), path).toBe('project-not-found');
+    }
+    expect((await env.DB.prepare('SELECT count(*) AS n FROM pull_requests').first<{ n: number }>())?.n).toBe(
+      0,
+    );
+  });
+
+  it('an owner of the account reads its own project fresh, and sees no rows of another account', async () => {
+    const other = await seedSessionUser('owner');
+    // The owner's `tc` holds a row; B's project is the same mock repository under another registration.
+    await seedRow('tc', 1);
+    await env.DB.prepare('UPDATE projects SET repo = ?2 WHERE slug = ?1').bind('tc', 'geeera/tc-moved').run();
+    const mine = await seedAccountProject(other.account);
+    await env.DB.prepare('UPDATE projects SET repo = ?2, repo_id = 900001 WHERE slug = ?1')
+      .bind(mine.slug, 'geeera/team-console')
+      .run();
+
+    const response = await sendAsSession(
+      other,
+      'GET',
+      `${P}/${mine.slug}/prs?fresh=1&state=all`,
+      undefined,
+      { github: new ApiGitHub() },
+      SESSION_ENV,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as PullRequestListDto;
+    const ownRows = await env.DB.prepare(
+      'SELECT number FROM pull_requests WHERE project_slug = ?1 ORDER BY number',
+    )
+      .bind(mine.slug)
+      .all<{ number: number }>();
+    expect(ownRows.results.length).toBeGreaterThan(0);
+    expect(body.pullRequests.map((pull) => pull.number)).toEqual(ownRows.results.map((row) => row.number));
+    // The owner's row is still only the owner's.
+    const tcRows = await env.DB.prepare('SELECT number FROM pull_requests WHERE project_slug = ?1')
+      .bind('tc')
+      .all();
+    expect(tcRows.results).toEqual([{ number: 1 }]);
+  });
+
+  it('refuses a fresh read to a job of the project (403 fresh-role) and answers it the rows the console holds', async () => {
+    await seedRow('tc', 3);
+    const headers = (path: string) => ({ Authorization: localJobHeader(jobActor('dev'), path) });
+    const fresh = await get(`${P}/tc/prs?fresh=1`, new ApiGitHub(), headers(`${P}/tc/prs`));
+    expect(fresh.status).toBe(403);
+    expect(await slugOf(fresh)).toBe('fresh-role');
+    const freshOne = await get(`${P}/tc/prs/3?fresh=1`, new ApiGitHub(), headers(`${P}/tc/prs/3`));
+    expect(freshOne.status).toBe(403);
+    const held = await get(`${P}/tc/prs/3`, new ApiGitHub(), headers(`${P}/tc/prs/3`));
+    expect(held.status).toBe(200);
+    // A number the console does not hold is a 404 for a job, never a provider read on its behalf.
+    const unheld = await get(`${P}/tc/prs/92`, new ApiGitHub(), headers(`${P}/tc/prs/92`));
+    expect(unheld.status).toBe(404);
+    expect(await slugOf(unheld)).toBe('pull-request-not-found');
+  });
+
+  it('records projects.repo_id from the provider before the first fresh read, then reads by that id', async () => {
+    const before = await env.DB.prepare('SELECT repo_id FROM projects WHERE slug = ?1')
+      .bind('tc')
+      .first<{ repo_id: number | null }>();
+    expect(before?.repo_id).toBeNull();
+    await list(`${P}/tc/prs?fresh=1`);
+    const after = await env.DB.prepare('SELECT repo_id, account_id FROM projects WHERE slug = ?1')
+      .bind('tc')
+      .first<{ repo_id: number | null; account_id: string }>();
+    expect(after).toEqual({ repo_id: 900001, account_id: OWNER_ACCOUNT_ID });
+  });
+
+  it('answers 409 repo-id-unknown and writes nothing when the provider’s id is held by another project', async () => {
+    await seed('twin', 'geeera/team-console-twin');
+    await env.DB.prepare('UPDATE projects SET repo_id = 900001 WHERE slug = ?1').bind('twin').run();
+    const response = await get(`${P}/tc/prs?fresh=1`);
+    expect(response.status).toBe(409);
+    expect(await slugOf(response)).toBe('repo-id-unknown');
+    expect((await env.DB.prepare('SELECT count(*) AS n FROM pull_requests').first<{ n: number }>())?.n).toBe(
+      0,
+    );
   });
 });
