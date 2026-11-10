@@ -147,6 +147,32 @@ describe('AuditRepo', () => {
     });
   });
 
+  // #467: one sentinel per format of the shared list, whole and cut off (the loose mode of the logger's `redact`
+  // runs after the strict pass), so an append-only row never carries one.
+  it.each([
+    ['a console job token', 'job-token', `tcj_${'k'.repeat(43)}`],
+    ['a job token cut off', 'job-token', `tcj_${'k'.repeat(9)}`],
+    ['TC_JOB_TOKEN as an assignment', 'job-token', `TC_JOB_TOKEN=${'v'.repeat(20)}`],
+    ['a runner enrolment code', 'enrolment-code', `tce_${'e'.repeat(43)}`],
+    ['a GitHub installation token', 'github-token', `ghs_${'A1b2'.repeat(9)}`],
+    ['a GitLab token', 'gitlab-token', `glpat-${'aB3_-'.repeat(4)}`],
+    // Assembled at run time, so the repository's secret scan never sees a token-shaped literal.
+    ['a JWT', 'jwt', ['eyJhbGciOiJSUzI1NiJ9', 'eyJzdWIiOiJqb2ItMSJ9', 'c2ln'].join('.')],
+    ['an npm token', 'npm-token', `npm_${'Qw3e'.repeat(9)}`],
+    ['an AWS access key id', 'aws-access-key', `AKIA${'Z7Q2'.repeat(4)}`],
+    ['a PEM private key', 'private-key', ['-----BEGIN ', 'PRIVATE KEY-----\nMIIEvQ\n-----END ', 'PRIVATE KEY-----'].join('')],
+  ])('masks %s in details before the row is written', async (_, kind, secret) => {
+    const target = `format-${kind}-${String(secret.length)}`;
+    await repo.append(event({ target, details: { note: `saw ${secret} here`, list: [secret] } }));
+
+    const stored = await env.DB.prepare(`SELECT details FROM audit_events WHERE target = ?1`)
+      .bind(target)
+      .first<string>('details');
+
+    expect(stored).not.toContain(secret.slice(-8));
+    expect(stored).toContain(`[redacted:${kind}]`);
+  });
+
   it('refuses details over the bound instead of cutting them', () => {
     expect(() => auditDetailsJson({ text: 'x'.repeat(5000) })).toThrow(AuditDetailsTooLargeError);
   });
