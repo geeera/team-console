@@ -478,6 +478,49 @@ export const ENVIRONMENT_MANIFEST: EnvironmentManifest = {
       },
     },
     {
+      name: 'RUNNER_RELEASE_VERSION',
+      optional: true,
+      kind: 'variable',
+      origin: 'generated',
+      environments: ['dev', 'stage', 'production'],
+      locations: [
+        {
+          place: 'wrangler-var',
+          app: 'api',
+        },
+      ],
+      neededBy: ['apps/api (`GET /api/v1/runner/release`, #467 ADR 0008 решение 8)'],
+      purpose: 'Версия раннера, которую консоль объявляет актуальной на `GET /api/v1/runner/release`.',
+      guide: {
+        obtain: null,
+        scopes: null,
+        rotation: 'Публикуется релизным процессом раннера (2-B); пусто в репозитории, пока релиза ещё нет.',
+        gotchas:
+          'Раннер проверяет релиз по доверенному корню, зашитому в свой бинарник, а не по этому значению — оно только для отображения в консоли. Пустое значение — API отвечает `version` равным `null`.',
+      },
+    },
+    {
+      name: 'RUNNER_MINIMUM_VERSION',
+      optional: true,
+      kind: 'variable',
+      origin: 'generated',
+      environments: ['dev', 'stage', 'production'],
+      locations: [
+        {
+          place: 'wrangler-var',
+          app: 'api',
+        },
+      ],
+      neededBy: ['apps/api (`GET /api/v1/runner/release`, #467 ADR 0008 решение 8)'],
+      purpose: 'Минимальная версия раннера, ниже которой раннер обязан отказаться запускаться.',
+      guide: {
+        obtain: null,
+        scopes: null,
+        rotation: 'Публикуется релизным процессом раннера (2-B); пусто в репозитории, пока релиза ещё нет.',
+        gotchas: 'Пустое значение — API отвечает `minimumVersion` равным `null`, раннер ничего не форсирует.',
+      },
+    },
+    {
       name: 'AUTH_MODE',
       kind: 'variable',
       origin: 'generated',
