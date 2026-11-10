@@ -103,18 +103,34 @@ export function auditDetailsJson(details: Readonly<Record<string, unknown>> | un
 }
 
 /**
- * The audit row of an action, for the action's own batch, so both land in one transaction or neither does. There is
- * deliberately no update or delete statement for `audit_events` anywhere in @worker/db (tested); triggers refuse both.
+ * A condition on the audit row, judged inside the action's batch after the action's own statements (#492): a subquery
+ * the row is written only if it `EXISTS`, so an action whose guarded write took no effect leaves no audit row. Its
+ * placeholders are plain `?`; SQLite numbers them after the row's own `?1`–`?8`.
  */
-export function auditEventStatement(db: D1Database, event: NewAuditEvent): D1PreparedStatement {
+export interface AuditCondition {
+  readonly exists: string;
+  readonly params: readonly (string | number | null)[];
+}
+
+/**
+ * The audit row of an action, for the action's own batch, so both land in one transaction or neither does; with
+ * `onlyIf`, only when the action took effect. There is deliberately no update or delete statement for `audit_events`
+ * anywhere in @worker/db (tested); triggers refuse both.
+ */
+export function auditEventStatement(
+  db: D1Database,
+  event: NewAuditEvent,
+  onlyIf?: AuditCondition,
+): D1PreparedStatement {
   const ipCountry =
     event.ipCountry !== undefined && event.ipCountry !== null && COUNTRY.test(event.ipCountry)
       ? event.ipCountry
       : null;
+  const values = `?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8`;
   return db
     .prepare(
       `INSERT INTO audit_events (account_id, at, actor_kind, actor, kind, target, details, ip_country)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+       ${onlyIf === undefined ? `VALUES (${values})` : `SELECT ${values} WHERE EXISTS (${onlyIf.exists})`}`,
     )
     .bind(
       event.accountId,
@@ -125,6 +141,7 @@ export function auditEventStatement(db: D1Database, event: NewAuditEvent): D1Pre
       event.target,
       auditDetailsJson(event.details),
       ipCountry,
+      ...(onlyIf?.params ?? []),
     );
 }
 
