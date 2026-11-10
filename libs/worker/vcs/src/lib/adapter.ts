@@ -92,6 +92,10 @@ export interface VcsAdapter {
   };
   readonly webhooks: VcsWebhooks;
   readonly credentials: {
+    /**
+     * Refused until #309 3b. Its implementation clamps `ttlSeconds` to at most 3600 and derives the permissions
+     * server-side from the job's role, never from the caller's `scope` alone (#481 item 5).
+     */
     gitToken(ref: RepoRef, scope: 'read' | 'write', ttlSeconds: number): Promise<ScopedToken>;
   };
 }

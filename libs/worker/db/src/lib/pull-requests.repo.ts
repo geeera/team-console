@@ -112,6 +112,12 @@ export class PullRequestsRepo {
    * `unknown` + stale unless `write.ci` brings the new head's state. Nothing is written for an archived or
    * unknown project, or when `write.repositoryId` is not the project's recorded `repo_id`. Returns whether a row
    * changed.
+   *
+   * Two changes within one second of GitHub's `updated_at` (it has no finer grain) tie, and the later write wins: an
+   * accepted limit (#481), not a bug. A tiebreak would need an order GitHub does not give — delivery ids are random
+   * GUIDs, a head SHA says nothing about which change came last, and our own arrival order is the very thing that
+   * can be wrong — and `>` instead would drop the newer of two same-second changes whenever they arrive in order,
+   * the common case. The row is corrected by the pull request's next delivery or a `?fresh=1` read.
    */
   async upsert(slug: string, pull: PullRequestSnapshot, write: PullRequestWrite): Promise<boolean> {
     const hasCi = write.ci !== undefined;
@@ -143,6 +149,7 @@ export class PullRequestsRepo {
            head_sha = excluded.head_sha,
            updated_at = excluded.updated_at,
            synced_at = excluded.synced_at
+         -- >= on purpose: a same-second tie goes to the later write (see above).
          WHERE excluded.updated_at >= pull_requests.updated_at`,
       )
       .bind(

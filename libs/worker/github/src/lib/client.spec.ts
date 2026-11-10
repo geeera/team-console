@@ -328,6 +328,43 @@ describe('GitHubClient.paginate', () => {
     expect(github.calls).toHaveLength(1);
   });
 
+  it.each([
+    ['another host', '<https://evil.example/items?page=2>; rel="next"'],
+    ['an unparsable URL', '<not a url>; rel="next"'],
+  ])(
+    'answers github-unexpected for a next link to %s when the caller asks it to (#481)',
+    async (_case, link) => {
+      const github = pages({ '/items': link }, { '/items': [1] });
+      const read = new GitHubClient(github.fetch, fixedTokens()).paginateBounded(
+        githubPath`/items`,
+        isNumber,
+        {
+          maxPages: 1,
+          unfollowableNext: 'unexpected',
+        },
+      );
+      await expect(read).rejects.toMatchObject({ problem: { type: 'github-unexpected', status: 502 } });
+      expect(github.calls).toHaveLength(1);
+    },
+  );
+
+  it('still reads a page whose next link is on api.github.com, or that has none, under unfollowableNext', async () => {
+    const github = pages(
+      { '/items': '<https://api.github.com/items?page=2>; rel="next"' },
+      { '/items': [1], '/items?page=2': [2] },
+    );
+    const client = new GitHubClient(github.fetch, fixedTokens());
+    const options = { maxPages: 1, unfollowableNext: 'unexpected' } as const;
+    await expect(client.paginateBounded(githubPath`/items`, isNumber, options)).resolves.toEqual({
+      items: [1],
+      complete: false,
+    });
+    await expect(client.paginateBounded(githubPath`/items?page=${2}`, isNumber, options)).resolves.toEqual({
+      items: [2],
+      complete: true,
+    });
+  });
+
   it('follows rel="next" when the header lists rel="last" first', async () => {
     const github = pages(
       {

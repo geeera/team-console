@@ -306,6 +306,33 @@ describe('GitHubVcsAdapter error kinds', () => {
     expect(error.problem.type).toBe('github-auth');
   });
 
+  it('answers github-unexpected for a next link off api.github.com, never a last page (#481)', async () => {
+    const mock = await createMockGitHub(edgeFixtures);
+    const auth = new GitHubAppAuth(mock.credentials, { fetch: mock.fetch });
+    const adapter = new GitHubVcsAdapter({
+      auth,
+      fetch: async (input, init) => {
+        const response = await mock.fetch(input, init);
+        const link = response.headers.get('link');
+        if (link === null) {
+          return response;
+        }
+        const headers = new Headers(response.headers);
+        headers.set('link', link.replace('https://api.github.com', 'https://evil.example'));
+        return new Response(response.body, { status: response.status, headers });
+      },
+    });
+    const error = await vcsError(adapter.pullRequests.list(TC, { state: 'open' }, { perPage: 2 }));
+    expect(error.kind).toBe('unavailable');
+    expect(error.problem).toMatchObject({ type: 'github-unexpected', status: 502 });
+    // The page with no next link at all is still the last one.
+    await expect(
+      adapter.pullRequests.list(TC, { state: 'open' }, { perPage: 2, page: 3 }),
+    ).resolves.toMatchObject({
+      nextPage: null,
+    });
+  });
+
   it('passes a budget that refuses as unavailable, without a request', async () => {
     const mock = await createMockGitHub(edgeFixtures);
     const auth = new GitHubAppAuth(mock.credentials, { fetch: mock.fetch });

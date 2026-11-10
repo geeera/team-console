@@ -11,7 +11,7 @@ import {
   type ProjectRow,
 } from '@worker/db';
 import { handledRequestOf } from '@worker/read-models';
-import { githubWebhooks } from '@worker/vcs-github';
+import { githubWebhooks } from '@worker/vcs-github/webhooks';
 import type { HooksEnv } from '../env';
 import { WEBHOOK_BODY_MAX_BYTES, readBodyCapped } from '../github/body';
 import {

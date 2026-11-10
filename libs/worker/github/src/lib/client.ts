@@ -10,6 +10,12 @@ export type JsonGuard<T> = (value: unknown) => value is T;
 export interface PaginateOptions {
   /** Upper bound on requests (subrequest budget); the default fits a project's open issues. */
   readonly maxPages?: number;
+  /**
+   * A `rel="next"` off api.github.com (or unparsable) is never followed. `end` (the default) treats it as the list's
+   * end; `unexpected` makes it 502 `github-unexpected`, for a caller that reports whether there is more and must not
+   * call a list whole when GitHub said otherwise (#481).
+   */
+  readonly unfollowableNext?: 'end' | 'unexpected';
 }
 
 /** A list read up to a page cap: the items, and whether the cap (not the list's end) stopped the read. */
@@ -190,10 +196,6 @@ function relLinkOf(link: string | null, rel: 'next' | 'last'): { readonly url: U
   return null;
 }
 
-function nextPageOf(link: string | null): URL | null {
-  return relLinkOf(link, 'next')?.url ?? null;
-}
-
 /**
  * Typed reads from api.github.com (ADR 0001 decision 6, ADR 0003 decision 6). Constructed per request with
  * a `RequestTokenSource`, never a token string. There is no generic "call any path" route on top of it: every
@@ -274,8 +276,13 @@ export class GitHubClient {
     let next: GitHubPath | null = path;
     for (let page = 0; next !== null && page < maxPages; page += 1) {
       const response = await this.get(next);
-      const nextUrl = nextPageOf(response.headers.get('link'));
+      const link = relLinkOf(response.headers.get('link'), 'next');
+      if (link !== null && link.url === null && options.unfollowableNext === 'unexpected') {
+        await discardBody(response);
+        throw githubUnexpectedError('GitHub named a next page that cannot be followed', response.status);
+      }
       items.push(...(await this.parseList(response, itemGuard)));
+      const nextUrl = link?.url ?? null;
       next = nextUrl === null ? null : githubPathOf(nextUrl);
     }
     return { items, complete: next === null };
