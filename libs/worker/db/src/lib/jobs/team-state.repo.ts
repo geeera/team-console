@@ -65,25 +65,40 @@ export class TeamStateRepo {
     /** The `team.paused` audit row written when this outcome pauses the project (#490 review). */
     pauseAudit?: NewAuditEvent,
   ): Promise<{ readonly failedStreak: number; readonly paused: boolean }> {
-    const row = await this.db
-      .prepare(
-        `INSERT INTO team_state (project_slug, paused_at, paused_by, failed_streak, updated_at)
-         VALUES (?1, CASE WHEN ?2 >= ?3 THEN ?4 END, CASE WHEN ?2 >= ?3 THEN ?5 END, ?2, ?4)
-         ON CONFLICT (project_slug) DO UPDATE SET
-           failed_streak = CASE WHEN ?2 = 0 THEN 0 ELSE failed_streak + 1 END,
-           paused_at = CASE WHEN ?2 <> 0 AND failed_streak + 1 >= ?3 AND paused_at IS NULL THEN ?4 ELSE paused_at END,
-           paused_by = CASE WHEN ?2 <> 0 AND failed_streak + 1 >= ?3 AND paused_at IS NULL THEN ?5 ELSE paused_by END,
-           updated_at = ?4
-         RETURNING failed_streak, paused_by`,
-      )
-      .bind(projectSlug, outcome === 'failed' ? 1 : 0, TEAM_FAILURE_STREAK_PAUSE, now, FAILURE_STREAK_PAUSER)
-      .first<{ failed_streak: number; paused_by: string | null }>();
+    const failed = outcome === 'failed';
+    const statements: D1PreparedStatement[] = [
+      this.db
+        .prepare(
+          `INSERT INTO team_state (project_slug, paused_at, paused_by, failed_streak, updated_at)
+           VALUES (?1, CASE WHEN ?2 >= ?3 THEN ?4 END, CASE WHEN ?2 >= ?3 THEN ?5 END, ?2, ?4)
+           ON CONFLICT (project_slug) DO UPDATE SET
+             failed_streak = CASE WHEN ?2 = 0 THEN 0 ELSE failed_streak + 1 END,
+             paused_at = CASE WHEN ?2 <> 0 AND failed_streak + 1 >= ?3 AND paused_at IS NULL THEN ?4 ELSE paused_at END,
+             paused_by = CASE WHEN ?2 <> 0 AND failed_streak + 1 >= ?3 AND paused_at IS NULL THEN ?5 ELSE paused_by END,
+             updated_at = ?4
+           RETURNING failed_streak, paused_at, paused_by`,
+        )
+        .bind(projectSlug, failed ? 1 : 0, TEAM_FAILURE_STREAK_PAUSE, now, FAILURE_STREAK_PAUSER),
+    ];
+    // In the same batch (#492), and only when this outcome is the one that paused: the same test as `paused` below.
+    if (failed && pauseAudit !== undefined) {
+      statements.push(
+        auditEventStatement(this.db, pauseAudit, {
+          exists: `SELECT 1 FROM team_state WHERE project_slug = ? AND failed_streak = ? AND paused_by = ? AND paused_at = ?`,
+          params: [projectSlug, TEAM_FAILURE_STREAK_PAUSE, FAILURE_STREAK_PAUSER, now],
+        }),
+      );
+    }
+    const [upsert] = await this.db.batch<{ failed_streak: number; paused_at: string | null; paused_by: string | null }>(
+      statements,
+    );
+    const row = upsert?.results[0];
     const failedStreak = row?.failed_streak ?? 0;
     const paused =
-      outcome === 'failed' && failedStreak === TEAM_FAILURE_STREAK_PAUSE && row?.paused_by === FAILURE_STREAK_PAUSER;
-    if (paused && pauseAudit !== undefined) {
-      await auditEventStatement(this.db, pauseAudit).run();
-    }
+      failed &&
+      failedStreak === TEAM_FAILURE_STREAK_PAUSE &&
+      row?.paused_by === FAILURE_STREAK_PAUSER &&
+      row.paused_at === now;
     return { failedStreak, paused };
   }
 }

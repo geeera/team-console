@@ -114,12 +114,15 @@ describe('findSecret', () => {
     ['one JWT prefix and a long tail', join('eyJ', 'a-'.repeat(32_000))],
     ['JWT prefixes back to back', 'eyJ'.repeat(21_000)],
     ['JWT prefixes between dashes', 'eyJ-'.repeat(16_000)],
+    // #492: every `eyJ` but the last thousand is too far from the dot for its header bound and is skipped.
+    ['JWT prefixes back to back before two dots', join('eyJ'.repeat(21_800), '.a.b')],
     ['GitHub prefixes back to back', join('gh', 'p_').repeat(16_000)],
     ['private-key headers without an end', '-----BEGIN PRIVATE KEY-'.repeat(2_500)],
   ])('scans a 64 KB text of %s quickly', (_, text) => {
     const started = performance.now();
     findSecret(text);
     redactSecrets(text);
+    redactSecrets(text, 'loose');
     expect(performance.now() - started).toBeLessThan(1_000);
   });
 });
@@ -138,6 +141,25 @@ describe('JWTs are judged run by run (#474 re-review, #488 review)', () => {
     expect(findSecret(join(before, jwt, ')'))).toBe('jwt');
     expect(redactSecrets(join(before, jwt, ')'), 'loose')).toBe(join(before, '[redacted:jwt]', ')'));
     expect(redactSecrets(join(before, jwt, ')'))).toBe(join(before, '[redacted:jwt]', ')'));
+  });
+
+  // #492: JWTs are masked before the prefix patterns, so a loose prefix inside a segment cannot cut the JWT short.
+  it.each([
+    ['a GitHub token prefix', join('gh', 's_x')],
+    ['a GitHub PAT prefix', join('gh', 'p_x')],
+    ['a job-token prefix', join(JOB_TOKEN_PREFIX, 'x')],
+    ['an enrolment-code prefix', join(ENROLMENT_CODE_PREFIX, 'x')],
+    ['an Anthropic key prefix', join('sk-', 'ant-x')],
+  ])('masks the whole JWT in loose mode when its header holds %s', (_, prefix) => {
+    const token = join('eyJ', 'hbGciOiJIUzI1NiJ9', prefix, '.', 'eyJ', 'zdWIiOiJ4In0', '.sigsigsigsig');
+    expect(redactSecrets(token, 'loose')).toBe('[redacted:jwt]');
+    expect(redactSecrets(`before ${token} after`, 'loose')).toBe('before [redacted:jwt] after');
+  });
+
+  it('masks a secret glued before a JWT and the JWT, in both modes', () => {
+    const github = join('gh', 's_', 'A1b2'.repeat(9));
+    expect(redactSecrets(join(github, jwt))).toBe('[redacted:github-token][redacted:jwt]');
+    expect(redactSecrets(join(github, jwt), 'loose')).toBe('[redacted:github-token][redacted:jwt]');
   });
 
   it('masks every JWT of a text and leaves a run with fewer than two dots alone', () => {

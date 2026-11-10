@@ -152,6 +152,38 @@ describe('JobsRepo.finish and events', () => {
     expect(audits?.n).toBe(0);
   });
 
+  // #492: the UPDATE, its event and its audit row are one batch, the last two conditional on the first.
+  it('writes one event and one audit row with the finish, and none for a second call', async () => {
+    const slug = await project(ACCOUNT_A);
+    const id = await enqueue(slug);
+    const r = await runner(ACCOUNT_A, []);
+    await claimAs(r, [slug], { tokenHash: '8'.repeat(64) });
+    const finishAudit = { ...audit('job.finished'), target: id };
+    const outcome = { result: 'failed' as const, summary: 's', metrics: {}, acted: false };
+    expect(await jobs.finish(id, r, outcome, '2026-11-10T10:06:00.000Z', finishAudit)).toBe(true);
+    expect(await jobs.finish(id, r, outcome, '2026-11-10T10:06:30.000Z', finishAudit)).toBe(false);
+    expect(await jobs.findById(id)).toMatchObject({ state: 'failed', finishedAt: '2026-11-10T10:06:00.000Z' });
+    const events = await env.DB.prepare(`SELECT COUNT(*) AS n FROM job_events WHERE job_id = ?1 AND kind = 'failed'`).bind(id).first<{ n: number }>();
+    expect(events?.n).toBe(1);
+    const audits = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.finished' AND target = ?1`).bind(id).first<{ n: number }>();
+    expect(audits?.n).toBe(1);
+  });
+
+  it('writes no event and no audit row for another runner’s call', async () => {
+    const slug = await project(ACCOUNT_A);
+    const id = await enqueue(slug);
+    const holder = await runner(ACCOUNT_A, []);
+    const other = await runner(ACCOUNT_A, []);
+    await claimAs(holder, [slug], { tokenHash: '9'.repeat(64) });
+    const finishAudit = { ...audit('job.finished'), target: id };
+    expect(await jobs.finish(id, other, { result: 'finished', summary: 's', metrics: {}, acted: false }, T1, finishAudit)).toBe(false);
+    expect((await jobs.findById(id))?.state).toBe('claimed');
+    const events = await env.DB.prepare(`SELECT COUNT(*) AS n FROM job_events WHERE job_id = ?1`).bind(id).first<{ n: number }>();
+    expect(events?.n).toBe(0);
+    const audits = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.finished' AND target = ?1`).bind(id).first<{ n: number }>();
+    expect(audits?.n).toBe(0);
+  });
+
   it('drops events past the cap and says so', async () => {
     const capped = new JobsRepo(env.DB, 3);
     const slug = await project(ACCOUNT_A);
@@ -180,6 +212,35 @@ describe('TeamStateRepo.recordOutcome', () => {
     await repo.resume(slug, T1, { ...audit('team.resumed'), target: slug });
     expect(await repo.get(slug)).toMatchObject({ pausedAt: null, failedStreak: 0 });
     expect(await repo.recordOutcome(slug, 'finished', T1)).toEqual({ failedStreak: 0, paused: false });
+  });
+
+  // #492: the audit row is conditional on this outcome being the one that paused, inside the outcome's batch.
+  it('writes the pause audit only when this outcome paused the project', async () => {
+    const pausedCount = async (slug: string): Promise<number | undefined> =>
+      (await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'team.paused' AND target = ?1`).bind(slug).first<{ n: number }>())?.n;
+    const repo = new TeamStateRepo(env.DB);
+
+    // Paused by the owner first: the streak reaching three pauses nothing and writes no row.
+    const owned = await project(ACCOUNT_A);
+    await repo.pause(owned, 'owner', T0, { ...audit('team.paused'), target: `${owned}:owner` });
+    const ownedAudit = { ...audit('team.paused'), target: owned };
+    for (const streak of [1, 2, 3]) {
+      expect(await repo.recordOutcome(owned, 'failed', T1, ownedAudit)).toEqual({ failedStreak: streak, paused: false });
+    }
+    expect(await pausedCount(owned)).toBe(0);
+
+    // Still paused by an earlier streak after a success: the next third failure did not pause it.
+    const streaked = await project(ACCOUNT_A);
+    const streakAudit = { ...audit('team.paused'), target: streaked };
+    for (const streak of [1, 2, 3]) {
+      await expect(repo.recordOutcome(streaked, 'failed', T0, streakAudit)).resolves.toMatchObject({ failedStreak: streak });
+    }
+    expect(await repo.recordOutcome(streaked, 'finished', T1)).toEqual({ failedStreak: 0, paused: false });
+    for (const streak of [1, 2, 3]) {
+      expect(await repo.recordOutcome(streaked, 'failed', T1, streakAudit)).toEqual({ failedStreak: streak, paused: false });
+    }
+    expect(await repo.get(streaked)).toMatchObject({ pausedAt: T0, pausedBy: FAILURE_STREAK_PAUSER });
+    expect(await pausedCount(streaked)).toBe(1);
   });
 
   it('cancels a runner’s live jobs outside a narrowed allow-list', async () => {

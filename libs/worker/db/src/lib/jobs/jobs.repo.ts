@@ -1,7 +1,7 @@
 import type { JobDispatch, JobEventInput, JobKind, JobState, RunnerPolicy } from '@shared/contracts';
 import { JOB_EVENTS_MAX_PER_JOB, JOB_MAX_ATTEMPTS, RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS } from '@shared/contracts';
 import { redactSecrets } from '@shared/redaction';
-import { auditEventStatement, type NewAuditEvent } from '../accounts/audit.repo';
+import { auditEventStatement, type AuditCondition, type NewAuditEvent } from '../accounts/audit.repo';
 import { isConstraintError } from '../tracker/constraint-error';
 
 /**
@@ -332,15 +332,24 @@ export class JobsRepo {
     return meta.changes === 1;
   }
 
-  private eventStatement(jobId: string, at: string, event: JobEventInput): D1PreparedStatement {
+  /** `onlyIf`: as for the audit row, the event is written only when the condition holds inside the batch (#492). */
+  private eventStatement(jobId: string, at: string, event: JobEventInput, onlyIf?: AuditCondition): D1PreparedStatement {
     // The cap is judged inside the insert, so a flood past it writes nothing (threat model C2, D1 write budget).
     return this.db
       .prepare(
         `INSERT INTO job_events (job_id, seq, at, level, kind, payload)
          SELECT ?1, COALESCE((SELECT MAX(seq) FROM job_events WHERE job_id = ?1), 0) + 1, ?2, ?3, ?4, ?5
-         WHERE (SELECT COUNT(*) FROM job_events WHERE job_id = ?1) < ?6`,
+         WHERE (SELECT COUNT(*) FROM job_events WHERE job_id = ?1) < ?6${onlyIf === undefined ? '' : ` AND EXISTS (${onlyIf.exists})`}`,
       )
-      .bind(jobId, at, event.level, event.kind, JSON.stringify(redactedPayload(event.payload)), this.eventsCap);
+      .bind(
+        jobId,
+        at,
+        event.level,
+        event.kind,
+        JSON.stringify(redactedPayload(event.payload)),
+        this.eventsCap,
+        ...(onlyIf?.params ?? []),
+      );
   }
 
   /**
@@ -388,27 +397,33 @@ export class JobsRepo {
     audit: NewAuditEvent,
   ): Promise<boolean> {
     const result = redactedPayload({ summary: outcome.summary, metrics: outcome.metrics, acted: outcome.acted });
-    // The guarded UPDATE first; the event and the audit row only once it took (#490 review): a lapsed lease or
-    // another runner's call writes nothing that reads as a finish.
-    const update = await this.db
-      .prepare(
-        `UPDATE jobs SET state = ?3, finished_at = ?4, result = ?5, token_hash = NULL, lease_until = NULL
-         WHERE id = ?1 AND runner_id = ?2 AND state IN ('claimed', 'running') AND lease_until >= ?4 RETURNING id`,
-      )
-      .bind(id, runnerId, outcome.result, now, JSON.stringify(result))
-      .first<{ id: string }>();
-    if (update === null) {
-      return false;
-    }
-    await this.db.batch([
-      this.eventStatement(id, now, {
-        level: outcome.result === 'failed' ? 'error' : 'info',
-        kind: outcome.result,
-        payload: { summary: outcome.summary, acted: outcome.acted },
-      }),
-      auditEventStatement(this.db, audit),
+    // One batch (#492): the event and the audit row are written only if the guarded UPDATE took, so a lapsed lease or
+    // another runner's call writes nothing that reads as a finish (#490 review), and a failure between two calls can
+    // no longer leave a finished job without its audit row.
+    const finished: AuditCondition = {
+      exists: `SELECT 1 FROM jobs WHERE id = ? AND runner_id = ? AND state = ? AND finished_at = ?`,
+      params: [id, runnerId, outcome.result, now],
+    };
+    const [update] = await this.db.batch([
+      this.db
+        .prepare(
+          `UPDATE jobs SET state = ?3, finished_at = ?4, result = ?5, token_hash = NULL, lease_until = NULL
+           WHERE id = ?1 AND runner_id = ?2 AND state IN ('claimed', 'running') AND lease_until >= ?4`,
+        )
+        .bind(id, runnerId, outcome.result, now, JSON.stringify(result)),
+      this.eventStatement(
+        id,
+        now,
+        {
+          level: outcome.result === 'failed' ? 'error' : 'info',
+          kind: outcome.result,
+          payload: { summary: outcome.summary, acted: outcome.acted },
+        },
+        finished,
+      ),
+      auditEventStatement(this.db, audit, finished),
     ]);
-    return true;
+    return update?.meta.changes === 1;
   }
 
   /** The statements that cancel this runner's live jobs outside `slugs`, for the allow-list write's batch (#490 review). */

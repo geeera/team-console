@@ -12,8 +12,10 @@
  * No pattern backtracks over the text: each starts at a fixed prefix, has no nested quantifier, and every quantifier
  * that a failed attempt could run to the end of the text is bounded, so a 64 KB body stays cheap to scan. JWTs are
  * found run by run (#474 re-review, #488 review): the text is split into runs of the JWT alphabet once, a run without
- * two dots is skipped, and inside a run the shape is tested at each `eyJ` — so a JWT glued to a preceding character
- * (`%22<jwt>`, `token_<jwt>`) is still found while a 64 KB run of `eyJ…` costs one pass.
+ * two dots is skipped, and inside a run the shape is tested at each `eyJ` close enough to the next dot for its header
+ * bound (#492) — so a JWT glued to a preceding character (`%22<jwt>`, `token_<jwt>`) is still found while a 64 KB run
+ * of `eyJ…`, with or without dots at its end, costs one pass. JWTs are masked before the prefix patterns (#492): a
+ * loose prefix inside a segment (`…ghs_x.eyJ…`) would otherwise cut the JWT and leave the rest of it readable.
  *
  * No word-boundary anchors (#474 review): a token glued to a word (`token<ghp_…>`, `GH_TOKEN_<ghp_…>`, `<ghp_…>_x`)
  * is still a token. The distinctive prefix and the long tail are the anchor; a longer run is still a match (fail
@@ -109,14 +111,16 @@ const SECRET_PATTERNS: readonly SecretPattern[] = [
   },
 ];
 
+/** The bound on a JWT header after its `eyJ`, in both modes. */
+const JWT_HEADER_MAX = 1024;
 /**
  * A JWS: base64url header and payload of JSON objects (`{"` encodes as `eyJ`), then the signature (empty for `none`),
  * tested with a sticky RegExp at an `eyJ` inside a run. Header and payload are bounded: a failed attempt (no dot)
  * costs at most the bound. Loose: the payload may be anything base64url (a cut or hand-built token in a message).
  */
 const JWT_SHAPE: Readonly<Record<RedactionMode, string>> = {
-  strict: String.raw`eyJ${B64URL}{5,1024}\.eyJ${B64URL}{5,16384}\.${B64URL}*`,
-  loose: String.raw`eyJ${B64URL}{1,1024}\.${B64URL}{1,16384}\.${B64URL}*`,
+  strict: String.raw`eyJ${B64URL}{5,${JWT_HEADER_MAX}}\.eyJ${B64URL}{5,16384}\.${B64URL}*`,
+  loose: String.raw`eyJ${B64URL}{1,${JWT_HEADER_MAX}}\.${B64URL}{1,16384}\.${B64URL}*`,
 };
 /** A run of the JWT alphabet; a JWT never crosses its edges, so each run is judged on its own. */
 const JWT_RUN = /[A-Za-z0-9_.-]+/g;
@@ -130,8 +134,23 @@ function jwtSpansOf(run: string, mode: RedactionMode): [number, number][] {
   }
   const shape = new RegExp(JWT_SHAPE[mode], 'y');
   const spans: [number, number][] = [];
+  // An attempt at `at` needs the header's dot within the bound, so every `eyJ` further than that from the next dot
+  // fails: skip to the first one in reach instead of trying each (#492), which keeps a run of `eyJ…` before a far
+  // dot linear.
+  const reach = JWT_START.length + JWT_HEADER_MAX;
+  let nextDot = -1;
   let at = run.indexOf(JWT_START);
   while (at !== -1) {
+    if (nextDot < at) {
+      nextDot = run.indexOf('.', at);
+      if (nextDot === -1) {
+        break;
+      }
+    }
+    if (nextDot - at > reach) {
+      at = run.indexOf(JWT_START, nextDot - reach);
+      continue;
+    }
     shape.lastIndex = at;
     const match = shape.exec(run);
     if (match !== null) {
@@ -195,10 +214,10 @@ export function findSecret(text: string): SecretKind | null {
  * is the log-grade mode (see the header); `strict` the default.
  */
 export function redactSecrets(text: string, mode: RedactionMode = 'strict'): string {
+  // JWTs first (#492): a prefix pattern masked inside a segment would split the JWT and leave its other segments.
   // A fresh global RegExp per call: a shared one would carry `lastIndex` from one call into the next.
-  const masked = SECRET_PATTERNS.reduce(
+  return SECRET_PATTERNS.reduce(
     (result, pattern) => result.replace(new RegExp(pattern[mode], 'g'), `[redacted:${pattern.kind}]`),
-    text,
+    maskJwts(text, mode, '[redacted:jwt]'),
   );
-  return maskJwts(masked, mode, '[redacted:jwt]');
 }
