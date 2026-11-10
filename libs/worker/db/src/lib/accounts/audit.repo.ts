@@ -62,17 +62,18 @@ export class AuditDetailsTooLargeError extends Error {
 const COUNTRY = /^[A-Z]{2}$/;
 const REDACTED = '[redacted]';
 /**
- * Keys whose values are credentials whatever they look like. `redact` only knows prefixed formats (`ghs_`, `sk-ant-`,
- * JWTs, PEM), but invite tokens, session ids and enrolment codes are bare random strings, and an append-only row can
- * never be cleaned later. Over-matching (`errorCode`) costs a display value, never a secret.
+ * Keys whose values are credentials whatever they look like. The value patterns know prefixed formats only (`ghs_`,
+ * `tcj_`, `sk-ant-`, JWTs, PEM), but invite tokens and session ids are bare random strings, and an append-only row
+ * can never be cleaned later. Over-matching (`errorCode`) costs a display value, never a secret.
  */
 const SECRET_KEY = /token|secret|password|passphrase|credential|cookie|session|code|key$/i;
 /** As deep as `redact` goes; deeper values are cut by it anyway. */
 const MAX_DEPTH = 6;
 
 /**
- * `details` holds ids and enums (#474 security re-check): a string is masked by the one pattern list the API and the
- * runner share (`@shared/redaction`) before `redact`'s own formats, because an append-only row can never be scrubbed.
+ * `details` holds ids and enums (#474 security re-check): a string is masked by the one pattern list the API, the
+ * logger and the runner share (`@shared/redaction`, strict here and loose again inside `redact`), because an
+ * append-only row can never be scrubbed.
  */
 function withoutSecretKeys(value: unknown, depth: number): unknown {
   if (typeof value === 'string') {

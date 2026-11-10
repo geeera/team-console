@@ -1,3 +1,5 @@
+import { redactSecrets } from '@shared/redaction';
+
 export type LogLevel = 'info' | 'warn' | 'error';
 export type LogFields = Readonly<Record<string, unknown>>;
 export type LogSink = (line: string) => void;
@@ -15,15 +17,8 @@ const REDACTED_KEYS: ReadonlySet<string> = new Set([
   'cf-access-jwt-assertion',
   'cookie',
   'set-cookie',
+  'x-runner-jwt',
 ]);
-/**
- * GitHub tokens (classic, fine-grained, OAuth, installation `ghs_`, user `ghu_`, refresh `ghr_`), Anthropic keys
- * and routine trigger tokens (`sk-ant-…`, #114), JWTs (`eyJ` is base64url `{"`, which also covers the app JWT) and
- * PEM private keys, whole or cut off: a credential that slipped into a message or an error still never lands in a
- * log (ADR 0003 decision 8).
- */
-const TOKEN_PATTERN =
-  /(?:ghp_|gho_|ghs_|ghu_|ghr_|github_pat_)[A-Za-z0-9_]+|sk-ant-[A-Za-z0-9_-]*|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*|-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)|PRIVATE KEY/g;
 /**
  * The query of any absolute URL in a log string: an OAuth callback's `code` and `state`, or a token someone put
  * in a query, never reach a log (ADR 0003 decision 3). Paths stay, so a line still says which route it was.
@@ -32,8 +27,15 @@ const URL_QUERY_PATTERN = /(\b[a-z][a-z0-9+.-]*:\/\/[^\s?#"'<>]*)\?[^\s#"'<>]*/g
 /** Deep enough for headers and nested error causes; stops runaway or cyclic structures. */
 const MAX_DEPTH = 6;
 
+/**
+ * Credential formats come from the one pattern list of `@shared/redaction` in its loose mode (#467): GitHub, GitLab,
+ * npm and AWS tokens, JWTs (the Access and app JWTs included), PEM keys, Anthropic keys and the routine trigger
+ * tokens (#114), the console's own job tokens and enrolment codes — whole or cut off, so a credential that slipped
+ * into a message or an error still never lands in a log (ADR 0003 decision 8). Header names and URL queries are
+ * this logger's own rules: they are about where a value sits, not what it looks like.
+ */
 function redactString(value: string): string {
-  return value.replace(TOKEN_PATTERN, REDACTED).replace(URL_QUERY_PATTERN, `$1?${REDACTED}`);
+  return redactSecrets(value, 'loose').replace(URL_QUERY_PATTERN, `$1?${REDACTED}`);
 }
 
 function redactValue(value: unknown, depth: number): unknown {
