@@ -57,10 +57,20 @@ function base64(text: string): string {
 const ymlFile = (text: string) => () =>
   json(200, { type: 'file', encoding: 'base64', path: '.product-team/project.yml', content: base64(text) });
 
+/** A stable id per requested repository (case-insensitive, as GitHub's), so distinct repositories never collide. */
+function repoIdFor(path: string): number {
+  let hash = 7;
+  for (const char of path.toLowerCase()) {
+    hash = (hash * 31 + char.charCodeAt(0)) % 1_000_003;
+  }
+  return 700_000 + hash;
+}
+
 function repoOwnedBy(owner: { login: string; id: number }, fullName?: string) {
   return (call: GitHubCall) =>
     json(200, {
       full_name: fullName ?? decodeURIComponent(call.url.pathname.slice('/repos/'.length)),
+      id: repoIdFor(decodeURIComponent(call.url.pathname.slice('/repos/'.length))),
       private: true,
       default_branch: 'main',
       owner,
@@ -735,6 +745,18 @@ describe('POST /api/v1/projects — the account (#466)', () => {
     const response = await add({ repo: 'geeera/storify' }, harness());
     await expectProblem(response, 409, 'installation-other-account', { step: 'app-installed' });
     expect(await rowCount()).toBe(0);
+  });
+
+  // #484: webhooks route by the repository id only, so a row without one would be unreachable.
+  it('refuses to create a project when GitHub reports no repository id (502, nothing written or linked)', async () => {
+    const noId = () =>
+      json(200, { full_name: 'geeera/storify', private: true, default_branch: 'main', owner: OWNER });
+    const response = await add({ repo: 'geeera/storify' }, harness({ repository: noId }));
+    await expectProblem(response, 502, 'github-unexpected', { step: 'repo-owner' });
+    expect(await rowCount()).toBe(0);
+    await expect(
+      new InstallationsRepo(env.DB).findLinked('github', String(INSTALLATION_ID)),
+    ).resolves.toBeNull();
   });
 
   it('answers 409 repo-taken, not 500, when the repository id is already held under another name', async () => {

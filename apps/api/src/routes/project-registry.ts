@@ -260,6 +260,17 @@ export function createProjectRegistryRoutes(
           extensions: { repoOwner: read.owner.login, login: owner.login },
         });
       }
+      // Webhooks route by this id only (ADR 0008 decision 2, #484): a row without one would never receive a delivery.
+      const repoId = read.id;
+      if (repoId === null) {
+        return stepProblem(c, {
+          type: 'github-unexpected',
+          title: 'Unexpected answer from GitHub',
+          status: 502,
+          step: 'repo-owner',
+          detail: 'GitHub did not report the repository id',
+        });
+      }
 
       let yml: string | null;
       try {
@@ -311,7 +322,7 @@ export function createProjectRegistryRoutes(
         installationId,
         addedAt: at,
         accountId,
-        repoId: read.id,
+        repoId,
       });
       const row = created === 'created' ? await projects.findActiveBySlug(slug) : null;
       if (row === null) {
@@ -336,7 +347,7 @@ export function createProjectRegistryRoutes(
         actor: actor.actor,
         kind: 'project.created',
         target: slug,
-        details: { repoId: read.id, installationId },
+        details: { repoId, installationId },
         ipCountry: c.req.header('CF-IPCountry') ?? null,
       });
       c.get('logger').info('project added', { slug });
