@@ -37,7 +37,8 @@
       "options": {
         "testTargetName": "test"
       }
-    }
+    },
+    "./tools/nx-plugins/typecheck-spec.plugin.ts"
   ],
   "generators": {
     "@nx/angular:application": {

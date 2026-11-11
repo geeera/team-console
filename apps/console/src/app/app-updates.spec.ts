@@ -70,7 +70,7 @@ describe('AppUpdates', () => {
   let sw: FakeSwUpdate;
   let storage: MemoryStorage;
   let platform: UpdatePlatform & {
-    reload: ReturnType<typeof vi.fn>;
+    reload: ReturnType<typeof vi.fn<() => void>>;
     clearWorkerCaches: ReturnType<typeof vi.fn>;
     unregisterWorkers: ReturnType<typeof vi.fn>;
   };

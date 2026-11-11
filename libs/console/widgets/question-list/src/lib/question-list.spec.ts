@@ -136,6 +136,8 @@ describe('QuestionList', () => {
           key: null,
           askId: null,
           authorTrusted: true,
+          category: null,
+          recommendation: null,
           context: null,
           body: '',
           allowedCommands: ANSWERS[item.section],

@@ -187,12 +187,14 @@ describe('SprintBoard', () => {
       await tick();
       await fixture.whenStable();
     };
-    const lanes = () =>
+    const lanes = (): Record<string, number> =>
       Object.fromEntries(
-        [...root.querySelectorAll<HTMLElement>('tc-lanes tc-lane')].map((lane) => [
-          lane.getAttribute('data-status'),
-          Number(lane.querySelector('.tc-lane__count')?.textContent),
-        ]),
+        [...root.querySelectorAll<HTMLElement>('tc-lanes tc-lane')].map(
+          (lane): [string, number] => [
+            lane.getAttribute('data-status') ?? '',
+            Number(lane.querySelector('.tc-lane__count')?.textContent),
+          ],
+        ),
       );
     const text = (selector: string) => root.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
     return { fixture, root, settle, lanes, text };

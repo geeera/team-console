@@ -61,7 +61,9 @@ async function slugOf(response: Response): Promise<string | null> {
 }
 
 const LOCAL = { ENVIRONMENT: 'local', AUTH_MODE: 'local' };
-const DEPLOYED = { ENVIRONMENT: 'dev', AUTH_MODE: undefined };
+// AUTH_MODE omitted (not set to undefined): exactOptionalPropertyTypes rejects an explicit
+// `undefined` for the optional ApiEnv field — leaving the key out means "not bound", same effect.
+const DEPLOYED = { ENVIRONMENT: 'dev' };
 
 describe('ownerOrServiceRefusal', () => {
   it('passes the Access owner, the service identity and the local bypass', async () => {

@@ -130,7 +130,7 @@ export function extractInlineStyles(source: string): InlineStyleBlock[] {
   for (const arrayMatch of source.matchAll(stylesArray)) {
     const arrayStart = arrayMatch.index + arrayMatch[0].indexOf('[') + 1;
     const literal = /`([\s\S]*?)`|'([^']*)'|"([^"]*)"/g;
-    for (const literalMatch of arrayMatch[1].matchAll(literal)) {
+    for (const literalMatch of (arrayMatch[1] ?? '').matchAll(literal)) {
       const css = literalMatch[1] ?? literalMatch[2] ?? literalMatch[3] ?? '';
       if (css.trim() !== '') {
         blocks.push({ startLine: lineOf(source, arrayStart + literalMatch.index), css });

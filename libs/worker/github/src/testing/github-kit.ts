@@ -67,7 +67,8 @@ export interface RecordedCall {
   readonly method: string;
   readonly headers: Headers;
   readonly body: string | undefined;
-  readonly redirect: RequestRedirect | undefined;
+  // workers-types has no `RequestRedirect` alias (no DOM lib in this project): RequestInit.redirect is just `string`.
+  readonly redirect: string | undefined;
   readonly signal: AbortSignal | undefined;
 }
 
