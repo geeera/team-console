@@ -266,37 +266,24 @@ async function markRequestHandled(
 }
 
 /**
- * The project a repository delivery is for (ADR 0008 decision 2): by the repository **id**, never by `full_name`,
- * so a rename or a transfer cannot land on another account's project. A row registered before 0018 has no id yet;
- * its name and its registered installation still identify it, and this signed delivery records the id once (the
- * T-2 backfill) — a row that already has an id is never matched by name.
+ * The project a repository delivery is for (ADR 0008 decision 2): by the repository **id** only, never by
+ * `full_name`, so a rename or a transfer cannot land on another account's project. A row registered before 0018
+ * without a backfilled id fails closed (#484): the owner's backfill records it (docs/runbooks/repo-id-backfill.md).
  */
 async function projectOf(
-  db: D1Database,
   projects: ProjectsRepo,
-  repository: { readonly id: number | null; readonly fullName: string },
-  installationId: number | null,
+  repository: { readonly id: number | null },
   logger: Logger,
 ): Promise<ProjectRow | null> {
   if (repository.id === null) {
     return null;
   }
-  const byId = await projects.findActiveByRepoId('github', repository.id);
-  if (byId !== null) {
-    return byId;
+  const row = await projects.findActiveByRepoId('github', repository.id);
+  if (row === null && (await projects.hasActiveWithoutRepoId())) {
+    // Possibly a legacy row's delivery, dropped until the backfill; no slug, the row is never looked up by name.
+    logger.warn('webhook refused', { reason: 'repo-id-missing' });
   }
-  const byName = await projects.findActiveByRepo(repository.fullName);
-  if (byName === null || byName.repo_id !== null || byName.installation_id !== installationId) {
-    return null;
-  }
-  // The id is recorded for good (0018 trigger), so the account invariant is checked before it is (#482 review).
-  if ((await linkedAccountOf(db, installationId)) !== byName.account_id) {
-    logger.warn('webhook refused', { reason: 'installation-account-mismatch', slug: byName.slug });
-    return null;
-  }
-  const recorded = await projects.setRepoId(byName.slug, repository.id);
-  logger.info('project repo id backfilled', { slug: byName.slug, recorded });
-  return recorded ? { ...byName, repo_id: repository.id } : null;
+  return row;
 }
 
 /**
@@ -341,7 +328,7 @@ async function handleRepositoryEvent(
     return ignored('unregistered');
   }
   const projects = new ProjectsRepo(db);
-  const row = await projectOf(db, projects, envelope.repository, envelope.installationId, logger);
+  const row = await projectOf(projects, envelope.repository, logger);
   if (row === null) {
     return ignored('unregistered');
   }

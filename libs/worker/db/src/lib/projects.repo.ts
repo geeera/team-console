@@ -47,8 +47,8 @@ export interface NewProject {
   readonly addedAt: string;
   /** The admitted account (ADR 0008 decision 2): from the request's scope, never from a body. */
   readonly accountId: string;
-  /** The provider's repository id as the API reported it at creation (decision 4); `null` only for legacy callers. */
-  readonly repoId: number | null;
+  /** The provider's repository id as the API reported it at creation (decision 4); a row without one is never routed (#484). */
+  readonly repoId: number;
 }
 
 /**
@@ -75,17 +75,15 @@ const COLUMNS =
   'runner_policy';
 
 /**
- * A repository as a webhook names it: by the provider's id when the row has one recorded (ADR 0008 decision 2), by
- * name only for a row registered before 0018 whose id is not backfilled yet.
+ * A repository as a webhook names it: by the provider's id only (ADR 0008 decision 2, #484). A payload without an id,
+ * or a row whose id was never backfilled, matches nothing; the name is never compared.
  */
 export interface RepositoryMatch {
   readonly id: number | null;
-  readonly fullName: string;
 }
 
-/** `?1` the id, `?2` the name. */
-const REPOSITORY_MATCH =
-  '((?1 IS NOT NULL AND repo_id = ?1) OR (repo_id IS NULL AND lower(repo) = lower(?2)))';
+/** `?1` the id. */
+const REPOSITORY_MATCH = '(?1 IS NOT NULL AND repo_id = ?1)';
 
 /** `WHERE account_id IN (…)` over a bound list; an empty scope matches nothing, so no row ever leaks by default. */
 function accountFilter(accountIds: readonly string[]): { readonly sql: string; readonly binds: string[] } {
@@ -167,12 +165,17 @@ export class ProjectsRepo {
     }
   }
 
-  /** Matches `owner/name` case-insensitively: GitHub treats repository names that way and webhooks echo the stored casing. */
-  async findActiveByRepo(repo: string): Promise<ProjectRow | null> {
-    return this.db
-      .prepare(`SELECT ${COLUMNS} FROM projects WHERE archived_at IS NULL AND lower(repo) = lower(?1)`)
-      .bind(repo)
-      .first<ProjectRow>();
+  /**
+   * Whether any active project still has no repository id: such a row receives no delivery until the owner's
+   * backfill records one (docs/runbooks/repo-id-backfill.md). Says nothing about which row, so it never matches by name.
+   */
+  async hasActiveWithoutRepoId(): Promise<boolean> {
+    const row = await this.db
+      .prepare(
+        'SELECT EXISTS (SELECT 1 FROM projects WHERE archived_at IS NULL AND repo_id IS NULL) AS missing',
+      )
+      .first<{ missing: number }>();
+    return row?.missing === 1;
   }
 
   /**
@@ -202,7 +205,7 @@ export class ProjectsRepo {
            SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7
            WHERE NOT EXISTS (
              SELECT 1 FROM projects
-             WHERE slug = ?1 OR lower(repo) = lower(?2) OR (?7 IS NOT NULL AND provider = 'github' AND repo_id = ?7)
+             WHERE slug = ?1 OR lower(repo) = lower(?2) OR (provider = 'github' AND repo_id = ?7)
            )`,
         )
         .bind(
@@ -275,12 +278,12 @@ export class ProjectsRepo {
   ): Promise<ProjectRow[]> {
     const { results } = await this.db
       .prepare(
-        `UPDATE projects SET access_lost_at = ?5
+        `UPDATE projects SET access_lost_at = ?4
          WHERE archived_at IS NULL AND access_lost_at IS NULL AND ${REPOSITORY_MATCH}
-           AND installation_id = ?3 AND account_id = ?4
+           AND installation_id = ?2 AND account_id = ?3
          RETURNING ${COLUMNS}`,
       )
-      .bind(repo.id, repo.fullName, installationId, accountId, lostAt)
+      .bind(repo.id, installationId, accountId, lostAt)
       .all<ProjectRow>();
     return results;
   }
@@ -312,10 +315,10 @@ export class ProjectsRepo {
       .prepare(
         `UPDATE projects SET access_lost_at = NULL
          WHERE archived_at IS NULL AND access_lost_at IS NOT NULL AND ${REPOSITORY_MATCH}
-           AND installation_id = ?3 AND account_id = ?4
+           AND installation_id = ?2 AND account_id = ?3
          RETURNING ${COLUMNS}`,
       )
-      .bind(repo.id, repo.fullName, installationId, accountId)
+      .bind(repo.id, installationId, accountId)
       .all<ProjectRow>();
     return results;
   }

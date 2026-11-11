@@ -93,6 +93,15 @@ rollback. The rehearsal targets `stage` exclusively:
    (the "Assert this checkout is exactly the commit guard validated" step prints it).
 4. Record the run URL and outcome as a comment on #25.
 
+## Repository id backfill after migration 0018
+
+The first deploy of an environment that runs `0018_accounts.sql` (stage and production: the Stage A cutover
+release) adds `projects.repo_id` empty, and webhooks route by that id only (#484). **Right after that deploy's
+"D1 migrations (remote, before traffic moves)" step and the smoke checks are green**, the owner runs
+[repo-id-backfill.md](repo-id-backfill.md) for that environment until its step a returns no rows. Until then the
+hooks Worker drops deliveries for the projects not yet backfilled (fail-closed, expected and short). Rolling back
+to a commit before #484 does not undo it: migrations are expand-only, the column and the recorded ids stay.
+
 ## What this does not cover
 
 - **Production** is out of scope for #25 (`stage` → `main` only after the owner's recorded **go** on the

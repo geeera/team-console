@@ -305,27 +305,56 @@ describe('POST /hooks/github — routing (ADR 0003 decision 5, threat model row 
       expect(await cacheEpochOf('unlinked')).toBe(0);
     });
 
-    it('backfills the repository id of a row registered before 0018 from a matching signed delivery, once', async () => {
+    // #484: the name-match path is gone. A row registered before 0018 without a backfilled id receives nothing until
+    // the owner's backfill (docs/runbooks/repo-id-backfill.md) records its id; the delivery never records it.
+    it('fails closed for a row without a repository id: no name match, no backfill, a slug-free warning', async () => {
       await seedProject('legacy-id', 'geeera/legacy-id', { repoId: null });
-      const wrongInstallation = await deliver(
-        issuesEvent('closed', { repo: 'geeera/legacy-id', installationId: 999 }),
+
+      const refused = await deliver(issuesEvent('closed', { repo: 'geeera/legacy-id' }));
+      expect(refused.response.status).toBe(200);
+      await expect(refused.response.json()).resolves.toEqual({ status: 'ignored', reason: 'unregistered' });
+      expect(refused.logs).toContainEqual(
+        expect.objectContaining({ level: 'warn', reason: 'repo-id-missing' }),
       );
-      await expect(wrongInstallation.response.json()).resolves.toEqual({
-        status: 'ignored',
-        reason: 'unregistered',
-      });
-
-      const first = await deliver(issuesEvent('closed', { repo: 'geeera/legacy-id' }));
-      expect(first.response.status).toBe(200);
-      const row = await env.DB.prepare('SELECT repo_id FROM projects WHERE slug = ?1')
+      const warning = refused.logs.find((line) => line['reason'] === 'repo-id-missing');
+      expect(warning).not.toHaveProperty('slug');
+      const row = await env.DB.prepare('SELECT repo_id, cache_epoch FROM projects WHERE slug = ?1')
         .bind('legacy-id')
-        .first<{ repo_id: number | null }>();
-      expect(row?.repo_id).toBe(repoIdOf('geeera/legacy-id'));
+        .first<{ repo_id: number | null; cache_epoch: number }>();
+      expect(row).toEqual({ repo_id: null, cache_epoch: 0 });
 
-      // With the id recorded, the name no longer identifies the row.
-      const otherId = await deliver(issuesEvent('closed', { repo: 'geeera/legacy-id', repoId: 777 }));
-      await expect(otherId.response.json()).resolves.toEqual({ status: 'ignored', reason: 'unregistered' });
+      // Once the owner's backfill has recorded the id, the same delivery is routed by it.
+      await env.DB.prepare('UPDATE projects SET repo_id = ?2 WHERE slug = ?1')
+        .bind('legacy-id', repoIdOf('geeera/legacy-id'))
+        .run();
+      const accepted = await deliver(issuesEvent('edited', { repo: 'geeera/legacy-id' }));
+      expect(accepted.response.status).toBe(200);
+      expect(accepted.logs).not.toContainEqual(expect.objectContaining({ reason: 'repo-id-missing' }));
       expect(await cacheEpochOf('legacy-id')).toBe(1);
+    });
+
+    it('logs no repo-id-missing warning for an unregistered repository once every row has an id', async () => {
+      const unknown = await deliver(issuesEvent('closed', { repo: 'geeera/unknown' }));
+      await expect(unknown.response.json()).resolves.toEqual({ status: 'ignored', reason: 'unregistered' });
+      expect(unknown.logs).not.toContainEqual(expect.objectContaining({ reason: 'repo-id-missing' }));
+    });
+
+    it('installation events never match a row without a repository id by its name', async () => {
+      await seedProject('legacy-access', 'geeera/legacy-access', { repoId: null });
+      const removed = await deliver(installationRepositoriesEvent('removed', ['geeera/legacy-access']), {
+        event: 'installation_repositories',
+      });
+      await expect(removed.response.json()).resolves.toEqual({ status: 'ignored', reason: 'unregistered' });
+      expect(await accessLostAt('legacy-access')).toBeNull();
+
+      await env.DB.prepare(
+        "UPDATE projects SET access_lost_at = '2026-10-02T08:00:00Z' WHERE slug = 'legacy-access'",
+      ).run();
+      const added = await deliver(installationRepositoriesEvent('added', ['geeera/legacy-access']), {
+        event: 'installation_repositories',
+      });
+      await expect(added.response.json()).resolves.toEqual({ status: 'ignored', reason: 'unregistered' });
+      expect(await accessLostAt('legacy-access')).toBe('2026-10-02T08:00:00Z');
     });
 
     // #463 security re-review: `pull_requests` rows are written only behind the same invariant, by repository id.
@@ -356,16 +385,13 @@ describe('POST /hooks/github — routing (ADR 0003 decision 5, threat model row 
       const rows = await env.DB.prepare('SELECT project_slug, number FROM pull_requests').all();
       expect(rows.results).toEqual([{ project_slug: 'storify', number: 5 }]);
 
-      // A pre-0018 row is backfilled by the matching delivery first, so the write that follows is by id.
+      // A pre-0018 row without a backfilled id is refused before the sync (#484): nothing is written for it.
       await seedProject('legacy-pr', 'geeera/legacy-pr', { repoId: null });
-      await deliver(pullRequestEvent('opened', { number: 7, repo: 'geeera/legacy-pr' }), {
+      const legacy = await deliver(pullRequestEvent('opened', { number: 7, repo: 'geeera/legacy-pr' }), {
         event: 'pull_request',
       });
-      const legacy = await env.DB.prepare('SELECT repo_id FROM projects WHERE slug = ?1')
-        .bind('legacy-pr')
-        .first<{ repo_id: number | null }>();
-      expect(legacy?.repo_id).toBe(repoIdOf('geeera/legacy-pr'));
-      expect(await count()).toBe(2);
+      await expect(legacy.response.json()).resolves.toEqual({ status: 'ignored', reason: 'unregistered' });
+      expect(await count()).toBe(1);
     });
 
     it('installation events touch the linked account’s projects only', async () => {
