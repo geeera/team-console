@@ -50,6 +50,8 @@ For each `slug` from step a, signed in to that environment's console:
    the same.
 3. The read records the id when GitHub answers the repository. The api Worker logs
    `project repo id backfilled` with `recorded: true` for the slug.
+   When the repository GitHub answers is not owned by the connected owner or has another `owner/name`, nothing is
+   recorded: the row stays `repo_id IS NULL` and the Worker logs `repo id backfill refused` (no slug).
 
 Re-run step a until it returns no rows.
 

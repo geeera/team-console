@@ -87,18 +87,36 @@ function withTracker(project: ProjectDto, tracker: TrackerProject | null | undef
   return { ...project, tracker: tracker?.tracker ?? 'github', keyPrefix: tracker?.keyPrefix ?? null };
 }
 
+function repoOwnerOf(facts: RepositoryFacts, connection: OwnerAccount | null): ProjectSetupDto['repoOwner'] {
+  if (facts.ownerCheckFailed) {
+    return 'unknown';
+  }
+  if (facts.owner !== null && connection !== null) {
+    return isRepoOwnedBy(connection, facts.owner) ? 'ok' : 'mismatch';
+  }
+  return 'not-checked';
+}
+
+/**
+ * #504: the T-2 backfill records the id only for the repository the row names, owned by the connected owner. The id
+ * is immutable once written (0018), so a renamed or transferred name answered by someone else's repository must not
+ * be recorded.
+ */
+function isBackfillAllowed(facts: RepositoryFacts, connection: OwnerAccount | null, repo: string): boolean {
+  return (
+    repoOwnerOf(facts, connection) === 'ok' &&
+    facts.fullName !== null &&
+    facts.fullName.toLowerCase() === repo.toLowerCase()
+  );
+}
+
 function setupOf(
   environment: string,
   facts: RepositoryFacts,
   connection: OwnerAccount | null,
   signals: { events: EventsSignal; accessLostAt: string | null; routineToken: boolean },
 ): ProjectSetupDto {
-  let repoOwner: ProjectSetupDto['repoOwner'] = 'not-checked';
-  if (facts.ownerCheckFailed) {
-    repoOwner = 'unknown';
-  } else if (facts.owner !== null && connection !== null) {
-    repoOwner = isRepoOwnedBy(connection, facts.owner) ? 'ok' : 'mismatch';
-  }
+  const repoOwner = repoOwnerOf(facts, connection);
   return {
     appInstalled: facts.appInstalled,
     repoOwner,
@@ -429,13 +447,19 @@ export function createProjectRegistryRoutes(
         async () => repositoryFacts(await github.connect(c.env), repo),
         { fresh: c.req.query('fresh') === '1' },
       );
+      const connection = await owners.current(c.env, c.get('logger'));
       // The repository id backfill of rows registered before 0018 (T-2): recorded once from what GitHub answered.
       if (project.repo_id === null && facts.repoId !== null) {
-        const recorded = await new ProjectsRepo(c.env.DB).setRepoId(project.slug, facts.repoId);
-        c.get('logger').info('project repo id backfilled', { slug: project.slug, recorded });
+        if (isBackfillAllowed(facts, connection, project.repo)) {
+          const recorded = await new ProjectsRepo(c.env.DB).setRepoId(project.slug, facts.repoId);
+          c.get('logger').info('project repo id backfilled', { slug: project.slug, recorded });
+        } else {
+          // No slug: the refusal stays fail-closed and names no row (#504).
+          c.get('logger').warn('repo id backfill refused');
+        }
       }
       const signals = new ProjectSignalsRepo(c.env.DB);
-      const body = setupOf(c.env.ENVIRONMENT, facts, await owners.current(c.env, c.get('logger')), {
+      const body = setupOf(c.env.ENVIRONMENT, facts, connection, {
         events: await signals.eventsFor(project.repo),
         accessLostAt: await signals.accessLostAt(project.slug),
         routineToken: hasRoutineToken(c.env, project.slug),

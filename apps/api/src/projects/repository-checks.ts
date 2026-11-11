@@ -171,6 +171,8 @@ export interface RepositoryFacts {
   readonly ownerLanguage: OwnerLanguage;
   /** The repository id GitHub reported with the owner read; `null` when that read failed or answered none. */
   readonly repoId: number | null;
+  /** `owner/name` as GitHub spelled it in that read; `null` when the read failed (#504: gates the backfill). */
+  readonly fullName: string | null;
 }
 
 /** Subrequests: 1 when the app is missing (2 on the lookup's 404 path), else up to 5 on a cold isolate. */
@@ -198,6 +200,7 @@ export async function repositoryFacts(github: GitHubConnection, repo: RepoName):
       projectYml: appInstalled === 'unknown' ? 'unknown' : 'missing',
       ownerLanguage: 'ru',
       repoId: null,
+      fullName: null,
     };
   }
 
@@ -205,11 +208,13 @@ export async function repositoryFacts(github: GitHubConnection, repo: RepoName):
 
   let owner: RepositoryOwner | null = null;
   let repoId: number | null = null;
+  let fullName: string | null = null;
   let ownerCheckFailed = false;
   try {
     const read = await readRepository(client, repo);
     owner = read.owner;
     repoId = read.id;
+    fullName = read.fullName;
   } catch (error: unknown) {
     if (!(error instanceof GitHubError)) {
       throw error;
@@ -230,5 +235,5 @@ export async function repositoryFacts(github: GitHubConnection, repo: RepoName):
     projectYml = 'unknown';
   }
 
-  return { appInstalled, owner, ownerCheckFailed, projectYml, ownerLanguage, repoId };
+  return { appInstalled, owner, ownerCheckFailed, projectYml, ownerLanguage, repoId, fullName };
 }
