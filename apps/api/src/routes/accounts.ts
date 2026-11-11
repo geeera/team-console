@@ -5,11 +5,13 @@ import {
   isUlid,
   type AccountDto,
   type AccountMemberDto,
+  type AccountMembershipDto,
+  type AccountMembershipListDto,
   type AuditEventListDto,
 } from '@shared/contracts';
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import { AccountsRepo, AuditRepo, type AccountRecord } from '@worker/db';
-import { roleIn } from '../auth/scope';
+import { membershipsOf, roleIn } from '../auth/scope';
 import type { ApiEnv } from '../env';
 
 type Context = WorkerContext<ApiEnv>;
@@ -63,11 +65,27 @@ function accountDtoOf(account: AccountRecord): AccountDto {
 }
 
 /**
- * `GET /api/v1/accounts/:id/{settings,members,audit}` (T-2, #466; ADR 0008 decisions 5 and 6). Reads only: members,
- * invites and roles are written by T-3. `Cache-Control: no-store` comes from `createWorkerApp`.
+ * `GET /api/v1/accounts` (#464) and `GET /api/v1/accounts/:id/{settings,members,audit}` (T-2, #466; ADR 0008
+ * decisions 5 and 6). Reads only: members, invites and roles are written by T-3. `Cache-Control: no-store` comes
+ * from `createWorkerApp`.
  */
 export function createAccountRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>()
+    // The caller's own memberships, so Settings can address `/accounts/:id/*` (#464): read from the identity, never
+    // from a query, so no other account is ever named. The service identity and a job are members of nothing.
+    .get('/', async (c) => {
+      const repo = new AccountsRepo(c.env.DB);
+      const accounts: AccountMembershipDto[] = [];
+      for (const membership of membershipsOf(c.get('identity'), c.env)) {
+        const account = await repo.findById(membership.accountId);
+        if (account !== null) {
+          accounts.push({ id: account.id, slug: account.slug, name: account.name, role: membership.role });
+        }
+      }
+      const body: AccountMembershipListDto = { accounts };
+      return c.json(body);
+    })
+
     .get('/:id/settings', async (c) => {
       const account = await ownedAccountOf(c);
       if (account instanceof Response) {

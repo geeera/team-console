@@ -1,0 +1,221 @@
+@switch (status()) {
+  @case ('loading') {
+    <tc-state-block kind="loading" compact [title]="'runners.policy.loading' | transloco" />
+  }
+  @case ('error') {
+    <tc-state-block kind="error" compact [title]="loadFailureText()" data-testid="runner-policy-load-error">
+      <button tc-button tc-state-action size="sm" type="button" (click)="retry()">
+        {{ 'ui.error.retry' | transloco }}
+      </button>
+    </tc-state-block>
+  }
+  @default {
+    <form class="policy" novalidate [id]="id" (submit)="save($event)" data-testid="runner-policy-form">
+      <p class="policy__effective" data-testid="runner-policy-effective">{{ effectiveText() }}</p>
+      <fieldset tc-choice-group [legend]="'runners.policy.mode' | transloco">
+        @if (canInherit()) {
+          <label tc-choice>
+            <input
+              type="radio"
+              value="inherit"
+              data-testid="policy-mode-inherit"
+              [name]="id + '-mode'"
+              [checked]="form().mode === 'inherit'"
+              [disabled]="saving()"
+              [attr.aria-describedby]="id + '-inherit'"
+              (change)="setMode('inherit')"
+            />
+            {{ 'runners.policy.inherit' | transloco }}
+            <small tc-choice-hint [id]="id + '-inherit'">{{ 'runners.policy.inheritHint' | transloco }}</small>
+          </label>
+        }
+        <label tc-choice>
+          <input
+            type="radio"
+            value="any"
+            data-testid="policy-mode-any"
+            [name]="id + '-mode'"
+            [checked]="form().mode === 'any'"
+            [disabled]="saving()"
+            [attr.aria-describedby]="id + '-any'"
+            (change)="setMode('any')"
+          />
+          {{ 'runners.policy.any' | transloco }}
+          <small tc-choice-hint [id]="id + '-any'">{{ 'runners.policy.anyHint' | transloco }}</small>
+        </label>
+        <label tc-choice>
+          <input
+            type="radio"
+            value="pinned"
+            data-testid="policy-mode-pinned"
+            [name]="id + '-mode'"
+            [checked]="form().mode === 'pinned'"
+            [disabled]="saving() || !canPin()"
+            [attr.aria-describedby]="id + '-pinned'"
+            (change)="setMode('pinned')"
+          />
+          {{ 'runners.policy.pinned' | transloco }}
+          <small tc-choice-hint [id]="id + '-pinned'">{{
+            (canPin() ? 'runners.policy.pinnedHint' : 'runners.policy.needsRunner') | transloco
+          }}</small>
+        </label>
+        <label tc-choice>
+          <input
+            type="radio"
+            value="failover"
+            data-testid="policy-mode-failover"
+            [name]="id + '-mode'"
+            [checked]="form().mode === 'failover'"
+            [disabled]="saving() || !canFailover()"
+            [attr.aria-describedby]="id + '-failover'"
+            (change)="setMode('failover')"
+          />
+          {{ 'runners.policy.failover' | transloco }}
+          <small tc-choice-hint [id]="id + '-failover'">{{
+            (canFailover() ? 'runners.policy.failoverHint' : 'runners.policy.needsTwo') | transloco
+          }}</small>
+        </label>
+      </fieldset>
+
+      @if (form().mode === 'pinned') {
+        <tc-field [label]="'runners.policy.pinnedRunner' | transloco" [error]="errorOf('pinned')" required>
+          <select
+            tcInput
+            data-testid="policy-pinned"
+            [disabled]="saving()"
+            (change)="setPinned($any($event.target).value)"
+          >
+            <option value="" [selected]="form().pinned === ''">{{ 'runners.policy.choose' | transloco }}</option>
+            @if (form().pinned !== '' && !canPinTo(form().pinned)) {
+              <option [value]="form().pinned" selected>{{ nameOf(form().pinned) }}</option>
+            }
+            @for (runner of live(); track runner.id) {
+              <option [value]="runner.id" [selected]="form().pinned === runner.id">{{ runner.name }}</option>
+            }
+          </select>
+        </tc-field>
+      }
+
+      @if (form().mode === 'failover') {
+        <tc-field [label]="'runners.policy.preferred' | transloco" [error]="errorOf('preferred')" required>
+          <select
+            tcInput
+            data-testid="policy-preferred"
+            [disabled]="saving()"
+            (change)="setPreferred($any($event.target).value)"
+          >
+            <option value="" [selected]="form().preferred === ''">{{ 'runners.policy.choose' | transloco }}</option>
+            @if (form().preferred !== '' && !canPinTo(form().preferred)) {
+              <option [value]="form().preferred" selected>{{ nameOf(form().preferred) }}</option>
+            }
+            @for (runner of live(); track runner.id) {
+              <option [value]="runner.id" [selected]="form().preferred === runner.id">{{ runner.name }}</option>
+            }
+          </select>
+        </tc-field>
+
+        <div class="policy__fallback" role="group" [attr.aria-labelledby]="id + '-fallback'">
+          <p class="policy__label" [id]="id + '-fallback'">{{ 'runners.policy.fallback' | transloco }}</p>
+          @if (form().fallback.length > 0) {
+            <ol class="policy__fallback-list" data-testid="policy-fallback-list">
+              @for (runnerId of form().fallback; track runnerId; let index = $index, first = $first, last = $last) {
+                <li class="policy__fallback-row" data-testid="policy-fallback">
+                  <span class="policy__fallback-name" dir="auto">{{ nameOf(runnerId) }}</span>
+                  <button
+                    tc-icon-button
+                    type="button"
+                    [attr.aria-label]="'runners.policy.up' | transloco: { name: nameOf(runnerId) }"
+                    [attr.aria-disabled]="first || saving() ? 'true' : null"
+                    (click)="first || saving() ? null : moveFallback(index, -1)"
+                  >
+                    <tc-icon name="chevron-down" class="policy__up" />
+                  </button>
+                  <button
+                    tc-icon-button
+                    type="button"
+                    [attr.aria-label]="'runners.policy.down' | transloco: { name: nameOf(runnerId) }"
+                    [attr.aria-disabled]="last || saving() ? 'true' : null"
+                    (click)="last || saving() ? null : moveFallback(index, 1)"
+                  >
+                    <tc-icon name="chevron-down" />
+                  </button>
+                  <button
+                    tc-icon-button
+                    type="button"
+                    [attr.aria-label]="'runners.policy.remove' | transloco: { name: nameOf(runnerId) }"
+                    [attr.aria-disabled]="saving() ? 'true' : null"
+                    (click)="saving() ? null : removeFallback(index)"
+                  >
+                    <tc-icon name="x" />
+                  </button>
+                </li>
+              }
+            </ol>
+          }
+          @if (fallbackChoices().length > 0) {
+            <tc-field [label]="'runners.policy.addFallback' | transloco" [error]="errorOf('fallback')">
+              <select
+                tcInput
+                data-testid="policy-add-fallback"
+                [disabled]="saving()"
+                (change)="addFallback($any($event.target).value); $any($event.target).value = ''"
+              >
+                <option value="" selected>{{ 'runners.policy.choose' | transloco }}</option>
+                @for (runner of fallbackChoices(); track runner.id) {
+                  <option [value]="runner.id">{{ runner.name }}</option>
+                }
+              </select>
+            </tc-field>
+          } @else if (errorOf('fallback')) {
+            <p class="policy__error" role="alert">{{ errorOf('fallback') }}</p>
+          }
+        </div>
+
+        <tc-field
+          [label]="'runners.policy.offlineAfter' | transloco"
+          [hint]="'runners.policy.offlineHint' | transloco: { min: offlineMin, max: offlineMax }"
+          [error]="errorOf('offlineAfter')"
+          required
+        >
+          <input
+            tcInput
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            data-testid="policy-offline"
+            [readOnly]="saving()"
+            [value]="form().offlineAfter"
+            (input)="setOfflineAfter($any($event.target).value)"
+          />
+        </tc-field>
+      }
+
+      <p class="policy__note" [id]="id + '-note'">{{ 'runners.policy.note' | transloco }}</p>
+
+      @if (saveFailure(); as message) {
+        <div tc-banner tone="danger" role="alert" data-testid="runner-policy-error">
+          <tc-icon tc-banner-icon name="alert" size="sm" />
+          <p tc-banner-text>{{ message }}</p>
+        </div>
+      }
+      <div class="policy__actions">
+        <button
+          tc-button
+          type="submit"
+          variant="primary"
+          data-testid="runner-policy-save"
+          [loading]="saving()"
+          [attr.aria-disabled]="saving() ? 'true' : null"
+          [attr.aria-describedby]="id + '-note'"
+        >
+          {{ (saving() ? 'runners.policy.busy' : 'runners.policy.save') | transloco }}
+        </button>
+        <p class="policy__saved" role="status" data-testid="runner-policy-saved">
+          @if (isSaved()) {
+            <tc-icon name="check" size="sm" />{{ 'runners.policy.saved' | transloco }}
+          }
+        </p>
+      </div>
+    </form>
+  }
+}

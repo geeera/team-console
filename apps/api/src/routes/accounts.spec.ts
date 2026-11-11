@@ -3,9 +3,11 @@ import {
   OWNER_ACCOUNT_ID,
   isAccountDto,
   isAccountMemberDto,
+  isAccountMembershipListDto,
   isAuditEventListDto,
   isProblemDetails,
   problemSlugOf,
+  type AccountMembershipListDto,
 } from '@shared/contracts';
 import { AuditRepo } from '@worker/db';
 import {
@@ -16,7 +18,7 @@ import {
   sendAsSession,
   type SessionUser,
 } from '../testing/session-kit';
-import { send, sendAsService } from '../testing/tracker-kit';
+import { jobActor, send, sendAsService } from '../testing/tracker-kit';
 
 // `GET /api/v1/accounts/:id/{settings,members,audit}` (T-2, #466): owner-of-account only; a non-member is told the
 // account does not exist (threat model C9: nothing behind an account is enumerable).
@@ -134,5 +136,51 @@ describe('GET /api/v1/accounts/:id/*', () => {
         (r) => r.status,
       ),
     ).toBe(404);
+  });
+});
+
+// #464: Settings › Runners finds the accounts it may address from the caller's memberships alone.
+describe('GET /api/v1/accounts', () => {
+  it('lists a session user’s own memberships with the role in each, and no other account', async () => {
+    const owner = await seedSessionUser('owner');
+    const other = await seedSessionUser('owner');
+    await seedMembership(other.account.id, owner.userId, 'member');
+    const unrelated = await seedSessionUser('owner');
+
+    const response = await sendAsSession(owner, 'GET', '/api/v1/accounts');
+    expect(response.status).toBe(200);
+    const text = await response.text();
+    const body: unknown = JSON.parse(text);
+    expect(isAccountMembershipListDto(body)).toBe(true);
+    const { accounts } = body as AccountMembershipListDto;
+    expect(accounts).toHaveLength(2);
+    expect(accounts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: owner.account.id, slug: owner.account.slug, role: 'owner' }),
+        expect.objectContaining({ id: other.account.id, role: 'member' }),
+      ]),
+    );
+    expect(text).not.toContain(unrelated.account.id);
+    expect(text).not.toContain(OWNER_ACCOUNT_ID);
+  });
+
+  it('gives the environment owner the owner account by construction', async () => {
+    const response = await send('GET', '/api/v1/accounts');
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as AccountMembershipListDto).accounts).toEqual([
+      expect.objectContaining({ id: OWNER_ACCOUNT_ID, slug: 'owner', role: 'owner' }),
+    ]);
+  });
+
+  it('names no account to the service identity, which is no member of any', async () => {
+    const response = await sendAsService('GET', '/api/v1/accounts');
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ accounts: [] });
+  });
+
+  it('refuses a job before any account is read', async () => {
+    const response = await send('GET', '/api/v1/accounts', undefined, { job: jobActor('pm') });
+    expect(response.status).toBe(403);
+    expect(await slugOf(response)).toBe('owner-only');
   });
 });

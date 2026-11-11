@@ -188,6 +188,21 @@ export interface AccountMemberDto {
   readonly joinedAt: string;
 }
 
+/**
+ * `GET /api/v1/accounts` (#464): the accounts the caller is a member of and its role in each, so the console can
+ * address `/accounts/:id/*` without knowing an id up front. Never another account; no entitlements or plan here.
+ */
+export interface AccountMembershipDto {
+  readonly id: string;
+  readonly slug: string;
+  readonly name: string;
+  readonly role: MemberRole;
+}
+
+export interface AccountMembershipListDto {
+  readonly accounts: readonly AccountMembershipDto[];
+}
+
 export interface AuditEventDto {
   readonly id: number;
   /** ISO 8601 UTC. */
@@ -269,4 +284,18 @@ export function isAuditEventListDto(value: unknown): value is AuditEventListDto 
     (value['nextCursor'] === null ||
       (typeof value['nextCursor'] === 'number' && Number.isInteger(value['nextCursor'])))
   );
+}
+
+export function isAccountMembershipDto(value: unknown): value is AccountMembershipDto {
+  return (
+    isRecord(value) &&
+    isUlid(value['id']) &&
+    typeof value['slug'] === 'string' &&
+    typeof value['name'] === 'string' &&
+    isMemberRole(value['role'])
+  );
+}
+
+export function isAccountMembershipListDto(value: unknown): value is AccountMembershipListDto {
+  return isRecord(value) && Array.isArray(value['accounts']) && value['accounts'].every(isAccountMembershipDto);
 }

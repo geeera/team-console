@@ -518,6 +518,11 @@ export class LocalStack {
         `VAPID_PUBLIC_KEY:${this.vapid.publicKey}`,
         '--var',
         `VAPID_PRIVATE_KEY:${this.vapid.privateKey}`,
+        // Settings › Runners flags a runner below the minimum (#464); runners.e2e.ts enrols one at 0.1.0.
+        '--var',
+        'RUNNER_RELEASE_VERSION:0.3.0',
+        '--var',
+        'RUNNER_MINIMUM_VERSION:0.2.0',
       ],
       join(this.dir, 'api.log'),
     );

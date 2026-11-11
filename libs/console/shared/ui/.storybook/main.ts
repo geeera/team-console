@@ -15,6 +15,8 @@ const config: StorybookConfig = {
     '../../../widgets/question-list/src/**/*.stories.ts',
     '../../../entities/design/src/**/*.stories.ts',
     '../../../features/design-viewer/src/**/*.stories.ts',
+    // The runner card's states (#464, Settings › Runners).
+    '../../../entities/runner/src/**/*.stories.ts',
   ],
   // One design render on the api's file route, so the preview and viewer stories show a real image (#277).
   staticDirs: [{ from: './public', to: '/' }],

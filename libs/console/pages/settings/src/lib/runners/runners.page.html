@@ -1,0 +1,127 @@
+<div class="tc-page subpage runners">
+  <nav class="subpage__crumbs" [attr.aria-label]="'settings.breadcrumb' | transloco">
+    <a routerLink="/settings"><tc-icon name="chevron-left" size="sm" />{{ 'settings.title' | transloco }}</a>
+  </nav>
+
+  <header class="runners__head">
+    <h1 #heading class="tc-page__title subpage__title" tabindex="-1">{{ 'runners.title' | transloco }}</h1>
+    <p class="runners__lead">{{ 'runners.lead' | transloco }}</p>
+  </header>
+
+  @switch (store.status()) {
+    @case ('ready') {
+      <section class="runners__section" aria-labelledby="runners-machines" data-testid="runners-machines">
+        <div class="runners__section-head">
+          <h2 id="runners-machines" class="runners__section-title">{{ 'runners.machines' | transloco }}</h2>
+          <div class="runners__section-actions">
+            <button tc-button size="sm" type="button" data-testid="runners-refresh" (click)="reload()">
+              <tc-icon name="refresh" size="sm" />{{ 'runners.refresh' | transloco }}
+            </button>
+            @if (!store.isEmpty()) {
+              <button tc-button size="sm" type="button" variant="primary" data-testid="runners-enrol" (click)="enrolRunner()">
+                <tc-icon name="plus" size="sm" />{{ 'runners.enrol.open' | transloco }}
+              </button>
+            }
+          </div>
+        </div>
+        @if (store.release().minimumVersion; as minimum) {
+          <p class="runners__release" data-testid="runners-release">
+            {{ 'runners.release' | transloco: { version: store.release().version ?? '—', minimum: minimum } }}
+          </p>
+        }
+        @if (store.isEmpty()) {
+          <tc-state-block
+            kind="empty"
+            icon="play"
+            data-testid="runners-empty"
+            [title]="'runners.empty.title' | transloco"
+            [description]="'runners.empty.body' | transloco"
+          >
+            <button tc-button tc-state-action type="button" variant="primary" data-testid="runners-enrol" (click)="enrolRunner()">
+              <tc-icon name="plus" size="sm" />{{ 'runners.enrol.open' | transloco }}
+            </button>
+          </tc-state-block>
+        } @else {
+          <ul class="runners__list" role="list">
+            @for (runner of store.runners(); track runner.id) {
+              <li>
+                <tc-runner-card [runner]="runner" [minimumVersion]="store.release().minimumVersion">
+                  @if (runner.revokedAt === null) {
+                    <span tc-runner-actions class="runners__actions">
+                      <button
+                        tc-button
+                        size="sm"
+                        type="button"
+                        data-testid="runner-edit-projects"
+                        [attr.aria-label]="'runners.projects.editAria' | transloco: { name: runner.name }"
+                        (click)="editProjects(runner)"
+                      >
+                        {{ 'runners.projects.edit' | transloco }}
+                      </button>
+                      <button
+                        tc-button
+                        size="sm"
+                        type="button"
+                        variant="danger"
+                        data-testid="runner-revoke"
+                        [attr.aria-label]="'runners.revoke.aria' | transloco: { name: runner.name }"
+                        (click)="revoke(runner)"
+                      >
+                        {{ 'runners.revoke.open' | transloco }}
+                      </button>
+                    </span>
+                  }
+                </tc-runner-card>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <section class="runners__section" aria-labelledby="runners-placement" data-testid="runners-placement">
+        <div>
+          <h2 id="runners-placement" class="runners__section-title">{{ 'runners.policy.title' | transloco }}</h2>
+          <p class="runners__lead">{{ 'runners.policy.lead' | transloco }}</p>
+        </div>
+        @if (accountScope(); as scope) {
+          <div class="runners__policy" data-testid="runners-policy-account">
+            <h3 class="runners__policy-title">{{ 'runners.policy.account' | transloco }}</h3>
+            <tc-runner-policy-editor [scope]="scope" [runners]="store.runners()" (saved)="accountPolicySaved()" />
+          </div>
+        }
+        <div class="runners__policy" data-testid="runners-policy-project">
+          <h3 class="runners__policy-title">{{ 'runners.policy.project' | transloco }}</h3>
+          @if (projectScope(); as scope) {
+            <tc-field [label]="'runners.policy.pickProject' | transloco" required>
+              <select tcInput data-testid="runners-policy-pick" (change)="pickProject($any($event.target).value)">
+                @for (project of projects(); track project.slug) {
+                  <option [value]="project.slug" [selected]="project.slug === projectSlug()">{{ project.displayName }}</option>
+                }
+              </select>
+            </tc-field>
+            <tc-runner-policy-editor [scope]="scope" [runners]="store.runners()" [revision]="accountRevision()" />
+          } @else {
+            <p class="runners__lead">{{ 'runners.policy.noProjects' | transloco }}</p>
+          }
+        </div>
+      </section>
+    }
+    @case ('forbidden') {
+      <tc-state-block
+        kind="error"
+        icon="lock"
+        data-testid="runners-forbidden"
+        [title]="'runners.forbidden.title' | transloco"
+        [description]="(store.forbidden() === 'none' ? 'runners.forbidden.none' : 'runners.forbidden.member') | transloco"
+      />
+    }
+    @case ('error') {
+      <tc-state-block kind="error" data-testid="runners-error" [title]="'runners.loadFailed' | transloco" [description]="failureText()">
+        <button tc-button tc-state-action type="button" (click)="reload()">{{ 'ui.error.retry' | transloco }}</button>
+      </tc-state-block>
+    }
+    @default {
+      <tc-state-block kind="loading" data-testid="runners-loading" [title]="'runners.loading' | transloco" />
+    }
+  }
+</div>

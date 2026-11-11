@@ -1921,5 +1921,170 @@
     "emptyTitle": "No designs to approve and no open demo right now",
     "emptyHint": "When the team sends a design or opens a demo, it shows up here.",
     "originsFailed": "Couldn't read the project's Storybook address, so previews are shown as links."
+  },
+  "runners": {
+    "title": "Runners",
+    "lead": "Runners are the machines the team runs its jobs on: your Mac, a server or a container. A runner only takes jobs of the projects you allow it.",
+    "loading": "Loading runners…",
+    "loadFailed": "Couldn't load the runners",
+    "machines": "Machines",
+    "refresh": "Refresh",
+    "release": "Current runner release: {{version}} · minimum version: {{minimum}}",
+    "entry": {
+      "section": "Runners",
+      "row": "Runners and placement",
+      "sub": "Enrol machines, allowed projects, which runner runs the jobs"
+    },
+    "empty": {
+      "title": "No runners yet",
+      "body": "Enrol your first machine: the console gives you a one-time code and the command to run on that machine."
+    },
+    "forbidden": {
+      "title": "Runners are managed by the account owner",
+      "member": "You are a member of this account, not its owner. Ask the owner to enrol a runner or change placement.",
+      "none": "You are not in any account, so there are no runners here."
+    },
+    "presence": {
+      "online": "Online",
+      "offline": "Offline",
+      "neverSeen": "Not seen yet",
+      "suspect": "Needs a look",
+      "revoked": "Revoked"
+    },
+    "backend": {
+      "container": "Container",
+      "user": "Separate macOS user",
+      "actions-ephemeral": "GitHub Actions",
+      "none": "No isolation (tests only)"
+    },
+    "card": {
+      "backend": "Isolation",
+      "hosted": "hosted by us",
+      "version": "Version",
+      "behind": "Below the minimum version",
+      "minimum": "minimum {{version}} — update the runner",
+      "pinned": "pinned to {{version}}",
+      "lastSeen": "Last seen",
+      "neverSeen": "not seen yet",
+      "host": "Machine",
+      "local": "can run needs:local jobs",
+      "projects": "Projects",
+      "noProjects": "none — it takes no jobs",
+      "revokedAt": "Revoked",
+      "suspect": {
+        "new-country": "On {{day}} at {{time}} the runner called from a new country. If that wasn't you, revoke it.",
+        "two-pollers": "On {{day}} at {{time}} two addresses used this runner's key at once. If that wasn't you, revoke it."
+      }
+    },
+    "projects": {
+      "legend": "Projects whose jobs the runner may take",
+      "editLegend": "Projects for “{{name}}”",
+      "none": "The account has no active projects.",
+      "hint": "The runner never sees jobs of other projects, even when placement names it.",
+      "title": "Runner projects",
+      "edit": "Projects",
+      "editAria": "Change the projects of runner {{name}}",
+      "narrowing": "The runner's current jobs in {{projects}} will be cancelled.",
+      "save": "Save",
+      "busy": "Saving…",
+      "saved": "Projects of runner {{name}} saved"
+    },
+    "enrol": {
+      "open": "Enrol a runner",
+      "title": "New runner",
+      "lead": "Name the machine and choose its projects. The console gives you a one-time code for the enrol command.",
+      "name": "Name",
+      "nameHint": "For example “Mac” or “Hetzner VPS” — the list shows the runner under this name.",
+      "nameEmpty": "Enter a name for the runner",
+      "submit": "Get a code",
+      "busy": "Getting a code…",
+      "issued": "The enrolment code is ready. It is shown once.",
+      "onceTitle": "The code is shown only once",
+      "onceBody": "Copy the command now. Once this window is closed the code can't be shown again — you'd need a new one.",
+      "paste": "Run this command on “{{name}}”:",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyAria": "Copy the runner enrolment command",
+      "copyFailed": "Couldn't copy: select the command and copy it by hand.",
+      "expires": "The code works until {{time}} ({{minutes}} minutes) and for one machine.",
+      "projects": "Projects: {{projects}}",
+      "noProjects": "No projects chosen: the runner takes no jobs until you add some.",
+      "done": "Done"
+    },
+    "revoke": {
+      "open": "Revoke",
+      "aria": "Revoke runner {{name}}",
+      "title": "Revoke runner “{{name}}”?",
+      "message": "This can't be undone.",
+      "itemKey": "The console stops accepting this runner's key.",
+      "itemJobs": "The jobs it is running now are cancelled.",
+      "itemAgain": "To use this machine again, enrol it anew with a new code.",
+      "confirm": "Revoke",
+      "busy": "Revoking…",
+      "done": "Runner {{name}} revoked"
+    },
+    "policy": {
+      "title": "Placement",
+      "lead": "Which runner runs the jobs: for the whole account and per project. A project without its own rule follows the account's.",
+      "account": "Account default",
+      "project": "For a project",
+      "pickProject": "Project",
+      "noProjects": "The account has no active projects.",
+      "loading": "Loading placement…",
+      "mode": "Who takes the jobs",
+      "inherit": "Same as the account",
+      "inheritHint": "The project follows the account default.",
+      "any": "Any runner",
+      "anyHint": "Any runner of the account allowed this project.",
+      "pinned": "One runner",
+      "pinnedHint": "Only the chosen runner.",
+      "failover": "Preferred and fallbacks",
+      "failoverHint": "The preferred one while it is online; when it has been silent past the threshold, the fallbacks in order.",
+      "needsRunner": "Enrol a runner first.",
+      "needsTwo": "Needs at least two runners.",
+      "pinnedRunner": "Runner",
+      "preferred": "Preferred runner",
+      "fallback": "Fallbacks, in order",
+      "addFallback": "Add a fallback",
+      "choose": "Choose a runner",
+      "up": "Move {{name}} up",
+      "down": "Move {{name}} down",
+      "remove": "Remove {{name}} from the fallbacks",
+      "offlineAfter": "Treat the preferred one as offline after, seconds",
+      "offlineHint": "From {{min}} to {{max}}.",
+      "note": "A change applies from the next job a runner claims. No runner needs to be enrolled again.",
+      "save": "Save placement",
+      "busy": "Saving…",
+      "saved": "Saved. Applies from the next job.",
+      "effective": "Now: {{summary}}.",
+      "effectiveInherited": "Now, as the account: {{summary}}.",
+      "unknownRunner": "unknown runner",
+      "revokedRunner": "{{name}} (revoked)",
+      "summary": {
+        "any": "any allowed runner",
+        "pinned": "{{runner}} only",
+        "failover": "{{runner}}, and once it is silent for {{seconds}} s, {{fallback}}"
+      },
+      "err": {
+        "pinned": "Choose a runner.",
+        "preferred": "Choose the preferred runner.",
+        "fallback": "Add at least one fallback runner.",
+        "offlineAfter": "Enter a whole number of seconds from 30 to 86400."
+      }
+    },
+    "err": {
+      "forbidden": "Only the account owner can do this. Nothing changed.",
+      "notFound": "The runner or project is no longer there. Refresh the list.",
+      "revoked": "The runner is already revoked. Refresh the list.",
+      "rateLimited": "Too many requests. Wait a minute and try again.",
+      "offline": "You're offline. Nothing changed — try again when you're back online.",
+      "timeout": "The console didn't answer in time. Try again.",
+      "sessionExpired": "Your session expired. Sign in again.",
+      "error": "Something went wrong. Try again.",
+      "invalid": "The console didn't accept the change. Check the fields.",
+      "allowedProjects": "One of the projects is archived or not this account's. Refresh the page and choose the projects again.",
+      "policy": "The console didn't accept the placement rule. Check the fields.",
+      "policyRunner": "The rule names a runner that is revoked or not this account's. Choose another."
+    }
   }
 }

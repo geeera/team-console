@@ -13,7 +13,8 @@
     "../../../widgets/github-repositories/src/**/*.ts",
     "../../../widgets/question-list/src/**/*.ts",
     "../../../entities/design/src/**/*.ts",
-    "../../../features/design-viewer/src/**/*.ts"
+    "../../../features/design-viewer/src/**/*.ts",
+    "../../../entities/runner/src/**/*.ts"
   ],
   "exclude": [
     "../src/**/*.spec.ts",
@@ -25,6 +26,8 @@
     "../../../entities/design/src/**/*.spec.ts",
     "../../../entities/design/src/test-setup.ts",
     "../../../features/design-viewer/src/**/*.spec.ts",
-    "../../../features/design-viewer/src/test-setup.ts"
+    "../../../features/design-viewer/src/test-setup.ts",
+    "../../../entities/runner/src/**/*.spec.ts",
+    "../../../entities/runner/src/test-setup.ts"
   ]
 }
