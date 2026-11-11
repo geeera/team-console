@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
-import { ProjectsStore } from '@console/entities/project';
+import { isOnConsoleTracker, ProjectsStore } from '@console/entities/project';
 import { CreateSprint } from '@console/features/create-sprint';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, Icon, Toaster } from '@console/shared/ui';
@@ -60,8 +60,7 @@ export class BoardSectionPage {
    */
   protected readonly isTracker = computed(() => {
     const slug = this.slug();
-    const tracker = slug === null ? undefined : this.projects.bySlug(slug)?.tracker;
-    return tracker !== undefined && tracker !== 'github';
+    return slug !== null && isOnConsoleTracker(this.projects.bySlug(slug));
   });
 
   protected async createSprint(): Promise<void> {
@@ -80,8 +79,13 @@ export class BoardSectionPage {
     () => {
       const slug = this.slug();
       const found = slug === null ? undefined : this.projects.bySlug(slug);
-      return found === undefined ? null : { slug: found.slug, name: found.displayName };
+      return found === undefined
+        ? null
+        : { slug: found.slug, name: found.displayName, isOnConsoleTracker: isOnConsoleTracker(found) };
     },
-    { equal: (a, b) => a?.slug === b?.slug && a?.name === b?.name },
+    {
+      equal: (a, b) =>
+        a?.slug === b?.slug && a?.name === b?.name && a?.isOnConsoleTracker === b?.isOnConsoleTracker,
+    },
   );
 }

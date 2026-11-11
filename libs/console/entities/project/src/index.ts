@@ -12,3 +12,4 @@ export * from './lib/overview';
 export * from './lib/repo-input';
 export * from './lib/setup-checklist/setup-checklist';
 export * from './lib/project-setup-link';
+export * from './lib/project-tracker';

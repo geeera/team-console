@@ -18,7 +18,9 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
+import { JOBS_TILE_ICONS, JobsStore } from '@console/entities/job';
 import { NeedsYouCounts, ProjectSetupLink, spaceUrlOf } from '@console/entities/project';
+import { RunnersStore } from '@console/entities/runner';
 import {
   ciSummaryOf,
   daysUntilDemo,
@@ -68,6 +70,7 @@ import {
   Toaster,
 } from '@console/shared/ui';
 import { map } from 'rxjs';
+import { BoardJobs } from './board-jobs';
 
 /** Without a usable `Retry-After` on a 429 (missing, invalid or 0), the board waits this long before it asks again. */
 export const DEFAULT_RETRY_SECONDS = 60;
@@ -146,6 +149,11 @@ type BoardState =
 export interface SprintBoardProject {
   readonly slug: string;
   readonly name: string;
+  /**
+   * On the console tracker (#464): the "Run log" tile and the runs section read the project's jobs (`jobs`,
+   * `job_events`) with Run now, instead of the GitHub run log.
+   */
+  readonly isOnConsoleTracker?: boolean;
 }
 
 let nextBoardId = 0;
@@ -166,6 +174,7 @@ type TileTarget = 'pulls' | 'runs' | 'questions';
 @Component({
   selector: 'tc-sprint-board',
   imports: [
+    BoardJobs,
     Button,
     Chip,
     Icon,
@@ -188,6 +197,7 @@ type TileTarget = 'pulls' | 'runs' | 'questions';
   styleUrl: './sprint-board.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'tc-sprint-board' },
+  providers: [JobsStore],
 })
 export class SprintBoard {
   private readonly api = inject(SprintApi);
@@ -201,6 +211,8 @@ export class SprintBoard {
   private readonly persisted = inject(PersistedStateStore);
   private readonly breakpoints = inject(BreakpointObserver);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  protected readonly jobs = inject(JobsStore);
+  private readonly runners = inject(RunnersStore);
 
   readonly project = input.required<SprintBoardProject>();
   /** The `?tab=` of a deep link; anything but a `BoardTab` is ignored. */
@@ -260,16 +272,47 @@ export class SprintBoard {
     const params = { n: localNumberOf(count, lang) };
     return this.transloco.translate(state === 'failure' ? pluralKeyOf(key, lang, count) : key, params);
   });
-  /** The "Run log" tile (#132): the team as the plugin's `runstate` reads the run log. */
-  protected readonly teamIcon = computed(() => TEAM_RUN_ICONS[this.board()?.team.state ?? 'unknown']);
+  /** A console-tracker project (#464): the tile and the runs section read its jobs, not the GitHub run log. */
+  protected readonly isJobsBoard = computed(() => this.project().isOnConsoleTracker === true);
+  /** The jobs tile's state; `unknown` until the jobs are read, or when they cannot be. */
+  protected readonly jobsTileState = computed(() =>
+    this.jobs.status() === 'ready' ? this.jobs.tile().state : 'unknown',
+  );
+  protected readonly runnerNames = computed(
+    () => new Map(this.runners.runners().map((runner) => [runner.id, runner.name] as const)),
+  );
+  /** The "Run log" tile (#132): the team as the plugin's `runstate` reads the run log, or the job queue (#464). */
+  protected readonly teamIcon = computed(() => {
+    if (this.isJobsBoard()) {
+      const state = this.jobsTileState();
+      return state === 'unknown' ? TEAM_RUN_ICONS.unknown : JOBS_TILE_ICONS[state];
+    }
+    return TEAM_RUN_ICONS[this.board()?.team.state ?? 'unknown'];
+  });
   protected readonly teamTone = computed((): StatTone => {
+    if (this.isJobsBoard()) {
+      const state = this.jobsTileState();
+      return state === 'failed' ? 'danger' : state === 'running' ? 'success' : 'neutral';
+    }
     const state = this.board()?.team.state;
     return state === 'failing' ? 'danger' : state === 'running' ? 'success' : 'neutral';
   });
   protected readonly teamValue = computed(() => {
     this.lang();
+    if (this.isJobsBoard()) {
+      const state = this.jobsTileState();
+      const tile = this.jobs.tile();
+      const kind = tile.kind === null ? '' : this.transloco.translate(`jobs.kind.${tile.kind}`);
+      return this.transloco.translate(`jobs.tile.${state}`, { kind, n: localNumberOf(tile.count, this.lang()) });
+    }
     return this.transloco.translate(`board.team.${this.board()?.team.state ?? 'unknown'}`);
   });
+  /** What the runs tab counts: the job cards shown, or the run log's latest runs. */
+  protected readonly runsCount = computed(() =>
+    this.isJobsBoard()
+      ? this.jobs.current().length + this.jobs.recent().length
+      : (this.board()?.team.recentRuns.length ?? 0),
+  );
   /** «Waiting for you»: the count the shell's badge shows; `null` until the first read answered. */
   protected readonly waiting = computed(() =>
     this.needsYou.refreshedAt() === null ? null : this.needsYou.countOf(this.project().slug),
@@ -339,6 +382,19 @@ export class SprintBoard {
         this.tab.set(isBoardTab(remembered) ? remembered : 'tasks');
         this.state.set({ kind: 'loading' });
         void this.load(slug, true);
+      });
+    });
+    // A console-tracker project's queue (#464): watched while the board shows that project, polled only while visible.
+    effect((onCleanup) => {
+      const slug = this.project().slug;
+      if (!this.isJobsBoard()) {
+        return;
+      }
+      untracked(() => {
+        const stop = this.jobs.watch(slug);
+        // Runner names for the cards; a member (or a failed read) leaves them unnamed, the cards show a short id.
+        void this.runners.ready();
+        onCleanup(stop);
       });
     });
     // A deep link's tab wins over the remembered one.

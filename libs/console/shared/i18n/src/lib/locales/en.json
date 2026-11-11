@@ -2086,5 +2086,95 @@
       "policy": "The console didn't accept the placement rule. Check the fields.",
       "policyRunner": "The rule names a runner that is revoked or not this account's. Choose another."
     }
+  },
+  "jobs": {
+    "kind": {
+      "slot-pm": "PM slot",
+      "slot-dev": "Dev slot",
+      "slot-qa": "QA slot",
+      "burn": "Burn-down",
+      "audit": "Security audit",
+      "review": "Review",
+      "chat": "PM chat",
+      "kickoff": "Kickoff",
+      "import": "Import",
+      "digest": "Digest"
+    },
+    "state": {
+      "queued": "Queued",
+      "claimed": "Claimed",
+      "running": "Running",
+      "finished": "Finished",
+      "failed": "Failed",
+      "lost": "Lost",
+      "cancelled": "Cancelled"
+    },
+    "event": {
+      "started": "Started",
+      "log": "Log",
+      "notice": "Notice",
+      "acted": "Acted",
+      "metric": "Metric",
+      "paused": "Paused",
+      "finished": "Finished",
+      "failed": "Failed"
+    },
+    "level": {
+      "warn": "Warning",
+      "error": "Error"
+    },
+    "card": {
+      "runner": "Runner",
+      "waitingForRunner": "Waiting for a free runner",
+      "noRunner": "—",
+      "queuedAt": "Queued",
+      "startedAt": "Started",
+      "finishedAt": "Ended",
+      "attempt": "Attempt",
+      "summary": "Summary",
+      "events": "Job events",
+      "noEvents": "The runner has sent no events yet.",
+      "eventsFailed": "Could not refresh the events — showing the last ones received."
+    },
+    "view": {
+      "title": "Team jobs",
+      "current": "Now and queued",
+      "recent": "Recent jobs",
+      "loading": "Loading jobs…",
+      "empty": "Nothing is running right now",
+      "emptyHint": "Start a job with Run — a runner picks it up on its next poll.",
+      "recentEmpty": "No finished jobs yet",
+      "errorTitle": "Could not load the jobs",
+      "forbiddenTitle": "You cannot see this project's jobs",
+      "forbiddenHint": "The owner and the members of the project's account can.",
+      "refresh": "Refresh",
+      "staleNote": "Could not refresh the list — showing the last one received."
+    },
+    "runNow": {
+      "title": "Run now",
+      "kind": "What to run",
+      "submit": "Run",
+      "queued": "{{kind}}: queued."
+    },
+    "tile": {
+      "running": "Running: {{kind}}",
+      "queued": "Queued: {{n}}",
+      "failed": "Failed: {{kind}}",
+      "finished": "Finished: {{kind}}",
+      "none": "No runs",
+      "unknown": "Unknown"
+    },
+    "err": {
+      "forbidden": "Only the account owner can start jobs. Nothing was started.",
+      "notFound": "The project was not found. Reload the page.",
+      "notCutOver": "This project still keeps its tasks in GitHub Issues — Run now works here after the move to the console.",
+      "exists": "A job of this kind is already queued or running. Wait for it to end.",
+      "invalid": "The console refused the request. Reload the page and try again.",
+      "rateLimited": "Too many requests. Wait a minute and try again.",
+      "offline": "No network. Nothing was started — try again once you are back online.",
+      "timeout": "The console did not answer in time. Refresh the list: the job may have been queued.",
+      "sessionExpired": "Your session expired. Sign in again.",
+      "error": "Something went wrong. Try again."
+    }
   }
 }

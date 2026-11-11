@@ -14,7 +14,8 @@
     "../../../widgets/question-list/src/**/*.ts",
     "../../../entities/design/src/**/*.ts",
     "../../../features/design-viewer/src/**/*.ts",
-    "../../../entities/runner/src/**/*.ts"
+    "../../../entities/runner/src/**/*.ts",
+    "../../../entities/job/src/**/*.ts"
   ],
   "exclude": [
     "../src/**/*.spec.ts",
@@ -28,6 +29,8 @@
     "../../../features/design-viewer/src/**/*.spec.ts",
     "../../../features/design-viewer/src/test-setup.ts",
     "../../../entities/runner/src/**/*.spec.ts",
-    "../../../entities/runner/src/test-setup.ts"
+    "../../../entities/runner/src/test-setup.ts",
+    "../../../entities/job/src/**/*.spec.ts",
+    "../../../entities/job/src/test-setup.ts"
   ]
 }

@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
-import { ProjectsStore } from '@console/entities/project';
+import { isOnConsoleTracker, ProjectsStore } from '@console/entities/project';
 import { FindItem, type FindProject } from '@console/features/find-item';
 import type { ProjectDto } from '@shared/contracts';
 import { map } from 'rxjs';
@@ -12,7 +12,7 @@ function findProjectOf(project: ProjectDto): FindProject {
     name: project.displayName,
     repo: project.repo,
     keyPrefix: project.keyPrefix ?? null,
-    isOnConsole: project.tracker !== undefined && project.tracker !== 'github',
+    isOnConsole: isOnConsoleTracker(project),
   };
 }
 
