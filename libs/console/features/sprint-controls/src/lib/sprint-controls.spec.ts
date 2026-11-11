@@ -41,7 +41,6 @@ function status(overrides: Partial<TeamStatusDto> = {}): TeamStatusDto {
 function refused(slug: string, code: number, extra: Record<string, unknown> = {}): CommandResult<never> {
   const error = new HttpErrorResponse({
     status: code,
-    headers: undefined,
     error: { type: `${PROBLEM_TYPE_PREFIX}${slug}`, title: 'refused', status: code, ...extra },
   });
   return { ok: false, failure: commandFailureOf(error) };

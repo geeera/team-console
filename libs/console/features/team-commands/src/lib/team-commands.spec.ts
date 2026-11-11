@@ -93,7 +93,7 @@ describe('TeamCommands', () => {
   async function answer(
     pending: Promise<CommandOutcome | null>,
     url: string,
-    body: unknown,
+    body: object,
     code = 200,
     headers: Record<string, string> = {},
   ): Promise<{ outcome: CommandOutcome | null; sent: unknown }> {

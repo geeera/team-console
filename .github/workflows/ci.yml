@@ -80,6 +80,12 @@ jobs:
       - name: Test
         run: npx nx "${NX_MODE}" -t test
 
+      # #491: every project with a tsconfig.spec.json gets this target from tools/nx-plugins/typecheck-spec.plugin.ts,
+      # so a new project is covered without touching this workflow. `test` (vitest, esbuild-transformed) never
+      # typechecks spec files on its own — this is the only thing that does.
+      - name: Typecheck specs
+        run: npx nx "${NX_MODE}" -t typecheck-spec
+
       - name: Build
         run: npx nx "${NX_MODE}" -t build
 

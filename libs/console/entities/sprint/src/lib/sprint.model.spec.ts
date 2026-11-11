@@ -61,7 +61,8 @@ function sprintDto(overrides: Partial<SprintDto> = {}): SprintDto {
 }
 
 function issue(number: number, status: string | null): SprintIssue {
-  return { ...issueDto(number, { status }) };
+  const dto = issueDto(number, { status });
+  return { ...dto, request: dto.request ?? null };
 }
 
 describe('isSprintDto', () => {

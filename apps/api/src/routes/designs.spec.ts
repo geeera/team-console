@@ -147,7 +147,11 @@ async function problemSlug(response: Response): Promise<string> {
   if (!isProblemDetails(body)) {
     throw new Error('not a problem');
   }
-  return problemSlugOf(body.type);
+  const slug = problemSlugOf(body.type);
+  if (slug === null) {
+    throw new Error(`unrecognized problem type: ${body.type}`);
+  }
+  return slug;
 }
 
 const blobReads = (stub: StubGitHub) => stub.reads().filter((call) => call.url.pathname.includes('/git/blobs/'));

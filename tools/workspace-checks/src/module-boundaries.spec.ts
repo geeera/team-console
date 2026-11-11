@@ -1,5 +1,5 @@
 import { createProjectGraphAsync, workspaceRoot } from '@nx/devkit';
-import { ESLint } from 'eslint';
+import { ESLint, type Linter } from 'eslint';
 import { join } from 'node:path';
 import { layerConstraints, scopeConstraints } from '../../../eslint.config.mjs';
 
@@ -10,7 +10,7 @@ const RULE = '@nx/enforce-module-boundaries';
  * project's real ESLint config and the real Nx project graph. Nothing is
  * written to disk, so the workspace never carries a failing fixture.
  */
-async function lintImport(projectRoot: string, importPath: string): Promise<ESLint.LintMessage[]> {
+async function lintImport(projectRoot: string, importPath: string): Promise<Linter.LintMessage[]> {
   const eslint = new ESLint({
     cwd: workspaceRoot,
     overrideConfigFile: join(projectRoot, 'eslint.config.mjs'),
@@ -71,7 +71,7 @@ describe('module boundaries (real ESLint run against the real project graph)', (
 
 describe('dependency constraints (the matrix from the architect note on #3)', () => {
   const layers = ['app', 'pages', 'widgets', 'features', 'entities', 'shared'] as const;
-  const allowed = (layer: string): string[] =>
+  const allowed = (layer: string): readonly string[] =>
     layerConstraints.find((constraint) => constraint.sourceTag === `layer:${layer}`)
       ?.onlyDependOnLibsWithTags ?? [];
 
@@ -90,7 +90,7 @@ describe('dependency constraints (the matrix from the architect note on #3)', ()
   });
 
   it('keeps console, worker and shared scopes apart', () => {
-    const scope = (name: string): string[] =>
+    const scope = (name: string): readonly string[] =>
       scopeConstraints.find((constraint) => constraint.sourceTag === `scope:${name}`)
         ?.onlyDependOnLibsWithTags ?? [];
 

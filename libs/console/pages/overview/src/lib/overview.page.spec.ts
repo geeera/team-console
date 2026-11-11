@@ -310,7 +310,7 @@ describe('OverviewPage', () => {
         ['alpha', 'Alpha'],
         ['quiet', 'Quiet'],
         ['broken', 'Broken'],
-      ]) {
+      ] as const) {
         const button = commandsFor(root, slug);
         expect(button.getAttribute('aria-label')).toBe(`Команды проекта ${name}`);
         expect(button.getAttribute('aria-keyshortcuts')).toBe('K');

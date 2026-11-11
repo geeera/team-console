@@ -18,6 +18,7 @@ import {
   type ChangedFile,
   type CiState,
   type FileContent,
+  type MergeMethod,
   type Page,
   type PageOpts,
   type PullRequest,
@@ -270,16 +271,26 @@ export class GitHubVcsAdapter implements VcsAdapter {
         changedFileOf,
       );
     },
-    create: async (): Promise<PullRequest> => {
+    // Unused params kept on the stubs below (not `()`) so this object's inferred type still matches
+    // VcsAdapter's full method signatures — callers can be typechecked against the real interface, not a
+    // narrower one `implements` happens to allow structurally.
+    create: async (
+      _ref: RepoRef,
+      _input: { readonly head: string; readonly base: string; readonly title: string; readonly body: string; readonly draft?: boolean },
+    ): Promise<PullRequest> => {
       throw vcsWriteForbidden('pullRequests.create');
     },
-    updateBranch: async (): Promise<void> => {
+    updateBranch: async (_ref: RepoRef, _number: number): Promise<void> => {
       throw vcsWriteForbidden('pullRequests.updateBranch');
     },
-    comment: async (): Promise<void> => {
+    comment: async (_ref: RepoRef, _number: number, _body: string): Promise<void> => {
       throw vcsWriteForbidden('pullRequests.comment');
     },
-    merge: async (): Promise<never> => {
+    merge: async (
+      _ref: RepoRef,
+      _number: number,
+      _input: { readonly method: MergeMethod; readonly expectedHeadSha: string; readonly title?: string },
+    ): Promise<never> => {
       throw vcsWriteForbidden('pullRequests.merge');
     },
   };
@@ -302,7 +313,7 @@ export class GitHubVcsAdapter implements VcsAdapter {
   };
 
   readonly credentials = {
-    gitToken: async (): Promise<never> => {
+    gitToken: async (_ref: RepoRef, _scope: 'read' | 'write', _ttlSeconds: number): Promise<never> => {
       throw vcsWriteForbidden('credentials.gitToken');
     },
   };

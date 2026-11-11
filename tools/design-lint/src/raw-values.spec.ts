@@ -1,6 +1,15 @@
-import { extractInlineStyles, findRawValues } from './raw-values';
+import { extractInlineStyles, findRawValues, type InlineStyleBlock } from './raw-values';
 
 const kinds = (css: string) => findRawValues(css).map((v) => `${v.kind}:${v.value}`);
+
+/** Fails the test (rather than a type error on a possibly-missing index) when the block isn't there. */
+function only(blocks: readonly InlineStyleBlock[]): InlineStyleBlock {
+  const [block] = blocks;
+  if (block === undefined) {
+    throw new Error('expected exactly one inline style block');
+  }
+  return block;
+}
 
 describe('findRawValues', () => {
   it('passes a stylesheet that reads tokens only', () => {
@@ -104,7 +113,7 @@ describe('extractInlineStyles', () => {
     const html = '<div style="color: crimson; padding: 8px"></div>';
     const blocks = extractInlineStyles(html);
     expect(blocks).toHaveLength(1);
-    expect(findRawValues(blocks[0].css).map((v) => `${v.kind}:${v.value}`)).toEqual([
+    expect(findRawValues(only(blocks).css).map((v) => `${v.kind}:${v.value}`)).toEqual([
       'colour:crimson',
       'length:8px',
     ]);
@@ -114,7 +123,7 @@ describe('extractInlineStyles', () => {
     const ts = "@Component({ styles: [`:host { color: crimson; }`] })\nclass Foo {}";
     const blocks = extractInlineStyles(ts);
     expect(blocks).toHaveLength(1);
-    expect(findRawValues(blocks[0].css).map((v) => `${v.kind}:${v.value}`)).toEqual(['colour:crimson']);
+    expect(findRawValues(only(blocks).css).map((v) => `${v.kind}:${v.value}`)).toEqual(['colour:crimson']);
   });
 
   // Regression: Angular 14+ also accepts a bare string for `styles`, not just an array.
@@ -122,7 +131,7 @@ describe('extractInlineStyles', () => {
     const ts = '@Component({ styles: `:host { color: crimson; }` })\nclass Foo {}';
     const blocks = extractInlineStyles(ts);
     expect(blocks).toHaveLength(1);
-    expect(findRawValues(blocks[0].css).map((v) => `${v.kind}:${v.value}`)).toEqual(['colour:crimson']);
+    expect(findRawValues(only(blocks).css).map((v) => `${v.kind}:${v.value}`)).toEqual(['colour:crimson']);
   });
 
   it('finds a raw value inside the single-string styles: "…" and styles: \'…\' forms', () => {
@@ -139,7 +148,7 @@ describe('extractInlineStyles', () => {
     const html = '<div [style]="\'color: crimson\'"></div>';
     const blocks = extractInlineStyles(html);
     expect(blocks).toHaveLength(1);
-    expect(findRawValues(blocks[0].css).map((v) => `${v.kind}:${v.value}`)).toEqual(['colour:crimson']);
+    expect(findRawValues(only(blocks).css).map((v) => `${v.kind}:${v.value}`)).toEqual(['colour:crimson']);
   });
 
   it('ignores a [style] binding that is not a literal (an expression has nothing to extract)', () => {

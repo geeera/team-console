@@ -160,7 +160,7 @@ describe('ArtifactsSectionPage, the Design filter states (#295, #277 spec §4)',
     await answer([DESIGN, DECISION]);
     expect(root.querySelectorAll('[data-testid="artifact"]')).toHaveLength(1);
     expect(query('[data-testid="artifacts-designs-empty"]')).toBeNull();
-    http.match(/\/designs\/277$/);
+    http.match((req) => /\/designs\/277$/.test(req.url));
   });
 
   it("#366: not installed links to the project's setup page before Retry", async () => {
