@@ -228,7 +228,7 @@ export async function readRunLog(
       ? githubPath`/repos/${repo}/issues/${issue.number}/comments?per_page=${COMMENTS_PER_PAGE}`
       : githubPath`/repos/${repo}/issues/${issue.number}/comments?per_page=${COMMENTS_PER_PAGE}&page=${firstPage}`,
     isGitHubComment,
-    { maxPages: pages },
+    { maxPages: pages, unfollowableNext: 'unexpected' },
   );
   if (!read.complete) {
     // GitHub names a page after the window: the newest entries were not read.
