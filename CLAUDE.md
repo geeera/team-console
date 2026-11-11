@@ -528,6 +528,15 @@ returns a project to the account default; a saved account default bumps the proj
 refreshes its summary and keeps unsaved edits); page `/settings/runners` in `console-pages-settings` (lazy). The e2e
 stack sets `RUNNER_RELEASE_VERSION`/`RUNNER_MINIMUM_VERSION` (0.3.0/0.2.0) for `runners.e2e.ts`. The runner's own
 paused/usage-limit state is not shown yet: the runner reports none until 2-B.
+Run now and the job view (#464 part B): on a console-tracker project (`isOnConsoleTracker` in `@console/entities/project`:
+`cutover|console`) the board's "Run log" tile and runs section read `GET …/jobs` instead of the GitHub run log
+(`SprintBoardProject.isOnConsoleTracker`; a GitHub project's board is unchanged and reads no jobs). `@console/entities/job`
+(`JobsApi` — answers through `isJobDto|isJobListDto|isJobEventListDto` in `@shared/contracts`, failures through
+`jobFailureOf`/`jobFailureKeyOf`, 409 `job-exists`/`tracker-not-cut-over` worded apart; `JobsStore`, provided by the
+board, polls every 10 s with a job live and every 60 s otherwise, only while the page is visible, events incrementally
+for held jobs; `jobsTileOf`; `JobCard`, runner text interpolated as one plain line via `withoutInvisibles`),
+`@console/features/run-now` (`RunNow`: `RUN_NOW_KINDS`, the kinds the API runs from the kind alone). Runner names come
+from `RunnersStore` (a member sees a short id).
 Jobs and job tokens (#467, ADR 0008 row 2-A part 3, migration `0022_jobs`: `jobs` (ULID id, `account_id` copied from the
 project and kept equal by trigger, `kind`, `role`, `payload` (`items`), `state` with final states kept by trigger,
 `dedupe_key` unique while live, `dispatch`, `runner_id`, `token_hash`, `attempt`, lease and timing columns, the hosted

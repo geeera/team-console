@@ -15,7 +15,7 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ConnectGitHubButton, type ConnectRefusal } from '@console/entities/github-connection';
-import { ProjectsStore } from '@console/entities/project';
+import { isOnConsoleTracker, ProjectsStore } from '@console/entities/project';
 import { PushStore, type PushView } from '@console/entities/push';
 import { activeLock, isPaused, missingSlots, TeamStatusStore } from '@console/entities/team-run';
 import { BatchApproveOpener, type BatchApproved } from '@console/features/batch-approve';
@@ -455,8 +455,7 @@ export class CommandsPanel {
     }
     const target = { slug: this.project().slug, name: this.project().name };
     // A console-tracker project (#435) keeps its sprints in the console, not in GitHub milestones.
-    const tracker = this.projectsStore.bySlug(target.slug)?.tracker ?? 'github';
-    if (row.key === 'next' && tracker !== 'github') {
+    if (row.key === 'next' && isOnConsoleTracker(this.projectsStore.bySlug(target.slug))) {
       await this.act(async () => {
         const sprint = await this.createSprint.open({ slug: target.slug });
         return sprint === null

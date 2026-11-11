@@ -16,6 +16,7 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import {
+  isOnConsoleTracker,
   isSpaceSection,
   ProjectsStore,
   spaceLocationOf,
@@ -115,10 +116,7 @@ export class ProjectSpacePage {
     return { slug: this.slug(), name: project?.displayName ?? this.slug(), repo: project?.repo ?? '' };
   });
   /** Find a task (#435) is for projects on the console tracker; a GitHub project's tasks are on GitHub. */
-  protected readonly canFind = computed(() => {
-    const tracker = this.project()?.tracker;
-    return tracker !== undefined && tracker !== 'github';
-  });
+  protected readonly canFind = computed(() => isOnConsoleTracker(this.project()));
   /** The Commands pane on a wide screen; the phone opens a sheet instead. */
   protected readonly isPaneOpen = signal(false);
   protected readonly isPhone = toSignal(

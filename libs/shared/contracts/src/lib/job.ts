@@ -1,4 +1,5 @@
 import { isUlid } from './account';
+import { isNullable, isString, isTimestamp } from './guards';
 import { InputError, checked, isRecord, oneOf, record, text, type InputCheck } from './tracker/inputs';
 
 /**
@@ -267,6 +268,65 @@ export interface JobEventDto {
 export interface JobEventListDto {
   readonly events: readonly JobEventDto[];
   readonly nextCursor: number | null;
+}
+
+const isJobDispatch = (value: unknown): value is JobDispatch => (JOB_DISPATCHES as readonly unknown[]).includes(value);
+const isCount = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+
+/** Narrows a job as the Worker answers it (#464); the console renders none it did not check. */
+export function isJobDto(value: unknown): value is JobDto {
+  return (
+    isRecord(value) &&
+    isUlid(value['id']) &&
+    isString(value['projectSlug']) &&
+    isJobKind(value['kind']) &&
+    isString(value['role']) &&
+    isJobState(value['state']) &&
+    Array.isArray(value['items']) &&
+    value['items'].every(isCount) &&
+    typeof value['priority'] === 'number' &&
+    isString(value['requestedBy']) &&
+    typeof value['needsLocal'] === 'boolean' &&
+    isJobDispatch(value['dispatch']) &&
+    isNullable(value['runnerId'], isUlid) &&
+    isCount(value['attempt']) &&
+    isCount(value['maxMinutes']) &&
+    isTimestamp(value['createdAt']) &&
+    isNullable(value['claimedAt'], isTimestamp) &&
+    isNullable(value['leaseUntil'], isTimestamp) &&
+    isNullable(value['startedAt'], isTimestamp) &&
+    isNullable(value['finishedAt'], isTimestamp) &&
+    isNullable(value['result'], isRecord)
+  );
+}
+
+export function isJobListDto(value: unknown): value is JobListDto {
+  return (
+    isRecord(value) &&
+    Array.isArray(value['jobs']) &&
+    value['jobs'].every(isJobDto) &&
+    isNullable(value['nextCursor'], isUlid)
+  );
+}
+
+export function isJobEventDto(value: unknown): value is JobEventDto {
+  return (
+    isRecord(value) &&
+    isCount(value['seq']) &&
+    isTimestamp(value['at']) &&
+    isJobEventLevel(value['level']) &&
+    isJobEventKind(value['kind']) &&
+    isRecord(value['payload'])
+  );
+}
+
+export function isJobEventListDto(value: unknown): value is JobEventListDto {
+  return (
+    isRecord(value) &&
+    Array.isArray(value['events']) &&
+    value['events'].every(isJobEventDto) &&
+    isNullable(value['nextCursor'], isCount)
+  );
 }
 
 /** `POST /api/v1/runner/jobs/claim` → 200 with this, or 204 with `Retry-After`. */

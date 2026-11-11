@@ -80,11 +80,12 @@
     >
       {{ ciValue() }}
     </div>
-    <!-- The team as runstate reads the run log (#132). -->
+    <!-- The team as runstate reads the run log (#132), or the job queue on the console tracker (#464). -->
     <div
       tc-stat
       data-testid="team-stat"
-      [attr.data-team]="board.team.state"
+      [attr.data-team]="isJobsBoard() ? null : board.team.state"
+      [attr.data-jobs]="isJobsBoard() ? jobsTileState() : null"
       [label]="'board.stat.runs' | transloco"
       [tone]="teamTone()"
       [icon]="teamIcon()"
@@ -213,15 +214,17 @@
     key="runs"
     class="board__runs"
     data-testid="runs"
-    [label]="'board.tabs.runs' | transloco: { n: (board.team.recentRuns.length | localNumber) }"
+    [label]="'board.tabs.runs' | transloco: { n: (runsCount() | localNumber) }"
   >
     <h2 #runsHeading class="board__section-title" tabindex="-1" [class.tc-sr-only]="compact()">
       {{ 'board.runs.title' | transloco }}&ngsp;<span class="board__section-count"
-        >{{ board.team.recentRuns.length | localNumber }}</span
+        >{{ runsCount() | localNumber }}</span
       >
     </h2>
+    @if (isJobsBoard()) {
+    <tc-board-jobs [slug]="project().slug" [runnerNames]="runnerNames()" />
+    } @else if (board.team.state === 'unknown') {
     <!-- An unknown team means the run log could not be read or trusted (#201): never "no runs yet" with a check. -->
-    @if (board.team.state === 'unknown') {
     <tc-state-block
       kind="empty"
       compact
@@ -232,7 +235,7 @@
     />
     } @else if (board.team.recentRuns.length === 0) {
     <tc-state-block kind="empty" compact data-testid="runs-empty" [title]="'board.runs.empty' | transloco" />
-    } @if (board.team.recentRuns.length > 0 || board.team.runLogUrl) {
+    } @if (!isJobsBoard() && (board.team.recentRuns.length > 0 || board.team.runLogUrl)) {
     <tc-sprint-run-list
       [runs]="board.team.recentRuns"
       [runLogUrl]="board.team.runLogUrl"

@@ -95,7 +95,9 @@
       "@console/entities/runner": ["./libs/console/entities/runner/src/index.ts"],
       "@console/features/enrol-runner": ["./libs/console/features/enrol-runner/src/index.ts"],
       "@console/features/manage-runner": ["./libs/console/features/manage-runner/src/index.ts"],
-      "@console/features/runner-policy": ["./libs/console/features/runner-policy/src/index.ts"]
+      "@console/features/runner-policy": ["./libs/console/features/runner-policy/src/index.ts"],
+      "@console/entities/job": ["./libs/console/entities/job/src/index.ts"],
+      "@console/features/run-now": ["./libs/console/features/run-now/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

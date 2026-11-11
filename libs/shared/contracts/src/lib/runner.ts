@@ -1,4 +1,5 @@
 import { isUlid } from './account';
+import { isNullable, isString, isStringList, isTimestamp } from './guards';
 import { isValidSlug } from './project-slug';
 import { InputError, checked, isRecord, oneOf, record, text, type InputCheck } from './tracker/inputs';
 
@@ -320,20 +321,6 @@ export function enrolCommandOf(enrolment: Pick<EnrolmentCodeDto, 'apiUrl' | 'cod
     return null;
   }
   return `${RUNNER_BINARY} enrol --url ${enrolment.apiUrl} --code ${enrolment.code}`;
-}
-
-const isString = (value: unknown): value is string => typeof value === 'string';
-
-function isStringList(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every(isString);
-}
-
-function isTimestamp(value: unknown): value is string {
-  return typeof value === 'string' && Number.isFinite(Date.parse(value));
-}
-
-function isNullable<T>(value: unknown, is: (inner: unknown) => inner is T): value is T | null {
-  return value === null || is(value);
 }
 
 export function isRunnerReleaseDto(value: unknown): value is RunnerReleaseDto {

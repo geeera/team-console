@@ -5,11 +5,22 @@ import { ApplicationInitStatus, Component, ErrorHandler, signal } from '@angular
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
+import {
+  JOB_FIXTURE_IDS,
+  jobEventFixture,
+  jobEventsUrl,
+  jobFixture,
+  JOBS_PAGE_LIMIT,
+  projectJobsUrl,
+  queuedJobFixture,
+} from '@console/entities/job';
 import { NeedsYouCounts } from '@console/entities/project';
+import { runnerFixture } from '@console/entities/runner';
 import { CORE_STATUSES, projectSprintUrl } from '@console/entities/sprint';
 import { provideConsoleI18n, TranslocoService } from '@console/shared/i18n';
 import { memoryPersistedStateStorage, PERSISTED_STATE_STORAGE } from '@console/shared/persisted-state';
 import { BREAKPOINTS, Icon } from '@console/shared/ui';
+import { OWNER_ACCOUNT_ID, problemTypeOf } from '@shared/contracts';
 import type {
   RecentRunDto,
   SprintDto,
@@ -1181,5 +1192,134 @@ describe('SprintBoard', () => {
 
     http.expectOne(projectSprintUrl('storify')).flush(sprint());
     await settle();
+  });
+
+  describe('on the console tracker (#464): the Run log tile and the runs section read the jobs', () => {
+    const CONSOLE: SprintBoardProject = { ...TC, isOnConsoleTracker: true };
+    const JOBS = `${projectJobsUrl(TC.slug)}?limit=${String(JOBS_PAGE_LIMIT)}`;
+    const RUNNERS = `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners`;
+
+    /** The account read the board makes for runner names: the owner's account with one runner, or a member's. */
+    async function answerRunners(role: 'owner' | 'member'): Promise<void> {
+      http
+        .expectOne('/api/v1/accounts')
+        .flush({ accounts: [{ id: OWNER_ACCOUNT_ID, slug: 'owner', name: 'Owner', role }] });
+      if (role === 'owner') {
+        await tick();
+        http.expectOne(RUNNERS).flush({
+          runners: [{ ...runnerFixture(), id: JOB_FIXTURE_IDS.runner, name: 'E2E Mac' }],
+          release: { version: null, minimumVersion: null },
+        });
+      }
+    }
+
+    async function renderConsole(phone = false) {
+      const rendered = await render(phone, (host) => host.project.set(CONSOLE));
+      http.expectOne(projectSprintUrl(TC.slug)).flush(sprint());
+      return rendered;
+    }
+
+    it('shows the job a runner holds with the runner by name and its events; the tile says it runs', async () => {
+      const { root, settle } = await renderConsole();
+      http.expectOne(JOBS).flush({ jobs: [jobFixture(), queuedJobFixture({ id: JOB_FIXTURE_IDS.second })], nextCursor: null });
+      await answerRunners('owner');
+      await settle();
+      http
+        .expectOne((request) => request.url === jobEventsUrl(TC.slug, JOB_FIXTURE_IDS.first))
+        .flush({ events: [jobEventFixture(1, { payload: { line: 'Opened PR #512' } })], nextCursor: null });
+      await settle();
+
+      const tile = root.querySelector('[data-testid="team-stat"]') as HTMLElement;
+      expect(tile.getAttribute('data-team')).toBeNull();
+      expect(tile.getAttribute('data-jobs')).toBe('running');
+      expect(tile.querySelector('dd')?.textContent?.trim()).toBe('Идёт: Слот разработки');
+      expect(tile.classList.contains('tc-stat--success')).toBe(true);
+
+      const lane = root.querySelector('[data-testid="runs"]') as HTMLElement;
+      const cards = [...lane.querySelectorAll<HTMLElement>('[data-testid="jobs-current"] [data-testid="job-card"]')];
+      expect(cards.map((card) => card.dataset['state'])).toEqual(['running', 'queued']);
+      expect(cards[0]?.querySelector('[data-testid="job-runner"]')?.textContent?.trim()).toBe('E2E Mac');
+      expect(cards[0]?.querySelector('[data-testid="job-event"]')?.textContent).toContain('Opened PR #512');
+      expect(lane.querySelector('[data-testid="run-now"]')).not.toBeNull();
+      expect(lane.querySelector('tc-sprint-run-list')).toBeNull();
+      expect(lane.querySelector('.board__section-count')?.textContent?.trim()).toBe('2');
+    });
+
+    it('with no jobs yet says nothing runs and offers Run now; the tile says no runs', async () => {
+      const { root, settle } = await renderConsole();
+      http.expectOne(JOBS).flush({ jobs: [], nextCursor: null });
+      await answerRunners('member');
+      await settle();
+      expect(root.querySelector('[data-testid="team-stat"] dd')?.textContent?.trim()).toBe('Запусков нет');
+      expect(root.querySelector('[data-testid="jobs-empty"]')?.textContent).toContain('Сейчас ничего не выполняется');
+      expect(root.querySelector('[data-testid="jobs-recent-empty"]')).not.toBeNull();
+    });
+
+    it('names an unknown runner by a short id for a member, and shows the last failure on the tile', async () => {
+      const { root, settle } = await renderConsole();
+      const failed = jobFixture({ id: JOB_FIXTURE_IDS.second, state: 'failed', finishedAt: '2026-11-11T09:30:00.000Z', result: { summary: 'Tests failed' } });
+      http.expectOne(JOBS).flush({ jobs: [failed], nextCursor: null });
+      await answerRunners('member');
+      await settle();
+      const tile = root.querySelector('[data-testid="team-stat"]') as HTMLElement;
+      expect(tile.getAttribute('data-jobs')).toBe('failed');
+      expect(tile.querySelector('dd')?.textContent?.trim()).toBe('Сбой: Слот разработки');
+      expect(tile.classList.contains('tc-stat--danger')).toBe(true);
+      const card = root.querySelector('[data-testid="jobs-recent"] [data-testid="job-card"]') as HTMLElement;
+      expect(card.querySelector('[data-testid="job-runner"]')?.textContent?.trim()).toBe(`…${JOB_FIXTURE_IDS.runner.slice(-6)}`);
+      expect(card.querySelector('[data-testid="job-summary"]')?.textContent?.trim()).toBe('Tests failed');
+    });
+
+    it('says the jobs are not available on a 403, and the tile is unknown', async () => {
+      const { root, settle } = await renderConsole();
+      http
+        .expectOne(JOBS)
+        .flush(
+          { type: problemTypeOf('owner-only'), title: 'x', status: 403 },
+          { status: 403, statusText: 'Forbidden', headers: { 'Content-Type': 'application/problem+json' } },
+        );
+      await answerRunners('member');
+      await settle();
+      expect(root.querySelector('[data-testid="jobs-forbidden"]')?.textContent).toContain('Задачи проекта вам недоступны');
+      expect(root.querySelector('[data-testid="team-stat"]')?.getAttribute('data-jobs')).toBe('unknown');
+      expect(root.querySelector('[data-testid="team-stat"] dd')?.textContent?.trim()).toBe('Неизвестно');
+    });
+
+    it('offers Try again after a failed read, and reads again on it', async () => {
+      const { root, settle } = await renderConsole();
+      http.expectOne(JOBS).flush('down', { status: 503, statusText: 'Unavailable' });
+      await answerRunners('member');
+      await settle();
+      const block = root.querySelector('[data-testid="jobs-error"]') as HTMLElement;
+      expect(block.textContent).toContain('Не удалось загрузить задачи');
+      (block.querySelector('button') as HTMLButtonElement).click();
+      http.expectOne(JOBS).flush({ jobs: [], nextCursor: null });
+      await settle();
+      expect(root.querySelector('[data-testid="jobs-empty"]')).not.toBeNull();
+    });
+
+    it('shows a job Run now queued at once and reads the queue again', async () => {
+      const { root, settle } = await renderConsole();
+      http.expectOne(JOBS).flush({ jobs: [], nextCursor: null });
+      await answerRunners('member');
+      await settle();
+      (root.querySelector('[data-testid="run-now-submit"]') as HTMLButtonElement).click();
+      const post = http.expectOne((request) => request.method === 'POST' && request.url === projectJobsUrl(TC.slug));
+      expect(post.request.body).toEqual({ kind: 'slot-pm' });
+      post.flush(queuedJobFixture({ kind: 'slot-pm' }), { status: 201, statusText: 'Created' });
+      await settle();
+      expect(root.querySelector('[data-testid="jobs-current"] [data-testid="job-card"]')?.getAttribute('data-kind')).toBe('slot-pm');
+      expect(root.querySelector('[data-testid="team-stat"] dd')?.textContent?.trim()).toBe('В очереди: 1');
+      http.expectOne(JOBS).flush({ jobs: [queuedJobFixture({ kind: 'slot-pm' })], nextCursor: null });
+      await settle();
+    });
+
+    it('a GitHub project reads no jobs and no runners', async () => {
+      const { settle } = await render();
+      http.expectOne(projectSprintUrl(TC.slug)).flush(sprint());
+      await settle();
+      http.expectNone(JOBS);
+      http.expectNone('/api/v1/accounts');
+    });
   });
 });
