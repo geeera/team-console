@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:test';
 import type { PullRequestListDto } from '@shared/contracts';
 import { ApiGitHub } from '../github';
+import type { OwnerConnectionSource } from '../projects/owner-connection';
 import { fetchApi } from '../testing/access-kit';
 import { json, localEnv, stubGitHub, type GitHubCall, type ReadHandler } from '../testing/github-kit';
 import { slugOf } from '../testing/tracker-kit';
@@ -49,13 +50,15 @@ interface World {
   readonly pull?: (number: number) => unknown;
   /** The check runs of a head; `null` for a 502. */
   readonly checks?: (sha: string) => unknown;
+  /** `GET /repos/{repo}`; `REPOSITORY` by default. */
+  readonly repository?: () => unknown;
 }
 
 function handlerOf(world: World): ReadHandler {
   return (call: GitHubCall) => {
     const path = call.url.pathname;
     if (path === REPO) {
-      return json(200, REPOSITORY);
+      return json(200, world.repository?.() ?? REPOSITORY);
     }
     if (path === `${REPO}/pulls`) {
       const page = Number(call.url.searchParams.get('page') ?? '1');
@@ -250,5 +253,89 @@ describe('provider reads through the read cache (#481 item 1)', () => {
       expect(await slugOf(response)).toBe('github-unavailable');
     }
     expect(reads(/\/pulls\/5$/)).toHaveLength(1);
+  });
+});
+
+// #509: the pull-request backfill writes the immutable id (0018) only for the connected owner's repository under the
+// name the row holds, through the same predicate as the setup read (#504).
+describe('the repository id backfill of a fresh read (#509)', () => {
+  const OWNER = { login: 'geeera', id: 100001 };
+  const owners: OwnerConnectionSource = {
+    current: () => Promise.resolve({ login: OWNER.login, userId: OWNER.id }),
+  };
+
+  beforeEach(async () => {
+    // A row registered before 0018: the id is immutable once set, so the row is registered again without one.
+    await env.DB.prepare("DELETE FROM projects WHERE slug = 'tc'").run();
+    await env.DB.prepare(
+      'INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at) VALUES (?1, ?2, ?1, 0, ?3)',
+    )
+      .bind('tc', 'geeera/team-console', '2026-11-01T00:00:00Z')
+      .run();
+  });
+
+  async function freshList(
+    repository: Record<string, unknown>,
+  ): Promise<{ response: Response; lines: string[] }> {
+    const stub = stubGitHub(handlerOf({ repository: () => repository }));
+    const lines: string[] = [];
+    const response = await fetchApi(`${P}/tc/prs?fresh=1`, localEnv(), {
+      github: new ApiGitHub({ fetch: stub.fetch }),
+      ownerConnection: owners,
+      logSink: (line) => lines.push(line),
+    });
+    return { response, lines };
+  }
+
+  const repoIdOf = async (): Promise<number | null> =>
+    (
+      await env.DB.prepare("SELECT repo_id FROM projects WHERE slug = 'tc'").first<{
+        repo_id: number | null;
+      }>()
+    )?.repo_id ?? null;
+
+  const refusals = (lines: readonly string[]): Record<string, unknown>[] =>
+    lines
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .filter((line) => line['message'] === 'repo id backfill refused');
+
+  async function expectRefused(repository: Record<string, unknown>): Promise<void> {
+    const { response, lines } = await freshList(repository);
+    expect(response.status).toBe(409);
+    expect(await slugOf(response)).toBe('repo-id-unknown');
+    expect(await repoIdOf()).toBeNull();
+    const refused = refusals(lines);
+    expect(refused).toHaveLength(1);
+    expect(refused[0]).not.toHaveProperty('slug');
+    expect(JSON.stringify(refused[0])).not.toMatch(/"tc"|team-console/);
+    expect((await env.DB.prepare('SELECT count(*) AS n FROM pull_requests').first<{ n: number }>())?.n).toBe(
+      0,
+    );
+  }
+
+  it('records nothing for a repository of another owner', async () => {
+    await expectRefused({ ...REPOSITORY, owner: { login: 'acme', id: 200001 } });
+  });
+
+  it('records nothing for the same owner under another full_name', async () => {
+    await expectRefused({ ...REPOSITORY, full_name: 'geeera/other-product', owner: OWNER });
+  });
+
+  it('records the id for the owner’s repository whose name differs only in case', async () => {
+    const { response, lines } = await freshList({
+      ...REPOSITORY,
+      full_name: 'Geeera/Team-Console',
+      owner: OWNER,
+    });
+    expect(response.status).toBe(200);
+    expect(await repoIdOf()).toBe(REPO_ID);
+    expect(refusals(lines)).toHaveLength(0);
+  });
+
+  it('records the id for the owner’s repository under its name', async () => {
+    const { response, lines } = await freshList({ ...REPOSITORY, owner: OWNER });
+    expect(response.status).toBe(200);
+    expect(await repoIdOf()).toBe(REPO_ID);
+    expect(refusals(lines)).toHaveLength(0);
   });
 });

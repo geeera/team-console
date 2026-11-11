@@ -124,7 +124,7 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/projects', createTrackerDecisionRoutes());
   v1.route('/projects', createTrackerRequestRoutes());
   // Pull requests (#463): D1's mirror behind the same matrix; `?fresh=1` reads GitHub through the VCS adapter.
-  v1.route('/projects', createPullRequestRoutes(github));
+  v1.route('/projects', createPullRequestRoutes(github, owners));
   // Before the connection routes: their owner-only `use('*')` would otherwise also guard this read (#194), which
   // the service identity may make on dev/stage like every other read (installation-repositories.spec.ts proves it).
   v1.route('/github', createInstallationRepositoriesRoutes(github, owners));

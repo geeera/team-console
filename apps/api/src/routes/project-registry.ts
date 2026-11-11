@@ -33,6 +33,7 @@ import {
   trackerProjectOf,
 } from '../projects/lookup';
 import type { OwnerConnectionSource } from '../projects/owner-connection';
+import { isBackfillAllowed } from '../projects/repo-id-backfill';
 import { slotsSetupOf } from '../team/slot-secrets';
 import {
   inStep,
@@ -95,19 +96,6 @@ function repoOwnerOf(facts: RepositoryFacts, connection: OwnerAccount | null): P
     return isRepoOwnedBy(connection, facts.owner) ? 'ok' : 'mismatch';
   }
   return 'not-checked';
-}
-
-/**
- * #504: the T-2 backfill records the id only for the repository the row names, owned by the connected owner. The id
- * is immutable once written (0018), so a renamed or transferred name answered by someone else's repository must not
- * be recorded.
- */
-function isBackfillAllowed(facts: RepositoryFacts, connection: OwnerAccount | null, repo: string): boolean {
-  return (
-    repoOwnerOf(facts, connection) === 'ok' &&
-    facts.fullName !== null &&
-    facts.fullName.toLowerCase() === repo.toLowerCase()
-  );
 }
 
 function setupOf(

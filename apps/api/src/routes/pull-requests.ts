@@ -13,6 +13,7 @@ import { policyActorOfContext, trackerAccess } from '../auth/tracker-access.midd
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { findProject, projectNotFound, repoOf } from '../projects/lookup';
+import type { OwnerConnectionSource } from '../projects/owner-connection';
 import { ensureRepoId, syncPullRequest, syncPullRequests } from '../read-models/pull-request-sync';
 import { invalid } from '../tracker/context';
 import { pageOf } from '../tracker/http';
@@ -82,10 +83,11 @@ function freshRefusal(c: Context): Response | null {
 async function repoIdOf(
   c: Context,
   github: ApiGitHub,
+  owners: OwnerConnectionSource,
   project: ProjectRow,
   repo: Parameters<typeof ensureRepoId>[3],
 ): Promise<number | Response> {
-  const repoId = await ensureRepoId(github, c.env, project, repo);
+  const repoId = await ensureRepoId(github, c.env, project, repo, owners, c.get('logger'));
   if (repoId !== null) {
     return repoId;
   }
@@ -106,6 +108,7 @@ async function repoIdOf(
  */
 export function createPullRequestRoutes(
   github: ApiGitHub,
+  owners: OwnerConnectionSource,
   now: () => number = () => Date.now(),
 ): Hono<WorkerHonoEnv<ApiEnv>> {
   const guard = {
@@ -140,7 +143,7 @@ export function createPullRequestRoutes(
         if (repo instanceof Response) {
           return repo;
         }
-        const repoId = await repoIdOf(c, github, project, repo);
+        const repoId = await repoIdOf(c, github, owners, project, repo);
         if (repoId instanceof Response) {
           return repoId;
         }
@@ -194,7 +197,7 @@ export function createPullRequestRoutes(
           if (repo instanceof Response) {
             return repo;
           }
-          const repoId = await repoIdOf(c, github, project, repo);
+          const repoId = await repoIdOf(c, github, owners, project, repo);
           if (repoId instanceof Response) {
             return repoId;
           }
