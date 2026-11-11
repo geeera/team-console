@@ -55,6 +55,7 @@ export class JobsStore {
     this.reset(slug);
     let timer: ReturnType<typeof setTimeout> | null = null;
     let stopped = false;
+    let visibilityRefreshInFlight = false;
     const clear = (): void => {
       if (timer !== null) {
         clearTimeout(timer);
@@ -74,7 +75,15 @@ export class JobsStore {
     };
     const onVisibility = (): void => {
       if (this.document.visibilityState === 'visible') {
-        void tick();
+        // The tab can fire several visibilitychange events in quick succession (e.g. alt-tab bounce);
+        // without this guard each one would start its own overlapping refresh.
+        if (visibilityRefreshInFlight) {
+          return;
+        }
+        visibilityRefreshInFlight = true;
+        void tick().finally(() => {
+          visibilityRefreshInFlight = false;
+        });
       } else {
         clear();
       }
@@ -152,6 +161,8 @@ export class JobsStore {
 
   private async readEvents(slug: string, ticket: number, held: readonly JobDto[]): Promise<void> {
     const known = this.eventsByJob();
+    // Unbounded on purpose: `held` is at most JOBS_PAGE_LIMIT (20) jobs, so this never fans out far enough
+    // to need a concurrency cap.
     const reads = await Promise.all(
       held.map(async (job) => {
         const before = known.get(job.id) ?? [];
