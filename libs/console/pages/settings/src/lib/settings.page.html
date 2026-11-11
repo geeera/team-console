@@ -49,6 +49,17 @@
   </section>
   }
 
+  <section class="settings__section" aria-labelledby="settings-runners" data-testid="runners-section">
+    <h2 id="settings-runners" class="settings__section-title">{{ 'runners.entry.section' | transloco }}</h2>
+    <tc-list [attr.aria-labelledby]="'settings-runners'">
+      <tc-list-row link="/settings/runners" data-testid="runners-entry">
+        <tc-icon tc-row-leading name="play" />
+        <span tc-row-title>{{ 'runners.entry.row' | transloco }}</span>
+        <span tc-row-subtitle>{{ 'runners.entry.sub' | transloco }}</span>
+      </tc-list-row>
+    </tc-list>
+  </section>
+
   <section class="settings__section" aria-labelledby="settings-lang">
     <h2 id="settings-lang" class="settings__section-title">{{ 'settings.language' | transloco }}</h2>
     <div>

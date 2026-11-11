@@ -6,6 +6,7 @@ import {
   checkRunnerPolicy,
   checkUpdateRunnerInput,
   isRunnerId,
+  isRunnerVersionBelow,
   runnerAudienceOf,
   runnerIdsOfPolicy,
   type EnrolmentCodeDto,
@@ -37,6 +38,7 @@ import type { ApiEnv } from '../env';
 import { jsonBody } from '../json-body';
 import { SMALL_WRITE_MAX_BYTES, writeLimit } from '../tracker/http';
 import { ownedAccountOf } from './accounts';
+import { runnerReleaseOf } from './runner';
 
 type Context = WorkerContext<ApiEnv>;
 
@@ -63,7 +65,7 @@ async function foreignSlugsOf(c: Context, account: AccountRecord, slugs: readonl
   return slugs.filter((slug) => !own.has(slug));
 }
 
-export function runnerDtoOf(runner: RunnerRecord, now: Date): RunnerDto {
+export function runnerDtoOf(runner: RunnerRecord, now: Date, minimumVersion: string | null): RunnerDto {
   const online =
     runner.revokedAt === null &&
     runner.lastSeenAt !== null &&
@@ -87,6 +89,7 @@ export function runnerDtoOf(runner: RunnerRecord, now: Date): RunnerDto {
         ? { at: runner.suspectAt, reason: runner.suspectReason }
         : null,
     revokedAt: runner.revokedAt,
+    belowMinimum: isRunnerVersionBelow(runner.version, minimumVersion),
   };
 }
 
@@ -215,10 +218,12 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         return account;
       }
       const now = new Date();
+      const release = runnerReleaseOf(c.env);
       const body: RunnerListDto = {
         runners: (await new RunnersRepo(c.env.DB).listForAccount(account.id)).map((runner) =>
-          runnerDtoOf(runner, now),
+          runnerDtoOf(runner, now, release.minimumVersion),
         ),
+        release,
       };
       return c.json(body);
     })
@@ -260,7 +265,7 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         new JobsRepo(c.env.DB).cancelOutsideStatements(runner.id, input.value.allowedProjects, now.toISOString()),
       );
       const updated = await runners.findInAccount(account.id, runner.id);
-      return c.json(runnerDtoOf(updated ?? runner, now));
+      return c.json(runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion));
     })
 
     .post('/:id/runners/:runner/revoke', async (c) => {
@@ -297,6 +302,6 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       }
       c.get('logger').info('runner revoked', { runnerId: runner.id });
       const updated = await runners.findInAccount(account.id, runner.id);
-      return c.json(runnerDtoOf(updated ?? runner, now));
+      return c.json(runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion));
     });
 }

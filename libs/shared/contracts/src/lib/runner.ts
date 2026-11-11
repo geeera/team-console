@@ -135,10 +135,17 @@ export interface RunnerDto {
   readonly online: boolean;
   readonly suspect: RunnerSuspectDto | null;
   readonly revokedAt: string | null;
+  /**
+   * Below `RUNNER_MINIMUM_VERSION` (#464, ADR 0008 row 2-E): the owner should update it. Judged by the Worker with
+   * `isRunnerVersionBelow`, so the console never needs the runner door's `GET /runner/release`.
+   */
+  readonly belowMinimum: boolean;
 }
 
 export interface RunnerListDto {
   readonly runners: readonly RunnerDto[];
+  /** The release the environment names (`GET /runner/release`'s answer), for Settings › Runners. */
+  readonly release: RunnerReleaseDto;
 }
 
 /** `GET /api/v1/runner/release`: the release the console names; the runner verifies it against its own trust root. */
@@ -235,4 +242,169 @@ export function checkEnrolRunnerInput(body: unknown): InputCheck<EnrolRunnerInpu
 
 export function isRunnerId(value: unknown): value is string {
   return isUlid(value);
+}
+
+const SEMVER = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+const NUMERIC_IDENTIFIER = /^[0-9]+$/;
+
+function comparePrerelease(a: string | undefined, b: string | undefined): number {
+  if (a === undefined || b === undefined) {
+    // A release outranks any of its pre-releases (SemVer 2.0.0 §11.3).
+    return a === b ? 0 : a === undefined ? 1 : -1;
+  }
+  const left = a.split('.');
+  const right = b.split('.');
+  for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
+    const x = left[index] ?? '';
+    const y = right[index] ?? '';
+    if (x === y) {
+      continue;
+    }
+    const xNumeric = NUMERIC_IDENTIFIER.test(x);
+    const yNumeric = NUMERIC_IDENTIFIER.test(y);
+    if (xNumeric && yNumeric) {
+      return Number(x) < Number(y) ? -1 : 1;
+    }
+    if (xNumeric !== yNumeric) {
+      return xNumeric ? -1 : 1;
+    }
+    return x < y ? -1 : 1;
+  }
+  return Math.sign(left.length - right.length);
+}
+
+/**
+ * SemVer 2.0.0 precedence of two runner release labels: negative, zero or positive; `null` when either is not
+ * `MAJOR.MINOR.PATCH[-pre][+build]` (build metadata is ignored, as the spec says).
+ */
+export function compareRunnerVersions(a: string, b: string): number | null {
+  const left = SEMVER.exec(a);
+  const right = SEMVER.exec(b);
+  if (left === null || right === null) {
+    return null;
+  }
+  for (const index of [1, 2, 3]) {
+    const difference = Number(left[index]) - Number(right[index]);
+    if (difference !== 0) {
+      return Math.sign(difference);
+    }
+  }
+  return comparePrerelease(left[4], right[4]);
+}
+
+/**
+ * Whether a runner's version is below the environment's minimum. With no minimum nothing is below it; a label that
+ * cannot be compared with one (not SemVer) counts as below — it cannot be shown to meet it.
+ */
+export function isRunnerVersionBelow(version: string, minimum: string | null): boolean {
+  if (minimum === null) {
+    return false;
+  }
+  const order = compareRunnerVersions(version, minimum);
+  return order === null || order < 0;
+}
+
+/** The runner binary's name on the customer's host (ADR 0008 "Runner, installer and hosted dispatch"). */
+export const RUNNER_BINARY = 'team-console-runner';
+
+const ENROLMENT_API_URL = /^https?:\/\/[A-Za-z0-9.-]+(?::[0-9]{1,5})?$/;
+const ENROLMENT_CODE_SHAPE = /^[a-z]{2,8}_[A-Za-z0-9_-]{16,128}$/;
+
+/**
+ * The one command Settings › Runners shows beside a fresh code (#464): `enrol --url <origin> --code <code>`; the
+ * runner's `enrol` (2-B) takes the same two flags. `null` when either part could carry a shell metacharacter, so a
+ * surprising answer is never offered for pasting into a terminal.
+ */
+export function enrolCommandOf(enrolment: Pick<EnrolmentCodeDto, 'apiUrl' | 'code'>): string | null {
+  if (!ENROLMENT_API_URL.test(enrolment.apiUrl) || !ENROLMENT_CODE_SHAPE.test(enrolment.code)) {
+    return null;
+  }
+  return `${RUNNER_BINARY} enrol --url ${enrolment.apiUrl} --code ${enrolment.code}`;
+}
+
+const isString = (value: unknown): value is string => typeof value === 'string';
+
+function isStringList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(isString);
+}
+
+function isTimestamp(value: unknown): value is string {
+  return typeof value === 'string' && Number.isFinite(Date.parse(value));
+}
+
+function isNullable<T>(value: unknown, is: (inner: unknown) => inner is T): value is T | null {
+  return value === null || is(value);
+}
+
+export function isRunnerReleaseDto(value: unknown): value is RunnerReleaseDto {
+  return (
+    isRecord(value) &&
+    isNullable(value['version'], isRunnerVersion) &&
+    isNullable(value['minimumVersion'], isRunnerVersion)
+  );
+}
+
+function isRunnerHostDto(value: unknown): value is RunnerHostDto {
+  return isRecord(value) && isString(value['os']) && isString(value['arch']) && isString(value['hostname']);
+}
+
+function isRunnerCapabilitiesDto(value: unknown): value is RunnerCapabilitiesDto {
+  return (
+    isRecord(value) &&
+    typeof value['local'] === 'boolean' &&
+    typeof value['maxConcurrency'] === 'number' &&
+    Number.isInteger(value['maxConcurrency'])
+  );
+}
+
+function isRunnerSuspectDto(value: unknown): value is RunnerSuspectDto {
+  return (
+    isRecord(value) &&
+    isTimestamp(value['at']) &&
+    (RUNNER_SUSPECT_REASONS as readonly unknown[]).includes(value['reason'])
+  );
+}
+
+/** Narrows a runner as the Worker answers it; the console renders none it did not check. */
+export function isRunnerDto(value: unknown): value is RunnerDto {
+  return (
+    isRecord(value) &&
+    isRunnerId(value['id']) &&
+    isString(value['name']) &&
+    isRunnerIsolation(value['isolation']) &&
+    typeof value['hosted'] === 'boolean' &&
+    isString(value['version']) &&
+    isNullable(value['pinnedVersion'], isString) &&
+    isRunnerHostDto(value['host']) &&
+    isRunnerCapabilitiesDto(value['capabilities']) &&
+    isStringList(value['allowedProjects']) &&
+    isTimestamp(value['enrolledAt']) &&
+    isNullable(value['lastSeenAt'], isTimestamp) &&
+    isNullable(value['lastSeenCountry'], isString) &&
+    typeof value['online'] === 'boolean' &&
+    isNullable(value['suspect'], isRunnerSuspectDto) &&
+    isNullable(value['revokedAt'], isTimestamp) &&
+    typeof value['belowMinimum'] === 'boolean'
+  );
+}
+
+export function isRunnerListDto(value: unknown): value is RunnerListDto {
+  return (
+    isRecord(value) &&
+    Array.isArray(value['runners']) &&
+    value['runners'].every(isRunnerDto) &&
+    isRunnerReleaseDto(value['release'])
+  );
+}
+
+export function isEnrolmentCodeDto(value: unknown): value is EnrolmentCodeDto {
+  return (
+    isRecord(value) &&
+    isString(value['code']) &&
+    isTimestamp(value['expiresAt']) &&
+    isString(value['apiUrl']) &&
+    isString(value['audience']) &&
+    isString(value['name']) &&
+    isStringList(value['allowedProjects'])
+  );
 }

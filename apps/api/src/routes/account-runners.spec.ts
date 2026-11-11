@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:test';
 import { OWNER_ACCOUNT_ID, type EnrolmentCodeDto, type RunnerDto, type RunnerListDto } from '@shared/contracts';
 import { ENROLMENT_CODE_PREFIX } from '@shared/redaction';
+import { accessEnv, uniqueTeamDomain } from '../testing/access-kit';
 import { enrolRunner, sendAsRunner } from '../testing/runner-kit';
 import {
   seedAccountProject,
@@ -127,6 +128,39 @@ describe('runner list, allowed projects and revoke', () => {
     expect(text).not.toContain(theirs.id);
     expect(text).not.toContain(mine.publicKeyJwk.x);
     expect(text).not.toContain('publicKey');
+  });
+
+  // #464: Settings › Runners flags a runner behind the minimum without the runner door's `GET /runner/release`.
+  it('names the release and flags a runner below RUNNER_MINIMUM_VERSION, on the list and on a change', async () => {
+    const behind = await enrolRunner(owner.account.id, { as: owner, enrol: { version: '0.1.0' } });
+    const current = await enrolRunner(owner.account.id, { as: owner, enrol: { version: '0.2.0-rc.1+abc' } });
+    const unlabelled = await enrolRunner(owner.account.id, { as: owner, enrol: { version: 'main' } });
+    const bindings = accessEnv(uniqueTeamDomain(), {
+      RUNNER_RELEASE_VERSION: '0.3.0',
+      RUNNER_MINIMUM_VERSION: '0.2.0-rc.1',
+    });
+
+    const response = await sendAsSession(owner, 'GET', runnersPath(owner.account.id), undefined, {}, bindings);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as RunnerListDto;
+    expect(body.release).toEqual({ version: '0.3.0', minimumVersion: '0.2.0-rc.1' });
+    const flagOf = (id: string): boolean | undefined => body.runners.find((runner) => runner.id === id)?.belowMinimum;
+    expect([flagOf(behind.id), flagOf(current.id), flagOf(unlabelled.id)]).toEqual([true, false, true]);
+
+    const patched = await sendAsSession(
+      owner,
+      'PATCH',
+      `${runnersPath(owner.account.id)}/${behind.id}`,
+      { allowedProjects: [] },
+      {},
+      bindings,
+    );
+    expect(((await patched.json()) as RunnerDto).belowMinimum).toBe(true);
+
+    // No minimum configured (the deployed default): nothing is behind, and the release reads as unknown.
+    const unset = (await (await sendAsSession(owner, 'GET', runnersPath(owner.account.id))).json()) as RunnerListDto;
+    expect(unset.release).toEqual({ version: null, minimumVersion: null });
+    expect(unset.runners.every((runner) => !runner.belowMinimum)).toBe(true);
   });
 
   it('changes allowed projects inside the account and refuses foreign slugs and foreign runners', async () => {

@@ -86,7 +86,9 @@ export type RunnerPolicy =
     };
 
 export const RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS = 300;
-const RUNNER_POLICY_FALLBACK_MAX = 20;
+export const RUNNER_POLICY_OFFLINE_MIN_SECONDS = 30;
+export const RUNNER_POLICY_OFFLINE_MAX_SECONDS = 86_400;
+export const RUNNER_POLICY_FALLBACK_MAX = 20;
 
 /** The runner ids a policy names, for the account check at write time. */
 export function runnerIdsOfPolicy(policy: RunnerPolicy): readonly string[] {
@@ -133,7 +135,12 @@ export function checkRunnerPolicy(body: unknown): InputCheck<RunnerPolicy> {
         ) {
           throw new InputError('fallback', 'fallback must be a list of runner ids other than preferred');
         }
-        if (typeof offline !== 'number' || !Number.isInteger(offline) || offline < 30 || offline > 86_400) {
+        if (
+          typeof offline !== 'number' ||
+          !Number.isInteger(offline) ||
+          offline < RUNNER_POLICY_OFFLINE_MIN_SECONDS ||
+          offline > RUNNER_POLICY_OFFLINE_MAX_SECONDS
+        ) {
           throw new InputError('offline_after_seconds', 'offline_after_seconds must be 30 to 86400');
         }
         return {
@@ -154,6 +161,23 @@ export interface RunnerPolicyDto {
   readonly policy: RunnerPolicy | null;
   /** What the claim applies now: the project's, else the account's, else `any`. */
   readonly effective: RunnerPolicy;
+}
+
+/** A policy as the Worker answers it: exactly what `checkRunnerPolicy` would accept, with every member present. */
+export function isRunnerPolicy(value: unknown): value is RunnerPolicy {
+  const checkedPolicy = checkRunnerPolicy(value);
+  return (
+    checkedPolicy.ok &&
+    (checkedPolicy.value.mode !== 'failover' || (isRecord(value) && 'offline_after_seconds' in value))
+  );
+}
+
+export function isRunnerPolicyDto(value: unknown): value is RunnerPolicyDto {
+  return (
+    isRecord(value) &&
+    (value['policy'] === null || isRunnerPolicy(value['policy'])) &&
+    isRunnerPolicy(value['effective'])
+  );
 }
 
 /** `POST /api/v1/projects/:slug/jobs` (Run now). */

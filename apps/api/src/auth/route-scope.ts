@@ -12,7 +12,8 @@ import { scopeOf } from './scope';
  *
  * - `project`: a `:slug` route; the project is reached only through `projects/lookup.ts`, which answers 404
  *   `project-not-found` outside the request's scope — the same answer as a slug that does not exist.
- * - `projects`: a listing over the scope's projects (`scopedProjectsOf`), never the environment's.
+ * - `projects`: a listing over the scope's projects (`scopedProjectsOf`), never the environment's — or, for
+ *   `GET /accounts`, over the caller's own memberships (`membershipsOf`).
  * - `account`: `/api/v1/accounts/:id/*`, owner-of-account; a non-member gets 404 `account-not-found`.
  * - `own-user`: the user's own connection and devices; the owner's until T-4 binds them per user.
  * - `runner`: `/runner/*` (#467): the `runner` identity alone, minted from its JWT by `runner-auth.ts`; what it
@@ -104,6 +105,8 @@ export const ROUTE_SCOPES = {
   'POST /api/v1/push/test': 'own-user',
   // The owner's map of the environment, with the scope's project slugs.
   'GET /api/v1/environment/status': 'projects',
+  // The caller's own memberships (#464): a listing over the scope's accounts, read from the identity alone.
+  'GET /api/v1/accounts': 'projects',
   'GET /api/v1/accounts/:id/settings': 'account',
   'GET /api/v1/accounts/:id/members': 'account',
   'GET /api/v1/accounts/:id/audit': 'account',

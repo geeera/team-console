@@ -122,8 +122,10 @@ describe('SettingsPage', () => {
       'GitHub',
       'Уведомления',
       'Окружение',
+      'Раннеры',
       'Язык интерфейса',
     ]);
+    expect(root().querySelector('[data-testid="runners-entry"] a')?.getAttribute('href')).toBe('/settings/runners');
     expect(text('[data-testid="gh-connected"] h3')).toBe('Подключено как geeera');
     expect(text('[data-testid="app-built-at"]')).toBe('2026-09-29T10:00:00.000Z');
   });
@@ -143,6 +145,7 @@ describe('SettingsPage', () => {
       'GitHub',
       'Notifications',
       'Environment',
+      'Runners',
       'Interface language',
     ]);
     expect(languageStorage.value).toBe('en');

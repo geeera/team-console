@@ -33,6 +33,14 @@ export const ENROL_RATE_LIMIT_PER_MINUTE = 10;
 export const ENROL_RATE_LIMIT_GLOBAL_PER_MINUTE = 300;
 const ENROLMENT_CODE = new RegExp(`^${ENROLMENT_CODE_PREFIX}${OPAQUE_TOKEN_TAIL}$`);
 
+/** The release the environment names (vars); an unset or malformed var is `null`, never a guess. */
+export function runnerReleaseOf(env: Pick<ApiEnv, 'RUNNER_RELEASE_VERSION' | 'RUNNER_MINIMUM_VERSION'>): RunnerReleaseDto {
+  return {
+    version: isRunnerVersion(env.RUNNER_RELEASE_VERSION) ? env.RUNNER_RELEASE_VERSION : null,
+    minimumVersion: isRunnerVersion(env.RUNNER_MINIMUM_VERSION) ? env.RUNNER_MINIMUM_VERSION : null,
+  };
+}
+
 function codeInvalid(c: Context, reason: string): Response {
   // One answer for a malformed, unknown, expired or used code: nothing about codes is enumerable (threat model C4).
   c.get('logger').warn('enrolment refused', { reason });
@@ -169,11 +177,5 @@ export function createRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       return c.json(body, 201);
     })
 
-    .get('/release', (c) => {
-      const body: RunnerReleaseDto = {
-        version: isRunnerVersion(c.env.RUNNER_RELEASE_VERSION) ? c.env.RUNNER_RELEASE_VERSION : null,
-        minimumVersion: isRunnerVersion(c.env.RUNNER_MINIMUM_VERSION) ? c.env.RUNNER_MINIMUM_VERSION : null,
-      };
-      return c.json(body);
-    });
+    .get('/release', (c) => c.json(runnerReleaseOf(c.env)));
 }

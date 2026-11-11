@@ -91,7 +91,11 @@
       "@console/widgets/task-screen": ["./libs/console/widgets/task-screen/src/index.ts"],
       "@console/features/move-item": ["./libs/console/features/move-item/src/index.ts"],
       "@console/features/create-sprint": ["./libs/console/features/create-sprint/src/index.ts"],
-      "@console/features/find-item": ["./libs/console/features/find-item/src/index.ts"]
+      "@console/features/find-item": ["./libs/console/features/find-item/src/index.ts"],
+      "@console/entities/runner": ["./libs/console/entities/runner/src/index.ts"],
+      "@console/features/enrol-runner": ["./libs/console/features/enrol-runner/src/index.ts"],
+      "@console/features/manage-runner": ["./libs/console/features/manage-runner/src/index.ts"],
+      "@console/features/runner-policy": ["./libs/console/features/runner-policy/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

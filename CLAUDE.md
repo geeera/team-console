@@ -514,6 +514,20 @@ is not an active project of this account), `GET …/runners` (`RunnerDto`: no ke
 runner id is 404 `runner-not-found`. A runner's scope (`scopeOf`) is its `allowed_projects` inside its own account.
 `newUlid`/`sha256Hex` live in `@worker/core`. The redactor masks `tce_` codes and the JWT; `runner.spec.ts` proves no
 code, key or JWT reaches a log line.
+Settings › Runners (#464, ADR 0008 row 2-E part A): `GET /api/v1/accounts` (rule `projects`: the caller's own
+memberships with the role, from `membershipsOf` alone; none for the service identity) tells the console which account
+to address; `RunnerListDto.release` (`runnerReleaseOf(env)`, shared with `GET /runner/release`) and
+`RunnerDto.belowMinimum` (`isRunnerVersionBelow`: SemVer precedence, a non-SemVer label counts as below) flag a runner
+under `RUNNER_MINIMUM_VERSION`. Console: `@console/entities/runner` (`RunnersApi` — every answer through its guard
+in `@shared/contracts`, failures through `runnerFailureOf`/`runnerFailureKeyOf`; `RunnersStore`, in memory only, the
+first owned account, `forbidden` for a member or no account; `RunnerCard`, `RunnerProjectsPicker`, `runnerFixture`),
+`@console/features/enrol-runner` (the code lives in the dialog only; the command is `enrolCommandOf`, `null` for
+anything that could carry a shell metacharacter), `@console/features/manage-runner` (allowed projects, revoke behind a
+danger confirm), `@console/features/runner-policy` (`RunnerPolicyEditor` per account or project scope; `PUT null`
+returns a project to the account default; a saved account default bumps the project editor's `revision`, which
+refreshes its summary and keeps unsaved edits); page `/settings/runners` in `console-pages-settings` (lazy). The e2e
+stack sets `RUNNER_RELEASE_VERSION`/`RUNNER_MINIMUM_VERSION` (0.3.0/0.2.0) for `runners.e2e.ts`. The runner's own
+paused/usage-limit state is not shown yet: the runner reports none until 2-B.
 Jobs and job tokens (#467, ADR 0008 row 2-A part 3, migration `0022_jobs`: `jobs` (ULID id, `account_id` copied from the
 project and kept equal by trigger, `kind`, `role`, `payload` (`items`), `state` with final states kept by trigger,
 `dedupe_key` unique while live, `dispatch`, `runner_id`, `token_hash`, `attempt`, lease and timing columns, the hosted
