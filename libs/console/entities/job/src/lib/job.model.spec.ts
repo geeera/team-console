@@ -85,10 +85,39 @@ describe('job model', () => {
     expect(long?.endsWith('…')).toBe(true);
   });
 
+  it('prefers the earliest text member in TEXT_MEMBERS order when several carry text', () => {
+    expect(
+      jobEventTextOf(jobEventFixture(1, { payload: { line: 'from line', message: 'from message' } })),
+    ).toBe('from line');
+    expect(
+      jobEventTextOf(
+        jobEventFixture(2, { payload: { message: 'from message', summary: 'from summary' } }),
+      ),
+    ).toBe('from message');
+    expect(
+      jobEventTextOf(jobEventFixture(3, { payload: { reason: 'from reason', skill: 'from skill' } })),
+    ).toBe('from reason');
+  });
+
+  it('falls back to the next text member when an earlier one is not text', () => {
+    expect(jobEventTextOf(jobEventFixture(4, { payload: { line: 42, message: 'from message' } }))).toBe(
+      'from message',
+    );
+    expect(
+      jobEventTextOf(jobEventFixture(5, { payload: { line: '', message: '   ', summary: 'from summary' } })),
+    ).toBe('from summary');
+  });
+
   it("reads an ended job's summary, or the Worker's reason for a lost one", () => {
     expect(jobSummaryOf(jobFixture({ result: { summary: 'Merged #12' } }))).toBe('Merged #12');
     expect(jobSummaryOf(jobFixture({ state: 'lost', result: { reason: 'lost' } }))).toBe('lost');
     expect(jobSummaryOf(jobFixture())).toBeNull();
+  });
+
+  it('prefers summary over reason when both are present', () => {
+    expect(jobSummaryOf(jobFixture({ result: { summary: 'Merged #12', reason: 'lost' } }))).toBe(
+      'Merged #12',
+    );
   });
 
   it('names a runner it knows, and a short id otherwise', () => {

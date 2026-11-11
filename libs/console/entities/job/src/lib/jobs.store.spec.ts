@@ -124,6 +124,38 @@ describe('JobsStore', () => {
     expect(store.status()).toBe('ready');
   });
 
+  it('starts no second refresh when visibility changes twice while one is in flight', async () => {
+    const store = setup();
+    const pending: ((answer: ListAnswer) => void)[] = [];
+    api.list = (slug: string) => {
+      api.listCalls.push(slug);
+      return new Promise<ListAnswer>((resolve) => pending.push(resolve));
+    };
+    const stop = store.watch('team-console');
+    pending[0]?.(jobsOf(jobFixture()));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(api.listCalls).toHaveLength(1);
+
+    // First flip starts a refresh and its list read is still pending; a second flip right behind it
+    // (an alt-tab bounce fires visibilitychange twice) must not start a second one.
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(api.listCalls).toHaveLength(2);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(api.listCalls).toHaveLength(2);
+
+    pending[1]?.(jobsOf(jobFixture()));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(api.listCalls).toHaveLength(2);
+
+    // Once that refresh has settled, a later flip is free to start its own.
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(api.listCalls).toHaveLength(3);
+    pending[2]?.(jobsOf(jobFixture()));
+    await vi.advanceTimersByTimeAsync(0);
+
+    stop();
+  });
+
   it('is forbidden on a 403 and error on any other first failure', async () => {
     const store = setup();
     api.lists.push({ ok: false, failure: { kind: 'forbidden', slug: 'owner-only' } });
