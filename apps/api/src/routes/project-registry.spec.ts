@@ -669,6 +669,47 @@ describe('GET /api/v1/projects/:slug/setup', () => {
       accessLostAt: '2026-09-30T09:00:00Z',
     });
   });
+
+  // #504: the id is immutable once written (0018), so it is recorded only for the owner's repository under its name.
+  describe('the repository id backfill (T-2)', () => {
+    const repoIdOf = async (): Promise<number | null> =>
+      (
+        await env.DB.prepare("SELECT repo_id FROM projects WHERE slug = 'storify'").first<{
+          repo_id: number | null;
+        }>()
+      )?.repo_id ?? null;
+
+    const setupLogged = async (h: Harness): Promise<string[]> => {
+      const lines: string[] = [];
+      const response = await setup(h, ownerEnv(), '', { logSink: (line) => lines.push(line) });
+      expect(response.status).toBe(200);
+      return lines;
+    };
+
+    const refusals = (lines: readonly string[]) =>
+      lines.filter((line) => line.includes('repo id backfill refused'));
+
+    it('a repository of another owner records nothing and logs the refusal without the slug', async () => {
+      const lines = await setupLogged(harness({ repository: repoOwnedBy({ login: 'acme', id: 200001 }) }));
+      expect(await repoIdOf()).toBeNull();
+      expect(refusals(lines)).toHaveLength(1);
+      expect(refusals(lines).join('\n')).not.toContain('storify');
+    });
+
+    it('the same owner under another name records nothing', async () => {
+      const lines = await setupLogged(harness({ repository: repoWithId('geeera/other-product', 860321) }));
+      expect(await repoIdOf()).toBeNull();
+      expect(refusals(lines)).toHaveLength(1);
+      expect(refusals(lines).join('\n')).not.toContain('storify');
+    });
+
+    it('the owner’s repository under its name (any case) still records the id', async () => {
+      const lines = await setupLogged(harness({ repository: repoWithId('Geeera/Storify', 860123) }));
+      expect(await repoIdOf()).toBe(860123);
+      expect(refusals(lines)).toHaveLength(0);
+      expect(lines.some((line) => line.includes('project repo id backfilled'))).toBe(true);
+    });
+  });
 });
 
 // #466 (ADR 0008 decisions 1, 2, 4 and 5): a project is created in an admitted account, its installation is linked
