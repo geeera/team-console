@@ -15,6 +15,7 @@ export * from './lib/chip/chip';
 export * from './lib/copy-code/copy-code';
 export * from './lib/date-picker/date-picker';
 export * from './lib/field/field';
+export * from './lib/focus/focus-after-render';
 export * from './lib/frame/frame';
 export * from './lib/frame/frame-src.public';
 export * from './lib/icon/icon';
