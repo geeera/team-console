@@ -45,6 +45,11 @@ beforeAll(async () => {
   ]);
 });
 
+const auditRows = (kind: NewAuditEvent['kind'], target: string): Promise<number | null> =>
+  env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = ?1 AND target = ?2`)
+    .bind(kind, target)
+    .first<number>('n');
+
 describe('RunnersRepo', () => {
   const repo = new RunnersRepo(env.DB);
 
@@ -138,6 +143,32 @@ describe('RunnersRepo', () => {
     ).toBe(1);
   });
 
+  // #531: the route checked the code a moment before it expired; `enrol` runs at the expiry instant itself.
+  it('enrols nothing and audits nothing on a code that expires between the route check and the batch', async () => {
+    const codeHash = hash('e');
+    await repo.createEnrolment(
+      { codeHash, accountId: ACCOUNT_A, name: 'mac', allowedProjects: [], createdBy: 'owner-1', at: T0, expiresAt: T1 },
+      audit('enrolment-code.created'),
+    );
+    const late = runnerOf({ at: T1 });
+    expect(await repo.enrol(codeHash, late, { ...audit('runner.enrolled'), target: late.id })).toBe('code-used');
+
+    expect(await repo.findById(late.id)).toBeNull();
+    expect(await auditRows('runner.enrolled', late.id)).toBe(0);
+    expect(await repo.findEnrolment(codeHash)).toMatchObject({ usedByRunnerId: null, usedAt: null });
+  });
+
+  it('still enrols on a code one millisecond before it expires', async () => {
+    const codeHash = hash('f');
+    await repo.createEnrolment(
+      { codeHash, accountId: ACCOUNT_A, name: 'mac', allowedProjects: [], createdBy: 'owner-1', at: T0, expiresAt: T1 },
+      audit('enrolment-code.created'),
+    );
+    const runner = runnerOf({ at: '2026-11-10T10:00:59.999Z' });
+    expect(await repo.enrol(codeHash, runner, { ...audit('runner.enrolled'), target: runner.id })).toBe('ok');
+    expect(await auditRows('runner.enrolled', runner.id)).toBe(1);
+  });
+
   it('refuses a private key member or another curve at the row', async () => {
     const codeHash = hash('b');
     await repo.createEnrolment(
@@ -174,6 +205,52 @@ describe('RunnersRepo', () => {
     );
     expect(await repo.setAllowedProjects(ACCOUNT_A, runner.id, ['p2', 'p3'], audit('runner.updated'))).toBe(true);
     expect((await repo.findById(runner.id))?.allowedProjects).toEqual(['p2', 'p3']);
+  });
+
+  // #531: the audit row follows the write that happened, not the call.
+  it('leaves exactly one runner.revoked row for two concurrent revokes', async () => {
+    const runner = await enrolled();
+    const revokeAudit = { ...audit('runner.revoked'), target: runner.id };
+    const outcomes = await Promise.all([
+      repo.revoke(ACCOUNT_A, runner.id, T1, revokeAudit),
+      repo.revoke(ACCOUNT_A, runner.id, T1, revokeAudit),
+    ]);
+    expect(outcomes.filter(Boolean)).toHaveLength(1);
+    expect(await auditRows('runner.revoked', runner.id)).toBe(1);
+  });
+
+  it('audits no revoke or allow-list change that changed nothing', async () => {
+    const runner = await enrolled();
+    expect(
+      await repo.revoke(ACCOUNT_B, runner.id, T1, { ...audit('runner.revoked', ACCOUNT_B), target: runner.id }),
+    ).toBe(false);
+    expect(
+      await repo.setAllowedProjects(ACCOUNT_B, runner.id, ['p9'], {
+        ...audit('runner.updated', ACCOUNT_B),
+        target: runner.id,
+      }),
+    ).toBe(false);
+    expect(await auditRows('runner.revoked', runner.id)).toBe(0);
+    expect(await auditRows('runner.updated', runner.id)).toBe(0);
+
+    expect(
+      await repo.setAllowedProjects(ACCOUNT_A, runner.id, ['p2'], { ...audit('runner.updated'), target: runner.id }),
+    ).toBe(true);
+    expect(await auditRows('runner.updated', runner.id)).toBe(1);
+  });
+
+  it('still runs the statements passed along with a revoke', async () => {
+    const runner = await enrolled();
+    const nameOf = (): Promise<string | null> =>
+      env.DB.prepare(`SELECT name FROM accounts WHERE id = ?1`).bind(ACCOUNT_B).first<string>('name');
+    expect(
+      await repo.revoke(ACCOUNT_A, runner.id, T1, { ...audit('runner.revoked'), target: runner.id }, [
+        env.DB.prepare(`UPDATE accounts SET name = 'B-also' WHERE id = ?1`).bind(ACCOUNT_B),
+      ]),
+    ).toBe(true);
+    expect(await auditRows('runner.revoked', runner.id)).toBe(1);
+    expect(await nameOf()).toBe('B-also');
+    await env.DB.prepare(`UPDATE accounts SET name = 'B' WHERE id = ?1`).bind(ACCOUNT_B).run();
   });
 
   describe('sightings (threat model C4, detection)', () => {

@@ -245,7 +245,8 @@ export class RunnersRepo {
   /**
    * The runner row, the code's single use and the `runner.enrolled` audit row in one batch. `code-used` when another
    * enrol request won the code first (the 0021 trigger refuses the second use) or the owner withdrew it since the
-   * route's lookup; either way nothing was written, the audit row included.
+   * route's lookup, or the code expired at `runner.at` since that lookup (#531); either way nothing was written, the
+   * audit row included.
    */
   async enrol(codeHash: string, runner: NewRunner, audit: NewAuditEvent): Promise<'ok' | 'code-used'> {
     let results: D1Result[];
@@ -258,7 +259,10 @@ export class RunnersRepo {
           .prepare(
             `INSERT INTO runners (id, account_id, name, public_key_jwk, host, capabilities, isolation, allowed_projects, version, enrolled_at)
              SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10
-             WHERE EXISTS (SELECT 1 FROM runner_enrolments WHERE code_hash = ?11 AND used_by_runner_id IS NULL)`,
+             WHERE EXISTS (
+               SELECT 1 FROM runner_enrolments
+               WHERE code_hash = ?11 AND used_by_runner_id IS NULL AND julianday(expires_at) > julianday(?10)
+             )`,
           )
           .bind(
             runner.id,
@@ -274,11 +278,16 @@ export class RunnersRepo {
             codeHash,
           ),
         // #522: the audit row only when this UPDATE marked the code, so a code withdrawn after the route's lookup
-        // (both statements above then find no row) leaves no `runner.enrolled` row behind.
+        // (both statements above then find no row) leaves no `runner.enrolled` row behind. #531: the expiry is judged
+        // here too, at the same `now` as the INSERT, so a code that expired after the route's check is left unused
+        // rather than pointed at a runner that was never written.
         ...auditedWrite(
           this.db,
           this.db
-            .prepare(`UPDATE runner_enrolments SET used_by_runner_id = ?2, used_at = ?3 WHERE code_hash = ?1`)
+            .prepare(
+              `UPDATE runner_enrolments SET used_by_runner_id = ?2, used_at = ?3
+               WHERE code_hash = ?1 AND julianday(expires_at) > julianday(?3)`,
+            )
             .bind(codeHash, runner.id, runner.at),
           audit,
         ),
@@ -289,8 +298,8 @@ export class RunnersRepo {
       }
       throw error;
     }
-    // No row updated: the code is gone, withdrawn by the owner since the route looked it up (#492). Nothing was
-    // written; the caller answers it like a used code.
+    // No row updated: the code is gone, withdrawn by the owner since the route looked it up (#492), or expired since
+    // (#531). Nothing was written; the caller answers it like a used code.
     return (results[1]?.meta.changes ?? 0) === 1 ? 'ok' : 'code-used';
   }
 
@@ -336,15 +345,21 @@ export class RunnersRepo {
     audit: NewAuditEvent,
     alsoInBatch: readonly D1PreparedStatement[] = [],
   ): Promise<boolean> {
+    // #531: the audit row sits right after the revoke and is written only when it revoked, so of two racing revokes
+    // only the winner audits; the extra statements come after the pair, never between.
     const [update] = await this.db.batch<{ id: string }>([
-      this.db
-        .prepare(
-          `UPDATE runners SET revoked_at = ?3 WHERE id = ?1 AND account_id = ?2 AND revoked_at IS NULL RETURNING id`,
-        )
-        .bind(id, accountId, at),
+      ...auditedWrite(
+        this.db,
+        this.db
+          .prepare(
+            `UPDATE runners SET revoked_at = ?3 WHERE id = ?1 AND account_id = ?2 AND revoked_at IS NULL RETURNING id`,
+          )
+          .bind(id, accountId, at),
+        audit,
+      ),
       ...alsoInBatch,
-      auditEventStatement(this.db, audit),
     ]);
+    // RETURNING, not `meta.changes`: D1 counts the rows the 0023 trigger revokes in role_keys there too.
     return (update?.results.length ?? 0) === 1;
   }
 
@@ -377,13 +392,18 @@ export class RunnersRepo {
     audit: NewAuditEvent,
     alsoInBatch: readonly D1PreparedStatement[] = [],
   ): Promise<boolean> {
+    // #531: as in `revoke`, the audit row only for a write that happened, the extra statements after the pair.
     const [update] = await this.db.batch<{ id: string }>([
-      this.db
-        .prepare(`UPDATE runners SET allowed_projects = ?3 WHERE id = ?1 AND account_id = ?2 RETURNING id`)
-        .bind(id, accountId, JSON.stringify(allowedProjects)),
+      ...auditedWrite(
+        this.db,
+        this.db
+          .prepare(`UPDATE runners SET allowed_projects = ?3 WHERE id = ?1 AND account_id = ?2 RETURNING id`)
+          .bind(id, accountId, JSON.stringify(allowedProjects)),
+        audit,
+      ),
       ...alsoInBatch,
-      auditEventStatement(this.db, audit),
     ]);
+    // RETURNING, not `meta.changes`: D1 counts the rows the 0023 trigger revokes in role_keys there too.
     return (update?.results.length ?? 0) === 1;
   }
 
