@@ -1,5 +1,5 @@
 import { TEAM_FAILURE_STREAK_PAUSE } from '@shared/contracts';
-import { auditEventStatement, type NewAuditEvent } from '../accounts/audit.repo';
+import { auditEventStatement, type AuditCondition, type NewAuditEvent } from '../accounts/audit.repo';
 
 /** `team_state` (ADR 0006 "Report", migration 0022): the pause the claim honours and the three-failures stop. */
 export interface TeamStateRecord {
@@ -19,6 +19,12 @@ interface TeamStateRow {
 /** Who paused on the failure streak, as `paused_by` records it. */
 export const FAILURE_STREAK_PAUSER = 'system:failure-streak';
 
+/**
+ * Writes the audit row only when the statement just before it in the batch changed a row. `changes()` still holds
+ * that statement's count here, because the audit INSERT has not finished when its WHERE is evaluated.
+ */
+const WROTE_PREVIOUS_STATEMENT: AuditCondition = { exists: 'SELECT 1 WHERE changes() > 0', params: [] };
+
 export class TeamStateRepo {
   constructor(private readonly db: D1Database) {}
 
@@ -32,26 +38,37 @@ export class TeamStateRepo {
       : { projectSlug, pausedAt: row.paused_at, pausedBy: row.paused_by, failedStreak: row.failed_streak };
   }
 
-  private upsert(projectSlug: string, pausedAt: string | null, pausedBy: string | null, now: string): D1PreparedStatement {
-    return this.db
-      .prepare(
-        `INSERT INTO team_state (project_slug, paused_at, paused_by, failed_streak, updated_at) VALUES (?1, ?2, ?3, 0, ?4)
-         ON CONFLICT (project_slug) DO UPDATE SET paused_at = excluded.paused_at, paused_by = excluded.paused_by, updated_at = excluded.updated_at`,
-      )
-      .bind(projectSlug, pausedAt, pausedBy, now);
-  }
-
-  async pause(projectSlug: string, by: string, now: string, audit: NewAuditEvent): Promise<void> {
-    await this.db.batch([this.upsert(projectSlug, now, by, now), auditEventStatement(this.db, audit)]);
-  }
-
-  /** Resuming also clears the failure streak, as `runlog resume` does. */
-  async resume(projectSlug: string, now: string, audit: NewAuditEvent): Promise<void> {
-    await this.db.batch([
-      this.upsert(projectSlug, null, null, now),
-      this.db.prepare(`UPDATE team_state SET failed_streak = 0 WHERE project_slug = ?1`).bind(projectSlug),
-      auditEventStatement(this.db, audit),
+  /**
+   * `false` when the project was already paused. The write is conditional on the state it changes (#492), so two
+   * racing pauses cannot both pass a read-then-write check, and only the one that took effect writes its audit row.
+   */
+  async pause(projectSlug: string, by: string, now: string, audit: NewAuditEvent): Promise<boolean> {
+    const [write] = await this.db.batch([
+      this.db
+        .prepare(
+          `INSERT INTO team_state (project_slug, paused_at, paused_by, failed_streak, updated_at) VALUES (?1, ?2, ?3, 0, ?2)
+           ON CONFLICT (project_slug) DO UPDATE SET paused_at = excluded.paused_at, paused_by = excluded.paused_by,
+             updated_at = excluded.updated_at
+           WHERE team_state.paused_at IS NULL`,
+        )
+        .bind(projectSlug, now, by),
+      auditEventStatement(this.db, audit, WROTE_PREVIOUS_STATEMENT),
     ]);
+    return (write?.meta.changes ?? 0) === 1;
+  }
+
+  /** Resuming also clears the failure streak, as `runlog resume` does. `false` when the project was not paused. */
+  async resume(projectSlug: string, now: string, audit: NewAuditEvent): Promise<boolean> {
+    const [write] = await this.db.batch([
+      this.db
+        .prepare(
+          `UPDATE team_state SET paused_at = NULL, paused_by = NULL, failed_streak = 0, updated_at = ?2
+           WHERE project_slug = ?1 AND paused_at IS NOT NULL`,
+        )
+        .bind(projectSlug, now),
+      auditEventStatement(this.db, audit, WROTE_PREVIOUS_STATEMENT),
+    ]);
+    return (write?.meta.changes ?? 0) === 1;
   }
 
   /**

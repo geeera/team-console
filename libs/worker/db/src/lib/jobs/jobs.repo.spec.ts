@@ -197,6 +197,48 @@ describe('JobsRepo.finish and events', () => {
   });
 });
 
+describe('TeamStateRepo.pause and resume', () => {
+  const auditCount = async (kind: NewAuditEvent['kind'], slug: string): Promise<number | undefined> =>
+    (await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = ?1 AND target = ?2`).bind(kind, slug).first<{ n: number }>())?.n;
+
+  // #492: the write is conditional on the state, so of two racing requests only one takes effect and audits.
+  it('takes effect once for two concurrent pauses and once for two concurrent resumes', async () => {
+    const slug = await project(ACCOUNT_A);
+    const repo = new TeamStateRepo(env.DB);
+    const pauseAudit = { ...audit('team.paused'), target: slug };
+    const pauses = await Promise.all([repo.pause(slug, 'owner-1', T0, pauseAudit), repo.pause(slug, 'owner-2', T0, pauseAudit)]);
+    expect(pauses.filter(Boolean)).toHaveLength(1);
+    expect(await auditCount('team.paused', slug)).toBe(1);
+    expect(await repo.pause(slug, 'owner-3', T1, pauseAudit)).toBe(false);
+    expect((await repo.get(slug)).pausedAt).toBe(T0);
+    expect(await auditCount('team.paused', slug)).toBe(1);
+
+    const resumeAudit = { ...audit('team.resumed'), target: slug };
+    const resumes = await Promise.all([repo.resume(slug, T1, resumeAudit), repo.resume(slug, T1, resumeAudit)]);
+    expect(resumes.filter(Boolean)).toHaveLength(1);
+    expect(await auditCount('team.resumed', slug)).toBe(1);
+    expect(await repo.get(slug)).toMatchObject({ pausedAt: null, pausedBy: null, failedStreak: 0 });
+  });
+
+  it('does not resume a project that was never paused, and writes no audit row', async () => {
+    const slug = await project(ACCOUNT_A);
+    const repo = new TeamStateRepo(env.DB);
+    expect(await repo.resume(slug, T0, { ...audit('team.resumed'), target: slug })).toBe(false);
+    expect(await auditCount('team.resumed', slug)).toBe(0);
+  });
+
+  it('pauses again after a resume', async () => {
+    const slug = await project(ACCOUNT_A);
+    const repo = new TeamStateRepo(env.DB);
+    const pauseAudit = { ...audit('team.paused'), target: slug };
+    expect(await repo.pause(slug, 'owner', T0, pauseAudit)).toBe(true);
+    expect(await repo.resume(slug, T1, { ...audit('team.resumed'), target: slug })).toBe(true);
+    expect(await repo.pause(slug, 'owner', T1, pauseAudit)).toBe(true);
+    expect(await repo.get(slug)).toMatchObject({ pausedAt: T1, pausedBy: 'owner' });
+    expect(await auditCount('team.paused', slug)).toBe(2);
+  });
+});
+
 describe('TeamStateRepo.recordOutcome', () => {
   it('counts a streak, pauses on the third failure with an audit row, and resets on success', async () => {
     const slug = await project(ACCOUNT_A);
