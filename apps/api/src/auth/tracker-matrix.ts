@@ -18,7 +18,8 @@ export type TrackerRefusalType =
   | 'ask-role'
   | 'request-handled-role'
   | 'sprint-role'
-  | 'member-role';
+  | 'member-role'
+  | 'pr-link-role';
 
 export interface TrackerRouteRule {
   readonly owner: boolean;
@@ -38,6 +39,8 @@ export interface TrackerRouteRule {
 const ANY_ROLE = roleDecisions(() => true);
 const NO_ROLE = roleDecisions(() => false);
 const PM_ONLY = roleDecisions((role) => role === 'pm');
+/** #445: who opens pull requests in the plugin (`slot-dev`), and the orchestrator that runs the slots. */
+const PR_LINKERS = roleDecisions((role) => DEVELOPER_ROLES.has(role) || role === 'orchestrator');
 
 const READ: TrackerRouteRule = {
   owner: true,
@@ -76,6 +79,10 @@ export const TRACKER_MATRIX = {
   [`GET ${P}/items/:key/asks`]: READ,
   [`GET ${P}/items/:key/decisions`]: READ,
   [`GET ${P}/items/:key/requests`]: READ,
+  // #445: the project-wide feeds of the plugin (`backlog reversals`, `backlog requests`). The requests row is the
+  // `?state=` form only; the same path without it is the owner's GitHub list (#219), which refuses a job itself.
+  [`GET ${P}/decisions`]: READ,
+  [`GET ${P}/requests`]: READ,
   [`GET ${P}/sprints`]: READ,
   [`GET ${P}/sprints/:number`]: READ,
   [`GET ${P}/labels`]: READ,
@@ -110,6 +117,14 @@ export const TRACKER_MATRIX = {
   [`POST ${P}/items/:key/requests`]: OWNER_ONLY('A request to the PM is the owner’s own wish'),
   // #462: masking the audit trail is incident response; no job rewrites history, its own included.
   [`POST ${P}/items/:key/events/scrub`]: OWNER_ONLY('Only the owner scrubs an item’s history'),
+  // #445: `backlog link-pr`; a developer links only an item it holds (`item-not-held`, judged by the route).
+  [`POST ${P}/items/:key/pr-links`]: {
+    owner: false,
+    member: false,
+    job: PR_LINKERS,
+    refusal: 'pr-link-role',
+    detail: 'A pull request is linked by the developer who opened it or by the orchestrator',
+  },
   // ADR 0005: the PM answers a request, never silently; the record of who handled it is the job.
   [`POST ${P}/requests/:id/handled`]: {
     owner: false,
@@ -142,4 +157,19 @@ const MATRIX_PATTERNS = routePatternsOf(Object.keys(TRACKER_MATRIX) as TrackerRo
  */
 export function isTrackerMatrixRoute(method: string, path: string): boolean {
   return matchRoute(MATRIX_PATTERNS, method, path) !== null;
+}
+
+/**
+ * The read models a job of the project reads besides the matrix (#445, architect note on #436 §5 item 6): the
+ * plugin's `inbox show`, `digest` and board. Their handlers reach the project through `projects/lookup.ts` with the
+ * request's scope, so a job sees its own project only (another is 404 `project-not-found`); every role reads them.
+ * The identity is not a policy actor there: these routes write nothing.
+ */
+export const JOB_READ_MODEL_ROUTES = [`GET ${P}/inbox`, `GET ${P}/questions`, `GET ${P}/sprint`] as const;
+
+const READ_MODEL_PATTERNS = routePatternsOf([...JOB_READ_MODEL_ROUTES]);
+
+/** Whether a job identity may reach `method path` at all: a matrix route or one of the job's read models. */
+export function isJobRoute(method: string, path: string): boolean {
+  return isTrackerMatrixRoute(method, path) || matchRoute(READ_MODEL_PATTERNS, method, path) !== null;
 }

@@ -114,10 +114,18 @@ export type RequestKind = (typeof REQUEST_KINDS)[number];
 export const REQUEST_RESULTS = ['applied', 'declined'] as const;
 export type RequestResult = (typeof REQUEST_RESULTS)[number];
 
+/** `GET …/projects/:slug/requests?state=` (#445): the newest request per item, by whether the PM answered it. */
+export const REQUEST_STATES = ['pending', 'handled', 'all'] as const;
+export type RequestState = (typeof REQUEST_STATES)[number];
+
 export const ASK_TEXT_MAX_LENGTH = 2048;
 /** A decision's `text`, as for an answer on GitHub (`ANSWER_TEXT_MAX_LENGTH`). */
 export const DECISION_TEXT_MAX_LENGTH = 2000;
 export const REQUEST_REASON_MAX_LENGTH = 1024;
+/** A linked pull request's page (#445); GitHub's own URLs are far shorter. */
+export const PR_URL_MAX_LENGTH = 512;
+/** Git's own bound on a ref name, as `isBranchName` judges it on the worker side. */
+export const PR_HEAD_REF_MAX_LENGTH = 255;
 /** At most every answer command once. */
 export const ASK_COMMANDS_MAX = 6;
 
@@ -159,6 +167,7 @@ export const isAskCategory = (value: unknown): value is AskCategory => isOneOf(A
 export const isDecisionVia = (value: unknown): value is DecisionVia => isOneOf(DECISION_VIA, value);
 export const isRequestKind = (value: unknown): value is RequestKind => isOneOf(REQUEST_KINDS, value);
 export const isRequestResult = (value: unknown): value is RequestResult => isOneOf(REQUEST_RESULTS, value);
+export const isRequestState = (value: unknown): value is RequestState => isOneOf(REQUEST_STATES, value);
 
 /** Whether `name` is a well-formed flag: a label name outside the column-backed prefixes. */
 export function isFlagName(name: unknown): name is string {

@@ -188,6 +188,49 @@ export interface ItemRequestListDto {
   readonly next: number | null;
 }
 
+/** The item a project-wide row belongs to (#445): enough to address it and show it without another read. */
+export interface ItemRefDto {
+  readonly key: string;
+  readonly number: number;
+}
+
+/** `GET …/projects/:slug/decisions` (#445): every decision of the project, oldest first, with its item. */
+export interface ProjectDecisionDto extends DecisionDto {
+  readonly item: ItemRefDto;
+}
+
+export interface ProjectDecisionListDto {
+  readonly decisions: readonly ProjectDecisionDto[];
+  /** The `after` cursor (a decision id) of the next page. */
+  readonly next: number | null;
+}
+
+/**
+ * `GET …/projects/:slug/requests?state=` (#445): the newest request of each item, oldest first. `item.title` is the
+ * item's plain text (render by interpolation); `item.state` lets the PM skip a request on an item closed since.
+ */
+export interface ProjectRequestDto extends ItemRequestDto {
+  readonly item: ItemRefDto & { readonly title: string; readonly state: 'open' | 'closed' };
+}
+
+export interface ProjectRequestListDto {
+  readonly requests: readonly ProjectRequestDto[];
+  /** The `after` cursor (a request id) of the next page. */
+  readonly next: number | null;
+}
+
+/**
+ * A pull request linked to an item (#445, the item's `pr-linked` event). `url` is the one the server built from the
+ * project's repository and `number`, never the client's string.
+ */
+export interface PrLinkDto {
+  readonly number: number;
+  readonly url: string;
+  readonly headRef: string;
+  readonly linkedAt: string;
+  readonly linkedBy: ActorDto;
+}
+
 /** Problem types of the tracker routes, beyond `owner-only`, `csrf` and `project-not-found`. */
 export type TrackerProblemType =
   | 'tracker-not-cut-over'
@@ -229,4 +272,9 @@ export type TrackerProblemType =
   | 'sprint-role'
   | 'comment-kind'
   // #462: a job's text carries a secret shape (`@shared/redaction`).
-  | 'body-secret';
+  | 'body-secret'
+  // #445: pull request links.
+  | 'pr-link-invalid'
+  | 'pr-link-role'
+  | 'pr-link-conflict'
+  | 'pr-link-provider';

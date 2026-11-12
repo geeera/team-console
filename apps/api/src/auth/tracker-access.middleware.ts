@@ -5,7 +5,7 @@ import type { ApiEnv } from '../env';
 import { findProject, projectNotFound } from '../projects/lookup';
 import { policyActorOf, type PolicyActor } from './policy';
 import { isLocalBypass } from './local-bypass';
-import { TRACKER_MATRIX, isTrackerMatrixRoute, matrixRefusal, type TrackerRoute } from './tracker-matrix';
+import { TRACKER_MATRIX, isJobRoute, matrixRefusal, type TrackerRoute } from './tracker-matrix';
 
 declare module 'hono' {
   interface ContextVariableMap {
@@ -91,13 +91,13 @@ export function policyActorOfContext(c: WorkerContext<ApiEnv>): PolicyActor {
 }
 
 /**
- * Confines the `job` identity to the matrix routes (#444): mounted once on `/api/*` after the auth seam, it refuses a
- * job on every other route (403 `owner-only`) before that route's code runs — the GitHub-backed reads, the
- * registry, the owner's answer and connection routes were written for the owner and the service and judge
- * neither the job's role nor its project.
+ * Confines the `job` identity to the matrix routes (#444) and its project's read models (#445, `isJobRoute`):
+ * mounted once on `/api/*` after the auth seam, it refuses a job on every other route (403 `owner-only`) before that
+ * route's code runs — the registry, the owner's answer and connection routes and the other GitHub-backed reads were
+ * written for the owner and the service and judge neither the job's role nor its project.
  */
 export const jobScopeMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = async (c, next) => {
-  if (c.get('identity').kind === 'job' && !isTrackerMatrixRoute(c.req.method, c.req.path)) {
+  if (c.get('identity').kind === 'job' && !isJobRoute(c.req.method, c.req.path)) {
     c.get('logger').warn('job refused off the tracker', { method: c.req.method, path: c.req.path });
     return problem(c, {
       type: 'owner-only',

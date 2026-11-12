@@ -3,6 +3,7 @@ import {
   checkCreateDecisionInput,
   checkCreateRequestInput,
   checkHandleRequestInput,
+  checkCreatePrLinkInput,
   checkCreateCommentInput,
   checkCreateItemInput,
   checkCreateLabelInput,
@@ -289,5 +290,38 @@ describe('checkHandleRequestInput', () => {
     [{ result: 'declined', handledByJobId: 'job-1' }, 'handledByJobId'],
   ])('refuses %j on %s', (body, field) => {
     expect(checkHandleRequestInput(body)).toEqual(failure(field));
+  });
+});
+
+describe('checkCreatePrLinkInput', () => {
+  const url = 'https://github.com/acme/shop/pull/57';
+
+  it('accepts a pull request of the given number', () => {
+    expect(checkCreatePrLinkInput({ number: 57, url, headRef: 'feature/tc-12-login' })).toEqual({
+      ok: true,
+      value: { number: 57, url, headRef: 'feature/tc-12-login' },
+    });
+  });
+
+  it.each([
+    [{ url, headRef: 'x' }, 'number'],
+    [{ number: 0, url, headRef: 'x' }, 'number'],
+    [{ number: 5.5, url, headRef: 'x' }, 'number'],
+    [{ number: '57', url, headRef: 'x' }, 'number'],
+    [{ number: 2_147_483_648, url: 'https://github.com/a/b/pull/2147483648', headRef: 'x' }, 'number'],
+    [{ number: 58, url, headRef: 'x' }, 'url'],
+    [{ number: 57, url: 'http://github.com/acme/shop/pull/57', headRef: 'x' }, 'url'],
+    [{ number: 57, url: 'https://github.com.evil.example/acme/shop/pull/57', headRef: 'x' }, 'url'],
+    [{ number: 57, url: 'https://github.com/acme/shop/pull/57?x=1', headRef: 'x' }, 'url'],
+    [{ number: 57, url: 'https://github.com/acme/shop/issues/57', headRef: 'x' }, 'url'],
+    [{ number: 57, url: `https://github.com/acme/${'s'.repeat(512)}/pull/57`, headRef: 'x' }, 'url'],
+    [{ number: 57, url, headRef: '' }, 'headRef'],
+    [{ number: 57, url, headRef: 'x'.repeat(256) }, 'headRef'],
+    [{ number: 57, url }, 'headRef'],
+    [{ number: 57, url, headRef: 'x', linkedAt: '2026-01-01' }, 'body'],
+    [{ number: 57, url, headRef: 'x', jobId: 'job-forged' }, 'jobId'],
+    [[], 'body'],
+  ])('refuses %j (field %s)', (body, field) => {
+    expect(checkCreatePrLinkInput(body)).toEqual(failure(field));
   });
 });

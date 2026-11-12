@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test';
-import { AT, OWNER_ACTOR, seedTrackerProject } from '../../testing/tracker-kit';
+import { AT, JOB_ACTOR, OWNER_ACTOR, seedTrackerItem, seedTrackerProject } from '../../testing/tracker-kit';
 import { ItemEventsRepo } from './item-events.repo';
 import { ItemsRepo, type NewItem } from './items.repo';
 import { SprintsRepo } from './sprints.repo';
@@ -356,6 +356,23 @@ describe('ItemsRepo', () => {
     const methods = Object.getOwnPropertyNames(ItemEventsRepo.prototype).filter(
       (name) => name !== 'constructor',
     );
-    expect(methods.sort()).toEqual(['find', 'list', 'scrub']);
+    // #445: `prLinkStatement` appends a `pr-linked` event and `findPrLink` reads one; neither changes a row.
+    expect(methods.sort()).toEqual(['find', 'findPrLink', 'list', 'prLinkStatement', 'scrub']);
+  });
+
+  it('appends a pr-linked event and finds it by pull request number (#445)', async () => {
+    const { slug } = await seedTrackerProject();
+    const itemId = await seedTrackerItem(slug, 1);
+    const events = new ItemEventsRepo(env.DB);
+    const link = { number: 57, url: 'https://github.com/acme/x/pull/57', headRef: 'feature/x' };
+    await env.DB.batch([events.prLinkStatement(itemId, link, JOB_ACTOR, AT)]);
+    expect(await events.findPrLink(itemId, 57)).toMatchObject({
+      kind: 'pr-linked',
+      actorKind: 'job',
+      jobId: JOB_ACTOR.jobId,
+      before: null,
+      after: link,
+    });
+    expect(await events.findPrLink(itemId, 58)).toBeNull();
   });
 });

@@ -103,6 +103,7 @@ export function invalid(
     | 'ask-invalid'
     | 'decision-invalid'
     | 'request-invalid'
+    | 'pr-link-invalid'
     | 'decision-command'
     | 'query-invalid',
   field: string,

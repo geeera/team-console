@@ -230,4 +230,67 @@ describe('OwnerDecisionsRepo', () => {
       }),
     ]);
   });
+
+  describe('listOfProject (#445)', () => {
+    async function importDecision(
+      slug: string,
+      itemId: number,
+      command: string,
+      decidedAt: string,
+    ): Promise<void> {
+      await env.DB.prepare(
+        `INSERT INTO owner_decisions (project_slug, item_id, ask_id, command, text, decided_at, via)
+         VALUES (?1, ?2, NULL, ?3, '', ?4, 'import')`,
+      )
+        .bind(slug, itemId, command, decidedAt)
+        .run();
+    }
+
+    it('lists the project’s decisions oldest first with their item, filtered by instant and command', async () => {
+      const { slug } = await seedTrackerProject();
+      const first = await seedTrackerItem(slug, 1);
+      const second = await seedTrackerItem(slug, 2);
+      await importDecision(slug, first, 'approve', '2026-11-01T10:00:00Z');
+      await importDecision(slug, second, 'reject', '2026-11-02T10:00:00.000Z');
+      await importDecision(slug, first, 'reject', '2026-11-03T10:00:00Z');
+      const other = await seedTrackerProject();
+      await importDecision(
+        other.slug,
+        await seedTrackerItem(other.slug, 1),
+        'reject',
+        '2026-11-03T10:00:00Z',
+      );
+
+      const all = await decisions().listOfProject(slug, { since: null, command: null }, 0, 10);
+      expect(all.map((row) => [row.itemNumber, row.command])).toEqual([
+        [1, 'approve'],
+        [2, 'reject'],
+        [1, 'reject'],
+      ]);
+      // An instant, not a string: `…:00Z` and `…:00.000Z` of the same second compare equal.
+      const since = await decisions().listOfProject(
+        slug,
+        { since: '2026-11-02T10:00:00.000Z', command: null },
+        0,
+        10,
+      );
+      expect(since.map((row) => row.decidedAt)).toEqual(['2026-11-02T10:00:00.000Z', '2026-11-03T10:00:00Z']);
+      const rejects = await decisions().listOfProject(slug, { since: null, command: 'reject' }, 0, 10);
+      expect(rejects.map((row) => row.itemNumber)).toEqual([2, 1]);
+      const page = await decisions().listOfProject(slug, { since: null, command: null }, all[0]?.id ?? 0, 1);
+      expect(page.map((row) => row.id)).toEqual([all[1]?.id]);
+    });
+
+    it('binds a hostile filter value as data', async () => {
+      const { slug } = await seedTrackerProject();
+      await importDecision(slug, await seedTrackerItem(slug, 1), 'approve', AT);
+      const listed = await decisions().listOfProject(
+        slug,
+        { since: null, command: "approve' OR '1'='1" as never },
+        0,
+        10,
+      );
+      expect(listed).toEqual([]);
+    });
+  });
 });

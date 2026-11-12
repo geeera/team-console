@@ -1,0 +1,37 @@
+{
+  "route": "GET /api/v1/projects/:slug/requests",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/projects/tc/requests?state=pending"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "requests": [
+        {
+          "id": 1,
+          "request": {
+            "kind": "sprint",
+            "target": "next"
+          },
+          "requestedAt": "2026-11-12T10:00:00.000Z",
+          "result": null,
+          "reason": null,
+          "handledAt": null,
+          "item": {
+            "key": "TC-1",
+            "number": 1,
+            "title": "Checkout",
+            "state": "open"
+          }
+        }
+      ],
+      "next": null
+    }
+  }
+}
