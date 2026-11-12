@@ -157,6 +157,38 @@ test('the archive confirmation: Cancel is focused first and the row reads Cancel
 });
 
 /**
+ * Archive is on screen before the setup status answers (#514): the status answering behind an open confirmation
+ * used to move focus to the page heading, so Cancel lost it. The answer is held until the confirmation is open.
+ */
+test('the archive confirmation keeps focus on Cancel when the setup status answers after it opened', async ({
+  page,
+}) => {
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/v1/projects/private-product/setup*', async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.goto('/settings/projects/private-product');
+  const result = page.getByTestId('setup-result');
+  await expect(result).toContainText(ru('settings.add.submitting'));
+  await page.getByTestId('archive-project').click();
+  const confirm = page.getByRole('alertdialog');
+  await expect(confirm).toContainText(ru('settings.archive.title', { name: 'private-product' }));
+  await expect(confirm.locator('.tc-confirm__cancel')).toBeFocused();
+
+  release();
+  await expect(result).not.toContainText(ru('settings.add.submitting'));
+  await expect(confirm.locator('.tc-confirm__cancel')).toBeFocused();
+
+  await confirm.locator('.tc-confirm__cancel').click();
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await expect(page.getByTestId('archive-project')).toBeFocused();
+});
+
+/**
  * A dialog too narrow for its buttons in one row (#325): they stack full width with the main action on top, like the
  * phone, and the DOM order follows, so Tab still walks what is drawn; widening the dialog restores the row.
  */

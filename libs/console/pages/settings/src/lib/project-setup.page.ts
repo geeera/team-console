@@ -32,7 +32,7 @@ import { JUST_ADDED_STATE } from '@console/features/add-project';
 import { ArchiveProject } from '@console/features/archive-project';
 import { NetworkStatus } from '@console/shared/api';
 import { LocalTimePipe, TranslocoPipe, TranslocoPluralPipe, TranslocoService } from '@console/shared/i18n';
-import { Button, Callout, Card, Icon, StateBlock } from '@console/shared/ui';
+import { Button, Callout, Card, Icon, Sheet, StateBlock } from '@console/shared/ui';
 import type { ProjectSetupDto } from '@shared/contracts';
 import { readNavigationState } from './settings-navigation';
 
@@ -68,6 +68,7 @@ export class ProjectSetupPage {
   private readonly setupApi = inject(ProjectSetupApi);
   private readonly archiver = inject(ArchiveProject);
   private readonly deployment = inject(DeploymentStore);
+  private readonly sheet = inject(Sheet);
 
   protected readonly projects = inject(ProjectsStore);
   protected readonly connection = inject(GitHubConnectionStore);
@@ -131,7 +132,7 @@ export class ProjectSetupPage {
       started = true;
       untracked(() => {
         if (this.project() === undefined) {
-          afterNextRender(() => this.heading()?.nativeElement.focus(), { injector: this.injector });
+          this.focusAfterRender(() => this.heading());
           return;
         }
         void this.check({ fresh: false, announce: false });
@@ -169,6 +170,21 @@ export class ProjectSetupPage {
     }
   }
 
+  /**
+   * The status answers late, and Archive is on screen before it does (#514): a confirmation opened meanwhile keeps
+   * focus, or a keyboard or VoiceOver owner would land on the page behind the modal.
+   */
+  private focusAfterRender(target: () => ElementRef<HTMLElement> | undefined): void {
+    afterNextRender(
+      () => {
+        if (!this.sheet.hasOpen()) {
+          target()?.nativeElement.focus();
+        }
+      },
+      { injector: this.injector },
+    );
+  }
+
   private needsRecheck(): boolean {
     return !this.checking() && this.setup() !== null && this.network.online() && !this.summary().ready;
   }
@@ -187,9 +203,7 @@ export class ProjectSetupPage {
     } finally {
       this.checking.set(false);
     }
-    afterNextRender(() => (options.announce ? this.result() : this.heading())?.nativeElement.focus(), {
-      injector: this.injector,
-    });
+    this.focusAfterRender(() => (options.announce ? this.result() : this.heading()));
     if (options.announce && !this.failed()) {
       const done = this.summary().done;
       await this.announcer.announce(this.transloco.translate('settings.setup.doneLive', { done }), 'polite');
