@@ -114,9 +114,24 @@ export interface AuditCondition {
 
 /**
  * Writes the audit row only when the statement just before it in the batch changed a row (#492). `changes()` still
- * holds that statement's count here, because the audit INSERT has not finished when its WHERE is evaluated.
+ * holds that statement's count here, because the audit INSERT has not finished when its WHERE is evaluated; it counts
+ * the statement's own rows, never a trigger's. Module-private (#522): `auditedWrite` is the only way to use it, so the
+ * audit row always sits directly after its write.
  */
-export const WROTE_PREVIOUS_STATEMENT: AuditCondition = { exists: 'SELECT 1 WHERE changes() > 0', params: [] };
+const WROTE_PREVIOUS_STATEMENT: AuditCondition = { exists: 'SELECT 1 WHERE changes() > 0', params: [] };
+
+/**
+ * A conditional write and its audit row, adjacent and in that order, for the action's batch (#522): the row is written
+ * only when `write` itself changed a row. Spread the pair into the batch as it is: a statement put between the two
+ * would become the one `changes()` reads.
+ */
+export function auditedWrite(
+  db: D1Database,
+  write: D1PreparedStatement,
+  audit: NewAuditEvent,
+): readonly [D1PreparedStatement, D1PreparedStatement] {
+  return [write, auditEventStatement(db, audit, WROTE_PREVIOUS_STATEMENT)];
+}
 
 /**
  * The audit row of an action, for the action's own batch, so both land in one transaction or neither does; with

@@ -102,6 +102,42 @@ describe('RunnersRepo', () => {
     });
   });
 
+  // #522: the owner withdraws the code after the route looked it up and before `enrol` writes.
+  it('writes nothing, no runner.enrolled row either, when the code is withdrawn mid-enrolment', async () => {
+    const codeHash = hash('c');
+    await repo.createEnrolment(
+      { codeHash, accountId: ACCOUNT_A, name: 'mac', allowedProjects: [], createdBy: 'owner-1', at: T0, expiresAt: T1 },
+      audit('enrolment-code.created'),
+    );
+    expect(await repo.findEnrolment(codeHash)).not.toBeNull();
+    expect(await repo.withdrawEnrolment(ACCOUNT_A, codeHash, T0, audit('enrolment-code.withdrawn'))).toBe(true);
+
+    const late = runnerOf();
+    expect(await repo.enrol(codeHash, late, { ...audit('runner.enrolled'), target: late.id })).toBe('code-used');
+
+    expect(await repo.findById(late.id)).toBeNull();
+    expect(
+      await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.enrolled' AND target = ?1`)
+        .bind(late.id)
+        .first<number>('n'),
+    ).toBe(0);
+  });
+
+  it('writes the runner.enrolled row with the enrolment it records', async () => {
+    const codeHash = hash('d');
+    await repo.createEnrolment(
+      { codeHash, accountId: ACCOUNT_A, name: 'mac', allowedProjects: [], createdBy: 'owner-1', at: T0, expiresAt: T1 },
+      audit('enrolment-code.created'),
+    );
+    const runner = runnerOf();
+    expect(await repo.enrol(codeHash, runner, { ...audit('runner.enrolled'), target: runner.id })).toBe('ok');
+    expect(
+      await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.enrolled' AND target = ?1`)
+        .bind(runner.id)
+        .first<number>('n'),
+    ).toBe(1);
+  });
+
   it('refuses a private key member or another curve at the row', async () => {
     const codeHash = hash('b');
     await repo.createEnrolment(

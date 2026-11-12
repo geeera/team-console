@@ -66,6 +66,10 @@ type Context = WorkerContext<ApiEnv>;
 async function consoleTeamCommand(c: Context, project: ProjectRow, kind: 'pause' | 'resume'): Promise<Response> {
   const repo = new TeamStateRepo(c.env.DB);
   // Read for the audit details only: the write below is conditional on the state, so a racing request decides nothing.
+  // The details are context, not the record (#522): whether the row exists, and its kind, actor, target and time,
+  // follow the conditional write. A change landing between this read and the write can make the details lag behind:
+  // another pause or resume, or the failure-streak pause, each with its own audit row, or a job outcome, which job_events
+  // records. Reading them from the write would need the row's old values, and SQLite's RETURNING gives only the new ones.
   const state = await repo.get(project.slug);
   const now = new Date().toISOString();
   const actor = auditActorOf(c.get('identity'));

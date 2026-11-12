@@ -146,6 +146,8 @@ export interface RunnerDto {
 /**
  * An enrolment code that can still enrol a runner (#492): unused and not expired. Never the code. `id` is the
  * code's SHA-256, the key D1 already holds, and is what `POST …/enrolment-codes/:id/withdraw` names.
+ * Because `id` is also the DB lookup key (`runner_enrolments.code_hash`, the primary key), it must stay unique per
+ * code: never shorten it, re-encode it or replace it with a display id (#522).
  */
 export interface PendingEnrolmentDto {
   readonly id: string;
