@@ -1,5 +1,5 @@
 import { TEAM_FAILURE_STREAK_PAUSE } from '@shared/contracts';
-import { auditEventStatement, type AuditCondition, type NewAuditEvent } from '../accounts/audit.repo';
+import { WROTE_PREVIOUS_STATEMENT, auditEventStatement, type NewAuditEvent } from '../accounts/audit.repo';
 
 /** `team_state` (ADR 0006 "Report", migration 0022): the pause the claim honours and the three-failures stop. */
 export interface TeamStateRecord {
@@ -18,12 +18,6 @@ interface TeamStateRow {
 
 /** Who paused on the failure streak, as `paused_by` records it. */
 export const FAILURE_STREAK_PAUSER = 'system:failure-streak';
-
-/**
- * Writes the audit row only when the statement just before it in the batch changed a row. `changes()` still holds
- * that statement's count here, because the audit INSERT has not finished when its WHERE is evaluated.
- */
-const WROTE_PREVIOUS_STATEMENT: AuditCondition = { exists: 'SELECT 1 WHERE changes() > 0', params: [] };
 
 export class TeamStateRepo {
   constructor(private readonly db: D1Database) {}

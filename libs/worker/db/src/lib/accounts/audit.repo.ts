@@ -113,6 +113,12 @@ export interface AuditCondition {
 }
 
 /**
+ * Writes the audit row only when the statement just before it in the batch changed a row (#492). `changes()` still
+ * holds that statement's count here, because the audit INSERT has not finished when its WHERE is evaluated.
+ */
+export const WROTE_PREVIOUS_STATEMENT: AuditCondition = { exists: 'SELECT 1 WHERE changes() > 0', params: [] };
+
+/**
  * The audit row of an action, for the action's own batch, so both land in one transaction or neither does; with
  * `onlyIf`, only when the action took effect. There is deliberately no update or delete statement for `audit_events`
  * anywhere in @worker/db (tested); triggers refuse both.
