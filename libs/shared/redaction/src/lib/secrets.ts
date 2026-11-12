@@ -8,6 +8,7 @@
  *   (`ghs_ and glpat-`) is not refused as a secret.
  * - `loose` (logs and audit rows): the prefix with whatever tail follows, so a credential cut off by an error
  *   message, a truncation or a quote is still masked. Over-masking a log costs a display value, never a secret.
+ *   Where a short tail is an ordinary word (`npm_config_cache`, `ghs_foo`), loose asks for a minimum tail instead.
  *
  * No pattern backtracks over the text: each starts at a fixed prefix, has no nested quantifier, and every quantifier
  * that a failed attempt could run to the end of the text is bounded, so a 64 KB body stays cheap to scan. JWTs are
@@ -54,14 +55,19 @@ interface SecretPattern {
 }
 
 const B64URL = String.raw`[A-Za-z0-9_-]`;
+/** The shortest `gh[pousr]_` tail loose mode masks (#492): see the pattern below. */
+const GITHUB_LOOSE_MIN = 12;
 const PEM_BLOCK = String.raw`-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----|$)`;
 
 const SECRET_PATTERNS: readonly SecretPattern[] = [
   // GitHub: classic PAT, OAuth, user-to-server, installation (`ghs_`, what a job's GitHub token is) and refresh tokens.
+  // Their tail is 36+ base62 characters, the last 6 a checksum. Loose (#492) keeps that alphabet (no `_`) and asks for
+  // GITHUB_LOOSE_MIN of it, so an identifier like `ghs_foo` or `ghs_rate_limit` stays readable, while a token cut
+  // shorter than that leaves at least 19 of its 30 random characters (~110 bits) unseen.
   {
     kind: 'github-token',
     strict: String.raw`gh[pousr]_[A-Za-z0-9]{36,255}`,
-    loose: String.raw`gh[pousr]_[A-Za-z0-9_]{1,255}`,
+    loose: String.raw`gh[pousr]_[A-Za-z0-9]{${GITHUB_LOOSE_MIN},255}`,
   },
   // GitHub fine-grained PAT.
   {

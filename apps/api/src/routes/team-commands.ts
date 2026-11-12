@@ -65,13 +65,8 @@ type Context = WorkerContext<ApiEnv>;
  */
 async function consoleTeamCommand(c: Context, project: ProjectRow, kind: 'pause' | 'resume'): Promise<Response> {
   const repo = new TeamStateRepo(c.env.DB);
+  // Read for the audit details only: the write below is conditional on the state, so a racing request decides nothing.
   const state = await repo.get(project.slug);
-  if (kind === 'pause' && state.pausedAt !== null) {
-    return problem(c, { type: 'team-already-paused', title: 'The team is already paused', status: 409 });
-  }
-  if (kind === 'resume' && state.pausedAt === null) {
-    return problem(c, { type: 'team-not-paused', title: 'The team is not paused', status: 409 });
-  }
   const now = new Date().toISOString();
   const actor = auditActorOf(c.get('identity'));
   const audit: NewAuditEvent = {
@@ -84,10 +79,13 @@ async function consoleTeamCommand(c: Context, project: ProjectRow, kind: 'pause'
     details: { previousPausedBy: state.pausedBy, failedStreak: state.failedStreak },
     ipCountry: c.req.header('CF-IPCountry') ?? null,
   };
-  if (kind === 'pause') {
-    await repo.pause(project.slug, actor.actor, now, audit);
-  } else {
-    await repo.resume(project.slug, now, audit);
+  // #492: 409 when the state was already the target, including when a concurrent request got there first.
+  const tookEffect =
+    kind === 'pause' ? await repo.pause(project.slug, actor.actor, now, audit) : await repo.resume(project.slug, now, audit);
+  if (!tookEffect) {
+    return kind === 'pause'
+      ? problem(c, { type: 'team-already-paused', title: 'The team is already paused', status: 409 })
+      : problem(c, { type: 'team-not-paused', title: 'The team is not paused', status: 409 });
   }
   const after = await repo.get(project.slug);
   const body: TeamStateDto = {
