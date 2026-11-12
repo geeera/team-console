@@ -5,7 +5,8 @@
   position: sticky;
   top: 0;
   align-self: flex-start;
-  max-height: 100dvh;
+  /* Ends at the screen edge even while the page header is still above it (#507). */
+  max-height: var(--tc-pinned-max-h, 100dvh);
   display: flex;
   flex-direction: column;
   border-left: var(--border-w) solid var(--border);

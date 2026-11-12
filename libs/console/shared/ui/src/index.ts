@@ -25,6 +25,7 @@ export * from './lib/menu/menu';
 export * from './lib/meter/meter';
 export * from './lib/list/list';
 export * from './lib/picker-button/picker-button';
+export * from './lib/pinned-column/pinned-column';
 export * from './lib/receipt/receipt';
 export * from './lib/recommendation/recommendation';
 export * from './lib/sheet/sheet';

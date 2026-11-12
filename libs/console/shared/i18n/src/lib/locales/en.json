@@ -1847,6 +1847,11 @@
       "title": "Needs you",
       "body": "On the phone the top bar already shows this title, so here it stays for screen readers only."
     },
+    "pinnedColumn": {
+      "header": "Page header",
+      "page": "Page row",
+      "pane": "Column row"
+    },
     "checkRow": {
       "list": "Questions to approve",
       "first": "Plan for the 16 October demo",

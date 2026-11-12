@@ -4,7 +4,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { itemNumberOfSegment } from '@console/entities/item';
 import { ProjectsStore } from '@console/entities/project';
-import { BREAKPOINTS } from '@console/shared/ui';
+import { BREAKPOINTS, PinnedColumn } from '@console/shared/ui';
 import { TaskScreen } from '@console/widgets/task-screen';
 import { map } from 'rxjs';
 import { BoardSectionPage } from './board-section.page';
@@ -17,7 +17,7 @@ import { BoardSectionPage } from './board-section.page';
  */
 @Component({
   selector: 'tc-task-section-page',
-  imports: [BoardSectionPage, TaskScreen],
+  imports: [BoardSectionPage, PinnedColumn, TaskScreen],
   template: `
     @if (!isPhone()) {
       <div class="task-section__board"><tc-board-section-page /></div>
@@ -25,6 +25,7 @@ import { BoardSectionPage } from './board-section.page';
     @if (project(); as project) {
       <tc-task-screen
         class="task-section__task"
+        tcPinnedColumn
         [slug]="project.slug"
         [number]="number() ?? 0"
         [projectName]="project.displayName"

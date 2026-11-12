@@ -15,7 +15,8 @@
   position: sticky;
   top: 0;
   align-self: flex-start;
-  max-height: calc(100dvh - var(--space-16));
+  /* Ends at the screen edge whatever of the space header is still above it (#507). */
+  max-height: var(--tc-pinned-max-h, 100dvh);
 }
 
 :host(.task-section--phone) {

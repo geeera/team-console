@@ -1,19 +1,22 @@
 import type { Page } from '@playwright/test';
 import { addDays, calendarDayOf } from '@shared/contracts';
+import { animationsSettled } from './support/axe';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
-import { scrollRegionsOf, strayScrollsOf } from './support/scroll-regions';
-import { clearFakeMilestones, fakePost, seed } from './support/stack';
+import { clippedBlocksOf, scrollRegionsOf, strayScrollsOf } from './support/scroll-regions';
+import { apiClient, clearFakeMilestones, fakePost, seed } from './support/stack';
+import { createItem, createSprint, switchToConsoleTracker } from './support/tracker-seed';
 
 /**
- * One scroll at a time (#274, root cause in the #275 spec), at 390×844 (iphone) and 1440×900 (desktop): every screen
- * scrolls the document and nothing else — not `<main>`, never a scroll inside a scroll — so the iPhone's status-bar
+ * One scroll at a time (#274, root cause in the #275 spec), at 375×812 (iphone) and 1280×800 (desktop), the scroll
+ * audit's sizes (#507) and smaller than the projects' own 390×844 and 1440×900: every screen scrolls the document and nothing else — not `<main>`, never a scroll inside a scroll — so the iPhone's status-bar
  * tap reaches the top; with a dialog open only that dialog's body scrolls, while the page and any sheet underneath
  * hold still. The «Попросить PM» form fits the screen with its title and actions in view.
  *
  * A scroll region is an element with `overflow: auto|scroll` whose content is larger than its box, or the document
- * when it overflows. Besides the document only a column pinned to the viewport may scroll (sticky or fixed and no
- * taller than the screen: the Commands pane beside a wide page), because it never moves with the page.
+ * when it overflows. Besides the document only a column pinned to the viewport may scroll (sticky or fixed and wholly
+ * on the screen: the Commands pane and the task pane beside a wide page), because it never moves with the page. And no
+ * block is cut off (#507): nothing clipped by a box that does not scroll, nothing pinned past the screen's edge.
  */
 
 const REPO = 'geeera/team-console';
@@ -21,6 +24,8 @@ const ISSUE = 36;
 const TODAY = calendarDayOf(Date.now());
 
 const STORYBOOK = 'https://team-console-storybook.pages.dev';
+/** The fixture repository's design issue with renders (design-viewer.e2e). */
+const DESIGN_ISSUE = 90004;
 
 /**
  * `isTall`: long enough with the seeded data that the document itself must scroll. `waitFor`: a test id the screen
@@ -34,8 +39,21 @@ const SCREENS: readonly { path: string; isTall: boolean; waitFor?: string }[] = 
   // #275: the compact board fits the first screen with this sprint; it still never scrolls inside itself.
   { path: '/p/team-console/board', isTall: false },
   { path: '/p/team-console/artifacts', isTall: true },
+  { path: '/p/team-console/artifacts?type=design', isTall: false },
   { path: '/settings', isTall: false },
+  { path: '/settings/runners', isTall: false },
+  { path: '/settings/projects/team-console', isTall: false },
+  { path: '/settings/environment', isTall: false },
+  // Project not found: an unknown slug, and an address outside every route.
+  { path: '/p/no-such-project/questions', isTall: false },
+  { path: '/no-such-page', isTall: false },
 ];
+
+/** The audit's widths (#507): the iPhone mini / SE class and a 13" laptop. */
+const AUDIT_VIEWPORTS = {
+  iphone: { width: 375, height: 812 },
+  desktop: { width: 1280, height: 800 },
+} as const;
 
 /**
  * Sideways overflow (#281 QA): the document must never be wider than the screen, and no element may stick out past
@@ -103,6 +121,20 @@ async function expectWithinViewport(page: Page, selector: string, what: string):
 
 const dialog = (page: Page) => page.getByRole('dialog').last();
 
+/** A pinned column (#507): wholly on the screen, top to bottom, wherever the page is scrolled. */
+async function expectPinnedOnScreen(page: Page, selector: string, what: string): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const box = await page.locator(selector).boundingBox();
+        const height = page.viewportSize()?.height ?? 0;
+        return box !== null && box.y >= -0.5 && box.y + box.height <= height + 0.5;
+      },
+      { message: `${what} ends at the screen edge` },
+    )
+    .toBe(true);
+}
+
 async function openRequestForm(page: Page): Promise<void> {
   await page.getByTestId('commands-open').click();
   await expect(page.getByTestId('issues-group')).toBeVisible();
@@ -136,6 +168,12 @@ test.beforeAll(async ({ stack }) => {
   await seed(stack, [REPO]);
 });
 
+test.beforeEach(async ({ page }) => {
+  await page.setViewportSize(
+    test.info().project.name === 'desktop' ? AUDIT_VIEWPORTS.desktop : AUDIT_VIEWPORTS.iphone,
+  );
+});
+
 test.afterAll(async ({ stack }) => {
   if (stack.fakeURL !== null) {
     await clearFakeMilestones(stack, REPO);
@@ -156,6 +194,7 @@ for (const { path, isTall, waitFor } of SCREENS) {
       await expect(page.getByTestId(waitFor)).toBeVisible();
     }
     expect(await strayScrollsOf(page)).toEqual([]);
+    expect(await page.evaluate(clippedBlocksOf), 'no block cut off').toEqual([]);
     expect(await sidewaysOverflowOf(page), 'nothing wider than the screen').toEqual([]);
     // The same with wider type: CI's Linux fonts set the #278 link at 372px where macOS sets 342px, so a row that
     // fits by a few pixels on one machine overflows on another. Text must wrap, not rely on the font's width.
@@ -182,7 +221,42 @@ test('the Commands pane beside a page is a pinned column, not a scroll inside th
   await page.getByTestId('commands-open').click();
   await expect(page.getByTestId('issues-group')).toBeVisible();
   await page.waitForLoadState('networkidle');
+  await animationsSettled(page);
+  // #507: under the space header the pane used to be a screen tall, its end and its scrollbar's under the bottom edge.
+  await expectPinnedOnScreen(page, '#tc-space-commands', 'the Commands pane under the header');
   expect(await strayScrollsOf(page)).toEqual([]);
+  expect(await page.evaluate(clippedBlocksOf)).toEqual([]);
+
+  await page.evaluate(() => window.scrollTo({ top: 400 }));
+  await expectPinnedOnScreen(page, '#tc-space-commands', 'the Commands pane once the page scrolled');
+  expect(await strayScrollsOf(page)).toEqual([]);
+});
+
+test('the Commands sheet on the phone: only its body scrolls, nothing cut off', async ({ page }) => {
+  test.skip(test.info().project.name !== 'iphone', 'the phone opens Commands as a sheet');
+  await page.goto('/p/team-console/questions');
+  await page.getByTestId('commands-open').click();
+  await expect(page.getByTestId('issues-group')).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  await animationsSettled(page);
+  await expectWithinViewport(page, '[role="dialog"]', 'the Commands sheet');
+  const regions = await page.evaluate(scrollRegionsOf);
+  expect(regions.map((region) => region.name)).toEqual(['div.tc-sheet__body']);
+  expect(await page.evaluate(clippedBlocksOf)).toEqual([]);
+});
+
+test('the design viewer: nothing outside it scrolls, nothing cut off', async ({ page }) => {
+  await page.goto('/p/team-console/artifacts?type=design');
+  const row = page.locator(`[data-testid="artifact"][data-issue="${DESIGN_ISSUE}"]`);
+  await expect(row).toBeVisible();
+  await row.getByRole('button').click();
+  await expect(dialog(page)).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  await animationsSettled(page);
+  await expectWithinViewport(page, '[role="dialog"]', 'the design viewer');
+  const regions = await page.evaluate(scrollRegionsOf);
+  expect(regions.filter((region) => !region.isInTopDialog).map((region) => region.name)).toEqual([]);
+  expect(await page.evaluate(clippedBlocksOf)).toEqual([]);
 });
 
 test('«Попросить PM» fits the screen: title and actions in view, only its body scrolls, the page is locked', async ({
@@ -328,4 +402,54 @@ test('a page that grows behind an open sheet stays still: the lock does not depe
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
   expect(await documentScrolls(page)).toBe(true);
+});
+
+// Last in the file: it moves the project onto the console tracker, which the screens above do not expect.
+test('a task beside the board is a pinned pane that ends at the screen edge; on the phone it is the page', async ({
+  page,
+  stack,
+}, testInfo) => {
+  requireLocalStack(stack);
+  await switchToConsoleTracker(testInfo.workerIndex, 'team-console', 'TC');
+  const api = await apiClient(stack);
+  let task = 0;
+  try {
+    const sprint = await createSprint(api, 'team-console', addDays(TODAY, 30));
+    for (const index of [1, 2, 3, 4, 5, 6]) {
+      task = await createItem(api, 'team-console', {
+        title: `Answer not saved on a slow network, case ${String(index)}`,
+        body: 'On a slow network the answer goes out twice.\n\n'.repeat(30),
+        kind: 'bug',
+        status: 'approved',
+        sprint,
+      });
+    }
+  } finally {
+    await api.dispose();
+  }
+
+  await page.goto(`/p/team-console/t/${String(task)}`);
+  await expect(page.getByRole('heading', { level: 1, name: /case 6$/ })).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  await animationsSettled(page);
+  expect(await page.evaluate(clippedBlocksOf), 'no block cut off').toEqual([]);
+  expect(await strayScrollsOf(page)).toEqual([]);
+  expect(await sidewaysOverflowOf(page)).toEqual([]);
+  if (testInfo.project.name === 'desktop') {
+    // #507: the pane started under the space header but was sized from the top of the screen, so its end was cut off.
+    await expectPinnedOnScreen(page, 'tc-task-screen', 'the task pane under the header');
+    await page.evaluate(() => window.scrollTo({ top: 300 }));
+    await expectPinnedOnScreen(page, 'tc-task-screen', 'the task pane once the board scrolled');
+    expect(await strayScrollsOf(page)).toEqual([]);
+  } else {
+    expect(await documentScrolls(page), 'the long task scrolls the document').toBe(true);
+  }
+
+  // Find a task exists on the console tracker only: checked here, where the project is on it.
+  await page.goto('/p/team-console/find?q=slow');
+  await expect(page.getByText(/case 6$/).first()).toBeVisible();
+  await animationsSettled(page);
+  expect(await strayScrollsOf(page)).toEqual([]);
+  expect(await page.evaluate(clippedBlocksOf), 'no block cut off on Find').toEqual([]);
+  expect(await sidewaysOverflowOf(page)).toEqual([]);
 });
