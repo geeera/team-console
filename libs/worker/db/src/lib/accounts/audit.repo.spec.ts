@@ -29,6 +29,40 @@ beforeAll(async () => {
     .run();
 });
 
+/** The source with its comments blanked, string and template literals kept: the SQL lives in those. */
+function withoutComments(source: string): string {
+  let out = '';
+  let quote: string | null = null;
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source.charAt(i);
+    if (quote !== null) {
+      out += char;
+      if (char === '\\') {
+        out += source.charAt(i + 1);
+        i += 1;
+      } else if (char === quote) {
+        quote = null;
+      }
+    } else if (char === '/' && source.charAt(i + 1) === '/') {
+      const end = source.indexOf('\n', i);
+      i = end === -1 ? source.length : end - 1;
+    } else if (char === '/' && source.charAt(i + 1) === '*') {
+      const end = source.indexOf('*/', i + 2);
+      i = end === -1 ? source.length : end + 1;
+      out += ' ';
+    } else {
+      if (char === "'" || char === '"' || char === '`') {
+        quote = char;
+      }
+      out += char;
+    }
+  }
+  return out;
+}
+
+/** A call of SQLite's `changes()` in code, whatever its case or spacing; `total_changes()` and `meta.changes` are not. */
+const callsChanges = (source: string): boolean => /(?<![\w.])changes\s*\(/i.test(withoutComments(source));
+
 describe('AuditRepo', () => {
   const repo = new AuditRepo(env.DB);
 
@@ -241,12 +275,31 @@ describe('AuditRepo', () => {
       await rename('A3', 'A').run();
     });
 
-    it('is the only way to the changes() condition', () => {
-      expect(Object.keys(auditModule)).not.toContain('WROTE_PREVIOUS_STATEMENT');
+    // #531: judged on the module's runtime exports, not its source text.
+    it('keeps the changes() condition out of the module exports', () => {
+      const exported = Object.keys(auditModule);
+      expect(exported).toContain('auditedWrite');
+      expect(exported).not.toContain('WROTE_PREVIOUS_STATEMENT');
+      expect(Object.values(auditModule)).not.toContainEqual({ exists: 'SELECT 1 WHERE changes() > 0', params: [] });
+    });
+
+    it('is the only module that calls changes()', () => {
       const offenders = Object.entries(env.TEST_LIBRARY_SOURCES)
-        .filter(([path, text]) => path !== 'lib/accounts/audit.repo.ts' && /\bchanges\(\)/.test(text))
+        .filter(([path, text]) => path !== 'lib/accounts/audit.repo.ts' && callsChanges(text))
         .map(([path]) => path);
       expect(offenders).toEqual([]);
+      expect(callsChanges(env.TEST_LIBRARY_SOURCES['lib/accounts/audit.repo.ts'] ?? '')).toBe(true);
+    });
+
+    it('catches changes() written with spacing or in another case', () => {
+      expect(callsChanges('`SELECT 1 WHERE changes () > 0`')).toBe(true);
+      expect(callsChanges('`SELECT 1 WHERE CHANGES(\n) > 0`')).toBe(true);
+    });
+
+    it('is not tripped by a comment that mentions changes()', () => {
+      expect(callsChanges('// changes() reads the previous statement\nconst x = 1;')).toBe(false);
+      expect(callsChanges('/** see changes() in audit.repo */ const y = meta.changes;')).toBe(false);
+      expect(callsChanges('`SELECT total_changes()`')).toBe(false);
     });
   });
 

@@ -137,7 +137,13 @@ describe('role_keys guards (0023, 0024)', () => {
     const earlier = await roleKey(owner, 'pm', T0);
     const untouched = await roleKey(bystander, 'dev');
 
-    expect(await new RunnersRepo(env.DB).revoke(ACCOUNT, owner, T1, audit)).toBe(true);
+    expect(await new RunnersRepo(env.DB).revoke(ACCOUNT, owner, T1, { ...audit, target: owner })).toBe(true);
+    // #531: the trigger's role-key rows do not count as the revoke's own; its audit row is written once.
+    expect(
+      await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.revoked' AND target = ?1`)
+        .bind(owner)
+        .first<number>('n'),
+    ).toBe(1);
     expect((await keyOf(live))?.revoked_at).toBe(T1);
     expect((await keyOf(live2))?.revoked_at).toBe(T1);
     expect((await keyOf(earlier))?.revoked_at).toBe(T0);
