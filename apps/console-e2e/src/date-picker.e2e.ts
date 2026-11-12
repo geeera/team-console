@@ -49,6 +49,10 @@ async function openMoveDemo(page: Page): Promise<void> {
   await page.getByTestId('sprint-demo').click();
   await expect(moveDialog(page)).toBeVisible();
   await expect(dateField(page)).toHaveValue(shown(DUE));
+  // The dialog itself settles into place with its own entrance animation (`tc-dialog-settle`, sheet-container.css)
+  // that moves it — and the field inside it — by `--space-2`; without this wait the calendar anchors to the
+  // field's pre-settle position and the field then slides out from under it (#513).
+  await settled(moveDialog(page));
 }
 
 async function settled(locator: Locator): Promise<void> {
