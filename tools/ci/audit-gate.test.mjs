@@ -14,7 +14,10 @@ import {
   collectAdvisories,
 } from './audit-gate.mjs';
 
+// Every date here is a fixture relative to NOW, never to the wall clock: each call passes `now` explicitly, so
+// the suite gives the same result on any day (EXPIRES being in the past today is fine).
 const NOW = new Date('2026-10-04T00:00:00Z');
+const EXPIRES = '2026-11-03';
 
 const ALLOWLIST = [
   {
@@ -22,7 +25,7 @@ const ALLOWLIST = [
     package: 'braces',
     reason: 'no patched version exists; build-tooling only (#177)',
     issue: 177,
-    expires: '2026-11-03',
+    expires: EXPIRES,
   },
 ];
 
@@ -75,7 +78,7 @@ function reportWith(advisory) {
 // --- after expiry it fails again ---
 {
   const report = reportWith({ package: 'braces', severity: 'high', ghsaId: 'GHSA-vfj7-8cjw-p6xm' });
-  const afterExpiry = new Date('2026-11-03T00:00:00Z'); // expiry date itself counts as expired
+  const afterExpiry = new Date(`${EXPIRES}T00:00:00Z`); // expiry date itself counts as expired
   const { failures, ignored } = evaluateAuditReport(report, ALLOWLIST, afterExpiry);
   assert.strictEqual(failures.length, 1, 'an expired allowlist entry must fail again');
   assert.strictEqual(failures[0].expiredMatch, true);
@@ -244,7 +247,7 @@ function withTempFile(contents, fn) {
 }
 
 const validEntryJson = JSON.stringify({
-  entries: [{ ghsaId: 'GHSA-vfj7-8cjw-p6xm', package: 'braces', reason: 'no fix yet', issue: 177, expires: '2026-11-03' }],
+  entries: [{ ghsaId: 'GHSA-vfj7-8cjw-p6xm', package: 'braces', reason: 'no fix yet', issue: 177, expires: EXPIRES }],
 });
 
 withTempFile(null, (file) => {
@@ -259,12 +262,12 @@ withTempFile('[]', (file) => {
   assert.throws(() => loadAllowlist(file, NOW), /must have an "entries" array/, 'a non-object root must fail');
 });
 
-withTempFile(JSON.stringify({ entries: [{ package: 'braces', reason: 'x', issue: 177, expires: '2026-11-03' }] }), (file) => {
+withTempFile(JSON.stringify({ entries: [{ package: 'braces', reason: 'x', issue: 177, expires: EXPIRES }] }), (file) => {
   assert.throws(() => loadAllowlist(file, NOW), /missing required field "ghsaId"/, 'a missing required field must fail');
 });
 
 withTempFile(
-  JSON.stringify({ entries: [{ ghsaId: 'not-a-ghsa-id', package: 'braces', reason: 'x', issue: 177, expires: '2026-11-03' }] }),
+  JSON.stringify({ entries: [{ ghsaId: 'not-a-ghsa-id', package: 'braces', reason: 'x', issue: 177, expires: EXPIRES }] }),
   (file) => {
     assert.throws(() => loadAllowlist(file, NOW), /is not a GHSA id/, 'a non-GHSA ghsaId must fail');
   },
