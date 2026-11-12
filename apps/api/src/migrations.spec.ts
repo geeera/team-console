@@ -81,6 +81,7 @@ describe('migrations on a fresh D1', () => {
       '0021_runners.sql',
       '0022_jobs.sql',
       '0023_role_key_guards.sql',
+      '0024_role_key_delete_guard.sql',
     ]);
   });
 

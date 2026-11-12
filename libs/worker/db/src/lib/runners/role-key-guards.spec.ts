@@ -2,7 +2,7 @@ import { env } from 'cloudflare:test';
 import type { NewAuditEvent } from '../accounts/audit.repo';
 import { RunnersRepo } from './runners.repo';
 
-// #492: the 0023 guards on `role_keys`, directly against D1 (no repo writes role keys before 2-C).
+// #492, #522: the 0023 and 0024 guards on `role_keys`, directly against D1 (no repo writes role keys before 2-C).
 
 const ACCOUNT = '01M6YSNJ00000000000000RKA1';
 const T0 = '2026-11-12T10:00:00.000Z';
@@ -46,7 +46,7 @@ beforeAll(async () => {
   await env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'rk-a', 'A', ?2)`).bind(ACCOUNT, T0).run();
 });
 
-describe('role_keys guards (0023)', () => {
+describe('role_keys guards (0023, 0024)', () => {
   it.each([
     ['the key', `public_key_jwk = '${OTHER_KEY}'`],
     ['the role', `role = 'qa'`],
@@ -109,6 +109,23 @@ describe('role_keys guards (0023)', () => {
     const owner = await runner();
     await new RunnersRepo(env.DB).revoke(ACCOUNT, owner, T0, audit);
     await expect(roleKey(owner)).rejects.toThrow(/a role key needs a live runner/);
+  });
+
+  // #522 (0024): a key ends by revocation only; deleting one, live or revoked, is refused and leaves it in place.
+  it('refuses deleting a role key, live or revoked', async () => {
+    const owner = await runner();
+    const live = await roleKey(owner, 'dev');
+    const revoked = await roleKey(owner, 'qa', T0);
+    for (const id of [live, revoked]) {
+      await expect(env.DB.prepare(`DELETE FROM role_keys WHERE id = ?1`).bind(id).run()).rejects.toThrow(
+        /role keys are never deleted/,
+      );
+    }
+    await expect(env.DB.prepare(`DELETE FROM role_keys WHERE runner_id = ?1`).bind(owner).run()).rejects.toThrow(
+      /role keys are never deleted/,
+    );
+    expect(await keyOf(live)).toMatchObject({ role: 'dev', revoked_at: null });
+    expect(await keyOf(revoked)).toMatchObject({ role: 'qa', revoked_at: T0 });
   });
 
   // Item 5 of #492: revoking a runner revokes its role keys, whichever statement revoked the runner.

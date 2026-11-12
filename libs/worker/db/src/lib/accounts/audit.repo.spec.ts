@@ -5,8 +5,10 @@ import {
   AuditRepo,
   auditDetailsJson,
   auditEventStatement,
+  auditedWrite,
   type NewAuditEvent,
 } from './audit.repo';
+import * as auditModule from './audit.repo';
 
 const ACCOUNT = '01M6YSNJ00000000000000AD01';
 const T0 = '2026-11-09T10:00:00.000Z';
@@ -204,6 +206,48 @@ describe('AuditRepo', () => {
       ]),
     ).rejects.toThrow(/CHECK/);
     expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM accounts').first<number>('n')).toBe(before);
+  });
+
+  // #522: the guarded write and its audit row come as one pair, so nothing can sit between them in a batch.
+  describe('auditedWrite', () => {
+    const rename = (from: string, to: string): D1PreparedStatement =>
+      env.DB.prepare(`UPDATE accounts SET name = ?3 WHERE id = ?1 AND name = ?2`).bind(ACCOUNT, from, to);
+    const auditedRows = async (target: string): Promise<number | null> =>
+      env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE target = ?1`).bind(target).first<number>('n');
+
+    it('writes the audit row when its write changed a row', async () => {
+      const [write] = await env.DB.batch([
+        ...auditedWrite(env.DB, rename('A', 'A2'), event({ kind: 'team.paused', target: 'aw-changed' })),
+      ]);
+      expect(write?.meta.changes).toBe(1);
+      expect(await auditedRows('aw-changed')).toBe(1);
+      await rename('A2', 'A').run();
+    });
+
+    it('writes no audit row when its write changed nothing', async () => {
+      const [write] = await env.DB.batch([
+        ...auditedWrite(env.DB, rename('no such name', 'X'), event({ kind: 'team.paused', target: 'aw-unchanged' })),
+      ]);
+      expect(write?.meta.changes).toBe(0);
+      expect(await auditedRows('aw-unchanged')).toBe(0);
+    });
+
+    it('judges its own write, not a statement earlier in the batch', async () => {
+      await env.DB.batch([
+        rename('A', 'A3'),
+        ...auditedWrite(env.DB, rename('no such name', 'X'), event({ kind: 'team.paused', target: 'aw-earlier' })),
+      ]);
+      expect(await auditedRows('aw-earlier')).toBe(0);
+      await rename('A3', 'A').run();
+    });
+
+    it('is the only way to the changes() condition', () => {
+      expect(Object.keys(auditModule)).not.toContain('WROTE_PREVIOUS_STATEMENT');
+      const offenders = Object.entries(env.TEST_LIBRARY_SOURCES)
+        .filter(([path, text]) => path !== 'lib/accounts/audit.repo.ts' && /\bchanges\(\)/.test(text))
+        .map(([path]) => path);
+      expect(offenders).toEqual([]);
+    });
   });
 
   it('offers no way to change or remove a row', () => {

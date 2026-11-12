@@ -1,5 +1,5 @@
 import { TEAM_FAILURE_STREAK_PAUSE } from '@shared/contracts';
-import { WROTE_PREVIOUS_STATEMENT, auditEventStatement, type NewAuditEvent } from '../accounts/audit.repo';
+import { auditEventStatement, auditedWrite, type NewAuditEvent } from '../accounts/audit.repo';
 
 /** `team_state` (ADR 0006 "Report", migration 0022): the pause the claim honours and the three-failures stop. */
 export interface TeamStateRecord {
@@ -38,15 +38,18 @@ export class TeamStateRepo {
    */
   async pause(projectSlug: string, by: string, now: string, audit: NewAuditEvent): Promise<boolean> {
     const [write] = await this.db.batch([
-      this.db
-        .prepare(
-          `INSERT INTO team_state (project_slug, paused_at, paused_by, failed_streak, updated_at) VALUES (?1, ?2, ?3, 0, ?2)
-           ON CONFLICT (project_slug) DO UPDATE SET paused_at = excluded.paused_at, paused_by = excluded.paused_by,
-             updated_at = excluded.updated_at
-           WHERE team_state.paused_at IS NULL`,
-        )
-        .bind(projectSlug, now, by),
-      auditEventStatement(this.db, audit, WROTE_PREVIOUS_STATEMENT),
+      ...auditedWrite(
+        this.db,
+        this.db
+          .prepare(
+            `INSERT INTO team_state (project_slug, paused_at, paused_by, failed_streak, updated_at) VALUES (?1, ?2, ?3, 0, ?2)
+             ON CONFLICT (project_slug) DO UPDATE SET paused_at = excluded.paused_at, paused_by = excluded.paused_by,
+               updated_at = excluded.updated_at
+             WHERE team_state.paused_at IS NULL`,
+          )
+          .bind(projectSlug, now, by),
+        audit,
+      ),
     ]);
     return (write?.meta.changes ?? 0) === 1;
   }
@@ -54,13 +57,16 @@ export class TeamStateRepo {
   /** Resuming also clears the failure streak, as `runlog resume` does. `false` when the project was not paused. */
   async resume(projectSlug: string, now: string, audit: NewAuditEvent): Promise<boolean> {
     const [write] = await this.db.batch([
-      this.db
-        .prepare(
-          `UPDATE team_state SET paused_at = NULL, paused_by = NULL, failed_streak = 0, updated_at = ?2
-           WHERE project_slug = ?1 AND paused_at IS NOT NULL`,
-        )
-        .bind(projectSlug, now),
-      auditEventStatement(this.db, audit, WROTE_PREVIOUS_STATEMENT),
+      ...auditedWrite(
+        this.db,
+        this.db
+          .prepare(
+            `UPDATE team_state SET paused_at = NULL, paused_by = NULL, failed_streak = 0, updated_at = ?2
+             WHERE project_slug = ?1 AND paused_at IS NOT NULL`,
+          )
+          .bind(projectSlug, now),
+        audit,
+      ),
     ]);
     return (write?.meta.changes ?? 0) === 1;
   }
