@@ -198,6 +198,47 @@ describe('ProjectSetupPage', () => {
     http.expectNone((req) => req.url === SETUP_URL);
   });
 
+  // #514: Archive is on screen before the first status answers; its late heading focus left the confirmation.
+  it('a status that answers while the archive confirmation is open leaves focus on its Cancel', async () => {
+    await open();
+    const first = setupRequest();
+    (root().querySelector('[data-testid="archive-project"]') as HTMLButtonElement).click();
+    await settle();
+    const cancel = document.querySelector<HTMLElement>('[role="alertdialog"] .tc-confirm__cancel');
+    expect(cancel).not.toBeNull();
+    expect(document.activeElement).toBe(cancel);
+
+    first.flush(MISSING_APP);
+    await settle();
+    expect(result()).toContain('Не хватает 4 шагов');
+    expect(document.activeElement).toBe(cancel);
+
+    cancel?.click();
+    await settle();
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+  });
+
+  it('a re-check that answers while a sheet is open leaves focus in the sheet', async () => {
+    await open();
+    setupRequest().flush(MISSING_APP);
+    await settle();
+    (root().querySelector('[data-testid="check-again"]') as HTMLButtonElement).click();
+    await settle();
+    const again = setupRequest();
+    (root().querySelector('[data-testid="archive-project"]') as HTMLButtonElement).click();
+    await settle();
+    const cancel = document.querySelector<HTMLElement>('[role="alertdialog"] .tc-confirm__cancel');
+    expect(document.activeElement).toBe(cancel);
+
+    again.flush(READY);
+    await settle();
+    expect(result()).toContain('fieldnote готов');
+    expect(document.activeElement).toBe(cancel);
+
+    cancel?.click();
+    await settle();
+  });
+
   it('an unknown slug says the project is not found', async () => {
     TestBed.configureTestingModule({
       providers: [
