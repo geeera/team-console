@@ -12,6 +12,7 @@
   @default {
     <form class="policy" novalidate [id]="id" (submit)="save($event)" data-testid="runner-policy-form">
       <p class="policy__effective" data-testid="runner-policy-effective">{{ effectiveText() }}</p>
+      <p class="policy__note" [id]="id + '-note'">{{ 'runners.policy.note' | transloco }}</p>
       <fieldset tc-choice-group [legend]="'runners.policy.mode' | transloco">
         @if (canInherit()) {
           <label tc-choice>
@@ -189,8 +190,6 @@
           />
         </tc-field>
       }
-
-      <p class="policy__note" [id]="id + '-note'">{{ 'runners.policy.note' | transloco }}</p>
 
       @if (saveFailure(); as message) {
         <div tc-banner tone="danger" role="alert" data-testid="runner-policy-error">

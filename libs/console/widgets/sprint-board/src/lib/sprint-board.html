@@ -133,6 +133,15 @@
       [description]="'board.emptyHint' | transloco"
     />
     } @else {
+    <!-- The phone has no hover, so the tier bars are explained once, before the list. &ngsp; keeps the words apart
+         for screen readers ("Сложность: лёгкая средняя тяжёлая"). -->
+    <p class="board__legend" data-testid="tier-legend">
+      <span>{{ 'board.tierLabel' | transloco }}</span>
+      @for (tier of tiers; track tier) {&ngsp;<span class="board__legend-item"
+        ><tc-sprint-tier-icon size="sm" [tier]="tier" />{{ 'board.tier.' + tier | transloco }}</span
+      >}
+    </p>
+
     <tc-lanes
       compactBelow="tablet"
       [label]="'board.lanes' | transloco"
@@ -173,15 +182,6 @@
       </tc-lane>
       }
     </tc-lanes>
-
-    <!-- The phone has no hover, so the tier bars are explained once, under the list. &ngsp; keeps the words apart
-         for screen readers ("Сложность: лёгкая средняя тяжёлая"). -->
-    <p class="board__legend" data-testid="tier-legend">
-      <span>{{ 'board.tierLabel' | transloco }}</span>
-      @for (tier of tiers; track tier) {&ngsp;<span class="board__legend-item"
-        ><tc-sprint-tier-icon size="sm" [tier]="tier" />{{ 'board.tier.' + tier | transloco }}</span
-      >}
-    </p>
     }
   </tc-tab-panel>
   } @else if (!compact()) {
