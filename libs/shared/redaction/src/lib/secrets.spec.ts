@@ -185,7 +185,8 @@ describe('SECRET_KINDS', () => {
 
 describe('redactSecrets in loose mode (logs and audit rows)', () => {
   const cutOff: readonly (readonly [string, SecretKind, string])[] = [
-    ['a GitHub token cut after a few characters', 'github-token', join('gh', 's_', 'abc1')],
+    ['a GitHub token cut after twelve characters', 'github-token', join('gh', 's_', 'A1b2'.repeat(3))],
+    ['a GitHub token cut at 35 characters', 'github-token', join('gh', 'p_', 'Z9y8'.repeat(8), 'Z9y')],
     ['a fine-grained PAT cut short', 'github-token', join('github', '_pat_', '11AB')],
     ['a GitLab token cut short', 'gitlab-token', join('gl', 'pat-', 'aB3')],
     ['a routine trigger token cut short (#114)', 'anthropic-key', join('sk-', 'ant-', 'oat01')],
@@ -214,6 +215,20 @@ describe('redactSecrets in loose mode (logs and audit rows)', () => {
   it('keeps ordinary npm and AWS-like words and a bare prefix', () => {
     const text = join('npm_config_cache=1 and AK', 'IA12345 and gh', 's_ alone');
     expect(redactSecrets(text, 'loose')).toBe(text);
+  });
+
+  // #492: GitHub's loose tail is its token alphabet (no `_`) of at least twelve characters.
+  it.each([
+    ['a short identifier', join('gh', 's_', 'foo')],
+    ['an identifier with underscores', join('gh', 's_', 'rate_limit_remaining')],
+    ['eleven characters', join('gh', 'u_', 'abcdefghijk')],
+  ])('keeps %s shaped like a GitHub prefix', (_, word) => {
+    expect(redactSecrets(`before ${word} after`, 'loose')).toBe(`before ${word} after`);
+  });
+
+  it('masks the token part of a GitHub token glued to an underscore suffix and keeps the suffix', () => {
+    const token = join('gh', 's_', 'A1b2'.repeat(9));
+    expect(redactSecrets(`${token}_suffix`, 'loose')).toBe('[redacted:github-token]_suffix');
   });
 });
 
