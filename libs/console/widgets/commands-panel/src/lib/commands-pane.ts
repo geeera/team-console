@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { TranslocoService } from '@console/shared/i18n';
+import { PinnedColumn } from '@console/shared/ui';
 import { CommandsPanel, type CommandsProject } from './commands-panel';
 
 /**
@@ -14,6 +15,7 @@ import { CommandsPanel, type CommandsProject } from './commands-panel';
   template: `<tc-commands-panel mode="pane" [project]="project()" (closed)="closed.emit()" />`,
   styleUrl: './commands-pane.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  hostDirectives: [PinnedColumn],
   host: { class: 'tc-commands-pane', role: 'complementary', '[attr.aria-label]': 'label()' },
 })
 export class CommandsPane {
