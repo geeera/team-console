@@ -14,12 +14,7 @@ import { matchRoute, routePatternsOf } from './route-pattern';
  */
 
 export type TrackerRefusalType =
-  | 'owner-only'
-  | 'ask-role'
-  | 'request-handled-role'
-  | 'sprint-role'
-  | 'member-role'
-  | 'pr-link-role';
+  'owner-only' | 'ask-role' | 'request-handled-role' | 'sprint-role' | 'member-role' | 'pr-link-role';
 
 export interface TrackerRouteRule {
   readonly owner: boolean;
@@ -51,7 +46,12 @@ const READ: TrackerRouteRule = {
 };
 
 /** A write any role may attempt; the transition table or the comment kind then judges it. A member's turn is T-3. */
-const WRITE = (detail: string): TrackerRouteRule => ({ ...READ, member: false, refusal: 'member-role', detail });
+const WRITE = (detail: string): TrackerRouteRule => ({
+  ...READ,
+  member: false,
+  refusal: 'member-role',
+  detail,
+});
 
 const OWNER_ONLY = (detail: string): TrackerRouteRule => ({
   owner: true,
@@ -80,7 +80,8 @@ export const TRACKER_MATRIX = {
   [`GET ${P}/items/:key/decisions`]: READ,
   [`GET ${P}/items/:key/requests`]: READ,
   // #445: the project-wide feeds of the plugin (`backlog reversals`, `backlog requests`). The requests row is the
-  // `?state=` form only; the same path without it is the owner's GitHub list (#219), which refuses a job itself.
+  // `?state=` form only; the same path without it is the owner's GitHub list (#219), which `jobScopeMiddleware`
+  // refuses a job (`JOB_QUERY_REQUIRED`, #529).
   [`GET ${P}/decisions`]: READ,
   [`GET ${P}/requests`]: READ,
   [`GET ${P}/sprints`]: READ,
@@ -169,7 +170,23 @@ export const JOB_READ_MODEL_ROUTES = [`GET ${P}/inbox`, `GET ${P}/questions`, `G
 
 const READ_MODEL_PATTERNS = routePatternsOf([...JOB_READ_MODEL_ROUTES]);
 
-/** Whether a job identity may reach `method path` at all: a matrix route or one of the job's read models. */
-export function isJobRoute(method: string, path: string): boolean {
-  return isTrackerMatrixRoute(method, path) || matchRoute(READ_MODEL_PATTERNS, method, path) !== null;
+/**
+ * Matrix routes whose path a job shares with an owner-only handler, told apart by a query parameter (#529): the
+ * `?state=` form of `GET …/requests` is the tracker's list, the bare path the owner's GitHub list (#219).
+ */
+const JOB_QUERY_REQUIRED: Partial<Readonly<Record<TrackerRoute, string>>> = {
+  [`GET ${P}/requests`]: 'state',
+};
+
+/**
+ * Whether a job identity may reach `method path` at all: a matrix route (with its required query parameter, when
+ * the row has one; `hasQuery` answers for the request) or one of the job's read models.
+ */
+export function isJobRoute(method: string, path: string, hasQuery: (name: string) => boolean): boolean {
+  const route = matchRoute(MATRIX_PATTERNS, method, path);
+  if (route !== null) {
+    const required = JOB_QUERY_REQUIRED[route];
+    return required === undefined || hasQuery(required);
+  }
+  return matchRoute(READ_MODEL_PATTERNS, method, path) !== null;
 }

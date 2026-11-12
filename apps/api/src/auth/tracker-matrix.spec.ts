@@ -10,6 +10,7 @@ import { createApiApp } from '../app';
 import {
   countRows,
   jobActor,
+  pullRequestsGitHub,
   seedAsk,
   seedItem,
   seedTrackerProject,
@@ -22,7 +23,13 @@ import {
 import type { TestJob } from '../testing/local-job-kit';
 import { seedMembership, seedSessionUser, sendAsSession, type SessionUser } from '../testing/session-kit';
 import { JOB_ROLES, type JobRole } from './job-roles';
-import { TRACKER_MATRIX, isTrackerMatrixRoute, matrixRefusal, type TrackerRoute } from './tracker-matrix';
+import {
+  TRACKER_MATRIX,
+  isJobRoute,
+  isTrackerMatrixRoute,
+  matrixRefusal,
+  type TrackerRoute,
+} from './tracker-matrix';
 
 // #444: the tracker's route matrix, cell by cell — every tracker route × the owner, each job role (the local
 // stand-in, through the real auth seam), a job of another project and the service identity. A refusal writes nothing.
@@ -90,16 +97,27 @@ const ROWS: readonly Row[] = [
   // #467: the queue and its run log are read by every actor of the project; Run now and placement are the owner's.
   reads(`GET ${P}/:slug/jobs`, async (project) => `${P}/${project.slug}/jobs`),
   reads(`GET ${P}/:slug/jobs/:id`, async (project) => `${P}/${project.slug}/jobs/${await job(project)}`),
-  reads(`GET ${P}/:slug/jobs/:id/events`, async (project) => `${P}/${project.slug}/jobs/${await job(project)}/events`),
+  reads(
+    `GET ${P}/:slug/jobs/:id/events`,
+    async (project) => `${P}/${project.slug}/jobs/${await job(project)}/events`,
+  ),
   reads(`GET ${P}/:slug/runner-policy`, async (project) => `${P}/${project.slug}/runner-policy`),
   {
     route: `POST ${P}/:slug/jobs`,
-    setup: async (project) => ({ method: 'POST', path: `${P}/${project.slug}/jobs`, body: { kind: 'slot-dev' } }),
+    setup: async (project) => ({
+      method: 'POST',
+      path: `${P}/${project.slug}/jobs`,
+      body: { kind: 'slot-dev' },
+    }),
     expect: (who) => (who === 'owner' ? ok(201) : refused('owner-only')),
   },
   {
     route: `PUT ${P}/:slug/runner-policy`,
-    setup: async (project) => ({ method: 'PUT', path: `${P}/${project.slug}/runner-policy`, body: { mode: 'any' } }),
+    setup: async (project) => ({
+      method: 'PUT',
+      path: `${P}/${project.slug}/runner-policy`,
+      body: { mode: 'any' },
+    }),
     expect: (who) => (who === 'owner' ? ok(200) : refused('owner-only')),
   },
   reads(`GET ${P}/:slug/items`, async (project) => `${P}/${project.slug}/items`),
@@ -289,6 +307,8 @@ async function snapshot(slug: string): Promise<number[]> {
 
 async function sendAs(scenario: Scenario, job?: TestJob): Promise<Response> {
   return send(scenario.method, scenario.path, scenario.body, {
+    // The pr-link row's pull request exists on GitHub (#529); no other row reads it.
+    github: pullRequestsGitHub((number) => (number === 7 ? 'feature/x' : null)).github,
     ...(scenario.ifMatch === undefined ? {} : { ifMatch: scenario.ifMatch }),
     ...(job === undefined ? {} : { job }),
   });
@@ -340,6 +360,16 @@ describe('the route matrix covers the tracker', () => {
     expect(isTrackerMatrixRoute('GET', '/api/v1/projects/acme')).toBe(false);
     expect(isTrackerMatrixRoute('GET', '/api/v1/projects/a/b/items')).toBe(false);
     expect(isTrackerMatrixRoute('POST', '/api/v1/projects/acme/issues/1/answer')).toBe(false);
+  });
+
+  it('admits a job on the requests path only with ?state= (#529), and on its read models', () => {
+    const withState = (name: string): boolean => name === 'state';
+    const bare = (): boolean => false;
+    expect(isJobRoute('GET', '/api/v1/projects/acme/requests', withState)).toBe(true);
+    expect(isJobRoute('GET', '/api/v1/projects/acme/requests', bare)).toBe(false);
+    expect(isJobRoute('GET', '/api/v1/projects/acme/items/TC-1/requests', bare)).toBe(true);
+    expect(isJobRoute('GET', '/api/v1/projects/acme/sprint', bare)).toBe(true);
+    expect(isJobRoute('GET', '/api/v1/projects/acme/embed-origins', withState)).toBe(false);
   });
 });
 

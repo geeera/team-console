@@ -240,6 +240,27 @@ export function syncPullRequest(
   );
 }
 
+/** A pr-link check (#529): token 2 + the repository (its id checked) 1 + the pull request 1. */
+export const PULL_REQUEST_LINK_BUDGET = 5;
+
+/**
+ * The provider's pull request `number` of the registered repository, or `null` when it has none, for a new pr-link
+ * (#529). Never through the read cache: a pull request opened a moment ago must not hide behind a cached miss, and
+ * the route asks only for a link it is about to write. A provider failure propagates as the adapter's `VcsError`.
+ */
+export async function findPullRequest(
+  github: ApiGitHub,
+  env: ApiEnv,
+  repo: RepoName,
+  repoId: number,
+  number: number,
+): Promise<PullRequest | null> {
+  const adapter = await adapterFor(github, env, repo, PULL_REQUEST_LINK_BUDGET);
+  const ref = refOf(repo, repoId);
+  await adapter.repository(ref);
+  return adapter.pullRequests.get(ref, number);
+}
+
 async function readPullRequest(
   github: ApiGitHub,
   env: ApiEnv,

@@ -124,7 +124,8 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/projects', createTrackerAskRoutes());
   v1.route('/projects', createTrackerDecisionRoutes());
   v1.route('/projects', createTrackerRequestRoutes());
-  v1.route('/projects', createTrackerPrLinkRoutes());
+  // A new link is checked on the provider (#529): the one tracker write that reads GitHub, through the VCS adapter.
+  v1.route('/projects', createTrackerPrLinkRoutes(github, owners));
   // Pull requests (#463): D1's mirror behind the same matrix; `?fresh=1` reads GitHub through the VCS adapter.
   v1.route('/projects', createPullRequestRoutes(github, owners));
   // Before the connection routes: their owner-only `use('*')` would otherwise also guard this read (#194), which

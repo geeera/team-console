@@ -7,7 +7,14 @@ import prLinksInvalid from '../../../fixtures/tracker/pr-links.invalid.json';
 import prLinksNotHeld from '../../../fixtures/tracker/pr-links.not-held.json';
 import requestsPending from '../../../fixtures/tracker/requests.pending.json';
 import requestsQueryInvalid from '../../../fixtures/tracker/requests.query-invalid.json';
-import { seedAsk, seedItem, seedTrackerProject, send, type SeededProject } from '../../testing/tracker-kit';
+import {
+  pullRequestsGitHub,
+  seedAsk,
+  seedItem,
+  seedTrackerProject,
+  send,
+  type SeededProject,
+} from '../../testing/tracker-kit';
 
 /*
  * #445: the contract fixtures the plugin's console client is tested against (architect note on #436 §5): one request
@@ -157,7 +164,13 @@ describe('the tracker contract fixtures (#445)', () => {
       fixture.request.body === undefined
         ? undefined
         : JSON.parse(toProject(JSON.stringify(fixture.request.body), project));
+    // GitHub has the pull request a pr-link fixture names, with the fixture's branch (#529).
+    const link = body as { number?: unknown; headRef?: unknown } | undefined;
+    const { github } = pullRequestsGitHub((number) =>
+      number === link?.number && typeof link.headRef === 'string' ? link.headRef : null,
+    );
     const response = await send(fixture.request.method as 'GET' | 'POST', path, body, {
+      github,
       job: {
         role: fixture.as.role,
         items: fixture.as.items,

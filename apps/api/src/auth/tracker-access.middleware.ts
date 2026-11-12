@@ -97,7 +97,10 @@ export function policyActorOfContext(c: WorkerContext<ApiEnv>): PolicyActor {
  * written for the owner and the service and judge neither the job's role nor its project.
  */
 export const jobScopeMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = async (c, next) => {
-  if (c.get('identity').kind === 'job' && !isJobRoute(c.req.method, c.req.path)) {
+  if (
+    c.get('identity').kind === 'job' &&
+    !isJobRoute(c.req.method, c.req.path, (name) => c.req.query(name) !== undefined)
+  ) {
     c.get('logger').warn('job refused off the tracker', { method: c.req.method, path: c.req.path });
     return problem(c, {
       type: 'owner-only',

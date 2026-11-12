@@ -1,4 +1,5 @@
 import type { ActorKind, ItemEventKind } from '@shared/contracts';
+import { isConstraintError } from './constraint-error';
 
 /** Who made a tracker change; derived by the server from the identity, never taken from a request body. */
 export interface TrackerActor {
@@ -83,6 +84,9 @@ export function itemEventStatement(
     .bind(item.slug, item.number, at, actor.kind, actor.name, actor.jobId, event.kind, before, after);
 }
 
+/** How SQLite names migration 0025's index when a second link of the same pull request trips it. */
+const PR_LINK_UNIQUE = "UNIQUE constraint failed: index 'item_events_pr_link'";
+
 /** What a scrub writes over a title or a body; migration 0019's trigger admits exactly this replacement. */
 export const SCRUBBED_TEXT = '[scrubbed]';
 
@@ -163,6 +167,28 @@ export class ItemEventsRepo {
   ): D1PreparedStatement {
     const after = { number: link.number, url: link.url, headRef: link.headRef };
     return itemEventStatement(this.db, { id: itemId }, actor, { kind: 'pr-linked', before: null, after }, at);
+  }
+
+  /**
+   * Writes the `pr-linked` event with `extra` in one batch (#529). `false` when the item already has a link of that
+   * number (migration 0025's unique index: a concurrent link won), so nothing of the batch was written.
+   */
+  async linkPr(
+    itemId: number,
+    link: { readonly number: number; readonly url: string; readonly headRef: string },
+    actor: TrackerActor,
+    at: string,
+    extra: readonly D1PreparedStatement[] = [],
+  ): Promise<boolean> {
+    try {
+      await this.db.batch([this.prLinkStatement(itemId, link, actor, at), ...extra]);
+      return true;
+    } catch (error: unknown) {
+      if (isConstraintError(error, PR_LINK_UNIQUE)) {
+        return false;
+      }
+      throw error;
+    }
   }
 
   /** The item's `pr-linked` event of pull request `number` (#445), the first if several, or `null`. */

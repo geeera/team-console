@@ -92,6 +92,8 @@ export default defineConfig(async () => {
             MIGRATION_DB_0018_NO_OWNER: 'migration-steps-0018-no-owner',
             MIGRATION_DB_0018_AMBIGUOUS: 'migration-steps-0018-ambiguous',
             MIGRATION_DB_0019: 'migration-steps-0019',
+            // #529: 0025's pr-link index over a database that already holds a duplicate link.
+            MIGRATION_DB_0025: 'migration-steps-0025',
           },
           bindings: {
             TEST_MIGRATIONS: await readD1Migrations(resolve(import.meta.dirname, 'migrations')),

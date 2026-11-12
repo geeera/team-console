@@ -14,7 +14,8 @@ import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { findProject, projectNotFound, repoOf } from '../projects/lookup';
 import type { OwnerConnectionSource } from '../projects/owner-connection';
-import { ensureRepoId, syncPullRequest, syncPullRequests } from '../read-models/pull-request-sync';
+import { syncPullRequest, syncPullRequests } from '../read-models/pull-request-sync';
+import { repoIdOf } from '../read-models/repo-id';
 import { invalid } from '../tracker/context';
 import { pageOf } from '../tracker/http';
 
@@ -76,27 +77,6 @@ function freshRefusal(c: Context): Response | null {
     title: 'Forbidden',
     status: 403,
     detail: 'A job reads the pull requests the console holds; a fresh read is the account’s',
-  });
-}
-
-/** The registered repository id, backfilled on first use; 409 `repo-id-unknown` when it cannot be recorded. */
-async function repoIdOf(
-  c: Context,
-  github: ApiGitHub,
-  owners: OwnerConnectionSource,
-  project: ProjectRow,
-  repo: Parameters<typeof ensureRepoId>[3],
-): Promise<number | Response> {
-  const repoId = await ensureRepoId(github, c.env, project, repo, owners, c.get('logger'));
-  if (repoId !== null) {
-    return repoId;
-  }
-  c.get('logger').warn('pull request sync refused', { reason: 'repo-id-unknown', slug: project.slug });
-  return problem(c, {
-    type: 'repo-id-unknown',
-    title: 'The repository id is not recorded',
-    status: 409,
-    detail: 'The provider’s id of this repository could not be recorded for the project',
   });
 }
 
