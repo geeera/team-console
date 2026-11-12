@@ -1,4 +1,4 @@
-import type { OwnerRequest, RequestKind, RequestResult } from '@shared/contracts';
+import type { OwnerRequest, RequestKind, RequestResult, RequestState } from '@shared/contracts';
 import { canonicalRequest, requestOfCanonical } from '@shared/owner-grammar';
 import type { TrackerActor } from './item-events.repo';
 
@@ -13,6 +13,13 @@ export interface ItemRequestRecord {
   readonly result: RequestResult | null;
   readonly reason: string | null;
   readonly handledAt: string | null;
+}
+
+/** A request of the project-wide list (#445), with the item it is on. */
+export interface ProjectRequestRecord extends ItemRequestRecord {
+  readonly itemNumber: number;
+  readonly itemTitle: string;
+  readonly itemClosedAt: string | null;
 }
 
 export interface RequestHandling {
@@ -82,6 +89,38 @@ export class ItemRequestsRepo {
       .bind(itemId, after, limit)
       .all<ItemRequestRow>();
     return results.map(toRecord);
+  }
+
+  /**
+   * The newest request of each item of project `slug` (the one the PM still owes, or answered last), oldest first,
+   * after the request id `after` (the cursor), at most `limit`. `pending`: not answered yet; `handled`: answered.
+   */
+  async listOfProject(
+    slug: string,
+    state: RequestState,
+    after: number,
+    limit: number,
+  ): Promise<ProjectRequestRecord[]> {
+    const columns = COLUMNS.split(', ')
+      .map((column) => `r.${column}`)
+      .join(', ');
+    const { results } = await this.db
+      .prepare(
+        `SELECT ${columns}, i.number AS item_number, i.title AS item_title, i.closed_at AS item_closed_at
+         FROM item_requests r JOIN items i ON i.id = r.item_id
+         WHERE r.project_slug = ?1 AND r.id > ?2
+           AND r.id = (SELECT MAX(n.id) FROM item_requests n WHERE n.item_id = r.item_id)
+           AND (?3 = 'all' OR (?3 = 'pending' AND r.handled_at IS NULL) OR (?3 = 'handled' AND r.handled_at IS NOT NULL))
+         ORDER BY r.id LIMIT ?4`,
+      )
+      .bind(slug, after, state, limit)
+      .all<ItemRequestRow & { item_number: number; item_title: string; item_closed_at: string | null }>();
+    return results.map((row) => ({
+      ...toRecord(row),
+      itemNumber: row.item_number,
+      itemTitle: row.item_title,
+      itemClosedAt: row.item_closed_at,
+    }));
   }
 
   /** The request and its `requested` event (`{ requestId, request }`) with `extra` in one batch; the new id. */

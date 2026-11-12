@@ -122,4 +122,70 @@ describe('ItemRequestsRepo', () => {
       .run();
     expect(await requests().newest(itemId)).toMatchObject({ kind: 'sprint', request: null });
   });
+
+  describe('listOfProject (#445)', () => {
+    it('lists the newest request per item, by whether the PM answered it, with the item', async () => {
+      const { slug } = await seedTrackerProject();
+      const first = await seedTrackerItem(slug, 1, { kind: 'feature', status: 'approved' });
+      const second = await seedTrackerItem(slug, 2, { kind: 'feature', status: 'approved' });
+      const third = await seedTrackerItem(slug, 3, { kind: 'feature', status: 'approved' });
+      // Item 1: an answered request, then a newer pending one. Item 2: answered. Item 3: pending.
+      const old = await requests().create(slug, first, { kind: 'sprint', target: 'next' }, OWNER_ACTOR, AT);
+      await requests().markHandled(
+        { id: old, itemId: first },
+        { jobId: 'job-1', result: 'applied', reason: '' },
+        JOB_ACTOR,
+        AT,
+      );
+      const newer = await requests().create(
+        slug,
+        first,
+        { kind: 'priority', direction: 'up' },
+        OWNER_ACTOR,
+        AT,
+      );
+      const answered = await requests().create(
+        slug,
+        second,
+        { kind: 'sprint', target: 'next' },
+        OWNER_ACTOR,
+        AT,
+      );
+      await requests().markHandled(
+        { id: answered, itemId: second },
+        { jobId: 'job-1', result: 'declined', reason: 'Freeze' },
+        JOB_ACTOR,
+        AT,
+      );
+      const waiting = await requests().create(
+        slug,
+        third,
+        { kind: 'sprint', target: 'current' },
+        OWNER_ACTOR,
+        AT,
+      );
+      const other = await seedTrackerProject();
+      await requests().create(
+        other.slug,
+        await seedTrackerItem(other.slug, 1),
+        { kind: 'sprint', target: 'next' },
+        OWNER_ACTOR,
+        AT,
+      );
+
+      const ids = async (state: 'pending' | 'handled' | 'all', after = 0, limit = 10): Promise<number[]> =>
+        (await requests().listOfProject(slug, state, after, limit)).map((row) => row.id);
+      expect(await ids('pending')).toEqual([newer, waiting]);
+      expect(await ids('handled')).toEqual([answered]);
+      expect(await ids('all')).toEqual([newer, answered, waiting]);
+      expect(await ids('all', newer, 1)).toEqual([answered]);
+      expect((await requests().listOfProject(slug, 'pending', 0, 1))[0]).toMatchObject({
+        id: newer,
+        itemNumber: 1,
+        itemTitle: 'Item 1',
+        itemClosedAt: null,
+        request: { kind: 'priority', direction: 'up' },
+      });
+    });
+  });
 });

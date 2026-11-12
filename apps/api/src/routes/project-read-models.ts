@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { EmbedOriginsDto, RequestIssuesDto, SprintDto, SprintFreezeDaysDto } from '@shared/contracts';
-import type { WorkerContext, WorkerHonoEnv } from '@worker/core';
+import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import { OwnerRequestsRepo, TrackerProjectsRepo } from '@worker/db';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
@@ -9,6 +9,7 @@ import { ProjectReads, freezeDaysOfFile } from '../read-models/project-reads';
 import { SubrequestBudget } from '../read-models/subrequest-budget';
 import { TrackerReads, readsRows } from '../read-models/tracker-reads';
 import { requestStatusOf } from '../team/owner-requests';
+import { guardedProjectRequests } from './tracker/requests';
 
 /**
  * GitHub subrequests one sprint request may spend (#131). The Workers free plan allows 50 per request: this, plus the
@@ -24,6 +25,9 @@ export const SPRINT_GITHUB_BUDGET = 44;
  * and questions of a console-tracker project from D1, #434). The slug is checked before anything else, so `/`, `..`
  * or `%2F` in it is a 404 `project-not-found` before D1 or GitHub is asked (#9 row 2); the repository comes only
  * from the registry row. Read-only installation tokens; the subrequest budget is on `ProjectReads`.
+ *
+ * A job of the project reads inbox, questions and sprint (#445, `JOB_READ_MODEL_ROUTES`): `findProject` applies its
+ * scope, so another project is the same 404. Every other route here refuses it before it runs (`jobScopeMiddleware`).
  */
 async function readsFor(
   c: WorkerContext<ApiEnv>,
@@ -87,6 +91,20 @@ export function createProjectReadModelRoutes(github: ApiGitHub): Hono<WorkerHono
       return c.json(body);
     })
     .get('/:slug/requests', async (c) => {
+      // #445: with `?state=` the path is the tracker's project-wide list, behind its route-matrix row.
+      if (c.req.query('state') !== undefined) {
+        return guardedProjectRequests(c);
+      }
+      // The matrix admits a job on this path for the `?state=` form only; the GitHub list is the owner's (#219).
+      if (c.get('identity').kind === 'job') {
+        c.get('logger').warn('job refused off the tracker', { method: c.req.method, path: c.req.path });
+        return problem(c, {
+          type: 'owner-only',
+          title: 'Forbidden',
+          status: 403,
+          detail: 'A job reads the requests with ?state=',
+        });
+      }
       const reads = await readsFor(c, github);
       if (reads instanceof Response) {
         return reads;

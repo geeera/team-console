@@ -31,6 +31,7 @@ import {
   type RunLogCommentSeed,
   type RunLogRepoState,
 } from '../testing/read-model-kit';
+import { localJobHeader } from '../testing/local-job-kit';
 import { SPRINT_GITHUB_BUDGET } from './project-read-models';
 
 // #35 through the routes: DTOs, subrequest counts, the read cache, project.yml checks and slug checks.
@@ -396,6 +397,25 @@ describe('GET /api/v1/projects/:slug/sprint', () => {
     expect(stub.calls).toHaveLength(8);
     expect(stub.calls.at(-1)?.url.pathname).toBe(`/repos/geeera/team-console/commits/${SHA_5}/check-runs`);
     expect(stub.calls.at(-1)?.url.searchParams.get('filter')).toBe('latest');
+  });
+
+  // #445: a job of the project reads the board the owner reads; a job of another project gets the same 404.
+  it('serves a job of the project the owner’s board, and a job of another project 404', async () => {
+    await seedProject('other', 'geeera/other');
+    const { github } = setup(sprintState);
+    const owner = await fetchApi('/api/v1/projects/tc/sprint', localEnv(), { github });
+    const job = await fetchApi('/api/v1/projects/tc/sprint', localEnv(), {
+      github,
+      headers: { Authorization: localJobHeader({ role: 'qa' }, '/api/v1/projects/tc/sprint') },
+    });
+    expect(job.status).toBe(200);
+    expect(await job.json()).toEqual(await owner.json());
+    const foreign = await fetchApi('/api/v1/projects/tc/sprint', localEnv(), {
+      github,
+      headers: { Authorization: localJobHeader({ role: 'pm', projectSlug: 'other' }, '/') },
+    });
+    expect(foreign.status).toBe(404);
+    expect(await problemType(foreign)).toBe('project-not-found');
   });
 
   describe('CI per open pull request (#131)', () => {
@@ -822,5 +842,56 @@ describe('mock mode (local only) serves the product-shaped fixtures', () => {
     await expect(response.json()).resolves.toEqual({
       embedOrigins: ['https://team-console-storybook.pages.dev'],
     } satisfies EmbedOriginsDto);
+  });
+});
+
+// #445: a job of the project reads inbox and questions (and the sprint, above); the other read models stay the
+// owner's and the service's — the GitHub requests list included, which a job reads only in its `?state=` form.
+describe('a job on the read models (#445)', () => {
+  const asJob = (path: string, projectSlug = 'tc'): { headers: Record<string, string> } => ({
+    headers: { Authorization: localJobHeader({ role: 'pm', projectSlug }, path) },
+  });
+
+  it.each(['inbox', 'questions'])('serves %s to a job of the project as to the owner', async (route) => {
+    const { github } = setup();
+    const path = `/api/v1/projects/tc/${route}`;
+    const owner = await fetchApi(path, localEnv(), { github });
+    const job = await fetchApi(path, localEnv(), { github, ...asJob(path) });
+    expect(job.status).toBe(200);
+    expect(await job.json()).toEqual(await owner.json());
+  });
+
+  it.each(['inbox', 'questions', 'sprint'])(
+    'answers 404 to a job of another project on %s',
+    async (route) => {
+      await seedProject('other', 'geeera/other');
+      const { github, stub } = setup();
+      const path = `/api/v1/projects/tc/${route}`;
+      const response = await fetchApi(path, localEnv(), { github, ...asJob(path, 'other') });
+      expect(response.status).toBe(404);
+      expect(await problemType(response)).toBe('project-not-found');
+      expect(stub.calls).toHaveLength(0);
+    },
+  );
+
+  it.each(['requests', 'embed-origins', 'sprint-freeze'])(
+    'refuses a job on %s, 403 owner-only',
+    async (route) => {
+      const { github, stub } = setup();
+      const path = `/api/v1/projects/tc/${route}`;
+      const response = await fetchApi(path, localEnv(), { github, ...asJob(path) });
+      expect(response.status).toBe(403);
+      expect(await problemType(response)).toBe('owner-only');
+      expect(stub.calls).toHaveLength(0);
+    },
+  );
+
+  it('serves a job the tracker form of requests (?state=) without GitHub', async () => {
+    const { github, stub } = setup();
+    const path = '/api/v1/projects/tc/requests?state=pending';
+    const response = await fetchApi(path, localEnv(), { github, ...asJob(path) });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ requests: [], next: null });
+    expect(stub.calls).toHaveLength(0);
   });
 });

@@ -154,6 +154,30 @@ export class ItemEventsRepo {
     return { masked: events, eventId: recorded.id };
   }
 
+  /** The `pr-linked` event of a pull request link (#445), for the route's own batch. */
+  prLinkStatement(
+    itemId: number,
+    link: { readonly number: number; readonly url: string; readonly headRef: string },
+    actor: TrackerActor,
+    at: string,
+  ): D1PreparedStatement {
+    const after = { number: link.number, url: link.url, headRef: link.headRef };
+    return itemEventStatement(this.db, { id: itemId }, actor, { kind: 'pr-linked', before: null, after }, at);
+  }
+
+  /** The item's `pr-linked` event of pull request `number` (#445), the first if several, or `null`. */
+  async findPrLink(itemId: number, number: number): Promise<ItemEventRecord | null> {
+    const row = await this.db
+      .prepare(
+        `SELECT id, item_id, at, actor_kind, actor, job_id, kind, before, after FROM item_events
+         WHERE item_id = ?1 AND kind = 'pr-linked' AND json_extract(after, '$.number') = ?2
+         ORDER BY id LIMIT 1`,
+      )
+      .bind(itemId, number)
+      .first<ItemEventRow>();
+    return row === null ? null : toRecord(row);
+  }
+
   /** Oldest first, after the event id `after` (the cursor), at most `limit`. */
   async list(itemId: number, after: number, limit: number): Promise<ItemEventRecord[]> {
     const { results } = await this.db

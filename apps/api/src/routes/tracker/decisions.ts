@@ -1,8 +1,12 @@
 import { Hono } from 'hono';
 import {
   checkCreateDecisionInput,
+  instantOf,
+  isDecisionCommand,
+  itemKeyOf,
   type CreateDecisionInput,
   type DecisionListDto,
+  type ProjectDecisionListDto,
   type Section,
 } from '@shared/contracts';
 import { ANSWERS, NEEDS_REASON, isAnswerCommand, sectionOf } from '@shared/owner-grammar';
@@ -11,6 +15,7 @@ import {
   AsksRepo,
   CommentsRepo,
   OwnerDecisionsRepo,
+  type DecisionFilter,
   type ItemRecord,
   type TrackerActor,
   type TrackerProject,
@@ -18,10 +23,10 @@ import {
 import { decisionEffectOf } from '../../auth/policy';
 import { trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
-import { invalid, itemOf } from '../../tracker/context';
+import { invalid, itemOf, keyPrefixOf, trackerProjectOf } from '../../tracker/context';
 import { decisionDtoOf, labelsOf } from '../../tracker/dto';
 import { withOneRetry, writeWithItemEffect } from '../../tracker/effect-batch';
-import { ASK_WRITE_MAX_BYTES, nextCursor, writeLimit } from '../../tracker/http';
+import { ASK_WRITE_MAX_BYTES, nextCursor, pageOf, writeLimit } from '../../tracker/http';
 import { idempotent, type CompleteKey } from '../../tracker/idempotency';
 import { planItemUpdate, type ItemUpdatePlan } from '../../tracker/item-change';
 import { itemReadOf } from '../../tracker/item-reads';
@@ -117,6 +122,20 @@ async function judge(
 
 const OWNER: TrackerActor = { kind: 'owner', name: 'owner', jobId: null };
 
+/** `?since=<UTC instant>&command=<c>` of the decisions feed, each optional, or the 400 `query-invalid` naming it. */
+function decisionFilterOf(c: Context): DecisionFilter | Response {
+  const since = c.req.query('since');
+  const command = c.req.query('command');
+  const instant = since === undefined ? null : instantOf(since);
+  if (since !== undefined && instant === null) {
+    return invalid(c, 'query-invalid', 'since', 'since is an ISO 8601 UTC instant (2026-11-12T10:00:00Z)');
+  }
+  if (command !== undefined && !isDecisionCommand(command)) {
+    return invalid(c, 'query-invalid', 'command', 'command is one of the decision commands');
+  }
+  return { since: instant, command: command ?? null };
+}
+
 async function decide(
   c: Context,
   project: TrackerProject,
@@ -178,14 +197,47 @@ async function decide(
  * The owner's decisions (#434, ADR 0006 decision 4 and Phase 1a′). Owner-only (the route matrix; a job gets 403);
  * the decision, the answer of its ask, the reversal of a team decision and the item's effects (R5's transition table,
  * `decisionEffectOf`) land in one batch. No `If-Match`: the decision is about the ask, not a version the owner
- * edited; a moved version re-reads once, then 409 `item-changed`.
+ * edited; a moved version re-reads once, then 409 `item-changed`. `GET …/decisions` (#445) is the project-wide
+ * feed (`backlog reversals`, `demo-page decisions`), oldest first.
  */
 export function createTrackerDecisionRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
   const guard = {
+    feed: trackerAccess('GET /api/v1/projects/:slug/decisions'),
     list: trackerAccess('GET /api/v1/projects/:slug/items/:key/decisions'),
     create: trackerAccess('POST /api/v1/projects/:slug/items/:key/decisions'),
   };
   return new Hono<WorkerHonoEnv<ApiEnv>>()
+    .get('/:slug/decisions', guard.feed, async (c) => {
+      const project = await trackerProjectOf(c);
+      if (project instanceof Response) {
+        return project;
+      }
+      const page = pageOf(c);
+      if (page instanceof Response) {
+        return page;
+      }
+      const filter = decisionFilterOf(c);
+      if (filter instanceof Response) {
+        return filter;
+      }
+      const rows = await new OwnerDecisionsRepo(c.env.DB).listOfProject(
+        project.slug,
+        filter,
+        page.after,
+        page.limit + 1,
+      );
+      const prefix = keyPrefixOf(project);
+      const body: ProjectDecisionListDto = {
+        decisions: rows.slice(0, page.limit).map((row) => ({
+          ...decisionDtoOf(row),
+          item: { key: itemKeyOf(prefix, row.itemNumber), number: row.itemNumber },
+        })),
+        next: nextCursor(rows, page.limit),
+      };
+      c.header('Cache-Control', 'no-store');
+      return c.json(body);
+    })
+
     .get('/:slug/items/:key/decisions', guard.list, async (c) => {
       const read = await itemReadOf(c);
       if (read instanceof Response) {

@@ -14,6 +14,17 @@ export interface DecisionRecord {
   readonly sourceUrl: string | null;
 }
 
+/** A decision of the project-wide feed (#445), with the number of its item. */
+export interface ProjectDecisionRecord extends DecisionRecord {
+  readonly itemNumber: number;
+}
+
+/** The feed's filters; `null` leaves one out. `since` is an ISO 8601 instant. */
+export interface DecisionFilter {
+  readonly since: string | null;
+  readonly command: DecisionCommand | null;
+}
+
 /**
  * A decision made through a route. `via` excludes `import` by type: imported decisions are history written by the
  * import writer alone (R7, Phase 1b), never by this method.
@@ -94,6 +105,33 @@ export class OwnerDecisionsRepo {
       .bind(itemId, after, limit)
       .all<DecisionRow>();
     return results.map(toRecord);
+  }
+
+  /**
+   * Every decision of project `slug`, oldest first, after the decision id `after` (the cursor), at most `limit`;
+   * imported history included. `since` compares as instants (`julianday`), so an imported `…:00Z` and a route's
+   * `…:00.000Z` order as the times they are.
+   */
+  async listOfProject(
+    slug: string,
+    filter: DecisionFilter,
+    after: number,
+    limit: number,
+  ): Promise<ProjectDecisionRecord[]> {
+    const columns = COLUMNS.split(', ')
+      .map((column) => `d.${column}`)
+      .join(', ');
+    const { results } = await this.db
+      .prepare(
+        `SELECT ${columns}, i.number AS item_number FROM owner_decisions d JOIN items i ON i.id = d.item_id
+         WHERE d.project_slug = ?1 AND d.id > ?2
+           AND (?3 IS NULL OR julianday(d.decided_at) >= julianday(?3))
+           AND (?4 IS NULL OR d.command = ?4)
+         ORDER BY d.id LIMIT ?5`,
+      )
+      .bind(slug, after, filter.since, filter.command, limit)
+      .all<DecisionRow & { item_number: number }>();
+    return results.map((row) => ({ ...toRecord(row), itemNumber: row.item_number }));
   }
 
   /**

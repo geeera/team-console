@@ -15,7 +15,7 @@ import { localEnv } from '../testing/github-kit';
 import { localJobHeader } from '../testing/local-job-kit';
 import { jobActor, seedTrackerProject, send, sendAsService, slugOf } from '../testing/tracker-kit';
 import { JOB_ROLES } from './job-roles';
-import { TRACKER_MATRIX } from './tracker-matrix';
+import { JOB_READ_MODEL_ROUTES, TRACKER_MATRIX } from './tracker-matrix';
 
 // #62: every state-changing /api route says how it treats the dev/stage Access service identity. A new route fails
 // "is classified" until someone decides; an owner write must be `owner-only` or carry the fixture gate.
@@ -102,6 +102,8 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   'POST /api/v1/projects/:slug/items/:key/events/scrub': 'tracker-matrix',
   'POST /api/v1/projects/:slug/items/:key/asks': 'job-only',
   'POST /api/v1/projects/:slug/requests/:id/handled': 'job-only',
+  // #445: `backlog link-pr`, the developers and the orchestrator only (the owner gets 403 pr-link-role).
+  'POST /api/v1/projects/:slug/items/:key/pr-links': 'job-only',
   'POST /api/v1/projects': 'no-owner-write',
   'PATCH /api/v1/projects/:slug': 'no-owner-write',
   'POST /api/v1/projects/:slug/archive': 'no-owner-write',
@@ -258,7 +260,7 @@ describe('owner-write inventory (#62)', () => {
       const path = pattern.replace(':slug', slug).replace(/:[^/]+/g, '1');
       const owner = await send(method as 'POST', path, {});
       expect(owner.status).toBe(403);
-      expect(['ask-role', 'request-handled-role']).toContain(await slugOf(owner));
+      expect(['ask-role', 'request-handled-role', 'pr-link-role']).toContain(await slugOf(owner));
       const service = await sendAsService(method, path, {});
       expect(service.status).toBe(403);
       expect(await slugOf(service)).toBe('owner-only');
@@ -299,17 +301,24 @@ describe('owner-write inventory (#62)', () => {
 });
 
 // #444: the local job stand-in reaches the tracker's matrix routes and nothing else — not the GitHub-backed reads,
-// the registry, the answer or connection routes, whatever its role.
+// the registry, the answer or connection routes, whatever its role. #445: besides its project's inbox, questions and
+// sprint (`JOB_READ_MODEL_ROUTES`; project-read-models.spec.ts proves them, another project's 404 included).
 describe('the job column off the tracker (#444)', () => {
   const isRunnerDoor = (route: string): boolean => route.includes(' /api/v1/runner/');
-  const offTracker = apiRoutes.filter((route) => !(route in TRACKER_MATRIX) && !isRunnerDoor(route));
+  const readModels: readonly string[] = JOB_READ_MODEL_ROUTES;
+  const offTracker = apiRoutes.filter(
+    (route) => !(route in TRACKER_MATRIX) && !readModels.includes(route) && !isRunnerDoor(route),
+  );
   const runnerDoor = apiRoutes.filter(isRunnerDoor);
 
   it('finds routes off the tracker (the check is not vacuous)', () => {
     expect(offTracker).toEqual(
       expect.arrayContaining(['GET /api/v1/projects', 'POST /api/v1/projects/:slug/issues/:number/answer']),
     );
-    expect(runnerDoor).toEqual(expect.arrayContaining(['POST /api/v1/runner/enrol', 'GET /api/v1/runner/release']));
+    expect(runnerDoor).toEqual(
+      expect.arrayContaining(['POST /api/v1/runner/enrol', 'GET /api/v1/runner/release']),
+    );
+    expect(apiRoutes).toEqual(expect.arrayContaining([...JOB_READ_MODEL_ROUTES]));
   });
 
   // #467: on the runner's door the stand-in is a bearer that is no runner JWT (401), or an empty enrol body (422).

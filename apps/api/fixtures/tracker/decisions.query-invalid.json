@@ -1,0 +1,23 @@
+{
+  "route": "GET /api/v1/projects/:slug/decisions",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/projects/tc/decisions?since=yesterday"
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "type": "https://team-console/problems/query-invalid",
+      "title": "Invalid request",
+      "status": 400,
+      "instance": "request-id",
+      "detail": "since is an ISO 8601 UTC instant (2026-11-12T10:00:00Z)",
+      "field": "since"
+    }
+  }
+}

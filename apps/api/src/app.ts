@@ -35,6 +35,7 @@ import { createTrackerAskRoutes } from './routes/tracker/asks';
 import { createTrackerCommentRoutes } from './routes/tracker/comments';
 import { createTrackerDecisionRoutes } from './routes/tracker/decisions';
 import { createTrackerRequestRoutes } from './routes/tracker/requests';
+import { createTrackerPrLinkRoutes } from './routes/tracker/pr-links';
 import { createTrackerItemRoutes } from './routes/tracker/items';
 import { createTrackerLabelRoutes } from './routes/tracker/labels';
 import { createTrackerSprintRoutes } from './routes/tracker/sprints';
@@ -123,6 +124,7 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/projects', createTrackerAskRoutes());
   v1.route('/projects', createTrackerDecisionRoutes());
   v1.route('/projects', createTrackerRequestRoutes());
+  v1.route('/projects', createTrackerPrLinkRoutes());
   // Pull requests (#463): D1's mirror behind the same matrix; `?fresh=1` reads GitHub through the VCS adapter.
   v1.route('/projects', createPullRequestRoutes(github, owners));
   // Before the connection routes: their owner-only `use('*')` would otherwise also guard this read (#194), which

@@ -109,6 +109,9 @@ const ROWS: readonly Row[] = [
   reads(`GET ${P}/:slug/items/:key/asks`, async (project) => `${(await item(project)).path}/asks`),
   reads(`GET ${P}/:slug/items/:key/decisions`, async (project) => `${(await item(project)).path}/decisions`),
   reads(`GET ${P}/:slug/items/:key/requests`, async (project) => `${(await item(project)).path}/requests`),
+  // #445: the project-wide feeds; the requests row is the `?state=` form.
+  reads(`GET ${P}/:slug/decisions`, async (project) => `${P}/${project.slug}/decisions`),
+  reads(`GET ${P}/:slug/requests`, async (project) => `${P}/${project.slug}/requests?state=pending`),
   reads(`GET ${P}/:slug/sprints`, async (project) => `${P}/${project.slug}/sprints`),
   reads(`GET ${P}/:slug/sprints/:number`, sprint),
   reads(`GET ${P}/:slug/labels`, async (project) => `${P}/${project.slug}/labels`),
@@ -173,6 +176,20 @@ const ROWS: readonly Row[] = [
       body: { kind: 'decision', body: 'We ship it' },
     }),
     expect: (who) => (who === 'owner' || who === 'dev-light' ? refused('comment-kind') : ok(201)),
+  },
+  {
+    route: `POST ${P}/:slug/items/:key/pr-links`,
+    setup: async (project) => {
+      const { path, number } = await item(project, { kind: 'feature', status: 'approved' });
+      return {
+        method: 'POST',
+        path: `${path}/pr-links`,
+        body: { number: 7, url: `https://github.com/acme/${project.slug}/pull/7`, headRef: 'feature/x' },
+        items: [number],
+      };
+    },
+    // #445: the developers (of an item they hold) and the orchestrator; nobody else, the owner included.
+    expect: (who) => (who === 'orchestrator' || DEVELOPERS.includes(who) ? ok(201) : refused('pr-link-role')),
   },
   {
     route: `POST ${P}/:slug/sprints`,
@@ -294,7 +311,7 @@ describe('the route matrix covers the tracker', () => {
         .routes.filter(
           (route) =>
             route.method !== 'ALL' &&
-            /^\/api\/v1\/projects\/:slug\/(items|sprints|labels|prs|requests\/:id|jobs|runner-policy)\b/.test(
+            /^\/api\/v1\/projects\/:slug\/(items|sprints|labels|prs|requests|decisions|jobs|runner-policy)\b/.test(
               route.path,
             ),
         )
@@ -318,6 +335,8 @@ describe('the route matrix covers the tracker', () => {
     expect(isTrackerMatrixRoute('DELETE', '/api/v1/projects/acme/items/TC-1')).toBe(false);
     expect(isTrackerMatrixRoute('GET', '/api/v1/projects/acme/items/TC-1/x')).toBe(false);
     expect(isTrackerMatrixRoute('GET', '/api/v1/projects/acme/inbox')).toBe(false);
+    expect(isTrackerMatrixRoute('GET', '/api/v1/projects/acme/requests')).toBe(true);
+    expect(isTrackerMatrixRoute('GET', '/api/v1/projects/acme/decisions')).toBe(true);
     expect(isTrackerMatrixRoute('GET', '/api/v1/projects/acme')).toBe(false);
     expect(isTrackerMatrixRoute('GET', '/api/v1/projects/a/b/items')).toBe(false);
     expect(isTrackerMatrixRoute('POST', '/api/v1/projects/acme/issues/1/answer')).toBe(false);
@@ -341,23 +360,25 @@ const PLANNING_ROWS: readonly TrackerRoute[] = [
 ];
 const PM_ROWS: readonly TrackerRoute[] = [`POST ${P}/:slug/requests/:id/handled`];
 const ASK_ROW: TrackerRoute = `POST ${P}/:slug/items/:key/asks`;
+const PR_LINK_ROW: TrackerRoute = `POST ${P}/:slug/items/:key/pr-links`;
 const TEAM_REFUSED: readonly TrackerRoute[] = [...OWNER_ROWS, ...PLANNING_ROWS, ...PM_ROWS];
+const NON_LINKERS: readonly TrackerRoute[] = [...TEAM_REFUSED, PR_LINK_ROW];
 
 const REFUSED_ROWS: Readonly<Record<JobRole, readonly TrackerRoute[]>> = {
-  pm: OWNER_ROWS,
-  architect: TEAM_REFUSED,
+  pm: [...OWNER_ROWS, PR_LINK_ROW],
+  architect: NON_LINKERS,
   orchestrator: TEAM_REFUSED,
   dev: [...TEAM_REFUSED, ASK_ROW],
   'dev-light': [...TEAM_REFUSED, ASK_ROW],
   'dev-heavy': [...TEAM_REFUSED, ASK_ROW],
-  qa: TEAM_REFUSED,
-  reviewer: TEAM_REFUSED,
-  security: TEAM_REFUSED,
-  devops: TEAM_REFUSED,
-  analyst: TEAM_REFUSED,
-  scribe: TEAM_REFUSED,
-  'ux-designer': TEAM_REFUSED,
-  'ui-designer': TEAM_REFUSED,
+  qa: NON_LINKERS,
+  reviewer: NON_LINKERS,
+  security: NON_LINKERS,
+  devops: NON_LINKERS,
+  analyst: NON_LINKERS,
+  scribe: NON_LINKERS,
+  'ux-designer': NON_LINKERS,
+  'ui-designer': NON_LINKERS,
 };
 
 // #466: the `member` actor is decided on every row — reads only until the tables know a `user` actor (T-3).

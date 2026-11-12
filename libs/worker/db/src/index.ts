@@ -60,9 +60,18 @@ export { batchUnlessConflict, isAppendOnlyConflict } from './lib/tracker/constra
 export { AsksRepo } from './lib/tracker/asks.repo';
 export type { AskRecord, NewAsk } from './lib/tracker/asks.repo';
 export { OwnerDecisionsRepo } from './lib/tracker/owner-decisions.repo';
-export type { DecisionRecord, NewDecision } from './lib/tracker/owner-decisions.repo';
+export type {
+  DecisionFilter,
+  DecisionRecord,
+  NewDecision,
+  ProjectDecisionRecord,
+} from './lib/tracker/owner-decisions.repo';
 export { ItemRequestsRepo } from './lib/tracker/item-requests.repo';
-export type { ItemRequestRecord, RequestHandling } from './lib/tracker/item-requests.repo';
+export type {
+  ItemRequestRecord,
+  ProjectRequestRecord,
+  RequestHandling,
+} from './lib/tracker/item-requests.repo';
 export { INBOX_ROW_CAP, InboxRepo } from './lib/tracker/inbox.repo';
 export type { InboxRowRecord, InboxRows } from './lib/tracker/inbox.repo';
 export { ItemEventsRepo, SCRUBBED_TEXT } from './lib/tracker/item-events.repo';

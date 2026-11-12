@@ -1,0 +1,34 @@
+{
+  "route": "GET /api/v1/projects/:slug/decisions",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/projects/tc/decisions?command=reject&limit=1"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "decisions": [
+        {
+          "id": 1,
+          "command": "reject",
+          "text": "Not this quarter",
+          "askId": 1,
+          "reversesCommentId": null,
+          "via": "web",
+          "decidedAt": "2026-11-12T10:00:00.000Z",
+          "sourceUrl": null,
+          "item": {
+            "key": "TC-2",
+            "number": 2
+          }
+        }
+      ],
+      "next": 1
+    }
+  }
+}

@@ -6,6 +6,8 @@ import {
   ASK_TEXT_MAX_LENGTH,
   COMMENT_BODY_MAX_LENGTH,
   DECISION_TEXT_MAX_LENGTH,
+  PR_HEAD_REF_MAX_LENGTH,
+  PR_URL_MAX_LENGTH,
   REQUEST_REASON_MAX_LENGTH,
   isAskCategory,
   isAskCommand,
@@ -136,6 +138,16 @@ export type CreateRequestInput = OwnerRequest;
 export interface HandleRequestInput {
   readonly result: RequestResult;
   readonly reason: string;
+}
+
+/**
+ * `POST …/items/:key/pr-links` (#445, formerly `backlog link-pr`). The shape only: whether `url` is the project's
+ * own pull request and `headRef` a valid branch name is the route's, which knows the repository.
+ */
+export interface CreatePrLinkInput {
+  readonly number: number;
+  readonly url: string;
+  readonly headRef: string;
 }
 
 export type InputCheck<T> =
@@ -518,5 +530,28 @@ export function checkHandleRequestInput(body: unknown): InputCheck<HandleRequest
       result: oneOf('result', input['result'], isRequestResult),
       reason: input['reason'] === undefined ? '' : text('reason', input['reason'], REQUEST_REASON_MAX_LENGTH),
     };
+  });
+}
+
+/** GitHub's pull request numbers are 32-bit, as are the item numbers. */
+const PR_NUMBER_MAX = 2_147_483_647;
+const GITHUB_PULL_URL = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/([1-9][0-9]{0,9})$/;
+
+export function checkCreatePrLinkInput(body: unknown): InputCheck<CreatePrLinkInput> {
+  return checked(() => {
+    const input = record(body, ['number', 'url', 'headRef'], { nameServerMembers: true });
+    const number = positiveId('number', input['number']);
+    if (number > PR_NUMBER_MAX) {
+      throw new InputError('number', 'number must be a pull request number');
+    }
+    const url = text('url', input['url'], PR_URL_MAX_LENGTH, 1);
+    if (GITHUB_PULL_URL.exec(url)?.[1] !== String(number)) {
+      throw new InputError(
+        'url',
+        'url must be https://github.com/<owner>/<repo>/pull/<number> of this number',
+      );
+    }
+    const headRef = text('headRef', input['headRef'], PR_HEAD_REF_MAX_LENGTH, 1);
+    return { number, url, headRef };
   });
 }

@@ -1,4 +1,4 @@
-import { isRepoFullName } from '@shared/contracts';
+import { instantOf, isRepoFullName } from '@shared/contracts';
 import type { Branch, ChangedFile, ChangedFileStatus, PullRequest, Repository } from '@worker/vcs';
 
 /**
@@ -81,15 +81,6 @@ const LOGIN = /^[A-Za-z0-9-]+(\[bot\])?$/;
 
 function isAuthorLogin(value: string | null): value is string {
   return value !== null && value.length <= LOGIN_MAX_LENGTH && LOGIN.test(value);
-}
-
-/** An ISO 8601 instant normalised to `toISOString` (`…T10:00:00.000Z`), so stored values compare as strings. */
-export function instantOf(value: unknown): string | null {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(value)) {
-    return null;
-  }
-  const ms = Date.parse(value);
-  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
 }
 
 /** The pull request's page, built from the repository and number (a payload's `html_url` is never stored). */

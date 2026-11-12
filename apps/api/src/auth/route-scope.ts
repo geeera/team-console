@@ -83,6 +83,9 @@ export const ROUTE_SCOPES = {
   [`GET ${P}/items/:key/requests`]: PROJECT,
   [`POST ${P}/items/:key/requests`]: PROJECT,
   [`POST ${P}/requests/:id/handled`]: PROJECT,
+  // #445: the decisions feed and pull request links (the project-wide requests list is `GET ${P}/requests?state=`).
+  [`GET ${P}/decisions`]: PROJECT,
+  [`POST ${P}/items/:key/pr-links`]: PROJECT,
   [`GET ${P}/sprints`]: PROJECT,
   [`GET ${P}/sprints/:number`]: PROJECT,
   [`POST ${P}/sprints`]: PROJECT,

@@ -1,0 +1,28 @@
+{
+  "route": "POST /api/v1/projects/:slug/items/:key/pr-links",
+  "as": {
+    "kind": "job",
+    "role": "dev",
+    "items": [2]
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/items/TC-1/pr-links",
+    "body": {
+      "number": 57,
+      "url": "https://github.com/acme/tc/pull/57",
+      "headRef": "feature/tc-1-login"
+    }
+  },
+  "response": {
+    "status": 403,
+    "body": {
+      "type": "https://team-console/problems/pr-link-role",
+      "title": "Forbidden",
+      "status": 403,
+      "instance": "request-id",
+      "detail": "A developer links a pull request to an item it holds",
+      "reason": "item-not-held"
+    }
+  }
+}

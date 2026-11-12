@@ -1,0 +1,28 @@
+{
+  "route": "POST /api/v1/projects/:slug/items/:key/pr-links",
+  "as": {
+    "kind": "job",
+    "role": "dev",
+    "items": [1]
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/items/TC-1/pr-links",
+    "body": {
+      "number": 57,
+      "url": "https://github.com/acme/elsewhere/pull/57",
+      "headRef": "feature/tc-1-login"
+    }
+  },
+  "response": {
+    "status": 422,
+    "body": {
+      "type": "https://team-console/problems/pr-link-invalid",
+      "title": "Invalid request",
+      "status": 422,
+      "instance": "request-id",
+      "detail": "url is not a pull request of this project’s repository",
+      "field": "url"
+    }
+  }
+}

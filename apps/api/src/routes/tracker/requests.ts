@@ -1,13 +1,28 @@
 import { Hono } from 'hono';
-import { checkCreateRequestInput, checkHandleRequestInput, type ItemRequestListDto } from '@shared/contracts';
+import type { MiddlewareHandler } from 'hono';
+import {
+  checkCreateRequestInput,
+  checkHandleRequestInput,
+  isRequestState,
+  itemKeyOf,
+  type ItemRequestListDto,
+  type ProjectRequestListDto,
+} from '@shared/contracts';
+import { withoutInvisibles } from '@shared/plain-text';
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import { ItemRequestsRepo, type ItemRequestRecord } from '@worker/db';
 import { trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
 import { bodySecretRefusal } from '../../tracker/body-secret';
-import { invalid, itemClosed, itemOf } from '../../tracker/context';
+import { invalid, itemClosed, itemOf, keyPrefixOf, trackerProjectOf } from '../../tracker/context';
 import { itemRequestDtoOf } from '../../tracker/dto';
-import { ASK_WRITE_MAX_BYTES, SMALL_WRITE_MAX_BYTES, nextCursor, writeLimit } from '../../tracker/http';
+import {
+  ASK_WRITE_MAX_BYTES,
+  SMALL_WRITE_MAX_BYTES,
+  nextCursor,
+  pageOf,
+  writeLimit,
+} from '../../tracker/http';
 import { idempotent } from '../../tracker/idempotency';
 import { itemReadOf } from '../../tracker/item-reads';
 import { trackerWriteContextOf } from '../../tracker/write-context';
@@ -26,6 +41,64 @@ function requestResponse(c: Context, request: ItemRequestRecord | null, status: 
   }
   c.header('Cache-Control', 'no-store');
   return c.json(itemRequestDtoOf(request), status);
+}
+
+/**
+ * `GET …/projects/:slug/requests?state=pending|handled|all` (#445, `backlog requests`): the newest request of each
+ * item, oldest first, cursor-paged. Behind its own row of the route matrix; `project-read-models.ts` hands the path
+ * here only when `state` is given (without it, the path is the owner's GitHub list of #219).
+ */
+async function listProjectRequests(c: Context): Promise<Response> {
+  const project = await trackerProjectOf(c);
+  if (project instanceof Response) {
+    return project;
+  }
+  const page = pageOf(c);
+  if (page instanceof Response) {
+    return page;
+  }
+  const state = c.req.query('state');
+  if (!isRequestState(state)) {
+    return invalid(c, 'query-invalid', 'state', 'state is pending, handled or all');
+  }
+  const rows = await new ItemRequestsRepo(c.env.DB).listOfProject(
+    project.slug,
+    state,
+    page.after,
+    page.limit + 1,
+  );
+  const prefix = keyPrefixOf(project);
+  const body: ProjectRequestListDto = {
+    requests: rows.slice(0, page.limit).map((row) => ({
+      ...itemRequestDtoOf(row),
+      item: {
+        key: itemKeyOf(prefix, row.itemNumber),
+        number: row.itemNumber,
+        title: withoutInvisibles(row.itemTitle),
+        state: row.itemClosedAt === null ? 'open' : 'closed',
+      },
+    })),
+    next: nextCursor(rows, page.limit),
+  };
+  c.header('Cache-Control', 'no-store');
+  return c.json(body);
+}
+
+/**
+ * The project-wide requests list with its route-matrix gate, as one call: the gate answers its refusal, or the list
+ * runs as the gate's `next`. A gate that neither refused nor ran the list is a bug, so it fails loudly.
+ */
+export async function guardedProjectRequests(c: Context): Promise<Response> {
+  const gate: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = trackerAccess('GET /api/v1/projects/:slug/requests');
+  let listed: Response | undefined;
+  const refused = await gate(c, async () => {
+    listed = await listProjectRequests(c);
+  });
+  const response = refused ?? listed;
+  if (response === undefined) {
+    throw new Error('the requests gate neither refused nor ran the list');
+  }
+  return response;
 }
 
 /**

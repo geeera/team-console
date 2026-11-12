@@ -1,0 +1,36 @@
+{
+  "route": "GET /api/v1/projects/:slug/inbox",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/projects/tc/inbox"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "section": "question",
+          "number": 1,
+          "key": "TC-1",
+          "askId": 1,
+          "title": "Ship the beta?",
+          "url": null,
+          "ask": "Ship the beta to the first ten users?",
+          "authorTrusted": true,
+          "category": "scope",
+          "recommendation": "approve",
+          "context": null
+        }
+      ],
+      "setup": false,
+      "setupUrl": null,
+      "paused": false,
+      "pausedUrl": null
+    }
+  }
+}
