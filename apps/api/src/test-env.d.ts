@@ -15,6 +15,8 @@ declare global {
       MIGRATION_DB_0018_AMBIGUOUS: D1Database;
       /** Another, for the 0019 rebuild of `item_events` and `idempotency_keys` (#462). */
       MIGRATION_DB_0019: D1Database;
+      /** Another, for 0025's pr-link index over an existing duplicate link (#529). */
+      MIGRATION_DB_0025: D1Database;
       /** Public half of the generated test app key (vitest.config.mts), to verify the app JWT. */
       TEST_GITHUB_APP_PUBLIC_JWK: string;
     }

@@ -82,6 +82,7 @@ describe('migrations on a fresh D1', () => {
       '0022_jobs.sql',
       '0023_role_key_guards.sql',
       '0024_role_key_delete_guard.sql',
+      '0025_pr_link_unique.sql',
     ]);
   });
 
@@ -422,8 +423,11 @@ describe('migrations on a fresh D1', () => {
       'idempotency_keys_expiry',
       'item_events_append_only_delete',
       'item_events_append_only_update',
+      // #529, 0025: the column guard and the pr-link index.
+      'item_events_duplicate_of_migration_only',
       'item_events_item',
       'item_events_never_replaced',
+      'item_events_pr_link',
     ]);
   });
 
@@ -509,6 +513,104 @@ describe('migrations on a fresh D1', () => {
         /append-only/,
       );
     });
+  });
+});
+
+// #529: 0025 keeps one `pr-linked` event per item and pull request, over a database that may already hold a duplicate.
+describe('the 0025 pr-link index', () => {
+  const T0 = '2026-11-01T00:00:00.000Z';
+  const link = (number: number, headRef = 'feature/x'): string =>
+    JSON.stringify({ number, url: `https://github.com/a/m25/pull/${String(number)}`, headRef });
+
+  async function insertLink(db: D1Database, after: string): Promise<number> {
+    const row = await db
+      .prepare(
+        `INSERT INTO item_events (item_id, at, actor_kind, actor, kind, after)
+         SELECT id, ?1, 'job', 'dev', 'pr-linked', ?2 FROM items WHERE project_slug = 'm25' RETURNING id`,
+      )
+      .bind(T0, after)
+      .first<{ id: number }>();
+    if (row === null) {
+      throw new Error('seeding a link inserted nothing');
+    }
+    return row.id;
+  }
+
+  it('migrates over an existing duplicate, marking it, and then refuses a second link of the same number', async () => {
+    const db = env.MIGRATION_DB_0025;
+    await applyD1Migrations(
+      db,
+      env.TEST_MIGRATIONS.filter((migration) => migration.name < '0025'),
+    );
+    await db
+      .prepare(
+        `INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at) VALUES ('m25', 'a/m25', 'm25', 0, ?1)`,
+      )
+      .bind(T0)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO items (project_slug, number, kind, status, title, created_by_kind, created_by, created_at,
+           updated_at) VALUES ('m25', 1, 'feature', 'proposed', 'Item', 'owner', 'owner', ?1, ?1)`,
+      )
+      .bind(T0)
+      .run();
+    // The race 0025 closes: the same pull request linked twice before the index existed.
+    const first = await insertLink(db, link(57));
+    const duplicate = await insertLink(db, link(57, 'feature/other'));
+    const other = await insertLink(db, link(58));
+
+    await applyD1Migrations(db, env.TEST_MIGRATIONS);
+
+    const { results } = await db
+      .prepare(`SELECT id, duplicate_of, after FROM item_events WHERE kind = 'pr-linked' ORDER BY id`)
+      .all<{ id: number; duplicate_of: number | null; after: string }>();
+    expect(results.map((row) => [row.id, row.duplicate_of])).toEqual([
+      [first, null],
+      [duplicate, first],
+      [other, null],
+    ]);
+    // Every event is kept as it was: the mark is the only change.
+    expect(results.map((row) => JSON.parse(row.after) as unknown)).toEqual([
+      JSON.parse(link(57)),
+      JSON.parse(link(57, 'feature/other')),
+      JSON.parse(link(58)),
+    ]);
+    await expect(insertLink(db, link(57))).rejects.toThrow(
+      /UNIQUE constraint failed: index 'item_events_pr_link'/,
+    );
+    await expect(insertLink(db, link(58, 'feature/y'))).rejects.toThrow(/UNIQUE constraint failed/);
+    expect(await insertLink(db, link(59))).toBeGreaterThan(other);
+  });
+
+  it('never lets a new row or an update set duplicate_of', async () => {
+    const slug = `m25-${crypto.randomUUID().slice(0, 8)}`;
+    await env.DB.prepare(
+      `INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at) VALUES (?1, ?2, ?1, 0, ?3)`,
+    )
+      .bind(slug, `a/${slug}`, T0)
+      .run();
+    await env.DB.prepare(
+      `INSERT INTO items (project_slug, number, kind, status, title, created_by_kind, created_by, created_at,
+         updated_at) VALUES (?1, 1, 'feature', 'proposed', 'Item', 'owner', 'owner', ?2, ?2)`,
+    )
+      .bind(slug, T0)
+      .run();
+    const insert = (duplicateOf: number | null) =>
+      env.DB.prepare(
+        `INSERT INTO item_events (item_id, at, actor_kind, actor, kind, after, duplicate_of)
+         SELECT id, ?2, 'job', 'dev', 'pr-linked', ?3, ?4 FROM items WHERE project_slug = ?1 RETURNING id`,
+      )
+        .bind(slug, T0, link(70), duplicateOf)
+        .first<{ id: number }>();
+    const row = await insert(null);
+    // A row marking itself a duplicate would step around the index.
+    await expect(insert(row?.id ?? 0)).rejects.toThrow(/set by migration 0025 only/);
+    await expect(
+      env.DB.prepare('UPDATE item_events SET duplicate_of = 1 WHERE id = ?1')
+        .bind(row?.id ?? 0)
+        .run(),
+    ).rejects.toThrow(/append-only/);
   });
 });
 

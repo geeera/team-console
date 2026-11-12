@@ -1,12 +1,17 @@
 import { Hono } from 'hono';
 import { checkCreatePrLinkInput, isRecord, type PrLinkDto } from '@shared/contracts';
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
-import { ItemEventsRepo, type ItemEventRecord } from '@worker/db';
+import { ItemEventsRepo, type ItemEventRecord, type ProjectRow } from '@worker/db';
 import { isBranchName, pullRequestUrlOf } from '@worker/vcs-github';
 import { DEVELOPER_ROLES } from '../../auth/job-roles';
 import { holdsItem } from '../../auth/policy';
 import { trackerAccess, trackerProjectOfContext } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
+import type { ApiGitHub } from '../../github';
+import { repoOf } from '../../projects/lookup';
+import type { OwnerConnectionSource } from '../../projects/owner-connection';
+import { findPullRequest } from '../../read-models/pull-request-sync';
+import { repoIdOf } from '../../read-models/repo-id';
 import { bodySecretRefusal } from '../../tracker/body-secret';
 import { invalid, itemClosed, itemOf } from '../../tracker/context';
 import { SMALL_WRITE_MAX_BYTES, writeLimit } from '../../tracker/http';
@@ -54,13 +59,55 @@ function respond(c: Context, event: ItemEventRecord | null, status: 200 | 201): 
 }
 
 /**
+ * `null` when the provider has pull request `number` with head branch `headRef` (#529); else the route's answer:
+ * 422 `pr-link-invalid` on `number` (no such pull request) or `headRef` (another head), 409 `repo-id-unknown`. A
+ * provider outage or rate limit throws the adapter's `VcsError` (502 / 429 with `Retry-After`), which `idempotent`
+ * turns into a released key, so the client retries under the same one.
+ */
+async function verifiedOnProvider(
+  c: Context,
+  github: ApiGitHub,
+  owners: OwnerConnectionSource,
+  registry: ProjectRow,
+  number: number,
+  headRef: string,
+): Promise<Response | null> {
+  const repo = repoOf(c, registry);
+  if (repo instanceof Response) {
+    return repo;
+  }
+  const repoId = await repoIdOf(c, github, owners, registry, repo);
+  if (repoId instanceof Response) {
+    return repoId;
+  }
+  const pull = await findPullRequest(github, c.env, repo, repoId, number);
+  if (pull === null) {
+    return invalid(
+      c,
+      'pr-link-invalid',
+      'number',
+      'number is not a pull request of this project’s repository',
+    );
+  }
+  if (pull.headRef !== headRef) {
+    return invalid(c, 'pr-link-invalid', 'headRef', 'headRef is not the pull request’s head branch');
+  }
+  return null;
+}
+
+/**
  * Pull request links (#445, formerly `backlog link-pr`): a `pr-linked` item event `{ number, url, headRef }`, until
  * Phase 2 gives the link a `pull_requests` row. The developer who holds the item or the orchestrator links it (the
  * route matrix, then `item-not-held`); the URL must be the project's own pull request of that number, and the event
  * stores the URL the server built. Linking the same pull request again with the same branch answers the first link
- * (200, nothing written); with another branch it is 409 `pr-link-conflict`.
+ * (200, nothing written); with another branch it is 409 `pr-link-conflict`. A new link is first checked on the
+ * provider (#529, `verifiedOnProvider`), and migration 0025's unique index keeps two concurrent links to one event:
+ * the loser answers like a repeat.
  */
-export function createTrackerPrLinkRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
+export function createTrackerPrLinkRoutes(
+  github: ApiGitHub,
+  owners: OwnerConnectionSource,
+): Hono<WorkerHonoEnv<ApiEnv>> {
   const guard = trackerAccess('POST /api/v1/projects/:slug/items/:key/pr-links');
   return new Hono<WorkerHonoEnv<ApiEnv>>().post(
     '/:slug/items/:key/pr-links',
@@ -131,8 +178,7 @@ export function createTrackerPrLinkRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
           if (item.closedAt !== null) {
             return itemClosed(c);
           }
-          const existing = await events.findPrLink(item.id, number);
-          if (existing !== null) {
+          const alreadyLinked = async (existing: ItemEventRecord): Promise<Response> => {
             if (prLinkOf(existing)?.headRef !== headRef) {
               return problem(c, {
                 type: 'pr-link-conflict',
@@ -143,12 +189,29 @@ export function createTrackerPrLinkRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
             }
             await c.env.DB.batch([complete(200, 'event', { value: String(existing.id) })]);
             return respond(c, existing, 200);
+          };
+          const existing = await events.findPrLink(item.id, number);
+          if (existing !== null) {
+            return alreadyLinked(existing);
+          }
+          // Only a new link asks the provider; a refusal or a provider failure writes nothing and frees the key.
+          const verified = await verifiedOnProvider(c, github, owners, registry, number, headRef);
+          if (verified !== null) {
+            return verified;
           }
           const at = new Date().toISOString();
-          await c.env.DB.batch([
-            events.prLinkStatement(item.id, { number, url, headRef }, actor, at),
+          const isWritten = await events.linkPr(item.id, { number, url, headRef }, actor, at, [
             complete(201, 'event', { newestEventOf: item.id }),
           ]);
+          if (!isWritten) {
+            // A concurrent link of the same pull request won (migration 0025's index): answer it as a repeat.
+            const winner = await events.findPrLink(item.id, number);
+            if (winner === null) {
+              throw new Error('a pr link lost the unique index to a link that does not exist');
+            }
+            c.get('logger').info('tracker pr link lost a race', { slug: project.slug, pr: number });
+            return alreadyLinked(winner);
+          }
           c.get('logger').info('tracker pr linked', { slug: project.slug, number: item.number, pr: number });
           return respond(c, await events.findPrLink(item.id, number), 201);
         },

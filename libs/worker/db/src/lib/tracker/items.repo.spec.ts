@@ -356,8 +356,38 @@ describe('ItemsRepo', () => {
     const methods = Object.getOwnPropertyNames(ItemEventsRepo.prototype).filter(
       (name) => name !== 'constructor',
     );
-    // #445: `prLinkStatement` appends a `pr-linked` event and `findPrLink` reads one; neither changes a row.
-    expect(methods.sort()).toEqual(['find', 'findPrLink', 'list', 'prLinkStatement', 'scrub']);
+    // #445: `prLinkStatement` appends a `pr-linked` event and `findPrLink` reads one; #529: `linkPr` appends one too.
+    // None changes a row.
+    expect(methods.sort()).toEqual(['find', 'findPrLink', 'linkPr', 'list', 'prLinkStatement', 'scrub']);
+  });
+
+  it('links a pull request once: a second link of the same number writes nothing of its batch (#529)', async () => {
+    const { slug } = await seedTrackerProject();
+    const itemId = await seedTrackerItem(slug, 1);
+    const events = new ItemEventsRepo(env.DB);
+    const link = { number: 57, url: 'https://github.com/acme/x/pull/57', headRef: 'feature/x' };
+    const marker = (n: number) =>
+      env.DB.prepare(
+        `INSERT INTO item_events (item_id, at, actor_kind, actor, kind, after) VALUES (?1, ?2, 'job', 'dev', 'commented', ?3)`,
+      ).bind(itemId, AT, JSON.stringify({ marker: n }));
+    expect(await events.linkPr(itemId, link, JOB_ACTOR, AT, [marker(1)])).toBe(true);
+    expect(await events.linkPr(itemId, { ...link, headRef: 'feature/y' }, JOB_ACTOR, AT, [marker(2)])).toBe(
+      false,
+    );
+    // Another number on the same item, and the same number on another item, are links of their own.
+    expect(await events.linkPr(itemId, { ...link, number: 58 }, JOB_ACTOR, AT)).toBe(true);
+    const other = await seedTrackerItem(slug, 2);
+    expect(await events.linkPr(other, link, JOB_ACTOR, AT)).toBe(true);
+    const { results } = await env.DB.prepare(
+      `SELECT kind, after FROM item_events WHERE item_id = ?1 AND kind IN ('pr-linked', 'commented') ORDER BY id`,
+    )
+      .bind(itemId)
+      .all<{ kind: string; after: string }>();
+    expect(results.map((row) => [row.kind, JSON.parse(row.after) as unknown])).toEqual([
+      ['pr-linked', link],
+      ['commented', { marker: 1 }],
+      ['pr-linked', { ...link, number: 58 }],
+    ]);
   });
 
   it('appends a pr-linked event and finds it by pull request number (#445)', async () => {

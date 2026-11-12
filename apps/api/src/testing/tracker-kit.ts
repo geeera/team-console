@@ -16,7 +16,8 @@ import {
   stubJwksServer,
   uniqueTeamDomain,
 } from './access-kit';
-import { localEnv } from './github-kit';
+import { ApiGitHub } from '../github';
+import { json, localEnv, stubGitHub, type GitHubCall, type StubGitHub } from './github-kit';
 import { localJobHeader, type TestJob } from './local-job-kit';
 
 /**
@@ -57,7 +58,73 @@ export async function seedTrackerProject(nextItemNumber = 1): Promise<SeededProj
     nextItemNumber,
     at: '2026-11-01T00:00:00.000Z',
   });
+  // The provider's id, as setup records it; the pr-link check (#529) reads the repository by it.
+  await env.DB.prepare('UPDATE projects SET repo_id = ?2 WHERE slug = ?1')
+    .bind(slug, REPO_ID_BASE + counter)
+    .run();
   return { slug, keyPrefix };
+}
+
+const REPO_ID_BASE = 900_000;
+
+/** The head branch GitHub has for pull request `number`, or `null` when it has no such pull request. */
+export type PullRequestHeads = (number: number) => string | null;
+
+/** A response that answers a GitHub call before the scripted world does, or `null` to fall through to it. */
+export type ScriptedRead = (call: GitHubCall) => Response | null | Promise<Response | null>;
+
+const REPOSITORY_PATH = /^\/repos\/([^/]+)\/([^/]+)$/;
+const PULL_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)$/;
+
+/**
+ * A scripted GitHub for the pr-link check (#529): every registered repository under its recorded id, and the pull
+ * requests `heads` names. `read` answers first when it returns a response (an outage, a rate limit).
+ */
+export function pullRequestsGitHub(
+  heads: PullRequestHeads,
+  read?: ScriptedRead,
+): { readonly github: ApiGitHub; readonly stub: StubGitHub } {
+  const stub = stubGitHub(async (call) => {
+    const scripted = (await read?.(call)) ?? null;
+    if (scripted !== null) {
+      return scripted;
+    }
+    const repository = REPOSITORY_PATH.exec(call.url.pathname);
+    if (repository !== null) {
+      const fullName = `${repository[1] ?? ''}/${repository[2] ?? ''}`;
+      const row = await env.DB.prepare('SELECT repo_id FROM projects WHERE repo = ?1')
+        .bind(fullName)
+        .first<{ repo_id: number | null }>();
+      return row === null || row.repo_id === null
+        ? json(404, { message: 'Not Found' })
+        : json(200, { id: row.repo_id, full_name: fullName, default_branch: 'dev', private: true });
+    }
+    const pull = PULL_PATH.exec(call.url.pathname);
+    const number = Number(pull?.[3]);
+    const head = pull === null ? null : heads(number);
+    if (pull === null || head === null) {
+      return json(404, { message: 'Not Found' });
+    }
+    return json(200, {
+      id: 50_000 + number,
+      number,
+      title: `PR ${String(number)}`,
+      state: 'open',
+      draft: false,
+      head: { ref: head, sha: 'a'.repeat(40), repo: { full_name: `${pull[1] ?? ''}/${pull[2] ?? ''}` } },
+      base: { ref: 'dev' },
+      user: { login: 'team-console-team' },
+      merged_at: null,
+      updated_at: '2026-11-12T10:00:00Z',
+      html_url: `https://github.com/${pull[1] ?? ''}/${pull[2] ?? ''}/pull/${String(number)}`,
+    });
+  });
+  return { github: new ApiGitHub({ fetch: stub.fetch }), stub };
+}
+
+/** The pull request reads a stub served, the repository reads and the token mint left out. */
+export function pullRequestReads(stub: StubGitHub): GitHubCall[] {
+  return stub.reads().filter((call) => PULL_PATH.test(call.url.pathname));
 }
 
 let keyCounter = 0;
@@ -73,6 +140,8 @@ export interface TrackerRequest {
   readonly headers?: Record<string, string>;
   /** Send as this job (the `local-job.` stand-in) instead of the owner; its project defaults to the path's. */
   readonly job?: TestJob;
+  /** The GitHub the app reads through (`pullRequestsGitHub` for a pr link). */
+  readonly github?: ApiGitHub;
 }
 
 /** A request as the owner's console sends it: same-origin, JSON, a fresh `Idempotency-Key` on writes. */
@@ -96,6 +165,7 @@ export async function send(
   }
   return fetchApi(path, localEnv(), {
     method,
+    ...(options.github === undefined ? {} : { github: options.github }),
     headers: { ...headers, ...options.headers },
     ...(body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }),
   });

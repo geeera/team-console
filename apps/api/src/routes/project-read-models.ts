@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { EmbedOriginsDto, RequestIssuesDto, SprintDto, SprintFreezeDaysDto } from '@shared/contracts';
-import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
+import type { WorkerContext, WorkerHonoEnv } from '@worker/core';
 import { OwnerRequestsRepo, TrackerProjectsRepo } from '@worker/db';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
@@ -95,15 +95,9 @@ export function createProjectReadModelRoutes(github: ApiGitHub): Hono<WorkerHono
       if (c.req.query('state') !== undefined) {
         return guardedProjectRequests(c);
       }
-      // The matrix admits a job on this path for the `?state=` form only; the GitHub list is the owner's (#219).
+      // `jobScopeMiddleware` admits a job on this path for the `?state=` form only (#529); reaching here is a bug.
       if (c.get('identity').kind === 'job') {
-        c.get('logger').warn('job refused off the tracker', { method: c.req.method, path: c.req.path });
-        return problem(c, {
-          type: 'owner-only',
-          title: 'Forbidden',
-          status: 403,
-          detail: 'A job reads the requests with ?state=',
-        });
+        throw new Error('a job reached the owner’s requests list past the job scope');
       }
       const reads = await readsFor(c, github);
       if (reads instanceof Response) {
