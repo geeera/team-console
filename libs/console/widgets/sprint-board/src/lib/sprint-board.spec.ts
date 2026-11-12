@@ -849,13 +849,13 @@ describe('SprintBoard', () => {
     expect(handled).toEqual([]);
   });
 
-  it('explains the tier icons once, under the lanes, with the existing tier copy', async () => {
+  it('explains the tier icons once, above the lanes, with the existing tier copy', async () => {
     const { root, settle, text } = await render();
     http.expectOne(projectSprintUrl(TC.slug)).flush(sprint());
     await settle();
 
     const legend = root.querySelector('[data-testid="tier-legend"]') as HTMLElement;
-    expect(legend.previousElementSibling?.tagName).toBe('TC-LANES');
+    expect(legend.nextElementSibling?.tagName).toBe('TC-LANES');
     expect(text('[data-testid="tier-legend"]')).toBe('Сложность: лёгкая средняя тяжёлая');
     expect([...legend.querySelectorAll('[data-tier]')].map((icon) => icon.getAttribute('data-tier'))).toEqual(
       ['light', 'standard', 'heavy'],

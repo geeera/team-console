@@ -45,18 +45,31 @@ describe('Field', () => {
     expect(label.textContent).not.toContain('необязательно');
   });
 
-  it('replaces the hint with an alert and marks the control invalid on error', async () => {
+  it('reads label, then hint, then the control (hint explains it before it is reached)', async () => {
+    const { root } = await render();
+
+    const field = root.querySelector('tc-field') as HTMLElement;
+    const order = [...field.children].map((el) => el.className || el.tagName);
+    const hintIndex = order.findIndex((entry) => entry === 'tc-field__hint');
+    const controlIndex = order.findIndex((entry) => entry === 'tc-field__control');
+    expect(hintIndex).toBeGreaterThan(-1);
+    expect(hintIndex).toBeLessThan(controlIndex);
+  });
+
+  it('replaces the hint with an alert below the control and marks it invalid on error', async () => {
     const { fixture, root, input } = await render();
 
     fixture.componentInstance.error.set('Not owner/repo');
     await fixture.whenStable();
 
     const error = root.querySelector('.tc-field__error') as HTMLElement;
+    const control = root.querySelector('.tc-field__control') as HTMLElement;
     expect(error.getAttribute('role')).toBe('alert');
     expect(error.textContent?.trim()).toBe('Not owner/repo');
     expect(root.querySelector('.tc-field__hint')).toBeNull();
     expect(input.getAttribute('aria-describedby')).toBe(error.id);
     expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(control.nextElementSibling).toBe(error);
   });
 
   it('adds the note to the description next to the hint or the error', async () => {

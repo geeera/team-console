@@ -117,6 +117,8 @@
   <p tc-status-card-note [id]="ids.offline">
     <tc-icon name="offline" size="sm" />{{ 'push.offline' | transloco }}
   </p>
+  } @if (showsHint()) {
+  <p tc-status-card-note>{{ (platform.isIos ? 'push.hint.ios' : 'push.hint.browser') | transloco }}</p>
   }
   <div tc-status-card-actions>
     <button
@@ -137,8 +139,5 @@
       {{ enableKey() | transloco }}
     </button>
   </div>
-  @if (showsHint()) {
-  <p tc-status-card-note>{{ (platform.isIos ? 'push.hint.ios' : 'push.hint.browser') | transloco }}</p>
-  }
 </div>
 } }
