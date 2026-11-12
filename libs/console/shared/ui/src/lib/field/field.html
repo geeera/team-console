@@ -3,11 +3,12 @@
   <span class="tc-field__optional">({{ 'ui.field.optional' | transloco }})</span>
   }
 </label>
+@if (!error() && hint()) {
+<p class="tc-field__hint" [id]="hintId">{{ hint() }}</p>
+}
 <div class="tc-field__control"><ng-content /></div>
 @if (error()) {
 <p class="tc-field__error" [id]="errorId" role="alert">{{ error() }}</p>
-} @else if (hint()) {
-<p class="tc-field__hint" [id]="hintId">{{ hint() }}</p>
 } @if (note()) {
 <p class="tc-field__note" [id]="noteId">{{ note() }}</p>
 }

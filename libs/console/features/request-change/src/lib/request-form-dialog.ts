@@ -76,6 +76,7 @@ const QUEUE_CHOICES: readonly QueueChoice[] = ['up', 'keep', 'down'];
             {{ previous.text }}
           </p>
         }
+        <p class="rq__hint" [id]="id + '-sprint-hint'">{{ 'commands.request.sprintHint' | transloco }}</p>
         <fieldset
           tc-choice-group
           [legend]="'commands.request.sprint' | transloco"
@@ -99,12 +100,12 @@ const QUEUE_CHOICES: readonly QueueChoice[] = ['up', 'keep', 'down'];
             </label>
           }
         </fieldset>
-        <p class="rq__hint" [id]="id + '-sprint-hint'">{{ 'commands.request.sprintHint' | transloco }}</p>
         @if (issue.freezeNow && choice().sprint === 'current' && whereOf(issue) !== 'current') {
           <p tc-callout tone="warning" class="rq__note">
             <tc-icon name="alert" size="sm" /><span>{{ 'commands.request.freeze' | transloco }}</span>
           </p>
         }
+        <p class="rq__hint" [id]="id + '-queue-hint'">{{ 'commands.request.prioHint' | transloco }}</p>
         <fieldset
           tc-choice-group
           [legend]="'commands.request.prio' | transloco"
@@ -124,7 +125,6 @@ const QUEUE_CHOICES: readonly QueueChoice[] = ['up', 'keep', 'down'];
             </label>
           }
         </fieldset>
-        <p class="rq__hint" [id]="id + '-queue-hint'">{{ 'commands.request.prioHint' | transloco }}</p>
         <p class="rq__hint">{{ 'commands.request.one' | transloco }}</p>
         <p class="rq__diff" aria-live="polite" data-testid="request-diff">
           @if (request(); as request) {
