@@ -115,6 +115,9 @@ export const ROUTE_SCOPES = {
   'GET /api/v1/accounts/:id/runners': 'account',
   'PATCH /api/v1/accounts/:id/runners/:runner': 'account',
   'POST /api/v1/accounts/:id/runners/:runner/revoke': 'account',
+  // #492: the owner clears a suspect mark and withdraws a pending code; another account's is 404, as above.
+  'POST /api/v1/accounts/:id/runners/:runner/clear-suspect': 'account',
+  'POST /api/v1/accounts/:id/runners/enrolment-codes/:enrolment/withdraw': 'account',
   // #467 jobs: the queue behind the matrix (a job reads its own project's), placement per project and per account.
   [`GET ${P}/jobs`]: PROJECT,
   [`POST ${P}/jobs`]: PROJECT,

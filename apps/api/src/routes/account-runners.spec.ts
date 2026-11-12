@@ -2,7 +2,16 @@ import { env } from 'cloudflare:test';
 import { OWNER_ACCOUNT_ID, type EnrolmentCodeDto, type RunnerDto, type RunnerListDto } from '@shared/contracts';
 import { ENROLMENT_CODE_PREFIX } from '@shared/redaction';
 import { accessEnv, uniqueTeamDomain } from '../testing/access-kit';
-import { enrolRunner, sendAsRunner } from '../testing/runner-kit';
+import { sha256Hex } from '@worker/core';
+import {
+  createEnrolmentCode,
+  enrolBodyOf,
+  enrolRunner,
+  generateRunnerKey,
+  postEnrol,
+  sendAsRunner,
+  type TestRunner,
+} from '../testing/runner-kit';
 import {
   seedAccountProject,
   seedMembership,
@@ -244,5 +253,172 @@ describe('runner list, allowed projects and revoke', () => {
       at: expect.any(String) as string,
       reason: 'new-country',
     });
+  });
+});
+
+// #492: the owner clears a suspect mark and withdraws a pending enrolment code, inside the account only.
+describe('clear a suspect mark', () => {
+  let owner: SessionUser;
+
+  beforeAll(async () => {
+    owner = await seedSessionUser('owner');
+  });
+
+  async function suspectRunner(accountOwner: SessionUser = owner): Promise<TestRunner> {
+    const runner = await enrolRunner(accountOwner.account.id, { as: accountOwner });
+    await sendAsRunner(runner, 'GET', RELEASE, undefined, { headers: { 'CF-IPCountry': 'UA' } });
+    await sendAsRunner(runner, 'GET', RELEASE, undefined, { headers: { 'CF-IPCountry': 'PL' } });
+    return runner;
+  }
+
+  const clear = (runnerId: string, as: SessionUser = owner): Promise<Response> =>
+    sendAsSession(as, 'POST', `${runnersPath(as.account.id)}/${runnerId}/clear-suspect`, {});
+
+  it('clears the mark once with an audit row, and the next sighting judges the runner afresh', async () => {
+    const runner = await suspectRunner();
+    const response = await clear(runner.id);
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as RunnerDto).suspect).toBeNull();
+
+    const again = await clear(runner.id);
+    expect(again.status).toBe(409);
+    expect(await slugOf(again)).toBe('runner-not-suspect');
+    const audits = await env.DB.prepare(
+      `SELECT actor, details FROM audit_events WHERE kind = 'runner.suspect-cleared' AND target = ?1`,
+    )
+      .bind(runner.id)
+      .all<{ actor: string; details: string }>();
+    expect(audits.results).toHaveLength(1);
+    expect(audits.results[0]?.actor).toBe(owner.userId);
+    expect(JSON.parse(audits.results[0]?.details ?? '{}')).toMatchObject({ reason: 'new-country' });
+
+    // A country it was seen from before is no new country; a third one marks it again.
+    await sendAsRunner(runner, 'GET', RELEASE, undefined, { headers: { 'CF-IPCountry': 'UA' } });
+    expect((await clear(runner.id)).status).toBe(409);
+    await sendAsRunner(runner, 'GET', RELEASE, undefined, { headers: { 'CF-IPCountry': 'DE' } });
+    expect((await clear(runner.id)).status).toBe(200);
+  });
+
+  it('answers two concurrent clears with one 200 and one 409', async () => {
+    const runner = await suspectRunner();
+    const statuses = (await Promise.all([clear(runner.id), clear(runner.id)])).map((response) => response.status);
+    expect(statuses.sort()).toEqual([200, 409]);
+    const audits = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.suspect-cleared' AND target = ?1`,
+    )
+      .bind(runner.id)
+      .first<{ n: number }>();
+    expect(audits?.n).toBe(1);
+  });
+
+  it('refuses a runner that is not suspect, a revoked one, another account’s and a member', async () => {
+    const calm = await enrolRunner(owner.account.id, { as: owner });
+    expect(await slugOf(await clear(calm.id))).toBe('runner-not-suspect');
+
+    const revoked = await suspectRunner();
+    await sendAsSession(owner, 'POST', `${runnersPath(owner.account.id)}/${revoked.id}/revoke`, {});
+    const onRevoked = await clear(revoked.id);
+    expect(onRevoked.status).toBe(409);
+    expect(await slugOf(onRevoked)).toBe('runner-revoked');
+
+    const stranger = await seedSessionUser('owner');
+    const foreign = await clear((await suspectRunner()).id, stranger);
+    expect(foreign.status).toBe(404);
+    expect(await slugOf(foreign)).toBe('runner-not-found');
+
+    const memberId = await seedUser('member');
+    await seedMembership(owner.account.id, memberId, 'member');
+    const asMember = await sendAsSession(
+      { cookie: await seedSession(memberId) },
+      'POST',
+      `${runnersPath(owner.account.id)}/${calm.id}/clear-suspect`,
+      {},
+    );
+    expect(asMember.status).toBe(403);
+  });
+});
+
+describe('withdraw a pending enrolment code', () => {
+  let owner: SessionUser;
+
+  beforeAll(async () => {
+    owner = await seedSessionUser('owner');
+  });
+
+  const pendingOf = async (as: SessionUser): Promise<RunnerListDto['pendingEnrolments']> =>
+    ((await (await sendAsSession(as, 'GET', runnersPath(as.account.id))).json()) as RunnerListDto).pendingEnrolments;
+  const withdraw = (id: string, as: SessionUser = owner): Promise<Response> =>
+    sendAsSession(as, 'POST', `${runnersPath(as.account.id)}/enrolment-codes/${id}/withdraw`, {});
+
+  it('lists the pending code without the code, withdraws it once, and the code no longer enrols', async () => {
+    const issued = await createEnrolmentCode(owner.account.id, { name: 'Laptop' }, owner);
+    const listed = await sendAsSession(owner, 'GET', runnersPath(owner.account.id));
+    const text = await listed.text();
+    expect(text).not.toContain(issued.code);
+    const id = await sha256Hex(issued.code);
+    expect((JSON.parse(text) as RunnerListDto).pendingEnrolments).toContainEqual({
+      id,
+      name: 'Laptop',
+      allowedProjects: [],
+      createdAt: expect.any(String) as string,
+      expiresAt: issued.expiresAt,
+    });
+
+    expect((await withdraw(id)).status).toBe(204);
+    expect((await pendingOf(owner)).map((row) => row.id)).not.toContain(id);
+    const again = await withdraw(id);
+    expect(again.status).toBe(404);
+    expect(await slugOf(again)).toBe('enrolment-not-found');
+    const key = await generateRunnerKey();
+    const enrol = await postEnrol(enrolBodyOf(issued.code, key.publicKeyJwk));
+    expect(enrol.status).toBe(401);
+    expect(await slugOf(enrol)).toBe('enrolment-code-invalid');
+
+    const audits = await env.DB.prepare(
+      `SELECT actor, details FROM audit_events WHERE kind = 'enrolment-code.withdrawn' AND account_id = ?1`,
+    )
+      .bind(owner.account.id)
+      .all<{ actor: string; details: string }>();
+    expect(audits.results).toHaveLength(1);
+    expect(audits.results[0]?.actor).toBe(owner.userId);
+  });
+
+  it('refuses a used code, an expired one, another account’s, a malformed id and a member', async () => {
+    const used = await createEnrolmentCode(owner.account.id, {}, owner);
+    const key = await generateRunnerKey();
+    expect((await postEnrol(enrolBodyOf(used.code, key.publicKeyJwk))).status).toBe(201);
+    expect((await withdraw(await sha256Hex(used.code))).status).toBe(404);
+
+    const expiredId = 'e0'.repeat(32);
+    await env.DB.prepare(
+      `INSERT INTO runner_enrolments (code_hash, account_id, name, created_by, created_at, expires_at)
+       VALUES (?1, ?2, 'old', 'owner', '2026-01-01T00:00:00.000Z', '2026-01-01T00:10:00.000Z')`,
+    )
+      .bind(expiredId, owner.account.id)
+      .run();
+    expect((await pendingOf(owner)).map((row) => row.id)).not.toContain(expiredId);
+    expect((await withdraw(expiredId)).status).toBe(404);
+
+    const stranger = await seedSessionUser('owner');
+    const theirs = await createEnrolmentCode(stranger.account.id, {}, stranger);
+    const theirsId = await sha256Hex(theirs.code);
+    expect((await pendingOf(owner)).map((row) => row.id)).not.toContain(theirsId);
+    const foreign = await withdraw(theirsId);
+    expect(foreign.status).toBe(404);
+    expect((await pendingOf(stranger)).map((row) => row.id)).toContain(theirsId);
+
+    expect((await withdraw('not-a-hash')).status).toBe(404);
+
+    const memberId = await seedUser('member');
+    await seedMembership(owner.account.id, memberId, 'member');
+    const pending = await createEnrolmentCode(owner.account.id, {}, owner);
+    const asMember = await sendAsSession(
+      { cookie: await seedSession(memberId) },
+      'POST',
+      `${runnersPath(owner.account.id)}/enrolment-codes/${await sha256Hex(pending.code)}/withdraw`,
+      {},
+    );
+    expect(asMember.status).toBe(403);
+    expect((await pendingOf(owner)).map((row) => row.id)).toContain(await sha256Hex(pending.code));
   });
 });

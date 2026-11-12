@@ -64,6 +64,9 @@ export const AUDIT_EVENT_KINDS = [
   'enrolment-code.created',
   'runner.updated',
   'runner.suspect',
+  // The owner's runner management (#492): a suspect mark cleared, a pending code withdrawn.
+  'runner.suspect-cleared',
+  'enrolment-code.withdrawn',
   'job.finished',
   'job.cancelled',
   'team.paused',

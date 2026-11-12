@@ -40,13 +40,13 @@ describe('RunnersApi', () => {
   it('lists the runners with the release, and refuses an answer of the wrong shape', async () => {
     const { api, http } = setup();
     const read = api.list(OWNER_ACCOUNT_ID);
-    http.expectOne(RUNNERS).flush({ runners: [runnerFixture()], release: RELEASE });
-    expect(await read).toEqual({ ok: true, value: { runners: [runnerFixture()], release: RELEASE } });
+    http.expectOne(RUNNERS).flush({ runners: [runnerFixture()], pendingEnrolments: [], release: RELEASE });
+    expect(await read).toEqual({ ok: true, value: { runners: [runnerFixture()], pendingEnrolments: [], release: RELEASE } });
 
     const malformed = api.list(OWNER_ACCOUNT_ID);
     // A runner without `belowMinimum` (an older Worker) is not shown as if it met the minimum.
     const { belowMinimum: _dropped, ...older } = runnerFixture();
-    http.expectOne(RUNNERS).flush({ runners: [older], release: RELEASE });
+    http.expectOne(RUNNERS).flush({ runners: [older], pendingEnrolments: [], release: RELEASE });
     expect(await malformed).toEqual({ ok: false, failure: { kind: 'error', slug: null, field: null } });
   });
 
@@ -81,6 +81,29 @@ describe('RunnersApi', () => {
     expect(post.request.method).toBe('POST');
     post.flush(problem(409, 'runner-revoked').error, { status: 409, statusText: 'Conflict' });
     expect(await revoked).toEqual({ ok: false, failure: { kind: 'revoked', slug: 'runner-revoked', field: null } });
+  });
+
+  // #492
+  it('posts a clear-suspect answered with the runner, and a withdraw answered with 204', async () => {
+    const { api, http } = setup();
+    const cleared = api.clearSuspect(OWNER_ACCOUNT_ID, RUNNER_FIXTURE_IDS.mac);
+    const clear = http.expectOne(`${RUNNERS}/${RUNNER_FIXTURE_IDS.mac}/clear-suspect`);
+    expect(clear.request.method).toBe('POST');
+    clear.flush(runnerFixture({ suspect: null }));
+    expect(await cleared).toMatchObject({ ok: true, value: { suspect: null } });
+
+    const id = 'a1'.repeat(32);
+    const withdrawn = api.withdrawEnrolment(OWNER_ACCOUNT_ID, id);
+    const withdraw = http.expectOne(`${RUNNERS}/enrolment-codes/${id}/withdraw`);
+    expect(withdraw.request.method).toBe('POST');
+    withdraw.flush(null, { status: 204, statusText: 'No Content' });
+    expect(await withdrawn).toEqual({ ok: true, value: null });
+
+    const gone = api.withdrawEnrolment(OWNER_ACCOUNT_ID, id);
+    http
+      .expectOne(`${RUNNERS}/enrolment-codes/${id}/withdraw`)
+      .flush(problem(404, 'enrolment-not-found').error, { status: 404, statusText: 'Not Found' });
+    expect(await gone).toEqual({ ok: false, failure: { kind: 'not-found', slug: 'enrolment-not-found', field: null } });
   });
 
   it('reads and writes placement per account and per project; null clears with a JSON body', async () => {
@@ -126,6 +149,7 @@ describe('runnerFailureOf', () => {
     [problem(404, 'runner-not-found'), 'not-found'],
     [problem(404, 'account-not-found'), 'not-found'],
     [problem(409, 'runner-revoked'), 'revoked'],
+    [problem(409, 'runner-not-suspect'), 'not-suspect'],
     [problem(409, 'something-else'), 'error'],
     [problem(422, 'allowed-projects-invalid', { field: 'allowedProjects' }), 'invalid'],
     [problem(413, 'too-large'), 'invalid'],
@@ -156,6 +180,8 @@ describe('runnerFailureKeyOf', () => {
     expect(of('invalid', 'enrolment-code-invalid-input', 'name')).toBe('runners.err.invalid');
     expect(of('forbidden')).toBe('runners.err.forbidden');
     expect(of('not-found')).toBe('runners.err.notFound');
+    expect(of('not-found', 'enrolment-not-found')).toBe('runners.err.enrolmentGone');
+    expect(of('not-suspect', 'runner-not-suspect')).toBe('runners.err.notSuspect');
     expect(of('session-expired')).toBe('runners.err.sessionExpired');
     expect(of('rate-limited')).toBe('runners.err.rateLimited');
   });

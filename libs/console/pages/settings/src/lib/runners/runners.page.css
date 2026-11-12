@@ -38,12 +38,34 @@
   gap: var(--space-2);
 }
 
-.runners__list {
+.runners__list,
+.runners__pending-list {
   display: grid;
   gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.runners__pending {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.runners__pending-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.runners__pending-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .runners__policy {

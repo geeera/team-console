@@ -1,5 +1,5 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
-import type { AccountMembershipDto, RunnerDto, RunnerReleaseDto } from '@shared/contracts';
+import type { AccountMembershipDto, PendingEnrolmentDto, RunnerDto, RunnerReleaseDto } from '@shared/contracts';
 import { liveRunnersOf, managedAccountOf, runnersInDisplayOrder } from './runner.model';
 import type { RunnerFailure } from './runner-failure';
 import { RunnersApi } from './runners.api';
@@ -30,6 +30,8 @@ export class RunnersStore {
   readonly failure = signal<RunnerFailure | null>(null);
   readonly account = signal<AccountMembershipDto | null>(null);
   private readonly list = signal<readonly RunnerDto[]>([]);
+  /** Codes that can still enrol a machine (#492), oldest first: the owner can withdraw one. */
+  readonly pendingEnrolments = signal<readonly PendingEnrolmentDto[]>([]);
   readonly release = signal<RunnerReleaseDto>({ version: null, minimumVersion: null });
 
   readonly runners = computed(() => runnersInDisplayOrder(this.list()));
@@ -60,6 +62,11 @@ export class RunnersStore {
     this.list.update((runners) => runners.map((row) => (row.id === runner.id ? runner : row)));
   }
 
+  /** A pending code the Worker withdrew: it leaves the list. */
+  dropPendingEnrolment(id: string): void {
+    this.pendingEnrolments.update((pending) => pending.filter((row) => row.id !== id));
+  }
+
   private async read(): Promise<void> {
     const accounts = await this.api.accounts();
     if (!accounts.ok) {
@@ -70,6 +77,7 @@ export class RunnersStore {
     if (managed.kind !== 'owner') {
       this.account.set(null);
       this.list.set([]);
+      this.pendingEnrolments.set([]);
       this.forbidden.set(managed.kind);
       this.status.set('forbidden');
       return;
@@ -81,6 +89,7 @@ export class RunnersStore {
       return;
     }
     this.list.set(read.value.runners);
+    this.pendingEnrolments.set(read.value.pendingEnrolments);
     this.release.set(read.value.release);
     this.failure.set(null);
     this.forbidden.set(null);
@@ -92,6 +101,7 @@ export class RunnersStore {
     // A 403 (`account-owner-only`) or a 404 for the account is the same thing to the owner: not theirs to manage.
     if (failure.kind === 'forbidden' || failure.kind === 'not-found') {
       this.list.set([]);
+      this.pendingEnrolments.set([]);
       this.forbidden.set('member');
       this.status.set('forbidden');
       return;

@@ -5,11 +5,13 @@ import {
   checkCreateEnrolmentCodeInput,
   checkRunnerPolicy,
   checkUpdateRunnerInput,
+  isEnrolmentId,
   isRunnerId,
   isRunnerVersionBelow,
   runnerAudienceOf,
   runnerIdsOfPolicy,
   type EnrolmentCodeDto,
+  type PendingEnrolmentDto,
   type RunnerDto,
   type RunnerListDto,
   type RunnerPolicyDto,
@@ -30,6 +32,7 @@ import {
   RunnersRepo,
   effectivePolicyOf,
   type AccountRecord,
+  type EnrolmentRecord,
   type NewAuditEvent,
   type RunnerRecord,
 } from '@worker/db';
@@ -90,6 +93,16 @@ export function runnerDtoOf(runner: RunnerRecord, now: Date, minimumVersion: str
         : null,
     revokedAt: runner.revokedAt,
     belowMinimum: isRunnerVersionBelow(runner.version, minimumVersion),
+  };
+}
+
+function pendingEnrolmentDtoOf(enrolment: EnrolmentRecord): PendingEnrolmentDto {
+  return {
+    id: enrolment.codeHash,
+    name: enrolment.name,
+    allowedProjects: enrolment.allowedProjects,
+    createdAt: enrolment.createdAt,
+    expiresAt: enrolment.expiresAt,
   };
 }
 
@@ -219,13 +232,74 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       }
       const now = new Date();
       const release = runnerReleaseOf(c.env);
+      const runners = new RunnersRepo(c.env.DB);
       const body: RunnerListDto = {
-        runners: (await new RunnersRepo(c.env.DB).listForAccount(account.id)).map((runner) =>
+        runners: (await runners.listForAccount(account.id)).map((runner) =>
           runnerDtoOf(runner, now, release.minimumVersion),
+        ),
+        pendingEnrolments: (await runners.listPendingEnrolments(account.id, now.toISOString())).map(
+          pendingEnrolmentDtoOf,
         ),
         release,
       };
       return c.json(body);
+    })
+
+    // #492: the owner withdraws a code before its ten minutes are up (shown on a screen, pasted in the wrong place).
+    .post('/:id/runners/enrolment-codes/:enrolment/withdraw', async (c) => {
+      const account = await ownedAccountOf(c);
+      if (account instanceof Response) {
+        return account;
+      }
+      const enrolmentId = c.req.param('enrolment');
+      const at = new Date().toISOString();
+      // One 404 for a malformed id, another account's code, a used, an expired or an already withdrawn one.
+      const withdrawn =
+        isEnrolmentId(enrolmentId) &&
+        (await new RunnersRepo(c.env.DB).withdrawEnrolment(
+          account.id,
+          enrolmentId,
+          at,
+          auditOf(c, account, at, 'enrolment-code.withdrawn', 'enrolment-code', {}),
+        ));
+      if (!withdrawn) {
+        return problem(c, { type: 'enrolment-not-found', title: 'Enrolment code not found', status: 404 });
+      }
+      c.get('logger').info('enrolment code withdrawn', { accountId: account.id });
+      return c.body(null, 204);
+    })
+
+    .post('/:id/runners/:runner/clear-suspect', async (c) => {
+      const account = await ownedAccountOf(c);
+      if (account instanceof Response) {
+        return account;
+      }
+      const runnerId = c.req.param('runner');
+      const runners = new RunnersRepo(c.env.DB);
+      const runner = isRunnerId(runnerId) ? await runners.findInAccount(account.id, runnerId) : null;
+      if (runner === null) {
+        return runnerNotFound(c);
+      }
+      if (runner.revokedAt !== null) {
+        return problem(c, { type: 'runner-revoked', title: 'Conflict', status: 409, detail: 'The runner is revoked' });
+      }
+      const now = new Date();
+      // The read above words the refusal; the conditional write decides, so a concurrent clear audits once.
+      const cleared =
+        runner.suspectAt !== null &&
+        (await runners.clearSuspect(
+          account.id,
+          runner.id,
+          auditOf(c, account, now.toISOString(), 'runner.suspect-cleared', runner.id, {
+            reason: runner.suspectReason,
+            suspectAt: runner.suspectAt,
+          }),
+        ));
+      if (!cleared) {
+        return problem(c, { type: 'runner-not-suspect', title: 'Conflict', status: 409, detail: 'The runner is not marked suspect' });
+      }
+      const updated = await runners.findInAccount(account.id, runner.id);
+      return c.json(runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion));
     })
 
     .patch('/:id/runners/:runner', writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {

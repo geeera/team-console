@@ -1210,6 +1210,7 @@ describe('SprintBoard', () => {
         await tick();
         http.expectOne(RUNNERS).flush({
           runners: [{ ...runnerFixture(), id: JOB_FIXTURE_IDS.runner, name: 'E2E Mac' }],
+          pendingEnrolments: [],
           release: { version: null, minimumVersion: null },
         });
       }

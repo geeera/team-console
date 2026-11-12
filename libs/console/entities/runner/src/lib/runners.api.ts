@@ -45,6 +45,9 @@ function policyUrlOf(scope: RunnerPolicyScope): string {
   return scope.kind === 'account' ? `${accountUrl(scope.accountId)}/runner-policy` : projectRunnerPolicyUrl(scope.slug);
 }
 
+/** A 204: HttpClient reads the empty body as `null`. */
+const isNoContent = (value: unknown): value is null => value === null;
+
 /** An answer of the wrong shape is not shown: it reads as `error`, like a failed call. */
 const MALFORMED = { ok: false, failure: { kind: 'error', slug: null, field: null } } as const;
 
@@ -81,6 +84,16 @@ export class RunnersApi {
 
   revoke(accountId: string, runnerId: string): Promise<RunnerResult<RunnerDto>> {
     return this.call(this.http.post<unknown>(`${runnerUrl(accountId, runnerId)}/revoke`, {}), isRunnerDto);
+  }
+
+  clearSuspect(accountId: string, runnerId: string): Promise<RunnerResult<RunnerDto>> {
+    return this.call(this.http.post<unknown>(`${runnerUrl(accountId, runnerId)}/clear-suspect`, {}), isRunnerDto);
+  }
+
+  /** `id` is a pending code's `PendingEnrolmentDto.id` (its hash); the Worker answers 204. */
+  withdrawEnrolment(accountId: string, id: string): Promise<RunnerResult<null>> {
+    const url = `${runnersUrl(accountId)}/enrolment-codes/${encodeURIComponent(id)}/withdraw`;
+    return this.call(this.http.post<unknown>(url, {}), isNoContent);
   }
 
   policy(scope: RunnerPolicyScope): Promise<RunnerResult<RunnerPolicyDto>> {

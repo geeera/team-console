@@ -11,7 +11,12 @@ import {
   type RunnerResult,
 } from '@console/entities/runner';
 import { EnrolRunner } from '@console/features/enrol-runner';
-import { ManageRunner, type RevokeOutcome } from '@console/features/manage-runner';
+import {
+  ManageRunner,
+  type ClearSuspectOutcome,
+  type RevokeOutcome,
+  type WithdrawOutcome,
+} from '@console/features/manage-runner';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import {
   OWNER_ACCOUNT_ID,
@@ -40,9 +45,11 @@ describe('RunnersPage (/settings/runners, #464)', () => {
 
   async function open({
     accounts = { ok: true, value: [OWNER] } as RunnerResult<readonly AccountMembershipDto[]>,
-    list = (): RunnerResult<RunnerListDto> => ({ ok: true, value: { runners: [runnerFixture()], release: RELEASE } }),
+    list = (): RunnerResult<RunnerListDto> => ({ ok: true, value: { runners: [runnerFixture()], pendingEnrolments: [], release: RELEASE } }),
     revokeOutcome = { kind: 'cancelled' } as RevokeOutcome,
     edited = null as RunnerDto | null,
+    clearOutcome = { kind: 'cancelled' } as ClearSuspectOutcome,
+    withdrawOutcome = { kind: 'cancelled' } as WithdrawOutcome,
   } = {}) {
     const api = {
       accounts: vi.fn(async () => accounts),
@@ -51,7 +58,12 @@ describe('RunnersPage (/settings/runners, #464)', () => {
       setPolicy: vi.fn(),
     };
     const enrol = { open: vi.fn(async () => true) };
-    const manage = { revoke: vi.fn(async () => revokeOutcome), editProjects: vi.fn(async () => edited) };
+    const manage = {
+      revoke: vi.fn(async () => revokeOutcome),
+      editProjects: vi.fn(async () => edited),
+      clearSuspect: vi.fn(async () => clearOutcome),
+      withdrawEnrolment: vi.fn(async () => withdrawOutcome),
+    };
     TestBed.configureTestingModule({
       providers: [
         provideConsoleI18n(),
@@ -87,7 +99,7 @@ describe('RunnersPage (/settings/runners, #464)', () => {
             runnerFixture({ id: RUNNER_FIXTURE_IDS.old, name: 'Old', revokedAt: '2026-11-01T00:00:00.000Z', online: false }),
             runnerFixture({ version: '0.1.0', belowMinimum: true }),
           ],
-          release: RELEASE,
+          pendingEnrolments: [], release: RELEASE,
         },
       }),
     });
@@ -112,7 +124,7 @@ describe('RunnersPage (/settings/runners, #464)', () => {
 
   it('shows the empty state with the enrolment call to action, which opens enrolment for the account', async () => {
     const { find, enrol, api } = await open({
-      list: () => ({ ok: true, value: { runners: [], release: { version: null, minimumVersion: null } } }),
+      list: () => ({ ok: true, value: { runners: [], pendingEnrolments: [], release: { version: null, minimumVersion: null } } }),
     });
     expect(find('runners-empty')?.textContent).toContain('Раннеров пока нет');
     expect(find('runners-release')).toBeNull();
@@ -146,7 +158,7 @@ describe('RunnersPage (/settings/runners, #464)', () => {
       list: () =>
         failing
           ? { ok: false, failure: { kind: 'offline', slug: null, field: null } }
-          : { ok: true, value: { runners: [], release: RELEASE } },
+          : { ok: true, value: { runners: [], pendingEnrolments: [], release: RELEASE } },
     });
     expect(find('runners-error')?.textContent).toContain('Не удалось загрузить раннеры');
     expect(find('runners-error')?.textContent).toContain('Нет сети.');
@@ -175,5 +187,54 @@ describe('RunnersPage (/settings/runners, #464)', () => {
       expect.objectContaining({ accountId: OWNER_ACCOUNT_ID, runner: runnerFixture() }),
     );
     expect(find('runner-projects')?.textContent?.trim()).toBe('storify');
+  });
+
+  // #492
+  it('offers Clear mark on a suspect runner only, and applies the cleared runner in place', async () => {
+    const calm = await open();
+    expect(calm.find('runner-clear-suspect')).toBeNull();
+    harness.fixture.nativeElement.remove();
+    TestBed.resetTestingModule();
+
+    const suspect = runnerFixture({ suspect: { at: '2026-11-12T09:00:00.000Z', reason: 'new-country' } });
+    const { find, manage } = await open({
+      list: () => ({ ok: true, value: { runners: [suspect], pendingEnrolments: [], release: RELEASE } }),
+      clearOutcome: { kind: 'cleared', runner: runnerFixture({ suspect: null }) },
+    });
+    expect(find('runner-suspect')).not.toBeNull();
+    expect(find('runner-clear-suspect')?.getAttribute('aria-label')).toBe('Снять отметку «подозрительный» с раннера Mac');
+    (find('runner-clear-suspect') as HTMLButtonElement).click();
+    await settle();
+    expect(manage.clearSuspect).toHaveBeenCalledWith({ accountId: OWNER_ACCOUNT_ID, runner: suspect });
+    expect(find('runner-suspect')).toBeNull();
+    expect(find('runner-clear-suspect')).toBeNull();
+  });
+
+  it('lists pending codes with their expiry and drops a withdrawn one', async () => {
+    const pending = {
+      id: 'a1'.repeat(32),
+      name: 'Laptop',
+      allowedProjects: ['team-console'],
+      createdAt: '2026-11-12T10:00:00.000Z',
+      expiresAt: '2026-11-12T10:10:00.000Z',
+    };
+    const { root, find, manage } = await open({
+      list: () => ({ ok: true, value: { runners: [runnerFixture()], pendingEnrolments: [pending], release: RELEASE } }),
+      withdrawOutcome: { kind: 'withdrawn' },
+    });
+    const row = find('runners-pending-code');
+    expect(row?.textContent).toContain('Laptop');
+    expect(row?.textContent).toContain('проекты: team-console');
+    expect(find('runners-pending-withdraw')?.getAttribute('aria-label')).toBe('Отозвать код подключения для «Laptop»');
+    (find('runners-pending-withdraw') as HTMLButtonElement).click();
+    await settle();
+    expect(manage.withdrawEnrolment).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, pending);
+    expect(find('runners-pending')).toBeNull();
+    expect(root.querySelectorAll('[data-testid="runner-card"]')).toHaveLength(1);
+  });
+
+  it('shows no pending block without pending codes', async () => {
+    const { find } = await open();
+    expect(find('runners-pending')).toBeNull();
   });
 });
