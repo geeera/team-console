@@ -1,9 +1,21 @@
 import { generateKeyPairSync } from 'node:crypto';
-import type { APIRequestContext } from '@playwright/test';
-import { OWNER_ACCOUNT_ID, type RunnerPolicyDto } from '@shared/contracts';
+import type { APIRequestContext, Page } from '@playwright/test';
+import { OWNER_ACCOUNT_ID, isRunnerId, type RunnerPolicyDto } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { apiClient, seed, type Stack } from './support/stack';
+import { localD1 } from './support/tracker-seed';
+
+/** Marks a runner suspect in the worker's local D1, as a sighting from a second address would. */
+async function markSuspect(workerIndex: number, runnerId: string): Promise<void> {
+  if (!isRunnerId(runnerId)) {
+    throw new Error('not a runner id');
+  }
+  await localD1(
+    workerIndex,
+    `UPDATE runners SET suspect_at = '2026-11-12T09:00:00.000Z', suspect_reason = 'two-pollers' WHERE id = '${runnerId}'`,
+  );
+}
 
 /**
  * Settings › Runners (#464, ADR 0008 row 2-E part A) end to end: the owner opens it from Settings, gets a one-time
@@ -15,18 +27,20 @@ import { apiClient, seed, type Stack } from './support/stack';
 const COMMAND = /^team-console-runner enrol --url (http:\/\/127\.0\.0\.1:\d+) --code (tce_[A-Za-z0-9_-]{43})$/;
 
 /** The runner binary's half of enrolment: a fresh Ed25519 key, its public JWK only. */
-async function enrolAsRunner(api: APIRequestContext, code: string): Promise<string> {
+function enrolBodyOf(code: string): Record<string, unknown> {
   const jwk = generateKeyPairSync('ed25519').publicKey.export({ format: 'jwk' });
-  const response = await api.post('/api/v1/runner/enrol', {
-    data: {
-      code,
-      publicKey: { kty: 'OKP', crv: 'Ed25519', x: jwk.x },
-      host: { os: 'darwin', arch: 'arm64', hostname: 'e2e-mac.local' },
-      capabilities: { local: true, maxConcurrency: 1 },
-      isolation: 'user',
-      version: '0.1.0',
-    },
-  });
+  return {
+    code,
+    publicKey: { kty: 'OKP', crv: 'Ed25519', x: jwk.x },
+    host: { os: 'darwin', arch: 'arm64', hostname: 'e2e-mac.local' },
+    capabilities: { local: true, maxConcurrency: 1 },
+    isolation: 'user',
+    version: '0.1.0',
+  };
+}
+
+async function enrolAsRunner(api: APIRequestContext, code: string): Promise<string> {
+  const response = await api.post('/api/v1/runner/enrol', { data: enrolBodyOf(code) });
   expect(response.status(), await response.text()).toBe(201);
   return ((await response.json()) as { runnerId: string }).runnerId;
 }
@@ -130,4 +144,71 @@ test('enrol a runner with a one-time code, see it listed, pin placement to it, n
   await expect(card.getByTestId('runner-presence')).toHaveText(ru('runners.presence.revoked'));
   await expect(card.getByTestId('runner-revoke')).toHaveCount(0);
   await expectAccessible(page, 'Settings › Runners (revoked)');
+});
+
+/** Gets a code from the dialog as the owner does, and answers it (the command's `--code`). */
+async function issueCodeInDialog(page: Page, name: string): Promise<string> {
+  await page.getByTestId('runners-enrol').first().click();
+  const dialog = page.getByRole('dialog', { name: ru('runners.enrol.title') });
+  await dialog.getByTestId('enrol-name').fill(name);
+  await dialog.getByTestId('enrol-submit').click();
+  const command = (await dialog.getByTestId('copy-code-text').textContent()) ?? '';
+  const [, , code = ''] = COMMAND.exec(command) ?? [];
+  await dialog.getByTestId('enrol-done').click();
+  await expect(dialog).toHaveCount(0);
+  return code;
+}
+
+// #492: a code shown to the wrong person is withdrawn from the list before its ten minutes are up.
+test('withdraw a pending enrolment code, after which it enrols nothing', async ({ page, stack }) => {
+  await page.goto('/settings/runners');
+  const code = await issueCodeInDialog(page, 'Wrong screen');
+  const pending = page.getByTestId('runners-pending');
+  const row = pending.getByTestId('runners-pending-code').filter({ hasText: 'Wrong screen' });
+  await expect(row).toBeVisible();
+  await expect(pending).not.toContainText(code);
+  await expectAccessible(page, 'Settings › Runners (a pending code)');
+
+  await row.getByTestId('runners-pending-withdraw').click();
+  const confirm = page.getByRole('alertdialog', { name: ru('runners.pending.withdrawTitle', { name: 'Wrong screen' }) });
+  await expect(confirm).toContainText(ru('runners.pending.withdrawMessage'));
+  await expectAccessible(page, 'Withdraw code confirmation');
+  await confirm.getByRole('button', { name: ru('runners.pending.withdrawConfirm') }).click();
+  await expect(confirm).toHaveCount(0);
+  await expect(pending).toHaveCount(0);
+
+  const api = await apiClient(stack);
+  try {
+    const enrol = await api.post('/api/v1/runner/enrol', { data: enrolBodyOf(code) });
+    expect(enrol.status()).toBe(401);
+  } finally {
+    await api.dispose();
+  }
+  await page.getByTestId('runners-refresh').click();
+  await expect(page.getByTestId('runners-empty')).toBeVisible();
+  await expect(page.getByTestId('runners-pending')).toHaveCount(0);
+});
+
+// #492: the owner recognises the calls behind a suspect mark (a second machine, briefly) and clears it.
+test('clear a runner’s suspect mark after a confirmation', async ({ page, stack }, testInfo) => {
+  await page.goto('/settings/runners');
+  const runnerId = await enrolOnceWith(stack, await issueCodeInDialog(page, 'E2E Mac'));
+  // The detection rows are the API's own (account-runners.spec.ts); here the mark is set as a sighting would set it.
+  await markSuspect(testInfo.workerIndex, runnerId);
+  await page.getByTestId('runners-refresh').click();
+  const card = page.getByTestId('runner-card').filter({ hasText: 'E2E Mac' });
+  await expect(card.getByTestId('runner-presence')).toHaveText(ru('runners.presence.suspect'));
+  await expect(card.getByTestId('runner-suspect')).toBeVisible();
+  await expectAccessible(page, 'Settings › Runners (suspect runner)');
+
+  await card.getByTestId('runner-clear-suspect').click();
+  const confirm = page.getByRole('alertdialog', { name: ru('runners.suspect.title', { name: 'E2E Mac' }) });
+  await expect(confirm).toContainText(ru('runners.suspect.itemRevoke'));
+  await expectAccessible(page, 'Clear suspect mark confirmation');
+  await confirm.getByRole('button', { name: ru('runners.suspect.confirm') }).click();
+  await expect(confirm).toHaveCount(0);
+  await expect(card.getByTestId('runner-suspect')).toHaveCount(0);
+  await expect(card.getByTestId('runner-clear-suspect')).toHaveCount(0);
+  await expect(card.getByTestId('runner-presence')).not.toHaveText(ru('runners.presence.suspect'));
+  await expectAccessible(page, 'Settings › Runners (mark cleared)');
 });

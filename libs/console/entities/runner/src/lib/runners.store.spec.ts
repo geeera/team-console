@@ -13,7 +13,7 @@ const RELEASE = { version: '0.3.0', minimumVersion: '0.2.0' };
 describe('RunnersStore', () => {
   function setup(
     accounts: RunnerResult<readonly AccountMembershipDto[]>,
-    list: () => RunnerResult<RunnerListDto> = () => ({ ok: true, value: { runners: [runnerFixture()], release: RELEASE } }),
+    list: () => RunnerResult<RunnerListDto> = () => ({ ok: true, value: { runners: [runnerFixture()], pendingEnrolments: [], release: RELEASE } }),
   ) {
     const api = { accounts: vi.fn(async () => accounts), list: vi.fn(async () => list()) };
     TestBed.configureTestingModule({ providers: [{ provide: RunnersApi, useValue: api }] });
@@ -34,7 +34,7 @@ describe('RunnersStore', () => {
   it('is empty, not an error, for an account with no runners', async () => {
     const { store } = setup({ ok: true, value: [OWNER] }, () => ({
       ok: true,
-      value: { runners: [], release: RELEASE },
+      value: { runners: [], pendingEnrolments: [], release: RELEASE },
     }));
     await store.load();
     expect([store.status(), store.isEmpty()]).toEqual(['ready', true]);
@@ -69,7 +69,7 @@ describe('RunnersStore', () => {
     const { store } = setup({ ok: true, value: [OWNER] }, () =>
       failing
         ? { ok: false, failure: { kind: 'offline', slug: null, field: null } }
-        : { ok: true, value: { runners: [], release: RELEASE } },
+        : { ok: true, value: { runners: [], pendingEnrolments: [], release: RELEASE } },
     );
     await store.load();
     expect([store.status(), store.failure()?.kind]).toEqual(['error', 'offline']);

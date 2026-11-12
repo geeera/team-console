@@ -80,6 +80,92 @@ describe('ManageRunner.revoke (#464)', () => {
   });
 });
 
+// #492: the same confirm-and-act shape as revoke, for a suspect mark and a pending code.
+describe('ManageRunner.clearSuspect and withdrawEnrolment', () => {
+  const SUSPECT = runnerFixture({ suspect: { at: '2026-11-12T09:00:00.000Z', reason: 'two-pollers' } });
+  const CLEARED = runnerFixture({ suspect: null });
+  const PENDING = {
+    id: 'a1'.repeat(32),
+    name: 'Laptop',
+    allowedProjects: [],
+    createdAt: '2026-11-12T10:00:00.000Z',
+    expiresAt: '2026-11-12T10:10:00.000Z',
+  };
+
+  function setup(api: Record<string, unknown>) {
+    const options: ConfirmOptions[] = [];
+    const failures: string[] = [];
+    const sheet = {
+      confirm: vi.fn(async (confirm: ConfirmOptions) => {
+        options.push(confirm);
+        try {
+          await confirm.action?.('');
+          return true;
+        } catch (error: unknown) {
+          if (!(error instanceof ConfirmFailure)) {
+            throw error;
+          }
+          failures.push(error.message);
+          return false;
+        }
+      }),
+    };
+    TestBed.configureTestingModule({
+      providers: [provideConsoleI18n(), { provide: Sheet, useValue: sheet }, { provide: RunnersApi, useValue: api }],
+    });
+    return { manage: TestBed.inject(ManageRunner), options, failures };
+  }
+
+  it('asks before clearing a mark, says to revoke for calls that are not the owner’s, then clears', async () => {
+    const clearSuspect = vi.fn(async () => ({ ok: true as const, value: CLEARED }));
+    const { manage, options } = setup({ clearSuspect });
+    expect(await manage.clearSuspect({ accountId: OWNER_ACCOUNT_ID, runner: SUSPECT })).toEqual({
+      kind: 'cleared',
+      runner: CLEARED,
+    });
+    expect(clearSuspect).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, SUSPECT.id);
+    expect(options[0]?.title).toBe('Снять отметку с раннера «Mac»?');
+    expect(options[0]?.items).toContain('Если вызовы были не ваши, отзовите раннер, а не снимайте отметку.');
+    expect(options[0]?.tone).toBeUndefined();
+  });
+
+  it('reads a mark cleared meanwhile, a revoked runner or a gone one as a stale list', async () => {
+    for (const kind of ['not-suspect', 'revoked', 'not-found'] as const) {
+      TestBed.resetTestingModule();
+      const { manage, failures } = setup({
+        clearSuspect: async () => ({ ok: false as const, failure: { kind, slug: null, field: null } }),
+      });
+      expect(await manage.clearSuspect({ accountId: OWNER_ACCOUNT_ID, runner: SUSPECT })).toEqual({ kind: 'stale' });
+      expect(failures).toHaveLength(1);
+    }
+  });
+
+  it('withdraws a pending code behind a danger confirmation naming it', async () => {
+    const withdrawEnrolment = vi.fn(async () => ({ ok: true as const, value: null }));
+    const { manage, options } = setup({ withdrawEnrolment });
+    expect(await manage.withdrawEnrolment(OWNER_ACCOUNT_ID, PENDING)).toEqual({ kind: 'withdrawn' });
+    expect(withdrawEnrolment).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, PENDING.id);
+    expect(options[0]).toMatchObject({ title: 'Отозвать код для «Laptop»?', tone: 'danger' });
+  });
+
+  it('reads a code used, expired or withdrawn meanwhile as stale, and an offline refusal as nothing done', async () => {
+    const gone = setup({
+      withdrawEnrolment: async () => ({
+        ok: false as const,
+        failure: { kind: 'not-found' as const, slug: 'enrolment-not-found', field: null },
+      }),
+    });
+    expect(await gone.manage.withdrawEnrolment(OWNER_ACCOUNT_ID, PENDING)).toEqual({ kind: 'stale' });
+    expect(gone.failures[0]).toContain('уже использован, истёк или отозван');
+
+    TestBed.resetTestingModule();
+    const offline = setup({
+      withdrawEnrolment: async () => ({ ok: false as const, failure: { kind: 'offline' as const, slug: null, field: null } }),
+    });
+    expect(await offline.manage.withdrawEnrolment(OWNER_ACCOUNT_ID, PENDING)).toEqual({ kind: 'cancelled' });
+  });
+});
+
 describe('ManageRunner.editProjects', () => {
   it('opens the allow-list dialog and resolves the runner it closed with', async () => {
     const updated = runnerFixture({ allowedProjects: [] });

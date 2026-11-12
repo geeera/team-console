@@ -3,6 +3,8 @@ import {
   compareRunnerVersions,
   enrolCommandOf,
   isEnrolmentCodeDto,
+  isEnrolmentId,
+  isPendingEnrolmentDto,
   isRunnerDto,
   isRunnerListDto,
   isRunnerVersionBelow,
@@ -115,10 +117,46 @@ describe('runner guards', () => {
     expect(isRunnerDto({ ...RUNNER, ...patch })).toBe(false);
   });
 
-  it('requires the release beside the list', () => {
-    expect(isRunnerListDto({ runners: [RUNNER], release: { version: '0.2.0', minimumVersion: null } })).toBe(true);
-    expect(isRunnerListDto({ runners: [RUNNER] })).toBe(false);
-    expect(isRunnerListDto({ runners: [RUNNER], release: { version: 'not ok!', minimumVersion: null } })).toBe(false);
+  it('requires the release and the pending codes beside the list', () => {
+    const release = { version: '0.2.0', minimumVersion: null };
+    expect(isRunnerListDto({ runners: [RUNNER], pendingEnrolments: [], release })).toBe(true);
+    expect(isRunnerListDto({ runners: [RUNNER], release })).toBe(false);
+    expect(isRunnerListDto({ runners: [RUNNER], pendingEnrolments: [] })).toBe(false);
+    expect(
+      isRunnerListDto({ runners: [RUNNER], pendingEnrolments: [], release: { version: 'not ok!', minimumVersion: null } }),
+    ).toBe(false);
+  });
+
+  // #492: a pending code is named by its hash, never by the code.
+  describe('pending enrolments', () => {
+    const PENDING = {
+      id: 'a1'.repeat(32),
+      name: 'Mac',
+      allowedProjects: ['team-console'],
+      createdAt: '2026-11-12T10:00:00.000Z',
+      expiresAt: '2026-11-12T10:10:00.000Z',
+    };
+
+    it('narrows a pending code', () => {
+      expect(isPendingEnrolmentDto(PENDING)).toBe(true);
+      expect(isRunnerListDto({ runners: [], pendingEnrolments: [PENDING], release: { version: null, minimumVersion: null } })).toBe(true);
+    });
+
+    it.each([
+      ['an id that is not a SHA-256', { id: 'abc' }],
+      ['an upper-case id', { id: 'A1'.repeat(32) }],
+      ['a code in place of the id', { id: `tce_${'e'.repeat(43)}` }],
+      ['no expiry', { expiresAt: 'soon' }],
+      ['a project list that is not strings', { allowedProjects: [1] }],
+    ])('refuses a pending code with %s', (_, patch) => {
+      expect(isPendingEnrolmentDto({ ...PENDING, ...patch })).toBe(false);
+    });
+
+    it('takes a lowercase 64-hex id only', () => {
+      expect(isEnrolmentId('0'.repeat(64))).toBe(true);
+      expect(isEnrolmentId('0'.repeat(63))).toBe(false);
+      expect(isEnrolmentId(42)).toBe(false);
+    });
   });
 
   it('narrows an enrolment code answer', () => {

@@ -8,6 +8,7 @@ import { TimeoutError } from 'rxjs';
  * - `not-found` — 404: the account, runner or project is not the caller's (the same answer as one that is missing);
  * - `invalid` — 422 with the problem slug (`allowed-projects-invalid`, `runner-policy-invalid`, …) and the field;
  * - `revoked` — 409 `runner-revoked`: someone revoked it meanwhile;
+ * - `not-suspect` — 409 `runner-not-suspect`: its suspect mark was cleared meanwhile (#492);
  * - `rate-limited` — 429; `offline` — no answer; `timeout` — none in `RUNNER_CALL_TIMEOUT_MS`;
  * - `session-expired` — Access wants a new login (the app root takes over); `error` — anything else.
  */
@@ -16,6 +17,7 @@ export type RunnerFailureKind =
   | 'not-found'
   | 'invalid'
   | 'revoked'
+  | 'not-suspect'
   | 'rate-limited'
   | 'offline'
   | 'timeout'
@@ -60,7 +62,14 @@ export function runnerFailureOf(error: unknown): RunnerFailure {
     case 404:
       return failure('not-found');
     case 409:
-      return failure(problem.slug === 'runner-revoked' ? 'revoked' : 'error');
+      switch (problem.slug) {
+        case 'runner-revoked':
+          return failure('revoked');
+        case 'runner-not-suspect':
+          return failure('not-suspect');
+        default:
+          return failure('error');
+      }
     case 413:
     case 422:
       return failure('invalid');
@@ -86,6 +95,9 @@ export function runnerFailureKeyOf(failure: RunnerFailure): string {
         return 'runners.err.invalid';
     }
   }
+  if (failure.kind === 'not-found' && failure.slug === 'enrolment-not-found') {
+    return 'runners.err.enrolmentGone';
+  }
   return FAILURE_KEYS[failure.kind];
 }
 
@@ -93,6 +105,7 @@ const FAILURE_KEYS: Readonly<Record<Exclude<RunnerFailureKind, 'invalid'>, strin
   forbidden: 'runners.err.forbidden',
   'not-found': 'runners.err.notFound',
   revoked: 'runners.err.revoked',
+  'not-suspect': 'runners.err.notSuspect',
   'rate-limited': 'runners.err.rateLimited',
   offline: 'runners.err.offline',
   timeout: 'runners.err.timeout',

@@ -5,7 +5,7 @@ import type {
   RunnerIsolation,
   RunnerSuspectReason,
 } from '@shared/contracts';
-import { auditEventStatement, type NewAuditEvent } from '../accounts/audit.repo';
+import { WROTE_PREVIOUS_STATEMENT, auditEventStatement, type NewAuditEvent } from '../accounts/audit.repo';
 import { isConstraintError } from '../tracker/constraint-error';
 
 /**
@@ -195,6 +195,39 @@ export class RunnersRepo {
     ]);
   }
 
+  /** The account's codes that can still enrol a runner at `now` (unused, not expired), oldest first. */
+  async listPendingEnrolments(accountId: string, now: string): Promise<EnrolmentRecord[]> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT code_hash, account_id, name, allowed_projects, created_by, created_at, expires_at, used_by_runner_id, used_at
+         FROM runner_enrolments
+         WHERE account_id = ?1 AND used_by_runner_id IS NULL AND julianday(expires_at) > julianday(?2)
+         ORDER BY created_at, code_hash`,
+      )
+      .bind(accountId, now)
+      .all<EnrolmentRow>();
+    return results.map(toEnrolment);
+  }
+
+  /**
+   * Withdraws a pending code of `accountId` before it expires (#492): the row goes, so the code's hash matches nothing
+   * and `enrol` answers it as unknown. `false` when the code is another account's, used, expired or already gone. The
+   * audit row is written only when this call deleted the row. An enrol racing this either won first (the DELETE
+   * finds a used row) or finds no row; D1 runs one batch at a time.
+   */
+  async withdrawEnrolment(accountId: string, codeHash: string, now: string, audit: NewAuditEvent): Promise<boolean> {
+    const [deleted] = await this.db.batch([
+      this.db
+        .prepare(
+          `DELETE FROM runner_enrolments
+           WHERE code_hash = ?1 AND account_id = ?2 AND used_by_runner_id IS NULL AND julianday(expires_at) > julianday(?3)`,
+        )
+        .bind(codeHash, accountId, now),
+      auditEventStatement(this.db, audit, WROTE_PREVIOUS_STATEMENT),
+    ]);
+    return (deleted?.meta.changes ?? 0) === 1;
+  }
+
   async findEnrolment(codeHash: string): Promise<EnrolmentRecord | null> {
     const row = await this.db
       .prepare(
@@ -303,6 +336,24 @@ export class RunnersRepo {
       auditEventStatement(this.db, audit),
     ]);
     return (update?.results.length ?? 0) === 1;
+  }
+
+  /**
+   * The owner clears a runner's suspect mark (#492, threat model C4). `false` when the runner is not the account's,
+   * is revoked or is not marked (anymore). The write is conditional on the mark, so of two clears only one audits. The
+   * next sighting judges the runner afresh: a second poller still there marks it again.
+   */
+  async clearSuspect(accountId: string, id: string, audit: NewAuditEvent): Promise<boolean> {
+    const [update] = await this.db.batch([
+      this.db
+        .prepare(
+          `UPDATE runners SET suspect_at = NULL, suspect_reason = NULL
+           WHERE id = ?1 AND account_id = ?2 AND suspect_at IS NOT NULL AND revoked_at IS NULL`,
+        )
+        .bind(id, accountId),
+      auditEventStatement(this.db, audit, WROTE_PREVIOUS_STATEMENT),
+    ]);
+    return (update?.meta.changes ?? 0) === 1;
   }
 
   /** `false` when the runner is not the account's. The list was checked against the account's projects by the caller. */

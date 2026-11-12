@@ -29,6 +29,39 @@
             {{ 'runners.release' | transloco: { version: store.release().version ?? '—', minimum: minimum } }}
           </p>
         }
+        @if (store.pendingEnrolments().length > 0) {
+          <div class="runners__pending" data-testid="runners-pending">
+            <h3 id="runners-pending-title" class="runners__policy-title">{{ 'runners.pending.title' | transloco }}</h3>
+            <p class="runners__lead">{{ 'runners.pending.lead' | transloco }}</p>
+            <ul class="runners__pending-list" role="list" aria-labelledby="runners-pending-title">
+              @for (enrolment of store.pendingEnrolments(); track enrolment.id) {
+                <li class="runners__pending-row" data-testid="runners-pending-code">
+                  <span class="runners__pending-text">
+                    <strong dir="auto">{{ enrolment.name }}</strong>
+                    · {{ 'runners.pending.expires' | transloco: { time: enrolment.expiresAt | localTime } }}
+                    ·
+                    @if (enrolment.allowedProjects.length > 0) {
+                      {{ 'runners.pending.projects' | transloco: { projects: enrolment.allowedProjects.join(', ') } }}
+                    } @else {
+                      {{ 'runners.pending.noProjects' | transloco }}
+                    }
+                  </span>
+                  <button
+                    tc-button
+                    size="sm"
+                    type="button"
+                    variant="danger"
+                    data-testid="runners-pending-withdraw"
+                    [attr.aria-label]="'runners.pending.withdrawAria' | transloco: { name: enrolment.name }"
+                    (click)="withdrawEnrolment(enrolment)"
+                  >
+                    {{ 'runners.pending.withdraw' | transloco }}
+                  </button>
+                </li>
+              }
+            </ul>
+          </div>
+        }
         @if (store.isEmpty()) {
           <tc-state-block
             kind="empty"
@@ -58,6 +91,18 @@
                       >
                         {{ 'runners.projects.edit' | transloco }}
                       </button>
+                      @if (runner.suspect !== null) {
+                        <button
+                          tc-button
+                          size="sm"
+                          type="button"
+                          data-testid="runner-clear-suspect"
+                          [attr.aria-label]="'runners.suspect.aria' | transloco: { name: runner.name }"
+                          (click)="clearSuspect(runner)"
+                        >
+                          {{ 'runners.suspect.open' | transloco }}
+                        </button>
+                      }
                       <button
                         tc-button
                         size="sm"

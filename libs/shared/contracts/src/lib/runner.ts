@@ -143,8 +143,22 @@ export interface RunnerDto {
   readonly belowMinimum: boolean;
 }
 
+/**
+ * An enrolment code that can still enrol a runner (#492): unused and not expired. Never the code. `id` is the
+ * code's SHA-256, the key D1 already holds, and is what `POST …/enrolment-codes/:id/withdraw` names.
+ */
+export interface PendingEnrolmentDto {
+  readonly id: string;
+  readonly name: string;
+  readonly allowedProjects: readonly string[];
+  readonly createdAt: string;
+  readonly expiresAt: string;
+}
+
 export interface RunnerListDto {
   readonly runners: readonly RunnerDto[];
+  /** The account's pending enrolment codes, oldest first, so the owner can withdraw one before it expires. */
+  readonly pendingEnrolments: readonly PendingEnrolmentDto[];
   /** The release the environment names (`GET /runner/release`'s answer), for Settings › Runners. */
   readonly release: RunnerReleaseDto;
 }
@@ -243,6 +257,13 @@ export function checkEnrolRunnerInput(body: unknown): InputCheck<EnrolRunnerInpu
 
 export function isRunnerId(value: unknown): value is string {
   return isUlid(value);
+}
+
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+
+/** A pending enrolment's id: the lowercase hex SHA-256 of its code, the shape `runner_enrolments.code_hash` CHECKs. */
+export function isEnrolmentId(value: unknown): value is string {
+  return typeof value === 'string' && SHA256_HEX.test(value);
 }
 
 const SEMVER = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -375,11 +396,24 @@ export function isRunnerDto(value: unknown): value is RunnerDto {
   );
 }
 
+export function isPendingEnrolmentDto(value: unknown): value is PendingEnrolmentDto {
+  return (
+    isRecord(value) &&
+    isEnrolmentId(value['id']) &&
+    isString(value['name']) &&
+    isStringList(value['allowedProjects']) &&
+    isTimestamp(value['createdAt']) &&
+    isTimestamp(value['expiresAt'])
+  );
+}
+
 export function isRunnerListDto(value: unknown): value is RunnerListDto {
   return (
     isRecord(value) &&
     Array.isArray(value['runners']) &&
     value['runners'].every(isRunnerDto) &&
+    Array.isArray(value['pendingEnrolments']) &&
+    value['pendingEnrolments'].every(isPendingEnrolmentDto) &&
     isRunnerReleaseDto(value['release'])
   );
 }

@@ -21,9 +21,9 @@ import {
 import { EnrolRunner } from '@console/features/enrol-runner';
 import { ManageRunner } from '@console/features/manage-runner';
 import { RunnerPolicyEditor } from '@console/features/runner-policy';
-import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
+import { LocalTimePipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, Field, FieldControl, Icon, StateBlock } from '@console/shared/ui';
-import type { RunnerDto } from '@shared/contracts';
+import type { PendingEnrolmentDto, RunnerDto } from '@shared/contracts';
 
 /**
  * `/settings/runners` (#464, ADR 0008 row 2-E part A): the account's runners — enrol a new one with a one-time
@@ -37,6 +37,7 @@ import type { RunnerDto } from '@shared/contracts';
     Field,
     FieldControl,
     Icon,
+    LocalTimePipe,
     RouterLink,
     RunnerCard,
     RunnerPolicyEditor,
@@ -133,6 +134,40 @@ export class RunnersPage {
       this.store.apply(outcome.runner);
       void this.announcer.announce(
         this.transloco.translate('runners.revoke.done', { name: outcome.runner.name }),
+        'polite',
+      );
+    } else if (outcome.kind === 'stale') {
+      void this.store.load();
+    }
+  }
+
+  protected async clearSuspect(runner: RunnerDto): Promise<void> {
+    const account = this.store.account();
+    if (account === null) {
+      return;
+    }
+    const outcome = await this.manage.clearSuspect({ accountId: account.id, runner });
+    if (outcome.kind === 'cleared') {
+      this.store.apply(outcome.runner);
+      void this.announcer.announce(
+        this.transloco.translate('runners.suspect.done', { name: outcome.runner.name }),
+        'polite',
+      );
+    } else if (outcome.kind === 'stale') {
+      void this.store.load();
+    }
+  }
+
+  protected async withdrawEnrolment(enrolment: PendingEnrolmentDto): Promise<void> {
+    const account = this.store.account();
+    if (account === null) {
+      return;
+    }
+    const outcome = await this.manage.withdrawEnrolment(account.id, enrolment);
+    if (outcome.kind === 'withdrawn') {
+      this.store.dropPendingEnrolment(enrolment.id);
+      void this.announcer.announce(
+        this.transloco.translate('runners.pending.withdrawn', { name: enrolment.name }),
         'polite',
       );
     } else if (outcome.kind === 'stale') {

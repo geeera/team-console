@@ -80,6 +80,7 @@ describe('migrations on a fresh D1', () => {
       '0020_pull_requests.sql',
       '0021_runners.sql',
       '0022_jobs.sql',
+      '0023_role_key_guards.sql',
     ]);
   });
 

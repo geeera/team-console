@@ -54,6 +54,8 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   'POST /api/v1/accounts/:id/runners/enrolment-code': 'no-owner-write',
   'PATCH /api/v1/accounts/:id/runners/:runner': 'no-owner-write',
   'POST /api/v1/accounts/:id/runners/:runner/revoke': 'no-owner-write',
+  'POST /api/v1/accounts/:id/runners/:runner/clear-suspect': 'no-owner-write',
+  'POST /api/v1/accounts/:id/runners/enrolment-codes/:enrolment/withdraw': 'no-owner-write',
   'POST /api/v1/runner/enrol': 'runner-door',
   'POST /api/v1/runner/jobs/claim': 'runner-door',
   'POST /api/v1/runner/jobs/:id/heartbeat': 'runner-door',

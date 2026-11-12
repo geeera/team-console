@@ -2084,7 +2084,35 @@
       "invalid": "The console didn't accept the change. Check the fields.",
       "allowedProjects": "One of the projects is archived or not this account's. Refresh the page and choose the projects again.",
       "policy": "The console didn't accept the placement rule. Check the fields.",
-      "policyRunner": "The rule names a runner that is revoked or not this account's. Choose another."
+      "policyRunner": "The rule names a runner that is revoked or not this account's. Choose another.",
+      "notSuspect": "The runner is no longer marked. Refresh the list.",
+      "enrolmentGone": "This code is already used, expired or withdrawn. Refresh the list."
+    },
+    "suspect": {
+      "open": "Clear mark",
+      "aria": "Clear the suspect mark of runner {{name}}",
+      "title": "Clear the mark on runner “{{name}}”?",
+      "message": "Clear it only if you know where those calls came from.",
+      "itemYours": "For example, you moved, changed networks or briefly ran the runner on a second machine.",
+      "itemAgain": "If it happens again, the console marks the runner again.",
+      "itemRevoke": "If the calls were not yours, revoke the runner instead of clearing the mark.",
+      "confirm": "Clear mark",
+      "busy": "Clearing…",
+      "done": "The mark on runner {{name}} is cleared"
+    },
+    "pending": {
+      "title": "Codes not used yet",
+      "lead": "Each of these codes can still enrol a machine. Withdraw a code if it was shown to the wrong person or is no longer needed.",
+      "expires": "valid until {{time}}",
+      "projects": "projects: {{projects}}",
+      "noProjects": "no projects",
+      "withdraw": "Withdraw code",
+      "withdrawAria": "Withdraw the enrolment code for “{{name}}”",
+      "withdrawTitle": "Withdraw the code for “{{name}}”?",
+      "withdrawMessage": "The code will no longer enrol a machine. If you still need the machine, get a new code.",
+      "withdrawConfirm": "Withdraw code",
+      "withdrawBusy": "Withdrawing…",
+      "withdrawn": "The code for “{{name}}” is withdrawn"
     }
   },
   "jobs": {
