@@ -1,7 +1,6 @@
 D = dict(
   file='01-paper-desk.html', num='01', name='Paper Desk',
   langs=['ru', 'en'],
-  fonts='https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600&family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap',
   shared='''
   --font-display:"Source Serif 4",Georgia,"Times New Roman",serif;--font-body:"Source Sans 3",-apple-system,system-ui,"Segoe UI",sans-serif;--font-mono:"Source Code Pro",ui-monospace,Menlo,monospace;--fw-display:600;
   --fs-xs:12px;--fs-sm:14px;--fs-md:15px;--fs-lg:18px;--fs-xl:22px;--fs-2xl:28px;--lh-body:1.55;--lh-tight:1.25;
