@@ -69,7 +69,7 @@ class FakeItems {
 
 async function setup(picked: string | null) {
   const items = new FakeItems();
-  const menu = { open: vi.fn(async () => picked) };
+  const menu = { open: vi.fn(async (_anchor: unknown, _spec: unknown) => picked) };
   await TestBed.configureTestingModule({
     providers: [provideConsoleI18n(), { provide: ItemsApi, useValue: items }, { provide: Menu, useValue: menu }],
   }).compileComponents();
