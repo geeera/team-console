@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:test';
 import { addDays, type ItemDto, type TrackerSprintDto } from '@shared/contracts';
 import { sprintToday } from '@worker/read-models';
 import { ApiGitHub } from '../../github';
@@ -25,6 +26,25 @@ async function itemIn(project: SeededProject, sprint: number | null): Promise<It
   const response = await send('POST', itemsPath(project.slug), { title: 'Item', kind: 'feature', sprint });
   expect(response.status).toBe(201);
   return (await response.json()) as ItemDto;
+}
+
+function create(project: SeededProject, sprint: number | null, github?: ApiGitHub): Promise<Response> {
+  return send('POST', itemsPath(project.slug), { title: 'Item', kind: 'feature', sprint }, { github });
+}
+
+/**
+ * Plants an item already in `sprint`, as if it had been planned before the sprint's freeze started — the only
+ * way #556's PATCH "move out" case has data to exercise, now that #560 refuses a *creation* into a frozen sprint.
+ */
+async function itemPlantedIn(project: SeededProject, sprint: TrackerSprintDto): Promise<ItemDto> {
+  const item = await itemIn(project, null);
+  await env.DB.prepare(
+    `UPDATE items SET sprint_id = (SELECT id FROM sprints WHERE project_slug = ?1 AND number = ?2)
+     WHERE project_slug = ?1 AND number = ?3`,
+  )
+    .bind(project.slug, sprint.number, item.number)
+    .run();
+  return { ...item, sprint: sprint.number };
 }
 
 function move(project: SeededProject, item: ItemDto, sprint: number | null, github: ApiGitHub): Promise<Response> {
@@ -69,8 +89,8 @@ describe('PATCH /projects/:slug/items/:key {sprint} and the freeze (#556)', () =
     const later = await sprintDueIn(project, 30);
     const github = githubWith(project.slug, 'sprint:\n  freeze_days: 2\n');
 
-    const toBacklog = await move(project, await itemIn(project, frozen.number), null, github);
-    const toLater = await move(project, await itemIn(project, frozen.number), later.number, github);
+    const toBacklog = await move(project, await itemPlantedIn(project, frozen), null, github);
+    const toLater = await move(project, await itemPlantedIn(project, frozen), later.number, github);
 
     expect(toBacklog.status).toBe(200);
     expect(await toBacklog.json()).toMatchObject({ sprint: null });
@@ -87,5 +107,41 @@ describe('PATCH /projects/:slug/items/:key {sprint} and the freeze (#556)', () =
 
     expect(response.status).toBe(409);
     expect(await slugOf(response)).toBe('sprint-frozen');
+  });
+});
+
+// #560: creation must refuse the same freeze the PATCH move does (#556), through the shared `frozenSprintRefusal`.
+describe('POST /projects/:slug/items {sprint} and the freeze (#560)', () => {
+  it('refuses creation into a sprint in its freeze with 409 sprint-frozen, writing nothing', async () => {
+    const project = await seedTrackerProject();
+    const frozen = await sprintDueIn(project, 2);
+    const items = await countRows('items', project.slug);
+    const events = await countRows('item_events', project.slug);
+
+    const response = await create(project, frozen.number, githubWith(project.slug, 'sprint:\n  freeze_days: 3\n'));
+
+    expect(response.status).toBe(409);
+    expect(await slugOf(response)).toBe('sprint-frozen');
+    expect(await countRows('items', project.slug)).toBe(items);
+    expect(await countRows('item_events', project.slug)).toBe(events);
+  });
+
+  it('still creates into a sprint whose freeze has not started', async () => {
+    const project = await seedTrackerProject();
+    const sprint = await sprintDueIn(project, 2);
+
+    const response = await create(project, sprint.number, githubWith(project.slug, 'sprint:\n  freeze_days: 1\n'));
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ sprint: sprint.number });
+  });
+
+  it('is unaffected when the new item names no sprint', async () => {
+    const project = await seedTrackerProject();
+
+    const response = await create(project, null);
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ sprint: null });
   });
 });
