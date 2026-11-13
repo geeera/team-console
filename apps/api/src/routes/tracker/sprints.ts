@@ -3,7 +3,6 @@ import {
   checkCreateSprintInput,
   checkUpdateSprintInput,
   isSprintState,
-  sprintTitleOf,
   type TrackerSprintListDto,
 } from '@shared/contracts';
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
@@ -112,9 +111,10 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
           }
           const repo = new SprintsRepo(c.env.DB);
           const number = await repo.nextNumber(project.slug);
-          // The name it gets, the default `Sprint NN` included, is compared ignoring case as the console's dialog does;
-          // 0026's unique index refuses the same name again when two creates pass this check together.
-          if ((await repo.findByTitle(project.slug, title ?? sprintTitleOf(number))) !== null) {
+          // An owner-entered name is compared ignoring case as the console's dialog does; 0026's unique index refuses
+          // the same name again when two creates pass this check together. Without a title the repo picks a free
+          // `Sprint NN` itself, so a create without a title cannot be refused for its name (#554).
+          if (title != null && (await repo.findByTitle(project.slug, title)) !== null) {
             return titleTaken(c);
           }
           const created = await repo.create(

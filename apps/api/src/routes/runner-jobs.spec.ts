@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:test';
 import { OWNER_ACCOUNT_ID, type ClaimResponse, type JobDto, type JobEventListDto } from '@shared/contracts';
 import { JOB_TOKEN_PREFIX } from '@shared/redaction';
+import { RunnersRepo } from '@worker/db';
 import { localEnv } from '../testing/github-kit';
 import { enqueueJob, enrolRunner, sendAsJob, sendAsRunner, type TestRunner } from '../testing/runner-kit';
 import { seedAccountProject, seedSessionUser, sendAsSession } from '../testing/session-kit';
@@ -376,5 +377,106 @@ describe('the job token (R4) and the job’s life', () => {
     const foreign = await sendAsSession(other, 'GET', `/api/v1/projects/${project.slug}/jobs/${jobId}`);
     expect(foreign.status).toBe(404);
     expect((await send('GET', `/api/v1/projects/${project.slug}/jobs/01M6YSNJ0000000000000NOPE1`)).status).toBe(404);
+  });
+});
+
+// #553: heartbeat, events and finish judge the runner's stored row inside the write, not only the copy read at
+// authentication. A narrowing or revoke that commits in between (here: during the sighting, after the JWT checks)
+// refuses the call and writes nothing; the cancel batch is left out to show the guard holds on its own.
+describe('the stored allow-list and revoke on heartbeat, events and finish (#553)', () => {
+  type Path = 'heartbeat' | 'events' | 'finish';
+  const bodies: Record<Path, Record<string, unknown>> = {
+    heartbeat: {},
+    events: { events: [{ level: 'info', kind: 'started', payload: { n: 1 } }] },
+    finish: { result: 'finished', summary: 's', acted: false },
+  };
+  const paths: readonly Path[] = ['heartbeat', 'events', 'finish'];
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function claimedJob(): Promise<{ runner: TestRunner; jobId: string; kept: string; lost: string }> {
+    const kept = await seedTrackerProject();
+    const lost = await seedTrackerProject();
+    const runner = await runnerFor([kept.slug, lost.slug]);
+    await enqueueJob(lost.slug);
+    const { job } = (await claim(runner)) as ClaimResponse;
+    return { runner, jobId: job.id, kept: kept.slug, lost: lost.slug };
+  }
+
+  const narrow = (runnerId: string, slugs: readonly string[]) => () =>
+    env.DB.prepare(`UPDATE runners SET allowed_projects = ?2 WHERE id = ?1`).bind(runnerId, JSON.stringify(slugs)).run();
+  const revoke = (runnerId: string) => () =>
+    env.DB.prepare(`UPDATE runners SET revoked_at = ?2 WHERE id = ?1`).bind(runnerId, new Date().toISOString()).run();
+
+  /** Commits `change` once the next runner call has passed its JWT checks and read the runner row. */
+  function commitDuringAuthentication(change: () => Promise<unknown>): void {
+    const sight = RunnersRepo.prototype.sight;
+    vi.spyOn(RunnersRepo.prototype, 'sight').mockImplementationOnce(async function (this: RunnersRepo, ...args) {
+      await change();
+      return sight.apply(this, args);
+    });
+  }
+
+  async function expectUntouched(jobId: string, leaseUntil: string | null): Promise<void> {
+    const row = await env.DB.prepare(`SELECT state, lease_until AS leaseUntil FROM jobs WHERE id = ?1`).bind(jobId).first<{ state: string; leaseUntil: string | null }>();
+    expect(row).toEqual({ state: 'claimed', leaseUntil });
+    const events = await env.DB.prepare(`SELECT COUNT(*) AS n FROM job_events WHERE job_id = ?1`).bind(jobId).first<{ n: number }>();
+    expect(events?.n).toBe(1);
+  }
+
+  async function leaseOf(jobId: string): Promise<string | null> {
+    return (await env.DB.prepare(`SELECT lease_until AS l FROM jobs WHERE id = ?1`).bind(jobId).first<{ l: string | null }>())?.l ?? null;
+  }
+
+  it.each(paths)('%s: refuses with 404 once the project is gone from the stored list before the call', async (path) => {
+    const { runner, jobId, kept } = await claimedJob();
+    const lease = await leaseOf(jobId);
+    await narrow(runner.id, [kept])();
+    const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
+    expect(response.status).toBe(404);
+    expect(await slugOf(response)).toBe('job-not-found');
+    await expectUntouched(jobId, lease);
+  });
+
+  it.each(paths)('%s: refuses with 404 when a narrowing commits between authentication and the write', async (path) => {
+    const { runner, jobId, kept } = await claimedJob();
+    const lease = await leaseOf(jobId);
+    commitDuringAuthentication(narrow(runner.id, [kept]));
+    const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
+    expect(response.status).toBe(404);
+    expect(await slugOf(response)).toBe('job-not-found');
+    await expectUntouched(jobId, lease);
+  });
+
+  it.each(paths)('%s: a revoked runner gets 401 runner-revoked, as on the claim', async (path) => {
+    const { runner, jobId } = await claimedJob();
+    const lease = await leaseOf(jobId);
+    await revoke(runner.id)();
+    const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
+    expect(response.status).toBe(401);
+    expect(await slugOf(response)).toBe('runner-revoked');
+    const claimed = await sendAsRunner(runner, 'POST', CLAIM, {});
+    expect(claimed.status).toBe(401);
+    expect(await slugOf(claimed)).toBe('runner-revoked');
+    await expectUntouched(jobId, lease);
+  });
+
+  it.each(paths)('%s: refuses with 401 runner-revoked when a revoke commits between authentication and the write', async (path) => {
+    const { runner, jobId } = await claimedJob();
+    const lease = await leaseOf(jobId);
+    commitDuringAuthentication(revoke(runner.id));
+    const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
+    expect(response.status).toBe(401);
+    expect(await slugOf(response)).toBe('runner-revoked');
+    await expectUntouched(jobId, lease);
+  });
+
+  it.each(paths)('%s: still succeeds while the stored list keeps the project', async (path) => {
+    const { runner, jobId, lost } = await claimedJob();
+    commitDuringAuthentication(narrow(runner.id, [lost]));
+    const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
+    expect(response.status).toBe(path === 'events' ? 201 : 200);
   });
 });

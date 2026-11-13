@@ -79,7 +79,9 @@ describe('SprintsRepo', () => {
     await expect(sprints().nextNumber(slug)).resolves.toBe(2);
     // A default name collides like any other: sprint 3 would be `Sprint 03`, which sprint 2 already holds.
     await sprints().create(slug, 2, { dueOn: null, description: '', title: 'Sprint 03', at: AT });
-    expect(await sprints().create(slug, 3, { dueOn: null, description: '', at: AT })).toBe('title-taken');
+    // ...and a create without a title takes the next free default instead of being refused (#554).
+    expect(await sprints().create(slug, 3, { dueOn: null, description: '', at: AT })).toBe('created');
+    await expect(sprints().findByNumber(slug, 3)).resolves.toMatchObject({ title: 'Sprint 04' });
     expect(
       await sprints().create(other.slug, 1, { dueOn: null, description: '', title: 'checkout', at: AT }),
     ).toBe('created');

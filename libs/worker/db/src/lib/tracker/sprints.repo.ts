@@ -123,9 +123,21 @@ export class SprintsRepo {
     return row?.next ?? 1;
   }
 
+  /** `Sprint NN` from `number` up to the first one no sprint of the project holds, ignoring case (#554). */
+  private async freeDefaultTitle(slug: string, number: number): Promise<string> {
+    for (let candidate = number; ; candidate += 1) {
+      const title = sprintTitleOf(candidate);
+      if ((await this.findByTitle(slug, title)) === null) {
+        return title;
+      }
+    }
+  }
+
   /**
-   * Sprint `number` (from `nextNumber`) titled `sprint.title` or `Sprint NN`, with `extra` in the same batch. When
-   * another request took that number or that title first, the batch writes nothing and the answer says which.
+   * Sprint `number` (from `nextNumber`) titled `sprint.title`, or the next free `Sprint NN` when none is given, with
+   * `extra` in the same batch. When another request took that number or an explicit title first, the batch writes
+   * nothing and the answer says which. A default title that lost a race is picked again, so it never answers
+   * `title-taken`.
    */
   async create(
     slug: string,
@@ -133,25 +145,33 @@ export class SprintsRepo {
     sprint: NewSprint,
     extra: readonly D1PreparedStatement[] = [],
   ): Promise<SprintCreateResult> {
-    const title = sprint.title ?? sprintTitleOf(number);
-    try {
-      await this.db.batch([
-        this.db
-          .prepare(
-            `INSERT INTO sprints (project_slug, number, title, title_key, due_on, state, description, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, 'open', ?6, ?7)`,
-          )
-          .bind(slug, number, title, sprintTitleKeyOf(title), sprint.dueOn, sprint.description, sprint.at),
-        ...extra,
-      ]);
-      return 'created';
-    } catch (error: unknown) {
-      if (isConstraintError(error, 'UNIQUE constraint failed: sprints.')) {
+    const isDefaultTitle = sprint.title == null;
+    for (;;) {
+      const title = sprint.title ?? (await this.freeDefaultTitle(slug, number));
+      try {
+        await this.db.batch([
+          this.db
+            .prepare(
+              `INSERT INTO sprints (project_slug, number, title, title_key, due_on, state, description, created_at)
+               VALUES (?1, ?2, ?3, ?4, ?5, 'open', ?6, ?7)`,
+            )
+            .bind(slug, number, title, sprintTitleKeyOf(title), sprint.dueOn, sprint.description, sprint.at),
+          ...extra,
+        ]);
+        return 'created';
+      } catch (error: unknown) {
+        if (!isConstraintError(error, 'UNIQUE constraint failed: sprints.')) {
+          throw error;
+        }
         // SQLite names only the first index that failed; a lost number race with the same default title trips the
         // title index too. The number decides, so that race stays a retryable `number-taken`.
-        return (await this.findByNumber(slug, number)) === null ? 'title-taken' : 'number-taken';
+        if ((await this.findByNumber(slug, number)) !== null) {
+          return 'number-taken';
+        }
+        if (!isDefaultTitle) {
+          return 'title-taken';
+        }
       }
-      throw error;
     }
   }
 

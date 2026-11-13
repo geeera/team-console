@@ -60,6 +60,7 @@ async function jobSprintRefusal(c: WorkerContext<ApiEnv>, github: ApiGitHub): Pr
   }
   c.get('logger').warn(job.allowed ? 'runner sprint budget exhausted' : 'job sprint budget exhausted', {
     jobId: identity.jobId,
+    ...(identity.runnerId === undefined ? {} : { runnerId: identity.runnerId }),
   });
   return problem(c, {
     type: 'rate-limited',

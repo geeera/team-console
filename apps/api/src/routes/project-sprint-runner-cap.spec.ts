@@ -19,6 +19,7 @@ interface Held {
   readonly runner: TestRunner;
   readonly slugs: readonly string[];
   readonly tokens: readonly string[];
+  readonly jobIds: readonly string[];
 }
 
 const clock = { at: Date.now() };
@@ -44,19 +45,23 @@ async function holdJobs(count: number): Promise<Held> {
     enrol: { capabilities: { local: true, maxConcurrency: count } },
   });
   const tokens: string[] = [];
+  const jobIds: string[] = [];
   for (const slug of slugs) {
     await enqueueJob(slug);
     const response = await sendAsRunner(runner, 'POST', '/api/v1/runner/jobs/claim', {});
     expect(response.status, `claim on ${slug}`).toBe(200);
-    tokens.push(((await response.json()) as ClaimResponse).jobToken);
+    const claim = (await response.json()) as ClaimResponse;
+    tokens.push(claim.jobToken);
+    jobIds.push(claim.job.id);
   }
-  return { runner, slugs, tokens };
+  return { runner, slugs, tokens, jobIds };
 }
 
-async function readSprint(held: Held, index: number): Promise<Response> {
+async function readSprint(held: Held, index: number, logSink?: (line: string) => void): Promise<Response> {
   return fetchApi(`/api/v1/projects/${held.slugs[index]}/sprint`, localEnv(), {
     github,
     headers: { Authorization: `Bearer ${held.tokens[index]}`, 'X-Runner-Jwt': await runnerJwt(held.runner) },
+    ...(logSink === undefined ? {} : { logSink }),
   });
 }
 
@@ -84,6 +89,26 @@ describe('the runner cap on a job’s /sprint reads (#546)', () => {
       JOB_SPRINT_WINDOW_SECONDS - (atSeconds % JOB_SPRINT_WINDOW_SECONDS),
     );
     expect(stub.calls).toHaveLength(callsBefore);
+  });
+
+  // #555: the capped-runner warning must carry `runnerId` alongside `jobId`, so a capped runner can be
+  // identified without a join against the job it tripped on.
+  it('logs the runner cap trip with both jobId and runnerId', async () => {
+    const held = await holdJobs(2);
+    await readsInTurn(held, RUNNER_SPRINT_READS_PER_WINDOW);
+
+    const lines: string[] = [];
+    const refused = await readSprint(held, 1, (line) => lines.push(line));
+    expect(refused.status).toBe(429);
+
+    const warning = lines
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .find((line) => line['message'] === 'runner sprint budget exhausted');
+    expect(warning).toMatchObject({
+      level: 'warn',
+      jobId: held.jobIds[1],
+      runnerId: held.runner.id,
+    });
   });
 
   it('admits the runner again in the next window', async () => {

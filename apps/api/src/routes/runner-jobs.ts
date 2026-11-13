@@ -18,7 +18,7 @@ import {
   type WorkerContext,
   type WorkerHonoEnv,
 } from '@worker/core';
-import { AuditRepo, JobsRepo, TeamStateRepo, type JobRecord, type NewAuditEvent } from '@worker/db';
+import { AuditRepo, JobsRepo, RunnersRepo, TeamStateRepo, type JobRecord, type NewAuditEvent } from '@worker/db';
 import type { Identity } from '../auth/auth.types';
 import type { ApiEnv } from '../env';
 import { jsonBody } from '../json-body';
@@ -47,12 +47,10 @@ function invalid(c: Context, type: string, field: string, detail: string): Respo
   return problem(c, { type, title: 'Invalid request', status: 422, detail, extensions });
 }
 
-/** The job behind `:id` as this runner's live job; another runner's or a finished one is 404/409, never 403 with detail. */
-async function heldJobOf(c: Context, runner: RunnerIdentity, now: string): Promise<JobRecord | Response> {
-  const id = c.req.param('id') ?? '';
-  const job = isUlid(id) ? await new JobsRepo(c.env.DB).findById(id) : null;
+/** `job` as the live job of `runnerId` under `allowedProjects`; another runner's or a finished one is 404/409. */
+function judgeHeld(c: Context, job: JobRecord | null, runnerId: string, allowedProjects: readonly string[], now: string): JobRecord | Response {
   // The allow-list is judged again (#490 review): a project the runner lost since the claim is no longer its.
-  if (job === null || job.runnerId !== runner.runnerId || !runner.allowedProjects.includes(job.projectSlug)) {
+  if (job === null || job.runnerId !== runnerId || !allowedProjects.includes(job.projectSlug)) {
     return problem(c, { type: 'job-not-found', title: 'Job not found', status: 404 });
   }
   if (job.state !== 'claimed' && job.state !== 'running') {
@@ -62,6 +60,32 @@ async function heldJobOf(c: Context, runner: RunnerIdentity, now: string): Promi
     return problem(c, { type: 'job-lease-expired', title: 'Conflict', status: 409 });
   }
   return job;
+}
+
+/** The job behind `:id` as this runner's live job, judged on the runner row read at authentication. */
+async function heldJobOf(c: Context, runner: RunnerIdentity, now: string): Promise<JobRecord | Response> {
+  const id = c.req.param('id') ?? '';
+  const job = isUlid(id) ? await new JobsRepo(c.env.DB).findById(id) : null;
+  return judgeHeld(c, job, runner.runnerId, runner.allowedProjects, now);
+}
+
+/**
+ * The answer for a guarded write that took nothing (#553). The write judged the stored runner row, which can have
+ * changed since authentication; this re-reads it so a revoke answers as the runner door does (401 `runner-revoked`)
+ * and a narrowing as a job that is no longer this runner's (404). Read only on this refusal path, never per call.
+ */
+async function lostWriteRefusal(c: Context, runner: RunnerIdentity, jobId: string, now: string): Promise<Response> {
+  const [job, stored] = await Promise.all([
+    new JobsRepo(c.env.DB).findById(jobId),
+    new RunnersRepo(c.env.DB).findById(runner.runnerId),
+  ]);
+  if (stored === null || stored.revokedAt !== null) {
+    c.get('logger').warn('runner rejected', { reason: 'runner-revoked' });
+    return problem(c, { type: 'runner-revoked', title: 'Unauthorized', status: 401 });
+  }
+  const allowed = stored.accountId === runner.accountId ? stored.allowedProjects : [];
+  const judged = judgeHeld(c, job, runner.runnerId, allowed, now);
+  return judged instanceof Response ? judged : problem(c, { type: 'job-lease-expired', title: 'Conflict', status: 409 });
 }
 
 function auditOf(runner: RunnerIdentity, job: JobRecord, at: string, kind: NewAuditEvent['kind'], details: Readonly<Record<string, unknown>>, ipCountry: string | null): NewAuditEvent {
@@ -106,7 +130,7 @@ export function createRunnerJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         c.header('Retry-After', String(RUNNER_POLL_SECONDS));
         return c.body(null, 204);
       }
-      await jobs.appendEvents(job.id, [{ level: 'info', kind: 'notice', payload: { claimed: true, runnerId: runner.runnerId, attempt: job.attempt } }], nowIso);
+      await jobs.appendEvents(job.id, runner.runnerId, [{ level: 'info', kind: 'notice', payload: { claimed: true, runnerId: runner.runnerId, attempt: job.attempt } }], nowIso);
       const country = c.req.header('CF-IPCountry') ?? null;
       await new AuditRepo(c.env.DB).append(
         auditOf(runner, job, nowIso, 'job.claimed', { kind: job.kind, slug: job.projectSlug, attempt: job.attempt, country }, country),
@@ -132,7 +156,7 @@ export function createRunnerJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       }
       const leaseUntil = new Date(Math.min(now.getTime() + JOB_LEASE_SECONDS * 1000, deadline)).toISOString();
       if (!(await new JobsRepo(c.env.DB).heartbeat(job.id, runner.runnerId, now.toISOString(), leaseUntil))) {
-        return problem(c, { type: 'job-lease-expired', title: 'Conflict', status: 409 });
+        return lostWriteRefusal(c, runner, job.id, now.toISOString());
       }
       const body: HeartbeatResponse = { leaseUntil };
       return c.json(body);
@@ -149,11 +173,14 @@ export function createRunnerJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       if (!input.ok) {
         return invalid(c, 'job-events-invalid', input.field, input.detail);
       }
-      const written = await new JobsRepo(c.env.DB).appendEvents(job.id, input.value.events, now);
+      const written = await new JobsRepo(c.env.DB).appendEvents(job.id, runner.runnerId, input.value.events, now);
+      if (!written.held) {
+        return lostWriteRefusal(c, runner, job.id, now);
+      }
       if (written.capped) {
         c.get('logger').warn('job events capped', { jobId: job.id });
       }
-      const body: JobEventsResponse = written;
+      const body: JobEventsResponse = { lastSeq: written.lastSeq, capped: written.capped };
       return c.json(body, 201);
     })
 
@@ -177,7 +204,7 @@ export function createRunnerJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         auditOf(runner, job, now, 'job.finished', { result: input.value.result, kind: job.kind, slug: job.projectSlug, acted: input.value.acted }, country),
       );
       if (!finished) {
-        return problem(c, { type: 'job-lease-expired', title: 'Conflict', status: 409 });
+        return lostWriteRefusal(c, runner, job.id, now);
       }
       const streak = await new TeamStateRepo(c.env.DB).recordOutcome(job.projectSlug, input.value.result, now, {
         accountId: job.accountId,

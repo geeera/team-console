@@ -82,6 +82,7 @@ export class BoardFolder {
   protected readonly skeletonRows = SKELETON_ROWS;
   protected readonly preferredLanes = PREFERRED_LANES;
   private readonly toggleButton = viewChild('toggleButton', { read: ElementRef<HTMLElement> });
+  private readonly headingEl = viewChild('heading', { read: ElementRef<HTMLElement> });
   private readonly lang = toSignal(this.transloco.langChanges$, {
     initialValue: this.transloco.getActiveLang(),
   });
@@ -145,6 +146,16 @@ export class BoardFolder {
   protected retry(): void {
     void this.load();
     focusAfterRender(() => this.toggleButton(), { injector: this.injector });
+  }
+
+  /** `?section=next|backlog` (#562): scrolls the heading into view and focuses it, like the push settings deep link. */
+  focusHeading(): void {
+    const heading = this.headingEl()?.nativeElement;
+    if (heading === undefined) {
+      return;
+    }
+    heading.scrollIntoView({ block: 'start' });
+    heading.focus({ preventScroll: true });
   }
 
   /** Back online (the folders' `online` listener): an offline folder loads again. */
