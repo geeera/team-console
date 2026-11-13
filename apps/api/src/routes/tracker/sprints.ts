@@ -3,6 +3,7 @@ import {
   checkCreateSprintInput,
   checkUpdateSprintInput,
   isSprintState,
+  sprintTitleOf,
   type TrackerSprintListDto,
 } from '@shared/contracts';
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
@@ -19,6 +20,10 @@ import { trackerWriteContextOf } from '../../tracker/write-context';
 type Context = WorkerContext<ApiEnv>;
 
 const SPRINT_NUMBER = /^[1-9][0-9]{0,8}$/;
+
+function titleTaken(c: Context): Response {
+  return invalid(c, 'sprint-invalid', 'title', 'A sprint with this title already exists');
+}
 
 function sprintNotFound(c: Context): Response {
   return problem(c, { type: 'sprint-not-found', title: 'Sprint not found', status: 404 });
@@ -100,24 +105,22 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
             return secret;
           }
           const repo = new SprintsRepo(c.env.DB);
-          // Compared as the console's dialog does (case-insensitive) so both sides refuse the same names. Not a
-          // unique index: two simultaneous creates of one name can both pass; the owner is the only writer.
-          if (title !== null) {
-            const taken = (await repo.list(project.slug, 'all')).some(
-              (sprint) => sprint.title.toLocaleLowerCase() === title.toLocaleLowerCase(),
-            );
-            if (taken) {
-              return invalid(c, 'sprint-invalid', 'title', 'A sprint with this title already exists');
-            }
-          }
           const number = await repo.nextNumber(project.slug);
+          // The name it gets, the default `Sprint NN` included, is compared ignoring case as the console's dialog does;
+          // 0026's unique index refuses the same name again when two creates pass this check together.
+          if ((await repo.findByTitle(project.slug, title ?? sprintTitleOf(number))) !== null) {
+            return titleTaken(c);
+          }
           const created = await repo.create(
             project.slug,
             number,
             { ...input.value, at: new Date().toISOString() },
             [complete(201, 'sprint', { value: String(number) })],
           );
-          if (!created) {
+          if (created === 'title-taken') {
+            return titleTaken(c);
+          }
+          if (created === 'number-taken') {
             return problem(c, {
               type: 'sprint-exists',
               title: 'Another sprint took this number',

@@ -43,7 +43,7 @@ export type { TrackerProject, TrackerSwitch } from './lib/tracker/tracker-projec
 export { LabelsRepo } from './lib/tracker/labels.repo';
 export type { LabelRecord, NewLabel } from './lib/tracker/labels.repo';
 export { SprintsRepo } from './lib/tracker/sprints.repo';
-export type { NewSprint, SprintChanges, SprintRecord } from './lib/tracker/sprints.repo';
+export type { NewSprint, SprintChanges, SprintCreateResult, SprintRecord } from './lib/tracker/sprints.repo';
 export { ItemsRepo } from './lib/tracker/items.repo';
 export type {
   FlagsPatch,

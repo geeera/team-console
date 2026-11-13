@@ -228,6 +228,7 @@ export {
   isCalendarDate,
   isInFreeze,
   sprintNumberOf,
+  sprintTitleKeyOf,
   sprintTitleOf,
 } from './lib/sprint-commands';
 export type {

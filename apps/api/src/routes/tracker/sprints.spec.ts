@@ -1,4 +1,5 @@
 import type { TrackerSprintDto, TrackerSprintListDto } from '@shared/contracts';
+import { SprintsRepo } from '@worker/db';
 import {
   countRows,
   newKey,
@@ -84,6 +85,38 @@ describe('POST /projects/:slug/sprints', () => {
     await send('POST', sprintsPath(project.slug), {});
     const response = await send('POST', sprintsPath(project.slug), { title: 'Sprint 01' });
     expect(response.status).toBe(422);
+  });
+
+  it('answers 422 for a Cyrillic title in another case', async () => {
+    const project = await seedTrackerProject();
+    await send('POST', sprintsPath(project.slug), { title: 'Спринт Альфа' });
+    const response = await send('POST', sprintsPath(project.slug), { title: 'СПРИНТ альфа' });
+    expect(response.status).toBe(422);
+    expect(await countRows('sprints', project.slug)).toBe(1);
+  });
+
+  it('answers 422 when the default name it would get is an earlier sprint’s title', async () => {
+    const project = await seedTrackerProject();
+    await send('POST', sprintsPath(project.slug), { title: 'Sprint 02' });
+    const response = await send('POST', sprintsPath(project.slug), {});
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ field: 'title' });
+    expect(await countRows('sprints', project.slug)).toBe(1);
+  });
+
+  // #545: two creates of one name that both passed the check; the unique index refuses the second.
+  it('answers the same 422 when the unique index refuses a title the check missed, and writes nothing', async () => {
+    const project = await seedTrackerProject();
+    await send('POST', sprintsPath(project.slug), { title: 'Checkout' });
+    vi.spyOn(SprintsRepo.prototype, 'findByTitle').mockResolvedValue(null);
+    const response = await send('POST', sprintsPath(project.slug), { title: 'checkout' });
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({
+      type: expect.stringContaining('sprint-invalid'),
+      field: 'title',
+      detail: 'A sprint with this title already exists',
+    });
+    expect(await countRows('sprints', project.slug)).toBe(1);
   });
 
   it.each([
