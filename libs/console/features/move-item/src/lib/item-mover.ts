@@ -9,8 +9,15 @@ import {
 } from '@console/entities/item';
 import { localCalendarDayOf, pluralKeyOf, TranslocoService } from '@console/shared/i18n';
 import { Menu, Toaster } from '@console/shared/ui';
-import { openSprintsOf, type ItemDto, type ItemSummaryDto, type TrackerSprintDto } from '@shared/contracts';
-import { moveMenuOf, moveTargetOf, SPRINT_CAP, type MoveMenuCopy, type MoveTarget } from './move-menu';
+import {
+  openSprintsOf,
+  type ItemDto,
+  type ItemSummaryDto,
+  type QueueMove,
+  type QueuePositionDto,
+  type TrackerSprintDto,
+} from '@shared/contracts';
+import { moveMenuOf, moveTargetOf, queueMoveOf, SPRINT_CAP, type MoveMenuCopy, type MoveTarget } from './move-menu';
 
 /** What a move needs to know of a task: any tracker read of it will do (a board row, the task screen). */
 export type MovableItem = Pick<ItemSummaryDto, 'key' | 'number' | 'title' | 'sprint' | 'status' | 'version'>;
@@ -29,15 +36,29 @@ export interface ItemMove {
  */
 export interface MoveHandlers {
   readonly moved: (move: ItemMove) => void;
+  /** The task took another place in its lane (#456): `item.queue` is where it is now; it left no section. */
+  readonly reordered: (item: ItemDto) => void;
   /** `item` is the task where it still is; `retry` repeats the same write with the same idempotency key. */
   readonly failed: (failed: FailedWrite, item: MovableItem) => void;
 }
 
 /**
+ * The task's place in its lane, read off the open items as the tracker lists them — queue order (#456) — so the
+ * menu knows what is already first or last. `null` when the task is not among them (closed meanwhile).
+ */
+export function queuePositionIn(open: readonly ItemSummaryDto[], item: MovableItem): QueuePositionDto | null {
+  const lane = open.filter((entry) => entry.sprint === item.sprint && entry.status === item.status);
+  const index = lane.findIndex((entry) => entry.number === item.number);
+  return index === -1 ? null : { position: index + 1, total: lane.length };
+}
+
+/**
  * The Move menu and the move itself (#409 §2.2), shared by Sprint ▾ on the task screen and ⋯ on a board row (#558):
- * every open sprint and the backlog, a move that applies at once (`PATCH {sprint}` with `If-Match` and an idempotency
- * key, the status kept), then the toast "TC-408 → Sprint 04" with Undo for 10 s (⌘Z / Ctrl+Z), which moves it back on
- * the version the move produced. Focus is the caller's: only it knows what is on screen after the move.
+ * First / Up / Down in the task's lane (#456: `POST …/queue`, announced as "TC-408: 1 of 2 in Approved", no toast —
+ * the row stays where the eye is), every open sprint and the backlog, a move that applies at once (`PATCH {sprint}`
+ * with `If-Match` and an idempotency key, the status kept), then the toast "TC-408 → Sprint 04" with Undo for 10 s
+ * (⌘Z / Ctrl+Z), which moves it back on the version the move produced. Focus is the caller's: only it knows what is
+ * on screen after the move.
  */
 @Injectable({ providedIn: 'root' })
 export class ItemMover {
@@ -77,6 +98,7 @@ export class ItemMover {
       moveMenuOf(
         {
           item,
+          queue: queuePositionIn(open.value, item),
           sprints: openSprints,
           counts,
           today: calendarTodayOf(this.now()),
@@ -85,11 +107,46 @@ export class ItemMover {
         this.copy(item),
       ),
     );
-    const target = picked === null ? undefined : moveTargetOf(picked);
+    if (picked === null) {
+      return;
+    }
+    const queueMove = queueMoveOf(picked);
+    if (queueMove !== undefined) {
+      await this.reorder(slug, item, queueMove, newIdempotencyKey(), handlers);
+      return;
+    }
+    const target = moveTargetOf(picked);
     if (target === undefined || target === item.sprint) {
       return;
     }
     await this.move(slug, item, target, newIdempotencyKey(), openSprints, handlers, false);
+  }
+
+  private async reorder(
+    slug: string,
+    item: MovableItem,
+    move: QueueMove,
+    key: string,
+    handlers: MoveHandlers,
+  ): Promise<void> {
+    const result = await this.api.reorder(slug, item.number, item.version, move, key);
+    if (!result.ok) {
+      handlers.failed({ failure: result.failure, retry: () => this.reorder(slug, item, move, key, handlers) }, item);
+      return;
+    }
+    const moved = result.value;
+    handlers.reordered(moved);
+    if (moved.queue !== null) {
+      void this.announcer.announce(
+        this.t('plan.reordered', {
+          key: moved.key,
+          pos: moved.queue.position,
+          total: moved.queue.total,
+          lane: this.t(`board.status.${moved.status}`),
+        }),
+        'polite',
+      );
+    }
   }
 
   private async move(
@@ -152,6 +209,12 @@ export class ItemMover {
       here: this.t('plan.here'),
       freeze: (sprint) => this.t('plan.freeze', { date: day(sprint) }),
       inProgress: this.t('plan.inProgressWarn'),
+      queueGroup: this.t('plan.queueGroup', { lane: this.t(`board.status.${item.status}`) }),
+      first: this.t('plan.first'),
+      up: this.t('plan.up'),
+      down: this.t('plan.down'),
+      alreadyFirst: this.t('plan.alreadyFirst'),
+      alreadyLast: this.t('plan.alreadyLast'),
     };
   }
 

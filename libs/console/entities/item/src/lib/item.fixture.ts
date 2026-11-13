@@ -12,6 +12,7 @@ export function itemFixture(overrides: Partial<ItemDto> = {}): ItemDto {
     sprint: 3,
     title: 'Answer not saved on a slow network',
     body: 'Details',
+    queue: { position: 2, total: 3 },
     labels: ['status:approved', 'kind:bug'],
     flags: [],
     state: 'open',

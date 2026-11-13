@@ -8,6 +8,7 @@ import {
   checkCreateItemInput,
   checkCreateLabelInput,
   checkCreateSprintInput,
+  checkQueueMoveInput,
   checkUpdateItemInput,
   checkUpdateSprintInput,
 } from './inputs';
@@ -323,5 +324,16 @@ describe('checkCreatePrLinkInput', () => {
     [[], 'body'],
   ])('refuses %j (field %s)', (body, field) => {
     expect(checkCreatePrLinkInput(body)).toEqual(failure(field));
+  });
+});
+
+describe('checkQueueMoveInput', () => {
+  it('takes exactly one of first, up or down and refuses anything else', () => {
+    expect(checkQueueMoveInput({ move: 'first' })).toEqual({ ok: true, value: { move: 'first' } });
+    expect(checkQueueMoveInput({ move: 'down' })).toEqual({ ok: true, value: { move: 'down' } });
+    expect(checkQueueMoveInput({ move: 'before', key: 'TC-3' })).toEqual(failure('body'));
+    expect(checkQueueMoveInput({ move: 'top' })).toEqual(failure('move'));
+    expect(checkQueueMoveInput({})).toEqual(failure('move'));
+    expect(checkQueueMoveInput(undefined)).toEqual(failure('body'));
   });
 });

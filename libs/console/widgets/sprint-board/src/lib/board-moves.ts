@@ -2,10 +2,13 @@ import { ElementRef, Injectable } from '@angular/core';
 import type { FailedWrite } from '@console/entities/item';
 import type { StatusColumn } from '@console/entities/sprint';
 import type { ItemMove, MovableItem, MoveHandlers } from '@console/features/move-item';
+import type { ItemDto, ItemSummaryDto } from '@shared/contracts';
 import { Subject } from 'rxjs';
 
 export type BoardMoveEvent =
   | { readonly kind: 'moved'; readonly move: ItemMove }
+  /** The task took another place in its lane (#456); it stays in its section. */
+  | { readonly kind: 'reordered'; readonly item: ItemDto }
   | { readonly kind: 'failed'; readonly failed: FailedWrite; readonly item: MovableItem };
 
 /**
@@ -19,8 +22,28 @@ export class BoardMoves {
   readonly events = this.subject.asObservable();
   readonly handlers: MoveHandlers = {
     moved: (move) => this.subject.next({ kind: 'moved', move }),
+    reordered: (item) => this.subject.next({ kind: 'reordered', item }),
     failed: (failed, item) => this.subject.next({ kind: 'failed', failed, item }),
   };
+}
+
+/**
+ * A section's items after `moved` took the place the server answered (#456): its lane — the open items of the same
+ * sprint and status, in the list's order — with it at `queue.position`; other lanes stay as they were. Without a
+ * queue (closed meanwhile) the item is only refreshed in place.
+ */
+export function placedInLane(items: readonly ItemSummaryDto[], moved: ItemDto): ItemSummaryDto[] {
+  const isPeer = (item: ItemSummaryDto): boolean =>
+    item.number !== moved.number &&
+    item.state === 'open' &&
+    item.sprint === moved.sprint &&
+    item.status === moved.status;
+  if (moved.queue === null) {
+    return items.map((item) => (item.number === moved.number ? moved : item));
+  }
+  const lane = items.filter(isPeer);
+  lane.splice(Math.min(Math.max(moved.queue.position - 1, 0), lane.length), 0, moved);
+  return [...items.filter((item) => !isPeer(item) && item.number !== moved.number), ...lane];
 }
 
 /**

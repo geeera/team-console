@@ -75,11 +75,11 @@ import {
   Tabs,
   Toaster,
 } from '@console/shared/ui';
-import { currentSprintOf, type ItemSummaryDto, type TrackerSprintDto } from '@shared/contracts';
+import { currentSprintOf, type ItemDto, type ItemSummaryDto, type TrackerSprintDto } from '@shared/contracts';
 import { map } from 'rxjs';
 import { BoardJobs } from './board-jobs';
 import { BoardMoveButton } from './board-move-button';
-import { arrivalsLast, BoardMoves, elementRefOf, focusAfterLeaving, moveButtonOf } from './board-moves';
+import { arrivalsLast, BoardMoves, elementRefOf, focusAfterLeaving, moveButtonOf, placedInLane } from './board-moves';
 
 /** Without a usable `Retry-After` on a 429 (missing, invalid or 0), the board waits this long before it asks again. */
 export const DEFAULT_RETRY_SECONDS = 60;
@@ -306,8 +306,12 @@ export class SprintBoard {
   protected readonly movable = computed(
     () => new Map((this.tracker()?.items ?? []).map((item) => [item.number, item] as const)),
   );
+  // A tracker board's rows arrive in queue order (#456); GitHub's are sorted by number as before.
   protected readonly columns = computed(() =>
-    arrivalsLast(statusColumnsOf(this.board()?.issues ?? []), this.arrivals()),
+    arrivalsLast(
+      statusColumnsOf(this.board()?.issues ?? [], this.tracker() === null ? 'number' : 'given'),
+      this.arrivals(),
+    ),
   );
   protected readonly pulls = computed(() => pullsByUrgency(this.board()?.pullRequests ?? []));
   protected readonly visiblePulls = computed(() => this.visible(this.pulls(), 'pulls'));
@@ -498,6 +502,8 @@ export class SprintBoard {
         }
         if (event.kind === 'moved') {
           this.onMoved(event.move, current);
+        } else if (event.kind === 'reordered') {
+          this.onReordered(event.item, current);
         } else if (event.item.sprint === current) {
           this.moveFailure.set(event.failed);
         }
@@ -652,6 +658,22 @@ export class SprintBoard {
     }
     this.tracker.set({ ...read, items });
     this.state.set({ kind: 'ready', board: { ...board, ...trackerSprintPartOf(read.sprint, items) } });
+  }
+
+  /** A current-sprint task took another place in its lane (#456): the lane follows, focus stays on its ⋯. */
+  private onReordered(item: ItemDto, current: number): void {
+    const read = this.tracker();
+    const board = this.board();
+    if (item.sprint !== current || read === null || board === null) {
+      return;
+    }
+    this.moveFailure.set(null);
+    const items = placedInLane(read.items, item);
+    this.arrivals.update((arrivals) => arrivals.filter((n) => n !== item.number));
+    this.tracker.set({ ...read, items });
+    this.state.set({ kind: 'ready', board: { ...board, ...trackerSprintPartOf(read.sprint, items) } });
+    const root = this.host.nativeElement;
+    focusAfterRender(() => elementRefOf(moveButtonOf(root, item.number)), { injector: this.injector });
   }
 
   /** Retry: the owner's action, so it may earn one more automatic retry. */

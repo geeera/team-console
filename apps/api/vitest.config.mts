@@ -100,6 +100,8 @@ export default defineConfig(async () => {
             MIGRATION_DB_0027: 'migration-steps-0027',
             // #571: 0028's runner pause columns over a runner enrolled before them.
             MIGRATION_DB_0028: 'migration-steps-0028',
+            // #456: 0029's rank backfill and item_events rebuild over existing items and events.
+            MIGRATION_DB_0029: 'migration-steps-0029',
           },
           bindings: {
             TEST_MIGRATIONS: await readD1Migrations(resolve(import.meta.dirname, 'migrations')),

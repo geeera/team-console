@@ -1,5 +1,5 @@
 import type { ItemSummaryDto, TrackerSprintDto } from '@shared/contracts';
-import { moveMenuOf, moveTargetOf, SPRINT_CAP, type MoveMenuCopy } from './move-menu';
+import { moveMenuOf, moveTargetOf, queueItemsOf, queueMoveOf, SPRINT_CAP, type MoveMenuCopy } from './move-menu';
 
 const sprint = (number: number, dueOn: string): TrackerSprintDto => ({
   number,
@@ -24,6 +24,12 @@ const COPY: MoveMenuCopy = {
   here: "It's here now",
   freeze: () => 'Freeze',
   inProgress: 'In progress',
+  queueGroup: 'Queue · Approved',
+  first: 'First in the queue',
+  up: 'Up',
+  down: 'Down',
+  alreadyFirst: 'Already first',
+  alreadyLast: 'Already last',
 };
 const ITEM = { key: 'TC-408', title: 'Threat model', sprint: 3, status: 'approved' } as ItemSummaryDto;
 
@@ -34,6 +40,7 @@ describe('moveMenuOf', () => {
     const spec = moveMenuOf(
       {
         item: ITEM,
+        queue: null,
         sprints,
         counts: new Map([
           [3, 5],
@@ -58,6 +65,7 @@ describe('moveMenuOf', () => {
     const spec = moveMenuOf(
       {
         item: { ...ITEM, sprint: null, status: 'in-progress' },
+        queue: null,
         sprints,
         counts: new Map([[4, SPRINT_CAP]]),
         today: '2026-11-12',
@@ -76,7 +84,7 @@ describe('moveMenuOf', () => {
   it("freezes by the project's own freeze_days, not the plugin's default (#457)", () => {
     const menu = (freezeDays: number) =>
       moveMenuOf(
-        { item: { ...ITEM, sprint: null }, sprints, counts: new Map(), today: '2026-11-09', freezeDays },
+        { item: { ...ITEM, sprint: null }, queue: null, sprints, counts: new Map(), today: '2026-11-09', freezeDays },
         COPY,
       ).groups[0]?.items[0]?.off;
     // Demo on the 13th: two freeze days start on the 11th, five on the 8th.
@@ -88,5 +96,38 @@ describe('moveMenuOf', () => {
     expect(moveTargetOf('sprint:4')).toBe(4);
     expect(moveTargetOf('backlog')).toBeNull();
     expect(moveTargetOf('sprint:x')).toBeUndefined();
+  });
+
+  // #456: the queue group leads, named after the lane; already first / last stay in the list with their reason.
+  it('puts First / Up / Down first, under the lane, when the task is on a board', () => {
+    const spec = moveMenuOf(
+      { item: ITEM, queue: { position: 2, total: 3 }, sprints, counts: new Map(), today: '2026-11-05', freezeDays: 2 },
+      COPY,
+    );
+    expect(spec.groups[0]).toEqual({
+      label: 'Queue · Approved',
+      items: [
+        { id: 'queue:first', label: 'First in the queue' },
+        { id: 'queue:up', label: 'Up' },
+        { id: 'queue:down', label: 'Down' },
+      ],
+    });
+    expect(spec.groups.map((group) => group.label)).toEqual(['Queue · Approved', 'Sprints', undefined]);
+  });
+
+  it('turns First and Up off on the first task, Down off on the last, all three when it is alone', () => {
+    const offOf = (position: number, total: number) =>
+      queueItemsOf({ position, total }, COPY).map((item) => item.off ?? null);
+    expect(offOf(1, 3)).toEqual(['Already first', 'Already first', null]);
+    expect(offOf(3, 3)).toEqual([null, null, 'Already last']);
+    expect(offOf(1, 1)).toEqual(['Already first', 'Already first', 'Already last']);
+    expect(offOf(2, 3)).toEqual([null, null, null]);
+  });
+
+  it('reads a picked queue id back to its move, and nothing else', () => {
+    expect(queueMoveOf('queue:first')).toBe('first');
+    expect(queueMoveOf('queue:down')).toBe('down');
+    expect(queueMoveOf('queue:before')).toBeUndefined();
+    expect(queueMoveOf('sprint:4')).toBeUndefined();
   });
 });

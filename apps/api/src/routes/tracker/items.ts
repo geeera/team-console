@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import {
   checkCreateItemInput,
+  checkQueueMoveInput,
   checkUpdateItemInput,
   isFlagName,
   isItemKind,
@@ -19,6 +20,7 @@ import {
   LabelsRepo,
   SprintsRepo,
   TrackerProjectsRepo,
+  planQueueMove,
   type ItemFilter,
   type TrackerProject,
 } from '@worker/db';
@@ -28,6 +30,7 @@ import type { ApiEnv } from '../../env';
 import type { ApiGitHub } from '../../github';
 import {
   invalid,
+  itemClosed,
   itemOf,
   keyPrefixOf,
   trackerNotCutOver,
@@ -45,8 +48,9 @@ import {
   pageOf,
   writeLimit,
 } from '../../tracker/http';
+import { withOneRetry } from '../../tracker/effect-batch';
 import { idempotent } from '../../tracker/idempotency';
-import { planItemUpdate } from '../../tracker/item-change';
+import { planItemUpdate, queueMoveTransition } from '../../tracker/item-change';
 import { frozenSprintRefusal } from '../../tracker/sprint-freeze';
 import { trackerWriteContextOf } from '../../tracker/write-context';
 
@@ -140,6 +144,26 @@ async function sprintOf(
   return { id: sprint.id, number: sprint.number, dueOn: sprint.dueOn };
 }
 
+/** 428: a write that changes an item names the version it read (`If-Match: "<version>"`, the item's ETag). */
+function versionRequired(c: Context): Response {
+  return problem(c, {
+    type: 'item-version-required',
+    title: 'If-Match required',
+    status: 428,
+    detail: 'Send the item version you changed as If-Match: "<version>" (the ETag of the item)',
+  });
+}
+
+/** 412: the item moved on since the version in `If-Match` was read. */
+function stale(c: Context): Response {
+  return problem(c, {
+    type: 'item-version',
+    title: 'The item changed since it was read',
+    status: 412,
+    detail: 'Read the item again and apply the change to its current version',
+  });
+}
+
 async function unknownLabels(
   c: Context,
   project: TrackerProject,
@@ -169,6 +193,7 @@ export function createTrackerItemRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<A
     create: trackerAccess('POST /api/v1/projects/:slug/items'),
     read: trackerAccess('GET /api/v1/projects/:slug/items/:key'),
     change: trackerAccess('PATCH /api/v1/projects/:slug/items/:key'),
+    queue: trackerAccess('POST /api/v1/projects/:slug/items/:key/queue'),
     events: trackerAccess('GET /api/v1/projects/:slug/items/:key/events'),
     scrub: trackerAccess('POST /api/v1/projects/:slug/items/:key/events/scrub'),
   };
@@ -303,12 +328,7 @@ export function createTrackerItemRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<A
         // Checked before the key is claimed; the key's request hash covers If-Match too.
         const expectedVersion = expectedVersionOf(c);
         if (expectedVersion === null) {
-          return problem(c, {
-            type: 'item-version-required',
-            title: 'If-Match required',
-            status: 428,
-            detail: 'Send the item version you changed as If-Match: "<version>" (the ETag of the item)',
-          });
+          return versionRequired(c);
         }
         const { project, actor, policyActor, write } = context;
         return idempotent(
@@ -320,15 +340,8 @@ export function createTrackerItemRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<A
             if (item instanceof Response) {
               return item;
             }
-            const stale = (): Response =>
-              problem(c, {
-                type: 'item-version',
-                title: 'The item changed since it was read',
-                status: 412,
-                detail: 'Read the item again and apply the change to its current version',
-              });
             if (item.version !== expectedVersion) {
-              return stale();
+              return stale(c);
             }
             const input = checkUpdateItemInput(write.body);
             if (!input.ok) {
@@ -382,7 +395,7 @@ export function createTrackerItemRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<A
                 [done],
               ))
             ) {
-              return stale();
+              return stale(c);
             }
             c.get('logger').info('tracker item changed', {
               slug: project.slug,
@@ -390,6 +403,83 @@ export function createTrackerItemRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<A
               kinds: events.map((event) => event.kind).join(','),
             });
             return itemResponse(c, project, item.number, 200);
+          },
+        );
+      })
+
+      // #456 (#409 §2.2): First / Up / Down within the item's lane — the open items of its sprint and status. Up and
+      // Down swap ranks with the neighbour, First takes min(rank) − 1024; already first or last changes nothing and
+      // records no event. One D1 batch checks the item's version and the neighbour's rank; a neighbour that moved
+      // meanwhile is one re-read and retry, then 409 `item-changed`.
+      .post('/:slug/items/:key/queue', guard.queue, writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
+        const context = await trackerWriteContextOf(c);
+        if (context instanceof Response) {
+          return context;
+        }
+        const expectedVersion = expectedVersionOf(c);
+        if (expectedVersion === null) {
+          return versionRequired(c);
+        }
+        const { project, actor, write } = context;
+        return idempotent(
+          c,
+          write,
+          (ref) => itemResponse(c, project, Number(ref), 200),
+          async (complete) => {
+            const input = checkQueueMoveInput(write.body);
+            if (!input.ok) {
+              return invalid(c, 'item-invalid', input.field, input.detail);
+            }
+            const items = new ItemsRepo(c.env.DB);
+            return withOneRetry(c, async () => {
+              const item = await itemOf(c, project);
+              if (item instanceof Response) {
+                return item;
+              }
+              if (item.version !== expectedVersion) {
+                return stale(c);
+              }
+              if (item.closedAt !== null) {
+                return itemClosed(c);
+              }
+              const denied = judge(c, queueMoveTransition(item), item.number);
+              if (denied !== null) {
+                return denied;
+              }
+              const lane = await items.laneOf(item.id);
+              const plan = planQueueMove(lane, item.id, input.value.move);
+              if (plan === null) {
+                // Closed or moved between the read and the lane: let the retry read it again.
+                return null;
+              }
+              const done = complete(200, 'item', { value: String(item.number) });
+              if (plan.kind === 'noop') {
+                await done.run();
+                return itemResponse(c, project, item.number, 200);
+              }
+              const rankBefore = lane.find((row) => row.id === item.id)?.rank ?? 0;
+              const outcome = await items.reorder(
+                item.id,
+                expectedVersion,
+                rankBefore,
+                plan,
+                actor,
+                new Date().toISOString(),
+                [done],
+              );
+              if (outcome === 'stale') {
+                return stale(c);
+              }
+              if (outcome === 'lost-race') {
+                return null;
+              }
+              c.get('logger').info('tracker item reordered', {
+                slug: project.slug,
+                number: item.number,
+                move: input.value.move,
+              });
+              return itemResponse(c, project, item.number, 200);
+            });
           },
         );
       })

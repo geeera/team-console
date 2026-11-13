@@ -1,36 +1,5 @@
-import { DEFAULT_FREEZE_DAYS, type ItemSummaryDto, type TrackerSprintDto } from '@shared/contracts';
+import { DEFAULT_FREEZE_DAYS, type TrackerSprintDto } from '@shared/contracts';
 import type { TrackerRead } from './items.api';
-
-/** "3rd of 6 in Approved": the item's place in its lane of its sprint (or the backlog). */
-export interface QueuePosition {
-  readonly position: number;
-  readonly total: number;
-}
-
-/**
- * The lane is the queue the team reads (#409 §2.2): open items of the same sprint and status, in the board's order —
- * by number, as `statusColumnsOf` sorts a lane (#18), until the tracker keeps an explicit order. `null` for a closed
- * item, which is on no board.
- */
-export function queuePositionOf(
-  item: ItemSummaryDto,
-  peers: readonly ItemSummaryDto[],
-): QueuePosition | null {
-  if (item.state === 'closed') {
-    return null;
-  }
-  const lane = peers
-    .filter(
-      (peer) =>
-        peer.state === 'open' &&
-        peer.sprint === item.sprint &&
-        peer.status === item.status &&
-        peer.number !== item.number,
-    )
-    .map((peer) => peer.number);
-  const numbers = [...lane, item.number].sort((a, b) => a - b);
-  return { position: numbers.indexOf(item.number) + 1, total: numbers.length };
-}
 
 /**
  * The freeze length the tracker screens compute with: the project's `sprint.freeze_days` as the Worker read it from

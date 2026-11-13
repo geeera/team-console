@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:test';
 import { AT, JOB_ACTOR, OWNER_ACTOR, seedTrackerItem, seedTrackerProject } from '../../testing/tracker-kit';
 import { ItemEventsRepo } from './item-events.repo';
+import { RANK_GAP, planQueueMove, type QueuePlan } from './item-rank';
 import { ItemsRepo, type NewItem } from './items.repo';
 import { SprintsRepo } from './sprints.repo';
 import { TrackerProjectsRepo } from './tracker-projects.repo';
@@ -237,7 +238,147 @@ describe('ItemsRepo', () => {
     });
   });
 
-  it('lists in number order with filters and a cursor, without bodies', async () => {
+  // #456: the queue.
+  describe('the queue order', () => {
+    async function rankOf(slug: string, number: number): Promise<number> {
+      const row = await env.DB.prepare('SELECT rank FROM items WHERE project_slug = ?1 AND number = ?2')
+        .bind(slug, number)
+        .first<{ rank: number }>();
+      return row?.rank ?? Number.NaN;
+    }
+    const approved = { status: 'approved' as const };
+
+    it('creates an item at number × gap and reads its place in its lane', async () => {
+      const { slug } = await seedTrackerProject(40);
+      const a = await create(slug, approved);
+      const b = await create(slug, approved);
+      const other = await create(slug, { status: 'qa' });
+      const closed = await create(slug, { status: 'done' });
+      expect(await rankOf(slug, a)).toBe(40 * RANK_GAP);
+      expect(await rankOf(slug, b)).toBe(41 * RANK_GAP);
+      await expect(items().findByNumber(slug, a)).resolves.toMatchObject({ queue: { position: 1, total: 2 } });
+      await expect(items().findByNumber(slug, b)).resolves.toMatchObject({ queue: { position: 2, total: 2 } });
+      await expect(items().findByNumber(slug, other)).resolves.toMatchObject({ queue: { position: 1, total: 1 } });
+      await expect(items().findByNumber(slug, closed)).resolves.toMatchObject({ queue: null });
+    });
+
+    it('reads a lane in queue order: open items of the same sprint and status only', async () => {
+      const { slug } = await seedTrackerProject();
+      await new SprintsRepo(env.DB).create(slug, 1, { dueOn: '2026-11-17', description: '', at: AT });
+      const sprint = await new SprintsRepo(env.DB).findByNumber(slug, 1);
+      const inSprint = { ...approved, sprint: { id: sprint?.id ?? 0, number: 1 } };
+      const a = await create(slug, approved);
+      const b = await create(slug, inSprint);
+      await create(slug, { ...inSprint, status: 'qa' });
+      const c = await create(slug, inSprint);
+      const item = await items().findByNumber(slug, b);
+      expect((await items().laneOf(item?.id ?? 0)).map((row) => row.number)).toEqual([b, c]);
+      const backlog = await items().findByNumber(slug, a);
+      expect((await items().laneOf(backlog?.id ?? 0)).map((row) => row.number)).toEqual([a]);
+    });
+
+    it('moves First, Up and Down in one batch with the reordered event, and lists and pages by the new order', async () => {
+      const { slug } = await seedTrackerProject();
+      const a = await create(slug, approved);
+      const b = await create(slug, approved);
+      const c = await create(slug, approved);
+      const read = async (number: number) => {
+        const item = await items().findByNumber(slug, number);
+        if (item === null) throw new Error('gone');
+        return item;
+      };
+      const move = async (number: number, kind: 'first' | 'up' | 'down') => {
+        const item = await read(number);
+        const lane = await items().laneOf(item.id);
+        const plan = planQueueMove(lane, item.id, kind);
+        if (plan === null || plan.kind !== 'move') throw new Error(`no move: ${JSON.stringify(plan)}`);
+        return items().reorder(item.id, item.version, await rankOf(slug, number), plan, OWNER_ACTOR, LATER);
+      };
+      const order = async () => (await items().list(slug, { state: 'open' }, 0, 100)).items.map((i) => i.number);
+
+      expect(await move(c, 'first')).toBe('ok');
+      expect(await order()).toEqual([c, a, b]);
+      expect(await rankOf(slug, c)).toBe(await rankOf(slug, a) - RANK_GAP);
+      await expect(read(c)).resolves.toMatchObject({ version: 2, updatedAt: LATER, queue: { position: 1, total: 3 } });
+      await expect(read(a)).resolves.toMatchObject({ version: 1 });
+
+      expect(await move(b, 'up')).toBe('ok');
+      expect(await order()).toEqual([c, b, a]);
+      // The neighbour's version moves with its rank, its event trail does not.
+      await expect(read(a)).resolves.toMatchObject({ version: 2, queue: { position: 3, total: 3 } });
+      const trail = await events().list((await read(a)).id, 0, 10);
+      expect(trail.map((row) => row.kind)).toEqual(['created']);
+      const moved = await events().list((await read(b)).id, 0, 10);
+      expect(moved.map((row) => [row.kind, row.before, row.after])).toEqual([
+        ['created', null, expect.anything()],
+        ['reordered', { rank: 2 * RANK_GAP }, { rank: RANK_GAP }],
+      ]);
+
+      expect(await move(c, 'down')).toBe('ok');
+      expect(await order()).toEqual([b, c, a]);
+
+      // Pages continue after the cursor's place in the queue, not after its number.
+      const first = await items().list(slug, { state: 'open' }, 0, 1);
+      expect(first.items.map((i) => i.number)).toEqual([b]);
+      expect(first.next).toBe(b);
+      const rest = await items().list(slug, { state: 'open' }, b, 2);
+      expect(rest.items.map((i) => i.number)).toEqual([c, a]);
+      expect(rest.next).toBeNull();
+    });
+
+    it('writes nothing when the version is stale or the neighbour moved: stale and lost-race', async () => {
+      const { slug } = await seedTrackerProject();
+      const a = await create(slug, approved);
+      const b = await create(slug, approved);
+      const item = await items().findByNumber(slug, b);
+      const neighbour = await items().findByNumber(slug, a);
+      const up: QueuePlan = {
+        kind: 'move',
+        rank: RANK_GAP,
+        neighbour: { id: neighbour?.id ?? 0, rankRead: RANK_GAP, rank: 2 * RANK_GAP },
+        rebalance: false,
+      };
+      const before = await countRows('item_events');
+      expect(await items().reorder(item?.id ?? 0, 7, 2 * RANK_GAP, up, OWNER_ACTOR, LATER)).toBe('stale');
+      const gone: QueuePlan = { ...up, neighbour: { id: neighbour?.id ?? 0, rankRead: 999, rank: 2 * RANK_GAP } };
+      expect(await items().reorder(item?.id ?? 0, 1, 2 * RANK_GAP, gone, OWNER_ACTOR, LATER)).toBe('lost-race');
+      // A neighbour that left the lane since the read is a lost race too.
+      await items().update(neighbour?.id ?? 0, 1, { status: 'qa' }, { add: [], remove: [] }, OWNER_ACTOR, [], LATER);
+      const moved: QueuePlan = { ...up, neighbour: { id: neighbour?.id ?? 0, rankRead: RANK_GAP, rank: 2 * RANK_GAP } };
+      expect(await items().reorder(item?.id ?? 0, 1, 2 * RANK_GAP, moved, OWNER_ACTOR, LATER)).toBe('lost-race');
+      expect(await rankOf(slug, a)).toBe(RANK_GAP);
+      expect(await rankOf(slug, b)).toBe(2 * RANK_GAP);
+      await expect(items().findByNumber(slug, b)).resolves.toMatchObject({ version: 1 });
+      expect(await countRows('item_events')).toBe(before); // no reordered row (the status change above wrote none)
+    });
+
+    it('rebalances the whole project to row_number × gap in the same batch as the move, or not at all', async () => {
+      const { slug } = await seedTrackerProject();
+      const a = await create(slug, approved);
+      const b = await create(slug, { status: 'qa' });
+      const c = await create(slug, approved);
+      // Ranks a gap-exhausted midpoint would leave behind: c has to go between a and b with no room.
+      await env.DB.prepare('UPDATE items SET rank = ?2 WHERE project_slug = ?1 AND number = ?3').bind(slug, 5, a).run();
+      await env.DB.prepare('UPDATE items SET rank = ?2 WHERE project_slug = ?1 AND number = ?3').bind(slug, 6, b).run();
+      const item = await items().findByNumber(slug, c);
+      // After the rebalance a = 1024, b = 2048, c = 3072: c goes between a and b at their midpoint.
+      const plan: QueuePlan = { kind: 'move', rank: 1536, neighbour: null, rebalance: true };
+      expect(await items().reorder(item?.id ?? 0, 9, 3 * RANK_GAP, plan, OWNER_ACTOR, LATER)).toBe('stale');
+      expect((await items().ranksOf(slug)).map((row) => [row.number, row.rank])).toEqual([
+        [a, 5],
+        [b, 6],
+        [c, 3 * RANK_GAP],
+      ]);
+      expect(await items().reorder(item?.id ?? 0, 1, 3 * RANK_GAP, plan, OWNER_ACTOR, LATER)).toBe('ok');
+      expect((await items().ranksOf(slug)).map((row) => [row.number, row.rank])).toEqual([
+        [a, RANK_GAP],
+        [c, 1536],
+        [b, 2 * RANK_GAP],
+      ]);
+    });
+  });
+
+  it('lists in queue order with filters and a cursor, without bodies', async () => {
     const { slug } = await seedTrackerProject();
     await new SprintsRepo(env.DB).create(slug, 1, { dueOn: '2026-11-17', description: '', at: AT });
     const sprint = await new SprintsRepo(env.DB).findByNumber(slug, 1);

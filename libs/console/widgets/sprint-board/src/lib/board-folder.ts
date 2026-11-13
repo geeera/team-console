@@ -31,9 +31,9 @@ import {
 } from '@console/shared/i18n';
 import { Button, focusAfterRender, Lane, Lanes, StateBlock } from '@console/shared/ui';
 import type { ItemMove } from '@console/features/move-item';
-import type { ItemSummaryDto } from '@shared/contracts';
+import type { ItemDto, ItemSummaryDto } from '@shared/contracts';
 import { BoardMoveButton } from './board-move-button';
-import { arrivalsLast, BoardMoves, elementRefOf, focusAfterLeaving, moveButtonOf } from './board-moves';
+import { arrivalsLast, BoardMoves, elementRefOf, focusAfterLeaving, moveButtonOf, placedInLane } from './board-moves';
 import { hiddenCountOf, laneNameOf, PREFERRED_LANES, visibleItemsOf } from './sprint-board';
 
 /** Rows a folder lane adds per «Show 30 more» (#108 §2). */
@@ -159,6 +159,8 @@ export class BoardFolder {
       .subscribe((event) => {
         if (event.kind === 'moved') {
           this.onMoved(event.move);
+        } else if (event.kind === 'reordered') {
+          this.onReordered(event.item);
         } else if (event.item.sprint === this.sprintNumber()) {
           this.moveFailure.set(event.failed);
         }
@@ -276,6 +278,19 @@ export class BoardFolder {
     } else {
       this.arrivals.update((arrivals) => [...arrivals.filter((n) => n !== number), number]);
     }
+  }
+
+  /** One of this folder's tasks took another place in its lane (#456): the lane follows, focus stays on its ⋯. */
+  private onReordered(item: ItemDto): void {
+    const state = this.state();
+    if (item.sprint !== this.sprintNumber() || state.kind !== 'loaded') {
+      return;
+    }
+    this.moveFailure.set(null);
+    this.arrivals.update((arrivals) => arrivals.filter((n) => n !== item.number));
+    this.state.set({ kind: 'loaded', items: placedInLane(state.items, item) });
+    const root = this.host.nativeElement;
+    focusAfterRender(() => elementRefOf(moveButtonOf(root, item.number)), { injector: this.injector });
   }
 
   private limitOf(status: string): number {

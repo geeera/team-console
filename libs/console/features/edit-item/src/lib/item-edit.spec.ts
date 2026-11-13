@@ -22,6 +22,7 @@ const ITEM: ItemDto = {
   sprint: 3,
   title: 'Old title',
   body: 'Old body',
+  queue: null,
   labels: [],
   flags: [],
   state: 'open',

@@ -329,11 +329,17 @@ function laneRank(status: string): number {
 }
 
 /**
+ * How rows are ordered within a lane: by issue number (the GitHub board), or as given — the console tracker's lists
+ * already arrive in queue order (#456), which no client-side sort may undo.
+ */
+export type LaneOrder = 'number' | 'given';
+
+/**
  * Issues grouped into status lanes, counted exactly as `backlog list` / the read model's `byStatus` count them (one
- * lane per first `status:*` label, `none` without one), in workflow order; within a lane, by issue number. The core
+ * lane per first `status:*` label, `none` without one), in workflow order; within a lane, by `order`. The core
  * lanes are always present; any other lane only when it has an issue.
  */
-export function statusColumnsOf(issues: readonly SprintIssue[]): StatusColumn[] {
+export function statusColumnsOf(issues: readonly SprintIssue[], order: LaneOrder = 'number'): StatusColumn[] {
   const lanes = new Map<string, SprintIssue[]>(CORE_STATUSES.map((status) => [status, []]));
   for (const issue of issues) {
     const status = issue.status ?? NO_STATUS;
@@ -348,7 +354,7 @@ export function statusColumnsOf(issues: readonly SprintIssue[]): StatusColumn[] 
     .sort(([a], [b]) => laneRank(a) - laneRank(b) || a.localeCompare(b))
     .map(([status, laneIssues]) => ({
       status,
-      issues: [...laneIssues].sort((a, b) => a.number - b.number),
+      issues: order === 'number' ? [...laneIssues].sort((a, b) => a.number - b.number) : laneIssues,
     }));
 }
 

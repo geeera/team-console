@@ -12,6 +12,7 @@ const ITEM: ItemRecord = {
   sprintNumber: null,
   title: 'Title',
   body: 'Body',
+  queue: null,
   flags: ['needs-design'],
   closedAt: null,
   closedReason: null,

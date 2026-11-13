@@ -72,6 +72,7 @@ export const ROUTE_SCOPES = {
   [`POST ${P}/items`]: PROJECT,
   [`GET ${P}/items/:key`]: PROJECT,
   [`PATCH ${P}/items/:key`]: PROJECT,
+  [`POST ${P}/items/:key/queue`]: PROJECT,
   [`GET ${P}/items/:key/events`]: PROJECT,
   [`POST ${P}/items/:key/events/scrub`]: PROJECT,
   [`GET ${P}/items/:key/comments`]: PROJECT,

@@ -14,7 +14,13 @@ import { matchRoute, routePatternsOf } from './route-pattern';
  */
 
 export type TrackerRefusalType =
-  'owner-only' | 'ask-role' | 'request-handled-role' | 'sprint-role' | 'member-role' | 'pr-link-role';
+  | 'owner-only'
+  | 'ask-role'
+  | 'request-handled-role'
+  | 'sprint-role'
+  | 'queue-role'
+  | 'member-role'
+  | 'pr-link-role';
 
 export interface TrackerRouteRule {
   readonly owner: boolean;
@@ -69,6 +75,15 @@ const SPRINT_WRITE: TrackerRouteRule = {
   detail: 'Sprints are planned by the owner and the PM',
 };
 
+/** #456: the queue is the owner's order of work; the PM reorders on the owner's behalf (`priority` requests later). */
+const QUEUE_WRITE: TrackerRouteRule = {
+  owner: true,
+  member: false,
+  job: PM_ONLY,
+  refusal: 'queue-role',
+  detail: 'The queue is ordered by the owner and the PM',
+};
+
 const P = '/api/v1/projects/:slug';
 
 export const TRACKER_MATRIX = {
@@ -100,6 +115,7 @@ export const TRACKER_MATRIX = {
   // Any role reaches them; the transition table decides what it may change (R5) and refuses with its own 403s.
   [`POST ${P}/items`]: WRITE('Items are written within the transition table'),
   [`PATCH ${P}/items/:key`]: WRITE('Items are written within the transition table'),
+  [`POST ${P}/items/:key/queue`]: QUEUE_WRITE,
   // Any role; which `kind` it may write is `commentKindRefusal`'s.
   [`POST ${P}/items/:key/comments`]: WRITE('Comments are written by the owner and the jobs'),
   [`POST ${P}/sprints`]: SPRINT_WRITE,

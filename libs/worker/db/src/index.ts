@@ -53,7 +53,11 @@ export type {
   ItemRecord,
   ItemSummaryRecord,
   NewItem,
+  QueuePositionRecord,
+  ReorderOutcome,
 } from './lib/tracker/items.repo';
+export { RANK_GAP, initialRankOf, planQueueMove, rankBetween, rebalancedRanks } from './lib/tracker/item-rank';
+export type { LaneRow, QueuePlan } from './lib/tracker/item-rank';
 export { CommentsRepo } from './lib/tracker/comments.repo';
 export type { CommentRecord } from './lib/tracker/comments.repo';
 export { batchUnlessConflict, isAppendOnlyConflict } from './lib/tracker/constraint-error';

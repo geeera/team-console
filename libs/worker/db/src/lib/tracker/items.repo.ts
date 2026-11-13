@@ -8,7 +8,9 @@ import {
   type ItemStatus,
   type ItemTier,
 } from '@shared/contracts';
+import { isConstraintError } from './constraint-error';
 import { itemEventStatement, type NewItemEvent, type TrackerActor } from './item-events.repo';
+import { initialRankOf, RANK_GAP, type LaneRow, type QueuePlan } from './item-rank';
 
 /** An item without its body: what lists carry. */
 export interface ItemSummaryRecord {
@@ -36,8 +38,16 @@ export interface ItemSummaryRecord {
   readonly sourceUrl: string | null;
 }
 
+/** "{position} of {total}" in the item's lane: the open items of its sprint and status, in queue order (#456). */
+export interface QueuePositionRecord {
+  readonly position: number;
+  readonly total: number;
+}
+
 export interface ItemRecord extends ItemSummaryRecord {
   readonly body: string;
+  /** `null` for a closed item, which is on no board. */
+  readonly queue: QueuePositionRecord | null;
 }
 
 export interface NewItem {
@@ -89,6 +99,9 @@ export interface ItemPage {
   readonly next: number | null;
 }
 
+/** How a queue move ended: written; the item's version moved on (412); the lane changed under it (retry, then 409). */
+export type ReorderOutcome = 'ok' | 'stale' | 'lost-race';
+
 /** A row of `ITEM_SUMMARY_COLUMNS` (plus `body` when selected); shared with the read-only inbox query. */
 export interface ItemRow {
   id: number;
@@ -111,6 +124,8 @@ export interface ItemRow {
   version: number;
   source: ItemSource;
   source_url: string | null;
+  queue_position?: number | null;
+  queue_total?: number | null;
 }
 
 export const ITEM_SUMMARY_COLUMNS = `items.id, items.number, items.kind, items.status, items.severity, items.tier,
@@ -119,6 +134,19 @@ export const ITEM_SUMMARY_COLUMNS = `items.id, items.number, items.kind, items.s
   (SELECT json_group_array(name) FROM (SELECT name FROM item_labels WHERE item_id = items.id ORDER BY name)) AS flags`;
 
 export const ITEM_FROM = 'FROM items LEFT JOIN sprints ON sprints.id = items.sprint_id';
+
+/** Every view filters first and then orders by the queue (#456); `number` only breaks a tie a rebuild could leave. */
+export const ITEM_ORDER = 'ORDER BY items.rank, items.number';
+
+/** The open items of the row's own lane: its sprint (or none) and status. */
+const LANE_OF_ROW = `lane.project_slug = items.project_slug AND lane.closed_at IS NULL
+  AND lane.status = items.status AND lane.sprint_id IS items.sprint_id`;
+
+/** The item's place in its lane (`ItemRecord.queue`); both `NULL` for a closed item. */
+export const ITEM_QUEUE_COLUMNS = `
+  CASE WHEN items.closed_at IS NULL THEN (SELECT COUNT(*) + 1 FROM items AS lane WHERE ${LANE_OF_ROW}
+    AND (lane.rank < items.rank OR (lane.rank = items.rank AND lane.number < items.number))) END AS queue_position,
+  CASE WHEN items.closed_at IS NULL THEN (SELECT COUNT(*) FROM items AS lane WHERE ${LANE_OF_ROW}) END AS queue_total`;
 
 function flagsOf(json: string): string[] {
   const parsed: unknown = JSON.parse(json);
@@ -149,6 +177,17 @@ export function itemSummaryOf(row: ItemRow): ItemSummaryRecord {
   };
 }
 
+/** A row of `ITEM_SUMMARY_COLUMNS, items.body, ITEM_QUEUE_COLUMNS`. */
+export function itemRecordOf(row: ItemRow): ItemRecord {
+  const position = row.queue_position ?? null;
+  const total = row.queue_total ?? null;
+  return {
+    ...itemSummaryOf(row),
+    body: row.body ?? '',
+    queue: position === null || total === null ? null : { position, total },
+  };
+}
+
 /** Column names of `ItemColumnsPatch`, fixed here so no request field ever names a column. */
 const PATCH_COLUMNS: readonly (readonly [keyof ItemColumnsPatch, string])[] = [
   ['title', 'title'],
@@ -174,17 +213,26 @@ export class ItemsRepo {
   async findByNumber(slug: string, number: number): Promise<ItemRecord | null> {
     const row = await this.db
       .prepare(
-        `SELECT ${ITEM_SUMMARY_COLUMNS}, items.body ${ITEM_FROM} WHERE items.project_slug = ?1 AND items.number = ?2`,
+        `SELECT ${ITEM_SUMMARY_COLUMNS}, items.body, ${ITEM_QUEUE_COLUMNS}
+         ${ITEM_FROM} WHERE items.project_slug = ?1 AND items.number = ?2`,
       )
       .bind(slug, number)
       .first<ItemRow>();
-    return row === null ? null : { ...itemSummaryOf(row), body: row.body ?? '' };
+    return row === null ? null : itemRecordOf(row);
   }
 
-  /** In number order after the item number `after`, at most `limit` (≤ 100, the route's bound). */
+  /**
+   * In queue order (rank, then number) after the item numbered `after` (`0`: from the start), at most `limit`
+   * (≤ 100, the route's bound). The cursor stays an item number: the page continues after that item's place in the
+   * queue, so a list reads the same whether or not anything was reordered.
+   */
   async list(slug: string, filter: ItemFilter, after: number, limit: number): Promise<ItemPage> {
     // Each condition is a fixed fragment; only its parameter comes from the request.
-    const conditions = ['items.project_slug = ?1', 'items.number > ?2'];
+    const conditions = [
+      'items.project_slug = ?1',
+      `(?2 = 0 OR (items.rank, items.number) >
+         (SELECT cursor.rank, cursor.number FROM items AS cursor WHERE cursor.project_slug = ?1 AND cursor.number = ?2))`,
+    ];
     const params: (string | number)[] = [slug, after];
     const add = (fragment: (n: string) => string, value: string | number): void => {
       params.push(value);
@@ -208,7 +256,7 @@ export class ItemsRepo {
     const { results } = await this.db
       .prepare(
         `SELECT ${ITEM_SUMMARY_COLUMNS} ${ITEM_FROM} WHERE ${conditions.join(' AND ')}
-         ORDER BY items.number LIMIT ?${String(params.length)}`,
+         ${ITEM_ORDER} LIMIT ?${String(params.length)}`,
       )
       .bind(...params)
       .all<ItemRow>();
@@ -234,8 +282,8 @@ export class ItemsRepo {
         .prepare(
           `INSERT INTO items (project_slug, number, kind, status, severity, tier, sprint_id, title, body, closed_at,
              closed_reason, created_by_kind, created_by, created_at, updated_at, version, source, source_url,
-             approved_at)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?14, 1, 'console', NULL, ?15)`,
+             approved_at, rank)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?14, 1, 'console', NULL, ?15, ?16)`,
         )
         .bind(
           slug,
@@ -253,6 +301,8 @@ export class ItemsRepo {
           actor.name,
           at,
           isWorkableStatus(item.status) ? at : null,
+          // The end of every queue (#456): numbers only grow, so no item ranks after a newer one until it is moved.
+          initialRankOf(item.number),
         ),
       ...item.flags.map((flag) =>
         this.db
@@ -339,6 +389,107 @@ export class ItemsRepo {
         return false;
       }
       throw error;
+    }
+  }
+
+  /**
+   * The lane of item `id` as a queue move reads it (#456): the open items of its sprint (or none) and status, in
+   * queue order. Empty when the item is closed or gone.
+   */
+  async laneOf(id: number): Promise<LaneRow[]> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT lane.id, lane.number, lane.rank FROM items AS lane, items
+         WHERE items.id = ?1 AND ${LANE_OF_ROW}
+         ORDER BY lane.rank, lane.number`,
+      )
+      .bind(id)
+      .all<LaneRow>();
+    return results;
+  }
+
+  /** Every item of the project with its rank, in queue order: what a rebalance renumbers. */
+  async ranksOf(slug: string): Promise<LaneRow[]> {
+    const { results } = await this.db
+      .prepare(`SELECT id, number, rank FROM items WHERE project_slug = ?1 ORDER BY rank, number`)
+      .bind(slug)
+      .all<LaneRow>();
+    return results;
+  }
+
+  /**
+   * Applies a queue `plan` to item `id` (#456) in one batch: the item's rank and version (if still at
+   * `expectedVersion`), the neighbour's rank and version (if the neighbour still holds the rank it was read at, in
+   * the same lane), the `reordered` event (`before`/`after` = {rank}) and the caller's `extra`; with `rebalance`,
+   * every item of the project is first renumbered `row_number × RANK_GAP` in (rank, number) order. The neighbour
+   * gets no event. A check that fails sets a NOT NULL column to NULL, so the batch writes nothing: `stale` when the
+   * item's version moved on, `lost-race` when the lane changed under the plan (the caller re-reads and plans again).
+   */
+  async reorder(
+    id: number,
+    expectedVersion: number,
+    rankBefore: number,
+    plan: Extract<QueuePlan, { kind: 'move' }>,
+    actor: TrackerActor,
+    at: string,
+    extra: readonly D1PreparedStatement[] = [],
+  ): Promise<ReorderOutcome> {
+    const rebalance = plan.rebalance
+      ? [
+          // UPDATE … FROM: the ranking is computed over the table as it was, not row by row as it changes.
+          this.db
+            .prepare(
+              `UPDATE items SET rank = ranked.row_number * ?2
+               FROM (
+                 SELECT id AS ranked_id, ROW_NUMBER() OVER (ORDER BY rank, number) AS row_number FROM items
+                 WHERE project_slug = (SELECT project_slug FROM items WHERE id = ?1)
+               ) AS ranked
+               WHERE items.id = ranked.ranked_id`,
+            )
+            .bind(id, RANK_GAP),
+        ]
+      : [];
+    const neighbour =
+      plan.neighbour === null
+        ? []
+        : [
+            this.db
+              .prepare(
+                `UPDATE items SET rank = ?2,
+                   version = CASE WHEN rank = ?3 AND closed_at IS NULL
+                     AND status = (SELECT status FROM items WHERE id = ?4)
+                     AND sprint_id IS (SELECT sprint_id FROM items WHERE id = ?4)
+                     THEN version + 1 ELSE NULL END
+                 WHERE id = ?1`,
+              )
+              .bind(plan.neighbour.id, plan.neighbour.rank, plan.neighbour.rankRead, id),
+          ];
+    try {
+      await this.db.batch([
+        ...rebalance,
+        this.db
+          .prepare(
+            `UPDATE items SET rank = ?2, updated_at = ?3,
+               version = CASE WHEN version = ?4 THEN version + 1 ELSE NULL END
+             WHERE id = ?1`,
+          )
+          .bind(id, plan.rank, at, expectedVersion),
+        ...neighbour,
+        itemEventStatement(
+          this.db,
+          { id },
+          actor,
+          { kind: 'reordered', before: { rank: rankBefore }, after: { rank: plan.rank } },
+          at,
+        ),
+        ...extra,
+      ]);
+      return 'ok';
+    } catch (error: unknown) {
+      if (!isConstraintError(error, 'NOT NULL constraint failed: items.version')) {
+        throw error;
+      }
+      return (await this.versionOf(id)) === expectedVersion ? 'lost-race' : 'stale';
     }
   }
 

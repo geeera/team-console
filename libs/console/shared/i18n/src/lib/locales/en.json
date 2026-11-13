@@ -549,7 +549,14 @@
     "moved": "{{key}} → {{where}}",
     "undo": "Undo",
     "undone": "Undone: {{key}} is back in {{where}}",
-    "moveAria": "Move {{key}}: {{title}}"
+    "moveAria": "Move {{key}}: {{title}}",
+    "queueGroup": "Queue · {{lane}}",
+    "first": "First in the queue",
+    "up": "Up",
+    "down": "Down",
+    "alreadyFirst": "Already first",
+    "alreadyLast": "Already last",
+    "reordered": "{{key}}: {{pos}} of {{total}} in {{lane}}"
   },
   "item": {
     "loading": "Loading the task…",
@@ -660,7 +667,8 @@
       "asked": "The team asked you",
       "requested": "A request to the PM",
       "handled": "The PM answered the request",
-      "pr": "A pull request was opened"
+      "pr": "A pull request was opened",
+      "reordered": "Moved in the queue"
     },
     "who": {
       "owner": "You",

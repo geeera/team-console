@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test';
 import type { ItemDto, ItemEventListDto, ItemListDto } from '@shared/contracts';
+import { ItemsRepo } from '@worker/db';
 import {
   PM,
   countRows,
@@ -372,7 +373,7 @@ describe('PATCH an approved item as a job (edit-after-approval)', () => {
 });
 
 describe('GET /projects/:slug/items and /items/:key', () => {
-  it('lists open items in number order without bodies, filtered, one page at a time', async () => {
+  it('lists open items in queue order (today: number order) without bodies, filtered, one page at a time', async () => {
     const project = await seedTrackerProject();
     await send('POST', `/api/v1/projects/${project.slug}/sprints`, { dueOn: '2026-11-17' });
     const a = await createItem(project, { kind: 'bug', severity: 'high' });
@@ -640,6 +641,158 @@ describe('PATCH /projects/:slug/items/:key', () => {
       type: expect.stringContaining('transition-role'),
       reason: 'workflow-change',
     });
+  });
+});
+
+// #456: First / Up / Down within the item's lane, with If-Match and an idempotency key.
+describe('POST /projects/:slug/items/:key/queue', () => {
+  const approved = { status: 'approved' };
+  const queuePath = (project: SeededProject, item: ItemDto): string => `${itemsPath(project.slug)}/${item.key}/queue`;
+  const move = (project: SeededProject, item: ItemDto, move: string, options: Parameters<typeof send>[3] = {}) =>
+    send('POST', queuePath(project, item), { move }, { ifMatch: `"${String(item.version)}"`, ...options });
+  const order = async (project: SeededProject): Promise<number[]> =>
+    ((await (await send('GET', `${itemsPath(project.slug)}?status=approved`)).json()) as ItemListDto).items.map(
+      (item) => item.number,
+    );
+  const current = async (project: SeededProject, item: ItemDto): Promise<ItemDto> =>
+    (await (await send('GET', `${itemsPath(project.slug)}/${item.key}`)).json()) as ItemDto;
+
+  it('moves first, up and down, answering the item with its new place and ETag, and records one reordered event each', async () => {
+    const project = await seedTrackerProject();
+    const a = await createItem(project, approved);
+    const b = await createItem(project, approved);
+    const c = await createItem(project, approved);
+    expect(c.queue).toEqual({ position: 3, total: 3 });
+    expect(await current(project, a)).toMatchObject({ queue: { position: 1, total: 3 } });
+
+    const first = await move(project, c, 'first');
+    expect(first.status).toBe(200);
+    expect(first.headers.get('ETag')).toBe('"2"');
+    expect(await first.json()).toMatchObject({ key: c.key, version: 2, queue: { position: 1, total: 3 } });
+    expect(await order(project)).toEqual([c.number, a.number, b.number]);
+
+    const up = await move(project, b, 'up');
+    expect(await up.json()).toMatchObject({ version: 2, queue: { position: 2, total: 3 } });
+    expect(await order(project)).toEqual([c.number, b.number, a.number]);
+    // The neighbour's version moved with its rank (its old ETag is stale now); no event of its own.
+    expect(await current(project, a)).toMatchObject({ version: 2, queue: { position: 3, total: 3 } });
+
+    const down = await move(project, { ...c, version: 2 }, 'down');
+    expect(await down.json()).toMatchObject({ version: 3, queue: { position: 2, total: 3 } });
+    expect(await order(project)).toEqual([b.number, c.number, a.number]);
+
+    const events = (await (
+      await send('GET', `${itemsPath(project.slug)}/${c.key}/events`)
+    ).json()) as ItemEventListDto;
+    expect(events.events.map((event) => [event.kind, event.before, event.after])).toEqual([
+      ['created', null, expect.anything()],
+      ['reordered', { rank: 3 * 1024 }, { rank: 0 }],
+      ['reordered', { rank: 0 }, { rank: 1024 }],
+    ]);
+    expect(await countRows('item_events', project.slug)).toBe(6);
+  });
+
+  it('answers already first, already last and a lone item as a no-op 200: same ETag, no event', async () => {
+    const project = await seedTrackerProject();
+    const a = await createItem(project, approved);
+    const b = await createItem(project, approved);
+    const lone = await createItem(project, { status: 'qa' });
+    for (const [item, kind] of [
+      [a, 'first'],
+      [a, 'up'],
+      [b, 'down'],
+      [lone, 'first'],
+      [lone, 'down'],
+    ] as const) {
+      const response = await move(project, item, kind);
+      expect(response.status, kind).toBe(200);
+      expect(response.headers.get('ETag')).toBe('"1"');
+      expect(await response.json()).toMatchObject({ key: item.key, version: 1 });
+    }
+    expect(await order(project)).toEqual([a.number, b.number]);
+    expect(await countRows('item_events', project.slug)).toBe(3);
+  });
+
+  it('requires If-Match (428) and refuses a stale version (412) and a closed item (409), writing nothing', async () => {
+    const project = await seedTrackerProject();
+    const a = await createItem(project, approved);
+    const b = await createItem(project, approved);
+    const missing = await send('POST', queuePath(project, b), { move: 'first' });
+    expect(missing.status).toBe(428);
+    expect(await slugOf(missing)).toBe('item-version-required');
+    const stale = await move(project, { ...b, version: 5 }, 'first');
+    expect(stale.status).toBe(412);
+    expect(await slugOf(stale)).toBe('item-version');
+    await send('PATCH', `${itemsPath(project.slug)}/${a.key}`, { status: 'done' }, { ifMatch: '"1"' });
+    const closed = await move(project, { ...a, version: 2 }, 'down');
+    expect(closed.status).toBe(409);
+    expect(await slugOf(closed)).toBe('item-closed');
+    expect(await order(project)).toEqual([b.number]);
+    expect(await countRows('item_events', project.slug)).toBe(3);
+  });
+
+  it('refuses a malformed move (422) and the reserved before form', async () => {
+    const project = await seedTrackerProject();
+    const item = await createItem(project, approved);
+    for (const body of [{ move: 'top' }, { move: 'before', key: 'TC-1' }, {}, []]) {
+      const response = await send('POST', queuePath(project, item), body, { ifMatch: '"1"' });
+      expect(response.status).toBe(422);
+      expect(await slugOf(response)).toBe('item-invalid');
+    }
+  });
+
+  it('is the owner’s and the PM’s: a developer or the service identity gets 403 and nothing moves', async () => {
+    const project = await seedTrackerProject();
+    const a = await createItem(project, approved);
+    const b = await createItem(project, approved);
+    const dev = await move(project, b, 'first', { job: { role: 'dev', items: [b.number] } });
+    expect(dev.status).toBe(403);
+    expect(await slugOf(dev)).toBe('queue-role');
+    const service = await sendAsService('POST', queuePath(project, b), { move: 'first' });
+    expect(service.status).toBe(403);
+    expect(await order(project)).toEqual([a.number, b.number]);
+    const pm = await move(project, b, 'first', { job: PM });
+    expect(pm.status).toBe(200);
+    expect(await order(project)).toEqual([b.number, a.number]);
+  });
+
+  it('applies a replayed Idempotency-Key once and answers the same item', async () => {
+    const project = await seedTrackerProject();
+    await createItem(project, approved);
+    const b = await createItem(project, approved);
+    const key = newKey();
+    const first = await move(project, b, 'first', { key });
+    const again = await move(project, b, 'first', { key });
+    expect(again.status).toBe(200);
+    expect(again.headers.get('Idempotent-Replayed')).toBe('true');
+    expect(await again.json()).toEqual(await first.json());
+    expect(await countRows('item_events', project.slug)).toBe(3);
+    // The same key with the move the lane now allows is a different request.
+    const reused = await move(project, { ...b, version: 2 }, 'down', { key });
+    expect(reused.status).toBe(422);
+    expect(await slugOf(reused)).toBe('idempotency-key-reused');
+  });
+
+  it('retries a lost race once and then answers 409 item-changed', async () => {
+    const project = await seedTrackerProject();
+    await createItem(project, approved);
+    const b = await createItem(project, approved);
+    const reorder = vi.spyOn(ItemsRepo.prototype, 'reorder');
+    reorder.mockResolvedValueOnce('lost-race');
+    const once = await move(project, b, 'first');
+    expect(once.status).toBe(200);
+    expect(reorder).toHaveBeenCalledTimes(2);
+    expect(await current(project, b)).toMatchObject({ version: 2, queue: { position: 1, total: 2 } });
+
+    reorder.mockClear();
+    reorder.mockResolvedValue('lost-race');
+    const twice = await move(project, { ...b, version: 2 }, 'down');
+    expect(twice.status).toBe(409);
+    expect(await slugOf(twice)).toBe('item-changed');
+    expect(reorder).toHaveBeenCalledTimes(2);
+    // The key is released by the refusal, so the client may send the request again.
+    reorder.mockRestore();
+    expect((await move(project, { ...b, version: 2 }, 'down')).status).toBe(200);
   });
 });
 

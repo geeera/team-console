@@ -28,7 +28,10 @@ export function sprintIssueOf(item: ItemSummaryDto): SprintIssue {
 /** The part of #18's board a console-tracker project reads from the tracker; pull requests and runs stay as they are. */
 export type TrackerSprintPart = Pick<SprintBoard, 'milestone' | 'issues' | 'planned' | 'shipped' | 'carriedOver'>;
 
-/** The current sprint and its items, open and closed (Done is a lane), counted as the GitHub read model counts. */
+/**
+ * The current sprint and its items, open and closed (Done is a lane), counted as the GitHub read model counts. Rows
+ * keep the tracker's order: the queue (#456), which the board's lanes show as is.
+ */
 export function trackerSprintPartOf(
   sprint: TrackerSprintDto | null,
   items: readonly ItemSummaryDto[],
@@ -40,7 +43,7 @@ export function trackerSprintPartOf(
   const work = mine.filter((item) => WORK_KINDS.has(item.kind));
   return {
     milestone: { number: sprint.number, title: sprint.title, dueOn: sprint.dueOn, url: null },
-    issues: mine.map(sprintIssueOf).sort((a, b) => a.number - b.number),
+    issues: mine.map(sprintIssueOf),
     planned: work.length,
     shipped: work.filter((item) => item.state === 'closed' && item.status === 'done').length,
     carriedOver: work.filter((item) => item.state === 'open').length,
@@ -76,7 +79,7 @@ export function sectionOf(
   return {
     kind,
     sprint,
-    lanes: statusColumnsOf(mine.map(sprintIssueOf)),
+    lanes: statusColumnsOf(mine.map(sprintIssueOf), 'given'),
     openCount: mine.filter((item) => item.state === 'open').length,
   };
 }

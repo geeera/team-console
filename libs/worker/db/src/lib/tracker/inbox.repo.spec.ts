@@ -74,6 +74,17 @@ describe('InboxRepo', () => {
     expect(rows[1]?.item.flags).toEqual(['needs:owner']);
   });
 
+  it('follows the queue order, not the number (#456)', async () => {
+    const { slug } = await seedTrackerProject();
+    await seedTrackerItem(slug, 1, { kind: 'question' });
+    await seedTrackerItem(slug, 2, { kind: 'question' });
+    await seedTrackerItem(slug, 3, { kind: 'question' });
+    await env.DB.prepare('UPDATE items SET rank = 0 WHERE project_slug = ?1 AND number = 3').bind(slug).run();
+    const { rows } = await new InboxRepo(env.DB).listOpen(slug);
+    expect(rows.map((row) => row.item.number)).toEqual([3, 1, 2]);
+    expect(rows[0]?.item.queue).toEqual({ position: 1, total: 3 });
+  });
+
   it('reads one project only', async () => {
     const { slug } = await seedTrackerProject();
     const { slug: other } = await seedTrackerProject();

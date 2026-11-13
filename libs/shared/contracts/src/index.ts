@@ -416,6 +416,7 @@ export {
   isItemStatus,
   isItemTier,
   isWorkableStatus,
+  isQueueMove,
   isSprintState,
   isTrackerMode,
   itemKeyOf,
@@ -438,6 +439,7 @@ export type {
   ItemSource,
   ItemStatus,
   ItemTier,
+  QueueMove,
   SprintState,
   TrackerMode,
 } from './lib/tracker/vocabulary';
@@ -452,6 +454,7 @@ export {
   checkCreateItemInput,
   checkCreateLabelInput,
   checkCreateSprintInput,
+  checkQueueMoveInput,
   checkUpdateItemInput,
   checkUpdateSprintInput,
 } from './lib/tracker/inputs';
@@ -466,6 +469,7 @@ export type {
   CreateLabelInput,
   CreateSprintInput,
   InputCheck,
+  QueueMoveInput,
   UpdateItemInput,
   UpdateSprintInput,
 } from './lib/tracker/inputs';
@@ -486,6 +490,7 @@ export type {
   CommentDto,
   CommentListDto,
   ItemDto,
+  QueuePositionDto,
   ItemEventDto,
   ItemEventListDto,
   ItemListDto,

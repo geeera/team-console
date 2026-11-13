@@ -167,6 +167,15 @@ const ROWS: readonly Row[] = [
         : refused('transition-role'),
   },
   {
+    // #456: the queue is the owner's and the PM's; a lone item is a no-op 200, so the refusal is all the row tests.
+    route: `POST ${P}/:slug/items/:key/queue`,
+    setup: async (project) => {
+      const { path, number } = await item(project, { kind: 'feature', status: 'approved' });
+      return { method: 'POST', path: `${path}/queue`, body: { move: 'first' }, ifMatch: '"1"', items: [number] };
+    },
+    expect: (who) => (who === 'owner' || who === 'pm' ? ok(200) : refused('queue-role')),
+  },
+  {
     route: `POST ${P}/:slug/items/:key/comments`,
     setup: async (project) => ({
       method: 'POST',
@@ -387,6 +396,7 @@ const OWNER_ROWS: readonly TrackerRoute[] = [
 const PLANNING_ROWS: readonly TrackerRoute[] = [
   `POST ${P}/:slug/sprints`,
   `PATCH ${P}/:slug/sprints/:number`,
+  `POST ${P}/:slug/items/:key/queue`,
 ];
 const PM_ROWS: readonly TrackerRoute[] = [`POST ${P}/:slug/requests/:id/handled`];
 const ASK_ROW: TrackerRoute = `POST ${P}/:slug/items/:key/asks`;
@@ -656,6 +666,9 @@ describe('R2: reviewer roles never write verdict-like state', () => {
       expect(await slugOf(await send('POST', `${P}/${project.slug}/sprints`, {}, { job }))).toBe(
         'sprint-role',
       );
+      expect(
+        await slugOf(await send('POST', `${path}/queue`, { move: 'first' }, { job, ifMatch: '"1"' })),
+      ).toBe('queue-role');
     }
     expect(await countRows('owner_decisions', project.slug)).toBe(0);
   });

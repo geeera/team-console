@@ -60,11 +60,19 @@ export interface ItemSummaryDto {
   readonly sourceUrl: string | null;
 }
 
-export interface ItemDto extends ItemSummaryDto {
-  readonly body: string;
+/** "{position} of {total} in {lane}" (#456, #409 §2.1): the item's place among the open items of its sprint and status. */
+export interface QueuePositionDto {
+  readonly position: number;
+  readonly total: number;
 }
 
-/** `GET …/items`: one page in number order; `next` is the `after` cursor of the next page. */
+export interface ItemDto extends ItemSummaryDto {
+  readonly body: string;
+  /** `null` for a closed item, which is on no board. */
+  readonly queue: QueuePositionDto | null;
+}
+
+/** `GET …/items`: one page in queue order (rank, then number); `next` is the `after` cursor of the next page. */
 export interface ItemListDto {
   readonly items: readonly ItemSummaryDto[];
   readonly next: number | null;
@@ -276,6 +284,8 @@ export type TrackerProblemType =
   // #444: the route matrix and the comment kinds.
   | 'sprint-role'
   | 'comment-kind'
+  // #456: the queue is ordered by the owner and the PM.
+  | 'queue-role'
   // #462: a job's text carries a secret shape (`@shared/redaction`).
   | 'body-secret'
   // #445: pull request links.

@@ -86,6 +86,7 @@ describe('migrations on a fresh D1', () => {
       '0026_sprint_title_unique.sql',
       '0027_sprint_title_key_followups.sql',
       '0028_runner_pause.sql',
+      '0029_item_rank.sql',
     ]);
   });
 
@@ -795,6 +796,125 @@ describe('the 0028 runner pause', () => {
     await expect(write('2026-11-01 05:00:00', 'manual')).rejects.toThrow(/CHECK constraint failed/);
     await expect(write('soon', 'manual')).rejects.toThrow(/CHECK constraint failed/);
     expect(await read()).toEqual({ paused_until: null, pause_reason: null });
+  });
+});
+
+// #456: 0029 gives every item its queue rank (number × 1024, so today's order stays) and rebuilds item_events for the
+// `reordered` kind, keeping every row, index and trigger.
+describe('the 0029 item rank', () => {
+  const T0 = '2026-11-01T00:00:00.000Z';
+
+  it('backfills number × 1024 so the order is unchanged, indexes it, and keeps the events through the rebuild', async () => {
+    const db = env.MIGRATION_DB_0029;
+    await applyD1Migrations(
+      db,
+      env.TEST_MIGRATIONS.filter((migration) => migration.name < '0029'),
+    );
+    await db
+      .prepare(
+        `INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at) VALUES ('m29', 'a/m29', 'm29', 0, ?1)`,
+      )
+      .bind(T0)
+      .run();
+    // A copy of what a project holds: numbers out of insertion order, a closed item, two lanes.
+    for (const [number, status, closedAt] of [
+      [310, 'approved', null],
+      [7, 'approved', null],
+      [412, 'in-progress', null],
+      [9, 'done', T0],
+      [311, 'approved', null],
+    ] as const) {
+      await db
+        .prepare(
+          `INSERT INTO items (project_slug, number, kind, status, title, closed_at, closed_reason, approved_at,
+             created_by_kind, created_by, created_at, updated_at)
+           VALUES ('m29', ?1, 'feature', ?2, 'Item', ?3, ?4, ?6, 'owner', 'owner', ?5, ?5)`,
+        )
+        // 0016/0017: the approval goes with a workable status only; a done item carries none here.
+        .bind(number, status, closedAt, closedAt === null ? null : 'done', T0, status === 'done' ? null : T0)
+        .run();
+    }
+    await db
+      .prepare(
+        `INSERT INTO item_events (id, item_id, at, actor_kind, actor, job_id, kind, before, after)
+         SELECT 91, id, ?1, 'job', 'pm', 'job-1', 'pr-linked', NULL, '{"number":5,"url":"u","headRef":"b"}'
+         FROM items WHERE project_slug = 'm29' AND number = 310`,
+      )
+      .bind(T0)
+      .run();
+
+    await applyD1Migrations(db, env.TEST_MIGRATIONS);
+
+    const byNumber = await db
+      .prepare(`SELECT number, rank FROM items WHERE project_slug = 'm29' ORDER BY number`)
+      .all<{ number: number; rank: number }>();
+    expect(byNumber.results.map((row) => [row.number, row.rank])).toEqual([
+      [7, 7 * 1024],
+      [9, 9 * 1024],
+      [310, 310 * 1024],
+      [311, 311 * 1024],
+      [412, 412 * 1024],
+    ]);
+    const byRank = await db
+      .prepare(`SELECT number FROM items WHERE project_slug = 'm29' ORDER BY rank, number`)
+      .all<{ number: number }>();
+    expect(byRank.results.map((row) => row.number)).toEqual(byNumber.results.map((row) => row.number));
+
+    // The events came through the rebuild with their ids and columns; the new kind is admitted.
+    expect(await db.prepare('SELECT id, kind, after, duplicate_of FROM item_events').all()).toMatchObject({
+      results: [{ id: 91, kind: 'pr-linked', after: '{"number":5,"url":"u","headRef":"b"}', duplicate_of: null }],
+    });
+    await db
+      .prepare(
+        `INSERT INTO item_events (item_id, at, actor_kind, actor, kind, before, after)
+         SELECT id, ?1, 'owner', 'owner', 'reordered', '{"rank":7168}', '{"rank":6144}' FROM items
+         WHERE project_slug = 'm29' AND number = 7`,
+      )
+      .bind(T0)
+      .run();
+    await expect(db.prepare(`DELETE FROM item_events WHERE id = 91`).run()).rejects.toThrow(/append-only/);
+    // 0025's index still refuses a second link of the same number.
+    await expect(
+      db
+        .prepare(
+          `INSERT INTO item_events (item_id, at, actor_kind, actor, kind, after)
+           SELECT id, ?1, 'job', 'dev', 'pr-linked', '{"number":5,"url":"u","headRef":"c"}' FROM items
+           WHERE project_slug = 'm29' AND number = 310`,
+        )
+        .bind(T0)
+        .run(),
+    ).rejects.toThrow(/UNIQUE constraint failed: index 'item_events_pr_link'/);
+
+    const { results } = await db
+      .prepare(
+        `SELECT name FROM sqlite_master WHERE type IN ('index', 'trigger')
+           AND tbl_name IN ('item_events', 'items') AND name NOT LIKE 'sqlite_%' AND name LIKE 'item%' ORDER BY name`,
+      )
+      .all<{ name: string }>();
+    expect(results.map((row) => row.name)).toEqual(
+      expect.arrayContaining([
+        'item_events_append_only_delete',
+        'item_events_append_only_update',
+        'item_events_duplicate_of_migration_only',
+        'item_events_item',
+        'item_events_never_replaced',
+        'item_events_pr_link',
+        'items_rank',
+        'items_rank_defaulted',
+      ]),
+    );
+
+    // A writer that leaves the default gets the same end-of-queue rank, never 0.
+    await db
+      .prepare(
+        `INSERT INTO items (project_slug, number, kind, status, title, created_by_kind, created_by, created_at,
+           updated_at) VALUES ('m29', 500, 'chore', 'proposed', 'Late', 'owner', 'owner', ?1, ?1)`,
+      )
+      .bind(T0)
+      .run();
+    expect(
+      await db.prepare(`SELECT rank FROM items WHERE project_slug = 'm29' AND number = 500`).first<{ rank: number }>(),
+    ).toEqual({ rank: 500 * 1024 });
   });
 });
 

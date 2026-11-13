@@ -7,7 +7,6 @@ import {
   itemNumberOfSegment,
   shownStatusOf,
 } from './item.model';
-import { queuePositionOf } from './item-queue';
 import { itemFixture } from './item.fixture';
 
 describe('item model', () => {
@@ -45,16 +44,11 @@ describe('item model', () => {
     expect(githubSourceUrlOf(itemFixture({ sourceUrl: 'https://github.com/x/y/issues/7' }))).toBeNull();
   });
 
-  it('places an item in its lane of its sprint by number', () => {
-    const item = itemFixture({ number: 7 });
-    const peers = [
-      itemFixture({ number: 3 }),
-      itemFixture({ number: 9 }),
-      itemFixture({ number: 4, status: 'qa' }),
-      itemFixture({ number: 2, sprint: 4 }),
-    ];
-    expect(queuePositionOf(item, peers)).toEqual({ position: 2, total: 3 });
-    expect(queuePositionOf(itemFixture({ state: 'closed', closedReason: 'not-planned' }), peers)).toBeNull();
+  it('takes the queue position the Worker computed, and refuses a malformed one (#456)', () => {
+    expect(isItemDto(itemFixture({ queue: null }))).toBe(true);
+    expect(isItemDto(itemFixture({ queue: { position: 1, total: 4 } }))).toBe(true);
+    expect(isItemDto({ ...itemFixture(), queue: { position: 0, total: 4 } })).toBe(false);
+    expect(isItemDto({ ...itemFixture(), queue: undefined })).toBe(false);
   });
 });
 
