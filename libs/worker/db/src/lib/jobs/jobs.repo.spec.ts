@@ -218,12 +218,72 @@ describe('JobsRepo.finish and events', () => {
     const capped = new JobsRepo(env.DB, 3);
     const slug = await project(ACCOUNT_A);
     const id = await enqueue(slug);
+    const r = await runner(ACCOUNT_A, [slug]);
+    await claimAs(r, { tokenHash: 'ca'.repeat(32) });
     const event = { level: 'info' as const, kind: 'log' as const, payload: { n: 1 } };
-    const first = await capped.appendEvents(id, [event, event], T1);
-    expect(first).toEqual({ lastSeq: 2, capped: false });
-    const second = await capped.appendEvents(id, [event, event], T1);
-    expect(second).toEqual({ lastSeq: 3, capped: true });
+    const first = await capped.appendEvents(id, r, [event, event], T1);
+    expect(first).toEqual({ held: true, lastSeq: 2, capped: false });
+    const second = await capped.appendEvents(id, r, [event, event], T1);
+    expect(second).toEqual({ held: true, lastSeq: 3, capped: true });
     expect((await capped.listEvents(id, 0, 10)).map((row) => row.seq)).toEqual([1, 2, 3]);
+  });
+});
+
+// #553: the route authenticates the runner, then writes; a narrowing or revoke can commit in between. These change the
+// stored row alone, without the cancel batch, so only the write's own guard stands between the runner and the job.
+describe('JobsRepo heartbeat, events and finish judge the stored runner row', () => {
+  const LEASE = '2026-11-10T10:10:00.000Z';
+  const LATER = '2026-11-10T10:12:00.000Z';
+  const event = { level: 'info' as const, kind: 'started' as const, payload: {} };
+  const outcome = { result: 'finished' as const, summary: 's', metrics: {}, acted: false };
+
+  async function held(tag: string): Promise<{ id: string; r: string; slug: string; kept: string }> {
+    const slug = await project(ACCOUNT_A);
+    const kept = await project(ACCOUNT_A);
+    const r = await runner(ACCOUNT_A, [slug, kept]);
+    const id = await enqueue(slug);
+    expect(await claimAs(r, { tokenHash: tag.repeat(32), leaseUntil: LEASE })).not.toBeNull();
+    return { id, r, slug, kept };
+  }
+
+  async function expectNothingWritten(id: string): Promise<void> {
+    expect(await jobs.findById(id)).toMatchObject({ state: 'claimed', leaseUntil: LEASE, finishedAt: null });
+    expect(await jobs.listEvents(id, 0, 10)).toEqual([]);
+    const audits = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.finished' AND target = ?1`).bind(id).first<{ n: number }>();
+    expect(audits?.n).toBe(0);
+  }
+
+  it('writes as before while the stored list keeps the project', async () => {
+    const { id, r } = await held('d0');
+    expect(await jobs.heartbeat(id, r, T1, LATER)).toBe(true);
+    expect(await jobs.appendEvents(id, r, [event], T1)).toEqual({ held: true, lastSeq: 1, capped: false });
+    expect((await jobs.findById(id))?.state).toBe('running');
+    expect(await jobs.finish(id, r, outcome, T1, { ...audit('job.finished'), target: id })).toBe(true);
+  });
+
+  it('refuses every write once the project is dropped from the stored list after the claim', async () => {
+    const { id, r, kept } = await held('d1');
+    await allow(r, [kept]);
+    expect(await jobs.heartbeat(id, r, T1, LATER)).toBe(false);
+    expect(await jobs.appendEvents(id, r, [event], T1)).toEqual({ held: false, lastSeq: 0, capped: false });
+    expect(await jobs.finish(id, r, outcome, T1, { ...audit('job.finished'), target: id })).toBe(false);
+    await expectNothingWritten(id);
+  });
+
+  it('refuses every write once the runner is revoked after the claim', async () => {
+    const { id, r } = await held('d2');
+    await env.DB.prepare(`UPDATE runners SET revoked_at = ?2 WHERE id = ?1`).bind(r, T1).run();
+    expect(await jobs.heartbeat(id, r, T1, LATER)).toBe(false);
+    expect(await jobs.appendEvents(id, r, [event], T1)).toEqual({ held: false, lastSeq: 0, capped: false });
+    expect(await jobs.finish(id, r, outcome, T1, { ...audit('job.finished'), target: id })).toBe(false);
+    await expectNothingWritten(id);
+  });
+
+  it('refuses events from a runner that does not hold the job', async () => {
+    const { id } = await held('d3');
+    const other = await runner(ACCOUNT_A, [(await jobs.findById(id))?.projectSlug ?? '']);
+    expect(await jobs.appendEvents(id, other, [event], T1)).toEqual({ held: false, lastSeq: 0, capped: false });
+    await expectNothingWritten(id);
   });
 });
 

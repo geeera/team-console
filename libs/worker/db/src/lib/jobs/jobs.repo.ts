@@ -102,6 +102,15 @@ interface JobRow {
 const COLUMNS = `id, account_id, project_slug, kind, role, payload, priority, state, requested_by, dedupe_key, needs_local,
   parent_job_id, dispatch, runner_id, attempt, max_minutes, created_at, claimed_at, lease_until, started_at, finished_at, result`;
 
+/**
+ * A WHERE term on a `jobs` row (#553): its runner's stored row still allows the job's project and is not revoked. The
+ * runner routes judge the allow-list read at authentication; this term judges it again inside the write itself, so a
+ * narrowing or revoke that commits in between wins, as it does for the claim (#543).
+ */
+const RUNNER_STILL_ALLOWS_SQL = `jobs.project_slug IN (
+  SELECT value FROM runners r, json_each(r.allowed_projects)
+  WHERE r.id = jobs.runner_id AND r.account_id = jobs.account_id AND r.revoked_at IS NULL)`;
+
 /** The policy the claim applies: the project's, else the account's default (ADR 0008 decision 12). */
 const POLICY = `COALESCE(p.runner_policy, a.default_runner_policy)`;
 
@@ -324,11 +333,16 @@ export class JobsRepo {
     return row === null ? null : toRecord(row);
   }
 
-  /** Extends the lease of a job this runner holds; `false` when it holds no such live job. */
+  /**
+   * Extends the lease of a job this runner holds; `false` when it holds no such live job, or its stored row no longer
+   * allows the job's project or is revoked (#553).
+   */
   async heartbeat(id: string, runnerId: string, now: string, leaseUntil: string): Promise<boolean> {
     const { meta } = await this.db
       .prepare(
-        `UPDATE jobs SET lease_until = ?4 WHERE id = ?1 AND runner_id = ?2 AND state IN ('claimed', 'running') AND lease_until >= ?3`,
+        `UPDATE jobs SET lease_until = ?4
+         WHERE id = ?1 AND runner_id = ?2 AND state IN ('claimed', 'running') AND lease_until >= ?3
+           AND ${RUNNER_STILL_ALLOWS_SQL}`,
       )
       .bind(id, runnerId, now, leaseUntil)
       .run();
@@ -356,29 +370,44 @@ export class JobsRepo {
   }
 
   /**
-   * Appends a batch of events (redacted), numbered after the last; a `started` event also marks the job running.
-   * Returns the last `seq` and whether the cap cut the batch.
+   * Appends a batch of events (redacted) to a live job `runnerId` holds, numbered after the last; a `started` event
+   * also marks the job running. Every statement is guarded on the hold — the runner, a live lease, and its stored row
+   * still allowing the project (#553) — so `held: false` means nothing was written. Returns the last `seq` and whether
+   * the cap cut the batch.
    */
   async appendEvents(
     id: string,
+    runnerId: string,
     events: readonly JobEventInput[],
     now: string,
-  ): Promise<{ readonly lastSeq: number; readonly capped: boolean }> {
-    const statements = events.map((event) => this.eventStatement(id, now, event));
+  ): Promise<{ readonly held: boolean; readonly lastSeq: number; readonly capped: boolean }> {
+    const held: AuditCondition = {
+      exists: `SELECT 1 FROM jobs WHERE jobs.id = ? AND jobs.runner_id = ? AND jobs.state IN ('claimed', 'running')
+        AND jobs.lease_until >= ? AND ${RUNNER_STILL_ALLOWS_SQL}`,
+      params: [id, runnerId, now],
+    };
+    const statements = events.map((event) => this.eventStatement(id, now, event, held));
     if (events.some((event) => event.kind === 'started')) {
       statements.push(
         this.db
-          .prepare(`UPDATE jobs SET state = 'running', started_at = COALESCE(started_at, ?2) WHERE id = ?1 AND state = 'claimed'`)
-          .bind(id, now),
+          .prepare(
+            `UPDATE jobs SET state = 'running', started_at = COALESCE(started_at, ?2)
+             WHERE id = ?1 AND state = 'claimed' AND runner_id = ?3 AND lease_until >= ?2 AND ${RUNNER_STILL_ALLOWS_SQL}`,
+          )
+          .bind(id, now, runnerId),
       );
     }
+    // Read in the same batch (one transaction), so `held` is the very judgement the inserts above saw.
+    statements.push(
+      this.db
+        .prepare(`SELECT COALESCE(MAX(seq), 0) AS seq, EXISTS (${held.exists}) AS held FROM job_events WHERE job_id = ?`)
+        .bind(...held.params, id),
+    );
     const results = await this.db.batch(statements);
     const written = results.slice(0, events.length).filter((result) => result.meta.changes === 1).length;
-    const last = await this.db
-      .prepare(`SELECT COALESCE(MAX(seq), 0) AS seq FROM job_events WHERE job_id = ?1`)
-      .bind(id)
-      .first<{ seq: number }>();
-    return { lastSeq: last?.seq ?? 0, capped: written < events.length };
+    const last = (results.at(-1)?.results[0] ?? null) as { seq: number; held: number } | null;
+    const isHeld = last?.held === 1;
+    return { held: isHeld, lastSeq: last?.seq ?? 0, capped: isHeld && written < events.length };
   }
 
   async listEvents(id: string, after: number, limit: number): Promise<JobEventRecord[]> {
@@ -391,7 +420,10 @@ export class JobsRepo {
     return results.map((row) => ({ ...row, payload: JSON.parse(row.payload) as Record<string, unknown> }));
   }
 
-  /** Finishes a job this runner holds, with its `finished`/`failed` event and the audit row; `false` when it holds none. */
+  /**
+   * Finishes a job this runner holds, with its `finished`/`failed` event and the audit row; `false` when it holds none
+   * or its stored row no longer allows the job's project or is revoked (#553).
+   */
   async finish(
     id: string,
     runnerId: string,
@@ -411,7 +443,8 @@ export class JobsRepo {
       this.db
         .prepare(
           `UPDATE jobs SET state = ?3, finished_at = ?4, result = ?5, token_hash = NULL, lease_until = NULL
-           WHERE id = ?1 AND runner_id = ?2 AND state IN ('claimed', 'running') AND lease_until >= ?4`,
+           WHERE id = ?1 AND runner_id = ?2 AND state IN ('claimed', 'running') AND lease_until >= ?4
+             AND ${RUNNER_STILL_ALLOWS_SQL}`,
         )
         .bind(id, runnerId, outcome.result, now, JSON.stringify(result)),
       this.eventStatement(
