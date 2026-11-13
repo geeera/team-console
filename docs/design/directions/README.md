@@ -55,7 +55,8 @@ replace the ink stamp as the signature moment.
 ## Notes
 
 - Fonts are open-licence only (SIL OFL): Source Serif 4 / Source Sans 3 / Source Code Pro (01), IBM Plex Sans /
-  Mono (02), Bricolage Grotesque / Figtree / JetBrains Mono (03). They load from Google Fonts, and offline the
+  Mono (02), Bricolage Grotesque / Figtree / JetBrains Mono (03). They are self-hosted from `../fonts/fonts.css`
+  (woff2, no request to fonts.googleapis.com or fonts.gstatic.com; see geeera/team-console#524), and offline the
   pages fall back to system fonts. There are no icon sets or image assets: icons are inline strokes drawn for this
   prototype, and the design thumbnail is drawn from the tokens.
 - No Anthropic or Claude names, logos, marks, typefaces or brand colours are used. The accents (moss green, signal
