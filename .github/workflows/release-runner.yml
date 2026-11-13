@@ -1,0 +1,226 @@
+# Runner release (ADR 0008 decision 10; threat model C11 rows 1–2, RR13; #572). On a `v*` tag — which only the owner
+# may create (tag ruleset, `.product-team/owner-checklist.md` › «Раннер: релизы») — it builds the one-file runner,
+# packs one tarball per platform with `SHA256SUMS`, attests build provenance for each, publishes the runner image to
+# GHCR signed with cosign keyless, and creates the GitHub release naming the image by digest. No secret is used: the publishing identity is the run's
+# own OIDC token and `github.token`. `team-console-runner update` and the documented install verify the tarballs
+# with `gh attestation verify` against this file's path and the tag's ref (apps/runner/src/update/release-identity.ts).
+# Each job holds only the permissions its own steps need; `npm ci` (third-party install scripts) runs in a job that
+# can read the repository and nothing else.
+name: release-runner
+
+on:
+  push:
+    tags: ['v*']
+
+permissions: {}
+
+concurrency:
+  group: release-runner-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/geeera/team-console-runner
+
+jobs:
+  build:
+    name: Build and pack the runner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # The `release` environment (same checklist section) admits `v*` tags only; every later job needs this one.
+    environment: release
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Version from the tag
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          label='(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?'
+          if [[ ! "${TAG}" =~ ^v${label}$ ]]; then
+            echo "::error::${TAG} is not v<MAJOR.MINOR.PATCH[-pre]>; no release is built from it"
+            exit 1
+          fi
+          echo "version=${TAG#v}" >> "${GITHUB_OUTPUT}"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          # No restored cache in a release: a poisoned one would ship.
+          package-manager-cache: false
+
+      - name: Install the pinned npm and the lockfile
+        run: |
+          set -euo pipefail
+          wanted=$(node -p "require('./package.json').packageManager.replace(/^npm@/, '')")
+          npm install --global --no-audit --no-fund "npm@${wanted}"
+          npm ci --no-audit --no-fund
+
+      - name: Build the bundle
+        env:
+          TC_RUNNER_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          npx nx build runner --skip-nx-cache
+          test "$(node dist/apps/runner/team-console-runner.mjs version)" = "${TC_RUNNER_VERSION}"
+
+      - name: Pack the tarballs and SHA256SUMS
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
+          stage=$(mktemp -d)
+          install -d -m 0755 "${stage}/bin" release
+          install -m 0555 dist/apps/runner/team-console-runner.mjs "${stage}/"
+          install -m 0555 dist/apps/runner/bin/job-exec dist/apps/runner/bin/team-console-runner "${stage}/bin/"
+          (cd "${stage}" && sha256sum team-console-runner.mjs bin/job-exec bin/team-console-runner > SHA256SUMS)
+          chmod 0444 "${stage}/SHA256SUMS"
+          # The same JS for every platform; the name tells `update` and the operator which one to fetch. Flat, so it
+          # extracts straight into the install directory.
+          for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64; do
+            tar --sort=name --owner=0 --group=0 --numeric-owner --mtime="@${SOURCE_DATE_EPOCH}" \
+              -C "${stage}" -cf - SHA256SUMS team-console-runner.mjs bin \
+              | gzip -n > "release/team-console-runner-${VERSION}-${platform}.tar.gz"
+          done
+          (cd release && sha256sum -- *.tar.gz > SHA256SUMS)
+          cat release/SHA256SUMS
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: runner-release
+          path: release/
+          if-no-files-found: error
+          retention-days: 7
+
+  attest:
+    name: Attest the tarballs
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: runner-release
+          path: release
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            release/*.tar.gz
+            release/SHA256SUMS
+
+  image:
+    name: Publish and sign the runner image
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/runner/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.IMAGE }}:${{ needs.build.outputs.version }}
+          build-args: TC_RUNNER_VERSION=${{ needs.build.outputs.version }}
+          # Provenance is attested below with the same identity as the tarballs.
+          provenance: false
+
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+
+      - name: Sign the image by digest (cosign keyless)
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "${DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::unexpected digest"; exit 1; }
+          cosign sign --yes "${IMAGE}@${DIGEST}"
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+  release:
+    name: Create the GitHub release
+    needs: [build, attest, image]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: runner-release
+          path: release
+
+      - name: Release notes and assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.build.outputs.version }}
+          DIGEST: ${{ needs.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "${DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::unexpected digest"; exit 1; }
+          workflow="${GITHUB_REPOSITORY}/.github/workflows/release-runner.yml"
+          {
+            echo "Runner ${VERSION}. Install and update: docs/runbooks/runner.md."
+            echo
+            echo "Container image (use it by digest, never by tag):"
+            echo
+            echo "    ${IMAGE}:${VERSION}@${DIGEST}"
+            echo
+            echo "Verify a tarball before extracting it:"
+            echo
+            echo "    gh attestation verify team-console-runner-${VERSION}-<platform>.tar.gz --repo ${GITHUB_REPOSITORY} --signer-workflow ${workflow} --source-ref refs/tags/${TAG} --deny-self-hosted-runners"
+            echo
+            echo "Verify the image:"
+            echo
+            echo "    cosign verify ${IMAGE}@${DIGEST} --certificate-identity https://github.com/${workflow}@refs/tags/${TAG} --certificate-oidc-issuer https://token.actions.githubusercontent.com"
+            echo
+            echo "SHA256SUMS:"
+            echo
+            sed 's/^/    /' release/SHA256SUMS
+          } > notes.md
+          prerelease=()
+          if [[ "${VERSION}" == *-* ]]; then
+            prerelease=(--prerelease)
+          fi
+          gh release create "${TAG}" --repo "${GITHUB_REPOSITORY}" --verify-tag --title "Runner ${VERSION}" \
+            --notes-file notes.md "${prerelease[@]}" release/*.tar.gz release/SHA256SUMS

@@ -31,9 +31,11 @@ export interface LoopDeps {
   readonly shutdown: AbortSignal;
   readonly sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   readonly timing?: Pick<JobRunDeps, 'heartbeatMs' | 'flushMs' | 'minuteMs'>;
+  /** Called before each claim, while no job runs; `true` ends the loop (`update.policy = auto` installed a release). */
+  readonly beforeClaim?: () => Promise<boolean>;
 }
 
-export type LoopEnd = 'ran' | 'idle' | 'paused' | 'shutdown';
+export type LoopEnd = 'ran' | 'idle' | 'paused' | 'shutdown' | 'updated';
 
 const abortableSleep = (ms: number, signal: AbortSignal): Promise<void> =>
   new Promise((resolve) => {
@@ -116,6 +118,9 @@ export async function runLoop(mode: 'once' | 'loop', deps: LoopDeps): Promise<Lo
       }
       await sleep(Date.parse(pause.until) - deps.now().getTime(), deps.shutdown);
       continue;
+    }
+    if (deps.beforeClaim !== undefined && (await deps.beforeClaim())) {
+      return 'updated';
     }
     await deps.backend.preflight();
     let claim: ClaimOutcome;

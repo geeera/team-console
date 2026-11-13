@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -10,6 +10,7 @@ import {
   sentinels,
   type FakeAnswer,
 } from '../testing/fake-console';
+import type { Exec } from '../host/exec';
 import type { InstallHost } from '../install/install';
 import { RUNNER_VERSION } from '../version';
 import { EXIT_FAILED, EXIT_OK, EXIT_USAGE, runCli } from './cli';
@@ -216,6 +217,90 @@ describe('team-console-runner CLI', () => {
         EXIT_FAILED,
       );
       expect(err.join('\n')).toMatch(/^install failed: .*run it with sudo/);
+    });
+  });
+
+  describe('update (C11 rows 1–2, RR13)', () => {
+    const NEWER = '99.0.0';
+
+    async function enrolled(update?: { policy: string }): Promise<void> {
+      const { exit } = run(enrolArgs, () =>
+        json(201, {
+          runnerId: RUNNER_ID,
+          accountId: ACCOUNT_ID,
+          name: 'CI box',
+          audience: 'team-console:local',
+          allowedProjects: [],
+          pollSeconds: 60,
+        }),
+      );
+      expect(await exit).toBe(EXIT_OK);
+      if (update !== undefined) {
+        const path = join(parent, 'home', 'config.json');
+        const config = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
+        await writeFile(path, JSON.stringify({ ...config, update }));
+      }
+      out.length = 0;
+      err.length = 0;
+    }
+
+    function updateRun(argv: readonly string[], release: unknown, exec?: Exec) {
+      const fake = fakeConsole(() => json(200, release));
+      const exit = runCli(argv, {
+        env: { TC_RUNNER_HOME: join(parent, 'home'), PATH: '/usr/bin:/bin' },
+        homeDir: parent,
+        host: { os: 'linux', arch: 'x64', hostname: 'ci' },
+        fetch: fake.fetch,
+        stdout: (line) => out.push(line),
+        stderr: (line) => err.push(line),
+        platform: 'linux',
+        arch: 'x64',
+        prefix: join(parent, 'prefix'),
+        ...(exec === undefined ? {} : { updateExec: exec }),
+      });
+      return { exit, requests: fake.requests };
+    }
+
+    it('says a newer release is available with --check, installing nothing', async () => {
+      await enrolled();
+      const exec = vi.fn<Exec>();
+      const { exit, requests } = updateRun(['update', '--check'], { version: NEWER, minimumVersion: null }, exec);
+      expect(await exit).toBe(EXIT_OK);
+      expect(out.join('\n')).toContain(`${NEWER} is available (installed ${RUNNER_VERSION})`);
+      expect(requests.map((request) => `${request.method} ${new URL(request.url).pathname}`)).toEqual([
+        'GET /api/v1/runner/release',
+      ]);
+      expect(exec).not.toHaveBeenCalled();
+    });
+
+    it('refuses with policy off, asking the console nothing', async () => {
+      await enrolled({ policy: 'off' });
+      const { exit, requests } = updateRun(['update'], { version: NEWER, minimumVersion: null });
+      expect(await exit).toBe(EXIT_FAILED);
+      expect(err.join('\n')).toMatch(/^update refused: updates are off/);
+      expect(requests).toEqual([]);
+    });
+
+    it('refuses a lower version than the installed one', async () => {
+      await enrolled();
+      const { exit } = updateRun(['update'], { version: '0.0.1', minimumVersion: null });
+      expect(await exit).toBe(EXIT_FAILED);
+      expect(err.join('\n')).toMatch(/never downgraded/);
+    });
+
+    it('refuses when gh is missing', async () => {
+      await enrolled({ policy: 'auto' });
+      const exec: Exec = async () => {
+        throw Object.assign(new Error('spawn gh ENOENT'), { code: 'ENOENT' });
+      };
+      const { exit } = updateRun(['update'], { version: NEWER, minimumVersion: null }, exec);
+      expect(await exit).toBe(EXIT_FAILED);
+      expect(err.join('\n')).toMatch(/^update refused: .*could not run `gh`/);
+    });
+
+    it('takes no option but --check', async () => {
+      expect(await updateRun(['update', '--force'], {}).exit).toBe(EXIT_USAGE);
+      expect(await updateRun(['update', '--check', '--check'], {}).exit).toBe(EXIT_USAGE);
     });
   });
 });

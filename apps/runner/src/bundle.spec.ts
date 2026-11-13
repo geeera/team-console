@@ -1,6 +1,6 @@
 import { build, type Metafile } from 'esbuild';
 import { relative } from 'node:path';
-import { bundleOptions, workspaceRoot } from '../build.mjs';
+import { bundleOptions, versionDefine, workspaceRoot } from '../build.mjs';
 
 /**
  * Threat model C11 row 3 ("a minimal dependency set is an acceptance criterion of 2-B"), met by construction
@@ -47,5 +47,26 @@ describe('runner bundle (C11 row 3: no runtime dependency)', () => {
   it('is an executable ESM file for Node', () => {
     expect(text.startsWith('#!/usr/bin/env node\n')).toBe(true);
     expect(text).not.toMatch(/\brequire\(/);
+  });
+});
+
+describe('runner bundle version (ADR 0008 decision 10: update compares it)', () => {
+  it('reports the release label the workflow passes as TC_RUNNER_VERSION', async () => {
+    const result = await build({
+      ...bundleOptions({ TC_RUNNER_VERSION: '1.2.3-rc.1' }),
+      outfile: 'team-console-runner.mjs',
+      write: false,
+    });
+    const text = result.outputFiles[0]?.text ?? '';
+    expect(text).toContain('"1.2.3-rc.1"');
+    expect(text).not.toContain('__TC_RUNNER_VERSION__');
+  }, 30_000);
+
+  it('keeps the dev label without TC_RUNNER_VERSION', () => {
+    expect(versionDefine({})).toEqual({});
+  });
+
+  it.each(['v1.2.3', '1.2', '1.2.3; rm -rf /', '01.2.3'])('refuses TC_RUNNER_VERSION=%s', (version) => {
+    expect(() => versionDefine({ TC_RUNNER_VERSION: version })).toThrow(/MAJOR.MINOR.PATCH/);
   });
 });

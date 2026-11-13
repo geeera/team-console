@@ -2,7 +2,7 @@
 # The runner image (ADR 0008 decision 12 as the architect note on #468 settles it): one image for the runner and for
 # each job's container. The one-file bundle, git, the Claude Code CLI pinned by version, the `job-exec` entrypoint
 # and the managed settings at the CLI's managed path, all root-owned and read-only; jobs run as a non-root user on a
-# read-only root (container backend). 2-B-5 builds, signs and publishes it.
+# read-only root (container backend). `release-runner.yml` builds, signs and publishes it on a `v*` tag.
 #
 #   docker build -f apps/runner/Dockerfile -t team-console-runner .
 #   docker run --rm team-console-runner version
@@ -20,6 +20,8 @@ RUN wanted="$(node -p "require('./package.json').packageManager.replace(/^npm@/,
 COPY tsconfig.base.json ./
 COPY libs/shared ./libs/shared
 COPY apps/runner ./apps/runner
+# release-runner.yml passes the tag's version so `version` and `update` report it; empty keeps the dev label.
+ARG TC_RUNNER_VERSION=
 RUN npx tsc -p apps/runner/tsconfig.app.json --noEmit && node apps/runner/build.mjs
 
 # --- cli: the Claude Code CLI at one exact version (bump it here only, with a test run of the image) ---

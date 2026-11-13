@@ -231,6 +231,34 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
 - [ ] Хостинг: не требуется отдельно — это Cloudflare Workers (см. выше).
 - [ ] Аккаунт базы данных: не требуется отдельно — это Cloudflare D1 (см. шаг 6 выше).
 
+## Раннер: релизы (#575 — до первого тега `v*`)
+
+`release-runner.yml` (#572) собирает раннер, подписывает и публикует релиз на каждый тег `v*`. Секретов он не
+использует: его подпись — это OIDC-токен самого запуска, поэтому всё доверие держится на том, **кто может создать тег
+`v*`** и **из какого workflow** собран релиз. Оба пункта — настройки репозитория, PR их не меняет. Агенты тегов `v*`
+не создают и этот workflow не запускают.
+
+1. **Ruleset на теги `v*`.** Settings → Rules → Rulesets → New ruleset → **New tag ruleset**: имя
+   `runner-release-tags`, Enforcement status **Active**, Target tags → Add target → Include by pattern → `v*`.
+   Bypass list: только **Repository admin** (ты). Rules: **Restrict creations**, **Restrict updates**, **Restrict
+   deletions**, **Block force pushes**. Проверка: `git push origin v0.0.0-check` с любого другого аккаунта получает
+   отказ (сам тег потом не нужен — удали его, если создал).
+2. **Environment `release`.** Settings → Environments → New environment → `release`. Deployment branches and tags →
+   **Selected branches and tags** → Add deployment branch or tag rule → Ref type **Tag**, pattern `v*` (ветки — ни
+   одной). По желанию **Required reviewers** = ты: тогда каждый релиз ждёт твоего «Approve» в Actions. Секретов и
+   переменных в нём нет и не нужно.
+3. **Первый релиз** (после того как раннер и консоль, с которой он работает, уже на нужной ветке): создай подписанный
+   тег на проверенном коммите и запушь его — `git tag -s v0.1.0 <commit> -m 'Runner 0.1.0'` и
+   `git push origin v0.1.0`. Дождись зелёного `release-runner` в Actions.
+4. **Пакет образа — публичный.** После первого релиза: профиль → Packages → `team-console-runner` → Package settings →
+   Change visibility → **Public** (иначе раннер с бэкендом `container` не скачает образ без входа в GHCR). Там же
+   Manage Actions access: только `geeera/team-console`.
+5. **Версия для консоли.** Какую версию раннеры видят как доступную и какую считают устаревшей, задают vars Worker'а
+   `RUNNER_RELEASE_VERSION` и `RUNNER_MINIMUM_VERSION` в `apps/api/wrangler.jsonc` (см.
+   `.product-team/environment-manifest.yml`). После релиза команда меняет их обычным PR; от тебя ничего не нужно,
+   кроме go на выкладку. `update` никогда не ставит версию ниже установленной или ниже минимума.
+6. **Установка на твой Mac** — `docs/runbooks/runner.md` (#576, `needs:local`).
+
 ## Полный список переменных и секретов
 
 Имя каждой переменной и секрета, что это такое, где она живёт (`wrangler secret`, GitHub Environment secret/variable,

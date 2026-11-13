@@ -10,6 +10,7 @@ import {
   CONTAINER_RUNTIMES,
   loadRunnerConfig,
   runnerHomeOf,
+  updatePolicyOf,
   type ContainerRuntime,
   type RunnerConfig,
 } from '../config/config';
@@ -20,6 +21,8 @@ import { RunnerFileError } from '../config/private-files';
 import { loadRunnerKey } from '../config/runner-key';
 import { runLoop } from '../jobs/loop';
 import { RUNNER_VERSION } from '../version';
+import { autoUpdater } from '../update/auto-update';
+import { UpdateError, applyUpdate, checkForUpdate, type ApplyDeps } from '../update/update';
 import { EnrolUsageError, enrol } from './enrol';
 
 /** Everything the CLI reads from the process, passed in so the specs drive it without touching the real host. */
@@ -39,6 +42,10 @@ export interface CliDeps {
   readonly gid?: number;
   /** The installer's host; the real one when absent. */
   readonly installHost?: InstallHost;
+  /** Runs `gh`, `tar` and `node` for `update`; the real host when absent. */
+  readonly updateExec?: Exec;
+  readonly arch?: string;
+  readonly now?: () => Date;
 }
 
 export const EXIT_OK = 0;
@@ -56,6 +63,8 @@ const USAGE = [
   '        Enrol this host with the one-time code from Settings › Runners.',
   '  run-once  Claim one job, run it and exit (exit 0 also when there is none or the runner is paused).',
   '  run --loop  Claim and run jobs until Ctrl-C.',
+  '  update [--check]  Install the release the console names after `gh attestation verify` accepts it',
+  '        (never a lower version); --check only says whether one is available.',
   '  version   Print this runner’s version.',
   '',
   'TC_RUNNER_HOME sets where the runner keeps its config and key (default ~/.team-console-runner).',
@@ -79,7 +88,8 @@ function describeFailure(error: unknown): string {
     error instanceof RunnerFileError ||
     error instanceof EnrolUsageError ||
     error instanceof BackendError ||
-    error instanceof InstallError
+    error instanceof InstallError ||
+    error instanceof UpdateError
   ) {
     return error.message;
   }
@@ -265,17 +275,76 @@ async function runInstallCommand(args: readonly string[], deps: CliDeps): Promis
   }
 }
 
+/** What `gh` may see of the runner's environment: where it lives and its own auth, nothing else (no `GH_HOST`). */
+const GH_ENV = ['PATH', 'HOME', 'GH_CONFIG_DIR', 'XDG_CONFIG_HOME', 'GH_TOKEN', 'GITHUB_TOKEN'];
+
+function applyDepsOf(home: string, deps: CliDeps): ApplyDeps {
+  return {
+    home,
+    prefix: deps.prefix ?? dirname(process.argv[1] ?? ''),
+    platform: deps.platform ?? process.platform,
+    arch: deps.arch ?? process.arch,
+    node: process.execPath,
+    exec: deps.updateExec ?? hostExec,
+    ghEnv: { PATH: SYSTEM_PATH, ...pick(deps.env, GH_ENV) },
+    uid: deps.uid ?? process.getuid?.() ?? null,
+    log: deps.stdout,
+  };
+}
+
+async function clientOf(home: string, config: RunnerConfig, deps: CliDeps): Promise<RunnerClient> {
+  return new RunnerClient({
+    apiUrl: config.apiUrl,
+    runnerId: config.runnerId,
+    audience: config.audience,
+    privateKey: await loadRunnerKey(home),
+    fetch: deps.fetch,
+  });
+}
+
+async function runUpdate(args: readonly string[], deps: CliDeps): Promise<number> {
+  if (args.length > 1 || (args.length === 1 && args[0] !== '--check')) {
+    return usageError(deps, 'update takes only --check.');
+  }
+  try {
+    const home = runnerHomeOf(deps.env, deps.homeDir);
+    const config = await loadRunnerConfig(home);
+    const client = await clientOf(home, config, deps);
+    const check = await checkForUpdate({
+      currentVersion: RUNNER_VERSION,
+      policy: updatePolicyOf(config),
+      release: () => client.release(),
+    });
+    switch (check.kind) {
+      case 'no-release':
+        deps.stdout(`The console names no runner release; ${check.current} stays.`);
+        return EXIT_OK;
+      case 'current':
+        deps.stdout(`Up to date: ${check.current}.`);
+        return EXIT_OK;
+      case 'available':
+        if (args[0] === '--check') {
+          deps.stdout(`${check.target} is available (installed ${check.current}); run update to install it.`);
+          return EXIT_OK;
+        }
+        await applyUpdate(check.target, applyDepsOf(home, deps));
+        deps.stdout(
+          `Updated ${check.current} → ${check.target}. Restart the runner's service to run it (docs/runbooks/runner.md › Update).`,
+        );
+        return EXIT_OK;
+    }
+  } catch (error: unknown) {
+    deps.stderr(`update refused: ${describeFailure(error)}`);
+    return EXIT_FAILED;
+  }
+}
+
 async function runJobs(mode: 'once' | 'loop', deps: CliDeps): Promise<number> {
   try {
     const home = runnerHomeOf(deps.env, deps.homeDir);
     const config = await loadRunnerConfig(home);
-    const client = new RunnerClient({
-      apiUrl: config.apiUrl,
-      runnerId: config.runnerId,
-      audience: config.audience,
-      privateKey: await loadRunnerKey(home),
-      fetch: deps.fetch,
-    });
+    const client = await clientOf(home, config, deps);
+    const now = deps.now ?? (() => new Date());
     const end = await runLoop(mode, {
       home,
       config,
@@ -283,8 +352,15 @@ async function runJobs(mode: 'once' | 'loop', deps: CliDeps): Promise<number> {
       backend: backendOf(config, home, deps),
       sourceEnv: deps.env,
       log: deps.stdout,
-      now: () => new Date(),
+      now,
       shutdown: deps.shutdown ?? new AbortController().signal,
+      beforeClaim: autoUpdater({
+        policy: updatePolicyOf(config),
+        check: { currentVersion: RUNNER_VERSION, release: () => client.release() },
+        apply: applyDepsOf(home, deps),
+        now,
+        log: deps.stdout,
+      }),
     });
     deps.stdout(end === 'idle' ? 'No job is queued for this runner.' : `Runner stopped (${end}).`);
     return EXIT_OK;
@@ -308,6 +384,8 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       return runInstallCommand(rest, deps);
     case 'run-once':
       return rest.length === 0 ? runJobs('once', deps) : usageError(deps, 'run-once takes no arguments.');
+    case 'update':
+      return runUpdate(rest, deps);
     case 'run':
       return rest.length === 1 && rest[0] === '--loop'
         ? runJobs('loop', deps)

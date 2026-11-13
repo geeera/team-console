@@ -10,6 +10,7 @@ import {
   runnerHomeOf,
   runnerKeyPathOf,
   saveRunnerConfig,
+  updatePolicyOf,
   type RunnerConfig,
 } from './config';
 import { RunnerFileError, readPrivateFile, writePrivateFile } from './private-files';
@@ -261,8 +262,21 @@ describe('runner config (ADR 0008 decision 2, threat model C4 row 1)', () => {
       ['repositories', { 'team-console': 'https://user:pass@example.com/x.git' }],
       ['repositories', { 'team-console': 'ssh://example.com/x/y.git' }],
       ['repositories', { 'Not A Slug': 'https://example.com/x.git' }],
+      ['update', { policy: 'always' }],
+      ['update', { policy: 'auto', channel: 'beta' }],
+      ['update', 'auto'],
     ])('refuses %s = %j', (key, value) => {
       expect(() => parseRunnerConfig({ ...config, [key]: value })).toThrow(RunnerFileError);
+    });
+  });
+
+  describe('update policy (ADR 0008 decision 10)', () => {
+    it('defaults to notify', () => {
+      expect(updatePolicyOf(parseRunnerConfig(config))).toBe('notify');
+    });
+
+    it.each(['off', 'notify', 'auto'] as const)('takes %s', (policy) => {
+      expect(updatePolicyOf(parseRunnerConfig({ ...config, update: { policy } }))).toBe(policy);
     });
   });
 });
