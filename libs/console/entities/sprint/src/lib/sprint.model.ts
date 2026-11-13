@@ -111,8 +111,8 @@ export interface SprintTeam {
 export interface SprintMilestone {
   readonly number: number;
   readonly title: string;
-  /** Demo day, `YYYY-MM-DD`. */
-  readonly dueOn: string;
+  /** Demo day, `YYYY-MM-DD`; `null` for a console-tracker sprint created without one. */
+  readonly dueOn: string | null;
   readonly url: string | null;
 }
 

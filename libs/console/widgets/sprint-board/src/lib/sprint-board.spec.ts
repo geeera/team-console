@@ -14,6 +14,7 @@ import {
   projectJobsUrl,
   queuedJobFixture,
 } from '@console/entities/job';
+import { itemFixture, itemsUrl, sprintsUrl } from '@console/entities/item';
 import { NeedsYouCounts } from '@console/entities/project';
 import { runnerFixture } from '@console/entities/runner';
 import { CORE_STATUSES, projectSprintUrl } from '@console/entities/sprint';
@@ -22,11 +23,13 @@ import { memoryPersistedStateStorage, PERSISTED_STATE_STORAGE } from '@console/s
 import { BREAKPOINTS, Icon } from '@console/shared/ui';
 import { OWNER_ACCOUNT_ID, problemTypeOf } from '@shared/contracts';
 import type {
+  ItemSummaryDto,
   RecentRunDto,
   SprintDto,
   SprintIssueDto,
   SprintPullRequestDto,
   TeamRunDto,
+  TrackerSprintDto,
 } from '@shared/contracts';
 import { readFileSync } from 'node:fs';
 import type { MockInstance } from 'vitest';
@@ -1219,6 +1222,12 @@ describe('SprintBoard', () => {
     async function renderConsole(phone = false) {
       const rendered = await render(phone, (host) => host.project.set(CONSOLE));
       http.expectOne(projectSprintUrl(TC.slug)).flush(sprint());
+      // #556: its sprint and tasks come from the tracker; one open sprint keeps the tiles on screen.
+      http.expectOne(sprintsUrl(TC.slug)).flush({
+        sprints: [{ number: 1, title: 'Sprint 01', dueOn: '2026-10-16', state: 'open', description: '', createdAt: '2026-10-01T00:00:00Z', closedAt: null }],
+      });
+      await tick();
+      http.expectOne((request) => request.url === itemsUrl(TC.slug)).flush({ items: [], next: null });
       return rendered;
     }
 
@@ -1323,6 +1332,93 @@ describe('SprintBoard', () => {
       await settle();
       http.expectNone(JOBS);
       http.expectNone('/api/v1/accounts');
+    });
+  });
+
+  describe('on the console tracker (#556): the current sprint and its tasks come from the tracker', () => {
+    const CONSOLE: SprintBoardProject = { ...TC, isOnConsoleTracker: true };
+    const JOBS = `${projectJobsUrl(TC.slug)}?limit=${String(JOBS_PAGE_LIMIT)}`;
+
+    function trackerSprint(number: number, dueOn: string | null, state: 'open' | 'closed' = 'open'): TrackerSprintDto {
+      const title = `Sprint ${String(number).padStart(2, '0')}`;
+      return { number, title, dueOn, state, description: '', createdAt: '2026-11-01T00:00:00Z', closedAt: null };
+    }
+
+    const tracked = (number: number, overrides: Partial<ItemSummaryDto> = {}): ItemSummaryDto =>
+      itemFixture({ key: `TC-${String(number)}`, number, title: `Task ${String(number)}`, sprint: 4, ...overrides });
+
+    /** Answers everything but the tracker reads: GitHub's `/sprint` (pull requests), the jobs and the accounts. */
+    async function renderTracker() {
+      const rendered = await render(false, (host) => host.project.set(CONSOLE));
+      http.expectOne(projectSprintUrl(TC.slug)).flush(sprint());
+      http.expectOne(JOBS).flush({ jobs: [], nextCursor: null });
+      http.expectOne('/api/v1/accounts').flush({ accounts: [{ id: OWNER_ACCOUNT_ID, slug: 'o', name: 'O', role: 'member' }] });
+      return rendered;
+    }
+
+    it('shows the earliest open tracker sprint with its tasks by lane, not the GitHub milestone', async () => {
+      const { root, settle, lanes, text } = await renderTracker();
+      http
+        .expectOne(sprintsUrl(TC.slug))
+        .flush({ sprints: [trackerSprint(3, '2026-11-13', 'closed'), trackerSprint(5, '2026-12-11'), trackerSprint(4, '2026-11-27')] });
+      await settle();
+      const read = http.expectOne((request) => request.url === itemsUrl(TC.slug));
+      expect(read.request.params.get('sprint')).toBe('4');
+      expect(read.request.params.get('state')).toBe('all');
+      read.flush({
+        items: [
+          tracked(11, { status: 'in-progress', kind: 'feature' }),
+          tracked(12, { status: 'blocked', kind: 'bug' }),
+          tracked(13, { status: 'done', kind: 'chore', state: 'closed' }),
+        ],
+        next: null,
+      });
+      await settle();
+
+      expect(text('h2')).toBe('Sprint 04');
+      expect(text('[data-testid="demo"]')).toMatch(/^Демо 27 ноября/);
+      expect(lanes()).toEqual({ approved: 0, 'in-progress': 1, qa: 0, blocked: 1, done: 1 });
+      expect(root.querySelector('[data-testid="done-stat"] dd')?.textContent?.trim()).toBe('1 из 3');
+      // Rows are console tasks: no GitHub link; the pull requests still come from GitHub.
+      expect(root.querySelector('tc-lane [data-number="11"] a')).toBeNull();
+      expect(root.querySelector('[data-testid="pulls"] a')?.getAttribute('href')).toBe(
+        'https://github.com/geeera/team-console/pull/45',
+      );
+    });
+
+    it('says there is no current sprint when the tracker has no open one, and reads no items', async () => {
+      const { root, settle } = await renderTracker();
+      http.expectOne(sprintsUrl(TC.slug)).flush({ sprints: [trackerSprint(3, '2026-11-13', 'closed')] });
+      await settle();
+      http.expectNone((request) => request.url === itemsUrl(TC.slug));
+      expect(root.querySelector('[data-testid="no-sprint"]')).not.toBeNull();
+    });
+
+    it('keeps the team-stat jobs tile when the tracker has no sprint yet', async () => {
+      const { root, settle } = await renderTracker();
+      http.expectOne(sprintsUrl(TC.slug)).flush({ sprints: [] });
+      await settle();
+      expect(root.querySelector('[data-testid="team-stat"]')?.getAttribute('data-jobs')).toBe('none');
+      expect(root.querySelector('[data-testid="no-sprint"]')).not.toBeNull();
+      expect(root.querySelector('h2.board__title')).toBeNull();
+    });
+
+    it.each([
+      ['offline', 'offline', { status: 0, statusText: 'Unknown Error' }],
+      ['unavailable', 'a 5xx', { status: 503, statusText: 'Unavailable' }],
+      ['unavailable', 'a 403', { status: 403, statusText: 'Forbidden' }],
+    ] as const)('shows the %s failure for %s from the tracker, with Retry', async (failure, _case, error) => {
+      const { root, settle } = await renderTracker();
+      const sprints = http.expectOne(sprintsUrl(TC.slug));
+      if (error.status === 0) {
+        sprints.error(new ProgressEvent('error'), error);
+      } else {
+        sprints.flush({ type: problemTypeOf('owner-only'), title: 'x', status: error.status }, error);
+      }
+      await settle();
+      const block = root.querySelector('[data-testid="load-error"]') as HTMLElement;
+      expect(block.getAttribute('data-failure')).toBe(failure);
+      expect(block.querySelector('button')).not.toBeNull();
     });
   });
 });

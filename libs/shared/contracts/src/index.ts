@@ -485,6 +485,7 @@ export type {
   TrackerSprintDto,
   TrackerSprintListDto,
 } from './lib/tracker/dto';
+export { currentSprintOf, openSprintsOf } from './lib/tracker/sprints';
 export type {
   PullRequestDto,
   PullRequestListDto,

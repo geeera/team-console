@@ -22,6 +22,8 @@ export type {
   SprintTeam,
   StatusColumn,
 } from './lib/sprint.model';
+export { boardSectionsOf, sprintIssueOf, trackerSprintPartOf } from './lib/tracker-board';
+export type { BoardSection, BoardSectionKind, BoardSections, TrackerSprintPart } from './lib/tracker-board';
 export { SprintApi, UnexpectedSprintResponse, projectSprintUrl } from './lib/sprint.api';
 export { SPRINT_CI_ICONS, SprintCiChip } from './lib/sprint-ci';
 export { RUN_ENTRY_ICONS, SprintRunList, TEAM_RUN_ICONS } from './lib/sprint-team';

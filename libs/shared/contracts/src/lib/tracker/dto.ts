@@ -242,6 +242,7 @@ export type TrackerProblemType =
   | 'sprint-not-found'
   | 'sprint-exists'
   | 'sprint-invalid'
+  | 'sprint-frozen'
   | 'comment-not-found'
   | 'comment-invalid'
   | 'label-not-found'

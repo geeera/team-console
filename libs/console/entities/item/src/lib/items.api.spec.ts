@@ -114,6 +114,28 @@ describe('ItemsApi', () => {
     second.flush({ events: [], next: null });
     await expect(pending).resolves.toMatchObject({ ok: true, value: [{ id: 1 }] });
   });
+
+  it('reads a whole item list past one page, and refuses a partial one (#556)', async () => {
+    const page = (from: number, count: number) =>
+      Array.from({ length: count }, (_, n) => itemFixture({ number: from + n, sprint: null }));
+    const whole = api.items('team-console', { state: 'open', sprint: 'none' }, true);
+    http
+      .expectOne((request) => request.url.endsWith('/items') && !request.params.has('after'))
+      .flush({ items: page(1, 100), next: 100 });
+    await Promise.resolve();
+    const last = http.expectOne((request) => request.params.get('after') === '100');
+    expect(last.request.params.get('sprint')).toBe('none');
+    last.flush({ items: page(101, 50), next: null });
+    const read = await whole;
+    expect(read.ok && read.value.length).toBe(150);
+
+    const endless = api.items('team-console', {}, true);
+    for (let n = 0; n < 20; n += 1) {
+      await Promise.resolve();
+      http.expectOne((request) => request.url.endsWith('/items')).flush({ items: page(n + 1, 1), next: n + 1 });
+    }
+    await expect(endless).resolves.toEqual({ ok: false, reason: 'error' });
+  });
 });
 
 describe('trackerFailureOf', () => {

@@ -17,13 +17,17 @@
 </tc-state-block>
 } @else if (board(); as board) {
 <!-- Titles, labels and the milestone name are GitHub text: interpolated only, never bound as HTML. -->
-@if (board.milestone; as milestone) {
-<section class="board__status" [attr.aria-labelledby]="titleId">
+<!-- The jobs tile belongs to the project, not the sprint: a console-tracker project with no sprint yet keeps it. -->
+@if (board.milestone || isJobsBoard()) {
+<section class="board__status" [attr.aria-labelledby]="board.milestone ? titleId : null">
+  @if (board.milestone; as milestone) {
   <header class="board__head">
     <h2 class="board__title" [id]="titleId" dir="auto">{{ milestone.title }}</h2>
-    <tc-chip class="board__demo" tone="accent" data-testid="demo"
-      ><tc-icon name="calendar" size="sm" />{{ demoLine() }}</tc-chip
-    >
+    @if (demoLine()) {
+      <tc-chip class="board__demo" tone="accent" data-testid="demo"
+        ><tc-icon name="calendar" size="sm" />{{ demoLine() }}</tc-chip
+      >
+    }
     <div class="board__actions">
       <button
         tc-button
@@ -51,6 +55,7 @@
       </button>
     </div>
   </header>
+  }
 
   <!-- Five tiles when the board is wide, else four (open items under Done); every state is icon plus words. -->
   <dl tc-stats data-testid="stats" [attr.data-layout]="tileLayout()" [columns]="tileColumns()">
@@ -107,7 +112,8 @@
     </div>
   </dl>
 </section>
-} @else if (compact()) {
+}
+@if (!board.milestone && compact()) {
 <ng-container *ngTemplateOutlet="noSprint" />
 }
 
