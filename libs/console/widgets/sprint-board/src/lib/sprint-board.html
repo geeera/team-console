@@ -93,7 +93,7 @@
       tc-stat
       data-testid="team-stat"
       [attr.data-team]="isJobsBoard() ? null : board.team.state"
-      [attr.data-jobs]="isJobsBoard() ? jobsTileState() : null"
+      [attr.data-jobs]="isJobsBoard() ? jobsTileShown() : null"
       [label]="'board.stat.runs' | transloco"
       [tone]="teamTone()"
       [icon]="teamIcon()"

@@ -9,6 +9,7 @@ const TONES: Readonly<Record<RunnerPresence, StatusCardTone & ChipTone>> = {
   offline: 'neutral',
   'never-seen': 'neutral',
   suspect: 'warning',
+  paused: 'warning',
   revoked: 'danger',
 };
 
@@ -17,13 +18,15 @@ const MARKS: Readonly<Record<RunnerPresence, IconName>> = {
   offline: 'clock',
   'never-seen': 'clock',
   suspect: 'alert',
+  paused: 'pause',
   revoked: 'x',
 };
 
 let nextCardId = 0;
 
 /**
- * One enrolled runner on Settings › Runners (#464, ADR 0008 row 2-E): its name and presence, then backend, version
+ * One enrolled runner on Settings › Runners (#464, ADR 0008 row 2-E): its name and presence — with why and until when
+ * it is paused (#571) — then backend, version
  * (flagged below the environment's minimum), when it was last seen (local time), host and the projects it may serve.
  * Text from the runner (name, hostname, os) is interpolated only. Actions are projected (`[tc-runner-actions]`).
  */
@@ -49,6 +52,14 @@ let nextCardId = 0;
       @if (runner().suspect; as suspect) {
         <p tc-status-card-body class="runner-card__note" data-testid="runner-suspect">
           {{ 'runners.card.suspect.' + suspect.reason | transloco: { day: suspect.at | localDay, time: suspect.at | localTime } }}
+        </p>
+      }
+      @if (runner().pause; as pause) {
+        <p tc-status-card-body class="runner-card__note" data-testid="runner-pause" [attr.data-reason]="pause.reason">
+          {{ 'runners.card.pause.' + pause.reason | transloco }}
+          <time [attr.datetime]="pause.until">{{
+            'runners.card.pauseUntil' | transloco: { day: pause.until | localDay, time: pause.until | localTime }
+          }}</time>
         </p>
       }
       <dl tc-ledger class="runner-card__facts">

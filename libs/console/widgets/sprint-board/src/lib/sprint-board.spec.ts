@@ -18,13 +18,14 @@ import { itemFixture, itemsUrl, sprintsUrl } from '@console/entities/item';
 import { NeedsYouCounts } from '@console/entities/project';
 import { runnerFixture } from '@console/entities/runner';
 import { CORE_STATUSES, projectSprintUrl } from '@console/entities/sprint';
-import { provideConsoleI18n, TranslocoService } from '@console/shared/i18n';
+import { localTimeOf, provideConsoleI18n, TranslocoService } from '@console/shared/i18n';
 import { memoryPersistedStateStorage, PERSISTED_STATE_STORAGE } from '@console/shared/persisted-state';
 import { BREAKPOINTS, Icon } from '@console/shared/ui';
 import { OWNER_ACCOUNT_ID, problemTypeOf } from '@shared/contracts';
 import type {
   ItemSummaryDto,
   RecentRunDto,
+  RunnerDto,
   SprintDto,
   SprintIssueDto,
   SprintPullRequestDto,
@@ -1207,14 +1208,14 @@ describe('SprintBoard', () => {
     const RUNNERS = `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners`;
 
     /** The account read the board makes for runner names: the owner's account with one runner, or a member's. */
-    async function answerRunners(role: 'owner' | 'member'): Promise<void> {
+    async function answerRunners(role: 'owner' | 'member', runner: Partial<RunnerDto> = {}): Promise<void> {
       http
         .expectOne('/api/v1/accounts')
         .flush({ accounts: [{ id: OWNER_ACCOUNT_ID, slug: 'owner', name: 'Owner', role }] });
       if (role === 'owner') {
         await tick();
         http.expectOne(RUNNERS).flush({
-          runners: [{ ...runnerFixture(), id: JOB_FIXTURE_IDS.runner, name: 'E2E Mac' }],
+          runners: [{ ...runnerFixture(), id: JOB_FIXTURE_IDS.runner, name: 'E2E Mac', ...runner }],
           pendingEnrolments: [],
           release: { version: null, minimumVersion: null },
         });
@@ -1257,6 +1258,29 @@ describe('SprintBoard', () => {
       expect(lane.querySelector('[data-testid="run-now"]')).not.toBeNull();
       expect(lane.querySelector('tc-sprint-run-list')).toBeNull();
       expect(lane.querySelector('.board__section-count')?.textContent?.trim()).toBe('2');
+    });
+
+    // #571: the only runner that serves the project hit its usage limit; the queue waits for it.
+    it('says the runner is paused, why and until when, while nothing runs; a running job still reads as running', async () => {
+      const until = '2026-11-11T14:30:00.000Z';
+      const { root, settle } = await renderConsole();
+      http.expectOne(JOBS).flush({ jobs: [queuedJobFixture()], nextCursor: null });
+      await answerRunners('owner', { pause: { reason: 'usage-limit', until } });
+      await settle();
+      const tile = root.querySelector('[data-testid="team-stat"]') as HTMLElement;
+      expect(tile.getAttribute('data-jobs')).toBe('paused');
+      expect(tile.querySelector('dd')?.textContent?.trim()).toBe(`Лимит использования до ${localTimeOf(until, 'ru')}`);
+      expect(tile.classList.contains('tc-stat--danger')).toBe(false);
+    });
+
+    it('keeps a running job on the tile over a paused runner', async () => {
+      const { root, settle } = await renderConsole();
+      http.expectOne(JOBS).flush({ jobs: [jobFixture()], nextCursor: null });
+      await answerRunners('owner', { pause: { reason: 'rate-limit', until: '2026-11-11T14:30:00.000Z' } });
+      await settle();
+      http.expectOne((request) => request.url === jobEventsUrl(TC.slug, JOB_FIXTURE_IDS.first)).flush({ events: [], nextCursor: null });
+      await settle();
+      expect(root.querySelector('[data-testid="team-stat"]')?.getAttribute('data-jobs')).toBe('running');
     });
 
     it('with no jobs yet says nothing runs and offers Run now; the tile says no runs', async () => {

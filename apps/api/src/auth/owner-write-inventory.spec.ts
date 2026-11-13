@@ -61,6 +61,9 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   'POST /api/v1/runner/jobs/:id/heartbeat': 'runner-door',
   'POST /api/v1/runner/jobs/:id/events': 'runner-door',
   'POST /api/v1/runner/jobs/:id/finish': 'runner-door',
+  // #571: the runner's own pause, by its JWT alone.
+  'POST /api/v1/runner/pause': 'runner-door',
+  'POST /api/v1/runner/resume': 'runner-door',
   'PUT /api/v1/accounts/:id/runner-policy': 'no-owner-write',
   // #467: Run now and placement, owner rows of the matrix (the service is refused there like on every tracker write).
   'POST /api/v1/projects/:slug/jobs': 'tracker-matrix',

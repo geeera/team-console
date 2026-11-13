@@ -18,6 +18,24 @@ export const isRunnerIsolation = (value: unknown): value is RunnerIsolation =>
 export const RUNNER_SUSPECT_REASONS = ['new-country', 'two-pollers'] as const;
 export type RunnerSuspectReason = (typeof RUNNER_SUSPECT_REASONS)[number];
 
+/**
+ * Why a runner stopped claiming (#571, ADR 0008 decision 9; migration 0028): the CLI's usage or rate limit, which the
+ * runner detects and enforces, or a pause by hand. The console records it and claims nothing for the runner meanwhile.
+ */
+export const RUNNER_PAUSE_REASONS = ['usage-limit', 'rate-limit', 'manual'] as const;
+export type RunnerPauseReason = (typeof RUNNER_PAUSE_REASONS)[number];
+export const isRunnerPauseReason = (value: unknown): value is RunnerPauseReason =>
+  (RUNNER_PAUSE_REASONS as readonly unknown[]).includes(value);
+
+/** A job that failed on one of these hit a quota, not a fault: it never counts toward the failure streak. */
+export const RUNNER_LIMIT_REASONS = ['usage-limit', 'rate-limit'] as const;
+export type RunnerLimitReason = (typeof RUNNER_LIMIT_REASONS)[number];
+export const isRunnerLimitReason = (value: unknown): value is RunnerLimitReason =>
+  (RUNNER_LIMIT_REASONS as readonly unknown[]).includes(value);
+
+/** `POST /runner/pause` takes an `until` at most this far ahead: a pause always lapses on its own within a day. */
+export const RUNNER_PAUSE_MAX_SECONDS = 24 * 60 * 60;
+
 export const RUNNER_NAME_MAX_LENGTH = 64;
 export const RUNNER_HOST_FIELD_MAX_LENGTH = 128;
 export const RUNNER_ALLOWED_PROJECTS_MAX = 100;
@@ -120,6 +138,18 @@ export interface RunnerSuspectDto {
   readonly reason: RunnerSuspectReason;
 }
 
+export interface RunnerPauseDto {
+  readonly reason: RunnerPauseReason;
+  /** When the runner claims again (UTC); the pause lapses on its own then. */
+  readonly until: string;
+}
+
+/** `POST /api/v1/runner/pause`. */
+export interface PauseRunnerInput {
+  readonly reason: RunnerPauseReason;
+  readonly until: string;
+}
+
 export interface RunnerDto {
   readonly id: string;
   readonly name: string;
@@ -141,6 +171,8 @@ export interface RunnerDto {
    * `isRunnerVersionBelow`, so the console never needs the runner door's `GET /runner/release`.
    */
   readonly belowMinimum: boolean;
+  /** The pause in force now (#571): `null` once `until` has passed, whatever the row still says. */
+  readonly pause: RunnerPauseDto | null;
 }
 
 /**
@@ -257,6 +289,32 @@ export function checkEnrolRunnerInput(body: unknown): InputCheck<EnrolRunnerInpu
   });
 }
 
+const UTC_TIMESTAMP = /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,3})?Z$/;
+
+/**
+ * The pause body: a known reason and an `until` in UTC, later than `now` and at most `RUNNER_PAUSE_MAX_SECONDS`
+ * ahead of it. `until` comes back normalised to `toISOString()`, the shape the column is compared in.
+ */
+export function checkPauseRunnerInput(body: unknown, now: Date): InputCheck<PauseRunnerInput> {
+  return checked(() => {
+    const fields = record(body, ['reason', 'until']);
+    const reason = oneOf('reason', fields['reason'], isRunnerPauseReason);
+    const until = fields['until'];
+    const at = typeof until === 'string' && UTC_TIMESTAMP.test(until) ? Date.parse(until) : Number.NaN;
+    // `Date.parse` rolls 31 February over into March; the date part must survive the round trip.
+    if (typeof until !== 'string' || !Number.isFinite(at) || new Date(at).toISOString().slice(0, 19) !== until.slice(0, 19)) {
+      throw new InputError('until', 'until must be a UTC timestamp like 2026-11-13T15:00:00.000Z');
+    }
+    if (at <= now.getTime()) {
+      throw new InputError('until', 'until must be in the future');
+    }
+    if (at > now.getTime() + RUNNER_PAUSE_MAX_SECONDS * 1000) {
+      throw new InputError('until', 'until must be at most 24 hours ahead');
+    }
+    return { reason, until: new Date(at).toISOString() };
+  });
+}
+
 export function isRunnerId(value: unknown): value is string {
   return isUlid(value);
 }
@@ -367,6 +425,10 @@ function isRunnerCapabilitiesDto(value: unknown): value is RunnerCapabilitiesDto
   );
 }
 
+function isRunnerPauseDto(value: unknown): value is RunnerPauseDto {
+  return isRecord(value) && isRunnerPauseReason(value['reason']) && isTimestamp(value['until']);
+}
+
 function isRunnerSuspectDto(value: unknown): value is RunnerSuspectDto {
   return (
     isRecord(value) &&
@@ -394,7 +456,8 @@ export function isRunnerDto(value: unknown): value is RunnerDto {
     typeof value['online'] === 'boolean' &&
     isNullable(value['suspect'], isRunnerSuspectDto) &&
     isNullable(value['revokedAt'], isTimestamp) &&
-    typeof value['belowMinimum'] === 'boolean'
+    typeof value['belowMinimum'] === 'boolean' &&
+    isNullable(value['pause'], isRunnerPauseDto)
   );
 }
 

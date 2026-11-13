@@ -67,6 +67,9 @@ export const AUDIT_EVENT_KINDS = [
   // The owner's runner management (#492): a suspect mark cleared, a pending code withdrawn.
   'runner.suspect-cleared',
   'enrolment-code.withdrawn',
+  // The runner's pause on a usage or rate limit (#571), and its lifting.
+  'runner.paused',
+  'runner.resumed',
   'job.finished',
   'job.cancelled',
   'team.paused',

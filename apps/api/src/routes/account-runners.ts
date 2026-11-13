@@ -42,6 +42,7 @@ import { jsonBody } from '../json-body';
 import { SMALL_WRITE_MAX_BYTES, writeLimit } from '../tracker/http';
 import { ownedAccountOf } from './accounts';
 import { runnerReleaseOf } from './runner';
+import { runnerPauseOf } from './runner-pause';
 
 type Context = WorkerContext<ApiEnv>;
 
@@ -93,6 +94,8 @@ export function runnerDtoOf(runner: RunnerRecord, now: Date, minimumVersion: str
         : null,
     revokedAt: runner.revokedAt,
     belowMinimum: isRunnerVersionBelow(runner.version, minimumVersion),
+    // A revoked runner claims nothing anyway; its last pause is history, not a state.
+    pause: runner.revokedAt === null ? runnerPauseOf(runner, now) : null,
   };
 }
 

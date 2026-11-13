@@ -26,9 +26,9 @@ import { SMALL_WRITE_MAX_BYTES, TEXT_WRITE_MAX_BYTES, writeLimit } from '../trac
 import { jobDtoOf } from './jobs';
 
 type Context = WorkerContext<ApiEnv>;
-type RunnerIdentity = Extract<Identity, { kind: 'runner' }>;
+export type RunnerIdentity = Extract<Identity, { kind: 'runner' }>;
 
-function runnerOf(c: Context): RunnerIdentity {
+export function runnerOf(c: Context): RunnerIdentity {
   const identity = c.get('identity');
   if (identity.kind !== 'runner') {
     // The route scope admits `runner` alone; anything else here is a bug, never an open door.
@@ -206,16 +206,23 @@ export function createRunnerJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       if (!finished) {
         return lostWriteRefusal(c, runner, job.id, now);
       }
-      const streak = await new TeamStateRepo(c.env.DB).recordOutcome(job.projectSlug, input.value.result, now, {
-        accountId: job.accountId,
-        at: now,
-        actorKind: 'system',
-        actor: 'failure-streak',
-        kind: 'team.paused',
-        target: job.projectSlug,
-        details: { reason: 'failure-streak', jobId: job.id },
-        ipCountry: null,
-      });
+      // A usage or rate limit (#571) is the runner's quota, not the project's fault: the streak leaves it out.
+      const streak = await new TeamStateRepo(c.env.DB).recordOutcome(
+        job.projectSlug,
+        input.value.result,
+        now,
+        {
+          accountId: job.accountId,
+          at: now,
+          actorKind: 'system',
+          actor: 'failure-streak',
+          kind: 'team.paused',
+          target: job.projectSlug,
+          details: { reason: 'failure-streak', jobId: job.id },
+          ipCountry: null,
+        },
+        input.value.metrics['reason'],
+      );
       if (streak.paused) {
         c.get('logger').warn('team paused on the failure streak', { slug: job.projectSlug });
       }

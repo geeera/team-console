@@ -6,6 +6,7 @@ import {
   isEnrolmentCodeDto,
   isJobDto,
   isJobEventListDto,
+  isRunnerListDto,
   type JobDto,
   type JobEventDto,
 } from '@shared/contracts';
@@ -197,6 +198,16 @@ describe('integration: Run now → runner → fake CLI → events and finish', (
     expect(await cli(['run-once'])).toBe(EXIT_OK);
     expect(out.at(-2)).toBe(`paused (usage-limit) until ${String(retryAt)}; not claiming`);
     expect((await readBack(waiting)).job.state).toBe('queued');
+
+    // 7. #571: the pause is mirrored to the console — Settings › Runners reads it with the reason and the reset time.
+    const listed = await fetch(`${stack.origin}/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners`);
+    const list: unknown = await listed.json();
+    if (!isRunnerListDto(list)) {
+      throw new Error('the runner list did not answer a RunnerListDto');
+    }
+    const mirrored = list.runners.find((runner) => runner.id === enrolled.runnerId);
+    console.info(`[pause] runner ${enrolled.runnerId} pause=${JSON.stringify(mirrored?.pause)}`);
+    expect(mirrored?.pause).toEqual({ reason: 'usage-limit', until: retryAt });
     expect(err).toEqual([]);
   }, 120_000);
 });
