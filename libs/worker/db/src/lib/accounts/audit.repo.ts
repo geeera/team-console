@@ -121,6 +121,13 @@ export interface AuditCondition {
 const WROTE_PREVIOUS_STATEMENT: AuditCondition = { exists: 'SELECT 1 WHERE changes() > 0', params: [] };
 
 /**
+ * A WHERE term for a statement placed directly after an `auditedWrite` pair (#533): true only when the audit row was
+ * written, that is when the write itself took effect, so a side effect riding in the same batch (a job cancel) is
+ * skipped for a write that lost a race or changed nothing. Only the first statement after the pair may use it.
+ */
+export const AUDITED_WRITE_HAPPENED_SQL = 'changes() > 0';
+
+/**
  * A conditional write and its audit row, adjacent and in that order, for the action's batch (#522): the row is written
  * only when `write` itself changed a row. Spread the pair into the batch as it is: a statement put between the two
  * would become the one `changes()` reads.

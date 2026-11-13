@@ -1,7 +1,7 @@
 import type { JobDispatch, JobEventInput, JobKind, JobState, RunnerPolicy } from '@shared/contracts';
 import { JOB_EVENTS_MAX_PER_JOB, JOB_MAX_ATTEMPTS, RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS } from '@shared/contracts';
 import { redactSecrets } from '@shared/redaction';
-import { auditEventStatement, type AuditCondition, type NewAuditEvent } from '../accounts/audit.repo';
+import { AUDITED_WRITE_HAPPENED_SQL, auditEventStatement, type AuditCondition, type NewAuditEvent } from '../accounts/audit.repo';
 import { isConstraintError } from '../tracker/constraint-error';
 
 /**
@@ -426,25 +426,34 @@ export class JobsRepo {
     return update?.meta.changes === 1;
   }
 
-  /** The statements that cancel this runner's live jobs outside `slugs`, for the allow-list write's batch (#490 review). */
+  /**
+   * The statements that cancel this runner's live jobs outside `slugs`, for the allow-list write's batch (#490 review).
+   * `AUDITED_WRITE_HAPPENED_SQL` reads the audit row just before it (#533): they run only when the write happened, so they must come
+   * directly after the `auditedWrite` pair, as `RunnersRepo.setAllowedProjects` places them.
+   */
   cancelOutsideStatements(runnerId: string, slugs: readonly string[], now: string): D1PreparedStatement[] {
     return [
       this.db
         .prepare(
           `UPDATE jobs SET state = 'cancelled', finished_at = ?2, result = '{"reason":"runner-allow-list"}', token_hash = NULL, lease_until = NULL
-           WHERE runner_id = ?1 AND state IN ('claimed', 'running') AND project_slug NOT IN (SELECT value FROM json_each(?3))`,
+           WHERE runner_id = ?1 AND state IN ('claimed', 'running') AND project_slug NOT IN (SELECT value FROM json_each(?3))
+             AND ${AUDITED_WRITE_HAPPENED_SQL}`,
         )
         .bind(runnerId, now, JSON.stringify(slugs)),
     ];
   }
 
-  /** The statements that cancel a runner's live jobs, for the revoke batch (ADR 0006: revoking cancels claimed jobs). */
+  /**
+   * The statements that cancel a runner's live jobs, for the revoke batch (ADR 0006: revoking cancels claimed jobs).
+   * `AUDITED_WRITE_HAPPENED_SQL` reads the audit row just before it (#533): a revoke that lost the race wrote no audit row and so
+   * cancels nothing. They must come directly after the `auditedWrite` pair, as `RunnersRepo.revoke` places them.
+   */
   cancelForRunnerStatements(runnerId: string, now: string): D1PreparedStatement[] {
     return [
       this.db
         .prepare(
           `UPDATE jobs SET state = 'cancelled', finished_at = ?2, result = '{"reason":"runner-revoked"}', token_hash = NULL, lease_until = NULL
-           WHERE runner_id = ?1 AND state IN ('claimed', 'running')`,
+           WHERE runner_id = ?1 AND state IN ('claimed', 'running') AND ${AUDITED_WRITE_HAPPENED_SQL}`,
         )
         .bind(runnerId, now),
     ];
