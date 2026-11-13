@@ -38,6 +38,7 @@ function sprint(number: number, dueOn: string | null, state: 'open' | 'closed' =
     description: '',
     createdAt: '2026-11-01T10:00:00.000Z',
     closedAt: null,
+    openCount: 0,
   };
 }
 

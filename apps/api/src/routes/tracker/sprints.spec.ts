@@ -4,6 +4,7 @@ import {
   countRows,
   newKey,
   seedGitHubProject,
+  seedItem,
   seedTrackerProject,
   send,
   sendAsService,
@@ -203,6 +204,71 @@ describe('GET /projects/:slug/sprints[/:number]', () => {
       title: 'Sprint 02',
     });
     expect((await send('GET', `${sprintsPath(project.slug)}/3`)).status).toBe(404);
+  });
+});
+
+describe('open item counts', () => {
+  const listOf = async (slug: string): Promise<TrackerSprintListDto> =>
+    (await (await send('GET', sprintsPath(slug))).json()) as TrackerSprintListDto;
+
+  it('counts open items per sprint, zero included, and the open backlog', async () => {
+    const project = await seedTrackerProject();
+    await send('POST', sprintsPath(project.slug), {});
+    await send('POST', sprintsPath(project.slug), {});
+    await send('POST', sprintsPath(project.slug), {});
+    await seedItem(project, { sprint: 1 });
+    await seedItem(project, { sprint: 1 });
+    await seedItem(project, { sprint: 2 });
+    await seedItem(project);
+    await seedItem(project);
+    await seedItem(project);
+
+    const list = await listOf(project.slug);
+    expect(list.sprints.map((sprint) => [sprint.number, sprint.openCount])).toEqual([
+      [1, 2],
+      [2, 1],
+      [3, 0],
+    ]);
+    expect(list.backlogOpenCount).toBe(3);
+    expect(await (await send('GET', `${sprintsPath(project.slug)}/1`)).json()).toMatchObject({ openCount: 2 });
+    expect(await (await send('GET', `${sprintsPath(project.slug)}/3`)).json()).toMatchObject({ openCount: 0 });
+  });
+
+  it('leaves closed items out of both counts', async () => {
+    const project = await seedTrackerProject();
+    await send('POST', sprintsPath(project.slug), {});
+    const planned = await seedItem(project, { sprint: 1 });
+    await seedItem(project, { sprint: 1 });
+    const backlog = await seedItem(project);
+    await seedItem(project);
+    for (const item of [planned, backlog]) {
+      const closed = await send('PATCH', item.path, { status: 'done' }, { ifMatch: '"1"' });
+      expect(closed.status).toBe(200);
+    }
+
+    const list = await listOf(project.slug);
+    expect(list.sprints[0]?.openCount).toBe(1);
+    expect(list.backlogOpenCount).toBe(1);
+  });
+
+  it('counts only the project’s own items', async () => {
+    const mine = await seedTrackerProject();
+    const other = await seedTrackerProject();
+    await send('POST', sprintsPath(mine.slug), {});
+    await send('POST', sprintsPath(other.slug), {});
+    await seedItem(mine, { sprint: 1 });
+    await seedItem(other, { sprint: 1 });
+    await seedItem(other, { sprint: 1 });
+    await seedItem(other);
+
+    const list = await listOf(mine.slug);
+    expect(list.sprints[0]?.openCount).toBe(1);
+    expect(list.backlogOpenCount).toBe(0);
+  });
+
+  it('answers zero counts for a project without items', async () => {
+    const project = await seedTrackerProject();
+    expect(await listOf(project.slug)).toEqual({ sprints: [], backlogOpenCount: 0 });
   });
 });
 

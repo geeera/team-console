@@ -19,6 +19,7 @@ const SPRINT_2: TrackerSprintDto = {
   description: '',
   createdAt: 'x',
   closedAt: null,
+  openCount: 0,
 };
 
 describe('CreateSprint', () => {
