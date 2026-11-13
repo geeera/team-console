@@ -119,4 +119,18 @@ describe('team-console-runner CLI', () => {
       'enrol --url <console origin> --code <tce_…> --backend container|user|none',
     );
   });
+
+  it('refuses run without --loop and run-once with arguments', async () => {
+    expect(await run(['run']).exit).toBe(EXIT_USAGE);
+    expect(await run(['run', '--forever']).exit).toBe(EXIT_USAGE);
+    expect(await run(['run-once', '--loop']).exit).toBe(EXIT_USAGE);
+    expect(err.join('\n')).toContain('run needs --loop');
+  });
+
+  it('fails run-once on a home that was never enrolled, touching no network', async () => {
+    const { exit, requests } = run(['run-once']);
+    expect(await exit).toBe(EXIT_FAILED);
+    expect(err.join('\n')).toMatch(/^run failed: /);
+    expect(requests).toEqual([]);
+  });
 });
