@@ -13,6 +13,7 @@ import {
   untracked,
   viewChildren,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ItemsApi } from '@console/entities/item';
 import { boardSectionsOf } from '@console/entities/sprint';
 import { TranslocoPipe } from '@console/shared/i18n';
@@ -20,6 +21,7 @@ import { PersistedStateStore } from '@console/shared/persisted-state';
 import { Button, Icon, StateBlock } from '@console/shared/ui';
 import { openSprintsOf, type TrackerSprintListDto } from '@shared/contracts';
 import { BoardFolder, type BoardFolderSpec } from './board-folder';
+import { BoardMoves } from './board-moves';
 
 let nextFoldersId = 0;
 
@@ -42,6 +44,19 @@ export function boardFoldersOf(list: TrackerSprintListDto): readonly BoardFolder
     ...future.map(({ kind, sprint }) => ({ kind, sprint, openCount: sprint?.openCount ?? 0 })),
     { kind: 'backlog', sprint: null, openCount: list.backlogOpenCount },
   ];
+}
+
+/** The folder headers' open counts after an open task moved from one sprint (or the backlog) to another (#558). */
+export function countsAfterMove(
+  list: TrackerSprintListDto,
+  from: number | null,
+  to: number | null,
+): TrackerSprintListDto {
+  const delta = (sprint: number | null): number => (sprint === to ? 1 : 0) - (sprint === from ? 1 : 0);
+  return {
+    sprints: list.sprints.map((sprint) => ({ ...sprint, openCount: sprint.openCount + delta(sprint.number) })),
+    backlogOpenCount: list.backlogOpenCount + delta(null),
+  };
 }
 
 /** A folder's key in `ProjectUiState.boardFolders` (#562): scoped to the project already, so no slug in it. */
@@ -187,6 +202,14 @@ export class BoardFolders {
     inject(DestroyRef).onDestroy(() => {
       this.loadToken += 1;
     });
+    inject(BoardMoves)
+      .events.pipe(takeUntilDestroyed())
+      .subscribe((event) => {
+        const state = this.state();
+        if (event.kind === 'moved' && event.move.item.state === 'open' && state.kind === 'ready') {
+          this.state.set({ kind: 'ready', list: countsAfterMove(state.list, event.move.from, event.move.to) });
+        }
+      });
   }
 
   /** Reads the sprint list again (after a sprint was created, or Try again); loaded folders keep their state. */

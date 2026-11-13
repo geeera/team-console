@@ -82,6 +82,8 @@ const BY_TRACKER_KIND: Readonly<Record<TrackerFailureKind, AnswerFailureKind>> =
   conflict: 'not-waiting',
   gone: 'not-waiting',
   invalid: 'needs-reason',
+  // A decision never moves a task into a sprint; read as any other refusal.
+  frozen: 'unknown',
   forbidden: 'forbidden',
   network: 'offline',
   timeout: 'offline',

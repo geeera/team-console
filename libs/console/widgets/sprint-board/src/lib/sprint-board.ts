@@ -11,14 +11,15 @@ import {
   ElementRef,
   ErrorHandler,
   inject,
+  Injector,
   input,
   signal,
   untracked,
   viewChild,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { ItemsApi, type TrackerRead } from '@console/entities/item';
+import { ItemsApi, TrackerFailureBlock, type FailedWrite, type TrackerRead } from '@console/entities/item';
 import { JOBS_TILE_ICONS, JobsStore } from '@console/entities/job';
 import { NeedsYouCounts, ProjectSetupLink, spaceUrlOf } from '@console/entities/project';
 import { RunnersStore } from '@console/entities/runner';
@@ -40,8 +41,8 @@ import {
   TEAM_RUN_ICONS,
   trackerSprintPartOf,
   UnexpectedSprintResponse,
-  type TrackerSprintPart,
 } from '@console/entities/sprint';
+import type { ItemMove } from '@console/features/move-item';
 import { RequestChange } from '@console/features/request-change';
 import { SprintControls } from '@console/features/sprint-controls';
 import { httpProblemOf } from '@console/shared/api';
@@ -60,6 +61,7 @@ import {
   BREAKPOINTS,
   Button,
   Chip,
+  focusAfterRender,
   Icon,
   Lane,
   markArrival,
@@ -73,9 +75,11 @@ import {
   Tabs,
   Toaster,
 } from '@console/shared/ui';
-import { currentSprintOf } from '@shared/contracts';
+import { currentSprintOf, type ItemSummaryDto, type TrackerSprintDto } from '@shared/contracts';
 import { map } from 'rxjs';
 import { BoardJobs } from './board-jobs';
+import { BoardMoveButton } from './board-move-button';
+import { arrivalsLast, BoardMoves, elementRefOf, focusAfterLeaving, moveButtonOf } from './board-moves';
 
 /** Without a usable `Retry-After` on a 429 (missing, invalid or 0), the board waits this long before it asks again. */
 export const DEFAULT_RETRY_SECONDS = 60;
@@ -164,6 +168,12 @@ function trackerValueOf<T>(read: TrackerRead<T>): T {
   return read.value;
 }
 
+/** The current sprint as the tracker read it (#556), kept so a move can redraw it without a reload (#558). */
+interface TrackerSprintRead {
+  readonly sprint: TrackerSprintDto | null;
+  readonly items: readonly ItemSummaryDto[];
+}
+
 type BoardState =
   | { readonly kind: 'loading' }
   | { readonly kind: 'ready'; readonly board: SprintBoardModel }
@@ -202,6 +212,7 @@ type TileTarget = 'pulls' | 'runs' | 'questions';
   selector: 'tc-sprint-board',
   imports: [
     BoardJobs,
+    BoardMoveButton,
     Button,
     Chip,
     Icon,
@@ -218,6 +229,7 @@ type TileTarget = 'pulls' | 'runs' | 'questions';
     StateBlock,
     TabPanel,
     Tabs,
+    TrackerFailureBlock,
     TranslocoPipe,
     TranslocoPluralPipe,
   ],
@@ -242,6 +254,7 @@ export class SprintBoard {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly jobs = inject(JobsStore);
   private readonly runners = inject(RunnersStore);
+  private readonly injector = inject(Injector);
 
   readonly project = input.required<SprintBoardProject>();
   /** The `?tab=` of a deep link; anything but a `BoardTab` is ignored. */
@@ -284,7 +297,18 @@ export class SprintBoard {
     const state = this.state();
     return state.kind === 'ready' ? state.board : null;
   });
-  protected readonly columns = computed(() => statusColumnsOf(this.board()?.issues ?? []));
+  /** A console-tracker project's current sprint as read; `null` on the GitHub board. */
+  private readonly tracker = signal<TrackerSprintRead | null>(null);
+  /** Tasks moved into the current sprint during this visit, shown at the end of their lane (#558). */
+  private readonly arrivals = signal<readonly number[]>([]);
+  /** A move of a current-sprint task that did not happen (#558): the error block at the top of the tasks. */
+  protected readonly moveFailure = signal<FailedWrite | null>(null);
+  protected readonly movable = computed(
+    () => new Map((this.tracker()?.items ?? []).map((item) => [item.number, item] as const)),
+  );
+  protected readonly columns = computed(() =>
+    arrivalsLast(statusColumnsOf(this.board()?.issues ?? []), this.arrivals()),
+  );
   protected readonly pulls = computed(() => pullsByUrgency(this.board()?.pullRequests ?? []));
   protected readonly visiblePulls = computed(() => this.visible(this.pulls(), 'pulls'));
   /** The current sprint's «N open» (#557), counted as the tracker counts a folder's (#561). */
@@ -449,6 +473,19 @@ export class SprintBoard {
       });
       observer.observe(this.host.nativeElement);
     });
+    inject(BoardMoves)
+      .events.pipe(takeUntilDestroyed())
+      .subscribe((event) => {
+        const current = this.tracker()?.sprint?.number;
+        if (current === undefined) {
+          return;
+        }
+        if (event.kind === 'moved') {
+          this.onMoved(event.move, current);
+        } else if (event.item.sprint === current) {
+          this.moveFailure.set(event.failed);
+        }
+      });
     inject(DestroyRef).onDestroy(() => {
       observer?.disconnect();
       this.ring?.clear();
@@ -560,6 +597,47 @@ export class SprintBoard {
     }
   }
 
+  protected async retryMove(): Promise<void> {
+    const failed = this.moveFailure();
+    if (failed !== null) {
+      this.moveFailure.set(null);
+      await failed.retry();
+    }
+  }
+
+  /** Refresh after a conflict or a vanished task: the sprint is read again. */
+  protected refreshAfterFailure(): void {
+    this.moveFailure.set(null);
+    void this.load(this.project().slug, false);
+  }
+
+  /** A task left the current sprint or joined it (#558): the lanes, counts and tiles follow without a reload. */
+  private onMoved(move: ItemMove, current: number): void {
+    const read = this.tracker();
+    const board = this.board();
+    if ((move.from !== current && move.to !== current) || read === null || board === null) {
+      return;
+    }
+    this.moveFailure.set(null);
+    const root = this.host.nativeElement;
+    const number = move.item.number;
+    const others = read.items.filter((item) => item.number !== number);
+    const items = move.to === current ? [...others, move.item] : others;
+    if (move.from === current && !move.isUndo) {
+      const target = focusAfterLeaving(root, number, () => root.querySelector<HTMLElement>('.board__title'));
+      focusAfterRender(() => elementRefOf(target()), { injector: this.injector });
+    }
+    if (move.to === current) {
+      if (move.isUndo) {
+        focusAfterRender(() => elementRefOf(moveButtonOf(root, number)), { injector: this.injector });
+      } else {
+        this.arrivals.update((arrivals) => [...arrivals.filter((n) => n !== number), number]);
+      }
+    }
+    this.tracker.set({ ...read, items });
+    this.state.set({ kind: 'ready', board: { ...board, ...trackerSprintPartOf(read.sprint, items) } });
+  }
+
   /** Retry: the owner's action, so it may earn one more automatic retry. */
   async reload(): Promise<void> {
     await this.retry(true);
@@ -589,8 +667,10 @@ export class SprintBoard {
     const token = ++this.loadToken;
     this.clearRetry();
     try {
-      const board = await this.boardOf(slug);
+      const { board, tracker } = await this.boardOf(slug);
       if (token === this.loadToken) {
+        this.tracker.set(tracker);
+        this.arrivals.set([]);
         this.state.set({ kind: 'ready', board });
       }
     } catch (error: unknown) {
@@ -611,22 +691,23 @@ export class SprintBoard {
    * A console-tracker project's sprint and its tasks come from the tracker (#556), so moves made in the console show
    * here; its pull requests (and the run log, unused beside the jobs) still come from `/sprint`.
    */
-  private async boardOf(slug: string): Promise<SprintBoardModel> {
+  private async boardOf(slug: string): Promise<{ board: SprintBoardModel; tracker: TrackerSprintRead | null }> {
     if (!this.isJobsBoard()) {
-      return this.api.current(slug);
+      return { board: await this.api.current(slug), tracker: null };
     }
-    const [board, part] = await Promise.all([this.api.current(slug), this.trackerSprint(slug)]);
-    return { ...board, ...part };
+    const [board, tracker] = await Promise.all([this.api.current(slug), this.trackerSprint(slug)]);
+    return { board: { ...board, ...trackerSprintPartOf(tracker.sprint, tracker.items) }, tracker };
   }
 
   /** Open and closed items of the current sprint (Done is a lane, as on #18), every page of them. */
-  private async trackerSprint(slug: string): Promise<TrackerSprintPart> {
+  private async trackerSprint(slug: string): Promise<TrackerSprintRead> {
     const current = currentSprintOf(trackerValueOf(await this.items.sprints(slug)));
     if (current === null) {
-      return trackerSprintPartOf(null, []);
+      return { sprint: null, items: [] };
     }
     const query = { sprint: String(current.number), state: 'all' };
-    return trackerSprintPartOf(current, trackerValueOf(await this.items.items(slug, query, true)));
+    const items = trackerValueOf(await this.items.items(slug, query, true));
+    return { sprint: current, items: items.filter((item) => item.sprint === current.number) };
   }
 
   private failureOf(error: unknown): { failure: BoardFailure; retryAt: number | null } {

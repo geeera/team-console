@@ -548,7 +548,8 @@
     "inProgressWarn": "The task is in progress: the team finishes its current step and carries on with it in the new sprint.",
     "moved": "{{key}} → {{where}}",
     "undo": "Undo",
-    "undone": "Undone: {{key}} is back in {{where}}"
+    "undone": "Undone: {{key}} is back in {{where}}",
+    "moveAria": "Move {{key}}: {{title}}"
   },
   "item": {
     "loading": "Loading the task…",
@@ -686,6 +687,10 @@
       "invalid": {
         "title": "Check the fields",
         "message": "The console didn’t accept this change. Check the field and save again."
+      },
+      "frozen": {
+        "title": "The sprint is frozen until its demo",
+        "message": "No new tasks join it now. The task stayed where it was: pick a later sprint or the backlog."
       },
       "gone": {
         "title": "The decision isn’t waiting for you any more",

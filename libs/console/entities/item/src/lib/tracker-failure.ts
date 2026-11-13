@@ -8,6 +8,7 @@ import { TimeoutError } from 'rxjs';
  * - `conflict` — the item moved on since it was read (412 `item-version`, 409 `item-changed`): the owner's text stays;
  * - `gone` — the decision no longer waits (409 `ask-not-open`, `decision-command`, `item-closed`);
  * - `invalid` — 422 with the field to fix;
+ * - `frozen` — a move into a sprint during its freeze (409 `sprint-frozen`, #556): nothing moved, no retry;
  * - `forbidden` — not the owner (403): nothing changed, no retry;
  * - `network` — no answer arrived (offline, dropped); `timeout` — none within `TRACKER_WRITE_TIMEOUT_MS`: both retry
  *   with the same idempotency key, so the write is never applied twice;
@@ -19,6 +20,7 @@ export type TrackerFailureKind =
   | 'conflict'
   | 'gone'
   | 'invalid'
+  | 'frozen'
   | 'forbidden'
   | 'network'
   | 'timeout'
@@ -67,6 +69,7 @@ const KIND_BY_PROBLEM: Partial<
   'project-not-found': 'not-found',
   'sprint-not-found': 'not-found',
   'idempotency-in-flight': 'in-flight',
+  'sprint-frozen': 'frozen',
 };
 
 const KINDS: ReadonlyMap<string, TrackerFailureKind | undefined> = new Map(Object.entries(KIND_BY_PROBLEM));

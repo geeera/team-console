@@ -13,8 +13,8 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { ItemsApi } from '@console/entities/item';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { ItemsApi, TrackerFailureBlock, type FailedWrite } from '@console/entities/item';
 import {
   demoDayOf,
   sectionOf,
@@ -30,6 +30,10 @@ import {
   TranslocoService,
 } from '@console/shared/i18n';
 import { Button, focusAfterRender, Lane, Lanes, StateBlock } from '@console/shared/ui';
+import type { ItemMove } from '@console/features/move-item';
+import type { ItemSummaryDto } from '@shared/contracts';
+import { BoardMoveButton } from './board-move-button';
+import { arrivalsLast, BoardMoves, elementRefOf, focusAfterLeaving, moveButtonOf } from './board-moves';
 import { hiddenCountOf, laneNameOf, PREFERRED_LANES, visibleItemsOf } from './sprint-board';
 
 /** Rows a folder lane adds per «Show 30 more» (#108 §2). */
@@ -41,7 +45,7 @@ export type BoardFolderSpec = Pick<BoardSection, 'kind' | 'sprint' | 'openCount'
 /** `idle` until first shown; a loaded folder keeps its rows while hidden (#557). */
 export type BoardFolderState =
   | { readonly kind: 'idle' | 'loading' | 'error' | 'offline' }
-  | { readonly kind: 'loaded'; readonly lanes: readonly StatusColumn[] };
+  | { readonly kind: 'loaded'; readonly items: readonly ItemSummaryDto[] };
 
 const SKELETON_ROWS = [0, 1, 2] as const;
 
@@ -54,7 +58,7 @@ let nextFolderId = 0;
  */
 @Component({
   selector: 'tc-board-folder',
-  imports: [Button, Lane, Lanes, SprintItemList, StateBlock, TranslocoPipe],
+  imports: [BoardMoveButton, Button, Lane, Lanes, SprintItemList, StateBlock, TrackerFailureBlock, TranslocoPipe],
   templateUrl: './board-folder.html',
   styleUrl: './board-folder.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -71,6 +75,10 @@ export class BoardFolder {
   readonly open = model(false);
 
   readonly state = signal<BoardFolderState>({ kind: 'idle' });
+  /** Tasks moved in during this visit, shown at the end of their lane (#558). */
+  private readonly arrivals = signal<readonly number[]>([]);
+  /** A move of one of this folder's tasks that did not happen (#558): the error block at the top. */
+  protected readonly moveFailure = signal<FailedWrite | null>(null);
   protected readonly selectedLane = signal<string | null>(null);
   /** Rows shown per lane past the first `FOLDER_LANE_PAGE`. */
   private readonly shown = signal<ReadonlyMap<string, number>>(new Map());
@@ -106,7 +114,17 @@ export class BoardFolder {
   });
   protected readonly lanes = computed(() => {
     const state = this.state();
-    return state.kind === 'loaded' ? state.lanes : null;
+    if (state.kind !== 'loaded') {
+      return null;
+    }
+    const { kind, sprint } = this.folder();
+    const lanes = sectionOf(kind, sprint, state.items).lanes.filter((lane) => lane.issues.length > 0);
+    return arrivalsLast(lanes, this.arrivals());
+  });
+  /** The rows' tracker items by number, for their ⋯. */
+  protected readonly movable = computed(() => {
+    const state = this.state();
+    return new Map(state.kind === 'loaded' ? state.items.map((item) => [item.number, item] as const) : []);
   });
   /** What the folder's polite live region says; errors speak through their own alert. */
   protected readonly announcement = computed(() => {
@@ -136,6 +154,29 @@ export class BoardFolder {
     inject(DestroyRef).onDestroy(() => {
       this.loadToken += 1;
     });
+    inject(BoardMoves)
+      .events.pipe(takeUntilDestroyed())
+      .subscribe((event) => {
+        if (event.kind === 'moved') {
+          this.onMoved(event.move);
+        } else if (event.item.sprint === this.sprintNumber()) {
+          this.moveFailure.set(event.failed);
+        }
+      });
+  }
+
+  protected async retryMove(): Promise<void> {
+    const failed = this.moveFailure();
+    if (failed !== null) {
+      this.moveFailure.set(null);
+      await failed.retry();
+    }
+  }
+
+  /** Refresh after a conflict or a vanished task: the folder reads its items again. */
+  protected refreshAfterFailure(): void {
+    this.moveFailure.set(null);
+    void this.load();
   }
 
   protected toggle(): void {
@@ -203,6 +244,40 @@ export class BoardFolder {
     );
   }
 
+  private sprintNumber(): number | null {
+    return this.folder().sprint?.number ?? null;
+  }
+
+  /** A task left this folder or joined it; a folder never loaded only has its header count, kept by the folders. */
+  private onMoved(move: ItemMove): void {
+    const mine = this.sprintNumber();
+    if (move.from !== mine && move.to !== mine) {
+      return;
+    }
+    this.moveFailure.set(null);
+    const state = this.state();
+    if (state.kind !== 'loaded') {
+      return;
+    }
+    const root = this.host.nativeElement;
+    const number = move.item.number;
+    const others = state.items.filter((item) => item.number !== number);
+    if (move.from === mine) {
+      if (!move.isUndo) {
+        const target = focusAfterLeaving(root, number, () => this.headingEl()?.nativeElement ?? null);
+        focusAfterRender(() => elementRefOf(target()), { injector: this.injector });
+      }
+      this.state.set({ kind: 'loaded', items: others });
+      return;
+    }
+    this.state.set({ kind: 'loaded', items: [...others, move.item] });
+    if (move.isUndo) {
+      focusAfterRender(() => elementRefOf(moveButtonOf(root, number)), { injector: this.injector });
+    } else {
+      this.arrivals.update((arrivals) => [...arrivals.filter((n) => n !== number), number]);
+    }
+  }
+
   private limitOf(status: string): number {
     return this.shown().get(status) ?? FOLDER_LANE_PAGE;
   }
@@ -210,7 +285,7 @@ export class BoardFolder {
   /** The folder's open items, every page; a later load or the folder's end drops an earlier answer. */
   private async load(): Promise<void> {
     const token = ++this.loadToken;
-    const { kind, sprint } = this.folder();
+    const { sprint } = this.folder();
     this.state.set({ kind: 'loading' });
     const query = { sprint: sprint === null ? 'none' : String(sprint.number), state: 'open' };
     const read = await this.items.items(this.slug(), query, true);
@@ -221,7 +296,7 @@ export class BoardFolder {
       this.state.set({ kind: read.reason === 'offline' ? 'offline' : 'error' });
       return;
     }
-    const lanes = sectionOf(kind, sprint, read.value).lanes.filter((lane) => lane.issues.length > 0);
-    this.state.set({ kind: 'loaded', lanes });
+    this.arrivals.set([]);
+    this.state.set({ kind: 'loaded', items: read.value.filter((item) => item.sprint === (sprint?.number ?? null)) });
   }
 }
