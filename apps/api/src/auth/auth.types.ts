@@ -31,6 +31,8 @@ export type Identity =
       readonly projectSlug: string;
       readonly jobId: string;
       readonly items: readonly number[];
+      /** The runner that claimed the job (#546); absent on the local stand-in, which has no runner. */
+      readonly runnerId?: string;
       /**
        * `token`: the opaque `tcj_` job token of a claimed job, presented with the claiming runner's JWT (#467,
        * `job-auth.ts`) — valid in every environment. `stand-in`: the local `local-job.` token (#444), honoured under

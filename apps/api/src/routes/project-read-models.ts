@@ -30,9 +30,17 @@ export const JOB_SPRINT_READS_PER_WINDOW = 10;
 export const JOB_SPRINT_WINDOW_SECONDS = 600;
 
 /**
- * The 429 when a job has spent its `/sprint` budget, else `null`; any other identity is not counted. Checked before
- * the project lookup on purpose: a flood costs one D1 upsert, no registry read and no token mint, and a job already
- * knows its own project, so answering 429 before a 404 leaks nothing.
+ * The runner's `/sprint` reads per window across all its jobs (#546): the per-job key alone lets a runner (or a leaked
+ * runner credential) holding N jobs read N × 10 times. 15 reads of at most 44 subrequests is 660 per 10 minutes,
+ * ≈ 4k an hour with a cold cache, under the 5k quota; a runner's few jobs read the board once or twice each.
+ */
+export const RUNNER_SPRINT_READS_PER_WINDOW = 15;
+
+/**
+ * The 429 when a job, or the runner holding it, has spent its `/sprint` budget, else `null`; any other identity is not
+ * counted. Checked before the project lookup on purpose: a flood costs a D1 upsert or two, no registry read and no
+ * token mint, and a job already knows its own project, so answering 429 before a 404 leaks nothing. The job's own key
+ * is hit first, so a job already over its limit does not also drain its runner's budget.
  */
 async function jobSprintRefusal(c: WorkerContext<ApiEnv>, github: ApiGitHub): Promise<Response | null> {
   const identity = c.get('identity');
@@ -40,15 +48,19 @@ async function jobSprintRefusal(c: WorkerContext<ApiEnv>, github: ApiGitHub): Pr
     return null;
   }
   const at = github.now();
-  const limit = await new RateLimitsRepo(c.env.DB).hit(
-    `job:${identity.jobId}:sprint`,
-    rateWindowOf(at, JOB_SPRINT_WINDOW_SECONDS),
-    JOB_SPRINT_READS_PER_WINDOW,
-  );
-  if (limit.allowed) {
+  const window = rateWindowOf(at, JOB_SPRINT_WINDOW_SECONDS);
+  const limits = new RateLimitsRepo(c.env.DB);
+  const job = await limits.hit(`job:${identity.jobId}:sprint`, window, JOB_SPRINT_READS_PER_WINDOW);
+  const runner =
+    job.allowed && identity.runnerId !== undefined
+      ? await limits.hit(`runner:${identity.runnerId}:sprint`, window, RUNNER_SPRINT_READS_PER_WINDOW)
+      : job;
+  if (runner.allowed) {
     return null;
   }
-  c.get('logger').warn('job sprint budget exhausted', { jobId: identity.jobId });
+  c.get('logger').warn(job.allowed ? 'runner sprint budget exhausted' : 'job sprint budget exhausted', {
+    jobId: identity.jobId,
+  });
   return problem(c, {
     type: 'rate-limited',
     title: 'Too Many Requests',
