@@ -12,7 +12,7 @@ import {
   PersistedStateStore,
 } from '@console/shared/persisted-state';
 import type { StatusColumn } from '@console/entities/sprint';
-import type { ItemSummaryDto, TrackerSprintDto, TrackerSprintListDto } from '@shared/contracts';
+import type { ItemDto, ItemSummaryDto, TrackerSprintDto, TrackerSprintListDto } from '@shared/contracts';
 import { of } from 'rxjs';
 import { BoardFolder, FOLDER_LANE_PAGE, type BoardFolderSpec } from './board-folder';
 import { BoardFolders, boardFoldersOf, countsAfterMove } from './board-folders';
@@ -23,7 +23,9 @@ function trackerSprint(number: number, dueOn: string | null, openCount = 0): Tra
   return { number, title, dueOn, state: 'open', description: '', createdAt: '2026-11-01T00:00:00Z', closedAt: null, openCount };
 }
 
-const task = (number: number, overrides: Partial<ItemSummaryDto> = {}): ItemSummaryDto =>
+// itemFixture builds a full ItemDto (it carries `body`); rows on the board only read the ItemSummaryDto
+// subset, but the move handlers below need the full dto, so the fixture keeps its full type.
+const task = (number: number, overrides: Partial<ItemDto> = {}): ItemDto =>
   itemFixture({ key: `TC-${String(number)}`, number, title: `Task ${String(number)}`, sprint: 5, ...overrides });
 
 const NEXT: BoardFolderSpec = { kind: 'next', sprint: trackerSprint(5, '2026-12-11', 2), openCount: 2 };
