@@ -1394,6 +1394,15 @@ describe('SprintBoard', () => {
       expect(root.querySelector('[data-testid="no-sprint"]')).not.toBeNull();
     });
 
+    it('keeps the team-stat jobs tile when the tracker has no sprint yet', async () => {
+      const { root, settle } = await renderTracker();
+      http.expectOne(sprintsUrl(TC.slug)).flush({ sprints: [] });
+      await settle();
+      expect(root.querySelector('[data-testid="team-stat"]')?.getAttribute('data-jobs')).toBe('none');
+      expect(root.querySelector('[data-testid="no-sprint"]')).not.toBeNull();
+      expect(root.querySelector('h2.board__title')).toBeNull();
+    });
+
     it.each([
       ['offline', 'offline', { status: 0, statusText: 'Unknown Error' }],
       ['unavailable', 'a 5xx', { status: 503, statusText: 'Unavailable' }],
