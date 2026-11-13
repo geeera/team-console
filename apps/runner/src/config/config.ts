@@ -1,7 +1,7 @@
 import { isAbsolute, join } from 'node:path';
 import { isRunnerId, isUlid, isValidSlug, type RunnerIsolation } from '@shared/contracts';
 import { RunnerFileError, assertPrivateDir, readPrivateFile, writePrivateFile } from './private-files';
-import { parseCredentialConfig, type CredentialConfig } from '../env/credential';
+import { CREDENTIAL_BACKENDS, parseCredentialConfig, type CredentialConfig } from '../env/credential';
 import { PINNED_MODEL, isJobRole, type RoleOverrides } from '../claude/roles';
 
 /**
@@ -45,7 +45,25 @@ export interface RunnerConfig {
   readonly roles?: RoleOverrides;
   /** The clone URL per project slug the mirror fetches from (https, or an absolute path for a local repository). */
   readonly repositories?: Readonly<Record<string, string>>;
+  /** The `container` backend (ADR 0008 decision 12); `image` is required there and must be pinned by digest. */
+  readonly container?: ContainerSettings;
 }
+
+export const CONTAINER_RUNTIMES = ['docker', 'podman', 'container'] as const;
+export type ContainerRuntime = (typeof CONTAINER_RUNTIMES)[number];
+
+export interface ContainerSettings {
+  readonly image: string;
+  readonly runtime?: ContainerRuntime;
+  /** `--network`; default `bridge` (egress allow-listing is H-2's). */
+  readonly network?: string;
+  readonly pidsLimit?: number;
+  readonly memoryMb?: number;
+}
+
+/** `<name>[:tag]@sha256:<64 hex>`: a tag alone can be moved, a digest cannot. */
+export const PINNED_IMAGE = /^[a-z0-9][a-z0-9._/-]{0,199}(?::[A-Za-z0-9._-]{1,128})?@sha256:[0-9a-f]{64}$/;
+const NETWORK = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 
 export interface RunnerToolchain {
   /** The job's `PATH`, never the runner's own. */
@@ -118,6 +136,7 @@ const CONFIG_KEYS = [
   'env',
   'roles',
   'repositories',
+  'container',
 ] as const;
 
 const TOOLCHAIN_PATH = /^\/[^:\0]*(?::\/[^:\0]*)*$/;
@@ -153,6 +172,7 @@ function parseJobSettings(value: Record<string, unknown>): Partial<RunnerConfig>
     env?: { passthrough: string[] };
     roles?: RoleOverrides;
     repositories?: Record<string, string>;
+    container?: ContainerSettings;
   } = {};
   if (value['credential'] !== undefined) {
     const credential = parseCredentialConfig(value['credential']);
@@ -221,7 +241,39 @@ function parseJobSettings(value: Record<string, unknown>): Partial<RunnerConfig>
     }
     settings.repositories = repositories as Record<string, string>;
   }
+  if (value['container'] !== undefined) {
+    settings.container = parseContainerSettings(value['container']);
+  }
   return settings;
+}
+
+const isIntIn = (value: unknown, min: number, max: number): value is number =>
+  typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max;
+
+function parseContainerSettings(value: unknown): ContainerSettings {
+  const fail = (): never => {
+    throw invalid(
+      'container must be {image: <name>@sha256:<digest>, runtime?: docker|podman|container, network?, pidsLimit?: 16-65536, memoryMb?: 256-262144}',
+    );
+  };
+  if (!isRecord(value)) {
+    return fail();
+  }
+  const allowed = ['image', 'runtime', 'network', 'pidsLimit', 'memoryMb'];
+  const { image, runtime, network, pidsLimit, memoryMb } = value;
+  if (
+    Object.keys(value).some((key) => !allowed.includes(key)) ||
+    typeof image !== 'string' ||
+    !PINNED_IMAGE.test(image) ||
+    (runtime !== undefined && !(CONTAINER_RUNTIMES as readonly unknown[]).includes(runtime)) ||
+    (network !== undefined &&
+      (typeof network !== 'string' || !NETWORK.test(network) || network === 'host')) ||
+    (pidsLimit !== undefined && !isIntIn(pidsLimit, 16, 65_536)) ||
+    (memoryMb !== undefined && !isIntIn(memoryMb, 256, 262_144))
+  ) {
+    return fail();
+  }
+  return value as unknown as ContainerSettings;
 }
 
 /** Narrows `config.json`; an unknown key or a wrong value is refused rather than ignored. */
@@ -270,6 +322,11 @@ export function parseRunnerConfig(value: unknown): RunnerConfig {
   if (!isEnrolBackend(backend)) {
     throw invalid(`backend must be one of ${ENROL_BACKENDS.join(', ')}`);
   }
+  const settings = parseJobSettings(value);
+  // RR11 (ADR 0008 decision 5): a pairing the backend may not use is refused here too, not only at launch.
+  if (settings.credential !== undefined && !CREDENTIAL_BACKENDS[settings.credential.kind].includes(backend)) {
+    throw invalid(`the ${settings.credential.kind} credential is not allowed on the ${backend} backend`);
+  }
   return {
     schema: CONFIG_SCHEMA_VERSION,
     apiUrl,
@@ -280,7 +337,7 @@ export function parseRunnerConfig(value: unknown): RunnerConfig {
     allowedProjects: allowedProjects as string[],
     pollSeconds,
     backend,
-    ...parseJobSettings(value),
+    ...settings,
   };
 }
 

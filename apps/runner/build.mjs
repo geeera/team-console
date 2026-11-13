@@ -1,4 +1,4 @@
-import { rmSync } from 'node:fs';
+import { chmodSync, cpSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -36,6 +36,9 @@ async function main() {
   const { build } = await import('esbuild');
   rmSync(dirname(outFile), { recursive: true, force: true });
   await build({ ...bundleOptions(), outfile: outFile });
+  // `bin/job-exec` sits next to the bundle, as in the release tarball and the image.
+  cpSync(join(appRoot, 'bin'), join(dirname(outFile), 'bin'), { recursive: true });
+  chmodSync(join(dirname(outFile), 'bin', 'job-exec'), 0o555);
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { ensurePrivateDir, pathExists } from '../config/private-files';
 import { LaunchRefusal } from '../jobs/refusal';
 import { assertCleanGitConfig } from './git-config';
-import { runGit } from './git';
+import { runGit, type GitRunner } from './git';
 
 /**
  * The job's code (ADR 0008 decisions 2 and 7, threat model C3 row (b), C4 "vendored plugin swapped"): a bare mirror
@@ -21,6 +21,10 @@ export interface GitEnvs {
   readonly runner: Readonly<Record<string, string>>;
   /** The env a job's git would see (fresh HOME): config is judged and the clone made with it. */
   readonly job: Readonly<Record<string, string>>;
+  /** Runs the clone's git as the job's user (the `user` backend); absent → the runner's own git. */
+  readonly jobGit?: GitRunner | undefined;
+  /** 0750 when a job user must read the mirror (the `user` backend); else 0700. */
+  readonly dirMode?: 0o700 | 0o750 | undefined;
 }
 
 export const mirrorPathOf = (home: string, slug: string): string => join(home, 'work', slug, 'mirror');
@@ -39,8 +43,8 @@ async function assertNoHooks(hooksDir: string): Promise<void> {
 /** Creates or fetches the project's bare mirror; refuses it when its config or hooks were tampered with. */
 export async function syncMirror(home: string, slug: string, url: string, envs: GitEnvs): Promise<string> {
   const mirror = mirrorPathOf(home, slug);
-  await ensurePrivateDir(join(home, 'work'));
-  await ensurePrivateDir(join(home, 'work', slug));
+  await ensurePrivateDir(join(home, 'work'), envs.dirMode);
+  await ensurePrivateDir(join(home, 'work', slug), envs.dirMode);
   if (await pathExists(mirror)) {
     // Judged before the fetch too: a planted hook or fsmonitor would run inside it.
     await assertNoHooks(join(mirror, 'hooks'));
@@ -61,10 +65,25 @@ export async function cloneForJob(
   upstream: string,
   envs: GitEnvs,
 ): Promise<void> {
-  await runGit(['clone', '--no-hardlinks', '--quiet', '--template=', '--', mirror, clone], envs.job);
-  await runGit(['-C', clone, 'remote', 'set-url', 'origin', upstream], envs.job);
+  const git = envs.jobGit ?? runGit;
+  // A mirror owned by another uid (the runner, on `user`) is cloned only when named safe on the command line.
+  await git(
+    [
+      '-c',
+      `safe.directory=${mirror}`,
+      'clone',
+      '--no-hardlinks',
+      '--quiet',
+      '--template=',
+      '--',
+      mirror,
+      clone,
+    ],
+    envs.job,
+  );
+  await git(['-C', clone, 'remote', 'set-url', 'origin', upstream], envs.job);
   await assertNoHooks(join(clone, '.git', 'hooks'));
-  await assertCleanGitConfig(join(clone, '.git'), envs.job, null);
+  await assertCleanGitConfig(join(clone, '.git'), envs.job, null, git);
 }
 
 async function setTreeMode(path: string, writable: boolean): Promise<void> {
@@ -111,6 +130,7 @@ export async function vendorPlugin(
   home: string,
   mirror: string,
   env: Readonly<Record<string, string>>,
+  dirMode: 0o700 | 0o750 | undefined = 0o700,
 ): Promise<string> {
   // `<mode> tree <id>\t<path>` for a directory; nothing when the default branch has no such tree.
   const listing = await runGit(
@@ -122,7 +142,7 @@ export async function vendorPlugin(
     throw new LaunchRefusal('plugin-missing', `the default branch has no ${PLUGIN_PATH_IN_REPO}`);
   }
   const pluginRoot = join(home, 'plugin');
-  await ensurePrivateDir(pluginRoot);
+  await ensurePrivateDir(pluginRoot, dirMode);
   const target = join(pluginRoot, tree);
   const archive = join(pluginRoot, `${tree}.tar`);
   await removeTree(target);

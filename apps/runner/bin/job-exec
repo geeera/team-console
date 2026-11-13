@@ -1,0 +1,27 @@
+#!/bin/sh
+# job-exec: the one command the runner may run as the job user (ADR 0008 decision 11: the sudoers rule
+# `_tcrunner ALL=(_tcjob) NOPASSWD: <prefix>/bin/job-exec`) and the job entrypoint of the runner image (decision 12).
+# Root-owned and read-only next to the bundle, so neither the runner nor a job can change what it runs.
+#   run    the launch spec arrives as JSON on stdin and runs with exactly its env (the bundle's `job-exec`)
+#   reap   SIGKILL every process of this user (C3 cross-job row (c)); exec'd, so it never kills this script
+#   sweep  delete this user's files left in the shared temp directories and print each path (C3 row (d))
+set -eu
+# Group-readable so the runner (a member of the job group) can judge the clone; never readable by others.
+umask 027
+prefix=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
+uid=$(/usr/bin/id -u)
+case "${1:-}" in
+  run)
+    exec node "$prefix/team-console-runner.mjs" job-exec ;;
+  reap)
+    exec /usr/bin/pkill -9 -u "$uid" ;;
+  sweep)
+    for dir in /tmp /private/tmp /private/var/tmp /var/tmp /Users/Shared /dev/shm; do
+      if [ -d "$dir" ] && [ ! -L "$dir" ]; then
+        /usr/bin/find "$dir" -xdev -mindepth 1 -user "$uid" -print -delete 2>/dev/null || :
+      fi
+    done ;;
+  *)
+    echo 'usage: job-exec run|reap|sweep' >&2
+    exit 2 ;;
+esac

@@ -30,6 +30,8 @@ export function runnerGitEnv(source: Readonly<Record<string, string | undefined>
   return { ...env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' };
 }
 
+export type GitRunner = (args: readonly string[], env: Readonly<Record<string, string>>) => Promise<string>;
+
 export async function runGit(
   args: readonly string[],
   env: Readonly<Record<string, string>>,

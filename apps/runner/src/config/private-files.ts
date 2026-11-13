@@ -1,5 +1,5 @@
 import { constants, type Stats } from 'node:fs';
-import { lstat, mkdir, open } from 'node:fs/promises';
+import { chmod, lstat, mkdir, open } from 'node:fs/promises';
 
 /**
  * File-system rules for what the runner keeps under `TC_RUNNER_HOME` (ADR 0008 decision 2, threat model C4 row 1):
@@ -34,7 +34,7 @@ function isErrnoException(error: unknown, code: string): boolean {
   return error instanceof Error && 'code' in error && error.code === code;
 }
 
-async function lstatOrNull(path: string): Promise<Stats | null> {
+export async function lstatOrNull(path: string): Promise<Stats | null> {
   try {
     return await lstat(path);
   } catch (error: unknown) {
@@ -51,13 +51,18 @@ function describeMode(stats: Stats): string {
 
 /**
  * A directory the runner may keep secrets in: a real directory (not a symlink), owned by the runner's user, and
- * writable by no one else. Created 0700 when missing; an existing one is judged as it is.
+ * writable by no one else. Created 0700 when missing; an existing one is judged as it is. `groupReadable` (0750) is
+ * for what the `user` backend's job user must read (the mirror, the plugin, `jobs/`): set on a new and an existing
+ * directory alike, after the ownership check.
  */
-export async function ensurePrivateDir(path: string): Promise<void> {
+export async function ensurePrivateDir(path: string, mode: 0o700 | 0o750 | undefined = 0o700): Promise<void> {
   if ((await lstatOrNull(path)) === null) {
-    await mkdir(path, { mode: 0o700 });
+    await mkdir(path, { mode });
   }
   await assertPrivateDir(path);
+  if (mode === 0o750) {
+    await chmod(path, mode);
+  }
 }
 
 export async function assertPrivateDir(path: string): Promise<void> {

@@ -1,9 +1,11 @@
+import { join } from 'node:path';
 import { ENROLMENT_CODE_PREFIX, OPAQUE_TOKEN_TAIL } from '@shared/redaction';
 import type { EnrolRunnerInput, RunnerHostDto } from '@shared/contracts';
 import { postEnrolment } from '../client/enrolment';
 import type { FetchLike } from '../client/runner-client';
 import {
   CONFIG_SCHEMA_VERSION,
+  PINNED_IMAGE,
   apiOriginOf,
   configPathOf,
   isEnrolBackend,
@@ -14,6 +16,13 @@ import {
   type RunnerConfig,
 } from '../config/config';
 import { RunnerFileError, ensurePrivateDir, pathExists } from '../config/private-files';
+import {
+  CREDENTIALS_DIR,
+  CREDENTIAL_BACKENDS,
+  parseCredentialConfig,
+  type CredentialConfig,
+  type CredentialKind,
+} from '../env/credential';
 import { generateRunnerKey, saveRunnerKey } from '../config/runner-key';
 import { RUNNER_VERSION } from '../version';
 
@@ -38,7 +47,18 @@ export interface EnrolOptions {
   readonly url: string;
   readonly code: string;
   readonly backend: string;
+  /** `api-key`, `setup-token` (user only) or `claude-config-dir` (container only); decision 5. */
+  readonly credential?: string | undefined;
+  readonly claudeConfigDir?: string | undefined;
+  /** `container` only: the runner image pinned by digest. */
+  readonly image?: string | undefined;
 }
+
+/** Where each file kind's credential lives under `TC_RUNNER_HOME`; the operator puts the value there (0600). */
+export const CREDENTIAL_FILES: Readonly<Record<'api-key' | 'setup-token', string>> = {
+  'api-key': `${CREDENTIALS_DIR}/anthropic.key`,
+  'setup-token': `${CREDENTIALS_DIR}/claude-setup-token`,
+};
 
 export interface EnrolDeps {
   readonly home: string;
@@ -50,6 +70,39 @@ export interface EnrolCheckedOptions {
   readonly apiUrl: string;
   readonly code: string;
   readonly backend: EnrolBackend;
+  readonly credential?: CredentialConfig;
+  readonly image?: string;
+}
+
+const isCredentialKind = (value: string): value is CredentialKind =>
+  Object.hasOwn(CREDENTIAL_BACKENDS, value);
+
+/** RR11: a pairing decision 5 does not allow is refused here, before the code is spent. */
+function checkCredential(options: EnrolOptions, backend: EnrolBackend): CredentialConfig | undefined {
+  const { credential: kind, claudeConfigDir } = options;
+  if (kind === undefined) {
+    if (claudeConfigDir !== undefined) {
+      throw new EnrolUsageError('--claude-config-dir needs --credential claude-config-dir');
+    }
+    return undefined;
+  }
+  if (!isCredentialKind(kind)) {
+    throw new EnrolUsageError('--credential must be api-key, setup-token or claude-config-dir');
+  }
+  if (!CREDENTIAL_BACKENDS[kind].includes(backend)) {
+    throw new EnrolUsageError(
+      `--credential ${kind} is not allowed with --backend ${backend} (allowed: ${CREDENTIAL_BACKENDS[kind].join(', ')})`,
+    );
+  }
+  const parsed = parseCredentialConfig(
+    kind === 'claude-config-dir' ? { kind, path: claudeConfigDir } : { kind, file: CREDENTIAL_FILES[kind] },
+  );
+  if (parsed === null || (kind !== 'claude-config-dir' && claudeConfigDir !== undefined)) {
+    throw new EnrolUsageError(
+      '--credential claude-config-dir needs --claude-config-dir <absolute path>, and only it',
+    );
+  }
+  return parsed;
 }
 
 /** Validates the flags before anything touches the disk or the network; the code is never echoed back. */
@@ -66,7 +119,19 @@ export function checkEnrolOptions(options: EnrolOptions): EnrolCheckedOptions {
   if (!isEnrolBackend(options.backend)) {
     throw new EnrolUsageError('--backend must be container, user or none');
   }
-  return { apiUrl, code: options.code, backend: options.backend };
+  const credential = checkCredential(options, options.backend);
+  if (options.image !== undefined && (options.backend !== 'container' || !PINNED_IMAGE.test(options.image))) {
+    throw new EnrolUsageError(
+      '--image is for --backend container and must be pinned by digest (<name>@sha256:…)',
+    );
+  }
+  return {
+    apiUrl,
+    code: options.code,
+    backend: options.backend,
+    ...(credential === undefined ? {} : { credential }),
+    ...(options.image === undefined ? {} : { image: options.image }),
+  };
 }
 
 export function hostFieldOf(value: string): string {
@@ -113,7 +178,12 @@ export async function enrol(options: EnrolOptions, deps: EnrolDeps): Promise<Run
     allowedProjects: enrolled.allowedProjects,
     pollSeconds: enrolled.pollSeconds,
     backend: checked.backend,
+    ...(checked.credential === undefined ? {} : { credential: checked.credential }),
+    ...(checked.image === undefined ? {} : { container: { image: checked.image } }),
   } satisfies RunnerConfig);
+  if (checked.credential !== undefined && checked.credential.kind !== 'claude-config-dir') {
+    await ensurePrivateDir(join(deps.home, CREDENTIALS_DIR));
+  }
   // The key first: a config without its key would look enrolled and fail every call.
   await saveRunnerKey(deps.home, key.privateKey);
   await saveRunnerConfig(deps.home, config);
