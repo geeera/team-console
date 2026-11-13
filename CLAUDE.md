@@ -88,6 +88,7 @@ Layout, tags and aliases (architect note on #3 — binding; the boundary lint en
 apps/console                 type:app  scope:console  layer:app        (Angular PWA)
 apps/console-e2e             type:e2e  scope:console                   (#14)
 apps/api, apps/hooks         type:app  scope:worker                    (#6)
+apps/runner                  type:app  scope:runner                    (#568: the runner CLI, Node 22, one-file bundle)
 libs/console/<layer>/<slice> type:lib  scope:console  layer:<layer>    @console/<layer>/<slice>
 libs/worker/<name>           type:lib  scope:worker                    @worker/<name>
 libs/shared/<name>           type:lib  scope:shared                    @shared/<name>
@@ -96,7 +97,7 @@ tools/<name>                 type:tool scope:tooling                   (workspac
 
 Layers import downward only (`app → pages → widgets → features → entities → shared`), never their own layer
 (`shared → shared` is the one exception), so features never import features. Scopes: `console → console|shared`,
-`worker → worker|shared`, `shared → shared`. A project whose tags match no constraint cannot import any project.
+`worker → worker|shared`, `runner → runner|shared`, `shared → shared`. A project whose tags match no constraint cannot import any project.
 Every lib exports through `src/index.ts`; there is no wildcard alias, so deep imports do not resolve.
 
 Generate a lib with its tags and alias in one go, e.g.

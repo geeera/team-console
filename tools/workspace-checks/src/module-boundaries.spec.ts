@@ -58,6 +58,28 @@ describe('module boundaries (real ESLint run against the real project graph)', (
     );
   });
 
+  it('lets the runner import a shared lib', async () => {
+    await expect(lintImport('apps/runner', '@shared/contracts')).resolves.toEqual([]);
+  });
+
+  it('fails when the runner imports Worker code (scope:runner)', async () => {
+    const messages = await lintImport('apps/runner', '@worker/core');
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.message).toContain(
+      'A project tagged with "scope:runner" can only depend on libs tagged with',
+    );
+  });
+
+  it('fails when the runner imports a package (no runtime dependencies, ADR 0008 decision 1)', async () => {
+    const eslint = new ESLint({ cwd: workspaceRoot, overrideConfigFile: 'apps/runner/eslint.config.mjs' });
+    const [result] = await eslint.lintText(`import 'jose';\n`, {
+      filePath: join(workspaceRoot, 'apps/runner/src/boundary-probe.ts'),
+    });
+
+    expect(result?.messages.map((message) => message.ruleId)).toContain('no-restricted-imports');
+  });
+
   it('fails when a lib imports the page that already depends on it (cycle)', async () => {
     const messages = await lintImport('libs/console/shared/ui', '@console/pages/settings');
 
@@ -96,6 +118,7 @@ describe('dependency constraints (the matrix from the architect note on #3)', ()
 
     expect(scope('console')).toEqual(['scope:console', 'scope:shared']);
     expect(scope('worker')).toEqual(['scope:worker', 'scope:shared']);
+    expect(scope('runner')).toEqual(['scope:runner', 'scope:shared']);
     expect(scope('shared')).toEqual(['scope:shared']);
   });
 
