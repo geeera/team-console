@@ -1,8 +1,12 @@
 import { parseArgs } from 'node:util';
 import { RUNNER_BINARY, type RunnerHostDto } from '@shared/contracts';
-import { RunnerApiError, type FetchLike } from '../client/runner-client';
-import { runnerHomeOf } from '../config/config';
+import { BackendError, type IsolationBackend } from '../backends/backend';
+import { NoneBackend } from '../backends/none';
+import { RunnerApiError, RunnerClient, type FetchLike } from '../client/runner-client';
+import { loadRunnerConfig, runnerHomeOf, type RunnerConfig } from '../config/config';
 import { RunnerFileError } from '../config/private-files';
+import { loadRunnerKey } from '../config/runner-key';
+import { runLoop } from '../jobs/loop';
 import { RUNNER_VERSION } from '../version';
 import { EnrolUsageError, enrol } from './enrol';
 
@@ -14,6 +18,8 @@ export interface CliDeps {
   readonly fetch: FetchLike;
   readonly stdout: (line: string) => void;
   readonly stderr: (line: string) => void;
+  /** Aborted on Ctrl-C / SIGTERM: a running job is finished `failed` with `runner-shutdown`. */
+  readonly shutdown?: AbortSignal;
 }
 
 export const EXIT_OK = 0;
@@ -26,6 +32,8 @@ const USAGE = [
   'Commands:',
   '  enrol --url <console origin> --code <tce_…> --backend container|user|none',
   '        Enrol this host with the one-time code from Settings › Runners.',
+  '  run-once  Claim one job, run it and exit (exit 0 also when there is none or the runner is paused).',
+  '  run --loop  Claim and run jobs until Ctrl-C.',
   '  version   Print this runner’s version.',
   '',
   'TC_RUNNER_HOME sets where the runner keeps its config and key (default ~/.team-console-runner).',
@@ -45,7 +53,7 @@ function describeFailure(error: unknown): string {
         return error.message;
     }
   }
-  if (error instanceof RunnerFileError || error instanceof EnrolUsageError) {
+  if (error instanceof RunnerFileError || error instanceof EnrolUsageError || error instanceof BackendError) {
     return error.message;
   }
   if (error instanceof Error && error.name === 'TimeoutError') {
@@ -95,11 +103,58 @@ async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number>
   }
 }
 
+function backendOf(config: RunnerConfig, home: string): IsolationBackend {
+  if (config.backend === 'none') {
+    return new NoneBackend(home);
+  }
+  throw new BackendError(`the ${config.backend} backend is not in this runner version yet (2-B-3)`);
+}
+
+async function runJobs(mode: 'once' | 'loop', deps: CliDeps): Promise<number> {
+  try {
+    const home = runnerHomeOf(deps.env, deps.homeDir);
+    const config = await loadRunnerConfig(home);
+    const client = new RunnerClient({
+      apiUrl: config.apiUrl,
+      runnerId: config.runnerId,
+      audience: config.audience,
+      privateKey: await loadRunnerKey(home),
+      fetch: deps.fetch,
+    });
+    const end = await runLoop(mode, {
+      home,
+      config,
+      client,
+      backend: backendOf(config, home),
+      sourceEnv: deps.env,
+      log: deps.stdout,
+      now: () => new Date(),
+      shutdown: deps.shutdown ?? new AbortController().signal,
+    });
+    deps.stdout(end === 'idle' ? 'No job is queued for this runner.' : `Runner stopped (${end}).`);
+    return EXIT_OK;
+  } catch (error: unknown) {
+    deps.stderr(`run failed: ${describeFailure(error)}`);
+    return EXIT_FAILED;
+  }
+}
+
+function usageError(deps: CliDeps, message: string): number {
+  deps.stderr(`${message}\n\n${USAGE}`);
+  return EXIT_USAGE;
+}
+
 export async function runCli(argv: readonly string[], deps: CliDeps): Promise<number> {
   const [command, ...rest] = argv;
   switch (command) {
     case 'enrol':
       return runEnrol(rest, deps);
+    case 'run-once':
+      return rest.length === 0 ? runJobs('once', deps) : usageError(deps, 'run-once takes no arguments.');
+    case 'run':
+      return rest.length === 1 && rest[0] === '--loop'
+        ? runJobs('loop', deps)
+        : usageError(deps, 'run needs --loop (or use run-once).');
     case 'version':
     case '--version':
       deps.stdout(RUNNER_VERSION);

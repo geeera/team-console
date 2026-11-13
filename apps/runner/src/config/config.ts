@@ -1,6 +1,8 @@
 import { isAbsolute, join } from 'node:path';
 import { isRunnerId, isUlid, isValidSlug, type RunnerIsolation } from '@shared/contracts';
 import { RunnerFileError, assertPrivateDir, readPrivateFile, writePrivateFile } from './private-files';
+import { parseCredentialConfig, type CredentialConfig } from '../env/credential';
+import { PINNED_MODEL, isJobRole, type RoleOverrides } from '../claude/roles';
 
 /**
  * The runner's own state (ADR 0008 decision 2): `TC_RUNNER_HOME` (default `~/.team-console-runner`) holding
@@ -36,6 +38,20 @@ export interface RunnerConfig {
   readonly allowedProjects: readonly string[];
   readonly pollSeconds: number;
   readonly backend: EnrolBackend;
+  /** What jobs need, set by the operator after `enrol` (ADR 0008 decisions 4, 5, 7, 8); all optional. */
+  readonly credential?: CredentialConfig;
+  readonly toolchain?: RunnerToolchain;
+  readonly env?: { readonly passthrough: readonly string[] };
+  readonly roles?: RoleOverrides;
+  /** The clone URL per project slug the mirror fetches from (https, or an absolute path for a local repository). */
+  readonly repositories?: Readonly<Record<string, string>>;
+}
+
+export interface RunnerToolchain {
+  /** The job's `PATH`, never the runner's own. */
+  readonly path: string;
+  /** The Claude Code CLI; an absolute path or a name looked up on `path`. Default `claude`. */
+  readonly claude?: string;
 }
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
@@ -97,7 +113,116 @@ const CONFIG_KEYS = [
   'allowedProjects',
   'pollSeconds',
   'backend',
+  'credential',
+  'toolchain',
+  'env',
+  'roles',
+  'repositories',
 ] as const;
+
+const TOOLCHAIN_PATH = /^\/[^:\0]*(?::\/[^:\0]*)*$/;
+const COMMAND = /^(?:\/[^\0]+|[A-Za-z0-9][A-Za-z0-9._-]*)$/;
+
+/** An https URL without credentials, query or fragment, or an absolute local path. */
+export function isRepositoryUrl(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > 512) {
+    return false;
+  }
+  if (value.startsWith('/')) {
+    return !value.split('/').includes('..');
+  }
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' &&
+      url.username === '' &&
+      url.password === '' &&
+      url.search === '' &&
+      url.hash === ''
+    );
+  } catch {
+    // Not a URL: refused like any other malformed value.
+    return false;
+  }
+}
+
+function parseJobSettings(value: Record<string, unknown>): Partial<RunnerConfig> {
+  const settings: {
+    credential?: CredentialConfig;
+    toolchain?: RunnerToolchain;
+    env?: { passthrough: string[] };
+    roles?: RoleOverrides;
+    repositories?: Record<string, string>;
+  } = {};
+  if (value['credential'] !== undefined) {
+    const credential = parseCredentialConfig(value['credential']);
+    if (credential === null) {
+      throw invalid(
+        'credential must be {kind: api-key|setup-token, file: credentials/<name>} or {kind: claude-config-dir, path}',
+      );
+    }
+    settings.credential = credential;
+  }
+  const toolchain = value['toolchain'];
+  if (toolchain !== undefined) {
+    if (
+      !isRecord(toolchain) ||
+      Object.keys(toolchain).some((key) => key !== 'path' && key !== 'claude') ||
+      typeof toolchain['path'] !== 'string' ||
+      !TOOLCHAIN_PATH.test(toolchain['path']) ||
+      (toolchain['claude'] !== undefined &&
+        (typeof toolchain['claude'] !== 'string' || !COMMAND.test(toolchain['claude'])))
+    ) {
+      throw invalid('toolchain must be {path: absolute directories joined by ":", claude?: command}');
+    }
+    settings.toolchain =
+      typeof toolchain['claude'] === 'string'
+        ? { path: toolchain['path'], claude: toolchain['claude'] }
+        : { path: toolchain['path'] };
+  }
+  const env = value['env'];
+  if (env !== undefined) {
+    const passthrough = isRecord(env) ? env['passthrough'] : undefined;
+    if (
+      !isRecord(env) ||
+      Object.keys(env).some((key) => key !== 'passthrough') ||
+      !Array.isArray(passthrough) ||
+      !passthrough.every((name) => typeof name === 'string')
+    ) {
+      throw invalid('env must be {passthrough: [variable names]}');
+    }
+    // The names are judged at every launch (env-builder.ts), so a refused one fails a job with its reason.
+    settings.env = { passthrough: [...(passthrough as string[])] };
+  }
+  const roles = value['roles'];
+  if (roles !== undefined) {
+    if (
+      !isRecord(roles) ||
+      !Object.entries(roles).every(
+        ([role, entry]) =>
+          isJobRole(role) &&
+          isRecord(entry) &&
+          Object.keys(entry).join() === 'model' &&
+          typeof entry['model'] === 'string' &&
+          PINNED_MODEL.test(entry['model']),
+      )
+    ) {
+      throw invalid('roles must map a known role to {model: a pinned model id}');
+    }
+    settings.roles = roles as RoleOverrides;
+  }
+  const repositories = value['repositories'];
+  if (repositories !== undefined) {
+    if (
+      !isRecord(repositories) ||
+      !Object.entries(repositories).every(([slug, url]) => isValidSlug(slug) && isRepositoryUrl(url))
+    ) {
+      throw invalid('repositories must map a project slug to an https URL or an absolute path');
+    }
+    settings.repositories = repositories as Record<string, string>;
+  }
+  return settings;
+}
 
 /** Narrows `config.json`; an unknown key or a wrong value is refused rather than ignored. */
 export function parseRunnerConfig(value: unknown): RunnerConfig {
@@ -155,6 +280,7 @@ export function parseRunnerConfig(value: unknown): RunnerConfig {
     allowedProjects: allowedProjects as string[],
     pollSeconds,
     backend,
+    ...parseJobSettings(value),
   };
 }
 

@@ -235,4 +235,34 @@ describe('runner config (ADR 0008 decision 2, threat model C4 row 1)', () => {
       await expect(readPrivateFile(join(home, 'd'))).rejects.toMatchObject({ problem: 'file-unsafe' });
     });
   });
+
+  describe('job settings (ADR 0008 decisions 4, 5, 7, 8)', () => {
+    const settings = {
+      credential: { kind: 'api-key', file: 'credentials/anthropic.key' },
+      toolchain: { path: '/opt/homebrew/bin:/usr/bin:/bin', claude: '/opt/homebrew/bin/claude' },
+      env: { passthrough: ['PT_REPO'] },
+      roles: { reviewer: { model: 'claude-opus-5-5' } },
+      repositories: { 'team-console': 'https://github.com/geeera/team-console.git', local: '/srv/repos/local' },
+    };
+
+    it('accepts them and keeps them through a save', async () => {
+      expect(parseRunnerConfig({ ...config, ...settings })).toEqual({ ...config, ...settings });
+      await saveRunnerConfig(home, parseRunnerConfig({ ...config, ...settings }));
+      await expect(loadRunnerConfig(home)).resolves.toEqual({ ...config, ...settings });
+    });
+
+    it.each([
+      ['credential', { kind: 'api-key', file: '/etc/passwd' }],
+      ['toolchain', { path: 'relative/bin' }],
+      ['toolchain', { path: '/usr/bin', claude: '--dangerous' }],
+      ['env', { passthrough: 'PT_REPO' }],
+      ['roles', { reviewer: { model: 'sonnet' } }],
+      ['roles', { designer: { model: 'claude-opus-5-5' } }],
+      ['repositories', { 'team-console': 'https://user:pass@example.com/x.git' }],
+      ['repositories', { 'team-console': 'ssh://example.com/x/y.git' }],
+      ['repositories', { 'Not A Slug': 'https://example.com/x.git' }],
+    ])('refuses %s = %j', (key, value) => {
+      expect(() => parseRunnerConfig({ ...config, [key]: value })).toThrow(RunnerFileError);
+    });
+  });
 });
