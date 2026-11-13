@@ -350,6 +350,24 @@ describe('nothing is written on a 4xx', () => {
     expect(h.stub.calls).toEqual([]);
   });
 
+  // #565: hono 4.13.18 fixes a validator Content-Type bypass; the route parses the body itself (never hono's
+  // `validator('json')`), so an unusual Content-Type must still answer the same validation 4xx, not a 2xx.
+  it.each(['application/json ;charset=utf-8', 'application/json;'])(
+    '422 validation for an invalid body sent with the unusual Content-Type %j',
+    async (contentType) => {
+      const h = harness();
+      const response = await answer(
+        h,
+        7,
+        { command: 'resume' },
+        { headers: { 'Sec-Fetch-Site': 'same-origin', 'Content-Type': contentType } },
+      );
+      expect(response.status).toBe(422);
+      expect((await problemOf(response)).slug).toBe('validation');
+      expect(h.stub.calls).toEqual([]);
+    },
+  );
+
   it.each(['0', '07', 'abc', '99999999999'])('422 validation for the issue number %s', async (issue) => {
     const h = harness();
     const response = await answer(h, issue, { command: 'approve', ownerSaid: 'да' });
