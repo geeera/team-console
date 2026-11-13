@@ -66,7 +66,8 @@ export interface BoardSections {
   readonly backlog: BoardSection;
 }
 
-function sectionOf(
+/** One section from its own items (a folder loads only its own, #557); other sprints' items are left out. */
+export function sectionOf(
   kind: BoardSectionKind,
   sprint: TrackerSprintDto | null,
   items: readonly ItemSummaryDto[],

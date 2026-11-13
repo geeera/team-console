@@ -77,6 +77,16 @@ describe('ItemsApi', () => {
     await unnamed;
   });
 
+  it('reads the sprint list with its open counts, and refuses one without them (#561)', async () => {
+    const sprint = { number: 4, title: 'Sprint 04', dueOn: null, state: 'open', description: '', createdAt: 'x', closedAt: null };
+    const counted = api.sprintList('team-console');
+    http.expectOne(sprintsUrl('team-console')).flush({ sprints: [{ ...sprint, openCount: 3 }], backlogOpenCount: 7 });
+    await expect(counted).resolves.toMatchObject({ ok: true, value: { backlogOpenCount: 7, sprints: [{ openCount: 3 }] } });
+    const uncounted = api.sprintList('team-console');
+    http.expectOne(sprintsUrl('team-console')).flush({ sprints: [sprint], backlogOpenCount: 7 });
+    await expect(uncounted).resolves.toEqual({ ok: false, reason: 'error' });
+  });
+
   it("reads the project's freeze days and falls back to the plugin's default (#457)", async () => {
     const read = api.freezeDays('team-console');
     http.expectOne(sprintFreezeUrl('team-console')).flush({ freezeDays: 3 });

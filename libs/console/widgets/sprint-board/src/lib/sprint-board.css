@@ -28,8 +28,14 @@
   overflow-wrap: anywhere;
 }
 
-.board__demo {
+.board__demo,
+.board__open {
   flex: none;
+}
+
+.board__open {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
 }
 
 .board__actions {

@@ -444,6 +444,40 @@
       "finding": "Finding",
       "wow": "Wow",
       "question": "Question"
+    },
+    "sections": {
+      "label": "Next sprints and the backlog",
+      "next": "Next sprint",
+      "later": "Later",
+      "backlog": "Backlog",
+      "backlogTitle": "Tasks without a sprint",
+      "open": {
+        "one": "{{n}} open",
+        "few": "{{n}} open",
+        "many": "{{n}} open",
+        "other": "{{n}} open"
+      },
+      "show": "Show tasks",
+      "hide": "Hide",
+      "showAria": "Show tasks: {{section}}",
+      "hideAria": "Hide tasks: {{section}}",
+      "loading": "Loading {{section}}…",
+      "loaded": "{{section}}: {{open}}",
+      "lanes": "{{section}} by status",
+      "emptyNext": "Nothing in {{sprint}} yet",
+      "emptyNextHint": "Move tasks here from the backlog with a task’s ⋯ button.",
+      "emptyBacklog": "The backlog is empty",
+      "emptyBacklogHint": "Every open task is already in a sprint.",
+      "noNext": "There’s no next sprint yet.",
+      "emptyProject": "No tasks yet",
+      "emptyProjectHint": "Add the first one — it shows up in the backlog or in the sprint you pick.",
+      "error": "Couldn’t load {{section}}",
+      "errorHint": "The console didn’t answer. The rest of the board works.",
+      "listError": "Couldn’t load the next sprints and the backlog",
+      "tryAgain": "Try again",
+      "offline": "You’re offline",
+      "offlineHint": "The section loads once you’re back online.",
+      "showMore": "Show {{n}} more · {{left}} left"
     }
   },
   "find": {
