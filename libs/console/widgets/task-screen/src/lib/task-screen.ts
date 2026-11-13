@@ -19,7 +19,6 @@ import {
   historyOf,
   isClosedAsNotNeeded,
   ItemsApi,
-  queuePositionOf,
   TrackerFailureBlock,
   type FailedWrite,
   type HistoryEntry,
@@ -31,13 +30,7 @@ import { ItemSprintPicker } from '@console/features/move-item';
 import { NetworkStatus } from '@console/shared/api';
 import { LocalDayPipe, LocalTimePipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, Chip, Icon, IconButton, Ledger, LedgerRow } from '@console/shared/ui';
-import {
-  currentSprintOf,
-  type AskDto,
-  type ItemDto,
-  type ItemSummaryDto,
-  type TrackerSprintDto,
-} from '@shared/contracts';
+import { currentSprintOf, type AskDto, type ItemDto, type TrackerSprintDto } from '@shared/contracts';
 import { decisionItemOf, TaskDecision } from './task-decision';
 import { TaskHistory } from './task-history';
 import { TaskNames } from './task-names';
@@ -108,7 +101,6 @@ export class TaskScreen {
   protected readonly history = signal<readonly HistoryEntry[]>([]);
   protected readonly sprints = signal<readonly TrackerSprintDto[]>([]);
   protected readonly asks = signal<readonly AskDto[]>([]);
-  protected readonly peers = signal<readonly ItemSummaryDto[]>([]);
   protected readonly loadedAt = signal<string | null>(null);
   protected readonly isEditing = signal(false);
   protected readonly failedWrite = signal<FailedWrite | null>(null);
@@ -150,10 +142,8 @@ export class TaskScreen {
       ? this.transloco.translate('item.sprintCurrent', { sprint: title })
       : title;
   });
-  protected readonly queue = computed(() => {
-    const item = this.item();
-    return item === null ? null : queuePositionOf(item, this.peers());
-  });
+  /** "{pos} of {total} in {lane}" as the Worker computed it on this read (#456); `null` off the board. */
+  protected readonly queue = computed(() => this.item()?.queue ?? null);
   protected readonly githubUrl = computed(() => {
     const item = this.item();
     return item === null ? null : githubSourceUrlOf(item);
@@ -200,7 +190,7 @@ export class TaskScreen {
     if (focus) {
       this.focusAfterRender('[data-focus="task-title"]');
     }
-    await Promise.all([this.loadHistory(), this.loadPeers()]);
+    await this.loadHistory();
   }
 
   private async loadHistory(): Promise<void> {
@@ -216,20 +206,6 @@ export class TaskScreen {
     if (events.ok && comments.ok) {
       this.history.set(historyOf(events.value, comments.value, decisions.ok ? decisions.value : []));
     }
-  }
-
-  private async loadPeers(): Promise<void> {
-    const item = this.item();
-    if (item === null || item.state === 'closed') {
-      this.peers.set([]);
-      return;
-    }
-    const read = await this.api.items(this.slug(), {
-      state: 'open',
-      status: item.status,
-      sprint: item.sprint === null ? 'none' : String(item.sprint),
-    });
-    this.peers.set(read.ok ? read.value : []);
   }
 
   protected startEdit(): void {
@@ -252,20 +228,11 @@ export class TaskScreen {
     this.focusAfterRender('[data-testid="item-edit"]');
   }
 
-  /** A write landed: show the item as the server answered and read History again for its new line. */
+  /** A write landed: show the item as the server answered (its queue included) and read History again for its new line. */
   protected applyChange(item: ItemDto): void {
-    const before = this.item();
     this.failedWrite.set(null);
     this.item.set(item);
     void this.loadHistory();
-    if (
-      before === null ||
-      before.status !== item.status ||
-      before.sprint !== item.sprint ||
-      before.state !== item.state
-    ) {
-      void this.loadPeers();
-    }
   }
 
   /** A decision was recorded: read the task again in place, so the receipt keeps focus. */

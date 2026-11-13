@@ -614,6 +614,7 @@ describe('askEffectOf', () => {
     sprintNumber: null,
     title: 'T',
     body: '',
+    queue: null,
     flags,
     closedAt: null,
     closedReason: null,

@@ -85,6 +85,13 @@ describe('boardSectionsOf (#556)', () => {
     expect(backlog.openCount).toBe(5);
   });
 
+  it('keeps a lane in the order the tracker listed it: the queue, not the number (#456)', () => {
+    const { backlog } = boardSectionsOf([], [item({ number: 9 }), item({ number: 3 }), item({ number: 5 })]);
+    expect(backlog.lanes.find((lane) => lane.status === 'approved')?.issues.map((issue) => issue.number)).toEqual([
+      9, 3, 5,
+    ]);
+  });
+
   it('has no current or future section without open sprints, and an empty backlog without items', () => {
     const sections = boardSectionsOf([sprint(1, '2026-10-01', 'closed')], [item({ sprint: 1 })]);
     expect(sections.current).toBeNull();
@@ -117,9 +124,10 @@ describe('trackerSprintPartOf (#556)', () => {
       item({ number: 6, sprint: null }),
     ]);
     expect(part.milestone).toEqual({ number: 4, title: 'Sprint 04', dueOn: '2026-11-27', url: null });
-    expect(part.issues.map((issue) => issue.number)).toEqual([7, 8, 9]);
-    expect(part.issues[0]).toMatchObject({ url: null, authorTrusted: false, request: null });
-    expect(part.issues[2]).toMatchObject({ tier: 'standard', state: 'closed' });
+    // The tracker's order is the queue (#456): kept as listed, never re-sorted by number.
+    expect(part.issues.map((issue) => issue.number)).toEqual([9, 8, 7]);
+    expect(part.issues[2]).toMatchObject({ url: null, authorTrusted: false, request: null });
+    expect(part.issues[0]).toMatchObject({ tier: 'standard', state: 'closed' });
     expect(part).toMatchObject({ planned: 2, shipped: 1, carriedOver: 1 });
   });
 

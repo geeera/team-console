@@ -17,9 +17,9 @@ import type { ItemDto } from '@shared/contracts';
 import { ItemMover } from './item-mover';
 
 /**
- * Sprint ▾ on the task screen (#409 §2.2): the Move menu of `ItemMover` — every open sprint and the backlog, a move
- * that applies at once, Undo on the toast. A move keeps the status. Focus stays on Sprint ▾ (the task does not leave
- * this screen).
+ * Sprint ▾ on the task screen (#409 §2.2): the Move menu of `ItemMover` — First / Up / Down in the lane (#456), every
+ * open sprint and the backlog, a move that applies at once, Undo on the toast. A move keeps the status. Focus stays
+ * on Sprint ▾ (the task does not leave this screen).
  */
 @Component({
   selector: 'tc-item-sprint-picker',
@@ -76,12 +76,8 @@ export class ItemSprintPicker {
     this.isOpen.set(true);
     try {
       await this.mover.open(this.button().nativeElement, this.slug(), this.item(), {
-        moved: ({ item }) => {
-          if (!this.isDestroyed) {
-            this.changed.emit(item);
-            this.button().nativeElement.focus();
-          }
-        },
+        moved: ({ item }) => this.onChanged(item),
+        reordered: (item) => this.onChanged(item),
         failed: (failed) => {
           if (!this.isDestroyed) {
             this.failed.emit(failed);
@@ -90,6 +86,14 @@ export class ItemSprintPicker {
       });
     } finally {
       this.isOpen.set(false);
+    }
+  }
+
+  /** The task stays on this screen after a move or a reorder: the ledger follows, focus comes back here. */
+  private onChanged(item: ItemDto): void {
+    if (!this.isDestroyed) {
+      this.changed.emit(item);
+      this.button().nativeElement.focus();
     }
   }
 }

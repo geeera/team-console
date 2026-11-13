@@ -1,5 +1,13 @@
 import { askRecordOf, type AskRecord, type AskRow } from './asks.repo';
-import { ITEM_FROM, ITEM_SUMMARY_COLUMNS, itemSummaryOf, type ItemRecord, type ItemRow } from './items.repo';
+import {
+  ITEM_FROM,
+  ITEM_ORDER,
+  ITEM_QUEUE_COLUMNS,
+  ITEM_SUMMARY_COLUMNS,
+  itemRecordOf,
+  type ItemRecord,
+  type ItemRow,
+} from './items.repo';
 
 /** An open item the owner's inbox may list, with its open console ask. */
 export interface InboxRowRecord {
@@ -71,21 +79,21 @@ export class InboxRepo {
     const flags = SECTION_FLAGS.map((_, index) => `?${String(index + 2)}`).join(', ');
     const { results } = await this.db
       .prepare(
-        `SELECT ${ITEM_SUMMARY_COLUMNS}, items.body, ${ASK_COLUMNS}
+        `SELECT ${ITEM_SUMMARY_COLUMNS}, items.body, ${ITEM_QUEUE_COLUMNS}, ${ASK_COLUMNS}
          ${ITEM_FROM}
          LEFT JOIN asks ON asks.item_id = items.id AND asks.source = 'console'
            AND asks.answered_by_decision_id IS NULL AND asks.withdrawn_at IS NULL
          WHERE items.project_slug = ?1 AND items.closed_at IS NULL
            AND (items.kind = 'question'
                 OR EXISTS (SELECT 1 FROM item_labels WHERE item_id = items.id AND name IN (${flags})))
-         ORDER BY items.number
+         ${ITEM_ORDER}
          LIMIT ?${String(SECTION_FLAGS.length + 2)}`,
       )
       .bind(slug, ...SECTION_FLAGS, INBOX_ROW_CAP + 1)
       .all<InboxRow>();
     return {
       rows: results.slice(0, INBOX_ROW_CAP).map((row) => ({
-        item: { ...itemSummaryOf(row), body: row.body ?? '' },
+        item: itemRecordOf(row),
         ask: askOf(row),
       })),
       truncated: results.length > INBOX_ROW_CAP,

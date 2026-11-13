@@ -285,6 +285,11 @@ describe('statusColumnsOf', () => {
     expect(byStatus).toEqual({ approved: [], 'in-progress': [4], qa: [], done: [3, 9], none: [7] });
     expect(columns.reduce((sum, column) => sum + column.issues.length, 0)).toBe(issues.length);
   });
+
+  it('keeps the given order within a lane when asked (the tracker’s queue, #456)', () => {
+    const columns = statusColumnsOf([issue(9, 'done'), issue(3, 'done'), issue(4, 'done')], 'given');
+    expect(columns.find((column) => column.status === 'done')?.issues.map((i) => i.number)).toEqual([9, 3, 4]);
+  });
 });
 
 describe('demo day', () => {

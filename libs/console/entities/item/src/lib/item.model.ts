@@ -24,6 +24,7 @@ import {
   type ItemEventListDto,
   type ItemListDto,
   type ItemSummaryDto,
+  type QueuePositionDto,
   type SprintFreezeDaysDto,
   type TrackerSprintDto,
   type TrackerSprintListDto,
@@ -88,8 +89,16 @@ export function isItemSummaryDto(value: unknown): value is ItemSummaryDto {
   );
 }
 
+function isQueuePosition(value: unknown): value is QueuePositionDto {
+  return isRecord(value) && isPositiveInteger(value['position']) && isPositiveInteger(value['total']);
+}
+
 export function isItemDto(value: unknown): value is ItemDto {
-  return isItemSummaryDto(value) && typeof (value as unknown as Record<string, unknown>)['body'] === 'string';
+  if (!isItemSummaryDto(value)) {
+    return false;
+  }
+  const record = value as unknown as Record<string, unknown>;
+  return typeof record['body'] === 'string' && (record['queue'] === null || isQueuePosition(record['queue']));
 }
 
 export function isItemListDto(value: unknown): value is ItemListDto {

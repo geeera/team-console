@@ -30,11 +30,13 @@ import {
   isItemSeverity,
   isItemStatus,
   isItemTier,
+  isQueueMove,
   isSprintState,
   type ItemKind,
   type ItemSeverity,
   type ItemStatus,
   type ItemTier,
+  type QueueMove,
   type SprintState,
 } from './vocabulary';
 
@@ -72,6 +74,11 @@ export interface UpdateItemInput {
   /** `closed` needs `closedReason`; `open` reopens an item closed as not planned or duplicate. */
   readonly state?: 'open' | 'closed';
   readonly closedReason?: 'not-planned' | 'duplicate';
+}
+
+/** `POST …/items/:key/queue` with `If-Match` (#456): one step in the item's lane. `before` (a key) is reserved. */
+export interface QueueMoveInput {
+  readonly move: QueueMove;
 }
 
 /** `POST …/sprints`: the next number, titled `title` or, without one, `Sprint NN`. */
@@ -377,6 +384,13 @@ export function checkUpdateItemInput(body: unknown): InputCheck<UpdateItemInput>
       throw new InputError('removeLabels', 'A label cannot be added and removed at once');
     }
     return value;
+  });
+}
+
+export function checkQueueMoveInput(body: unknown): InputCheck<QueueMoveInput> {
+  return checked(() => {
+    const input = record(body, ['move']);
+    return { move: oneOf('move', input['move'], isQueueMove) };
   });
 }
 

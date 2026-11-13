@@ -12,6 +12,7 @@ export {
   statusColumnsOf,
 } from './lib/sprint.model';
 export type {
+  LaneOrder,
   SprintBoard,
   SprintCiSummary,
   SprintIssue,

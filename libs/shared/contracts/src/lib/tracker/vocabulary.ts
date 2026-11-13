@@ -66,8 +66,17 @@ export const ITEM_EVENT_KINDS = [
   'imported',
   // #462: the owner masked the title and body in the item's created/edited events (`…/events/scrub`).
   'scrubbed',
+  // #456: the item took another place in its queue (`…/items/:key/queue`); before/after = {rank}.
+  'reordered',
 ] as const;
 export type ItemEventKind = (typeof ITEM_EVENT_KINDS)[number];
+
+/** `POST …/items/:key/queue` (#456, #409 §2.2): First in the queue, Up, Down — within the item's lane. */
+export const QUEUE_MOVES = ['first', 'up', 'down'] as const;
+export type QueueMove = (typeof QUEUE_MOVES)[number];
+export function isQueueMove(value: unknown): value is QueueMove {
+  return typeof value === 'string' && (QUEUE_MOVES as readonly string[]).includes(value);
+}
 
 export const SPRINT_STATES = ['open', 'closed'] as const;
 export type SprintState = (typeof SPRINT_STATES)[number];

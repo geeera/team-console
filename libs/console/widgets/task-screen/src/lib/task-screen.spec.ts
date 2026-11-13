@@ -20,6 +20,7 @@ const ITEM: ItemDto = {
   sprint: 3,
   title: 'Answer not saved on a slow network',
   body: 'Repro steps',
+  queue: { position: 2, total: 3 },
   labels: [],
   flags: ['mobile'],
   state: 'open',
@@ -102,12 +103,6 @@ async function answerLoad(http: HttpTestingController, item: ItemDto | null): Pr
     });
   http.expectOne((r) => r.url === `${BASE}/items/7/decisions`).flush({ decisions: [], next: null });
   http.expectOne((r) => r.url === `${BASE}/items/7/asks`).flush({ asks: [], next: null });
-  http
-    .expectOne((r) => r.url === `${BASE}/items` && r.params.get('status') === 'approved')
-    .flush({
-      items: [{ ...item, number: 3, key: 'TC-3' }],
-      next: null,
-    });
   await settle();
 }
 
@@ -123,7 +118,7 @@ describe('TaskScreen', () => {
     );
     expect(root.querySelector('[data-testid="pick-kind"]')?.getAttribute('aria-label')).toBe('Тип: Ошибка');
     expect(root.querySelector('[data-testid="pick-sprint"]')?.getAttribute('aria-label')).toBe('Спринт: Sprint 03 — текущий');
-    expect(root.querySelector('[data-testid="task-queue"]')?.textContent).toContain('2-я из 2 в «Одобрено»');
+    expect(root.querySelector('[data-testid="task-queue"]')?.textContent).toContain('2-я из 3 в «Одобрено»');
     expect(
       root.querySelector('a[href="https://github.com/geeera/team-console/issues/7"]')?.textContent,
     ).toContain('#7');

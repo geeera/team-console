@@ -22,7 +22,8 @@ export type ItemUpdateOutcome =
 
 // What the transition table tells apart (#462): the approved text, and the sizing and planning around it.
 const TEXT_FIELDS: readonly string[] = ['title', 'body'];
-const PLANNING_FIELDS: readonly string[] = ['kind', 'severity', 'tier', 'sprint'];
+// `rank` (#456) is the queue route's change, never a PATCH member; classified as planning so the table judges it.
+const PLANNING_FIELDS: readonly string[] = ['kind', 'severity', 'tier', 'sprint', 'rank'];
 // Fail closed (#471 security review): a changed field outside these lists is unclassified, and the table refuses it
 // to every job until someone decides which list it belongs to.
 const CLASSIFIED_FIELDS: readonly string[] = [
@@ -132,6 +133,27 @@ export function planItemUpdate(
         changesUnclassified: changed.some((field) => !CLASSIFIED_FIELDS.includes(field)),
       },
     },
+  };
+}
+
+/**
+ * What a queue move (#456) asks the transition table: the item as it is, with `rank` as the one changed field, so
+ * the same lists decide who may reorder (the editing roles; the route matrix already narrows that to owner and PM).
+ */
+export function queueMoveTransition(item: ItemRecord): ItemTransition {
+  const state = {
+    status: item.status,
+    flags: item.flags,
+    closed: item.closedAt !== null,
+    approved: item.approvedAt !== null,
+  };
+  const changed = ['rank'];
+  return {
+    before: state,
+    after: state,
+    changesText: changed.some((field) => TEXT_FIELDS.includes(field)),
+    changesPlanning: changed.some((field) => PLANNING_FIELDS.includes(field)),
+    changesUnclassified: changed.some((field) => !CLASSIFIED_FIELDS.includes(field)),
   };
 }
 

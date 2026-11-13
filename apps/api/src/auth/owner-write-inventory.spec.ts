@@ -91,6 +91,7 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   // #410/#444 (ADR 0006): the console's own tracker, D1 only, behind the route matrix (reads included).
   'POST /api/v1/projects/:slug/items': 'tracker-matrix',
   'PATCH /api/v1/projects/:slug/items/:key': 'tracker-matrix',
+  'POST /api/v1/projects/:slug/items/:key/queue': 'tracker-matrix',
   'POST /api/v1/projects/:slug/items/:key/comments': 'tracker-matrix',
   'POST /api/v1/projects/:slug/sprints': 'tracker-matrix',
   'PATCH /api/v1/projects/:slug/sprints/:number': 'tracker-matrix',

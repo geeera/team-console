@@ -9,6 +9,7 @@ import type {
   ItemDto,
   ItemEventDto,
   ItemSummaryDto,
+  QueueMove,
   TrackerSprintDto,
   TrackerSprintListDto,
   UpdateItemInput,
@@ -187,6 +188,24 @@ export class ItemsApi {
       'If-Match': `"${String(version)}"`,
     });
     return this.write('PATCH', itemUrl(slug, number), change, headers, isItemDto);
+  }
+
+  /**
+   * `POST …/items/:n/queue` with `If-Match: "<version>"` (#456): First / Up / Down in the item's lane. Answers the
+   * item with its new `queue`; already first or last answers it unchanged.
+   */
+  async reorder(
+    slug: string,
+    number: number,
+    version: number,
+    move: QueueMove,
+    idempotencyKey: string,
+  ): Promise<TrackerWrite<ItemDto>> {
+    const headers = new HttpHeaders({
+      'Idempotency-Key': idempotencyKey,
+      'If-Match': `"${String(version)}"`,
+    });
+    return this.write('POST', `${itemUrl(slug, number)}/queue`, { move }, headers, isItemDto);
   }
 
   /** `POST …/items/:n/comments`: append-only, no `If-Match`. */

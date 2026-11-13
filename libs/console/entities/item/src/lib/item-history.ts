@@ -30,7 +30,8 @@ export type HistoryLine =
   | { readonly kind: 'asked' }
   | { readonly kind: 'requested' }
   | { readonly kind: 'handled' }
-  | { readonly kind: 'pr-linked' };
+  | { readonly kind: 'pr-linked' }
+  | { readonly kind: 'reordered' };
 
 export interface HistoryEntry {
   /** Unique within the item: `e<id>` for an event, `c<id>` for a comment. */
@@ -99,6 +100,8 @@ function eventLineOf(event: ItemEventDto, decisions: ReadonlyMap<number, Decisio
       return { kind: 'handled' };
     case 'pr-linked':
       return { kind: 'pr-linked' };
+    case 'reordered':
+      return { kind: 'reordered' };
     case 'commented':
     case 'answered':
     case 'scrubbed':

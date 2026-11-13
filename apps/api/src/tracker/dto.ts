@@ -64,7 +64,7 @@ export function itemSummaryDtoOf(keyPrefix: string, item: ItemSummaryRecord): It
 }
 
 export function itemDtoOf(keyPrefix: string, item: ItemRecord): ItemDto {
-  return { ...itemSummaryDtoOf(keyPrefix, item), body: item.body };
+  return { ...itemSummaryDtoOf(keyPrefix, item), body: item.body, queue: item.queue };
 }
 
 export function sprintDtoOf(sprint: SprintRecord, openCount: number): TrackerSprintDto {
