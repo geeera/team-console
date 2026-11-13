@@ -57,6 +57,11 @@ async function runner(accountId: string, allowed: readonly string[], lastSeenAt:
   return id;
 }
 
+/** Stores the runner's allow-list: the claim reads it from the row, not from the caller (#543). */
+async function allow(runnerId: string, allowed: readonly string[]): Promise<void> {
+  await env.DB.prepare(`UPDATE runners SET allowed_projects = ?2 WHERE id = ?1`).bind(runnerId, JSON.stringify(allowed)).run();
+}
+
 const jobs = new JobsRepo(env.DB);
 
 async function enqueue(slug: string, accountId = ACCOUNT_A, overrides: Partial<NewJob> = {}): Promise<string> {
@@ -69,8 +74,8 @@ async function enqueue(slug: string, accountId = ACCOUNT_A, overrides: Partial<N
   return id;
 }
 
-const claimAs = (runnerId: string, allowed: readonly string[], overrides: Partial<ClaimRequest> = {}): Promise<unknown> =>
-  jobs.claim({ runnerId, accountId: ACCOUNT_A, allowedProjects: allowed, local: true, tokenHash: 'a'.repeat(64), now: T1, leaseUntil: '2026-11-10T10:10:00.000Z', ...overrides });
+const claimAs = (runnerId: string, overrides: Partial<ClaimRequest> = {}): Promise<unknown> =>
+  jobs.claim({ runnerId, accountId: ACCOUNT_A, local: true, tokenHash: 'a'.repeat(64), now: T1, leaseUntil: '2026-11-10T10:10:00.000Z', ...overrides });
 
 beforeAll(async () => {
   await env.DB.batch([
@@ -84,7 +89,7 @@ describe('JobsRepo.claim', () => {
     const theirs = await project(ACCOUNT_B);
     const id = await enqueue(theirs, ACCOUNT_B);
     const mine = await runner(ACCOUNT_A, [theirs]);
-    expect(await claimAs(mine, [theirs])).toBeNull();
+    expect(await claimAs(mine)).toBeNull();
     expect((await jobs.findById(id))?.state).toBe('queued');
   });
 
@@ -92,19 +97,21 @@ describe('JobsRepo.claim', () => {
     const mac = await runner(ACCOUNT_A, []);
     const vps = await runner(ACCOUNT_A, []);
     const pinned = await project(ACCOUNT_A, JSON.stringify({ mode: 'pinned', runner: mac }));
-    await enqueue(pinned);
-    expect(await claimAs(vps, [pinned], { tokenHash: 'b'.repeat(64) })).toBeNull();
-    expect(((await claimAs(mac, [pinned])) as { runnerId: string }).runnerId).toBe(mac);
-
     const open = await project(ACCOUNT_A, JSON.stringify({ mode: 'any' }));
+    const inherits = await project(ACCOUNT_A);
+    await allow(mac, [pinned, open, inherits]);
+    await allow(vps, [pinned, open, inherits]);
+    await enqueue(pinned);
+    expect(await claimAs(vps, { tokenHash: 'b'.repeat(64) })).toBeNull();
+    expect(((await claimAs(mac)) as { runnerId: string }).runnerId).toBe(mac);
+
     await enqueue(open);
-    expect(((await claimAs(vps, [open], { tokenHash: 'c'.repeat(64) })) as { runnerId: string }).runnerId).toBe(vps);
+    expect(((await claimAs(vps, { tokenHash: 'c'.repeat(64) })) as { runnerId: string }).runnerId).toBe(vps);
 
     await env.DB.prepare(`UPDATE accounts SET default_runner_policy = ?2 WHERE id = ?1`).bind(ACCOUNT_A, JSON.stringify({ mode: 'pinned', runner: mac })).run();
-    const inherits = await project(ACCOUNT_A);
     await enqueue(inherits);
-    expect(await claimAs(vps, [inherits], { tokenHash: 'd'.repeat(64) })).toBeNull();
-    expect(((await claimAs(mac, [inherits], { tokenHash: 'e'.repeat(64) })) as { runnerId: string }).runnerId).toBe(mac);
+    expect(await claimAs(vps, { tokenHash: 'd'.repeat(64) })).toBeNull();
+    expect(((await claimAs(mac, { tokenHash: 'e'.repeat(64) })) as { runnerId: string }).runnerId).toBe(mac);
     await env.DB.prepare(`UPDATE accounts SET default_runner_policy = NULL WHERE id = ?1`).bind(ACCOUNT_A).run();
   });
 
@@ -112,28 +119,51 @@ describe('JobsRepo.claim', () => {
     const preferred = await runner(ACCOUNT_A, [], T1);
     const fallback = await runner(ACCOUNT_A, []);
     const slug = await project(ACCOUNT_A, JSON.stringify({ mode: 'failover', preferred, fallback: [fallback], offline_after_seconds: 300 }));
+    await allow(fallback, [slug]);
     await enqueue(slug);
-    expect(await claimAs(fallback, [slug], { tokenHash: 'f'.repeat(64) })).toBeNull();
+    expect(await claimAs(fallback, { tokenHash: 'f'.repeat(64) })).toBeNull();
     await env.DB.prepare(`UPDATE runners SET last_seen_at = ?2 WHERE id = ?1`).bind(preferred, OLD).run();
-    expect(((await claimAs(fallback, [slug], { tokenHash: '0'.repeat(64) })) as { runnerId: string }).runnerId).toBe(fallback);
+    expect(((await claimAs(fallback, { tokenHash: '0'.repeat(64) })) as { runnerId: string }).runnerId).toBe(fallback);
 
     const again = await enqueue(slug);
     await env.DB.prepare(`UPDATE runners SET last_seen_at = ?2, revoked_at = ?2 WHERE id = ?1`).bind(preferred, T1).run();
-    expect(((await claimAs(fallback, [slug], { tokenHash: '1'.repeat(64) })) as { id: string }).id).toBe(again);
+    expect(((await claimAs(fallback, { tokenHash: '1'.repeat(64) })) as { id: string }).id).toBe(again);
     // A stranger to the policy never claims, whatever its allow-list.
-    const stranger = await runner(ACCOUNT_A, []);
+    const stranger = await runner(ACCOUNT_A, [slug]);
     await enqueue(slug);
-    expect(await claimAs(stranger, [slug], { tokenHash: '2'.repeat(64) })).toBeNull();
+    expect(await claimAs(stranger, { tokenHash: '2'.repeat(64) })).toBeNull();
   });
 
   it('takes the highest priority first, then the oldest, and only queued jobs', async () => {
     const slug = await project(ACCOUNT_A);
     const low = await enqueue(slug, ACCOUNT_A, { priority: 0, at: '2026-11-10T09:00:00.000Z' });
     const high = await enqueue(slug, ACCOUNT_A, { priority: 5, at: '2026-11-10T09:30:00.000Z' });
-    const r = await runner(ACCOUNT_A, []);
-    expect(((await claimAs(r, [slug], { tokenHash: '3'.repeat(64) })) as { id: string }).id).toBe(high);
-    expect(((await claimAs(r, [slug], { tokenHash: '4'.repeat(64) })) as { id: string }).id).toBe(low);
-    expect(await claimAs(r, [slug], { tokenHash: '5'.repeat(64) })).toBeNull();
+    const r = await runner(ACCOUNT_A, [slug]);
+    expect(((await claimAs(r, { tokenHash: '3'.repeat(64) })) as { id: string }).id).toBe(high);
+    expect(((await claimAs(r, { tokenHash: '4'.repeat(64) })) as { id: string }).id).toBe(low);
+    expect(await claimAs(r, { tokenHash: '5'.repeat(64) })).toBeNull();
+  });
+
+  // #543: the poll authenticates the runner, then claims; a narrowing or revoke can commit in between.
+  it('claims nothing in a project dropped from the allow-list after the poll read the runner', async () => {
+    const dropped = await project(ACCOUNT_A);
+    const kept = await project(ACCOUNT_A);
+    const r = await runner(ACCOUNT_A, [dropped, kept]);
+    const id = await enqueue(dropped);
+    expect((await new RunnersRepo(env.DB).findById(r))?.allowedProjects).toContain(dropped);
+    await new RunnersRepo(env.DB).setAllowedProjects(ACCOUNT_A, r, [kept], { ...audit('runner.updated'), target: r }, jobs.cancelOutsideStatements(r, [kept], T1));
+    expect(await claimAs(r, { tokenHash: '5a'.repeat(32) })).toBeNull();
+    expect(await jobs.findById(id)).toMatchObject({ state: 'queued', runnerId: null });
+  });
+
+  it('claims nothing for a runner revoked after the poll read it', async () => {
+    const slug = await project(ACCOUNT_A);
+    const r = await runner(ACCOUNT_A, [slug]);
+    const id = await enqueue(slug);
+    expect((await new RunnersRepo(env.DB).findById(r))?.revokedAt).toBeNull();
+    await new RunnersRepo(env.DB).revoke(ACCOUNT_A, r, T1, { ...audit('runner.revoked'), target: r }, jobs.cancelForRunnerStatements(r, T1));
+    expect(await claimAs(r, { tokenHash: '5b'.repeat(32) })).toBeNull();
+    expect(await jobs.findById(id)).toMatchObject({ state: 'queued', runnerId: null });
   });
 });
 
@@ -141,8 +171,8 @@ describe('JobsRepo.finish and events', () => {
   it('writes no event and no audit row when the lease has lapsed', async () => {
     const slug = await project(ACCOUNT_A);
     const id = await enqueue(slug);
-    const r = await runner(ACCOUNT_A, []);
-    await claimAs(r, [slug], { tokenHash: '6'.repeat(64), leaseUntil: '2026-11-10T10:06:00.000Z' });
+    const r = await runner(ACCOUNT_A, [slug]);
+    await claimAs(r, { tokenHash: '6'.repeat(64), leaseUntil: '2026-11-10T10:06:00.000Z' });
     const late = await jobs.finish(id, r, { result: 'finished', summary: 's', metrics: {}, acted: false }, '2026-11-10T10:07:00.000Z', audit('job.finished'));
     expect(late).toBe(false);
     expect((await jobs.findById(id))?.state).toBe('claimed');
@@ -156,8 +186,8 @@ describe('JobsRepo.finish and events', () => {
   it('writes one event and one audit row with the finish, and none for a second call', async () => {
     const slug = await project(ACCOUNT_A);
     const id = await enqueue(slug);
-    const r = await runner(ACCOUNT_A, []);
-    await claimAs(r, [slug], { tokenHash: '8'.repeat(64) });
+    const r = await runner(ACCOUNT_A, [slug]);
+    await claimAs(r, { tokenHash: '8'.repeat(64) });
     const finishAudit = { ...audit('job.finished'), target: id };
     const outcome = { result: 'failed' as const, summary: 's', metrics: {}, acted: false };
     expect(await jobs.finish(id, r, outcome, '2026-11-10T10:06:00.000Z', finishAudit)).toBe(true);
@@ -172,9 +202,9 @@ describe('JobsRepo.finish and events', () => {
   it('writes no event and no audit row for another runner’s call', async () => {
     const slug = await project(ACCOUNT_A);
     const id = await enqueue(slug);
-    const holder = await runner(ACCOUNT_A, []);
+    const holder = await runner(ACCOUNT_A, [slug]);
     const other = await runner(ACCOUNT_A, []);
-    await claimAs(holder, [slug], { tokenHash: '9'.repeat(64) });
+    await claimAs(holder, { tokenHash: '9'.repeat(64) });
     const finishAudit = { ...audit('job.finished'), target: id };
     expect(await jobs.finish(id, other, { result: 'finished', summary: 's', metrics: {}, acted: false }, T1, finishAudit)).toBe(false);
     expect((await jobs.findById(id))?.state).toBe('claimed');
@@ -290,7 +320,7 @@ describe('TeamStateRepo.recordOutcome', () => {
     const lost = await project(ACCOUNT_A);
     const r = await runner(ACCOUNT_A, [kept, lost]);
     const id = await enqueue(lost);
-    await claimAs(r, [kept, lost], { tokenHash: '7'.repeat(64) });
+    await claimAs(r, { tokenHash: '7'.repeat(64) });
     await new RunnersRepo(env.DB).setAllowedProjects(ACCOUNT_A, r, [kept], audit('runner.updated'), jobs.cancelOutsideStatements(r, [kept], T1));
     expect(await jobs.findById(id)).toMatchObject({ state: 'cancelled', result: { reason: 'runner-allow-list' } });
   });
@@ -298,9 +328,11 @@ describe('TeamStateRepo.recordOutcome', () => {
   it('cancels nothing when the allow-list write changed nothing', async () => {
     const kept = await project(ACCOUNT_A);
     const other = await project(ACCOUNT_A);
-    const r = await runner(ACCOUNT_A, [kept]);
+    const r = await runner(ACCOUNT_A, [other]);
     const id = await enqueue(other);
-    await claimAs(r, [other], { tokenHash: 'ab'.repeat(32) });
+    await claimAs(r, { tokenHash: 'ab'.repeat(32) });
+    // A narrowing outside this write already stored [kept]; the no-op save after it must not cancel.
+    await allow(r, [kept]);
     const runners = new RunnersRepo(env.DB);
     const same = { ...audit('runner.updated'), target: r };
     expect(await runners.setAllowedProjects(ACCOUNT_A, r, [kept], same, jobs.cancelOutsideStatements(r, [kept], T1))).toBe(false);
@@ -311,7 +343,7 @@ describe('TeamStateRepo.recordOutcome', () => {
     const slug = await project(ACCOUNT_A);
     const r = await runner(ACCOUNT_A, [slug]);
     const id = await enqueue(slug);
-    await claimAs(r, [slug], { tokenHash: '0f'.repeat(32) });
+    await claimAs(r, { tokenHash: '0f'.repeat(32) });
     const won = await new RunnersRepo(env.DB).revoke(ACCOUNT_A, r, T1, { ...audit('runner.revoked'), target: r }, jobs.cancelForRunnerStatements(r, T1));
     expect(won).toBe(true);
     expect(await jobs.findById(id)).toMatchObject({ state: 'cancelled', result: { reason: 'runner-revoked' } });
@@ -321,7 +353,7 @@ describe('TeamStateRepo.recordOutcome', () => {
     const slug = await project(ACCOUNT_A);
     const r = await runner(ACCOUNT_A, [slug]);
     const id = await enqueue(slug);
-    await claimAs(r, [slug], { tokenHash: 'cd'.repeat(32) });
+    await claimAs(r, { tokenHash: 'cd'.repeat(32) });
     const runners = new RunnersRepo(env.DB);
     const revokeAudit = { ...audit('runner.revoked'), target: r };
     // The winner revoked (its own cancel is covered by the revoke route's e2e); the loser comes second.
