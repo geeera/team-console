@@ -18,6 +18,7 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
+import { ItemsApi, type TrackerRead } from '@console/entities/item';
 import { JOBS_TILE_ICONS, JobsStore } from '@console/entities/job';
 import { NeedsYouCounts, ProjectSetupLink, spaceUrlOf } from '@console/entities/project';
 import { RunnersStore } from '@console/entities/runner';
@@ -37,7 +38,9 @@ import {
   STATUS_ORDER,
   statusColumnsOf,
   TEAM_RUN_ICONS,
+  trackerSprintPartOf,
   UnexpectedSprintResponse,
+  type TrackerSprintPart,
 } from '@console/entities/sprint';
 import { RequestChange } from '@console/features/request-change';
 import { SprintControls } from '@console/features/sprint-controls';
@@ -49,6 +52,7 @@ import {
   localTimeOf,
   pluralKeyOf,
   TranslocoPipe,
+  TranslocoPluralPipe,
   TranslocoService,
 } from '@console/shared/i18n';
 import { PersistedStateStore } from '@console/shared/persisted-state';
@@ -69,6 +73,7 @@ import {
   Tabs,
   Toaster,
 } from '@console/shared/ui';
+import { currentSprintOf } from '@shared/contracts';
 import { map } from 'rxjs';
 import { BoardJobs } from './board-jobs';
 
@@ -123,17 +128,41 @@ export function retryDelaySeconds(retryAfter: number | null): number {
   return Math.min(MAX_RETRY_SECONDS, Math.max(MIN_RETRY_SECONDS, retryAfter));
 }
 
-/** The first `BOARD_LIST_LIMIT` items, or all of them once expanded. */
-export function visibleItemsOf<T>(items: readonly T[], isExpanded: boolean): readonly T[] {
-  return isExpanded ? items : items.slice(0, BOARD_LIST_LIMIT);
+/** The first `limit` items (a list's window: #275's five, a folder lane's 30 more per press, #557). */
+export function visibleItemsOf<T>(items: readonly T[], limit = BOARD_LIST_LIMIT): readonly T[] {
+  return items.length > limit ? items.slice(0, limit) : items;
 }
 
-/** How many rows «Show N more» would add; 0 means the list needs no button. */
-export function hiddenCountOf(items: readonly unknown[]): number {
-  return Math.max(0, items.length - BOARD_LIST_LIMIT);
+/** How many rows lie past the window; 0 means the list needs no «Show more». */
+export function hiddenCountOf(items: readonly unknown[], limit = BOARD_LIST_LIMIT): number {
+  return Math.max(0, items.length - limit);
+}
+
+const KNOWN_STATUSES: ReadonlySet<string> = new Set([...STATUS_ORDER, NO_STATUS]);
+
+/** A lane's heading; an unknown `status:*` label is shown as written in the repository (plain text, like a title). */
+export function laneNameOf(status: string, translate: (key: string) => string): string {
+  return KNOWN_STATUSES.has(status) ? translate(`board.status.${status}`) : status;
 }
 
 export type BoardFailure = 'rate-limited' | 'not-installed' | 'offline' | 'unavailable';
+
+type TrackerReadFailure = Extract<TrackerRead<never>, { ok: false }>['reason'];
+
+/** A tracker read of the board (#556) that did not answer; the board shows it as its own failure states. */
+class TrackerBoardReadError extends Error {
+  constructor(readonly reason: TrackerReadFailure) {
+    super(`tracker board read failed: ${reason}`);
+    this.name = 'TrackerBoardReadError';
+  }
+}
+
+function trackerValueOf<T>(read: TrackerRead<T>): T {
+  if (!read.ok) {
+    throw new TrackerBoardReadError(read.reason);
+  }
+  return read.value;
+}
 
 type BoardState =
   | { readonly kind: 'loading' }
@@ -157,8 +186,6 @@ export interface SprintBoardProject {
 }
 
 let nextBoardId = 0;
-
-const KNOWN_STATUSES: ReadonlySet<string> = new Set([...STATUS_ORDER, NO_STATUS]);
 
 /** The list a tile jumps to. */
 type TileTarget = 'pulls' | 'runs' | 'questions';
@@ -192,6 +219,7 @@ type TileTarget = 'pulls' | 'runs' | 'questions';
     TabPanel,
     Tabs,
     TranslocoPipe,
+    TranslocoPluralPipe,
   ],
   templateUrl: './sprint-board.html',
   styleUrl: './sprint-board.css',
@@ -201,6 +229,7 @@ type TileTarget = 'pulls' | 'runs' | 'questions';
 })
 export class SprintBoard {
   private readonly api = inject(SprintApi);
+  private readonly items = inject(ItemsApi);
   private readonly transloco = inject(TranslocoService);
   private readonly errors = inject(ErrorHandler);
   private readonly sprintControls = inject(SprintControls);
@@ -257,7 +286,11 @@ export class SprintBoard {
   });
   protected readonly columns = computed(() => statusColumnsOf(this.board()?.issues ?? []));
   protected readonly pulls = computed(() => pullsByUrgency(this.board()?.pullRequests ?? []));
-  protected readonly visiblePulls = computed(() => visibleItemsOf(this.pulls(), this.isExpanded('pulls')));
+  protected readonly visiblePulls = computed(() => this.visible(this.pulls(), 'pulls'));
+  /** The current sprint's «N open» (#557), counted as the tracker counts a folder's (#561). */
+  protected readonly openCount = computed(
+    () => this.board()?.issues.filter((issue) => issue.state === 'open').length ?? 0,
+  );
   /** The "CI" tile (#131): the most urgent state across the open pull requests. */
   protected readonly ci = computed(() => ciSummaryOf(this.board()?.pullRequests ?? []));
   protected readonly ciIcon = computed(() => SPRINT_CI_ICONS[this.ci().state]);
@@ -343,7 +376,7 @@ export class SprintBoard {
   protected readonly demoLine = computed(() => {
     const lang = this.lang();
     const milestone = this.board()?.milestone;
-    if (milestone === null || milestone === undefined) {
+    if (milestone === null || milestone === undefined || milestone.dueOn === null) {
       return '';
     }
     const date = localDayOf(demoDayOf(milestone.dueOn), lang);
@@ -439,7 +472,7 @@ export class SprintBoard {
   }
 
   protected visible<T>(items: readonly T[], key: string): readonly T[] {
-    return visibleItemsOf(items, this.isExpanded(key));
+    return visibleItemsOf(items, this.isExpanded(key) ? Infinity : BOARD_LIST_LIMIT);
   }
 
   protected hidden(items: readonly unknown[]): number {
@@ -534,8 +567,7 @@ export class SprintBoard {
 
   protected laneName(status: string): string {
     this.lang();
-    // An unknown `status:*` label is shown as written in the repository (plain text, like a title).
-    return KNOWN_STATUSES.has(status) ? this.transloco.translate(`board.status.${status}`) : status;
+    return laneNameOf(status, (key) => this.transloco.translate(key));
   }
 
   private tileAria(labelKey: string, value: string, target: TileTarget): string {
@@ -557,7 +589,7 @@ export class SprintBoard {
     const token = ++this.loadToken;
     this.clearRetry();
     try {
-      const board = await this.api.current(slug);
+      const board = await this.boardOf(slug);
       if (token === this.loadToken) {
         this.state.set({ kind: 'ready', board });
       }
@@ -575,7 +607,32 @@ export class SprintBoard {
     }
   }
 
+  /**
+   * A console-tracker project's sprint and its tasks come from the tracker (#556), so moves made in the console show
+   * here; its pull requests (and the run log, unused beside the jobs) still come from `/sprint`.
+   */
+  private async boardOf(slug: string): Promise<SprintBoardModel> {
+    if (!this.isJobsBoard()) {
+      return this.api.current(slug);
+    }
+    const [board, part] = await Promise.all([this.api.current(slug), this.trackerSprint(slug)]);
+    return { ...board, ...part };
+  }
+
+  /** Open and closed items of the current sprint (Done is a lane, as on #18), every page of them. */
+  private async trackerSprint(slug: string): Promise<TrackerSprintPart> {
+    const current = currentSprintOf(trackerValueOf(await this.items.sprints(slug)));
+    if (current === null) {
+      return trackerSprintPartOf(null, []);
+    }
+    const query = { sprint: String(current.number), state: 'all' };
+    return trackerSprintPartOf(current, trackerValueOf(await this.items.items(slug, query, true)));
+  }
+
   private failureOf(error: unknown): { failure: BoardFailure; retryAt: number | null } {
+    if (error instanceof TrackerBoardReadError) {
+      return { failure: error.reason === 'offline' ? 'offline' : 'unavailable', retryAt: null };
+    }
     if (!(error instanceof HttpErrorResponse)) {
       // A bad response shape, or a bug: the board shows the generic failure and the error handler gets the cause.
       if (!(error instanceof UnexpectedSprintResponse)) {

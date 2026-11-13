@@ -25,6 +25,7 @@ import {
 import { transitionRefusal, type ItemTransition } from '../../auth/policy';
 import { policyActorOfContext, trackerAccess } from '../../auth/tracker-access.middleware';
 import type { ApiEnv } from '../../env';
+import type { ApiGitHub } from '../../github';
 import {
   invalid,
   itemOf,
@@ -46,6 +47,7 @@ import {
 } from '../../tracker/http';
 import { idempotent } from '../../tracker/idempotency';
 import { planItemUpdate } from '../../tracker/item-change';
+import { frozenSprintRefusal } from '../../tracker/sprint-freeze';
 import { trackerWriteContextOf } from '../../tracker/write-context';
 
 type Context = WorkerContext<ApiEnv>;
@@ -124,7 +126,7 @@ async function sprintOf(
   c: Context,
   project: TrackerProject,
   number: number | null,
-): Promise<{ id: number; number: number } | null | Response> {
+): Promise<{ id: number; number: number; dueOn: string | null } | null | Response> {
   if (number === null) {
     return null;
   }
@@ -135,7 +137,7 @@ async function sprintOf(
   if (sprint.state === 'closed') {
     return invalid(c, 'item-invalid', 'sprint', 'The sprint is closed');
   }
-  return { id: sprint.id, number: sprint.number };
+  return { id: sprint.id, number: sprint.number, dueOn: sprint.dueOn };
 }
 
 async function unknownLabels(
@@ -156,7 +158,7 @@ async function unknownLabels(
  * carries an `Idempotency-Key`, is judged by the transition table (`auth/policy.ts`) and lands with its
  * `item_events` row in one D1 batch.
  */
-export function createTrackerItemRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
+export function createTrackerItemRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   // The transition table's verdict on the admitted actor; `itemNumber` is `null` for a new item.
   const judge = (c: Context, transition: ItemTransition, itemNumber: number | null): Response | null => {
     const refusal = transitionRefusal(policyActorOfContext(c), transition, itemNumber);
@@ -329,6 +331,13 @@ export function createTrackerItemRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
             const sprint = value.sprint === undefined ? undefined : await sprintOf(c, project, value.sprint);
             if (sprint instanceof Response) {
               return sprint;
+            }
+            // Only a move into another sprint is judged; one out of a frozen sprint, or staying, never is.
+            if (sprint !== undefined && sprint !== null && sprint.number !== item.sprintNumber) {
+              const frozen = await frozenSprintRefusal(c, github, sprint);
+              if (frozen !== null) {
+                return frozen;
+              }
             }
             const labels = await unknownLabels(c, project, 'addLabels', value.addLabels ?? []);
             if (labels !== null) {

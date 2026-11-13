@@ -3,6 +3,7 @@ import {
   checkCreateSprintInput,
   checkUpdateSprintInput,
   isSprintState,
+  sprintTitleOf,
   type TrackerSprintListDto,
 } from '@shared/contracts';
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
@@ -20,6 +21,10 @@ type Context = WorkerContext<ApiEnv>;
 
 const SPRINT_NUMBER = /^[1-9][0-9]{0,8}$/;
 
+function titleTaken(c: Context): Response {
+  return invalid(c, 'sprint-invalid', 'title', 'A sprint with this title already exists');
+}
+
 function sprintNotFound(c: Context): Response {
   return problem(c, { type: 'sprint-not-found', title: 'Sprint not found', status: 404 });
 }
@@ -30,7 +35,8 @@ async function sprintResponse(
   number: number,
   status: 200 | 201,
 ): Promise<Response> {
-  const sprint = await new SprintsRepo(c.env.DB).findByNumber(project.slug, number);
+  const repo = new SprintsRepo(c.env.DB);
+  const sprint = await repo.findByNumber(project.slug, number);
   if (sprint === null) {
     return sprintNotFound(c);
   }
@@ -38,7 +44,8 @@ async function sprintResponse(
   if (status === 201) {
     c.header('Location', `/api/v1/projects/${project.slug}/sprints/${String(number)}`);
   }
-  return c.json(sprintDtoOf(sprint), status);
+  const counts = await repo.openItemCounts(project.slug);
+  return c.json(sprintDtoOf(sprint, counts.bySprintId.get(sprint.id) ?? 0), status);
 }
 
 /**
@@ -63,8 +70,12 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       if (state !== 'all' && !isSprintState(state)) {
         return invalid(c, 'query-invalid', 'state', 'state is open, closed or all');
       }
-      const sprints = await new SprintsRepo(c.env.DB).list(project.slug, state);
-      const body: TrackerSprintListDto = { sprints: sprints.map(sprintDtoOf) };
+      const repo = new SprintsRepo(c.env.DB);
+      const [sprints, counts] = await Promise.all([repo.list(project.slug, state), repo.openItemCounts(project.slug)]);
+      const body: TrackerSprintListDto = {
+        sprints: sprints.map((sprint) => sprintDtoOf(sprint, counts.bySprintId.get(sprint.id) ?? 0)),
+        backlogOpenCount: counts.backlog,
+      };
       c.header('Cache-Control', 'no-store');
       return c.json(body);
     })
@@ -100,24 +111,22 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
             return secret;
           }
           const repo = new SprintsRepo(c.env.DB);
-          // Compared as the console's dialog does (case-insensitive) so both sides refuse the same names. Not a
-          // unique index: two simultaneous creates of one name can both pass; the owner is the only writer.
-          if (title !== null) {
-            const taken = (await repo.list(project.slug, 'all')).some(
-              (sprint) => sprint.title.toLocaleLowerCase() === title.toLocaleLowerCase(),
-            );
-            if (taken) {
-              return invalid(c, 'sprint-invalid', 'title', 'A sprint with this title already exists');
-            }
-          }
           const number = await repo.nextNumber(project.slug);
+          // The name it gets, the default `Sprint NN` included, is compared ignoring case as the console's dialog does;
+          // 0026's unique index refuses the same name again when two creates pass this check together.
+          if ((await repo.findByTitle(project.slug, title ?? sprintTitleOf(number))) !== null) {
+            return titleTaken(c);
+          }
           const created = await repo.create(
             project.slug,
             number,
             { ...input.value, at: new Date().toISOString() },
             [complete(201, 'sprint', { value: String(number) })],
           );
-          if (!created) {
+          if (created === 'title-taken') {
+            return titleTaken(c);
+          }
+          if (created === 'number-taken') {
             return problem(c, {
               type: 'sprint-exists',
               title: 'Another sprint took this number',

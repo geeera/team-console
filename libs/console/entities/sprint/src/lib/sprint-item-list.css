@@ -17,3 +17,9 @@
   gap: var(--space-1);
   margin-top: var(--space-1);
 }
+
+/* The kind word leads the subtitle as plain secondary text, not a chip: it is information, not a state. */
+.sprint-item__kind {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}

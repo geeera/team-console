@@ -80,10 +80,14 @@ export interface TrackerSprintDto {
   readonly description: string;
   readonly createdAt: string;
   readonly closedAt: string | null;
+  /** Items of the sprint that are not closed; lets a board header show a count without loading the items. */
+  readonly openCount: number;
 }
 
 export interface TrackerSprintListDto {
   readonly sprints: readonly TrackerSprintDto[];
+  /** Open items planned into no sprint. */
+  readonly backlogOpenCount: number;
 }
 
 export interface CommentDto {
@@ -242,6 +246,7 @@ export type TrackerProblemType =
   | 'sprint-not-found'
   | 'sprint-exists'
   | 'sprint-invalid'
+  | 'sprint-frozen'
   | 'comment-not-found'
   | 'comment-invalid'
   | 'label-not-found'

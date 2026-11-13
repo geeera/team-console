@@ -32,11 +32,6 @@ export function queuePositionOf(
   return { position: numbers.indexOf(item.number) + 1, total: numbers.length };
 }
 
-/** The open sprints, earliest first; the first is the current one (the plugin's `sprint current`). */
-export function openSprintsOf(sprints: readonly TrackerSprintDto[]): TrackerSprintDto[] {
-  return sprints.filter((sprint) => sprint.state === 'open').sort((a, b) => a.number - b.number);
-}
-
 /**
  * The freeze length the tracker screens compute with: the project's `sprint.freeze_days` as the Worker read it from
  * project.yml (#457), or the plugin's default when that read failed — the freeze is a hint there, never a refusal.
@@ -60,9 +55,4 @@ export function latestSprintOf(sprints: readonly TrackerSprintDto[]): TrackerSpr
 export function nextSprintTitleOf(sprints: readonly TrackerSprintDto[]): string {
   const next = (latestSprintOf(sprints)?.number ?? 0) + 1;
   return `Sprint ${String(next).padStart(2, '0')}`;
-}
-
-/** The current sprint: the earliest open one, `null` without any. */
-export function currentSprintOf(sprints: readonly TrackerSprintDto[]): TrackerSprintDto | null {
-  return openSprintsOf(sprints)[0] ?? null;
 }

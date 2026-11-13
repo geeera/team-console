@@ -10,6 +10,7 @@ import type {
   ItemEventDto,
   ItemSummaryDto,
   TrackerSprintDto,
+  TrackerSprintListDto,
   UpdateItemInput,
 } from '@shared/contracts';
 import { firstValueFrom, timeout } from 'rxjs';
@@ -23,6 +24,7 @@ import {
   isItemEventListDto,
   isItemListDto,
   isSprintFreezeDaysDto,
+  isTrackerSprintCountsDto,
   isTrackerSprintDto,
   isTrackerSprintListDto,
 } from './item.model';
@@ -127,17 +129,28 @@ export class ItemsApi {
     );
   }
 
-  async items(slug: string, query: ItemQuery = {}): Promise<TrackerRead<ItemSummaryDto[]>> {
+  /** `whole`: a list longer than the page cap is an `error`, never a partial list (the board's counts, #556). */
+  async items(
+    slug: string,
+    query: ItemQuery = {},
+    whole = false,
+  ): Promise<TrackerRead<ItemSummaryDto[]>> {
     return this.pages(
       itemsUrl(slug),
       (body) => (isItemListDto(body) ? { rows: body.items, next: body.next } : null),
       query,
+      whole,
     );
   }
 
   async sprints(slug: string): Promise<TrackerRead<TrackerSprintDto[]>> {
     const read = await this.read(sprintsUrl(slug), isTrackerSprintListDto);
     return read.ok ? { ok: true, value: [...read.value.sprints] } : read;
+  }
+
+  /** The sprints with each one's open count and the backlog's (#561), for the board's folder headers. */
+  async sprintList(slug: string): Promise<TrackerRead<TrackerSprintListDto>> {
+    return this.read(sprintsUrl(slug), isTrackerSprintCountsDto);
   }
 
   /** The project's freeze length in days; the screens fall back to the plugin's default when it cannot be read. */
@@ -240,9 +253,11 @@ export class ItemsApi {
     url: string,
     pageOf: (body: unknown) => { readonly rows: readonly T[]; readonly next: number | null } | null,
     query: ItemQuery = {},
+    whole = false,
   ): Promise<TrackerRead<T[]>> {
     const rows: T[] = [];
     let after: number | null = null;
+    let isComplete = false;
     for (let page = 0; page < MAX_PAGES; page += 1) {
       let params = new HttpParams({ fromObject: { ...query, limit: String(PAGE_LIMIT) } });
       if (after !== null) {
@@ -260,10 +275,11 @@ export class ItemsApi {
       }
       rows.push(...read.rows);
       if (read.next === null) {
+        isComplete = true;
         break;
       }
       after = read.next;
     }
-    return { ok: true, value: rows };
+    return whole && !isComplete ? { ok: false, reason: 'error' } : { ok: true, value: rows };
   }
 }

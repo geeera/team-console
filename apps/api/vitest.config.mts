@@ -94,6 +94,8 @@ export default defineConfig(async () => {
             MIGRATION_DB_0019: 'migration-steps-0019',
             // #529: 0025's pr-link index over a database that already holds a duplicate link.
             MIGRATION_DB_0025: 'migration-steps-0025',
+            // #545: 0026's sprint title index over a database that already holds titles repeated in another case.
+            MIGRATION_DB_0026: 'migration-steps-0026',
           },
           bindings: {
             TEST_MIGRATIONS: await readD1Migrations(resolve(import.meta.dirname, 'migrations')),

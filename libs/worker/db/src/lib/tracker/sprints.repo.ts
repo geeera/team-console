@@ -1,4 +1,4 @@
-import { sprintTitleOf, type SprintState } from '@shared/contracts';
+import { sprintTitleKeyOf, sprintTitleOf, type SprintState } from '@shared/contracts';
 import { isConstraintError } from './constraint-error';
 
 export interface SprintRecord {
@@ -20,6 +20,9 @@ export interface NewSprint {
   readonly title?: string | null;
   readonly at: string;
 }
+
+/** `create`'s answer: written, or nothing written because another sprint holds the number or the title (0026). */
+export type SprintCreateResult = 'created' | 'number-taken' | 'title-taken';
 
 /** `update`'s fields; an absent key leaves the column as it is. */
 export interface SprintChanges {
@@ -52,6 +55,12 @@ const toRecord = (row: SprintRow): SprintRecord => ({
   closedAt: row.closed_at,
 });
 
+/** Open items per sprint id and the open items in no sprint. */
+export interface OpenItemCounts {
+  readonly bySprintId: ReadonlyMap<number, number>;
+  readonly backlog: number;
+}
+
 /** A project's sprints (migration 0013), numbered per project like `backlog sprint create`'s `Sprint NN`. */
 export class SprintsRepo {
   constructor(private readonly db: D1Database) {}
@@ -67,10 +76,40 @@ export class SprintsRepo {
     return results.map(toRecord);
   }
 
+  /** One grouped query over the project's open items (`closed_at IS NULL`); a sprint without open items is absent. */
+  async openItemCounts(slug: string): Promise<OpenItemCounts> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT sprint_id, COUNT(*) AS open_count FROM items
+         WHERE project_slug = ?1 AND closed_at IS NULL GROUP BY sprint_id`,
+      )
+      .bind(slug)
+      .all<{ sprint_id: number | null; open_count: number }>();
+    const bySprintId = new Map<number, number>();
+    let backlog = 0;
+    for (const row of results) {
+      if (row.sprint_id === null) {
+        backlog = row.open_count;
+      } else {
+        bySprintId.set(row.sprint_id, row.open_count);
+      }
+    }
+    return { bySprintId, backlog };
+  }
+
   async findByNumber(slug: string, number: number): Promise<SprintRecord | null> {
     const row = await this.db
       .prepare(`SELECT ${COLUMNS} FROM sprints WHERE project_slug = ?1 AND number = ?2`)
       .bind(slug, number)
+      .first<SprintRow>();
+    return row === null ? null : toRecord(row);
+  }
+
+  /** The sprint titled `title` ignoring case (0026's key); older repeats keep no key, so at most one matches. */
+  async findByTitle(slug: string, title: string): Promise<SprintRecord | null> {
+    const row = await this.db
+      .prepare(`SELECT ${COLUMNS} FROM sprints WHERE project_slug = ?1 AND title_key = ?2`)
+      .bind(slug, sprintTitleKeyOf(title))
       .first<SprintRow>();
     return row === null ? null : toRecord(row);
   }
@@ -85,36 +124,32 @@ export class SprintsRepo {
   }
 
   /**
-   * Sprint `number` (from `nextNumber`) titled `sprint.title` or `Sprint NN`, with `extra` in the same batch.
-   * `false` when another request took that number first; the batch then writes nothing.
+   * Sprint `number` (from `nextNumber`) titled `sprint.title` or `Sprint NN`, with `extra` in the same batch. When
+   * another request took that number or that title first, the batch writes nothing and the answer says which.
    */
   async create(
     slug: string,
     number: number,
     sprint: NewSprint,
     extra: readonly D1PreparedStatement[] = [],
-  ): Promise<boolean> {
+  ): Promise<SprintCreateResult> {
+    const title = sprint.title ?? sprintTitleOf(number);
     try {
       await this.db.batch([
         this.db
           .prepare(
-            `INSERT INTO sprints (project_slug, number, title, due_on, state, description, created_at)
-             VALUES (?1, ?2, ?3, ?4, 'open', ?5, ?6)`,
+            `INSERT INTO sprints (project_slug, number, title, title_key, due_on, state, description, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 'open', ?6, ?7)`,
           )
-          .bind(
-            slug,
-            number,
-            sprint.title ?? sprintTitleOf(number),
-            sprint.dueOn,
-            sprint.description,
-            sprint.at,
-          ),
+          .bind(slug, number, title, sprintTitleKeyOf(title), sprint.dueOn, sprint.description, sprint.at),
         ...extra,
       ]);
-      return true;
+      return 'created';
     } catch (error: unknown) {
       if (isConstraintError(error, 'UNIQUE constraint failed: sprints.')) {
-        return false;
+        // SQLite names only the first index that failed; a lost number race with the same default title trips the
+        // title index too. The number decides, so that race stays a retryable `number-taken`.
+        return (await this.findByNumber(slug, number)) === null ? 'title-taken' : 'number-taken';
       }
       throw error;
     }

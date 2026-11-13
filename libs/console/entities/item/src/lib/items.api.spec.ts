@@ -77,6 +77,16 @@ describe('ItemsApi', () => {
     await unnamed;
   });
 
+  it('reads the sprint list with its open counts, and refuses one without them (#561)', async () => {
+    const sprint = { number: 4, title: 'Sprint 04', dueOn: null, state: 'open', description: '', createdAt: 'x', closedAt: null };
+    const counted = api.sprintList('team-console');
+    http.expectOne(sprintsUrl('team-console')).flush({ sprints: [{ ...sprint, openCount: 3 }], backlogOpenCount: 7 });
+    await expect(counted).resolves.toMatchObject({ ok: true, value: { backlogOpenCount: 7, sprints: [{ openCount: 3 }] } });
+    const uncounted = api.sprintList('team-console');
+    http.expectOne(sprintsUrl('team-console')).flush({ sprints: [sprint], backlogOpenCount: 7 });
+    await expect(uncounted).resolves.toEqual({ ok: false, reason: 'error' });
+  });
+
   it("reads the project's freeze days and falls back to the plugin's default (#457)", async () => {
     const read = api.freezeDays('team-console');
     http.expectOne(sprintFreezeUrl('team-console')).flush({ freezeDays: 3 });
@@ -113,6 +123,28 @@ describe('ItemsApi', () => {
     const second = http.expectOne((request) => request.params.get('after') === '1');
     second.flush({ events: [], next: null });
     await expect(pending).resolves.toMatchObject({ ok: true, value: [{ id: 1 }] });
+  });
+
+  it('reads a whole item list past one page, and refuses a partial one (#556)', async () => {
+    const page = (from: number, count: number) =>
+      Array.from({ length: count }, (_, n) => itemFixture({ number: from + n, sprint: null }));
+    const whole = api.items('team-console', { state: 'open', sprint: 'none' }, true);
+    http
+      .expectOne((request) => request.url.endsWith('/items') && !request.params.has('after'))
+      .flush({ items: page(1, 100), next: 100 });
+    await Promise.resolve();
+    const last = http.expectOne((request) => request.params.get('after') === '100');
+    expect(last.request.params.get('sprint')).toBe('none');
+    last.flush({ items: page(101, 50), next: null });
+    const read = await whole;
+    expect(read.ok && read.value.length).toBe(150);
+
+    const endless = api.items('team-console', {}, true);
+    for (let n = 0; n < 20; n += 1) {
+      await Promise.resolve();
+      http.expectOne((request) => request.url.endsWith('/items')).flush({ items: page(n + 1, 1), next: n + 1 });
+    }
+    await expect(endless).resolves.toEqual({ ok: false, reason: 'error' });
   });
 });
 

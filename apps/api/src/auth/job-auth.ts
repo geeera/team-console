@@ -59,6 +59,7 @@ export async function jobIdentityOf(
     projectSlug: job.projectSlug,
     jobId: job.id,
     items: Array.isArray(items) ? items.filter((n): n is number => typeof n === 'number') : [],
+    runnerId: job.runnerId,
     source: 'token',
   };
 }

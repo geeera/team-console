@@ -1,6 +1,6 @@
 import { applyD1Migrations, env } from 'cloudflare:test';
 import { IdempotencyKeysRepo } from '@worker/db';
-import { OWNER_ACCOUNT_ID, OWNER_USER_ID } from '@shared/contracts';
+import { OWNER_ACCOUNT_ID, OWNER_USER_ID, sprintTitleKeyOf } from '@shared/contracts';
 
 interface SqliteMasterRow {
   name: string;
@@ -83,6 +83,7 @@ describe('migrations on a fresh D1', () => {
       '0023_role_key_guards.sql',
       '0024_role_key_delete_guard.sql',
       '0025_pr_link_unique.sql',
+      '0026_sprint_title_unique.sql',
     ]);
   });
 
@@ -611,6 +612,75 @@ describe('the 0025 pr-link index', () => {
         .bind(row?.id ?? 0)
         .run(),
     ).rejects.toThrow(/append-only/);
+  });
+});
+
+// #545: 0026 keeps one sprint title per project, ignoring case, over a database that may already repeat one.
+describe('the 0026 sprint title index', () => {
+  const T0 = '2026-11-01T00:00:00.000Z';
+
+  it('keys the titles already there, leaves later repeats unkeyed, and then refuses a repeat', async () => {
+    const db = env.MIGRATION_DB_0026;
+    await applyD1Migrations(
+      db,
+      env.TEST_MIGRATIONS.filter((migration) => migration.name < '0026'),
+    );
+    for (const slug of ['m26', 'm26b']) {
+      await db
+        .prepare(
+          `INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at) VALUES (?1, ?2, ?1, 0, ?3)`,
+        )
+        .bind(slug, `a/${slug}`, T0)
+        .run();
+    }
+    const insert = (slug: string, number: number, title: string) =>
+      db
+        .prepare(
+          `INSERT INTO sprints (project_slug, number, title, state, created_at) VALUES (?1, ?2, ?3, 'open', ?4)`,
+        )
+        .bind(slug, number, title, T0)
+        .run();
+    await insert('m26', 1, 'Sprint 01');
+    await insert('m26', 2, 'Checkout');
+    await insert('m26', 3, 'CHECKOUT'); // The race 0026 closes, or a name written before the check.
+    await insert('m26', 4, 'ЁЛКА Ўсё ЄІЇҐ');
+    await insert('m26', 5, 'ёлка ўсё єіїґ');
+    await insert('m26b', 1, 'checkout'); // Another project's sprint may share the name.
+
+    await applyD1Migrations(db, env.TEST_MIGRATIONS);
+
+    const { results } = await db
+      .prepare(`SELECT project_slug, number, title, title_key FROM sprints ORDER BY project_slug, number`)
+      .all<{ project_slug: string; number: number; title: string; title_key: string | null }>();
+    expect(results.map((row) => [row.project_slug, row.number, row.title_key])).toEqual([
+      ['m26', 1, 'sprint 01'],
+      ['m26', 2, 'checkout'],
+      ['m26', 3, null],
+      ['m26', 4, 'ёлка ўсё єіїґ'],
+      ['m26', 5, null],
+      ['m26b', 1, 'checkout'],
+    ]);
+    // The backfill folds as the Worker does, so the Worker's lookups find the old rows.
+    for (const row of results.filter((each) => each.title_key !== null)) {
+      expect(row.title_key).toBe(sprintTitleKeyOf(row.title));
+    }
+    // Titles stay as written: the key is the only change.
+    expect(results.map((row) => row.title)).toContain('CHECKOUT');
+
+    const keyed = (slug: string, number: number, key: string) =>
+      db
+        .prepare(
+          `INSERT INTO sprints (project_slug, number, title, title_key, state, created_at)
+           VALUES (?1, ?2, ?3, ?3, 'open', ?4)`,
+        )
+        .bind(slug, number, key, T0)
+        .run();
+    await expect(keyed('m26', 6, 'checkout')).rejects.toThrow(
+      /UNIQUE constraint failed: sprints.project_slug, sprints.title_key/,
+    );
+    await expect(keyed('m26', 6, 'ёлка ўсё єіїґ')).rejects.toThrow(/UNIQUE constraint failed/);
+    await expect(insert('m26', 6, 'Unkeyed')).rejects.toThrow(/sprints.title_key is required/);
+    await keyed('m26', 6, 'release');
   });
 });
 

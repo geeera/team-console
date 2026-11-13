@@ -1,15 +1,21 @@
 import { ApplicationInitStatus, Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import { SprintIssue, SprintPullRequest } from './sprint.model';
 import { SprintItemList, SprintListItem } from './sprint-item-list';
 
 @Component({
   imports: [SprintItemList],
-  template: `<tc-sprint-item-list [items]="items()" />`,
+  template: `
+    <tc-sprint-item-list [items]="items()" [slug]="slug()" [rowAction]="withAction() ? action : null" />
+    <ng-template #action let-issue><button type="button" data-testid="row-action">#{{ issue.number }}</button></ng-template>
+  `,
 })
 class Host {
   readonly items = signal<readonly SprintListItem[]>([]);
+  readonly slug = signal<string | null>(null);
+  readonly withAction = signal(false);
 }
 
 const ISSUE: SprintIssue = {
@@ -34,14 +40,15 @@ const PULL: SprintPullRequest = {
 };
 
 describe('SprintItemList', () => {
-  async function render(items: readonly SprintListItem[]) {
+  async function render(items: readonly SprintListItem[], setup: (host: Host) => void = () => undefined) {
     await TestBed.configureTestingModule({
       imports: [Host],
-      providers: [provideConsoleI18n()],
+      providers: [provideConsoleI18n(), provideRouter([])],
     }).compileComponents();
     await TestBed.inject(ApplicationInitStatus).donePromise;
     const fixture = TestBed.createComponent(Host);
     fixture.componentInstance.items.set(items);
+    setup(fixture.componentInstance);
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
     return { root, rows: [...root.querySelectorAll<HTMLElement>('tc-list-row')] };
@@ -116,5 +123,37 @@ describe('SprintItemList', () => {
     ]);
     expect(rows[0]?.querySelector('[data-testid="request-pending"]')?.textContent?.trim()).toBe('ждёт PM');
     expect(rows[1]?.querySelector('[data-testid="request-pending"]')).toBeNull();
+  });
+
+  it('leads the subtitle with the kind word, and shows none for an unknown kind (#557)', async () => {
+    const { rows } = await render([ISSUE, { ...ISSUE, number: 50, kind: 'epic' }, { ...ISSUE, number: 51, kind: null }]);
+
+    expect(rows[0]?.querySelector('[tc-row-subtitle] [data-testid="kind"]')?.textContent).toBe('Функция');
+    expect(rows[1]?.querySelector('[data-testid="kind"]')).toBeNull();
+    expect(rows[2]?.querySelector('[tc-row-subtitle]')).toBeNull();
+  });
+
+  it('opens a console task without a GitHub link in the console, with the row action beside the link (#557)', async () => {
+    const task = { ...ISSUE, url: null };
+    const { rows } = await render([task, PULL], (host) => {
+      host.slug.set('team-console');
+      host.withAction.set(true);
+    });
+    const link = rows[0]?.querySelector('a') as HTMLAnchorElement;
+
+    expect(link.getAttribute('href')).toBe('/p/team-console/t/49');
+    expect(link.hasAttribute('target')).toBe(false);
+    expect(link.textContent).not.toContain('GitHub');
+    const action = rows[0]?.querySelector('[data-testid="row-action"]') as HTMLElement;
+    expect(action.textContent).toBe('#49');
+    expect(link.contains(action)).toBe(false);
+    // A pull request is no task: no console link and no row action.
+    expect(rows[1]?.querySelector('a')).toBeNull();
+    expect(rows[1]?.querySelector('[data-testid="row-action"]')).toBeNull();
+  });
+
+  it('leaves a console task static without a slug', async () => {
+    const { rows } = await render([{ ...ISSUE, url: null }]);
+    expect(rows[0]?.querySelector('a')).toBeNull();
   });
 });

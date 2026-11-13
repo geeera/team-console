@@ -54,7 +54,6 @@ export interface NewJob {
 export interface ClaimRequest {
   readonly runnerId: string;
   readonly accountId: string;
-  readonly allowedProjects: readonly string[];
   readonly local: boolean;
   readonly tokenHash: string;
   readonly now: string;
@@ -270,6 +269,9 @@ export class JobsRepo {
    * archived or paused project, not `needs_local` for a remote runner, and the placement policy admits this runner
    * now — `any`; `pinned` to it; `failover` as the preferred, or as a fallback while the preferred is revoked or
    * silent past `offline_after_seconds`. Highest priority, then oldest.
+   *
+   * The allow-list and `revoked_at` are read from the stored runner row here, never taken from the caller: a
+   * narrowing or revoke that commits between the poll's authentication and this claim must win (#543).
    */
   async claim(request: ClaimRequest): Promise<JobRecord | null> {
     const row = await this.db
@@ -284,8 +286,10 @@ export class JobsRepo {
            WHERE j.state = 'queued' AND j.dispatch = 'pull'
              AND j.account_id = ?5
              AND a.suspended_at IS NULL AND p.archived_at IS NULL
-             AND j.project_slug IN (SELECT value FROM json_each(?6))
-             AND (j.needs_local = 0 OR ?7 = 1)
+             AND j.project_slug IN (
+               SELECT value FROM runners r, json_each(r.allowed_projects)
+               WHERE r.id = ?1 AND r.account_id = ?5 AND r.revoked_at IS NULL)
+             AND (j.needs_local = 0 OR ?6 = 1)
              AND t.paused_at IS NULL
              AND (
                ${POLICY} IS NULL
@@ -299,7 +303,7 @@ export class JobsRepo {
                           WHERE pr.id = json_extract(${POLICY}, '$.preferred') AND pr.revoked_at IS NULL
                             AND pr.last_seen_at IS NOT NULL
                             AND (julianday(?2) - julianday(pr.last_seen_at)) * 86400.0
-                                < COALESCE(json_extract(${POLICY}, '$.offline_after_seconds'), ?8)))
+                                < COALESCE(json_extract(${POLICY}, '$.offline_after_seconds'), ?7)))
                ))
              )
            ORDER BY j.priority DESC, j.created_at ASC, j.id ASC
@@ -313,7 +317,6 @@ export class JobsRepo {
         request.leaseUntil,
         request.tokenHash,
         request.accountId,
-        JSON.stringify(request.allowedProjects),
         request.local ? 1 : 0,
         RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS,
       )

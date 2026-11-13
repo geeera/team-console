@@ -386,8 +386,9 @@ export class RunnersRepo {
 
   /**
    * `true` only when the list changed. `false` when the runner is not the account's or already holds exactly this
-   * list: that write changes no row, audits nothing and cancels nothing (#533). The list was checked against the
-   * account's projects by the caller.
+   * list: that write changes no row, audits nothing and cancels nothing (#533). "The same list" is set equality
+   * (#547): order and duplicates do not count as a change. The list was checked against the account's projects by
+   * the caller.
    */
   async setAllowedProjects(
     accountId: string,
@@ -396,15 +397,19 @@ export class RunnersRepo {
     audit: NewAuditEvent,
     alsoInBatch: readonly D1PreparedStatement[] = [],
   ): Promise<boolean> {
+    const list = JSON.stringify([...new Set(allowedProjects)]);
     // #531: as in `revoke`, the audit row only for a write that happened, the extra statements after the pair.
     const [update] = await this.db.batch<{ id: string }>([
       ...auditedWrite(
         this.db,
         this.db
           .prepare(
-            `UPDATE runners SET allowed_projects = ?3 WHERE id = ?1 AND account_id = ?2 AND allowed_projects IS NOT ?3 RETURNING id`,
+            `UPDATE runners SET allowed_projects = ?3 WHERE id = ?1 AND account_id = ?2 AND (
+               EXISTS (SELECT 1 FROM json_each(?3) n WHERE n.value NOT IN (SELECT value FROM json_each(runners.allowed_projects)))
+               OR EXISTS (SELECT 1 FROM json_each(runners.allowed_projects) o WHERE o.value NOT IN (SELECT value FROM json_each(?3)))
+             ) RETURNING id`,
           )
-          .bind(id, accountId, JSON.stringify(allowedProjects)),
+          .bind(id, accountId, list),
         audit,
       ),
       ...alsoInBatch,

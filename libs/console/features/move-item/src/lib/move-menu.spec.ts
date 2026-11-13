@@ -9,6 +9,7 @@ const sprint = (number: number, dueOn: string): TrackerSprintDto => ({
   description: '',
   createdAt: 'x',
   closedAt: null,
+  openCount: 0,
 });
 const COPY: MoveMenuCopy = {
   label: 'Move TC-408',

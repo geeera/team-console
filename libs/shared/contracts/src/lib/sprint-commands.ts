@@ -72,6 +72,15 @@ export function sprintTitleOf(number: number): string {
   return `Sprint ${String(number).padStart(2, '0')}`;
 }
 
+/**
+ * What two sprint titles are compared by: equal keys are the same name (#545). The api stores it under a unique index
+ * and the console's dialog refuses a taken name with it, so both sides judge alike. `toLowerCase`, not the locale's,
+ * so the stored key never depends on where it was computed.
+ */
+export function sprintTitleKeyOf(title: string): string {
+  return title.trim().toLowerCase();
+}
+
 const SPRINT_TITLE = /^Sprint (\d{1,4})$/;
 
 /** The number of a `Sprint NN` title; `null` for any other milestone title. */

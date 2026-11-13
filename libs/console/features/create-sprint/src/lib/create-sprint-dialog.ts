@@ -20,7 +20,13 @@ import {
   SheetFooter,
   type DatePickerProblem,
 } from '@console/shared/ui';
-import { SPRINT_TITLE_MAX_LENGTH, freezeOf, isCalendarDate, type TrackerSprintDto } from '@shared/contracts';
+import {
+  SPRINT_TITLE_MAX_LENGTH,
+  freezeOf,
+  isCalendarDate,
+  sprintTitleKeyOf,
+  type TrackerSprintDto,
+} from '@shared/contracts';
 
 /** What the dialog is opened with: everything it checks is read once, before it opens. */
 export interface CreateSprintData {
@@ -183,7 +189,7 @@ export class CreateSprintDialog {
   private readonly keys = new SprintKeys(this.data.idempotencyKey);
 
   private readonly latest = [...this.data.sprints].sort((a, b) => b.number - a.number)[0] ?? null;
-  private readonly takenNames = new Set(this.data.sprints.map((sprint) => sprint.title.toLocaleLowerCase()));
+  private readonly takenNames = new Set(this.data.sprints.map((sprint) => sprintTitleKeyOf(sprint.title)));
 
   protected readonly shownName = computed(() => sprintNameOf(this.name()) || this.data.suggestedName);
 
@@ -192,7 +198,7 @@ export class CreateSprintDialog {
     if (name === '') {
       return this.t('sprintNew.errNameEmpty');
     }
-    if (this.takenNames.has(name.toLocaleLowerCase())) {
+    if (this.takenNames.has(sprintTitleKeyOf(name))) {
       return this.t('sprintNew.errName');
     }
     return this.refusedName() === name ? this.t('sprintNew.errNameInvalid') : null;

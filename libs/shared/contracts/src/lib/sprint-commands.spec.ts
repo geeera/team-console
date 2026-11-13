@@ -5,6 +5,7 @@ import {
   isCalendarDate,
   isInFreeze,
   sprintNumberOf,
+  sprintTitleKeyOf,
   sprintTitleOf,
 } from './sprint-commands';
 
@@ -87,4 +88,17 @@ describe('sprint titles', () => {
       expect(sprintNumberOf(title)).toBeNull();
     },
   );
+
+  it.each([
+    ['Checkout', ' checkout '],
+    ['Спринт Альфа', 'спринт альфа'],
+    ['ЁЛКА', 'ёлка'],
+    ['Sprint 01', 'SPRINT 01'],
+  ])('keys %j and %j alike', (a, b) => {
+    expect(sprintTitleKeyOf(a)).toBe(sprintTitleKeyOf(b));
+  });
+
+  it('keys different names apart', () => {
+    expect(sprintTitleKeyOf('Checkout')).not.toBe(sprintTitleKeyOf('Checkout 2'));
+  });
 });

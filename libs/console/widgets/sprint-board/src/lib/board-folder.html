@@ -1,0 +1,124 @@
+<section class="folder" [class.folder--open]="open()" [attr.aria-labelledby]="headingId">
+  <header class="folder__head">
+    <!-- The kicker is part of the heading, so heading navigation reads «Next sprint Sprint 05». -->
+    <h2 class="folder__title" [id]="headingId" tabindex="-1">
+      <span class="folder__kicker">{{ kicker() | transloco }}</span>&ngsp;<span class="folder__name" dir="auto">{{
+        folder().sprint ? name() : ('board.sections.backlogTitle' | transloco)
+      }}</span>
+    </h2>
+    <p class="folder__meta">
+      @if (demo()) {
+        <span>{{ demo() }}</span>
+      }
+      <span data-testid="folder-open-count">{{ openLine() }}</span>
+    </p>
+    <button
+      #toggleButton
+      tc-button
+      size="sm"
+      type="button"
+      class="folder__toggle"
+      data-testid="folder-toggle"
+      [variant]="open() ? 'secondary' : 'primary'"
+      [attr.aria-expanded]="open()"
+      [attr.aria-controls]="bodyId"
+      [attr.aria-label]="(open() ? 'board.sections.hideAria' : 'board.sections.showAria') | transloco: { section: name() }"
+      (click)="toggle()"
+    >
+      {{ (open() ? 'board.sections.hide' : 'board.sections.show') | transloco }}
+    </button>
+  </header>
+
+  <p class="tc-sr-only" role="status">{{ open() ? announcement() : '' }}</p>
+
+  <div
+    class="folder__body"
+    [id]="bodyId"
+    [hidden]="!open()"
+    [attr.aria-busy]="state().kind === 'loading' ? 'true' : null"
+    [attr.data-state]="state().kind"
+  >
+    @switch (state().kind) {
+      @case ('loading') {
+        <p class="folder__loading">{{ announcement() }}</p>
+        @for (row of skeletonRows; track row) {
+          <div class="folder__skeleton" aria-hidden="true">
+            <span class="folder__skeleton-line"></span>
+            <span class="folder__skeleton-line folder__skeleton-line--short"></span>
+          </div>
+        }
+      }
+      @case ('error') {
+        <tc-state-block
+          kind="error"
+          data-testid="folder-error"
+          [title]="'board.sections.error' | transloco: { section: name() }"
+          [description]="'board.sections.errorHint' | transloco"
+        >
+          <button tc-button tc-state-action type="button" (click)="retry()">
+            {{ 'board.sections.tryAgain' | transloco }}
+          </button>
+        </tc-state-block>
+      }
+      @case ('offline') {
+        <tc-state-block
+          kind="error"
+          icon="offline"
+          data-testid="folder-offline"
+          [title]="'board.sections.offline' | transloco"
+          [description]="'board.sections.offlineHint' | transloco"
+        >
+          <button tc-button tc-state-action type="button" (click)="retry()">
+            {{ 'board.sections.tryAgain' | transloco }}
+          </button>
+        </tc-state-block>
+      }
+    }
+    @if (lanes(); as lanes) {
+      @if (lanes.length === 0) {
+        <tc-state-block
+          kind="empty"
+          data-testid="folder-empty"
+          [title]="
+            (folder().sprint ? 'board.sections.emptyNext' : 'board.sections.emptyBacklog')
+              | transloco: { sprint: name() }
+          "
+          [description]="
+            (folder().sprint ? 'board.sections.emptyNextHint' : 'board.sections.emptyBacklogHint') | transloco
+          "
+        />
+      } @else {
+        <tc-lanes
+          compactBelow="tablet"
+          [label]="'board.sections.lanes' | transloco: { section: name() }"
+          [preferred]="preferredLanes"
+          [(selected)]="selectedLane"
+        >
+          @for (column of lanes; track column.status) {
+            <tc-lane
+              [key]="column.status"
+              [heading]="laneName(column.status)"
+              [count]="column.issues.length"
+              [attr.data-status]="column.status"
+            >
+              <tc-sprint-item-list [items]="visible(column)" [slug]="slug()" />
+              @if (hidden(column) > 0) {
+                <button
+                  tc-button
+                  size="sm"
+                  variant="quiet"
+                  type="button"
+                  class="folder__more"
+                  data-testid="folder-more"
+                  (click)="showMore(column.status)"
+                >
+                  {{ showMoreLabel(column) }}
+                </button>
+              }
+            </tc-lane>
+          }
+        </tc-lanes>
+      }
+    }
+  </div>
+</section>
