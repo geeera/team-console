@@ -150,7 +150,7 @@ describe('CreateSprintDialog (#457)', () => {
   it('opens with the suggested name, the date and the freeze hint from the given freeze days', async () => {
     const { root, name } = await render({ freezeDays: 3 });
     expect(name.value).toBe('Sprint 03');
-    expect(name.maxLength).toBe(64);
+    expect(name.maxLength).toBe(256);
     expect(root.textContent).toContain('Спринт начнётся после демо Sprint 02 (27 ноября)');
     // Demo on 11 December with three freeze days: 8–11 December.
     expect(root.textContent).toMatch(/Заморозка перед демо: 8\D+11 дек/);
