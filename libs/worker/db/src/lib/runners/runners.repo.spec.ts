@@ -345,6 +345,55 @@ describe('RunnersRepo', () => {
     });
   });
 
+  // #571: the runner's own pause, written inside its account only, audited once per change.
+  describe('pause and resume', () => {
+    const UNTIL = '2026-11-10T12:00:00.000Z';
+
+    it('pauses inside the account, audits once per change, and resume clears it', async () => {
+      const runner = await enrolled();
+      const pauseAudit = { ...audit('runner.paused'), target: runner.id };
+      expect(await repo.pause(ACCOUNT_A, runner.id, { reason: 'usage-limit', until: UNTIL }, pauseAudit)).toBe(true);
+      expect((await repo.findById(runner.id))?.pause).toEqual({ reason: 'usage-limit', until: UNTIL });
+      // The same pause again (a restart mirroring state.json) changes nothing and audits nothing.
+      expect(await repo.pause(ACCOUNT_A, runner.id, { reason: 'usage-limit', until: UNTIL }, pauseAudit)).toBe(false);
+      expect(await auditRows('runner.paused', runner.id)).toBe(1);
+      expect(await repo.pause(ACCOUNT_A, runner.id, { reason: 'rate-limit', until: UNTIL }, pauseAudit)).toBe(true);
+      expect(await auditRows('runner.paused', runner.id)).toBe(2);
+
+      const resumeAudit = { ...audit('runner.resumed'), target: runner.id };
+      expect(await repo.resume(ACCOUNT_A, runner.id, resumeAudit)).toBe(true);
+      expect((await repo.findById(runner.id))?.pause).toBeNull();
+      expect(await repo.resume(ACCOUNT_A, runner.id, resumeAudit)).toBe(false);
+      expect(await auditRows('runner.resumed', runner.id)).toBe(1);
+    });
+
+    it('never pauses or resumes another account’s runner, nor a revoked one', async () => {
+      const theirs = await enrolled({ accountId: ACCOUNT_B });
+      expect(await repo.pause(ACCOUNT_A, theirs.id, { reason: 'manual', until: UNTIL }, { ...audit('runner.paused'), target: theirs.id })).toBe(false);
+      expect((await repo.findById(theirs.id))?.pause).toBeNull();
+      expect(await auditRows('runner.paused', theirs.id)).toBe(0);
+
+      expect(await repo.pause(ACCOUNT_B, theirs.id, { reason: 'manual', until: UNTIL }, { ...audit('runner.paused', ACCOUNT_B), target: theirs.id })).toBe(true);
+      expect(await repo.resume(ACCOUNT_A, theirs.id, { ...audit('runner.resumed'), target: theirs.id })).toBe(false);
+      expect((await repo.findById(theirs.id))?.pause).toEqual({ reason: 'manual', until: UNTIL });
+
+      const revoked = await enrolled();
+      await repo.revoke(ACCOUNT_A, revoked.id, T1, { ...audit('runner.revoked'), target: revoked.id });
+      expect(await repo.pause(ACCOUNT_A, revoked.id, { reason: 'manual', until: UNTIL }, { ...audit('runner.paused'), target: revoked.id })).toBe(false);
+    });
+
+    it('refuses at the row a reason without a time, a time without a reason, an unknown reason or a local time', async () => {
+      const runner = await enrolled();
+      const write = (until: string | null, reason: string | null): Promise<unknown> =>
+        env.DB.prepare(`UPDATE runners SET paused_until = ?2, pause_reason = ?3 WHERE id = ?1`).bind(runner.id, until, reason).run();
+      await expect(write(null, 'manual')).rejects.toThrow(/CHECK/);
+      await expect(write(UNTIL, null)).rejects.toThrow(/CHECK/);
+      await expect(write(UNTIL, 'tired')).rejects.toThrow(/CHECK/);
+      await expect(write('2026-11-10 12:00:00', 'manual')).rejects.toThrow(/CHECK/);
+      expect((await repo.findById(runner.id))?.pause).toBeNull();
+    });
+  });
+
   it('consumes a jti once until it expires, sweeping old ones', async () => {
     const runner = await enrolled();
     expect(await repo.consumeNonce(runner.id, 'j1', '2026-11-10T10:05:00.000Z', T0)).toBe(true);

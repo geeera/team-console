@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { OWNER_ACCOUNT_ID, type AccountMembershipDto, type RunnerListDto } from '@shared/contracts';
 import type { RunnerResult } from './runner-failure';
 import { RUNNER_FIXTURE_IDS, runnerFixture } from './runner.fixture';
-import { liveRunnersOf, managedAccountOf, runnerPresenceOf, runnersInDisplayOrder } from './runner.model';
+import { liveRunnersOf, managedAccountOf, projectPauseOf, runnerPresenceOf, runnersInDisplayOrder } from './runner.model';
 import { RunnersApi } from './runners.api';
 import { RunnersStore } from './runners.store';
 
@@ -98,6 +98,9 @@ describe('runner model', () => {
   it.each([
     [runnerFixture({ revokedAt: '2026-11-11T00:00:00.000Z', suspect: { at: 'x', reason: 'new-country' } }), 'revoked'],
     [runnerFixture({ suspect: { at: '2026-11-11T00:00:00.000Z', reason: 'two-pollers' } }), 'suspect'],
+    [runnerFixture({ suspect: { at: '2026-11-11T00:00:00.000Z', reason: 'two-pollers' }, pause: { reason: 'manual', until: '2026-11-11T05:00:00.000Z' } }), 'suspect'],
+    [runnerFixture({ online: false, pause: { reason: 'usage-limit', until: '2026-11-11T05:00:00.000Z' } }), 'paused'],
+    [runnerFixture({ pause: { reason: 'rate-limit', until: '2026-11-11T05:00:00.000Z' } }), 'paused'],
     [runnerFixture({ lastSeenAt: null, online: false }), 'never-seen'],
     [runnerFixture({ online: false }), 'offline'],
     [runnerFixture(), 'online'],
@@ -114,6 +117,24 @@ describe('runner model', () => {
       RUNNER_FIXTURE_IDS.old,
     ]);
     expect(liveRunnersOf([old, vps])).toEqual([vps]);
+  });
+
+  // #571: the board's tile says "paused" only while no runner that may serve the project is free.
+  it('holds a project back only when every live runner allowed for it is paused, until the first one resumes', () => {
+    const early = { reason: 'rate-limit' as const, until: '2026-11-11T05:00:00.000Z' };
+    const late = { reason: 'usage-limit' as const, until: '2026-11-11T09:00:00.000Z' };
+    const mac = runnerFixture({ pause: late });
+    const vps = runnerFixture({ id: RUNNER_FIXTURE_IDS.vps, pause: early });
+    const free = runnerFixture({ id: RUNNER_FIXTURE_IDS.vps });
+    const elsewhere = runnerFixture({ id: RUNNER_FIXTURE_IDS.vps, allowedProjects: ['storify'] });
+    const revoked = runnerFixture({ id: RUNNER_FIXTURE_IDS.old, revokedAt: '2026-11-01T00:00:00.000Z' });
+
+    expect(projectPauseOf([mac, vps], 'team-console')).toEqual(early);
+    expect(projectPauseOf([mac, free], 'team-console')).toBeNull();
+    // A runner of another project or a revoked one neither frees nor holds this project.
+    expect(projectPauseOf([mac, elsewhere, revoked], 'team-console')).toEqual(late);
+    expect(projectPauseOf([], 'team-console')).toBeNull();
+    expect(projectPauseOf([elsewhere], 'team-console')).toBeNull();
   });
 
   it('manages the first owned account', () => {

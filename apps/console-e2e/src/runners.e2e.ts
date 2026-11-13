@@ -1,4 +1,4 @@
-import { generateKeyPairSync } from 'node:crypto';
+import { generateKeyPairSync, randomUUID, sign, type KeyObject } from 'node:crypto';
 import type { APIRequestContext, Page } from '@playwright/test';
 import { OWNER_ACCOUNT_ID, isRunnerId, type RunnerPolicyDto } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
@@ -26,9 +26,9 @@ async function markSuspect(workerIndex: number, runnerId: string): Promise<void>
 
 const COMMAND = /^team-console-runner enrol --url (http:\/\/127\.0\.0\.1:\d+) --code (tce_[A-Za-z0-9_-]{43})$/;
 
-/** The runner binary's half of enrolment: a fresh Ed25519 key, its public JWK only. */
-function enrolBodyOf(code: string): Record<string, unknown> {
-  const jwk = generateKeyPairSync('ed25519').publicKey.export({ format: 'jwk' });
+/** The runner binary's half of enrolment: a fresh Ed25519 key (or the given one), its public JWK only. */
+function enrolBodyOf(code: string, publicKey: KeyObject = generateKeyPairSync('ed25519').publicKey): Record<string, unknown> {
+  const jwk = publicKey.export({ format: 'jwk' });
   return {
     code,
     publicKey: { kty: 'OKP', crv: 'Ed25519', x: jwk.x },
@@ -158,6 +158,45 @@ async function issueCodeInDialog(page: Page, name: string): Promise<string> {
   await expect(dialog).toHaveCount(0);
   return code;
 }
+
+/** A runner JWT as the binary mints one (apps/runner/src/client/runner-jwt.ts): EdDSA, one `jti` per call. */
+function runnerJwtOf(privateKey: KeyObject, runnerId: string, audience: string): string {
+  const iat = Math.floor(Date.now() / 1000);
+  const part = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const signingInput = `${part({ alg: 'EdDSA', typ: 'JWT' })}.${part({ sub: runnerId, aud: audience, iat, exp: iat + 120, jti: randomUUID() })}`;
+  return `${signingInput}.${sign(null, Buffer.from(signingInput), privateKey).toString('base64url')}`;
+}
+
+// #571: the runner hits the Claude usage limit, pauses itself and mirrors that on its own door; the owner sees why
+// and until when. The pause rules (claim, bounds, accounts) are the API's own specs (runner-pause.spec.ts).
+test('a runner paused on its usage limit says so, with the reason and the time it resumes', async ({ page, stack }) => {
+  await page.goto('/settings/runners');
+  const code = await issueCodeInDialog(page, 'E2E Mac');
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const until = new Date(Date.now() + 90 * 60_000).toISOString();
+  const api = await apiClient(stack);
+  try {
+    const enrol = await api.post('/api/v1/runner/enrol', { data: enrolBodyOf(code, publicKey) });
+    expect(enrol.status(), await enrol.text()).toBe(201);
+    const { runnerId, audience } = (await enrol.json()) as { runnerId: string; audience: string };
+    const pause = await api.post('/api/v1/runner/pause', {
+      data: { reason: 'usage-limit', until },
+      headers: { Authorization: `Bearer ${runnerJwtOf(privateKey, runnerId, audience)}` },
+    });
+    expect(pause.status(), await pause.text()).toBe(200);
+  } finally {
+    await api.dispose();
+  }
+
+  await page.getByTestId('runners-refresh').click();
+  const card = page.getByTestId('runner-card').filter({ hasText: 'E2E Mac' });
+  await expect(card.getByTestId('runner-presence')).toHaveText(ru('runners.presence.paused'));
+  const note = card.getByTestId('runner-pause');
+  await expect(note).toContainText(ru('runners.card.pause.usage-limit'));
+  await expect(note.locator('time')).toHaveAttribute('datetime', until);
+  await expect(note.locator('time')).toContainText(/\d{2}:\d{2}/);
+  await expectAccessible(page, 'Settings › Runners (paused runner)');
+});
 
 // #492: a code shown to the wrong person is withdrawn from the list before its ten minutes are up.
 test('withdraw a pending enrolment code, after which it enrols nothing', async ({ page, stack }) => {

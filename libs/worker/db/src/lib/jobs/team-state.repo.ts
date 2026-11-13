@@ -1,4 +1,4 @@
-import { TEAM_FAILURE_STREAK_PAUSE } from '@shared/contracts';
+import { TEAM_FAILURE_STREAK_PAUSE, isRunnerLimitReason } from '@shared/contracts';
 import { auditEventStatement, auditedWrite, type NewAuditEvent } from '../accounts/audit.repo';
 
 /** `team_state` (ADR 0006 "Report", migration 0022): the pause the claim honours and the three-failures stop. */
@@ -73,7 +73,9 @@ export class TeamStateRepo {
 
   /**
    * Records a job's outcome: a success resets the streak; a failure counts, and the third in a row pauses the project
-   * (`paused_by = system:failure-streak`). Returns the streak after the outcome and whether this one paused it.
+   * (`paused_by = system:failure-streak`). A failure on a usage or rate limit (`reason`, from the finish metrics) is
+   * neither (#571): the runner pauses itself for it, and the project's streak stays as it was. Returns the streak after
+   * the outcome and whether this one paused it.
    */
   async recordOutcome(
     projectSlug: string,
@@ -81,7 +83,11 @@ export class TeamStateRepo {
     now: string,
     /** The `team.paused` audit row written when this outcome pauses the project (#490 review). */
     pauseAudit?: NewAuditEvent,
+    reason: unknown = null,
   ): Promise<{ readonly failedStreak: number; readonly paused: boolean }> {
+    if (outcome === 'failed' && isRunnerLimitReason(reason)) {
+      return { failedStreak: (await this.get(projectSlug)).failedStreak, paused: false };
+    }
     const failed = outcome === 'failed';
     const statements: D1PreparedStatement[] = [
       this.db

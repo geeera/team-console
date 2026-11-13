@@ -137,6 +137,9 @@ export const ROUTE_SCOPES = {
   'POST /api/v1/runner/jobs/:id/heartbeat': 'runner',
   'POST /api/v1/runner/jobs/:id/events': 'runner',
   'POST /api/v1/runner/jobs/:id/finish': 'runner',
+  // The runner's own pause (#571): itself only, inside its account; the identity names both, never the body.
+  'POST /api/v1/runner/pause': 'runner',
+  'POST /api/v1/runner/resume': 'runner',
 } as const satisfies Readonly<Record<string, ScopeRule>>;
 
 export type ScopedRoute = keyof typeof ROUTE_SCOPES;

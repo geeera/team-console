@@ -217,6 +217,13 @@ export function createTrackerItemRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<A
             if (sprint instanceof Response) {
               return sprint;
             }
+            // A new item always lands in the sprint it names (there is no earlier sprint to move out of).
+            if (sprint !== null) {
+              const frozen = await frozenSprintRefusal(c, github, sprint);
+              if (frozen !== null) {
+                return frozen;
+              }
+            }
             const labels = await unknownLabels(c, project, 'labels', value.labels);
             if (labels !== null) {
               return labels;

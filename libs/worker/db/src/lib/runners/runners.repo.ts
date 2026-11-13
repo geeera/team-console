@@ -3,6 +3,7 @@ import type {
   RunnerCapabilitiesDto,
   RunnerHostDto,
   RunnerIsolation,
+  RunnerPauseReason,
   RunnerSuspectReason,
 } from '@shared/contracts';
 import { auditEventStatement, auditedWrite, type NewAuditEvent } from '../accounts/audit.repo';
@@ -34,6 +35,8 @@ export interface RunnerRecord {
   readonly suspectAt: string | null;
   readonly suspectReason: RunnerSuspectReason | null;
   readonly revokedAt: string | null;
+  /** The pause the runner posted (#571), as stored: the reader judges `until` against its own `now`. */
+  readonly pause: { readonly reason: RunnerPauseReason; readonly until: string } | null;
 }
 
 export interface EnrolmentRecord {
@@ -104,6 +107,8 @@ interface RunnerRow {
   suspect_at: string | null;
   suspect_reason: RunnerSuspectReason | null;
   revoked_at: string | null;
+  paused_until: string | null;
+  pause_reason: RunnerPauseReason | null;
 }
 
 interface EnrolmentRow {
@@ -120,7 +125,7 @@ interface EnrolmentRow {
 
 const RUNNER_COLUMNS = `id, account_id, name, public_key_jwk, host, capabilities, hosted, isolation, allowed_projects,
   version, pinned_version, enrolled_at, last_seen_at, last_seen_country, last_seen_ip_hash, seen_countries,
-  suspect_at, suspect_reason, revoked_at`;
+  suspect_at, suspect_reason, revoked_at, paused_until, pause_reason`;
 
 /** Two source addresses inside this window on one runner id are two pollers (the lease length of ADR 0006). */
 export const TWO_POLLERS_WINDOW_MS = 5 * 60 * 1000;
@@ -154,6 +159,10 @@ function toRecord(row: RunnerRow): RunnerRecord {
     suspectAt: row.suspect_at,
     suspectReason: row.suspect_reason,
     revokedAt: row.revoked_at,
+    pause:
+      row.paused_until !== null && row.pause_reason !== null
+        ? { reason: row.pause_reason, until: row.paused_until }
+        : null,
   };
 }
 
@@ -415,6 +424,56 @@ export class RunnersRepo {
       ...alsoInBatch,
     ]);
     // RETURNING, not `meta.changes`: D1 counts the rows the 0023 trigger revokes in role_keys there too.
+    return (update?.results.length ?? 0) === 1;
+  }
+
+  /**
+   * The runner's own pause (#571, ADR 0008 decision 9): the claim takes nothing for it until `until`. `false` when the
+   * runner is not the account's, is revoked, or already holds exactly this pause — a repeated post (a restart that
+   * mirrors its `state.json` again) writes and audits nothing. `until` was checked against `now` by the caller.
+   */
+  async pause(
+    accountId: string,
+    id: string,
+    pause: { readonly reason: RunnerPauseReason; readonly until: string },
+    audit: NewAuditEvent,
+  ): Promise<boolean> {
+    const [update] = await this.db.batch<{ id: string }>([
+      ...auditedWrite(
+        this.db,
+        this.db
+          .prepare(
+            `UPDATE runners SET paused_until = ?3, pause_reason = ?4
+             WHERE id = ?1 AND account_id = ?2 AND revoked_at IS NULL
+               AND (paused_until IS NOT ?3 OR pause_reason IS NOT ?4)
+             RETURNING id`,
+          )
+          .bind(id, accountId, pause.until, pause.reason),
+        audit,
+      ),
+    ]);
+    return (update?.results.length ?? 0) === 1;
+  }
+
+  /**
+   * Lifts the runner's pause before its time (#571): the runner ran a job again, or its local pause lapsed. `false`
+   * when the runner is not the account's, is revoked, or holds no pause row; a lapsed pause is cleared too, so the
+   * row never keeps a stale reason.
+   */
+  async resume(accountId: string, id: string, audit: NewAuditEvent): Promise<boolean> {
+    const [update] = await this.db.batch<{ id: string }>([
+      ...auditedWrite(
+        this.db,
+        this.db
+          .prepare(
+            `UPDATE runners SET paused_until = NULL, pause_reason = NULL
+             WHERE id = ?1 AND account_id = ?2 AND revoked_at IS NULL AND paused_until IS NOT NULL
+             RETURNING id`,
+          )
+          .bind(id, accountId),
+        audit,
+      ),
+    ]);
     return (update?.results.length ?? 0) === 1;
   }
 
