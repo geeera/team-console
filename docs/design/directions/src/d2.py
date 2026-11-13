@@ -1,6 +1,5 @@
 D = dict(
   file='02-switchboard.html', num='02', name='Switchboard',
-  fonts='https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap',
   shared='''
   --font-display:"IBM Plex Sans",-apple-system,system-ui,"Segoe UI",sans-serif;--font-body:"IBM Plex Sans",-apple-system,system-ui,"Segoe UI",sans-serif;--font-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;--fw-display:600;
   --fs-xs:11px;--fs-sm:12.5px;--fs-md:13.5px;--fs-lg:15px;--fs-xl:18px;--fs-2xl:24px;--lh-body:1.45;--lh-tight:1.3;
