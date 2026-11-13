@@ -294,4 +294,41 @@ describe('TeamStateRepo.recordOutcome', () => {
     await new RunnersRepo(env.DB).setAllowedProjects(ACCOUNT_A, r, [kept], audit('runner.updated'), jobs.cancelOutsideStatements(r, [kept], T1));
     expect(await jobs.findById(id)).toMatchObject({ state: 'cancelled', result: { reason: 'runner-allow-list' } });
   });
+
+  it('cancels nothing when the allow-list write changed nothing', async () => {
+    const kept = await project(ACCOUNT_A);
+    const other = await project(ACCOUNT_A);
+    const r = await runner(ACCOUNT_A, [kept]);
+    const id = await enqueue(other);
+    await claimAs(r, [other], { tokenHash: 'ab'.repeat(32) });
+    const runners = new RunnersRepo(env.DB);
+    const same = { ...audit('runner.updated'), target: r };
+    expect(await runners.setAllowedProjects(ACCOUNT_A, r, [kept], same, jobs.cancelOutsideStatements(r, [kept], T1))).toBe(false);
+    expect(await jobs.findById(id)).toMatchObject({ state: 'claimed' });
+  });
+
+  it('still cancels a revoked runner’s live jobs for the revoke that won', async () => {
+    const slug = await project(ACCOUNT_A);
+    const r = await runner(ACCOUNT_A, [slug]);
+    const id = await enqueue(slug);
+    await claimAs(r, [slug], { tokenHash: '0f'.repeat(32) });
+    const won = await new RunnersRepo(env.DB).revoke(ACCOUNT_A, r, T1, { ...audit('runner.revoked'), target: r }, jobs.cancelForRunnerStatements(r, T1));
+    expect(won).toBe(true);
+    expect(await jobs.findById(id)).toMatchObject({ state: 'cancelled', result: { reason: 'runner-revoked' } });
+  });
+
+  it('cancels nothing for a revoke that lost the race', async () => {
+    const slug = await project(ACCOUNT_A);
+    const r = await runner(ACCOUNT_A, [slug]);
+    const id = await enqueue(slug);
+    await claimAs(r, [slug], { tokenHash: 'cd'.repeat(32) });
+    const runners = new RunnersRepo(env.DB);
+    const revokeAudit = { ...audit('runner.revoked'), target: r };
+    // The winner revoked (its own cancel is covered by the revoke route's e2e); the loser comes second.
+    expect(await runners.revoke(ACCOUNT_A, r, T0, revokeAudit)).toBe(true);
+
+    // The loser's revoke finds the runner revoked; the job it still holds must stay untouched.
+    expect(await runners.revoke(ACCOUNT_A, r, T1, revokeAudit, jobs.cancelForRunnerStatements(r, T1))).toBe(false);
+    expect(await jobs.findById(id)).toMatchObject({ state: 'claimed' });
+  });
 });

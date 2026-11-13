@@ -384,7 +384,11 @@ export class RunnersRepo {
     return (update?.meta.changes ?? 0) === 1;
   }
 
-  /** `false` when the runner is not the account's. The list was checked against the account's projects by the caller. */
+  /**
+   * `true` only when the list changed. `false` when the runner is not the account's or already holds exactly this
+   * list: that write changes no row, audits nothing and cancels nothing (#533). The list was checked against the
+   * account's projects by the caller.
+   */
   async setAllowedProjects(
     accountId: string,
     id: string,
@@ -397,7 +401,9 @@ export class RunnersRepo {
       ...auditedWrite(
         this.db,
         this.db
-          .prepare(`UPDATE runners SET allowed_projects = ?3 WHERE id = ?1 AND account_id = ?2 RETURNING id`)
+          .prepare(
+            `UPDATE runners SET allowed_projects = ?3 WHERE id = ?1 AND account_id = ?2 AND allowed_projects IS NOT ?3 RETURNING id`,
+          )
           .bind(id, accountId, JSON.stringify(allowedProjects)),
         audit,
       ),

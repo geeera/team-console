@@ -207,6 +207,16 @@ describe('RunnersRepo', () => {
     expect((await repo.findById(runner.id))?.allowedProjects).toEqual(['p2', 'p3']);
   });
 
+  // #533: a write that stores the list the runner already holds is no change.
+  it('changes no row and audits nothing for an allow-list that is already stored', async () => {
+    const runner = await enrolled();
+    const updated = { ...audit('runner.updated'), target: runner.id };
+    expect(await repo.setAllowedProjects(ACCOUNT_A, runner.id, ['p2'], updated)).toBe(true);
+    expect(await repo.setAllowedProjects(ACCOUNT_A, runner.id, ['p2'], updated)).toBe(false);
+    expect(await auditRows('runner.updated', runner.id)).toBe(1);
+    expect((await repo.findById(runner.id))?.allowedProjects).toEqual(['p2']);
+  });
+
   // #531: the audit row follows the write that happened, not the call.
   it('leaves exactly one runner.revoked row for two concurrent revokes', async () => {
     const runner = await enrolled();
