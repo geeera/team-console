@@ -96,13 +96,14 @@ describe('POST /projects/:slug/sprints', () => {
     expect(await countRows('sprints', project.slug)).toBe(1);
   });
 
-  it('answers 422 when the default name it would get is an earlier sprint’s title', async () => {
+  // #554: the default name skips titles the owner already entered.
+  it('creates a sprint without a title as the next free Sprint NN when the default is taken', async () => {
     const project = await seedTrackerProject();
-    await send('POST', sprintsPath(project.slug), { title: 'Sprint 02' });
+    await send('POST', sprintsPath(project.slug), { title: 'sprint 02' });
     const response = await send('POST', sprintsPath(project.slug), {});
-    expect(response.status).toBe(422);
-    expect(await response.json()).toMatchObject({ field: 'title' });
-    expect(await countRows('sprints', project.slug)).toBe(1);
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ number: 2, title: 'Sprint 03' });
+    expect(await countRows('sprints', project.slug)).toBe(2);
   });
 
   // #545: two creates of one name that both passed the check; the unique index refuses the second.

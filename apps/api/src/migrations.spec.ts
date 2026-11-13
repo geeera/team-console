@@ -84,6 +84,7 @@ describe('migrations on a fresh D1', () => {
       '0024_role_key_delete_guard.sql',
       '0025_pr_link_unique.sql',
       '0026_sprint_title_unique.sql',
+      '0027_sprint_title_key_followups.sql',
     ]);
   });
 
@@ -681,6 +682,70 @@ describe('the 0026 sprint title index', () => {
     await expect(keyed('m26', 6, 'ёлка ўсё єіїґ')).rejects.toThrow(/UNIQUE constraint failed/);
     await expect(insert('m26', 6, 'Unkeyed')).rejects.toThrow(/sprints.title_key is required/);
     await keyed('m26', 6, 'release');
+  });
+});
+
+// #554: 0027 re-keys old rows as `sprintTitleKeyOf` does and guards UPDATE like 0026 guards INSERT.
+describe('the 0027 sprint title key follow-ups', () => {
+  const T0 = '2026-11-01T00:00:00.000Z';
+
+  it('re-keys padded titles, skips a re-key that would collide, and guards updates', async () => {
+    const db = env.MIGRATION_DB_0027;
+    await applyD1Migrations(
+      db,
+      env.TEST_MIGRATIONS.filter((migration) => migration.name < '0026'),
+    );
+    await db
+      .prepare(
+        `INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at) VALUES ('m27', 'a/m27', 'm27', 0, ?1)`,
+      )
+      .bind(T0)
+      .run();
+    const insert = (number: number, title: string) =>
+      db
+        .prepare(
+          `INSERT INTO sprints (project_slug, number, title, state, created_at) VALUES ('m27', ?1, ?2, 'open', ?3)`,
+        )
+        .bind(number, title, T0)
+        .run();
+    await insert(1, '  Release  '); // padded, free once trimmed
+    await insert(2, 'Checkout');
+    await insert(3, ' checkout\u00a0'); // trimmed key would collide with sprint 2
+    await insert(4, '\tСПРИНТ\n'); // another script and another kind of white space
+    await insert(5, 'Plain');
+
+    await applyD1Migrations(db, env.TEST_MIGRATIONS);
+
+    const { results } = await db
+      .prepare(`SELECT number, title, title_key FROM sprints ORDER BY number`)
+      .all<{ number: number; title: string; title_key: string | null }>();
+    expect(results.map((row) => [row.number, row.title_key])).toEqual([
+      [1, 'release'],
+      [2, 'checkout'],
+      [3, ' checkout\u00a0'], // kept: re-keying would have hit the unique index
+      [4, 'спринт'],
+      [5, 'plain'],
+    ]);
+    for (const row of results.filter((each) => each.number !== 3)) {
+      expect(row.title_key).toBe(sprintTitleKeyOf(row.title));
+    }
+
+    const update = (sql: string, ...values: unknown[]) =>
+      db
+        .prepare(sql)
+        .bind(...values)
+        .run();
+    await expect(update(`UPDATE sprints SET title_key = NULL WHERE number = 1`)).rejects.toThrow(
+      /sprints.title_key must follow sprints.title/,
+    );
+    await expect(update(`UPDATE sprints SET title = 'Renamed' WHERE number = 1`)).rejects.toThrow(
+      /sprints.title_key must follow sprints.title/,
+    );
+    await update(`UPDATE sprints SET title = 'Renamed', title_key = 'renamed' WHERE number = 1`);
+    await update(`UPDATE sprints SET state = 'closed', closed_at = ?1 WHERE number = 5`, T0);
+    await expect(
+      update(`UPDATE sprints SET title = 'Plain', title_key = 'checkout' WHERE number = 5`),
+    ).rejects.toThrow(/UNIQUE constraint failed/);
   });
 });
 
