@@ -46,6 +46,12 @@ describe('apps/runner/Dockerfile', () => {
     expect(runtime).not.toMatch(/node_modules\/\.bin|npm (ci|install)/);
   });
 
+  it('makes the managed-settings directory traversable before copying into it', () => {
+    const made = runtime.indexOf('install -d -m 0755 /etc/claude-code');
+    expect(made).toBeGreaterThan(-1);
+    expect(made).toBeLessThan(runtime.indexOf('/etc/claude-code/managed-settings.json'));
+  });
+
   it('ships exactly the runner’s managed settings', () => {
     expect(readFileSync(join(app, 'managed-settings.json'), 'utf8')).toBe(managedSettingsText());
   });

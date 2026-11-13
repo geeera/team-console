@@ -30,9 +30,12 @@ RUN npm install --global --no-audit --no-fund "@anthropic-ai/claude-code@${CLAUD
 # --- runtime: Node, git, the CLI and the bundle; no npm cache, no build tools ---
 FROM ${NODE_IMAGE} AS runtime
 ENV NODE_ENV=production
+# /etc/claude-code is made here, not by the COPY below: a parent that COPY --chmod creates gets the file's mode, and a
+# 0444 directory cannot be traversed, so the CLI would never see its managed settings.
 RUN apt-get update \
   && apt-get install --yes --no-install-recommends git ca-certificates \
   && rm -rf /var/lib/apt/lists/* \
+  && install -d -m 0755 /etc/claude-code \
   && groupadd --system job \
   && useradd --system --gid job --home-dir /home/job --create-home --shell /usr/sbin/nologin job
 # Root-owned and read-only, so the job user can neither replace nor patch what it runs under.
