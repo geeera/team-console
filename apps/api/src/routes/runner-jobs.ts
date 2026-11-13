@@ -97,7 +97,6 @@ export function createRunnerJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       const job = await jobs.claim({
         runnerId: runner.runnerId,
         accountId: runner.accountId,
-        allowedProjects: runner.allowedProjects,
         local: runner.capabilities.local,
         tokenHash: await sha256Hex(token),
         now: nowIso,
