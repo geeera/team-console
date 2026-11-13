@@ -1,7 +1,7 @@
 import { decodeJwt, importJWK, jwtVerify, errors as joseErrors } from 'jose';
 import { RUNNER_JWT_MAX_AGE_SECONDS, isRunnerId, runnerAudienceOf } from '@shared/contracts';
 import { problem, sha256Hex, type Logger, type WorkerContext } from '@worker/core';
-import { RateLimitsRepo, RunnersRepo, rateWindowOf, type RunnerRecord } from '@worker/db';
+import { RateLimitsRepo, RunnersRepo, rateWindowOf, retryAfterOf, type RunnerRecord } from '@worker/db';
 import type { ApiEnv } from '../env';
 import type { Identity } from './auth.types';
 
@@ -146,7 +146,7 @@ export async function verifyRunnerJwt(
     RUNNER_RATE_LIMIT_PER_MINUTE,
   );
   if (!limit.allowed) {
-    return { ok: false, refusal: 'runner-rate-limited', retryAfter: 60 - (now.getUTCSeconds() % 60) };
+    return { ok: false, refusal: 'runner-rate-limited', retryAfter: retryAfterOf(now.getTime(), 60) };
   }
   const nowIso = now.toISOString();
   const expiresAt = new Date((claims.exp + CLOCK_TOLERANCE_SECONDS) * 1000).toISOString();

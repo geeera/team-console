@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { EmbedOriginsDto, RequestIssuesDto, SprintDto, SprintFreezeDaysDto } from '@shared/contracts';
-import type { WorkerContext, WorkerHonoEnv } from '@worker/core';
-import { OwnerRequestsRepo, TrackerProjectsRepo } from '@worker/db';
+import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
+import { OwnerRequestsRepo, RateLimitsRepo, TrackerProjectsRepo, rateWindowOf, retryAfterOf } from '@worker/db';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { findProject, projectNotFound, repoOf, trackerProjectOf } from '../projects/lookup';
@@ -19,6 +19,43 @@ import { guardedProjectRequests } from './tracker/requests';
  * a row is `unknown`, and the next load reads on from the cache. A run log the budget stops is `unknown` too.
  */
 export const SPRINT_GITHUB_BUDGET = 44;
+
+/**
+ * A job's `/sprint` reads per fixed window (#537): the runner's 120 calls a minute × `SPRINT_GITHUB_BUDGET` would be
+ * ≈ 5k GitHub calls a minute, the installation's whole hourly quota, and the read cache is best-effort. 10 reads per
+ * 10 minutes is at most 440 subrequests, ≈ 2.6k an hour per job, under the 5k quota with a cold cache; a job reads the
+ * board once or twice a run. A minute window at any usable limit would not bound the hourly total.
+ */
+export const JOB_SPRINT_READS_PER_WINDOW = 10;
+export const JOB_SPRINT_WINDOW_SECONDS = 600;
+
+/**
+ * The 429 when a job has spent its `/sprint` budget, else `null`; any other identity is not counted. Checked before
+ * the project lookup on purpose: a flood costs one D1 upsert, no registry read and no token mint, and a job already
+ * knows its own project, so answering 429 before a 404 leaks nothing.
+ */
+async function jobSprintRefusal(c: WorkerContext<ApiEnv>, github: ApiGitHub): Promise<Response | null> {
+  const identity = c.get('identity');
+  if (identity.kind !== 'job') {
+    return null;
+  }
+  const at = github.now();
+  const limit = await new RateLimitsRepo(c.env.DB).hit(
+    `job:${identity.jobId}:sprint`,
+    rateWindowOf(at, JOB_SPRINT_WINDOW_SECONDS),
+    JOB_SPRINT_READS_PER_WINDOW,
+  );
+  if (limit.allowed) {
+    return null;
+  }
+  c.get('logger').warn('job sprint budget exhausted', { jobId: identity.jobId });
+  return problem(c, {
+    type: 'rate-limited',
+    title: 'Too Many Requests',
+    status: 429,
+    retryAfter: retryAfterOf(at, JOB_SPRINT_WINDOW_SECONDS),
+  });
+}
 
 /**
  * `/api/v1/projects/:slug/{inbox,questions,sprint,requests,embed-origins,sprint-freeze}` (#35, #20, #219, #457; inbox
@@ -74,6 +111,10 @@ export function createProjectReadModelRoutes(github: ApiGitHub): Hono<WorkerHono
       return reads instanceof Response ? reads : c.json(await reads.questions());
     })
     .get('/:slug/sprint', async (c) => {
+      const refusal = await jobSprintRefusal(c, github);
+      if (refusal !== null) {
+        return refusal;
+      }
       const reads = await readsFor(c, github, new SubrequestBudget(SPRINT_GITHUB_BUDGET));
       if (reads instanceof Response) {
         return reads;
