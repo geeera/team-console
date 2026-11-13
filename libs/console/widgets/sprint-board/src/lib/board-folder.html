@@ -1,7 +1,7 @@
 <section class="folder" [class.folder--open]="open()" [attr.aria-labelledby]="headingId">
   <header class="folder__head">
     <!-- The kicker is part of the heading, so heading navigation reads «Next sprint Sprint 05». -->
-    <h2 class="folder__title" [id]="headingId" tabindex="-1">
+    <h2 #heading class="folder__title" [id]="headingId" tabindex="-1">
       <span class="folder__kicker">{{ kicker() | transloco }}</span>&ngsp;<span class="folder__name" dir="auto">{{
         folder().sprint ? name() : ('board.sections.backlogTitle' | transloco)
       }}</span>

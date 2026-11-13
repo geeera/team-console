@@ -32,6 +32,8 @@ export interface ProjectUiState {
   readonly chatDraft: string;
   readonly artifactFilter?: ArtifactFilter;
   readonly boardTab?: string;
+  /** Open board folders (#562), keyed like `BoardFolders.trackOf`: `sprint:12`, `backlog`. */
+  readonly boardFolders?: readonly string[];
   /** Per item number (#435). */
   readonly taskDrafts?: Readonly<Record<string, TaskDraft>>;
 }
@@ -113,6 +115,7 @@ export function isProjectUiState(value: unknown): value is ProjectUiState {
     typeof value['chatDraft'] === 'string' &&
     (value['artifactFilter'] === undefined || isArtifactFilter(value['artifactFilter'])) &&
     (value['boardTab'] === undefined || typeof value['boardTab'] === 'string') &&
+    (value['boardFolders'] === undefined || isStringArray(value['boardFolders'])) &&
     (value['taskDrafts'] === undefined || isTaskDrafts(value['taskDrafts']))
   );
 }

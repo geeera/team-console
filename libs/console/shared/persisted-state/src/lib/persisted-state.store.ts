@@ -112,6 +112,18 @@ export class PersistedStateStore {
     );
   }
 
+  /** Open board folders (#562): compared as a set, so toggling the same folders in another order never writes. */
+  setBoardFolders(slug: string, folders: readonly string[]): void {
+    this.updateProject(slug, (project) => {
+      const before = new Set(project.boardFolders ?? []);
+      const after = new Set(folders);
+      if (before.size === after.size && [...before].every((key) => after.has(key))) {
+        return project;
+      }
+      return { ...project, boardFolders: [...after] };
+    });
+  }
+
   taskDraftOf(slug: string, number: number): TaskDraft | undefined {
     return this.state().projects[slug]?.taskDrafts?.[String(number)];
   }

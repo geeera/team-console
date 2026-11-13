@@ -10,7 +10,8 @@ import { map } from 'rxjs';
 
 /**
  * `/p/:slug/board` (#18): the project's current sprint, read-only. The slug is the parent route's parameter; the
- * `canMatch` guard has already checked it is an active project. `?tab=pr|runs` opens the narrow layout on that tab.
+ * `canMatch` guard has already checked it is an active project. `?tab=pr|runs` opens the narrow layout on that tab;
+ * `?section=next|backlog` (#562) opens and focuses that folder.
  */
 @Component({
   selector: 'tc-board-section-page',
@@ -28,7 +29,12 @@ import { map } from 'rxjs';
       <tc-sprint-board [project]="project" [initialTab]="tab()" />
       @if (project.isOnConsoleTracker) {
         <!-- #557: the next sprints and the backlog, under the current sprint and its lists. -->
-        <tc-board-folders class="board-section__folders" [slug]="project.slug" (createSprint)="createSprint()" />
+        <tc-board-folders
+          class="board-section__folders"
+          [slug]="project.slug"
+          [initialSection]="section()"
+          (createSprint)="createSprint()"
+        />
       }
     }
   `,
@@ -62,6 +68,12 @@ export class BoardSectionPage {
   protected readonly tab = toSignal(this.route.queryParamMap.pipe(map((params) => params.get('tab'))), {
     initialValue: null,
   });
+
+  /** A deep link's `?section=next|backlog` (#562), read the same way; `BoardFolders` ignores anything else. */
+  protected readonly section = toSignal(
+    this.route.queryParamMap.pipe(map((params) => params.get('section'))),
+    { initialValue: null },
+  );
 
   /**
    * A console-tracker project (#435) plans its sprints here: Create a sprint. Its board reads the current sprint from

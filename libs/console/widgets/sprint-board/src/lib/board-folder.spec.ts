@@ -4,6 +4,13 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { itemFixture, ItemsApi, type ItemQuery, type TrackerRead } from '@console/entities/item';
 import { provideConsoleI18n } from '@console/shared/i18n';
+import {
+  emptyPersistedState,
+  emptyProjectUiState,
+  memoryPersistedStateStorage,
+  PERSISTED_STATE_STORAGE,
+  PersistedStateStore,
+} from '@console/shared/persisted-state';
 import type { ItemSummaryDto, TrackerSprintDto, TrackerSprintListDto } from '@shared/contracts';
 import { of } from 'rxjs';
 import { BoardFolder, FOLDER_LANE_PAGE, type BoardFolderSpec } from './board-folder';
@@ -54,11 +61,19 @@ class FolderHost {
 
 @Component({
   imports: [BoardFolders],
-  template: `<tc-board-folders slug="team-console" />`,
+  template: `<tc-board-folders [slug]="slug()" [initialSection]="initialSection()" />`,
 })
-class FoldersHost {}
+class FoldersHost {
+  readonly slug = signal('team-console');
+  readonly initialSection = signal<string | null>(null);
+}
 
-async function setup<T>(host: new () => T, fake = new FakeItems()) {
+async function setup<T>(
+  host: new () => T,
+  fake = new FakeItems(),
+  storage = memoryPersistedStateStorage(),
+  init?: (instance: T) => void,
+) {
   await TestBed.configureTestingModule({
     imports: [host],
     providers: [
@@ -66,16 +81,20 @@ async function setup<T>(host: new () => T, fake = new FakeItems()) {
       provideRouter([]),
       { provide: ItemsApi, useValue: fake },
       { provide: BreakpointObserver, useValue: wide },
+      { provide: PERSISTED_STATE_STORAGE, useValue: storage },
     ],
   }).compileComponents();
   await TestBed.inject(ApplicationInitStatus).donePromise;
   const fixture = TestBed.createComponent(host);
+  init?.(fixture.componentInstance);
   await fixture.whenStable();
   const root = fixture.nativeElement as HTMLElement;
   return {
     fake,
     fixture,
     root,
+    storage,
+    persisted: TestBed.inject(PersistedStateStore),
     // A fake read answers in a microtask; let it land before waiting for the render.
     settle: async () => {
       await new Promise((resolve) => setTimeout(resolve));
@@ -275,5 +294,78 @@ describe('BoardFolders (#557)', () => {
     await settle();
     expect(root.querySelector('[data-testid="folders-error"]')).toBeNull();
     expect(root.querySelectorAll('tc-board-folder')).toHaveLength(2);
+  });
+});
+
+describe('BoardFolders, remembered folders and the ?section= deep link (#562)', () => {
+  // Sprint 4 is the current sprint (earliest demo date) and never a folder; Sprint 5 is "next".
+  const list = (): TrackerSprintListDto => ({
+    sprints: [trackerSprint(4, '2026-11-27', 1), trackerSprint(5, '2026-12-11', 2)],
+    backlogOpenCount: 3,
+  });
+  const toggles = (root: HTMLElement) => [...root.querySelectorAll('[data-testid="folder-toggle"]')];
+
+  it('opens the folders remembered from a previous visit and loads them by itself', async () => {
+    const stored = memoryPersistedStateStorage(
+      JSON.stringify({
+        ...emptyPersistedState(),
+        projects: { 'team-console': { ...emptyProjectUiState(), boardFolders: ['sprint:5'] } },
+      }),
+    );
+    const fake = new FakeItems();
+    fake.sprintRead = { ok: true, value: list() };
+    const { root, fake: items, settle } = await setup(FoldersHost, fake, stored);
+    await settle();
+
+    expect(toggles(root).map((toggle) => toggle.getAttribute('aria-expanded'))).toEqual(['true', 'false']);
+    expect(items.calls).toHaveLength(1);
+    expect(items.calls[0]?.query).toEqual({ sprint: '5', state: 'open' });
+  });
+
+  it('persists an open or hidden folder by its key, as a set, so a reload keeps it', async () => {
+    const fake = new FakeItems();
+    fake.sprintRead = { ok: true, value: list() };
+    const { root, settle, persisted } = await setup(FoldersHost, fake);
+    await settle();
+
+    (toggles(root)[1] as HTMLButtonElement).click();
+    await settle();
+    persisted.flush();
+    expect(persisted.projectState('team-console')?.boardFolders).toEqual(['backlog']);
+
+    (toggles(root)[1] as HTMLButtonElement).click();
+    await settle();
+    persisted.flush();
+    expect(persisted.projectState('team-console')?.boardFolders).toEqual([]);
+  });
+
+  it('opens the ?section=backlog folder, loads it and focuses its heading', async () => {
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    const fake = new FakeItems();
+    fake.sprintRead = { ok: true, value: list() };
+    const { root, fake: items, settle } = await setup(FoldersHost, fake, memoryPersistedStateStorage(), (host) =>
+      host.initialSection.set('backlog'),
+    );
+    await settle();
+
+    const [nextToggle, backlogToggle] = toggles(root);
+    expect(nextToggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(backlogToggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(items.calls[0]?.query).toEqual({ sprint: 'none', state: 'open' });
+
+    const backlogHeading = root.querySelector('[data-folder="backlog"] h2') as HTMLElement;
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(document.activeElement).toBe(backlogHeading);
+  });
+
+  it('ignores a `?section=` other than next or backlog', async () => {
+    const fake = new FakeItems();
+    fake.sprintRead = { ok: true, value: list() };
+    const { root, settle } = await setup(FoldersHost, fake, memoryPersistedStateStorage(), (host) =>
+      host.initialSection.set('later'),
+    );
+    await settle();
+    expect(toggles(root).map((toggle) => toggle.getAttribute('aria-expanded'))).toEqual(['false', 'false']);
   });
 });
