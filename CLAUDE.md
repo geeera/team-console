@@ -604,6 +604,19 @@ Worker backfills it from a matching delivery, the api Worker through `ensureRepo
 so the adapter refuses a name that now points elsewhere; `?fresh=1` (and the first read of a number the console does
 not hold) is the account's — a job gets 403 `fresh-role` and the rows D1 holds.
 
+Runner (`apps/runner`, ADR 0008 row 2-B, #568–#572; operator guide `docs/runbooks/runner.md`): a Node 22 CLI bundled to
+one file with no runtime dependency (`bundle.spec.ts`) — `install`, `enrol`, `run-once`, `run --loop`, `update`,
+`version`. State lives in `TC_RUNNER_HOME` (`config.json`, `keys/`, `credentials/`, `state.json`, all 0600 under a
+home only its user may write); backends `user` (macOS job user via the one sudoers rule to `bin/job-exec`),
+`container` (one `--rm`, read-only container per job, image pinned by digest) and `none` (fixtures). Releases come
+only from `.github/workflows/release-runner.yml` on a `v*` tag (owner-only by ruleset; the `release` environment; no
+secrets): per-platform tarballs with `SHA256SUMS` and build-provenance attestations, the GHCR image signed with cosign
+keyless. The identity a release must carry is compiled into the binary (`apps/runner/src/update/release-identity.ts`;
+changing the repository, workflow path or ref shape is a security change) and `update` delegates the check to
+`gh attestation verify`; it refuses without `gh`, on a failed verification, a lower version, one below the console's
+`minimumVersion`, or `config.update.policy = off` (`update.spec.ts`). `TC_RUNNER_VERSION` stamps the version at build
+time (`build.mjs`). No agent pushes a `v*` tag or runs that workflow.
+
 Commands: `npx nx serve api` (builds the console, applies migrations, `wrangler dev` on :8787), `npx nx run
 api:migrate` (fresh local D1), `npx nx build api` (`tsc --noEmit` + `wrangler deploy --dry-run`), `docker build -t
 team-console . && docker run --rm -p 127.0.0.1:8787:8787 team-console` (the e2e target: same bundle, local D1, `:8787`).

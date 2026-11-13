@@ -47,7 +47,24 @@ export interface RunnerConfig {
   readonly repositories?: Readonly<Record<string, string>>;
   /** The `container` backend (ADR 0008 decision 12); `image` is required there and must be pinned by digest. */
   readonly container?: ContainerSettings;
+  /** Self-update (ADR 0008 decision 10); `policy` defaults to `notify`. */
+  readonly update?: UpdateSettings;
 }
+
+/**
+ * `off`: `update` refuses and the runner never looks; `notify`: the runner logs an available release and the operator
+ * runs `update`; `auto`: the runner applies a verified release itself when it can write its install directory.
+ */
+export const UPDATE_POLICIES = ['off', 'notify', 'auto'] as const;
+export type UpdatePolicy = (typeof UPDATE_POLICIES)[number];
+export const DEFAULT_UPDATE_POLICY: UpdatePolicy = 'notify';
+
+export interface UpdateSettings {
+  readonly policy: UpdatePolicy;
+}
+
+export const updatePolicyOf = (config: Pick<RunnerConfig, 'update'>): UpdatePolicy =>
+  config.update?.policy ?? DEFAULT_UPDATE_POLICY;
 
 export const CONTAINER_RUNTIMES = ['docker', 'podman', 'container'] as const;
 export type ContainerRuntime = (typeof CONTAINER_RUNTIMES)[number];
@@ -137,6 +154,7 @@ const CONFIG_KEYS = [
   'roles',
   'repositories',
   'container',
+  'update',
 ] as const;
 
 const TOOLCHAIN_PATH = /^\/[^:\0]*(?::\/[^:\0]*)*$/;
@@ -173,6 +191,7 @@ function parseJobSettings(value: Record<string, unknown>): Partial<RunnerConfig>
     roles?: RoleOverrides;
     repositories?: Record<string, string>;
     container?: ContainerSettings;
+    update?: UpdateSettings;
   } = {};
   if (value['credential'] !== undefined) {
     const credential = parseCredentialConfig(value['credential']);
@@ -243,6 +262,17 @@ function parseJobSettings(value: Record<string, unknown>): Partial<RunnerConfig>
   }
   if (value['container'] !== undefined) {
     settings.container = parseContainerSettings(value['container']);
+  }
+  const update = value['update'];
+  if (update !== undefined) {
+    if (
+      !isRecord(update) ||
+      Object.keys(update).join() !== 'policy' ||
+      !(UPDATE_POLICIES as readonly unknown[]).includes(update['policy'])
+    ) {
+      throw invalid(`update must be {policy: ${UPDATE_POLICIES.join('|')}}`);
+    }
+    settings.update = { policy: update['policy'] as UpdatePolicy };
   }
   return settings;
 }

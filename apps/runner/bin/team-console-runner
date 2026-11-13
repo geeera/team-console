@@ -1,0 +1,6 @@
+#!/bin/sh
+# team-console-runner: the launcher the release tarball puts on PATH (ADR 0008 decision 10). It runs the bundle next
+# to it with the `node` on PATH; the bundle reads its own directory, so `bin/job-exec` and `update` find the prefix.
+set -eu
+prefix=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
+exec node "$prefix/team-console-runner.mjs" "$@"

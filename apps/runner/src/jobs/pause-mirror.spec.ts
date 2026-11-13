@@ -102,4 +102,25 @@ describe('the pause mirrored to the console', () => {
     const far = mirroredPauseOf({ reason: 'usage-limit', until: '2026-11-14T12:00:00.000Z' }, now);
     expect(Date.parse(far.until) - now.getTime()).toBe(MAX_PAUSE_MS - 5 * 60_000);
   });
+
+  it('ends the loop before a claim when the auto-updater installed a release (update.policy = auto)', async () => {
+    let claims = 0;
+    const client = Object.assign(recordingConsole(), {
+      claim: async () => {
+        claims += 1;
+        return { kind: 'idle' as const, retryAfterSeconds: 60 };
+      },
+    });
+    const beforeClaim = vi.fn(async () => true);
+    expect(await runLoop('loop', depsFor(client, { beforeClaim }))).toBe('updated');
+    expect(beforeClaim).toHaveBeenCalledTimes(1);
+    expect(claims).toBe(0);
+  });
+
+  it('claims as usual when the auto-updater has nothing to install', async () => {
+    const client = Object.assign(recordingConsole(), {
+      claim: async () => ({ kind: 'idle' as const, retryAfterSeconds: 60 }),
+    });
+    expect(await runLoop('once', depsFor(client, { beforeClaim: async () => false }))).toBe('idle');
+  });
 });
