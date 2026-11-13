@@ -1,6 +1,5 @@
 D = dict(
   file='03-signal.html', num='03', name='Signal',
-  fonts='https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap',
   shared='''
   --font-display:"Bricolage Grotesque",-apple-system,system-ui,"Segoe UI",sans-serif;--font-body:"Figtree",-apple-system,system-ui,"Segoe UI",sans-serif;--font-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;--fw-display:700;
   --fs-xs:12px;--fs-sm:14px;--fs-md:15.5px;--fs-lg:19px;--fs-xl:25px;--fs-2xl:34px;--lh-body:1.5;--lh-tight:1.2;
