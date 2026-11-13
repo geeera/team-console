@@ -127,11 +127,17 @@ export class ItemsApi {
     );
   }
 
-  async items(slug: string, query: ItemQuery = {}): Promise<TrackerRead<ItemSummaryDto[]>> {
+  /** `whole`: a list longer than the page cap is an `error`, never a partial list (the board's counts, #556). */
+  async items(
+    slug: string,
+    query: ItemQuery = {},
+    whole = false,
+  ): Promise<TrackerRead<ItemSummaryDto[]>> {
     return this.pages(
       itemsUrl(slug),
       (body) => (isItemListDto(body) ? { rows: body.items, next: body.next } : null),
       query,
+      whole,
     );
   }
 
@@ -240,9 +246,11 @@ export class ItemsApi {
     url: string,
     pageOf: (body: unknown) => { readonly rows: readonly T[]; readonly next: number | null } | null,
     query: ItemQuery = {},
+    whole = false,
   ): Promise<TrackerRead<T[]>> {
     const rows: T[] = [];
     let after: number | null = null;
+    let isComplete = false;
     for (let page = 0; page < MAX_PAGES; page += 1) {
       let params = new HttpParams({ fromObject: { ...query, limit: String(PAGE_LIMIT) } });
       if (after !== null) {
@@ -260,10 +268,11 @@ export class ItemsApi {
       }
       rows.push(...read.rows);
       if (read.next === null) {
+        isComplete = true;
         break;
       }
       after = read.next;
     }
-    return { ok: true, value: rows };
+    return whole && !isComplete ? { ok: false, reason: 'error' } : { ok: true, value: rows };
   }
 }

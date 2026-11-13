@@ -55,8 +55,8 @@ export class BoardSectionPage {
   });
 
   /**
-   * A console-tracker project (#435) plans its sprints here: Create a sprint. The board itself is still #18's view of
-   * the GitHub sprint until #108 moves it onto the tracker.
+   * A console-tracker project (#435) plans its sprints here: Create a sprint. Its board reads the current sprint from
+   * the tracker (#556); a GitHub-mode project keeps #18's board.
    */
   protected readonly isTracker = computed(() => {
     const slug = this.slug();

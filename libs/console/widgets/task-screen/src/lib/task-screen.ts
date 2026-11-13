@@ -14,7 +14,6 @@ import {
   untracked,
 } from '@angular/core';
 import {
-  currentSprintOf,
   githubNumberOf,
   githubSourceUrlOf,
   historyOf,
@@ -32,7 +31,13 @@ import { ItemSprintPicker } from '@console/features/move-item';
 import { NetworkStatus } from '@console/shared/api';
 import { LocalDayPipe, LocalTimePipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, Chip, Icon, IconButton, Ledger, LedgerRow } from '@console/shared/ui';
-import type { AskDto, ItemDto, ItemSummaryDto, TrackerSprintDto } from '@shared/contracts';
+import {
+  currentSprintOf,
+  type AskDto,
+  type ItemDto,
+  type ItemSummaryDto,
+  type TrackerSprintDto,
+} from '@shared/contracts';
 import { decisionItemOf, TaskDecision } from './task-decision';
 import { TaskHistory } from './task-history';
 import { TaskNames } from './task-names';

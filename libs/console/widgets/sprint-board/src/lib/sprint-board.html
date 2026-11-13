@@ -21,9 +21,11 @@
 <section class="board__status" [attr.aria-labelledby]="titleId">
   <header class="board__head">
     <h2 class="board__title" [id]="titleId" dir="auto">{{ milestone.title }}</h2>
-    <tc-chip class="board__demo" tone="accent" data-testid="demo"
-      ><tc-icon name="calendar" size="sm" />{{ demoLine() }}</tc-chip
-    >
+    @if (demoLine()) {
+      <tc-chip class="board__demo" tone="accent" data-testid="demo"
+        ><tc-icon name="calendar" size="sm" />{{ demoLine() }}</tc-chip
+      >
+    }
     <div class="board__actions">
       <button
         tc-button

@@ -15,12 +15,11 @@ import {
   freezeDaysOrDefault,
   ItemsApi,
   newIdempotencyKey,
-  openSprintsOf,
   type FailedWrite,
 } from '@console/entities/item';
 import { localCalendarDayOf, pluralKeyOf, TranslocoService } from '@console/shared/i18n';
 import { Menu, PickerButton, Toaster } from '@console/shared/ui';
-import type { ItemDto, TrackerSprintDto } from '@shared/contracts';
+import { openSprintsOf, type ItemDto, type TrackerSprintDto } from '@shared/contracts';
 import { moveMenuOf, moveTargetOf, SPRINT_CAP, type MoveTarget } from './move-menu';
 
 /**

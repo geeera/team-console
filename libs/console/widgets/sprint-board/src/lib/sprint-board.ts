@@ -18,6 +18,7 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
+import { ItemsApi, type TrackerRead } from '@console/entities/item';
 import { JOBS_TILE_ICONS, JobsStore } from '@console/entities/job';
 import { NeedsYouCounts, ProjectSetupLink, spaceUrlOf } from '@console/entities/project';
 import { RunnersStore } from '@console/entities/runner';
@@ -37,7 +38,9 @@ import {
   STATUS_ORDER,
   statusColumnsOf,
   TEAM_RUN_ICONS,
+  trackerSprintPartOf,
   UnexpectedSprintResponse,
+  type TrackerSprintPart,
 } from '@console/entities/sprint';
 import { RequestChange } from '@console/features/request-change';
 import { SprintControls } from '@console/features/sprint-controls';
@@ -69,6 +72,7 @@ import {
   Tabs,
   Toaster,
 } from '@console/shared/ui';
+import { currentSprintOf } from '@shared/contracts';
 import { map } from 'rxjs';
 import { BoardJobs } from './board-jobs';
 
@@ -134,6 +138,23 @@ export function hiddenCountOf(items: readonly unknown[]): number {
 }
 
 export type BoardFailure = 'rate-limited' | 'not-installed' | 'offline' | 'unavailable';
+
+type TrackerReadFailure = Extract<TrackerRead<never>, { ok: false }>['reason'];
+
+/** A tracker read of the board (#556) that did not answer; the board shows it as its own failure states. */
+class TrackerBoardReadError extends Error {
+  constructor(readonly reason: TrackerReadFailure) {
+    super(`tracker board read failed: ${reason}`);
+    this.name = 'TrackerBoardReadError';
+  }
+}
+
+function trackerValueOf<T>(read: TrackerRead<T>): T {
+  if (!read.ok) {
+    throw new TrackerBoardReadError(read.reason);
+  }
+  return read.value;
+}
 
 type BoardState =
   | { readonly kind: 'loading' }
@@ -201,6 +222,7 @@ type TileTarget = 'pulls' | 'runs' | 'questions';
 })
 export class SprintBoard {
   private readonly api = inject(SprintApi);
+  private readonly items = inject(ItemsApi);
   private readonly transloco = inject(TranslocoService);
   private readonly errors = inject(ErrorHandler);
   private readonly sprintControls = inject(SprintControls);
@@ -343,7 +365,7 @@ export class SprintBoard {
   protected readonly demoLine = computed(() => {
     const lang = this.lang();
     const milestone = this.board()?.milestone;
-    if (milestone === null || milestone === undefined) {
+    if (milestone === null || milestone === undefined || milestone.dueOn === null) {
       return '';
     }
     const date = localDayOf(demoDayOf(milestone.dueOn), lang);
@@ -557,7 +579,7 @@ export class SprintBoard {
     const token = ++this.loadToken;
     this.clearRetry();
     try {
-      const board = await this.api.current(slug);
+      const board = await this.boardOf(slug);
       if (token === this.loadToken) {
         this.state.set({ kind: 'ready', board });
       }
@@ -575,7 +597,32 @@ export class SprintBoard {
     }
   }
 
+  /**
+   * A console-tracker project's sprint and its tasks come from the tracker (#556), so moves made in the console show
+   * here; its pull requests (and the run log, unused beside the jobs) still come from `/sprint`.
+   */
+  private async boardOf(slug: string): Promise<SprintBoardModel> {
+    if (!this.isJobsBoard()) {
+      return this.api.current(slug);
+    }
+    const [board, part] = await Promise.all([this.api.current(slug), this.trackerSprint(slug)]);
+    return { ...board, ...part };
+  }
+
+  /** Open and closed items of the current sprint (Done is a lane, as on #18), every page of them. */
+  private async trackerSprint(slug: string): Promise<TrackerSprintPart> {
+    const current = currentSprintOf(trackerValueOf(await this.items.sprints(slug)));
+    if (current === null) {
+      return trackerSprintPartOf(null, []);
+    }
+    const query = { sprint: String(current.number), state: 'all' };
+    return trackerSprintPartOf(current, trackerValueOf(await this.items.items(slug, query, true)));
+  }
+
   private failureOf(error: unknown): { failure: BoardFailure; retryAt: number | null } {
+    if (error instanceof TrackerBoardReadError) {
+      return { failure: error.reason === 'offline' ? 'offline' : 'unavailable', retryAt: null };
+    }
     if (!(error instanceof HttpErrorResponse)) {
       // A bad response shape, or a bug: the board shows the generic failure and the error handler gets the cause.
       if (!(error instanceof UnexpectedSprintResponse)) {

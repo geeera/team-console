@@ -115,9 +115,10 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/projects', createNotificationsRoutes(github));
   v1.route('/projects', createSprintCommandsRoutes(github));
   v1.route('/projects', createOwnerRequestRoutes(github));
-  // The console's own tracker (#410, #434, ADR 0006): D1 only, it never calls GitHub. Every route passes its row of
-  // the route matrix (`auth/tracker-matrix.ts`); a job identity exists only under the local bypass until Phase 2.
-  v1.route('/projects', createTrackerItemRoutes());
+  // The console's own tracker (#410, #434, ADR 0006): D1 only, except project.yml's freeze length for a move into a
+  // sprint near its demo (#556). Every route passes its row of the route matrix (`auth/tracker-matrix.ts`); a job
+  // identity exists only under the local bypass until Phase 2.
+  v1.route('/projects', createTrackerItemRoutes(github));
   v1.route('/projects', createTrackerCommentRoutes());
   v1.route('/projects', createTrackerSprintRoutes());
   v1.route('/projects', createTrackerLabelRoutes());
