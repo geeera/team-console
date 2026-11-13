@@ -1341,7 +1341,7 @@ describe('SprintBoard', () => {
 
     function trackerSprint(number: number, dueOn: string | null, state: 'open' | 'closed' = 'open'): TrackerSprintDto {
       const title = `Sprint ${String(number).padStart(2, '0')}`;
-      return { number, title, dueOn, state, description: '', createdAt: '2026-11-01T00:00:00Z', closedAt: null };
+      return { number, title, dueOn, state, description: '', createdAt: '2026-11-01T00:00:00Z', closedAt: null, openCount: 0 };
     }
 
     const tracked = (number: number, overrides: Partial<ItemSummaryDto> = {}): ItemSummaryDto =>

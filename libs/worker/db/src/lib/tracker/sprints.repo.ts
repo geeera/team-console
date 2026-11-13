@@ -55,6 +55,12 @@ const toRecord = (row: SprintRow): SprintRecord => ({
   closedAt: row.closed_at,
 });
 
+/** Open items per sprint id and the open items in no sprint. */
+export interface OpenItemCounts {
+  readonly bySprintId: ReadonlyMap<number, number>;
+  readonly backlog: number;
+}
+
 /** A project's sprints (migration 0013), numbered per project like `backlog sprint create`'s `Sprint NN`. */
 export class SprintsRepo {
   constructor(private readonly db: D1Database) {}
@@ -68,6 +74,27 @@ export class SprintsRepo {
       .bind(slug, state)
       .all<SprintRow>();
     return results.map(toRecord);
+  }
+
+  /** One grouped query over the project's open items (`closed_at IS NULL`); a sprint without open items is absent. */
+  async openItemCounts(slug: string): Promise<OpenItemCounts> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT sprint_id, COUNT(*) AS open_count FROM items
+         WHERE project_slug = ?1 AND closed_at IS NULL GROUP BY sprint_id`,
+      )
+      .bind(slug)
+      .all<{ sprint_id: number | null; open_count: number }>();
+    const bySprintId = new Map<number, number>();
+    let backlog = 0;
+    for (const row of results) {
+      if (row.sprint_id === null) {
+        backlog = row.open_count;
+      } else {
+        bySprintId.set(row.sprint_id, row.open_count);
+      }
+    }
+    return { bySprintId, backlog };
   }
 
   async findByNumber(slug: string, number: number): Promise<SprintRecord | null> {

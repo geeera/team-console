@@ -35,7 +35,8 @@ async function sprintResponse(
   number: number,
   status: 200 | 201,
 ): Promise<Response> {
-  const sprint = await new SprintsRepo(c.env.DB).findByNumber(project.slug, number);
+  const repo = new SprintsRepo(c.env.DB);
+  const sprint = await repo.findByNumber(project.slug, number);
   if (sprint === null) {
     return sprintNotFound(c);
   }
@@ -43,7 +44,8 @@ async function sprintResponse(
   if (status === 201) {
     c.header('Location', `/api/v1/projects/${project.slug}/sprints/${String(number)}`);
   }
-  return c.json(sprintDtoOf(sprint), status);
+  const counts = await repo.openItemCounts(project.slug);
+  return c.json(sprintDtoOf(sprint, counts.bySprintId.get(sprint.id) ?? 0), status);
 }
 
 /**
@@ -68,8 +70,12 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       if (state !== 'all' && !isSprintState(state)) {
         return invalid(c, 'query-invalid', 'state', 'state is open, closed or all');
       }
-      const sprints = await new SprintsRepo(c.env.DB).list(project.slug, state);
-      const body: TrackerSprintListDto = { sprints: sprints.map(sprintDtoOf) };
+      const repo = new SprintsRepo(c.env.DB);
+      const [sprints, counts] = await Promise.all([repo.list(project.slug, state), repo.openItemCounts(project.slug)]);
+      const body: TrackerSprintListDto = {
+        sprints: sprints.map((sprint) => sprintDtoOf(sprint, counts.bySprintId.get(sprint.id) ?? 0)),
+        backlogOpenCount: counts.backlog,
+      };
       c.header('Cache-Control', 'no-store');
       return c.json(body);
     })
