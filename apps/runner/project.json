@@ -1,0 +1,19 @@
+{
+  "name": "runner",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/runner/src",
+  "tags": ["type:app", "scope:runner"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["production", "^production"],
+      "outputs": ["{workspaceRoot}/dist/apps/runner"],
+      "options": {
+        "commands": ["tsc -p apps/runner/tsconfig.app.json --noEmit", "node apps/runner/build.mjs"],
+        "parallel": false
+      }
+    }
+  }
+}

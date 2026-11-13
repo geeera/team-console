@@ -33,6 +33,8 @@ export const layerConstraints = [
 export const scopeConstraints = [
   { sourceTag: 'scope:console', onlyDependOnLibsWithTags: ['scope:console', 'scope:shared'] },
   { sourceTag: 'scope:worker', onlyDependOnLibsWithTags: ['scope:worker', 'scope:shared'] },
+  // The runner on the customer's host (ADR 0008 decision 1): shared contracts and redaction, never Worker code.
+  { sourceTag: 'scope:runner', onlyDependOnLibsWithTags: ['scope:runner', 'scope:shared'] },
   { sourceTag: 'scope:shared', onlyDependOnLibsWithTags: ['scope:shared'] },
   { sourceTag: 'scope:tooling', onlyDependOnLibsWithTags: ['scope:tooling'] },
 ];
