@@ -96,6 +96,8 @@ export default defineConfig(async () => {
             MIGRATION_DB_0025: 'migration-steps-0025',
             // #545: 0026's sprint title index over a database that already holds titles repeated in another case.
             MIGRATION_DB_0026: 'migration-steps-0026',
+            // #554: 0027's re-key of title_key over rows 0026 left untrimmed.
+            MIGRATION_DB_0027: 'migration-steps-0027',
           },
           bindings: {
             TEST_MIGRATIONS: await readD1Migrations(resolve(import.meta.dirname, 'migrations')),
