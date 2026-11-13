@@ -21,6 +21,8 @@ declare global {
       MIGRATION_DB_0026: D1Database;
       /** Another, for 0027's trimmed re-key of sprint title keys (#554). */
       MIGRATION_DB_0027: D1Database;
+      /** Another, for 0028's runner pause columns over an existing runner (#571). */
+      MIGRATION_DB_0028: D1Database;
       /** Another, for 0029's rank backfill and `item_events` rebuild (#456). */
       MIGRATION_DB_0029: D1Database;
       /** Public half of the generated test app key (vitest.config.mts), to verify the app JWT. */

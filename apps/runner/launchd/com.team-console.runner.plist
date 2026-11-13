@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.team-console.runner</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/node</string>
+    <string>/usr/local/lib/team-console-runner/team-console-runner.mjs</string>
+    <string>run</string>
+    <string>--loop</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>TC_RUNNER_HOME</key><string>/Users/_tcrunner</string>
+    <key>HOME</key><string>/Users/_tcrunner</string>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>WorkingDirectory</key><string>/Users/_tcrunner</string>
+  <key>Umask</key><integer>23</integer>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>StandardOutPath</key><string>/Users/_tcrunner/logs/runner.log</string>
+  <key>StandardErrorPath</key><string>/Users/_tcrunner/logs/runner.log</string>
+  <key>UserName</key><string>_tcrunner</string>
+  <key>GroupName</key><string>_tcjob</string>
+</dict>
+</plist>

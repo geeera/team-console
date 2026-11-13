@@ -85,6 +85,7 @@ describe('migrations on a fresh D1', () => {
       '0025_pr_link_unique.sql',
       '0026_sprint_title_unique.sql',
       '0027_sprint_title_key_followups.sql',
+      '0028_runner_pause.sql',
       '0029_item_rank.sql',
     ]);
   });
@@ -747,6 +748,54 @@ describe('the 0027 sprint title key follow-ups', () => {
     await expect(
       update(`UPDATE sprints SET title = 'Plain', title_key = 'checkout' WHERE number = 5`),
     ).rejects.toThrow(/UNIQUE constraint failed/);
+  });
+});
+
+// #571: 0028 adds the runner's pause to a table that already holds runners; both columns or neither.
+describe('the 0028 runner pause', () => {
+  const T0 = '2026-11-01T00:00:00.000Z';
+  const RUNNER = '01M6YSNJ0000000000000M28R1';
+  const UNTIL = '2026-11-01T05:00:00.000Z';
+
+  it('leaves an existing runner unpaused, then takes a pause only as a known reason with a UTC time', async () => {
+    const db = env.MIGRATION_DB_0028;
+    await applyD1Migrations(
+      db,
+      env.TEST_MIGRATIONS.filter((migration) => migration.name < '0028'),
+    );
+    await db
+      .prepare(
+        `INSERT INTO runners (id, account_id, name, public_key_jwk, isolation, version, enrolled_at)
+         VALUES (?1, ?2, 'mac', ?3, 'user', '0.1.0', ?4)`,
+      )
+      .bind(RUNNER, OWNER_ACCOUNT_ID, JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43) }), T0)
+      .run();
+
+    await applyD1Migrations(db, env.TEST_MIGRATIONS);
+
+    const read = () =>
+      db
+        .prepare(`SELECT paused_until, pause_reason FROM runners WHERE id = ?1`)
+        .bind(RUNNER)
+        .first<{ paused_until: string | null; pause_reason: string | null }>();
+    expect(await read()).toEqual({ paused_until: null, pause_reason: null });
+
+    const write = (until: string | null, reason: string | null) =>
+      db
+        .prepare(`UPDATE runners SET paused_until = ?2, pause_reason = ?3 WHERE id = ?1`)
+        .bind(RUNNER, until, reason)
+        .run();
+    for (const reason of ['usage-limit', 'rate-limit', 'manual']) {
+      await write(UNTIL, reason);
+      expect(await read()).toEqual({ paused_until: UNTIL, pause_reason: reason });
+    }
+    await write(null, null);
+    await expect(write(UNTIL, null)).rejects.toThrow(/CHECK constraint failed/);
+    await expect(write(null, 'manual')).rejects.toThrow(/CHECK constraint failed/);
+    await expect(write(UNTIL, 'spend-cap')).rejects.toThrow(/CHECK constraint failed/);
+    await expect(write('2026-11-01 05:00:00', 'manual')).rejects.toThrow(/CHECK constraint failed/);
+    await expect(write('soon', 'manual')).rejects.toThrow(/CHECK constraint failed/);
+    expect(await read()).toEqual({ paused_until: null, pause_reason: null });
   });
 });
 

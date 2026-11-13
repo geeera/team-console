@@ -277,7 +277,9 @@ export class JobsRepo {
    * pulled, of the runner's account, of a project in the runner's allow-list, not of a suspended account, an
    * archived or paused project, not `needs_local` for a remote runner, and the placement policy admits this runner
    * now — `any`; `pinned` to it; `failover` as the preferred, or as a fallback while the preferred is revoked or
-   * silent past `offline_after_seconds`. Highest priority, then oldest.
+   * silent past `offline_after_seconds`. Highest priority, then oldest. The runner itself must not be paused (#571)
+   * and must hold fewer live jobs than its `capabilities.maxConcurrency`, judged in this same statement so two polls
+   * of one runner never both pass the count (threat model C4 "rogue runner").
    *
    * The allow-list and `revoked_at` are read from the stored runner row here, never taken from the caller: a
    * narrowing or revoke that commits between the poll's authentication and this claim must win (#543).
@@ -300,6 +302,12 @@ export class JobsRepo {
                WHERE r.id = ?1 AND r.account_id = ?5 AND r.revoked_at IS NULL)
              AND (j.needs_local = 0 OR ?6 = 1)
              AND t.paused_at IS NULL
+             AND EXISTS (
+               SELECT 1 FROM runners me
+               WHERE me.id = ?1
+                 AND (me.paused_until IS NULL OR julianday(me.paused_until) <= julianday(?2))
+                 AND (SELECT COUNT(*) FROM jobs held WHERE held.runner_id = ?1 AND held.state IN ('claimed', 'running'))
+                     < COALESCE(json_extract(me.capabilities, '$.maxConcurrency'), 1))
              AND (
                ${POLICY} IS NULL
                OR json_extract(${POLICY}, '$.mode') = 'any'

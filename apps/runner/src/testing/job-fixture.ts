@@ -3,7 +3,7 @@ import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import type { FinishJobInput, JobEventInput } from '@shared/contracts';
+import type { FinishJobInput, JobEventInput, PauseRunnerInput } from '@shared/contracts';
 import type { RunnerConfig } from '../config/config';
 import { removeTree } from '../git/workspace';
 import type { JobConsole } from '../jobs/run-job';
@@ -84,12 +84,23 @@ export function recordingConsole(): JobConsole & {
   finished: FinishJobInput[];
   heartbeats: number;
   onFinish: (() => void) | null;
+  /** What the loop mirrored to the console (#571), in order: a pause, or `'resume'`. */
+  pauses: (PauseRunnerInput | 'resume')[];
+  pause(input: PauseRunnerInput): Promise<void>;
+  resume(): Promise<void>;
 } {
   const fake = {
     sent: [] as JobEventInput[],
     finished: [] as FinishJobInput[],
     heartbeats: 0,
     onFinish: null as (() => void) | null,
+    pauses: [] as (PauseRunnerInput | 'resume')[],
+    pause: async (input: PauseRunnerInput) => {
+      fake.pauses.push(input);
+    },
+    resume: async () => {
+      fake.pauses.push('resume');
+    },
     events: async (_jobId: string, events: readonly JobEventInput[]) => {
       if (events.length > 50) {
         throw new Error('a batch over 50 events');

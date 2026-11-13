@@ -75,6 +75,32 @@ describe('RunnerCard', () => {
     expect(revoked.querySelector('[data-testid="runner-behind"]')).toBeNull();
   });
 
+  // #571: a pause says why and until when; it outranks online/offline (a paused runner stops polling) but not suspect.
+  it('says paused with the reason and the local time it resumes', async () => {
+    const until = '2026-11-11T14:30:00.000Z';
+    const root = await render(runnerFixture({ online: false, pause: { reason: 'usage-limit', until } }));
+    expect(text(root, 'runner-presence')).toBe('Приостановлен');
+    const note = root.querySelector('[data-testid="runner-pause"]');
+    expect(note?.getAttribute('data-reason')).toBe('usage-limit');
+    expect(note?.textContent).toContain('Исчерпан лимит использования Claude');
+    expect(note?.querySelector('time')?.getAttribute('datetime')).toBe(until);
+    expect(note?.textContent).toMatch(/Продолжит 11 ноября, \d{2}:\d{2}\./);
+    TestBed.resetTestingModule();
+
+    const rate = await render(runnerFixture({ pause: { reason: 'rate-limit', until } }));
+    expect(text(rate, 'runner-pause')).toContain('ограничивает частоту запросов');
+    TestBed.resetTestingModule();
+
+    const suspect = await render(
+      runnerFixture({ suspect: { at: '2026-11-11T09:00:00.000Z', reason: 'two-pollers' }, pause: { reason: 'manual', until } }),
+    );
+    expect(text(suspect, 'runner-presence')).toBe('Требует проверки');
+    expect(text(suspect, 'runner-pause')).toContain('Приостановлен на своей машине');
+    TestBed.resetTestingModule();
+
+    expect((await render(runnerFixture())).querySelector('[data-testid="runner-pause"]')).toBeNull();
+  });
+
   it('says a runner with no projects takes no jobs', async () => {
     expect(text(await render(runnerFixture({ allowedProjects: [] })), 'runner-projects')).toBe(
       'ни одного — раннер не возьмёт задания',

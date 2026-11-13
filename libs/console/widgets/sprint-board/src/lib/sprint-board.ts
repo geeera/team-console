@@ -22,7 +22,7 @@ import { Router } from '@angular/router';
 import { ItemsApi, TrackerFailureBlock, type FailedWrite, type TrackerRead } from '@console/entities/item';
 import { JOBS_TILE_ICONS, JobsStore } from '@console/entities/job';
 import { NeedsYouCounts, ProjectSetupLink, spaceUrlOf } from '@console/entities/project';
-import { RunnersStore } from '@console/entities/runner';
+import { projectPauseOf, RunnersStore } from '@console/entities/runner';
 import {
   ciSummaryOf,
   daysUntilDemo,
@@ -342,11 +342,23 @@ export class SprintBoard {
   protected readonly runnerNames = computed(
     () => new Map(this.runners.runners().map((runner) => [runner.id, runner.name] as const)),
   );
+  /**
+   * Every runner that may serve the project is paused on a usage or rate limit (#571): the tile says so and until
+   * when, unless a job is running anyway. Only the account's owner reads runners, so a member never sees it.
+   */
+  protected readonly jobsPause = computed(() =>
+    this.isJobsBoard() ? projectPauseOf(this.runners.runners(), this.project().slug) : null,
+  );
+  /** The tile's state as shown: `paused` over everything but a running job. */
+  protected readonly jobsTileShown = computed(() => {
+    const state = this.jobsTileState();
+    return this.jobsPause() !== null && state !== 'running' ? 'paused' : state;
+  });
   /** The "Run log" tile (#132): the team as the plugin's `runstate` reads the run log, or the job queue (#464). */
   protected readonly teamIcon = computed(() => {
     if (this.isJobsBoard()) {
-      const state = this.jobsTileState();
-      return state === 'unknown' ? TEAM_RUN_ICONS.unknown : JOBS_TILE_ICONS[state];
+      const state = this.jobsTileShown();
+      return state === 'paused' ? 'pause' : state === 'unknown' ? TEAM_RUN_ICONS.unknown : JOBS_TILE_ICONS[state];
     }
     return TEAM_RUN_ICONS[this.board()?.team.state ?? 'unknown'];
   });
@@ -360,6 +372,10 @@ export class SprintBoard {
   });
   protected readonly teamValue = computed(() => {
     this.lang();
+    const pause = this.jobsPause();
+    if (this.isJobsBoard() && pause !== null && this.jobsTileShown() === 'paused') {
+      return this.transloco.translate(`jobs.tile.paused.${pause.reason}`, { time: localTimeOf(pause.until, this.lang()) });
+    }
     if (this.isJobsBoard()) {
       const state = this.jobsTileState();
       const tile = this.jobs.tile();

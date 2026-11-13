@@ -100,6 +100,33 @@ jobs:
           npx nx run api:migrate
           npx nx run api:migrate
 
+  # #570 (architect note on #468, decision 13): plant-then-verify on the runner's `container` backend against this
+  # machine's real Docker daemon — the runner image plus the fake CLI, two jobs through the real job loop, and a mount
+  # probe. Its own job, so the image build never pushes lint-test-build past its timeout.
+  runner-container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-node-npm
+
+      - run: npm ci
+
+      - name: Build the runner image and the fake-CLI layer
+        run: |
+          set -euo pipefail
+          docker build --file apps/runner/Dockerfile --tag tc-runner:ci .
+          printf 'FROM tc-runner:ci\nCOPY --chown=root:root --chmod=0555 apps/runner/fixtures/claude-fake.mjs /opt/fixtures/claude-fake.mjs\n' \
+            | docker build --file - --tag tc-runner:ci-fake .
+
+      - name: Plant-then-verify on the container backend
+        env:
+          TC_RUNNER_TEST_IMAGE: tc-runner:ci-fake
+        run: npx vitest run --config apps/runner/vitest.config.mts src/integration/container.integration.spec.ts
+
   # #14: the Playwright suite (apps/console-e2e) on every PR, whatever it touches — it is the regression guard for
   # the demo path. Each Playwright worker starts its own fake GitHub and the api bundle on a fresh local D1 (the
   # same `wrangler dev dist/apps/api/main.js` the Docker image runs); nothing reaches GitHub or Cloudflare.

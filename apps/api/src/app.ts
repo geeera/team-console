@@ -8,6 +8,7 @@ import { createAccountRoutes } from './routes/accounts';
 import { createAccountRunnerRoutes } from './routes/account-runners';
 import { createRunnerRoutes } from './routes/runner';
 import { createRunnerJobRoutes } from './routes/runner-jobs';
+import { createRunnerPauseRoutes } from './routes/runner-pause';
 import { createJobRoutes } from './routes/jobs';
 import type { ApiEnv } from './env';
 import { ApiGitHub, mapGitHubError } from './github';
@@ -150,6 +151,8 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   // The queue (#467): the owner's Run now and the reads behind the matrix; the runner's claim, heartbeat, events, finish.
   v1.route('/projects', createJobRoutes());
   v1.route('/runner', createRunnerJobRoutes());
+  // The runner's own pause on a usage or rate limit (#571): the claim skips it until `until`.
+  v1.route('/runner', createRunnerPauseRoutes());
   app.route('/api/v1', v1);
 
   return app;

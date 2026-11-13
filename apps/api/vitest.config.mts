@@ -98,6 +98,8 @@ export default defineConfig(async () => {
             MIGRATION_DB_0026: 'migration-steps-0026',
             // #554: 0027's re-key of title_key over rows 0026 left untrimmed.
             MIGRATION_DB_0027: 'migration-steps-0027',
+            // #571: 0028's runner pause columns over a runner enrolled before them.
+            MIGRATION_DB_0028: 'migration-steps-0028',
             // #456: 0029's rank backfill and item_events rebuild over existing items and events.
             MIGRATION_DB_0029: 'migration-steps-0029',
           },

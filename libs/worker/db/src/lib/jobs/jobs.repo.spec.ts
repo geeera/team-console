@@ -46,13 +46,30 @@ async function project(accountId: string, policy: string | null = null): Promise
   return slug;
 }
 
-async function runner(accountId: string, allowed: readonly string[], lastSeenAt: string | null = null): Promise<string> {
+/**
+ * A runner row. `maxConcurrency` defaults high so the placement specs, which claim several jobs with one runner, judge
+ * placement alone; the concurrency specs (#571) set it.
+ */
+async function runner(
+  accountId: string,
+  allowed: readonly string[],
+  lastSeenAt: string | null = null,
+  maxConcurrency = 8,
+): Promise<string> {
   const id = ulid('RN');
   await env.DB.prepare(
-    `INSERT INTO runners (id, account_id, name, public_key_jwk, isolation, allowed_projects, version, enrolled_at, last_seen_at)
-     VALUES (?1, ?2, 'r', ?3, 'user', ?4, '0.1.0', ?5, ?6)`,
+    `INSERT INTO runners (id, account_id, name, public_key_jwk, capabilities, isolation, allowed_projects, version, enrolled_at, last_seen_at)
+     VALUES (?1, ?2, 'r', ?3, ?7, 'user', ?4, '0.1.0', ?5, ?6)`,
   )
-    .bind(id, accountId, JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43) }), JSON.stringify(allowed), T0, lastSeenAt)
+    .bind(
+      id,
+      accountId,
+      JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43) }),
+      JSON.stringify(allowed),
+      T0,
+      lastSeenAt,
+      JSON.stringify({ local: true, maxConcurrency }),
+    )
     .run();
   return id;
 }
@@ -164,6 +181,100 @@ describe('JobsRepo.claim', () => {
     await new RunnersRepo(env.DB).revoke(ACCOUNT_A, r, T1, { ...audit('runner.revoked'), target: r }, jobs.cancelForRunnerStatements(r, T1));
     expect(await claimAs(r, { tokenHash: '5b'.repeat(32) })).toBeNull();
     expect(await jobs.findById(id)).toMatchObject({ state: 'queued', runnerId: null });
+  });
+});
+
+// #571, threat model C4 "rogue runner": the pause and the concurrency cap are judged inside the one claim UPDATE.
+describe('JobsRepo.claim: runner pause and maxConcurrency', () => {
+  const runners = new RunnersRepo(env.DB);
+  const pauseAudit = (target: string, accountId = ACCOUNT_A): NewAuditEvent => ({ ...audit('runner.paused', accountId), target });
+  // A prefix no other spec of this file uses: the token index is unique across the whole file's jobs.
+  const token = (n: number): string => `c0de${n.toString(16)}`.padEnd(64, '0');
+
+  it('a runner at maxConcurrency claims no further job until one ends', async () => {
+    const slug = await project(ACCOUNT_A);
+    const first = await enqueue(slug);
+    const second = await enqueue(slug);
+    const r = await runner(ACCOUNT_A, [slug], null, 1);
+    expect(((await claimAs(r, { tokenHash: token(1) })) as { id: string }).id).toBe(first);
+    expect(await claimAs(r, { tokenHash: token(2) })).toBeNull();
+    expect(await jobs.findById(second)).toMatchObject({ state: 'queued', runnerId: null });
+
+    expect(await jobs.finish(first, r, { result: 'finished', summary: 's', metrics: {}, acted: false }, T1, { ...audit('job.finished'), target: first })).toBe(true);
+    expect(((await claimAs(r, { tokenHash: token(3) })) as { id: string }).id).toBe(second);
+  });
+
+  it('counts claimed and running jobs against a cap above one', async () => {
+    const slug = await project(ACCOUNT_A);
+    const ids = [await enqueue(slug), await enqueue(slug), await enqueue(slug)];
+    const r = await runner(ACCOUNT_A, [slug], null, 2);
+    expect(await claimAs(r, { tokenHash: token(4) })).not.toBeNull();
+    expect(await jobs.appendEvents(ids[0] ?? '', r, [{ level: 'info', kind: 'started', payload: {} }], T1)).toMatchObject({ held: true });
+    expect(await claimAs(r, { tokenHash: token(5) })).not.toBeNull();
+    expect(await claimAs(r, { tokenHash: token(6) })).toBeNull();
+    expect((await jobs.findById(ids[2] ?? ''))?.state).toBe('queued');
+  });
+
+  it('a capabilities row without maxConcurrency counts as one', async () => {
+    const slug = await project(ACCOUNT_A);
+    await enqueue(slug);
+    await enqueue(slug);
+    const r = await runner(ACCOUNT_A, [slug]);
+    await env.DB.prepare(`UPDATE runners SET capabilities = '{}' WHERE id = ?1`).bind(r).run();
+    expect(await claimAs(r, { tokenHash: token(7) })).not.toBeNull();
+    expect(await claimAs(r, { tokenHash: token(8) })).toBeNull();
+  });
+
+  it('two concurrent polls of one runner at maxConcurrency 1 take one job, not two', async () => {
+    const slug = await project(ACCOUNT_A);
+    const ids = [await enqueue(slug), await enqueue(slug)];
+    const r = await runner(ACCOUNT_A, [slug], null, 1);
+    const both = await Promise.all([claimAs(r, { tokenHash: token(9) }), claimAs(r, { tokenHash: token(10) })]);
+    expect(both.filter((row) => row !== null)).toHaveLength(1);
+    const states = await Promise.all(ids.map(async (id) => (await jobs.findById(id))?.state));
+    expect(states.sort()).toEqual(['claimed', 'queued']);
+  });
+
+  it('two runners racing for one job: one takes it, and the cap of one never blocks the other', async () => {
+    const slug = await project(ACCOUNT_A);
+    const id = await enqueue(slug);
+    const mac = await runner(ACCOUNT_A, [slug], null, 1);
+    const vps = await runner(ACCOUNT_A, [slug], null, 1);
+    const both = await Promise.all([claimAs(mac, { tokenHash: token(11) }), claimAs(vps, { tokenHash: token(12) })]);
+    expect(both.filter((row) => row !== null)).toHaveLength(1);
+    const holder = (await jobs.findById(id))?.runnerId;
+    const idle = holder === mac ? vps : mac;
+    const next = await enqueue(slug);
+    expect(((await claimAs(idle, { tokenHash: token(13) })) as { id: string }).id).toBe(next);
+  });
+
+  it('a paused runner claims nothing until its time has passed; the other runner of the account still does', async () => {
+    const slug = await project(ACCOUNT_A);
+    const id = await enqueue(slug);
+    const paused = await runner(ACCOUNT_A, [slug]);
+    const other = await runner(ACCOUNT_A, [slug]);
+    expect(await runners.pause(ACCOUNT_A, paused, { reason: 'usage-limit', until: '2026-11-10T11:00:00.000Z' }, pauseAudit(paused))).toBe(true);
+    expect(await claimAs(paused, { tokenHash: token(14) })).toBeNull();
+    expect(await jobs.findById(id)).toMatchObject({ state: 'queued', runnerId: null });
+    // The pause ends on its own at `until`: no resume call is needed.
+    expect(((await claimAs(paused, { tokenHash: token(15), now: '2026-11-10T11:00:00.000Z', leaseUntil: '2026-11-10T11:05:00.000Z' })) as { id: string }).id).toBe(id);
+
+    const again = await enqueue(slug);
+    expect(await claimAs(paused, { tokenHash: token(16) })).toBeNull();
+    expect(((await claimAs(other, { tokenHash: token(17) })) as { id: string }).id).toBe(again);
+  });
+
+  it('a paused runner of account A changes nothing for account B (two-account)', async () => {
+    const mine = await project(ACCOUNT_A);
+    const theirs = await project(ACCOUNT_B);
+    const a = await runner(ACCOUNT_A, [mine]);
+    const b = await runner(ACCOUNT_B, [theirs]);
+    await enqueue(theirs, ACCOUNT_B);
+    expect(await runners.pause(ACCOUNT_A, a, { reason: 'rate-limit', until: '2026-11-10T11:00:00.000Z' }, pauseAudit(a))).toBe(true);
+    // Account A cannot pause B's runner by id: the write names the account it acts in.
+    expect(await runners.pause(ACCOUNT_A, b, { reason: 'manual', until: '2026-11-10T11:00:00.000Z' }, pauseAudit(b))).toBe(false);
+    expect((await runners.findById(b))?.pause).toBeNull();
+    expect(await claimAs(b, { accountId: ACCOUNT_B, tokenHash: token(18) })).not.toBeNull();
   });
 });
 
@@ -373,6 +484,27 @@ describe('TeamStateRepo.recordOutcome', () => {
     }
     expect(await repo.get(streaked)).toMatchObject({ pausedAt: T0, pausedBy: FAILURE_STREAK_PAUSER });
     expect(await pausedCount(streaked)).toBe(1);
+  });
+
+  // #571: a usage or rate limit is a quota, not a fault — neither a success nor a failure for the streak.
+  it('leaves the streak as it was for a failure on a usage or rate limit, and still counts other failures', async () => {
+    const slug = await project(ACCOUNT_A);
+    const repo = new TeamStateRepo(env.DB);
+    const pauseAudit = { ...audit('team.paused'), target: slug };
+    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 1, paused: false });
+    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 2, paused: false });
+    for (const reason of ['usage-limit', 'rate-limit', 'usage-limit']) {
+      expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, reason)).toEqual({ failedStreak: 2, paused: false });
+    }
+    expect(await repo.get(slug)).toMatchObject({ pausedAt: null, failedStreak: 2 });
+    // Any other reason is a failure: the third one pauses.
+    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, 'exit')).toEqual({ failedStreak: 3, paused: true });
+
+    // A limit does not reset a streak either, and a fresh project gets no row from one.
+    const fresh = await project(ACCOUNT_A);
+    expect(await repo.recordOutcome(fresh, 'failed', T0, undefined, 'rate-limit')).toEqual({ failedStreak: 0, paused: false });
+    const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM team_state WHERE project_slug = ?1`).bind(fresh).first<{ n: number }>();
+    expect(row?.n).toBe(0);
   });
 
   it('cancels a runner’s live jobs outside a narrowed allow-list', async () => {

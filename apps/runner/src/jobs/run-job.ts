@@ -176,6 +176,8 @@ export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): P
     });
     const runnerGit = runnerGitEnv(deps.sourceEnv);
     const gitEnvs = {
+      jobGit: backend.jobGit,
+      dirMode: backend.sharedDirMode,
       runner: runnerGit,
       job: {
         PATH: runnerGit['PATH'] ?? '/usr/bin:/bin',
@@ -186,7 +188,7 @@ export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): P
     };
     const mirror = await syncMirror(deps.home, job.projectSlug, upstream, gitEnvs);
     await cloneForJob(mirror, sandbox.clone, upstream, gitEnvs);
-    const pluginRoot = await vendorPlugin(deps.home, mirror, gitEnvs.job);
+    const pluginRoot = await vendorPlugin(deps.home, mirror, gitEnvs.job, backend.sharedDirMode);
     const settingsPath = await writeManagedSettings(deps.home);
     if (passedThrough.length > 0) {
       events.push({ level: 'warn', kind: 'notice', payload: { passthrough: passedThrough } });
@@ -196,6 +198,7 @@ export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): P
       job: { id: job.id, projectSlug: job.projectSlug },
       registry,
       forwarder: client,
+      socketMode: sandbox.socketMode,
       notice: async (_jobId, notice) => {
         events.push({ level: 'warn', kind: 'notice', payload: { ...notice } });
       },
@@ -247,6 +250,15 @@ export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): P
     deps.shutdown.removeEventListener('abort', onShutdown);
   }
 
+  try {
+    if (sandbox !== null && backend.settle !== undefined) {
+      for (const payload of await backend.settle(sandbox)) {
+        events.push({ level: 'warn', kind: 'notice', payload });
+      }
+    }
+  } catch (error: unknown) {
+    reportError(error);
+  }
   try {
     await events.close();
     await client.finish(job.id, finish);

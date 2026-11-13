@@ -1,9 +1,21 @@
+import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
 import { RUNNER_BINARY, type RunnerHostDto } from '@shared/contracts';
 import { BackendError, type IsolationBackend } from '../backends/backend';
+import { ContainerBackend } from '../backends/container';
 import { NoneBackend } from '../backends/none';
+import { SYSTEM_MANAGED_SETTINGS_PATH, UserBackend } from '../backends/user';
 import { RunnerApiError, RunnerClient, type FetchLike } from '../client/runner-client';
-import { loadRunnerConfig, runnerHomeOf, type RunnerConfig } from '../config/config';
+import {
+  CONTAINER_RUNTIMES,
+  loadRunnerConfig,
+  runnerHomeOf,
+  type ContainerRuntime,
+  type RunnerConfig,
+} from '../config/config';
+import { SYSTEM_PATH, hostExec, type Exec } from '../host/exec';
+import { InstallError, runInstall, systemInstallHost, type InstallHost } from '../install/install';
+import { jobExecOf } from '../install/templates';
 import { RunnerFileError } from '../config/private-files';
 import { loadRunnerKey } from '../config/runner-key';
 import { runLoop } from '../jobs/loop';
@@ -20,6 +32,13 @@ export interface CliDeps {
   readonly stderr: (line: string) => void;
   /** Aborted on Ctrl-C / SIGTERM: a running job is finished `failed` with `runner-shutdown`. */
   readonly shutdown?: AbortSignal;
+  /** The directory of the running bundle (`bin/job-exec` sits next to it). */
+  readonly prefix?: string;
+  readonly platform?: string;
+  readonly uid?: number;
+  readonly gid?: number;
+  /** The installer's host; the real one when absent. */
+  readonly installHost?: InstallHost;
 }
 
 export const EXIT_OK = 0;
@@ -30,7 +49,10 @@ const USAGE = [
   `Usage: ${RUNNER_BINARY} <command>`,
   '',
   'Commands:',
+  '  install --backend user|container (--dry-run | --yes) [--home <dir>] [--image <name@sha256:…>] [--runtime docker|podman|container]',
+  '        List (--dry-run) or make (--yes) the job users, sudoers rule and service; user needs sudo, container must not.',
   '  enrol --url <console origin> --code <tce_…> --backend container|user|none',
+  '        [--credential api-key|setup-token|claude-config-dir] [--claude-config-dir <dir>] [--image <name@sha256:…>]',
   '        Enrol this host with the one-time code from Settings › Runners.',
   '  run-once  Claim one job, run it and exit (exit 0 also when there is none or the runner is paused).',
   '  run --loop  Claim and run jobs until Ctrl-C.',
@@ -53,7 +75,12 @@ function describeFailure(error: unknown): string {
         return error.message;
     }
   }
-  if (error instanceof RunnerFileError || error instanceof EnrolUsageError || error instanceof BackendError) {
+  if (
+    error instanceof RunnerFileError ||
+    error instanceof EnrolUsageError ||
+    error instanceof BackendError ||
+    error instanceof InstallError
+  ) {
     return error.message;
   }
   if (error instanceof Error && error.name === 'TimeoutError') {
@@ -67,11 +94,25 @@ function describeFailure(error: unknown): string {
 }
 
 async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number> {
-  let values: { url?: string; code?: string; backend?: string };
+  let values: {
+    url?: string;
+    code?: string;
+    backend?: string;
+    credential?: string;
+    'claude-config-dir'?: string;
+    image?: string;
+  };
   try {
     ({ values } = parseArgs({
       args: [...args],
-      options: { url: { type: 'string' }, code: { type: 'string' }, backend: { type: 'string' } },
+      options: {
+        url: { type: 'string' },
+        code: { type: 'string' },
+        backend: { type: 'string' },
+        credential: { type: 'string' },
+        'claude-config-dir': { type: 'string' },
+        image: { type: 'string' },
+      },
       strict: true,
       allowPositionals: false,
     }));
@@ -89,7 +130,17 @@ async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number>
   }
   try {
     const home = runnerHomeOf(deps.env, deps.homeDir);
-    const config = await enrol({ url, code, backend }, { home, fetch: deps.fetch, host: deps.host });
+    const config = await enrol(
+      {
+        url,
+        code,
+        backend,
+        credential: values.credential,
+        claudeConfigDir: values['claude-config-dir'],
+        image: values.image,
+      },
+      { home, fetch: deps.fetch, host: deps.host },
+    );
     const projects =
       config.allowedProjects.length === 0 ? 'no projects yet' : config.allowedProjects.join(', ');
     deps.stdout(
@@ -103,11 +154,115 @@ async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number>
   }
 }
 
-function backendOf(config: RunnerConfig, home: string): IsolationBackend {
-  if (config.backend === 'none') {
-    return new NoneBackend(home);
+const RUNTIME_ENV = ['PATH', 'HOME', 'DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_CONFIG', 'XDG_RUNTIME_DIR'];
+
+function pick(env: CliDeps['env'], names: readonly string[]): Record<string, string> {
+  const picked: Record<string, string> = {};
+  for (const name of names) {
+    const value = env[name];
+    if (value !== undefined) {
+      picked[name] = value;
+    }
   }
-  throw new BackendError(`the ${config.backend} backend is not in this runner version yet (2-B-3)`);
+  return picked;
+}
+
+function backendOf(config: RunnerConfig, home: string, deps: CliDeps): IsolationBackend {
+  switch (config.backend) {
+    case 'none':
+      return new NoneBackend(home);
+    case 'user': {
+      const platform = deps.platform ?? process.platform;
+      if (platform !== 'darwin' && platform !== 'linux') {
+        throw new BackendError(`the user backend does not run on ${platform}`);
+      }
+      return new UserBackend({
+        home,
+        jobExec: jobExecOf(deps.prefix ?? dirname(process.argv[1] ?? '')),
+        nodeDir: dirname(process.execPath),
+        managedSettingsPath: SYSTEM_MANAGED_SETTINGS_PATH[platform],
+      });
+    }
+    case 'container':
+      return new ContainerBackend({
+        home,
+        settings: config.container,
+        credential: config.credential,
+        runtimeEnv: pick(deps.env, RUNTIME_ENV),
+        uid: deps.uid ?? process.getuid?.() ?? 0,
+        gid: deps.gid ?? process.getgid?.() ?? 0,
+      });
+  }
+}
+
+async function runInstallCommand(args: readonly string[], deps: CliDeps): Promise<number> {
+  let values: {
+    backend?: string;
+    home?: string;
+    image?: string;
+    runtime?: string;
+    'dry-run'?: boolean;
+    yes?: boolean;
+  };
+  try {
+    ({ values } = parseArgs({
+      args: [...args],
+      options: {
+        backend: { type: 'string' },
+        home: { type: 'string' },
+        image: { type: 'string' },
+        runtime: { type: 'string' },
+        'dry-run': { type: 'boolean' },
+        yes: { type: 'boolean' },
+      },
+      strict: true,
+      allowPositionals: false,
+    }));
+  } catch (error: unknown) {
+    if (error instanceof TypeError) {
+      return usageError(deps, error.message);
+    }
+    throw error;
+  }
+  const { backend, runtime } = values;
+  if ((backend !== 'user' && backend !== 'container') || values['dry-run'] === values.yes) {
+    return usageError(deps, 'install needs --backend user|container and exactly one of --dry-run or --yes.');
+  }
+  if (runtime !== undefined && !(CONTAINER_RUNTIMES as readonly string[]).includes(runtime)) {
+    return usageError(deps, '--runtime must be docker, podman or container.');
+  }
+  const exec: Exec = async (command, execArgs, options) =>
+    await hostExec(command, execArgs, {
+      ...options,
+      env: { PATH: deps.env['PATH'] ?? SYSTEM_PATH, ...options?.env },
+    });
+  const host =
+    deps.installHost ??
+    systemInstallHost({
+      platform: deps.platform ?? process.platform,
+      uid: deps.uid ?? process.getuid?.() ?? -1,
+      homeDir: deps.homeDir,
+      exec,
+    });
+  try {
+    await runInstall(
+      {
+        backend,
+        apply: values.yes === true,
+        prefix: deps.prefix ?? dirname(process.argv[1] ?? ''),
+        node: process.execPath,
+        home: values.home,
+        image: values.image,
+        runtime: runtime as ContainerRuntime | undefined,
+      },
+      host,
+      deps.stdout,
+    );
+    return EXIT_OK;
+  } catch (error: unknown) {
+    deps.stderr(`install failed: ${describeFailure(error)}`);
+    return EXIT_FAILED;
+  }
 }
 
 async function runJobs(mode: 'once' | 'loop', deps: CliDeps): Promise<number> {
@@ -125,7 +280,7 @@ async function runJobs(mode: 'once' | 'loop', deps: CliDeps): Promise<number> {
       home,
       config,
       client,
-      backend: backendOf(config, home),
+      backend: backendOf(config, home, deps),
       sourceEnv: deps.env,
       log: deps.stdout,
       now: () => new Date(),
@@ -149,6 +304,8 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
   switch (command) {
     case 'enrol':
       return runEnrol(rest, deps);
+    case 'install':
+      return runInstallCommand(rest, deps);
     case 'run-once':
       return rest.length === 0 ? runJobs('once', deps) : usageError(deps, 'run-once takes no arguments.');
     case 'run':
