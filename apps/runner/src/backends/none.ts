@@ -1,9 +1,9 @@
 import { spawn } from 'node:child_process';
-import { mkdir, readdir, realpath } from 'node:fs/promises';
+import { readdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
-import { isUlid } from '@shared/contracts';
 import { ensurePrivateDir, pathExists } from '../config/private-files';
 import { removeTree } from '../git/workspace';
+import { hostExec, type Exec } from '../host/exec';
 import {
   BackendError,
   type ExitStatus,
@@ -13,6 +13,7 @@ import {
   type RunningJob,
   type Sandbox,
 } from './backend';
+import { createPrivateSandbox, jobsRootOf } from './sandbox';
 
 /**
  * The `none` backend (ADR 0008 decision 3): the job runs as the runner's own user — fixtures and local development
@@ -23,21 +24,6 @@ import {
  */
 
 const KILL_GRACE_MS = 3_000;
-type Exec = (command: string, args: readonly string[]) => Promise<{ code: number | null; stdout: string }>;
-
-const defaultExec: Exec = (command, args) =>
-  new Promise((resolve, reject) => {
-    const child = spawn(command, [...args], {
-      stdio: ['ignore', 'pipe', 'ignore'],
-      env: { PATH: '/usr/sbin:/usr/bin:/bin' },
-    });
-    let stdout = '';
-    child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
-      stdout += chunk;
-    });
-    child.once('error', reject);
-    child.once('close', (code) => resolve({ code, stdout }));
-  });
 
 function signalGroup(pid: number, signal: NodeJS.Signals): boolean {
   try {
@@ -56,10 +42,10 @@ export class NoneBackend implements IsolationBackend {
   private readonly jobsRoot: string;
 
   constructor(
-    home: string,
-    private readonly exec: Exec = defaultExec,
+    private readonly home: string,
+    private readonly exec: Exec = hostExec,
   ) {
-    this.jobsRoot = join(home, 'jobs');
+    this.jobsRoot = jobsRootOf(home);
   }
 
   /** Pids whose working directory is inside `dir` (`lsof`, present on macOS and the CI image). */
@@ -102,26 +88,7 @@ export class NoneBackend implements IsolationBackend {
   }
 
   async prepare(job: JobContext): Promise<Sandbox> {
-    if (!isUlid(job.jobId)) {
-      throw new BackendError('not a job id');
-    }
-    await ensurePrivateDir(this.jobsRoot);
-    const root = join(this.jobsRoot, job.jobId);
-    if (await pathExists(root)) {
-      throw new BackendError(`the sandbox of job ${job.jobId} already exists`);
-    }
-    await mkdir(root, { mode: 0o700 });
-    const sandbox: Sandbox = {
-      jobId: job.jobId,
-      root,
-      home: join(root, 'home'),
-      tmp: join(root, 'tmp'),
-      clone: join(root, 'clone'),
-      socketDir: join(root, 'sock'),
-    };
-    await mkdir(sandbox.home, { mode: 0o700 });
-    await mkdir(sandbox.tmp, { mode: 0o700 });
-    return sandbox;
+    return await createPrivateSandbox(this.home, job);
   }
 
   async launch(_sandbox: Sandbox, spec: LaunchSpec): Promise<RunningJob> {

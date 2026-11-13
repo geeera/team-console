@@ -1,9 +1,10 @@
 import type { Readable } from 'node:stream';
 import type { RunnerIsolation } from '@shared/contracts';
+import type { GitRunner } from '../git/git';
 
 /**
- * How a job is isolated (ADR 0008 decision 3). The job loop is backend-agnostic; `none` (fixtures) lives here,
- * `user` and `container` arrive in 2-B-3 against the same interface.
+ * How a job is isolated (ADR 0008 decision 3). The job loop is backend-agnostic: `none` (fixtures), `user` (a second
+ * uid through the job-exec wrapper) and `container` (one container per job) implement the same interface.
  */
 
 export interface JobContext {
@@ -19,6 +20,8 @@ export interface Sandbox {
   readonly tmp: string;
   readonly clone: string;
   readonly socketDir: string;
+  /** The socket file's mode: 0600 unless the job runs as another user who must connect to it. */
+  readonly socketMode?: number | undefined;
 }
 
 export interface LaunchSpec {
@@ -54,6 +57,15 @@ export interface IsolationBackend {
   kill(running: RunningJob): Promise<void>;
   /** Kills what is left of the job and wipes the sandbox. */
   cleanup(sandbox: Sandbox): Promise<void>;
+  /**
+   * After the CLI exited and before `finish`: kills what the job left and sweeps its stray files, returning what it
+   * found as `notice` payloads so the job's own events say so (C3 cross-job row (d)).
+   */
+  settle?(sandbox: Sandbox): Promise<readonly Record<string, unknown>[]>;
+  /** Runs the clone's git as the job's user (`user`), so the job owns its clone; absent → the runner's git. */
+  readonly jobGit?: GitRunner;
+  /** Mode of the runner's directories a job must read (`work/`, `plugin/`, `jobs/`): 0750 on `user`, else 0700. */
+  readonly sharedDirMode?: 0o700 | 0o750;
 }
 
 export class BackendError extends Error {

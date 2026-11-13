@@ -10,6 +10,7 @@ import {
   sentinels,
   type FakeAnswer,
 } from '../testing/fake-console';
+import type { InstallHost } from '../install/install';
 import { RUNNER_VERSION } from '../version';
 import { EXIT_FAILED, EXIT_OK, EXIT_USAGE, runCli } from './cli';
 
@@ -132,5 +133,89 @@ describe('team-console-runner CLI', () => {
     expect(await exit).toBe(EXIT_FAILED);
     expect(err.join('\n')).toMatch(/^run failed: /);
     expect(requests).toEqual([]);
+  });
+
+  it('refuses enrol with a credential the backend may not use, before any request (RR11)', async () => {
+    const { exit, requests } = run([
+      ...enrolArgs.slice(0, -2),
+      '--backend',
+      'container',
+      '--credential',
+      'setup-token',
+    ]);
+    expect(await exit).toBe(EXIT_USAGE);
+    expect(err.join('\n')).toMatch(/--credential setup-token is not allowed with --backend container/);
+    expect(requests).toEqual([]);
+  });
+
+  describe('install', () => {
+    const fakeInstallHost = (): InstallHost & { applied: unknown[]; queried: string[] } => {
+      const applied: unknown[] = [];
+      const queried: string[] = [];
+      return {
+        platform: 'linux',
+        uid: 1000,
+        homeDir: '/home/me',
+        exec: async (command, args) => {
+          queried.push([command, ...args].join(' '));
+          return { code: 0, stdout: '' };
+        },
+        stat: async () => null,
+        read: async () => null,
+        apply: async (step) => {
+          applied.push(step);
+        },
+        applied,
+        queried,
+      };
+    };
+    const installRun = (argv: readonly string[], host: InstallHost) =>
+      runCli(argv, {
+        env: {},
+        homeDir: '/home/me',
+        host: { os: 'linux', arch: 'x64', hostname: 'ci' },
+        fetch: fakeConsole(() => json(500, {})).fetch,
+        stdout: (line) => out.push(line),
+        stderr: (line) => err.push(line),
+        prefix: '/opt/tcr',
+        installHost: host,
+      });
+    const image = `ghcr.io/geeera/team-console-runner:0.1.0@sha256:${'c'.repeat(64)}`;
+
+    it.each([
+      [['install'], /exactly one of --dry-run or --yes/],
+      [['install', '--backend', 'user'], /exactly one of --dry-run or --yes/],
+      [['install', '--backend', 'user', '--dry-run', '--yes'], /exactly one of --dry-run or --yes/],
+      [['install', '--backend', 'none', '--dry-run'], /--backend user\|container/],
+      [['install', '--backend', 'container', '--dry-run', '--runtime', 'lxc'], /--runtime must be/],
+      [['install', '--sudo'], /Unknown option/],
+    ])('exits 2 with usage for %j', async (argv, message) => {
+      const host = fakeInstallHost();
+      expect(await installRun(argv, host)).toBe(EXIT_USAGE);
+      expect(err.join('\n')).toMatch(message);
+      expect(host.queried).toEqual([]);
+    });
+
+    it('--dry-run lists the steps and applies none', async () => {
+      const host = fakeInstallHost();
+      expect(
+        await installRun(['install', '--backend', 'container', '--dry-run', '--image', image], host),
+      ).toBe(EXIT_OK);
+      expect(host.applied).toEqual([]);
+      expect(out[0]).toMatch(/^Dry run, nothing changed\. With --yes these 4 steps run as you:$/);
+      expect(out[1]).toBe(`  1. docker pull ${image}`);
+    });
+
+    it('--yes applies them; a refusal exits 1 with its reason', async () => {
+      const host = fakeInstallHost();
+      expect(await installRun(['install', '--backend', 'container', '--yes', '--image', image], host)).toBe(
+        EXIT_OK,
+      );
+      expect(host.applied).toHaveLength(4);
+      expect(await installRun(['install', '--backend', 'user', '--yes'], fakeInstallHost())).toBe(
+        EXIT_FAILED,
+      );
+      expect(err.join('\n')).toMatch(/^install failed: .*run it with sudo/);
+    });
   });
 });

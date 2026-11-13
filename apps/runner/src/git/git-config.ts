@@ -1,5 +1,5 @@
 import { LaunchRefusal } from '../jobs/refusal';
-import { runGit } from './git';
+import { runGit, type GitRunner } from './git';
 
 /**
  * Git config a job could leave behind to run code in the next one (ADR 0008 decision 7, threat model C3 cross-job
@@ -83,8 +83,9 @@ export async function assertCleanGitConfig(
   gitDir: string,
   env: Readonly<Record<string, string>>,
   allowedHelper: string | null,
+  git: GitRunner = runGit,
 ): Promise<void> {
-  const output = await runGit(
+  const output = await git(
     ['--git-dir', gitDir, 'config', '--list', '--show-scope', '--show-origin', '--null'],
     env,
   );

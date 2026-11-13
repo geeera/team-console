@@ -12,7 +12,7 @@ import { pathClassOf, routeOf, type PathClass, type ProxyJob, type ProxyRefusal 
  * A job's one way to the console (ADR 0006 R4, ADR 0008 decision 6): HTTP over a Unix socket at
  * `jobs/<id>/sock/tc.sock`, one socket per job, no TCP port ever. Node has no `getpeereid` without a native addon
  * (ruled out by decision 1), so the peer check is the socket's directory and mode (only the job's user reaches it;
- * the `user` backend widens it to `_tcrunner:_tcjob 0750` in 2-B-3) plus the job token: every request's `Bearer tcj_…`
+ * the `user` backend makes it `_tcrunner:_tcjob 0750`, the socket 0660) plus the job token: every request's `Bearer tcj_…`
  * must be the token of the job this socket was opened for. Anything else is 401/403 with a `notice` on that job.
  * Requests and responses are never logged; a notice names the method, a path class and the status only.
  */
@@ -59,7 +59,7 @@ export interface JobSocketOptions {
   /** A failure the socket cannot answer to the job (a notice that did not post, an upstream error). */
   readonly onError: (error: unknown) => void;
   /** The socket file's mode; 0600 (the runner's user only) unless a backend opens it to its job user. */
-  readonly socketMode?: number;
+  readonly socketMode?: number | undefined;
   readonly maxBodyBytes?: number;
 }
 

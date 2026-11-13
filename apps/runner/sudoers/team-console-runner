@@ -1,0 +1,4 @@
+# team-console-runner (ADR 0008 decision 11): the runner may start the job-exec wrapper as the job user; nothing
+# else. No pty, so the launch spec on stdin reaches job-exec and its output streams back to the runner.
+Defaults:_tcrunner !use_pty, !lecture
+_tcrunner ALL=(_tcjob) NOPASSWD: /usr/local/lib/team-console-runner/bin/job-exec
