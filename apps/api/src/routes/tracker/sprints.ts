@@ -100,6 +100,16 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
             return secret;
           }
           const repo = new SprintsRepo(c.env.DB);
+          // Compared as the console's dialog does (case-insensitive) so both sides refuse the same names. Not a
+          // unique index: two simultaneous creates of one name can both pass; the owner is the only writer.
+          if (title !== null) {
+            const taken = (await repo.list(project.slug, 'all')).some(
+              (sprint) => sprint.title.toLocaleLowerCase() === title.toLocaleLowerCase(),
+            );
+            if (taken) {
+              return invalid(c, 'sprint-invalid', 'title', 'A sprint with this title already exists');
+            }
+          }
           const number = await repo.nextNumber(project.slug);
           const created = await repo.create(
             project.slug,

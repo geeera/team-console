@@ -61,12 +61,37 @@ describe('POST /projects/:slug/sprints', () => {
     expect(await unnamed.json()).toMatchObject({ number: 2, title: 'Sprint 02' });
   });
 
+  it('accepts a title of 256 characters', async () => {
+    const project = await seedTrackerProject();
+    const response = await send('POST', sprintsPath(project.slug), { title: 'x'.repeat(256) });
+    expect(response.status).toBe(201);
+  });
+
+  it('answers 422 for a title another sprint has, ignoring case, and writes nothing', async () => {
+    const project = await seedTrackerProject();
+    await send('POST', sprintsPath(project.slug), { title: 'Checkout' });
+    const response = await send('POST', sprintsPath(project.slug), { title: ' checkout ' });
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({
+      type: expect.stringContaining('sprint-invalid'),
+      field: 'title',
+    });
+    expect(await countRows('sprints', project.slug)).toBe(1);
+  });
+
+  it('answers 422 for a title equal to a default name already taken', async () => {
+    const project = await seedTrackerProject();
+    await send('POST', sprintsPath(project.slug), {});
+    const response = await send('POST', sprintsPath(project.slug), { title: 'Sprint 01' });
+    expect(response.status).toBe(422);
+  });
+
   it.each([
     [{ dueOn: '17.11.2026' }, 'dueOn'],
     [{ dueOn: '2026-02-30' }, 'dueOn'],
     [{ title: '   ' }, 'title'],
     [{ title: '\u200b\u202e' }, 'title'],
-    [{ title: 'x'.repeat(65) }, 'title'],
+    [{ title: 'x'.repeat(257) }, 'title'],
     [{ title: 7 }, 'title'],
     [{ name: 'Sprint 99' }, 'body'],
   ])('answers 422 sprint-invalid for %j', async (body, field) => {

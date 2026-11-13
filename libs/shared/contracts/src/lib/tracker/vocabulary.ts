@@ -136,8 +136,8 @@ export const ITEM_TITLE_MAX_LENGTH = 256;
 export const ITEM_BODY_MAX_LENGTH = 65_536;
 export const COMMENT_BODY_MAX_LENGTH = 65_536;
 export const SPRINT_DESCRIPTION_MAX_LENGTH = 65_536;
-/** A sprint's name, one line: room for `Sprint 12 · Checkout` and the like, never a paragraph (#457). */
-export const SPRINT_TITLE_MAX_LENGTH = 64;
+/** A sprint's name, one line of plain text; the `sprints.title` column's own bound (#538). */
+export const SPRINT_TITLE_MAX_LENGTH = 256;
 export const LABEL_DESCRIPTION_MAX_LENGTH = 100;
 /** Label names as the plugin writes them (`status:qa`, `agent:dev`, `needs-design`). */
 export const LABEL_NAME_PATTERN = /^[a-z][a-z0-9:-]{0,49}$/;

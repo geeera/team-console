@@ -120,8 +120,8 @@ describe('sprint, comment and label inputs', () => {
       ok: true,
       value: { title: 'Q4 push' },
     });
-    expect(checkCreateSprintInput({ title: 'x'.repeat(64) })).toMatchObject({ ok: true });
-    expect(checkCreateSprintInput({ title: 'x'.repeat(65) })).toEqual(failure('title'));
+    expect(checkCreateSprintInput({ title: 'x'.repeat(256) })).toMatchObject({ ok: true });
+    expect(checkCreateSprintInput({ title: 'x'.repeat(257) })).toEqual(failure('title'));
     expect(checkCreateSprintInput({ title: '\u200b' })).toEqual(failure('title'));
     expect(checkCreateSprintInput({ title: '\ufe0f' })).toEqual(failure('title'));
     expect(checkCreateSprintInput({ title: '\u2800\u2800' })).toEqual(failure('title'));
