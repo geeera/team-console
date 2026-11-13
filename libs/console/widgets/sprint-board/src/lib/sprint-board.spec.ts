@@ -1136,8 +1136,10 @@ describe('SprintBoard', () => {
 
     it('cuts and counts a list in its pure helpers', () => {
       const items = [1, 2, 3, 4, 5, 6, 7];
-      expect(visibleItemsOf(items, false)).toEqual([1, 2, 3, 4, 5]);
-      expect(visibleItemsOf(items, true)).toBe(items);
+      expect(visibleItemsOf(items)).toEqual([1, 2, 3, 4, 5]);
+      expect(visibleItemsOf(items, Infinity)).toBe(items);
+      expect(visibleItemsOf(items, 6)).toEqual([1, 2, 3, 4, 5, 6]);
+      expect(hiddenCountOf(items, 6)).toBe(1);
       expect(hiddenCountOf(items)).toBe(2);
       expect(hiddenCountOf([1, 2])).toBe(0);
     });
@@ -1379,8 +1381,10 @@ describe('SprintBoard', () => {
       expect(text('[data-testid="demo"]')).toMatch(/^Демо 27 ноября/);
       expect(lanes()).toEqual({ approved: 0, 'in-progress': 1, qa: 0, blocked: 1, done: 1 });
       expect(root.querySelector('[data-testid="done-stat"] dd')?.textContent?.trim()).toBe('1 из 3');
-      // Rows are console tasks: no GitHub link; the pull requests still come from GitHub.
-      expect(root.querySelector('tc-lane [data-number="11"] a')).toBeNull();
+      // Rows open the console task (#557), not GitHub; the pull requests still come from GitHub.
+      expect(root.querySelector('tc-lane [data-number="11"] a')?.getAttribute('href')).toBe('/p/team-console/t/11');
+      expect(root.querySelector('tc-lane [data-number="12"] [data-testid="kind"]')?.textContent).toBe('Ошибка');
+      expect(text('[data-testid="open-count"]')).toBe('2 открытые');
       expect(root.querySelector('[data-testid="pulls"] a')?.getAttribute('href')).toBe(
         'https://github.com/geeera/team-console/pull/45',
       );

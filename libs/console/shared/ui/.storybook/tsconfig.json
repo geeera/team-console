@@ -15,7 +15,8 @@
     "../../../entities/design/src/**/*.ts",
     "../../../features/design-viewer/src/**/*.ts",
     "../../../entities/runner/src/**/*.ts",
-    "../../../entities/job/src/**/*.ts"
+    "../../../entities/job/src/**/*.ts",
+    "../../../widgets/sprint-board/src/**/*.ts"
   ],
   "exclude": [
     "../src/**/*.spec.ts",
@@ -31,6 +32,8 @@
     "../../../entities/runner/src/**/*.spec.ts",
     "../../../entities/runner/src/test-setup.ts",
     "../../../entities/job/src/**/*.spec.ts",
-    "../../../entities/job/src/test-setup.ts"
+    "../../../entities/job/src/test-setup.ts",
+    "../../../widgets/sprint-board/src/**/*.spec.ts",
+    "../../../widgets/sprint-board/src/test-setup.ts"
   ]
 }

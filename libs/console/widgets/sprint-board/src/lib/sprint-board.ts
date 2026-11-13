@@ -52,6 +52,7 @@ import {
   localTimeOf,
   pluralKeyOf,
   TranslocoPipe,
+  TranslocoPluralPipe,
   TranslocoService,
 } from '@console/shared/i18n';
 import { PersistedStateStore } from '@console/shared/persisted-state';
@@ -127,14 +128,21 @@ export function retryDelaySeconds(retryAfter: number | null): number {
   return Math.min(MAX_RETRY_SECONDS, Math.max(MIN_RETRY_SECONDS, retryAfter));
 }
 
-/** The first `BOARD_LIST_LIMIT` items, or all of them once expanded. */
-export function visibleItemsOf<T>(items: readonly T[], isExpanded: boolean): readonly T[] {
-  return isExpanded ? items : items.slice(0, BOARD_LIST_LIMIT);
+/** The first `limit` items (a list's window: #275's five, a folder lane's 30 more per press, #557). */
+export function visibleItemsOf<T>(items: readonly T[], limit = BOARD_LIST_LIMIT): readonly T[] {
+  return items.length > limit ? items.slice(0, limit) : items;
 }
 
-/** How many rows «Show N more» would add; 0 means the list needs no button. */
-export function hiddenCountOf(items: readonly unknown[]): number {
-  return Math.max(0, items.length - BOARD_LIST_LIMIT);
+/** How many rows lie past the window; 0 means the list needs no «Show more». */
+export function hiddenCountOf(items: readonly unknown[], limit = BOARD_LIST_LIMIT): number {
+  return Math.max(0, items.length - limit);
+}
+
+const KNOWN_STATUSES: ReadonlySet<string> = new Set([...STATUS_ORDER, NO_STATUS]);
+
+/** A lane's heading; an unknown `status:*` label is shown as written in the repository (plain text, like a title). */
+export function laneNameOf(status: string, translate: (key: string) => string): string {
+  return KNOWN_STATUSES.has(status) ? translate(`board.status.${status}`) : status;
 }
 
 export type BoardFailure = 'rate-limited' | 'not-installed' | 'offline' | 'unavailable';
@@ -179,8 +187,6 @@ export interface SprintBoardProject {
 
 let nextBoardId = 0;
 
-const KNOWN_STATUSES: ReadonlySet<string> = new Set([...STATUS_ORDER, NO_STATUS]);
-
 /** The list a tile jumps to. */
 type TileTarget = 'pulls' | 'runs' | 'questions';
 
@@ -213,6 +219,7 @@ type TileTarget = 'pulls' | 'runs' | 'questions';
     TabPanel,
     Tabs,
     TranslocoPipe,
+    TranslocoPluralPipe,
   ],
   templateUrl: './sprint-board.html',
   styleUrl: './sprint-board.css',
@@ -279,7 +286,11 @@ export class SprintBoard {
   });
   protected readonly columns = computed(() => statusColumnsOf(this.board()?.issues ?? []));
   protected readonly pulls = computed(() => pullsByUrgency(this.board()?.pullRequests ?? []));
-  protected readonly visiblePulls = computed(() => visibleItemsOf(this.pulls(), this.isExpanded('pulls')));
+  protected readonly visiblePulls = computed(() => this.visible(this.pulls(), 'pulls'));
+  /** The current sprint's «N open» (#557), counted as the tracker counts a folder's (#561). */
+  protected readonly openCount = computed(
+    () => this.board()?.issues.filter((issue) => issue.state === 'open').length ?? 0,
+  );
   /** The "CI" tile (#131): the most urgent state across the open pull requests. */
   protected readonly ci = computed(() => ciSummaryOf(this.board()?.pullRequests ?? []));
   protected readonly ciIcon = computed(() => SPRINT_CI_ICONS[this.ci().state]);
@@ -461,7 +472,7 @@ export class SprintBoard {
   }
 
   protected visible<T>(items: readonly T[], key: string): readonly T[] {
-    return visibleItemsOf(items, this.isExpanded(key));
+    return visibleItemsOf(items, this.isExpanded(key) ? Infinity : BOARD_LIST_LIMIT);
   }
 
   protected hidden(items: readonly unknown[]): number {
@@ -556,8 +567,7 @@ export class SprintBoard {
 
   protected laneName(status: string): string {
     this.lang();
-    // An unknown `status:*` label is shown as written in the repository (plain text, like a title).
-    return KNOWN_STATUSES.has(status) ? this.transloco.translate(`board.status.${status}`) : status;
+    return laneNameOf(status, (key) => this.transloco.translate(key));
   }
 
   private tileAria(labelKey: string, value: string, target: TileTarget): string {

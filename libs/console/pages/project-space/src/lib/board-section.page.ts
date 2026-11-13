@@ -1,11 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { isOnConsoleTracker, ProjectsStore } from '@console/entities/project';
 import { CreateSprint } from '@console/features/create-sprint';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, Icon, Toaster } from '@console/shared/ui';
-import { SprintBoard, SprintBoardProject } from '@console/widgets/sprint-board';
+import { BoardFolders, SprintBoard, SprintBoardProject } from '@console/widgets/sprint-board';
 import { map } from 'rxjs';
 
 /**
@@ -14,7 +14,7 @@ import { map } from 'rxjs';
  */
 @Component({
   selector: 'tc-board-section-page',
-  imports: [Button, Icon, SprintBoard, TranslocoPipe],
+  imports: [BoardFolders, Button, Icon, SprintBoard, TranslocoPipe],
   template: `
     @if (isTracker()) {
       <div class="board-section__plan">
@@ -26,6 +26,10 @@ import { map } from 'rxjs';
     }
     @if (project(); as project) {
       <tc-sprint-board [project]="project" [initialTab]="tab()" />
+      @if (project.isOnConsoleTracker) {
+        <!-- #557: the next sprints and the backlog, under the current sprint and its lists. -->
+        <tc-board-folders class="board-section__folders" [slug]="project.slug" (createSprint)="createSprint()" />
+      }
     }
   `,
   styles: `
@@ -33,6 +37,10 @@ import { map } from 'rxjs';
       display: flex;
       justify-content: flex-end;
       margin-bottom: var(--space-3);
+    }
+
+    .board-section__folders {
+      margin-top: var(--space-6);
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -43,6 +51,7 @@ export class BoardSectionPage {
   private readonly toaster = inject(Toaster);
   private readonly transloco = inject(TranslocoService);
   private readonly route = inject(ActivatedRoute);
+  private readonly folders = viewChild(BoardFolders);
 
   private readonly slug = toSignal(
     (this.route.parent ?? this.route).paramMap.pipe(map((params) => params.get('slug'))),
@@ -71,6 +80,7 @@ export class BoardSectionPage {
     const sprint = await this.sprints.open({ slug });
     if (sprint !== null) {
       this.toaster.show(this.transloco.translate('sprintNew.doneVerb', { sprint: sprint.title }));
+      await this.folders()?.reload();
     }
   }
 

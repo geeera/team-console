@@ -152,6 +152,19 @@ export function isTrackerSprintListDto(value: unknown): value is TrackerSprintLi
   return isRecord(value) && isListOf(value['sprints'], isSprint);
 }
 
+function isCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
+/** The sprint list with the open counts the board's headers show (#561): a body without them is unexpected. */
+export function isTrackerSprintCountsDto(value: unknown): value is TrackerSprintListDto {
+  return (
+    isTrackerSprintListDto(value) &&
+    isCount(value.backlogOpenCount) &&
+    value.sprints.every((sprint) => isCount(sprint.openCount))
+  );
+}
+
 function isAsk(value: unknown): value is AskDto {
   return (
     isRecord(value) &&

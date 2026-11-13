@@ -10,6 +10,7 @@ import type {
   ItemEventDto,
   ItemSummaryDto,
   TrackerSprintDto,
+  TrackerSprintListDto,
   UpdateItemInput,
 } from '@shared/contracts';
 import { firstValueFrom, timeout } from 'rxjs';
@@ -23,6 +24,7 @@ import {
   isItemEventListDto,
   isItemListDto,
   isSprintFreezeDaysDto,
+  isTrackerSprintCountsDto,
   isTrackerSprintDto,
   isTrackerSprintListDto,
 } from './item.model';
@@ -144,6 +146,11 @@ export class ItemsApi {
   async sprints(slug: string): Promise<TrackerRead<TrackerSprintDto[]>> {
     const read = await this.read(sprintsUrl(slug), isTrackerSprintListDto);
     return read.ok ? { ok: true, value: [...read.value.sprints] } : read;
+  }
+
+  /** The sprints with each one's open count and the backlog's (#561), for the board's folder headers. */
+  async sprintList(slug: string): Promise<TrackerRead<TrackerSprintListDto>> {
+    return this.read(sprintsUrl(slug), isTrackerSprintCountsDto);
   }
 
   /** The project's freeze length in days; the screens fall back to the plugin's default when it cannot be read. */

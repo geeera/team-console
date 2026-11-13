@@ -28,6 +28,9 @@
         ><tc-icon name="calendar" size="sm" />{{ demoLine() }}</tc-chip
       >
     }
+    @if (isJobsBoard()) {
+      <span class="board__open" data-testid="open-count">{{ 'board.sections.open' | translocoPlural: openCount() }}</span>
+    }
     <div class="board__actions">
       <button
         tc-button
@@ -177,7 +180,7 @@
         } @if (isFolded(column.status)) {
         <!-- Folded: the heading and its Show button only. -->
         } @else if (column.issues.length > 0) {
-        <tc-sprint-item-list [items]="visible(column.issues, 'lane:' + column.status)" />
+        <tc-sprint-item-list [items]="visible(column.issues, 'lane:' + column.status)" [slug]="isJobsBoard() ? project().slug : null" />
         @if (hidden(column.issues) > 0) {
         <ng-container
           *ngTemplateOutlet="more; context: { key: 'lane:' + column.status, n: hidden(column.issues), all: false }"
