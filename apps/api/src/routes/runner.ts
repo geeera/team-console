@@ -17,7 +17,7 @@ import {
   type WorkerContext,
   type WorkerHonoEnv,
 } from '@worker/core';
-import { AccountsRepo, RateLimitsRepo, RunnersRepo, rateWindowOf } from '@worker/db';
+import { AccountsRepo, RateLimitsRepo, RunnersRepo, rateWindowOf, retryAfterOf } from '@worker/db';
 import type { ApiEnv } from '../env';
 import { jsonBody } from '../json-body';
 import { SMALL_WRITE_MAX_BYTES, writeLimit } from '../tracker/http';
@@ -80,7 +80,7 @@ export function createRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
           type: 'rate-limited',
           title: 'Too Many Requests',
           status: 429,
-          retryAfter: 60 - (now.getUTCSeconds() % 60),
+          retryAfter: retryAfterOf(now.getTime(), 60),
         });
       }
 

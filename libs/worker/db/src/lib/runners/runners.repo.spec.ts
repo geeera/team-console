@@ -1,6 +1,5 @@
 import { env } from 'cloudflare:test';
 import type { NewAuditEvent } from '../accounts/audit.repo';
-import { RateLimitsRepo, rateWindowOf } from './rate-limits.repo';
 import { RunnersRepo, type NewRunner } from './runners.repo';
 
 const ACCOUNT_A = '01M6YSNJ00000000000000RNA1';
@@ -329,31 +328,5 @@ describe('RunnersRepo', () => {
     expect(await repo.consumeNonce(runner.id, 'j1', '2026-11-10T10:12:00.000Z', '2026-11-10T10:06:00.000Z')).toBe(
       true,
     );
-  });
-});
-
-describe('RateLimitsRepo', () => {
-  const repo = new RateLimitsRepo(env.DB);
-
-  it('counts hits inside a window and starts over in the next', async () => {
-    expect(await repo.hit('k1', 'w1', 2)).toEqual({ allowed: true, count: 1 });
-    expect(await repo.hit('k1', 'w1', 2)).toEqual({ allowed: true, count: 2 });
-    expect(await repo.hit('k1', 'w1', 2)).toEqual({ allowed: false, count: 3 });
-    expect(await repo.hit('k1', 'w2', 2)).toEqual({ allowed: true, count: 1 });
-    expect(await repo.hit('k2', 'w2', 2)).toEqual({ allowed: true, count: 1 });
-  });
-
-  it('sweeps the rows of past windows on a hit (#489 review)', async () => {
-    await repo.hit('old-address', '100', 5);
-    await repo.hit('other-old', '100', 5);
-    expect(await repo.hit('fresh', '102', 5)).toEqual({ allowed: true, count: 1 });
-    const { results } = await env.DB.prepare(`SELECT key FROM rate_limits WHERE key IN ('old-address', 'other-old', 'fresh')`).all<{ key: string }>();
-    expect(results.map((row) => row.key)).toEqual(['fresh']);
-  });
-
-  it('labels a window by its bucket', () => {
-    expect(rateWindowOf(Date.parse(T0), 60)).toBe(String(Math.floor(Date.parse(T0) / 60_000)));
-    expect(rateWindowOf(Date.parse(T0) + 59_999, 60)).toBe(rateWindowOf(Date.parse(T0), 60));
-    expect(rateWindowOf(Date.parse(T0) + 60_000, 60)).not.toBe(rateWindowOf(Date.parse(T0), 60));
   });
 });

@@ -32,7 +32,11 @@ import {
   type RunLogRepoState,
 } from '../testing/read-model-kit';
 import { localJobHeader } from '../testing/local-job-kit';
-import { SPRINT_GITHUB_BUDGET } from './project-read-models';
+import {
+  JOB_SPRINT_READS_PER_WINDOW,
+  JOB_SPRINT_WINDOW_SECONDS,
+  SPRINT_GITHUB_BUDGET,
+} from './project-read-models';
 
 // #35 through the routes: DTOs, subrequest counts, the read cache, project.yml checks and slug checks.
 
@@ -416,6 +420,73 @@ describe('GET /api/v1/projects/:slug/sprint', () => {
     });
     expect(foreign.status).toBe(404);
     expect(await problemType(foreign)).toBe('project-not-found');
+  });
+
+  // #537: a job's reads of the board are budgeted per job and fixed window; nobody else's are.
+  describe('the job read budget (#537)', () => {
+    const PATH = '/api/v1/projects/tc/sprint';
+    const asJob = (jobId: string, projectSlug = 'tc'): { headers: Record<string, string> } => ({
+      headers: { Authorization: localJobHeader({ role: 'qa', jobId, projectSlug }, PATH) },
+    });
+
+    function clocked(): { github: ApiGitHub; stub: StubGitHub; clock: { at: number } } {
+      const stub = stubGitHub(readModelGitHub({ 'geeera/team-console': sprintState }));
+      const clock = { at: Date.now() };
+      return { stub, clock, github: new ApiGitHub({ fetch: stub.fetch, now: () => clock.at }) };
+    }
+
+    async function spend(github: ApiGitHub, jobId: string, reads = JOB_SPRINT_READS_PER_WINDOW): Promise<void> {
+      for (let read = 1; read <= reads; read += 1) {
+        const response = await fetchApi(PATH, localEnv(), { github, ...asJob(jobId) });
+        expect(response.status, `read ${String(read)}`).toBe(200);
+      }
+    }
+
+    it('serves a job 10 reads a window, then 429 rate-limited with Retry-After and no GitHub call', async () => {
+      const { github, stub, clock } = clocked();
+      await spend(github, 'job-budget-a');
+      const callsBefore = stub.calls.length;
+      const refused = await fetchApi(PATH, localEnv(), { github, ...asJob('job-budget-a') });
+      expect(refused.status).toBe(429);
+      const atSeconds = Math.floor(clock.at / 1000);
+      expect(Number(refused.headers.get('Retry-After'))).toBe(
+        JOB_SPRINT_WINDOW_SECONDS - (atSeconds % JOB_SPRINT_WINDOW_SECONDS),
+      );
+      expect(await problemType(refused)).toBe('rate-limited');
+      expect(stub.calls).toHaveLength(callsBefore);
+    });
+
+    it('counts two jobs of the same project apart', async () => {
+      const { github } = clocked();
+      await spend(github, 'job-budget-b1');
+      expect((await fetchApi(PATH, localEnv(), { github, ...asJob('job-budget-b1') })).status).toBe(429);
+      expect((await fetchApi(PATH, localEnv(), { github, ...asJob('job-budget-b2') })).status).toBe(200);
+    });
+
+    it('leaves the owner’s reads of the project alone after a job is throttled', async () => {
+      const { github } = clocked();
+      await spend(github, 'job-budget-c');
+      expect((await fetchApi(PATH, localEnv(), { github, ...asJob('job-budget-c') })).status).toBe(429);
+      for (let read = 0; read <= JOB_SPRINT_READS_PER_WINDOW; read += 1) {
+        expect((await fetchApi(PATH, localEnv(), { github })).status).toBe(200);
+      }
+    });
+
+    it('admits the job again in the next window', async () => {
+      const { github, clock } = clocked();
+      await spend(github, 'job-budget-d');
+      expect((await fetchApi(PATH, localEnv(), { github, ...asJob('job-budget-d') })).status).toBe(429);
+      clock.at += JOB_SPRINT_WINDOW_SECONDS * 1000;
+      expect((await fetchApi(PATH, localEnv(), { github, ...asJob('job-budget-d') })).status).toBe(200);
+    });
+
+    it('still answers 404 to a job within its budget on another project’s slug', async () => {
+      await seedProject('other', 'geeera/other');
+      const { github } = clocked();
+      const foreign = await fetchApi(PATH, localEnv(), { github, ...asJob('job-budget-e', 'other') });
+      expect(foreign.status).toBe(404);
+      expect(await problemType(foreign)).toBe('project-not-found');
+    });
   });
 
   describe('CI per open pull request (#131)', () => {

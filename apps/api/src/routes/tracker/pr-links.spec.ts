@@ -183,6 +183,13 @@ describe('POST /projects/:slug/items/:key/pr-links', () => {
       'github-rate-limit',
     ],
     ['an outage', () => json(503, { message: 'unavailable' }), 502, 'github-unavailable'],
+    // #537: a permission error (403 without rate-limit headers) is the installation's, never a missing pull request.
+    [
+      'a permission error',
+      () => json(403, { message: 'Resource not accessible by integration' }),
+      503,
+      'github-auth',
+    ],
   ] as const)(
     'answers %s during the lookup as retryable, writing nothing and keeping the key usable',
     async (_label, failure, status, type) => {
