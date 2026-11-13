@@ -1,6 +1,6 @@
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { apiClient, seed } from './support/stack';
-import { createItem, createSprint, switchToConsoleTracker } from './support/tracker-seed';
+import { createItem, createSprint, localD1, switchToConsoleTracker } from './support/tracker-seed';
 
 /**
  * The board of a console-tracker project (#556): the current sprint and its tasks come from the tracker, and the
@@ -24,8 +24,15 @@ test.beforeAll(async ({ stack }, testInfo) => {
   await switchToConsoleTracker(testInfo.workerIndex, SLUG, 'TC');
   const api = await apiClient(stack);
   try {
-    await createSprint(api, SLUG, tomorrow());
-    inSprint = await createItem(api, SLUG, { title: 'Board reads the tracker', status: 'in-progress', sprint: 1 });
+    const sprint = await createSprint(api, SLUG, tomorrow());
+    // Sprint 1 is already frozen (its demo is tomorrow), so #560 refuses a creation straight into it; plant the
+    // item in the backlog first, as if it had been planned before the freeze started, then move it by SQL.
+    inSprint = await createItem(api, SLUG, { title: 'Board reads the tracker', status: 'in-progress', sprint: null });
+    await localD1(
+      testInfo.workerIndex,
+      `UPDATE items SET sprint_id = (SELECT id FROM sprints WHERE project_slug = '${SLUG}' AND number = ${String(sprint)})
+       WHERE project_slug = '${SLUG}' AND number = ${String(inSprint)}`,
+    );
     inBacklog = await createItem(api, SLUG, { title: 'Folders for later sprints', sprint: null });
   } finally {
     await api.dispose();

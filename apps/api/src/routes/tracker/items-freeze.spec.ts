@@ -29,7 +29,12 @@ async function itemIn(project: SeededProject, sprint: number | null): Promise<It
 }
 
 function create(project: SeededProject, sprint: number | null, github?: ApiGitHub): Promise<Response> {
-  return send('POST', itemsPath(project.slug), { title: 'Item', kind: 'feature', sprint }, { github });
+  return send(
+    'POST',
+    itemsPath(project.slug),
+    { title: 'Item', kind: 'feature', sprint },
+    github === undefined ? {} : { github },
+  );
 }
 
 /**
