@@ -1,5 +1,7 @@
 import { isRunnerPolicy, isRunnerPolicyDto } from './job';
 import {
+  RUNNER_PAUSE_MAX_SECONDS,
+  checkPauseRunnerInput,
   compareRunnerVersions,
   enrolCommandOf,
   isEnrolmentCodeDto,
@@ -31,6 +33,7 @@ const RUNNER: RunnerDto = {
   suspect: null,
   revokedAt: null,
   belowMinimum: false,
+  pause: null,
 };
 
 describe('compareRunnerVersions', () => {
@@ -105,6 +108,7 @@ describe('runner guards', () => {
         revokedAt: '2026-11-10T00:02:00.000Z',
       }),
     ).toBe(true);
+    expect(isRunnerDto({ ...RUNNER, pause: { reason: 'usage-limit', until: '2026-11-10T05:00:00.000Z' } })).toBe(true);
   });
 
   it.each([
@@ -113,6 +117,9 @@ describe('runner guards', () => {
     ['a malformed id', { id: 'runner-1' }],
     ['an unknown suspect reason', { suspect: { at: '2026-11-10T00:00:00.000Z', reason: 'other' } }],
     ['a host without a hostname', { host: { os: 'darwin', arch: 'arm64' } }],
+    ['no pause member', { pause: undefined }],
+    ['an unknown pause reason', { pause: { reason: 'tired', until: '2026-11-10T05:00:00.000Z' } }],
+    ['a pause without until', { pause: { reason: 'manual' } }],
   ])('refuses a runner with %s', (_, patch) => {
     expect(isRunnerDto({ ...RUNNER, ...patch })).toBe(false);
   });
@@ -197,5 +204,38 @@ describe('runner policy guards', () => {
 
   it('refuses a DTO without an effective policy', () => {
     expect(isRunnerPolicyDto({ policy: null, effective: null })).toBe(false);
+  });
+});
+
+// #571: the runner's pause body; the route answers every refusal 422 with the field.
+describe('checkPauseRunnerInput', () => {
+  const now = new Date('2026-11-13T12:00:00.000Z');
+
+  it.each(['usage-limit', 'rate-limit', 'manual'])('accepts %s with an until inside 24 hours, normalised', (reason) => {
+    expect(checkPauseRunnerInput({ reason, until: '2026-11-13T13:00:00Z' }, now)).toEqual({
+      ok: true,
+      value: { reason, until: '2026-11-13T13:00:00.000Z' },
+    });
+  });
+
+  it('accepts until exactly 24 hours ahead', () => {
+    const until = new Date(now.getTime() + RUNNER_PAUSE_MAX_SECONDS * 1000).toISOString();
+    expect(checkPauseRunnerInput({ reason: 'usage-limit', until }, now).ok).toBe(true);
+  });
+
+  it.each([
+    ['an unknown reason', { reason: 'tired', until: '2026-11-13T13:00:00.000Z' }, 'reason'],
+    ['no reason', { until: '2026-11-13T13:00:00.000Z' }, 'reason'],
+    ['until more than 24 hours ahead', { reason: 'usage-limit', until: '2026-11-14T12:00:00.001Z' }, 'until'],
+    ['until now', { reason: 'usage-limit', until: '2026-11-13T12:00:00.000Z' }, 'until'],
+    ['until in the past', { reason: 'rate-limit', until: '2026-11-13T11:00:00.000Z' }, 'until'],
+    ['until with an offset', { reason: 'rate-limit', until: '2026-11-13T15:00:00+02:00' }, 'until'],
+    ['until as a number', { reason: 'rate-limit', until: 1_763_038_800_000 }, 'until'],
+    ['an impossible date', { reason: 'rate-limit', until: '2026-02-31T13:00:00.000Z' }, 'until'],
+    ['an extra member', { reason: 'manual', until: '2026-11-13T13:00:00.000Z', runner: 'x' }, 'body'],
+  ])('refuses %s', (_, body, field) => {
+    const check = checkPauseRunnerInput(body, now);
+    expect(check.ok).toBe(false);
+    expect(check.ok ? null : check.field).toBe(field);
   });
 });

@@ -46,6 +46,13 @@ export const BelowMinimum: Story = { args: { runner: runnerFixture({ version: '0
 export const Suspect: Story = {
   args: { runner: runnerFixture({ suspect: { at: '2026-11-11T09:40:00.000Z', reason: 'new-country' } }) },
 };
+/** #571: hit the Claude usage limit; claims nothing until the reset time, then resumes on its own. */
+export const UsageLimit: Story = {
+  args: { runner: runnerFixture({ online: false, pause: { reason: 'usage-limit', until: '2026-11-11T14:30:00.000Z' } }) },
+};
+export const RateLimit: Story = {
+  args: { runner: runnerFixture({ pause: { reason: 'rate-limit', until: '2026-11-11T10:20:00.000Z' } }) },
+};
 export const Container: Story = {
   args: {
     runner: runnerFixture({

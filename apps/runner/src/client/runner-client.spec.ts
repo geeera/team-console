@@ -311,3 +311,30 @@ describe('RunnerClient', () => {
     expect(requests[0]?.headers[RUNNER_JWT_HEADER.toLowerCase()]).toBeUndefined();
   });
 });
+
+// #571: the local pause mirrored to the console, on the runner's own door with its JWT.
+describe('pause and resume', () => {
+  it('posts the pause and its end with a fresh runner JWT, and nothing else', async () => {
+    const { client, requests } = clientWith(() => json(200, { pause: null }));
+    await client.pause({ reason: 'usage-limit', until: '2026-11-13T13:00:00.000Z' });
+    await client.resume();
+    expect(requests.map((request) => [request.method, request.url, request.body])).toEqual([
+      ['POST', `${API}/api/v1/runner/pause`, JSON.stringify({ reason: 'usage-limit', until: '2026-11-13T13:00:00.000Z' })],
+      ['POST', `${API}/api/v1/runner/resume`, '{}'],
+    ]);
+    const [first, second] = requests.map((request) => bearerOf(request.headers['authorization']));
+    expect(first).not.toBe('');
+    expect(first).not.toBe(second);
+    expect(requests.every((request) => request.redirect === 'manual')).toBe(true);
+  });
+
+  it('throws the console’s refusal with its problem slug', async () => {
+    const { client } = clientWith(() => problem(422, 'runner-pause-invalid'));
+    await expect(client.pause({ reason: 'usage-limit', until: '2026-11-15T13:00:00.000Z' })).rejects.toMatchObject({
+      status: 422,
+      problem: 'runner-pause-invalid',
+    });
+    const revoked = clientWith(() => problem(401, 'runner-revoked'));
+    await expect(revoked.client.resume()).rejects.toBeInstanceOf(RunnerApiError);
+  });
+});

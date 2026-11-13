@@ -1,5 +1,7 @@
+import type { PauseRunnerInput } from '@shared/contracts';
 import type { IsolationBackend } from '../backends/backend';
-import { activePause, loadRunnerState, saveRunnerState, type RunnerState } from '../budget/state';
+import { MAX_PAUSE_MS } from '../budget/detect';
+import { activePause, loadRunnerState, saveRunnerState, type RunnerPause, type RunnerState } from '../budget/state';
 import type { ClaimOutcome } from '../client/runner-client';
 import type { RunnerConfig } from '../config/config';
 import { JobRegistry } from '../proxy/job-registry';
@@ -9,10 +11,13 @@ import { runJob, type JobConsole, type JobReport, type JobRunDeps } from './run-
  * `run-once` and `run --loop` (architect note on #468, PR 2): claim, run, repeat. The local pause of decision 9 is
  * honoured before every claim, including across restarts (`state.json`); one job at a time (`maxConcurrency` 1).
  * The backend's preflight runs before each claim, so a job never starts while a previous one's process remains.
+ * The pause is mirrored to the console (#571) so its claim skips this runner too and Settings › Runners shows it.
  */
 
 export interface LoopConsole extends JobConsole {
   claim(): Promise<ClaimOutcome>;
+  pause(input: PauseRunnerInput): Promise<void>;
+  resume(): Promise<void>;
 }
 
 export interface LoopDeps {
@@ -59,12 +64,51 @@ export function stateAfter(state: RunnerState, report: JobReport): RunnerState {
     : { ...state, pause: null };
 }
 
+/** Room for the runner's clock running ahead of the console's: the console refuses an `until` past 24 h. */
+const CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+/** The pause as the console takes it: never further ahead than its 24 h bound, less the skew allowance. */
+export function mirroredPauseOf(pause: RunnerPause, now: Date): PauseRunnerInput {
+  const latest = now.getTime() + MAX_PAUSE_MS - CLOCK_SKEW_MS;
+  return { reason: pause.reason, until: new Date(Math.min(Date.parse(pause.until), latest)).toISOString() };
+}
+
+/**
+ * Posts the pause in force (or its end) when it differs from what was last mirrored. The local pause is the
+ * enforcement, so a console that cannot be reached is logged and tried again on the next change, never fatal.
+ */
+async function mirrorPause(
+  deps: LoopDeps,
+  pause: RunnerPause | null,
+  mirrored: RunnerPause | null,
+): Promise<RunnerPause | null> {
+  if (pause?.reason === mirrored?.reason && pause?.until === mirrored?.until) {
+    return mirrored;
+  }
+  try {
+    if (pause === null) {
+      await deps.client.resume();
+    } else {
+      await deps.client.pause(mirroredPauseOf(pause, deps.now()));
+    }
+    return pause;
+  } catch (error: unknown) {
+    deps.log(
+      `could not ${pause === null ? 'clear the pause on' : 'mirror the pause to'} the console: ${error instanceof Error ? error.message : 'unknown error'}`,
+    );
+    return mirrored;
+  }
+}
+
 export async function runLoop(mode: 'once' | 'loop', deps: LoopDeps): Promise<LoopEnd> {
   const sleep = deps.sleep ?? abortableSleep;
   const registry = new JobRegistry();
   let state = await loadRunnerState(deps.home);
+  // Nothing mirrored yet in this process: a pause still in force from `state.json` is posted again on start.
+  let mirrored: RunnerPause | null = null;
   while (!deps.shutdown.aborted) {
     const pause = activePause(state, deps.now());
+    mirrored = await mirrorPause(deps, pause, mirrored);
     if (pause !== null) {
       deps.log(`paused (${pause.reason}) until ${pause.until}; not claiming`);
       if (mode === 'once') {
@@ -108,6 +152,7 @@ export async function runLoop(mode: 'once' | 'loop', deps: LoopDeps): Promise<Lo
     });
     state = stateAfter(state, report);
     await saveRunnerState(deps.home, state);
+    mirrored = await mirrorPause(deps, activePause(state, deps.now()), mirrored);
     if (mode === 'once') {
       return 'ran';
     }

@@ -1993,6 +1993,7 @@
       "offline": "Offline",
       "neverSeen": "Not seen yet",
       "suspect": "Needs a look",
+      "paused": "Paused",
       "revoked": "Revoked"
     },
     "backend": {
@@ -2018,7 +2019,13 @@
       "suspect": {
         "new-country": "On {{day}} at {{time}} the runner called from a new country. If that wasn't you, revoke it.",
         "two-pollers": "On {{day}} at {{time}} two addresses used this runner's key at once. If that wasn't you, revoke it."
-      }
+      },
+      "pause": {
+        "usage-limit": "Hit the Claude usage limit and takes no jobs meanwhile.",
+        "rate-limit": "Claude is limiting its requests; it takes no jobs meanwhile.",
+        "manual": "Paused on its machine; it takes no jobs meanwhile."
+      },
+      "pauseUntil": "Resumes {{day}} at {{time}}."
     },
     "projects": {
       "legend": "Projects whose jobs the runner may take",
@@ -2234,7 +2241,12 @@
       "failed": "Failed: {{kind}}",
       "finished": "Finished: {{kind}}",
       "none": "No runs",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "paused": {
+        "usage-limit": "Usage limit until {{time}}",
+        "rate-limit": "Rate limit until {{time}}",
+        "manual": "Paused until {{time}}"
+      }
     },
     "err": {
       "forbidden": "Only the account owner can start jobs. Nothing was started.",

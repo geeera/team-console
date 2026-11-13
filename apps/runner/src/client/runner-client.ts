@@ -11,6 +11,7 @@ import {
   type JobDto,
   type JobEventInput,
   type JobEventsResponse,
+  type PauseRunnerInput,
   type RunnerReleaseDto,
 } from '@shared/contracts';
 import { redactedJsonBody } from './redact';
@@ -237,6 +238,24 @@ export class RunnerClient {
     const response = await this.send('POST', `/api/v1/runner/jobs/${jobId}/finish`, input);
     if (response.status !== 200) {
       throw await apiErrorOf(response, 'finish');
+    }
+    await response.body?.cancel();
+  }
+
+  /** Mirrors the runner's local pause (#571): the console's claim skips this runner until `until`. */
+  async pause(input: PauseRunnerInput): Promise<void> {
+    const response = await this.send('POST', '/api/v1/runner/pause', input);
+    if (response.status !== 200) {
+      throw await apiErrorOf(response, 'pause');
+    }
+    await response.body?.cancel();
+  }
+
+  /** Lifts the mirrored pause once the local one has ended. */
+  async resume(): Promise<void> {
+    const response = await this.send('POST', '/api/v1/runner/resume', {});
+    if (response.status !== 200) {
+      throw await apiErrorOf(response, 'resume');
     }
     await response.body?.cancel();
   }
