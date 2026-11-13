@@ -216,6 +216,21 @@ describe('RunnersRepo', () => {
     expect((await repo.findById(runner.id))?.allowedProjects).toEqual(['p2']);
   });
 
+  // #547: the comparison is set equality, not JSON text.
+  it('treats a reordered or duplicated allow-list as no change, and a real narrowing as a change', async () => {
+    const runner = await enrolled();
+    const updated = { ...audit('runner.updated'), target: runner.id };
+    expect(await repo.setAllowedProjects(ACCOUNT_A, runner.id, ['p2', 'p3', 'p4'], updated)).toBe(true);
+    expect(await repo.setAllowedProjects(ACCOUNT_A, runner.id, ['p4', 'p2', 'p3'], updated)).toBe(false);
+    expect(await repo.setAllowedProjects(ACCOUNT_A, runner.id, ['p3', 'p3', 'p2', 'p4'], updated)).toBe(false);
+    expect(await auditRows('runner.updated', runner.id)).toBe(1);
+    expect(await repo.setAllowedProjects(ACCOUNT_A, runner.id, ['p4', 'p2'], updated)).toBe(true);
+    expect((await repo.findById(runner.id))?.allowedProjects).toEqual(['p4', 'p2']);
+    expect(await repo.setAllowedProjects(ACCOUNT_A, runner.id, [], updated)).toBe(true);
+    expect(await repo.setAllowedProjects(ACCOUNT_A, runner.id, [], updated)).toBe(false);
+    expect(await auditRows('runner.updated', runner.id)).toBe(3);
+  });
+
   // #531: the audit row follows the write that happened, not the call.
   it('leaves exactly one runner.revoked row for two concurrent revokes', async () => {
     const runner = await enrolled();
