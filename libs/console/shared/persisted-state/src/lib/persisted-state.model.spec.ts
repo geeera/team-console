@@ -19,6 +19,7 @@ const valid: PersistedStateV1 = {
       chatDraft: '',
       artifactFilter: { type: 'decisions' },
       boardTab: 'prs',
+      boardFolders: ['sprint:12', 'backlog'],
     },
   },
 };
@@ -58,6 +59,10 @@ describe('parsePersistedState', () => {
         ...valid,
         projects: { x: { lastPath: '', scroll: {}, chatDraft: '', artifactFilter: { type: 1 } } },
       },
+    ],
+    [
+      'boardFolders that is not a string array',
+      { ...valid, projects: { x: { lastPath: '', scroll: {}, chatDraft: '', boardFolders: ['ok', 2] } } },
     ],
   ])('discards a wrong shape: %s', (_name, value) => {
     expect(isPersistedStateV1(value)).toBe(false);

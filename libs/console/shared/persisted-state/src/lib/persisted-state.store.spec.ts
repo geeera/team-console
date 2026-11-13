@@ -118,6 +118,26 @@ describe('PersistedStateStore', () => {
     expect(store.projectState('b')?.boardTab).toBeUndefined();
   });
 
+  it('keeps the open board folders per project, as a set regardless of order (#562)', () => {
+    const storage = memoryPersistedStateStorage();
+    const write = vi.spyOn(storage, 'write');
+    const { store } = setup(storage);
+
+    store.setBoardFolders('a', ['sprint:12', 'backlog']);
+    vi.advanceTimersByTime(PERSISTED_STATE_WRITE_DELAY_MS);
+    expect(parsePersistedState(storage.read()).projects['a']?.boardFolders).toEqual(['sprint:12', 'backlog']);
+
+    // Same set, different order: no write.
+    write.mockClear();
+    store.setBoardFolders('a', ['backlog', 'sprint:12']);
+    vi.advanceTimersByTime(PERSISTED_STATE_WRITE_DELAY_MS);
+    expect(write).not.toHaveBeenCalled();
+
+    store.setBoardFolders('a', ['backlog']);
+    vi.advanceTimersByTime(PERSISTED_STATE_WRITE_DELAY_MS);
+    expect(parsePersistedState(storage.read()).projects['a']?.boardFolders).toEqual(['backlog']);
+  });
+
   it('toggles pins in pin order and the collapsed flag', () => {
     const { store } = setup();
 
