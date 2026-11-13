@@ -1,8 +1,8 @@
-import { LiveAnnouncer } from '@angular/cdk/a11y';
 import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   ElementRef,
   inject,
   input,
@@ -10,23 +10,16 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import {
-  calendarTodayOf,
-  freezeDaysOrDefault,
-  ItemsApi,
-  newIdempotencyKey,
-  type FailedWrite,
-} from '@console/entities/item';
-import { localCalendarDayOf, pluralKeyOf, TranslocoService } from '@console/shared/i18n';
-import { Menu, PickerButton, Toaster } from '@console/shared/ui';
-import { openSprintsOf, type ItemDto, type TrackerSprintDto } from '@shared/contracts';
-import { moveMenuOf, moveTargetOf, SPRINT_CAP, type MoveTarget } from './move-menu';
+import type { FailedWrite } from '@console/entities/item';
+import { TranslocoService } from '@console/shared/i18n';
+import { PickerButton } from '@console/shared/ui';
+import type { ItemDto } from '@shared/contracts';
+import { ItemMover } from './item-mover';
 
 /**
- * Sprint ▾ on the task screen (#409 §2.2): the Move menu — every open sprint and the backlog — and a move that
- * applies at once (`PATCH {sprint}` with `If-Match` and an idempotency key). The toast then says "TC-408 → Sprint 04"
- * and offers Undo for 10 s (⌘Z / Ctrl+Z), which moves it back on the version the move produced. A move keeps the
- * status. Focus stays on Sprint ▾ (the task does not leave this screen).
+ * Sprint ▾ on the task screen (#409 §2.2): the Move menu of `ItemMover` — every open sprint and the backlog, a move
+ * that applies at once, Undo on the toast. A move keeps the status. Focus stays on Sprint ▾ (the task does not leave
+ * this screen).
  */
 @Component({
   selector: 'tc-item-sprint-picker',
@@ -51,12 +44,10 @@ import { moveMenuOf, moveTargetOf, SPRINT_CAP, type MoveTarget } from './move-me
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ItemSprintPicker {
-  private readonly api = inject(ItemsApi);
-  private readonly menu = inject(Menu);
-  private readonly toaster = inject(Toaster);
+  private readonly mover = inject(ItemMover);
   private readonly transloco = inject(TranslocoService);
-  private readonly announcer = inject(LiveAnnouncer);
   private readonly button = viewChild.required('button', { read: ElementRef<HTMLButtonElement> });
+  private isDestroyed = false;
 
   readonly slug = input.required<string>();
   readonly item = input.required<ItemDto>();
@@ -66,130 +57,39 @@ export class ItemSprintPicker {
   readonly changed = output<ItemDto>();
   readonly failed = output<FailedWrite>();
 
+  /** The menu is open or its move is on its way: a second press waits. */
   protected readonly isOpen = signal(false);
-  private readonly isBusy = signal(false);
-  protected readonly isOff = computed(() => this.off() !== null || this.isBusy());
+  protected readonly isOff = computed(() => this.off() !== null);
   protected readonly label = computed(() => this.transloco.translate('item.sprint'));
-  /** A seam for specs. */
-  now: () => Date = () => new Date();
+
+  constructor() {
+    // Undo can run from the toast after the screen is gone; there is nobody to tell then.
+    inject(DestroyRef).onDestroy(() => {
+      this.isDestroyed = true;
+    });
+  }
 
   async open(): Promise<void> {
     if (this.isOpen() || this.isOff()) {
       return;
     }
     this.isOpen.set(true);
-    this.isBusy.set(true);
-    const [sprints, open, freezeDays] = await Promise.all([
-      this.api.sprints(this.slug()),
-      this.api.items(this.slug(), { state: 'open' }),
-      this.api.freezeDays(this.slug()),
-    ]);
-    this.isBusy.set(false);
-    if (!sprints.ok || !open.ok) {
-      this.isOpen.set(false);
-      this.failed.emit({
-        failure: { kind: sprints.ok && open.ok ? 'unknown' : 'network', field: null, retryAfter: null },
-        retry: () => this.open(),
-      });
-      return;
-    }
-    const counts = new Map<number | null, number>();
-    for (const entry of open.value) {
-      counts.set(entry.sprint, (counts.get(entry.sprint) ?? 0) + 1);
-    }
-    const item = this.item();
-    const openSprints = openSprintsOf(sprints.value);
-    const picked = await this.menu.open(
-      this.button().nativeElement,
-      moveMenuOf(
-        {
-          item,
-          sprints: openSprints,
-          counts,
-          today: calendarTodayOf(this.now()),
-          freezeDays: freezeDaysOrDefault(freezeDays),
+    try {
+      await this.mover.open(this.button().nativeElement, this.slug(), this.item(), {
+        moved: ({ item }) => {
+          if (!this.isDestroyed) {
+            this.changed.emit(item);
+            this.button().nativeElement.focus();
+          }
         },
-        this.copy(item),
-      ),
-    );
-    this.isOpen.set(false);
-    const target = picked === null ? undefined : moveTargetOf(picked);
-    if (target === undefined || target === item.sprint) {
-      return;
-    }
-    await this.move(item, target, item.version, newIdempotencyKey(), openSprints, false);
-  }
-
-  private async move(
-    item: ItemDto,
-    to: MoveTarget,
-    version: number,
-    key: string,
-    sprints: readonly TrackerSprintDto[],
-    isUndo: boolean,
-  ): Promise<void> {
-    this.isBusy.set(true);
-    const result = await this.api.update(this.slug(), item.number, version, { sprint: to }, key);
-    this.isBusy.set(false);
-    if (!result.ok) {
-      this.failed.emit({
-        failure: result.failure,
-        retry: () => this.move(item, to, version, key, sprints, isUndo),
+        failed: (failed) => {
+          if (!this.isDestroyed) {
+            this.failed.emit(failed);
+          }
+        },
       });
-      return;
+    } finally {
+      this.isOpen.set(false);
     }
-    const moved = result.value;
-    this.changed.emit(moved);
-    this.button().nativeElement.focus();
-    const where = this.whereOf(to, sprints);
-    if (isUndo) {
-      const undone = this.t('plan.undone', { key: moved.key, where });
-      this.toaster.show(undone);
-      void this.announcer.announce(undone, 'polite');
-      return;
-    }
-    const from = item.sprint;
-    this.toaster.offerUndo(this.t('plan.moved', { key: moved.key, where }), {
-      label: this.t('plan.undo'),
-      run: () => void this.move(moved, from, moved.version, newIdempotencyKey(), sprints, true),
-    });
-  }
-
-  private whereOf(target: MoveTarget, sprints: readonly TrackerSprintDto[]): string {
-    if (target === null) {
-      return this.t('plan.backlog');
-    }
-    return (
-      sprints.find((sprint) => sprint.number === target)?.title ?? `Sprint ${String(target).padStart(2, '0')}`
-    );
-  }
-
-  private copy(item: ItemDto) {
-    const lang = this.transloco.getActiveLang();
-    const day = (sprint: TrackerSprintDto): string =>
-      sprint.dueOn === null ? '' : localCalendarDayOf(sprint.dueOn, lang);
-    const counted = (key: string, n: number, params: Record<string, unknown> = {}): string =>
-      this.t(pluralKeyOf(key, lang, n), { n, ...params });
-    return {
-      label: this.t('plan.menuAria', { key: item.key }),
-      title: this.t('plan.menuTitle', { key: item.key }),
-      sprintsGroup: this.t('plan.sprints'),
-      to: (sprint: TrackerSprintDto) => this.t('plan.to', { sprint: sprint.title }),
-      toCurrent: (sprint: TrackerSprintDto) => this.t('plan.toCurrent', { sprint: sprint.title }),
-      toBacklog: this.t('plan.toBacklog'),
-      count: (n: number, sprint: TrackerSprintDto) =>
-        sprint.dueOn === null
-          ? counted('plan.backlogCount', n)
-          : counted('plan.count', n, { date: day(sprint) }),
-      backlogCount: (n: number) => counted('plan.backlogCount', n),
-      full: (n: number) => counted('plan.full', n, { cap: SPRINT_CAP }),
-      here: this.t('plan.here'),
-      freeze: (sprint: TrackerSprintDto) => this.t('plan.freeze', { date: day(sprint) }),
-      inProgress: this.t('plan.inProgressWarn'),
-    };
-  }
-
-  private t(key: string, params?: Record<string, unknown>): string {
-    return this.transloco.translate(key, params);
   }
 }

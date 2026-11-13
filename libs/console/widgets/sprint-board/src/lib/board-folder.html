@@ -38,6 +38,9 @@
     [attr.aria-busy]="state().kind === 'loading' ? 'true' : null"
     [attr.data-state]="state().kind"
   >
+    @if (moveFailure(); as failed) {
+      <tc-tracker-failure [failure]="failed.failure" (retry)="retryMove()" (refresh)="refreshAfterFailure()" />
+    }
     @switch (state().kind) {
       @case ('loading') {
         <p class="folder__loading">{{ announcement() }}</p>
@@ -101,7 +104,7 @@
               [count]="column.issues.length"
               [attr.data-status]="column.status"
             >
-              <tc-sprint-item-list [items]="visible(column)" [slug]="slug()" />
+              <tc-sprint-item-list [items]="visible(column)" [slug]="slug()" [rowAction]="moveAction" />
               @if (hidden(column) > 0) {
                 <button
                   tc-button
@@ -122,3 +125,9 @@
     }
   </div>
 </section>
+
+<ng-template #moveAction let-issue>
+  @if (movable().get(issue.number); as item) {
+    <tc-board-move-button [slug]="slug()" [item]="item" />
+  }
+</ng-template>

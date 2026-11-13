@@ -6,7 +6,7 @@ export const SPRINT_CAP = 8;
 
 /** What the Move menu needs to know, all already read. */
 export interface MoveMenuInput {
-  readonly item: ItemSummaryDto;
+  readonly item: Pick<ItemSummaryDto, 'sprint' | 'status' | 'title'>;
   /** Open sprints, earliest first: the first is the current one. */
   readonly sprints: readonly TrackerSprintDto[];
   /** Open items per sprint number (`null` = the backlog). */

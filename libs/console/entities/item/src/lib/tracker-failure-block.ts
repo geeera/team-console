@@ -18,6 +18,7 @@ const COPY: Readonly<Record<TrackerFailure['kind'], string>> = {
   conflict: 'changed',
   gone: 'gone',
   invalid: 'invalid',
+  frozen: 'frozen',
   forbidden: 'forbidden',
   network: 'network',
   timeout: 'timeout',

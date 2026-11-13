@@ -11,17 +11,21 @@ import {
   PERSISTED_STATE_STORAGE,
   PersistedStateStore,
 } from '@console/shared/persisted-state';
-import type { ItemSummaryDto, TrackerSprintDto, TrackerSprintListDto } from '@shared/contracts';
+import type { StatusColumn } from '@console/entities/sprint';
+import type { ItemDto, ItemSummaryDto, TrackerSprintDto, TrackerSprintListDto } from '@shared/contracts';
 import { of } from 'rxjs';
 import { BoardFolder, FOLDER_LANE_PAGE, type BoardFolderSpec } from './board-folder';
-import { BoardFolders, boardFoldersOf } from './board-folders';
+import { BoardFolders, boardFoldersOf, countsAfterMove } from './board-folders';
+import { arrivalsLast, BoardMoves } from './board-moves';
 
 function trackerSprint(number: number, dueOn: string | null, openCount = 0): TrackerSprintDto {
   const title = `Sprint ${String(number).padStart(2, '0')}`;
   return { number, title, dueOn, state: 'open', description: '', createdAt: '2026-11-01T00:00:00Z', closedAt: null, openCount };
 }
 
-const task = (number: number, overrides: Partial<ItemSummaryDto> = {}): ItemSummaryDto =>
+// itemFixture builds a full ItemDto (it carries `body`); rows on the board only read the ItemSummaryDto
+// subset, but the move handlers below need the full dto, so the fixture keeps its full type.
+const task = (number: number, overrides: Partial<ItemDto> = {}): ItemDto =>
   itemFixture({ key: `TC-${String(number)}`, number, title: `Task ${String(number)}`, sprint: 5, ...overrides });
 
 const NEXT: BoardFolderSpec = { kind: 'next', sprint: trackerSprint(5, '2026-12-11', 2), openCount: 2 };
@@ -367,5 +371,54 @@ describe('BoardFolders, remembered folders and the ?section= deep link (#562)', 
     );
     await settle();
     expect(toggles(root).map((toggle) => toggle.getAttribute('aria-expanded'))).toEqual(['false', 'false']);
+  });
+});
+
+describe('Moves on the board (#558)', () => {
+  const issue = (number: number) => ({ number }) as StatusColumn['issues'][number];
+
+  it('puts tasks moved in at the end of their lane, in the order they came', () => {
+    const lanes: StatusColumn[] = [{ status: 'approved', issues: [issue(1), issue(2), issue(3), issue(4)] }];
+    expect(arrivalsLast(lanes, [3, 1])[0]?.issues.map((row) => row.number)).toEqual([2, 4, 3, 1]);
+  });
+
+  it('moves one open count from the source folder to the target', () => {
+    const list: TrackerSprintListDto = { sprints: [trackerSprint(4, '2026-11-27', 2), trackerSprint(5, null, 1)], backlogOpenCount: 3 };
+    const after = countsAfterMove(list, null, 5);
+    expect(after.sprints.map((sprint) => sprint.openCount)).toEqual([2, 2]);
+    expect(after.backlogOpenCount).toBe(2);
+  });
+
+  it('gives every row its ⋯, drops a row that left with focus on the next ⋯, and shows a refused move as an alert', async () => {
+    const { root, fake, toggle, settle } = await setup(FolderHost);
+    toggle().click();
+    await settle();
+    fake.calls[0]?.answer({ ok: true, value: [task(2), task(3), task(4)] });
+    await settle();
+    const button = (n: number) => root.querySelector(`[data-move="${String(n)}"]`) as HTMLButtonElement | null;
+    expect(button(3)?.getAttribute('aria-label')).toBe('Переместить TC-3: Task 3');
+    expect(button(3)?.getAttribute('aria-haspopup')).toBe('menu');
+
+    const moves = TestBed.inject(BoardMoves);
+    button(3)?.focus();
+    moves.handlers.moved({ item: { ...task(3), sprint: null }, from: 5, to: null, isUndo: false });
+    await settle();
+    expect(root.querySelector('[data-number="3"]')).toBeNull();
+    expect(document.activeElement).toBe(button(4));
+
+    moves.handlers.moved({ item: task(1), from: null, to: 5, isUndo: false });
+    await settle();
+    const rows = [...root.querySelectorAll('tc-list-row')].map((row) => row.getAttribute('data-number'));
+    expect(rows).toEqual(['2', '4', '1']);
+
+    moves.handlers.failed(
+      { failure: { kind: 'forbidden', field: null, retryAfter: null }, retry: async () => undefined },
+      task(2),
+    );
+    await settle();
+    const alert = root.querySelector('[data-testid="tracker-failure"]');
+    expect(alert?.getAttribute('role')).toBe('alert');
+    expect(alert?.textContent).toContain('Менять задачи может только владелец');
+    expect(root.querySelector('[data-number="2"]')).not.toBeNull();
   });
 });

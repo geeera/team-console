@@ -134,6 +134,9 @@
     class="board__tasks"
     [label]="'board.tabs.tasks' | transloco: { n: (board.issues.length | localNumber) }"
   >
+    @if (moveFailure(); as failed) {
+    <tc-tracker-failure [failure]="failed.failure" (retry)="retryMove()" (refresh)="refreshAfterFailure()" />
+    }
     @if (board.issues.length === 0) {
     <tc-state-block
       kind="empty"
@@ -180,7 +183,11 @@
         } @if (isFolded(column.status)) {
         <!-- Folded: the heading and its Show button only. -->
         } @else if (column.issues.length > 0) {
-        <tc-sprint-item-list [items]="visible(column.issues, 'lane:' + column.status)" [slug]="isJobsBoard() ? project().slug : null" />
+        <tc-sprint-item-list
+          [items]="visible(column.issues, 'lane:' + column.status)"
+          [slug]="isJobsBoard() ? project().slug : null"
+          [rowAction]="isJobsBoard() ? moveAction : null"
+        />
         @if (hidden(column.issues) > 0) {
         <ng-container
           *ngTemplateOutlet="more; context: { key: 'lane:' + column.status, n: hidden(column.issues), all: false }"
@@ -254,6 +261,12 @@
   </tc-tab-panel>
 </tc-tabs>
 }
+
+<ng-template #moveAction let-issue>
+  @if (movable().get(issue.number); as item) {
+  <tc-board-move-button [slug]="project().slug" [item]="item" />
+  }
+</ng-template>
 
 <ng-template #noSprint>
   <tc-state-block

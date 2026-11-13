@@ -159,6 +159,7 @@ describe('trackerFailureOf', () => {
       field: 'title',
     });
     expect(trackerFailureOf(problem(409, 'idempotency-in-flight')).kind).toBe('in-flight');
+    expect(trackerFailureOf(problem(409, 'sprint-frozen')).kind).toBe('frozen');
     expect(trackerFailureOf(new HttpErrorResponse({ status: 0 })).kind).toBe('network');
     expect(trackerFailureOf(new Error('boom')).kind).toBe('unknown');
   });
