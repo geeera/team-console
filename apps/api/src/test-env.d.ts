@@ -17,6 +17,8 @@ declare global {
       MIGRATION_DB_0019: D1Database;
       /** Another, for 0025's pr-link index over an existing duplicate link (#529). */
       MIGRATION_DB_0025: D1Database;
+      /** Another, for 0026's sprint title index over existing repeated titles (#545). */
+      MIGRATION_DB_0026: D1Database;
       /** Public half of the generated test app key (vitest.config.mts), to verify the app JWT. */
       TEST_GITHUB_APP_PUBLIC_JWK: string;
     }

@@ -1,4 +1,4 @@
-import { sprintTitleOf, type SprintState } from '@shared/contracts';
+import { sprintTitleKeyOf, sprintTitleOf, type SprintState } from '@shared/contracts';
 import { isConstraintError } from './constraint-error';
 
 export interface SprintRecord {
@@ -20,6 +20,9 @@ export interface NewSprint {
   readonly title?: string | null;
   readonly at: string;
 }
+
+/** `create`'s answer: written, or nothing written because another sprint holds the number or the title (0026). */
+export type SprintCreateResult = 'created' | 'number-taken' | 'title-taken';
 
 /** `update`'s fields; an absent key leaves the column as it is. */
 export interface SprintChanges {
@@ -75,6 +78,15 @@ export class SprintsRepo {
     return row === null ? null : toRecord(row);
   }
 
+  /** The sprint titled `title` ignoring case (0026's key); older repeats keep no key, so at most one matches. */
+  async findByTitle(slug: string, title: string): Promise<SprintRecord | null> {
+    const row = await this.db
+      .prepare(`SELECT ${COLUMNS} FROM sprints WHERE project_slug = ?1 AND title_key = ?2`)
+      .bind(slug, sprintTitleKeyOf(title))
+      .first<SprintRow>();
+    return row === null ? null : toRecord(row);
+  }
+
   /** The number the next sprint of the project gets: one above the highest, open or closed. */
   async nextNumber(slug: string): Promise<number> {
     const row = await this.db
@@ -85,36 +97,32 @@ export class SprintsRepo {
   }
 
   /**
-   * Sprint `number` (from `nextNumber`) titled `sprint.title` or `Sprint NN`, with `extra` in the same batch.
-   * `false` when another request took that number first; the batch then writes nothing.
+   * Sprint `number` (from `nextNumber`) titled `sprint.title` or `Sprint NN`, with `extra` in the same batch. When
+   * another request took that number or that title first, the batch writes nothing and the answer says which.
    */
   async create(
     slug: string,
     number: number,
     sprint: NewSprint,
     extra: readonly D1PreparedStatement[] = [],
-  ): Promise<boolean> {
+  ): Promise<SprintCreateResult> {
+    const title = sprint.title ?? sprintTitleOf(number);
     try {
       await this.db.batch([
         this.db
           .prepare(
-            `INSERT INTO sprints (project_slug, number, title, due_on, state, description, created_at)
-             VALUES (?1, ?2, ?3, ?4, 'open', ?5, ?6)`,
+            `INSERT INTO sprints (project_slug, number, title, title_key, due_on, state, description, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 'open', ?6, ?7)`,
           )
-          .bind(
-            slug,
-            number,
-            sprint.title ?? sprintTitleOf(number),
-            sprint.dueOn,
-            sprint.description,
-            sprint.at,
-          ),
+          .bind(slug, number, title, sprintTitleKeyOf(title), sprint.dueOn, sprint.description, sprint.at),
         ...extra,
       ]);
-      return true;
+      return 'created';
     } catch (error: unknown) {
       if (isConstraintError(error, 'UNIQUE constraint failed: sprints.')) {
-        return false;
+        // SQLite names only the first index that failed; a lost number race with the same default title trips the
+        // title index too. The number decides, so that race stays a retryable `number-taken`.
+        return (await this.findByNumber(slug, number)) === null ? 'title-taken' : 'number-taken';
       }
       throw error;
     }
