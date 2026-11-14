@@ -65,6 +65,39 @@ describe('PersistedStateStore', () => {
     expect(parsePersistedState(storage.read()).projects['a']?.chatDraft).toBe('unsent');
   });
 
+  it('writes the quick task draft immediately, and clears it once sent (#107)', () => {
+    const storage = memoryPersistedStateStorage();
+    const { store } = setup(storage);
+    const draft = {
+      slug: 'team-console',
+      title: 'Fix the footer',
+      body: '',
+      kind: 'bug' as const,
+      sprintTarget: 'next' as const,
+      idempotencyKey: 'key-1',
+      savedAt: '2026-11-14T10:00:00.000Z',
+    };
+
+    store.setQuickTaskDraft(draft);
+    expect(store.quickTaskDraft()).toEqual(draft);
+    expect(parsePersistedState(storage.read()).quickTaskDraft).toEqual(draft);
+
+    store.clearQuickTaskDraft();
+    expect(store.quickTaskDraft()).toBeUndefined();
+    expect(parsePersistedState(storage.read())).not.toHaveProperty('quickTaskDraft');
+  });
+
+  it('leaves the state untouched when clearing an already-empty quick task draft', () => {
+    const storage = memoryPersistedStateStorage();
+    const write = vi.spyOn(storage, 'write');
+    const { store } = setup(storage);
+
+    store.clearQuickTaskDraft();
+
+    expect(write).not.toHaveBeenCalled();
+    expect(store.quickTaskDraft()).toBeUndefined();
+  });
+
   it('flushes pending changes when the page is hidden', () => {
     const storage = memoryPersistedStateStorage();
     const { store } = setup(storage);

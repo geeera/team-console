@@ -6,10 +6,17 @@ export {
   emptyProjectUiState,
   isPersistedStateV1,
   isProjectUiState,
+  isQuickTaskDraft,
   parsePersistedState,
   scrollKeyOf,
 } from './lib/persisted-state.model';
-export type { ArtifactFilter, PersistedStateV1, ProjectUiState, TaskDraft } from './lib/persisted-state.model';
+export type {
+  ArtifactFilter,
+  PersistedStateV1,
+  ProjectUiState,
+  QuickTaskDraft,
+  TaskDraft,
+} from './lib/persisted-state.model';
 export { PERSISTED_STATE_STORAGE, memoryPersistedStateStorage } from './lib/persisted-state.storage';
 export type { PersistedStateStorage } from './lib/persisted-state.storage';
 export { PERSISTED_STATE_WRITE_DELAY_MS, PersistedStateStore } from './lib/persisted-state.store';
