@@ -3,7 +3,27 @@
 }
 <!-- A div, not <header>: two stacked sheets (a confirmation over a panel) would give two banner landmarks. -->
 <div class="tc-sheet__head">
-  <h2 class="tc-sheet__title" [id]="frame.titleId" tabindex="-1">{{ frame.title }}</h2>
+  @if (frame.headAction) {
+  <!-- #107: Close · title · the primary action, so the keyboard never covers the action. -->
+  <button
+    tc-button
+    variant="quiet"
+    type="button"
+    class="tc-sheet__close tc-sheet__close--text"
+    (click)="close()"
+  >
+    {{ 'ui.close' | transloco }}
+  </button>
+  }
+  <div class="tc-sheet__titles">
+    <h2 class="tc-sheet__title" [id]="frame.titleId" tabindex="-1">{{ frame.title }}</h2>
+    @if (frame.subtitle !== null) {
+    <p class="tc-sheet__subtitle" [id]="frame.subtitleId">{{ frame.subtitle }}</p>
+    }
+  </div>
+  @if (frame.headAction) { @if (footer.primary(); as primary) {
+  <div class="tc-sheet__head-action"><ng-container *ngTemplateOutlet="primary" /></div>
+  } } @else {
   <button
     tc-icon-button
     type="button"
@@ -13,6 +33,7 @@
   >
     <tc-icon name="x" size="lg" />
   </button>
+  }
 </div>
 <!-- A body that scrolls is a focusable region named by the title, so a keyboard can scroll it (axe
      scrollable-region-focusable); one that fits adds no tab stop. -->
@@ -27,7 +48,7 @@
 </div>
 <!-- Reading order on both presentations (#282): the DOM order below is the Tab order and the visual order. A dialog
      footer that no longer fits one row stacks like the phone's (#325), and the order follows. -->
-@if (footer.hasContent()) {
+@if (footerTemplates().length > 0) {
 <div #foot class="tc-sheet__foot" [class.tc-sheet__foot--stacked]="stackedFooter()">
   @for (actions of footerTemplates(); track actions) {
   <ng-container *ngTemplateOutlet="actions" />

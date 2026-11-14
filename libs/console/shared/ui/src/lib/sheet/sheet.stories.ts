@@ -6,8 +6,12 @@ import { darkTheme, phoneViewport, reducedMotion } from '../../../.storybook/sto
 import { Button } from '../button/button';
 import { Choice, ChoiceGroup } from '../choice/choice';
 import { Chip } from '../chip/chip';
+import { Field, FieldControl } from '../field/field';
+import { Segment, SegmentedRadio } from '../segmented/segmented';
 import { List, ListRow } from '../list/list';
 import { DialogRef } from '@angular/cdk/dialog';
+import { BreakpointObserver } from '@angular/cdk/layout';
+import { BREAKPOINTS } from '../../tokens/breakpoints';
 import { ConfirmFailure } from './confirm-dialog';
 import { Sheet } from './sheet';
 import { SheetFooter } from './sheet-footer';
@@ -131,11 +135,19 @@ class LongFormSheetContent {
   selector: 'tc-story-full-sheet',
   imports: [Button, SheetFooter, TranslocoPipe],
   template: `
-    <div style="display: flex; gap: var(--space-2); padding: var(--space-2) var(--space-4); border-bottom: var(--border-w) solid var(--border)">
-      <button tc-button size="sm" type="button" aria-pressed="true">{{ 'stories.sheet.fullToolbarA' | transloco }}</button>
-      <button tc-button size="sm" type="button" aria-pressed="false">{{ 'stories.sheet.fullToolbarB' | transloco }}</button>
+    <div
+      style="display: flex; gap: var(--space-2); padding: var(--space-2) var(--space-4); border-bottom: var(--border-w) solid var(--border)"
+    >
+      <button tc-button size="sm" type="button" aria-pressed="true">
+        {{ 'stories.sheet.fullToolbarA' | transloco }}
+      </button>
+      <button tc-button size="sm" type="button" aria-pressed="false">
+        {{ 'stories.sheet.fullToolbarB' | transloco }}
+      </button>
     </div>
-    <div style="flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-4); display: grid; gap: var(--space-3)">
+    <div
+      style="flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-4); display: grid; gap: var(--space-3)"
+    >
       @for (block of blocks; track block) {
         <div style="height: var(--stamp-size); border-radius: var(--r-md); background: var(--skeleton)"></div>
       }
@@ -151,6 +163,129 @@ class LongFormSheetContent {
 class FullSheetContent {
   protected readonly ref = inject(DialogRef);
   protected readonly blocks = Array.from({ length: 12 }, (_, index) => index);
+}
+
+/**
+ * #107's New task form in the kit's pieces: on the phone Create sits in the head (`headAction`) above the keyboard and
+ * the subtitle says where it goes; on the Mac it is a `task`-wide dialog with Create in the footer.
+ */
+@Component({
+  selector: 'tc-story-task-sheet',
+  imports: [
+    Button,
+    Choice,
+    ChoiceGroup,
+    Chip,
+    Field,
+    FieldControl,
+    Segment,
+    SegmentedRadio,
+    SheetFooter,
+    TranslocoPipe,
+  ],
+  template: `
+    <form id="tc-story-task-form" style="display: grid; gap: var(--space-5)" (submit)="send($event)">
+      <tc-field
+        required
+        [label]="'stories.sheet.taskName' | transloco"
+        [hint]="'stories.sheet.taskNameHint' | transloco"
+      >
+        <input tcInput type="text" autocomplete="off" />
+      </tc-field>
+      <fieldset tc-segmented [legend]="'stories.segmented.kind' | transloco">
+        @for (kind of kinds; track kind) {
+          <label tc-segment>
+            <input type="radio" name="story-task-kind" [value]="kind" [checked]="kind === 'feature'" />
+            {{ 'stories.segmented.' + kind | transloco }}
+          </label>
+        }
+        <p tc-segmented-hint>{{ 'stories.segmented.featureHint' | transloco }}</p>
+      </fieldset>
+      <fieldset tc-choice-group [legend]="'stories.choice.sprint' | transloco">
+        <label tc-choice off>
+          <input
+            type="radio"
+            name="story-task-sprint"
+            value="current"
+            aria-describedby="story-task-current"
+          />
+          <span
+            >{{ 'stories.choice.current' | transloco }}
+            <tc-chip>{{ 'stories.choice.frozen' | transloco }}</tc-chip></span
+          >
+          <small tc-choice-hint id="story-task-current">{{ 'stories.choice.currentOff' | transloco }}</small>
+        </label>
+        <label tc-choice>
+          <input
+            type="radio"
+            name="story-task-sprint"
+            value="next"
+            checked
+            aria-describedby="story-task-next"
+          />
+          {{ 'stories.choice.next' | transloco }}
+          <small tc-choice-hint id="story-task-next">{{ 'stories.choice.nextHint' | transloco }}</small>
+        </label>
+        <label tc-choice>
+          <input
+            type="radio"
+            name="story-task-sprint"
+            value="backlog"
+            aria-describedby="story-task-backlog"
+          />
+          {{ 'stories.choice.backlog' | transloco }}
+          <small tc-choice-hint id="story-task-backlog">{{ 'stories.choice.backlogHint' | transloco }}</small>
+        </label>
+      </fieldset>
+    </form>
+    <ng-template tcSheetFooter="primary">
+      <button tc-button variant="primary" type="submit" form="tc-story-task-form">
+        {{
+          (isPhone ? 'stories.sheet.taskCreate' : 'stories.sheet.taskCreateIn')
+            | transloco: { project: project }
+        }}
+      </button>
+    </ng-template>
+    <!-- On the phone Close is already in the head. -->
+    @if (!isPhone) {
+      <ng-template tcSheetFooter="secondary">
+        <button tc-button type="button" (click)="ref.close()">{{ 'ui.close' | transloco }}</button>
+      </ng-template>
+    }
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+class TaskSheetContent {
+  protected readonly ref = inject(DialogRef);
+  protected readonly isPhone = inject(BreakpointObserver).isMatched(BREAKPOINTS.phone);
+  /** A project slug is data, not copy. */
+  protected readonly project = 'team-console';
+  protected readonly kinds = ['feature', 'bug', 'chore'] as const;
+
+  protected send(event: Event): void {
+    event.preventDefault();
+    this.ref.close('sent');
+  }
+}
+
+@Component({
+  selector: 'tc-story-task-sheet-host',
+  template: '',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+class TaskSheetHost {
+  constructor() {
+    const sheet = inject(Sheet);
+    const transloco = inject(TranslocoService);
+    afterNextRender(() =>
+      sheet.open(TaskSheetContent, {
+        title: transloco.translate('stories.sheet.taskTitle'),
+        subtitle: transloco.translate('stories.sheet.taskSubtitle', { project: 'team-console' }),
+        headAction: true,
+        width: 'task',
+      }),
+    );
+  }
 }
 
 @Component({
@@ -300,9 +435,11 @@ class SheetHost {
    */
   protected async moveDate(): Promise<void> {
     let attempts = 0;
-    const t = (key: string, params?: Record<string, unknown>): string => this.transloco.translate(key, params);
+    const t = (key: string, params?: Record<string, unknown>): string =>
+      this.transloco.translate(key, params);
     const today = new Date().toISOString().slice(0, 10);
-    const inDays = (days: number): string => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+    const inDays = (days: number): string =>
+      new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
     const current = inDays(9);
     const confirmed = await this.sheet.confirm({
       title: t('stories.sheet.dateTitle'),
@@ -371,3 +508,15 @@ const full: Story = {
 };
 export const Full: Story = { ...full };
 export const FullPhone: Story = { ...full, ...phoneViewport };
+
+/** #107: New task — Create in the head on the phone, a `task`-wide dialog with Create in the footer on the Mac. */
+const task: Story = {
+  decorators: [moduleMetadata({ imports: [TaskSheetHost] })],
+  render: () => ({ template: '<tc-story-task-sheet-host />' }),
+};
+export const HeadAction: Story = { ...task };
+export const HeadActionPhone: Story = { ...task, ...phoneViewport };
+export const HeadActionPhoneDark: Story = {
+  ...task,
+  globals: { ...phoneViewport.globals, ...darkTheme.globals },
+};

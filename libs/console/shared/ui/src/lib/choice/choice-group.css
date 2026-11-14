@@ -31,7 +31,7 @@
   border-top: var(--border-w) solid var(--border);
 }
 
-.tc-choice-group__options ::ng-deep .tc-choice:has(input:checked) {
+.tc-choice-group__options ::ng-deep .tc-choice:not(.tc-choice--off):has(input:checked) {
   background: var(--accent-soft);
   color: var(--accent-text);
   font-weight: var(--fw-semibold);

@@ -71,3 +71,23 @@ export const OffWithReason: Story = {
     `,
   }),
 };
+
+/** #107: the ochre draft dot — an unsent New task waits; the accessible name says so in words. */
+export const DraftDot: Story = {
+  render: () => ({
+    template: `
+      <div style="display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center">
+        <button tc-button dot type="button" [attr.aria-label]="'stories.button.newTaskDraft' | transloco">
+          <tc-icon name="plus" size="sm" />
+          {{ 'stories.button.newTask' | transloco }}
+        </button>
+        <button tc-icon-button dot type="button" [attr.aria-label]="'stories.button.newTaskDraft' | transloco">
+          <tc-icon name="plus" />
+        </button>
+        <button tc-icon-button type="button" [attr.aria-label]="'stories.button.newTask' | transloco">
+          <tc-icon name="plus" />
+        </button>
+      </div>
+    `,
+  }),
+};

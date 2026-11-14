@@ -23,8 +23,18 @@ export interface SheetOptions<D> {
   readonly autoFocus?: string;
   /** The id of an element inside the content that describes the dialog (`aria-describedby`). */
   readonly describedBy?: string;
-  /** `wide` gives the centred dialog `--sheet-dialog-w` instead of the confirmation width; the sheet is full width. */
-  readonly width?: 'default' | 'wide';
+  /**
+   * `wide` gives the centred dialog `--sheet-dialog-w` instead of the confirmation width, `task` the New task form's
+   * `--task-dialog-w` (#107); the sheet is full width.
+   */
+  readonly width?: 'default' | 'wide' | 'task';
+  /** A quieter line under the title, e.g. where the result goes («в team-console»); part of the accessible name. */
+  readonly subtitle?: string;
+  /**
+   * #107: on the phone the content's primary footer action moves into the head, beside the title, where the keyboard
+   * never covers it, and Close becomes a text button at the start. The dialog keeps both in the footer.
+   */
+  readonly headAction?: boolean;
   /**
    * `full` (#277): the sheet takes the whole screen on the phone and the dialog `--sheet-full-w × --sheet-full-h`
    * (within the viewport) elsewhere. The body then no longer scrolls or pads: the content fills it as a column and
@@ -60,14 +70,17 @@ export class Sheet {
       titleId: `tc-sheet-title-${nextSheetId++}`,
       presentation,
       size: isFull ? 'full' : 'default',
+      subtitle: options.subtitle ?? null,
+      subtitleId: `tc-sheet-subtitle-${nextSheetId++}`,
+      headAction: options.headAction === true && presentation === 'sheet',
     };
     const position = this.overlay.position().global().centerHorizontally();
     // One footer slot per sheet, shared by the frame (which renders it) and the content (which fills it).
     const footer = new SheetFooterSlot();
     const dialogPanel = isFull
       ? ['tc-dialog-panel', 'tc-dialog-panel--full']
-      : options.width === 'wide'
-        ? ['tc-dialog-panel', 'tc-dialog-panel--wide']
+      : options.width === 'wide' || options.width === 'task'
+        ? ['tc-dialog-panel', `tc-dialog-panel--${options.width}`]
         : 'tc-dialog-panel';
     const sheetPanel = isFull ? ['tc-sheet-panel', 'tc-sheet-panel--full'] : 'tc-sheet-panel';
 
@@ -75,7 +88,7 @@ export class Sheet {
       data: options.data ?? null,
       role: options.role ?? 'dialog',
       ariaModal: true,
-      ariaLabelledBy: frame.titleId,
+      ariaLabelledBy: frame.subtitle === null ? frame.titleId : `${frame.titleId} ${frame.subtitleId}`,
       ariaDescribedBy: options.describedBy ?? null,
       autoFocus: options.autoFocus ?? '.tc-sheet__title',
       restoreFocus: true,

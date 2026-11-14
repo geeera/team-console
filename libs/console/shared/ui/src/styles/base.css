@@ -179,3 +179,39 @@ select {
   font-size: var(--fs-2xs);
   color: var(--text-3);
 }
+
+/*
+ * #107: the ochre ink dot in the corner of a `tc-button` or `tc-icon-button` with `dot` — an unsent draft waits
+ * behind it. Global because both buttons draw the same mark; the button's accessible name says it in words.
+ */
+.tc-button--dot,
+.tc-icon-button--dot {
+  position: relative;
+}
+
+.tc-draft-dot {
+  position: absolute;
+  top: calc(-1 * var(--draft-dot) / 4);
+  right: calc(-1 * var(--draft-dot) / 4);
+  width: var(--draft-dot);
+  height: var(--draft-dot);
+  border-radius: var(--r-pill);
+  background: var(--warning-text);
+  box-shadow: 0 0 0 var(--border-w) var(--surface);
+  pointer-events: none;
+  animation: tc-draft-dot-pop var(--dur-base) var(--ease-enter) both;
+}
+
+.tc-icon-button--dot .tc-draft-dot {
+  top: var(--space-1);
+  right: var(--space-1);
+}
+
+@keyframes tc-draft-dot-pop {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: none;
+  }
+}

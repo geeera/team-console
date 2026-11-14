@@ -5,13 +5,14 @@ import { Button, ButtonVariant, IconButton } from './button';
 @Component({
   imports: [Button, IconButton],
   template: `
-    <button tc-button [variant]="variant()" [loading]="loading()" type="button">Save</button>
-    <button tc-icon-button type="button" aria-label="Close">x</button>
+    <button tc-button [variant]="variant()" [loading]="loading()" [dot]="dot()" type="button">Save</button>
+    <button tc-icon-button [dot]="dot()" type="button" aria-label="Close">x</button>
   `,
 })
 class Host {
   readonly variant = signal<ButtonVariant>('secondary');
   readonly loading = signal(false);
+  readonly dot = signal(false);
 }
 
 describe('Button', () => {
@@ -64,5 +65,22 @@ describe('Button', () => {
 
     expect(icon.classList.contains('tc-icon-button')).toBe(true);
     expect(icon.getAttribute('aria-label')).toBe('Close');
+  });
+
+  it('shows the draft dot on both buttons only while asked, hidden from assistive tech (#107)', async () => {
+    const { host, button, stabilise } = await render();
+    const icon = button.parentElement?.querySelector('button[tc-icon-button]') as HTMLButtonElement;
+    expect(button.querySelector('.tc-draft-dot')).toBeNull();
+    expect(icon.querySelector('.tc-draft-dot')).toBeNull();
+
+    host.dot.set(true);
+    await stabilise();
+
+    expect(button.classList.contains('tc-button--dot')).toBe(true);
+    expect(icon.classList.contains('tc-icon-button--dot')).toBe(true);
+    for (const dot of [button.querySelector('.tc-draft-dot'), icon.querySelector('.tc-draft-dot')]) {
+      expect(dot?.getAttribute('aria-hidden')).toBe('true');
+    }
+    expect(button.textContent?.trim()).toBe('Save');
   });
 });
