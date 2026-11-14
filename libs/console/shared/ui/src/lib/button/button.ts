@@ -17,6 +17,9 @@ export type ButtonSize = 'sm' | 'md';
       <tc-spinner />
     }
     <ng-content />
+    @if (dot()) {
+      <span class="tc-draft-dot" aria-hidden="true"></span>
+    }
   `,
   styleUrl: './button.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -30,6 +33,7 @@ export type ButtonSize = 'sm' | 'md';
     '[class.tc-button--block]': 'block()',
     '[class.tc-button--loading]': 'loading()',
     '[class.tc-button--off]': 'off()',
+    '[class.tc-button--dot]': 'dot()',
     '[attr.aria-busy]': 'loading() ? "true" : null',
   },
 })
@@ -45,17 +49,30 @@ export class Button {
    * instead of acting — a disabled button would hide the reason from keyboard and screen-reader users.
    */
   readonly off = input(false, { transform: booleanAttribute });
+  /**
+   * The ochre draft dot in the corner (#107): something unsent waits behind this button. It is decoration only; the
+   * caller says it in the accessible name too («Новая задача, есть черновик»).
+   */
+  readonly dot = input(false, { transform: booleanAttribute });
 }
 
 /**
  * A square button that holds one icon. It has no visible text, so `aria-label`
- * is required on the element — stories and lint keep that honest.
+ * is required on the element — stories and lint keep that honest. `dot` is `Button`'s draft dot (#107); the
+ * `aria-label` then says it in words.
  */
 @Component({
   selector: 'button[tc-icon-button], a[tc-icon-button]',
-  template: '<ng-content />',
+  template: `
+    <ng-content />
+    @if (dot()) {
+      <span class="tc-draft-dot" aria-hidden="true"></span>
+    }
+  `,
   styleUrl: './icon-button.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'tc-icon-button' },
+  host: { class: 'tc-icon-button', '[class.tc-icon-button--dot]': 'dot()' },
 })
-export class IconButton {}
+export class IconButton {
+  readonly dot = input(false, { transform: booleanAttribute });
+}

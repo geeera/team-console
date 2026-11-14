@@ -91,11 +91,13 @@
   --chip-h: 22px;
   --count-h: 20px;
   --dot-size: 6px;
+  --draft-dot: 8px; /* #107: an unsent draft's ink dot on the button that opens it */
   --grab-w: 38px;
   --grab-h: 5px;
   --spinner-size: 20px;
   --spinner-size-lg: 32px;
   --stamp-size: 78px;
+  --card-tilt: -1.2deg; /* #107: a card just filed, tilted a little */
 
   /* One bottom tab: a large icon over a one-line --fs-2xs label, --space-1 around and between them, never under
      the tap target. The tab's min-height and --tab-bar-h both read it, so the bar is exactly this tall (#404). */
@@ -121,6 +123,7 @@
   --cards-max: 1064px; /* two such cards, the list gap and the page padding */
   --dialog-max-w: 440px;
   --list-pane-w: 440px; /* the list of a list-detail page beside its detail pane (#104 Environment setup) */
+  --task-dialog-w: 600px; /* #107: New task on a Mac — the form's fields and the sprint rows read at one width */
   --sheet-dialog-w: 560px; /* a dialog that holds a checklist (#194 Add): 440 px is too narrow for its fix lines */
   /* The design viewer (#277 spec §3): a large dialog on the Mac, within the viewport; full screen on the phone. */
   --sheet-full-w: 1200px;

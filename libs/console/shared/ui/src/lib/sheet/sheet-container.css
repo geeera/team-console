@@ -89,6 +89,42 @@
   overflow-wrap: anywhere;
 }
 
+.tc-sheet__titles {
+  min-width: 0;
+}
+
+.tc-sheet__subtitle {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+/* #107: Close · title · action — the title centred between two actions of their own width. */
+:host(.tc-sheet--head-action) .tc-sheet__head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  padding-inline: var(--space-3);
+  border-bottom: var(--border-w) solid var(--border);
+}
+
+:host(.tc-sheet--head-action) .tc-sheet__titles {
+  text-align: center;
+}
+
+:host(.tc-sheet--head-action) .tc-sheet__close--text {
+  justify-self: start;
+}
+
+.tc-sheet__head-action {
+  justify-self: end;
+}
+
+:host(.tc-sheet--head-action) .tc-sheet__body {
+  padding-top: var(--space-4);
+}
+
 .tc-sheet__body {
   flex: 1;
   min-height: 0;

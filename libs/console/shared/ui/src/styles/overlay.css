@@ -18,6 +18,10 @@
   width: min(var(--sheet-dialog-w), calc(100% - var(--space-8)));
 }
 
+.tc-dialog-panel--task {
+  width: min(var(--task-dialog-w), calc(100% - var(--space-8)));
+}
+
 /* `size: 'full'` (#277): the phone sheet takes the whole visual viewport; the dialog is as large as the screen allows. */
 .tc-sheet-panel--full {
   height: 100dvh;

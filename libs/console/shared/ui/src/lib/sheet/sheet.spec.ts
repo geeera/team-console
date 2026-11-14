@@ -546,7 +546,9 @@ class WithMixedFooter {
 
 /** The footer's buttons as a reader meets them: DOM order, which the frame makes the visual order too. */
 function footerButtons(dialog: HTMLElement): string[] {
-  return Array.from(dialog.querySelectorAll('.tc-sheet__foot button')).map((button) => button.textContent?.trim());
+  return Array.from(dialog.querySelectorAll('.tc-sheet__foot button')).map((button) =>
+    button.textContent?.trim(),
+  );
 }
 
 describe('Sheet on the phone (#282)', () => {
@@ -584,5 +586,86 @@ describe('Sheet on the phone (#282)', () => {
 
     (dialog.querySelector('.tc-confirm__cancel') as HTMLButtonElement).click();
     await expect(pending).resolves.toBe(false);
+  });
+
+  it('lifts the primary into the head beside the title with headAction; Close becomes text at the start (#107)', async () => {
+    sheet.open(WithActions, {
+      title: 'New task',
+      subtitle: 'in storify',
+      data: { text: 'form' },
+      headAction: true,
+    });
+    await settle();
+    TestBed.tick();
+
+    const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+    expect(dialog.classList).toContain('tc-sheet--head-action');
+    const head = Array.from(dialog.querySelectorAll('.tc-sheet__head button')).map((b) =>
+      b.textContent?.trim(),
+    );
+    expect(head).toEqual(['Закрыть', 'Snooze']);
+    expect(footerButtons(dialog)).toEqual(['Cancel']);
+    const names = (dialog.getAttribute('aria-labelledby') ?? '')
+      .split(' ')
+      .map((id) => document.getElementById(id));
+    expect(names.map((el) => el?.textContent?.trim())).toEqual(['New task', 'in storify']);
+  });
+
+  it('drops the footer when the lifted primary was its only action', async () => {
+    sheet.open(PrimaryOnly, { title: 'New task', headAction: true });
+    await settle();
+    TestBed.tick();
+
+    const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+    expect(dialog.querySelector('.tc-sheet__head .create')).not.toBeNull();
+    expect(dialog.querySelector('.tc-sheet__foot')).toBeNull();
+    expect(dialog.classList).not.toContain('tc-sheet--with-foot');
+  });
+});
+
+@Component({
+  imports: [SheetFooter],
+  template: `<ng-template tcSheetFooter="primary"
+    ><button type="button" class="create">Create</button></ng-template
+  >`,
+})
+class PrimaryOnly {}
+
+describe('Sheet as a dialog with the New task options (#107)', () => {
+  let sheet: Sheet;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({ providers: [provideConsoleI18n()] }).compileComponents();
+    await TestBed.inject(ApplicationInitStatus).donePromise;
+    sheet = TestBed.inject(Sheet);
+  });
+
+  afterEach(() => {
+    overlay()?.remove();
+  });
+
+  it('keeps the primary in the footer and the close icon in the head: headAction is the phone only', async () => {
+    sheet.open(WithActions, { title: 'New task', data: { text: 'form' }, headAction: true, width: 'task' });
+    await settle();
+    TestBed.tick();
+
+    const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+    expect(dialog.classList).not.toContain('tc-sheet--head-action');
+    expect(dialog.querySelector('.tc-sheet__head .tc-sheet__close')?.getAttribute('aria-label')).toBe(
+      'Закрыть',
+    );
+    expect(footerButtons(dialog)).toEqual(['Cancel', 'Snooze']);
+    const panel = overlay().querySelector('.cdk-overlay-pane') as HTMLElement;
+    expect(panel.classList).toContain('tc-dialog-panel--task');
+  });
+
+  it('names the dialog by its title alone when it has no subtitle', async () => {
+    sheet.open(Content, { title: 'Projects', data: { text: 'x' } });
+    await settle();
+
+    const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+    expect(dialog.querySelector('.tc-sheet__subtitle')).toBeNull();
+    const ids = (dialog.getAttribute('aria-labelledby') ?? '').split(' ');
+    expect(ids).toHaveLength(1);
   });
 });

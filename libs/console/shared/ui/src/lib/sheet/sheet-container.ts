@@ -17,7 +17,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { TranslocoPipe } from '@console/shared/i18n';
-import { IconButton } from '../button/button';
+import { Button, IconButton } from '../button/button';
 import { Icon } from '../icon/icon';
 import { SheetFooterSlot } from './sheet-footer';
 
@@ -29,6 +29,11 @@ export interface SheetFrame {
   readonly presentation: 'sheet' | 'dialog';
   /** `full`: the frame fills its pane and the content owns the scrolling (`SheetOptions.size`). */
   readonly size: 'default' | 'full';
+  /** A quieter line under the title (`SheetOptions.subtitle`), `null` without one. */
+  readonly subtitle: string | null;
+  readonly subtitleId: string;
+  /** The primary footer action sits in the head and Close is a text button (`SheetOptions.headAction`, phone only). */
+  readonly headAction: boolean;
 }
 
 export const SHEET_FRAME = new InjectionToken<SheetFrame>('SHEET_FRAME');
@@ -41,7 +46,7 @@ export const SHEET_FRAME = new InjectionToken<SheetFrame>('SHEET_FRAME');
  */
 @Component({
   selector: 'tc-sheet-container',
-  imports: [CdkPortalOutlet, Icon, IconButton, NgTemplateOutlet, TranslocoPipe],
+  imports: [Button, CdkPortalOutlet, Icon, IconButton, NgTemplateOutlet, TranslocoPipe],
   templateUrl: './sheet-container.html',
   styleUrl: './sheet-container.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -50,11 +55,12 @@ export const SHEET_FRAME = new InjectionToken<SheetFrame>('SHEET_FRAME');
     tabindex: '-1',
     '[class.tc-sheet--dialog]': 'frame.presentation === "dialog"',
     '[class.tc-sheet--full]': 'frame.size === "full"',
-    '[class.tc-sheet--with-foot]': 'footer.hasContent()',
+    '[class.tc-sheet--with-foot]': 'footerTemplates().length > 0',
+    '[class.tc-sheet--head-action]': 'frame.headAction',
     '[attr.id]': '_config.id',
     '[attr.role]': '_config.role',
     '[attr.aria-modal]': '_config.ariaModal',
-    '[attr.aria-labelledby]': 'frame.titleId',
+    '[attr.aria-labelledby]': '_config.ariaLabelledBy',
     '[attr.aria-describedby]': '_config.ariaDescribedBy || null',
   },
 })
@@ -65,13 +71,15 @@ export class SheetContainer extends CdkDialogContainer {
    * The footer's templates in reading order (#282): free-form content as written, then the primary over the secondary
    * on the phone (stacked, the main action on top) and the secondary before the primary in the dialog (a row, the
    * main action on the right). A dialog footer too narrow for one row stacks like the phone's (#325) and takes the
-   * phone's order. DOM order, Tab order and visual order are then one order everywhere.
+   * phone's order. DOM order, Tab order and visual order are then one order everywhere. A primary lifted into the head
+   * (`frame.headAction`) is not repeated here.
    */
   protected readonly footerTemplates = computed((): readonly TemplateRef<unknown>[] => {
+    const primary = this.frame.headAction ? null : this.footer.primary();
     const roles =
       this.frame.presentation === 'dialog' && !this.stackedFooter()
-        ? [this.footer.secondary(), this.footer.primary()]
-        : [this.footer.primary(), this.footer.secondary()];
+        ? [this.footer.secondary(), primary]
+        : [primary, this.footer.secondary()];
     return [this.footer.freeForm(), ...roles].filter(
       (template): template is TemplateRef<unknown> => template !== null,
     );

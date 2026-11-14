@@ -1667,7 +1667,9 @@
       "disabled": "Disabled",
       "saving": "Saving…",
       "run": "Run",
-      "offReason": "Not set up: this routine has no trigger token"
+      "offReason": "Not set up: this routine has no trigger token",
+      "newTask": "New task",
+      "newTaskDraft": "New task, draft waiting"
     },
     "card": {
       "kind": "Question",
@@ -1780,7 +1782,13 @@
       "longSent": "Request sent",
       "fullTitle": "A design, full screen",
       "fullToolbarA": "Images",
-      "fullToolbarB": "All screens"
+      "fullToolbarB": "All screens",
+      "taskTitle": "New task",
+      "taskSubtitle": "in {{project}}",
+      "taskCreate": "Create",
+      "taskCreateIn": "Create in {{project}}",
+      "taskName": "Title",
+      "taskNameHint": "One sentence: what needs doing."
     },
     "tabBar": {
       "aria": "Sections",
@@ -1913,7 +1921,15 @@
       "week": "For a week",
       "forever": "Until I turn them back on",
       "urgent": "Still send urgent ones",
-      "urgentHint": "The team paused itself, a release decision is needed."
+      "urgentHint": "The team paused itself, a release decision is needed.",
+      "sprint": "Which sprint",
+      "current": "Current",
+      "frozen": "freeze",
+      "currentOff": "Frozen until the demo on 16 October: this sprint takes no new tasks.",
+      "next": "Next",
+      "nextHint": "Sprint 03, demo 30 October.",
+      "backlog": "Backlog",
+      "backlogHint": "No sprint: plan it in later."
     },
     "tabs": {
       "aria": "Board sections",
@@ -1965,6 +1981,15 @@
       "full": "Already 9 tasks: the team usually finishes 8",
       "backlog": "To the backlog",
       "moved": "TC-408 → Sprint 04"
+    },
+    "segmented": {
+      "kind": "Kind",
+      "feature": "Feature",
+      "bug": "Bug",
+      "chore": "Chore",
+      "featureHint": "Feature — something new, or a change to what is there.",
+      "bugHint": "Bug — something does not work as it should.",
+      "choreHint": "Chore — work with no visible change: dependencies, the build, tidying the code."
     }
   },
   "review": {
