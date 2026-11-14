@@ -1,0 +1,307 @@
+{
+  "route": "GET /api/v1/projects/:slug/labels",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/projects/tc/labels"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "labels": [
+        {
+          "name": "architect-note",
+          "color": "5319e7",
+          "description": "The architect's implementation note is on the issue",
+          "builtin": true
+        },
+        {
+          "name": "complexity:high",
+          "color": "5319e7",
+          "description": "Needs the architect's implementation note before development",
+          "builtin": true
+        },
+        {
+          "name": "design:approved",
+          "color": "0e8a16",
+          "description": "Owner approved the design",
+          "builtin": true
+        },
+        {
+          "name": "design:awaiting-approval",
+          "color": "fef2c0",
+          "description": "Design link sent to the owner",
+          "builtin": true
+        },
+        {
+          "name": "foundation",
+          "color": "0b1f33",
+          "description": "Foundation work (architecture, tokens, UI kit, CI) before features",
+          "builtin": true
+        },
+        {
+          "name": "in-production",
+          "color": "b60205",
+          "description": "The defect is live in production: hotfix path",
+          "builtin": true
+        },
+        {
+          "name": "kind:bug",
+          "color": "d73a4a",
+          "description": "Defect",
+          "builtin": true
+        },
+        {
+          "name": "kind:chore",
+          "color": "cfd3d7",
+          "description": "Maintenance, infra, tooling",
+          "builtin": true
+        },
+        {
+          "name": "kind:feature",
+          "color": "1d76db",
+          "description": "User-facing capability",
+          "builtin": true
+        },
+        {
+          "name": "kind:finding",
+          "color": "e99695",
+          "description": "QA / security / UX finding",
+          "builtin": true
+        },
+        {
+          "name": "kind:question",
+          "color": "d876e3",
+          "description": "Question or approval request for the owner",
+          "builtin": true
+        },
+        {
+          "name": "kind:wow",
+          "color": "f9a8d4",
+          "description": "Delight proposal for the demo",
+          "builtin": true
+        },
+        {
+          "name": "needs-design",
+          "color": "bfdadc",
+          "description": "Needs an approved design before development",
+          "builtin": true
+        },
+        {
+          "name": "needs:local",
+          "color": "fef2c0",
+          "description": "Needs a local machine (e.g. a Mac) — cloud runs skip it",
+          "builtin": true
+        },
+        {
+          "name": "needs:owner",
+          "color": "fef2c0",
+          "description": "Needs the owner: a payment, an account, a decision — cloud runs skip it",
+          "builtin": true
+        },
+        {
+          "name": "owner:access",
+          "color": "d876e3",
+          "description": "Owner decision: accounts, secrets, permissions",
+          "builtin": true
+        },
+        {
+          "name": "owner:design",
+          "color": "d876e3",
+          "description": "Owner decision: design approval",
+          "builtin": true
+        },
+        {
+          "name": "owner:legal",
+          "color": "d876e3",
+          "description": "Owner decision: legal exposure",
+          "builtin": true
+        },
+        {
+          "name": "owner:money",
+          "color": "d876e3",
+          "description": "Owner decision: spending",
+          "builtin": true
+        },
+        {
+          "name": "owner:release",
+          "color": "d876e3",
+          "description": "Owner decision: release go / no-go",
+          "builtin": true
+        },
+        {
+          "name": "owner:scope",
+          "color": "d876e3",
+          "description": "Owner decision: what the product does",
+          "builtin": true
+        },
+        {
+          "name": "qa:changes-requested",
+          "color": "d93f0b",
+          "description": "A reviewer (QA, code review or security) asked for changes on the open PR",
+          "builtin": true
+        },
+        {
+          "name": "release-blocker",
+          "color": "000000",
+          "description": "Release is no-go while open",
+          "builtin": true
+        },
+        {
+          "name": "review-failed",
+          "color": "fbca04",
+          "description": "A review round already failed once; the next failure raises the tier",
+          "builtin": true
+        },
+        {
+          "name": "security",
+          "color": "b60205",
+          "description": "Security-relevant",
+          "builtin": true
+        },
+        {
+          "name": "sev:critical",
+          "color": "b60205",
+          "description": "P0: exploitable, data loss, core flow broken for all",
+          "builtin": true
+        },
+        {
+          "name": "sev:high",
+          "color": "d93f0b",
+          "description": "P1: serious; blocks release if security or UX blocker",
+          "builtin": true
+        },
+        {
+          "name": "sev:low",
+          "color": "c2e0c6",
+          "description": "Backlog",
+          "builtin": true
+        },
+        {
+          "name": "sev:medium",
+          "color": "fbca04",
+          "description": "Next sprint; shown at the demo",
+          "builtin": true
+        },
+        {
+          "name": "signature-moment",
+          "color": "f9a8d4",
+          "description": "One of the product's 1-3 signature moments",
+          "builtin": true
+        },
+        {
+          "name": "status:approved",
+          "color": "0e8a16",
+          "description": "Approved; ready for development",
+          "builtin": true
+        },
+        {
+          "name": "status:blocked",
+          "color": "b60205",
+          "description": "Waiting for the owner or an external dependency; see last comment",
+          "builtin": true
+        },
+        {
+          "name": "status:done",
+          "color": "0e8a16",
+          "description": "Merged to dev after QA",
+          "builtin": true
+        },
+        {
+          "name": "status:in-progress",
+          "color": "fbca04",
+          "description": "A developer is on it",
+          "builtin": true
+        },
+        {
+          "name": "status:proposed",
+          "color": "c5def5",
+          "description": "Proposed; waits for the owner's scope decision",
+          "builtin": true
+        },
+        {
+          "name": "status:qa",
+          "color": "5319e7",
+          "description": "PR open, waiting for independent QA",
+          "builtin": true
+        },
+        {
+          "name": "team-decided",
+          "color": "c2e0c6",
+          "description": "Decided by the team under the decision policy; the owner can reverse it",
+          "builtin": true
+        },
+        {
+          "name": "team:demo",
+          "color": "0052cc",
+          "description": "Sprint demo and release decision",
+          "builtin": true
+        },
+        {
+          "name": "team:guard",
+          "color": "b60205",
+          "description": "A branch-guard alert: a change reached a protected branch without a PR",
+          "builtin": true
+        },
+        {
+          "name": "team:inbox",
+          "color": "0052cc",
+          "description": "The owner's single to-do list, rewritten by every run",
+          "builtin": true
+        },
+        {
+          "name": "team:paused",
+          "color": "b60205",
+          "description": "Team runs paused; owner comments /resume to continue",
+          "builtin": true
+        },
+        {
+          "name": "team:run-log",
+          "color": "ededed",
+          "description": "Team run log (one issue per repository)",
+          "builtin": true
+        },
+        {
+          "name": "tier-up",
+          "color": "d93f0b",
+          "description": "Two review rounds failed: developed one tier higher",
+          "builtin": true
+        },
+        {
+          "name": "tier:heavy",
+          "color": "d93f0b",
+          "description": "Architect's sizing: cross-cutting or hard (Fable developer; Opus if security)",
+          "builtin": true
+        },
+        {
+          "name": "tier:light",
+          "color": "c2e0c6",
+          "description": "Architect's sizing: local change on an existing pattern (Sonnet developer)",
+          "builtin": true
+        },
+        {
+          "name": "tier:standard",
+          "color": "fef2c0",
+          "description": "Architect's sizing: a typical feature slice (Opus developer)",
+          "builtin": true
+        },
+        {
+          "name": "ux-blocker",
+          "color": "b60205",
+          "description": "Core flow cannot be completed / data loss / a11y blocker",
+          "builtin": true
+        },
+        {
+          "name": "ux-spec",
+          "color": "bfdadc",
+          "description": "The UX spec and wireframe are on the issue; the UI design builds on them",
+          "builtin": true
+        }
+      ]
+    }
+  }
+}

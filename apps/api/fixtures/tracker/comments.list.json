@@ -1,0 +1,32 @@
+{
+  "route": "GET /api/v1/projects/:slug/items/:key/comments",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/projects/tc/items/TC-1/comments"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "comments": [
+        {
+          "id": 1,
+          "kind": "comment",
+          "author": {
+            "kind": "owner",
+            "name": "owner"
+          },
+          "body": "Which format?",
+          "createdAt": "2026-11-12T10:00:00.000Z",
+          "source": "console",
+          "sourceUrl": null
+        }
+      ],
+      "next": null
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "route": "POST /api/v1/projects/:slug/labels",
+  "as": {
+    "kind": "job",
+    "role": "dev",
+    "items": [
+      1
+    ]
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/labels",
+    "body": {
+      "name": "blocked",
+      "color": "b60205"
+    }
+  },
+  "response": {
+    "status": 403,
+    "body": {
+      "type": "https://team-console/problems/owner-only",
+      "title": "Forbidden",
+      "status": 403,
+      "instance": "request-id",
+      "detail": "Labels are the owner’s",
+      "reason": "dev"
+    }
+  }
+}

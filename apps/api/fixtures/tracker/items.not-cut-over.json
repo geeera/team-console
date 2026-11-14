@@ -1,0 +1,26 @@
+{
+  "route": "POST /api/v1/projects/:slug/items",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/items",
+    "body": {
+      "title": "Export to CSV",
+      "kind": "feature"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "type": "https://team-console/problems/tracker-not-cut-over",
+      "title": "The project still uses GitHub Issues",
+      "status": 409,
+      "instance": "request-id",
+      "detail": "Items, sprints, comments and labels are written here only once the project has moved to the console"
+    }
+  }
+}

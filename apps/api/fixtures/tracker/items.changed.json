@@ -1,0 +1,51 @@
+{
+  "route": "PATCH /api/v1/projects/:slug/items/:key",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/projects/tc/items/TC-1",
+    "ifMatch": "\"1\"",
+    "body": {
+      "title": "Export the backlog to CSV"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "key": "TC-1",
+      "number": 1,
+      "kind": "feature",
+      "status": "proposed",
+      "severity": null,
+      "tier": null,
+      "sprint": null,
+      "title": "Export the backlog to CSV",
+      "labels": [
+        "status:proposed",
+        "kind:feature"
+      ],
+      "flags": [],
+      "state": "open",
+      "closedAt": null,
+      "closedReason": null,
+      "createdBy": {
+        "kind": "owner",
+        "name": "owner"
+      },
+      "createdAt": "2026-11-12T10:00:00.000Z",
+      "updatedAt": "2026-11-12T10:00:00.000Z",
+      "version": 2,
+      "source": "console",
+      "sourceUrl": null,
+      "body": "",
+      "queue": {
+        "position": 1,
+        "total": 1
+      }
+    }
+  }
+}

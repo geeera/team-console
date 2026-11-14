@@ -1,0 +1,31 @@
+{
+  "route": "POST /api/v1/projects/:slug/items/:key/comments",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/items/TC-1/comments",
+    "body": {
+      "kind": "note",
+      "body": "Scope confirmed with the owner."
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "id": 1,
+      "kind": "note",
+      "author": {
+        "kind": "job",
+        "name": "pm"
+      },
+      "body": "Scope confirmed with the owner.",
+      "createdAt": "2026-11-12T10:00:00.000Z",
+      "source": "console",
+      "sourceUrl": null
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "route": "POST /api/v1/projects/:slug/sprints",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/sprints",
+    "body": {
+      "title": "Checkout",
+      "dueOn": "2026-11-19"
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "number": 1,
+      "title": "Checkout",
+      "dueOn": "2026-11-19",
+      "state": "open",
+      "description": "",
+      "createdAt": "2026-11-12T10:00:00.000Z",
+      "closedAt": null,
+      "openCount": 0
+    }
+  }
+}

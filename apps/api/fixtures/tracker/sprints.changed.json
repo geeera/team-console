@@ -1,0 +1,28 @@
+{
+  "route": "PATCH /api/v1/projects/:slug/sprints/:number",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/projects/tc/sprints/1",
+    "body": {
+      "state": "closed"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "number": 1,
+      "title": "Checkout",
+      "dueOn": "2026-11-19",
+      "state": "closed",
+      "description": "",
+      "createdAt": "2026-11-12T10:00:00.000Z",
+      "closedAt": "2026-11-12T10:00:00.000Z",
+      "openCount": 0
+    }
+  }
+}

@@ -13,6 +13,8 @@ visual direction, 0006 the console as the source of truth — the #309 target ar
 - The GitHub token lives only in the Worker; the client never sees it. Secrets only in GitHub Environments /
   `wrangler secret`; this repository is public.
 - Owner answers written by the app use the plugin's grammar exactly (`libs/shared/owner-grammar`).
+- A tracker route change bumps the plugin's lock in the same sprint (`apps/api/fixtures/tracker/` is the contract,
+  replayed by `routes/tracker/contract-fixtures.spec.ts`).
 - Design tokens only (Paper Desk, ADR 0002); no raw colours, spacing, durations or z-index in components —
   `tools/design-lint` (part of `nx run-many -t lint`) fails on one in any `libs/console/**` or `apps/console` css.
 - Accounts are the tenant (ADR 0008, #466): every account-level table carries `account_id`; every route registered on

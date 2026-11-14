@@ -1,0 +1,51 @@
+{
+  "route": "POST /api/v1/projects/:slug/items/:key/queue",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/items/TC-2/queue",
+    "ifMatch": "\"1\"",
+    "body": {
+      "move": "first"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "key": "TC-2",
+      "number": 2,
+      "kind": "feature",
+      "status": "approved",
+      "severity": null,
+      "tier": null,
+      "sprint": null,
+      "title": "Dark mode",
+      "labels": [
+        "status:approved",
+        "kind:feature"
+      ],
+      "flags": [],
+      "state": "open",
+      "closedAt": null,
+      "closedReason": null,
+      "createdBy": {
+        "kind": "owner",
+        "name": "owner"
+      },
+      "createdAt": "2026-11-12T10:00:00.000Z",
+      "updatedAt": "2026-11-12T10:00:00.000Z",
+      "version": 2,
+      "source": "console",
+      "sourceUrl": null,
+      "body": "",
+      "queue": {
+        "position": 1,
+        "total": 2
+      }
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "route": "GET /api/v1/projects/:slug/items/:key/events",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/projects/tc/items/TC-1/events"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "events": [
+        {
+          "id": 1,
+          "at": "2026-11-12T10:00:00.000Z",
+          "actor": {
+            "kind": "owner",
+            "name": "owner"
+          },
+          "kind": "created",
+          "before": null,
+          "after": {
+            "kind": "feature",
+            "status": "proposed",
+            "severity": null,
+            "tier": null,
+            "sprint": null,
+            "title": "Export to CSV",
+            "flags": []
+          }
+        }
+      ],
+      "next": null
+    }
+  }
+}
