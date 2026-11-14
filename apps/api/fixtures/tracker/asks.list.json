@@ -1,0 +1,35 @@
+{
+  "route": "GET /api/v1/projects/:slug/items/:key/asks",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/projects/tc/items/TC-1/asks"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "asks": [
+        {
+          "id": 1,
+          "category": "scope",
+          "ask": "Ship the beta to the first ten users?",
+          "commands": [
+            "approve",
+            "reject"
+          ],
+          "recommended": "approve",
+          "createdAt": "2026-11-12T10:00:00.000Z",
+          "source": "console",
+          "state": "open",
+          "answeredByDecisionId": null,
+          "withdrawnAt": null
+        }
+      ],
+      "next": null
+    }
+  }
+}

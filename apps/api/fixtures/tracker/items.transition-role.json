@@ -1,0 +1,31 @@
+{
+  "route": "PATCH /api/v1/projects/:slug/items/:key",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": [
+      1
+    ]
+  },
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/projects/tc/items/TC-1",
+    "ifMatch": "\"1\"",
+    "body": {
+      "addLabels": [
+        "workflow-change"
+      ]
+    }
+  },
+  "response": {
+    "status": 403,
+    "body": {
+      "type": "https://team-console/problems/transition-role",
+      "title": "Forbidden",
+      "status": 403,
+      "instance": "request-id",
+      "detail": "This role cannot make this change",
+      "reason": "workflow-change"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "route": "GET /api/v1/projects/:slug/items",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/projects/tc/items?state=open"
+  },
+  "response": {
+    "status": 404,
+    "body": {
+      "type": "https://team-console/problems/project-not-found",
+      "title": "Project not found",
+      "status": 404,
+      "instance": "request-id"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "route": "GET /api/v1/projects/:slug/sprints",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/projects/tc/sprints"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "sprints": [
+        {
+          "number": 1,
+          "title": "Checkout",
+          "dueOn": "2026-11-19",
+          "state": "open",
+          "description": "",
+          "createdAt": "2026-11-12T10:00:00.000Z",
+          "closedAt": null,
+          "openCount": 0
+        }
+      ],
+      "backlogOpenCount": 0
+    }
+  }
+}

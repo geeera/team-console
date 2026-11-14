@@ -1,0 +1,39 @@
+{
+  "route": "POST /api/v1/projects/:slug/items/:key/asks",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/items/TC-1/asks",
+    "body": {
+      "category": "scope",
+      "ask": "Ship the beta to the first ten users?",
+      "commands": [
+        "approve",
+        "reject"
+      ],
+      "recommended": "approve"
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "id": 1,
+      "category": "scope",
+      "ask": "Ship the beta to the first ten users?",
+      "commands": [
+        "approve",
+        "reject"
+      ],
+      "recommended": "approve",
+      "createdAt": "2026-11-12T10:00:00.000Z",
+      "source": "console",
+      "state": "open",
+      "answeredByDecisionId": null,
+      "withdrawnAt": null
+    }
+  }
+}

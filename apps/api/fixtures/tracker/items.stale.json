@@ -1,0 +1,26 @@
+{
+  "route": "PATCH /api/v1/projects/:slug/items/:key",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/projects/tc/items/TC-1",
+    "ifMatch": "\"9\"",
+    "body": {
+      "title": "Export the backlog to CSV"
+    }
+  },
+  "response": {
+    "status": 412,
+    "body": {
+      "type": "https://team-console/problems/item-version",
+      "title": "The item changed since it was read",
+      "status": 412,
+      "instance": "request-id",
+      "detail": "Read the item again and apply the change to its current version"
+    }
+  }
+}

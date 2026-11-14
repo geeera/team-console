@@ -1,0 +1,52 @@
+{
+  "route": "POST /api/v1/projects/:slug/items",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/items",
+    "body": {
+      "title": "Export to CSV",
+      "kind": "feature",
+      "body": "Let owners export the backlog."
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "key": "TC-1",
+      "number": 1,
+      "kind": "feature",
+      "status": "proposed",
+      "severity": null,
+      "tier": null,
+      "sprint": null,
+      "title": "Export to CSV",
+      "labels": [
+        "status:proposed",
+        "kind:feature"
+      ],
+      "flags": [],
+      "state": "open",
+      "closedAt": null,
+      "closedReason": null,
+      "createdBy": {
+        "kind": "job",
+        "name": "pm"
+      },
+      "createdAt": "2026-11-12T10:00:00.000Z",
+      "updatedAt": "2026-11-12T10:00:00.000Z",
+      "version": 1,
+      "source": "console",
+      "sourceUrl": null,
+      "body": "Let owners export the backlog.",
+      "queue": {
+        "position": 1,
+        "total": 1
+      }
+    }
+  }
+}

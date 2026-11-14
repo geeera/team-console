@@ -1,0 +1,29 @@
+{
+  "route": "PATCH /api/v1/projects/:slug/items/:key",
+  "as": {
+    "kind": "job",
+    "role": "orchestrator",
+    "items": [
+      1
+    ]
+  },
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/projects/tc/items/TC-1",
+    "ifMatch": "\"1\"",
+    "body": {
+      "status": "approved"
+    }
+  },
+  "response": {
+    "status": 403,
+    "body": {
+      "type": "https://team-console/problems/transition-owner-only",
+      "title": "Forbidden",
+      "status": 403,
+      "instance": "request-id",
+      "detail": "Only an owner decision makes this change",
+      "reason": "approve"
+    }
+  }
+}
