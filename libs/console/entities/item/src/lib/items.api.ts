@@ -8,6 +8,7 @@ import type {
   DecisionDto,
   ItemDto,
   ItemEventDto,
+  ItemKind,
   ItemSummaryDto,
   QueueMove,
   TrackerSprintDto,
@@ -94,6 +95,17 @@ function readFailureOf(error: unknown): TrackerRead<never> {
 export type ItemQuery = Readonly<Record<string, string>>;
 
 /**
+ * `POST …/items` from the quick task form (#107): never sends `status`, so the item is created `proposed` (the
+ * API default) in the sprint chosen, or in the backlog when `sprint` is `null`.
+ */
+export interface CreateQuickTaskInput {
+  readonly title: string;
+  readonly body: string;
+  readonly kind: ItemKind;
+  readonly sprint: number | null;
+}
+
+/**
  * The console tracker's HTTP surface (#410, #434) for the screens. Never throws: every read is a `TrackerRead`,
  * every write a `TrackerWrite`. Every write carries the caller's `Idempotency-Key` (kept by the caller across a
  * retry, so a retry is never applied twice) and, where the route needs it, `If-Match` with the version that was read.
@@ -158,6 +170,21 @@ export class ItemsApi {
   async freezeDays(slug: string): Promise<TrackerRead<number>> {
     const read = await this.read(sprintFreezeUrl(slug), isSprintFreezeDaysDto);
     return read.ok ? { ok: true, value: read.value.freezeDays } : read;
+  }
+
+  /**
+   * `POST …/items` (#107): quick task capture. The caller keeps one `Idempotency-Key` per draft, so a double tap or
+   * a retry after a drop creates one item (`replayed`). Failures go through `trackerFailureOf`: 409 `sprint-frozen`
+   * is `frozen`, 422 `item-invalid` is `invalid` with the field (commonly `sprint`, when it closed or disappeared
+   * between opening the form and sending).
+   */
+  async createItem(
+    slug: string,
+    input: CreateQuickTaskInput,
+    idempotencyKey: string,
+  ): Promise<TrackerWrite<ItemDto>> {
+    const headers = new HttpHeaders({ 'Idempotency-Key': idempotencyKey });
+    return this.write('POST', itemsUrl(slug), input, headers, isItemDto);
   }
 
   /**

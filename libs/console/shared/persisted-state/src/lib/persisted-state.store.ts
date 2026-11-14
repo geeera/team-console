@@ -6,6 +6,7 @@ import {
   parsePersistedState,
   PersistedStateV1,
   ProjectUiState,
+  QuickTaskDraft,
   TASK_DRAFTS_MAX,
   TaskDraft,
 } from './persisted-state.model';
@@ -35,6 +36,7 @@ export class PersistedStateStore {
   readonly pinned = computed(() => this.state().pinned);
   readonly collapsed = computed(() => this.state().collapsed);
   readonly projects = computed(() => this.state().projects);
+  readonly quickTaskDraft = computed(() => this.state().quickTaskDraft);
 
   constructor() {
     const flushWhenHidden = (): void => {
@@ -166,6 +168,27 @@ export class PersistedStateStore {
           .sort(([, a], [, b]) => b.savedAt.localeCompare(a.savedAt))
           .slice(0, TASK_DRAFTS_MAX);
         return { ...project, taskDrafts: Object.fromEntries(kept) };
+      },
+      { immediate: true },
+    );
+  }
+
+  /** Written at once, like the chat draft: iOS may evict a backgrounded PWA at any time (#107). */
+  setQuickTaskDraft(draft: QuickTaskDraft): void {
+    this.update((state) => (state.quickTaskDraft === draft ? state : { ...state, quickTaskDraft: draft }), {
+      immediate: true,
+    });
+  }
+
+  /** The draft is gone once its item was created, or the owner discarded it. */
+  clearQuickTaskDraft(): void {
+    this.update(
+      (state) => {
+        if (state.quickTaskDraft === undefined) {
+          return state;
+        }
+        const { quickTaskDraft: _discarded, ...rest } = state;
+        return rest;
       },
       { immediate: true },
     );

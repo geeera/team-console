@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { itemFixture } from './item.fixture';
 import { freezeDaysOrDefault } from './item-queue';
-import { decisionsUrl, itemUrl, ItemsApi, sprintFreezeUrl, sprintsUrl } from './items.api';
+import { decisionsUrl, itemsUrl, itemUrl, ItemsApi, sprintFreezeUrl, sprintsUrl } from './items.api';
 import { trackerFailureOf } from './tracker-failure';
 import { HttpErrorResponse } from '@angular/common/http';
 
@@ -46,6 +46,68 @@ describe('ItemsApi', () => {
     const dropped = api.item('team-console', 7);
     http.expectOne(itemUrl('team-console', 7)).error(new ProgressEvent('error'), { status: 0 });
     await expect(dropped).resolves.toEqual({ ok: false, reason: 'offline' });
+  });
+
+  it('creates a quick task with no status, and reads a replay as replayed (#107)', async () => {
+    const input = { title: 'Fix the footer', body: '', kind: 'bug', sprint: 4 } as const;
+    const pending = api.createItem('team-console', input, 'key-quick-1');
+    const request = http.expectOne(itemsUrl('team-console'));
+    expect(request.request.method).toBe('POST');
+    expect(request.request.headers.get('Idempotency-Key')).toBe('key-quick-1');
+    expect(request.request.body).toEqual(input);
+    expect(request.request.body).not.toHaveProperty('status');
+    request.flush(itemFixture({ title: 'Fix the footer', kind: 'bug', sprint: 4, status: 'proposed' }), {
+      headers: { 'Idempotent-Replayed': 'true' },
+    });
+    await expect(pending).resolves.toMatchObject({
+      ok: true,
+      replayed: true,
+      value: { title: 'Fix the footer', status: 'proposed' },
+    });
+  });
+
+  it('sends the backlog as sprint null, and reports a frozen or invalid sprint (#107)', async () => {
+    const backlog = api.createItem(
+      'team-console',
+      { title: 'Backlog item', body: '', kind: 'chore', sprint: null },
+      'key-quick-2',
+    );
+    const first = http.expectOne(itemsUrl('team-console'));
+    expect(first.request.body).toMatchObject({ sprint: null });
+    first.flush(itemFixture({ title: 'Backlog item', sprint: null }));
+    await expect(backlog).resolves.toMatchObject({ ok: true, value: { sprint: null } });
+
+    const problemHeaders = { 'Content-Type': 'application/problem+json' };
+    const frozen = api.createItem(
+      'team-console',
+      { title: 'Into a frozen sprint', body: '', kind: 'feature', sprint: 4 },
+      'key-quick-3',
+    );
+    http
+      .expectOne(itemsUrl('team-console'))
+      .flush(
+        { type: 'https://team-console/problems/sprint-frozen', title: 'sprint-frozen', status: 409 },
+        { status: 409, statusText: 'Conflict', headers: problemHeaders },
+      );
+    await expect(frozen).resolves.toMatchObject({ ok: false, failure: { kind: 'frozen' } });
+
+    const vanished = api.createItem(
+      'team-console',
+      { title: 'Into a closed sprint', body: '', kind: 'feature', sprint: 5 },
+      'key-quick-4',
+    );
+    http
+      .expectOne(itemsUrl('team-console'))
+      .flush(
+        {
+          type: 'https://team-console/problems/item-invalid',
+          title: 'item-invalid',
+          status: 422,
+          field: 'sprint',
+        },
+        { status: 422, statusText: 'Unprocessable Entity', headers: problemHeaders },
+      );
+    await expect(vanished).resolves.toMatchObject({ ok: false, failure: { kind: 'invalid', field: 'sprint' } });
   });
 
   it('records a decision with its key and reads a replay as replayed (#457)', async () => {

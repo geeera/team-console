@@ -1,8 +1,10 @@
 import {
   emptyPersistedState,
   isPersistedStateV1,
+  isQuickTaskDraft,
   parsePersistedState,
   PersistedStateV1,
+  QuickTaskDraft,
   scrollKeyOf,
 } from './persisted-state.model';
 
@@ -72,6 +74,41 @@ describe('parsePersistedState', () => {
   it('keeps unknown slugs (pruning is the store’s job, against the project list)', () => {
     const state = parsePersistedState(JSON.stringify(valid));
     expect(Object.keys(state.projects)).toEqual(['team-console', 'sheltrix']);
+  });
+});
+
+const quickTaskDraft: QuickTaskDraft = {
+  slug: 'team-console',
+  title: 'Fix the footer',
+  body: '',
+  kind: 'bug',
+  sprintTarget: 'next',
+  idempotencyKey: 'key-1',
+  savedAt: '2026-11-14T10:00:00.000Z',
+};
+
+describe('isQuickTaskDraft', () => {
+  it('accepts a well-shaped draft', () => {
+    expect(isQuickTaskDraft(quickTaskDraft)).toBe(true);
+  });
+
+  it.each<[string, unknown]>([
+    ['not a record', 'draft'],
+    ['an unknown kind', { ...quickTaskDraft, kind: 'epic' }],
+    ['an unknown sprint target', { ...quickTaskDraft, sprintTarget: 'later' }],
+    ['a missing idempotency key', { ...quickTaskDraft, idempotencyKey: undefined }],
+    ['a non-string title', { ...quickTaskDraft, title: 7 }],
+  ])('rejects %s', (_name, value) => {
+    expect(isQuickTaskDraft(value)).toBe(false);
+  });
+});
+
+describe('parsePersistedState with a quick task draft', () => {
+  it('restores a valid draft and discards a malformed one', () => {
+    const withDraft = { ...valid, quickTaskDraft: quickTaskDraft };
+    expect(parsePersistedState(JSON.stringify(withDraft))).toEqual(withDraft);
+    const malformed = { ...valid, quickTaskDraft: { ...quickTaskDraft, kind: 'epic' } };
+    expect(parsePersistedState(JSON.stringify(malformed))).toEqual(emptyPersistedState());
   });
 });
 

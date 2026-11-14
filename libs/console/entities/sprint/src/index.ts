@@ -25,6 +25,12 @@ export type {
 } from './lib/sprint.model';
 export { boardSectionsOf, sectionOf, sprintIssueOf, trackerSprintPartOf } from './lib/tracker-board';
 export type { BoardSection, BoardSectionKind, BoardSections, TrackerSprintPart } from './lib/tracker-board';
+export { quickTaskSprintOptionsOf } from './lib/quick-task-sprint-options';
+export type {
+  QuickTaskSprintDisabledReason,
+  QuickTaskSprintOption,
+  QuickTaskSprintOptions,
+} from './lib/quick-task-sprint-options';
 export { SprintApi, UnexpectedSprintResponse, projectSprintUrl } from './lib/sprint.api';
 export { SPRINT_CI_ICONS, SprintCiChip } from './lib/sprint-ci';
 export { RUN_ENTRY_ICONS, SprintRunList, TEAM_RUN_ICONS } from './lib/sprint-team';

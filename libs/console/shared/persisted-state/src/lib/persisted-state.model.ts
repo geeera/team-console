@@ -1,3 +1,6 @@
+import type { ItemKind, SprintTarget } from '@shared/contracts';
+import { isItemKind, SPRINT_TARGETS } from '@shared/contracts';
+
 /**
  * Device-local UI state (ADR 0001, decision 23): where the owner was in every project space.
  * Nothing here ever leaves the device — the store has no HTTP dependency by design.
@@ -24,6 +27,21 @@ export interface TaskDraft {
 /** At most this many tasks keep a draft per project; the oldest goes first. */
 export const TASK_DRAFTS_MAX = 20;
 
+/**
+ * The one unsent "New task" draft a device keeps (#107), across project switches and an iOS eviction. `idempotencyKey`
+ * is created once, with the draft, and kept across every retry, so a later send — however many times it was
+ * retried — creates at most one item.
+ */
+export interface QuickTaskDraft {
+  readonly slug: string;
+  readonly title: string;
+  readonly body: string;
+  readonly kind: ItemKind;
+  readonly sprintTarget: SprintTarget;
+  readonly idempotencyKey: string;
+  readonly savedAt: string;
+}
+
 export interface ProjectUiState {
   /** Relative to `/p/{slug}/`, e.g. `artifacts?type=decisions`; empty until the space was visited. */
   readonly lastPath: string;
@@ -46,6 +64,8 @@ export interface PersistedStateV1 {
   /** The "other projects" section of the switcher is folded. */
   readonly collapsed: boolean;
   readonly projects: Readonly<Record<string, ProjectUiState>>;
+  /** One draft per device (#107): `undefined` once sent, cleared, or never started. */
+  readonly quickTaskDraft?: QuickTaskDraft;
 }
 
 export function emptyProjectUiState(): ProjectUiState {
@@ -105,6 +125,25 @@ function isTaskDrafts(value: unknown): value is Record<string, TaskDraft> {
   return isRecord(value) && Object.values(value).every(isTaskDraft);
 }
 
+function isSprintTarget(value: unknown): value is SprintTarget {
+  return (SPRINT_TARGETS as readonly unknown[]).includes(value);
+}
+
+export function isQuickTaskDraft(value: unknown): value is QuickTaskDraft {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value['slug'] === 'string' &&
+    typeof value['title'] === 'string' &&
+    typeof value['body'] === 'string' &&
+    isItemKind(value['kind']) &&
+    isSprintTarget(value['sprintTarget']) &&
+    typeof value['idempotencyKey'] === 'string' &&
+    typeof value['savedAt'] === 'string'
+  );
+}
+
 export function isProjectUiState(value: unknown): value is ProjectUiState {
   if (!isRecord(value)) {
     return false;
@@ -135,7 +174,8 @@ export function isPersistedStateV1(value: unknown): value is PersistedStateV1 {
     isStringArray(value['pinned']) &&
     typeof value['collapsed'] === 'boolean' &&
     isRecord(projects) &&
-    Object.values(projects).every(isProjectUiState)
+    Object.values(projects).every(isProjectUiState) &&
+    (value['quickTaskDraft'] === undefined || isQuickTaskDraft(value['quickTaskDraft']))
   );
 }
 
