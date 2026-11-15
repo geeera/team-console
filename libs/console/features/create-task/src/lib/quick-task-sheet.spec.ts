@@ -173,6 +173,34 @@ describe('QuickTaskSheet (#107)', () => {
     expect(store.quickTaskDraft()).toBeUndefined();
   });
 
+  it('after a key-reused refusal keeps the text and the key until «Отправить как новую» mints a fresh one', async () => {
+    const item = itemFixture({ number: 15, key: 'TC-15', sprint: 5 });
+    const { root, calls, type, create, store } = await render([
+      failed('timeout'),
+      failed('key-reused'),
+      { ok: true, value: item, replayed: false },
+    ]);
+    await type('quick-task-title', 'First wording');
+    await create();
+    await type('quick-task-title', 'Second wording');
+    await create();
+    expect(calls[1]?.key).toBe(calls[0]?.key);
+    const block = root.querySelector('[data-testid="quick-task-failure"]');
+    expect(block?.getAttribute('data-kind')).toBe('key-reused');
+    expect(block?.textContent).toContain('Первая отправка могла дойти.');
+    expect(root.querySelector<HTMLInputElement>('[data-testid="quick-task-title"]')?.value).toBe(
+      'Second wording',
+    );
+    expect(store.quickTaskDraft()?.title).toBe('Second wording');
+
+    root.querySelector<HTMLButtonElement>('[data-testid="quick-task-send-as-new"]')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(calls).toHaveLength(3);
+    expect(calls[2]?.input.title).toBe('Second wording');
+    expect(calls[2]?.key).not.toBe(calls[0]?.key);
+    expect(store.quickTaskDraft()).toBeUndefined();
+  });
+
   it('after a frozen sprint offers the backlog in one tap and never the same sprint again', async () => {
     const item = itemFixture({ number: 14, key: 'TC-14', sprint: null });
     const { root, calls, type, create } = await render([
