@@ -2296,6 +2296,7 @@
   },
   "quickTask": {
     "new": "New task",
+    "newDraft": "New task, draft waiting",
     "title": "New task",
     "into": "in {{name}}",
     "project": "Project",

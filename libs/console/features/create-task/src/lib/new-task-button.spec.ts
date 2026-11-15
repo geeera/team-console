@@ -71,4 +71,20 @@ describe('NewTaskButton (#107)', () => {
     const { button } = await render({ ok: true, value: [] }, [project('team-console', 'github')]);
     expect(button()).toBeNull();
   });
+
+  it('carries the draft dot and says so in its name while a draft waits', async () => {
+    const { button, fixture } = await render({ ok: true, value: [] }, [project('team-console', 'console')]);
+    TestBed.inject(PersistedStateStore).setQuickTaskDraft({
+      slug: 'team-console',
+      title: 'Half a thought',
+      body: '',
+      kind: 'feature',
+      sprintTarget: 'next',
+      idempotencyKey: 'key-123456',
+      savedAt: '2030-01-01T10:00:00Z',
+    });
+    await fixture.whenStable();
+    expect(button()?.querySelector('.tc-draft-dot')).not.toBeNull();
+    expect(button()?.getAttribute('aria-label')).toBe('Новая задача, есть черновик');
+  });
 });
