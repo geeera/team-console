@@ -2293,5 +2293,110 @@
       "sessionExpired": "Your session expired. Sign in again.",
       "error": "Something went wrong. Try again."
     }
+  },
+  "quickTask": {
+    "new": "New task",
+    "title": "New task",
+    "into": "in {{name}}",
+    "project": "Project",
+    "name": "Title",
+    "nameHint": "One line — what needs doing.",
+    "text": "Details",
+    "textHint": "Sent to the task as is, without formatting.",
+    "commandNote": "Lines that look like commands (such as “/approve”) won’t be acted on — they stay plain text.",
+    "kindHint": {
+      "feature": "Feature — something new, or a change to what’s there.",
+      "bug": "Bug — something doesn’t work the way it should.",
+      "chore": "Chore — upkeep: dependencies, build, clean-up."
+    },
+    "sprint": {
+      "legend": "Which sprint",
+      "current": "Current",
+      "next": "Next",
+      "backlog": "Backlog",
+      "hint": "{{sprint}}, demo {{date}}.",
+      "noDate": "{{sprint}}, no demo date yet.",
+      "frozen": "Freeze until the {{date}} demo: {{sprint}} takes no new tasks.",
+      "frozenNoDate": "{{sprint}} is frozen: it takes no new tasks.",
+      "freezeChip": "freeze",
+      "noCurrent": "There’s no current sprint.",
+      "noNext": "There’s no next sprint yet.",
+      "backlogHint": "No sprint: it stays a proposal, and you decide at a demo whether to take it.",
+      "loading": "Loading sprints…",
+      "error": "Couldn’t load the sprints: for now it can only go to the backlog."
+    },
+    "draft": {
+      "from": "Draft from {{time}}.",
+      "other": "This is an unfinished draft for {{name}}. You can change the project.",
+      "clear": "Clear",
+      "hint": "The draft stays on this device only.",
+      "kept": "Draft saved"
+    },
+    "clear": {
+      "title": "Clear the draft?",
+      "message": "The title and details are removed from this device.",
+      "ok": "Clear",
+      "cancel": "Keep"
+    },
+    "create": "Create",
+    "createIn": "Create in {{name}}",
+    "sending": "Creating…",
+    "retry": "Try again",
+    "shortcut": "Send",
+    "field": {
+      "title": "Title",
+      "body": "Details",
+      "kind": "Kind",
+      "sprint": "Sprint",
+      "other": "a form field"
+    },
+    "done": {
+      "stamp": "Created",
+      "title": "Task {{key}} created",
+      "meta": "{{name}} · {{time}} · created as you",
+      "sprint": "Added to {{sprint}}.",
+      "backlog": "In the backlog: you decide at a demo whether to take it.",
+      "open": "Open {{key}}",
+      "another": "Another task",
+      "close": "Done",
+      "announce": "Task {{key}} created in {{name}}"
+    },
+    "err": {
+      "frozen": {
+        "title": "{{sprint}} takes no new tasks until its demo",
+        "message": "The task wasn’t created; your text is kept. Pick another sprint and it is sent at once.",
+        "toNext": "To {{sprint}}",
+        "toBacklog": "To the backlog"
+      },
+      "sprintGone": {
+        "title": "That sprint closed or is gone",
+        "message": "The task wasn’t created; your text is kept. The sprint list is updated — choose again."
+      },
+      "invalid": {
+        "title": "Check the fields",
+        "message": "The console didn’t accept “{{field}}”. Fix it and send again."
+      },
+      "notFound": {
+        "title": "{{name}} is no longer in the console",
+        "message": "Choose another project — your text is kept."
+      },
+      "forbidden": {
+        "title": "Only the owner can create tasks",
+        "message": "This session isn’t signed in as the owner. Nothing was created."
+      },
+      "network": {
+        "title": "No connection",
+        "message": "The task may not have arrived. Try again — it won’t be created twice."
+      },
+      "keyReused": {
+        "title": "The text changed after the first send",
+        "message": "The first send may have arrived. Check the project’s tasks; if the task is not there, send it as new.",
+        "sendAsNew": "Send as new"
+      },
+      "timeout": {
+        "title": "Unknown whether the task was created",
+        "message": "The console didn’t answer. Try again — if the task was created, you get that one back, not a second."
+      }
+    }
   }
 }

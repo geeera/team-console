@@ -39,9 +39,11 @@
     {{ 'commands.open' | transloco }}
     <kbd class="tc-kbd" aria-hidden="true">K</kbd>
   </button>
+  <tc-new-task-button [slug]="slug()" />
   } @else {
   <!-- The phone: in the shell's top bar, as the design places it. -->
   <ng-template tcTopBarAction>
+    <tc-new-task-button compact [slug]="slug()" />
     @if (canFind()) {
     <button
       tc-icon-button

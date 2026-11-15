@@ -1,5 +1,6 @@
-import type { TrackerSprintDto, TrackerSprintListDto } from '@shared/contracts';
+import { addDays, type TrackerSprintDto, type TrackerSprintListDto } from '@shared/contracts';
 import { SprintsRepo } from '@worker/db';
+import { sprintToday } from '@worker/read-models';
 import {
   countRows,
   newKey,
@@ -16,6 +17,10 @@ import {
 
 const sprintsPath = (slug: string): string => `/api/v1/projects/${slug}/sprints`;
 
+// Far enough out that the sprint is never in its freeze (#556's window tops out at MAX_FREEZE_DAYS).
+const farSprintDueOn = addDays(sprintToday(Date.now()), 30);
+const farSprintDueOnMoved = addDays(sprintToday(Date.now()), 32);
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -24,7 +29,7 @@ describe('POST /projects/:slug/sprints', () => {
   it('creates the next sprint as Sprint NN', async () => {
     const project = await seedTrackerProject();
     const first = await send('POST', sprintsPath(project.slug), {
-      dueOn: '2026-11-17',
+      dueOn: farSprintDueOn,
       description: 'Tracker core',
     });
     expect(first.status).toBe(201);
@@ -32,7 +37,7 @@ describe('POST /projects/:slug/sprints', () => {
     expect(await first.json()).toMatchObject({
       number: 1,
       title: 'Sprint 01',
-      dueOn: '2026-11-17',
+      dueOn: farSprintDueOn,
       state: 'open',
       description: 'Tracker core',
       closedAt: null,
@@ -44,8 +49,8 @@ describe('POST /projects/:slug/sprints', () => {
   it('answers a replayed key with the first sprint and creates no second one', async () => {
     const project = await seedTrackerProject();
     const key = newKey();
-    const first = await send('POST', sprintsPath(project.slug), { dueOn: '2026-11-17' }, { key });
-    const again = await send('POST', sprintsPath(project.slug), { dueOn: '2026-11-17' }, { key });
+    const first = await send('POST', sprintsPath(project.slug), { dueOn: farSprintDueOn }, { key });
+    const again = await send('POST', sprintsPath(project.slug), { dueOn: farSprintDueOn }, { key });
     expect(again.status).toBe(201);
     expect(await again.json()).toEqual(await first.json());
     expect(await countRows('sprints', project.slug)).toBe(1);
@@ -54,7 +59,7 @@ describe('POST /projects/:slug/sprints', () => {
   it("names the sprint with the owner's title, cleaned to one line of plain text (#457)", async () => {
     const project = await seedTrackerProject();
     const named = await send('POST', sprintsPath(project.slug), {
-      dueOn: '2026-11-17',
+      dueOn: farSprintDueOn,
       title: '  \u202eCheckout\u200b\n  polish ',
     });
     expect(named.status).toBe(201);
@@ -147,11 +152,11 @@ describe('POST /projects/:slug/sprints', () => {
 describe('PATCH /projects/:slug/sprints/:number', () => {
   it('moves the demo day, closes and reopens the sprint', async () => {
     const project = await seedTrackerProject();
-    await send('POST', sprintsPath(project.slug), { dueOn: '2026-11-17' });
+    await send('POST', sprintsPath(project.slug), { dueOn: farSprintDueOn });
     const path = `${sprintsPath(project.slug)}/1`;
-    const moved = await send('PATCH', path, { dueOn: '2026-11-19' });
+    const moved = await send('PATCH', path, { dueOn: farSprintDueOnMoved });
     expect(moved.status).toBe(200);
-    expect(await moved.json()).toMatchObject({ dueOn: '2026-11-19', state: 'open' });
+    expect(await moved.json()).toMatchObject({ dueOn: farSprintDueOnMoved, state: 'open' });
     const closed = (await (await send('PATCH', path, { state: 'closed' })).json()) as TrackerSprintDto;
     expect(closed.state).toBe('closed');
     expect(closed.closedAt).not.toBeNull();

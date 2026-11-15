@@ -88,6 +88,8 @@ const BY_TRACKER_KIND: Readonly<Record<TrackerFailureKind, AnswerFailureKind>> =
   network: 'offline',
   timeout: 'offline',
   'in-flight': 'in-progress',
+  // A decision never reuses a key for another body; read as any other refusal.
+  'key-reused': 'unknown',
   'not-found': 'issue-closed',
   'session-expired': 'session-expired',
   unknown: 'unknown',
