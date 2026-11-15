@@ -51,6 +51,12 @@
         {{ 'quickTask.err.frozen.toBacklog' | transloco }}
       </button>
     </div>
+    } @if (failed.kind === 'key-reused') {
+    <div class="qt-failure__actions">
+      <button tc-button type="button" data-testid="quick-task-send-as-new" (click)="sendAsNew()">
+        {{ 'quickTask.err.keyReused.sendAsNew' | transloco }}
+      </button>
+    </div>
     }
   </div>
   } @if (draftAt(); as savedAt) {

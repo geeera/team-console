@@ -23,6 +23,8 @@ const COPY: Readonly<Record<TrackerFailure['kind'], string>> = {
   network: 'network',
   timeout: 'timeout',
   'in-flight': 'network',
+  // Only the quick-task form re-keys; other screens never send a changed body under a used key.
+  'key-reused': 'network',
   'not-found': 'notFound',
   'session-expired': 'network',
   unknown: 'network',

@@ -13,6 +13,8 @@ import { TimeoutError } from 'rxjs';
  * - `network` — no answer arrived (offline, dropped); `timeout` — none within `TRACKER_WRITE_TIMEOUT_MS`: both retry
  *   with the same idempotency key, so the write is never applied twice;
  * - `in-flight` — the same key is still being written (409 `idempotency-in-flight`): retry shortly;
+ * - `key-reused` — the key already carries a different request (422 `idempotency-key-reused`): an earlier send with it
+ *   may have landed, so only an explicit «send as new» with a fresh key goes on, never an automatic retry;
  * - `not-found` — the item or project is gone; `session-expired` — Access wants a new login (the app root takes over);
  * - `unknown` — anything else, retried like `network`.
  */
@@ -25,6 +27,7 @@ export type TrackerFailureKind =
   | 'network'
   | 'timeout'
   | 'in-flight'
+  | 'key-reused'
   | 'not-found'
   | 'session-expired'
   | 'unknown';
@@ -69,6 +72,7 @@ const KIND_BY_PROBLEM: Partial<
   'project-not-found': 'not-found',
   'sprint-not-found': 'not-found',
   'idempotency-in-flight': 'in-flight',
+  'idempotency-key-reused': 'key-reused',
   'sprint-frozen': 'frozen',
 };
 

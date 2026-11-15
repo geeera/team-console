@@ -2388,6 +2388,11 @@
         "title": "No connection",
         "message": "The task may not have arrived. Try again — it won’t be created twice."
       },
+      "keyReused": {
+        "title": "The text changed after the first send",
+        "message": "The first send may have arrived. Check the project’s tasks; if the task is not there, send it as new.",
+        "sendAsNew": "Send as new"
+      },
       "timeout": {
         "title": "Unknown whether the task was created",
         "message": "The console didn’t answer. Try again — if the task was created, you get that one back, not a second."

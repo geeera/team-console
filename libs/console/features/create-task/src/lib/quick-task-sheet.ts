@@ -327,6 +327,19 @@ export class QuickTaskSheet {
     this.focus('[data-testid="quick-task-failure"]');
   }
 
+  /**
+   * The only place a new key is minted for a draft that already tried to send: the owner has seen that the first send
+   * may have landed and chose to file this text anyway. Editing alone never re-keys (it could duplicate).
+   */
+  protected async sendAsNew(): Promise<void> {
+    if (this.running()) {
+      return;
+    }
+    this.key = newIdempotencyKey();
+    this.keepDraft();
+    await this.send();
+  }
+
   /** «Ещё задача»: the same project and kind, a fresh draft with its own key. */
   protected another(): void {
     this.created.set(null);
@@ -360,6 +373,11 @@ export class QuickTaskSheet {
                 field: this.t(`quickTask.field.${this.fieldOf(failure.field)}`),
               }),
             };
+      case 'key-reused':
+        return {
+          title: this.t('quickTask.err.keyReused.title'),
+          message: this.t('quickTask.err.keyReused.message'),
+        };
       case 'not-found':
         return {
           title: this.t('quickTask.err.notFound.title', { name }),

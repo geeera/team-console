@@ -139,6 +139,42 @@ test('keeps the draft through a close and a reload, then a retry after a drop cr
   await sheet.getByTestId('quick-task-close').click();
 });
 
+test('an edit after a timed-out send says the first one may have landed, and «Send as new» files the new text', async ({
+  page,
+}) => {
+  // The first send reaches the server but never answers the client; the edited retry reuses the key.
+  let isFirst = true;
+  await page.route(`**/api/v1/projects/${SLUG}/items`, async (route) => {
+    if (route.request().method() !== 'POST' || !isFirst) {
+      await route.continue();
+      return;
+    }
+    isFirst = false;
+    await route.fetch();
+    await route.abort('timedout');
+  });
+  await page.goto(`/p/${SLUG}/board`);
+  const sheet = await openNewTask(page);
+  await sheet.getByTestId('quick-task-title').fill('Timed out wording');
+  await sheet.getByTestId('quick-task-create').click();
+  await expect(sheet.getByTestId('quick-task-failure')).toBeVisible();
+
+  await sheet.getByTestId('quick-task-title').fill('Edited wording');
+  await sheet.getByTestId('quick-task-create').click();
+  const failure = sheet.getByTestId('quick-task-failure');
+  await expect(failure).toHaveAttribute('data-kind', 'key-reused');
+  await expect(failure).toContainText(ru('quickTask.err.keyReused.message'));
+  await expect(sheet.getByTestId('quick-task-title')).toHaveValue('Edited wording');
+  await expectAccessible(page, 'new task key reused');
+
+  await failure.getByTestId('quick-task-send-as-new').click();
+  await expect(sheet.getByTestId('quick-task-done')).toBeVisible();
+  const titles = (await items(api)).map((item) => item.title);
+  expect(titles.filter((title) => title === 'Timed out wording')).toHaveLength(1);
+  expect(titles.filter((title) => title === 'Edited wording')).toHaveLength(1);
+  await sheet.getByTestId('quick-task-close').click();
+});
+
 test('a sprint the server refuses as frozen offers the backlog in one tap', async ({ page }) => {
   await page.route(`**/api/v1/projects/${SLUG}/items`, async (route) => {
     const body = route.request().postDataJSON() as { sprint: number | null } | null;
