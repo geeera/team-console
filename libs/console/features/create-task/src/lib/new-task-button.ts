@@ -10,12 +10,14 @@ import {
   untracked,
 } from '@angular/core';
 import { TranslocoPipe } from '@console/shared/i18n';
+import { PersistedStateStore } from '@console/shared/persisted-state';
 import { Button, Icon, IconButton, isLetterShortcut } from '@console/shared/ui';
 import { QuickTask } from './quick-task';
 import { QuickTaskAccess } from './quick-task-access';
 
 /**
- * The New task entry (#107): `+` in the phone's top bar (`compact`), a «Новая задача» button with T on a Mac. Shown only where a task can be created (`QuickTaskAccess`).
+ * The New task entry (#107): `+` in the phone's top bar (`compact`), a «Новая задача» button with T on a Mac. The ochre
+ * dot says an unsent draft waits, and so does the name. Shown only where a task can be created (`QuickTaskAccess`).
  * T opens it from anywhere on the screen but a text field, while no dialog is open.
  */
 @Component({
@@ -29,7 +31,8 @@ import { QuickTaskAccess } from './quick-task-access';
           type="button"
           data-testid="new-task-open"
           aria-haspopup="dialog"
-          [attr.aria-label]="'quickTask.new' | transloco"
+          [dot]="hasDraft()"
+          [attr.aria-label]="label() | transloco"
           (click)="open()"
         >
           <tc-icon name="plus" />
@@ -41,7 +44,8 @@ import { QuickTaskAccess } from './quick-task-access';
           data-testid="new-task-open"
           aria-haspopup="dialog"
           aria-keyshortcuts="T"
-          [attr.aria-label]="'quickTask.new' | transloco"
+          [dot]="hasDraft()"
+          [attr.aria-label]="label() | transloco"
           (click)="open()"
         >
           <tc-icon name="plus" size="sm" />
@@ -62,6 +66,7 @@ import { QuickTaskAccess } from './quick-task-access';
 export class NewTaskButton {
   private readonly access = inject(QuickTaskAccess);
   private readonly quickTask = inject(QuickTask);
+  private readonly drafts = inject(PersistedStateStore);
   private readonly dialog = inject(Dialog);
 
   /** The project the owner is in; `null` on Needs you. */
@@ -70,6 +75,8 @@ export class NewTaskButton {
   readonly compact = input(false, { transform: booleanAttribute });
 
   protected readonly isShown = computed(() => this.access.canCreate(this.slug()));
+  protected readonly hasDraft = computed(() => this.drafts.quickTaskDraft() !== undefined);
+  protected readonly label = computed(() => (this.hasDraft() ? 'quickTask.newDraft' : 'quickTask.new'));
 
   constructor() {
     effect(() => {

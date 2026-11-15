@@ -186,6 +186,40 @@ test('an identity the tracker refuses never sees New task', async ({ page }) => 
   await refused;
   await expect(page.getByTestId('commands-open')).toBeVisible();
   await expect(entry(page)).toHaveCount(0);
+  await page.goto('/needs-you');
+  await expect(page.getByRole('heading', { name: ru('needsYou.title') })).toBeAttached();
+  await expect(entry(page)).toHaveCount(0);
   await page.keyboard.press('t');
   await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('Needs you offers New task, and the dot shows while a draft waits', async ({ page }) => {
+  await page.goto('/needs-you');
+  let sheet = await openNewTask(page);
+  await expect(sheet.getByTestId('quick-task-project')).toHaveValue(SLUG);
+  await sheet.getByTestId('quick-task-title').fill('Thought on the way');
+  await page.keyboard.press('Escape');
+  await expect(sheet).toBeHidden();
+  await expect(entry(page)).toHaveAccessibleName(ru('quickTask.newDraft'));
+  await expect(entry(page).locator('.tc-draft-dot')).toBeVisible();
+  await expectAccessible(page, 'needs you with a draft');
+
+  // The draft follows the owner into a project: the same dot there.
+  await page.goto(`/p/${SLUG}/board`);
+  await expect(entry(page)).toHaveAccessibleName(ru('quickTask.newDraft'));
+
+  sheet = await openNewTask(page);
+  await expect(sheet.getByTestId('quick-task-title')).toHaveValue('Thought on the way');
+  await sheet
+    .getByTestId('quick-task-draft')
+    .getByRole('button', { name: ru('quickTask.draft.clear') })
+    .click();
+  await page
+    .getByRole('alertdialog')
+    .getByRole('button', { name: ru('quickTask.clear.ok') })
+    .click();
+  await expect(sheet.getByTestId('quick-task-title')).toHaveValue('');
+  await page.keyboard.press('Escape');
+  await expect(entry(page)).toHaveAccessibleName(ru('quickTask.new'));
+  await expect(entry(page).locator('.tc-draft-dot')).toHaveCount(0);
 });

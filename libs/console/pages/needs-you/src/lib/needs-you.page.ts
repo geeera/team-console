@@ -8,12 +8,16 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { BreakpointObserver } from '@angular/cdk/layout';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
+import { map } from 'rxjs';
 import { ADD_PROJECT_FRAGMENT, ADD_PROJECT_PATH, ProjectsStore } from '@console/entities/project';
 import { BatchApprove, type BatchApproved } from '@console/features/batch-approve';
+import { NewTaskButton } from '@console/features/create-task';
 import { PushNudge } from '@console/features/push-subscribe';
 import { TranslocoPipe } from '@console/shared/i18n';
-import { Button, Receipt, SrOnlyOnPhone, StateBlock } from '@console/shared/ui';
+import { BREAKPOINTS, Button, Receipt, SrOnlyOnPhone, StateBlock, TopBarAction } from '@console/shared/ui';
 import { QuestionList } from '@console/widgets/question-list';
 
 /**
@@ -27,12 +31,14 @@ import { QuestionList } from '@console/widgets/question-list';
   imports: [
     BatchApprove,
     Button,
+    NewTaskButton,
     PushNudge,
     QuestionList,
     Receipt,
     RouterLink,
     SrOnlyOnPhone,
     StateBlock,
+    TopBarAction,
     TranslocoPipe,
   ],
   template: `
@@ -43,6 +49,11 @@ import { QuestionList } from '@console/widgets/question-list';
         </h1>
         @if (list(); as questions) {
           <tc-batch-approve [items]="questions.waitingItems()" (closed)="onBatch($event)" />
+        }
+        @if (!isPhone()) {
+          <tc-new-task-button />
+        } @else {
+          <ng-template tcTopBarAction><tc-new-task-button compact /></ng-template>
         }
       </div>
       @if (batchDone(); as done) {
@@ -90,6 +101,12 @@ import { QuestionList } from '@console/widgets/question-list';
 export class NeedsYouPage {
   protected readonly projects = inject(ProjectsStore);
   private readonly injector = inject(Injector);
+  private readonly breakpoints = inject(BreakpointObserver);
+  /** New task (#107) is a button by the title on wider screens and `+` in the shell's top bar on the phone. */
+  protected readonly isPhone = toSignal(
+    this.breakpoints.observe(BREAKPOINTS.phone).pipe(map((result) => result.matches)),
+    { initialValue: this.breakpoints.isMatched(BREAKPOINTS.phone) },
+  );
   protected readonly addProjectPath = ADD_PROJECT_PATH;
   protected readonly addProjectFragment = ADD_PROJECT_FRAGMENT;
 
