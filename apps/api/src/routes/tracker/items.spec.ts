@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:test';
-import type { ItemDto, ItemEventListDto, ItemListDto } from '@shared/contracts';
+import { addDays, type ItemDto, type ItemEventListDto, type ItemListDto } from '@shared/contracts';
 import { ItemsRepo } from '@worker/db';
+import { sprintToday } from '@worker/read-models';
 import {
   PM,
   countRows,
@@ -18,6 +19,9 @@ import {
 // #410: the items of the console's own tracker over the API — success and the relevant 4xx for every route.
 
 const itemsPath = (slug: string): string => `/api/v1/projects/${slug}/items`;
+
+// Far enough out that the sprint is never in its freeze (#556's window tops out at MAX_FREEZE_DAYS).
+const farSprintDueOn = addDays(sprintToday(Date.now()), 30);
 
 async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -375,7 +379,7 @@ describe('PATCH an approved item as a job (edit-after-approval)', () => {
 describe('GET /projects/:slug/items and /items/:key', () => {
   it('lists open items in queue order (today: number order) without bodies, filtered, one page at a time', async () => {
     const project = await seedTrackerProject();
-    await send('POST', `/api/v1/projects/${project.slug}/sprints`, { dueOn: '2026-11-17' });
+    await send('POST', `/api/v1/projects/${project.slug}/sprints`, { dueOn: farSprintDueOn });
     const a = await createItem(project, { kind: 'bug', severity: 'high' });
     const b = await createItem(project, { tier: 'heavy', sprint: 1, labels: ['security'] });
     const c = await createItem(project);
