@@ -15,6 +15,7 @@ import {
 import {
   ItemsApi,
   newIdempotencyKey,
+  textCapOf,
   TrackerFailureBlock,
   type TrackerFailure,
 } from '@console/entities/item';
@@ -22,13 +23,6 @@ import { LocalTimePipe, TranslocoPipe, TranslocoService } from '@console/shared/
 import { PersistedStateStore } from '@console/shared/persisted-state';
 import { Button, Field, FieldControl, Sheet } from '@console/shared/ui';
 import { ITEM_BODY_MAX_LENGTH, ITEM_TITLE_MAX_LENGTH, type ItemDto } from '@shared/contracts';
-
-/** The counter appears from this share of the cap (#107's rule). */
-const COUNTER_FROM = 0.8;
-
-function lengthOf(text: string): number {
-  return [...text].length;
-}
 
 /** One save as sent: a retry repeats exactly this, key included, so it is never applied twice. */
 interface PendingSave {
@@ -87,8 +81,10 @@ export class ItemEdit implements OnInit {
   private baseVersion = 0;
   private pending: PendingSave | null = null;
 
-  protected readonly titleLength = computed(() => lengthOf(this.title()));
-  protected readonly bodyLength = computed(() => lengthOf(this.body()));
+  private readonly titleCap = computed(() => textCapOf(this.title(), this.titleMax));
+  private readonly bodyCap = computed(() => textCapOf(this.body(), this.bodyMax));
+  protected readonly titleLength = computed(() => this.titleCap().length);
+  protected readonly bodyLength = computed(() => this.bodyCap().length);
   protected readonly titleError = computed(() => {
     const t = (key: string, params?: Record<string, unknown>): string =>
       this.transloco.translate(key, params);
@@ -108,8 +104,8 @@ export class ItemEdit implements OnInit {
     }
     return this.fieldError() === 'body' ? this.transloco.translate('item.err.invalid.message') : '';
   });
-  protected readonly showTitleCounter = computed(() => this.titleLength() >= this.titleMax * COUNTER_FROM);
-  protected readonly showBodyCounter = computed(() => this.bodyLength() >= this.bodyMax * COUNTER_FROM);
+  protected readonly showTitleCounter = computed(() => this.titleCap().isCounted);
+  protected readonly showBodyCounter = computed(() => this.bodyCap().isCounted);
 
   ngOnInit(): void {
     const item = this.item();

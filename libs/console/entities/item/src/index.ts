@@ -5,3 +5,4 @@ export * from './lib/items.api';
 export * from './lib/tracker-failure';
 export * from './lib/tracker-failure-block';
 export * from './lib/item.fixture';
+export * from './lib/text-cap';

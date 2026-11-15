@@ -24,6 +24,7 @@ import {
   VISIBLE_SPACE_SECTIONS,
 } from '@console/entities/project';
 import { TeamStatusStore } from '@console/entities/team-run';
+import { NewTaskButton } from '@console/features/create-task';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import {
   BREAKPOINTS,
@@ -73,6 +74,7 @@ const SECTION_ICONS: Record<SpaceSection, IconName> = {
     CommandsPane,
     Icon,
     IconButton,
+    NewTaskButton,
     PausedBanner,
     RouterLink,
     RouterOutlet,

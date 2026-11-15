@@ -1,0 +1,136 @@
+:host {
+  display: block;
+}
+
+.qt {
+  display: grid;
+  gap: var(--space-5);
+}
+
+/* The title is the thought being written down: set like a card title (#107 design). */
+.qt__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+}
+
+.qt__option {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.qt__aside,
+.qt__shortcut {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.qt__shortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-right: auto;
+}
+
+.qt-draft {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--warning-soft);
+  color: var(--warning-text);
+  font-size: var(--fs-sm);
+}
+
+.qt-failure {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-md);
+  background: var(--danger-soft);
+  color: var(--danger-text);
+  outline: none;
+}
+
+.qt-failure:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+.qt-failure__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-weight: var(--fw-semibold);
+}
+
+.qt-failure__message {
+  margin: 0;
+  color: var(--text);
+}
+
+.qt-failure__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.qt-done {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+}
+
+.qt-done__card {
+  transform: rotate(var(--card-tilt));
+  margin-bottom: var(--space-3);
+}
+
+.qt-done__stamp {
+  margin: 0;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
+.qt-done__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+  outline: none;
+}
+
+.qt-done__meta {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.qt-done__note {
+  margin: 0;
+  padding-left: var(--space-3);
+  border-left: var(--border-w-strong) solid var(--accent);
+  font-family: var(--font-display);
+  font-style: italic;
+}
+
+.qt-done__open {
+  justify-self: start;
+  color: var(--accent-text);
+  font-weight: var(--fw-semibold);
+}
+
+/* The stamp lands on the right of the card: the title wraps before it, as in the design. */
+.qt-done__name {
+  padding-right: var(--stamp-size);
+}

@@ -3,7 +3,7 @@ import { Dialog, DialogRef } from '@angular/cdk/dialog';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { Overlay } from '@angular/cdk/overlay';
 import { DOCUMENT } from '@angular/common';
-import { inject, Injectable } from '@angular/core';
+import { inject, Injectable, isSignal, type Signal, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { BREAKPOINTS } from '../../tokens/breakpoints';
 import { ConfirmDialog, ConfirmDialogData, ConfirmOptions } from './confirm-dialog';
@@ -29,7 +29,7 @@ export interface SheetOptions<D> {
    */
   readonly width?: 'default' | 'wide' | 'task';
   /** A quieter line under the title, e.g. where the result goes («в team-console»); part of the accessible name. */
-  readonly subtitle?: string;
+  readonly subtitle?: string | Signal<string>;
   /**
    * #107: on the phone the content's primary footer action moves into the head, beside the title, where the keyboard
    * never covers it, and Close becomes a text button at the start. The dialog keeps both in the footer.
@@ -44,6 +44,14 @@ export interface SheetOptions<D> {
 }
 
 let nextSheetId = 0;
+
+/** A fixed subtitle, or one that follows the content (#107: «в <project>» as the project picker changes). */
+function subtitleOf(subtitle: string | Signal<string> | undefined): Signal<string> | null {
+  if (subtitle === undefined) {
+    return null;
+  }
+  return isSignal(subtitle) ? subtitle : signal(subtitle).asReadonly();
+}
 
 /**
  * The console's one dialog shell (#274): opens kit content as a bottom sheet on the phone or a centred dialog on
@@ -70,7 +78,7 @@ export class Sheet {
       titleId: `tc-sheet-title-${nextSheetId++}`,
       presentation,
       size: isFull ? 'full' : 'default',
-      subtitle: options.subtitle ?? null,
+      subtitle: subtitleOf(options.subtitle),
       subtitleId: `tc-sheet-subtitle-${nextSheetId++}`,
       headAction: options.headAction === true && presentation === 'sheet',
     };

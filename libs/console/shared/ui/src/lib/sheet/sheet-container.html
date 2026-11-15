@@ -17,8 +17,8 @@
   }
   <div class="tc-sheet__titles">
     <h2 class="tc-sheet__title" [id]="frame.titleId" tabindex="-1">{{ frame.title }}</h2>
-    @if (frame.subtitle !== null) {
-    <p class="tc-sheet__subtitle" [id]="frame.subtitleId">{{ frame.subtitle }}</p>
+    @if (frame.subtitle; as subtitle) {
+    <p class="tc-sheet__subtitle" [id]="frame.subtitleId">{{ subtitle() }}</p>
     }
   </div>
   @if (frame.headAction) { @if (footer.primary(); as primary) {

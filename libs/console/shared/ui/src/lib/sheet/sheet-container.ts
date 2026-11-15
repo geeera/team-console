@@ -13,6 +13,7 @@ import {
   Injector,
   InjectionToken,
   signal,
+  type Signal,
   TemplateRef,
   viewChild,
 } from '@angular/core';
@@ -30,7 +31,7 @@ export interface SheetFrame {
   /** `full`: the frame fills its pane and the content owns the scrolling (`SheetOptions.size`). */
   readonly size: 'default' | 'full';
   /** A quieter line under the title (`SheetOptions.subtitle`), `null` without one. */
-  readonly subtitle: string | null;
+  readonly subtitle: Signal<string> | null;
   readonly subtitleId: string;
   /** The primary footer action sits in the head and Close is a text button (`SheetOptions.headAction`, phone only). */
   readonly headAction: boolean;

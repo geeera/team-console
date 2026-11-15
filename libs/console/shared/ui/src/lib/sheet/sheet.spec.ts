@@ -1,6 +1,6 @@
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { ApplicationInitStatus, Component, inject } from '@angular/core';
+import { ApplicationInitStatus, Component, inject, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import { firstValueFrom } from 'rxjs';
@@ -657,6 +657,18 @@ describe('Sheet as a dialog with the New task options (#107)', () => {
     expect(footerButtons(dialog)).toEqual(['Cancel', 'Snooze']);
     const panel = overlay().querySelector('.cdk-overlay-pane') as HTMLElement;
     expect(panel.classList).toContain('tc-dialog-panel--task');
+  });
+
+  it('follows a subtitle given as a signal, e.g. the project the form now creates in', async () => {
+    const into = signal('in storify');
+    sheet.open(Content, { title: 'New task', subtitle: into, data: { text: 'x' } });
+    await settle();
+    const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+    expect(dialog.querySelector('.tc-sheet__subtitle')?.textContent?.trim()).toBe('in storify');
+
+    into.set('in team-console');
+    TestBed.tick();
+    expect(dialog.querySelector('.tc-sheet__subtitle')?.textContent?.trim()).toBe('in team-console');
   });
 
   it('names the dialog by its title alone when it has no subtitle', async () => {
