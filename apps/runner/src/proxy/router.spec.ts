@@ -4,7 +4,7 @@ import { pathClassOf, routeOf, type ProxyRoute } from './router';
 const job = { id: JOB_ID, projectSlug: 'team-console' };
 const own = `/api/v1/runner/jobs/${JOB_ID}`;
 
-describe('proxy router (ADR 0008 decision 6): one row per rule', () => {
+describe('proxy router (architect note on #468, decision 6): one row per rule', () => {
   it.each<[string, string, ProxyRoute]>([
     [
       'GET',

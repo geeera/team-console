@@ -228,6 +228,13 @@ describe('user backend', () => {
     await expect(backend().preflight()).resolves.toBeUndefined();
   });
 
+  // This spec never runs as two real OS users (the whole file fakes `sudo`/`_tcjob` through `exec`, never the
+  // real sudo on a developer machine, per the file header) — `gid`/`uid` above are this process's own. So the
+  // assertion below is a proxy for "another local user cannot connect": it checks that no mode bit on the
+  // path (root, socket directory, socket) grants the other-world class any access, which is what actually
+  // keeps a different uid out on both Linux and macOS. A real cross-uid connect attempt would need a second
+  // system account and is left to the manual L3 checklist (docs/runbooks/runner.md); it is not trivially
+  // reachable from a unit spec (#659 / #584 item 2).
   it('gives the job a sticky root and a socket only its group reaches (#584)', async () => {
     const sandbox = await backend().prepare({ jobId: JOB_ID, projectSlug: 'team-console' });
     const root = await stat(sandbox.root);
