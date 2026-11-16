@@ -108,6 +108,19 @@ function describeFailure(error: unknown): string {
   throw error;
 }
 
+/**
+ * Where `enrol` just put the key, for the confirmation line only. Enrol itself already succeeded by the time this
+ * runs, so a lookup failure here (an unreadable keychain between the write and this read, say) falls back to
+ * naming `home` instead of turning a successful enrolment into a reported failure.
+ */
+async function keyLocationOf(home: string): Promise<string> {
+  try {
+    return (await runnerKeyLocationOf(home)) ?? home;
+  } catch {
+    return home;
+  }
+}
+
 async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number> {
   let values: {
     url?: string;
@@ -173,9 +186,9 @@ async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number>
     deps.stdout(
       `Enrolled "${config.name}" (${config.runnerId}) on ${config.apiUrl} with the ${config.backend} backend; projects: ${projects}.`,
     );
-    // The key may be a keychain item, not a file under `home` (#585); say where it actually is.
-    const keyLocation = (await runnerKeyLocationOf(home)) ?? home;
-    deps.stdout(`Config is in ${home}; the key is in ${keyLocation}.`);
+    // The key may be a keychain item, not a file under `home` (#585); say where it actually is. Enrol already
+    // succeeded, so a lookup failure here is cosmetic only — it must not turn into "enrol failed".
+    deps.stdout(`Config is in ${home}; the key is in ${await keyLocationOf(home)}.`);
     return EXIT_OK;
   } catch (error: unknown) {
     deps.stderr(`enrol failed: ${describeFailure(error)}`);

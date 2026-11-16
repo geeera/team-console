@@ -139,6 +139,20 @@ describe('runner key store (#585)', () => {
       expect(xOf(await loadRunnerKey(home, mac.deps))).toBe(key.publicJwk.x);
     });
 
+    it('refuses a home that does not exist as key-unavailable, not a raw ENOENT (#676)', async () => {
+      const mac = macWith();
+      const missing = join(parent, 'never-created');
+
+      await expect(saveRunnerKey(missing, generateRunnerKey().privateKey, mac.deps)).rejects.toMatchObject({
+        name: 'RunnerFileError',
+        problem: 'key-unavailable',
+      });
+      await expect(loadRunnerKey(missing, mac.deps)).rejects.toMatchObject({
+        name: 'RunnerFileError',
+        problem: 'key-unavailable',
+      });
+    });
+
     it('refuses an item that is not an Ed25519 PKCS#8 key, without quoting it', async () => {
       const mac = macWith();
       mac.items.set(itemKey(await keychainAccountOf(home)), Buffer.from('not a key at all').toString('base64'));

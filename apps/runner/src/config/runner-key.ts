@@ -60,11 +60,23 @@ export function generateRunnerKey(): RunnerKeyPair {
 /**
  * One item per runner home, so two homes of one user never share a key. Resolved with `realpath`, not `resolve`:
  * a symlinked `TC_RUNNER_HOME` must map to the same account as its target, or a key saved through the link and
- * loaded through the target (or the reverse) would look like two different homes.
+ * loaded through the target (or the reverse) would look like two different homes. A home that does not exist
+ * (`realpath` raises `ENOENT`) is reported as the key store being unavailable, never as a raw filesystem error.
  */
-export const keychainAccountOf = async (home: string): Promise<string> => `runner-key:${await realpath(home)}`;
+export async function keychainAccountOf(home: string): Promise<string> {
+  let real: string;
+  try {
+    real = await realpath(home);
+  } catch (error: unknown) {
+    throw unavailable(error);
+  }
+  return `runner-key:${real}`;
+}
 
 function unavailable(error: unknown): RunnerFileError {
+  if (error instanceof RunnerFileError) {
+    return error;
+  }
   const detail = error instanceof Error ? error.message : 'failed';
   return new RunnerFileError('key-unavailable', `the runner key's keychain: ${detail}`);
 }
