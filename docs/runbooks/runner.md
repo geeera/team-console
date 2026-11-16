@@ -144,7 +144,7 @@ in one of two stores:
 
 | Host | Store | What protects it |
 | --- | --- | --- |
-| macOS, and the runner's user has a default keychain (a user who logs in: `container` or `none` on a Mac) | A generic-password item in that keychain: service `team-console-runner`, account `runner-key:<TC_RUNNER_HOME>`, the key as base64 PKCS#8. No key file is written. | The keychain is encrypted at rest under the user's login password, so a copy or backup of the home holds no key. The item trusts only `/usr/bin/security`, the runner's reader. Any process of the same user can still run `security` while the keychain is unlocked, so the user boundary is what keeps jobs out. |
+| macOS, and the runner's user has a default keychain (a user who logs in: `container` or `none` on a Mac) | A generic-password item in that keychain: service `team-console-runner`, account `runner-key:<real path of TC_RUNNER_HOME>` (symlinks resolved), the key as base64 PKCS#8. No key file is written. | The keychain is encrypted at rest under the user's login password, so a copy or backup of the home holds no key. The item trusts only `/usr/bin/security`, the runner's reader. Any process of the same user can still run `security` while the keychain is unlocked, so the user boundary is what keeps jobs out. |
 | Linux and the container host, and macOS users with no keychain, such as the `user` backend's `_tcrunner` | `TC_RUNNER_HOME/keys/runner.key`, 0600, in a 0700 `keys/` owned by the runner's user | The runner refuses a key file that is not a regular file of its own user, or that group or others can read. |
 
 `_tcrunner` is a LaunchDaemon user that never logs in, so it has no login keychain. A keychain the runner created for
@@ -181,7 +181,10 @@ rm "$TC_RUNNER_HOME/keys/runner.key"
 ```
 
 `security find-generic-password -s team-console-runner -a "runner-key:$TC_RUNNER_HOME"` without `-w` shows whether
-the item exists and does not print the key. `enrol` refuses a home whose item or file still exists before it sends
+the item exists and does not print the key. Use the real path of the home there, as `pwd -P` prints it. A key the first
+keychain release saved under the unresolved path of a symlinked home (on macOS `/tmp` is `/private/tmp`) is found
+there too: the next start copies it to the real-path account, reads it back and deletes the old item. A home that
+does not exist is reported as a missing key, not as a keychain failure. `enrol` refuses a home whose item or file still exists before it sends
 the code, so a code is never spent on a home that is already enrolled.
 
 ## Credentials: a location or a token, and how to revoke each (RR11, decision 5)
@@ -270,9 +273,15 @@ verify`. It refuses when any of these is true, and leaves the install directory 
 - The install directory is not owned by, or not writable only by, the user running `update`.
 
 Then it switches the install directory to the new release in one step. Each release gets its own
-`releases/<v>/`, and one `current` symlink names the live one. `team-console-runner.mjs`, `bin` and `SHA256SUMS` are
-symlinks through `current`, so the service and the launcher keep the paths they already use. The switch is one rename of `current`. A
-crash leaves the old release or the new one, never a mix of both, and the next `update` removes what the crash left.
+`releases/<v>/`, and one `current` symlink names the live one. `team-console-runner.mjs`, `SHA256SUMS` and each file in
+`bin/` (`job-exec`, `team-console-runner`) are symlinks through `current`, so the service and the launcher keep the
+paths they already use; `bin/` itself stays a real directory, so `bin/job-exec` exists at every step. The switch is one
+rename of `current`. A crash leaves the old release or the new one, never a mix of both, and the next `update` removes
+what the crash left. A crash during the first conversion leaves a prefix that still runs, with some entries linked and
+some not: run `update` again, and it finishes the links even when `current` already names the release. If a `bin.flat`
+directory is left next to a missing `bin/` (an earlier layout), the next `update` puts it back and links it.
+`update auto` never moves a runner that is not on a pre-release (a stable version, or one that is not SemVer) onto a
+pre-release; run `update` by hand for that.
 The release that was replaced stays in `releases/` until the next update, and older ones are deleted. The first `update`
 of a directory you extracted by hand converts it to this layout. Do not extract a tarball into the directory after
 that: use `update`. Restart the service so it runs the new version.

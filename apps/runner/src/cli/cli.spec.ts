@@ -10,7 +10,9 @@ import {
   sentinels,
   type FakeAnswer,
 } from '../testing/fake-console';
+import type { RunnerKeyDeps } from '../config/runner-key';
 import type { Exec } from '../host/exec';
+import { fakeKeychain } from '../testing/fake-keychain';
 import type { InstallHost } from '../install/install';
 import { RUNNER_VERSION } from '../version';
 import { EXIT_FAILED, EXIT_OK, EXIT_USAGE, runCli } from './cli';
@@ -33,12 +35,13 @@ describe('team-console-runner CLI', () => {
   function run(
     argv: readonly string[],
     answer: FakeAnswer = () => json(500, {}),
-    extra: { env?: Record<string, string>; readCodeLine?: () => Promise<string> } = {},
+    extra: { env?: Record<string, string>; readCodeLine?: () => Promise<string>; keys?: RunnerKeyDeps } = {},
   ) {
     const fake = fakeConsole(answer);
     const exit = runCli(argv, {
       env: { TC_RUNNER_HOME: join(parent, 'home'), ...extra.env },
       ...(extra.readCodeLine === undefined ? {} : { readCodeLine: extra.readCodeLine }),
+      ...(extra.keys === undefined ? {} : { keys: extra.keys }),
       homeDir: parent,
       host: { os: 'linux', arch: 'x64', hostname: 'ci' },
       fetch: fake.fetch,
@@ -100,6 +103,53 @@ describe('team-console-runner CLI', () => {
       allowedProjects: [],
       pollSeconds: 60,
     });
+  describe('the key location in the enrol confirmation (#677)', () => {
+    async function keychainDeps() {
+      const keychainFile = join(parent, 'login.keychain-db');
+      await writeFile(keychainFile, '');
+      return fakeKeychain({ defaultKeychain: keychainFile });
+    }
+
+    it('names the keychain item when the key is in the keychain', async () => {
+      const fake = await keychainDeps();
+      const { exit } = run(enrolArgs, enrolled, { keys: { platform: 'darwin', exec: fake.exec, env: {} } });
+
+      expect(await exit).toBe(EXIT_OK);
+      expect(out.join('\n')).toMatch(/the key is in the keychain item runner-key:.* in .*login\.keychain-db\./);
+    });
+
+    it('stays enrolled and says the location is unknown, not the home, when the lookup then fails', async () => {
+      const fake = await keychainDeps();
+      let enrolledLineSeen = false;
+      // The keychain works for the write and breaks right after the "Enrolled" line, before the location lookup.
+      const exec: Exec = async (command, args, options) => {
+        if (enrolledLineSeen) {
+          throw new Error('keychain went away');
+        }
+        return await fake.exec(command, args, options);
+      };
+      const exit = await runCli(enrolArgs, {
+        env: { TC_RUNNER_HOME: join(parent, 'home') },
+        homeDir: parent,
+        host: { os: 'linux', arch: 'x64', hostname: 'ci' },
+        fetch: fakeConsole(enrolled).fetch,
+        stdout: (line) => {
+          out.push(line);
+          enrolledLineSeen ||= line.startsWith('Enrolled ');
+        },
+        stderr: (line) => err.push(line),
+        keys: { platform: 'darwin', exec, env: {} },
+      });
+
+      expect(exit).toBe(EXIT_OK);
+      expect(out.join('\n')).toContain('Enrolled "CI box"');
+      expect(out).toContain(
+        `Config is in ${join(parent, 'home')}; the key is in a location that could not be determined (the runner key's keychain: keychain went away).`,
+      );
+      expect(err.join('\n')).not.toContain('enrol failed');
+    });
+  });
+
   const codeless = ['enrol', '--url', 'http://127.0.0.1:22300', '--backend', 'none'];
 
   it.each([

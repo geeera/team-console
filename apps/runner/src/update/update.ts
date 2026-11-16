@@ -11,7 +11,16 @@ import {
 import type { UpdatePolicy } from '../config/config';
 import { ensurePrivateDir, lstatOrNull } from '../config/private-files';
 import type { Exec, ExecOptions } from '../host/exec';
-import { CURRENT_LINK, RELEASES_DIR, TOP_LEVEL_LINKS, releaseDirOf } from './install-layout';
+import {
+  BIN_DIR,
+  BIN_FILES,
+  BUNDLE_LINK,
+  CURRENT_LINK,
+  RELEASES_DIR,
+  SUMS_LINK,
+  binLinkTargetOf,
+  releaseDirOf,
+} from './install-layout';
 import {
   BUNDLE_FILE,
   RELEASE_FILES,
@@ -96,6 +105,14 @@ export async function checkForUpdate(deps: CheckDeps): Promise<UpdateCheck> {
     );
   }
   return order === 0 ? { kind: 'current', current, target } : { kind: 'available', current, target };
+}
+
+/**
+ * Whether `auto` must not move from `current` to `target`: a runner that is not on a pre-release stays off
+ * pre-releases. A version that is not SemVer counts as stable, so it cannot escape the rule by being unreadable.
+ */
+export function isChannelMismatch(current: string, target: string): boolean {
+  return runnerReleaseChannelOf(current) !== 'prerelease' && runnerReleaseChannelOf(target) !== 'stable';
 }
 
 export interface ApplyDeps {
@@ -227,13 +244,8 @@ async function assertSums(tree: string): Promise<void> {
   }
 }
 
-/**
- * Points `path` at `target` with one rename over it. A directory cannot be renamed over, so the flat `bin` is moved
- * aside first: the conversion's only non-atomic step, done once, after `current` already names the new release.
- */
+/** Points `path` (a file or a link, never a directory) at `target` with one rename over it. */
 async function replaceWithLink(path: string, target: string): Promise<void> {
-  const aside = `${path}.flat`;
-  await rm(aside, { recursive: true, force: true });
   const stats = await lstatOrNull(path);
   if (stats?.isSymbolicLink() === true && (await readlink(path)) === target) {
     return;
@@ -241,13 +253,65 @@ async function replaceWithLink(path: string, target: string): Promise<void> {
   const next = `${path}.next`;
   await rm(next, { force: true });
   await symlink(target, next);
-  if (stats?.isDirectory() === true) {
-    await rename(path, aside);
-    await rename(next, path);
-    await rm(aside, { recursive: true, force: true });
-  } else {
-    await rename(next, path);
+  await rename(next, path);
+}
+
+const BIN_THROUGH_CURRENT = join(CURRENT_LINK, BIN_DIR);
+
+/**
+ * `bin/` keeps one real directory and links each file through `current` (see `install-layout.ts`): `bin/job-exec`
+ * exists at every step, so no crash leaves the service without it. `bin.flat` is what an earlier layout left when it
+ * moved `bin` aside and was cut short; it is put back so the conversion can finish, or dropped when `bin` exists.
+ */
+async function linkBin(prefix: string): Promise<void> {
+  const bin = join(prefix, BIN_DIR);
+  const aside = `${bin}.flat`;
+  let stats = await lstatOrNull(bin);
+  if (stats === null && (await lstatOrNull(aside))?.isDirectory() === true) {
+    await rename(aside, bin);
+    stats = await lstatOrNull(bin);
   }
+  await rm(aside, { recursive: true, force: true });
+  if (stats?.isSymbolicLink() === true) {
+    await replaceWithLink(bin, BIN_THROUGH_CURRENT);
+    return;
+  }
+  if (stats === null) {
+    await mkdir(bin, { mode: 0o755 });
+  }
+  for (const file of BIN_FILES) {
+    await replaceWithLink(join(bin, file), binLinkTargetOf(file));
+  }
+}
+
+/** Sums, then `bin/`, then the bundle: a crash anywhere leaves a runnable prefix and the next `update` finishes it. */
+async function linkEntries(prefix: string): Promise<void> {
+  await replaceWithLink(join(prefix, SUMS_LINK[0]), SUMS_LINK[1]);
+  await linkBin(prefix);
+  await replaceWithLink(join(prefix, BUNDLE_LINK[0]), BUNDLE_LINK[1]);
+}
+
+/** Whether every entry already links through `current`; an unfinished conversion does not. */
+async function isFullyLinked(prefix: string): Promise<boolean> {
+  const linksTo = async (path: string, target: string): Promise<boolean> => {
+    const stats = await lstatOrNull(path);
+    return stats?.isSymbolicLink() === true && (await readlink(path)) === target;
+  };
+  for (const [name, target] of [SUMS_LINK, BUNDLE_LINK]) {
+    if (!(await linksTo(join(prefix, name), target))) {
+      return false;
+    }
+  }
+  const bin = join(prefix, BIN_DIR);
+  if (await linksTo(bin, BIN_THROUGH_CURRENT)) {
+    return true;
+  }
+  for (const file of BIN_FILES) {
+    if (!(await linksTo(join(bin, file), binLinkTargetOf(file)))) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /** The version `current` names, or `null` in a flat prefix. */
@@ -263,6 +327,11 @@ async function liveReleaseOf(prefix: string): Promise<string | null> {
 async function swapInto(tree: string, prefix: string, target: string): Promise<void> {
   const live = await liveReleaseOf(prefix);
   if (live === target) {
+    // A conversion that crashed after `current` named the target: finish it instead of refusing for ever.
+    if (!(await isFullyLinked(prefix))) {
+      await linkEntries(prefix);
+      return;
+    }
     throw new UpdateError('unpack-failed', `${releaseDirOf(target)} is the live release; nothing was changed`);
   }
   const releases = join(prefix, RELEASES_DIR);
@@ -280,9 +349,7 @@ async function swapInto(tree: string, prefix: string, target: string): Promise<v
   await chmod(join(staged, RELEASE_SUMS_FILE), 0o444);
   await rename(staged, destination);
   await replaceWithLink(join(prefix, CURRENT_LINK), releaseDirOf(target));
-  for (const [name, link] of Object.entries(TOP_LEVEL_LINKS)) {
-    await replaceWithLink(join(prefix, name), link);
-  }
+  await linkEntries(prefix);
   const keep = new Set([target, live]);
   for (const name of await readdir(releases)) {
     if (!keep.has(name)) {
