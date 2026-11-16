@@ -1,4 +1,6 @@
-import { ElementRef, Injectable } from '@angular/core';
+import { ElementRef, Injectable, Injector } from '@angular/core';
+import type { WritableSignal } from '@angular/core';
+import { focusAfterRender } from '@console/shared/ui';
 import type { FailedWrite } from '@console/entities/item';
 import type { StatusColumn } from '@console/entities/sprint';
 import type { ItemMove, MovableItem, MoveHandlers } from '@console/features/move-item';
@@ -104,4 +106,47 @@ export function focusAfterLeaving(
 /** For `focusAfterRender`, which takes a ref. */
 export function elementRefOf(element: HTMLElement | null): ElementRef<HTMLElement> | null {
   return element === null ? null : new ElementRef(element);
+}
+
+/** Whether a move touched this section's sprint at all — the task left it, joined it, or both are elsewhere. */
+export function movesSection(move: ItemMove, section: number | null): boolean {
+  return move.from === section || move.to === section;
+}
+
+/** Where a section reads and moves focus from, to apply `moved` (#558) without it owning the DOM lookups itself. */
+export interface MoveFocusContext {
+  readonly root: HTMLElement;
+  readonly injector: Injector;
+  /** Where focus lands if the row leaving has no neighbour and its lane has no heading (folder: the heading; board: the title). */
+  readonly fallback: () => HTMLElement | null;
+  readonly arrivals: WritableSignal<readonly number[]>;
+}
+
+/**
+ * A section's items after `moved` (#558): the task's row dropped if it left, added at the end of its lane if it
+ * joined (tracked in `arrivals` unless it is an Undo, which instead returns focus to the ⋯ it came from). Leaving
+ * moves focus off the row before it is gone. Callers guard with `movesSection` first, since they also need that to
+ * decide whether to reset their own `moveFailure`.
+ */
+export function itemsAfterMove(
+  move: ItemMove,
+  section: number | null,
+  items: readonly ItemSummaryDto[],
+  focus: MoveFocusContext,
+): readonly ItemSummaryDto[] {
+  const number = move.item.number;
+  const others = items.filter((item) => item.number !== number);
+  const next = move.to === section ? [...others, move.item] : others;
+  if (move.from === section && !move.isUndo) {
+    const target = focusAfterLeaving(focus.root, number, focus.fallback);
+    focusAfterRender(() => elementRefOf(target()), { injector: focus.injector });
+  }
+  if (move.to === section) {
+    if (move.isUndo) {
+      focusAfterRender(() => elementRefOf(moveButtonOf(focus.root, number)), { injector: focus.injector });
+    } else {
+      focus.arrivals.update((arrivals) => [...arrivals.filter((n) => n !== number), number]);
+    }
+  }
+  return next;
 }

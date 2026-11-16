@@ -90,6 +90,8 @@ export interface ItemFilter {
   /** A sprint number, or `none` for items outside every sprint. */
   readonly sprint?: number | 'none';
   readonly flag?: string;
+  /** Items a `pr-linked` event links to this pull request number (#627). */
+  readonly pullRequest?: number;
   readonly state: 'open' | 'closed' | 'all';
 }
 
@@ -249,6 +251,15 @@ export class ItemsRepo {
     }
     if (filter.flag !== undefined) {
       add((p) => `EXISTS (SELECT 1 FROM item_labels WHERE item_id = items.id AND name = ${p})`, filter.flag);
+    }
+    if (filter.pullRequest !== undefined) {
+      // Migration 0025's partial index covers exactly these rows; a marked duplicate always has its first link.
+      add(
+        (p) => `EXISTS (SELECT 1 FROM item_events WHERE item_events.item_id = items.id
+          AND item_events.kind = 'pr-linked' AND item_events.duplicate_of IS NULL
+          AND json_extract(item_events.after, '$.number') = ${p})`,
+        filter.pullRequest,
+      );
     }
     if (filter.state === 'open') conditions.push('items.closed_at IS NULL');
     if (filter.state === 'closed') conditions.push('items.closed_at IS NOT NULL');

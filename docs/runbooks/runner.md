@@ -213,8 +213,10 @@ step is expected to pass.
    `srw-rw----`. A third local user cannot `curl --unix-socket` it.
 6. Plant-then-verify: queue the fixture plant job (scenario 3 with the fake CLI as `toolchain.claude`) and then the
    verify job (scenario 4). The second job finishes `clean`. `pgrep -u _tcjob` prints nothing between jobs. A file
-   that the first job left in `/tmp`, `/private/var/tmp` or `/Users/Shared` is gone, and a `notice` with
-   `sweep: removed` is on that job's events.
+   that the first job left in `/tmp`, `/private/var/tmp`, `/Users/Shared` or `_tcjob`'s own `/var/folders/<..>/T`
+   and `/C` (`sudo -u _tcjob getconf DARWIN_USER_TEMP_DIR` and `DARWIN_USER_CACHE_DIR`, #600) is gone, and a
+   `notice` with `sweep: removed` is on that job's events. A hard link the first job made in its sandbox to a file
+   it does not own (`ln /etc/sudoers jobs/<id>/home/x`) does not stop the cleanup or the next preflight (#601).
 7. Start a background process as `_tcjob` (`sudo -u _tcjob sleep 999 &`) and wait for the next poll. The runner
    kills it before claiming. If the kill fails, the runner refuses to claim and says why in `logs/runner.log`.
 8. `ls -l /usr/local/lib/team-console-runner /usr/local/lib/team-console-runner/bin` shows everything owned by `root`

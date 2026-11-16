@@ -27,7 +27,8 @@ const LANE: ItemDto[] = [
   itemFixture({ key: 'TC-409', number: 409, sprint: 3, version: 1 }),
 ];
 
-class FakeItems {
+/** Exercises exactly the `ItemsApi` surface `ItemMover` calls; typed against it so a signature drift fails to compile. */
+class FakeItems implements Pick<ItemsApi, 'sprints' | 'items' | 'reorder' | 'freezeDays' | 'update'> {
   readonly updates: { version: number; sprint: number | null | undefined; key: string }[] = [];
   readonly reorders: { version: number; move: string; key: string }[] = [];
   answers: TrackerWrite<ItemDto>[] = [];

@@ -25,6 +25,8 @@ declare global {
       MIGRATION_DB_0028: D1Database;
       /** Another, for 0029's rank backfill and `item_events` rebuild (#456). */
       MIGRATION_DB_0029: D1Database;
+      /** Another, for 0030's sprint rename guard (#578). */
+      MIGRATION_DB_0030: D1Database;
       /** Public half of the generated test app key (vitest.config.mts), to verify the app JWT. */
       TEST_GITHUB_APP_PUBLIC_JWK: string;
     }

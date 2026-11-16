@@ -16,8 +16,16 @@ case "${1:-}" in
   reap)
     exec /usr/bin/pkill -9 -u "$uid" ;;
   sweep)
-    for dir in /tmp /private/tmp /private/var/tmp /var/tmp /Users/Shared /dev/shm; do
-      if [ -d "$dir" ] && [ ! -L "$dir" ]; then
+    # This user's Darwin per-user temp and cache dirs under /var/folders persist across jobs too (#600). They are
+    # confstr values, so getconf fails on Linux and the loop skips them there. `set --` drops any extra argument, so
+    # the caller never adds a path of its own.
+    set --
+    for name in DARWIN_USER_TEMP_DIR DARWIN_USER_CACHE_DIR; do
+      darwin_dir=$(/usr/bin/getconf "$name" 2>/dev/null) || continue
+      set -- "$@" "${darwin_dir%/}"
+    done
+    for dir in /tmp /private/tmp /private/var/tmp /var/tmp /Users/Shared /dev/shm "$@"; do
+      if [ -n "$dir" ] && [ -d "$dir" ] && [ ! -L "$dir" ]; then
         /usr/bin/find "$dir" -xdev -mindepth 1 -user "$uid" -print -delete 2>/dev/null || :
       fi
     done ;;

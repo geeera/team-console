@@ -101,6 +101,63 @@ describe('mirror, clone and the vendored plugin', () => {
     });
   });
 
+  describe('mirror origin (#591)', () => {
+    const mirror = (): string => mirrorPathOf(fixture.home, 'team-console');
+    const tamperedUpstream = async (): Promise<string> => {
+      const other = join(fixture.root, 'other');
+      await mkdir(other);
+      fixtureGit(['init', '-q', '--bare', other]);
+      return other;
+    };
+
+    it('refuses a mirror whose origin points elsewhere, before fetching it', async () => {
+      await syncMirror(fixture.home, 'team-console', fixture.repo, envs);
+      const other = await tamperedUpstream();
+      fixtureGit(['--git-dir', mirror(), 'remote', 'set-url', 'origin', other]);
+      const refusal: unknown = await syncMirror(fixture.home, 'team-console', fixture.repo, envs).catch(
+        (error: unknown) => error,
+      );
+      expect(refusal).toMatchObject({ reason: 'git-config-refused' });
+      expect((refusal as Error).message).not.toContain(other);
+    });
+
+    it('refuses a mirror with a second origin url', async () => {
+      await syncMirror(fixture.home, 'team-console', fixture.repo, envs);
+      fixtureGit(['--git-dir', mirror(), 'config', '--add', 'remote.origin.url', await tamperedUpstream()]);
+      await expect(syncMirror(fixture.home, 'team-console', fixture.repo, envs)).rejects.toMatchObject({
+        reason: 'git-config-refused',
+      });
+    });
+
+    it('refuses a mirror without an origin', async () => {
+      await syncMirror(fixture.home, 'team-console', fixture.repo, envs);
+      fixtureGit(['--git-dir', mirror(), 'config', '--unset-all', 'remote.origin.url']);
+      await expect(syncMirror(fixture.home, 'team-console', fixture.repo, envs)).rejects.toMatchObject({
+        reason: 'git-config-refused',
+      });
+    });
+
+    it('refuses a mirror when the configured repository changed', async () => {
+      await syncMirror(fixture.home, 'team-console', fixture.repo, envs);
+      await expect(
+        syncMirror(fixture.home, 'team-console', await tamperedUpstream(), envs),
+      ).rejects.toMatchObject({ reason: 'git-config-refused' });
+    });
+
+    it('refuses a mirror whose origin is redirected by url.*.insteadOf', async () => {
+      await syncMirror(fixture.home, 'team-console', fixture.repo, envs);
+      fixtureGit(['--git-dir', mirror(), 'config', `url.${await tamperedUpstream()}.insteadOf`, fixture.repo]);
+      await expect(syncMirror(fixture.home, 'team-console', fixture.repo, envs)).rejects.toMatchObject({
+        reason: 'git-config-refused',
+      });
+    });
+
+    it('keeps fetching a mirror whose origin is the configured repository', async () => {
+      await syncMirror(fixture.home, 'team-console', fixture.repo, envs);
+      await expect(syncMirror(fixture.home, 'team-console', fixture.repo, envs)).resolves.toBe(mirror());
+    });
+  });
+
   it('fetches new commits into an existing mirror', async () => {
     await syncMirror(fixture.home, 'team-console', fixture.repo, envs);
     await writeFile(join(fixture.repo, 'CHANGE.md'), 'x');

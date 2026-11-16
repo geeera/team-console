@@ -12,8 +12,9 @@ import { pathClassOf, routeOf, type PathClass, type ProxyJob, type ProxyRefusal 
  * A job's one way to the console (ADR 0006 R4, ADR 0008 decision 6): HTTP over a Unix socket at
  * `jobs/<id>/sock/tc.sock`, one socket per job, no TCP port ever. Node has no `getpeereid` without a native addon
  * (ruled out by decision 1), so the peer check is the socket's directory and mode (only the job's user reaches it;
- * the `user` backend makes `sock/` `_tcrunner:_tcjob 0750` under a 0710 home, the socket 0660) plus the job token:
- * every request's `Bearer tcj_…` must be the token of the job this socket was opened for. Anything else is 401/403 with a `notice` on that job.
+ * in the `user` backend only `sock/` is `_tcrunner:_tcjob 0750`, the home above it is 0710 and the socket 0660)
+ * plus the job token: every request's `Bearer tcj_…` must be the token of the job this socket was opened for.
+ * Anything else is 401/403 with a `notice` on that job.
  * Requests and responses are never logged; a notice names the method, a path class and the status only.
  */
 
