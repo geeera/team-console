@@ -174,28 +174,61 @@ describe('the claim and maxConcurrency (threat model C4 "rogue runner")', () => 
   });
 });
 
+// #596: `metrics.reason` is the runner's own word, so only a pause row backs it.
 describe('the failure streak and limit failures', () => {
-  it('a job failed on a usage or rate limit does not count toward the streak; a plain failure does', async () => {
+  const streakOf = async (slug: string): Promise<{ paused_by: string | null; failed_streak: number } | null> =>
+    env.DB.prepare(`SELECT paused_by, failed_streak FROM team_state WHERE project_slug = ?1`)
+      .bind(slug)
+      .first<{ paused_by: string | null; failed_streak: number }>();
+  const excludedRows = async (runnerId: string): Promise<{ target: string; details: string }[]> =>
+    (
+      await env.DB.prepare(`SELECT target, details FROM audit_events WHERE kind = 'job.streak-excluded' AND actor = ?1 ORDER BY id`)
+        .bind(runnerId)
+        .all<{ target: string; details: string }>()
+    ).results;
+
+  /** Claims one job and finishes it failed; `pauseFirst` posts the runner's pause, as the runner does on a limit. */
+  async function failOne(runner: TestRunner, slug: string, metrics: Record<string, unknown>, pauseFirst: boolean): Promise<string> {
+    await enqueueJob(slug);
+    const claimed = await claim(runner);
+    expect(claimed).not.toBeNull();
+    const jobId = claimed?.job.id ?? '';
+    if (pauseFirst) {
+      expect((await pause(runner, { reason: metrics['reason'], until: inMinutes(30) })).status).toBe(200);
+    }
+    const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/finish`, { result: 'failed', summary: 'stopped', metrics });
+    expect(response.status).toBe(200);
+    if (pauseFirst) {
+      expect((await sendAsRunner(runner, 'POST', RESUME, {})).status).toBe(200);
+    }
+    return jobId;
+  }
+
+  it('leaves out a limit failure backed by the runner’s pause, with an audit row; a plain failure counts', async () => {
     const project = await seedTrackerProject();
     const runner = await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [project.slug] });
-    const finishAs = async (metrics: Record<string, unknown>): Promise<void> => {
-      await enqueueJob(project.slug);
-      const claimed = await claim(runner);
-      expect(claimed).not.toBeNull();
-      const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${claimed?.job.id ?? ''}/finish`, {
-        result: 'failed',
-        summary: 'stopped',
-        metrics,
-      });
-      expect(response.status).toBe(200);
-    };
-    await finishAs({ reason: 'exit', exitCode: 1 });
-    await finishAs({ reason: 'exit', exitCode: 1 });
-    await finishAs({ reason: 'usage-limit', retryAt: inMinutes(60) });
-    await finishAs({ reason: 'rate-limit', retryAt: inMinutes(10) });
-    const state = await env.DB.prepare(`SELECT paused_at, failed_streak FROM team_state WHERE project_slug = ?1`)
-      .bind(project.slug)
-      .first<{ paused_at: string | null; failed_streak: number }>();
-    expect(state).toEqual({ paused_at: null, failed_streak: 2 });
+    await failOne(runner, project.slug, { reason: 'exit', exitCode: 1 }, false);
+    await failOne(runner, project.slug, { reason: 'exit', exitCode: 1 }, false);
+    const usage = await failOne(runner, project.slug, { reason: 'usage-limit', retryAt: inMinutes(60) }, true);
+    const rate = await failOne(runner, project.slug, { reason: 'rate-limit', retryAt: inMinutes(10) }, true);
+    expect(await streakOf(project.slug)).toEqual({ paused_by: null, failed_streak: 2 });
+    const rows = await excludedRows(runner.id);
+    expect(rows.map((row) => row.target)).toEqual([usage, rate]);
+    expect(rows.map((row) => JSON.parse(row.details) as unknown)).toEqual([
+      { reason: 'usage-limit', slug: project.slug },
+      { reason: 'rate-limit', slug: project.slug },
+    ]);
+  });
+
+  it('counts limit failures from a runner that holds no pause, and the third stops the project', async () => {
+    const project = await seedTrackerProject();
+    const runner = await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [project.slug] });
+    for (const reason of ['usage-limit', 'rate-limit', 'usage-limit']) {
+      await failOne(runner, project.slug, { reason, retryAt: inMinutes(60) }, false);
+    }
+    expect(await streakOf(project.slug)).toEqual({ paused_by: 'system:failure-streak', failed_streak: 3 });
+    await enqueueJob(project.slug);
+    expect(await claim(runner)).toBeNull();
+    expect(await excludedRows(runner.id)).toEqual([]);
   });
 });
