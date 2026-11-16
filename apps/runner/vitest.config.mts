@@ -14,5 +14,7 @@ export default defineConfig(() => ({
     environment: 'node',
     include: ['src/**/*.spec.ts'],
     reporters: ['default'],
+    // Specs never reach the developer's real Keychain; the keychain path is driven by a fake `security` (#585).
+    env: { TC_RUNNER_KEY_STORE: 'file' },
   },
 }));

@@ -9,7 +9,13 @@ import { chmod, lstat, mkdir, open } from 'node:fs/promises';
  */
 
 export type RunnerFileProblem =
-  'home-relative' | 'home-unsafe' | 'file-unsafe' | 'file-missing' | 'file-exists' | 'config-invalid';
+  | 'home-relative'
+  | 'home-unsafe'
+  | 'file-unsafe'
+  | 'file-missing'
+  | 'file-exists'
+  | 'config-invalid'
+  | 'key-unavailable';
 
 export class RunnerFileError extends Error {
   constructor(

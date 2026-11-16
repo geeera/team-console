@@ -10,7 +10,6 @@ import {
   configPathOf,
   isEnrolBackend,
   parseRunnerConfig,
-  runnerKeyPathOf,
   saveRunnerConfig,
   type EnrolBackend,
   type RunnerConfig,
@@ -23,7 +22,12 @@ import {
   type CredentialConfig,
   type CredentialKind,
 } from '../env/credential';
-import { generateRunnerKey, saveRunnerKey } from '../config/runner-key';
+import {
+  generateRunnerKey,
+  runnerKeyLocationOf,
+  saveRunnerKey,
+  type RunnerKeyDeps,
+} from '../config/runner-key';
 import { RUNNER_VERSION } from '../version';
 
 /**
@@ -64,6 +68,8 @@ export interface EnrolDeps {
   readonly home: string;
   readonly fetch: FetchLike;
   readonly host: RunnerHostDto;
+  /** Where the key is stored; the host's keychain or file when absent. */
+  readonly keys?: RunnerKeyDeps;
 }
 
 export interface EnrolCheckedOptions {
@@ -142,13 +148,15 @@ export function hostFieldOf(value: string): string {
 export async function enrol(options: EnrolOptions, deps: EnrolDeps): Promise<RunnerConfig> {
   const checked = checkEnrolOptions(options);
   await ensurePrivateDir(deps.home);
-  for (const existing of [configPathOf(deps.home), runnerKeyPathOf(deps.home)]) {
-    if (await pathExists(existing)) {
-      throw new RunnerFileError(
-        'file-exists',
-        `${existing} exists: this home is already enrolled. Revoke the runner on Settings › Runners and remove the home, or set TC_RUNNER_HOME to a new directory`,
-      );
-    }
+  // The keychain is asked too: an item left behind by a removed home would otherwise refuse only after the code is spent.
+  const existing = (await pathExists(configPathOf(deps.home)))
+    ? configPathOf(deps.home)
+    : await runnerKeyLocationOf(deps.home, deps.keys);
+  if (existing !== null) {
+    throw new RunnerFileError(
+      'file-exists',
+      `${existing} exists: this home is already enrolled. Revoke the runner on Settings › Runners and remove the home (and its keychain item, see the runbook), or set TC_RUNNER_HOME to a new directory`,
+    );
   }
 
   const key = generateRunnerKey();
@@ -185,7 +193,7 @@ export async function enrol(options: EnrolOptions, deps: EnrolDeps): Promise<Run
     await ensurePrivateDir(join(deps.home, CREDENTIALS_DIR));
   }
   // The key first: a config without its key would look enrolled and fail every call.
-  await saveRunnerKey(deps.home, key.privateKey);
+  await saveRunnerKey(deps.home, key.privateKey, deps.keys);
   await saveRunnerConfig(deps.home, config);
   return config;
 }
