@@ -107,7 +107,7 @@ const COLUMNS = `id, account_id, project_slug, kind, role, payload, priority, st
  * runner routes judge the allow-list read at authentication; this term judges it again inside the write itself, so a
  * narrowing or revoke that commits in between wins, as it does for the claim (#543).
  */
-const RUNNER_STILL_ALLOWS_SQL = `jobs.project_slug IN (
+export const RUNNER_STILL_ALLOWS_SQL = `jobs.project_slug IN (
   SELECT value FROM runners r, json_each(r.allowed_projects)
   WHERE r.id = jobs.runner_id AND r.account_id = jobs.account_id AND r.revoked_at IS NULL)`;
 

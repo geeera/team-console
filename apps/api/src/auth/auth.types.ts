@@ -39,6 +39,11 @@ export type Identity =
        * the local bypass alone; absent (a forged identity) reads as a stand-in and is refused off the bypass.
        */
       readonly source?: 'token' | 'stand-in';
+      /**
+       * The SHA-256 of the `tcj_` token (`source: 'token'` only, never the token): a tracker write re-judges the job
+       * by it inside its batch (#580). Never logged or answered.
+       */
+      readonly tokenHash?: string;
     }
   /**
    * An enrolled runner on `/api/v1/runner/*` (#467, ADR 0008 decision 2): its EdDSA JWT alone mints it

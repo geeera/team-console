@@ -1,6 +1,7 @@
 import { problem, type WorkerContext } from '@worker/core';
 import { IdempotencyKeysRepo, type IdempotencyRef, type IdempotentResultKind } from '@worker/db';
 import type { Identity } from '../auth/auth.types';
+import { jobTokenHoldOf, lostJobHoldRefusal } from '../auth/job-auth';
 import type { ApiEnv } from '../env';
 
 type Context = WorkerContext<ApiEnv>;
@@ -97,7 +98,8 @@ export async function trackerWriteOf(c: Context): Promise<TrackerWrite | Respons
  * Runs `write` once per key. A repeat of a completed request answers `replay(ref)` with the first status and writes
  * nothing; a repeat while the first is in flight is 409 `idempotency-in-flight`; the key on a different request is
  * 422 `idempotency-key-reused`. A refusal (any non-2xx) or a thrown error releases the claim, so the client may
- * fix the request and send it again under the same key.
+ * fix the request and send it again under the same key. Under a job token the completion also judges the job (#580):
+ * a batch it refuses answers as authentication would on the next call (`lostJobHoldRefusal`).
  */
 export async function idempotent(
   c: Context,
@@ -132,18 +134,30 @@ export async function idempotent(
     case 'claimed':
       break;
   }
+  const identity = c.get('identity');
+  // Every tracker write's batch carries its key's completion, so guarding the completion guards the write (#580).
+  const hold = jobTokenHoldOf(identity, new Date(now)) ?? undefined;
   const complete: CompleteKey = (status, kind, ref) =>
     keys.completeStatement(
       request.claimKey,
       request.requestHash,
       { status, kind, ref },
       now + IDEMPOTENCY_TTL_MS,
+      hold,
     );
   let response: Response;
   try {
     response = await write(complete);
   } catch (error: unknown) {
     await keys.release(request.claimKey, request.requestHash);
+    // Which failure it was is decided by the rows, not by the driver's message: the job no longer holds.
+    const refusal =
+      hold !== undefined && identity.kind === 'job'
+        ? await lostJobHoldRefusal(c, identity, c.get('logger'))
+        : null;
+    if (refusal !== null) {
+      return refusal;
+    }
     throw error;
   }
   if (!response.ok) {

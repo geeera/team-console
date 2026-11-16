@@ -125,4 +125,5 @@ export type {
   IdempotencyClaim,
   IdempotencyRef,
   IdempotentResultKind,
+  JobTokenHold,
 } from './lib/tracker/idempotency-keys.repo';
