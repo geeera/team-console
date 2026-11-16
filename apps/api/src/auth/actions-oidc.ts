@@ -171,7 +171,7 @@ function isRunnerWorkflowRef(value: unknown, target: ActionsTarget, ref: string)
  * `null` when all hold. `run_id` is checked for shape here; "never seen before" is the exchange's own D1 check.
  */
 export function actionsClaimRefusalOf(claims: JWTPayload, target: ActionsTarget): OidcExchangeClaim | null {
-  if (target.repoId === null || claims['repository_id'] !== String(target.repoId)) {
+  if (!isTargetRepository(claims, target)) {
     return 'repository_id';
   }
   const ref = target.defaultBranch === null ? null : `refs/heads/${target.defaultBranch}`;
@@ -204,6 +204,11 @@ export function actionsClaimRefusalOf(claims: JWTPayload, target: ActionsTarget)
     return 'run_id';
   }
   return null;
+}
+
+/** The token names the repository the target's project is registered with (`repository_id`, the first claim checked). */
+export function isTargetRepository(claims: JWTPayload, target: ActionsTarget): boolean {
+  return target.repoId !== null && claims['repository_id'] === String(target.repoId);
 }
 
 /** The verified `repository_id`, the key of the per-repository rate limit; `null` when the token has none usable. */

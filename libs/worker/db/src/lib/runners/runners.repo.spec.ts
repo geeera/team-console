@@ -403,4 +403,115 @@ describe('RunnersRepo', () => {
       true,
     );
   });
+
+  // #707 (ADR 0009 d.3, threat model C12 row 6): the placement refusal holds inside the hosted enrolment write too.
+  describe('enrolHosted', () => {
+    let accounts = 0;
+
+    async function account(defaultPolicy: string | null = null): Promise<string> {
+      accounts += 1;
+      const id = `01M6YSNJ000000000000HS${String(accounts).padStart(4, '0')}`;
+      await env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at, default_runner_policy) VALUES (?1, ?2, 'H', ?3, ?4)`)
+        .bind(id, `rn-h${String(accounts)}`, T0, defaultPolicy)
+        .run();
+      return id;
+    }
+
+    async function project(accountId: string, source: 'subscription' | 'api_key', policy: string | null = null): Promise<void> {
+      counter += 1;
+      const slug = `rn-hp-${String(counter)}`;
+      await env.DB.prepare(
+        `INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at, account_id, runner_policy, access_source)
+         VALUES (?1, ?2, ?1, 0, ?3, ?4, ?5, ?6)`,
+      )
+        .bind(slug, `acme/${slug}`, T0, accountId, policy, source)
+        .run();
+    }
+
+    async function code(accountId: string): Promise<string> {
+      counter += 1;
+      const codeHash = String(counter).padStart(64, 'e');
+      await repo.createEnrolment(
+        { codeHash, accountId, name: 'hosted', allowedProjects: [], createdBy: 'owner-1', at: T0, expiresAt: T1 },
+        audit('enrolment-code.created', accountId),
+      );
+      return codeHash;
+    }
+
+    async function enrolHosted(accountId: string, codeHash: string, id: string = ulid()) {
+      const runner = runnerOf({ id, accountId, isolation: 'container' });
+      const outcome = await repo.enrolHosted(codeHash, runner, { ...audit('runner.enrolled', accountId), target: runner.id });
+      return { outcome, runner };
+    }
+
+    it('refuses while a subscription project’s placement is any or unset, writing nothing', async () => {
+      for (const policy of [null, JSON.stringify({ mode: 'any' })]) {
+        const accountId = await account();
+        await project(accountId, 'subscription', policy);
+        const codeHash = await code(accountId);
+        const { outcome, runner } = await enrolHosted(accountId, codeHash);
+        expect(outcome).toBe('access-source-hosted');
+        expect(await repo.findById(runner.id)).toBeNull();
+        expect((await repo.findEnrolment(codeHash))?.usedByRunnerId).toBeNull();
+        expect(await auditRows('runner.enrolled', runner.id)).toBe(0);
+      }
+    });
+
+    it('refuses through the account default a subscription project falls back to', async () => {
+      const accountId = await account(JSON.stringify({ mode: 'any' }));
+      // The project's own pin to another runner holds; the second project falls back to `any`.
+      await project(accountId, 'subscription', JSON.stringify({ mode: 'pinned', runner: 'mac-1' }));
+      await project(accountId, 'subscription');
+      expect((await enrolHosted(accountId, await code(accountId))).outcome).toBe('access-source-hosted');
+    });
+
+    it('refuses a placement that names the new runner by id, pinned or in a failover', async () => {
+      const policies = [
+        (id: string) => ({ mode: 'pinned', runner: id }),
+        (id: string) => ({ mode: 'failover', preferred: 'mac-1', fallback: [id] }),
+        (id: string) => ({ mode: 'failover', preferred: id, fallback: [] }),
+      ];
+      for (const policy of policies) {
+        const id = ulid();
+        const accountId = await account();
+        await project(accountId, 'subscription', JSON.stringify(policy(id)));
+        expect((await enrolHosted(accountId, await code(accountId), id)).outcome).toBe('access-source-hosted');
+      }
+    });
+
+    it('enrols a hosted runner when no subscription project would admit it', async () => {
+      const accountId = await account(JSON.stringify({ mode: 'pinned', runner: 'mac-1' }));
+      await project(accountId, 'subscription');
+      await project(accountId, 'subscription', JSON.stringify({ mode: 'failover', preferred: 'mac-1', fallback: ['mac-2'] }));
+      await project(accountId, 'api_key', JSON.stringify({ mode: 'any' }));
+      // Another account's subscription project is not this enrolment's business.
+      await project(await account(), 'subscription');
+      const codeHash = await code(accountId);
+      const { outcome, runner } = await enrolHosted(accountId, codeHash);
+      expect(outcome).toBe('ok');
+      expect(await repo.findById(runner.id)).toMatchObject({ accountId, hosted: true });
+      expect((await repo.findEnrolment(codeHash))?.usedByRunnerId).toBe(runner.id);
+      expect(await auditRows('runner.enrolled', runner.id)).toBe(1);
+    });
+
+    it('answers code-used for a used code, whatever the placement says', async () => {
+      const accountId = await account();
+      const codeHash = await code(accountId);
+      expect((await enrolHosted(accountId, codeHash)).outcome).toBe('ok');
+      expect((await enrolHosted(accountId, codeHash)).outcome).toBe('code-used');
+      await project(accountId, 'subscription');
+      const { outcome, runner } = await enrolHosted(accountId, codeHash);
+      expect(outcome).toBe('code-used');
+      expect(await repo.findById(runner.id)).toBeNull();
+    });
+
+    it('keeps the self-hosted enrolment free of the hosted refusal', async () => {
+      const accountId = await account();
+      await project(accountId, 'subscription');
+      const codeHash = await code(accountId);
+      const runner = runnerOf({ accountId });
+      expect(await repo.enrol(codeHash, runner, { ...audit('runner.enrolled', accountId), target: runner.id })).toBe('ok');
+      expect((await repo.findById(runner.id))?.hosted).toBe(false);
+    });
+  });
 });

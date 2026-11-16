@@ -8,6 +8,7 @@ import type {
 } from '@shared/contracts';
 import { auditEventStatement, auditedWrite, type NewAuditEvent } from '../accounts/audit.repo';
 import { isConstraintError } from '../tracker/constraint-error';
+import { hostedEnrolmentRefusedSql } from '../team-config/access-source';
 
 /**
  * Runners and their enrolment codes (#467, ADR 0008 row 2-A, migration 0021). Every write names the account it acts
@@ -73,6 +74,9 @@ export interface NewRunner {
   readonly version: string;
   readonly at: string;
 }
+
+/** `enrolHosted`: `access-source-hosted` when a `subscription` project's placement would admit the runner (#707). */
+export type HostedEnrolOutcome = 'ok' | 'code-used' | 'access-source-hosted';
 
 /** What a runner's call tells about its source, for presence and the detection rows of threat model C4. */
 export interface RunnerSighting {
@@ -258,6 +262,28 @@ export class RunnersRepo {
    * audit row included.
    */
   async enrol(codeHash: string, runner: NewRunner, audit: NewAuditEvent): Promise<'ok' | 'code-used'> {
+    const outcome = await this.enrolOnCode(codeHash, runner, false, audit);
+    // A self-hosted runner never meets the hosted refusal: its INSERT carries no such condition.
+    return outcome === 'access-source-hosted' ? 'code-used' : outcome;
+  }
+
+  /**
+   * `enrol` for a console-hosted runner (`runners.hosted = 1`, H-2). `access-source-hosted` (ADR 0009 d.3, #707) when
+   * the effective placement of one of the account's `subscription` projects would admit the new runner: judged by
+   * the INSERT itself, so nothing is written then, the code's use and the audit row included. No route enrols a hosted
+   * runner yet; this is the write H-2 must go through.
+   */
+  async enrolHosted(codeHash: string, runner: NewRunner, audit: NewAuditEvent): Promise<HostedEnrolOutcome> {
+    return this.enrolOnCode(codeHash, runner, true, audit);
+  }
+
+  private async enrolOnCode(
+    codeHash: string,
+    runner: NewRunner,
+    hosted: boolean,
+    audit: NewAuditEvent,
+  ): Promise<HostedEnrolOutcome> {
+    const hostedRefusal = hosted ? `AND NOT ${hostedEnrolmentRefusedSql('?2', '?1')}` : '';
     let results: D1Result[];
     try {
       results = await this.db.batch([
@@ -266,12 +292,12 @@ export class RunnersRepo {
         // so the trigger sees the second use).
         this.db
           .prepare(
-            `INSERT INTO runners (id, account_id, name, public_key_jwk, host, capabilities, isolation, allowed_projects, version, enrolled_at)
-             SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10
+            `INSERT INTO runners (id, account_id, name, public_key_jwk, host, capabilities, isolation, allowed_projects, version, enrolled_at, hosted)
+             SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?12
              WHERE EXISTS (
                SELECT 1 FROM runner_enrolments
                WHERE code_hash = ?11 AND used_by_runner_id IS NULL AND julianday(expires_at) > julianday(?10)
-             )`,
+             ) ${hostedRefusal}`,
           )
           .bind(
             runner.id,
@@ -285,17 +311,20 @@ export class RunnersRepo {
             runner.version,
             runner.at,
             codeHash,
+            hosted ? 1 : 0,
           ),
         // #522: the audit row only when this UPDATE marked the code, so a code withdrawn after the route's lookup
         // (both statements above then find no row) leaves no `runner.enrolled` row behind. #531: the expiry is judged
         // here too, at the same `now` as the INSERT, so a code that expired after the route's check is left unused
-        // rather than pointed at a runner that was never written.
+        // rather than pointed at a runner that was never written. #707: a hosted enrolment marks the code only once
+        // its runner row exists, so the placement refusal leaves the code unused for a retry after the owner fixes it.
         ...auditedWrite(
           this.db,
           this.db
             .prepare(
               `UPDATE runner_enrolments SET used_by_runner_id = ?2, used_at = ?3
-               WHERE code_hash = ?1 AND julianday(expires_at) > julianday(?3)`,
+               WHERE code_hash = ?1 AND julianday(expires_at) > julianday(?3)
+               ${hosted ? 'AND EXISTS (SELECT 1 FROM runners WHERE id = ?2)' : ''}`,
             )
             .bind(codeHash, runner.id, runner.at),
           audit,
@@ -309,7 +338,24 @@ export class RunnersRepo {
     }
     // No row updated: the code is gone, withdrawn by the owner since the route looked it up (#492), or expired since
     // (#531). Nothing was written; the caller answers it like a used code.
-    return (results[1]?.meta.changes ?? 0) === 1 ? 'ok' : 'code-used';
+    if ((results[1]?.meta.changes ?? 0) === 1) {
+      return 'ok';
+    }
+    if (!hosted) {
+      return 'code-used';
+    }
+    // The INSERT judged it; this read only names which refusal held. A code that is no longer usable answers as
+    // `code-used` first, as the self-hosted path does, so the placement is named only to a holder of a live code.
+    const refused = await this.db
+      .prepare(
+        `SELECT EXISTS (
+           SELECT 1 FROM runner_enrolments
+           WHERE code_hash = ?3 AND used_by_runner_id IS NULL AND julianday(expires_at) > julianday(?4)
+         ) AND ${hostedEnrolmentRefusedSql('?2', '?1')} AS hit`,
+      )
+      .bind(runner.id, runner.accountId, codeHash, runner.at)
+      .first<{ hit: number }>();
+    return refused?.hit === 1 ? 'access-source-hosted' : 'code-used';
   }
 
   async findById(id: string): Promise<RunnerRecord | null> {
