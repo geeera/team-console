@@ -622,6 +622,29 @@ export const ENVIRONMENT_MANIFEST: EnvironmentManifest = {
       },
     },
     {
+      name: 'ACTIONS_OIDC_JWKS',
+      optional: true,
+      kind: 'variable',
+      origin: 'generated',
+      environments: ['local'],
+      locations: [
+        {
+          place: 'local-only',
+        },
+      ],
+      neededBy: [
+        'apps/api (`POST /api/v1/runner/oidc-exchange`, #668: тестовый JWKS вместо ключей GitHub Actions OIDC)',
+      ],
+      purpose:
+        'JSON Web Key Set, которым локально подменяются ключи издателя GitHub Actions OIDC, чтобы спеки и интеграционный прогон подписывали свои токены. Учитывается только при ENVIRONMENT=local.',
+      guide: {
+        obtain: null,
+        scopes: null,
+        rotation: null,
+        gotchas: null,
+      },
+    },
+    {
       name: 'CLOUDFLARE_API_TOKEN',
       kind: 'secret',
       origin: 'owner',
