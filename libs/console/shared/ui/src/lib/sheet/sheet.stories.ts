@@ -135,19 +135,11 @@ class LongFormSheetContent {
   selector: 'tc-story-full-sheet',
   imports: [Button, SheetFooter, TranslocoPipe],
   template: `
-    <div
-      style="display: flex; gap: var(--space-2); padding: var(--space-2) var(--space-4); border-bottom: var(--border-w) solid var(--border)"
-    >
-      <button tc-button size="sm" type="button" aria-pressed="true">
-        {{ 'stories.sheet.fullToolbarA' | transloco }}
-      </button>
-      <button tc-button size="sm" type="button" aria-pressed="false">
-        {{ 'stories.sheet.fullToolbarB' | transloco }}
-      </button>
+    <div style="display: flex; gap: var(--space-2); padding: var(--space-2) var(--space-4); border-bottom: var(--border-w) solid var(--border)">
+      <button tc-button size="sm" type="button" aria-pressed="true">{{ 'stories.sheet.fullToolbarA' | transloco }}</button>
+      <button tc-button size="sm" type="button" aria-pressed="false">{{ 'stories.sheet.fullToolbarB' | transloco }}</button>
     </div>
-    <div
-      style="flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-4); display: grid; gap: var(--space-3)"
-    >
+    <div style="flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-4); display: grid; gap: var(--space-3)">
       @for (block of blocks; track block) {
         <div style="height: var(--stamp-size); border-radius: var(--r-md); background: var(--skeleton)"></div>
       }
@@ -435,11 +427,9 @@ class SheetHost {
    */
   protected async moveDate(): Promise<void> {
     let attempts = 0;
-    const t = (key: string, params?: Record<string, unknown>): string =>
-      this.transloco.translate(key, params);
+    const t = (key: string, params?: Record<string, unknown>): string => this.transloco.translate(key, params);
     const today = new Date().toISOString().slice(0, 10);
-    const inDays = (days: number): string =>
-      new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+    const inDays = (days: number): string => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
     const current = inDays(9);
     const confirmed = await this.sheet.confirm({
       title: t('stories.sheet.dateTitle'),
