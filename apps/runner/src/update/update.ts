@@ -1,10 +1,17 @@
 import { createHash } from 'node:crypto';
-import { chmod, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, rename, rm } from 'node:fs/promises';
-import { join } from 'node:path';
-import { compareRunnerVersions, isRunnerVersionBelow, type RunnerReleaseDto } from '@shared/contracts';
+import type { Stats } from 'node:fs';
+import { chmod, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, readlink, rename, rm, symlink } from 'node:fs/promises';
+import { basename, join } from 'node:path';
+import {
+  compareRunnerVersions,
+  isRunnerVersionBelow,
+  runnerReleaseChannelOf,
+  type RunnerReleaseDto,
+} from '@shared/contracts';
 import type { UpdatePolicy } from '../config/config';
 import { ensurePrivateDir, lstatOrNull } from '../config/private-files';
 import type { Exec, ExecOptions } from '../host/exec';
+import { CURRENT_LINK, RELEASES_DIR, TOP_LEVEL_LINKS, releaseDirOf } from './install-layout';
 import {
   BUNDLE_FILE,
   RELEASE_FILES,
@@ -28,6 +35,7 @@ export type UpdateProblem =
   | 'platform-unsupported'
   | 'version-unreadable'
   | 'downgrade'
+  | 'channel-mismatch'
   | 'below-minimum'
   | 'prefix-not-writable'
   | 'download-failed'
@@ -134,21 +142,35 @@ async function assertGh(deps: ApplyDeps): Promise<void> {
   }
 }
 
-/** The swap writes into the prefix as this user; a root-owned one (the `user` backend) is updated by hand. */
+/**
+ * The swap writes into the prefix as this user; a root-owned one (the `user` backend) is updated by hand. `bin` is a
+ * real directory until the first update links it through `current`, and `releases/` does not exist before then.
+ */
 async function assertPrefixWritable(deps: ApplyDeps, target: string): Promise<void> {
-  for (const path of [deps.prefix, join(deps.prefix, 'bin')]) {
+  const refuse = (path: string): never => {
+    throw new UpdateError(
+      'prefix-not-writable',
+      `${target} is available, but ${path} is not this user's to write; install it by hand as docs/runbooks/runner.md › Update says (download, gh attestation verify, sudo tar)`,
+    );
+  };
+  const isOwnDir = (stats: Stats | null): boolean =>
+    stats !== null &&
+    stats.isDirectory() &&
+    (deps.uid === null || stats.uid === deps.uid) &&
+    (stats.mode & SHARED_WRITE) === 0;
+  if (!isOwnDir(await lstatOrNull(deps.prefix))) {
+    refuse(deps.prefix);
+  }
+  for (const name of ['bin', RELEASES_DIR]) {
+    const path = join(deps.prefix, name);
     const stats = await lstatOrNull(path);
-    const writable =
-      stats !== null &&
-      stats.isDirectory() &&
-      (deps.uid === null || stats.uid === deps.uid) &&
-      (stats.mode & SHARED_WRITE) === 0;
-    if (!writable) {
-      throw new UpdateError(
-        'prefix-not-writable',
-        `${target} is available, but ${path} is not this user's to write; install it by hand as docs/runbooks/runner.md › Update says (download, gh attestation verify, sudo tar)`,
-      );
+    if (stats !== null && !(name === 'bin' && stats.isSymbolicLink()) && !isOwnDir(stats)) {
+      refuse(path);
     }
+  }
+  const current = await lstatOrNull(join(deps.prefix, CURRENT_LINK));
+  if (current !== null && !current.isSymbolicLink()) {
+    refuse(join(deps.prefix, CURRENT_LINK));
   }
 }
 
@@ -205,26 +227,80 @@ async function assertSums(tree: string): Promise<void> {
   }
 }
 
-/** Each file lands as a sibling first and is renamed over the old one; the bundle goes last. */
-async function swapInto(tree: string, prefix: string): Promise<void> {
-  await mkdir(join(prefix, 'bin'), { recursive: true });
-  const order = [...RELEASE_FILES.filter((file) => file !== BUNDLE_FILE), BUNDLE_FILE];
-  for (const file of order) {
-    const destination = join(prefix, file);
-    const staged = `${destination}.update`;
-    await rm(staged, { force: true });
-    await copyFile(join(tree, file), staged);
-    await chmod(staged, 0o555);
-    await rename(staged, destination);
+/**
+ * Points `path` at `target` with one rename over it. A directory cannot be renamed over, so the flat `bin` is moved
+ * aside first: the conversion's only non-atomic step, done once, after `current` already names the new release.
+ */
+async function replaceWithLink(path: string, target: string): Promise<void> {
+  const aside = `${path}.flat`;
+  await rm(aside, { recursive: true, force: true });
+  const stats = await lstatOrNull(path);
+  if (stats?.isSymbolicLink() === true && (await readlink(path)) === target) {
+    return;
+  }
+  const next = `${path}.next`;
+  await rm(next, { force: true });
+  await symlink(target, next);
+  if (stats?.isDirectory() === true) {
+    await rename(path, aside);
+    await rename(next, path);
+    await rm(aside, { recursive: true, force: true });
+  } else {
+    await rename(next, path);
+  }
+}
+
+/** The version `current` names, or `null` in a flat prefix. */
+async function liveReleaseOf(prefix: string): Promise<string | null> {
+  const current = join(prefix, CURRENT_LINK);
+  return (await lstatOrNull(current))?.isSymbolicLink() === true ? basename(await readlink(current)) : null;
+}
+
+/**
+ * The release is copied whole into `releases/<target>` (renamed into place once complete), then `current` is renamed
+ * onto it: that one rename is the switch. Only the new release and the one it replaced are kept.
+ */
+async function swapInto(tree: string, prefix: string, target: string): Promise<void> {
+  const live = await liveReleaseOf(prefix);
+  if (live === target) {
+    throw new UpdateError('unpack-failed', `${releaseDirOf(target)} is the live release; nothing was changed`);
+  }
+  const releases = join(prefix, RELEASES_DIR);
+  await mkdir(releases, { recursive: true, mode: 0o755 });
+  const destination = join(prefix, releaseDirOf(target));
+  const staged = `${destination}.partial`;
+  await rm(staged, { recursive: true, force: true });
+  await rm(destination, { recursive: true, force: true });
+  await mkdir(join(staged, 'bin'), { recursive: true, mode: 0o755 });
+  for (const file of RELEASE_FILES) {
+    await copyFile(join(tree, file), join(staged, file));
+    await chmod(join(staged, file), 0o555);
+  }
+  await copyFile(join(tree, RELEASE_SUMS_FILE), join(staged, RELEASE_SUMS_FILE));
+  await chmod(join(staged, RELEASE_SUMS_FILE), 0o444);
+  await rename(staged, destination);
+  await replaceWithLink(join(prefix, CURRENT_LINK), releaseDirOf(target));
+  for (const [name, link] of Object.entries(TOP_LEVEL_LINKS)) {
+    await replaceWithLink(join(prefix, name), link);
+  }
+  const keep = new Set([target, live]);
+  for (const name of await readdir(releases)) {
+    if (!keep.has(name)) {
+      await rm(join(releases, name), { recursive: true, force: true });
+    }
   }
 }
 
 /**
  * Downloads `target` for this platform, has `gh attestation verify` check it against the pinned identity, checks the
- * tree and its sums, confirms the bundle reports `target`, then swaps it into the prefix. Nothing in the prefix
- * changes before every check has passed; the staging directory is removed either way.
+ * tree and its sums, confirms the bundle reports `target`, then switches the prefix to it (`install-layout.ts`).
+ * Nothing in the prefix changes before every check has passed; the staging directory is removed either way.
  */
 export async function applyUpdate(target: string, deps: ApplyDeps): Promise<void> {
+  // `target` names a directory under the prefix below; only a SemVer label may.
+  if (runnerReleaseChannelOf(target) === null) {
+    throw new UpdateError('version-unreadable', `${target} is not a runner release version`);
+  }
   const platform = releasePlatformOf(deps.platform, deps.arch);
   if (platform === null) {
     throw new UpdateError(
@@ -268,7 +344,7 @@ export async function applyUpdate(target: string, deps: ApplyDeps): Promise<void
     if (reported.code !== 0 || reported.stdout.trim() !== target) {
       throw new UpdateError('verification-failed', `the downloaded bundle does not report version ${target}`);
     }
-    await swapInto(tree, deps.prefix);
+    await swapInto(tree, deps.prefix, target);
   } finally {
     await rm(staging, { recursive: true, force: true });
   }

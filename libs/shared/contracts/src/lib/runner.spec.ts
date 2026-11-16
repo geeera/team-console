@@ -10,6 +10,7 @@ import {
   isRunnerDto,
   isRunnerListDto,
   isRunnerVersionBelow,
+  runnerReleaseChannelOf,
   type RunnerDto,
 } from './runner';
 
@@ -35,6 +36,19 @@ const RUNNER: RunnerDto = {
   belowMinimum: false,
   pause: null,
 };
+
+describe('runnerReleaseChannelOf', () => {
+  it.each([
+    ['1.0.0', 'stable'],
+    ['1.0.0+build.7', 'stable'],
+    ['1.0.0-rc.1', 'prerelease'],
+    ['0.3.0-alpha.1+build', 'prerelease'],
+    ['main', null],
+    ['v1.0.0', null],
+  ])('puts %s on the %s channel', (version, channel) => {
+    expect(runnerReleaseChannelOf(version)).toBe(channel);
+  });
+});
 
 describe('compareRunnerVersions', () => {
   it.each([

@@ -4,8 +4,11 @@
 # GHCR signed with cosign keyless, and creates the GitHub release naming the image by digest. No secret is used: the publishing identity is the run's
 # own OIDC token and `github.token`. `team-console-runner update` and the documented install verify the tarballs
 # with `gh attestation verify` against this file's path and the tag's ref (apps/runner/src/update/release-identity.ts).
-# Each job holds only the permissions its own steps need; `npm ci` (third-party install scripts) runs in a job that
-# can read the repository and nothing else.
+# Each job holds only the permissions its own steps need. `npm ci` (third-party install scripts) runs twice: in
+# `build`, which can read the repository and nothing else, and inside the image's Docker build in `image`. That job can
+# publish, but its build step hands BuildKit no secret, ssh agent or token, so an install script there reaches none of
+# the job's credentials (`tools/workspace-checks/src/release-workflow.spec.ts` keeps both true). Every job runs in the
+# `release` environment, so its protection gates each publishing step, not only the build.
 name: release-runner
 
 on:
@@ -26,7 +29,7 @@ jobs:
     name: Build and pack the runner
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    # The `release` environment (same checklist section) admits `v*` tags only; every later job needs this one.
+    # The `release` environment (same checklist section) admits `v*` tags only; every job names it.
     environment: release
     permissions:
       contents: read
@@ -103,6 +106,7 @@ jobs:
   attest:
     name: Attest the tarballs
     needs: build
+    environment: release
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -123,6 +127,7 @@ jobs:
   image:
     name: Publish and sign the runner image
     needs: build
+    environment: release
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
@@ -157,7 +162,8 @@ jobs:
           push: true
           tags: ${{ env.IMAGE }}:${{ needs.build.outputs.version }}
           build-args: TC_RUNNER_VERSION=${{ needs.build.outputs.version }}
-          # Provenance is attested below with the same identity as the tarballs.
+          # Provenance is attested below with the same identity as the tarballs. No `secrets`, `secret-files`,
+          # `secret-envs` or `ssh` here: the Dockerfile's `npm ci` must not reach this job's credentials.
           provenance: false
 
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
@@ -179,6 +185,7 @@ jobs:
   release:
     name: Create the GitHub release
     needs: [build, attest, image]
+    environment: release
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

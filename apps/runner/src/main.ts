@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { runJobExec } from './backends/job-exec';
 import { runCli } from './cli/cli';
 import { stdinCodeReader } from './cli/enrol-code';
+import { installRootOf } from './update/install-layout';
 
 if (process.argv[2] === 'job-exec') {
   // The job side of `user`/`container` (`bin/job-exec run`): no runner state, none of the runner's signal handling.
@@ -37,8 +38,9 @@ if (process.argv[2] === 'job-exec') {
     stderr: (line) => process.stderr.write(`${line}\n`),
     shutdown: shutdown.signal,
     readCodeLine: stdinCodeReader(process.stdin, (text) => process.stderr.write(text)),
-    // `bin/job-exec` sits next to the bundle (the release tarball and the image keep that layout).
-    prefix: dirname(fileURLToPath(import.meta.url)),
+    // `bin/job-exec` sits next to the bundle (the release tarball and the image keep that layout); a prefix `update`
+    // has converted runs the bundle from `releases/<version>/`, which maps back to the prefix.
+    prefix: installRootOf(dirname(fileURLToPath(import.meta.url))),
   });
   process.off('SIGINT', onSignal);
   process.off('SIGTERM', onSignal);
