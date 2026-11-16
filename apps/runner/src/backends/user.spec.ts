@@ -292,6 +292,25 @@ describe('user backend', () => {
     await expect(stat(join(home, 'jobs', JOB_ID))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
+  // #601: a job's hard link to a runner file makes the chmod fail with EPERM; that must not wedge every later preflight.
+  it('wipes a crashed sandbox when the chmod fails on a file the job does not own', async () => {
+    await mkdir(join(home, 'jobs', JOB_ID), { recursive: true });
+    answer(SUDO('run'), { code: 1, stdout: '' }, { code: 0, stdout: '' });
+    await backend().preflight();
+    const wipes = calls.slice(-2).map((call) => JSON.parse(call.stdin ?? '') as { argv: string[] });
+    expect(wipes.map((wipe) => wipe.argv.slice(-5))).toEqual([
+      ['/bin/chmod', '-R', 'u+rwX', '{}', '+'],
+      ['-exec', '/bin/rm', '-rf', '{}', '+'],
+    ]);
+    await expect(stat(join(home, 'jobs', JOB_ID))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('still fails the wipe when the job’s entries cannot be removed', async () => {
+    await mkdir(join(home, 'jobs', JOB_ID), { recursive: true });
+    answer(SUDO('run'), { code: 0, stdout: '' }, { code: 1, stdout: '' });
+    await expect(backend().preflight()).rejects.toThrow(/could not remove the job's files .* \(exit 1\)/);
+  });
+
   it('is a BackendError for the job loop to report', async () => {
     answer('/usr/bin/pgrep -u _tcjob', { code: 0, stdout: '1\n' });
     await expect(backend().preflight()).rejects.toBeInstanceOf(BackendError);

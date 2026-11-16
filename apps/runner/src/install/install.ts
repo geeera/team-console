@@ -547,7 +547,8 @@ export function systemInstallHost(base: {
         case 'write': {
           const owner = await ownershipOf(step.owner);
           // No O_TRUNC: a hard link to someone else's file must be refused before a byte of it changes.
-          const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW;
+          // O_NONBLOCK: a FIFO planted at the path fails the open (ENXIO) or reaches the isFile check, never blocks it.
+          const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW | constants.O_NONBLOCK;
           const handle = await open(step.path, flags, step.mode);
           try {
             const stats = await handle.stat();

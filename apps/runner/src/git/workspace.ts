@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { ensurePrivateDir, pathExists } from '../config/private-files';
 import { LaunchRefusal } from '../jobs/refusal';
 import { assertCleanGitConfig } from './git-config';
-import { runGit, type GitRunner } from './git';
+import { GitError, runGit, type GitRunner } from './git';
 
 /**
  * The job's code (ADR 0008 decisions 2 and 7, threat model C3 row (b), C4 "vendored plugin swapped"): a bare mirror
@@ -40,7 +40,39 @@ async function assertNoHooks(hooksDir: string): Promise<void> {
   }
 }
 
-/** Creates or fetches the project's bare mirror; refuses it when its config or hooks were tampered with. */
+async function localOriginUrls(mirror: string, env: Readonly<Record<string, string>>): Promise<string[]> {
+  try {
+    const output = await runGit(
+      ['--git-dir', mirror, 'config', '--local', '--null', '--get-all', 'remote.origin.url'],
+      env,
+    );
+    return output.split('\0').filter((value) => value !== '');
+  } catch (error: unknown) {
+    // `git config --get-all` exits 1 when the key is absent: a mirror without an origin is refused below.
+    if (error instanceof GitError && error.exitCode === 1) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+/**
+ * Refuses a mirror whose origin is no longer the configured upstream (#591): a tampered mirror would fetch, and the
+ * plugin be vendored, from elsewhere. A `url.*.insteadOf` in the mirror's or the job's config is refused by the
+ * config table; the runner's own global file is the operator's, out of a job's reach on the `user` backend. URLs
+ * never reach the message: one may carry a credential.
+ */
+async function assertMirrorOrigin(mirror: string, url: string, env: Readonly<Record<string, string>>): Promise<void> {
+  const origins = await localOriginUrls(mirror, env);
+  if (origins.length !== 1 || origins[0] !== url) {
+    throw new LaunchRefusal(
+      'git-config-refused',
+      `remote.origin.url of ${mirror} does not match the configured repository; remove the mirror to re-clone it`,
+    );
+  }
+}
+
+/** Creates or fetches the project's bare mirror; refuses it when its config, hooks or origin were tampered with. */
 export async function syncMirror(home: string, slug: string, url: string, envs: GitEnvs): Promise<string> {
   const mirror = mirrorPathOf(home, slug);
   await ensurePrivateDir(join(home, 'work'), envs.dirMode);
@@ -49,6 +81,7 @@ export async function syncMirror(home: string, slug: string, url: string, envs: 
     // Judged before the fetch too: a planted hook or fsmonitor would run inside it.
     await assertNoHooks(join(mirror, 'hooks'));
     await assertCleanGitConfig(mirror, envs.job, null);
+    await assertMirrorOrigin(mirror, url, envs.runner);
     await runGit(['--git-dir', mirror, 'fetch', '--prune', '--quiet', 'origin'], envs.runner);
   } else {
     await runGit(['clone', '--mirror', '--quiet', '--template=', '--', url, mirror], envs.runner);

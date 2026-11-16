@@ -150,15 +150,24 @@ export class UserBackend implements IsolationBackend {
   /** The job's own entries of `root` go as the job user (the runner may not delete them), the rest as the runner. */
   private async wipe(root: string): Promise<void> {
     const env = { PATH: SYSTEM_PATH };
-    for (const action of [
-      ['-exec', '/bin/chmod', '-R', 'u+rwX', '{}', '+'],
-      ['-exec', '/bin/rm', '-rf', '{}', '+'],
-    ]) {
-      const args = [root, '-mindepth', '1', '-maxdepth', '1', '-user', JOB_USER, ...action];
-      const { code } = await this.runAsJob('/usr/bin/find', args, env, '/');
-      if (code !== 0) {
-        throw new BackendError(`could not remove the job's files in ${root} (exit ${String(code)})`);
-      }
+    const ownEntries = [root, '-mindepth', '1', '-maxdepth', '1', '-user', JOB_USER];
+    // Best effort (#601): a hard link the job made to a runner file it can reach fails the chmod with EPERM, and
+    // macOS has no protected_hardlinks. The rm below only needs the job's own directories opened, which the chmod
+    // always manages, and its exit (then removeTree as the runner) is what decides whether the root is gone.
+    await this.runAsJob(
+      '/usr/bin/find',
+      [...ownEntries, '-exec', '/bin/chmod', '-R', 'u+rwX', '{}', '+'],
+      env,
+      '/',
+    );
+    const { code } = await this.runAsJob(
+      '/usr/bin/find',
+      [...ownEntries, '-exec', '/bin/rm', '-rf', '{}', '+'],
+      env,
+      '/',
+    );
+    if (code !== 0) {
+      throw new BackendError(`could not remove the job's files in ${root} (exit ${String(code)})`);
     }
     await removeTree(root);
   }

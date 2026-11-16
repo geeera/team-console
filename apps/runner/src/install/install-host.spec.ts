@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process';
+import { constants } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -132,6 +134,25 @@ describe('systemInstallHost sets owner and mode through the handle', () => {
     const after = await fs.lstat(victim);
     expect(await fs.readFile(victim, 'utf8')).toBe('root secret');
     expect([after.mode, after.uid, after.gid]).toEqual([before.mode, before.uid, before.gid]);
+    expect(handleCalls.chown).toEqual([]);
+    expect(handleCalls.chmod).toEqual([]);
+    expect(pathCalls()).toBe(0);
+  });
+
+  // Review note on #632: without O_NONBLOCK the open of a FIFO with no reader blocks before the isFile check runs.
+  it('write: refuses a FIFO planted at the path without blocking, with or without a reader', async () => {
+    const planted = join(root, 'managed-settings.json');
+    execFileSync('/usr/bin/mkfifo', ['-m', '644', planted]);
+    const step = { kind: 'write', path: planted, mode: 0o644, owner: OWNER, content: '{}\n' } as const;
+    await expect(host().apply(step)).rejects.toMatchObject({ code: 'ENXIO' });
+    const real = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
+    const reader = await real.open(planted, constants.O_RDONLY | constants.O_NONBLOCK);
+    try {
+      await expect(host().apply(step)).rejects.toThrow(/not a regular file with a single link/);
+      expect((await reader.read(Buffer.alloc(16), 0, 16, null)).bytesRead).toBe(0);
+    } finally {
+      await reader.close();
+    }
     expect(handleCalls.chown).toEqual([]);
     expect(handleCalls.chmod).toEqual([]);
     expect(pathCalls()).toBe(0);
