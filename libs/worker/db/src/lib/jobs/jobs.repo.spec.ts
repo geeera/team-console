@@ -556,3 +556,62 @@ describe('TeamStateRepo.recordOutcome', () => {
     expect(await jobs.findById(id)).toMatchObject({ state: 'claimed' });
   });
 });
+
+// #612: review jobs are enqueued per role in one batch, with their parent; a live dedupe key refuses the batch.
+describe('JobsRepo.enqueueAll', () => {
+  const HEAD = 'a'.repeat(40);
+  const review = (slug: string, role: string, parentJobId: string): NewJob => ({
+    id: ulid('RV'),
+    accountId: ACCOUNT_A,
+    projectSlug: slug,
+    kind: 'review',
+    role,
+    payload: { pr: 7, head_sha: HEAD, role },
+    priority: 1,
+    requestedBy: 'orchestrator',
+    dedupeKey: `${slug}:review:7:${HEAD}:${role}`,
+    needsLocal: false,
+    maxMinutes: 90,
+    at: T0,
+    parentJobId,
+  });
+  const entry = (job: NewJob) => ({ job, audit: { ...audit('job.dispatched'), target: job.id } });
+
+  it('writes every job with its parent and one audit row each', async () => {
+    const slug = await project(ACCOUNT_A);
+    const parent = await enqueue(slug);
+    const qa = review(slug, 'qa', parent);
+    const security = review(slug, 'security', parent);
+    expect(await jobs.enqueueAll([entry(qa), entry(security)])).toBe('ok');
+    expect((await jobs.findById(qa.id))?.parentJobId).toBe(parent);
+    expect((await jobs.findById(security.id))?.parentJobId).toBe(parent);
+    const audits = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE target IN (?1, ?2)`)
+      .bind(qa.id, security.id)
+      .first<{ n: number }>();
+    expect(audits?.n).toBe(2);
+    const live = await jobs.findLiveByDedupeKeys(slug, [qa.dedupeKey ?? '', `${slug}:review:7:${HEAD}:reviewer`]);
+    expect(live.map((job) => job.id)).toEqual([qa.id]);
+  });
+
+  it('writes none of the batch when one dedupe key is live', async () => {
+    const slug = await project(ACCOUNT_A);
+    const parent = await enqueue(slug);
+    expect(await jobs.enqueueAll([entry(review(slug, 'qa', parent))])).toBe('ok');
+    const reviewer = review(slug, 'reviewer', parent);
+    const repeat = review(slug, 'qa', parent);
+    expect(await jobs.enqueueAll([entry(reviewer), entry(repeat)])).toBe('job-exists');
+    expect(await jobs.findById(reviewer.id)).toBeNull();
+    expect(await jobs.findById(repeat.id)).toBeNull();
+  });
+
+  it('refuses a parent that is not a job (the foreign key), writing nothing', async () => {
+    const slug = await project(ACCOUNT_A);
+    const orphan = review(slug, 'qa', ulid('NP'));
+    await expect(jobs.enqueueAll([entry(orphan)])).rejects.toThrow();
+    expect(await jobs.findById(orphan.id)).toBeNull();
+  });
+
+  it('writes nothing for an empty batch', async () => {
+    expect(await jobs.enqueueAll([])).toBe('ok');
+  });
+});

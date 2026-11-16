@@ -24,15 +24,20 @@ import prLinksInvalid from '../../../fixtures/tracker/pr-links.invalid.json';
 import prLinksNotHeld from '../../../fixtures/tracker/pr-links.not-held.json';
 import requestsPending from '../../../fixtures/tracker/requests.pending.json';
 import requestsQueryInvalid from '../../../fixtures/tracker/requests.query-invalid.json';
+import reviewsInvalid from '../../../fixtures/tracker/reviews.invalid.json';
+import reviewsRequested from '../../../fixtures/tracker/reviews.requested.json';
+import reviewsRole from '../../../fixtures/tracker/reviews.role.json';
 import sprintsChanged from '../../../fixtures/tracker/sprints.changed.json';
 import sprintsCreated from '../../../fixtures/tracker/sprints.created.json';
 import sprintsGet from '../../../fixtures/tracker/sprints.get.json';
 import sprintsList from '../../../fixtures/tracker/sprints.list.json';
+import { seedClaimedJob } from '../../testing/runner-kit';
 import {
   pullRequestsGitHub,
   seedAsk,
   seedGitHubProject,
   seedItem,
+  seedPullRequest,
   seedTrackerProject,
   send,
   type SeededProject,
@@ -47,8 +52,9 @@ import {
  * A fixture names the project `tc` with key prefix `TC` and its repository `acme/tc`; the spec seeds a fresh
  * project per fixture and maps the two both ways. Volatile values are fixed in the comparison: every `…At` (and event `at`) instant
  * reads `2026-11-12T10:00:00.000Z`, a problem's `instance` reads `request-id`, and row ids (with the `next` cursor)
- * are renumbered 1, 2, … in order of appearance per member family. To update a fixture, run this spec and copy the
- * `actual` it prints into the file's `response`.
+ * are renumbered 1, 2, … in order of appearance per member family; a ULID id (a job's, a runner's) reads as the ULID
+ * `0…0n`, numbered the same way. To update a fixture, run this spec and copy the `actual` it prints into the file's
+ * `response`.
  */
 
 interface Fixture {
@@ -70,10 +76,21 @@ interface Fixture {
 
 const FIXED_AT = '2026-11-12T10:00:00.000Z';
 
-/** `projectSlug`: the project the job belongs to; `pathProject`: the project the request path names instead. */
+/**
+ * `projectSlug`: the project the job belongs to; `pathProject`: the project the request path names instead;
+ * `jobId`: the job the request is sent as (a claimed job the setup seeded, #612's lineage rule).
+ */
 type Setup = (
   project: SeededProject,
-) => Promise<{ readonly projectSlug?: string; readonly pathProject?: SeededProject } | void>;
+) => Promise<
+  { readonly projectSlug?: string; readonly pathProject?: SeededProject; readonly jobId?: string } | void
+>;
+
+/** Pull request 57 open at a fixed head, and a claimed `slot-qa` job (the orchestrator) to request its reviews. */
+const seedReviewable: Setup = async (project) => {
+  await seedPullRequest(project.slug, 57, { headSha: '5'.repeat(40) });
+  return { jobId: (await seedClaimedJob(project.slug)).jobId };
+};
 
 const seedFeature = (project: SeededProject, title: string, status?: 'approved') =>
   seedItem(project, { title, kind: 'feature', ...(status === undefined ? {} : { status }) });
@@ -207,11 +224,26 @@ const SETUPS: Readonly<Record<string, readonly [Fixture, Setup]>> = {
       await seedAsk(path, { ask: 'Ship the beta to the first ten users?', recommended: 'approve' });
     },
   ],
+  // #612: `pr request-reviews` of `slot-qa`.
+  'reviews.requested': [reviewsRequested, seedReviewable],
+  'reviews.role': [reviewsRole, seedReviewable],
+  'reviews.invalid': [reviewsInvalid, seedReviewable],
 };
 
 const ID_FAMILIES: Readonly<Record<string, string>> = { id: 'id', next: 'id' };
+const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
-function stabilised(value: unknown, ids: Map<string, Map<number, number>>, key = ''): unknown {
+type SeenIds = Map<string, Map<number | string, number>>;
+
+function renumberedIn(ids: SeenIds, family: string, value: number | string): number {
+  const seen = ids.get(family) ?? new Map<number | string, number>();
+  ids.set(family, seen);
+  const renumbered = seen.get(value) ?? seen.size + 1;
+  seen.set(value, renumbered);
+  return renumbered;
+}
+
+function stabilised(value: unknown, ids: SeenIds, key = ''): unknown {
   if (Array.isArray(value)) {
     return value.map((entry) => stabilised(entry, ids));
   }
@@ -230,12 +262,10 @@ function stabilised(value: unknown, ids: Map<string, Map<number, number>>, key =
     return 'request-id';
   }
   if (typeof value === 'number' && (key === 'id' || key === 'next' || key.endsWith('Id'))) {
-    const family = ID_FAMILIES[key] ?? key;
-    const seen = ids.get(family) ?? new Map<number, number>();
-    ids.set(family, seen);
-    const renumbered = seen.get(value) ?? seen.size + 1;
-    seen.set(value, renumbered);
-    return renumbered;
+    return renumberedIn(ids, ID_FAMILIES[key] ?? key, value);
+  }
+  if (typeof value === 'string' && (key === 'id' || key.endsWith('Id')) && ULID.test(value)) {
+    return String(renumberedIn(ids, `ulid:${key}`, value)).padStart(26, '0');
   }
   return value;
 }
@@ -272,6 +302,7 @@ describe('the tracker contract fixtures (#445, #611)', () => {
       'POST /api/v1/projects/:slug/items/:key/pr-links',
       'POST /api/v1/projects/:slug/items/:key/queue',
       'POST /api/v1/projects/:slug/labels',
+      'POST /api/v1/projects/:slug/prs/:number/reviews',
       'POST /api/v1/projects/:slug/sprints',
     ]);
   });
@@ -297,6 +328,7 @@ describe('the tracker contract fixtures (#445, #611)', () => {
         role: fixture.as.role,
         items: fixture.as.items,
         ...(seeded.projectSlug === undefined ? {} : { projectSlug: seeded.projectSlug }),
+        ...(seeded.jobId === undefined ? {} : { jobId: seeded.jobId }),
       },
     });
     const text = await response.text();
