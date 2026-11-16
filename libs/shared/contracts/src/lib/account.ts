@@ -72,6 +72,8 @@ export const AUDIT_EVENT_KINDS = [
   'runner.resumed',
   'job.finished',
   'job.cancelled',
+  // A limit failure the failure streak left out, backed by the runner's pause (#596).
+  'job.streak-excluded',
   'team.paused',
   'team.resumed',
   'inference-key.set',

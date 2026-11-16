@@ -206,7 +206,9 @@ export function createRunnerJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       if (!finished) {
         return lostWriteRefusal(c, runner, job.id, now);
       }
-      // A usage or rate limit (#571) is the runner's quota, not the project's fault: the streak leaves it out.
+      // A usage or rate limit (#571) is the runner's quota, not the project's fault: the streak leaves it out, but only
+      // while this runner holds a pause (#596) — `metrics.reason` alone is the runner's say-so.
+      const limitReason = input.value.metrics['reason'];
       const streak = await new TeamStateRepo(c.env.DB).recordOutcome(
         job.projectSlug,
         input.value.result,
@@ -221,10 +223,18 @@ export function createRunnerJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
           details: { reason: 'failure-streak', jobId: job.id },
           ipCountry: null,
         },
-        input.value.metrics['reason'],
+        {
+          reason: limitReason,
+          runnerId: runner.runnerId,
+          accountId: runner.accountId,
+          audit: auditOf(runner, job, now, 'job.streak-excluded', { reason: limitReason, slug: job.projectSlug }, country),
+        },
       );
       if (streak.paused) {
         c.get('logger').warn('team paused on the failure streak', { slug: job.projectSlug });
+      }
+      if (streak.excluded) {
+        c.get('logger').info('failure left out of the streak', { jobId: job.id, runnerId: runner.runnerId, reason: limitReason });
       }
       const updated = await new JobsRepo(c.env.DB).findById(job.id);
       return c.json(updated === null ? null : jobDtoOf(updated));

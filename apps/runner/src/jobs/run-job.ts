@@ -12,6 +12,7 @@ import {
 import { redactSecrets } from '@shared/redaction';
 import type { IsolationBackend, RunningJob, Sandbox } from '../backends/backend';
 import { detectOutcome, type LimitReason } from '../budget/detect';
+import type { RunnerPause } from '../budget/state';
 import { writeManagedSettings } from '../claude/managed-settings';
 import { refuseProjectSettingsCommands } from '../claude/project-settings';
 import { promptOf } from '../claude/prompts';
@@ -55,6 +56,11 @@ export interface JobRunDeps {
   /** Aborted on Ctrl-C / SIGTERM. */
   readonly shutdown: AbortSignal;
   readonly limitStreak: number;
+  /**
+   * Mirrors a limit's pause to the console before the finish (#596): the console leaves a limit failure out of the
+   * project's failure streak only while the finishing runner holds a pause. Errors are the callee's to report.
+   */
+  readonly announcePause?: (pause: RunnerPause) => Promise<void>;
   readonly heartbeatMs?: number;
   readonly flushMs?: number;
   /** One minute of `maxMinutes`; shorter in specs. */
@@ -288,6 +294,9 @@ export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): P
     }
   } catch (error: unknown) {
     reportError(error);
+  }
+  if (limit !== null && deps.announcePause !== undefined) {
+    await deps.announcePause({ reason: limit.reason, until: limit.retryAt }).catch(reportError);
   }
   try {
     await events.close();
