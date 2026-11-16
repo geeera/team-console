@@ -8,6 +8,9 @@ import {
   type EnrolRunnerResponse,
   type EnrolmentCodeDto,
 } from '@shared/contracts';
+import { env } from 'cloudflare:test';
+import { vi } from 'vitest';
+import { RunnersRepo } from '@worker/db';
 import type { ApiEnv } from '../env';
 import { fetchApi, type ApiRequest } from './access-kit';
 import { localEnv } from './github-kit';
@@ -239,4 +242,29 @@ export async function seedClaimedJob(
     throw new Error('the claim took another job than the seeded one');
   }
   return { jobId, runner, jobToken: claim.jobToken };
+}
+
+/** The runner's stored allow-list becomes `slugs` (the row only; no cancel batch rides along). */
+export const narrowRunner = (runnerId: string, slugs: readonly string[]) => () =>
+  env.DB.prepare(`UPDATE runners SET allowed_projects = ?2 WHERE id = ?1`).bind(runnerId, JSON.stringify(slugs)).run();
+
+export const revokeRunner = (runnerId: string) => () =>
+  env.DB.prepare(`UPDATE runners SET revoked_at = ?2 WHERE id = ?1`).bind(runnerId, new Date().toISOString()).run();
+
+/** As the owner's cancel does: the job leaves the live states and its token is cleared. */
+export const cancelJob = (jobId: string) => () =>
+  env.DB.prepare(
+    `UPDATE jobs SET state = 'cancelled', finished_at = ?2, token_hash = NULL, lease_until = NULL WHERE id = ?1`,
+  ).bind(jobId, new Date().toISOString()).run();
+
+/**
+ * Commits `change` once the next runner or job call has passed its JWT checks and read the runner row (during the
+ * sighting, the last step of authentication). The caller restores mocks after the test.
+ */
+export function commitDuringAuthentication(change: () => Promise<unknown>): void {
+  const sight = RunnersRepo.prototype.sight;
+  vi.spyOn(RunnersRepo.prototype, 'sight').mockImplementationOnce(async function (this: RunnersRepo, ...args) {
+    await change();
+    return sight.apply(this, args);
+  });
 }

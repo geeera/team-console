@@ -109,6 +109,31 @@ export function jobTokenHoldOf(identity: Identity, at: Date): JobTokenHold | nul
 }
 
 /**
+ * Runs a D1 write that takes the caller's `JobTokenHold` (undefined for any identity but a token job) and, when its
+ * batch fails because the job no longer holds, answers the refusal instead of the error (#580).
+ */
+export async function withJobTokenHold<T>(
+  c: WorkerContext<ApiEnv>,
+  at: Date,
+  write: (hold: JobTokenHold | undefined) => Promise<T>,
+): Promise<T | Response> {
+  const identity = c.get('identity');
+  const hold = jobTokenHoldOf(identity, at) ?? undefined;
+  try {
+    return await write(hold);
+  } catch (error: unknown) {
+    const refusal =
+      hold !== undefined && identity.kind === 'job'
+        ? await lostJobHoldRefusal(c, identity, c.get('logger'))
+        : null;
+    if (refusal !== null) {
+      return refusal;
+    }
+    throw error;
+  }
+}
+
+/**
  * The answer for a job-token write whose batch failed (#580), or `null` when the job still holds and the failure
  * was something else. Re-reads the stored runner and job, so a revoke answers as the runner door does (401
  * `runner-revoked`) and a narrowing or a cleared token as authentication would on the next call. Read only on this

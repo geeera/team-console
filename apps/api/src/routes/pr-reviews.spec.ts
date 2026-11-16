@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import type { ReviewRequestDto } from '@shared/contracts';
-import { seedClaimedJob, sendAsJob } from '../testing/runner-kit';
+import { cancelJob, commitDuringAuthentication, narrowRunner, revokeRunner, seedClaimedJob, sendAsJob } from '../testing/runner-kit';
 import {
   countRows,
   jobActor,
@@ -238,5 +238,43 @@ describe('POST /api/v1/projects/:slug/prs/:number/reviews', () => {
     );
     expect(response.status).toBe(409);
     expect(await slugOf(response)).toBe('tracker-not-cut-over');
+  });
+});
+
+// #580: the enqueue judges the requesting job inside its own batch, not only the copy authentication read. A change
+// that commits in between refuses the request and enqueues nothing, audit rows included.
+describe('POST …/prs/:number/reviews judges the requesting job inside the write (#580)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function dispatchedCount(): Promise<number> {
+    const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.dispatched'`).first<{ n: number }>();
+    return row?.n ?? 0;
+  }
+
+  const changes = [
+    ['a narrowing', 403, 'job-runner-mismatch', (s: { runner: { id: string } }) => narrowRunner(s.runner.id, [])],
+    ['a revoke', 401, 'runner-revoked', (s: { runner: { id: string } }) => revokeRunner(s.runner.id)],
+    ['a cancel (the lineage read already sees it)', 403, 'review-lineage', (s: { jobId: string }) => cancelJob(s.jobId)],
+  ] as const;
+
+  it.each(changes)('refuses when %s commits between authentication and the write', async (_name, status, type, change) => {
+    const seed = await seeded();
+    const before = await dispatchedCount();
+    commitDuringAuthentication(change(seed));
+    const response = await seed.request({ roles: ['qa', 'security'] });
+    expect(response.status).toBe(status);
+    expect(await slugOf(response)).toBe(type);
+    expect(await reviewRows(seed.project.slug)).toHaveLength(0);
+    expect(await dispatchedCount()).toBe(before);
+  });
+
+  it('still enqueues when the change keeps the job holding', async () => {
+    const seed = await seeded();
+    commitDuringAuthentication(narrowRunner(seed.runner.id, [seed.project.slug]));
+    const response = await seed.request({ roles: ['qa'] });
+    expect(response.status).toBe(201);
+    expect(await reviewRows(seed.project.slug)).toHaveLength(1);
   });
 });

@@ -1,7 +1,7 @@
 import { problem, type WorkerContext } from '@worker/core';
 import { IdempotencyKeysRepo, type IdempotencyRef, type IdempotentResultKind } from '@worker/db';
 import type { Identity } from '../auth/auth.types';
-import { jobTokenHoldOf, lostJobHoldRefusal } from '../auth/job-auth';
+import { withJobTokenHold } from '../auth/job-auth';
 import type { ApiEnv } from '../env';
 
 type Context = WorkerContext<ApiEnv>;
@@ -134,30 +134,22 @@ export async function idempotent(
     case 'claimed':
       break;
   }
-  const identity = c.get('identity');
-  // Every tracker write's batch carries its key's completion, so guarding the completion guards the write (#580).
-  const hold = jobTokenHoldOf(identity, new Date(now)) ?? undefined;
-  const complete: CompleteKey = (status, kind, ref) =>
-    keys.completeStatement(
-      request.claimKey,
-      request.requestHash,
-      { status, kind, ref },
-      now + IDEMPOTENCY_TTL_MS,
-      hold,
-    );
   let response: Response;
   try {
-    response = await write(complete);
+    // Every tracker write's batch carries its key's completion, so guarding the completion guards the write (#580).
+    response = await withJobTokenHold(c, new Date(now), (hold) =>
+      write((status, kind, ref) =>
+        keys.completeStatement(
+          request.claimKey,
+          request.requestHash,
+          { status, kind, ref },
+          now + IDEMPOTENCY_TTL_MS,
+          hold,
+        ),
+      ),
+    );
   } catch (error: unknown) {
     await keys.release(request.claimKey, request.requestHash);
-    // Which failure it was is decided by the rows, not by the driver's message: the job no longer holds.
-    const refusal =
-      hold !== undefined && identity.kind === 'job'
-        ? await lostJobHoldRefusal(c, identity, c.get('logger'))
-        : null;
-    if (refusal !== null) {
-      return refusal;
-    }
     throw error;
   }
   if (!response.ok) {

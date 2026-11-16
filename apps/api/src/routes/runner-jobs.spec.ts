@@ -1,9 +1,8 @@
 import { env } from 'cloudflare:test';
 import { OWNER_ACCOUNT_ID, type ClaimResponse, type JobDto, type JobEventListDto } from '@shared/contracts';
 import { JOB_TOKEN_PREFIX } from '@shared/redaction';
-import { RunnersRepo } from '@worker/db';
 import { localEnv } from '../testing/github-kit';
-import { enqueueJob, enrolRunner, sendAsJob, sendAsRunner, type TestRunner } from '../testing/runner-kit';
+import { cancelJob, commitDuringAuthentication, enqueueJob, enrolRunner, narrowRunner, revokeRunner, sendAsJob, sendAsRunner, type TestRunner } from '../testing/runner-kit';
 import { seedAccountProject, seedSessionUser, sendAsSession } from '../testing/session-kit';
 import { countRows, seedItem, seedTrackerProject, send, slugOf } from '../testing/tracker-kit';
 
@@ -380,20 +379,6 @@ describe('the job token (R4) and the job’s life', () => {
   });
 });
 
-const narrow = (runnerId: string, slugs: readonly string[]) => () =>
-  env.DB.prepare(`UPDATE runners SET allowed_projects = ?2 WHERE id = ?1`).bind(runnerId, JSON.stringify(slugs)).run();
-const revoke = (runnerId: string) => () =>
-  env.DB.prepare(`UPDATE runners SET revoked_at = ?2 WHERE id = ?1`).bind(runnerId, new Date().toISOString()).run();
-
-/** Commits `change` once the next runner or job call has passed its JWT checks and read the runner row. */
-function commitDuringAuthentication(change: () => Promise<unknown>): void {
-  const sight = RunnersRepo.prototype.sight;
-  vi.spyOn(RunnersRepo.prototype, 'sight').mockImplementationOnce(async function (this: RunnersRepo, ...args) {
-    await change();
-    return sight.apply(this, args);
-  });
-}
-
 // #553: heartbeat, events and finish judge the runner's stored row inside the write, not only the copy read at
 // authentication. A narrowing or revoke that commits in between (here: during the sighting, after the JWT checks)
 // refuses the call and writes nothing; the cancel batch is left out to show the guard holds on its own.
@@ -433,7 +418,7 @@ describe('the stored allow-list and revoke on heartbeat, events and finish (#553
   it.each(paths)('%s: refuses with 404 once the project is gone from the stored list before the call', async (path) => {
     const { runner, jobId, kept } = await claimedJob();
     const lease = await leaseOf(jobId);
-    await narrow(runner.id, [kept])();
+    await narrowRunner(runner.id, [kept])();
     const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
     expect(response.status).toBe(404);
     expect(await slugOf(response)).toBe('job-not-found');
@@ -443,7 +428,7 @@ describe('the stored allow-list and revoke on heartbeat, events and finish (#553
   it.each(paths)('%s: refuses with 404 when a narrowing commits between authentication and the write', async (path) => {
     const { runner, jobId, kept } = await claimedJob();
     const lease = await leaseOf(jobId);
-    commitDuringAuthentication(narrow(runner.id, [kept]));
+    commitDuringAuthentication(narrowRunner(runner.id, [kept]));
     const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
     expect(response.status).toBe(404);
     expect(await slugOf(response)).toBe('job-not-found');
@@ -453,7 +438,7 @@ describe('the stored allow-list and revoke on heartbeat, events and finish (#553
   it.each(paths)('%s: a revoked runner gets 401 runner-revoked, as on the claim', async (path) => {
     const { runner, jobId } = await claimedJob();
     const lease = await leaseOf(jobId);
-    await revoke(runner.id)();
+    await revokeRunner(runner.id)();
     const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
     expect(response.status).toBe(401);
     expect(await slugOf(response)).toBe('runner-revoked');
@@ -466,7 +451,7 @@ describe('the stored allow-list and revoke on heartbeat, events and finish (#553
   it.each(paths)('%s: refuses with 401 runner-revoked when a revoke commits between authentication and the write', async (path) => {
     const { runner, jobId } = await claimedJob();
     const lease = await leaseOf(jobId);
-    commitDuringAuthentication(revoke(runner.id));
+    commitDuringAuthentication(revokeRunner(runner.id));
     const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
     expect(response.status).toBe(401);
     expect(await slugOf(response)).toBe('runner-revoked');
@@ -475,7 +460,7 @@ describe('the stored allow-list and revoke on heartbeat, events and finish (#553
 
   it.each(paths)('%s: still succeeds while the stored list keeps the project', async (path) => {
     const { runner, jobId, lost } = await claimedJob();
-    commitDuringAuthentication(narrow(runner.id, [lost]));
+    commitDuringAuthentication(narrowRunner(runner.id, [lost]));
     const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
     expect(response.status).toBe(path === 'events' ? 201 : 200);
   });
@@ -527,16 +512,11 @@ describe('tracker writes under a job token judge the stored runner and job insid
     };
   }
 
-  // As the owner's cancel does: the job leaves the live states and its token is cleared.
-  const cancel = (jobId: string) => () =>
-    env.DB.prepare(
-      `UPDATE jobs SET state = 'cancelled', finished_at = ?2, token_hash = NULL, lease_until = NULL WHERE id = ?1`,
-    ).bind(jobId, new Date().toISOString()).run();
 
   it.each(writes)('%s: refuses with 403 job-runner-mismatch when a narrowing commits between authentication and the write', async (write) => {
     const held = await heldJob();
     const before = await writtenRows(held.lost);
-    commitDuringAuthentication(narrow(held.runner.id, [held.kept]));
+    commitDuringAuthentication(narrowRunner(held.runner.id, [held.kept]));
     const response = await writeAsJob(held, write);
     expect(response.status).toBe(403);
     expect(await slugOf(response)).toBe('job-runner-mismatch');
@@ -546,7 +526,7 @@ describe('tracker writes under a job token judge the stored runner and job insid
   it.each(writes)('%s: refuses with 401 runner-revoked when a revoke commits between authentication and the write', async (write) => {
     const held = await heldJob();
     const before = await writtenRows(held.lost);
-    commitDuringAuthentication(revoke(held.runner.id));
+    commitDuringAuthentication(revokeRunner(held.runner.id));
     const response = await writeAsJob(held, write);
     expect(response.status).toBe(401);
     expect(await slugOf(response)).toBe('runner-revoked');
@@ -556,7 +536,7 @@ describe('tracker writes under a job token judge the stored runner and job insid
   it.each(writes)('%s: refuses with 401 job-token-invalid when a cancel commits between authentication and the write', async (write) => {
     const held = await heldJob();
     const before = await writtenRows(held.lost);
-    commitDuringAuthentication(cancel(held.jobId));
+    commitDuringAuthentication(cancelJob(held.jobId));
     const response = await writeAsJob(held, write);
     expect(response.status).toBe(401);
     expect(await slugOf(response)).toBe('job-token-invalid');
@@ -566,7 +546,7 @@ describe('tracker writes under a job token judge the stored runner and job insid
   it.each(writes)('%s: still writes while the stored list keeps the project', async (write) => {
     const held = await heldJob();
     const before = await writtenRows(held.lost);
-    commitDuringAuthentication(narrow(held.runner.id, [held.lost]));
+    commitDuringAuthentication(narrowRunner(held.runner.id, [held.lost]));
     const response = await writeAsJob(held, write);
     expect(response.status).toBe(201);
     const after = await writtenRows(held.lost);

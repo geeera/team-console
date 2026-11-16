@@ -21,6 +21,7 @@ import {
   type ProjectRow,
 } from '@worker/db';
 import { isPullRequestState } from '@worker/vcs';
+import { withJobTokenHold } from '../auth/job-auth';
 import type { PolicyActor } from '../auth/policy';
 import {
   policyActorOfContext,
@@ -340,7 +341,12 @@ async function requestReviews(c: Context): Promise<Response> {
         }),
       };
     });
-  if ((await jobs.enqueueAll(entries)) === 'job-exists') {
+  // The parent job is judged again inside the batch (#580): a narrowing, revoke or cancel since authentication wins.
+  const enqueued = await withJobTokenHold(c, now, (hold) => jobs.enqueueAll(entries, hold));
+  if (enqueued instanceof Response) {
+    return enqueued;
+  }
+  if (enqueued === 'job-exists') {
     // A concurrent request for the same head and role won between the read and the write; a retry answers its job.
     return problem(c, {
       type: 'job-exists',

@@ -113,6 +113,26 @@ export const RUNNER_STILL_ALLOWS_SQL = `jobs.project_slug IN (
   SELECT value FROM runners r, json_each(r.allowed_projects)
   WHERE r.id = jobs.runner_id AND r.account_id = jobs.account_id AND r.revoked_at IS NULL)`;
 
+/**
+ * A write made under a job token (#580): the job must still hold when its batch commits — the token's hash still
+ * names it (a cancel, a finish or a narrowing batch clears it), it is live inside its lease, and its runner's stored
+ * row still allows its project and is not revoked. Authentication judged a copy read at the start of the request;
+ * this judges the rows the batch sees, so a narrowing or revoke that commits in between wins.
+ */
+export interface JobTokenHold {
+  readonly tokenHash: string;
+  readonly jobId: string;
+  /** ISO time the lease is judged against. */
+  readonly at: string;
+}
+
+/** The `EXISTS` body of a `JobTokenHold`, its three placeholders numbered from `first` (hash, job id, time). */
+export function jobTokenHoldsSql(first: number): string {
+  const [hash, id, at] = [first, first + 1, first + 2].map((n) => `?${String(n)}`);
+  return `SELECT 1 FROM jobs WHERE jobs.token_hash = ${hash} AND jobs.id = ${id}
+    AND jobs.state IN ('claimed', 'running') AND jobs.lease_until >= ${at} AND ${RUNNER_STILL_ALLOWS_SQL}`;
+}
+
 /** The policy the claim applies: the project's, else the account's default (ADR 0008 decision 12). */
 const POLICY = `COALESCE(p.runner_policy, a.default_runner_policy)`;
 
@@ -176,18 +196,27 @@ export class JobsRepo {
     return this.enqueueAll([{ job, audit }]);
   }
 
-  /** All or none, in one batch: `job-exists` when any live job holds one of the dedupe keys, nothing written then. */
-  async enqueueAll(entries: readonly { readonly job: NewJob; readonly audit: NewAuditEvent }[]): Promise<'ok' | 'job-exists'> {
+  /**
+   * All or none, in one batch: `job-exists` when any live job holds one of the dedupe keys, nothing written then.
+   * With `hold` (a job asking under its token, #580) the batch fails as a whole unless that job still holds.
+   */
+  async enqueueAll(
+    entries: readonly { readonly job: NewJob; readonly audit: NewAuditEvent }[],
+    hold?: JobTokenHold,
+  ): Promise<'ok' | 'job-exists'> {
     if (entries.length === 0) {
       return 'ok';
     }
+    // A NULL account fails the insert (the account trigger, else NOT NULL), so the whole batch rolls back.
+    const account = hold === undefined ? '?2' : `CASE WHEN EXISTS (${jobTokenHoldsSql(14)}) THEN ?2 ELSE NULL END`;
+    const holdParams = hold === undefined ? [] : [hold.tokenHash, hold.jobId, hold.at];
     try {
       await this.db.batch(
         entries.flatMap(({ job, audit }) => [
           this.db
             .prepare(
               `INSERT INTO jobs (id, account_id, project_slug, kind, role, payload, priority, requested_by, dedupe_key, needs_local, max_minutes, created_at, parent_job_id)
-               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`,
+               VALUES (?1, ${account}, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`,
             )
             .bind(
               job.id,
@@ -203,6 +232,7 @@ export class JobsRepo {
               job.maxMinutes,
               job.at,
               job.parentJobId ?? null,
+              ...holdParams,
             ),
           auditEventStatement(this.db, audit),
         ]),
