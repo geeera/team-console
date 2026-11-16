@@ -3,7 +3,7 @@ import { chmod, lstat, mkdir, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ensurePrivateDir, pathExists } from '../config/private-files';
 import { LaunchRefusal } from '../jobs/refusal';
-import { assertCleanGitConfig } from './git-config';
+import { assertCleanGitConfig, MIRROR_REFSPEC } from './git-config';
 import { GitError, runGit, type GitRunner } from './git';
 
 /**
@@ -72,22 +72,41 @@ async function assertMirrorOrigin(mirror: string, url: string, env: Readonly<Rec
   }
 }
 
+const UPSTREAM_HEAD = /^ref: (refs\/heads\/[^\s]+)\tHEAD$/m;
+
+/**
+ * Points the mirror's `HEAD` (a file, not config, so a job could rewrite it) at the branch the upstream names as its
+ * default (#721): `vendorPlugin` reads `HEAD`, and the job's clone checks it out. Refused when the upstream names none.
+ */
+async function pinMirrorHead(mirror: string, env: Readonly<Record<string, string>>): Promise<void> {
+  const advertised = await runGit(['--git-dir', mirror, 'ls-remote', '--symref', 'origin', 'HEAD'], env);
+  const branch = UPSTREAM_HEAD.exec(advertised)?.[1];
+  if (branch === undefined) {
+    throw new LaunchRefusal('git-config-refused', 'the upstream advertises no default branch (HEAD)');
+  }
+  await runGit(['check-ref-format', branch], env);
+  await runGit(['--git-dir', mirror, 'symbolic-ref', 'HEAD', branch], env);
+}
+
 /** Creates or fetches the project's bare mirror; refuses it when its config, hooks or origin were tampered with. */
 export async function syncMirror(home: string, slug: string, url: string, envs: GitEnvs): Promise<string> {
   const mirror = mirrorPathOf(home, slug);
+  const expected = { kind: 'mirror', originUrl: url, allowedHelper: null } as const;
   await ensurePrivateDir(join(home, 'work'), envs.dirMode);
   await ensurePrivateDir(join(home, 'work', slug), envs.dirMode);
   if (await pathExists(mirror)) {
     // Judged before the fetch too: a planted hook or fsmonitor would run inside it.
     await assertNoHooks(join(mirror, 'hooks'));
-    await assertCleanGitConfig(mirror, envs.job, null);
+    await assertCleanGitConfig(mirror, envs.job, expected);
     await assertMirrorOrigin(mirror, url, envs.runner);
-    await runGit(['--git-dir', mirror, 'fetch', '--prune', '--quiet', 'origin'], envs.runner);
+    // The refspec on the command line, so the config's is never what maps upstream refs (#721).
+    await runGit(['--git-dir', mirror, 'fetch', '--prune', '--quiet', 'origin', MIRROR_REFSPEC], envs.runner);
+    await pinMirrorHead(mirror, envs.runner);
   } else {
     await runGit(['clone', '--mirror', '--quiet', '--template=', '--', url, mirror], envs.runner);
   }
   await assertNoHooks(join(mirror, 'hooks'));
-  await assertCleanGitConfig(mirror, envs.job, null);
+  await assertCleanGitConfig(mirror, envs.job, expected);
   return mirror;
 }
 
@@ -116,7 +135,12 @@ export async function cloneForJob(
   );
   await git(['-C', clone, 'remote', 'set-url', 'origin', upstream], envs.job);
   await assertNoHooks(join(clone, '.git', 'hooks'));
-  await assertCleanGitConfig(join(clone, '.git'), envs.job, null, git);
+  await assertCleanGitConfig(
+    join(clone, '.git'),
+    envs.job,
+    { kind: 'clone', originUrl: upstream, allowedHelper: null },
+    git,
+  );
 }
 
 async function setTreeMode(path: string, writable: boolean): Promise<void> {

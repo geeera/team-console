@@ -3,12 +3,23 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { LaunchRefusal } from '../jobs/refusal';
 import { fixtureGit } from '../testing/job-fixture';
-import { ALLOWED_GIT_KEYS, assertCleanGitConfig, parseGitConfigList, refusedGitConfig } from './git-config';
+import {
+  ALLOWED_GIT_KEYS,
+  assertCleanGitConfig,
+  CLONE_REFSPEC,
+  MIRROR_REFSPEC,
+  parseGitConfigList,
+  refusedGitConfig,
+  type ExpectedRepository,
+} from './git-config';
 
 /**
- * Threat model C3 cross-job row (b), ADR 0008 decision 7: the allow-list of keys the runner's git writes (#694),
- * judged on real repositories; every key of the earlier deny-list, and the ones it missed, stays refused.
+ * Threat model C3 cross-job row (b), ADR 0008 decision 7: the allow-list of keys and values the runner's git writes
+ * (#694, #721), judged on real repositories; every key of the earlier deny-list, and the ones it missed, is refused.
  */
+
+const UPSTREAM = 'https://github.com/geeera/team-console.git';
+const asClone: ExpectedRepository = { kind: 'clone', originUrl: UPSTREAM, allowedHelper: null };
 
 describe('git config allow-list', () => {
   let dir: string;
@@ -29,45 +40,113 @@ describe('git config allow-list', () => {
   const gitDir = (): string => join(repo, '.git');
 
   it('accepts a fresh repository', async () => {
-    await expect(assertCleanGitConfig(gitDir(), env, null)).resolves.toBeUndefined();
+    await expect(assertCleanGitConfig(gitDir(), env, asClone)).resolves.toBeUndefined();
   });
 
   it('accepts a sha256 repository with reftable refs', async () => {
     const modern = join(dir, 'modern');
     fixtureGit(['init', '-q', '--object-format=sha256', '--ref-format=reftable', modern]);
-    await expect(assertCleanGitConfig(join(modern, '.git'), env, null)).resolves.toBeUndefined();
+    await expect(assertCleanGitConfig(join(modern, '.git'), env, asClone)).resolves.toBeUndefined();
   });
 
-  it('accepts the mirror and the clone exactly as the runner makes them (clone, fetch, clone, set-url)', async () => {
+  /** A mirror and a clone exactly as the runner makes them: clone --mirror, fetch, clone, set-url. */
+  const runnerRepositories = (): { mirror: string; clone: string } => {
     fixtureGit(['-C', repo, 'commit', '-q', '--allow-empty', '-m', 'init']);
     const mirror = join(dir, 'mirror');
     const clone = join(dir, 'clone');
     fixtureGit(['clone', '--mirror', '--quiet', '--template=', '--', repo, mirror]);
-    fixtureGit(['--git-dir', mirror, 'fetch', '--prune', '--quiet', 'origin']);
+    fixtureGit(['--git-dir', mirror, 'fetch', '--prune', '--quiet', 'origin', MIRROR_REFSPEC]);
     fixtureGit(['clone', '--no-hardlinks', '--quiet', '--template=', '--', mirror, clone]);
-    fixtureGit(['-C', clone, 'remote', 'set-url', 'origin', 'https://github.com/geeera/team-console.git']);
-    await expect(assertCleanGitConfig(mirror, env, null)).resolves.toBeUndefined();
-    await expect(assertCleanGitConfig(join(clone, '.git'), env, null)).resolves.toBeUndefined();
+    fixtureGit(['-C', clone, 'remote', 'set-url', 'origin', UPSTREAM]);
+    return { mirror, clone: join(clone, '.git') };
+  };
+  const asMirror = (): ExpectedRepository => ({ kind: 'mirror', originUrl: repo, allowedHelper: null });
+
+  it('accepts the mirror and the clone exactly as the runner makes them', async () => {
+    const { mirror, clone } = runnerRepositories();
+    await expect(assertCleanGitConfig(mirror, env, asMirror())).resolves.toBeUndefined();
+    await expect(assertCleanGitConfig(clone, env, asClone)).resolves.toBeUndefined();
   });
 
   it.each([
     ['core.symlinks', 'false'],
-    ['remote.origin.mirror', 'true'],
-    ['remote.origin.tagOpt', '--no-tags'],
+    ['remote.origin.url', UPSTREAM],
+    ['remote.origin.fetch', CLONE_REFSPEC],
     ['branch.feature/x.remote', 'origin'],
     ['branch.feature/x.merge', 'refs/heads/feature/x'],
-  ])('accepts %s', async (key, value) => {
+  ])('accepts %s on a clone', async (key, value) => {
     fixtureGit(['-C', repo, 'config', key, value]);
-    await expect(assertCleanGitConfig(gitDir(), env, null)).resolves.toBeUndefined();
+    await expect(assertCleanGitConfig(gitDir(), env, asClone)).resolves.toBeUndefined();
   });
 
   it('labels every allow-list rule', () => {
     expect(ALLOWED_GIT_KEYS.map((rule) => rule.label)).toEqual([
-      'core repository format',
-      'extensions.{objectFormat,refStorage}',
-      'remote.origin.{url,fetch,mirror,tagOpt}',
-      'branch.*.{remote,merge}',
+      'core.repositoryFormatVersion',
+      'core.bare',
+      'core filesystem flags',
+      'extensions.objectFormat',
+      'extensions.refStorage',
+      'remote.origin.url',
+      'remote.origin.fetch',
+      'remote.origin.mirror',
+      'remote.origin.tagOpt',
+      'branch.<name>.remote',
+      'branch.<name>.merge',
     ]);
+  });
+
+  // #721: an allow-listed key with a value the runner never writes; the refspec swap is the plugin-swap vector.
+  it.each([
+    ['mirror', 'remote.origin.fetch', '+refs/heads/evil:refs/heads/main'],
+    ['mirror', 'remote.origin.fetch', CLONE_REFSPEC],
+    ['mirror', 'remote.origin.mirror', 'false'],
+    ['mirror', 'remote.origin.tagOpt', '--tags'],
+    ['mirror', 'remote.origin.url', '/tmp/evil'],
+    ['mirror', 'core.bare', 'false'],
+    ['clone', 'remote.origin.fetch', MIRROR_REFSPEC],
+    ['clone', 'remote.origin.url', '/tmp/evil'],
+    ['clone', 'remote.origin.mirror', 'true'],
+    ['clone', 'core.bare', 'true'],
+    ['clone', 'branch.main.merge', 'refs/heads/evil'],
+    ['clone', 'branch.main.remote', '/tmp/evil'],
+  ] as const)('refuses %s %s = %s', async (kind, key, value) => {
+    const { mirror, clone } = runnerRepositories();
+    const target = kind === 'mirror' ? mirror : clone;
+    fixtureGit(['--git-dir', target, 'config', '--replace-all', key, value]);
+    const refusal: unknown = await assertCleanGitConfig(
+      target,
+      env,
+      kind === 'mirror' ? asMirror() : asClone,
+    ).catch((error: unknown) => error);
+    expect(refusal).toMatchObject({ reason: 'git-config-refused' });
+    expect((refusal as Error).message).toContain('(unexpected value, local)');
+    expect((refusal as Error).message).not.toContain(value);
+  });
+
+  // #721 (low): git subsections are case-sensitive, so `remote.ORIGIN` is a second remote, not `origin`.
+  it.each(['ORIGIN', 'Origin'])('refuses remote.%s.url as another remote', async (name) => {
+    const { mirror } = runnerRepositories();
+    fixtureGit(['--git-dir', mirror, 'config', `remote.${name}.url`, repo]);
+    await expect(assertCleanGitConfig(mirror, env, asMirror())).rejects.toMatchObject({
+      reason: 'git-config-refused',
+      message: expect.stringContaining(`remote.${name}.url (not allow-listed, local)`) as unknown,
+    });
+  });
+
+  // A real git stops reading such a repository's config (or fails on it), so these are judged on a listing.
+  it.each([
+    ['core.repositoryformatversion', '2'],
+    ['extensions.objectformat', 'sha512'],
+    ['extensions.refstorage', 'evil'],
+    ['core.filemode', 'yes'],
+  ])('refuses %s = %s', (key, value) => {
+    const entries = parseGitConfigList(`local\0file:config\0${key}\n${value}\0`);
+    expect(refusedGitConfig(entries, asClone)).toEqual([`${key} (unexpected value, local)`]);
+  });
+
+  it('compares section and variable case-insensitively, as git does', () => {
+    const entries = parseGitConfigList('local\0file:config\0REMOTE.origin.URL\nhttps://github.com/geeera/team-console.git\0');
+    expect(refusedGitConfig(entries, asClone)).toEqual([]);
   });
 
   it.each([
@@ -125,7 +204,7 @@ describe('git config allow-list', () => {
     ['user.name', 'Job'],
   ])('refuses %s', async (key, value) => {
     fixtureGit(['-C', repo, 'config', key, value]);
-    const refusal: unknown = await assertCleanGitConfig(gitDir(), env, null).catch((error: unknown) => error);
+    const refusal: unknown = await assertCleanGitConfig(gitDir(), env, asClone).catch((error: unknown) => error);
     expect(refusal).toBeInstanceOf(LaunchRefusal);
     expect(refusal).toMatchObject({ reason: 'git-config-refused' });
     expect((refusal as Error).message).toContain('local)');
@@ -135,7 +214,7 @@ describe('git config allow-list', () => {
   it('refuses an objects/info/alternates file (not config, so not in the listing)', async () => {
     await mkdir(join(gitDir(), 'objects', 'info'), { recursive: true });
     await writeFile(join(gitDir(), 'objects', 'info', 'alternates'), '/tmp/other/objects\n');
-    await expect(assertCleanGitConfig(gitDir(), env, null)).rejects.toMatchObject({
+    await expect(assertCleanGitConfig(gitDir(), env, asClone)).rejects.toMatchObject({
       reason: 'git-config-refused',
     });
   });
@@ -144,18 +223,19 @@ describe('git config allow-list', () => {
     const home = join(dir, 'job-home');
     await mkdir(home);
     await writeFile(join(home, '.gitconfig'), '[http]\n\tsslVerify = false\n');
-    await expect(assertCleanGitConfig(gitDir(), env, null)).rejects.toMatchObject({
+    await expect(assertCleanGitConfig(gitDir(), env, asClone)).rejects.toMatchObject({
       reason: 'git-config-refused',
       message: expect.stringContaining('http.sslverify (not allow-listed, global)') as unknown,
     });
   });
 
   it('accepts the runner’s own credential helper and refuses a foreign one', () => {
+    const withHelper: ExpectedRepository = { ...asClone, allowedHelper: '/runner/helper' };
     const entries = parseGitConfigList(
       'local\0file:config\0credential.helper\n/runner/helper\0local\0file:config\0credential.helper\n/tmp/evil\0',
     );
-    expect(refusedGitConfig(entries.slice(0, 1), '/runner/helper')).toEqual([]);
-    expect(refusedGitConfig(entries, '/runner/helper')).toEqual(['credential.helper (foreign credential helper, local)']);
+    expect(refusedGitConfig(entries.slice(0, 1), withHelper)).toEqual([]);
+    expect(refusedGitConfig(entries, withHelper)).toEqual(['credential.helper (foreign credential helper, local)']);
   });
 
   it('ignores the system scope (the host administrator’s file, e.g. osxkeychain)', () => {
@@ -163,12 +243,12 @@ describe('git config allow-list', () => {
     expect(entries).toEqual([
       { scope: 'system', origin: 'file:/etc/gitconfig', key: 'credential.helper', value: 'osxkeychain' },
     ]);
-    expect(refusedGitConfig(entries, null)).toEqual([]);
+    expect(refusedGitConfig(entries, asClone)).toEqual([]);
   });
 
   it('judges the command scope like any other', () => {
     const entries = parseGitConfigList('command\0command line:\0http.sslverify\nfalse\0');
-    expect(refusedGitConfig(entries, null)).toEqual(['http.sslverify (not allow-listed, command)']);
+    expect(refusedGitConfig(entries, asClone)).toEqual(['http.sslverify (not allow-listed, command)']);
   });
 
   it('parses a value with newlines and an empty value', () => {

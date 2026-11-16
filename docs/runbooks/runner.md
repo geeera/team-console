@@ -212,9 +212,15 @@ project settings stays as the first line.
 holds any key outside what the runner's own git commands write: `core.repositoryformatversion`, `core.bare`,
 `core.filemode`, `core.logallrefupdates`, `core.ignorecase`, `core.precomposeunicode`, `core.symlinks`,
 `extensions.objectFormat`, `extensions.refStorage`, `remote.origin.{url,fetch,mirror,tagOpt}` and
-`branch.<name>.{remote,merge}`. Everything else is refused, harmless or not (`user.name`, `http.sslVerify`,
-`http.proxy`, `core.fsmonitor`, `sequence.editor`, a second remote, a credential helper, ...). The refusal names the
-key and its scope, never the value. To recover, remove the key with `git --git-dir <mirror> config --unset <key>` or
+`branch.<name>.{remote,merge}`, each only with the value git writes (#721): `remote.origin.url` the configured
+upstream, `remote.origin.fetch` `+refs/*:refs/*` in the mirror and `+refs/heads/*:refs/remotes/origin/*` in the clone,
+`remote.origin` spelled in lower case (git compares that part case-sensitively, so `remote.ORIGIN` is another remote).
+Everything else is refused, harmless or not (`user.name`, `http.sslVerify`, `http.proxy`, `core.fsmonitor`,
+`sequence.editor`, a second remote, a credential helper, ...). The refusal names the key and its scope, never the
+value. The mirror fetch passes its refspec on the command line, and after each fetch the runner points the mirror's
+`HEAD` at the branch the upstream advertises as its default (`git ls-remote --symref origin HEAD`, one extra request),
+so a rewritten ref or `HEAD` never chooses the commit the plugin is vendored from. An upstream that advertises no
+default branch is refused. To recover, remove the key with `git --git-dir <mirror> config --unset <key>` or
 delete `work/<project>/mirror` so the runner re-clones it. Do not set options in a mirror's own config: if your
 upstream needs a proxy, set `HTTPS_PROXY` in the runner's environment; for TLS, `SSL_CERT_FILE` / `SSL_CERT_DIR`; for
 anything else, the runner's global git config (below).
