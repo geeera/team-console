@@ -51,12 +51,32 @@ describe('git config refusal table', () => {
     ['protocol.allow', 'always'],
     ['core.pager', '/tmp/pager.sh'],
     ['diff.external', '/tmp/diff.sh'],
+    ['core.askPass', '/tmp/askpass.sh'],
+    ['core.editor', '/tmp/editor.sh'],
+    ['core.alternateRefsCommand', '/tmp/alt.sh'],
+    ['remote.origin.vcs', 'evil'],
+    ['remote.origin.proxy', 'http://evil.invalid:3128'],
+    ['http.proxy', 'http://evil.invalid:3128'],
+    ['http.https://github.com/.proxy', 'http://evil.invalid:3128'],
+    ['gpg.program', '/tmp/gpg.sh'],
+    ['gpg.ssh.program', '/tmp/ssh-keygen.sh'],
+    ['diff.bin.textconv', '/tmp/textconv.sh'],
+    ['merge.evil.driver', '/tmp/merge.sh %O %A %B'],
+    ['submodule.sub.update', '!/tmp/update.sh'],
   ])('refuses %s', async (key, value) => {
     fixtureGit(['-C', repo, 'config', key, value]);
     const refusal: unknown = await assertCleanGitConfig(gitDir(), env, null).catch((error: unknown) => error);
     expect(refusal).toBeInstanceOf(LaunchRefusal);
     expect(refusal).toMatchObject({ reason: 'git-config-refused' });
     expect((refusal as Error).message).not.toContain(value);
+  });
+
+  it('refuses an objects/info/alternates file (not config, so not in the listing)', async () => {
+    await mkdir(join(gitDir(), 'objects', 'info'), { recursive: true });
+    await writeFile(join(gitDir(), 'objects', 'info', 'alternates'), '/tmp/other/objects\n');
+    await expect(assertCleanGitConfig(gitDir(), env, null)).rejects.toMatchObject({
+      reason: 'git-config-refused',
+    });
   });
 
   it('judges the job HOME’s global file too', async () => {

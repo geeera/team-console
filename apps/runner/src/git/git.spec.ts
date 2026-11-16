@@ -8,6 +8,21 @@ describe('runnerGitEnv', () => {
     expect(runnerGitEnv(source)).toEqual({ ...source, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' });
   });
 
+  it.each(['XDG_CONFIG_HOME', 'KRB5CCNAME', 'GNUPGHOME'])('passes %s to the mirror fetch (#648)', (name) => {
+    expect(runnerGitEnv({ [name]: '/operator/path' })).toEqual({
+      [name]: '/operator/path',
+      GIT_TERMINAL_PROMPT: '0',
+      LC_ALL: 'C',
+    });
+  });
+
+  it.each(['SSH_ASKPASS', 'SSH_ASKPASS_REQUIRE', 'GIT_ASKPASS', 'GIT_SSL_NO_VERIFY', 'GIT_SSH_COMMAND', 'LD_PRELOAD'])(
+    'still refuses %s: it names a program or weakens TLS',
+    (name) => {
+      expect(runnerGitEnv({ [name]: 'x' })).toEqual({ GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' });
+    },
+  );
+
   it('drops every other variable of the runner, secrets included', () => {
     expect(
       runnerGitEnv({
@@ -17,7 +32,7 @@ describe('runnerGitEnv', () => {
         TC_RUNNER_TOKEN: 't',
         LD_PRELOAD: '/tmp/x.so',
         DYLD_INSERT_LIBRARIES: '/tmp/x.dylib',
-        XDG_CONFIG_HOME: '/tmp/xdg',
+        XDG_DATA_HOME: '/tmp/xdg',
       }),
     ).toEqual({ HOME: '/runner', PATH: '/usr/bin', GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' });
   });
