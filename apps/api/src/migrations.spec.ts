@@ -87,6 +87,7 @@ describe('migrations on a fresh D1', () => {
       '0027_sprint_title_key_followups.sql',
       '0028_runner_pause.sql',
       '0029_item_rank.sql',
+      '0030_sprint_title_key_rename.sql',
     ]);
   });
 
@@ -862,7 +863,9 @@ describe('the 0029 item rank', () => {
 
     // The events came through the rebuild with their ids and columns; the new kind is admitted.
     expect(await db.prepare('SELECT id, kind, after, duplicate_of FROM item_events').all()).toMatchObject({
-      results: [{ id: 91, kind: 'pr-linked', after: '{"number":5,"url":"u","headRef":"b"}', duplicate_of: null }],
+      results: [
+        { id: 91, kind: 'pr-linked', after: '{"number":5,"url":"u","headRef":"b"}', duplicate_of: null },
+      ],
     });
     await db
       .prepare(
@@ -913,8 +916,97 @@ describe('the 0029 item rank', () => {
       .bind(T0)
       .run();
     expect(
-      await db.prepare(`SELECT rank FROM items WHERE project_slug = 'm29' AND number = 500`).first<{ rank: number }>(),
+      await db
+        .prepare(`SELECT rank FROM items WHERE project_slug = 'm29' AND number = 500`)
+        .first<{ rank: number }>(),
     ).toEqual({ rank: 500 * 1024 });
+  });
+});
+
+// #578: 0030 lets a rename keep title_key when only case or surrounding white space changes; a new name still needs it.
+describe('the 0030 sprint rename guard', () => {
+  const T0 = '2026-11-01T00:00:00.000Z';
+  const STALE = /sprints.title_key must follow sprints.title/;
+  const db = () => env.MIGRATION_DB_0030;
+  const rename = (number: number, title: string, key?: string | null) =>
+    key === undefined
+      ? db().prepare(`UPDATE sprints SET title = ?1 WHERE number = ?2`).bind(title, number).run()
+      : db()
+          .prepare(`UPDATE sprints SET title = ?1, title_key = ?2 WHERE number = ?3`)
+          .bind(title, key, number)
+          .run();
+  const row = (number: number) =>
+    db()
+      .prepare(`SELECT title, title_key FROM sprints WHERE number = ?1`)
+      .bind(number)
+      .first<{ title: string; title_key: string | null }>();
+
+  beforeAll(async () => {
+    await applyD1Migrations(
+      db(),
+      env.TEST_MIGRATIONS.filter((migration) => migration.name < '0026'),
+    );
+    await db()
+      .prepare(
+        `INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at) VALUES ('m30', 'a/m30', 'm30', 0, ?1)`,
+      )
+      .bind(T0)
+      .run();
+    const insert = (number: number, title: string) =>
+      db()
+        .prepare(
+          `INSERT INTO sprints (project_slug, number, title, state, created_at) VALUES ('m30', ?1, ?2, 'open', ?3)`,
+        )
+        .bind(number, title, T0)
+        .run();
+    await insert(1, 'Sprint 1');
+    await insert(2, 'Checkout');
+    await insert(3, 'Спринт');
+    await insert(4, 'CHECKOUT'); // 0026 leaves it unkeyed: it repeats sprint 2
+    await insert(5, 'Release');
+    await applyD1Migrations(db(), env.TEST_MIGRATIONS);
+  });
+
+  it('lets a case-only rename keep its key', async () => {
+    await rename(1, 'sprint 1');
+    expect(await row(1)).toEqual({ title: 'sprint 1', title_key: 'sprint 1' });
+    expect((await row(1))?.title_key).toBe(sprintTitleKeyOf('sprint 1'));
+  });
+
+  it('lets a rename of surrounding white space keep its key', async () => {
+    await rename(1, '  SPRINT 1\t');
+    expect(await row(1)).toEqual({ title: '  SPRINT 1\t', title_key: 'sprint 1' });
+    expect((await row(1))?.title_key).toBe(sprintTitleKeyOf('  SPRINT 1\t'));
+  });
+
+  it('lets a case-only rename in Cyrillic keep its key', async () => {
+    await rename(3, 'СПРИНТ');
+    expect(await row(3)).toEqual({ title: 'СПРИНТ', title_key: 'спринт' });
+  });
+
+  it('lets a row 0026 left unkeyed change case, and still never clears a key', async () => {
+    await rename(4, 'checkout');
+    expect(await row(4)).toEqual({ title: 'checkout', title_key: null });
+    await expect(rename(2, 'Checkout', null)).rejects.toThrow(STALE);
+  });
+
+  it('refuses a new name that keeps the old key', async () => {
+    await expect(rename(5, 'Release 2')).rejects.toThrow(STALE);
+    await expect(rename(1, 'Sprint  1')).rejects.toThrow(STALE); // inner white space is part of the name
+    expect(await row(5)).toEqual({ title: 'Release', title_key: 'release' });
+  });
+
+  it("refuses a rename onto another sprint's name, with or without its key", async () => {
+    await expect(rename(5, 'checkout')).rejects.toThrow(STALE);
+    await expect(rename(5, 'Checkout', sprintTitleKeyOf('Checkout'))).rejects.toThrow(
+      /UNIQUE constraint failed/,
+    );
+    expect(await row(5)).toEqual({ title: 'Release', title_key: 'release' });
+  });
+
+  it('takes a new name written with its new key', async () => {
+    await rename(5, 'Release 2', sprintTitleKeyOf('Release 2'));
+    expect(await row(5)).toEqual({ title: 'Release 2', title_key: 'release 2' });
   });
 });
 
