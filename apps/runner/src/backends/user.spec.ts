@@ -77,7 +77,7 @@ describe('user backend', () => {
 
   beforeEach(async () => {
     home = await mkdtemp(join(tmpdir(), 'r-'));
-    await chmod(home, 0o750);
+    await chmod(home, 0o710);
     settings = join(home, 'managed-settings.system.json');
     await writeFile(settings, managedSettingsText(), { mode: 0o644 });
     calls = [];
@@ -214,9 +214,18 @@ describe('user backend', () => {
     });
   });
 
-  it('refuses a home the job group cannot read', async () => {
-    await chmod(home, 0o700);
-    await expect(backend().preflight()).rejects.toThrow(/_tcrunner:_tcjob 0750/);
+  // #599: the job group traverses the home and nothing more; a listable one exposes every default-mode file in it.
+  it.each(['700', '750', '711', '701', '2710'])(
+    'refuses a home of mode 0%s (only 0710 is accepted)',
+    async (octal) => {
+      const mode = Number.parseInt(octal, 8);
+      await chmod(home, mode);
+      await expect(backend().preflight()).rejects.toThrow(/_tcrunner:_tcjob 0710/);
+    },
+  );
+
+  it('accepts a home of exactly 0710', async () => {
+    await expect(backend().preflight()).resolves.toBeUndefined();
   });
 
   it('gives the job a sticky root and a socket only its group reaches (#584)', async () => {

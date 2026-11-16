@@ -1,3 +1,6 @@
+import { chmod, lstat, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { managedSettingsText } from '../backends/user';
 import type { Exec, ExecResult } from '../host/exec';
 import {
@@ -6,6 +9,7 @@ import {
   describeStep,
   planInstall,
   runInstall,
+  systemInstallHost,
   type InstallHost,
   type InstallOptions,
   type InstallStep,
@@ -22,8 +26,8 @@ import { DOCUMENTED_DEFAULTS, launchDaemonPlist, sudoersRule, systemdUnit } from
 const PREFIX = DOCUMENTED_DEFAULTS.prefix;
 const NODE = DOCUMENTED_DEFAULTS.node;
 const SETTINGS = '/Library/Application Support/ClaudeCode/managed-settings.json';
-const ROOT_DIR: PathFacts = { uid: 0, mode: 0o755 };
-const ROOT_FILE: PathFacts = { uid: 0, mode: 0o555 };
+const ROOT_DIR: PathFacts = { uid: 0, mode: 0o755, kind: 'directory' };
+const ROOT_FILE: PathFacts = { uid: 0, mode: 0o555, kind: 'file' };
 const IMAGE = `ghcr.io/geeera/team-console-runner:0.1.0@sha256:${'b'.repeat(64)}`;
 
 interface FakeHost extends InstallHost {
@@ -125,7 +129,7 @@ describe('install --backend user (macOS)', () => {
       dscl('_tcrunner', 'RealName', "'team-console runner'"),
       dscl('_tcrunner', 'IsHidden', '1'),
       dscl('_tcrunner', 'Password', "'*'"),
-      'mkdir -m 0750 /Users/_tcrunner && chown _tcrunner:_tcjob /Users/_tcrunner',
+      'mkdir -m 0710 /Users/_tcrunner && chown _tcrunner:_tcjob /Users/_tcrunner',
       'mkdir -m 0700 /Users/_tcrunner/credentials && chown _tcrunner:_tcjob /Users/_tcrunner/credentials',
       'mkdir -m 0700 /Users/_tcrunner/logs && chown _tcrunner:_tcjob /Users/_tcrunner/logs',
       "mkdir -m 0755 '/Library/Application Support/ClaudeCode' && chown root:wheel '/Library/Application Support/ClaudeCode'",
@@ -190,13 +194,13 @@ describe('install --backend user (macOS)', () => {
       users: 'root 0\n_tcjob 403\n_tcrunner 404\n',
       groups: 'wheel 0\n_tcjob 402\n',
       stats: {
-        '/Users/_tcrunner': { uid: 404, mode: 0o750 },
-        '/Users/_tcrunner/credentials': { uid: 404, mode: 0o700 },
-        '/Users/_tcrunner/logs': { uid: 404, mode: 0o700 },
-        '/Library/Application Support/ClaudeCode': { uid: 0, mode: 0o755 },
-        [SETTINGS]: { uid: 0, mode: 0o644 },
-        '/etc/sudoers.d/team-console-runner': { uid: 0, mode: 0o440 },
-        '/Library/LaunchDaemons/com.team-console.runner.plist': { uid: 0, mode: 0o644 },
+        '/Users/_tcrunner': { uid: 404, mode: 0o710, kind: 'directory' },
+        '/Users/_tcrunner/credentials': { uid: 404, mode: 0o700, kind: 'directory' },
+        '/Users/_tcrunner/logs': { uid: 404, mode: 0o700, kind: 'directory' },
+        '/Library/Application Support/ClaudeCode': { uid: 0, mode: 0o755, kind: 'directory' },
+        [SETTINGS]: { uid: 0, mode: 0o644, kind: 'file' },
+        '/etc/sudoers.d/team-console-runner': { uid: 0, mode: 0o440, kind: 'file' },
+        '/Library/LaunchDaemons/com.team-console.runner.plist': { uid: 0, mode: 0o644, kind: 'file' },
       },
       files,
     });
@@ -209,7 +213,7 @@ describe('install --backend user (macOS)', () => {
 
   it('rewrites a managed-settings file someone changed or chowned', async () => {
     const host = fakeHost({
-      stats: { [SETTINGS]: { uid: 501, mode: 0o644 } },
+      stats: { [SETTINGS]: { uid: 501, mode: 0o644, kind: 'file' } },
       files: { [SETTINGS]: managedSettingsText() },
     });
     const { steps } = await planInstall(userOptions(), host);
@@ -249,7 +253,43 @@ describe('install --backend user (macOS)', () => {
     expect(host.applied).toHaveLength(2);
   });
 
+  it('narrows a home an older release made 0750 to 0710 (#599)', async () => {
+    const host = fakeHost({
+      users: 'root 0\n_tcjob 403\n_tcrunner 404\n',
+      groups: 'wheel 0\n_tcjob 402\n',
+      stats: { '/Users/_tcrunner': { uid: 404, mode: 0o750, kind: 'directory' } },
+    });
+    const { steps } = await planInstall(userOptions(), host);
+    expect(steps).toContainEqual({
+      kind: 'mkdir',
+      path: '/Users/_tcrunner',
+      mode: 0o710,
+      owner: '_tcrunner:_tcjob',
+    });
+  });
+
+  it('has the operator run claude setup-token with umask 077 (#599)', async () => {
+    const { next } = await planInstall(userOptions(), fakeHost());
+    expect(next[1]).toContain(
+      "sudo -u _tcrunner sh -c 'umask 077; HOME=/Users/_tcrunner exec claude setup-token'",
+    );
+  });
+
   describe('refuses', () => {
+    // #598: `_tcrunner` owns its home and may plant a link to a root-owned directory where one of its own belongs.
+    it.each([
+      ['/Users/_tcrunner/credentials', 'symlink'],
+      ['/Users/_tcrunner/logs', 'symlink'],
+      ['/Users/_tcrunner/logs', 'file'],
+      ['/Users/_tcrunner', 'symlink'],
+    ] as const)('%s as a %s instead of a directory, before any step', async (path, kind) => {
+      const host = fakeHost({ stats: { [path]: { uid: 404, mode: 0o755, kind } } });
+      await expect(runInstall(userOptions(true), host, () => undefined)).rejects.toThrow(
+        new RegExp(`${path} is a ${kind}, not a directory`),
+      );
+      expect(host.applied).toEqual([]);
+    });
+
     it('--yes without root, before touching anything', async () => {
       const host = fakeHost({ uid: 501 });
       await expect(runInstall(userOptions(true), host, () => undefined)).rejects.toThrow(/run it with sudo/);
@@ -263,9 +303,11 @@ describe('install --backend user (macOS)', () => {
     });
 
     it('a release directory others can write (the sudoers rule would hand it out)', async () => {
-      const host = fakeHost({ stats: { [`${PREFIX}/bin/job-exec`]: { uid: 501, mode: 0o755 } } });
+      const host = fakeHost({
+        stats: { [`${PREFIX}/bin/job-exec`]: { uid: 501, mode: 0o755, kind: 'file' } },
+      });
       await expect(planInstall(userOptions(), host)).rejects.toThrow(/must exist, be root-owned/);
-      const writable = fakeHost({ stats: { [`${PREFIX}/bin`]: { uid: 0, mode: 0o775 } } });
+      const writable = fakeHost({ stats: { [`${PREFIX}/bin`]: { uid: 0, mode: 0o775, kind: 'directory' } } });
       await expect(planInstall(userOptions(), writable)).rejects.toThrow(/writable by root only/);
     });
 
@@ -346,5 +388,70 @@ describe('install --backend container', () => {
         /podman is not installed/,
       );
     });
+  });
+});
+
+/**
+ * The real host's `mkdir` step (#598), against a temp directory: the mode is set through an `O_NOFOLLOW` directory
+ * handle, so a symlink or a file swapped in after planning is refused and what it points to is left as it was.
+ */
+describe('systemInstallHost apply mkdir', () => {
+  let root: string;
+  const host = (): InstallHost =>
+    systemInstallHost({
+      platform: process.platform,
+      uid: 0,
+      homeDir: '/nonexistent',
+      exec: async () => ({ code: 1, stdout: '' }),
+    });
+  const mkdirStep = (path: string, mode: number): InstallStep => ({ kind: 'mkdir', path, mode });
+  const modeOf = async (path: string): Promise<number> => (await lstat(path)).mode & 0o7777;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'install-'));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('creates a missing directory with exactly the mode, past the umask', async () => {
+    const path = join(root, 'home', 'logs');
+    await host().apply(mkdirStep(path, 0o710));
+    expect(await modeOf(path)).toBe(0o710);
+  });
+
+  it('narrows an existing directory to the mode', async () => {
+    const path = join(root, 'home');
+    await mkdir(path, { mode: 0o755 });
+    await host().apply(mkdirStep(path, 0o710));
+    expect(await modeOf(path)).toBe(0o710);
+  });
+
+  it('refuses a symlink to a directory and leaves its target alone', async () => {
+    const target = join(root, 'root-owned');
+    await mkdir(target);
+    await chmod(target, 0o755);
+    const link = join(root, 'credentials');
+    await symlink(target, link);
+    await expect(host().apply(mkdirStep(link, 0o700))).rejects.toThrow(
+      /not a directory \(a symlink is refused too\)/,
+    );
+    expect(await modeOf(target)).toBe(0o755);
+    expect((await lstat(link)).isSymbolicLink()).toBe(true);
+  });
+
+  it('refuses a regular file and leaves its mode alone', async () => {
+    const file = join(root, 'logs');
+    await writeFile(file, '', { mode: 0o644 });
+    await expect(host().apply(mkdirStep(file, 0o700))).rejects.toThrow();
+    expect(await modeOf(file)).toBe(0o644);
+  });
+
+  it('reports a symlink as one, not as its target', async () => {
+    const link = join(root, 'link');
+    await symlink(root, link);
+    expect(await host().stat(link)).toMatchObject({ kind: 'symlink' });
+    expect(await host().stat(root)).toMatchObject({ kind: 'directory' });
   });
 });
