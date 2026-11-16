@@ -108,6 +108,8 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   'POST /api/v1/projects/:slug/requests/:id/handled': 'job-only',
   // #445: `backlog link-pr`, the developers and the orchestrator only (the owner gets 403 pr-link-role).
   'POST /api/v1/projects/:slug/items/:key/pr-links': 'job-only',
+  // #612: review jobs on a pull request, the orchestrator job only (the owner gets 403 review-request-role).
+  'POST /api/v1/projects/:slug/prs/:number/reviews': 'job-only',
   'POST /api/v1/projects': 'no-owner-write',
   'PATCH /api/v1/projects/:slug': 'no-owner-write',
   'POST /api/v1/projects/:slug/archive': 'no-owner-write',
@@ -264,7 +266,9 @@ describe('owner-write inventory (#62)', () => {
       const path = pattern.replace(':slug', slug).replace(/:[^/]+/g, '1');
       const owner = await send(method as 'POST', path, {});
       expect(owner.status).toBe(403);
-      expect(['ask-role', 'request-handled-role', 'pr-link-role']).toContain(await slugOf(owner));
+      expect(['ask-role', 'request-handled-role', 'pr-link-role', 'review-request-role']).toContain(
+        await slugOf(owner),
+      );
       const service = await sendAsService(method, path, {});
       expect(service.status).toBe(403);
       expect(await slugOf(service)).toBe('owner-only');

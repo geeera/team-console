@@ -1,5 +1,4 @@
 import { Dialog } from '@angular/cdk/dialog';
-import { BreakpointObserver } from '@angular/cdk/layout';
 import { NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
@@ -17,7 +16,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   ADD_PROJECT_FRAGMENT,
@@ -30,7 +29,7 @@ import {
 import { TeamStatusStore } from '@console/entities/team-run';
 import { httpProblemOf } from '@console/shared/api';
 import { TranslocoPipe, TranslocoPluralPipe, TranslocoService } from '@console/shared/i18n';
-import { Banner, BREAKPOINTS, Button, Icon, Sheet, SrOnlyOnPhone, StateBlock } from '@console/shared/ui';
+import { Banner, Button, Icon, isPhoneSignal, Sheet, SrOnlyOnPhone, StateBlock } from '@console/shared/ui';
 import {
   CommandsPane,
   CommandsSheet,
@@ -39,7 +38,6 @@ import {
 } from '@console/widgets/commands-panel';
 import { GitHubRepositoriesBlock } from '@console/widgets/github-repositories';
 import { NOT_SNOOZED, type SnoozeDto } from '@shared/contracts';
-import { map } from 'rxjs';
 import { OVERVIEW_PENDING_PROBLEM, OverviewTile } from './overview-tile';
 
 /** A snooze that ends while the page is open loses its line within this. */
@@ -93,7 +91,6 @@ export class OverviewPage {
   private readonly errors = inject(ErrorHandler);
   protected readonly projects = inject(ProjectsStore);
   private readonly repositories = viewChild.required(GitHubRepositoriesBlock);
-  private readonly breakpoints = inject(BreakpointObserver);
   private readonly sheet = inject(Sheet);
   private readonly dialog = inject(Dialog);
   private readonly teamStatus = inject(TeamStatusStore);
@@ -101,10 +98,7 @@ export class OverviewPage {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
-  protected readonly isPhone = toSignal(
-    this.breakpoints.observe(BREAKPOINTS.phone).pipe(map((result) => result.matches)),
-    { initialValue: this.breakpoints.isMatched(BREAKPOINTS.phone) },
-  );
+  protected readonly isPhone = isPhoneSignal();
   protected readonly now = signal(Date.now());
   /** The card whose Commands pane is open on a wide screen. */
   protected readonly openSlug = signal<string | null>(null);

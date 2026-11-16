@@ -230,6 +230,52 @@ export function checkCreateJobInput(body: unknown): InputCheck<CreateJobInput> {
   });
 }
 
+/** The roles a `review` job runs as (ADR 0006 "Role keys and the gate"): one job per role and head. */
+export const REVIEW_JOB_ROLES = ['qa', 'reviewer', 'security'] as const;
+export type ReviewJobRole = (typeof REVIEW_JOB_ROLES)[number];
+export const isReviewJobRole = (value: unknown): value is ReviewJobRole =>
+  (REVIEW_JOB_ROLES as readonly unknown[]).includes(value);
+
+/** Bounded so the whole body stays inside the route's 4 KB write limit in any script. */
+export const REVIEW_NOTE_MAX_LENGTH = 1000;
+
+/**
+ * `POST /api/v1/projects/:slug/prs/:number/reviews` (#612): the orchestrator asks for review jobs on a pull
+ * request. The head SHA is the console's, never the request's; `note` is free text the review job reads as data.
+ */
+export interface RequestReviewsInput {
+  readonly roles: readonly ReviewJobRole[];
+  readonly note: string | null;
+}
+
+export function checkRequestReviewsInput(body: unknown): InputCheck<RequestReviewsInput> {
+  return checked(() => {
+    const fields = record(body, ['roles', 'note']);
+    const roles = fields['roles'];
+    if (
+      !Array.isArray(roles) ||
+      roles.length === 0 ||
+      roles.length > REVIEW_JOB_ROLES.length ||
+      !roles.every(isReviewJobRole) ||
+      new Set(roles).size !== roles.length
+    ) {
+      throw new InputError('roles', `roles must be distinct roles of ${REVIEW_JOB_ROLES.join(', ')}`);
+    }
+    const note = fields['note'] ?? null;
+    if (note !== null && text('note', note, REVIEW_NOTE_MAX_LENGTH, 1).trim().length === 0) {
+      throw new InputError('note', 'note must not be blank');
+    }
+    return { roles: roles as ReviewJobRole[], note: note as string | null };
+  });
+}
+
+/** The answer of `POST …/prs/:number/reviews`: the pull request's head the jobs are bound to, and the jobs. */
+export interface ReviewRequestDto {
+  readonly number: number;
+  readonly headSha: string;
+  readonly jobs: readonly JobDto[];
+}
+
 export interface JobDto {
   readonly id: string;
   readonly projectSlug: string;

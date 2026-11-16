@@ -1,0 +1,26 @@
+{
+  "route": "POST /api/v1/projects/:slug/prs/:number/reviews",
+  "as": {
+    "kind": "job",
+    "role": "qa",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/prs/57/reviews",
+    "body": {
+      "roles": ["qa"]
+    }
+  },
+  "response": {
+    "status": 403,
+    "body": {
+      "type": "https://team-console/problems/review-request-role",
+      "title": "Forbidden",
+      "status": 403,
+      "instance": "request-id",
+      "detail": "Reviews of a pull request are requested by the orchestrator job",
+      "reason": "qa"
+    }
+  }
+}

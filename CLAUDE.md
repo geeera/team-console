@@ -276,6 +276,14 @@ idempotency key is released for the retry. Migration 0025's partial UNIQUE index
 on it and the loser answers like a repeat. `JOB_READ_MODEL_ROUTES` (`auth/tracker-matrix.ts`: `GET inbox|questions|sprint`)
 are the read models a job reads besides the matrix, through the scoped `findProject` (another project 404); every other
 read model refuses a job in `jobScopeMiddleware`.
+Review requests (#612, `pr request-reviews` of `slot-qa`): `POST prs/:number/reviews {roles, note?}` (`routes/pull-requests.ts`)
+is the orchestrator job's alone (matrix row, 403 `review-request-role` to the owner and every other role). The parent is
+the requester's own job, from the identity, never the body: a claimed or running `orchestrator` job of the project, else
+403 `review-lineage`. It enqueues one `review` job per role (`qa|reviewer|security`, `REVIEW_JOB_ROLES`) with `parent_job_id`
+and payload `{pr, head_sha, role, note?}`, `head_sha` from `pull_requests` (404 `pull-request-not-found`, 409
+`pull-request-not-open`), in one batch (`JobsRepo.enqueueAll`); the dedupe key `slug:review:N:head:role` answers a repeat
+with the live jobs (200). `note` (≤ 1000) is stored unchanged as a payload member, never rendered or built into a prompt by
+the console; a secret in it is 422 `body-secret`; the audit row carries ids and enums only.
 
 VCS adapter, reads (#463, ADR 0006 decision 7 / "VCS adapter", ADR 0008 row 3a): `@worker/vcs` (provider-neutral types,
 `VcsAdapter`, `VcsWebhooks`, `VcsError` with `kind` and the provider's problem, `mapVcsError` in `createApiApp`'s

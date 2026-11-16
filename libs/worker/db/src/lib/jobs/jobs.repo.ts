@@ -49,6 +49,8 @@ export interface NewJob {
   readonly needsLocal: boolean;
   readonly maxMinutes: number;
   readonly at: string;
+  /** The job that asked for this one (lineage, ADR 0006 R2); from the requester's identity, never a body. */
+  readonly parentJobId?: string | null;
 }
 
 export interface ClaimRequest {
@@ -171,29 +173,40 @@ export class JobsRepo {
 
   /** `job-exists` when a live job holds the dedupe key (the 0022 partial unique index), nothing written then. */
   async enqueue(job: NewJob, audit: NewAuditEvent): Promise<'ok' | 'job-exists'> {
+    return this.enqueueAll([{ job, audit }]);
+  }
+
+  /** All or none, in one batch: `job-exists` when any live job holds one of the dedupe keys, nothing written then. */
+  async enqueueAll(entries: readonly { readonly job: NewJob; readonly audit: NewAuditEvent }[]): Promise<'ok' | 'job-exists'> {
+    if (entries.length === 0) {
+      return 'ok';
+    }
     try {
-      await this.db.batch([
-        this.db
-          .prepare(
-            `INSERT INTO jobs (id, account_id, project_slug, kind, role, payload, priority, requested_by, dedupe_key, needs_local, max_minutes, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`,
-          )
-          .bind(
-            job.id,
-            job.accountId,
-            job.projectSlug,
-            job.kind,
-            job.role,
-            JSON.stringify(job.payload),
-            job.priority,
-            job.requestedBy,
-            job.dedupeKey,
-            job.needsLocal ? 1 : 0,
-            job.maxMinutes,
-            job.at,
-          ),
-        auditEventStatement(this.db, audit),
-      ]);
+      await this.db.batch(
+        entries.flatMap(({ job, audit }) => [
+          this.db
+            .prepare(
+              `INSERT INTO jobs (id, account_id, project_slug, kind, role, payload, priority, requested_by, dedupe_key, needs_local, max_minutes, created_at, parent_job_id)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`,
+            )
+            .bind(
+              job.id,
+              job.accountId,
+              job.projectSlug,
+              job.kind,
+              job.role,
+              JSON.stringify(job.payload),
+              job.priority,
+              job.requestedBy,
+              job.dedupeKey,
+              job.needsLocal ? 1 : 0,
+              job.maxMinutes,
+              job.at,
+              job.parentJobId ?? null,
+            ),
+          auditEventStatement(this.db, audit),
+        ]),
+      );
     } catch (error: unknown) {
       if (isConstraintError(error, 'UNIQUE constraint failed: jobs.dedupe_key')) {
         return 'job-exists';
@@ -201,6 +214,19 @@ export class JobsRepo {
       throw error;
     }
     return 'ok';
+  }
+
+  /** The queued, claimed or running jobs of the project that hold one of `dedupeKeys`. */
+  async findLiveByDedupeKeys(projectSlug: string, dedupeKeys: readonly string[]): Promise<JobRecord[]> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT ${COLUMNS} FROM jobs WHERE project_slug = ?1 AND state IN ('queued', 'claimed', 'running')
+           AND dedupe_key IN (SELECT value FROM json_each(?2))
+         ORDER BY id`,
+      )
+      .bind(projectSlug, JSON.stringify(dedupeKeys))
+      .all<JobRow>();
+    return results.map(toRecord);
   }
 
   async findById(id: string): Promise<JobRecord | null> {

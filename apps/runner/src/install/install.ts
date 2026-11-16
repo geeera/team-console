@@ -1,7 +1,13 @@
-import { constants } from 'node:fs';
-import { chmod, lstat, mkdir, open, readFile } from 'node:fs/promises';
+import { constants, type Stats } from 'node:fs';
+import { lstat, mkdir, open, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_USER, RUNNER_USER, SYSTEM_MANAGED_SETTINGS_PATH, managedSettingsText } from '../backends/user';
+import {
+  JOB_USER,
+  RUNNER_HOME_MODE,
+  RUNNER_USER,
+  SYSTEM_MANAGED_SETTINGS_PATH,
+  managedSettingsText,
+} from '../backends/user';
 import { PINNED_IMAGE, type ContainerRuntime } from '../config/config';
 import type { Exec } from '../host/exec';
 import {
@@ -46,6 +52,8 @@ export type InstallStep =
 export interface PathFacts {
   readonly uid: number;
   readonly mode: number;
+  /** From `lstat`: a symlink is reported as one, never as what it points to. */
+  readonly kind: 'directory' | 'file' | 'symlink' | 'other';
 }
 
 /** The host as the installer sees it; the spec drives a fake and asserts the steps. */
@@ -141,6 +149,12 @@ async function needsDir(
   uid: number | undefined,
 ): Promise<boolean> {
   const facts = await host.stat(path);
+  if (facts !== null && facts.kind !== 'directory') {
+    // #598: `_tcrunner` owns its home and can plant a link where a directory belongs; never chmod through it.
+    throw new InstallError(
+      `${path} is a ${facts.kind}, not a directory: check who put it there, remove it, run install again`,
+    );
+  }
   return facts === null || facts.mode !== mode || uid === undefined || facts.uid !== uid;
 }
 
@@ -226,7 +240,8 @@ async function planUser(options: InstallOptions, host: InstallHost): Promise<Ins
   const runnerUid = users.get(RUNNER_USER);
   const runnerOwner = `${RUNNER_USER}:${JOB_USER}`;
   for (const [path, mode] of [
-    [home, 0o750],
+    // #599: a job only traverses the home to reach jobs/, work/ and plugin/; it must not list it.
+    [home, RUNNER_HOME_MODE],
     [`${home}/credentials`, 0o700],
     [`${home}/logs`, 0o700],
   ] as const) {
@@ -261,7 +276,7 @@ async function planUser(options: InstallOptions, host: InstallHost): Promise<Ins
     steps,
     next: [
       `1. Enrol: ${runner} ${options.node} ${bundleOf(options.prefix)} enrol --url <console origin> --code <tce_… from Settings › Runners> --backend user --credential setup-token`,
-      `2. Claude credential: ${runner} claude setup-token, then store the token it prints: sudo -u ${RUNNER_USER} sh -c 'umask 077; cat > ${home}/credentials/claude-setup-token' (paste, then Ctrl-D)`,
+      `2. Claude credential: sudo -u ${RUNNER_USER} sh -c 'umask 077; HOME=${home} exec claude setup-token', then store the token it prints: sudo -u ${RUNNER_USER} sh -c 'umask 077; cat > ${home}/credentials/claude-setup-token' (paste, then Ctrl-D)`,
       `3. Start: sudo launchctl bootstrap system ${LAUNCH_DAEMON_PATH}`,
     ],
   };
@@ -413,26 +428,92 @@ export async function runInstall(
   return plan;
 }
 
-/** The real host. `apply` writes with `O_NOFOLLOW`, sets the mode exactly and chowns by name. */
+const kindOf = (stats: Stats): PathFacts['kind'] =>
+  stats.isSymbolicLink() ? 'symlink' : stats.isDirectory() ? 'directory' : stats.isFile() ? 'file' : 'other';
+
+interface Ownership {
+  readonly uid: number;
+  readonly gid: number;
+}
+
+const isErrno = (error: unknown, ...codes: string[]): boolean =>
+  error instanceof Error && 'code' in error && typeof error.code === 'string' && codes.includes(error.code);
+
+/**
+ * #598: mode and owner are set on an `O_DIRECTORY | O_NOFOLLOW` handle (`fchmod`, `fchown`), never by path, so a
+ * symlink, a file or a hard link `_tcrunner` swaps in under its home is refused (ELOOP / ENOTDIR) or never touched.
+ */
+async function settleDirectory(path: string, mode: number, owner: Ownership | undefined): Promise<void> {
+  let handle;
+  try {
+    handle = await open(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+  } catch (error: unknown) {
+    if (isErrno(error, 'ELOOP', 'ENOTDIR')) {
+      throw new Error(`${path} is not a directory (a symlink is refused too)`, { cause: error });
+    }
+    throw error;
+  }
+  try {
+    if (!(await handle.stat()).isDirectory()) {
+      throw new Error(`${path} is not a directory`);
+    }
+    if (owner !== undefined) {
+      await handle.chown(owner.uid, owner.gid);
+    }
+    await handle.chmod(mode);
+  } finally {
+    await handle.close();
+  }
+}
+
+/** The real host. `apply` opens with `O_NOFOLLOW` and sets mode and owner on that handle only. */
 export function systemInstallHost(base: {
   platform: string;
   uid: number;
   homeDir: string;
   exec: Exec;
 }): InstallHost {
-  const chown = async (owner: string | undefined, path: string): Promise<void> => {
-    if (owner !== undefined && (await base.exec('/usr/sbin/chown', ['-h', owner, path])).code !== 0) {
-      throw new Error(`chown ${owner} ${path} failed`);
+  const idOf = async (
+    command: string,
+    args: readonly string[],
+    parse: RegExp,
+    label: string,
+  ): Promise<number> => {
+    const { code, stdout } = await base.exec(command, args);
+    const match = code === 0 ? parse.exec(stdout.trim()) : null;
+    if (match?.[1] === undefined) {
+      throw new Error(`could not resolve ${label}`);
     }
+    return Number(match[1]);
+  };
+  // Resolved at apply time: the users and the group may be created by earlier steps of the same run.
+  const ownershipOf = async (owner: string | undefined): Promise<Ownership | undefined> => {
+    if (owner === undefined) {
+      return undefined;
+    }
+    const parts = owner.split(':');
+    const [user, group] = parts;
+    if (parts.length !== 2 || user === undefined || group === undefined || user === '' || group === '') {
+      throw new Error(`owner must be user:group (${owner})`);
+    }
+    return {
+      uid: await idOf('/usr/bin/id', ['-u', user], /^(\d+)$/, `user ${user}`),
+      gid: await idOf(
+        DSCL,
+        ['.', '-read', `/Groups/${group}`, 'PrimaryGroupID'],
+        /PrimaryGroupID:\s*(\d+)/,
+        `group ${group}`,
+      ),
+    };
   };
   return {
     ...base,
     stat: async (path) => {
       try {
         const stats = await lstat(path);
-        return { uid: stats.uid, mode: stats.mode & 0o7777 };
+        return { uid: stats.uid, mode: stats.mode & 0o7777, kind: kindOf(stats) };
       } catch (error: unknown) {
-        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        if (isErrno(error, 'ENOENT')) {
           return null;
         }
         throw error;
@@ -457,21 +538,31 @@ export function systemInstallHost(base: {
           }
           return;
         }
-        case 'mkdir':
+        case 'mkdir': {
+          const owner = await ownershipOf(step.owner);
           await mkdir(step.path, { recursive: true, mode: step.mode });
-          await chmod(step.path, step.mode);
-          await chown(step.owner, step.path);
+          await settleDirectory(step.path, step.mode, owner);
           return;
+        }
         case 'write': {
-          const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW;
+          const owner = await ownershipOf(step.owner);
+          // No O_TRUNC: a hard link to someone else's file must be refused before a byte of it changes.
+          const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW;
           const handle = await open(step.path, flags, step.mode);
           try {
+            const stats = await handle.stat();
+            if (!stats.isFile() || stats.nlink > 1) {
+              throw new Error(`${step.path} is not a regular file with a single link`);
+            }
+            await handle.truncate(0);
+            if (owner !== undefined) {
+              await handle.chown(owner.uid, owner.gid);
+            }
             await handle.chmod(step.mode);
             await handle.writeFile(step.content, 'utf8');
           } finally {
             await handle.close();
           }
-          await chown(step.owner, step.path);
         }
       }
     },

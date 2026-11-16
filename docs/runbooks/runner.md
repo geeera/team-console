@@ -6,16 +6,6 @@ fixtures only. Decisions referenced are those of the architect note on #468 (ADR
 `docs/security/`. Commands below use `<v>` for a release version (`0.1.0`) and `<platform>` for one of
 `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`.
 
-**Open findings, not yet fixed.** Two SECURITY findings on the installer and the `user` backend are open. Until they
-are fixed, follow the precautions given here.
-
-- #598: `install --yes`, run as root, follows a symlink that `_tcrunner` planted under its home when it sets a
-  directory's mode. This can deny service but gives no privilege. Before you re-run `sudo … install --backend user
-  --yes` on a runner that has already run jobs, check that `ls -la /Users/_tcrunner` shows no symlink for
-  `credentials` or `logs`.
-- #599: the `_tcrunner` home is `0750 _tcrunner:_tcjob`, so every job can list it and read any file in it that has a
-  default mode. Run `claude setup-token` with `umask 077`, as step 2 under "`user` backend" does.
-
 ## Get a release and verify it (both backends)
 
 Releases are built only by `.github/workflows/release-runner.yml` from a `v*` tag, which only the owner can create
@@ -83,7 +73,11 @@ What `--yes` does. It writes only these paths (decision 11, threat model C11):
 - It creates the group `_tcjob`. It creates the users `_tcjob` (home `/var/empty`, which is root-owned) and
   `_tcrunner` (home = `TC_RUNNER_HOME`, default `/Users/_tcrunner`, primary group `_tcjob`). Both are hidden, have
   shell `/usr/bin/false` and no password. An existing user is kept, but the installer refuses one that is in `admin`.
-- It creates `TC_RUNNER_HOME` as `_tcrunner:_tcjob 0750`, with `credentials/` and `logs/` at 0700 (see #599 above).
+- It creates `TC_RUNNER_HOME` as `_tcrunner:_tcjob 0710`, with `credentials/` and `logs/` at 0700. A job can only
+  pass through the home to `jobs/`, `work/` and `plugin/`; it cannot list it (#599). The runner refuses to start a job
+  when the home has any other mode. A home that an older release made 0750 is narrowed the next time you run
+  `install --yes`. The installer refuses to go on when the home, `credentials` or `logs` is a symlink or a file, and
+  it never sets a mode through a link (#598).
 - It writes `/Library/Application Support/ClaudeCode/managed-settings.json` as `root:wheel 0644`. All hooks are off,
   and the runner refuses to start a job when this file is not root-owned or has changed.
 - It writes `/etc/sudoers.d/team-console-runner` as `0440`, checked with `visudo -c` first. It holds one rule:
@@ -209,8 +203,9 @@ step is expected to pass.
 
 1. `dscl . -read /Users/_tcjob NFSHomeDirectory UserShell` prints `/var/empty` and `/usr/bin/false`.
    `dseditgroup -o checkmember -m _tcjob admin` says *no*.
-2. `ls -ld /Users/_tcrunner /Users/_tcrunner/credentials` shows `drwxr-x--- _tcrunner _tcjob` and
-   `drwx------ _tcrunner`. `sudo -u _tcjob ls /Users/_tcrunner/credentials` is refused.
+2. `ls -ld /Users/_tcrunner /Users/_tcrunner/credentials` shows `drwx--x--- _tcrunner _tcjob` and
+   `drwx------ _tcrunner`. `sudo -u _tcjob ls /Users/_tcrunner` and `sudo -u _tcjob ls /Users/_tcrunner/credentials`
+   are both refused.
    `ls -la /Users/_tcrunner` shows no symlink (#598).
 3. `ls -l '/Library/Application Support/ClaudeCode/managed-settings.json'` shows `root wheel` and `-rw-r--r--`.
 4. `sudo -l -U _tcrunner` lists exactly one command: `(_tcjob) NOPASSWD: <prefix>/bin/job-exec`.

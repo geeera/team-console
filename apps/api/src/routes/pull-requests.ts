@@ -1,23 +1,43 @@
 import { Hono } from 'hono';
-import type { PullRequestDto, PullRequestListDto, PullRequestSyncDto } from '@shared/contracts';
-import { withoutInvisibles } from '@shared/plain-text';
-import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import {
+  JOB_MAX_MINUTES_DEFAULT,
+  checkRequestReviewsInput,
+  type PullRequestDto,
+  type PullRequestListDto,
+  type PullRequestSyncDto,
+  type ReviewJobRole,
+  type ReviewRequestDto,
+} from '@shared/contracts';
+import { withoutInvisibles } from '@shared/plain-text';
+import { newUlid, problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
+import {
+  JobsRepo,
   PullRequestsRepo,
+  type JobRecord,
+  type NewAuditEvent,
+  type NewJob,
   type PullRequestRecord,
   type PullRequestRowState,
   type ProjectRow,
 } from '@worker/db';
 import { isPullRequestState } from '@worker/vcs';
-import { policyActorOfContext, trackerAccess } from '../auth/tracker-access.middleware';
+import type { PolicyActor } from '../auth/policy';
+import {
+  policyActorOfContext,
+  trackerAccess,
+  trackerProjectOfContext,
+} from '../auth/tracker-access.middleware';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
-import { findProject, projectNotFound, repoOf } from '../projects/lookup';
+import { jsonBody } from '../json-body';
+import { findProject, projectNotFound, repoOf, trackerProjectOf } from '../projects/lookup';
 import type { OwnerConnectionSource } from '../projects/owner-connection';
 import { syncPullRequest, syncPullRequests } from '../read-models/pull-request-sync';
 import { repoIdOf } from '../read-models/repo-id';
-import { invalid } from '../tracker/context';
-import { pageOf } from '../tracker/http';
+import { bodySecretRefusal } from '../tracker/body-secret';
+import { invalid, trackerWriteRefusal } from '../tracker/context';
+import { SMALL_WRITE_MAX_BYTES, pageOf, writeLimit } from '../tracker/http';
+import { jobAuditOf, jobDtoOf } from './jobs';
 
 type Context = WorkerContext<ApiEnv>;
 
@@ -59,6 +79,20 @@ function stateOf(c: Context): PullRequestRowState | 'all' | Response {
   return invalid(c, 'query-invalid', 'state', 'state is open, closed, merged or all');
 }
 
+/** The `:number` of the path, or the 400 that says it is not one. */
+function pullRequestNumberOf(c: Context): number | Response {
+  const raw = c.req.param('number') ?? '';
+  if (!NUMBER.test(raw)) {
+    return problem(c, {
+      type: 'pull-request-number',
+      title: 'Not a pull request number',
+      status: 400,
+      detail: 'A pull request is named by its number',
+    });
+  }
+  return Number(raw);
+}
+
 async function projectOf(c: Context): Promise<ProjectRow | Response> {
   const project = await findProject(c, c.req.param('slug') ?? '');
   return project ?? projectNotFound(c);
@@ -94,6 +128,7 @@ export function createPullRequestRoutes(
   const guard = {
     list: trackerAccess('GET /api/v1/projects/:slug/prs'),
     read: trackerAccess('GET /api/v1/projects/:slug/prs/:number'),
+    reviews: trackerAccess('POST /api/v1/projects/:slug/prs/:number/reviews'),
   };
   return new Hono<WorkerHonoEnv<ApiEnv>>()
     .get('/:slug/prs', guard.list, async (c) => {
@@ -145,15 +180,10 @@ export function createPullRequestRoutes(
     })
 
     .get('/:slug/prs/:number', guard.read, async (c) => {
-      const raw = c.req.param('number') ?? '';
+      const number = pullRequestNumberOf(c);
       const fresh = freshOf(c);
-      if (!NUMBER.test(raw)) {
-        return problem(c, {
-          type: 'pull-request-number',
-          title: 'Not a pull request number',
-          status: 400,
-          detail: 'A pull request is named by its number',
-        });
+      if (number instanceof Response) {
+        return number;
       }
       if (fresh instanceof Response) {
         return fresh;
@@ -162,7 +192,6 @@ export function createPullRequestRoutes(
       if (project instanceof Response) {
         return project;
       }
-      const number = Number(raw);
       const rows = new PullRequestsRepo(c.env.DB);
       let row = await rows.find(project.slug, number);
       if (fresh || row === null) {
@@ -191,5 +220,152 @@ export function createPullRequestRoutes(
       }
       c.header('Cache-Control', 'no-store');
       return c.json(pullRequestDtoOf(row));
+    })
+
+    .post('/:slug/prs/:number/reviews', guard.reviews, writeLimit(SMALL_WRITE_MAX_BYTES), async (c) =>
+      requestReviews(c),
+    );
+}
+
+/** One live review job per pull request, head and role (the 0022 overlap guard); a repeat answers the live one. */
+function reviewDedupeKeyOf(slug: string, number: number, headSha: string, role: ReviewJobRole): string {
+  return `${slug}:review:${String(number)}:${headSha}:${role}`;
+}
+
+const LIVE_PARENT_STATES: ReadonlySet<JobRecord['state']> = new Set(['claimed', 'running']);
+
+/**
+ * The lineage rule of #612 (ADR 0006 R2): a review job's parent is the job that asked for it, read from the
+ * requester's identity. It must be a claimed or running orchestrator job of this project, so a stand-in naming no
+ * job, or a token outliving its job, enqueues nothing.
+ */
+async function parentJobOf(
+  c: Context,
+  actor: Extract<PolicyActor, { kind: 'job' }>,
+  slug: string,
+): Promise<JobRecord | Response> {
+  const parent = await new JobsRepo(c.env.DB).findInProject(slug, actor.jobId);
+  if (parent !== null && parent.role === 'orchestrator' && LIVE_PARENT_STATES.has(parent.state)) {
+    return parent;
+  }
+  c.get('logger').warn('review request refused', { type: 'review-lineage', reason: 'parent-not-live' });
+  return problem(c, {
+    type: 'review-lineage',
+    title: 'Forbidden',
+    status: 403,
+    detail: 'Reviews are requested by a claimed or running orchestrator job of the project',
+    extensions: { reason: 'parent-not-live' },
+  });
+}
+
+/**
+ * `POST /api/v1/projects/:slug/prs/:number/reviews` (#612, `pr request-reviews` of `slot-qa`): one `review` job per
+ * requested role, bound to the pull request's head as the console holds it (`head_sha` is never the request's), its
+ * parent the requesting orchestrator job. The orchestrator job only (the route matrix). `note` is stored in the job
+ * payload unchanged, as data; a secret in it is 422 `body-secret`. A repeat while the jobs are live answers them
+ * (200); a request that adds a role enqueues only the new one (201).
+ */
+async function requestReviews(c: Context): Promise<Response> {
+  const actor = policyActorOfContext(c);
+  if (actor.kind !== 'job') {
+    // The matrix row admits the orchestrator job only; anything else reaching here is a bug, never an open door.
+    throw new Error('a review request reached the handler without a job actor');
+  }
+  const number = pullRequestNumberOf(c);
+  if (number instanceof Response) {
+    return number;
+  }
+  const row = trackerProjectOfContext(c);
+  const notCutOver = trackerWriteRefusal(c, trackerProjectOf(row));
+  if (notCutOver !== null) {
+    return notCutOver;
+  }
+  const input = checkRequestReviewsInput(await jsonBody(c));
+  if (!input.ok) {
+    return invalid(c, 'review-request-invalid', input.field, input.detail);
+  }
+  const { roles, note } = input.value;
+  const secret = bodySecretRefusal(c, actor, { note });
+  if (secret !== null) {
+    return secret;
+  }
+  const parent = await parentJobOf(c, actor, row.slug);
+  if (parent instanceof Response) {
+    return parent;
+  }
+  const pull = await new PullRequestsRepo(c.env.DB).find(row.slug, number);
+  if (pull === null) {
+    return problem(c, { type: 'pull-request-not-found', title: 'Pull request not found', status: 404 });
+  }
+  if (pull.state !== 'open') {
+    return problem(c, {
+      type: 'pull-request-not-open',
+      title: 'The pull request is not open',
+      status: 409,
+      detail: 'Reviews are requested on an open pull request only',
     });
+  }
+  const keyOf = (role: ReviewJobRole): string => reviewDedupeKeyOf(row.slug, number, pull.headSha, role);
+  const jobs = new JobsRepo(c.env.DB);
+  const live = new Set((await jobs.findLiveByDedupeKeys(row.slug, roles.map(keyOf))).map((job) => job.dedupeKey));
+  const now = new Date();
+  const at = now.toISOString();
+  const entries = roles
+    .filter((role) => !live.has(keyOf(role)))
+    .map((role): { readonly job: NewJob; readonly audit: NewAuditEvent } => {
+      const id = newUlid(now.getTime());
+      return {
+        job: {
+          id,
+          accountId: row.account_id,
+          projectSlug: row.slug,
+          kind: 'review',
+          role,
+          payload: { pr: number, head_sha: pull.headSha, role, ...(note === null ? {} : { note }) },
+          priority: 1,
+          requestedBy: 'orchestrator',
+          dedupeKey: keyOf(role),
+          needsLocal: false,
+          maxMinutes: JOB_MAX_MINUTES_DEFAULT,
+          at,
+          parentJobId: parent.id,
+        },
+        // Ids and enums only (CLAUDE.md): the note stays in the job's payload.
+        audit: jobAuditOf(c, row.account_id, at, 'job.dispatched', id, {
+          kind: 'review',
+          role,
+          pr: number,
+          parent: parent.id,
+          slug: row.slug,
+        }),
+      };
+    });
+  if ((await jobs.enqueueAll(entries)) === 'job-exists') {
+    // A concurrent request for the same head and role won between the read and the write; a retry answers its job.
+    return problem(c, {
+      type: 'job-exists',
+      title: 'Conflict',
+      status: 409,
+      detail: 'A review of this head by one of these roles was requested at the same time; retry to read it',
+    });
+  }
+  const byKey = new Map(
+    (await jobs.findLiveByDedupeKeys(row.slug, roles.map(keyOf))).map((job) => [job.dedupeKey, job] as const),
+  );
+  const body: ReviewRequestDto = {
+    number,
+    headSha: pull.headSha,
+    jobs: roles.flatMap((role) => {
+      const job = byKey.get(keyOf(role));
+      return job === undefined ? [] : [jobDtoOf(job)];
+    }),
+  };
+  c.get('logger').info('review jobs requested', {
+    slug: row.slug,
+    pr: number,
+    roles: roles.join(','),
+    created: entries.length,
+  });
+  c.header('Cache-Control', 'no-store');
+  return c.json(body, entries.length > 0 ? 201 : 200);
 }

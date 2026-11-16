@@ -1,5 +1,4 @@
 import { Dialog } from '@angular/cdk/dialog';
-import { BreakpointObserver } from '@angular/cdk/layout';
 import {
   afterNextRender,
   ChangeDetectionStrategy,
@@ -27,11 +26,11 @@ import { TeamStatusStore } from '@console/entities/team-run';
 import { NewTaskButton } from '@console/features/create-task';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import {
-  BREAKPOINTS,
   Button,
   Icon,
   IconButton,
   IconName,
+  isPhoneSignal,
   Sheet,
   Tab,
   TabBar,
@@ -97,7 +96,6 @@ const SECTION_ICONS: Record<SpaceSection, IconName> = {
 export class ProjectSpacePage {
   private readonly router = inject(Router);
   private readonly projects = inject(ProjectsStore);
-  private readonly breakpoints = inject(BreakpointObserver);
   private readonly sheet = inject(Sheet);
   private readonly dialog = inject(Dialog);
   private readonly transloco = inject(TranslocoService);
@@ -121,10 +119,7 @@ export class ProjectSpacePage {
   protected readonly canFind = computed(() => isOnConsoleTracker(this.project()));
   /** The Commands pane on a wide screen; the phone opens a sheet instead. */
   protected readonly isPaneOpen = signal(false);
-  protected readonly isPhone = toSignal(
-    this.breakpoints.observe(BREAKPOINTS.phone).pipe(map((result) => result.matches)),
-    { initialValue: this.breakpoints.isMatched(BREAKPOINTS.phone) },
-  );
+  protected readonly isPhone = isPhoneSignal();
 
   private readonly url = toSignal(
     this.router.events.pipe(

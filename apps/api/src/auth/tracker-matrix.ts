@@ -20,7 +20,8 @@ export type TrackerRefusalType =
   | 'sprint-role'
   | 'queue-role'
   | 'member-role'
-  | 'pr-link-role';
+  | 'pr-link-role'
+  | 'review-request-role';
 
 export interface TrackerRouteRule {
   readonly owner: boolean;
@@ -105,6 +106,14 @@ export const TRACKER_MATRIX = {
   // #463: the VCS mirror; `?fresh=1` reads GitHub with the read-only installation token, writes only `pull_requests`.
   [`GET ${P}/prs`]: READ,
   [`GET ${P}/prs/:number`]: READ,
+  // #612: `slot-qa`'s `pr request-reviews`; the orchestrator job enqueues review jobs, the lineage rule is the route's.
+  [`POST ${P}/prs/:number/reviews`]: {
+    owner: false,
+    member: false,
+    job: roleDecisions((role) => role === 'orchestrator'),
+    refusal: 'review-request-role',
+    detail: 'Reviews of a pull request are requested by the orchestrator job',
+  },
   // #467: the queue and its run log; a job reads its own project's (R4), the owner enqueues (Run now).
   [`GET ${P}/jobs`]: READ,
   [`GET ${P}/jobs/:id`]: READ,

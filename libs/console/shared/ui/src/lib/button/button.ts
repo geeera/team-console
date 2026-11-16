@@ -74,5 +74,9 @@ export class Button {
   host: { class: 'tc-icon-button', '[class.tc-icon-button--dot]': 'dot()' },
 })
 export class IconButton {
+  /**
+   * The ochre draft dot in the corner (#107): something unsent waits behind this button. It is decoration only; the
+   * caller says it in the accessible `aria-label` too («Новая задача, есть черновик»).
+   */
   readonly dot = input(false, { transform: booleanAttribute });
 }

@@ -1,6 +1,8 @@
 import { SignJWT, exportJWK, generateKeyPair, type KeyObject } from 'jose';
 import {
+  OWNER_ACCOUNT_ID,
   runnerAudienceOf,
+  type ClaimResponse,
   type Ed25519PublicJwk,
   type EnrolRunnerInput,
   type EnrolRunnerResponse,
@@ -216,4 +218,25 @@ export async function sendAsRunner(
     ...(body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }),
     ...(options.logSink === undefined ? {} : { logSink: options.logSink }),
   });
+}
+
+/**
+ * A claimed job of `slug` with its real `tcj_` token (#612): enqueued by the owner (Run now), claimed by a runner of
+ * the owner's account that serves this project alone. The project must hold no other queued job.
+ */
+export async function seedClaimedJob(
+  slug: string,
+  kind = 'slot-qa',
+): Promise<{ readonly jobId: string; readonly runner: TestRunner; readonly jobToken: string }> {
+  const jobId = await enqueueJob(slug, { kind });
+  const runner = await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [slug] });
+  const response = await sendAsRunner(runner, 'POST', '/api/v1/runner/jobs/claim', {});
+  if (response.status !== 200) {
+    throw new Error(`claiming answered ${String(response.status)}`);
+  }
+  const claim = (await response.json()) as ClaimResponse;
+  if (claim.job.id !== jobId) {
+    throw new Error('the claim took another job than the seeded one');
+  }
+  return { jobId, runner, jobToken: claim.jobToken };
 }

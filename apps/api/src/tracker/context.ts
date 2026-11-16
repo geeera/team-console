@@ -104,6 +104,7 @@ export function invalid(
     | 'decision-invalid'
     | 'request-invalid'
     | 'pr-link-invalid'
+    | 'review-request-invalid'
     | 'decision-command'
     | 'query-invalid',
   field: string,

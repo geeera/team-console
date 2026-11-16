@@ -1,0 +1,67 @@
+{
+  "route": "POST /api/v1/projects/:slug/prs/:number/reviews",
+  "as": {
+    "kind": "job",
+    "role": "orchestrator",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/prs/57/reviews",
+    "body": {
+      "roles": ["qa", "reviewer"],
+      "note": "Touches auth/: look at the session cookie."
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "number": 57,
+      "headSha": "5555555555555555555555555555555555555555",
+      "jobs": [
+        {
+          "id": "00000000000000000000000001",
+          "projectSlug": "tc",
+          "kind": "review",
+          "role": "qa",
+          "state": "queued",
+          "items": [],
+          "priority": 1,
+          "requestedBy": "orchestrator",
+          "needsLocal": false,
+          "dispatch": "pull",
+          "runnerId": null,
+          "attempt": 0,
+          "maxMinutes": 90,
+          "createdAt": "2026-11-12T10:00:00.000Z",
+          "claimedAt": null,
+          "leaseUntil": null,
+          "startedAt": null,
+          "finishedAt": null,
+          "result": null
+        },
+        {
+          "id": "00000000000000000000000002",
+          "projectSlug": "tc",
+          "kind": "review",
+          "role": "reviewer",
+          "state": "queued",
+          "items": [],
+          "priority": 1,
+          "requestedBy": "orchestrator",
+          "needsLocal": false,
+          "dispatch": "pull",
+          "runnerId": null,
+          "attempt": 0,
+          "maxMinutes": 90,
+          "createdAt": "2026-11-12T10:00:00.000Z",
+          "claimedAt": null,
+          "leaseUntil": null,
+          "startedAt": null,
+          "finishedAt": null,
+          "result": null
+        }
+      ]
+    }
+  }
+}

@@ -38,10 +38,33 @@ class SegmentedStory {
   protected readonly hintKey = computed(() => `stories.segmented.${this.chosen()}Hint`);
 }
 
+/** A segment that cannot be chosen yet (e.g. a kind the current plan tier does not allow). */
+@Component({
+  selector: 'tc-story-segmented-disabled',
+  imports: [Segment, SegmentedRadio, TranslocoPipe],
+  template: `
+    <fieldset tc-segmented style="max-width: var(--dialog-max-w)" [legend]="'stories.segmented.kind' | transloco">
+      <label tc-segment>
+        <input type="radio" name="story-kind-disabled" value="feature" checked />
+        {{ 'stories.segmented.feature' | transloco }}
+      </label>
+      <label tc-segment>
+        <input type="radio" name="story-kind-disabled" value="bug" disabled />
+        {{ 'stories.segmented.bug' | transloco }}
+      </label>
+      <label tc-segment>
+        <input type="radio" name="story-kind-disabled" value="chore" disabled />
+        {{ 'stories.segmented.chore' | transloco }}
+      </label>
+    </fieldset>
+  `,
+})
+class SegmentedDisabledStory {}
+
 const meta: Meta<SegmentedRadio> = {
   title: 'Kit/SegmentedRadio',
   component: SegmentedRadio,
-  decorators: [moduleMetadata({ imports: [SegmentedStory] })],
+  decorators: [moduleMetadata({ imports: [SegmentedStory, SegmentedDisabledStory] })],
   render: () => ({ template: '<tc-story-segmented />' }),
 };
 
@@ -52,3 +75,4 @@ export const Kind: Story = {};
 export const Dark: Story = { ...darkTheme };
 export const ReducedMotion: Story = { ...reducedMotion };
 export const Phone: Story = { ...phoneViewport };
+export const Disabled: Story = { render: () => ({ template: '<tc-story-segmented-disabled />' }) };

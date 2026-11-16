@@ -72,7 +72,8 @@ function dedupeKeyOf(slug: string, kind: string): string | null {
   return kind.startsWith('slot-') || kind === 'burn' || kind === 'import' ? `${slug}:${kind}` : null;
 }
 
-function auditOf(c: Context, accountId: string, at: string, kind: NewAuditEvent['kind'], target: string, details: Readonly<Record<string, unknown>>): NewAuditEvent {
+/** An audit row of a write on the queue; who acted comes from the identity, never from a body. */
+export function jobAuditOf(c: Context, accountId: string, at: string, kind: NewAuditEvent['kind'], target: string, details: Readonly<Record<string, unknown>>): NewAuditEvent {
   const actor = auditActorOf(c.get('identity'));
   return { accountId, at, actorKind: actor.kind, actor: actor.actor, kind, target, details, ipCountry: c.req.header('CF-IPCountry') ?? null };
 }
@@ -119,7 +120,7 @@ export function createJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
           maxMinutes: value.maxMinutes ?? JOB_MAX_MINUTES_DEFAULT,
           at,
         },
-        auditOf(c, row.account_id, at, 'job.dispatched', id, { kind: value.kind, role, items: value.items, slug: row.slug }),
+        jobAuditOf(c, row.account_id, at, 'job.dispatched', id, { kind: value.kind, role, items: value.items, slug: row.slug }),
       );
       if (outcome === 'job-exists') {
         return problem(c, { type: 'job-exists', title: 'Conflict', status: 409, detail: 'A job of this kind is already queued or running for the project' });
@@ -206,7 +207,7 @@ export function createJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       await new AccountsRepo(c.env.DB).setProjectRunnerPolicy(
         row.slug,
         value === null ? null : JSON.stringify(value),
-        auditOf(c, row.account_id, at, 'runner.policy-changed', row.slug, { scope: 'project', policy: value }),
+        jobAuditOf(c, row.account_id, at, 'runner.policy-changed', row.slug, { scope: 'project', policy: value }),
       );
       const account = await new AccountsRepo(c.env.DB).findById(row.account_id);
       const dto: RunnerPolicyDto = {
