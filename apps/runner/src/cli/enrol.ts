@@ -34,8 +34,8 @@ import { RUNNER_VERSION } from '../version';
  * `TC_ENROL_CODE=<tce_…> team-console-runner enrol --url <origin> --backend container|user|none` (ADR 0006
  * "Enrolment", the command Settings › Runners shows, `enrolCommandOf`; where the code may come from is
  * `enrol-code.ts`): a fresh Ed25519 key on this host, the public half and the
- * host's description posted with the one-time code, and on success the key (0600) and `config.json` (0600) written
- * under `TC_RUNNER_HOME`. Nothing is written before the console accepts, and an enrolled home is never overwritten.
+ * host's description posted with the one-time code, and on success the key (a keychain item or a 0600 file, see
+ * `runner-key.ts`) and `config.json` (0600) under `TC_RUNNER_HOME`. Nothing is written before the console accepts, and an enrolled home is never overwritten.
  */
 
 const ENROLMENT_CODE = new RegExp(`^${ENROLMENT_CODE_PREFIX}${OPAQUE_TOKEN_TAIL}$`);
