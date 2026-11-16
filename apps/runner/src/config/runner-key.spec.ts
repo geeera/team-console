@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fakeKeychain } from '../testing/fake-keychain';
@@ -52,7 +52,7 @@ describe('runner key store (#585)', () => {
 
       await expect(saveRunnerKey(home, key.privateKey, mac.deps)).resolves.toBe('keychain');
 
-      expect(mac.items.has(itemKey(keychainAccountOf(home)))).toBe(true);
+      expect(mac.items.has(itemKey(await keychainAccountOf(home)))).toBe(true);
       await expect(stat(runnerKeyPathOf(home))).rejects.toMatchObject({ code: 'ENOENT' });
       await expect(stat(join(home, 'keys'))).rejects.toMatchObject({ code: 'ENOENT' });
       const loaded = await loadRunnerKey(home, mac.deps);
@@ -64,7 +64,7 @@ describe('runner key store (#585)', () => {
       const mac = macWith();
       const key = generateRunnerKey();
       await saveRunnerKey(home, key.privateKey, mac.deps);
-      const secret = mac.items.get(itemKey(keychainAccountOf(home))) ?? '';
+      const secret = mac.items.get(itemKey(await keychainAccountOf(home))) ?? '';
 
       expect(secret).not.toBe('');
       for (const call of mac.calls) {
@@ -84,7 +84,7 @@ describe('runner key store (#585)', () => {
       await expect(saveRunnerKey(home, generateRunnerKey().privateKey, mac.deps)).rejects.toMatchObject({
         problem: 'file-exists',
       });
-      await expect(runnerKeyLocationOf(home, mac.deps)).resolves.toContain(keychainAccountOf(home));
+      await expect(runnerKeyLocationOf(home, mac.deps)).resolves.toContain(await keychainAccountOf(home));
     });
 
     it('keeps one item per runner home', async () => {
@@ -105,7 +105,7 @@ describe('runner key store (#585)', () => {
       const failure = loadRunnerKey(home, mac.deps);
 
       await expect(failure).rejects.toMatchObject({ problem: 'file-missing' });
-      await expect(failure).rejects.toThrow(keychainAccountOf(home));
+      await expect(failure).rejects.toThrow(await keychainAccountOf(home));
       await expect(failure).rejects.toThrow(runnerKeyPathOf(home));
     });
 
@@ -127,9 +127,21 @@ describe('runner key store (#585)', () => {
       });
     });
 
+    it('resolves a symlinked TC_RUNNER_HOME to the same account as its target (realpath, not resolve)', async () => {
+      const mac = macWith();
+      const link = join(parent, 'home-link');
+      await symlink(home, link);
+      const key = generateRunnerKey();
+
+      await saveRunnerKey(link, key.privateKey, mac.deps);
+
+      expect(await keychainAccountOf(link)).toBe(await keychainAccountOf(home));
+      expect(xOf(await loadRunnerKey(home, mac.deps))).toBe(key.publicJwk.x);
+    });
+
     it('refuses an item that is not an Ed25519 PKCS#8 key, without quoting it', async () => {
       const mac = macWith();
-      mac.items.set(itemKey(keychainAccountOf(home)), Buffer.from('not a key at all').toString('base64'));
+      mac.items.set(itemKey(await keychainAccountOf(home)), Buffer.from('not a key at all').toString('base64'));
       const failure = loadRunnerKey(home, mac.deps);
 
       await expect(failure).rejects.toMatchObject({ problem: 'file-unsafe' });
@@ -154,7 +166,7 @@ describe('runner key store (#585)', () => {
 
       expect(xOf(await loadRunnerKey(home, mac.deps))).toBe(key.publicJwk.x);
       await expect(stat(runnerKeyPathOf(home))).rejects.toMatchObject({ code: 'ENOENT' });
-      expect(mac.items.has(itemKey(keychainAccountOf(home)))).toBe(true);
+      expect(mac.items.has(itemKey(await keychainAccountOf(home)))).toBe(true);
       expect(xOf(await loadRunnerKey(home, mac.deps))).toBe(key.publicJwk.x);
     });
 

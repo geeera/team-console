@@ -18,7 +18,7 @@ import { SYSTEM_PATH, hostExec, type Exec } from '../host/exec';
 import { InstallError, runInstall, systemInstallHost, type InstallHost } from '../install/install';
 import { jobExecOf } from '../install/templates';
 import { RunnerFileError } from '../config/private-files';
-import { loadRunnerKey } from '../config/runner-key';
+import { loadRunnerKey, runnerKeyLocationOf } from '../config/runner-key';
 import { runLoop } from '../jobs/loop';
 import { RUNNER_VERSION } from '../version';
 import { autoUpdater } from '../update/auto-update';
@@ -173,7 +173,9 @@ async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number>
     deps.stdout(
       `Enrolled "${config.name}" (${config.runnerId}) on ${config.apiUrl} with the ${config.backend} backend; projects: ${projects}.`,
     );
-    deps.stdout(`Config and key are in ${home}.`);
+    // The key may be a keychain item, not a file under `home` (#585); say where it actually is.
+    const keyLocation = (await runnerKeyLocationOf(home)) ?? home;
+    deps.stdout(`Config is in ${home}; the key is in ${keyLocation}.`);
     return EXIT_OK;
   } catch (error: unknown) {
     deps.stderr(`enrol failed: ${describeFailure(error)}`);

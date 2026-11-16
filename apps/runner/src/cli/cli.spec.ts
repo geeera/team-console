@@ -73,6 +73,7 @@ describe('team-console-runner CLI', () => {
     expect(await exit).toBe(EXIT_OK);
     expect(out.join('\n')).toContain(`Enrolled "CI box" (${RUNNER_ID})`);
     expect(out.join('\n')).toContain('no projects yet');
+    expect(out.join('\n')).toMatch(/the key is in .*keys[\\/]runner\.key/);
     expect([...out, ...err].join('\n')).not.toContain(sentinels.enrolmentCode);
   });
 

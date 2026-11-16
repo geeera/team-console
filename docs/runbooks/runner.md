@@ -149,7 +149,11 @@ in one of two stores:
 
 `_tcrunner` is a LaunchDaemon user that never logs in, so it has no login keychain. A keychain the runner created for
 it would need a password to unlock at boot, and that password would sit on the same disk. It would protect nothing
-the 0600 file does not, so the runner creates none and keeps the file.
+the 0600 file does not, so the runner creates none and keeps the file. Even where a keychain exists, its decrypt ACL
+trusts only `/usr/bin/security`, so any process already running as the key's owner reads it without a prompt — the
+keychain's gain is encryption at rest, not a narrower reader than the 0600 file (threat model C4 row 1). The owner
+decided (#585, 2026-11-16, option a) that the `user` backend's `_tcrunner` keeps the 0600 file; a root-written System
+keychain item for it is option (b), tracked as #634.
 
 `TC_RUNNER_KEY_STORE` pins the store. `keychain` refuses to enrol or start when there is no usable keychain, and never
 writes a file. `file` always uses `keys/runner.key` and never calls `security`. If it is not set, the runner uses the

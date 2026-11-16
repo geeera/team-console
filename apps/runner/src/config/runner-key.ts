@@ -1,6 +1,5 @@
 import { createPrivateKey, createPublicKey, generateKeyPairSync, type KeyObject } from 'node:crypto';
-import { rm } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { realpath, rm } from 'node:fs/promises';
 import { isEd25519PublicJwk, type Ed25519PublicJwk } from '@shared/contracts';
 import { hostExec, type Exec } from '../host/exec';
 import { keysDirOf, runnerKeyPathOf } from './config';
@@ -58,8 +57,12 @@ export function generateRunnerKey(): RunnerKeyPair {
   return { privateKey, publicJwk: publicJwkOf(privateKey) };
 }
 
-/** One item per runner home, so two homes of one user never share a key. */
-export const keychainAccountOf = (home: string): string => `runner-key:${resolve(home)}`;
+/**
+ * One item per runner home, so two homes of one user never share a key. Resolved with `realpath`, not `resolve`:
+ * a symlinked `TC_RUNNER_HOME` must map to the same account as its target, or a key saved through the link and
+ * loaded through the target (or the reverse) would look like two different homes.
+ */
+export const keychainAccountOf = async (home: string): Promise<string> => `runner-key:${await realpath(home)}`;
 
 function unavailable(error: unknown): RunnerFileError {
   const detail = error instanceof Error ? error.message : 'failed';
@@ -117,8 +120,8 @@ function keyFromPem(pem: string, home: string): KeyObject {
   return ed25519Of(key, runnerKeyPathOf(home));
 }
 
-function keyFromKeychain(secret: string, keychain: Keychain, home: string): KeyObject {
-  const where = `the keychain item ${keychainAccountOf(home)} in ${keychain.path}`;
+async function keyFromKeychain(secret: string, keychain: Keychain, home: string): Promise<KeyObject> {
+  const where = `the keychain item ${await keychainAccountOf(home)} in ${keychain.path}`;
   let key: KeyObject;
   try {
     key = createPrivateKey({ key: Buffer.from(secret, 'base64'), format: 'der', type: 'pkcs8' });
@@ -132,11 +135,11 @@ const sameKey = (a: KeyObject, b: KeyObject): boolean => encodeForKeychain(a) ==
 
 /** Adds the item and reads it back, so a key is never reported stored when the keychain did not keep it. */
 async function storeInKeychain(keychain: Keychain, home: string, privateKey: KeyObject): Promise<void> {
-  const account = keychainAccountOf(home);
+  const account = await keychainAccountOf(home);
   try {
     await keychain.add(account, encodeForKeychain(privateKey), RUNNER_KEY_LABEL);
     const stored = await keychain.read(account);
-    if (stored === null || !sameKey(keyFromKeychain(stored, keychain, home), privateKey)) {
+    if (stored === null || !sameKey(await keyFromKeychain(stored, keychain, home), privateKey)) {
       throw new KeychainError(`${keychain.path} did not keep the item ${account}`);
     }
   } catch (error: unknown) {
@@ -146,7 +149,7 @@ async function storeInKeychain(keychain: Keychain, home: string, privateKey: Key
 
 async function readKeychainItem(keychain: Keychain, home: string): Promise<string | null> {
   try {
-    return await keychain.read(keychainAccountOf(home));
+    return await keychain.read(await keychainAccountOf(home));
   } catch (error: unknown) {
     throw unavailable(error);
   }
@@ -162,7 +165,7 @@ export async function runnerKeyLocationOf(
   }
   const keychain = await keychainOf(deps);
   if (keychain !== null && (await readKeychainItem(keychain, home)) !== null) {
-    return `the keychain item ${keychainAccountOf(home)} in ${keychain.path}`;
+    return `the keychain item ${await keychainAccountOf(home)} in ${keychain.path}`;
   }
   return null;
 }
@@ -204,7 +207,7 @@ export async function loadRunnerKey(home: string, deps: RunnerKeyDeps = hostDeps
   if (secret === null && !hasFile) {
     throw new RunnerFileError(
       'file-missing',
-      `no runner key: neither the keychain item ${keychainAccountOf(home)} in ${keychain.path} nor ${path} exists`,
+      `no runner key: neither the keychain item ${await keychainAccountOf(home)} in ${keychain.path} nor ${path} exists`,
     );
   }
   // The file's 0600 checks apply before its content is trusted, also on the way into the keychain.
@@ -216,12 +219,12 @@ export async function loadRunnerKey(home: string, deps: RunnerKeyDeps = hostDeps
     }
     return requireKey(fromFile, path);
   }
-  const key = keyFromKeychain(secret, keychain, home);
+  const key = await keyFromKeychain(secret, keychain, home);
   if (fromFile !== null) {
     if (!sameKey(key, fromFile)) {
       throw new RunnerFileError(
         'file-unsafe',
-        `${path} and the keychain item ${keychainAccountOf(home)} hold different keys; revoke the runner and enrol again`,
+        `${path} and the keychain item ${await keychainAccountOf(home)} hold different keys; revoke the runner and enrol again`,
       );
     }
     await rm(path);
