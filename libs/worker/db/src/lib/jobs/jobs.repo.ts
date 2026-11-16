@@ -8,7 +8,7 @@ import type {
   RunnerPolicy,
 } from '@shared/contracts';
 import { JOB_EVENTS_MAX_PER_JOB, JOB_MAX_ATTEMPTS, RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS } from '@shared/contracts';
-import { ROLE_ADMITTED_SQL, roleAdmissionParams } from '../team-config/claim-admission';
+import { ROLE_ADMITTED_SQL, roleAdmissionParams, roleAdmittedSql } from '../team-config/claim-admission';
 import { redactSecrets } from '@shared/redaction';
 import {
   AUDITED_WRITE_HAPPENED_SQL,
@@ -113,6 +113,20 @@ export type ActionsExchangeOutcome =
   | { readonly kind: 'run-seen' }
   /** The project runs on a `subscription` (ADR 0009 d.3, #682): no GitHub Actions machine may run its jobs. */
   | { readonly kind: 'access-source' };
+
+export type EnqueueOutcome = 'ok' | 'job-exists' | 'access-source-hosted';
+
+/**
+ * A queued Actions job with what its `workflow_dispatch` call needs (#670). `installationId` is the project's
+ * installation only while it is linked to the project's own account (ADR 0008 decision 2), else `null`.
+ */
+export interface DispatchTargetRecord {
+  readonly job: JobRecord;
+  readonly repo: string;
+  readonly repoId: number | null;
+  readonly installationId: number | null;
+  readonly defaultBranch: string | null;
+}
 
 export interface JobEventRecord {
   readonly seq: number;
@@ -250,18 +264,22 @@ export class JobsRepo {
   ) {}
 
   /** `job-exists` when a live job holds the dedupe key (the 0022 partial unique index), nothing written then. */
-  async enqueue(job: NewJob, audit: NewAuditEvent): Promise<'ok' | 'job-exists'> {
+  async enqueue(job: NewJob, audit: NewAuditEvent): Promise<EnqueueOutcome> {
     return this.enqueueAll([{ job, audit }]);
   }
 
   /**
    * All or none, in one batch: `job-exists` when any live job holds one of the dedupe keys, nothing written then.
    * With `hold` (a job asking under its token, #580) the batch fails as a whole unless that job still holds.
+   *
+   * A job takes its project's `dispatch` as the insert reads it (#670), so a switch that commits first decides; a
+   * `needs_local` job stays `pull` on an Actions project, since only the owner's own runner may take it (#695).
+   * `access-source-hosted` when 0032's trigger refuses an Actions job of a `subscription` project (#706).
    */
   async enqueueAll(
     entries: readonly { readonly job: NewJob; readonly audit: NewAuditEvent }[],
     hold?: JobTokenHold,
-  ): Promise<'ok' | 'job-exists'> {
+  ): Promise<EnqueueOutcome> {
     if (entries.length === 0) {
       return 'ok';
     }
@@ -273,8 +291,9 @@ export class JobsRepo {
         entries.flatMap(({ job, audit }) => [
           this.db
             .prepare(
-              `INSERT INTO jobs (id, account_id, project_slug, kind, role, payload, priority, requested_by, dedupe_key, needs_local, max_minutes, created_at, parent_job_id)
-               VALUES (?1, ${account}, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`,
+              `INSERT INTO jobs (id, account_id, project_slug, kind, role, payload, priority, requested_by, dedupe_key, needs_local, max_minutes, created_at, parent_job_id, dispatch)
+               VALUES (?1, ${account}, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,
+                 CASE WHEN ?10 = 1 THEN 'pull' ELSE COALESCE((SELECT dispatch FROM projects WHERE slug = ?3), 'pull') END)`,
             )
             .bind(
               job.id,
@@ -298,6 +317,9 @@ export class JobsRepo {
     } catch (error: unknown) {
       if (isConstraintError(error, 'UNIQUE constraint failed: jobs.dedupe_key')) {
         return 'job-exists';
+      }
+      if (isConstraintError(error, 'access-source-hosted:')) {
+        return 'access-source-hosted';
       }
       throw error;
     }
@@ -505,6 +527,99 @@ export class JobsRepo {
   }
 
   /**
+   * A queued, not yet dispatched Actions job with its project's repository and installation (#670); `null` for any
+   * other job. The installation counts only while linked to the project's own account: a project never dispatches
+   * through another account's installation (ADR 0008 decision 2, the two-account rule).
+   */
+  async findDispatchTarget(jobId: string): Promise<DispatchTargetRecord | null> {
+    const row = await this.db
+      .prepare(
+        `SELECT ${PREFIXED_COLUMNS}, p.repo AS project_repo, p.repo_id AS project_repo_id,
+           p.default_branch AS project_default_branch,
+           (SELECT CAST(i.installation_id AS INTEGER) FROM installations i
+            WHERE i.provider = p.provider AND i.installation_id = CAST(p.installation_id AS TEXT)
+              AND i.account_id = p.account_id AND i.unlinked_at IS NULL AND i.suspended_at IS NULL) AS linked_installation_id
+         FROM jobs j JOIN projects p ON p.slug = j.project_slug
+         WHERE j.id = ?1 AND j.state = 'queued' AND j.dispatch = 'actions' AND j.dispatched_at IS NULL`,
+      )
+      .bind(jobId)
+      .first<
+        JobRow & {
+          project_repo: string;
+          project_repo_id: number | null;
+          project_default_branch: string | null;
+          linked_installation_id: number | null;
+        }
+      >();
+    return row === null
+      ? null
+      : {
+          job: toRecord(row),
+          repo: row.project_repo,
+          repoId: row.project_repo_id,
+          installationId: row.linked_installation_id,
+          defaultBranch: row.project_default_branch,
+        };
+  }
+
+  /** Records that GitHub accepted the job's `workflow_dispatch` (#670); `false` when it is no longer waiting for one. */
+  async markDispatched(jobId: string, at: string): Promise<boolean> {
+    const { meta } = await this.db
+      .prepare(
+        `UPDATE jobs SET dispatched_at = ?2
+         WHERE id = ?1 AND state = 'queued' AND dispatch = 'actions' AND dispatched_at IS NULL AND runner_id IS NULL`,
+      )
+      .bind(jobId, at)
+      .run();
+    return meta.changes === 1;
+  }
+
+  /**
+   * Fails a queued Actions job no runner holds (#670): its dispatch call failed (`dispatch-failed`) or no run came
+   * for it (`actions-no-show`). `summary` is one of the console's own phrases, never GitHub's text.
+   */
+  async failUndispatched(jobId: string, at: string, reason: string, summary: string): Promise<boolean> {
+    const result = JSON.stringify({ summary, metrics: { reason }, acted: false });
+    const failed: AuditCondition = {
+      exists: `SELECT 1 FROM jobs WHERE id = ? AND state = 'failed' AND finished_at = ?`,
+      params: [jobId, at],
+    };
+    const [update] = await this.db.batch([
+      this.db
+        .prepare(
+          `UPDATE jobs SET state = 'failed', finished_at = ?2, result = ?3
+           WHERE id = ?1 AND state = 'queued' AND dispatch = 'actions' AND runner_id IS NULL`,
+        )
+        .bind(jobId, at, result),
+      this.eventStatement(jobId, at, { level: 'error', kind: 'failed', payload: { reason, summary } }, failed),
+    ]);
+    return update?.meta.changes === 1;
+  }
+
+  /**
+   * The no-show sweep (#670, the Cron Trigger): an Actions job still queued `minutes` after it was dispatched — or
+   * after it was enqueued, when the Worker never got to record the call — fails as `actions-no-show`.
+   */
+  async failActionsNoShows(now: string, minutes: number, reason: string): Promise<string[]> {
+    const cutoff = new Date(Date.parse(now) - minutes * 60_000).toISOString();
+    const { results } = await this.db
+      .prepare(
+        `SELECT id FROM jobs
+         WHERE state = 'queued' AND dispatch = 'actions' AND runner_id IS NULL AND COALESCE(dispatched_at, created_at) < ?1
+         ORDER BY id LIMIT 100`,
+      )
+      .bind(cutoff)
+      .all<{ id: string }>();
+    const failed: string[] = [];
+    for (const { id } of results) {
+      if (await this.failUndispatched(id, now, reason, reason)) {
+        failed.push(id);
+      }
+    }
+    return failed;
+  }
+
+  /**
    * The OIDC exchange's one batch (#668, architect note on #573): the ephemeral runner row (`actions-ephemeral`, its
    * project alone, one job at a time) and the claim of the job for it, each with its audit row, and the job's
    * `claimed` notice. Both writes hold the same condition — the job queued, dispatched to Actions, unclaimed and never
@@ -514,10 +629,18 @@ export class JobsRepo {
    */
   async exchangeForActions(exchange: ActionsExchange): Promise<ActionsExchangeOutcome> {
     const from = `FROM jobs j JOIN projects p ON p.slug = j.project_slug JOIN accounts a ON a.id = j.account_id
-      LEFT JOIN team_state t ON t.project_slug = j.project_slug`;
-    const claimable = `j.id = ?1 AND j.state = 'queued' AND j.dispatch = 'actions' AND j.runner_id IS NULL
-      AND j.actions_run_id IS NULL AND a.suspended_at IS NULL AND p.archived_at IS NULL AND t.paused_at IS NULL
-      AND p.access_source = 'api_key'`;
+      LEFT JOIN team_state t ON t.project_slug = j.project_slug
+      LEFT JOIN team_configs tc ON tc.project_slug = j.project_slug`;
+    // #695: never a `needs_local` job (the owner's own machine only), and only one the console dispatched itself, so
+    // a hand-started run cannot take a queued job first. #706: the role admission of the pull claim, in this same
+    // statement, so two exchanges racing for two jobs of one role never both pass `max_parallel`.
+    const claimable = (presets: string, top: string): string => `j.id = ?1 AND j.state = 'queued'
+      AND j.dispatch = 'actions' AND j.runner_id IS NULL AND j.actions_run_id IS NULL
+      AND j.needs_local = 0 AND j.dispatched_at IS NOT NULL
+      AND a.suspended_at IS NULL AND p.archived_at IS NULL AND t.paused_at IS NULL
+      AND p.access_source = 'api_key'
+      AND ${roleAdmittedSql(presets, top)}`;
+    const [presets, top] = roleAdmissionParams();
     const held: AuditCondition = {
       exists: `SELECT 1 FROM jobs WHERE jobs.id = ? AND jobs.runner_id = ? AND jobs.state = 'claimed'`,
       params: [exchange.jobId, exchange.runnerId],
@@ -533,7 +656,7 @@ export class JobsRepo {
                  version, enrolled_at, last_seen_at, last_seen_country, last_seen_ip_hash, seen_countries)
                SELECT ?2, j.account_id, ?3, ?4, ?5, '{"local":false,"maxConcurrency":1}', 'actions-ephemeral',
                  json_array(j.project_slug), ?6, ?7, ?7, ?8, ?9, CASE WHEN ?8 IS NULL THEN '[]' ELSE json_array(?8) END
-               ${from} WHERE ${claimable}`,
+               ${from} WHERE ${claimable('?10', '?11')}`,
             )
             .bind(
               exchange.jobId,
@@ -545,6 +668,8 @@ export class JobsRepo {
               exchange.now,
               exchange.country,
               exchange.ipHash,
+              presets,
+              top,
             ),
           exchange.enrolledAudit,
         ),
@@ -555,11 +680,20 @@ export class JobsRepo {
               `UPDATE jobs SET state = 'claimed', runner_id = ?2, claimed_at = ?3, lease_until = ?4, token_hash = ?5,
                  actions_run_id = ?6, attempt = attempt + 1,
                  team_config_revision = (SELECT revision FROM team_configs WHERE project_slug = jobs.project_slug)
-               WHERE id = (SELECT j.id ${from} WHERE ${claimable})
+               WHERE id = (SELECT j.id ${from} WHERE ${claimable('?7', '?8')})
                  AND EXISTS (
                    SELECT 1 FROM runners r WHERE r.id = ?2 AND r.account_id = jobs.account_id AND r.revoked_at IS NULL)`,
             )
-            .bind(exchange.jobId, exchange.runnerId, exchange.now, exchange.leaseUntil, exchange.tokenHash, exchange.runId),
+            .bind(
+              exchange.jobId,
+              exchange.runnerId,
+              exchange.now,
+              exchange.leaseUntil,
+              exchange.tokenHash,
+              exchange.runId,
+              presets,
+              top,
+            ),
           exchange.claimedAudit,
         ),
         this.eventStatement(

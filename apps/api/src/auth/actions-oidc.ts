@@ -14,6 +14,7 @@ import {
   ACTIONS_OIDC_ISSUER,
   ACTIONS_RUN_ID,
   ACTIONS_WORKFLOW_FILE,
+  OIDC_TOKEN_MAX_AGE,
   runnerAudienceOf,
   type OidcExchangeClaim,
 } from '@shared/contracts';
@@ -120,17 +121,21 @@ export async function verifyActionsOidcToken(
       clockTolerance: CLOCK_TOLERANCE_SECONDS,
       currentDate: now,
       requiredClaims: ['iss', 'aud', 'exp', 'iat'],
+      // #695: bounds `iat` too — never ahead of the clock (past the tolerance), never older than the limit.
+      maxTokenAge: OIDC_TOKEN_MAX_AGE,
     });
     return { ok: true, claims: payload };
   } catch (error: unknown) {
     if (issuerUnavailable) {
       return { ok: false, claim: null };
     }
+    // jose reports a token past `maxTokenAge` as JWTExpired on `iat`, and one issued in the future as `iat` failed.
     if (error instanceof joseErrors.JWTExpired) {
-      return { ok: false, claim: 'exp' };
+      return { ok: false, claim: error.claim === 'iat' ? 'iat' : 'exp' };
     }
     if (error instanceof joseErrors.JWTClaimValidationFailed) {
-      return { ok: false, claim: error.claim === 'iss' ? 'iss' : error.claim === 'aud' ? 'aud' : error.claim === 'exp' ? 'exp' : 'token' };
+      const claim = error.claim;
+      return { ok: false, claim: claim === 'iss' || claim === 'aud' || claim === 'exp' || claim === 'iat' ? claim : 'token' };
     }
     if (error instanceof joseErrors.JOSEError || error instanceof TypeError) {
       return { ok: false, claim: 'token' };

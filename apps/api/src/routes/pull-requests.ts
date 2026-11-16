@@ -41,6 +41,8 @@ import { bodySecretRefusal } from '../tracker/body-secret';
 import { invalid, keyPrefixOf, trackerWriteRefusal } from '../tracker/context';
 import { itemSummaryDtoOf } from '../tracker/dto';
 import { SMALL_WRITE_MAX_BYTES, pageOf, writeLimit } from '../tracker/http';
+import { dispatchActionsJobs } from '../actions/dispatch';
+import { actionsOnSubscription } from './dispatch-problems';
 import { jobAuditOf, jobDtoOf } from './jobs';
 
 type Context = WorkerContext<ApiEnv>;
@@ -230,7 +232,7 @@ export function createPullRequestRoutes(
     .get('/:slug/prs/:number/items', guard.items, async (c) => linkedItems(c))
 
     .post('/:slug/prs/:number/reviews', guard.reviews, writeLimit(SMALL_WRITE_MAX_BYTES), async (c) =>
-      requestReviews(c),
+      requestReviews(c, github),
     );
 }
 
@@ -306,7 +308,7 @@ async function parentJobOf(
  * payload unchanged, as data; a secret in it is 422 `body-secret`. A repeat while the jobs are live answers them
  * (200); a request that adds a role enqueues only the new one (201).
  */
-async function requestReviews(c: Context): Promise<Response> {
+async function requestReviews(c: Context, github: ApiGitHub): Promise<Response> {
   const actor = policyActorOfContext(c);
   if (actor.kind !== 'job') {
     // The matrix row admits the orchestrator job only; anything else reaching here is a bug, never an open door.
@@ -395,9 +397,25 @@ async function requestReviews(c: Context): Promise<Response> {
       detail: 'A review of this head by one of these roles was requested at the same time; retry to read it',
     });
   }
+  if (enqueued === 'access-source-hosted') {
+    return actionsOnSubscription(c);
+  }
+  // #670: the review jobs this request created are dispatched now when the project runs on GitHub Actions.
+  const created = new Set(entries.map((entry) => entry.job.id));
+  await dispatchActionsJobs(
+    { env: c.env, github, logger: c.get('logger') },
+    (await jobs.findLiveByDedupeKeys(row.slug, roles.map(keyOf))).filter((job) => created.has(job.id)),
+  );
   const byKey = new Map(
     (await jobs.findLiveByDedupeKeys(row.slug, roles.map(keyOf))).map((job) => [job.dedupeKey, job] as const),
   );
+  // A created job whose dispatch failed is no longer live; the caller still sees it, `failed`.
+  for (const id of created) {
+    const job = await jobs.findById(id);
+    if (job !== null && !byKey.has(job.dedupeKey)) {
+      byKey.set(job.dedupeKey, job);
+    }
+  }
   const body: ReviewRequestDto = {
     number,
     headSha: pull.headSha,

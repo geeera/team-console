@@ -87,9 +87,11 @@ describe('integration: run-once --oidc against the local stack', () => {
   async function queueActionsJob(scenario: number): Promise<string> {
     jobCounter += 1;
     const id = `01KA0000000000000000000J${String(jobCounter).padStart(2, '0')}`;
-    // Enqueue for Actions is #670's; straight into D1 as #668's harness does.
+    // Straight into D1 as #668's harness does, standing in for the console's enqueue and dispatch (#670): the
+    // exchange takes only a job the console dispatched (`dispatched_at`, #695 item 3).
+    const now = new Date().toISOString();
     await stack.d1(
-      `INSERT INTO jobs (id, account_id, project_slug, kind, role, requested_by, created_at, dispatch, payload, max_minutes) VALUES ('${id}', '${OWNER_ACCOUNT_ID}', '${SLUG}', 'slot-dev', '${roleOfJobKind('slot-dev', null)}', 'owner', '${new Date().toISOString()}', 'actions', '{"items":[${String(scenario)}]}', 5)`,
+      `INSERT INTO jobs (id, account_id, project_slug, kind, role, requested_by, created_at, dispatch, dispatched_at, payload, max_minutes) VALUES ('${id}', '${OWNER_ACCOUNT_ID}', '${SLUG}', 'slot-dev', '${roleOfJobKind('slot-dev', null)}', 'owner', '${now}', 'actions', '${now}', '{"items":[${String(scenario)}]}', 5)`,
     );
     return id;
   }

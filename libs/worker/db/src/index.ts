@@ -87,6 +87,7 @@ export type {
   MemberRecord,
   Membership,
   NewAccount,
+  PlacementWriteOutcome,
 } from './lib/accounts/accounts.repo';
 export { UsersRepo } from './lib/accounts/users.repo';
 export type { UserRecord } from './lib/accounts/users.repo';
@@ -121,12 +122,20 @@ export type {
   ActionsExchangeOutcome,
   ActionsTargetRecord,
   ClaimRequest,
+  DispatchTargetRecord,
+  EnqueueOutcome,
   JobEventRecord,
   JobFilter,
   JobRecord,
   JobTokenHold,
   NewJob,
 } from './lib/jobs/jobs.repo';
+export { ProjectDispatchRepo } from './lib/jobs/project-dispatch.repo';
+export type {
+  ProjectDispatchOutcome,
+  ProjectDispatchRecord,
+  ProjectDispatchWrite,
+} from './lib/jobs/project-dispatch.repo';
 export { FAILURE_STREAK_PAUSER, RUNNER_EXCLUSION_BUDGET, TeamStateRepo } from './lib/jobs/team-state.repo';
 export type { TeamStateRecord } from './lib/jobs/team-state.repo';
 export type { RateLimitOutcome } from './lib/runners/rate-limits.repo';

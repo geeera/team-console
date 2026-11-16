@@ -11,6 +11,7 @@ import { createRunnerJobRoutes } from './routes/runner-jobs';
 import { createRunnerPauseRoutes } from './routes/runner-pause';
 import { createRunnerOidcRoutes } from './routes/runner-oidc';
 import { createJobRoutes } from './routes/jobs';
+import { createProjectDispatchRoutes } from './routes/project-dispatch';
 import { createTeamConfigRoutes } from './routes/team-config';
 import type { ApiEnv } from './env';
 import { ApiGitHub, mapGitHubError } from './github';
@@ -151,7 +152,9 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   // The runner's own door: enrolment by the one-time code, then the runner JWT alone (`auth/runner-auth.ts`).
   v1.route('/runner', createRunnerRoutes());
   // The queue (#467): the owner's Run now and the reads behind the matrix; the runner's claim, heartbeat, events, finish.
-  v1.route('/projects', createJobRoutes());
+  v1.route('/projects', createJobRoutes(github));
+  // Pull or GitHub Actions per project (#670): the owner's switch; an Actions job is dispatched at enqueue.
+  v1.route('/projects', createProjectDispatchRoutes(github));
   v1.route('/runner', createRunnerJobRoutes());
   // Team configuration (#687, ADR 0009): D1 behind the matrix; the import reads project.yml through the VCS adapter.
   v1.route('/projects', createTeamConfigRoutes(github, owners));

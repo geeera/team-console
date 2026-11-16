@@ -25,9 +25,9 @@ export function repositoryOwners(): {
 }
 
 export interface MintScope {
-  readonly permissions: Readonly<Record<string, 'read'>>;
+  readonly permissions: Readonly<Record<string, 'read' | 'write'>>;
   readonly repository_selection: 'selected' | 'all';
-  readonly repositories?: readonly { readonly name: string; readonly full_name: string }[];
+  readonly repositories?: readonly { readonly id?: number; readonly name: string; readonly full_name: string }[];
 }
 
 /**
@@ -41,6 +41,17 @@ export function mintScopeOf(
   ownerOf: (name: string) => string | undefined = () => undefined,
 ): MintScope {
   const request = JSON.parse(body ?? '{}') as Record<string, unknown>;
+  // #670: the Actions dispatch mint names its one repository by id and asks for `actions: write`.
+  const ids = request['repository_ids'];
+  if (Array.isArray(ids)) {
+    return {
+      permissions: request['permissions'] as Readonly<Record<string, 'read' | 'write'>>,
+      repository_selection: 'selected',
+      repositories: ids
+        .filter((id): id is number => typeof id === 'number')
+        .map((id) => ({ id, name: `repo-${String(id)}`, full_name: `owner/repo-${String(id)}` })),
+    };
+  }
   const requested = request['repositories'];
   if (requested === undefined) {
     return { permissions: INSTALLATION_LIST_PERMISSIONS, repository_selection: 'all' };

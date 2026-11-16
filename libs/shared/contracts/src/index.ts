@@ -199,20 +199,35 @@ export type {
   TeamStateDto,
 } from './lib/job';
 export {
+  ACTIONS_DISPATCH_FAILED,
+  ACTIONS_DISPATCH_FAILURES,
   ACTIONS_ENVIRONMENT,
+  ACTIONS_NO_SHOW,
+  ACTIONS_NO_SHOW_MINUTES,
   ACTIONS_OIDC_ISSUER,
   ACTIONS_RUN_ID,
   ACTIONS_WORKFLOW_FILE,
   OIDC_EXCHANGE_CLAIMS,
+  OIDC_TOKEN_MAX_AGE,
   OIDC_TOKEN_MAX_LENGTH,
   PROJECT_DISPATCHES,
   actionsRunIdOf,
   actionsRunnerNameOf,
   checkOidcExchangeInput,
+  checkProjectDispatchInput,
   isOidcExchangeResponse,
   isProjectDispatch,
+  isProjectDispatchDto,
 } from './lib/actions-runner';
-export type { OidcExchangeClaim, OidcExchangeInput, OidcExchangeResponse, ProjectDispatch } from './lib/actions-runner';
+export type {
+  ActionsDispatchFailure,
+  OidcExchangeClaim,
+  OidcExchangeInput,
+  OidcExchangeResponse,
+  ProjectDispatch,
+  ProjectDispatchDto,
+  ProjectDispatchInput,
+} from './lib/actions-runner';
 export { INSTALLATION_REPOSITORIES_URL } from './lib/installation-repositories';
 export type {
   GitHubAppNotInstalledProblem,

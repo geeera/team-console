@@ -21,6 +21,9 @@
     // the /brand icons are answered per ENVIRONMENT by the Worker (#237, routes/app-identity.ts).
     "run_worker_first": ["/api", "/api/*", "/manifest.webmanifest", "/brand/*"],
   },
+  // The queue's sweep (#670, src/actions/sweep.ts): lapsed leases and Actions no-shows. One of the five free Cron
+  // Triggers (ADR 0006 budgets one every 5 minutes); inherited by every env below.
+  "triggers": { "crons": ["*/5 * * * *"] },
   "env": {
     "dev": {
       "name": "team-console-dev",

@@ -106,14 +106,39 @@ export async function saveAccessSource(project: ActionsProject, source: AccessSo
   return outcome.kind;
 }
 
-/** A queued job of the project, dispatched to Actions unless `dispatch` says otherwise (enqueue is #670's). */
-export async function seedActionsJob(project: ActionsProject, dispatch: 'actions' | 'pull' = 'actions'): Promise<string> {
+export interface SeededJobOptions {
+  /** `false`: queued but never dispatched by the console (#695 item 3: a hand-started run must not take it). */
+  readonly dispatched?: boolean;
+  readonly needsLocal?: boolean;
+  readonly role?: string;
+}
+
+/**
+ * A queued job of the project, dispatched to Actions unless `dispatch` says otherwise; an Actions job counts as
+ * dispatched by the console (`dispatched_at` set) unless `options.dispatched` is `false`.
+ */
+export async function seedActionsJob(
+  project: ActionsProject,
+  dispatch: 'actions' | 'pull' = 'actions',
+  options: SeededJobOptions = {},
+): Promise<string> {
   const id = newUlid();
+  const now = new Date().toISOString();
+  const dispatchedAt = dispatch === 'actions' && options.dispatched !== false ? now : null;
   await env.DB.prepare(
-    `INSERT INTO jobs (id, account_id, project_slug, kind, role, requested_by, created_at, dispatch)
-     VALUES (?1, ?2, ?3, 'slot-dev', ?4, 'owner', ?5, ?6)`,
+    `INSERT INTO jobs (id, account_id, project_slug, kind, role, requested_by, created_at, dispatch, dispatched_at, needs_local)
+     VALUES (?1, ?2, ?3, 'slot-dev', ?4, 'owner', ?5, ?6, ?7, ?8)`,
   )
-    .bind(id, project.accountId, project.slug, roleOfJobKind('slot-dev', null), new Date().toISOString(), dispatch)
+    .bind(
+      id,
+      project.accountId,
+      project.slug,
+      options.role ?? roleOfJobKind('slot-dev', null),
+      now,
+      dispatch,
+      dispatchedAt,
+      options.needsLocal === true ? 1 : 0,
+    )
     .run();
   return id;
 }
@@ -154,7 +179,7 @@ export interface TokenOptions {
   readonly lifetimeSeconds?: number;
   readonly algorithm?: string;
   readonly kid?: string;
-  readonly omit?: readonly ('iss' | 'aud' | 'exp')[];
+  readonly omit?: readonly ('iss' | 'aud' | 'exp' | 'nbf')[];
 }
 
 /** A run's OIDC token signed by the test issuer, unless `options` bend it for a refusal case. */
@@ -168,8 +193,10 @@ export async function actionsToken(
   const jwt = new SignJWT(claims)
     .setProtectedHeader({ alg: options.algorithm ?? 'RS256', kid: options.kid ?? issuer.kid, typ: 'JWT' })
     .setIssuedAt(issuedAt)
-    .setNotBefore(issuedAt - 5)
     .setJti(crypto.randomUUID());
+  if (!omit.has('nbf')) {
+    jwt.setNotBefore(issuedAt - 5);
+  }
   if (!omit.has('iss')) {
     jwt.setIssuer(options.issuer ?? ACTIONS_OIDC_ISSUER);
   }

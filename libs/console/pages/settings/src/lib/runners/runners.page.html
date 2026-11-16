@@ -145,6 +145,13 @@
               </select>
             </tc-field>
             <tc-runner-policy-editor [scope]="scope" [runners]="store.runners()" [revision]="accountRevision()" />
+            @if (projectSlug(); as slug) {
+              <div class="runners__dispatch" data-testid="runners-dispatch" role="group" aria-labelledby="runners-dispatch-title">
+                <h4 id="runners-dispatch-title" class="runners__policy-title">{{ 'runners.dispatch.title' | transloco }}</h4>
+                <p class="runners__lead">{{ 'runners.dispatch.lead' | transloco }}</p>
+                <tc-project-dispatch-editor [slug]="slug" />
+              </div>
+            }
           } @else {
             <p class="runners__lead">{{ 'runners.policy.noProjects' | transloco }}</p>
           }

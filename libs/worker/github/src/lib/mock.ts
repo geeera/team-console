@@ -1,5 +1,6 @@
 import fixtures from '../../fixtures/mock-github.json';
 import {
+  ACTIONS_DISPATCH_PERMISSIONS,
   INSTALLATION_LIST_PERMISSIONS,
   INSTALLATION_PERMISSIONS,
   type GitHubAppCredentials,
@@ -59,6 +60,12 @@ export interface MockRepository {
   readonly pullFiles?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
   /** `GET …/commits/{sha}/check-runs` (#131), by head sha; a sha not listed has no check runs. */
   readonly checkRuns?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
+  /**
+   * #670: the installation grants `actions: write` on this repository, so an Actions dispatch mint by its
+   * `repository.id` succeeds and `POST …/actions/workflows/team-console-runner.yml/dispatches` answers 204; without it
+   * the mint answers 422, as GitHub does for a permission the installation lacks.
+   */
+  readonly actionsWrite?: boolean;
 }
 
 export interface MockFixtures {
@@ -192,6 +199,7 @@ function listOf(
 /** A per-repository read token, or the installation-wide `metadata` token of the repository list (#194). */
 type IssuedToken =
   | { readonly scope: 'repo'; readonly repo: string; readonly expiresAt: number }
+  | { readonly scope: 'actions'; readonly repo: string; readonly repositoryId: number; readonly expiresAt: number }
   | { readonly scope: 'installation'; readonly installationId: number; readonly expiresAt: number };
 
 const LIST_PAGE_MAX = 100;
@@ -290,6 +298,28 @@ class MockGitHubServer {
       return this.mint(Number(segments[2]), typeof init.body === 'string' ? init.body : '');
     }
 
+    // #670: `workflow_dispatch` of the runner workflow, with a token minted for exactly this repository.
+    if (
+      method === 'POST' &&
+      segments.length === 7 &&
+      segments[0] === 'repos' &&
+      segments[3] === 'actions' &&
+      segments[4] === 'workflows' &&
+      segments[6] === 'dispatches'
+    ) {
+      const token = this.issued.get(bearer);
+      if (token === undefined || token.expiresAt <= Date.now()) {
+        return json(401, { message: 'Bad credentials' });
+      }
+      if (token.scope !== 'actions') {
+        return json(403, { message: 'Resource not accessible by integration' });
+      }
+      if (token.repo.toLowerCase() !== `${segments[1]}/${segments[2]}`.toLowerCase()) {
+        return notFound();
+      }
+      return segments[5] === 'team-console-runner.yml' ? new Response(null, { status: 204 }) : notFound();
+    }
+
     const isRepositoryRead = segments.length === 3;
     const isContentsRead = segments.length > 4 && segments[3] === 'contents';
     const listed = segments.length === 4 ? segments[3] : undefined;
@@ -330,6 +360,10 @@ class MockGitHubServer {
       // A test tripwire, not GitHub's behaviour (GitHub answers metadata reads): the list token reads nothing else.
       if (token.scope === 'installation') {
         return json(403, { message: 'mock: the installation list token must not read a repository' });
+      }
+      // A test tripwire as well: the dispatch token is spent on its one POST, never on a read.
+      if (token.scope === 'actions') {
+        return json(403, { message: 'mock: the Actions dispatch token must not read a repository' });
       }
       const found = this.repository(repo);
       // A downscoped token sees only its own repository; GitHub answers 404 for the rest.
@@ -593,6 +627,23 @@ class MockGitHubServer {
         expiresAt: Date.now() + TOKEN_LIFETIME_MS,
       });
     }
+    // #670: the Actions dispatch token, one repository by id, `actions: write` alone.
+    const ids = request['repository_ids'];
+    if (Array.isArray(ids)) {
+      const wanted = ids.length === 1 && typeof ids[0] === 'number' ? ids[0] : undefined;
+      const found = onInstallation.find(([, fixture]) => fixture.repository?.['id'] === wanted);
+      if (
+        found === undefined ||
+        wanted === undefined ||
+        JSON.stringify(request['permissions']) !== JSON.stringify(ACTIONS_DISPATCH_PERMISSIONS)
+      ) {
+        return json(422, { message: 'The console must mint actions: write for exactly one repository' });
+      }
+      if (found[1].actionsWrite !== true) {
+        return json(422, { message: 'The permissions requested are not granted to this installation.' });
+      }
+      return this.issue201({ scope: 'actions', repo: found[0], repositoryId: wanted, expiresAt: Date.now() + TOKEN_LIFETIME_MS });
+    }
     const target =
       Array.isArray(repositories) && repositories.length === 1 && typeof repositories[0] === 'string'
         ? onInstallation.find(
@@ -612,14 +663,21 @@ class MockGitHubServer {
   private issue201(issued: IssuedToken): Response {
     const token = `ghs_mock${crypto.randomUUID().replace(/-/g, '')}`;
     this.issued.set(token, issued);
+    const name = issued.scope === 'installation' ? '' : (issued.repo.split('/')[1] ?? '');
     return json(201, {
       token,
       expires_at: new Date(issued.expiresAt).toISOString(),
-      permissions: issued.scope === 'repo' ? INSTALLATION_PERMISSIONS : INSTALLATION_LIST_PERMISSIONS,
-      repository_selection: issued.scope === 'repo' ? 'selected' : 'all',
+      permissions:
+        issued.scope === 'repo'
+          ? INSTALLATION_PERMISSIONS
+          : issued.scope === 'actions'
+            ? ACTIONS_DISPATCH_PERMISSIONS
+            : INSTALLATION_LIST_PERMISSIONS,
+      repository_selection: issued.scope === 'installation' ? 'all' : 'selected',
       // #317: a repository token lists the one repository it covers, as GitHub's answer does.
-      ...(issued.scope === 'repo'
-        ? { repositories: [{ name: issued.repo.split('/')[1] ?? '', full_name: issued.repo }] }
+      ...(issued.scope === 'repo' ? { repositories: [{ name, full_name: issued.repo }] } : {}),
+      ...(issued.scope === 'actions'
+        ? { repositories: [{ id: issued.repositoryId, name, full_name: issued.repo }] }
         : {}),
     });
   }

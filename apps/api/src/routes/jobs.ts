@@ -14,7 +14,10 @@ import {
 } from '@shared/contracts';
 import { newUlid, problem, type ProblemExtensionValue, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import { AccountsRepo, JobsRepo, RunnersRepo, effectivePolicyOf, type JobRecord, type NewAuditEvent } from '@worker/db';
+import { dispatchActionsJob } from '../actions/dispatch';
 import { isJobRole } from '../auth/job-roles';
+import type { ApiGitHub } from '../github';
+import { actionsOnSubscription, placementConflict } from './dispatch-problems';
 import { auditActorOf } from '../auth/scope';
 import { trackerAccess, trackerProjectOfContext } from '../auth/tracker-access.middleware';
 import type { ApiEnv } from '../env';
@@ -98,7 +101,7 @@ export function jobAuditOf(c: Context, accountId: string, at: string, kind: NewA
  * `job-exists` while the first is live. Placement (ADR 0008 decision 12) is written per project here and per account
  * in `account-runners.ts`; a policy naming another account's runner is 422 `runner-policy-invalid`.
  */
-export function createJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
+export function createJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>()
     .post('/:slug/jobs', trackerAccess(`POST ${P}/jobs`), writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
       const row = trackerProjectOfContext(c);
@@ -137,6 +140,14 @@ export function createJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       );
       if (outcome === 'job-exists') {
         return problem(c, { type: 'job-exists', title: 'Conflict', status: 409, detail: 'A job of this kind is already queued or running for the project' });
+      }
+      if (outcome === 'access-source-hosted') {
+        return actionsOnSubscription(c);
+      }
+      const queued = await new JobsRepo(c.env.DB).findInProject(row.slug, id);
+      // #670: an Actions job is dispatched now; a failed call leaves it `failed` with `dispatch-failed`.
+      if (queued?.dispatch === 'actions') {
+        await dispatchActionsJob({ env: c.env, github, logger: c.get('logger') }, queued.id);
       }
       const job = await new JobsRepo(c.env.DB).findInProject(row.slug, id);
       return c.json(job === null ? null : jobDtoOf(job), 201);
@@ -224,6 +235,9 @@ export function createJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       );
       if (written === 'access-source-hosted') {
         return accessSourceHosted(c);
+      }
+      if (written === 'placement-machine-bound') {
+        return placementConflict(c, 'policy');
       }
       const account = await new AccountsRepo(c.env.DB).findById(row.account_id);
       const dto: RunnerPolicyDto = {
