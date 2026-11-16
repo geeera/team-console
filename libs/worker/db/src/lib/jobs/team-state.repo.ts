@@ -25,6 +25,15 @@ export const FAILURE_STREAK_PAUSER = 'system:failure-streak';
  */
 export const RUNNER_PAUSE_GRACE_MS = 2 * 60 * 1000;
 
+/**
+ * One runner may have this many failures left out of the streak per window (#658). A pause has no minimum length and
+ * the runner can lift it at once, so the pause alone cannot stop a rogue runner from failing jobs "on a limit" for
+ * ever; past the budget its limit failures count like any other. Sized above a legitimate burst: every job a runner
+ * has in flight when it hits its quota fails together.
+ */
+export const RUNNER_EXCLUSION_BUDGET = 5;
+export const RUNNER_EXCLUSION_WINDOW_MS = 60 * 60 * 1000;
+
 /** A failure the runner says hit a usage or rate limit (#571): `reason` is `metrics.reason` from its finish. */
 export interface StreakLimitClaim {
   readonly reason: unknown;
@@ -41,10 +50,16 @@ export interface StreakOutcome {
   readonly excluded: boolean;
 }
 
-/** The finishing runner holds a pause in force, or one that lapsed inside the grace window. */
-const heldPauseOf = (runnerId: string, accountId: string, graceFrom: string): string =>
+/**
+ * The finishing runner holds a pause in force, or one that lapsed inside the grace window, and has not used up its
+ * exclusion budget (#658): the `job.streak-excluded` rows it already caused are counted from the audit log.
+ */
+const heldPauseOf = (runnerId: string, accountId: string, graceFrom: string, windowFrom: string): string =>
   `SELECT 1 FROM runners WHERE id = ${runnerId} AND account_id = ${accountId} AND revoked_at IS NULL
-     AND paused_until IS NOT NULL AND julianday(paused_until) > julianday(${graceFrom})`;
+     AND paused_until IS NOT NULL AND julianday(paused_until) > julianday(${graceFrom})
+     AND (SELECT COUNT(*) FROM audit_events WHERE account_id = ${accountId} AND actor_kind = 'runner'
+            AND actor = ${runnerId} AND kind = 'job.streak-excluded'
+            AND julianday(at) > julianday(${windowFrom})) < ${RUNNER_EXCLUSION_BUDGET}`;
 
 export class TeamStateRepo {
   constructor(private readonly db: D1Database) {}
@@ -120,13 +135,14 @@ export class TeamStateRepo {
       claim?.runnerId ?? null,
       claim?.accountId ?? null,
       new Date(Date.parse(now) - RUNNER_PAUSE_GRACE_MS).toISOString(),
+      new Date(Date.parse(now) - RUNNER_EXCLUSION_WINDOW_MS).toISOString(),
     ] as const;
     const statements: D1PreparedStatement[] = [
       this.db
         .prepare(
           `INSERT INTO team_state (project_slug, paused_at, paused_by, failed_streak, updated_at)
            SELECT ?1, CASE WHEN ?2 >= ?3 THEN ?4 END, CASE WHEN ?2 >= ?3 THEN ?5 END, ?2, ?4
-           WHERE ?6 IS NULL OR NOT EXISTS (${heldPauseOf('?6', '?7', '?8')})
+           WHERE ?6 IS NULL OR NOT EXISTS (${heldPauseOf('?6', '?7', '?8', '?9')})
            ON CONFLICT (project_slug) DO UPDATE SET
              failed_streak = CASE WHEN ?2 = 0 THEN 0 ELSE failed_streak + 1 END,
              paused_at = CASE WHEN ?2 <> 0 AND failed_streak + 1 >= ?3 AND paused_at IS NULL THEN ?4 ELSE paused_at END,
@@ -140,14 +156,15 @@ export class TeamStateRepo {
     if (failed && pauseAudit !== undefined) {
       statements.push(
         auditEventStatement(this.db, pauseAudit, {
-          exists: `SELECT 1 FROM team_state WHERE project_slug = ? AND failed_streak = ? AND paused_by = ? AND paused_at = ?
-                   AND (? IS NULL OR NOT EXISTS (${heldPauseOf('?', '?', '?')}))`,
-          params: [projectSlug, TEAM_FAILURE_STREAK_PAUSE, FAILURE_STREAK_PAUSER, now, heldPause[0], ...heldPause],
+          // ?1-?8 are the audit row's own values; the held-pause test reuses runner and account in two places each.
+          exists: `SELECT 1 FROM team_state WHERE project_slug = ?9 AND failed_streak = ?10 AND paused_by = ?11 AND paused_at = ?12
+                   AND (?13 IS NULL OR NOT EXISTS (${heldPauseOf('?13', '?14', '?15', '?16')}))`,
+          params: [projectSlug, TEAM_FAILURE_STREAK_PAUSE, FAILURE_STREAK_PAUSER, now, ...heldPause],
         }),
       );
     }
     if (claim !== null) {
-      statements.push(auditEventStatement(this.db, claim.audit, { exists: heldPauseOf('?', '?', '?'), params: [...heldPause] }));
+      statements.push(auditEventStatement(this.db, claim.audit, { exists: heldPauseOf('?9', '?10', '?11', '?12'), params: [...heldPause] }));
     }
     const [upsert, ...audits] = await this.db.batch<{
       failed_streak: number;
