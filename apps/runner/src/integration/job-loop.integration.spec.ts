@@ -34,9 +34,9 @@ describe('integration: Run now → runner → fake CLI → events and finish', (
   const out: string[] = [];
   const err: string[] = [];
 
-  const cli = (args: readonly string[]): Promise<number> =>
+  const cli = (args: readonly string[], env: Readonly<Record<string, string>> = {}): Promise<number> =>
     runCli(args, {
-      env: { TC_RUNNER_HOME: home, PATH: process.env['PATH'] },
+      env: { TC_RUNNER_HOME: home, PATH: process.env['PATH'], ...env },
       homeDir: home,
       host: { os: process.platform, arch: process.arch, hostname: 'integration.local' },
       fetch: (url, init) => fetch(url, init),
@@ -118,7 +118,8 @@ describe('integration: Run now → runner → fake CLI → events and finish', (
       throw new Error('no enrolment code');
     }
     expect(
-      await cli(['enrol', '--url', enrolment.apiUrl, '--code', enrolment.code, '--backend', 'none']),
+      // The documented path (#582): the code in the environment, never in argv.
+      await cli(['enrol', '--url', enrolment.apiUrl, '--backend', 'none'], { TC_ENROL_CODE: enrolment.code }),
     ).toBe(EXIT_OK);
     const enrolled = await loadRunnerConfig(home);
     const { toolchain, repositories } = runnerConfigFor(join(repoDir, 'repo'));
