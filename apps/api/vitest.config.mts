@@ -102,6 +102,8 @@ export default defineConfig(async () => {
             MIGRATION_DB_0028: 'migration-steps-0028',
             // #456: 0029's rank backfill and item_events rebuild over existing items and events.
             MIGRATION_DB_0029: 'migration-steps-0029',
+            // #578: 0030's rename guard over rows 0026 keyed and left unkeyed.
+            MIGRATION_DB_0030: 'migration-steps-0030',
           },
           bindings: {
             TEST_MIGRATIONS: await readD1Migrations(resolve(import.meta.dirname, 'migrations')),
