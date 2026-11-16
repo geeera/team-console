@@ -431,16 +431,24 @@ export async function runInstall(
 const kindOf = (stats: Stats): PathFacts['kind'] =>
   stats.isSymbolicLink() ? 'symlink' : stats.isDirectory() ? 'directory' : stats.isFile() ? 'file' : 'other';
 
+interface Ownership {
+  readonly uid: number;
+  readonly gid: number;
+}
+
+const isErrno = (error: unknown, ...codes: string[]): boolean =>
+  error instanceof Error && 'code' in error && typeof error.code === 'string' && codes.includes(error.code);
+
 /**
- * #598: the mode is set through an `O_DIRECTORY | O_NOFOLLOW` handle, so a symlink or a non-directory swapped in
- * after planning is refused (ELOOP / ENOTDIR) instead of followed; `chown -h` never follows one either.
+ * #598: mode and owner are set on an `O_DIRECTORY | O_NOFOLLOW` handle (`fchmod`, `fchown`), never by path, so a
+ * symlink, a file or a hard link `_tcrunner` swaps in under its home is refused (ELOOP / ENOTDIR) or never touched.
  */
-async function chmodDirectory(path: string, mode: number): Promise<void> {
+async function settleDirectory(path: string, mode: number, owner: Ownership | undefined): Promise<void> {
   let handle;
   try {
     handle = await open(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
   } catch (error: unknown) {
-    if (error instanceof Error && 'code' in error && (error.code === 'ELOOP' || error.code === 'ENOTDIR')) {
+    if (isErrno(error, 'ELOOP', 'ENOTDIR')) {
       throw new Error(`${path} is not a directory (a symlink is refused too)`, { cause: error });
     }
     throw error;
@@ -449,23 +457,53 @@ async function chmodDirectory(path: string, mode: number): Promise<void> {
     if (!(await handle.stat()).isDirectory()) {
       throw new Error(`${path} is not a directory`);
     }
+    if (owner !== undefined) {
+      await handle.chown(owner.uid, owner.gid);
+    }
     await handle.chmod(mode);
   } finally {
     await handle.close();
   }
 }
 
-/** The real host. `apply` writes with `O_NOFOLLOW`, sets the mode exactly and chowns by name. */
+/** The real host. `apply` opens with `O_NOFOLLOW` and sets mode and owner on that handle only. */
 export function systemInstallHost(base: {
   platform: string;
   uid: number;
   homeDir: string;
   exec: Exec;
 }): InstallHost {
-  const chown = async (owner: string | undefined, path: string): Promise<void> => {
-    if (owner !== undefined && (await base.exec('/usr/sbin/chown', ['-h', owner, path])).code !== 0) {
-      throw new Error(`chown ${owner} ${path} failed`);
+  const idOf = async (
+    command: string,
+    args: readonly string[],
+    parse: RegExp,
+    label: string,
+  ): Promise<number> => {
+    const { code, stdout } = await base.exec(command, args);
+    const match = code === 0 ? parse.exec(stdout.trim()) : null;
+    if (match?.[1] === undefined) {
+      throw new Error(`could not resolve ${label}`);
     }
+    return Number(match[1]);
+  };
+  // Resolved at apply time: the users and the group may be created by earlier steps of the same run.
+  const ownershipOf = async (owner: string | undefined): Promise<Ownership | undefined> => {
+    if (owner === undefined) {
+      return undefined;
+    }
+    const [user, group] = owner.split(':');
+    if (user === undefined || group === undefined || user === '' || group === '') {
+      throw new Error(`owner must be user:group (${owner})`);
+    }
+    return {
+      uid: await idOf('/usr/bin/id', ['-u', user], /^(\d+)$/, `user ${user}`),
+      gid: await idOf(
+        DSCL,
+        ['.', '-read', `/Groups/${group}`, 'PrimaryGroupID'],
+        /PrimaryGroupID:\s*(\d+)/,
+        `group ${group}`,
+      ),
+    };
   };
   return {
     ...base,
@@ -474,7 +512,7 @@ export function systemInstallHost(base: {
         const stats = await lstat(path);
         return { uid: stats.uid, mode: stats.mode & 0o7777, kind: kindOf(stats) };
       } catch (error: unknown) {
-        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        if (isErrno(error, 'ENOENT')) {
           return null;
         }
         throw error;
@@ -499,21 +537,25 @@ export function systemInstallHost(base: {
           }
           return;
         }
-        case 'mkdir':
+        case 'mkdir': {
+          const owner = await ownershipOf(step.owner);
           await mkdir(step.path, { recursive: true, mode: step.mode });
-          await chmodDirectory(step.path, step.mode);
-          await chown(step.owner, step.path);
+          await settleDirectory(step.path, step.mode, owner);
           return;
+        }
         case 'write': {
+          const owner = await ownershipOf(step.owner);
           const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW;
           const handle = await open(step.path, flags, step.mode);
           try {
+            if (owner !== undefined) {
+              await handle.chown(owner.uid, owner.gid);
+            }
             await handle.chmod(step.mode);
             await handle.writeFile(step.content, 'utf8');
           } finally {
             await handle.close();
           }
-          await chown(step.owner, step.path);
         }
       }
     },
