@@ -133,6 +133,43 @@ describe('job lifecycle', () => {
     expect(client.finished[0]?.metrics).toMatchObject({ reason: 'max-minutes', signal: 'SIGTERM' });
   }, 30_000);
 
+  it('kills the CLI at maxMinutes through the default deadline timer (#663)', async () => {
+    // The spec above overrides `armDeadline`; this one exercises the real `setTimeout`/`clearTimeout`
+    // default and `stop()`'s kill-of-a-running-process branch, with a fake clock so the wait is instant.
+    vi.useFakeTimers();
+    try {
+      const client = recordingConsole();
+      let launchedPid: number | null = null;
+      class RecordingLaunch extends NoneBackend {
+        override async launch(
+          ...args: Parameters<NoneBackend['launch']>
+        ): ReturnType<NoneBackend['launch']> {
+          const launched = await super.launch(...args);
+          launchedPid = launched.pid;
+          return launched;
+        }
+      }
+      const reportPromise = runJob(
+        job(SCENARIO.hang, 1),
+        sentinels.jobToken,
+        depsFor(client, { backend: new RecordingLaunch(fixture.home), minuteMs: 1_000 }),
+      );
+      // Fake timers don't block the real spawn; flush microtasks until it has actually launched.
+      while (launchedPid === null) {
+        await vi.advanceTimersByTimeAsync(0);
+      }
+      expect(isAlive(launchedPid)).toBe(true);
+      // One maxMinutes * minuteMs past launch: the default deadline timer fires stop('max-minutes').
+      await vi.advanceTimersByTimeAsync(1_010);
+      const report = await reportPromise;
+      expect(report).toMatchObject({ result: 'failed', reason: 'max-minutes' });
+      expect(client.finished[0]?.metrics).toMatchObject({ reason: 'max-minutes', signal: 'SIGTERM' });
+      expect(isAlive(launchedPid)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  }, 30_000);
+
   it('finishes a running job failed with runner-shutdown on Ctrl-C', async () => {
     const client = recordingConsole();
     const shutdown = new AbortController();
