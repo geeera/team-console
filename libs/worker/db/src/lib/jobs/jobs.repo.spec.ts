@@ -590,9 +590,163 @@ describe('TeamStateRepo.recordOutcome', () => {
       expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(rogue, 'usage-limit'))).toMatchObject({ failedStreak: 3, paused: true });
       expect(await excludedCount(rogue)).toBe(RUNNER_EXCLUSION_BUDGET);
 
-      // The budget is per runner: a well-behaved one is still excluded.
-      await repo.resume(slug, T0, { ...audit('team.resumed'), target: slug });
-      expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(other, 'rate-limit'))).toMatchObject({ failedStreak: 0, excluded: true });
+      // The runner's budget follows it to another project; a well-behaved runner there is still excluded.
+      const elsewhere = await project(ACCOUNT_A);
+      expect(await repo.recordOutcome(elsewhere, 'failed', T0, undefined, limitOf(rogue, 'usage-limit'))).toMatchObject({ failedStreak: 1, excluded: false });
+      expect(await repo.recordOutcome(elsewhere, 'failed', T0, undefined, limitOf(other, 'rate-limit'))).toMatchObject({ failedStreak: 1, excluded: true });
+    });
+
+    // #701, #705: the project's budget, and both budgets sized from concurrency.
+    describe('budgets across runners and concurrency', () => {
+      let accountSeq = 0;
+      /** An account entitled to `maxConcurrency` jobs at once, through the operator's override. */
+      const entitledAccount = async (maxConcurrency: number): Promise<string> => {
+        accountSeq += 1;
+        const id = ulid('EA');
+        await env.DB.prepare(
+          `INSERT INTO accounts (id, slug, name, plan, entitlements, created_at) VALUES (?1, ?2, 'E', 'team', ?3, ?4)`,
+        )
+          .bind(id, `jb-ent-${String(accountSeq)}`, JSON.stringify({ max_concurrency: maxConcurrency }), T0)
+          .run();
+        return id;
+      };
+      const pausedRunner = async (accountId: string, slug: string, maxConcurrency = 1): Promise<string> => {
+        const id = await runner(accountId, [slug], null, maxConcurrency);
+        await pauseRunner(id, PAUSED_UNTIL);
+        return id;
+      };
+      const projectExcluded = async (slug: string): Promise<number | undefined> =>
+        (
+          await env.DB.prepare(
+            `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.streak-excluded' AND json_extract(details, '$.slug') = ?1`,
+          )
+            .bind(slug)
+            .first<{ n: number }>()
+        )?.n;
+
+      it('caps an Actions project however many one-job runner identities fail on a limit', async () => {
+        const slug = await project(ACCOUNT_A);
+        const repo = new TeamStateRepo(env.DB);
+        const pauseAudit = { ...audit('team.paused'), target: slug };
+        // #669: every Actions job brings a fresh runner id, so a per-runner count alone never fills up.
+        const ephemeral = async (): Promise<string> => {
+          const id = await pausedRunner(ACCOUNT_A, slug);
+          await env.DB.prepare(`UPDATE runners SET isolation = 'actions-ephemeral', capabilities = ?2 WHERE id = ?1`)
+            .bind(id, JSON.stringify({ local: false, maxConcurrency: 1 }))
+            .run();
+          return id;
+        };
+        for (let i = 0; i < RUNNER_EXCLUSION_BUDGET; i += 1) {
+          expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(await ephemeral(), 'usage-limit'))).toMatchObject({
+            excluded: true,
+          });
+        }
+        for (const streak of [1, 2]) {
+          expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(await ephemeral(), 'usage-limit'))).toEqual({
+            failedStreak: streak,
+            paused: false,
+            excluded: false,
+          });
+        }
+        expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(await ephemeral(), 'rate-limit'))).toMatchObject({
+          failedStreak: 3,
+          paused: true,
+        });
+        expect(await projectExcluded(slug)).toBe(RUNNER_EXCLUSION_BUDGET);
+        // Another project of the account keeps its own budget.
+        const other = await project(ACCOUNT_A);
+        expect(await repo.recordOutcome(other, 'failed', T0, undefined, limitOf(await ephemeral(), 'usage-limit'))).toMatchObject({
+          failedStreak: 0,
+          excluded: true,
+        });
+      });
+
+      it('gives several runners on one project one budget between them, not one each', async () => {
+        const slug = await project(ACCOUNT_A);
+        const runners = [await pausedRunner(ACCOUNT_A, slug), await pausedRunner(ACCOUNT_A, slug), await pausedRunner(ACCOUNT_A, slug)];
+        const repo = new TeamStateRepo(env.DB);
+        const outcomes = [];
+        for (let round = 0; round < 3; round += 1) {
+          for (const id of runners) {
+            outcomes.push((await repo.recordOutcome(slug, 'failed', T0, undefined, limitOf(id, 'usage-limit'))).excluded);
+          }
+        }
+        expect(outcomes.filter(Boolean)).toHaveLength(RUNNER_EXCLUSION_BUDGET);
+        expect(await repo.get(slug)).toMatchObject({ pausedBy: FAILURE_STREAK_PAUSER });
+        for (const id of runners) {
+          expect(await excludedCount(id)).toBeLessThan(RUNNER_EXCLUSION_BUDGET);
+        }
+      });
+
+      it('counts the excluded row under the project it was recorded for, whatever slug the caller put in its details', async () => {
+        const slug = await project(ACCOUNT_A);
+        const id = await pausedRunner(ACCOUNT_A, slug);
+        const claim = limitOf(id, 'usage-limit');
+        const repo = new TeamStateRepo(env.DB);
+        await repo.recordOutcome(slug, 'failed', T0, undefined, { ...claim, audit: { ...claim.audit, details: { slug: 'elsewhere' } } });
+        expect(await projectExcluded(slug)).toBe(1);
+        expect(await projectExcluded('elsewhere')).toBe(0);
+      });
+
+      it('sizes both budgets from a concurrency above the floor when the account is entitled to it', async () => {
+        const concurrency = RUNNER_EXCLUSION_BUDGET + 3;
+        const accountId = await entitledAccount(concurrency);
+        const slug = await project(accountId);
+        const wide = await pausedRunner(accountId, slug, concurrency);
+        const repo = new TeamStateRepo(env.DB);
+        const pauseAudit = { ...audit('team.paused', accountId), target: slug };
+        // A runner holding `concurrency` jobs hits its quota: every one of them is left out, nothing pauses.
+        for (let i = 0; i < concurrency; i += 1) {
+          expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(wide, 'usage-limit', accountId))).toEqual({
+            failedStreak: 0,
+            paused: false,
+            excluded: true,
+          });
+        }
+        expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(wide, 'usage-limit', accountId))).toMatchObject({
+          failedStreak: 1,
+          excluded: false,
+        });
+
+        // The same burst spread over one-slot runners of a well-behaved account: no false pause either.
+        const spread = await project(accountId);
+        for (let i = 0; i < concurrency; i += 1) {
+          const id = await pausedRunner(accountId, spread);
+          expect(await repo.recordOutcome(spread, 'failed', T0, undefined, limitOf(id, 'rate-limit', accountId))).toMatchObject({
+            failedStreak: 0,
+            excluded: true,
+          });
+        }
+        const extra = await pausedRunner(accountId, spread);
+        expect(await repo.recordOutcome(spread, 'failed', T0, undefined, limitOf(extra, 'rate-limit', accountId))).toMatchObject({
+          failedStreak: 1,
+          excluded: false,
+        });
+      });
+
+      it('caps a declared concurrency at the account’s entitlement', async () => {
+        // ACCOUNT_A is on the free plan: one job at a time, so a runner declaring eight gets the floor, not eight.
+        const slug = await project(ACCOUNT_A);
+        const overDeclared = await pausedRunner(ACCOUNT_A, slug, RUNNER_EXCLUSION_BUDGET + 3);
+        const repo = new TeamStateRepo(env.DB);
+        for (let i = 0; i < RUNNER_EXCLUSION_BUDGET; i += 1) {
+          expect(await repo.recordOutcome(slug, 'failed', T0, undefined, limitOf(overDeclared, 'usage-limit'))).toMatchObject({ excluded: true });
+        }
+        expect(await repo.recordOutcome(slug, 'failed', T0, undefined, limitOf(overDeclared, 'usage-limit'))).toMatchObject({
+          failedStreak: 1,
+          excluded: false,
+        });
+        // The per-runner budget follows the same cap on a project with budget to spare.
+        const accountId = await entitledAccount(RUNNER_EXCLUSION_BUDGET + 3);
+        const roomy = await project(accountId);
+        const narrow = await pausedRunner(accountId, roomy, 1);
+        for (let i = 0; i < RUNNER_EXCLUSION_BUDGET; i += 1) {
+          await repo.recordOutcome(roomy, 'failed', T0, undefined, limitOf(narrow, 'usage-limit', accountId));
+        }
+        expect(await repo.recordOutcome(roomy, 'failed', T0, undefined, limitOf(narrow, 'usage-limit', accountId))).toMatchObject({
+          excluded: false,
+        });
+      });
     });
 
     it('lets the budget refill once the earlier exclusions are older than the window', async () => {
