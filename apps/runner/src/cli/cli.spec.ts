@@ -59,21 +59,36 @@ describe('team-console-runner CLI', () => {
   ];
 
   it('enrols and says where the config is, without printing the code', async () => {
-    const { exit } = run(enrolArgs, () =>
-      json(201, {
-        runnerId: RUNNER_ID,
-        accountId: ACCOUNT_ID,
-        name: 'CI box',
-        audience: 'team-console:local',
-        allowedProjects: [],
-        pollSeconds: 60,
-      }),
-    );
+    // `runEnrol` has no hook to inject a fake keychain (unlike enrol.spec.ts / runner-key.spec.ts), so the real
+    // store is chosen by `process.env.TC_RUNNER_KEY_STORE` (hostDeps(), not CliDeps.env). Pinned here explicitly
+    // (#676) so the assertion on the key's location does not depend on whether this host has a usable keychain —
+    // it must read "file" on every platform, not just under the suite-wide default in vitest.config.mts.
+    const previousStore = process.env['TC_RUNNER_KEY_STORE'];
+    process.env['TC_RUNNER_KEY_STORE'] = 'file';
+    try {
+      const { exit } = run(enrolArgs, () =>
+        json(201, {
+          runnerId: RUNNER_ID,
+          accountId: ACCOUNT_ID,
+          name: 'CI box',
+          audience: 'team-console:local',
+          allowedProjects: [],
+          pollSeconds: 60,
+        }),
+      );
 
-    expect(await exit).toBe(EXIT_OK);
-    expect(out.join('\n')).toContain(`Enrolled "CI box" (${RUNNER_ID})`);
-    expect(out.join('\n')).toContain('no projects yet');
-    expect([...out, ...err].join('\n')).not.toContain(sentinels.enrolmentCode);
+      expect(await exit).toBe(EXIT_OK);
+      expect(out.join('\n')).toContain(`Enrolled "CI box" (${RUNNER_ID})`);
+      expect(out.join('\n')).toContain('no projects yet');
+      expect(out.join('\n')).toMatch(/the key is in .*keys[\\/]runner\.key/);
+      expect([...out, ...err].join('\n')).not.toContain(sentinels.enrolmentCode);
+    } finally {
+      if (previousStore === undefined) {
+        delete process.env['TC_RUNNER_KEY_STORE'];
+      } else {
+        process.env['TC_RUNNER_KEY_STORE'] = previousStore;
+      }
+    }
   });
 
   const enrolled = (): ReturnType<FakeAnswer> =>

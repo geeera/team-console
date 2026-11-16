@@ -185,6 +185,7 @@ describe('enrol --url --code --backend', () => {
 
     it('refuses a home whose keychain item is still there, before the code is sent', async () => {
       const mac = await macKeys();
+      await mkdir(home, { mode: 0o700 });
       await saveRunnerKey(home, generateRunnerKey().privateKey, mac.keys);
       const fake = fakeConsole(() => json(201, enrolled));
 
