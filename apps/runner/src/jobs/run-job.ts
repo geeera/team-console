@@ -3,6 +3,7 @@ import { createInterface } from 'node:readline';
 import {
   JOB_SUMMARY_MAX_LENGTH,
   isValidSlug,
+  type RunnerIsolation,
   type FinishJobInput,
   type JobDto,
   type JobEventInput,
@@ -21,9 +22,9 @@ import { modelOfRole } from '../claude/roles';
 import { EVENT_TEXT_MAX, parseStreamLine, type StreamResult } from '../claude/stream-json';
 import { RunnerApiError } from '../client/runner-client';
 import type { RunnerConfig } from '../config/config';
-import { jobCredentialOf } from '../env/credential';
+import { jobCredentialOf, type CredentialConfig } from '../env/credential';
 import { DEFAULT_TOOLCHAIN_PATH, buildJobEnv } from '../env/env-builder';
-import { runnerGitEnv } from '../git/git';
+import { runnerGitEnv, withReadToken } from '../git/git';
 import { cloneForJob, syncMirror, vendorPlugin } from '../git/workspace';
 import type { JobRegistry } from '../proxy/job-registry';
 import { startJobSocket, type JobSocket, type ProxyForwarder } from '../proxy/socket-server';
@@ -44,9 +45,21 @@ export interface JobConsole extends ProxyForwarder {
   finish(jobId: string, input: FinishJobInput): Promise<void>;
 }
 
+/**
+ * What one job reads of the runner's settings. An enrolled runner passes its `config.json`; an `actions-ephemeral` run
+ * (#669) builds this from its env and the exchange, in memory only. `vcs` exists only here: config.json refuses it, so
+ * a token never lands in a file.
+ */
+export type JobRunConfig = Pick<RunnerConfig, 'apiUrl' | 'allowedProjects' | 'roles' | 'repositories' | 'toolchain' | 'env'> & {
+  readonly backend: RunnerIsolation;
+  readonly credential?: CredentialConfig | undefined;
+  /** The mirror fetch's read token for the upstream (an Actions run's `github.token`); the job never sees it. */
+  readonly vcs?: { readonly readToken: string } | undefined;
+};
+
 export interface JobRunDeps {
   readonly home: string;
-  readonly config: RunnerConfig;
+  readonly config: JobRunConfig;
   readonly client: JobConsole;
   readonly backend: IsolationBackend;
   readonly registry: JobRegistry;
@@ -190,7 +203,7 @@ export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): P
         `config.json has no repositories.${job.projectSlug}`,
       );
     }
-    const credential = await jobCredentialOf(deps.home, config.credential, config.backend);
+    const credential = await jobCredentialOf(deps.home, config.credential, config.backend, deps.sourceEnv);
     sandbox = await backend.prepare({ jobId: job.id, projectSlug: job.projectSlug });
     const socketPath = join(sandbox.socketDir, 'tc.sock');
     const { env, passedThrough } = buildJobEnv({
@@ -210,7 +223,8 @@ export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): P
     const gitEnvs = {
       jobGit: backend.jobGit,
       dirMode: backend.sharedDirMode,
-      runner: runnerGit,
+      // Only the mirror fetch carries the token; the clone is made from the mirror with the job's env.
+      runner: config.vcs === undefined ? runnerGit : withReadToken(runnerGit, upstream, config.vcs.readToken),
       job: {
         PATH: runnerGit['PATH'] ?? '/usr/bin:/bin',
         HOME: sandbox.home,

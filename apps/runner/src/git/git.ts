@@ -61,6 +61,30 @@ export function runnerGitEnv(source: Readonly<Record<string, string | undefined>
   return { ...env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' };
 }
 
+/**
+ * The runner's git env with a read token for `upstream` (#669: an Actions run's `github.token`, the
+ * `config.vcs.readToken` seam): an `http.<origin>/.extraheader` passed through git's own env config
+ * (`GIT_CONFIG_COUNT`), so it is never in argv (`ps`), never in the URL and never written to the mirror's config, and
+ * git sends it to that origin only. A path upstream takes no token; the env is returned as it was.
+ */
+export function withReadToken(
+  env: Readonly<Record<string, string>>,
+  upstream: string,
+  token: string,
+): Record<string, string> {
+  if (!/^https?:\/\//.test(upstream)) {
+    return { ...env };
+  }
+  const { origin } = new URL(upstream);
+  const basic = Buffer.from(`x-access-token:${token}`).toString('base64');
+  return {
+    ...env,
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: `http.${origin}/.extraheader`,
+    GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}`,
+  };
+}
+
 export type GitRunner = (args: readonly string[], env: Readonly<Record<string, string>>) => Promise<string>;
 
 export async function runGit(
