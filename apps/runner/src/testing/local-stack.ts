@@ -19,6 +19,8 @@ const START_TIMEOUT_MS = 90_000;
 export interface LocalStack {
   readonly origin: string;
   readonly dir: string;
+  /** The api Worker's own log (wrangler's stdout and stderr), for a spec's sentinel. */
+  readonly logPath: string;
   /** Runs one fixed SQL statement on this stack's local D1. */
   d1(sql: string): Promise<void>;
   stop(): Promise<void>;
@@ -90,8 +92,13 @@ async function waitForHealth(origin: string, api: ChildProcess, logPath: string)
   );
 }
 
+export interface LocalStackOptions {
+  /** More `--var NAME:value` bindings, e.g. the test JWKS of `ACTIONS_OIDC_JWKS` (honoured on ENVIRONMENT=local only). */
+  readonly vars?: Readonly<Record<string, string>>;
+}
+
 /** `portOffset` keeps two integration files that run in parallel off each other's port. */
-export async function startLocalStack(portOffset: number): Promise<LocalStack> {
+export async function startLocalStack(portOffset: number, options: LocalStackOptions = {}): Promise<LocalStack> {
   const dir = await mkdtemp(join(tmpdir(), 'tcr-int-'));
   const state = join(dir, 'state');
   const assets = join(dir, 'assets');
@@ -139,6 +146,7 @@ export async function startLocalStack(portOffset: number): Promise<LocalStack> {
       'RUNNER_RELEASE_VERSION:0.3.0',
       '--var',
       'RUNNER_MINIMUM_VERSION:0.1.0',
+      ...Object.entries(options.vars ?? {}).flatMap(([name, value]) => ['--var', `${name}:${value}`]),
     ],
     {
       cwd: WORKSPACE_ROOT,
@@ -153,6 +161,7 @@ export async function startLocalStack(portOffset: number): Promise<LocalStack> {
   return {
     origin,
     dir,
+    logPath,
     d1: (sql) => runWrangler(['d1', 'execute', ...local, '--command', sql], logPath),
     stop: async () => {
       const pid = api.pid;

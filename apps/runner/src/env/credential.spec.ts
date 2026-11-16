@@ -6,8 +6,11 @@ import { parseRunnerConfig, type EnrolBackend } from '../config/config';
 import { LaunchRefusal } from '../jobs/refusal';
 import { ACCOUNT_ID, RUNNER_ID, fakeConsole, json, sentinels } from '../testing/fake-console';
 import { runnerConfigFor } from '../testing/job-fixture';
+import { buildJobEnv } from './env-builder';
 import {
+  INFERENCE_API_KEY_ENV,
   assertCredentialAllowed,
+  isCredentialAllowed,
   jobCredentialOf,
   parseCredentialConfig,
   type CredentialConfig,
@@ -115,7 +118,9 @@ describe('RR11: credential/backend pairings', () => {
   const credentialOf = (kind: (typeof KINDS)[number]): CredentialConfig =>
     kind === 'claude-config-dir'
       ? { kind, path: '/Users/me/.claude' }
-      : { kind, file: CREDENTIAL_FILES[kind] };
+      : kind === 'api-key'
+        ? { kind, file: CREDENTIAL_FILES[kind] }
+        : { kind, file: CREDENTIAL_FILES[kind] };
   const enrolOptions = (kind: string, backend: string): EnrolOptions => ({
     url: 'http://127.0.0.1:22300',
     code: sentinels.enrolmentCode,
@@ -197,6 +202,96 @@ describe('RR11: credential/backend pairings', () => {
       expect((await stat(join(parent, 'home', 'credentials'))).mode & 0o777).toBe(0o700);
     } finally {
       await rm(parent, { recursive: true, force: true });
+    }
+  });
+});
+
+/** #669: the `api-key` kind read from the runner's env, the one credential an `actions-ephemeral` run takes. */
+describe('the api-key credential from TC_INFERENCE_API_KEY', () => {
+  const fromEnv = { kind: 'api-key', env: INFERENCE_API_KEY_ENV } as const satisfies CredentialConfig;
+  const source = { [INFERENCE_API_KEY_ENV]: sentinels.anthropicKey };
+
+  it('parses only with the fixed variable name', () => {
+    expect(parseCredentialConfig({ kind: 'api-key', env: 'TC_INFERENCE_API_KEY' })).toEqual(fromEnv);
+    for (const bad of [
+      { kind: 'api-key', env: 'ANTHROPIC_API_KEY' },
+      { kind: 'api-key', env: 'TC_INFERENCE_API_KEY', file: 'credentials/a' },
+      { kind: 'setup-token', env: 'TC_INFERENCE_API_KEY' },
+      { kind: 'claude-config-dir', env: 'TC_INFERENCE_API_KEY' },
+    ]) {
+      expect(parseCredentialConfig(bad)).toBeNull();
+    }
+  });
+
+  it('is accepted on actions-ephemeral only, and actions-ephemeral takes no other credential', () => {
+    expect(isCredentialAllowed(fromEnv, 'actions-ephemeral')).toBe(true);
+    for (const backend of ['none', 'user', 'container'] as const) {
+      expect(isCredentialAllowed(fromEnv, backend)).toBe(false);
+      expect(() => assertCredentialAllowed(fromEnv, backend)).toThrow(
+        /api-key credential from TC_INFERENCE_API_KEY is not allowed/,
+      );
+    }
+    for (const other of [
+      { kind: 'api-key', file: 'credentials/anthropic.key' },
+      { kind: 'setup-token', file: 'credentials/claude-setup-token' },
+      { kind: 'claude-config-dir', path: '/Users/me/.claude' },
+    ] as const satisfies readonly CredentialConfig[]) {
+      expect(isCredentialAllowed(other, 'actions-ephemeral')).toBe(false);
+      expect(() => assertCredentialAllowed(other, 'actions-ephemeral')).toThrow(LaunchRefusal);
+    }
+  });
+
+  it('is refused in config.json, whose backends never include actions-ephemeral', () => {
+    expect(() => parseRunnerConfig({ ...runnerConfigFor('/repo'), credential: fromEnv })).toThrow(
+      /the api-key credential is not allowed on the none backend/,
+    );
+    expect(() => parseRunnerConfig({ ...runnerConfigFor('/repo'), backend: 'actions-ephemeral' })).toThrow(
+      /backend must be one of container, user, none/,
+    );
+    expect(() =>
+      parseRunnerConfig({ ...runnerConfigFor('/repo'), vcs: { readToken: sentinels.githubToken } }),
+    ).toThrow(/unknown key "vcs"/);
+  });
+
+  it('reads the key from the runner’s env into ANTHROPIC_API_KEY, and nothing from the home', async () => {
+    await expect(jobCredentialOf('/nonexistent', fromEnv, 'actions-ephemeral', source)).resolves.toEqual({
+      kind: 'api-key',
+      name: 'ANTHROPIC_API_KEY',
+      value: sentinels.anthropicKey,
+    });
+  });
+
+  it.each([
+    ['missing', {}],
+    ['empty', { [INFERENCE_API_KEY_ENV]: '' }],
+    ['two-line', { [INFERENCE_API_KEY_ENV]: `${sentinels.anthropicKey}\nsecond` }],
+    ['too short', { [INFERENCE_API_KEY_ENV]: 'short' }],
+  ])('refuses a %s key without quoting it', async (_label, env) => {
+    const refused = jobCredentialOf('/nonexistent', fromEnv, 'actions-ephemeral', env);
+    await expect(refused).rejects.toThrow(LaunchRefusal);
+    await expect(refused).rejects.toThrow(/^TC_INFERENCE_API_KEY does not hold one credential line$/);
+  });
+
+  it('still refuses an OAuth kind on an Actions job', () => {
+    for (const credential of [
+      { kind: 'setup-token', name: 'CLAUDE_CODE_OAUTH_TOKEN', value: 'x'.repeat(20) },
+      { kind: 'claude-config-dir', name: 'CLAUDE_CONFIG_DIR', value: '/home/job/.claude' },
+    ] as const) {
+      expect(() =>
+        buildJobEnv({
+          jobToken: sentinels.jobToken,
+          projectSlug: 'team-console',
+          consoleUrl: 'https://console.example',
+          socketPath: '/tmp/s',
+          home: '/tmp/h',
+          tmp: '/tmp/t',
+          toolchainPath: '/usr/bin',
+          dispatch: 'actions',
+          credential,
+          passthrough: [],
+          source: {},
+        }),
+      ).toThrow(/never runs a actions job/);
     }
   });
 });

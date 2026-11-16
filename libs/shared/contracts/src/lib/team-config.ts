@@ -301,8 +301,8 @@ const PRESET_MODELS: Readonly<Record<TeamConfigPreset, Readonly<Record<TeamRole,
     qa: SONNET,
     'ux-designer': SONNET,
     'ui-designer': SONNET,
-    // Owner question #690 may move this one value to Opus 5.5; it is data, so the answer changes only it.
-    security: SONNET,
+    // Owner #690: security stays on Opus 5.5 in every preset — the security gate rests on its verdict.
+    security: OPUS,
     'dev-light': SONNET,
     reviewer: SONNET,
     devops: SONNET,

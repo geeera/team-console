@@ -1,7 +1,7 @@
 import { isAbsolute, join } from 'node:path';
 import { isRunnerId, isUlid, isValidSlug, type RunnerIsolation } from '@shared/contracts';
 import { RunnerFileError, assertPrivateDir, readPrivateFile, writePrivateFile } from './private-files';
-import { CREDENTIAL_BACKENDS, parseCredentialConfig, type CredentialConfig } from '../env/credential';
+import { isCredentialAllowed, parseCredentialConfig, type CredentialConfig } from '../env/credential';
 import { PINNED_MODEL, isJobRole, type RoleOverrides } from '../claude/roles';
 
 /**
@@ -354,7 +354,8 @@ export function parseRunnerConfig(value: unknown): RunnerConfig {
   }
   const settings = parseJobSettings(value);
   // RR11 (ADR 0008 decision 5): a pairing the backend may not use is refused here too, not only at launch.
-  if (settings.credential !== undefined && !CREDENTIAL_BACKENDS[settings.credential.kind].includes(backend)) {
+  // An env credential is `actions-ephemeral`'s alone (#669), and config.json never names that backend.
+  if (settings.credential !== undefined && !isCredentialAllowed(settings.credential, backend)) {
     throw invalid(`the ${settings.credential.kind} credential is not allowed on the ${backend} backend`);
   }
   return {

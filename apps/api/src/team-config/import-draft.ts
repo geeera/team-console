@@ -34,8 +34,16 @@ function isPlain(value: unknown): value is Readonly<Plain> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Deep-copies `value` through JSON, the same round-trip `checkTeamConfig`'s final guard uses: it drops any forged
+ * prototype on an array's object elements (#708), not just the array's own shallow copy.
+ */
+function plainCopyOf<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 /** The own members of `value` named in `keys`, into an object with no prototype; the rest are noted as ignored. */
-function pick(value: unknown, keys: readonly string[], path: string, notes: TeamConfigImportNote[]): Plain | undefined {
+export function pick(value: unknown, keys: readonly string[], path: string, notes: TeamConfigImportNote[]): Plain | undefined {
   if (!isPlain(value)) {
     return undefined;
   }
@@ -43,7 +51,7 @@ function pick(value: unknown, keys: readonly string[], path: string, notes: Team
   for (const key of Object.keys(value)) {
     if (keys.includes(key)) {
       const member = value[key];
-      copy[key] = Array.isArray(member) ? [...(member as unknown[])] : member;
+      copy[key] = Array.isArray(member) ? plainCopyOf(member) : member;
     } else if (key !== 'model') {
       notes.push({ path: `${path}.${key}`, code: 'key-ignored' });
     }

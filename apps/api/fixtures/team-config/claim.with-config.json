@@ -109,8 +109,8 @@
           },
           "security": {
             "enabled": true,
-            "model": "claude-sonnet-5",
-            "effort": "medium",
+            "model": "claude-opus-5-5",
+            "effort": "high",
             "max_parallel": 5,
             "max_minutes": 90,
             "max_turns": 400
