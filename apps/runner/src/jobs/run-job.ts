@@ -59,6 +59,12 @@ export interface JobRunDeps {
   readonly flushMs?: number;
   /** One minute of `maxMinutes`; shorter in specs. */
   readonly minuteMs?: number;
+  /**
+   * Arms the max-minutes deadline: real `setTimeout`/`clearTimeout` by default. Specs may override this to fire
+   * off an event (e.g. the backend's `launch` resolving) instead of a wall-clock margin, so the deadline always
+   * lands on a running process regardless of how long setup took under load (#594).
+   */
+  readonly armDeadline?: (fire: () => void, ms: number) => () => void;
 }
 
 export type StopReason = 'max-minutes' | 'runner-shutdown' | 'lease-lost';
@@ -129,7 +135,16 @@ export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): P
       }
     });
   }, deps.heartbeatMs ?? HEARTBEAT_MS);
-  const deadline = setTimeout(() => stop('max-minutes'), job.maxMinutes * (deps.minuteMs ?? 60_000));
+  const armDeadline =
+    deps.armDeadline ??
+    ((fire: () => void, ms: number) => {
+      const id = setTimeout(fire, ms);
+      return () => clearTimeout(id);
+    });
+  const disarmDeadline = armDeadline(
+    () => stop('max-minutes'),
+    job.maxMinutes * (deps.minuteMs ?? 60_000),
+  );
 
   let sandbox: Sandbox | null = null;
   let socket: JobSocket | null = null;
@@ -261,7 +276,7 @@ export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): P
     }
   } finally {
     clearInterval(heartbeat);
-    clearTimeout(deadline);
+    disarmDeadline();
     deps.shutdown.removeEventListener('abort', onShutdown);
   }
 

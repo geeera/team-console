@@ -101,11 +101,32 @@ describe('job lifecycle', () => {
 
   it('kills the CLI at maxMinutes and finishes it failed', async () => {
     const client = recordingConsole();
+    // Arm the deadline off the backend's `launch` resolving instead of a wall-clock margin: under CPU
+    // contention the setup phase (mirror sync, clone, env build) can outrun any fixed margin and the
+    // deadline fires before a process exists to kill, losing the `signal` this test checks for (#594).
+    let fireDeadline: (() => void) | null = null;
+    class LaunchThenDeadline extends NoneBackend {
+      override async launch(
+        ...args: Parameters<NoneBackend['launch']>
+      ): ReturnType<NoneBackend['launch']> {
+        const launched = await super.launch(...args);
+        fireDeadline?.();
+        return launched;
+      }
+    }
     const started = Date.now();
     const report = await runJob(
       job(SCENARIO.hang, 1),
       sentinels.jobToken,
-      depsFor(client, { minuteMs: 1_500 }),
+      depsFor(client, {
+        backend: new LaunchThenDeadline(fixture.home),
+        armDeadline: (fire) => {
+          fireDeadline = fire;
+          return () => {
+            fireDeadline = null;
+          };
+        },
+      }),
     );
     expect(Date.now() - started).toBeLessThan(15_000);
     expect(report).toMatchObject({ result: 'failed', reason: 'max-minutes' });
