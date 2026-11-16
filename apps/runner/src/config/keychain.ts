@@ -34,6 +34,8 @@ export interface Keychain {
   read(account: string): Promise<string | null>;
   /** Adds a new item; an existing one is never replaced. */
   add(account: string, secret: string, label: string): Promise<void>;
+  /** Removes the item; false when there was none. */
+  remove(account: string): Promise<boolean>;
 }
 
 function assertQuotable(what: string, value: string): void {
@@ -132,6 +134,24 @@ export function keychainAt(path: string, exec: Exec): Keychain {
       if (result.code !== 0) {
         throw failed('add-generic-password', result.code);
       }
+    },
+    async remove(account) {
+      assertQuotable('account', account);
+      const result = await exec(SECURITY_CLI, [
+        'delete-generic-password',
+        '-s',
+        KEYCHAIN_SERVICE,
+        '-a',
+        account,
+        path,
+      ]);
+      if (result.code === EXIT_NOT_FOUND) {
+        return false;
+      }
+      if (result.code !== 0) {
+        throw failed('delete-generic-password', result.code);
+      }
+      return true;
     },
   };
 }

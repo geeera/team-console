@@ -57,6 +57,14 @@ interface SecretPattern {
 const B64URL = String.raw`[A-Za-z0-9_-]`;
 /** The shortest `gh[pousr]_` tail loose mode masks (#492): see the pattern below. */
 const GITHUB_LOOSE_MIN = 12;
+/**
+ * The shortest `gh[pousr]_` tail strict mode masks (#659): a real token's tail is 36+ characters, but a
+ * truncation that is one or a few characters short of that (a log, a quote, an error message cut mid-token)
+ * still carries almost the whole token — at 30+ characters, at most 6 of its ~36 random characters are
+ * missing (under 24 bits), not enough to call it safe. Below this a short alnum run after the prefix reads as
+ * prose naming the shape (`ghs_ and glpat-`), not a leaked secret, so strict leaves it alone.
+ */
+const GITHUB_STRICT_MIN = 30;
 const PEM_BLOCK = String.raw`-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----|$)`;
 
 const SECRET_PATTERNS: readonly SecretPattern[] = [
@@ -66,7 +74,7 @@ const SECRET_PATTERNS: readonly SecretPattern[] = [
   // shorter than that leaves at least 19 of its 30 random characters (~110 bits) unseen.
   {
     kind: 'github-token',
-    strict: String.raw`gh[pousr]_[A-Za-z0-9]{36,255}`,
+    strict: String.raw`gh[pousr]_[A-Za-z0-9]{${GITHUB_STRICT_MIN},255}`,
     loose: String.raw`gh[pousr]_[A-Za-z0-9]{${GITHUB_LOOSE_MIN},255}`,
   },
   // GitHub fine-grained PAT.

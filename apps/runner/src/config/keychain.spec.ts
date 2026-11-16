@@ -46,4 +46,20 @@ describe('macOS keychain adapter (#585)', () => {
     await keychain.add('a', 'QUJD', 'label');
     await expect(keychain.add('a', 'QUJD', 'label')).rejects.toThrow(/already holds/);
   });
+
+  it('removes an item, and reports false for one that is not there', async () => {
+    const fake = fakeKeychain({ defaultKeychain: '/k' });
+    const keychain = keychainAt('/k', fake.exec);
+    await keychain.add('a', 'QUJD', 'label');
+
+    await expect(keychain.remove('a')).resolves.toBe(true);
+    await expect(keychain.read('a')).resolves.toBeNull();
+    await expect(keychain.remove('a')).resolves.toBe(false);
+  });
+
+  it('refuses to remove with a locked keychain, and an account it cannot quote', async () => {
+    const locked = keychainAt('/k', fakeKeychain({ defaultKeychain: '/k', failWith: 36 }).exec);
+    await expect(locked.remove('a')).rejects.toBeInstanceOf(KeychainError);
+    await expect(locked.remove('with"quote')).rejects.toBeInstanceOf(KeychainError);
+  });
 });

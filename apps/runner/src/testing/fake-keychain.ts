@@ -28,7 +28,7 @@ function valueOf(args: readonly string[], flag: string): string | undefined {
 
 /**
  * A fake `/usr/bin/security` for the commands the runner uses: `default-keychain -d user`, `find-generic-password
- * -s -a -w <kc>` and `-i` with one `add-generic-password` on stdin. Items are keyed by keychain, service and account.
+ * -s -a -w <kc>` and `delete-generic-password -s -a <kc>` and `-i` with one `add-generic-password` on stdin. Items are keyed by keychain, service and account.
  */
 export function fakeKeychain(options: FakeKeychainOptions): {
   exec: Exec;
@@ -67,6 +67,9 @@ export function fakeKeychain(options: FakeKeychainOptions): {
         items.set(key, valueOf(args, '-w') ?? '');
       }
       return { code: 0, stdout: '' };
+    }
+    if (verb === 'delete-generic-password') {
+      return items.delete(key) ? { code: 0, stdout: '' } : { code: 44, stdout: '' };
     }
     return { code: 1, stdout: '' };
   };

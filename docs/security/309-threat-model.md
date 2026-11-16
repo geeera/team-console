@@ -63,7 +63,8 @@ barrier), **High** (one control away from that), **Medium** (a bounded integrity
 worktree and `PATH`, plus the Claude Code credential the runner injects per job once jobs run as their own user.
 `TC_API_URL` is HTTP over the runner's Unix socket, not a TCP loopback port: any local user can reach a loopback
 port, while the socket is reached only through the file system. There is no peer-uid check: Node has no
-`getpeereid` without a native addon (ADR 0008 decision 6). The control is one socket per job at
+`getpeereid` without a native addon (architect note on #468, decision 6 — not ADR 0008, whose decision 6 is
+billing; see #584). The control is one socket per job at
 `jobs/<id>/sock/tc.sock` behind a file-system ACL (`sock/` 0700 and the socket 0600, the runner's user only; in the
 `user` backend `sock/` is `_tcrunner:_tcjob 0750` and the socket 0660, so `_tcjob` and no other local user connects)
 plus the job token: every request's `Bearer tcj_…` must be the token of the job that socket was opened for, or it is
