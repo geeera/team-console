@@ -104,6 +104,13 @@ describe('team-console-runner CLI', () => {
     expect([...out, ...err].join('\n')).not.toContain(sentinels.enrolmentCode);
   });
 
+  it('warns on stderr when the code is an argument, without echoing it', async () => {
+    const { exit } = run(enrolArgs, enrolled);
+    expect(await exit).toBe(EXIT_OK);
+    expect(err.join('\n')).toMatch(/^warning: --code <value> .* ps; use TC_ENROL_CODE or --code - instead\.$/m);
+    expect(err.join('\n')).not.toContain(sentinels.enrolmentCode);
+  });
+
   it('refuses --code together with TC_ENROL_CODE before any request', async () => {
     const { exit, requests } = run(enrolArgs, enrolled, { env: { TC_ENROL_CODE: sentinels.enrolmentCode } });
     expect(await exit).toBe(EXIT_USAGE);

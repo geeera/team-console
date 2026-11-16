@@ -147,7 +147,7 @@ test('enrol a runner with a one-time code, see it listed, pin placement to it, n
   await expectAccessible(page, 'Settings › Runners (revoked)');
 });
 
-/** Gets a code from the dialog as the owner does, and answers it (the command's `--code`). */
+/** Gets a code from the dialog as the owner does, and answers it (the command's `TC_ENROL_CODE`). */
 async function issueCodeInDialog(page: Page, name: string): Promise<string> {
   await page.getByTestId('runners-enrol').first().click();
   const dialog = page.getByRole('dialog', { name: ru('runners.enrol.title') });

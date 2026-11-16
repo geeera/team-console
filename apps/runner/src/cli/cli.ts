@@ -24,7 +24,7 @@ import { RUNNER_VERSION } from '../version';
 import { autoUpdater } from '../update/auto-update';
 import { UpdateError, applyUpdate, checkForUpdate, type ApplyDeps } from '../update/update';
 import { EnrolUsageError, enrol } from './enrol';
-import { enrolCodeOf, type ReadCodeLine } from './enrol-code';
+import { ENROL_CODE_STDIN, enrolCodeOf, type ReadCodeLine } from './enrol-code';
 
 /** Everything the CLI reads from the process, passed in so the specs drive it without touching the real host. */
 export interface CliDeps {
@@ -150,6 +150,11 @@ async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number>
     if (code === undefined) {
       deps.stderr(missing);
       return EXIT_USAGE;
+    }
+    if (values.code !== undefined && values.code !== ENROL_CODE_STDIN) {
+      deps.stderr(
+        `warning: --code <value> puts the code in this command's arguments, which any local user can read with ps; use ${ENROL_CODE_ENV} or --code - instead.`,
+      );
     }
     const home = runnerHomeOf(deps.env, deps.homeDir);
     const config = await enrol(
