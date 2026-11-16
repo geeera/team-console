@@ -10,7 +10,6 @@ import {
   configPathOf,
   isEnrolBackend,
   parseRunnerConfig,
-  runnerKeyPathOf,
   saveRunnerConfig,
   type EnrolBackend,
   type RunnerConfig,
@@ -23,15 +22,20 @@ import {
   type CredentialConfig,
   type CredentialKind,
 } from '../env/credential';
-import { generateRunnerKey, saveRunnerKey } from '../config/runner-key';
+import {
+  generateRunnerKey,
+  runnerKeyLocationOf,
+  saveRunnerKey,
+  type RunnerKeyDeps,
+} from '../config/runner-key';
 import { RUNNER_VERSION } from '../version';
 
 /**
  * `TC_ENROL_CODE=<tce_…> team-console-runner enrol --url <origin> --backend container|user|none` (ADR 0006
  * "Enrolment", the command Settings › Runners shows, `enrolCommandOf`; where the code may come from is
  * `enrol-code.ts`): a fresh Ed25519 key on this host, the public half and the
- * host's description posted with the one-time code, and on success the key (0600) and `config.json` (0600) written
- * under `TC_RUNNER_HOME`. Nothing is written before the console accepts, and an enrolled home is never overwritten.
+ * host's description posted with the one-time code, and on success the key (a keychain item or a 0600 file, see
+ * `runner-key.ts`) and `config.json` (0600) under `TC_RUNNER_HOME`. Nothing is written before the console accepts, and an enrolled home is never overwritten.
  */
 
 const ENROLMENT_CODE = new RegExp(`^${ENROLMENT_CODE_PREFIX}${OPAQUE_TOKEN_TAIL}$`);
@@ -65,6 +69,8 @@ export interface EnrolDeps {
   readonly home: string;
   readonly fetch: FetchLike;
   readonly host: RunnerHostDto;
+  /** Where the key is stored; the host's keychain or file when absent. */
+  readonly keys?: RunnerKeyDeps;
 }
 
 export interface EnrolCheckedOptions {
@@ -143,13 +149,15 @@ export function hostFieldOf(value: string): string {
 export async function enrol(options: EnrolOptions, deps: EnrolDeps): Promise<RunnerConfig> {
   const checked = checkEnrolOptions(options);
   await ensurePrivateDir(deps.home);
-  for (const existing of [configPathOf(deps.home), runnerKeyPathOf(deps.home)]) {
-    if (await pathExists(existing)) {
-      throw new RunnerFileError(
-        'file-exists',
-        `${existing} exists: this home is already enrolled. Revoke the runner on Settings › Runners and remove the home, or set TC_RUNNER_HOME to a new directory`,
-      );
-    }
+  // The keychain is asked too: an item left behind by a removed home would otherwise refuse only after the code is spent.
+  const existing = (await pathExists(configPathOf(deps.home)))
+    ? configPathOf(deps.home)
+    : await runnerKeyLocationOf(deps.home, deps.keys);
+  if (existing !== null) {
+    throw new RunnerFileError(
+      'file-exists',
+      `${existing} exists: this home is already enrolled. Revoke the runner on Settings › Runners and remove the home (and its keychain item, see the runbook), or set TC_RUNNER_HOME to a new directory`,
+    );
   }
 
   const key = generateRunnerKey();
@@ -186,7 +194,7 @@ export async function enrol(options: EnrolOptions, deps: EnrolDeps): Promise<Run
     await ensurePrivateDir(join(deps.home, CREDENTIALS_DIR));
   }
   // The key first: a config without its key would look enrolled and fail every call.
-  await saveRunnerKey(deps.home, key.privateKey);
+  await saveRunnerKey(deps.home, key.privateKey, deps.keys);
   await saveRunnerConfig(deps.home, config);
   return config;
 }

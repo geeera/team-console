@@ -1,4 +1,4 @@
-# Runner — install, enrol, credentials, pause, update, revoke and the manual isolation check
+# Runner — install, enrol, the runner key, credentials, pause, update, revoke and the manual isolation check
 
 The runner runs on the customer's machine and claims jobs from the console. It runs each job as a separate
 locked-down user (`user` backend, macOS) or in its own container (`container` backend). `none` is for local
@@ -136,6 +136,50 @@ Each job runs in its own `--rm` container from that image:
 Giving both `--code` and `TC_ENROL_CODE` is a usage error. The command never prints the code. A typed or pasted code
 stays in your shell history, but it is spent by then.
 
+## Where the runner key is kept (#585)
+
+`enrol` generates the runner's Ed25519 key on the host. The console gets only the public half. The private half
+signs every runner JWT, and with Access optional it is the runner's whole identity (threat model C4 row 1). It lives
+in one of two stores:
+
+| Host | Store | What protects it |
+| --- | --- | --- |
+| macOS, and the runner's user has a default keychain (a user who logs in: `container` or `none` on a Mac) | A generic-password item in that keychain: service `team-console-runner`, account `runner-key:<TC_RUNNER_HOME>`, the key as base64 PKCS#8. No key file is written. | The keychain is encrypted at rest under the user's login password, so a copy or backup of the home holds no key. The item trusts only `/usr/bin/security`, the runner's reader. Any process of the same user can still run `security` while the keychain is unlocked, so the user boundary is what keeps jobs out. |
+| Linux and the container host, and macOS users with no keychain, such as the `user` backend's `_tcrunner` | `TC_RUNNER_HOME/keys/runner.key`, 0600, in a 0700 `keys/` owned by the runner's user | The runner refuses a key file that is not a regular file of its own user, or that group or others can read. |
+
+`_tcrunner` is a LaunchDaemon user that never logs in, so it has no login keychain. A keychain the runner created for
+it would need a password to unlock at boot, and that password would sit on the same disk. It would protect nothing
+the 0600 file does not, so the runner creates none and keeps the file.
+
+`TC_RUNNER_KEY_STORE` pins the store. `keychain` refuses to enrol or start when there is no usable keychain, and never
+writes a file. `file` always uses `keys/runner.key` and never calls `security`. If it is not set, the runner uses the
+keychain where one exists and the file otherwise. Any other value is refused. A locked or unreachable keychain
+(`security` fails, for example in a session that cannot unlock it) is refused. The runner then says which keychain
+failed and does not fall back to a file.
+
+**Moving an existing key file into the keychain.** A runner that finds `keys/runner.key` and a usable keychain moves
+the key on its next start (`run`, `run-once` or `update`). It writes the item, reads it back, compares it with the
+file and only then deletes the file. If it stops halfway, the next start sees the same key in both places and
+deletes the file. A file and an item that hold different keys are refused, and both are kept. Revoke that runner and
+enrol again. APFS gives no guarantee that a deleted file's blocks are overwritten. On a disk without FileVault,
+treat a key that was ever a file as having been on disk.
+
+**Rotating the key.** There is no in-place rotation. A new key is a new enrolment. Revoke the runner (below), remove
+its key from the store it is in, then enrol again with a new code.
+
+**Removing the key** (as the runner's user):
+
+```sh
+# keychain item (macOS)
+security delete-generic-password -s team-console-runner -a "runner-key:$TC_RUNNER_HOME"
+# file
+rm "$TC_RUNNER_HOME/keys/runner.key"
+```
+
+`security find-generic-password -s team-console-runner -a "runner-key:$TC_RUNNER_HOME"` without `-w` shows whether
+the item exists and does not print the key. `enrol` refuses a home whose item or file still exists before it sends
+the code, so a code is never spent on a home that is already enrolled.
+
 ## Credentials: a location or a token, and how to revoke each (RR11, decision 5)
 
 The runner never posts a credential to the console. The console does not know which kind is configured. A Claude
@@ -226,10 +270,11 @@ able to replace what root installed. Update by hand, as an admin:
 2. On the host, stop the service. Use `sudo launchctl bootout system/com.team-console.runner` on `user`, or
    `systemctl --user disable --now team-console-runner` or
    `launchctl bootout gui/$(id -u)/com.team-console.runner` on `container`.
-3. Revoke its Claude credential as the table above says. Delete `TC_RUNNER_HOME/keys/runner.key` and
-   `TC_RUNNER_HOME/credentials/`.
-4. To enrol the host again, use a new code and an empty `TC_RUNNER_HOME`. The runner never overwrites an existing
-   `config.json` or key.
+3. Revoke its Claude credential as the table above says. Delete the runner key from its store ("Where the runner
+   key is kept" above: the keychain item on a Mac whose runner user has a keychain, otherwise
+   `TC_RUNNER_HOME/keys/runner.key`) and `TC_RUNNER_HOME/credentials/`.
+4. To enrol the host again, use a new code and an empty `TC_RUNNER_HOME` with no keychain item left for it. The
+   runner never overwrites an existing `config.json` or key.
 
 ## Manual check on the Mac (L3, plant-then-verify) — `needs:local` (#576)
 

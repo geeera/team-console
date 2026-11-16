@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { isEd25519PublicJwk } from '@shared/contracts';
 import { configPathOf, loadRunnerConfig, runnerKeyPathOf } from '../config/config';
-import { loadRunnerKey, publicJwkOf } from '../config/runner-key';
+import { generateRunnerKey, loadRunnerKey, publicJwkOf, saveRunnerKey } from '../config/runner-key';
+import { fakeKeychain } from '../testing/fake-keychain';
 import {
   ACCOUNT_ID,
   RUNNER_ID,
@@ -157,6 +158,43 @@ describe('enrol --url --code --backend', () => {
 
       await expect(result).rejects.toMatchObject({ problem: 'file-exists' });
       expect(requests).toEqual([]);
+    });
+  });
+
+  describe('on macOS with a user keychain (#585)', () => {
+    async function macKeys() {
+      const keychainFile = join(parent, 'login.keychain-db');
+      await writeFile(keychainFile, '');
+      const fake = fakeKeychain({ defaultKeychain: keychainFile });
+      return { ...fake, keys: { platform: 'darwin', exec: fake.exec, env: {} } };
+    }
+
+    it('stores the key as a keychain item and writes no key file', async () => {
+      const mac = await macKeys();
+      const fake = fakeConsole(() => json(201, enrolled));
+      await enrol(
+        { url: API, code: sentinels.enrolmentCode, backend: 'user' },
+        { home, fetch: fake.fetch, host, keys: mac.keys },
+      );
+
+      expect(mac.items.size).toBe(1);
+      await expect(stat(runnerKeyPathOf(home))).rejects.toMatchObject({ code: 'ENOENT' });
+      const body = JSON.parse(fake.requests[0]?.body ?? '{}') as Record<string, unknown>;
+      expect(publicJwkOf(await loadRunnerKey(home, mac.keys))).toEqual(body['publicKey']);
+    });
+
+    it('refuses a home whose keychain item is still there, before the code is sent', async () => {
+      const mac = await macKeys();
+      await saveRunnerKey(home, generateRunnerKey().privateKey, mac.keys);
+      const fake = fakeConsole(() => json(201, enrolled));
+
+      await expect(
+        enrol(
+          { url: API, code: sentinels.enrolmentCode, backend: 'user' },
+          { home, fetch: fake.fetch, host, keys: mac.keys },
+        ),
+      ).rejects.toMatchObject({ problem: 'file-exists' });
+      expect(fake.requests).toEqual([]);
     });
   });
 
