@@ -253,8 +253,14 @@ describe('user backend', () => {
     try {
       const file = await stat(socket.path);
       expect(file.mode & 0o777).toBe(0o660);
+      // Opening the socket keeps the directory as the backend made it: no narrowing to 0700, no widening.
+      const dirAfter = await stat(sandbox.socketDir);
+      expect(dirAfter.mode & 0o7777).toBe(0o750);
+      expect(dirAfter.gid).toBe(gid);
+      // The socket takes the directory's group (BSD semantics on macOS), so the job group is what may connect.
+      expect(file.gid).toBe(dirAfter.gid);
       // Another local user is neither the owner nor in the job group: no bit of the path lets it through.
-      for (const mode of [root.mode, dir.mode, file.mode]) {
+      for (const mode of [root.mode, dirAfter.mode, file.mode]) {
         expect(mode & 0o007).toBe(0);
       }
     } finally {

@@ -110,8 +110,17 @@ function forwardedHeadersOf(request: IncomingMessage): Record<string, string> {
   return headers;
 }
 
-/** A JSON body after the redactor, `null` for none, or `undefined` when it is not JSON (refused). */
-function redactedBodyOf(raw: Buffer, contentType: string | undefined): string | null | undefined {
+/**
+ * A JSON body after the redactor, `null` for none, or `undefined` when it is not JSON (refused). A project write is
+ * redacted `strict` (#583): a whole token is still masked, but a finding or runbook that only names a prefix
+ * (`PRIVATE KEY`, `sk-ant-…`) is stored as the job wrote it instead of being silently rewritten. The job's run log
+ * (events, heartbeat) stays `loose`, the log-grade mode.
+ */
+function redactedBodyOf(
+  raw: Buffer,
+  contentType: string | undefined,
+  kind: 'project' | 'runner-job',
+): string | null | undefined {
   if (raw.length === 0) {
     return null;
   }
@@ -119,7 +128,10 @@ function redactedBodyOf(raw: Buffer, contentType: string | undefined): string | 
     return undefined;
   }
   try {
-    return redactedJsonBody(JSON.parse(raw.toString('utf8')) as unknown);
+    return redactedJsonBody(
+      JSON.parse(raw.toString('utf8')) as unknown,
+      kind === 'project' ? 'strict' : 'loose',
+    );
   } catch {
     return undefined;
   }
@@ -194,7 +206,7 @@ export async function startJobSocket(options: JobSocketOptions): Promise<JobSock
       }
       throw error;
     }
-    const body = redactedBodyOf(raw, request.headers['content-type']);
+    const body = redactedBodyOf(raw, request.headers['content-type'], route.kind);
     if (body === undefined) {
       return refuse(response, method, route.kind, 415, 'body-not-json');
     }
