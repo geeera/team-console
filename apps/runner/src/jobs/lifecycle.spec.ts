@@ -140,13 +140,23 @@ describe('job lifecycle', () => {
     try {
       const client = recordingConsole();
       let launchedPid: number | null = null;
+      // A deferred the override settles once `launch` returns or throws: `launch` is driven by real
+      // process events (not fake timers), so this is guaranteed to settle and the wait below can't hang (#664).
+      let settleLaunch: (() => void) | null = null;
+      const launchSettled = new Promise<void>((resolve) => {
+        settleLaunch = resolve;
+      });
       class RecordingLaunch extends NoneBackend {
         override async launch(
           ...args: Parameters<NoneBackend['launch']>
         ): ReturnType<NoneBackend['launch']> {
-          const launched = await super.launch(...args);
-          launchedPid = launched.pid;
-          return launched;
+          try {
+            const launched = await super.launch(...args);
+            launchedPid = launched.pid;
+            return launched;
+          } finally {
+            settleLaunch?.();
+          }
         }
       }
       const reportPromise = runJob(
@@ -154,9 +164,16 @@ describe('job lifecycle', () => {
         sentinels.jobToken,
         depsFor(client, { backend: new RecordingLaunch(fixture.home), minuteMs: 1_000 }),
       );
-      // Fake timers don't block the real spawn; flush microtasks until it has actually launched.
-      while (launchedPid === null) {
+      // Fake timers don't block the real spawn; flush microtasks until the override has settled.
+      let hasSettled = false;
+      void launchSettled.then(() => {
+        hasSettled = true;
+      });
+      while (!hasSettled) {
         await vi.advanceTimersByTimeAsync(0);
+      }
+      if (launchedPid === null) {
+        throw new Error('backend.launch rejected before producing a pid; see the job report for the cause');
       }
       expect(isAlive(launchedPid)).toBe(true);
       // One maxMinutes * minuteMs past launch: the default deadline timer fires stop('max-minutes').
