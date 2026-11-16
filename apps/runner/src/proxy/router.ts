@@ -1,7 +1,7 @@
 /**
- * What a job may reach through its socket (ADR 0008 decision 6 as the architect note on #468 settles it; ADR 0006
- * R4; threat model C3/C9): its own project's API, its own run log and heartbeat, and the key-agent ops — nothing
- * else, whatever the path's spelling. A pure table so every row has a spec.
+ * What a job may reach through its socket (architect note on #468, decision 6 — not ADR 0008, whose decision 6 is
+ * billing; see #584; ADR 0006 R4; threat model C3/C9): its own project's API, its own run log and heartbeat, and
+ * the key-agent ops — nothing else, whatever the path's spelling. A pure table so every row has a spec.
  */
 
 export interface ProxyJob {

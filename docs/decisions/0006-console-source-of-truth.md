@@ -244,11 +244,15 @@ cannot express a method, recorded as an amendment.
   Unix socket), `TC_JOB_TOKEN`, `TC_RUNNER_SOCKET`, a fresh `HOME` and `TMPDIR` per job, `PATH`, and the Claude
   Code credential (`claude setup-token`, held by `_tcrunner`, injected per job, declared as a job-environment
   secret, revocable in claude.ai).
-- **Key agent and proxy.** `TC_RUNNER_SOCKET` is a Unix domain socket the runner serves in a `_tcrunner:_tcjob
-  0750` directory; the runner checks the peer uid (`getpeereid`) and the job token on every request:
+- **Key agent and proxy.** *Superseded for the peer check* (architect note on #468, decision 6; #584): Node has
+  no `getpeereid` without a native addon, so the runner relies on the socket directory's file-system ACL plus
+  the job token instead, not a peer-uid check — see `docs/security/309-threat-model.md` and
+  `apps/runner/src/proxy/socket-server.ts`. `TC_RUNNER_SOCKET` is a Unix domain socket the runner serves in a
+  `_tcrunner:_tcjob 0750` directory; the runner checks the job token on every request (the ACL above stands in
+  for the peer-uid check this bullet originally described):
   `{ jobToken, op: 'sign-verdict', payload }`, `{ jobToken, op: 'vcs-token', scope }`, and plain HTTP to
   `/api/v1/…` over the same socket (`TC_API_URL`; R4: every console call of a job goes through here, no loopback
-  TCP port, so the peer-uid check applies; the runner adds Access and its runner JWT). The runner looks the token up in its own table of jobs it launched, signs with that job's role
+  TCP port, so the ACL-plus-token control applies; the runner adds Access and its runner JWT). The runner looks the token up in its own table of jobs it launched, signs with that job's role
   key only, answers the console's VCS token for that job's repository only, and forwards API calls only for that
   job. Any other token, uid or role is refused and logged as a notice on the job. The console accepts a job token
   only together with the identity of the runner that claimed the job (`jobs.runner_id`, else 403
