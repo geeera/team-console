@@ -16,14 +16,34 @@ export function hostedRunnerAdmittedSql(slug: string, policy: string): string {
     SELECT 1 FROM runners h
     WHERE h.account_id = (SELECT account_id FROM projects WHERE slug = ${slug})
       AND h.hosted = 1 AND h.revoked_at IS NULL
-      AND (
+      AND ${policyAdmitsRunnerSql(policy, 'h.id')})`;
+}
+
+/**
+ * The placement `policy` (an SQL expression; NULL means `any`) would pick the runner `runnerId` (an SQL expression)
+ * for a job. Machine-agnostic: whether the runner is hosted or lists the project is the caller's to add.
+ */
+export function policyAdmitsRunnerSql(policy: string, runnerId: string): string {
+  return `(
         ${policy} IS NULL
         OR json_extract(${policy}, '$.mode') = 'any'
-        OR (json_extract(${policy}, '$.mode') = 'pinned' AND json_extract(${policy}, '$.runner') = h.id)
+        OR (json_extract(${policy}, '$.mode') = 'pinned' AND json_extract(${policy}, '$.runner') = ${runnerId})
         OR (json_extract(${policy}, '$.mode') = 'failover' AND (
-              json_extract(${policy}, '$.preferred') = h.id
-              OR h.id IN (SELECT value FROM json_each(${policy}, '$.fallback'))))
-      ))`;
+              json_extract(${policy}, '$.preferred') = ${runnerId}
+              OR ${runnerId} IN (SELECT value FROM json_each(${policy}, '$.fallback'))))
+      )`;
+}
+
+/**
+ * A hosted runner `runnerId` about to be enrolled in `accountId` (both SQL expressions) would be admitted by the
+ * effective placement of one of the account's `subscription` projects (#707): the enrolment write refuses then, as
+ * the placement and team-config writes refuse the same state from their side.
+ */
+export function hostedEnrolmentRefusedSql(accountId: string, runnerId: string): string {
+  return `EXISTS (
+    SELECT 1 FROM projects sp
+    WHERE sp.account_id = ${accountId} AND sp.access_source = 'subscription'
+      AND ${policyAdmitsRunnerSql(effectivePolicySql('sp.slug'), runnerId)})`;
 }
 
 /** The project's effective placement: its own policy, else its account's default (ADR 0008 decision 12). */

@@ -109,6 +109,7 @@ export type { AuditEventRecord, AuditPage, NewAuditEvent } from './lib/accounts/
 export { RunnersRepo, TWO_POLLERS_WINDOW_MS } from './lib/runners/runners.repo';
 export type {
   EnrolmentRecord,
+  HostedEnrolOutcome,
   NewEnrolment,
   NewRunner,
   RunnerRecord,
