@@ -1,4 +1,5 @@
 import type { PauseRunnerInput } from '@shared/contracts';
+import { redactSecrets } from '@shared/redaction';
 import type { IsolationBackend } from '../backends/backend';
 import { MAX_PAUSE_MS } from '../budget/detect';
 import { activePause, loadRunnerState, saveRunnerState, type RunnerPause, type RunnerState } from '../budget/state';
@@ -52,6 +53,12 @@ const abortableSleep = (ms: number, signal: AbortSignal): Promise<void> =>
     signal.addEventListener('abort', done);
   });
 
+/** The loop's own lines pass the redactor, as every job line does: a claim error can quote what the console sent. */
+const redactedLogOf =
+  (deps: LoopDeps) =>
+  (line: string): void =>
+    deps.log(redactSecrets(line, 'loose'));
+
 /** The state after a job: a limit pauses and counts, a success resets the back-off, another failure keeps it. */
 export function stateAfter(state: RunnerState, report: JobReport): RunnerState {
   if (report.limit !== null) {
@@ -95,7 +102,7 @@ async function mirrorPause(
     }
     return pause;
   } catch (error: unknown) {
-    deps.log(
+    redactedLogOf(deps)(
       `could not ${pause === null ? 'clear the pause on' : 'mirror the pause to'} the console: ${error instanceof Error ? error.message : 'unknown error'}`,
     );
     return mirrored;
@@ -104,6 +111,7 @@ async function mirrorPause(
 
 export async function runLoop(mode: 'once' | 'loop', deps: LoopDeps): Promise<LoopEnd> {
   const sleep = deps.sleep ?? abortableSleep;
+  const log = redactedLogOf(deps);
   const registry = new JobRegistry();
   let state = await loadRunnerState(deps.home);
   // Nothing mirrored yet in this process: a pause still in force from `state.json` is posted again on start.
@@ -112,7 +120,7 @@ export async function runLoop(mode: 'once' | 'loop', deps: LoopDeps): Promise<Lo
     const pause = activePause(state, deps.now());
     mirrored = await mirrorPause(deps, pause, mirrored);
     if (pause !== null) {
-      deps.log(`paused (${pause.reason}) until ${pause.until}; not claiming`);
+      log(`paused (${pause.reason}) until ${pause.until}; not claiming`);
       if (mode === 'once') {
         return 'paused';
       }
@@ -130,7 +138,7 @@ export async function runLoop(mode: 'once' | 'loop', deps: LoopDeps): Promise<Lo
       if (mode === 'once') {
         throw error;
       }
-      deps.log(`claim failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+      log(`claim failed: ${error instanceof Error ? error.message : 'unknown error'}`);
       await sleep(deps.config.pollSeconds * 1000, deps.shutdown);
       continue;
     }
@@ -141,7 +149,7 @@ export async function runLoop(mode: 'once' | 'loop', deps: LoopDeps): Promise<Lo
       await sleep(claim.retryAfterSeconds * 1000, deps.shutdown);
       continue;
     }
-    deps.log(`claimed job ${claim.job.id} (${claim.job.kind})`);
+    log(`claimed job ${claim.job.id} (${claim.job.kind})`);
     const report = await runJob(claim.job, claim.jobToken, {
       home: deps.home,
       config: deps.config,

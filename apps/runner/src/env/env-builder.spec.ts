@@ -88,6 +88,14 @@ describe('env-builder (ADR 0008 decision 4)', () => {
     ['CLAUDE_CODE_OAUTH_TOKEN', '*_TOKEN'],
     ['CLAUDE_CONFIG_DIR', 'CLAUDE_*'],
     ['TC_EXTRA', 'TC_*'],
+    ['SIGNING_KEY', '*_KEY'],
+    ['NPM_PAT', '*_PAT'],
+    ['DB_PASSWORD', '*_PASSWORD'],
+    ['GOOGLE_APPLICATION_CREDENTIALS', '*CREDENTIAL*'],
+    ['SSH_AUTH_SOCK', 'SSH_AUTH_SOCK'],
+    ['NODE_OPTIONS', 'NODE_OPTIONS'],
+    ['DYLD_INSERT_LIBRARIES', 'DYLD_*'],
+    ['LD_PRELOAD', 'LD_*'],
   ])('refuses the passthrough name %s (%s)', (name, label) => {
     const refusal = refusalOf({ ...base, passthrough: ['PT_REPO', name] });
     expect(refusal.reason).toBe('env-passthrough-refused');

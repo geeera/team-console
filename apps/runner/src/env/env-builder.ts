@@ -14,14 +14,26 @@ export const DEFAULT_TOOLCHAIN_PATH = '/opt/homebrew/bin:/usr/local/bin:/usr/bin
 const JOB_LANG = 'en_US.UTF-8';
 const JOB_TZ = 'UTC';
 
-/** Passthrough names that could smuggle a credential in; each a refusal with `metrics.reason`. */
+/**
+ * Passthrough names that could smuggle a credential in, hand the job the runner's ssh agent, or inject code into
+ * the CLI's own process; each a refusal with `metrics.reason`.
+ */
 export const REFUSED_PASSTHROUGH: readonly {
   readonly label: string;
   readonly test: (name: string) => boolean;
 }[] = [
   { label: '*_API_KEY', test: (name) => name.endsWith('_API_KEY') },
+  { label: '*_KEY', test: (name) => name.endsWith('_KEY') },
   { label: '*_TOKEN', test: (name) => name.endsWith('_TOKEN') },
+  { label: '*_PAT', test: (name) => name.endsWith('_PAT') },
+  { label: '*_PASSWORD', test: (name) => name.endsWith('_PASSWORD') },
   { label: '*SECRET*', test: (name) => name.includes('SECRET') },
+  { label: '*CREDENTIAL*', test: (name) => name.includes('CREDENTIAL') },
+  { label: 'SSH_AUTH_SOCK', test: (name) => name === 'SSH_AUTH_SOCK' },
+  { label: 'NODE_OPTIONS', test: (name) => name === 'NODE_OPTIONS' },
+  { label: 'DYLD_*', test: (name) => name.startsWith('DYLD_') },
+  // The Linux form of DYLD_*, for the container backend.
+  { label: 'LD_*', test: (name) => name.startsWith('LD_') },
   { label: 'ANTHROPIC_*', test: (name) => name.startsWith('ANTHROPIC_') },
   { label: 'CLAUDE_*', test: (name) => name.startsWith('CLAUDE_') },
   { label: 'TC_*', test: (name) => name.startsWith('TC_') },
