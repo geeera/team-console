@@ -30,10 +30,15 @@ describe('team-console-runner CLI', () => {
     await rm(parent, { recursive: true, force: true });
   });
 
-  function run(argv: readonly string[], answer: FakeAnswer = () => json(500, {})) {
+  function run(
+    argv: readonly string[],
+    answer: FakeAnswer = () => json(500, {}),
+    extra: { env?: Record<string, string>; readCodeLine?: () => Promise<string> } = {},
+  ) {
     const fake = fakeConsole(answer);
     const exit = runCli(argv, {
-      env: { TC_RUNNER_HOME: join(parent, 'home') },
+      env: { TC_RUNNER_HOME: join(parent, 'home'), ...extra.env },
+      ...(extra.readCodeLine === undefined ? {} : { readCodeLine: extra.readCodeLine }),
       homeDir: parent,
       host: { os: 'linux', arch: 'x64', hostname: 'ci' },
       fetch: fake.fetch,
@@ -71,6 +76,60 @@ describe('team-console-runner CLI', () => {
     expect([...out, ...err].join('\n')).not.toContain(sentinels.enrolmentCode);
   });
 
+  const enrolled = (): ReturnType<FakeAnswer> =>
+    json(201, {
+      runnerId: RUNNER_ID,
+      accountId: ACCOUNT_ID,
+      name: 'CI box',
+      audience: 'team-console:local',
+      allowedProjects: [],
+      pollSeconds: 60,
+    });
+  const codeless = ['enrol', '--url', 'http://127.0.0.1:22300', '--backend', 'none'];
+
+  it.each([
+    ['TC_ENROL_CODE', codeless, { env: { TC_ENROL_CODE: sentinels.enrolmentCode } }],
+    [
+      '--code - (stdin)',
+      [...codeless, '--code', '-'],
+      { readCodeLine: async () => await Promise.resolve(sentinels.enrolmentCode) },
+    ],
+  ])('enrols with the code from %s, which is never in argv (#582)', async (_, argv, extra) => {
+    const { exit, requests } = run(argv, enrolled, extra);
+
+    expect(await exit).toBe(EXIT_OK);
+    expect(argv).not.toContain(sentinels.enrolmentCode);
+    expect(requests).toHaveLength(1);
+    expect(JSON.parse(requests[0]?.body ?? '{}')).toMatchObject({ code: sentinels.enrolmentCode });
+    expect([...out, ...err].join('\n')).not.toContain(sentinels.enrolmentCode);
+  });
+
+  it('warns on stderr when the code is an argument, without echoing it', async () => {
+    const { exit } = run(enrolArgs, enrolled);
+    expect(await exit).toBe(EXIT_OK);
+    expect(err.join('\n')).toMatch(/^warning: --code <value> .* ps; use TC_ENROL_CODE or --code - instead\.$/m);
+    expect(err.join('\n')).not.toContain(sentinels.enrolmentCode);
+  });
+
+  it('refuses --code together with TC_ENROL_CODE before any request', async () => {
+    const { exit, requests } = run(enrolArgs, enrolled, { env: { TC_ENROL_CODE: sentinels.enrolmentCode } });
+    expect(await exit).toBe(EXIT_USAGE);
+    expect(err.join('\n')).toMatch(/not both/);
+    expect(requests).toEqual([]);
+  });
+
+  it('does not read stdin when a flag is missing', async () => {
+    let read = false;
+    const { exit } = run(['enrol', '--url', 'http://127.0.0.1:22300', '--code', '-'], enrolled, {
+      readCodeLine: async () => {
+        read = true;
+        return await Promise.resolve(sentinels.enrolmentCode);
+      },
+    });
+    expect(await exit).toBe(EXIT_USAGE);
+    expect(read).toBe(false);
+  });
+
   it.each([
     [401, 'enrolment-code-invalid', /wrong, already used or expired/],
     [422, 'runner-isolation-none', /choose --backend container or user/],
@@ -93,8 +152,9 @@ describe('team-console-runner CLI', () => {
   });
 
   it.each([
-    [['enrol'], /needs --url, --code and --backend/],
-    [['enrol', '--url', 'https://x.example', '--code', 'tce_x'], /needs --url, --code and --backend/],
+    [['enrol'], /needs --url, --backend and the code/],
+    [['enrol', '--url', 'https://x.example', '--code', 'tce_x'], /needs --url, --backend and the code/],
+    [['enrol', '--url', 'https://x.example', '--backend', 'none'], /needs --url, --backend and the code/],
     [['enrol', '--token', 'x'], /Unknown option/],
     [['enrol', 'positional'], /Unexpected argument|positional/i],
     [
@@ -118,7 +178,7 @@ describe('team-console-runner CLI', () => {
     expect(await run(['--help']).exit).toBe(EXIT_OK);
     expect(await run([]).exit).toBe(EXIT_USAGE);
     expect(out.join('\n')).toContain(
-      'enrol --url <console origin> --code <tce_…> --backend container|user|none',
+      'enrol --url <console origin> --backend container|user|none [--code -]',
     );
   });
 

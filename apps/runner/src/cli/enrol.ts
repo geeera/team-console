@@ -31,8 +31,9 @@ import {
 import { RUNNER_VERSION } from '../version';
 
 /**
- * `team-console-runner enrol --url <origin> --code <tce_…> --backend container|user|none` (ADR 0006 "Enrolment",
- * the command Settings › Runners shows, `enrolCommandOf`): a fresh Ed25519 key on this host, the public half and the
+ * `TC_ENROL_CODE=<tce_…> team-console-runner enrol --url <origin> --backend container|user|none` (ADR 0006
+ * "Enrolment", the command Settings › Runners shows, `enrolCommandOf`; where the code may come from is
+ * `enrol-code.ts`): a fresh Ed25519 key on this host, the public half and the
  * host's description posted with the one-time code, and on success the key (0600) and `config.json` (0600) written
  * under `TC_RUNNER_HOME`. Nothing is written before the console accepts, and an enrolled home is never overwritten.
  */
@@ -119,7 +120,7 @@ export function checkEnrolOptions(options: EnrolOptions): EnrolCheckedOptions {
   }
   if (!ENROLMENT_CODE.test(options.code)) {
     throw new EnrolUsageError(
-      `--code must be the one-time ${ENROLMENT_CODE_PREFIX}… code from Settings › Runners`,
+      `the code must be the one-time ${ENROLMENT_CODE_PREFIX}… code from Settings › Runners`,
     );
   }
   if (!isEnrolBackend(options.backend)) {

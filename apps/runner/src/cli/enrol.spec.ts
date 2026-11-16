@@ -107,8 +107,8 @@ describe('enrol --url --code --backend', () => {
     it.each<[string, { url?: string; code?: string; backend?: string }, RegExp]>([
       ['a plain-http origin off loopback', { url: 'http://console.example' }, /--url/],
       ['a URL with a path', { url: 'https://console.example/api/v1' }, /--url/],
-      ['a malformed code', { code: 'tce_short' }, /--code/],
-      ['a job token as the code', { code: `tcj_${'J'.repeat(43)}` }, /--code/],
+      ['a malformed code', { code: 'tce_short' }, /the code must be/],
+      ['a job token as the code', { code: `tcj_${'J'.repeat(43)}` }, /the code must be/],
       ['the actions-ephemeral backend', { backend: 'actions-ephemeral' }, /--backend/],
       ['an unknown backend', { backend: 'vm' }, /--backend/],
     ])('%s', async (_label, change, message) => {
