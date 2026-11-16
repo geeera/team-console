@@ -183,10 +183,29 @@ describe('SECRET_KINDS', () => {
   });
 });
 
+// #659: a strict-mode consumer (the API's `findSecret` body check, project bodies) must not let a near-full
+// token through just because it was cut a few characters short of the 36-character tail.
+describe('strict mode also catches a near-full GitHub token truncation (#659)', () => {
+  it.each([
+    ['cut at the 30-character threshold', join('gh', 'p_', 'Z9y8'.repeat(7), 'Z9')],
+    ['cut one character short of a full token (35 characters)', join('gh', 'p_', 'Z9y8'.repeat(8), 'Z9y')],
+  ])('finds and masks a token %s', (_, secret) => {
+    expect(findSecret(secret)).toBe('github-token');
+    expect(redactSecrets(`before ${secret} after`)).toBe('before [redacted:github-token] after');
+  });
+
+  it('still leaves a 29-character tail to loose mode only', () => {
+    const secret = join('gh', 'p_', 'Z9y8'.repeat(7), 'Z');
+    expect(findSecret(secret)).toBeNull();
+    expect(redactSecrets(secret, 'loose')).toBe('[redacted:github-token]');
+  });
+});
+
 describe('redactSecrets in loose mode (logs and audit rows)', () => {
   const cutOff: readonly (readonly [string, SecretKind, string])[] = [
     ['a GitHub token cut after twelve characters', 'github-token', join('gh', 's_', 'A1b2'.repeat(3))],
-    ['a GitHub token cut at 35 characters', 'github-token', join('gh', 'p_', 'Z9y8'.repeat(8), 'Z9y')],
+    // #659: 29 is one short of GITHUB_STRICT_MIN (30) — still prose-length by strict's reckoning.
+    ['a GitHub token cut at 29 characters', 'github-token', join('gh', 'p_', 'Z9y8'.repeat(7), 'Z')],
     ['a fine-grained PAT cut short', 'github-token', join('github', '_pat_', '11AB')],
     ['a GitLab token cut short', 'gitlab-token', join('gl', 'pat-', 'aB3')],
     ['a routine trigger token cut short (#114)', 'anthropic-key', join('sk-', 'ant-', 'oat01')],

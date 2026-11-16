@@ -127,6 +127,25 @@ jobs:
           TC_RUNNER_TEST_IMAGE: tc-runner:ci-fake
         run: npx vitest run --config apps/runner/vitest.config.mts src/integration/container.integration.spec.ts
 
+  # #651: the Darwin branch of the job-exec sweep spec (`it.runIf(process.platform === 'darwin')` in
+  # apps/runner/src/install/templates.spec.ts) only ever ran on the Linux runners above, so it never actually
+  # executed in CI. A dedicated macOS job for just that one spec file keeps the minutes small instead of
+  # moving the whole runner suite (or `lint-test-build`) onto a macOS runner.
+  runner-darwin-sweep:
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-node-npm
+
+      - run: npm ci
+
+      - name: Darwin job-exec sweep (apps/runner)
+        run: npx vitest run --config apps/runner/vitest.config.mts src/install/templates.spec.ts
+
   # #14: the Playwright suite (apps/console-e2e) on every PR, whatever it touches — it is the regression guard for
   # the demo path. Each Playwright worker starts its own fake GitHub and the api bundle on a fresh local D1 (the
   # same `wrangler dev dist/apps/api/main.js` the Docker image runs); nothing reaches GitHub or Cloudflare.
