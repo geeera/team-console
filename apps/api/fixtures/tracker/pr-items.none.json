@@ -1,0 +1,22 @@
+{
+  "route": "GET /api/v1/projects/:slug/prs/:number/items",
+  "as": {
+    "kind": "job",
+    "role": "orchestrator",
+    "items": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/projects/tc/prs/58/items"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "number": 58,
+      "provider": "github",
+      "repo": "acme/tc",
+      "items": [],
+      "next": null
+    }
+  }
+}

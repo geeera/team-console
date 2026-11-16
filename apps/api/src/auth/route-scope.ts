@@ -96,6 +96,8 @@ export const ROUTE_SCOPES = {
   // Pull requests (#463): the mirror in D1; `?fresh=1` is the account's (never a job's) and reads by `repo_id`.
   [`GET ${P}/prs`]: PROJECT,
   [`GET ${P}/prs/:number`]: PROJECT,
+  // #627: the items linked to a pull request, read within the project's items.
+  [`GET ${P}/prs/:number/items`]: PROJECT,
   // #612: the orchestrator job's review request; the parent job and the pull request are read within the project.
   [`POST ${P}/prs/:number/reviews`]: PROJECT,
   // Which repositories the installation sees, with the scope's registrations only.

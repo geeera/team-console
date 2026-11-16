@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   OWNER_ACCOUNT_ID,
+  isAuditEventListDto,
   isEnrolmentCodeDto,
   isJobDto,
   isJobEventListDto,
@@ -209,6 +210,23 @@ describe('integration: Run now → runner → fake CLI → events and finish', (
     const mirrored = list.runners.find((runner) => runner.id === enrolled.runnerId);
     console.info(`[pause] runner ${enrolled.runnerId} pause=${JSON.stringify(mirrored?.pause)}`);
     expect(mirrored?.pause).toEqual({ reason: 'usage-limit', until: retryAt });
+
+    // 8. #596: the pause reached the console before the finish, so the streak left the limit failure out — audited.
+    const audited = await fetch(`${stack.origin}/api/v1/accounts/${OWNER_ACCOUNT_ID}/audit?limit=100`);
+    const audit: unknown = await audited.json();
+    if (!isAuditEventListDto(audit)) {
+      throw new Error('the audit log did not answer an AuditEventListDto');
+    }
+    const excluded = audit.events.filter((event) => event.kind === 'job.streak-excluded');
+    console.info(`[streak] ${JSON.stringify(excluded)}`);
+    expect(excluded).toEqual([
+      expect.objectContaining({
+        actorKind: 'runner',
+        actor: enrolled.runnerId,
+        target: limitId,
+        details: { reason: 'usage-limit', slug: SLUG },
+      }),
+    ]);
     expect(err).toEqual([]);
   }, 120_000);
 });

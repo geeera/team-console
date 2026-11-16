@@ -19,6 +19,33 @@ interface TeamStateRow {
 /** Who paused on the failure streak, as `paused_by` records it. */
 export const FAILURE_STREAK_PAUSER = 'system:failure-streak';
 
+/**
+ * A pause that lapsed this recently still backs a limit failure (#596): a short `retryAt` can pass between the
+ * runner's pause post and its finish, and the two clocks differ by seconds.
+ */
+export const RUNNER_PAUSE_GRACE_MS = 2 * 60 * 1000;
+
+/** A failure the runner says hit a usage or rate limit (#571): `reason` is `metrics.reason` from its finish. */
+export interface StreakLimitClaim {
+  readonly reason: unknown;
+  readonly runnerId: string;
+  readonly accountId: string;
+  /** Written when the failure is left out of the streak. */
+  readonly audit: NewAuditEvent;
+}
+
+export interface StreakOutcome {
+  readonly failedStreak: number;
+  readonly paused: boolean;
+  /** The failure was a limit backed by the runner's pause, and the streak left it out. */
+  readonly excluded: boolean;
+}
+
+/** The finishing runner holds a pause in force, or one that lapsed inside the grace window. */
+const heldPauseOf = (runnerId: string, accountId: string, graceFrom: string): string =>
+  `SELECT 1 FROM runners WHERE id = ${runnerId} AND account_id = ${accountId} AND revoked_at IS NULL
+     AND paused_until IS NOT NULL AND julianday(paused_until) > julianday(${graceFrom})`;
+
 export class TeamStateRepo {
   constructor(private readonly db: D1Database) {}
 
@@ -73,9 +100,10 @@ export class TeamStateRepo {
 
   /**
    * Records a job's outcome: a success resets the streak; a failure counts, and the third in a row pauses the project
-   * (`paused_by = system:failure-streak`). A failure on a usage or rate limit (`reason`, from the finish metrics) is
-   * neither (#571): the runner pauses itself for it, and the project's streak stays as it was. Returns the streak after
-   * the outcome and whether this one paused it.
+   * (`paused_by = system:failure-streak`). A failure on a usage or rate limit (#571) is neither, but only while the
+   * finishing runner holds a pause (#596): the reason is the runner's own word, so without its pause row to back it the
+   * failure counts like any other. An excluded failure writes `limit.audit`, in the same batch. Returns the streak after
+   * the outcome, whether this one paused it, and whether the streak left it out.
    */
   async recordOutcome(
     projectSlug: string,
@@ -83,17 +111,22 @@ export class TeamStateRepo {
     now: string,
     /** The `team.paused` audit row written when this outcome pauses the project (#490 review). */
     pauseAudit?: NewAuditEvent,
-    reason: unknown = null,
-  ): Promise<{ readonly failedStreak: number; readonly paused: boolean }> {
-    if (outcome === 'failed' && isRunnerLimitReason(reason)) {
-      return { failedStreak: (await this.get(projectSlug)).failedStreak, paused: false };
-    }
+    limit?: StreakLimitClaim,
+  ): Promise<StreakOutcome> {
     const failed = outcome === 'failed';
+    const claim = failed && limit !== undefined && isRunnerLimitReason(limit.reason) ? limit : null;
+    // A NULL runner (no limit claimed) makes the held-pause guards pass, so the outcome counts as before.
+    const heldPause = [
+      claim?.runnerId ?? null,
+      claim?.accountId ?? null,
+      new Date(Date.parse(now) - RUNNER_PAUSE_GRACE_MS).toISOString(),
+    ] as const;
     const statements: D1PreparedStatement[] = [
       this.db
         .prepare(
           `INSERT INTO team_state (project_slug, paused_at, paused_by, failed_streak, updated_at)
-           VALUES (?1, CASE WHEN ?2 >= ?3 THEN ?4 END, CASE WHEN ?2 >= ?3 THEN ?5 END, ?2, ?4)
+           SELECT ?1, CASE WHEN ?2 >= ?3 THEN ?4 END, CASE WHEN ?2 >= ?3 THEN ?5 END, ?2, ?4
+           WHERE ?6 IS NULL OR NOT EXISTS (${heldPauseOf('?6', '?7', '?8')})
            ON CONFLICT (project_slug) DO UPDATE SET
              failed_streak = CASE WHEN ?2 = 0 THEN 0 ELSE failed_streak + 1 END,
              paused_at = CASE WHEN ?2 <> 0 AND failed_streak + 1 >= ?3 AND paused_at IS NULL THEN ?4 ELSE paused_at END,
@@ -101,20 +134,29 @@ export class TeamStateRepo {
              updated_at = ?4
            RETURNING failed_streak, paused_at, paused_by`,
         )
-        .bind(projectSlug, failed ? 1 : 0, TEAM_FAILURE_STREAK_PAUSE, now, FAILURE_STREAK_PAUSER),
+        .bind(projectSlug, failed ? 1 : 0, TEAM_FAILURE_STREAK_PAUSE, now, FAILURE_STREAK_PAUSER, ...heldPause),
     ];
     // In the same batch (#492), and only when this outcome is the one that paused: the same test as `paused` below.
     if (failed && pauseAudit !== undefined) {
       statements.push(
         auditEventStatement(this.db, pauseAudit, {
-          exists: `SELECT 1 FROM team_state WHERE project_slug = ? AND failed_streak = ? AND paused_by = ? AND paused_at = ?`,
-          params: [projectSlug, TEAM_FAILURE_STREAK_PAUSE, FAILURE_STREAK_PAUSER, now],
+          exists: `SELECT 1 FROM team_state WHERE project_slug = ? AND failed_streak = ? AND paused_by = ? AND paused_at = ?
+                   AND (? IS NULL OR NOT EXISTS (${heldPauseOf('?', '?', '?')}))`,
+          params: [projectSlug, TEAM_FAILURE_STREAK_PAUSE, FAILURE_STREAK_PAUSER, now, heldPause[0], ...heldPause],
         }),
       );
     }
-    const [upsert] = await this.db.batch<{ failed_streak: number; paused_at: string | null; paused_by: string | null }>(
-      statements,
-    );
+    if (claim !== null) {
+      statements.push(auditEventStatement(this.db, claim.audit, { exists: heldPauseOf('?', '?', '?'), params: [...heldPause] }));
+    }
+    const [upsert, ...audits] = await this.db.batch<{
+      failed_streak: number;
+      paused_at: string | null;
+      paused_by: string | null;
+    }>(statements);
+    if (claim !== null && (audits[audits.length - 1]?.meta.changes ?? 0) === 1) {
+      return { failedStreak: (await this.get(projectSlug)).failedStreak, paused: false, excluded: true };
+    }
     const row = upsert?.results[0];
     const failedStreak = row?.failed_streak ?? 0;
     const paused =
@@ -122,6 +164,6 @@ export class TeamStateRepo {
       failedStreak === TEAM_FAILURE_STREAK_PAUSE &&
       row?.paused_by === FAILURE_STREAK_PAUSER &&
       row.paused_at === now;
-    return { failedStreak, paused };
+    return { failedStreak, paused, excluded: false };
   }
 }

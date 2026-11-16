@@ -154,7 +154,11 @@ When the Claude CLI reports a usage or rate limit, the runner finishes that job 
 time and stops claiming. The pause lasts until the CLI's reset time when the CLI gives one. Otherwise the back-off is
 5 → 10 → 20 → 60 minutes, and a successful job resets it. The pause is kept in `TC_RUNNER_HOME/state.json`, so a
 restart honours it. It is mirrored to the console. Settings › Runners and the board tile show "paused until …", and the
-console's claim skips the runner until that time. A limit failure does not count towards the failure streak.
+console's claim skips the runner until that time. The runner posts the pause before it finishes the job, and a limit
+failure does not count towards the failure streak only while the console holds that pause (#596): a limit failure
+from a runner with no pause on the console counts like any other, and three in a row pause the project. Each left-out
+failure is in the audit log as `job.streak-excluded`. A runner older than this change finishes first and pauses
+second, so its limit failures count.
 
 The pause lifts by itself. Stage A has no manual resume. Do not delete or edit `state.json`: the runner refuses one
 it cannot read, and the console keeps its own copy of the pause until the time it was given. An unknown failure is

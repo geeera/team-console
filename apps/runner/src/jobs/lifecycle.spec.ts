@@ -186,6 +186,10 @@ describe('job lifecycle', () => {
         };
       },
     });
+    let pausesAtFinish = -1;
+    client.onFinish = () => {
+      pausesAtFinish = client.pauses.length;
+    };
     const deps = depsFor(client);
     const end = await runLoop('once', {
       ...deps,
@@ -208,8 +212,9 @@ describe('job lifecycle', () => {
       pause: { reason: 'usage-limit', until: retryAt },
       limitStreak: 1,
     });
-    // Mirrored to the console (#571) once the job is finished.
+    // Mirrored to the console (#571) before the finish (#596), so the streak sees the pause backing the limit; once.
     expect(client.pauses).toEqual([{ reason: 'usage-limit', until: retryAt }]);
+    expect(pausesAtFinish).toBe(1);
 
     // A restart reads state.json and claims nothing until retryAt.
     const again = await runLoop('once', { ...deps, backend: new NoneBackend(fixture.home) });

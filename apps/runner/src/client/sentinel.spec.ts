@@ -81,6 +81,16 @@ describe('sentinel: no planted secret leaves the runner in a body', () => {
     });
   });
 
+  it('masks a bare prefix by default (loose) and only whole tokens in strict mode, keys included (#583)', () => {
+    const value = { 'PRIVATE KEY': ['sk-ant-x', `key ${sentinels.anthropicKey}`] };
+    expect(redactJson(value)).toEqual({
+      '[redacted:private-key]': ['[redacted:anthropic-key]', 'key [redacted:anthropic-key]'],
+    });
+    expect(redactJson(value, 'strict')).toEqual({
+      'PRIVATE KEY': ['sk-ant-x', 'key [redacted:anthropic-key]'],
+    });
+  });
+
   describe('a job’s request through the socket', () => {
     let dir: string;
     let socket: JobSocket | null = null;

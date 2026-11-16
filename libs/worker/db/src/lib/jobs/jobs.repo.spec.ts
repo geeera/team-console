@@ -445,16 +445,16 @@ describe('TeamStateRepo.recordOutcome', () => {
     const slug = await project(ACCOUNT_A);
     const repo = new TeamStateRepo(env.DB);
     const pauseAudit = { ...audit('team.paused'), target: slug };
-    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 1, paused: false });
-    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 2, paused: false });
-    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 3, paused: true });
+    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 1, paused: false, excluded: false });
+    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 2, paused: false, excluded: false });
+    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 3, paused: true, excluded: false });
     expect((await repo.get(slug)).pausedBy).toBe(FAILURE_STREAK_PAUSER);
     const rows = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'team.paused' AND target = ?1`).bind(slug).first<{ n: number }>();
     expect(rows?.n).toBe(1);
-    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 4, paused: false });
+    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 4, paused: false, excluded: false });
     await repo.resume(slug, T1, { ...audit('team.resumed'), target: slug });
     expect(await repo.get(slug)).toMatchObject({ pausedAt: null, failedStreak: 0 });
-    expect(await repo.recordOutcome(slug, 'finished', T1)).toEqual({ failedStreak: 0, paused: false });
+    expect(await repo.recordOutcome(slug, 'finished', T1)).toEqual({ failedStreak: 0, paused: false, excluded: false });
   });
 
   // #492: the audit row is conditional on this outcome being the one that paused, inside the outcome's batch.
@@ -468,7 +468,7 @@ describe('TeamStateRepo.recordOutcome', () => {
     await repo.pause(owned, 'owner', T0, { ...audit('team.paused'), target: `${owned}:owner` });
     const ownedAudit = { ...audit('team.paused'), target: owned };
     for (const streak of [1, 2, 3]) {
-      expect(await repo.recordOutcome(owned, 'failed', T1, ownedAudit)).toEqual({ failedStreak: streak, paused: false });
+      expect(await repo.recordOutcome(owned, 'failed', T1, ownedAudit)).toEqual({ failedStreak: streak, paused: false, excluded: false });
     }
     expect(await pausedCount(owned)).toBe(0);
 
@@ -478,33 +478,122 @@ describe('TeamStateRepo.recordOutcome', () => {
     for (const streak of [1, 2, 3]) {
       await expect(repo.recordOutcome(streaked, 'failed', T0, streakAudit)).resolves.toMatchObject({ failedStreak: streak });
     }
-    expect(await repo.recordOutcome(streaked, 'finished', T1)).toEqual({ failedStreak: 0, paused: false });
+    expect(await repo.recordOutcome(streaked, 'finished', T1)).toEqual({ failedStreak: 0, paused: false, excluded: false });
     for (const streak of [1, 2, 3]) {
-      expect(await repo.recordOutcome(streaked, 'failed', T1, streakAudit)).toEqual({ failedStreak: streak, paused: false });
+      expect(await repo.recordOutcome(streaked, 'failed', T1, streakAudit)).toEqual({ failedStreak: streak, paused: false, excluded: false });
     }
     expect(await repo.get(streaked)).toMatchObject({ pausedAt: T0, pausedBy: FAILURE_STREAK_PAUSER });
     expect(await pausedCount(streaked)).toBe(1);
   });
 
-  // #571: a usage or rate limit is a quota, not a fault — neither a success nor a failure for the streak.
-  it('leaves the streak as it was for a failure on a usage or rate limit, and still counts other failures', async () => {
-    const slug = await project(ACCOUNT_A);
-    const repo = new TeamStateRepo(env.DB);
-    const pauseAudit = { ...audit('team.paused'), target: slug };
-    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 1, paused: false });
-    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 2, paused: false });
-    for (const reason of ['usage-limit', 'rate-limit', 'usage-limit']) {
-      expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, reason)).toEqual({ failedStreak: 2, paused: false });
-    }
-    expect(await repo.get(slug)).toMatchObject({ pausedAt: null, failedStreak: 2 });
-    // Any other reason is a failure: the third one pauses.
-    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, 'exit')).toEqual({ failedStreak: 3, paused: true });
+  // #571, #596: a usage or rate limit is a quota, not a fault — but only when the runner's pause row backs the claim.
+  describe('a failure on a usage or rate limit', () => {
+    const PAUSED_UNTIL = '2026-11-10T11:00:00.000Z';
+    const limitOf = (runnerId: string, reason: unknown, accountId = ACCOUNT_A) => ({
+      reason,
+      runnerId,
+      accountId,
+      audit: { ...audit('job.streak-excluded', accountId), actorKind: 'runner' as const, actor: runnerId, target: `job-${runnerId}` },
+    });
+    const pauseRunner = async (runnerId: string, until: string): Promise<void> => {
+      await env.DB.prepare(`UPDATE runners SET paused_until = ?2, pause_reason = 'usage-limit' WHERE id = ?1`).bind(runnerId, until).run();
+    };
+    const excludedCount = async (runnerId: string): Promise<number | undefined> =>
+      (
+        await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.streak-excluded' AND actor = ?1`)
+          .bind(runnerId)
+          .first<{ n: number }>()
+      )?.n;
 
-    // A limit does not reset a streak either, and a fresh project gets no row from one.
-    const fresh = await project(ACCOUNT_A);
-    expect(await repo.recordOutcome(fresh, 'failed', T0, undefined, 'rate-limit')).toEqual({ failedStreak: 0, paused: false });
-    const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM team_state WHERE project_slug = ?1`).bind(fresh).first<{ n: number }>();
-    expect(row?.n).toBe(0);
+    it('leaves the streak as it was, with an audit row, while the finishing runner holds a pause', async () => {
+      const slug = await project(ACCOUNT_A);
+      const paused = await runner(ACCOUNT_A, [slug]);
+      await pauseRunner(paused, PAUSED_UNTIL);
+      const repo = new TeamStateRepo(env.DB);
+      const pauseAudit = { ...audit('team.paused'), target: slug };
+      expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 1, paused: false, excluded: false });
+      expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 2, paused: false, excluded: false });
+      for (const reason of ['usage-limit', 'rate-limit', 'usage-limit']) {
+        expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(paused, reason))).toEqual({
+          failedStreak: 2,
+          paused: false,
+          excluded: true,
+        });
+      }
+      expect(await repo.get(slug)).toMatchObject({ pausedAt: null, failedStreak: 2 });
+      expect(await excludedCount(paused)).toBe(3);
+      // Any other reason is a failure, pause or not: the third one pauses.
+      expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(paused, 'exit'))).toEqual({
+        failedStreak: 3,
+        paused: true,
+        excluded: false,
+      });
+      expect(await excludedCount(paused)).toBe(3);
+
+      // A limit does not reset a streak either, and a fresh project gets no row from one.
+      const fresh = await project(ACCOUNT_A);
+      expect(await repo.recordOutcome(fresh, 'failed', T0, undefined, limitOf(paused, 'rate-limit'))).toEqual({
+        failedStreak: 0,
+        paused: false,
+        excluded: true,
+      });
+      const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM team_state WHERE project_slug = ?1`).bind(fresh).first<{ n: number }>();
+      expect(row?.n).toBe(0);
+    });
+
+    it('counts it when the runner holds no pause, and the third such failure pauses the project', async () => {
+      const slug = await project(ACCOUNT_A);
+      const unpaused = await runner(ACCOUNT_A, [slug]);
+      const repo = new TeamStateRepo(env.DB);
+      const pauseAudit = { ...audit('team.paused'), target: slug };
+      for (const [streak, reason] of [[1, 'usage-limit'], [2, 'rate-limit']] as const) {
+        expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(unpaused, reason))).toEqual({
+          failedStreak: streak,
+          paused: false,
+          excluded: false,
+        });
+      }
+      expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(unpaused, 'usage-limit'))).toEqual({
+        failedStreak: 3,
+        paused: true,
+        excluded: false,
+      });
+      expect(await repo.get(slug)).toMatchObject({ pausedAt: T0, pausedBy: FAILURE_STREAK_PAUSER });
+      expect(await excludedCount(unpaused)).toBe(0);
+      const pauses = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'team.paused' AND target = ?1`)
+        .bind(slug)
+        .first<{ n: number }>();
+      expect(pauses?.n).toBe(1);
+    });
+
+    it('takes a pause that lapsed inside the grace window, not one older, another runner’s, or one in another account', async () => {
+      const slug = await project(ACCOUNT_A);
+      const repo = new TeamStateRepo(env.DB);
+      // T1 is five minutes after T0: a minute's lapse is inside the grace window, ten minutes' is not.
+      const lapsedJustNow = await runner(ACCOUNT_A, [slug]);
+      await pauseRunner(lapsedJustNow, '2026-11-10T10:04:00.000Z');
+      expect(await repo.recordOutcome(slug, 'failed', T1, undefined, limitOf(lapsedJustNow, 'usage-limit'))).toMatchObject({ excluded: true });
+
+      const lapsedLongAgo = await runner(ACCOUNT_A, [slug]);
+      await pauseRunner(lapsedLongAgo, '2026-11-10T09:55:00.000Z');
+      expect(await repo.recordOutcome(slug, 'failed', T1, undefined, limitOf(lapsedLongAgo, 'usage-limit'))).toEqual({
+        failedStreak: 1,
+        paused: false,
+        excluded: false,
+      });
+
+      // The pause belongs to the finishing runner, in its own account: someone else's pause backs nothing.
+      const unpaused = await runner(ACCOUNT_A, [slug]);
+      const otherAccount = await runner(ACCOUNT_B, []);
+      await pauseRunner(otherAccount, PAUSED_UNTIL);
+      expect(await repo.recordOutcome(slug, 'failed', T1, undefined, limitOf(unpaused, 'rate-limit'))).toMatchObject({ failedStreak: 2, excluded: false });
+      expect(await repo.recordOutcome(slug, 'failed', T1, undefined, limitOf(otherAccount, 'rate-limit', ACCOUNT_A))).toMatchObject({
+        failedStreak: 3,
+        excluded: false,
+      });
+      expect(await excludedCount(lapsedLongAgo)).toBe(0);
+      expect(await excludedCount(otherAccount)).toBe(0);
+    });
   });
 
   it('cancels a runner’s live jobs outside a narrowed allow-list', async () => {

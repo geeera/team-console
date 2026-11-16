@@ -284,6 +284,12 @@ and payload `{pr, head_sha, role, note?}`, `head_sha` from `pull_requests` (404 
 `pull-request-not-open`), in one batch (`JobsRepo.enqueueAll`); the dedupe key `slug:review:N:head:role` answers a repeat
 with the live jobs (200). `note` (≤ 1000) is stored unchanged as a payload member, never rendered or built into a prompt by
 the console; a secret in it is 422 `body-secret`; the audit row carries ids and enums only.
+Linked items (#627, the merge gate; #628 item 1): `GET prs/:number/items` (`routes/pull-requests.ts`, matrix `READ`)
+answers `PullRequestItemsDto` — the items whose `pr-linked` events name that number (`ItemFilter.pullRequest` in
+`ItemsRepo.list`, over migration 0025's index), closed ones included, as `ItemSummaryDto`s with their labels, paged
+`?after=&limit=` in queue order — plus the project's `provider` and `repo` (`owner/name`), so the plugin checks the
+PR's repository against `TC_PROJECT`. D1 only, never the provider: a PR linked to nothing (or unknown to the mirror) is
+an empty page, not a 404. Fixtures `pr-items.linked|none.json`.
 
 VCS adapter, reads (#463, ADR 0006 decision 7 / "VCS adapter", ADR 0008 row 3a): `@worker/vcs` (provider-neutral types,
 `VcsAdapter`, `VcsWebhooks`, `VcsError` with `kind` and the provider's problem, `mapVcsError` in `createApiApp`'s

@@ -1,4 +1,5 @@
 import type { SprintCiState } from './read-models';
+import type { ItemSummaryDto } from './tracker/dto';
 
 /** `GET /api/v1/projects/:slug/prs` (#463): pull requests as the console mirrors them in `pull_requests`. */
 
@@ -37,6 +38,22 @@ export interface PullRequestListDto {
   readonly next: number | null;
   /** `null` without `?fresh=1`. */
   readonly sync: PullRequestSyncDto | null;
+}
+
+/**
+ * `GET …/prs/:number/items` (#627): the items `pr-linked` events link to the pull request, whatever the PR's own text
+ * names, with their labels, so the merge gate reads the console's links. `repo` is the project's repository on
+ * `provider` (#628): the gate checks that the pull request it judges is one of that repository's. One page in queue
+ * order, closed items included; an empty page means no item is linked.
+ */
+export interface PullRequestItemsDto {
+  readonly number: number;
+  readonly provider: 'github' | 'gitlab';
+  /** `owner/name` as the registry holds it; compare case-insensitively. */
+  readonly repo: string;
+  readonly items: readonly ItemSummaryDto[];
+  /** The cursor for `?after=`, `null` on the last page. */
+  readonly next: number | null;
 }
 
 export type PullRequestProblemType =
