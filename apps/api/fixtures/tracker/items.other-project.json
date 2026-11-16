@@ -3,7 +3,8 @@
   "as": {
     "kind": "job",
     "role": "pm",
-    "items": []
+    "items": [],
+    "project": "other"
   },
   "request": {
     "method": "GET",

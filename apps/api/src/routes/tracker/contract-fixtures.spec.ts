@@ -8,6 +8,7 @@ import decisionsQueryInvalid from '../../../fixtures/tracker/decisions.query-inv
 import inboxJob from '../../../fixtures/tracker/inbox.job.json';
 import itemsChanged from '../../../fixtures/tracker/items.changed.json';
 import itemsCreated from '../../../fixtures/tracker/items.created.json';
+import itemsDecisions from '../../../fixtures/tracker/items.decisions.json';
 import itemsEvents from '../../../fixtures/tracker/items.events.json';
 import itemsGet from '../../../fixtures/tracker/items.get.json';
 import itemsList from '../../../fixtures/tracker/items.list.json';
@@ -164,6 +165,18 @@ const SETUPS: Readonly<Record<string, readonly [Fixture, Setup]>> = {
     },
   ],
   'items.stale': [itemsStale, seedOne],
+  // #618: the per-item decisions feed, the same route `backlog show`/`backlog answers` call.
+  'items.decisions': [
+    itemsDecisions,
+    async (project) => {
+      const { path } = await seedItem(project, { title: 'Export to CSV' });
+      await send('POST', `${path}/decisions`, { command: 'reject', text: 'Not now', via: 'web' });
+      const second = await send('POST', `${path}/decisions`, { command: 'reject', text: 'Still no', via: 'web' });
+      if (second.status !== 201) {
+        throw new Error(`seeding a decision answered ${String(second.status)}`);
+      }
+    },
+  ],
   'items.other-project': [
     itemsOtherProject,
     async () => ({ projectSlug: (await seedTrackerProject()).slug }),
@@ -307,6 +320,7 @@ describe('the tracker contract fixtures (#445, #611)', () => {
       'GET /api/v1/projects/:slug/items/:key',
       'GET /api/v1/projects/:slug/items/:key/asks',
       'GET /api/v1/projects/:slug/items/:key/comments',
+      'GET /api/v1/projects/:slug/items/:key/decisions',
       'GET /api/v1/projects/:slug/items/:key/events',
       'GET /api/v1/projects/:slug/labels',
       'GET /api/v1/projects/:slug/prs/:number/items',
