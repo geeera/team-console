@@ -491,8 +491,9 @@ export function systemInstallHost(base: {
     if (owner === undefined) {
       return undefined;
     }
-    const [user, group] = owner.split(':');
-    if (user === undefined || group === undefined || user === '' || group === '') {
+    const parts = owner.split(':');
+    const [user, group] = parts;
+    if (parts.length !== 2 || user === undefined || group === undefined || user === '' || group === '') {
       throw new Error(`owner must be user:group (${owner})`);
     }
     return {
@@ -545,9 +546,15 @@ export function systemInstallHost(base: {
         }
         case 'write': {
           const owner = await ownershipOf(step.owner);
-          const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW;
+          // No O_TRUNC: a hard link to someone else's file must be refused before a byte of it changes.
+          const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW;
           const handle = await open(step.path, flags, step.mode);
           try {
+            const stats = await handle.stat();
+            if (!stats.isFile() || stats.nlink > 1) {
+              throw new Error(`${step.path} is not a regular file with a single link`);
+            }
+            await handle.truncate(0);
             if (owner !== undefined) {
               await handle.chown(owner.uid, owner.gid);
             }

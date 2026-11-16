@@ -19,6 +19,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     lchmod: vi.fn(real.lchmod),
     chown: vi.fn(real.chown),
     lchown: vi.fn(real.lchown),
+    mkdir: vi.fn(real.mkdir),
     open: vi.fn(real.open),
   };
 });
@@ -106,12 +107,53 @@ describe('systemInstallHost sets owner and mode through the handle', () => {
     vi.mocked(fs.chmod).mockClear();
     const link = join(root, 'logs');
     await fs.link(target, link);
-    await expect(host().apply({ kind: 'mkdir', path: link, mode: 0o700, owner: OWNER })).rejects.toThrow();
+    // The swap lands after mkdir succeeded: the O_DIRECTORY | O_NOFOLLOW open itself must refuse it.
+    vi.mocked(fs.mkdir).mockResolvedValueOnce(undefined);
+    await expect(host().apply({ kind: 'mkdir', path: link, mode: 0o700, owner: OWNER })).rejects.toThrow(
+      /logs is not a directory/,
+    );
     expect(handleCalls.chown).toEqual([]);
     expect(handleCalls.chmod).toEqual([]);
     expect(pathCalls()).toBe(0);
     expect((await fs.lstat(target)).mode & 0o7777).toBe(0o600);
   });
+
+  it('write: refuses a hard link to a victim file and leaves its content, mode and owner alone', async () => {
+    const victim = join(root, 'victim');
+    await fs.writeFile(victim, 'root secret');
+    await fs.chmod(victim, 0o600);
+    vi.mocked(fs.chmod).mockClear();
+    const before = await fs.lstat(victim);
+    const planted = join(root, 'sudoers');
+    await fs.link(victim, planted);
+    await expect(
+      host().apply({ kind: 'write', path: planted, mode: 0o644, owner: OWNER, content: 'pwned\n' }),
+    ).rejects.toThrow(/not a regular file with a single link/);
+    const after = await fs.lstat(victim);
+    expect(await fs.readFile(victim, 'utf8')).toBe('root secret');
+    expect([after.mode, after.uid, after.gid]).toEqual([before.mode, before.uid, before.gid]);
+    expect(handleCalls.chown).toEqual([]);
+    expect(handleCalls.chmod).toEqual([]);
+    expect(pathCalls()).toBe(0);
+  });
+
+  it('write: replaces the content of an existing single-link file', async () => {
+    const path = join(root, 'plist');
+    await fs.writeFile(path, 'an older and longer content\n');
+    await host().apply({ kind: 'write', path, mode: 0o644, content: 'new\n' });
+    expect(await fs.readFile(path, 'utf8')).toBe('new\n');
+  });
+
+  it.each(['tcrunner', 'tcrunner:tcjob:extra', ':tcjob', 'tcrunner:'])(
+    'refuses owner %j that is not exactly user:group',
+    async (owner) => {
+      const path = join(root, 'home');
+      await expect(host().apply({ kind: 'mkdir', path, mode: 0o710, owner })).rejects.toThrow(
+        /owner must be user:group/,
+      );
+      expect(queries).toEqual([]);
+    },
+  );
 
   it('refuses an owner it cannot resolve before touching the path', async () => {
     const path = join(root, 'home');
