@@ -5,12 +5,15 @@ import {
   ACTIONS_OIDC_ISSUER,
   ACTIONS_WORKFLOW_FILE,
   OWNER_ACCOUNT_ID,
+  TEAM_CONFIG_SCHEMA,
   roleOfJobKind,
   runnerAudienceOf,
+  type AccessSource,
   type Ed25519PublicJwk,
   type OidcExchangeInput,
 } from '@shared/contracts';
 import { newUlid } from '@worker/core';
+import { TeamConfigRepo } from '@worker/db';
 import type { ApiEnv } from '../env';
 import { fetchApi } from './access-kit';
 import { localEnv } from './github-kit';
@@ -72,7 +75,35 @@ export async function seedActionsProject(
   )
     .bind(slug, repo, accountId, options.recordRepoId === false ? null : repoId)
     .run();
-  return { slug, accountId, repoId, repo, defaultBranch: 'main' };
+  const project = { slug, accountId, repoId, repo, defaultBranch: 'main' };
+  // ADR 0009 d.3: only an API-key project may be dispatched to Actions (0032 refuses its jobs otherwise).
+  await saveAccessSource(project, 'api_key', 0);
+  return project;
+}
+
+/** Saves revision `expectedRevision + 1` of the project's team configuration with `source`; returns the outcome kind. */
+export async function saveAccessSource(project: ActionsProject, source: AccessSource, expectedRevision: number): Promise<string> {
+  const at = new Date().toISOString();
+  const outcome = await new TeamConfigRepo(env.DB).save({
+    projectSlug: project.slug,
+    expectedRevision,
+    config: { schema: TEAM_CONFIG_SCHEMA, access: { source } },
+    diff: [{ path: 'access.source', to: source }],
+    reason: null,
+    id: newUlid(),
+    at,
+    by: 'owner',
+    audit: {
+      accountId: project.accountId,
+      at,
+      actorKind: 'user',
+      actor: 'owner',
+      kind: 'team-config.changed',
+      target: project.slug,
+      details: { revision_from: expectedRevision, revision_to: expectedRevision + 1, paths: ['access.source'] },
+    },
+  });
+  return outcome.kind;
 }
 
 /** A queued job of the project, dispatched to Actions unless `dispatch` says otherwise (enqueue is #670's). */

@@ -1,0 +1,39 @@
+{
+  "route": "GET /api/v1/projects/:slug/team-config/revisions/:n",
+  "as": {
+    "kind": "owner",
+    "role": "owner",
+    "items": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/projects/tc/team-config/revisions/2"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "revision": 2,
+      "config": {
+        "schema": "team-config/v1",
+        "access": {
+          "source": "api_key"
+        },
+        "preset": "economy",
+        "language": "en"
+      },
+      "diff": [
+        {
+          "path": "language",
+          "to": "en"
+        },
+        {
+          "path": "preset",
+          "to": "economy"
+        }
+      ],
+      "createdAt": "2026-11-12T10:00:00.000Z",
+      "createdBy": "local-owner",
+      "reason": null
+    }
+  }
+}

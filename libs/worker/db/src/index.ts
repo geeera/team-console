@@ -136,3 +136,12 @@ export type {
   IdempotencyRef,
   IdempotentResultKind,
 } from './lib/tracker/idempotency-keys.repo';
+export { TeamConfigRepo } from './lib/team-config/team-config.repo';
+export type {
+  TeamConfigRecord,
+  TeamConfigRevisionRecord,
+  TeamConfigSaveOutcome,
+  TeamConfigWrite,
+} from './lib/team-config/team-config.repo';
+export { ProjectSpendRepo, utcMonthOf } from './lib/team-config/project-spend.repo';
+export type { ProjectSpendRecord } from './lib/team-config/project-spend.repo';

@@ -23,6 +23,7 @@ import type { Identity } from '../auth/auth.types';
 import type { ApiEnv } from '../env';
 import { jsonBody } from '../json-body';
 import { SMALL_WRITE_MAX_BYTES, TEXT_WRITE_MAX_BYTES, writeLimit } from '../tracker/http';
+import { claimTeamConfigOf } from '../team-config/resolved';
 import { jobDtoOf } from './jobs';
 
 type Context = WorkerContext<ApiEnv>;
@@ -141,7 +142,13 @@ export function createRunnerJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         auditOf(runner, job, nowIso, 'job.claimed', { kind: job.kind, slug: job.projectSlug, attempt: job.attempt, country }, country),
       );
       logger.info('job claimed', { jobId: job.id, runnerId: runner.runnerId, kind: job.kind });
-      const body: ClaimResponse = { job: jobDtoOf(job), jobToken: token, leaseSeconds: JOB_LEASE_SECONDS };
+      const body: ClaimResponse = {
+        job: jobDtoOf(job),
+        jobToken: token,
+        leaseSeconds: JOB_LEASE_SECONDS,
+        // #687: the stamped revision's view; a change after this claim applies to the next one.
+        ...(await claimTeamConfigOf(c.env.DB, job)),
+      };
       return c.json(body);
     })
 

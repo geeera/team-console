@@ -1,0 +1,180 @@
+{
+  "route": "GET /api/v1/projects/:slug/team-config",
+  "as": {
+    "kind": "owner",
+    "role": "owner",
+    "items": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/projects/tc/team-config"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "config": null,
+      "revision": 0,
+      "preset": "recommended",
+      "budget": {
+        "monthly_usd": null
+      },
+      "resolved": {
+        "schema": "team-config/v1",
+        "revision": 0,
+        "access": {
+          "source": "subscription"
+        },
+        "roles": {
+          "pm": {
+            "enabled": true,
+            "model": "claude-opus-5-5",
+            "effort": "high",
+            "max_parallel": 5,
+            "max_minutes": 90,
+            "max_turns": 400
+          },
+          "architect": {
+            "enabled": true,
+            "model": "claude-fable-5-1",
+            "effort": "high",
+            "max_parallel": 5,
+            "max_minutes": 90,
+            "max_turns": 400
+          },
+          "orchestrator": {
+            "enabled": true,
+            "model": "claude-opus-5-5",
+            "effort": "high",
+            "max_parallel": 5,
+            "max_minutes": 90,
+            "max_turns": 400
+          },
+          "dev": {
+            "enabled": true,
+            "model": "claude-opus-5-5",
+            "effort": "high",
+            "max_parallel": 5,
+            "max_minutes": 90,
+            "max_turns": 400
+          },
+          "dev-light": {
+            "enabled": true,
+            "model": "claude-sonnet-5",
+            "effort": "medium",
+            "max_parallel": 5,
+            "max_minutes": 90,
+            "max_turns": 400
+          },
+          "dev-heavy": {
+            "enabled": true,
+            "model": "claude-fable-5-1",
+            "effort": "high",
+            "max_parallel": 5,
+            "max_minutes": 120,
+            "max_turns": 400
+          },
+          "qa": {
+            "enabled": true,
+            "model": "claude-opus-5-5",
+            "effort": "high",
+            "max_parallel": 5,
+            "max_minutes": 90,
+            "max_turns": 400
+          },
+          "reviewer": {
+            "enabled": true,
+            "model": "claude-sonnet-5",
+            "effort": "medium",
+            "max_parallel": 5,
+            "max_minutes": 90,
+            "max_turns": 400
+          },
+          "security": {
+            "enabled": true,
+            "model": "claude-opus-5-5",
+            "effort": "high",
+            "max_parallel": 5,
+            "max_minutes": 90,
+            "max_turns": 400
+          },
+          "devops": {
+            "enabled": true,
+            "model": "claude-sonnet-5",
+            "effort": "medium",
+            "max_parallel": 5,
+            "max_minutes": 90,
+            "max_turns": 400
+          },
+          "analyst": {
+            "enabled": true,
+            "model": "claude-sonnet-5",
+            "effort": "medium",
+            "max_parallel": 5,
+            "max_minutes": 90,
+            "max_turns": 400
+          },
+          "scribe": {
+            "enabled": true,
+            "model": "claude-haiku-4-5-20251001",
+            "effort": "low",
+            "max_parallel": 5,
+            "max_minutes": 15,
+            "max_turns": 40
+          },
+          "ux-designer": {
+            "enabled": true,
+            "model": "claude-opus-5-5",
+            "effort": "high",
+            "max_parallel": 5,
+            "max_minutes": 90,
+            "max_turns": 400
+          },
+          "ui-designer": {
+            "enabled": true,
+            "model": "claude-opus-5-5",
+            "effort": "high",
+            "max_parallel": 5,
+            "max_minutes": 90,
+            "max_turns": 400
+          }
+        },
+        "gates": {
+          "qa": "always",
+          "reviewer": "code",
+          "code_paths": [
+            "apps/**",
+            "libs/**",
+            "tools/**"
+          ],
+          "max_rework_rounds": 1
+        },
+        "caps": {
+          "normal": {
+            "dev_tasks": 2,
+            "parallel_devs": 2
+          },
+          "burn": {
+            "dev_tasks": 5,
+            "parallel_devs": 3
+          },
+          "freeze": {
+            "dev_tasks": 0,
+            "parallel_devs": 1
+          }
+        },
+        "sprint": {
+          "length_days": 14,
+          "freeze_days": 2
+        },
+        "language": "ru",
+        "cost": {
+          "prompt_caching": true,
+          "batch_api": false,
+          "reviewer_context": "diff"
+        }
+      },
+      "updatedAt": null,
+      "updatedBy": null
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import { isUlid } from './account';
 import { isNullable, isString, isTimestamp } from './guards';
+import type { ResolvedTeamConfigDto } from './team-config';
 import { InputError, checked, isRecord, oneOf, record, text, type InputCheck } from './tracker/inputs';
 
 /**
@@ -381,6 +382,13 @@ export interface ClaimResponse {
   /** Shown once; the console keeps its hash. Presented as `Authorization: Bearer` with the runner JWT in `X-Runner-Jwt`. */
   readonly jobToken: string;
   readonly leaseSeconds: number;
+  /**
+   * The resolved team configuration the job runs with (ADR 0009 d.7, #687): the revision the claim stamped on the job,
+   * so a later change applies to the next claim, never to this one.
+   */
+  readonly teamConfig: ResolvedTeamConfigDto;
+  /** `jobs.team_config_revision`: `null` while the project has no stored configuration (`recommended`). */
+  readonly teamConfigRevision: number | null;
 }
 
 export interface HeartbeatResponse {

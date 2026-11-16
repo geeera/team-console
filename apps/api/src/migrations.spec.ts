@@ -37,6 +37,7 @@ describe('migrations on a fresh D1', () => {
       'owner_connections',
       'owner_decisions',
       'owner_requests',
+      'project_spend',
       'projects',
       'pull_requests',
       'push_subscriptions',
@@ -49,6 +50,8 @@ describe('migrations on a fresh D1', () => {
       'sessions',
       'slot_requests',
       'sprints',
+      'team_config_revisions',
+      'team_configs',
       'team_state',
       'user_connections',
       'users',
@@ -89,6 +92,7 @@ describe('migrations on a fresh D1', () => {
       '0029_item_rank.sql',
       '0030_sprint_title_key_rename.sql',
       '0031_actions_dispatch.sql',
+      '0032_team_config.sql',
     ]);
   });
 
@@ -140,6 +144,7 @@ describe('migrations on a fresh D1', () => {
       'repo_id',
       'runner_policy',
       'dispatch',
+      'access_source',
     ]);
     expect(results.filter((column) => column.notnull === 1).map((column) => column.name)).toEqual([
       'repo',
@@ -152,6 +157,7 @@ describe('migrations on a fresh D1', () => {
       'next_item_number',
       'account_id',
       'dispatch',
+      'access_source',
     ]);
   });
 
@@ -830,7 +836,11 @@ describe('the 0031 Actions dispatch', () => {
         .run();
     await insertJob(JOB);
 
-    await applyD1Migrations(db, env.TEST_MIGRATIONS);
+    // Through 0031 only: 0032 (#687) refuses an Actions job of a subscription project, which every project here is.
+    await applyD1Migrations(
+      db,
+      env.TEST_MIGRATIONS.filter((migration) => migration.name < '0032'),
+    );
 
     const project = () =>
       db.prepare(`SELECT dispatch FROM projects WHERE slug = 'm31'`).first<{ dispatch: string }>();

@@ -8,6 +8,7 @@ import type {
   RunnerPolicy,
 } from '@shared/contracts';
 import { JOB_EVENTS_MAX_PER_JOB, JOB_MAX_ATTEMPTS, RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS } from '@shared/contracts';
+import { ROLE_ADMITTED_SQL, roleAdmissionParams } from '../team-config/claim-admission';
 import { redactSecrets } from '@shared/redaction';
 import {
   AUDITED_WRITE_HAPPENED_SQL,
@@ -48,6 +49,8 @@ export interface JobRecord {
   readonly startedAt: string | null;
   readonly finishedAt: string | null;
   readonly result: Readonly<Record<string, unknown>> | null;
+  /** The team-config revision the claim stamped (ADR 0009 d.7); `null` before a claim or for a project without one. */
+  readonly teamConfigRevision: number | null;
 }
 
 export interface NewJob {
@@ -107,7 +110,9 @@ export type ActionsExchangeOutcome =
   /** The job is no longer a queued, unclaimed Actions job of a live project (another exchange won it, or it ended). */
   | { readonly kind: 'not-claimable' }
   /** Another job already holds this `run_id` (0031's unique index). */
-  | { readonly kind: 'run-seen' };
+  | { readonly kind: 'run-seen' }
+  /** The project runs on a `subscription` (ADR 0009 d.3, #682): no GitHub Actions machine may run its jobs. */
+  | { readonly kind: 'access-source' };
 
 export interface JobEventRecord {
   readonly seq: number;
@@ -146,10 +151,12 @@ interface JobRow {
   started_at: string | null;
   finished_at: string | null;
   result: string | null;
+  team_config_revision: number | null;
 }
 
 const COLUMNS = `id, account_id, project_slug, kind, role, payload, priority, state, requested_by, dedupe_key, needs_local,
-  parent_job_id, dispatch, runner_id, attempt, max_minutes, created_at, claimed_at, lease_until, started_at, finished_at, result`;
+  parent_job_id, dispatch, runner_id, attempt, max_minutes, created_at, claimed_at, lease_until, started_at, finished_at, result,
+  team_config_revision`;
 const PREFIXED_COLUMNS = COLUMNS.split(',')
   .map((column) => `j.${column.trim()}`)
   .join(', ');
@@ -210,6 +217,7 @@ function toRecord(row: JobRow): JobRecord {
     startedAt: row.started_at,
     finishedAt: row.finished_at,
     result: row.result === null ? null : (JSON.parse(row.result) as Record<string, unknown>),
+    teamConfigRevision: row.team_config_revision,
   };
 }
 
@@ -403,17 +411,25 @@ export class JobsRepo {
    *
    * The allow-list and `revoked_at` are read from the stored runner row here, never taken from the caller: a
    * narrowing or revoke that commits between the poll's authentication and this claim must win (#543).
+   *
+   * Team configuration (ADR 0009, #687): a `subscription` project is pulled only by a self-hosted runner that is not
+   * an `actions-ephemeral` one (d.3; `hosted` is 0 on those too, so it alone is not enough); a role switched off is not
+   * claimed, and a role already holding its `max_parallel` live jobs on the project waits — both judged here, never by
+   * a pre-read, so two concurrent claims never both pass the count. The claim stamps the current revision on the job,
+   * so a change applies to the next claim and never to a job in flight.
    */
   async claim(request: ClaimRequest): Promise<JobRecord | null> {
     const row = await this.db
       .prepare(
         `UPDATE jobs SET state = 'claimed', runner_id = ?1, claimed_at = ?2, lease_until = ?3, token_hash = ?4,
-           attempt = attempt + 1
+           attempt = attempt + 1,
+           team_config_revision = (SELECT revision FROM team_configs WHERE project_slug = jobs.project_slug)
          WHERE state = 'queued' AND id = (
            SELECT j.id FROM jobs j
            JOIN projects p ON p.slug = j.project_slug
            JOIN accounts a ON a.id = j.account_id
            LEFT JOIN team_state t ON t.project_slug = j.project_slug
+           LEFT JOIN team_configs tc ON tc.project_slug = j.project_slug
            WHERE j.state = 'queued' AND j.dispatch = 'pull'
              AND j.account_id = ?5
              AND a.suspended_at IS NULL AND p.archived_at IS NULL
@@ -427,7 +443,9 @@ export class JobsRepo {
                WHERE me.id = ?1
                  AND (me.paused_until IS NULL OR julianday(me.paused_until) <= julianday(?2))
                  AND (SELECT COUNT(*) FROM jobs held WHERE held.runner_id = ?1 AND held.state IN ('claimed', 'running'))
-                     < COALESCE(json_extract(me.capabilities, '$.maxConcurrency'), 1))
+                     < COALESCE(json_extract(me.capabilities, '$.maxConcurrency'), 1)
+                 AND (p.access_source = 'api_key' OR (me.hosted = 0 AND me.isolation <> 'actions-ephemeral')))
+             AND ${ROLE_ADMITTED_SQL}
              AND (
                ${POLICY} IS NULL
                OR json_extract(${POLICY}, '$.mode') = 'any'
@@ -456,6 +474,7 @@ export class JobsRepo {
         request.accountId,
         request.local ? 1 : 0,
         RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS,
+        ...roleAdmissionParams(),
       )
       .first<JobRow>();
     return row === null ? null : toRecord(row);
@@ -489,14 +508,16 @@ export class JobsRepo {
    * The OIDC exchange's one batch (#668, architect note on #573): the ephemeral runner row (`actions-ephemeral`, its
    * project alone, one job at a time) and the claim of the job for it, each with its audit row, and the job's
    * `claimed` notice. Both writes hold the same condition — the job queued, dispatched to Actions, unclaimed and never
-   * exchanged, of a live account and project, its team not paused — so they land together or not at all; of two
-   * exchanges racing for one job, one writes. A `run_id` another job holds fails the whole batch on 0031's index.
+   * exchanged, of a live account and project on an API key (ADR 0009 d.3, #682), its team not paused — so they land
+   * together or not at all; of two exchanges racing for one job, one writes. A `run_id` another job holds fails the
+   * whole batch on 0031's index. The claim stamps the current team-config revision, as the pull claim does (#687).
    */
   async exchangeForActions(exchange: ActionsExchange): Promise<ActionsExchangeOutcome> {
     const from = `FROM jobs j JOIN projects p ON p.slug = j.project_slug JOIN accounts a ON a.id = j.account_id
       LEFT JOIN team_state t ON t.project_slug = j.project_slug`;
     const claimable = `j.id = ?1 AND j.state = 'queued' AND j.dispatch = 'actions' AND j.runner_id IS NULL
-      AND j.actions_run_id IS NULL AND a.suspended_at IS NULL AND p.archived_at IS NULL AND t.paused_at IS NULL`;
+      AND j.actions_run_id IS NULL AND a.suspended_at IS NULL AND p.archived_at IS NULL AND t.paused_at IS NULL
+      AND p.access_source = 'api_key'`;
     const held: AuditCondition = {
       exists: `SELECT 1 FROM jobs WHERE jobs.id = ? AND jobs.runner_id = ? AND jobs.state = 'claimed'`,
       params: [exchange.jobId, exchange.runnerId],
@@ -532,7 +553,8 @@ export class JobsRepo {
           this.db
             .prepare(
               `UPDATE jobs SET state = 'claimed', runner_id = ?2, claimed_at = ?3, lease_until = ?4, token_hash = ?5,
-                 actions_run_id = ?6, attempt = attempt + 1
+                 actions_run_id = ?6, attempt = attempt + 1,
+                 team_config_revision = (SELECT revision FROM team_configs WHERE project_slug = jobs.project_slug)
                WHERE id = (SELECT j.id ${from} WHERE ${claimable})
                  AND EXISTS (
                    SELECT 1 FROM runners r WHERE r.id = ?2 AND r.account_id = jobs.account_id AND r.revoked_at IS NULL)`,
@@ -558,7 +580,12 @@ export class JobsRepo {
       throw error;
     }
     if ((results[2]?.meta.changes ?? 0) !== 1) {
-      return { kind: 'not-claimable' };
+      // The batch judged the source; this read only names why nothing was written.
+      const project = await this.db
+        .prepare(`SELECT p.access_source FROM jobs j JOIN projects p ON p.slug = j.project_slug WHERE j.id = ?1`)
+        .bind(exchange.jobId)
+        .first<{ access_source: string }>();
+      return project !== null && project.access_source !== 'api_key' ? { kind: 'access-source' } : { kind: 'not-claimable' };
     }
     const job = await this.findById(exchange.jobId);
     return job === null ? { kind: 'not-claimable' } : { kind: 'claimed', job };

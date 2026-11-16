@@ -1,6 +1,7 @@
 import { isReservedSlug, isUlid, isValidSlug, type AccountPlan, type MemberRole } from '@shared/contracts';
 import { isConstraintError } from '../tracker/constraint-error';
-import { auditEventStatement, type NewAuditEvent } from './audit.repo';
+import { hostedRunnerAdmittedSql } from '../team-config/access-source';
+import { auditEventStatement, auditedWrite, type NewAuditEvent } from './audit.repo';
 
 /** One `accounts` row (migration 0018). `entitlements` is the operator's parsed override; read it via `entitlementsOf`. */
 export interface AccountRecord {
@@ -70,20 +71,59 @@ function toRecord(row: AccountRow): AccountRecord {
 export class AccountsRepo {
   constructor(private readonly db: D1Database) {}
 
-  /** The account's default placement (ADR 0008 decision 12, #467), validated by the route, with its audit row. */
-  async setDefaultRunnerPolicy(accountId: string, policyJson: string | null, audit: NewAuditEvent): Promise<void> {
-    await this.db.batch([
-      this.db.prepare(`UPDATE accounts SET default_runner_policy = ?2 WHERE id = ?1`).bind(accountId, policyJson),
-      auditEventStatement(this.db, audit),
+  /**
+   * The account's default placement (ADR 0008 decision 12, #467), validated by the route, with its audit row.
+   * `access-source-hosted` (ADR 0009 d.3) when a `subscription` project that falls back to the default would then
+   * admit a hosted runner — judged by the UPDATE itself, so nothing is written then.
+   */
+  async setDefaultRunnerPolicy(
+    accountId: string,
+    policyJson: string | null,
+    audit: NewAuditEvent,
+  ): Promise<'ok' | 'access-source-hosted'> {
+    const [write] = await this.db.batch([
+      ...auditedWrite(
+        this.db,
+        this.db
+          .prepare(
+            `UPDATE accounts SET default_runner_policy = ?2 WHERE id = ?1
+             AND NOT EXISTS (
+               SELECT 1 FROM projects sp
+               WHERE sp.account_id = ?1 AND sp.runner_policy IS NULL AND sp.access_source = 'subscription'
+                 AND ${hostedRunnerAdmittedSql('sp.slug', '?2')})`,
+          )
+          .bind(accountId, policyJson),
+        audit,
+      ),
     ]);
+    return write?.meta.changes === 1 ? 'ok' : 'access-source-hosted';
   }
 
-  /** A project's own placement, with its audit row; the project was reached through the scoped lookup. */
-  async setProjectRunnerPolicy(slug: string, policyJson: string | null, audit: NewAuditEvent): Promise<void> {
-    await this.db.batch([
-      this.db.prepare(`UPDATE projects SET runner_policy = ?2 WHERE slug = ?1`).bind(slug, policyJson),
-      auditEventStatement(this.db, audit),
+  /**
+   * A project's own placement, with its audit row; the project was reached through the scoped lookup.
+   * `access-source-hosted` (ADR 0009 d.3) when the project runs on a subscription and the new effective policy would
+   * admit a hosted runner — judged by the UPDATE itself, so nothing is written then.
+   */
+  async setProjectRunnerPolicy(
+    slug: string,
+    policyJson: string | null,
+    audit: NewAuditEvent,
+  ): Promise<'ok' | 'access-source-hosted'> {
+    const effective = `COALESCE(?2, (SELECT default_runner_policy FROM accounts WHERE id = projects.account_id))`;
+    const [write] = await this.db.batch([
+      ...auditedWrite(
+        this.db,
+        this.db
+          .prepare(
+            `UPDATE projects SET runner_policy = ?2
+             WHERE slug = ?1
+               AND NOT (projects.access_source = 'subscription' AND ${hostedRunnerAdmittedSql('?1', effective)})`,
+          )
+          .bind(slug, policyJson),
+        audit,
+      ),
     ]);
+    return write?.meta.changes === 1 ? 'ok' : 'access-source-hosted';
   }
 
   async findById(id: string): Promise<AccountRecord | null> {

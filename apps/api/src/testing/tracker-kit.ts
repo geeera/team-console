@@ -217,11 +217,13 @@ export async function countRows(
     | 'asks'
     | 'owner_decisions'
     | 'item_requests'
-    | 'jobs',
+    | 'jobs'
+    | 'team_config_revisions',
   slug: string,
 ): Promise<number> {
   const where: Record<typeof table, string> = {
     jobs: 'project_slug = ?1',
+    team_config_revisions: 'project_slug = ?1',
     asks: 'project_slug = ?1',
     owner_decisions: 'project_slug = ?1',
     item_requests: 'project_slug = ?1',

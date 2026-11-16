@@ -6,6 +6,7 @@ import {
   isProjectDispatch,
 } from './actions-runner';
 import { checkEnrolRunnerInput, isEnrolmentIsolation } from './runner';
+import { resolveTeamConfig } from './team-config';
 
 const KEY = { kty: 'OKP', crv: 'Ed25519', x: 'A'.repeat(43) };
 const BODY = {
@@ -96,6 +97,8 @@ describe('isOidcExchangeResponse', () => {
     job,
     jobToken: 'tcj_x',
     leaseSeconds: 300,
+    teamConfig: resolveTeamConfig(null, { revision: 0, accessSource: 'api_key' }),
+    teamConfigRevision: null,
     runner: { id: '01M6YSNJ0000000000000RVN01', audience: 'team-console:dev' },
   };
 
@@ -105,5 +108,13 @@ describe('isOidcExchangeResponse', () => {
     expect(isOidcExchangeResponse({ ...answer, runner: undefined })).toBe(false);
     expect(isOidcExchangeResponse({ ...answer, job: { ...job, state: 'sleeping' } })).toBe(false);
     expect(isOidcExchangeResponse(null)).toBe(false);
+  });
+
+  it('requires the resolved team configuration the claim stamped (#687), as the pull claim carries it', () => {
+    expect(isOidcExchangeResponse({ ...answer, teamConfigRevision: 3 })).toBe(true);
+    expect(isOidcExchangeResponse({ ...answer, teamConfig: undefined })).toBe(false);
+    expect(isOidcExchangeResponse({ ...answer, teamConfig: { ...answer.teamConfig, budget: { monthly_usd: 400 } } })).toBe(false);
+    expect(isOidcExchangeResponse({ ...answer, teamConfigRevision: undefined })).toBe(false);
+    expect(isOidcExchangeResponse({ ...answer, teamConfigRevision: 1.5 })).toBe(false);
   });
 });

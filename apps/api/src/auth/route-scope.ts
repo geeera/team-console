@@ -134,6 +134,14 @@ export const ROUTE_SCOPES = {
   [`GET ${P}/jobs/:id/events`]: PROJECT,
   [`GET ${P}/runner-policy`]: PROJECT,
   [`PUT ${P}/runner-policy`]: PROJECT,
+  // #687 (ADR 0009 d.9): team configuration; the matrix decides the actor (owner-only writes, `…/resolved` for a job).
+  [`GET ${P}/team-config`]: PROJECT,
+  [`PUT ${P}/team-config`]: PROJECT,
+  [`POST ${P}/team-config/reset`]: PROJECT,
+  [`POST ${P}/team-config/import`]: PROJECT,
+  [`GET ${P}/team-config/revisions`]: PROJECT,
+  [`GET ${P}/team-config/revisions/:n`]: PROJECT,
+  [`GET ${P}/team-config/resolved`]: PROJECT,
   'GET /api/v1/accounts/:id/runner-policy': 'account',
   'PUT /api/v1/accounts/:id/runner-policy': 'account',
   // The runner's own door: the JWT alone (`runner-auth.ts`); enrolment by the one-time code.

@@ -2,6 +2,7 @@ import { isUlid } from './account';
 import { isString } from './guards';
 import { isJobDto, type ClaimResponse } from './job';
 import { isEd25519PublicJwk, isRunnerId, isRunnerVersion, runnerHostOf, type Ed25519PublicJwk, type RunnerHostDto } from './runner';
+import { isResolvedTeamConfig } from './team-config';
 import { InputError, checked, isRecord, oneOf, record, text, type InputCheck } from './tracker/inputs';
 
 /**
@@ -39,7 +40,10 @@ export function actionsRunIdOf(name: string): string | null {
   return ACTIONS_RUNNER_NAME.exec(name)?.[1] ?? null;
 }
 
-/** The claims the exchange verifies; `extensions.claim` of an `oidc-exchange-refused` problem names one of them. */
+/**
+ * The claims the exchange verifies; `extensions.claim` of an `oidc-exchange-refused` problem names one of them.
+ * `access_source` is the project's, not the token's: a `subscription` project never runs on an Actions machine.
+ */
 export const OIDC_EXCHANGE_CLAIMS = [
   'token',
   'iss',
@@ -55,6 +59,7 @@ export const OIDC_EXCHANGE_CLAIMS = [
   'runner_environment',
   'run_id',
   'job_id',
+  'access_source',
 ] as const;
 export type OidcExchangeClaim = (typeof OIDC_EXCHANGE_CLAIMS)[number];
 
@@ -100,6 +105,8 @@ export function isOidcExchangeResponse(value: unknown): value is OidcExchangeRes
     isJobDto(value['job']) &&
     isString(value['jobToken']) &&
     typeof value['leaseSeconds'] === 'number' &&
+    isResolvedTeamConfig(value['teamConfig']) &&
+    (value['teamConfigRevision'] === null || Number.isSafeInteger(value['teamConfigRevision'])) &&
     isRunnerId(runner['id']) &&
     isString(runner['audience'])
   );

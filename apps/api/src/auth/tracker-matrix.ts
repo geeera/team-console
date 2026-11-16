@@ -68,6 +68,15 @@ const OWNER_ONLY = (detail: string): TrackerRouteRule => ({
   detail,
 });
 
+/** A read of the owner and the account's members that no job makes (#687: the document, its history). */
+const ACCOUNT_READ = (detail: string): TrackerRouteRule => ({
+  owner: true,
+  member: true,
+  job: NO_ROLE,
+  refusal: 'owner-only',
+  detail,
+});
+
 const SPRINT_WRITE: TrackerRouteRule = {
   owner: true,
   member: false,
@@ -123,6 +132,15 @@ export const TRACKER_MATRIX = {
   [`GET ${P}/runner-policy`]: READ,
   [`POST ${P}/jobs`]: OWNER_ONLY('Run now is the owner’s'),
   [`PUT ${P}/runner-policy`]: OWNER_ONLY('Placement is the owner’s'),
+  // #687 (ADR 0009 d.9, threat model C12): the account reads the document and its history; a job reads only its own
+  // resolved view; every write is the owner's.
+  [`GET ${P}/team-config`]: ACCOUNT_READ('The team configuration is read by the account; a job reads its resolved view'),
+  [`GET ${P}/team-config/revisions`]: ACCOUNT_READ('The configuration history is read by the account'),
+  [`GET ${P}/team-config/revisions/:n`]: ACCOUNT_READ('The configuration history is read by the account'),
+  [`GET ${P}/team-config/resolved`]: READ,
+  [`PUT ${P}/team-config`]: OWNER_ONLY('The team configuration is the owner’s'),
+  [`POST ${P}/team-config/reset`]: OWNER_ONLY('The team configuration is the owner’s'),
+  [`POST ${P}/team-config/import`]: OWNER_ONLY('The team configuration is the owner’s'),
   // Any role reaches them; the transition table decides what it may change (R5) and refuses with its own 403s.
   [`POST ${P}/items`]: WRITE('Items are written within the transition table'),
   [`PATCH ${P}/items/:key`]: WRITE('Items are written within the transition table'),
@@ -193,7 +211,14 @@ export function isTrackerMatrixRoute(method: string, path: string): boolean {
  * request's scope, so a job sees its own project only (another is 404 `project-not-found`); every role reads them.
  * The identity is not a policy actor there: these routes write nothing.
  */
-export const JOB_READ_MODEL_ROUTES = [`GET ${P}/inbox`, `GET ${P}/questions`, `GET ${P}/sprint`] as const;
+export const JOB_READ_MODEL_ROUTES = [
+  `GET ${P}/inbox`,
+  `GET ${P}/questions`,
+  `GET ${P}/sprint`,
+  // #687: the job's resolved team configuration, the one team-config route a job reaches (also a matrix `READ` row,
+  // so `trackerAccess` judges its project and actor).
+  `GET ${P}/team-config/resolved`,
+] as const;
 
 const READ_MODEL_PATTERNS = routePatternsOf([...JOB_READ_MODEL_ROUTES]);
 

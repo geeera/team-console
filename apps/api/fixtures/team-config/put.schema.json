@@ -1,0 +1,29 @@
+{
+  "route": "PUT /api/v1/projects/:slug/team-config",
+  "as": {
+    "kind": "owner",
+    "role": "owner",
+    "items": []
+  },
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/projects/tc/team-config",
+    "ifMatch": "\"0\"",
+    "body": {
+      "config": {
+        "schema": "team-config/v2"
+      }
+    }
+  },
+  "response": {
+    "status": 422,
+    "body": {
+      "type": "https://team-console/problems/team-config-schema",
+      "title": "Invalid request",
+      "status": 422,
+      "instance": "request-id",
+      "detail": "schema must be team-config/v1",
+      "field": "schema"
+    }
+  }
+}

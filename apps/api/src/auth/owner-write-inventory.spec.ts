@@ -70,6 +70,10 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   // #467: Run now and placement, owner rows of the matrix (the service is refused there like on every tracker write).
   'POST /api/v1/projects/:slug/jobs': 'tracker-matrix',
   'PUT /api/v1/projects/:slug/runner-policy': 'tracker-matrix',
+  // #687 (ADR 0009 d.9, threat model C12 row 1): the team configuration's writes, owner-only rows of the matrix.
+  'PUT /api/v1/projects/:slug/team-config': 'tracker-matrix',
+  'POST /api/v1/projects/:slug/team-config/reset': 'tracker-matrix',
+  'POST /api/v1/projects/:slug/team-config/import': 'tracker-matrix',
   'POST /api/v1/projects/:slug/issues/:number/answer': 'fixture-gate',
   // #120: writes nothing (it reads the console's own record of an answer); the answer route's gate, shared code.
   'POST /api/v1/projects/:slug/issues/:number/answer/lookup': 'fixture-gate',
@@ -246,6 +250,23 @@ describe('owner-write inventory (#62)', () => {
   it('finds the tracker writes, each a row of the route matrix', () => {
     expect(trackerWrites.length).toBeGreaterThan(0);
     expect(trackerWrites.filter((route) => !(route in TRACKER_MATRIX))).toEqual([]);
+  });
+
+  // #687: the team configuration is written by the owner alone — no member, no job of any role, no service.
+  const TEAM_CONFIG_WRITES = [
+    'PUT /api/v1/projects/:slug/team-config',
+    'POST /api/v1/projects/:slug/team-config/reset',
+    'POST /api/v1/projects/:slug/team-config/import',
+  ] as const;
+
+  it.each(TEAM_CONFIG_WRITES)('%s is an owner-only row: no member and no job role', (route) => {
+    expect(RULES[route]).toBe('tracker-matrix');
+    const rule = TRACKER_MATRIX[route];
+    expect(rule.owner).toBe(true);
+    expect(rule.member).toBe(false);
+    expect(Object.entries(rule.job).filter(([, admitted]) => admitted)).toEqual([]);
+    expect(Object.keys(rule.job).sort()).toEqual([...JOB_ROLES].sort());
+    expect(rule.refusal).toBe('owner-only');
   });
 
   it.each(trackerWrites)('%s answers 403 owner-only to the service identity', async (route) => {

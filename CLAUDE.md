@@ -15,6 +15,11 @@ visual direction, 0006 the console as the source of truth — the #309 target ar
 - Owner answers written by the app use the plugin's grammar exactly (`libs/shared/owner-grammar`).
 - A tracker route change bumps the plugin's lock in the same sprint (`apps/api/fixtures/tracker/` is the contract,
   replayed by `routes/tracker/contract-fixtures.spec.ts`).
+- Team configuration is `team-config/v1` in D1 (ADR 0009, `@shared/contracts` `team-config.ts`, migration 0032,
+  `TeamConfigRepo` the only writer of `team_configs`, `team_config_revisions` and `projects.access_source`);
+  `project.yml`'s `review`, `caps`, `sprint`, `owner.language` are import-only on a console-tracker project; a preset
+  or allow-list change is a fixture change under `apps/api/fixtures/team-config/` (replayed by
+  `routes/team-config/contract-fixtures.spec.ts`) and bumps the plugin's lock like the tracker's.
 - Design tokens only (Paper Desk, ADR 0002); no raw colours, spacing, durations or z-index in components —
   `tools/design-lint` (part of `nx run-many -t lint`) fails on one in any `libs/console/**` or `apps/console` css.
 - Accounts are the tenant (ADR 0008, #466): every account-level table carries `account_id`; every route registered on
@@ -619,9 +624,10 @@ GitHub Actions identity (#668, #573 sub-issue 1; migration `0031_actions_dispatc
 ENVIRONMENT=local only, `--var` only), RS256, fixed `iss`, `aud = runnerAudienceOf(env)`, 30 s, then `repository_id`,
 `ref`/`ref_type` (default branch), `workflow_ref`/`job_workflow_ref` (`team-console-runner.yml`), `event_name =
 workflow_dispatch`, `environment = team-console`, `runner_environment = github-hosted`, a never-seen `run_id`; every
-refusal is 401/409 `oidc-exchange-refused` with `extensions.claim`, the token never logged. `JobsRepo.exchangeForActions`
+refusal is 401/403/409 `oidc-exchange-refused` with `extensions.claim`, the token never logged. `JobsRepo.exchangeForActions`
 writes the `actions-ephemeral` runner (`actions:<run_id>`, its project only, `maxConcurrency 1`) and claims the job in
-one batch; `finish` and the lease sweep revoke it (a lapsed Actions job is `lost`, never requeued), sightings never
+one batch, only for an `access_source = 'api_key'` project (else 403, `claim: access_source`; #687/#682), stamping
+`team_config_revision` and answering `teamConfig`/`teamConfigRevision` like the pull claim; `finish` and the lease sweep revoke it (a lapsed Actions job is `lost`, never requeued), sightings never
 mark it suspect, the pull claim refuses it (403 `runner-isolation-ephemeral`), no enrolment code grants it
 (`ENROLMENT_ISOLATIONS`), and Settings › Runners lists it as «GitHub Actions, запуск N» only while live. Rate limits:
 per address, per repository, per environment. The dispatch itself and the project toggle are #670.

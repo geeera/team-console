@@ -1,0 +1,40 @@
+{
+  "route": "GET /api/v1/projects/:slug/team-config/revisions",
+  "as": {
+    "kind": "owner",
+    "role": "owner",
+    "items": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/projects/tc/team-config/revisions"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "revisions": [
+        {
+          "revision": 1,
+          "createdAt": "2026-11-12T10:00:00.000Z",
+          "createdBy": "local-owner",
+          "reason": "First import",
+          "paths": [
+            "access.source",
+            "schema"
+          ]
+        },
+        {
+          "revision": 2,
+          "createdAt": "2026-11-12T10:00:00.000Z",
+          "createdBy": "local-owner",
+          "reason": null,
+          "paths": [
+            "language",
+            "preset"
+          ]
+        }
+      ],
+      "nextCursor": null
+    }
+  }
+}

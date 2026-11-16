@@ -81,8 +81,11 @@ function reviewerLoginsOf(root: Readonly<Record<string, unknown>>): string[] {
   return logins as string[];
 }
 
-/** The YAML root of project.yml, size-capped and parsed with the safe profile above; throws `ProjectConfigError`. */
-function parseRoot(text: string): Readonly<Record<string, unknown>> {
+/**
+ * The YAML root of project.yml, size-capped and parsed with the safe profile above; throws `ProjectConfigError`. The
+ * team-config import (#687) reads its four sections from it too, so both readers share one parser profile.
+ */
+export function parseProjectYmlRoot(text: string): Readonly<Record<string, unknown>> {
   if (new TextEncoder().encode(text).byteLength > PROJECT_CONFIG_MAX_BYTES) {
     throw new ProjectConfigError('too-large');
   }
@@ -115,7 +118,7 @@ function parseRoot(text: string): Readonly<Record<string, unknown>> {
 
 /** Parses and checks project.yml; any doubt is a `ProjectConfigError`, never a partial config. */
 export function parseProjectConfig(text: string): ProjectConfig {
-  const root = parseRoot(text);
+  const root = parseProjectYmlRoot(text);
   return {
     reviewerLogins: reviewerLoginsOf(root),
     decisionsDir: decisionsDirOf(root),
@@ -181,7 +184,7 @@ const EMBED_URL_FIELDS: readonly (readonly string[])[] = [['design', 'storybook_
 export function embedOriginsOf(text: string, consoleOrigin: string): string[] {
   let root: Readonly<Record<string, unknown>>;
   try {
-    root = parseRoot(text);
+    root = parseProjectYmlRoot(text);
   } catch (error: unknown) {
     if (error instanceof ProjectConfigError) {
       return [];

@@ -1,0 +1,57 @@
+{
+  "route": "POST /api/v1/projects/:slug/team-config/import",
+  "as": {
+    "kind": "owner",
+    "role": "owner",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/team-config/import",
+    "body": {}
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "draft": {
+        "schema": "team-config/v1",
+        "preset": "recommended",
+        "gates": {
+          "qa": "code",
+          "reviewer": "code",
+          "code_paths": [
+            "apps/**",
+            "libs/**"
+          ],
+          "max_rework_rounds": 1
+        },
+        "caps": {
+          "burn": {
+            "dev_tasks": 4,
+            "parallel_devs": 2
+          }
+        },
+        "sprint": {
+          "length_days": 14,
+          "freeze_days": 2
+        },
+        "language": "ru"
+      },
+      "notes": [
+        {
+          "path": "review.model",
+          "code": "model-ignored"
+        },
+        {
+          "path": "review.qa",
+          "code": "never-as-code"
+        }
+      ],
+      "source": {
+        "path": ".product-team/project.yml",
+        "ref": "dev",
+        "sha": "cccccccccccccccccccccccccccccccccccccccc"
+      }
+    }
+  }
+}

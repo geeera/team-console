@@ -98,6 +98,14 @@ unless #631 says otherwise):
 `ResolvedTeamConfigDto` (what a job and the runner see): `revision`, `access.source`, `roles` (effective entries,
 every role present), `gates`, `caps`, `sprint`, `language`, `cost` — **no** `budget`, `preset` or `reason`.
 
+As built in PR 1 (#687), within the decisions above: a stored document needs only `schema`; every other member, and
+every member of a role entry, falls back to the preset (roles) or the defaults (the rest), so an import draft and a
+one-role override are both complete documents. `preset` is stored as `economy | recommended | max`; `custom` is
+refused on write and derived on read. The save stores `access` explicitly (the project's current source when the
+document names none), so every revision says where it may run. The limits above are the same in every preset, and
+`max_parallel` is 5 (the bound's top) for every role, so `recommended` caps nothing that runs in parallel today; the
+example values of 1 and 2 in "Schema" are an illustration of a stored override.
+
 ## Where each field is enforced
 
 | Field | Console (api Worker) | Runner | Plugin (0.12, inside a job) |
