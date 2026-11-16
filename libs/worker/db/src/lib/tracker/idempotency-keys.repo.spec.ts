@@ -69,4 +69,18 @@ describe('IdempotencyKeysRepo', () => {
       env.DB.prepare("SELECT key FROM idempotency_keys WHERE key = 'k-old'").first(),
     ).resolves.toBeNull();
   });
+
+  // #580: the job-token guard. The route suite covers a holding job; here, a hold that names no live job.
+  it('fails the completion, and with it the batch, when the job of a hold no longer holds', async () => {
+    await keys().claim('k-7', 'h', NOW, HOLD);
+    const statement = keys().completeStatement(
+      'k-7',
+      'h',
+      { status: 201, kind: 'item', ref: { value: '1' } },
+      NOW + DAY,
+      { tokenHash: 'f'.repeat(64), jobId: 'no-such-job', at: new Date(NOW).toISOString() },
+    );
+    await expect(env.DB.batch([statement])).rejects.toThrow(/NOT NULL constraint failed: idempotency_keys\.request_hash/);
+    expect(await keys().claim('k-7', 'h', NOW + 1, HOLD)).toEqual({ state: 'in-flight' });
+  });
 });

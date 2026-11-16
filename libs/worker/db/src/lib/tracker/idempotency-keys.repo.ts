@@ -1,3 +1,8 @@
+import { jobTokenHoldsSql, type JobTokenHold } from '../jobs/jobs.repo';
+
+/** Placeholders `?7`–`?9`: after the completion's own `?1`–`?6`. */
+const JOB_TOKEN_HOLDS_SQL = jobTokenHoldsSql(7);
+
 /** What a tracker write created or changed, so a replay can answer it again. */
 export type IdempotentResultKind =
   | 'item'
@@ -121,20 +126,32 @@ export class IdempotencyKeysRepo {
     return { state: 'done', status: row.status, kind: row.result_kind, ref: row.result_ref };
   }
 
-  /** The statement that completes a claimed key; it belongs in the batch that writes the result. */
+  /**
+   * The statement that completes a claimed key; it belongs in the batch that writes the result. With `hold` it fails
+   * the whole batch unless the job still holds (`JobTokenHold`), so a job-token write lands only with its key.
+   */
   completeStatement(
     key: string,
     requestHash: string,
     result: { readonly status: number; readonly kind: IdempotentResultKind; readonly ref: IdempotencyRef },
     expiresAtMs: number,
+    hold?: JobTokenHold,
   ): D1PreparedStatement {
     const ref = refSql(result.ref);
-    return this.db
-      .prepare(
-        `UPDATE idempotency_keys SET status = ?1, result_kind = ?2, result_ref = ${ref.sql}, expires_at = ?4
-         WHERE key = ?5 AND request_hash = ?6 AND status IS NULL`,
-      )
-      .bind(result.status, result.kind, ref.value, expiresAtMs, key, requestHash);
+    // NOT NULL refuses the NULL, so the batch rolls back. The row is this request's own pending claim, never pruned
+    // or taken over inside its lifetime, so the UPDATE always reaches it and the guard always runs.
+    const guard =
+      hold === undefined
+        ? ''
+        : `, request_hash = CASE WHEN EXISTS (${JOB_TOKEN_HOLDS_SQL}) THEN request_hash ELSE NULL END`;
+    const statement = this.db.prepare(
+      `UPDATE idempotency_keys SET status = ?1, result_kind = ?2, result_ref = ${ref.sql}, expires_at = ?4${guard}
+       WHERE key = ?5 AND request_hash = ?6 AND status IS NULL`,
+    );
+    const params = [result.status, result.kind, ref.value, expiresAtMs, key, requestHash] as const;
+    return hold === undefined
+      ? statement.bind(...params)
+      : statement.bind(...params, hold.tokenHash, hold.jobId, hold.at);
   }
 
   /** Drops this request's pending claim; a completed key stays. */

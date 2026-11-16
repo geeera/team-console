@@ -693,6 +693,19 @@ describe('JobsRepo.enqueueAll', () => {
     expect(await jobs.findById(repeat.id)).toBeNull();
   });
 
+  // #580: the route suite covers a holding job; here, a hold that names no live job.
+  it('writes none of the batch when the hold names no live job', async () => {
+    const slug = await project(ACCOUNT_A);
+    const parent = await enqueue(slug);
+    const qa = review(slug, 'qa', parent);
+    const hold = { tokenHash: 'f'.repeat(64), jobId: parent, at: T0 };
+    // The NULL account trips the account trigger before NOT NULL; either way the batch fails as a whole.
+    await expect(jobs.enqueueAll([entry(qa)], hold)).rejects.toThrow(/jobs\.account_id/);
+    expect(await jobs.findById(qa.id)).toBeNull();
+    const audits = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE target = ?1`).bind(qa.id).first<{ n: number }>();
+    expect(audits?.n).toBe(0);
+  });
+
   it('refuses a parent that is not a job (the foreign key), writing nothing', async () => {
     const slug = await project(ACCOUNT_A);
     const orphan = review(slug, 'qa', ulid('NP'));

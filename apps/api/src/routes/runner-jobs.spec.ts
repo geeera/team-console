@@ -1,11 +1,10 @@
 import { env } from 'cloudflare:test';
 import { OWNER_ACCOUNT_ID, type ClaimResponse, type JobDto, type JobEventListDto } from '@shared/contracts';
 import { JOB_TOKEN_PREFIX } from '@shared/redaction';
-import { RunnersRepo } from '@worker/db';
 import { localEnv } from '../testing/github-kit';
-import { enqueueJob, enrolRunner, sendAsJob, sendAsRunner, type TestRunner } from '../testing/runner-kit';
+import { cancelJob, commitDuringAuthentication, enqueueJob, enrolRunner, narrowRunner, revokeRunner, sendAsJob, sendAsRunner, type TestRunner } from '../testing/runner-kit';
 import { seedAccountProject, seedSessionUser, sendAsSession } from '../testing/session-kit';
-import { seedTrackerProject, send, slugOf } from '../testing/tracker-kit';
+import { countRows, seedItem, seedTrackerProject, send, slugOf } from '../testing/tracker-kit';
 
 // #467, ADR 0006 "Claim"/"Run"/"Report", ADR 0008 decisions 2, 8 and 12; threat model C9 ("a runner claiming
 // another account's job"), C11 ("a job claims on the wrong host"), C4 ("a job outlives its lease or keeps its token").
@@ -405,20 +404,6 @@ describe('the stored allow-list and revoke on heartbeat, events and finish (#553
     return { runner, jobId: job.id, kept: kept.slug, lost: lost.slug };
   }
 
-  const narrow = (runnerId: string, slugs: readonly string[]) => () =>
-    env.DB.prepare(`UPDATE runners SET allowed_projects = ?2 WHERE id = ?1`).bind(runnerId, JSON.stringify(slugs)).run();
-  const revoke = (runnerId: string) => () =>
-    env.DB.prepare(`UPDATE runners SET revoked_at = ?2 WHERE id = ?1`).bind(runnerId, new Date().toISOString()).run();
-
-  /** Commits `change` once the next runner call has passed its JWT checks and read the runner row. */
-  function commitDuringAuthentication(change: () => Promise<unknown>): void {
-    const sight = RunnersRepo.prototype.sight;
-    vi.spyOn(RunnersRepo.prototype, 'sight').mockImplementationOnce(async function (this: RunnersRepo, ...args) {
-      await change();
-      return sight.apply(this, args);
-    });
-  }
-
   async function expectUntouched(jobId: string, leaseUntil: string | null): Promise<void> {
     const row = await env.DB.prepare(`SELECT state, lease_until AS leaseUntil FROM jobs WHERE id = ?1`).bind(jobId).first<{ state: string; leaseUntil: string | null }>();
     expect(row).toEqual({ state: 'claimed', leaseUntil });
@@ -433,7 +418,7 @@ describe('the stored allow-list and revoke on heartbeat, events and finish (#553
   it.each(paths)('%s: refuses with 404 once the project is gone from the stored list before the call', async (path) => {
     const { runner, jobId, kept } = await claimedJob();
     const lease = await leaseOf(jobId);
-    await narrow(runner.id, [kept])();
+    await narrowRunner(runner.id, [kept])();
     const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
     expect(response.status).toBe(404);
     expect(await slugOf(response)).toBe('job-not-found');
@@ -443,7 +428,7 @@ describe('the stored allow-list and revoke on heartbeat, events and finish (#553
   it.each(paths)('%s: refuses with 404 when a narrowing commits between authentication and the write', async (path) => {
     const { runner, jobId, kept } = await claimedJob();
     const lease = await leaseOf(jobId);
-    commitDuringAuthentication(narrow(runner.id, [kept]));
+    commitDuringAuthentication(narrowRunner(runner.id, [kept]));
     const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
     expect(response.status).toBe(404);
     expect(await slugOf(response)).toBe('job-not-found');
@@ -453,7 +438,7 @@ describe('the stored allow-list and revoke on heartbeat, events and finish (#553
   it.each(paths)('%s: a revoked runner gets 401 runner-revoked, as on the claim', async (path) => {
     const { runner, jobId } = await claimedJob();
     const lease = await leaseOf(jobId);
-    await revoke(runner.id)();
+    await revokeRunner(runner.id)();
     const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
     expect(response.status).toBe(401);
     expect(await slugOf(response)).toBe('runner-revoked');
@@ -466,7 +451,7 @@ describe('the stored allow-list and revoke on heartbeat, events and finish (#553
   it.each(paths)('%s: refuses with 401 runner-revoked when a revoke commits between authentication and the write', async (path) => {
     const { runner, jobId } = await claimedJob();
     const lease = await leaseOf(jobId);
-    commitDuringAuthentication(revoke(runner.id));
+    commitDuringAuthentication(revokeRunner(runner.id));
     const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
     expect(response.status).toBe(401);
     expect(await slugOf(response)).toBe('runner-revoked');
@@ -475,8 +460,97 @@ describe('the stored allow-list and revoke on heartbeat, events and finish (#553
 
   it.each(paths)('%s: still succeeds while the stored list keeps the project', async (path) => {
     const { runner, jobId, lost } = await claimedJob();
-    commitDuringAuthentication(narrow(runner.id, [lost]));
+    commitDuringAuthentication(narrowRunner(runner.id, [lost]));
     const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
     expect(response.status).toBe(path === 'events' ? 201 : 200);
+  });
+});
+
+// #580: a tracker write under a job token judges the job inside its own batch (the key's completion carries the
+// guard), not only the copy authentication read. A narrowing, revoke or cleared token that commits in between (here:
+// during the sighting, the last step of `jobIdentityOf`) refuses the write and leaves nothing behind.
+describe('tracker writes under a job token judge the stored runner and job inside the write (#580)', () => {
+  type Write = 'comment' | 'item';
+  const writes: readonly Write[] = ['comment', 'item'];
+
+  interface HeldJob {
+    readonly runner: TestRunner;
+    readonly jobId: string;
+    readonly jobToken: string;
+    readonly kept: string;
+    readonly lost: string;
+    readonly itemPath: string;
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function heldJob(): Promise<HeldJob> {
+    const kept = await seedTrackerProject();
+    const lost = await seedTrackerProject();
+    const { path } = await seedItem(lost);
+    const runner = await runnerFor([kept.slug, lost.slug]);
+    await enqueueJob(lost.slug);
+    const { job, jobToken } = (await claim(runner)) as ClaimResponse;
+    return { runner, jobId: job.id, jobToken, kept: kept.slug, lost: lost.slug, itemPath: path };
+  }
+
+  function writeAsJob(held: HeldJob, write: Write): Promise<Response> {
+    return write === 'comment'
+      ? sendAsJob(held.runner, held.jobToken, 'POST', `${held.itemPath}/comments`, { body: 'Picked up' })
+      : sendAsJob(held.runner, held.jobToken, 'POST', `/api/v1/projects/${held.lost}/items`, { title: 'Follow-up', kind: 'chore' });
+  }
+
+  async function writtenRows(slug: string): Promise<{ items: number; comments: number; events: number; completedKeys: number }> {
+    const completedKeys = await env.DB.prepare('SELECT COUNT(*) AS n FROM idempotency_keys WHERE status IS NOT NULL').first<{ n: number }>();
+    return {
+      items: await countRows('items', slug),
+      comments: await countRows('comments', slug),
+      events: await countRows('item_events', slug),
+      completedKeys: completedKeys?.n ?? 0,
+    };
+  }
+
+
+  it.each(writes)('%s: refuses with 403 job-runner-mismatch when a narrowing commits between authentication and the write', async (write) => {
+    const held = await heldJob();
+    const before = await writtenRows(held.lost);
+    commitDuringAuthentication(narrowRunner(held.runner.id, [held.kept]));
+    const response = await writeAsJob(held, write);
+    expect(response.status).toBe(403);
+    expect(await slugOf(response)).toBe('job-runner-mismatch');
+    expect(await writtenRows(held.lost)).toEqual(before);
+  });
+
+  it.each(writes)('%s: refuses with 401 runner-revoked when a revoke commits between authentication and the write', async (write) => {
+    const held = await heldJob();
+    const before = await writtenRows(held.lost);
+    commitDuringAuthentication(revokeRunner(held.runner.id));
+    const response = await writeAsJob(held, write);
+    expect(response.status).toBe(401);
+    expect(await slugOf(response)).toBe('runner-revoked');
+    expect(await writtenRows(held.lost)).toEqual(before);
+  });
+
+  it.each(writes)('%s: refuses with 401 job-token-invalid when a cancel commits between authentication and the write', async (write) => {
+    const held = await heldJob();
+    const before = await writtenRows(held.lost);
+    commitDuringAuthentication(cancelJob(held.jobId));
+    const response = await writeAsJob(held, write);
+    expect(response.status).toBe(401);
+    expect(await slugOf(response)).toBe('job-token-invalid');
+    expect(await writtenRows(held.lost)).toEqual(before);
+  });
+
+  it.each(writes)('%s: still writes while the stored list keeps the project', async (write) => {
+    const held = await heldJob();
+    const before = await writtenRows(held.lost);
+    commitDuringAuthentication(narrowRunner(held.runner.id, [held.lost]));
+    const response = await writeAsJob(held, write);
+    expect(response.status).toBe(201);
+    const after = await writtenRows(held.lost);
+    expect(after.completedKeys).toBe(before.completedKeys + 1);
+    expect(after.events).toBeGreaterThan(before.events);
   });
 });
