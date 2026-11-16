@@ -531,6 +531,34 @@ describe('ItemsRepo', () => {
     ]);
   });
 
+  it('lists the items a pull request is linked to, once each, closed ones included (#627)', async () => {
+    const { slug } = await seedTrackerProject();
+    const other = await seedTrackerProject();
+    const linked = await create(slug, { flags: ['security'] });
+    const done = await create(slug, { status: 'done' });
+    const unlinked = await create(slug);
+    const foreign = await create(other.slug);
+    const link = { number: 57, url: 'https://github.com/acme/x/pull/57', headRef: 'feature/x' };
+    const idOf = async (project: string, number: number): Promise<number> =>
+      (await items().findByNumber(project, number))?.id ?? 0;
+    for (const id of [await idOf(slug, linked), await idOf(slug, done), await idOf(other.slug, foreign)]) {
+      expect(await events().linkPr(id, link, JOB_ACTOR, AT)).toBe(true);
+    }
+    expect(await events().linkPr(await idOf(slug, linked), { ...link, number: 58 }, JOB_ACTOR, AT)).toBe(true);
+    expect(await events().linkPr(await idOf(slug, unlinked), { ...link, number: 58 }, JOB_ACTOR, AT)).toBe(
+      true,
+    );
+
+    const numbersOf = async (pullRequest: number, after = 0, limit = 100) =>
+      (await items().list(slug, { state: 'all', pullRequest }, after, limit)).items.map((item) => item.number);
+    await expect(numbersOf(57)).resolves.toEqual([linked, done]);
+    await expect(numbersOf(58)).resolves.toEqual([linked, unlinked]);
+    await expect(numbersOf(59)).resolves.toEqual([]);
+    const first = await items().list(slug, { state: 'all', pullRequest: 57 }, 0, 1);
+    expect(first).toMatchObject({ items: [{ number: linked, flags: ['security'] }], next: linked });
+    await expect(numbersOf(57, linked, 1)).resolves.toEqual([done]);
+  });
+
   it('appends a pr-linked event and finds it by pull request number (#445)', async () => {
     const { slug } = await seedTrackerProject();
     const itemId = await seedTrackerItem(slug, 1);

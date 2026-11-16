@@ -261,6 +261,28 @@ export async function seedPullRequest(
     .run();
 }
 
+/**
+ * Pull request `number` linked to the item `key` names, through `POST …/pr-links` as the orchestrator (#445), with
+ * GitHub answering that pull request on `headRef`.
+ */
+export async function seedPrLink(
+  project: SeededProject,
+  key: string,
+  number: number,
+  headRef = 'feature/x',
+): Promise<void> {
+  const { github } = pullRequestsGitHub((pr) => (pr === number ? headRef : null));
+  const response = await send(
+    'POST',
+    `/api/v1/projects/${project.slug}/items/${key}/pr-links`,
+    { number, url: `https://github.com/acme/${project.slug}/pull/${String(number)}`, headRef },
+    { job: jobActor('orchestrator'), github },
+  );
+  if (response.status !== 201 && response.status !== 200) {
+    throw new Error(`seeding a pr link answered ${String(response.status)}`);
+  }
+}
+
 /** A job of `role` for `send` (#434, #444): sent as the local stand-in token, so the real auth seam mints it. */
 export function jobActor(role: string, jobId = 'job-test-1', items: readonly number[] = []): TestJob {
   return { role, jobId, items };

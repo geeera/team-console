@@ -19,6 +19,8 @@ import itemsTransitionOwnerOnly from '../../../fixtures/tracker/items.transition
 import itemsTransitionRole from '../../../fixtures/tracker/items.transition-role.json';
 import labelsList from '../../../fixtures/tracker/labels.list.json';
 import labelsOwnerOnly from '../../../fixtures/tracker/labels.owner-only.json';
+import prItemsLinked from '../../../fixtures/tracker/pr-items.linked.json';
+import prItemsNone from '../../../fixtures/tracker/pr-items.none.json';
 import prLinksCreated from '../../../fixtures/tracker/pr-links.created.json';
 import prLinksInvalid from '../../../fixtures/tracker/pr-links.invalid.json';
 import prLinksNotHeld from '../../../fixtures/tracker/pr-links.not-held.json';
@@ -37,6 +39,7 @@ import {
   seedAsk,
   seedGitHubProject,
   seedItem,
+  seedPrLink,
   seedPullRequest,
   seedTrackerProject,
   send,
@@ -96,6 +99,18 @@ const seedFeature = (project: SeededProject, title: string, status?: 'approved')
   seedItem(project, { title, kind: 'feature', ...(status === undefined ? {} : { status }) });
 
 const seedOne: Setup = async (project) => void (await seedFeature(project, 'Export to CSV'));
+
+/** #627: TC-1 (`security`) linked to pull request 57, TC-2 to nothing; the merge gate reads PRs 57 and 58. */
+const seedLinked: Setup = async (project) => {
+  const { key } = await seedItem(project, {
+    title: 'Login',
+    kind: 'feature',
+    status: 'in-progress',
+    labels: ['security'],
+  });
+  await seedItem(project, { title: 'Logout', kind: 'feature', status: 'in-progress' });
+  await seedPrLink(project, key, 57, 'feature/tc-1-login');
+};
 
 const seedSprint: Setup = async (project) => {
   const response = await send('POST', `/api/v1/projects/${project.slug}/sprints`, {
@@ -228,6 +243,9 @@ const SETUPS: Readonly<Record<string, readonly [Fixture, Setup]>> = {
   'reviews.requested': [reviewsRequested, seedReviewable],
   'reviews.role': [reviewsRole, seedReviewable],
   'reviews.invalid': [reviewsInvalid, seedReviewable],
+  // #627: the merge gate reads the console's links, not the PR's text.
+  'pr-items.linked': [prItemsLinked, seedLinked],
+  'pr-items.none': [prItemsNone, seedLinked],
 };
 
 const ID_FAMILIES: Readonly<Record<string, string>> = { id: 'id', next: 'id' };
@@ -291,6 +309,7 @@ describe('the tracker contract fixtures (#445, #611)', () => {
       'GET /api/v1/projects/:slug/items/:key/comments',
       'GET /api/v1/projects/:slug/items/:key/events',
       'GET /api/v1/projects/:slug/labels',
+      'GET /api/v1/projects/:slug/prs/:number/items',
       'GET /api/v1/projects/:slug/requests',
       'GET /api/v1/projects/:slug/sprints',
       'GET /api/v1/projects/:slug/sprints/:number',
