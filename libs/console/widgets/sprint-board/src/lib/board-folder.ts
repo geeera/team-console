@@ -33,7 +33,15 @@ import { Button, focusAfterRender, Lane, Lanes, StateBlock } from '@console/shar
 import type { ItemMove } from '@console/features/move-item';
 import type { ItemDto, ItemSummaryDto } from '@shared/contracts';
 import { BoardMoveButton } from './board-move-button';
-import { arrivalsLast, BoardMoves, elementRefOf, focusAfterLeaving, moveButtonOf, placedInLane } from './board-moves';
+import {
+  arrivalsLast,
+  BoardMoves,
+  elementRefOf,
+  itemsAfterMove,
+  moveButtonOf,
+  movesSection,
+  placedInLane,
+} from './board-moves';
 import { hiddenCountOf, laneNameOf, PREFERRED_LANES, visibleItemsOf } from './sprint-board';
 
 /** Rows a folder lane adds per «Show 30 more» (#108 §2). */
@@ -253,7 +261,7 @@ export class BoardFolder {
   /** A task left this folder or joined it; a folder never loaded only has its header count, kept by the folders. */
   private onMoved(move: ItemMove): void {
     const mine = this.sprintNumber();
-    if (move.from !== mine && move.to !== mine) {
+    if (!movesSection(move, mine)) {
       return;
     }
     this.moveFailure.set(null);
@@ -261,23 +269,13 @@ export class BoardFolder {
     if (state.kind !== 'loaded') {
       return;
     }
-    const root = this.host.nativeElement;
-    const number = move.item.number;
-    const others = state.items.filter((item) => item.number !== number);
-    if (move.from === mine) {
-      if (!move.isUndo) {
-        const target = focusAfterLeaving(root, number, () => this.headingEl()?.nativeElement ?? null);
-        focusAfterRender(() => elementRefOf(target()), { injector: this.injector });
-      }
-      this.state.set({ kind: 'loaded', items: others });
-      return;
-    }
-    this.state.set({ kind: 'loaded', items: [...others, move.item] });
-    if (move.isUndo) {
-      focusAfterRender(() => elementRefOf(moveButtonOf(root, number)), { injector: this.injector });
-    } else {
-      this.arrivals.update((arrivals) => [...arrivals.filter((n) => n !== number), number]);
-    }
+    const items = itemsAfterMove(move, mine, state.items, {
+      root: this.host.nativeElement,
+      injector: this.injector,
+      fallback: () => this.headingEl()?.nativeElement ?? null,
+      arrivals: this.arrivals,
+    });
+    this.state.set({ kind: 'loaded', items });
   }
 
   /** One of this folder's tasks took another place in its lane (#456): the lane follows, focus stays on its ⋯. */
