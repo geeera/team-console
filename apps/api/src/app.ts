@@ -9,6 +9,7 @@ import { createAccountRunnerRoutes } from './routes/account-runners';
 import { createRunnerRoutes } from './routes/runner';
 import { createRunnerJobRoutes } from './routes/runner-jobs';
 import { createRunnerPauseRoutes } from './routes/runner-pause';
+import { createRunnerOidcRoutes } from './routes/runner-oidc';
 import { createJobRoutes } from './routes/jobs';
 import { createTeamConfigRoutes } from './routes/team-config';
 import type { ApiEnv } from './env';
@@ -156,6 +157,8 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/projects', createTeamConfigRoutes(github, owners));
   // The runner's own pause on a usage or rate limit (#571): the claim skips it until `until`.
   v1.route('/runner', createRunnerPauseRoutes());
+  // A GitHub Actions run's OIDC token for an ephemeral identity of its one job (#668).
+  v1.route('/runner', createRunnerOidcRoutes());
   app.route('/api/v1', v1);
 
   return app;

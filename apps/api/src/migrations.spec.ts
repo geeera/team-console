@@ -91,6 +91,7 @@ describe('migrations on a fresh D1', () => {
       '0028_runner_pause.sql',
       '0029_item_rank.sql',
       '0030_sprint_title_key_rename.sql',
+      '0031_actions_dispatch.sql',
       '0032_team_config.sql',
     ]);
   });
@@ -142,6 +143,7 @@ describe('migrations on a fresh D1', () => {
       'account_id',
       'repo_id',
       'runner_policy',
+      'dispatch',
       'access_source',
     ]);
     expect(results.filter((column) => column.notnull === 1).map((column) => column.name)).toEqual([
@@ -154,6 +156,7 @@ describe('migrations on a fresh D1', () => {
       'tracker',
       'next_item_number',
       'account_id',
+      'dispatch',
       'access_source',
     ]);
   });
@@ -803,6 +806,67 @@ describe('the 0028 runner pause', () => {
     await expect(write('2026-11-01 05:00:00', 'manual')).rejects.toThrow(/CHECK constraint failed/);
     await expect(write('soon', 'manual')).rejects.toThrow(/CHECK constraint failed/);
     expect(await read()).toEqual({ paused_until: null, pause_reason: null });
+  });
+});
+
+// #668: 0031 adds the project's dispatch (existing rows stay `pull`), the job's dispatch time, and one job per Actions
+// run: a unique index on `actions_run_id` and a trigger that keeps it once set.
+describe('the 0031 Actions dispatch', () => {
+  const T0 = '2026-11-01T00:00:00.000Z';
+  const JOB = '01M6YSNJ0000000000000M31J1';
+  const OTHER = '01M6YSNJ0000000000000M31J2';
+
+  it('keeps existing projects on pull, takes only pull|actions, one run per job, and the run once set', async () => {
+    const db = env.MIGRATION_DB_0031;
+    await applyD1Migrations(
+      db,
+      env.TEST_MIGRATIONS.filter((migration) => migration.name < '0031'),
+    );
+    await db
+      .prepare(`INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at) VALUES ('m31', 'acme/m31', 'm31', 0, ?1)`)
+      .bind(T0)
+      .run();
+    const insertJob = (id: string) =>
+      db
+        .prepare(
+          `INSERT INTO jobs (id, account_id, project_slug, kind, role, requested_by, created_at, dispatch)
+           VALUES (?1, ?2, 'm31', 'slot-dev', 'developer', 'owner', ?3, 'actions')`,
+        )
+        .bind(id, OWNER_ACCOUNT_ID, T0)
+        .run();
+    await insertJob(JOB);
+
+    // Through 0031 only: 0032 (#687) refuses an Actions job of a subscription project, which every project here is.
+    await applyD1Migrations(
+      db,
+      env.TEST_MIGRATIONS.filter((migration) => migration.name < '0032'),
+    );
+
+    const project = () =>
+      db.prepare(`SELECT dispatch FROM projects WHERE slug = 'm31'`).first<{ dispatch: string }>();
+    expect(await project()).toEqual({ dispatch: 'pull' });
+    const setDispatch = (value: string) =>
+      db.prepare(`UPDATE projects SET dispatch = ?1 WHERE slug = 'm31'`).bind(value).run();
+    await setDispatch('actions');
+    expect(await project()).toEqual({ dispatch: 'actions' });
+    await expect(setDispatch('hosted')).rejects.toThrow(/CHECK constraint failed/);
+
+    const setDispatchedAt = (value: string | null) =>
+      db.prepare(`UPDATE jobs SET dispatched_at = ?2 WHERE id = ?1`).bind(JOB, value).run();
+    expect(await db.prepare(`SELECT dispatched_at FROM jobs WHERE id = ?1`).bind(JOB).first()).toEqual({ dispatched_at: null });
+    await setDispatchedAt(T0);
+    await expect(setDispatchedAt('2026-11-01 00:00:00')).rejects.toThrow(/CHECK constraint failed/);
+
+    const setRun = (id: string, run: string | null) =>
+      db.prepare(`UPDATE jobs SET actions_run_id = ?2 WHERE id = ?1`).bind(id, run).run();
+    await setRun(JOB, '7100000001');
+    await insertJob(OTHER);
+    await expect(setRun(OTHER, '7100000001')).rejects.toThrow(/UNIQUE constraint failed: jobs.actions_run_id/);
+    await setRun(OTHER, '7100000002');
+    await expect(setRun(JOB, '7100000003')).rejects.toThrow(/a job keeps its Actions run/);
+    await expect(setRun(JOB, null)).rejects.toThrow(/a job keeps its Actions run/);
+    // Writing the same run again is no change.
+    await setRun(JOB, '7100000001');
   });
 });
 

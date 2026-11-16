@@ -17,6 +17,7 @@ import type { Identity } from './auth.types';
 
 export const RUNNER_PATH_PREFIX = '/api/v1/runner/';
 export const ENROL_PATH = '/api/v1/runner/enrol';
+export const OIDC_EXCHANGE_PATH = '/api/v1/runner/oidc-exchange';
 /** The header a job's proxied call carries the runner JWT in (2-A's job token middleware). */
 export const RUNNER_JWT_HEADER = 'X-Runner-Jwt';
 
@@ -30,8 +31,9 @@ export function isRunnerPath(path: string): boolean {
   return path.startsWith(RUNNER_PATH_PREFIX);
 }
 
+/** The runner door's two calls without an identity (#467, #668): the credential is in the body, judged by the route. */
 export function isEnrolRequest(method: string, path: string): boolean {
-  return method === 'POST' && path === ENROL_PATH;
+  return method === 'POST' && (path === ENROL_PATH || path === OIDC_EXCHANGE_PATH);
 }
 
 export type RunnerIdentity = Extract<Identity, { kind: 'runner' }>;

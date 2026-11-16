@@ -109,6 +109,8 @@ export {
   isRunnerReleaseDto,
   isRunnerVersion,
   isRunnerVersionBelow,
+  isEnrolmentIsolation,
+  ENROLMENT_ISOLATIONS,
   runnerAudienceOf,
   runnerReleaseChannelOf,
 } from './lib/runner';
@@ -117,6 +119,7 @@ export type {
   Ed25519PublicJwk,
   EnrolRunnerInput,
   EnrolRunnerResponse,
+  EnrolmentIsolation,
   EnrolmentCodeDto,
   PauseRunnerInput,
   PendingEnrolmentDto,
@@ -195,6 +198,21 @@ export type {
   RunnerPolicyDto,
   TeamStateDto,
 } from './lib/job';
+export {
+  ACTIONS_ENVIRONMENT,
+  ACTIONS_OIDC_ISSUER,
+  ACTIONS_RUN_ID,
+  ACTIONS_WORKFLOW_FILE,
+  OIDC_EXCHANGE_CLAIMS,
+  OIDC_TOKEN_MAX_LENGTH,
+  PROJECT_DISPATCHES,
+  actionsRunIdOf,
+  actionsRunnerNameOf,
+  checkOidcExchangeInput,
+  isOidcExchangeResponse,
+  isProjectDispatch,
+} from './lib/actions-runner';
+export type { OidcExchangeClaim, OidcExchangeInput, OidcExchangeResponse, ProjectDispatch } from './lib/actions-runner';
 export { INSTALLATION_REPOSITORIES_URL } from './lib/installation-repositories';
 export type {
   GitHubAppNotInstalledProblem,

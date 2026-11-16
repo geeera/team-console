@@ -58,6 +58,12 @@ export interface ApiEnv extends WorkerBaseEnv {
    */
   readonly RUNNER_RELEASE_VERSION?: string;
   readonly RUNNER_MINIMUM_VERSION?: string;
+  /**
+   * A JSON Web Key Set that stands in for GitHub's Actions OIDC keys (#668), so specs and the local integration run
+   * sign their own tokens. Honoured only with ENVIRONMENT=local, passed only as `--var` (tools/workspace-checks keeps
+   * it out of every `env.*` block); everywhere else the keys are GitHub's.
+   */
+  readonly ACTIONS_OIDC_JWKS?: string;
   // `ROUTINE_TOKEN_<SLUG>` secrets (one per project, #26) have names only known at run time; the registry (#15)
   // tests their presence by name and never reads a value into anything it returns.
   // `SLOT_TOKEN_<SLUG>_<SLOT>` (a routine's API-trigger bearer) and `SLOT_ROUTINE_<SLUG>_<SLOT>` (its `trig_…` id),

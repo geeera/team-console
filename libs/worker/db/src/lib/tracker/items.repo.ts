@@ -226,13 +226,18 @@ export class ItemsRepo {
   /**
    * In queue order (rank, then number) after the item numbered `after` (`0`: from the start), at most `limit`
    * (≤ 100, the route's bound). The cursor stays an item number: the page continues after that item's place in the
-   * queue, so a list reads the same whether or not anything was reordered.
+   * queue, so a list reads the same whether or not anything was reordered. A list of one pull request's linked
+   * items (#662) is the exception: the merge gate pages it, so it runs in item number order with a number cursor,
+   * which a reorder cannot move; a rank cursor could let an item slip behind it unseen.
    */
   async list(slug: string, filter: ItemFilter, after: number, limit: number): Promise<ItemPage> {
     // Each condition is a fixed fragment; only its parameter comes from the request.
+    const byNumber = filter.pullRequest !== undefined;
     const conditions = [
       'items.project_slug = ?1',
-      `(?2 = 0 OR (items.rank, items.number) >
+      byNumber
+        ? 'items.number > ?2'
+        : `(?2 = 0 OR (items.rank, items.number) >
          (SELECT cursor.rank, cursor.number FROM items AS cursor WHERE cursor.project_slug = ?1 AND cursor.number = ?2))`,
     ];
     const params: (string | number)[] = [slug, after];
@@ -267,7 +272,7 @@ export class ItemsRepo {
     const { results } = await this.db
       .prepare(
         `SELECT ${ITEM_SUMMARY_COLUMNS} ${ITEM_FROM} WHERE ${conditions.join(' AND ')}
-         ${ITEM_ORDER} LIMIT ?${String(params.length)}`,
+         ${byNumber ? 'ORDER BY items.number' : ITEM_ORDER} LIMIT ?${String(params.length)}`,
       )
       .bind(...params)
       .all<ItemRow>();

@@ -2036,6 +2036,7 @@
       "none": "No isolation (tests only)"
     },
     "card": {
+      "actionsRun": "GitHub Actions run {{run}}",
       "backend": "Isolation",
       "hosted": "hosted by us",
       "version": "Version",

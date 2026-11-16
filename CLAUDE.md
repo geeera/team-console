@@ -616,8 +616,20 @@ Bearer tcj_…` only together with the claiming runner's JWT in `X-Runner-Jwt` (
 (`source: 'stand-in'`) stays bypass-only; its scope is the job's project (`jobScopeMiddleware` confines it to the matrix).
 Revoking a runner cancels its live jobs in the revoke batch (`JobsRepo.cancelForRunnerStatements`). `runner-jobs.spec.ts`
 proves the two-account claim, the allow-list, the pause, every policy mode, the lapse and streak, and that no job token
-reaches a log line. Deferred from the row: `POST /runner/oidc-exchange` (no dispatcher before 2-B PR 4 / owner decision 9)
-and the orchestrator's pause (plugin 0.12).
+reaches a log line. Deferred from the row: the orchestrator's pause (plugin 0.12).
+GitHub Actions identity (#668, #573 sub-issue 1; migration `0031_actions_dispatch`: `projects.dispatch` `pull|actions`,
+`jobs.dispatched_at`, unique `jobs_actions_run` on `actions_run_id`, kept once set by trigger): `POST
+/runner/oidc-exchange` (`routes/runner-oidc.ts`, rule `enrolment`) takes `{idToken, jobId, publicKey, version, host}`;
+`auth/actions-oidc.ts` verifies the token with `jose` against GitHub's JWKS (`ACTIONS_OIDC_JWKS` replaces it on
+ENVIRONMENT=local only, `--var` only), RS256, fixed `iss`, `aud = runnerAudienceOf(env)`, 30 s, then `repository_id`,
+`ref`/`ref_type` (default branch), `workflow_ref`/`job_workflow_ref` (`team-console-runner.yml`), `event_name =
+workflow_dispatch`, `environment = team-console`, `runner_environment = github-hosted`, a never-seen `run_id`; every
+refusal is 401/409 `oidc-exchange-refused` with `extensions.claim`, the token never logged. `JobsRepo.exchangeForActions`
+writes the `actions-ephemeral` runner (`actions:<run_id>`, its project only, `maxConcurrency 1`) and claims the job in
+one batch; `finish` and the lease sweep revoke it (a lapsed Actions job is `lost`, never requeued), sightings never
+mark it suspect, the pull claim refuses it (403 `runner-isolation-ephemeral`), no enrolment code grants it
+(`ENROLMENT_ISOLATIONS`), and Settings › Runners lists it as «GitHub Actions, запуск N» only while live. Rate limits:
+per address, per repository, per environment. The dispatch itself and the project toggle are #670.
 `pull_requests` (#463) under the same scope: `PullRequestsRepo.upsert`/`markCiStale` write only when the write's
 repository id equals the project's recorded `repo_id` (a row without one takes nothing — fail closed; the hooks
 Worker backfills it from a matching delivery, the api Worker through `ensureRepoId` before a sync, 409
