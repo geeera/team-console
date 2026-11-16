@@ -28,6 +28,11 @@ import { createSandboxRoot, jobsRootOf } from './sandbox';
 
 export const JOB_USER = '_tcjob';
 export const RUNNER_USER = '_tcrunner';
+/**
+ * `_tcrunner:_tcjob 0710` (#599): the job group may only traverse the home to `jobs/`, `work/` and `plugin/`, never
+ * list it or read what a tool left there with a default mode.
+ */
+export const RUNNER_HOME_MODE = 0o710;
 const SUDO = '/usr/bin/sudo';
 const PGREP = '/usr/bin/pgrep';
 const ID = '/usr/bin/id';
@@ -181,8 +186,10 @@ export class UserBackend implements IsolationBackend {
     const { home } = this.options;
     await assertPrivateDir(home);
     const stats = await lstat(home);
-    if (stats.gid !== (await this.jobGid()) || (stats.mode & 0o050) !== 0o050) {
-      throw new BackendError(`${home} must be ${RUNNER_USER}:${JOB_USER} 0750 (the installer sets it)`);
+    if (stats.gid !== (await this.jobGid()) || (stats.mode & 0o7777) !== RUNNER_HOME_MODE) {
+      throw new BackendError(
+        `${home} must be ${RUNNER_USER}:${JOB_USER} 0${RUNNER_HOME_MODE.toString(8)} (re-run "team-console-runner install --backend user --yes", which sets it)`,
+      );
     }
     await this.reap();
     const left = await this.remaining();
