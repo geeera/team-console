@@ -102,11 +102,15 @@ const TEXT_TAIL = 50;
 
 const clip = (text: string, max: number): string => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
-/** `costUsd`, `turns` and `durationMs` from the CLI's `result` event, where it gave them. */
+/**
+ * `costUsd`, `turns` and `durationMs` from the CLI's `result` event, where it gave them. The cost goes out under the
+ * CLI's own name too, `total_cost_usd`, which the console reconciles the project's monthly budget from (#684).
+ */
 function metricsOf(result: StreamResult | null): Record<string, number> {
   const metrics: Record<string, number> = {};
   for (const [name, value] of Object.entries({
     costUsd: result?.costUsd ?? null,
+    total_cost_usd: result?.costUsd ?? null,
     turns: result?.turns ?? null,
     durationMs: result?.durationMs ?? null,
   })) {

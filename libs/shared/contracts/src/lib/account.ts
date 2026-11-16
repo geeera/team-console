@@ -76,6 +76,8 @@ export const AUDIT_EVENT_KINDS = [
   'job.streak-excluded',
   'team.paused',
   'team.resumed',
+  // "Resume this month" (#684): the owner waived the month's budget; details name the month only.
+  'team.budget-waived',
   'inference-key.set',
   'inference-key.rotated',
   'inference-key.deleted',

@@ -1,5 +1,8 @@
 import {
+  JOB_COST_USD_MAX,
   REVIEW_NOTE_MAX_LENGTH,
+  checkFinishJobInput,
+  finishCostOf,
   checkRequestReviewsInput,
   isJobDto,
   isJobEventDto,
@@ -122,5 +125,28 @@ describe('checkRequestReviewsInput', () => {
 
   it('accepts a note at the bound', () => {
     expect(checkRequestReviewsInput({ roles: ['qa'], note: 'я'.repeat(REVIEW_NOTE_MAX_LENGTH) }).ok).toBe(true);
+  });
+});
+
+describe('checkFinishJobInput: the cost (#684)', () => {
+  const finish = (metrics: unknown) => checkFinishJobInput({ result: 'finished', metrics });
+
+  it.each([
+    ['a negative cost', { total_cost_usd: -0.01 }, 'metrics.total_cost_usd'],
+    ['a cost past the bound', { total_cost_usd: JOB_COST_USD_MAX + 0.01 }, 'metrics.total_cost_usd'],
+    ['a numeric string', { total_cost_usd: '1.5' }, 'metrics.total_cost_usd'],
+    ['null under the new name', { total_cost_usd: null }, 'metrics.total_cost_usd'],
+    ['a legacy cost past the bound', { costUsd: 1e9 }, 'metrics.costUsd'],
+  ])('refuses %s', (_name, metrics, field) => {
+    expect(finish(metrics)).toMatchObject({ ok: false, field });
+  });
+
+  it('reads total_cost_usd first, then the legacy costUsd, and nothing as null', () => {
+    expect(finishCostOf({ total_cost_usd: 0, costUsd: 9 })).toBe(0);
+    expect(finishCostOf({ costUsd: 0.42 })).toBe(0.42);
+    expect(finishCostOf({ costUsd: null })).toBeNull();
+    expect(finishCostOf({})).toBeNull();
+    expect(finish({ total_cost_usd: JOB_COST_USD_MAX }).ok).toBe(true);
+    expect(finish({ costUsd: null }).ok).toBe(true);
   });
 });

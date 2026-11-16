@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import {
-  JOB_MAX_MINUTES_DEFAULT,
   checkCreateJobInput,
   checkRunnerPolicy,
   isJobState,
@@ -23,6 +22,7 @@ import { trackerAccess, trackerProjectOfContext } from '../auth/tracker-access.m
 import type { ApiEnv } from '../env';
 import { jsonBody } from '../json-body';
 import { trackerProjectOf } from '../projects/lookup';
+import { currentResolvedViewOf, roleEnqueueLimitsOf } from '../team-config/resolved';
 import { trackerWriteRefusal } from '../tracker/context';
 import { PAGE_MAX, SMALL_WRITE_MAX_BYTES, writeLimit } from '../tracker/http';
 
@@ -118,6 +118,18 @@ export function createJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> 
       if (!isJobRole(role)) {
         return invalid(c, 'job-invalid', 'role', 'role must be a role the matrix knows');
       }
+      // #684: the role's limits as configured now. A role switched off is refused here so the owner hears it at once;
+      // the claim, the exchange and the dispatch judge it again in their writes, which is where it binds.
+      const limits = roleEnqueueLimitsOf(await currentResolvedViewOf(c.env.DB, row.slug), role, value.maxMinutes);
+      if (!limits.enabled) {
+        return problem(c, {
+          type: 'role-disabled',
+          title: 'Conflict',
+          status: 409,
+          detail: 'The team configuration has this role switched off',
+          extensions: { role },
+        });
+      }
       const now = new Date();
       const at = now.toISOString();
       const id = newUlid(now.getTime());
@@ -133,7 +145,7 @@ export function createJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> 
           requestedBy: 'owner',
           dedupeKey: dedupeKeyOf(row.slug, value.kind),
           needsLocal: value.needsLocal,
-          maxMinutes: value.maxMinutes ?? JOB_MAX_MINUTES_DEFAULT,
+          maxMinutes: limits.maxMinutes,
           at,
         },
         jobAuditOf(c, row.account_id, at, 'job.dispatched', id, { kind: value.kind, role, items: value.items, slug: row.slug }),

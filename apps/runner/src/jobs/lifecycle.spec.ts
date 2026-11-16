@@ -81,7 +81,7 @@ describe('job lifecycle', () => {
       {
         result: 'finished',
         summary: 'Done: nothing to do',
-        metrics: { exitCode: 0, costUsd: 0.0123, turns: 3, durationMs: 1500 },
+        metrics: { exitCode: 0, costUsd: 0.0123, total_cost_usd: 0.0123, turns: 3, durationMs: 1500 },
         acted: false,
       },
     ]);

@@ -1,16 +1,28 @@
 import { env } from 'cloudflare:test';
 import {
   OWNER_ACCOUNT_ID,
+  TEAM_CONFIG_SCHEMA,
   isProblemDetails,
   isProjectDispatchDto,
   problemSlugOf,
   type JobDto,
+  type OidcExchangeResponse,
 } from '@shared/contracts';
-import { createLogger } from '@worker/core';
-import { AccountsRepo } from '@worker/db';
+import { createLogger, newUlid } from '@worker/core';
+import { AccountsRepo, TeamConfigRepo } from '@worker/db';
 import { ApiGitHub } from '../github';
 import { fetchApi } from '../testing/access-kit';
-import { saveAccessSource, type ActionsProject } from '../testing/actions-oidc-kit';
+import {
+  actionsToken,
+  createTestIssuer,
+  exchangeBodyOf,
+  postExchange,
+  runClaimsOf,
+  saveAccessSource,
+  type ActionsProject,
+  type TestIssuer,
+} from '../testing/actions-oidc-kit';
+import { runnerJwt } from '../testing/runner-kit';
 import {
   INSTALLATION_ID,
   TOKEN_SENTINEL,
@@ -436,10 +448,10 @@ describe('the Cron sweep: actions-no-show', () => {
     const job = await runNow(fixture);
     const logger = createLogger({ service: 'spec' }, () => undefined);
 
-    await sweepQueue(env, new Date(Date.now() + 14 * 60_000), logger);
+    await sweepQueue(localEnv(), new Date(Date.now() + 14 * 60_000), logger, fixture.github);
     expect((await jobRow(job.id))?.state).toBe('queued');
 
-    await sweepQueue(env, new Date(Date.now() + 16 * 60_000), logger);
+    await sweepQueue(localEnv(), new Date(Date.now() + 16 * 60_000), logger, fixture.github);
     const row = await jobRow(job.id);
     expect(row?.state).toBe('failed');
     expect(JSON.parse(row?.result ?? '{}')).toEqual({
@@ -447,5 +459,123 @@ describe('the Cron sweep: actions-no-show', () => {
       metrics: { reason: 'actions-no-show' },
       acted: false,
     });
+  });
+});
+
+// #722 / #716: the dispatch applies the exchange's admission, so a job it would refuse starts no run and waits.
+describe('the dispatch admission (#722, #716)', () => {
+  let issuer: TestIssuer;
+  const logger = createLogger({ service: 'spec' }, () => undefined);
+
+  beforeAll(async () => {
+    issuer = await createTestIssuer();
+  });
+
+  const actionsProjectOf = (fixture: Fixture): ActionsProject => ({
+    slug: fixture.slug,
+    accountId: OWNER_ACCOUNT_ID,
+    repoId: fixture.repoId,
+    repo: fixture.repo,
+    defaultBranch: fixture.world.defaultBranch,
+  });
+
+  /** Saves revision `expected + 1` of the project's team configuration as `members` (on an API key). */
+  async function saveConfig(fixture: Fixture, expected: number, members: Record<string, unknown>): Promise<void> {
+    const at = new Date().toISOString();
+    const saved = await new TeamConfigRepo(env.DB).save({
+      projectSlug: fixture.slug,
+      expectedRevision: expected,
+      config: { schema: TEAM_CONFIG_SCHEMA, access: { source: 'api_key' }, ...members },
+      diff: [{ path: 'roles' }],
+      reason: null,
+      id: newUlid(),
+      at,
+      by: 'owner',
+      audit: {
+        accountId: OWNER_ACCOUNT_ID,
+        at,
+        actorKind: 'user',
+        actor: 'owner',
+        kind: 'team-config.changed',
+        target: fixture.slug,
+        details: { revision_from: expected, revision_to: expected + 1, paths: ['roles'] },
+      },
+    });
+    expect(saved.kind).toBe('saved');
+  }
+
+  /** An Actions project whose team configuration is `members` (revision 2, after seedProject's access source). */
+  async function actionsProject(members: Record<string, unknown>): Promise<Fixture> {
+    const fixture = await seedProject();
+    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    await saveConfig(fixture, 1, members);
+    return fixture;
+  }
+
+  async function review(fixture: Fixture, role: string): Promise<JobDto> {
+    const response = await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/jobs`, { kind: 'review', role });
+    expect(response.status).toBe(201);
+    return (await response.json()) as JobDto;
+  }
+
+  it('max_parallel 1, two Actions jobs of one role: one run, the second dispatched when the first finishes', async () => {
+    const fixture = await actionsProject({ roles: { qa: { max_parallel: 1 } } });
+    const first = await review(fixture, 'qa');
+    const second = await review(fixture, 'qa');
+    expect(dispatchCalls(fixture.stub)).toHaveLength(1);
+    expect(await jobRow(second.id)).toMatchObject({ state: 'queued', dispatched_at: null });
+
+    // The first job's run: its OIDC exchange, then its finish under the ephemeral identity.
+    const exchange = await exchangeBodyOf(await actionsToken(issuer, runClaimsOf(actionsProjectOf(fixture))), first.id);
+    const exchanged = await postExchange(exchange.body, issuer.bindings);
+    expect(exchanged.status).toBe(200);
+    const { runner } = (await exchanged.json()) as OidcExchangeResponse;
+    const jwt = await runnerJwt({ id: runner.id, privateKey: exchange.privateKey }, { audience: runner.audience });
+    const finished = await fetchApi(`/api/v1/runner/jobs/${first.id}/finish`, issuer.bindings, {
+      method: 'POST',
+      github: fixture.github,
+      headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ result: 'finished', summary: 'done', metrics: { total_cost_usd: 0.5 } }),
+    });
+    expect(finished.status).toBe(200);
+    expect(dispatchCalls(fixture.stub)).toHaveLength(2);
+    expect((await jobRow(second.id))?.dispatched_at).not.toBeNull();
+  });
+
+  it('the Cron sweep dispatches a held-back job once its slot frees, and never fails it as a no-show meanwhile', async () => {
+    const fixture = await actionsProject({ roles: { qa: { max_parallel: 1 } } });
+    const first = await review(fixture, 'qa');
+    const second = await review(fixture, 'qa');
+    await sweepQueue(localEnv(), new Date(Date.now() + 10 * 60_000), logger, fixture.github);
+    expect(dispatchCalls(fixture.stub)).toHaveLength(1);
+    expect((await jobRow(second.id))?.state).toBe('queued');
+
+    // The first run never came: it is a no-show, which frees the slot in the same sweep.
+    await sweepQueue(localEnv(), new Date(Date.now() + 16 * 60_000), logger, fixture.github);
+    expect((await jobRow(first.id))?.state).toBe('failed');
+    expect(await jobRow(second.id)).toMatchObject({ state: 'queued' });
+    expect((await jobRow(second.id))?.dispatched_at).not.toBeNull();
+    expect(dispatchCalls(fixture.stub)).toHaveLength(2);
+  });
+
+  it('starts no run for a paused team or a switched-off role; the job waits, and runs once admitted', async () => {
+    const fixture = await actionsProject({});
+    expect((await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/team/pause`, {})).status).toBe(201);
+    const held = await review(fixture, 'analyst');
+    expect(held.state).toBe('queued');
+    expect(dispatchCalls(fixture.stub)).toHaveLength(0);
+    expect(actionsMints(fixture.stub)).toHaveLength(0);
+
+    // Switched off while it waits: the resume alone does not start it.
+    await saveConfig(fixture, 2, { roles: { analyst: { enabled: false } } });
+    expect((await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/team/resume`, {})).status).toBe(201);
+    await sweepQueue(localEnv(), new Date(Date.now() + 30 * 60_000), logger, fixture.github);
+    expect(await jobRow(held.id)).toMatchObject({ state: 'queued', dispatched_at: null });
+    expect(dispatchCalls(fixture.stub)).toHaveLength(0);
+
+    await saveConfig(fixture, 3, { roles: { analyst: { enabled: true } } });
+    await sweepQueue(localEnv(), new Date(Date.now() + 31 * 60_000), logger, fixture.github);
+    expect((await jobRow(held.id))?.dispatched_at).not.toBeNull();
+    expect(dispatchCalls(fixture.stub)).toHaveLength(1);
   });
 });

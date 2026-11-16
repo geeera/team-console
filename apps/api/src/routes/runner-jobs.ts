@@ -4,6 +4,7 @@ import {
   RUNNER_POLL_SECONDS,
   checkFinishJobInput,
   checkJobEventsInput,
+  finishCostOf,
   isUlid,
   type ClaimResponse,
   type HeartbeatResponse,
@@ -19,8 +20,10 @@ import {
   type WorkerHonoEnv,
 } from '@worker/core';
 import { AuditRepo, JobsRepo, RunnersRepo, TeamStateRepo, type JobRecord, type NewAuditEvent } from '@worker/db';
+import { dispatchAdmittedActionsJobs } from '../actions/dispatch';
 import type { Identity } from '../auth/auth.types';
 import type { ApiEnv } from '../env';
+import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
 import { SMALL_WRITE_MAX_BYTES, TEXT_WRITE_MAX_BYTES, writeLimit } from '../tracker/http';
 import { claimTeamConfigOf } from '../team-config/resolved';
@@ -37,6 +40,9 @@ export function runnerOf(c: Context): RunnerIdentity {
   }
   return identity;
 }
+
+/** Runs a finish may start for the jobs it unblocked: one slot freed, and a little room for a role that was waiting. */
+const FINISH_DISPATCH_MAX = 2;
 
 /** A 256-bit opaque job token under the prefix the redactor knows (ADR 0006 decision 8, ADR 0008 decision 1). */
 function newJobToken(): string {
@@ -100,7 +106,7 @@ function auditOf(runner: RunnerIdentity, job: JobRecord, at: string, kind: NewAu
  * job token it mints is accepted only with this runner's JWT (`job-auth.ts`, R4). Events and the finish summary go
  * through the shared redactor before an append-only row takes them.
  */
-export function createRunnerJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
+export function createRunnerJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>()
     .post('/jobs/claim', writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
       const runner = runnerOf(c);
@@ -208,12 +214,31 @@ export function createRunnerJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         return invalid(c, 'job-finish-invalid', input.field, input.detail);
       }
       const country = c.req.header('CF-IPCountry') ?? null;
+      const logger = c.get('logger');
+      // #684: the CLI's own figure, a floor of what the job spent (ADR 0009 d.6); none reported counts as nothing.
+      const costUsd = finishCostOf(input.value.metrics);
+      if (costUsd === null) {
+        logger.info('job finished without a cost', { jobId: job.id, slug: job.projectSlug });
+      }
       const finished = await new JobsRepo(c.env.DB).finish(
         job.id,
         runner.runnerId,
         input.value,
         now,
         auditOf(runner, job, now, 'job.finished', { result: input.value.result, kind: job.kind, slug: job.projectSlug, acted: input.value.acted }, country),
+        {
+          costUsd: costUsd ?? 0,
+          pauseAudit: {
+            accountId: job.accountId,
+            at: now,
+            actorKind: 'system',
+            actor: 'budget',
+            kind: 'team.paused',
+            target: job.projectSlug,
+            details: { reason: 'budget', jobId: job.id },
+            ipCountry: null,
+          },
+        },
       );
       if (!finished) {
         return lostWriteRefusal(c, runner, job.id, now);
@@ -243,10 +268,18 @@ export function createRunnerJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         },
       );
       if (streak.paused) {
-        c.get('logger').warn('team paused on the failure streak', { slug: job.projectSlug });
+        logger.warn('team paused on the failure streak', { slug: job.projectSlug });
       }
       if (streak.excluded) {
-        c.get('logger').info('failure left out of the streak', { jobId: job.id, runnerId: runner.runnerId, reason: limitReason });
+        logger.info('failure left out of the streak', { jobId: job.id, runnerId: runner.runnerId, reason: limitReason });
+      }
+      // #716: this job's slot is free, so the project's Actions jobs held back by `max_parallel` get their run now
+      // rather than at the next sweep. The dispatch's own write judges admission; nothing here can start one too many.
+      if (job.dispatch === 'actions') {
+        await dispatchAdmittedActionsJobs(
+          { env: c.env, github, logger },
+          { projectSlug: job.projectSlug, limit: FINISH_DISPATCH_MAX },
+        );
       }
       const updated = await new JobsRepo(c.env.DB).findById(job.id);
       return c.json(updated === null ? null : jobDtoOf(updated));

@@ -472,4 +472,43 @@ describe('QuestionList', () => {
       expect(root.querySelector('[data-testid="project-attention"]')).toBeNull();
     });
   });
+
+  describe('a team the budget stopped (#684)', () => {
+    const STOPPED = {
+      slug: 'acme',
+      name: 'Acme',
+      setup: false,
+      setupUrl: null,
+      paused: false,
+      pausedUrl: null,
+      problem: null,
+      budgetStop: { month: '2026-11', spentUsd: 200, budgetUsd: 200, stoppedAt: '2026-11-16T10:00:00.000Z' },
+    };
+
+    it('is one row above the cards, never the empty state, and the list reads again once it is lifted', async () => {
+      const { settle, root } = await render(null);
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush({ ...needsYouBody([]), projects: [STOPPED] });
+      await settle();
+
+      const rows = root.querySelectorAll('[data-testid="project-attention"] [data-testid="budget-stop"]');
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.querySelector('h2')?.textContent?.trim()).toBe('Бюджет исчерпан — Acme');
+      expect(root.querySelector('[data-testid="empty"]')).toBeNull();
+      expect(root.querySelector('[data-testid="lead"]')?.textContent).toContain('проектов: 1');
+
+      // Resume this month: one confirm, the resume, then Needs you is read again and the row is gone.
+      (root.querySelector('[data-testid="budget-resume"]') as HTMLButtonElement).click();
+      await settle();
+      const overlay = document.querySelector('.cdk-overlay-container') as HTMLElement;
+      (overlay.querySelector('.tc-confirm__ok') as HTMLButtonElement).click();
+      await settle();
+      http.expectOne('/api/v1/projects/acme/team/resume').flush({}, { status: 201, statusText: 'Created' });
+      await settle();
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush(needsYouBody([]));
+      await settle();
+      expect(root.querySelector('[data-testid="budget-stop"]')).toBeNull();
+      expect(root.querySelector('[data-testid="empty"]')).not.toBeNull();
+      overlay.remove();
+    });
+  });
 });

@@ -14,6 +14,7 @@
     "../../../widgets/question-list/src/**/*.ts",
     "../../../entities/design/src/**/*.ts",
     "../../../features/design-viewer/src/**/*.ts",
+    "../../../features/budget-stop/src/**/*.ts",
     "../../../entities/runner/src/**/*.ts",
     "../../../entities/job/src/**/*.ts",
     "../../../widgets/sprint-board/src/**/*.ts"
@@ -29,6 +30,8 @@
     "../../../entities/design/src/test-setup.ts",
     "../../../features/design-viewer/src/**/*.spec.ts",
     "../../../features/design-viewer/src/test-setup.ts",
+    "../../../features/budget-stop/src/**/*.spec.ts",
+    "../../../features/budget-stop/src/test-setup.ts",
     "../../../entities/runner/src/**/*.spec.ts",
     "../../../entities/runner/src/test-setup.ts",
     "../../../entities/job/src/**/*.spec.ts",

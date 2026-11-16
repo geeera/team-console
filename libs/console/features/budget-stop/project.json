@@ -1,0 +1,8 @@
+{
+  "name": "console-features-budget-stop",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/console/features/budget-stop/src",
+  "prefix": "tc",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:console", "layer:features"]
+}

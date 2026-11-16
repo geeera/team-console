@@ -683,7 +683,8 @@ describe('rate limits, as for enrol', () => {
     expect(outcome.unknownJob).toMatchObject({ status: 429, slug: 'rate-limited' });
     expect(outcome.real).toBe(200);
     expect(outcome.realDelta).toBe(1);
-  });
+    // A few hundred signed requests: ~0.5 s locally, several seconds on a loaded CI runner (#736).
+  }, 60_000);
 
   it('still floors real exchanges for the environment, and junk keeps its own answer then', async () => {
     const outcome = await inOneRateWindow(async () => {

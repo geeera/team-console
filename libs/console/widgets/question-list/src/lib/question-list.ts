@@ -25,6 +25,7 @@ import {
 import type { QuestionArrival } from '@console/entities/push';
 import {
   githubIssueUrlOf,
+  QuestionBudgetStop,
   QuestionCard,
   QuestionItem,
   QuestionProjectProblem,
@@ -33,6 +34,7 @@ import {
   safeGitHubUrl,
 } from '@console/entities/question';
 import { AnswerGiven, AnswerQuestion } from '@console/features/answer-question';
+import { BudgetStop } from '@console/features/budget-stop';
 import { DesignViewer } from '@console/features/design-viewer';
 import { localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import {
@@ -101,6 +103,7 @@ interface Row {
   imports: [
     AnswerQuestion,
     Banner,
+    BudgetStop,
     Button,
     Callout,
     Chip,
@@ -145,6 +148,8 @@ export class QuestionList {
   private readonly items = signal<readonly QuestionItem[]>([]);
   protected readonly problems = signal<readonly QuestionProjectProblem[]>([]);
   protected readonly setups = signal<readonly QuestionProjectSetup[]>([]);
+  /** Teams the month's budget stopped (#684): one row each, with Resume this month and Raise budget. */
+  protected readonly budgetStops = signal<readonly QuestionBudgetStop[]>([]);
   protected readonly omitted = signal<readonly NeedsYouProjectRef[]>([]);
   private readonly stamping = signal<ReadonlySet<string>>(new Set());
   protected readonly announcement = signal('');
@@ -198,7 +203,9 @@ export class QuestionList {
     this.state() === 'ready' ? this.waiting().map((row) => row.item) : [],
   );
   /** Projects that need the owner outside a card: a setup to finish, or an inbox that could not be read (#205). */
-  protected readonly attentionCount = computed(() => this.setups().length + this.problems().length);
+  protected readonly attentionCount = computed(
+    () => this.setups().length + this.problems().length + this.budgetStops().length,
+  );
   /** The lead's project count: projects with a waiting card and projects with a row above the cards alike. */
   protected readonly projectCount = computed(
     () =>
@@ -206,6 +213,7 @@ export class QuestionList {
         ...this.waiting().map((row) => row.item.project.slug),
         ...this.setups().map((setup) => setup.project.slug),
         ...this.problems().map((problem) => problem.project.slug),
+        ...this.budgetStops().map((stop) => stop.project.slug),
       ]).size,
   );
   protected readonly omittedNames = computed(() =>
@@ -393,6 +401,7 @@ export class QuestionList {
         this.items.set(view.items);
         this.problems.set(view.problems);
         this.setups.set(view.setups);
+        this.budgetStops.set(view.budgetStops);
         this.omitted.set(view.omitted);
         this.answeredItems.reconcile(view.readSlugs, this.refsOf(view.items));
       } else {
@@ -403,6 +412,7 @@ export class QuestionList {
         this.items.set(items);
         this.problems.set([]);
         this.setups.set([]);
+        this.budgetStops.set([]);
         this.omitted.set([]);
         this.answeredItems.reconcile([project.slug], this.refsOf(items));
       }

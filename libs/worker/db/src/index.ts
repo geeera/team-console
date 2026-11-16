@@ -125,6 +125,7 @@ export type {
   ClaimRequest,
   DispatchTargetRecord,
   EnqueueOutcome,
+  FinishSpend,
   JobEventRecord,
   JobFilter,
   JobRecord,
@@ -138,7 +139,7 @@ export type {
   ProjectDispatchWrite,
 } from './lib/jobs/project-dispatch.repo';
 export { FAILURE_STREAK_PAUSER, RUNNER_EXCLUSION_BUDGET, TeamStateRepo } from './lib/jobs/team-state.repo';
-export type { TeamStateRecord } from './lib/jobs/team-state.repo';
+export type { BudgetStopRecord, TeamStateRecord } from './lib/jobs/team-state.repo';
 export type { RateLimitOutcome } from './lib/runners/rate-limits.repo';
 export { IdempotencyKeysRepo } from './lib/tracker/idempotency-keys.repo';
 export type {

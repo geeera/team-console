@@ -33,6 +33,11 @@
   data-testid="project-attention"
   [attr.aria-label]="'needsYou.attention.label' | transloco"
 >
+  @for (stop of budgetStops(); track stop.project.slug) {
+  <li>
+    <tc-budget-stop [stop]="stop" (resolved)="reload()" />
+  </li>
+  }
   @for (setup of setups(); track setup.project.slug) {
   <li>
     @if (setup.url; as url) {

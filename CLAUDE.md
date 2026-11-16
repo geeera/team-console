@@ -20,6 +20,16 @@ visual direction, 0006 the console as the source of truth — the #309 target ar
   `project.yml`'s `review`, `caps`, `sprint`, `owner.language` are import-only on a console-tracker project; a preset
   or allow-list change is a fixture change under `apps/api/fixtures/team-config/` (replayed by
   `routes/team-config/contract-fixtures.spec.ts`) and bumps the plugin's lock like the tracker's.
+- Budget stop and role limits (#684, migration 0033): `finish` adds `metrics.total_cost_usd` (else the legacy
+  `costUsd`; finite, `[0, 10000]`, else 422) to `project_spend` for the UTC month in its own batch, and pauses the
+  team by `system:budget` once the month reaches `budget.monthly_usd`. One admission (`claim-admission.ts`: role on,
+  `max_parallel`, `budgetAdmittedSql`) is judged inside the pull claim, the OIDC exchange and the Actions dispatch's
+  `markDispatched`; a held-back Actions job waits undispatched and is dispatched at a finish of its project or by the
+  Cron sweep, and its no-show clock starts at the dispatch. Only `POST …/team/resume {waiveBudget: true}` (the
+  Needs-you row's "Resume this month", after its confirm) waives a month (`project_spend.waived_at`), and only the
+  current month once it has reached its budget; a plain resume never waives. A finish or a save never replaces or
+  lifts an owner's pause, only a `system:budget` one; a save above the spend ends the month's waiver. Enqueue refuses a
+  switched-off role (409 `role-disabled`) and sets `jobs.max_minutes = min(role.max_minutes, requested)`.
 - Design tokens only (Paper Desk, ADR 0002); no raw colours, spacing, durations or z-index in components —
   `tools/design-lint` (part of `nx run-many -t lint`) fails on one in any `libs/console/**` or `apps/console` css.
 - Accounts are the tenant (ADR 0008, #466): every account-level table carries `account_id`; every route registered on

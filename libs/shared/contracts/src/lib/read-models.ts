@@ -227,6 +227,20 @@ export interface NeedsYouProjectDto extends NeedsYouProjectRef {
   readonly pausedUrl: string | null;
   /** `null` when the project's inbox was read. */
   readonly problem: NeedsYouProjectProblem | null;
+  /** Present while the budget stopped the team (#684): its one "Budget used up" row. */
+  readonly budgetStop?: NeedsYouBudgetStopDto;
+}
+
+/** A team the month's budget stopped (`team_state.paused_by = 'system:budget'`, #684, ADR 0009 d.6). */
+export interface NeedsYouBudgetStopDto {
+  /** The UTC month `YYYY-MM` the row is about (this month, or the one an older budget pause began in); `spentUsd` is its. */
+  readonly month: string;
+  /** A floor from Claude Code's own figures (`total_cost_usd`), dollars. */
+  readonly spentUsd: number;
+  /** `budget.monthly_usd` as configured now, whole dollars. */
+  readonly budgetUsd: number;
+  /** When the team was paused on the budget; `null` while an owner's pause holds or the claim alone refuses. */
+  readonly stoppedAt: string | null;
 }
 
 /**

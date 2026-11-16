@@ -252,3 +252,30 @@ describe('githubIssueUrlOf', () => {
     expect(githubIssueUrlOf('geeera/storify', 1.5)).toBeNull();
   });
 });
+
+describe('the budget stop (#684)', () => {
+  const stop = { month: '2026-11', spentUsd: 201.5, budgetUsd: 200, stoppedAt: '2026-11-16T10:00:00.000Z' };
+
+  it('lists one row per stopped project, read or not', () => {
+    const body = needsYou();
+    const view = needsYouViewOf({
+      ...body,
+      projects: [{ ...body.projects[0]!, budgetStop: stop }, body.projects[1]!, { ...body.projects[2]!, budgetStop: stop }],
+    });
+    expect(view.budgetStops).toEqual([
+      { project: { slug: 'team-console', name: 'Team Console' }, ...stop },
+      { project: { slug: 'broken', name: 'Broken' }, ...stop },
+    ]);
+    expect(needsYouViewOf(body).budgetStops).toEqual([]);
+  });
+
+  it.each([
+    ['a month that is not YYYY-MM', { ...stop, month: 'November' }],
+    ['a negative spend', { ...stop, spentUsd: -1 }],
+    ['a budget that is not a number', { ...stop, budgetUsd: '200' }],
+    ['no stop time', { month: stop.month, spentUsd: 1, budgetUsd: 1 }],
+  ])('refuses %s', (_name, budgetStop) => {
+    const body = needsYou();
+    expect(isNeedsYouDto({ ...body, projects: [{ ...body.projects[0], budgetStop }] })).toBe(false);
+  });
+});

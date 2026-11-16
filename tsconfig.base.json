@@ -99,7 +99,8 @@
       "@console/features/project-dispatch": ["./libs/console/features/project-dispatch/src/index.ts"],
       "@console/features/runner-policy": ["./libs/console/features/runner-policy/src/index.ts"],
       "@console/entities/job": ["./libs/console/entities/job/src/index.ts"],
-      "@console/features/run-now": ["./libs/console/features/run-now/src/index.ts"]
+      "@console/features/run-now": ["./libs/console/features/run-now/src/index.ts"],
+      "@console/features/budget-stop": ["./libs/console/features/budget-stop/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

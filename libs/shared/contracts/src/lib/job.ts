@@ -187,7 +187,11 @@ export interface CreateJobInput {
   readonly kind: JobKind;
   readonly items: readonly number[];
   readonly needsLocal: boolean;
-  readonly maxMinutes: number;
+  /**
+   * The wall-clock limit asked for; `null` when the request names none. The Worker lowers it to the role's
+   * `max_minutes` (#684), and a request without one takes the role's.
+   */
+  readonly maxMinutes: number | null;
   /** A `review` job's role (`qa` | `reviewer` | `security`); ignored for other kinds. */
   readonly role: string | null;
 }
@@ -209,8 +213,8 @@ function itemNumbers(value: unknown): number[] {
 export function checkCreateJobInput(body: unknown): InputCheck<CreateJobInput> {
   return checked(() => {
     const fields = record(body, ['kind', 'items', 'needsLocal', 'maxMinutes', 'role']);
-    const maxMinutes = fields['maxMinutes'] ?? JOB_MAX_MINUTES_DEFAULT;
-    if (typeof maxMinutes !== 'number' || !Number.isInteger(maxMinutes) || maxMinutes < 1 || maxMinutes > JOB_MAX_MINUTES_MAX) {
+    const maxMinutes = fields['maxMinutes'] ?? null;
+    if (maxMinutes !== null && (typeof maxMinutes !== 'number' || !Number.isInteger(maxMinutes) || maxMinutes < 1 || maxMinutes > JOB_MAX_MINUTES_MAX)) {
       throw new InputError('maxMinutes', `maxMinutes must be 1 to ${String(JOB_MAX_MINUTES_MAX)}`);
     }
     const needsLocal = fields['needsLocal'] ?? false;
@@ -452,6 +456,44 @@ export function checkJobEventsInput(body: unknown): InputCheck<JobEventsInput> {
   });
 }
 
+/**
+ * The most one job may report spending (threat model C12 row 5, T6): a larger figure is a broken or hostile runner, and
+ * taking it would pause the project on a lie (a DoS), so `finish` refuses it rather than clamping it.
+ */
+export const JOB_COST_USD_MAX = 10_000;
+
+/** Who paused the team when its month's spend reached `budget.monthly_usd` (#684), as `team_state.paused_by` records it. */
+export const BUDGET_PAUSER = 'system:budget';
+
+/** A cost figure as `finish` accepts it: a finite number of dollars in `[0, JOB_COST_USD_MAX]`. */
+function isJobCost(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= JOB_COST_USD_MAX;
+}
+
+/**
+ * The job's model spend from its `finish` metrics (ADR 0009 d.6): the CLI's own `total_cost_usd`, else `costUsd`, the
+ * name runners before #684 reported it under (`null` there meant the CLI gave none). `null` when neither is present:
+ * the job spent nothing the console knows of. Only call it on metrics `checkFinishJobInput` accepted.
+ */
+export function finishCostOf(metrics: Readonly<Record<string, unknown>>): number | null {
+  const reported = Object.hasOwn(metrics, 'total_cost_usd') ? metrics['total_cost_usd'] : metrics['costUsd'];
+  return isJobCost(reported) ? reported : null;
+}
+
+function checkFinishCost(metrics: Readonly<Record<string, unknown>>): void {
+  const detail = `must be a number of dollars from 0 to ${String(JOB_COST_USD_MAX)}`;
+  if (Object.hasOwn(metrics, 'total_cost_usd')) {
+    if (!isJobCost(metrics['total_cost_usd'])) {
+      throw new InputError('metrics.total_cost_usd', `metrics.total_cost_usd ${detail}`);
+    }
+    return;
+  }
+  const legacy = metrics['costUsd'];
+  if (legacy !== undefined && legacy !== null && !isJobCost(legacy)) {
+    throw new InputError('metrics.costUsd', `metrics.costUsd ${detail}`);
+  }
+}
+
 export function checkFinishJobInput(body: unknown): InputCheck<FinishJobInput> {
   return checked(() => {
     const fields = record(body, ['result', 'summary', 'metrics', 'acted']);
@@ -463,10 +505,12 @@ export function checkFinishJobInput(body: unknown): InputCheck<FinishJobInput> {
     if (typeof acted !== 'boolean') {
       throw new InputError('acted', 'acted must be a boolean');
     }
+    const metrics = jsonObject('metrics', fields['metrics'], JOB_EVENT_PAYLOAD_MAX_BYTES);
+    checkFinishCost(metrics);
     return {
       result,
       summary: text('summary', fields['summary'] ?? '', JOB_SUMMARY_MAX_LENGTH),
-      metrics: jsonObject('metrics', fields['metrics'], JOB_EVENT_PAYLOAD_MAX_BYTES),
+      metrics,
       acted,
     };
   });

@@ -7,8 +7,18 @@ import type {
   RunnerHostDto,
   RunnerPolicy,
 } from '@shared/contracts';
-import { JOB_EVENTS_MAX_PER_JOB, JOB_MAX_ATTEMPTS, RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS } from '@shared/contracts';
-import { ROLE_ADMITTED_SQL, roleAdmissionParams, roleAdmittedSql } from '../team-config/claim-admission';
+import {
+  BUDGET_PAUSER,
+  JOB_EVENTS_MAX_PER_JOB,
+  JOB_MAX_ATTEMPTS,
+  RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS,
+} from '@shared/contracts';
+import {
+  ROLE_ADMITTED_SQL,
+  budgetAdmittedSql,
+  roleAdmissionParams,
+  roleAdmittedSql,
+} from '../team-config/claim-admission';
 import { redactSecrets } from '@shared/redaction';
 import {
   AUDITED_WRITE_HAPPENED_SQL,
@@ -126,6 +136,19 @@ export interface DispatchTargetRecord {
   readonly repoId: number | null;
   readonly installationId: number | null;
   readonly defaultBranch: string | null;
+  /**
+   * Whether the exchange would take the job if its run came now (#722): account, project, pause, source, role and
+   * budget. A read, so only a hint that saves GitHub calls; `markDispatched` judges the same terms in its write.
+   */
+  readonly admitted: boolean;
+}
+
+/** What `finish` reconciles into the month's spend (#684, ADR 0009 d.6). */
+export interface FinishSpend {
+  /** Dollars, already checked to lie in `[0, JOB_COST_USD_MAX]`; 0 when the runner reported none. */
+  readonly costUsd: number;
+  /** The `team.paused` row written when this finish is the one that stops the team on its budget. */
+  readonly pauseAudit: NewAuditEvent;
 }
 
 export interface JobEventRecord {
@@ -206,6 +229,26 @@ export function jobTokenHoldsSql(first: number): string {
 
 /** The policy the claim applies: the project's, else the account's default (ADR 0008 decision 12). */
 const POLICY = `COALESCE(p.runner_policy, a.default_runner_policy)`;
+
+/** The candidate `j` with every row the admission terms read: its project, account, team state and team config. */
+const ADMISSION_FROM = `FROM jobs j JOIN projects p ON p.slug = j.project_slug JOIN accounts a ON a.id = j.account_id
+  LEFT JOIN team_state t ON t.project_slug = j.project_slug
+  LEFT JOIN team_configs tc ON tc.project_slug = j.project_slug`;
+
+/** An Actions job the console has not asked GitHub to run yet. */
+const UNDISPATCHED_SQL = `j.state = 'queued' AND j.dispatch = 'actions' AND j.dispatched_at IS NULL
+  AND j.runner_id IS NULL AND j.needs_local = 0`;
+
+/**
+ * The exchange's admission, judged before a run is started for `j` (#722, #716): a live account and project, the team
+ * not paused (any pauser, `system:budget` among them), an API-key project (ADR 0009 d.3), the role on and under its
+ * `max_parallel` counting the runs already dispatched, and the month's budget not used up. The exchange still judges
+ * its own terms in its own write; this keeps a run that would be refused from being started at all.
+ */
+function dispatchAdmittedSql(presets: string, top: string, now: string): string {
+  return `a.suspended_at IS NULL AND p.archived_at IS NULL AND t.paused_at IS NULL AND p.access_source = 'api_key'
+    AND ${roleAdmittedSql(presets, top, { countDispatched: true })} AND ${budgetAdmittedSql(now)}`;
+}
 
 function toRecord(row: JobRow): JobRecord {
   return {
@@ -438,7 +481,10 @@ export class JobsRepo {
    * an `actions-ephemeral` one (d.3; `hosted` is 0 on those too, so it alone is not enough); a role switched off is not
    * claimed, and a role already holding its `max_parallel` live jobs on the project waits — both judged here, never by
    * a pre-read, so two concurrent claims never both pass the count. The claim stamps the current revision on the job,
-   * so a change applies to the next claim and never to a job in flight.
+   * so a change applies to the next claim and never to a job in flight. The role's dispatched, not yet exchanged
+   * Actions jobs count against `max_parallel` as well (#716). A project whose UTC month's spend reached its
+   * `budget.monthly_usd` is not claimed unless the owner waived it for the month (#684): judged here too, so a budget
+   * lowered below the spend stops the next claim without waiting for a `finish`.
    */
   async claim(request: ClaimRequest): Promise<JobRecord | null> {
     const row = await this.db
@@ -468,6 +514,7 @@ export class JobsRepo {
                      < COALESCE(json_extract(me.capabilities, '$.maxConcurrency'), 1)
                  AND (p.access_source = 'api_key' OR (me.hosted = 0 AND me.isolation <> 'actions-ephemeral')))
              AND ${ROLE_ADMITTED_SQL}
+             AND ${budgetAdmittedSql('?2')}
              AND (
                ${POLICY} IS NULL
                OR json_extract(${POLICY}, '$.mode') = 'any'
@@ -531,24 +578,26 @@ export class JobsRepo {
    * other job. The installation counts only while linked to the project's own account: a project never dispatches
    * through another account's installation (ADR 0008 decision 2, the two-account rule).
    */
-  async findDispatchTarget(jobId: string): Promise<DispatchTargetRecord | null> {
+  async findDispatchTarget(jobId: string, now: string): Promise<DispatchTargetRecord | null> {
     const row = await this.db
       .prepare(
         `SELECT ${PREFIXED_COLUMNS}, p.repo AS project_repo, p.repo_id AS project_repo_id,
            p.default_branch AS project_default_branch,
            (SELECT CAST(i.installation_id AS INTEGER) FROM installations i
             WHERE i.provider = p.provider AND i.installation_id = CAST(p.installation_id AS TEXT)
-              AND i.account_id = p.account_id AND i.unlinked_at IS NULL AND i.suspended_at IS NULL) AS linked_installation_id
-         FROM jobs j JOIN projects p ON p.slug = j.project_slug
+              AND i.account_id = p.account_id AND i.unlinked_at IS NULL AND i.suspended_at IS NULL) AS linked_installation_id,
+           (${dispatchAdmittedSql('?2', '?3', '?4')}) AS admitted
+         ${ADMISSION_FROM}
          WHERE j.id = ?1 AND j.state = 'queued' AND j.dispatch = 'actions' AND j.dispatched_at IS NULL`,
       )
-      .bind(jobId)
+      .bind(jobId, ...roleAdmissionParams(), now)
       .first<
         JobRow & {
           project_repo: string;
           project_repo_id: number | null;
           project_default_branch: string | null;
           linked_installation_id: number | null;
+          admitted: number;
         }
       >();
     return row === null
@@ -559,17 +608,42 @@ export class JobsRepo {
           repoId: row.project_repo_id,
           installationId: row.linked_installation_id,
           defaultBranch: row.project_default_branch,
+          admitted: row.admitted === 1,
         };
   }
 
-  /** Records that GitHub accepted the job's `workflow_dispatch` (#670); `false` when it is no longer waiting for one. */
+  /**
+   * The queued Actions jobs not dispatched yet that the exchange would admit now (#716): highest priority, then oldest,
+   * at most `limit`, of one project or of all. Two jobs of a role one short of its `max_parallel` both read as
+   * admitted here; `markDispatched` lets only the first through.
+   */
+  async listDispatchable(now: string, limit: number, projectSlug: string | null = null): Promise<string[]> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT j.id ${ADMISSION_FROM}
+         WHERE ${UNDISPATCHED_SQL} AND (?4 IS NULL OR j.project_slug = ?4) AND ${dispatchAdmittedSql('?1', '?2', '?3')}
+         ORDER BY j.priority DESC, j.created_at ASC, j.id ASC
+         LIMIT ?5`,
+      )
+      .bind(...roleAdmissionParams(), now, projectSlug, limit)
+      .all<{ id: string }>();
+    return results.map((row) => row.id);
+  }
+
+  /**
+   * The dispatch's compare-and-set (#670), recorded before the `workflow_dispatch` call: `false` when the job is no
+   * longer waiting for one, or when the exchange would not admit it now (#722): the team paused, the role off or at
+   * its `max_parallel` counting the runs already dispatched (#716), the budget used up. Judged by this one statement,
+   * so of two jobs racing for a role's last slot one is dispatched and the other stays queued for a later dispatch.
+   */
   async markDispatched(jobId: string, at: string): Promise<boolean> {
     const { meta } = await this.db
       .prepare(
         `UPDATE jobs SET dispatched_at = ?2
-         WHERE id = ?1 AND state = 'queued' AND dispatch = 'actions' AND dispatched_at IS NULL AND runner_id IS NULL`,
+         WHERE id = (SELECT j.id ${ADMISSION_FROM}
+                     WHERE j.id = ?1 AND ${UNDISPATCHED_SQL} AND ${dispatchAdmittedSql('?3', '?4', '?2')})`,
       )
-      .bind(jobId, at)
+      .bind(jobId, at, ...roleAdmissionParams())
       .run();
     return meta.changes === 1;
   }
@@ -597,15 +671,17 @@ export class JobsRepo {
   }
 
   /**
-   * The no-show sweep (#670, the Cron Trigger): an Actions job still queued `minutes` after it was dispatched — or
-   * after it was enqueued, when the Worker never got to record the call — fails as `actions-no-show`.
+   * The no-show sweep (#670, the Cron Trigger): an Actions job still queued `minutes` after it was dispatched fails as
+   * `actions-no-show`. The clock starts at the dispatch (#716): a job held back by a pause, a switched-off role, its
+   * role's `max_parallel` or the budget waits undispatched, and the sweep dispatches it once it is admitted.
    */
   async failActionsNoShows(now: string, minutes: number, reason: string): Promise<string[]> {
     const cutoff = new Date(Date.parse(now) - minutes * 60_000).toISOString();
     const { results } = await this.db
       .prepare(
         `SELECT id FROM jobs
-         WHERE state = 'queued' AND dispatch = 'actions' AND runner_id IS NULL AND COALESCE(dispatched_at, created_at) < ?1
+         WHERE state = 'queued' AND dispatch = 'actions' AND runner_id IS NULL
+           AND dispatched_at IS NOT NULL AND dispatched_at < ?1
          ORDER BY id LIMIT 100`,
       )
       .bind(cutoff)
@@ -628,18 +704,17 @@ export class JobsRepo {
    * whole batch on 0031's index. The claim stamps the current team-config revision, as the pull claim does (#687).
    */
   async exchangeForActions(exchange: ActionsExchange): Promise<ActionsExchangeOutcome> {
-    const from = `FROM jobs j JOIN projects p ON p.slug = j.project_slug JOIN accounts a ON a.id = j.account_id
-      LEFT JOIN team_state t ON t.project_slug = j.project_slug
-      LEFT JOIN team_configs tc ON tc.project_slug = j.project_slug`;
+    const from = ADMISSION_FROM;
     // #695: never a `needs_local` job (the owner's own machine only), and only one the console dispatched itself, so
     // a hand-started run cannot take a queued job first. #706: the role admission of the pull claim, in this same
-    // statement, so two exchanges racing for two jobs of one role never both pass `max_parallel`.
-    const claimable = (presets: string, top: string): string => `j.id = ?1 AND j.state = 'queued'
+    // statement, so two exchanges racing for two jobs of one role never both pass `max_parallel`. #684: the budget.
+    const claimable = (presets: string, top: string, now: string): string => `j.id = ?1 AND j.state = 'queued'
       AND j.dispatch = 'actions' AND j.runner_id IS NULL AND j.actions_run_id IS NULL
       AND j.needs_local = 0 AND j.dispatched_at IS NOT NULL
       AND a.suspended_at IS NULL AND p.archived_at IS NULL AND t.paused_at IS NULL
       AND p.access_source = 'api_key'
-      AND ${roleAdmittedSql(presets, top)}`;
+      AND ${roleAdmittedSql(presets, top)}
+      AND ${budgetAdmittedSql(now)}`;
     const [presets, top] = roleAdmissionParams();
     const held: AuditCondition = {
       exists: `SELECT 1 FROM jobs WHERE jobs.id = ? AND jobs.runner_id = ? AND jobs.state = 'claimed'`,
@@ -656,7 +731,7 @@ export class JobsRepo {
                  version, enrolled_at, last_seen_at, last_seen_country, last_seen_ip_hash, seen_countries)
                SELECT ?2, j.account_id, ?3, ?4, ?5, '{"local":false,"maxConcurrency":1}', 'actions-ephemeral',
                  json_array(j.project_slug), ?6, ?7, ?7, ?8, ?9, CASE WHEN ?8 IS NULL THEN '[]' ELSE json_array(?8) END
-               ${from} WHERE ${claimable('?10', '?11')}`,
+               ${from} WHERE ${claimable('?10', '?11', '?7')}`,
             )
             .bind(
               exchange.jobId,
@@ -680,7 +755,7 @@ export class JobsRepo {
               `UPDATE jobs SET state = 'claimed', runner_id = ?2, claimed_at = ?3, lease_until = ?4, token_hash = ?5,
                  actions_run_id = ?6, attempt = attempt + 1,
                  team_config_revision = (SELECT revision FROM team_configs WHERE project_slug = jobs.project_slug)
-               WHERE id = (SELECT j.id ${from} WHERE ${claimable('?7', '?8')})
+               WHERE id = (SELECT j.id ${from} WHERE ${claimable('?7', '?8', '?3')})
                  AND EXISTS (
                    SELECT 1 FROM runners r WHERE r.id = ?2 AND r.account_id = jobs.account_id AND r.revoked_at IS NULL)`,
             )
@@ -815,6 +890,14 @@ export class JobsRepo {
   /**
    * Finishes a job this runner holds, with its `finished`/`failed` event and the audit row; `false` when it holds none
    * or its stored row no longer allows the job's project or is revoked (#553).
+   *
+   * The budget stop (#684, ADR 0009 d.6, threat model C12 row 5) rides in the same batch. The job's cost is added to its
+   * project's spend for the UTC month of `now` by the statement right after the state transition, and only when that
+   * transition took (`AUDITED_WRITE_HAPPENED_SQL`), so a replayed or second `finish` adds nothing. When the month's spend then reaches
+   * `budget.monthly_usd` and the owner has not waived it, the team is paused by `system:budget` with one `team.paused`
+   * row; N finishes past the cap still pause it once. A pause already on (the owner's, the failure streak's) is kept as
+   * it is: only its holder lifts it, and Needs you shows the budget row beside it (`TeamStateRepo.budgetStopsOf`).
+   * Without `spend` nothing of the budget is written (#732).
    */
   async finish(
     id: string,
@@ -822,6 +905,7 @@ export class JobsRepo {
     outcome: { readonly result: 'finished' | 'failed'; readonly summary: string; readonly metrics: Readonly<Record<string, unknown>>; readonly acted: boolean },
     now: string,
     audit: NewAuditEvent,
+    spend?: FinishSpend,
   ): Promise<boolean> {
     const result = redactedPayload({ summary: outcome.summary, metrics: outcome.metrics, acted: outcome.acted });
     // One batch (#492): the event and the audit row are written only if the guarded UPDATE took, so a lapsed lease or
@@ -839,6 +923,18 @@ export class JobsRepo {
              AND ${RUNNER_STILL_ALLOWS_SQL}`,
         )
         .bind(id, runnerId, outcome.result, now, JSON.stringify(result)),
+      // Directly after the transition, so "the previous statement wrote" is that UPDATE having taken.
+      ...(spend === undefined
+        ? []
+        : [
+            this.db
+              .prepare(
+                `INSERT INTO project_spend (project_slug, month, spent_usd, jobs)
+                 SELECT project_slug, substr(?2, 1, 7), ?3, 1 FROM jobs WHERE id = ?1 AND ${AUDITED_WRITE_HAPPENED_SQL}
+                 ON CONFLICT (project_slug, month) DO UPDATE SET spent_usd = spent_usd + ?3, jobs = jobs + 1`,
+              )
+              .bind(id, now, spend.costUsd),
+          ]),
       this.eventStatement(
         id,
         now,
@@ -857,8 +953,35 @@ export class JobsRepo {
            WHERE id = ? AND isolation = 'actions-ephemeral' AND revoked_at IS NULL AND EXISTS (${finished.exists})`,
         )
         .bind(now, runnerId, ...finished.params),
+      ...(spend === undefined ? [] : this.budgetPauseStatements(id, finished, now, spend.pauseAudit)),
     ]);
     return update?.meta.changes === 1;
+  }
+
+  /** `finish`'s `system:budget` pause and its audit row: only when this finish took and the month's cap is reached. */
+  private budgetPauseStatements(
+    id: string,
+    finished: AuditCondition,
+    now: string,
+    audit: NewAuditEvent,
+  ): readonly D1PreparedStatement[] {
+    return auditedWrite(
+      this.db,
+      this.db
+        .prepare(
+          `INSERT INTO team_state (project_slug, paused_at, paused_by, failed_streak, updated_at)
+           SELECT j.project_slug, ?1, ?2, 0, ?1 FROM jobs j
+             JOIN project_spend ps ON ps.project_slug = j.project_slug AND ps.month = substr(?1, 1, 7)
+             JOIN team_configs tc ON tc.project_slug = j.project_slug
+           WHERE j.id = ?3 AND EXISTS (${finished.exists})
+             AND ps.waived_at IS NULL AND ps.spent_usd >= json_extract(tc.config, '$.budget.monthly_usd')
+           ON CONFLICT (project_slug) DO UPDATE SET paused_at = excluded.paused_at, paused_by = excluded.paused_by,
+             updated_at = excluded.updated_at
+           WHERE team_state.paused_at IS NULL`,
+        )
+        .bind(now, BUDGET_PAUSER, id, ...finished.params),
+      audit,
+    );
   }
 
   /**
