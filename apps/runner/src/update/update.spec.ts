@@ -7,7 +7,30 @@ import type { Exec, ExecOptions, ExecResult } from '../host/exec';
 import { AUTO_UPDATE_INTERVAL_MS, autoUpdater } from './auto-update';
 import { installRootOf } from './install-layout';
 import { RELEASE_FILES, attestationVerifyArgs, releasePlatformOf, tarballNameOf } from './release-identity';
-import { UpdateError, applyUpdate, checkForUpdate, type ApplyDeps, type UpdateProblem } from './update';
+import {
+  UpdateError,
+  applyUpdate,
+  checkForUpdate,
+  isChannelMismatch,
+  type ApplyDeps,
+  type UpdateProblem,
+} from './update';
+
+// Lets a spec cut the layout conversion short: the Nth `rename` after `crash.at` is armed throws instead of running.
+const crash = vi.hoisted(() => ({ at: null as number | null, renames: 0 }));
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const original = await importOriginal<typeof import('node:fs/promises')>();
+  return {
+    ...original,
+    rename: async (from: string, to: string): Promise<void> => {
+      crash.renames += 1;
+      if (crash.at === crash.renames) {
+        throw new Error(`simulated crash before rename #${String(crash.renames)}`);
+      }
+      await original.rename(from, to);
+    },
+  };
+});
 
 /**
  * Threat model C11 rows 1–2 and RR13 (ADR 0008 decision 10): `update` installs only a release that
@@ -275,7 +298,9 @@ describe('update: installing a release (C11 row 1)', () => {
       await applyUpdate(TARGET, depsOf({}));
 
       expect(await link('current')).toBe('releases/0.3.0');
-      expect(await link('bin')).toBe('current/bin');
+      expect((await lstat(join(prefix, 'bin'))).isDirectory()).toBe(true);
+      expect(await link('bin/job-exec')).toBe('../current/bin/job-exec');
+      expect(await link('bin/team-console-runner')).toBe('../current/bin/team-console-runner');
       expect(await link('team-console-runner.mjs')).toBe('current/team-console-runner.mjs');
       expect(await link('SHA256SUMS')).toBe('current/SHA256SUMS');
       expect(await readFile(join(prefix, 'SHA256SUMS'), 'utf8')).toBe(releaseTree(TARGET)['SHA256SUMS']);
@@ -316,14 +341,68 @@ describe('update: installing a release (C11 row 1)', () => {
       expect(await leftovers()).toEqual([]);
     });
 
-    it('finishes a conversion a crash cut short between moving bin aside and linking it', async () => {
+    it('finishes a conversion an earlier layout cut short between moving bin aside and linking it', async () => {
       await applyUpdate(TARGET, depsOf({}));
-      await rm(join(prefix, 'bin'));
+      await rm(join(prefix, 'bin'), { recursive: true });
       await mkdir(join(prefix, 'bin.flat'));
 
       await applyUpdate(NEXT, depsOf(nextRelease));
-      expect(await link('bin')).toBe('current/bin');
+      expect(await link('bin/job-exec')).toBe('../current/bin/job-exec');
+      expect(await readFile(join(prefix, 'bin/job-exec'), 'utf8')).toBe('#!/bin/sh\n# job-exec\n');
       expect(await leftovers()).toEqual([]);
+    });
+
+    it('leaves a prefix whose bin is one link through current (the first layout) as it is', async () => {
+      await applyUpdate(TARGET, depsOf({}));
+      await rm(join(prefix, 'bin'), { recursive: true });
+      await symlink('current/bin', join(prefix, 'bin'));
+
+      await applyUpdate(NEXT, depsOf(nextRelease));
+      expect(await link('bin')).toBe('current/bin');
+      expect(await readFile(join(prefix, 'bin/job-exec'), 'utf8')).toBe('#!/bin/sh\n# job-exec\n');
+    });
+
+    describe('a crash at every step of converting a flat prefix (#666)', () => {
+      afterEach(() => {
+        crash.at = null;
+      });
+
+      // Renames of one conversion, in order: release into place, current, SHA256SUMS, bin/job-exec,
+      // bin/team-console-runner, the bundle.
+      const STEPS = 6;
+
+      it.each(Array.from({ length: STEPS }, (_, index) => index + 1))(
+        'before rename #%i: the prefix still runs, and the next update finishes it',
+        async (step) => {
+          crash.renames = 0;
+          crash.at = step;
+          await expect(applyUpdate(TARGET, depsOf({}))).rejects.toThrow(/simulated crash/);
+          crash.at = null;
+
+          // What the service needs, at the crash: the bundle, the launcher and job-exec all exist and are files.
+          for (const path of ['team-console-runner.mjs', 'bin/job-exec', 'bin/team-console-runner']) {
+            expect((await stat(join(prefix, path))).isFile()).toBe(true);
+          }
+
+          await applyUpdate(TARGET, depsOf({}));
+
+          expect(await installedBundle()).toBe(`bundle ${TARGET}\n`);
+          expect(await link('current')).toBe('releases/0.3.0');
+          expect(await link('team-console-runner.mjs')).toBe('current/team-console-runner.mjs');
+          expect(await link('SHA256SUMS')).toBe('current/SHA256SUMS');
+          expect(await link('bin/job-exec')).toBe('../current/bin/job-exec');
+          expect(await link('bin/team-console-runner')).toBe('../current/bin/team-console-runner');
+          expect(await readFile(join(prefix, 'bin/job-exec'), 'utf8')).toBe('#!/bin/sh\n# job-exec\n');
+          expect(await readdir(join(prefix, 'releases'))).toEqual([TARGET]);
+          expect(await readdir(join(prefix, 'bin'))).toEqual(['job-exec', 'team-console-runner']);
+          expect(await leftovers()).toEqual([]);
+        },
+      );
+
+      it('still refuses to reinstall the live release once its layout is complete', async () => {
+        await applyUpdate(TARGET, depsOf({}));
+        expect(await refusal(applyUpdate(TARGET, depsOf({})))).toBe('unpack-failed');
+      });
     });
 
     it('refuses a prefix whose current is not a link, before downloading', async () => {
@@ -439,6 +518,16 @@ describe('update: installing a release (C11 row 1)', () => {
       });
       expect(await update()).toBe(true);
       expect(await installedBundle()).toBe(`bundle ${TARGET}\n`);
+    });
+
+    it('treats an installed version that is not SemVer as stable and refuses a pre-release (#666)', () => {
+      expect(isChannelMismatch('dev-build', '0.3.0-rc.1')).toBe(true);
+      expect(isChannelMismatch('dev-build', 'not-semver')).toBe(true);
+      expect(isChannelMismatch('dev-build', TARGET)).toBe(false);
+      expect(isChannelMismatch(INSTALLED, '0.3.0-rc.1')).toBe(true);
+      expect(isChannelMismatch(INSTALLED, TARGET)).toBe(false);
+      expect(isChannelMismatch('0.3.0-rc.1', '0.3.0-rc.2')).toBe(false);
+      expect(isChannelMismatch('0.3.0-rc.1', TARGET)).toBe(false);
     });
 
     it('refuses a pre-release when the installed version is on the stable channel (#604)', async () => {

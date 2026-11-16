@@ -18,7 +18,7 @@ import { SYSTEM_PATH, hostExec, type Exec } from '../host/exec';
 import { InstallError, runInstall, systemInstallHost, type InstallHost } from '../install/install';
 import { jobExecOf } from '../install/templates';
 import { RunnerFileError } from '../config/private-files';
-import { loadRunnerKey, runnerKeyLocationOf } from '../config/runner-key';
+import { loadRunnerKey, runnerKeyLocationOf, type RunnerKeyDeps } from '../config/runner-key';
 import { runLoop } from '../jobs/loop';
 import { RUNNER_VERSION } from '../version';
 import { autoUpdater } from '../update/auto-update';
@@ -49,6 +49,8 @@ export interface CliDeps {
   readonly now?: () => Date;
   /** One line of stdin for `enrol --code -`; absent when the process has no stdin to read. */
   readonly readCodeLine?: ReadCodeLine;
+  /** Where the runner key lives (platform, `security` exec, env); the host's when absent. */
+  readonly keys?: RunnerKeyDeps;
 }
 
 export const EXIT_OK = 0;
@@ -109,15 +111,18 @@ function describeFailure(error: unknown): string {
 }
 
 /**
- * Where `enrol` just put the key, for the confirmation line only. Enrol itself already succeeded by the time this
- * runs, so a lookup failure here (an unreadable keychain between the write and this read, say) falls back to
- * naming `home` instead of turning a successful enrolment into a reported failure.
+ * Where `enrol` just put the key, as the tail of the confirmation line. Enrol already succeeded by the time this
+ * runs, so a lookup failure (an unreadable keychain between the write and this read, say) must not turn it into a
+ * reported failure. It must not guess either: the key may be a keychain item, so a failed lookup says the location is
+ * unknown and why, instead of naming `home`.
  */
-async function keyLocationOf(home: string): Promise<string> {
+async function keyLocationOf(home: string, keys: RunnerKeyDeps | undefined): Promise<string> {
   try {
-    return (await runnerKeyLocationOf(home)) ?? home;
-  } catch {
-    return home;
+    const location = await runnerKeyLocationOf(home, keys);
+    return location === null ? 'not found where the runner looks for it' : `in ${location}`;
+  } catch (error: unknown) {
+    const reason = error instanceof Error ? error.message : 'unknown error';
+    return `in a location that could not be determined (${reason})`;
   }
 }
 
@@ -179,7 +184,7 @@ async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number>
         claudeConfigDir: values['claude-config-dir'],
         image: values.image,
       },
-      { home, fetch: deps.fetch, host: deps.host },
+      { home, fetch: deps.fetch, host: deps.host, ...(deps.keys === undefined ? {} : { keys: deps.keys }) },
     );
     const projects =
       config.allowedProjects.length === 0 ? 'no projects yet' : config.allowedProjects.join(', ');
@@ -188,7 +193,7 @@ async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number>
     );
     // The key may be a keychain item, not a file under `home` (#585); say where it actually is. Enrol already
     // succeeded, so a lookup failure here is cosmetic only — it must not turn into "enrol failed".
-    deps.stdout(`Config is in ${home}; the key is in ${await keyLocationOf(home)}.`);
+    deps.stdout(`Config is in ${home}; the key is ${await keyLocationOf(home, deps.keys)}.`);
     return EXIT_OK;
   } catch (error: unknown) {
     deps.stderr(`enrol failed: ${describeFailure(error)}`);

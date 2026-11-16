@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fakeKeychain } from '../testing/fake-keychain';
@@ -9,6 +9,7 @@ import {
   RUNNER_KEY_STORE_ENV,
   generateRunnerKey,
   keychainAccountOf,
+  legacyKeychainAccountOf,
   loadRunnerKey,
   runnerKeyLocationOf,
   saveRunnerKey,
@@ -139,17 +140,103 @@ describe('runner key store (#585)', () => {
       expect(xOf(await loadRunnerKey(home, mac.deps))).toBe(key.publicJwk.x);
     });
 
-    it('refuses a home that does not exist as key-unavailable, not a raw ENOENT (#676)', async () => {
+    it('reports a home that does not exist as file-missing, not a keychain failure or a raw ENOENT (#675)', async () => {
       const mac = macWith();
       const missing = join(parent, 'never-created');
 
       await expect(saveRunnerKey(missing, generateRunnerKey().privateKey, mac.deps)).rejects.toMatchObject({
         name: 'RunnerFileError',
-        problem: 'key-unavailable',
+        problem: 'file-missing',
       });
       await expect(loadRunnerKey(missing, mac.deps)).rejects.toMatchObject({
         name: 'RunnerFileError',
-        problem: 'key-unavailable',
+        problem: 'file-missing',
+      });
+    });
+
+    describe('an item a first-release save left under the resolve() account of a symlinked home (#675)', () => {
+      let link: string;
+      let key: ReturnType<typeof generateRunnerKey>;
+
+      beforeEach(async () => {
+        link = join(parent, 'home-link');
+        await symlink(home, link);
+        key = generateRunnerKey();
+      });
+
+      const legacyItemKey = (): string => itemKey(legacyKeychainAccountOf(link));
+      const secretOf = (privateKey: ReturnType<typeof generateRunnerKey>['privateKey']): string =>
+        privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64');
+
+      it('loads, copies it to the realpath account and deletes the old item', async () => {
+        const mac = macWith();
+        mac.items.set(legacyItemKey(), secretOf(key.privateKey));
+
+        expect(xOf(await loadRunnerKey(link, mac.deps))).toBe(key.publicJwk.x);
+
+        expect(mac.items.has(legacyItemKey())).toBe(false);
+        expect(mac.items.get(itemKey(await keychainAccountOf(link)))).toBe(secretOf(key.privateKey));
+        expect(xOf(await loadRunnerKey(home, mac.deps))).toBe(key.publicJwk.x);
+      });
+
+      it('counts as an existing key, so enrol refuses and save does not overwrite, without moving it', async () => {
+        const mac = macWith();
+        mac.items.set(legacyItemKey(), secretOf(key.privateKey));
+
+        await expect(runnerKeyLocationOf(link, mac.deps)).resolves.toContain(legacyKeychainAccountOf(link));
+        await expect(saveRunnerKey(link, generateRunnerKey().privateKey, mac.deps)).rejects.toMatchObject({
+          problem: 'file-exists',
+        });
+        expect(mac.items.has(legacyItemKey())).toBe(true);
+      });
+
+      it('keeps the old item when the copy was not kept', async () => {
+        const mac = macWith({ defaultKeychain: keychainFile, dropAdds: true });
+        mac.items.set(legacyItemKey(), secretOf(key.privateKey));
+
+        await expect(loadRunnerKey(link, mac.deps)).rejects.toMatchObject({ problem: 'key-unavailable' });
+        expect(mac.items.has(legacyItemKey())).toBe(true);
+      });
+
+      it('finishes a move that crashed after the copy: both items hold one key, the old one is deleted', async () => {
+        const mac = macWith();
+        mac.items.set(legacyItemKey(), secretOf(key.privateKey));
+        mac.items.set(itemKey(await keychainAccountOf(link)), secretOf(key.privateKey));
+
+        expect(xOf(await loadRunnerKey(link, mac.deps))).toBe(key.publicJwk.x);
+        expect(mac.items.has(legacyItemKey())).toBe(false);
+      });
+
+      it('prefers the realpath item and leaves a legacy item holding another key alone', async () => {
+        const mac = macWith();
+        const other = generateRunnerKey();
+        mac.items.set(legacyItemKey(), secretOf(other.privateKey));
+        mac.items.set(itemKey(await keychainAccountOf(link)), secretOf(key.privateKey));
+
+        expect(xOf(await loadRunnerKey(link, mac.deps))).toBe(key.publicJwk.x);
+        expect(mac.items.get(legacyItemKey())).toBe(secretOf(other.privateKey));
+      });
+
+      it('refuses a legacy item that is not an Ed25519 key without copying it', async () => {
+        const mac = macWith();
+        mac.items.set(legacyItemKey(), Buffer.from('not a key at all').toString('base64'));
+
+        await expect(loadRunnerKey(link, mac.deps)).rejects.toMatchObject({ problem: 'file-unsafe' });
+        expect(mac.items.has(itemKey(await keychainAccountOf(link)))).toBe(false);
+        expect(mac.items.has(legacyItemKey())).toBe(true);
+      });
+
+      it('does nothing extra for a home that is not behind a symlink', async () => {
+        const mac = macWith();
+        // tmpdir is itself behind a symlink on macOS (/var), so use the real path.
+        const real = await realpath(home);
+        await saveRunnerKey(real, key.privateKey, mac.deps);
+        mac.calls.length = 0;
+
+        await loadRunnerKey(real, mac.deps);
+
+        expect(mac.calls.filter((call) => call.args[0] === 'find-generic-password')).toHaveLength(1);
+        expect(mac.calls.some((call) => call.args[0] === 'delete-generic-password')).toBe(false);
       });
     });
 

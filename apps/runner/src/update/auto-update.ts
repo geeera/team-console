@@ -1,6 +1,12 @@
-import { runnerReleaseChannelOf } from '@shared/contracts';
 import type { UpdatePolicy } from '../config/config';
-import { UpdateError, applyUpdate, checkForUpdate, type ApplyDeps, type CheckDeps } from './update';
+import {
+  UpdateError,
+  applyUpdate,
+  checkForUpdate,
+  isChannelMismatch,
+  type ApplyDeps,
+  type CheckDeps,
+} from './update';
 
 /**
  * `update.policy = auto` (ADR 0008 decision 10): the runner looks for a release when it starts and, while idle, at
@@ -38,7 +44,7 @@ export function autoUpdater(deps: AutoUpdateDeps): () => Promise<boolean> {
       if (check.kind !== 'available') {
         return false;
       }
-      if (runnerReleaseChannelOf(check.current) === 'stable' && runnerReleaseChannelOf(check.target) !== 'stable') {
+      if (isChannelMismatch(check.current, check.target)) {
         throw new UpdateError(
           'channel-mismatch',
           `the console names the pre-release ${check.target} and this runner is on the stable channel (${check.current}); run \`update\` to install it by hand`,

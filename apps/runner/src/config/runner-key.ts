@@ -1,5 +1,6 @@
 import { createPrivateKey, createPublicKey, generateKeyPairSync, type KeyObject } from 'node:crypto';
 import { realpath, rm } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { isEd25519PublicJwk, type Ed25519PublicJwk } from '@shared/contracts';
 import { hostExec, type Exec } from '../host/exec';
 import { keysDirOf, runnerKeyPathOf } from './config';
@@ -61,17 +62,24 @@ export function generateRunnerKey(): RunnerKeyPair {
  * One item per runner home, so two homes of one user never share a key. Resolved with `realpath`, not `resolve`:
  * a symlinked `TC_RUNNER_HOME` must map to the same account as its target, or a key saved through the link and
  * loaded through the target (or the reverse) would look like two different homes. A home that does not exist
- * (`realpath` raises `ENOENT`) is reported as the key store being unavailable, never as a raw filesystem error.
+ * (`realpath` raises `ENOENT`) has no key, so it is `file-missing`, as before the keychain; any other failure is
+ * the key store being unavailable, never a raw filesystem error.
  */
 export async function keychainAccountOf(home: string): Promise<string> {
   let real: string;
   try {
     real = await realpath(home);
   } catch (error: unknown) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+      throw new RunnerFileError('file-missing', `the runner home ${home} does not exist`);
+    }
     throw unavailable(error);
   }
   return `runner-key:${real}`;
 }
+
+/** The account the first keychain release (#673) used: `resolve`, which does not follow symlinks. */
+export const legacyKeychainAccountOf = (home: string): string => `runner-key:${resolve(home)}`;
 
 function unavailable(error: unknown): RunnerFileError {
   if (error instanceof RunnerFileError) {
@@ -167,6 +175,44 @@ async function readKeychainItem(keychain: Keychain, home: string): Promise<strin
   }
 }
 
+/** The item a first-release (#673) save left under the `resolve` account of a symlinked home, or null. */
+async function readLegacyKeychainItem(keychain: Keychain, home: string): Promise<string | null> {
+  const legacy = legacyKeychainAccountOf(home);
+  if (legacy === (await keychainAccountOf(home))) {
+    return null;
+  }
+  try {
+    return await keychain.read(legacy);
+  } catch (error: unknown) {
+    throw unavailable(error);
+  }
+}
+
+/**
+ * The item of this home. A miss under the `realpath` account falls back to the legacy `resolve` account: that item is
+ * copied to the new account and read back before the old one is deleted, so a crash in between leaves both and the
+ * next call finishes the move. A leftover legacy item that holds the same key is deleted; another key is left alone.
+ */
+async function readKeychainItemMigrating(keychain: Keychain, home: string): Promise<string | null> {
+  const current = await readKeychainItem(keychain, home);
+  const legacySecret = await readLegacyKeychainItem(keychain, home);
+  if (legacySecret === null) {
+    return current;
+  }
+  const legacy = legacyKeychainAccountOf(home);
+  if (current === null) {
+    await storeInKeychain(keychain, home, await keyFromKeychain(legacySecret, keychain, home));
+  } else if (!sameKey(await keyFromKeychain(legacySecret, keychain, home), await keyFromKeychain(current, keychain, home))) {
+    return current;
+  }
+  try {
+    await keychain.remove(legacy);
+  } catch (error: unknown) {
+    throw unavailable(error);
+  }
+  return current ?? legacySecret;
+}
+
 /** Where an existing key of this home is, or null; `enrol` asks before it registers anything with the console. */
 export async function runnerKeyLocationOf(
   home: string,
@@ -176,8 +222,15 @@ export async function runnerKeyLocationOf(
     return runnerKeyPathOf(home);
   }
   const keychain = await keychainOf(deps);
-  if (keychain !== null && (await readKeychainItem(keychain, home)) !== null) {
+  if (keychain === null) {
+    return null;
+  }
+  if ((await readKeychainItem(keychain, home)) !== null) {
     return `the keychain item ${await keychainAccountOf(home)} in ${keychain.path}`;
+  }
+  // Read-only: only `loadRunnerKey` moves a legacy item, but a key there still counts as existing.
+  if ((await readLegacyKeychainItem(keychain, home)) !== null) {
+    return `the keychain item ${legacyKeychainAccountOf(home)} in ${keychain.path}`;
   }
   return null;
 }
@@ -214,7 +267,7 @@ export async function loadRunnerKey(home: string, deps: RunnerKeyDeps = hostDeps
   if (keychain === null) {
     return keyFromPem(await readPrivateFile(path), home);
   }
-  const secret = await readKeychainItem(keychain, home);
+  const secret = await readKeychainItemMigrating(keychain, home);
   const hasFile = await pathExists(path);
   if (secret === null && !hasFile) {
     throw new RunnerFileError(
