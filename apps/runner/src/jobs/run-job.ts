@@ -13,6 +13,7 @@ import { redactSecrets } from '@shared/redaction';
 import type { IsolationBackend, RunningJob, Sandbox } from '../backends/backend';
 import { detectOutcome, type LimitReason } from '../budget/detect';
 import { writeManagedSettings } from '../claude/managed-settings';
+import { refuseProjectSettingsCommands } from '../claude/project-settings';
 import { promptOf } from '../claude/prompts';
 import { modelOfRole } from '../claude/roles';
 import { EVENT_TEXT_MAX, parseStreamLine, type StreamResult } from '../claude/stream-json';
@@ -150,8 +151,17 @@ export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): P
     if (!isValidSlug(job.projectSlug)) {
       throw new LaunchRefusal('repository-not-configured', 'the job names no valid project slug');
     }
+    // The runner enforces its own project scope, whatever the console's claim filter let through.
+    if (!config.allowedProjects.includes(job.projectSlug)) {
+      throw new LaunchRefusal(
+        'project-not-allowed',
+        `${job.projectSlug} is not in config.json allowedProjects`,
+      );
+    }
     const model = modelOfRole(job.role, config.roles);
-    const upstream = config.repositories?.[job.projectSlug];
+    // Own properties only: a slug such as `constructor` must not resolve through the prototype.
+    const repositories = config.repositories ?? {};
+    const upstream = Object.hasOwn(repositories, job.projectSlug) ? repositories[job.projectSlug] : undefined;
     if (upstream === undefined) {
       throw new LaunchRefusal(
         'repository-not-configured',
@@ -188,6 +198,7 @@ export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): P
     };
     const mirror = await syncMirror(deps.home, job.projectSlug, upstream, gitEnvs);
     await cloneForJob(mirror, sandbox.clone, upstream, gitEnvs);
+    await refuseProjectSettingsCommands(sandbox.clone);
     const pluginRoot = await vendorPlugin(deps.home, mirror, gitEnvs.job, backend.sharedDirMode);
     const settingsPath = await writeManagedSettings(deps.home);
     if (passedThrough.length > 0) {
@@ -227,6 +238,10 @@ export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): P
         readOnly: { plugin: pluginRoot, managedSettings: settingsPath },
       });
       running = launched;
+      // A stop that fired while the spawn was awaited found nothing to kill; without this the job outlives it.
+      if (stopReason !== null) {
+        backend.kill(launched).catch(reportError);
+      }
       ({ finish, limit } = await watch(launched, events, deps, () => stopReason));
     }
   } catch (error: unknown) {

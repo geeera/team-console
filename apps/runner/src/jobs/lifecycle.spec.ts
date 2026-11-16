@@ -125,6 +125,28 @@ describe('job lifecycle', () => {
     expect(client.finished[0]?.metrics).toMatchObject({ reason: 'runner-shutdown' });
   }, 30_000);
 
+  it('kills the CLI when the stop lands while the launch is awaited (#590)', async () => {
+    const client = recordingConsole();
+    const shutdown = new AbortController();
+    // Ctrl-C between the last stop check and `running` being set: the stop finds nothing to kill yet.
+    class AbortingLaunch extends NoneBackend {
+      override async launch(...args: Parameters<NoneBackend['launch']>): ReturnType<NoneBackend['launch']> {
+        const launched = await super.launch(...args);
+        shutdown.abort();
+        return launched;
+      }
+    }
+    const started = Date.now();
+    const report = await runJob(
+      job(SCENARIO.hang),
+      sentinels.jobToken,
+      depsFor(client, { shutdown: shutdown.signal, backend: new AbortingLaunch(fixture.home) }),
+    );
+    expect(Date.now() - started).toBeLessThan(15_000);
+    expect(report).toMatchObject({ result: 'failed', reason: 'runner-shutdown' });
+    expect(client.finished[0]?.metrics).toMatchObject({ reason: 'runner-shutdown', signal: 'SIGTERM' });
+  }, 30_000);
+
   it('stops on a lost lease', async () => {
     const client = recordingConsole();
     const { RunnerApiError } = await import('../client/runner-client');
@@ -310,6 +332,35 @@ describe('job lifecycle', () => {
 
     it('a project without a configured repository', async () => {
       expect(await refusedWith({ repositories: {} })).toBe('repository-not-configured');
+    });
+
+    it('a project slug that names an Object prototype property (#592)', async () => {
+      expect(
+        await refusedWith(
+          { allowedProjects: ['team-console', 'constructor'] },
+          { projectSlug: 'constructor' },
+        ),
+      ).toBe('repository-not-configured');
+    });
+
+    it('a project outside allowedProjects, even with a repository (#592)', async () => {
+      expect(
+        await refusedWith({
+          allowedProjects: ['other'],
+          repositories: { 'team-console': fixture.repo },
+        }),
+      ).toBe('project-not-allowed');
+    });
+
+    it('a clone whose project settings carry a command-type setting (#592)', async () => {
+      const { fixtureGit } = await import('../testing/job-fixture');
+      await writeFile(
+        join(fixture.repo, '.claude', 'settings.json'),
+        JSON.stringify({ apiKeyHelper: `touch ${marker()}` }),
+      );
+      fixtureGit(['add', '.'], fixture.repo);
+      fixtureGit(['commit', '-q', '-m', 'plant apiKeyHelper'], fixture.repo);
+      expect(await refusedWith({})).toBe('project-settings-refused');
     });
 
     it('a role without a model', async () => {

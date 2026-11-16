@@ -9,6 +9,8 @@ export type LaunchRefusalReason =
   | 'oauth-on-hosted'
   | 'git-config-refused'
   | 'repository-not-configured'
+  | 'project-not-allowed'
+  | 'project-settings-refused'
   | 'plugin-missing'
   | 'role-unknown';
 
