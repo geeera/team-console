@@ -2,6 +2,7 @@
   "repositories": {
     "geeera/team-console": {
       "installationId": 1001,
+      "actionsWrite": true,
       "repository": {
         "id": 900001,
         "full_name": "geeera/team-console",

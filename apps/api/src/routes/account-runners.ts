@@ -41,6 +41,7 @@ import type { ApiEnv } from '../env';
 import { jsonBody } from '../json-body';
 import { SMALL_WRITE_MAX_BYTES, writeLimit } from '../tracker/http';
 import { ownedAccountOf } from './accounts';
+import { placementConflict } from './dispatch-problems';
 import { accessSourceHosted } from './jobs';
 import { runnerReleaseOf } from './runner';
 import { runnerPauseOf } from './runner-pause';
@@ -228,6 +229,10 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       // #687 (ADR 0009 d.3): a default that would reach a subscription project's hosted runner is refused in the write.
       if (written === 'access-source-hosted') {
         return accessSourceHosted(c);
+      }
+      // #695 item 2: a pinned/failover default would reach a project on GitHub Actions that follows the default.
+      if (written === 'placement-machine-bound') {
+        return placementConflict(c, 'policy');
       }
       const dto: RunnerPolicyDto = { policy: value, effective: effectivePolicyOf(json, null) };
       return c.json(dto);

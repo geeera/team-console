@@ -44,6 +44,14 @@ export const INSTALLATION_LIST_PERMISSIONS: Readonly<Record<string, 'read'>> = O
   metadata: 'read',
 });
 
+/**
+ * #670 (ADR 0008 item 9, owner decision 1 on #573): the one write the console's app token ever carries, minted per
+ * dispatch for one repository by id and never cached, stored or logged.
+ */
+export const ACTIONS_DISPATCH_PERMISSIONS: Readonly<Record<string, 'write'>> = Object.freeze({
+  actions: 'write',
+});
+
 // GitHub tolerates little clock drift: backdate iat, and keep exp under the 10-minute maximum.
 const JWT_BACKDATE_S = 60;
 const JWT_LIFETIME_S = 9 * 60;
@@ -194,10 +202,14 @@ function isMintedToken(value: unknown): value is MintedToken {
  * either is fine for a `metadata`-only token; its permissions still have to be exactly `metadata: read`.
  */
 interface MintExpectation {
-  readonly permissions: Readonly<Record<string, 'read'>>;
+  readonly permissions: Readonly<Record<string, 'read' | 'write'>>;
   readonly repositorySelections: readonly string[];
   /** #317: the one repository a repository token must be for; `null` for the installation-wide list token. */
   readonly repository: RepoName | null;
+  /** #670: the one repository, by id, an Actions dispatch token must be for. */
+  readonly repositoryId?: number;
+  /** #670: an echoed `metadata: read` (implicit on every app token) is not counted as a broader scope. */
+  readonly toleratesMetadata?: boolean;
 }
 
 function repoMint(repository: RepoName): MintExpectation {
@@ -228,7 +240,11 @@ function isDownscopedAsRequested(
   if (typeof body.permissions !== 'object' || body.permissions === null || Array.isArray(body.permissions)) {
     return false;
   }
-  const received = body.permissions as Record<string, unknown>;
+  const received = { ...(body.permissions as Record<string, unknown>) };
+  // Every app token can read metadata; GitHub may echo it on a token that did not ask for it, which is no broader.
+  if (expected.toleratesMetadata === true && received['metadata'] === 'read') {
+    delete received['metadata'];
+  }
   const wantedKeys = Object.keys(expected.permissions);
   if (Object.keys(received).length !== wantedKeys.length) {
     return false;
@@ -253,6 +269,15 @@ function coversOnly(repositories: unknown, repo: RepoName): boolean {
   return typeof fullName === 'string' && fullName.toLowerCase() === repo.fullName.toLowerCase();
 }
 
+/** #670: the dispatch token lists exactly the one repository it was minted for, by id. */
+function coversOnlyId(repositories: unknown, repositoryId: number): boolean {
+  if (!Array.isArray(repositories) || repositories.length !== 1) {
+    return false;
+  }
+  const [entry] = repositories as unknown[];
+  return typeof entry === 'object' && entry !== null && (entry as Record<string, unknown>)['id'] === repositoryId;
+}
+
 type MintVerdict =
   | { readonly accepted: true; readonly entry: CachedToken }
   | { readonly accepted: false; readonly detail: string };
@@ -272,6 +297,9 @@ function judgeMint(minted: unknown, expected: MintExpectation): MintVerdict {
     };
   }
   if (expected.repository !== null && !coversOnly(minted.repositories, expected.repository)) {
+    return { accepted: false, detail: 'GitHub minted a token for other repositories than the one requested' };
+  }
+  if (expected.repositoryId !== undefined && !coversOnlyId(minted.repositories, expected.repositoryId)) {
     return { accepted: false, detail: 'GitHub minted a token for other repositories than the one requested' };
   }
   return { accepted: true, entry: { token: minted.token, expiresAt } };
@@ -482,6 +510,29 @@ export class GitHubAppAuth {
       { repositories: [repo.name], permissions: INSTALLATION_PERMISSIONS },
       repoMint(repo),
     );
+  }
+
+  /**
+   * #670: a token for `workflow_dispatch` on one repository — `repository_ids: [repositoryId]`, `actions: write` and
+   * nothing else, checked like `mintForRepo` (exact permissions, `selected`, that one repository by id) and refused
+   * and revoked otherwise. Never cached: the caller makes its one call with it and drops it (it lives an hour at
+   * GitHub at most). `installationId` is the project's own, linked to its account, never looked up by name, so a
+   * project cannot dispatch through another account's installation. An installation without the permission makes
+   * GitHub answer 422, thrown as 502 `github-unexpected` with that status.
+   */
+  async mintForActionsDispatch(installationId: number, repositoryId: number): Promise<string> {
+    const minted = await this.mint(
+      installationId,
+      { repository_ids: [repositoryId], permissions: ACTIONS_DISPATCH_PERMISSIONS },
+      {
+        permissions: ACTIONS_DISPATCH_PERMISSIONS,
+        repositorySelections: ['selected'],
+        repository: null,
+        repositoryId,
+        toleratesMetadata: true,
+      },
+    );
+    return minted.token;
   }
 
   /** No `repositories` member — that is what makes it installation-wide — hence `metadata` and nothing else. */

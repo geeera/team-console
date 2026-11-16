@@ -6,9 +6,12 @@ import {
   isRunnerDto,
   isRunnerListDto,
   isRunnerPolicyDto,
+  isProjectDispatchDto,
   type AccountMembershipDto,
   type CreateEnrolmentCodeInput,
   type EnrolmentCodeDto,
+  type ProjectDispatch,
+  type ProjectDispatchDto,
   type RunnerDto,
   type RunnerListDto,
   type RunnerPolicy,
@@ -34,6 +37,10 @@ export function runnerUrl(accountId: string, runnerId: string): string {
 
 export function projectRunnerPolicyUrl(slug: string): string {
   return `/api/v1/projects/${encodeURIComponent(slug)}/runner-policy`;
+}
+
+export function projectDispatchUrl(slug: string): string {
+  return `/api/v1/projects/${encodeURIComponent(slug)}/dispatch`;
 }
 
 /** Where a placement policy is read and written: the account default or one project's own. */
@@ -106,6 +113,16 @@ export class RunnersApi {
     const body = policy === null ? 'null' : JSON.stringify(policy);
     const headers = new HttpHeaders({ 'Content-Type': 'application/json' });
     return this.call(this.http.put<unknown>(policyUrlOf(scope), body, { headers }), isRunnerPolicyDto);
+  }
+
+  /** How the project's jobs reach a runner (#670): `pull`, or a GitHub Actions run per job. */
+  dispatch(slug: string): Promise<RunnerResult<ProjectDispatchDto>> {
+    return this.call(this.http.get<unknown>(projectDispatchUrl(slug)), isProjectDispatchDto);
+  }
+
+  /** The owner's switch; the Worker reads the default branch from GitHub itself. */
+  setDispatch(slug: string, dispatch: ProjectDispatch): Promise<RunnerResult<ProjectDispatchDto>> {
+    return this.call(this.http.put<unknown>(projectDispatchUrl(slug), { dispatch }), isProjectDispatchDto);
   }
 
   private async call<T>(request: Observable<unknown>, is: (value: unknown) => value is T): Promise<RunnerResult<T>> {

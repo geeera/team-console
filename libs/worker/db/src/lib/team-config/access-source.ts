@@ -38,6 +38,23 @@ export function actionsDispatchSql(slug: string): string {
 }
 
 /**
+ * The dispatch side of `subscriptionHostedSql` (#706): true when switching the project to `dispatch` would give a
+ * `subscription` project an Actions path. `slug` and `dispatch` are SQL expressions.
+ */
+export function subscriptionActionsSql(slug: string, dispatch: string): string {
+  return `(${dispatch} = 'actions' AND (SELECT sp.access_source FROM projects sp WHERE sp.slug = ${slug}) = 'subscription')`;
+}
+
+/**
+ * Placement and Actions dispatch (#695 item 2): `pinned` and `failover` name the machines a project's jobs must run
+ * on, which a GitHub-hosted VM never is, so they never hold together with `dispatch = 'actions'`. True when `policy`
+ * (an SQL expression; NULL means `any`) is one of them.
+ */
+export function machineBoundPolicySql(policy: string): string {
+  return `(${policy} IS NOT NULL AND json_extract(${policy}, '$.mode') IN ('pinned', 'failover'))`;
+}
+
+/**
  * True when a project with `source` would have a hosted or Actions path: `source` must then not be `subscription`.
  * The team-config save judges both halves. A placement write judges only the hosted half (it cannot change dispatch);
  * the dispatch switch (#670) needs the reverse: `actions` refused while the project's source is `subscription`.

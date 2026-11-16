@@ -172,6 +172,13 @@ const ROWS: readonly Row[] = [
     }),
     expect: (who) => (who === 'owner' ? ok(200) : refused('owner-only')),
   },
+  // #670: the account reads the dispatch, the owner switches it (`pull` here: no GitHub call).
+  accountReads(`GET ${P}/:slug/dispatch`, async (project) => `${P}/${project.slug}/dispatch`),
+  {
+    route: `PUT ${P}/:slug/dispatch`,
+    setup: async (project) => ({ method: 'PUT', path: `${P}/${project.slug}/dispatch`, body: { dispatch: 'pull' } }),
+    expect: (who) => (who === 'owner' ? ok(200) : refused('owner-only')),
+  },
   reads(`GET ${P}/:slug/items`, async (project) => `${P}/${project.slug}/items`),
   reads(`GET ${P}/:slug/items/:key`, async (project) => (await item(project)).path),
   reads(`GET ${P}/:slug/items/:key/events`, async (project) => `${(await item(project)).path}/events`),
@@ -405,7 +412,7 @@ describe('the route matrix covers the tracker', () => {
         .routes.filter(
           (route) =>
             route.method !== 'ALL' &&
-            /^\/api\/v1\/projects\/:slug\/(items|sprints|labels|prs|requests|decisions|jobs|runner-policy|team-config)\b/.test(
+            /^\/api\/v1\/projects\/:slug\/(items|sprints|labels|prs|requests|decisions|jobs|runner-policy|team-config|dispatch)\b/.test(
               route.path,
             ),
         )
@@ -464,6 +471,9 @@ const OWNER_ROWS: readonly TrackerRoute[] = [
   `PUT ${P}/:slug/team-config`,
   `POST ${P}/:slug/team-config/reset`,
   `POST ${P}/:slug/team-config/import`,
+  // #670: the dispatch is the account's to read and the owner's to switch.
+  `GET ${P}/:slug/dispatch`,
+  `PUT ${P}/:slug/dispatch`,
 ];
 const PLANNING_ROWS: readonly TrackerRoute[] = [
   `POST ${P}/:slug/sprints`,

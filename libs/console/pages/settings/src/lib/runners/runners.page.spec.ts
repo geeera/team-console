@@ -56,6 +56,8 @@ describe('RunnersPage (/settings/runners, #464)', () => {
       list: vi.fn(async () => list()),
       policy: vi.fn(async () => ({ ok: true, value: { policy: null, effective: { mode: 'any' } } })),
       setPolicy: vi.fn(),
+      dispatch: vi.fn(async () => ({ ok: true, value: { dispatch: 'pull', defaultBranch: null } })),
+      setDispatch: vi.fn(),
     };
     const enrol = { open: vi.fn(async () => true) };
     const manage = {
@@ -120,6 +122,11 @@ describe('RunnersPage (/settings/runners, #464)', () => {
     picker.dispatchEvent(new Event('change'));
     await settle();
     expect(api.policy).toHaveBeenCalledWith({ kind: 'project', slug: 'storify' });
+    // #670: the picked project's dispatch, read for the same project.
+    expect(find('runners-dispatch')?.querySelector('tc-project-dispatch-editor')).not.toBeNull();
+    expect(find('runners-dispatch')?.querySelector('h4')?.textContent?.trim()).toBe('Где выполнять задания');
+    expect(api.dispatch).toHaveBeenCalledWith('team-console');
+    expect(api.dispatch).toHaveBeenCalledWith('storify');
   });
 
   it('shows the empty state with the enrolment call to action, which opens enrolment for the account', async () => {

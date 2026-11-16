@@ -132,6 +132,9 @@ export const TRACKER_MATRIX = {
   [`GET ${P}/runner-policy`]: READ,
   [`POST ${P}/jobs`]: OWNER_ONLY('Run now is the owner’s'),
   [`PUT ${P}/runner-policy`]: OWNER_ONLY('Placement is the owner’s'),
+  // #670: pull or GitHub Actions; the account reads it, the owner switches it (it spends the owner's Actions minutes).
+  [`GET ${P}/dispatch`]: ACCOUNT_READ('How the project’s jobs run is read by the account'),
+  [`PUT ${P}/dispatch`]: OWNER_ONLY('Dispatch is the owner’s'),
   // #687 (ADR 0009 d.9, threat model C12): the account reads the document and its history; a job reads only its own
   // resolved view; every write is the owner's.
   [`GET ${P}/team-config`]: ACCOUNT_READ('The team configuration is read by the account; a job reads its resolved view'),

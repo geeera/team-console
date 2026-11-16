@@ -2171,7 +2171,25 @@
       "policy": "The console didn't accept the placement rule. Check the fields.",
       "policyRunner": "The rule names a runner that is revoked or not this account's. Choose another.",
       "notSuspect": "The runner is no longer marked. Refresh the list.",
-      "enrolmentGone": "This code is already used, expired or withdrawn. Refresh the list."
+      "enrolmentGone": "This code is already used, expired or withdrawn. Refresh the list.",
+      "accessSourceHosted": "This project runs on a subscription, and a subscription never goes to GitHub Actions or a hosted runner. Switch its access source to an API key first.",
+      "placementConflict": "A project on GitHub Actions can't be pinned to a runner or fail over: GitHub's machines are not on that list. Choose “Any runner” first.",
+      "repositoryUnverified": "The console couldn't confirm the project's repository on GitHub. Check that the app is installed on it."
+    },
+    "dispatch": {
+      "title": "Where jobs run",
+      "lead": "Your runner takes the project's jobs, or GitHub Actions runs them in the project's repository — then no machine has to stay on.",
+      "loading": "Loading how jobs run…",
+      "mode": "How jobs start",
+      "pull": "On your runners",
+      "pullHint": "A job waits in the queue until a runner allowed on the project takes it.",
+      "actions": "On GitHub Actions",
+      "actionsHint": "The console starts the team-console-runner.yml workflow in the repository for every job. Jobs marked “own machine only” still wait for your runner.",
+      "minutes": "GitHub Actions minutes are your spend: they are billed to your GitHub account on its plan, and the model is paid with your API key from the team-console environment.",
+      "branch": "Default branch on GitHub: {{ branch }}",
+      "save": "Save",
+      "busy": "Saving…",
+      "saved": "How jobs run is saved"
     },
     "suspect": {
       "open": "Clear mark",

@@ -70,6 +70,8 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   // #467: Run now and placement, owner rows of the matrix (the service is refused there like on every tracker write).
   'POST /api/v1/projects/:slug/jobs': 'tracker-matrix',
   'PUT /api/v1/projects/:slug/runner-policy': 'tracker-matrix',
+  // #670: the dispatch switch, an owner-only row of the matrix.
+  'PUT /api/v1/projects/:slug/dispatch': 'tracker-matrix',
   // #687 (ADR 0009 d.9, threat model C12 row 1): the team configuration's writes, owner-only rows of the matrix.
   'PUT /api/v1/projects/:slug/team-config': 'tracker-matrix',
   'POST /api/v1/projects/:slug/team-config/reset': 'tracker-matrix',

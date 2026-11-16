@@ -20,6 +20,7 @@ import {
 } from '@console/entities/runner';
 import { EnrolRunner } from '@console/features/enrol-runner';
 import { ManageRunner } from '@console/features/manage-runner';
+import { ProjectDispatchEditor } from '@console/features/project-dispatch';
 import { RunnerPolicyEditor } from '@console/features/runner-policy';
 import { LocalTimePipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, Field, FieldControl, Icon, StateBlock } from '@console/shared/ui';
@@ -28,7 +29,8 @@ import type { PendingEnrolmentDto, RunnerDto } from '@shared/contracts';
 /**
  * `/settings/runners` (#464, ADR 0008 row 2-E part A): the account's runners — enrol a new one with a one-time
  * code, see each one's backend, version, presence and host, change the projects it may serve, revoke it — and the
- * placement policy, as the account default and per project. Owner-of-account only: anyone else is told so.
+ * placement policy, as the account default and per project, and per project whether its jobs run on these runners or
+ * on GitHub Actions (#670). Owner-of-account only: anyone else is told so.
  */
 @Component({
   selector: 'tc-runners-page',
@@ -38,6 +40,7 @@ import type { PendingEnrolmentDto, RunnerDto } from '@shared/contracts';
     FieldControl,
     Icon,
     LocalTimePipe,
+    ProjectDispatchEditor,
     RouterLink,
     RunnerCard,
     RunnerPolicyEditor,

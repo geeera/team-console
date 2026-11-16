@@ -1,0 +1,27 @@
+.dispatch {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.dispatch__note {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.dispatch__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dispatch__saved {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--success-text);
+}

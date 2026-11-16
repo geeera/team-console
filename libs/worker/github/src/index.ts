@@ -1,4 +1,6 @@
+export { dispatchRunnerWorkflow } from './lib/actions-dispatch';
 export {
+  ACTIONS_DISPATCH_PERMISSIONS,
   GitHubAppAuth,
   INSTALLATION_LIST_PERMISSIONS,
   INSTALLATION_PERMISSIONS,
