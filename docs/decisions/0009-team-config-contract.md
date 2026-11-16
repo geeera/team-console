@@ -91,7 +91,7 @@ unless #631 says otherwise):
 | `architect`, `dev-heavy` | Opus 5.5 | Fable 5.1 | Fable 5.1 |
 | `dev` | Sonnet 5 | Opus 5.5 | Fable 5.1 |
 | `orchestrator`, `pm`, `qa`, `ux-designer`, `ui-designer` | Sonnet 5 | Opus 5.5 | Opus 5.5 |
-| `security` | Sonnet 5 | Opus 5.5 | Opus 5.5 (never Fable) |
+| `security` | Opus 5.5 (never Fable) | Opus 5.5 | Opus 5.5 (never Fable) |
 | `dev-light`, `reviewer`, `devops`, `analyst` | Sonnet 5 | Sonnet 5 | Opus 5.5 |
 | `scribe` | Haiku 4.5 | Haiku 4.5 | Sonnet 5 |
 
