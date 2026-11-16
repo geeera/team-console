@@ -61,6 +61,7 @@ describe('git config refusal table', () => {
     ['gpg.program', '/tmp/gpg.sh'],
     ['gpg.ssh.program', '/tmp/ssh-keygen.sh'],
     ['diff.bin.textconv', '/tmp/textconv.sh'],
+    ['diff.bin.command', '/tmp/diff-command.sh'],
     ['merge.evil.driver', '/tmp/merge.sh %O %A %B'],
     ['submodule.sub.update', '!/tmp/update.sh'],
   ])('refuses %s', async (key, value) => {

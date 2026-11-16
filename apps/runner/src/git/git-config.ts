@@ -88,6 +88,7 @@ export const REFUSED_GIT_KEYS: readonly RefusedKeyRule[] = [
   { label: 'http.proxy', test: (key) => lower(key) === 'http.proxy' || isSubsectionKey(key, 'http', 'proxy') },
   { label: 'gpg.*program', test: (key) => lower(key) === 'gpg.program' || isSubsectionKey(key, 'gpg', 'program') },
   { label: 'diff.*.textconv', test: (key) => isSubsectionKey(key, 'diff', 'textconv') },
+  { label: 'diff.*.command', test: (key) => isSubsectionKey(key, 'diff', 'command') },
   { label: 'merge.*.driver', test: (key) => isSubsectionKey(key, 'merge', 'driver') },
   { label: 'submodule.*.update', test: (key) => isSubsectionKey(key, 'submodule', 'update') },
 ];
