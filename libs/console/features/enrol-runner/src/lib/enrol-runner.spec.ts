@@ -97,7 +97,7 @@ describe('EnrolRunnerDialog (#464)', () => {
     expect(find('enrol-code')).not.toBeNull();
     expect(root.querySelector('form')).toBeNull();
     expect(root.querySelector('[data-testid="copy-code-text"]')?.textContent).toBe(
-      `team-console-runner enrol --url https://team-console-dev.example.dev --code ${CODE}`,
+      `TC_ENROL_CODE=${CODE} team-console-runner enrol --url https://team-console-dev.example.dev`,
     );
     expect(root.textContent).toContain('Код показывается только один раз');
     expect(find('enrol-expiry')?.textContent).toMatch(/Код действует до \d{2}:\d{2} \(10 минут\)/);
