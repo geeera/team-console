@@ -641,6 +641,50 @@ describe('rate limits, as for enrol', () => {
     expect(outcome.realDelta).toEqual({ verified: 1, unverified: 0 });
   });
 
+  // #729 security review: GitHub signs a token for any repository, so a signed token spends the verified budget only
+  // once it is tied to the job's registered repository; an unknown job or a foreign repository is junk.
+  it('answers a real exchange after a full minute of signed tokens for unknown jobs and foreign repositories', async () => {
+    const counts = async () => ({ verified: await rateBucketCount('oidc:verified'), unverified: await rateBucketCount('oidc:unverified') });
+    const outcome = await inOneRateWindow(async () => {
+      const project = await seedActionsProject();
+      const jobId = await seedActionsJob(project);
+      return withRateBucketAt('oidc:unverified', 0, async () => {
+        const before = await counts();
+        const refusals = new Map<string, number>();
+        for (let attempt = 0; attempt < OIDC_EXCHANGE_RATE_LIMIT_UNVERIFIED_PER_MINUTE; attempt += 1) {
+          const { response } =
+            attempt % 2 === 0
+              ? await exchange(project, jobId, (claims) => ({ ...claims, repository_id: String(900000 + attempt) }))
+              : await exchange(project, '01M6YSNJ0000000000000N0NE2');
+          const refusal = await refusalOf(response);
+          const key = `${String(refusal.status)}:${String(refusal.claim)}`;
+          refusals.set(key, (refusals.get(key) ?? 0) + 1);
+        }
+        const full = await counts();
+        const foreign = await refusalOf((await exchange(project, jobId, (claims) => ({ ...claims, repository_id: '424242' }))).response);
+        const unknownJob = await refusalOf((await exchange(project, '01M6YSNJ0000000000000N0NE2')).response);
+        const real = (await exchange(project, jobId)).response.status;
+        const after = await counts();
+        return {
+          refusals: Object.fromEntries(refusals),
+          floodDelta: { verified: full.verified - before.verified, unverified: full.unverified - before.unverified },
+          foreign,
+          unknownJob,
+          real,
+          realDelta: after.verified - full.verified,
+        };
+      });
+    });
+    const half = OIDC_EXCHANGE_RATE_LIMIT_UNVERIFIED_PER_MINUTE / 2;
+    expect(outcome.refusals).toEqual({ '401:repository_id': half, '401:job_id': half });
+    expect(outcome.floodDelta).toEqual({ verified: 0, unverified: OIDC_EXCHANGE_RATE_LIMIT_UNVERIFIED_PER_MINUTE });
+    // Over the junk limit both answer alike, so the 429 tells nothing about which jobs or repositories exist.
+    expect(outcome.foreign).toMatchObject({ status: 429, slug: 'rate-limited' });
+    expect(outcome.unknownJob).toMatchObject({ status: 429, slug: 'rate-limited' });
+    expect(outcome.real).toBe(200);
+    expect(outcome.realDelta).toBe(1);
+  });
+
   it('still floors real exchanges for the environment, and junk keeps its own answer then', async () => {
     const outcome = await inOneRateWindow(async () => {
       const project = await seedActionsProject();

@@ -19,7 +19,7 @@ import {
   type WorkerHonoEnv,
 } from '@worker/core';
 import { JobsRepo, type NewAuditEvent } from '@worker/db';
-import { actionsClaimRefusalOf, repositoryIdOf, verifyActionsOidcToken } from '../auth/actions-oidc';
+import { actionsClaimRefusalOf, isTargetRepository, repositoryIdOf, verifyActionsOidcToken } from '../auth/actions-oidc';
 import { DoorRateLimits, type DoorLimitScope } from '../auth/door-rate-limits';
 import { sightingOf } from '../auth/runner-auth';
 import type { ApiEnv } from '../env';
@@ -115,6 +115,16 @@ export function createRunnerOidcRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
     if (repositoryId === null) {
       return junk(() => refused(c, logger, 'repository_id', 401, value.jobId));
     }
+    // GitHub signs a token for any repository and any audience (#729 security review): only a token tied to the job's
+    // registered repository may spend the verified budget, so an unknown job or a foreign repository is junk too.
+    const jobs = new JobsRepo(c.env.DB);
+    const target = await jobs.findActionsTarget(value.jobId);
+    if (target === null) {
+      return junk(() => refused(c, logger, 'job_id', 401, value.jobId));
+    }
+    if (!isTargetRepository(claims, target)) {
+      return junk(() => refused(c, logger, 'repository_id', 401, value.jobId));
+    }
     if (!(await limits.hit(`repo:${repositoryId}`, OIDC_EXCHANGE_RATE_LIMIT_PER_REPOSITORY_PER_MINUTE))) {
       return rateLimited(c, logger, 'repository', limits);
     }
@@ -122,11 +132,6 @@ export function createRunnerOidcRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       return rateLimited(c, logger, 'verified', limits);
     }
 
-    const jobs = new JobsRepo(c.env.DB);
-    const target = await jobs.findActionsTarget(value.jobId);
-    if (target === null) {
-      return refused(c, logger, 'job_id', 401, value.jobId);
-    }
     const claim = actionsClaimRefusalOf(claims, target);
     if (claim !== null) {
       return refused(c, logger, claim, 401, value.jobId);
