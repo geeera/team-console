@@ -275,7 +275,7 @@ async function planUser(options: InstallOptions, host: InstallHost): Promise<Ins
   return {
     steps,
     next: [
-      `1. Enrol: ${runner} ${options.node} ${bundleOf(options.prefix)} enrol --url <console origin> --code <tce_… from Settings › Runners> --backend user --credential setup-token`,
+      `1. Enrol: ${runner} ${options.node} ${bundleOf(options.prefix)} enrol --url <console origin> --backend user --credential setup-token --code - (paste the tce_… code from Settings › Runners at the prompt; never as an argument, #582)`,
       `2. Claude credential: sudo -u ${RUNNER_USER} sh -c 'umask 077; HOME=${home} exec claude setup-token', then store the token it prints: sudo -u ${RUNNER_USER} sh -c 'umask 077; cat > ${home}/credentials/claude-setup-token' (paste, then Ctrl-D)`,
       `3. Start: sudo launchctl bootstrap system ${LAUNCH_DAEMON_PATH}`,
     ],
@@ -332,7 +332,7 @@ async function planContainer(options: InstallOptions, host: InstallHost): Promis
   return {
     steps,
     next: [
-      `1. Enrol: TC_RUNNER_HOME=${home} ${options.node} ${bundleOf(options.prefix)} enrol --url <console origin> --code <tce_…> --backend container --image ${options.image} --credential api-key (or --credential claude-config-dir --claude-config-dir <path>)`,
+      `1. Enrol: TC_ENROL_CODE=<tce_… from Settings › Runners> TC_RUNNER_HOME=${home} ${options.node} ${bundleOf(options.prefix)} enrol --url <console origin> --backend container --image ${options.image} --credential api-key (or --credential claude-config-dir --claude-config-dir <path>)`,
       '2. Credential: put the Anthropic API key in <home>/credentials/anthropic.key (0600), or skip for claude-config-dir',
       `3. Start: ${start}`,
     ],

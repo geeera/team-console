@@ -472,6 +472,6 @@ criterion of the phase issue above; #408's "Mitigations by phase" is the checkli
 - Per-slot job users (`_tcjob1…n`) or a Linux VM/container for jobs on the Mac (the threat model's L4) — needed
   before `max_concurrency > 1`; sequential persistence in the shared `_tcjob` user is handled now by the
   cross-job isolation criteria ("Run"), not deferred. Storing the runner's keys in the macOS Keychain instead of
-  0600 files.
+  0600 files (#585).
 - GitLab-specific CI (pipelines) and approvals beyond what `VcsAdapter` expresses.
 - A native runner UI on the Mac (menu bar); the console is the UI.

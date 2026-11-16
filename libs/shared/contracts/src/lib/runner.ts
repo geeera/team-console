@@ -392,16 +392,20 @@ export const RUNNER_BINARY = 'team-console-runner';
 const ENROLMENT_API_URL = /^https?:\/\/[A-Za-z0-9.-]+(?::[0-9]{1,5})?$/;
 const ENROLMENT_CODE_SHAPE = /^[a-z]{2,8}_[A-Za-z0-9_-]{16,128}$/;
 
+/** The variable the runner's `enrol` reads the one-time code from (#582). */
+export const ENROL_CODE_ENV = 'TC_ENROL_CODE';
+
 /**
- * The one command Settings › Runners shows beside a fresh code (#464): `enrol --url <origin> --code <code>`; the
- * runner's `enrol` (2-B) takes the same two flags. `null` when either part could carry a shell metacharacter, so a
- * surprising answer is never offered for pasting into a terminal.
+ * The one command Settings › Runners shows beside a fresh code (#464): `TC_ENROL_CODE=<code> enrol --url <origin>`.
+ * The code goes in the command's environment, not its argv, where any local user reads it with `ps` while enrol
+ * runs (#582). `null` when either part could carry a shell metacharacter, so a surprising answer is never offered
+ * for pasting into a terminal.
  */
 export function enrolCommandOf(enrolment: Pick<EnrolmentCodeDto, 'apiUrl' | 'code'>): string | null {
   if (!ENROLMENT_API_URL.test(enrolment.apiUrl) || !ENROLMENT_CODE_SHAPE.test(enrolment.code)) {
     return null;
   }
-  return `${RUNNER_BINARY} enrol --url ${enrolment.apiUrl} --code ${enrolment.code}`;
+  return `${ENROL_CODE_ENV}=${enrolment.code} ${RUNNER_BINARY} enrol --url ${enrolment.apiUrl}`;
 }
 
 export function isRunnerReleaseDto(value: unknown): value is RunnerReleaseDto {

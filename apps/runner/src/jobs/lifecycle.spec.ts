@@ -101,15 +101,73 @@ describe('job lifecycle', () => {
 
   it('kills the CLI at maxMinutes and finishes it failed', async () => {
     const client = recordingConsole();
+    // Arm the deadline off the backend's `launch` resolving instead of a wall-clock margin: under CPU
+    // contention the setup phase (mirror sync, clone, env build) can outrun any fixed margin and the
+    // deadline fires before a process exists to kill, losing the `signal` this test checks for (#594).
+    let fireDeadline: (() => void) | null = null;
+    class LaunchThenDeadline extends NoneBackend {
+      override async launch(
+        ...args: Parameters<NoneBackend['launch']>
+      ): ReturnType<NoneBackend['launch']> {
+        const launched = await super.launch(...args);
+        fireDeadline?.();
+        return launched;
+      }
+    }
     const started = Date.now();
     const report = await runJob(
       job(SCENARIO.hang, 1),
       sentinels.jobToken,
-      depsFor(client, { minuteMs: 1_500 }),
+      depsFor(client, {
+        backend: new LaunchThenDeadline(fixture.home),
+        armDeadline: (fire) => {
+          fireDeadline = fire;
+          return () => {
+            fireDeadline = null;
+          };
+        },
+      }),
     );
     expect(Date.now() - started).toBeLessThan(15_000);
     expect(report).toMatchObject({ result: 'failed', reason: 'max-minutes' });
     expect(client.finished[0]?.metrics).toMatchObject({ reason: 'max-minutes', signal: 'SIGTERM' });
+  }, 30_000);
+
+  it('kills the CLI at maxMinutes through the default deadline timer (#663)', async () => {
+    // The spec above overrides `armDeadline`; this one exercises the real `setTimeout`/`clearTimeout`
+    // default and `stop()`'s kill-of-a-running-process branch, with a fake clock so the wait is instant.
+    vi.useFakeTimers();
+    try {
+      const client = recordingConsole();
+      let launchedPid: number | null = null;
+      class RecordingLaunch extends NoneBackend {
+        override async launch(
+          ...args: Parameters<NoneBackend['launch']>
+        ): ReturnType<NoneBackend['launch']> {
+          const launched = await super.launch(...args);
+          launchedPid = launched.pid;
+          return launched;
+        }
+      }
+      const reportPromise = runJob(
+        job(SCENARIO.hang, 1),
+        sentinels.jobToken,
+        depsFor(client, { backend: new RecordingLaunch(fixture.home), minuteMs: 1_000 }),
+      );
+      // Fake timers don't block the real spawn; flush microtasks until it has actually launched.
+      while (launchedPid === null) {
+        await vi.advanceTimersByTimeAsync(0);
+      }
+      expect(isAlive(launchedPid)).toBe(true);
+      // One maxMinutes * minuteMs past launch: the default deadline timer fires stop('max-minutes').
+      await vi.advanceTimersByTimeAsync(1_010);
+      const report = await reportPromise;
+      expect(report).toMatchObject({ result: 'failed', reason: 'max-minutes' });
+      expect(client.finished[0]?.metrics).toMatchObject({ reason: 'max-minutes', signal: 'SIGTERM' });
+      expect(isAlive(launchedPid)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   }, 30_000);
 
   it('finishes a running job failed with runner-shutdown on Ctrl-C', async () => {
@@ -186,6 +244,10 @@ describe('job lifecycle', () => {
         };
       },
     });
+    let pausesAtFinish = -1;
+    client.onFinish = () => {
+      pausesAtFinish = client.pauses.length;
+    };
     const deps = depsFor(client);
     const end = await runLoop('once', {
       ...deps,
@@ -208,8 +270,9 @@ describe('job lifecycle', () => {
       pause: { reason: 'usage-limit', until: retryAt },
       limitStreak: 1,
     });
-    // Mirrored to the console (#571) once the job is finished.
+    // Mirrored to the console (#571) before the finish (#596), so the streak sees the pause backing the limit; once.
     expect(client.pauses).toEqual([{ reason: 'usage-limit', until: retryAt }]);
+    expect(pausesAtFinish).toBe(1);
 
     // A restart reads state.json and claims nothing until retryAt.
     const again = await runLoop('once', { ...deps, backend: new NoneBackend(fixture.home) });

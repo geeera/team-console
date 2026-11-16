@@ -161,6 +161,9 @@ export async function runLoop(mode: 'once' | 'loop', deps: LoopDeps): Promise<Lo
       now: deps.now,
       shutdown: deps.shutdown,
       limitStreak: state.limitStreak,
+      announcePause: async (limitPause) => {
+        mirrored = await mirrorPause(deps, limitPause, mirrored);
+      },
       ...deps.timing,
     });
     state = stateAfter(state, report);

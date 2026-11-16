@@ -232,7 +232,7 @@ describe('install --backend user (macOS)', () => {
       plan.steps.map((step, at) => `  ${String(at + 1)}. ${describeStep(step)}`),
     );
     expect(lines.join('\n')).toMatch(
-      /enrol --url <console origin> --code <tce_… from Settings › Runners> --backend user --credential setup-token/,
+      /enrol --url <console origin> --backend user --credential setup-token --code - \(paste the tce_… code/,
     );
     expect(lines.join('\n')).toMatch(/claude setup-token/);
     // Hosts queries only: dscl lists and nothing that changes the machine.

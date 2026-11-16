@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   OWNER_ACCOUNT_ID,
+  isAuditEventListDto,
   isEnrolmentCodeDto,
   isJobDto,
   isJobEventListDto,
@@ -34,9 +35,9 @@ describe('integration: Run now → runner → fake CLI → events and finish', (
   const out: string[] = [];
   const err: string[] = [];
 
-  const cli = (args: readonly string[]): Promise<number> =>
+  const cli = (args: readonly string[], env: Readonly<Record<string, string>> = {}): Promise<number> =>
     runCli(args, {
-      env: { TC_RUNNER_HOME: home, PATH: process.env['PATH'] },
+      env: { TC_RUNNER_HOME: home, PATH: process.env['PATH'], ...env },
       homeDir: home,
       host: { os: process.platform, arch: process.arch, hostname: 'integration.local' },
       fetch: (url, init) => fetch(url, init),
@@ -118,7 +119,8 @@ describe('integration: Run now → runner → fake CLI → events and finish', (
       throw new Error('no enrolment code');
     }
     expect(
-      await cli(['enrol', '--url', enrolment.apiUrl, '--code', enrolment.code, '--backend', 'none']),
+      // The documented path (#582): the code in the environment, never in argv.
+      await cli(['enrol', '--url', enrolment.apiUrl, '--backend', 'none'], { TC_ENROL_CODE: enrolment.code }),
     ).toBe(EXIT_OK);
     const enrolled = await loadRunnerConfig(home);
     const { toolchain, repositories } = runnerConfigFor(join(repoDir, 'repo'));
@@ -208,6 +210,23 @@ describe('integration: Run now → runner → fake CLI → events and finish', (
     const mirrored = list.runners.find((runner) => runner.id === enrolled.runnerId);
     console.info(`[pause] runner ${enrolled.runnerId} pause=${JSON.stringify(mirrored?.pause)}`);
     expect(mirrored?.pause).toEqual({ reason: 'usage-limit', until: retryAt });
+
+    // 8. #596: the pause reached the console before the finish, so the streak left the limit failure out — audited.
+    const audited = await fetch(`${stack.origin}/api/v1/accounts/${OWNER_ACCOUNT_ID}/audit?limit=100`);
+    const audit: unknown = await audited.json();
+    if (!isAuditEventListDto(audit)) {
+      throw new Error('the audit log did not answer an AuditEventListDto');
+    }
+    const excluded = audit.events.filter((event) => event.kind === 'job.streak-excluded');
+    console.info(`[streak] ${JSON.stringify(excluded)}`);
+    expect(excluded).toEqual([
+      expect.objectContaining({
+        actorKind: 'runner',
+        actor: enrolled.runnerId,
+        target: limitId,
+        details: { reason: 'usage-limit', slug: SLUG },
+      }),
+    ]);
     expect(err).toEqual([]);
   }, 120_000);
 });

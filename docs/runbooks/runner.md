@@ -88,8 +88,9 @@ What `--yes` does. It writes only these paths (decision 11, threat model C11):
 Then do these steps by hand. The installer never handles a code or a credential.
 
 1. Enrol. Create a one-time code on Settings › Runners, then run:
-   `sudo -u _tcrunner env HOME=/Users/_tcrunner TC_RUNNER_HOME=/Users/_tcrunner "$NODE" "$B" enrol --url <console> --code <tce_…> --backend user --credential setup-token`.
-   The code is valid for 10 minutes and works once.
+   `sudo -u _tcrunner env HOME=/Users/_tcrunner TC_RUNNER_HOME=/Users/_tcrunner "$NODE" "$B" enrol --url <console> --backend user --credential setup-token --code -`.
+   It asks for the code; paste it and press Enter. The code is valid for 10 minutes and works once. See
+   [The one-time code](#the-one-time-code) for why it is not an argument.
 2. Credential. Run `sudo -u _tcrunner sh -c 'umask 077; HOME=/Users/_tcrunner exec claude setup-token'`. Then store
    the token it prints with `sudo -u _tcrunner sh -c 'umask 077; cat > /Users/_tcrunner/credentials/claude-setup-token'`
    (paste the token, then Ctrl-D).
@@ -109,9 +110,9 @@ R=<prefix>/bin/team-console-runner
 
 Run these as the user the runner runs as, **not** with sudo. The installer pulls the image by digest. It creates
 `TC_RUNNER_HOME` at 0700. It writes a systemd user unit (`~/.config/systemd/user/team-console-runner.service`) or a
-LaunchAgent (`~/Library/LaunchAgents/com.team-console.runner.plist`). Then enrol with `"$R" enrol --url <console>
---code <tce_…> --backend container --image <same ref> --credential api-key|claude-config-dir [--claude-config-dir
-<dir>]`.
+LaunchAgent (`~/Library/LaunchAgents/com.team-console.runner.plist`). Then enrol with `TC_ENROL_CODE=<tce_…> "$R" enrol
+--url <console> --backend container --image <same ref> --credential api-key|claude-config-dir [--claude-config-dir
+<dir>]` (or `--code -` to paste the code at a prompt; see [The one-time code](#the-one-time-code)).
 
 Each job runs in its own `--rm` container from that image:
 
@@ -120,6 +121,20 @@ Each job runs in its own `--rm` container from that image:
 - The clone is the only writable mount. The socket directory, the plugin, the managed settings and a
   `claude-config-dir` are mounted read-only. `TC_RUNNER_HOME` is never mounted.
 - The job's environment reaches it on stdin, never as `-e`.
+
+## The one-time code (#582)
+
+`enrol` reads the code from one of three places. Never pass it as an argument on a shared host:
+
+- `TC_ENROL_CODE=<tce_…> team-console-runner enrol --url <console> --backend …` is the command Settings › Runners
+  shows. The variable is in the process's environment, which only its own user and root can read.
+- `--code -` reads one line of stdin. On a terminal it prompts first. Use it under `sudo`, which drops the caller's
+  environment, or pipe the code in from a file: `… enrol … --code - < code.txt`.
+- `--code <tce_…>` still works, for scripts and fixtures. Any local user can read an argument with `ps` while enrol
+  runs, up to its 30 s timeout. Someone who races the request can enrol their own key with your code.
+
+Giving both `--code` and `TC_ENROL_CODE` is a usage error. The command never prints the code. A typed or pasted code
+stays in your shell history, but it is spent by then.
 
 ## Credentials: a location or a token, and how to revoke each (RR11, decision 5)
 
@@ -139,7 +154,11 @@ When the Claude CLI reports a usage or rate limit, the runner finishes that job 
 time and stops claiming. The pause lasts until the CLI's reset time when the CLI gives one. Otherwise the back-off is
 5 → 10 → 20 → 60 minutes, and a successful job resets it. The pause is kept in `TC_RUNNER_HOME/state.json`, so a
 restart honours it. It is mirrored to the console. Settings › Runners and the board tile show "paused until …", and the
-console's claim skips the runner until that time. A limit failure does not count towards the failure streak.
+console's claim skips the runner until that time. The runner posts the pause before it finishes the job, and a limit
+failure does not count towards the failure streak only while the console holds that pause (#596): a limit failure
+from a runner with no pause on the console counts like any other, and three in a row pause the project. Each left-out
+failure is in the audit log as `job.streak-excluded`. A runner older than this change finishes first and pauses
+second, so its limit failures count.
 
 The pause lifts by itself. Stage A has no manual resume. Do not delete or edit `state.json`: the runner refuses one
 it cannot read, and the console keeps its own copy of the pause until the time it was given. An unknown failure is

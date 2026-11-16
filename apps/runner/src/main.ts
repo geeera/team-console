@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runJobExec } from './backends/job-exec';
 import { runCli } from './cli/cli';
+import { stdinCodeReader } from './cli/enrol-code';
 
 if (process.argv[2] === 'job-exec') {
   // The job side of `user`/`container` (`bin/job-exec run`): no runner state, none of the runner's signal handling.
@@ -35,6 +36,7 @@ if (process.argv[2] === 'job-exec') {
     stdout: (line) => process.stdout.write(`${line}\n`),
     stderr: (line) => process.stderr.write(`${line}\n`),
     shutdown: shutdown.signal,
+    readCodeLine: stdinCodeReader(process.stdin, (text) => process.stderr.write(text)),
     // `bin/job-exec` sits next to the bundle (the release tarball and the image keep that layout).
     prefix: dirname(fileURLToPath(import.meta.url)),
   });
