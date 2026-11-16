@@ -25,12 +25,38 @@ import { createPrivateSandbox, jobsRootOf } from './sandbox';
 
 const KILL_GRACE_MS = 3_000;
 
+/**
+ * `ESRCH`: nothing at that pid (or process group) any more. `EPERM`: something is, but it is not ours — under
+ * load the OS can recycle a pid for an unrelated process between our grace period and the next signal, and if
+ * that process belongs to another user the kernel's permission check refuses the signal before it is ever
+ * delivered (#702). Either way there is nothing here that is ours to touch, so both are "not found" to every
+ * caller below. This does *not* cover the pid being recycled for a process of our *own* uid: that send would
+ * succeed with no error at all, and no error code can tell it apart from the real target — `kill()` below
+ * narrows that window instead of trying to detect it.
+ */
+function isNotOurs(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && (error.code === 'ESRCH' || error.code === 'EPERM');
+}
+
 function signalGroup(pid: number, signal: NodeJS.Signals): boolean {
   try {
     process.kill(-pid, signal);
     return true;
   } catch (error: unknown) {
-    if (error instanceof Error && 'code' in error && error.code === 'ESRCH') {
+    if (isNotOurs(error)) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/** Whether the process group `pid` names still has a member, checked with signal 0: no delivery, no side effect. */
+function groupAlive(pid: number): boolean {
+  try {
+    process.kill(-pid, 0);
+    return true;
+  } catch (error: unknown) {
+    if (isNotOurs(error)) {
       return false;
     }
     throw error;
@@ -121,8 +147,13 @@ export class NoneBackend implements IsolationBackend {
       running.exited.then(() => true),
       new Promise<false>((resolve) => setTimeout(() => resolve(false), KILL_GRACE_MS).unref()),
     ]);
-    // The group outlives its leader when a child ignored SIGTERM.
-    signalGroup(running.pid, 'SIGKILL');
+    // The group outlives its leader when a child ignored SIGTERM, so a SIGKILL still follows — but only while
+    // the group is still there: the liveness check right here, as close to the signal as this call allows,
+    // narrows (it cannot close) the window in which the pid gets recycled between the grace period and the
+    // SIGKILL (#702).
+    if (groupAlive(running.pid)) {
+      signalGroup(running.pid, 'SIGKILL');
+    }
     if (!exited) {
       await running.exited;
     }
@@ -134,7 +165,7 @@ export class NoneBackend implements IsolationBackend {
       try {
         process.kill(pid, 'SIGKILL');
       } catch (error: unknown) {
-        if (!(error instanceof Error && 'code' in error && error.code === 'ESRCH')) {
+        if (!isNotOurs(error)) {
           throw error;
         }
       }
