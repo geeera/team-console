@@ -172,13 +172,32 @@ describe('the budget stop and its Needs-you row', () => {
     ).toBe(BUDGET_PAUSER);
   });
 
-  it('“Resume this month” (the team resume) clears the row and the queue runs again this month', async () => {
+  it('“Resume this month” (resume with waiveBudget) clears the row and the queue runs again this month', async () => {
     const { project, runner } = await stoppedProject();
-    const resumed = await send('POST', `${P}/${project.slug}/team/resume`, {});
+    const resumed = await send('POST', `${P}/${project.slug}/team/resume`, { waiveBudget: true });
     expect(resumed.status).toBe(201);
     expect(await budgetStopOf(project)).toBeUndefined();
+    const waived = await env.DB.prepare(
+      `SELECT details FROM audit_events WHERE kind = 'team.budget-waived' AND target = ?1`,
+    )
+      .bind(project.slug)
+      .first<{ details: string }>();
+    expect(JSON.parse(waived?.details ?? '{}')).toMatchObject({ waivedMonth: new Date().toISOString().slice(0, 7) });
     const next = await enqueue(project);
     expect((await claim(runner))?.job.id).toBe(next);
+  });
+
+  it('a plain resume (the commands panel, #733) lifts the pause but waives nothing: the row stays, the claim refuses', async () => {
+    const { project, runner } = await stoppedProject();
+    expect((await send('POST', `${P}/${project.slug}/team/resume`, {})).status).toBe(201);
+    expect(await budgetStopOf(project)).toMatchObject({ spentUsd: 6, budgetUsd: 5, stoppedAt: null });
+    await enqueue(project);
+    expect(await claim(runner)).toBeNull();
+    // The row's own resume then waives the month although nothing is paused any more.
+    expect((await send('POST', `${P}/${project.slug}/team/resume`, { waiveBudget: true })).status).toBe(201);
+    expect(await claim(runner)).not.toBeNull();
+    const invalid = await send('POST', `${P}/${project.slug}/team/resume`, { waiveBudget: 'yes' });
+    expect(invalid.status).toBe(422);
   });
 
   it('“Raise budget” (a save above the spend) clears the row; a budget lowered under the spend stops the next claim', async () => {

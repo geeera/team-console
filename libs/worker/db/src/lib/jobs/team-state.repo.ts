@@ -26,8 +26,9 @@ interface TeamStateRow {
 /** A team the budget stopped (#684), for its Needs-you row. */
 export interface BudgetStopRecord {
   readonly projectSlug: string;
-  readonly stoppedAt: string;
-  /** The UTC month `YYYY-MM` the stop began in; `spentUsd` is that month's. */
+  /** When the `system:budget` pause began; `null` while another pause (or none) holds and the month is at the budget. */
+  readonly stoppedAt: string | null;
+  /** The UTC month `YYYY-MM` the row is about (this month, or the one an older budget pause began in); `spentUsd` is its. */
   readonly month: string;
   readonly spentUsd: number;
   /** `budget.monthly_usd` now; `null` when the document no longer sets one. */
@@ -137,64 +138,109 @@ export class TeamStateRepo {
   }
 
   /**
-   * Resuming also clears the failure streak, as `runlog resume` does. `false` when the project was not paused.
-   *
-   * Resuming a `system:budget` pause is "Resume this month" (#684): the same batch waives the budget for the UTC month
-   * of `now`, so the claim admits the project again until the month ends, and no later `finish` this month pauses it
-   * on the budget again. Next month starts under the budget.
+   * Resuming also clears the failure streak, as `runlog resume` does. `false` when the project was not paused. A plain
+   * resume never waives the budget (#733): a `system:budget` pause is lifted, but while the month's spend is at the
+   * budget the claim still refuses and Needs you keeps the budget row, whose "Resume this month" asks first.
    */
   async resume(projectSlug: string, now: string, audit: NewAuditEvent): Promise<boolean> {
-    const results = await this.db.batch([
-      // Before the resume clears `paused_by`, which is what says the pause was the budget's.
-      this.db
-        .prepare(
-          `INSERT INTO project_spend (project_slug, month, waived_at)
-           SELECT ?1, substr(?2, 1, 7), ?2
-           WHERE EXISTS (SELECT 1 FROM team_state WHERE project_slug = ?1 AND paused_at IS NOT NULL AND paused_by = ?3)
-           ON CONFLICT (project_slug, month) DO UPDATE SET waived_at = COALESCE(waived_at, excluded.waived_at)`,
-        )
-        .bind(projectSlug, now, BUDGET_PAUSER),
+    const [write] = await this.db.batch([...this.resumeStatements(projectSlug, now, audit)]);
+    return (write?.meta.changes ?? 0) === 1;
+  }
+
+  /**
+   * "Resume this month" (#684), after the owner confirmed that spending may exceed the budget: lifts any pause, as
+   * `resume` does, and waives the budget for the UTC month of `now`, but only when that month's spend has reached it.
+   * That is the month the budget row shows. A stop left over from an earlier month is lifted with no waiver, so the
+   * new month runs under its budget from zero. The waiver writes its own `team.budget-waived` row (`waiveAudit`, with
+   * `waivedMonth`) only if it took.
+   */
+  async resumeThisMonth(
+    projectSlug: string,
+    now: string,
+    audit: NewAuditEvent,
+    waiveAudit: NewAuditEvent,
+  ): Promise<{ readonly resumed: boolean; readonly waivedMonth: string | null }> {
+    const month = now.slice(0, 7);
+    const [waiver, , resumed] = await this.db.batch([
       ...auditedWrite(
         this.db,
         this.db
           .prepare(
-            `UPDATE team_state SET paused_at = NULL, paused_by = NULL, failed_streak = 0, updated_at = ?2
-             WHERE project_slug = ?1 AND paused_at IS NOT NULL`,
+            `UPDATE project_spend SET waived_at = ?2
+             WHERE project_slug = ?1 AND month = substr(?2, 1, 7) AND waived_at IS NULL
+               AND spent_usd >= (SELECT json_extract(config, '$.budget.monthly_usd') FROM team_configs WHERE project_slug = ?1)`,
           )
           .bind(projectSlug, now),
-        audit,
+        { ...waiveAudit, details: { ...waiveAudit.details, waivedMonth: month } },
       ),
+      ...this.resumeStatements(projectSlug, now, audit),
     ]);
-    return (results[1]?.meta.changes ?? 0) === 1;
+    return {
+      resumed: (resumed?.meta.changes ?? 0) === 1,
+      waivedMonth: (waiver?.meta.changes ?? 0) === 1 ? month : null,
+    };
+  }
+
+  private resumeStatements(projectSlug: string, now: string, audit: NewAuditEvent): readonly D1PreparedStatement[] {
+    return auditedWrite(
+      this.db,
+      this.db
+        .prepare(
+          `UPDATE team_state SET paused_at = NULL, paused_by = NULL, failed_streak = 0, updated_at = ?2
+           WHERE project_slug = ?1 AND paused_at IS NOT NULL`,
+        )
+        .bind(projectSlug, now),
+      audit,
+    );
   }
 
   /**
-   * The projects of `slugs` the budget stopped (#684): paused by `system:budget`, with the figures of the month the
-   * pause began in and the budget as configured now. One row per project, however many finishes crossed the cap.
+   * The projects of `slugs` with a "Budget used up" row (#684), one each. A project shows it while the UTC month of
+   * `now` has reached its budget unwaived, whoever paused it (an owner's pause is kept and never replaced), with that
+   * month's figures; or while a `system:budget` pause from an earlier month is still on, with the figures of the
+   * month it began in. The budget is the one configured now.
    */
-  async budgetStopsOf(slugs: readonly string[]): Promise<BudgetStopRecord[]> {
+  async budgetStopsOf(slugs: readonly string[], now: string): Promise<BudgetStopRecord[]> {
     if (slugs.length === 0) {
       return [];
     }
     const { results } = await this.db
       .prepare(
-        `SELECT t.project_slug, t.paused_at, substr(t.paused_at, 1, 7) AS month, COALESCE(ps.spent_usd, 0) AS spent_usd,
-           json_extract(tc.config, '$.budget.monthly_usd') AS budget_usd
-         FROM team_state t
-         LEFT JOIN project_spend ps ON ps.project_slug = t.project_slug AND ps.month = substr(t.paused_at, 1, 7)
-         LEFT JOIN team_configs tc ON tc.project_slug = t.project_slug
-         WHERE t.paused_by = ?1 AND t.paused_at IS NOT NULL AND t.project_slug IN (SELECT value FROM json_each(?2))
-         ORDER BY t.project_slug`,
+        `SELECT p.slug AS project_slug, t.paused_at, t.paused_by,
+           json_extract(tc.config, '$.budget.monthly_usd') AS budget_usd,
+           (cur.waived_at IS NULL AND cur.spent_usd >= json_extract(tc.config, '$.budget.monthly_usd')) AS current_reached,
+           cur.spent_usd AS current_spent, COALESCE(began.spent_usd, 0) AS began_spent
+         FROM projects p
+         LEFT JOIN team_state t ON t.project_slug = p.slug
+         LEFT JOIN team_configs tc ON tc.project_slug = p.slug
+         LEFT JOIN project_spend cur ON cur.project_slug = p.slug AND cur.month = substr(?3, 1, 7)
+         LEFT JOIN project_spend began ON began.project_slug = p.slug AND began.month = substr(t.paused_at, 1, 7)
+         WHERE p.slug IN (SELECT value FROM json_each(?2))
+           AND ((t.paused_by = ?1 AND t.paused_at IS NOT NULL)
+             OR (cur.waived_at IS NULL AND cur.spent_usd >= json_extract(tc.config, '$.budget.monthly_usd')))
+         ORDER BY p.slug`,
       )
-      .bind(BUDGET_PAUSER, JSON.stringify(slugs))
-      .all<{ project_slug: string; paused_at: string; month: string; spent_usd: number; budget_usd: number | null }>();
-    return results.map((row) => ({
-      projectSlug: row.project_slug,
-      stoppedAt: row.paused_at,
-      month: row.month,
-      spentUsd: row.spent_usd,
-      budgetUsd: row.budget_usd,
-    }));
+      .bind(BUDGET_PAUSER, JSON.stringify(slugs), now)
+      .all<{
+        project_slug: string;
+        paused_at: string | null;
+        paused_by: string | null;
+        budget_usd: number | null;
+        current_reached: number | null;
+        current_spent: number | null;
+        began_spent: number;
+      }>();
+    return results.map((row) => {
+      const isCurrent = row.current_reached === 1;
+      const isBudgetPause = row.paused_by === BUDGET_PAUSER && row.paused_at !== null;
+      return {
+        projectSlug: row.project_slug,
+        stoppedAt: isBudgetPause ? row.paused_at : null,
+        month: isCurrent || row.paused_at === null ? now.slice(0, 7) : row.paused_at.slice(0, 7),
+        spentUsd: isCurrent ? (row.current_spent ?? 0) : row.began_spent,
+        budgetUsd: row.budget_usd,
+      };
+    });
   }
 
   /**

@@ -25,8 +25,10 @@ visual direction, 0006 the console as the source of truth — the #309 target ar
   team by `system:budget` once the month reaches `budget.monthly_usd`. One admission (`claim-admission.ts`: role on,
   `max_parallel`, `budgetAdmittedSql`) is judged inside the pull claim, the OIDC exchange and the Actions dispatch's
   `markDispatched`; a held-back Actions job waits undispatched and is dispatched at a finish of its project or by the
-  Cron sweep, and its no-show clock starts at the dispatch. Resuming a `system:budget` pause waives the month
-  (`project_spend.waived_at`); a team-config save lifts or sets the stop by the new budget. Enqueue refuses a
+  Cron sweep, and its no-show clock starts at the dispatch. Only `POST …/team/resume {waiveBudget: true}` (the
+  Needs-you row's "Resume this month", after its confirm) waives a month (`project_spend.waived_at`), and only the
+  current month once it has reached its budget; a plain resume never waives. A finish or a save never replaces or
+  lifts an owner's pause, only a `system:budget` one; a save above the spend ends the month's waiver. Enqueue refuses a
   switched-off role (409 `role-disabled`) and sets `jobs.max_minutes = min(role.max_minutes, requested)`.
 - Design tokens only (Paper Desk, ADR 0002); no raw colours, spacing, durations or z-index in components —
   `tools/design-lint` (part of `nx run-many -t lint`) fails on one in any `libs/console/**` or `apps/console` css.

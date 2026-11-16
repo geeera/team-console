@@ -176,7 +176,7 @@ function isBudgetStop(value: unknown): value is NeedsYouBudgetStopDto {
     /^\d{4}-\d{2}$/.test(value['month']) &&
     isDollars(value['spentUsd']) &&
     isDollars(value['budgetUsd']) &&
-    typeof value['stoppedAt'] === 'string'
+    (value['stoppedAt'] === null || typeof value['stoppedAt'] === 'string')
   );
 }
 

@@ -188,7 +188,9 @@ export class TeamConfigRepo {
    * The budget stop follows the saved budget (#684), in the save's batch and only if the save took (its revision row
    * exists): a budget raised above the month's spend, or removed, lifts a `system:budget` pause ("Raise budget"); one
    * lowered to the spend or below pauses the team at once with the same Needs-you row a `finish` would raise, so the
-   * owner sees why nothing starts. A month the owner waived ("Resume this month") stays waived.
+   * owner sees why nothing starts. Only a `system:budget` pause is ever lifted or set here: an owner's or the failure
+   * streak's pause stays as it is. A budget saved above the spend of a month the owner waived ("Resume this month")
+   * ends the waiver (#734), so the new budget caps the rest of that month.
    */
   private budgetStopStatements(write: TeamConfigWrite, json: string): D1PreparedStatement[] {
     const reached = `EXISTS (
@@ -203,6 +205,14 @@ export class TeamConfigRepo {
       details: { reason: 'budget', revision: write.expectedRevision + 1 },
     });
     return [
+      // First, so the terms below judge the month under the new budget.
+      this.db
+        .prepare(
+          `UPDATE project_spend SET waived_at = NULL
+           WHERE project_slug = ?1 AND month = substr(?2, 1, 7) AND waived_at IS NOT NULL AND ${saved}
+             AND spent_usd < json_extract(?3, '$.budget.monthly_usd')`,
+        )
+        .bind(write.projectSlug, write.at, json, write.id),
       ...auditedWrite(
         this.db,
         this.db
@@ -221,7 +231,7 @@ export class TeamConfigRepo {
              SELECT ?1, ?2, ?5, 0, ?2 WHERE ${saved} AND ${reached}
              ON CONFLICT (project_slug) DO UPDATE SET paused_at = excluded.paused_at, paused_by = excluded.paused_by,
                updated_at = excluded.updated_at
-             WHERE team_state.paused_by IS NOT excluded.paused_by`,
+             WHERE team_state.paused_at IS NULL`,
           )
           .bind(write.projectSlug, write.at, json, write.id, BUDGET_PAUSER),
         audit('team.paused'),

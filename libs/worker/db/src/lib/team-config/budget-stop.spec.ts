@@ -15,6 +15,8 @@ const T1 = '2026-11-16T10:05:00.000Z';
 const T2 = '2026-11-16T10:06:00.000Z';
 const LEASE = '2026-11-16T10:30:00.000Z';
 const DECEMBER = '2026-12-01T00:05:00.000Z';
+const DECEMBER_LATER = '2026-12-01T00:10:00.000Z';
+const DECEMBER_LEASE = '2026-12-01T00:30:00.000Z';
 
 let counter = 0;
 const ulid = (tag: string): string => {
@@ -116,7 +118,7 @@ async function enqueue(slug: string, role = 'dev', priority = 0): Promise<string
 }
 
 let token = 0;
-const claimAs = (runnerId: string, now = T1): Promise<JobRecord | null> => {
+const claimAs = (runnerId: string, now = T1, leaseUntil = LEASE): Promise<JobRecord | null> => {
   token += 1;
   return jobs.claim({
     runnerId,
@@ -124,7 +126,7 @@ const claimAs = (runnerId: string, now = T1): Promise<JobRecord | null> => {
     local: true,
     tokenHash: token.toString(16).padStart(64, '0'),
     now,
-    leaseUntil: LEASE,
+    leaseUntil,
   });
 };
 
@@ -164,6 +166,14 @@ const budgetPausesOf = (slug: string): Promise<number> =>
   count(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'team.paused' AND target = ?1`, slug);
 const resumesOf = (slug: string): Promise<number> =>
   count(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'team.resumed' AND target = ?1`, slug);
+const resumeThisMonth = (slug: string, at: string) =>
+  teamState.resumeThisMonth(slug, at, { ...auditOf('team.resumed', slug), at }, { ...auditOf('team.budget-waived', slug), at });
+async function waivedAtOf(slug: string, month: string): Promise<string | null> {
+  const row = await env.DB.prepare(`SELECT waived_at FROM project_spend WHERE project_slug = ?1 AND month = ?2`)
+    .bind(slug, month)
+    .first<{ waived_at: string | null }>();
+  return row?.waived_at ?? null;
+}
 
 describe('finish reconciles project_spend', () => {
   it('adds the cost to the UTC month of the finish, once: a replay or a second finish adds nothing', async () => {
@@ -218,7 +228,7 @@ describe('the budget stop', () => {
     const state = await teamState.get(slug);
     expect(state).toMatchObject({ pausedBy: BUDGET_PAUSER, pausedAt: T2 });
     expect(await budgetPausesOf(slug)).toBe(1);
-    expect(await teamState.budgetStopsOf([slug])).toEqual([
+    expect(await teamState.budgetStopsOf([slug], T2)).toEqual([
       { projectSlug: slug, stoppedAt: T2, month: '2026-11', spentUsd: 10, budgetUsd: 10 },
     ]);
     await enqueue(slug);
@@ -251,12 +261,12 @@ describe('the budget stop', () => {
     expect(finished).toEqual([true, true, true, true]);
     expect((await spend.findMonth(slug, '2026-11')).spentUsd).toBe(8);
     expect(await budgetPausesOf(slug)).toBe(1);
-    expect(await teamState.budgetStopsOf([slug])).toHaveLength(1);
+    expect(await teamState.budgetStopsOf([slug], T2)).toHaveLength(1);
     await enqueue(slug);
     expect(await claimAs(mac)).toBeNull();
   });
 
-  it('puts the budget over another pause, so the owner sees why the team stopped', async () => {
+  it('keeps an owner’s pause when the cap is crossed, and still shows the budget row beside it', async () => {
     const slug = await project({ budget: { monthly_usd: 1 } });
     const mac = await runner([slug]);
     await enqueue(slug);
@@ -266,7 +276,30 @@ describe('the budget stop', () => {
     expect(
       await jobs.finish(job?.id ?? '', mac, outcome, T2, auditOf('job.finished', slug), spent(1, slug)),
     ).toBe(true);
-    expect((await teamState.get(slug)).pausedBy).toBe(BUDGET_PAUSER);
+    expect(await teamState.get(slug)).toMatchObject({ pausedBy: 'owner', pausedAt: T1 });
+    expect(await budgetPausesOf(slug)).toBe(1);
+    expect(await teamState.budgetStopsOf([slug], T2)).toEqual([
+      { projectSlug: slug, stoppedAt: null, month: '2026-11', spentUsd: 1, budgetUsd: 1 },
+    ]);
+  });
+
+  it('a save never lifts or replaces an owner’s pause, raising or lowering the budget', async () => {
+    const slug = await project({ budget: { monthly_usd: 1 } });
+    const mac = await runner([slug]);
+    await enqueue(slug);
+    const job = await claimAs(mac);
+    expect(await teamState.pause(slug, 'owner', T1, auditOf('team.paused', slug))).toBe(true);
+    const outcome = { result: 'finished' as const, summary: 's', metrics: { total_cost_usd: 1.5 }, acted: false };
+    await jobs.finish(job?.id ?? '', mac, outcome, T2, auditOf('job.finished', slug), spent(1.5, slug));
+
+    await save(slug, { budget: { monthly_usd: 25 } });
+    expect(await teamState.get(slug)).toMatchObject({ pausedBy: 'owner', pausedAt: T1 });
+    expect(await resumesOf(slug)).toBe(0);
+    await save(slug, { budget: { monthly_usd: 1 } });
+    expect(await teamState.get(slug)).toMatchObject({ pausedBy: 'owner', pausedAt: T1 });
+    expect(await budgetPausesOf(slug)).toBe(1);
+    await enqueue(slug);
+    expect(await claimAs(mac)).toBeNull();
   });
 
   it('refuses the claim on the month’s spend alone (a lowered budget needs no finish), month by month', async () => {
@@ -300,7 +333,7 @@ describe('the budget stop', () => {
     await save(slug, { budget: { monthly_usd: 30 } });
     expect((await teamState.get(slug)).pausedAt).toBeNull();
     expect(await resumesOf(slug)).toBe(1);
-    expect(await teamState.budgetStopsOf([slug])).toEqual([]);
+    expect(await teamState.budgetStopsOf([slug], T2)).toEqual([]);
     await enqueue(slug);
     expect((await claimAs(mac))?.projectSlug).toBe(slug);
   });
@@ -326,23 +359,78 @@ describe('the budget stop', () => {
     await runOne(slug, mac, 3);
     expect((await teamState.get(slug)).pausedBy).toBe(BUDGET_PAUSER);
 
-    expect(await teamState.resume(slug, T2, auditOf('team.resumed', slug))).toBe(true);
-    expect(
-      (
-        await env.DB.prepare(
-          `SELECT waived_at FROM project_spend WHERE project_slug = ?1 AND month = '2026-11'`,
-        )
-          .bind(slug)
-          .first()
-      )?.['waived_at'],
-    ).toBe(T2);
+    expect(await resumeThisMonth(slug, T2)).toEqual({ resumed: true, waivedMonth: '2026-11' });
+    expect(await waivedAtOf(slug, '2026-11')).toBe(T2);
+    const waived = await env.DB.prepare(
+      `SELECT details FROM audit_events WHERE kind = 'team.budget-waived' AND target = ?1`,
+    )
+      .bind(slug)
+      .first<{ details: string }>();
+    expect(JSON.parse(waived?.details ?? '{}')).toEqual({ waivedMonth: '2026-11' });
     await enqueue(slug);
     await runOne(slug, mac, 3);
     expect((await teamState.get(slug)).pausedAt).toBeNull();
     expect(await budgetPausesOf(slug)).toBe(1);
-    // A save over the waived month keeps the team running.
+    expect(await teamState.budgetStopsOf([slug], T2)).toEqual([]);
+  });
+
+  it('a stop carried into the next month resumes with no waiver: the new month runs under its budget (regression)', async () => {
+    const slug = await project({ budget: { monthly_usd: 2 } });
+    const mac = await runner([slug]);
+    await enqueue(slug);
+    await runOne(slug, mac, 3);
+    expect(await teamState.budgetStopsOf([slug], DECEMBER)).toEqual([
+      { projectSlug: slug, stoppedAt: T2, month: '2026-11', spentUsd: 3, budgetUsd: 2 },
+    ]);
+
+    expect(await resumeThisMonth(slug, DECEMBER)).toEqual({ resumed: true, waivedMonth: null });
+    expect(await waivedAtOf(slug, '2026-12')).toBeNull();
+    expect(await waivedAtOf(slug, '2026-11')).toBeNull();
+    // December's first job goes over the budget: the team stops again.
+    await enqueue(slug);
+    const job = await claimAs(mac, DECEMBER, DECEMBER_LEASE);
+    const outcome = { result: 'finished' as const, summary: 's', metrics: { total_cost_usd: 2.5 }, acted: false };
+    expect(
+      await jobs.finish(job?.id ?? '', mac, outcome, DECEMBER_LATER, auditOf('job.finished', slug), spent(2.5, slug)),
+    ).toBe(true);
+    expect(await teamState.get(slug)).toMatchObject({ pausedBy: BUDGET_PAUSER, pausedAt: DECEMBER_LATER });
+    await enqueue(slug);
+    expect(await claimAs(mac, DECEMBER_LATER, DECEMBER_LEASE)).toBeNull();
+  });
+
+  it('a plain resume (the commands panel) lifts the pause but never waives: the claim still refuses, the row stays (#733)', async () => {
+    const slug = await project({ budget: { monthly_usd: 2 } });
+    const mac = await runner([slug]);
+    await enqueue(slug);
+    await runOne(slug, mac, 3);
+    expect(await teamState.resume(slug, T2, auditOf('team.resumed', slug))).toBe(true);
+    expect(await waivedAtOf(slug, '2026-11')).toBeNull();
+    await enqueue(slug);
+    expect(await claimAs(mac)).toBeNull();
+    expect(await teamState.budgetStopsOf([slug], T2)).toEqual([
+      { projectSlug: slug, stoppedAt: null, month: '2026-11', spentUsd: 3, budgetUsd: 2 },
+    ]);
+    // The row's own resume then waives the month, though nothing was paused.
+    expect(await resumeThisMonth(slug, T2)).toEqual({ resumed: false, waivedMonth: '2026-11' });
+    expect((await claimAs(mac))?.projectSlug).toBe(slug);
+  });
+
+  it('a budget saved above the spend after a waiver ends it, so the new budget caps the month (#734)', async () => {
+    const slug = await project({ budget: { monthly_usd: 1 } });
+    const mac = await runner([slug]);
+    await enqueue(slug);
+    await runOne(slug, mac, 1.5);
+    expect((await resumeThisMonth(slug, T2)).waivedMonth).toBe('2026-11');
+    // A save that leaves the month at its budget keeps the waiver.
     await save(slug, { budget: { monthly_usd: 1 } });
+    expect(await waivedAtOf(slug, '2026-11')).toBe(T2);
+
+    await save(slug, { budget: { monthly_usd: 3 } });
+    expect(await waivedAtOf(slug, '2026-11')).toBeNull();
     expect((await teamState.get(slug)).pausedAt).toBeNull();
+    await enqueue(slug);
+    await runOne(slug, mac, 2);
+    expect((await teamState.get(slug)).pausedBy).toBe(BUDGET_PAUSER);
   });
 
   it('resuming an owner’s pause waives nothing', async () => {
@@ -350,6 +438,17 @@ describe('the budget stop', () => {
     expect(await teamState.pause(slug, 'owner', T1, auditOf('team.paused', slug))).toBe(true);
     expect(await teamState.resume(slug, T2, auditOf('team.resumed', slug))).toBe(true);
     expect(await count(`SELECT COUNT(*) AS n FROM project_spend WHERE project_slug = ?1`, slug)).toBe(0);
+  });
+
+  it('a finish without spend writes nothing of the budget (#732)', async () => {
+    const slug = await project({ budget: { monthly_usd: 1 } });
+    const mac = await runner([slug]);
+    await enqueue(slug);
+    const job = await claimAs(mac);
+    const outcome = { result: 'finished' as const, summary: 's', metrics: { total_cost_usd: 5 }, acted: false };
+    expect(await jobs.finish(job?.id ?? '', mac, outcome, T2, auditOf('job.finished', slug))).toBe(true);
+    expect(await count(`SELECT COUNT(*) AS n FROM project_spend WHERE project_slug = ?1`, slug)).toBe(0);
+    expect((await teamState.get(slug)).pausedAt).toBeNull();
   });
 });
 

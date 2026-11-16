@@ -96,7 +96,7 @@ export function createNeedsYouRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiE
     }
     // #684: one D1 query for every project read, whatever its tracker; no GitHub subrequest.
     const budgetStops = new Map<string, NeedsYouBudgetStopDto>();
-    for (const stop of await new TeamStateRepo(c.env.DB).budgetStopsOf(read.map((row) => row.slug))) {
+    for (const stop of await new TeamStateRepo(c.env.DB).budgetStopsOf(read.map((row) => row.slug), new Date().toISOString())) {
       if (stop.budgetUsd === null) {
         // A save that removes the budget lifts its pause in the same batch, so this is a broken invariant, not input.
         c.get('logger').error('budget stop without a budget', { slug: stop.projectSlug });

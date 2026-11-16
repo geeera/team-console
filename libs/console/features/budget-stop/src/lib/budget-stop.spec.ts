@@ -110,6 +110,8 @@ describe('BudgetStop', () => {
     await settle();
     const request = http.expectOne(teamResumeUrl('acme'));
     expect(request.request.method).toBe('POST');
+    // Only this row waives the month, and only after its confirm (#733).
+    expect(request.request.body).toEqual({ waiveBudget: true });
     request.flush(
       { paused: false, pausedAt: null, pausedBy: null, failedStreak: 0 },
       { status: 201, statusText: 'Created' },

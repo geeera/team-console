@@ -894,8 +894,10 @@ export class JobsRepo {
    * The budget stop (#684, ADR 0009 d.6, threat model C12 row 5) rides in the same batch. The job's cost is added to its
    * project's spend for the UTC month of `now` by the statement right after the state transition, and only when that
    * transition took (`AUDITED_WRITE_HAPPENED_SQL`), so a replayed or second `finish` adds nothing. When the month's spend then reaches
-   * `budget.monthly_usd` and the owner has not waived it, the team is paused by `system:budget`, over any other pause
-   * so the owner sees why, with one `team.paused` row; N finishes past the cap still pause it once.
+   * `budget.monthly_usd` and the owner has not waived it, the team is paused by `system:budget` with one `team.paused`
+   * row; N finishes past the cap still pause it once. A pause already on (the owner's, the failure streak's) is kept as
+   * it is: only its holder lifts it, and Needs you shows the budget row beside it (`TeamStateRepo.budgetStopsOf`).
+   * Without `spend` nothing of the budget is written (#732).
    */
   async finish(
     id: string,
@@ -922,13 +924,17 @@ export class JobsRepo {
         )
         .bind(id, runnerId, outcome.result, now, JSON.stringify(result)),
       // Directly after the transition, so "the previous statement wrote" is that UPDATE having taken.
-      this.db
-        .prepare(
-          `INSERT INTO project_spend (project_slug, month, spent_usd, jobs)
-           SELECT project_slug, substr(?2, 1, 7), ?3, 1 FROM jobs WHERE id = ?1 AND ${AUDITED_WRITE_HAPPENED_SQL}
-           ON CONFLICT (project_slug, month) DO UPDATE SET spent_usd = spent_usd + ?3, jobs = jobs + 1`,
-        )
-        .bind(id, now, spend?.costUsd ?? 0),
+      ...(spend === undefined
+        ? []
+        : [
+            this.db
+              .prepare(
+                `INSERT INTO project_spend (project_slug, month, spent_usd, jobs)
+                 SELECT project_slug, substr(?2, 1, 7), ?3, 1 FROM jobs WHERE id = ?1 AND ${AUDITED_WRITE_HAPPENED_SQL}
+                 ON CONFLICT (project_slug, month) DO UPDATE SET spent_usd = spent_usd + ?3, jobs = jobs + 1`,
+              )
+              .bind(id, now, spend.costUsd),
+          ]),
       this.eventStatement(
         id,
         now,
@@ -971,7 +977,7 @@ export class JobsRepo {
              AND ps.waived_at IS NULL AND ps.spent_usd >= json_extract(tc.config, '$.budget.monthly_usd')
            ON CONFLICT (project_slug) DO UPDATE SET paused_at = excluded.paused_at, paused_by = excluded.paused_by,
              updated_at = excluded.updated_at
-           WHERE team_state.paused_by IS NOT excluded.paused_by`,
+           WHERE team_state.paused_at IS NULL`,
         )
         .bind(now, BUDGET_PAUSER, id, ...finished.params),
       audit,

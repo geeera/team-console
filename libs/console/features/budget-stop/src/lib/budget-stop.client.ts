@@ -49,8 +49,9 @@ function failureOf(error: unknown): BudgetActionFailure {
 }
 
 /**
- * The Needs-you budget row's two actions (#684). "Resume this month" is the team resume, which for a `system:budget`
- * pause also waives the budget for the rest of the UTC month; "Raise budget" saves the stored team configuration with
+ * The Needs-you budget row's two actions (#684). "Resume this month" is the team resume with `waiveBudget`: it lifts
+ * any pause and waives the budget for the rest of the UTC month when the month has reached it (a stop left over from
+ * an earlier month is lifted with no waiver). Only this row sends it, after its confirm (#733). "Raise budget" saves the stored team configuration with
  * a new `budget.monthly_usd` over the revision it just read (`If-Match`), and the save lifts the stop when the new
  * budget is above the month's spend. Never throws for an HTTP failure: every outcome is a `BudgetActionResult`.
  */
@@ -60,7 +61,7 @@ export class BudgetStopClient {
 
   async resume(slug: string): Promise<BudgetActionResult> {
     try {
-      await firstValueFrom(this.http.post<unknown>(teamResumeUrl(slug), {}));
+      await firstValueFrom(this.http.post<unknown>(teamResumeUrl(slug), { waiveBudget: true }));
       return { ok: true };
     } catch (error: unknown) {
       // Resumed meanwhile (another device, or a raised budget): what the owner asked for already holds.

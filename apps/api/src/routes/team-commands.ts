@@ -62,8 +62,15 @@ type Context = WorkerContext<ApiEnv>;
 /**
  * Pause and resume on the console's tracker (#467): `team_state` is the record the claim statement reads, so a paused
  * project hands out no job until resumed; resuming also clears the failure streak. 409 when already in that state.
+ * `waiveBudget` (#684) also waives the month's budget when the month has reached it; that alone is a resume that took
+ * effect, since the claim refuses an unpaused team at its budget just the same.
  */
-async function consoleTeamCommand(c: Context, project: ProjectRow, kind: 'pause' | 'resume'): Promise<Response> {
+async function consoleTeamCommand(
+  c: Context,
+  project: ProjectRow,
+  kind: 'pause' | 'resume',
+  waiveBudget = false,
+): Promise<Response> {
   const repo = new TeamStateRepo(c.env.DB);
   // Read for the audit details only: the write below is conditional on the state, so a racing request decides nothing.
   // The details are context, not the record (#522): whether the row exists, and its kind, actor, target and time,
@@ -84,8 +91,19 @@ async function consoleTeamCommand(c: Context, project: ProjectRow, kind: 'pause'
     ipCountry: c.req.header('CF-IPCountry') ?? null,
   };
   // #492: 409 when the state was already the target, including when a concurrent request got there first.
-  const tookEffect =
-    kind === 'pause' ? await repo.pause(project.slug, actor.actor, now, audit) : await repo.resume(project.slug, now, audit);
+  let tookEffect: boolean;
+  if (kind === 'pause') {
+    tookEffect = await repo.pause(project.slug, actor.actor, now, audit);
+  } else if (waiveBudget) {
+    const outcome = await repo.resumeThisMonth(project.slug, now, audit, {
+      ...audit,
+      kind: 'team.budget-waived',
+      details: {},
+    });
+    tookEffect = outcome.resumed || outcome.waivedMonth !== null;
+  } else {
+    tookEffect = await repo.resume(project.slug, now, audit);
+  }
   if (!tookEffect) {
     return kind === 'pause'
       ? problem(c, { type: 'team-already-paused', title: 'The team is already paused', status: 409 })
@@ -139,6 +157,21 @@ function invalid(c: Context, detail: string): Response {
 
 function iso(ms: number): string {
   return new Date(ms).toISOString();
+}
+
+/**
+ * `{ waiveBudget: true }` is "Resume this month" from the Needs-you budget row (#684), sent only after the owner
+ * confirmed that spending may exceed the budget; any other resume (the commands panel, #733) never waives it.
+ */
+function parseResume(body: unknown): { waiveBudget: boolean } | string {
+  if (body === undefined) {
+    return { waiveBudget: false };
+  }
+  if (!isRecord(body) || Object.keys(body).some((key) => key !== 'waiveBudget')) {
+    return 'The body may only carry waiveBudget';
+  }
+  const waiveBudget = body['waiveBudget'] ?? false;
+  return typeof waiveBudget === 'boolean' ? { waiveBudget } : 'waiveBudget must be a boolean';
 }
 
 function parsePause(body: unknown): { reason: string } | string {
@@ -302,7 +335,7 @@ export function createTeamCommandsRoutes(
   const owners = options.ownerConnection ?? connectedOwnerSource(github);
   const baseFetch: FetchLike = options.routinesFetch ?? (async (input, init) => fetch(input, init));
 
-  async function ownerCommand(c: Context, kind: 'pause' | 'resume', reason: string): Promise<Response> {
+  async function ownerCommand(c: Context, kind: 'pause' | 'resume', reason: string, waiveBudget = false): Promise<Response> {
     const logger = c.get('logger');
     const project = await findProject(c, c.req.param('slug') ?? '');
     if (project === null) {
@@ -315,7 +348,7 @@ export function createTeamCommandsRoutes(
     // #467 (ADR 0006 "Report"): a project on the console's tracker pauses in `team_state`, which the claim honours;
     // the GitHub run log below is the GitHub-tracker path.
     if (project.tracker === 'console') {
-      return consoleTeamCommand(c, project, kind);
+      return consoleTeamCommand(c, project, kind, waiveBudget);
     }
     const repo = repoOf(c, project);
     if (repo instanceof Response) {
@@ -511,7 +544,10 @@ export function createTeamCommandsRoutes(
       return typeof request === 'string' ? invalid(c, request) : ownerCommand(c, 'pause', request.reason);
     })
 
-    .post('/:slug/team/resume', ownerOnlyMiddleware, limit, async (c) => ownerCommand(c, 'resume', ''))
+    .post('/:slug/team/resume', ownerOnlyMiddleware, limit, async (c) => {
+      const request = parseResume(await jsonBody(c));
+      return typeof request === 'string' ? invalid(c, request) : ownerCommand(c, 'resume', '', request.waiveBudget);
+    })
 
     .post('/:slug/runs', ownerOnlyMiddleware, limit, async (c) => {
       const logger = c.get('logger');
