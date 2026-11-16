@@ -51,27 +51,36 @@ describe.skipIf(!hasClaude)('a project .mcp.json server with the real CLI (#639)
     await rm(dir, { recursive: true, force: true });
   });
 
+  /** A fresh HOME (never the developer's login) and no autoupdate, telemetry or other non-essential traffic (#704). */
   const run = (args: string[]): void => {
     spawnSync('claude', args, {
       cwd: dir,
-      env: { PATH: process.env['PATH'] ?? '/usr/bin:/bin', HOME: join(dir, 'home') },
+      env: {
+        PATH: process.env['PATH'] ?? '/usr/bin:/bin',
+        HOME: join(dir, 'home'),
+        DISABLE_AUTOUPDATER: '1',
+        DISABLE_TELEMETRY: '1',
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+      },
       stdio: 'ignore',
       timeout: 60_000,
     });
   };
+  const marker = (): string => join(dir, 'MCP_RAN');
 
-  it('starts the server without the flags (the vector is real)', () => {
+  // One `it` (#704): the negative half only means something once the same CLI, in the same directory, was seen to
+  // start the server without the flags; an early exit for an unrelated reason would otherwise pass it.
+  it('starts the server without the flags and not with the runner’s launch flags', async () => {
     run(['-p', 'reply ok', '--settings', join(dir, 'managed.json'), '--max-turns', '1']);
-    expect(existsSync(join(dir, 'MCP_RAN'))).toBe(true);
-  }, 90_000);
+    expect(existsSync(marker())).toBe(true);
 
-  it('does not start it with the runner’s launch flags', () => {
+    await rm(marker());
     const flags = claudeLaunchArgv({
       prompt: 'reply ok',
       model: 'haiku',
       settingsPath: join(dir, 'managed.json'),
     });
     run([...flags, '--max-turns', '1']);
-    expect(existsSync(join(dir, 'MCP_RAN'))).toBe(false);
-  }, 90_000);
+    expect(existsSync(marker())).toBe(false);
+  }, 150_000);
 });

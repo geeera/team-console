@@ -3,6 +3,7 @@ import { OWNER_ACCOUNT_ID, type ClaimResponse, type RunnerListDto } from '@share
 import { enqueueJob, enrolRunner, sendAsRunner, type TestRunner } from '../testing/runner-kit';
 import { seedAccountProject, seedSessionUser, sendAsSession, type SessionUser } from '../testing/session-kit';
 import { seedTrackerProject, send, slugOf } from '../testing/tracker-kit';
+import { RUNNER_EXCLUSION_BUDGET } from '@worker/db';
 import type { RunnerPauseResponse } from './runner-pause';
 
 // #571, ADR 0008 decision 9: the runner mirrors its usage-budget pause; the claim skips a paused runner and caps one
@@ -218,6 +219,27 @@ describe('the failure streak and limit failures', () => {
       { reason: 'usage-limit', slug: project.slug },
       { reason: 'rate-limit', slug: project.slug },
     ]);
+  });
+
+  // #701: the project's budget is shared, so enrolling more runners buys no more exclusions on one project.
+  it('stops a project once its runners together have used the project’s exclusion budget', async () => {
+    const project = await seedTrackerProject();
+    const runners = [
+      await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [project.slug] }),
+      await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [project.slug] }),
+      await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [project.slug] }),
+    ];
+    // Two each from three runners: five are left out (the budget), the sixth counts.
+    for (const runner of [...runners, ...runners]) {
+      await failOne(runner, project.slug, { reason: 'usage-limit', retryAt: inMinutes(60) }, true);
+    }
+    const excluded = (await Promise.all(runners.map(async (runner) => (await excludedRows(runner.id)).length))).reduce((a, b) => a + b, 0);
+    expect(excluded).toBe(RUNNER_EXCLUSION_BUDGET);
+    expect(await streakOf(project.slug)).toEqual({ paused_by: null, failed_streak: 1 });
+    for (const runner of runners.slice(0, 2)) {
+      await failOne(runner, project.slug, { reason: 'rate-limit', retryAt: inMinutes(10) }, true);
+    }
+    expect(await streakOf(project.slug)).toEqual({ paused_by: 'system:failure-streak', failed_streak: 3 });
   });
 
   it('counts limit failures from a runner that holds no pause, and the third stops the project', async () => {

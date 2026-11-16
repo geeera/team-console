@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 
 /**
  * `git` as the runner runs it: no shell, an allow-listed env without any `GIT_*` of the runner's process (`GIT_CONFIG_*`
- * would inject config the refusal table never sees), no prompt. Its stderr is never copied into an error: a URL or
+ * would inject config the allow-list never sees), no prompt. Its stderr is never copied into an error: a URL or
  * a credential helper's output could be in it.
  */
 

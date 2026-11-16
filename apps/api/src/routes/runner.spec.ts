@@ -275,10 +275,18 @@ describe('the runner JWT on /api/v1/runner/*', () => {
   });
 
   it('rate-limits a runner id, then answers 429', async () => {
+    // The limiter's window is a fixed wall-clock minute (rateWindowOf), not a budget this test controls: a
+    // run straddling the boundary resets the count mid-loop and a fixed iteration count answers 200 instead
+    // of 429 (#702). Looping to the first 429, bounded for at most one such rollover, keeps the assertion on
+    // the limiter's behaviour instead of on real time.
     const runner = await enrolRunner(OWNER_ACCOUNT_ID);
     let last: Response | null = null;
-    for (let call = 0; call < RUNNER_RATE_LIMIT_PER_MINUTE + 1; call += 1) {
+    const maxAttempts = (RUNNER_RATE_LIMIT_PER_MINUTE + 1) * 2;
+    for (let call = 0; call < maxAttempts; call += 1) {
       last = await sendAsRunner(runner, 'GET', RELEASE);
+      if (last.status === 429) {
+        break;
+      }
     }
     expect(last?.status).toBe(429);
     expect(Number(last?.headers.get('Retry-After'))).toBeGreaterThan(0);

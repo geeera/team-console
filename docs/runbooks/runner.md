@@ -207,17 +207,33 @@ a branch a job checks out mid-run brings no project `env`, `enabledPlugins` or c
 repository's own `.claude/settings.json` `permissions` do not apply to a job. The launch-time refusal of command-type
 project settings stays as the first line.
 
-**Git config refusal (#645).** Besides hooks, `fsmonitor`, `sshCommand`, `include*` and foreign credential helpers, the
-runner refuses a mirror or clone whose config sets `core.askPass`, `core.editor`, `core.alternateRefsCommand`,
-`remote.*.vcs`, `remote.*.proxy`, `http.proxy` (and `http.<url>.proxy`), `gpg.program` / `gpg.*.program`,
-`diff.*.textconv`, `diff.*.command`, `merge.*.driver` or `submodule.*.update`, or that has an
-`objects/info/alternates` file. The system scope is not judged. If your upstream needs a proxy, set `HTTPS_PROXY` in
-the runner's environment instead.
+**Git config allow-list (#645, #694).** Besides planted hooks, the runner refuses a mirror or clone that has an
+`objects/info/alternates` file, or whose effective config (every scope except `system`, read with the job's `HOME`)
+holds any key outside what the runner's own git commands write: `core.repositoryformatversion`, `core.bare`,
+`core.filemode`, `core.logallrefupdates`, `core.ignorecase`, `core.precomposeunicode`, `core.symlinks`,
+`extensions.objectFormat`, `extensions.refStorage`, `remote.origin.{url,fetch,mirror,tagOpt}` and
+`branch.<name>.{remote,merge}`, each only with the value git writes (#721): `remote.origin.url` the configured
+upstream, `remote.origin.fetch` `+refs/*:refs/*` in the mirror and `+refs/heads/*:refs/remotes/origin/*` in the clone,
+`remote.origin` spelled in lower case (git compares that part case-sensitively, so `remote.ORIGIN` is another remote).
+Everything else is refused, harmless or not (`user.name`, `http.sslVerify`, `http.proxy`, `core.fsmonitor`,
+`sequence.editor`, a second remote, a credential helper, ...). The refusal names the key and its scope, never the
+value. The mirror fetch passes its refspec on the command line, and after each fetch the runner points the mirror's
+`HEAD` at the branch the upstream advertises as its default (`git ls-remote --symref origin HEAD`, one extra request),
+so a rewritten ref or `HEAD` never chooses the commit the plugin is vendored from. An upstream that advertises no
+default branch is refused. To recover, remove the key with `git --git-dir <mirror> config --unset <key>` or
+delete `work/<project>/mirror` so the runner re-clones it. Do not set options in a mirror's own config: if your
+upstream needs a proxy, set `HTTPS_PROXY` in the runner's environment; for TLS, `SSL_CERT_FILE` / `SSL_CERT_DIR`; for
+anything else, the runner's global git config (below).
 
 **Git environment (#648).** The mirror fetch sees only these variables of the runner's process: `HOME`, `PATH`, `USER`,
 `LOGNAME`, `TMPDIR`, `SSH_AUTH_SOCK`, `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY` (and lower-case forms),
 `SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE`, and, restored for private upstreams, `XDG_CONFIG_HOME`,
-`KRB5CCNAME` and `GNUPGHOME`. A config file under `XDG_CONFIG_HOME` is judged by the same refusal table. Not passed, on
+`KRB5CCNAME` and `GNUPGHOME`. The runner's own global git config (`~/.gitconfig` and
+`$XDG_CONFIG_HOME/git/config` of the runner's `HOME`) is the operator's file and is **not** judged by the allow-list:
+the allow-list reads the config with the job's `HOME`, and the fetch is what uses the runner's. Keep that file and
+`XDG_CONFIG_HOME` out of a job's reach: never point `XDG_CONFIG_HOME` at a directory a job can write (a job's `HOME`,
+`TMPDIR`, clone or the runner's `work/`), and on the `none` backend, where a job runs as the runner's user, expect that
+a job can edit it. Not passed, on
 purpose: `SSH_ASKPASS` / `SSH_ASKPASS_REQUIRE` (name a program ssh would run, the same class as `core.askPass`), every
 `GIT_*` variable (including `GIT_SSL_*`, `GIT_ASKPASS`, `GIT_SSH_COMMAND`, `GIT_CONFIG_*`), and anything else. For a
 private https upstream use the runner's own credential helper; for ssh use an agent (`SSH_AUTH_SOCK`). There is no
