@@ -17,7 +17,8 @@ import {
   type WorkerContext,
   type WorkerHonoEnv,
 } from '@worker/core';
-import { AccountsRepo, RateLimitsRepo, RunnersRepo, rateWindowOf, retryAfterOf } from '@worker/db';
+import { AccountsRepo, RunnersRepo } from '@worker/db';
+import { DoorRateLimits, type DoorLimitScope } from '../auth/door-rate-limits';
 import type { ApiEnv } from '../env';
 import { jsonBody } from '../json-body';
 import { SMALL_WRITE_MAX_BYTES, writeLimit } from '../tracker/http';
@@ -26,11 +27,14 @@ type Context = WorkerContext<ApiEnv>;
 
 /** Enrol attempts per source address per minute (ADR 0006 "Enrolment": rate-limited per IP; D1 counters, #467). */
 export const ENROL_RATE_LIMIT_PER_MINUTE = 10;
-/**
- * Enrol attempts for the whole environment per minute: a floor under a distributed guess (against 256 random bits
- * any rate is hopeless; the floor bounds the D1 writes a flood costs).
- */
+/** Enrolments on a live code for the whole environment per minute: never shared with junk (#696). */
 export const ENROL_RATE_LIMIT_GLOBAL_PER_MINUTE = 300;
+/**
+ * Enrol attempts refused before a live code (malformed, unknown, used or expired) for the whole environment per
+ * minute: a floor under a distributed guess (against 256 random bits any rate is hopeless), in a bucket of its own so
+ * a flood never starves an owner's real enrolment (#696).
+ */
+export const ENROL_RATE_LIMIT_UNVERIFIED_PER_MINUTE = 300;
 const ENROLMENT_CODE = new RegExp(`^${ENROLMENT_CODE_PREFIX}${OPAQUE_TOKEN_TAIL}$`);
 
 /** The release the environment names (vars); an unset or malformed var is `null`, never a guess. */
@@ -65,52 +69,51 @@ export function createRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
     .post('/enrol', writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
       const logger = c.get('logger');
       const now = new Date();
-      const limits = new RateLimitsRepo(c.env.DB);
-      const window = rateWindowOf(now.getTime(), 60);
-      const ip = c.req.header('CF-Connecting-IP')?.trim() ?? '';
-      const perAddress = await limits.hit(
-        `enrol:ip:${ip === '' ? 'unknown' : await sha256Hex(ip)}`,
-        window,
-        ENROL_RATE_LIMIT_PER_MINUTE,
-      );
-      const global = await limits.hit('enrol:all', window, ENROL_RATE_LIMIT_GLOBAL_PER_MINUTE);
-      if (!perAddress.allowed || !global.allowed) {
-        logger.warn('enrolment refused', { reason: 'rate-limited', scope: perAddress.allowed ? 'all' : 'ip' });
-        return problem(c, {
-          type: 'rate-limited',
-          title: 'Too Many Requests',
-          status: 429,
-          retryAfter: retryAfterOf(now.getTime(), 60),
-        });
+      const limits = new DoorRateLimits(c.env.DB, 'enrol', now.getTime());
+      const rateLimited = (scope: DoorLimitScope): Response => {
+        logger.warn('enrolment refused', { reason: 'rate-limited', scope });
+        return problem(c, { type: 'rate-limited', title: 'Too Many Requests', status: 429, retryAfter: limits.retryAfter() });
+      };
+      if (!(await limits.hitAddress(c.req.header('CF-Connecting-IP'), ENROL_RATE_LIMIT_PER_MINUTE, logger))) {
+        return rateLimited('ip');
       }
+      // Every refusal before a live code is junk, a used or expired code included: one answer for all of them keeps
+      // codes unenumerable (threat model C4) even while the junk bucket is over and answers 429.
+      const junk = async (refusal: () => Response): Promise<Response> =>
+        (await limits.hitUnverified(ENROL_RATE_LIMIT_UNVERIFIED_PER_MINUTE)) ? refusal() : rateLimited('unverified');
 
       const input = checkEnrolRunnerInput(await jsonBody(c));
       if (!input.ok) {
         const extensions: Record<string, ProblemExtensionValue> = { field: input.field };
-        return problem(c, {
-          type: 'enrol-invalid',
-          title: 'Invalid request',
-          status: 422,
-          detail: input.detail,
-          extensions,
-        });
+        return junk(() =>
+          problem(c, {
+            type: 'enrol-invalid',
+            title: 'Invalid request',
+            status: 422,
+            detail: input.detail,
+            extensions,
+          }),
+        );
       }
       const { value } = input;
       if (!ENROLMENT_CODE.test(value.code)) {
-        return codeInvalid(c, 'code-malformed');
+        return junk(() => codeInvalid(c, 'code-malformed'));
       }
       const runners = new RunnersRepo(c.env.DB);
       const codeHash = await sha256Hex(value.code);
       const enrolment = await runners.findEnrolment(codeHash);
       // The equality in SQL already decided; the constant-time compare keeps the answer's timing flat on top of it.
       if (enrolment === null || !timingSafeEqualText(enrolment.codeHash, codeHash)) {
-        return codeInvalid(c, 'code-unknown');
+        return junk(() => codeInvalid(c, 'code-unknown'));
       }
       if (enrolment.usedByRunnerId !== null) {
-        return codeInvalid(c, 'code-used');
+        return junk(() => codeInvalid(c, 'code-used'));
       }
       if (enrolment.expiresAt <= now.toISOString()) {
-        return codeInvalid(c, 'code-expired');
+        return junk(() => codeInvalid(c, 'code-expired'));
+      }
+      if (!(await limits.hitVerified(ENROL_RATE_LIMIT_GLOBAL_PER_MINUTE))) {
+        return rateLimited('verified');
       }
       const account = await new AccountsRepo(c.env.DB).findById(enrolment.accountId);
       if (account === null || account.suspendedAt !== null) {

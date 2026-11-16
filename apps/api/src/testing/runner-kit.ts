@@ -10,7 +10,7 @@ import {
 } from '@shared/contracts';
 import { env } from 'cloudflare:test';
 import { vi } from 'vitest';
-import { RunnersRepo } from '@worker/db';
+import { RunnersRepo, rateWindowOf } from '@worker/db';
 import type { ApiEnv } from '../env';
 import { fetchApi, type ApiRequest } from './access-kit';
 import { localEnv } from './github-kit';
@@ -79,6 +79,63 @@ export function enrolBodyOf(code: string, publicKeyJwk: Ed25519PublicJwk, overri
     version: '0.1.0',
     ...overrides,
   };
+}
+
+const DOOR_WINDOW_SECONDS = 60;
+
+/**
+ * Runs `body` until one run starts and ends inside one rate window. The door counters are fixed wall-clock minutes
+ * (`rateWindowOf`), so a case that counts to a limit would otherwise flake when it straddles a boundary (#702).
+ * `body` must make its own addresses and fixtures, as it may run again.
+ */
+export async function inOneRateWindow<T>(body: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const window = rateWindowOf(Date.now(), DOOR_WINDOW_SECONDS);
+    const result = await body();
+    if (rateWindowOf(Date.now(), DOOR_WINDOW_SECONDS) === window) {
+      return result;
+    }
+  }
+  throw new Error('a rate window ended inside every run of the case');
+}
+
+/**
+ * Runs `body` with a door bucket (`oidc:unverified`, `enrol:verified`, …) at `count` in the current window, then puts
+ * the bucket back: D1 is shared by a file's cases, so a full bucket must not outlive its case.
+ */
+export async function withRateBucketAt<T>(key: string, count: number, body: () => Promise<T>): Promise<T> {
+  const previous = await rateBucketCount(key);
+  await setRateBucket(key, count);
+  try {
+    return await body();
+  } finally {
+    await setRateBucket(key, previous);
+  }
+}
+
+async function setRateBucket(key: string, count: number): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO rate_limits (key, window_start, count) VALUES (?1, ?2, ?3)
+     ON CONFLICT (key) DO UPDATE SET window_start = excluded.window_start, count = excluded.count`,
+  )
+    .bind(key, rateWindowOf(Date.now(), DOOR_WINDOW_SECONDS), count)
+    .run();
+}
+
+/** A bucket's count in the current window, 0 when it has none. */
+export async function rateBucketCount(key: string): Promise<number> {
+  const row = await env.DB.prepare(`SELECT count FROM rate_limits WHERE key = ?1 AND window_start = ?2`)
+    .bind(key, rateWindowOf(Date.now(), DOOR_WINDOW_SECONDS))
+    .first<{ count: number }>();
+  return row?.count ?? 0;
+}
+
+let prefixCounter = 0;
+
+/** An IPv6 /64 of its own per call (documentation range), for the per-prefix limit. */
+export function uniqueIpv6Prefix(): string {
+  prefixCounter += 1;
+  return `2001:db8:${prefixCounter.toString(16)}:${(prefixCounter * 7).toString(16)}`;
 }
 
 let addressCounter = 0;

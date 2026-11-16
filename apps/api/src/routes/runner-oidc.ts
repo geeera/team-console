@@ -18,8 +18,9 @@ import {
   type WorkerContext,
   type WorkerHonoEnv,
 } from '@worker/core';
-import { JobsRepo, RateLimitsRepo, rateWindowOf, retryAfterOf, type NewAuditEvent } from '@worker/db';
+import { JobsRepo, type NewAuditEvent } from '@worker/db';
 import { actionsClaimRefusalOf, repositoryIdOf, verifyActionsOidcToken } from '../auth/actions-oidc';
+import { DoorRateLimits, type DoorLimitScope } from '../auth/door-rate-limits';
 import { sightingOf } from '../auth/runner-auth';
 import type { ApiEnv } from '../env';
 import { jsonBody } from '../json-body';
@@ -33,8 +34,13 @@ type Context = WorkerContext<ApiEnv>;
 export const OIDC_EXCHANGE_RATE_LIMIT_PER_MINUTE = 10;
 /** Exchanges per repository per minute, counted only for tokens GitHub signed (an unsigned one names no repository). */
 export const OIDC_EXCHANGE_RATE_LIMIT_PER_REPOSITORY_PER_MINUTE = 10;
-/** The floor for the whole environment, as for `enrol`: it bounds the D1 writes and JWKS reads a flood costs. */
+/** The floor for the whole environment, as for `enrol`, counted only for tokens GitHub signed (#696). */
 export const OIDC_EXCHANGE_RATE_LIMIT_GLOBAL_PER_MINUTE = 300;
+/**
+ * Requests refused before their token held (malformed body, bad signature or claims) for the whole environment: a
+ * bucket of their own (#696), so junk from rotating addresses never spends the budget of real exchanges.
+ */
+export const OIDC_EXCHANGE_RATE_LIMIT_UNVERIFIED_PER_MINUTE = 300;
 
 const REFUSAL_TITLES = { 401: 'Unauthorized', 403: 'Forbidden', 409: 'Conflict' } as const;
 
@@ -59,9 +65,9 @@ function refused(c: Context, logger: Logger, claim: OidcExchangeClaim, status: 4
   });
 }
 
-function rateLimited(c: Context, logger: Logger, scope: 'ip' | 'all' | 'repository', now: number): Response {
+function rateLimited(c: Context, logger: Logger, scope: DoorLimitScope | 'repository', limits: DoorRateLimits): Response {
   logger.warn('oidc exchange refused', { reason: 'rate-limited', scope });
-  return problem(c, { type: 'rate-limited', title: 'Too Many Requests', status: 429, retryAfter: retryAfterOf(now, 60) });
+  return problem(c, { type: 'rate-limited', title: 'Too Many Requests', status: 429, retryAfter: limits.retryAfter() });
 }
 
 /**
@@ -76,46 +82,44 @@ export function createRunnerOidcRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>().post('/oidc-exchange', writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
     const logger = c.get('logger');
     const now = new Date();
-    const limits = new RateLimitsRepo(c.env.DB);
-    const window = rateWindowOf(now.getTime(), 60);
-    const ip = c.req.header('CF-Connecting-IP')?.trim() ?? '';
-    const perAddress = await limits.hit(
-      `oidc:ip:${ip === '' ? 'unknown' : await sha256Hex(ip)}`,
-      window,
-      OIDC_EXCHANGE_RATE_LIMIT_PER_MINUTE,
-    );
-    const global = await limits.hit('oidc:all', window, OIDC_EXCHANGE_RATE_LIMIT_GLOBAL_PER_MINUTE);
-    if (!perAddress.allowed || !global.allowed) {
-      return rateLimited(c, logger, perAddress.allowed ? 'all' : 'ip', now.getTime());
+    const limits = new DoorRateLimits(c.env.DB, 'oidc', now.getTime());
+    if (!(await limits.hitAddress(c.req.header('CF-Connecting-IP'), OIDC_EXCHANGE_RATE_LIMIT_PER_MINUTE, logger))) {
+      return rateLimited(c, logger, 'ip', limits);
     }
+    // A refusal before the token held counts in the junk bucket; once that is over, junk is answered 429 instead.
+    const junk = async (refusal: () => Response): Promise<Response> =>
+      (await limits.hitUnverified(OIDC_EXCHANGE_RATE_LIMIT_UNVERIFIED_PER_MINUTE))
+        ? refusal()
+        : rateLimited(c, logger, 'unverified', limits);
 
     const input = checkOidcExchangeInput(await jsonBody(c));
     if (!input.ok) {
       const extensions: Record<string, ProblemExtensionValue> = { field: input.field };
-      return problem(c, { type: 'oidc-exchange-invalid', title: 'Invalid request', status: 422, detail: input.detail, extensions });
+      return junk(() =>
+        problem(c, { type: 'oidc-exchange-invalid', title: 'Invalid request', status: 422, detail: input.detail, extensions }),
+      );
     }
     const { value } = input;
 
     const verification = await verifyActionsOidcToken(c.env, value.idToken, now);
     if (!verification.ok) {
-      if (verification.claim === null) {
+      const { claim } = verification;
+      if (claim === null) {
         logger.error('oidc issuer unavailable');
         return problem(c, { type: 'oidc-issuer-unavailable', title: 'Service Unavailable', status: 503, retryAfter: 30 });
       }
-      return refused(c, logger, verification.claim, 401, value.jobId);
+      return junk(() => refused(c, logger, claim, 401, value.jobId));
     }
     const { claims } = verification;
     const repositoryId = repositoryIdOf(claims);
     if (repositoryId === null) {
-      return refused(c, logger, 'repository_id', 401, value.jobId);
+      return junk(() => refused(c, logger, 'repository_id', 401, value.jobId));
     }
-    const perRepository = await limits.hit(
-      `oidc:repo:${repositoryId}`,
-      window,
-      OIDC_EXCHANGE_RATE_LIMIT_PER_REPOSITORY_PER_MINUTE,
-    );
-    if (!perRepository.allowed) {
-      return rateLimited(c, logger, 'repository', now.getTime());
+    if (!(await limits.hit(`repo:${repositoryId}`, OIDC_EXCHANGE_RATE_LIMIT_PER_REPOSITORY_PER_MINUTE))) {
+      return rateLimited(c, logger, 'repository', limits);
+    }
+    if (!(await limits.hitVerified(OIDC_EXCHANGE_RATE_LIMIT_GLOBAL_PER_MINUTE))) {
+      return rateLimited(c, logger, 'verified', limits);
     }
 
     const jobs = new JobsRepo(c.env.DB);

@@ -20,17 +20,32 @@ import {
   runClaimsOf,
   saveAccessSource,
   seedActionsJob,
+  uniqueAddress,
   seedActionsProject,
   type ActionsProject,
   type TestIssuer,
 } from '../testing/actions-oidc-kit';
 import { fetchApi } from '../testing/access-kit';
 import { localEnv } from '../testing/github-kit';
-import { createEnrolmentCode, enrolBodyOf, enrolRunner, generateRunnerKey, postEnrol, sendAsJob, sendAsRunner } from '../testing/runner-kit';
+import {
+  createEnrolmentCode,
+  enrolBodyOf,
+  enrolRunner,
+  generateRunnerKey,
+  inOneRateWindow,
+  postEnrol,
+  rateBucketCount,
+  sendAsJob,
+  sendAsRunner,
+  withRateBucketAt,
+  uniqueIpv6Prefix,
+} from '../testing/runner-kit';
 import { seedSessionUser } from '../testing/session-kit';
 import {
+  OIDC_EXCHANGE_RATE_LIMIT_GLOBAL_PER_MINUTE,
   OIDC_EXCHANGE_RATE_LIMIT_PER_MINUTE,
   OIDC_EXCHANGE_RATE_LIMIT_PER_REPOSITORY_PER_MINUTE,
+  OIDC_EXCHANGE_RATE_LIMIT_UNVERIFIED_PER_MINUTE,
 } from './runner-oidc';
 
 // #668 (#573 sub-issue 1; ADR 0008 decision 7(a′), threat model C11 row 5 and C4): a GitHub-hosted workflow run trades
@@ -530,6 +545,114 @@ describe('rate limits, as for enrol', () => {
     // Another repository is judged on its own.
     const other = await seedActionsProject();
     expect((await exchange(other, await seedActionsJob(other))).response.status).toBe(200);
+  });
+
+  // #696: an IPv6 caller holds a whole /64, so the address limit counts the prefix.
+  it('limits a whole IPv6 /64 as one address, and another /64 on its own', async () => {
+    const outcome = await inOneRateWindow(async () => {
+      const project = await seedActionsProject();
+      const jobId = await seedActionsJob(project);
+      const prefix = uniqueIpv6Prefix();
+      const junk: number[] = [];
+      for (let attempt = 1; attempt <= OIDC_EXCHANGE_RATE_LIMIT_PER_MINUTE; attempt += 1) {
+        const headers = { 'CF-Connecting-IP': `${prefix}::${attempt.toString(16)}` };
+        junk.push((await postExchange((await exchangeBodyOf('not-a-jwt', jobId)).body, issuer.bindings, { headers })).status);
+      }
+      const sameRange = (await exchange(project, jobId, undefined, { headers: { 'CF-Connecting-IP': `${prefix}:ffff:ffff:ffff:ffff` } })).response;
+      const otherRange = (await exchange(project, jobId, undefined, { headers: { 'CF-Connecting-IP': `${uniqueIpv6Prefix()}::1` } })).response;
+      return { junk, sameRange: await refusalOf(sameRange), otherRange: otherRange.status };
+    });
+    expect(outcome.junk).toEqual(new Array<number>(OIDC_EXCHANGE_RATE_LIMIT_PER_MINUTE).fill(401));
+    expect(outcome.sameRange).toMatchObject({ status: 429, slug: 'rate-limited' });
+    expect(outcome.otherRange).toBe(200);
+  });
+
+  it('counts an IPv4-mapped IPv6 address as the IPv4 address it carries', async () => {
+    const outcome = await inOneRateWindow(async () => {
+      const project = await seedActionsProject();
+      const jobId = await seedActionsJob(project);
+      const address = uniqueAddress();
+      for (let attempt = 0; attempt < OIDC_EXCHANGE_RATE_LIMIT_PER_MINUTE; attempt += 1) {
+        await postExchange((await exchangeBodyOf('not-a-jwt', jobId)).body, issuer.bindings, { headers: { 'CF-Connecting-IP': address } });
+      }
+      return (await exchange(project, jobId, undefined, { headers: { 'CF-Connecting-IP': `::ffff:${address}` } })).response.status;
+    });
+    expect(outcome).toBe(429);
+  });
+
+  it('counts a missing or malformed address in one named bucket, and logs it', async () => {
+    const lines: string[] = [];
+    const outcome = await inOneRateWindow(() =>
+      withRateBucketAt('oidc:ip:unknown', 0, async () => {
+        const project = await seedActionsProject();
+        const jobId = await seedActionsJob(project);
+        for (let attempt = 0; attempt < OIDC_EXCHANGE_RATE_LIMIT_PER_MINUTE; attempt += 1) {
+          await postExchange((await exchangeBodyOf('not-a-jwt', jobId)).body, issuer.bindings, { headers: { 'CF-Connecting-IP': '' } });
+        }
+        const malformed = await exchange(project, jobId, undefined, {
+          headers: { 'CF-Connecting-IP': 'not-an-address' },
+          logSink: (line) => lines.push(line),
+        });
+        return malformed.response.status;
+      }),
+    );
+    expect(outcome).toBe(429);
+    expect(lines.some((line) => line.includes('runner door without a client address'))).toBe(true);
+  });
+
+  // #696: junk from rotating addresses has a bucket of its own, so it never spends the budget of a real exchange.
+  it('answers a real exchange while junk is at its environment limit, and 429 to more junk', async () => {
+    const outcome = await inOneRateWindow(async () => {
+      const project = await seedActionsProject();
+      const jobId = await seedActionsJob(project);
+      return withRateBucketAt('oidc:unverified', OIDC_EXCHANGE_RATE_LIMIT_UNVERIFIED_PER_MINUTE, async () => {
+        const junk = await postExchange((await exchangeBodyOf('not-a-jwt', jobId)).body, issuer.bindings);
+        const invalid = await postExchange({ idToken: 1 }, issuer.bindings);
+        const real = (await exchange(project, jobId)).response;
+        return { junk: await refusalOf(junk), invalid: invalid.status, real: real.status, retryAfter: junk.headers.get('Retry-After') };
+      });
+    });
+    expect(outcome.junk).toMatchObject({ status: 429, slug: 'rate-limited' });
+    expect(Number(outcome.retryAfter)).toBeGreaterThan(0);
+    expect(outcome.invalid).toBe(429);
+    expect(outcome.real).toBe(200);
+  });
+
+  it('never counts junk in the bucket of real exchanges, nor a real exchange in the junk bucket', async () => {
+    const counts = async () => ({ verified: await rateBucketCount('oidc:verified'), unverified: await rateBucketCount('oidc:unverified') });
+    const outcome = await inOneRateWindow(async () => {
+      const project = await seedActionsProject();
+      const jobId = await seedActionsJob(project);
+      const before = await counts();
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        await postExchange((await exchangeBodyOf('not-a-jwt', jobId)).body, issuer.bindings);
+      }
+      const afterJunk = await counts();
+      const real = (await exchange(project, jobId)).response.status;
+      const afterReal = await counts();
+      return {
+        real,
+        junkDelta: { verified: afterJunk.verified - before.verified, unverified: afterJunk.unverified - before.unverified },
+        realDelta: { verified: afterReal.verified - afterJunk.verified, unverified: afterReal.unverified - afterJunk.unverified },
+      };
+    });
+    expect(outcome.real).toBe(200);
+    expect(outcome.junkDelta).toEqual({ verified: 0, unverified: 3 });
+    expect(outcome.realDelta).toEqual({ verified: 1, unverified: 0 });
+  });
+
+  it('still floors real exchanges for the environment, and junk keeps its own answer then', async () => {
+    const outcome = await inOneRateWindow(async () => {
+      const project = await seedActionsProject();
+      const jobId = await seedActionsJob(project);
+      return withRateBucketAt('oidc:verified', OIDC_EXCHANGE_RATE_LIMIT_GLOBAL_PER_MINUTE, async () => {
+        const real = (await exchange(project, jobId)).response;
+        const junk = await postExchange((await exchangeBodyOf('not-a-jwt', jobId)).body, issuer.bindings);
+        return { real: await refusalOf(real), junk: junk.status };
+      });
+    });
+    expect(outcome.real).toMatchObject({ status: 429, slug: 'rate-limited' });
+    expect(outcome.junk).toBe(401);
   });
 });
 

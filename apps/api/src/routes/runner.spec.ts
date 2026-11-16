@@ -10,13 +10,16 @@ import {
   enrolBodyOf,
   enrolRunner,
   generateRunnerKey,
+  inOneRateWindow,
   postEnrol,
   runnerJwt,
   sendAsRunner,
+  uniqueIpv6Prefix,
+  withRateBucketAt,
 } from '../testing/runner-kit';
 import { seedSessionUser, sendAsSession } from '../testing/session-kit';
 import { send, slugOf } from '../testing/tracker-kit';
-import { ENROL_RATE_LIMIT_PER_MINUTE } from './runner';
+import { ENROL_RATE_LIMIT_GLOBAL_PER_MINUTE, ENROL_RATE_LIMIT_PER_MINUTE, ENROL_RATE_LIMIT_UNVERIFIED_PER_MINUTE } from './runner';
 
 // #467, ADR 0008 row 2-A: enrolment by a one-time code (threat model C4 "Brute force or theft of an enrolment
 // code"), then the runner JWT alone on `/api/v1/runner/*` (ADR 0008 "Customer runner authentication without Access";
@@ -165,6 +168,58 @@ describe('POST /api/v1/runner/enrol', () => {
       headers: { 'CF-Connecting-IP': '203.0.113.10' },
     });
     expect(other.status).toBe(401);
+  });
+
+  // #696: one IPv6 caller holds a whole /64.
+  it('rate-limits a whole IPv6 /64 as one address', async () => {
+    const key = (await generateRunnerKey()).publicKeyJwk;
+    const unknownCode = enrolBodyOf(`${ENROLMENT_CODE_PREFIX}${'C'.repeat(43)}`, key);
+    const outcome = await inOneRateWindow(async () => {
+      const prefix = uniqueIpv6Prefix();
+      const statuses: number[] = [];
+      for (let attempt = 1; attempt <= ENROL_RATE_LIMIT_PER_MINUTE + 1; attempt += 1) {
+        statuses.push((await postEnrol(unknownCode, { headers: { 'CF-Connecting-IP': `${prefix}::${attempt.toString(16)}` } })).status);
+      }
+      const otherRange = await postEnrol(unknownCode, { headers: { 'CF-Connecting-IP': `${uniqueIpv6Prefix()}::1` } });
+      return { statuses, otherRange: otherRange.status };
+    });
+    expect(outcome.statuses).toEqual([...new Array<number>(ENROL_RATE_LIMIT_PER_MINUTE).fill(401), 429]);
+    expect(outcome.otherRange).toBe(401);
+  });
+
+  // #696: junk has an environment bucket of its own, so a flood of guesses never starves the owner's enrolment.
+  it('enrols on a live code while junk is at its environment limit, and answers every junk 429 alike', async () => {
+    const { code: used } = await createEnrolmentCode(OWNER_ACCOUNT_ID);
+    expect((await postEnrol(enrolBodyOf(used, (await generateRunnerKey()).publicKeyJwk))).status).toBe(201);
+    const outcome = await inOneRateWindow(async () => {
+      const { code } = await createEnrolmentCode(OWNER_ACCOUNT_ID);
+      const key = (await generateRunnerKey()).publicKeyJwk;
+      return withRateBucketAt('enrol:unverified', ENROL_RATE_LIMIT_UNVERIFIED_PER_MINUTE, async () => {
+        const junk = [
+          await postEnrol(enrolBodyOf(`${ENROLMENT_CODE_PREFIX}${'D'.repeat(43)}`, key)),
+          await postEnrol(enrolBodyOf('not-a-code', key)),
+          await postEnrol({ code: 1 }),
+          // A used code is junk too: it answers as an unknown one, so the 429 tells nothing about which codes exist.
+          await postEnrol(enrolBodyOf(used, key)),
+        ];
+        const real = await postEnrol(enrolBodyOf(code, key));
+        return { junk: await Promise.all(junk.map(async (response) => [response.status, await slugOf(response)])), real: real.status };
+      });
+    });
+    expect(outcome.junk).toEqual(new Array(4).fill([429, 'rate-limited']));
+    expect(outcome.real).toBe(201);
+  });
+
+  it('still floors enrolments on live codes for the environment, and a guess keeps its own answer then', async () => {
+    const outcome = await inOneRateWindow(async () => {
+      const { code } = await createEnrolmentCode(OWNER_ACCOUNT_ID);
+      const key = (await generateRunnerKey()).publicKeyJwk;
+      return withRateBucketAt('enrol:verified', ENROL_RATE_LIMIT_GLOBAL_PER_MINUTE, async () => ({
+        real: (await postEnrol(enrolBodyOf(code, key))).status,
+        guess: (await postEnrol(enrolBodyOf(`${ENROLMENT_CODE_PREFIX}${'E'.repeat(43)}`, key))).status,
+      }));
+    });
+    expect(outcome).toEqual({ real: 429, guess: 401 });
   });
 
   it('never writes the code or the runner key into a log line', async () => {
