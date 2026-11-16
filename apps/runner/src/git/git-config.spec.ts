@@ -39,6 +39,18 @@ describe('git config refusal table', () => {
     ['credential.https://github.com.helper', 'store'],
     ['merge.custom.hooks', 'x'],
     ['Foo.Bar.Hooks', '1'],
+    ['filter.lfs.clean', '/tmp/clean.sh'],
+    ['filter.lfs.smudge', '/tmp/smudge.sh'],
+    ['filter.lfs.process', '/tmp/process.sh'],
+    ['remote.origin.uploadpack', '/tmp/upload.sh'],
+    ['remote.origin.receivepack', '/tmp/receive.sh'],
+    ['core.gitProxy', '/tmp/proxy.sh'],
+    ['url./tmp/evil.insteadOf', 'https://github.com/'],
+    ['url./tmp/evil.pushInsteadOf', 'https://github.com/'],
+    ['protocol.ext.allow', 'always'],
+    ['protocol.allow', 'always'],
+    ['core.pager', '/tmp/pager.sh'],
+    ['diff.external', '/tmp/diff.sh'],
   ])('refuses %s', async (key, value) => {
     fixtureGit(['-C', repo, 'config', key, value]);
     const refusal: unknown = await assertCleanGitConfig(gitDir(), env, null).catch((error: unknown) => error);

@@ -39,6 +39,38 @@ export const REFUSED_GIT_KEYS: readonly RefusedKeyRule[] = [
     test: (key, value, allowedHelper) => isHelper(key) && (allowedHelper === null || value !== allowedHelper),
   },
   { label: '*.hooks', test: (key) => lower(key).endsWith('.hooks') },
+  // Keys that run a command or redirect the transport (#591): the same cross-job channel as the rows above.
+  {
+    label: 'filter.*.{clean,smudge,process}',
+    test: (key) => {
+      const k = lower(key);
+      return k.startsWith('filter.') && (k.endsWith('.clean') || k.endsWith('.smudge') || k.endsWith('.process'));
+    },
+  },
+  {
+    label: 'remote.*.{uploadpack,receivepack}',
+    test: (key) => {
+      const k = lower(key);
+      return k.startsWith('remote.') && (k.endsWith('.uploadpack') || k.endsWith('.receivepack'));
+    },
+  },
+  { label: 'core.gitProxy', test: (key) => lower(key) === 'core.gitproxy' },
+  {
+    label: 'url.*.insteadOf',
+    test: (key) => {
+      const k = lower(key);
+      return k.startsWith('url.') && (k.endsWith('.insteadof') || k.endsWith('.pushinsteadof'));
+    },
+  },
+  {
+    label: 'protocol.*.allow',
+    test: (key) => {
+      const k = lower(key);
+      return k === 'protocol.allow' || (k.startsWith('protocol.') && k.endsWith('.allow'));
+    },
+  },
+  { label: 'core.pager', test: (key) => lower(key) === 'core.pager' },
+  { label: 'diff.external', test: (key) => lower(key) === 'diff.external' },
 ];
 
 /** Parses `git config --list --show-scope --show-origin --null`: `scope NUL origin NUL key LF value NUL`. */
