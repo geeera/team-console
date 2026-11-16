@@ -1,8 +1,5 @@
-import { BreakpointObserver } from '@angular/cdk/layout';
-import { Directive, inject } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { map } from 'rxjs';
-import { BREAKPOINTS } from '../../tokens/breakpoints';
+import { Directive } from '@angular/core';
+import { isPhoneSignal } from '../is-phone/is-phone';
 
 /**
  * Keeps an element for assistive tech only on the phone, where the top bar already shows the same words — a page's
@@ -18,10 +15,5 @@ import { BREAKPOINTS } from '../../tokens/breakpoints';
   host: { '[class.tc-sr-only]': 'isPhone()' },
 })
 export class SrOnlyOnPhone {
-  private readonly breakpoints = inject(BreakpointObserver);
-
-  protected readonly isPhone = toSignal(
-    this.breakpoints.observe(BREAKPOINTS.phone).pipe(map((result) => result.matches)),
-    { initialValue: this.breakpoints.isMatched(BREAKPOINTS.phone) },
-  );
+  protected readonly isPhone = isPhoneSignal();
 }
