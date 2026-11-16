@@ -210,8 +210,9 @@ project settings stays as the first line.
 **Git config refusal (#645).** Besides hooks, `fsmonitor`, `sshCommand`, `include*` and foreign credential helpers, the
 runner refuses a mirror or clone whose config sets `core.askPass`, `core.editor`, `core.alternateRefsCommand`,
 `remote.*.vcs`, `remote.*.proxy`, `http.proxy` (and `http.<url>.proxy`), `gpg.program` / `gpg.*.program`,
-`diff.*.textconv`, `merge.*.driver` or `submodule.*.update`, or that has an `objects/info/alternates` file. The system
-scope is not judged. If your upstream needs a proxy, set `HTTPS_PROXY` in the runner's environment instead.
+`diff.*.textconv`, `diff.*.command`, `merge.*.driver` or `submodule.*.update`, or that has an
+`objects/info/alternates` file. The system scope is not judged. If your upstream needs a proxy, set `HTTPS_PROXY` in
+the runner's environment instead.
 
 **Git environment (#648).** The mirror fetch sees only these variables of the runner's process: `HOME`, `PATH`, `USER`,
 `LOGNAME`, `TMPDIR`, `SSH_AUTH_SOCK`, `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY` (and lower-case forms),
