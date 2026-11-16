@@ -94,6 +94,7 @@ export {
   checkPauseRunnerInput,
   checkUpdateRunnerInput,
   compareRunnerVersions,
+  ENROL_CODE_ENV,
   enrolCommandOf,
   isEd25519PublicJwk,
   isEnrolmentCodeDto,

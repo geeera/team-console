@@ -1,6 +1,6 @@
 import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
-import { RUNNER_BINARY, type RunnerHostDto } from '@shared/contracts';
+import { ENROL_CODE_ENV, RUNNER_BINARY, type RunnerHostDto } from '@shared/contracts';
 import { BackendError, type IsolationBackend } from '../backends/backend';
 import { ContainerBackend } from '../backends/container';
 import { NoneBackend } from '../backends/none';
@@ -24,6 +24,7 @@ import { RUNNER_VERSION } from '../version';
 import { autoUpdater } from '../update/auto-update';
 import { UpdateError, applyUpdate, checkForUpdate, type ApplyDeps } from '../update/update';
 import { EnrolUsageError, enrol } from './enrol';
+import { enrolCodeOf, type ReadCodeLine } from './enrol-code';
 
 /** Everything the CLI reads from the process, passed in so the specs drive it without touching the real host. */
 export interface CliDeps {
@@ -46,6 +47,8 @@ export interface CliDeps {
   readonly updateExec?: Exec;
   readonly arch?: string;
   readonly now?: () => Date;
+  /** One line of stdin for `enrol --code -`; absent when the process has no stdin to read. */
+  readonly readCodeLine?: ReadCodeLine;
 }
 
 export const EXIT_OK = 0;
@@ -58,9 +61,11 @@ const USAGE = [
   'Commands:',
   '  install --backend user|container (--dry-run | --yes) [--home <dir>] [--image <name@sha256:…>] [--runtime docker|podman|container]',
   '        List (--dry-run) or make (--yes) the job users, sudoers rule and service; user needs sudo, container must not.',
-  '  enrol --url <console origin> --code <tce_…> --backend container|user|none',
+  '  enrol --url <console origin> --backend container|user|none [--code -]',
   '        [--credential api-key|setup-token|claude-config-dir] [--claude-config-dir <dir>] [--image <name@sha256:…>]',
-  '        Enrol this host with the one-time code from Settings › Runners.',
+  `        Enrol this host with the one-time code from Settings › Runners, read from ${ENROL_CODE_ENV} or, with`,
+  '        --code -, from one line of stdin (prompted on a terminal). --code <tce_…> works too, but any local user',
+  '        can read an argument with ps while enrol runs.',
   '  run-once  Claim one job, run it and exit (exit 0 also when there is none or the runner is paused).',
   '  run --loop  Claim and run jobs until Ctrl-C.',
   '  update [--check]  Install the release the console names after `gh attestation verify` accepts it',
@@ -133,12 +138,19 @@ async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number>
     }
     throw error;
   }
-  const { url, code, backend } = values;
-  if (url === undefined || code === undefined || backend === undefined) {
-    deps.stderr(`enrol needs --url, --code and --backend.\n\n${USAGE}`);
+  const { url, backend } = values;
+  const missing = `enrol needs --url, --backend and the code (${ENROL_CODE_ENV} or --code -).\n\n${USAGE}`;
+  if (url === undefined || backend === undefined) {
+    deps.stderr(missing);
     return EXIT_USAGE;
   }
   try {
+    // Read only once the flags are complete, so a usage slip never swallows a piped code.
+    const code = await enrolCodeOf(values.code, deps.env, deps.readCodeLine);
+    if (code === undefined) {
+      deps.stderr(missing);
+      return EXIT_USAGE;
+    }
     const home = runnerHomeOf(deps.env, deps.homeDir);
     const config = await enrol(
       {

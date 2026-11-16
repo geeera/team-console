@@ -557,7 +557,7 @@ under `RUNNER_MINIMUM_VERSION`. Console: `@console/entities/runner` (`RunnersApi
 in `@shared/contracts`, failures through `runnerFailureOf`/`runnerFailureKeyOf`; `RunnersStore`, in memory only, the
 first owned account, `forbidden` for a member or no account; `RunnerCard`, `RunnerProjectsPicker`, `runnerFixture`),
 `@console/features/enrol-runner` (the code lives in the dialog only; the command is `enrolCommandOf`, `null` for
-anything that could carry a shell metacharacter), `@console/features/manage-runner` (allowed projects, revoke behind a
+anything that could carry a shell metacharacter; #582: the code rides in `TC_ENROL_CODE`, never in argv), `@console/features/manage-runner` (allowed projects, revoke behind a
 danger confirm; #492: clear a suspect mark behind a confirm, withdraw a pending code from the page's pending list), `@console/features/runner-policy` (`RunnerPolicyEditor` per account or project scope; `PUT null`
 returns a project to the account default; a saved account default bumps the project editor's `revision`, which
 refreshes its summary and keeps unsaved edits); page `/settings/runners` in `console-pages-settings` (lazy). The e2e
