@@ -13,6 +13,7 @@ import { redactSecrets } from '@shared/redaction';
 import type { IsolationBackend, RunningJob, Sandbox } from '../backends/backend';
 import { detectOutcome, type LimitReason } from '../budget/detect';
 import type { RunnerPause } from '../budget/state';
+import { claudeLaunchArgv } from '../claude/launch-argv';
 import { writeManagedSettings } from '../claude/managed-settings';
 import { refuseProjectSettingsCommands } from '../claude/project-settings';
 import { promptOf } from '../claude/prompts';
@@ -242,17 +243,7 @@ export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): P
     } else {
       const launched = await backend.launch(sandbox, {
         command: config.toolchain?.claude ?? 'claude',
-        argv: [
-          '-p',
-          promptOf({ job, pluginRoot }),
-          '--output-format',
-          'stream-json',
-          '--verbose',
-          '--model',
-          model,
-          '--settings',
-          settingsPath,
-        ],
+        argv: claudeLaunchArgv({ prompt: promptOf({ job, pluginRoot }), model, settingsPath }),
         env,
         cwd: sandbox.clone,
         maxMinutes: job.maxMinutes,

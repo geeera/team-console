@@ -1,3 +1,5 @@
+import { lstat } from 'node:fs/promises';
+import { join } from 'node:path';
 import { LaunchRefusal } from '../jobs/refusal';
 import { runGit, type GitRunner } from './git';
 
@@ -25,6 +27,12 @@ const lower = (key: string): string => key.toLowerCase();
 const isHelper = (key: string): boolean => {
   const k = lower(key);
   return k === 'credential.helper' || (k.startsWith('credential.') && k.endsWith('.helper'));
+};
+
+/** `section.<subsection>.variable`, the subsection being anything (it may itself contain dots). */
+const isSubsectionKey = (key: string, section: string, variable: string): boolean => {
+  const k = lower(key);
+  return k.startsWith(`${section}.`) && k.endsWith(`.${variable}`) && k.length > section.length + variable.length + 2;
 };
 
 /** Data, with a spec row per entry. */
@@ -71,6 +79,18 @@ export const REFUSED_GIT_KEYS: readonly RefusedKeyRule[] = [
   },
   { label: 'core.pager', test: (key) => lower(key) === 'core.pager' },
   { label: 'diff.external', test: (key) => lower(key) === 'diff.external' },
+  // Command-running or redirecting keys git reads during the mirror fetch or the checkout (#645).
+  { label: 'core.askPass', test: (key) => lower(key) === 'core.askpass' },
+  { label: 'core.editor', test: (key) => lower(key) === 'core.editor' },
+  { label: 'core.alternateRefsCommand', test: (key) => lower(key) === 'core.alternaterefscommand' },
+  { label: 'remote.*.vcs', test: (key) => isSubsectionKey(key, 'remote', 'vcs') },
+  { label: 'remote.*.proxy', test: (key) => isSubsectionKey(key, 'remote', 'proxy') },
+  { label: 'http.proxy', test: (key) => lower(key) === 'http.proxy' || isSubsectionKey(key, 'http', 'proxy') },
+  { label: 'gpg.*program', test: (key) => lower(key) === 'gpg.program' || isSubsectionKey(key, 'gpg', 'program') },
+  { label: 'diff.*.textconv', test: (key) => isSubsectionKey(key, 'diff', 'textconv') },
+  { label: 'diff.*.command', test: (key) => isSubsectionKey(key, 'diff', 'command') },
+  { label: 'merge.*.driver', test: (key) => isSubsectionKey(key, 'merge', 'driver') },
+  { label: 'submodule.*.update', test: (key) => isSubsectionKey(key, 'submodule', 'update') },
 ];
 
 /** Parses `git config --list --show-scope --show-origin --null`: `scope NUL origin NUL key LF value NUL`. */
@@ -122,7 +142,23 @@ export async function assertCleanGitConfig(
     env,
   );
   const refused = refusedGitConfig(parseGitConfigList(output), allowedHelper);
+  if (await hasAlternates(gitDir)) {
+    refused.push('objects/info/alternates (alternate object store)');
+  }
   if (refused.length > 0) {
     throw new LaunchRefusal('git-config-refused', `git config refused: ${refused.join(', ')}`);
+  }
+}
+
+/** An alternates file points git at another object store, for example one a job planted; it is not config. */
+async function hasAlternates(gitDir: string): Promise<boolean> {
+  try {
+    await lstat(join(gitDir, 'objects', 'info', 'alternates'));
+    return true;
+  } catch (error: unknown) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+      return false;
+    }
+    throw error;
   }
 }

@@ -199,6 +199,30 @@ than the ones below is refused at `enrol` and again at every launch.
 | `claude-config-dir` (`--claude-config-dir <dir>`) | `container` only | A **location**. The runner bind-mounts the directory read-only at `/home/job/.claude` and sets `CLAUDE_CONFIG_DIR`. The runner itself never opens the files. | The job can read the OAuth refresh token in that directory. | Sign out of that device in claude.ai, then sign in again on the host. The old refresh token stops working. |
 | `api-key` (`credentials/anthropic.key`, 0600) | every backend | A **key value**. The runner reads the file and puts it in the job's env only, as `ANTHROPIC_API_KEY`. The redactor masks `sk-ant-` in events and logs. | Any job can read it while it runs. | Rotate the key in the Anthropic Console and replace the file. Then restart the service: `launchctl kickstart -k …` or `systemctl --user restart team-console-runner`. |
 
+## Repository config and the git environment (#639, #645, #648)
+
+**Claude CLI launch.** Every job starts the CLI with `--strict-mcp-config --mcp-config '{"mcpServers":{}}'` and
+`--setting-sources user`. A project `.mcp.json` server therefore never starts (it did in `-p` mode with no approval), and
+a branch a job checks out mid-run brings no project `env`, `enabledPlugins` or command setting into the CLI. The cost: a
+repository's own `.claude/settings.json` `permissions` do not apply to a job. The launch-time refusal of command-type
+project settings stays as the first line.
+
+**Git config refusal (#645).** Besides hooks, `fsmonitor`, `sshCommand`, `include*` and foreign credential helpers, the
+runner refuses a mirror or clone whose config sets `core.askPass`, `core.editor`, `core.alternateRefsCommand`,
+`remote.*.vcs`, `remote.*.proxy`, `http.proxy` (and `http.<url>.proxy`), `gpg.program` / `gpg.*.program`,
+`diff.*.textconv`, `diff.*.command`, `merge.*.driver` or `submodule.*.update`, or that has an
+`objects/info/alternates` file. The system scope is not judged. If your upstream needs a proxy, set `HTTPS_PROXY` in
+the runner's environment instead.
+
+**Git environment (#648).** The mirror fetch sees only these variables of the runner's process: `HOME`, `PATH`, `USER`,
+`LOGNAME`, `TMPDIR`, `SSH_AUTH_SOCK`, `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY` (and lower-case forms),
+`SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE`, and, restored for private upstreams, `XDG_CONFIG_HOME`,
+`KRB5CCNAME` and `GNUPGHOME`. A config file under `XDG_CONFIG_HOME` is judged by the same refusal table. Not passed, on
+purpose: `SSH_ASKPASS` / `SSH_ASKPASS_REQUIRE` (name a program ssh would run, the same class as `core.askPass`), every
+`GIT_*` variable (including `GIT_SSL_*`, `GIT_ASKPASS`, `GIT_SSH_COMMAND`, `GIT_CONFIG_*`), and anything else. For a
+private https upstream use the runner's own credential helper; for ssh use an agent (`SSH_AUTH_SOCK`). There is no
+operator opt-in to extend the list: a new need is an issue, so each variable gets a review.
+
 ## Pause on a usage limit (decision 9, #571)
 
 When the Claude CLI reports a usage or rate limit, the runner finishes that job `failed` with the reason and the reset

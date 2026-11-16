@@ -42,6 +42,11 @@ export const RUNNER_GIT_ENV_ALLOWED: readonly string[] = [
   'SSL_CERT_FILE',
   'SSL_CERT_DIR',
   'CURL_CA_BUNDLE',
+  // Operator setups for private upstreams (#648). Each only locates a file or a credential cache; none runs a command
+  // by itself. `SSH_ASKPASS`, `GIT_ASKPASS` and every other `GIT_*` stay out: they name a program git or ssh would run.
+  'XDG_CONFIG_HOME',
+  'KRB5CCNAME',
+  'GNUPGHOME',
 ];
 
 /** The runner's env for git: an allow-list of its own variables (the mirror fetch uses its read access), no `GIT_*`. */
