@@ -5,6 +5,7 @@ import { BackendError, type IsolationBackend } from '../backends/backend';
 import { ContainerBackend } from '../backends/container';
 import { NoneBackend } from '../backends/none';
 import { SYSTEM_MANAGED_SETTINGS_PATH, UserBackend } from '../backends/user';
+import { ActionsRunError } from '../client/actions-oidc';
 import { RunnerApiError, RunnerClient, type FetchLike } from '../client/runner-client';
 import {
   CONTAINER_RUNTIMES,
@@ -25,6 +26,7 @@ import { autoUpdater } from '../update/auto-update';
 import { UpdateError, applyUpdate, checkForUpdate, type ApplyDeps } from '../update/update';
 import { EnrolUsageError, enrol } from './enrol';
 import { ENROL_CODE_STDIN, enrolCodeOf, type ReadCodeLine } from './enrol-code';
+import { runOnceOidc } from './run-once-oidc';
 
 /** Everything the CLI reads from the process, passed in so the specs drive it without touching the real host. */
 export interface CliDeps {
@@ -51,6 +53,10 @@ export interface CliDeps {
   readonly readCodeLine?: ReadCodeLine;
   /** Where the runner key lives (platform, `security` exec, env); the host's when absent. */
   readonly keys?: RunnerKeyDeps;
+  /** Where the running node lives (`run-once --oidc` puts it first on the job's PATH); `process.execPath`'s when absent. */
+  readonly nodeDir?: string;
+  /** `lsof` for the `actions-ephemeral` sandbox sweep; the host's when absent. */
+  readonly exec?: Exec;
 }
 
 export const EXIT_OK = 0;
@@ -69,6 +75,9 @@ const USAGE = [
   '        --code -, from one line of stdin (prompted on a terminal). --code <tce_…> works too, but any local user',
   '        can read an argument with ps while enrol runs.',
   '  run-once  Claim one job, run it and exit (exit 0 also when there is none or the runner is paused).',
+  '  run-once --oidc  Inside a GitHub Actions run: exchange the run\'s OIDC token for the job in TC_JOB_ID, run it',
+  '        and exit. Reads only its env (TC_CONSOLE_URL, TC_JOB_ID, TC_CONSOLE_AUDIENCE, TC_INFERENCE_API_KEY and',
+  '        GitHub\'s); keeps nothing; prints only the job id.',
   '  run --loop  Claim and run jobs until Ctrl-C.',
   '  update [--check]  Install the release the console names after `gh attestation verify` accepts it',
   '        (never a lower version); --check only says whether one is available.',
@@ -87,6 +96,8 @@ function describeFailure(error: unknown): string {
         return 'This console does not accept a runner without isolation; choose --backend container or user.';
       case 'rate-limited':
         return 'Too many enrolment attempts; wait a minute and try again.';
+      case 'oidc-exchange-refused':
+        return `The console refused this run's OIDC exchange: ${error.message}. Check the workflow file, branch, Environment and job id.`;
       default:
         return error.message;
     }
@@ -96,7 +107,8 @@ function describeFailure(error: unknown): string {
     error instanceof EnrolUsageError ||
     error instanceof BackendError ||
     error instanceof InstallError ||
-    error instanceof UpdateError
+    error instanceof UpdateError ||
+    error instanceof ActionsRunError
   ) {
     return error.message;
   }
@@ -407,6 +419,31 @@ async function runJobs(mode: 'once' | 'loop', deps: CliDeps): Promise<number> {
   }
 }
 
+/** `run-once --oidc`: exit 0 once the job ran (its result is the console's), non-zero on every refusal before it. */
+async function runOidc(deps: CliDeps): Promise<number> {
+  try {
+    const end = await runOnceOidc({
+      env: deps.env,
+      fetch: deps.fetch,
+      host: deps.host,
+      stdout: deps.stdout,
+      stderr: deps.stderr,
+      nodeDir: deps.nodeDir ?? dirname(process.execPath),
+      now: deps.now ?? (() => new Date()),
+      shutdown: deps.shutdown ?? new AbortController().signal,
+      ...(deps.exec === undefined ? {} : { exec: deps.exec }),
+    });
+    if (end.kind === 'shutdown') {
+      deps.stderr('Stopped before the exchange; the job stays queued for the console to settle.');
+      return EXIT_FAILED;
+    }
+    return EXIT_OK;
+  } catch (error: unknown) {
+    deps.stderr(`run-once --oidc refused: ${describeFailure(error)}`);
+    return EXIT_FAILED;
+  }
+}
+
 function usageError(deps: CliDeps, message: string): number {
   deps.stderr(`${message}\n\n${USAGE}`);
   return EXIT_USAGE;
@@ -420,7 +457,10 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     case 'install':
       return runInstallCommand(rest, deps);
     case 'run-once':
-      return rest.length === 0 ? runJobs('once', deps) : usageError(deps, 'run-once takes no arguments.');
+      if (rest.length === 1 && rest[0] === '--oidc') {
+        return runOidc(deps);
+      }
+      return rest.length === 0 ? runJobs('once', deps) : usageError(deps, 'run-once takes only --oidc.');
     case 'update':
       return runUpdate(rest, deps);
     case 'run':

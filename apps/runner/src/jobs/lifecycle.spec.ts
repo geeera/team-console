@@ -4,6 +4,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import { NoneBackend } from '../backends/none';
 import { loadRunnerState, saveRunnerState } from '../budget/state';
 import { RunnerClient } from '../client/runner-client';
+import type { RunnerConfig } from '../config/config';
 import { JobRegistry } from '../proxy/job-registry';
 import { JOB_ID, RUNNER_ID, fakeConsole, jobFixture, json, sentinels } from '../testing/fake-console';
 import { SCENARIO, makeRunnerHome, recordingConsole, runnerConfigFor } from '../testing/job-fixture';
@@ -40,8 +41,8 @@ describe('job lifecycle', () => {
 
   function depsFor<C extends JobConsole>(
     client: C,
-    overrides: Partial<Omit<JobRunDeps, 'client'>> = {},
-  ): JobRunDeps & { client: C } {
+    overrides: Partial<Omit<JobRunDeps, 'client' | 'config'>> & { config?: RunnerConfig } = {},
+  ): JobRunDeps & { client: C; config: RunnerConfig } {
     return {
       home: fixture.home,
       config: runnerConfigFor(fixture.repo),
@@ -347,7 +348,7 @@ describe('job lifecycle', () => {
     const marker = (): string => join(fixture.root, 'cli-started');
 
     async function refusedWith(
-      overrides: Partial<JobRunDeps['config']>,
+      overrides: Partial<RunnerConfig>,
       jobOverrides = {},
     ): Promise<string | null> {
       const client = recordingConsole();

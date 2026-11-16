@@ -1,4 +1,4 @@
-import { RUNNER_GIT_ENV_ALLOWED, runnerGitEnv } from './git';
+import { RUNNER_GIT_ENV_ALLOWED, runnerGitEnv, withReadToken } from './git';
 
 /** #591: the mirror fetch sees an allow-list of the runner's env, never the rest of it. */
 
@@ -52,5 +52,32 @@ describe('runnerGitEnv', () => {
 
   it('skips allowed variables that are unset', () => {
     expect(runnerGitEnv({ HOME: undefined })).toEqual({ GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' });
+  });
+});
+
+/** #669: the read token of an Actions run reaches git as env config for the upstream's origin, never argv or a file. */
+describe('withReadToken', () => {
+  const token = `ghs_${'G'.repeat(36)}`;
+  const base = { PATH: '/usr/bin', GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' };
+
+  it('adds an Authorization extraheader scoped to the upstream origin', () => {
+    const env = withReadToken(base, 'https://github.com/acme-org/acme-app.git', token);
+    expect(env).toEqual({
+      ...base,
+      GIT_CONFIG_COUNT: '1',
+      GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
+      GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`,
+    });
+    expect(JSON.stringify(env)).not.toContain(token);
+  });
+
+  it('leaves a path upstream as it was', () => {
+    expect(withReadToken(base, '/srv/repos/acme.git', token)).toEqual(base);
+  });
+
+  it('never changes the env it was given', () => {
+    const given = { ...base };
+    withReadToken(given, 'https://github.com/acme-org/acme-app.git', token);
+    expect(given).toEqual(base);
   });
 });
