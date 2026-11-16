@@ -1,0 +1,30 @@
+{
+  "route": "GET /api/v1/projects/:slug/items/:key/decisions",
+  "as": {
+    "kind": "job",
+    "role": "pm",
+    "items": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/projects/tc/items/TC-1/decisions?limit=1"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "decisions": [
+        {
+          "id": 1,
+          "command": "reject",
+          "text": "Not now",
+          "askId": null,
+          "reversesCommentId": null,
+          "via": "web",
+          "decidedAt": "2026-11-12T10:00:00.000Z",
+          "sourceUrl": null
+        }
+      ],
+      "next": 1
+    }
+  }
+}
