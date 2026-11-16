@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:test';
 import type { PullRequestItemsDto } from '@shared/contracts';
 import {
   jobActor,
@@ -70,7 +71,7 @@ describe('GET /api/v1/projects/:slug/prs/:number/items', () => {
     expect(body.items).toEqual([]);
   });
 
-  it('pages in queue order with ?after= and ?limit=', async () => {
+  it('pages in item number order with ?after= and ?limit=', async () => {
     const project = await seedTrackerProject();
     const first = await seedItem(project, { kind: 'feature', status: 'in-progress' });
     const second = await seedItem(project, { kind: 'feature', status: 'in-progress' });
@@ -84,6 +85,35 @@ describe('GET /api/v1/projects/:slug/prs/:number/items', () => {
     ).json()) as PullRequestItemsDto;
     expect(rest.items.map((item) => item.key)).toEqual([second.key]);
     expect(rest.next).toBeNull();
+  });
+
+  it('skips nothing and repeats nothing when the queue is reordered between pages', async () => {
+    const project = await seedTrackerProject();
+    const items = [];
+    for (let i = 0; i < 4; i += 1) {
+      const item = await seedItem(project, { kind: 'feature', status: 'in-progress' });
+      await seedPrLink(project, item.key, 57);
+      items.push(item);
+    }
+    const [one, two, three, four] = items;
+    const keys: string[] = [];
+    const first = (await (await readAs(pathOf(project, 57, '?limit=2'))).json()) as PullRequestItemsDto;
+    keys.push(...first.items.map((item) => item.key));
+    // The cursor item goes behind the queue and a later one to the front: a rank cursor would hide both.
+    const setRank = async (key: string | undefined, rank: number): Promise<void> => {
+      const number = Number(key?.split('-').at(-1));
+      await env.DB.prepare('UPDATE items SET rank = ?1 WHERE project_slug = ?2 AND number = ?3')
+        .bind(rank, project.slug, number)
+        .run();
+    };
+    await setRank(two?.key, 1_000_000);
+    await setRank(four?.key, -1);
+    const rest = (await (
+      await readAs(pathOf(project, 57, `?limit=2&after=${String(first.next)}`))
+    ).json()) as PullRequestItemsDto;
+    keys.push(...rest.items.map((item) => item.key));
+    expect(rest.next).toBeNull();
+    expect(keys).toEqual([one, two, three, four].map((item) => item?.key));
   });
 
   it('is read by every actor of the project, the owner included', async () => {
