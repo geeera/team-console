@@ -501,8 +501,10 @@ export class RunnersRepo {
       runner.lastSeenIpHash !== null &&
       runner.lastSeenIpHash !== sighting.ipHash &&
       withinWindow;
-    const alert: RunnerSuspectReason | null =
-      runner.suspectAt !== null ? null : twoPollers ? 'two-pollers' : newCountry ? 'new-country' : null;
+    // #668: an ephemeral Actions identity calls from whatever egress GitHub gives the run, so neither rule applies; it
+    // lives for one job on one VM and is revoked with it.
+    const judged = runner.suspectAt === null && runner.isolation !== 'actions-ephemeral';
+    const alert: RunnerSuspectReason | null = !judged ? null : twoPollers ? 'two-pollers' : newCountry ? 'new-country' : null;
     const statements: D1PreparedStatement[] = [
       this.db
         .prepare(

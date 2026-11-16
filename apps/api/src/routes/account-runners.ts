@@ -237,9 +237,11 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       const release = runnerReleaseOf(c.env);
       const runners = new RunnersRepo(c.env.DB);
       const body: RunnerListDto = {
-        runners: (await runners.listForAccount(account.id)).map((runner) =>
-          runnerDtoOf(runner, now, release.minimumVersion),
-        ),
+        // #668: an Actions identity is listed while its run is live; revoked, it is one finished job's history (in the
+        // audit), not a machine the owner manages, so the list would otherwise grow by a row per run.
+        runners: (await runners.listForAccount(account.id))
+          .filter((runner) => runner.isolation !== 'actions-ephemeral' || runner.revokedAt === null)
+          .map((runner) => runnerDtoOf(runner, now, release.minimumVersion)),
         pendingEnrolments: (await runners.listPendingEnrolments(account.id, now.toISOString())).map(
           pendingEnrolmentDtoOf,
         ),

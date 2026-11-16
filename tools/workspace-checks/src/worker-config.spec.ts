@@ -29,6 +29,8 @@ const LOCAL_ONLY_VARS = [
   'GITHUB_FAKE_ORIGIN',
   'ROUTINES_FAKE_ORIGIN',
   'PUSH_FAKE_ORIGIN',
+  // #668: the test JWKS that stands in for GitHub's Actions OIDC keys.
+  'ACTIONS_OIDC_JWKS',
 ] as const;
 
 function readText(relativePath: string): string {

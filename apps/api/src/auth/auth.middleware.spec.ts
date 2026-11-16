@@ -599,7 +599,7 @@ describe('route inventory (row 6)', () => {
 
   it.each(runnerRoutes)('%s %s never admits an Access-less request as anyone', async (method, path) => {
     const response = await fetchApi(path, accessEnv(teamDomain), { method });
-    if (method === 'POST' && path === '/api/v1/runner/enrol') {
+    if (method === 'POST' && (path === '/api/v1/runner/enrol' || path === '/api/v1/runner/oidc-exchange')) {
       expect(response.status).toBe(422);
     } else {
       await expectProblem(response, 'runner-jwt-missing');

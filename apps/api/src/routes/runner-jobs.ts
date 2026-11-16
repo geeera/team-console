@@ -109,6 +109,11 @@ export function createRunnerJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         logger.warn('claim refused', { reason: 'runner-isolation-none', runnerId: runner.runnerId });
         return problem(c, { type: 'runner-isolation-none', title: 'Forbidden', status: 403 });
       }
+      // #668: an Actions identity holds the one job its exchange claimed and never pulls another.
+      if (runner.isolation === 'actions-ephemeral') {
+        logger.warn('claim refused', { reason: 'runner-isolation-ephemeral', runnerId: runner.runnerId });
+        return problem(c, { type: 'runner-isolation-ephemeral', title: 'Forbidden', status: 403 });
+      }
       const now = new Date();
       const nowIso = now.toISOString();
       const jobs = new JobsRepo(c.env.DB);

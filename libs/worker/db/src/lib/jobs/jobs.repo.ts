@@ -1,7 +1,21 @@
-import type { JobDispatch, JobEventInput, JobKind, JobState, RunnerPolicy } from '@shared/contracts';
+import type {
+  Ed25519PublicJwk,
+  JobDispatch,
+  JobEventInput,
+  JobKind,
+  JobState,
+  RunnerHostDto,
+  RunnerPolicy,
+} from '@shared/contracts';
 import { JOB_EVENTS_MAX_PER_JOB, JOB_MAX_ATTEMPTS, RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS } from '@shared/contracts';
 import { redactSecrets } from '@shared/redaction';
-import { AUDITED_WRITE_HAPPENED_SQL, auditEventStatement, type AuditCondition, type NewAuditEvent } from '../accounts/audit.repo';
+import {
+  AUDITED_WRITE_HAPPENED_SQL,
+  auditEventStatement,
+  auditedWrite,
+  type AuditCondition,
+  type NewAuditEvent,
+} from '../accounts/audit.repo';
 import { isConstraintError } from '../tracker/constraint-error';
 
 /**
@@ -62,6 +76,39 @@ export interface ClaimRequest {
   readonly leaseUntil: string;
 }
 
+/** The project a dispatched job's run must come from (#668): what the OIDC claims are compared with. */
+export interface ActionsTargetRecord {
+  readonly job: JobRecord;
+  readonly repoId: number | null;
+  readonly repo: string;
+  readonly defaultBranch: string | null;
+}
+
+/** The OIDC exchange's write (#668): an ephemeral runner for one job, and that job claimed for it. */
+export interface ActionsExchange {
+  readonly jobId: string;
+  readonly runId: string;
+  readonly runnerId: string;
+  readonly runnerName: string;
+  readonly publicKeyJwk: Ed25519PublicJwk;
+  readonly host: RunnerHostDto;
+  readonly version: string;
+  readonly tokenHash: string;
+  readonly now: string;
+  readonly leaseUntil: string;
+  readonly country: string | null;
+  readonly ipHash: string | null;
+  readonly enrolledAudit: NewAuditEvent;
+  readonly claimedAudit: NewAuditEvent;
+}
+
+export type ActionsExchangeOutcome =
+  | { readonly kind: 'claimed'; readonly job: JobRecord }
+  /** The job is no longer a queued, unclaimed Actions job of a live project (another exchange won it, or it ended). */
+  | { readonly kind: 'not-claimable' }
+  /** Another job already holds this `run_id` (0031's unique index). */
+  | { readonly kind: 'run-seen' };
+
 export interface JobEventRecord {
   readonly seq: number;
   readonly at: string;
@@ -103,6 +150,9 @@ interface JobRow {
 
 const COLUMNS = `id, account_id, project_slug, kind, role, payload, priority, state, requested_by, dedupe_key, needs_local,
   parent_job_id, dispatch, runner_id, attempt, max_minutes, created_at, claimed_at, lease_until, started_at, finished_at, result`;
+const PREFIXED_COLUMNS = COLUMNS.split(',')
+  .map((column) => `j.${column.trim()}`)
+  .join(', ');
 
 /**
  * A WHERE term on a `jobs` row (#553): its runner's stored row still allows the job's project and is not revoked. The
@@ -299,19 +349,33 @@ export class JobsRepo {
    * the caller can record the streak.
    */
   async requeueLapsed(now: string): Promise<{ readonly requeued: string[]; readonly lost: JobRecord[] }> {
-    const { results } = await this.db
-      .prepare(
-        `UPDATE jobs SET
-           state = CASE WHEN attempt >= ?2 THEN 'lost' ELSE 'queued' END,
-           runner_id = NULL, token_hash = NULL, lease_until = NULL,
-           finished_at = CASE WHEN attempt >= ?2 THEN ?1 ELSE NULL END,
-           result = CASE WHEN attempt >= ?2 THEN '{"reason":"lost"}' ELSE NULL END
-         WHERE state IN ('claimed', 'running') AND lease_until < ?1
-         RETURNING ${COLUMNS}`,
-      )
-      .bind(now, JOB_MAX_ATTEMPTS)
-      .all<JobRow>();
-    const rows = results.map(toRecord);
+    const [, requeue] = await this.db.batch<JobRow>([
+      // #668: an ephemeral Actions identity serves its one job; once that job holds no live lease (lapsed here, or
+      // ended by a cancel) the identity is revoked, before the UPDATE below clears the job's `runner_id`.
+      this.db
+        .prepare(
+          `UPDATE runners SET revoked_at = ?1
+           WHERE isolation = 'actions-ephemeral' AND revoked_at IS NULL
+             AND NOT EXISTS (
+               SELECT 1 FROM jobs WHERE jobs.runner_id = runners.id AND jobs.state IN ('claimed', 'running')
+                 AND jobs.lease_until >= ?1)`,
+        )
+        .bind(now),
+      // An Actions job is lost on its first lapse: its VM is gone and its run is spent (0031 keeps the run id), so
+      // only a new dispatch could run it, never a requeue.
+      this.db
+        .prepare(
+          `UPDATE jobs SET
+             state = CASE WHEN attempt >= ?2 OR dispatch = 'actions' THEN 'lost' ELSE 'queued' END,
+             runner_id = NULL, token_hash = NULL, lease_until = NULL,
+             finished_at = CASE WHEN attempt >= ?2 OR dispatch = 'actions' THEN ?1 ELSE NULL END,
+             result = CASE WHEN attempt >= ?2 OR dispatch = 'actions' THEN '{"reason":"lost"}' ELSE NULL END
+           WHERE state IN ('claimed', 'running') AND lease_until < ?1
+           RETURNING ${COLUMNS}`,
+        )
+        .bind(now, JOB_MAX_ATTEMPTS),
+    ]);
+    const rows = (requeue?.results ?? []).map(toRecord);
     const lost = rows.filter((row) => row.state === 'lost');
     const requeued = rows.filter((row) => row.state === 'queued').map((row) => row.id);
     if (rows.length > 0) {
@@ -395,6 +459,109 @@ export class JobsRepo {
       )
       .first<JobRow>();
     return row === null ? null : toRecord(row);
+  }
+
+  /** A job with the project fields its Actions run is verified against; `null` when the job does not exist. */
+  async findActionsTarget(jobId: string): Promise<ActionsTargetRecord | null> {
+    const row = await this.db
+      .prepare(
+        `SELECT ${PREFIXED_COLUMNS}, p.repo_id AS project_repo_id, p.repo AS project_repo,
+           p.default_branch AS project_default_branch
+         FROM jobs j JOIN projects p ON p.slug = j.project_slug WHERE j.id = ?1`,
+      )
+      .bind(jobId)
+      .first<JobRow & { project_repo_id: number | null; project_repo: string; project_default_branch: string | null }>();
+    return row === null
+      ? null
+      : { job: toRecord(row), repoId: row.project_repo_id, repo: row.project_repo, defaultBranch: row.project_default_branch };
+  }
+
+  /** Whether a job was already exchanged to this workflow run (0031: one run, one job, once). */
+  async isActionsRunSeen(runId: string): Promise<boolean> {
+    const row = await this.db
+      .prepare(`SELECT 1 AS seen FROM jobs WHERE actions_run_id = ?1`)
+      .bind(runId)
+      .first<{ seen: number }>();
+    return row !== null;
+  }
+
+  /**
+   * The OIDC exchange's one batch (#668, architect note on #573): the ephemeral runner row (`actions-ephemeral`, its
+   * project alone, one job at a time) and the claim of the job for it, each with its audit row, and the job's
+   * `claimed` notice. Both writes hold the same condition — the job queued, dispatched to Actions, unclaimed and never
+   * exchanged, of a live account and project, its team not paused — so they land together or not at all; of two
+   * exchanges racing for one job, one writes. A `run_id` another job holds fails the whole batch on 0031's index.
+   */
+  async exchangeForActions(exchange: ActionsExchange): Promise<ActionsExchangeOutcome> {
+    const from = `FROM jobs j JOIN projects p ON p.slug = j.project_slug JOIN accounts a ON a.id = j.account_id
+      LEFT JOIN team_state t ON t.project_slug = j.project_slug`;
+    const claimable = `j.id = ?1 AND j.state = 'queued' AND j.dispatch = 'actions' AND j.runner_id IS NULL
+      AND j.actions_run_id IS NULL AND a.suspended_at IS NULL AND p.archived_at IS NULL AND t.paused_at IS NULL`;
+    const held: AuditCondition = {
+      exists: `SELECT 1 FROM jobs WHERE jobs.id = ? AND jobs.runner_id = ? AND jobs.state = 'claimed'`,
+      params: [exchange.jobId, exchange.runnerId],
+    };
+    let results: D1Result[];
+    try {
+      results = await this.db.batch([
+        ...auditedWrite(
+          this.db,
+          this.db
+            .prepare(
+              `INSERT INTO runners (id, account_id, name, public_key_jwk, host, capabilities, isolation, allowed_projects,
+                 version, enrolled_at, last_seen_at, last_seen_country, last_seen_ip_hash, seen_countries)
+               SELECT ?2, j.account_id, ?3, ?4, ?5, '{"local":false,"maxConcurrency":1}', 'actions-ephemeral',
+                 json_array(j.project_slug), ?6, ?7, ?7, ?8, ?9, CASE WHEN ?8 IS NULL THEN '[]' ELSE json_array(?8) END
+               ${from} WHERE ${claimable}`,
+            )
+            .bind(
+              exchange.jobId,
+              exchange.runnerId,
+              exchange.runnerName,
+              JSON.stringify(exchange.publicKeyJwk),
+              JSON.stringify(exchange.host),
+              exchange.version,
+              exchange.now,
+              exchange.country,
+              exchange.ipHash,
+            ),
+          exchange.enrolledAudit,
+        ),
+        ...auditedWrite(
+          this.db,
+          this.db
+            .prepare(
+              `UPDATE jobs SET state = 'claimed', runner_id = ?2, claimed_at = ?3, lease_until = ?4, token_hash = ?5,
+                 actions_run_id = ?6, attempt = attempt + 1
+               WHERE id = (SELECT j.id ${from} WHERE ${claimable})
+                 AND EXISTS (
+                   SELECT 1 FROM runners r WHERE r.id = ?2 AND r.account_id = jobs.account_id AND r.revoked_at IS NULL)`,
+            )
+            .bind(exchange.jobId, exchange.runnerId, exchange.now, exchange.leaseUntil, exchange.tokenHash, exchange.runId),
+          exchange.claimedAudit,
+        ),
+        this.eventStatement(
+          exchange.jobId,
+          exchange.now,
+          {
+            level: 'info',
+            kind: 'notice',
+            payload: { claimed: true, runnerId: exchange.runnerId, attempt: 1, via: 'actions' },
+          },
+          held,
+        ),
+      ]);
+    } catch (error: unknown) {
+      if (isConstraintError(error, 'UNIQUE constraint failed: jobs.actions_run_id')) {
+        return { kind: 'run-seen' };
+      }
+      throw error;
+    }
+    if ((results[2]?.meta.changes ?? 0) !== 1) {
+      return { kind: 'not-claimable' };
+    }
+    const job = await this.findById(exchange.jobId);
+    return job === null ? { kind: 'not-claimable' } : { kind: 'claimed', job };
   }
 
   /**
@@ -522,6 +689,13 @@ export class JobsRepo {
         finished,
       ),
       auditEventStatement(this.db, audit, finished),
+      // #668: an ephemeral Actions identity ends with its one job, in the finish's own batch.
+      this.db
+        .prepare(
+          `UPDATE runners SET revoked_at = ?
+           WHERE id = ? AND isolation = 'actions-ephemeral' AND revoked_at IS NULL AND EXISTS (${finished.exists})`,
+        )
+        .bind(now, runnerId, ...finished.params),
     ]);
     return update?.meta.changes === 1;
   }

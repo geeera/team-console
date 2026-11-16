@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { LocalDayPipe, LocalTimePipe, TranslocoPipe } from '@console/shared/i18n';
 import { Chip, Icon, Ledger, LedgerRow, StatusCard, type ChipTone, type IconName, type StatusCardTone } from '@console/shared/ui';
-import type { RunnerDto } from '@shared/contracts';
+import { actionsRunIdOf, type RunnerDto } from '@shared/contracts';
 import { runnerPresenceOf, type RunnerPresence } from './runner.model';
 
 const TONES: Readonly<Record<RunnerPresence, StatusCardTone & ChipTone>> = {
@@ -38,7 +38,13 @@ let nextCardId = 0;
       <div tc-status-card-row>
         <span tc-status-card-mark aria-hidden="true"><tc-icon [name]="mark()" size="sm" /></span>
         <div tc-status-card-who>
-          <h3 tc-status-card-title class="runner-card__title" [id]="titleId" dir="auto">{{ runner().name }}</h3>
+          <h3 tc-status-card-title class="runner-card__title" [id]="titleId" dir="auto">
+            @if (actionsRun(); as run) {
+              {{ 'runners.card.actionsRun' | transloco: { run } }}
+            } @else {
+              {{ runner().name }}
+            }
+          </h3>
           <p tc-status-card-meta class="runner-card__chips">
             <tc-chip [tone]="tone()" data-testid="runner-presence">{{
               'runners.presence.' + presenceKey() | transloco
@@ -139,6 +145,11 @@ export class RunnerCard {
 
   protected readonly titleId = `tc-runner-card-${nextCardId++}`;
   protected readonly presence = computed(() => runnerPresenceOf(this.runner()));
+  /** #668: an ephemeral GitHub Actions identity is named by its run, `actions:<run id>` in the row. */
+  protected readonly actionsRun = computed(() => {
+    const runner = this.runner();
+    return runner.isolation === 'actions-ephemeral' ? actionsRunIdOf(runner.name) : null;
+  });
   protected readonly presenceKey = computed(() => (this.presence() === 'never-seen' ? 'neverSeen' : this.presence()));
   protected readonly tone = computed(() => TONES[this.presence()]);
   protected readonly mark = computed(() => MARKS[this.presence()]);

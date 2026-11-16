@@ -27,6 +27,8 @@ declare global {
       MIGRATION_DB_0029: D1Database;
       /** Another, for 0030's sprint rename guard (#578). */
       MIGRATION_DB_0030: D1Database;
+      /** Another, for 0031's Actions dispatch columns, index and trigger (#668). */
+      MIGRATION_DB_0031: D1Database;
       /** Public half of the generated test app key (vitest.config.mts), to verify the app JWT. */
       TEST_GITHUB_APP_PUBLIC_JWK: string;
     }

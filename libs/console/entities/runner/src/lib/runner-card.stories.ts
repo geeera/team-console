@@ -66,6 +66,19 @@ export const Container: Story = {
   },
 };
 export const NoProjects: Story = { args: { runner: runnerFixture({ allowedProjects: [] }) } };
+/** #668: the ephemeral identity of one GitHub Actions run, listed while the run is live. */
+export const ActionsRun: Story = {
+  args: {
+    runner: runnerFixture({
+      name: 'actions:9876543210',
+      isolation: 'actions-ephemeral',
+      host: { os: 'linux', arch: 'x64', hostname: 'fv-az123-456' },
+      capabilities: { local: false, maxConcurrency: 1 },
+      allowedProjects: ['storify'],
+    }),
+    withActions: false,
+  },
+};
 export const Revoked: Story = {
   args: {
     runner: runnerFixture({ revokedAt: '2026-11-11T10:00:00.000Z', online: false }),

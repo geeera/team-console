@@ -43,8 +43,8 @@ export const authMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = async (c
   };
 
   // The runner's door (#467): on `/api/v1/runner/*` the runner JWT is the only credential, whatever else the request
-  // carries — the local bypass, a session cookie and the Access header are not read there. Enrolment has no
-  // identity yet; the code in its body is judged by the route.
+  // carries — the local bypass, a session cookie and the Access header are not read there. Enrolment and the OIDC
+  // exchange (#668) have no identity yet; the code or the Actions token in the body is judged by the route.
   if (isRunnerPath(c.req.path)) {
     if (isEnrolRequest(c.req.method, c.req.path)) {
       await grant({ kind: 'enrolment' });

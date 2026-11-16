@@ -18,7 +18,8 @@ import { scopeOf } from './scope';
  * - `own-user`: the user's own connection and devices; the owner's until T-4 binds them per user.
  * - `runner`: `/runner/*` (#467): the `runner` identity alone, minted from its JWT by `runner-auth.ts`; what it
  *   then reaches is its `allowed_projects` inside its account (the claim statement and `projects/lookup.ts`).
- * - `enrolment`: `POST /runner/enrol` only — no identity yet, the one-time code in the body is the credential.
+ * - `enrolment`: `POST /runner/enrol` and `POST /runner/oidc-exchange` (#668) — no identity yet, the credential is
+ *   in the body (the one-time code, a GitHub Actions OIDC token).
  * - `operator`: `/admin/*` (T-5); no identity satisfies it yet.
  * - `public`: no scope (`/healthz`).
  */
@@ -137,6 +138,8 @@ export const ROUTE_SCOPES = {
   'PUT /api/v1/accounts/:id/runner-policy': 'account',
   // The runner's own door: the JWT alone (`runner-auth.ts`); enrolment by the one-time code.
   'POST /api/v1/runner/enrol': 'enrolment',
+  // #668: a GitHub Actions run's OIDC token in the body; it creates the identity, so none exists yet.
+  'POST /api/v1/runner/oidc-exchange': 'enrolment',
   'GET /api/v1/runner/release': 'runner',
   'POST /api/v1/runner/jobs/claim': 'runner',
   'POST /api/v1/runner/jobs/:id/heartbeat': 'runner',
