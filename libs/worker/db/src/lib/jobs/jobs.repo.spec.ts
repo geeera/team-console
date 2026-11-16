@@ -2,7 +2,7 @@ import { env } from 'cloudflare:test';
 import type { NewAuditEvent } from '../accounts/audit.repo';
 import { RunnersRepo } from '../runners/runners.repo';
 import { JobsRepo, type ClaimRequest, type NewJob } from './jobs.repo';
-import { FAILURE_STREAK_PAUSER, TeamStateRepo } from './team-state.repo';
+import { FAILURE_STREAK_PAUSER, RUNNER_EXCLUSION_BUDGET, RUNNER_EXCLUSION_WINDOW_MS, TeamStateRepo } from './team-state.repo';
 
 // #490 review: the claim statement's branches and the repos' guards, directly against D1.
 
@@ -564,6 +564,47 @@ describe('TeamStateRepo.recordOutcome', () => {
         .bind(slug)
         .first<{ n: number }>();
       expect(pauses?.n).toBe(1);
+    });
+
+    // #658: a pause has no minimum length and the runner can lift it at once, so the pause alone is no cap.
+    it('counts a runner’s limit failures once it has used its exclusion budget in the window', async () => {
+      const slug = await project(ACCOUNT_A);
+      const rogue = await runner(ACCOUNT_A, [slug]);
+      const other = await runner(ACCOUNT_A, [slug]);
+      await pauseRunner(rogue, PAUSED_UNTIL);
+      await pauseRunner(other, PAUSED_UNTIL);
+      const repo = new TeamStateRepo(env.DB);
+      const pauseAudit = { ...audit('team.paused'), target: slug };
+      for (let i = 0; i < RUNNER_EXCLUSION_BUDGET; i += 1) {
+        expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(rogue, 'usage-limit'))).toMatchObject({ excluded: true });
+      }
+      expect(await excludedCount(rogue)).toBe(RUNNER_EXCLUSION_BUDGET);
+      // Past the budget the failures count, and the third in a row pauses the project.
+      for (const streak of [1, 2]) {
+        expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(rogue, 'usage-limit'))).toEqual({
+          failedStreak: streak,
+          paused: false,
+          excluded: false,
+        });
+      }
+      expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(rogue, 'usage-limit'))).toMatchObject({ failedStreak: 3, paused: true });
+      expect(await excludedCount(rogue)).toBe(RUNNER_EXCLUSION_BUDGET);
+
+      // The budget is per runner: a well-behaved one is still excluded.
+      await repo.resume(slug, T0, { ...audit('team.resumed'), target: slug });
+      expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(other, 'rate-limit'))).toMatchObject({ failedStreak: 0, excluded: true });
+    });
+
+    it('lets the budget refill once the earlier exclusions are older than the window', async () => {
+      const slug = await project(ACCOUNT_A);
+      const runnerId = await runner(ACCOUNT_A, [slug]);
+      await pauseRunner(runnerId, '2026-11-10T12:00:00.000Z');
+      const repo = new TeamStateRepo(env.DB);
+      for (let i = 0; i < RUNNER_EXCLUSION_BUDGET; i += 1) {
+        await repo.recordOutcome(slug, 'failed', T0, undefined, limitOf(runnerId, 'usage-limit'));
+      }
+      const later = new Date(Date.parse(T0) + RUNNER_EXCLUSION_WINDOW_MS + 1000).toISOString();
+      expect(await repo.recordOutcome(slug, 'failed', later, undefined, limitOf(runnerId, 'usage-limit'))).toMatchObject({ excluded: true });
     });
 
     it('takes a pause that lapsed inside the grace window, not one older, another runner’s, or one in another account', async () => {
