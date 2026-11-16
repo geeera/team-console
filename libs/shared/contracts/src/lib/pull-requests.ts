@@ -39,4 +39,11 @@ export interface PullRequestListDto {
   readonly sync: PullRequestSyncDto | null;
 }
 
-export type PullRequestProblemType = 'pull-request-not-found' | 'pull-request-number';
+export type PullRequestProblemType =
+  | 'pull-request-not-found'
+  | 'pull-request-number'
+  // #612: `POST …/prs/:number/reviews`.
+  | 'pull-request-not-open'
+  | 'review-request-invalid'
+  | 'review-request-role'
+  | 'review-lineage';

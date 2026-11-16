@@ -216,10 +216,12 @@ export async function countRows(
     | 'labels'
     | 'asks'
     | 'owner_decisions'
-    | 'item_requests',
+    | 'item_requests'
+    | 'jobs',
   slug: string,
 ): Promise<number> {
   const where: Record<typeof table, string> = {
+    jobs: 'project_slug = ?1',
     asks: 'project_slug = ?1',
     owner_decisions: 'project_slug = ?1',
     item_requests: 'project_slug = ?1',
@@ -234,6 +236,29 @@ export async function countRows(
     .bind(slug)
     .first<{ n: number }>();
   return row?.n ?? 0;
+}
+
+/** A pull request in D1's mirror (#463) as the hooks Worker writes it; head `a…a` and `open` unless told. */
+export async function seedPullRequest(
+  slug: string,
+  number: number,
+  options: { readonly headSha?: string; readonly state?: 'open' | 'closed' | 'merged' } = {},
+): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO pull_requests (project_slug, external_id, number, title, head_ref, head_sha, base_ref, state, url,
+       updated_at, synced_at)
+     VALUES (?1, ?2, ?3, 'PR', 'feature/x', ?4, 'dev', ?5, ?6, ?7, ?7)`,
+  )
+    .bind(
+      slug,
+      String(number),
+      number,
+      options.headSha ?? 'a'.repeat(40),
+      options.state ?? 'open',
+      `https://github.com/acme/${slug}/pull/${String(number)}`,
+      '2026-11-09T00:00:00.000Z',
+    )
+    .run();
 }
 
 /** A job of `role` for `send` (#434, #444): sent as the local stand-in token, so the real auth seam mints it. */

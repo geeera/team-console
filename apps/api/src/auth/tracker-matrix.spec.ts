@@ -17,10 +17,12 @@ import {
   send,
   sendAsService,
   sendWithoutIdentity,
+  seedPullRequest,
   slugOf,
   type SeededProject,
 } from '../testing/tracker-kit';
 import type { TestJob } from '../testing/local-job-kit';
+import { seedClaimedJob } from '../testing/runner-kit';
 import { seedMembership, seedSessionUser, sendAsSession, type SessionUser } from '../testing/session-kit';
 import { JOB_ROLES, type JobRole } from './job-roles';
 import {
@@ -52,6 +54,8 @@ interface Scenario {
   readonly ifMatch?: string;
   /** The item numbers a job of this scenario holds. */
   readonly items?: readonly number[];
+  /** The job id a job of this scenario names (a claimed job of the project, for the lineage rule of #612). */
+  readonly jobId?: string;
 }
 
 interface Row {
@@ -144,6 +148,16 @@ const ROWS: readonly Row[] = [
       .run();
     return `${P}/${project.slug}/prs/1`;
   }),
+  {
+    route: `POST ${P}/:slug/prs/:number/reviews`,
+    setup: async (project) => {
+      await seedPullRequest(project.slug, 3);
+      const { jobId } = await seedClaimedJob(project.slug);
+      return { method: 'POST', path: `${P}/${project.slug}/prs/3/reviews`, body: { roles: ['qa'] }, jobId };
+    },
+    // #612: the orchestrator job alone, the owner included among the refused.
+    expect: (who) => (who === 'orchestrator' ? ok(201) : refused('review-request-role')),
+  },
   {
     route: `POST ${P}/:slug/items`,
     setup: async (project) => ({
@@ -308,6 +322,7 @@ const TABLES = [
   'asks',
   'owner_decisions',
   'item_requests',
+  'jobs',
 ] as const;
 
 async function snapshot(slug: string): Promise<number[]> {
@@ -401,16 +416,18 @@ const PLANNING_ROWS: readonly TrackerRoute[] = [
 const PM_ROWS: readonly TrackerRoute[] = [`POST ${P}/:slug/requests/:id/handled`];
 const ASK_ROW: TrackerRoute = `POST ${P}/:slug/items/:key/asks`;
 const PR_LINK_ROW: TrackerRoute = `POST ${P}/:slug/items/:key/pr-links`;
+// #612: review jobs are the orchestrator's to request.
+const REVIEW_ROW: TrackerRoute = `POST ${P}/:slug/prs/:number/reviews`;
 const TEAM_REFUSED: readonly TrackerRoute[] = [...OWNER_ROWS, ...PLANNING_ROWS, ...PM_ROWS];
-const NON_LINKERS: readonly TrackerRoute[] = [...TEAM_REFUSED, PR_LINK_ROW];
+const NON_LINKERS: readonly TrackerRoute[] = [...TEAM_REFUSED, PR_LINK_ROW, REVIEW_ROW];
 
 const REFUSED_ROWS: Readonly<Record<JobRole, readonly TrackerRoute[]>> = {
-  pm: [...OWNER_ROWS, PR_LINK_ROW],
+  pm: [...OWNER_ROWS, PR_LINK_ROW, REVIEW_ROW],
   architect: NON_LINKERS,
   orchestrator: TEAM_REFUSED,
-  dev: [...TEAM_REFUSED, ASK_ROW],
-  'dev-light': [...TEAM_REFUSED, ASK_ROW],
-  'dev-heavy': [...TEAM_REFUSED, ASK_ROW],
+  dev: [...TEAM_REFUSED, ASK_ROW, REVIEW_ROW],
+  'dev-light': [...TEAM_REFUSED, ASK_ROW, REVIEW_ROW],
+  'dev-heavy': [...TEAM_REFUSED, ASK_ROW, REVIEW_ROW],
   qa: NON_LINKERS,
   reviewer: NON_LINKERS,
   security: NON_LINKERS,
@@ -531,7 +548,7 @@ describe.each(ROWS.map((row) => [label(row), row] as const))('%s', (_, row) => {
     const project = await seedTrackerProject();
     const scenario = await row.setup(project);
     const before = await snapshot(project.slug);
-    const job = who === 'owner' ? undefined : jobActor(who, `job-${who}`, scenario.items ?? []);
+    const job = who === 'owner' ? undefined : jobActor(who, scenario.jobId ?? `job-${who}`, scenario.items ?? []);
     const expected = row.expect(who);
     await expectOutcome(await sendAs(scenario, job), expected, `${who} on ${label(row)}`);
     if (expected.status >= 400) {

@@ -1,0 +1,26 @@
+{
+  "route": "POST /api/v1/projects/:slug/prs/:number/reviews",
+  "as": {
+    "kind": "job",
+    "role": "orchestrator",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/prs/57/reviews",
+    "body": {
+      "roles": ["dev"]
+    }
+  },
+  "response": {
+    "status": 422,
+    "body": {
+      "type": "https://team-console/problems/review-request-invalid",
+      "title": "Invalid request",
+      "status": 422,
+      "instance": "request-id",
+      "detail": "roles must be distinct roles of qa, reviewer, security",
+      "field": "roles"
+    }
+  }
+}
