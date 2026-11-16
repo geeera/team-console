@@ -83,4 +83,30 @@ describe('IdempotencyKeysRepo', () => {
     await expect(env.DB.batch([statement])).rejects.toThrow(/NOT NULL constraint failed: idempotency_keys\.request_hash/);
     expect(await keys().claim('k-7', 'h', NOW + 1, HOLD)).toEqual({ state: 'in-flight' });
   });
+
+  // #678: a same-request retry takes the claim over after its hold, then completes or releases it. The first request's
+  // completion then matches no pending row; its guard must still fail the batch.
+  it.each(['completed', 'released'] as const)(
+    'fails the batch when the job no longer holds, though a retry %s the key first',
+    async (retry) => {
+      const key = `k-8-${retry}`;
+      await keys().claim(key, 'h', NOW, HOLD);
+      expect(await keys().claim(key, 'h', NOW + HOLD, HOLD)).toEqual({ state: 'claimed' });
+      if (retry === 'completed') {
+        await complete(key, 'h', '2', NOW + HOLD);
+      } else {
+        await keys().release(key, 'h');
+      }
+      const before = await env.DB.prepare('SELECT * FROM idempotency_keys WHERE key = ?1').bind(key).first();
+      const statement = keys().completeStatement(
+        key,
+        'h',
+        { status: 201, kind: 'item', ref: { value: '1' } },
+        NOW + DAY,
+        { tokenHash: 'f'.repeat(64), jobId: 'no-such-job', at: new Date(NOW).toISOString() },
+      );
+      await expect(env.DB.batch([statement])).rejects.toThrow(/NOT NULL constraint failed: idempotency_keys\.request_hash/);
+      expect(await env.DB.prepare('SELECT * FROM idempotency_keys WHERE key = ?1').bind(key).first()).toEqual(before);
+    },
+  );
 });

@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:test';
 import { OWNER_ACCOUNT_ID, type ClaimResponse, type JobDto, type JobEventListDto } from '@shared/contracts';
 import { JOB_TOKEN_PREFIX } from '@shared/redaction';
+import { IdempotencyKeysRepo } from '@worker/db';
 import { localEnv } from '../testing/github-kit';
 import { cancelJob, commitDuringAuthentication, enqueueJob, enrolRunner, narrowRunner, revokeRunner, sendAsJob, sendAsRunner, type TestRunner } from '../testing/runner-kit';
 import { seedAccountProject, seedSessionUser, sendAsSession } from '../testing/session-kit';
@@ -552,5 +553,50 @@ describe('tracker writes under a job token judge the stored runner and job insid
     const after = await writtenRows(held.lost);
     expect(after.completedKeys).toBe(before.completedKeys + 1);
     expect(after.events).toBeGreaterThan(before.events);
+  });
+
+  /**
+   * #678: once this request has claimed its key, a same-request retry takes the claim over (its 30 s hold ran out)
+   * and completes or releases it, then `change` commits; this request's completion then matches no pending row.
+   */
+  function takeOverAfterClaim(retry: 'completes' | 'releases', change: () => Promise<unknown>): void {
+    const claimKey = IdempotencyKeysRepo.prototype.claim;
+    vi.spyOn(IdempotencyKeysRepo.prototype, 'claim').mockImplementationOnce(async function (this: IdempotencyKeysRepo, key, hash, nowMs, holdMs) {
+      const first = await claimKey.call(this, key, hash, nowMs, holdMs);
+      expect(await claimKey.call(this, key, hash, nowMs + holdMs, holdMs)).toEqual({ state: 'claimed' });
+      if (retry === 'completes') {
+        await this.completeStatement(key, hash, { status: 201, kind: 'item', ref: { value: '1' } }, nowMs + 86_400_000).run();
+      } else {
+        await this.release(key, hash);
+      }
+      await change();
+      return first;
+    });
+  }
+
+  it.each(['completes', 'releases'] as const)(
+    'refuses with 403 job-runner-mismatch when a retry %s the key and a narrowing commits before the write',
+    async (retry) => {
+      const held = await heldJob();
+      const before = await writtenRows(held.lost);
+      takeOverAfterClaim(retry, narrowRunner(held.runner.id, [held.kept]));
+      const response = await writeAsJob(held, 'comment');
+      expect(response.status).toBe(403);
+      expect(await slugOf(response)).toBe('job-runner-mismatch');
+      const after = await writtenRows(held.lost);
+      expect({ ...after, completedKeys: before.completedKeys }).toEqual(before);
+      expect(after.completedKeys).toBe(before.completedKeys + (retry === 'completes' ? 1 : 0));
+    },
+  );
+
+  it('still writes, and completes the key, when a retry released it while the job holds', async () => {
+    const held = await heldJob();
+    const before = await writtenRows(held.lost);
+    takeOverAfterClaim('releases', () => Promise.resolve());
+    const response = await writeAsJob(held, 'comment');
+    expect(response.status).toBe(201);
+    const after = await writtenRows(held.lost);
+    expect(after.comments).toBe(before.comments + 1);
+    expect(after.completedKeys).toBe(before.completedKeys + 1);
   });
 });
