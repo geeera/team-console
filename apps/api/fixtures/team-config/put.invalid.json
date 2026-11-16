@@ -1,0 +1,32 @@
+{
+  "route": "PUT /api/v1/projects/:slug/team-config",
+  "as": {
+    "kind": "owner",
+    "role": "owner",
+    "items": []
+  },
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/projects/tc/team-config",
+    "ifMatch": "\"0\"",
+    "body": {
+      "config": {
+        "schema": "team-config/v1",
+        "models": {
+          "dev": "claude-opus-5-5"
+        }
+      }
+    }
+  },
+  "response": {
+    "status": 422,
+    "body": {
+      "type": "https://team-console/problems/team-config-invalid",
+      "title": "Invalid request",
+      "status": 422,
+      "instance": "request-id",
+      "detail": "models is not a member of team-config/v1",
+      "field": "models"
+    }
+  }
+}

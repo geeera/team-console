@@ -1,0 +1,29 @@
+{
+  "route": "PUT /api/v1/projects/:slug/team-config",
+  "as": {
+    "kind": "owner",
+    "role": "owner",
+    "items": []
+  },
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/projects/tc/team-config",
+    "ifMatch": "\"0\"",
+    "body": {
+      "config": {
+        "schema": "team-config/v1",
+        "preset": "max"
+      }
+    }
+  },
+  "response": {
+    "status": 412,
+    "body": {
+      "type": "https://team-console/problems/team-config-stale",
+      "title": "The team configuration changed since it was read",
+      "status": 412,
+      "instance": "request-id",
+      "detail": "Read the team configuration again and apply the change to its current revision"
+    }
+  }
+}

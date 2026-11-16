@@ -37,6 +37,7 @@ describe('migrations on a fresh D1', () => {
       'owner_connections',
       'owner_decisions',
       'owner_requests',
+      'project_spend',
       'projects',
       'pull_requests',
       'push_subscriptions',
@@ -49,6 +50,8 @@ describe('migrations on a fresh D1', () => {
       'sessions',
       'slot_requests',
       'sprints',
+      'team_config_revisions',
+      'team_configs',
       'team_state',
       'user_connections',
       'users',
@@ -88,6 +91,7 @@ describe('migrations on a fresh D1', () => {
       '0028_runner_pause.sql',
       '0029_item_rank.sql',
       '0030_sprint_title_key_rename.sql',
+      '0032_team_config.sql',
     ]);
   });
 
@@ -138,6 +142,7 @@ describe('migrations on a fresh D1', () => {
       'account_id',
       'repo_id',
       'runner_policy',
+      'access_source',
     ]);
     expect(results.filter((column) => column.notnull === 1).map((column) => column.name)).toEqual([
       'repo',
@@ -149,6 +154,7 @@ describe('migrations on a fresh D1', () => {
       'tracker',
       'next_item_number',
       'account_id',
+      'access_source',
     ]);
   });
 

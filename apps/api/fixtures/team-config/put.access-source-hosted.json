@@ -1,0 +1,32 @@
+{
+  "route": "PUT /api/v1/projects/:slug/team-config",
+  "as": {
+    "kind": "owner",
+    "role": "owner",
+    "items": []
+  },
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/projects/tc/team-config",
+    "ifMatch": "\"0\"",
+    "body": {
+      "config": {
+        "schema": "team-config/v1",
+        "access": {
+          "source": "subscription"
+        }
+      }
+    }
+  },
+  "response": {
+    "status": 422,
+    "body": {
+      "type": "https://team-console/problems/access-source-hosted",
+      "title": "Invalid request",
+      "status": 422,
+      "instance": "request-id",
+      "detail": "A subscription runs only on your own self-hosted runner: the placement admits a hosted runner, or the project is dispatched to GitHub Actions",
+      "field": "access.source"
+    }
+  }
+}

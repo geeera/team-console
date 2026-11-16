@@ -1,5 +1,6 @@
 import type { JobDispatch, JobEventInput, JobKind, JobState, RunnerPolicy } from '@shared/contracts';
 import { JOB_EVENTS_MAX_PER_JOB, JOB_MAX_ATTEMPTS, RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS } from '@shared/contracts';
+import { ROLE_ADMITTED_SQL, roleAdmissionParams } from '../team-config/claim-admission';
 import { redactSecrets } from '@shared/redaction';
 import { AUDITED_WRITE_HAPPENED_SQL, auditEventStatement, type AuditCondition, type NewAuditEvent } from '../accounts/audit.repo';
 import { isConstraintError } from '../tracker/constraint-error';
@@ -34,6 +35,8 @@ export interface JobRecord {
   readonly startedAt: string | null;
   readonly finishedAt: string | null;
   readonly result: Readonly<Record<string, unknown>> | null;
+  /** The team-config revision the claim stamped (ADR 0009 d.7); `null` before a claim or for a project without one. */
+  readonly teamConfigRevision: number | null;
 }
 
 export interface NewJob {
@@ -99,10 +102,12 @@ interface JobRow {
   started_at: string | null;
   finished_at: string | null;
   result: string | null;
+  team_config_revision: number | null;
 }
 
 const COLUMNS = `id, account_id, project_slug, kind, role, payload, priority, state, requested_by, dedupe_key, needs_local,
-  parent_job_id, dispatch, runner_id, attempt, max_minutes, created_at, claimed_at, lease_until, started_at, finished_at, result`;
+  parent_job_id, dispatch, runner_id, attempt, max_minutes, created_at, claimed_at, lease_until, started_at, finished_at, result,
+  team_config_revision`;
 
 /**
  * A WHERE term on a `jobs` row (#553): its runner's stored row still allows the job's project and is not revoked. The
@@ -160,6 +165,7 @@ function toRecord(row: JobRow): JobRecord {
     startedAt: row.started_at,
     finishedAt: row.finished_at,
     result: row.result === null ? null : (JSON.parse(row.result) as Record<string, unknown>),
+    teamConfigRevision: row.team_config_revision,
   };
 }
 
@@ -339,17 +345,25 @@ export class JobsRepo {
    *
    * The allow-list and `revoked_at` are read from the stored runner row here, never taken from the caller: a
    * narrowing or revoke that commits between the poll's authentication and this claim must win (#543).
+   *
+   * Team configuration (ADR 0009, #687): a `subscription` project is pulled only by a self-hosted runner that is not
+   * an `actions-ephemeral` one (d.3; `hosted` is 0 on those too, so it alone is not enough); a role switched off is not
+   * claimed, and a role already holding its `max_parallel` live jobs on the project waits — both judged here, never by
+   * a pre-read, so two concurrent claims never both pass the count. The claim stamps the current revision on the job,
+   * so a change applies to the next claim and never to a job in flight.
    */
   async claim(request: ClaimRequest): Promise<JobRecord | null> {
     const row = await this.db
       .prepare(
         `UPDATE jobs SET state = 'claimed', runner_id = ?1, claimed_at = ?2, lease_until = ?3, token_hash = ?4,
-           attempt = attempt + 1
+           attempt = attempt + 1,
+           team_config_revision = (SELECT revision FROM team_configs WHERE project_slug = jobs.project_slug)
          WHERE state = 'queued' AND id = (
            SELECT j.id FROM jobs j
            JOIN projects p ON p.slug = j.project_slug
            JOIN accounts a ON a.id = j.account_id
            LEFT JOIN team_state t ON t.project_slug = j.project_slug
+           LEFT JOIN team_configs tc ON tc.project_slug = j.project_slug
            WHERE j.state = 'queued' AND j.dispatch = 'pull'
              AND j.account_id = ?5
              AND a.suspended_at IS NULL AND p.archived_at IS NULL
@@ -363,7 +377,9 @@ export class JobsRepo {
                WHERE me.id = ?1
                  AND (me.paused_until IS NULL OR julianday(me.paused_until) <= julianday(?2))
                  AND (SELECT COUNT(*) FROM jobs held WHERE held.runner_id = ?1 AND held.state IN ('claimed', 'running'))
-                     < COALESCE(json_extract(me.capabilities, '$.maxConcurrency'), 1))
+                     < COALESCE(json_extract(me.capabilities, '$.maxConcurrency'), 1)
+                 AND (p.access_source = 'api_key' OR (me.hosted = 0 AND me.isolation <> 'actions-ephemeral')))
+             AND ${ROLE_ADMITTED_SQL}
              AND (
                ${POLICY} IS NULL
                OR json_extract(${POLICY}, '$.mode') = 'any'
@@ -392,6 +408,7 @@ export class JobsRepo {
         request.accountId,
         request.local ? 1 : 0,
         RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS,
+        ...roleAdmissionParams(),
       )
       .first<JobRow>();
     return row === null ? null : toRecord(row);

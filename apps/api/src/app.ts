@@ -10,6 +10,7 @@ import { createRunnerRoutes } from './routes/runner';
 import { createRunnerJobRoutes } from './routes/runner-jobs';
 import { createRunnerPauseRoutes } from './routes/runner-pause';
 import { createJobRoutes } from './routes/jobs';
+import { createTeamConfigRoutes } from './routes/team-config';
 import type { ApiEnv } from './env';
 import { ApiGitHub, mapGitHubError } from './github';
 import { createAnswerRoutes } from './routes/answer';
@@ -151,6 +152,8 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   // The queue (#467): the owner's Run now and the reads behind the matrix; the runner's claim, heartbeat, events, finish.
   v1.route('/projects', createJobRoutes());
   v1.route('/runner', createRunnerJobRoutes());
+  // Team configuration (#687, ADR 0009): D1 behind the matrix; the import reads project.yml through the VCS adapter.
+  v1.route('/projects', createTeamConfigRoutes(github, owners));
   // The runner's own pause on a usage or rate limit (#571): the claim skips it until `until`.
   v1.route('/runner', createRunnerPauseRoutes());
   app.route('/api/v1', v1);

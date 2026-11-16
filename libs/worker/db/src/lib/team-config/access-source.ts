@@ -1,0 +1,41 @@
+/**
+ * Where a `subscription` may run (ADR 0009 d.3, threat model C12 row 6): never on a hosted runner and never on a
+ * GitHub Actions machine. These are SQL terms, so every write that could break the rule judges it inside its own
+ * statement — the team-config save, a project's or an account's placement change — and a change that commits in
+ * between cannot slip past a check read before the batch.
+ */
+
+/**
+ * `EXISTS` a hosted, unrevoked runner of the project's account that the placement `policy` admits. `slug` and
+ * `policy` are SQL expressions (a placeholder, a column, a subquery); `policy` NULL means `any`. Whether the runner
+ * lists the project in `allowed_projects` is left out on purpose: that list changes without a placement write, so the
+ * rule holds against any hosted runner the policy could ever pick.
+ */
+export function hostedRunnerAdmittedSql(slug: string, policy: string): string {
+  return `EXISTS (
+    SELECT 1 FROM runners h
+    WHERE h.account_id = (SELECT account_id FROM projects WHERE slug = ${slug})
+      AND h.hosted = 1 AND h.revoked_at IS NULL
+      AND (
+        ${policy} IS NULL
+        OR json_extract(${policy}, '$.mode') = 'any'
+        OR (json_extract(${policy}, '$.mode') = 'pinned' AND json_extract(${policy}, '$.runner') = h.id)
+        OR (json_extract(${policy}, '$.mode') = 'failover' AND (
+              json_extract(${policy}, '$.preferred') = h.id
+              OR h.id IN (SELECT value FROM json_each(${policy}, '$.fallback'))))
+      ))`;
+}
+
+/** The project's effective placement: its own policy, else its account's default (ADR 0008 decision 12). */
+export function effectivePolicySql(slug: string): string {
+  return `(SELECT COALESCE(ep.runner_policy, ea.default_runner_policy)
+    FROM projects ep JOIN accounts ea ON ea.id = ep.account_id WHERE ep.slug = ${slug})`;
+}
+
+/**
+ * True when a project with `source` would have a hosted or Actions path: `source` must then not be `subscription`.
+ * The Actions half (`projects.dispatch = 'actions'`, 0031) joins this term when #668 lands.
+ */
+export function subscriptionHostedSql(slug: string, source: string, policy: string = effectivePolicySql(slug)): string {
+  return `(${source} = 'subscription' AND ${hostedRunnerAdmittedSql(slug, policy)})`;
+}

@@ -41,6 +41,7 @@ import type { ApiEnv } from '../env';
 import { jsonBody } from '../json-body';
 import { SMALL_WRITE_MAX_BYTES, writeLimit } from '../tracker/http';
 import { ownedAccountOf } from './accounts';
+import { accessSourceHosted } from './jobs';
 import { runnerReleaseOf } from './runner';
 import { runnerPauseOf } from './runner-pause';
 
@@ -219,11 +220,15 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         }
       }
       const json = value === null ? null : JSON.stringify(value);
-      await new AccountsRepo(c.env.DB).setDefaultRunnerPolicy(
+      const written = await new AccountsRepo(c.env.DB).setDefaultRunnerPolicy(
         account.id,
         json,
         auditOf(c, account, new Date().toISOString(), 'runner.policy-changed', account.id, { scope: 'account', policy: value }),
       );
+      // #687 (ADR 0009 d.3): a default that would reach a subscription project's hosted runner is refused in the write.
+      if (written === 'access-source-hosted') {
+        return accessSourceHosted(c);
+      }
       const dto: RunnerPolicyDto = { policy: value, effective: effectivePolicyOf(json, null) };
       return c.json(dto);
     })

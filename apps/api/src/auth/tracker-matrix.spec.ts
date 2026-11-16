@@ -98,7 +98,54 @@ async function job(project: SeededProject): Promise<string> {
   return ((await response.json()) as { id: string }).id;
 }
 
+/** Revision 1 of the project's team configuration, saved by the owner (#687). */
+async function teamConfigRevision(project: SeededProject): Promise<string> {
+  const response = await send('PUT', `${P}/${project.slug}/team-config`, { config: { schema: 'team-config/v1' } }, { ifMatch: '"0"' });
+  if (response.status !== 200) {
+    throw new Error(`seeding a team configuration answered ${String(response.status)}`);
+  }
+  return `${P}/${project.slug}/team-config/revisions/1`;
+}
+
+/** #687: a read of the account (owner, member) that no job makes. */
+const accountReads = (route: TrackerRoute, path: (project: SeededProject) => Promise<string>): Row => ({
+  route,
+  setup: async (project) => ({ method: 'GET', path: await path(project) }),
+  expect: (who) => (who === 'owner' ? ok(200) : refused('owner-only')),
+});
+
 const ROWS: readonly Row[] = [
+  // #687 (ADR 0009 d.9): the account reads the document and its history, a job only its resolved view; the owner writes.
+  accountReads(`GET ${P}/:slug/team-config`, async (project) => `${P}/${project.slug}/team-config`),
+  accountReads(`GET ${P}/:slug/team-config/revisions`, async (project) => `${P}/${project.slug}/team-config/revisions`),
+  accountReads(`GET ${P}/:slug/team-config/revisions/:n`, teamConfigRevision),
+  reads(`GET ${P}/:slug/team-config/resolved`, async (project) => `${P}/${project.slug}/team-config/resolved`),
+  {
+    route: `PUT ${P}/:slug/team-config`,
+    setup: async (project) => ({
+      method: 'PUT',
+      path: `${P}/${project.slug}/team-config`,
+      body: { config: { schema: 'team-config/v1', preset: 'economy' } },
+      ifMatch: '"0"',
+    }),
+    expect: (who) => (who === 'owner' ? ok(200) : refused('owner-only')),
+  },
+  {
+    route: `POST ${P}/:slug/team-config/reset`,
+    setup: async (project) => ({
+      method: 'POST',
+      path: `${P}/${project.slug}/team-config/reset`,
+      body: { preset: 'economy' },
+      ifMatch: '"0"',
+    }),
+    expect: (who) => (who === 'owner' ? ok(200) : refused('owner-only')),
+  },
+  {
+    // The owner is admitted and reads GitHub; this GitHub has no project.yml, so the owner's answer is the 422.
+    route: `POST ${P}/:slug/team-config/import`,
+    setup: async (project) => ({ method: 'POST', path: `${P}/${project.slug}/team-config/import`, body: {} }),
+    expect: (who) => (who === 'owner' ? refused('team-config-import-invalid', 422) : refused('owner-only')),
+  },
   // #467: the queue and its run log are read by every actor of the project; Run now and placement are the owner's.
   reads(`GET ${P}/:slug/jobs`, async (project) => `${P}/${project.slug}/jobs`),
   reads(`GET ${P}/:slug/jobs/:id`, async (project) => `${P}/${project.slug}/jobs/${await job(project)}`),
@@ -325,6 +372,7 @@ const TABLES = [
   'owner_decisions',
   'item_requests',
   'jobs',
+  'team_config_revisions',
 ] as const;
 
 async function snapshot(slug: string): Promise<number[]> {
@@ -357,7 +405,7 @@ describe('the route matrix covers the tracker', () => {
         .routes.filter(
           (route) =>
             route.method !== 'ALL' &&
-            /^\/api\/v1\/projects\/:slug\/(items|sprints|labels|prs|requests|decisions|jobs|runner-policy)\b/.test(
+            /^\/api\/v1\/projects\/:slug\/(items|sprints|labels|prs|requests|decisions|jobs|runner-policy|team-config)\b/.test(
               route.path,
             ),
         )
@@ -409,6 +457,13 @@ const OWNER_ROWS: readonly TrackerRoute[] = [
   `POST ${P}/:slug/items/:key/decisions`,
   `POST ${P}/:slug/items/:key/requests`,
   `POST ${P}/:slug/items/:key/events/scrub`,
+  // #687: the team configuration's writes and the account's reads of it; a job reads `…/resolved` only.
+  `GET ${P}/:slug/team-config`,
+  `GET ${P}/:slug/team-config/revisions`,
+  `GET ${P}/:slug/team-config/revisions/:n`,
+  `PUT ${P}/:slug/team-config`,
+  `POST ${P}/:slug/team-config/reset`,
+  `POST ${P}/:slug/team-config/import`,
 ];
 const PLANNING_ROWS: readonly TrackerRoute[] = [
   `POST ${P}/:slug/sprints`,
@@ -475,6 +530,8 @@ describe('the member actor is decided on every row', () => {
       const before = await snapshot(project.slug);
       const sendAs = (user: SessionUser) =>
         sendAsSession(user, scenario.method, scenario.path, scenario.body, {
+          // The same scripted GitHub as the job column's: the import row reads it once the owner is admitted (#687).
+          github: pullRequestsGitHub((number) => (number === 7 ? 'feature/x' : null)).github,
           ...(scenario.ifMatch === undefined ? {} : { headers: { 'If-Match': scenario.ifMatch } }),
         });
 

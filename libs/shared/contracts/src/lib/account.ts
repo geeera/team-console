@@ -92,6 +92,8 @@ export const AUDIT_EVENT_KINDS = [
   'project.created',
   'project.updated',
   'project.archived',
+  // A team configuration revision (ADR 0009 d.7, #687): ids, revision numbers and changed paths only, never values.
+  'team-config.changed',
 ] as const;
 export type AuditEventKind = (typeof AUDIT_EVENT_KINDS)[number];
 export const isAuditEventKind = (value: unknown): value is AuditEventKind =>

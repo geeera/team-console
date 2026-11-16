@@ -29,6 +29,7 @@ export {
   embedOriginOf,
   embedOriginsOf,
   parseProjectConfig,
+  parseProjectYmlRoot,
 } from './lib/project-config';
 export {
   contentsEntriesOf,

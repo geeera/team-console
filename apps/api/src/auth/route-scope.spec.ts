@@ -55,6 +55,14 @@ describe('the deny-by-default route inventory', () => {
         'PUT /api/v1/push/subscriptions',
         'GET /api/v1/environment/status',
         'GET /api/v1/accounts/:id/audit',
+        // #687: the team configuration, every route of ADR 0009 d.9.
+        'GET /api/v1/projects/:slug/team-config',
+        'PUT /api/v1/projects/:slug/team-config',
+        'POST /api/v1/projects/:slug/team-config/reset',
+        'POST /api/v1/projects/:slug/team-config/import',
+        'GET /api/v1/projects/:slug/team-config/revisions',
+        'GET /api/v1/projects/:slug/team-config/revisions/:n',
+        'GET /api/v1/projects/:slug/team-config/resolved',
       ]),
     );
   });

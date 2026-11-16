@@ -15,6 +15,11 @@ visual direction, 0006 the console as the source of truth — the #309 target ar
 - Owner answers written by the app use the plugin's grammar exactly (`libs/shared/owner-grammar`).
 - A tracker route change bumps the plugin's lock in the same sprint (`apps/api/fixtures/tracker/` is the contract,
   replayed by `routes/tracker/contract-fixtures.spec.ts`).
+- Team configuration is `team-config/v1` in D1 (ADR 0009, `@shared/contracts` `team-config.ts`, migration 0032,
+  `TeamConfigRepo` the only writer of `team_configs`, `team_config_revisions` and `projects.access_source`);
+  `project.yml`'s `review`, `caps`, `sprint`, `owner.language` are import-only on a console-tracker project; a preset
+  or allow-list change is a fixture change under `apps/api/fixtures/team-config/` (replayed by
+  `routes/team-config/contract-fixtures.spec.ts`) and bumps the plugin's lock like the tracker's.
 - Design tokens only (Paper Desk, ADR 0002); no raw colours, spacing, durations or z-index in components —
   `tools/design-lint` (part of `nx run-many -t lint`) fails on one in any `libs/console/**` or `apps/console` css.
 - Accounts are the tenant (ADR 0008, #466): every account-level table carries `account_id`; every route registered on

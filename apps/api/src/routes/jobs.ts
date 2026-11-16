@@ -34,6 +34,19 @@ function invalid(c: Context, type: string, field: string, detail: string): Respo
   return problem(c, { type, title: 'Invalid request', status: 422, detail, extensions });
 }
 
+/**
+ * 422 `access-source-hosted` (ADR 0009 d.3, #687): a placement that would let a hosted runner reach a project that
+ * runs on a subscription. The team configuration's source is changed first, then the placement.
+ */
+export function accessSourceHosted(c: Context): Response {
+  return invalid(
+    c,
+    'access-source-hosted',
+    'policy',
+    'A project on a subscription runs only on a self-hosted runner: switch its access source to an API key first',
+  );
+}
+
 export function jobDtoOf(job: JobRecord): JobDto {
   const items = job.payload['items'];
   return {
@@ -204,11 +217,14 @@ export function createJobRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         }
       }
       const at = new Date().toISOString();
-      await new AccountsRepo(c.env.DB).setProjectRunnerPolicy(
+      const written = await new AccountsRepo(c.env.DB).setProjectRunnerPolicy(
         row.slug,
         value === null ? null : JSON.stringify(value),
         jobAuditOf(c, row.account_id, at, 'runner.policy-changed', row.slug, { scope: 'project', policy: value }),
       );
+      if (written === 'access-source-hosted') {
+        return accessSourceHosted(c);
+      }
       const account = await new AccountsRepo(c.env.DB).findById(row.account_id);
       const dto: RunnerPolicyDto = {
         policy: value,
