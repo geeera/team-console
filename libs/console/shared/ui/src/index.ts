@@ -19,6 +19,7 @@ export * from './lib/focus/focus-after-render';
 export * from './lib/frame/frame';
 export * from './lib/frame/frame-src.public';
 export * from './lib/icon/icon';
+export * from './lib/is-phone/is-phone';
 export * from './lib/lane/lane';
 export * from './lib/ledger/ledger';
 export * from './lib/menu/menu';

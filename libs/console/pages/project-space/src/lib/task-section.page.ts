@@ -1,10 +1,9 @@
-import { BreakpointObserver } from '@angular/cdk/layout';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { itemNumberOfSegment } from '@console/entities/item';
 import { ProjectsStore } from '@console/entities/project';
-import { BREAKPOINTS, PinnedColumn } from '@console/shared/ui';
+import { isPhoneSignal, PinnedColumn } from '@console/shared/ui';
 import { TaskScreen } from '@console/widgets/task-screen';
 import { map } from 'rxjs';
 import { BoardSectionPage } from './board-section.page';
@@ -43,7 +42,6 @@ export class TaskSectionPage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly projects = inject(ProjectsStore);
-  private readonly breakpoints = inject(BreakpointObserver);
 
   private readonly slug = toSignal(
     (this.route.parent ?? this.route).paramMap.pipe(map((params) => params.get('slug'))),
@@ -57,10 +55,7 @@ export class TaskSectionPage {
     const slug = this.slug();
     return slug === null ? undefined : this.projects.bySlug(slug);
   });
-  protected readonly isPhone = toSignal(
-    this.breakpoints.observe(BREAKPOINTS.phone).pipe(map((result) => result.matches)),
-    { initialValue: this.breakpoints.isMatched(BREAKPOINTS.phone) },
-  );
+  protected readonly isPhone = isPhoneSignal();
 
   protected close(): void {
     const slug = this.slug();

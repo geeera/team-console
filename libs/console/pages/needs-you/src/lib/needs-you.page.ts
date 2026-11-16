@@ -8,16 +8,13 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { BreakpointObserver } from '@angular/cdk/layout';
-import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { map } from 'rxjs';
 import { ADD_PROJECT_FRAGMENT, ADD_PROJECT_PATH, ProjectsStore } from '@console/entities/project';
 import { BatchApprove, type BatchApproved } from '@console/features/batch-approve';
 import { NewTaskButton } from '@console/features/create-task';
 import { PushNudge } from '@console/features/push-subscribe';
 import { TranslocoPipe } from '@console/shared/i18n';
-import { BREAKPOINTS, Button, Receipt, SrOnlyOnPhone, StateBlock, TopBarAction } from '@console/shared/ui';
+import { Button, isPhoneSignal, Receipt, SrOnlyOnPhone, StateBlock, TopBarAction } from '@console/shared/ui';
 import { QuestionList } from '@console/widgets/question-list';
 
 /**
@@ -101,12 +98,8 @@ import { QuestionList } from '@console/widgets/question-list';
 export class NeedsYouPage {
   protected readonly projects = inject(ProjectsStore);
   private readonly injector = inject(Injector);
-  private readonly breakpoints = inject(BreakpointObserver);
   /** New task (#107) is a button by the title on wider screens and `+` in the shell's top bar on the phone. */
-  protected readonly isPhone = toSignal(
-    this.breakpoints.observe(BREAKPOINTS.phone).pipe(map((result) => result.matches)),
-    { initialValue: this.breakpoints.isMatched(BREAKPOINTS.phone) },
-  );
+  protected readonly isPhone = isPhoneSignal();
   protected readonly addProjectPath = ADD_PROJECT_PATH;
   protected readonly addProjectFragment = ADD_PROJECT_FRAGMENT;
 
