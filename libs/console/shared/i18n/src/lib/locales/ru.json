@@ -2036,6 +2036,7 @@
       "none": "Без изоляции (только для тестов)"
     },
     "card": {
+      "actionsRun": "GitHub Actions, запуск {{run}}",
       "backend": "Изоляция",
       "hosted": "размещён у нас",
       "version": "Версия",

@@ -285,6 +285,10 @@ describe('account scope on every route (threat model C9, RR12)', () => {
       expect([401, 403]).not.toContain((await sendAsRunner(runner, method, path, body)).status);
     });
 
+    it('lists exactly the two identity-less calls of the runner door under the enrolment rule (#668)', () => {
+      expect(ofRule('enrolment')).toEqual(['POST /api/v1/runner/enrol', 'POST /api/v1/runner/oidc-exchange']);
+    });
+
     it.each(ofRule('enrolment'))('%s is open to the enrolment identity only, judged by the code', async (route) => {
       const { method, path } = concrete(route, '');
       // A session cookie or the owner's bypass grants nothing here: the body's code decides (422 without one).

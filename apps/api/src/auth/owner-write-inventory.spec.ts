@@ -44,8 +44,8 @@ type ServiceRule =
   /**
    * #467: the runner's own door. No identity of this seam reaches it — the one-time code (enrol) or the runner JWT
    * is the credential, judged by `runner-auth.ts` and the route; the service identity, a session and the local
-   * owner get 401 `runner-jwt-missing` or, on enrol, the 422 of an empty body. Proven in `runner.spec.ts` and
-   * `route-scope.spec.ts`.
+   * owner get 401 `runner-jwt-missing` or, on enrol and the OIDC exchange (#668), the 422 of an empty body. Proven in
+   * `runner.spec.ts`, `runner-oidc.spec.ts` and `route-scope.spec.ts`.
    */
   | 'runner-door';
 
@@ -57,6 +57,8 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   'POST /api/v1/accounts/:id/runners/:runner/clear-suspect': 'no-owner-write',
   'POST /api/v1/accounts/:id/runners/enrolment-codes/:enrolment/withdraw': 'no-owner-write',
   'POST /api/v1/runner/enrol': 'runner-door',
+  // #668: a GitHub Actions run's OIDC token in the body is the credential.
+  'POST /api/v1/runner/oidc-exchange': 'runner-door',
   'POST /api/v1/runner/jobs/claim': 'runner-door',
   'POST /api/v1/runner/jobs/:id/heartbeat': 'runner-door',
   'POST /api/v1/runner/jobs/:id/events': 'runner-door',
@@ -301,6 +303,9 @@ describe('owner-write inventory (#62)', () => {
     if (route === 'POST /api/v1/runner/enrol') {
       expect(response.status).toBe(422);
       expect(await slugOf(response)).toBe('enrol-invalid');
+    } else if (route === 'POST /api/v1/runner/oidc-exchange') {
+      expect(response.status).toBe(422);
+      expect(await slugOf(response)).toBe('oidc-exchange-invalid');
     } else {
       expect(response.status).toBe(401);
       expect(await slugOf(response)).toBe('runner-jwt-missing');
@@ -324,7 +329,7 @@ describe('the job column off the tracker (#444)', () => {
       expect.arrayContaining(['GET /api/v1/projects', 'POST /api/v1/projects/:slug/issues/:number/answer']),
     );
     expect(runnerDoor).toEqual(
-      expect.arrayContaining(['POST /api/v1/runner/enrol', 'GET /api/v1/runner/release']),
+      expect.arrayContaining(['POST /api/v1/runner/enrol', 'POST /api/v1/runner/oidc-exchange', 'GET /api/v1/runner/release']),
     );
     expect(apiRoutes).toEqual(expect.arrayContaining([...JOB_READ_MODEL_ROUTES]));
   });

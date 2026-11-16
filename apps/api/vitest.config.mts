@@ -104,6 +104,8 @@ export default defineConfig(async () => {
             MIGRATION_DB_0029: 'migration-steps-0029',
             // #578: 0030's rename guard over rows 0026 keyed and left unkeyed.
             MIGRATION_DB_0030: 'migration-steps-0030',
+            // #668: 0031's dispatch columns over a project and a job that exist before them.
+            MIGRATION_DB_0031: 'migration-steps-0031',
           },
           bindings: {
             TEST_MIGRATIONS: await readD1Migrations(resolve(import.meta.dirname, 'migrations')),

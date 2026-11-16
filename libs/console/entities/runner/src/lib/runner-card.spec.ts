@@ -101,6 +101,20 @@ describe('RunnerCard', () => {
     expect((await render(runnerFixture())).querySelector('[data-testid="runner-pause"]')).toBeNull();
   });
 
+  // #668: an ephemeral GitHub Actions identity is named by its run, never by its stored `actions:<id>`.
+  it('names a GitHub Actions identity by its run, and any other runner by its name', async () => {
+    const actions = await render(
+      runnerFixture({ name: 'actions:9876543210', isolation: 'actions-ephemeral', allowedProjects: ['storify'] }),
+    );
+    expect(actions.querySelector('h3')?.textContent?.trim()).toBe('GitHub Actions, запуск 9876543210');
+    expect(actions.textContent).toContain('GitHub Actions');
+    TestBed.resetTestingModule();
+
+    // The name alone never makes a runner look like a run: only the backend does.
+    const named = await render(runnerFixture({ name: 'actions:42' }));
+    expect(named.querySelector('h3')?.textContent?.trim()).toBe('actions:42');
+  });
+
   it('says a runner with no projects takes no jobs', async () => {
     expect(text(await render(runnerFixture({ allowedProjects: [] })), 'runner-projects')).toBe(
       'ни одного — раннер не возьмёт задания',

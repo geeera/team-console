@@ -14,6 +14,14 @@ export const RUNNER_ISOLATIONS = ['container', 'user', 'actions-ephemeral', 'non
 export type RunnerIsolation = (typeof RUNNER_ISOLATIONS)[number];
 export const isRunnerIsolation = (value: unknown): value is RunnerIsolation =>
   (RUNNER_ISOLATIONS as readonly unknown[]).includes(value);
+/**
+ * What an enrolment code can grant (#668): every backend but `actions-ephemeral`, which only a verified GitHub OIDC
+ * exchange creates, for one job on a VM GitHub discards (threat model C11).
+ */
+export const ENROLMENT_ISOLATIONS = ['container', 'user', 'none'] as const satisfies readonly RunnerIsolation[];
+export type EnrolmentIsolation = (typeof ENROLMENT_ISOLATIONS)[number];
+export const isEnrolmentIsolation = (value: unknown): value is EnrolmentIsolation =>
+  (ENROLMENT_ISOLATIONS as readonly unknown[]).includes(value);
 
 export const RUNNER_SUSPECT_REASONS = ['new-country', 'two-pollers'] as const;
 export type RunnerSuspectReason = (typeof RUNNER_SUSPECT_REASONS)[number];
@@ -98,7 +106,7 @@ export interface EnrolRunnerInput {
   readonly publicKey: Ed25519PublicJwk;
   readonly host: RunnerHostDto;
   readonly capabilities: RunnerCapabilitiesDto;
-  readonly isolation: RunnerIsolation;
+  readonly isolation: EnrolmentIsolation;
   readonly version: string;
 }
 
@@ -224,7 +232,8 @@ function runnerName(value: unknown): string {
   return cleaned;
 }
 
-function host(value: unknown): RunnerHostDto {
+/** The `host` member of a runner's enrol or exchange body; module-internal to the contracts lib. */
+export function runnerHostOf(value: unknown): RunnerHostDto {
   const fields = record(value, ['os', 'arch', 'hostname']);
   return {
     os: text('host.os', fields['os'], RUNNER_HOST_FIELD_MAX_LENGTH, 1),
@@ -281,9 +290,9 @@ export function checkEnrolRunnerInput(body: unknown): InputCheck<EnrolRunnerInpu
     return {
       code: text('code', fields['code'], 128, 1),
       publicKey: { kty: 'OKP', crv: 'Ed25519', x: publicKey.x },
-      host: host(fields['host']),
+      host: runnerHostOf(fields['host']),
       capabilities: capabilities(fields['capabilities']),
-      isolation: oneOf('isolation', fields['isolation'], isRunnerIsolation),
+      isolation: oneOf('isolation', fields['isolation'], isEnrolmentIsolation),
       version: oneOf('version', fields['version'], isRunnerVersion),
     };
   });

@@ -58,8 +58,8 @@ export type Identity =
       readonly capabilities: RunnerCapabilitiesDto;
     }
   /**
-   * `POST /api/v1/runner/enrol` only: no identity yet — the one-time code in the body is the credential, judged by
-   * the route. Carries no ambient authority, so the CSRF rules for cookie-borne identities do not apply to it.
+   * `POST /api/v1/runner/enrol` and `POST /api/v1/runner/oidc-exchange` (#668) only: no identity yet — the one-time
+   * code or the GitHub Actions OIDC token in the body is the credential, judged by the route. Carries no ambient authority, so the CSRF rules for cookie-borne identities do not apply to it.
    */
   | { readonly kind: 'enrolment' };
 
