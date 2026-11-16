@@ -502,7 +502,7 @@ describe('tracker writes under a job token judge the stored runner and job insid
       : sendAsJob(held.runner, held.jobToken, 'POST', `/api/v1/projects/${held.lost}/items`, { title: 'Follow-up', kind: 'chore' });
   }
 
-  async function writtenRows(slug: string): Promise<Record<string, number>> {
+  async function writtenRows(slug: string): Promise<{ items: number; comments: number; events: number; completedKeys: number }> {
     const completedKeys = await env.DB.prepare('SELECT COUNT(*) AS n FROM idempotency_keys WHERE status IS NOT NULL').first<{ n: number }>();
     return {
       items: await countRows('items', slug),
