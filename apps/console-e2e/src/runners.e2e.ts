@@ -24,7 +24,8 @@ async function markSuspect(workerIndex: number, runnerId: string): Promise<void>
  * the account's placement to it, narrows its projects and revokes it.
  */
 
-const COMMAND = /^team-console-runner enrol --url (http:\/\/127\.0\.0\.1:\d+) --code (tce_[A-Za-z0-9_-]{43})$/;
+// #582: the code rides in the command's environment, never in its argv.
+const COMMAND = /^TC_ENROL_CODE=(?<code>tce_[A-Za-z0-9_-]{43}) team-console-runner enrol --url (?<url>http:\/\/127\.0\.0\.1:\d+)$/;
 
 /** The runner binary's half of enrolment: a fresh Ed25519 key (or the given one), its public JWK only. */
 function enrolBodyOf(code: string, publicKey: KeyObject = generateKeyPairSync('ed25519').publicKey): Record<string, unknown> {
@@ -84,7 +85,7 @@ test('enrol a runner with a one-time code, see it listed, pin placement to it, n
   await dialog.getByTestId('enrol-submit').click();
   await expect(dialog.getByRole('heading', { name: ru('runners.enrol.onceTitle') })).toBeFocused();
   const command = (await dialog.getByTestId('copy-code-text').textContent()) ?? '';
-  const [, url, code = ''] = COMMAND.exec(command) ?? [];
+  const { url, code = '' } = COMMAND.exec(command)?.groups ?? {};
   expect(url, command).toBe(new URL(stack.baseURL).origin);
   await expect(dialog.getByTestId('enrol-expiry')).toContainText('10');
   await expectAccessible(page, 'New runner dialog, code shown once');
@@ -146,14 +147,14 @@ test('enrol a runner with a one-time code, see it listed, pin placement to it, n
   await expectAccessible(page, 'Settings › Runners (revoked)');
 });
 
-/** Gets a code from the dialog as the owner does, and answers it (the command's `--code`). */
+/** Gets a code from the dialog as the owner does, and answers it (the command's `TC_ENROL_CODE`). */
 async function issueCodeInDialog(page: Page, name: string): Promise<string> {
   await page.getByTestId('runners-enrol').first().click();
   const dialog = page.getByRole('dialog', { name: ru('runners.enrol.title') });
   await dialog.getByTestId('enrol-name').fill(name);
   await dialog.getByTestId('enrol-submit').click();
   const command = (await dialog.getByTestId('copy-code-text').textContent()) ?? '';
-  const [, , code = ''] = COMMAND.exec(command) ?? [];
+  const { code = '' } = COMMAND.exec(command)?.groups ?? {};
   await dialog.getByTestId('enrol-done').click();
   await expect(dialog).toHaveCount(0);
   return code;

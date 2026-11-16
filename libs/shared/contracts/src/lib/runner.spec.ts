@@ -92,11 +92,12 @@ describe('isRunnerVersionBelow', () => {
 describe('enrolCommandOf', () => {
   const code = `tce_${'A'.repeat(43)}`;
 
-  it('builds the one command to paste', () => {
+  it('builds the one command to paste, the code in its environment and never in argv (#582)', () => {
     expect(enrolCommandOf({ apiUrl: 'https://console.example.dev', code })).toBe(
-      `team-console-runner enrol --url https://console.example.dev --code ${code}`,
+      `TC_ENROL_CODE=${code} team-console-runner enrol --url https://console.example.dev`,
     );
-    expect(enrolCommandOf({ apiUrl: 'http://localhost:8787', code })).toContain('--url http://localhost:8787 ');
+    expect(enrolCommandOf({ apiUrl: 'http://localhost:8787', code })).toMatch(/ --url http:\/\/localhost:8787$/);
+    expect(enrolCommandOf({ apiUrl: 'https://console.example.dev', code })).not.toContain('--code');
   });
 
   it.each([

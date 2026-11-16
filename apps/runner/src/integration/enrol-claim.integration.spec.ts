@@ -51,9 +51,10 @@ describe('integration: enrol against the local stack, then claim', () => {
     const out: string[] = [];
     const err: string[] = [];
     const exit = await runCli(
-      ['enrol', '--url', enrolment.apiUrl, '--code', enrolment.code, '--backend', 'none'],
+      ['enrol', '--url', enrolment.apiUrl, '--backend', 'none'],
       {
-        env: { TC_RUNNER_HOME: home },
+        // The documented path (#582): the code in the environment, never in argv.
+        env: { TC_RUNNER_HOME: home, TC_ENROL_CODE: enrolment.code },
         homeDir: dir,
         host: { os: process.platform, arch: process.arch, hostname: 'integration.local' },
         fetch: (url, init) => fetch(url, init),
@@ -68,9 +69,9 @@ describe('integration: enrol against the local stack, then claim', () => {
 
     // 3. The same code a second time is refused: single use.
     const again = await runCli(
-      ['enrol', '--url', enrolment.apiUrl, '--code', enrolment.code, '--backend', 'none'],
+      ['enrol', '--url', enrolment.apiUrl, '--backend', 'none'],
       {
-        env: { TC_RUNNER_HOME: join(dir, 'home-2') },
+        env: { TC_RUNNER_HOME: join(dir, 'home-2'), TC_ENROL_CODE: enrolment.code },
         homeDir: dir,
         host: { os: process.platform, arch: process.arch, hostname: 'integration.local' },
         fetch: (url, init) => fetch(url, init),
