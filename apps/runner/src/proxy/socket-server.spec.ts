@@ -293,6 +293,51 @@ describe('job socket (threat model C3 / ADR 0006 R4)', () => {
   });
 
   describe('bodies', () => {
+    // #583: built at run time so no secret-shaped literal sits in the source.
+    const wholeKey = `sk-ant-api03-${'Z'.repeat(40)}`;
+    const prose = 'a finding: never commit a PRIVATE KEY, an sk-ant-x key or a tcj_x token';
+    const postJson = async (path: string, value: unknown): Promise<Answer> =>
+      send(socketPath(), {
+        method: 'POST',
+        path,
+        headers: { ...auth(token), 'Content-Type': 'application/json' },
+        body: JSON.stringify(value),
+      });
+
+    it('forwards a project write that only names token prefixes unchanged, and still masks a whole token (#583)', async () => {
+      await open();
+      const answer = await postJson('/api/v1/projects/team-console/items/7/comments', {
+        body: `${prose}; leaked ${wholeKey}`,
+        'PRIVATE KEY': 'sk-ant-x',
+      });
+
+      expect(answer.status).toBe(200);
+      expect(forwarded).toHaveLength(1);
+      expect(JSON.parse(forwarded[0]?.request.body ?? 'null')).toEqual({
+        body: `${prose}; leaked [redacted:anthropic-key]`,
+        'PRIVATE KEY': 'sk-ant-x',
+      });
+      expect(forwarded[0]?.request.body).not.toContain(wholeKey);
+    });
+
+    it('keeps the run log loose: a bare prefix in a job’s events is masked (#583)', async () => {
+      await open();
+      await postJson(`/api/v1/runner/jobs/${JOB_ID}/events`, { events: [{ payload: { text: prose } }] });
+
+      expect(forwarded[0]?.kind).toBe('runner-job');
+      expect(JSON.parse(forwarded[0]?.request.body ?? 'null')).toEqual({
+        events: [
+          {
+            payload: {
+              text:
+                'a finding: never commit a [redacted:private-key], an [redacted:anthropic-key] key or a ' +
+                '[redacted:job-token] token',
+            },
+          },
+        ],
+      });
+    });
+
     it('413 past the body cap (256 KB by default), with a notice', async () => {
       expect(PROXY_BODY_MAX_BYTES).toBe(256 * 1024);
       await open({ maxBodyBytes: 1024 });
