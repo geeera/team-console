@@ -55,7 +55,12 @@ describe('the pause mirrored to the console', () => {
   });
 
   it('clears the pause on the console once it lapses, once, then claims again', async () => {
-    const until = new Date(Date.now() + 40).toISOString();
+    // A fake clock the loop alone advances (through `sleep`), never the real one: a 40 ms real-time margin
+    // raced the async state-file write/read under CPU load and the pause was already seen as lapsed before
+    // the loop even started (#702). `now`/`sleep` make the lapse happen exactly when the loop sleeps past it,
+    // independent of how long the surrounding I/O actually takes.
+    let clockMs = Date.now();
+    const until = new Date(clockMs + 40).toISOString();
     await saveRunnerState(fixture.home, { schema: 1, pause: { reason: 'usage-limit', until }, limitStreak: 1 });
     const shutdown = new AbortController();
     let claims = 0;
@@ -68,8 +73,13 @@ describe('the pause mirrored to the console', () => {
         return { kind: 'idle' as const, retryAfterSeconds: 60 };
       },
     });
-    const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, Math.min(ms, 60)));
-    expect(await runLoop('loop', depsFor(client, { shutdown: shutdown.signal, sleep }))).toBe('shutdown');
+    const sleep = (ms: number): Promise<void> => {
+      clockMs += Math.max(0, ms);
+      return Promise.resolve();
+    };
+    expect(
+      await runLoop('loop', depsFor(client, { shutdown: shutdown.signal, sleep, now: () => new Date(clockMs) })),
+    ).toBe('shutdown');
     expect(client.pauses).toEqual([{ reason: 'usage-limit', until }, 'resume']);
     expect(claims).toBe(2);
   });
