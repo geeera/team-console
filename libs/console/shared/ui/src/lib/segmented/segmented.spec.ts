@@ -64,7 +64,7 @@ describe('SegmentedRadio', () => {
     const disabled = segments[1]?.control as HTMLInputElement;
     expect(disabled.disabled).toBe(true);
 
-    disabled.click();
+    segments[1]?.click();
     expect(disabled.checked).toBe(false);
     expect((segments[0]?.control as HTMLInputElement).checked).toBe(true);
   });
