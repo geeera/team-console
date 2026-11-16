@@ -79,7 +79,15 @@ import { currentSprintOf, type ItemDto, type ItemSummaryDto, type TrackerSprintD
 import { map } from 'rxjs';
 import { BoardJobs } from './board-jobs';
 import { BoardMoveButton } from './board-move-button';
-import { arrivalsLast, BoardMoves, elementRefOf, focusAfterLeaving, moveButtonOf, placedInLane } from './board-moves';
+import {
+  arrivalsLast,
+  BoardMoves,
+  elementRefOf,
+  itemsAfterMove,
+  moveButtonOf,
+  movesSection,
+  placedInLane,
+} from './board-moves';
 
 /** Without a usable `Retry-After` on a 429 (missing, invalid or 0), the board waits this long before it asks again. */
 export const DEFAULT_RETRY_SECONDS = 60;
@@ -637,25 +645,16 @@ export class SprintBoard {
   private onMoved(move: ItemMove, current: number): void {
     const read = this.tracker();
     const board = this.board();
-    if ((move.from !== current && move.to !== current) || read === null || board === null) {
+    if (!movesSection(move, current) || read === null || board === null) {
       return;
     }
     this.moveFailure.set(null);
-    const root = this.host.nativeElement;
-    const number = move.item.number;
-    const others = read.items.filter((item) => item.number !== number);
-    const items = move.to === current ? [...others, move.item] : others;
-    if (move.from === current && !move.isUndo) {
-      const target = focusAfterLeaving(root, number, () => root.querySelector<HTMLElement>('.board__title'));
-      focusAfterRender(() => elementRefOf(target()), { injector: this.injector });
-    }
-    if (move.to === current) {
-      if (move.isUndo) {
-        focusAfterRender(() => elementRefOf(moveButtonOf(root, number)), { injector: this.injector });
-      } else {
-        this.arrivals.update((arrivals) => [...arrivals.filter((n) => n !== number), number]);
-      }
-    }
+    const items = itemsAfterMove(move, current, read.items, {
+      root: this.host.nativeElement,
+      injector: this.injector,
+      fallback: () => this.host.nativeElement.querySelector<HTMLElement>('.board__title'),
+      arrivals: this.arrivals,
+    });
     this.tracker.set({ ...read, items });
     this.state.set({ kind: 'ready', board: { ...board, ...trackerSprintPartOf(read.sprint, items) } });
   }
