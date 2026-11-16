@@ -1,4 +1,10 @@
-import { PLAN_ENTITLEMENTS, TEAM_FAILURE_STREAK_PAUSE, entitlementsOf, isRunnerLimitReason } from '@shared/contracts';
+import {
+  BUDGET_PAUSER,
+  PLAN_ENTITLEMENTS,
+  TEAM_FAILURE_STREAK_PAUSE,
+  entitlementsOf,
+  isRunnerLimitReason,
+} from '@shared/contracts';
 import { AccountsRepo } from '../accounts/accounts.repo';
 import { auditEventStatement, auditedWrite, type NewAuditEvent } from '../accounts/audit.repo';
 
@@ -15,6 +21,17 @@ interface TeamStateRow {
   paused_at: string | null;
   paused_by: string | null;
   failed_streak: number;
+}
+
+/** A team the budget stopped (#684), for its Needs-you row. */
+export interface BudgetStopRecord {
+  readonly projectSlug: string;
+  readonly stoppedAt: string;
+  /** The UTC month `YYYY-MM` the stop began in; `spentUsd` is that month's. */
+  readonly month: string;
+  readonly spentUsd: number;
+  /** `budget.monthly_usd` now; `null` when the document no longer sets one. */
+  readonly budgetUsd: number | null;
 }
 
 /** Who paused on the failure streak, as `paused_by` records it. */
@@ -119,9 +136,24 @@ export class TeamStateRepo {
     return (write?.meta.changes ?? 0) === 1;
   }
 
-  /** Resuming also clears the failure streak, as `runlog resume` does. `false` when the project was not paused. */
+  /**
+   * Resuming also clears the failure streak, as `runlog resume` does. `false` when the project was not paused.
+   *
+   * Resuming a `system:budget` pause is "Resume this month" (#684): the same batch waives the budget for the UTC month
+   * of `now`, so the claim admits the project again until the month ends, and no later `finish` this month pauses it
+   * on the budget again. Next month starts under the budget.
+   */
   async resume(projectSlug: string, now: string, audit: NewAuditEvent): Promise<boolean> {
-    const [write] = await this.db.batch([
+    const results = await this.db.batch([
+      // Before the resume clears `paused_by`, which is what says the pause was the budget's.
+      this.db
+        .prepare(
+          `INSERT INTO project_spend (project_slug, month, waived_at)
+           SELECT ?1, substr(?2, 1, 7), ?2
+           WHERE EXISTS (SELECT 1 FROM team_state WHERE project_slug = ?1 AND paused_at IS NOT NULL AND paused_by = ?3)
+           ON CONFLICT (project_slug, month) DO UPDATE SET waived_at = COALESCE(waived_at, excluded.waived_at)`,
+        )
+        .bind(projectSlug, now, BUDGET_PAUSER),
       ...auditedWrite(
         this.db,
         this.db
@@ -133,7 +165,36 @@ export class TeamStateRepo {
         audit,
       ),
     ]);
-    return (write?.meta.changes ?? 0) === 1;
+    return (results[1]?.meta.changes ?? 0) === 1;
+  }
+
+  /**
+   * The projects of `slugs` the budget stopped (#684): paused by `system:budget`, with the figures of the month the
+   * pause began in and the budget as configured now. One row per project, however many finishes crossed the cap.
+   */
+  async budgetStopsOf(slugs: readonly string[]): Promise<BudgetStopRecord[]> {
+    if (slugs.length === 0) {
+      return [];
+    }
+    const { results } = await this.db
+      .prepare(
+        `SELECT t.project_slug, t.paused_at, substr(t.paused_at, 1, 7) AS month, COALESCE(ps.spent_usd, 0) AS spent_usd,
+           json_extract(tc.config, '$.budget.monthly_usd') AS budget_usd
+         FROM team_state t
+         LEFT JOIN project_spend ps ON ps.project_slug = t.project_slug AND ps.month = substr(t.paused_at, 1, 7)
+         LEFT JOIN team_configs tc ON tc.project_slug = t.project_slug
+         WHERE t.paused_by = ?1 AND t.paused_at IS NOT NULL AND t.project_slug IN (SELECT value FROM json_each(?2))
+         ORDER BY t.project_slug`,
+      )
+      .bind(BUDGET_PAUSER, JSON.stringify(slugs))
+      .all<{ project_slug: string; paused_at: string; month: string; spent_usd: number; budget_usd: number | null }>();
+    return results.map((row) => ({
+      projectSlug: row.project_slug,
+      stoppedAt: row.paused_at,
+      month: row.month,
+      spentUsd: row.spent_usd,
+      budgetUsd: row.budget_usd,
+    }));
   }
 
   /**

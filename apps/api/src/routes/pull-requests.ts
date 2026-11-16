@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import {
-  JOB_MAX_MINUTES_DEFAULT,
   checkRequestReviewsInput,
   type PullRequestDto,
   type PullRequestItemsDto,
@@ -42,6 +41,7 @@ import { invalid, keyPrefixOf, trackerWriteRefusal } from '../tracker/context';
 import { itemSummaryDtoOf } from '../tracker/dto';
 import { SMALL_WRITE_MAX_BYTES, pageOf, writeLimit } from '../tracker/http';
 import { dispatchActionsJobs } from '../actions/dispatch';
+import { currentResolvedViewOf, roleEnqueueLimitsOf } from '../team-config/resolved';
 import { actionsOnSubscription } from './dispatch-problems';
 import { jobAuditOf, jobDtoOf } from './jobs';
 
@@ -351,6 +351,8 @@ async function requestReviews(c: Context, github: ApiGitHub): Promise<Response> 
   const keyOf = (role: ReviewJobRole): string => reviewDedupeKeyOf(row.slug, number, pull.headSha, role);
   const jobs = new JobsRepo(c.env.DB);
   const live = new Set((await jobs.findLiveByDedupeKeys(row.slug, roles.map(keyOf))).map((job) => job.dedupeKey));
+  // #684: each review job takes its role's `max_minutes` as configured now (qa, reviewer and security are never off).
+  const view = await currentResolvedViewOf(c.env.DB, row.slug);
   const now = new Date();
   const at = now.toISOString();
   const entries = roles
@@ -369,7 +371,7 @@ async function requestReviews(c: Context, github: ApiGitHub): Promise<Response> 
           requestedBy: 'orchestrator',
           dedupeKey: keyOf(role),
           needsLocal: false,
-          maxMinutes: JOB_MAX_MINUTES_DEFAULT,
+          maxMinutes: roleEnqueueLimitsOf(view, role, null).maxMinutes,
           at,
           parentJobId: parent.id,
         },

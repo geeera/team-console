@@ -34,6 +34,12 @@ export interface DispatchDeps {
 export type DispatchOutcome =
   | { readonly kind: 'dispatched' }
   | { readonly kind: 'failed'; readonly failure: ActionsDispatchFailure }
+  /**
+   * The exchange would refuse the job now (#722): the team paused, the role off or at its `max_parallel`, the budget
+   * used up, the project archived or the account suspended. It stays queued, undispatched, and a later finish of the
+   * project or the Cron sweep dispatches it once it is admitted (#716). No run is started for it meanwhile.
+   */
+  | { readonly kind: 'deferred' }
   /** Not a queued, undispatched Actions job (a pull job, or one another request already dispatched or ended). */
   | { readonly kind: 'skipped' };
 
@@ -81,6 +87,8 @@ export function dispatchFailureOf(phase: Phase, error: GitHubError): ActionsDisp
   }
 }
 
+const nowOf = (deps: DispatchDeps): string => (deps.now?.() ?? new Date()).toISOString();
+
 class DispatchRefusal extends Error {
   constructor(readonly failure: ActionsDispatchFailure) {
     super(failure);
@@ -90,11 +98,16 @@ class DispatchRefusal extends Error {
 
 export async function dispatchActionsJob(deps: DispatchDeps, jobId: string): Promise<DispatchOutcome> {
   const jobs = new JobsRepo(deps.env.DB);
-  const target = await jobs.findDispatchTarget(jobId);
+  const target = await jobs.findDispatchTarget(jobId, nowOf(deps));
   if (target === null) {
     return { kind: 'skipped' };
   }
   const slug = target.job.projectSlug;
+  // A read, so a hint only: it saves the GitHub calls, and `markDispatched` below judges the same terms in its write.
+  if (!target.admitted) {
+    deps.logger.info('actions dispatch deferred', { jobId, slug, role: target.job.role });
+    return { kind: 'deferred' };
+  }
   let phase: Phase = 'read';
   try {
     if (target.installationId === null) {
@@ -118,9 +131,10 @@ export async function dispatchActionsJob(deps: DispatchDeps, jobId: string): Pro
     phase = 'mint';
     const token = await auth.mintForActionsDispatch(target.installationId, target.repoId);
     // Recorded before the call, as a compare-and-set: a second request never dispatches the job again, and a run
-    // that boots fast never meets a job the exchange still refuses as undispatched (#695 item 3).
-    if (!(await jobs.markDispatched(jobId, (deps.now?.() ?? new Date()).toISOString()))) {
-      deps.logger.warn('actions dispatch not recorded', { jobId, slug });
+    // that boots fast never meets a job the exchange still refuses as undispatched (#695 item 3). The write also
+    // holds the exchange's admission (#722), so of two jobs racing for a role's last slot only one starts a run.
+    if (!(await jobs.markDispatched(jobId, nowOf(deps)))) {
+      deps.logger.info('actions dispatch not recorded', { jobId, slug });
       return { kind: 'skipped' };
     }
     phase = 'dispatch';
@@ -144,12 +158,36 @@ export async function dispatchActionsJob(deps: DispatchDeps, jobId: string): Pro
       failure,
       ...(error instanceof GitHubError ? { githubStatus: error.githubStatus } : {}),
     });
-    const at = (deps.now?.() ?? new Date()).toISOString();
+    const at = nowOf(deps);
     await jobs.failUndispatched(jobId, at, ACTIONS_DISPATCH_FAILED, `${ACTIONS_DISPATCH_FAILED}: ${failure}`);
     return { kind: 'failed', failure };
   }
   deps.logger.info('actions job dispatched', { jobId, slug });
   return { kind: 'dispatched' };
+}
+
+/**
+ * The queued Actions jobs a slot or a lifted stop has freed (#716): every undispatched job the exchange would admit
+ * now, of `projectSlug` or of every project, highest priority first, at most `limit` (each costs GitHub subrequests).
+ * One job's failure is logged and the next is tried; a job the write no longer admits stays queued. Returns how many
+ * runs were started.
+ */
+export async function dispatchAdmittedActionsJobs(
+  deps: DispatchDeps,
+  options: { readonly projectSlug: string | null; readonly limit: number },
+): Promise<number> {
+  const ids = await new JobsRepo(deps.env.DB).listDispatchable(nowOf(deps), options.limit, options.projectSlug);
+  let dispatched = 0;
+  for (const id of ids) {
+    try {
+      if ((await dispatchActionsJob(deps, id)).kind === 'dispatched') {
+        dispatched += 1;
+      }
+    } catch (error: unknown) {
+      deps.logger.error('actions dispatch errored', { jobId: id, error: error instanceof Error ? error.name : 'unknown' });
+    }
+  }
+  return dispatched;
 }
 
 /** Every Actions job of `jobs` in turn; pull jobs are skipped. */

@@ -82,3 +82,24 @@ describe('buildNeedsYou (#16: inbox order, then project, then number)', () => {
     expect(result.omittedProjects).toEqual([{ slug: 'delta', name: 'Delta' }]);
   });
 });
+
+describe('buildNeedsYou: the budget stop (#684)', () => {
+  const stop = { month: '2026-11', spentUsd: 201.5, budgetUsd: 200, stoppedAt: '2026-11-16T10:00:00.000Z' };
+
+  it('carries a project’s one stop, read or not, and nothing on the others', () => {
+    const result = buildNeedsYou(
+      [
+        { project: { slug: 'alpha', name: 'Alpha' }, inbox: inbox([]) },
+        { project: { slug: 'beta', name: 'Beta' }, inbox: inbox([]) },
+        { project: { slug: 'gamma', name: 'Gamma' }, problem: { type: 'github-rate-limit', title: 'Rate limited', status: 429 } },
+      ],
+      [],
+      new Map([
+        ['alpha', stop],
+        ['gamma', stop],
+      ]),
+    );
+    expect(result.projects.map((project) => project.budgetStop)).toEqual([stop, undefined, stop]);
+    expect(Object.hasOwn(result.projects[1] ?? {}, 'budgetStop')).toBe(false);
+  });
+});

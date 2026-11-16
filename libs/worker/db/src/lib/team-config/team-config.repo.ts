@@ -1,4 +1,4 @@
-import type { AccessSource, TeamConfig, TeamConfigChange } from '@shared/contracts';
+import { BUDGET_PAUSER, type AccessSource, type TeamConfig, type TeamConfigChange } from '@shared/contracts';
 import { AUDITED_WRITE_HAPPENED_SQL, auditedWrite, type NewAuditEvent } from '../accounts/audit.repo';
 import { subscriptionHostedSql } from './access-source';
 
@@ -174,6 +174,7 @@ export class TeamConfigRepo {
            WHERE slug = ?1 AND access_source IS NOT ?2 AND EXISTS (SELECT 1 FROM team_config_revisions WHERE id = ?3)`,
         )
         .bind(write.projectSlug, write.config.access.source, write.id),
+      ...this.budgetStopStatements(write, json),
     ]);
     if (results[2]?.meta.changes === 1) {
       return { kind: 'saved', revision: next };
@@ -181,5 +182,50 @@ export class TeamConfigRepo {
     const after = await this.findCurrent(write.projectSlug);
     const revision = after?.revision ?? 0;
     return revision === write.expectedRevision ? { kind: 'access-source-hosted' } : { kind: 'stale', revision };
+  }
+
+  /**
+   * The budget stop follows the saved budget (#684), in the save's batch and only if the save took (its revision row
+   * exists): a budget raised above the month's spend, or removed, lifts a `system:budget` pause ("Raise budget"); one
+   * lowered to the spend or below pauses the team at once with the same Needs-you row a `finish` would raise, so the
+   * owner sees why nothing starts. A month the owner waived ("Resume this month") stays waived.
+   */
+  private budgetStopStatements(write: TeamConfigWrite, json: string): D1PreparedStatement[] {
+    const reached = `EXISTS (
+      SELECT 1 FROM project_spend ps
+      WHERE ps.project_slug = ?1 AND ps.month = substr(?2, 1, 7) AND ps.waived_at IS NULL
+        AND ps.spent_usd >= json_extract(?3, '$.budget.monthly_usd'))`;
+    const saved = `EXISTS (SELECT 1 FROM team_config_revisions WHERE id = ?4)`;
+    const audit = (kind: 'team.paused' | 'team.resumed'): NewAuditEvent => ({
+      ...write.audit,
+      kind,
+      target: write.projectSlug,
+      details: { reason: 'budget', revision: write.expectedRevision + 1 },
+    });
+    return [
+      ...auditedWrite(
+        this.db,
+        this.db
+          .prepare(
+            `UPDATE team_state SET paused_at = NULL, paused_by = NULL, updated_at = ?2
+             WHERE project_slug = ?1 AND paused_at IS NOT NULL AND paused_by = ?5 AND ${saved} AND NOT ${reached}`,
+          )
+          .bind(write.projectSlug, write.at, json, write.id, BUDGET_PAUSER),
+        audit('team.resumed'),
+      ),
+      ...auditedWrite(
+        this.db,
+        this.db
+          .prepare(
+            `INSERT INTO team_state (project_slug, paused_at, paused_by, failed_streak, updated_at)
+             SELECT ?1, ?2, ?5, 0, ?2 WHERE ${saved} AND ${reached}
+             ON CONFLICT (project_slug) DO UPDATE SET paused_at = excluded.paused_at, paused_by = excluded.paused_by,
+               updated_at = excluded.updated_at
+             WHERE team_state.paused_by IS NOT excluded.paused_by`,
+          )
+          .bind(write.projectSlug, write.at, json, write.id, BUDGET_PAUSER),
+        audit('team.paused'),
+      ),
+    ];
   }
 }

@@ -1,6 +1,7 @@
 import type {
   AnswerCommand,
   InboxDto,
+  NeedsYouBudgetStopDto,
   NeedsYouDto,
   NeedsYouItemDto,
   NeedsYouProjectDto,
@@ -24,15 +25,19 @@ export type ProjectInboxResult =
 
 /**
  * The cross-project union (#16): every item tagged with its project, sorted by inbox order, then project in the
- * order given (the registry's), then issue number.
+ * order given (the registry's), then issue number. A project the budget stopped (#684) carries its stop, whether its
+ * inbox was read or not: the stop is the console's own record, not the inbox's.
  */
 export function buildNeedsYou(
   results: readonly ProjectInboxResult[],
   omittedProjects: readonly NeedsYouProjectRef[],
+  budgetStops: ReadonlyMap<string, NeedsYouBudgetStopDto> = new Map(),
 ): NeedsYouDto {
   const items: { item: NeedsYouItemDto; projectIndex: number }[] = [];
   const projects = results.map((result, projectIndex): NeedsYouProjectDto => {
     const ref = { slug: result.project.slug, name: result.project.name };
+    const stop = budgetStops.get(ref.slug);
+    const budget = stop === undefined ? {} : { budgetStop: stop };
     if ('problem' in result) {
       return {
         ...ref,
@@ -41,6 +46,7 @@ export function buildNeedsYou(
         paused: false,
         pausedUrl: null,
         problem: result.problem,
+        ...budget,
       };
     }
     for (const item of result.inbox.items) {
@@ -54,6 +60,7 @@ export function buildNeedsYou(
       paused: result.inbox.paused,
       pausedUrl: result.inbox.pausedUrl,
       problem: null,
+      ...budget,
     };
   });
   items.sort(

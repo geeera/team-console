@@ -2418,5 +2418,38 @@
         "message": "The console didn’t answer. Try again — if the task was created, you get that one back, not a second."
       }
     }
+  },
+  "budget": {
+    "stop": {
+      "title": "Budget used up — {{project}}",
+      "body": "The team stopped: {{spent}} of {{budget}} spent in {{month}} (Claude Code estimate). Running jobs finished; nothing new starts.",
+      "resume": "Resume this month",
+      "raise": "Raise budget"
+    },
+    "resume": {
+      "title": "Resume the team in {{project}}?",
+      "message": "Spending may exceed {{budget}}.",
+      "confirm": "Resume"
+    },
+    "raise": {
+      "title": "Raise budget — {{project}}",
+      "message": "Spent in {{month}}: {{spent}}. A budget above that starts the team again.",
+      "label": "Monthly budget, USD",
+      "hint": "An estimate from Claude Code, not a hard cap. The hard cap is your Anthropic workspace limit.",
+      "confirm": "Save budget",
+      "invalid": "Enter whole dollars from {{min}} to {{max}}.",
+      "tooLow": "The budget must be above what is already spent ({{spent}}), or the team stays paused."
+    },
+    "overshoot": "Overshoot is bounded by the jobs already running, each up to its minutes limit. The figure here is a floor; the hard cap is your Anthropic workspace limit.",
+    "cancel": "Cancel",
+    "retry": "Try again",
+    "sending": "Saving…",
+    "resumed": "Team resumed.",
+    "error": {
+      "forbidden": "Only the project owner can do this.",
+      "stale": "The team settings just changed. Try again to save over the new version.",
+      "offline": "No connection to the console. Check the network and try again.",
+      "failed": "That did not work. Try again in a moment."
+    }
   }
 }

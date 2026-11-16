@@ -2,6 +2,7 @@ import type {
   AnswerCommand,
   InboxItemDto,
   OwnerCategory,
+  NeedsYouBudgetStopDto,
   NeedsYouDto,
   NeedsYouItemDto,
   NeedsYouProjectDto,
@@ -61,12 +62,18 @@ export interface QuestionProjectSetup {
   readonly url: string | null;
 }
 
+/** A team the month's budget stopped (#684): its one "Budget used up" row. */
+export interface QuestionBudgetStop extends NeedsYouBudgetStopDto {
+  readonly project: NeedsYouProjectRef;
+}
+
 export interface NeedsYouView {
   readonly items: readonly QuestionItem[];
   /** Slugs whose inbox was read in this response; answers for other projects are left alone. */
   readonly readSlugs: readonly string[];
   readonly problems: readonly QuestionProjectProblem[];
   readonly setups: readonly QuestionProjectSetup[];
+  readonly budgetStops: readonly QuestionBudgetStop[];
   readonly omitted: readonly NeedsYouProjectRef[];
 }
 
@@ -159,11 +166,27 @@ function isProjectProblem(value: unknown): value is NeedsYouProjectProblem {
   );
 }
 
+const isDollars = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0;
+
+function isBudgetStop(value: unknown): value is NeedsYouBudgetStopDto {
+  return (
+    isRecord(value) &&
+    typeof value['month'] === 'string' &&
+    /^\d{4}-\d{2}$/.test(value['month']) &&
+    isDollars(value['spentUsd']) &&
+    isDollars(value['budgetUsd']) &&
+    typeof value['stoppedAt'] === 'string'
+  );
+}
+
 function isNeedsYouProject(value: unknown): value is NeedsYouProjectDto {
   return (
     isProjectRef(value) &&
     isRecord(value) &&
-    (value['problem'] === null || isProjectProblem(value['problem']))
+    (value['problem'] === null || isProjectProblem(value['problem'])) &&
+    // Absent from a server that predates #684, and from every project the budget has not stopped.
+    (value['budgetStop'] === undefined || isBudgetStop(value['budgetStop']))
   );
 }
 
@@ -247,6 +270,19 @@ export function needsYouViewOf(dto: NeedsYouDto): NeedsYouView {
             },
           ]
         : [],
+    ),
+    budgetStops: dto.projects.flatMap((project) =>
+      project.budgetStop === undefined
+        ? []
+        : [
+            {
+              project: { slug: project.slug, name: project.name },
+              month: project.budgetStop.month,
+              spentUsd: project.budgetStop.spentUsd,
+              budgetUsd: project.budgetStop.budgetUsd,
+              stoppedAt: project.budgetStop.stoppedAt,
+            },
+          ],
     ),
     omitted: dto.omittedProjects,
   };

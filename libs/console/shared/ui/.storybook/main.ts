@@ -15,6 +15,8 @@ const config: StorybookConfig = {
     '../../../widgets/question-list/src/**/*.stories.ts',
     '../../../entities/design/src/**/*.stories.ts',
     '../../../features/design-viewer/src/**/*.stories.ts',
+    // The Needs-you budget row (#684).
+    '../../../features/budget-stop/src/**/*.stories.ts',
     // The runner card's states (#464, Settings › Runners).
     '../../../entities/runner/src/**/*.stories.ts',
     // The job card's states (#464, the board's runs section).

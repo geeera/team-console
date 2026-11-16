@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
-import { NEEDS_YOU_MAX_PROJECTS, type NeedsYouProjectRef } from '@shared/contracts';
+import { NEEDS_YOU_MAX_PROJECTS, type NeedsYouBudgetStopDto, type NeedsYouProjectRef } from '@shared/contracts';
 import type { WorkerHonoEnv } from '@worker/core';
+import { TeamStateRepo } from '@worker/db';
 import { GitHubError, InvalidRepoNameError, parseRepoName } from '@worker/github';
 import { buildNeedsYou, type ProjectInboxResult } from '@worker/read-models';
 import type { ApiEnv } from '../env';
@@ -19,14 +20,16 @@ type ProjectInbox = Omit<Extract<ProjectInboxResult, { readonly inbox: unknown }
  *
  * Subrequest budget (Workers free plan: 50 per request). The first NEEDS_YOU_MAX_PROJECTS (6) GitHub-backed active
  * projects are read, each at most 6 subrequests on a cold isolate (installation lookup, token mint, ≤ 3 pages of
- * open issues, project.yml; see `ProjectReads`) → ≤ 36, plus 2 D1 queries (the registry, its tracker columns) and the
- * Access key set → ≤ 39. Later GitHub-backed projects are listed in `omittedProjects`, not read. Within the read
+ * open issues, project.yml; see `ProjectReads`) → ≤ 36, plus 3 D1 queries (the registry, its tracker columns, the
+ * budget stops) and the Access key set → ≤ 40. Later GitHub-backed projects are listed in `omittedProjects`, not read. Within the read
  * cache's TTL a project costs nothing. A console-tracker project (#434) is one D1 query and no subrequest, so every
  * one is read and none counts against the cap.
  *
  * A project that fails is reported on its own row and the others are still shown — except a GitHub rate limit,
  * which the whole answer surfaces as 429 with `Retry-After` (the longest wait any project got), because the next
  * read of any project would hit the same limit.
+ *
+ * A project whose team the budget stopped (#684) carries `budgetStop`, its one "Budget used up" row.
  */
 export function createNeedsYouRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>().get('/', async (c) => {
@@ -91,6 +94,21 @@ export function createNeedsYouRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiE
     if (rateLimit !== undefined) {
       throw rateLimit;
     }
-    return c.json(buildNeedsYou(results, omitted));
+    // #684: one D1 query for every project read, whatever its tracker; no GitHub subrequest.
+    const budgetStops = new Map<string, NeedsYouBudgetStopDto>();
+    for (const stop of await new TeamStateRepo(c.env.DB).budgetStopsOf(read.map((row) => row.slug))) {
+      if (stop.budgetUsd === null) {
+        // A save that removes the budget lifts its pause in the same batch, so this is a broken invariant, not input.
+        c.get('logger').error('budget stop without a budget', { slug: stop.projectSlug });
+        continue;
+      }
+      budgetStops.set(stop.projectSlug, {
+        month: stop.month,
+        spentUsd: stop.spentUsd,
+        budgetUsd: stop.budgetUsd,
+        stoppedAt: stop.stoppedAt,
+      });
+    }
+    return c.json(buildNeedsYou(results, omitted, budgetStops));
   });
 }

@@ -2,8 +2,11 @@ import { createLogger } from '@worker/core';
 import { sweepQueue } from './actions/sweep';
 import { createApiApp } from './app';
 import type { ApiEnv } from './env';
+import { ApiGitHub } from './github';
 
-const app = createApiApp();
+// One per isolate, shared by the app and the Cron sweep's dispatches (#716), so both reuse its caches.
+const github = new ApiGitHub();
+const app = createApiApp({ github });
 
 export default {
   fetch: (request, env, ctx) => app.fetch(request, env, ctx),
@@ -13,7 +16,7 @@ export default {
     ctx.waitUntil(
       (async () => {
         try {
-          await sweepQueue(env, new Date(controller.scheduledTime), logger);
+          await sweepQueue(env, new Date(controller.scheduledTime), logger, github);
         } catch (error: unknown) {
           logger.error('queue sweep failed', { error: error instanceof Error ? error.name : 'unknown' });
           throw error;
