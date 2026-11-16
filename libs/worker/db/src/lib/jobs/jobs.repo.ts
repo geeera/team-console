@@ -110,7 +110,9 @@ export type ActionsExchangeOutcome =
   /** The job is no longer a queued, unclaimed Actions job of a live project (another exchange won it, or it ended). */
   | { readonly kind: 'not-claimable' }
   /** Another job already holds this `run_id` (0031's unique index). */
-  | { readonly kind: 'run-seen' };
+  | { readonly kind: 'run-seen' }
+  /** The project runs on a `subscription` (ADR 0009 d.3, #682): no GitHub Actions machine may run its jobs. */
+  | { readonly kind: 'access-source' };
 
 export interface JobEventRecord {
   readonly seq: number;
@@ -506,14 +508,16 @@ export class JobsRepo {
    * The OIDC exchange's one batch (#668, architect note on #573): the ephemeral runner row (`actions-ephemeral`, its
    * project alone, one job at a time) and the claim of the job for it, each with its audit row, and the job's
    * `claimed` notice. Both writes hold the same condition — the job queued, dispatched to Actions, unclaimed and never
-   * exchanged, of a live account and project, its team not paused — so they land together or not at all; of two
-   * exchanges racing for one job, one writes. A `run_id` another job holds fails the whole batch on 0031's index.
+   * exchanged, of a live account and project on an API key (ADR 0009 d.3, #682), its team not paused — so they land
+   * together or not at all; of two exchanges racing for one job, one writes. A `run_id` another job holds fails the
+   * whole batch on 0031's index. The claim stamps the current team-config revision, as the pull claim does (#687).
    */
   async exchangeForActions(exchange: ActionsExchange): Promise<ActionsExchangeOutcome> {
     const from = `FROM jobs j JOIN projects p ON p.slug = j.project_slug JOIN accounts a ON a.id = j.account_id
       LEFT JOIN team_state t ON t.project_slug = j.project_slug`;
     const claimable = `j.id = ?1 AND j.state = 'queued' AND j.dispatch = 'actions' AND j.runner_id IS NULL
-      AND j.actions_run_id IS NULL AND a.suspended_at IS NULL AND p.archived_at IS NULL AND t.paused_at IS NULL`;
+      AND j.actions_run_id IS NULL AND a.suspended_at IS NULL AND p.archived_at IS NULL AND t.paused_at IS NULL
+      AND p.access_source = 'api_key'`;
     const held: AuditCondition = {
       exists: `SELECT 1 FROM jobs WHERE jobs.id = ? AND jobs.runner_id = ? AND jobs.state = 'claimed'`,
       params: [exchange.jobId, exchange.runnerId],
@@ -549,7 +553,8 @@ export class JobsRepo {
           this.db
             .prepare(
               `UPDATE jobs SET state = 'claimed', runner_id = ?2, claimed_at = ?3, lease_until = ?4, token_hash = ?5,
-                 actions_run_id = ?6, attempt = attempt + 1
+                 actions_run_id = ?6, attempt = attempt + 1,
+                 team_config_revision = (SELECT revision FROM team_configs WHERE project_slug = jobs.project_slug)
                WHERE id = (SELECT j.id ${from} WHERE ${claimable})
                  AND EXISTS (
                    SELECT 1 FROM runners r WHERE r.id = ?2 AND r.account_id = jobs.account_id AND r.revoked_at IS NULL)`,
@@ -575,7 +580,12 @@ export class JobsRepo {
       throw error;
     }
     if ((results[2]?.meta.changes ?? 0) !== 1) {
-      return { kind: 'not-claimable' };
+      // The batch judged the source; this read only names why nothing was written.
+      const project = await this.db
+        .prepare(`SELECT p.access_source FROM jobs j JOIN projects p ON p.slug = j.project_slug WHERE j.id = ?1`)
+        .bind(exchange.jobId)
+        .first<{ access_source: string }>();
+      return project !== null && project.access_source !== 'api_key' ? { kind: 'access-source' } : { kind: 'not-claimable' };
     }
     const job = await this.findById(exchange.jobId);
     return job === null ? { kind: 'not-claimable' } : { kind: 'claimed', job };

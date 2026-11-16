@@ -18,6 +18,7 @@ import {
   nextRunId,
   postExchange,
   runClaimsOf,
+  saveAccessSource,
   seedActionsJob,
   seedActionsProject,
   type ActionsProject,
@@ -158,6 +159,43 @@ describe('POST /api/v1/runner/oidc-exchange: a valid run', () => {
     expect((await runnerRow(run.id))?.revoked_at).not.toBeNull();
     const after = await sendAsRunner(run, 'GET', '/api/v1/runner/release');
     expect(await refusalOf(after)).toMatchObject({ status: 401, slug: 'runner-revoked' });
+  });
+});
+
+describe('the team configuration (ADR 0009 d.3, d.9; #687, #682)', () => {
+  it('stamps the current revision on the job and answers its resolved view, as the pull claim does', async () => {
+    const project = await seedActionsProject();
+    const jobId = await seedActionsJob(project);
+    const { response } = await exchange(project, jobId);
+    expect(response.status).toBe(200);
+    const answer = (await response.json()) as OidcExchangeResponse;
+    expect(answer.teamConfigRevision).toBe(1);
+    expect(answer.teamConfig).toMatchObject({ revision: 1, access: { source: 'api_key' } });
+    const stamped = await env.DB.prepare(`SELECT team_config_revision FROM jobs WHERE id = ?1`)
+      .bind(jobId)
+      .first<{ team_config_revision: number | null }>();
+    expect(stamped?.team_config_revision).toBe(1);
+  });
+
+  it('refuses the job of a subscription project as one problem naming access_source, and writes nothing', async () => {
+    const project = await seedActionsProject();
+    const jobId = await seedActionsJob(project);
+    // While the project is dispatched to Actions the save itself refuses a subscription.
+    expect(await saveAccessSource(project, 'subscription', 1)).toBe('access-source-hosted');
+    // A job queued under the API key, the source switched after (the project back on pull): the exchange's batch
+    // judges the source, not the job's history.
+    await env.DB.prepare(`UPDATE projects SET dispatch = 'pull' WHERE slug = ?1`).bind(project.slug).run();
+    expect(await saveAccessSource(project, 'subscription', 1)).toBe('saved');
+
+    const { response } = await exchange(project, jobId);
+    expect(await refusalOf(response)).toEqual(refusedFor(403, 'access_source'));
+    expect(await jobRow(jobId)).toMatchObject({ state: 'queued', runner_id: null, actions_run_id: null, token_hash: null });
+    const runners = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM runners WHERE isolation = 'actions-ephemeral' AND allowed_projects = json_array(?1)`,
+    )
+      .bind(project.slug)
+      .first<{ n: number }>();
+    expect(runners?.n).toBe(0);
   });
 });
 

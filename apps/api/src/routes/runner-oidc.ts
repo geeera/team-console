@@ -24,6 +24,7 @@ import { sightingOf } from '../auth/runner-auth';
 import type { ApiEnv } from '../env';
 import { jsonBody } from '../json-body';
 import { SMALL_WRITE_MAX_BYTES, writeLimit } from '../tracker/http';
+import { claimTeamConfigOf } from '../team-config/resolved';
 import { jobDtoOf } from './jobs';
 
 type Context = WorkerContext<ApiEnv>;
@@ -35,23 +36,25 @@ export const OIDC_EXCHANGE_RATE_LIMIT_PER_REPOSITORY_PER_MINUTE = 10;
 /** The floor for the whole environment, as for `enrol`: it bounds the D1 writes and JWKS reads a flood costs. */
 export const OIDC_EXCHANGE_RATE_LIMIT_GLOBAL_PER_MINUTE = 300;
 
-const REFUSAL_TITLES = { 401: 'Unauthorized', 409: 'Conflict' } as const;
+const REFUSAL_TITLES = { 401: 'Unauthorized', 403: 'Forbidden', 409: 'Conflict' } as const;
+
+const REFUSAL_DETAILS = {
+  403: 'The project runs on a subscription, which never runs on a GitHub Actions machine',
+  409: 'The job is not waiting for a GitHub Actions run',
+} as const;
 
 /**
  * Every refusal of a token, a claim or the job is this one problem (#668): `extensions.claim` names what failed, never
  * a value of the token. The log carries the claim and the job id the body named, never the token.
  */
-function refused(c: Context, logger: Logger, claim: OidcExchangeClaim, status: 401 | 409, jobId: string | null): Response {
+function refused(c: Context, logger: Logger, claim: OidcExchangeClaim, status: 401 | 403 | 409, jobId: string | null): Response {
   logger.warn('oidc exchange refused', { claim, ...(jobId === null ? {} : { jobId }) });
   const extensions: Record<string, ProblemExtensionValue> = { claim };
   return problem(c, {
     type: 'oidc-exchange-refused',
     title: REFUSAL_TITLES[status],
     status,
-    detail:
-      status === 409
-        ? 'The job is not waiting for a GitHub Actions run'
-        : `The GitHub Actions token does not hold for this job: ${claim}`,
+    detail: status === 401 ? `The GitHub Actions token does not hold for this job: ${claim}` : REFUSAL_DETAILS[status],
     extensions,
   });
 }
@@ -186,11 +189,17 @@ export function createRunnerOidcRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
     if (outcome.kind === 'not-claimable') {
       return refused(c, logger, 'job_id', 409, job.id);
     }
+    // ADR 0009 d.3 (#682): judged inside the batch, so a source switched to `subscription` before it commits wins.
+    if (outcome.kind === 'access-source') {
+      return refused(c, logger, 'access_source', 403, job.id);
+    }
     logger.info('oidc exchange claimed a job', { jobId: job.id, runnerId, runId });
     const body: OidcExchangeResponse = {
       job: jobDtoOf(outcome.job),
       jobToken: token,
       leaseSeconds: JOB_LEASE_SECONDS,
+      // #687: the revision the exchange stamped, as for the pull claim; #669's run reads its settings from here.
+      ...(await claimTeamConfigOf(c.env.DB, outcome.job)),
       runner: { id: runnerId, audience: runnerAudienceOf(c.env.ENVIRONMENT) },
     };
     return c.json(body);

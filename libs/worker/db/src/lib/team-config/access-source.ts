@@ -32,10 +32,16 @@ export function effectivePolicySql(slug: string): string {
     FROM projects ep JOIN accounts ea ON ea.id = ep.account_id WHERE ep.slug = ${slug})`;
 }
 
+/** The project runs its jobs on GitHub Actions machines (0031, #668): a `subscription` must never reach them. */
+export function actionsDispatchSql(slug: string): string {
+  return `EXISTS (SELECT 1 FROM projects dp WHERE dp.slug = ${slug} AND dp.dispatch = 'actions')`;
+}
+
 /**
  * True when a project with `source` would have a hosted or Actions path: `source` must then not be `subscription`.
- * The Actions half (`projects.dispatch = 'actions'`, 0031) joins this term when #668 lands.
+ * The team-config save judges both halves. A placement write judges only the hosted half (it cannot change dispatch);
+ * the dispatch switch (#670) needs the reverse: `actions` refused while the project's source is `subscription`.
  */
 export function subscriptionHostedSql(slug: string, source: string, policy: string = effectivePolicySql(slug)): string {
-  return `(${source} = 'subscription' AND ${hostedRunnerAdmittedSql(slug, policy)})`;
+  return `(${source} = 'subscription' AND (${hostedRunnerAdmittedSql(slug, policy)} OR ${actionsDispatchSql(slug)}))`;
 }

@@ -165,6 +165,21 @@ describe('TeamConfigRepo.save', () => {
     expect(await repo.save(write(pinnedToMac, 0, {}, 'subscription'))).toEqual({ kind: 'saved', revision: 1 });
     await env.DB.prepare(`UPDATE runners SET revoked_at = ?1 WHERE hosted = 1`).bind(T0).run();
   });
+
+  it('refuses a subscription while the project is dispatched to GitHub Actions, inside the write (0031)', async () => {
+    const slug = await project();
+    await env.DB.prepare(`UPDATE projects SET dispatch = 'actions' WHERE slug = ?1`).bind(slug).run();
+    expect(await repo.save(write(slug, 0, {}, 'subscription'))).toEqual({ kind: 'access-source-hosted' });
+    expect(await repo.findCurrent(slug)).toBeNull();
+    expect(await auditsOf(slug)).toBe(0);
+    expect(await repo.save(write(slug, 0, {}, 'api_key'))).toEqual({ kind: 'saved', revision: 1 });
+    // Leaving the API key is refused just the same, and the stored source stays.
+    expect(await repo.save(write(slug, 1, {}, 'subscription'))).toEqual({ kind: 'access-source-hosted' });
+    expect(await repo.accessSourceOf(slug)).toBe('api_key');
+    // Back on pull, nothing else stops it.
+    await env.DB.prepare(`UPDATE projects SET dispatch = 'pull' WHERE slug = ?1`).bind(slug).run();
+    expect(await repo.save(write(slug, 1, {}, 'subscription'))).toEqual({ kind: 'saved', revision: 2 });
+  });
 });
 
 describe('the 0032 triggers', () => {

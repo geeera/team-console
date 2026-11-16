@@ -624,9 +624,10 @@ GitHub Actions identity (#668, #573 sub-issue 1; migration `0031_actions_dispatc
 ENVIRONMENT=local only, `--var` only), RS256, fixed `iss`, `aud = runnerAudienceOf(env)`, 30 s, then `repository_id`,
 `ref`/`ref_type` (default branch), `workflow_ref`/`job_workflow_ref` (`team-console-runner.yml`), `event_name =
 workflow_dispatch`, `environment = team-console`, `runner_environment = github-hosted`, a never-seen `run_id`; every
-refusal is 401/409 `oidc-exchange-refused` with `extensions.claim`, the token never logged. `JobsRepo.exchangeForActions`
+refusal is 401/403/409 `oidc-exchange-refused` with `extensions.claim`, the token never logged. `JobsRepo.exchangeForActions`
 writes the `actions-ephemeral` runner (`actions:<run_id>`, its project only, `maxConcurrency 1`) and claims the job in
-one batch; `finish` and the lease sweep revoke it (a lapsed Actions job is `lost`, never requeued), sightings never
+one batch, only for an `access_source = 'api_key'` project (else 403, `claim: access_source`; #687/#682), stamping
+`team_config_revision` and answering `teamConfig`/`teamConfigRevision` like the pull claim; `finish` and the lease sweep revoke it (a lapsed Actions job is `lost`, never requeued), sightings never
 mark it suspect, the pull claim refuses it (403 `runner-isolation-ephemeral`), no enrolment code grants it
 (`ENROLMENT_ISOLATIONS`), and Settings › Runners lists it as «GitHub Actions, запуск N» only while live. Rate limits:
 per address, per repository, per environment. The dispatch itself and the project toggle are #670.

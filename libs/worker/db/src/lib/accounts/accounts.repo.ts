@@ -1,6 +1,6 @@
 import { isReservedSlug, isUlid, isValidSlug, type AccountPlan, type MemberRole } from '@shared/contracts';
 import { isConstraintError } from '../tracker/constraint-error';
-import { hostedRunnerAdmittedSql, subscriptionHostedSql } from '../team-config/access-source';
+import { hostedRunnerAdmittedSql } from '../team-config/access-source';
 import { auditEventStatement, auditedWrite, type NewAuditEvent } from './audit.repo';
 
 /** One `accounts` row (migration 0018). `entitlements` is the operator's parsed override; read it via `entitlementsOf`. */
@@ -116,7 +116,8 @@ export class AccountsRepo {
         this.db
           .prepare(
             `UPDATE projects SET runner_policy = ?2
-             WHERE slug = ?1 AND NOT ${subscriptionHostedSql('?1', 'projects.access_source', effective)}`,
+             WHERE slug = ?1
+               AND NOT (projects.access_source = 'subscription' AND ${hostedRunnerAdmittedSql('?1', effective)})`,
           )
           .bind(slug, policyJson),
         audit,
