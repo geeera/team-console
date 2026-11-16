@@ -6,6 +6,7 @@ import {
   type ItemRequestDto,
   type ItemStatus,
 } from '@shared/contracts';
+import { LABELS_SEED } from '@worker/db';
 import { createApiApp } from '../app';
 import {
   countRows,
@@ -148,6 +149,7 @@ const ROWS: readonly Row[] = [
       .run();
     return `${P}/${project.slug}/prs/1`;
   }),
+  reads(`GET ${P}/:slug/prs/:number/items`, async (project) => `${P}/${project.slug}/prs/1/items`),
   {
     route: `POST ${P}/:slug/prs/:number/reviews`,
     setup: async (project) => {
@@ -852,6 +854,135 @@ describe('#452: no job skips the owner’s approval', () => {
       { ifMatch: '"1"', job: jobActor('dev', 'job-dev', [number]) },
     );
     expect(response.status).toBe(200);
+  });
+
+  // #624: reopening is no side door. A proposed item closed as not planned is still proposed; reopened into any
+  // other status it would leave `proposed` without the owner.
+  it.each(NOT_PROPOSED.filter((status) => status !== 'done'))(
+    'refuses every job reopening a closed proposed item as %s, writing nothing',
+    async (status) => {
+      const project = await seedTrackerProject();
+      const { path, number } = await itemIn(project, 'proposed');
+      const closing = await send(
+        'PATCH',
+        path,
+        { state: 'closed', closedReason: 'not-planned' },
+        { ifMatch: '"1"' },
+      );
+      expect(closing.status).toBe(200);
+      const before = await snapshot(project.slug);
+      for (const role of JOB_ROLES) {
+        await expectOwnerOnly(
+          await send(
+            'PATCH',
+            path,
+            { state: 'open', status },
+            { ifMatch: '"2"', job: jobActor(role, `job-${role}`, [number]) },
+          ),
+          `${role}: closed proposed → ${status}`,
+        );
+      }
+      expect(await snapshot(project.slug), 'a refusal writes nothing').toEqual(before);
+    },
+  );
+});
+
+// #624 (SECURITY on product-team-plugin#28): the plugin's `backlog label` leaves owner-only labels to the server.
+// `design:approved` and every `owner:*` label of the builtin set are refused to every job role — added, removed, or
+// set on a new item — and stay the owner's to change.
+describe('#624: no job sets or clears an owner-only label', () => {
+  const OWNER_ONLY_LABELS = [
+    'design:approved',
+    ...LABELS_SEED.map((label) => label.name).filter((name) => name.startsWith('owner:')),
+  ];
+
+  it('covers design:approved and each owner decision category', () => {
+    expect(OWNER_ONLY_LABELS).toEqual(
+      expect.arrayContaining([
+        'design:approved',
+        'owner:money',
+        'owner:scope',
+        'owner:release',
+        'owner:access',
+        'owner:legal',
+        'owner:design',
+      ]),
+    );
+  });
+
+  const reasonOf = (label: string): string =>
+    label === 'design:approved' ? 'design-approved' : 'owner-flag';
+
+  async function expectRefused(response: Response, label: string, reason: string): Promise<void> {
+    expect(response.status, label).toBe(403);
+    expect(await response.json(), label).toMatchObject({
+      type: expect.stringContaining('transition-owner-only') as unknown,
+      reason,
+    });
+  }
+
+  it.each(OWNER_ONLY_LABELS)('adding %s is 403 to every role on an item it holds', async (label) => {
+    const project = await seedTrackerProject();
+    const { path, number } = await item(project, { kind: 'feature', status: 'approved' });
+    const before = await snapshot(project.slug);
+    for (const role of JOB_ROLES) {
+      await expectRefused(
+        await send(
+          'PATCH',
+          path,
+          { addLabels: [label] },
+          { ifMatch: '"1"', job: jobActor(role, `job-${role}`, [number]) },
+        ),
+        `${role} +${label}`,
+        reasonOf(label),
+      );
+    }
+    expect(await snapshot(project.slug), 'a refusal writes nothing').toEqual(before);
+    expect((await send('PATCH', path, { addLabels: [label] }, { ifMatch: '"1"' })).status).toBe(200);
+  });
+
+  it.each(OWNER_ONLY_LABELS)('removing %s is 403 to every role on an item it holds', async (label) => {
+    const project = await seedTrackerProject();
+    const { path, number } = await item(project, { kind: 'feature', status: 'approved', labels: [label] });
+    const before = await snapshot(project.slug);
+    for (const role of JOB_ROLES) {
+      await expectRefused(
+        await send(
+          'PATCH',
+          path,
+          { removeLabels: [label] },
+          { ifMatch: '"1"', job: jobActor(role, `job-${role}`, [number]) },
+        ),
+        `${role} -${label}`,
+        reasonOf(label),
+      );
+    }
+    expect(await snapshot(project.slug), 'a refusal writes nothing').toEqual(before);
+    expect((await send('PATCH', path, { removeLabels: [label] }, { ifMatch: '"1"' })).status).toBe(200);
+  });
+
+  it.each(OWNER_ONLY_LABELS)('creating an item with %s is 403 to every role', async (label) => {
+    const project = await seedTrackerProject();
+    const before = await snapshot(project.slug);
+    for (const role of JOB_ROLES) {
+      await expectRefused(
+        await send(
+          'POST',
+          `${P}/${project.slug}/items`,
+          { title: 'New', kind: 'feature', labels: [label] },
+          { job: jobActor(role) },
+        ),
+        `${role} new item with ${label}`,
+        reasonOf(label),
+      );
+    }
+    expect(await snapshot(project.slug), 'a refusal writes nothing').toEqual(before);
+    const owner = await send('POST', `${P}/${project.slug}/items`, {
+      title: 'New',
+      kind: 'feature',
+      labels: [label],
+    });
+    expect(owner.status).toBe(201);
   });
 });
 

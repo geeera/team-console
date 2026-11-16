@@ -3,6 +3,7 @@ import {
   JOB_MAX_MINUTES_DEFAULT,
   checkRequestReviewsInput,
   type PullRequestDto,
+  type PullRequestItemsDto,
   type PullRequestListDto,
   type PullRequestSyncDto,
   type ReviewJobRole,
@@ -11,6 +12,7 @@ import {
 import { withoutInvisibles } from '@shared/plain-text';
 import { newUlid, problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import {
+  ItemsRepo,
   JobsRepo,
   PullRequestsRepo,
   type JobRecord,
@@ -35,7 +37,8 @@ import type { OwnerConnectionSource } from '../projects/owner-connection';
 import { syncPullRequest, syncPullRequests } from '../read-models/pull-request-sync';
 import { repoIdOf } from '../read-models/repo-id';
 import { bodySecretRefusal } from '../tracker/body-secret';
-import { invalid, trackerWriteRefusal } from '../tracker/context';
+import { invalid, keyPrefixOf, trackerWriteRefusal } from '../tracker/context';
+import { itemSummaryDtoOf } from '../tracker/dto';
 import { SMALL_WRITE_MAX_BYTES, pageOf, writeLimit } from '../tracker/http';
 import { jobAuditOf, jobDtoOf } from './jobs';
 
@@ -129,6 +132,7 @@ export function createPullRequestRoutes(
     list: trackerAccess('GET /api/v1/projects/:slug/prs'),
     read: trackerAccess('GET /api/v1/projects/:slug/prs/:number'),
     reviews: trackerAccess('POST /api/v1/projects/:slug/prs/:number/reviews'),
+    items: trackerAccess('GET /api/v1/projects/:slug/prs/:number/items'),
   };
   return new Hono<WorkerHonoEnv<ApiEnv>>()
     .get('/:slug/prs', guard.list, async (c) => {
@@ -222,9 +226,45 @@ export function createPullRequestRoutes(
       return c.json(pullRequestDtoOf(row));
     })
 
+    .get('/:slug/prs/:number/items', guard.items, async (c) => linkedItems(c))
+
     .post('/:slug/prs/:number/reviews', guard.reviews, writeLimit(SMALL_WRITE_MAX_BYTES), async (c) =>
       requestReviews(c),
     );
+}
+
+/**
+ * `GET /api/v1/projects/:slug/prs/:number/items` (#627): the items linked to the pull request by `pr-linked` events
+ * (`POST …/items/:key/pr-links`), with their labels, so the merge gate reads the console's links instead of the PR's
+ * text. Answers from D1 alone: a pull request the mirror lacks, or one linked to nothing, is an empty page, never a
+ * 404, so "no linked item" is one answer. `repo` lets the gate check the pull request belongs to the project (#628).
+ */
+async function linkedItems(c: Context): Promise<Response> {
+  const number = pullRequestNumberOf(c);
+  if (number instanceof Response) {
+    return number;
+  }
+  const page = pageOf(c);
+  if (page instanceof Response) {
+    return page;
+  }
+  const row = trackerProjectOfContext(c);
+  const result = await new ItemsRepo(c.env.DB).list(
+    row.slug,
+    { state: 'all', pullRequest: number },
+    page.after,
+    page.limit,
+  );
+  const keyPrefix = keyPrefixOf(trackerProjectOf(row));
+  const body: PullRequestItemsDto = {
+    number,
+    provider: row.provider,
+    repo: row.repo,
+    items: result.items.map((item) => itemSummaryDtoOf(keyPrefix, item)),
+    next: result.next,
+  };
+  c.header('Cache-Control', 'no-store');
+  return c.json(body);
 }
 
 /** One live review job per pull request, head and role (the 0022 overlap guard); a repeat answers the live one. */

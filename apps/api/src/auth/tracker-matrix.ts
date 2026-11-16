@@ -106,6 +106,8 @@ export const TRACKER_MATRIX = {
   // #463: the VCS mirror; `?fresh=1` reads GitHub with the read-only installation token, writes only `pull_requests`.
   [`GET ${P}/prs`]: READ,
   [`GET ${P}/prs/:number`]: READ,
+  // #627: the items `pr-linked` events link to a pull request, for the plugin's merge gate; D1 only.
+  [`GET ${P}/prs/:number/items`]: READ,
   // #612: `slot-qa`'s `pr request-reviews`; the orchestrator job enqueues review jobs, the lineage rule is the route's.
   [`POST ${P}/prs/:number/reviews`]: {
     owner: false,
