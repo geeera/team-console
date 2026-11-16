@@ -374,6 +374,17 @@ export function compareRunnerVersions(a: string, b: string): number | null {
   return comparePrerelease(left[4], right[4]);
 }
 
+/** A runner release's channel: `prerelease` for `MAJOR.MINOR.PATCH-pre`, `stable` for one without; `null` when not SemVer. */
+export type RunnerReleaseChannel = 'stable' | 'prerelease';
+
+export function runnerReleaseChannelOf(version: string): RunnerReleaseChannel | null {
+  const match = SEMVER.exec(version);
+  if (match === null) {
+    return null;
+  }
+  return match[4] === undefined ? 'stable' : 'prerelease';
+}
+
 /**
  * Whether a runner's version is below the environment's minimum. With no minimum nothing is below it; a label that
  * cannot be compared with one (not SemVer) counts as below — it cannot be shown to meet it.

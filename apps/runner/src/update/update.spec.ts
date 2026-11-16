@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, readdir, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { RunnerReleaseDto } from '@shared/contracts';
 import type { Exec, ExecOptions, ExecResult } from '../host/exec';
 import { AUTO_UPDATE_INTERVAL_MS, autoUpdater } from './auto-update';
+import { installRootOf } from './install-layout';
 import { RELEASE_FILES, attestationVerifyArgs, releasePlatformOf, tarballNameOf } from './release-identity';
 import { UpdateError, applyUpdate, checkForUpdate, type ApplyDeps, type UpdateProblem } from './update';
 
@@ -230,7 +231,7 @@ describe('update: installing a release (C11 row 1)', () => {
   const commands = (): string[] =>
     calls.map((call) => [call.command, ...call.args.filter((arg) => !arg.startsWith(parent)).slice(0, 2)].join(' '));
 
-  it('downloads, verifies, checks the tree and swaps the release in, bundle last', async () => {
+  it('downloads, verifies, checks the tree and switches the prefix to the release', async () => {
     await applyUpdate(TARGET, depsOf({}));
 
     expect(await installedBundle()).toBe(`bundle ${TARGET}\n`);
@@ -259,6 +260,91 @@ describe('update: installing a release (C11 row 1)', () => {
     expect(calls.filter((call) => call.command === 'gh').every((call) => call.env?.['GH_HOST'] === undefined)).toBe(true);
     expect(await stagingLeft()).toEqual([]);
     expect(log.join('\n')).toContain('verified team-console-runner-0.3.0-darwin-arm64.tar.gz');
+  });
+
+  describe('the switch (#604: one rename, never a mixed install)', () => {
+    const NEXT = '0.4.0';
+    const nextRelease = { tree: releaseTree(NEXT), reportedVersion: NEXT };
+    const link = async (name: string): Promise<string> => await readlink(join(prefix, name));
+    const leftovers = async (): Promise<string[]> =>
+      [...(await readdir(prefix)), ...(await readdir(join(prefix, 'releases')))].filter((name) =>
+        /\.(next|flat|partial)$/.test(name),
+      );
+
+    it('converts a flat prefix: the release in its own directory, current naming it, the entries linked through it', async () => {
+      await applyUpdate(TARGET, depsOf({}));
+
+      expect(await link('current')).toBe('releases/0.3.0');
+      expect(await link('bin')).toBe('current/bin');
+      expect(await link('team-console-runner.mjs')).toBe('current/team-console-runner.mjs');
+      expect(await link('SHA256SUMS')).toBe('current/SHA256SUMS');
+      expect(await readFile(join(prefix, 'SHA256SUMS'), 'utf8')).toBe(releaseTree(TARGET)['SHA256SUMS']);
+      expect(await readdir(join(prefix, 'releases'))).toEqual([TARGET]);
+      expect((await lstat(join(prefix, 'releases', TARGET, 'bin/job-exec'))).isFile()).toBe(true);
+      expect(await readFile(join(prefix, 'bin/team-console-runner'), 'utf8')).toBe('#!/bin/sh\n# launcher\n');
+      expect(await leftovers()).toEqual([]);
+    });
+
+    it('switches a converted prefix by renaming current alone, keeping the release it replaced', async () => {
+      await applyUpdate(TARGET, depsOf({}));
+      await mkdir(join(prefix, 'releases', '0.1.0'));
+
+      await applyUpdate(NEXT, depsOf(nextRelease));
+
+      expect(await link('current')).toBe('releases/0.4.0');
+      expect(await installedBundle()).toBe(`bundle ${NEXT}\n`);
+      expect(await readFile(join(prefix, 'releases', TARGET, 'team-console-runner.mjs'), 'utf8')).toBe(
+        `bundle ${TARGET}\n`,
+      );
+      expect((await readdir(join(prefix, 'releases'))).sort()).toEqual([TARGET, NEXT]);
+      expect(await leftovers()).toEqual([]);
+    });
+
+    it('leaves the live release whole after an interrupted switch, and the next update clears what it left', async () => {
+      await applyUpdate(TARGET, depsOf({}));
+      // What a crash before the rename of `current` leaves: a half-copied release and an unused link.
+      await mkdir(join(prefix, 'releases', `${NEXT}.partial`, 'bin'), { recursive: true });
+      await writeFile(join(prefix, 'releases', `${NEXT}.partial`, 'team-console-runner.mjs'), 'half');
+      await symlink(`releases/${NEXT}.partial`, join(prefix, 'current.next'));
+
+      expect(await installedBundle()).toBe(`bundle ${TARGET}\n`);
+      expect(await readFile(join(prefix, 'bin/job-exec'), 'utf8')).toBe('#!/bin/sh\n# job-exec\n');
+
+      await applyUpdate(NEXT, depsOf(nextRelease));
+      expect(await installedBundle()).toBe(`bundle ${NEXT}\n`);
+      expect((await readdir(join(prefix, 'releases'))).sort()).toEqual([TARGET, NEXT]);
+      expect(await leftovers()).toEqual([]);
+    });
+
+    it('finishes a conversion a crash cut short between moving bin aside and linking it', async () => {
+      await applyUpdate(TARGET, depsOf({}));
+      await rm(join(prefix, 'bin'));
+      await mkdir(join(prefix, 'bin.flat'));
+
+      await applyUpdate(NEXT, depsOf(nextRelease));
+      expect(await link('bin')).toBe('current/bin');
+      expect(await leftovers()).toEqual([]);
+    });
+
+    it('refuses a prefix whose current is not a link, before downloading', async () => {
+      await mkdir(join(prefix, 'current'));
+      expect(await refusal(applyUpdate(TARGET, depsOf({})))).toBe('prefix-not-writable');
+      expect(commands()).toEqual(['gh --version']);
+      expect(await installedBundle()).toBe(OLD_BUNDLE);
+    });
+
+    it('refuses a target that is not a version, before running anything', async () => {
+      expect(await refusal(applyUpdate('../escape', depsOf({})))).toBe('version-unreadable');
+      expect(calls).toEqual([]);
+    });
+
+    it('maps the running bundle back to the prefix only in a converted one', async () => {
+      await applyUpdate(TARGET, depsOf({}));
+      expect(installRootOf(join(prefix, 'releases', TARGET))).toBe(prefix);
+      expect(installRootOf(prefix)).toBe(prefix);
+      const flat = join(parent, 'releases', '1.0.0');
+      expect(installRootOf(flat)).toBe(flat);
+    });
   });
 
   it('refuses when gh is not installed, before downloading anything', async () => {
@@ -353,6 +439,35 @@ describe('update: installing a release (C11 row 1)', () => {
       });
       expect(await update()).toBe(true);
       expect(await installedBundle()).toBe(`bundle ${TARGET}\n`);
+    });
+
+    it('refuses a pre-release when the installed version is on the stable channel (#604)', async () => {
+      const update = autoUpdater({
+        policy: 'auto',
+        check: { currentVersion: INSTALLED, release: release('0.3.0-rc.1') },
+        apply: depsOf({}),
+        now: at(0),
+        log: (line) => log.push(line),
+      });
+      expect(await update()).toBe(false);
+      expect(log.join('\n')).toContain('auto-update skipped: the console names the pre-release 0.3.0-rc.1');
+      expect(calls).toEqual([]);
+      expect(await installedBundle()).toBe(OLD_BUNDLE);
+    });
+
+    it.each([
+      ['a later pre-release', '0.3.0-rc.1', '0.3.0-rc.2'],
+      ['its stable release', '0.3.0-rc.1', '0.3.0'],
+    ])('moves a pre-release runner onto %s', async (_label, current, target) => {
+      const update = autoUpdater({
+        policy: 'auto',
+        check: { currentVersion: current, release: release(target) },
+        apply: depsOf({ tree: releaseTree(target), reportedVersion: target }),
+        now: at(0),
+        log: (line) => log.push(line),
+      });
+      expect(await update()).toBe(true);
+      expect(await installedBundle()).toBe(`bundle ${target}\n`);
     });
 
     it('logs a refusal, keeps the installed version and waits an interval before asking again', async () => {

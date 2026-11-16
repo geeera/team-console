@@ -157,7 +157,17 @@ never retried. It shows as `failed` with the exit code.
 | --- | --- |
 | `off` | `update` refuses, and the runner never asks. |
 | `notify` | The runner does not ask by itself. Settings › Runners shows the console's release and marks a runner below its minimum. You run `update`. |
-| `auto` | The runner asks when it starts and, while idle, at most every 6 hours. It installs a verified release and exits, and its service starts the new version. A refusal is logged and the runner keeps the version it has. |
+| `auto` | The runner asks when it starts and, while idle, at most every 6 hours. It installs a verified release and exits, and its service starts the new version. A refusal is logged and the runner keeps the version it has. Auto stays on the installed channel: a runner on a stable release never moves onto a pre-release (`-rc.1`) by itself. Run `update` by hand for that. A runner on a pre-release moves on to a later pre-release or to the stable release. |
+
+`run-once` with `auto` asks too, before it claims. If it installs a release, it stops with `Runner stopped (updated)`
+and claims nothing. Run it again to claim with the new version.
+
+`update` and `auto` run `gh` with only `PATH`, `HOME`, `GH_CONFIG_DIR`, `XDG_CONFIG_HOME`, `GH_TOKEN` and
+`GITHUB_TOKEN` from the runner's environment. Everything else, `GH_HOST` included, is dropped. A service has no
+terminal for `gh auth login`, so log in once as the runner's user (`gh auth login`, stored in that user's
+`~/.config/gh`). Or set `GH_TOKEN` in the service's environment to a fine-grained token with no repository access
+(public repositories only, read-only). The token reaches `gh` and nothing else: a job is built from an empty
+environment and a `*_TOKEN` passthrough is refused (`env-builder.ts`).
 
 `update --check` says whether a release is available. `update` installs it. Both refuse when the policy is `off`. The
 console only names a version. `update` decides whether it may install it, against the identity compiled into the
@@ -173,7 +183,13 @@ verify`. It refuses when any of these is true, and leaves the install directory 
   `SHA256SUMS` inside the tarball, or the new bundle reports another version.
 - The install directory is not owned by, or not writable only by, the user running `update`.
 
-Then it swaps the files in, with the bundle last. Restart the service so it runs the new version.
+Then it switches the install directory to the new release in one step. Each release gets its own
+`releases/<v>/`, and one `current` symlink names the live one. `team-console-runner.mjs`, `bin` and `SHA256SUMS` are
+symlinks through `current`, so the service and the launcher keep the paths they already use. The switch is one rename of `current`. A
+crash leaves the old release or the new one, never a mix of both, and the next `update` removes what the crash left.
+The release that was replaced stays in `releases/` until the next update, and older ones are deleted. The first `update`
+of a directory you extracted by hand converts it to this layout. Do not extract a tarball into the directory after
+that: use `update`. Restart the service so it runs the new version.
 
 **`container` backend** (install directory owned by the runner's user): run `"$R" update`, then
 `systemctl --user restart team-console-runner` or `launchctl kickstart -k gui/$(id -u)/com.team-console.runner`. `gh`

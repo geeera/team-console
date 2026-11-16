@@ -245,8 +245,10 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
    отказ (сам тег потом не нужен — удали его, если создал).
 2. **Environment `release`.** Settings → Environments → New environment → `release`. Deployment branches and tags →
    **Selected branches and tags** → Add deployment branch or tag rule → Ref type **Tag**, pattern `v*` (ветки — ни
-   одной). По желанию **Required reviewers** = ты: тогда каждый релиз ждёт твоего «Approve» в Actions. Секретов и
-   переменных в нём нет и не нужно.
+   одной). Этот environment указан у каждой задачи workflow (сборка, аттестация, образ, релиз), поэтому правило
+   действует на каждую публикацию. По желанию **Required reviewers** = ты: тогда релиз ждёт твоего «Approve» в
+   Actions на каждом этапе: сборка, затем аттестация и образ (одним «Review deployments»), затем релиз.
+   Секретов и переменных в нём нет и не нужно.
 3. **Первый релиз** (после того как раннер и консоль, с которой он работает, уже на нужной ветке): создай подписанный
    тег на проверенном коммите и запушь его — `git tag -s v0.1.0 <commit> -m 'Runner 0.1.0'` и
    `git push origin v0.1.0`. Дождись зелёного `release-runner` в Actions.

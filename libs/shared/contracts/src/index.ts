@@ -109,6 +109,7 @@ export {
   isRunnerVersion,
   isRunnerVersionBelow,
   runnerAudienceOf,
+  runnerReleaseChannelOf,
 } from './lib/runner';
 export type {
   CreateEnrolmentCodeInput,
@@ -126,6 +127,7 @@ export type {
   RunnerListDto,
   RunnerPauseDto,
   RunnerPauseReason,
+  RunnerReleaseChannel,
   RunnerReleaseDto,
   RunnerSuspectDto,
   RunnerSuspectReason,
