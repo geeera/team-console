@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Readable } from 'node:stream';
 import { JOB_ID, OTHER_JOB_ID } from '../testing/fake-console';
 import type { LaunchSpec, RunningJob, Sandbox } from './backend';
 import { BackendError } from './backend';
@@ -103,6 +104,44 @@ describe('none backend', () => {
     await backend.kill(running);
     await waitFor(() => !alive(pid));
     expect(alive(running.pid)).toBe(false);
+  });
+
+  it('does not throw when the group’s pid was recycled for someone else’s process by the time of the kill (#702)', async () => {
+    // Under load the OS can reuse a pid between the SIGTERM grace and the follow-up signal; when the new
+    // owner is another user, `kill` answers EPERM instead of ESRCH. The kernel's permission check runs before
+    // any signal is delivered, so this never touches that foreign process — it is simply nothing of ours to
+    // find, exactly like ESRCH, and must not throw.
+    const fakePid = 999_999;
+    const epermError = Object.assign(new Error('kill EPERM'), { code: 'EPERM' });
+    let sigtermSent = false;
+    const kill = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: string | number) => {
+      if (pid !== -fakePid) {
+        return true;
+      }
+      if (!sigtermSent) {
+        // The SIGTERM still reaches the real group.
+        sigtermSent = true;
+        return true;
+      }
+      // The liveness check before SIGKILL (and SIGKILL itself, were it reached): the pid now belongs to
+      // someone else.
+      throw epermError;
+    }) as typeof process.kill);
+    try {
+      const running: RunningJob = {
+        pid: fakePid,
+        stdout: new Readable({ read: () => undefined }),
+        stderr: new Readable({ read: () => undefined }),
+        exited: Promise.resolve({ exitCode: null, signal: 'SIGTERM' }),
+      };
+      await expect(backend.kill(running)).resolves.toBeUndefined();
+      expect(kill).toHaveBeenCalledWith(-fakePid, 'SIGTERM');
+      // The liveness check (signal 0) ran and was refused; no SIGKILL followed a refusal.
+      expect(kill).toHaveBeenCalledWith(-fakePid, 0);
+      expect(kill).not.toHaveBeenCalledWith(-fakePid, 'SIGKILL');
+    } finally {
+      kill.mockRestore();
+    }
   });
 
   it('sweeps a detached process left in the sandbox, wipes the sandbox, and preflight then passes', async () => {
