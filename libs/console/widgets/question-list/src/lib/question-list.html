@@ -35,7 +35,12 @@
 >
   @for (stop of budgetStops(); track stop.project.slug) {
   <li>
-    <tc-budget-stop [stop]="stop" [canManage]="stop.canManage" (resolved)="reload()" />
+    <tc-budget-stop
+      [stop]="stop"
+      [canManage]="stop.canManage"
+      [limitsLink]="limitsLinkOf(stop.project.slug)"
+      (resolved)="reload()"
+    />
   </li>
   } @for (stop of concurrencyStops(); track stop.project.slug) {
   <li>

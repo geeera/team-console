@@ -52,21 +52,38 @@ import {
   type AccessSource as Source,
   type CapMode,
   type TeamConfigPreset,
+  type TeamConfigRevisionDto,
   type TeamRole,
 } from '@shared/contracts';
 import { firstValueFrom } from 'rxjs';
 import { AccessSource } from '../access-source/access-source';
+import { BudgetCallout, type StoppedMonth } from '../budget/budget-callout';
+import { WaivedMonth, type WaivedMonthDto } from '../budget/waived-month';
 import { ChangesTable, type ChangeRow } from '../changes-table/changes-table';
 import { RoleRow } from '../role-row/role-row';
 import { SaveBar } from '../save-bar/save-bar';
+import { HistorySheet, type HistorySheetData } from '../sheets/history-sheet';
+import { ImportSheet, type ImportSheetData } from '../sheets/import-sheet';
 import { ModelPickerSheet, type ModelPick, type ModelPickerData } from '../sheets/model-picker-sheet';
 import { ReviewSheet, type ReviewOutcome, type ReviewSheetData } from '../sheets/review-sheet';
 import { RoleLimitsSheet, type RoleLimits } from '../sheets/role-limits-sheet';
 import { SubscriptionSheet } from '../sheets/subscription-sheet';
 import { TeamConfigStore, type FieldError } from '../team-config.store';
-import { modelsChangedBy, overriddenRolesOf, overridesOf, resetRole, withLeaf, withPreset, type DraftChange } from '../team-draft';
+import { TEAM_FOCUS_BUDGET } from '../team-config-url';
+import {
+  changesOf,
+  draftOfDocument,
+  modelsChangedBy,
+  overriddenRolesOf,
+  overridesOf,
+  resetRole,
+  withLeaf,
+  withPreset,
+  type DraftChange,
+  type TeamDraft,
+} from '../team-draft';
 import { controlPathOf, sectionOf, type TeamSectionName } from '../team-fields';
-import { fieldLabelOf, valueTextOf } from '../team-words';
+import { draftChangeRowsOf, fieldLabelOf, valueTextOf } from '../team-words';
 import { NumberField } from './number-field';
 import { TeamSection } from './team-section';
 
@@ -85,6 +102,7 @@ const ANNOUNCE_DEBOUNCE_MS = 700;
   imports: [
     AccessSource,
     Banner,
+    BudgetCallout,
     Button,
     Callout,
     ChangesTable,
@@ -102,6 +120,7 @@ const ANNOUNCE_DEBOUNCE_MS = 700;
     TeamSection,
     TranslocoPipe,
     TranslocoPluralPipe,
+    WaivedMonth,
   ],
   templateUrl: './team-config-editor.html',
   styleUrl: './team-config-editor.css',
@@ -120,6 +139,10 @@ export class TeamConfigEditor {
   private readonly bannerHeading = viewChild<ElementRef<HTMLElement>>('bannerHeading');
 
   readonly slug = input.required<string>();
+  /** The project's name for the budget confirm; the slug when the page has none yet. */
+  readonly projectName = input<string | null>(null);
+  /** `?focus=budget` (Needs-you "Open limits"): unfold Limits and focus the monthly budget once the form is there. */
+  readonly focus = input<string | null>(null);
 
   protected readonly online = inject(NetworkStatus).online;
   protected readonly isPhone = isPhoneSignal();
@@ -186,6 +209,23 @@ export class TeamConfigEditor {
   });
   protected readonly showBar = computed(() => !this.readOnly() && (this.store.isDirty() || this.typedInvalid().size > 0));
   protected readonly theirChangeRows = computed(() => this.rowsOf(this.store.theirChanges()));
+  protected readonly projectLabel = computed(() => this.projectName() ?? this.slug());
+  /** The budget stopped the team this month (UX spec §4 "Budget stopped"). */
+  protected readonly stoppedMonth = computed((): StoppedMonth | null => {
+    const status = this.store.teamStatus();
+    const month = status?.budget ?? null;
+    return status?.state === 'paused-by-budget' && month !== null && month.budgetUsd !== null
+      ? { ...month, budgetUsd: month.budgetUsd }
+      : null;
+  });
+  /** "Resume this month" waived the month (#737): Limits says so and that a changed budget ends it. */
+  protected readonly waivedMonth = computed((): WaivedMonthDto | null => {
+    const month = this.store.teamStatus()?.budget ?? null;
+    return month !== null && month.waivedAt !== null && month.budgetUsd !== null
+      ? { ...month, budgetUsd: month.budgetUsd, waivedAt: month.waivedAt }
+      : null;
+  });
+  private focusHandled = false;
 
   constructor() {
     effect(() => {
@@ -194,6 +234,12 @@ export class TeamConfigEditor {
     });
     this.announceChanges();
     this.guardUnload();
+    effect(() => {
+      if (this.store.status() === 'ready' && this.focus() === TEAM_FOCUS_BUDGET && !this.focusHandled) {
+        this.focusHandled = true;
+        untracked(() => this.raiseBudget());
+      }
+    });
   }
 
   /** For the page's leave guard: unsaved edits ask "Leave without saving?" first (UX spec §4). */
@@ -213,6 +259,88 @@ export class TeamConfigEditor {
 
   protected reload(): void {
     void this.store.load(this.slug());
+  }
+
+  // ── History, import, budget ───────────────────────────────────────────────────────────────────────────────
+
+  protected async openHistory(): Promise<void> {
+    const ref = this.sheet.open<TeamConfigRevisionDto, HistorySheetData>(HistorySheet, {
+      title: this.t('teamConfig.history.title'),
+      data: { slug: this.slug(), canUseDraft: !this.readOnly() },
+      size: 'full',
+    });
+    const revision = await firstValueFrom(ref.closed);
+    const draft = this.draft();
+    if (revision === undefined || draft === null || this.readOnly()) {
+      return;
+    }
+    if (await this.confirmReplace()) {
+      this.useDraft(
+        draftOfDocument(revision.config, draft.source),
+        this.t('teamConfig.history.used', { n: revision.revision }),
+      );
+    }
+  }
+
+  protected async openImport(): Promise<void> {
+    const draft = this.draft();
+    if (draft === null || this.readOnly()) {
+      return;
+    }
+    const ref = this.sheet.open<TeamDraft, ImportSheetData>(ImportSheet, {
+      title: this.t('teamConfig.import.title'),
+      data: { slug: this.slug(), draft },
+      width: 'wide',
+    });
+    const imported = await firstValueFrom(ref.closed);
+    if (imported !== undefined) {
+      this.useDraft(imported, this.t('teamConfig.import.used'));
+    }
+  }
+
+  /** "Raise budget" and "Open limits": the budget is an ordinary edit of the form, reviewed and saved. */
+  protected raiseBudget(): void {
+    this.open.limits.set(true);
+    this.focusControl('budget.monthly_usd');
+  }
+
+  protected budgetResumed(): void {
+    void this.store.loadStatus();
+  }
+
+  /** Replacing unsaved edits with a revision asks first; a clean form takes it at once. */
+  private async confirmReplace(): Promise<boolean> {
+    const count = this.store.changes().length;
+    if (count === 0) {
+      return true;
+    }
+    return this.sheet.confirm({
+      title: this.t('teamConfig.history.replaceTitle'),
+      message: this.plural('teamConfig.leave.body', count),
+      confirmLabel: this.t('teamConfig.history.replace'),
+      cancelLabel: this.t('teamConfig.common.cancel'),
+      tone: 'danger',
+    });
+  }
+
+  /** A draft from elsewhere (a revision, an import) goes into the form unsaved; focus moves to its first change. */
+  private useDraft(next: TeamDraft, message: string): void {
+    const now = this.draft();
+    if (now === null) {
+      return;
+    }
+    const first = changesOf(now, next)[0];
+    this.store.replace(next, changesOf(now, next).map((change) => change.path));
+    this.typedInvalid.set(new Set());
+    this.epoch.update((epoch) => epoch + 1);
+    this.announce(message);
+    if (first === undefined) {
+      this.focusHeading();
+    } else {
+      const control = controlPathOf(first.path);
+      this.open[sectionOf(control)].set(true);
+      this.focusControl(control);
+    }
   }
 
   // ── Preset ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -497,13 +625,7 @@ export class TeamConfigEditor {
   protected readonly t = (key: string, params?: Record<string, unknown>): string => this.transloco.translate(key, params);
 
   protected rowsOf(changes: readonly DraftChange[]): ChangeRow[] {
-    const lang = this.lang();
-    return changes.map((change) => ({
-      path: change.path,
-      label: fieldLabelOf(this.t, change.path),
-      from: valueTextOf(this.t, lang, change.path, change.from),
-      to: valueTextOf(this.t, lang, change.path, change.to),
-    }));
+    return draftChangeRowsOf(this.t, this.lang(), changes);
   }
 
   protected valueText(path: string, value: unknown): string {

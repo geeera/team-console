@@ -22,6 +22,7 @@ import { EnrolRunner } from '@console/features/enrol-runner';
 import { ManageRunner } from '@console/features/manage-runner';
 import { ProjectDispatchEditor } from '@console/features/project-dispatch';
 import { RunnerPolicyEditor } from '@console/features/runner-policy';
+import { teamSettingsUrlOf } from '@console/features/team-config';
 import { LocalTimePipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, Field, FieldControl, Icon, StateBlock } from '@console/shared/ui';
 import type { PendingEnrolmentDto, RunnerDto } from '@shared/contracts';
@@ -73,6 +74,11 @@ export class RunnersPage {
   });
   /** The project whose own policy is open in the editor; the first active project until the owner picks another. */
   private readonly pickedSlug = signal<string | null>(null);
+  /** Settings › Team of the picked project: where an `access-source-hosted` refusal sends the owner (#688). */
+  protected readonly teamUrl = computed(() => {
+    const slug = this.projectSlug();
+    return slug === null ? null : teamSettingsUrlOf(slug);
+  });
   protected readonly projectSlug = computed(() => {
     const picked = this.pickedSlug();
     const projects = this.projects();

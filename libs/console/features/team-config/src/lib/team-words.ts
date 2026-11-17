@@ -1,5 +1,6 @@
 import { localNumberOf, localUsdOf } from '@console/shared/i18n';
-import type { TeamModel } from '@shared/contracts';
+import type { TeamConfigChange, TeamModel } from '@shared/contracts';
+import type { ChangeRow } from './changes-table/changes-table';
 
 /** A translate function as `TranslocoService.translate` is one; a seam so the wording is a pure, testable function. */
 export type Translate = (key: string, params?: Record<string, unknown>) => string;
@@ -70,4 +71,56 @@ export function valueTextOf(t: Translate, lang: string, path: string, value: unk
     default:
       return value;
   }
+}
+
+/** Changes between two drafts in words: the review, "Show their changes" and the import's table. */
+export function draftChangeRowsOf(
+  t: Translate,
+  lang: string,
+  changes: ReadonlyArray<{ readonly path: string; readonly from: unknown; readonly to: unknown }>,
+): ChangeRow[] {
+  return changes.map((change) => ({
+    path: change.path,
+    label: fieldLabelOf(t, change.path),
+    from: valueTextOf(t, lang, change.path, change.from),
+    to: valueTextOf(t, lang, change.path, change.to),
+  }));
+}
+
+/** Document members that are not settings: the schema tag every revision 1 adds. */
+const NOT_A_SETTING = new Set(['schema']);
+
+/**
+ * A stored revision's diff in words (#688, UX spec §6 "Diff view"): Setting · Was · Now; a value that was not there
+ * reads "not set" and its new value "Added: …", a removed one "Removed" — text, never colour alone. Every word is
+ * interpolated, never HTML (threat model T4).
+ */
+export function revisionChangesOf(t: Translate, lang: string, diff: readonly TeamConfigChange[]): ChangeRow[] {
+  return diff
+    .filter((change) => !NOT_A_SETTING.has(change.path))
+    .map((change) => {
+      const hasFrom = Object.hasOwn(change, 'from');
+      const hasTo = Object.hasOwn(change, 'to');
+      const to = valueTextOf(t, lang, change.path, change.to);
+      return {
+        path: change.path,
+        label: fieldLabelOf(t, change.path),
+        from: hasFrom ? valueTextOf(t, lang, change.path, change.from) : t('teamConfig.history.notSet'),
+        to: !hasTo ? t('teamConfig.history.removed') : hasFrom ? to : t('teamConfig.history.added', { value: to }),
+      };
+    });
+}
+
+/** "Show raw": the diff as JSON, one member per changed path, as the Worker stored it. */
+export function rawDiffOf(diff: readonly TeamConfigChange[]): string {
+  const byPath = Object.fromEntries(
+    diff.map((change) => [
+      change.path,
+      {
+        ...(Object.hasOwn(change, 'from') ? { from: change.from } : {}),
+        ...(Object.hasOwn(change, 'to') ? { to: change.to } : {}),
+      },
+    ]),
+  );
+  return JSON.stringify(byPath, null, 2);
 }
