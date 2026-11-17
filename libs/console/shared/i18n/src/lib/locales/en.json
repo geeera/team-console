@@ -1995,6 +1995,15 @@
       "featureHint": "Feature — something new, or a change to what is there.",
       "bugHint": "Bug — something does not work as it should.",
       "choreHint": "Chore — work with no visible change: dependencies, the build, tidying the code."
+    },
+    "switch": {
+      "designer": "UI designer",
+      "developer": "Developer",
+      "reviewer": "Reviewer",
+      "security": "Security",
+      "securityReason": "Always on: needed to check access.",
+      "triage": "Bug triage",
+      "triageReason": "Needs the Pro plan."
     }
   },
   "review": {

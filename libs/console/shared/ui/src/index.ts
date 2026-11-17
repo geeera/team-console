@@ -43,6 +43,7 @@ export * from './lib/spinner/spinner';
 export * from './lib/stat/stat';
 export * from './lib/state-block/state-block';
 export * from './lib/status-card/status-card';
+export * from './lib/switch/switch';
 export * from './lib/tab-bar/tab-bar';
 export * from './lib/tabs/tabs';
 export * from './lib/tooltip/tooltip';

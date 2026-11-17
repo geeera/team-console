@@ -82,6 +82,11 @@
   --control-h: 34px;
   --control-h-touch: 44px; /* iOS minimum tap target */
   --control-h-touch-sm: 44px; /* UX spec §5: every tap target is 44px, the "sm" button is narrower, not shorter */
+  /* #688: the role switch's pill; the clickable box stays --control-h-touch, see Switch's own CSS */
+  --switch-w: 44px;
+  --switch-h: 26px;
+  --switch-thumb: 20px;
+  --switch-inset: 3px;
   --icon-size-sm: 14px;
   --icon-size: 18px;
   --icon-size-lg: 24px;
@@ -309,6 +314,8 @@
   --danger-hover: color-mix(in oklab, var(--danger) 88%, var(--text) 12%);
   --disabled-opacity: 0.55;
   --skeleton: color-mix(in oklab, var(--text) 8%, transparent);
+  /* #688: a locked switch's track — on, but dimmer than an interactive one so the lock reads as the reason. */
+  --switch-locked-track: color-mix(in oklab, var(--accent) 45%, var(--bg-sunken));
 }
 
 /* 12 · reduced motion — durations collapse to a frame; components read them and animate nothing.
