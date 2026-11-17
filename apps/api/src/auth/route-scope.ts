@@ -154,6 +154,8 @@ export const ROUTE_SCOPES = {
   // #668: a GitHub Actions run's OIDC token in the body; it creates the identity, so none exists yet.
   'POST /api/v1/runner/oidc-exchange': 'enrolment',
   'GET /api/v1/runner/release': 'runner',
+  // #775: the runner's own row and the projects its scope serves now (R-SELF: the exact key set, nothing else).
+  'GET /api/v1/runner/self': 'runner',
   'POST /api/v1/runner/jobs/claim': 'runner',
   'POST /api/v1/runner/jobs/:id/heartbeat': 'runner',
   'POST /api/v1/runner/jobs/:id/events': 'runner',

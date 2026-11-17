@@ -1,6 +1,6 @@
 import { generateKeyPairSync, randomUUID, sign, type KeyObject } from 'node:crypto';
 import type { APIRequestContext, Page } from '@playwright/test';
-import { OWNER_ACCOUNT_ID, isRunnerId, type RunnerPolicyDto } from '@shared/contracts';
+import { OWNER_ACCOUNT_ID, isRunnerId, type RunnerListDto, type RunnerPolicyDto } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { apiClient, seed, type Stack } from './support/stack';
@@ -21,7 +21,8 @@ async function markSuspect(workerIndex: number, runnerId: string): Promise<void>
  * Settings › Runners (#464, ADR 0008 row 2-E part A) end to end: the owner opens it from Settings, gets a one-time
  * enrolment code with the exact `enrol` command, a runner enrols with it (the runner's own `POST /runner/enrol`,
  * no browser), the list shows it (backend, version below the stack's minimum 0.2.0, host, projects), the owner pins
- * the account's placement to it, narrows its projects and revokes it.
+ * the account's placement to it, narrows its projects and revokes it. #775: the scope — every project of the account
+ * or a list — is chosen at enrolment (all by default) and changed on the card without re-enrolling.
  */
 
 // #582: the code rides in the command's environment, never in its argv.
@@ -80,6 +81,10 @@ test('enrol a runner with a one-time code, see it listed, pin placement to it, n
   const dialog = page.getByRole('dialog', { name: ru('runners.enrol.title') });
   await expect(dialog.getByTestId('enrol-name')).toBeFocused();
   await dialog.getByTestId('enrol-name').fill('E2E Mac');
+  // #775: all projects of the account is preselected; the list appears for "only the chosen ones".
+  await expect(dialog.getByTestId('runner-scope-all')).toBeChecked();
+  await expect(dialog.locator('[data-slug="team-console"]')).toHaveCount(0);
+  await dialog.getByTestId('runner-scope-selected').check();
   await dialog.locator('[data-slug="team-console"] input').check();
   await expectAccessible(page, 'New runner dialog');
   await dialog.getByTestId('enrol-submit').click();
@@ -128,7 +133,8 @@ test('enrol a runner with a one-time code, see it listed, pin placement to it, n
 
   // 4. Narrow its projects: the dialog warns that its jobs there would be cancelled.
   await card.getByTestId('runner-edit-projects').click();
-  const projects = page.getByRole('dialog', { name: ru('runners.projects.title') });
+  const projects = page.getByRole('dialog', { name: ru('runners.scope.title') });
+  await expect(projects.getByTestId('runner-scope-selected')).toBeChecked();
   await projects.locator('[data-slug="team-console"] input').uncheck();
   await expect(projects.getByTestId('runner-projects-narrowing')).toBeVisible();
   await projects.getByTestId('runner-projects-save').click();
@@ -147,12 +153,22 @@ test('enrol a runner with a one-time code, see it listed, pin placement to it, n
   await expectAccessible(page, 'Settings › Runners (revoked)');
 });
 
-/** Gets a code from the dialog as the owner does, and answers it (the command's `TC_ENROL_CODE`). */
-async function issueCodeInDialog(page: Page, name: string): Promise<string> {
+/**
+ * Gets a code from the dialog as the owner does, and answers it (the command's `TC_ENROL_CODE`). The dialog's default
+ * scope is every project of the account (#775); `selected` ticks the one project the stack seeds.
+ */
+async function issueCodeInDialog(page: Page, name: string, scope: 'all' | 'selected' = 'all'): Promise<string> {
   await page.getByTestId('runners-enrol').first().click();
   const dialog = page.getByRole('dialog', { name: ru('runners.enrol.title') });
   await dialog.getByTestId('enrol-name').fill(name);
+  if (scope === 'selected') {
+    await dialog.getByTestId('runner-scope-selected').check();
+    await dialog.locator('[data-slug="team-console"] input').check();
+  }
   await dialog.getByTestId('enrol-submit').click();
+  await expect(dialog.getByTestId('enrol-scope')).toContainText(
+    scope === 'all' ? ru('runners.enrol.scopeAll') : ru('runners.enrol.projects', { projects: 'team-console' }),
+  );
   const command = (await dialog.getByTestId('copy-code-text').textContent()) ?? '';
   const { code = '' } = COMMAND.exec(command)?.groups ?? {};
   await dialog.getByTestId('enrol-done').click();
@@ -197,6 +213,55 @@ test('a runner paused on its usage limit says so, with the reason and the time i
   await expect(note.locator('time')).toHaveAttribute('datetime', until);
   await expect(note.locator('time')).toContainText(/\d{2}:\d{2}/);
   await expectAccessible(page, 'Settings › Runners (paused runner)');
+});
+
+// #775: the scope is changed on the card without re-enrolling — `selected` → `all` and back — and the stored row
+// follows, so the next claim (and the runner, through `/runner/self` and each claim's `scope`) sees it.
+test('switch a runner between its chosen projects and all projects of the account without re-enrolling', async ({ page, stack }) => {
+  await page.goto('/settings/runners');
+  const runnerId = await enrolOnceWith(stack, await issueCodeInDialog(page, 'E2E Mac', 'selected'));
+  await page.getByTestId('runners-refresh').click();
+  const card = page.getByTestId('runner-card').filter({ hasText: 'E2E Mac' });
+  await expect(card.getByTestId('runner-projects')).toHaveText('team-console');
+  await expect(card.getByTestId('runner-scope')).toHaveCount(0);
+
+  // To all projects: no narrowing, so no warning; the card says so and lists what is served now.
+  await card.getByTestId('runner-edit-projects').click();
+  const widen = page.getByRole('dialog', { name: ru('runners.scope.title') });
+  await expect(widen.getByTestId('runner-scope-selected')).toBeChecked();
+  await widen.getByTestId('runner-scope-all').check();
+  await expect(widen.locator('[data-slug="team-console"]')).toHaveCount(0);
+  await expect(widen.getByTestId('runner-projects-narrowing')).toHaveCount(0);
+  await expectAccessible(page, 'Runner scope dialog (all projects)');
+  await widen.getByTestId('runner-projects-save').click();
+  await expect(widen).toHaveCount(0);
+  await expect(card.getByTestId('runner-scope')).toHaveText(ru('runners.card.scopeAll'));
+  await expect(card.getByTestId('runner-projects')).toHaveText(ru('runners.card.scopeAllNow', { projects: 'team-console' }));
+  await expectAccessible(page, 'Settings › Runners (all-projects runner)');
+
+  const api = await apiClient(stack);
+  try {
+    const listed = (await (await api.get(`/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners`)).json()) as RunnerListDto;
+    expect(listed.runners.find((runner) => runner.id === runnerId)).toMatchObject({
+      projectScope: 'all',
+      allowedProjects: [],
+      servedProjects: [{ slug: 'team-console', accessSource: 'subscription', fit: true }],
+    });
+  } finally {
+    await api.dispose();
+  }
+
+  // Back to a list with nothing ticked: the warning names the project whose jobs would be cancelled.
+  await card.getByTestId('runner-edit-projects').click();
+  const narrow = page.getByRole('dialog', { name: ru('runners.scope.title') });
+  await expect(narrow.getByTestId('runner-scope-all')).toBeChecked();
+  await narrow.getByTestId('runner-scope-selected').check();
+  await expect(narrow.getByTestId('runner-projects-narrowing')).toContainText('team-console');
+  await expectAccessible(page, 'Runner scope dialog (narrowing)');
+  await narrow.getByTestId('runner-projects-save').click();
+  await expect(narrow).toHaveCount(0);
+  await expect(card.getByTestId('runner-scope')).toHaveCount(0);
+  await expect(card.getByTestId('runner-projects')).toHaveText(ru('runners.card.noProjects'));
 });
 
 // #492: a code shown to the wrong person is withdrawn from the list before its ten minutes are up.

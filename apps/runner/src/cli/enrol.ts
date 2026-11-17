@@ -18,6 +18,7 @@ import { RunnerFileError, ensurePrivateDir, pathExists } from '../config/private
 import {
   CREDENTIALS_DIR,
   CREDENTIAL_BACKENDS,
+  accessSourcesOf,
   parseCredentialConfig,
   type CredentialConfig,
   type CredentialKind,
@@ -169,8 +170,9 @@ export async function enrol(options: EnrolOptions, deps: EnrolDeps): Promise<Run
       arch: hostFieldOf(deps.host.arch),
       hostname: hostFieldOf(deps.host.hostname),
     },
-    // `user` runs jobs one at a time on one job uid (ADR 0006); the console enforces it at claim (2-B-4).
-    capabilities: { local: true, maxConcurrency: 1 },
+    // `user` runs jobs one at a time on one job uid (ADR 0006); the console enforces it at claim (2-B-4). What the
+    // credential serves is declared as an enum (#775), never as its kind or value.
+    capabilities: { local: true, maxConcurrency: 1, accessSources: accessSourcesOf(checked.credential) },
     isolation: checked.backend,
     version: RUNNER_VERSION,
   };
@@ -184,6 +186,7 @@ export async function enrol(options: EnrolOptions, deps: EnrolDeps): Promise<Run
     accountId: enrolled.accountId,
     name: enrolled.name,
     audience: enrolled.audience,
+    projectScope: enrolled.projectScope,
     allowedProjects: enrolled.allowedProjects,
     pollSeconds: enrolled.pollSeconds,
     backend: checked.backend,

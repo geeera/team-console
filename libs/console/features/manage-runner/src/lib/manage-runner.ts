@@ -54,7 +54,7 @@ export class ManageRunner {
     target: ManagedRunnerTarget & { readonly projects: readonly RunnerProjectOption[] },
   ): Promise<RunnerDto | null> {
     const ref = this.sheet.open<RunnerDto, RunnerProjectsData>(RunnerProjectsDialog, {
-      title: this.t('runners.projects.title'),
+      title: this.t('runners.scope.title'),
       width: 'wide',
       data: { accountId: target.accountId, runner: target.runner, projects: target.projects },
     });

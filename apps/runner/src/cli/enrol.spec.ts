@@ -24,6 +24,7 @@ const enrolled = {
   accountId: ACCOUNT_ID,
   name: 'Owner Mac',
   audience: 'team-console:local',
+  projectScope: 'selected',
   allowedProjects: ['team-console'],
   pollSeconds: 60,
 };
@@ -74,13 +75,15 @@ describe('enrol --url --code --backend', () => {
     expect(body).toMatchObject({
       code: sentinels.enrolmentCode,
       host,
-      capabilities: { local: true, maxConcurrency: 1 },
+      // #775: what the credential serves, as a derived enum (no credential here: the host's own sign-in).
+      capabilities: { local: true, maxConcurrency: 1, accessSources: ['subscription'] },
       isolation: 'user',
       version: RUNNER_VERSION,
     });
     expect(isEd25519PublicJwk(body['publicKey'])).toBe(true);
-    // No credential of any kind is described to the console (ADR 0008 decision 5).
-    expect(Object.keys(body['capabilities'] as object).sort()).toEqual(['local', 'maxConcurrency']);
+    // No credential kind or value is described to the console (ADR 0008 decision 5): the sources enum alone.
+    expect(Object.keys(body['capabilities'] as object).sort()).toEqual(['accessSources', 'local', 'maxConcurrency']);
+    expect(JSON.stringify(body)).not.toMatch(/api-key|setup-token|claude-config-dir/u);
 
     expect((await stat(home)).mode & 0o777).toBe(0o700);
     expect((await stat(configPathOf(home))).mode & 0o777).toBe(0o600);

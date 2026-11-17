@@ -32,6 +32,7 @@ import {
   type AuditCondition,
   type NewAuditEvent,
 } from '../accounts/audit.repo';
+import { runnerServesSql } from '../team-config/access-source';
 import { isConstraintError } from '../tracker/constraint-error';
 
 /**
@@ -222,13 +223,15 @@ const PREFIXED_COLUMNS = COLUMNS.split(',')
   .join(', ');
 
 /**
- * A WHERE term on a `jobs` row (#553): its runner's stored row still allows the job's project and is not revoked. The
- * runner routes judge the allow-list read at authentication; this term judges it again inside the write itself, so a
- * narrowing or revoke that commits in between wins, as it does for the claim (#543).
+ * A WHERE term on a `jobs` row (#553): its runner's stored row still serves the job's project under its scope (#775,
+ * `runnerServesSql`), inside the job's account, and is not revoked. The runner routes judge the scope read at
+ * authentication; this term judges it again inside the write itself, so a narrowing or revoke that commits in between
+ * wins, as it does for the claim (#543).
  */
-export const RUNNER_STILL_ALLOWS_SQL = `jobs.project_slug IN (
-  SELECT value FROM runners r, json_each(r.allowed_projects)
-  WHERE r.id = jobs.runner_id AND r.account_id = jobs.account_id AND r.revoked_at IS NULL)`;
+export const RUNNER_STILL_ALLOWS_SQL = `EXISTS (
+  SELECT 1 FROM runners r
+  WHERE r.id = jobs.runner_id AND r.account_id = jobs.account_id AND r.revoked_at IS NULL
+    AND ${runnerServesSql('r', 'jobs.project_slug')})`;
 
 /**
  * A write made under a job token (#580): the job must still hold when its batch commits — the token's hash still
@@ -540,9 +543,9 @@ export class JobsRepo {
            WHERE j.state = 'queued' AND j.dispatch = 'pull'
              AND j.account_id = ?5
              AND a.suspended_at IS NULL AND p.archived_at IS NULL
-             AND j.project_slug IN (
-               SELECT value FROM runners r, json_each(r.allowed_projects)
-               WHERE r.id = ?1 AND r.account_id = ?5 AND r.revoked_at IS NULL)
+             AND EXISTS (
+               SELECT 1 FROM runners r
+               WHERE r.id = ?1 AND r.account_id = ?5 AND r.revoked_at IS NULL AND ${runnerServesSql('r', 'j.project_slug')})
              AND (j.needs_local = 0 OR ?6 = 1)
              AND t.paused_at IS NULL
              AND EXISTS (
@@ -551,7 +554,9 @@ export class JobsRepo {
                  AND (me.paused_until IS NULL OR julianday(me.paused_until) <= julianday(?2))
                  AND (SELECT COUNT(*) FROM jobs held WHERE held.runner_id = ?1 AND held.state IN ('claimed', 'running'))
                      < COALESCE(json_extract(me.capabilities, '$.maxConcurrency'), 1)
-                 AND (p.access_source = 'api_key' OR (me.hosted = 0 AND me.isolation <> 'actions-ephemeral')))
+                 AND (p.access_source = 'api_key' OR (me.hosted = 0 AND me.isolation <> 'actions-ephemeral'))
+                 AND (json_type(me.capabilities, '$.accessSources') IS NULL
+                      OR p.access_source IN (SELECT value FROM json_each(me.capabilities, '$.accessSources'))))
              AND ${ROLE_ADMITTED_SQL}
              AND ${budgetAdmittedSql('?2')}
              AND ${entitledConcurrencyAdmittedSql('?10', '?11', '?12')}
@@ -897,7 +902,7 @@ export class JobsRepo {
             .prepare(
               `INSERT INTO runners (id, account_id, name, public_key_jwk, host, capabilities, isolation, allowed_projects,
                  version, enrolled_at, last_seen_at, last_seen_country, last_seen_ip_hash, seen_countries)
-               SELECT ?2, j.account_id, ?3, ?4, ?5, '{"local":false,"maxConcurrency":1}', 'actions-ephemeral',
+               SELECT ?2, j.account_id, ?3, ?4, ?5, '{"local":false,"maxConcurrency":1,"accessSources":["api_key"]}', 'actions-ephemeral',
                  json_array(j.project_slug), ?6, ?7, ?7, ?8, ?9, CASE WHEN ?8 IS NULL THEN '[]' ELSE json_array(?8) END
                ${from} WHERE ${claimable('?10', '?11', '?7', '?12', ['?13', '?14', '?15'])}`,
             )

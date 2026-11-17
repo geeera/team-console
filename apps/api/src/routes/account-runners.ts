@@ -15,6 +15,8 @@ import {
   type RunnerDto,
   type RunnerListDto,
   type RunnerPolicyDto,
+  type RunnerProjectScopeDto,
+  type RunnerServedProjectDto,
 } from '@shared/contracts';
 import { ENROLMENT_CODE_PREFIX } from '@shared/redaction';
 import {
@@ -35,6 +37,7 @@ import {
   type EnrolmentRecord,
   type NewAuditEvent,
   type RunnerRecord,
+  type ServedProjectRecord,
 } from '@worker/db';
 import { auditActorOf } from '../auth/scope';
 import type { ApiEnv } from '../env';
@@ -70,7 +73,27 @@ async function foreignSlugsOf(c: Context, account: AccountRecord, slugs: readonl
   return slugs.filter((slug) => !own.has(slug));
 }
 
-export function runnerDtoOf(runner: RunnerRecord, now: Date, minimumVersion: string | null): RunnerDto {
+/**
+ * The projects the runner serves now with the fit of its declared `accessSources` (#775): a runner that declares
+ * nothing fits everything (nothing to compare); one that declares a source fits the projects on that source.
+ */
+export function servedProjectsDtoOf(runner: RunnerRecord, served: readonly ServedProjectRecord[]): RunnerServedProjectDto[] {
+  const declared = runner.capabilities.accessSources;
+  return served
+    .filter((project) => project.runnerId === runner.id)
+    .map((project) => ({
+      slug: project.slug,
+      accessSource: project.accessSource,
+      fit: declared === undefined || declared.includes(project.accessSource),
+    }));
+}
+
+export function runnerDtoOf(
+  runner: RunnerRecord,
+  now: Date,
+  minimumVersion: string | null,
+  served: readonly ServedProjectRecord[] = [],
+): RunnerDto {
   const online =
     runner.revokedAt === null &&
     runner.lastSeenAt !== null &&
@@ -84,7 +107,9 @@ export function runnerDtoOf(runner: RunnerRecord, now: Date, minimumVersion: str
     pinnedVersion: runner.pinnedVersion,
     host: runner.host,
     capabilities: runner.capabilities,
+    projectScope: runner.projectScope,
     allowedProjects: runner.allowedProjects,
+    servedProjects: servedProjectsDtoOf(runner, served),
     enrolledAt: runner.enrolledAt,
     lastSeenAt: runner.lastSeenAt,
     lastSeenCountry: runner.lastSeenCountry,
@@ -104,6 +129,7 @@ function pendingEnrolmentDtoOf(enrolment: EnrolmentRecord): PendingEnrolmentDto 
   return {
     id: enrolment.codeHash,
     name: enrolment.name,
+    projectScope: enrolment.projectScope,
     allowedProjects: enrolment.allowedProjects,
     createdAt: enrolment.createdAt,
     expiresAt: enrolment.expiresAt,
@@ -161,30 +187,34 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       const at = now.toISOString();
       const expiresAt = new Date(now.getTime() + ENROLMENT_CODE_TTL_SECONDS * 1000).toISOString();
       const code = newEnrolmentCode();
+      const scope: RunnerProjectScopeDto = {
+        projectScope: input.value.projectScope,
+        allowedProjects: input.value.allowedProjects,
+      };
       await new RunnersRepo(c.env.DB).createEnrolment(
         {
           codeHash: await sha256Hex(code),
           accountId: account.id,
           name: input.value.name,
-          allowedProjects: input.value.allowedProjects,
+          ...scope,
           createdBy: auditActorOf(c.get('identity')).actor,
           at,
           expiresAt,
         },
         auditOf(c, account, at, 'enrolment-code.created', 'enrolment-code', {
           name: input.value.name,
-          allowedProjects: input.value.allowedProjects,
+          ...scope,
           expiresAt,
         }),
       );
-      c.get('logger').info('enrolment code created', { accountId: account.id });
+      c.get('logger').info('enrolment code created', { accountId: account.id, projectScope: scope.projectScope });
       const body: EnrolmentCodeDto = {
         code,
         expiresAt,
         apiUrl: new URL(c.req.url).origin,
         audience: runnerAudienceOf(c.env.ENVIRONMENT),
         name: input.value.name,
-        allowedProjects: input.value.allowedProjects,
+        ...scope,
       };
       return c.json(body, 201);
     })
@@ -241,12 +271,14 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       const now = new Date();
       const release = runnerReleaseOf(c.env);
       const runners = new RunnersRepo(c.env.DB);
+      // One read for every runner's effective projects (#775), the claim's own term.
+      const served = await runners.servedProjectsOf(account.id);
       const body: RunnerListDto = {
         // #668: an Actions identity is listed while its run is live; revoked, it is one finished job's history (in the
         // audit), not a machine the owner manages, so the list would otherwise grow by a row per run.
         runners: (await runners.listForAccount(account.id))
           .filter((runner) => runner.isolation !== 'actions-ephemeral' || runner.revokedAt === null)
-          .map((runner) => runnerDtoOf(runner, now, release.minimumVersion)),
+          .map((runner) => runnerDtoOf(runner, now, release.minimumVersion, served)),
         pendingEnrolments: (await runners.listPendingEnrolments(account.id, now.toISOString())).map(
           pendingEnrolmentDtoOf,
         ),
@@ -309,9 +341,14 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         return problem(c, { type: 'runner-not-suspect', title: 'Conflict', status: 409, detail: 'The runner is not marked suspect' });
       }
       const updated = await runners.findInAccount(account.id, runner.id);
-      return c.json(runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion));
+      return c.json(
+        runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, await runners.servedProjectsOf(account.id, runner.id)),
+      );
     })
 
+    // #775: the runner's scope — every project of the account, present and future, or a list — changeable without
+    // re-enrolling: the claim and every job-token write read the stored row, and the runner takes the scope from each
+    // claim and `GET /runner/self`.
     .patch('/:id/runners/:runner', writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
       const account = await ownedAccountOf(c);
       if (account instanceof Response) {
@@ -327,6 +364,11 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       if (!input.ok) {
         return invalid(c, 'runner-invalid', input.field, input.detail);
       }
+      // R-SCOPE-4 (C12 row 6): a hosted or Actions identity serves exactly what the server gave it; its scope is not
+      // the owner's to widen, nor to touch at all.
+      if (runner.hosted || runner.isolation === 'actions-ephemeral') {
+        return invalid(c, 'runner-scope-fixed', 'projectScope', 'A hosted or GitHub Actions runner keeps the scope the console gave it');
+      }
       const foreign = await foreignSlugsOf(c, account, input.value.allowedProjects);
       if (foreign.length > 0) {
         return invalid(
@@ -337,19 +379,22 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         );
       }
       const now = new Date();
-      // Narrowing the list cancels the runner's live jobs in the projects it loses, in the same batch (#490 review).
-      await runners.setAllowedProjects(
+      const before: RunnerProjectScopeDto = { projectScope: runner.projectScope, allowedProjects: runner.allowedProjects };
+      // Narrowing to a list cancels the runner's live jobs in the projects it loses, in the same batch (#490 review,
+      // R-SCOPE-5); `all` loses nothing, so nothing rides along. A no-op writes and audits nothing.
+      await runners.setScope(
         account.id,
         runner.id,
-        input.value.allowedProjects,
-        auditOf(c, account, now.toISOString(), 'runner.updated', runner.id, {
-          allowedProjects: input.value.allowedProjects,
-          before: runner.allowedProjects,
-        }),
-        new JobsRepo(c.env.DB).cancelOutsideStatements(runner.id, input.value.allowedProjects, now.toISOString()),
+        input.value,
+        auditOf(c, account, now.toISOString(), 'runner.scope-changed', runner.id, { from: before, to: input.value }),
+        input.value.projectScope === 'selected'
+          ? new JobsRepo(c.env.DB).cancelOutsideStatements(runner.id, input.value.allowedProjects, now.toISOString())
+          : [],
       );
       const updated = await runners.findInAccount(account.id, runner.id);
-      return c.json(runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion));
+      return c.json(
+        runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, await runners.servedProjectsOf(account.id, runner.id)),
+      );
     })
 
     .post('/:id/runners/:runner/revoke', async (c) => {
@@ -386,6 +431,7 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       }
       c.get('logger').info('runner revoked', { runnerId: runner.id });
       const updated = await runners.findInAccount(account.id, runner.id);
+      // A revoked runner serves nothing; `servedProjectsOf` lists none for it.
       return c.json(runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion));
     });
 }

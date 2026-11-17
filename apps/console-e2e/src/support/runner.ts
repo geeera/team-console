@@ -33,7 +33,7 @@ export function runnerJwt(runner: E2eRunner): string {
 /** The owner's code for `slug`, then the runner's own enrolment with a fresh key pair. */
 export async function enrolRunner(api: APIRequestContext, slug: string): Promise<E2eRunner> {
   const code = await api.post(`/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/enrolment-code`, {
-    data: { name: 'E2E Mac', allowedProjects: [slug] },
+    data: { name: 'E2E Mac', projectScope: 'selected', allowedProjects: [slug] },
   });
   expect(code.status(), await code.text()).toBe(201);
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');

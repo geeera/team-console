@@ -1,5 +1,5 @@
 import { isAbsolute, join } from 'node:path';
-import { isRunnerId, isUlid, isValidSlug, type RunnerIsolation } from '@shared/contracts';
+import { isRunnerId, isRunnerProjectScope, isUlid, isValidSlug, type RunnerIsolation, type RunnerProjectScope } from '@shared/contracts';
 import { RunnerFileError, assertPrivateDir, readPrivateFile, writePrivateFile } from './private-files';
 import { isCredentialAllowed, parseCredentialConfig, type CredentialConfig } from '../env/credential';
 
@@ -34,6 +34,12 @@ export interface RunnerConfig {
   readonly name: string;
   /** The `aud` every runner JWT carries (`team-console:<env>`), as the console answered at enrolment. */
   readonly audience: string;
+  /**
+   * The scope as the console answered it at enrolment (#775): informational since then. The runner holds itself to
+   * the scope the console sends with `GET /runner/self` and every claim, so a change on Settings › Runners applies
+   * without a restart or a re-enrol. Absent in a `config.json` written before scopes existed (read as `selected`).
+   */
+  readonly projectScope?: RunnerProjectScope;
   readonly allowedProjects: readonly string[];
   readonly pollSeconds: number;
   readonly backend: EnrolBackend;
@@ -143,6 +149,7 @@ const CONFIG_KEYS = [
   'accountId',
   'name',
   'audience',
+  'projectScope',
   'allowedProjects',
   'pollSeconds',
   'backend',
@@ -303,7 +310,7 @@ export function parseRunnerConfig(value: unknown): RunnerConfig {
   if (unknownKey !== undefined) {
     throw invalid(`unknown key "${unknownKey}"`);
   }
-  const { schema, apiUrl, runnerId, accountId, name, audience, allowedProjects, pollSeconds, backend } =
+  const { schema, apiUrl, runnerId, accountId, name, audience, projectScope, allowedProjects, pollSeconds, backend } =
     value;
   if (schema !== CONFIG_SCHEMA_VERSION) {
     throw invalid(`schema must be ${String(CONFIG_SCHEMA_VERSION)}`);
@@ -322,6 +329,9 @@ export function parseRunnerConfig(value: unknown): RunnerConfig {
   }
   if (typeof audience !== 'string' || !AUDIENCE.test(audience)) {
     throw invalid('audience must be team-console:<environment>');
+  }
+  if (projectScope !== undefined && !isRunnerProjectScope(projectScope)) {
+    throw invalid('projectScope must be all or selected');
   }
   if (
     !Array.isArray(allowedProjects) ||
@@ -353,6 +363,7 @@ export function parseRunnerConfig(value: unknown): RunnerConfig {
     accountId,
     name,
     audience,
+    ...(projectScope === undefined ? {} : { projectScope }),
     allowedProjects: allowedProjects as string[],
     pollSeconds,
     backend,

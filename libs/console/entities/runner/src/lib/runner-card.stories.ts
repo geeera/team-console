@@ -66,6 +66,33 @@ export const Container: Story = {
   },
 };
 export const NoProjects: Story = { args: { runner: runnerFixture({ allowedProjects: [] }) } };
+/** #775: every project of the account, present and future; the card lists what it serves now. */
+export const AllProjects: Story = {
+  args: {
+    runner: runnerFixture({
+      projectScope: 'all',
+      allowedProjects: [],
+      servedProjects: [
+        { slug: 'team-console', accessSource: 'subscription', fit: true },
+        { slug: 'storify', accessSource: 'subscription', fit: true },
+      ],
+    }),
+  },
+};
+/** #775: a runner signed in with a subscription cannot run an API-key project; the mark says so before the first claim. */
+export const UnfitProject: Story = {
+  args: {
+    runner: runnerFixture({
+      projectScope: 'all',
+      allowedProjects: [],
+      capabilities: { local: true, maxConcurrency: 1, accessSources: ['subscription'] },
+      servedProjects: [
+        { slug: 'team-console', accessSource: 'subscription', fit: true },
+        { slug: 'storify', accessSource: 'api_key', fit: false },
+      ],
+    }),
+  },
+};
 /** #668: the ephemeral identity of one GitHub Actions run, listed while the run is live. */
 export const ActionsRun: Story = {
   args: {

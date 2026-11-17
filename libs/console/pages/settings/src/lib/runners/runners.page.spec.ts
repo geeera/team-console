@@ -221,6 +221,7 @@ describe('RunnersPage (/settings/runners, #464)', () => {
     const pending = {
       id: 'a1'.repeat(32),
       name: 'Laptop',
+      projectScope: 'selected' as const,
       allowedProjects: ['team-console'],
       createdAt: '2026-11-12T10:00:00.000Z',
       expiresAt: '2026-11-12T10:10:00.000Z',

@@ -204,6 +204,7 @@ export function runnerIdentityOf(runner: RunnerRecord): RunnerIdentity {
     kind: 'runner',
     runnerId: runner.id,
     accountId: runner.accountId,
+    projectScope: runner.projectScope,
     allowedProjects: runner.allowedProjects,
     isolation: runner.isolation,
     capabilities: runner.capabilities,

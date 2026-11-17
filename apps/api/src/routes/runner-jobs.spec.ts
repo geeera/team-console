@@ -3,7 +3,8 @@ import { OWNER_ACCOUNT_ID, type ClaimResponse, type JobDto, type JobEventListDto
 import { JOB_TOKEN_PREFIX } from '@shared/redaction';
 import { IdempotencyKeysRepo } from '@worker/db';
 import { localEnv } from '../testing/github-kit';
-import { cancelJob, cancelJobsInFlight, commitDuringAuthentication, enqueueJob, enrolRunner, narrowRunner, revokeRunner, sendAsJob, sendAsRunner, type TestRunner } from '../testing/runner-kit';
+import { cancelJob, cancelJobsInFlight, commitDuringAuthentication, enqueueJob, enrolRunner, narrowRunner, revokeRunner, sendAsJob, sendAsRunner, setProjectAccessSource, type TestRunner } from '../testing/runner-kit';
+import type { RunnerSelfDto } from '@shared/contracts';
 import { seedAccountProject, seedSessionUser, sendAsSession } from '../testing/session-kit';
 import { countRows, seedItem, seedTrackerProject, send, slugOf } from '../testing/tracker-kit';
 
@@ -64,6 +65,57 @@ describe('POST /api/v1/runner/jobs/claim', () => {
     expect(await claim(runner)).toBeNull();
     const row = await env.DB.prepare(`SELECT state, runner_id FROM jobs WHERE id = ?1`).bind(theirJob).first<{ state: string; runner_id: null }>();
     expect(row).toEqual({ state: 'queued', runner_id: null });
+  });
+
+  // #775, R-SCOPE-3: an `all` runner of account A sees, claims and writes nothing of account B; a project created in A
+  // after its enrolment is claimed; the claim carries the scope the runner holds itself to.
+  it('an all-scope runner claims any project of its account, one created later included, and nothing of another account', async () => {
+    const other = await seedSessionUser('owner');
+    const theirs = await seedAccountProject(other.account, { tracker: 'console' });
+    const theirJob = await enqueueJob(theirs.slug, {}, other);
+    const runner = await enrolRunner(OWNER_ACCOUNT_ID, { projectScope: 'all' });
+    expect(runner.enrolment).toMatchObject({ projectScope: 'all', allowedProjects: [] });
+    expect(await claim(runner)).toBeNull();
+
+    const project = await seedTrackerProject();
+    const jobId = await enqueueJob(project.slug);
+    const claimed = await claim(runner);
+    expect(claimed?.job.id).toBe(jobId);
+    expect(claimed?.scope).toMatchObject({ projectScope: 'all', allowedProjects: [] });
+    expect(claimed?.scope.projects).toContain(project.slug);
+    expect(claimed?.scope.projects).not.toContain(theirs.slug);
+    // Its job token writes nothing in B, and `/runner/self` lists nothing of B.
+    const foreign = await sendAsJob(runner, claimed?.jobToken ?? '', 'POST', `/api/v1/projects/${theirs.slug}/items`, { title: 'x', kind: 'task' });
+    expect(foreign.status).toBe(404);
+    const self = await sendAsRunner(runner, 'GET', '/api/v1/runner/self');
+    expect(self.status).toBe(200);
+    const text = await self.text();
+    const body = JSON.parse(text) as RunnerSelfDto;
+    expect(body.runner).toMatchObject({ id: runner.id, accountId: OWNER_ACCOUNT_ID, projectScope: 'all', allowedProjects: [] });
+    expect(body.projects.map((row) => row.slug)).toContain(project.slug);
+    expect(text).not.toContain(theirs.slug);
+    expect(text).not.toContain(other.account.id);
+    const row = await env.DB.prepare(`SELECT state, runner_id FROM jobs WHERE id = ?1`).bind(theirJob).first<{ state: string; runner_id: null }>();
+    expect(row).toEqual({ state: 'queued', runner_id: null });
+  });
+
+  // #775 (SECURITY question 7): the claim body's declaration is stored and narrows the claim to the declared sources.
+  it('stores the accessSources a claim declares and claims nothing on a source outside them', async () => {
+    const project = await seedTrackerProject();
+    await setProjectAccessSource(project.slug, 'api_key');
+    const runner = await runnerFor([project.slug]);
+    await enqueueJob(project.slug);
+    const declared = await sendAsRunner(runner, 'POST', CLAIM, { accessSources: ['subscription'] });
+    expect(declared.status).toBe(204);
+    const stored = await env.DB.prepare(`SELECT capabilities FROM runners WHERE id = ?1`).bind(runner.id).first<{ capabilities: string }>();
+    expect(JSON.parse(stored?.capabilities ?? '{}')).toMatchObject({ accessSources: ['subscription'] });
+    const widened = await sendAsRunner(runner, 'POST', CLAIM, { accessSources: ['api_key'] });
+    expect(widened.status).toBe(200);
+    const junk = await sendAsRunner(runner, 'POST', CLAIM, { accessSources: ['everything'] });
+    expect(junk.status).toBe(422);
+    expect(((await junk.json()) as { field: string }).field).toBe('accessSources');
+    const extra = await sendAsRunner(runner, 'POST', CLAIM, { accessSources: ['api_key'], hosted: 1 });
+    expect(extra.status).toBe(422);
   });
 
   it('serves the allow-list only, skips needs_local for a remote runner and a paused project', async () => {
@@ -377,7 +429,7 @@ describe('the job token (R4) and the job’s life', () => {
     const runner = await runnerFor([kept.slug, lost.slug]);
     await enqueueJob(lost.slug);
     const { jobToken, job } = (await claim(runner)) as ClaimResponse;
-    const narrowed = await send('PATCH', `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/${runner.id}`, { allowedProjects: [kept.slug] });
+    const narrowed = await send('PATCH', `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/${runner.id}`, { projectScope: 'selected', allowedProjects: [kept.slug] });
     expect(narrowed.status).toBe(200);
     const after = (await (await send('GET', `/api/v1/projects/${lost.slug}/jobs/${job.id}`)).json()) as JobDto;
     expect(after).toMatchObject({ state: 'cancelled', result: { reason: 'runner-allow-list' } });

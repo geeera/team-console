@@ -1,14 +1,18 @@
-import type {
-  Ed25519PublicJwk,
-  RunnerCapabilitiesDto,
-  RunnerHostDto,
-  RunnerIsolation,
-  RunnerPauseReason,
-  RunnerSuspectReason,
+import {
+  isAccessSource,
+  type AccessSource,
+  type Ed25519PublicJwk,
+  type RunnerCapabilitiesDto,
+  type RunnerHostDto,
+  type RunnerIsolation,
+  type RunnerPauseReason,
+  type RunnerProjectScope,
+  type RunnerProjectScopeDto,
+  type RunnerSuspectReason,
 } from '@shared/contracts';
 import { auditEventStatement, auditedWrite, type NewAuditEvent } from '../accounts/audit.repo';
 import { isConstraintError } from '../tracker/constraint-error';
-import { hostedEnrolmentRefusedSql } from '../team-config/access-source';
+import { hostedEnrolmentRefusedSql, runnerServesSql } from '../team-config/access-source';
 
 /**
  * Runners and their enrolment codes (#467, ADR 0008 row 2-A, migration 0021). Every write names the account it acts
@@ -25,7 +29,11 @@ export interface RunnerRecord {
   readonly capabilities: RunnerCapabilitiesDto;
   readonly hosted: boolean;
   readonly isolation: RunnerIsolation;
+  /** #775: `all` serves every active project of the account (D3 applied); `selected` the list below. */
+  readonly projectScope: RunnerProjectScope;
   readonly allowedProjects: readonly string[];
+  /** The audit actor who created the enrolment code (D3); `null` before 0036 and on OIDC identities. */
+  readonly enrolledBy: string | null;
   readonly version: string;
   readonly pinnedVersion: string | null;
   readonly enrolledAt: string;
@@ -44,6 +52,7 @@ export interface EnrolmentRecord {
   readonly codeHash: string;
   readonly accountId: string;
   readonly name: string;
+  readonly projectScope: RunnerProjectScope;
   readonly allowedProjects: readonly string[];
   readonly createdBy: string;
   readonly createdAt: string;
@@ -56,6 +65,7 @@ export interface NewEnrolment {
   readonly codeHash: string;
   readonly accountId: string;
   readonly name: string;
+  readonly projectScope: RunnerProjectScope;
   readonly allowedProjects: readonly string[];
   readonly createdBy: string;
   readonly at: string;
@@ -70,9 +80,19 @@ export interface NewRunner {
   readonly host: RunnerHostDto;
   readonly capabilities: RunnerCapabilitiesDto;
   readonly isolation: RunnerIsolation;
+  readonly projectScope: RunnerProjectScope;
   readonly allowedProjects: readonly string[];
+  /** The code's creator (D3). */
+  readonly enrolledBy: string | null;
   readonly version: string;
   readonly at: string;
+}
+
+/** A project a runner serves now, as `servedProjectsOf` lists it: the scope's effective answer, D3 applied. */
+export interface ServedProjectRecord {
+  readonly runnerId: string;
+  readonly slug: string;
+  readonly accessSource: AccessSource;
 }
 
 /** `enrolHosted`: `access-source-hosted` when a `subscription` project's placement would admit the runner (#707). */
@@ -100,7 +120,9 @@ interface RunnerRow {
   capabilities: string;
   hosted: number;
   isolation: RunnerIsolation;
+  project_scope: RunnerProjectScope;
   allowed_projects: string;
+  enrolled_by: string | null;
   version: string;
   pinned_version: string | null;
   enrolled_at: string;
@@ -119,6 +141,7 @@ interface EnrolmentRow {
   code_hash: string;
   account_id: string;
   name: string;
+  project_scope: RunnerProjectScope;
   allowed_projects: string;
   created_by: string;
   created_at: string;
@@ -127,9 +150,13 @@ interface EnrolmentRow {
   used_at: string | null;
 }
 
-const RUNNER_COLUMNS = `id, account_id, name, public_key_jwk, host, capabilities, hosted, isolation, allowed_projects,
-  version, pinned_version, enrolled_at, last_seen_at, last_seen_country, last_seen_ip_hash, seen_countries,
-  suspect_at, suspect_reason, revoked_at, paused_until, pause_reason`;
+const RUNNER_COLUMNS = `id, account_id, name, public_key_jwk, host, capabilities, hosted, isolation, project_scope,
+  allowed_projects, enrolled_by, version, pinned_version, enrolled_at, last_seen_at, last_seen_country, last_seen_ip_hash,
+  seen_countries, suspect_at, suspect_reason, revoked_at, paused_until, pause_reason`;
+const ENROLMENT_COLUMNS = `code_hash, account_id, name, project_scope, allowed_projects, created_by, created_at, expires_at,
+  used_by_runner_id, used_at`;
+/** What the server gives a hosted or `actions-ephemeral` identity: never a subscription (C12 row 6). */
+export const SERVER_SET_ACCESS_SOURCES: readonly AccessSource[] = ['api_key'];
 
 /** Two source addresses inside this window on one runner id are two pollers (the lease length of ADR 0006). */
 export const TWO_POLLERS_WINDOW_MS = 5 * 60 * 1000;
@@ -143,16 +170,24 @@ function stringList(json: string): readonly string[] {
 function toRecord(row: RunnerRow): RunnerRecord {
   const host = JSON.parse(row.host) as Partial<RunnerHostDto>;
   const capabilities = JSON.parse(row.capabilities) as Partial<RunnerCapabilitiesDto>;
+  const declared = capabilities.accessSources;
   return {
     id: row.id,
     accountId: row.account_id,
     name: row.name,
     publicKeyJwk: JSON.parse(row.public_key_jwk) as Ed25519PublicJwk,
     host: { os: host.os ?? '', arch: host.arch ?? '', hostname: host.hostname ?? '' },
-    capabilities: { local: capabilities.local === true, maxConcurrency: capabilities.maxConcurrency ?? 1 },
+    capabilities: {
+      local: capabilities.local === true,
+      maxConcurrency: capabilities.maxConcurrency ?? 1,
+      // A stored declaration that is not a list of sources is a broken row: read as no declaration, never served.
+      ...(Array.isArray(declared) && declared.every(isAccessSource) ? { accessSources: declared } : {}),
+    },
     hosted: row.hosted === 1,
     isolation: row.isolation,
+    projectScope: row.project_scope,
     allowedProjects: stringList(row.allowed_projects),
+    enrolledBy: row.enrolled_by,
     version: row.version,
     pinnedVersion: row.pinned_version,
     enrolledAt: row.enrolled_at,
@@ -175,6 +210,7 @@ function toEnrolment(row: EnrolmentRow): EnrolmentRecord {
     codeHash: row.code_hash,
     accountId: row.account_id,
     name: row.name,
+    projectScope: row.project_scope,
     allowedProjects: stringList(row.allowed_projects),
     createdBy: row.created_by,
     createdAt: row.created_at,
@@ -192,8 +228,8 @@ export class RunnersRepo {
     await this.db.batch([
       this.db
         .prepare(
-          `INSERT INTO runner_enrolments (code_hash, account_id, name, allowed_projects, created_by, created_at, expires_at)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
+          `INSERT INTO runner_enrolments (code_hash, account_id, name, project_scope, allowed_projects, created_by, created_at, expires_at)
+           VALUES (?1, ?2, ?3, ?8, ?4, ?5, ?6, ?7)`,
         )
         .bind(
           enrolment.codeHash,
@@ -203,6 +239,7 @@ export class RunnersRepo {
           enrolment.createdBy,
           enrolment.at,
           enrolment.expiresAt,
+          enrolment.projectScope,
         ),
       auditEventStatement(this.db, audit),
     ]);
@@ -212,7 +249,7 @@ export class RunnersRepo {
   async listPendingEnrolments(accountId: string, now: string): Promise<EnrolmentRecord[]> {
     const { results } = await this.db
       .prepare(
-        `SELECT code_hash, account_id, name, allowed_projects, created_by, created_at, expires_at, used_by_runner_id, used_at
+        `SELECT ${ENROLMENT_COLUMNS}
          FROM runner_enrolments
          WHERE account_id = ?1 AND used_by_runner_id IS NULL AND julianday(expires_at) > julianday(?2)
          ORDER BY created_at, code_hash`,
@@ -247,8 +284,7 @@ export class RunnersRepo {
   async findEnrolment(codeHash: string): Promise<EnrolmentRecord | null> {
     const row = await this.db
       .prepare(
-        `SELECT code_hash, account_id, name, allowed_projects, created_by, created_at, expires_at, used_by_runner_id, used_at
-         FROM runner_enrolments WHERE code_hash = ?1`,
+        `SELECT ${ENROLMENT_COLUMNS} FROM runner_enrolments WHERE code_hash = ?1`,
       )
       .bind(codeHash)
       .first<EnrolmentRow>();
@@ -284,6 +320,14 @@ export class RunnersRepo {
     audit: NewAuditEvent,
   ): Promise<HostedEnrolOutcome> {
     const hostedRefusal = hosted ? `AND NOT ${hostedEnrolmentRefusedSql('?2', '?1')}` : '';
+    // R-SCOPE-4: a hosted runner is created `selected` with what the server declares for it, whatever the code says;
+    // its scope is never widened to `all` (`setScope` refuses it too).
+    const scope: RunnerProjectScopeDto = hosted
+      ? { projectScope: 'selected', allowedProjects: runner.allowedProjects }
+      : { projectScope: runner.projectScope, allowedProjects: runner.allowedProjects };
+    const capabilities: RunnerCapabilitiesDto = hosted
+      ? { ...runner.capabilities, accessSources: SERVER_SET_ACCESS_SOURCES }
+      : runner.capabilities;
     let results: D1Result[];
     try {
       results = await this.db.batch([
@@ -292,8 +336,8 @@ export class RunnersRepo {
         // so the trigger sees the second use).
         this.db
           .prepare(
-            `INSERT INTO runners (id, account_id, name, public_key_jwk, host, capabilities, isolation, allowed_projects, version, enrolled_at, hosted)
-             SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?12
+            `INSERT INTO runners (id, account_id, name, public_key_jwk, host, capabilities, isolation, allowed_projects, version, enrolled_at, hosted, project_scope, enrolled_by)
+             SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?12, ?13, ?14
              WHERE EXISTS (
                SELECT 1 FROM runner_enrolments
                WHERE code_hash = ?11 AND used_by_runner_id IS NULL AND julianday(expires_at) > julianday(?10)
@@ -305,13 +349,15 @@ export class RunnersRepo {
             runner.name,
             JSON.stringify(runner.publicKeyJwk),
             JSON.stringify(runner.host),
-            JSON.stringify(runner.capabilities),
+            JSON.stringify(capabilities),
             runner.isolation,
-            JSON.stringify(runner.allowedProjects),
+            JSON.stringify(scope.allowedProjects),
             runner.version,
             runner.at,
             codeHash,
             hosted ? 1 : 0,
+            scope.projectScope,
+            runner.enrolledBy,
           ),
         // #522: the audit row only when this UPDATE marked the code, so a code withdrawn after the route's lookup
         // (both statements above then find no row) leaves no `runner.enrolled` row behind. #531: the expiry is judged
@@ -440,37 +486,91 @@ export class RunnersRepo {
   }
 
   /**
-   * `true` only when the list changed. `false` when the runner is not the account's or already holds exactly this
-   * list: that write changes no row, audits nothing and cancels nothing (#533). "The same list" is set equality
-   * (#547): order and duplicates do not count as a change. The list was checked against the account's projects by
-   * the caller.
+   * The runner's scope (#775): `all`, or `selected` with its list. `true` only when something changed. `false` when
+   * the runner is not the account's, is hosted or `actions-ephemeral` (R-SCOPE-4: those are never widened; the route
+   * answers 422 before this, the WHERE holds it in the write), or already holds exactly this scope: that write changes
+   * no row, audits nothing and cancels nothing (#533). "The same list" is set equality (#547): order and duplicates do
+   * not count as a change. The list was checked against the account's projects by the caller; under `all` it is `[]`.
    */
-  async setAllowedProjects(
+  async setScope(
     accountId: string,
     id: string,
-    allowedProjects: readonly string[],
+    scope: RunnerProjectScopeDto,
     audit: NewAuditEvent,
     alsoInBatch: readonly D1PreparedStatement[] = [],
   ): Promise<boolean> {
-    const list = JSON.stringify([...new Set(allowedProjects)]);
+    const list = JSON.stringify(scope.projectScope === 'all' ? [] : [...new Set(scope.allowedProjects)]);
     // #531: as in `revoke`, the audit row only for a write that happened, the extra statements after the pair.
     const [update] = await this.db.batch<{ id: string }>([
       ...auditedWrite(
         this.db,
         this.db
           .prepare(
-            `UPDATE runners SET allowed_projects = ?3 WHERE id = ?1 AND account_id = ?2 AND (
-               EXISTS (SELECT 1 FROM json_each(?3) n WHERE n.value NOT IN (SELECT value FROM json_each(runners.allowed_projects)))
+            `UPDATE runners SET project_scope = ?4, allowed_projects = ?3
+             WHERE id = ?1 AND account_id = ?2 AND hosted = 0 AND isolation <> 'actions-ephemeral' AND (
+               project_scope <> ?4
+               OR EXISTS (SELECT 1 FROM json_each(?3) n WHERE n.value NOT IN (SELECT value FROM json_each(runners.allowed_projects)))
                OR EXISTS (SELECT 1 FROM json_each(runners.allowed_projects) o WHERE o.value NOT IN (SELECT value FROM json_each(?3)))
              ) RETURNING id`,
           )
-          .bind(id, accountId, list),
+          .bind(id, accountId, list, scope.projectScope),
         audit,
       ),
       ...alsoInBatch,
     ]);
     // RETURNING, not `meta.changes`: D1 counts the rows the 0023 trigger revokes in role_keys there too.
     return (update?.results.length ?? 0) === 1;
+  }
+
+  /**
+   * Records what the runner declares its credential can serve (#775, SECURITY question 7), from the claim poll.
+   * Self-hosted, unrevoked runners only: a hosted or `actions-ephemeral` identity keeps the server's value whatever it
+   * sends. `false` when nothing changed. The declaration only narrows the claim, so the runner's own say-so costs at
+   * most the runner's own jobs.
+   */
+  async setAccessSources(id: string, accessSources: readonly AccessSource[]): Promise<boolean> {
+    const declared = JSON.stringify([...accessSources].sort());
+    const result = await this.db
+      .prepare(
+        `UPDATE runners SET capabilities = json_set(capabilities, '$.accessSources', json(?2))
+         WHERE id = ?1 AND hosted = 0 AND isolation <> 'actions-ephemeral' AND revoked_at IS NULL
+           AND (json_type(capabilities, '$.accessSources') IS NULL OR json_extract(capabilities, '$.accessSources') <> json(?2))`,
+      )
+      .bind(id, declared)
+      .run();
+    return result.meta.changes === 1;
+  }
+
+  /**
+   * The active projects each unrevoked runner of `accountId` serves now (#775): the claim's own project term
+   * (`runnerServesSql`, D3 applied) inside the account, so Settings › Runners and `/runner/self` show the answer the
+   * claim would give. `runnerId` narrows it to one runner. Slug order within a runner.
+   */
+  async servedProjectsOf(accountId: string, runnerId: string | null = null): Promise<ServedProjectRecord[]> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT r.id AS runner_id, p.slug, p.access_source
+         FROM runners r JOIN projects p ON p.account_id = r.account_id
+         WHERE r.account_id = ?1 AND (?2 IS NULL OR r.id = ?2) AND r.revoked_at IS NULL AND p.archived_at IS NULL
+           AND ${runnerServesSql('r', 'p.slug')}
+         ORDER BY r.id, p.slug`,
+      )
+      .bind(accountId, runnerId)
+      .all<{ runner_id: string; slug: string; access_source: string }>();
+    return results
+      .filter((row) => isAccessSource(row.access_source))
+      .map((row) => ({ runnerId: row.runner_id, slug: row.slug, accessSource: row.access_source as AccessSource }));
+  }
+
+  /** The unrevoked `all` runners of `accountId` that serve `slug` now (R-SCOPE-2: audited when a project appears). */
+  async allScopeRunnersServing(accountId: string, slug: string): Promise<readonly string[]> {
+    const served = await this.servedProjectsOf(accountId);
+    const all = new Set(
+      (await this.listForAccount(accountId))
+        .filter((runner) => runner.projectScope === 'all' && runner.revokedAt === null)
+        .map((runner) => runner.id),
+    );
+    return served.filter((row) => row.slug === slug && all.has(row.runnerId)).map((row) => row.runnerId);
   }
 
   /**

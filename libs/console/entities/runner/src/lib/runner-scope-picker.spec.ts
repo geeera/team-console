@@ -1,0 +1,73 @@
+import { Component } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { provideConsoleI18n } from '@console/shared/i18n';
+import type { RunnerProjectScope } from '@shared/contracts';
+import { RunnerScopePicker } from './runner-scope-picker';
+
+@Component({
+  imports: [RunnerScopePicker],
+  template: `<tc-runner-scope-picker
+    legend="Scope"
+    projectsLegend="Projects"
+    [projects]="projects"
+    [(scope)]="scope"
+    [(selected)]="selected"
+  />`,
+})
+class Host {
+  projects = [
+    { slug: 'team-console', displayName: 'Team Console' },
+    { slug: 'storify', displayName: 'Storify' },
+  ];
+  scope: RunnerProjectScope = 'all';
+  selected: readonly string[] = ['team-console'];
+}
+
+describe('RunnerScopePicker (#775)', () => {
+  async function render() {
+    TestBed.configureTestingModule({ providers: [provideConsoleI18n()] });
+    const fixture = TestBed.createComponent(Host);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    const radio = (scope: RunnerProjectScope): HTMLInputElement =>
+      root.querySelector(`[data-testid="runner-scope-${scope}"]`) as HTMLInputElement;
+    const pick = async (scope: RunnerProjectScope): Promise<void> => {
+      radio(scope).checked = true;
+      radio(scope).dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+    };
+    return { fixture, root, radio, pick };
+  }
+
+  it('offers the two scopes as one radio group with plain words, the project list only under selected', async () => {
+    const { root, radio, pick, fixture } = await render();
+    expect(root.querySelector('fieldset legend')?.textContent?.trim()).toBe('Scope');
+    expect(radio('all').checked).toBe(true);
+    expect(radio('all').name).toBe(radio('selected').name);
+    expect(root.textContent).toContain('Все проекты аккаунта');
+    expect(root.textContent).toContain('проекты других владельцев добавьте выбором');
+    expect(root.textContent).toContain('Только выбранные');
+    expect(root.querySelector('tc-runner-projects-picker')).toBeNull();
+
+    await pick('selected');
+    expect(fixture.componentInstance.scope).toBe('selected');
+    const boxes = [...root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
+    expect(boxes.map((box) => box.checked)).toEqual([true, false]);
+    boxes[1]?.click();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.selected).toEqual(['team-console', 'storify']);
+
+    // Back to `all`: the list is hidden but kept, so switching again restores it.
+    await pick('all');
+    expect(root.querySelector('tc-runner-projects-picker')).toBeNull();
+    expect(fixture.componentInstance.selected).toEqual(['team-console', 'storify']);
+  });
+
+  it('describes each option by its hint for assistive technology', async () => {
+    const { root, radio } = await render();
+    for (const scope of ['all', 'selected'] as const) {
+      const hintId = radio(scope).getAttribute('aria-describedby') ?? '';
+      expect(root.querySelector(`#${hintId}`)?.textContent?.trim().length).toBeGreaterThan(0);
+    }
+  });
+});

@@ -106,7 +106,7 @@ export {
   auditEventStatement,
 } from './lib/accounts/audit.repo';
 export type { AuditEventRecord, AuditPage, NewAuditEvent } from './lib/accounts/audit.repo';
-export { RunnersRepo, TWO_POLLERS_WINDOW_MS } from './lib/runners/runners.repo';
+export { RunnersRepo, SERVER_SET_ACCESS_SOURCES, TWO_POLLERS_WINDOW_MS } from './lib/runners/runners.repo';
 export type {
   EnrolmentRecord,
   HostedEnrolOutcome,
@@ -114,6 +114,7 @@ export type {
   NewRunner,
   RunnerRecord,
   RunnerSighting,
+  ServedProjectRecord,
   SightingOutcome,
 } from './lib/runners/runners.repo';
 export { RateLimitsRepo, rateWindowOf, retryAfterOf } from './lib/runners/rate-limits.repo';

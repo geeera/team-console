@@ -1,13 +1,14 @@
 import { join } from 'node:path';
-import type { AccessSource, RunnerIsolation } from '@shared/contracts';
+import { ACCESS_SOURCES, type AccessSource, type RunnerIsolation } from '@shared/contracts';
 import { ANTHROPIC_OAUTH_TOKEN_PREFIX } from '@shared/redaction';
 import { RunnerFileError, assertPrivateDir, readPrivateFile } from '../config/private-files';
 import { LaunchRefusal } from '../jobs/refusal';
 
 /**
  * The Claude credential a job runs with (ADR 0008 decision 5, RR11): one kind per runner, each allowed on named
- * backends only. The runner reads a file kind itself and hands the value to the job's env only; the console never
- * learns which kind is configured, and no value is ever posted or logged.
+ * backends only. The runner reads a file kind itself and hands the value to the job's env only; the console learns
+ * the derived access sources alone (`accessSourcesOf`, #775), never the kind or its storage, and no value is ever
+ * posted or logged.
  */
 
 /**
@@ -54,6 +55,20 @@ export const SOURCE_CREDENTIAL_KINDS: Readonly<Record<AccessSource, readonly Cre
   api_key: ['api-key'],
   subscription: OAUTH_CREDENTIAL_KINDS,
 };
+
+/**
+ * What the runner declares its credential can serve (#775, SECURITY question 7), derived from
+ * `SOURCE_CREDENTIAL_KINDS` and sent at enrol and with every claim: a derived enum, never the kind or a value. No
+ * credential configured means the host's own Claude sign-in, which serves a subscription project only
+ * (`assertCredentialMatchesSource`). The console uses it to narrow the claim and to show fit; a wrong declaration
+ * costs this runner its own job at launch (`credential-source-mismatch`), never anyone else's.
+ */
+export function accessSourcesOf(credential: CredentialConfig | undefined): readonly AccessSource[] {
+  const kind = credential?.kind ?? null;
+  return ACCESS_SOURCES.filter((source) =>
+    kind === null ? source === 'subscription' : SOURCE_CREDENTIAL_KINDS[source].includes(kind),
+  );
+}
 
 /** A kind that does not match the project's access source is refused; the message names the two enums, never a value. */
 export function assertCredentialMatchesSource(kind: CredentialKind | null, source: AccessSource): void {

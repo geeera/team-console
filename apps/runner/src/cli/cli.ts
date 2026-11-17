@@ -202,7 +202,11 @@ async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number>
       { home, fetch: deps.fetch, host: deps.host, ...(deps.keys === undefined ? {} : { keys: deps.keys }) },
     );
     const projects =
-      config.allowedProjects.length === 0 ? 'no projects yet' : config.allowedProjects.join(', ');
+      config.projectScope === 'all'
+        ? 'all projects of the account, present and future'
+        : config.allowedProjects.length === 0
+          ? 'no projects yet'
+          : config.allowedProjects.join(', ');
     deps.stdout(
       `Enrolled "${config.name}" (${config.runnerId}) on ${config.apiUrl} with the ${config.backend} backend; projects: ${projects}.`,
     );

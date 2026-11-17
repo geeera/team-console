@@ -571,14 +571,18 @@ address and 300 per environment per minute from `rate_limits`, since a WAF rule 
 runner's public JWK, host, capabilities, backend and version — the name and `allowed_projects` are the owner's from the
 code; `none` is 422 `runner-isolation-none` on production. `GET /api/v1/runner/release` names `RUNNER_RELEASE_VERSION`/
 `RUNNER_MINIMUM_VERSION` (vars). Owner-of-account routes (`routes/account-runners.ts`, rule `account`): `POST
-/api/v1/accounts/:id/runners/enrolment-code` (`{name, allowedProjects}`; 422 `allowed-projects-invalid` for a slug that
-is not an active project of this account), `GET …/runners` (`RunnerDto`: no key material), `PATCH …/runners/:runner`
-(`allowedProjects`, same check), `POST …/runners/:runner/revoke` (409 `runner-revoked` twice), `POST
+/api/v1/accounts/:id/runners/enrolment-code` (`{name, projectScope?, allowedProjects?}`, #775: `projectScope` defaults to
+`all` with an empty list, `selected` takes the list; 422 `allowed-projects-invalid` for a slug that is not an active
+project of this account, 422 `enrolment-code-invalid-input` for a list beside `all`), `GET …/runners` (`RunnerDto`: no
+key material; `projectScope`, `servedProjects` = the active projects the claim would serve now with each one's
+credential `fit`), `PATCH …/runners/:runner` (`{projectScope, allowedProjects}`, both keys exactly, same slug check;
+422 `runner-scope-fixed` for a hosted or `actions-ephemeral` identity; a no-op writes and audits nothing; audit
+`runner.scope-changed {from, to}`; `all → selected` cancels the live jobs outside the list in the same batch), `POST …/runners/:runner/revoke` (409 `runner-revoked` twice), `POST
 …/runners/:runner/clear-suspect` (#492; 409 `runner-not-suspect` | `runner-revoked`; audit `runner.suspect-cleared`),
 `RunnerListDto.pendingEnrolments` (unused, unexpired codes: `id` is the code's SHA-256, never the code) and `POST
 …/runners/enrolment-codes/:enrolment/withdraw` (#492; deletes the pending row, 204; one 404 `enrolment-not-found` for
 malformed, foreign, used, expired or gone; audit `enrolment-code.withdrawn`) — both writes conditional, the audit row
-on `changes()` (`auditedWrite` in `audit.repo.ts`, #522: the write and its audit row as one adjacent pair, the only way to the `changes()` condition, which `enrol` uses too); another account's runner id is 404 `runner-not-found`. A runner's scope (`scopeOf`) is its `allowed_projects` inside its own account.
+on `changes()` (`auditedWrite` in `audit.repo.ts`, #522: the write and its audit row as one adjacent pair, the only way to the `changes()` condition, which `enrol` uses too); another account's runner id is 404 `runner-not-found`. A runner's scope (`scopeOf`) is its projects inside its own account: `runners.project_scope` (#775, migration 0036) is `all` — every active project of the account, present and future; owner decision D3 (2026-11-17): with more than one owner a subscription-capable runner (`capabilities.accessSources` names `subscription` or declares nothing) serves under `all` only the projects whose `projects.created_by` equals its `runners.enrolled_by` — or `selected` with `allowed_projects` (`'[]'` under `all`, the 0036 CHECK). One shared SQL term, `runnerServesSql(runner, slug)` in `@worker/db` `team-config/access-source.ts`, is the only reader of `json_each(allowed_projects)`; every caller (the claim, `RUNNER_STILL_ALLOWS_SQL`, `servedProjectsOf`) ANDs it with the account equality, and `hostedRunnerAdmittedSql` stays blind to scope and list (`access-source.spec.ts` pins all three). `capabilities.accessSources` (a subset of `ACCESS_SOURCES`, sent at enrol and in the claim body `{accessSources}`, stored by `setAccessSources` for self-hosted runners only, `['api_key']` server-set for hosted and Actions identities) only narrows the claim (`p.access_source IN …`); the host's `credential-source-mismatch` stays the binding control. The runner holds itself to the scope the console answers — `GET /api/v1/runner/self` (`RunnerSelfDto`, R-SELF: the exact key set) at the loop's start and `ClaimResponse.scope` with every claim (`apps/runner/src/jobs/runner-scope.ts`) — never to the enrol-time `config.json` copy, so a change on Settings › Runners applies without a restart.
 `newUlid`/`sha256Hex` live in `@worker/core`. The redactor masks `tce_` codes and the JWT; `runner.spec.ts` proves no
 code, key or JWT reaches a log line.
 Settings › Runners (#464, ADR 0008 row 2-E part A): `GET /api/v1/accounts` (rule `projects`: the caller's own

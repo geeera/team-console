@@ -20,6 +20,30 @@ export function hostedRunnerAdmittedSql(slug: string, policy: string): string {
 }
 
 /**
+ * The runner row aliased `runner` serves the project `slug` (an SQL expression) under its scope (#775, migration
+ * 0036): `selected` is the list in `allowed_projects`; `all` is every project of the account — with owner decision
+ * D3 (2026-11-17): in an account with more than one owner, a runner that can serve a Claude subscription (its
+ * `capabilities.accessSources` names `subscription`, or declares nothing) serves under `all` only the projects the
+ * enrolling owner created; the other owners' projects need explicit selection. An API-key-only runner is one
+ * person's bill, not one person's subscription doing another's work, so D3 leaves it alone.
+ *
+ * The project term only: **every** caller ANDs it with the account equality (`runner.account_id = jobs.account_id`
+ * or `= p.account_id`), so a tampered list or a slug of another account never reaches past the account boundary
+ * (threat model C9, R-SCOPE-3). `hostedRunnerAdmittedSql` stays blind to it on purpose (R-SCOPE-4).
+ */
+export function runnerServesSql(runner: string, slug: string): string {
+  const subscriptionCapable = `(json_type(${runner}.capabilities, '$.accessSources') IS NULL
+          OR EXISTS (SELECT 1 FROM json_each(${runner}.capabilities, '$.accessSources') WHERE value = 'subscription'))`;
+  const oneOwner = `(SELECT COUNT(*) FROM account_members om WHERE om.account_id = ${runner}.account_id AND om.role = 'owner') <= 1`;
+  const ownProject = `(${runner}.enrolled_by IS NOT NULL
+          AND ${runner}.enrolled_by = (SELECT cp.created_by FROM projects cp WHERE cp.slug = ${slug}))`;
+  return `(
+      (${runner}.project_scope = 'all' AND (NOT ${subscriptionCapable} OR ${oneOwner} OR ${ownProject}))
+      OR ${slug} IN (SELECT value FROM json_each(${runner}.allowed_projects))
+    )`;
+}
+
+/**
  * The placement `policy` (an SQL expression; NULL means `any`) would pick the runner `runnerId` (an SQL expression)
  * for a job. Machine-agnostic: whether the runner is hosted or lists the project is the caller's to add.
  */

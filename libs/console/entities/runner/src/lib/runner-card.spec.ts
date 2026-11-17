@@ -120,6 +120,31 @@ describe('RunnerCard', () => {
       'ни одного — раннер не возьмёт задания',
     );
   });
+
+  // #775: `all` says so and lists what it serves now; a project the declared credential cannot run is marked.
+  it('shows an all-scope runner with the projects it serves now, and marks one its credential does not fit', async () => {
+    const root = await render(
+      runnerFixture({
+        projectScope: 'all',
+        allowedProjects: [],
+        capabilities: { local: true, maxConcurrency: 1, accessSources: ['subscription'] },
+        servedProjects: [
+          { slug: 'team-console', accessSource: 'subscription', fit: true },
+          { slug: 'storify', accessSource: 'api_key', fit: false },
+        ],
+      }),
+    );
+    expect(text(root, 'runner-scope')).toBe('все проекты аккаунта');
+    expect(text(root, 'runner-projects')).toBe('сейчас: team-console, storify');
+    const unfit = [...root.querySelectorAll('[data-testid="runner-unfit"]')];
+    expect(unfit.map((chip) => chip.getAttribute('data-slug'))).toEqual(['storify']);
+    expect(unfit[0]?.textContent?.trim()).toBe('storify не подходит: проект на API-ключе, раннер с подпиской');
+    TestBed.resetTestingModule();
+
+    const none = await render(runnerFixture({ projectScope: 'all', allowedProjects: [], servedProjects: [] }));
+    expect(text(none, 'runner-projects')).toBe('пока ни одного');
+    expect(none.querySelector('[data-testid="runner-unfit"]')).toBeNull();
+  });
 });
 
 describe('RunnerProjectsPicker', () => {

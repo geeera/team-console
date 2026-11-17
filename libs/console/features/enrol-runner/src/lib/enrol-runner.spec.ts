@@ -14,6 +14,7 @@ const ISSUED: EnrolmentCodeDto = {
   apiUrl: 'https://team-console-dev.example.dev',
   audience: 'team-console:dev',
   name: 'Mac',
+  projectScope: 'selected',
   allowedProjects: ['team-console'],
 };
 
@@ -71,6 +72,12 @@ describe('EnrolRunnerDialog (#464)', () => {
       (root.querySelector(`[data-slug="${slug}"] input`) as HTMLInputElement).click();
       await fixture.whenStable();
     };
+    const pick = async (scope: 'all' | 'selected'): Promise<void> => {
+      const radio = find(`runner-scope-${scope}`) as HTMLInputElement;
+      radio.checked = true;
+      radio.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+    };
     const submit = async (): Promise<void> => {
       (root.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
       await settle();
@@ -83,16 +90,21 @@ describe('EnrolRunnerDialog (#464)', () => {
       (release as (() => void) | null)?.();
       await settle();
     };
-    return { root, find, type, tick, submit, calls, close, ref, hold, resume };
+    return { root, find, type, pick, tick, submit, calls, close, ref, hold, resume };
   }
 
-  it('issues a code for the name and projects and shows the enrol command once, with its expiry', async () => {
-    const { root, find, type, tick, submit, calls } = await render();
+  it('issues a code for the name and the chosen projects and shows the enrol command once, with its expiry', async () => {
+    const { root, find, type, pick, tick, submit, calls } = await render();
     await type('  Mac  ');
+    // #775: all projects is preselected; the list appears once the owner picks "only the chosen ones".
+    expect(find('runner-scope-all')).not.toBeNull();
+    expect((find('runner-scope-all') as HTMLInputElement).checked).toBe(true);
+    expect(root.querySelector('[data-slug="team-console"]')).toBeNull();
+    await pick('selected');
     await tick('team-console');
     await submit();
     expect(calls).toEqual([
-      { accountId: OWNER_ACCOUNT_ID, input: { name: 'Mac', allowedProjects: ['team-console'] } },
+      { accountId: OWNER_ACCOUNT_ID, input: { name: 'Mac', projectScope: 'selected', allowedProjects: ['team-console'] } },
     ]);
     expect(find('enrol-code')).not.toBeNull();
     expect(root.querySelector('form')).toBeNull();
@@ -110,6 +122,15 @@ describe('EnrolRunnerDialog (#464)', () => {
     await submit();
     find('enrol-done')?.click();
     expect(close).toHaveBeenCalledWith(true);
+  });
+
+  // #775: the default scope is every project of the account, sent as `all` with an empty list, and said in plain words.
+  it('issues a code for all projects of the account by default and says what that covers', async () => {
+    const { find, type, submit, calls } = await render(() => ({ ok: true, value: { ...ISSUED, projectScope: 'all', allowedProjects: [] } }));
+    await type('Mac');
+    await submit();
+    expect(calls).toEqual([{ accountId: OWNER_ACCOUNT_ID, input: { name: 'Mac', projectScope: 'all', allowedProjects: [] } }]);
+    expect(find('enrol-scope')?.textContent).toContain('Проекты: все проекты аккаунта, включая те, что появятся позже.');
   });
 
   it('refuses an empty name and sends nothing', async () => {

@@ -1,24 +1,30 @@
-import type { PauseRunnerInput } from '@shared/contracts';
+import type { ClaimRunnerInput, PauseRunnerInput, RunnerSelfDto } from '@shared/contracts';
 import { redactSecrets } from '@shared/redaction';
 import type { IsolationBackend } from '../backends/backend';
 import { MAX_PAUSE_MS } from '../budget/detect';
 import { activePause, loadRunnerState, saveRunnerState, type RunnerPause, type RunnerState } from '../budget/state';
 import type { ClaimOutcome } from '../client/runner-client';
 import type { RunnerConfig } from '../config/config';
+import { accessSourcesOf } from '../env/credential';
 import { JobRegistry } from '../proxy/job-registry';
 import { runJob, type JobConsole, type JobReport, type JobRunDeps } from './run-job';
+import { scopeOfClaim, scopeOfConfig, scopeOfSelf, type RunnerScope } from './runner-scope';
 
 /**
  * `run-once` and `run --loop` (architect note on #468, PR 2): claim, run, repeat. The local pause of decision 9 is
  * honoured before every claim, including across restarts (`state.json`); one job at a time (`maxConcurrency` 1).
  * The backend's preflight runs before each claim, so a job never starts while a previous one's process remains.
  * The pause is mirrored to the console (#571) so its claim skips this runner too and Settings › Runners shows it.
+ * The scope the runner holds itself to comes from the console (#775): `GET /runner/self` at the start and the scope
+ * in every claim, never the enrol-time copy, so a change on Settings › Runners applies without a restart.
  */
 
 export interface LoopConsole extends JobConsole {
-  claim(): Promise<ClaimOutcome>;
+  claim(input?: ClaimRunnerInput): Promise<ClaimOutcome>;
   pause(input: PauseRunnerInput): Promise<void>;
   resume(): Promise<void>;
+  /** Absent on a console that predates `/runner/self`; the loop then starts from the enrol-time copy. */
+  self?(): Promise<RunnerSelfDto>;
 }
 
 export interface LoopDeps {
@@ -109,11 +115,32 @@ async function mirrorPause(
   }
 }
 
+/**
+ * The scope at the loop's start: the console's answer when it gives one, else the enrol-time copy (logged, so an
+ * unreachable `/runner/self` is visible). A failure here is not fatal: the first claim brings the scope too.
+ */
+async function startingScope(deps: LoopDeps, log: (line: string) => void): Promise<RunnerScope> {
+  if (deps.client.self === undefined) {
+    return scopeOfConfig(deps.config);
+  }
+  try {
+    const self = await deps.client.self();
+    const scope = scopeOfSelf(self);
+    log(`scope from the console: ${scope.projectScope}${scope.projects.length === 0 ? ' (no project yet)' : ` (${scope.projects.join(', ')})`}`);
+    return scope;
+  } catch (error: unknown) {
+    log(`could not read the scope from the console, using config.json until the first claim: ${error instanceof Error ? error.message : 'unknown error'}`);
+    return scopeOfConfig(deps.config);
+  }
+}
+
 export async function runLoop(mode: 'once' | 'loop', deps: LoopDeps): Promise<LoopEnd> {
   const sleep = deps.sleep ?? abortableSleep;
   const log = redactedLogOf(deps);
   const registry = new JobRegistry();
   let state = await loadRunnerState(deps.home);
+  let scope = await startingScope(deps, log);
+  const claimInput: ClaimRunnerInput = { accessSources: accessSourcesOf(deps.config.credential) };
   // Nothing mirrored yet in this process: a pause still in force from `state.json` is posted again on start.
   let mirrored: RunnerPause | null = null;
   while (!deps.shutdown.aborted) {
@@ -133,7 +160,7 @@ export async function runLoop(mode: 'once' | 'loop', deps: LoopDeps): Promise<Lo
     await deps.backend.preflight();
     let claim: ClaimOutcome;
     try {
-      claim = await deps.client.claim();
+      claim = await deps.client.claim(claimInput);
     } catch (error: unknown) {
       if (mode === 'once') {
         throw error;
@@ -150,6 +177,9 @@ export async function runLoop(mode: 'once' | 'loop', deps: LoopDeps): Promise<Lo
       continue;
     }
     log(`claimed job ${claim.job.id} (${claim.job.kind})`);
+    if (claim.scope !== undefined) {
+      scope = scopeOfClaim(claim.scope);
+    }
     const report = await runJob(claim.job, claim.jobToken, {
       home: deps.home,
       config: deps.config,
@@ -161,6 +191,7 @@ export async function runLoop(mode: 'once' | 'loop', deps: LoopDeps): Promise<Lo
       now: deps.now,
       shutdown: deps.shutdown,
       limitStreak: state.limitStreak,
+      scope,
       announcePause: async (limitPause) => {
         mirrored = await mirrorPause(deps, limitPause, mirrored);
       },

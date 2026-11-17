@@ -75,6 +75,7 @@ describe('team-console-runner CLI', () => {
           accountId: ACCOUNT_ID,
           name: 'CI box',
           audience: 'team-console:local',
+          projectScope: 'selected',
           allowedProjects: [],
           pollSeconds: 60,
         }),
@@ -100,6 +101,7 @@ describe('team-console-runner CLI', () => {
       accountId: ACCOUNT_ID,
       name: 'CI box',
       audience: 'team-console:local',
+      projectScope: 'selected',
       allowedProjects: [],
       pollSeconds: 60,
     });
@@ -355,6 +357,7 @@ describe('team-console-runner CLI', () => {
           accountId: ACCOUNT_ID,
           name: 'CI box',
           audience: 'team-console:local',
+          projectScope: 'selected',
           allowedProjects: [],
           pollSeconds: 60,
         }),
