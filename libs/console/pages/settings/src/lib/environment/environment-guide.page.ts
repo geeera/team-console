@@ -17,6 +17,7 @@ import { RouterLink } from '@angular/router';
 import { guideSourceOf, proseSegmentsOf, type RowStatus } from '@console/entities/environment';
 import { ConsoleLanguage, LocalTimePipe, TranslocoPipe } from '@console/shared/i18n';
 import { CopyCode, Icon, StateBlock, type IconName } from '@console/shared/ui';
+import type { Environment } from '@shared/contracts';
 import { setupCommandOf, type ManifestGuide } from '@shared/environment';
 import { ROW_STATUS_ICONS } from './environment-row';
 import { EnvironmentScreen } from './environment-screen';
@@ -26,7 +27,7 @@ type GuideSection = 'scopes' | 'rotation' | 'gotchas';
 const SECTIONS: readonly GuideSection[] = ['scopes', 'rotation', 'gotchas'];
 
 /**
- * One item's guide (#104), rendered from the manifest only — the same text `setup` prints (owner decision
+ * One item's guide (#104; a project's too, #750), rendered from the manifest only — the same text `setup` prints (owner decision
  * 2026-10-01). A section the manifest leaves empty is left out. The command fits the status: set it when missing,
  * replace it when set, check it when the console cannot see it. Never a value, a length or a prefix.
  */
@@ -44,25 +45,25 @@ export class EnvironmentGuidePage {
   protected readonly screen = inject(EnvironmentScreen);
 
   /**
-   * Route params (component input binding, which sets a param the route lacks to `undefined`): `place` on a
-   * Worker or GitHub guide, `slug` on a per-project one.
+   * Route params (component input binding, which sets a param the route lacks to `undefined`): `place` on an
+   * operator guide (its `:env` is the list's), `env` on a project's (`/settings/projects/:slug/environment/:env/:name`).
    */
   readonly place = input<string | undefined>(undefined);
   readonly name = input.required<string>();
-  readonly slug = input<string | undefined>(undefined);
+  readonly env = input<string | undefined>(undefined);
 
   private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
 
-  protected readonly env = this.screen.environment;
-  protected readonly id = computed(() => {
-    const slug = this.slug();
-    return slug === undefined ? `${this.place() ?? ''}/${this.name()}` : `project/${slug}/${this.name()}`;
+  private readonly guideEnvironment = computed(() => this.screen.guideEnvironmentOf(this.env()));
+  /** Where the guide's commands point; an unknown `:env` finds no row and reads as not found. */
+  protected readonly environment = computed<Environment>(() => this.guideEnvironment() ?? 'production');
+  protected readonly id = computed(() => this.screen.guideIdOf({ place: this.place(), name: this.name() }));
+  protected readonly view = computed(() => {
+    const environment = this.guideEnvironment();
+    return environment === null ? null : this.screen.rowAt(environment, this.id());
   });
-  protected readonly view = computed(() => this.screen.rowById(this.id()));
-  /** A per-project guide opened by URL waits for the projects before it says "no such setting". */
-  protected readonly waiting = computed(
-    () => this.view() === null && this.slug() !== undefined && !this.screen.projectsSettled(),
-  );
+  protected readonly notFoundLine = computed(() => this.screen.notFoundLineOf(this.env() ?? this.environment()));
+  protected readonly backLine = computed(() => this.screen.backLineOf(this.environment()));
   protected readonly item = computed(() => this.view()?.row.item ?? null);
   protected readonly source = computed(() => {
     const item = this.item();
@@ -84,10 +85,10 @@ export class EnvironmentGuidePage {
   });
   protected readonly purpose = computed(() => proseSegmentsOf(this.item()?.purpose ?? ''));
   protected readonly neededBy = computed(() => (this.item()?.neededBy ?? []).join(', '));
-  protected readonly setCommand = computed(() => setupCommandOf(this.env()));
-  protected readonly rotateCommand = computed(() => setupCommandOf(this.env(), 'rotate'));
-  protected readonly checkCommand = computed(() => setupCommandOf(this.env(), 'check'));
-  protected readonly backLink = computed(() => ['/settings/environment', this.env()]);
+  protected readonly setCommand = computed(() => setupCommandOf(this.environment()));
+  protected readonly rotateCommand = computed(() => setupCommandOf(this.environment(), 'rotate'));
+  protected readonly checkCommand = computed(() => setupCommandOf(this.environment(), 'check'));
+  protected readonly backLink = computed(() => this.screen.listRouteOf(this.environment()));
 
   constructor() {
     effect(() => {

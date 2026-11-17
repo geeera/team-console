@@ -9,6 +9,19 @@ import {
 } from './errors';
 import { githubPath } from './github-path';
 import type { RepoName } from './repo-name';
+import {
+  SCOPED_MINT_PERMISSIONS,
+  SCOPED_REVOKE_FAILURE,
+  SWITCHED_SCOPED_KINDS,
+  ScopedInstallationToken,
+  assertScopedTarget,
+  scopedMintFailureOf,
+  setupWriteDisabledError,
+  type ScopedMintAudit,
+  type ScopedMintFacts,
+  type ScopedMintKind,
+  type ScopedMintTarget,
+} from './scoped-mint';
 import type { InstallationListTokenSource, InstallationTokenSource } from './token-source';
 import {
   discardBody,
@@ -44,14 +57,6 @@ export const INSTALLATION_LIST_PERMISSIONS: Readonly<Record<string, 'read'>> = O
   metadata: 'read',
 });
 
-/**
- * #670 (ADR 0008 item 9, owner decision 1 on #573): the one write the console's app token ever carries, minted per
- * dispatch for one repository by id and never cached, stored or logged.
- */
-export const ACTIONS_DISPATCH_PERMISSIONS: Readonly<Record<string, 'write'>> = Object.freeze({
-  actions: 'write',
-});
-
 // GitHub tolerates little clock drift: backdate iat, and keep exp under the 10-minute maximum.
 const JWT_BACKDATE_S = 60;
 const JWT_LIFETIME_S = 9 * 60;
@@ -78,6 +83,11 @@ export interface GitHubAppAuthOptions {
   readonly deadlineSignal?: () => AbortSignal;
   /** Where a failed revoke of a refused token is reported (#317); defaults to a redacting JSON line on stdout. */
   readonly logger?: Logger;
+  /**
+   * #759 kill switch: whether the `workflow-pr` mint may run at all. Off unless set to `enabled` (the api Worker sets
+   * it from `ALLOW_ACTIONS_SETUP_WRITE`); off, that mint is refused with 503 `github-write-disabled` before any request.
+   */
+  readonly setupWrite?: 'enabled' | 'disabled';
 }
 
 interface CachedToken {
@@ -314,6 +324,7 @@ export class GitHubAppAuth {
   private readonly now: () => number;
   private readonly transportOptions: GitHubTransportOptions;
   private readonly logger: Logger;
+  private readonly setupWrite: 'enabled' | 'disabled';
   private signingKey: CryptoKey | undefined;
   private readonly tokens = new Map<string, CachedToken>();
   /** Concurrent requests for one token share a mint instead of each spending two subrequests. */
@@ -328,6 +339,7 @@ export class GitHubAppAuth {
     this.transportOptions =
       options.deadlineSignal === undefined ? {} : { deadlineSignal: options.deadlineSignal };
     this.logger = options.logger ?? createLogger({ component: 'github-app-auth' });
+    this.setupWrite = options.setupWrite ?? 'disabled';
   }
 
   /** Every GitHub call this instance makes, with its (possibly test-shortened) deadline signal. */
@@ -513,35 +525,84 @@ export class GitHubAppAuth {
   }
 
   /**
-   * #670: a token for `workflow_dispatch` on one repository — `repository_ids: [repositoryId]`, `actions: write` and
-   * nothing else, checked like `mintForRepo` (exact permissions, `selected`, that one repository by id) and refused
-   * and revoked otherwise. Never cached: the caller makes its one call with it and drops it (it lives an hour at
-   * GitHub at most). `installationId` is the project's own, linked to its account, never looked up by name, so a
-   * project cannot dispatch through another account's installation. An installation without the permission makes
-   * GitHub answer 422, thrown as 502 `github-unexpected` with that status.
+   * A one-repository token of a named kind (#670, #759): `repository_ids: [repositoryId]` and exactly the kind's
+   * permissions, checked like `mintForRepo` (exact permissions, `selected`, that one repository by id) and refused and
+   * revoked otherwise. Never cached: the caller makes its few calls and hands it to `revokeScoped` in `finally`.
+   * `target` is the project row's own installation and repository, never input, so a project cannot reach another
+   * account's installation. An installation without the permission makes GitHub answer 422, thrown as 502
+   * `github-unexpected` with that status; `workflow-pr` is refused with 503 `github-write-disabled` while the kill
+   * switch is off. `audit` hears the attempt before anything is sent, and then the outcome, success or not.
    */
-  async mintForActionsDispatch(installationId: number, repositoryId: number): Promise<string> {
-    const minted = await this.mint(
-      installationId,
-      { repository_ids: [repositoryId], permissions: ACTIONS_DISPATCH_PERMISSIONS },
-      {
-        permissions: ACTIONS_DISPATCH_PERMISSIONS,
-        repositorySelections: ['selected'],
-        repository: null,
-        repositoryId,
-        toleratesMetadata: true,
-      },
-    );
-    return minted.token;
+  async mintScoped<K extends ScopedMintKind>(
+    kind: K,
+    target: ScopedMintTarget,
+    audit: ScopedMintAudit,
+  ): Promise<ScopedInstallationToken<K>> {
+    assertScopedTarget(target);
+    const facts: ScopedMintFacts = {
+      kind,
+      installationId: target.installationId,
+      repositoryId: target.repositoryId,
+    };
+    await audit({ ...facts, outcome: 'attempted' });
+    let bearer: string;
+    try {
+      if (SWITCHED_SCOPED_KINDS.has(kind) && this.setupWrite !== 'enabled') {
+        throw setupWriteDisabledError();
+      }
+      const permissions = SCOPED_MINT_PERMISSIONS[kind];
+      const minted = await this.mint(
+        target.installationId,
+        { repository_ids: [target.repositoryId], permissions },
+        {
+          permissions,
+          repositorySelections: ['selected'],
+          repository: null,
+          repositoryId: target.repositoryId,
+          toleratesMetadata: true,
+        },
+      );
+      bearer = minted.token;
+    } catch (error: unknown) {
+      await this.auditFailure(audit, facts, error);
+      throw error;
+    }
+    const token = new ScopedInstallationToken(kind, target.installationId, target.repositoryId, bearer);
+    try {
+      await audit({ ...facts, outcome: 'minted' });
+    } catch (error: unknown) {
+      await this.revokeScoped(token);
+      throw error;
+    }
+    return token;
   }
 
   /**
-   * #723 item 1: best-effort `DELETE /installation/token` for a `mintForActionsDispatch` token once its one call is
-   * made, whatever the call answered, so it does not stay live at GitHub for the rest of its hour. Never throws: a
-   * failure is only logged, with GitHub's status or the error type, never the token.
+   * #723 item 1: best-effort `DELETE /installation/token` for a scoped token once its calls are made, whatever they
+   * answered, so it does not stay live at GitHub for the rest of its hour. Never throws: a failure is only logged,
+   * with GitHub's status or the error type, never the token.
    */
-  async revokeActionsDispatchToken(token: string, installationId: number): Promise<void> {
-    await this.revoke(token, installationId, 'dispatch installation token not revoked');
+  async revokeScoped(token: ScopedInstallationToken): Promise<void> {
+    await this.revoke(token.bearer(), token.installationId, SCOPED_REVOKE_FAILURE[token.kind]);
+  }
+
+  private async auditFailure(audit: ScopedMintAudit, facts: ScopedMintFacts, error: unknown): Promise<void> {
+    try {
+      await audit({
+        ...facts,
+        outcome: 'failed',
+        failure: scopedMintFailureOf(error),
+        githubStatus: error instanceof GitHubError ? error.githubStatus : null,
+      });
+    } catch (auditError: unknown) {
+      // The mint's own failure is what the caller must see; the lost audit row is reported here instead.
+      this.logger.error('scoped mint failure not audited', {
+        kind: facts.kind,
+        installationId: facts.installationId,
+        repositoryId: facts.repositoryId,
+        reason: auditError instanceof Error ? auditError.name : 'unknown',
+      });
+    }
   }
 
   /** No `repositories` member — that is what makes it installation-wide — hence `metadata` and nothing else. */

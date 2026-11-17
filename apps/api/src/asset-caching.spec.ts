@@ -21,7 +21,14 @@ describe('caching of the version metadata (#306)', () => {
     expect(response.headers.get('cache-control')).toBe('no-cache');
   });
 
-  it.each(['/p/team-console/questions', '/needs-you', '/overview', '/settings', '/settings/language'])(
+  it.each([
+    '/p/team-console/questions',
+    '/needs-you',
+    '/overview',
+    '/settings',
+    '/settings/language',
+    '/admin/environment/production',
+  ])(
     'the shell answered for the client-side route %s is no-cache',
     async (path) => {
       const response = await SELF.fetch(`${ORIGIN}${path}`, {

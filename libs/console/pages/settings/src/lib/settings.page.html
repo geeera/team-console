@@ -18,37 +18,6 @@
     <tc-push-settings-card />
   </section>
 
-  @if (environmentCopy.failed()) {
-  <section class="settings__section" data-testid="env-section">
-    <div class="settings__env-failed" role="alert" data-testid="env-copy-failed">
-      <p>{{ 'settings.common.envFailed' | transloco }}</p>
-      <button tc-button size="sm" type="button" (click)="retryEnvironmentCopy()">
-        {{ 'settings.common.retry' | transloco }}
-      </button>
-    </div>
-  </section>
-  } @else {
-  <section class="settings__section" aria-labelledby="settings-env" data-testid="env-section">
-    <h2 id="settings-env" class="settings__section-title">{{ 'env.entry.section' | transloco }}</h2>
-    <tc-list [attr.aria-labelledby]="'settings-env'">
-      <tc-list-row [link]="environmentLink()" data-testid="env-entry">
-        <tc-icon tc-row-leading name="key" />
-        <span tc-row-title>{{ 'env.entry.row' | transloco }}</span>
-        <span tc-row-subtitle>{{ 'env.entry.sub' | transloco: { env: environmentName() } }}</span>
-        <tc-chip
-          tc-row-trailing
-          data-testid="env-entry-chip"
-          [tone]="entryChip().kind === 'missing' ? 'warning' : entryChip().kind === 'ok' ? 'success' : 'neutral'"
-        >
-          @switch (entryChip().kind) { @case ('missing') { {{ 'env.entry.missing' | transloco: { n:
-          entryMissing() } }} } @case ('ok') { {{ 'env.entry.ok' | transloco }} } @case ('checking') { {{
-          'env.entry.checking' | transloco }} } @default { {{ 'env.entry.unknown' | transloco }} } }
-        </tc-chip>
-      </tc-list-row>
-    </tc-list>
-  </section>
-  }
-
   <section class="settings__section" aria-labelledby="settings-runners" data-testid="runners-section">
     <h2 id="settings-runners" class="settings__section-title">{{ 'runners.entry.section' | transloco }}</h2>
     <tc-list [attr.aria-labelledby]="'settings-runners'">
@@ -74,6 +43,38 @@
       </button>
     </div>
   </section>
+
+  <!-- Last, above the version line (#750): it appears only once the status answered 200, so nothing above it shifts. -->
+  @if (isOperator()) { @if (environmentCopy.failed()) {
+  <section class="settings__section" data-testid="env-section">
+    <div class="settings__env-failed" role="alert" data-testid="env-copy-failed">
+      <p>{{ 'settings.common.envFailed' | transloco }}</p>
+      <button tc-button size="sm" type="button" (click)="retryEnvironmentCopy()">
+        {{ 'settings.common.retry' | transloco }}
+      </button>
+    </div>
+  </section>
+  } @else if (environmentCopy.loaded()) {
+  <section class="settings__section" aria-labelledby="settings-env" data-testid="env-section">
+    <h2 id="settings-env" class="settings__section-title">{{ 'env.console.section' | transloco }}</h2>
+    <tc-list [attr.aria-labelledby]="'settings-env'">
+      <tc-list-row [link]="environmentLink()" data-testid="env-entry">
+        <tc-icon tc-row-leading name="key" />
+        <span tc-row-title>{{ 'env.console.title' | transloco }}</span>
+        <span tc-row-subtitle>{{ 'env.console.sub' | transloco: { env: environmentName() } }}</span>
+        <tc-chip
+          tc-row-trailing
+          data-testid="env-entry-chip"
+          [tone]="entryChip().kind === 'missing' ? 'warning' : entryChip().kind === 'ok' ? 'success' : 'neutral'"
+        >
+          @switch (entryChip().kind) { @case ('missing') { {{ 'env.entry.missing' | transloco: { n:
+          entryMissing() } }} } @case ('ok') { {{ 'env.entry.ok' | transloco }} } @case ('checking') { {{
+          'env.entry.checking' | transloco }} } @default { {{ 'env.entry.unknown' | transloco }} } }
+        </tc-chip>
+      </tc-list-row>
+    </tc-list>
+  </section>
+  } }
 
   <p class="settings__version">
     {{ appInfo.name() }} · {{ appInfo.version() }} ·

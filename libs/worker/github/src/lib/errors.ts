@@ -10,7 +10,9 @@ export type GitHubProblemType =
   | 'github-rate-limit'
   | 'github-request-budget'
   | 'github-unavailable'
-  | 'github-unexpected';
+  | 'github-unexpected'
+  /** #759: the operator's kill switch refused a write mint; nothing was asked of GitHub. */
+  | 'github-write-disabled';
 
 export interface GitHubProblem extends ProblemInit {
   readonly type: GitHubProblemType;

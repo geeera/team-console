@@ -52,11 +52,13 @@ describe('TeamCommands', () => {
   let shown: ConfirmOptions[];
   /** What the next confirmation's action threw (the dialog would show it and stay open). */
   let refusals: string[];
+  let refusalLinks: (ConfirmFailure['link'] | undefined)[];
   let input = '';
 
   async function setup(initial: TeamStatusDto = status()): Promise<void> {
     shown = [];
     refusals = [];
+    refusalLinks = [];
     const sheet = {
       confirm: vi.fn(async (options: ConfirmOptions) => {
         shown.push(options);
@@ -68,6 +70,7 @@ describe('TeamCommands', () => {
             throw error;
           }
           refusals.push(error.message);
+          refusalLinks.push(error.link);
           return false;
         }
       }),
@@ -334,6 +337,48 @@ describe('TeamCommands', () => {
       expect(refusals[0]).toMatch(message);
     },
   );
+
+  describe('#750: a slot that is not set up links to its token’s guide', () => {
+    async function runNotConfigured(environmentStatus: number): Promise<void> {
+      const pending = commands.run(TARGET, 'qa');
+      await Promise.resolve();
+      http.expectOne(runUrl('tc')).flush(problem('routine-not-configured', 409, { missing: ['qa'] }), {
+        status: 409,
+        statusText: 'x',
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const environment = http.expectOne('/api/v1/environment/status');
+      if (environmentStatus === 200) {
+        environment.flush({ environment: 'production', items: [] });
+      } else {
+        environment.flush(problem('owner-only', environmentStatus), {
+          status: environmentStatus,
+          statusText: 'x',
+        });
+      }
+      await pending;
+      http.match(STATUS_URL).forEach((read) => read.flush(store.status()));
+    }
+
+    it('offers “Set the token” to the operator, opening SLOT_TOKEN_<SLUG>_<SLOT>’s guide', async () => {
+      await setup();
+      await runNotConfigured(200);
+      expect(refusals[0]).toBe(
+        'Запуск «Проверка (QA)» отсюда не настроен. Обновите статус, чтобы увидеть, что настроить.',
+      );
+      expect(refusalLinks[0]).toEqual({
+        label: 'Задать токен',
+        route: ['/settings/projects', 'tc', 'environment', 'production', 'SLOT_TOKEN_TC_QA'],
+      });
+    });
+
+    it('offers no link to a sign-in the environment status refuses', async () => {
+      await setup();
+      await runNotConfigured(403);
+      expect(refusals).toHaveLength(1);
+      expect(refusalLinks[0]).toBeUndefined();
+    });
+  });
 });
 
 describe('commandFailureOf', () => {

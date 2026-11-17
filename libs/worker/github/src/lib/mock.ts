@@ -1,10 +1,10 @@
 import fixtures from '../../fixtures/mock-github.json';
 import {
-  ACTIONS_DISPATCH_PERMISSIONS,
   INSTALLATION_LIST_PERMISSIONS,
   INSTALLATION_PERMISSIONS,
   type GitHubAppCredentials,
 } from './app-auth';
+import { SCOPED_MINT_KINDS, SCOPED_MINT_PERMISSIONS, type ScopedMintKind } from './scoped-mint';
 import type { OwnerAccount } from './token-source';
 import { GITHUB_API_ORIGIN, type FetchLike } from './transport';
 
@@ -67,6 +67,29 @@ export interface MockRepository {
    * the mint answers 422, as GitHub does for a permission the installation lacks.
    */
   readonly actionsWrite?: boolean;
+  /**
+   * #759: the installation accepted Environments: read on this repository, so an `environment-read` mint by its id
+   * succeeds; without it the mint answers 422.
+   */
+  readonly environmentsRead?: boolean;
+  /**
+   * #759: the installation accepted Contents, Workflows and Pull requests write on this repository, so a `workflow-pr`
+   * mint by its id succeeds; without it the mint answers 422.
+   */
+  readonly setupWrite?: boolean;
+  /**
+   * #759: the repository's GitHub Environments by name. `GET …/environments/{name}` answers `environment` (with `name`
+   * added), `…/deployment-branch-policies` lists `branchPolicies`, and `…/secrets/{secret}` is 200 for a name in
+   * `secrets`. The secrets list and every `…/variables` path are tripwires: the console reads neither.
+   */
+  readonly environments?: Readonly<Record<string, MockEnvironment>>;
+}
+
+export interface MockEnvironment {
+  readonly environment?: Readonly<Record<string, unknown>>;
+  readonly branchPolicies?: readonly Readonly<Record<string, unknown>>[];
+  /** Secret names only: GitHub never returns a value, and the mock holds none. */
+  readonly secrets?: readonly string[];
 }
 
 export interface MockFixtures {
@@ -200,7 +223,13 @@ function listOf(
 /** A per-repository read token, or the installation-wide `metadata` token of the repository list (#194). */
 type IssuedToken =
   | { readonly scope: 'repo'; readonly repo: string; readonly expiresAt: number }
-  | { readonly scope: 'actions'; readonly repo: string; readonly repositoryId: number; readonly expiresAt: number }
+  | {
+      readonly scope: 'scoped';
+      readonly kind: ScopedMintKind;
+      readonly repo: string;
+      readonly repositoryId: number;
+      readonly expiresAt: number;
+    }
   | { readonly scope: 'installation'; readonly installationId: number; readonly expiresAt: number };
 
 const LIST_PAGE_MAX = 100;
@@ -229,6 +258,32 @@ function mockRunId(): number {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** The named kind whose permission set a mint body asks for exactly (in any key order), if any. */
+function scopedKindOf(permissions: unknown): ScopedMintKind | undefined {
+  if (!isRecord(permissions)) {
+    return undefined;
+  }
+  return SCOPED_MINT_KINDS.find((kind) => {
+    const wanted = SCOPED_MINT_PERMISSIONS[kind];
+    const keys = Object.keys(wanted);
+    return (
+      Object.keys(permissions).length === keys.length && keys.every((key) => permissions[key] === wanted[key])
+    );
+  });
+}
+
+/** Whether the fixture's installation accepted the permissions of `kind` on this repository. */
+function isGranted(fixture: MockRepository, kind: ScopedMintKind): boolean {
+  switch (kind) {
+    case 'actions-dispatch':
+      return fixture.actionsWrite === true;
+    case 'environment-read':
+      return fixture.environmentsRead === true;
+    case 'workflow-pr':
+      return fixture.setupWrite === true;
+  }
 }
 
 /** `owner.id`/`owner.login` of a fixture's `GET /repos/{owner}/{repo}` answer, when it has one. */
@@ -334,7 +389,7 @@ class MockGitHubServer {
       if (token === undefined || token.expiresAt <= Date.now()) {
         return json(401, { message: 'Bad credentials' });
       }
-      if (token.scope !== 'actions') {
+      if (token.scope !== 'scoped' || token.kind !== 'actions-dispatch') {
         return json(403, { message: 'Resource not accessible by integration' });
       }
       if (token.repo.toLowerCase() !== `${segments[1]}/${segments[2]}`.toLowerCase()) {
@@ -355,6 +410,10 @@ class MockGitHubServer {
       }
       this.issued.delete(bearer);
       return new Response(null, { status: 204 });
+    }
+
+    if (method === 'GET' && segments[0] === 'repos' && segments.length >= 5 && segments[3] === 'environments') {
+      return this.environmentRead(bearer, segments);
     }
 
     const isRepositoryRead = segments.length === 3;
@@ -398,9 +457,9 @@ class MockGitHubServer {
       if (token.scope === 'installation') {
         return json(403, { message: 'mock: the installation list token must not read a repository' });
       }
-      // A test tripwire as well: the dispatch token is spent on its one POST, never on a read.
-      if (token.scope === 'actions') {
-        return json(403, { message: 'mock: the Actions dispatch token must not read a repository' });
+      // A test tripwire as well: a scoped token is spent on its own few calls, never on another read.
+      if (token.scope === 'scoped') {
+        return json(403, { message: `mock: the ${token.kind} token must not read this` });
       }
       const found = this.repository(repo);
       // A downscoped token sees only its own repository; GitHub answers 404 for the rest.
@@ -412,7 +471,8 @@ class MockGitHubServer {
         return json(reply.status, { message: 'mock reply' }, { ...reply.headers });
       }
       if (isContentsRead) {
-        return this.file(found.fixture, segments.slice(4).join('/'), found.name);
+        const accept = new Headers(init.headers).get('accept') ?? '';
+        return this.file(found.fixture, segments.slice(4).join('/'), found.name, accept);
       }
       if (isListRead) {
         const items = listOf(found.fixture, listed, url.searchParams);
@@ -467,12 +527,16 @@ class MockGitHubServer {
    * The contents API's answer for a file (base64 content, as GitHub sends it) or, for a folder that holds fixture
    * files, its listing: one entry per file or sub-folder directly inside it.
    */
-  private async file(fixture: MockRepository, path: string, repo: string): Promise<Response> {
+  private async file(fixture: MockRepository, path: string, repo: string, accept: string): Promise<Response> {
     const text = fixture.files?.[path];
     if (text === undefined) {
       return this.listing(fixture, path, repo);
     }
     const bytes = new TextEncoder().encode(text);
+    // #759: the raw media type answers the file's bytes, as GitHub does for a file (not for a folder).
+    if (accept.includes('raw')) {
+      return new Response(bytes, { status: 200, headers: { 'Content-Type': 'application/vnd.github.raw' } });
+    }
     return json(200, {
       type: 'file',
       encoding: 'base64',
@@ -572,6 +636,57 @@ class MockGitHubServer {
     return json(200, { name, commit: { sha: await sha1Hex(`branch:${name}`) } });
   }
 
+  /**
+   * #759: `GET …/environments/{name}`, its `deployment-branch-policies` and one `secrets/{name}`. The Environment and
+   * its policies take Actions: read (the repository read token or an `environment-read` token); the secret takes
+   * Environments: read, which only the `environment-read` token holds. Listing the secrets or reading variables is
+   * a tripwire, since the console must do neither.
+   */
+  private environmentRead(bearer: string, segments: readonly string[]): Response {
+    const token = this.issued.get(bearer);
+    if (token === undefined || token.expiresAt <= Date.now()) {
+      return json(401, { message: 'Bad credentials' });
+    }
+    if (token.scope === 'installation' || (token.scope === 'scoped' && token.kind !== 'environment-read')) {
+      return json(403, { message: 'mock: this token must not read an Environment' });
+    }
+    const [, owner = '', name = '', , environmentName = '', ...rest] = segments;
+    if (rest.includes('variables')) {
+      return json(403, { message: 'mock: the console never reads Environment variables' });
+    }
+    if (rest.length === 1 && rest[0] === 'secrets') {
+      return json(403, { message: 'mock: the console never lists secrets, it reads its one name' });
+    }
+    const found = this.repository(`${owner}/${name}`);
+    if (found === undefined || found.name.toLowerCase() !== token.repo.toLowerCase()) {
+      return notFound();
+    }
+    const environment = found.fixture.environments?.[environmentName];
+    if (environment === undefined) {
+      return notFound();
+    }
+    if (rest.length === 0) {
+      return json(200, { ...(environment.environment ?? {}), name: environmentName });
+    }
+    if (rest.length === 1 && rest[0] === 'deployment-branch-policies') {
+      const policies = environment.branchPolicies ?? [];
+      return json(200, { total_count: policies.length, branch_policies: policies });
+    }
+    if (rest.length === 2 && rest[0] === 'secrets') {
+      if (token.scope !== 'scoped') {
+        return json(403, { message: 'Resource not accessible by integration' });
+      }
+      return environment.secrets?.includes(rest[1] ?? '') === true
+        ? json(200, {
+            name: rest[1],
+            created_at: '2026-11-01T00:00:00Z',
+            updated_at: '2026-11-01T00:00:00Z',
+          })
+        : notFound();
+    }
+    return notFound();
+  }
+
   /** An issue as GitHub sends it: labels as objects. */
   private issue(fixture: MockRepository, number: string): Response {
     const issue = fixture.issues?.find((item) => String(item['number']) === number);
@@ -664,22 +779,25 @@ class MockGitHubServer {
         expiresAt: Date.now() + TOKEN_LIFETIME_MS,
       });
     }
-    // #670: the Actions dispatch token, one repository by id, `actions: write` alone.
+    // #670, #759: a scoped token, one repository by id, with exactly one named kind's permissions.
     const ids = request['repository_ids'];
     if (Array.isArray(ids)) {
       const wanted = ids.length === 1 && typeof ids[0] === 'number' ? ids[0] : undefined;
       const found = onInstallation.find(([, fixture]) => fixture.repository?.['id'] === wanted);
-      if (
-        found === undefined ||
-        wanted === undefined ||
-        JSON.stringify(request['permissions']) !== JSON.stringify(ACTIONS_DISPATCH_PERMISSIONS)
-      ) {
-        return json(422, { message: 'The console must mint actions: write for exactly one repository' });
+      const kind = scopedKindOf(request['permissions']);
+      if (found === undefined || wanted === undefined || kind === undefined) {
+        return json(422, { message: 'The console must mint one named permission set for exactly one repository' });
       }
-      if (found[1].actionsWrite !== true) {
+      if (!isGranted(found[1], kind)) {
         return json(422, { message: 'The permissions requested are not granted to this installation.' });
       }
-      return this.issue201({ scope: 'actions', repo: found[0], repositoryId: wanted, expiresAt: Date.now() + TOKEN_LIFETIME_MS });
+      return this.issue201({
+        scope: 'scoped',
+        kind,
+        repo: found[0],
+        repositoryId: wanted,
+        expiresAt: Date.now() + TOKEN_LIFETIME_MS,
+      });
     }
     const target =
       Array.isArray(repositories) && repositories.length === 1 && typeof repositories[0] === 'string'
@@ -707,13 +825,13 @@ class MockGitHubServer {
       permissions:
         issued.scope === 'repo'
           ? INSTALLATION_PERMISSIONS
-          : issued.scope === 'actions'
-            ? ACTIONS_DISPATCH_PERMISSIONS
+          : issued.scope === 'scoped'
+            ? SCOPED_MINT_PERMISSIONS[issued.kind]
             : INSTALLATION_LIST_PERMISSIONS,
       repository_selection: issued.scope === 'installation' ? 'all' : 'selected',
       // #317: a repository token lists the one repository it covers, as GitHub's answer does.
       ...(issued.scope === 'repo' ? { repositories: [{ name, full_name: issued.repo }] } : {}),
-      ...(issued.scope === 'actions'
+      ...(issued.scope === 'scoped'
         ? { repositories: [{ id: issued.repositoryId, name, full_name: issued.repo }] }
         : {}),
     });

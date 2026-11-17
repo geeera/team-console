@@ -39,6 +39,10 @@
   Cache-Control: no-cache
 /settings/*
   Cache-Control: no-cache
+/admin
+  Cache-Control: no-cache
+/admin/*
+  Cache-Control: no-cache
 /ngsw.json
   Cache-Control: no-cache
 /ngsw-worker.js

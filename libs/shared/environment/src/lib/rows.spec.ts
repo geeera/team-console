@@ -1,5 +1,5 @@
 import { routineSecretName, slotSecretNames } from '@shared/contracts';
-import { ENVIRONMENT_GROUPS, environmentRowsOf, expandPattern } from './rows';
+import { ENVIRONMENT_GROUPS, consoleRowsOf, environmentRowsOf, expandPattern, projectRowsOf } from './rows';
 
 function ids(rows: ReturnType<typeof environmentRowsOf>): string[] {
   return rows.map((row) => row.id);
@@ -88,5 +88,41 @@ describe('environmentRowsOf', () => {
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.every((row) => row.group === 'local' && row.binding === row.name)).toBe(true);
     expect(ids(rows)).toContain('local/GITHUB_MOCK');
+  });
+});
+
+describe('consoleRowsOf', () => {
+  it('lists the console’s own rows only, never a project’s', () => {
+    const rows = consoleRowsOf('production');
+    expect(rows.length).toBeGreaterThan(10);
+    expect(rows.some((row) => row.group === 'projects' || row.project !== null)).toBe(false);
+  });
+});
+
+describe('projectRowsOf', () => {
+  it('lists one project’s rows: required first, then each slot’s token and routine together', () => {
+    expect(projectRowsOf('production', 'storify').map((row) => row.name)).toEqual([
+      'ROUTINE_TOKEN_STORIFY',
+      'SLOT_TOKEN_STORIFY_PM',
+      'SLOT_ROUTINE_STORIFY_PM',
+      'SLOT_TOKEN_STORIFY_DEV',
+      'SLOT_ROUTINE_STORIFY_DEV',
+      'SLOT_TOKEN_STORIFY_QA',
+      'SLOT_ROUTINE_STORIFY_QA',
+    ]);
+    expect(projectRowsOf('production', 'storify').every((row) => row.project === 'storify')).toBe(true);
+  });
+
+  it('keeps a slug that ends like a slot in order', () => {
+    expect(
+      projectRowsOf('production', 'team-qa')
+        .map((row) => row.name)
+        .slice(1, 3),
+    ).toEqual(['SLOT_TOKEN_TEAM_QA_PM', 'SLOT_ROUTINE_TEAM_QA_PM']);
+  });
+
+  it('is empty where the manifest lists no project item and for a slug that is not slug-shaped', () => {
+    expect(projectRowsOf('dev', 'storify')).toEqual([]);
+    expect(projectRowsOf('production', 'Storify')).toEqual([]);
   });
 });

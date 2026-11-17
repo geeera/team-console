@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { LocalTimePipe, TranslocoPipe } from '@console/shared/i18n';
 import { Button, CopyCode, Icon, IconName } from '@console/shared/ui';
 import { routineSecretName } from '@shared/contracts';
@@ -19,6 +20,11 @@ export interface SetupChecklistContext {
   readonly lastEventAt: string | null;
   /** The Worker environment for the `wrangler secret put` command; `<env>` until known. */
   readonly environment: string | null;
+  /**
+   * The project's environment screen (#750), linked from step 5's "How to fix" — only once the console has shown
+   * that this sign-in may see it; absent for everyone else.
+   */
+  readonly environmentRoute?: readonly string[] | null;
 }
 
 const MARKS: Readonly<Partial<Record<SetupStepState, IconName>>> = {
@@ -38,7 +44,7 @@ let nextChecklistId = 0;
  */
 @Component({
   selector: 'tc-setup-checklist',
-  imports: [Button, CopyCode, Icon, LocalTimePipe, TranslocoPipe],
+  imports: [Button, CopyCode, Icon, LocalTimePipe, RouterLink, TranslocoPipe],
   templateUrl: './setup-checklist.html',
   styleUrl: './setup-checklist.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
