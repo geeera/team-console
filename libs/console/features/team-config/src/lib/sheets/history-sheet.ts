@@ -29,6 +29,8 @@ export interface HistorySheetData {
   readonly slug: string;
   /** The owner may take a revision as the draft; a member only reads (UX spec §4 "Read-only"). */
   readonly canUseDraft: boolean;
+  /** The revision the page shows: the history reads the newest window up from it. */
+  readonly latestRevision: number;
 }
 
 type Phase = 'loading' | 'ready' | 'failed';
@@ -305,7 +307,7 @@ export class HistorySheet {
 
   protected async loadHistory(): Promise<void> {
     this.listPhase.set('loading');
-    const result = await this.client.history(this.data.slug);
+    const result = await this.client.history(this.data.slug, this.data.latestRevision);
     if (!result.ok) {
       this.listPhase.set('failed');
       return;

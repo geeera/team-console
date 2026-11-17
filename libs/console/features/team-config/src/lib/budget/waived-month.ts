@@ -26,17 +26,34 @@ const capitalised = (text: string): string => text.charAt(0).toLocaleUpperCase()
 
 /**
  * The waived month in Settings › Team › Limits (#688 from #737): the owner chose "Resume this month", so the budget no
- * longer stops the team this month, and a changed budget ends the waiver at once. Read from `GET …/team/status`
+ * longer stops the team this month, and a changed budget ends the waiver at once. While the budget is being changed
+ * the note turns moss and says the month is capped again at the new figure (the approved wireframe). Read from `GET …/team/status`
  * `budget.waivedAt`, never decided here.
  */
 @Component({
   selector: 'tc-waived-month',
   imports: [Callout, TranslocoPipe],
   template: `
-    <section tc-callout tone="warning" data-testid="team-waived" aria-labelledby="tc-team-waived-title">
+    <section
+      tc-callout
+      data-testid="team-waived"
+      aria-labelledby="tc-team-waived-title"
+      [tone]="editing() === null ? 'warning' : 'success'"
+      [attr.data-editing]="editing() === null ? null : 'true'"
+    >
       <h3 tc-callout-title id="tc-team-waived-title">{{ 'teamConfig.budget.waivedTitle' | transloco: { month: words().month } }}</h3>
       <p class="waived__text" data-testid="team-waived-body">{{ 'teamConfig.budget.waivedBody' | transloco: words() }}</p>
-      <p class="waived__text waived__ends" data-testid="team-waived-ends">{{ 'teamConfig.budget.waivedEnds' | transloco }}</p>
+      <p class="waived__text waived__ends" data-testid="team-waived-ends" aria-live="polite">
+        @if (editing(); as edit) {
+          @if (edit.usd === null) {
+            {{ 'teamConfig.budget.waivedEditingNone' | transloco }}
+          } @else {
+            {{ 'teamConfig.budget.waivedEditing' | transloco: { month: words().monthLower, budget: moneyOf(edit.usd) } }}
+          }
+        } @else {
+          {{ 'teamConfig.budget.waivedEnds' | transloco }}
+        }
+      </p>
     </section>
   `,
   styles: `
@@ -56,6 +73,8 @@ export class WaivedMonth {
   private readonly lang = toSignal(this.transloco.langChanges$, { initialValue: this.transloco.getActiveLang() });
 
   readonly month = input.required<WaivedMonthDto>();
+  /** The budget the owner is typing, while it differs from the stored one; `null` when it is not being changed. */
+  readonly editing = input<{ readonly usd: number | null } | null>(null);
 
   protected readonly words = computed(() => {
     const month = this.month();
@@ -63,10 +82,15 @@ export class WaivedMonth {
     const end = waiverEndOf(month.month);
     return {
       month: capitalised(budgetMonthOf(month.month, lang)),
+      monthLower: budgetMonthOf(month.month, lang),
       date: localDayOf(month.waivedAt, lang),
       spent: budgetMoneyOf(month.spentUsd, lang),
       budget: budgetMoneyOf(month.budgetUsd, lang),
       until: end === null ? month.month : utcDayOf(end, lang),
     };
   });
+
+  protected moneyOf(usd: number): string {
+    return budgetMoneyOf(usd, this.lang());
+  }
 }

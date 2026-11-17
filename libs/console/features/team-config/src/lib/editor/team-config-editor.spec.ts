@@ -215,7 +215,7 @@ describe('TeamConfigEditor', () => {
     const waived = testId(el, 'team-waived') as HTMLElement;
     expect(waived.querySelector('h3')?.textContent).toContain('Ноябрь');
     expect(testId(waived, 'team-waived-body')?.textContent).toContain('1 декабря');
-    expect(testId(waived, 'team-waived-ends')?.textContent).toBe(t('teamConfig.budget.waivedEnds'));
+    expect(testId(waived, 'team-waived-ends')?.textContent?.trim()).toBe(t('teamConfig.budget.waivedEnds'));
     expect(testId(el, 'team-budget-stop')).toBeNull();
   });
 
@@ -223,5 +223,27 @@ describe('TeamConfigEditor', () => {
     const { fixture } = await open(teamConfigViewOf(stored), null, 'budget');
     await settle(fixture);
     expect(document.activeElement?.getAttribute('data-testid')).toBe('input-budget.monthly_usd');
+  });
+
+  it('while the budget is changed in a waived month, the note says it is capped again and the review row ends the waiver', async () => {
+    const status = teamStatusOf({
+      budget: { month: '2026-11', spentUsd: 212, budgetUsd: 200, waivedAt: '2026-11-16T09:00:00.000Z' },
+    });
+    const { el, t, fixture } = await open(teamConfigViewOf({ ...stored, budget: { monthly_usd: 200 } }), status);
+    const waived = testId(el, 'team-waived') as HTMLElement;
+    expect(waived.getAttribute('data-editing')).toBeNull();
+    const field = testId(el, 'input-budget.monthly_usd') as HTMLInputElement;
+    field.value = '300';
+    field.dispatchEvent(new Event('input'));
+    await settle(fixture);
+    expect(waived.getAttribute('data-editing')).toBe('true');
+    expect(testId(waived, 'team-waived-ends')?.textContent?.replace(/\s/g, ' ')).toContain(
+      'После сохранения ноябрь снова будет ограничен суммой 300 $.',
+    );
+    testId(el, 'save-bar-review')?.click();
+    await settle(fixture);
+    expect(overlay().querySelector('[data-testid="change-note-budget.monthly_usd"]')?.textContent).toBe(
+      t('teamConfig.budget.waivedReview', { month: 'ноябрь' }),
+    );
   });
 });

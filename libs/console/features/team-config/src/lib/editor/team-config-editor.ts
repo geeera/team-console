@@ -16,6 +16,7 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { budgetMonthOf } from '@console/entities/team-run';
 import { NetworkStatus } from '@console/shared/api';
 import {
   LocalDayPipe,
@@ -225,6 +226,12 @@ export class TeamConfigEditor {
       ? { ...month, budgetUsd: month.budgetUsd, waivedAt: month.waivedAt }
       : null;
   });
+  /** The budget being changed from the stored one, for the waived-month note; `null` while it is not. */
+  protected readonly budgetEdit = computed((): { readonly usd: number | null } | null => {
+    const base = this.store.base();
+    const draft = this.draft();
+    return base === null || draft === null || base.monthlyUsd === draft.monthlyUsd ? null : { usd: draft.monthlyUsd };
+  });
   private focusHandled = false;
 
   constructor() {
@@ -266,7 +273,7 @@ export class TeamConfigEditor {
   protected async openHistory(): Promise<void> {
     const ref = this.sheet.open<TeamConfigRevisionDto, HistorySheetData>(HistorySheet, {
       title: this.t('teamConfig.history.title'),
-      data: { slug: this.slug(), canUseDraft: !this.readOnly() },
+      data: { slug: this.slug(), canUseDraft: !this.readOnly(), latestRevision: this.view()?.revision ?? 0 },
       size: 'full',
     });
     const revision = await firstValueFrom(ref.closed);
@@ -544,7 +551,7 @@ export class TeamConfigEditor {
     }
     let after: (() => void) | null = null;
     const data: ReviewSheetData = {
-      rows: this.rowsOf(this.store.changes()),
+      rows: this.reviewRowsOf(this.store.changes()),
       save: async (reason: string): Promise<ReviewOutcome> => {
         const result = await this.store.save(reason);
         switch (result.kind) {
@@ -623,6 +630,17 @@ export class TeamConfigEditor {
   // ── Words ─────────────────────────────────────────────────────────────────────────────────────────────────
 
   protected readonly t = (key: string, params?: Record<string, unknown>): string => this.transloco.translate(key, params);
+
+  /** The review's rows; a budget change in a waived month says it ends the waiver (the approved wireframe). */
+  private reviewRowsOf(changes: readonly DraftChange[]): ChangeRow[] {
+    const waived = this.waivedMonth();
+    const rows = this.rowsOf(changes);
+    if (waived === null) {
+      return rows;
+    }
+    const note = this.t('teamConfig.budget.waivedReview', { month: budgetMonthOf(waived.month, this.lang()) });
+    return rows.map((row) => (row.path === 'budget.monthly_usd' ? { ...row, note } : row));
+  }
 
   protected rowsOf(changes: readonly DraftChange[]): ChangeRow[] {
     return draftChangeRowsOf(this.t, this.lang(), changes);

@@ -54,10 +54,16 @@ export function teamConfigImportUrlOf(slug: string): string {
   return `${teamConfigUrlOf(slug)}/import`;
 }
 
-/** The history's pages are read whole: an owner saves a handful of revisions, and the list shows newest first. */
+/** The history's page size: the route's maximum. */
 export const HISTORY_PAGE_SIZE = 100;
-/** A history longer than this many pages shows its newest part; older revisions stay reachable by the API. */
-export const HISTORY_MAX_PAGES = 5;
+/**
+ * The newest revisions the history keeps. `GET …/revisions` pages oldest first (`after`), and revisions are numbered
+ * 1..n with no gaps, so the read starts `HISTORY_WINDOW` below the revision the page shows and keeps the last
+ * `HISTORY_WINDOW` it gets: the newest are always there; older ones stay reachable by the API.
+ */
+export const HISTORY_WINDOW = 500;
+/** A bound on the pages one read takes, for revisions saved meanwhile; past it the read stops with what it has. */
+export const HISTORY_MAX_PAGES = 20;
 
 function isRevisionSummary(value: unknown): value is TeamConfigRevisionSummaryDto {
   return (
@@ -166,10 +172,15 @@ export class TeamConfigClient {
     }
   }
 
-  /** Every revision, newest first, at most `HISTORY_MAX_PAGES` pages (`isCut` when there were more). */
-  async history(slug: string): Promise<TeamHistoryResult> {
+  /**
+   * The newest `HISTORY_WINDOW` revisions, newest first, read from just below `latest` (the revision the page shows)
+   * to the end. `isCut` when older revisions exist that the list leaves out.
+   */
+  async history(slug: string, latest: number): Promise<TeamHistoryResult> {
+    const start = Math.max(0, latest - HISTORY_WINDOW);
     const revisions: TeamConfigRevisionSummaryDto[] = [];
-    let after = 0;
+    let after = start;
+    let isComplete = false;
     try {
       for (let page = 0; page < HISTORY_MAX_PAGES; page += 1) {
         const body: unknown = await firstValueFrom(
@@ -183,18 +194,20 @@ export class TeamConfigClient {
         revisions.push(...body['revisions']);
         const next = body['nextCursor'];
         if (next === null) {
-          return { ok: true, revisions: revisions.reverse(), isCut: false };
+          isComplete = true;
+          break;
         }
-        if (!Number.isSafeInteger(next)) {
+        if (!Number.isSafeInteger(next) || (next as number) <= after) {
           return { ok: false };
         }
         after = next as number;
       }
-      return { ok: true, revisions: revisions.reverse(), isCut: true };
     } catch {
       // Network, 4xx or 5xx alike: the screen shows its own failure with Try again; nothing else depends on it.
       return { ok: false };
     }
+    const kept = revisions.slice(-HISTORY_WINDOW);
+    return { ok: true, revisions: kept.reverse(), isCut: start > 0 || kept.length < revisions.length || !isComplete };
   }
 
   async revision(slug: string, revision: number): Promise<TeamRevisionResult> {

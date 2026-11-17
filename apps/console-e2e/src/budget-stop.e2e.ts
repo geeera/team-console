@@ -325,8 +325,16 @@ test('Needs you "Open limits" opens Team at the budget; the Team callout resumes
     await api.post(`/api/v1/projects/${SLUG}/jobs`, { data: { kind: 'review', role: 'qa' } });
     expect(await claimStatus(api, runner)).toBe(200);
 
+    // While the budget changes, the note says the month is capped again, and the review says it ends the waiver.
     await budget.fill('30');
+    await expect(waived).toHaveAttribute('data-editing', 'true');
+    await expect(waived.getByTestId('team-waived-ends')).toHaveText(
+      ru('teamConfig.budget.waivedEditing', { month: monthName, budget: money(30) }),
+    );
     await page.getByTestId('save-bar-review').click();
+    await expect(page.getByRole('dialog').getByTestId('change-note-budget.monthly_usd')).toHaveText(
+      ru('teamConfig.budget.waivedReview', { month: monthName }),
+    );
     await page.getByRole('dialog').getByTestId('review-save').click();
     await expect(page.getByTestId('team-title')).toBeFocused();
     await expect(waived).toHaveCount(0);

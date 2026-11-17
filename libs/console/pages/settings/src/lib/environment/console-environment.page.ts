@@ -5,6 +5,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   effect,
   ElementRef,
   inject,
@@ -55,6 +56,8 @@ import { EnvironmentSummary } from './environment-summary';
 export class ConsoleEnvironmentPage {
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
+  /** Try again resolves after an await: the page may be gone by then, and a render hook on it would throw (NG0205). */
+  private isDestroyed = false;
   private readonly announcer = inject(LiveAnnouncer);
   private readonly transloco = inject(TranslocoService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -99,6 +102,7 @@ export class ConsoleEnvironmentPage {
   });
 
   constructor() {
+    inject(DestroyRef).onDestroy(() => (this.isDestroyed = true));
     effect(() => {
       const env = this.env();
       untracked(() => this.screen.environment.set(env));
@@ -142,7 +146,11 @@ export class ConsoleEnvironmentPage {
 
   protected async retryCopy(): Promise<void> {
     const hadFailed = this.copy.failed();
-    if (await this.copy.ready()) {
+    const isReady = await this.copy.ready();
+    if (this.isDestroyed) {
+      return;
+    }
+    if (isReady) {
       afterNextRender(() => this.heading().nativeElement.focus(), { injector: this.injector });
       return;
     }

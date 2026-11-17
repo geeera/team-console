@@ -85,7 +85,7 @@ function setup<T>(component: Type<T>, data: unknown): {
 
 describe('HistorySheet', () => {
   it('lists revisions newest first with author, settings and the reason as text, never markup (T4)', async () => {
-    const { fixture, http, el, t } = setup(HistorySheet, { slug: 'acme', canUseDraft: true });
+    const { fixture, http, el, t } = setup(HistorySheet, { slug: 'acme', canUseDraft: true, latestRevision: 9 });
     http
       .expectOne((req) => req.url === REVISIONS && req.params.get('after') === '0')
       .flush({ revisions: [summary(8), summary(9, { createdByName: 'anna', reason: SCRIPT })], nextCursor: null });
@@ -102,7 +102,7 @@ describe('HistorySheet', () => {
   });
 
   it('reads every page and shows more on request', async () => {
-    const { fixture, http, el } = setup(HistorySheet, { slug: 'acme', canUseDraft: false });
+    const { fixture, http, el } = setup(HistorySheet, { slug: 'acme', canUseDraft: false, latestRevision: 9 });
     const first = Array.from({ length: 100 }, (_, at) => summary(at + 1));
     http.expectOne((req) => req.params.get('after') === '0').flush({ revisions: first, nextCursor: 100 });
     await settle(fixture);
@@ -116,7 +116,7 @@ describe('HistorySheet', () => {
   });
 
   it('is the partial state when the list fails: its own error and Try again, then the list', async () => {
-    const { fixture, http, el, t } = setup(HistorySheet, { slug: 'acme', canUseDraft: true });
+    const { fixture, http, el, t } = setup(HistorySheet, { slug: 'acme', canUseDraft: true, latestRevision: 9 });
     http.expectOne((req) => req.url === REVISIONS).flush('down', { status: 503, statusText: 'x' });
     await settle(fixture);
     expect(testId(el, 'history-error')?.textContent).toContain(t('teamConfig.history.failedTitle'));
@@ -129,7 +129,7 @@ describe('HistorySheet', () => {
   });
 
   it('opens a revision as a diff in words, the reason as text, the raw JSON behind Show raw, and Use as draft', async () => {
-    const { fixture, http, el, close, t } = setup(HistorySheet, { slug: 'acme', canUseDraft: true });
+    const { fixture, http, el, close, t } = setup(HistorySheet, { slug: 'acme', canUseDraft: true, latestRevision: 9 });
     http.expectOne((req) => req.url === REVISIONS).flush({ revisions: [summary(9, { reason: SCRIPT })], nextCursor: null });
     await settle(fixture);
     (testId(el, 'history-row-9')?.querySelector('button') as HTMLButtonElement).click();
@@ -161,7 +161,7 @@ describe('HistorySheet', () => {
   });
 
   it('gives a member the diff but no Use as draft, and a failed revision its own Try again', async () => {
-    const { fixture, http, el } = setup(HistorySheet, { slug: 'acme', canUseDraft: false });
+    const { fixture, http, el } = setup(HistorySheet, { slug: 'acme', canUseDraft: false, latestRevision: 9 });
     http.expectOne((req) => req.url === REVISIONS).flush({ revisions: [summary(9)], nextCursor: null });
     await settle(fixture);
     (testId(el, 'history-row-9')?.querySelector('button') as HTMLButtonElement).click();

@@ -259,7 +259,7 @@
           (typedInvalid)="markTyped('budget.monthly_usd', $event)"
         />
         @if (waivedMonth(); as month) {
-          <tc-waived-month [month]="month" />
+          <tc-waived-month [month]="month" [editing]="budgetEdit()" />
         }
         <p class="team__help">{{ 'teamConfig.limits.overshoot' | transloco }}</p>
       </tc-team-section>

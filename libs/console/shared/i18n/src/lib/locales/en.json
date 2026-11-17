@@ -2838,7 +2838,10 @@
       "title": "Budget used up",
       "waivedTitle": "{{month}} — no limit",
       "waivedBody": "On {{date}} you chose “Resume this month”. Spent {{spent}} of {{budget}}; the budget will not stop the team until {{until}}.",
-      "waivedEnds": "If you change the budget, the waiver ends: the new budget applies at once, and the team stops when the month's spend reaches it."
+      "waivedEnds": "If you change the budget, the waiver ends: the new budget applies at once, and the team stops when the month's spend reaches it.",
+      "waivedEditing": "When you save, {{month}} is capped again at {{budget}}.",
+      "waivedEditingNone": "When you save, there is no budget: the waiver is no longer needed.",
+      "waivedReview": "ends the waiver for {{month}}"
     }
   }
 }
