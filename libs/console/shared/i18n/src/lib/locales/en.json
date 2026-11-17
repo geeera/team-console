@@ -778,7 +778,7 @@
       "design": "Couldn't load the designs.",
       "demo": "Couldn't load the demos.",
       "decision-titles": "Some decisions are shown by file name.",
-      "design-files": "Not every docs/design folder is listed.",
+      "design-files": "Not every file in docs/design is shown: there are more than the console reads at once.",
       "hint": "Press “Check again” to retry."
     },
     "error": {

@@ -9,28 +9,23 @@ const AWAITING_APPROVAL_LABEL: (typeof DESIGN_LABELS)[number] = 'design:awaiting
 
 export const DESIGN_DIR = 'docs/design';
 
-/**
- * docs/design is listed one level deep: the folder itself and at most this many sub-folders (one read each).
- * Generator sources (`src`) are not artifacts.
- */
-export const DESIGN_SUBFOLDER_READS = 5;
-
 const DESIGN_FILE = /\.(html|md)$/i;
-
-/** The sub-folders of docs/design worth listing, in name order. */
-export function designFoldersOf(entries: readonly ContentsEntry[]): ContentsEntry[] {
-  return entries
-    .filter((entry) => entry.kind === 'dir' && entry.name !== 'src')
-    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-}
 
 export interface DesignInput {
   /** Issues from the label reads; the same issue may arrive under several labels. */
   readonly issues: readonly IssueRecord[];
-  /** Entries of docs/design and its listed sub-folders. */
+  /** Every entry under docs/design, from one Git tree read (#770): no sub-folder cap, so nothing by name is skipped. */
   readonly files: readonly ContentsEntry[];
   /** project.yml's `design.storybook_url`, already limited to github.com. */
   readonly storybookUrl: string | null;
+}
+
+/**
+ * `277-viewer/src/build.js` under docs/design is a generator source, not an artifact (same rule as `designFilesOf`
+ * for one issue's files); `src` counts at any depth, not only directly under docs/design.
+ */
+function isGeneratorSource(path: string, prefix: string): boolean {
+  return path.slice(prefix.length).split('/').includes('src');
 }
 
 export function designArtifactsOf(input: DesignInput): ArtifactDto[] {
@@ -62,7 +57,13 @@ export function designArtifactsOf(input: DesignInput): ArtifactDto[] {
 
   const prefix = `${DESIGN_DIR}/`;
   const files = input.files
-    .filter((entry) => entry.kind === 'file' && entry.htmlUrl !== null && DESIGN_FILE.test(entry.name))
+    .filter(
+      (entry) =>
+        entry.kind === 'file' &&
+        entry.htmlUrl !== null &&
+        DESIGN_FILE.test(entry.name) &&
+        !isGeneratorSource(entry.path, prefix),
+    )
     .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
     .map((entry): ArtifactDto => ({
       type: 'design',
