@@ -8,19 +8,22 @@ import {
   DEMO_LABEL,
   DESIGN_DIR,
   DESIGN_LABELS,
-  DESIGN_SUBFOLDER_READS,
   ProjectConfigError,
+  blobBaseUrlOf,
   contentsEntriesOf,
   contentsFileTextOf,
   decisionArtifactsOf,
   decisionFilesOf,
   demoArtifactsOf,
   designArtifactsOf,
-  designFoldersOf,
+  encodedPath,
+  fileNameOf,
   firstHeadingOf,
   isGitHubContentsListing,
   isGitHubIssue,
+  isGitHubTree,
   issueRecordOf,
+  treeListingOf,
   type ContentsEntry,
   type IssueRecord,
 } from '@worker/read-models';
@@ -42,7 +45,7 @@ interface Decisions {
 
 interface DesignFiles {
   readonly entries: readonly ContentsEntry[];
-  /** docs/design has more sub-folders than one fill lists. */
+  /** GitHub's own tree truncation (#770: over 100,000 entries), never a sub-folder cap of ours. */
   readonly truncated: boolean;
 }
 
@@ -63,9 +66,15 @@ function isContentsAnswer(value: unknown): value is unknown {
  * Subrequests, cold isolate and empty cache (an installation token cached saves the first two):
  *   installation lookup 1 + token mint 1 + project.yml 1
  *   decisions = listing 1 + titles ≤ DECISION_TITLE_READS (30)           → ≤ 31
- *   designs   = one read per DESIGN_LABELS (3) + docs/design 1 + ≤ 5 folders → ≤ 9
+ *   designs   = one read per DESIGN_LABELS (3) + repository 1 + branch 1 + docs/design tree 1 → ≤ 6
  *   demo      = team:demo issues 1
- *   total ≤ 44 of the Worker's 50.
+ *   total ≤ 41 of the Worker's 50.
+ *
+ * #770: designs used to list docs/design and at most 5 sub-folders (up to 6 Contents reads), so a repository with
+ * more sub-folders than that always showed `design-files` in `partial` and silently dropped whatever came after
+ * the 5th folder by name. One recursive Git tree read of the default branch (`defaultBranchHeadSha` + one tree
+ * read, reusing `treeListingOf`) replaces all of that: every file under docs/design is listed, and `design-files`
+ * is reported only when the tree answer itself says `truncated: true` (over 100,000 entries, not our own cap).
  */
 export class ArtifactReads {
   constructor(
@@ -150,19 +159,39 @@ export class ArtifactReads {
         const lists = await Promise.all(DESIGN_LABELS.map((label) => this.labelledIssues(label)));
         return lists.flat();
       }),
-      this.cached<DesignFiles>('artifacts-design-files', CONTENTS_TTL_SECONDS, async () => {
-        const root = await this.listing(DESIGN_DIR);
-        const folders = designFoldersOf(root);
-        const listed = folders.slice(0, DESIGN_SUBFOLDER_READS);
-        const nested = await Promise.all(listed.map((folder) => this.listing(folder.path)));
-        return { entries: [...root, ...nested.flat()], truncated: folders.length > listed.length };
-      }),
+      this.cached<DesignFiles>('artifacts-design-files', CONTENTS_TTL_SECONDS, () => this.designTree()),
       this.storybookUrl(),
     ]);
     return {
       items: designArtifactsOf({ issues, files: files.entries, storybookUrl }),
       partial: files.truncated ? ['design-files'] : [],
     };
+  }
+
+  /**
+   * Every file under docs/design, from one recursive Git tree read of the default branch's head commit (#770): no
+   * sub-folder cap, so a repository with any number of design folders is listed in full. `truncated` is GitHub's
+   * own flag on the tree answer (over 100,000 entries), never a limit this reader imposes.
+   */
+  private async designTree(): Promise<DesignFiles> {
+    const sha = await this.reads.defaultBranchHeadSha();
+    const client = await this.reads.connect();
+    const answer = await client.getJson(
+      githubPath`/repos/${this.repo}/git/trees/${sha}?recursive=${1}`,
+      isGitHubTree,
+    );
+    const listing = treeListingOf(answer);
+    const prefix = `${DESIGN_DIR}/`;
+    const blobBase = blobBaseUrlOf(this.repo, sha);
+    const entries: ContentsEntry[] = listing.entries
+      .filter((entry) => entry.path.startsWith(prefix))
+      .map((entry) => ({
+        name: fileNameOf(entry.path),
+        path: entry.path,
+        kind: 'file',
+        htmlUrl: `${blobBase}${encodedPath(entry.path)}`,
+      }));
+    return { entries, truncated: listing.truncated };
   }
 
   private async demo(): Promise<Outcome> {

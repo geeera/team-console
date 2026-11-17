@@ -44,22 +44,18 @@ export {
   decisionFilesOf,
   firstHeadingOf,
 } from './lib/artifacts/decisions';
-export {
-  DESIGN_DIR,
-  DESIGN_LABELS,
-  DESIGN_SUBFOLDER_READS,
-  designArtifactsOf,
-  designFoldersOf,
-} from './lib/artifacts/designs';
+export { DESIGN_DIR, DESIGN_LABELS, designArtifactsOf } from './lib/artifacts/designs';
 export type { DesignInput } from './lib/artifacts/designs';
 export { DEMO_LABEL, demoArtifactsOf } from './lib/artifacts/demo';
 export {
   DESIGN_ROOT,
   SCREENS_JSON_MAX_BYTES,
+  blobBaseUrlOf,
   captionOf,
   designFilesOf,
   designManifestOf,
   deviceOf,
+  encodedPath,
   fileNameOf,
   imageTypeOf,
   isGitHubTree,
