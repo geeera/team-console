@@ -2510,5 +2510,297 @@
       "offline": "No connection to the console. Check the network and try again.",
       "failed": "That did not work. Try again in a moment."
     }
+  },
+  "teamConfig": {
+    "title": "Team",
+    "revision": "Revision {{n}} · {{who}}, {{date}}",
+    "owner": "the project owner",
+    "notCustomised": "Not customised yet. Any change creates revision 1.",
+    "entry": {
+      "row": "Team",
+      "sub": "Roles, models, limits and review rules"
+    },
+    "section": {
+      "preset": "Preset",
+      "access": "How the team reaches Claude",
+      "roles": "Roles",
+      "limits": "Limits",
+      "rules": "Rules"
+    },
+    "common": {
+      "done": "Done",
+      "cancel": "Cancel",
+      "retry": "Try again"
+    },
+    "load": {
+      "title": "Loading the team setup",
+      "slow": "Still loading the team setup",
+      "failTitle": "Team setup did not load",
+      "fail": "The setup on the server is fine. Check the network and try again.",
+      "notFound": "There is no such project, or you cannot reach it."
+    },
+    "preset": {
+      "economy": "Economy",
+      "recommended": "Recommended",
+      "max": "Max",
+      "legend": "Models for the roles",
+      "hint": {
+        "economy": "Sonnet 5 for almost everyone; Opus 5.5 for the architect, heavy tasks and security.",
+        "recommended": "The team as today: Fable 5.1 for architecture and heavy tasks, Opus 5.5 for the lead roles.",
+        "max": "Fable 5.1 for every developer, Opus 5.5 for everyone else."
+      },
+      "line": {
+        "one": "Preset: {{preset}} + {{n}} override",
+        "few": "Preset: {{preset}} + {{n}} overrides",
+        "many": "Preset: {{preset}} + {{n}} overrides",
+        "other": "Preset: {{preset}} + {{n}} overrides"
+      },
+      "lineNone": "Preset: {{preset}}",
+      "reset": "Reset to {{preset}}",
+      "resetDone": "Role overrides reset to {{preset}}. This is a draft until you save.",
+      "confirmTitle": "Switch to the {{preset}} preset?",
+      "confirmModels": "{{n}} models change. This is a draft until you save.",
+      "confirmOverrides": "Your role overrides ({{n}}) are reset too.",
+      "confirmOk": "Choose preset"
+    },
+    "role": {
+      "name": {
+        "pm": "PM",
+        "architect": "Architect",
+        "orchestrator": "Orchestrator",
+        "dev": "Developer",
+        "dev-light": "Developer, light tasks",
+        "dev-heavy": "Developer, heavy tasks",
+        "qa": "QA",
+        "reviewer": "Reviewer",
+        "security": "Security",
+        "devops": "DevOps",
+        "analyst": "Analyst",
+        "scribe": "Scribe",
+        "ux-designer": "UX designer",
+        "ui-designer": "UI designer"
+      },
+      "locked": "Always on: the team cannot work without it.",
+      "security": "Decided by the security check, not configurable.",
+      "off": "Off: no jobs are created for it.",
+      "override": "Override",
+      "reset": "Reset",
+      "resetAria": "Reset {{role}} to the preset",
+      "limits": "{{minutes}} min · {{turns}} turns · {{parallel}} at once",
+      "limitsAria": "{{role}}: limits per job",
+      "summary": "{{on}} of {{total}} on"
+    },
+    "model": {
+      "fable": "Fable 5.1",
+      "opus": "Opus 5.5",
+      "sonnet": "Sonnet 5",
+      "haiku": "Haiku 4.5",
+      "hint": {
+        "fable": "The strongest and the most expensive.",
+        "opus": "Strong and steady.",
+        "sonnet": "Faster and cheaper.",
+        "haiku": "Short notes only."
+      }
+    },
+    "effort": {
+      "low": "low",
+      "medium": "medium",
+      "high": "high"
+    },
+    "picker": {
+      "title": "Model: {{role}}",
+      "model": "Model",
+      "inPreset": "in {{preset}}",
+      "effort": "Effort",
+      "effortHint": "How much the model thinks before it answers. Follows the model unless you change it.",
+      "notAllowed": "Not available for this role: {{models}}."
+    },
+    "limits": {
+      "title": "Limits: {{role}}",
+      "minutes": "Minutes per job",
+      "turns": "Turns per job",
+      "parallel": "Parallel jobs",
+      "range": "Allowed from {{min}} to {{max}}.",
+      "budget": "Monthly budget, USD (empty = no limit)",
+      "budgetHelp": "An estimate from Claude Code, not a hard cap. The hard cap is your Anthropic workspace limit.",
+      "budgetRange": "Enter whole dollars from {{min}} to {{max}}, or leave it empty.",
+      "suggest": "For the {{preset}} preset we suggest {{usd}} a month.",
+      "perMonth": "{{usd}} a month",
+      "overshoot": "Jobs already running can go past the budget: each runs up to its own minute limit."
+    },
+    "access": {
+      "apiKey": "API key: works on hosted and self-hosted runners",
+      "apiKeyHint": "The runner uses your Anthropic API key. The console never sees it.",
+      "subscription": "Claude subscription: self-hosted runner only",
+      "risk": "Unattended automated runs on a consumer subscription are your own risk under Anthropic's terms. The console never sees or stores your sign-in.",
+      "blocked": "A hosted runner can reach this project. Change Runners first.",
+      "runners": "Open Runners",
+      "hostedError": "Subscription cannot be chosen while a hosted runner is available.",
+      "confirmTitle": "Move the team to a Claude subscription?",
+      "levers": "On a subscription the cost levers switch off: prompt caching and what the reviewer reads work with an API key only.",
+      "understand": "I understand the risk, and the team runs on my own runner only.",
+      "understandMissing": "Tick that you understand the risk to choose the subscription.",
+      "confirm": "Choose subscription"
+    },
+    "rules": {
+      "gate": {
+        "qa": "QA check",
+        "reviewer": "Review",
+        "always": "Always",
+        "code": "Code only",
+        "codeHint": "“Code only” checks a change only when it touches the code paths."
+      },
+      "paths": {
+        "add": "Add path",
+        "remove": "Remove {{path}}",
+        "lastOne": "Keep at least one code path: without one, “code only” would check nothing.",
+        "invalid": "A path is a relative pattern of up to {{max}} characters, without “..”, “\\” or a leading “/”.",
+        "tooMany": "At most {{max}} paths.",
+        "placeholder": "apps/**"
+      },
+      "reworkHint": "How many times the reviewer may send a change back.",
+      "caps": {
+        "title": "Developers per mode",
+        "normal": "Normal",
+        "burn": "Burn",
+        "freeze": "Freeze"
+      },
+      "language": {
+        "ru": "Русский",
+        "en": "English"
+      },
+      "cost": {
+        "title": "Cost",
+        "subOnly": "API key only: on a subscription the cost levers are off.",
+        "cacheHint": "Reuses the unchanged start of every prompt.",
+        "batchReason": "The Batch API suits single-request work; every team job is an agent loop. Not applied.",
+        "batchStatus": "unsupported",
+        "context": {
+          "diff": "Diff and criteria",
+          "repo": "Whole repository"
+        },
+        "contextHint": "Security and QA always read the whole repository."
+      }
+    },
+    "field": {
+      "preset": "Preset",
+      "access": {
+        "source": "Access to Claude"
+      },
+      "language": "Team language",
+      "role": {
+        "model": "model",
+        "effort": "effort",
+        "max_minutes": "minutes per job",
+        "max_turns": "turns per job",
+        "max_parallel": "parallel jobs"
+      },
+      "gates": {
+        "qa": "QA check",
+        "reviewer": "Review",
+        "code_paths": "Code paths",
+        "max_rework_rounds": "Rework rounds"
+      },
+      "caps": {
+        "dev_tasks": "tasks per run",
+        "parallel_devs": "developers at once"
+      },
+      "sprint": {
+        "length_days": "Sprint length, days",
+        "freeze_days": "Freeze before the demo, days"
+      },
+      "budget": {
+        "monthly_usd": "Monthly budget"
+      },
+      "cost": {
+        "prompt_caching": "Prompt caching",
+        "batch_api": "Batch API",
+        "reviewer_context": "Reviewer reads"
+      },
+      "config": "Team setup",
+      "body": "Team setup",
+      "reason": "Reason"
+    },
+    "value": {
+      "on": "on",
+      "off": "off",
+      "yes": "on",
+      "no": "off",
+      "noBudget": "no limit",
+      "none": "none",
+      "api_key": "API key",
+      "subscription": "Claude subscription"
+    },
+    "bar": {
+      "label": "Unsaved changes",
+      "count": {
+        "one": "{{n}} change",
+        "few": "{{n}} changes",
+        "many": "{{n}} changes",
+        "other": "{{n}} changes"
+      },
+      "announce": {
+        "one": "{{n}} unsaved change",
+        "few": "{{n}} unsaved changes",
+        "many": "{{n}} unsaved changes",
+        "other": "{{n}} unsaved changes"
+      },
+      "review": "Review and save",
+      "discard": "Discard edits",
+      "offline": "Offline: cannot send.",
+      "invalid": "Fix the values marked with an error.",
+      "nothing": "Nothing changed."
+    },
+    "review": {
+      "title": "Review your changes",
+      "field": "Setting",
+      "old": "Was",
+      "new": "Now",
+      "applies": "Applies to the next job; running jobs keep the old setup.",
+      "reason": "Reason (optional, up to 500 characters)",
+      "counter": "{{n}} / {{max}}",
+      "save": "Save",
+      "saving": "Saving…",
+      "failed": "Could not save. Your edits are still here."
+    },
+    "saved": "Saved. Revision {{n}}.",
+    "error": {
+      "invalid": "The console did not accept this value.",
+      "field": "Check “{{field}}”: the console did not accept this value."
+    },
+    "conflict": {
+      "title": "While you were editing, {{who}} saved revision {{n}}.",
+      "sub": "Your edits are not saved and not lost.",
+      "show": "Show their changes",
+      "keep": "Keep my edits on top",
+      "discard": "Discard mine",
+      "theirs": "Their changes: revision {{n}}",
+      "noChanges": "The revision changes nothing you had open.",
+      "mergedTitle": "Revision {{n}} loaded, your edits on top.",
+      "mergedClean": "Revision {{n}} loaded, your edits on top. Review and save.",
+      "mergedSub": {
+        "one": "{{who}} changed {{n}} setting you changed too. Yours is in place now.",
+        "few": "{{who}} changed {{n}} settings you changed too. Yours are in place now.",
+        "many": "{{who}} changed {{n}} settings you changed too. Yours are in place now.",
+        "other": "{{who}} changed {{n}} settings you changed too. Yours are in place now."
+      },
+      "mine": "Mine: {{value}}",
+      "their": "{{who}}: {{value}}",
+      "takeTheirs": "Use the value of {{who}}"
+    },
+    "readOnly": "Only the project owner can change the team setup.",
+    "notOwnerNow": "You no longer own this project. Your edits were not saved.",
+    "offline": "You are offline. Edits are kept here but cannot be saved.",
+    "leave": {
+      "title": "Leave without saving?",
+      "body": {
+        "one": "{{n}} unsaved change will be lost.",
+        "few": "{{n}} unsaved changes will be lost.",
+        "many": "{{n}} unsaved changes will be lost.",
+        "other": "{{n}} unsaved changes will be lost."
+      },
+      "stay": "Stay",
+      "go": "Leave"
+    }
   }
 }

@@ -197,6 +197,21 @@ export interface TeamConfigDto {
   readonly resolved: ResolvedTeamConfigDto;
   readonly updatedAt: string | null;
   readonly updatedBy: string | null;
+  /**
+   * The author's display name (their login, never an email; #688 "author name only"); `null` when the revision was
+   * written by the console's own owner identity (`local-owner`, `access-owner`) or there is none.
+   */
+  readonly updatedByName: string | null;
+  /**
+   * Whether the caller may write the document: the project's owner (`canManageProject`, #688). Display only — every
+   * write checks the route matrix again, so a stale or forged `true` is still 403.
+   */
+  readonly canManage: boolean;
+  /**
+   * `access.source: subscription` would be refused now (ADR 0009 d.3): the effective placement admits a hosted runner,
+   * or the project is dispatched to GitHub Actions. Settings shows the choice disabled with its reason.
+   */
+  readonly subscriptionBlocked: boolean;
 }
 
 /** `PUT …/team-config` with `If-Match: "<revision>"`. */

@@ -29,9 +29,10 @@ import {
 } from '@console/entities/project';
 import { JUST_ADDED_STATE } from '@console/features/add-project';
 import { ArchiveProject } from '@console/features/archive-project';
+import { teamSettingsUrlOf } from '@console/features/team-config';
 import { NetworkStatus } from '@console/shared/api';
 import { LocalTimePipe, TranslocoPipe, TranslocoPluralPipe, TranslocoService } from '@console/shared/i18n';
-import { Button, Callout, Card, focusAfterRender, Icon, StateBlock } from '@console/shared/ui';
+import { Button, Callout, Card, focusAfterRender, Icon, List, ListRow, StateBlock } from '@console/shared/ui';
 import type { ProjectSetupDto } from '@shared/contracts';
 import { readNavigationState } from './settings-navigation';
 
@@ -48,6 +49,8 @@ import { readNavigationState } from './settings-navigation';
     Card,
     ConnectGitHubButton,
     Icon,
+    List,
+    ListRow,
     LocalTimePipe,
     RouterLink,
     SetupChecklist,
@@ -91,6 +94,7 @@ export class ProjectSetupPage {
   });
   protected readonly summary = computed(() => setupSummaryOf(this.steps()));
   protected readonly spaceUrl = computed(() => spaceUrlOf(this.slug(), undefined));
+  protected readonly teamUrl = computed(() => teamSettingsUrlOf(this.slug()));
   protected readonly repoUrl = computed(() => {
     const repo = this.project()?.repo;
     return repo === undefined ? null : `https://github.com/${repo}`;

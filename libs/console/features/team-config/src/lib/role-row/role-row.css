@@ -1,0 +1,106 @@
+:host {
+  display: grid;
+  /* The settings column is narrow even on a Mac: name and switch above, model and limits under them. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-areas:
+    'name name switch'
+    'reason reason reason'
+    'model limits reset'
+    'error error error';
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--border-w) solid var(--border);
+}
+
+.role-row__name {
+  grid-area: name;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.role-row__title {
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+}
+
+.role-row__switch {
+  grid-area: switch;
+  justify-self: end;
+}
+
+.role-row__model {
+  grid-area: model;
+  min-width: 0;
+}
+
+.role-row__limits {
+  grid-area: limits;
+  min-width: 0;
+}
+
+.role-row__reset {
+  grid-area: reset;
+}
+
+.role-row__picker,
+.role-row__limits-button {
+  width: 100%;
+  min-height: var(--control-h-touch);
+  justify-content: space-between;
+}
+
+.role-row__limits-button span {
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.role-row__value {
+  color: var(--text);
+}
+
+:host(.role-row--off) .role-row__model,
+:host(.role-row--off) .role-row__limits {
+  color: var(--text-2);
+}
+
+.role-row__reason,
+.role-row__error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+.role-row__reason {
+  grid-area: reason;
+  color: var(--text-2);
+}
+
+.role-row__error {
+  grid-area: error;
+  color: var(--danger-text);
+}
+
+@media (max-width: 519.98px) {
+  :host {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'name switch'
+      'reason reason'
+      'model model'
+      'limits limits'
+      'reset reset'
+      'error error';
+  }
+
+}
+
+.role-row__reset:empty {
+  display: none;
+}
