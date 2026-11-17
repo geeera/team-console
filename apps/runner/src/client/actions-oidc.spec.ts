@@ -1,5 +1,5 @@
 import { generateKeyPairSync } from 'node:crypto';
-import { JOB_ID, fakeConsole, json } from '../testing/fake-console';
+import { JOB_ID, fakeConsole, jobFixture, json } from '../testing/fake-console';
 import { publicJwkOf } from '../config/runner-key';
 import { ActionsRunError, idTokenRequestUrlOf, postOidcExchange, requestActionsIdToken } from './actions-oidc';
 import { RunnerApiError } from './runner-client';
@@ -104,5 +104,19 @@ describe('postOidcExchange', () => {
     await expect(postOidcExchange('https://console.example', input, fake.fetch)).rejects.toThrow(
       'oidc exchange: unexpected answer',
     );
+  });
+
+  it('passes a malformed teamConfig through unjudged (#741) instead of throwing on it', async () => {
+    const exchangeAnswer = {
+      job: jobFixture({ dispatch: 'actions' }),
+      jobToken: `tcj_${'J'.repeat(43)}`,
+      leaseSeconds: 300,
+      teamConfig: { roles: 'not-a-record' },
+      teamConfigRevision: 7,
+      runner: { id: '01JC00000000000000000000R1', audience: 'team-console:dev' },
+    };
+    const fake = fakeConsole(() => json(200, exchangeAnswer));
+    const answer = await postOidcExchange('https://console.example', input, fake.fetch);
+    expect(answer.teamConfig).toEqual({ roles: 'not-a-record' });
   });
 });
