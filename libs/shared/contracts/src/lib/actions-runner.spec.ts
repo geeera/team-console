@@ -2,6 +2,7 @@ import {
   actionsRunIdOf,
   actionsRunnerNameOf,
   checkOidcExchangeInput,
+  isActionsWorkflowDto,
   isOidcExchangeResponse,
   isProjectDispatch,
 } from './actions-runner';
@@ -60,6 +61,20 @@ describe('what an enrolment code can grant (#668)', () => {
     };
     expect(checkEnrolRunnerInput({ ...body, isolation: 'container' }).ok).toBe(true);
     expect(checkEnrolRunnerInput({ ...body, isolation: 'actions-ephemeral' })).toMatchObject({ ok: false, field: 'isolation' });
+  });
+});
+
+describe('isActionsWorkflowDto (#759)', () => {
+  const dto = { text: 'name: x\n', sha256: 'a'.repeat(64), version: '0.1.0' };
+
+  it('is the text, its hex SHA-256 and the pinned runner version, nothing more', () => {
+    expect(isActionsWorkflowDto(dto)).toBe(true);
+    expect(isActionsWorkflowDto({ ...dto, text: '' })).toBe(false);
+    expect(isActionsWorkflowDto({ ...dto, sha256: 'A'.repeat(64) })).toBe(false);
+    expect(isActionsWorkflowDto({ ...dto, sha256: 'a'.repeat(63) })).toBe(false);
+    expect(isActionsWorkflowDto({ ...dto, version: 'latest' })).toBe(false);
+    expect(isActionsWorkflowDto({ ...dto, consoleUrl: 'https://x.example' })).toBe(false);
+    expect(isActionsWorkflowDto(null)).toBe(false);
   });
 });
 

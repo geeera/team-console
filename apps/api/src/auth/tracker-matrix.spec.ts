@@ -65,6 +65,8 @@ interface Row {
   readonly variant?: string;
   readonly setup: (project: SeededProject) => Promise<Scenario>;
   readonly expect: (who: Who) => Expected;
+  /** What an admitted read answers a session member and owner, when it is not 200 on this stack. */
+  readonly admittedRead?: Expected;
 }
 
 async function item(
@@ -178,6 +180,14 @@ const ROWS: readonly Row[] = [
     route: `PUT ${P}/:slug/dispatch`,
     setup: async (project) => ({ method: 'PUT', path: `${P}/${project.slug}/dispatch`, body: { dispatch: 'pull' } }),
     expect: (who) => (who === 'owner' ? ok(200) : refused('owner-only')),
+  },
+  // #759: the account reads the rendered workflow. This stack is served on http://api.test, not on the configured
+  // CONSOLE_PUBLIC_ORIGIN, so an admitted owner gets the 503 behind the gate (routes/actions-setup.spec.ts has the 200).
+  {
+    route: `GET ${P}/:slug/actions-setup/workflow`,
+    setup: async (project) => ({ method: 'GET', path: `${P}/${project.slug}/actions-setup/workflow` }),
+    expect: (who) => (who === 'owner' ? refused('console-origin-misconfigured', 503) : refused('owner-only')),
+    admittedRead: refused('console-origin-misconfigured', 503),
   },
   reads(`GET ${P}/:slug/items`, async (project) => `${P}/${project.slug}/items`),
   reads(`GET ${P}/:slug/items/:key`, async (project) => (await item(project)).path),
@@ -412,7 +422,7 @@ describe('the route matrix covers the tracker', () => {
         .routes.filter(
           (route) =>
             route.method !== 'ALL' &&
-            /^\/api\/v1\/projects\/:slug\/(items|sprints|labels|prs|requests|decisions|jobs|runner-policy|team-config|dispatch)\b/.test(
+            /^\/api\/v1\/projects\/:slug\/(items|sprints|labels|prs|requests|decisions|jobs|runner-policy|team-config|dispatch|actions-setup)\b/.test(
               route.path,
             ),
         )
@@ -474,6 +484,8 @@ const OWNER_ROWS: readonly TrackerRoute[] = [
   // #670: the dispatch is the account's to read and the owner's to switch.
   `GET ${P}/:slug/dispatch`,
   `PUT ${P}/:slug/dispatch`,
+  // #759: the rendered runner workflow is the account's to read; no job needs it.
+  `GET ${P}/:slug/actions-setup/workflow`,
 ];
 const PLANNING_ROWS: readonly TrackerRoute[] = [
   `POST ${P}/:slug/sprints`,
@@ -553,7 +565,7 @@ describe('the member actor is decided on every row', () => {
       const rule = TRACKER_MATRIX[row.route];
       await expectOutcome(
         memberResponse,
-        scenario.method === 'GET' ? ok(200) : refused(rule.refusal),
+        scenario.method === 'GET' ? (row.admittedRead ?? ok(200)) : refused(rule.refusal),
         'member',
       );
       if (scenario.method !== 'GET') {

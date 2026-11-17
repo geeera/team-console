@@ -474,6 +474,28 @@ export const ENVIRONMENT_MANIFEST: EnvironmentManifest = {
       },
     },
     {
+      name: 'CONSOLE_PUBLIC_ORIGIN',
+      kind: 'variable',
+      origin: 'generated',
+      environments: ['dev', 'stage', 'production'],
+      locations: [
+        {
+          place: 'wrangler-var',
+          app: 'api',
+        },
+      ],
+      neededBy: ['apps/api (адрес консоли в файле workflow раннера GitHub Actions, #759)'],
+      purpose:
+        'Публичный адрес консоли (`https://…`, без порта и пути). Консоль вписывает его в файл `team-console-runner.yml` как `TC_CONSOLE_URL`, поэтому заказчику не нужны переменные в Environment. Фиксирован в wrangler.jsonc для каждого окружения.',
+      guide: {
+        obtain: null,
+        scopes: null,
+        rotation: null,
+        gotchas:
+          'Должен совпадать с адресом, по которому открыта консоль, иначе `GET …/actions-setup/workflow` отвечает 503 `console-origin-misconfigured`. При переезде на свой домен поменяйте значение и предложите заказчикам обновить файл workflow.',
+      },
+    },
+    {
       name: 'VAPID_SUBJECT',
       kind: 'variable',
       origin: 'generated',
