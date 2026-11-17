@@ -9,8 +9,8 @@ import type { CommandsProject } from './commands-panel';
 let nextBannerId = 0;
 
 /**
- * While the project is paused, a strip across its space (#114): ochre with Resume when the owner paused it, clay
- * with the run log and Resume when the team paused itself. Resume asks once, like the panel's; its result is a
+ * While the project is paused, a strip across its space (#114): ochre with Resume when the owner or the budget (#738)
+ * paused it, clay with the run log and Resume when the team paused itself. Resume asks once, like the panel's; its result is a
  * toast, since the panel may be closed.
  */
 @Component({
@@ -29,6 +29,9 @@ let nextBannerId = 0;
             @if (status.state === 'paused-by-team') {
               <b>{{ 'commands.banner.teamLead' | transloco: { name: project().name } }}</b>
               {{ 'commands.banner.teamRest' | transloco }}
+            } @else if (status.state === 'paused-by-budget') {
+              <b>{{ 'commands.banner.budgetLead' | transloco: { name: project().name } }}</b>
+              {{ 'commands.banner.budgetRest' | transloco }}
             } @else {
               <b>{{
                 status.pausedAt

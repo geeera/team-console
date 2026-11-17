@@ -29,6 +29,7 @@ function status(overrides: Partial<TeamStatusDto> = {}): TeamStatusDto {
     pendingRequests: 0,
     pauseHolds: true,
     pauseLiftsAtNextRun: false,
+    budget: null,
     slots: (['pm', 'dev', 'qa'] as const).map((slot) => ({
       slot,
       setup: 'present',
@@ -203,6 +204,35 @@ describe('TeamCommands', () => {
     expect(shown[0]?.warning).toMatch(/^Команда остановилась сама/);
     expect(outcome?.verb).toBe('Разработка в Team Console возобновлена');
     expect(store.status()?.state).toBe('running');
+  });
+
+  it('resume after the budget stop says nothing new starts while the month is at its budget; the team_state answer is a success (#738)', async () => {
+    await setup(status({ state: 'paused-by-budget', pausedAt: '2026-10-01T10:00:00.000Z' }));
+    const { outcome, sent } = await answer(
+      commands.resume(TARGET),
+      teamCommandUrl('tc', 'resume'),
+      { paused: false, pausedAt: null, pausedBy: null, failedStreak: 0 },
+      201,
+    );
+    expect(sent).toEqual({});
+    expect(shown[0]?.warning).toBe(
+      'Пауза снимется, но пока расходы месяца не ниже бюджета, новые задачи не начнутся. Чтобы продолжить в этом месяце, выберите «Возобновить на этот месяц» в «Ждут вас».',
+    );
+    expect(refusals).toEqual([]);
+    expect(outcome).toMatchObject({ tone: 'positive', verb: 'Разработка в Team Console возобновлена' });
+    expect(store.status()?.state).toBe('running');
+  });
+
+  it('pause on the console tracker answers the team_state row, read as done', async () => {
+    await setup();
+    const { outcome } = await answer(
+      commands.pause(TARGET),
+      teamCommandUrl('tc', 'pause'),
+      { paused: true, pausedAt: '2026-10-01T12:00:00.000Z', pausedBy: 'owner@example.com', failedStreak: 0 },
+      201,
+    );
+    expect(outcome?.tone).toBe('positive');
+    expect(store.status()?.state).toBe('paused-by-owner');
   });
 
   it('run now: names the slot, then locks the row as requested', async () => {

@@ -35,9 +35,30 @@ export interface RunRequest {
 
 /**
  * Who paused: the owner (an active `pt-owner-pause` record, from the console or the team chat), or the team itself
- * (`team:paused` without one — three failed runs in a row).
+ * (`team:paused` without one — three failed runs in a row). On the console's tracker (#738) it is `team_state`: the
+ * owner's pause, the failure streak's (`paused-by-team`), or the budget stop's (`paused-by-budget`, #684).
  */
-export type TeamState = 'running' | 'paused-by-owner' | 'paused-by-team';
+export type TeamState = 'running' | 'paused-by-owner' | 'paused-by-team' | 'paused-by-budget';
+
+export const TEAM_STATES: readonly TeamState[] = ['running', 'paused-by-owner', 'paused-by-team', 'paused-by-budget'];
+
+export function isTeamState(value: unknown): value is TeamState {
+  return TEAM_STATES.some((state) => state === value);
+}
+
+/**
+ * The UTC month's budget on a console-tracker project (#737): what Settings › Team shows next to the budget, so the
+ * owner sees why a waived month does not stop the team.
+ */
+export interface TeamBudgetMonthDto {
+  /** UTC `YYYY-MM`. */
+  readonly month: string;
+  readonly spentUsd: number;
+  /** `budget.monthly_usd` now; `null` without a budget. */
+  readonly budgetUsd: number | null;
+  /** When "Resume this month" waived the month; `null` while the budget caps it. A save that changes the budget ends it. */
+  readonly waivedAt: string | null;
+}
 
 /** Why a slot cannot be started now, in the order the Worker checks (architect note on #114 §4). */
 export type SlotLock =
@@ -61,7 +82,10 @@ export interface SlotStatusDto {
 /** `GET /api/v1/projects/:slug/team/status`: read fresh from the run log on every call. */
 export interface TeamStatusDto {
   readonly state: TeamState;
-  /** When the owner paused (the record's comment time); `null` unless `paused-by-owner`. */
+  /**
+   * When the owner paused (the record's comment time); `null` unless `paused-by-owner`. On the console's tracker the
+   * time `team_state` paused, for `paused-by-budget` as well.
+   */
   readonly pausedAt: string | null;
   /** The run-log issue on GitHub; `null` while the project has none. */
   readonly runLogUrl: string | null;
@@ -93,6 +117,8 @@ export interface TeamStatusDto {
    * takes `team:paused` off and works (#141). The panel says so instead of "paused by you".
    */
   readonly pauseLiftsAtNextRun: boolean;
+  /** The month's spend against the budget (#737) on a console-tracker project; `null` on GitHub's tracker. */
+  readonly budget: TeamBudgetMonthDto | null;
 }
 
 /** A pause or resume written to the run log. */

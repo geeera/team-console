@@ -3,14 +3,15 @@ import {
   isSnoozeDto,
   isCalendarDate,
   isTeamSlot,
+  isTeamState,
   type SprintCalendarDto,
   type SprintProgressDto,
   type SprintRefDto,
   type TeamSprintDto,
   type SlotLock,
   type SlotStatusDto,
+  type TeamBudgetMonthDto,
   type TeamSlot,
-  type TeamState,
   type TeamStatusDto,
 } from '@shared/contracts';
 
@@ -25,8 +26,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 const isText = (value: unknown): value is string => typeof value === 'string';
 const isTextOrNull = (value: unknown): value is string | null => value === null || typeof value === 'string';
 
-function isTeamState(value: unknown): value is TeamState {
-  return value === 'running' || value === 'paused-by-owner' || value === 'paused-by-team';
+const isDollars = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0;
+
+function isBudgetMonth(value: unknown): value is TeamBudgetMonthDto | null {
+  return (
+    value === null ||
+    (isRecord(value) &&
+      isText(value['month']) &&
+      isDollars(value['spentUsd']) &&
+      (value['budgetUsd'] === null || isDollars(value['budgetUsd'])) &&
+      isTextOrNull(value['waivedAt']))
+  );
 }
 
 function isLock(value: unknown): value is SlotLock | null {
@@ -131,6 +142,7 @@ export function isTeamStatusDto(value: unknown): value is TeamStatusDto {
     isCount(value['pendingRequests']) &&
     typeof value['pauseHolds'] === 'boolean' &&
     typeof value['pauseLiftsAtNextRun'] === 'boolean' &&
+    isBudgetMonth(value['budget']) &&
     slots.length === TEAM_SLOTS.length &&
     slots.every(isSlotStatus) &&
     TEAM_SLOTS.every((slot, index) => (slots[index] as SlotStatusDto).slot === slot)
