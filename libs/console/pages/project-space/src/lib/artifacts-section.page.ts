@@ -142,14 +142,23 @@ import { map } from 'rxjs';
               <tc-artifact-list
                 [items]="visible()"
                 [label]="'artifacts.listLabel' | transloco"
+                [grouped]="type() === null"
                 [designLeading]="designLeading"
                 [designSubtitle]="designSubtitle"
                 (openDesign)="openDesign($event)"
               />
-              <!-- #277: the design rows' thumbnail and summary; the viewer opens from the row. -->
+              <!-- #277: the design rows' thumbnail and summary; the viewer opens from the row. On a card (#766) the
+                   wide preview shows instead: CSS picks one by the body's width, so focus never moves. -->
               <ng-template #designLeading let-design>
                 @if (slug(); as slug) {
-                  <tc-design-preview [slug]="slug" [issue]="design.number" />
+                  <tc-design-preview class="artifacts__thumb" [slug]="slug" [issue]="design.number" />
+                  <tc-design-preview
+                    class="artifacts__card-thumb"
+                    variant="card"
+                    [worded]="true"
+                    [slug]="slug"
+                    [issue]="design.number"
+                  />
                 }
               </ng-template>
               <ng-template #designSubtitle let-design>
@@ -163,10 +172,14 @@ import { map } from 'rxjs';
       }
       @default {
         @if (type() === 'design') {
-          <!-- #277 spec §4: three skeleton rows the shape of a design row, and a status line. -->
+          <!-- #277 spec §4: three skeleton rows the shape of a design row, and a status line; six cards on a wide body (#766). -->
           <div class="artifacts__designs-loading" data-testid="artifacts-designs-loading" aria-busy="true">
             @for (row of skeletonRows; track row) {
-              <div class="artifacts__skeleton" aria-hidden="true">
+              <div
+                class="artifacts__skeleton"
+                [class.artifacts__skeleton--extra]="row >= 3"
+                aria-hidden="true"
+              >
                 <span class="artifacts__skeleton-thumb"></span>
                 <span class="artifacts__skeleton-text">
                   <span class="artifacts__skeleton-line"></span>
@@ -246,7 +259,7 @@ export class ArtifactsSectionPage {
     }
     return (this.snapshot()?.items.length ?? 0) === 0 ? 'all' : 'no-match';
   });
-  protected readonly skeletonRows = [0, 1, 2];
+  protected readonly skeletonRows = [0, 1, 2, 3, 4, 5];
   protected readonly loadedTime = computed(() => {
     const snapshot = this.snapshot();
     return snapshot === null ? '' : localTimeOf(snapshot.loadedAt, this.lang());

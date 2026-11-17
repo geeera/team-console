@@ -42,7 +42,7 @@ import { QuestionList } from '@console/widgets/question-list';
     TranslocoPipe,
   ],
   template: `
-    <div class="tc-page tc-page--cards">
+    <div class="tc-page tc-page--cards needs-you">
       <div class="needs-you__head">
         <h1 #heading tcSrOnlyOnPhone class="tc-page__title" tabindex="-1">
           {{ 'needsYou.title' | transloco }}
@@ -89,6 +89,14 @@ import { QuestionList } from '@console/widgets/question-list';
     </div>
   `,
   styles: `
+    /* #766: from 900 px the page takes the project space's padding and its one cap, so cards fill wide screens. */
+    @media (min-width: 900px) {
+      .needs-you {
+        max-width: var(--page-max);
+        padding-inline: var(--pad-x);
+      }
+    }
+
     .needs-you__head {
       display: flex;
       flex-wrap: wrap;

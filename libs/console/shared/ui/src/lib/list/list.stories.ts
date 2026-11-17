@@ -6,7 +6,7 @@ import { darkTheme, phoneViewport, reducedMotion } from '../../../.storybook/sto
 import { Chip } from '../chip/chip';
 import { Button, IconButton } from '../button/button';
 import { Icon } from '../icon/icon';
-import { List, ListRow } from './list';
+import { List, ListHeading, ListRow } from './list';
 
 const projects = `
   <tc-list [attr.aria-label]="'stories.list.ariaProjects' | transloco">
@@ -136,12 +136,54 @@ const longNowrapTitleStory = {
   }),
 } satisfies Partial<StoryObj<List>>;
 
+/**
+ * #766: a `grid` list in a size container. From an 880 px container (`--cq-grid-min`) the rows are cards, the leading
+ * slot across the top, the kicker over the title, the headings starting a row; under it the same DOM is the row list.
+ */
+const gridCards = `
+  <div [style.max-width]="maxWidth" style="container-type: inline-size">
+    <tc-list grid [attr.aria-label]="'stories.list.ariaProjects' | transloco">
+      <tc-list-heading>{{ 'stories.list.ariaProjects' | transloco }} <span>3</span></tc-list-heading>
+      <tc-list-row href="https://github.com/geeera/team-console" external>
+        <span tc-row-kicker><tc-icon name="check" size="sm" />{{ 'stories.list.repoProject' | transloco }}</span>
+        <span tc-row-title>Team Console</span>
+        <span tc-row-subtitle>{{ 'stories.list.sprintLine' | transloco }}</span>
+        <tc-chip tc-row-trailing>{{ 'stories.list.repoProject' | transloco }}</tc-chip>
+      </tc-list-row>
+      <tc-list-row button>
+        <span tc-row-leading class="story-thumb"></span>
+        <span tc-row-title>Sheltrix</span>
+        <span tc-row-subtitle>{{ 'stories.list.pausedSince' | transloco }}</span>
+      </tc-list-row>
+      <tc-list-row>
+        <span tc-row-kicker><tc-icon name="archive" size="sm" />{{ 'stories.list.repoArchived' | transloco }}</span>
+        <span tc-row-title>{{ 'stories.list.version' | transloco }}</span>
+        <span tc-row-subtitle>{{ 'stories.list.staticRow' | transloco }}</span>
+      </tc-list-row>
+      <tc-list-heading>{{ 'stories.list.ariaRepos' | transloco }} <span>1</span></tc-list-heading>
+      <tc-list-row href="#fieldnote">
+        <span tc-row-title>fieldnote</span>
+        <span tc-row-subtitle>geeera</span>
+      </tc-list-row>
+    </tc-list>
+  </div>
+`;
+
+const gridStory = (maxWidth: string) =>
+  ({
+    render: () => ({
+      template: gridCards,
+      props: { maxWidth },
+      styles: ['.story-thumb { display: block; width: 100%; min-width: var(--thumb-size); aspect-ratio: var(--thumb-ratio); background: var(--bg-sunken); }'],
+    }),
+  }) satisfies Partial<StoryObj<List>>;
+
 const meta: Meta<List> = {
   title: 'Kit/List',
   component: List,
   decorators: [
     applicationConfig({ providers: [provideRouter([])] }),
-    moduleMetadata({ imports: [List, ListRow, Button, Chip, Icon, IconButton, TranslocoPipe] }),
+    moduleMetadata({ imports: [List, ListHeading, ListRow, Button, Chip, Icon, IconButton, TranslocoPipe] }),
   ],
   render: () => ({ template: projects }),
 };
@@ -163,3 +205,7 @@ export const LongNowrapTitlePhoneDark: Story = {
   globals: { ...phoneViewport.globals, ...darkTheme.globals },
   ...longNowrapTitleStory,
 };
+export const GridCards: Story = { ...gridStory('none') };
+export const GridCardsDark: Story = { ...darkTheme, ...gridStory('none') };
+/** Under 880 px of container the grid list is the row list, its headings hidden. */
+export const GridNarrowContainer: Story = { ...gridStory('var(--log-max)') };

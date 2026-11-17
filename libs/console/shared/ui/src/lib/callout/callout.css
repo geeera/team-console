@@ -40,6 +40,13 @@
   outline-offset: var(--focus-offset);
 }
 
+/* #766: prose stays at a readable measure on wide screens; below 900 px the column is narrower anyway. */
+@media (min-width: 900px) {
+  :host ::ng-deep p {
+    max-width: var(--measure);
+  }
+}
+
 :host ::ng-deep p {
   font-size: var(--fs-sm);
   line-height: var(--lh-body);

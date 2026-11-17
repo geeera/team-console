@@ -59,3 +59,10 @@
     min-height: var(--control-h-touch);
   }
 }
+
+/* #766: the nudge may span a wide page; its words keep a readable measure. */
+@media (min-width: 900px) {
+  .push-nudge__text {
+    max-width: var(--measure);
+  }
+}

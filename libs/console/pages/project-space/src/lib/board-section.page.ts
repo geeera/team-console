@@ -7,6 +7,7 @@ import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, Icon, Toaster } from '@console/shared/ui';
 import { BoardFolders, SprintBoard, SprintBoardProject } from '@console/widgets/sprint-board';
 import { map } from 'rxjs';
+import { SpacePane } from './space-pane';
 
 /**
  * `/p/:slug/board` (#18): the project's current sprint, read-only. The slug is the parent route's parameter; the
@@ -26,7 +27,8 @@ import { map } from 'rxjs';
       </div>
     }
     @if (project(); as project) {
-      <tc-sprint-board [project]="project" [initialTab]="tab()" />
+      <!-- #766: with the Commands pane beside the board, its Move demo and Ask the PM are already on screen. -->
+      <tc-sprint-board [project]="project" [initialTab]="tab()" [sprintActions]="!isPaneOpen()" />
       @if (project.isOnConsoleTracker) {
         <!-- #557: the next sprints and the backlog, under the current sprint and its lists. -->
         <tc-board-folders
@@ -53,6 +55,8 @@ import { map } from 'rxjs';
 })
 export class BoardSectionPage {
   private readonly projects = inject(ProjectsStore);
+  private readonly pane = inject(SpacePane, { optional: true });
+  protected readonly isPaneOpen = computed(() => this.pane?.isOpen() ?? false);
   private readonly sprints = inject(CreateSprint);
   private readonly toaster = inject(Toaster);
   private readonly transloco = inject(TranslocoService);

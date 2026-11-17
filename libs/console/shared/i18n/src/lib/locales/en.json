@@ -769,6 +769,11 @@
       "design": "Design",
       "demo": "Demos"
     },
+    "typeOne": {
+      "decision": "Decision",
+      "design": "Design",
+      "demo": "Demo"
+    },
     "source": {
       "file": "File",
       "issue": "Issue",
@@ -826,6 +831,11 @@
     }
   },
   "designs": {
+    "tile": {
+      "none": "No pictures",
+      "html": "Interactive version only",
+      "failed": "The picture didn’t load"
+    },
     "row": {
       "screens": {
         "one": "{{n}} screen",

@@ -121,11 +121,14 @@
   --menu-w: 320px; /* #409: the Move menu and the field pickers as a popover */
   --ledger-label: 112px; /* #409: the label column of a field ledger */
   --log-max: 680px;
-  --board-max: 1184px; /* #275: the board uses a Mac's whole main column (1440 less the sidebar) */
+  /* #766: the one cap of every project page and Needs you from 900 px, padding included. 1920 less the sidebar was
+     the approved 1664; the owner asked for less empty space on the largest screens, so it ends at 2048. */
+  --page-max: 2048px;
+  --measure: 72ch; /* #766: a paragraph of prose (lead, banner, callout) from 900 px */
   --board-side-w: 320px; /* #275: the board's PR and runs column between 900 and 1279 px */
   --stat-min-w: 9rem; /* a status tile; rem, so 200% text drops a column instead of clipping */
   --lane-cell-h: 48px; /* a cell of the phone's one-row lane switcher, label above count */
-  --card-min-w: 480px; /* a decision card in a grid of cards (#276): the outcome boxes still fit side by side */
+  --card-min-w: 448px; /* a decision card in a grid (#276); 448, not 480, so two fit in a 1280 px window (#766) */
   --cards-max: 1064px; /* two such cards, the list gap and the page padding */
   --dialog-max-w: 440px;
   --list-pane-w: 440px; /* the list of a list-detail page beside its detail pane (#104 Environment setup) */
@@ -135,6 +138,9 @@
   --sheet-full-w: 1200px;
   --sheet-full-h: 840px;
   --thumb-size: 56px; /* a design's preview in a list row (#277 spec §3) */
+  --thumb-ratio: 16 / 10; /* a design's preview on an artifact card, cropped from the top (#766) */
+  --artifact-card-min: 300px; /* the narrowest artifact card (#766) */
+  --artifact-cols-max: 4; /* the most artifact cards per row (#766) */
   --thumb-grid-min: 120px; /* the smallest cell of the viewer's "All screens" grid */
   /* Both fit the visual viewport (dvh follows the iOS toolbars) and stay clear of the notch and home indicator. */
   --sheet-max-h: min(88dvh, calc(100dvh - var(--safe-top) - var(--space-8)));
@@ -162,6 +168,10 @@
 :root {
   --bp-phone-max: 519.98px; /* ≤ iPhone widths: bottom sheets, tab bar, full-bleed cards */
   --bp-tablet-max: 899.98px; /* single column, collapsed sidebar */
+  /* Container thresholds (#766): content layouts switch on the width of the page body, not of the window, since the
+     Commands and task panes take width from it. Repeated in the @container queries with a comment naming them. */
+  --cq-grid-min: 880px; /* Artifacts: rows turn into a grid of cards */
+  --cq-wide-min: 1360px; /* the board: three columns */
 }
 
 /* 7 · motion — quiet by default; the signature moment (the stamp) is the only long one */
@@ -174,6 +184,7 @@
   --dur-sig: 620ms;
   /* a run in progress breathes slowly (#114); never collapsed — under reduced motion the dot stands still */
   --dur-pulse: 1600ms;
+  --lift: -2px; /* a card raised on hover (#766); none under reduced motion */
   /* #409: how long Undo stays offered after a move (the toast's hairline); `UNDO_DURATION_MS` in TS */
   --undo-ms: 10000ms;
 
@@ -328,6 +339,7 @@
     --dur-base: 1ms;
     --dur-slow: 1ms;
     --dur-sig: 1ms;
+    --lift: 0px;
   }
 }
 
@@ -336,4 +348,5 @@
   --dur-base: 1ms;
   --dur-slow: 1ms;
   --dur-sig: 1ms;
+  --lift: 0px;
 }

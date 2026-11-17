@@ -100,6 +100,14 @@ export function clippedBlocksOf(): string[] {
     if (element.closest('.tc-sr-only, .shell__skip, svg') !== null) {
       continue;
     }
+    // Visually hidden the .tc-sr-only way by a component's own rule (a grid card's type chip, #766): read, not cut.
+    let isVisuallyHidden = false;
+    for (let node: Element | null = element; node !== null && !isVisuallyHidden; node = node.parentElement) {
+      isVisuallyHidden = getComputedStyle(node).clip === 'rect(0px, 0px, 0px, 0px)';
+    }
+    if (isVisuallyHidden) {
+      continue;
+    }
     const box = element.getBoundingClientRect();
     // Not rendered though laid out: `visibility: hidden`, the content of a closed <details> (content-visibility).
     if (box.width < 1 || box.height < 1 || !element.checkVisibility({ visibilityProperty: true })) {
