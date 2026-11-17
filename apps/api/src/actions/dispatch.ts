@@ -112,7 +112,15 @@ export async function dispatchActionsJob(deps: DispatchDeps, jobId: string): Pro
     }
     await new ProjectDispatchRepo(deps.env.DB).recordDefaultBranch(slug, repository.defaultBranch);
     phase = 'mint';
-    const token = await auth.mintForActionsDispatch(installationId, repoId);
+    const token = await auth.mintScoped('actions-dispatch', { installationId, repositoryId: repoId }, async (event) => {
+      // #759: every mint attempt and failure is on record, not only the dispatch's own outcome.
+      deps.logger.info('actions dispatch token', {
+        jobId,
+        slug,
+        outcome: event.outcome,
+        ...(event.outcome === 'failed' ? { failure: event.failure, githubStatus: event.githubStatus } : {}),
+      });
+    });
     try {
       // Recorded before the call, as a compare-and-set: a second request never dispatches the job again, and a run
       // that boots fast never meets a job the exchange still refuses as undispatched (#695 item 3). The write also
@@ -125,7 +133,7 @@ export async function dispatchActionsJob(deps: DispatchDeps, jobId: string): Pro
       runId = await dispatchRunnerWorkflow(fetch, token, repository.current, repository.defaultBranch, jobId);
     } finally {
       // #723 item 1: the token's one call is made (or will never be); best effort, a failed revoke is only logged.
-      await auth.revokeActionsDispatchToken(token, installationId);
+      await auth.revokeScoped(token);
     }
   } catch (error: unknown) {
     const failure =

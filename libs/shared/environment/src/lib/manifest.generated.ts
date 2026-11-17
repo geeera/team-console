@@ -452,6 +452,28 @@ export const ENVIRONMENT_MANIFEST: EnvironmentManifest = {
       },
     },
     {
+      name: 'ALLOW_ACTIONS_SETUP_WRITE',
+      kind: 'variable',
+      origin: 'generated',
+      environments: ['dev', 'stage', 'production'],
+      locations: [
+        {
+          place: 'wrangler-var',
+          app: 'api',
+        },
+      ],
+      neededBy: ['apps/api (выключатель записи настройки GitHub Actions: ветка, файл workflow и PR, #759)'],
+      purpose:
+        'Аварийный выключатель: только точное значение `true` разрешает токен с правами Contents, Workflows и Pull requests на запись. `true` на dev, `false` на stage и production — фиксировано в wrangler.jsonc.',
+      guide: {
+        obtain: null,
+        scopes: null,
+        rotation: null,
+        gotchas:
+          'На stage и production остаётся `false`, пока маршрут записи (PR 4 по #759) не пройдёт ревью безопасности. Выключение — правка значения на `false` и деплой; уже выданный токен живёт до часа, поэтому при инциденте приостановите и установку приложения.',
+      },
+    },
+    {
       name: 'VAPID_SUBJECT',
       kind: 'variable',
       origin: 'generated',
