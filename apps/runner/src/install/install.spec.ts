@@ -1,4 +1,4 @@
-import { chmod, lstat, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { managedSettingsText } from '../backends/user';
@@ -30,6 +30,17 @@ const ROOT_DIR: PathFacts = { uid: 0, mode: 0o755, kind: 'directory' };
 const ROOT_FILE: PathFacts = { uid: 0, mode: 0o555, kind: 'file' };
 const IMAGE = `ghcr.io/geeera/team-console-runner:0.1.0@sha256:${'b'.repeat(64)}`;
 
+/** `path` as a root-owned file and every directory above it as root-owned, writable by root only. */
+const rootChain = (path: string): Record<string, PathFacts> => {
+  const stats: Record<string, PathFacts> = { [path]: ROOT_FILE };
+  for (let dir = path.slice(0, path.lastIndexOf('/')) || '/'; ; dir = dir.slice(0, dir.lastIndexOf('/')) || '/') {
+    stats[dir] = ROOT_DIR;
+    if (dir === '/') {
+      return stats;
+    }
+  }
+};
+
 interface FakeHost extends InstallHost {
   readonly applied: InstallStep[];
   readonly queries: string[];
@@ -45,6 +56,9 @@ function fakeHost(
     files?: Record<string, string>;
     exec?: Record<string, ExecResult>;
     failOn?: number;
+    /** Where a path leads once its links are resolved; a path not listed leads to itself. */
+    realpaths?: Record<string, string | null>;
+    realpath?: InstallHost['realpath'];
   } = {},
 ): FakeHost {
   const applied: InstallStep[] = [];
@@ -66,6 +80,8 @@ function fakeHost(
     return answers[line] ?? { code: 1, stdout: '' };
   };
   const stats: Record<string, PathFacts> = {
+    // The specs below that are about the node's owner say so; elsewhere it is root's and nothing is warned.
+    ...rootChain(NODE),
     [PREFIX]: ROOT_DIR,
     [`${PREFIX}/bin`]: ROOT_DIR,
     [`${PREFIX}/team-console-runner.mjs`]: ROOT_FILE,
@@ -80,6 +96,9 @@ function fakeHost(
     applied,
     queries,
     stat: async (path) => stats[path] ?? null,
+    realpath:
+      overrides.realpath ??
+      (async (path) => (overrides.realpaths !== undefined && path in overrides.realpaths ? (overrides.realpaths[path] ?? null) : path)),
     read: async (path) => overrides.files?.[path] ?? null,
     apply: async (step) => {
       if (applied.length + 1 === overrides.failOn) {
@@ -331,6 +350,174 @@ describe('install --backend user (macOS)', () => {
     it('when no system id is free', async () => {
       const taken = Array.from({ length: 100 }, (_, at) => `u${String(at)} ${String(400 + at)}`).join('\n');
       await expect(planInstall(userOptions(), fakeHost({ users: taken }))).rejects.toThrow(/no free id/);
+    });
+  });
+});
+
+/** #772: the node the services run survives `brew upgrade node`, and the operator is told who can replace it (S2). */
+describe('install: the node the service runs', () => {
+  const CELLAR = '/opt/homebrew/Cellar/node/26.0.0/bin/node';
+  const OPT = '/opt/homebrew/opt/node/bin/node';
+  const plistOf = (steps: readonly InstallStep[]): string => {
+    const write = steps.find(
+      (step) => step.kind === 'write' && step.path === '/Library/LaunchDaemons/com.team-console.runner.plist',
+    );
+    return write?.kind === 'write' ? write.content : '';
+  };
+  const brewHost = (overrides: Parameters<typeof fakeHost>[0] = {}): FakeHost =>
+    fakeHost({ realpaths: { '/opt/homebrew/bin/node': CELLAR, [OPT]: CELLAR, [CELLAR]: CELLAR }, ...overrides });
+
+  it.each([
+    ['Homebrew bin link', '/opt/homebrew/bin/node'],
+    ['Cellar path itself', CELLAR],
+    ['versionless opt link', OPT],
+  ])('writes the versionless opt link for the %s, never the Cellar path', async (_, given) => {
+    const { steps, next } = await planInstall({ ...userOptions(), node: given }, brewHost());
+    const plist = plistOf(steps);
+    expect(plist).toBe(launchDaemonPlist({ ...DOCUMENTED_DEFAULTS, node: OPT }));
+    expect(plist).toContain(`<string>${OPT}</string>`);
+    expect(plist).not.toContain('Cellar');
+    // The runner process finds Homebrew's git and claude as well.
+    expect(plist).toContain(
+      '<key>PATH</key><string>/opt/homebrew/opt/node/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>',
+    );
+    expect(next[0]).toContain(`${OPT} /usr/local/lib/team-console-runner/team-console-runner.mjs enrol`);
+  });
+
+  it('keeps a node outside Homebrew as given, not its realpath', async () => {
+    const host = fakeHost({ realpaths: { '/usr/local/bin/node': '/usr/local/lib/nodejs/node-v22/bin/node' } });
+    const plist = plistOf((await planInstall({ ...userOptions(), node: '/usr/local/bin/node' }, host)).steps);
+    expect(plist).toContain('<string>/usr/local/bin/node</string>');
+    expect(plist).toContain('<key>PATH</key><string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>');
+  });
+
+  it('refuses a Cellar node when the versionless link is missing, before any step', async () => {
+    const host = brewHost({ realpaths: { '/opt/homebrew/bin/node': CELLAR, [OPT]: null } });
+    await expect(runInstall({ ...userOptions(true), node: '/opt/homebrew/bin/node' }, host, () => undefined)).rejects.toThrow(
+      `${OPT} does not exist: run brew link node`,
+    );
+    expect(host.applied).toEqual([]);
+  });
+
+  it('substitutes the link in the container service files too', async () => {
+    const host = fakeHost({
+      platform: 'linux',
+      uid: 1000,
+      exec: { 'docker version': { code: 0, stdout: '' } },
+      realpaths: {
+        '/home/linuxbrew/.linuxbrew/bin/node': '/home/linuxbrew/.linuxbrew/Cellar/node/26.0.0/bin/node',
+      },
+    });
+    const { steps } = await planInstall(
+      { ...containerOptions(), node: '/home/linuxbrew/.linuxbrew/bin/node' },
+      host,
+    );
+    const unit = steps.find((step) => step.kind === 'write');
+    expect(unit?.kind === 'write' ? unit.content : '').toContain(
+      'ExecStart=/home/linuxbrew/.linuxbrew/opt/node/bin/node ',
+    );
+  });
+
+  describe('a planted Homebrew layout on disk', () => {
+    let root: string;
+
+    beforeEach(async () => {
+      root = await realpath(await mkdtemp(join(tmpdir(), 'install-brew-')));
+      await mkdir(join(root, 'Cellar/node/26.0.0/bin'), { recursive: true });
+      await writeFile(join(root, 'Cellar/node/26.0.0/bin/node'), '');
+      await mkdir(join(root, 'bin'));
+      await mkdir(join(root, 'opt'));
+      await symlink('../Cellar/node/26.0.0/bin/node', join(root, 'bin/node'));
+      await symlink('../Cellar/node/26.0.0', join(root, 'opt/node'));
+    });
+
+    afterEach(async () => {
+      await rm(root, { recursive: true, force: true });
+    });
+
+    const realHost = (): InstallHost['realpath'] =>
+      systemInstallHost({ platform: 'darwin', uid: 0, homeDir: '/nonexistent', exec: async () => ({ code: 1, stdout: '' }) })
+        .realpath;
+
+    it('the plist names opt/node, which still resolves after brew upgrade swaps the keg', async () => {
+      const host = fakeHost({ realpath: realHost() });
+      const { steps } = await planInstall({ ...userOptions(), node: join(root, 'bin/node') }, host);
+      const plist = plistOf(steps);
+      expect(plist).toContain(`<string>${join(root, 'opt/node/bin/node')}</string>`);
+      expect(plist).not.toContain('Cellar');
+
+      // What `brew upgrade node` does: a new keg, the links repointed, the old keg gone.
+      await mkdir(join(root, 'Cellar/node/26.1.0/bin'), { recursive: true });
+      await writeFile(join(root, 'Cellar/node/26.1.0/bin/node'), '');
+      await rm(join(root, 'opt/node'));
+      await symlink('../Cellar/node/26.1.0', join(root, 'opt/node'));
+      await rm(join(root, 'Cellar/node/26.0.0'), { recursive: true });
+      expect(await realHost()(join(root, 'opt/node/bin/node'))).toBe(join(root, 'Cellar/node/26.1.0/bin/node'));
+    });
+
+    it('refuses when opt/node is missing', async () => {
+      await rm(join(root, 'opt/node'));
+      await expect(
+        planInstall({ ...userOptions(), node: join(root, 'bin/node') }, fakeHost({ realpath: realHost() })),
+      ).rejects.toThrow(/inside Homebrew's Cellar, which brew upgrade replaces/);
+    });
+  });
+
+  describe('who can replace node (S2, #778)', () => {
+    const lines = async (host: FakeHost): Promise<string> => {
+      const out: string[] = [];
+      await runInstall(userOptions(false), host, (line) => out.push(line));
+      return out.join('\n');
+    };
+    it("warns, before the steps, that Homebrew's owner can act as _tcrunner, and still plans the install", async () => {
+      const host = brewHost({
+        uid: 501,
+        stats: {
+          ...rootChain(CELLAR),
+          '/opt/homebrew': { uid: 501, mode: 0o755, kind: 'directory' },
+          [OPT]: { uid: 501, mode: 0o755, kind: 'file' },
+        },
+      });
+      const text = await lines(host);
+      expect(text.split('\n')[0]).toBe(
+        `Warning: the runner's node ${OPT} is not root's alone (${OPT} belongs to uid 501, not root).`,
+      );
+      expect(text).toContain('run as _tcrunner and read the runner key and the Claude credential');
+      expect(text).toContain('until the runner release ships its own node (#634)');
+      expect(text).toMatch(/Dry run, nothing changed/);
+      // Nothing claims a check that would make Homebrew's node safe.
+      expect(text).not.toMatch(/root-owned check|verified root|is root-owned/i);
+    });
+
+    it('warns about a link the login user could repoint, even when its target is root-owned', async () => {
+      const host = fakeHost({
+        uid: 501,
+        realpaths: { [OPT]: '/usr/local/libexec/node' },
+        stats: {
+          ...rootChain('/usr/local/libexec/node'),
+          [OPT]: { uid: 501, mode: 0o755, kind: 'symlink' },
+        },
+      });
+      expect(await lines(host)).toContain(`(${OPT} belongs to uid 501, not root)`);
+    });
+
+    it('says nothing when the node and every directory above it are root-owned and writable by root only', async () => {
+      const node = '/usr/local/bin/node';
+      const host = fakeHost({ uid: 501, stats: rootChain(node) });
+      const out: string[] = [];
+      await runInstall({ ...userOptions(false), node }, host, (line) => out.push(line));
+      expect(out.join('\n')).not.toMatch(/Warning/);
+    });
+
+    it('warns about a root-owned directory that others can write', async () => {
+      const node = '/usr/local/bin/node';
+      const host = fakeHost({
+        uid: 501,
+        stats: { ...rootChain(node), '/usr/local': { uid: 0, mode: 0o775, kind: 'directory' } },
+      });
+      const out: string[] = [];
+      await runInstall({ ...userOptions(false), node }, host, (line) => out.push(line));
+      expect(out[0]).toContain('(/usr/local is writable by others than root)');
     });
   });
 });
