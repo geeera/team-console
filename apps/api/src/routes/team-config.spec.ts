@@ -107,6 +107,27 @@ describe('GET …/team-config', () => {
     const login = (await env.DB.prepare(`SELECT login FROM users WHERE id = ?1`).bind(owner.userId).first<{ login: string }>())?.login;
     expect(body.updatedByName).toBe(login);
     expect(JSON.stringify(body)).not.toContain('owner@example.test');
+
+    // The history names the same author by login on the list and on the revision, never by email (#688 slice 2).
+    const list = await sendAsSession(owner, 'GET', `${path}/revisions`);
+    const listed = (await list.json()) as TeamConfigRevisionListDto;
+    expect(listed.revisions.map((revision) => revision.createdByName)).toEqual([login]);
+    const one = await sendAsSession(owner, 'GET', `${path}/revisions/1`);
+    const revision = (await one.json()) as TeamConfigRevisionDto;
+    expect(revision.createdByName).toBe(login);
+    expect(JSON.stringify([listed, revision])).not.toContain('owner@example.test');
+  });
+
+  it('carries the current revision\'s reason as stored text, null before any revision or without one (#688)', async () => {
+    const project = await seedTrackerProject();
+    expect(((await (await send('GET', base(project))).json()) as TeamConfigDto).reason).toBeNull();
+    const reason = '<img src=x onerror=alert(1)> QA on Sonnet';
+    const saved = await send('PUT', base(project), { config: doc({ access: { source: 'api_key' } }), reason }, { ifMatch: '"0"' });
+    expect(saved.status).toBe(200);
+    expect(((await saved.json()) as TeamConfigDto).reason).toBe(reason);
+    expect(((await (await send('GET', base(project))).json()) as TeamConfigDto).reason).toBe(reason);
+    const next = await send('PUT', base(project), { config: doc({ access: { source: 'api_key' }, language: 'en' }) }, { ifMatch: '"1"' });
+    expect(((await next.json()) as TeamConfigDto).reason).toBeNull();
   });
 });
 

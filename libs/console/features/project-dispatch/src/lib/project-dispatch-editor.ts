@@ -11,6 +11,7 @@ import {
   untracked,
 } from '@angular/core';
 import { RunnersApi, runnerFailureKeyOf, type RunnerFailure } from '@console/entities/runner';
+import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Banner, Button, Choice, ChoiceGroup, Icon, StateBlock } from '@console/shared/ui';
 import type { ProjectDispatch, ProjectDispatchDto } from '@shared/contracts';
@@ -27,7 +28,7 @@ let nextEditorId = 0;
  */
 @Component({
   selector: 'tc-project-dispatch-editor',
-  imports: [Banner, Button, Choice, ChoiceGroup, Icon, StateBlock, TranslocoPipe],
+  imports: [Banner, Button, Choice, ChoiceGroup, Icon, RouterLink, StateBlock, TranslocoPipe],
   templateUrl: './project-dispatch-editor.html',
   styleUrl: './project-dispatch-editor.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -38,6 +39,8 @@ export class ProjectDispatchEditor {
   private readonly announcer = inject(LiveAnnouncer);
 
   readonly slug = input.required<string>();
+  /** Settings › Team of this project (#688): linked from an `access-source-hosted` refusal; none hides the link. */
+  readonly teamUrl = input<string | null>(null);
   /** The dispatch as the Worker stored it after a save. */
   readonly saved = output<ProjectDispatchDto>();
 
@@ -48,6 +51,8 @@ export class ProjectDispatchEditor {
   protected readonly choice = signal<ProjectDispatch>('pull');
   protected readonly saving = signal(false);
   protected readonly saveFailure = signal<string | null>(null);
+  /** The last save was refused for the project's access source (`access-source-hosted`): Team is where it changes. */
+  protected readonly isAccessSourceRefusal = signal(false);
   protected readonly isSaved = signal(false);
 
   protected readonly loadFailureText = computed(() => {
@@ -80,6 +85,7 @@ export class ProjectDispatchEditor {
     const slug = this.slug();
     this.saving.set(true);
     this.saveFailure.set(null);
+    this.isAccessSourceRefusal.set(false);
     this.isSaved.set(false);
     const result = await this.api.setDispatch(slug, this.choice());
     this.saving.set(false);
@@ -88,6 +94,7 @@ export class ProjectDispatchEditor {
     }
     if (!result.ok) {
       this.saveFailure.set(this.t(runnerFailureKeyOf(result.failure)));
+      this.isAccessSourceRefusal.set(result.failure.slug === 'access-source-hosted');
       return;
     }
     this.apply(result.value);

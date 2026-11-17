@@ -129,7 +129,7 @@ describe('TeamConfigStore', () => {
     await flush();
     answer(http.expectOne((req) => req.method === 'PUT'), problem(412, 'team-config-stale'));
     await flush();
-    http.expectOne((req) => req.method === 'GET').flush(theirs);
+    http.expectOne((req) => req.method === 'GET' && req.url === URL).flush(theirs);
     expect((await saving).kind).toBe('stale');
     expect(store.banner()?.kind).toBe('conflict');
     expect(store.theirChanges()).toEqual([{ path: 'sprint.length_days', from: 14, to: 21 }]);
@@ -147,7 +147,7 @@ describe('TeamConfigStore', () => {
     await flush();
     answer(http.expectOne((req) => req.method === 'PUT'), problem(412, 'team-config-stale'));
     await flush();
-    http.expectOne((req) => req.method === 'GET').flush(teamConfigViewOf(stored, { revision: 13 }));
+    http.expectOne((req) => req.method === 'GET' && req.url === URL).flush(teamConfigViewOf(stored, { revision: 13 }));
     await saving;
     store.discardMine();
     expect(store.banner()).toBeNull();

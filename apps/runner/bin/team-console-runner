@@ -1,8 +1,98 @@
 #!/bin/sh
 # team-console-runner: the launcher the release tarball puts on PATH (ADR 0008 decision 10). It runs the bundle next
-# to it with the `node` on PATH; the bundle reads its own directory, so `bin/job-exec` and `update` find the prefix.
+# to it with node; the bundle reads its own directory, so `bin/job-exec` and `update` find the prefix.
+#
+# Which node: `<prefix>/node` when the release ships one, else `node` on PATH, else Homebrew's (sudo's secure_path
+# leaves `/opt/homebrew/bin` out). As root (#778, S2 of the #634 security note) only a node that root alone can change
+# runs: the file and every directory up to `/` root-owned and not writable by group or others, links resolved first.
+# Homebrew's prefix belongs to the admin login user, so its node is refused there.
 set -eu
 prefix=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
+
+# The physical path of $1 (every link resolved, at most 40 hops), or nothing when it does not lead to a file.
+physical() {
+  p=$1
+  hops=0
+  while :; do
+    dir=$(CDPATH='' cd -P -- "$(dirname -- "$p")" 2>/dev/null && pwd -P) || return 1
+    p="${dir%/}/$(basename -- "$p")"
+    [ -L "$p" ] || break
+    hops=$((hops + 1))
+    [ "$hops" -le 40 ] || return 1
+    link=$(readlink -- "$p") || return 1
+    case $link in
+      /*) p=$link ;;
+      *) p="$dir/$link" ;;
+    esac
+  done
+  [ -f "$p" ] || return 1
+  printf '%s\n' "$p"
+}
+
+# Owner uid and permission bits of $1 (never following a link), as "uid octal-mode".
+owner_mode() {
+  case $(/usr/bin/uname -s) in
+    Darwin) /usr/bin/stat -f '%u %Lp' -- "$1" ;;
+    *) /usr/bin/stat -c '%u %a' -- "$1" ;;
+  esac
+}
+
+# Succeeds when $1 (a physical path) and every directory above it are root's and writable by root only.
+root_only() {
+  p=$1
+  while :; do
+    facts=$(owner_mode "$p" 2>/dev/null) || return 1
+    uid=${facts%% *}
+    mode=${facts#* }
+    [ "$uid" = 0 ] || return 1
+    [ $((0$mode & 022)) -eq 0 ] || return 1
+    [ "$p" = / ] && return 0
+    p=$(dirname -- "$p")
+  done
+}
+
+candidates() {
+  printf '%s\n' "$prefix/node"
+  command -v node 2>/dev/null || :
+  printf '%s\n' /opt/homebrew/bin/node /usr/local/bin/node
+}
+
+node=
+refused=
+# One candidate per line, whatever spaces a path holds, and no globbing of them.
+set -f
+IFS='
+'
+if [ "$(/usr/bin/id -u)" = 0 ]; then
+  for candidate in $(candidates); do
+    case $candidate in /*) ;; *) continue ;; esac
+    real=$(physical "$candidate") || continue
+    if root_only "$real"; then
+      # The checked physical path runs, so no link can be repointed between the check and the exec.
+      node=$real
+      break
+    fi
+    refused="${refused:+$refused, }$candidate"
+  done
+  if [ -z "$node" ]; then
+    echo "team-console-runner: as root only a node that root alone can change runs (the file and every directory up to /" >&2
+    echo "  root-owned, writable by root only).${refused:+ Refused: $refused.} Homebrew's node belongs to your login user." >&2
+    echo "  Install Node.js 22.14 or later from nodejs.org (root-owned /usr/local/bin/node), or follow" >&2
+    echo "  docs/runbooks/runner.md › user backend." >&2
+    exit 126
+  fi
+else
+  for candidate in $(candidates); do
+    if [ -f "$candidate" ] && [ -x "$candidate" ]; then
+      node=$candidate
+      break
+    fi
+  done
+  if [ -z "$node" ]; then
+    echo "team-console-runner: node not found (Node.js 22.14 or later; on PATH or in /opt/homebrew/bin)" >&2
+    exit 127
+  fi
+fi
 # --disable-sigusr1: a process of the same uid (on actions-ephemeral and none, the job) must not be able to open the
 # inspector with `kill -USR1` and evaluate code inside the runner, which holds its key and the job's tokens.
-exec node --disable-sigusr1 "$prefix/team-console-runner.mjs" "$@"
+exec "$node" --disable-sigusr1 "$prefix/team-console-runner.mjs" "$@"

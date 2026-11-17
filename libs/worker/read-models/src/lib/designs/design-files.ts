@@ -201,7 +201,7 @@ export interface DesignManifestInput {
   readonly repo: { readonly owner: string; readonly name: string };
 }
 
-function encodedPath(path: string): string {
+export function encodedPath(path: string): string {
   return path.split('/').map(encodeURIComponent).join('/');
 }
 
@@ -211,8 +211,13 @@ export function pagesUrlOf(repo: DesignManifestInput['repo'], path: string): str
   return `https://${owner}.github.io/${encodeURIComponent(repo.name)}/${encodedPath(path.slice(DESIGN_ROOT.length))}`;
 }
 
+/** `https://github.com/<owner>/<repo>/blob/<sha>/`, the one place a blob URL's base is built. */
+export function blobBaseUrlOf(repo: DesignManifestInput['repo'], sha: string): string {
+  return `https://github.com/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}/blob/${sha}/`;
+}
+
 export function designManifestOf(input: DesignManifestInput): DesignManifestDto {
-  const blobBase = `https://github.com/${encodeURIComponent(input.repo.owner)}/${encodeURIComponent(input.repo.name)}/blob/${input.sha}/`;
+  const blobBase = blobBaseUrlOf(input.repo, input.sha);
   const screens: DesignScreenDto[] = [];
   let interactive: DesignInteractiveDto | null = null;
   for (const entry of input.files.files) {

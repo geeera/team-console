@@ -114,6 +114,13 @@ async function authorNameOf(c: Context, actor: string | null): Promise<string | 
   return (await new UsersRepo(c.env.DB).findById(actor))?.login ?? null;
 }
 
+/** `authorNameOf` once per distinct author of a page: a history is a handful of people over many revisions. */
+async function authorNamesOf(c: Context, actors: readonly string[]): Promise<ReadonlyMap<string, string | null>> {
+  const unique = [...new Set(actors)];
+  const names = await Promise.all(unique.map(async (actor) => [actor, await authorNameOf(c, actor)] as const));
+  return new Map(names);
+}
+
 async function viewOf(c: Context, row: ProjectRow, current: TeamConfigRecord | null): Promise<TeamConfigDto> {
   const config = current?.config ?? null;
   const revision = current?.revision ?? 0;
@@ -127,6 +134,7 @@ async function viewOf(c: Context, row: ProjectRow, current: TeamConfigRecord | n
     updatedAt: current?.updatedAt ?? null,
     updatedBy: current?.updatedBy ?? null,
     updatedByName: await authorNameOf(c, current?.updatedBy ?? null),
+    reason: current === null ? null : ((await repo.findRevision(row.slug, current.revision))?.reason ?? null),
     canManage: canManageProject(c, row),
     subscriptionBlocked: await repo.isSubscriptionBlocked(row.slug),
   };
@@ -224,11 +232,12 @@ async function save(
   }
 }
 
-function summaryOf(row: TeamConfigRevisionRecord): TeamConfigRevisionSummaryDto {
+function summaryOf(row: TeamConfigRevisionRecord, names: ReadonlyMap<string, string | null>): TeamConfigRevisionSummaryDto {
   return {
     revision: row.revision,
     createdAt: row.createdAt,
     createdBy: row.createdBy,
+    createdByName: names.get(row.createdBy) ?? null,
     reason: row.reason,
     paths: row.diff.map((change) => change.path),
   };
@@ -349,8 +358,9 @@ export function createTeamConfigRoutes(github: ApiGitHub, owners: OwnerConnectio
       }
       const rows = await new TeamConfigRepo(c.env.DB).listRevisions(row.slug, page.after, page.limit);
       const shown = rows.slice(0, page.limit);
+      const names = await authorNamesOf(c, shown.map((revision) => revision.createdBy));
       const body: TeamConfigRevisionListDto = {
-        revisions: shown.map(summaryOf),
+        revisions: shown.map((revision) => summaryOf(revision, names)),
         nextCursor: rows.length > page.limit ? (shown.at(-1)?.revision ?? null) : null,
       };
       return c.json(body);
@@ -370,6 +380,7 @@ export function createTeamConfigRoutes(github: ApiGitHub, owners: OwnerConnectio
         diff: found.diff,
         createdAt: found.createdAt,
         createdBy: found.createdBy,
+        createdByName: await authorNameOf(c, found.createdBy),
         reason: found.reason,
       };
       return c.json(body);

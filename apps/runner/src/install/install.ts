@@ -1,5 +1,5 @@
 import { constants, type Stats } from 'node:fs';
-import { lstat, mkdir, open, readFile } from 'node:fs/promises';
+import { lstat, mkdir, open, readFile, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   JOB_USER,
@@ -64,6 +64,8 @@ export interface InstallHost {
   /** Read-only queries (`dscl -list`, `docker version`); every change is a step. */
   readonly exec: Exec;
   stat(path: string): Promise<PathFacts | null>;
+  /** Every symlink resolved; `null` when the path does not exist. */
+  realpath(path: string): Promise<string | null>;
   read(path: string): Promise<string | null>;
   apply(step: InstallStep): Promise<void>;
 }
@@ -73,6 +75,7 @@ export interface InstallOptions {
   readonly apply: boolean;
   /** Where the release was extracted: `team-console-runner.mjs` and `bin/job-exec`. */
   readonly prefix: string;
+  /** The node install was started with, as given (`process.argv0`), not its realpath: the services run this path. */
   readonly node: string;
   readonly home?: string | undefined;
   readonly image?: string | undefined;
@@ -83,6 +86,8 @@ export interface InstallPlan {
   readonly steps: readonly InstallStep[];
   /** What the operator does by hand afterwards. */
   readonly next: readonly string[];
+  /** Printed before the steps; nothing here stops the install. */
+  readonly warnings?: readonly string[];
 }
 
 export class InstallError extends Error {
@@ -158,6 +163,71 @@ async function needsDir(
   return facts === null || facts.mode !== mode || uid === undefined || facts.uid !== uid;
 }
 
+/** A Homebrew keg: `<brew prefix>/Cellar/<formula>/<version>/bin/node`. */
+const CELLAR_NODE = /^(\/.+)\/Cellar\/([^/]+)\/[^/]+\/bin\/node$/;
+
+/**
+ * #772: the node path the services run. A path into Homebrew's Cellar names one version, which the next `brew upgrade`
+ * deletes, and launchd then restarts a missing binary every 30 s. So the given path is kept, never its realpath,
+ * unless it or its target is a keg: then the versionless `<brew prefix>/opt/<formula>/bin/node` link that survives
+ * upgrades, or a refusal when that link does not exist.
+ */
+export async function stableNodeOf(given: string, host: Pick<InstallHost, 'realpath'>): Promise<string> {
+  const target = await host.realpath(given);
+  const keg = CELLAR_NODE.exec(given) ?? (target === null ? null : CELLAR_NODE.exec(target));
+  if (keg === null) {
+    if (given.includes('/Cellar/') || target?.includes('/Cellar/') === true) {
+      throw new InstallError(
+        `node ${given} is inside Homebrew's Cellar, which brew upgrade replaces; run install with a node outside it (docs/runbooks/runner.md › user backend)`,
+      );
+    }
+    return given;
+  }
+  const [, brewPrefix = '', formula = 'node'] = keg;
+  const link = `${brewPrefix}/opt/${formula}/bin/node`;
+  if ((await host.realpath(link)) === null) {
+    throw new InstallError(
+      `node ${given} is inside Homebrew's Cellar, which brew upgrade replaces, and ${link} does not exist: run brew link ${formula} (or brew reinstall ${formula}), then install again`,
+    );
+  }
+  return link;
+}
+
+/**
+ * S2 of the #634 security note (#778): the daemon runs as `_tcrunner` with this node, so whoever can replace the file
+ * or any directory above it can act as `_tcrunner`. Homebrew's prefix belongs to the admin login user. That is
+ * stated, not refused, until the release ships its own root-owned node (#634 PR 5).
+ */
+async function nodeOwnerWarning(node: string, host: InstallHost): Promise<string | null> {
+  const target = (await host.realpath(node)) ?? node;
+  // The path as given and its target: a link on the way can be repointed by whoever owns its directory.
+  for (const start of new Set([node, target])) {
+    for (let path = start; ; path = path.slice(0, path.lastIndexOf('/')) || '/') {
+      const facts = await host.stat(path);
+      // A symlink's own mode means nothing (0755 on macOS, 0777 on Linux); its owner and its directory do.
+      const writable = facts !== null && facts.kind !== 'symlink' && (facts.mode & 0o022) !== 0;
+      if (facts === null || facts.uid !== 0 || writable) {
+        const why =
+          facts === null
+            ? 'could not be inspected'
+            : facts.uid !== 0
+              ? `belongs to uid ${String(facts.uid)}, not root`
+              : 'is writable by others than root';
+        return [
+          `Warning: the runner's node ${node} is not root's alone (${path} ${why}).`,
+          `  Whoever can change it can replace node, run as ${RUNNER_USER} and read the runner key and the Claude credential.`,
+          "  With Homebrew's node that is the Mac's admin login user, until the runner release ships its own node (#634).",
+          '  See docs/runbooks/runner.md › user backend.',
+        ].join('\n');
+      }
+      if (path === '/') {
+        break;
+      }
+    }
+  }
+  return null;
+}
+
 /** The bundle and `job-exec` the sudoers rule and the daemon name must be root's alone, or the rule hands them out. */
 async function assertRootOwnedPrefix(host: InstallHost, prefix: string): Promise<void> {
   for (const path of [prefix, `${prefix}/bin`, bundleOf(prefix), jobExecOf(prefix)]) {
@@ -197,6 +267,9 @@ async function planUser(options: InstallOptions, host: InstallHost): Promise<Ins
   assertSafePath('the release directory', options.prefix);
   assertSafePath('node', options.node);
   await assertRootOwnedPrefix(host, options.prefix);
+  const node = await stableNodeOf(options.node, host);
+  assertSafePath('node', node);
+  const ownerWarning = await nodeOwnerWarning(node, host);
 
   const users = await listIds(host, 'Users');
   const groups = await listIds(host, 'Groups');
@@ -256,7 +329,7 @@ async function planUser(options: InstallOptions, host: InstallHost): Promise<Ins
     steps.push({ kind: 'mkdir', path: settingsDir, mode: 0o755, owner: ROOT_OWNER });
   }
   const sudoers = sudoersRule(options.prefix);
-  const files = { node: options.node, prefix: options.prefix, home };
+  const files = { node, prefix: options.prefix, home };
   for (const [path, mode, content] of [
     [settingsPath, 0o644, managedSettingsText()],
     [SUDOERS_PATH, 0o440, sudoers],
@@ -274,8 +347,9 @@ async function planUser(options: InstallOptions, host: InstallHost): Promise<Ins
   const runner = `sudo -u ${RUNNER_USER} env HOME=${home} TC_RUNNER_HOME=${home}`;
   return {
     steps,
+    ...(ownerWarning === null ? {} : { warnings: [ownerWarning] }),
     next: [
-      `1. Enrol: ${runner} ${options.node} ${bundleOf(options.prefix)} enrol --url <console origin> --backend user --credential setup-token --code - (paste the tce_… code from Settings › Runners at the prompt; never as an argument, #582)`,
+      `1. Enrol: ${runner} ${node} ${bundleOf(options.prefix)} enrol --url <console origin> --backend user --credential setup-token --code - (paste the tce_… code from Settings › Runners at the prompt, or the whole command shown there: the code is taken from it; never as an argument, #582)`,
       `2. Claude credential: sudo -u ${RUNNER_USER} sh -c 'umask 077; HOME=${home} exec claude setup-token', then store the token it prints: sudo -u ${RUNNER_USER} sh -c 'umask 077; cat > ${home}/credentials/claude-setup-token' (paste, then Ctrl-D)`,
       `3. Start: sudo launchctl bootstrap system ${LAUNCH_DAEMON_PATH}`,
     ],
@@ -298,10 +372,12 @@ async function planContainer(options: InstallOptions, host: InstallHost): Promis
   ] as const) {
     assertSafePath(label, path);
   }
+  const node = await stableNodeOf(options.node, host);
+  assertSafePath('node', node);
   if ((await host.exec(runtime, ['version'])).code !== 0) {
     throw new InstallError(`${runtime} is not installed or its daemon is not running`);
   }
-  const files = { node: options.node, prefix: options.prefix, home };
+  const files = { node, prefix: options.prefix, home };
   const unit =
     host.platform === 'darwin'
       ? {
@@ -332,7 +408,7 @@ async function planContainer(options: InstallOptions, host: InstallHost): Promis
   return {
     steps,
     next: [
-      `1. Enrol: TC_ENROL_CODE=<tce_… from Settings › Runners> TC_RUNNER_HOME=${home} ${options.node} ${bundleOf(options.prefix)} enrol --url <console origin> --backend container --image ${options.image} --credential api-key (or --credential claude-config-dir --claude-config-dir <path>)`,
+      `1. Enrol: TC_ENROL_CODE=<tce_… from Settings › Runners> TC_RUNNER_HOME=${home} ${node} ${bundleOf(options.prefix)} enrol --url <console origin> --backend container --image ${options.image} --credential api-key (or --credential claude-config-dir --claude-config-dir <path>)`,
       '2. Credential: put the Anthropic API key in <home>/credentials/anthropic.key (0600), or skip for claude-config-dir',
       `3. Start: ${start}`,
     ],
@@ -401,6 +477,7 @@ export async function runInstall(
     throw new InstallError('install --backend user --yes changes system files: run it with sudo');
   }
   const plan = await planInstall(options, host);
+  plan.warnings?.forEach((warning) => out(warning));
   const who = options.backend === 'user' ? 'as root' : 'as you';
   if (plan.steps.length === 0) {
     out('Already installed: nothing to change.');
@@ -514,6 +591,16 @@ export function systemInstallHost(base: {
         return { uid: stats.uid, mode: stats.mode & 0o7777, kind: kindOf(stats) };
       } catch (error: unknown) {
         if (isErrno(error, 'ENOENT')) {
+          return null;
+        }
+        throw error;
+      }
+    },
+    realpath: async (path) => {
+      try {
+        return await realpath(path);
+      } catch (error: unknown) {
+        if (isErrno(error, 'ENOENT', 'ENOTDIR')) {
           return null;
         }
         throw error;

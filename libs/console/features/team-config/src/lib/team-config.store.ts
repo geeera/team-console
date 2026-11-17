@@ -1,5 +1,5 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
-import type { TeamConfigDto } from '@shared/contracts';
+import type { TeamConfigDto, TeamStatusDto } from '@shared/contracts';
 import { TeamConfigClient, type TeamConfigSaveResult } from './team-config.client';
 import { changesOf, documentOf, draftOf, mergeOnTop, withLeaf, type DraftChange, type TeamDraft } from './team-draft';
 
@@ -43,6 +43,8 @@ export class TeamConfigStore {
   /** Inline errors by document path: typed values out of their bound, and the field a 422 named. */
   readonly errors = signal<ReadonlyMap<string, FieldError>>(new Map());
   readonly banner = signal<TeamConfigBanner | null>(null);
+  /** The team's state and the month's budget (#737): the budget callout and the waived-month line read it. */
+  readonly teamStatus = signal<TeamStatusDto | null>(null);
 
   readonly changes = computed((): readonly DraftChange[] => {
     const base = this.base();
@@ -59,6 +61,7 @@ export class TeamConfigStore {
     this.isSlow.set(false);
     this.clearSlowTimer();
     this.slowTimer = setTimeout(() => this.isSlow.set(true), SLOW_LOAD_MS);
+    void this.loadStatus();
     const result = await this.client.load(slug);
     this.clearSlowTimer();
     if (!result.ok) {
@@ -67,6 +70,15 @@ export class TeamConfigStore {
     }
     this.adopt(result.view);
     this.status.set('ready');
+  }
+
+  /** Reads the team status again: after a resume, and after a save, which may end a waiver or lift a stop. */
+  async loadStatus(): Promise<void> {
+    const slug = this.slug();
+    const status = await this.client.teamStatus(slug);
+    if (this.slug() === slug) {
+      this.teamStatus.set(status);
+    }
   }
 
   /** One value of the draft; clears that value's error, since what was refused is gone. */
@@ -120,6 +132,7 @@ export class TeamConfigStore {
       case 'saved':
         this.adopt(result.view);
         this.banner.set(null);
+        void this.loadStatus();
         break;
       case 'invalid':
         this.setError(result.field, { key: 'teamConfig.error.invalid' });

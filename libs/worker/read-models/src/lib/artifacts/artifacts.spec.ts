@@ -3,7 +3,7 @@ import { isGitHubIssue, issueRecordOf, type IssueRecord } from '../github-record
 import { contentsEntriesOf, contentsFileTextOf, type ContentsEntry } from './common';
 import { DECISION_TITLE_READS, decisionArtifactsOf, decisionFilesOf, firstHeadingOf } from './decisions';
 import { demoArtifactsOf } from './demo';
-import { designArtifactsOf, designFoldersOf } from './designs';
+import { designArtifactsOf } from './designs';
 
 // #19 read models over a snapshot of geeera/team-console's own GitHub answers (fixtures/artifacts_snapshot.py).
 
@@ -27,11 +27,13 @@ describe('the artifacts of geeera/team-console (snapshot)', () => {
     Object.entries(snapshot.decisionFirstLines).map(([path, line]) => [path, firstHeadingOf(line)]),
   );
   const decisions = decisionArtifactsOf(decisionFiles, titles);
-  const folders = designFoldersOf(contentsEntriesOf(snapshot.designRoot));
+  // #770: every file under docs/design, as one Git tree read now answers it — the fixture still models it as
+  // Contents entries (the root plus every sub-folder, not just the first five) since `designArtifactsOf` only
+  // cares about the entry shape, not which GitHub API produced it.
   const designFiles = [
     ...contentsEntriesOf(snapshot.designRoot),
-    ...folders.flatMap((folder) =>
-      contentsEntriesOf((snapshot.designFolders as Record<string, unknown[]>)[folder.path] ?? []),
+    ...Object.values(snapshot.designFolders as Record<string, unknown[]>).flatMap((entries) =>
+      contentsEntriesOf(entries),
     ),
   ];
   const designs = designArtifactsOf({
@@ -70,7 +72,48 @@ describe('the artifacts of geeera/team-console (snapshot)', () => {
       'features/README.md',
       'references.md',
     ]);
-    expect(folders.map((folder) => folder.name)).toEqual(['directions', 'features']);
+  });
+
+  it('adds a regression fixture with more than five design sub-folders, all still listed (#770)', () => {
+    const manyFolders = [
+      ...snapshot.designRoot,
+      ...Array.from({ length: 7 }, (_, index) => ({
+        name: `${index + 1}-x.html`,
+        path: `docs/design/extra-${index + 1}/${index + 1}-x.html`,
+        type: 'file',
+        html_url: `https://github.com/geeera/team-console/blob/dev/docs/design/extra-${index + 1}/${index + 1}-x.html`,
+      })),
+    ];
+    const files = designArtifactsOf({
+      issues: [],
+      files: contentsEntriesOf(manyFolders),
+      storybookUrl: null,
+    }).filter((item) => item.source === 'file');
+    // Seven extra folders is well past the old DESIGN_SUBFOLDER_READS cap of 5; every one of them is listed.
+    expect(files.filter((item) => item.title.startsWith('extra-'))).toHaveLength(7);
+  });
+
+  it('reports no design file as a generator source unless a `src` segment is in its path', () => {
+    const htmlUrl = (path: string) => `https://github.com/o/r/blob/main/${path}`;
+    const files = designArtifactsOf({
+      issues: [],
+      files: contentsEntriesOf([
+        {
+          name: 'build.html',
+          path: 'docs/design/277-viewer/src/build.html',
+          type: 'file',
+          html_url: htmlUrl('docs/design/277-viewer/src/build.html'),
+        },
+        {
+          name: 'index.html',
+          path: 'docs/design/277-viewer/index.html',
+          type: 'file',
+          html_url: htmlUrl('docs/design/277-viewer/index.html'),
+        },
+      ]),
+      storybookUrl: null,
+    });
+    expect(files.map((item) => item.title)).toEqual(['277-viewer/index.html']);
   });
 
   it('finds the demo issue and links to the issue itself', () => {
