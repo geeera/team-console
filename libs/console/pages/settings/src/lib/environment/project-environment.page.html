@@ -1,0 +1,134 @@
+@if (copy.failed()) {
+<div class="tc-page subpage" data-testid="env-copy-failed">
+  <nav class="subpage__crumbs" [attr.aria-label]="'settings.breadcrumb' | transloco">
+    <a [routerLink]="setupRoute()"><tc-icon name="chevron-left" size="sm" />{{ name() }}</a>
+  </nav>
+  <h1 #heading class="tc-page__title subpage__title" tabindex="-1">{{ name() }}</h1>
+  <div role="alert">
+    <tc-state-block kind="error" [title]="'settings.common.envFailed' | transloco">
+      <button tc-button tc-state-action type="button" data-testid="env-copy-retry" (click)="retryCopy()">
+        {{ 'settings.common.retry' | transloco }}
+      </button>
+    </tc-state-block>
+  </div>
+</div>
+} @else if (notFound()) {
+<div class="tc-page subpage" data-testid="env-project-not-found">
+  <nav class="subpage__crumbs" [attr.aria-label]="'settings.breadcrumb' | transloco">
+    <a routerLink="/overview"><tc-icon name="chevron-left" size="sm" />{{ 'overview.title' | transloco }}</a>
+  </nav>
+  <h1 #heading class="tc-page__title subpage__title" tabindex="-1">
+    {{ 'settings.setup.notFound.title' | transloco }}
+  </h1>
+  <tc-state-block kind="empty" [title]="'settings.setup.notFound.body' | transloco: { slug: slug() }">
+    <a tc-button tc-state-action routerLink="/overview">{{ 'overview.title' | transloco }}</a>
+  </tc-state-block>
+</div>
+} @else {
+<div class="tc-page env" [class.env--guide-open]="screen.openId() !== null">
+  <div class="env__list subpage">
+    <nav class="subpage__crumbs" [attr.aria-label]="'settings.breadcrumb' | transloco">
+      <a [routerLink]="setupRoute()" data-testid="env-crumb"
+        ><tc-icon name="chevron-left" size="sm" />{{ name() }}</a
+      >
+    </nav>
+    <div class="env__head">
+      <h1 #heading class="tc-page__title subpage__title" tabindex="-1">
+        {{ 'env.project.title' | transloco }}
+      </h1>
+      @if (!forbidden()) {
+      <p class="env__lead">{{ 'env.project.lead' | transloco: { project: name() } }}</p>
+      }
+    </div>
+
+    @if (forbidden()) {
+    <div role="alert" data-testid="env-forbidden">
+      <tc-state-block
+        kind="empty"
+        icon="lock"
+        [title]="'env.project.err.forbidden.title' | transloco"
+        [description]="'env.project.err.forbidden.body' | transloco"
+      >
+        <a tc-button tc-state-action data-testid="env-forbidden-back" [routerLink]="setupRoute()">
+          {{ 'env.project.err.forbidden.back' | transloco }}
+        </a>
+      </tc-state-block>
+    </div>
+    } @else if (view().sections.length === 0) {
+    <tc-state-block
+      kind="empty"
+      icon="check"
+      data-testid="env-empty"
+      [title]="'env.project.empty' | transloco"
+    />
+    } @else {
+    <div class="env__panel" data-testid="env-panel" [attr.aria-busy]="checking() ? 'true' : null">
+      @if (checking()) {
+      <span class="tc-sr-only" role="status">{{ 'env.project.checkingSr' | transloco }}</span>
+      } @for (section of view().sections; track section.environment) {
+      <section
+        class="penv__section"
+        data-testid="env-section"
+        [attr.data-environment]="section.environment"
+        [attr.aria-labelledby]="'env-s-' + section.environment"
+      >
+        <h2 class="penv__title" [id]="'env-s-' + section.environment">
+          <code>{{ section.environment }}</code>
+          @if (section.isThisConsole) {
+          <span class="penv__this"
+            ><span class="tc-sr-only">, </span><i class="penv__dot" aria-hidden="true"></i>{{
+            'env.project.this' | transloco }}</span
+          >
+          }
+        </h2>
+        <tc-environment-summary
+          [status]="status()"
+          [environment]="section.environment"
+          [isThisConsole]="section.isThisConsole"
+          [missing]="section.missing"
+          [optionalMissing]="section.optionalMissing"
+          [title]="summaryTitle(section)"
+          [missingBody]="'env.project.sum.missingBody' | transloco"
+          [otherLine]="otherLine(section)"
+          [errorTitle]="'env.project.err.load' | transloco"
+          [headingLevel]="3"
+          (jump)="jumpToFirstMissing(section)"
+        />
+        @for (part of [{ key: 'required', rows: section.required }, { key: 'optional', rows: section.optional
+        }]; track part.key) { @if (part.rows.length > 0) {
+        <div class="penv__part" [attr.data-part]="part.key">
+          <h3 class="penv__part-title" [id]="'env-s-' + section.environment + '-' + part.key">
+            {{ 'env.project.' + part.key | transloco }}
+          </h3>
+          <div
+            class="env__rows"
+            role="list"
+            [attr.aria-labelledby]="'env-s-' + section.environment + '-' + part.key"
+          >
+            @for (row of part.rows; track row.row.id) {
+            <tc-environment-row
+              [quietOptional]="true"
+              [view]="row"
+              [environment]="section.environment"
+              [link]="linkOf(section.environment, row)"
+              [current]="screen.openId() === row.row.id"
+            />
+            }
+          </div>
+        </div>
+        } }
+      </section>
+      } @if (quietList(); as list) {
+      <p class="penv__quiet" data-testid="env-quiet">{{ 'env.project.none' | transloco: { list } }}</p>
+      }
+    </div>
+    }
+  </div>
+
+  @if (!forbidden()) {
+  <div class="env__guide">
+    <router-outlet />
+  </div>
+  }
+</div>
+}

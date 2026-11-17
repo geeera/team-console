@@ -14,7 +14,8 @@ export function shellAreaOf(url: string): ShellArea {
   if (path === '/overview' || path.startsWith('/overview/')) {
     return 'overview';
   }
-  if (path === '/settings' || path.startsWith('/settings/')) {
+  // The operator area (#750) is reached from Settings and crumbs back to it.
+  if (path === '/settings' || path.startsWith('/settings/') || path.startsWith('/admin/')) {
     return 'settings';
   }
   return 'other';

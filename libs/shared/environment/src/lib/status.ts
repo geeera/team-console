@@ -1,18 +1,20 @@
 import type { Environment } from '@shared/contracts';
-import { environmentRowsOf } from './rows';
+import { consoleRowsOf, projectRowsOf } from './rows';
 import { isBindingSet, type EnvironmentItemStatusDto, type EnvironmentStatusDto } from './status-dto';
 
 /**
- * The status of every row `environment`'s api Worker can see (the Worker's side of #104). `read` looks one binding
- * up by name; only the boolean of `isBindingSet` leaves this function.
+ * The status of every row `environment`'s api Worker can see (the Worker's side of #104): the console's own rows
+ * with no `project`, one project's rows alone with one (#750) — never both, and never another project's. `read`
+ * looks one binding up by name; only the boolean of `isBindingSet` leaves this function.
  */
 export function environmentStatusOf(
   environment: Environment,
   read: (binding: string) => unknown,
-  projectSlugs: readonly string[],
+  project: string | null,
 ): EnvironmentStatusDto {
   const items: EnvironmentItemStatusDto[] = [];
-  for (const row of environmentRowsOf(environment, projectSlugs)) {
+  const rows = project === null ? consoleRowsOf(environment) : projectRowsOf(environment, project);
+  for (const row of rows) {
     if (row.binding !== null) {
       items.push({
         id: row.id,

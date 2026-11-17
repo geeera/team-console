@@ -29,7 +29,7 @@ describe('EnvironmentCopy', () => {
     expect(await copy.ready()).toBe(true);
     expect(loader).toHaveBeenCalledTimes(1);
     expect(copy.loaded()).toBe(true);
-    expect(TestBed.inject(TranslocoService).translate('env.title')).toBe('Настройка окружения');
+    expect(TestBed.inject(TranslocoService).translate('env.console.title')).toBe('Окружение консоли');
   });
 
   it('reports a chunk that cannot load, says it failed, and tries again on the next call', async () => {

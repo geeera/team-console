@@ -1,0 +1,103 @@
+@if (copy.failed()) {
+<div class="tc-page subpage" data-testid="env-copy-failed">
+  <nav class="subpage__crumbs" [attr.aria-label]="'settings.breadcrumb' | transloco">
+    <a routerLink="/settings"><tc-icon name="chevron-left" size="sm" />{{ 'settings.title' | transloco }}</a>
+  </nav>
+  <h1 #heading class="tc-page__title subpage__title" tabindex="-1">{{ 'settings.title' | transloco }}</h1>
+  <div role="alert">
+    <tc-state-block kind="error" [title]="'settings.common.envFailed' | transloco">
+      <button tc-button tc-state-action type="button" data-testid="env-copy-retry" (click)="retryCopy()">
+        {{ 'settings.common.retry' | transloco }}
+      </button>
+    </tc-state-block>
+  </div>
+</div>
+} @else {
+<div class="tc-page env" [class.env--guide-open]="screen.openId() !== null">
+  <div class="env__list subpage">
+    <nav class="subpage__crumbs" [attr.aria-label]="'settings.breadcrumb' | transloco">
+      <a routerLink="/settings"><tc-icon name="chevron-left" size="sm" />{{ 'env.crumb' | transloco }}</a>
+    </nav>
+    <div class="env__head">
+      <h1 #heading class="tc-page__title subpage__title" tabindex="-1">
+        {{ 'env.console.title' | transloco }}
+      </h1>
+      @if (!forbidden()) {
+      <p class="env__lead">{{ 'env.console.lead' | transloco }}</p>
+      }
+    </div>
+
+    @if (forbidden()) {
+    <div role="alert" data-testid="env-forbidden">
+      <tc-state-block
+        kind="empty"
+        icon="lock"
+        [title]="'env.console.forbidden' | transloco"
+        [description]="'env.err.forbidden.body' | transloco"
+      />
+    </div>
+    } @else {
+    <tc-tabs dense [label]="'env.tabs' | transloco" [selected]="env()" (selectedChange)="selectTab($event)">
+      @for (tab of environments; track tab) {
+      <tc-tab-panel
+        [key]="tab"
+        [label]="tab"
+        [note]="tab === thisEnvironment() ? ('env.tab.this' | transloco) : null"
+      >
+        @if (tab === env()) {
+        <div class="env__panel" data-testid="env-panel" [attr.aria-busy]="checking() ? 'true' : null">
+          @if (checking()) {
+          <span class="tc-sr-only" role="status">{{ 'env.checkingSr' | transloco }}</span>
+          }
+          <tc-environment-summary
+            [status]="status()"
+            [environment]="env()"
+            [isThisConsole]="view().isThisConsole"
+            [missing]="view().missing"
+            [unseen]="view().unseen"
+            [title]="summaryTitle()"
+            [missingBody]="'env.sum.missingBody' | transloco"
+            [otherLine]="otherLine()"
+            [errorTitle]="'env.err.load.title' | transloco"
+            (jump)="jumpToFirstMissing()"
+          />
+          @for (group of view().groups; track group.group) {
+          <section
+            class="env__group"
+            [attr.aria-labelledby]="'env-g-' + group.group"
+            [attr.data-group]="group.group"
+            data-testid="env-group"
+          >
+            <div class="env__group-head">
+              <h2 class="env__group-title" [id]="'env-g-' + group.group">
+                {{ 'env.group.' + group.group + '.title' | transloco }}
+              </h2>
+              <p class="env__group-hint">{{ 'env.group.' + group.group + '.hint' | transloco }}</p>
+            </div>
+            <div class="env__rows" role="list">
+              @for (view of group.rows; track view.row.id) {
+              <tc-environment-row
+                [view]="view"
+                [environment]="env()"
+                [link]="linkOf(view)"
+                [current]="screen.openId() === view.row.id"
+              />
+              }
+            </div>
+          </section>
+          }
+        </div>
+        }
+      </tc-tab-panel>
+      }
+    </tc-tabs>
+    }
+  </div>
+
+  @if (!forbidden()) {
+  <div class="env__guide">
+    <router-outlet />
+  </div>
+  }
+</div>
+}

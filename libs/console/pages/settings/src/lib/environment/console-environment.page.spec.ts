@@ -12,26 +12,17 @@ import {
   loadEnvironmentCopyChunks,
   type EnvironmentCopyChunks,
 } from '@console/entities/environment';
-import { PROJECTS_URL } from '@console/entities/project';
 import { NetworkStatus } from '@console/shared/api';
 import { provideConsoleI18n } from '@console/shared/i18n';
-import { ENVIRONMENT_STATUS_URL, environmentRowsOf, type EnvironmentStatusDto } from '@shared/environment';
+import { ENVIRONMENT_STATUS_URL, consoleRowsOf, type EnvironmentStatusDto } from '@shared/environment';
+import { adminRoutes } from '../admin.routes';
 import { settingsRoutes } from '../settings.routes';
 
-const PROJECT = {
-  slug: 'storify',
-  repo: 'geeera/storify',
-  displayName: 'Storify',
-  routineId: null,
-  addedAt: '2026-09-28T10:00:00.000Z',
-  archivedAt: null,
-};
-
-/** Every row production's Worker can see, set but the given ids. */
+/** Every console row production's Worker can see, set but the given ids. */
 function productionStatus(missing: readonly string[]): EnvironmentStatusDto {
   return {
     environment: 'production',
-    items: environmentRowsOf('production', ['storify'])
+    items: consoleRowsOf('production')
       .filter((row) => row.binding !== null)
       .map((row) => ({
         id: row.id,
@@ -48,7 +39,7 @@ async function settle(): Promise<void> {
   }
 }
 
-describe('EnvironmentSetupPage (#104)', () => {
+describe('ConsoleEnvironmentPage (#104, at /admin since #750)', () => {
   let http: HttpTestingController;
   let harness: RouterTestingHarness;
   const online = signal(true);
@@ -65,7 +56,6 @@ describe('EnvironmentSetupPage (#104)', () => {
 
   interface Answers {
     readonly status?: EnvironmentStatusDto | number;
-    readonly projects?: readonly object[] | number;
     /** Replaces the lazy copy chunks (a failing one for the error state). */
     readonly copyLoader?: () => Promise<EnvironmentCopyChunks>;
     /** Overrides `DOCUMENT` (e.g. to observe a `location.reload()` jsdom itself refuses to redefine). */
@@ -78,7 +68,13 @@ describe('EnvironmentSetupPage (#104)', () => {
         provideConsoleI18n(),
         provideHttpClient(),
         provideHttpClientTesting(),
-        provideRouter([{ path: 'settings', children: settingsRoutes }], withComponentInputBinding()),
+        provideRouter(
+          [
+            { path: 'admin', children: adminRoutes },
+            { path: 'settings', children: settingsRoutes },
+          ],
+          withComponentInputBinding(),
+        ),
         { provide: NetworkStatus, useValue: { online } },
         { provide: LiveAnnouncer, useValue: { announce } },
         { provide: ErrorHandler, useValue: { handleError } },
@@ -109,16 +105,10 @@ describe('EnvironmentSetupPage (#104)', () => {
     for (const request of http.match(HEALTH_URL)) {
       request.flush({ environment: 'production' });
     }
-    const projects = answers.projects ?? [PROJECT];
-    const projectsRequest = http.expectOne(PROJECTS_URL);
-    if (typeof projects === 'number') {
-      projectsRequest.flush(null, { status: projects, statusText: 'Failed' });
-    } else {
-      projectsRequest.flush(projects);
-    }
-    const status =
-      answers.status ?? productionStatus(['api/VAPID_PRIVATE_KEY', 'project/storify/ROUTINE_TOKEN_STORIFY']);
+    const status = answers.status ?? productionStatus(['api/VAPID_PRIVATE_KEY', 'api/TOKEN_ENCRYPTION_KEY']);
     const statusRequest = http.expectOne(ENVIRONMENT_STATUS_URL);
+    // #750: the console's own rows only — the call names no project.
+    expect(statusRequest.request.params.keys()).toEqual([]);
     if (typeof status === 'number') {
       statusRequest.flush(null, { status, statusText: 'Refused' });
     } else {
@@ -139,10 +129,10 @@ describe('EnvironmentSetupPage (#104)', () => {
   });
 
   it('counts what is missing and gives the one fix command, with Copy', async () => {
-    await open('/settings/environment/production');
+    await open('/admin/environment/production');
 
-    expect(text('h1')).toBe('Настройка окружения');
-    expect(document.activeElement?.textContent?.trim()).toBe('Настройка окружения');
+    expect(text('h1')).toBe('Окружение консоли');
+    expect(document.activeElement?.textContent?.trim()).toBe('Окружение консоли');
     expect(text('[data-testid="env-summary"] h2')).toBe('В production не заданы 2 настройки');
     const codes = all('[data-testid="env-summary"] code').map((code) => code.textContent);
     expect(codes).toEqual(['setup --env production', 'setup --env production --check']);
@@ -150,7 +140,7 @@ describe('EnvironmentSetupPage (#104)', () => {
   });
 
   it("marks this console's tab and keeps the four tabs in a tab list", async () => {
-    await open('/settings/environment/production');
+    await open('/admin/environment/production');
 
     const tabs = all('[role="tab"]');
     expect(tabs.map((tab) => tab.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
@@ -163,13 +153,14 @@ describe('EnvironmentSetupPage (#104)', () => {
   });
 
   it('lists missing rows first, each with its status in words and a one-line fix', async () => {
-    await open('/settings/environment/production');
+    await open('/admin/environment/production');
 
     const api = root().querySelector('[data-group="api"]') as HTMLElement;
     const first = api.querySelector('[data-row]') as HTMLAnchorElement;
-    expect(first.dataset['row']).toBe('api/VAPID_PRIVATE_KEY');
-    expect(first.getAttribute('aria-label')).toBe('VAPID_PRIVATE_KEY, Не задано');
-    expect(first.getAttribute('href')).toBe('/settings/environment/production/api/VAPID_PRIVATE_KEY');
+    expect(['api/VAPID_PRIVATE_KEY', 'api/TOKEN_ENCRYPTION_KEY']).toContain(first.dataset['row']);
+    const vapid = root().querySelector('[data-row="api/VAPID_PRIVATE_KEY"]') as HTMLAnchorElement;
+    expect(vapid.getAttribute('aria-label')).toBe('VAPID_PRIVATE_KEY, Не задано');
+    expect(vapid.getAttribute('href')).toBe('/admin/environment/production/api/VAPID_PRIVATE_KEY');
     const missing = row('api/VAPID_PRIVATE_KEY') as HTMLElement;
     expect(missing.querySelector('[data-testid="env-fix"] code')?.textContent).toBe('setup --env production');
     expect(missing.querySelector('[data-testid="env-fix"] button')?.getAttribute('aria-label')).toBe(
@@ -184,19 +175,16 @@ describe('EnvironmentSetupPage (#104)', () => {
     ).toBe('Отсюда не видно');
   });
 
-  it('opens a project block with a missing token and names the real slug', async () => {
-    await open('/settings/environment/production');
+  it('lists no per-project row: those live on each project’s screen (#750)', async () => {
+    await open('/admin/environment/production');
 
-    const block = root().querySelector('[data-testid="env-project"]') as HTMLElement;
-    const toggle = block.querySelector('button') as HTMLButtonElement;
-    expect(toggle.getAttribute('aria-expanded')).toBe('true');
-    expect(toggle.textContent).toContain('storify');
-    expect(toggle.textContent).toContain('задано 6 из 7');
-    expect(row('project/storify/ROUTINE_TOKEN_STORIFY')).not.toBeNull();
+    expect(root().querySelector('[data-group="projects"]')).toBeNull();
+    expect(root().querySelector('[data-row^="project/"]')).toBeNull();
+    expect(all('[data-group]').length).toBeGreaterThan(3);
   });
 
   it('shows another environment as not visible here, with the check command', async () => {
-    await open('/settings/environment/stage');
+    await open('/admin/environment/stage');
 
     expect(text('[data-testid="env-summary"]')).toContain('Это консоль production. Что задано в stage');
     expect(text('[data-testid="env-summary"] code')).toBe('setup --env stage --check');
@@ -207,46 +195,27 @@ describe('EnvironmentSetupPage (#104)', () => {
   });
 
   it('shows nothing of the list to a session that is not the owner (403)', async () => {
-    await open('/settings/environment/production', { status: 403 });
+    await open('/admin/environment/production', { status: 403 });
 
     expect(root().querySelector('[data-testid="env-forbidden"]')?.getAttribute('role')).toBe('alert');
-    expect(text('[data-testid="env-forbidden"]')).toContain('Состояние окружения видит только владелец');
+    expect(text('[data-testid="env-forbidden"]')).toContain('Окружение консоли видит только её оператор');
     expect(root().querySelector('[role="tablist"]')).toBeNull();
     expect(root().querySelector('[data-row]')).toBeNull();
   });
 
   it('keeps the guides open when the check fails, without a status on any row it could check', async () => {
-    await open('/settings/environment/production', { status: 503 });
+    await open('/admin/environment/production', { status: 503 });
 
     expect(root().querySelector('[data-testid="env-error"]')?.getAttribute('role')).toBe('alert');
     expect(text('[data-testid="env-error"]')).toContain('Не удалось проверить окружение');
     expect(row('api/OWNER_EMAIL')?.querySelector('[data-testid="env-status"]')).toBeNull();
     expect(root().querySelector('[data-row="api/OWNER_EMAIL"]')?.getAttribute('href')).toBe(
-      '/settings/environment/production/api/OWNER_EMAIL',
+      '/admin/environment/production/api/OWNER_EMAIL',
     );
   });
 
-  it('says so inside Projects only when the projects cannot load', async () => {
-    const withoutProjects = productionStatus([]).items.filter((item) => !item.id.startsWith('project/'));
-    await open('/settings/environment/production', {
-      projects: 500,
-      status: { environment: 'production', items: withoutProjects },
-    });
-
-    const projects = root().querySelector('[data-group="projects"]') as HTMLElement;
-    expect(projects.querySelector('[role="alert"]')?.textContent).toContain('Не удалось загрузить проекты.');
-    expect(root().querySelector('[data-group="api"] [data-row]')).not.toBeNull();
-    expect(text('[data-testid="env-summary"] h2')).toBe('В production задано всё, что видно отсюда');
-
-    (projects.querySelector('button') as HTMLButtonElement).click();
-    await settle();
-    http.expectOne(PROJECTS_URL).flush([PROJECT]);
-    await settle();
-    expect(row('project/storify/ROUTINE_TOKEN_STORIFY')).not.toBeNull();
-  });
-
   it('Check again re-reads the status and announces the result', async () => {
-    await open('/settings/environment/production');
+    await open('/admin/environment/production');
 
     (root().querySelector('[data-testid="env-recheck"]') as HTMLButtonElement).click();
     await settle();
@@ -258,7 +227,7 @@ describe('EnvironmentSetupPage (#104)', () => {
   });
 
   it('opens a guide from the manifest, with the command that fits a missing item', async () => {
-    await open('/settings/environment/production/api/VAPID_PRIVATE_KEY');
+    await open('/admin/environment/production/api/VAPID_PRIVATE_KEY');
 
     const guide = root().querySelector('[data-testid="env-guide"]') as HTMLElement;
     expect(guide.querySelector('h1')?.textContent?.trim()).toBe('VAPID_PRIVATE_KEY');
@@ -278,10 +247,10 @@ describe('EnvironmentSetupPage (#104)', () => {
   });
 
   it('gives a set item the rotate command and an unseen one the check command', async () => {
-    await open('/settings/environment/production/api/OWNER_EMAIL');
+    await open('/admin/environment/production/api/OWNER_EMAIL');
     expect(text('[data-testid="env-guide-how"] code')).toBe('setup --env production --rotate');
 
-    await harness.navigateByUrl('/settings/environment/production/github-secrets/CLOUDFLARE_API_TOKEN');
+    await harness.navigateByUrl('/admin/environment/production/github-secrets/CLOUDFLARE_API_TOKEN');
     await settle();
     const codes = all('[data-testid="env-guide-how"] code').map((code) => code.textContent);
     expect(codes).toEqual(['setup --env production --check', 'setup --env production']);
@@ -289,19 +258,19 @@ describe('EnvironmentSetupPage (#104)', () => {
   });
 
   it('closes the guide on Escape and returns focus to the row that opened it', async () => {
-    await open('/settings/environment/production/api/VAPID_PRIVATE_KEY');
+    await open('/admin/environment/production/api/VAPID_PRIVATE_KEY');
 
     root()
       .querySelector('[data-testid="env-guide"] h1')
       ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await settle();
 
-    expect(TestBed.inject(Router).url).toBe('/settings/environment/production');
+    expect(TestBed.inject(Router).url).toBe('/admin/environment/production');
     expect(document.activeElement).toBe(root().querySelector('[data-row="api/VAPID_PRIVATE_KEY"]'));
   });
 
   it('says there is no such setting for an unknown name', async () => {
-    await open('/settings/environment/production/api/NOT_A_SETTING');
+    await open('/admin/environment/production/api/NOT_A_SETTING');
 
     expect(text('[data-testid="env-guide"] h1')).toBe('Такой настройки в production нет');
   });
@@ -310,7 +279,10 @@ describe('EnvironmentSetupPage (#104)', () => {
    * jsdom's own `Location` refuses a redefined `reload` (non-configurable), so the double is a standalone object:
    * this page only ever calls `location.reload()`, never reads from it.
    */
-  function documentWithReloadSpy(): { readonly document: Document; readonly reload: ReturnType<typeof vi.fn> } {
+  function documentWithReloadSpy(): {
+    readonly document: Document;
+    readonly reload: ReturnType<typeof vi.fn>;
+  } {
     const reload = vi.fn();
     const location = { reload } as unknown as Document['location'];
     const documentProxy = new Proxy(document, {
@@ -329,7 +301,7 @@ describe('EnvironmentSetupPage (#104)', () => {
     const chunkError = new Error('Failed to fetch dynamically imported module');
     const { document: documentProxy, reload } = documentWithReloadSpy();
     let fail = true;
-    await open('/settings/environment/production', {
+    await open('/admin/environment/production', {
       document: documentProxy,
       copyLoader: async () => {
         if (fail) {
@@ -349,7 +321,7 @@ describe('EnvironmentSetupPage (#104)', () => {
     (root().querySelector('[data-testid="env-copy-retry"]') as HTMLButtonElement).click();
     await settle();
     expect(root().querySelector('[data-testid="env-copy-failed"]')).toBeNull();
-    expect(text('h1')).toBe('Настройка окружения');
+    expect(text('h1')).toBe('Окружение консоли');
     expect(text('[data-testid="env-summary"] h2')).toBe('В production не заданы 2 настройки');
     // A recovered retry is not a failed one: no fallback reload, nothing to interrupt the page the owner is on.
     expect(reload).not.toHaveBeenCalled();
@@ -357,7 +329,7 @@ describe('EnvironmentSetupPage (#104)', () => {
 
   it('falls back to a full reload when Try again fails a second time: a failed dynamic import stays failed', async () => {
     const { document: documentProxy, reload } = documentWithReloadSpy();
-    await open('/settings/environment/production', {
+    await open('/admin/environment/production', {
       document: documentProxy,
       copyLoader: async () => {
         throw new Error('Failed to fetch dynamically imported module');
@@ -374,8 +346,16 @@ describe('EnvironmentSetupPage (#104)', () => {
   });
 
   it("opens this console's environment for an unknown one", async () => {
-    await open('/settings/environment/qa');
+    await open('/admin/environment/qa');
 
-    expect(TestBed.inject(Router).url).toBe('/settings/environment/production');
+    expect(TestBed.inject(Router).url).toBe('/admin/environment/production');
+  });
+
+  it('keeps the guide pane beside the list, and its Back reads the environment', async () => {
+    await open('/admin/environment/production/api/OWNER_EMAIL');
+
+    const back = root().querySelector('[data-testid="env-guide"] nav a') as HTMLAnchorElement;
+    expect(back.getAttribute('href')).toBe('/admin/environment/production');
+    expect(back.textContent?.trim()).toBe('Окружение production');
   });
 });

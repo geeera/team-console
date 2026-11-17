@@ -1227,7 +1227,8 @@
         "done": "{{secret}} is set.",
         "missing": "No {{secret}} secret. Until it’s set, the PM doesn’t answer in chat.",
         "how": "Create the PM routine for this repo with an API trigger and store its token:",
-        "copyAria": "Copy command"
+        "copyAria": "Copy command",
+        "link": "Open the project environment"
       }
     },
     "archive": {
@@ -1391,6 +1392,7 @@
       "badToken": "Claude Code refused the trigger token for {{slot}}: it was regenerated or mistyped. Save {{secret}} again. Nothing started.",
       "badRoutine": "Claude Code knows no routine with this id for {{slot}}. Check {{secret}}. Nothing started.",
       "notConfigured": "Run now isn’t set up for {{slot}}. Refresh the status to see what to set up.",
+      "setLink": "Set the token",
       "runPaused": "Development is paused. Resume it first; nothing started.",
       "github": "GitHub didn’t answer. Nothing changed.",
       "githubRate": "GitHub asks to wait until {{time}}. Nothing changed.",
@@ -1770,6 +1772,11 @@
       "dateWarning": "Freeze starts at once: no new issues will be taken.",
       "dateConflict": "The demo date changed while this was open (now {{date}}). Check it and move again.",
       "dateDone": "The demo moved",
+      "runOpen": "Run now…",
+      "runTitle": "Run QA now?",
+      "runMessage": "QA checks the open PRs.",
+      "runNotConfigured": "Run now isn’t set up for QA. Refresh the status to see what to set up.",
+      "runSetLink": "Set the token",
       "openFooter": "Sheet with a footer",
       "footerTitle": "Add {{repo}}",
       "footerBody": "Long content scrolls while the actions stay at the bottom: stacked with the primary first on the phone, in a row with the primary on the right in the dialog.",
