@@ -178,6 +178,51 @@ function isInstallationOfAccount(value: unknown): value is { id: number; account
   );
 }
 
+export type PermissionLevel = 'read' | 'write' | 'admin';
+
+/** #759: an installation's granted permissions, as `readInstallationPermissions` reduces GitHub's answer. */
+export interface InstallationPermissions {
+  /** Permission name → level; names GitHub sends with any other value are left out. */
+  readonly permissions: Readonly<Record<string, PermissionLevel>>;
+  /** The installation's settings page, where an installer accepts updated permissions; `null` unless on github.com. */
+  readonly htmlUrl: string | null;
+  /** `<app_slug>[bot]`, the login of the app's own commits and PRs; `null` when GitHub names no usable slug. */
+  readonly botLogin: string | null;
+  readonly suspended: boolean;
+}
+
+const PERMISSION_LEVELS: ReadonlySet<unknown> = new Set(['read', 'write', 'admin']);
+const PERMISSION_NAME = /^[a-z_]{1,64}$/;
+// GitHub app slugs: lower-case letters, digits and dashes.
+const APP_SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const GITHUB_UI_URL = /^https:\/\/github\.com\/[^\s"'<>\\]*$/;
+
+/** The reduced installation, or `null` when the answer is not an installation of `installationId`. */
+function installationPermissionsOf(value: unknown, installationId: number): InstallationPermissions | null {
+  if (!isInstallation(value) || value.id !== installationId) {
+    return null;
+  }
+  const record = value as unknown as Record<string, unknown>;
+  const granted = record['permissions'];
+  if (typeof granted !== 'object' || granted === null || Array.isArray(granted)) {
+    return null;
+  }
+  const permissions: Record<string, PermissionLevel> = {};
+  for (const [name, level] of Object.entries(granted as Record<string, unknown>)) {
+    if (PERMISSION_NAME.test(name) && PERMISSION_LEVELS.has(level)) {
+      permissions[name] = level as PermissionLevel;
+    }
+  }
+  const htmlUrl = record['html_url'];
+  const slug = record['app_slug'];
+  return {
+    permissions: Object.freeze(permissions),
+    htmlUrl: typeof htmlUrl === 'string' && GITHUB_UI_URL.test(htmlUrl) ? htmlUrl : null,
+    botLogin: typeof slug === 'string' && APP_SLUG.test(slug) ? `${slug}[bot]` : null,
+    suspended: record['suspended_at'] !== null && record['suspended_at'] !== undefined,
+  };
+}
+
 function hasNextPage(response: Response): boolean {
   return /rel="next"/.test(response.headers.get('link') ?? '');
 }
@@ -434,6 +479,40 @@ export class GitHubAppAuth {
       );
     }
     throw appNotInstalledForAccountError();
+  }
+
+  /**
+   * #759: what the installation was granted, `GET /app/installations/{installation_id}` with the app JWT, so it
+   * mints nothing. An installer who has not accepted an update of the app's permissions keeps the old set until they
+   * do, and this read shows which. `null` when GitHub knows no such installation (a wrong app id answers 503
+   * `github-auth`, as `installationIdFor`). The answer is reduced to permission levels, the settings page (only an
+   * `https://github.com/` URL) and the app's bot login; the account, its login and dates are not passed on.
+   */
+  async readInstallationPermissions(installationId: number): Promise<InstallationPermissions | null> {
+    if (!Number.isSafeInteger(installationId) || installationId <= 0) {
+      throw new RangeError('an installation is named by a positive integer id');
+    }
+    const jwt = await this.jwt();
+    const response = await this.request({
+      method: 'GET',
+      path: githubPath`/app/installations/${installationId}`,
+      bearer: jwt,
+    });
+    if (response.status === 404) {
+      await discardBody(response);
+      await this.assertAppExists(jwt);
+      return null;
+    }
+    if (!response.ok) {
+      await discardBody(response);
+      throw mapGitHubResponse(response, this.now());
+    }
+    const body = await readGitHubJson(response);
+    const permissions = installationPermissionsOf(body, installationId);
+    if (permissions === null) {
+      throw githubUnexpectedError('GitHub returned an installation of an unexpected shape', response.status);
+    }
+    return permissions;
   }
 
   /** Read-only token source for one repository, for `new GitHubClient(fetch, source)`. */

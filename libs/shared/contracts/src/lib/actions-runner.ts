@@ -2,6 +2,7 @@ import { isUlid } from './account';
 import { isString } from './guards';
 import { isJobDto, type ClaimResponse } from './job';
 import { isEd25519PublicJwk, isRunnerId, isRunnerVersion, runnerHostOf, type Ed25519PublicJwk, type RunnerHostDto } from './runner';
+import { isAccessSource, type AccessSource } from './team-config';
 import { InputError, checked, isRecord, oneOf, record, text, type InputCheck } from './tracker/inputs';
 
 /**
@@ -203,5 +204,139 @@ export function isActionsWorkflowDto(value: unknown): value is ActionsWorkflowDt
     /^[0-9a-f]{64}$/.test(sha256) &&
     isString(version) &&
     /^\d+\.\d+\.\d+$/.test(version)
+  );
+}
+
+/**
+ * `GET /api/v1/projects/:slug/actions-setup` (#759; architect note §4, security note rows "Readiness over-reads or
+ * leaks" and "Readiness used as authorisation"): whether the project's repository is set up for GitHub Actions, item
+ * by item, in the order of the setup page's steps. Every item is re-read from GitHub on each check; nothing is stored.
+ */
+export const ACTIONS_SETUP_ITEMS = [
+  'access-source',
+  'app-permissions',
+  'environment',
+  'branch-policy',
+  'protection-rules',
+  'secret',
+  'workflow',
+] as const;
+export type ActionsSetupItemId = (typeof ACTIONS_SETUP_ITEMS)[number];
+export const isActionsSetupItemId = (value: unknown): value is ActionsSetupItemId =>
+  (ACTIONS_SETUP_ITEMS as readonly unknown[]).includes(value);
+
+/**
+ * `unknown`: the console could not look (the app has not been granted the permission yet); it never counts as ok.
+ * `outdated`: the file equals an earlier release's rendering (none is kept yet: the first one is this release's).
+ */
+export const ACTIONS_SETUP_STATUSES = ['ok', 'missing', 'wrong', 'outdated', 'modified', 'unknown'] as const;
+export type ActionsSetupStatus = (typeof ACTIONS_SETUP_STATUSES)[number];
+export const isActionsSetupStatus = (value: unknown): value is ActionsSetupStatus =>
+  (ACTIONS_SETUP_STATUSES as readonly unknown[]).includes(value);
+
+/**
+ * Items that warn and never hold the switch back (owner decision 2 on #759): required reviewers or a wait timer on
+ * the Environment are the customer's stronger control; every run then waits for them and may hit the no-show limit.
+ */
+export const ACTIONS_SETUP_ADVISORY_ITEMS: readonly ActionsSetupItemId[] = Object.freeze(['protection-rules']);
+
+/**
+ * The console's pull request on its own head branch. `foreign`: someone else opened a PR from that branch (or in
+ * another repository); `changed`: the PR is the console's, but it now holds other commits, files or bytes. The page
+ * never tells the customer to merge a PR that is not `console`.
+ */
+export const ACTIONS_SETUP_PR_PROVENANCES = ['console', 'foreign', 'changed'] as const;
+export type ActionsSetupPrProvenance = (typeof ACTIONS_SETUP_PR_PROVENANCES)[number];
+
+export interface ActionsSetupPrDto {
+  readonly number: number;
+  /** GitHub's `html_url` of the PR; always `https://github.com/…`. */
+  readonly url: string;
+  readonly provenance: ActionsSetupPrProvenance;
+}
+
+export interface ActionsSetupItemDto {
+  readonly id: ActionsSetupItemId;
+  readonly status: ActionsSetupStatus;
+  /** Where on GitHub to fix it; always `https://github.com/…`, never a console path. */
+  readonly link?: string;
+  /** On the `workflow` item only, when a PR is open from the console's head branch. */
+  readonly pr?: ActionsSetupPrDto;
+}
+
+export interface ActionsSetupDto {
+  readonly dispatch: ProjectDispatch;
+  readonly accessSource: AccessSource;
+  /** Every item `ok`, the advisory ones aside: what `PUT …/dispatch {actions}` requires. */
+  readonly ready: boolean;
+  readonly checkedAt: string;
+  readonly items: readonly ActionsSetupItemDto[];
+}
+
+/** 422 `actions-not-ready` of `PUT …/dispatch {actions}`: `extensions.items` names the items that hold it back. */
+export const ACTIONS_NOT_READY = 'actions-not-ready';
+
+/** Every link the readiness answers points at GitHub's own UI. */
+export const isGitHubUiUrl = (value: unknown): value is string =>
+  isString(value) && value.startsWith('https://github.com/') && !/[\s"'<>\\]/.test(value);
+
+/** The items that hold the switch back: not ok, and not advisory. */
+export function blockingItemsOf(items: readonly ActionsSetupItemDto[]): ActionsSetupItemId[] {
+  return items
+    .filter((item) => item.status !== 'ok' && !ACTIONS_SETUP_ADVISORY_ITEMS.includes(item.id))
+    .map((item) => item.id);
+}
+
+function isActionsSetupPrDto(value: unknown): value is ActionsSetupPrDto {
+  if (!isRecord(value) || Object.keys(value).length !== 3) {
+    return false;
+  }
+  const { number, url, provenance } = value;
+  return (
+    Number.isSafeInteger(number) &&
+    (number as number) > 0 &&
+    isGitHubUiUrl(url) &&
+    (ACTIONS_SETUP_PR_PROVENANCES as readonly unknown[]).includes(provenance)
+  );
+}
+
+function isActionsSetupItemDto(value: unknown): value is ActionsSetupItemDto {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const allowed = new Set(['id', 'status', 'link', 'pr']);
+  if (!Object.keys(value).every((key) => allowed.has(key))) {
+    return false;
+  }
+  return (
+    isActionsSetupItemId(value['id']) &&
+    isActionsSetupStatus(value['status']) &&
+    (value['link'] === undefined || isGitHubUiUrl(value['link'])) &&
+    (value['pr'] === undefined || (value['id'] === 'workflow' && isActionsSetupPrDto(value['pr'])))
+  );
+}
+
+/** The answer's exact key set: no names, dates, lengths or reviewer identities can ride along. */
+export function isActionsSetupDto(value: unknown): value is ActionsSetupDto {
+  if (!isRecord(value) || Object.keys(value).length !== 5) {
+    return false;
+  }
+  const { dispatch, accessSource, ready, checkedAt, items } = value;
+  if (
+    !isProjectDispatch(dispatch) ||
+    !isAccessSource(accessSource) ||
+    typeof ready !== 'boolean' ||
+    !isString(checkedAt) ||
+    Number.isNaN(Date.parse(checkedAt)) ||
+    !Array.isArray(items) ||
+    !items.every(isActionsSetupItemDto)
+  ) {
+    return false;
+  }
+  const ids = items.map((item: ActionsSetupItemDto) => item.id);
+  return (
+    ids.length === ACTIONS_SETUP_ITEMS.length &&
+    ids.every((id, index) => id === ACTIONS_SETUP_ITEMS[index]) &&
+    ready === (blockingItemsOf(items as ActionsSetupItemDto[]).length === 0)
   );
 }
