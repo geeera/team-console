@@ -102,8 +102,8 @@ function versionRequired(c: Context): Response {
 }
 
 /** The scoped project's access source: the column the claim reads, which only `TeamConfigRepo` writes. */
-async function accessSourceOf(c: Context, row: ProjectRow): Promise<AccessSource> {
-  return (await new TeamConfigRepo(c.env.DB).accessSourceOf(row.slug)) ?? 'subscription';
+async function accessSourceOf(c: Context, row: ProjectRow, repo = new TeamConfigRepo(c.env.DB)): Promise<AccessSource> {
+  return (await repo.accessSourceOf(row.slug)) ?? 'subscription';
 }
 
 /** A person's login for an author id; the console's own owner identities and unknown ids have none. */
@@ -123,7 +123,7 @@ async function viewOf(c: Context, row: ProjectRow, current: TeamConfigRecord | n
     revision,
     preset: presetViewOf(config),
     budget: budgetOf(config),
-    resolved: resolveTeamConfig(config, { revision, accessSource: await accessSourceOf(c, row) }),
+    resolved: resolveTeamConfig(config, { revision, accessSource: await accessSourceOf(c, row, repo) }),
     updatedAt: current?.updatedAt ?? null,
     updatedBy: current?.updatedBy ?? null,
     updatedByName: await authorNameOf(c, current?.updatedBy ?? null),

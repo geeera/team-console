@@ -31,15 +31,27 @@ async function stored(api: APIRequestContext): Promise<TeamConfigDto> {
   return (await response.json()) as TeamConfigDto;
 }
 
-/** Tabs forward until `target` has focus: the keyboard-only path, no click. */
-async function tabTo(page: Page, target: Locator, limit = 120): Promise<void> {
-  for (let step = 0; step < limit; step += 1) {
-    if (await target.evaluate((element) => element === document.activeElement)) {
-      return;
-    }
-    await page.keyboard.press('Tab');
+/**
+ * Tabs forward until `target` has focus: the keyboard-only path, no click. `from` is a nearby control focused first
+ * (the row above, the bar's other button), so the walk is a few presses rather than the whole iPhone page; a press
+ * that never lands is a failure after `limit`, not a timeout. The check is one marker read per press.
+ */
+async function tabTo(page: Page, target: Locator, from?: Locator, limit = 12): Promise<void> {
+  await target.evaluate((element) => element.setAttribute('data-tab-target', ''));
+  if (from !== undefined) {
+    await from.focus();
   }
-  throw new Error(`never reached ${String(target)} with Tab`);
+  try {
+    for (let step = 0; step <= limit; step += 1) {
+      if (await page.evaluate(() => document.activeElement?.hasAttribute('data-tab-target') === true)) {
+        return;
+      }
+      await page.keyboard.press('Tab');
+    }
+    throw new Error(`Tab never reached ${String(target)} in ${String(limit)} presses`);
+  } finally {
+    await target.evaluate((element) => element.removeAttribute('data-tab-target'));
+  }
 }
 
 /** Opens Team; on the phone the folded sections are unfolded unless `unfold` is false. */
@@ -107,14 +119,14 @@ test('the owner opens Team, edits roles, a model and the budget by keyboard alon
 
     // UI designer off with Space.
     const designer = page.getByTestId('role-ui-designer').getByRole('switch');
-    await tabTo(page, designer);
+    await tabTo(page, designer, page.getByTestId('role-ux-designer').getByTestId('role-limits'));
     await page.keyboard.press('Space');
     await expect(designer).toHaveAttribute('aria-checked', 'false');
     await expect(page.getByTestId('role-ui-designer').getByTestId('role-reason')).toHaveText(ru('teamConfig.role.off'));
 
     // Developer on Fable 5.1 through the picker: only the allowed models, Haiku named as not available.
     const devModel = page.getByTestId('role-dev').getByTestId('role-model');
-    await tabTo(page, devModel);
+    await tabTo(page, devModel, page.getByTestId('role-dev').getByRole('switch'));
     await page.keyboard.press('Enter');
     const picker = page.getByRole('dialog');
     await expect(picker.getByTestId('model-claude-haiku-4-5-20251001')).toHaveCount(0);
@@ -130,12 +142,12 @@ test('the owner opens Team, edits roles, a model and the budget by keyboard alon
     await expect(page.getByTestId('role-dev').getByTestId('role-override')).toHaveText(ru('teamConfig.role.override'));
 
     const budget = page.getByTestId('input-budget.monthly_usd');
-    await tabTo(page, budget);
+    await tabTo(page, budget, page.getByTestId('role-ui-designer').getByTestId('role-limits'));
     await page.keyboard.type('250');
 
     const bar = page.getByRole('region', { name: ru('teamConfig.bar.label') });
     await expect(bar.getByTestId('save-bar-count')).toHaveText(ru('teamConfig.bar.count.few', { n: 3 }));
-    await tabTo(page, bar.getByTestId('save-bar-review'));
+    await tabTo(page, bar.getByTestId('save-bar-review'), bar.getByTestId('save-bar-discard'));
     await page.keyboard.press('Enter');
 
     const review = page.getByRole('dialog', { name: ru('teamConfig.review.title') });
@@ -151,7 +163,10 @@ test('the owner opens Team, edits roles, a model and the budget by keyboard alon
     await tabTo(page, review.getByTestId('review-save'));
     await page.keyboard.press('Enter');
 
-    await expect(page.getByRole('status').filter({ hasText: ru('teamConfig.saved', { n: 1 }) }).first()).toBeVisible();
+    const toast = page.getByRole('status').filter({ hasText: ru('teamConfig.saved', { n: 1 }) }).first();
+    await expect(toast).toBeVisible();
+    // The kit toast (inverse --text on --bg) fades in over --dur-fade; once in, it is fully opaque.
+    await expect(toast).toHaveCSS('opacity', '1');
     await expect(page.getByTestId('team-title')).toBeFocused();
     await expect(bar).toHaveCount(0);
     await expect(page.getByTestId('team-revision')).toContainText(ru('teamConfig.owner'));
@@ -183,7 +198,7 @@ test('a revision saved meanwhile shows the conflict, never overwritten; keep my 
     });
     expect(other.status(), await other.text()).toBe(200);
 
-    await tabTo(page, page.getByTestId('save-bar-review'));
+    await tabTo(page, page.getByTestId('save-bar-review'), page.getByTestId('save-bar-discard'));
     await page.keyboard.press('Enter');
     await tabTo(page, page.getByRole('dialog').getByTestId('review-save'));
     await page.keyboard.press('Enter');
@@ -197,13 +212,13 @@ test('a revision saved meanwhile shows the conflict, never overwritten; keep my 
     await tabTo(page, banner.getByTestId('conflict-show'));
     await page.keyboard.press('Enter');
     await expect(banner.getByRole('table')).toContainText(ru('teamConfig.field.sprint.length_days'));
-    await tabTo(page, banner.getByTestId('conflict-keep'));
+    await tabTo(page, banner.getByTestId('conflict-keep'), banner.getByTestId('conflict-show'));
     await page.keyboard.press('Enter');
     await expect(page.getByTestId('team-conflict')).toHaveCount(0);
     await expect(page.getByTestId('input-sprint.length_days')).toHaveValue('21');
     await expect(page.getByTestId('input-budget.monthly_usd')).toHaveValue('300');
 
-    await tabTo(page, page.getByTestId('save-bar-review'));
+    await tabTo(page, page.getByTestId('save-bar-review'), page.getByTestId('save-bar-discard'));
     await page.keyboard.press('Enter');
     await tabTo(page, page.getByRole('dialog').getByTestId('review-save'));
     await page.keyboard.press('Enter');
@@ -348,6 +363,17 @@ test('on a 375 px phone the sections fold, nothing scrolls sideways and every ta
     await expect(access).toHaveAttribute('aria-expanded', 'false');
     await expect(access).toContainText(ru('teamConfig.value.subscription'));
     await expect(page.getByTestId('section-toggle-roles')).toHaveAttribute('aria-expanded', 'true');
+    // The three presets stack in one column, each name whole (the approved phone wireframe), never truncated.
+    const presets = page.getByTestId('preset-group').locator('label');
+    const tops = await presets.evaluateAll((labels) => labels.map((label) => label.getBoundingClientRect().top));
+    expect(new Set(tops).size).toBe(3);
+    const truncated = await presets.evaluateAll((labels) =>
+      labels.some((label) => {
+        const text = label.querySelector<HTMLElement>('.tc-segment__text');
+        return text !== null && text.scrollWidth > text.clientWidth + 1;
+      }),
+    );
+    expect(truncated).toBe(false);
     for (const name of ['access', 'limits', 'rules']) {
       await page.getByTestId(`section-toggle-${name}`).click();
     }

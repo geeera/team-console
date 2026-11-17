@@ -135,7 +135,7 @@
         @if (readOnly()) {
           <p class="team__value" data-testid="preset-value">{{ 'teamConfig.preset.' + draft.preset | transloco }}</p>
         } @else {
-          <fieldset tc-segmented data-testid="preset-group" [legend]="'teamConfig.preset.legend' | transloco" class="team__legendless">
+          <fieldset tc-segmented stackOnPhone data-testid="preset-group" [legend]="'teamConfig.preset.legend' | transloco" class="team__legendless">
             @for (preset of presets; track preset) {
               <label tc-segment>
                 <input

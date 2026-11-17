@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { booleanAttribute, ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 /**
  * A few mutually exclusive values side by side (#107: Feature / Bug / Chore), drawn as inked segments over a native
@@ -23,10 +23,15 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   `,
   styleUrl: './segmented.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'tc-segmented' },
+  host: { class: 'tc-segmented', '[class.tc-segmented--stack-phone]': 'stackOnPhone()' },
 })
 export class SegmentedRadio {
   readonly legend = input.required<string>();
+  /**
+   * On the phone the segments stack into one column (#688: three preset names do not fit side by side at 375 px,
+   * and a truncated name is not an answer). Same radio group, same keys; only the layout changes.
+   */
+  readonly stackOnPhone = input(false, { transform: booleanAttribute });
 }
 
 /** One segment: a native radio, visually hidden but focusable, and its words; the whole segment is the tap target. */
