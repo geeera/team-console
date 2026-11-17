@@ -466,6 +466,18 @@ next quiet start/resume, #311): delete the `ngsw:` caches, unregister, one navig
 client-side route (one rule each, `pwa.spec.ts` checks them against `app.routes.ts`), `ngsw.json`, `ngsw-worker.js` and
 `safety-worker.js` with `Cache-Control: no-cache` (the assets layer answers them, never the Worker code). E2e
 `pwa-updates.e2e.ts` serves a derived build B (`writeNextBuild`/`routeDeploys` in `support/service-worker.ts`).
+Install prompt (#761): `main.ts` calls `captureInstallPrompt(window)` (`@console/shared/platform`) before bootstrap, so
+Chromium's `beforeinstallprompt` is `preventDefault()`ed and kept; `InstallPrompt` exposes it with `appinstalled` and
+the pure `installPathOf(signals, state)` (`standalone|installed|native|menu|ios|ios-other|in-app|mac|mac-old|none`).
+`@console/features/install-app`: `InstallOffer` (started by `provideInstallOffer()`) allows one offer per launch on
+the landing screen once it is ready, or for a late event on the next screen opened, and the push nudge waits while
+the card has the launch (`holdsPushNudgeOn`); `InstallMemoryStore` keeps `localStorage` `tc.install-prompt.v1`
+(`{ignored:n}` | `{choice:'snoozed',until[,auto]}` | `{choice:'never'}`; 14-day snooze; 3 shown launches without an
+answer snooze it by themselves) over `deviceStorageOf`, the shared storage fallback; `InstallCard` (Needs you, the
+project space, in the page flow) and `InstallSettings` (Settings › App, between GitHub and Notifications). The Home
+Screen steps are the kit's `HomeScreenGuide`, shown once per page: Notifications and the iPhone push nudge point to
+App (`FOCUS_APP_SETTINGS_STATE`). E2e specs answer the card with `never` before the app starts (the `installPrompt`
+option in `support/fixtures.ts`); `install-prompt.e2e.ts` uses `fresh` and a synthetic `beforeinstallprompt`.
 
 ## Workers (#6)
 

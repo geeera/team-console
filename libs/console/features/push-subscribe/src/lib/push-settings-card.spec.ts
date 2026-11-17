@@ -17,12 +17,14 @@ import type { PlatformInfo } from '@console/shared/platform';
 
 describe('PushSettingsCard', () => {
   let root: HTMLElement;
+  let card: PushSettingsCard;
 
   async function render(platform: PlatformInfo = DESKTOP, before?: (world: PushWorld) => void): Promise<PushWorld> {
     const world = await configurePush(platform);
     before?.(world);
     const fixture = TestBed.createComponent(PushSettingsCard);
     root = fixture.nativeElement as HTMLElement;
+    card = fixture.componentInstance;
     document.body.appendChild(root);
     await settle();
     return world;
@@ -56,15 +58,18 @@ describe('PushSettingsCard', () => {
     expect(document.activeElement).toBe(on?.querySelector('h3'));
   });
 
-  it('shows the Home Screen guide instead of the button in iPhone Safari', async () => {
+  it('points iPhone Safari to the Home Screen steps in Settings › App instead of the button', async () => {
     const { device } = await render({ ...IPHONE_APP, isStandalone: false, webPush: 'install' });
+    const requested = vi.fn();
+    card.installGuideRequested.subscribe(requested);
 
     expect(byTestId('push-enable')).toBeNull();
-    const steps = byTestId('push-install-guide')?.querySelectorAll('li') ?? [];
-    expect(steps).toHaveLength(3);
-    expect(steps[0]?.textContent).toContain('В Safari нажмите');
-    expect(steps[0]?.textContent).toContain('Ещё');
-    expect(steps[1]?.textContent).toContain('На экран „Домой“');
+    expect(byTestId('push-install-guide')).toBeNull();
+    const goToApp = byTestId('push-go-to-app');
+    expect(goToApp?.textContent?.trim()).toBe('Как добавить — в разделе «Приложение»');
+    goToApp?.click();
+
+    expect(requested).toHaveBeenCalledOnce();
     expect(device.permission).not.toHaveBeenCalled();
   });
 

@@ -1,0 +1,33 @@
+:host {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.install-settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.install-settings__error,
+.install-settings__note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+}
+
+.install-settings__error {
+  font-weight: var(--fw-semibold);
+  color: var(--danger-text);
+}
+
+.install-settings__error tc-icon {
+  margin-top: var(--space-1);
+}
+
+.install-settings__note {
+  color: var(--text-2);
+}

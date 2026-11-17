@@ -14,13 +14,15 @@ import { AppInfoStore, DeploymentStore } from '@console/entities/app-info';
 import { EnvironmentCopy, EnvironmentStatusStore, entryChipOf } from '@console/entities/environment';
 import { connectOutcomeOf } from '@console/entities/github-connection';
 import { GitHubConnectionCard } from '@console/features/connect-github';
-import { FOCUS_PUSH_SETTINGS_STATE, PushSettingsCard } from '@console/features/push-subscribe';
+import { InstallSettings } from '@console/features/install-app';
+import { FOCUS_APP_SETTINGS_STATE, PushSettingsCard } from '@console/features/push-subscribe';
 import { ConsoleLang, ConsoleLanguage, TranslocoPipe } from '@console/shared/i18n';
 import { Button, Chip, Icon, List, ListRow, SrOnlyOnPhone } from '@console/shared/ui';
 import { readNavigationState } from './settings-navigation';
 
 /**
- * `/settings` (#24): the GitHub connection, notifications, the language switch and the build facts. Settings holds
+ * `/settings` (#24): the GitHub connection, installing the app (#761), notifications, the language switch and the
+ * build facts. Settings holds
  * settings only (owner decision on #194): projects are listed and added on All projects.
  */
 @Component({
@@ -30,6 +32,7 @@ import { readNavigationState } from './settings-navigation';
     Chip,
     GitHubConnectionCard,
     Icon,
+    InstallSettings,
     List,
     ListRow,
     PushSettingsCard,
@@ -68,7 +71,8 @@ export class SettingsPage {
   });
 
   private readonly heading = viewChild.required<ElementRef<HTMLElement>>('heading');
-  private readonly pushHeading = viewChild.required<ElementRef<HTMLElement>>('pushHeading');
+  private readonly appHeading = viewChild.required<ElementRef<HTMLElement>>('appHeading');
+  private readonly installSettings = viewChild.required(InstallSettings);
 
   private readonly query = toSignal(inject(ActivatedRoute).queryParamMap, { requireSync: true });
   /** The OAuth callback's `?github=` outcome, read once; the query is then dropped so a reload does not repeat it. */
@@ -81,15 +85,11 @@ export class SettingsPage {
   constructor() {
     void this.deployment.ensureLoaded();
     void this.environmentStatus.ensureLoaded();
-    // "How to turn on" from the Needs you nudge: the Notifications block, not the top of Settings.
-    const toPush = readNavigationState(this.router, FOCUS_PUSH_SETTINGS_STATE) === true;
+    // "How to turn on" from the Needs you nudge on iPhone Safari: install first, so the App section's steps (#761).
+    const toApp = readNavigationState(this.router, FOCUS_APP_SETTINGS_STATE) === true;
 
-    if (toPush) {
-      afterNextRender(() => {
-        const heading = this.pushHeading().nativeElement;
-        heading.scrollIntoView({ block: 'start' });
-        heading.focus({ preventScroll: true });
-      });
+    if (toApp) {
+      afterNextRender(() => this.openInstallGuide());
     } else if (this.outcome() !== null) {
       void this.router.navigate([], {
         queryParams: { github: null, login: null },
@@ -99,6 +99,18 @@ export class SettingsPage {
     } else {
       afterNextRender(() => this.heading().nativeElement.focus());
     }
+  }
+
+  /** The Home Screen steps live once on the page, in App: open them there and land on its heading. */
+  protected openInstallGuide(): void {
+    this.installSettings().openGuide();
+    const heading = this.appHeading().nativeElement;
+    heading.scrollIntoView({ block: 'start' });
+    heading.focus({ preventScroll: true });
+  }
+
+  protected focusAppHeading(): void {
+    this.appHeading().nativeElement.focus();
   }
 
   protected retryEnvironmentCopy(): void {

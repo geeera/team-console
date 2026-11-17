@@ -113,10 +113,9 @@
       "s1NoteBefore": "With the Bottom or Top tab layout, tap",
       "s1NoteAfter": "right away.",
       "s2": "Scroll down and tap Add to Home Screen. Leave Open as Web App on and tap Add.",
-      "s3": "Open Team Console from its Home Screen icon and turn notifications on here, in Settings.",
       "more": "More",
       "share": "Share",
-      "already": "Already on your Home Screen? Open the app from there: notifications can’t be turned on in Safari."
+      "goToApp": "How to add it: see App above"
     },
     "denied": {
       "title": "Notifications are blocked",
@@ -159,6 +158,32 @@
       "external": "(opens GitHub)",
       "projectHint": "It was archived or never added. Its notifications lead here until it is added again.",
       "back": "Go to Needs you"
+    }
+  },
+  "install": {
+    "card": {
+      "title": "Install {{app}}",
+      "bodyPhone": "An icon on your home screen and a window of its own. Opens in one tap.",
+      "bodyDesktop": "A window of its own and an icon in your Dock or taskbar, without browser tabs.",
+      "bodyIos": "On iPhone you do it in Safari, in half a minute. Notifications only reach the installed app.",
+      "bodyIosOther": "Half a minute from this browser. Notifications only reach the installed app.",
+      "install": "Install",
+      "installAria": "Install {{app}} on this device",
+      "how": "How to install",
+      "hideSteps": "Hide steps",
+      "later": "Not now",
+      "never": "Don’t show again",
+      "mac": "Add {{app}} to your Dock: in Safari, choose File → Add to Dock…",
+      "donePhone": "{{app}} is installed. Its icon is on your home screen.",
+      "doneDesktop": "{{app}} is installed. Open it from your Dock or app list.",
+      "doneHideAria": "Hide the install message",
+      "error": "The install window didn’t open. Install from the browser menu: ⋮ → Install app."
+    },
+    "toast": "You can install it from Settings → App",
+    "guide": {
+      "s1OtherBefore": "Tap",
+      "s1OtherAfter": "Share in the browser’s address bar.",
+      "s3": "Open {{app}} from its Home Screen icon."
     }
   },
   "questions": {
@@ -1067,6 +1092,24 @@
         "none": "GitHub isn’t connected: step 2 can’t be checked and answers aren’t sent.",
         "lost": "The GitHub connection was lost: answers from the console aren’t sent."
       }
+    },
+    "app": {
+      "title": "App",
+      "row": "Install on this device",
+      "rowInstalled": "Installed on this device",
+      "chipOn": "Installed",
+      "chipOff": "Not installed",
+      "subStandalone": "You’re in the {{app}} app.",
+      "subJustInstalled": "Open {{app}} from its icon.",
+      "subNative": "A window and an icon of its own, without browser tabs.",
+      "subMenu": "Install from the browser menu: ⋮ → Install {{app}}. Already installed? Open the app from its icon.",
+      "subIos": "Add it to your Home Screen. iPhone doesn’t send notifications otherwise.",
+      "subInApp": "The browser inside another app can’t install. Open this page in Safari.",
+      "copyLink": "Copy link",
+      "copyFailed": "Couldn’t copy. Copy the address from the address bar instead.",
+      "subMac": "In Safari, choose File → Add to Dock…",
+      "subMacOld": "Adding to the Dock needs Safari 17 or later (macOS Sonoma).",
+      "subUnsupported": "This browser can’t install web apps. Open the console in Chrome, Edge or Safari."
     },
     "disc": {
       "title": "Disconnect GitHub?",

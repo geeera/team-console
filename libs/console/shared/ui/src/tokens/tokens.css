@@ -93,6 +93,7 @@
   --icon-size-xl: 32px;
   --icon-button-size: 40px;
   --avatar-size: 28px;
+  --app-tile: 40px; /* #761: the app icon as the Home Screen shows it; the small tile is --avatar-size */
   --chip-h: 22px;
   --count-h: 20px;
   --dot-size: 6px;

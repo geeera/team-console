@@ -8,6 +8,13 @@
     <tc-github-connection-card [outcome]="outcome()" />
   </section>
 
+  <section class="settings__section" aria-labelledby="settings-app" data-testid="app-section">
+    <h2 #appHeading id="settings-app" class="settings__section-title" tabindex="-1">
+      {{ 'settings.app.title' | transloco }}
+    </h2>
+    <tc-install-settings labelledBy="settings-app" (focusLost)="focusAppHeading()" />
+  </section>
+
   <section class="settings__section" aria-labelledby="settings-push" data-testid="push-section">
     <div>
       <h2 #pushHeading id="settings-push" class="settings__section-title" tabindex="-1">
@@ -15,7 +22,7 @@
       </h2>
       <p class="settings__lead">{{ 'push.lead' | transloco }}</p>
     </div>
-    <tc-push-settings-card />
+    <tc-push-settings-card (installGuideRequested)="openInstallGuide()" />
   </section>
 
   @if (environmentCopy.failed()) {

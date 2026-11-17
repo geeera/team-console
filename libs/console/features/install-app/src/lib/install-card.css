@@ -1,0 +1,168 @@
+:host {
+  display: block;
+}
+
+/*
+ * The push nudge's sunken paper (#36), grown to a title, a body and a row of actions: an offer, not a status line.
+ * Always in the page flow, never fixed or sticky, so it scrolls away and never covers the bottom bar (#368).
+ */
+.install {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg-sunken);
+  /* Durations collapse to a frame under reduced motion (tokens §12), so nothing fades or lands there. */
+  animation: tc-install-in var(--dur-fast) var(--ease-enter) both;
+}
+
+.install__tile {
+  grid-row: 1 / span 2;
+}
+
+.install__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+  overflow-wrap: anywhere;
+}
+
+.install__body {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  color: var(--text-2);
+}
+
+.install__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.install__later {
+  color: var(--text);
+}
+
+/* A quiet text action on its own line on the phone, after the steps; the end of the row on wider screens. */
+.install__never {
+  justify-self: start;
+  color: var(--text-2);
+  text-decoration: underline;
+  text-decoration-thickness: var(--border-w);
+  text-underline-offset: var(--space-1);
+}
+
+.install > .install__never {
+  grid-column: 1 / -1;
+}
+
+.install__actions > .install__never {
+  margin-left: auto;
+}
+
+.install__error {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--danger-text);
+}
+
+.install__error tc-icon {
+  margin-top: var(--space-1);
+}
+
+.install__steps {
+  grid-column: 1 / -1;
+  margin-top: var(--space-1);
+}
+
+/* macOS Safari: one line, no install button (Safari has no install API). */
+.install--line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+}
+
+.install__body--line {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text);
+}
+
+.install__actions--line {
+  flex: none;
+  margin: 0;
+}
+
+.install__actions--line > .install__never {
+  margin-left: 0;
+}
+
+/* The success line: a margin note, as the push nudge's "on" line. */
+.install-done {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-1) var(--space-2) var(--space-4);
+  border-left: var(--border-w-strong) solid var(--accent);
+  outline: none;
+}
+
+.install-done:focus-visible {
+  box-shadow: 0 0 0 var(--focus-w) var(--focus);
+}
+
+.install-done__tile {
+  animation: tc-install-land var(--dur-slow) var(--ease-emph) both;
+}
+
+.install-done__text {
+  flex: 1;
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  color: var(--text);
+}
+
+@media (max-width: 519.98px) {
+  .install__actions > [tc-button] {
+    flex: 1 1 0;
+    min-width: max-content;
+  }
+}
+
+@keyframes tc-install-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* The icon lands the way an app lands on a Home Screen. */
+@keyframes tc-install-land {
+  0% {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--space-1))) scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0) scale(1.06);
+  }
+  100% {
+    transform: none;
+  }
+}

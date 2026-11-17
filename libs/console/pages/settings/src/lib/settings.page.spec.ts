@@ -113,13 +113,14 @@ describe('SettingsPage', () => {
     http.verify();
   });
 
-  it('has one h1, the GitHub, Notifications and Language sections, and the build facts', async () => {
+  it('has one h1, the GitHub, App, Notifications and Language sections, and the build facts', async () => {
     await open('/settings');
 
     expect(root().querySelectorAll('h1')).toHaveLength(1);
     expect(text('h1')).toBe('Настройки');
     expect(Array.from(root().querySelectorAll('h2')).map((h) => h.textContent?.trim())).toEqual([
       'GitHub',
+      'Приложение',
       'Уведомления',
       'Окружение',
       'Раннеры',
@@ -143,6 +144,7 @@ describe('SettingsPage', () => {
     expect(text('h1')).toBe('Settings');
     expect(Array.from(root().querySelectorAll('h2')).map((h) => h.textContent?.trim())).toEqual([
       'GitHub',
+      'App',
       'Notifications',
       'Environment',
       'Runners',
