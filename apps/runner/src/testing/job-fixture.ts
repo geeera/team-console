@@ -20,6 +20,7 @@ export const SCENARIO = {
   rateLimit: 6,
   hang: 7,
   crash: 8,
+  launch: 9,
 } as const;
 
 /** Git for fixtures only: no system or global config of the machine running the specs. */

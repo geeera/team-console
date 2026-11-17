@@ -27,6 +27,8 @@ export interface ExpectedRepository {
   readonly originUrl: string;
   /** The runner's own credential helper, the one helper accepted; null when it has none. */
   readonly allowedHelper: string | null;
+  /** A clone the runner made blob-less (`reviewer_context: diff`, ADR 0009 d.5): its promisor keys are expected. */
+  readonly partial?: boolean | undefined;
 }
 
 /** `section[.subsection].variable`; git compares section and variable case-insensitively, a subsection exactly. */
@@ -70,6 +72,10 @@ const oneOf =
 /** The refspec each kind is made with; any other maps upstream refs elsewhere (#721). */
 export const MIRROR_REFSPEC = '+refs/*:refs/*';
 export const CLONE_REFSPEC = '+refs/heads/*:refs/remotes/origin/*';
+/** The one filter a partial clone is made with. */
+export const PARTIAL_CLONE_FILTER = 'blob:none';
+
+const isPartialClone = (expected: ExpectedRepository): boolean => expected.kind === 'clone' && expected.partial === true;
 
 /**
  * What `git clone --mirror --template=`, `git fetch`, `git clone` from the mirror and `git remote set-url` write into
@@ -140,6 +146,28 @@ export const ALLOWED_GIT_KEYS: readonly AllowedKeyRule[] = [
     subsection: 'origin',
     variables: ['tagopt'],
     accepts: (value, expected) => expected.kind === 'mirror' && value === '--no-tags',
+  },
+  // `--filter=blob:none` writes these, and only into a clone the runner made partial; the mirror is never partial.
+  {
+    label: 'remote.origin.promisor',
+    section: 'remote',
+    subsection: 'origin',
+    variables: ['promisor'],
+    accepts: (value, expected) => isPartialClone(expected) && value === 'true',
+  },
+  {
+    label: 'remote.origin.partialCloneFilter',
+    section: 'remote',
+    subsection: 'origin',
+    variables: ['partialclonefilter'],
+    accepts: (value, expected) => isPartialClone(expected) && value === PARTIAL_CLONE_FILTER,
+  },
+  {
+    label: 'extensions.partialClone',
+    section: 'extensions',
+    subsection: null,
+    variables: ['partialclone'],
+    accepts: (value, expected) => isPartialClone(expected) && value === 'origin',
   },
   {
     label: 'branch.<name>.remote',

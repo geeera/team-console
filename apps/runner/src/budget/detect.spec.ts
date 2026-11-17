@@ -19,6 +19,7 @@ const errorResult = (text: string): StreamResult => ({
   costUsd: 0.1,
   turns: 2,
   durationMs: 10,
+  usage: null,
 });
 const ok: StreamResult = { ...errorResult('done'), isError: false };
 

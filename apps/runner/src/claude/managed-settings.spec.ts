@@ -1,7 +1,8 @@
 import { chmod, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { MANAGED_SETTINGS, managedSettingsPathOf, writeManagedSettings } from './managed-settings';
+import type { TeamEffort } from '@shared/contracts';
+import { MANAGED_SETTINGS, jobSettingsOf, managedSettingsPathOf, writeManagedSettings } from './managed-settings';
 
 /** Threat model C3 cross-job row (a), the hook refusal (ADR 0008 decision 8). */
 
@@ -41,5 +42,20 @@ describe('managed settings', () => {
 
   it('lives in the runner home, never in a clone', () => {
     expect(managedSettingsPathOf('/r')).toBe('/r/managed-settings.json');
+  });
+
+  it('adds the role’s effort and, with caching off, DISABLE_PROMPT_CACHING (ADR 0009 d.5, d.6)', async () => {
+    const path = await writeManagedSettings(home, { effort: 'low', promptCaching: false });
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({
+      disableAllHooks: true,
+      env: { DISABLE_AUTOUPDATER: '1', DISABLE_PROMPT_CACHING: '1' },
+      effortLevel: 'low',
+    });
+    expect(jobSettingsOf({ effort: 'high', promptCaching: true })).toEqual({ ...MANAGED_SETTINGS, effortLevel: 'high' });
+  });
+
+  it('writes the effort only from the enum, whatever string reached it', () => {
+    const forged = { effort: 'high", "disableAllHooks": false' as TeamEffort, promptCaching: true };
+    expect(jobSettingsOf(forged)).toEqual(MANAGED_SETTINGS);
   });
 });

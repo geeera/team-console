@@ -2,7 +2,7 @@
 // A stand-in for `claude -p … --output-format stream-json` (architect note on #468, decision 13). The first item number
 // in the prompt picks the scenario, so a spec chooses one through Run now's `items` and nothing else reaches the job.
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const args = process.argv.slice(2);
@@ -122,6 +122,38 @@ switch (scenario) {
     say('working for a long time');
     setInterval(() => undefined, 1000);
     break;
+  case 9: {
+    // What the launch was given (#685): the flags, the settings file, the env's names and the clone's shape.
+    const gitOut = (gitArgs) => {
+      try {
+        return execFileSync('git', gitArgs, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+      } catch {
+        return null;
+      }
+    };
+    const settingsPath = flag('--settings');
+    result(
+      JSON.stringify({
+        model: flag('--model') ?? null,
+        maxTurns: flag('--max-turns') ?? null,
+        settings: settingsPath === undefined ? null : JSON.parse(readFileSync(settingsPath, 'utf8')),
+        envNames: Object.keys(process.env).sort(),
+        shallow: existsSync(join('.git', 'shallow')),
+        promisor: gitOut(['config', '--get', 'remote.origin.promisor']),
+        readme: existsSync('README.md'),
+        prompt,
+      }),
+      {
+        usage: {
+          input_tokens: 1200,
+          output_tokens: 340,
+          cache_read_input_tokens: 9000,
+          cache_creation_input_tokens: 800,
+        },
+      },
+    );
+    break;
+  }
   default:
     process.stderr.write('boom\n');
     process.exitCode = 3;

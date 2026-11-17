@@ -22,6 +22,17 @@ describe('claudeLaunchArgv (#639)', () => {
     expect(argv.slice(0, 2)).toEqual(['-p', 'P']);
     expect(argv[argv.indexOf('--model') + 1]).toBe('m');
     expect(argv[argv.indexOf('--settings') + 1]).toBe('/s.json');
+    expect(argv).not.toContain('--max-turns');
+  });
+
+  it('passes the turn limit as its own argv element after --max-turns (ADR 0009 T5)', () => {
+    const limited = claudeLaunchArgv({ prompt: 'P', model: 'claude-sonnet-5', settingsPath: '/s.json', maxTurns: 40 });
+    expect(limited.slice(limited.indexOf('--max-turns'), limited.indexOf('--max-turns') + 2)).toEqual(['--max-turns', '40']);
+    expect(limited.filter((arg) => arg === '--model')).toHaveLength(1);
+  });
+
+  it.each([0, -1, 1.5, Number.NaN])('refuses a turn limit of %d', (maxTurns) => {
+    expect(() => claudeLaunchArgv({ prompt: 'P', model: 'm', settingsPath: '/s.json', maxTurns })).toThrow(RangeError);
   });
 });
 

@@ -288,6 +288,7 @@ describe('the api-key credential from TC_INFERENCE_API_KEY', () => {
           toolchainPath: '/usr/bin',
           dispatch: 'actions',
           credential,
+          accessSource: null,
           passthrough: [],
           source: {},
         }),

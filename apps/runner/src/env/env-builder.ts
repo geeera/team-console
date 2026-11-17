@@ -1,6 +1,11 @@
-import type { JobDispatch } from '@shared/contracts';
+import type { AccessSource, JobDispatch } from '@shared/contracts';
 import { LaunchRefusal } from '../jobs/refusal';
-import { CREDENTIAL_VARIABLES, OAUTH_CREDENTIAL_KINDS, type JobCredential } from './credential';
+import {
+  CREDENTIAL_VARIABLES,
+  OAUTH_CREDENTIAL_KINDS,
+  assertCredentialMatchesSource,
+  type JobCredential,
+} from './credential';
 
 /**
  * The job's environment, built from nothing (ADR 0008 decision 4, threat model C3 cross-job row (a)): no variable of
@@ -39,6 +44,15 @@ export const REFUSED_PASSTHROUGH: readonly {
   { label: 'TC_*', test: (name) => name.startsWith('TC_') },
 ];
 
+/**
+ * What a job of each access source never gets (ADR 0009 T7), whatever put it there: an `api_key` job no Claude login,
+ * a `subscription` job no API key, auth token or endpoint override that would move its billing to an API account.
+ */
+export const STRIPPED_BY_SOURCE: Readonly<Record<AccessSource, readonly string[]>> = {
+  api_key: ['CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CONFIG_DIR'],
+  subscription: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL'],
+};
+
 const PASSTHROUGH_NAME = /^[A-Z][A-Z0-9_]{0,63}$/;
 
 export interface JobEnvInput {
@@ -51,6 +65,8 @@ export interface JobEnvInput {
   readonly toolchainPath: string;
   readonly dispatch: JobDispatch;
   readonly credential: JobCredential | null;
+  /** The claim's `access.source`; `null` for a claim without a team configuration (an older console). */
+  readonly accessSource: AccessSource | null;
   readonly passthrough: readonly string[];
   /** The runner's own environment; read for the passthrough names only. */
   readonly source: Readonly<Record<string, string | undefined>>;
@@ -93,7 +109,10 @@ export function buildJobEnv(input: JobEnvInput): JobEnv {
     }
   }
 
-  const { credential } = input;
+  const { credential, accessSource } = input;
+  if (accessSource !== null) {
+    assertCredentialMatchesSource(credential?.kind ?? null, accessSource);
+  }
   if (credential !== null) {
     if (credential.name !== CREDENTIAL_VARIABLES[credential.kind]) {
       throw new LaunchRefusal(
@@ -108,6 +127,11 @@ export function buildJobEnv(input: JobEnvInput): JobEnv {
       );
     }
     env[credential.name] = credential.value;
+  }
+  if (accessSource !== null) {
+    for (const name of STRIPPED_BY_SOURCE[accessSource]) {
+      delete env[name];
+    }
   }
   return { env, passedThrough };
 }

@@ -12,7 +12,9 @@ export type LaunchRefusalReason =
   | 'project-not-allowed'
   | 'project-settings-refused'
   | 'plugin-missing'
-  | 'role-unknown';
+  | 'role-unknown'
+  | 'team-config-invalid'
+  | 'credential-source-mismatch';
 
 export class LaunchRefusal extends Error {
   constructor(

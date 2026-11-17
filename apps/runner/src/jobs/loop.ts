@@ -165,7 +165,7 @@ export async function runLoop(mode: 'once' | 'loop', deps: LoopDeps): Promise<Lo
         mirrored = await mirrorPause(deps, limitPause, mirrored);
       },
       ...deps.timing,
-    });
+    }, claim.teamConfig);
     state = stateAfter(state, report);
     await saveRunnerState(deps.home, state);
     mirrored = await mirrorPause(deps, activePause(state, deps.now()), mirrored);

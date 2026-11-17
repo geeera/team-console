@@ -51,7 +51,18 @@ export interface RunnerClientOptions {
 }
 
 export type ClaimOutcome =
-  | { readonly kind: 'job'; readonly job: JobDto; readonly jobToken: string; readonly leaseSeconds: number }
+  | {
+      readonly kind: 'job';
+      readonly job: JobDto;
+      readonly jobToken: string;
+      readonly leaseSeconds: number;
+      /**
+       * The claim's `teamConfig` as sent, unjudged: the job is already held, so a bad view must reach `runJob`, which
+       * refuses the launch and finishes the job (`team-config-invalid`) instead of leaving it to the lease.
+       * `undefined` when the console sent none.
+       */
+      readonly teamConfig?: unknown;
+    }
   | { readonly kind: 'idle'; readonly retryAfterSeconds: number };
 
 /** A job's request as the proxy forwards it: the path already routed, headers already narrowed, body redacted. */
@@ -192,7 +203,13 @@ export class RunnerClient {
     if (!isClaimBody(body)) {
       throw new RunnerApiError(response.status, null, 'claim: unexpected answer');
     }
-    return { kind: 'job', job: body.job, jobToken: body.jobToken, leaseSeconds: body.leaseSeconds };
+    return {
+      kind: 'job',
+      job: body.job,
+      jobToken: body.jobToken,
+      leaseSeconds: body.leaseSeconds,
+      ...(Object.hasOwn(body, 'teamConfig') ? { teamConfig: (body as Record<string, unknown>)['teamConfig'] } : {}),
+    };
   }
 
   async heartbeat(jobId: string): Promise<HeartbeatResponse> {

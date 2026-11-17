@@ -129,6 +129,21 @@ describe('RunnerClient', () => {
     });
   });
 
+  it('claim: hands the teamConfig on unjudged, so a bad view is refused by the launch and the held job finished (#685)', async () => {
+    const job = jobFixture();
+    const forged = { schema: 'team-config/v1', roles: { pm: { model: 'opus' } } };
+    const { client } = clientWith(() =>
+      json(200, { job, jobToken: sentinels.jobToken, leaseSeconds: 300, teamConfig: forged, teamConfigRevision: 1 }),
+    );
+    await expect(client.claim()).resolves.toEqual({
+      kind: 'job',
+      job,
+      jobToken: sentinels.jobToken,
+      leaseSeconds: 300,
+      teamConfig: forged,
+    });
+  });
+
   it.each([
     ['a job that is not a JobDto', { job: { id: 'x' }, jobToken: 'tcj_x', leaseSeconds: 300 }],
     ['a token of another shape', { job: jobFixture(), jobToken: 'not-a-token', leaseSeconds: 300 }],

@@ -2,7 +2,6 @@ import { isAbsolute, join } from 'node:path';
 import { isRunnerId, isUlid, isValidSlug, type RunnerIsolation } from '@shared/contracts';
 import { RunnerFileError, assertPrivateDir, readPrivateFile, writePrivateFile } from './private-files';
 import { isCredentialAllowed, parseCredentialConfig, type CredentialConfig } from '../env/credential';
-import { PINNED_MODEL, isJobRole, type RoleOverrides } from '../claude/roles';
 
 /**
  * The runner's own state (ADR 0008 decision 2): `TC_RUNNER_HOME` (default `~/.team-console-runner`) holding
@@ -42,7 +41,6 @@ export interface RunnerConfig {
   readonly credential?: CredentialConfig;
   readonly toolchain?: RunnerToolchain;
   readonly env?: { readonly passthrough: readonly string[] };
-  readonly roles?: RoleOverrides;
   /** The clone URL per project slug the mirror fetches from (https, or an absolute path for a local repository). */
   readonly repositories?: Readonly<Record<string, string>>;
   /** The `container` backend (ADR 0008 decision 12); `image` is required there and must be pinned by digest. */
@@ -151,11 +149,13 @@ const CONFIG_KEYS = [
   'credential',
   'toolchain',
   'env',
-  'roles',
   'repositories',
   'container',
   'update',
 ] as const;
+
+/** The per-runner model override ADR 0009 removed: a host must not quietly change a project's model. */
+const REMOVED_ROLES_KEY = 'roles';
 
 const TOOLCHAIN_PATH = /^\/[^:\0]*(?::\/[^:\0]*)*$/;
 const COMMAND = /^(?:\/[^\0]+|[A-Za-z0-9][A-Za-z0-9._-]*)$/;
@@ -188,7 +188,6 @@ function parseJobSettings(value: Record<string, unknown>): Partial<RunnerConfig>
     credential?: CredentialConfig;
     toolchain?: RunnerToolchain;
     env?: { passthrough: string[] };
-    roles?: RoleOverrides;
     repositories?: Record<string, string>;
     container?: ContainerSettings;
     update?: UpdateSettings;
@@ -232,23 +231,6 @@ function parseJobSettings(value: Record<string, unknown>): Partial<RunnerConfig>
     }
     // The names are judged at every launch (env-builder.ts), so a refused one fails a job with its reason.
     settings.env = { passthrough: [...(passthrough as string[])] };
-  }
-  const roles = value['roles'];
-  if (roles !== undefined) {
-    if (
-      !isRecord(roles) ||
-      !Object.entries(roles).every(
-        ([role, entry]) =>
-          isJobRole(role) &&
-          isRecord(entry) &&
-          Object.keys(entry).join() === 'model' &&
-          typeof entry['model'] === 'string' &&
-          PINNED_MODEL.test(entry['model']),
-      )
-    ) {
-      throw invalid('roles must map a known role to {model: a pinned model id}');
-    }
-    settings.roles = roles as RoleOverrides;
   }
   const repositories = value['repositories'];
   if (repositories !== undefined) {
@@ -310,6 +292,12 @@ function parseContainerSettings(value: unknown): ContainerSettings {
 export function parseRunnerConfig(value: unknown): RunnerConfig {
   if (!isRecord(value)) {
     throw invalid('must be a JSON object');
+  }
+  if (Object.hasOwn(value, REMOVED_ROLES_KEY)) {
+    throw invalid(
+      'roles is no longer read: each role\'s model comes from the project\'s team configuration in the console ' +
+        '(Settings › Team, ADR 0009); remove the key',
+    );
   }
   const unknownKey = Object.keys(value).find((key) => !(CONFIG_KEYS as readonly string[]).includes(key));
   if (unknownKey !== undefined) {

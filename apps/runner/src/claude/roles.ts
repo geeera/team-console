@@ -1,9 +1,10 @@
 import { LaunchRefusal } from '../jobs/refusal';
 
 /**
- * The model each job role runs on (ADR 0008 decision 8): the pinned IDs of the plugin's
- * `reference/schedule-and-models.md`, never an alias; `roles.spec.ts` reads that table and fails when they part.
- * `config.roles.<role>.model` overrides one per runner.
+ * The model each job role runs on when the claim carries no team configuration (an older console; ADR 0009
+ * "Migration" 4): the pinned IDs of the plugin's `reference/schedule-and-models.md`, never an alias, equal to the
+ * `recommended` preset. `roles.spec.ts` reads that table and the preset and fails when they part. A claim with a view
+ * takes the model from it (`job-team-config.ts`); no runner-side override exists any more.
  */
 export const ROLE_MODELS = {
   orchestrator: 'claude-opus-5-5',
@@ -15,15 +16,11 @@ export const ROLE_MODELS = {
 export type JobRole = keyof typeof ROLE_MODELS;
 
 export const isJobRole = (value: string): value is JobRole => Object.hasOwn(ROLE_MODELS, value);
-/** A pinned model id: no alias such as `opus` or `sonnet`, no flag-like value. */
-export const PINNED_MODEL = /^claude-[a-z0-9]+(?:-[a-z0-9]+)+$/;
 
-export type RoleOverrides = Readonly<Record<string, { readonly model: string }>>;
-
-export function modelOfRole(role: string, overrides: RoleOverrides | undefined): string {
+/** The job role, or the launch refusal for a role the runner has no prompt and no model for. */
+export function jobRoleOf(role: string): JobRole {
   if (!isJobRole(role)) {
     throw new LaunchRefusal('role-unknown', `no model is configured for the role ${JSON.stringify(role)}`);
   }
-  // config.ts admits only pinned ids as overrides.
-  return overrides?.[role]?.model ?? ROLE_MODELS[role];
+  return role;
 }

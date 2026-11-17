@@ -14,11 +14,11 @@ import { redactSecrets } from '@shared/redaction';
 import type { IsolationBackend, RunningJob, Sandbox } from '../backends/backend';
 import { detectOutcome, type LimitReason } from '../budget/detect';
 import type { RunnerPause } from '../budget/state';
+import { launchPlanOf, teamConfigNoticeOf } from '../claude/job-team-config';
 import { claudeLaunchArgv } from '../claude/launch-argv';
 import { writeManagedSettings } from '../claude/managed-settings';
 import { refuseProjectSettingsCommands } from '../claude/project-settings';
 import { promptOf } from '../claude/prompts';
-import { modelOfRole } from '../claude/roles';
 import { EVENT_TEXT_MAX, parseStreamLine, type StreamResult } from '../claude/stream-json';
 import { RunnerApiError } from '../client/runner-client';
 import type { RunnerConfig } from '../config/config';
@@ -50,7 +50,7 @@ export interface JobConsole extends ProxyForwarder {
  * (#669) builds this from its env and the exchange, in memory only. `vcs` exists only here: config.json refuses it, so
  * a token never lands in a file.
  */
-export type JobRunConfig = Pick<RunnerConfig, 'apiUrl' | 'allowedProjects' | 'roles' | 'repositories' | 'toolchain' | 'env'> & {
+export type JobRunConfig = Pick<RunnerConfig, 'apiUrl' | 'allowedProjects' | 'repositories' | 'toolchain' | 'env'> & {
   readonly backend: RunnerIsolation;
   readonly credential?: CredentialConfig | undefined;
   /** The mirror fetch's read token for the upstream (an Actions run's `github.token`); the job never sees it. */
@@ -103,8 +103,9 @@ const TEXT_TAIL = 50;
 const clip = (text: string, max: number): string => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
 /**
- * `costUsd`, `turns` and `durationMs` from the CLI's `result` event, where it gave them. The cost goes out under the
- * CLI's own name too, `total_cost_usd`, which the console reconciles the project's monthly budget from (#684).
+ * `costUsd`, `turns`, `durationMs` and the token counts from the CLI's `result` event, where it gave them. The cost
+ * goes out under the CLI's own name too, `total_cost_usd`, which the console reconciles the project's monthly budget
+ * from (#684); the tokens are kept for cost analysis (#685) and judged by no one yet.
  */
 function metricsOf(result: StreamResult | null): Record<string, number> {
   const metrics: Record<string, number> = {};
@@ -113,6 +114,10 @@ function metricsOf(result: StreamResult | null): Record<string, number> {
     total_cost_usd: result?.costUsd ?? null,
     turns: result?.turns ?? null,
     durationMs: result?.durationMs ?? null,
+    inputTokens: result?.usage?.inputTokens ?? null,
+    outputTokens: result?.usage?.outputTokens ?? null,
+    cacheReadInputTokens: result?.usage?.cacheReadInputTokens ?? null,
+    cacheCreationInputTokens: result?.usage?.cacheCreationInputTokens ?? null,
   })) {
     if (value !== null) {
       metrics[name] = value;
@@ -128,7 +133,16 @@ function failed(summary: string, metrics: Record<string, unknown>): FinishJobInp
 const isLeaseGone = (error: unknown): boolean =>
   error instanceof RunnerApiError && (error.status === 409 || error.status === 404 || error.status === 410);
 
-export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): Promise<JobReport> {
+/**
+ * `teamConfig` is the claim's resolved view, as it came off the wire: `undefined` when the claim carried none (an
+ * older console, `ROLE_MODELS`), anything else is judged by the shared guard before it steers the launch.
+ */
+export async function runJob(
+  job: JobDto,
+  jobToken: string,
+  deps: JobRunDeps,
+  teamConfig?: unknown,
+): Promise<JobReport> {
   const { backend, client, config, registry } = deps;
   const log = (line: string): void => deps.log(redactSecrets(`job ${job.id}: ${line}`, 'loose'));
   const reportError = (error: unknown): void => {
@@ -197,7 +211,8 @@ export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): P
         `${job.projectSlug} is not in config.json allowedProjects`,
       );
     }
-    const model = modelOfRole(job.role, config.roles);
+    const plan = launchPlanOf(job.role, teamConfig);
+    events.push({ level: 'info', kind: 'notice', payload: teamConfigNoticeOf(plan) });
     // Own properties only: a slug such as `constructor` must not resolve through the prototype.
     const repositories = config.repositories ?? {};
     const upstream = Object.hasOwn(repositories, job.projectSlug) ? repositories[job.projectSlug] : undefined;
@@ -220,6 +235,7 @@ export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): P
       toolchainPath: config.toolchain?.path ?? DEFAULT_TOOLCHAIN_PATH,
       dispatch: job.dispatch,
       credential,
+      accessSource: plan.accessSource,
       passthrough: config.env?.passthrough ?? [],
       source: deps.sourceEnv,
     });
@@ -237,10 +253,10 @@ export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): P
       },
     };
     const mirror = await syncMirror(deps.home, job.projectSlug, upstream, gitEnvs);
-    await cloneForJob(mirror, sandbox.clone, upstream, gitEnvs);
+    await cloneForJob(mirror, sandbox.clone, upstream, gitEnvs, plan.clone);
     await refuseProjectSettingsCommands(sandbox.clone);
     const pluginRoot = await vendorPlugin(deps.home, mirror, gitEnvs.job, backend.sharedDirMode);
-    const settingsPath = await writeManagedSettings(deps.home);
+    const settingsPath = await writeManagedSettings(deps.home, plan.settings);
     if (passedThrough.length > 0) {
       events.push({ level: 'warn', kind: 'notice', payload: { passthrough: passedThrough } });
     }
@@ -261,7 +277,12 @@ export async function runJob(job: JobDto, jobToken: string, deps: JobRunDeps): P
     } else {
       const launched = await backend.launch(sandbox, {
         command: config.toolchain?.claude ?? 'claude',
-        argv: claudeLaunchArgv({ prompt: promptOf({ job, pluginRoot }), model, settingsPath }),
+        argv: claudeLaunchArgv({
+          prompt: promptOf({ job, pluginRoot }),
+          model: plan.model,
+          settingsPath,
+          ...(plan.maxTurns === null ? {} : { maxTurns: plan.maxTurns }),
+        }),
         env,
         cwd: sandbox.clone,
         maxMinutes: job.maxMinutes,

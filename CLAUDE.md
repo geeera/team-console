@@ -19,7 +19,14 @@ visual direction, 0006 the console as the source of truth — the #309 target ar
   `TeamConfigRepo` the only writer of `team_configs`, `team_config_revisions` and `projects.access_source`);
   `project.yml`'s `review`, `caps`, `sprint`, `owner.language` are import-only on a console-tracker project; a preset
   or allow-list change is a fixture change under `apps/api/fixtures/team-config/` (replayed by
-  `routes/team-config/contract-fixtures.spec.ts`) and bumps the plugin's lock like the tracker's.
+  `routes/team-config/contract-fixtures.spec.ts`) and bumps the plugin's lock like the tracker's. The runner (#685,
+  `apps/runner/src/claude/job-team-config.ts`) re-checks the claim's `teamConfig` with `isResolvedTeamConfig`
+  (`team-config-invalid` refusal otherwise; no view at all → `ROLE_MODELS`), launches with the role's `--model` and
+  `--max-turns` as argv and `effortLevel` from the enum in the job's settings file, refuses a credential kind that does
+  not match `access.source` (`credential-source-mismatch`; `api_key` needs an `api-key` credential, `subscription` a
+  Claude login or none) and strips the other source's variables, gives only a `reviewer` job on `reviewer_context:
+  diff` a blob-less depth-1 clone, applies `cost.*` under `api_key` only and reports each lever in a per-job `notice`;
+  `config.json` `roles` is refused; `run-job.spec.ts` replays `claim.with-config.json`.
 - Budget stop and role limits (#684, migration 0033): `finish` adds `metrics.total_cost_usd` (else the legacy
   `costUsd`; finite, `[0, 10000]`, else 422) to `project_spend` for the UTC month in its own batch, and pauses the
   team by `system:budget` once the month reaches `budget.monthly_usd`. One admission (`claim-admission.ts`: role on,

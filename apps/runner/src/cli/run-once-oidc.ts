@@ -261,6 +261,6 @@ export async function runOnceOidc(deps: OidcRunDeps): Promise<OidcRunEnd> {
     // One job per identity: a limit has no next claim to pause, so the streak starts and ends here.
     limitStreak: 0,
     ...deps.timing,
-  });
+  }, exchanged.teamConfig);
   return { kind: 'ran', report };
 }

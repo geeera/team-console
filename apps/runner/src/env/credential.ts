@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { RunnerIsolation } from '@shared/contracts';
+import type { AccessSource, RunnerIsolation } from '@shared/contracts';
 import { RunnerFileError, assertPrivateDir, readPrivateFile } from '../config/private-files';
 import { LaunchRefusal } from '../jobs/refusal';
 
@@ -43,6 +43,29 @@ export function isCredentialAllowed(credential: CredentialConfig, backend: Runne
 
 /** Kinds that carry a Claude subscription (OAuth) login; never on a hosted or Actions job. */
 export const OAUTH_CREDENTIAL_KINDS: readonly CredentialKind[] = ['setup-token', 'claude-config-dir'];
+
+/**
+ * The kinds each `access.source` admits (ADR 0009 d.3, threat model T7): `api_key` runs on an API key and nothing else,
+ * so a host's Claude login (a Keychain entry the CLI would fall back to) never runs a BYOK project; `subscription` runs
+ * on a Claude login only: a setup token, a config dir, or the host's own sign-in when none is configured.
+ */
+export const SOURCE_CREDENTIAL_KINDS: Readonly<Record<AccessSource, readonly CredentialKind[]>> = {
+  api_key: ['api-key'],
+  subscription: OAUTH_CREDENTIAL_KINDS,
+};
+
+/** A kind that does not match the project's access source is refused; the message names the two enums, never a value. */
+export function assertCredentialMatchesSource(kind: CredentialKind | null, source: AccessSource): void {
+  const matches = kind === null ? source === 'subscription' : SOURCE_CREDENTIAL_KINDS[source].includes(kind);
+  if (!matches) {
+    throw new LaunchRefusal(
+      'credential-source-mismatch',
+      kind === null
+        ? `the project runs on ${source} and the runner has no credential configured`
+        : `the ${kind} credential does not match the project's ${source} access source`,
+    );
+  }
+}
 
 /** The variable each kind sets in the job; also the only place these names may come from (decision 4). */
 export const CREDENTIAL_VARIABLES: Readonly<Record<CredentialKind, string>> = {

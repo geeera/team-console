@@ -1,9 +1,11 @@
 import { spawn } from 'node:child_process';
 import { chmod, lstat, mkdir, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import type { CloneContext } from '../claude/job-team-config';
 import { ensurePrivateDir, pathExists } from '../config/private-files';
 import { LaunchRefusal } from '../jobs/refusal';
-import { assertCleanGitConfig, MIRROR_REFSPEC } from './git-config';
+import { assertCleanGitConfig, MIRROR_REFSPEC, PARTIAL_CLONE_FILTER } from './git-config';
 import { GitError, runGit, type GitRunner } from './git';
 
 /**
@@ -110,35 +112,59 @@ export async function syncMirror(home: string, slug: string, url: string, envs: 
   return mirror;
 }
 
+/** POSIX single quotes: git runs `--upload-pack` through `sh -c`. */
+const shellQuoted = (text: string): string => `'${text.replaceAll("'", `'\\''`)}'`;
+
+/**
+ * The clone's argv after `git`. `full` copies the mirror as a local clone. `diff` (`cost.reviewer_context: diff`, a
+ * `reviewer` job only, ADR 0009 d.5 and T11) is blob-less and one commit deep on every branch: the reviewer reads the
+ * diff and the criteria through the console and never walks the tree. Filters and depth need the transport, so that
+ * clone goes over `file://` with an upload-pack that allows the filter; the mirror's own config is never touched, and
+ * the `-c` pair also serves the checkout's own lazy fetch of the head's blobs.
+ */
+export function cloneArgsOf(mirror: string, clone: string, context: CloneContext): string[] {
+  const safe = `safe.directory=${mirror}`;
+  if (context === 'full') {
+    return ['-c', safe, 'clone', '--no-hardlinks', '--quiet', '--template=', '--', mirror, clone];
+  }
+  const uploadPack = `git -c ${shellQuoted(safe)} -c uploadpack.allowFilter=true upload-pack`;
+  return [
+    '-c',
+    safe,
+    '-c',
+    `remote.origin.uploadpack=${uploadPack}`,
+    'clone',
+    '--quiet',
+    '--template=',
+    `--filter=${PARTIAL_CLONE_FILTER}`,
+    '--depth',
+    '1',
+    '--no-single-branch',
+    '--upload-pack',
+    uploadPack,
+    '--',
+    pathToFileURL(mirror).href,
+    clone,
+  ];
+}
+
 /** A fresh clone for one job, its `origin` the upstream URL (the job never learns the mirror's path). */
 export async function cloneForJob(
   mirror: string,
   clone: string,
   upstream: string,
   envs: GitEnvs,
+  context: CloneContext = 'full',
 ): Promise<void> {
   const git = envs.jobGit ?? runGit;
   // A mirror owned by another uid (the runner, on `user`) is cloned only when named safe on the command line.
-  await git(
-    [
-      '-c',
-      `safe.directory=${mirror}`,
-      'clone',
-      '--no-hardlinks',
-      '--quiet',
-      '--template=',
-      '--',
-      mirror,
-      clone,
-    ],
-    envs.job,
-  );
+  await git(cloneArgsOf(mirror, clone, context), envs.job);
   await git(['-C', clone, 'remote', 'set-url', 'origin', upstream], envs.job);
   await assertNoHooks(join(clone, '.git', 'hooks'));
   await assertCleanGitConfig(
     join(clone, '.git'),
     envs.job,
-    { kind: 'clone', originUrl: upstream, allowedHelper: null },
+    { kind: 'clone', originUrl: upstream, allowedHelper: null, partial: context === 'diff' },
     git,
   );
 }
