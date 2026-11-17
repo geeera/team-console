@@ -1,0 +1,80 @@
+/*
+ * The host is the full 44 px touch target (#688 UX spec §5) even though the pill it draws
+ * (--switch-w x --switch-h) is shorter; the track and thumb are centred inside it.
+ */
+:host {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--switch-w);
+  min-height: var(--control-h-touch);
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tc-switch__track {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: var(--switch-h);
+  border-radius: var(--r-pill);
+  background: var(--border-strong);
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+:host([aria-checked='true']) .tc-switch__track {
+  background: var(--accent);
+}
+
+:host(.tc-switch--locked) .tc-switch__track {
+  background: var(--switch-locked-track);
+}
+
+.tc-switch__thumb {
+  position: absolute;
+  top: var(--switch-inset);
+  left: var(--switch-inset);
+  display: grid;
+  width: var(--switch-thumb);
+  height: var(--switch-thumb);
+  place-items: center;
+  border-radius: var(--r-round);
+  background: var(--surface);
+  color: var(--accent-text);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--dur-base) var(--ease-standard);
+}
+
+:host([aria-checked='true']) .tc-switch__thumb {
+  transform: translateX(calc(var(--switch-w) - var(--switch-h)));
+}
+
+.tc-switch__lock {
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+}
+
+/* `off`: still readable, no longer dimmed to illegibility (the reason is in the describedby text). */
+:host([aria-disabled='true']):not(.tc-switch--locked) {
+  cursor: default;
+  opacity: var(--disabled-opacity);
+}
+
+:host(.tc-switch--locked) {
+  cursor: default;
+}
+
+:host(:focus-visible) {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+:host(:disabled) {
+  cursor: default;
+  opacity: var(--disabled-opacity);
+}
