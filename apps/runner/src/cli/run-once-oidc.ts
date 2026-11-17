@@ -219,8 +219,12 @@ export async function runOnceOidc(deps: OidcRunDeps): Promise<OidcRunEnd> {
     await jobCredentialOf(settings.home, credential, 'actions-ephemeral', sourceEnv);
   } catch (error: unknown) {
     if (error instanceof LaunchRefusal) {
+      // `credential-not-allowed` names its own reason (#713, a subscription-shaped value); anything else here is
+      // the env not holding a usable key at all, which reads better as one plain sentence.
       throw new ActionsRunError(
-        `${INFERENCE_API_KEY_ENV} is missing or not one key; set it as a secret of the team-console Environment.`,
+        error.reason === 'credential-not-allowed'
+          ? `${error.message}.`
+          : `${INFERENCE_API_KEY_ENV} is missing or not one key; set it as a secret of the team-console Environment.`,
       );
     }
     throw error;

@@ -65,7 +65,11 @@ describe('credential kinds', () => {
     const refused = jobCredentialOf(home, { kind: 'api-key', file: 'credentials/anthropic.key' }, 'none');
     await expect(refused).rejects.toMatchObject({ reason: 'credential-not-allowed' });
     const error: unknown = await refused.catch((caught: unknown) => caught);
-    expect(String((error as Error).message)).not.toContain(sentinels.subscriptionToken);
+    expect(error).toBeInstanceOf(LaunchRefusal);
+    if (!(error instanceof LaunchRefusal)) {
+      throw error;
+    }
+    expect(error.message).not.toContain(sentinels.subscriptionToken);
   });
 
   it('is null when no credential is configured', async () => {
@@ -288,7 +292,11 @@ describe('the api-key credential from TC_INFERENCE_API_KEY', () => {
     });
     await expect(refused).rejects.toMatchObject({ reason: 'credential-not-allowed' });
     const error: unknown = await refused.catch((caught: unknown) => caught);
-    expect(String((error as Error).message)).not.toContain(sentinels.subscriptionToken);
+    expect(error).toBeInstanceOf(LaunchRefusal);
+    if (!(error instanceof LaunchRefusal)) {
+      throw error;
+    }
+    expect(error.message).not.toContain(sentinels.subscriptionToken);
   });
 
   it('still refuses an OAuth kind on an Actions job', () => {

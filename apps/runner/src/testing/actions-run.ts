@@ -32,6 +32,8 @@ export function makeBareRepository(root: string, repository: string = ACTIONS_RE
 /** Synthetic secrets of one Actions run, shaped as GitHub and Anthropic issue them. */
 export const actionsSecrets = {
   inferenceKey: `sk-ant-api03-${'A'.repeat(40)}`,
+  /** A Claude subscription (OAuth) login shape (#713): never a valid `TC_INFERENCE_API_KEY`. */
+  subscriptionToken: `sk-ant-oat01-${'S'.repeat(40)}`,
   idTokenRequestToken: `${'R'.repeat(24)}.${'r'.repeat(40)}`,
   readToken: `ghs_${'G'.repeat(36)}`,
 } as const;

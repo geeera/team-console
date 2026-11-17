@@ -387,6 +387,16 @@ describe('run-once --oidc', () => {
       expect(wire.requests).toEqual([]);
     });
 
+    it('a subscription-shaped inference key: its own message, one prefix, no exchange, no echo (#713)', async () => {
+      const { exit, wire } = run({ env: { TC_INFERENCE_API_KEY: actionsSecrets.subscriptionToken } });
+      expect(await exit).toBe(EXIT_FAILED);
+      expect(err).toEqual([
+        'run-once --oidc refused: this looks like a Claude subscription login, not an API key; use an API key from the Anthropic Console instead.',
+      ]);
+      expect(err.join('\n')).not.toContain(actionsSecrets.subscriptionToken);
+      expect(wire.requests).toEqual([]);
+    });
+
     it('GitHub refusing the token request (no id-token: write)', async () => {
       const { exit, wire } = run({ token: () => json(403, { message: 'nope' }) });
       expect(await exit).toBe(EXIT_FAILED);
