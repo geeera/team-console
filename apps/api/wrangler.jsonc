@@ -45,6 +45,8 @@
         // #759 kill switch of the Actions setup's write path: on for dev (owner decision 1 on #759), off on stage and
         // production until the write route passes its security review.
         "ALLOW_ACTIONS_SETUP_WRITE": "true",
+        // #759: the origin baked into the rendered runner workflow; must equal the origin requests arrive on.
+        "CONSOLE_PUBLIC_ORIGIN": "https://team-console-dev.geeera.workers.dev",
       },
       "d1_databases": [
         {
@@ -77,6 +79,8 @@
         "RUNNER_MINIMUM_VERSION": "",
         // #759 kill switch: stays "false" until the write route (PR 4 of #759) passes its security review.
         "ALLOW_ACTIONS_SETUP_WRITE": "false",
+        // #759: the origin baked into the rendered runner workflow; must equal the origin requests arrive on.
+        "CONSOLE_PUBLIC_ORIGIN": "https://team-console-stage.geeera.workers.dev",
       },
       "d1_databases": [
         {
@@ -106,6 +110,8 @@
         "RUNNER_MINIMUM_VERSION": "",
         // #759 kill switch: stays "false" until the write route (PR 4 of #759) passes its security review.
         "ALLOW_ACTIONS_SETUP_WRITE": "false",
+        // #759: the workers.dev origin, deterministic from the name above; a custom domain changes it here.
+        "CONSOLE_PUBLIC_ORIGIN": "https://team-console-production.geeera.workers.dev",
       },
       "d1_databases": [
         {

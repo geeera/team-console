@@ -12,6 +12,7 @@ import { createRunnerPauseRoutes } from './routes/runner-pause';
 import { createRunnerOidcRoutes } from './routes/runner-oidc';
 import { createJobRoutes } from './routes/jobs';
 import { createProjectDispatchRoutes } from './routes/project-dispatch';
+import { createActionsSetupRoutes } from './routes/actions-setup';
 import { createTeamConfigRoutes } from './routes/team-config';
 import type { ApiEnv } from './env';
 import { ApiGitHub, mapGitHubError } from './github';
@@ -155,6 +156,8 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/projects', createJobRoutes(github));
   // Pull or GitHub Actions per project (#670): the owner's switch; an Actions job is dispatched at enqueue.
   v1.route('/projects', createProjectDispatchRoutes(github));
+  // The customer's Actions setup (#759): this console's rendering of the runner workflow.
+  v1.route('/projects', createActionsSetupRoutes());
   v1.route('/runner', createRunnerJobRoutes(github));
   // Team configuration (#687, ADR 0009): D1 behind the matrix; the import reads project.yml through the VCS adapter.
   v1.route('/projects', createTeamConfigRoutes(github, owners));

@@ -199,6 +199,17 @@ describe('mintScoped (#759 named kinds)', () => {
     expect(events.at(-1)).toMatchObject({ outcome: 'failed', failure: 'scope-mismatch', githubStatus: 201 });
   });
 
+  it.each(['constructor', '__proto__', 'toString', 'hasOwnProperty', 'workflow-PR', '', 7, null])(
+    'refuses the cast kind %j with a TypeError before the audit hook or GitHub hears anything (SEC 2)',
+    async (kind) => {
+      const { events, audit } = recordingAudit();
+      const minting = authWith({ setupWrite: 'enabled' }).mintScoped(kind as unknown as ScopedMintKind, TEAM_CONSOLE, audit);
+      await expect(minting).rejects.toThrow(TypeError);
+      expect(events).toEqual([]);
+      expect(calls).toEqual([]);
+    },
+  );
+
   it('mints nothing when the attempt cannot be audited', async () => {
     const failing: ScopedMintAudit = async () => {
       throw new Error('audit store down');

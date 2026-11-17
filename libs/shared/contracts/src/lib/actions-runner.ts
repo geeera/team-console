@@ -179,3 +179,29 @@ export function isProjectDispatchDto(value: unknown): value is ProjectDispatchDt
     (value['defaultBranch'] === null || (isString(value['defaultBranch']) && value['defaultBranch'] !== ''))
   );
 }
+
+/**
+ * `GET /api/v1/projects/:slug/actions-setup/workflow` (#759): this console's rendering of the runner workflow, for the
+ * Copy path and for showing what the setup PR will contain. `version` is the runner release the file pins.
+ */
+export interface ActionsWorkflowDto {
+  readonly text: string;
+  /** Lower-case hex SHA-256 of `text` as UTF-8. */
+  readonly sha256: string;
+  readonly version: string;
+}
+
+export function isActionsWorkflowDto(value: unknown): value is ActionsWorkflowDto {
+  if (!isRecord(value) || Object.keys(value).length !== 3) {
+    return false;
+  }
+  const { text: body, sha256, version } = value;
+  return (
+    isString(body) &&
+    body !== '' &&
+    isString(sha256) &&
+    /^[0-9a-f]{64}$/.test(sha256) &&
+    isString(version) &&
+    /^\d+\.\d+\.\d+$/.test(version)
+  );
+}

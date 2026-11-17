@@ -139,6 +139,7 @@ export const ROUTE_SCOPES = {
   // #670: pull or GitHub Actions; the matrix decides the actor (the account reads, the owner switches).
   [`GET ${P}/dispatch`]: PROJECT,
   [`PUT ${P}/dispatch`]: PROJECT,
+  [`GET ${P}/actions-setup/workflow`]: PROJECT,
   // #687 (ADR 0009 d.9): team configuration; the matrix decides the actor (owner-only writes, `…/resolved` for a job).
   [`GET ${P}/team-config`]: PROJECT,
   [`PUT ${P}/team-config`]: PROJECT,

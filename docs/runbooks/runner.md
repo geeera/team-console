@@ -195,14 +195,29 @@ job and is revoked at its `finish`.
    `TC_INFERENCE_API_KEY` (this exact name), value an Anthropic API key (`sk-ant-…`). Never make it a repository or
    organisation secret: a workflow on any branch could read those. Only the default branch can reach the
    Environment's secret.
-3. **Variables `TC_CONSOLE_URL` and `TC_CONSOLE_AUDIENCE`.** In the same Environment → Environment variables:
-   `TC_CONSOLE_URL` is the console's origin, `TC_CONSOLE_AUDIENCE` is `team-console:<environment>`. For the dev
-   console these are `https://team-console-dev.geeera.workers.dev` and `team-console:dev`.
-4. **The workflow file.** Copy `apps/runner/templates/team-console-runner.yml` unchanged to
-   `.github/workflows/team-console-runner.yml` and merge it into the default branch. The console checks the run's
-   token for exactly that path on the default branch, the `team-console` Environment, a `workflow_dispatch` event and
-   a GitHub-hosted runner. A copy under another name, on another branch, or running on a self-hosted runner is
-   refused.
+3. **No variables (#759).** The Environment needs no variables: the console's origin and audience are written into
+   the workflow file it gives you. Variables `TC_CONSOLE_URL` or `TC_CONSOLE_AUDIENCE` left over from an earlier setup
+   are no longer read and can be deleted.
+4. **The workflow file.** Take the file from the console: merge the pull request the console opens, or copy its
+   rendering (`GET /api/v1/projects/<slug>/actions-setup/workflow`, the Copy button of the Actions setup page) to
+   `.github/workflows/team-console-runner.yml` on the default branch, unchanged. Never copy
+   `apps/runner/templates/team-console-runner.yml` from this repository: it is the template, with placeholders where
+   the console writes its origin (`TC_CONSOLE_URL`) and the audience `team-console:<environment>`
+   (`TC_CONSOLE_AUDIENCE`). Each console serves its own rendering; a file from the dev console does not run against
+   production. The console checks the run's token for exactly that path on the default branch, the `team-console`
+   Environment, a `workflow_dispatch` event and a GitHub-hosted runner. A copy under another name, on another branch,
+   or running on a self-hosted runner is refused.
+
+   **Protect what the file can reach.** The console's app writes only to a branch of its own and opens a pull
+   request, but its permissions (Contents, Workflows and Pull requests: Read and write) would let anyone who stole the
+   app's key or took over the console push a workflow straight to an unprotected default branch, and a workflow on
+   the default branch can read the Environment's key. So:
+   - install the app with **Only select repositories**, and select only the repositories that run on the console;
+   - add a **ruleset on the default branch** (Settings → Rules → Rulesets → New branch ruleset, target the default
+     branch): require a pull request before merging, block force pushes and deletion, and give the console's app no
+     bypass. The console's pull request flow works under that ruleset;
+   - keep `TC_INFERENCE_API_KEY` **only** in the `team-console` Environment, never as a repository or organisation
+     secret, and keep the Environment's deployment branch rule on the default branch alone.
 5. **The console's GitHub App** is installed on the repository (it already is when the project exists) and has the
    **Actions: write** permission, which the console uses only through a token for this one repository.
 
@@ -233,8 +248,9 @@ the pinned runner release and verifies it with `gh attestation verify` against t
 `team-console-runner run-once --oidc --request-token -`. The run's log shows the job id and nothing else from the
 runner; the CLI's stream goes to the job's events in the console, redacted. The template uses no action at all (no
 `actions/checkout`, no `actions/cache`, no artifact), and its spec (`apps/runner/src/actions-template.spec.ts`) keeps
-every one of these controls. To move to a newer runner release, take the template of that release: its pins move
-together.
+every one of these controls, on the template and on every console's rendering of it (the `gh attestation verify`
+flags are byte-identical in all of them). To move to a newer runner release, take the console's file again once the
+console ships that release: its pins move together.
 
 ### What a job on this workflow can reach (#712)
 

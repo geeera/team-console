@@ -280,14 +280,17 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
    приватный — минуты вашего плана.
 4. **Установите приложение на репозиторий.** github.com → Settings → Applications → `team-console-dev` → Configure →
    Repository access → добавьте `tc-actions-test`.
-5. **Environment, секрет и переменные** (в тестовом репозитории): Settings → Environments → New environment →
+5. **Environment и секрет** (в тестовом репозитории): Settings → Environments → New environment →
    `team-console`. Deployment branches and tags → **Selected branches and tags** → правило Ref type **Branch**,
-   имя `main`, больше ничего; без Required reviewers. В нём же:
-   - Environment secret `TC_INFERENCE_API_KEY` — API-ключ Anthropic (`sk-ant-…`) из workspace с лимитом расходов;
-   - Environment variable `TC_CONSOLE_URL` = `https://team-console-dev.geeera.workers.dev`;
-   - Environment variable `TC_CONSOLE_AUDIENCE` = `team-console:dev`.
-6. **Файл workflow.** Скопируйте шаблон без изменений в `.github/workflows/team-console-runner.yml` ветки `main`
-   тестового репозитория.
+   имя `main`, больше ничего; без Required reviewers. В нём же Environment secret `TC_INFERENCE_API_KEY` — API-ключ
+   Anthropic (`sk-ant-…`) из workspace с лимитом расходов. Переменные `TC_CONSOLE_URL` и `TC_CONSOLE_AUDIENCE` больше
+   не нужны (#759): консоль сама вписывает их в файл workflow. Если вы их уже создали, их можно удалить.
+6. **Файл workflow.** Возьмите файл у dev-консоли, а не шаблон из репозитория (в шаблоне вместо адреса консоли стоят
+   заглушки): откройте `https://team-console-dev.geeera.workers.dev/api/v1/projects/<slug>/actions-setup/workflow`
+   (`<slug>` — любой ваш проект: файл одинаков для всех проектов одной консоли) и сохраните значение `text` без изменений в `.github/workflows/team-console-runner.yml` ветки `main` тестового
+   репозитория. Когда появится страница настройки Actions (#759), там будут кнопки Copy и «Открыть PR». Заодно
+   добавьте ruleset на `main` (Settings → Rules → Rulesets: обязательный PR, без force push и удаления, без обхода
+   для приложения консоли).
 7. **Cloudflare Access на dev — нужно ваше решение.** Раннер (любой, не только этот) ходит в
    `/api/v1/runner/*` только со своим JWT и не умеет отправлять заголовки service token Access. Если Access
    закрывает весь `team-console-dev.geeera.workers.dev`, запуск получит страницу входа Access вместо ответа консоли.

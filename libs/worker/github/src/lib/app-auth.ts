@@ -525,19 +525,24 @@ export class GitHubAppAuth {
   }
 
   /**
-   * A one-repository token of a named kind (#670, #759): `repository_ids: [repositoryId]` and exactly the kind's
-   * permissions, checked like `mintForRepo` (exact permissions, `selected`, that one repository by id) and refused and
-   * revoked otherwise. Never cached: the caller makes its few calls and hands it to `revokeScoped` in `finally`.
-   * `target` is the project row's own installation and repository, never input, so a project cannot reach another
-   * account's installation. An installation without the permission makes GitHub answer 422, thrown as 502
-   * `github-unexpected` with that status; `workflow-pr` is refused with 503 `github-write-disabled` while the kill
-   * switch is off. `audit` hears the attempt before anything is sent, and then the outcome, success or not.
+   * A token for one repository with exactly the permissions of `kind` (#670, #759), never cached. The caller passes
+   * it to `revokeScoped` in `finally`.
+   * - `kind` must be an own key of `SCOPED_MINT_PERMISSIONS` (a TypeError otherwise, before anything is audited).
+   * - `target` is the project row's installation and repository ids, never request input.
+   * - GitHub's answer is judged like `mintForRepo`'s; a wider or other scope is revoked and refused.
+   * - Errors: 503 `github-write-disabled` for `workflow-pr` while the kill switch is off; 502 `github-unexpected`
+   *   (GitHub status 422) when the installation lacks the permission.
+   * - `audit` hears `attempted` before the request, then `minted` or `failed`.
    */
   async mintScoped<K extends ScopedMintKind>(
     kind: K,
     target: ScopedMintTarget,
     audit: ScopedMintAudit,
   ): Promise<ScopedInstallationToken<K>> {
+    // A cast or a prototype key (`'constructor'`, `'__proto__'`) must never reach the permission lookup.
+    if (typeof kind !== 'string' || !Object.hasOwn(SCOPED_MINT_PERMISSIONS, kind)) {
+      throw new TypeError('unknown scoped mint kind');
+    }
     assertScopedTarget(target);
     const facts: ScopedMintFacts = {
       kind,
