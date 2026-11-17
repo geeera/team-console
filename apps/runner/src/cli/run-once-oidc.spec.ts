@@ -87,6 +87,7 @@ describe('run-once --oidc', () => {
       exchange?: () => Response;
       token?: () => Response;
       argv?: readonly string[];
+      readRequestTokenLine?: () => Promise<string>;
     } = {},
   ): { exit: Promise<number>; wire: Wire } {
     const events: JobEventInput[] = [];
@@ -130,6 +131,7 @@ describe('run-once --oidc', () => {
       stdout: (line) => out.push(line),
       stderr: (line) => err.push(line),
       nodeDir: NODE_DIR,
+      ...(options.readRequestTokenLine === undefined ? {} : { readRequestTokenLine: options.readRequestTokenLine }),
     });
     return { exit, wire: { requests: fake.requests, events, finished } };
   }
@@ -255,6 +257,72 @@ describe('run-once --oidc', () => {
     const bearing = wire.requests.filter((request) => JSON.stringify(request).includes(actionsSecrets.idTokenRequestToken));
     expect(bearing).toEqual(tokenRequests(wire));
     expect(out).toEqual([JOB_ID]);
+  });
+
+  describe('--request-token - (the request token on stdin, #712)', () => {
+    const STDIN_ARGV = ['run-once', '--oidc', '--request-token', '-'] as const;
+
+    it('reads the request token from stdin, so the env of the process that supervises the job never holds it', async () => {
+      const reads: number[] = [];
+      const { exit, wire } = run({
+        argv: STDIN_ARGV,
+        env: { ACTIONS_ID_TOKEN_REQUEST_TOKEN: undefined },
+        readRequestTokenLine: async () => {
+          reads.push(1);
+          return actionsSecrets.idTokenRequestToken;
+        },
+      });
+      expect(await exit).toBe(EXIT_OK);
+      expect(reads).toHaveLength(1);
+      expect(out).toEqual([JOB_ID]);
+      expect(tokenRequests(wire)[0]?.headers['authorization']).toBe(`Bearer ${actionsSecrets.idTokenRequestToken}`);
+      expect(exchanges(wire)).toHaveLength(1);
+      expect(wire.finished).toEqual([expect.objectContaining({ result: 'finished' })]);
+      expect([...out, ...err].join('\n')).not.toContain(actionsSecrets.idTokenRequestToken);
+    });
+
+    it('refuses the token on stdin and in the env at once, before any request', async () => {
+      const { exit, wire } = run({
+        argv: STDIN_ARGV,
+        readRequestTokenLine: async () => actionsSecrets.idTokenRequestToken,
+      });
+      expect(await exit).toBe(EXIT_FAILED);
+      expect(err.join('\n')).toContain(
+        'give the request token once: --request-token - or ACTIONS_ID_TOKEN_REQUEST_TOKEN, not both',
+      );
+      expect(err.join('\n')).not.toContain(actionsSecrets.idTokenRequestToken);
+      expect(wire.requests).toEqual([]);
+    });
+
+    it.each([
+      ['an empty stdin', ''],
+      ['a line that is not one token', 'two words'],
+    ])('refuses %s, before any request', async (_case, line) => {
+      const { exit, wire } = run({
+        argv: STDIN_ARGV,
+        env: { ACTIONS_ID_TOKEN_REQUEST_TOKEN: undefined },
+        readRequestTokenLine: async () => line,
+      });
+      expect(await exit).toBe(EXIT_FAILED);
+      expect(err.join('\n')).toContain('--request-token - did not read one token from stdin');
+      expect(wire.requests).toEqual([]);
+    });
+
+    it('refuses --request-token - when the runner has no stdin to read', async () => {
+      const { exit, wire } = run({ argv: STDIN_ARGV, env: { ACTIONS_ID_TOKEN_REQUEST_TOKEN: undefined } });
+      expect(await exit).toBe(EXIT_FAILED);
+      expect(err.join('\n')).toContain('--request-token - needs stdin');
+      expect(wire.requests).toEqual([]);
+    });
+
+    it.each([[['run-once', '--oidc', '--request-token', 'tok']], [['run-once', '--oidc', '--request-token']]])(
+      'never takes the token as an argument: %j is a usage error',
+      async (argv) => {
+        const { exit, wire } = run({ argv });
+        expect(await exit).toBe(EXIT_USAGE);
+        expect(wire.requests).toEqual([]);
+      },
+    );
   });
 
   describe('refusals exit non-zero with a plain message', () => {

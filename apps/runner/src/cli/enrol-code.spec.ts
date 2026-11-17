@@ -26,6 +26,12 @@ describe('readFirstLine', () => {
       EnrolUsageError,
     );
   });
+
+  it('names the flag that asked for stdin in that refusal', async () => {
+    await expect(readFirstLine(Readable.from(['x'.repeat(80)]), 64, '--request-token -')).rejects.toThrow(
+      '--request-token - reads one line of at most 64 bytes from stdin',
+    );
+  });
 });
 
 describe('stdinCodeReader', () => {
