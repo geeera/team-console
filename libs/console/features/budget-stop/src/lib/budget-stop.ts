@@ -1,23 +1,25 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { intlLocaleOf, localUsdOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
-import { Button, Callout, ConfirmFailure, Sheet, Toaster, type ConfirmCheck } from '@console/shared/ui';
+import { RouterLink } from '@angular/router';
 import type { QuestionBudgetStop } from '@console/entities/question';
+import {
+  BudgetResume,
+  budgetDialogLabelsOf,
+  budgetMoneyOf,
+  budgetMonthOf,
+  throwIfBudgetFailed,
+} from '@console/entities/team-run';
+import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
+import { Button, Callout, Sheet, Toaster, type ConfirmCheck } from '@console/shared/ui';
 import { TEAM_CONFIG_BOUNDS } from '@shared/contracts';
-import { BudgetStopClient, type BudgetActionResult } from './budget-stop.client';
+import { BudgetStopClient } from './budget-stop.client';
 
-/** Dollars in the language's own form (`201,50 $`, `$201.50`); whole dollars without cents. */
-export function budgetMoneyOf(usd: number, lang: string): string {
-  return localUsdOf(usd, lang);
-}
+export { budgetMoneyOf, budgetMonthOf } from '@console/entities/team-run';
 
-/** The UTC month `YYYY-MM` by name (`ноябрь`, `November`); the month string itself when it is not one. */
-export function budgetMonthOf(month: string, lang: string): string {
-  const at = new Date(`${month}-01T00:00:00.000Z`);
-  if (!/^\d{4}-\d{2}$/.test(month) || Number.isNaN(at.getTime())) {
-    return month;
-  }
-  return new Intl.DateTimeFormat(intlLocaleOf(lang), { month: 'long', timeZone: 'UTC' }).format(at);
+/** An in-app address with its query, for a router link the caller builds (the row never knows the page behind it). */
+export interface BudgetStopLink {
+  readonly path: string;
+  readonly queryParams: Readonly<Record<string, string>>;
 }
 
 /** A new monthly budget as typed: whole dollars inside the schema's bound, and above what the month already spent. */
@@ -38,8 +40,9 @@ let nextBudgetStopId = 0;
 
 /**
  * The Needs-you row "Budget used up" (#684; UX spec on #630): the figures of the stop and its two actions. `Resume this
- * month` asks one line first, "Spending may exceed {budget}." (team decision on #630), then resumes the team, which
- * waives the budget for the rest of the UTC month. `Raise budget` asks for the new monthly budget, with the overshoot
+ * month` (`BudgetResume`, shared with Settings › Team, #688) asks one line first, "Spending may exceed {budget}." (team
+ * decision on #630), then resumes the team, which waives the budget for the rest of the UTC month. "Open limits" is
+ * the caller's `limitsLink` (Settings › Team at the budget). `Raise budget` asks for the new monthly budget, with the overshoot
  * bound under the field, and saves it; a budget above the spend lifts the stop. Both end in `resolved`, so the list
  * reads Needs you again; the toast after a successful raise says "Team resumed" only when nothing else holds the
  * team paused (#739) — beside an owner's own pause (`stoppedAt === null` and `stop().paused`) it says the pause
@@ -49,7 +52,7 @@ let nextBudgetStopId = 0;
  */
 @Component({
   selector: 'tc-budget-stop',
-  imports: [Button, Callout, TranslocoPipe],
+  imports: [Button, Callout, RouterLink, TranslocoPipe],
   template: `
     <section
       tc-callout
@@ -73,6 +76,17 @@ let nextBudgetStopId = 0;
           <button tc-button type="button" data-testid="budget-raise" (click)="raise()">
             {{ 'budget.stop.raise' | transloco }}
           </button>
+          @if (limitsLink(); as link) {
+            <a
+              tc-button
+              variant="quiet"
+              data-testid="budget-open-limits"
+              [routerLink]="link.path"
+              [queryParams]="link.queryParams"
+            >
+              {{ 'budget.stop.openLimits' | transloco }}
+            </a>
+          }
         </div>
       } @else {
         <p class="budget-stop__readonly" data-testid="budget-stop-readonly">
@@ -103,6 +117,7 @@ let nextBudgetStopId = 0;
 })
 export class BudgetStop {
   private readonly client = inject(BudgetStopClient);
+  private readonly budgetResume = inject(BudgetResume);
   private readonly sheet = inject(Sheet);
   private readonly toaster = inject(Toaster);
   private readonly transloco = inject(TranslocoService);
@@ -116,6 +131,8 @@ export class BudgetStop {
    * Defaults to `true` so every caller that does not yet carry the owner/member signal keeps today's behaviour.
    */
   readonly canManage = input<boolean>(true);
+  /** Settings › Team at Limits for this project (#688, "Open limits"); none when the caller has no such page. */
+  readonly limitsLink = input<BudgetStopLink | null>(null);
   /** The stop was lifted from this row: the caller reads Needs you again. */
   readonly resolved = output<void>();
 
@@ -137,14 +154,14 @@ export class BudgetStop {
 
   protected async resume(): Promise<void> {
     const stop = this.stop();
-    const isDone = await this.sheet.confirm({
-      title: this.t('budget.resume.title', { project: stop.project.name }),
-      message: this.t('budget.resume.message', { budget: this.figures().budget }),
-      confirmLabel: this.t('budget.resume.confirm'),
-      ...this.dialogLabels(),
-      action: async () => this.settled(await this.client.resume(stop.project.slug)),
+    const isDone = await this.budgetResume.confirmResume({
+      slug: stop.project.slug,
+      projectName: stop.project.name,
+      budgetUsd: stop.budgetUsd,
     });
-    this.done(isDone);
+    if (isDone) {
+      this.resolved.emit();
+    }
   }
 
   protected async raise(): Promise<void> {
@@ -166,36 +183,15 @@ export class BudgetStop {
         },
       },
       confirmLabel: this.t('budget.raise.confirm'),
-      ...this.dialogLabels(),
+      ...budgetDialogLabelsOf(this.t),
       action: async (value: string) =>
-        this.settled(await this.client.raise(stop.project.slug, Number(value))),
+        throwIfBudgetFailed(await this.client.raise(stop.project.slug, Number(value)), this.t),
     });
     // Raise never touches a pause set for another reason (#739): the toast must not claim it did.
     this.done(isDone, staysPaused ? 'budget.raise.savedStillPaused' : 'budget.resumed');
   }
 
-  private dialogLabels(): {
-    cancelLabel: string;
-    retryLabel: string;
-    busyLabel: string;
-    errorMessage: string;
-  } {
-    return {
-      cancelLabel: this.t('budget.cancel'),
-      retryLabel: this.t('budget.retry'),
-      busyLabel: this.t('budget.sending'),
-      errorMessage: this.t('budget.error.failed'),
-    };
-  }
-
-  /** A refusal keeps the dialog open with its reason and Try again. */
-  private settled(result: BudgetActionResult): void {
-    if (!result.ok) {
-      throw new ConfirmFailure(this.t(`budget.error.${result.failure}`));
-    }
-  }
-
-  private done(isDone: boolean, toastKey = 'budget.resumed'): void {
+  private done(isDone: boolean, toastKey: string): void {
     if (isDone) {
       this.toaster.show(this.t(toastKey));
       this.resolved.emit();

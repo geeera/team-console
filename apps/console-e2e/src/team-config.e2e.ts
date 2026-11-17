@@ -1,8 +1,9 @@
-import type { APIRequestContext, Locator, Page, Route } from '@playwright/test';
+import type { APIRequestContext, Page, Route } from '@playwright/test';
 import { TEAM_CONFIG_SCHEMA, problemTypeOf, type TeamConfigDto } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { apiClient, seed, type Stack } from './support/stack';
+import { tabTo } from './support/keyboard';
 import { meetsMinTap } from './support/tap-target';
 import { switchToConsoleTracker } from './support/tracker-seed';
 
@@ -29,29 +30,6 @@ async function stored(api: APIRequestContext): Promise<TeamConfigDto> {
   const response = await api.get(API);
   expect(response.status()).toBe(200);
   return (await response.json()) as TeamConfigDto;
-}
-
-/**
- * Tabs forward until `target` has focus: the keyboard-only path, no click. `from` is a nearby control focused first
- * (the row above, the bar's other button), so the walk is a few presses rather than the whole iPhone page; a press
- * that never lands is a failure after `limit`, not a timeout. The check is one marker read per press.
- */
-async function tabTo(page: Page, target: Locator, from?: Locator, limit = 12): Promise<void> {
-  await target.evaluate((element) => element.setAttribute('data-tab-target', ''));
-  if (from !== undefined) {
-    await from.focus();
-  }
-  try {
-    for (let step = 0; step <= limit; step += 1) {
-      if (await page.evaluate(() => document.activeElement?.hasAttribute('data-tab-target') === true)) {
-        return;
-      }
-      await page.keyboard.press('Tab');
-    }
-    throw new Error(`Tab never reached ${String(target)} in ${String(limit)} presses`);
-  } finally {
-    await target.evaluate((element) => element.removeAttribute('data-tab-target'));
-  }
 }
 
 /** Opens Team; on the phone the folded sections are unfolded unless `unfold` is false. */

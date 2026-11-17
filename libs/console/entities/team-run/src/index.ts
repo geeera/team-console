@@ -16,3 +16,13 @@ export type {
   CommandResult,
   CommandTarget,
 } from './lib/command-failure';
+export {
+  BudgetResume,
+  budgetDialogLabelsOf,
+  budgetFailureOf,
+  budgetMoneyOf,
+  budgetMonthOf,
+  teamResumeUrl,
+  throwIfBudgetFailed,
+} from './lib/budget-resume';
+export type { BudgetActionFailure, BudgetActionResult, BudgetResumeTarget } from './lib/budget-resume';

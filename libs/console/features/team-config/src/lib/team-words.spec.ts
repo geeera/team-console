@@ -1,5 +1,5 @@
 import { boundedIntegerOf, controlPathOf, sectionOf } from './team-fields';
-import { fieldLabelOf, valueTextOf, type Translate } from './team-words';
+import { fieldLabelOf, rawDiffOf, revisionChangesOf, valueTextOf, type Translate } from './team-words';
 
 /** Echoes the key and its params, so the spec reads which copy a path takes. */
 const t: Translate = (key, params) => (params === undefined ? key : `${key}${JSON.stringify(params)}`);
@@ -49,5 +49,56 @@ describe('controls of a document path', () => {
     expect(boundedIntegerOf('1e1', 0, 100)).toBeNull();
     expect(boundedIntegerOf('7.5', 0, 100)).toBeNull();
     expect(boundedIntegerOf('', 0, 100)).toBeNull();
+  });
+});
+
+describe('revisionChangesOf', () => {
+  it('words a stored diff: changed values, an added value after "not set", a removed one, never the schema tag', () => {
+    const rows = revisionChangesOf(t, 'en', [
+      { path: 'schema', to: 'team-config/v1' },
+      { path: 'roles.qa.model', from: 'claude-opus-5-5', to: 'claude-sonnet-5' },
+      { path: 'budget.monthly_usd', to: 200 },
+      { path: 'language', from: 'en' },
+    ]);
+    expect(rows).toEqual([
+      {
+        path: 'roles.qa.model',
+        label: 'teamConfig.role.name.qa · teamConfig.field.role.model',
+        from: 'teamConfig.model.opus',
+        to: 'teamConfig.model.sonnet',
+      },
+      {
+        path: 'budget.monthly_usd',
+        label: 'teamConfig.field.budget.monthly_usd',
+        from: 'teamConfig.history.notSet',
+        to: 'teamConfig.history.added{"value":"$200"}',
+      },
+      {
+        path: 'language',
+        label: 'teamConfig.field.language',
+        from: 'teamConfig.rules.language.en',
+        to: 'teamConfig.history.removed',
+      },
+    ]);
+  });
+
+  it('keeps markup in a stored value as plain text (T4)', () => {
+    const [row] = revisionChangesOf(t, 'en', [
+      { path: 'gates.code_paths', from: ['apps/**'], to: ['<img src=x onerror=alert(1)>'] },
+    ]);
+    expect(row?.to).toBe('<img src=x onerror=alert(1)>');
+  });
+});
+
+describe('rawDiffOf', () => {
+  it('gives the diff as JSON by path, leaving out a side that was absent', () => {
+    const raw = rawDiffOf([
+      { path: 'roles.qa.effort', from: 'high', to: 'medium' },
+      { path: 'budget.monthly_usd', to: 200 },
+    ]);
+    expect(JSON.parse(raw)).toEqual({
+      'roles.qa.effort': { from: 'high', to: 'medium' },
+      'budget.monthly_usd': { to: 200 },
+    });
   });
 });
