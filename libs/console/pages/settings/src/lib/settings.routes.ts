@@ -16,6 +16,12 @@ export const settingsRoutes: Route[] = [
   { path: 'projects', pathMatch: 'full', redirectTo: '' },
   { path: 'projects/new', pathMatch: 'full', redirectTo: ADD_PROJECT_URL },
   { path: 'projects/:slug', component: ProjectSetupPage },
+  // Settings › project › Team (#688): its own chunk, with the editor; unsaved edits ask before leaving.
+  {
+    path: 'projects/:slug/team',
+    loadComponent: () => import('./team/team.page').then((m) => m.TeamPage),
+    canDeactivate: [(page: { canLeave(): Promise<boolean> }) => page.canLeave()],
+  },
   // Settings › Runners (#464): its own chunk; nothing on the main Settings screen needs it.
   { path: 'runners', loadComponent: () => import('./runners/runners.page').then((m) => m.RunnersPage) },
   ...environmentRoutes,

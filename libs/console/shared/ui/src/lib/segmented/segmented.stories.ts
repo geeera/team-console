@@ -1,4 +1,4 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, input, signal } from '@angular/core';
 import { TranslocoPipe } from '@console/shared/i18n';
 import type { Meta, StoryObj } from '@storybook/angular';
 import { moduleMetadata } from '@storybook/angular';
@@ -14,6 +14,7 @@ import { Segment, SegmentedRadio } from './segmented';
       tc-segmented
       style="max-width: var(--dialog-max-w)"
       [legend]="'stories.segmented.kind' | transloco"
+      [stackOnPhone]="stackOnPhone()"
     >
       @for (kind of kinds; track kind) {
         <label tc-segment>
@@ -33,6 +34,7 @@ import { Segment, SegmentedRadio } from './segmented';
   `,
 })
 class SegmentedStory {
+  readonly stackOnPhone = input(false);
   protected readonly kinds = ['feature', 'bug', 'chore'] as const;
   protected readonly chosen = signal<(typeof this.kinds)[number]>('feature');
   protected readonly hintKey = computed(() => `stories.segmented.${this.chosen()}Hint`);
@@ -75,4 +77,9 @@ export const Kind: Story = {};
 export const Dark: Story = { ...darkTheme };
 export const ReducedMotion: Story = { ...reducedMotion };
 export const Phone: Story = { ...phoneViewport };
+/** #688: on the phone the segments stack into one column instead of truncating their words. */
+export const StackedOnPhone: Story = {
+  ...phoneViewport,
+  render: () => ({ template: '<tc-story-segmented [stackOnPhone]="true" />' }),
+};
 export const Disabled: Story = { render: () => ({ template: '<tc-story-segmented-disabled />' }) };
