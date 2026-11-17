@@ -242,7 +242,6 @@ describe('runner config (ADR 0008 decision 2, threat model C4 row 1)', () => {
       credential: { kind: 'api-key', file: 'credentials/anthropic.key' },
       toolchain: { path: '/opt/homebrew/bin:/usr/bin:/bin', claude: '/opt/homebrew/bin/claude' },
       env: { passthrough: ['PT_REPO'] },
-      roles: { reviewer: { model: 'claude-opus-5-5' } },
       repositories: { 'team-console': 'https://github.com/geeera/team-console.git', local: '/srv/repos/local' },
     };
 
@@ -257,8 +256,6 @@ describe('runner config (ADR 0008 decision 2, threat model C4 row 1)', () => {
       ['toolchain', { path: 'relative/bin' }],
       ['toolchain', { path: '/usr/bin', claude: '--dangerous' }],
       ['env', { passthrough: 'PT_REPO' }],
-      ['roles', { reviewer: { model: 'sonnet' } }],
-      ['roles', { designer: { model: 'claude-opus-5-5' } }],
       ['repositories', { 'team-console': 'https://user:pass@example.com/x.git' }],
       ['repositories', { 'team-console': 'ssh://example.com/x/y.git' }],
       ['repositories', { 'Not A Slug': 'https://example.com/x.git' }],
@@ -267,6 +264,12 @@ describe('runner config (ADR 0008 decision 2, threat model C4 row 1)', () => {
       ['update', 'auto'],
     ])('refuses %s = %j', (key, value) => {
       expect(() => parseRunnerConfig({ ...config, [key]: value })).toThrow(RunnerFileError);
+    });
+
+    it('refuses the removed per-runner roles override and says why (ADR 0009 "Migration" 4)', () => {
+      const parse = (): unknown => parseRunnerConfig({ ...config, roles: { reviewer: { model: 'claude-opus-5-5' } } });
+      expect(parse).toThrow(RunnerFileError);
+      expect(parse).toThrow(/roles is no longer read: .*team configuration in the console/);
     });
   });
 

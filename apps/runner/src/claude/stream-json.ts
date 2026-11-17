@@ -15,6 +15,16 @@ export interface StreamResult {
   readonly costUsd: number | null;
   readonly turns: number | null;
   readonly durationMs: number | null;
+  /** The result's `usage` token counts; `null` when the CLI gave none of them. */
+  readonly usage: StreamUsage | null;
+}
+
+/** Each count `null` when absent or not a non-negative whole number. */
+export interface StreamUsage {
+  readonly inputTokens: number | null;
+  readonly outputTokens: number | null;
+  readonly cacheReadInputTokens: number | null;
+  readonly cacheCreationInputTokens: number | null;
 }
 
 export interface StreamLine {
@@ -33,6 +43,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 const numberOrNull = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+
+const countOrNull = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+
+function usageOf(value: unknown): StreamUsage | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const usage: StreamUsage = {
+    inputTokens: countOrNull(value['input_tokens']),
+    outputTokens: countOrNull(value['output_tokens']),
+    cacheReadInputTokens: countOrNull(value['cache_read_input_tokens']),
+    cacheCreationInputTokens: countOrNull(value['cache_creation_input_tokens']),
+  };
+  return Object.values(usage).every((count) => count === null) ? null : usage;
+}
 
 const log = (line: string, level: JobEventInput['level'] = 'info'): JobEventInput => ({
   level,
@@ -89,6 +115,7 @@ export function parseStreamLine(raw: string): StreamLine {
         costUsd: numberOrNull(value['total_cost_usd']),
         turns: numberOrNull(value['num_turns']),
         durationMs: numberOrNull(value['duration_ms']),
+        usage: usageOf(value['usage']),
       };
       return { events: [], result, text };
     }

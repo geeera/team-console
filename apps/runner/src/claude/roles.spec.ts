@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { TEAM_CONFIG_PRESET_ROLES } from '@shared/contracts';
 import { LaunchRefusal } from '../jobs/refusal';
-import { ROLE_MODELS, modelOfRole } from './roles';
+import { ROLE_MODELS, jobRoleOf, type JobRole } from './roles';
 
 /**
  * `roles.ts` against the plugin's `reference/schedule-and-models.md` (the vendored copy in this repository): each
@@ -41,13 +42,16 @@ describe('roles.ts model table', () => {
     expect(reference.get(role)).toBe(model);
   });
 
-  it('uses a configured pinned override', () => {
-    expect(modelOfRole('reviewer', { reviewer: { model: 'claude-opus-5-5' } })).toBe('claude-opus-5-5');
-    expect(modelOfRole('pm', undefined)).toBe('claude-opus-5-5');
-  });
+  it.each(Object.entries(ROLE_MODELS))(
+    '%s falls back to the recommended preset’s model (%s), the view of a project with no configuration',
+    (role, model) => {
+      expect(TEAM_CONFIG_PRESET_ROLES.recommended[role as JobRole].model).toBe(model);
+    },
+  );
 
   it('refuses a role without a model', () => {
-    expect(() => modelOfRole('ux-designer', undefined)).toThrow(LaunchRefusal);
-    expect(() => modelOfRole('__proto__', undefined)).toThrow(LaunchRefusal);
+    expect(jobRoleOf('pm')).toBe('pm');
+    expect(() => jobRoleOf('ux-designer')).toThrow(LaunchRefusal);
+    expect(() => jobRoleOf('__proto__')).toThrow(LaunchRefusal);
   });
 });

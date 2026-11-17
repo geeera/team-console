@@ -6,6 +6,9 @@
  * - `--setting-sources user`: only the job HOME's user settings (and the `--settings` file and managed settings) are
  *   read, so a branch the job checks out mid-run cannot bring project `env`, `enabledPlugins` or command settings in
  *   after the launch-time check. Tradeoff: a repository's own project `permissions` do not apply to the job.
+ *
+ * Every value is its own argv element and the CLI is spawned without a shell (ADR 0009 T5), so a model id or a turn
+ * limit can never become a second flag.
  */
 
 export const EMPTY_MCP_CONFIG = '{"mcpServers":{}}';
@@ -14,9 +17,14 @@ export interface LaunchArgvInput {
   readonly prompt: string;
   readonly model: string;
   readonly settingsPath: string;
+  /** The role's `max_turns` from the team configuration; absent leaves the CLI's default. */
+  readonly maxTurns?: number | undefined;
 }
 
-export function claudeLaunchArgv({ prompt, model, settingsPath }: LaunchArgvInput): string[] {
+export function claudeLaunchArgv({ prompt, model, settingsPath, maxTurns }: LaunchArgvInput): string[] {
+  if (maxTurns !== undefined && (!Number.isSafeInteger(maxTurns) || maxTurns < 1)) {
+    throw new RangeError('maxTurns must be a positive whole number');
+  }
   return [
     '-p',
     prompt,
@@ -25,6 +33,7 @@ export function claudeLaunchArgv({ prompt, model, settingsPath }: LaunchArgvInpu
     '--verbose',
     '--model',
     model,
+    ...(maxTurns === undefined ? [] : ['--max-turns', String(maxTurns)]),
     '--settings',
     settingsPath,
     '--setting-sources',

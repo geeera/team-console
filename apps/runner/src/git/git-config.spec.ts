@@ -90,10 +90,60 @@ describe('git config allow-list', () => {
       'remote.origin.fetch',
       'remote.origin.mirror',
       'remote.origin.tagOpt',
+      'remote.origin.promisor',
+      'remote.origin.partialCloneFilter',
+      'extensions.partialClone',
       'branch.<name>.remote',
       'branch.<name>.merge',
     ]);
   });
+
+  // #685, ADR 0009 d.5: the reviewer's blob-less clone writes promisor keys; only a clone made partial may hold them.
+  it('accepts a partial clone exactly as the runner makes it, and only when it made it partial', async () => {
+    const { mirror } = runnerRepositories();
+    const partial = join(dir, 'partial');
+    fixtureGit([
+      '-c',
+      `remote.origin.uploadpack=git -c uploadpack.allowFilter=true upload-pack`,
+      'clone',
+      '--quiet',
+      '--template=',
+      '--filter=blob:none',
+      '--depth',
+      '1',
+      '--no-single-branch',
+      '--upload-pack',
+      'git -c uploadpack.allowFilter=true upload-pack',
+      '--',
+      `file://${mirror}`,
+      partial,
+    ]);
+    fixtureGit(['-C', partial, 'remote', 'set-url', 'origin', UPSTREAM]);
+    const partialDir = join(partial, '.git');
+    await expect(assertCleanGitConfig(partialDir, env, { ...asClone, partial: true })).resolves.toBeUndefined();
+    await expect(assertCleanGitConfig(partialDir, env, asClone)).rejects.toMatchObject({
+      reason: 'git-config-refused',
+      message: expect.stringContaining('remote.origin.promisor (unexpected value, local)') as unknown,
+    });
+  });
+
+  it.each([
+    ['remote.origin.promisor', 'false'],
+    ['remote.origin.partialclonefilter', 'blob:limit=1'],
+    ['extensions.partialclone', 'evil'],
+  ])('refuses %s = %s on a partial clone', (key, value) => {
+    const entries = [{ scope: 'local', origin: 'file:.git/config', key, value }];
+    expect(refusedGitConfig(entries, { ...asClone, partial: true })).toEqual([`${key} (unexpected value, local)`]);
+  });
+
+  it.each(['remote.origin.promisor', 'remote.origin.partialclonefilter', 'extensions.partialclone'])(
+    'refuses %s on the mirror, which is never partial',
+    (key) => {
+      const value = key === 'remote.origin.promisor' ? 'true' : key.endsWith('filter') ? 'blob:none' : 'origin';
+      const entries = [{ scope: 'local', origin: 'file:config', key, value }];
+      expect(refusedGitConfig(entries, { ...asMirror(), partial: true })).toEqual([`${key} (unexpected value, local)`]);
+    },
+  );
 
   // #721: an allow-listed key with a value the runner never writes; the refspec swap is the plugin-swap vector.
   it.each([

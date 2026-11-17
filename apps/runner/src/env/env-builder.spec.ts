@@ -16,6 +16,7 @@ const base: JobEnvInput = {
   toolchainPath: '/opt/tc/bin:/usr/bin:/bin',
   dispatch: 'pull',
   credential: null,
+  accessSource: null,
   passthrough: [],
   source: {
     PATH: '/runner/own/path',
@@ -144,5 +145,59 @@ describe('env-builder (ADR 0008 decision 4)', () => {
   it('never names a value in a refusal', () => {
     const refusal = refusalOf({ ...base, passthrough: ['GH_TOKEN'] });
     expect(refusal.message).not.toContain(sentinels.githubToken);
+  });
+});
+
+describe('env-builder against the claim’s access source (ADR 0009 T7)', () => {
+  const CLAUDE_LOGIN = ['CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CONFIG_DIR'];
+  const API_ACCOUNT = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL'];
+
+  it('api_key: runs on the API key and passes no Claude login', () => {
+    const { env } = buildJobEnv({ ...base, accessSource: 'api_key', credential: apiKey });
+    expect(env['ANTHROPIC_API_KEY']).toBe(sentinels.anthropicKey);
+    for (const name of CLAUDE_LOGIN) {
+      expect(env).not.toHaveProperty(name);
+    }
+  });
+
+  it.each([setupToken, configDir])('api_key: refuses the %o credential by its kind', (credential) => {
+    const refusal = refusalOf({ ...base, accessSource: 'api_key', credential });
+    expect(refusal.reason).toBe('credential-source-mismatch');
+    expect(refusal.message).toBe(`the ${credential.kind} credential does not match the project's api_key access source`);
+    expect(refusal.message).not.toContain(credential.value);
+  });
+
+  it('api_key: refuses a runner with no credential, which would fall back to the host’s Claude login', () => {
+    expect(refusalOf({ ...base, accessSource: 'api_key', credential: null }).reason).toBe('credential-source-mismatch');
+  });
+
+  it.each([setupToken, configDir])('subscription: runs on the %o login and strips every API-account variable', (credential) => {
+    const { env } = buildJobEnv({ ...base, accessSource: 'subscription', credential });
+    expect(env[credential.name]).toBe(credential.value);
+    for (const name of API_ACCOUNT) {
+      expect(env).not.toHaveProperty(name);
+    }
+  });
+
+  it('subscription: the host’s own sign-in (no credential) is allowed and gets no API variable', () => {
+    const { env } = buildJobEnv({ ...base, accessSource: 'subscription', credential: null });
+    for (const name of [...API_ACCOUNT, ...CLAUDE_LOGIN]) {
+      expect(env).not.toHaveProperty(name);
+    }
+  });
+
+  it('subscription: refuses an API key, naming the kind only (sentinel)', () => {
+    const refusal = refusalOf({ ...base, accessSource: 'subscription', credential: apiKey });
+    expect(refusal.reason).toBe('credential-source-mismatch');
+    expect(refusal.message).toBe("the api-key credential does not match the project's subscription access source");
+    expect(refusal.message).not.toContain(sentinels.anthropicKey);
+  });
+
+  it('subscription: an API-account name never passes through, even from the allow-list', () => {
+    for (const name of API_ACCOUNT) {
+      expect(refusalOf({ ...base, accessSource: 'subscription', passthrough: [name] }).reason).toBe(
+        'env-passthrough-refused',
+      );
+    }
   });
 });
