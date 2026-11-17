@@ -28,6 +28,7 @@ export {
   localDayOf,
   localNumberOf,
   localTimeOf,
+  localUsdOf,
 } from './lib/local-time';
 // The Transloco surface consumers may use; swapping the i18n library later touches only this lib.
 export { TranslocoDirective, TranslocoPipe, TranslocoService, translateSignal } from '@jsverse/transloco';

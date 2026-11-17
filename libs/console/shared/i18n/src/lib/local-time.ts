@@ -61,6 +61,23 @@ export function localNumberOf(value: number, lang: string): string {
   return Number.isFinite(value) ? new Intl.NumberFormat(intlLocaleOf(lang)).format(value) : '';
 }
 
+/**
+ * Dollars in the language's own form ("201,50 $", "$201.50"): whole dollars without cents, otherwise two places. A
+ * non-finite value gives an empty string, as `localNumberOf` does.
+ */
+export function localUsdOf(usd: number, lang: string): string {
+  if (!Number.isFinite(usd)) {
+    return '';
+  }
+  return new Intl.NumberFormat(intlLocaleOf(lang), {
+    style: 'currency',
+    currency: 'USD',
+    currencyDisplay: 'narrowSymbol',
+    minimumFractionDigits: Number.isInteger(usd) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(usd);
+}
+
 abstract class LocalisedPipe {
   protected readonly transloco = inject(TranslocoService);
 
