@@ -17,6 +17,7 @@ const STOP: QuestionBudgetStop = {
   budgetUsd: 200,
   stoppedAt: '2026-11-16T10:00:00.000Z',
   paused: false,
+  canManage: true,
 };
 
 async function settle(): Promise<void> {

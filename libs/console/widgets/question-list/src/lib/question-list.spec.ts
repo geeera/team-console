@@ -510,5 +510,17 @@ describe('QuestionList', () => {
       expect(root.querySelector('[data-testid="empty"]')).not.toBeNull();
       overlay.remove();
     });
+
+    it('passes the server’s canManage through: a member sees the row without the owner-only actions (#735)', async () => {
+      const { settle, root } = await render(null);
+      http
+        .expectOne(NEEDS_YOU_ITEMS_URL)
+        .flush({ ...needsYouBody([]), projects: [{ ...STOPPED, canManage: false }] });
+      await settle();
+
+      expect(root.querySelector('[data-testid="budget-resume"]')).toBeNull();
+      expect(root.querySelector('[data-testid="budget-raise"]')).toBeNull();
+      expect(root.querySelector('[data-testid="budget-stop-readonly"]')).not.toBeNull();
+    });
   });
 });

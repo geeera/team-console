@@ -263,8 +263,8 @@ describe('the budget stop (#684)', () => {
       projects: [{ ...body.projects[0]!, budgetStop: stop }, body.projects[1]!, { ...body.projects[2]!, budgetStop: stop }],
     });
     expect(view.budgetStops).toEqual([
-      { project: { slug: 'team-console', name: 'Team Console' }, ...stop, paused: false },
-      { project: { slug: 'broken', name: 'Broken' }, ...stop, paused: false },
+      { project: { slug: 'team-console', name: 'Team Console' }, ...stop, paused: false, canManage: true },
+      { project: { slug: 'broken', name: 'Broken' }, ...stop, paused: false, canManage: true },
     ]);
     expect(needsYouViewOf(body).budgetStops).toEqual([]);
   });
@@ -280,8 +280,23 @@ describe('the budget stop (#684)', () => {
       ],
     });
     expect(view.budgetStops).toEqual([
-      { project: { slug: 'team-console', name: 'Team Console' }, ...stop, stoppedAt: null, paused: true },
+      {
+        project: { slug: 'team-console', name: 'Team Console' },
+        ...stop,
+        stoppedAt: null,
+        paused: true,
+        canManage: true,
+      },
     ]);
+  });
+
+  it('reads canManage false only when the server says so (#735); absent or true otherwise', () => {
+    const body = needsYou();
+    const view = needsYouViewOf({
+      ...body,
+      projects: [{ ...body.projects[0]!, canManage: false, budgetStop: stop }, body.projects[1]!, body.projects[2]!],
+    });
+    expect(view.budgetStops[0]?.canManage).toBe(false);
   });
 
   it.each([

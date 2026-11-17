@@ -71,6 +71,8 @@ export interface QuestionBudgetStop extends NeedsYouBudgetStopDto {
    * refuses the claim, not the budget alone, so Raise and Resume must not promise a restart.
    */
   readonly paused: boolean;
+  /** Whether this identity may use the row's two actions (#735), from `NeedsYouProjectDto.canManage`. */
+  readonly canManage: boolean;
 }
 
 export interface NeedsYouView {
@@ -290,6 +292,9 @@ export function needsYouViewOf(dto: NeedsYouDto): NeedsYouView {
               // Only `true` counts (the guard leaves `paused` unchecked, as it does `setup`): a malformed value
               // never invents a pause the row did not get from the server.
               paused: project.paused === true,
+              // Absent or malformed reads as `true` (a server that predates #735): today's behaviour, never a
+              // tighter restriction the server did not ask for.
+              canManage: project.canManage !== false,
             },
           ],
     ),

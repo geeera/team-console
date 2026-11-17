@@ -68,8 +68,9 @@ describe('buildNeedsYou (#16: inbox order, then project, then number)', () => {
         paused: false,
         pausedUrl: null,
         problem: null,
+        canManage: true,
       },
-      { ...beta, setup: false, setupUrl: null, paused: false, pausedUrl: null, problem: null },
+      { ...beta, setup: false, setupUrl: null, paused: false, pausedUrl: null, problem: null, canManage: true },
       {
         ...gamma,
         setup: false,
@@ -77,9 +78,28 @@ describe('buildNeedsYou (#16: inbox order, then project, then number)', () => {
         paused: false,
         pausedUrl: null,
         problem: { type: 'github-app-not-installed', title: 'The console app is not installed', status: 409 },
+        canManage: true,
       },
     ]);
     expect(result.omittedProjects).toEqual([{ slug: 'delta', name: 'Delta' }]);
+  });
+});
+
+describe('buildNeedsYou: canManage (#735)', () => {
+  it('reads false only for the slugs the map names; everything else defaults to true', () => {
+    const result = buildNeedsYou(
+      [
+        { project: { slug: 'alpha', name: 'Alpha' }, inbox: inbox([]) },
+        { project: { slug: 'beta', name: 'Beta' }, inbox: inbox([]) },
+      ],
+      [],
+      new Map(),
+      new Map([['beta', false]]),
+    );
+    expect(result.projects.map((project) => [project.slug, project.canManage])).toEqual([
+      ['alpha', true],
+      ['beta', false],
+    ]);
   });
 });
 
