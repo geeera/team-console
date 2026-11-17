@@ -23,6 +23,8 @@ export const ACTIONS_OIDC_ISSUER = 'https://token.actions.githubusercontent.com'
 export const ACTIONS_WORKFLOW_FILE = 'team-console-runner.yml';
 /** The GitHub Environment that holds the inference key and its default-branch policy (owner decision 3 on #573). */
 export const ACTIONS_ENVIRONMENT = 'team-console';
+/** The one secret of that Environment (#759): the console checks it exists by this name, never reads anything else. */
+export const ACTIONS_INFERENCE_KEY_SECRET = 'TC_INFERENCE_API_KEY';
 /** The ephemeral runner's name: one per workflow run. */
 const ACTIONS_RUNNER_NAME = /^actions:([1-9][0-9]{0,19})$/;
 /** A GitHub run id as the OIDC token carries it: a decimal string. */

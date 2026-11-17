@@ -3,6 +3,20 @@
     "geeera/team-console": {
       "installationId": 1001,
       "actionsWrite": true,
+      "environmentsRead": true,
+      "setupWrite": true,
+      "environments": {
+        "team-console": {
+          "environment": {
+            "id": 7001,
+            "html_url": "https://github.com/geeera/team-console/deployments/activity_log?environments_filter=team-console",
+            "protection_rules": [{ "id": 7101, "type": "branch_policy" }],
+            "deployment_branch_policy": { "protected_branches": false, "custom_branch_policies": true }
+          },
+          "branchPolicies": [{ "id": 7201, "name": "dev", "type": "branch" }],
+          "secrets": ["TC_INFERENCE_API_KEY"]
+        }
+      },
       "repository": {
         "id": 900001,
         "full_name": "geeera/team-console",
