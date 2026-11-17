@@ -38,3 +38,10 @@ tbody th {
 .changes__new {
   font-weight: var(--fw-semibold);
 }
+
+.changes__note {
+  display: block;
+  color: var(--accent-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-regular);
+}

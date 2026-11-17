@@ -38,8 +38,16 @@ sudo tar -xzf team-console-runner-<v>-<platform>.tar.gz --no-same-owner -C /usr/
 /usr/local/lib/team-console-runner/bin/team-console-runner version    # prints <v>
 ```
 
-The launcher needs Node.js 22.14 or later. It starts `node --disable-sigusr1`, so no process of the runner's user can
-open the runner's inspector with `kill -USR1`. An older node refuses the flag and the runner does not start.
+The launcher needs Node.js 22.14 or later. It starts node with `--disable-sigusr1`, so no process of the runner's user
+can open the runner's inspector with `kill -USR1`. An older node refuses the flag and the runner does not start.
+
+Which node the launcher runs: `<prefix>/node` if the release ships one, else `node` on `PATH`, else
+`/opt/homebrew/bin/node`, else `/usr/local/bin/node`. **Run as root** (`sudo …/bin/team-console-runner …`), it runs only
+a node that root alone can change: the file and every directory up to `/` root-owned and not writable by group or
+others, after every link is resolved. It then runs that resolved path. It never falls back to another node; it stops
+with exit 126 and names the ones it refused (#778). Homebrew's node fails this, because Homebrew's prefix belongs to
+the admin login user. Node.js from the nodejs.org installer (`/usr/local/bin/node`, `root:wheel`) passes on a Mac
+without Intel Homebrew in `/usr/local`.
 
 `install --backend user` refuses a directory, bundle or `job-exec` that is not root-owned or that anyone else can
 write, because the sudoers rule names that file. Run `install --dry-run` first. It lists every step and changes
@@ -71,6 +79,24 @@ sudo "$NODE" "$B" install --backend user --dry-run
 sudo "$NODE" "$B" install --backend user --yes
 ```
 
+With a root-owned node (see above) the launcher works as well: `sudo /usr/local/lib/team-console-runner/bin/team-console-runner install …`.
+
+**Which node the service runs (#772).** The LaunchDaemon runs the node path `install` was started with, never its
+realpath. When that path, or what it links to, is inside Homebrew's Cellar (`/opt/homebrew/Cellar/node/<version>/…`),
+`install` writes Homebrew's versionless link `/opt/homebrew/opt/node/bin/node` instead, because `brew upgrade node`
+deletes the old Cellar directory and launchd would then restart a missing binary every 30 seconds. If that link does
+not exist, `install` refuses and tells you to run `brew link node`. The daemon's `PATH` is the node's directory, then
+`/opt/homebrew/bin` when node is Homebrew's, then `/usr/bin:/bin:/usr/sbin:/sbin`. `run --loop` logs
+`starting with node <path> (<resolved path>)` first in `logs/runner.log`.
+
+**Who can act as `_tcrunner` with Homebrew's node (S2, #778).** The daemon runs as `_tcrunner` with that node. Homebrew's
+prefix belongs to the admin login user, so that user (and anything running as that user) can replace node and run
+code as `_tcrunner`. That code can read the runner key and `credentials/claude-setup-token`. The same goes for
+`sudo "$NODE" "$B" install`: root runs a binary that the login user can replace. `install` prints a warning naming the
+first path on the way to node that is not root's alone. Nothing in the installer makes Homebrew's node safe; this
+stays true until the release ships its own root-owned node (#634). On a Mac that only you use, the login user is you.
+On a shared Mac, use a root-owned node (Node.js from nodejs.org) for both `install` and the daemon.
+
 What `--yes` does. It writes only these paths (decision 11, threat model C11):
 
 - It creates the group `_tcjob`. It creates the users `_tcjob` (home `/var/empty`, which is root-owned) and
@@ -92,7 +118,9 @@ Then do these steps by hand. The installer never handles a code or a credential.
 
 1. Enrol. Create a one-time code on Settings › Runners, then run:
    `sudo -u _tcrunner env HOME=/Users/_tcrunner TC_RUNNER_HOME=/Users/_tcrunner "$NODE" "$B" enrol --url <console> --backend user --credential setup-token --code -`.
-   It asks for the code; paste it and press Enter. The code is valid for 10 minutes and works once. See
+   It asks for the code; paste it and press Enter. Settings › Runners shows the code on its own with a Copy button;
+   pasting the whole command shown above it works too, because `enrol` takes the one `tce_…` code out of the line
+   (two codes in the line are refused). The code is valid for 10 minutes and works once. See
    [The one-time code](#the-one-time-code) for why it is not an argument.
 2. Credential. Run `sudo -u _tcrunner sh -c 'umask 077; HOME=/Users/_tcrunner exec claude setup-token'`. Then store
    the token it prints with `sudo -u _tcrunner sh -c 'umask 077; cat > /Users/_tcrunner/credentials/claude-setup-token'`
@@ -100,8 +128,23 @@ Then do these steps by hand. The installer never handles a code or a credential.
 3. Start: `sudo launchctl bootstrap system /Library/LaunchDaemons/com.team-console.runner.plist`. The runner logs to
    `/Users/_tcrunner/logs/runner.log`.
 
-The toolchain the jobs use (`config.toolchain.path`, Homebrew's `node`, `git`, `claude`) must be readable and
-executable by `_tcjob`.
+**The jobs' toolchain.** Jobs run as `_tcjob` with the `PATH` and the `claude` command from `config.json` →
+`toolchain`. Without it they get `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin` and run `claude` from that
+`PATH`. With Claude Code and `git` from Homebrew, set it explicitly so a job never depends on a default. Edit
+`/Users/_tcrunner/config.json` as root (`sudo vi …`, which keeps its owner `_tcrunner` and mode 0600) and add:
+
+```json
+"toolchain": {
+  "path": "/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+  "claude": "/opt/homebrew/bin/claude"
+}
+```
+
+Then restart the service (`sudo launchctl kickstart -k system/com.team-console.runner`). Every tool on that `PATH`
+must be readable and executable by `_tcjob`: check with `sudo -u _tcjob /opt/homebrew/bin/claude --version` and
+`sudo -u _tcjob /opt/homebrew/bin/git --version`. A `claude` under a user's home (`~/.local/bin`) is not reachable by
+`_tcjob`; install Claude Code system-wide (Homebrew). These tools belong to the login user too, so the S2 note above
+applies to what a job runs as well.
 
 ## `container` backend (Linux, or Docker/OrbStack on a Mac)
 
@@ -252,7 +295,10 @@ not exotic, so plan for the case where it fails:
 - `--code <tce_…>` still works, for scripts and fixtures. Any local user can read an argument with `ps` while enrol
   runs, up to its 30 s timeout. Someone who races the request can enrol their own key with your code.
 
-Giving both `--code` and `TC_ENROL_CODE` is a usage error. The command never prints the code. A typed or pasted code
+Whichever place it comes from, `enrol` takes the code out of the text (#772): the bare `tce_…` code, the whole
+`TC_ENROL_CODE=tce_… team-console-runner enrol …` line from Settings › Runners, or the code in quotes all work. Text
+with no code, or with more than one, is refused without repeating it. Giving both `--code` and `TC_ENROL_CODE` is a
+usage error. The command never prints the code. A typed or pasted code
 stays in your shell history, but it is spent by then.
 
 ## Where the runner key is kept (#585)
@@ -436,6 +482,25 @@ able to replace what root installed. Update by hand, as an admin:
 4. Run the manual check below again.
 
 ### Upgrade notes: check these before you update
+
+- **A LaunchDaemon that names a Cellar node** (#772, `user` backend installed with 0.1.0). Check with
+  `grep -A1 ProgramArguments /Library/LaunchDaemons/com.team-console.runner.plist`; a path under
+  `/opt/homebrew/Cellar/node/<version>/` stops working at the next `brew upgrade node`. The runner keeps working as it
+  is until then, and `config.json` (`toolchain` included) is not touched by any of this. To move it to the stable path,
+  after extracting the new release (steps 1–2 of the `user` backend update below):
+
+  ```sh
+  NODE=$(command -v node); B=/usr/local/lib/team-console-runner/team-console-runner.mjs
+  sudo "$NODE" "$B" install --backend user --dry-run   # lists one step: write …/com.team-console.runner.plist
+  sudo "$NODE" "$B" install --backend user --yes
+  sudo launchctl bootout system/com.team-console.runner
+  sudo launchctl bootstrap system /Library/LaunchDaemons/com.team-console.runner.plist
+  ```
+
+  `kickstart` does not reread a changed plist, hence `bootout` then `bootstrap`. Then
+  `sudo grep 'starting with node' /Users/_tcrunner/logs/runner.log | tail -1` shows
+  `/opt/homebrew/opt/node/bin/node`, and the runner shows as online on Settings › Runners. The dry run also prints the
+  S2 warning about Homebrew's node (above); that is expected.
 
 - **A `config.json` that still has `roles` stops the runner at start** (#685). Every command that loads the config
   (`run`, `run-once`, `update`) exits with `config.json: roles is no longer read: … remove the key`. Each role's model

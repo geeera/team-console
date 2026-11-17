@@ -254,6 +254,31 @@ describe('team-console-runner CLI', () => {
     expect(err.join('\n')).toContain('run needs --loop');
   });
 
+  // #772: a node path that broke shows in logs/runner.log instead of a silent KeepAlive loop.
+  it('run --loop logs the node it runs as paths only, before anything can fail', async () => {
+    const exit = await runCli(['run', '--loop'], {
+      env: { TC_RUNNER_HOME: join(parent, 'home'), TC_ENROL_CODE: sentinels.enrolmentCode },
+      homeDir: parent,
+      host: { os: 'linux', arch: 'x64', hostname: 'ci' },
+      fetch: fakeConsole(() => json(500, {})).fetch,
+      stdout: (line) => out.push(line),
+      stderr: (line) => err.push(line),
+      argv0: '/opt/homebrew/opt/node/bin/node',
+      execPath: '/opt/homebrew/Cellar/node/26.0.0/bin/node',
+    });
+    expect(exit).toBe(EXIT_FAILED);
+    expect(out[0]).toBe(
+      `team-console-runner ${RUNNER_VERSION} starting with node /opt/homebrew/opt/node/bin/node (/opt/homebrew/Cellar/node/26.0.0/bin/node)`,
+    );
+    expect([...out, ...err].join('\n')).not.toContain(sentinels.enrolmentCode);
+    expect(out.join('\n')).not.toContain(parent);
+  });
+
+  it('run-once logs no node line', async () => {
+    await run(['run-once']).exit;
+    expect(out.join('\n')).not.toContain('starting with node');
+  });
+
   it('fails run-once on a home that was never enrolled, touching no network', async () => {
     const { exit, requests } = run(['run-once']);
     expect(await exit).toBe(EXIT_FAILED);
@@ -287,6 +312,7 @@ describe('team-console-runner CLI', () => {
           return { code: 0, stdout: '' };
         },
         stat: async () => null,
+        realpath: async (path) => (path === '/usr/bin/node' ? '/usr/lib/node-v22/bin/node' : path),
         read: async () => null,
         apply: async (step) => {
           applied.push(step);
@@ -295,7 +321,7 @@ describe('team-console-runner CLI', () => {
         queried,
       };
     };
-    const installRun = (argv: readonly string[], host: InstallHost) =>
+    const installRun = (argv: readonly string[], host: InstallHost, argv0 = '/usr/bin/node') =>
       runCli(argv, {
         env: {},
         homeDir: '/home/me',
@@ -305,7 +331,25 @@ describe('team-console-runner CLI', () => {
         stderr: (line) => err.push(line),
         prefix: '/opt/tcr',
         installHost: host,
+        argv0,
+        execPath: '/usr/lib/node-v22/bin/node',
       });
+
+    // #772: the service runs node by the path it was started with, never its realpath.
+    it.each([
+      ['an absolute argv0 as given', '/usr/bin/node', 'ExecStart=/usr/bin/node /opt/tcr/team-console-runner.mjs'],
+      ['the resolved path for a bare node', 'node', 'ExecStart=/usr/lib/node-v22/bin/node /opt/tcr/'],
+    ])('writes %s into the service file', async (_, argv0, execStart) => {
+      const host = fakeInstallHost();
+      expect(
+        await installRun(['install', '--backend', 'container', '--yes', '--image', image], host, argv0),
+      ).toBe(EXIT_OK);
+      const unit = host.applied.find(
+        (step): step is { kind: 'write'; content: string } =>
+          typeof step === 'object' && step !== null && 'kind' in step && step.kind === 'write',
+      );
+      expect(unit?.content).toContain(execStart);
+    });
     const image = `ghcr.io/geeera/team-console-runner:0.1.0@sha256:${'c'.repeat(64)}`;
 
     it.each([

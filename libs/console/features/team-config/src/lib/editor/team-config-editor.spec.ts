@@ -3,9 +3,16 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideConsoleI18n, TranslocoService } from '@console/shared/i18n';
-import { NEVER_OFF_ROLES, TEAM_CONFIG_SCHEMA, type TeamConfig, type TeamConfigDto } from '@shared/contracts';
+import {
+  NEVER_OFF_ROLES,
+  TEAM_CONFIG_SCHEMA,
+  type TeamConfig,
+  type TeamConfigDto,
+  type TeamStatusDto,
+} from '@shared/contracts';
+import { teamStatusUrl, teamResumeUrl } from '@console/entities/team-run';
 import { teamConfigUrlOf } from '../team-config.client';
-import { teamConfigViewOf } from '../testing';
+import { teamConfigViewOf, teamStatusOf } from '../testing';
 import { TeamConfigEditor } from './team-config-editor';
 
 const URL = teamConfigUrlOf('acme');
@@ -24,7 +31,7 @@ async function settle(fixture: ComponentFixture<unknown>): Promise<void> {
 
 const overlay = (): HTMLElement => document.querySelector('.cdk-overlay-container') as HTMLElement;
 
-async function open(view: TeamConfigDto): Promise<{
+async function open(view: TeamConfigDto, status: TeamStatusDto | null = null, focus: string | null = null): Promise<{
   fixture: ComponentFixture<TeamConfigEditor>;
   http: HttpTestingController;
   el: HTMLElement;
@@ -35,8 +42,16 @@ async function open(view: TeamConfigDto): Promise<{
   });
   const fixture = TestBed.createComponent(TeamConfigEditor);
   fixture.componentRef.setInput('slug', 'acme');
+  fixture.componentRef.setInput('projectName', 'Acme');
+  fixture.componentRef.setInput('focus', focus);
   fixture.detectChanges();
   const http = TestBed.inject(HttpTestingController);
+  const statusRequest = http.expectOne(teamStatusUrl('acme'));
+  if (status === null) {
+    statusRequest.flush('x', { status: 500, statusText: 'x' });
+  } else {
+    statusRequest.flush(status);
+  }
   http.expectOne(URL).flush(view);
   await settle(fixture);
   const transloco = TestBed.inject(TranslocoService);
@@ -133,5 +148,102 @@ describe('TeamConfigEditor', () => {
     expect(field.getAttribute('aria-invalid')).toBe('true');
     expect(testId(el, 'save-bar-review')?.getAttribute('aria-disabled')).toBe('true');
     expect(testId(el, 'save-bar-reason')?.textContent).toContain(t('teamConfig.bar.invalid'));
+  });
+
+  it('shows the current reason as text beside the revision, Import and History to the owner, History alone to a member', async () => {
+    const reason = '<img src=x onerror="alert(1)"> raised QA turns';
+    const owner = await open(teamConfigViewOf(stored, { revision: 12, reason, updatedByName: 'anna' }));
+    expect(testId(owner.el, 'team-revision-reason')?.textContent).toBe(reason);
+    expect(owner.el.querySelector('img')).toBeNull();
+    expect(testId(owner.el, 'team-import')?.textContent).toContain(owner.t('teamConfig.import.title'));
+    expect(testId(owner.el, 'team-history')).not.toBeNull();
+    TestBed.resetTestingModule();
+    const member = await open(teamConfigViewOf(stored, { canManage: false }));
+    expect(testId(member.el, 'team-import')).toBeNull();
+    expect(testId(member.el, 'team-history')).not.toBeNull();
+  });
+
+  it('shows Budget used up with the figures; Raise budget unfolds Limits and focuses the budget', async () => {
+    const status = teamStatusOf({
+      state: 'paused-by-budget',
+      budget: { month: '2026-11', spentUsd: 200, budgetUsd: 200, waivedAt: null },
+    });
+    const { el, t, fixture } = await open(teamConfigViewOf({ ...stored, budget: { monthly_usd: 200 } }), status);
+    const callout = testId(el, 'team-budget-stop') as HTMLElement;
+    expect(callout.querySelector('h2')?.textContent).toContain(t('teamConfig.budget.title'));
+    expect(testId(callout, 'team-budget-body')?.textContent?.replace(/\s/g, ' ')).toContain('потрачено 200 $ из 200 $');
+    testId(callout, 'team-budget-raise')?.click();
+    await settle(fixture);
+    expect(document.activeElement?.getAttribute('data-testid')).toBe('input-budget.monthly_usd');
+  });
+
+  it('Resume this month asks the one line first and resumes through the shared action', async () => {
+    const status = teamStatusOf({
+      state: 'paused-by-budget',
+      budget: { month: '2026-11', spentUsd: 200, budgetUsd: 200, waivedAt: null },
+    });
+    const { el, http, fixture } = await open(teamConfigViewOf(stored), status);
+    testId(el, 'team-budget-resume')?.click();
+    await settle(fixture);
+    expect(overlay().textContent?.replace(/\s/g, ' ')).toContain('Расходы могут превысить 200 $.');
+    (overlay().querySelector('.tc-confirm__ok') as HTMLButtonElement).click();
+    await settle(fixture);
+    const resume = http.expectOne(teamResumeUrl('acme'));
+    expect(resume.request.body).toEqual({ waiveBudget: true });
+    resume.flush({});
+    await settle(fixture);
+    http.expectOne(teamStatusUrl('acme')).flush(teamStatusOf());
+    await settle(fixture);
+    expect(testId(el, 'team-budget-stop')).toBeNull();
+  });
+
+  it('a member sees the stop without its actions', async () => {
+    const status = teamStatusOf({
+      state: 'paused-by-budget',
+      budget: { month: '2026-11', spentUsd: 200, budgetUsd: 200, waivedAt: null },
+    });
+    const { el } = await open(teamConfigViewOf(stored, { canManage: false }), status);
+    expect(testId(el, 'team-budget-readonly')).not.toBeNull();
+    expect(testId(el, 'team-budget-resume')).toBeNull();
+  });
+
+  it('says the month is waived and that a changed budget ends the waiver', async () => {
+    const status = teamStatusOf({
+      budget: { month: '2026-11', spentUsd: 212, budgetUsd: 200, waivedAt: '2026-11-16T09:00:00.000Z' },
+    });
+    const { el, t } = await open(teamConfigViewOf(stored), status);
+    const waived = testId(el, 'team-waived') as HTMLElement;
+    expect(waived.querySelector('h3')?.textContent).toContain('Ноябрь');
+    expect(testId(waived, 'team-waived-body')?.textContent).toContain('1 декабря');
+    expect(testId(waived, 'team-waived-ends')?.textContent?.trim()).toBe(t('teamConfig.budget.waivedEnds'));
+    expect(testId(el, 'team-budget-stop')).toBeNull();
+  });
+
+  it('opens at the budget when the link asked for it (?focus=budget)', async () => {
+    const { fixture } = await open(teamConfigViewOf(stored), null, 'budget');
+    await settle(fixture);
+    expect(document.activeElement?.getAttribute('data-testid')).toBe('input-budget.monthly_usd');
+  });
+
+  it('while the budget is changed in a waived month, the note says it is capped again and the review row ends the waiver', async () => {
+    const status = teamStatusOf({
+      budget: { month: '2026-11', spentUsd: 212, budgetUsd: 200, waivedAt: '2026-11-16T09:00:00.000Z' },
+    });
+    const { el, t, fixture } = await open(teamConfigViewOf({ ...stored, budget: { monthly_usd: 200 } }), status);
+    const waived = testId(el, 'team-waived') as HTMLElement;
+    expect(waived.getAttribute('data-editing')).toBeNull();
+    const field = testId(el, 'input-budget.monthly_usd') as HTMLInputElement;
+    field.value = '300';
+    field.dispatchEvent(new Event('input'));
+    await settle(fixture);
+    expect(waived.getAttribute('data-editing')).toBe('true');
+    expect(testId(waived, 'team-waived-ends')?.textContent?.replace(/\s/g, ' ')).toContain(
+      'После сохранения ноябрь снова будет ограничен суммой 300 $.',
+    );
+    testId(el, 'save-bar-review')?.click();
+    await settle(fixture);
+    expect(overlay().querySelector('[data-testid="change-note-budget.monthly_usd"]')?.textContent).toBe(
+      t('teamConfig.budget.waivedReview', { month: 'ноябрь' }),
+    );
   });
 });

@@ -202,6 +202,8 @@ export interface TeamConfigDto {
    * written by the console's own owner identity (`local-owner`, `access-owner`) or there is none.
    */
   readonly updatedByName: string | null;
+  /** The current revision's reason as its author wrote it (plain text, redacted); `null` without one or a revision (#688). */
+  readonly reason: string | null;
   /**
    * Whether the caller may write the document: the project's owner (`canManageProject`, #688). Display only — every
    * write checks the route matrix again, so a stale or forged `true` is still 403.
@@ -231,6 +233,8 @@ export interface TeamConfigRevisionSummaryDto {
   readonly revision: number;
   readonly createdAt: string;
   readonly createdBy: string;
+  /** The author's login, never an email; `null` for the console's own owner identities (#688, as `updatedByName`). */
+  readonly createdByName: string | null;
   readonly reason: string | null;
   readonly paths: readonly string[];
 }
@@ -246,6 +250,8 @@ export interface TeamConfigRevisionDto {
   readonly diff: readonly TeamConfigChange[];
   readonly createdAt: string;
   readonly createdBy: string;
+  /** The author's login, never an email; `null` for the console's own owner identities (#688). */
+  readonly createdByName: string | null;
   readonly reason: string | null;
 }
 

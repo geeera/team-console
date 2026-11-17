@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationInitStatus } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import type { QuestionBudgetStop } from '@console/entities/question';
 import { provideConsoleI18n, TranslocoService } from '@console/shared/i18n';
 import { Toaster } from '@console/shared/ui';
@@ -58,7 +59,7 @@ describe('BudgetStop', () => {
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
-      providers: [provideConsoleI18n(), provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideConsoleI18n(), provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     });
     await TestBed.inject(ApplicationInitStatus).donePromise;
     http = TestBed.inject(HttpTestingController);
@@ -304,5 +305,17 @@ describe('BudgetStop', () => {
     );
     // The figures stay visible, read-only.
     expect(host().querySelector('[data-testid="budget-stop-body"]')).not.toBeNull();
+  });
+
+  it('links "Open limits" to the page the caller names, beside the actions (#688)', async () => {
+    expect(button('budget-open-limits')).toBeNull();
+    fixture.componentRef.setInput('limitsLink', {
+      path: '/settings/projects/acme/team',
+      queryParams: { focus: 'budget' },
+    });
+    await fixture.whenStable();
+    const link = host().querySelector<HTMLAnchorElement>('[data-testid="budget-open-limits"]');
+    expect(link?.getAttribute('href')).toBe('/settings/projects/acme/team?focus=budget');
+    expect(link?.textContent?.trim()).toBe('Открыть лимиты');
   });
 });

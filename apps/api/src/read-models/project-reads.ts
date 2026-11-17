@@ -52,6 +52,28 @@ const LIST_TTL_SECONDS = 60;
 const CHECKS_TTL_SECONDS = 60;
 /** project.yml changes rarely: 600 s. */
 const CONFIG_TTL_SECONDS = 600;
+
+type JsonRecord = Readonly<Record<string, unknown>>;
+
+function isRecord(value: unknown): value is JsonRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isRepositoryAnswer(value: unknown): value is { default_branch: string } {
+  return isRecord(value) && typeof value['default_branch'] === 'string' && value['default_branch'] !== '';
+}
+
+const COMMIT_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+
+function isBranchAnswer(value: unknown): value is { commit: { sha: string } } {
+  return (
+    isRecord(value) &&
+    isRecord(value['commit']) &&
+    typeof value['commit']['sha'] === 'string' &&
+    COMMIT_SHA.test(value['commit']['sha'])
+  );
+}
+
 /** The sprint part of `TeamStatusDto` (#218). */
 export interface SprintStatus {
   readonly sprint: TeamSprintDto | null;
@@ -321,6 +343,22 @@ export class ProjectReads {
         { maxPages: 1 },
       );
       return raw.map(pullRequestRecordOf);
+    });
+  }
+
+  /**
+   * The default branch's head commit (the design viewer's default-branch ref, #277, and the Artifacts designs
+   * tree, #770): repository 1 + branch 1, each cached, so a project read a moment ago answers from cache.
+   */
+  async defaultBranchHeadSha(): Promise<string> {
+    const branch = await this.cached('repository', CONFIG_TTL_SECONDS, async () => {
+      const client = await this.connect();
+      return (await client.getJson(githubPath`/repos/${this.repo}`, isRepositoryAnswer)).default_branch;
+    });
+    return this.cached(`branch-head-${branch}`, LIST_TTL_SECONDS, async () => {
+      const client = await this.connect();
+      return (await client.getJson(githubPath`/repos/${this.repo}/branches/${branch}`, isBranchAnswer)).commit
+        .sha;
     });
   }
 

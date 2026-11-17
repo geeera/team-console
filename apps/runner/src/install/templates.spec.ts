@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DOCUMENTED_DEFAULTS, launchDaemonPlist, sudoersRule } from './templates';
+import { DOCUMENTED_DEFAULTS, homebrewBinOf, launchDaemonPlist, servicePathOf, sudoersRule } from './templates';
 
 /**
  * The committed service files are the installer's templates rendered with the documented defaults, so what a reviewer
@@ -98,5 +98,27 @@ describe('job-exec sweep', () => {
     const planted = join(dir, 'planted');
     mkdirSync(planted);
     expect(sweptDirs(planted)).not.toContain(planted);
+  });
+});
+
+/** #772: the runner process's PATH keeps the node's own directory first and adds Homebrew's bin for its tools. */
+describe('servicePathOf', () => {
+  it.each([
+    ['/opt/homebrew/opt/node/bin/node', '/opt/homebrew/opt/node/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin'],
+    ['/opt/homebrew/bin/node', '/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin'],
+    ['/usr/local/opt/node@22/bin/node', '/usr/local/opt/node@22/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin'],
+    ['/usr/local/bin/node', '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin'],
+  ])('%s → %s', (node, path) => {
+    expect(servicePathOf(node)).toBe(path);
+  });
+
+  it("adds no directory for a node outside Homebrew's prefixes, even one shaped like a keg", () => {
+    expect(homebrewBinOf('/home/me/opt/node/bin/node')).toBeNull();
+    expect(homebrewBinOf('/opt/node/bin/node')).toBeNull();
+    expect(homebrewBinOf('/usr/bin/node')).toBeNull();
+    expect(homebrewBinOf('/opt/homebrew/opt/node/bin/node')).toBe('/opt/homebrew/bin');
+    expect(homebrewBinOf('/home/linuxbrew/.linuxbrew/Cellar/node/26.0.0/bin/node')).toBe(
+      '/home/linuxbrew/.linuxbrew/bin',
+    );
   });
 });

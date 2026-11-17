@@ -7,6 +7,8 @@ export interface ChangeRow {
   readonly label: string;
   readonly from: string;
   readonly to: string;
+  /** A consequence of this change the owner should read before saving ("ends the waiver for November"). */
+  readonly note?: string;
 }
 
 /**
@@ -34,7 +36,12 @@ export interface ChangeRow {
           <tr [attr.data-path]="row.path">
             <th scope="row">{{ row.label }}</th>
             <td><s class="changes__old">{{ row.from }}</s></td>
-            <td class="changes__new">{{ row.to }}</td>
+            <td class="changes__new">
+              {{ row.to }}
+              @if (row.note; as note) {
+                <span class="changes__note" [attr.data-testid]="'change-note-' + row.path">{{ note }}</span>
+              }
+            </td>
           </tr>
         }
       </tbody>

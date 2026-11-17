@@ -24,33 +24,8 @@ import type { ProjectReads } from './project-reads';
 
 /** A commit's tree never changes, but the cache is memory: 600 s keeps a busy list cheap without pinning it forever. */
 const TREE_TTL_SECONDS = 600;
-/** The default branch moves with every merge: 60 s, like the other list reads. */
-const BRANCH_TTL_SECONDS = 60;
-/** The repository's default branch name changes about never. */
-const REPOSITORY_TTL_SECONDS = 600;
 
 const RAW_MEDIA_TYPE = 'application/vnd.github.raw+json';
-
-type JsonRecord = Readonly<Record<string, unknown>>;
-
-function isRecord(value: unknown): value is JsonRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isRepositoryAnswer(value: unknown): value is { default_branch: string } {
-  return isRecord(value) && typeof value['default_branch'] === 'string' && value['default_branch'] !== '';
-}
-
-const COMMIT_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
-
-function isBranchAnswer(value: unknown): value is { commit: { sha: string } } {
-  return (
-    isRecord(value) &&
-    isRecord(value['commit']) &&
-    typeof value['commit']['sha'] === 'string' &&
-    COMMIT_SHA.test(value['commit']['sha'])
-  );
-}
 
 interface DesignRef {
   readonly sha: string;
@@ -138,16 +113,7 @@ export class DesignReads {
     if (linking?.headSha !== null && linking?.headSha !== undefined) {
       return { sha: linking.headSha, kind: 'pull-request' };
     }
-    const branch = await this.cached('repository', REPOSITORY_TTL_SECONDS, async () => {
-      const client = await this.reads.connect();
-      return (await client.getJson(githubPath`/repos/${this.repo}`, isRepositoryAnswer)).default_branch;
-    });
-    const sha = await this.cached(`branch-head-${branch}`, BRANCH_TTL_SECONDS, async () => {
-      const client = await this.reads.connect();
-      return (await client.getJson(githubPath`/repos/${this.repo}/branches/${branch}`, isBranchAnswer)).commit
-        .sha;
-    });
-    return { sha, kind: 'default-branch' };
+    return { sha: await this.reads.defaultBranchHeadSha(), kind: 'default-branch' };
   }
 
   /** Keyed by issue and commit: a client holding a manifest's sha gets the same set the manifest listed. */

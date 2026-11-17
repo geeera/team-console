@@ -6,10 +6,23 @@
     @if (view.revision > 0) {
       <p class="team__revision" data-testid="team-revision">
         {{ 'teamConfig.revision' | transloco: { n: view.revision, who: author(), date: (view.updatedAt | localDay) } }}
+        @if (view.reason; as reason) {
+          · <q class="team__reason" data-testid="team-revision-reason">{{ reason }}</q>
+        }
       </p>
     } @else {
       <p class="team__revision" data-testid="team-not-customised">{{ 'teamConfig.notCustomised' | transloco }}</p>
     }
+    <div class="team__head-actions">
+      @if (!readOnly()) {
+        <button tc-button type="button" data-testid="team-import" (click)="openImport()">
+          <tc-icon name="copy" size="sm" />{{ 'teamConfig.import.title' | transloco }}
+        </button>
+      }
+      <button tc-button type="button" data-testid="team-history" (click)="openHistory()">
+        <tc-icon name="clock" size="sm" />{{ 'teamConfig.history.open' | transloco }}
+      </button>
+    </div>
   }
 </header>
 
@@ -116,6 +129,16 @@
               </section>
             }
           }
+        }
+        @if (stoppedMonth(); as month) {
+          <tc-budget-callout
+            [slug]="slug()"
+            [projectName]="projectLabel()"
+            [month]="month"
+            [canManage]="!readOnly()"
+            (resumed)="budgetResumed()"
+            (raise)="raiseBudget()"
+          />
         }
         @if (!online() && !readOnly()) {
           <div tc-banner tone="warning" data-testid="team-offline">
@@ -235,6 +258,9 @@
           (valueChange)="edit('budget.monthly_usd', $event)"
           (typedInvalid)="markTyped('budget.monthly_usd', $event)"
         />
+        @if (waivedMonth(); as month) {
+          <tc-waived-month [month]="month" [editing]="budgetEdit()" />
+        }
         <p class="team__help">{{ 'teamConfig.limits.overshoot' | transloco }}</p>
       </tc-team-section>
 
