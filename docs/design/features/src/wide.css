@@ -1,0 +1,283 @@
+/* ===== #766 Wide-screen layout, on the Paper Desk tokens (ADR 0002) =====
+   The frame is a browser window of a chosen width. The prototype queries the frame (`win`) where the app queries the
+   viewport (`@media`), so a 1920 px window can be judged on a 1440 px screen; the thresholds are the same numbers.
+   Everything #766 adds sits in `.wd[data-layout=new]` and in a query wider than any tablet body, so the 375 and
+   768 px layouts are the same pixels in both layouts. */
+
+/* ----- tokens: group 4 (layout) and group 6 (container thresholds), as proposed for tokens.css ----- */
+:root{
+  --page-max:1664px;        /* the one cap of every project page and Needs you, padding included (1920 less the sidebar) */
+  --measure:72ch;           /* a paragraph of prose, from 900 px */
+  --cq-grid-min:880px;      /* body width: Artifacts turns from rows into cards (repeated in the queries below) */
+  --cq-wide-min:1360px;     /* body width: the board gets three columns (repeated in the queries below) */
+  --artifact-card-min:300px;
+  --artifact-cols-max:4;
+  --thumb-ratio:16 / 10;
+  --card-min-w:448px;       /* was 480: two decision cards fit at 1280 */
+  /* existing app tokens the prototype needs (unchanged by #766) */
+  --cards-max:1064px;--board-max:1184px;--board-side-w:320px;--task-pane-w:480px;--thumb-size:56px;
+  --top-bar-h:56px;--focus-offset:2px;--lift:-2px;--peek:-14%;
+}
+
+/* ----- the window: a frame of the picked width ----- */
+.mac-frame{container:frame/inline-size}
+.wd{container:win/inline-size;display:flex;flex-direction:column;height:100%;min-height:0;background:var(--bg)}
+.wd__row{flex:1;display:flex;min-height:0}
+.wd__main{flex:1;min-width:0;display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain}
+.wd .sidebar{position:sticky;top:0}
+.wd .side-item{text-decoration:none}
+.side-item--new{color:var(--text-2)}
+.wd .side-foot{flex-direction:column;align-items:stretch;gap:2px}
+
+/* the tablet and phone top bar (the app's shell below 900 px) */
+.wd__top{display:none;align-items:center;gap:var(--sp-2);height:var(--top-bar-h);flex:none;padding:0 var(--sp-3);border-bottom:1px solid var(--border);background:var(--bg)}
+.wd__top-title{display:flex;align-items:center;gap:var(--sp-2);flex:1;min-width:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg)}
+.wd__top-title span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wd__tabs{display:none}
+
+/* ----- the project space: header, banner, body and the panes beside it ----- */
+.space{flex:1 0 auto;display:flex;flex-direction:column}
+.space__head{padding:var(--sp-5) var(--pad-x) var(--sp-3);border-bottom:1px solid var(--border)}
+.space__head-in{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-3)}
+.space__title{margin:0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:var(--lh-tight)}
+.space__tabs{display:flex;gap:var(--sp-1)}
+.space__tab{display:inline-flex;align-items:center;min-height:var(--btn-h);padding:0 var(--sp-3);border:0;border-radius:var(--r-md);background:none;color:var(--text-2);font-size:var(--fs-sm);font-weight:600;text-decoration:none}
+.space__tab:hover{background:var(--hover)}
+.space__tab[aria-current=page]{background:var(--surface);color:var(--text);box-shadow:inset 0 0 0 1px var(--border)}
+.space__find{margin-left:auto}
+.space__head .btn kbd{display:inline-block;margin-left:var(--sp-1)}
+.space__banner{max-width:var(--log-max);width:100%;margin:0 auto;padding:var(--sp-3) var(--pad-x) 0}
+.space__main{flex:1;display:flex;min-height:0}
+.space__body{container:body/inline-size;flex:1;min-width:0;max-width:var(--log-max);width:100%;margin:0 auto;padding:var(--sp-4) var(--pad-x) var(--sp-8)}
+.wd[data-page=questions] .space__body,.wd[data-page=demo] .space__body{max-width:var(--cards-max)}
+.wd[data-page=board] .space__body{max-width:var(--board-max)}
+.paused{max-width:none}
+.paused .btn{background:var(--surface);border-color:transparent}
+
+/* Needs you is not a project space: today the centred 1064 px page of cards */
+.npage{width:100%;max-width:var(--cards-max);margin:0 auto;padding:var(--sp-6) var(--pad-x) var(--sp-8);display:grid;gap:var(--sp-4);align-content:start}
+.npage__head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-3)}
+.npage__head h1{margin:0 auto 0 0;font-family:var(--font-display);font-size:var(--fs-2xl);font-weight:var(--fw-display);line-height:var(--lh-tight)}
+.npage .space__body{max-width:none;padding:0;margin:0}
+.nudge{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-4);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2)}
+.nudge p{margin:0;flex:1 1 16rem}
+.nudge b{color:var(--text)}
+
+/* ----- panes: Commands (392) and the task (480), unchanged by #766 ----- */
+.wpane{flex:none;width:var(--pane-w);display:flex;flex-direction:column;border-left:1px solid var(--border);background:var(--surface-2)}
+.wpane--task{width:var(--task-pane-w);margin-left:var(--sp-4)}
+.wpane__head{display:flex;align-items:center;gap:var(--sp-2);min-height:52px;padding:var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4);border-bottom:1px solid var(--border)}
+.wpane__head h2{flex:1;margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);outline:none}
+.wpane__body{display:grid;gap:var(--sp-3);align-content:start;padding:var(--sp-4)}
+.wpane__card{display:grid;gap:var(--sp-1);padding:var(--sp-3) var(--sp-4);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
+.wpane__card b{font-family:var(--font-display)}
+.wpane__card span{font-size:var(--fs-xs);color:var(--text-2)}
+.wpane__body .btn{justify-content:flex-start}
+.ledger{display:grid;grid-template-columns:max-content 1fr;gap:var(--sp-2) var(--sp-4);margin:0;font-size:var(--fs-sm)}
+.ledger dt{color:var(--text-3)}.ledger dd{margin:0}
+.wpane__h{margin:var(--sp-2) 0 0;font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.wpane__p{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.hist{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-1);font-size:var(--fs-xs);color:var(--text-2)}
+
+/* ===== Артефакты ===== */
+.arts{display:grid;gap:var(--sp-4);min-width:0}
+.arts__head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-3)}
+.arts__title{margin:0 auto 0 0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:var(--lh-tight)}
+.arts__loaded{margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.arts__tools{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-3)}
+.arts__tools .search{flex:1 1 100%;height:var(--target)}
+.arts__chips{display:flex;flex-wrap:wrap;gap:var(--sp-1)}
+.arts__chips .chip-btn{height:var(--btn-h);padding:0 var(--sp-3)}
+.arts__chips .chip-btn span{font-family:var(--font-mono);margin-left:var(--sp-1);opacity:.75}
+.arts__shown{margin:0 0 0 auto;font-size:var(--fs-xs);color:var(--text-2)}
+.callout{display:flex;gap:var(--sp-2);align-items:flex-start;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-sm)}
+.callout .ico{margin-top:2px}
+.callout p{margin:0}
+.callout b{display:block}
+
+/* the list: rows below 880 px of body (today's list, unchanged) */
+.alist{list-style:none;margin:0;padding:0;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);overflow:hidden}
+.alist>li+li{border-top:1px solid var(--border)}
+.alist__group{display:none}
+.acard{width:100%;display:flex;align-items:center;gap:var(--sp-3);min-height:calc(var(--target) + var(--sp-5));padding:var(--sp-3) var(--sp-4);border:0;background:none;color:inherit;text-align:left;text-decoration:none;font-size:var(--fs-sm)}
+.acard:hover{background:var(--hover)}
+.acard:focus-visible{outline:2px solid var(--focus);outline-offset:calc(-1 * var(--focus-offset))}
+.acard__text{flex:1;min-width:0;display:grid;gap:2px}
+.acard__title{font-weight:600;color:var(--text);overflow-wrap:anywhere}
+.acard__sub{font-size:var(--fs-xs);color:var(--text-2)}
+.acard__await{font-size:var(--fs-xs);font-weight:600;color:var(--warning-text)}
+.acard__kicker{display:none}
+.acard__chip{flex:none;display:inline-flex;align-items:center;height:22px;padding:0 var(--sp-2);border-radius:999px;background:var(--bg-sunken);color:var(--text-2);font-size:var(--fs-xs);font-weight:600}
+.acard>.ico{flex:none;width:16px;height:16px;color:var(--text-3)}
+
+/* a design's thumbnail: a 56 px square in rows, a 16:10 crop of the first screen in cards. Drawn from tokens. */
+.shot{position:relative;flex:none;width:var(--thumb-size);height:var(--thumb-size);overflow:hidden;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--bg-sunken)}
+.shot__page{position:absolute;inset:0 0 auto;height:160%;--s-bg:var(--bg);--s-sf:var(--surface);--s-ln:var(--border-strong);--s-side:var(--bg-sunken);background:var(--s-bg);transition:transform var(--dur-sig) var(--ease-standard)}
+.shot__page[data-tone=dark]{--s-bg:color-mix(in oklab,var(--text) 90%,var(--bg));--s-sf:color-mix(in oklab,var(--text) 80%,var(--bg));--s-ln:color-mix(in oklab,var(--bg) 40%,transparent);--s-side:color-mix(in oklab,var(--text) 94%,var(--bg))}
+.shot i{position:absolute;display:block;border-radius:2px;background:var(--s-ln)}
+.shot .s-side{left:0;top:0;bottom:0;width:22%;border-radius:0;background:var(--s-side)}
+.shot .s-card{background:var(--s-sf);border:1px solid var(--s-ln);border-radius:4px}
+.shot .s-acc{background:var(--accent);border-radius:3px}
+.shot .s-phone{background:var(--s-sf);border:1px solid var(--s-ln);border-radius:8px}
+.shot .s-scrim{inset:0;border-radius:0;background:var(--scrim)}
+.shot__tile{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:var(--sp-1);padding:var(--sp-2);text-align:center;color:var(--text-2);background:var(--bg-sunken)}
+.shot__tile .ico{width:18px;height:18px;color:var(--text-3)}
+.shot__tile span{display:none;font-size:var(--fs-xs);font-weight:600}
+.shot--fail .shot__tile .ico{color:var(--danger-text)}
+.shot--skel{border-color:transparent}
+.skel-pulse{animation:pulse var(--dur-pulse) var(--ease-standard) infinite}
+@media (prefers-reduced-motion:reduce){.skel-pulse{animation:none}}
+:root[data-motion=reduce] .skel-pulse{animation:none}
+
+/* loading */
+.skelc{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3) var(--sp-4)}
+.skelc+.skelc{border-top:1px solid var(--border)}
+.skelc .shot{background:var(--bg-sunken)}
+.skelc:nth-child(n+4){display:none}
+.skelc__lines{flex:1;display:grid;gap:var(--sp-2)}
+.arts__status{margin:0;padding:0 var(--sp-1);font-size:var(--fs-xs);color:var(--text-2)}
+.state-block{display:grid;justify-items:center;gap:var(--sp-2);max-width:var(--log-max);margin:0 auto;padding:var(--sp-8) var(--sp-4);text-align:center;color:var(--text-2);font-size:var(--fs-sm)}
+.state-block h3{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);color:var(--text)}
+.state-block p{margin:0}
+
+/* ===== Вопросы, Демо, Ждут вас: the #276 grid of decision cards ===== */
+.qpage{display:grid;gap:var(--sp-4);min-width:0}
+.qlead{margin:0;color:var(--text-2);font-size:var(--fs-sm)}
+.attn{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-2)}
+.attn a{display:flex;align-items:center;gap:var(--sp-2);min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-sm);font-weight:600;text-decoration:none}
+.attn a .ico:last-child{margin-left:auto}
+.qlist{list-style:none;margin:0;padding:0;display:grid;gap:var(--gap-log);grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--card-min-w)),1fr));align-items:start}
+.wd[data-layout=today]{--card-min-w:480px}
+.qlist .card{margin-left:0}
+.qlist .receipt{margin-left:0}
+.card__kind .ico{width:15px;height:15px}
+.outc{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-2)}
+.outc div{display:grid;gap:2px;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2)}
+.outc b{font-size:var(--fs-xs);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3)}
+.qthumbs{position:relative}
+.qthumbs .thumb{padding-bottom:10px}
+.qthumbs__more{position:absolute;right:var(--sp-2);bottom:var(--sp-2);padding:0 var(--sp-2);border-radius:999px;background:var(--surface);border:1px solid var(--border);font-size:var(--fs-xs);font-weight:600;color:var(--text-2)}
+.qopts{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.card .ptag{align-self:flex-start}
+.card a.btn{text-decoration:none}
+
+/* ===== Доска ===== */
+.bd{container:board/inline-size;display:grid;gap:var(--sp-4);min-width:0}
+.bd__head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-3)}
+.bd__head h2{margin:0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:var(--lh-tight)}
+.bd__open{font-size:var(--fs-sm);color:var(--text-2)}
+.bd__actions{display:flex;gap:var(--sp-2);margin-left:auto}
+.bd__secs{display:grid;gap:var(--sp-6)}
+.bd__sec{display:grid;gap:var(--sp-3);align-content:start;min-width:0}
+.bd__sec h3{display:flex;gap:var(--sp-2);margin:0;font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.bd__sec h3 span{font-family:var(--font-mono);font-weight:400;color:var(--text-3)}
+.lane{display:grid;gap:var(--sp-2)}
+.lane h4{margin:0;font-size:var(--fs-xs);font-weight:600;color:var(--text-3)}
+.lane ul,.bd__sec>ul{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-1)}
+.bd .item{width:100%;border-radius:var(--r-md);text-align:left;color:inherit}
+.bd .item{text-decoration:none}
+button.item:hover,a.item:hover{border-color:var(--border-strong)}
+.item[aria-expanded=true]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.rdot{width:8px;height:8px;border-radius:50%;background:var(--success-text)}
+.rdot--fail{background:var(--danger-text)}.rdot--going{background:var(--warning-text)}
+.bd__ptabs{display:none}
+@container board (min-width:560px){
+  .bd__secs{grid-template-areas:'tasks pulls' 'tasks runs';grid-template-columns:minmax(0,2fr) minmax(var(--board-side-w),1fr);grid-template-rows:auto 1fr;align-items:start}
+  .bd__sec--tasks{grid-area:tasks}.bd__sec--pulls{grid-area:pulls}.bd__sec--runs{grid-area:runs}
+}
+
+/* ===== below 900 px of window: the tablet and phone shells (unchanged by #766) ===== */
+@container win (max-width:899.98px){
+  .wd .sidebar{display:none}
+  .wd__top{display:flex}
+  .bd__actions{flex-basis:100%;margin-left:0}
+  .wpane{position:absolute;inset:var(--top-bar-h) 0 0 auto;z-index:var(--z-sheet);width:min(100%,var(--pane-w));box-shadow:var(--shadow-2)}
+  .wpane--task{width:min(100%,var(--task-pane-w));margin:0}
+}
+@container win (max-width:519.98px){
+  .space__head{display:none}
+  .space__banner{padding:var(--sp-2) var(--sp-4) 0}
+  .space__body{padding:var(--sp-3) var(--sp-4) var(--sp-6)}
+  .npage{padding:var(--sp-4)}
+  .npage__head h1{font-size:var(--fs-xl)}
+  .wd__tabs{display:grid;grid-template-columns:repeat(4,1fr);flex:none;border-top:1px solid var(--border);background:var(--bg);padding:var(--sp-1) var(--sp-1) var(--sp-2)}
+  .wd__tabs a{display:flex;flex-direction:column;align-items:center;gap:2px;min-height:var(--target);padding:var(--sp-1) 0;font-size:11px;color:var(--text-3);text-decoration:none}
+  .wd__tabs a .ico{width:22px;height:22px}
+  .wd__tabs a[aria-current=page]{color:var(--accent-text)}
+  .wd .btn{min-height:var(--target)}
+  .arts__tools .search input{font-size:var(--fs-input)}
+  .outc{grid-template-columns:1fr}
+  .card__foot{flex-direction:column;align-items:stretch}
+  .card__actions .btn{flex:1 1 0;min-width:max-content}
+  .bd__ptabs{display:flex;gap:var(--sp-1)}
+  .bd__sec--pulls,.bd__sec--runs{display:none}
+  .wpane{inset:var(--top-bar-h) 0 0 0;width:100%}
+  .wpane--task{width:100%}
+}
+
+/* ===== #766, from 900 px of window: one cap for every page, prose at the measure ===== */
+@container win (min-width:900px){
+  .wd[data-layout=new] .space__head-in{max-width:calc(var(--page-max) - 2 * var(--pad-x));margin-inline:auto}
+  .wd[data-layout=new] .space__banner,
+  .wd[data-layout=new] .space__body,
+  .wd[data-layout=new][data-page] .space__body{max-width:var(--page-max)}
+  .wd[data-layout=new] .npage{max-width:var(--page-max)}
+  .wd[data-layout=new] :is(.paused span,.qlead,.callout p,.nudge p,.card__text,.state-block p){max-width:var(--measure)}
+  .wd[data-layout=new] .arts__tools .search{flex:1 1 24rem}
+}
+
+/* ===== #766, from 880 px of body (--cq-grid-min): Artifacts as a grid of cards, 2 to 4 per row ===== */
+@container body (min-width:880px){
+  .wd[data-layout=new] .alist{display:grid;gap:var(--gap-log);border:0;border-radius:0;background:none;overflow:visible;
+    grid-template-columns:repeat(auto-fill,minmax(max(var(--artifact-card-min),calc((100% - (var(--artifact-cols-max) - 1) * var(--gap-log)) / var(--artifact-cols-max))),1fr))}
+  .wd[data-layout=new] .alist>li+li{border-top:0}
+  .wd[data-layout=new] .alist>li{display:flex;min-width:0}
+  .wd[data-layout=new] .alist__group{grid-column:1/-1;display:block!important;margin-top:var(--sp-3)}
+  .wd[data-layout=new] .alist__group:first-child{margin-top:0}
+  .wd[data-layout=new] .alist__group h3{display:flex;align-items:baseline;gap:var(--sp-2);margin:0;font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+  .wd[data-layout=new] .alist__group h3 span{font-family:var(--font-mono);font-weight:400;color:var(--text-3)}
+  .wd[data-layout=new] .acard{flex-direction:column;align-items:stretch;gap:0;padding:0;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow-1);transition:transform var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard),border-color var(--dur-fast) var(--ease-standard)}
+  .wd[data-layout=new] .acard:hover{background:var(--surface);border-color:var(--border-strong);box-shadow:var(--shadow-2);transform:translateY(var(--lift))}
+  .wd[data-layout=new] .acard:focus-visible{outline-offset:var(--focus-offset)}
+  .wd[data-layout=new] .acard>.ico,.wd[data-layout=new] .acard__chip{display:none}
+  .wd[data-layout=new] .acard .shot{width:100%;height:auto;aspect-ratio:var(--thumb-ratio);border:0;border-bottom:1px solid var(--border);border-radius:var(--r-lg) var(--r-lg) 0 0}
+  .wd[data-layout=new] .acard:is(:hover,:focus-visible) .shot__page{transform:translateY(var(--peek))}
+  .wd[data-layout=new] .shot__tile span{display:block}
+  .wd[data-layout=new] .acard__text{flex:1;align-content:start;gap:var(--sp-1);padding:var(--sp-3) var(--sp-4) var(--sp-4)}
+  .wd[data-layout=new] .acard__title{font-family:var(--font-display);font-size:var(--fs-md);line-height:var(--lh-tight);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+  .wd[data-layout=new] .acard--design .acard__title{-webkit-line-clamp:2}
+  .wd[data-layout=new] .acard__kicker{display:flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-xs);font-weight:600;color:var(--text-2);font-variant:small-caps;letter-spacing:.04em}
+  .wd[data-layout=new] .acard__kicker .ico{width:15px;height:15px;color:var(--accent-text)}
+  .wd[data-layout=new] .acard__kicker .ico:last-child{margin-left:auto;color:var(--text-3)}
+  .wd[data-layout=new] .acard:not(.acard--design) .acard__text{padding-top:var(--sp-4)}
+  .wd[data-layout=new] .acard__await{justify-self:start;margin-top:var(--sp-1);padding:2px var(--sp-2);border-radius:999px;background:var(--warning-soft)}
+  /* loading: six skeleton cards instead of three rows */
+  .wd[data-layout=new] .skel-list{display:grid;gap:var(--gap-log);border:0;background:none;
+    grid-template-columns:repeat(auto-fill,minmax(max(var(--artifact-card-min),calc((100% - (var(--artifact-cols-max) - 1) * var(--gap-log)) / var(--artifact-cols-max))),1fr))}
+  .wd[data-layout=new] .alist>li.skelc{display:grid;align-content:start;gap:var(--sp-3);padding:0 0 var(--sp-4);border:1px solid var(--border)!important;border-radius:var(--r-lg);background:var(--surface);overflow:hidden}
+  .wd[data-layout=new] .skelc .shot{width:100%;height:auto;aspect-ratio:var(--thumb-ratio);border:0;border-radius:0}
+  .wd[data-layout=new] .skelc__lines{padding:0 var(--sp-4)}
+}
+@media (prefers-reduced-motion:reduce){.wd .acard,.wd .shot__page{transition:none!important;transform:none!important}}
+:root[data-motion=reduce] .wd .acard,:root[data-motion=reduce] .wd .shot__page{transition:none!important;transform:none!important}
+
+/* ===== #766, from 1360 px of body (--cq-wide-min): the board in three columns ===== */
+@container body (min-width:1360px){
+  .wd[data-layout=new] .bd__secs{grid-template-areas:'tasks pulls runs';grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto}
+}
+
+/* ----- the #277 viewer, opened from a design card (a stand-in: the viewer itself is unchanged) ----- */
+.viewer{position:absolute;inset:0;z-index:var(--z-sheet);display:grid;place-items:center;padding:var(--sp-8)}
+.viewer__box{position:relative;width:min(100%,960px);display:grid;gap:var(--sp-3);padding:var(--sp-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-2)}
+.viewer__box h2{margin:0;padding-right:var(--target);font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);outline:none}
+.viewer__box .icon-btn{position:absolute;top:var(--sp-3);right:var(--sp-3)}
+.viewer__box .shot{width:100%;height:auto;aspect-ratio:var(--thumb-ratio)}
+.viewer__box p{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+
+/* ----- page chrome: the window label carries the width and what the body does at it ----- */
+.device__label b{font-weight:600;letter-spacing:0;text-transform:none}
+/* screenshots: headless Chrome keeps a minimum window width, so the frame starts at the left edge and is cropped there */
+:root[data-shot] .stage{justify-content:flex-start}
+:root[data-shot] .device{justify-items:start}
+/* tablet: the space header carries Find, Commands and New task, so the top bar keeps only the menu */
+@container win (min-width:520px){.wd__top>.icon-btn:not(:first-child){display:none}}
