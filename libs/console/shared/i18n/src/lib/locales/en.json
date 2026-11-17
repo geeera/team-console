@@ -62,7 +62,8 @@
     "leadNoQuestions": "No questions · projects: {{k}}",
     "attention": {
       "label": "Projects that need you",
-      "setup": "{{name}}: setup needed"
+      "setup": "{{name}}: setup needed",
+      "noConcurrency": "{{name}}: jobs don't start — the account's plan allows no jobs at a time. Queued: {{n}}. The console's operator sets this limit."
     }
   },
   "push": {
@@ -2141,7 +2142,7 @@
       "remove": "Remove {{name}} from the fallbacks",
       "offlineAfter": "Treat the preferred one as offline after, seconds",
       "offlineHint": "From {{min}} to {{max}}.",
-      "note": "A change applies from the next job a runner claims. No runner needs to be enrolled again.",
+      "note": "A change applies from the next job a runner claims. No runner needs to be enrolled again. If the project runs its jobs on GitHub Actions, placement applies only to the jobs marked “own machine only”.",
       "save": "Save placement",
       "busy": "Saving…",
       "saved": "Saved. Applies from the next job.",
@@ -2177,7 +2178,6 @@
       "notSuspect": "The runner is no longer marked. Refresh the list.",
       "enrolmentGone": "This code is already used, expired or withdrawn. Refresh the list.",
       "accessSourceHosted": "This project runs on a subscription, and a subscription never goes to GitHub Actions or a hosted runner. Switch its access source to an API key first.",
-      "placementConflict": "A project on GitHub Actions can't be pinned to a runner or fail over: GitHub's machines are not on that list. Choose “Any runner” first.",
       "repositoryUnverified": "The console couldn't confirm the project's repository on GitHub. Check that the app is installed on it."
     },
     "dispatch": {
@@ -2188,7 +2188,7 @@
       "pull": "On your runners",
       "pullHint": "A job waits in the queue until a runner allowed on the project takes it.",
       "actions": "On GitHub Actions",
-      "actionsHint": "The console starts the team-console-runner.yml workflow in the repository for every job. Jobs marked “own machine only” still wait for your runner.",
+      "actionsHint": "The console starts the team-console-runner.yml workflow in the repository for every job. Jobs marked “own machine only” still wait for your runner: the one the project's placement picks.",
       "minutes": "GitHub Actions minutes are your spend: they are billed to your GitHub account on its plan, and the model is paid with your API key from the team-console environment.",
       "branch": "Default branch on GitHub: {{ branch }}",
       "save": "Save",

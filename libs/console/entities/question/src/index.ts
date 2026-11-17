@@ -9,6 +9,7 @@ export {
 export type {
   NeedsYouView,
   QuestionBudgetStop,
+  QuestionConcurrencyStop,
   QuestionItem,
   QuestionProjectProblem,
   QuestionProjectSetup,

@@ -94,10 +94,13 @@ async function enqueue(slug: string, accountId = ACCOUNT_A, overrides: Partial<N
 const claimAs = (runnerId: string, overrides: Partial<ClaimRequest> = {}): Promise<unknown> =>
   jobs.claim({ runnerId, accountId: ACCOUNT_A, local: true, tokenHash: 'a'.repeat(64), now: T1, leaseUntil: '2026-11-10T10:10:00.000Z', ...overrides });
 
+// The entitled concurrency (#746) is account-wide and these cases share the account: the top of the override's
+// range keeps it out of the rules each case is about; the concurrency specs set their own.
 beforeAll(async () => {
+  const insert = `INSERT INTO accounts (id, slug, name, entitlements, created_at) VALUES (?1, ?2, ?3, '{"max_concurrency":32}', ?4)`;
   await env.DB.batch([
-    env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'jb-a', 'A', ?2)`).bind(ACCOUNT_A, T0),
-    env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'jb-b', 'B', ?2)`).bind(ACCOUNT_B, T0),
+    env.DB.prepare(insert).bind(ACCOUNT_A, 'jb-a', 'A', T0),
+    env.DB.prepare(insert).bind(ACCOUNT_B, 'jb-b', 'B', T0),
   ]);
 });
 
@@ -488,6 +491,16 @@ describe('TeamStateRepo.recordOutcome', () => {
 
   // #571, #596: a usage or rate limit is a quota, not a fault — but only when the runner's pause row backs the claim.
   describe('a failure on a usage or rate limit', () => {
+    // The exclusion budgets are sized from the entitled concurrency (#701, #705): these cases read the free tier's.
+    const entitlementsOfA = (json: string) =>
+      env.DB.prepare(`UPDATE accounts SET entitlements = ?2 WHERE id = ?1`).bind(ACCOUNT_A, json).run();
+    beforeAll(async () => {
+      await entitlementsOfA('{}');
+    });
+    afterAll(async () => {
+      await entitlementsOfA('{"max_concurrency":32}');
+    });
+
     const PAUSED_UNTIL = '2026-11-10T11:00:00.000Z';
     const limitOf = (runnerId: string, reason: unknown, accountId = ACCOUNT_A) => ({
       reason,

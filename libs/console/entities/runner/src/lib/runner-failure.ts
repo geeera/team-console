@@ -91,11 +91,9 @@ export function runnerFailureKeyOf(failure: RunnerFailure): string {
         return 'runners.err.allowedProjects';
       case 'runner-policy-invalid':
         return failure.field === 'runner' ? 'runners.err.policyRunner' : 'runners.err.policy';
-      // #670: the dispatch switch's refusals, and a placement that would contradict GitHub Actions.
+      // #670: the dispatch switch's refusals.
       case 'access-source-hosted':
         return 'runners.err.accessSourceHosted';
-      case 'dispatch-placement-conflict':
-        return 'runners.err.placementConflict';
       case 'dispatch-repository-unverified':
         return 'runners.err.repositoryUnverified';
       default:

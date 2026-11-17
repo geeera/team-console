@@ -309,3 +309,25 @@ describe('the budget stop (#684)', () => {
     expect(isNeedsYouDto({ ...body, projects: [{ ...body.projects[0], budgetStop }] })).toBe(false);
   });
 });
+
+describe('the concurrency stop (#746)', () => {
+  it('lists one row per project the account’s entitlement holds back, and none without', () => {
+    const body = needsYou();
+    const view = needsYouViewOf({
+      ...body,
+      projects: [{ ...body.projects[0]!, concurrencyStop: { queuedJobs: 2 } }, body.projects[1]!, body.projects[2]!],
+    });
+    expect(view.concurrencyStops).toEqual([{ project: { slug: 'team-console', name: 'Team Console' }, queuedJobs: 2 }]);
+    expect(needsYouViewOf(body).concurrencyStops).toEqual([]);
+  });
+
+  it.each([
+    ['no count', {}],
+    ['a count below one', { queuedJobs: 0 }],
+    ['a count that is not an integer', { queuedJobs: 1.5 }],
+    ['a count that is not a number', { queuedJobs: '2' }],
+  ])('refuses %s', (_name, concurrencyStop) => {
+    const body = needsYou();
+    expect(isNeedsYouDto({ ...body, projects: [{ ...body.projects[0], concurrencyStop }] })).toBe(false);
+  });
+});

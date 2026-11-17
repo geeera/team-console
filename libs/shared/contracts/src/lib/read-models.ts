@@ -229,12 +229,23 @@ export interface NeedsYouProjectDto extends NeedsYouProjectRef {
   readonly problem: NeedsYouProjectProblem | null;
   /** Present while the budget stopped the team (#684): its one "Budget used up" row. */
   readonly budgetStop?: NeedsYouBudgetStopDto;
+  /** Present while the project has queued jobs and its account is entitled to no concurrent job at all (#746). */
+  readonly concurrencyStop?: NeedsYouConcurrencyStopDto;
   /**
    * Whether this identity may make the project's owner-grade writes (#735; the same check `projectOwnerRefusal`
    * enforces at write time, read here for a hint only — the write routes refuse on their own regardless of this
    * field). Optional so a server that predates #735 is still read; absent reads as `true`, today's behaviour.
    */
   readonly canManage?: boolean;
+}
+
+/**
+ * Jobs that will not start because the account's `entitlementsOf(account).maxConcurrency` is 0 (#746, ADR 0008
+ * decision 6): the operator's override, which neither the owner nor the team can lift from the console.
+ */
+export interface NeedsYouConcurrencyStopDto {
+  /** The project's queued jobs, at least 1. */
+  readonly queuedJobs: number;
 }
 
 /** A team the month's budget stopped (`team_state.paused_by = 'system:budget'`, #684, ADR 0009 d.6). */

@@ -1,14 +1,17 @@
 import type { ProjectDispatch } from '@shared/contracts';
 import { auditedWrite, type NewAuditEvent } from '../accounts/audit.repo';
-import { effectivePolicySql, machineBoundPolicySql, subscriptionActionsSql } from '../team-config/access-source';
+import { subscriptionActionsSql } from '../team-config/access-source';
 
 /**
  * How a project's jobs reach a runner (#670, migration 0031): `pull` (a runner polls the queue) or `actions` (the
  * console starts a workflow run in the project's own repository per job). The switch is one UPDATE that judges every
  * refusal itself, so a team-config or placement write that commits in between cannot slip past a pre-read:
  * - a `subscription` project never goes to Actions (ADR 0009 d.3, #706);
- * - a `pinned`/`failover` placement never goes to Actions (#695 item 2): it names machines a VM never is;
  * - a project whose repository id was never recorded never goes to Actions (the exchange compares the run with it).
+ *
+ * A placement is no refusal (#728): it applies to the pull claim alone, so on an Actions project a `pinned`/`failover`
+ * policy picks the runner of its `needs_local` jobs (the ones that stay `pull`, #695), and its other jobs run on
+ * GitHub's machines, which no placement names.
  */
 
 export interface ProjectDispatchRecord {
@@ -19,7 +22,6 @@ export interface ProjectDispatchRecord {
 export type ProjectDispatchOutcome =
   | { readonly kind: 'saved'; readonly record: ProjectDispatchRecord }
   | { readonly kind: 'access-source-hosted' }
-  | { readonly kind: 'placement-machine-bound' }
   | { readonly kind: 'repository-unverified' };
 
 export interface ProjectDispatchWrite {
@@ -55,7 +57,6 @@ export class ProjectDispatchRepo {
             `UPDATE projects SET dispatch = ?2, default_branch = COALESCE(?3, default_branch)
              WHERE slug = ?1
                AND NOT ${subscriptionActionsSql('?1', '?2')}
-               AND NOT (?2 = 'actions' AND ${machineBoundPolicySql(effectivePolicySql('?1'))})
                AND NOT (?2 = 'actions' AND repo_id IS NULL)`,
           )
           .bind(write.slug, write.dispatch, write.defaultBranch),
@@ -71,16 +72,12 @@ export class ProjectDispatchRepo {
     // The UPDATE judged it; this read only names which refusal held.
     const row = await this.db
       .prepare(
-        `SELECT p.access_source, p.repo_id, ${machineBoundPolicySql(effectivePolicySql('?1'))} AS machine_bound
-         FROM projects p WHERE p.slug = ?1`,
+        `SELECT p.access_source FROM projects p WHERE p.slug = ?1`,
       )
       .bind(write.slug)
-      .first<{ access_source: string; repo_id: number | null; machine_bound: number }>();
+      .first<{ access_source: string }>();
     if (row?.access_source === 'subscription') {
       return { kind: 'access-source-hosted' };
-    }
-    if (row?.machine_bound === 1) {
-      return { kind: 'placement-machine-bound' };
     }
     return { kind: 'repository-unverified' };
   }

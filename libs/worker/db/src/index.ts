@@ -123,6 +123,8 @@ export type {
   ActionsExchangeOutcome,
   ActionsTargetRecord,
   ClaimRequest,
+  ConcurrencyStopRecord,
+  DispatchScope,
   DispatchTargetRecord,
   EnqueueOutcome,
   FinishSpend,

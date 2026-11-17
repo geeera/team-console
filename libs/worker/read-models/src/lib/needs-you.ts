@@ -2,6 +2,7 @@ import type {
   AnswerCommand,
   InboxDto,
   NeedsYouBudgetStopDto,
+  NeedsYouConcurrencyStopDto,
   NeedsYouDto,
   NeedsYouItemDto,
   NeedsYouProjectDto,
@@ -28,19 +29,26 @@ export type ProjectInboxResult =
  * order given (the registry's), then issue number. A project the budget stopped (#684) carries its stop, whether its
  * inbox was read or not: the stop is the console's own record, not the inbox's. `canManage` (#735) is the caller's
  * own standing on the project (`projectOwnerRefusal` at the route), read once here for every row read or not; a
- * slug missing from the map (a result that predates #735, in a test) reads as `true`, today's behaviour.
+ * slug missing from the map (a result that predates #735, in a test) reads as `true`, today's behaviour. A project
+ * whose queued jobs its account's entitlement (`maxConcurrency: 0`) keeps from starting carries its stop (#746), read
+ * or not, as the budget stop.
  */
 export function buildNeedsYou(
   results: readonly ProjectInboxResult[],
   omittedProjects: readonly NeedsYouProjectRef[],
   budgetStops: ReadonlyMap<string, NeedsYouBudgetStopDto> = new Map(),
   canManageOf: ReadonlyMap<string, boolean> = new Map(),
+  concurrencyStops: ReadonlyMap<string, NeedsYouConcurrencyStopDto> = new Map(),
 ): NeedsYouDto {
   const items: { item: NeedsYouItemDto; projectIndex: number }[] = [];
   const projects = results.map((result, projectIndex): NeedsYouProjectDto => {
     const ref = { slug: result.project.slug, name: result.project.name };
     const stop = budgetStops.get(ref.slug);
-    const budget = stop === undefined ? {} : { budgetStop: stop };
+    const concurrency = concurrencyStops.get(ref.slug);
+    const stops = {
+      ...(stop === undefined ? {} : { budgetStop: stop }),
+      ...(concurrency === undefined ? {} : { concurrencyStop: concurrency }),
+    };
     const canManage = canManageOf.get(ref.slug) ?? true;
     if ('problem' in result) {
       return {
@@ -51,7 +59,7 @@ export function buildNeedsYou(
         pausedUrl: null,
         problem: result.problem,
         canManage,
-        ...budget,
+        ...stops,
       };
     }
     for (const item of result.inbox.items) {
@@ -66,7 +74,7 @@ export function buildNeedsYou(
       pausedUrl: result.inbox.pausedUrl,
       problem: null,
       canManage,
-      ...budget,
+      ...stops,
     };
   });
   items.sort(

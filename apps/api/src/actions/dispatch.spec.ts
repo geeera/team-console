@@ -5,6 +5,7 @@ import {
   isProblemDetails,
   isProjectDispatchDto,
   problemSlugOf,
+  type ClaimResponse,
   type JobDto,
   type OidcExchangeResponse,
 } from '@shared/contracts';
@@ -23,7 +24,7 @@ import {
   type ActionsProject,
   type TestIssuer,
 } from '../testing/actions-oidc-kit';
-import { runnerJwt } from '../testing/runner-kit';
+import { cancelJobsInFlight, enrolRunner, runnerJwt, sendAsRunner, type TestRunner } from '../testing/runner-kit';
 import {
   INSTALLATION_ID,
   TOKEN_SENTINEL,
@@ -44,6 +45,8 @@ const SCRIPTED_INSTALLATION = 778;
 /** An installation linked to another account (the two-account case). */
 const FOREIGN_INSTALLATION = 779;
 const ACCOUNT_B = '01M6YSNJ00000000000000DSB2';
+
+const CLAIM = '/api/v1/runner/jobs/claim';
 
 const DISPATCHES = /^\/repos\/([^/]+)\/([^/]+)\/actions\/workflows\/team-console-runner\.yml\/dispatches$/;
 
@@ -263,18 +266,19 @@ describe('PUT /api/v1/projects/:slug/dispatch', () => {
   it.each([
     ['pinned', { mode: 'pinned', runner: '01M6YSNJ0000000000000RUNR1' }],
     ['failover', { mode: 'failover', preferred: '01M6YSNJ0000000000000RUNR1', fallback: ['01M6YSNJ0000000000000RUNR2'], offline_after_seconds: 300 }],
-  ])('refuses actions while placement is %s (#695 item 2), and admits it under any', async (_mode, policy) => {
+  ])('switches to actions under a %s placement and keeps it, for the local-only jobs (#728)', async (_mode, policy) => {
     const fixture = await seedProject();
     await env.DB.prepare(`UPDATE projects SET runner_policy = ?2 WHERE slug = ?1`).bind(fixture.slug, JSON.stringify(policy)).run();
-    const refused = await switchTo(fixture, 'actions');
-    expect(refused.status).toBe(422);
-    expect(await problemSlug(refused)).toBe('dispatch-placement-conflict');
-
-    await env.DB.prepare(`UPDATE projects SET runner_policy = '{"mode":"any"}' WHERE slug = ?1`).bind(fixture.slug).run();
-    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    const switched = await switchTo(fixture, 'actions');
+    expect(switched.status).toBe(200);
+    const row = await env.DB.prepare(`SELECT dispatch, runner_policy FROM projects WHERE slug = ?1`)
+      .bind(fixture.slug)
+      .first<{ dispatch: string; runner_policy: string }>();
+    expect(row?.dispatch).toBe('actions');
+    expect(JSON.parse(row?.runner_policy ?? 'null')).toEqual(policy);
   });
 
-  it('refuses a pinned placement for a project on actions, per project and as the account default it follows', async () => {
+  it('takes a pinned placement on a project already on actions, per project and as the account default (#728)', async () => {
     const fixture = await seedProject();
     expect((await switchTo(fixture, 'actions')).status).toBe(200);
     const accounts = new AccountsRepo(env.DB);
@@ -287,11 +291,54 @@ describe('PUT /api/v1/projects/:slug/dispatch', () => {
       target: fixture.slug,
     };
     const pinned = JSON.stringify({ mode: 'pinned', runner: '01M6YSNJ0000000000000RUNR1' });
-    expect(await accounts.setProjectRunnerPolicy(fixture.slug, pinned, audit)).toBe('placement-machine-bound');
-    expect(await accounts.setDefaultRunnerPolicy(OWNER_ACCOUNT_ID, pinned, audit)).toBe('placement-machine-bound');
-    expect(await accounts.setProjectRunnerPolicy(fixture.slug, JSON.stringify({ mode: 'any' }), audit)).toBe('ok');
-    // With its own `any` the project no longer follows the default.
+    expect(await accounts.setProjectRunnerPolicy(fixture.slug, pinned, audit)).toBe('ok');
+    expect(await accounts.setDefaultRunnerPolicy(OWNER_ACCOUNT_ID, pinned, audit)).toBe('ok');
+    expect(await accounts.setDefaultRunnerPolicy(OWNER_ACCOUNT_ID, null, audit)).toBe('ok');
     await switchTo(fixture, 'pull');
+  });
+
+  it('still refuses actions for a subscription project under a pinned placement (C12 row 6, #728)', async () => {
+    const fixture = await seedProject({ source: 'subscription' });
+    const mac = await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [fixture.slug] });
+    const pin = await call(fixture, 'PUT', `/api/v1/projects/${fixture.slug}/runner-policy`, { mode: 'pinned', runner: mac.id });
+    expect(pin.status).toBe(200);
+    const refused = await switchTo(fixture, 'actions');
+    expect(refused.status).toBe(422);
+    expect(await problemSlug(refused)).toBe('access-source-hosted');
+    const row = await env.DB.prepare(`SELECT dispatch FROM projects WHERE slug = ?1`).bind(fixture.slug).first<{ dispatch: string }>();
+    expect(row?.dispatch).toBe('pull');
+  });
+});
+
+describe('placement on an Actions project applies to its pull jobs (#728)', () => {
+  beforeEach(cancelJobsInFlight);
+
+  it('a pinned needs_local job waits for the pinned runner; an ordinary job runs on GitHub Actions', async () => {
+    const fixture = await seedProject();
+    const mac = await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [fixture.slug] });
+    const linux = await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [fixture.slug] });
+    const pin = await call(fixture, 'PUT', `/api/v1/projects/${fixture.slug}/runner-policy`, { mode: 'pinned', runner: mac.id });
+    expect(pin.status).toBe(200);
+    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+
+    const local = await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/jobs`, { kind: 'slot-dev', needsLocal: true });
+    expect(local.status).toBe(201);
+    const localJob = (await local.json()) as JobDto;
+    expect(localJob.dispatch).toBe('pull');
+    expect(dispatchCalls(fixture.stub)).toHaveLength(0);
+
+    // The other runner of the account is allowed on the project, but the pin is not its.
+    expect((await sendAsRunner(linux, 'POST', CLAIM, {})).status).toBe(204);
+    const claimed = await sendAsRunner(mac, 'POST', CLAIM, {});
+    expect(claimed.status).toBe(200);
+    expect(((await claimed.json()) as ClaimResponse).job.id).toBe(localJob.id);
+
+    const queued = await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/jobs`, { kind: 'review', role: 'qa' });
+    expect(queued.status).toBe(201);
+    const ordinary = (await queued.json()) as JobDto;
+    expect(ordinary.dispatch).toBe('actions');
+    expect(dispatchCalls(fixture.stub)).toHaveLength(1);
+    expect((await jobRow(ordinary.id))?.dispatched_at).not.toBeNull();
   });
 });
 
@@ -604,6 +651,152 @@ describe('the dispatch admission (#722, #716)', () => {
     await sweepQueue(localEnv(), new Date(Date.now() + 31 * 60_000), logger, fixture.github);
     expect((await jobRow(held.id))?.dispatched_at).not.toBeNull();
     expect(dispatchCalls(fixture.stub)).toHaveLength(1);
+  });
+});
+
+describe('the account’s entitled concurrency at dispatch (#746)', () => {
+  let issuer: TestIssuer;
+
+  const setOwnerEntitlements = (json: string) =>
+    env.DB.prepare(`UPDATE accounts SET entitlements = ?2 WHERE id = ?1`).bind(OWNER_ACCOUNT_ID, json).run();
+
+  beforeAll(async () => {
+    issuer = await createTestIssuer();
+    await setOwnerEntitlements('{"max_concurrency":1}');
+  });
+  afterAll(async () => {
+    await setOwnerEntitlements('{"max_concurrency":32}');
+  });
+  beforeEach(cancelJobsInFlight);
+
+  /** A pull project of the owner's account with a runner allowed on it alone. */
+  async function pullProject(): Promise<{ slug: string; runner: TestRunner }> {
+    const { slug } = await seedTrackerProject();
+    return { slug, runner: await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [slug] }) };
+  }
+
+  /**
+   * A review job of `slug` by `role` (review jobs share no dedupe key, so one project queues several; the presets'
+   * `max_parallel` is the bound's top, and distinct roles keep it out of these cases altogether).
+   */
+  async function enqueue(fixture: Fixture, slug: string, role = 'qa'): Promise<JobDto> {
+    const response = await call(fixture, 'POST', `/api/v1/projects/${slug}/jobs`, { kind: 'review', role });
+    expect(response.status).toBe(201);
+    return (await response.json()) as JobDto;
+  }
+
+  async function finishAs(
+    fixture: Fixture,
+    runner: Pick<TestRunner, 'id' | 'privateKey'>,
+    jobId: string,
+    audience?: string,
+  ): Promise<void> {
+    const jwt = await runnerJwt(runner, audience === undefined ? {} : { audience });
+    const finished = await fetchApi(`/api/v1/runner/jobs/${jobId}/finish`, issuer.bindings, {
+      method: 'POST',
+      github: fixture.github,
+      headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ result: 'finished', summary: 'done', metrics: {} }),
+    });
+    expect(finished.status).toBe(200);
+  }
+
+  it('a dispatched run holds the slot: the pull claim gets 204, a second Actions job waits, and its run starts when the first ends', async () => {
+    const fixture = await seedProject();
+    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    const pull = await pullProject();
+
+    const first = await enqueue(fixture, fixture.slug);
+    expect(dispatchCalls(fixture.stub)).toHaveLength(1);
+    await enqueue(fixture, pull.slug);
+    const refused = await sendAsRunner(pull.runner, 'POST', CLAIM, {});
+    expect(refused.status).toBe(204);
+    expect(refused.headers.get('Retry-After')).toBe('60');
+
+    const second = await enqueue(fixture, fixture.slug, 'security');
+    expect(await jobRow(second.id)).toMatchObject({ state: 'queued', dispatched_at: null });
+    expect(dispatchCalls(fixture.stub)).toHaveLength(1);
+
+    // The first run exchanges (its slot was its own) and finishes: the held job's run starts at that finish.
+    const project: ActionsProject = {
+      slug: fixture.slug,
+      accountId: OWNER_ACCOUNT_ID,
+      repoId: fixture.repoId,
+      repo: fixture.repo,
+      defaultBranch: fixture.world.defaultBranch,
+    };
+    const firstRun = (await jobRow(first.id))?.actions_run_id ?? undefined;
+    const exchange = await exchangeBodyOf(await actionsToken(issuer, runClaimsOf(project, firstRun)), first.id);
+    const exchanged = await postExchange(exchange.body, issuer.bindings);
+    expect(exchanged.status).toBe(200);
+    const { runner } = (await exchanged.json()) as OidcExchangeResponse;
+    expect((await sendAsRunner(pull.runner, 'POST', CLAIM, {})).status).toBe(204);
+    await finishAs(fixture, { id: runner.id, privateKey: exchange.privateKey }, first.id, runner.audience);
+    expect(dispatchCalls(fixture.stub)).toHaveLength(2);
+    expect((await jobRow(second.id))?.dispatched_at).not.toBeNull();
+    expect((await sendAsRunner(pull.runner, 'POST', CLAIM, {})).status).toBe(204);
+  });
+
+  it('a pull job’s finish frees the slot for the account’s held Actions job on another project', async () => {
+    const fixture = await seedProject();
+    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    const pull = await pullProject();
+    const pulled = await enqueue(fixture, pull.slug);
+    const claimed = await sendAsRunner(pull.runner, 'POST', CLAIM, {});
+    expect(claimed.status).toBe(200);
+
+    const held = await enqueue(fixture, fixture.slug, 'security');
+    expect(await jobRow(held.id)).toMatchObject({ state: 'queued', dispatched_at: null });
+    expect(dispatchCalls(fixture.stub)).toHaveLength(0);
+
+    await finishAs(fixture, pull.runner, pulled.id);
+    expect(dispatchCalls(fixture.stub)).toHaveLength(1);
+    expect((await jobRow(held.id))?.dispatched_at).not.toBeNull();
+  });
+
+  it('the exchange judges the limit too: a run dispatched before the operator lowered it to 0 takes nothing', async () => {
+    const fixture = await seedProject();
+    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    const job = await enqueue(fixture, fixture.slug);
+    expect(dispatchCalls(fixture.stub)).toHaveLength(1);
+    await setOwnerEntitlements('{"max_concurrency":0}');
+    try {
+      const project: ActionsProject = {
+        slug: fixture.slug,
+        accountId: OWNER_ACCOUNT_ID,
+        repoId: fixture.repoId,
+        repo: fixture.repo,
+        defaultBranch: fixture.world.defaultBranch,
+      };
+      const run = (await jobRow(job.id))?.actions_run_id ?? undefined;
+      const exchange = await exchangeBodyOf(await actionsToken(issuer, runClaimsOf(project, run)), job.id);
+      const refused = await postExchange(exchange.body, issuer.bindings);
+      expect(refused.status).toBe(409);
+      expect(await jobRow(job.id)).toMatchObject({ state: 'queued' });
+      const ephemeral = await env.DB.prepare(`SELECT COUNT(*) AS n FROM runners WHERE isolation = 'actions-ephemeral' AND allowed_projects = ?1`)
+        .bind(JSON.stringify([fixture.slug]))
+        .first<{ n: number }>();
+      expect(ephemeral?.n).toBe(0);
+    } finally {
+      await setOwnerEntitlements('{"max_concurrency":1}');
+    }
+  });
+
+  it('max_concurrency 0 starts nothing: no run, no claim', async () => {
+    await setOwnerEntitlements('{"max_concurrency":0}');
+    try {
+      const fixture = await seedProject();
+      expect((await switchTo(fixture, 'actions')).status).toBe(200);
+      const pull = await pullProject();
+      const held = await runNow(fixture);
+      await enqueue(fixture, pull.slug);
+      expect(await jobRow(held.id)).toMatchObject({ state: 'queued', dispatched_at: null });
+      expect(dispatchCalls(fixture.stub)).toHaveLength(0);
+      expect(actionsMints(fixture.stub)).toHaveLength(0);
+      expect((await sendAsRunner(pull.runner, 'POST', CLAIM, {})).status).toBe(204);
+    } finally {
+      await setOwnerEntitlements('{"max_concurrency":1}');
+    }
   });
 });
 

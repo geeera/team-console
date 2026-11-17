@@ -23,8 +23,12 @@ const ulid = (tag: string): string => {
 const repo = new TeamConfigRepo(env.DB);
 const jobs = new JobsRepo(env.DB);
 
+// The entitled concurrency (#746) is account-wide and these cases share the account: the top of the override's
+// range keeps it out of the rules each case is about; the concurrency specs set their own.
 beforeAll(async () => {
-  await env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'tc-a', 'A', ?2)`).bind(ACCOUNT, T0).run();
+  await env.DB.prepare(`INSERT INTO accounts (id, slug, name, entitlements, created_at) VALUES (?1, 'tc-a', 'A', '{"max_concurrency":32}', ?2)`)
+    .bind(ACCOUNT, T0)
+    .run();
 });
 
 async function project(policy: string | null = null): Promise<string> {

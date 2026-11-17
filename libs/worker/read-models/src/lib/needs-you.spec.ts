@@ -123,3 +123,26 @@ describe('buildNeedsYou: the budget stop (#684)', () => {
     expect(Object.hasOwn(result.projects[1] ?? {}, 'budgetStop')).toBe(false);
   });
 });
+
+describe('buildNeedsYou: the concurrency stop (#746)', () => {
+  it('carries the project’s stop beside a budget stop, read or not, and nothing on the others', () => {
+    const budget = { month: '2026-11', spentUsd: 1, budgetUsd: 1, stoppedAt: null };
+    const result = buildNeedsYou(
+      [
+        { project: { slug: 'alpha', name: 'Alpha' }, inbox: inbox([]) },
+        { project: { slug: 'beta', name: 'Beta' }, inbox: inbox([]) },
+        { project: { slug: 'gamma', name: 'Gamma' }, problem: { type: 'github-rate-limit', title: 'Rate limited', status: 429 } },
+      ],
+      [],
+      new Map([['alpha', budget]]),
+      new Map(),
+      new Map([
+        ['alpha', { queuedJobs: 2 }],
+        ['gamma', { queuedJobs: 1 }],
+      ]),
+    );
+    expect(result.projects.map((project) => project.concurrencyStop)).toEqual([{ queuedJobs: 2 }, undefined, { queuedJobs: 1 }]);
+    expect(result.projects[0]?.budgetStop).toEqual(budget);
+    expect(Object.hasOwn(result.projects[1] ?? {}, 'concurrencyStop')).toBe(false);
+  });
+});

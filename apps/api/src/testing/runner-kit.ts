@@ -315,6 +315,21 @@ export const cancelJob = (jobId: string) => () =>
   ).bind(jobId, new Date().toISOString()).run();
 
 /**
+ * Cancels every job still in flight — claimed, running, or dispatched to Actions and waiting for its run — as the
+ * owner's cancel does. For a file whose cases together hold more jobs than the account's entitled concurrency (#746)
+ * admits, run before each case: a file's cases share D1 and the count is account-wide, while each case starts from
+ * jobs of its own.
+ */
+export async function cancelJobsInFlight(): Promise<void> {
+  await env.DB.prepare(
+    `UPDATE jobs SET state = 'cancelled', finished_at = ?1, token_hash = NULL, lease_until = NULL
+     WHERE state IN ('claimed', 'running') OR (state = 'queued' AND dispatched_at IS NOT NULL)`,
+  )
+    .bind(new Date().toISOString())
+    .run();
+}
+
+/**
  * Commits `change` once the next runner or job call has passed its JWT checks and read the runner row (during the
  * sighting, the last step of authentication). The caller restores mocks after the test.
  */

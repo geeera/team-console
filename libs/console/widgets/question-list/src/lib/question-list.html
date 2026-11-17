@@ -37,6 +37,21 @@
   <li>
     <tc-budget-stop [stop]="stop" [canManage]="stop.canManage" (resolved)="reload()" />
   </li>
+  } @for (stop of concurrencyStops(); track stop.project.slug) {
+  <li>
+    <div
+      tc-banner
+      tone="danger"
+      class="questions__attention-row"
+      data-testid="concurrency-stop"
+      [attr.data-project]="stop.project.slug"
+    >
+      <tc-icon tc-banner-icon name="alert" size="sm" />
+      <span tc-banner-text>{{
+        'needsYou.attention.noConcurrency' | transloco: { name: stop.project.name, n: stop.queuedJobs }
+      }}</span>
+    </div>
+  </li>
   }
   @for (setup of setups(); track setup.project.slug) {
   <li>

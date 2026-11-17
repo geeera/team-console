@@ -15,9 +15,14 @@ import {
 } from '@shared/contracts';
 import {
   ROLE_ADMITTED_SQL,
+  accountInFlightBelowSql,
   budgetAdmittedSql,
+  entitledConcurrencyAdmittedSql,
+  entitledConcurrencyOf,
+  entitledConcurrencyParams,
   roleAdmissionParams,
   roleAdmittedSql,
+  type EntitledConcurrency,
 } from '../team-config/claim-admission';
 import { redactSecrets } from '@shared/redaction';
 import {
@@ -32,8 +37,9 @@ import { isConstraintError } from '../tracker/constraint-error';
 /**
  * The job queue (#467, ADR 0006 "Runner and job queue", ADR 0008 decisions 2 and 12, migration 0022). The claim is
  * one UPDATE whose subquery holds every admission rule — the runner's account, its allowed projects, the team pause,
- * the placement policy, `needs_local` — so two runners racing never take one job and a runner never takes another
- * account's (threat model C9, C11). D1 keeps the SHA-256 of a job token, never the token.
+ * the placement policy, `needs_local`, the account's entitled concurrency (#746) — so two runners racing never take one
+ * job, nor the account's last slot twice, and a runner never takes another account's (threat model C9, C11). D1
+ * keeps the SHA-256 of a job token, never the token.
  */
 
 export interface JobRecord {
@@ -130,6 +136,18 @@ export type ActionsExchangeOutcome =
   | { readonly kind: 'access-source' };
 
 export type EnqueueOutcome = 'ok' | 'job-exists' | 'access-source-hosted';
+
+/** A project with queued jobs whose account is entitled to no concurrency at all (#746): none of them will start. */
+export interface ConcurrencyStopRecord {
+  readonly projectSlug: string;
+  readonly queuedJobs: number;
+}
+
+/** Which undispatched Actions jobs `listDispatchable` looks at: one project's, one account's, or (empty) all. */
+export interface DispatchScope {
+  readonly projectSlug?: string | null;
+  readonly accountId?: string | null;
+}
 
 /**
  * A queued Actions job with what its `workflow_dispatch` call needs (#670). `installationId` is the project's
@@ -247,12 +265,19 @@ const UNDISPATCHED_SQL = `j.state = 'queued' AND j.dispatch = 'actions' AND j.di
 /**
  * The exchange's admission, judged before a run is started for `j` (#722, #716): a live account and project, the team
  * not paused (any pauser, `system:budget` among them), an API-key project (ADR 0009 d.3), the role on and under its
- * `max_parallel` counting the runs already dispatched, and the month's budget not used up. The exchange still judges
- * its own terms in its own write; this keeps a run that would be refused from being started at all.
+ * `max_parallel` counting the runs already dispatched, the month's budget not used up, and the account under its
+ * entitled concurrency (`concurrency`, a term of `claim-admission.ts`, #746). The exchange still judges its own terms in
+ * its own write; this keeps a run that would be refused from being started at all.
  */
-function dispatchAdmittedSql(presets: string, top: string, now: string): string {
+function dispatchAdmittedSql(presets: string, top: string, now: string, concurrency: string): string {
   return `a.suspended_at IS NULL AND p.archived_at IS NULL AND t.paused_at IS NULL AND p.access_source = 'api_key'
-    AND ${roleAdmittedSql(presets, top, { countDispatched: true })} AND ${budgetAdmittedSql(now)}`;
+    AND ${roleAdmittedSql(presets, top, { countDispatched: true })} AND ${budgetAdmittedSql(now)} AND ${concurrency}`;
+}
+
+interface AccountEntitlementsRow {
+  id: string;
+  plan: string;
+  entitlements: string;
 }
 
 function toRecord(row: JobRow): JobRecord {
@@ -490,8 +515,17 @@ export class JobsRepo {
    * Actions jobs count against `max_parallel` as well (#716). A project whose UTC month's spend reached its
    * `budget.monthly_usd` is not claimed unless the owner waived it for the month (#684): judged here too, so a budget
    * lowered below the spend stops the next claim without waiting for a `finish`.
+   *
+   * The account's entitled concurrency (#746, ADR 0008 decision 6): its claimed and running jobs, with its dispatched
+   * Actions jobs no run has exchanged yet, must stay below `entitlementsOf(account).maxConcurrency`, counted in this same
+   * statement, so of two runners racing for the account's last slot one claims and the other gets nothing. The limit is
+   * computed from the account row read just before, and the statement requires that row unchanged; `0` claims nothing.
    */
   async claim(request: ClaimRequest): Promise<JobRecord | null> {
+    const entitled = await this.entitledConcurrencyOfAccount(request.accountId);
+    if (entitled === null) {
+      return null;
+    }
     const row = await this.db
       .prepare(
         `UPDATE jobs SET state = 'claimed', runner_id = ?1, claimed_at = ?2, lease_until = ?3, token_hash = ?4,
@@ -520,6 +554,7 @@ export class JobsRepo {
                  AND (p.access_source = 'api_key' OR (me.hosted = 0 AND me.isolation <> 'actions-ephemeral')))
              AND ${ROLE_ADMITTED_SQL}
              AND ${budgetAdmittedSql('?2')}
+             AND ${entitledConcurrencyAdmittedSql('?10', '?11', '?12')}
              AND (
                ${POLICY} IS NULL
                OR json_extract(${POLICY}, '$.mode') = 'any'
@@ -549,9 +584,50 @@ export class JobsRepo {
         request.local ? 1 : 0,
         RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS,
         ...roleAdmissionParams(),
+        ...entitledConcurrencyParams(entitled),
       )
       .first<JobRow>();
     return row === null ? null : toRecord(row);
+  }
+
+  /**
+   * Of `slugs`, the projects with queued jobs whose account `entitlementsOf` gives `maxConcurrency: 0` (#746): the
+   * claim and the dispatch admit none of their jobs, so "Needs you" says why. One read, whatever the number of slugs.
+   */
+  async concurrencyStopsOf(slugs: readonly string[]): Promise<ConcurrencyStopRecord[]> {
+    if (slugs.length === 0) {
+      return [];
+    }
+    const { results } = await this.db
+      .prepare(
+        `SELECT p.slug, a.id, a.plan, a.entitlements,
+           (SELECT COUNT(*) FROM jobs q WHERE q.project_slug = p.slug AND q.state = 'queued') AS queued
+         FROM projects p JOIN accounts a ON a.id = p.account_id
+         WHERE p.slug IN (SELECT value FROM json_each(?1))`,
+      )
+      .bind(JSON.stringify(slugs))
+      .all<AccountEntitlementsRow & { slug: string; queued: number }>();
+    return results
+      .filter((row) => row.queued > 0 && entitledConcurrencyOf(row).limit === 0)
+      .map((row) => ({ projectSlug: row.slug, queuedJobs: row.queued }));
+  }
+
+  /** The account's entitled concurrency as its row reads now; `null` when there is no such account. */
+  private async entitledConcurrencyOfAccount(accountId: string): Promise<EntitledConcurrency | null> {
+    const row = await this.db
+      .prepare(`SELECT id, plan, entitlements FROM accounts WHERE id = ?1`)
+      .bind(accountId)
+      .first<AccountEntitlementsRow>();
+    return row === null ? null : entitledConcurrencyOf(row);
+  }
+
+  /** The entitled concurrency of the job's account; `null` when the job does not exist. */
+  private async entitledConcurrencyOfJob(jobId: string): Promise<EntitledConcurrency | null> {
+    const row = await this.db
+      .prepare(`SELECT a.id, a.plan, a.entitlements FROM jobs j JOIN accounts a ON a.id = j.account_id WHERE j.id = ?1`)
+      .bind(jobId)
+      .first<AccountEntitlementsRow>();
+    return row === null ? null : entitledConcurrencyOf(row);
   }
 
   /** A job with the project fields its Actions run is verified against; `null` when the job does not exist. */
@@ -600,6 +676,10 @@ export class JobsRepo {
    * through another account's installation (ADR 0008 decision 2, the two-account rule).
    */
   async findDispatchTarget(jobId: string, now: string): Promise<DispatchTargetRecord | null> {
+    const entitled = await this.entitledConcurrencyOfJob(jobId);
+    if (entitled === null) {
+      return null;
+    }
     const row = await this.db
       .prepare(
         `SELECT ${PREFIXED_COLUMNS}, p.repo AS project_repo, p.repo_id AS project_repo_id,
@@ -607,11 +687,11 @@ export class JobsRepo {
            (SELECT CAST(i.installation_id AS INTEGER) FROM installations i
             WHERE i.provider = p.provider AND i.installation_id = CAST(p.installation_id AS TEXT)
               AND i.account_id = p.account_id AND i.unlinked_at IS NULL AND i.suspended_at IS NULL) AS linked_installation_id,
-           (${dispatchAdmittedSql('?2', '?3', '?4')}) AS admitted
+           (${dispatchAdmittedSql('?2', '?3', '?4', entitledConcurrencyAdmittedSql('?5', '?6', '?7'))}) AS admitted
          ${ADMISSION_FROM}
          WHERE j.id = ?1 AND j.state = 'queued' AND j.dispatch = 'actions' AND j.dispatched_at IS NULL`,
       )
-      .bind(jobId, ...roleAdmissionParams(), now)
+      .bind(jobId, ...roleAdmissionParams(), now, ...entitledConcurrencyParams(entitled))
       .first<
         JobRow & {
           project_repo: string;
@@ -635,18 +715,35 @@ export class JobsRepo {
 
   /**
    * The queued Actions jobs not dispatched yet that the exchange would admit now (#716): highest priority, then oldest,
-   * at most `limit`, of one project or of all. Two jobs of a role one short of its `max_parallel` both read as
-   * admitted here; `markDispatched` lets only the first through.
+   * at most `limit`, of one project, of one account or of all. Two jobs of a role one short of its `max_parallel`, or of
+   * an account one short of its entitled concurrency (#746), both read as admitted here; `markDispatched` lets only the
+   * first through. The entitlements are read first, one row per account with a waiting job, and bound as a map.
    */
-  async listDispatchable(now: string, limit: number, projectSlug: string | null = null): Promise<string[]> {
+  async listDispatchable(now: string, limit: number, scope: DispatchScope = {}): Promise<string[]> {
+    const projectSlug = scope.projectSlug ?? null;
+    const accountId = scope.accountId ?? null;
+    const { results: accounts } = await this.db
+      .prepare(
+        `SELECT DISTINCT a.id, a.plan, a.entitlements FROM jobs j JOIN accounts a ON a.id = j.account_id
+         WHERE ${UNDISPATCHED_SQL} AND (?1 IS NULL OR j.project_slug = ?1) AND (?2 IS NULL OR j.account_id = ?2)`,
+      )
+      .bind(projectSlug, accountId)
+      .all<AccountEntitlementsRow>();
+    if (accounts.length === 0) {
+      return [];
+    }
+    const limits = JSON.stringify(Object.fromEntries(accounts.map((row) => [row.id, entitledConcurrencyOf(row).limit])));
+    // An account missing from the map (its first job queued after the read) reads as 0: the next sweep takes it.
+    const entitledLimit = `COALESCE((SELECT el.value FROM json_each(?7) el WHERE el.key = j.account_id), 0)`;
     const { results } = await this.db
       .prepare(
         `SELECT j.id ${ADMISSION_FROM}
-         WHERE ${UNDISPATCHED_SQL} AND (?4 IS NULL OR j.project_slug = ?4) AND ${dispatchAdmittedSql('?1', '?2', '?3')}
+         WHERE ${UNDISPATCHED_SQL} AND (?4 IS NULL OR j.project_slug = ?4) AND (?6 IS NULL OR j.account_id = ?6)
+           AND ${dispatchAdmittedSql('?1', '?2', '?3', accountInFlightBelowSql(entitledLimit))}
          ORDER BY j.priority DESC, j.created_at ASC, j.id ASC
          LIMIT ?5`,
       )
-      .bind(...roleAdmissionParams(), now, projectSlug, limit)
+      .bind(...roleAdmissionParams(), now, projectSlug, limit, accountId, limits)
       .all<{ id: string }>();
     return results.map((row) => row.id);
   }
@@ -654,17 +751,23 @@ export class JobsRepo {
   /**
    * The dispatch's compare-and-set (#670), recorded before the `workflow_dispatch` call: `false` when the job is no
    * longer waiting for one, or when the exchange would not admit it now (#722): the team paused, the role off or at
-   * its `max_parallel` counting the runs already dispatched (#716), the budget used up. Judged by this one statement,
-   * so of two jobs racing for a role's last slot one is dispatched and the other stays queued for a later dispatch.
+   * its `max_parallel` counting the runs already dispatched (#716), the budget used up, the account at its entitled
+   * concurrency (#746). Judged by this one statement, so of two jobs racing for a role's or an account's last slot one
+   * is dispatched and the other stays queued for a later dispatch.
    */
   async markDispatched(jobId: string, at: string): Promise<boolean> {
+    const entitled = await this.entitledConcurrencyOfJob(jobId);
+    if (entitled === null) {
+      return false;
+    }
     const { meta } = await this.db
       .prepare(
         `UPDATE jobs SET dispatched_at = ?2
          WHERE id = (SELECT j.id ${ADMISSION_FROM}
-                     WHERE j.id = ?1 AND ${UNDISPATCHED_SQL} AND ${dispatchAdmittedSql('?3', '?4', '?2')})`,
+                     WHERE j.id = ?1 AND ${UNDISPATCHED_SQL}
+                       AND ${dispatchAdmittedSql('?3', '?4', '?2', entitledConcurrencyAdmittedSql('?5', '?6', '?7'))})`,
       )
-      .bind(jobId, at, ...roleAdmissionParams())
+      .bind(jobId, at, ...roleAdmissionParams(), ...entitledConcurrencyParams(entitled))
       .run();
     return meta.changes === 1;
   }
@@ -760,13 +863,26 @@ export class JobsRepo {
     // started by hand for a job already dispatched cannot either. Actions jobs are never requeued, so `claimed_at`
     // still NULL means no run has exchanged for it. #706: the role admission of the pull claim, in this same
     // statement, so two exchanges racing for two jobs of one role never both pass `max_parallel`. #684: the budget.
-    const claimable = (presets: string, top: string, now: string, runId: string): string => `j.id = ?1
+    // #746: the account's entitled concurrency, `j` left out of the count it was dispatched into.
+    const entitled = await this.entitledConcurrencyOfJob(exchange.jobId);
+    if (entitled === null) {
+      return { kind: 'not-claimable' };
+    }
+    const [limit, plan, entitlements] = entitledConcurrencyParams(entitled);
+    const claimable = (
+      presets: string,
+      top: string,
+      now: string,
+      runId: string,
+      concurrency: readonly [string, string, string],
+    ): string => `j.id = ?1
       AND j.state = 'queued' AND j.dispatch = 'actions' AND j.runner_id IS NULL AND j.claimed_at IS NULL
       AND j.actions_run_id = ${runId} AND j.needs_local = 0 AND j.dispatched_at IS NOT NULL
       AND a.suspended_at IS NULL AND p.archived_at IS NULL AND t.paused_at IS NULL
       AND p.access_source = 'api_key'
       AND ${roleAdmittedSql(presets, top)}
-      AND ${budgetAdmittedSql(now)}`;
+      AND ${budgetAdmittedSql(now)}
+      AND ${entitledConcurrencyAdmittedSql(...concurrency)}`;
     const [presets, top] = roleAdmissionParams();
     const held: AuditCondition = {
       exists: `SELECT 1 FROM jobs WHERE jobs.id = ? AND jobs.runner_id = ? AND jobs.state = 'claimed'`,
@@ -783,7 +899,7 @@ export class JobsRepo {
                  version, enrolled_at, last_seen_at, last_seen_country, last_seen_ip_hash, seen_countries)
                SELECT ?2, j.account_id, ?3, ?4, ?5, '{"local":false,"maxConcurrency":1}', 'actions-ephemeral',
                  json_array(j.project_slug), ?6, ?7, ?7, ?8, ?9, CASE WHEN ?8 IS NULL THEN '[]' ELSE json_array(?8) END
-               ${from} WHERE ${claimable('?10', '?11', '?7', '?12')}`,
+               ${from} WHERE ${claimable('?10', '?11', '?7', '?12', ['?13', '?14', '?15'])}`,
             )
             .bind(
               exchange.jobId,
@@ -798,6 +914,9 @@ export class JobsRepo {
               presets,
               top,
               exchange.runId,
+              limit,
+              plan,
+              entitlements,
             ),
           exchange.enrolledAudit,
         ),
@@ -808,7 +927,7 @@ export class JobsRepo {
               `UPDATE jobs SET state = 'claimed', runner_id = ?2, claimed_at = ?3, lease_until = ?4, token_hash = ?5,
                  actions_run_id = ?6, attempt = attempt + 1,
                  team_config_revision = (SELECT revision FROM team_configs WHERE project_slug = jobs.project_slug)
-               WHERE id = (SELECT j.id ${from} WHERE ${claimable('?7', '?8', '?3', '?6')})
+               WHERE id = (SELECT j.id ${from} WHERE ${claimable('?7', '?8', '?3', '?6', ['?9', '?10', '?11'])})
                  AND EXISTS (
                    SELECT 1 FROM runners r WHERE r.id = ?2 AND r.account_id = jobs.account_id AND r.revoked_at IS NULL)`,
             )
@@ -821,6 +940,9 @@ export class JobsRepo {
               exchange.runId,
               presets,
               top,
+              limit,
+              plan,
+              entitlements,
             ),
           exchange.claimedAudit,
         ),

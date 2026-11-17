@@ -3,6 +3,7 @@ import type {
   InboxItemDto,
   OwnerCategory,
   NeedsYouBudgetStopDto,
+  NeedsYouConcurrencyStopDto,
   NeedsYouDto,
   NeedsYouItemDto,
   NeedsYouProjectDto,
@@ -75,6 +76,11 @@ export interface QuestionBudgetStop extends NeedsYouBudgetStopDto {
   readonly canManage: boolean;
 }
 
+/** A project whose queued jobs its account's entitlement keeps from starting (#746, `max_concurrency: 0`). */
+export interface QuestionConcurrencyStop extends NeedsYouConcurrencyStopDto {
+  readonly project: NeedsYouProjectRef;
+}
+
 export interface NeedsYouView {
   readonly items: readonly QuestionItem[];
   /** Slugs whose inbox was read in this response; answers for other projects are left alone. */
@@ -82,6 +88,7 @@ export interface NeedsYouView {
   readonly problems: readonly QuestionProjectProblem[];
   readonly setups: readonly QuestionProjectSetup[];
   readonly budgetStops: readonly QuestionBudgetStop[];
+  readonly concurrencyStops: readonly QuestionConcurrencyStop[];
   readonly omitted: readonly NeedsYouProjectRef[];
 }
 
@@ -188,13 +195,19 @@ function isBudgetStop(value: unknown): value is NeedsYouBudgetStopDto {
   );
 }
 
+function isConcurrencyStop(value: unknown): value is NeedsYouConcurrencyStopDto {
+  return isRecord(value) && Number.isSafeInteger(value['queuedJobs']) && (value['queuedJobs'] as number) >= 1;
+}
+
 function isNeedsYouProject(value: unknown): value is NeedsYouProjectDto {
   return (
     isProjectRef(value) &&
     isRecord(value) &&
     (value['problem'] === null || isProjectProblem(value['problem'])) &&
     // Absent from a server that predates #684, and from every project the budget has not stopped.
-    (value['budgetStop'] === undefined || isBudgetStop(value['budgetStop']))
+    (value['budgetStop'] === undefined || isBudgetStop(value['budgetStop'])) &&
+    // Absent from a server that predates #746, and from every project whose account may run a job.
+    (value['concurrencyStop'] === undefined || isConcurrencyStop(value['concurrencyStop']))
   );
 }
 
@@ -297,6 +310,11 @@ export function needsYouViewOf(dto: NeedsYouDto): NeedsYouView {
               canManage: project.canManage !== false,
             },
           ],
+    ),
+    concurrencyStops: dto.projects.flatMap((project) =>
+      project.concurrencyStop === undefined
+        ? []
+        : [{ project: { slug: project.slug, name: project.name }, queuedJobs: project.concurrencyStop.queuedJobs }],
     ),
     omitted: dto.omittedProjects,
   };

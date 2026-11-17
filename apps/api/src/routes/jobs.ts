@@ -16,7 +16,7 @@ import { AccountsRepo, JobsRepo, RunnersRepo, effectivePolicyOf, type JobRecord,
 import { dispatchActionsJob } from '../actions/dispatch';
 import { isJobRole } from '../auth/job-roles';
 import type { ApiGitHub } from '../github';
-import { actionsOnSubscription, placementConflict } from './dispatch-problems';
+import { actionsOnSubscription } from './dispatch-problems';
 import { auditActorOf } from '../auth/scope';
 import { trackerAccess, trackerProjectOfContext } from '../auth/tracker-access.middleware';
 import type { ApiEnv } from '../env';
@@ -250,9 +250,6 @@ export function createJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> 
       );
       if (written === 'access-source-hosted') {
         return accessSourceHosted(c);
-      }
-      if (written === 'placement-machine-bound') {
-        return placementConflict(c, 'policy');
       }
       const account = await new AccountsRepo(c.env.DB).findById(row.account_id);
       const dto: RunnerPolicyDto = {

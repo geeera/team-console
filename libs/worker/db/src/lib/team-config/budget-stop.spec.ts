@@ -29,8 +29,10 @@ const jobs = new JobsRepo(env.DB);
 const teamState = new TeamStateRepo(env.DB);
 const spend = new ProjectSpendRepo(env.DB);
 
+// The entitled concurrency (#746) is account-wide and these cases share the account: the top of the override's
+// range keeps it out of the rules each case is about; the concurrency specs set their own.
 beforeAll(async () => {
-  await env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'bs-a', 'A', ?2)`)
+  await env.DB.prepare(`INSERT INTO accounts (id, slug, name, entitlements, created_at) VALUES (?1, 'bs-a', 'A', '{"max_concurrency":32}', ?2)`)
     .bind(ACCOUNT, T0)
     .run();
 });
@@ -506,18 +508,18 @@ describe('the Actions dispatch admission (#722, #716)', () => {
     const slug = await actionsProject({ roles: { dev: { max_parallel: 1 } } });
     const first = await enqueue(slug, 'dev', 1);
     const second = await enqueue(slug, 'dev', 0);
-    expect(await jobs.listDispatchable(T1, 10, slug)).toEqual([first, second]);
+    expect(await jobs.listDispatchable(T1, 10, { projectSlug: slug })).toEqual([first, second]);
     expect(await jobs.markDispatched(first, T1)).toBe(true);
     // The first's run is on its way: it holds the slot before any exchange.
     expect((await jobs.findDispatchTarget(second, T1))?.admitted).toBe(false);
     expect(await jobs.markDispatched(second, T1)).toBe(false);
-    expect(await jobs.listDispatchable(T1, 10, slug)).toEqual([]);
+    expect(await jobs.listDispatchable(T1, 10, { projectSlug: slug })).toEqual([]);
     // The no-show clock runs from the dispatch: the dispatched job ends, the waiting one never does.
     expect(await jobs.failActionsNoShows('2026-11-16T11:00:00.000Z', 15, 'actions-no-show')).toEqual([first]);
     expect((await jobs.findById(second))?.state).toBe('queued');
 
     // The first job's end freed the slot.
-    expect(await jobs.listDispatchable(T2, 10, slug)).toEqual([second]);
+    expect(await jobs.listDispatchable(T2, 10, { projectSlug: slug })).toEqual([second]);
     expect(await jobs.markDispatched(second, T2)).toBe(true);
   });
 
@@ -541,7 +543,7 @@ describe('the Actions dispatch admission (#722, #716)', () => {
     const off = await actionsProject({ roles: { analyst: { enabled: false } } });
     const analyst = await enqueue(off, 'analyst');
     expect(await jobs.markDispatched(analyst, T1)).toBe(false);
-    expect(await jobs.listDispatchable(T1, 10, off)).toEqual([]);
+    expect(await jobs.listDispatchable(T1, 10, { projectSlug: off })).toEqual([]);
 
     const broke = await actionsProject({ budget: { monthly_usd: 1 } });
     await env.DB.prepare(

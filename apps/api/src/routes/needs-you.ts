@@ -1,7 +1,12 @@
 import { Hono } from 'hono';
-import { NEEDS_YOU_MAX_PROJECTS, type NeedsYouBudgetStopDto, type NeedsYouProjectRef } from '@shared/contracts';
+import {
+  NEEDS_YOU_MAX_PROJECTS,
+  type NeedsYouBudgetStopDto,
+  type NeedsYouConcurrencyStopDto,
+  type NeedsYouProjectRef,
+} from '@shared/contracts';
 import type { WorkerHonoEnv } from '@worker/core';
-import { TeamStateRepo } from '@worker/db';
+import { JobsRepo, TeamStateRepo } from '@worker/db';
 import { GitHubError, InvalidRepoNameError, parseRepoName } from '@worker/github';
 import { buildNeedsYou, type ProjectInboxResult } from '@worker/read-models';
 import type { ApiEnv } from '../env';
@@ -20,8 +25,8 @@ type ProjectInbox = Omit<Extract<ProjectInboxResult, { readonly inbox: unknown }
  *
  * Subrequest budget (Workers free plan: 50 per request). The first NEEDS_YOU_MAX_PROJECTS (6) GitHub-backed active
  * projects are read, each at most 6 subrequests on a cold isolate (installation lookup, token mint, ≤ 3 pages of
- * open issues, project.yml; see `ProjectReads`) → ≤ 36, plus 3 D1 queries (the registry, its tracker columns, the
- * budget stops) and the Access key set → ≤ 40. Later GitHub-backed projects are listed in `omittedProjects`, not read. Within the read
+ * open issues, project.yml; see `ProjectReads`) → ≤ 36, plus 4 D1 queries (the registry, its tracker columns, the
+ * budget stops, the concurrency stops) and the Access key set → ≤ 41. Later GitHub-backed projects are listed in `omittedProjects`, not read. Within the read
  * cache's TTL a project costs nothing. A console-tracker project (#434) is one D1 query and no subrequest, so every
  * one is read and none counts against the cap.
  *
@@ -31,7 +36,8 @@ type ProjectInbox = Omit<Extract<ProjectInboxResult, { readonly inbox: unknown }
  *
  * A project whose team the budget stopped (#684) carries `budgetStop`, its one "Budget used up" row. Every project
  * also carries `canManage` (#735): the caller's own standing on it, the same check `projectOwnerRefusal` makes at
- * write time, read once here as a hint for the UI.
+ * write time, read once here as a hint for the UI. A project whose queued jobs cannot start because its account is
+ * entitled to no concurrent job (#746, `max_concurrency: 0`) carries `concurrencyStop`, which says so.
  */
 export function createNeedsYouRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>().get('/', async (c) => {
@@ -111,8 +117,15 @@ export function createNeedsYouRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiE
         stoppedAt: stop.stoppedAt,
       });
     }
+    // #746: one D1 query as well; the claim and the dispatch refuse these jobs on their own.
+    const concurrencyStops = new Map<string, NeedsYouConcurrencyStopDto>(
+      (await new JobsRepo(c.env.DB).concurrencyStopsOf(read.map((row) => row.slug))).map((stop) => [
+        stop.projectSlug,
+        { queuedJobs: stop.queuedJobs },
+      ]),
+    );
     // #735: a hint only, read once per project here; the write routes refuse on their own regardless of it.
     const canManage = new Map(read.map((row) => [row.slug, canManageProject(c, row)]));
-    return c.json(buildNeedsYou(results, omitted, budgetStops, canManage));
+    return c.json(buildNeedsYou(results, omitted, budgetStops, canManage, concurrencyStops));
   });
 }

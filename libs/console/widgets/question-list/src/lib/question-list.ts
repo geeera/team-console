@@ -27,6 +27,7 @@ import {
   githubIssueUrlOf,
   QuestionBudgetStop,
   QuestionCard,
+  QuestionConcurrencyStop,
   QuestionItem,
   QuestionProjectProblem,
   QuestionProjectSetup,
@@ -150,6 +151,8 @@ export class QuestionList {
   protected readonly setups = signal<readonly QuestionProjectSetup[]>([]);
   /** Teams the month's budget stopped (#684): one row each, with Resume this month and Raise budget. */
   protected readonly budgetStops = signal<readonly QuestionBudgetStop[]>([]);
+  /** Projects whose queued jobs the account's entitlement keeps from starting (#746): one plain row each. */
+  protected readonly concurrencyStops = signal<readonly QuestionConcurrencyStop[]>([]);
   protected readonly omitted = signal<readonly NeedsYouProjectRef[]>([]);
   private readonly stamping = signal<ReadonlySet<string>>(new Set());
   protected readonly announcement = signal('');
@@ -204,7 +207,8 @@ export class QuestionList {
   );
   /** Projects that need the owner outside a card: a setup to finish, or an inbox that could not be read (#205). */
   protected readonly attentionCount = computed(
-    () => this.setups().length + this.problems().length + this.budgetStops().length,
+    () =>
+      this.setups().length + this.problems().length + this.budgetStops().length + this.concurrencyStops().length,
   );
   /** The lead's project count: projects with a waiting card and projects with a row above the cards alike. */
   protected readonly projectCount = computed(
@@ -214,6 +218,7 @@ export class QuestionList {
         ...this.setups().map((setup) => setup.project.slug),
         ...this.problems().map((problem) => problem.project.slug),
         ...this.budgetStops().map((stop) => stop.project.slug),
+        ...this.concurrencyStops().map((stop) => stop.project.slug),
       ]).size,
   );
   protected readonly omittedNames = computed(() =>
@@ -402,6 +407,7 @@ export class QuestionList {
         this.problems.set(view.problems);
         this.setups.set(view.setups);
         this.budgetStops.set(view.budgetStops);
+        this.concurrencyStops.set(view.concurrencyStops);
         this.omitted.set(view.omitted);
         this.answeredItems.reconcile(view.readSlugs, this.refsOf(view.items));
       } else {
@@ -413,6 +419,7 @@ export class QuestionList {
         this.problems.set([]);
         this.setups.set([]);
         this.budgetStops.set([]);
+        this.concurrencyStops.set([]);
         this.omitted.set([]);
         this.answeredItems.reconcile([project.slug], this.refsOf(items));
       }

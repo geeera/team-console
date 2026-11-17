@@ -29,6 +29,7 @@ import {
 import { fetchApi } from '../testing/access-kit';
 import { localEnv } from '../testing/github-kit';
 import {
+  cancelJobsInFlight,
   createEnrolmentCode,
   enrolBodyOf,
   enrolRunner,
@@ -58,6 +59,9 @@ let issuer: TestIssuer;
 beforeAll(async () => {
   issuer = await createTestIssuer();
 });
+
+// More exchanges than the owner's entitled concurrency admits at once (#746) pile up across these cases.
+beforeEach(cancelJobsInFlight);
 
 interface Refusal {
   readonly status: number;

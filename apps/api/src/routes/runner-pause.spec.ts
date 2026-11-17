@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { OWNER_ACCOUNT_ID, type ClaimResponse, type RunnerListDto } from '@shared/contracts';
-import { enqueueJob, enrolRunner, sendAsRunner, type TestRunner } from '../testing/runner-kit';
+import { cancelJobsInFlight, enqueueJob, enrolRunner, sendAsRunner, type TestRunner } from '../testing/runner-kit';
 import { seedAccountProject, seedSessionUser, sendAsSession, type SessionUser } from '../testing/session-kit';
 import { seedTrackerProject, send, slugOf } from '../testing/tracker-kit';
 import { RUNNER_EXCLUSION_BUDGET } from '@worker/db';
@@ -38,6 +38,13 @@ async function listed(accountId: string, runnerId: string, as?: SessionUser): Pr
   expect(response.status).toBe(200);
   return ((await response.json()) as RunnerListDto).runners.find((runner) => runner.id === runnerId);
 }
+
+// The exclusion budgets are sized from the entitled concurrency (#701, #705): these cases read the owner's own plan
+// (team, 3), not the test setup's raised override, and start each with no job in flight (#746).
+beforeAll(async () => {
+  await env.DB.prepare(`UPDATE accounts SET entitlements = '{}' WHERE id = ?1`).bind(OWNER_ACCOUNT_ID).run();
+});
+beforeEach(cancelJobsInFlight);
 
 describe('POST /api/v1/runner/pause and /resume', () => {
   it('pauses the runner: the claim skips it, Settings › Runners shows reason and until, resume lifts it', async () => {

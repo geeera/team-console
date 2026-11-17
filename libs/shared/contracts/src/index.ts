@@ -332,6 +332,7 @@ export type {
   InboxDto,
   InboxItemDto,
   NeedsYouBudgetStopDto,
+  NeedsYouConcurrencyStopDto,
   NeedsYouDto,
   NeedsYouItemDto,
   NeedsYouProjectDto,

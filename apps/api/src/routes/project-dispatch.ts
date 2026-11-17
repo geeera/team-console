@@ -8,7 +8,7 @@ import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
 import { repoOf } from '../projects/lookup';
-import { actionsOnSubscription, placementConflict } from './dispatch-problems';
+import { actionsOnSubscription } from './dispatch-problems';
 import { SMALL_WRITE_MAX_BYTES, writeLimit } from '../tracker/http';
 import { jobAuditOf } from './jobs';
 
@@ -25,8 +25,9 @@ function refused(c: Context, type: string, detail: string): Response {
  * `GET|PUT /api/v1/projects/:slug/dispatch` (#670): how the project's jobs reach a runner — `pull` or `actions`.
  * The owner switches it; the account reads it. Switching to `actions` reads the repository from GitHub first and
  * takes `default_branch` from that answer (#695 item 4), after checking GitHub's `id` is the registered `repo_id`;
- * the write then refuses, inside its own UPDATE, a `subscription` project (#706) and a `pinned`/`failover` placement
- * (#695 item 2). Audited as `project.dispatch-changed`. Jobs keep the dispatch they were enqueued with.
+ * the write then refuses, inside its own UPDATE, a `subscription` project (#706). A `pinned`/`failover` placement
+ * stays as it is (#728): it applies to the project's pull jobs, which on an Actions project are its `needs_local` jobs
+ * alone. Audited as `project.dispatch-changed`. Jobs keep the dispatch they were enqueued with.
  */
 export function createProjectDispatchRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>()
@@ -84,8 +85,6 @@ export function createProjectDispatchRoutes(github: ApiGitHub): Hono<WorkerHonoE
       switch (outcome.kind) {
         case 'access-source-hosted':
           return actionsOnSubscription(c);
-        case 'placement-machine-bound':
-          return placementConflict(c, 'dispatch');
         case 'repository-unverified':
           return refused(c, 'dispatch-repository-unverified', 'The repository id of this project was never recorded');
         case 'saved': {

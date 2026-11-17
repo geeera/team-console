@@ -1,6 +1,6 @@
 import { ACTIONS_DISPATCH_FAILED, type ActionsDispatchFailure } from '@shared/contracts';
 import type { Logger } from '@worker/core';
-import { JobsRepo, ProjectDispatchRepo, type JobRecord } from '@worker/db';
+import { JobsRepo, ProjectDispatchRepo, type DispatchScope, type JobRecord } from '@worker/db';
 import {
   GitHubClient,
   GitHubError,
@@ -39,9 +39,10 @@ export type DispatchOutcome =
   | { readonly kind: 'dispatched'; readonly job: JobRecord | null }
   | { readonly kind: 'failed'; readonly failure: ActionsDispatchFailure; readonly job: JobRecord | null }
   /**
-   * The exchange would refuse the job now (#722): the team paused, the role off or at its `max_parallel`, the budget
-   * used up, the project archived or the account suspended. It stays queued, undispatched, and a later finish of the
-   * project or the Cron sweep dispatches it once it is admitted (#716). No run is started for it meanwhile.
+   * The exchange would refuse the job now (#722): the team paused, the role off or at its `max_parallel`, the account at
+   * its entitled concurrency (#746), the budget used up, the project archived or the account suspended. It stays
+   * queued, undispatched, and a later finish of the account's jobs or the Cron sweep dispatches it once it is admitted
+   * (#716). No run is started for it meanwhile.
    */
   | { readonly kind: 'deferred'; readonly job: JobRecord }
   /** Not a queued, undispatched Actions job (a pull job, or one another request already dispatched or ended). */
@@ -161,16 +162,16 @@ export async function dispatchActionsJob(deps: DispatchDeps, jobId: string): Pro
 }
 
 /**
- * The queued Actions jobs a slot or a lifted stop has freed (#716): every undispatched job the exchange would admit
- * now, of `projectSlug` or of every project, highest priority first, at most `limit` (each costs GitHub subrequests).
- * One job's failure is logged and the next is tried; a job the write no longer admits stays queued. Returns how many
- * runs were started.
+ * The queued Actions jobs a slot or a lifted stop has freed (#716, #746): every undispatched job the exchange would
+ * admit now, of the scope's project, of its account or of every project, highest priority first, at most `limit` (each
+ * costs GitHub subrequests). One job's failure is logged and the next is tried; a job the write no longer admits stays
+ * queued. Returns how many runs were started.
  */
 export async function dispatchAdmittedActionsJobs(
   deps: DispatchDeps,
-  options: { readonly projectSlug: string | null; readonly limit: number },
+  options: DispatchScope & { readonly limit: number },
 ): Promise<number> {
-  const ids = await new JobsRepo(deps.env.DB).listDispatchable(nowOf(deps), options.limit, options.projectSlug);
+  const ids = await new JobsRepo(deps.env.DB).listDispatchable(nowOf(deps), options.limit, options);
   let dispatched = 0;
   for (const id of ids) {
     try {
