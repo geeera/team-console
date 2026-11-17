@@ -86,10 +86,15 @@ describe('launchPlanOf', () => {
       });
     });
 
-    it('prompt caching off sets the settings, batch_api is never applied', () => {
+    it('prompt caching off sets the settings, batch_api on under api_key reports unsupported', () => {
       const plan = launchPlanOf('pm', viewOf('api_key', { prompt_caching: false, batch_api: true }));
       expect(plan.settings.promptCaching).toBe(false);
-      expect(plan.cost).toMatchObject({ prompt_caching: 'off', batch_api: 'not-applied' });
+      expect(plan.cost).toMatchObject({ prompt_caching: 'off', batch_api: 'unsupported' });
+    });
+
+    it('batch_api off under api_key stays off, not unsupported', () => {
+      const plan = launchPlanOf('pm', viewOf('api_key', { batch_api: false }));
+      expect(plan.cost).toMatchObject({ batch_api: 'off' });
     });
 
     it('a subscription project ignores every lever: full clone, caching untouched', () => {
