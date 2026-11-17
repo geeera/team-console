@@ -189,8 +189,9 @@ export class TeamConfigRepo {
    * exists): a budget raised above the month's spend, or removed, lifts a `system:budget` pause ("Raise budget"); one
    * lowered to the spend or below pauses the team at once with the same Needs-you row a `finish` would raise, so the
    * owner sees why nothing starts. Only a `system:budget` pause is ever lifted or set here: an owner's or the failure
-   * streak's pause stays as it is. A budget saved above the spend of a month the owner waived ("Resume this month")
-   * ends the waiver (#734), so the new budget caps the rest of that month.
+   * streak's pause stays as it is. A save that changes `budget.monthly_usd` ends the waiver of a month the owner waived
+   * ("Resume this month", #734, #737), whether it raises or lowers the budget, so the terms below pause the team when
+   * the month is at or above the new budget and the claim refuses it; a save that leaves the budget as it was keeps it.
    */
   private budgetStopStatements(write: TeamConfigWrite, json: string): D1PreparedStatement[] {
     const reached = `EXISTS (
@@ -205,14 +206,17 @@ export class TeamConfigRepo {
       details: { reason: 'budget', revision: write.expectedRevision + 1 },
     });
     return [
-      // First, so the terms below judge the month under the new budget.
+      // First, so the terms below judge the month under the new budget. The budget it replaces is the revision this
+      // save was made over (`saved` holds only if that is still the latest); no such revision is no budget.
       this.db
         .prepare(
           `UPDATE project_spend SET waived_at = NULL
            WHERE project_slug = ?1 AND month = substr(?2, 1, 7) AND waived_at IS NOT NULL AND ${saved}
-             AND spent_usd < json_extract(?3, '$.budget.monthly_usd')`,
+             AND json_extract(?3, '$.budget.monthly_usd') IS NOT (
+               SELECT json_extract(config, '$.budget.monthly_usd') FROM team_config_revisions
+               WHERE project_slug = ?1 AND revision = ?5)`,
         )
-        .bind(write.projectSlug, write.at, json, write.id),
+        .bind(write.projectSlug, write.at, json, write.id, write.expectedRevision),
       ...auditedWrite(
         this.db,
         this.db

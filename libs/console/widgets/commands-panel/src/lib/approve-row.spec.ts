@@ -52,6 +52,7 @@ function status(overrides: Partial<TeamStatusDto> = {}): TeamStatusDto {
     pendingRequests: 0,
     pauseHolds: true,
     pauseLiftsAtNextRun: false,
+    budget: null,
     slots: [],
     ...overrides,
   };

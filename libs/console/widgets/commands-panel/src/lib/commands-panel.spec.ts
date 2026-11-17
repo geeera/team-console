@@ -34,6 +34,7 @@ function status(overrides: Partial<TeamStatusDto> = {}): TeamStatusDto {
     pendingRequests: 0,
     pauseHolds: true,
     pauseLiftsAtNextRun: false,
+    budget: null,
     slots: [
       {
         slot: 'pm',
@@ -329,6 +330,24 @@ describe('CommandsPanel', () => {
     expect(text(root.querySelector('[data-testid="team-state"]'))).toBe(
       'Остановилась сама: три прогона подряд упали',
     );
+  });
+
+  it('paused by the budget (#738): an ochre banner that says what starts it again, and Resume', async () => {
+    const { fixture, root } = await render(
+      status({ state: 'paused-by-budget', pausedAt: new Date().toISOString() }),
+    );
+    const banner = root.querySelector('[data-testid="paused-banner"]') as HTMLElement;
+    expect(banner.classList).toContain('tc-banner--warning');
+    expect(text(banner)).toContain(
+      'Team Console: бюджет месяца исчерпан. Новые задачи не начнутся. Чтобы продолжить в этом месяце, выберите «Возобновить на этот месяц» в «Ждут вас» или увеличьте бюджет.',
+    );
+    expect(banner.querySelector('a')).toBeNull();
+    expect(text(root.querySelector('[data-testid="team-state"]'))).toBe('Остановилась: бюджет месяца исчерпан');
+    expect(text(root.querySelector('[data-slot="pm"] .cmd__why'))).toBe('Сначала возобновите разработку');
+    (root.querySelector('[data-testid="team-command"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(commands.resume).toHaveBeenCalledTimes(1);
+    expect(commands.pause).not.toHaveBeenCalled();
   });
 
   it('offline: every command is off and says so', async () => {

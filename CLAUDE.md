@@ -35,8 +35,10 @@ visual direction, 0006 the console as the source of truth — the #309 target ar
   Cron sweep, and its no-show clock starts at the dispatch. Only `POST …/team/resume {waiveBudget: true}` (the
   Needs-you row's "Resume this month", after its confirm) waives a month (`project_spend.waived_at`), and only the
   current month once it has reached its budget; a plain resume never waives. A finish or a save never replaces or
-  lifts an owner's pause, only a `system:budget` one; a save above the spend ends the month's waiver. Enqueue refuses a
-  switched-off role (409 `role-disabled`) and sets `jobs.max_minutes = min(role.max_minutes, requested)`.
+  lifts an owner's pause, only a `system:budget` one; a save that changes `budget.monthly_usd` ends the month's waiver
+  (#737). On a console-tracker project `GET …/team/status` (state, and the month's `budget` with its waiver) and Run
+  now read `team_state` (#738, #731). Enqueue refuses a switched-off role (409 `role-disabled`) and sets
+  `jobs.max_minutes = min(role.max_minutes, requested)`.
 - Design tokens only (Paper Desk, ADR 0002); no raw colours, spacing, durations or z-index in components —
   `tools/design-lint` (part of `nx run-many -t lint`) fails on one in any `libs/console/**` or `apps/console` css.
 - Accounts are the tenant (ADR 0008, #466): every account-level table carries `account_id`; every route registered on

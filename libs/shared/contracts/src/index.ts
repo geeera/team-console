@@ -252,9 +252,11 @@ export {
   RUN_ENTRY_STATES,
   TEAM_RUN_STATES,
   TEAM_SLOTS,
+  TEAM_STATES,
   isRunEntryState,
   isTeamRunState,
   isTeamSlot,
+  isTeamState,
 } from './lib/team';
 export type {
   PauseRequest,
@@ -266,6 +268,7 @@ export type {
   SlotLock,
   SlotSetup,
   SlotStatusDto,
+  TeamBudgetMonthDto,
   TeamCommandResponse,
   TeamProblemType,
   TeamRunDto,
