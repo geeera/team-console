@@ -9,13 +9,14 @@ import {
   type OidcExchangeResponse,
 } from '@shared/contracts';
 import { createLogger, newUlid } from '@worker/core';
-import { AccountsRepo, TeamConfigRepo } from '@worker/db';
+import { AccountsRepo, JobsRepo, TeamConfigRepo } from '@worker/db';
 import { ApiGitHub } from '../github';
 import { fetchApi } from '../testing/access-kit';
 import {
   actionsToken,
   createTestIssuer,
   exchangeBodyOf,
+  nextRunId,
   postExchange,
   runClaimsOf,
   saveAccessSource,
@@ -53,8 +54,19 @@ interface World {
   repoId: number | null;
   /** What `POST …/access_tokens` of SCRIPTED_INSTALLATION answers. */
   scriptedMint: (call: GitHubCall) => Response;
-  /** What the dispatch POST answers. */
+  /** What the dispatch POST answers; by default 200 naming a fresh run, as GitHub does with `return_run_details`. */
   dispatch: () => Response;
+  /** The runs the default dispatch answer named, in order. */
+  readonly runs: string[];
+  /** What `DELETE /installation/token` answers (#723 item 1). */
+  revoke: () => Response;
+}
+
+/** GitHub's answer to a dispatch that asked for the run: a run id no other dispatch got, kept in `runs`. */
+function runStarted(runs: string[]): Response {
+  const runId = nextRunId();
+  runs.push(runId);
+  return json(200, { workflow_run_id: Number(runId), run_url: 'https://api.github.com/x', html_url: 'https://github.com/x' });
 }
 
 interface Fixture {
@@ -110,7 +122,9 @@ async function seedProject(
     defaultBranch: 'trunk',
     repoId: row.repo_id,
     scriptedMint: () => json(422, { message: 'The permissions requested are not granted to this installation.' }),
-    dispatch: () => new Response(null, { status: 204 }),
+    runs: [],
+    dispatch: () => runStarted(world.runs),
+    revoke: () => new Response(null, { status: 204 }),
   };
   const stub = stubGitHub((call) => {
     if (call.method === 'GET' && call.url.pathname === `/repos/${row.repo}`) {
@@ -125,7 +139,7 @@ async function seedProject(
       return world.dispatch();
     }
     if (call.method === 'DELETE' && call.url.pathname === '/installation/token') {
-      return new Response(null, { status: 204 });
+      return world.revoke();
     }
     return json(404, { message: 'Not Found' });
   });
@@ -163,10 +177,22 @@ async function problemSlug(response: Response): Promise<string | null> {
 }
 
 async function jobRow(id: string) {
-  return env.DB.prepare(`SELECT state, dispatch, dispatched_at, result FROM jobs WHERE id = ?1`)
+  return env.DB.prepare(`SELECT state, dispatch, dispatched_at, actions_run_id, result FROM jobs WHERE id = ?1`)
     .bind(id)
-    .first<{ state: string; dispatch: string; dispatched_at: string | null; result: string | null }>();
+    .first<{ state: string; dispatch: string; dispatched_at: string | null; actions_run_id: string | null; result: string | null }>();
 }
+
+/** The `workflow_run_id` GitHub answered the fixture's dispatch at `index` with. */
+function answeredRunId(fixture: Fixture, index = 0): string {
+  const runId = fixture.world.runs[index];
+  if (runId === undefined) {
+    throw new Error('no run named by a dispatch answer');
+  }
+  return runId;
+}
+
+const revokes = (stub: StubGitHub): GitHubCall[] =>
+  stub.calls.filter((entry) => entry.method === 'DELETE' && entry.url.pathname === '/installation/token');
 
 const dispatchCalls = (stub: StubGitHub): GitHubCall[] =>
   stub.calls.filter((entry) => entry.method === 'POST' && DISPATCHES.test(entry.url.pathname));
@@ -286,7 +312,7 @@ describe('enqueue of an Actions job', () => {
     expect(JSON.parse(mint?.body ?? '')).toEqual({ repository_ids: [fixture.repoId], permissions: { actions: 'write' } });
     const [dispatched] = dispatchCalls(fixture.stub);
     expect(dispatched?.url.pathname).toBe(`/repos/${fixture.repo}/actions/workflows/team-console-runner.yml/dispatches`);
-    expect(JSON.parse(dispatched?.body ?? '')).toEqual({ ref: 'trunk', inputs: { job_id: job.id } });
+    expect(JSON.parse(dispatched?.body ?? '')).toEqual({ ref: 'trunk', inputs: { job_id: job.id }, return_run_details: true });
     expect(dispatched?.headers.get('authorization')).toMatch(new RegExp(`^Bearer ${TOKEN_SENTINEL}\\d+$`));
     // Never cached: a second job mints its own token.
     await env.DB.prepare(`UPDATE jobs SET state = 'cancelled', finished_at = ?2 WHERE id = ?1`).bind(job.id, new Date().toISOString()).run();
@@ -307,7 +333,7 @@ describe('enqueue of an Actions job', () => {
     fixture.world.defaultBranch = 'main';
     const job = await runNow(fixture);
     const [dispatched] = dispatchCalls(fixture.stub);
-    expect(JSON.parse(dispatched?.body ?? '')).toEqual({ ref: 'main', inputs: { job_id: job.id } });
+    expect(JSON.parse(dispatched?.body ?? '')).toEqual({ ref: 'main', inputs: { job_id: job.id }, return_run_details: true });
     const row = await env.DB.prepare(`SELECT default_branch FROM projects WHERE slug = ?1`).bind(fixture.slug).first<{ default_branch: string }>();
     expect(row?.default_branch).toBe('main');
   });
@@ -526,7 +552,8 @@ describe('the dispatch admission (#722, #716)', () => {
     expect(await jobRow(second.id)).toMatchObject({ state: 'queued', dispatched_at: null });
 
     // The first job's run: its OIDC exchange, then its finish under the ephemeral identity.
-    const exchange = await exchangeBodyOf(await actionsToken(issuer, runClaimsOf(actionsProjectOf(fixture))), first.id);
+    const firstRun = (await jobRow(first.id))?.actions_run_id ?? undefined;
+    const exchange = await exchangeBodyOf(await actionsToken(issuer, runClaimsOf(actionsProjectOf(fixture), firstRun)), first.id);
     const exchanged = await postExchange(exchange.body, issuer.bindings);
     expect(exchanged.status).toBe(200);
     const { runner } = (await exchanged.json()) as OidcExchangeResponse;
@@ -577,5 +604,165 @@ describe('the dispatch admission (#722, #716)', () => {
     await sweepQueue(localEnv(), new Date(Date.now() + 31 * 60_000), logger, fixture.github);
     expect((await jobRow(held.id))?.dispatched_at).not.toBeNull();
     expect(dispatchCalls(fixture.stub)).toHaveLength(1);
+  });
+});
+
+// #723 item 1: the dispatch token is revoked once its one call is made, whatever GitHub answered.
+describe('the dispatch token is revoked after its call (#723 item 1)', () => {
+  it('sends DELETE /installation/token with the dispatch token right after the dispatch POST', async () => {
+    const fixture = await seedProject();
+    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    fixture.stub.calls.length = 0;
+    const job = await runNow(fixture);
+    expect(job.state).toBe('queued');
+
+    const order = fixture.stub.calls.map((entry) => `${entry.method} ${entry.url.pathname}`);
+    const post = order.findIndex((line) => line.endsWith('/dispatches'));
+    expect(post).toBeGreaterThan(-1);
+    expect(order.slice(post + 1)).toEqual(['DELETE /installation/token']);
+    const [dispatched] = dispatchCalls(fixture.stub);
+    const [revoked] = revokes(fixture.stub);
+    expect(revoked?.headers.get('authorization')).toBe(dispatched?.headers.get('authorization'));
+  });
+
+  it.each([
+    ['refuses the dispatch (403)', () => json(403, { message: 'Resource not accessible by integration' }), 'permission missing'],
+    ['answers 204 without naming the run', () => new Response(null, { status: 204 }), 'github error'],
+    ['is unavailable (503)', () => json(503, { message: 'unavailable' }), 'github unavailable'],
+  ])('revokes the token when GitHub %s, and fails the job as %s', async (_label, answer, failure) => {
+    const fixture = await seedProject();
+    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    fixture.world.dispatch = answer;
+    fixture.stub.calls.length = 0;
+    const job = await runNow(fixture);
+    expect(job.state).toBe('failed');
+    expect(job.result?.['summary']).toBe(`dispatch-failed: ${failure}`);
+    const [dispatched] = dispatchCalls(fixture.stub);
+    const [revoked] = revokes(fixture.stub);
+    expect(revoked?.headers.get('authorization')).toBe(dispatched?.headers.get('authorization'));
+    expect(fixture.stub.calls.at(-1)?.method).toBe('DELETE');
+  });
+
+  it('only logs a failed revoke, never the token, and the job stays dispatched', async () => {
+    const logs: string[] = [];
+    const fixture = await seedProject();
+    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    fixture.world.revoke = () => json(500, { message: `oops ${TOKEN_SENTINEL}` });
+    // GitHubAppAuth writes through its own logger (stdout), as for a refused mint's revoke (#317).
+    const stdout = vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
+      logs.push(String(line));
+    });
+    let job: JobDto;
+    try {
+      job = await runNow(fixture, logs);
+    } finally {
+      stdout.mockRestore();
+    }
+    expect(job.state).toBe('queued');
+    expect((await jobRow(job.id))?.actions_run_id).toBe(answeredRunId(fixture));
+    expect(revokes(fixture.stub)).toHaveLength(1);
+    const warned = logs.filter((line) => line.includes('dispatch installation token not revoked'));
+    expect(warned).toHaveLength(1);
+    expect(warned[0]).toContain('"githubStatus":500');
+    for (const line of logs) {
+      expect(line).not.toContain(TOKEN_SENTINEL);
+    }
+  });
+});
+
+// #723 item 2: the run GitHub names in its answer is the only run the exchange takes the job for.
+describe('the run is bound to the console’s dispatch (#723 item 2)', () => {
+  let issuer: TestIssuer;
+
+  beforeAll(async () => {
+    issuer = await createTestIssuer();
+  });
+
+  const projectOf = (fixture: Fixture): ActionsProject => ({
+    slug: fixture.slug,
+    accountId: OWNER_ACCOUNT_ID,
+    repoId: fixture.repoId,
+    repo: fixture.repo,
+    defaultBranch: fixture.world.defaultBranch,
+  });
+
+  async function exchangeAs(fixture: Fixture, jobId: string, runId: string): Promise<Response> {
+    const request = await exchangeBodyOf(await actionsToken(issuer, runClaimsOf(projectOf(fixture), runId)), jobId);
+    return postExchange(request.body, issuer.bindings);
+  }
+
+  it('records the run GitHub named; a run started by hand for the job is refused, the dispatched run takes it', async () => {
+    const fixture = await seedProject();
+    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    const job = await runNow(fixture);
+    const dispatchedRun = answeredRunId(fixture);
+    expect((await jobRow(job.id))?.actions_run_id).toBe(dispatchedRun);
+
+    // The same job_id input from the Actions tab: every claim but the run id is the console's run's.
+    const byHand = await exchangeAs(fixture, job.id, nextRunId());
+    expect(byHand.status).toBe(401);
+    expect(await byHand.json()).toMatchObject({ claim: 'run_id' });
+    expect((await jobRow(job.id))?.state).toBe('queued');
+
+    expect((await exchangeAs(fixture, job.id, dispatchedRun)).status).toBe(200);
+    expect((await jobRow(job.id))?.state).toBe('claimed');
+  });
+
+  it('starts no claimable job when GitHub names no run: the job fails and every run is refused', async () => {
+    const fixture = await seedProject();
+    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    fixture.world.dispatch = () => json(200, { run_url: 'https://api.github.com/x' });
+    const job = await runNow(fixture);
+    expect(job.state).toBe('failed');
+    expect(job.result?.['summary']).toBe('dispatch-failed: github error');
+    expect((await jobRow(job.id))?.actions_run_id).toBeNull();
+    expect(await (await exchangeAs(fixture, job.id, nextRunId())).json()).toMatchObject({ status: 409, claim: 'job_id' });
+  });
+});
+
+// #725: the enqueue answers with the job as the dispatch left it, without reading it back.
+describe('POST /projects/:slug/jobs reads an Actions job once (#725)', () => {
+  it('answers the dispatched job as written, with one findInProject', async () => {
+    const fixture = await seedProject();
+    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    const reads = vi.spyOn(JobsRepo.prototype, 'findInProject');
+    try {
+      const job = await runNow(fixture);
+      expect(reads).toHaveBeenCalledTimes(1);
+      const stored = await new JobsRepo(env.DB).findById(job.id);
+      expect(job).toMatchObject({ id: stored?.id, state: 'queued', dispatch: 'actions', result: null });
+    } finally {
+      reads.mockRestore();
+    }
+  });
+
+  it('answers a failed dispatch with the job as failed, with one findInProject', async () => {
+    const fixture = await seedProject();
+    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    fixture.world.dispatch = () => json(404, { message: 'Not Found' });
+    const reads = vi.spyOn(JobsRepo.prototype, 'findInProject');
+    try {
+      const job = await runNow(fixture);
+      expect(reads).toHaveBeenCalledTimes(1);
+      expect(job.state).toBe('failed');
+      expect(job.result).toEqual({ summary: 'dispatch-failed: workflow missing', metrics: { reason: 'dispatch-failed' }, acted: false });
+    } finally {
+      reads.mockRestore();
+    }
+  });
+
+  it('answers a held-back job as queued and undispatched, with one findInProject', async () => {
+    const fixture = await seedProject();
+    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    expect((await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/team/pause`, {})).status).toBe(201);
+    const reads = vi.spyOn(JobsRepo.prototype, 'findInProject');
+    try {
+      const job = await runNow(fixture);
+      expect(reads).toHaveBeenCalledTimes(1);
+      expect(job.state).toBe('queued');
+      expect((await jobRow(job.id))?.dispatched_at).toBeNull();
+    } finally {
+      reads.mockRestore();
+    }
   });
 });

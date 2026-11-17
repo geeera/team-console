@@ -62,7 +62,8 @@ export interface MockRepository {
   readonly checkRuns?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
   /**
    * #670: the installation grants `actions: write` on this repository, so an Actions dispatch mint by its
-   * `repository.id` succeeds and `POST …/actions/workflows/team-console-runner.yml/dispatches` answers 204; without it
+   * `repository.id` succeeds and `POST …/actions/workflows/team-console-runner.yml/dispatches` answers 200 with a fresh
+   * `workflow_run_id` (204 without `return_run_details`); without it
    * the mint answers 422, as GitHub does for a permission the installation lacks.
    */
   readonly actionsWrite?: boolean;
@@ -204,6 +205,28 @@ type IssuedToken =
 
 const LIST_PAGE_MAX = 100;
 
+function dispatchBodyAsksForRun(body: RequestInit['body']): boolean {
+  if (typeof body !== 'string') {
+    return false;
+  }
+  try {
+    const parsed: unknown = JSON.parse(body);
+    return isRecord(parsed) && parsed['return_run_details'] === true;
+  } catch (error: unknown) {
+    if (error instanceof SyntaxError) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/** A run id no other mock dispatch has handed out: random, since a local D1 outlives the isolate that holds a mock. */
+function mockRunId(): number {
+  const [high = 0, low = 0] = crypto.getRandomValues(new Uint32Array(2));
+  // Below 2^53 (a safe integer, as GitHub's int64 ids are in practice) and never 0.
+  return (high % 0x1fffff) * 0x100000000 + low + 1;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -317,7 +340,21 @@ class MockGitHubServer {
       if (token.repo.toLowerCase() !== `${segments[1]}/${segments[2]}`.toLowerCase()) {
         return notFound();
       }
-      return segments[5] === 'team-console-runner.yml' ? new Response(null, { status: 204 }) : notFound();
+      if (segments[5] !== 'team-console-runner.yml') {
+        return notFound();
+      }
+      // #723: GitHub names the run it created when asked to (`return_run_details`), and answers 204 otherwise.
+      return dispatchBodyAsksForRun(init.body) ? json(200, { workflow_run_id: mockRunId() }) : new Response(null, { status: 204 });
+    }
+
+    // #723: an installation token revokes itself; any later use of it is 401, as at GitHub.
+    if (method === 'DELETE' && url.pathname === '/installation/token') {
+      const token = this.issued.get(bearer);
+      if (token === undefined || token.expiresAt <= Date.now()) {
+        return json(401, { message: 'Bad credentials' });
+      }
+      this.issued.delete(bearer);
+      return new Response(null, { status: 204 });
     }
 
     const isRepositoryRead = segments.length === 3;

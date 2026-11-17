@@ -1,14 +1,13 @@
 import { ACTIONS_DISPATCH_FAILED, type ActionsDispatchFailure } from '@shared/contracts';
 import type { Logger } from '@worker/core';
-import { JobsRepo, ProjectDispatchRepo } from '@worker/db';
+import { JobsRepo, ProjectDispatchRepo, type JobRecord } from '@worker/db';
 import {
   GitHubClient,
   GitHubError,
   InvalidRepoNameError,
   dispatchRunnerWorkflow,
-  githubPath,
   parseRepoName,
-  type RepoName,
+  readRegisteredRepository,
 } from '@worker/github';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
@@ -19,9 +18,10 @@ import type { ApiGitHub } from '../github';
  * its `default_branch` from that answer (never from input, and refreshed on every dispatch so a renamed default
  * branch is picked up, #695 item 4), mint a one-repository `actions: write` token through the project's own
  * installation (linked to the project's account, so a project never dispatches into another account's repository),
- * call `workflow_dispatch` with `{ ref: default_branch, inputs: { job_id } }` and record `dispatched_at`. A failed
- * call fails the job with `metrics.reason = 'dispatch-failed'` and a fixed summary; the token is used once and never
- * stored or logged.
+ * record `dispatched_at`, call `workflow_dispatch` with `{ ref: default_branch, inputs: { job_id } }` and record the
+ * run GitHub names in its answer, the only run the exchange then takes the job for (#723 item 2). A failed call fails
+ * the job with `metrics.reason = 'dispatch-failed'` and a fixed summary; the token is used once, never stored or
+ * logged, and revoked as soon as its call is made, whatever GitHub answered (#723 item 1).
  */
 
 export interface DispatchDeps {
@@ -31,36 +31,21 @@ export interface DispatchDeps {
   readonly now?: () => Date;
 }
 
+/**
+ * `job` is the job as this dispatch last wrote or read it (#725), so a caller answering with it needs no second
+ * read; `null` when the job changed under the dispatch (cancelled meanwhile, say) and only a fresh read can tell.
+ */
 export type DispatchOutcome =
-  | { readonly kind: 'dispatched' }
-  | { readonly kind: 'failed'; readonly failure: ActionsDispatchFailure }
+  | { readonly kind: 'dispatched'; readonly job: JobRecord | null }
+  | { readonly kind: 'failed'; readonly failure: ActionsDispatchFailure; readonly job: JobRecord | null }
   /**
    * The exchange would refuse the job now (#722): the team paused, the role off or at its `max_parallel`, the budget
    * used up, the project archived or the account suspended. It stays queued, undispatched, and a later finish of the
    * project or the Cron sweep dispatches it once it is admitted (#716). No run is started for it meanwhile.
    */
-  | { readonly kind: 'deferred' }
+  | { readonly kind: 'deferred'; readonly job: JobRecord }
   /** Not a queued, undispatched Actions job (a pull job, or one another request already dispatched or ended). */
   | { readonly kind: 'skipped' };
-
-interface RepositoryAnswer {
-  readonly id: number;
-  readonly full_name: string;
-  readonly default_branch: string;
-}
-
-function isRepositoryAnswer(value: unknown): value is RepositoryAnswer {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const record = value as Record<string, unknown>;
-  return (
-    typeof record['id'] === 'number' &&
-    typeof record['full_name'] === 'string' &&
-    typeof record['default_branch'] === 'string' &&
-    record['default_branch'] !== ''
-  );
-}
 
 type Phase = 'read' | 'mint' | 'dispatch';
 
@@ -106,39 +91,41 @@ export async function dispatchActionsJob(deps: DispatchDeps, jobId: string): Pro
   // A read, so a hint only: it saves the GitHub calls, and `markDispatched` below judges the same terms in its write.
   if (!target.admitted) {
     deps.logger.info('actions dispatch deferred', { jobId, slug, role: target.job.role });
-    return { kind: 'deferred' };
+    return { kind: 'deferred', job: target.job };
   }
   let phase: Phase = 'read';
+  let runId: string;
   try {
-    if (target.installationId === null) {
+    const { installationId, repoId } = target;
+    if (installationId === null) {
       throw new DispatchRefusal('installation missing');
     }
-    if (target.repoId === null) {
+    if (repoId === null) {
       throw new DispatchRefusal('repository mismatch');
     }
     const registered = parseRepoName(target.repo);
     const { auth, fetch } = await deps.github.connect(deps.env);
-    const read = await new GitHubClient(fetch, auth.tokenSourceFor(registered)).getJson(
-      githubPath`/repos/${registered}`,
-      isRepositoryAnswer,
-    );
-    if (read.id !== target.repoId) {
+    const repository = await readRegisteredRepository(new GitHubClient(fetch, auth.tokenSourceFor(registered)), registered, repoId);
+    if (repository === null) {
       throw new DispatchRefusal('repository mismatch');
     }
-    // GitHub's current name: a POST does not follow the redirect a renamed repository answers with.
-    const current: RepoName = parseRepoName(read.full_name);
-    await new ProjectDispatchRepo(deps.env.DB).recordDefaultBranch(slug, read.default_branch);
+    await new ProjectDispatchRepo(deps.env.DB).recordDefaultBranch(slug, repository.defaultBranch);
     phase = 'mint';
-    const token = await auth.mintForActionsDispatch(target.installationId, target.repoId);
-    // Recorded before the call, as a compare-and-set: a second request never dispatches the job again, and a run
-    // that boots fast never meets a job the exchange still refuses as undispatched (#695 item 3). The write also
-    // holds the exchange's admission (#722), so of two jobs racing for a role's last slot only one starts a run.
-    if (!(await jobs.markDispatched(jobId, nowOf(deps)))) {
-      deps.logger.info('actions dispatch not recorded', { jobId, slug });
-      return { kind: 'skipped' };
+    const token = await auth.mintForActionsDispatch(installationId, repoId);
+    try {
+      // Recorded before the call, as a compare-and-set: a second request never dispatches the job again, and a run
+      // that boots fast never meets a job the exchange still refuses as undispatched (#695 item 3). The write also
+      // holds the exchange's admission (#722), so of two jobs racing for a role's last slot only one starts a run.
+      if (!(await jobs.markDispatched(jobId, nowOf(deps)))) {
+        deps.logger.info('actions dispatch not recorded', { jobId, slug });
+        return { kind: 'skipped' };
+      }
+      phase = 'dispatch';
+      runId = await dispatchRunnerWorkflow(fetch, token, repository.current, repository.defaultBranch, jobId);
+    } finally {
+      // #723 item 1: the token's one call is made (or will never be); best effort, a failed revoke is only logged.
+      await auth.revokeActionsDispatchToken(token, installationId);
     }
-    phase = 'dispatch';
-    await dispatchRunnerWorkflow(fetch, token, current, read.default_branch, jobId);
   } catch (error: unknown) {
     const failure =
       error instanceof DispatchRefusal
@@ -159,11 +146,18 @@ export async function dispatchActionsJob(deps: DispatchDeps, jobId: string): Pro
       ...(error instanceof GitHubError ? { githubStatus: error.githubStatus } : {}),
     });
     const at = nowOf(deps);
-    await jobs.failUndispatched(jobId, at, ACTIONS_DISPATCH_FAILED, `${ACTIONS_DISPATCH_FAILED}: ${failure}`);
-    return { kind: 'failed', failure };
+    const failed = await jobs.failUndispatched(jobId, at, ACTIONS_DISPATCH_FAILED, `${ACTIONS_DISPATCH_FAILED}: ${failure}`);
+    return { kind: 'failed', failure, job: failed };
   }
-  deps.logger.info('actions job dispatched', { jobId, slug });
-  return { kind: 'dispatched' };
+  // The run GitHub started boots for many seconds before it can exchange, so this lands first; were it ever late,
+  // the exchange refuses that run and the job ends as a no-show, never claimed by a run it cannot name.
+  const job = await jobs.recordDispatchedRun(jobId, runId);
+  if (job === null) {
+    deps.logger.warn('actions dispatch run not recorded', { jobId, slug, runId });
+  } else {
+    deps.logger.info('actions job dispatched', { jobId, slug, runId });
+  }
+  return { kind: 'dispatched', job };
 }
 
 /**

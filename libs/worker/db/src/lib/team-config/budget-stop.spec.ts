@@ -511,3 +511,74 @@ describe('the Actions dispatch admission (#722, #716)', () => {
     expect(await jobs.markDispatched(late, DECEMBER)).toBe(true);
   });
 });
+
+// #723 item 2: the run the dispatch call named, the only one the exchange then takes the job for.
+describe('the run a dispatch recorded (#723 item 2)', () => {
+  /** A queued Actions job of an API-key project, dispatched at T1 unless `dispatched` is false. */
+  async function actionsJob(dispatched = true): Promise<string> {
+    const slug = await project();
+    await env.DB.prepare(`UPDATE projects SET dispatch = 'actions' WHERE slug = ?1`).bind(slug).run();
+    const id = await enqueue(slug);
+    if (dispatched) {
+      expect(await jobs.markDispatched(id, T1)).toBe(true);
+    }
+    return id;
+  }
+
+  const runOf = async (id: string): Promise<string | null> =>
+    (await env.DB.prepare(`SELECT actions_run_id FROM jobs WHERE id = ?1`).bind(id).first<{ actions_run_id: string | null }>())
+      ?.actions_run_id ?? null;
+
+  it('records the run on a dispatched job waiting for it, and answers the job as written', async () => {
+    const id = await actionsJob();
+    const job = await jobs.recordDispatchedRun(id, '7300000001');
+    expect(job).toMatchObject({ id, state: 'queued', dispatch: 'actions', runnerId: null });
+    expect(await runOf(id)).toBe('7300000001');
+    expect((await jobs.findActionsTarget(id))?.dispatchedRunId).toBe('7300000001');
+  });
+
+  it('writes the run once: a second answer never replaces it', async () => {
+    const id = await actionsJob();
+    expect(await jobs.recordDispatchedRun(id, '7300000002')).not.toBeNull();
+    expect(await jobs.recordDispatchedRun(id, '7300000003')).toBeNull();
+    expect(await runOf(id)).toBe('7300000002');
+  });
+
+  it('answers null for a job never dispatched, one no longer queued, and a pulled one', async () => {
+    const undispatched = await actionsJob(false);
+    const cancelled = await actionsJob();
+    await env.DB.prepare(`UPDATE jobs SET state = 'cancelled', finished_at = ?2 WHERE id = ?1`).bind(cancelled, T2).run();
+    const pulled = await enqueue(await project());
+    for (const [id, runId] of [
+      [undispatched, '7300000004'],
+      [cancelled, '7300000005'],
+      [pulled, '7300000006'],
+    ] as const) {
+      expect(await jobs.recordDispatchedRun(id, runId)).toBeNull();
+      expect(await runOf(id)).toBeNull();
+    }
+  });
+
+  it('answers null, not an error, for a run another job already holds (0031 unique index)', async () => {
+    const first = await actionsJob();
+    const second = await actionsJob();
+    expect(await jobs.recordDispatchedRun(first, '7300000007')).not.toBeNull();
+    expect(await jobs.recordDispatchedRun(second, '7300000007')).toBeNull();
+    expect(await runOf(second)).toBeNull();
+  });
+
+  it('is not a run already seen until a run exchanged for it', async () => {
+    const id = await actionsJob();
+    await jobs.recordDispatchedRun(id, '7300000008');
+    expect(await jobs.isActionsRunSeen('7300000008')).toBe(false);
+    await env.DB.prepare(`UPDATE jobs SET claimed_at = ?2 WHERE id = ?1`).bind(id, T2).run();
+    expect(await jobs.isActionsRunSeen('7300000008')).toBe(true);
+  });
+
+  it('answers the job as failed from failUndispatched (#725), and null once it no longer waits', async () => {
+    const id = await actionsJob();
+    const failed = await jobs.failUndispatched(id, T2, 'dispatch-failed', 'dispatch-failed: github error');
+    expect(failed).toMatchObject({ id, state: 'failed', finishedAt: T2, result: { summary: 'dispatch-failed: github error' } });
+    expect(await jobs.failUndispatched(id, T2, 'dispatch-failed', 'again')).toBeNull();
+  });
+});
