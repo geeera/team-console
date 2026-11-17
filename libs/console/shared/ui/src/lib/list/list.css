@@ -16,3 +16,35 @@
   box-shadow: none;
   overflow: visible;
 }
+
+/*
+ * `grid` (#766): cards from a `--cq-grid-min` container (custom properties cannot drive @container, so the number is
+ * repeated; breakpoints.ts keeps it in step). `auto-fill` columns at least `--tc-list-card-min` wide and never more
+ * than `--tc-list-cols-max` of them (the share is a pixel short, so sub-pixel rounding never drops the last one);
+ * a lone card stays one column wide. The order is the DOM's (no `dense`), so Tab reads row by row.
+ */
+@container (min-width: 880px) {
+  :host(.tc-list--grid) {
+    --tc-list-gap: var(--gap-log);
+    display: grid;
+    grid-template-columns: repeat(
+      auto-fill,
+      minmax(
+        max(
+          var(--tc-list-card-min, var(--artifact-card-min)),
+          calc(
+            (100% - (var(--tc-list-cols-max, var(--artifact-cols-max)) - 1) * var(--tc-list-gap)) /
+              var(--tc-list-cols-max, var(--artifact-cols-max)) - var(--space-px)
+          )
+        ),
+        1fr
+      )
+    );
+    gap: var(--tc-list-gap);
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    overflow: visible;
+  }
+}

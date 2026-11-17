@@ -12,7 +12,7 @@
 :host(.tc-design-preview--card) {
   width: 100%;
   height: auto;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: var(--thumb-ratio);
   border-radius: var(--r-md);
 }
 
@@ -43,4 +43,16 @@
 
 .preview__skeleton {
   background: var(--skeleton);
+}
+
+/* Words, not a mark (#766): sentence case at the body face, so «Картинка не загрузилась» reads as a sentence. */
+:host(.tc-design-preview--worded) .preview__placeholder {
+  padding: var(--space-2);
+  color: var(--text-2);
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: normal;
+  text-align: center;
+  text-transform: none;
 }

@@ -22,7 +22,7 @@ import { screenSrcOf, thumbnailOf, type DesignManifest } from './design.model';
           @if (src(); as src) {
             @if (failed()) {
               <span class="preview__placeholder" data-testid="design-thumb-failed" aria-hidden="true">
-                {{ 'designs.row.thumbFailed' | transloco }}
+                {{ placeholderKey('failed') | transloco }}
               </span>
             } @else {
               <img
@@ -37,7 +37,7 @@ import { screenSrcOf, thumbnailOf, type DesignManifest } from './design.model';
             }
           } @else {
             <span class="preview__placeholder" data-testid="design-thumb-none" aria-hidden="true">
-              {{ (state.manifest.interactive === null ? 'designs.row.thumbNone' : 'designs.row.thumbHtml') | transloco }}
+              {{ placeholderKey(state.manifest.interactive === null ? 'none' : 'html') | transloco }}
             </span>
           }
         }
@@ -46,7 +46,7 @@ import { screenSrcOf, thumbnailOf, type DesignManifest } from './design.model';
         }
         @default {
           <span class="preview__placeholder" data-testid="design-thumb-failed" aria-hidden="true">
-            {{ 'designs.row.thumbFailed' | transloco }}
+            {{ placeholderKey('failed') | transloco }}
           </span>
         }
       }
@@ -57,6 +57,7 @@ import { screenSrcOf, thumbnailOf, type DesignManifest } from './design.model';
   host: {
     class: 'tc-design-preview',
     '[class.tc-design-preview--card]': 'variant() === "card"',
+    '[class.tc-design-preview--worded]': 'worded()',
   },
 })
 export class DesignPreview {
@@ -66,6 +67,11 @@ export class DesignPreview {
   readonly issue = input.required<number>();
   /** `thumb` (default): the 56 px square of a list row; `card`: a wide preview the width of its card. */
   readonly variant = input<'thumb' | 'card'>('thumb');
+  /**
+   * The placeholder says in words what is missing («Без картинок», «Картинка не загрузилась»), for a tile large
+   * enough to read (an artifact card, #766); otherwise a mark. Decorative either way: the card's summary says it too.
+   */
+  readonly worded = input(false);
   /** A manifest the caller already holds; otherwise the shared store loads it. */
   readonly manifest = input<DesignManifest | null>(null);
   /**
@@ -90,6 +96,13 @@ export class DesignPreview {
         : (state.manifest.screens.find((candidate) => candidate.path === path && !candidate.tooLarge) ?? null);
     return screen === null ? null : screenSrcOf(this.slug(), state.manifest, screen);
   });
+  protected placeholderKey(reason: 'none' | 'html' | 'failed'): string {
+    if (this.worded()) {
+      return `designs.tile.${reason}`;
+    }
+    return { none: 'designs.row.thumbNone', html: 'designs.row.thumbHtml', failed: 'designs.row.thumbFailed' }[reason];
+  }
+
   /** The image did not load; reset when the source changes. */
   protected readonly failed = linkedSignal<string | null, boolean>({ source: this.src, computation: () => false });
 

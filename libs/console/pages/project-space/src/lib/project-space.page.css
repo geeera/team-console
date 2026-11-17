@@ -68,7 +68,7 @@
 }
 
 .space__body--wide {
-  max-width: var(--board-max);
+  max-width: none;
 }
 
 :host(.tc-space--cards) .space__body {
@@ -77,6 +77,27 @@
 
 :host(.tc-space--phone) .space__body {
   padding: var(--space-3) var(--space-4) var(--space-6);
+}
+
+/*
+ * #766: from 900 px every section shares one cap, `--page-max`, padding included; the header's contents line up
+ * with it. The body is the container the sections' layouts query (`--cq-grid-min`, `--cq-wide-min`), so a pane
+ * beside it narrows them as a narrower window would. Below 900 px nothing here applies (375 and 768 are unchanged).
+ */
+@media (min-width: 900px) {
+  .space__head {
+    padding-inline: max(var(--pad-x), calc((100% - var(--page-max)) / 2 + var(--pad-x)));
+  }
+
+  .space__banner,
+  .space__body,
+  :host(.tc-space--cards) .space__body {
+    max-width: var(--page-max);
+  }
+
+  .space__body {
+    container: space-body / inline-size;
+  }
 }
 
 /* #470 item 1: the 390 px top bar (project name, the Local badge, search, Commands, settings) has no room for the

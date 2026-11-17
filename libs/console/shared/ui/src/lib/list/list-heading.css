@@ -1,0 +1,27 @@
+/* Rows: no heading, so a row list looks as it always did. */
+:host {
+  display: none;
+}
+
+/* `--cq-grid-min`: custom properties cannot drive @container, so the number is repeated (breakpoints.ts). */
+@container (min-width: 880px) {
+  :host-context(.tc-list--grid) {
+    display: flex;
+    grid-column: 1 / -1;
+    margin-top: var(--space-3);
+  }
+
+  :host(:first-child) {
+    margin-top: 0;
+  }
+}
+
+:host {
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-2);
+}

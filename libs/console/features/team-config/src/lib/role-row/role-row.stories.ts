@@ -18,7 +18,7 @@ const meta: Meta<Args> = {
   render: (args) => ({
     props: args,
     template: `
-      <div role="list" style="max-width: var(--board-max); border: var(--border-w) solid var(--border)">
+      <div role="list" style="max-width: var(--page-max); border: var(--border-w) solid var(--border)">
         <tc-role-row
           [teamRole]="teamRole"
           [settings]="settings"

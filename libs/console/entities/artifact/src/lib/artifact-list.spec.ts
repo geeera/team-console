@@ -8,6 +8,7 @@ import { ArtifactList } from './artifact-list';
   imports: [ArtifactList],
   template: `<tc-artifact-list
     [items]="items()"
+    [grouped]="grouped()"
     label="Artifacts"
     [designLeading]="leading"
     [designSubtitle]="subtitle"
@@ -18,6 +19,7 @@ import { ArtifactList } from './artifact-list';
 })
 class Host {
   readonly items = signal<readonly Artifact[]>([]);
+  readonly grouped = signal(false);
   readonly opened = signal<number | null>(null);
 }
 
@@ -117,5 +119,34 @@ describe('ArtifactList', () => {
     expect(after).toHaveLength(250);
     expect(after.every((row, index) => row === before[index])).toBe(true);
     expect(after[0]?.textContent).toContain('Design 0 renamed');
+  });
+
+  it('opens each type with an eye-only heading and its count when grouped; the list counts the artifacts alone (#766)', async () => {
+    const fixture = await render();
+    const decision: Artifact = { ...DESIGN, type: 'decision', source: 'file', state: null, url: 'https://github.com/o/r/blob/main/0001.md' };
+    fixture.componentInstance.items.set([decision, { ...decision, url: `${decision.url}2` }, { ...DESIGN, number: 24 }]);
+    fixture.componentInstance.grouped.set(true);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+
+    const groups = Array.from(root.querySelectorAll('[data-testid="artifact-group"]'));
+    expect(groups.map((group) => group.getAttribute('data-type'))).toEqual(['decision', 'design']);
+    expect(groups[0]?.getAttribute('aria-hidden')).toBe('true');
+    expect(groups[0]?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Решения 2');
+    expect(root.querySelectorAll('[role="listitem"]')).toHaveLength(3);
+    expect(root.querySelector('tc-list')?.classList).toContain('tc-list--grid');
+
+    fixture.componentInstance.grouped.set(false);
+    await fixture.whenStable();
+    expect(root.querySelectorAll('[data-testid="artifact-group"]')).toHaveLength(0);
+  });
+
+  it('gives a link card a kicker with its type in the singular, hidden from screen readers (#766)', async () => {
+    const fixture = await render();
+    fixture.componentInstance.items.set([{ ...DESIGN, type: 'decision', source: 'file', state: null }]);
+    await fixture.whenStable();
+    const kicker = (fixture.nativeElement as HTMLElement).querySelector('a [tc-row-kicker]');
+    expect(kicker?.getAttribute('aria-hidden')).toBe('true');
+    expect(kicker?.textContent?.trim()).toBe('Решение');
   });
 });

@@ -19,3 +19,28 @@
   font-size: var(--fs-xs);
   color: var(--text-2);
 }
+
+/* #766, from a --cq-grid-min body (880 px): the search, the type toggles and the count share one row as room allows. */
+@container (min-width: 880px) {
+  :host {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  tc-field {
+    flex: 1 1 24rem;
+  }
+
+  .search__types,
+  .search__shown {
+    min-height: var(--control-h);
+    align-items: center;
+  }
+
+  .search__shown {
+    display: flex;
+    margin-left: auto;
+  }
+}

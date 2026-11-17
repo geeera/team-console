@@ -128,11 +128,12 @@ function sprint(overrides: Partial<SprintDto> = {}): SprintDto {
 
 @Component({
   imports: [SprintBoard],
-  template: `<tc-sprint-board [project]="project()" [initialTab]="tab()" />`,
+  template: `<tc-sprint-board [project]="project()" [initialTab]="tab()" [sprintActions]="sprintActions()" />`,
 })
 class Host {
   readonly project = signal<SprintBoardProject>(TC);
   readonly tab = signal<string | null>(null);
+  readonly sprintActions = signal(true);
 }
 
 /** The shell's «waiting for you» counts; `null` until the first read answered. */
@@ -273,6 +274,20 @@ describe('SprintBoard', () => {
     const ask = root.querySelector('[data-testid="board-ask"]');
     expect(ask?.getAttribute('aria-label')).toBe('Попросить PM о задаче: выбрать задачу');
     expect(ask?.getAttribute('aria-haspopup')).toBe('dialog');
+  });
+
+  it('drops Move demo and Ask the PM by the title while the Commands pane shows them (#766)', async () => {
+    const { root, settle, fixture } = await render();
+    http.expectOne(projectSprintUrl(TC.slug)).flush(sprint({ issues: [issue(14)] }));
+    await settle();
+    expect(root.querySelector('[data-testid="board-move-demo"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="board-ask"]')).not.toBeNull();
+
+    fixture.componentInstance.sprintActions.set(false);
+    await fixture.whenStable();
+    expect(root.querySelector('[data-testid="board-move-demo"]')).toBeNull();
+    expect(root.querySelector('[data-testid="board-ask"]')).toBeNull();
+    expect(root.querySelector('.board__title')).not.toBeNull();
   });
 
   it('shows the sprint, its demo date and numbers, the lanes with tiers and the open pull requests', async () => {

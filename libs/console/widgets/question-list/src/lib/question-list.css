@@ -42,6 +42,19 @@ a.questions__attention-row:hover [tc-banner-text] {
   vertical-align: middle;
 }
 
+/* #766: from 900 px the lead keeps a readable measure and the attention rows take the cards' columns. */
+@media (min-width: 900px) {
+  .questions__lead,
+  .questions__omitted {
+    max-width: var(--measure);
+  }
+
+  .questions__attention {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--card-min-w)), 1fr));
+    gap: var(--space-2) var(--gap-log);
+  }
+}
+
 /* As many columns of at least one card width as fit: one on the phone and tablet, two on a Mac (#276 §3). */
 .questions__list {
   display: grid;
