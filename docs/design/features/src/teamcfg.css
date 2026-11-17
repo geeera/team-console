@@ -1,0 +1,300 @@
+/* ===== #688 Settings › Team, on the Paper Desk tokens (ADR 0002) =====
+   Builds on settings.css (#24's sub-page shell: Mac window with crumbs, iPhone pushed page) and kit.css (buttons,
+   fields, skeleton rows, blocks, the alert dialog that rises as a sheet on the iPhone).
+   New here: the section card with its phone disclosure, the preset radio group, the role ledger (switch, locked
+   switch, model picker button, override chip), the access radio cards with the risk callout, the spend meter, the
+   waived-month note, the sticky save bar, banners (conflict, read-only, offline, not the owner), the diff table and
+   the revision ledger. Only opacity and transform animate; nothing animates height.
+   Proposed tokens for the kit: --switch-w/--switch-h (new `switch` primitive), --bar-h (the save bar),
+   --role-model-w/--role-lim-w (the model and limits columns on the Mac), --dialog-w-wide (review, import and diff dialogs). */
+:root{--role-lim-w:200px;--switch-w:44px;--switch-h:26px;--bar-h:68px;--role-model-w:210px;--dialog-w-wide:600px}
+
+/* ----- page head ----- */
+.app[data-app=mac] .set-inner:has(.tm-head){max-width:880px}
+.tm-group>.tm-seg{justify-self:start}
+.tm-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:var(--sp-3) var(--sp-4)}
+.tm-head h1{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-2xl);line-height:var(--lh-tight);outline:none}
+.tm-head h1:focus-visible{outline:2px solid var(--focus);outline-offset:4px;border-radius:var(--r-sm)}
+.tm-meta{margin:var(--sp-1) 0 0;font-size:var(--fs-sm);color:var(--text-2);overflow-wrap:anywhere}
+.tm-meta q{font-family:var(--font-display);font-style:italic;quotes:"«" "»"}
+:root[lang=en] .tm-meta q{quotes:"“" "”"}
+.tm-lead{margin:var(--sp-1) 0 0;font-size:var(--fs-sm);color:var(--text-2);max-width:62ch}
+.tm-acts{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.tm-acts .btn .ico{width:16px;height:16px}
+.app[data-app=phone] .tm-acts{width:100%}
+.app[data-app=phone] .tm-acts .btn{flex:1 1 0;min-height:var(--target);min-width:0;white-space:normal;line-height:1.2}
+
+/* ----- section card: one per part of the document; on the iPhone a disclosure with a one-line summary ----- */
+.tm-sec{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.tm-sec__head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:var(--sp-2) var(--sp-4);padding:var(--sp-4) var(--sp-5) 0}
+.tm-sec__head h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight)}
+.tm-sec__body{display:grid;gap:var(--sp-4);padding:var(--sp-4) var(--sp-5) var(--sp-5)}
+.tm-sec__body--flush{padding:var(--sp-3) 0 var(--sp-2)}
+.tm-sec h2.tm-sec__h{margin:0;font:inherit}
+.tm-sec__toggle{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:0 var(--sp-3);width:100%;min-height:calc(var(--target) + var(--sp-3));padding:var(--sp-3) var(--sp-4);border:0;background:none;text-align:left;border-radius:var(--r-lg)}
+.tm-sec__toggle b{font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight)}
+.tm-sec__toggle small{grid-column:1;font-size:var(--fs-sm);color:var(--text-2);overflow-wrap:anywhere}
+.tm-sec__toggle .ico{grid-column:2;grid-row:1/span 2;color:var(--text-2);transition:transform var(--dur-base) var(--ease-standard)}
+.tm-sec__toggle[aria-expanded=true] .ico{transform:rotate(180deg)}
+.tm-sec__toggle[aria-expanded=true] small{display:none}
+.tm-sec__toggle:focus-visible{outline-offset:-2px}
+.app[data-app=phone] .tm-sec__body{padding:0 var(--sp-4) var(--sp-4)}
+.app[data-app=phone] .tm-sec__body--flush{padding:0 0 var(--sp-2)}
+
+/* ----- preset: a radio group drawn as a segmented control; arrow keys move ----- */
+.tm-seg{display:inline-flex;flex-wrap:wrap;gap:var(--sp-1);padding:var(--sp-1);border-radius:var(--r-md);background:var(--bg-sunken)}
+.tm-seg [role=radio]{min-height:var(--target);padding:0 var(--sp-4);border:0;border-radius:calc(var(--r-md) - 3px);background:none;color:var(--text-2);font-weight:600;font-size:var(--fs-sm)}
+.tm-seg [role=radio]:hover{color:var(--text)}
+.tm-seg [role=radio][aria-checked=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.tm-seg [role=radio][aria-disabled=true]{color:var(--text-2);cursor:default}
+.app[data-app=phone] .tm-seg{display:flex;flex-direction:column;width:100%}
+.app[data-app=phone] .tm-seg [role=radio]{text-align:left;padding:0 var(--sp-3)}
+.app[data-app=phone] .tm-seg--row{flex-direction:row}
+.app[data-app=phone] .tm-seg--row [role=radio]{flex:1 1 0;text-align:center;padding:0 var(--sp-2)}
+.tm-preset{display:grid;gap:var(--sp-3);justify-items:start}
+.tm-preset__hint{margin:0;font-size:var(--fs-sm);color:var(--text-2);max-width:62ch}
+.tm-preset__line{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-3);font-size:var(--fs-sm);font-weight:600}
+.tm-preset__line .link-btn{font-size:var(--fs-sm)}
+
+/* the override chip: words, never colour alone */
+.tm-chip{display:inline-flex;align-items:center;gap:var(--sp-1);min-height:22px;padding:1px var(--sp-2);border-radius:var(--r-pill,999px);background:var(--accent-soft);color:var(--accent-text);font-size:var(--fs-xs);font-weight:600;white-space:nowrap}
+.tm-chip .ico{width:12px;height:12px;stroke-width:2.4}
+.tm-chip--warn{background:var(--warning-soft);color:var(--warning-text)}
+
+/* ----- roles: a ledger; Mac rows are a five-column grid, iPhone rows are cards ----- */
+.tm-roles{list-style:none;margin:0;padding:0}
+.tm-rhead{display:grid;grid-template-columns:minmax(0,1fr) var(--switch-w) var(--role-model-w) var(--role-lim-w) 72px;gap:var(--sp-3);padding:0 var(--sp-5) var(--sp-2);font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.tm-role{display:grid;grid-template-columns:minmax(0,1fr) var(--switch-w) var(--role-model-w) var(--role-lim-w) 72px;align-items:center;gap:var(--sp-1) var(--sp-3);padding:var(--sp-3) var(--sp-5);border-top:1px solid var(--border)}
+.tm-role__name{display:grid;gap:2px;min-width:0}
+.tm-role__name b{font-weight:600;overflow-wrap:anywhere}
+.tm-role__name .tm-chip{justify-self:start}
+.tm-role__why{grid-column:1/-1;display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.tm-role__why .ico{width:14px;height:14px;margin-top:2px;flex:none}
+.tm-role.is-off .tm-role__name b{color:var(--text-2);font-weight:400}
+.tm-role.is-off .tm-pick,.tm-role.is-off .tm-lim{color:var(--text-2)}
+.tm-role.is-hl{animation:landed var(--dur-pulse) var(--ease-standard) both}
+@keyframes landed{0%,25%{background:var(--accent-soft)}}
+@media (prefers-reduced-motion:reduce){.tm-role.is-hl{animation:none}}
+:root[data-motion=reduce] .tm-role.is-hl{animation:none}
+.tm-role__reset{justify-self:end;min-height:var(--target);font-size:var(--fs-sm)}
+.tm-role__val{font-size:var(--fs-sm)}
+.app[data-app=phone] .tm-rhead{display:none}
+.app[data-app=phone] .tm-role{grid-template-columns:minmax(0,1fr) auto;padding:var(--sp-3) var(--sp-4);gap:var(--sp-2) var(--sp-3)}
+.app[data-app=phone] .tm-role__ctl{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--sp-2)}
+.app[data-app=phone] .tm-role__reset{grid-column:2;grid-row:1}
+.app[data-app=mac] .tm-role__ctl{display:contents}
+
+/* the switch: proposed kit primitive. Locked: on, a lock in the thumb, aria-disabled and still focusable */
+.tm-switch{position:relative;width:var(--switch-w);height:var(--switch-h);flex:none;padding:0;border:0;border-radius:999px;background:var(--border-strong);transition:background-color var(--dur-fast) var(--ease-standard)}
+.tm-switch::after{content:"";position:absolute;top:3px;left:3px;width:calc(var(--switch-h) - 6px);height:calc(var(--switch-h) - 6px);border-radius:50%;background:var(--surface);box-shadow:var(--shadow-1);transition:transform var(--dur-base) var(--ease-standard)}
+.tm-switch[aria-checked=true]{background:var(--accent)}
+.tm-switch[aria-checked=true]::after{transform:translateX(calc(var(--switch-w) - var(--switch-h)))}
+.tm-switch[aria-disabled=true]{background:color-mix(in oklab,var(--accent) 45%,var(--bg-sunken));cursor:default}
+.tm-switch .ico{position:absolute;z-index:1;top:calc(50% - 6px);right:7px;width:12px;height:12px;stroke-width:2.4;color:var(--accent-text)}
+.tm-switch-wrap{position:relative;display:grid;place-items:center;min-width:var(--target);min-height:var(--target)}
+.tm-switch-wrap::before{content:"";position:absolute;inset:0}
+
+/* picker button (kit `picker-button`): value + chevron, opens the model sheet */
+.tm-pick,.tm-lim{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);width:100%;min-height:var(--target);padding:0 var(--sp-2) 0 var(--sp-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);color:var(--text);text-align:left;font-size:var(--fs-sm)}
+.tm-pick:hover,.tm-lim:hover{background:var(--hover-solid)}
+.tm-pick b{font-weight:600}
+.tm-pick small,.tm-lim small{color:var(--text-2);font-size:var(--fs-xs)}
+.tm-pick .ico,.tm-lim .ico{width:16px;height:16px;color:var(--text-2)}
+.tm-lim{font-variant-numeric:tabular-nums;white-space:nowrap}
+.app[data-app=phone] .tm-lim{width:auto}
+
+/* ----- the model sheet: options are radio rows; the excluded models are named in the footer ----- */
+.tm-opts{display:grid;gap:var(--sp-2);margin:0;padding:0;border:0}
+.tm-opt{display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:start;gap:0 var(--sp-3);padding:var(--sp-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);cursor:pointer}
+.tm-opt input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent)}
+.tm-opt b{font-weight:600}
+.tm-opt small{grid-column:2/-1;font-size:var(--fs-xs);color:var(--text-2)}
+.tm-opt code{grid-column:2/-1;justify-self:start;margin-top:var(--sp-1);font-size:11px;color:var(--text-2)}
+.tm-opt:has(input:checked){border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);background:var(--accent-soft)}
+.tm-opt:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
+.tm-opt[aria-disabled=true]{cursor:default;background:var(--surface-2)}
+.tm-opt[aria-disabled=true] b{color:var(--text-2);font-weight:400}
+.tm-opt__tag{font-size:var(--fs-xs);color:var(--text-2);white-space:nowrap}
+.tm-opt__more{grid-column:2/-1;display:grid;gap:var(--sp-2);margin-top:var(--sp-2)}
+.tm-foot{display:flex;gap:var(--sp-2);align-items:flex-start;margin:0;padding-top:var(--sp-3);border-top:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-2)}
+.tm-foot .ico{width:14px;height:14px;margin-top:2px;flex:none}
+
+/* ----- callouts: risk (ochre), budget stop (clay), waived month (ochre margin note), neutral note ----- */
+.tm-call{display:grid;grid-template-columns:20px minmax(0,1fr);gap:var(--sp-1) var(--sp-3);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-sm)}
+.tm-call>.ico{margin-top:2px}
+.tm-call p{margin:0}
+.tm-call b{display:block;font-weight:700}
+.tm-call__acts{grid-column:2;display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:var(--sp-2)}
+.tm-call__acts .btn{min-height:var(--target)}
+.tm-call--bad{background:var(--danger-soft);color:var(--danger-text)}
+.tm-call--bad .btn:not(.btn--primary){border-color:transparent;background:color-mix(in oklab,var(--surface) 70%,transparent);color:var(--danger-text)}
+.tm-call--stop{padding:var(--sp-4) var(--sp-5)}
+.tm-call--stop b{font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight);margin-bottom:var(--sp-1)}
+.app[data-app=phone] .tm-call--stop{padding:var(--sp-4)}
+.app[data-app=phone] .tm-call__acts{grid-column:1/-1}
+.app[data-app=phone] .tm-call__acts .btn{flex:1 1 100%}
+.tm-waived{display:grid;gap:var(--sp-1);padding:var(--sp-1) 0 var(--sp-1) var(--sp-4);border-left:2px solid var(--warning-text);font-size:var(--fs-sm);color:var(--text)}
+.tm-waived b{font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md);color:var(--warning-text)}
+.tm-waived p{margin:0;max-width:62ch}
+.tm-waived p+p{color:var(--text-2)}
+.tm-waived--editing{border-left-color:var(--accent)}
+.tm-waived--editing b{color:var(--accent-text)}
+
+/* ----- access: two radio cards ----- */
+.tm-acc{display:grid;gap:var(--sp-2);margin:0;padding:0;border:0}
+.tm-acc legend{padding:0;margin-bottom:var(--sp-2);font-size:var(--fs-sm);color:var(--text-2)}
+.tm-card{display:grid;gap:var(--sp-2);padding:var(--sp-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
+.tm-card.is-on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);background:var(--accent-soft)}
+.tm-card:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
+.tm-acc .tm-opt{grid-template-columns:20px minmax(0,1fr);padding:0;border:0;background:none;box-shadow:none;outline:none}
+.tm-acc .tm-opt:has(input:checked){background:none;box-shadow:none}
+.tm-acc .ext{justify-self:start;margin-left:calc(20px + var(--sp-3));min-height:var(--target);align-items:center}
+.app[data-app=mac] .tm-acc .tm-call{margin-left:calc(20px + var(--sp-3))}
+
+/* ----- limits: budget field and the spend meter ----- */
+.tm-budget{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:var(--sp-2) var(--sp-6);align-items:start}
+.app[data-app=phone] .tm-budget{grid-template-columns:minmax(0,1fr)}
+.tm-money{position:relative}
+.tm-money .field__input{padding-left:calc(var(--sp-3) + 12px)}
+.tm-money::before{content:"$";position:absolute;left:var(--sp-3);bottom:calc(var(--target) / 2 - .7em);font-family:var(--font-mono);color:var(--text-2)}
+.tm-spend{display:grid;gap:var(--sp-2);font-size:var(--fs-sm);font-variant-numeric:tabular-nums}
+.tm-spend p{margin:0}
+.tm-meter{position:relative;height:8px;border-radius:999px;background:var(--bg-sunken);overflow:hidden}
+.tm-meter i{position:absolute;inset:0 auto 0 0;border-radius:inherit;background:var(--accent)}
+.tm-meter--full i{background:var(--danger-text)}
+.tm-meter--waived i{background:var(--warning-text)}
+.tm-small{margin:0;font-size:var(--fs-xs);color:var(--text-2);max-width:62ch}
+
+/* ----- rules ----- */
+.tm-rules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-5) var(--sp-6)}
+.tm-rules>.tm-wide{grid-column:1/-1}
+.app[data-app=phone] .tm-rules{grid-template-columns:minmax(0,1fr);gap:var(--sp-4)}
+.tm-group{display:grid;gap:var(--sp-2);margin:0;padding:0;border:0;min-width:0}
+.tm-group legend,.tm-label{padding:0;font-weight:600;font-size:var(--fs-sm)}
+.tm-radios{display:flex;flex-wrap:wrap;gap:var(--sp-1) var(--sp-4)}
+.tm-radio,.tm-check{display:inline-flex;align-items:center;gap:var(--sp-2);min-height:var(--target);font-size:var(--fs-sm);cursor:pointer}
+.tm-radio input,.tm-check input{width:18px;height:18px;margin:0;accent-color:var(--accent)}
+.tm-radio[aria-disabled=true],.tm-check[aria-disabled=true]{color:var(--text-2);cursor:default}
+.tm-paths{display:flex;flex-wrap:wrap;gap:var(--sp-2);align-items:center}
+.tm-path{display:inline-flex;align-items:center;gap:var(--sp-1);padding-left:var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface-2);font-family:var(--font-mono);font-size:var(--fs-xs)}
+.tm-path--bad{border-color:var(--danger-text);background:var(--danger-soft);color:var(--danger-text)}
+.tm-path button{display:grid;place-items:center;width:36px;height:36px;border:0;background:none;color:var(--text-2);border-radius:var(--r-md)}
+.tm-path button .ico{width:14px;height:14px}
+.tm-path button:hover{color:var(--danger-text);background:var(--danger-soft)}
+.tm-path-add{display:flex;gap:var(--sp-2);width:100%}
+.tm-path-add .field__input{margin:0;max-width:240px}
+.app[data-app=phone] .tm-path-add .field__input{max-width:none}
+.tm-num{width:88px!important;text-align:right;font-variant-numeric:tabular-nums}
+.tm-caps{display:grid;grid-template-columns:auto auto auto;justify-content:start;gap:var(--sp-2) var(--sp-3);align-items:center;font-size:var(--fs-sm)}
+.tm-caps .field__input{width:72px;margin:0;text-align:right}
+.tm-caps span{color:var(--text-2)}
+.tm-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-4)}
+.tm-sub{display:grid;gap:var(--sp-1)}
+.tm-sub .field__hint{padding-left:calc(18px + var(--sp-2))}
+
+/* ----- the save bar: sticky to the bottom of the page column; above the home indicator on the iPhone ----- */
+.tm-bar{position:sticky;bottom:0;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-3);margin:0 calc(-1 * var(--sp-2));padding:var(--sp-3) var(--sp-4);border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow-2);animation:bar-in var(--dur-base) var(--ease-enter) both}
+@keyframes bar-in{from{opacity:0;transform:translateY(8px)}}
+@media (prefers-reduced-motion:reduce){.tm-bar{animation:fade var(--dur-fade) linear both}}
+:root[data-motion=reduce] .tm-bar{animation:fade var(--dur-fade) linear both}
+.tm-bar__count{flex:1;min-width:0;font-weight:600;font-variant-numeric:tabular-nums}
+.tm-bar__count small{display:block;font-weight:400;font-size:var(--fs-xs);color:var(--text-2)}
+.tm-bar .btn{min-height:var(--target)}
+.app[data-app=phone] .tm-bar{margin:0 calc(-1 * var(--sp-2)) 0;border-radius:var(--r-lg) var(--r-lg) var(--r-md) var(--r-md)}
+.app[data-app=phone] .tm-bar .btn{flex:1 1 0}
+.app[data-app=phone] .tm-bar__count{flex-basis:100%}
+.app[data-app=phone] .set-inner{padding-bottom:var(--sp-6)}
+
+/* ----- banners: conflict and not-owner are alerts; read-only and offline are notes ----- */
+.tm-ban{display:grid;grid-template-columns:20px minmax(0,1fr);gap:var(--sp-1) var(--sp-3);padding:var(--sp-4);border:1px solid var(--border);border-left:3px solid var(--text-3);border-radius:var(--r-sm) var(--r-lg) var(--r-lg) var(--r-sm);background:var(--surface);box-shadow:var(--shadow-1);font-size:var(--fs-sm)}
+.tm-ban>.ico{margin-top:2px;color:var(--text-2)}
+.tm-ban h2,.tm-ban h3{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md);line-height:var(--lh-tight);outline:none}
+.tm-ban p{margin:0;color:var(--text-2)}
+.tm-ban__acts{grid-column:2;display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:var(--sp-2)}
+.tm-ban__acts .btn{min-height:var(--target)}
+.tm-ban--warn{border-left-color:var(--warning-text)}
+.tm-ban--warn>.ico{color:var(--warning-text)}
+.tm-ban--bad{border-left-color:var(--danger-text)}
+.tm-ban--bad>.ico{color:var(--danger-text)}
+.app[data-app=phone] .tm-ban__acts{grid-column:1/-1}
+.app[data-app=phone] .tm-ban__acts .btn{flex:1 1 100%}
+.tm-merge{grid-column:1/-1;display:grid;gap:var(--sp-2);margin:var(--sp-2) 0 0;padding:0;list-style:none}
+.tm-merge li{display:grid;gap:var(--sp-1);padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--bg-sunken)}
+.tm-merge b{font-weight:600}
+
+/* ----- dialogs: kit alert dialog, wider and scrolling for review, import and diff ----- */
+.adialog--wide{width:min(100%,var(--dialog-w-wide));max-height:calc(100% - var(--sp-8));grid-template-rows:auto minmax(0,1fr) auto;padding:0;gap:0}
+.adialog--wide>header{display:grid;gap:var(--sp-1);padding:var(--sp-5) var(--sp-6) var(--sp-3)}
+.adialog--wide>header h2{outline:none}
+.adialog--wide>header p{margin:0}
+.adialog__body{display:grid;align-content:start;gap:var(--sp-4);padding:0 var(--sp-6) var(--sp-4);overflow-y:auto;overscroll-behavior:contain;min-height:0}
+.adialog--wide .adialog__actions{margin:0;padding:var(--sp-3) var(--sp-6) var(--sp-5);border-top:1px solid var(--border)}
+.app[data-app=phone] .adialog--wide{max-height:90%;padding:0}
+.app[data-app=phone] .adialog--wide>header{padding:var(--sp-5) var(--sp-5) var(--sp-3)}
+.app[data-app=phone] .adialog__body{padding:0 var(--sp-5) var(--sp-4)}
+.app[data-app=phone] .adialog--wide .adialog__actions{padding:var(--sp-3) var(--sp-5) var(--sp-8)}
+.adialog .tm-grab{width:38px;height:5px;margin:var(--sp-2) auto 0;border-radius:3px;background:var(--border-strong)}
+.app[data-app=mac] .adialog .tm-grab{display:none}
+.adialog h2:focus{outline:none}
+.app[data-app=phone] .modal{animation:none}
+.app[data-app=phone] .adialog{animation:sheet-in var(--dur-slow) var(--ease-enter) both}
+.app[data-app=mac] .adialog{animation:dlg-in var(--dur-base) var(--ease-enter) both}
+@keyframes sheet-in{from{transform:translateY(100%)}}
+@keyframes dlg-in{from{opacity:0;transform:translateY(8px) scale(.98)}}
+@media (prefers-reduced-motion:reduce){.app[data-app=phone] .adialog,.app[data-app=mac] .adialog{animation:fade var(--dur-fade) linear both}}
+:root[data-motion=reduce] .app .adialog{animation:fade var(--dur-fade) linear both!important}
+.tm-count{justify-self:end;font-size:var(--fs-xs);color:var(--text-2);font-variant-numeric:tabular-nums}
+.tm-textarea{width:100%;min-height:88px;margin-top:var(--sp-1);padding:var(--sp-2) var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--text);font-size:var(--fs-md);resize:vertical}
+.app[data-app=phone] .tm-textarea{font-size:var(--fs-input)}
+.tm-textarea:focus{outline:none;border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+
+/* ----- diff table: words first; old/new are columns with headers, never colour alone ----- */
+.tm-diff{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+.tm-diff th,.tm-diff td{padding:var(--sp-2) var(--sp-3) var(--sp-2) 0;text-align:left;vertical-align:top;border-top:1px solid var(--border);overflow-wrap:anywhere}
+.tm-diff thead th{border-top:0;font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.tm-diff tbody th{font-weight:600}
+.tm-diff td.is-old{color:var(--text-2);text-decoration:line-through;text-decoration-color:color-mix(in oklab,var(--text-2) 50%,transparent)}
+.tm-diff td.is-new{font-weight:600}
+.tm-diff__note{display:block;margin-top:2px;font-weight:400;font-size:var(--fs-xs);color:var(--warning-text)}
+.tm-diff__tag{display:inline-block;margin-right:var(--sp-1);font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;text-decoration:none}
+.app[data-app=phone] .tm-diff thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.app[data-app=phone] .tm-diff tr{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:0 var(--sp-2);padding:var(--sp-2) 0;border-top:1px solid var(--border)}
+.app[data-app=phone] .tm-diff tbody th{grid-column:1/-1}
+.app[data-app=phone] .tm-diff th,.app[data-app=phone] .tm-diff td{border:0;padding:0}
+.app[data-app=phone] .tm-diff td.is-new::before{content:"→ ";color:var(--text-2);font-weight:400}
+.tm-raw{margin:0;padding:var(--sp-3);border-radius:var(--r-md);background:var(--bg-sunken);font-family:var(--font-mono);font-size:var(--fs-xs);line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;max-height:280px;overflow:auto}
+.tm-reason{margin:0;padding:var(--sp-1) 0 var(--sp-1) var(--sp-4);border-left:2px solid var(--border-strong);font-family:var(--font-display);font-style:italic;font-size:var(--fs-md);overflow-wrap:anywhere;white-space:pre-wrap}
+.tm-reason--none{font-family:var(--font-body);font-style:normal;font-size:var(--fs-sm);color:var(--text-2)}
+
+/* ----- history: a ledger of revisions, newest first ----- */
+.tm-hist{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);overflow:hidden}
+.tm-hist li+li{border-top:1px solid var(--border)}
+.tm-rev{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:2px var(--sp-3);align-items:center;width:100%;min-height:calc(var(--target) + var(--sp-5));padding:var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);border:0;background:none;color:inherit;text-align:left}
+.tm-rev:hover{background:var(--hover)}
+.tm-rev:focus-visible{outline-offset:-2px}
+.tm-rev__n{grid-row:1/span 2;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);color:var(--text-2);font-variant-numeric:lining-nums tabular-nums}
+.tm-rev__top{display:flex;flex-wrap:wrap;gap:0 var(--sp-2);font-size:var(--fs-sm)}
+.tm-rev__top b{font-weight:600}
+.tm-rev__top span{color:var(--text-2);font-variant-numeric:tabular-nums}
+.tm-rev__why{grid-column:2;font-family:var(--font-display);font-style:italic;font-size:var(--fs-sm);color:var(--text);overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tm-rev__why.is-none{font-family:var(--font-body);font-style:normal;color:var(--text-2)}
+.tm-rev>.ico{grid-column:3;grid-row:1/span 2;color:var(--text-3)}
+.tm-rev__count{font-size:var(--fs-xs);color:var(--text-2)}
+.tm-hist__more{justify-self:start}
+
+/* ----- loading ----- */
+.tm-skel{display:grid;gap:var(--sp-4)}
+.tm-skel .tm-sec{overflow:hidden}
+.tm-slow{display:flex;align-items:center;gap:var(--sp-2);margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.tm-plain{font-weight:600}
+.tm-err{grid-column:1/-1}
+
+/* on a real phone the frame fills the screen even when a state's content is narrow (skeleton, error) */
+@media (max-width:520px){.device--phone{width:100%;justify-items:stretch}}
+
+/* screenshot mode (?shot=1): only the device frame, no page chrome */
+:root[data-shot] .note{display:none}
+:root[data-shot] body{background:var(--bg)}
+:root[data-shot] .stage{padding:0;gap:0;max-width:none}
+:root[data-shot] .device__label{display:none}
+:root[data-shot] .mac-frame{border-radius:0;box-shadow:none;zoom:1!important}
