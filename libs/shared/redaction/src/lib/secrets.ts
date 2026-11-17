@@ -46,6 +46,15 @@ export const JOB_TOKEN_PREFIX = 'tcj_';
 export const ENROLMENT_CODE_PREFIX = 'tce_';
 /** The characters of the random part of a job token or an enrolment code, and how many: base64url of 32 bytes. */
 export const OPAQUE_TOKEN_TAIL = String.raw`[A-Za-z0-9_-]{43}`;
+/** The prefix of every Anthropic key shape (API key or OAuth login); not exported, so the pattern below and
+ * `ANTHROPIC_OAUTH_TOKEN_PREFIX` never drift apart into two copies of the same literal. */
+const ANTHROPIC_KEY_PREFIX = 'sk-ant-';
+/**
+ * A Claude subscription (OAuth) login token from `claude setup-token` (#713): never an API key, so a value that
+ * starts with this prefix must never run as `ANTHROPIC_API_KEY` on a hosted or Actions job (owner decision
+ * 2026-11-09, multi-tenant rule).
+ */
+export const ANTHROPIC_OAUTH_TOKEN_PREFIX = `${ANTHROPIC_KEY_PREFIX}oat`;
 
 interface SecretPattern {
   readonly kind: SecretKind;
@@ -112,8 +121,8 @@ const SECRET_PATTERNS: readonly SecretPattern[] = [
   // tokens of #114 (`sk-ant-oat01-…`), whole or cut off in a log.
   {
     kind: 'anthropic-key',
-    strict: String.raw`sk-ant-[A-Za-z0-9_-]{20,}`,
-    loose: String.raw`sk-ant-[A-Za-z0-9_-]{1,}`,
+    strict: String.raw`${ANTHROPIC_KEY_PREFIX}[A-Za-z0-9_-]{20,}`,
+    loose: String.raw`${ANTHROPIC_KEY_PREFIX}[A-Za-z0-9_-]{1,}`,
   },
   // An npm automation or publish token. The same in both modes: `npm_config_cache` is a word, not a token.
   { kind: 'npm-token', strict: String.raw`npm_[A-Za-z0-9]{36}`, loose: String.raw`npm_[A-Za-z0-9]{36}` },

@@ -407,15 +407,34 @@ able to replace what root installed. Update by hand, as an admin:
 
 ### Upgrade notes: check these before you update
 
-- **A runner enrolled with `--credential api-key` that serves a `subscription` project now fails every job** with
-  `credential-source-mismatch` (#685). An `api_key` project needs an `api-key` credential; a `subscription` project
-  takes `setup-token`, `claude-config-dir` or none. Before you update, switch the project's access source to an API
-  key in the console, or enrol a runner with a subscription credential for it.
 - **A `config.json` that still has `roles` stops the runner at start** (#685). Every command that loads the config
   (`run`, `run-once`, `update`) exits with `config.json: roles is no longer read: … remove the key`. Each role's model
   now comes from the project's team configuration in the console (Settings › Team). Remove `roles` from
   `config.json` before you update. On `update.policy: auto` the service otherwise restarts the new version every
-  30 seconds, and the console only shows the runner going offline.
+  30 seconds, and the console only shows the runner going offline: there is no Needs-you item for this one, so check
+  the service log (or run `run-once` by hand) after an update if a runner stops reporting in.
+
+- **`credential-source-mismatch`** (#685, ADR 0009 d.3): the project's `access.source` admits only some credential
+  kinds (`SOURCE_CREDENTIAL_KINDS` in `apps/runner/src/env/credential.ts`), so a kind that does not match fails every
+  job the runner claims for that project, with the reason named in the job's finish:
+
+  | Project's `access.source` | Kind(s) the runner may be enrolled with |
+  | --- | --- |
+  | `api_key` | `api-key` only |
+  | `subscription` | `setup-token`, `claude-config-dir`, or none (falls back to the host's own Claude sign-in) |
+
+  A runner enrolled with `--credential api-key` that serves a `subscription` project is the common case: fix it by
+  switching the project's access source to an API key in the console (Settings › Team), or by re-enrolling that
+  runner with a subscription credential (`setup-token` or `claude-config-dir`) instead. The message never names the
+  credential's value, only its kind and the project's source.
+
+- **`team-config-invalid`**: the job's claim carried a resolved team configuration (console `team-config/v1` view)
+  that the runner's own guard rejects before launch — the view's shape does not match `team-config/v1`, or it names a
+  model outside `MODEL_ALLOW_LIST` or a turn limit outside `TEAM_CONFIG_BOUNDS.maxTurns` for the job's role. This
+  finishes that one job as failed; it does not stop the runner or other jobs. It points at a console bug or a stale
+  runner on an older `team-config/v1` shape than the console now sends: update the runner to the latest release, and
+  if it persists, check the project's Settings › Team values are within the console's own bounds and re-save them.
+  The refusal never names a value of the view, only that it is out of bounds or not a valid view.
 
 ## Revoke a runner
 

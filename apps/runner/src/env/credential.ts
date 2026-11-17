@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import type { AccessSource, RunnerIsolation } from '@shared/contracts';
+import { ANTHROPIC_OAUTH_TOKEN_PREFIX } from '@shared/redaction';
 import { RunnerFileError, assertPrivateDir, readPrivateFile } from '../config/private-files';
 import { LaunchRefusal } from '../jobs/refusal';
 
@@ -129,6 +130,20 @@ export function assertCredentialAllowed(credential: CredentialConfig, backend: R
 }
 
 /**
+ * Refuses an `api-key` value shaped like a Claude subscription (OAuth) login (#713): never the value itself, only
+ * its prefix, so a customer who pastes a `claude setup-token` output into the Environment secret is turned away
+ * before the job's one exchange is spent, with a pointer to a real API key instead.
+ */
+function assertNotSubscriptionShaped(kind: CredentialKind, value: string): void {
+  if (kind === 'api-key' && value.startsWith(ANTHROPIC_OAUTH_TOKEN_PREFIX)) {
+    throw new LaunchRefusal(
+      'credential-not-allowed',
+      'this looks like a Claude subscription login, not an API key; use an API key from the Anthropic Console instead',
+    );
+  }
+}
+
+/**
  * The one credential variable of the job, read fresh per launch; `null` when none is configured. `source` is the
  * runner's own env, read for an env credential only; its value goes into the job's env and nowhere else.
  */
@@ -152,6 +167,7 @@ export async function jobCredentialOf(
     if (!CREDENTIAL_VALUE.test(value)) {
       throw new LaunchRefusal('credential-unreadable', `${credential.env} does not hold one credential line`);
     }
+    assertNotSubscriptionShaped(credential.kind, value);
     return { kind: credential.kind, name, value };
   }
   let value: string;
@@ -167,5 +183,6 @@ export async function jobCredentialOf(
   if (!CREDENTIAL_VALUE.test(value)) {
     throw new LaunchRefusal('credential-unreadable', `${credential.file} does not hold one credential line`);
   }
+  assertNotSubscriptionShaped(credential.kind, value);
   return { kind: credential.kind, name, value };
 }

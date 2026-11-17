@@ -163,7 +163,8 @@ export function actionsRunSettingsOf(env: Env, nodeDir: string, stdinRequestToke
     problems.push(`${ACTIONS_RUN_ENV.claude} must be an absolute path`);
   }
   if (problems.length > 0 || apiUrl === null || idTokenRequestUrl === null || server === null) {
-    throw new ActionsRunError(`run-once --oidc cannot start: ${problems.join('; ')}.`);
+    // No own prefix here: the caller (`runOidc` in cli.ts) already prefixes every refusal once.
+    throw new ActionsRunError(`${problems.join('; ')}.`);
   }
   return {
     apiUrl,
@@ -218,8 +219,12 @@ export async function runOnceOidc(deps: OidcRunDeps): Promise<OidcRunEnd> {
     await jobCredentialOf(settings.home, credential, 'actions-ephemeral', sourceEnv);
   } catch (error: unknown) {
     if (error instanceof LaunchRefusal) {
+      // `credential-not-allowed` names its own reason (#713, a subscription-shaped value); anything else here is
+      // the env not holding a usable key at all, which reads better as one plain sentence.
       throw new ActionsRunError(
-        `${INFERENCE_API_KEY_ENV} is missing or not one key; set it as a secret of the team-console Environment.`,
+        error.reason === 'credential-not-allowed'
+          ? `${error.message}.`
+          : `${INFERENCE_API_KEY_ENV} is missing or not one key; set it as a secret of the team-console Environment.`,
       );
     }
     throw error;

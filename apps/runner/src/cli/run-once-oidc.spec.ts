@@ -360,6 +360,17 @@ describe('run-once --oidc', () => {
       expect(wire.requests).toEqual([]);
     });
 
+    it('missing env vars: one refusal prefix, not two (#715)', async () => {
+      const { exit, wire } = run({
+        env: { TC_CONSOLE_URL: undefined, TC_CONSOLE_AUDIENCE: undefined, ACTIONS_ID_TOKEN_REQUEST_URL: undefined },
+      });
+      expect(await exit).toBe(EXIT_FAILED);
+      expect(err).toEqual([
+        'run-once --oidc refused: TC_CONSOLE_URL is not set; TC_CONSOLE_AUDIENCE is not set; ACTIONS_ID_TOKEN_REQUEST_URL is not set.',
+      ]);
+      expect(wire.requests).toEqual([]);
+    });
+
     it('a missing inference key, before the job’s one exchange is spent', async () => {
       const { exit, wire } = run({ env: { TC_INFERENCE_API_KEY: undefined } });
       expect(await exit).toBe(EXIT_FAILED);
@@ -373,6 +384,16 @@ describe('run-once --oidc', () => {
       const { exit, wire } = run({ env: { TC_INFERENCE_API_KEY: 'two\nlines' } });
       expect(await exit).toBe(EXIT_FAILED);
       expect(err.join('\n')).toContain('TC_INFERENCE_API_KEY is missing or not one key');
+      expect(wire.requests).toEqual([]);
+    });
+
+    it('a subscription-shaped inference key: its own message, one prefix, no exchange, no echo (#713)', async () => {
+      const { exit, wire } = run({ env: { TC_INFERENCE_API_KEY: actionsSecrets.subscriptionToken } });
+      expect(await exit).toBe(EXIT_FAILED);
+      expect(err).toEqual([
+        'run-once --oidc refused: this looks like a Claude subscription login, not an API key; use an API key from the Anthropic Console instead.',
+      ]);
+      expect(err.join('\n')).not.toContain(actionsSecrets.subscriptionToken);
       expect(wire.requests).toEqual([]);
     });
 
