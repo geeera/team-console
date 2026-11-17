@@ -59,6 +59,12 @@ export interface ApiEnv extends WorkerBaseEnv {
   readonly RUNNER_RELEASE_VERSION?: string;
   readonly RUNNER_MINIMUM_VERSION?: string;
   /**
+   * Non-secret var, the kill switch of the Actions setup's write path (#759, security note): only the exact value
+   * `true` lets the `workflow-pr` mint (Contents, Workflows and Pull requests write) run. `false` on stage and
+   * production until the write route's security review (PR 4 of #759); unset is off.
+   */
+  readonly ALLOW_ACTIONS_SETUP_WRITE?: string;
+  /**
    * A JSON Web Key Set that stands in for GitHub's Actions OIDC keys (#668), so specs and the local integration run
    * sign their own tokens. Honoured only with ENVIRONMENT=local, passed only as `--var` (tools/workspace-checks keeps
    * it out of every `env.*` block); everywhere else the keys are GitHub's.

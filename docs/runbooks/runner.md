@@ -162,6 +162,16 @@ job and is revoked at its `finish`.
    refused.
 5. **The console's GitHub App** is installed on the repository (it already is when the project exists) and has the
    **Actions: write** permission, which the console uses only through a token for this one repository.
+
+   **Owner step for the console's Actions setup (#759), once per console environment:** on each of the dev, stage and
+   production GitHub App registrations (Settings → Developer settings → GitHub Apps → the app → Permissions & events →
+   Repository permissions) set **Contents: Read and write**, **Workflows: Read and write**, **Pull requests: Read and
+   write** and **Environments: Read-only**, with **Actions: Read and write** as the dispatch already needs (ADR 0008
+   item 9) and **no Administration** permission, and save; then accept the new permissions on every installation of that App (the account owner opens the installation's
+   settings page, Settings → Integrations → GitHub Apps → the app → Configure, and clicks **Review request → Accept new
+   permissions**). Until an installation accepts, it keeps its old permissions and the console's readiness check reads
+   those items as unknown. The write path stays off on stage and production (`ALLOW_ACTIONS_SETUP_WRITE` is `false`
+   there) until the workflow-PR route passes its security review.
 6. **Switch the project.** In the console: Settings › Runners → the project → **Where jobs run** → **On GitHub
    Actions** → Save. The console refuses the switch while the project's access source is a subscription (switch it
    to an API key first) or while its placement pins a runner (choose **Any runner** first). Jobs marked "own machine

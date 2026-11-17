@@ -1,6 +1,34 @@
 export { dispatchRunnerWorkflow } from './lib/actions-dispatch';
 export {
+  RUNNER_WORKFLOW_MAX_BYTES,
+  hasInferenceKeySecret,
+  readActionsEnvironment,
+  readDeploymentBranchPolicies,
+  readRunnerWorkflowFile,
+} from './lib/actions-setup-reads';
+export type {
+  ActionsEnvironment,
+  ActionsSetupReadOptions,
+  DeploymentBranchPolicies,
+  DeploymentBranchPolicy,
+  EnvironmentProtectionRule,
+  RunnerWorkflowFile,
+} from './lib/actions-setup-reads';
+export {
   ACTIONS_DISPATCH_PERMISSIONS,
+  ENVIRONMENT_READ_PERMISSIONS,
+  SCOPED_MINT_KINDS,
+  WORKFLOW_PR_PERMISSIONS,
+} from './lib/scoped-mint';
+export type {
+  ScopedInstallationToken,
+  ScopedMintAudit,
+  ScopedMintEvent,
+  ScopedMintFailure,
+  ScopedMintKind,
+  ScopedMintTarget,
+} from './lib/scoped-mint';
+export {
   GitHubAppAuth,
   INSTALLATION_LIST_PERMISSIONS,
   INSTALLATION_PERMISSIONS,

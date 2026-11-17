@@ -11,6 +11,8 @@ const KIND_OF_PROBLEM: Readonly<Record<GitHubProblemType, VcsErrorKind>> = {
   'github-request-budget': 'unavailable',
   'github-unavailable': 'unavailable',
   'github-unexpected': 'unavailable',
+  // #759: the operator's kill switch; the adapter never mints a write token, but the map stays total.
+  'github-write-disabled': 'forbidden',
 };
 
 /** A `GitHubError` as the adapter throws it: the same problem (clients keep their `github-*` types), a VCS kind. */

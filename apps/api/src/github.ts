@@ -9,6 +9,7 @@ import {
   isGitHubLogin,
   isGitHubMockEnabled,
   type FetchLike,
+  type MockGitHub,
   type ReadCache,
 } from '@worker/github';
 import type { ApiEnv } from './env';
@@ -29,6 +30,13 @@ export interface ApiGitHubOptions {
   readonly now?: () => number;
   /** A seam for the refresh-lease waits. */
   readonly sleep?: (ms: number) => Promise<void>;
+}
+
+type SetupWrite = 'enabled' | 'disabled';
+
+/** #759 kill switch: the `workflow-pr` mint runs only when `ALLOW_ACTIONS_SETUP_WRITE` is exactly `true`. */
+export function setupWriteOf(env: Pick<ApiEnv, 'ALLOW_ACTIONS_SETUP_WRITE'>): SetupWrite {
+  return env.ALLOW_ACTIONS_SETUP_WRITE === 'true' ? 'enabled' : 'disabled';
 }
 
 // The two hosts `GITHUB_FAKE_ORIGIN` stands in for; nothing else is ever rewritten.
@@ -102,8 +110,11 @@ export class ApiGitHub {
   /** The clock of the owner flow (cookie age, expiries, `connected_at`): one source, so they agree. */
   readonly now: () => number;
   private readonly sleep: ((ms: number) => Promise<void>) | undefined;
-  private real: { readonly appId: string; readonly pem: string; readonly auth: GitHubAppAuth } | undefined;
-  private mock: Promise<GitHubConnection> | undefined;
+  private real:
+    | { readonly appId: string; readonly pem: string; readonly setupWrite: SetupWrite; readonly auth: GitHubAppAuth }
+    | undefined;
+  private mock: Promise<MockGitHub> | undefined;
+  private mockAuth: { readonly setupWrite: SetupWrite; readonly auth: GitHubAppAuth } | undefined;
 
   constructor(options: ApiGitHubOptions = {}) {
     // Wrapped: a Workers `fetch` stored on an object and called as its method throws "Illegal invocation".
@@ -170,34 +181,42 @@ export class ApiGitHub {
   }
 
   async connect(env: ApiEnv): Promise<GitHubConnection> {
+    const setupWrite = setupWriteOf(env);
     if (isGitHubMockEnabled(env)) {
-      const mock = await this.mockConnection();
+      const mock = await this.mockConnection(setupWrite);
       return { auth: mock.auth, fetch: localIssueThreads(env, mock.fetch, this.fetcher) };
     }
     // Missing or malformed values fail inside GitHubAppAuth as 503 github-auth, before any request is sent.
     const appId = env.GITHUB_APP_ID ?? '';
     const pem = env.GITHUB_APP_PRIVATE_KEY ?? '';
-    if (this.real === undefined || this.real.appId !== appId || this.real.pem !== pem) {
-      this.real = {
+    let real = this.real;
+    if (real === undefined || real.appId !== appId || real.pem !== pem || real.setupWrite !== setupWrite) {
+      real = {
         appId,
         pem,
-        auth: new GitHubAppAuth({ appId, privateKeyPem: pem }, { fetch: this.fetcher }),
+        setupWrite,
+        auth: new GitHubAppAuth({ appId, privateKeyPem: pem }, { fetch: this.fetcher, setupWrite }),
       };
+      this.real = real;
     }
-    return { auth: this.real.auth, fetch: this.fetcher };
+    return { auth: real.auth, fetch: this.fetcher };
   }
 
-  private async mockConnection(): Promise<GitHubConnection> {
-    this.mock ??= (async () => {
-      const mock = await createMockGitHub();
-      return { auth: new GitHubAppAuth(mock.credentials, { fetch: mock.fetch }), fetch: mock.fetch };
-    })();
+  private async mockConnection(setupWrite: SetupWrite): Promise<GitHubConnection> {
+    this.mock ??= createMockGitHub();
+    let mock: MockGitHub;
     try {
-      return await this.mock;
+      mock = await this.mock;
     } catch (error: unknown) {
       this.mock = undefined;
       throw error;
     }
+    let mockAuth = this.mockAuth;
+    if (mockAuth === undefined || mockAuth.setupWrite !== setupWrite) {
+      mockAuth = { setupWrite, auth: new GitHubAppAuth(mock.credentials, { fetch: mock.fetch, setupWrite }) };
+      this.mockAuth = mockAuth;
+    }
+    return { auth: mockAuth.auth, fetch: mock.fetch };
   }
 }
 

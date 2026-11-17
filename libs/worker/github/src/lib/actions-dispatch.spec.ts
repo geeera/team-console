@@ -1,6 +1,7 @@
 import type { Logger } from '@worker/core';
 import { dispatchRunnerWorkflow } from './actions-dispatch';
 import { GitHubAppAuth } from './app-auth';
+import { ScopedInstallationToken, type ScopedMintAudit } from './scoped-mint';
 import { GitHubError } from './errors';
 import { createMockGitHub, type MockGitHub } from './mock';
 import { parseRepoName } from './repo-name';
@@ -11,6 +12,7 @@ import type { FetchLike } from './transport';
 
 const TEAM_CONSOLE = { installation: 1001, id: 900001, repo: 'geeera/team-console' };
 const PRIVATE_PRODUCT = { installation: 1001, id: 900002, repo: 'geeera/private-product' };
+const noAudit: ScopedMintAudit = async () => undefined;
 
 async function rejection(promise: Promise<unknown>): Promise<GitHubError> {
   try {
@@ -24,7 +26,7 @@ async function rejection(promise: Promise<unknown>): Promise<GitHubError> {
   throw new Error('expected a GitHubError');
 }
 
-describe('mintForActionsDispatch and dispatchRunnerWorkflow', () => {
+describe('the actions-dispatch scoped mint and dispatchRunnerWorkflow', () => {
   let mock: MockGitHub;
   let auth: GitHubAppAuth;
   let recordingFetch: FetchLike;
@@ -48,7 +50,7 @@ describe('mintForActionsDispatch and dispatchRunnerWorkflow', () => {
   });
 
   it('mints a token for one repository by id with actions: write only, and dispatches the runner workflow with it', async () => {
-    const token = await auth.mintForActionsDispatch(TEAM_CONSOLE.installation, TEAM_CONSOLE.id);
+    const token = await auth.mintScoped('actions-dispatch', { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id }, noAudit);
     const mint = calls.find((call) => call.path.endsWith('/access_tokens'));
     expect(JSON.parse(mint?.body ?? '{}')).toEqual({ repository_ids: [TEAM_CONSOLE.id], permissions: { actions: 'write' } });
     const runId = await dispatchRunnerWorkflow(
@@ -74,25 +76,25 @@ describe('mintForActionsDispatch and dispatchRunnerWorkflow', () => {
     ['200 with a run id that is no positive integer', () => Response.json({ workflow_run_id: '12' })],
   ] as const)('refuses a dispatch answered %s with 502 github-unexpected', async (_label, answer) => {
     const error = await rejection(
-      dispatchRunnerWorkflow(async () => answer(), 'ghs_x', parseRepoName(TEAM_CONSOLE.repo), 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS'),
+      dispatchRunnerWorkflow(async () => answer(), new ScopedInstallationToken('actions-dispatch', 1, 1, 'ghs_x'), parseRepoName(TEAM_CONSOLE.repo), 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS'),
     );
     expect(error.problem.type).toBe('github-unexpected');
   });
 
   it('never caches the dispatch token: every call mints anew', async () => {
-    const first = await auth.mintForActionsDispatch(TEAM_CONSOLE.installation, TEAM_CONSOLE.id);
-    const second = await auth.mintForActionsDispatch(TEAM_CONSOLE.installation, TEAM_CONSOLE.id);
-    expect(first).not.toBe(second);
+    const first = await auth.mintScoped('actions-dispatch', { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id }, noAudit);
+    const second = await auth.mintScoped('actions-dispatch', { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id }, noAudit);
+    expect(first.bearer()).not.toBe(second.bearer());
     expect(calls.filter((call) => call.path.endsWith('/access_tokens'))).toHaveLength(2);
   });
 
   it('throws GitHub’s 422 when the installation lacks actions: write on the repository', async () => {
-    const error = await rejection(auth.mintForActionsDispatch(PRIVATE_PRODUCT.installation, PRIVATE_PRODUCT.id));
+    const error = await rejection(auth.mintScoped('actions-dispatch', { installationId: PRIVATE_PRODUCT.installation, repositoryId: PRIVATE_PRODUCT.id }, noAudit));
     expect(error.githubStatus).toBe(422);
   });
 
   it('refuses the dispatch with a token of another repository (404), and with a read-only token (403)', async () => {
-    const token = await auth.mintForActionsDispatch(TEAM_CONSOLE.installation, TEAM_CONSOLE.id);
+    const token = await auth.mintScoped('actions-dispatch', { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id }, noAudit);
     const other = await rejection(
       dispatchRunnerWorkflow(mock.fetch, token, parseRepoName(PRIVATE_PRODUCT.repo), 'main', '01M7K0DGZ2FKYQNH7RVHYQN6BS'),
     );
@@ -100,13 +102,13 @@ describe('mintForActionsDispatch and dispatchRunnerWorkflow', () => {
 
     const read = await auth.tokenSourceFor(parseRepoName(TEAM_CONSOLE.repo)).getToken();
     const readOnly = await rejection(
-      dispatchRunnerWorkflow(mock.fetch, read, parseRepoName(TEAM_CONSOLE.repo), 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS'),
+      dispatchRunnerWorkflow(mock.fetch, new ScopedInstallationToken('actions-dispatch', TEAM_CONSOLE.installation, TEAM_CONSOLE.id, read), parseRepoName(TEAM_CONSOLE.repo), 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS'),
     );
     expect(readOnly.githubStatus).toBe(403);
   });
 });
 
-describe('revokeActionsDispatchToken (#723 item 1)', () => {
+describe('revokeScoped of a dispatch token (#723 item 1)', () => {
   interface LogEntry {
     readonly level: string;
     readonly message: string;
@@ -136,14 +138,14 @@ describe('revokeActionsDispatchToken (#723 item 1)', () => {
     };
     const logger = recordingLogger();
     const auth = new GitHubAppAuth(mock.credentials, { fetch, logger });
-    const token = await auth.mintForActionsDispatch(TEAM_CONSOLE.installation, TEAM_CONSOLE.id);
+    const token = await auth.mintScoped('actions-dispatch', { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id }, noAudit);
     const repo = parseRepoName(TEAM_CONSOLE.repo);
     await dispatchRunnerWorkflow(fetch, token, repo, 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS');
-    await auth.revokeActionsDispatchToken(token, TEAM_CONSOLE.installation);
+    await auth.revokeScoped(token);
 
     const [post, del] = calls.filter((call) => call.path.endsWith('/dispatches') || call.method === 'DELETE');
     expect(post?.method).toBe('POST');
-    expect(del).toEqual({ method: 'DELETE', path: '/installation/token', authorization: `Bearer ${token}` });
+    expect(del).toEqual({ method: 'DELETE', path: '/installation/token', authorization: `Bearer ${token.bearer()}` });
     expect(logger.entries).toEqual([]);
     const reused = await rejection(dispatchRunnerWorkflow(fetch, token, repo, 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS'));
     expect(reused.githubStatus).toBe(401);
@@ -163,8 +165,8 @@ describe('revokeActionsDispatchToken (#723 item 1)', () => {
     const fetch: FetchLike = async (input, init) => (init.method === 'DELETE' ? answer() : mock.fetch(input, init));
     const logger = recordingLogger();
     const auth = new GitHubAppAuth(mock.credentials, { fetch, logger });
-    const token = await auth.mintForActionsDispatch(TEAM_CONSOLE.installation, TEAM_CONSOLE.id);
-    await expect(auth.revokeActionsDispatchToken(token, TEAM_CONSOLE.installation)).resolves.toBeUndefined();
+    const token = await auth.mintScoped('actions-dispatch', { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id }, noAudit);
+    await expect(auth.revokeScoped(token)).resolves.toBeUndefined();
     expect(logger.entries).toEqual([
       {
         level: 'warn',
@@ -172,6 +174,6 @@ describe('revokeActionsDispatchToken (#723 item 1)', () => {
         fields: { installationId: TEAM_CONSOLE.installation, ...logged },
       },
     ]);
-    expect(JSON.stringify(logger.entries)).not.toContain(token);
+    expect(JSON.stringify(logger.entries)).not.toContain(token.bearer());
   });
 });
