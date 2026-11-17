@@ -587,6 +587,16 @@ code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);pa
 
 /* page chrome sits on the darker --page backdrop, where tertiary text falls under AA: use secondary text there */
 .note__kicker,.device__label,.demo__help{color:var(--text-2)}
+
+/* on a real phone the frame fills the screen even when a state's content is narrow (skeleton, error) */
+@media (max-width:520px){.device--phone{width:100%;justify-items:stretch}}
+
+/* screenshot mode (?shot=1, set by a page runtime): only the device frame, no page chrome */
+:root[data-shot] .note{display:none}
+:root[data-shot] body{background:var(--bg)}
+:root[data-shot] .stage{padding:0;gap:0;max-width:none}
+:root[data-shot] .device__label{display:none}
+:root[data-shot] .mac-frame{border-radius:0;box-shadow:none;zoom:1!important}
 /* ===== #24 Settings: GitHub connection and projects, on the Paper Desk tokens (ADR 0002) =====
    Shared page parts (tokens, buttons, fields, result notes, dialogs, toast) are in kit.css. */
 
@@ -1047,16 +1057,6 @@ code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);pa
 .tm-slow{display:flex;align-items:center;gap:var(--sp-2);margin:0;font-size:var(--fs-sm);color:var(--text-2)}
 .tm-plain{font-weight:600}
 .tm-err{grid-column:1/-1}
-
-/* on a real phone the frame fills the screen even when a state's content is narrow (skeleton, error) */
-@media (max-width:520px){.device--phone{width:100%;justify-items:stretch}}
-
-/* screenshot mode (?shot=1): only the device frame, no page chrome */
-:root[data-shot] .note{display:none}
-:root[data-shot] body{background:var(--bg)}
-:root[data-shot] .stage{padding:0;gap:0;max-width:none}
-:root[data-shot] .device__label{display:none}
-:root[data-shot] .mac-frame{border-radius:0;box-shadow:none;zoom:1!important}
 
 </style>
 </head>

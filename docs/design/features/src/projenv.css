@@ -1,0 +1,44 @@
+/* ===== #750 Environment setup per project, on the Paper Desk tokens (ADR 0002) =====
+   Builds on #104 (env.css): rows, chips, summary slip, guide and list-detail are reused as they are. This file
+   adds only what #750 introduces: environment sections instead of tabs on the project screen, the required /
+   optional sub-lists, the quiet "nothing elsewhere" line, the setup page's new row, the Settings operator section
+   and the version line. No new tokens. */
+
+/* ----- project screen: one section per environment that has rows for this project ----- */
+.psec{display:grid;gap:var(--sp-4);min-width:0}
+.psec__title{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--sp-1) var(--sp-3);margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
+.psec__title code{font-family:var(--font-mono);font-size:var(--fs-lg);font-weight:600}
+.psec__this{display:inline-flex;align-items:center;gap:var(--sp-1);font-family:var(--font-body);font-size:var(--fs-xs);font-weight:400;color:var(--accent-text);white-space:nowrap}
+.psec__this i{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
+.psub{display:grid;gap:var(--sp-2);min-width:0}
+.psub__h{margin:0;font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.esum .esum__opt{color:var(--text-2)}
+.psec .esum__title{font-size:var(--fs-lg)}
+.psec__title code{padding:0;background:none}
+.pnone{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;padding-top:var(--sp-4);border-top:1px dashed var(--border);font-size:var(--fs-sm);color:var(--text-2)}
+.pnone .ico{width:16px;height:16px;flex:none;margin-top:3px;color:var(--text-3)}
+.pempty{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-3)}
+.pempty p{margin:0;flex:1 1 12rem}
+.pempty .esum__mark{background:var(--success-soft);color:var(--success-text)}
+.block--lock .btn{justify-self:start;min-height:var(--target);background:var(--surface)}
+
+/* ----- the guide: manifest prose is Russian for now; the English UI says so once ----- */
+.guide__prose{display:grid;gap:var(--sp-5);min-width:0}
+.gru{font-size:var(--fs-xs)}
+
+/* ----- project setup: the new row sits right under the checklist, before the actions ----- */
+.setup-env{margin-top:calc(-1 * var(--sp-1))}
+.how__link{display:inline-flex;align-items:center;gap:var(--sp-1);min-height:var(--target);font-weight:600;color:var(--accent-text);text-decoration:none}
+.how__link:hover{text-decoration:underline}
+.how__link .ico{width:16px;height:16px}
+.how__link:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:var(--r-sm)}
+
+/* ----- Settings: the operator section comes last, before the version line, so nothing above it shifts ----- */
+.set-version{margin:0;font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
+/* the open step 5 carries a command and a link: its column must not grow past 375 px; on the phone Copy goes under the command */
+.step__body{grid-template-columns:minmax(0,1fr)}
+.app[data-app=phone] .how .codeline{flex-wrap:wrap}
+.app[data-app=phone] .how .codeline code{flex-basis:100%}
+.block--lock a.btn{text-decoration:none}
+/* the Mac content column scrolls on its own, under the crumbs */
+.env-body{display:flex;flex-direction:column;flex:1;min-height:0}
