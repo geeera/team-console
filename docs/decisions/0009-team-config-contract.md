@@ -145,6 +145,14 @@ example values of 1 and 2 in "Schema" are an illustration of a stored override.
 
 - The gate policy leaves the repository (ADR 0006 decision 9 amended); `pr gate` on a console-tracker project
   depends on the console being reachable, which a job already does for everything else.
+- Outside a console job the plugin cannot read the owner's gate policy, because a local or hub run has no
+  owner-scoped credential. Plugin 0.12.0-pre.2 (product-team-plugin#40, team-console#683) therefore keys the local
+  gate on `tracker: github | console` in `.product-team/project.yml`, read from the PR's **base** branch, never from
+  its head or the working tree. With `tracker: console`, `pr gate` / `pr merge` outside a job refuse to judge
+  (`passed: false` with a reason) instead of reading the `review` block. Without the key, or with `github`, they
+  are the 0.11 gate. A project's cutover PR adds the key. Removing it later is itself a PR that the console's gate
+  judges inside a job (a change to `project.yml` needs SECURITY). The residual until 2-C is a console-tracker project
+  whose base branch has no key yet (C12 row 8).
 - Three consumers share one guard and one fixture directory; a preset change is reviewed once and lands in the
   runner by release and in the plugin by lock bump.
 - The runner's `config.roles` override disappears — a runner host cannot quietly upgrade a project's model.
