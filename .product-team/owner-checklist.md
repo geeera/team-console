@@ -169,7 +169,7 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
     2. Скрипт поднимет страницу на `127.0.0.1` и попытается открыть её в браузере (если не откроется сама —
        ссылка из терминала). Страница сама отправит форму с прописанными для `team-console-<env>` именем,
        homepage, webhook URL, разрешениями (`metadata: read`, `issues: write`, `pull_requests: read`,
-       `contents: read`, `actions: read`) и событиями (`issues`, `issue_comment`, `pull_request`,
+       `contents: read`, `actions: read`, `checks: read`) и событиями (`issues`, `issue_comment`, `pull_request`,
        `workflow_run`, `release`, `push`) на github.com/settings/apps/new. **Единственное, что делаешь ты**:
        проверяешь экран подтверждения GitHub и нажимаешь **Create GitHub App** — **не переименовывай** приложение
        на этом экране: скрипт принимает от GitHub только точное совпадение с именем `team-console-<env>`, любое

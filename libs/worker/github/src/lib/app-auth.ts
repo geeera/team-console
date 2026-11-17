@@ -47,6 +47,8 @@ export const INSTALLATION_PERMISSIONS: Readonly<Record<string, 'read'>> = Object
   pull_requests: 'read',
   contents: 'read',
   actions: 'read',
+  // #197: private repositories refuse check-runs reads without it (public ones serve them anyway).
+  checks: 'read',
 });
 
 /**

@@ -210,6 +210,7 @@ describe('GitHubAppAuth', () => {
         pull_requests: 'read',
         contents: 'read',
         actions: 'read',
+        checks: 'read',
       },
     });
     expect(INSTALLATION_PERMISSIONS).toEqual(JSON.parse(mint?.body ?? '').permissions);
