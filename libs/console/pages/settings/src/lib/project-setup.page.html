@@ -99,6 +99,14 @@
   </div>
   }
 
+  <tc-list [attr.aria-label]="'teamConfig.entry.row' | transloco">
+    <tc-list-row [link]="teamUrl()" data-testid="team-entry">
+      <tc-icon tc-row-leading name="sliders" />
+      <span tc-row-title>{{ 'teamConfig.entry.row' | transloco }}</span>
+      <span tc-row-subtitle>{{ 'teamConfig.entry.sub' | transloco }}</span>
+    </tc-list-row>
+  </tc-list>
+
   <div class="setup__danger">
     <button
       tc-button

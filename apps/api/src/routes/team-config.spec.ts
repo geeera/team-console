@@ -79,11 +79,34 @@ describe('GET …/team-config', () => {
     expect(body.resolved.roles).toEqual(TEAM_CONFIG_PRESET_ROLES.recommended);
   });
 
-  it('is read by a member of the account as well', async () => {
+  it('is read by a member of the account as well, who is told they cannot manage it (#688)', async () => {
     const project = await seedTrackerProject();
     const member = await seedSessionUser('member');
     await seedMembership(OWNER_ACCOUNT_ID, member.userId, 'member');
-    expect((await sendAsSession(member, 'GET', base(project))).status).toBe(200);
+    const response = await sendAsSession(member, 'GET', base(project));
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as TeamConfigDto).canManage).toBe(false);
+  });
+
+  it('tells the owner they can manage it, and that a subscription is open with no hosted path (#688)', async () => {
+    const project = await seedTrackerProject();
+    const body = (await (await send('GET', base(project))).json()) as TeamConfigDto;
+    expect(body).toMatchObject({ canManage: true, subscriptionBlocked: false, updatedByName: null });
+  });
+
+  it('names the author by login, never by email, and the owner identity by none (#688)', async () => {
+    const account = await seedAccount();
+    const owner = await seedSessionUser('owner');
+    await seedMembership(account.id, owner.userId, 'owner');
+    await env.DB.prepare(`UPDATE users SET email = 'owner@example.test' WHERE id = ?1`).bind(owner.userId).run();
+    const { slug } = await seedAccountProject(account, { tracker: 'console' });
+    const path = `${P}/${slug}/team-config`;
+    const put = await sendAsSession(owner, 'PUT', path, { config: doc({ access: { source: 'api_key' } }) }, { headers: { 'If-Match': '"0"' } });
+    expect(put.status).toBe(200);
+    const body = (await put.json()) as TeamConfigDto;
+    const login = (await env.DB.prepare(`SELECT login FROM users WHERE id = ?1`).bind(owner.userId).first<{ login: string }>())?.login;
+    expect(body.updatedByName).toBe(login);
+    expect(JSON.stringify(body)).not.toContain('owner@example.test');
   });
 });
 
@@ -246,9 +269,15 @@ describe('access source and placement (ADR 0009 d.3, threat model C12 row 6)', (
     expect(refused.status).toBe(422);
     expect(await refused.json()).toMatchObject({ type: expect.stringContaining('access-source-hosted') as unknown, field: 'access.source' });
 
+    // The read says so, for Settings to show the choice disabled with its reason (#688).
+    const blockedOf = async (): Promise<boolean> =>
+      ((await (await sendAsSession(owner, 'GET', path)).json()) as TeamConfigDto).subscriptionBlocked;
+    expect(await blockedOf()).toBe(true);
+
     // Pinned to a self-hosted runner, a subscription is fine; then pointing the placement at the hosted one is refused.
     const mac = await enrolRunner(account.id, { allowedProjects: [slug], as: owner });
     expect((await sendAsSession(owner, 'PUT', `${P}/${slug}/runner-policy`, { mode: 'pinned', runner: mac.id })).status).toBe(200);
+    expect(await blockedOf()).toBe(false);
     expect((await sendAsSession(owner, 'PUT', path, { config: doc({ access: { source: 'subscription' } }) }, { headers: { 'If-Match': '"0"' } })).status).toBe(200);
     const reverse = await sendAsSession(owner, 'PUT', `${P}/${slug}/runner-policy`, { mode: 'pinned', runner: hosted });
     expect(reverse.status).toBe(422);

@@ -1,0 +1,116 @@
+<div class="role-row__name">
+  <span class="role-row__title" [id]="nameId()">{{ 'teamConfig.role.name.' + teamRole() | transloco }}</span>
+  @if (isOverridden()) {
+    <tc-chip tone="success" data-testid="role-override">{{ 'teamConfig.role.override' | transloco }}</tc-chip>
+  }
+</div>
+
+<div class="role-row__switch">
+  @if (hasSwitch()) {
+    @if (readOnly()) {
+      <span class="role-row__value" data-testid="role-state">
+        {{ (settings().enabled || isLocked() ? 'teamConfig.value.on' : 'teamConfig.value.off') | transloco }}
+      </span>
+    } @else {
+      <button
+        tc-switch
+        type="button"
+        data-testid="role-switch"
+        [id]="switchId()"
+        [attr.data-control]="'roles.' + teamRole() + '.enabled'"
+        [locked]="isLocked()"
+        [attr.aria-label]="'teamConfig.role.name.' + teamRole() | transloco"
+        [attr.aria-describedby]="reasonKey() === null ? null : reasonId()"
+        [ngModel]="settings().enabled"
+        (ngModelChange)="toggled.emit($event)"
+      ></button>
+    }
+  }
+</div>
+
+<div class="role-row__model">
+  @if (readOnly()) {
+    <span class="role-row__value" data-testid="role-model">
+      {{ 'teamConfig.model.' + modelKey() | transloco }} ·
+      {{ 'teamConfig.effort.' + settings().effort | transloco }}
+    </span>
+  } @else {
+    <button
+      tc-picker
+      type="button"
+      class="role-row__picker"
+      data-testid="role-model"
+      [id]="modelId()"
+      [attr.data-control]="'roles.' + teamRole() + '.model'"
+      [field]="('teamConfig.role.name.' + teamRole() | transloco) + ' · ' + ('teamConfig.field.role.model' | transloco)"
+      [value]="('teamConfig.model.' + modelKey() | transloco) + ' · ' + ('teamConfig.effort.' + settings().effort | transloco)"
+      [attr.aria-invalid]="modelError() === null ? null : 'true'"
+      [attr.aria-describedby]="modelDescribedBy()"
+      (click)="pickModel.emit()"
+    >
+      <span aria-hidden="true"></span>
+    </button>
+  }
+</div>
+
+<div class="role-row__limits">
+  @if (readOnly()) {
+    <span class="role-row__value" data-testid="role-limits">
+      {{ 'teamConfig.role.limits' | transloco: { minutes: settings().max_minutes, turns: settings().max_turns, parallel: settings().max_parallel } }}
+    </span>
+  } @else {
+    <button
+      tc-button
+      type="button"
+      class="role-row__limits-button"
+      data-testid="role-limits"
+      [id]="limitsId()"
+      [attr.data-control]="'roles.' + teamRole() + '.limits'"
+      [attr.aria-label]="
+        ('teamConfig.role.limitsAria' | transloco: { role: ('teamConfig.role.name.' + teamRole() | transloco) }) +
+        ': ' +
+        ('teamConfig.role.limits' | transloco: { minutes: settings().max_minutes, turns: settings().max_turns, parallel: settings().max_parallel })
+      "
+      [attr.aria-invalid]="limitsError() === null ? null : 'true'"
+      [attr.aria-describedby]="limitsDescribedBy()"
+      (click)="editLimits.emit()"
+    >
+      <span>{{ 'teamConfig.role.limits' | transloco: { minutes: settings().max_minutes, turns: settings().max_turns, parallel: settings().max_parallel } }}</span>
+      <tc-icon name="chevron-right" size="sm" />
+    </button>
+  }
+</div>
+
+<div class="role-row__reset">
+  @if (isOverridden() && !readOnly()) {
+    <button
+      tc-button
+      variant="quiet"
+      type="button"
+      data-testid="role-reset"
+      [attr.aria-label]="'teamConfig.role.resetAria' | transloco: { role: ('teamConfig.role.name.' + teamRole() | transloco) }"
+      (click)="resetRole.emit()"
+    >
+      {{ 'teamConfig.role.reset' | transloco }}
+    </button>
+  }
+</div>
+
+@if (reasonKey(); as reasonKey) {
+  <p class="role-row__reason" data-testid="role-reason" [id]="reasonId()">
+    @if (isLocked()) {
+      <tc-icon name="lock" size="sm" />
+    }
+    <span>{{ reasonKey | transloco }}</span>
+  </p>
+}
+@if (modelError(); as error) {
+  <p class="role-row__error" role="alert" [id]="modelId() + '-error'">
+    <tc-icon name="alert" size="sm" /><span>{{ error }}</span>
+  </p>
+}
+@if (limitsError(); as error) {
+  <p class="role-row__error" role="alert" [id]="limitsId() + '-error'">
+    <tc-icon name="alert" size="sm" /><span>{{ error }}</span>
+  </p>
+}

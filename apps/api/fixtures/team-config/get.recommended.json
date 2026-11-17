@@ -174,7 +174,10 @@
         }
       },
       "updatedAt": null,
-      "updatedBy": null
+      "updatedBy": null,
+      "updatedByName": null,
+      "canManage": true,
+      "subscriptionBlocked": false
     }
   }
 }

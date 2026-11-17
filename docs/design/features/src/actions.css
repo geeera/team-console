@@ -1,0 +1,162 @@
+/* ===== #759 Actions onboarding, on the Paper Desk tokens (ADR 0002) =====
+   Builds on #24's setup ledger (settings.css: .ledger, .step, .res), #104's chips, rows and summary chrome (env.css)
+   and #750's setup-page row (projenv.css). This file adds only what #759 introduces: the extra step words
+   (update available, waiting, failed), the sub-check list inside a step, the PR slip, the inline file region of the
+   copy path, the step action row, and the Runners readiness line. One new token: the file region's height. */
+:root{--yml-max:240px}
+
+/* ----- heading block ----- */
+.act-head{display:grid;gap:var(--sp-2)}
+.act-head h1{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-2xl);line-height:var(--lh-tight);outline:none}
+.act-head .set-lead{margin:0;max-width:62ch}
+.act-head .ext{min-height:var(--target);align-self:start}
+.act-minutes{display:flex;gap:var(--sp-2);align-items:flex-start;margin:calc(-1 * var(--sp-2)) 0 0;font-size:var(--fs-xs);color:var(--text-2);max-width:68ch}
+.act-minutes .ico{flex:none;width:14px;height:14px;margin-top:2px;color:var(--text-3)}
+.act-slow{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+
+/* the summary is #24's margin note with #104's foot (Checked at · Check again) */
+.res .esum__foot{width:100%}
+.res .esum__foot .btn{min-height:var(--target)}
+.app[data-app=phone] .res .esum__foot .btn{flex:1 1 auto}
+.res .res__links{display:flex;flex-wrap:wrap;gap:var(--sp-2) var(--sp-4)}
+.res .res__links .how__link{min-height:var(--target)}
+.res__skel{display:grid;gap:var(--sp-2);width:100%}
+.res__skel .skel{animation:pulse var(--dur-pulse) var(--ease-standard) infinite}
+.res__skel .skel--c{width:42%;height:var(--sp-5)}.res__skel .skel--d{width:28%}
+@media (prefers-reduced-motion:reduce){.res__skel .skel{animation:none}}
+:root[data-motion=reduce] .res__skel .skel{animation:none}
+
+/* ----- step words #759 adds: update available (ochre outline, never blocks), waiting, failed ----- */
+.step--outdated .step__mark{background:none;border:1.5px solid var(--warning-text);color:var(--warning-text)}
+.step--outdated .step__state{color:var(--warning-text)}
+.step--waiting .step__mark{background:none;border:1px solid var(--border-strong);color:var(--text-2)}
+.step--waiting .step__state{color:var(--text-2)}
+.step--on .step__mark{background:var(--accent);color:var(--accent-contrast)}
+.step--on .step__state{color:var(--accent-text)}
+.step--failed .step__mark{background:var(--danger-soft);color:var(--danger-text)}
+.step--failed .step__state{color:var(--danger-text)}
+.step--loading .step__state{color:var(--text-3)}
+.step--loading .step__title{color:var(--text-2)}
+.step__fix--quiet{color:var(--text-3)}
+.step__fix b{color:var(--text);font-weight:600}
+.step.is-first{position:relative;z-index:0}
+.step.is-first::before{content:"";position:absolute;inset:var(--sp-1);z-index:-1;border-radius:var(--r-md);background:color-mix(in oklab,var(--warning-soft) 40%,var(--surface))}
+
+/* ----- sub-checks: one line per readiness item, icon + word + what it means ----- */
+.subs{list-style:none;margin:var(--sp-1) 0 0;padding:0;display:grid;gap:var(--sp-2);width:100%}
+.sub{display:grid;grid-template-columns:20px minmax(0,1fr);gap:0 var(--sp-2);align-items:start;font-size:var(--fs-sm);color:var(--text)}
+.sub__ico{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:var(--success-soft);color:var(--success-text);margin-top:1px}
+.sub__ico .ico{width:12px;height:12px;stroke-width:2.8}
+.sub__txt{min-width:0;overflow-wrap:anywhere}
+.sub__word{display:inline-block;margin-right:var(--sp-2);font-size:var(--fs-xs);font-weight:700;font-variant:small-caps;letter-spacing:var(--ls-caps);text-transform:lowercase;color:var(--success-text)}
+.sub--missing .sub__ico,.sub--wrong .sub__ico{background:var(--warning-soft);color:var(--warning-text)}
+.sub--missing .sub__word,.sub--wrong .sub__word{color:var(--warning-text)}
+.sub--warn .sub__ico{background:none;border:1.5px solid var(--warning-text);color:var(--warning-text)}
+.sub--warn .sub__word{color:var(--warning-text)}
+.sub--unknown .sub__ico{background:var(--bg-sunken);color:var(--text-2)}
+.sub--unknown .sub__word,.sub--unknown{color:var(--text-2)}
+
+/* ----- how-to list with copy lines; links that leave for GitHub ----- */
+.how ol.act-how{margin:0;padding-left:1.4em;display:grid;gap:var(--sp-3)}
+.act-how li{padding-left:var(--sp-1)}
+.act-how li>p{margin:0 0 var(--sp-1)}
+.act-how li::marker{font-family:var(--font-display);color:var(--text-3)}
+.how .how__note{display:flex;gap:var(--sp-2);align-items:flex-start;color:var(--text)}
+.how .how__note .ico{flex:none;width:16px;height:16px;margin-top:2px;color:var(--text-2)}
+.how .how__note--key{padding:var(--sp-2) var(--sp-3);border-left:2px solid var(--accent);background:var(--surface);border-radius:0 var(--r-sm) var(--r-sm) 0}
+.why{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-3)}
+.why li{overflow-wrap:anywhere}
+.why b{color:var(--text)}
+.act-ext{display:inline-flex;align-items:center;gap:var(--sp-1);min-height:var(--target);font-weight:600;color:var(--accent-text);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;border-radius:var(--r-sm);overflow-wrap:anywhere}
+.act-ext .ico{flex:none;width:14px;height:14px}
+.act-ext:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+/* ----- the step's own actions ----- */
+.act-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2);margin-top:var(--sp-2);width:100%}
+.act-row .btn{min-height:var(--target)}
+.act-row a.btn{text-decoration:none}
+.app[data-app=phone] .act-row .btn{flex:1 1 100%}
+.act-reason{margin:0;flex-basis:100%;font-size:var(--fs-xs);color:var(--text-2)}
+.act-path{width:100%;margin-top:var(--sp-1)}
+.act-path .codeline code{font-family:var(--font-mono)}
+.app[data-app=phone] .act-path .codeline{flex-wrap:wrap}
+.app[data-app=phone] .act-path .codeline code{flex-basis:100%}
+.act-err{display:flex;gap:var(--sp-2);align-items:flex-start;width:100%;margin:var(--sp-2) 0 0;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--danger-soft);color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.act-err .ico{flex:none;margin-top:2px}
+.act-err--quiet{background:var(--bg-sunken);color:var(--text-2);font-weight:400}
+.act-err a,.act-err .link-btn{color:inherit}
+.act-err span{flex:1;min-width:0}
+.act-err .how__link{color:inherit;min-height:0;margin-top:var(--sp-1)}
+
+/* ----- the PR slip: number, branch, who opened it ----- */
+.prslip{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--sp-1) var(--sp-3);align-items:center;width:100%;margin-top:var(--sp-2);padding:var(--sp-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2)}
+.prslip__mark{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-text)}
+.prslip__mark .ico{width:16px;height:16px}
+.prslip__txt{display:grid;gap:2px;min-width:0}
+.prslip__title{font-weight:600;font-size:var(--fs-sm);overflow-wrap:anywhere}
+.prslip__branch{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-2);overflow-wrap:anywhere}
+.prslip .etag{justify-self:start;grid-column:2}
+.prslip--foreign{border:1.5px solid var(--danger-text);background:color-mix(in oklab,var(--danger-soft) 55%,var(--surface))}
+.prslip--foreign .prslip__mark{background:var(--danger-soft);color:var(--danger-text)}
+.prslip--foreign .etag{border-color:var(--danger-text);color:var(--danger-text)}
+.prslip--quiet .prslip__mark{background:var(--bg-sunken);color:var(--text-2)}
+.pins{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-1);font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text)}
+
+/* ----- the copy path: the file in its own scrollable region (the page never scrolls sideways) ----- */
+.file{display:grid;gap:var(--sp-3);width:100%;min-width:0}
+.file__meta{margin:0;font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-2);overflow-wrap:anywhere}
+.yml{position:relative;margin:0;max-height:var(--yml-max);overflow:auto;padding:var(--sp-3);border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);font-family:var(--font-mono);font-size:var(--fs-xs);line-height:1.6;color:var(--text);white-space:pre;tab-size:2}
+.yml:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.yml .c{color:var(--text-3)}
+.yml .k{color:var(--accent-text)}
+.file__copy{justify-self:start}
+
+/* ----- step 5: the switch, and the success line ----- */
+.step .stamp{right:var(--sp-4);top:var(--sp-4);width:var(--stamp-sm);height:var(--stamp-sm)}
+
+/* ----- setup page: the sibling rows ----- */
+.setup-rows{display:grid;gap:var(--sp-2)}
+.setup-rows .plist{box-shadow:none}
+.setup-rows .est--on{background:var(--success-soft);color:var(--success-text)}
+.setup-rows .est--off{background:var(--bg-sunken);color:var(--text-2)}
+.env-ico--run{background:var(--accent-soft);color:var(--accent-text)}
+
+/* ----- Runners › Where jobs run ----- */
+.rcard{display:grid;gap:var(--sp-4);padding:var(--sp-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.app[data-app=phone] .rcard{padding:var(--sp-4)}
+.rcard__proj{display:flex;align-items:center;gap:var(--sp-3)}
+.rcard__proj .prod-mono{width:34px;height:34px;font-size:16px}
+.rcard__proj b{font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg)}
+.rcard__proj code{font-size:var(--fs-xs);color:var(--text-2)}
+.rcard h3{margin:0;font-size:var(--fs-md);font-weight:600}
+.rcard p{margin:0;font-size:var(--fs-sm);color:var(--text-2);max-width:62ch}
+.radios{margin:0;padding:0;border:0;display:grid;gap:var(--sp-2);min-width:0}
+.radios legend{padding:0;margin-bottom:var(--sp-2);font-size:var(--fs-sm);font-weight:600}
+.radio{position:relative;display:flex;align-items:flex-start;gap:var(--sp-3);min-height:var(--target);padding:var(--sp-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);cursor:pointer;transition:border-color var(--dur-fast) var(--ease-standard)}
+.radio:hover{border-color:var(--border-strong)}
+.radio.is-on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.radio input{position:absolute;opacity:0;width:1px;height:1px}
+.radio:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
+.radio__mark{flex:none;width:20px;height:20px;margin-top:2px;border-radius:50%;border:1.5px solid var(--border-strong);display:grid;place-items:center}
+.radio.is-on .radio__mark{border-color:var(--accent)}
+.radio.is-on .radio__mark::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.radio__txt{display:grid;gap:2px;min-width:0;font-size:var(--fs-sm);color:var(--text-2);overflow-wrap:anywhere}
+.radio__txt b{font-weight:600;color:var(--text);font-size:var(--fs-md)}
+/* the readiness line sits inside the chosen radio's column, under its hint */
+.rline{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-3);margin:var(--sp-2) 0 0;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-sm);font-weight:600}
+.rline>span{display:inline-flex;align-items:flex-start;gap:var(--sp-2);flex:1 1 14rem;min-width:0}
+.rline .ico{flex:none;width:16px;height:16px;margin-top:2px}
+.rline--ok{background:var(--success-soft);color:var(--success-text)}
+.rline--checking,.rline--failed{background:var(--bg-sunken);color:var(--text-2);font-weight:400}
+.rline .how__link{color:inherit;min-height:var(--target)}
+.rline .typing{padding:0}
+.rsave{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-3)}
+.rsave .btn{min-height:var(--target)}
+.app[data-app=phone] .rsave .btn{width:100%}
+.rbanner{display:flex;flex-wrap:wrap;gap:var(--sp-1) var(--sp-3);align-items:flex-start;padding:var(--sp-3);border-radius:var(--r-md);background:var(--danger-soft);color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.rbanner>span{display:flex;gap:var(--sp-2);flex:1 1 16rem;min-width:0}
+.rbanner .ico{flex:none;margin-top:2px}
+.rbanner .how__link{color:inherit}
+
+@media (prefers-reduced-motion:reduce){.radio{transition:none}}
+:root[data-motion=reduce] .radio{transition:none}

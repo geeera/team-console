@@ -1,4 +1,11 @@
-import { localCalendarDayOf, localCalendarRangeOf, localDayOf, localNumberOf, localTimeOf } from './local-time';
+import {
+  localCalendarDayOf,
+  localCalendarRangeOf,
+  localDayOf,
+  localNumberOf,
+  localTimeOf,
+  localUsdOf,
+} from './local-time';
 
 describe('localTimeOf / localDayOf', () => {
   // A local wall-clock time, so the expectation does not depend on the runner's time zone.
@@ -46,5 +53,14 @@ describe('localCalendarDayOf / localCalendarRangeOf (#218)', () => {
     expect(localCalendarRangeOf('2026-09-30', '2026-10-02', 'en')).toMatch(/^30 September\s?–\s?2 October$/);
     expect(localCalendarRangeOf('2026-10-14', '2026-10-14', 'en')).toBe('14 October');
     expect(localCalendarRangeOf('', '2026-10-14', 'en')).toBe('');
+  });
+});
+
+describe('localUsdOf', () => {
+  it('words dollars in the language, cents only when there are some', () => {
+    expect(localUsdOf(200, 'en')).toBe('$200');
+    expect(localUsdOf(201.5, 'en')).toBe('$201.50');
+    expect(localUsdOf(200, 'ru').replace(/\s/g, ' ')).toBe('200 $');
+    expect(localUsdOf(Number.NaN, 'en')).toBe('');
   });
 });
