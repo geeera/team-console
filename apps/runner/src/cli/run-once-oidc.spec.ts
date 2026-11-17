@@ -31,6 +31,12 @@ import { actionsRunSettingsOf } from './run-once-oidc';
 const TOKEN_ENDPOINT = 'http://127.0.0.1:1/_apis/token?api-version=2.0';
 const CONSOLE = 'http://127.0.0.1:2';
 const JOB_TOKEN = `tcj_${'J'.repeat(43)}`;
+/**
+ * The end-to-end cases run the real job loop (git HTTP server, fake Claude CLI, sandbox sweep): about 550 ms each on
+ * an idle host, but vitest's default 5 s timeout flakes under load (#714). 15 s gives a loaded host ~25x headroom
+ * without masking a genuine hang.
+ */
+const E2E_TIMEOUT_MS = 15_000;
 const b64 = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
 /** A token shaped as GitHub's (a compact JWS); never verified here, only carried. */
 const ID_TOKEN = `${b64({ alg: 'RS256', typ: 'JWT', kid: 'k' })}.${b64({ aud: 'team-console:local', run_id: '9123456789' })}.${'s'.repeat(86)}`;
@@ -171,7 +177,7 @@ describe('run-once --oidc', () => {
 
     expect(wire.events.find((event) => event.kind === 'started')?.payload).toMatchObject({ backend: 'actions-ephemeral' });
     expect(wire.finished).toEqual([expect.objectContaining({ result: 'finished', summary: 'Done: nothing to do' })]);
-  });
+  }, E2E_TIMEOUT_MS);
 
   it('builds the job env from nothing: the key as ANTHROPIC_API_KEY, none of the run’s own variables', async () => {
     const { exit, wire } = run();
@@ -196,7 +202,7 @@ describe('run-once --oidc', () => {
     ]) {
       expect(names).not.toContain(name);
     }
-  });
+  }, E2E_TIMEOUT_MS);
 
   it('clones with the read token through git’s env config, and keeps nothing behind', async () => {
     const seen = git.authorizations.length;
@@ -216,7 +222,7 @@ describe('run-once --oidc', () => {
     expect(mirrorConfig).toContain(`${git.origin}/${ACTIONS_REPOSITORY}.git`);
     expect(mirrorConfig).not.toContain('extraheader');
     expect(mirrorConfig).not.toContain(actionsSecrets.readToken);
-  });
+  }, E2E_TIMEOUT_MS);
 
   it('without the read token the mirror fetch is refused and the job finishes failed, still through the console', async () => {
     const { exit, wire } = run({ env: { GITHUB_TOKEN: undefined } });
@@ -226,7 +232,7 @@ describe('run-once --oidc', () => {
       expect.objectContaining({ result: 'failed', metrics: expect.objectContaining({ reason: 'runner-error' }) }),
     ]);
     expect(err.join('\n')).toContain('GitError: git clone failed');
-  });
+  }, E2E_TIMEOUT_MS);
 
   it('sentinel: the key, the OIDC token and the run’s tokens never reach stdout, stderr or a body', async () => {
     // The sentinel scenario prints secret shapes, the inference key's among them, on the CLI's stdout and stderr.
@@ -257,7 +263,7 @@ describe('run-once --oidc', () => {
     const bearing = wire.requests.filter((request) => JSON.stringify(request).includes(actionsSecrets.idTokenRequestToken));
     expect(bearing).toEqual(tokenRequests(wire));
     expect(out).toEqual([JOB_ID]);
-  });
+  }, E2E_TIMEOUT_MS);
 
   describe('--request-token - (the request token on stdin, #712)', () => {
     const STDIN_ARGV = ['run-once', '--oidc', '--request-token', '-'] as const;
@@ -279,7 +285,7 @@ describe('run-once --oidc', () => {
       expect(exchanges(wire)).toHaveLength(1);
       expect(wire.finished).toEqual([expect.objectContaining({ result: 'finished' })]);
       expect([...out, ...err].join('\n')).not.toContain(actionsSecrets.idTokenRequestToken);
-    });
+    }, E2E_TIMEOUT_MS);
 
     it('refuses the token on stdin and in the env at once, before any request', async () => {
       const { exit, wire } = run({
@@ -434,6 +440,51 @@ describe('run-once --oidc', () => {
       const { exit } = run({ exchange: () => problem(409, 'oidc-exchange-refused') });
       expect(await exit).toBe(EXIT_FAILED);
       expect(err.join('\n')).toContain('409 (oidc-exchange-refused)');
+    });
+
+    it('an exchange answer whose teamConfig names a model outside the allow-list finishes the job team-config-invalid, with no CLI launched (#741)', async () => {
+      const { exit, wire } = run({
+        exchange: () =>
+          json(200, {
+            job: jobFixture({ dispatch: 'actions', maxMinutes: 5 }),
+            jobToken: JOB_TOKEN,
+            leaseSeconds: 300,
+            teamConfig: {
+              ...resolveTeamConfig(null, { revision: 0, accessSource: 'api_key' }),
+              roles: {
+                ...resolveTeamConfig(null, { revision: 0, accessSource: 'api_key' }).roles,
+                developer: { model: 'claude-not-allow-listed', max_turns: 20, effort: 'medium' },
+              },
+            },
+            teamConfigRevision: 3,
+            runner: { id: RUNNER_ID, audience: 'team-console:local' },
+          }),
+      });
+      // The exchange still succeeds and runs the job loop; the claim is already held by the time the console's
+      // teamConfig is judged, so `runJob` finishes it instead of the exchange throwing on a strict guard (#741).
+      expect(await exit).toBe(EXIT_OK);
+      expect(out).toEqual([JOB_ID]);
+      expect(wire.finished).toEqual([
+        expect.objectContaining({ result: 'failed', metrics: expect.objectContaining({ reason: 'team-config-invalid' }) }),
+      ]);
+      expect(wire.events.some((event) => event.kind === 'notice' && 'refused' in event.payload)).toBe(true);
+    }, E2E_TIMEOUT_MS);
+
+    it('a malformed job, jobToken or runner in the exchange answer still throws before any job runs (#741)', async () => {
+      const { exit, wire } = run({
+        exchange: () =>
+          json(200, {
+            job: { ...jobFixture({ dispatch: 'actions' }), state: 'sleeping' },
+            jobToken: JOB_TOKEN,
+            leaseSeconds: 300,
+            teamConfig: resolveTeamConfig(null, { revision: 0, accessSource: 'api_key' }),
+            teamConfigRevision: null,
+            runner: { id: RUNNER_ID, audience: 'team-console:local' },
+          }),
+      });
+      expect(await exit).toBe(EXIT_FAILED);
+      expect(err.join('\n')).toContain('oidc exchange: unexpected answer');
+      expect(wire.requests.filter((request) => request.url.includes('/runner/jobs/'))).toEqual([]);
     });
 
     it('an exchange answer for another job', async () => {

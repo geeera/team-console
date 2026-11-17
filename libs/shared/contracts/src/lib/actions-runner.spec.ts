@@ -110,10 +110,11 @@ describe('isOidcExchangeResponse', () => {
     expect(isOidcExchangeResponse(null)).toBe(false);
   });
 
-  it('requires the resolved team configuration the claim stamped (#687), as the pull claim carries it', () => {
+  it('requires a team configuration to be present (#687) but leaves its shape to the job loop (#741)', () => {
     expect(isOidcExchangeResponse({ ...answer, teamConfigRevision: 3 })).toBe(true);
     expect(isOidcExchangeResponse({ ...answer, teamConfig: undefined })).toBe(false);
-    expect(isOidcExchangeResponse({ ...answer, teamConfig: { ...answer.teamConfig, budget: { monthly_usd: 400 } } })).toBe(false);
+    // A malformed view is still an envelope the caller accepts; `launchPlanOf` is where it is judged and refused.
+    expect(isOidcExchangeResponse({ ...answer, teamConfig: { ...answer.teamConfig, budget: { monthly_usd: 400 } } })).toBe(true);
     expect(isOidcExchangeResponse({ ...answer, teamConfigRevision: undefined })).toBe(false);
     expect(isOidcExchangeResponse({ ...answer, teamConfigRevision: 1.5 })).toBe(false);
   });

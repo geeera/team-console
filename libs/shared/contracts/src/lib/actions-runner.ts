@@ -2,7 +2,6 @@ import { isUlid } from './account';
 import { isString } from './guards';
 import { isJobDto, type ClaimResponse } from './job';
 import { isEd25519PublicJwk, isRunnerId, isRunnerVersion, runnerHostOf, type Ed25519PublicJwk, type RunnerHostDto } from './runner';
-import { isResolvedTeamConfig } from './team-config';
 import { InputError, checked, isRecord, oneOf, record, text, type InputCheck } from './tracker/inputs';
 
 /**
@@ -80,8 +79,14 @@ export interface OidcExchangeInput {
   readonly host: RunnerHostDto;
 }
 
-/** The claim response of `POST /runner/jobs/claim` plus the identity the run's runner JWTs are signed for. */
-export type OidcExchangeResponse = ClaimResponse & {
+/**
+ * The claim response of `POST /runner/jobs/claim` plus the identity the run's runner JWTs are signed for.
+ * `teamConfig` is `unknown`, not `ResolvedTeamConfigDto` (#741): the job is already claimed by the time the exchange
+ * answers, so a view the guard would reject must still reach `runJob`, which refuses the launch and finishes the job
+ * (`team-config-invalid`) instead of this call throwing first and leaving the job to the lease.
+ */
+export type OidcExchangeResponse = Omit<ClaimResponse, 'teamConfig'> & {
+  readonly teamConfig: unknown;
   readonly runner: { readonly id: string; readonly audience: string };
 };
 
@@ -103,6 +108,11 @@ export function checkOidcExchangeInput(body: unknown): InputCheck<OidcExchangeIn
   });
 }
 
+/**
+ * The envelope only: `teamConfig` is checked for presence, never its shape (#741). A malformed `job`, `jobToken` or
+ * `runner` is still a protocol break the caller must throw on; a malformed `teamConfig` is the claim's problem and
+ * `launchPlanOf` (`isResolvedTeamConfig`) refuses it with `team-config-invalid` once the job is running.
+ */
 export function isOidcExchangeResponse(value: unknown): value is OidcExchangeResponse {
   if (!isRecord(value) || !isRecord(value['runner'])) {
     return false;
@@ -112,7 +122,7 @@ export function isOidcExchangeResponse(value: unknown): value is OidcExchangeRes
     isJobDto(value['job']) &&
     isString(value['jobToken']) &&
     typeof value['leaseSeconds'] === 'number' &&
-    isResolvedTeamConfig(value['teamConfig']) &&
+    value['teamConfig'] !== undefined &&
     (value['teamConfigRevision'] === null || Number.isSafeInteger(value['teamConfigRevision'])) &&
     isRunnerId(runner['id']) &&
     isString(runner['audience'])
