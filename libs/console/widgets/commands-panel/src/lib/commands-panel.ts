@@ -190,6 +190,9 @@ export class CommandsPanel {
         ? this.t('commands.status.ownerNoTime')
         : this.t('commands.status.owner', { time: localTimeOf(status.pausedAt, this.lang()) });
     }
+    if (status.state === 'paused-by-budget') {
+      return this.t('commands.status.budget');
+    }
     return this.t(status.state === 'running' ? 'commands.status.running' : 'commands.status.team');
   });
 

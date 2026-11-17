@@ -56,6 +56,7 @@ import {
 } from '../team/run-log-reader';
 import { routinesFetch } from '../team/routines';
 import { missingSlotsOf, slotTriggerOf } from '../team/slot-secrets';
+import { budgetMonthOf, consoleTeamStateOf, type ConsoleTeamState } from '../team/console-team-state';
 
 type Context = WorkerContext<ApiEnv>;
 
@@ -282,6 +283,15 @@ async function runLogOrProblem(
     }
     throw error;
   }
+}
+
+function runPaused(c: Context): Response {
+  return problem(c, {
+    type: 'run-paused',
+    title: 'Development is paused',
+    status: 409,
+    detail: 'Resume development first',
+  });
 }
 
 function notConfigured(c: Context, extensions: ProblemInit['extensions']): Response {
@@ -519,9 +529,13 @@ export function createTeamCommandsRoutes(
         });
       }
       const sprint = await sprintStatusOrNull(c, new ProjectReads(github, c.env, project, repo, github.now));
+      // #738: a console-tracker team pauses in `team_state`, and a pause there always holds (the claim reads it).
+      const consoleState: ConsoleTeamState | null =
+        project.tracker === 'console' ? await consoleTeamStateOf(c.env.DB, project.slug) : null;
+      const runLogPausedAt = view.state === 'paused-by-owner' ? (view.ownerPause?.pausedAt ?? null) : null;
       const body: TeamStatusDto = {
-        state: view.state,
-        pausedAt: view.state === 'paused-by-owner' ? (view.ownerPause?.pausedAt ?? null) : null,
+        state: consoleState?.state ?? view.state,
+        pausedAt: consoleState === null ? runLogPausedAt : consoleState.pausedAt,
         runLogUrl: view.issue?.htmlUrl ?? null,
         ownerConnected: (await owners.current(c.env, c.get('logger'))) !== null,
         environment: c.env.ENVIRONMENT,
@@ -532,8 +546,9 @@ export function createTeamCommandsRoutes(
         progress: sprint?.progress ?? null,
         calendar: sprint?.calendar ?? null,
         pendingRequests: await new OwnerRequestsRepo(c.env.DB).countPending(project.slug),
-        pauseHolds: view.consolePauseHolds,
-        pauseLiftsAtNextRun: view.liftedAtNextRun,
+        pauseHolds: consoleState !== null || view.consolePauseHolds,
+        pauseLiftsAtNextRun: consoleState === null && view.liftedAtNextRun,
+        budget: consoleState === null ? null : await budgetMonthOf(c.env.DB, project.slug, iso(nowMs)),
       };
       c.header('Cache-Control', 'no-store');
       return c.json(body);
@@ -568,6 +583,10 @@ export function createTeamCommandsRoutes(
         return invalid(c, request);
       }
       const { slot } = request;
+      // #731: a console-tracker team pauses in `team_state` (owner, failure streak, budget); nothing starts while it holds.
+      if (project.tracker === 'console' && (await consoleTeamStateOf(c.env.DB, project.slug)).state !== 'running') {
+        return runPaused(c);
+      }
       const trigger = slotTriggerOf(c.env, project.slug, slot);
       if (trigger === null) {
         return notConfigured(c, { missing: missingSlotsOf(c.env, project.slug) });
@@ -580,12 +599,7 @@ export function createTeamCommandsRoutes(
         return view;
       }
       if (view.paused) {
-        return problem(c, {
-          type: 'run-paused',
-          title: 'Development is paused',
-          status: 409,
-          detail: 'Resume development first',
-        });
+        return runPaused(c);
       }
       const started = startedLock(view, slot, nowMs);
       if (started?.kind === 'started') {

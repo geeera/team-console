@@ -622,6 +622,111 @@ describe('POST /runs', () => {
   });
 });
 
+describe('a console-tracker project: the state is team_state (#738), and Run now honours it (#731)', () => {
+  const STREAK = 'system:failure-streak';
+  const BUDGET = 'system:budget';
+  const PAUSED_AT = '2026-10-01T11:00:00.000Z';
+
+  beforeEach(async () => {
+    await env.DB.prepare(`UPDATE projects SET tracker = 'console', key_prefix = 'TC' WHERE slug = 'tc'`).run();
+  });
+
+  // Both rows reference the project, which the next case's reset deletes.
+  afterEach(async () => {
+    await env.DB.batch([
+      env.DB.prepare(`DELETE FROM team_state WHERE project_slug = 'tc'`),
+      env.DB.prepare(`DELETE FROM project_spend WHERE project_slug = 'tc'`),
+    ]);
+  });
+
+  async function pausedBy(by: string): Promise<void> {
+    await env.DB.prepare(
+      `INSERT INTO team_state (project_slug, paused_at, paused_by, failed_streak, updated_at) VALUES ('tc', ?1, ?2, 0, ?1)`,
+    )
+      .bind(PAUSED_AT, by)
+      .run();
+  }
+
+  it('reads running from no team_state row, whatever label the run log carries; a pause there always holds', async () => {
+    const h = harness(['team:run-log', 'team:paused'], BOT);
+    await expect(status(h)).resolves.toMatchObject({
+      state: 'running',
+      pausedAt: null,
+      pauseHolds: true,
+      pauseLiftsAtNextRun: false,
+      budget: { month: '2026-10', spentUsd: 0, budgetUsd: null, waivedAt: null },
+    });
+  });
+
+  it('the owner’s pause from the console reads paused by the owner, with when, and Run now is 409 run-paused', async () => {
+    const h = harness();
+    expect((await call(h, 'POST', '/team/pause', {})).status).toBe(201);
+    const body = await status(h);
+    expect(body.state).toBe('paused-by-owner');
+    expect(body.pausedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    const refused = await run(h, 'dev');
+    expect(refused.status).toBe(409);
+    await expect(slugOf(refused)).resolves.toMatchObject({ slug: 'run-paused' });
+    expect(h.routines.fires).toEqual([]);
+    expect(ownerWrites(h)).toEqual([]);
+  });
+
+  it('the failure streak’s pause reads as the team pausing itself', async () => {
+    const h = harness();
+    await pausedBy(STREAK);
+    await expect(status(h)).resolves.toMatchObject({ state: 'paused-by-team', pausedAt: PAUSED_AT });
+    await expect(slugOf(await run(h, 'pm'))).resolves.toMatchObject({ slug: 'run-paused' });
+    expect(h.routines.fires).toEqual([]);
+  });
+
+  it('the budget stop reads paused by the budget, with the month’s figures, and Run now fires nothing', async () => {
+    const h = harness();
+    await pausedBy(BUDGET);
+    await env.DB.prepare(
+      `INSERT INTO project_spend (project_slug, month, spent_usd, jobs) VALUES ('tc', '2026-10', 1.5, 1)`,
+    ).run();
+    await expect(status(h)).resolves.toMatchObject({
+      state: 'paused-by-budget',
+      pausedAt: PAUSED_AT,
+      budget: { month: '2026-10', spentUsd: 1.5, waivedAt: null },
+    });
+    const refused = await run(h, 'dev');
+    expect(refused.status).toBe(409);
+    await expect(slugOf(refused)).resolves.toMatchObject({ slug: 'run-paused' });
+    expect(h.routines.fires).toEqual([]);
+    expect(await env.DB.prepare(`SELECT COUNT(*) AS n FROM slot_requests`).first<{ n: number }>()).toEqual({ n: 0 });
+    // Paused comes first: even a slot not set up for Run now answers run-paused, with nothing read from GitHub.
+    const calls = h.calls.length;
+    await expect(slugOf(await run(h, 'qa'))).resolves.toMatchObject({ slug: 'run-paused' });
+    expect(h.calls).toHaveLength(calls);
+
+    // The panel's plain resume lifts it; Run now then fires again.
+    expect((await call(h, 'POST', '/team/resume', {})).status).toBe(201);
+    await expect(status(h)).resolves.toMatchObject({ state: 'running', pausedAt: null });
+    expect((await run(h, 'dev')).status).toBe(202);
+    expect(h.routines.fires).toHaveLength(1);
+  });
+
+  it('shows a waived month as waived (#737)', async () => {
+    const h = harness();
+    await env.DB.prepare(
+      `INSERT INTO project_spend (project_slug, month, spent_usd, jobs, waived_at) VALUES ('tc', '2026-10', 3, 2, ?1)`,
+    )
+      .bind(PAUSED_AT)
+      .run();
+    await expect(status(h)).resolves.toMatchObject({
+      state: 'running',
+      budget: { month: '2026-10', spentUsd: 3, waivedAt: PAUSED_AT },
+    });
+  });
+
+  it('a GitHub-tracker project carries no budget month', async () => {
+    await env.DB.prepare(`UPDATE projects SET tracker = 'github', key_prefix = NULL WHERE slug = 'tc'`).run();
+    await pausedBy(BUDGET);
+    await expect(status(harness())).resolves.toMatchObject({ state: 'running', budget: null });
+  });
+});
+
 describe('a run log past 1000 comments (#143: the newest entries, never the oldest pages)', () => {
   const DAY = 24 * 60 * MINUTE;
   const LONG_LOG = 1250;
