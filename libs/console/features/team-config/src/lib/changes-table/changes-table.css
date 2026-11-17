@@ -1,0 +1,40 @@
+:host {
+  display: block;
+  max-width: 100%;
+}
+
+.changes {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+th,
+td {
+  padding: var(--space-2) var(--space-2) var(--space-2) 0;
+  border-bottom: var(--border-w) solid var(--border);
+  text-align: start;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+thead th {
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+}
+
+tbody th {
+  width: 44%;
+  font-weight: var(--fw-semibold);
+}
+
+.changes__old {
+  color: var(--text-2);
+}
+
+.changes__new {
+  font-weight: var(--fw-semibold);
+}

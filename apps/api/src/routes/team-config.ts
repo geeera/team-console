@@ -27,6 +27,7 @@ import {
   JobsRepo,
   RateLimitsRepo,
   TeamConfigRepo,
+  UsersRepo,
   rateWindowOf,
   retryAfterOf,
   type ProjectRow,
@@ -39,7 +40,7 @@ import { policyActorOfContext, trackerAccess, trackerProjectOfContext } from '..
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
-import { repoOf } from '../projects/lookup';
+import { canManageProject, repoOf } from '../projects/lookup';
 import type { OwnerConnectionSource } from '../projects/owner-connection';
 import { repoIdOf } from '../read-models/repo-id';
 import { SubrequestBudget } from '../read-models/subrequest-budget';
@@ -105,9 +106,18 @@ async function accessSourceOf(c: Context, row: ProjectRow): Promise<AccessSource
   return (await new TeamConfigRepo(c.env.DB).accessSourceOf(row.slug)) ?? 'subscription';
 }
 
+/** A person's login for an author id; the console's own owner identities and unknown ids have none. */
+async function authorNameOf(c: Context, actor: string | null): Promise<string | null> {
+  if (actor === null) {
+    return null;
+  }
+  return (await new UsersRepo(c.env.DB).findById(actor))?.login ?? null;
+}
+
 async function viewOf(c: Context, row: ProjectRow, current: TeamConfigRecord | null): Promise<TeamConfigDto> {
   const config = current?.config ?? null;
   const revision = current?.revision ?? 0;
+  const repo = new TeamConfigRepo(c.env.DB);
   return {
     config,
     revision,
@@ -116,6 +126,9 @@ async function viewOf(c: Context, row: ProjectRow, current: TeamConfigRecord | n
     resolved: resolveTeamConfig(config, { revision, accessSource: await accessSourceOf(c, row) }),
     updatedAt: current?.updatedAt ?? null,
     updatedBy: current?.updatedBy ?? null,
+    updatedByName: await authorNameOf(c, current?.updatedBy ?? null),
+    canManage: canManageProject(c, row),
+    subscriptionBlocked: await repo.isSubscriptionBlocked(row.slug),
   };
 }
 

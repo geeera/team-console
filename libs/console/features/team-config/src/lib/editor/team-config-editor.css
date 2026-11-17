@@ -1,0 +1,188 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.team__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.team__title {
+  font-size: var(--fs-2xl);
+}
+
+.team__title:focus {
+  outline: none;
+}
+
+.team__title:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+.team__revision,
+.team__slow,
+.team__help,
+.team__note,
+.team__value,
+.team__strong,
+.team__pair,
+.team__muted,
+.team__banner-text,
+.team__error {
+  margin: 0;
+}
+
+.team__revision,
+.team__slow,
+.team__help,
+.team__muted {
+  color: var(--text-2);
+}
+
+.team__help {
+  font-size: var(--fs-sm);
+}
+
+.team__value,
+.team__strong {
+  font-weight: var(--fw-semibold);
+}
+
+.team__banners {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.team__banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.team__conflicts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.team__conflict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.team__conflict-field {
+  font-weight: var(--fw-semibold);
+}
+
+.team__legendless {
+  margin: 0;
+}
+
+.team__preset-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.team__roles {
+  display: flex;
+  flex-direction: column;
+  margin: 0 calc(var(--space-4) * -1) calc(var(--space-4) * -1);
+}
+
+.team__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.team__subtitle {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+
+.team__pair {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.team__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--card-min-w)), 1fr));
+  gap: var(--space-3) var(--space-4);
+}
+
+.team__paths {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.team__path {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-h-touch);
+  padding-inline: var(--space-3) var(--space-1);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.team__path-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.team__path-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+}
+
+.team__error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--danger-text);
+  font-size: var(--fs-sm);
+}
+
+.team__lever {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+.team__lever-name {
+  font-weight: var(--fw-semibold);
+}
+
+.team__lever-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+}

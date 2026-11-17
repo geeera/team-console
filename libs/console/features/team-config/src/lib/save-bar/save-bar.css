@@ -1,0 +1,61 @@
+:host {
+  position: sticky;
+  bottom: var(--space-3);
+  z-index: var(--z-raised);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  animation: save-bar-in var(--dur-base) var(--ease-enter);
+}
+
+@keyframes save-bar-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+}
+
+.save-bar__text {
+  min-width: 0;
+}
+
+.save-bar__count,
+.save-bar__reason {
+  margin: 0;
+}
+
+.save-bar__count {
+  font-weight: var(--fw-semibold);
+}
+
+.save-bar__reason {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.save-bar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+@media (max-width: 519.98px) {
+  :host {
+    bottom: calc(var(--tab-bar-h) + var(--safe-bottom) + var(--space-2));
+  }
+
+  .save-bar__actions {
+    width: 100%;
+  }
+
+  .save-bar__actions > * {
+    flex: 1;
+  }
+}
