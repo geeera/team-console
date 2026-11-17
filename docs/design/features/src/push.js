@@ -8,15 +8,8 @@
   const L = Proto.i18n(I18N);
   const { t } = L;
 
-  /* ---------- icons this feature adds to the kit (24 grid, 1.8 stroke, as icon.ts) ---------- */
-  const svg = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
-  const J = {
-    bell: svg('<path d="M6 16.5V11a6 6 0 0112 0v5.5l1.5 2h-15zM10 20.5a2 2 0 004 0"/>'),
-    'bell-off': svg('<path d="M8.2 6.2A6 6 0 0118 11v3.5M6 11v5.5l-1.5 2h12M10 20.5a2 2 0 004 0M4 4l16 16"/>'),
-    share: svg('<path d="M12 3.5v11M8 7.5l4-4 4 4M8.5 10.5h-2a1 1 0 00-1 1v8a1 1 0 001 1h11a1 1 0 001-1v-8a1 1 0 00-1-1h-2"/>'),
-    more: svg('<path class="ico-dots" d="M6.5 12h.01M12 12h.01M17.5 12h.01"/>'),
-    'add-square': svg('<rect x="4.5" y="4.5" width="15" height="15" rx="3.5"/><path d="M12 8.5v7M8.5 12h7"/>'),
-  };
+  /* ---------- icons this feature added to the kit (now in proto.js, shared with #761) ---------- */
+  const J = { bell: I.bell, 'bell-off': I.bellOff, share: I.share, more: I.more, 'add-square': I.addSquare };
 
   /* ---------- mock data ---------- */
   const HOST = 'team-console-dev.example.workers.dev';
